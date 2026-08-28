@@ -40,6 +40,13 @@ import {
 // carries the `#`-comment skip this file's own readJsonl would have to repeat
 // for a ledger whose first 15 lines are a comment header (SEAM-3).
 import { loadRegistry } from './follow-ups.mjs';
+// ONE grammar, two consumers (operator-waiver-unblocks-pr): the waiver record
+// the aai-pr gate accepts is parsed by the SAME scanner here, never a second
+// regex that could drift from the gate's. Report-only — nothing in this file
+// blocks anything; a waived ride is SHOWN, and self-waived (agent) rides are
+// counted apart from operator ones so a gate an agent cleared for itself can
+// never hide inside the operator total.
+import { scanWaivers } from './validation-waiver.mjs';
 
 const ROOT = process.cwd();
 
@@ -336,7 +343,15 @@ function buildModel(args) {
   // fixture that happens to also trip this — can filter these out the same way
   // it deletes the new keys, never by silently suppressing the check itself.
   const scopeCostNotes = [];
+  // Validation waivers, surfaced (operator-waiver-unblocks-pr). A waiver is
+  // recorded in STATE `last_validation.notes`, which the flush overwrites —
+  // the durable home for it in the LEDGER is the ride's own run notes, where
+  // every other ride fact already lives. Rejected sentinels are counted, not
+  // dropped: a half-typed record is a visible hole, not an absent one.
+  const waiverRides = [];
+  let waiverRejected = 0;
   for (const m of rides) {
+    const rideWaivers = [];
     let busy = 0; let hasBusy = false;
     let tok = 0; let hasTok = false;
     const rideWeek = isoWeek(m.date_utc);
@@ -357,6 +372,9 @@ function buildModel(args) {
       const roleKey = role ?? 'Other';
       if (typeof r.duration_seconds === 'number') roleDurations.set(roleKey, (roleDurations.get(roleKey) ?? 0) + r.duration_seconds);
       const t = extractUsageTotal(r.note);
+      const rw = scanWaivers(r.note);
+      for (const rec of rw.records) rideWaivers.push(rec);
+      waiverRejected += rw.rejected;
       totalRuns += 1;
       if (t !== null) {
         tok += t; hasTok = true;
@@ -415,6 +433,21 @@ function buildModel(args) {
     const remediation = rel && typeof rel.remediation_runs === 'number' ? rel.remediation_runs : null;
     if (remediation !== null && remediation !== remediationStructural) {
       scopeCostNotes.push(`NOTE scope ${m.ref_id} remediation runs disagree: structural ${remediationStructural} vs reliability.remediation_runs ${remediation} (scope_cost)`);
+    }
+    if (rideWaivers.length > 0) {
+      // A ride carrying BOTH kinds is reported as OPERATOR — the human record
+      // is the accountable one — but `self_waived` still records that an agent
+      // also cleared it, so the agent's act never disappears from the row.
+      const op = rideWaivers.find((w) => w.by === 'operator') ?? null;
+      const chosen = op ?? rideWaivers[0];
+      waiverRides.push({
+        ref: m.ref_id,
+        date_utc: m.date_utc ?? null,
+        by: chosen.by,
+        self_waived: rideWaivers.some((w) => w.by === 'agent'),
+        at: chosen.at,
+        reason: chosen.reason,
+      });
     }
     perRide.push({
       ref: m.ref_id,
@@ -680,6 +713,19 @@ function buildModel(args) {
       review_events: reviewEvents,
       review_verdict_note: 'per-review pass/fail lives only in prose run notes and is not mechanically derived; only ride verdict + code_review_completed count are shown',
     },
+    // ADDITIVE, top-level (operator-waiver-unblocks-pr): its own key and its
+    // own rendered section, so the backcompat byte-stability pin excises it
+    // whole the way it already excises role_consumption / follow_ups /
+    // scope_cost — a new field buried inside `quality` would have rewritten a
+    // pinned block instead of adding to it.
+    validation_waivers: {
+      total: waiverRides.length,
+      operator: waiverRides.filter((w) => w.by === 'operator').length,
+      agent: waiverRides.filter((w) => w.by === 'agent').length,
+      rejected_records: waiverRejected,
+      rides: waiverRides,
+      note: 'a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate',
+    },
     trend,
     follow_ups: followUps,
     // D11: every ride in METRICS.jsonl gets a row; none are filtered by close
@@ -790,6 +836,9 @@ function renderHtml(m) {
   const verdictRows = Object.keys(m.quality.verdict_mix).sort()
     .map((k) => `<tr><td>${esc(k)}</td><td>${m.quality.verdict_mix[k]}</td></tr>`).join('');
   const fpc = m.quality.first_pass_clean;
+  const waiverRows = m.validation_waivers.rides
+    .map((w) => `<tr><td><code>${esc(w.ref)}</code></td><td>${esc(w.by === 'operator' ? 'operator' : 'agent (self-waived)')}</td><td>${esc(w.at)}</td><td>${esc(w.reason)}</td></tr>`)
+    .join('');
   // Follow-ups (CHANGE-0142): ordered by AGE, never by severity, so a
   // mis-assigned P-level cannot hide an item (residual risk R4).
   const followUpRows = m.follow_ups.items
@@ -894,6 +943,17 @@ function renderHtml(m) {
 <p class="meta">First-pass-clean rate per ISO week (weeks with no reliability data show empty bars). ${esc(m.quality.review_verdict_note)}.</p>
 <div class="scroll"><table><thead><tr><th>Remediation runs</th><th>Rides</th></tr></thead><tbody>${remRows}</tbody></table></div>
 <div class="scroll"><table><thead><tr><th>Ride verdict</th><th>Rides</th></tr></thead><tbody>${verdictRows}</tbody></table></div>
+</section>
+
+<section id="validation-waivers">
+<h2>Validation waivers — admitted holes</h2>
+<div class="kpis">
+  <div class="kpi"><b>${m.validation_waivers.operator}</b><span>operator-waived rides</span></div>
+  <div class="kpi"><b>${m.validation_waivers.agent}</b><span>self-waived (agent) rides</span></div>
+  <div class="kpi"><b>${m.validation_waivers.rejected_records}</b><span>malformed waiver records</span></div>
+</div>
+<p class="meta">${esc(m.validation_waivers.note)}. Read from the waiver records carried in ride run notes; a record whose grammar does not parse is counted as malformed, never as an absent waiver.</p>
+<div class="scroll"><table><thead><tr><th>Ref</th><th>Waived by</th><th>At</th><th>Reason</th></tr></thead><tbody>${waiverRows}</tbody></table></div>
 </section>
 
 <section id="follow-ups">

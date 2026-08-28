@@ -253,6 +253,7 @@ suites:
       - .aai/scripts/generate-factory-report.mjs
       - .aai/scripts/close-work-item.mjs
       - .aai/scripts/follow-ups.mjs
+      - .aai/scripts/validation-waiver.mjs
       - .claude/skills/aai-factory-report/**
       - docs/ai/decisions.jsonl
       - docs/ai/factory-report.html
@@ -521,6 +522,12 @@ suites:
   aai-pr-platform:
     globs:
       - .aai/scripts/pr-platform.mjs
+      - .aai/SKILL_PR.prompt.md
+
+  aai-pr-waiver:
+    globs:
+      - .aai/scripts/validation-waiver.mjs
+      - .aai/scripts/generate-factory-report.mjs
       - .aai/SKILL_PR.prompt.md
 
   aai-pricing:
