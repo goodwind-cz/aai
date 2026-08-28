@@ -1,7 +1,7 @@
 ---
 id: focus-and-validation-state-go-stale-silently
 type: issue
-number: null
+number: 40
 status: draft
 links:
   pr: []

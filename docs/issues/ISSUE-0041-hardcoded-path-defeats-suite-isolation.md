@@ -1,7 +1,7 @@
 ---
 id: hardcoded-path-defeats-suite-isolation
 type: issue
-number: null
+number: 41
 status: draft
 links:
   pr: []

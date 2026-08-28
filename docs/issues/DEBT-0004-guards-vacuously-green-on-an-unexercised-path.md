@@ -1,7 +1,7 @@
 ---
 id: guards-vacuously-green-on-an-unexercised-path
 type: techdebt
-number: null
+number: 4
 status: draft
 links:
   pr: []

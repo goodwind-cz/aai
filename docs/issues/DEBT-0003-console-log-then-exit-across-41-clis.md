@@ -1,7 +1,7 @@
 ---
 id: console-log-then-exit-across-41-clis
 type: techdebt
-number: null
+number: 3
 status: draft
 links:
   pr: []

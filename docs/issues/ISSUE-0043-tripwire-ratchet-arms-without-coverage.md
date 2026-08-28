@@ -1,7 +1,7 @@
 ---
 id: tripwire-ratchet-arms-without-coverage
 type: issue
-number: null
+number: 43
 status: draft
 links:
   pr: []

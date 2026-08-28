@@ -1,7 +1,7 @@
 ---
 id: hazard-canon-delivery-and-duplication
 type: techdebt
-number: null
+number: 5
 status: draft
 links:
   pr: []

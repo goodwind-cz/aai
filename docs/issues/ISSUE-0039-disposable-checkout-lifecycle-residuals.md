@@ -1,7 +1,7 @@
 ---
 id: disposable-checkout-lifecycle-residuals
 type: issue
-number: null
+number: 39
 status: draft
 links:
   pr: []

@@ -1,7 +1,7 @@
 ---
 id: payload-size-hazards-past-the-one-fixed-site
 type: techdebt
-number: null
+number: 6
 status: draft
 links:
   pr: []

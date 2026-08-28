@@ -1,7 +1,7 @@
 ---
 id: checks-that-assert-less-than-they-claim
 type: issue
-number: null
+number: 38
 status: draft
 links:
   pr: []

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-28T04:44:23.414Z
+Generated: 2026-08-28T07:24:47.695Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -427,20 +427,20 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| residuals-of-the-per-suite-clone-ride (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-residuals-of-the-per-suite-clone-ride.md |
-| console-log-then-exit-across-41-clis (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-console-log-then-exit-across-41-clis.md |
-| guards-vacuously-green-on-an-unexercised-path (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-guards-vacuously-green-on-an-unexercised-path.md |
-| hazard-canon-delivery-and-duplication (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-hazard-canon-delivery-and-duplication.md |
-| payload-size-hazards-past-the-one-fixed-site (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-payload-size-hazards-past-the-one-fixed-site.md |
-| withdrawn-claim-sweeps-are-not-verifiable (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-withdrawn-claim-sweeps-are-not-verifiable.md |
-| agent-shell-can-write-the-shipping-repo (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-agent-shell-can-write-the-shipping-repo.md |
-| checks-that-assert-less-than-they-claim (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-checks-that-assert-less-than-they-claim.md |
-| disposable-checkout-lifecycle-residuals (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-disposable-checkout-lifecycle-residuals.md |
-| focus-and-validation-state-go-stale-silently (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-focus-and-validation-state-go-stale-silently.md |
-| hardcoded-path-defeats-suite-isolation (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-hardcoded-path-defeats-suite-isolation.md |
-| intake-doc-identity-table-and-its-pins (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-intake-doc-identity-table-and-its-pins.md |
-| tripwire-ratchet-arms-without-coverage (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-tripwire-ratchet-arms-without-coverage.md |
-| tripwire-reporting-and-run-dir-residuals (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-tripwire-reporting-and-run-dir-residuals.md |
+| CHANGE-0166 | issues | docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md |
+| DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
+| DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
+| DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
+| DEBT-0006 | issues | docs/issues/DEBT-0006-payload-size-hazards-past-the-one-fixed-site.md |
+| DEBT-0007 | issues | docs/issues/DEBT-0007-withdrawn-claim-sweeps-are-not-verifiable.md |
+| ISSUE-0037 | issues | docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md |
+| ISSUE-0038 | issues | docs/issues/ISSUE-0038-checks-that-assert-less-than-they-claim.md |
+| ISSUE-0039 | issues | docs/issues/ISSUE-0039-disposable-checkout-lifecycle-residuals.md |
+| ISSUE-0040 | issues | docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md |
+| ISSUE-0041 | issues | docs/issues/ISSUE-0041-hardcoded-path-defeats-suite-isolation.md |
+| ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
+| ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
+| ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 
 ## Deferred (whole-doc) (0)
 

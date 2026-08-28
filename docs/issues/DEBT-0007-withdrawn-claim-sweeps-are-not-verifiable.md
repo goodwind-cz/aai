@@ -1,7 +1,7 @@
 ---
 id: withdrawn-claim-sweeps-are-not-verifiable
 type: techdebt
-number: null
+number: 7
 status: draft
 links:
   pr: []

@@ -1,7 +1,7 @@
 ---
 id: agent-shell-can-write-the-shipping-repo
 type: issue
-number: null
+number: 37
 status: draft
 links:
   pr: []

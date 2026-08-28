@@ -1,7 +1,7 @@
 ---
 id: intake-doc-identity-table-and-its-pins
 type: issue
-number: null
+number: 42
 status: draft
 links:
   pr: []

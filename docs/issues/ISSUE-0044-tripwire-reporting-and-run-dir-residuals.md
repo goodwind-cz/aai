@@ -1,7 +1,7 @@
 ---
 id: tripwire-reporting-and-run-dir-residuals
 type: issue
-number: null
+number: 44
 status: draft
 links:
   pr: []
