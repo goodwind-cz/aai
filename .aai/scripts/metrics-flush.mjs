@@ -114,6 +114,11 @@ import {
 } from './lib/state-engine.mjs';
 import { loadPricing, runCostUsd } from './lib/pricing.mjs';
 import { USAGE_NOTE_RE } from './lib/usage-note.mjs';
+// ONE grammar, every consumer (operator-waiver-unblocks-pr, bot review
+// PR #303 F-2): a validation waiver lives in STATE `last_validation.notes`,
+// which THIS script overwrites on every reset — so before the reset it is
+// copied into the LEDGER, the only durable home the factory report can read.
+import { readValidationBlock, parseWaiver, refMatchesScope, formatWaiver } from './validation-waiver.mjs';
 
 setEngineFailPrefix('metrics-flush');
 
@@ -426,7 +431,7 @@ function reliabilityOf(runs) {
 }
 
 function buildEntry(entry, ctx) {
-  const { pricing, nowMs, dateUtc, reviewsFromTicks, title, strategy } = ctx;
+  const { pricing, nowMs, dateUtc, reviewsFromTicks, title, strategy, waiver = null } = ctx;
   const warnings = [];
   const runs = entry.runs.map(r => {
     const tokensIn = typeof r.tokens_in === 'number' ? r.tokens_in : null;
@@ -493,6 +498,16 @@ function buildEntry(entry, ctx) {
     reliability: reliabilityOf(entry.runs),
     verdict: 'PASS',
   };
+  // The waiver this ride was closed under, made DURABLE (bot review PR #303
+  // F-2). Attached only when the record NAMES this ref, so a waiver issued for
+  // another scope can never be attributed here — the same scope binding the
+  // gate applies. Absent by construction when there is no waiver, which is
+  // what keeps every pre-existing ledger line and every golden byte-identical.
+  if (waiver !== null) {
+    ledgerEntry.validation_waiver = {
+      by: waiver.by, ref_id: waiver.ref, at: waiver.at, reason: waiver.reason,
+    };
+  }
   // No-Date/JSON-safety guard (manual-flush mistake #2, mechanically closed):
   // the entry must deep-equal its own JSON round-trip.
   const roundTrip = JSON.parse(JSON.stringify(ledgerEntry));
@@ -529,8 +544,14 @@ function removeDoneWorkItems(lines, refs) {
   }
 }
 
-function applyPartialReset(lines, flushedRefs, nowIso) {
-  const note = `reset after flush of ${flushedRefs.join(', ')}`;
+function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver = null) {
+  // A waiver that reached no ledger entry is PRESERVED verbatim in the reset
+  // note instead of being overwritten (bot review PR #303 F-2: losing a waiver
+  // must be loud, never rendered as "no waivers"). It stays scope-bound by its
+  // own `ref=`, so preserving it can never open a gate it did not name.
+  const note = carryWaiver === null
+    ? `reset after flush of ${flushedRefs.join(', ')}`
+    : `reset after flush of ${flushedRefs.join(', ')} — PRESERVED unflushed validation waiver: ${carryWaiver}`;
   editBlock(lines, 'last_validation', bl => {
     setField(bl, 2, 'status', [scalarLine(2, 'status', 'not_run')]);
     setField(bl, 2, 'run_at_utc', [scalarLine(2, 'run_at_utc', nowIso)]);
@@ -552,13 +573,18 @@ function applyPartialReset(lines, flushedRefs, nowIso) {
 }
 
 // Full reset — the STATE_FALLBACK.md flush-reset defaults, via engine edits.
-function applyFullReset(lines) {
+function applyFullReset(lines, carryWaiver = null) {
   editBlock(lines, 'last_validation', bl => {
     setField(bl, 2, 'status', [scalarLine(2, 'status', 'not_run')]);
     setField(bl, 2, 'run_at_utc', [scalarLine(2, 'run_at_utc', 'null')]);
     setField(bl, 2, 'ref_id', [scalarLine(2, 'ref_id', 'null')]);
     setField(bl, 2, 'evidence_paths', [scalarLine(2, 'evidence_paths', '[]')]);
-    setField(bl, 2, 'notes', [scalarLine(2, 'notes', 'null')]);
+    // Same preservation rule as applyPartialReset: an unflushed waiver is
+    // never silently overwritten. ref_id going null leaves it scope-unbound,
+    // so the gate refuses it (waiver_scope_unknown) — kept, not honoured.
+    setField(bl, 2, 'notes', carryWaiver === null
+      ? [scalarLine(2, 'notes', 'null')]
+      : textFieldLines(2, 'notes', `PRESERVED unflushed validation waiver: ${carryWaiver}`));
     return bl;
   });
   editBlock(lines, 'implementation_strategy', bl => {
@@ -877,6 +903,11 @@ function main() {
   const { entries } = parseMetricsEntries(origLines);
   const vStatus = readScalar(origLines, 'last_validation', 'status');
   const vRef = scalarOrNull(readScalar(origLines, 'last_validation', 'ref_id'));
+  // The waiver recorded against this validation, read BEFORE any reset (F-2).
+  // Only a record the gate itself would accept is durable-worthy; a broken one
+  // is left where it is, which is what the gate already refuses on.
+  const vWaiverParse = parseWaiver((readValidationBlock(raw) ?? {}).notes ?? '');
+  const vWaiver = vWaiverParse.present && vWaiverParse.ok ? vWaiverParse : null;
   const rRequired = readScalar(origLines, 'code_review', 'required') === 'true';
   const rStatus = readScalar(origLines, 'code_review', 'status');
   const focusRef = scalarOrNull(readScalar(origLines, 'current_focus', 'ref_id'));
@@ -956,6 +987,8 @@ function main() {
     reviewsFromTicks,
     title: titleFor(root, workItemDocPath(origLines, entry.ref)),
     strategy,
+    // Scope-bound exactly as the gate binds it: the record must NAME this ref.
+    waiver: vWaiver !== null && refMatchesScope(vWaiver.ref, entry.ref) ? vWaiver : null,
   }));
 
   const completedRefs = [...toFlush.map(e => e.ref), ...toResume.map(e => e.ref)];
@@ -964,16 +997,31 @@ function main() {
   const lines = [...origLines];
   let fullReset = false;
   let partialRefs = [];
+  // Did the waiver reach the ledger? If not, the reset below would be the last
+  // moment it existed anywhere, so it is carried into the reset note AND
+  // reported as a WARNING. A waiver is never lost quietly (F-2).
+  const waiverPersistedRefs = built
+    .filter(b => b.ledgerEntry.validation_waiver !== undefined)
+    .map(b => b.ledgerEntry.ref_id);
+  const carryWaiver = vWaiver !== null && waiverPersistedRefs.length === 0
+    ? formatWaiver(vWaiver)
+    : null;
+  const waiverWarnings = [];
+  if (vWaiver !== null && waiverPersistedRefs.length === 0 && completedRefs.length > 0) {
+    waiverWarnings.push(`WARNING validation waiver for ${vWaiver.ref} (by=${vWaiver.by} at=${vWaiver.at}) reached NO flushed ledger entry `
+      + `(flushed: ${completedRefs.join(', ') || 'none'}) — it is PRESERVED verbatim in last_validation.notes rather than dropped, `
+      + 'but no ride in METRICS.jsonl records it and the factory report will not show it');
+  }
   if (completedRefs.length > 0) {
     removeMetricsEntries(lines, completedRefs);
     removeDoneWorkItems(lines, completedRefs);
     const { items: remaining } = parseWorkItems(lines);
     fullReset = remaining.length === 0 || remaining.every(it => it.status === 'done');
     if (fullReset) {
-      applyFullReset(lines);
+      applyFullReset(lines, carryWaiver);
     } else {
       partialRefs = completedRefs.filter(r => r === focusRef || refMatches(vRef, r));
-      if (partialRefs.length > 0) applyPartialReset(lines, partialRefs, nowIsoStr);
+      if (partialRefs.length > 0) applyPartialReset(lines, partialRefs, nowIsoStr, carryWaiver);
     }
     bumpUpdatedAt(lines, nowIsoStr);
   }
@@ -1006,8 +1054,9 @@ function main() {
       resume: toResume.map(e => e.ref),
       skipped,
       entries: built.map(b => b.ledgerEntry),
-      warnings: built.flatMap(b => b.warnings),
+      warnings: [...built.flatMap(b => b.warnings), ...waiverWarnings],
       forensic_warnings: forensicWarnings,
+      validation_waiver_persisted: waiverPersistedRefs,
       partial_reset: partialRefs,
       full_reset: fullReset,
       cleanup_planned: fullReset,
@@ -1052,6 +1101,10 @@ function main() {
   for (const b of built) for (const w of b.warnings) console.log(w);
   // R-GUARD forensic WARNs (S2/3, SPEC-0113): visible, never blocking.
   for (const w of forensicWarnings) console.log(w);
+  // The waiver's fate, always stated (F-2): named where it landed, WARNed
+  // where it did not. Silence about a waiver is the failure mode this closes.
+  for (const r of waiverPersistedRefs) console.log(`Validation waiver persisted to ledger entry ${r} (by=${vWaiver.by} ref=${vWaiver.ref} at=${vWaiver.at})`);
+  for (const w of waiverWarnings) console.log(w);
   for (const e of toResume) console.log(`RESUME ${e.ref}: already in ledger — cleanup-only pass (interrupted flush resume, no duplicate line)`);
   for (const [ref, why] of Object.entries(skipped)) console.log(`SKIP ${ref}: ${why}`);
   if (partialRefs.length > 0) console.log(`Partial-flush reset applied (SPEC-0013 H5) for: ${partialRefs.join(', ')} — verdict blocks reset with flush provenance`);
