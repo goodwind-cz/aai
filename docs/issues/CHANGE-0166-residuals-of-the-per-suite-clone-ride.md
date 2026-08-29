@@ -3,6 +3,7 @@ id: residuals-of-the-per-suite-clone-ride
 type: change
 number: 166
 status: draft
+ceremony_level: 2
 links:
   pr: []
   commits: []

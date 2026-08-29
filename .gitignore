@@ -109,3 +109,9 @@ docs/ai/tests/test-runs.jsonl
 # OS
 .DS_Store
 Thumbs.db
+
+# Append-lock mutex directories (.aai/scripts/lib/append-lock.sh). A lock is
+# live only for the microseconds an append holds it, but a run killed mid-append
+# can leave one behind, and an untracked directory under docs/ is baked into the
+# regenerated docs/INDEX.md by the pre-commit hook.
+*.aai-lock/
