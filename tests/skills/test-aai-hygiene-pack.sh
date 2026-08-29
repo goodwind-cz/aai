@@ -1889,6 +1889,312 @@ test_107_base_ref_baseline_is_measured_not_typed() {  # fu-bare-main-baseref-swe
   log_pass "test_107: the baseline is measured by the scanner the gate runs ($rows committed row(s), all naming live files), tracks a changed tree, and names its own generator"
 }
 
+# --- cd-inside-command-substitution leak guard (test_108..109) --------------
+# cd-inside-command-substitution-hides-cwd / fu-subagent-probe-hits-real-repo
+# (P1, 2026-08-15). A `cd` that runs inside `$( ... )` or backtick command
+# substitution is invisible to the parent shell the instant the substitution
+# closes; a `git` command that follows, unguarded, at the top level, runs in
+# whatever directory the parent shell was ALREADY in — exactly the shape that
+# put two commits on `main` from a validator probe. Nothing caught it then.
+# .aai/scripts/check-cd-subshell-leak.mjs is the check.
+CSL_SCRIPT_REL=".aai/scripts/check-cd-subshell-leak.mjs"
+CSL_BASELINE_REL="tests/skills/lib/cd-subshell-leak-baseline.tsv"
+
+# csl_plant <file> <line...> — write a fixture shell file with the given body
+# lines, one per argument. Kept in one place so a fixture cannot drift from
+# what the arms below claim it contains.
+#
+# UNLIKE the base-ref-pin guard's fixtures, no `@BARE@`-style placeholder is
+# needed: every literal `cd`/`git`/`$(` planted below lives inside THIS
+# suite's own single-quoted bash string arguments, and check-cd-subshell-leak's
+# scanner is quote-aware (it tracks '...'/"..."  the same way bash does) —
+# this suite file is itself in the scanned corpus, and a single-quoted
+# argument to `printf` is not live shell syntax at the position the scanner
+# reads it, so nothing here plants a real occurrence in this file.
+csl_plant() {
+  local f="$1"; shift
+  mkdir -p "$(dirname "$f")"
+  printf '%s\n' '#!/usr/bin/env bash' > "$f"
+  local l
+  for l in "$@"; do printf '%s\n' "$l" >> "$f"; done
+}
+
+# csl_run <script> <root> <baseline> [extra args] — run the gate against a
+# fixture tree, leaving its combined output in $CSL_OUT and its exit code in
+# $CSL_RC. Deliberately NOT `$(csl_run ...)` at the call site (HAZ-SCRATCH):
+# a command substitution here would run the assignment in a subshell and
+# every caller would then assert against an empty $CSL_OUT — the exact defect
+# class this whole guard exists to catch.
+CSL_OUT=""
+CSL_RC=0
+csl_run() {
+  local script="$1" root="$2" baseline="$3"; shift 3
+  CSL_RC=0
+  CSL_OUT="$(node "$script" --root "$root" --baseline "$baseline" "$@" 2>&1)" || CSL_RC=$?
+}
+
+test_108_cd_subshell_leak_gate_and_bite() {  # cd-inside-command-substitution-hides-cwd
+  log_info "test_108: leaked-cd-inside-a-substitution guard — live gate over the repository, plus bite proofs with an unmutated control and a mutation proof..."
+  local script="$PROJECT_ROOT/$CSL_SCRIPT_REL" baseline="$PROJECT_ROOT/$CSL_BASELINE_REL" d
+  [[ -f "$script" ]] || log_fail "test_108: missing $CSL_SCRIPT_REL"
+  [[ -f "$baseline" ]] || log_fail "test_108: missing $CSL_BASELINE_REL"
+  # `pwd -P`, not the raw $TMPDIR: on macOS /tmp and /var are symlinks to
+  # /private/..., and this arm copies the checker INTO this directory and
+  # invokes the copy (the mutation proofs below). Node's ESM loader resolves
+  # `import.meta.url` through that symlink but leaves `process.argv[1]`
+  # unresolved, so the checker's own self-invocation guard (shared with
+  # check-base-ref-pins.mjs) silently never calls main() — a real bug this
+  # arm found by tripping over it. Resolving here means every path built from
+  # $d already matches what import.meta.url will resolve to.
+  d="$(cd "$(ap_tmpdir)" && pwd -P)"
+
+  # ---- LIVE GATE ----------------------------------------------------------
+  local live_rc=0 live_out
+  live_out="$(node "$script" 2>&1)" || live_rc=$?
+  if [[ "$live_rc" -ne 0 ]]; then
+    printf '%s\n' "$live_out"
+    log_fail "test_108: the live cd-subshell-leak gate FAILED on this repository (see above). An UNSAFE line is a cd inside a substitution followed by an unguarded top-level git shortly after; a RISE/NEW line is a newly added occurrence"
+  fi
+  [[ "$live_out" == *"cd-subshell leaks: "* ]] \
+    || log_fail "test_108: the gate printed no summary line at all: $live_out"
+  local live_total="${live_out#*cd-subshell leaks: }"; live_total="${live_total%% *}"
+  [[ "$live_total" =~ ^[0-9]+$ && "$live_total" -gt 0 ]] \
+    || log_fail "test_108: the live scan reported '$live_total' occurrence(s) — the scanner is broken, not the corpus"
+  log_info "test_108: live gate clean — $live_out"
+
+  # ---- BITE PROOFS, on a fixture tree -------------------------------------
+  local fx="$d/csl-fixture" fb="$d/csl-fixture-baseline.tsv" rc
+
+  # A legitimate use — the subshell's own `pwd` output is what is wanted, and
+  # nothing outside it depends on the directory change. Must NEVER be flagged
+  # (Verification bullet 2 of the intake).
+  rm -rf "$fx"; mkdir -p "$fx/tests/skills"
+  csl_plant "$fx/tests/skills/test-aai-csl-ok.sh" \
+    'dir="$(cd "$dir" && pwd)"' \
+    'echo "$dir"'
+
+  csl_run "$script" "$fx" "$fb" --record
+  [[ "$CSL_RC" -eq 0 ]] || log_fail "test_108: --record failed on the fixture tree: $CSL_OUT"
+
+  # CONTROL — unmutated: clean, and provably non-empty (a silent pass on an
+  # empty scan would prove nothing below).
+  csl_run "$script" "$fx" "$fb"
+  rc="$CSL_RC"
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_108 CONTROL: a fixture with one legitimate cd-in-subshell use must be CLEAN, got rc=$rc: $CSL_OUT"
+  [[ "$CSL_OUT" == *"UNSAFE 0"* && "$CSL_OUT" == *"SAFE 1"* ]] \
+    || log_fail "test_108 CONTROL: the control fixture must be SEEN (1 safe occurrence) or the silence below proves nothing: $CSL_OUT"
+
+  # BITE 1 — the EXACT historical shape: `$(cd fixture && git commit ...)`
+  # followed by an unguarded `git` outside it (Verification bullet 1).
+  #
+  # RE-RECORDED FIRST, ON PURPOSE, same reasoning as the base-ref-pin guard's
+  # test_106 BITE 1: with the plant absent from the baseline the ratchet ALSO
+  # fires, and a bare `rc != 0` would then be satisfied by the ratchet alone
+  # with the hard gate silently doing nothing. Recording it first silences the
+  # ratchet, isolating the hard gate as the only thing that can still fail.
+  csl_plant "$fx/tests/skills/test-aai-csl-bad.sh" \
+    'result="$(cd fixture && git commit -am "test commit")"' \
+    'git status'
+  csl_run "$script" "$fx" "$fb" --record
+  [[ "$CSL_RC" -eq 0 ]] || log_fail "test_108 BITE 1: re-record failed: $CSL_OUT"
+  csl_run "$script" "$fx" "$fb"
+  rc="$CSL_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_108 BITE 1: the exact historical shape (cd leaked into a substitution, git run unguarded right after) must FAIL even when the baseline already lists it, got rc=0: $CSL_OUT"
+  [[ "$CSL_OUT" != *"RISE "* && "$CSL_OUT" != *"NEW "* ]] \
+    || log_fail "test_108 BITE 1: the ratchet must be SILENT here, or this arm is not testing the hard gate: $CSL_OUT"
+  [[ "$CSL_OUT" == *"FAIL: UNSAFE cd-subshell leak tests/skills/test-aai-csl-bad.sh:2"* \
+      && "$CSL_OUT" == *"tests/skills/test-aai-csl-bad.sh:3"* ]] \
+    || log_fail "test_108 BITE 1: the finding must name BOTH the leaking cd's line (2) and the offending git's line (3), got: $CSL_OUT"
+  [[ "$CSL_OUT" != *"test-aai-csl-ok.sh"* ]] \
+    || log_fail "test_108 BITE 1: the untouched, legitimate fixture must not be named: $CSL_OUT"
+
+  # BITE 2 — `git -C <path>` names its own working directory and never reads
+  # the parent shell's cwd, so it cannot be the victim of a leaked cd no
+  # matter how close it sits. Locks in a REAL false positive found while
+  # triaging this repository (.aai/scripts/aai-update.sh:77-78).
+  rm -f "$fx/tests/skills/test-aai-csl-bad.sh"
+  csl_plant "$fx/tests/skills/test-aai-csl-guarded.sh" \
+    'SRC="$(cd "$REPO" && pwd)"' \
+    'git -C "$SRC" fetch --depth 1 origin "$REF"'
+  # Re-record: removing BITE 1's file and adding this one both change the
+  # per-file set, and this bite is about the HARD GATE only — the ratchet
+  # would otherwise report its own (correct) NEW/GONE verdicts and mask
+  # whether the hard gate itself stayed silent.
+  csl_run "$script" "$fx" "$fb" --record
+  [[ "$CSL_RC" -eq 0 ]] || log_fail "test_108 BITE 2: re-record failed: $CSL_OUT"
+  csl_run "$script" "$fx" "$fb"
+  rc="$CSL_RC"
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_108 BITE 2: a git -C <path> invocation must never be flagged (it never reads the parent shell's cwd), got rc=$rc: $CSL_OUT"
+  [[ "$CSL_OUT" == *"UNSAFE 0"* ]] \
+    || log_fail "test_108 BITE 2: expected zero UNSAFE occurrences with only a -C-scoped git present: $CSL_OUT"
+
+  # BITE 3 — an intervening REAL top-level cd cancels a pending leak: it is a
+  # deliberate, real directory change governing what follows, not an
+  # accident of a subshell whose effect never reached here.
+  rm -f "$fx/tests/skills/test-aai-csl-guarded.sh"
+  csl_plant "$fx/tests/skills/test-aai-csl-cancelled.sh" \
+    'other="$(cd "$other" && pwd)"' \
+    'cd "$other"' \
+    'git status'
+  csl_run "$script" "$fx" "$fb" --record
+  [[ "$CSL_RC" -eq 0 ]] || log_fail "test_108 BITE 3: re-record failed: $CSL_OUT"
+  csl_run "$script" "$fx" "$fb"
+  rc="$CSL_RC"
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_108 BITE 3: a real top-level cd between a leak and a later git must cancel the leak, got rc=$rc: $CSL_OUT"
+  [[ "$CSL_OUT" == *"UNSAFE 0"* ]] \
+    || log_fail "test_108 BITE 3: expected zero UNSAFE occurrences once a real cd re-scopes the directory: $CSL_OUT"
+
+  # BITE 4 — THE ANTI-NO-OP RULE, same as the base-ref-pin guard's own BITE 4.
+  local empty="$d/csl-empty"
+  rm -rf "$empty"; mkdir -p "$empty/tests/skills"
+  csl_run "$script" "$empty" "$fb"
+  rc="$CSL_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_108 BITE 4a: a corpus with zero scanned files must FAIL (an empty scan can never contradict a baseline), got rc=0: $CSL_OUT"
+  csl_plant "$empty/tests/skills/test-aai-csl-clean.sh" 'echo no cd or git here'
+  csl_run "$script" "$empty" "$fb"
+  rc="$CSL_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_108 BITE 4b: a scan finding ZERO occurrences must FAIL as a broken scanner, not pass as a clean corpus, got rc=0: $CSL_OUT"
+  csl_run "$script" "$fx" "$d/csl-does-not-exist.tsv"
+  rc="$CSL_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_108 BITE 4c: a MISSING baseline must FAIL, not degrade the ratchet to a no-op, got rc=0: $CSL_OUT"
+
+  # ---- MUTATION PROOF: invert the hard-gate's own predicate ---------------
+  # Verification bullet 3 of the intake: invert the detection predicate and
+  # show the planted incident-shape fixture then fails to be caught — proving
+  # the assertions above are load-bearing, not decorative.
+  local mut="$d/csl-mutant.mjs" needle="leak.cls = 'UNSAFE';" replacement="leak.cls = 'SAFE';"
+  cp "$script" "$mut"
+  [[ "$(/usr/bin/grep -cF "$needle" "$mut")" -eq 1 ]] \
+    || log_fail "test_108 MUTATION: the sed target '$needle' is not unique in $CSL_SCRIPT_REL — pick a new anchor"
+  sed -i.bak "s/${needle}/${replacement}/" "$mut" && rm -f "$mut.bak"
+  /usr/bin/grep -qF "$replacement" "$mut" \
+    || log_fail "test_108 MUTATION: sed did not apply — mutant is identical to the original"
+
+  csl_plant "$fx/tests/skills/test-aai-csl-mutant-target.sh" \
+    'result="$(cd fixture && git commit -am "test commit")"' \
+    'git status'
+  csl_run "$script" "$fx" "$fb" --record
+  [[ "$CSL_RC" -eq 0 ]] || log_fail "test_108 MUTATION: re-record with the original script failed: $CSL_OUT"
+
+  csl_run "$mut" "$fx" "$fb"
+  rc="$CSL_RC"
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_108 MUTATION: expected the mutant (UNSAFE relabeled SAFE) to pass despite the incident shape still being present, got rc=$rc: $CSL_OUT"
+  [[ "$CSL_OUT" == *"UNSAFE 0"* ]] \
+    || log_fail "test_108 MUTATION: the mutant must report zero UNSAFE (that is the whole point of the mutation), got: $CSL_OUT"
+
+  # ...and the UNMUTATED script, on the exact same fixture tree, still fails.
+  csl_run "$script" "$fx" "$fb"
+  rc="$CSL_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_108 MUTATION: the ORIGINAL script must still fail on the same fixture the mutant passed, got rc=0 — the mutation test is vacuous"
+
+  log_pass "test_108: live gate clean at $live_total occurrence(s); the guard bites on the exact historical shape (named cd:2/git:3), never on a legitimate pwd-capture or a -C-scoped git, cancels on a real intervening cd, fails closed on an empty/zero/missing-baseline corpus, and a predicate-inverting mutant stops catching the planted incident while the original still does"
+}
+
+test_109_cd_subshell_leak_baseline_is_measured_not_typed() {  # cd-inside-command-substitution-hides-cwd
+  log_info "test_109: the recorded cd-subshell-leak baseline is produced by the scanner the gate runs, catches a genuinely new occurrence, and the ratchet's own predicate is load-bearing..."
+  local script="$PROJECT_ROOT/$CSL_SCRIPT_REL" baseline="$PROJECT_ROOT/$CSL_BASELINE_REL" d rc
+  # `pwd -P`: see test_108's identical comment — this arm also copies the
+  # checker into $d and invokes the copy for its own mutation proof.
+  d="$(cd "$(ap_tmpdir)" && pwd -P)"
+
+  # The plants are chosen HERE, by this arm. A recorder with a number typed
+  # into it (from this change or anywhere else) cannot follow them.
+  local fx="$d/csl-provenance" out="$d/csl-provenance.tsv"
+  rm -rf "$fx"; mkdir -p "$fx/tests/skills"
+  csl_plant "$fx/tests/skills/test-aai-csl-p1.sh" \
+    'a="$(cd "$one" && pwd)"' \
+    'b="$(cd "$two" && pwd)"'
+  csl_plant "$fx/tests/skills/test-aai-csl-p2.sh" \
+    'c="$(cd "$three" && pwd)"'
+  csl_run "$script" "$fx" "$out" --record
+  rc="$CSL_RC"
+  [[ "$rc" -eq 0 ]] || log_fail "test_109: --record failed: $CSL_OUT"
+  /usr/bin/grep -qE '^2	tests/skills/test-aai-csl-p1\.sh$' "$out" \
+    || log_fail "test_109: --record must write 2 for a file with 2 planted occurrences, wrote: $(cat "$out")"
+  /usr/bin/grep -qE '^1	tests/skills/test-aai-csl-p2\.sh$' "$out" \
+    || log_fail "test_109: --record must write 1 for a file with 1 planted occurrence, wrote: $(cat "$out")"
+
+  # CHANGE THE TREE, RE-RECORD: the number must move with it.
+  printf '%s\n' 'd="$(cd "$four" && pwd)"' >> "$fx/tests/skills/test-aai-csl-p1.sh"
+  csl_run "$script" "$fx" "$out" --record
+  rc="$CSL_RC"
+  [[ "$rc" -eq 0 ]] || log_fail "test_109: re-record failed: $CSL_OUT"
+  /usr/bin/grep -qE '^3	tests/skills/test-aai-csl-p1\.sh$' "$out" \
+    || log_fail "test_109: after planting one more the recorder must write 3, wrote: $(cat "$out") — the number is not being measured"
+
+  # The COMMITTED baseline must name its generator and mark itself generated.
+  /usr/bin/grep -qF -- '--record' "$baseline" \
+    || log_fail "test_109: $CSL_BASELINE_REL must name its generator command in the header"
+  /usr/bin/grep -qiF 'GENERATED' "$baseline" \
+    || log_fail "test_109: $CSL_BASELINE_REL must mark itself GENERATED"
+
+  # ...and every committed row names a file that exists and still carries the
+  # shape.
+  local n name rows=0 missing=0
+  while IFS=$'\t' read -r n name; do
+    [[ -n "${name:-}" ]] || continue
+    case "$n" in ''|*[!0-9]*) continue;; esac
+    rows=$((rows + 1))
+    [[ -f "$PROJECT_ROOT/$name" ]] \
+      || { log_info "test_109: baseline row names a missing file: $name"; missing=1; }
+  done < <(/usr/bin/grep -v '^#' "$baseline")
+  [[ "$rows" -gt 0 ]] \
+    || log_fail "test_109: $CSL_BASELINE_REL has no data rows — an empty baseline gates nothing"
+  [[ "$missing" -eq 0 ]] \
+    || log_fail "test_109: the committed baseline carries rows naming files that no longer exist (see above)"
+
+  # ---- RATCHET BITE: a brand-new file, correctly guarded, still ratchets --
+  # (Verification: "a NEW occurrence on top of the baseline is caught".) The
+  # new file's occurrence is SAFE on its own (a plain pwd capture) — proving
+  # the RATCHET, not the hard gate, is what fires here.
+  csl_plant "$fx/tests/skills/test-aai-csl-new.sh" 'e="$(cd "$five" && pwd)"'
+  csl_run "$script" "$fx" "$out"
+  rc="$CSL_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_109 RATCHET BITE: a brand-new file carrying the shape must be reported even when it is entirely safe, got rc=0: $CSL_OUT"
+  [[ "$CSL_OUT" == *"FAIL: NEW tests/skills/test-aai-csl-new.sh 0 -> 1"* ]] \
+    || log_fail "test_109 RATCHET BITE: the ratchet must report NEW as a FAIL and name the file, got: $CSL_OUT"
+  [[ "$CSL_OUT" == *"UNSAFE 0"* ]] \
+    || log_fail "test_109 RATCHET BITE: this fixture is entirely safe, so the RATCHET alone must be what fires here: $CSL_OUT"
+
+  # ---- MUTATION PROOF: the ratchet's own NEW/RISE label is load-bearing ---
+  # Verification bullet 3 + the intake's ratchet-widening instruction: prove
+  # the baseline mechanism cannot be satisfied by the check quietly declining
+  # to call a new occurrence "NEW" — mirrors this suite's own
+  # `pgq_ratchet.sh` comparison predicate being the thing under test, not the
+  # numbers in a file. Relabeling `NEW` in the comparator makes the CLI's own
+  # `kind === 'NEW'` gate never match, downgrading the finding to a NOTE.
+  local mut="$d/csl-ratchet-mutant.mjs" needle="kind: 'NEW'" replacement="kind: 'NOTNEW'"
+  cp "$script" "$mut"
+  [[ "$(/usr/bin/grep -cF "$needle" "$mut")" -eq 1 ]] \
+    || log_fail "test_109 MUTATION: the sed target '$needle' is not unique in $CSL_SCRIPT_REL — pick a new anchor"
+  sed -i.bak "s/${needle}/${replacement}/" "$mut" && rm -f "$mut.bak"
+  /usr/bin/grep -qF "$replacement" "$mut" \
+    || log_fail "test_109 MUTATION: sed did not apply — mutant is identical to the original"
+
+  csl_run "$mut" "$fx" "$out"
+  rc="$CSL_RC"
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_109 MUTATION: expected the mutant (NEW relabeled NOTNEW, so the CLI's own gate never matches it) to pass despite a genuinely new file, got rc=$rc: $CSL_OUT"
+
+  # ...and the UNMUTATED script, on the exact same fixture tree, still fails.
+  csl_run "$script" "$fx" "$out"
+  rc="$CSL_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_109 MUTATION: the ORIGINAL script must still fail on the same fixture the mutant passed, got rc=0 — the mutation test is vacuous"
+
+  log_pass "test_109: the baseline is measured by the scanner the gate runs ($rows committed row(s), all naming live files), tracks a changed tree (2/1 then 3), a brand-new safe occurrence still ratchets as NEW, and a mutant that relabels NEW away stops catching it while the original still does"
+}
+
 # --- harness-surfaces-drift-unguarded arms (test_110..113) ------------------
 # CHANGE harness-surfaces-drift-unguarded /
 # docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md.
@@ -2871,6 +3177,8 @@ main() {
   test_105_converted_sites_keep_their_needles
   test_106_base_ref_pin_gate_and_bite
   test_107_base_ref_baseline_is_measured_not_typed
+  test_108_cd_subshell_leak_gate_and_bite
+  test_109_cd_subshell_leak_baseline_is_measured_not_typed
   test_110_skill_set_parity
   test_111_generator_check_clean_and_idempotent
   test_112_generator_refuses_bad_manifest
