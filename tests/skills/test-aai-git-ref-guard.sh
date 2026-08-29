@@ -841,12 +841,32 @@ test_312_contract_and_diet() {
     log_fail "TEST-312: test-aai-prompt-diet.sh exited $diet_rc"
     ok=0
   fi
-  if ! grep -q "JUSTIFIED_GROWTH_BYTES == 2392" <<<"$diet_out"; then
-    log_fail "TEST-312: prompt-diet output does not confirm JUSTIFIED_GROWTH_BYTES == 2392: $(echo "$diet_out" | grep -i justified | head -1)"
+  # The claim is "THIS ride did not move the corpus credit", not "the credit is
+  # forever 2392". A literal turns every OTHER ride's honestly-paid growth into
+  # a red arm here: merging the operator-waiver ride (2392 -> 2631, itemised in
+  # the ledger) reddened this suite while nothing in this ride touched a prompt.
+  # So the expectation is derived from the base branch's ledger instead.
+  local base_pin live_pin base_ledger
+  base_ledger="$TMP_ROOT/t312-base-ledger.sh"
+  if (cd "$PROJECT_ROOT" && git show origin/main:tests/skills/lib/prompt-diet-ledger.sh) > "$base_ledger" 2>/dev/null \
+     && [[ -s "$base_ledger" ]]; then
+    # Derive the base credit with the ledger's OWN summation rather than a
+    # reimplementation here: a second copy of that arithmetic would drift from
+    # the real one and this arm would then be pinning its own bug.
+    base_pin="$(bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s" "$JUSTIFIED_GROWTH_BYTES"' _ "$base_ledger" 2>/dev/null)"
+  fi
+  live_pin="$(printf '%s\n' "$diet_out" | sed -n 's/.*JUSTIFIED_GROWTH_BYTES == \([-0-9][0-9]*\).*/\1/p' | head -1)"
+  if [[ -z "$live_pin" ]]; then
+    log_fail "TEST-312: prompt-diet output does not report JUSTIFIED_GROWTH_BYTES at all: $(printf '%s\n' "$diet_out" | grep -i justified | head -1)"
+    ok=0
+  elif [[ -z "${base_pin:-}" ]]; then
+    log_info "TEST-312: origin/main's ledger is unreadable here; corpus-credit drift not checked this run"
+  elif [[ "$live_pin" -ne "$base_pin" ]]; then
+    log_fail "TEST-312: this ride moved the corpus credit ($base_pin on origin/main -> $live_pin here) — a prompt edit needs its own itemised ledger entry"
     ok=0
   fi
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-312 SUBAGENT_CONTRACT.md names AAI_GIT_WRITE + AAI:REF-GUARD, all 5 HAZ anchors + 5 scar citations survive, and test-aai-prompt-diet.sh exits 0 with JUSTIFIED_GROWTH_BYTES unchanged at 2392"
+  [[ $ok -eq 1 ]] && log_pass "TEST-312 SUBAGENT_CONTRACT.md names AAI_GIT_WRITE + AAI:REF-GUARD, all 5 HAZ anchors + 5 scar citations survive, and test-aai-prompt-diet.sh exits 0 with the corpus credit unmoved from origin/main"
 }
 
 # --- TEST-313 (Spec-AC-07) — LIVE, degrade-and-report ------------------------
