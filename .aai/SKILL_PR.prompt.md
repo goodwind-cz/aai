@@ -17,7 +17,10 @@ PRECONDITIONS (all must hold before any git write)
   Exit 0: proceed. Non-zero: STOP — print the guard's stderr remediation
   verbatim; do not stage, commit, or push. The guard fails closed when the
   current branch is the base branch, is detached, or does not correspond to
-  the current `current_focus.ref_id`.
+  the current `current_focus.ref_id`. No `docs/ai/STATE.yaml` at all (a fresh
+  hand-implementation clone): `node .aai/scripts/check-state.mjs --repair`
+  then `node .aai/scripts/state.mjs set-focus --type <type> --ref <ref-id>
+  --path <primary-path>`.
 - Validation gate open — `node .aai/scripts/validation-waiver.mjs --state docs/ai/STATE.yaml`
   exits 0. Open on `last_validation.status: pass`, OR on `not_run` plus a
   well-formed waiver record in its `notes` (grammar + actors: the script's

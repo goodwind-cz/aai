@@ -11,6 +11,37 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(harness): the STATE bootstrap route now names itself when it fails [L1]
+
+Ceremony justification: single surface region (two non-protected guard
+scripts plus their documentation), no new mechanism, no engine change.
+Corrects the premise of `fu-no-state-no-route-to-pr` (dropped, see below).
+
+- **The absent-STATE bootstrap route already existed and worked — it was just
+  undiscoverable from the failure itself.** `check-state.mjs --repair` has
+  created `docs/ai/STATE.yaml` from the tracked template since CHANGE-0099,
+  and the full route (`check-state.mjs --repair` -> `state.mjs set-focus`)
+  reaches `branch-guard: OK` and the correct `validation_not_run_no_waiver`
+  block, verified end to end on a clean repo. But `branch-guard.mjs` and
+  `validation-waiver.mjs` printed the SAME message for "STATE.yaml does not
+  exist" as for "STATE.yaml exists but is corrupt/unreadable" — a message
+  that is false for the absent case ("ref_id is not set" implies a file that
+  is not there) and a `git checkout -b ...` remediation that fixes nothing
+  (it never creates the file), so the operator hit the identical failure
+  again on the next run.
+- Both guards now distinguish the two cases via `fs.existsSync`: the absent
+  case names the real fix (`node .aai/scripts/check-state.mjs --repair` then
+  `node .aai/scripts/state.mjs set-focus ...`); the corrupt-but-present case
+  keeps today's cautious fail-closed text unchanged and never suggests
+  `--repair` (which only creates a file that does not already exist, and
+  would silently do nothing to one that does).
+- `.aai/SKILL_PR.prompt.md`'s step 0 (BRANCH HYGIENE) and `docs/USER_GUIDE.md`
+  now document the two-command bootstrap sequence for an operator not
+  running the full ride.
+- Registry: `fu-no-state-no-route-to-pr` (P1) was filed on the wrong premise
+  (that no route existed at all); dropped with a note pointing at this ride
+  and the corrected facts. No residual defect — no new follow-up filed.
+
 ## [unreleased] — fix(harness): the ref-guard installs where git actually looks, and the guide documents it [L1]
 
 Ceremony justification: opened as an L0 docs-only ride and re-classified UPWARD

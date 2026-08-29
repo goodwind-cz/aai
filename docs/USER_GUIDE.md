@@ -553,6 +553,13 @@ hard merge boundary. It **never merges**; merging is an operator-only action.
   to leave the working tree
 - As the closing step of a loop-driven feature (the loop ends with an open PR)
 
+**No `docs/ai/STATE.yaml` yet?** A fresh clone doing hand-implementation (no
+loop, no ride) has no `docs/ai/STATE.yaml` until something creates one — `/aai-pr`'s
+branch-guard precondition fails closed on this and names the fix in its own
+error, but the two commands are: `node .aai/scripts/check-state.mjs --repair`
+(creates `docs/ai/STATE.yaml` from the tracked template) then
+`node .aai/scripts/state.mjs set-focus --type <type> --ref <ref-id> --path <primary-path>`.
+
 **Example:**
 ```bash
 /aai-pr

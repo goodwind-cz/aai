@@ -420,7 +420,84 @@ test_013() {
   log_pass "git refusal -> git's own message relayed verbatim, false work-tree claim withheld"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013"
+# --- TEST-014 — absent-vs-corrupt STATE discrimination (state-route-exists-but-is-undiscoverable) --
+# Tier A (fileReadable:false) collapsed "does not exist" and "exists but
+# unreadable" into one false message ("ref_id is not set in STATE.yaml" is a
+# lie when there is no STATE.yaml at all) plus a remediation that fixes
+# nothing for the absent case (`git checkout -b ...` never creates the file).
+# Three fixtures: genuinely ABSENT (no file at all), genuinely UNREADABLE-BUT-
+# PRESENT (a directory sits where the file should be — a real fs-level read
+# failure, not a parse failure), and genuinely MALFORMED CONTENT (a file that
+# exists and reads fine but contains no parseable YAML at all, per the issue's
+# own "deliberately corrupted YAML" fixture). Only the first may name
+# check-state.mjs --repair; the other two must keep today's cautious text
+# UNCHANGED and must NOT suggest --repair, which would silently do nothing to
+# a file `check-state.mjs`'s own `createFromTemplate` skips (it only fires
+# `if (!fs.existsSync(abs))`).
+test_014() {
+  log_info "TEST-014: absent STATE names the real bootstrap route; a present-but-unreadable/malformed STATE keeps today's cautious text and never suggests --repair..."
+  local repo
+
+  # Case A — genuinely absent: no docs/ai/STATE.yaml at all.
+  repo="$(make_repo t014a)"
+  ( cd "$repo" && git checkout -b "fix/whatever" >/dev/null 2>&1 ) \
+    || log_fail "fixture setup: could not create fix/whatever"
+  run_guard "$repo" --base main
+  [[ "$RC" -eq 4 ]] || log_fail "absent STATE must exit 4 (got $RC; stderr: $ERR)"
+  [[ "$ERR" == *"does not exist"* ]] \
+    || log_fail "absent STATE must say the file does not exist (got: $ERR)"
+  [[ "$ERR" == *"check-state.mjs --repair"* ]] \
+    || log_fail "absent STATE must name check-state.mjs --repair (got: $ERR)"
+  [[ "$ERR" == *"state.mjs set-focus"* ]] \
+    || log_fail "absent STATE must name state.mjs set-focus (got: $ERR)"
+  [[ "$ERR" != *"ref_id is not set in STATE.yaml"* ]] \
+    || log_fail "absent STATE must NOT claim a field 'is not set' in a file that does not exist (got: $ERR)"
+  [[ "$ERR" != *"git checkout -b chore/<ref-id>"* ]] \
+    || log_fail "absent STATE must NOT print the checkout remediation, which fixes nothing here (got: $ERR)"
+
+  # Case B — present but genuinely unreadable at the fs level: a directory
+  # sits where STATE.yaml should be, so fs.readFileSync fails even though
+  # fs.existsSync is true. This is the real "exists but corrupt" branch of the
+  # fix, distinct from Case A only via existsSync, per the ride's own
+  # instruction ("fs.existsSync is enough").
+  repo="$(make_repo t014b)"
+  mkdir -p "$repo/docs/ai/STATE.yaml" \
+    || log_fail "fixture setup: could not create the directory-as-STATE.yaml fixture"
+  ( cd "$repo" && git checkout -b "fix/whatever" >/dev/null 2>&1 ) \
+    || log_fail "fixture setup: could not create fix/whatever"
+  run_guard "$repo" --base main
+  [[ "$RC" -eq 4 ]] || log_fail "unreadable-but-present STATE must exit 4 (got $RC; stderr: $ERR)"
+  [[ "$ERR" == *"ref_id is not set in STATE.yaml"* ]] \
+    || log_fail "unreadable-but-present STATE must keep today's cautious text (got: $ERR)"
+  [[ "$ERR" != *"check-state.mjs --repair"* ]] \
+    || log_fail "unreadable-but-present STATE must NOT suggest --repair (it would silently do nothing) (got: $ERR)"
+  [[ "$ERR" != *"does not exist"* ]] \
+    || log_fail "unreadable-but-present STATE must NOT be reported as absent (got: $ERR)"
+
+  # Case C — present, reads fine, but the content is not parseable YAML at
+  # all (the issue's own "deliberately corrupted YAML" fixture). readScalar
+  # simply finds no ref_id in it, landing on the SAME cautious Tier-B message
+  # as "STATE exists but no focus was ever set" — correct, since that message
+  # is still true of this file (no ref_id IS found in it).
+  repo="$(make_repo t014c)"
+  mkdir -p "$repo/docs/ai" \
+    || log_fail "fixture setup: could not create $repo/docs/ai"
+  printf ': : : garbage {{{ not yaml at all\n' > "$repo/docs/ai/STATE.yaml"
+  ( cd "$repo" && git checkout -b "fix/whatever" >/dev/null 2>&1 ) \
+    || log_fail "fixture setup: could not create fix/whatever"
+  run_guard "$repo" --base main
+  [[ "$RC" -eq 4 ]] || log_fail "malformed-content STATE must exit 4 (got $RC; stderr: $ERR)"
+  [[ "$ERR" == *"ref_id is not set in STATE.yaml"* ]] \
+    || log_fail "malformed-content STATE must keep today's cautious text (got: $ERR)"
+  [[ "$ERR" != *"check-state.mjs --repair"* ]] \
+    || log_fail "malformed-content STATE must NOT suggest --repair (got: $ERR)"
+  [[ "$ERR" != *"does not exist"* ]] \
+    || log_fail "malformed-content STATE must NOT be reported as absent (got: $ERR)"
+
+  log_pass "absent STATE names the real bootstrap route; unreadable-but-present and malformed-content STATE both keep today's cautious text with no --repair suggestion"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014"
 
 main() {
   echo "Testing $TEST_NAME (deterministic branch-per-work-item hygiene guard)"
