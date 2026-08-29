@@ -55,6 +55,10 @@ cd "$PROJECT_ROOT"
 export AAI_TEST_ISOLATION=0
 
 TRIPWIRE_LIB="$PROJECT_ROOT/.aai/scripts/lib/repo-tripwire.sh"
+# The framework refuses to run without this one too (a run that appends to
+# the run ledger unlocked is a run whose ledger cannot be trusted), so a
+# fixture carrying a byte copy of the framework has to carry it as well.
+APPEND_LOCK_LIB="$PROJECT_ROOT/.aai/scripts/lib/append-lock.sh"
 FRAMEWORK="$PROJECT_ROOT/tests/skills/test-framework.sh"
 WRAPPER="$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh"
 
@@ -127,6 +131,7 @@ build_framework_repo() {
   mkdir -p "$d/tests/skills" "$d/.aai/scripts/lib" "$d/docs/ai/tests"
   cp "$FRAMEWORK" "$d/tests/skills/test-framework.sh"
   cp "$TRIPWIRE_LIB" "$d/.aai/scripts/lib/repo-tripwire.sh"
+  cp "$APPEND_LOCK_LIB" "$d/.aai/scripts/lib/append-lock.sh"
   printf 'baseline\n' > "$d/tracked.txt"
   printf 'tests/skills/results/\ndocs/ai/tests/test-runs.jsonl\n' > "$d/.gitignore"
 }

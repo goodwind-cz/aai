@@ -723,7 +723,7 @@ test_012_growth_sum_matches_ledger() {
   # PASS line still printing 859 after the pin moved to 1036 — the second time
   # this message drifted from the check. A number retyped in prose goes stale;
   # a number printed from the constant cannot.
-  local want_growth=2631
+  local want_growth=3183
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

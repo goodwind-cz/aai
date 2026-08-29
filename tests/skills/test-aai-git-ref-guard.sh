@@ -862,11 +862,37 @@ test_312_contract_and_diet() {
   elif [[ -z "${base_pin:-}" ]]; then
     log_info "TEST-312: origin/main's ledger is unreadable here; corpus-credit drift not checked this run"
   elif [[ "$live_pin" -ne "$base_pin" ]]; then
-    log_fail "TEST-312: this ride moved the corpus credit ($base_pin on origin/main -> $live_pin here) — a prompt edit needs its own itemised ledger entry"
-    ok=0
+    # A MOVED credit is not by itself a defect, and asserting equality made it
+    # one: the credit is the SUM of JUSTIFIED_ADDITIONS, so demanding it never
+    # move forbids every honestly-paid prompt edit for ever — the exact thing
+    # the ledger's itemised-entry mechanism exists to permit. This arm's own
+    # wording ("a prompt edit needs its own itemised ledger entry") is what is
+    # enforced instead: the move must be ACCOUNTED FOR by entries this branch
+    # ADDED, and no entry that origin/main carries may have been deleted or
+    # rewritten. An unaccounted move — a rewritten entry, a deleted one, a
+    # credit that does not match what was added — still fails exactly as before.
+    local base_entries live_entries added_sum=0 missing _e
+    base_entries="$TMP_ROOT/t312-base-entries.txt"
+    live_entries="$TMP_ROOT/t312-live-entries.txt"
+    bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s\n" "${JUSTIFIED_ADDITIONS[@]}"' _ "$base_ledger" 2>/dev/null | LC_ALL=C sort > "$base_entries"
+    bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s\n" "${JUSTIFIED_ADDITIONS[@]}"' _ "$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh" 2>/dev/null | LC_ALL=C sort > "$live_entries"
+    missing="$(comm -23 "$base_entries" "$live_entries" | head -3)"
+    if [[ -n "$missing" ]]; then
+      log_fail "TEST-312: the corpus credit moved ($base_pin -> $live_pin) AND a ledger entry that origin/main carries is gone or rewritten here — credit must be paid by ADDING an entry, never by editing history: $missing"
+      ok=0
+    else
+      while IFS= read -r _e; do
+        [[ -n "$_e" ]] || continue
+        added_sum=$(( added_sum + ${_e%% *} ))
+      done < <(comm -13 "$base_entries" "$live_entries")
+      if [[ $(( base_pin + added_sum )) -ne "$live_pin" ]]; then
+        log_fail "TEST-312: the corpus credit moved ($base_pin -> $live_pin) by an amount the newly added ledger entries do not account for (they sum to $added_sum) — a prompt edit needs its own itemised ledger entry"
+        ok=0
+      fi
+    fi
   fi
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-312 SUBAGENT_CONTRACT.md names AAI_GIT_WRITE + AAI:REF-GUARD, all 5 HAZ anchors + 5 scar citations survive, and test-aai-prompt-diet.sh exits 0 with the corpus credit unmoved from origin/main"
+  [[ $ok -eq 1 ]] && log_pass "TEST-312 SUBAGENT_CONTRACT.md names AAI_GIT_WRITE + AAI:REF-GUARD, all 5 HAZ anchors + 5 scar citations survive, and test-aai-prompt-diet.sh exits 0 with any corpus-credit move fully accounted for by ledger entries this branch added (and none of origin/main's entries deleted or rewritten)"
 }
 
 # --- TEST-313 (Spec-AC-07) — LIVE, degrade-and-report ------------------------

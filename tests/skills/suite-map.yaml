@@ -614,6 +614,7 @@ suites:
   aai-repo-tripwire:
     globs:
       - .aai/scripts/lib/repo-tripwire.sh
+      - .aai/scripts/lib/append-lock.sh
       - .aai/scripts/aai-run-tests.sh
       - tests/skills/test-framework.sh
       - tests/skills/test-aai-doc-numbering.sh
@@ -626,7 +627,15 @@ suites:
       - tests/skills/test-framework.sh
       - .aai/scripts/aai-run-tests.sh
       - .aai/scripts/lib/repo-tripwire.sh
+      - .aai/scripts/lib/append-lock.sh
       - tests/skills/test-aai-repo-tripwire.sh
+
+  aai-sweep-parallel:
+    globs:
+      - tests/skills/test-framework.sh
+      - .aai/scripts/lib/repo-tripwire.sh
+      - .aai/scripts/lib/append-lock.sh
+      - .aai/scripts/aai-run-tests.sh
 
   aai-role-output:
     globs:

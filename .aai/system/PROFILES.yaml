@@ -114,6 +114,7 @@ core:
   - .aai/scripts/install-pre-commit-hook.sh
   - .aai/scripts/layer-drift.mjs
   - .aai/scripts/learned-append.mjs
+  - .aai/scripts/lib/append-lock.sh
   - .aai/scripts/lib/docs-audit-core.mjs
   - .aai/scripts/lib/docs-model.mjs
   - .aai/scripts/lib/evidence-paths.mjs
