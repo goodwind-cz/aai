@@ -151,6 +151,7 @@ core:
   - .aai/scripts/triage.sh
   - .aai/scripts/update-check.mjs
   - .aai/scripts/update-doctor-report.mjs
+  - .aai/scripts/validation-waiver.mjs
   - .aai/system/AAI_PIN.md
   - .aai/system/AUTONOMOUS_LOOP.md
   - .aai/system/DOCS_AI_CANON.list

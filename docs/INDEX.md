@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-28T17:46:33.304Z
+Generated: 2026-08-29T03:41:30.111Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -427,11 +427,12 @@ _None._
 | SPEC-0156 | specs | docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (13)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0166 | issues | docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md |
+| CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -474,4 +475,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-28 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-29 — counts above use this date for overdue checks.

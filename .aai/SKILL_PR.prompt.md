@@ -18,7 +18,10 @@ PRECONDITIONS (all must hold before any git write)
   verbatim; do not stage, commit, or push. The guard fails closed when the
   current branch is the base branch, is detached, or does not correspond to
   the current `current_focus.ref_id`.
-- Validation PASS recorded in docs/ai/STATE.yaml (`last_validation.status: pass`).
+- Validation gate open — `node .aai/scripts/validation-waiver.mjs --state docs/ai/STATE.yaml`
+  exits 0. Open on `last_validation.status: pass`, OR on `not_run` plus a
+  well-formed waiver record in its `notes` (grammar + actors: the script's
+  header). Bare `not_run`, an empty reason, `fail`: blocked. Non-zero: STOP.
 - If `code_review.required == true`: `code_review.status` is `pass` or `waived`.
 - Explicit user confirmation to commit/push (AGENTS.md commit gating policy:
   commit only after the full intake-scoped task is completed, verified with
