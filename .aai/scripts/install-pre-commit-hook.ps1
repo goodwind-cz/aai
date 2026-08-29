@@ -1,16 +1,20 @@
 <#
 .SYNOPSIS
-  Install an opt-in .git/hooks/pre-commit that auto-regenerates docs/INDEX.md
-  whenever the commit touches docs/. RFC-0001 layer 4 convenience.
+  Install the AAI git hook SET: an opt-in .git/hooks/pre-commit that auto-
+  regenerates docs/INDEX.md whenever the commit touches docs/ (RFC-0001
+  layer 4 convenience), and .git/hooks/reference-transaction, which refuses
+  a refs/heads/main ref update unless AAI_GIT_WRITE=1 is set on that exact
+  command (docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md).
 
 .DESCRIPTION
-  Idempotent. Refuses to overwrite a non-AAI hook unless -Force is given.
+  Idempotent per hook. Refuses to overwrite a non-AAI hook unless -Force is
+  given (checked for BOTH hooks before writing either).
 
 .PARAMETER Force
   Overwrite an existing hook that is not AAI-managed.
 
 .PARAMETER Uninstall
-  Remove the AAI-managed hook. Leaves non-AAI hooks alone.
+  Remove the AAI-managed hooks. Leaves non-AAI hooks alone.
 
 .EXAMPLE
   .\.aai\scripts\install-pre-commit-hook.ps1
@@ -33,8 +37,23 @@ if (-not $repoRoot) {
   exit 1
 }
 
-$hookPath = Join-Path $repoRoot ".git/hooks/pre-commit"
-$marker   = "# AAI:INDEX-AUTOGEN"
+# Linked worktrees ship .git as a FILE at $repoRoot/.git, so a hooks path
+# built from --show-toplevel never exists there; --git-common-dir resolves
+# to the real (shared) git directory in both a normal repo and a linked
+# worktree (PR #302 Codex P2 — same fix the .sh twin and aai-doctor.mjs use).
+$gitCommonDir = (& git rev-parse --git-common-dir 2>$null).Trim()
+if (-not $gitCommonDir) {
+  Write-Error "Could not resolve the git common directory."
+  exit 1
+}
+if (-not [System.IO.Path]::IsPathRooted($gitCommonDir)) {
+  $gitCommonDir = Join-Path $repoRoot $gitCommonDir
+}
+
+$hookPath   = Join-Path $gitCommonDir "hooks/pre-commit"
+$marker     = "# AAI:INDEX-AUTOGEN"
+$reftxPath  = Join-Path $gitCommonDir "hooks/reference-transaction"
+$reftxMarker = "# AAI:REF-GUARD"
 
 if ($Uninstall) {
   if ((Test-Path $hookPath) -and ((Get-Content $hookPath -Raw) -match [regex]::Escape($marker))) {
@@ -43,20 +62,44 @@ if ($Uninstall) {
   } else {
     Write-Host "No AAI pre-commit hook found (or hook is not AAI-managed). No action taken."
   }
+  if ((Test-Path $reftxPath) -and ((Get-Content $reftxPath -Raw) -match [regex]::Escape($reftxMarker))) {
+    Remove-Item $reftxPath
+    Write-Host "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $reftxPath"
+  } else {
+    Write-Host "No AAI reference-transaction hook found (or hook is not AAI-managed). No action taken."
+  }
   exit 0
 }
 
+$foreign = $false
+if ((Test-Path $hookPath) -and (-not $Force)) {
+  $existing = Get-Content $hookPath -Raw
+  if (-not ($existing -match [regex]::Escape($marker))) {
+    Write-Error "$hookPath already exists and is not AAI-managed. Pass -Force to overwrite."
+    $foreign = $true
+  }
+}
+if ((Test-Path $reftxPath) -and (-not $Force)) {
+  $existingReftx = Get-Content $reftxPath -Raw
+  if (-not ($existingReftx -match [regex]::Escape($reftxMarker))) {
+    Write-Error "$reftxPath already exists and is not AAI-managed. Pass -Force to overwrite."
+    $foreign = $true
+  }
+}
+if ($foreign) {
+  exit 1
+}
+
+New-Item -ItemType Directory -Force -Path (Join-Path $gitCommonDir "hooks") | Out-Null
+
+$skipPreCommit = $false
 if ((Test-Path $hookPath) -and (-not $Force)) {
   $existing = Get-Content $hookPath -Raw
   if ($existing -match [regex]::Escape($marker)) {
     Write-Host "AAI pre-commit hook already installed at $hookPath. No action taken."
-    exit 0
+    $skipPreCommit = $true
   }
-  Write-Error "$hookPath already exists and is not AAI-managed. Pass -Force to overwrite."
-  exit 1
 }
-
-New-Item -ItemType Directory -Force -Path (Join-Path $repoRoot ".git/hooks") | Out-Null
 
 $hookBody = @'
 #!/usr/bin/env bash
@@ -208,12 +251,73 @@ fi
 echo "AAI:INDEX-AUTOGEN: regenerated and staged docs/INDEX.md"
 '@
 
-Set-Content -Path $hookPath -Value $hookBody -NoNewline
-
-if ($IsLinux -or $IsMacOS) {
-  & chmod +x $hookPath | Out-Null
+if (-not $skipPreCommit) {
+  Set-Content -Path $hookPath -Value $hookBody -NoNewline
+  if ($IsLinux -or $IsMacOS) {
+    & chmod +x $hookPath | Out-Null
+  }
+  Write-Host "Installed AAI pre-commit hook at $hookPath"
+  Write-Host "Effect: on every commit that touches docs/, regenerate docs/INDEX.md and stage it."
 }
 
-Write-Host "Installed AAI pre-commit hook at $hookPath"
-Write-Host "Effect: on every commit that touches docs/, regenerate docs/INDEX.md and stage it."
+$skipReftx = $false
+if ((Test-Path $reftxPath) -and (-not $Force)) {
+  $existingReftx = Get-Content $reftxPath -Raw
+  if ($existingReftx -match [regex]::Escape($reftxMarker)) {
+    Write-Host "AAI reference-transaction hook already installed at $reftxPath. No action taken."
+    $skipReftx = $true
+  }
+}
+
+$reftxBody = @'
+#!/bin/sh
+# AAI:REF-GUARD -- refuses a refs/heads/main ref update unless AAI_GIT_WRITE=1.
+# Installed by .aai/scripts/install-pre-commit-hook.ps1 (or the .sh twin).
+# This is a git reference-transaction hook: it fires for EVERY ref update in
+# this repository, from any process, at any nesting depth, through any
+# subshell. See
+# docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
+
+aai_state="$1"
+
+if [ "$aai_state" != "prepared" ]; then
+  exit 0
+fi
+
+aai_guarded=0
+while read -r aai_old aai_new aai_ref; do
+  if [ "$aai_ref" = "refs/heads/main" ]; then
+    aai_guarded=1
+  fi
+done
+
+if [ "$aai_guarded" != "1" ]; then
+  exit 0
+fi
+
+if [ "$AAI_GIT_WRITE" = "1" ]; then
+  exit 0
+fi
+
+cat >&2 <<'AAI_REF_GUARD_MSG'
+AAI:REF-GUARD refused this refs/heads/main update.
+  Guard:  git reference-transaction hook, marker AAI:REF-GUARD.
+  Reason: a write to refs/heads/main must be a deliberate, narrow exception,
+          never an ambient default (agent-shell-can-write-the-shipping-repo).
+  Fix:    re-run this ONE command with AAI_GIT_WRITE=1 set, e.g.
+            AAI_GIT_WRITE=1 git commit ...
+  Uninstall this guard: pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall
+AAI_REF_GUARD_MSG
+exit 1
+'@
+
+if (-not $skipReftx) {
+  Set-Content -Path $reftxPath -Value $reftxBody -NoNewline
+  if ($IsLinux -or $IsMacOS) {
+    & chmod +x $reftxPath | Out-Null
+  }
+  Write-Host "Installed AAI reference-transaction hook (AAI:REF-GUARD) at $reftxPath"
+  Write-Host "Effect: a refs/heads/main update is refused unless AAI_GIT_WRITE=1 is set on that command."
+}
+
 Write-Host "Uninstall with: pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall"

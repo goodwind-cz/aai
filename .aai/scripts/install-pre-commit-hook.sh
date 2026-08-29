@@ -1,22 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install an opt-in .git/hooks/pre-commit that auto-regenerates docs/INDEX.md
-# whenever the commit touches docs/. RFC-0001 layer 4 convenience.
+# Install the AAI git hook SET:
+#   - .git/hooks/pre-commit — opt-in, auto-regenerates docs/INDEX.md whenever
+#     the commit touches docs/ (RFC-0001 layer 4 convenience).
+#   - .git/hooks/reference-transaction — refuses a refs/heads/main ref update
+#     unless AAI_GIT_WRITE=1 is set on that exact command (D1/D3,
+#     docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md). This
+#     turns an honest/accidental write to main into a refusal instead of an
+#     ambient default; it is not a security boundary (see the spec's D3).
 #
 # Usage:
 #   ./.aai/scripts/install-pre-commit-hook.sh           # install if absent
 #   ./.aai/scripts/install-pre-commit-hook.sh --force   # overwrite existing
 #   ./.aai/scripts/install-pre-commit-hook.sh --uninstall
+#   ./.aai/scripts/install-pre-commit-hook.sh --print   # emit the pre-commit
+#                                                        # hook body to stdout
+#                                                        # for a manual merge
 #
-# Idempotent. Refuses to overwrite a non-AAI hook unless --force is given.
+# Idempotent per hook. Refuses to overwrite a non-AAI hook unless --force is
+# given (checked for BOTH hooks before writing either, so a foreign hook in
+# one slot never causes a partial install of the other).
 
 FORCE=0
 UNINSTALL=0
+PRINT=0
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=1 ;;
     --uninstall) UNINSTALL=1 ;;
+    --print) PRINT=1 ;;
     -h|--help)
       grep '^#' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -28,12 +41,34 @@ for arg in "$@"; do
   esac
 done
 
+# --print: emit the AAI:INDEX-AUTOGEN pre-commit hook body to stdout so a
+# foreign-hook owner can hand-merge it, without touching any repo state.
+# Extracted from this script's own heredoc (not a second copy) so it can
+# never drift from what --force would actually install (PR #302 Copilot).
+if [[ "$PRINT" == 1 ]]; then
+  awk '/^cat > "\$HOOK_PATH" <<.HOOK.$/{p=1; next} /^HOOK$/{if(p){exit}} p' "$0"
+  exit 0
+fi
+
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "ERROR: not inside a git repository." >&2
   exit 1
 }
-HOOK_PATH="$REPO_ROOT/.git/hooks/pre-commit"
+# Linked worktrees ship .git as a FILE at $REPO_ROOT/.git, so a hooks path
+# built from --show-toplevel never exists there; --git-common-dir resolves
+# to the real (shared) git directory in both a normal repo and a linked
+# worktree (PR #302 Codex P2 — same fix CAT-12/CAT-17 in aai-doctor.mjs use).
+GIT_DIR="$(git rev-parse --git-common-dir 2>/dev/null)" || {
+  echo "ERROR: could not resolve the git common directory." >&2
+  exit 1
+}
+if [[ "$GIT_DIR" != /* ]]; then
+  GIT_DIR="$REPO_ROOT/$GIT_DIR"
+fi
+HOOK_PATH="$GIT_DIR/hooks/pre-commit"
 MARKER="# AAI:INDEX-AUTOGEN"
+REFTX_PATH="$GIT_DIR/hooks/reference-transaction"
+REFTX_MARKER="# AAI:REF-GUARD"
 
 if [[ "$UNINSTALL" == 1 ]]; then
   if [[ -f "$HOOK_PATH" ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
@@ -42,21 +77,36 @@ if [[ "$UNINSTALL" == 1 ]]; then
   else
     echo "No AAI pre-commit hook found (or hook is not AAI-managed). No action taken."
   fi
+  if [[ -f "$REFTX_PATH" ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
+    rm "$REFTX_PATH"
+    echo "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $REFTX_PATH"
+  else
+    echo "No AAI reference-transaction hook found (or hook is not AAI-managed). No action taken."
+  fi
   exit 0
 fi
 
-if [[ -f "$HOOK_PATH" && "$FORCE" != 1 ]]; then
-  if grep -qF "$MARKER" "$HOOK_PATH"; then
-    echo "AAI pre-commit hook already installed at $HOOK_PATH. No action taken."
-    exit 0
-  fi
+FOREIGN=0
+if [[ -f "$HOOK_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$MARKER" "$HOOK_PATH"; then
   echo "ERROR: $HOOK_PATH already exists and is not AAI-managed." >&2
   echo "       Pass --force to overwrite, or merge the snippet manually:" >&2
   echo "       $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print" >&2
+  FOREIGN=1
+fi
+if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
+  echo "ERROR: $REFTX_PATH already exists and is not AAI-managed." >&2
+  echo "       Pass --force to overwrite, or merge the AAI:REF-GUARD body manually." >&2
+  FOREIGN=1
+fi
+if [[ "$FOREIGN" == 1 ]]; then
   exit 1
 fi
 
-mkdir -p "$REPO_ROOT/.git/hooks"
+mkdir -p "$GIT_DIR/hooks"
+
+if [[ -f "$HOOK_PATH" && "$FORCE" != 1 ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
+  echo "AAI pre-commit hook already installed at $HOOK_PATH. No action taken."
+else
 cat > "$HOOK_PATH" <<'HOOK'
 #!/usr/bin/env bash
 # AAI:INDEX-AUTOGEN — auto-regenerate docs/INDEX.md on docs/ changes.
@@ -206,4 +256,55 @@ HOOK
 chmod +x "$HOOK_PATH"
 echo "Installed AAI pre-commit hook at $HOOK_PATH"
 echo "Effect: on every commit that touches docs/, regenerate docs/INDEX.md and stage it."
+fi
+
+if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
+  echo "AAI reference-transaction hook already installed at $REFTX_PATH. No action taken."
+else
+cat > "$REFTX_PATH" <<'REFTXHOOK'
+#!/bin/sh
+# AAI:REF-GUARD -- refuses a refs/heads/main ref update unless AAI_GIT_WRITE=1.
+# Installed by .aai/scripts/install-pre-commit-hook.sh (or the .ps1 twin).
+# This is a git reference-transaction hook: it fires for EVERY ref update in
+# this repository, from any process, at any nesting depth, through any
+# subshell. See
+# docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
+
+aai_state="$1"
+
+if [ "$aai_state" != "prepared" ]; then
+  exit 0
+fi
+
+aai_guarded=0
+while read -r aai_old aai_new aai_ref; do
+  if [ "$aai_ref" = "refs/heads/main" ]; then
+    aai_guarded=1
+  fi
+done
+
+if [ "$aai_guarded" != "1" ]; then
+  exit 0
+fi
+
+if [ "$AAI_GIT_WRITE" = "1" ]; then
+  exit 0
+fi
+
+cat >&2 <<'AAI_REF_GUARD_MSG'
+AAI:REF-GUARD refused this refs/heads/main update.
+  Guard:  git reference-transaction hook, marker AAI:REF-GUARD.
+  Reason: a write to refs/heads/main must be a deliberate, narrow exception,
+          never an ambient default (agent-shell-can-write-the-shipping-repo).
+  Fix:    re-run this ONE command with AAI_GIT_WRITE=1 set, e.g.
+            AAI_GIT_WRITE=1 git commit ...
+  Uninstall this guard: bash .aai/scripts/install-pre-commit-hook.sh --uninstall
+AAI_REF_GUARD_MSG
+exit 1
+REFTXHOOK
+chmod +x "$REFTX_PATH"
+echo "Installed AAI reference-transaction hook (AAI:REF-GUARD) at $REFTX_PATH"
+echo "Effect: a refs/heads/main update is refused unless AAI_GIT_WRITE=1 is set on that command."
+fi
+
 echo "Uninstall with: bash .aai/scripts/install-pre-commit-hook.sh --uninstall"
