@@ -11,6 +11,27 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(harness): a git ref-guard refuses writes to main from an agent shell (ISSUE-0037) [L2]
+
+- A `reference-transaction` hook (marker `AAI:REF-GUARD`) refuses any update to
+  `refs/heads/main` unless `AAI_GIT_WRITE=1` is set for that one command. It
+  survives nesting, subshells and `--no-verify`, because a reference-transaction
+  hook runs where the ref is actually written rather than at the porcelain that
+  asked. `core.hooksPath` remains the deliberate way out.
+- Installed by both installer twins (`install-pre-commit-hook.sh` / `.ps1`) and
+  attested by doctor CAT-17. Uninstall: `bash .aai/scripts/install-pre-commit-hook.sh --uninstall` (or `pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall` on Windows).
+- Scope narrowed by owner decision from all of `refs/heads/` to `refs/heads/main`
+  alone: feature branches and tags stay free, so the guard costs nothing in
+  normal work and only bites where the damage would be shared.
+- Known limit, deferred deliberately: the refusal stops the ref write, not the
+  worktree half that git has already performed — `reset --hard` and `stash push`
+  complete their file-level work before being refused. Recorded as a successor
+  rather than papered over.
+- New suite `tests/skills/test-aai-git-ref-guard.sh` (TEST-301..313), including a
+  live arm that proves the guard is armed in this checkout. TEST-309 pins the
+  Windows twin against logic-inverting mutations, not merely against text that
+  mentions the guard — Windows has no live arm, so that static check is its
+  only cover.
 ## [unreleased] — branch-guard relays git's own refusal message
 
 - `.aai/scripts/branch-guard.mjs` no longer answers every git failure with "not inside a git work tree". When git refuses to read the repository — a `safe.directory` ownership refusal, a dangling gitdir link, a permission error — its own message is relayed verbatim, because that is the only text that names the cause and carries the fix. Standing outside any repository is a different failure and keeps the plain sentence: git writes a fatal there too, so the two are told apart structurally (is there a `.git` above the caller at all) rather than by matching git's wording, and calling that case a refusal would only swap one false diagnosis for another.

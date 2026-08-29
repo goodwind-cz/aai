@@ -186,6 +186,37 @@ EOF
   git -C "$d" remote add origin "$bare"
   git -C "$d" push -q -u origin main
 
+  # CAT-17: a GENUINELY armed reference-transaction hook, installed LAST
+  # (after the fixture's own commit/push above) so it never intercepts this
+  # function's own ref writes. PR #302 (Copilot): the prior fixture here was
+  # `exit 0` unconditionally — exactly the decorative-hook-that-never-
+  # refuses shape the review flagged. CAT-17 now behaviourally probes the
+  # hook (invokes it directly with synthetic prepared/refs-heads-main
+  # input), so a decorative body correctly earns WARN, not PASS, and this
+  # fixture must ship the real predicate to still be "clean".
+  cat > "$d/.git/hooks/reference-transaction" <<'REFTXHOOK'
+#!/bin/sh
+# AAI:REF-GUARD -- refuses a refs/heads/main ref update unless AAI_GIT_WRITE=1.
+aai_state="$1"
+if [ "$aai_state" != "prepared" ]; then
+  exit 0
+fi
+aai_guarded=0
+while read -r aai_old aai_new aai_ref; do
+  if [ "$aai_ref" = "refs/heads/main" ]; then
+    aai_guarded=1
+  fi
+done
+if [ "$aai_guarded" != "1" ]; then
+  exit 0
+fi
+if [ "$AAI_GIT_WRITE" = "1" ]; then
+  exit 0
+fi
+exit 1
+REFTXHOOK
+  chmod +x "$d/.git/hooks/reference-transaction"
+
   echo "$d"
 }
 
@@ -552,9 +583,9 @@ test_015_json_shape() {
       const die = (m) => { console.error(m); process.exit(1); };
       if (typeof j.root !== "string") die("root missing/wrong type");
       if (typeof j.generatedAt !== "string") die("generatedAt missing/wrong type");
-      if (!Array.isArray(j.categories) || j.categories.length !== 16) die("categories: want array of 16, got " + (j.categories && j.categories.length));
+      if (!Array.isArray(j.categories) || j.categories.length !== 17) die("categories: want array of 17, got " + (j.categories && j.categories.length));
       const wantIds = [];
-      for (let i = 1; i <= 16; i++) wantIds.push("CAT-" + String(i).padStart(2, "0"));
+      for (let i = 1; i <= 17; i++) wantIds.push("CAT-" + String(i).padStart(2, "0"));
       const gotIds = j.categories.map(c => c.id);
       if (JSON.stringify(gotIds) !== JSON.stringify(wantIds)) die("category ids: " + JSON.stringify(gotIds));
       for (const c of j.categories) {
@@ -571,7 +602,7 @@ test_015_json_shape() {
       if (typeof j.issues !== "number") die("issues not a number");
       if (typeof j.exit !== "number") die("exit not a number");
     });
-  ' && log_pass "TEST-015 --json emits the documented shape (16 categories, CAT-01..16, CAT-14/15/16 carry detail)" \
+  ' && log_pass "TEST-015 --json emits the documented shape (17 categories, CAT-01..17, CAT-14/15/16 carry detail)" \
     || log_fail "TEST-015 --json shape"
 }
 
@@ -921,7 +952,7 @@ test_027_capability_fields_unknown() {
 }
 
 # --- TEST-028 (Spec-AC-04) — output shape: one line each, --json detail,
-#     CAT-01..13 unchanged, categories grow 13 -> 16 on a clean fixture ------
+#     CAT-01..13 unchanged, categories grow 13 -> 17 on a clean fixture ------
 test_028_output_shape_growth() {
   local out
   out="$(node "$DOCTOR" --root "$PROJECT_ROOT" 2>&1)"
@@ -944,7 +975,7 @@ test_028_output_shape_growth() {
     process.stdin.on("end", () => {
       const j = JSON.parse(d);
       const die = (m) => { console.error(m); process.exit(1); };
-      if (j.categories.length !== 16) die("categories.length=" + j.categories.length + " (want 16)");
+      if (j.categories.length !== 17) die("categories.length=" + j.categories.length + " (want 17)");
       for (let i = 1; i <= 13; i++) {
         const id = "CAT-" + String(i).padStart(2, "0");
         const c = j.categories.find(x => x.id === id);
@@ -955,7 +986,7 @@ test_028_output_shape_growth() {
         if (!c || typeof c.detail !== "object" || c.detail === null) die(id + " missing a structured detail object under --json");
       }
     });
-  ' && log_pass "TEST-028 output shape: one line each, --json detail, CAT-01..13 unchanged, 13->16 growth" \
+  ' && log_pass "TEST-028 output shape: one line each, --json detail, CAT-01..13 unchanged, 13->17 growth" \
     || log_fail "TEST-028 output shape growth"
 }
 
@@ -1656,6 +1687,136 @@ test_039_0139_canonical_invocation_shape() {
     || log_fail "TEST-039 (0139-TEST-005) canonical_invocation shape invariants"
 }
 
+# --- TEST-040 (PR #302 review: Codex P1 / Copilot P2) — CAT-17 effective
+# hooks path + behavioural probe ---------------------------------------------
+# A hook FILE carrying the AAI:REF-GUARD marker is not evidence git will run
+# it. This pins the three ways that lied before this fix, plus a control:
+#   1) core.hooksPath redirects git elsewhere -> the marker'd file at the
+#      DEFAULT path is dead weight; CAT-17 must say NOT armed. A "naive"
+#      re-implementation of the PRE-FIX resolution (git-common-dir join,
+#      marker-only, no --git-path) is run against the SAME fixture and shown
+#      to say PASS -- proving this fixture actually exercises the bug, not
+#      a strawman.
+#   2) A decorative hook (marker present, unconditionally exits 0, never
+#      refuses) -> CAT-17's behavioural probe must catch it.
+#   3) A hook without the executable bit (POSIX only) -> git silently never
+#      runs it; CAT-17 must say NOT armed.
+#   4) Control: a genuinely armed hook at the default path -> PASS.
+test_040_cat17_effective_path_and_probe() {
+  local ok=1
+
+  local reftx_body='#!/bin/sh
+# AAI:REF-GUARD
+aai_state="$1"
+if [ "$aai_state" != "prepared" ]; then exit 0; fi
+aai_guarded=0
+while read -r o n r; do [ "$r" = "refs/heads/main" ] && aai_guarded=1; done
+[ "$aai_guarded" = "1" ] || exit 0
+[ "$AAI_GIT_WRITE" = "1" ] && exit 0
+exit 1
+'
+
+  # --- Fixture 1: core.hooksPath override -------------------------------
+  local d1="$TMP_ROOT/t040-hookspath"
+  rm -rf "$d1"; mkdir -p "$d1/.git/hooks" "$d1/altdir_hooks"
+  git -C "$d1" init -q -b main >/dev/null
+  git -C "$d1" config user.email "test@example.invalid"; git -C "$d1" config user.name "AAI Test"
+  git -C "$d1" commit -q --allow-empty -m init
+  printf '%s' "$reftx_body" > "$d1/.git/hooks/reference-transaction"
+  chmod +x "$d1/.git/hooks/reference-transaction"
+  git -C "$d1" config core.hooksPath altdir_hooks
+
+  local out1
+  out1="$(node "$DOCTOR" --root "$d1" 2>&1 | grep '^CAT-17')"
+  if [[ "$out1" == *' PASS '* ]]; then
+    log_info "TEST-040 hooksPath: got PASS (git.ignores this file once hooksPath is set): $out1"
+    ok=0
+  fi
+
+  # Mutation proof: the PRE-FIX resolution (git-common-dir join + marker
+  # substring, no --git-path, no probe) reading the SAME fixture.
+  local naive
+  naive="$(node -e '
+    const fs=require("node:fs"), path=require("node:path"), cp=require("node:child_process");
+    const root=process.argv[1];
+    let gitDir=path.join(root,".git");
+    const r=cp.spawnSync("git",["rev-parse","--git-common-dir"],{cwd:root,encoding:"utf8"});
+    if(r.status===0 && r.stdout.trim()!==""){
+      const c=r.stdout.trim();
+      gitDir = path.isAbsolute(c)?c:path.join(root,c);
+    }
+    const hookPath=path.join(gitDir,"hooks/reference-transaction");
+    const body=fs.existsSync(hookPath)?fs.readFileSync(hookPath,"utf8"):"";
+    process.stdout.write(body.includes("AAI:REF-GUARD") ? "PASS" : "WARN");
+  ' "$d1")"
+  if [[ "$naive" != "PASS" ]]; then
+    log_info "TEST-040: fixture sanity check failed — the pre-fix (marker-only) resolution did not say PASS on this fixture (got $naive), so it would not have caught the F-A regression"
+    ok=0
+  fi
+  git -C "$d1" config --unset core.hooksPath
+
+  # --- Fixture 2: decorative hook (marker present, never refuses) ------
+  local d2="$TMP_ROOT/t040-decorative"
+  rm -rf "$d2"; mkdir -p "$d2/.git/hooks"
+  git -C "$d2" init -q -b main >/dev/null
+  git -C "$d2" config user.email "test@example.invalid"; git -C "$d2" config user.name "AAI Test"
+  git -C "$d2" commit -q --allow-empty -m init
+  printf '#!/bin/sh\n# AAI:REF-GUARD\nexit 0\n' > "$d2/.git/hooks/reference-transaction"
+  chmod +x "$d2/.git/hooks/reference-transaction"
+  local out2
+  out2="$(node "$DOCTOR" --root "$d2" 2>&1 | grep '^CAT-17')"
+  if [[ "$out2" == *' PASS '* ]]; then
+    log_info "TEST-040 decorative: got PASS on a hook that never refuses: $out2"
+    ok=0
+  fi
+  if [[ "$(printf '%s' "$out2" | tr 'A-Z' 'a-z')" != *'does not behave as a guard'* ]]; then
+    log_info "TEST-040 decorative: WARN reason does not name the behavioural mismatch: $out2"
+    ok=0
+  fi
+
+  # --- Fixture 3: non-executable hook (POSIX only) ----------------------
+  case "$(uname -s)" in
+    MINGW*|CYGWIN*|MSYS*) : ;; # git hooks run through an interpreter there regardless of mode bits
+    *)
+      local d3="$TMP_ROOT/t040-noexec"
+      rm -rf "$d3"; mkdir -p "$d3/.git/hooks"
+      git -C "$d3" init -q -b main >/dev/null
+      git -C "$d3" config user.email "test@example.invalid"; git -C "$d3" config user.name "AAI Test"
+      git -C "$d3" commit -q --allow-empty -m init
+      printf '%s' "$reftx_body" > "$d3/.git/hooks/reference-transaction"
+      chmod -x "$d3/.git/hooks/reference-transaction"
+      local out3
+      out3="$(node "$DOCTOR" --root "$d3" 2>&1 | grep '^CAT-17')"
+      if [[ "$out3" == *' PASS '* ]]; then
+        log_info "TEST-040 non-executable: got PASS on a hook without the executable bit: $out3"
+        ok=0
+      fi
+      if [[ "$(printf '%s' "$out3" | tr 'A-Z' 'a-z')" != *'not executable'* ]]; then
+        log_info "TEST-040 non-executable: WARN reason does not name the missing executable bit: $out3"
+        ok=0
+      fi
+      ;;
+  esac
+
+  # --- Fixture 4 (control): genuinely armed hook -> PASS ----------------
+  local d4="$TMP_ROOT/t040-armed"
+  rm -rf "$d4"; mkdir -p "$d4/.git/hooks"
+  git -C "$d4" init -q -b main >/dev/null
+  git -C "$d4" config user.email "test@example.invalid"; git -C "$d4" config user.name "AAI Test"
+  git -C "$d4" commit -q --allow-empty -m init
+  printf '%s' "$reftx_body" > "$d4/.git/hooks/reference-transaction"
+  chmod +x "$d4/.git/hooks/reference-transaction"
+  local out4
+  out4="$(node "$DOCTOR" --root "$d4" 2>&1 | grep '^CAT-17')"
+  if [[ "$out4" != *' PASS '* ]]; then
+    log_info "TEST-040 armed control: expected PASS, got: $out4"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-040 CAT-17 resolves the EFFECTIVE hooks path (core.hooksPath override -> NOT armed; pre-fix marker-only resolution DOES wrongly say PASS on the same fixture) and behaviourally probes the hook (decorative/non-executable -> NOT armed; a real guard -> PASS)" \
+    || log_fail "TEST-040 CAT-17 effective-path + behavioural-probe"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1712,6 +1873,7 @@ main() {
   test_037_0138_count_line_composition
   test_038_0139_canonical_invocation_fixtures
   test_039_0139_canonical_invocation_shape
+  test_040_cat17_effective_path_and_probe
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

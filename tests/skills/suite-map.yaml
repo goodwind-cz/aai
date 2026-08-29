@@ -308,6 +308,14 @@ suites:
       - .aai/system/PROFILES.yaml
       - docs/ai/friction/**
 
+  aai-git-ref-guard:
+    globs:
+      - .aai/scripts/install-pre-commit-hook.sh
+      - .aai/scripts/install-pre-commit-hook.ps1
+      - .aai/scripts/aai-doctor.mjs
+      - .aai/SUBAGENT_CONTRACT.md
+      - docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md
+
   aai-hitl-channel:
     globs:
       - .aai/scripts/hitl-channel.mjs

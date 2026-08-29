@@ -2,10 +2,12 @@
 id: agent-shell-can-write-the-shipping-repo
 type: issue
 number: 37
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 302
+  commits:
+    - 696dad4
 ---
 
 # Nothing structurally stops an agent shell or its probes from writing the shipping repository
