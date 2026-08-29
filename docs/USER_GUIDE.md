@@ -1610,7 +1610,7 @@ It refuses to overwrite a non-AAI `pre-commit` hook unless you pass `--force`.
 **The installer above writes a SECOND hook**, and `/aai-update` installs it for you
 without asking — so read this before your next commit on `main`.
 
-**What:** a `.git/hooks/reference-transaction` hook (marker `AAI:REF-GUARD`) that
+**What:** a `reference-transaction` hook (marker `AAI:REF-GUARD`) that
 **refuses any update to `refs/heads/main`** unless `AAI_GIT_WRITE=1` is set on that
 one command. Feature branches and tags are untouched; nothing changes in normal
 work. It exists because branch protection stops a *push* but nothing stopped a
@@ -1618,6 +1618,19 @@ local `commit`, `reset --hard`, `merge` or `stash` from moving `main` under you 
 and `--no-verify` walked straight past the pre-commit hook. A reference-transaction
 hook runs where the ref is actually written, so it also survives nesting and
 subshells.
+
+**Where it lives:** in your repository's *effective* hooks directory — the one git
+itself resolves. That is usually `.git/hooks`, but `core.hooksPath` moves it
+anywhere, and a linked worktree keeps its hooks in the shared git directory rather
+than beside the worktree. Do not assume a path; ask git for yours:
+
+```bash
+git rev-parse --git-path hooks/reference-transaction
+```
+
+The installer writes to exactly that path, and if it cannot leave a hook git will
+actually run there, it **fails loudly instead of exiting 0** — a guard that
+reports success while being inert is worse than no guard.
 
 **What you will see** when it fires — this is the guard working, not a broken repo:
 
@@ -1629,6 +1642,14 @@ AAI:REF-GUARD refused this refs/heads/main update.
 
 ```bash
 AAI_GIT_WRITE=1 git commit -m "..."   # deliberate, one command, not exported
+```
+
+PowerShell has no `VAR=value command` prefix syntax, so on Windows scope the
+variable to a child process instead — this keeps the same "one command, not
+exported" property, because `$env:` set inside `-Command` dies with that process:
+
+```powershell
+pwsh -NoProfile -Command '$env:AAI_GIT_WRITE=1; git commit -m "..."'
 ```
 
 **Known limit, worth knowing before it surprises you:** the refusal stops the *ref*
