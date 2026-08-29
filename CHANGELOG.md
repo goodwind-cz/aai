@@ -11,6 +11,45 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(hygiene): a hygiene-pack check catches a leaked cd inside a command substitution [L1]
+
+Ceremony justification: single new detection script plus its wiring into the
+already-CORE hygiene pack; no protected surface, no engine change, no change
+to what any existing guard refuses.
+
+- **`fu-subagent-probe-hits-real-repo` (P1, 2026-08-15): a validator probe
+  `cd`-ed into a fixture inside a command substitution — `$(cd fixture && git
+  ...)` — which runs in a SUBSHELL, so the `cd` never affected the parent
+  shell.** Every git command that followed ran against the real shipping
+  repository, creating two commits on `main`. `HAZ-SCRATCH` named the scar in
+  prose; nothing detected the shape itself. `.aai/scripts/check-cd-subshell-leak.mjs`
+  now does: a quote-aware, paren-depth-tracking scan of tracked `.sh` files
+  under `tests/skills/` and `.aai/scripts/` (recursively, including `lib/`)
+  for a `cd` inside `$( ... )`/backtick substitution followed, within 5 lines
+  after the substitution closes, by a top-level `git` command with no real
+  `cd` in between — the exact incident shape, named by file:line. A real
+  top-level `cd` cancels a pending leak (a deliberate re-scoping, not an
+  accident); `git -C <path>` is never flagged (it names its own working
+  directory and never reads the parent shell's cwd — a real false positive
+  found in triage on `.aai/scripts/aai-update.sh`).
+- A ratchet baseline (`tests/skills/lib/cd-subshell-leak-baseline.tsv`)
+  tracks the raw "cd inside a substitution" surface per file — including
+  entirely SAFE occurrences like `dir="$(cd "$dir" && pwd)"` — separately
+  from the never-baselined hard gate: a NEW file or a risen count fails, a
+  shrink is reported but never silently lowers the bar. Triage found 373 SAFE
+  pre-existing occurrences across 100 files and zero UNSAFE ones — no live
+  incident — now recorded as the starting baseline, not fixed as scope creep.
+- Wired into `tests/skills/test-aai-hygiene-pack.sh` as `test_108`/`test_109`
+  (CORE, always-selected): live-gate + bite proofs (exact historical shape,
+  legitimate use, `-C` guard, cancelling `cd`, anti-no-op) plus two mutation
+  proofs (inverting the hard gate's UNSAFE label, and the ratchet's NEW
+  label) showing each assertion is load-bearing, not decorative.
+- Does not extend `#302`'s `reference-transaction` ref-guard hook install
+  footprint to CI or fresh clones — verified independently that no workflow
+  installs it and a fresh clone carries no `.git/hooks/`; that gap is
+  SPEC-0156's own deliberate, owner-level scope boundary and stays out of
+  this ride.
+
 ## [v2026.08.29] — fix(harness): the STATE bootstrap route now names itself when it fails [L1]
 
 Ceremony justification: single surface region (two non-protected guard

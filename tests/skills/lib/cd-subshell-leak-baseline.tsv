@@ -1,0 +1,117 @@
+# tests/skills/lib/cd-subshell-leak-baseline.tsv
+#
+# GENERATED, never hand-edited:
+#   node .aai/scripts/check-cd-subshell-leak.mjs --record
+#
+# One `<occurrences>\t<file>` row per scanned shell file that carries a
+# `cd` inside a command substitution (SAFE or UNSAFE alike — this ratchets
+# the raw shape's surface, not just the incident-shaped subset). The count
+# may FALL, never RISE: a rise (or a file not listed here) fails
+# tests/skills/test-aai-hygiene-pack.sh and names the file. A SHRINK keeps
+# its recorded number until someone re-records on purpose, so that
+# lowering the bar is a visible act.
+#
+# Being listed here is NOT a waiver of the hard gate: a `cd` inside a
+# substitution followed by an unguarded top-level `git` shortly after
+# fails whether or not this file mentions it.
+#
+2	.aai/scripts/aai-bootstrap.sh
+1	.aai/scripts/aai-canonicalize.sh
+2	.aai/scripts/aai-live.sh
+10	.aai/scripts/aai-run-tests.sh
+2	.aai/scripts/aai-sync.sh
+1	.aai/scripts/aai-update.sh
+1	.aai/scripts/claude-hook-gate.sh
+1	.aai/scripts/cloudflare-share.sh
+2	.aai/scripts/expert-fetch.sh
+2	.aai/scripts/live-spool.sh
+1	.aai/scripts/migrate-state-to-local.sh
+1	.aai/scripts/migrate-yaml-to-jsonl.sh
+1	.aai/scripts/pre-commit-checks.sh
+1	.aai/scripts/triage.sh
+1	.aai/scripts/validate-skills.sh
+2	tests/skills/lib/pipe-grep-q-ratchet.sh
+2	tests/skills/test-aai-advisory-skills.sh
+2	tests/skills/test-aai-bootstrap.sh
+4	tests/skills/test-aai-branch-guard.sh
+2	tests/skills/test-aai-ceremony-levels.sh
+2	tests/skills/test-aai-check-state.sh
+5	tests/skills/test-aai-close-work-item.sh
+2	tests/skills/test-aai-constitution.sh
+2	tests/skills/test-aai-dashboard.sh
+2	tests/skills/test-aai-debug-gate.sh
+2	tests/skills/test-aai-delta-stage1.sh
+2	tests/skills/test-aai-delta-stage2.sh
+2	tests/skills/test-aai-delta-stage3.sh
+12	tests/skills/test-aai-deslop.sh
+2	tests/skills/test-aai-doc-number-reservation.sh
+11	tests/skills/test-aai-doc-numbering.sh
+15	tests/skills/test-aai-docs-audit.sh
+2	tests/skills/test-aai-docs-canon.sh
+2	tests/skills/test-aai-docs-hub.sh
+3	tests/skills/test-aai-docs-lock.sh
+5	tests/skills/test-aai-doctor.sh
+3	tests/skills/test-aai-factory-report.sh
+2	tests/skills/test-aai-feedback-status.sh
+2	tests/skills/test-aai-feedback-triage.sh
+2	tests/skills/test-aai-feedback-upsert.sh
+4	tests/skills/test-aai-follow-ups.sh
+2	tests/skills/test-aai-friction-capture-points.sh
+2	tests/skills/test-aai-friction-wiring.sh
+2	tests/skills/test-aai-friction.sh
+15	tests/skills/test-aai-git-ref-guard.sh
+2	tests/skills/test-aai-hitl-channel.sh
+3	tests/skills/test-aai-hitl-propagation.sh
+10	tests/skills/test-aai-hooks-overlay.sh
+45	tests/skills/test-aai-hygiene-pack.sh
+2	tests/skills/test-aai-implementation-mode.sh
+6	tests/skills/test-aai-intake.sh
+2	tests/skills/test-aai-issues.sh
+2	tests/skills/test-aai-layer-drift.sh
+3	tests/skills/test-aai-layer-profiles.sh
+2	tests/skills/test-aai-learned-append.sh
+2	tests/skills/test-aai-lightweight-lane.sh
+5	tests/skills/test-aai-live-status.sh
+6	tests/skills/test-aai-metrics.sh
+3	tests/skills/test-aai-orchestration-dispatch.sh
+2	tests/skills/test-aai-orchestration-mode.sh
+2	tests/skills/test-aai-orphan-sweep.sh
+2	tests/skills/test-aai-overview.sh
+2	tests/skills/test-aai-planning-probes.sh
+4	tests/skills/test-aai-pr-platform.sh
+2	tests/skills/test-aai-pr-waiver.sh
+2	tests/skills/test-aai-pricing.sh
+2	tests/skills/test-aai-product-docs.sh
+4	tests/skills/test-aai-prompt-diet.sh
+2	tests/skills/test-aai-prompt-hash.sh
+2	tests/skills/test-aai-prune-stale-briefs.sh
+2	tests/skills/test-aai-r-guard.sh
+2	tests/skills/test-aai-reconcile-telemetry.sh
+2	tests/skills/test-aai-redact.sh
+2	tests/skills/test-aai-release.sh
+3	tests/skills/test-aai-repo-tripwire.sh
+2	tests/skills/test-aai-role-output.sh
+2	tests/skills/test-aai-routine.sh
+2	tests/skills/test-aai-run-tests.sh
+2	tests/skills/test-aai-runtime-file.sh
+2	tests/skills/test-aai-secrets-preflight.sh
+7	tests/skills/test-aai-spec-lint.sh
+9	tests/skills/test-aai-spec-tools.sh
+2	tests/skills/test-aai-state.sh
+19	tests/skills/test-aai-suite-isolation.sh
+2	tests/skills/test-aai-suite-select.sh
+7	tests/skills/test-aai-sweep-parallel.sh
+2	tests/skills/test-aai-sync-seed.sh
+4	tests/skills/test-aai-tdd-evidence.sh
+2	tests/skills/test-aai-tdd.sh
+2	tests/skills/test-aai-test-canon.sh
+2	tests/skills/test-aai-token-capture.sh
+33	tests/skills/test-aai-update-check.sh
+17	tests/skills/test-aai-update.sh
+2	tests/skills/test-aai-userguide-drift.sh
+2	tests/skills/test-aai-userguide-rollup.sh
+2	tests/skills/test-aai-validator-isolation.sh
+2	tests/skills/test-aai-verify-gate.sh
+2	tests/skills/test-aai-win-fallback.sh
+7	tests/skills/test-framework.sh
+2	tests/skills/test-ps1-quality.sh
