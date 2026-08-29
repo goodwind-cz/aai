@@ -1,12 +1,16 @@
 <#
 .SYNOPSIS
-  Install the AAI git hook SET: an opt-in .git/hooks/pre-commit that auto-
+  Install the AAI git hook SET: an opt-in pre-commit hook that auto-
   regenerates docs/INDEX.md whenever the commit touches docs/ (RFC-0001
-  layer 4 convenience), and .git/hooks/reference-transaction, which refuses
+  layer 4 convenience), and a reference-transaction hook, which refuses
   a refs/heads/main ref update unless AAI_GIT_WRITE=1 is set on that exact
   command (docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md).
 
 .DESCRIPTION
+  Both hooks are written to the EFFECTIVE hooks directory — the one
+  `git rev-parse --git-path hooks/<name>` resolves, which honours
+  core.hooksPath and a linked worktree's shared git dir. It is usually
+  .git/hooks, but never assume that.
   Idempotent per hook. Refuses to overwrite a non-AAI hook unless -Force is
   given (checked for BOTH hooks before writing either).
 
@@ -37,23 +41,79 @@ if (-not $repoRoot) {
   exit 1
 }
 
-# Linked worktrees ship .git as a FILE at $repoRoot/.git, so a hooks path
-# built from --show-toplevel never exists there; --git-common-dir resolves
-# to the real (shared) git directory in both a normal repo and a linked
-# worktree (PR #302 Codex P2 — same fix the .sh twin and aai-doctor.mjs use).
-$gitCommonDir = (& git rev-parse --git-common-dir 2>$null).Trim()
-if (-not $gitCommonDir) {
-  Write-Error "Could not resolve the git common directory."
-  exit 1
-}
-if (-not [System.IO.Path]::IsPathRooted($gitCommonDir)) {
-  $gitCommonDir = Join-Path $repoRoot $gitCommonDir
+# Where git will ACTUALLY look for hooks.
+#
+# `git rev-parse --git-path hooks/<name>` is the resolution git itself performs
+# to pick the file it executes, so it folds in BOTH things a hand-built path
+# gets wrong: a linked worktree ships .git as a FILE, so a path built from
+# --show-toplevel never exists there (PR #302 Codex P2); and `core.hooksPath`
+# moves the hooks directory somewhere --git-common-dir knows nothing about
+# (PR #304 Codex P1 — that one shipped a false success: the installer wrote
+# .git/hooks/reference-transaction, exited 0, and a marker-less commit still
+# moved refs/heads/main because git ran the custom path instead).
+# The result is relative to the CURRENT DIRECTORY, not the repo root, so a
+# relative answer is resolved against the current location.
+function Resolve-HookPath {
+  param([Parameter(Mandatory = $true)][string]$Name)
+  $p = & git rev-parse --git-path "hooks/$Name" 2>$null
+  if ($p) { $p = ([string]$p).Trim() }
+  if (-not $p) { return $null }
+  if (-not [System.IO.Path]::IsPathRooted($p)) {
+    $p = Join-Path (Get-Location).ProviderPath $p
+  }
+  return $p
 }
 
-$hookPath   = Join-Path $gitCommonDir "hooks/pre-commit"
+# A path we cannot resolve is a path we cannot install into safely, and a guard
+# installed somewhere git never looks is worse than no guard at all — so this
+# refuses loudly instead of exiting 0 on an inert hook.
+$hookPath = Resolve-HookPath 'pre-commit'
+if (-not $hookPath) {
+  Write-Error "Could not resolve the effective git hooks path for pre-commit (git rev-parse --git-path failed). Refusing to install: a hook written to a guessed path would report success while git never runs it."
+  exit 1
+}
+$reftxPath = Resolve-HookPath 'reference-transaction'
+if (-not $reftxPath) {
+  Write-Error "Could not resolve the effective git hooks path for reference-transaction (git rev-parse --git-path failed). Refusing to install: a guard written to a guessed path would report success while git never runs it."
+  exit 1
+}
+$hooksDir   = Split-Path -Parent $reftxPath
 $marker     = "# AAI:INDEX-AUTOGEN"
-$reftxPath  = Join-Path $gitCommonDir "hooks/reference-transaction"
 $reftxMarker = "# AAI:REF-GUARD"
+
+# Test-EffectiveHook — re-ask git where it would look, and prove the file THERE
+# is ours and runnable. This is the post-condition that makes the exit code
+# mean something: exit 0 asserts "git will run this", not "a write succeeded
+# somewhere". /aai-update reads that exit code as proof of protection.
+function Test-EffectiveHook {
+  param(
+    [Parameter(Mandatory = $true)][string]$Name,
+    [Parameter(Mandatory = $true)][string]$Marker
+  )
+  $p = Resolve-HookPath $Name
+  if (-not $p) {
+    Write-Host "ERROR: installed $Name but can no longer resolve the effective hooks path." -ForegroundColor Red
+    return $false
+  }
+  if (-not (Test-Path -LiteralPath $p -PathType Leaf)) {
+    Write-Host "ERROR: git resolves the $Name hook to $p, but no file is there." -ForegroundColor Red
+    return $false
+  }
+  if (-not ((Get-Content $p -Raw) -match [regex]::Escape($Marker))) {
+    Write-Host "ERROR: the $Name hook git would run ($p) does not carry $Marker." -ForegroundColor Red
+    return $false
+  }
+  # Windows runs hooks through an interpreter regardless of mode bits; on POSIX
+  # git silently skips a hook that is not executable (same carve as CAT-17).
+  if ($IsLinux -or $IsMacOS) {
+    & test -x $p
+    if ($LASTEXITCODE -ne 0) {
+      Write-Host "ERROR: the $Name hook git would run ($p) is not executable — git skips it silently." -ForegroundColor Red
+      return $false
+    }
+  }
+  return $true
+}
 
 if ($Uninstall) {
   if ((Test-Path $hookPath) -and ((Get-Content $hookPath -Raw) -match [regex]::Escape($marker))) {
@@ -90,7 +150,11 @@ if ($foreign) {
   exit 1
 }
 
-New-Item -ItemType Directory -Force -Path (Join-Path $gitCommonDir "hooks") | Out-Null
+if ((Test-Path -LiteralPath $hooksDir) -and -not (Test-Path -LiteralPath $hooksDir -PathType Container)) {
+  Write-Error "The effective git hooks path $hooksDir exists and is not a directory. Refusing to install rather than reporting success on a guard git cannot run."
+  exit 1
+}
+New-Item -ItemType Directory -Force -Path $hooksDir | Out-Null
 
 $skipPreCommit = $false
 if ((Test-Path $hookPath) -and (-not $Force)) {
@@ -304,8 +368,10 @@ AAI:REF-GUARD refused this refs/heads/main update.
   Guard:  git reference-transaction hook, marker AAI:REF-GUARD.
   Reason: a write to refs/heads/main must be a deliberate, narrow exception,
           never an ambient default (agent-shell-can-write-the-shipping-repo).
-  Fix:    re-run this ONE command with AAI_GIT_WRITE=1 set, e.g.
-            AAI_GIT_WRITE=1 git commit ...
+  Fix:    re-run this ONE command with AAI_GIT_WRITE=1 set. PowerShell has no
+          VAR=value command prefix, so scope it to a child process:
+            pwsh -NoProfile -Command '$env:AAI_GIT_WRITE=1; git commit ...'
+          From a POSIX shell on this machine:  AAI_GIT_WRITE=1 git commit ...
   Uninstall this guard: pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall
 AAI_REF_GUARD_MSG
 exit 1
@@ -318,6 +384,15 @@ if (-not $skipReftx) {
   }
   Write-Host "Installed AAI reference-transaction hook (AAI:REF-GUARD) at $reftxPath"
   Write-Host "Effect: a refs/heads/main update is refused unless AAI_GIT_WRITE=1 is set on that command."
+}
+
+# Post-condition (PR #304 Codex P1) — see Test-EffectiveHook.
+$attestOk = $true
+if (-not (Test-EffectiveHook -Name 'pre-commit' -Marker $marker)) { $attestOk = $false }
+if (-not (Test-EffectiveHook -Name 'reference-transaction' -Marker $reftxMarker)) { $attestOk = $false }
+if (-not $attestOk) {
+  Write-Error "Installation did NOT leave an active hook at the path git resolves. Check 'git config core.hooksPath' and 'git rev-parse --git-path hooks/reference-transaction'."
+  exit 1
 }
 
 Write-Host "Uninstall with: pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall"
