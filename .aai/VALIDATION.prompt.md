@@ -170,6 +170,14 @@ PROCESS
       scripts for the full safety contract (group-kill guarantee, timeout
       exit-124 convention, epoch-vs-legacy age-guard modes, never a global
       `pkill -f vitest`).
+   c2) SUITE SCOPE PER ROUND. The lane above sets a round's DEPTH; this sets
+      how often the full skills sweep is paid. An INTERMEDIATE round — any
+      validation or remediation round before the close ceremony — runs the
+      SELECTED plus CORE suites named by
+      `node .aai/scripts/select-suites.mjs --files-from <changed files>` and
+      does NOT require a full sweep. ONE full
+      `bash tests/skills/test-framework.sh` runs before the close ceremony and
+      is the sweep the TEST rows cite. State which of the two this round was.
    d) If e2e tests exist (config file or test directory found) but were NOT executed → automatic FAIL.
    e) Record exit code and output for every test command as evidence.
    f) For each seam identified during planning (PLANNING step 6a), confirm an INTEGRATION test actually crosses it and was

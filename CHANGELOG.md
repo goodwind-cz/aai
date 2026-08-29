@@ -11,6 +11,59 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — perf(harness): the sweep runs suites concurrently, and a round stops paying for a full one [L2]
+
+Ceremony justification: L2. It changes the execution model of the funnel every
+suite and all of CI enters through, and it touches two guarantees that are load-
+bearing rather than cosmetic — who a tripwire detection is attributed to, and
+whether the append-only run ledger stays whole. A new mechanism, a new shared
+library and a new suite, on a surface whose failure mode is a green run that
+tested less.
+
+- **The sweep was strictly sequential, and the reason it had to be is gone.**
+  Every suite now gets its own `git clone --local --no-hardlinks`
+  (spec-isolation-shares-the-shipping-git), so the shared `.git` that forced one
+  suite at a time no longer exists. `tests/skills/test-framework.sh` runs suites
+  at a bounded width — `min(8, cpus - 2)`, overridable with `AAI_TEST_PARALLEL`,
+  where 1 selects the pre-existing serial path unchanged. The bound is not a
+  guess: the critical path of a concurrent sweep is `max(longest suite, total/W)`,
+  and at W=8 those two terms are already level on this corpus, so a wider run
+  buys nothing while every extra slot holds another full clone on disk.
+
+- **A concurrent tripwire window says what it can justify, and nothing more.**
+  Serially the window belongs to one suite; concurrently it belongs to all of
+  them, and a HEAD move by one would otherwise be reported against every sibling
+  in the wave — which was observed once. A wave is now judged as one window: if
+  it is clean, every member gets the answer it would have got alone; if it is
+  not, the wave's results are discarded and its suites are re-run one at a time,
+  each with its own exact window, and those verdicts are what the run reports.
+  Detection is unchanged — the concurrent window is what notices, the serial
+  re-run is what attributes.
+
+- **Appends to `docs/ai/tests/test-runs.jsonl` are serialised.** New shared
+  library `.aai/scripts/lib/append-lock.sh` takes a cross-process `mkdir` mutex
+  beside the ledger. Today's single short line would survive contention on the
+  kernel's `O_APPEND` atomicity alone — that is a property of the current
+  payload, not of the file, and the first two-part or oversized append would
+  interleave with nothing failing until a reader hit the broken line. A lock
+  that cannot be taken is reported and nothing is written unlocked.
+
+- **`RUN_ID` collisions are resolved atomically.** Two runs starting in the same
+  second used to share a `RUN_DIR` and overwrite each other's per-suite
+  artifacts. `mkdir` on the run directory is now the test-and-set; the loser
+  takes a suffixed id (`fu-framework-rundir-same-second`).
+
+- **An intermediate round no longer owes a full sweep.**
+  `.aai/VALIDATION.prompt.md` states which suites a round runs: an intermediate
+  validation or remediation round runs the SELECTED plus CORE suites named by
+  `select-suites.mjs`, and ONE full sweep runs before the close ceremony and is
+  the sweep the TEST rows cite.
+
+- New suite `tests/skills/test-aai-sweep-parallel.sh` proves the above by
+  behaviour: width is measured on the clock against sleeping suites, attribution
+  is proven by producing real contention and reading who gets blamed, and append
+  serialisation is proven with concurrent multi-line writers, not by asserting
+  that a lock exists.
 ## [unreleased] — fix(tests): three checks that asserted less than they claimed [L2]
 
 Ceremony justification: L2, not L1. Item 2 changes a suite's exit semantics and
