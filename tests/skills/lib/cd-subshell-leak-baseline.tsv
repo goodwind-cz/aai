@@ -61,9 +61,9 @@
 2	tests/skills/test-aai-friction.sh
 15	tests/skills/test-aai-git-ref-guard.sh
 2	tests/skills/test-aai-hitl-channel.sh
-2	tests/skills/test-aai-hitl-propagation.sh
-9	tests/skills/test-aai-hooks-overlay.sh
-7	tests/skills/test-aai-hygiene-pack.sh
+3	tests/skills/test-aai-hitl-propagation.sh
+10	tests/skills/test-aai-hooks-overlay.sh
+45	tests/skills/test-aai-hygiene-pack.sh
 2	tests/skills/test-aai-implementation-mode.sh
 6	tests/skills/test-aai-intake.sh
 2	tests/skills/test-aai-issues.sh

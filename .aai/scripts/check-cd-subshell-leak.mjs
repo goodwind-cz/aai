@@ -219,17 +219,37 @@ export function scanText(text) {
     if (c === "'" && !inDouble) { inSingle = true; i += 1; continue; }
     if (c === '"') { inDouble = !inDouble; i += 1; continue; }
 
+    // A double-quote that opened BEFORE this substitution started (e.g. the
+    // outer quote of `X="$(cd "$dir" && pwd)"`) must not make a literal `)`
+    // INSIDE the substitution look closed, nor make the substitution's OWN
+    // closing `)` look like it is "inside a quote" once a nested pair (like
+    // "$dir" above) has toggled inDouble an even number of times. Bash parses
+    // each $()/`` level with its own independent quoting context, so each
+    // frame saves the enclosing inDouble and starts fresh at false; popping
+    // restores it. Without this, `$(echo ")")` desynced: the `)` closing the
+    // echo's own double-quoted argument was read as closing the substitution
+    // itself (Copilot review, PR #312).
     if (c === '$' && text[i + 1] === '(') {
-      stack.push('paren');
+      stack.push({ type: 'paren', outerInDouble: inDouble });
+      inDouble = false;
       if (stack.length === 1) { runSawCd = false; runCdLine = null; }
       i += 2;
       continue;
     }
 
+    // Backtick nesting inside its OWN quoted text is a genuinely rare and
+    // famously quirky corner of bash grammar (unlike $(...), a bare backtick
+    // cannot be nested without escaping at all) — this models only the
+    // common case, symmetric with the $() fix above: a backtick closes the
+    // innermost open backtick frame when not inside a quote NESTED WITHIN
+    // that frame; any other backtick opens a new frame. A backtick used in
+    // some more exotic escaped-nesting shape is not modelled precisely —
+    // conservative-detector tradeoff, same posture as the rest of this file.
     if (c === '`') {
       const top = stack[stack.length - 1];
-      if (top === 'backtick') {
+      if (top && top.type === 'backtick' && !inDouble) {
         stack.pop();
+        inDouble = top.outerInDouble;
         if (stack.length === 0 && runSawCd) {
           const leak = { cdLine: runCdLine, closeLine: line, cls: 'SAFE', gitLine: null };
           pendingLeaks.push(leak);
@@ -237,15 +257,17 @@ export function scanText(text) {
           runSawCd = false; runCdLine = null;
         }
       } else {
-        stack.push('backtick');
+        stack.push({ type: 'backtick', outerInDouble: inDouble });
+        inDouble = false;
         if (stack.length === 1) { runSawCd = false; runCdLine = null; }
       }
       i += 1;
       continue;
     }
 
-    if (c === ')' && stack[stack.length - 1] === 'paren') {
-      stack.pop();
+    if (c === ')' && !inDouble && stack[stack.length - 1] && stack[stack.length - 1].type === 'paren') {
+      const top = stack.pop();
+      inDouble = top.outerInDouble;
       if (stack.length === 0 && runSawCd) {
         const leak = { cdLine: runCdLine, closeLine: line, cls: 'SAFE', gitLine: null };
         pendingLeaks.push(leak);

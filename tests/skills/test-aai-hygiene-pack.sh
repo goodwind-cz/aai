@@ -2010,11 +2010,39 @@ test_108_cd_subshell_leak_gate_and_bite() {  # cd-inside-command-substitution-hi
   [[ "$CSL_OUT" != *"test-aai-csl-ok.sh"* ]] \
     || log_fail "test_108 BITE 1: the untouched, legitimate fixture must not be named: $CSL_OUT"
 
+  # BITE 1b — a literal `)` inside a double-quoted string, itself INSIDE a
+  # substitution, must not be read as closing that substitution (Copilot
+  # review, PR #312): `$(echo ")" && cd fixture && git commit ...)` closes
+  # its own paren correctly only if quote-tracking is scoped per substitution
+  # frame. Proven with real desync impact, not just "the fixed scanner says
+  # 0": the PRE-FIX code, run on this exact text, MISSES the leak entirely
+  # (empty output) rather than merely misreporting its line numbers — the
+  # premature `)` desyncs the stack so the real `cd`/`git` pair is never even
+  # recognised as being inside a substitution. Also checks the sibling
+  # everyday idiom is unharmed by whatever quote-scoping fix closes this.
+  csl_plant "$fx/tests/skills/test-aai-csl-quoted-paren.sh" \
+    'x="$(echo ")" && cd fixture && git commit -q -m x)"' \
+    'git status'
+  csl_plant "$fx/tests/skills/test-aai-csl-idiom.sh" \
+    'D="$(cd "$dir" && pwd)"'
+  csl_run "$script" "$fx" "$fb" --record
+  [[ "$CSL_RC" -eq 0 ]] || log_fail "test_108 BITE 1b: re-record failed: $CSL_OUT"
+  csl_run "$script" "$fx" "$fb"
+  rc="$CSL_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_108 BITE 1b: a cd-then-unguarded-git hidden behind a quoted \")\" inside the same substitution must still FAIL, got rc=0: $CSL_OUT"
+  [[ "$CSL_OUT" == *"test-aai-csl-quoted-paren.sh"* ]] \
+    || log_fail "test_108 BITE 1b: the quoted-paren fixture must be named: $CSL_OUT"
+  [[ "$CSL_OUT" != *"test-aai-csl-idiom.sh"* ]] \
+    || log_fail "test_108 BITE 1b: the everyday cd-in-substitution-for-its-own-pwd idiom must stay clean: $CSL_OUT"
+
   # BITE 2 — `git -C <path>` names its own working directory and never reads
   # the parent shell's cwd, so it cannot be the victim of a leaked cd no
   # matter how close it sits. Locks in a REAL false positive found while
   # triaging this repository (.aai/scripts/aai-update.sh:77-78).
-  rm -f "$fx/tests/skills/test-aai-csl-bad.sh"
+  rm -f "$fx/tests/skills/test-aai-csl-bad.sh" \
+        "$fx/tests/skills/test-aai-csl-quoted-paren.sh" \
+        "$fx/tests/skills/test-aai-csl-idiom.sh"
   csl_plant "$fx/tests/skills/test-aai-csl-guarded.sh" \
     'SRC="$(cd "$REPO" && pwd)"' \
     'git -C "$SRC" fetch --depth 1 origin "$REF"'
