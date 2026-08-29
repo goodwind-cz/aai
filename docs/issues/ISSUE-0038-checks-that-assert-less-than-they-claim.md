@@ -2,10 +2,13 @@
 id: checks-that-assert-less-than-they-claim
 type: issue
 number: 38
-status: draft
+status: done
+ceremony_level: 2
 links:
-  pr: []
-  commits: []
+  pr:
+    - 306
+  commits:
+    - b2906a8
 ---
 
 # Arms that read a weaker signal than the claim they print, and a close ceremony whose order is only a habit

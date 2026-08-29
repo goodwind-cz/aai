@@ -1646,6 +1646,249 @@ test_105_converted_sites_keep_their_needles() {  # TEST-006 / Spec-AC-01, Spec-A
   log_pass "test_105: $seen pinned needle(s) of 4 converted sites intact (the 4th asserts a run-time variable and cannot be pinned), helper sourced, no unbounded payload dump (TEST-006)"
 }
 
+# --- bare-`main` base-ref guard (test_106..107) ------------------------------
+# fu-bare-main-baseref-sweep / ISSUE-0038. Nothing stopped a new test or script
+# from pinning a bare `main` ref that silently never resolves on a GitHub
+# `pull_request` checkout (detached HEAD, only remote-tracking refs fetched).
+# FOURTH occurrence of that class in this repository; every one was caught by a
+# human, never by a check, and every one left the affected guard reporting PASS
+# on an empty read. .aai/scripts/check-base-ref-pins.mjs is the check.
+BRP_SCRIPT_REL=".aai/scripts/check-base-ref-pins.mjs"
+BRP_BASELINE_REL="tests/skills/lib/base-ref-pin-baseline.tsv"
+
+# brp_plant <file> <line...> — write a fixture shell file with the given body
+# lines. Kept in one place so a fixture cannot drift from what the arms claim
+# it contains.
+#
+# `@BARE@` in a plant line is written out as the literal `main`. THIS SUITE IS
+# ITSELF IN THE SCANNED CORPUS: spelling the pin literally here would plant a
+# real (and correctly reported) UNSAFE occurrence in tests/skills/*.sh, and the
+# guard would red on its own test fixtures. The placeholder keeps the fixture
+# honest — the file the scanner reads carries the real bare `main` — without
+# putting one in the shipping suite.
+BRP_BARE_TOKEN='@BARE@'
+brp_plant() {
+  local f="$1"; shift
+  mkdir -p "$(dirname "$f")"
+  printf '%s\n' '#!/usr/bin/env bash' > "$f"
+  local l
+  for l in "$@"; do printf '%s\n' "${l//$BRP_BARE_TOKEN/main}" >> "$f"; done
+}
+
+# brp_append <file> <line> — one more plant line onto an existing fixture,
+# through the same placeholder substitution.
+brp_append() {
+  printf '%s\n' "${2//$BRP_BARE_TOKEN/main}" >> "$1"
+}
+
+# brp_run <root> <baseline> [extra args] — run the gate against a fixture tree,
+# leaving its combined output in $BRP_OUT and its exit code in $BRP_RC.
+# Deliberately NOT a command substitution at the call site: `$(brp_run ...)`
+# would run the assignment in a subshell and every caller would then assert
+# against an empty $BRP_OUT — a guard that reads nothing and reports on it is
+# the exact defect class this ride exists to remove.
+BRP_OUT=""
+BRP_RC=0
+brp_run() {
+  local root="$1" baseline="$2"; shift 2
+  BRP_RC=0
+  BRP_OUT="$(node "$PROJECT_ROOT/$BRP_SCRIPT_REL" --root "$root" --baseline "$baseline" "$@" 2>&1)" || BRP_RC=$?
+}
+
+test_106_base_ref_pin_gate_and_bite() {  # fu-bare-main-baseref-sweep
+  log_info "test_106: bare-\`main\` base-ref guard — live gate over the repository, plus bite proofs with an unmutated control..."
+  local script="$PROJECT_ROOT/$BRP_SCRIPT_REL" baseline="$PROJECT_ROOT/$BRP_BASELINE_REL" d
+  [[ -f "$script" ]] || log_fail "test_106: missing $BRP_SCRIPT_REL"
+  [[ -f "$baseline" ]] || log_fail "test_106: missing $BRP_BASELINE_REL"
+  d="$(ap_tmpdir)"
+
+  # ---- LIVE GATE ----------------------------------------------------------
+  local live_rc=0 live_out
+  live_out="$(node "$script" 2>&1)" || live_rc=$?
+  if [[ "$live_rc" -ne 0 ]]; then
+    printf '%s\n' "$live_out"
+    log_fail "test_106: the live base-ref gate FAILED on this repository (see above). An UNSAFE line resolves a ref against a bare 'main' in the real repository with no origin/main attempt above it; a RISE/NEW line is a newly added pin"
+  fi
+  # VACUITY GUARD. A broken scanner reports an empty corpus, and an empty
+  # corpus contradicts nothing: the gate would pass by measuring nothing. The
+  # script fails closed on that internally; this arm proves the number it
+  # reported is non-zero rather than trusting the exit code alone.
+  [[ "$live_out" == *"base-ref pins: "* ]] \
+    || log_fail "test_106: the gate printed no summary line at all: $live_out"
+  local live_total="${live_out#*base-ref pins: }"; live_total="${live_total%% *}"
+  [[ "$live_total" =~ ^[0-9]+$ && "$live_total" -gt 0 ]] \
+    || log_fail "test_106: the live scan reported '$live_total' occurrence(s) — the scanner is broken, not the corpus"
+  log_info "test_106: live gate clean — $live_out"
+
+  # ---- BITE PROOFS, on a fixture tree -------------------------------------
+  local fx="$d/brp-fixture" fb="$d/brp-fixture-baseline.tsv" rc
+  rm -rf "$fx"; mkdir -p "$fx/tests/skills"
+
+  # A GUARDED pin (origin/main attempted first, bare main only as the ordered
+  # fallback) and a FIXTURE-scoped one. Neither is a defect.
+  brp_plant "$fx/tests/skills/test-aai-brp-ok.sh" \
+    'base_ref() {' \
+    '  if git -C "$PROJECT_ROOT" rev-parse --verify -q origin/main >/dev/null 2>&1; then' \
+    '    printf "origin/main"' \
+    '  elif git -C "$PROJECT_ROOT" rev-parse --verify -q @BARE@ >/dev/null 2>&1; then' \
+    '    printf "main"' \
+    '  fi' \
+    '}' \
+    'n="$(git -C "$fixture_dir" rev-list --count @BARE@)"'
+
+  brp_run "$fx" "$fb" --record
+  rc="$BRP_RC"
+  [[ "$rc" -eq 0 ]] || log_fail "test_106: --record failed on the fixture tree: $BRP_OUT"
+
+  # CONTROL — unmutated fixture: clean, and provably non-empty.
+  brp_run "$fx" "$fb"
+  rc="$BRP_RC"
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_106 CONTROL: an unmutated fixture (one origin/main-first fallback, one fixture-scoped ref) must be CLEAN, got rc=$rc: $BRP_OUT"
+  [[ "$BRP_OUT" == *"UNSAFE 0"* ]] \
+    || log_fail "test_106 CONTROL: the control fixture must carry zero UNSAFE occurrences: $BRP_OUT"
+  [[ "$BRP_OUT" == *"GUARDED 1"* && "$BRP_OUT" == *"FIXTURE 1"* ]] \
+    || log_fail "test_106 CONTROL: the control fixture must be SEEN (1 guarded + 1 fixture-scoped) or the silence below proves nothing: $BRP_OUT"
+
+  # BITE 1 — a planted bare-'main' pin against the REAL repository, exactly the
+  # shape of all four prior incidents. Must fail and name file:line.
+  #
+  # RE-RECORDED FIRST, ON PURPOSE. With the plant absent from the baseline the
+  # ratchet ALSO fires, and a bare `rc != 0` would then be satisfied by the
+  # ratchet alone — this arm would pass with the hard gate fully disabled
+  # (measured: demoting the UNSAFE finding to a note left this arm GREEN).
+  # Recording the plant into the baseline silences the ratchet, so what is left
+  # is the hard gate and nothing else. It is also the design claim under test:
+  # being in the baseline is NOT a waiver of the hard gate.
+  brp_plant "$fx/tests/skills/test-aai-brp-bad.sh" \
+    'changed="$( (cd "$PROJECT_ROOT" && {' \
+    '  git diff --name-only @BARE@...HEAD 2>/dev/null' \
+    '}) | sort -u)"'
+  brp_run "$fx" "$fb" --record
+  [[ "$BRP_RC" -eq 0 ]] || log_fail "test_106 BITE 1: re-record failed: $BRP_OUT"
+  brp_run "$fx" "$fb"
+  rc="$BRP_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_106 BITE 1: a planted bare-'main' ref against the real repository must FAIL the gate even when the baseline already lists it, got rc=0: $BRP_OUT"
+  [[ "$BRP_OUT" != *"RISE "* && "$BRP_OUT" != *"NEW "* ]] \
+    || log_fail "test_106 BITE 1: the ratchet must be SILENT here, or this arm is not testing the hard gate: $BRP_OUT"
+  [[ "$BRP_OUT" == *"FAIL: UNSAFE base-ref pin tests/skills/test-aai-brp-bad.sh:3"* ]] \
+    || log_fail "test_106 BITE 1: the finding must be a FAIL (not a NOTE) and must name the file AND the line, got: $BRP_OUT"
+  [[ "$BRP_OUT" != *"test-aai-brp-ok.sh"* ]] \
+    || log_fail "test_106 BITE 1: the untouched, correctly-guarded file must not be named: $BRP_OUT"
+
+  # BITE 2 — LOGIC-ONLY: keep the bare 'main' pin word-for-word and only move
+  # the origin/main attempt out of the guard window. A file-wide grep would
+  # still see 'origin/main' and stay green; the proximity rule must not.
+  brp_plant "$fx/tests/skills/test-aai-brp-bad.sh" \
+    'if git -C "$PROJECT_ROOT" rev-parse --verify -q origin/main >/dev/null 2>&1; then :; fi' \
+    '# padding 1' '# padding 2' '# padding 3' '# padding 4' \
+    '# padding 5' '# padding 6' '# padding 7' '# padding 8' \
+    'changed="$( (cd "$PROJECT_ROOT" && {' \
+    '  git diff --name-only @BARE@...HEAD 2>/dev/null' \
+    '}) | sort -u)"'
+  brp_run "$fx" "$fb" --record
+  [[ "$BRP_RC" -eq 0 ]] || log_fail "test_106 BITE 2: re-record failed: $BRP_OUT"
+  brp_run "$fx" "$fb"
+  rc="$BRP_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_106 BITE 2: an origin/main mention OUTSIDE the guard window must not launder a bare-'main' pin (a file-wide grep would pass it), got rc=0: $BRP_OUT"
+  [[ "$BRP_OUT" != *"RISE "* && "$BRP_OUT" != *"NEW "* ]] \
+    || log_fail "test_106 BITE 2: the ratchet must be SILENT here, or this arm is not testing the hard gate: $BRP_OUT"
+  [[ "$BRP_OUT" == *"FAIL: UNSAFE base-ref pin tests/skills/test-aai-brp-bad.sh:12"* ]] \
+    || log_fail "test_106 BITE 2: the finding must be a FAIL (not a NOTE) and must still name the pin's own line, got: $BRP_OUT"
+
+  # BITE 3 — the RATCHET half: a BRAND-NEW file carrying a legitimate,
+  # origin/main-first pin is still reported NEW, so a new pin is never invisible.
+  rm -f "$fx/tests/skills/test-aai-brp-bad.sh"
+  brp_plant "$fx/tests/skills/test-aai-brp-new.sh" \
+    'if git -C "$PROJECT_ROOT" rev-parse --verify -q origin/main >/dev/null 2>&1; then :; fi' \
+    'git -C "$PROJECT_ROOT" rev-parse --verify -q @BARE@ >/dev/null 2>&1'
+  brp_run "$fx" "$fb"
+  rc="$BRP_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_106 BITE 3: a new file carrying the shape must be reported by the ratchet even when it is correctly guarded, got rc=0: $BRP_OUT"
+  [[ "$BRP_OUT" == *"FAIL: NEW test-aai-brp-new.sh 0 -> 1"* ]] \
+    || log_fail "test_106 BITE 3: the ratchet must report NEW as a FAIL and name the file, got: $BRP_OUT"
+  [[ "$BRP_OUT" == *"UNSAFE 0"* ]] \
+    || log_fail "test_106 BITE 3: this fixture is correctly guarded, so the RATCHET alone must be what fires here: $BRP_OUT"
+
+  # BITE 4 — THE ANTI-NO-OP RULE. Every state in which the scan cannot
+  # contradict anything must FAIL, never pass by silence.
+  local empty="$d/brp-empty"
+  rm -rf "$empty"; mkdir -p "$empty/tests/skills"
+  brp_run "$empty" "$fb"
+  rc="$BRP_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_106 BITE 4a: a corpus with zero scanned files must FAIL (an empty scan can never contradict a baseline), got rc=0: $BRP_OUT"
+  brp_plant "$empty/tests/skills/test-aai-brp-clean.sh" 'echo no git refs here'
+  brp_run "$empty" "$fb"
+  rc="$BRP_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_106 BITE 4b: a scan finding ZERO occurrences must FAIL as a broken scanner, not pass as a clean corpus, got rc=0: $BRP_OUT"
+  rm -f "$fx/tests/skills/test-aai-brp-new.sh"
+  brp_run "$fx" "$d/brp-does-not-exist.tsv"
+  rc="$BRP_RC"
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_106 BITE 4c: a MISSING baseline must FAIL, not degrade the ratchet to a no-op, got rc=0: $BRP_OUT"
+
+  log_pass "test_106: live gate clean at $live_total occurrence(s); the guard bites on a planted real-repo pin (named file:line), on an out-of-window origin/main laundering attempt, and on a new file; it fails closed on an empty corpus, a zero scan and a missing baseline; control silent"
+}
+
+test_107_base_ref_baseline_is_measured_not_typed() {  # fu-bare-main-baseref-sweep
+  log_info "test_107: the recorded base-ref baseline is produced by the scanner the gate runs, and TRACKS the tree..."
+  local script="$PROJECT_ROOT/$BRP_SCRIPT_REL" baseline="$PROJECT_ROOT/$BRP_BASELINE_REL" d rc
+  d="$(ap_tmpdir)"
+
+  # The plants are chosen HERE, by this arm. A recorder with a number typed
+  # into it cannot follow them.
+  local fx="$d/brp-provenance" out="$d/brp-provenance.tsv"
+  rm -rf "$fx"; mkdir -p "$fx/tests/skills"
+  brp_plant "$fx/tests/skills/test-aai-q1.sh" \
+    'git -C "$repo_a" rev-list --count @BARE@' \
+    'git -C "$repo_a" merge-base @BARE@ HEAD'
+  brp_plant "$fx/tests/skills/test-aai-q2.sh" \
+    'git -C "$repo_b" rev-parse --verify -q @BARE@'
+  brp_run "$fx" "$out" --record
+  rc="$BRP_RC"
+  [[ "$rc" -eq 0 ]] || log_fail "test_107: --record failed: $BRP_OUT"
+  "$PGQ_GREP_BIN" -qE '^2	test-aai-q1\.sh$' "$out" \
+    || log_fail "test_107: --record must write 2 for a file with 2 planted pins, wrote: $(cat "$out")"
+  "$PGQ_GREP_BIN" -qE '^1	test-aai-q2\.sh$' "$out" \
+    || log_fail "test_107: --record must write 1 for a file with 1 planted pin, wrote: $(cat "$out")"
+
+  # CHANGE THE TREE, RE-RECORD: the number must move with it. This is what
+  # separates "measured" from "written down once and blessed".
+  brp_append "$fx/tests/skills/test-aai-q1.sh" 'git -C "$repo_a" log @BARE@..HEAD'
+  brp_run "$fx" "$out" --record
+  rc="$BRP_RC"
+  [[ "$rc" -eq 0 ]] || log_fail "test_107: re-record failed: $BRP_OUT"
+  "$PGQ_GREP_BIN" -qE '^3	test-aai-q1\.sh$' "$out" \
+    || log_fail "test_107: after planting one more the recorder must write 3, wrote: $(cat "$out") — the number is not being measured"
+
+  # The COMMITTED baseline must name its generator and mark itself generated,
+  # so nobody hand-edits the bar downward.
+  "$PGQ_GREP_BIN" -qF -- '--record' "$baseline" \
+    || log_fail "test_107: $BRP_BASELINE_REL must name its generator command in the header"
+  "$PGQ_GREP_BIN" -qiF 'GENERATED' "$baseline" \
+    || log_fail "test_107: $BRP_BASELINE_REL must mark itself GENERATED"
+
+  # ...and it must be a scan of the REAL tree: every committed row names a file
+  # that exists and still carries the shape.
+  local n name rows=0
+  while IFS=$'\t' read -r n name; do
+    [[ -n "${name:-}" ]] || continue
+    case "$n" in ''|*[!0-9]*) continue;; esac
+    rows=$((rows + 1))
+    [[ -f "$PROJECT_ROOT/tests/skills/$name" || -f "$PROJECT_ROOT/.aai/scripts/$name" ]] \
+      || log_fail "test_107: $BRP_BASELINE_REL names $name, which does not exist in this tree — re-record it"
+  done < <("$PGQ_GREP_BIN" -v '^#' "$baseline")
+  [[ "$rows" -gt 0 ]] \
+    || log_fail "test_107: $BRP_BASELINE_REL has no data rows — an empty baseline gates nothing"
+
+  log_pass "test_107: the baseline is measured by the scanner the gate runs ($rows committed row(s), all naming live files), tracks a changed tree, and names its own generator"
+}
+
 # --- harness-surfaces-drift-unguarded arms (test_110..113) ------------------
 # CHANGE harness-surfaces-drift-unguarded /
 # docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md.
@@ -2626,6 +2869,8 @@ main() {
   test_103_pgq_baseline_is_measured_not_typed
   test_104_pgq_shrink_never_lowers_the_bar
   test_105_converted_sites_keep_their_needles
+  test_106_base_ref_pin_gate_and_bite
+  test_107_base_ref_baseline_is_measured_not_typed
   test_110_skill_set_parity
   test_111_generator_check_clean_and_idempotent
   test_112_generator_refuses_bad_manifest

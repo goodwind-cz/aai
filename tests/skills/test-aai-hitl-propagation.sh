@@ -417,12 +417,28 @@ test_014_no_protected_path_touched() {
   protected="$(sed -n 's/^  - //p' "$DOCS_AUDIT" | head -8)"
   [[ -n "$protected" ]] || { log_fail "TEST-014: no protected_paths_l3 entries extracted from $DOCS_AUDIT"; return; }
 
-  # Covers BOTH shapes: committed history (git diff --name-only main...HEAD,
-  # the spec's standalone verification form) AND the still-uncommitted
-  # working tree (this scope is mid-TDD and has not committed yet, per the
-  # role's constraints) -- staged, unstaged, and untracked files alike.
+  # Covers BOTH shapes: committed history AND the still-uncommitted working
+  # tree (this scope is mid-TDD and has not committed yet, per the role's
+  # constraints) -- staged, unstaged, and untracked files alike.
+  #
+  # BASE REF (fu-bare-main-baseref-sweep): a bare `main` sat here and read
+  # NOTHING on a GitHub `pull_request` checkout -- detached HEAD with only the
+  # remote-tracking refs fetched, so `main` does not resolve, `2>/dev/null` ate
+  # the error, and the committed-history half of this guard silently vanished
+  # exactly where the guard matters most. Resolve `origin/main` first, fall
+  # back to a local `main`, and FAIL CLOSED when neither resolves: an unread
+  # source of truth must never be reported as "nothing touched".
+  local hp_base=""
+  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+    hp_base="origin/main"
+  elif git -C "$PROJECT_ROOT" rev-parse --verify --quiet main >/dev/null 2>&1; then
+    hp_base="main"
+  else
+    log_fail "TEST-014: no base ref resolves (neither 'origin/main' nor 'main') — the committed-history half of the protected-path scan cannot run, so this FAILS CLOSED rather than reporting an untouched branch from working-tree data alone"
+    return
+  fi
   changed="$( (cd "$PROJECT_ROOT" && {
-    git diff --name-only main...HEAD 2>/dev/null
+    git diff --name-only "$hp_base...HEAD" 2>/dev/null
     git status --porcelain 2>/dev/null | sed -E 's/^...//'
   }) | sort -u)"
 

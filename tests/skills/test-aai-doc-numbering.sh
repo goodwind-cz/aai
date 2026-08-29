@@ -38,7 +38,17 @@ cleanup() {
 trap cleanup EXIT
 
 log_pass() { echo "PASS: $*"; }
+# `exit 1` here ends the ARM, not the suite: main() runs every arm inside a
+# `( )` subshell (see its comment). Before that, this same line aborted the
+# whole run at the FIRST failed assertion and every later arm silently never
+# executed — the coverage loss was invisible in the output
+# (fu-docnumbering-logfail-aborts-suite; measured 2026-08-19, a NEEDS-TRIAGE
+# docs-audit stopped the suite at TEST-013 and TEST-014..031 never ran).
+# Keep the `exit`: a failed assertion must still stop ITS arm rather than run
+# on against fixture state the assertion just proved wrong.
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
+# check_deps runs OUTSIDE the subshell loop, so a genuine dependency skip still
+# ends the whole suite with the framework's 42 contract.
 log_skip() { echo "SKIP: $*"; exit 42; }
 log_info() { echo "INFO: $*"; }
 
@@ -1602,40 +1612,84 @@ main() {
   check_deps
   TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-doc-numbering-test.XXXXXX")"
 
-  test_001_slug_and_filename
-  test_002_collision_suffix
-  test_003_draft_passes_audit_and_index
-  test_004_allocator_renames
-  test_005_exit_codes
-  test_006_concurrency
-  test_007_no_draft_guard
-  test_008_duplicate_guard
-  test_009_index_display_id
-  test_010_allocator_absent_fallback
-  test_011_backfill
-  test_012_wiring
-  test_013_regression
-  test_014_crlf_stamp
-  test_015_guard_staged_only
-  test_016_per_type_digit_width
-  test_017_project_dominant_width
-  test_018_enforce_flip
-  test_019_code_tree_rewrite
-  # CHANGE-0143 / spec-close-regenerate-order
-  test_020_alloc_regenerates_spec_pages
-  test_021_readonly_modes_no_regen
-  test_022_generator_order_pin
-  test_023_excluded_generators_survey_pin
-  test_024_static_incident_replay
-  test_025_history_incident_replay
-  test_026_detection_precision
-  test_027_regen_degradation
-  test_028_exit_contract_unchanged
-  test_029_close_work_item_byte_unchanged
-  test_030_ordering_documented
-  test_031_suite_map_row
+  local tests=(
+    test_001_slug_and_filename
+    test_002_collision_suffix
+    test_003_draft_passes_audit_and_index
+    test_004_allocator_renames
+    test_005_exit_codes
+    test_006_concurrency
+    test_007_no_draft_guard
+    test_008_duplicate_guard
+    test_009_index_display_id
+    test_010_allocator_absent_fallback
+    test_011_backfill
+    test_012_wiring
+    test_013_regression
+    test_014_crlf_stamp
+    test_015_guard_staged_only
+    test_016_per_type_digit_width
+    test_017_project_dominant_width
+    test_018_enforce_flip
+    test_019_code_tree_rewrite
+    # CHANGE-0143 / spec-close-regenerate-order
+    test_020_alloc_regenerates_spec_pages
+    test_021_readonly_modes_no_regen
+    test_022_generator_order_pin
+    test_023_excluded_generators_survey_pin
+    test_024_static_incident_replay
+    test_025_history_incident_replay
+    test_026_detection_precision
+    test_027_regen_degradation
+    test_028_exit_contract_unchanged
+    test_029_close_work_item_byte_unchanged
+    test_030_ordering_documented
+    test_031_suite_map_row
+  )
+
+  local t total=${#tests[@]} failed_names=()
+  for t in "${tests[@]}"; do
+    # THE SUBSHELL IS THE WHOLE MECHANISM (fu-docnumbering-logfail-aborts-suite).
+    # `log_fail` still `exit 1`s — that is what aborts the ARM at the failed
+    # assertion instead of letting it run on against invalid fixture state —
+    # but inside `( )` that exit ends the subshell, not the suite, so every
+    # later arm still runs and every arm's verdict is reported. Shape copied
+    # verbatim from tests/skills/test-aai-test-canon.sh's `run_all` (same
+    # helper set: `set -euo pipefail`, `log_fail(){ ...; exit 1; }`,
+    # `assert_contains`), so nothing here is a new invention.
+    # `trap cleanup EXIT` is NOT inherited by a `( )` subshell (bash resets
+    # caught traps there), so a failing arm cannot delete $TEST_DIR out from
+    # under the arms that follow it; cleanup still runs exactly once, when the
+    # suite itself exits.
+    # `trap - EXIT` is belt-and-braces, not decoration. Bash resets traps in a
+    # ( ) subshell, so cleanup should not fire here and the shared TEST_DIR
+    # should survive -- verified on bash 3.2 (macOS), where the fixture does
+    # survive every arm. CI runs bash 5 and this machine has no bash 5 to check
+    # on, and "passes locally, dies on CI" has already cost this repo a red run
+    # today. If a cleanup ever did fire here it would rm -rf the fixture out
+    # from under every later arm, and the damage would look like flaky tests
+    # rather than like this line. Clearing it explicitly costs nothing.
+    if ( trap - EXIT; "$t" ); then
+      :
+    else
+      failed_names+=("$t")
+      echo "FAIL: $t (arm failed; the suite continues)" >&2
+    fi
+  done
 
   echo ""
+  local nfailed=${#failed_names[@]}
+  echo "doc-numbering results: $((total - nfailed))/$total arms passed, $nfailed failed."
+  if [[ $nfailed -gt 0 ]]; then
+    local f
+    for f in "${failed_names[@]}"; do echo "  FAILED ARM: $f" >&2; done
+    # Exit contract UNCHANGED at the caller boundary (tests/skills/test-framework.sh
+    # run_test, .aai/scripts/aai-run-tests.sh): 0 = every arm passed, 42 = deps
+    # skip (log_skip, raised from check_deps outside the loop), anything else =
+    # failure. Only WHICH failures reach it changed: previously the first one
+    # ended the run and the arms behind it were never counted.
+    exit 1
+  fi
   echo "All doc-numbering tests passed."
 }
 
