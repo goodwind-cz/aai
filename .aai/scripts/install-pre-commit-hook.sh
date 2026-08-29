@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install the AAI git hook SET:
-#   - .git/hooks/pre-commit — opt-in, auto-regenerates docs/INDEX.md whenever
+# Install the AAI git hook SET into the EFFECTIVE hooks directory — the one
+# `git rev-parse --git-path hooks/<name>` resolves, which honours core.hooksPath
+# and a linked worktree's shared git dir. It is usually .git/hooks, but never
+# assume that: see the resolve_hook_path comment below.
+#   - pre-commit — opt-in, auto-regenerates docs/INDEX.md whenever
 #     the commit touches docs/ (RFC-0001 layer 4 convenience).
-#   - .git/hooks/reference-transaction — refuses a refs/heads/main ref update
+#   - reference-transaction — refuses a refs/heads/main ref update
 #     unless AAI_GIT_WRITE=1 is set on that exact command (D1/D3,
 #     docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md). This
 #     turns an honest/accidental write to main into a refusal instead of an
@@ -54,21 +57,81 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "ERROR: not inside a git repository." >&2
   exit 1
 }
-# Linked worktrees ship .git as a FILE at $REPO_ROOT/.git, so a hooks path
-# built from --show-toplevel never exists there; --git-common-dir resolves
-# to the real (shared) git directory in both a normal repo and a linked
-# worktree (PR #302 Codex P2 — same fix CAT-12/CAT-17 in aai-doctor.mjs use).
-GIT_DIR="$(git rev-parse --git-common-dir 2>/dev/null)" || {
-  echo "ERROR: could not resolve the git common directory." >&2
+# Where git will ACTUALLY look for hooks.
+#
+# `git rev-parse --git-path hooks/<name>` is the resolution git itself performs
+# to decide which file to execute, so it folds in BOTH things a hand-built path
+# gets wrong:
+#   - a linked worktree ships .git as a FILE, so a path built from
+#     --show-toplevel never exists there (PR #302 Codex P2);
+#   - `core.hooksPath` moves the hooks directory somewhere else entirely, and
+#     --git-common-dir does not know about it (PR #304 Codex P1).
+# The second one shipped a false success: reproduced in a scratch repo with
+# core.hooksPath=.custom-hooks, this installer wrote .git/hooks/reference-
+# transaction, exited 0, and a marker-less commit then moved refs/heads/main
+# because git ran .custom-hooks/reference-transaction — which did not exist.
+# aai-doctor CAT-17 already resolves the effective path this way; the installer
+# now agrees with it instead of guessing.
+#
+# MEASURED (git 2.50.1), not assumed — the output is relative to the CURRENT
+# DIRECTORY, not to the repo root, so it must be resolved against $PWD:
+#   repo root,  hooksPath unset     -> .git/hooks/reference-transaction
+#   repo root,  hooksPath=.custom   -> .custom/reference-transaction
+#   repo root,  hooksPath absolute  -> /abs/path/reference-transaction
+#   repo SUBDIR, hooksPath=.custom  -> ../../.custom/reference-transaction
+#   linked worktree, unset          -> /abs/common/.git/hooks/reference-transaction
+#   linked worktree, hooksPath=.c   -> .c/reference-transaction (per-worktree)
+resolve_hook_path() {
+  local name="$1" p
+  p="$(git rev-parse --git-path "hooks/$name" 2>/dev/null)" || return 1
+  [[ -n "$p" ]] || return 1
+  [[ "$p" == /* ]] || p="$PWD/$p"
+  printf '%s' "$p"
+}
+
+# A path we cannot resolve is a path we cannot install into safely, and a guard
+# installed somewhere git never looks is worse than no guard at all — so this
+# refuses loudly instead of exiting 0 on an inert hook.
+HOOK_PATH="$(resolve_hook_path pre-commit)" || {
+  echo "ERROR: could not resolve the effective git hooks path for pre-commit" >&2
+  echo "       (git rev-parse --git-path failed). Refusing to install: a hook" >&2
+  echo "       written to a guessed path would report success while git never runs it." >&2
   exit 1
 }
-if [[ "$GIT_DIR" != /* ]]; then
-  GIT_DIR="$REPO_ROOT/$GIT_DIR"
-fi
-HOOK_PATH="$GIT_DIR/hooks/pre-commit"
+REFTX_PATH="$(resolve_hook_path reference-transaction)" || {
+  echo "ERROR: could not resolve the effective git hooks path for reference-transaction" >&2
+  echo "       (git rev-parse --git-path failed). Refusing to install: a guard" >&2
+  echo "       written to a guessed path would report success while git never runs it." >&2
+  exit 1
+}
+HOOKS_DIR="$(dirname "$REFTX_PATH")"
 MARKER="# AAI:INDEX-AUTOGEN"
-REFTX_PATH="$GIT_DIR/hooks/reference-transaction"
 REFTX_MARKER="# AAI:REF-GUARD"
+
+# attest_effective <name> <marker> — re-ask git where it would look, and prove
+# the file THERE is ours and runnable. This is the post-condition that makes
+# the exit code mean something: exit 0 now asserts "git will run this", not
+# merely "a write succeeded somewhere".
+attest_effective() {
+  local name="$1" marker="$2" p
+  p="$(resolve_hook_path "$name")" || {
+    echo "ERROR: installed $name but can no longer resolve the effective hooks path." >&2
+    return 1
+  }
+  if [[ ! -f "$p" ]]; then
+    echo "ERROR: git resolves the $name hook to $p, but no file is there." >&2
+    return 1
+  fi
+  if ! grep -qF "$marker" "$p"; then
+    echo "ERROR: the $name hook git would run ($p) does not carry $marker." >&2
+    return 1
+  fi
+  if [[ ! -x "$p" ]]; then
+    echo "ERROR: the $name hook git would run ($p) is not executable — git skips it silently." >&2
+    return 1
+  fi
+  return 0
+}
 
 if [[ "$UNINSTALL" == 1 ]]; then
   if [[ -f "$HOOK_PATH" ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
@@ -102,7 +165,15 @@ if [[ "$FOREIGN" == 1 ]]; then
   exit 1
 fi
 
-mkdir -p "$GIT_DIR/hooks"
+if [[ -e "$HOOKS_DIR" && ! -d "$HOOKS_DIR" ]]; then
+  echo "ERROR: the effective git hooks path $HOOKS_DIR exists and is not a directory." >&2
+  echo "       Refusing to install rather than reporting success on a guard git cannot run." >&2
+  exit 1
+fi
+mkdir -p "$HOOKS_DIR" || {
+  echo "ERROR: could not create the effective git hooks directory $HOOKS_DIR." >&2
+  exit 1
+}
 
 if [[ -f "$HOOK_PATH" && "$FORCE" != 1 ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
   echo "AAI pre-commit hook already installed at $HOOK_PATH. No action taken."
@@ -305,6 +376,19 @@ REFTXHOOK
 chmod +x "$REFTX_PATH"
 echo "Installed AAI reference-transaction hook (AAI:REF-GUARD) at $REFTX_PATH"
 echo "Effect: a refs/heads/main update is refused unless AAI_GIT_WRITE=1 is set on that command."
+fi
+
+# Post-condition (PR #304 Codex P1): exit 0 must mean "git will run these",
+# never "a write succeeded somewhere". /aai-update reads this exit code as
+# proof of protection, so a hook that landed off the effective path — or that
+# lost its executable bit — has to end this script non-zero.
+ATTEST_OK=1
+attest_effective pre-commit "$MARKER" || ATTEST_OK=0
+attest_effective reference-transaction "$REFTX_MARKER" || ATTEST_OK=0
+if [[ "$ATTEST_OK" != 1 ]]; then
+  echo "ERROR: installation did NOT leave an active hook at the path git resolves." >&2
+  echo "       Check 'git config core.hooksPath' and 'git rev-parse --git-path hooks/reference-transaction'." >&2
+  exit 1
 fi
 
 echo "Uninstall with: bash .aai/scripts/install-pre-commit-hook.sh --uninstall"

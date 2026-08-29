@@ -11,6 +11,63 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(harness): the ref-guard installs where git actually looks, and the guide documents it [L1]
+
+Ceremony justification: opened as an L0 docs-only ride and re-classified UPWARD
+to L1 by review (WORKFLOW.md "Ceremony levels" — review may re-classify a level
+upward as a recorded finding). Writing the documentation surfaced that one of
+its claims was not true of the code, and the honest fix was to the code, not to
+the sentence. The change is an S fix on a single surface — the hook installer
+(`.sh` + `.ps1` twins) and its own suite — so L1, not L2: no spec change, no new
+mechanism, and the existing SPEC-0156 acceptance criteria are unchanged.
+
+- **The installer reported success while installing a guard git would never
+  run.** Both twins wrote to `$GIT_COMMON_DIR/hooks`, but git executes whatever
+  `core.hooksPath` resolves to. Reproduced before the fix: in a scratch repo with
+  `core.hooksPath=.custom-hooks` the installer printed "Installed" and exited 0,
+  and a marker-less commit then moved `refs/heads/main`. `/aai-update` reads that
+  zero exit as proof of protection, so the operator was told they were guarded
+  when they were not.
+- Both twins now resolve the write target with
+  `git rev-parse --git-path hooks/<name>` — the resolution git itself performs,
+  which is also what doctor CAT-17 already attested against, so installer and
+  attestor can no longer disagree. Measured across six configurations rather than
+  assumed: hooksPath unset / relative / absolute, from a repo subdirectory (git
+  answers relative to the CURRENT DIRECTORY, not the repo root — the reason the
+  result is resolved against `$PWD`), and in a linked worktree with hooksPath
+  both unset and set. The PR #302 worktree fix still holds.
+- Exit 0 now means "git will run this". The installer re-asks git where it would
+  look and verifies the file there is AAI-managed and executable; if it cannot
+  leave an active hook — an unusable hooks path, or an existing hook whose
+  executable bit is gone — it says so and exits non-zero. A false success on a
+  guard is worse than no guard.
+- TEST-315 pins this BEHAVIOURALLY, because file-presence assertions are exactly
+  what missed the bug: with `core.hooksPath` set relative and absolute, and from
+  a linked worktree, it asserts a marker-less commit is refused and `main` does
+  not move (and that `AAI_GIT_WRITE=1` still passes, so a wholly broken fixture
+  cannot pass by refusing everything). Bite-proved against four mutations,
+  including a single-character logic inversion that keeps every word.
+- The guide no longer names a fixed `.git/hooks/reference-transaction` location
+  — that stopped being accurate when PR #302 moved to the git common directory,
+  and `core.hooksPath` can move it again. It describes the effective hooks path
+  and gives the operator the command that reports theirs.
+- The one-command escape was POSIX-only. PowerShell has no `VAR=value command`
+  prefix, so the guide and the `.ps1` twin's own refusal message now carry
+  `pwsh -NoProfile -Command '$env:AAI_GIT_WRITE=1; git commit ...'`, verified by
+  execution on pwsh 7.6.3: the bare command is refused, that form commits, and
+  the variable does not leak to the next command.
+- `/aai-update` installs the `main` ref-guard for the operator without asking,
+  but the guide described only the docs-index hook — so the first refusal on
+  `main` would arrive with no explanation anywhere in the documentation.
+- Adds what the guard refuses, the exact message it prints, the one-command
+  `AAI_GIT_WRITE=1` escape, that `--uninstall` removes BOTH hooks (verified in
+  the installer), the PowerShell `-Uninstall` twin (verified as a real switch),
+  and that `/aai-doctor` CAT-17 reports a present-but-inert hook as NOT armed
+  (verified in the doctor's own strings).
+- Also records the limit that surprises people: the refusal stops the ref
+  update, not the worktree half git already performed. Measured on the live
+  guard — `reset --hard` left `main` unmoved while the file content reverted
+  and stayed staged.
 ## [unreleased] — an operator who validated a change themselves can reach a PR without lying [L1]
 
 - `aai-pr` refused unless `last_validation.status` was `pass`, and the state engine accepts only `pass | fail | not_run` there — so an operator who had validated the change themselves either bought a validation round they did not need or recorded a `pass` for a run that never happened. The ledger could not tell that record from an honest one afterwards. `code_review.status` has accepted `waived` for a long time; validation never got the same exit.

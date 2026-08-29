@@ -571,6 +571,121 @@ test_314_print_flag() {
     || log_fail "TEST-314 --print flag"
 }
 
+# --- TEST-315 (PR #304 Codex P1) — installed where GIT resolves, not where ---
+# --- the installer guessed ---------------------------------------------------
+# Every assertion here is BEHAVIOURAL on purpose. The defect this arm exists
+# for was invisible to file-presence checks: with core.hooksPath set, the
+# installer wrote .git/hooks/reference-transaction, exited 0, and TEST-308's
+# `[[ -f ... ]]` was perfectly happy — while git executed a different path and
+# a marker-less commit moved refs/heads/main. So the question asked below is
+# never "is a file there" but "does main actually refuse to move", which is
+# the only thing the operator was promised.
+test_315_effective_hooks_path() {
+  local ok=1
+
+  # assert_refuses <label> <dir> — a marker-less commit must be refused, main
+  # must not move, and stderr must name the escape hatch; then the SAME commit
+  # with AAI_GIT_WRITE=1 must succeed, so a wholly broken repo cannot pass this
+  # by refusing everything.
+  assert_refuses() {
+    local label="$1" d="$2"
+    local before after rc out sub=1
+    before="$(git -C "$d" rev-parse refs/heads/main)"
+    out="$(cd "$d" && git commit -q --allow-empty -m "t315 unmarked" 2>&1)"; rc=$?
+    after="$(git -C "$d" rev-parse refs/heads/main)"
+    if [[ $rc -eq 0 ]]; then
+      log_fail "TEST-315 $label: marker-less commit to main expected non-zero, got 0 — the installed guard is INERT"; sub=0
+    fi
+    if [[ "$before" != "$after" ]]; then
+      log_fail "TEST-315 $label: refs/heads/main MOVED ($before -> $after) despite an installer exit 0"; sub=0
+    fi
+    if [[ "$out" != *AAI_GIT_WRITE* ]]; then
+      log_fail "TEST-315 $label: refusal text does not name AAI_GIT_WRITE: $out"; sub=0
+    fi
+    before="$(git -C "$d" rev-parse refs/heads/main)"
+    commit_det "$d" "t315 marked" AAI_GIT_WRITE=1 >/dev/null 2>&1
+    after="$(git -C "$d" rev-parse refs/heads/main)"
+    if [[ "$before" == "$after" ]]; then
+      log_fail "TEST-315 $label: AAI_GIT_WRITE=1 commit did NOT move main — this fixture refuses everything, so its refusal above proves nothing"; sub=0
+    fi
+    return $((1 - sub))
+  }
+
+  # A. core.hooksPath RELATIVE — the exact reproduction from the PR #304 report.
+  local d; d="$(new_repo t315rel)"
+  git -C "$d" config core.hooksPath .custom-hooks
+  local irc; install_guard "$d" >/dev/null 2>&1; irc=$?
+  [[ $irc -eq 0 ]] || { log_fail "TEST-315 relative-hooksPath: installer expected exit 0, got $irc"; ok=0; }
+  assert_refuses "relative-hooksPath" "$d" || ok=0
+
+  # B. core.hooksPath ABSOLUTE — a different code path in both twins (the
+  #    resolver must NOT prepend the cwd to an already-rooted answer).
+  local d2; d2="$(new_repo t315abs)"
+  git -C "$d2" config core.hooksPath "$d2/abs-hooks"
+  install_guard "$d2" >/dev/null 2>&1; irc=$?
+  [[ $irc -eq 0 ]] || { log_fail "TEST-315 absolute-hooksPath: installer expected exit 0, got $irc"; ok=0; }
+  assert_refuses "absolute-hooksPath" "$d2" || ok=0
+
+  # C. LINKED WORKTREE, no hooksPath — the PR #302 fix must survive this
+  #    change: git resolves to the SHARED common dir there, and installing
+  #    from inside the worktree must still arm the guard for the whole repo.
+  local d3; d3="$(new_repo t315wt)"
+  local wt="$TMP_ROOT/t315wt-linked"
+  if git -C "$d3" worktree add -q "$wt" -b t315branch >/dev/null 2>&1; then
+    (cd "$wt" && bash "$INSTALLER") >/dev/null 2>&1; irc=$?
+    [[ $irc -eq 0 ]] || { log_fail "TEST-315 linked-worktree: installer expected exit 0, got $irc"; ok=0; }
+    assert_refuses "linked-worktree (installed from the worktree, main lives in the parent)" "$d3" || ok=0
+    (cd "$d3" && git worktree remove --force "$wt") >/dev/null 2>&1
+  else
+    log_fail "TEST-315 linked-worktree: could not create the fixture worktree"
+    ok=0
+  fi
+
+  # D. The refusal case. When the effective hooks path cannot be installed into,
+  #    the installer must SAY SO and exit non-zero — a false success on a guard
+  #    is worse than no guard, which is the whole point of this fix.
+  local d4; d4="$(new_repo t315bad)"
+  printf 'not a directory\n' > "$d4/hooks-as-a-file"
+  git -C "$d4" config core.hooksPath "$d4/hooks-as-a-file"
+  local out4 rc4
+  out4="$(cd "$d4" && bash "$INSTALLER" 2>&1)"; rc4=$?
+  if [[ $rc4 -eq 0 ]]; then
+    log_fail "TEST-315 unusable-hooksPath: installer exited 0 on a hooks path it cannot install into (a false success on a guard)"; ok=0
+  fi
+  if [[ "$out4" != *"$d4/hooks-as-a-file"* ]]; then
+    log_fail "TEST-315 unusable-hooksPath: the refusal does not name the effective hooks path it could not use: $out4"; ok=0
+  fi
+
+  # E. The other way a zero exit lies: the hook is at the right path but git
+  #    silently skips it because it is not executable. The idempotent "already
+  #    installed" branch does not rewrite or re-chmod it, so without a
+  #    post-condition the installer reports success on a guard that is inert.
+  #    Proven inert FIRST (the commit goes through), so the required non-zero
+  #    exit below is measured against a real hole, not asserted about a string.
+  local d5; d5="$(new_repo t315nx)"
+  install_guard "$d5" >/dev/null 2>&1
+  chmod -x "$d5/.git/hooks/reference-transaction"
+  local before5 after5
+  before5="$(git -C "$d5" rev-parse refs/heads/main)"
+  (cd "$d5" && git commit -q --allow-empty -m "t315 nonexec") >/dev/null 2>&1
+  after5="$(git -C "$d5" rev-parse refs/heads/main)"
+  if [[ "$before5" == "$after5" ]]; then
+    log_fail "TEST-315 non-executable: fixture precondition failed — git still refused, so this arm is not measuring a real hole"; ok=0
+  else
+    local out5 rc5
+    out5="$(cd "$d5" && bash "$INSTALLER" 2>&1)"; rc5=$?
+    if [[ $rc5 -eq 0 ]]; then
+      log_fail "TEST-315 non-executable: installer exited 0 while the hook git resolves is not executable (git skips it) — a false success on a guard"; ok=0
+    fi
+    if [[ "$out5" != *"not executable"* ]]; then
+      log_fail "TEST-315 non-executable: the installer does not tell the operator the resolved hook is not executable: $out5"; ok=0
+    fi
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-315 with core.hooksPath relative/absolute and from a linked worktree, the installer exits 0 AND a marker-less commit to refs/heads/main is refused with main unmoved (AAI_GIT_WRITE=1 still passes); an unusable hooks path, and an already-present but non-executable hook, each exit non-zero naming the problem" \
+    || log_fail "TEST-315 effective hooks path"
+}
+
 # --- TEST-309 (Spec-AC-05) — .ps1 twin, static -------------------------------
 # F-R3 (code review 20260828T144437Z): the prior version of this arm ran its
 # four greps over the WHOLE .ps1 file. Every one of those four patterns also
@@ -623,11 +738,19 @@ test_309_ps1_twin_static() {
   # Assertion 4 targets the ASSIGNMENT that decides where the hook is written.
   # "hooks/reference-transaction" also appears in the .ps1 SYNOPSIS comment, so
   # anchoring on the bare string lets a retargeted $reftxPath pass unnoticed.
-  # PR #302 Codex P2: the write target is $gitCommonDir (git-common-dir,
-  # worktree-safe), not $repoRoot (a linked worktree's .git is a FILE there)
-  # — the pin follows that fix, still anchored on the assignment, not prose.
-  grep -qE '^\$reftxPath[[:space:]]*=[[:space:]]*Join-Path \$gitCommonDir "hooks/reference-transaction"' "$INSTALLER_PS1" \
-    || { log_fail "TEST-309: .ps1 does not ASSIGN \$reftxPath to \$gitCommonDir/hooks/reference-transaction (the SYNOPSIS mentioning it is not the write target)"; ok=0; }
+  # PR #302 Codex P2 moved the target off $repoRoot (a linked worktree's .git is
+  # a FILE there) to $gitCommonDir; PR #304 Codex P1 moved it again, because
+  # $gitCommonDir does not know about core.hooksPath and the installer was
+  # exiting 0 on a hook git would never run. The write target is now whatever
+  # git itself resolves, so this pins BOTH halves: the assignment reads from the
+  # resolver, and the resolver asks git — pinning only the first would let a
+  # resolver that quietly went back to --git-common-dir through.
+  grep -qE "^\\\$reftxPath[[:space:]]*=[[:space:]]*Resolve-HookPath 'reference-transaction'" "$INSTALLER_PS1" \
+    || { log_fail "TEST-309: .ps1 does not ASSIGN \$reftxPath from Resolve-HookPath 'reference-transaction' (the SYNOPSIS mentioning the hook is not the write target)"; ok=0; }
+  grep -qF 'git rev-parse --git-path "hooks/$Name"' "$INSTALLER_PS1" \
+    || { log_fail "TEST-309: .ps1's Resolve-HookPath does not ask git for the EFFECTIVE hooks path (git rev-parse --git-path) — a path derived any other way misses core.hooksPath"; ok=0; }
+  grep -qF 'Join-Path $gitCommonDir "hooks/reference-transaction"' "$INSTALLER_PS1" \
+    && { log_fail "TEST-309: .ps1 still writes the guard to \$gitCommonDir/hooks — that path ignores core.hooksPath (PR #304 Codex P1)"; ok=0; }
 
   # Assertion 5 (PR #302 Copilot P2): on Windows the .ps1 IS the entrypoint,
   # so the hook's OWN refusal message — printed by the hook itself, not by
@@ -638,7 +761,15 @@ test_309_ps1_twin_static() {
   grep -qF 'bash .aai/scripts/install-pre-commit-hook.sh --uninstall' <<<"$reftx_body" \
     && { log_fail "TEST-309: .ps1 twin's refusal message still tells a Windows operator to run bash — wrong entrypoint for this platform"; ok=0; }
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-309 .ps1 twin's \$reftxBody here-string carries the AAI:REF-GUARD marker, the refs/heads/main predicate, the AAI_GIT_WRITE check, the script writes .git/hooks/reference-transaction, and its refusal message gives pwsh (not bash) uninstall guidance"
+  # Assertion 6 (PR #304 Copilot): the ESCAPE is the one command the operator
+  # needs most at the moment this message appears, and PowerShell has no
+  # `VAR=value command` prefix — so the POSIX form alone leaves a Windows
+  # operator guessing. Verified by execution on pwsh 7.6.3: the child-process
+  # form commits where the bare command is refused, and does not leak.
+  grep -qF "pwsh -NoProfile -Command '\$env:AAI_GIT_WRITE=1; git commit ...'" <<<"$reftx_body" \
+    || { log_fail "TEST-309: .ps1 twin's refusal message gives no PowerShell-valid form of the AAI_GIT_WRITE escape (the POSIX VAR=value prefix does not exist in PowerShell)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-309 .ps1 twin's \$reftxBody here-string carries the AAI:REF-GUARD marker, the refs/heads/main predicate, the AAI_GIT_WRITE check, the script writes to the EFFECTIVE hooks path git resolves (never \$gitCommonDir/hooks), and its refusal message gives pwsh (not bash) uninstall guidance AND a PowerShell-valid form of the AAI_GIT_WRITE escape"
 }
 
 # --- TEST-310 (Spec-AC-06) — aai-doctor category -----------------------------
@@ -710,12 +841,32 @@ test_312_contract_and_diet() {
     log_fail "TEST-312: test-aai-prompt-diet.sh exited $diet_rc"
     ok=0
   fi
-  if ! grep -q "JUSTIFIED_GROWTH_BYTES == 2392" <<<"$diet_out"; then
-    log_fail "TEST-312: prompt-diet output does not confirm JUSTIFIED_GROWTH_BYTES == 2392: $(echo "$diet_out" | grep -i justified | head -1)"
+  # The claim is "THIS ride did not move the corpus credit", not "the credit is
+  # forever 2392". A literal turns every OTHER ride's honestly-paid growth into
+  # a red arm here: merging the operator-waiver ride (2392 -> 2631, itemised in
+  # the ledger) reddened this suite while nothing in this ride touched a prompt.
+  # So the expectation is derived from the base branch's ledger instead.
+  local base_pin live_pin base_ledger
+  base_ledger="$TMP_ROOT/t312-base-ledger.sh"
+  if (cd "$PROJECT_ROOT" && git show origin/main:tests/skills/lib/prompt-diet-ledger.sh) > "$base_ledger" 2>/dev/null \
+     && [[ -s "$base_ledger" ]]; then
+    # Derive the base credit with the ledger's OWN summation rather than a
+    # reimplementation here: a second copy of that arithmetic would drift from
+    # the real one and this arm would then be pinning its own bug.
+    base_pin="$(bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s" "$JUSTIFIED_GROWTH_BYTES"' _ "$base_ledger" 2>/dev/null)"
+  fi
+  live_pin="$(printf '%s\n' "$diet_out" | sed -n 's/.*JUSTIFIED_GROWTH_BYTES == \([-0-9][0-9]*\).*/\1/p' | head -1)"
+  if [[ -z "$live_pin" ]]; then
+    log_fail "TEST-312: prompt-diet output does not report JUSTIFIED_GROWTH_BYTES at all: $(printf '%s\n' "$diet_out" | grep -i justified | head -1)"
+    ok=0
+  elif [[ -z "${base_pin:-}" ]]; then
+    log_info "TEST-312: origin/main's ledger is unreadable here; corpus-credit drift not checked this run"
+  elif [[ "$live_pin" -ne "$base_pin" ]]; then
+    log_fail "TEST-312: this ride moved the corpus credit ($base_pin on origin/main -> $live_pin here) — a prompt edit needs its own itemised ledger entry"
     ok=0
   fi
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-312 SUBAGENT_CONTRACT.md names AAI_GIT_WRITE + AAI:REF-GUARD, all 5 HAZ anchors + 5 scar citations survive, and test-aai-prompt-diet.sh exits 0 with JUSTIFIED_GROWTH_BYTES unchanged at 2392"
+  [[ $ok -eq 1 ]] && log_pass "TEST-312 SUBAGENT_CONTRACT.md names AAI_GIT_WRITE + AAI:REF-GUARD, all 5 HAZ anchors + 5 scar citations survive, and test-aai-prompt-diet.sh exits 0 with the corpus credit unmoved from origin/main"
 }
 
 # --- TEST-313 (Spec-AC-07) — LIVE, degrade-and-report ------------------------
@@ -786,6 +937,38 @@ test_313_live_degrade_and_report() {
   fi
 }
 
+# --- TEST-316 - the .ps1 must stay ASCII outside its here-strings -------------
+# Windows PowerShell 5.1 reads a UTF-8 file with no BOM in the SYSTEM CODE PAGE,
+# so a multi-byte character inside a double-quoted string decodes into bytes that
+# can close the quote early. Everything after it is then parsed as code - which
+# is how a single em dash in one Write-Host message made 5.1 read the shell hook
+# body as PowerShell and report "the token '||' is not a valid statement
+# separator". pwsh 7 parses the same file cleanly, so this NEVER reproduces
+# locally; CI's 5.1 leg is the only thing that sees it, and by then the errors
+# point at the wrong lines entirely.
+# Here-string CONTENT is exempt on purpose: it is data, never parsed, and it has
+# to stay byte-identical to the .sh twin's hook body.
+test_316_ps1_ascii_outside_here_strings() {
+  local code
+  code="$(awk '
+    /^\$[A-Za-z]+ = @'"'"'$/ { inhere = 1; next }
+    inhere && /^'"'"'@$/       { inhere = 0; next }
+    inhere                     { next }
+    { print }
+  ' "$INSTALLER_PS1")"
+  if [[ -z "$code" ]]; then
+    log_fail "TEST-316: stripping here-strings left no code (the extraction shape moved)"
+    return
+  fi
+  local offenders
+  offenders="$(printf '%s\n' "$code" | LC_ALL=C grep -n '[^ -~\t]')" || offenders=""
+  if [[ -n "$offenders" ]]; then
+    log_fail "TEST-316: non-ASCII outside a here-string in $INSTALLER_PS1 - PowerShell 5.1 decodes it in the system code page and can end a string early: $offenders"
+    return
+  fi
+  log_pass "TEST-316 .ps1 carries no non-ASCII outside its here-strings (5.1 code-page safe)"
+}
+
 main() {
   check_deps
   HOOKS_DIGEST_BEFORE="$(manifest_of "$PROJECT_ROOT/.git/hooks")"
@@ -816,11 +999,13 @@ main() {
   test_306_allocator_seam
   test_307_clone_seam
   test_308_installer_contract
+  test_315_effective_hooks_path
   test_314_print_flag
   test_309_ps1_twin_static
   test_310_doctor_category
   test_312_contract_and_diet
   test_313_live_degrade_and_report
+  test_316_ps1_ascii_outside_here_strings
   test_311_hooks_dir_unchanged
 
   echo ""
