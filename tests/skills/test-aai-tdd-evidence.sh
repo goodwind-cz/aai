@@ -309,8 +309,21 @@ test_005_additive_regression() {
   diff_out="$(cd "$PROJECT_ROOT" && git diff --stat -- .aai/scripts/state.mjs)"
   if [[ -n "$diff_out" ]]; then
     local changed spec_hits authorizer="" f
+    # BASE REF (fu-bare-main-baseref-sweep): a bare `main` here read NOTHING on
+    # a GitHub `pull_request` checkout (detached HEAD, only remote-tracking refs
+    # fetched), `2>/dev/null` ate the error, and this authorization scan lost
+    # its committed-history half without saying so. origin/main first, local
+    # main second, FAIL CLOSED when neither resolves.
+    local te_base=""
+    if git -C "$PROJECT_ROOT" rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+      te_base="origin/main"
+    elif git -C "$PROJECT_ROOT" rev-parse --verify --quiet main >/dev/null 2>&1; then
+      te_base="main"
+    else
+      log_fail "TEST-005: no base ref resolves (neither 'origin/main' nor 'main') — the committed-history half of the state.mjs authorization scan cannot run, so this FAILS CLOSED rather than authorizing from working-tree data alone"
+    fi
     changed="$( (cd "$PROJECT_ROOT" && {
-      git diff --name-only main...HEAD 2>/dev/null
+      git diff --name-only "$te_base...HEAD" 2>/dev/null
       git status --porcelain 2>/dev/null | sed -E 's/^...//'
     }) | sort -u)"
     spec_hits="$(printf '%s\n' "$changed" | grep -E '^docs/specs/.*\.md$' || true)"
