@@ -1,68 +1,15 @@
 {
-  "generatedAt": "2026-08-28T09:04:07.878Z",
-  "project": "aai",
+  "generatedAt": "2026-08-29T17:35:43.941Z",
+  "project": "c308",
   "counts": {
-    "delivered": 214,
+    "delivered": 215,
     "in_progress": 15,
     "releases": 1,
-    "tokens_total": 53372161
+    "tokens_total": 55659205
   },
   "waiting_on_you": null,
-  "current_focus": {
-    "ref": "isolation-shares-the-shipping-git",
-    "type": "intake_issue"
-  },
-  "in_flight": {
-    "focus": {
-      "ref": "isolation-shares-the-shipping-git",
-      "type": "intake_issue",
-      "phase": "code_review"
-    },
-    "strategy": "tdd",
-    "worktree": {
-      "recommendation": "optional",
-      "user_decision": "inline"
-    },
-    "validation_status": "pass",
-    "review_status": "pass",
-    "ticks": [
-      {
-        "tick": 160,
-        "role": "Metrics Flush",
-        "scope": "harness-surfaces-drift-unguarded",
-        "duration_seconds": 18,
-        "harness_version": "codex-cli 0.144.5"
-      },
-      {
-        "tick": 159,
-        "role": "Code Review",
-        "scope": "harness-surfaces-drift-unguarded",
-        "duration_seconds": 164,
-        "harness_version": "codex-cli 0.144.5"
-      },
-      {
-        "tick": 158,
-        "role": "Validation",
-        "scope": "harness-surfaces-drift-unguarded",
-        "duration_seconds": 814,
-        "harness_version": "codex-cli 0.144.5"
-      },
-      {
-        "tick": 157,
-        "role": "Code Review",
-        "scope": "harness-surfaces-drift-unguarded",
-        "duration_seconds": 567,
-        "harness_version": "codex-cli 0.144.5"
-      },
-      {
-        "tick": 156,
-        "role": "Validation",
-        "scope": "deslop-corpus-honesty",
-        "duration_seconds": 1330,
-        "harness_version": "2.1.231 (Claude Code)"
-      }
-    ]
-  },
+  "current_focus": null,
+  "in_flight": null,
   "in_progress": [
     {
       "ref": "residuals-of-the-per-suite-clone-ride",
@@ -70,6 +17,19 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "operator-waiver-unblocks-pr",
+      "title": "An operator who validated the change themselves can reach a PR without lying",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -135,19 +95,6 @@
       "type": "techdebt",
       "status": "draft",
       "path": "docs/issues/DEBT-0007-withdrawn-claim-sweeps-are-not-verifiable.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "agent-shell-can-write-the-shipping-repo",
-      "title": "Nothing structurally stops an agent shell or its probes from writing the shipping repository",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -262,14 +209,27 @@
   ],
   "delivered": [
     {
+      "ref": "agent-shell-can-write-the-shipping-repo",
+      "title": "Nothing structurally stops an agent shell or its probes from writing the shipping repository",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md",
+      "closed_on": "2026-08-28",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260828T144437Z-agent-shell-can-write-the-shipping-repo.md"
+    },
+    {
       "ref": "isolation-shares-the-shipping-git",
       "title": "Suite isolation moves the working directory but never removes reach",
       "type": "issue",
       "status": "done",
       "path": "docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md",
       "closed_on": "2026-08-28",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 459,
+      "token_total": 2287044,
       "spec": "docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260828T084132Z-isolation-shares-the-shipping-git-round3.md"
@@ -1662,7 +1622,7 @@
       "agent_minutes": 145,
       "token_total": 631296,
       "spec": "docs/specs/SPEC-0085-spec-token-capture-canary.md",
-      "validation": "docs/ai/reports/validation-token-capture-canary-20260726T131158Z.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-token-capture-canary-20260726T134808Z.md"
     },
     {
@@ -1675,7 +1635,7 @@
       "agent_minutes": 135,
       "token_total": 649036,
       "spec": "docs/specs/SPEC-0086-spec-prompt-dedup-canonical-includes.md",
-      "validation": "docs/ai/reports/validation-prompt-dedup-canonical-includes-20260726T174500Z.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-prompt-dedup-canonical-includes-20260726T174331Z.md"
     },
     {
@@ -1701,7 +1661,7 @@
       "agent_minutes": 29,
       "token_total": 503671,
       "spec": "docs/specs/SPEC-0087-spec-subagent-protocol-slim.md",
-      "validation": "docs/ai/reports/VALIDATION-subagent-protocol-slim-20260726T184217Z.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-20260726T184739Z-subagent-protocol-slim.md"
     },
     {
@@ -1714,7 +1674,7 @@
       "agent_minutes": 29,
       "token_total": 521010,
       "spec": "docs/specs/SPEC-0088-spec-friction-capture-default-on.md",
-      "validation": "docs/ai/reports/VALIDATION-friction-capture-default-on-20260726.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-friction-capture-default-on-20260726T202511Z.md"
     },
     {
@@ -1727,7 +1687,7 @@
       "agent_minutes": 31,
       "token_total": 522582,
       "spec": "docs/specs/SPEC-0089-spec-token-economics-end-to-end.md",
-      "validation": "docs/ai/reports/validation-token-economics-end-to-end-20260726T223843Z.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-token-economics-end-to-end-20260726T224220Z.md"
     },
     {
@@ -1740,7 +1700,7 @@
       "agent_minutes": 87,
       "token_total": 464257,
       "spec": "docs/specs/SPEC-0090-spec-allocator-rewrite-all-trees.md",
-      "validation": "docs/ai/reports/VALIDATION-20260726T234752Z-allocator-rewrite-all-trees.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-20260726T235244Z-allocator-rewrite-all-trees.md"
     },
     {
@@ -1909,7 +1869,7 @@
       "agent_minutes": 12,
       "token_total": null,
       "spec": "docs/specs/SPEC-0074-spec-branch-guard-no-work-item.md",
-      "validation": "docs/ai/reports/validation-branch-guard-no-work-item-20260724T080612Z.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-20260724T080943Z-branch-guard-no-work-item.md"
     },
     {
@@ -1961,7 +1921,7 @@
       "agent_minutes": 56,
       "token_total": null,
       "spec": "docs/specs/SPEC-0072-spec-reaper-epoch-survivor-robustness.md",
-      "validation": "docs/ai/reports/validation-reaper-epoch-survivor-robustness-20260723T122032Z.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-20260723T123508Z-reaper-epoch-survivor-robustness-rereview3.md"
     },
     {
@@ -1974,7 +1934,7 @@
       "agent_minutes": 95,
       "token_total": null,
       "spec": "docs/specs/SPEC-0073-spec-false-open-metrics-and-supersession.md",
-      "validation": "docs/ai/reports/validation-false-open-metrics-and-supersession-20260723T201215Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2013,7 +1973,7 @@
       "agent_minutes": 8,
       "token_total": 102993,
       "spec": "docs/specs/SPEC-0069-spec-test-018-workspace-isolation.md",
-      "validation": "docs/ai/reports/validation-test-018-workspace-isolation-20260722T203805Z.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-20260722T202810Z-test-018-workspace-isolation-rereview.md"
     },
     {
@@ -2026,7 +1986,7 @@
       "agent_minutes": 11,
       "token_total": null,
       "spec": "docs/specs/SPEC-0070-spec-branch-per-work-item-hygiene.md",
-      "validation": "docs/ai/reports/validation-branch-per-work-item-hygiene-20260722T215229Z.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-20260722T215831Z-branch-per-work-item-hygiene.md"
     },
     {
@@ -2039,7 +1999,7 @@
       "agent_minutes": 9,
       "token_total": null,
       "spec": "docs/specs/SPEC-0071-spec-planning-companion-obligations.md",
-      "validation": "docs/ai/reports/validation-planning-companion-obligations-20260722T232547Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2052,7 +2012,7 @@
       "agent_minutes": 90,
       "token_total": 449465,
       "spec": "docs/specs/SPEC-0066-spec-hitl-decision-propagation.md",
-      "validation": "docs/ai/reports/green-hitl-decision-propagation-suite-20260721T093249Z.log",
+      "validation": null,
       "review": null
     },
     {
@@ -2156,7 +2116,7 @@
       "agent_minutes": 78,
       "token_total": 1177590,
       "spec": "docs/specs/SPEC-0053-spec-deterministic-close-ceremony.md",
-      "validation": "docs/ai/reports/validation-SPEC-0053-deterministic-close-ceremony-20260718T031742Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2169,7 +2129,7 @@
       "agent_minutes": 49,
       "token_total": 569074,
       "spec": "docs/specs/SPEC-0054-spec-flush-close-event-alignment.md",
-      "validation": "docs/ai/reports/validation-flush-close-event-alignment-20260718T065712Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2182,7 +2142,7 @@
       "agent_minutes": 46,
       "token_total": 536905,
       "spec": "docs/specs/SPEC-0055-spec-worktree-telemetry-reconciliation.md",
-      "validation": "docs/ai/reports/validation-worktree-telemetry-reconciliation-20260718T094520Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2195,7 +2155,7 @@
       "agent_minutes": 279,
       "token_total": 375192,
       "spec": "docs/specs/SPEC-0059-spec-prompt-diet-itemized-growth-ledger.md",
-      "validation": "docs/ai/reports/validation-prompt-diet-itemized-growth-ledger-20260718T221013Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2208,7 +2168,7 @@
       "agent_minutes": 27,
       "token_total": 432243,
       "spec": "docs/specs/SPEC-0056-secrets-preflight-unterminated-quote-safe-direction.md",
-      "validation": "docs/ai/reports/validation-secrets-preflight-unterminated-quote-safe-direction-20260718T112425Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2221,7 +2181,7 @@
       "agent_minutes": 52,
       "token_total": 506275,
       "spec": "docs/specs/SPEC-0057-spec-docs-audit-duplicate-doc-id.md",
-      "validation": "docs/ai/reports/validation-docs-audit-duplicate-doc-id-20260718T124316Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2234,7 +2194,7 @@
       "agent_minutes": 18,
       "token_total": 41346,
       "spec": null,
-      "validation": "docs/ai/reports/validation-remediate-spec-id-collisions-20260718T141625Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2247,7 +2207,7 @@
       "agent_minutes": 35,
       "token_total": 402687,
       "spec": "docs/specs/SPEC-0058-spec-spec-lint-enforce-spec-id-prefix.md",
-      "validation": "docs/ai/reports/validation-spec-lint-enforce-spec-id-prefix-20260718T155241Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2260,7 +2220,7 @@
       "agent_minutes": 39,
       "token_total": null,
       "spec": "docs/specs/SPEC-0040-spec-docs-audit-d2-evidence-hardening.md",
-      "validation": "docs/ai/reports/validation-20260717T090900Z-docs-audit-d2-evidence-hardening.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2286,7 +2246,7 @@
       "agent_minutes": 39,
       "token_total": null,
       "spec": "docs/specs/SPEC-0041-spec-loop-ceremony-aware-dispatch.md",
-      "validation": "docs/ai/reports/validation-loop-ceremony-aware-dispatch-20260717T120409Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2299,7 +2259,7 @@
       "agent_minutes": 29,
       "token_total": null,
       "spec": "docs/specs/SPEC-0042-spec-dispatch-new-intake-after-completed-scope.md",
-      "validation": "docs/ai/reports/validation-dispatch-new-intake-after-completed-scope-20260717T125156Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2312,7 +2272,7 @@
       "agent_minutes": 37,
       "token_total": 312723,
       "spec": "docs/specs/SPEC-0043-spec-loop-token-usage-capture.md",
-      "validation": "docs/ai/reports/validation-loop-token-usage-capture-20260717T133924Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2325,7 +2285,7 @@
       "agent_minutes": 25,
       "token_total": 436515,
       "spec": "docs/specs/SPEC-0044-spec-tdd-red-evidence-classification.md",
-      "validation": "docs/ai/reports/validation-tdd-red-evidence-classification-20260717T141511Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2338,7 +2298,7 @@
       "agent_minutes": 33,
       "token_total": 505034,
       "spec": "docs/specs/SPEC-0045-spec-intake-secrets-preflight.md",
-      "validation": "docs/ai/reports/validation-20260717T151520Z-intake-secrets-preflight.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2364,7 +2324,7 @@
       "agent_minutes": 37,
       "token_total": 559718,
       "spec": "docs/specs/SPEC-0050-spec-dispatch-4a-fail-verdict-precedence.md",
-      "validation": "docs/ai/reports/validation-SPEC-0050-dispatch-4a-fail-verdict-precedence.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2377,7 +2337,7 @@
       "agent_minutes": 46,
       "token_total": 400419,
       "spec": "docs/specs/SPEC-0048-prompt-diet-byte-budget-true-up.md",
-      "validation": "docs/ai/reports/validation-prompt-diet-byte-budget-true-up-20260717T190802Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2390,7 +2350,7 @@
       "agent_minutes": 51,
       "token_total": 612993,
       "spec": "docs/specs/SPEC-0046-spec-test-wrapper-windows-fallback.md",
-      "validation": "docs/ai/reports/validation-test-wrapper-windows-fallback-20260717T160436Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2403,7 +2363,7 @@
       "agent_minutes": 29,
       "token_total": 308987,
       "spec": "docs/specs/SPEC-0049-secrets-preflight-env-multiline.md",
-      "validation": "docs/ai/reports/validation-secrets-preflight-env-multiline-20260717T200708Z.md",
+      "validation": null,
       "review": null
     },
     {
@@ -2416,7 +2376,7 @@
       "agent_minutes": 32,
       "token_total": 429421,
       "spec": "docs/specs/SPEC-0051-spec-lint-duplicate-ac-id.md",
-      "validation": "docs/ai/reports/validation-20260717T212654Z-spec-lint-duplicate-ac-id.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-20260717T213126Z-spec-lint-duplicate-ac-id.md"
     },
     {
@@ -2429,7 +2389,7 @@
       "agent_minutes": 34,
       "token_total": 476854,
       "spec": "docs/specs/SPEC-0052-spec-aai-update-temp-toctou.md",
-      "validation": "docs/ai/reports/validation-aai-update-temp-toctou-20260717T232841Z.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-20260717T233730Z-aai-update-temp-toctou.md"
     },
     {
@@ -2598,7 +2558,7 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0033-spec-spec-lint.md",
-      "validation": "docs/ai/reports/validation-spec-lint-enforce-spec-id-prefix-20260718T155241Z.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-20260717T213126Z-spec-lint-duplicate-ac-id.md"
     },
     {
@@ -3051,14 +3011,27 @@
       "label": "2026-08",
       "items": [
         {
+          "ref": "agent-shell-can-write-the-shipping-repo",
+          "title": "Nothing structurally stops an agent shell or its probes from writing the shipping repository",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md",
+          "closed_on": "2026-08-28",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260828T144437Z-agent-shell-can-write-the-shipping-repo.md"
+        },
+        {
           "ref": "isolation-shares-the-shipping-git",
           "title": "Suite isolation moves the working directory but never removes reach",
           "type": "issue",
           "status": "done",
           "path": "docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md",
           "closed_on": "2026-08-28",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 459,
+          "token_total": 2287044,
           "spec": "docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260828T084132Z-isolation-shares-the-shipping-git-round3.md"
@@ -4458,7 +4431,7 @@
           "agent_minutes": 145,
           "token_total": 631296,
           "spec": "docs/specs/SPEC-0085-spec-token-capture-canary.md",
-          "validation": "docs/ai/reports/validation-token-capture-canary-20260726T131158Z.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-token-capture-canary-20260726T134808Z.md"
         },
         {
@@ -4471,7 +4444,7 @@
           "agent_minutes": 135,
           "token_total": 649036,
           "spec": "docs/specs/SPEC-0086-spec-prompt-dedup-canonical-includes.md",
-          "validation": "docs/ai/reports/validation-prompt-dedup-canonical-includes-20260726T174500Z.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-prompt-dedup-canonical-includes-20260726T174331Z.md"
         },
         {
@@ -4497,7 +4470,7 @@
           "agent_minutes": 29,
           "token_total": 503671,
           "spec": "docs/specs/SPEC-0087-spec-subagent-protocol-slim.md",
-          "validation": "docs/ai/reports/VALIDATION-subagent-protocol-slim-20260726T184217Z.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-20260726T184739Z-subagent-protocol-slim.md"
         },
         {
@@ -4510,7 +4483,7 @@
           "agent_minutes": 29,
           "token_total": 521010,
           "spec": "docs/specs/SPEC-0088-spec-friction-capture-default-on.md",
-          "validation": "docs/ai/reports/VALIDATION-friction-capture-default-on-20260726.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-friction-capture-default-on-20260726T202511Z.md"
         },
         {
@@ -4523,7 +4496,7 @@
           "agent_minutes": 31,
           "token_total": 522582,
           "spec": "docs/specs/SPEC-0089-spec-token-economics-end-to-end.md",
-          "validation": "docs/ai/reports/validation-token-economics-end-to-end-20260726T223843Z.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-token-economics-end-to-end-20260726T224220Z.md"
         },
         {
@@ -4536,7 +4509,7 @@
           "agent_minutes": 87,
           "token_total": 464257,
           "spec": "docs/specs/SPEC-0090-spec-allocator-rewrite-all-trees.md",
-          "validation": "docs/ai/reports/VALIDATION-20260726T234752Z-allocator-rewrite-all-trees.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-20260726T235244Z-allocator-rewrite-all-trees.md"
         },
         {
@@ -4705,7 +4678,7 @@
           "agent_minutes": 12,
           "token_total": null,
           "spec": "docs/specs/SPEC-0074-spec-branch-guard-no-work-item.md",
-          "validation": "docs/ai/reports/validation-branch-guard-no-work-item-20260724T080612Z.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-20260724T080943Z-branch-guard-no-work-item.md"
         },
         {
@@ -4757,7 +4730,7 @@
           "agent_minutes": 56,
           "token_total": null,
           "spec": "docs/specs/SPEC-0072-spec-reaper-epoch-survivor-robustness.md",
-          "validation": "docs/ai/reports/validation-reaper-epoch-survivor-robustness-20260723T122032Z.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-20260723T123508Z-reaper-epoch-survivor-robustness-rereview3.md"
         },
         {
@@ -4770,7 +4743,7 @@
           "agent_minutes": 95,
           "token_total": null,
           "spec": "docs/specs/SPEC-0073-spec-false-open-metrics-and-supersession.md",
-          "validation": "docs/ai/reports/validation-false-open-metrics-and-supersession-20260723T201215Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -4809,7 +4782,7 @@
           "agent_minutes": 8,
           "token_total": 102993,
           "spec": "docs/specs/SPEC-0069-spec-test-018-workspace-isolation.md",
-          "validation": "docs/ai/reports/validation-test-018-workspace-isolation-20260722T203805Z.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-20260722T202810Z-test-018-workspace-isolation-rereview.md"
         },
         {
@@ -4822,7 +4795,7 @@
           "agent_minutes": 11,
           "token_total": null,
           "spec": "docs/specs/SPEC-0070-spec-branch-per-work-item-hygiene.md",
-          "validation": "docs/ai/reports/validation-branch-per-work-item-hygiene-20260722T215229Z.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-20260722T215831Z-branch-per-work-item-hygiene.md"
         },
         {
@@ -4835,7 +4808,7 @@
           "agent_minutes": 9,
           "token_total": null,
           "spec": "docs/specs/SPEC-0071-spec-planning-companion-obligations.md",
-          "validation": "docs/ai/reports/validation-planning-companion-obligations-20260722T232547Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -4848,7 +4821,7 @@
           "agent_minutes": 90,
           "token_total": 449465,
           "spec": "docs/specs/SPEC-0066-spec-hitl-decision-propagation.md",
-          "validation": "docs/ai/reports/green-hitl-decision-propagation-suite-20260721T093249Z.log",
+          "validation": null,
           "review": null
         },
         {
@@ -4952,7 +4925,7 @@
           "agent_minutes": 78,
           "token_total": 1177590,
           "spec": "docs/specs/SPEC-0053-spec-deterministic-close-ceremony.md",
-          "validation": "docs/ai/reports/validation-SPEC-0053-deterministic-close-ceremony-20260718T031742Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -4965,7 +4938,7 @@
           "agent_minutes": 49,
           "token_total": 569074,
           "spec": "docs/specs/SPEC-0054-spec-flush-close-event-alignment.md",
-          "validation": "docs/ai/reports/validation-flush-close-event-alignment-20260718T065712Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -4978,7 +4951,7 @@
           "agent_minutes": 46,
           "token_total": 536905,
           "spec": "docs/specs/SPEC-0055-spec-worktree-telemetry-reconciliation.md",
-          "validation": "docs/ai/reports/validation-worktree-telemetry-reconciliation-20260718T094520Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -4991,7 +4964,7 @@
           "agent_minutes": 279,
           "token_total": 375192,
           "spec": "docs/specs/SPEC-0059-spec-prompt-diet-itemized-growth-ledger.md",
-          "validation": "docs/ai/reports/validation-prompt-diet-itemized-growth-ledger-20260718T221013Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5004,7 +4977,7 @@
           "agent_minutes": 27,
           "token_total": 432243,
           "spec": "docs/specs/SPEC-0056-secrets-preflight-unterminated-quote-safe-direction.md",
-          "validation": "docs/ai/reports/validation-secrets-preflight-unterminated-quote-safe-direction-20260718T112425Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5017,7 +4990,7 @@
           "agent_minutes": 52,
           "token_total": 506275,
           "spec": "docs/specs/SPEC-0057-spec-docs-audit-duplicate-doc-id.md",
-          "validation": "docs/ai/reports/validation-docs-audit-duplicate-doc-id-20260718T124316Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5030,7 +5003,7 @@
           "agent_minutes": 18,
           "token_total": 41346,
           "spec": null,
-          "validation": "docs/ai/reports/validation-remediate-spec-id-collisions-20260718T141625Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5043,7 +5016,7 @@
           "agent_minutes": 35,
           "token_total": 402687,
           "spec": "docs/specs/SPEC-0058-spec-spec-lint-enforce-spec-id-prefix.md",
-          "validation": "docs/ai/reports/validation-spec-lint-enforce-spec-id-prefix-20260718T155241Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5056,7 +5029,7 @@
           "agent_minutes": 39,
           "token_total": null,
           "spec": "docs/specs/SPEC-0040-spec-docs-audit-d2-evidence-hardening.md",
-          "validation": "docs/ai/reports/validation-20260717T090900Z-docs-audit-d2-evidence-hardening.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5082,7 +5055,7 @@
           "agent_minutes": 39,
           "token_total": null,
           "spec": "docs/specs/SPEC-0041-spec-loop-ceremony-aware-dispatch.md",
-          "validation": "docs/ai/reports/validation-loop-ceremony-aware-dispatch-20260717T120409Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5095,7 +5068,7 @@
           "agent_minutes": 29,
           "token_total": null,
           "spec": "docs/specs/SPEC-0042-spec-dispatch-new-intake-after-completed-scope.md",
-          "validation": "docs/ai/reports/validation-dispatch-new-intake-after-completed-scope-20260717T125156Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5108,7 +5081,7 @@
           "agent_minutes": 37,
           "token_total": 312723,
           "spec": "docs/specs/SPEC-0043-spec-loop-token-usage-capture.md",
-          "validation": "docs/ai/reports/validation-loop-token-usage-capture-20260717T133924Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5121,7 +5094,7 @@
           "agent_minutes": 25,
           "token_total": 436515,
           "spec": "docs/specs/SPEC-0044-spec-tdd-red-evidence-classification.md",
-          "validation": "docs/ai/reports/validation-tdd-red-evidence-classification-20260717T141511Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5134,7 +5107,7 @@
           "agent_minutes": 33,
           "token_total": 505034,
           "spec": "docs/specs/SPEC-0045-spec-intake-secrets-preflight.md",
-          "validation": "docs/ai/reports/validation-20260717T151520Z-intake-secrets-preflight.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5160,7 +5133,7 @@
           "agent_minutes": 37,
           "token_total": 559718,
           "spec": "docs/specs/SPEC-0050-spec-dispatch-4a-fail-verdict-precedence.md",
-          "validation": "docs/ai/reports/validation-SPEC-0050-dispatch-4a-fail-verdict-precedence.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5173,7 +5146,7 @@
           "agent_minutes": 46,
           "token_total": 400419,
           "spec": "docs/specs/SPEC-0048-prompt-diet-byte-budget-true-up.md",
-          "validation": "docs/ai/reports/validation-prompt-diet-byte-budget-true-up-20260717T190802Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5186,7 +5159,7 @@
           "agent_minutes": 51,
           "token_total": 612993,
           "spec": "docs/specs/SPEC-0046-spec-test-wrapper-windows-fallback.md",
-          "validation": "docs/ai/reports/validation-test-wrapper-windows-fallback-20260717T160436Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5199,7 +5172,7 @@
           "agent_minutes": 29,
           "token_total": 308987,
           "spec": "docs/specs/SPEC-0049-secrets-preflight-env-multiline.md",
-          "validation": "docs/ai/reports/validation-secrets-preflight-env-multiline-20260717T200708Z.md",
+          "validation": null,
           "review": null
         },
         {
@@ -5212,7 +5185,7 @@
           "agent_minutes": 32,
           "token_total": 429421,
           "spec": "docs/specs/SPEC-0051-spec-lint-duplicate-ac-id.md",
-          "validation": "docs/ai/reports/validation-20260717T212654Z-spec-lint-duplicate-ac-id.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-20260717T213126Z-spec-lint-duplicate-ac-id.md"
         },
         {
@@ -5225,7 +5198,7 @@
           "agent_minutes": 34,
           "token_total": 476854,
           "spec": "docs/specs/SPEC-0052-spec-aai-update-temp-toctou.md",
-          "validation": "docs/ai/reports/validation-aai-update-temp-toctou-20260717T232841Z.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-20260717T233730Z-aai-update-temp-toctou.md"
         },
         {
@@ -5394,7 +5367,7 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0033-spec-spec-lint.md",
-          "validation": "docs/ai/reports/validation-spec-lint-enforce-spec-id-prefix-20260718T155241Z.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-20260717T213126Z-spec-lint-duplicate-ac-id.md"
         },
         {

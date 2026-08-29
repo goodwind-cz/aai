@@ -413,12 +413,12 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 2847 (2026-08-29, state-route-exists-but-is-undiscoverable:
+# 2846 (2026-08-29, state-route-exists-but-is-undiscoverable:
 # .aai/SKILL_PR.prompt.md step 0 BRANCH HYGIENE gains one sentence naming the
 # absent-STATE bootstrap route (check-state.mjs --repair then state.mjs
 # set-focus); the branch-guard.mjs/validation-waiver.mjs absent-vs-corrupt fix
 # and the docs/USER_GUIDE.md note are outside the live glob. Measured 216 B at
-# zero headroom, credited 1:1, pin moved 2631 -> 2847.
+# zero headroom, credited 1:1, pin moved 2631 -> 2846 (215 B, after a one-byte formatting fix).
 # 2631 (2026-08-28, operator-waiver-unblocks-pr: .aai/SKILL_PR.prompt.md's
 # validation precondition becomes a runnable gate call and names the waiver
 # opening; the gate engine, the report surfacing and the new suite are all
@@ -729,7 +729,7 @@ test_012_growth_sum_matches_ledger() {
   # PASS line still printing 859 after the pin moved to 1036 — the second time
   # this message drifted from the check. A number retyped in prose goes stale;
   # a number printed from the constant cannot.
-  local want_growth=2847
+  local want_growth=2846
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
