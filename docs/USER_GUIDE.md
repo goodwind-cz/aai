@@ -1605,6 +1605,50 @@ bash .aai/scripts/install-pre-commit-hook.sh --uninstall # remove the AAI hook
 ```
 It refuses to overwrite a non-AAI `pre-commit` hook unless you pass `--force`.
 
+#### The `main` ref-guard (installed by the same command)
+
+**The installer above writes a SECOND hook**, and `/aai-update` installs it for you
+without asking — so read this before your next commit on `main`.
+
+**What:** a `.git/hooks/reference-transaction` hook (marker `AAI:REF-GUARD`) that
+**refuses any update to `refs/heads/main`** unless `AAI_GIT_WRITE=1` is set on that
+one command. Feature branches and tags are untouched; nothing changes in normal
+work. It exists because branch protection stops a *push* but nothing stopped a
+local `commit`, `reset --hard`, `merge` or `stash` from moving `main` under you —
+and `--no-verify` walked straight past the pre-commit hook. A reference-transaction
+hook runs where the ref is actually written, so it also survives nesting and
+subshells.
+
+**What you will see** when it fires — this is the guard working, not a broken repo:
+
+```
+AAI:REF-GUARD refused this refs/heads/main update.
+```
+
+**When you genuinely mean it**, set the variable for that single command:
+
+```bash
+AAI_GIT_WRITE=1 git commit -m "..."   # deliberate, one command, not exported
+```
+
+**Known limit, worth knowing before it surprises you:** the refusal stops the *ref*
+update, not the work git has already done to your files. `git reset --hard` and
+`git stash push` complete their worktree half and are refused only afterwards, so
+your working tree can change even though `main` did not move. Check `git status`
+after a refusal rather than assuming nothing happened.
+
+**Removing it:** the `--uninstall` above removes **both** hooks.
+
+```bash
+bash .aai/scripts/install-pre-commit-hook.sh --uninstall
+pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall   # Windows
+```
+
+`/aai-doctor` reports the guard's live state as category **CAT-17**, and it checks
+the hook git would actually execute — it resolves `core.hooksPath`, verifies the
+executable bit, and runs the hook to confirm it really refuses. A hook that is
+present but inert is reported as **not armed**, not as a pass.
+
 #### `/aai-test-skills`
 **What:** Tests all AAI skills to ensure they work.
 

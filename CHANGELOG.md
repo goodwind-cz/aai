@@ -11,6 +11,24 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — docs(user-guide): the guide documents the second hook the installer writes [L0]
+
+Ceremony justification: documentation only, no code path touched, and every
+claim in it was verified against the code or measured on a live guard.
+
+- `/aai-update` installs the `main` ref-guard for the operator without asking,
+  but the guide described only the docs-index hook — so the first refusal on
+  `main` would arrive with no explanation anywhere in the documentation.
+- Adds what the guard refuses, the exact message it prints, the one-command
+  `AAI_GIT_WRITE=1` escape, that `--uninstall` removes BOTH hooks (verified in
+  the installer), the PowerShell `-Uninstall` twin (verified as a real switch),
+  and that `/aai-doctor` CAT-17 reports a present-but-inert hook as NOT armed
+  (verified in the doctor's own strings).
+- Also records the limit that surprises people: the refusal stops the ref
+  update, not the worktree half git already performed. Measured on the live
+  guard — `reset --hard` left `main` unmoved while the file content reverted
+  and stayed staged.
+
 ## [unreleased] — fix(harness): a git ref-guard refuses writes to main from an agent shell (ISSUE-0037) [L2]
 
 - A `reference-transaction` hook (marker `AAI:REF-GUARD`) refuses any update to
