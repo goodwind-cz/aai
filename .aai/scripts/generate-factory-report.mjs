@@ -46,7 +46,7 @@ import { loadRegistry } from './follow-ups.mjs';
 // blocks anything; a waived ride is SHOWN, and self-waived (agent) rides are
 // counted apart from operator ones so a gate an agent cleared for itself can
 // never hide inside the operator total.
-import { scanWaivers } from './validation-waiver.mjs';
+import { scanWaivers, normalizeWaiverRecord } from './validation-waiver.mjs';
 
 const ROOT = process.cwd();
 
@@ -344,14 +344,33 @@ function buildModel(args) {
   // it deletes the new keys, never by silently suppressing the check itself.
   const scopeCostNotes = [];
   // Validation waivers, surfaced (operator-waiver-unblocks-pr). A waiver is
-  // recorded in STATE `last_validation.notes`, which the flush overwrites —
-  // the durable home for it in the LEDGER is the ride's own run notes, where
-  // every other ride fact already lives. Rejected sentinels are counted, not
-  // dropped: a half-typed record is a visible hole, not an absent one.
+  // recorded in STATE `last_validation.notes`, which the flush overwrites — so
+  // metrics-flush.mjs copies it into the ride's own DURABLE `validation_waiver`
+  // ledger field before resetting (bot review PR #303 F-2; before that fix
+  // nothing carried it and this section was structurally always zero). Run
+  // notes are still scanned, because a waiver may also be narrated there.
+  // Rejected sentinels are counted, not dropped: a half-typed record — or one
+  // naming a DIFFERENT scope than the ride it sits in — is a visible hole,
+  // not an absent one.
   const waiverRides = [];
   let waiverRejected = 0;
   for (const m of rides) {
     const rideWaivers = [];
+    // Dedupe by identity, not by object: the same waiver may arrive both as
+    // the durable field and as a narration in a run note.
+    const addWaiver = (rec) => {
+      if (rec.ref !== m.ref_id) { waiverRejected += 1; return; }
+      const key = `${rec.by}\u0000${rec.at}\u0000${rec.reason}`;
+      if (rideWaivers.some((x) => `${x.by}\u0000${x.at}\u0000${x.reason}` === key)) return;
+      rideWaivers.push(rec);
+    };
+    // The durable field FIRST, re-checked through the one grammar so a
+    // hand-edited ledger cannot smuggle in a record the gate would refuse.
+    if (m.validation_waiver !== undefined && m.validation_waiver !== null) {
+      const dur = normalizeWaiverRecord(m.validation_waiver);
+      if (dur === null) waiverRejected += 1;
+      else addWaiver(dur);
+    }
     let busy = 0; let hasBusy = false;
     let tok = 0; let hasTok = false;
     const rideWeek = isoWeek(m.date_utc);
@@ -373,7 +392,7 @@ function buildModel(args) {
       if (typeof r.duration_seconds === 'number') roleDurations.set(roleKey, (roleDurations.get(roleKey) ?? 0) + r.duration_seconds);
       const t = extractUsageTotal(r.note);
       const rw = scanWaivers(r.note);
-      for (const rec of rw.records) rideWaivers.push(rec);
+      for (const rec of rw.records) addWaiver(rec);
       waiverRejected += rw.rejected;
       totalRuns += 1;
       if (t !== null) {
@@ -444,6 +463,15 @@ function buildModel(args) {
         ref: m.ref_id,
         date_utc: m.date_utc ?? null,
         by: chosen.by,
+        // The two facts are recorded INDEPENDENTLY, and every count and every
+        // rendered cell below derives from THESE, never from `by` (bot review
+        // PR #303 F-3: a ride carrying both records chose `by: operator`, so
+        // the agent's gate-clearing act vanished from the self-waived KPI —
+        // in exactly the mixed case the code above explicitly handles).
+        // A mixed ride is therefore counted in BOTH buckets, on purpose:
+        // operator + agent can exceed `total`, because they answer two
+        // different questions about the same ride.
+        operator_waived: rideWaivers.some((w) => w.by === 'operator'),
         self_waived: rideWaivers.some((w) => w.by === 'agent'),
         at: chosen.at,
         reason: chosen.reason,
@@ -720,11 +748,11 @@ function buildModel(args) {
     // pinned block instead of adding to it.
     validation_waivers: {
       total: waiverRides.length,
-      operator: waiverRides.filter((w) => w.by === 'operator').length,
-      agent: waiverRides.filter((w) => w.by === 'agent').length,
+      operator: waiverRides.filter((w) => w.operator_waived).length,
+      agent: waiverRides.filter((w) => w.self_waived).length,
       rejected_records: waiverRejected,
       rides: waiverRides,
-      note: 'a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate',
+      note: 'a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total',
     },
     trend,
     follow_ups: followUps,
@@ -764,6 +792,15 @@ function barSeries(series, key, labelFn) {
       + `<text x="${x + bw / 2}" y="${h - 4}" class="xlab">${esc(p.week.slice(-3))}</text>`;
   }).join('');
   return `<svg viewBox="0 0 ${w} ${h}" class="spark" role="img" preserveAspectRatio="xMinYMid meet">${bars}</svg>`;
+}
+
+// The rendered actor cell, derived from the two INDEPENDENT booleans rather
+// than from `by` — a mixed ride names both actors instead of hiding the agent
+// behind the operator record (bot review PR #303 F-3).
+function waiverActorLabel(w) {
+  if (w.operator_waived && w.self_waived) return 'operator + agent (self-waived)';
+  if (w.self_waived) return 'agent (self-waived)';
+  return 'operator';
 }
 
 function renderHtml(m) {
@@ -837,7 +874,7 @@ function renderHtml(m) {
     .map((k) => `<tr><td>${esc(k)}</td><td>${m.quality.verdict_mix[k]}</td></tr>`).join('');
   const fpc = m.quality.first_pass_clean;
   const waiverRows = m.validation_waivers.rides
-    .map((w) => `<tr><td><code>${esc(w.ref)}</code></td><td>${esc(w.by === 'operator' ? 'operator' : 'agent (self-waived)')}</td><td>${esc(w.at)}</td><td>${esc(w.reason)}</td></tr>`)
+    .map((w) => `<tr><td><code>${esc(w.ref)}</code></td><td>${esc(waiverActorLabel(w))}</td><td>${esc(w.at)}</td><td>${esc(w.reason)}</td></tr>`)
     .join('');
   // Follow-ups (CHANGE-0142): ordered by AGE, never by severity, so a
   // mis-assigned P-level cannot hide an item (residual risk R4).

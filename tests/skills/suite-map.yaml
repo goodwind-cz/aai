@@ -536,6 +536,7 @@ suites:
     globs:
       - .aai/scripts/validation-waiver.mjs
       - .aai/scripts/generate-factory-report.mjs
+      - .aai/scripts/metrics-flush.mjs
       - .aai/SKILL_PR.prompt.md
 
   aai-pricing:

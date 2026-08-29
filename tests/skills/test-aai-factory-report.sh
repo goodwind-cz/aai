@@ -399,24 +399,39 @@ JSONL
 # Waived rides appear in the report, and self-waived (agent) ones are counted
 # SEPARATELY from operator waivers — a gate an agent clears for itself must not
 # hide inside the operator total. Report-only: nothing blocks because of one.
+#
+# PR #303 bot review closes three more shapes here:
+#  F-2 the DURABLE `validation_waiver` ledger field (what metrics-flush writes
+#      before it resets STATE) is read, and re-checked through the one grammar;
+#  F-3 a ride carrying BOTH an agent and an operator record counts in BOTH
+#      buckets and NAMES BOTH in its row — deriving either from `by` alone made
+#      the agent's gate-clearing act vanish in exactly that case;
+#  F-4 two records in ONE note are AMBIGUOUS to the report exactly as they are
+#      to the gate — refused, and counted as malformed rather than accepted.
 test_041_validation_waivers_surfaced() {
-  log_info "Test: waived rides surfaced, self-waived counted separately, prose is not a waiver (TEST-041)..."
+  log_info "Test: waived rides surfaced, self-waived counted separately, mixed rides count in both buckets, prose/ambiguous refused (TEST-041)..."
   local d; d="$(mk_repo t041)"
   cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
-{"date_utc":"2026-07-01","ref_id":"OPWAIVE","agent_runs":[{"role":"Implementation","duration_seconds":10,"note":"usage_total_tokens=100; [AAI-VALIDATION-WAIVER v1 by=operator at=2026-07-01T09:00:00Z reason=\"operator ran the suite by hand\"]"}],"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
-{"date_utc":"2026-07-01","ref_id":"SELFWAIVE","agent_runs":[{"role":"Implementation","duration_seconds":10,"note":"usage_total_tokens=100; [AAI-VALIDATION-WAIVER v1 by=agent at=2026-07-01T10:00:00Z reason=\"docs-only diff, no code path touched\"]"}],"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
+{"date_utc":"2026-07-01","ref_id":"OPWAIVE","agent_runs":[{"role":"Implementation","duration_seconds":10,"note":"usage_total_tokens=100; [AAI-VALIDATION-WAIVER v2 by=operator ref=OPWAIVE at=2026-07-01T09:00:00Z reason=\"operator ran the suite by hand\"]"}],"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
+{"date_utc":"2026-07-01","ref_id":"SELFWAIVE","agent_runs":[{"role":"Implementation","duration_seconds":10,"note":"usage_total_tokens=100; [AAI-VALIDATION-WAIVER v2 by=agent ref=SELFWAIVE at=2026-07-01T10:00:00Z reason=\"docs-only diff, no code path touched\"]"}],"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
 {"date_utc":"2026-07-01","ref_id":"PROSE","agent_runs":[{"role":"Implementation","duration_seconds":10,"note":"usage_total_tokens=100; validation was waived by the operator on 2026-07-01 because he ran it himself"}],"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
-{"date_utc":"2026-07-01","ref_id":"BROKEN","agent_runs":[{"role":"Implementation","duration_seconds":10,"note":"usage_total_tokens=100; [AAI-VALIDATION-WAIVER v1 by=operator at=2026-07-01T11:00:00Z reason=\"\"]"}],"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
+{"date_utc":"2026-07-01","ref_id":"BROKEN","agent_runs":[{"role":"Implementation","duration_seconds":10,"note":"usage_total_tokens=100; [AAI-VALIDATION-WAIVER v2 by=operator ref=BROKEN at=2026-07-01T11:00:00Z reason=\"\"]"}],"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
+{"date_utc":"2026-07-01","ref_id":"MIXED","agent_runs":[{"role":"Implementation","duration_seconds":10,"note":"usage_total_tokens=100; [AAI-VALIDATION-WAIVER v2 by=agent ref=MIXED at=2026-07-01T12:00:00Z reason=\"agent cleared its own gate\"]"},{"role":"Validation","duration_seconds":10,"note":"[AAI-VALIDATION-WAIVER v2 by=operator ref=MIXED at=2026-07-01T13:00:00Z reason=\"operator signed it off afterwards\"]"}],"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
+{"date_utc":"2026-07-01","ref_id":"AMBIG","agent_runs":[{"role":"Implementation","duration_seconds":10,"note":"usage_total_tokens=100; [AAI-VALIDATION-WAIVER v2 by=operator ref=AMBIG at=2026-07-01T14:00:00Z reason=\"first\"] [AAI-VALIDATION-WAIVER v2 by=agent ref=AMBIG at=2026-07-01T15:00:00Z reason=\"second\"]"}],"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
+{"date_utc":"2026-07-01","ref_id":"DURABLE","agent_runs":[{"role":"Implementation","duration_seconds":10,"note":"usage_total_tokens=100; nothing about waivers in this note at all"}],"validation_waiver":{"by":"operator","ref_id":"DURABLE","at":"2026-07-01T16:00:00Z","reason":"flushed from STATE before the reset"},"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
+{"date_utc":"2026-07-01","ref_id":"V1LEGACY","agent_runs":[{"role":"Implementation","duration_seconds":10,"note":"usage_total_tokens=100; [AAI-VALIDATION-WAIVER v1 by=operator at=2026-07-01T17:00:00Z reason=\"written under the old grammar\"]"}],"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
 JSONL
   run_report "$d" --data-only
   [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
   DJ="$d/docs/ai/factory-report-data.json"
-  [[ "$(node_get "$DJ" 'm.validation_waivers.operator')" == "1" ]] || log_fail "exactly one OPERATOR waiver expected"
-  [[ "$(node_get "$DJ" 'm.validation_waivers.agent')" == "1" ]] || log_fail "exactly one AGENT (self) waiver expected"
-  [[ "$(node_get "$DJ" 'm.validation_waivers.total')" == "2" ]] || log_fail "two waived rides expected"
+  # OPWAIVE, MIXED and DURABLE carry an operator record; SELFWAIVE and MIXED an
+  # agent one; four rides in total carry at least one usable record.
+  [[ "$(node_get "$DJ" 'm.validation_waivers.total')" == "4" ]] || log_fail "four waived rides expected (OPWAIVE, SELFWAIVE, MIXED, DURABLE)"
+  [[ "$(node_get "$DJ" 'm.validation_waivers.operator')" == "3" ]] || log_fail "three OPERATOR-waived rides expected (OPWAIVE, MIXED, DURABLE)"
+  [[ "$(node_get "$DJ" 'm.validation_waivers.agent')" == "2" ]] || log_fail "two AGENT (self) waived rides expected (SELFWAIVE, MIXED)"
   # The counts must be SEPARATE buckets, not one total split by a label: a
   # build that folded the agent waiver into the operator count would show
-  # operator=2/agent=0 and still contain every expected word.
+  # operator=4/agent=0 and still contain every expected word.
   [[ "$(node_get "$DJ" 'm.validation_waivers.operator === m.validation_waivers.total')" == "false" ]] \
     || log_fail "a self-waived ride must NOT be counted inside the operator total"
   [[ "$(node_get "$DJ" '(m.validation_waivers.rides.find(w=>w.ref==="SELFWAIVE")||{}).by')" == "agent" ]] \
@@ -425,19 +440,45 @@ JSONL
     || log_fail "the operator-waived ride must be attributed to the operator"
   [[ "$(node_get "$DJ" '(m.validation_waivers.rides.find(w=>w.ref==="OPWAIVE")||{}).reason')" == "operator ran the suite by hand" ]] \
     || log_fail "the recorded REASON must reach the report — an unaccountable waiver is the thing this forbids"
-  # Negative controls: an English sentence is not a waiver, and a record with
-  # an empty reason is counted as MALFORMED, never as a waiver and never
-  # silently dropped.
+
+  # --- F-3: the MIXED ride. `by` still names the accountable human, but the
+  # agent's act is counted and rendered anyway. A build deriving either from
+  # `by` alone reports agent=1 here and passes every other assertion above.
+  [[ "$(node_get "$DJ" '(m.validation_waivers.rides.find(w=>w.ref==="MIXED")||{}).by')" == "operator" ]] \
+    || log_fail "the mixed ride must still be ATTRIBUTED to the accountable human record"
+  [[ "$(node_get "$DJ" '(m.validation_waivers.rides.find(w=>w.ref==="MIXED")||{}).self_waived')" == "true" ]] \
+    || log_fail "the mixed ride must still RECORD that an agent also cleared the gate"
+  [[ "$(node_get "$DJ" '(m.validation_waivers.rides.find(w=>w.ref==="MIXED")||{}).operator_waived')" == "true" ]] \
+    || log_fail "the mixed ride must record the operator record independently of `by`"
+  [[ "$(node_get "$DJ" 'm.validation_waivers.rides.filter(w=>w.self_waived).map(w=>w.ref).sort().join(",")')" == "MIXED,SELFWAIVE" ]] \
+    || log_fail "every ride an agent self-waived must be reachable from self_waived, MIXED included"
+
+  # --- F-2: the DURABLE ledger field is read even though no run note mentions
+  # a waiver. Before the flush persisted it, this ride reported nothing at all.
+  [[ "$(node_get "$DJ" '(m.validation_waivers.rides.find(w=>w.ref==="DURABLE")||{}).reason')" == "flushed from STATE before the reset" ]] \
+    || log_fail "the durable validation_waiver ledger field must reach the report"
+
+  # Negative controls: an English sentence is not a waiver; an empty-reason
+  # record, an AMBIGUOUS pair and a v1 record are all counted as MALFORMED,
+  # never as waivers and never silently dropped.
   [[ "$(node_get "$DJ" 'm.validation_waivers.rides.some(w=>w.ref==="PROSE")')" == "false" ]] \
     || log_fail "a prose sentence claiming a waiver must NOT be counted as one"
   [[ "$(node_get "$DJ" 'm.validation_waivers.rides.some(w=>w.ref==="BROKEN")')" == "false" ]] \
     || log_fail "an empty-reason record must NOT be counted as a waiver"
-  [[ "$(node_get "$DJ" 'm.validation_waivers.rejected_records')" == "1" ]] \
-    || log_fail "the empty-reason record must be counted as malformed, not dropped"
-  # Report-only: all four rides still count everywhere else. Nothing blocks.
-  [[ "$(node_get "$DJ" 'm.counts.rides')" == "4" ]] || log_fail "every ride still counts — a waiver must never filter a ride out"
-  [[ "$(node_get "$DJ" 'm.quality.first_pass_clean.flagged')" == "4" ]] || log_fail "waivers must not change the first-pass denominator"
-  # HTML parity: the block a human actually reads carries both counts.
+  [[ "$(node_get "$DJ" 'm.validation_waivers.rides.some(w=>w.ref==="AMBIG")')" == "false" ]] \
+    || log_fail "two records in one note must NOT resolve to a waiver — the report must refuse exactly what the gate refuses"
+  [[ "$(node_get "$DJ" 'm.validation_waivers.rides.some(w=>w.ref==="V1LEGACY")')" == "false" ]] \
+    || log_fail "a v1 record must NOT be honoured by the report either"
+  # 1 (BROKEN) + 2 (AMBIG's two sentinels) + 1 (V1LEGACY) = 4 visible holes.
+  [[ "$(node_get "$DJ" 'm.validation_waivers.rejected_records')" == "4" ]] \
+    || log_fail "empty-reason, ambiguous and v1 records must all be counted as malformed, not dropped"
+
+  # Report-only: all eight rides still count everywhere else. Nothing blocks.
+  [[ "$(node_get "$DJ" 'm.counts.rides')" == "8" ]] || log_fail "every ride still counts — a waiver must never filter a ride out"
+  [[ "$(node_get "$DJ" 'm.quality.first_pass_clean.flagged')" == "8" ]] || log_fail "waivers must not change the first-pass denominator"
+
+  # HTML parity: the block a human actually reads carries both counts, and the
+  # mixed row NAMES BOTH ACTORS rather than hiding the agent behind `by`.
   run_report "$d"
   [[ "$EC" == 0 ]] || log_fail "html run must exit 0: $(cat "$OUT")"
   grep -qF "self-waived (agent) rides" "$d/docs/ai/factory-report.html" \
@@ -446,7 +487,22 @@ JSONL
     || log_fail "the operator-waived ride must be listed by ref"
   grep -qF "SELFWAIVE" "$d/docs/ai/factory-report.html" \
     || log_fail "the self-waived ride must be listed by ref"
-  log_pass "Waived rides surfaced; self-waived counted separately; prose and empty-reason records refused (TEST-041)"
+  # PER-ROW, never page-wide. A substring check for "operator + agent
+  # (self-waived)" anywhere on the page survives a label function that returns
+  # that string for EVERY row — measured: the `&&` -> `||` mutation passed a
+  # page-wide grep. So each ride's own cell is extracted and compared exactly.
+  local rowlabels
+  rowlabels="$(node -e '
+    const html = require("fs").readFileSync(process.argv[1], "utf8");
+    const sec = html.slice(html.indexOf("<section id=\"validation-waivers\">"));
+    const body = sec.slice(0, sec.indexOf("</section>"));
+    const out = [];
+    for (const m of body.matchAll(/<tr><td><code>([^<]*)<\/code><\/td><td>([^<]*)<\/td>/g)) out.push(`${m[1]}=${m[2]}`);
+    console.log(out.sort().join(";"));
+  ' "$d/docs/ai/factory-report.html")"
+  [[ "$rowlabels" == "DURABLE=operator;MIXED=operator + agent (self-waived);OPWAIVE=operator;SELFWAIVE=agent (self-waived)" ]] \
+    || log_fail "each waiver row must name ITS OWN actors — got '$rowlabels'"
+  log_pass "Waived rides surfaced; self-waived counted separately; mixed rides in both buckets; durable field read; prose/empty/ambiguous/v1 refused (TEST-041)"
 }
 
 # ============================ TEST-008 (Spec-AC-06) ==========================
