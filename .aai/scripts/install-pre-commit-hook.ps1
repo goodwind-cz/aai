@@ -7,7 +7,7 @@
   command (docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md).
 
 .DESCRIPTION
-  Both hooks are written to the EFFECTIVE hooks directory — the one
+  Both hooks are written to the EFFECTIVE hooks directory -- the one
   `git rev-parse --git-path hooks/<name>` resolves, which honours
   core.hooksPath and a linked worktree's shared git dir. It is usually
   .git/hooks, but never assume that.
@@ -48,7 +48,7 @@ if (-not $repoRoot) {
 # gets wrong: a linked worktree ships .git as a FILE, so a path built from
 # --show-toplevel never exists there (PR #302 Codex P2); and `core.hooksPath`
 # moves the hooks directory somewhere --git-common-dir knows nothing about
-# (PR #304 Codex P1 — that one shipped a false success: the installer wrote
+# (PR #304 Codex P1 -- that one shipped a false success: the installer wrote
 # .git/hooks/reference-transaction, exited 0, and a marker-less commit still
 # moved refs/heads/main because git ran the custom path instead).
 # The result is relative to the CURRENT DIRECTORY, not the repo root, so a
@@ -65,7 +65,7 @@ function Resolve-HookPath {
 }
 
 # A path we cannot resolve is a path we cannot install into safely, and a guard
-# installed somewhere git never looks is worse than no guard at all — so this
+# installed somewhere git never looks is worse than no guard at all -- so this
 # refuses loudly instead of exiting 0 on an inert hook.
 $hookPath = Resolve-HookPath 'pre-commit'
 if (-not $hookPath) {
@@ -81,7 +81,7 @@ $hooksDir   = Split-Path -Parent $reftxPath
 $marker     = "# AAI:INDEX-AUTOGEN"
 $reftxMarker = "# AAI:REF-GUARD"
 
-# Test-EffectiveHook — re-ask git where it would look, and prove the file THERE
+# Test-EffectiveHook -- re-ask git where it would look, and prove the file THERE
 # is ours and runnable. This is the post-condition that makes the exit code
 # mean something: exit 0 asserts "git will run this", not "a write succeeded
 # somewhere". /aai-update reads that exit code as proof of protection.
@@ -108,7 +108,7 @@ function Test-EffectiveHook {
   if ($IsLinux -or $IsMacOS) {
     & test -x $p
     if ($LASTEXITCODE -ne 0) {
-      Write-Host "ERROR: the $Name hook git would run ($p) is not executable — git skips it silently." -ForegroundColor Red
+      Write-Host "ERROR: the $Name hook git would run ($p) is not executable -- git skips it silently." -ForegroundColor Red
       return $false
     }
   }
@@ -386,7 +386,7 @@ if (-not $skipReftx) {
   Write-Host "Effect: a refs/heads/main update is refused unless AAI_GIT_WRITE=1 is set on that command."
 }
 
-# Post-condition (PR #304 Codex P1) — see Test-EffectiveHook.
+# Post-condition (PR #304 Codex P1) -- see Test-EffectiveHook.
 $attestOk = $true
 if (-not (Test-EffectiveHook -Name 'pre-commit' -Marker $marker)) { $attestOk = $false }
 if (-not (Test-EffectiveHook -Name 'reference-transaction' -Marker $reftxMarker)) { $attestOk = $false }

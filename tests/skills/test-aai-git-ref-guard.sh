@@ -917,6 +917,38 @@ test_313_live_degrade_and_report() {
   fi
 }
 
+# --- TEST-316 - the .ps1 must stay ASCII outside its here-strings -------------
+# Windows PowerShell 5.1 reads a UTF-8 file with no BOM in the SYSTEM CODE PAGE,
+# so a multi-byte character inside a double-quoted string decodes into bytes that
+# can close the quote early. Everything after it is then parsed as code - which
+# is how a single em dash in one Write-Host message made 5.1 read the shell hook
+# body as PowerShell and report "the token '||' is not a valid statement
+# separator". pwsh 7 parses the same file cleanly, so this NEVER reproduces
+# locally; CI's 5.1 leg is the only thing that sees it, and by then the errors
+# point at the wrong lines entirely.
+# Here-string CONTENT is exempt on purpose: it is data, never parsed, and it has
+# to stay byte-identical to the .sh twin's hook body.
+test_316_ps1_ascii_outside_here_strings() {
+  local code
+  code="$(awk '
+    /^\$[A-Za-z]+ = @'"'"'$/ { inhere = 1; next }
+    inhere && /^'"'"'@$/       { inhere = 0; next }
+    inhere                     { next }
+    { print }
+  ' "$INSTALLER_PS1")"
+  if [[ -z "$code" ]]; then
+    log_fail "TEST-316: stripping here-strings left no code (the extraction shape moved)"
+    return
+  fi
+  local offenders
+  offenders="$(printf '%s\n' "$code" | LC_ALL=C grep -n '[^ -~\t]')" || offenders=""
+  if [[ -n "$offenders" ]]; then
+    log_fail "TEST-316: non-ASCII outside a here-string in $INSTALLER_PS1 - PowerShell 5.1 decodes it in the system code page and can end a string early: $offenders"
+    return
+  fi
+  log_pass "TEST-316 .ps1 carries no non-ASCII outside its here-strings (5.1 code-page safe)"
+}
+
 main() {
   check_deps
   HOOKS_DIGEST_BEFORE="$(manifest_of "$PROJECT_ROOT/.git/hooks")"
@@ -953,6 +985,7 @@ main() {
   test_310_doctor_category
   test_312_contract_and_diet
   test_313_live_degrade_and_report
+  test_316_ps1_ascii_outside_here_strings
   test_311_hooks_dir_unchanged
 
   echo ""
