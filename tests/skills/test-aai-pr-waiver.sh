@@ -701,9 +701,61 @@ YAML
   log_pass "TEST-09 an unplaceable waiver is WARNed and preserved verbatim, and is never attributed to the wrong ride"
 }
 
+# --- TEST-10 -----------------------------------------------------------------
+# state-route-exists-but-is-undiscoverable: a genuinely ABSENT STATE.yaml
+# (`state_unreadable`, the `existsSync` check at the very top of the --state
+# branch) must name the real bootstrap route (check-state.mjs --repair, then
+# state.mjs set-focus). A PRESENT-but-broken STATE.yaml — no `last_validation:`
+# block at all, or one with no readable `status` — lands on the DIFFERENT
+# reason `validation_block_unreadable` from evaluateGate and must NOT get that
+# suggestion, because `check-state.mjs --repair` only ever creates a file that
+# does not already exist and would silently do nothing here.
+test_10_absent_vs_corrupt_state() {
+  log_info "TEST-10: absent STATE.yaml names the bootstrap route; a present-but-broken one keeps the distinct block_unreadable reason with no --repair suggestion..."
+
+  # Case A — genuinely absent path (never created).
+  local absent="$TEST_DIR/does-not-exist.yaml"
+  [[ ! -e "$absent" ]] || log_fail "TEST-10 fixture: $absent must not exist"
+  run_gate "$absent"
+  expect_rc 1 "TEST-10 absent STATE"
+  assert_payload_contains "$GATE_OUT" "reason=state_unreadable" \
+    "TEST-10: absent STATE must report state_unreadable" || return 1
+  assert_payload_contains "$GATE_OUT" "check-state.mjs --repair" \
+    "TEST-10: absent STATE must name check-state.mjs --repair" || return 1
+  assert_payload_contains "$GATE_OUT" "state.mjs set-focus" \
+    "TEST-10: absent STATE must name state.mjs set-focus" || return 1
+  assert_payload_not_contains "$GATE_OUT" "reason=validation_block_unreadable" \
+    "TEST-10: absent STATE must NOT be reported under the corrupt-file reason" || return 1
+
+  # Case A' — same, --json: the machine-readable shape carries the same
+  # remediation, not just the human-readable text.
+  local json_out
+  json_out="$(node "$GATE" --state "$absent" --json 2>&1)" || true
+  assert_payload_contains "$json_out" '"reason": "state_unreadable"' \
+    "TEST-10 (json): absent STATE must report state_unreadable" || return 1
+  assert_payload_contains "$json_out" "check-state.mjs --repair" \
+    "TEST-10 (json): absent STATE must carry the repair command in its remediation array" || return 1
+
+  # Case B — present but genuinely broken: no last_validation: block at all
+  # (garbage content), so readValidationBlock returns null and evaluateGate
+  # reports validation_block_unreadable, a DIFFERENT reason than Case A's.
+  local corrupt="$TEST_DIR/corrupt.yaml"
+  printf ': : : garbage {{{ not yaml at all\n' > "$corrupt"
+  run_gate "$corrupt"
+  expect_rc 1 "TEST-10 corrupt STATE"
+  assert_payload_contains "$GATE_OUT" "reason=validation_block_unreadable" \
+    "TEST-10: present-but-broken STATE must keep the distinct block_unreadable reason" || return 1
+  assert_payload_not_contains "$GATE_OUT" "reason=state_unreadable" \
+    "TEST-10: present-but-broken STATE must NOT be reported as absent" || return 1
+  assert_payload_not_contains "$GATE_OUT" "check-state.mjs --repair" \
+    "TEST-10: present-but-broken STATE must NOT suggest --repair (it would silently do nothing to an existing file)" || return 1
+
+  log_pass "TEST-10 absent STATE names the bootstrap route (text and json); present-but-broken STATE keeps its own distinct reason with no --repair suggestion"
+}
+
 # --- runner ------------------------------------------------------------------
 
-ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost"
+ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state"
 
 main() {
   local requested="${1:-}"

@@ -301,6 +301,21 @@ export function evaluateGate(block, fallbackRef = null) {
   };
 }
 
+// The absent-STATE bootstrap route (CHANGE-0099 / state-bootstrap-template,
+// verified end to end by state-route-exists-but-is-undiscoverable): a
+// genuinely absent STATE.yaml is not a corrupt one — `state_unreadable` below
+// fires ONLY when `existsSync(opts.state)` is false, never for a present-but-
+// broken file (that is `validation_block_unreadable`, from `evaluateGate`,
+// left exactly as it prints today). These two commands are the actual,
+// already-shipped fix; `--repair` never touches a file that already exists,
+// so it is named here and nowhere a file merely failed to parse.
+function bootstrapHint() {
+  return [
+    'node .aai/scripts/check-state.mjs --repair',
+    'node .aai/scripts/state.mjs set-focus --type <type> --ref <ref-id> --path <primary-path>',
+  ];
+}
+
 function usage(msg) {
   console.error(`validation-waiver: ${msg}`);
   console.error('usage: validation-waiver.mjs (--state <STATE.yaml> | --notes <text> [--status <s>] [--ref <scope>]) [--json]');
@@ -325,8 +340,20 @@ function main(argv) {
   let fallbackRef = opts.ref;
   if (opts.state !== null) {
     if (!existsSync(opts.state)) {
-      // Fail CLOSED: an absent state file is not an open gate.
-      console.log(`VALIDATION-GATE blocked reason=state_unreadable state=${opts.state}`);
+      // Fail CLOSED: an absent state file is not an open gate. The file was
+      // never created — name the bootstrap route rather than leave the
+      // operator with an opaque reason token and no next step.
+      const remediation = bootstrapHint();
+      if (opts.json) {
+        console.log(JSON.stringify({
+          open: false, reason: 'state_unreadable', waiver: null, status: null, scope_ref: null,
+          state: opts.state, remediation,
+        }, null, 2));
+      } else {
+        console.log(`VALIDATION-GATE blocked reason=state_unreadable state=${opts.state}`);
+        console.log('  Remediation:');
+        for (const step of remediation) console.log(`    ${step}`);
+      }
       process.exit(1);
     }
     const yaml = readFileSync(opts.state, 'utf8');

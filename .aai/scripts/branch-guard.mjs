@@ -103,6 +103,20 @@ function remediation(type, refId, base) {
   return `git checkout -b ${typeToken(type)}/${refId ?? '<ref-id>'} origin/${base}`;
 }
 
+// The absent-STATE bootstrap route (CHANGE-0099 / state-bootstrap-template,
+// verified end to end by state-route-exists-but-is-undiscoverable): STATE.yaml
+// does not exist yet, so there is no ref_id to compare a branch against at
+// all — printing "is not set in STATE.yaml" here would be false (there is no
+// STATE.yaml), and today's `remediation()` checkout suggestion fixes nothing
+// (it never creates the file), so the SAME Tier-A failure repeats forever.
+// These two commands are the actual, already-shipped fix.
+function bootstrapHint() {
+  return [
+    'node .aai/scripts/check-state.mjs --repair',
+    'node .aai/scripts/state.mjs set-focus --type <type> --ref <ref-id> --path <primary-path>',
+  ];
+}
+
 function git(args, cwd) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 }
@@ -156,28 +170,41 @@ function currentBranch(cwd) {
 }
 
 // Read current_focus.ref_id/.type from STATE (read-only). Returns
-// { ok, fileReadable, refId, type }. Two distinct failure tiers:
-//   Tier A — fileReadable:false — the file could not be opened/read at all
-//            (missing/corrupt). Fails closed EVERYWHERE, even on an allowlisted
-//            branch.
+// { ok, fileReadable, exists, refId, type }. Two distinct failure tiers:
+//   Tier A — fileReadable:false — the file could not be opened/read at all.
+//            Fails closed EVERYWHERE, even on an allowlisted branch. `exists`
+//            splits this tier further (fu-no-state-no-route-to-pr / the
+//            state-route-exists-but-is-undiscoverable follow-up): exists:false
+//            means STATE.yaml was never created (the bootstrap route —
+//            `check-state.mjs --repair` then `state.mjs set-focus` — has not
+//            been run yet); exists:true means the path is there but
+//            fs.readFileSync still failed (a directory in its place,
+//            permissions, or some other fs-level refusal) — a strictly more
+//            suspicious situation the caller must NOT hand the same
+//            create-a-fresh-file advice, because `check-state.mjs --repair`
+//            only ever creates the file `if (!fs.existsSync(abs))` and would
+//            silently do nothing to it.
 //   Tier B — fileReadable:true, ok:false — the file opened fine but carries no
-//            focus (ref_id empty/null). Fails closed for non-allowlisted
-//            branches, but an allowlisted-prefix branch may still pass.
+//            focus (ref_id empty/null, including a file whose content is
+//            present but unparseable-as-YAML — readScalar simply finds no
+//            ref_id in it). Fails closed for non-allowlisted branches, but an
+//            allowlisted-prefix branch may still pass.
 // `ok` stays true only when a non-empty ref_id was found. Never throws.
 function readFocus(statePath) {
+  const exists = fs.existsSync(statePath);
   let raw;
   try {
     raw = fs.readFileSync(statePath, 'utf8');
   } catch {
-    return { ok: false, fileReadable: false, refId: null, type: null };
+    return { ok: false, fileReadable: false, exists, refId: null, type: null };
   }
   const { lines } = splitLines(raw);
   const refRaw = readScalar(lines, 'current_focus', 'ref_id');
   const typeRaw = readScalar(lines, 'current_focus', 'type');
   const refId = refRaw == null ? null : unquoteScalar(refRaw);
   const type = typeRaw == null ? null : unquoteScalar(typeRaw);
-  if (refId == null || refId === '') return { ok: false, fileReadable: true, refId: null, type };
-  return { ok: true, fileReadable: true, refId, type };
+  if (refId == null || refId === '') return { ok: false, fileReadable: true, exists: true, refId: null, type };
+  return { ok: true, fileReadable: true, exists: true, refId, type };
 }
 
 function parseArgs(argv) {
@@ -268,10 +295,28 @@ function main() {
   // unconditionally, before the branch name is even inspected. This is the ONLY
   // STATE-read failure that still blocks an allowlisted branch.
   const statePath = resolveStatePath(opts, cwd);
-  const focus = statePath ? readFocus(statePath) : { ok: false, fileReadable: false, type: null, refId: null };
+  const focus = statePath
+    ? readFocus(statePath)
+    : { ok: false, fileReadable: false, exists: false, type: null, refId: null };
   if (!focus.fileReadable) {
-    console.error('branch-guard: current_focus.ref_id is not set in STATE.yaml (cannot verify the branch).');
-    console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
+    if (!focus.exists) {
+      // Absent, not corrupt: there is no STATE.yaml at all, so "ref_id is not
+      // set in STATE.yaml" would be false (there is no STATE.yaml to set it
+      // in), and the usual checkout remediation fixes nothing. Name the
+      // already-shipped bootstrap route instead.
+      console.error('branch-guard: STATE.yaml does not exist yet (cannot verify the branch).');
+      console.error('  Remediation:');
+      for (const step of bootstrapHint()) console.error(`    ${step}`);
+    } else {
+      // The path exists but could still not be opened/read (a directory in
+      // its place, a permissions refusal, ...) — a strictly more suspicious
+      // situation than "absent". `check-state.mjs --repair` only creates the
+      // file `if (!fs.existsSync(abs))`, so suggesting it here would be
+      // actively wrong: it would silently do nothing, and the operator would
+      // believe they had fixed it. Keep today's cautious fail-closed text.
+      console.error('branch-guard: current_focus.ref_id is not set in STATE.yaml (cannot verify the branch).');
+      console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
+    }
     process.exit(4);
   }
 
