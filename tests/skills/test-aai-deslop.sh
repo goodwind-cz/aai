@@ -2183,8 +2183,33 @@ test_028_published_surfaces_state_the_new_rule() {
     fi
   fi
 
-  if ! node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --check --strict --no-event >/dev/null 2>&1; then
-    log_info "TEST-028: docs-audit.mjs --check --strict --no-event failed"
+  # docs-audit is REPORT-NOT-BLOCK (RFC-0002, recorded at
+  # .aai/scripts/lib/docs-audit-core.mjs): it prints `### Verdict: NEEDS-TRIAGE
+  # (n items)` and still EXITS 0. The exit code only turns non-zero on the
+  # hard-fail subset (new orphans / schema violations / body lint). Asserting
+  # the exit code alone while the pass line below says "docs-audit ... [is]
+  # clean" is the fu-test028-exitcode-not-clean defect: measured live at filing
+  # time, this arm was GREEN on a tree where test-aai-doc-numbering.sh TEST-013
+  # was RED for exactly this reason. Assert the TOKEN that means clean — the
+  # same signal the sibling arm at test-aai-doc-numbering.sh:667 reads — and
+  # keep the exit code as an independent second condition.
+  # Pipe-free membership test, per tests/skills/lib/assert-payload.sh: a
+  # captured payload must never be piped into a quiet grep (the reader exits at
+  # the first match, the writer takes SIGPIPE, and pipefail then reports FAILURE
+  # on a payload that MATCHED, once it passes 64 KiB).
+  local auditOut auditRc=0
+  auditOut="$(node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --check --strict --no-event 2>&1)" || auditRc=$?
+  if [[ $auditRc -ne 0 ]]; then
+    log_info "TEST-028: docs-audit.mjs --check --strict --no-event exited $auditRc"
+    ok=0
+  fi
+  if [[ "$auditOut" != *"### Verdict: CLEAN"* ]]; then
+    local verdictLine="(no '### Verdict:' line printed at all)"
+    if [[ "$auditOut" == *"### Verdict: "* ]]; then
+      verdictLine="${auditOut##*### Verdict: }"
+      verdictLine="${verdictLine%%$'\n'*}"
+    fi
+    log_info "TEST-028: docs-audit exited $auditRc but is NOT clean — verdict: $verdictLine"
     ok=0
   fi
   if ! node "$PROJECT_ROOT/.aai/scripts/spec-lint.mjs" >/dev/null 2>&1; then
