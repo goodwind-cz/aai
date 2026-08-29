@@ -64,6 +64,55 @@ tested less.
   is proven by producing real contention and reading who gets blamed, and append
   serialisation is proven with concurrent multi-line writers, not by asserting
   that a lock exists.
+## [unreleased] — fix(tests): three checks that asserted less than they claimed [L2]
+
+Ceremony justification: L2, not L1. Item 2 changes a suite's exit semantics and
+therefore every caller that reads them, which is past what L1's "single surface"
+covers. Not L3: no protected path, no spec change, no new runtime contract.
+
+The defect class: an assertion reads a weaker signal than the sentence it
+prints, so it stays green while its claim is false. ISSUE-0038, three of its
+five registry items (the two ceremony-sequencing ones are deferred to a batched
+successor that also owns the content-hash-pinned `close-work-item.mjs`).
+
+- **`test-aai-deslop.sh` TEST-028 called docs-audit "clean" from an exit code
+  that is 0 either way.** `docs-audit.mjs` is report-not-block (RFC-0002): it
+  prints `### Verdict: NEEDS-TRIAGE (n items)` and still exits 0, turning
+  non-zero only on the hard-fail subset. Measured live at filing time, this arm
+  was GREEN on a tree where `test-aai-doc-numbering.sh` TEST-013 was RED for
+  exactly this reason. The arm now asserts the `### Verdict: CLEAN` token — the
+  same signal the sibling arm reads — and keeps the exit code as an independent
+  second condition. Proved by A/B on one real NEEDS-TRIAGE tree: the old arm
+  PASSes there, the fixed arm FAILs and prints the verdict it saw.
+- **`test-aai-doc-numbering.sh` aborted the whole suite at the first failed
+  assertion.** `log_fail` ended the process, so every later arm silently never
+  ran and the coverage loss was invisible in the output — on the 2026-08-19
+  measurement the suite stopped at TEST-013 and TEST-014..031 never executed.
+  Each arm now runs in a `( )` subshell (the shape `test-aai-test-canon.sh`
+  already uses), so a failed assertion still stops ITS arm while the suite runs
+  every remaining arm, names each failure, and exits non-zero overall. The exit
+  contract at the caller boundary is unchanged: 0 / 42 / non-zero. Measured on
+  one failing tree: 14 arm verdicts before, 31 after.
+- **Nothing stopped a new test or script from pinning a bare `main` ref.** On a
+  GitHub `pull_request` checkout (detached HEAD, only remote-tracking refs
+  fetched) `main` does not resolve, the error is swallowed, and the guard above
+  it degrades to PASS. Fourth occurrence of that class; every one was caught by
+  a human, never by a check. `.aai/scripts/check-base-ref-pins.mjs` is the
+  check: a hard gate on a ref resolved against the real repository with no
+  `origin/main` attempt within the eight lines above it, plus an explicitly
+  recorded per-file ratchet (`tests/skills/lib/base-ref-pin-baseline.tsv`) over
+  the wider shape, because a repo-wide rewrite of the legitimate fixture-local
+  refs is out of scope and a recorded baseline is the honest instrument for
+  them. It fails closed on every state in which it cannot read its source of
+  truth — no files scanned, zero occurrences, an unreadable file, a missing
+  baseline — because degrading to PASS is the very failure being fixed.
+- **Two live instances of that class, found by the new guard, fixed.**
+  `test-aai-hitl-propagation.sh` TEST-014 and `test-aai-tdd-evidence.sh`
+  TEST-005 both read committed history through `git diff --name-only
+  main...HEAD 2>/dev/null` inside `$PROJECT_ROOT`, so on CI their
+  protected-path/authorization scans quietly ran on working-tree data alone.
+  Both now resolve `origin/main` first, fall back to a local `main`, and fail
+  closed when neither resolves.
 
 ## [unreleased] — fix(harness): the ref-guard installs where git actually looks, and the guide documents it [L1]
 

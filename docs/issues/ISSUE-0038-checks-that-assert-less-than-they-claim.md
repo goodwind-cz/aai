@@ -3,6 +3,7 @@ id: checks-that-assert-less-than-they-claim
 type: issue
 number: 38
 status: draft
+ceremony_level: 2
 links:
   pr: []
   commits: []

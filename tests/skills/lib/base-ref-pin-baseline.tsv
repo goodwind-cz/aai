@@ -1,0 +1,22 @@
+# tests/skills/lib/base-ref-pin-baseline.tsv
+#
+# GENERATED, never hand-edited:
+#   node .aai/scripts/check-base-ref-pins.mjs --record
+#
+# One `<occurrences>\t<file>` row per scanned shell file that resolves a git
+# ref against a bare `main`. The count may FALL, never RISE: a rise (or a file
+# not listed here) fails tests/skills/test-aai-hygiene-pack.sh and names the
+# file. A SHRINK keeps its recorded number until someone re-records on
+# purpose, so that lowering the bar is a visible act.
+#
+# Being listed here is NOT a waiver of the hard gate: an occurrence scoped to
+# the real repository with no `origin/main` attempt above it fails whether or
+# not this file mentions it.
+#
+1	test-aai-deslop.sh
+1	test-aai-factory-report.sh
+1	test-aai-hitl-propagation.sh
+1	test-aai-hooks-overlay.sh
+1	test-aai-release.sh
+1	test-aai-suite-isolation.sh
+1	test-aai-tdd-evidence.sh
