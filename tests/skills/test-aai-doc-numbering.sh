@@ -1661,7 +1661,15 @@ main() {
     # caught traps there), so a failing arm cannot delete $TEST_DIR out from
     # under the arms that follow it; cleanup still runs exactly once, when the
     # suite itself exits.
-    if ( "$t" ); then
+    # `trap - EXIT` is belt-and-braces, not decoration. Bash resets traps in a
+    # ( ) subshell, so cleanup should not fire here and the shared TEST_DIR
+    # should survive -- verified on bash 3.2 (macOS), where the fixture does
+    # survive every arm. CI runs bash 5 and this machine has no bash 5 to check
+    # on, and "passes locally, dies on CI" has already cost this repo a red run
+    # today. If a cleanup ever did fire here it would rm -rf the fixture out
+    # from under every later arm, and the damage would look like flaky tests
+    # rather than like this line. Clearing it explicitly costs nothing.
+    if ( trap - EXIT; "$t" ); then
       :
     else
       failed_names+=("$t")

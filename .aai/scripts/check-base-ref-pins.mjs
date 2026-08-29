@@ -56,6 +56,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const SCAN_DIRS = ['tests/skills', '.aai/scripts'];
 const BASELINE_REL = 'tests/skills/lib/base-ref-pin-baseline.tsv';
@@ -384,6 +385,11 @@ function main() {
 
 // Importable as a library (the hygiene-pack arm drives the classifier
 // directly); only the direct invocation runs the gate.
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
+// fileURLToPath, never new URL(...).pathname: the latter is percent-encoded,
+// so a repo checked out under a path with a space never matches and this
+// script exits 0 having done nothing. A guard against silent no-ops that is
+// itself a silent no-op is the exact defect this file exists to catch
+// (reproduced: `/tmp/aai probe dir` -> exit 0, no output, no check run).
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
   main();
 }
