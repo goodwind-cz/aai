@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(harness): the STATE bootstrap route now names itself when it fails [L1]
+## [v2026.08.29] — fix(harness): the STATE bootstrap route now names itself when it fails [L1]
 
 Ceremony justification: single surface region (two non-protected guard
 scripts plus their documentation), no new mechanism, no engine change.
@@ -41,7 +41,7 @@ Corrects the premise of `fu-no-state-no-route-to-pr` (dropped, see below).
 - Registry: `fu-no-state-no-route-to-pr` (P1) was filed on the wrong premise
   (that no route existed at all); dropped with a note pointing at this ride
   and the corrected facts. No residual defect — no new follow-up filed.
-## [unreleased] — perf(harness): the sweep runs suites concurrently, and a round stops paying for a full one [L2]
+## [v2026.08.29] — perf(harness): the sweep runs suites concurrently, and a round stops paying for a full one [L2]
 
 Ceremony justification: L2. It changes the execution model of the funnel every
 suite and all of CI enters through, and it touches two guarantees that are load-
@@ -94,7 +94,7 @@ tested less.
   is proven by producing real contention and reading who gets blamed, and append
   serialisation is proven with concurrent multi-line writers, not by asserting
   that a lock exists.
-## [unreleased] — fix(tests): three checks that asserted less than they claimed [L2]
+## [v2026.08.29] — fix(tests): three checks that asserted less than they claimed [L2]
 
 Ceremony justification: L2, not L1. Item 2 changes a suite's exit semantics and
 therefore every caller that reads them, which is past what L1's "single surface"
@@ -144,7 +144,7 @@ successor that also owns the content-hash-pinned `close-work-item.mjs`).
   Both now resolve `origin/main` first, fall back to a local `main`, and fail
   closed when neither resolves.
 
-## [unreleased] — fix(harness): the ref-guard installs where git actually looks, and the guide documents it [L1]
+## [v2026.08.29] — fix(harness): the ref-guard installs where git actually looks, and the guide documents it [L1]
 
 Ceremony justification: opened as an L0 docs-only ride and re-classified UPWARD
 to L1 by review (WORKFLOW.md "Ceremony levels" — review may re-classify a level
@@ -201,7 +201,7 @@ mechanism, and the existing SPEC-0156 acceptance criteria are unchanged.
   update, not the worktree half git already performed. Measured on the live
   guard — `reset --hard` left `main` unmoved while the file content reverted
   and stayed staged.
-## [unreleased] — an operator who validated a change themselves can reach a PR without lying [L1]
+## [v2026.08.29] — an operator who validated a change themselves can reach a PR without lying [L1]
 
 - `aai-pr` refused unless `last_validation.status` was `pass`, and the state engine accepts only `pass | fail | not_run` there — so an operator who had validated the change themselves either bought a validation round they did not need or recorded a `pass` for a run that never happened. The ledger could not tell that record from an honest one afterwards. `code_review.status` has accepted `waived` for a long time; validation never got the same exit.
 - The exit added here changes nothing in the state engine (a protected L3 surface). The status keeps saying what happened — `not_run`, because nothing ran — and a structured waiver record in `last_validation.notes`, a field `state.mjs` already accepts, says what was decided about it: `[AAI-VALIDATION-WAIVER v2 by=<operator|agent> ref=<REF-ID> at=<ISO-8601 UTC> reason="<text>"]`. Four required keys in a fixed order behind a bracketed sentinel, so a sentence someone types cannot become a waiver; a missing, empty or whitespace-only reason is REFUSED, and so is a second record. A bare `not_run` blocks exactly as it did.
@@ -214,7 +214,7 @@ mechanism, and the existing SPEC-0156 acceptance criteria are unchanged.
 - Four new arms: TEST-05 (two records BLOCK as `waiver_ambiguous` in both consumers), TEST-06 (the cross-ride leak, driven through the real `state.mjs` sequence that causes it), TEST-07 (a v1 record refused by name), TEST-08 (END-TO-END durability: the real state CLI, the real flush, the real report) and TEST-09 (an unplaceable waiver is loud and preserved). Every arm was bite-proved by nine mutations, each shown failing, including word-preserving ones: a scope compared against itself, an ambiguity threshold moved by one digit, ternary arms swapped, `&&` turned into `||`. One assertion did NOT bite — a page-wide `grep` for the mixed-actor label survived a label function that returned it for every row — and was rewritten to compare each ride's own rendered cell.
 - The blanket byte-identity pin TEST-040 held on `generate-factory-report.mjs` against a MOVING base ref, so it asserted a past ride's property and reddened on the first unrelated edit of the file. It is retargeted to the claim it protects: no changed CODE line in the generator may touch the follow-up registry path.
 
-## [unreleased] — fix(harness): a git ref-guard refuses writes to main from an agent shell (ISSUE-0037) [L2]
+## [v2026.08.29] — fix(harness): a git ref-guard refuses writes to main from an agent shell (ISSUE-0037) [L2]
 
 - A `reference-transaction` hook (marker `AAI:REF-GUARD`) refuses any update to
   `refs/heads/main` unless `AAI_GIT_WRITE=1` is set for that one command. It
@@ -235,14 +235,14 @@ mechanism, and the existing SPEC-0156 acceptance criteria are unchanged.
   Windows twin against logic-inverting mutations, not merely against text that
   mentions the guard — Windows has no live arm, so that static check is its
   only cover.
-## [unreleased] — branch-guard relays git's own refusal message
+## [v2026.08.29] — branch-guard relays git's own refusal message
 
 - `.aai/scripts/branch-guard.mjs` no longer answers every git failure with "not inside a git work tree". When git refuses to read the repository — a `safe.directory` ownership refusal, a dangling gitdir link, a permission error — its own message is relayed verbatim, because that is the only text that names the cause and carries the fix. Standing outside any repository is a different failure and keeps the plain sentence: git writes a fatal there too, so the two are told apart structurally (is there a `.git` above the caller at all) rather than by matching git's wording, and calling that case a refusal would only swap one false diagnosis for another.
 - Reported from a downstream Codex run on Windows, where the false diagnosis cost the operator time before they identified `safe.directory` themselves.
 - Pinned by TEST-013 in `tests/skills/test-aai-branch-guard.sh`, bite-proved against the pre-fix guard, and its control pins the no-repository
   case so neither branch can silently take the other's message. It asserts the PROPERTY — whatever git said reaches the operator — not git's wording, which differs by platform: macOS names the missing gitdir where the Linux CI runner prints "(null)".
 
-## [unreleased] — fix(harness): suite isolation stops sharing the shipping repository's git (ISSUE-0045 / SPEC-0155) [L2]
+## [v2026.08.29] — fix(harness): suite isolation stops sharing the shipping repository's git (ISSUE-0045 / SPEC-0155) [L2]
 
 - "Isolated" meant a moved working directory, not removed reach. Measured before the
   ride: from inside a disposable `git worktree`, `git rev-parse --git-common-dir`
@@ -277,7 +277,7 @@ mechanism, and the existing SPEC-0156 acceptance criteria are unchanged.
   `fu-worktree-hook-disarms-later-suites`; closes `fu-isolated-suite-reaches-shipping-repo`
   QUALIFIED (a suite hardcoding an absolute path is still unpreventable — ISSUE-0041).
 
-## [unreleased] — docs(user-guide): the Quick Reference lists every skill, and the guard now covers both lists [L1]
+## [v2026.08.29] — docs(user-guide): the Quick Reference lists every skill, and the guard now covers both lists [L1]
 
 - The owner found `/aai-ship` missing from *Essential Skills (Use Daily)* — the
   second time the same defect surfaced, and the worse of the two: a quick
@@ -293,7 +293,7 @@ mechanism, and the existing SPEC-0156 acceptance criteria are unchanged.
   skill added without a Quick Reference row fails the always-selected suite.
   Against `main` the extended arm reports the 16; after the fix, none.
 
-## [unreleased] — docs(user-guide): the Skills Catalog names every skill, and a guard keeps it that way [L1]
+## [v2026.08.29] — docs(user-guide): the Skills Catalog names every skill, and a guard keeps it that way [L1]
 
 - The owner found `/aai-ship` missing from the USER_GUIDE Skills Catalog. Measured:
   six skills had shipped with no entry at all — `aai-ship`, `aai-issues`,
