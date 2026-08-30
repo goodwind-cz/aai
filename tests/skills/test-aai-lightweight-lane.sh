@@ -28,6 +28,9 @@ set -euo pipefail
 
 TEST_NAME="aai-lightweight-lane"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 GATE="${LANE_GATE_SCRIPT:-$PROJECT_ROOT/.aai/scripts/lane-gate.mjs}"
 
@@ -388,7 +391,7 @@ test_023_intake_ceremony_fallback() {  # CHANGE lane-intake-ceremony
     --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"; CODE=$?
   [[ "$CODE" -eq 0 ]] || log_fail "TEST-023: exit must be 0, got $CODE: $OUT"
   echo "$OUT" | grep -qE '^LANE fast$' || log_fail "TEST-023: spec-less + intake L1 must be fast: $OUT"
-  echo "$OUT" | grep -q 'source=intake' || log_fail "TEST-023: predicate line must label source=intake: $OUT"
+  assert_payload_contains "$OUT" "source=intake" "TEST-023: predicate line must label source=intake: $OUT"
   # garbage intake level -> heavy (fail-closed unchanged)
   printf -- '---\nid: fx\nceremony_level: banana\n---\n' > "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md"
   OUT="$(node "$GATE" --repo-root "$TEST_DIR" --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
@@ -403,8 +406,7 @@ test_023_intake_ceremony_fallback() {  # CHANGE lane-intake-ceremony
     --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"
   echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level$' \
     || log_fail "TEST-023: explicit missing --spec must fail closed, not fall back to intake: $OUT"
-  echo "$OUT" | grep -q 'source=spec-missing' \
-    || log_fail "TEST-023: predicate line must label source=spec-missing: $OUT"
+  assert_payload_contains "$OUT" "source=spec-missing" "TEST-023: predicate line must label source=spec-missing: $OUT"
   # both absent -> heavy (today's default preserved)
   rm -f "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md"
   OUT="$(node "$GATE" --repo-root "$TEST_DIR" --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
@@ -425,7 +427,7 @@ test_024_spec_wins_over_intake() {  # CHANGE lane-intake-ceremony (anti-downgrad
     --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"
   echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level$' \
     || log_fail "TEST-024: spec L2 must beat intake L1 (no downgrade shopping): $OUT"
-  echo "$OUT" | grep -q 'source=spec' || log_fail "TEST-024: source must be spec: $OUT"
+  assert_payload_contains "$OUT" "source=spec" "TEST-024: source must be spec: $OUT"
   log_pass "Spec precedence pinned — intake can never downgrade (TEST-024)"
 }
 

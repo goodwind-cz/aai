@@ -29,6 +29,9 @@ set -uo pipefail
 
 TEST_NAME="aai-branch-guard"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 GUARD="${AAI_BRANCH_GUARD:-$PROJECT_ROOT/.aai/scripts/branch-guard.mjs}"
@@ -119,10 +122,8 @@ test_001() {
     || log_fail "fixture setup: could not create fix/$ref"
   run_guard "$repo" --base main
   [[ "$RC" -eq 0 ]] || log_fail "correct branch fix/$ref must exit 0 (got $RC; stderr: $ERR)"
-  echo "$OUT" | grep -qF "fix/$ref" \
-    || log_fail "stdout must name the matching branch fix/$ref (got: $OUT)"
-  echo "$OUT" | grep -qF "$ref" \
-    || log_fail "stdout must name the ref_id $ref (got: $OUT)"
+  assert_payload_contains "$OUT" "fix/$ref" "stdout must name the matching branch fix/$ref (got: $OUT)"
+  assert_payload_contains "$OUT" "$ref" "stdout must name the ref_id $ref (got: $OUT)"
   log_pass "consumer reads back the writer's ref_id; correct branch exits 0 naming branch+ref_id"
 }
 
@@ -135,8 +136,7 @@ test_002() {
   # Still on `main` (the base) — the ambient-branch trap the issue describes.
   run_guard "$repo" --base main
   [[ "$RC" -eq 1 ]] || log_fail "on the base branch the guard must exit 1 (got $RC; stderr: $ERR)"
-  echo "$ERR" | grep -qF "git checkout -b fix/$ref origin/main" \
-    || log_fail "stderr must carry the exact remediation 'git checkout -b fix/$ref origin/main' (got: $ERR)"
+  assert_payload_contains "$ERR" "git checkout -b fix/$ref origin/main" "stderr must carry the exact remediation 'git checkout -b fix/$ref origin/main' (got: $ERR)"
   # Negative control / base-precedence: a base branch that COINCIDENTALLY contains
   # the ref_id substring must STILL be reported as exit 1 (base check wins over
   # the containment check), never a false exit-0 pass.
@@ -182,8 +182,7 @@ test_004() {
     || log_fail "fixture setup: could not create feat/unrelated-name"
   run_guard "$repo" --base main
   [[ "$RC" -eq 3 ]] || log_fail "a mismatched branch must exit 3 (got $RC; stderr: $ERR)"
-  echo "$ERR" | grep -qF "git checkout -b fix/$ref origin/main" \
-    || log_fail "mismatched exit must print the remediation 'git checkout -b fix/$ref origin/main' (got: $ERR)"
+  assert_payload_contains "$ERR" "git checkout -b fix/$ref origin/main" "mismatched exit must print the remediation 'git checkout -b fix/$ref origin/main' (got: $ERR)"
   log_pass "mismatched branch -> exit 3 with remediation"
 }
 
@@ -308,8 +307,7 @@ test_009() {
     run_guard "$repo" --base main
     [[ "$RC" -eq 0 ]] \
       || log_fail "allowlisted branch $branch with an unrelated ref_id must exit 0 (got $RC; stderr: $ERR)"
-    echo "$OUT" | grep -qF "$prefix" \
-      || log_fail "stdout must name the matched prefix $prefix (got: $OUT)"
+    assert_payload_contains "$OUT" "$prefix" "stdout must name the matched prefix $prefix (got: $OUT)"
     # Distinct from the ref_id-match pass message — it must NOT claim a ref_id match.
     echo "$OUT" | grep -qiF "matches current_focus.ref_id" \
       && log_fail "allowlist pass must use a DISTINCT message, not the ref_id-match line (got: $OUT)"
@@ -330,8 +328,7 @@ test_010() {
   run_guard "$repo" --base main
   [[ "$RC" -eq 0 ]] \
     || log_fail "allowlisted branch with a cleared ref_id (Tier B) must exit 0 (got $RC; stderr: $ERR)"
-  echo "$OUT" | grep -qF "chore/" \
-    || log_fail "stdout must name the matched prefix chore/ (got: $OUT)"
+  assert_payload_contains "$OUT" "chore/" "stdout must name the matched prefix chore/ (got: $OUT)"
   log_pass "allowlisted branch + cleared ref_id (Tier B) -> exit 0"
 }
 

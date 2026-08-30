@@ -29,6 +29,9 @@ set -euo pipefail
 
 TEST_NAME="aai-validator-isolation"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PROTOCOL="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
 
@@ -54,14 +57,10 @@ test_001_capability_detection_contract() {
   block="$(awk '/^## Capability detection/{f=1} /^## /{if (f && !/^## Capability detection/) f=0} f' "$PROTOCOL")"
   [[ -n "$block" ]] || log_fail "TEST-001: Capability detection section body not found"
 
-  echo "$block" | grep -qF 'multi_agent_backend' \
-    || log_fail "TEST-001: Capability detection section must name multi_agent_backend"
-  echo "$block" | grep -qF 'spawn_agent_available' \
-    || log_fail "TEST-001: Capability detection section must name spawn_agent_available"
-  echo "$block" | grep -qF 'spawn_model_catalog' \
-    || log_fail "TEST-001: Capability detection section must name spawn_model_catalog"
-  echo "$block" | grep -qF 'fork_turns_supported' \
-    || log_fail "TEST-001: Capability detection section must name fork_turns_supported"
+  assert_payload_contains "$block" "multi_agent_backend" "TEST-001: Capability detection section must name multi_agent_backend"
+  assert_payload_contains "$block" "spawn_agent_available" "TEST-001: Capability detection section must name spawn_agent_available"
+  assert_payload_contains "$block" "spawn_model_catalog" "TEST-001: Capability detection section must name spawn_model_catalog"
+  assert_payload_contains "$block" "fork_turns_supported" "TEST-001: Capability detection section must name fork_turns_supported"
 
   echo "$block" | grep -qiF 'runtime' \
     || log_fail "TEST-001: capabilities must be resolved AT RUNTIME"

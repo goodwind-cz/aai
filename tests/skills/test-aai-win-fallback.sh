@@ -29,6 +29,9 @@ set -uo pipefail
 
 TEST_NAME="aai-win-fallback"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 RUN_TESTS_SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh"
@@ -65,8 +68,7 @@ test_007() {
   # Baseline: AAI_UNAME unset -> no degraded marker, exit-code fidelity holds
   # exactly as before this change (regression tripwire for the untouched path).
   out="$(sh "$RUN_TESTS_SCRIPT" sh -c 'exit 0' 2>&1 1>/dev/null)"
-  echo "$out" | grep -q "AAI-DEGRADED-MODE" \
-    && log_fail "degraded marker printed with AAI_UNAME unset (must be inert on macOS/Linux)"
+  assert_payload_not_contains "$out" "AAI-DEGRADED-MODE" "degraded marker printed with AAI_UNAME unset (must be inert on macOS/Linux)"
   sh "$RUN_TESTS_SCRIPT" sh -c 'exit 7' >/dev/null 2>&1; rc=$?
   [[ "$rc" -eq 7 ]] || log_fail "AAI_UNAME unset: exit-code fidelity broke (expected 7, got $rc)"
 
@@ -85,15 +87,13 @@ test_007() {
 
   # MINGW variant also selects the degraded branch.
   out="$(AAI_UNAME="MINGW64_NT-10.0" sh "$RUN_TESTS_SCRIPT" sh -c 'exit 0' 2>&1 1>/dev/null)"
-  echo "$out" | grep -q "AAI-DEGRADED-MODE" \
-    || log_fail "AAI_UNAME=MINGW64_NT-10.0 must also select the degraded branch"
+  assert_payload_contains "$out" "AAI-DEGRADED-MODE" "AAI_UNAME=MINGW64_NT-10.0 must also select the degraded branch"
 
   # A non-Windows-shaped AAI_UNAME override (e.g. explicitly set to Linux) must
   # NOT force the degraded branch — selection is uname-value-driven, not
   # merely override-presence-driven.
   out="$(AAI_UNAME="Linux" sh "$RUN_TESTS_SCRIPT" sh -c 'exit 0' 2>&1 1>/dev/null)"
-  echo "$out" | grep -q "AAI-DEGRADED-MODE" \
-    && log_fail "AAI_UNAME=Linux must NOT select the degraded branch"
+  assert_payload_not_contains "$out" "AAI-DEGRADED-MODE" "AAI_UNAME=Linux must NOT select the degraded branch"
 
   log_pass "MSYS-deterministic degraded branch selects on AAI_UNAME override; inert when unset (TEST-007)"
 }
@@ -281,8 +281,7 @@ test_017() {
     skip_lines="$(grep -nE "^[[:space:]]*It[[:space:]]+'.*'[[:space:]]+-Skip:\\\$script:SkipOnWindows" "$f" || true)"
     if [[ -n "$skip_lines" ]]; then
       while IFS= read -r line; do
-        echo "$line" | grep -qF 'PosixOnly' \
-          || log_fail "$f: a -Skip:\$script:SkipOnWindows It is missing the PosixOnly token in its name: $line"
+        assert_payload_contains "$line" "PosixOnly" "$f: a -Skip:\$script:SkipOnWindows It is missing the PosixOnly token in its name: $line"
         echo "$line" | grep -qE 'PosixOnly:[[:space:]]*[^)'"'"']+' \
           || log_fail "$f: a -Skip:\$script:SkipOnWindows It carries PosixOnly with no non-empty reason: $line"
       done <<< "$skip_lines"

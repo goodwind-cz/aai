@@ -10,6 +10,11 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
+
 # Test metadata
 TEST_NAME="aai-worktree"
 TEST_DIR=""
@@ -187,9 +192,7 @@ test_list_worktrees() {
   fi
 
   # Check if our worktree is listed (check for branch name as it's more reliable)
-  if ! echo "$worktree_list" | grep -q "feature/login"; then
-    log_fail "Feature worktree not in list"
-  fi
+  assert_payload_contains "$worktree_list" "feature/login" "Feature worktree not in list"
 
   log_pass "Worktree list verified"
 }

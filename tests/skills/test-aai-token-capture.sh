@@ -59,6 +59,9 @@ set -euo pipefail
 TEST_NAME="aai-token-capture"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_SCRIPT="$PROJECT_ROOT/.aai/scripts/state.mjs"
 FLUSH_SCRIPT="$PROJECT_ROOT/.aai/scripts/metrics-flush.mjs"
@@ -628,10 +631,8 @@ test_013_subagent_protocol_model_marker_prose() {
   block="$(awk '/^## Harness-reported usage capture/{f=1} /^## /{if (f && !/^## Harness-reported usage capture/) f=0} f' "$PROTOCOL")"
   [[ -n "$block" ]] || log_fail "TEST-013 (spec TEST-010): Harness-reported usage capture section body not found"
 
-  echo "$block" | grep -qF 'requested_model=' \
-    || log_fail "TEST-013 (spec TEST-010): usage-capture section must name the requested_model= marker"
-  echo "$block" | grep -qF 'actual_model=' \
-    || log_fail "TEST-013 (spec TEST-010): usage-capture section must name the actual_model= marker"
+  assert_payload_contains "$block" "requested_model=" "TEST-013 (spec TEST-010): usage-capture section must name the requested_model= marker"
+  assert_payload_contains "$block" "actual_model=" "TEST-013 (spec TEST-010): usage-capture section must name the actual_model= marker"
   echo "$block" | grep -qiF 'GRANTED model' \
     || log_fail "TEST-013 (spec TEST-010): usage-capture section must state model_id records the GRANTED model"
   echo "$block" | grep -qiF 'both markers' \

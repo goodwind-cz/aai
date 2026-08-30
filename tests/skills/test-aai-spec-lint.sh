@@ -21,6 +21,9 @@ set -uo pipefail
 
 TEST_NAME="aai-spec-lint"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LINT="$PROJECT_ROOT/.aai/scripts/spec-lint.mjs"
 
@@ -120,8 +123,8 @@ test_001_duplicate_id() {
   local out rc ok=1
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-001" || ok=0
-  echo "$out" | grep -q "ac-id-duplicate" || { log_info "TEST-001: no ac-id-duplicate in output"; ok=0; }
-  echo "$out" | grep -q "Spec-AC-01" || { log_info "TEST-001: duplicate id not named"; ok=0; }
+  assert_payload_contains "$out" "ac-id-duplicate" "TEST-001: no ac-id-duplicate in output" || ok=0
+  assert_payload_contains "$out" "Spec-AC-01" "TEST-001: duplicate id not named" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-001 duplicate Spec-AC id" || log_fail "TEST-001 duplicate Spec-AC id"
 }
 
@@ -132,15 +135,15 @@ test_002_gap_and_malformed() {
   local out rc ok=1
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-002 gap" || ok=0
-  echo "$out" | grep -q "ac-id-gap" || { log_info "TEST-002: no ac-id-gap"; ok=0; }
-  echo "$out" | grep -q "Spec-AC-02" || { log_info "TEST-002: missing id not named"; ok=0; }
+  assert_payload_contains "$out" "ac-id-gap" "TEST-002: no ac-id-gap" || ok=0
+  assert_payload_contains "$out" "Spec-AC-02" "TEST-002: missing id not named" || ok=0
 
   new_fixture_root
   clean_spec_body | sed 's/| Spec-AC-02 |/| Spec-AC-2 |/; s/| TEST-002 | Spec-AC-02 |/| TEST-002 | Spec-AC-01 |/' \
     > "$FIX/docs/specs/SPEC-DRAFT-malformed.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-002 malformed" || ok=0
-  echo "$out" | grep -q "ac-id-malformed" || { log_info "TEST-002: no ac-id-malformed"; ok=0; }
+  assert_payload_contains "$out" "ac-id-malformed" "TEST-002: no ac-id-malformed" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-002 id gap + malformed id" || log_fail "TEST-002 id gap + malformed id"
 }
 
@@ -152,7 +155,7 @@ test_003_done_without_evidence() {
   local out rc ok=1
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-003" || ok=0
-  echo "$out" | grep -q "done-without-evidence" || { log_info "TEST-003: no done-without-evidence"; ok=0; }
+  assert_payload_contains "$out" "done-without-evidence" "TEST-003: no done-without-evidence" || ok=0
 
   # control: qualified canonical status WITH evidence is clean
   new_fixture_root
@@ -171,8 +174,8 @@ test_004_test_plan_mapping() {
   local out rc ok=1
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-004 unknown" || ok=0
-  echo "$out" | grep -q "test-ac-unknown" || { log_info "TEST-004: no test-ac-unknown"; ok=0; }
-  echo "$out" | grep -q "Spec-AC-09" || { log_info "TEST-004: unknown id not named"; ok=0; }
+  assert_payload_contains "$out" "test-ac-unknown" "TEST-004: no test-ac-unknown" || ok=0
+  assert_payload_contains "$out" "Spec-AC-09" "TEST-004: unknown id not named" || ok=0
 
   # control: comma list + NN..MM range both resolve
   new_fixture_root
@@ -187,7 +190,7 @@ test_004_test_plan_mapping() {
     > "$FIX/docs/specs/SPEC-DRAFT-dashcell.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-004 malformed" || ok=0
-  echo "$out" | grep -q "test-ac-malformed" || { log_info "TEST-004: no test-ac-malformed"; ok=0; }
+  assert_payload_contains "$out" "test-ac-malformed" "TEST-004: no test-ac-malformed" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-004 Test Plan mapping" || log_fail "TEST-004 Test Plan mapping"
 }
 
@@ -200,7 +203,7 @@ test_005_frozen_consistency() {
     > "$FIX/docs/specs/SPEC-DRAFT-undecided.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-005 undecided" || ok=0
-  echo "$out" | grep -q "frozen-without-strategy" || { log_info "TEST-005: no frozen-without-strategy"; ok=0; }
+  assert_payload_contains "$out" "frozen-without-strategy" "TEST-005: no frozen-without-strategy" || ok=0
 
   # frozen + no AC table
   new_fixture_root
@@ -208,7 +211,7 @@ test_005_frozen_consistency() {
     > "$FIX/docs/specs/SPEC-DRAFT-notable.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-005 no table" || ok=0
-  echo "$out" | grep -q "frozen-without-ac-table" || { log_info "TEST-005: no frozen-without-ac-table"; ok=0; }
+  assert_payload_contains "$out" "frozen-without-ac-table" "TEST-005: no frozen-without-ac-table" || ok=0
 
   # lean L1 control: ceremony_level 1 + justification, AC table only, no strategy
   new_fixture_root
@@ -255,7 +258,7 @@ test_006_ceremony_and_status() {
       > "$FIX/docs/specs/SPEC-DRAFT-cl.md"
     out="$(runlint "$FIX" 2>&1)"; rc=$?
     expect_exit 1 "$rc" "TEST-006 cl=$bad" || ok=0
-    echo "$out" | grep -q "ceremony-level-invalid" || { log_info "TEST-006: no ceremony-level-invalid for $bad"; ok=0; }
+    assert_payload_contains "$out" "ceremony-level-invalid" "TEST-006: no ceremony-level-invalid for $bad" || ok=0
   done
 
   # null / absent are clean
@@ -271,7 +274,7 @@ test_006_ceremony_and_status() {
     > "$FIX/docs/specs/SPEC-DRAFT-badstatus.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-006 bad status" || ok=0
-  echo "$out" | grep -q "ac-status-invalid" || { log_info "TEST-006: no ac-status-invalid"; ok=0; }
+  assert_payload_contains "$out" "ac-status-invalid" "TEST-006: no ac-status-invalid" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-006 ceremony enum + status enum" || log_fail "TEST-006 ceremony enum + status enum"
 }
 
@@ -315,8 +318,8 @@ EOF
   local out rc ok=1
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-007" || ok=0
-  echo "$out" | grep -q "ac-row-unparseable" || { log_info "TEST-007: no ac-row-unparseable"; ok=0; }
-  echo "$out" | grep -q "Spec-AC-02" || { log_info "TEST-007: dropped row id not named"; ok=0; }
+  assert_payload_contains "$out" "ac-row-unparseable" "TEST-007: no ac-row-unparseable" || ok=0
+  assert_payload_contains "$out" "Spec-AC-02" "TEST-007: dropped row id not named" || ok=0
 
   # Review F1 negative control: a COMPACT (unpadded) but valid row must NOT
   # fire ac-row-unparseable — the old \S* capture swallowed pipes and mangled
@@ -354,7 +357,7 @@ SPEC-FROZEN: true
 EOF
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-007b" || ok=0
-  echo "$out" | grep -q "ac-row-unparseable" && { log_info "TEST-007b: compact valid row falsely flagged (F1)"; ok=0; }
+  assert_payload_not_contains "$out" "ac-row-unparseable" "TEST-007b: compact valid row falsely flagged (F1)" || ok=0
 
   [[ $ok -eq 1 ]] && log_pass "TEST-007 parser-invisible AC row (+compact negative control)" || log_fail "TEST-007 parser-invisible AC row"
 }
@@ -493,7 +496,7 @@ The system SHALL expire an idle session after 15 minutes.
 EOF
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-003 clean deltas" || ok=0
-  echo "$out" | grep -q "delta-" && { log_info "TEST-003: well-formed Deltas produced a delta finding: $out"; ok=0; }
+  assert_payload_not_contains "$out" "delta-" "TEST-003: well-formed Deltas produced a delta finding: $out" || ok=0
 
   # malformed variants -> one code each (fixture path names the expected code)
   local block code
@@ -506,7 +509,7 @@ EOF
     # Assert on the bracketed RULE token, not a bare substring — the fixture
     # filename (SPEC-DRAFT-$code.md) also contains $code, so a substring grep
     # would match the path regardless of which rule actually fired (review F3).
-    echo "$out" | grep -qF "[$code]" || { log_info "TEST-003: no [$code] rule emitted; got: $out"; ok=0; }
+    assert_payload_contains "$out" "[$code]" "TEST-003: no [$code] rule emitted; got: $out" || ok=0
   }
 
   delta_case delta-op-invalid <<'EOF'
@@ -558,7 +561,7 @@ test_delta_004_legacy_control() {
   clean_spec_body > "$FIX/docs/specs/SPEC-DRAFT-legacy.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-004 legacy clean" || ok=0
-  echo "$out" | grep -q "delta-" && { log_info "TEST-004: legacy spec produced a delta finding"; ok=0; }
+  assert_payload_not_contains "$out" "delta-" "TEST-004: legacy spec produced a delta finding" || ok=0
 
   # a present-but-empty `## Deltas` section is a valid state -> no finding
   new_fixture_root
@@ -566,12 +569,12 @@ test_delta_004_legacy_control() {
 EOF
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-004 empty deltas" || ok=0
-  echo "$out" | grep -q "delta-" && { log_info "TEST-004: empty Deltas section produced a finding"; ok=0; }
+  assert_payload_not_contains "$out" "delta-" "TEST-004: empty Deltas section produced a finding" || ok=0
 
   # the REAL corpus (no `## Deltas` sections today) stays LINT PASS with no delta-*
   out="$(runlint "$PROJECT_ROOT" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-004 real corpus" || ok=0
-  echo "$out" | grep -q "delta-" && { log_info "TEST-004: real corpus produced a delta finding"; ok=0; }
+  assert_payload_not_contains "$out" "delta-" "TEST-004: real corpus produced a delta finding" || ok=0
 
   [[ $ok -eq 1 ]] && log_pass "TEST-004 (delta-stage-2) legacy/empty Deltas unaffected; corpus LINT PASS" || log_fail "TEST-004 (delta-stage-2) legacy control"
 }
@@ -620,8 +623,8 @@ EOF
   local out rc ok=1
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-001(dupac)" || ok=0
-  echo "$out" | grep -q "duplicate-ac-id" || { log_info "TEST-001(dupac): no duplicate-ac-id finding"; ok=0; }
-  echo "$out" | grep -q "Spec-AC-02" || { log_info "TEST-001(dupac): repeated id not named"; ok=0; }
+  assert_payload_contains "$out" "duplicate-ac-id" "TEST-001(dupac): no duplicate-ac-id finding" || ok=0
+  assert_payload_contains "$out" "Spec-AC-02" "TEST-001(dupac): repeated id not named" || ok=0
   # Spec-AC-02: detail reports the raw-vs-parsed delta (2 raw rows, 1 survived).
   echo "$out" | grep -qE "Spec-AC-02 appears in 2 raw AC-table rows but only 1 survived" \
     || { log_info "TEST-001(dupac): raw-vs-parsed delta (2 raw / 1 parsed) not reported: $out"; ok=0; }
@@ -639,8 +642,8 @@ test_dupac_002_both_parse_no_double_report() {
   local out rc ok=1
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-002(dupac)" || ok=0
-  echo "$out" | grep -q "ac-id-duplicate" || { log_info "TEST-002(dupac): no ac-id-duplicate"; ok=0; }
-  echo "$out" | grep -q "duplicate-ac-id" && { log_info "TEST-002(dupac): both-parse dup falsely ALSO fired duplicate-ac-id: $out"; ok=0; }
+  assert_payload_contains "$out" "ac-id-duplicate" "TEST-002(dupac): no ac-id-duplicate" || ok=0
+  assert_payload_not_contains "$out" "duplicate-ac-id" "TEST-002(dupac): both-parse dup falsely ALSO fired duplicate-ac-id: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-002(dupac) both-parse duplicate -> ac-id-duplicate only" || log_fail "TEST-002(dupac) both-parse no double-report"
 }
 
@@ -684,8 +687,8 @@ EOF
   local out rc ok=1
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-003(dupac)" || ok=0
-  echo "$out" | grep -q "ac-row-unparseable" || { log_info "TEST-003(dupac): no ac-row-unparseable"; ok=0; }
-  echo "$out" | grep -q "duplicate-ac-id" && { log_info "TEST-003(dupac): fully-vanished row falsely ALSO fired duplicate-ac-id: $out"; ok=0; }
+  assert_payload_contains "$out" "ac-row-unparseable" "TEST-003(dupac): no ac-row-unparseable" || ok=0
+  assert_payload_not_contains "$out" "duplicate-ac-id" "TEST-003(dupac): fully-vanished row falsely ALSO fired duplicate-ac-id: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-003(dupac) fully-vanished row -> ac-row-unparseable only" || log_fail "TEST-003(dupac) vanished-row no double-report"
 }
 
@@ -732,7 +735,7 @@ SPEC-FROZEN: true
 EOF
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-004(dupac) compact+range" || ok=0
-  echo "$out" | grep -q "duplicate-ac-id" && { log_info "TEST-004(dupac): compact+range fixture falsely fired duplicate-ac-id: $out"; ok=0; }
+  assert_payload_not_contains "$out" "duplicate-ac-id" "TEST-004(dupac): compact+range fixture falsely fired duplicate-ac-id: $out" || ok=0
 
   # genuine lean L1 table (no Review-By column -> !ac.hasGate): the new rule
   # lives INSIDE the if (ac.hasGate) branch, so it can never run here.
@@ -768,7 +771,7 @@ Ceremony justification: single-surface fixture fix.
 EOF
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-004(dupac) lean L1" || ok=0
-  echo "$out" | grep -q "duplicate-ac-id" && { log_info "TEST-004(dupac): lean L1 fixture falsely fired duplicate-ac-id: $out"; ok=0; }
+  assert_payload_not_contains "$out" "duplicate-ac-id" "TEST-004(dupac): lean L1 fixture falsely fired duplicate-ac-id: $out" || ok=0
 
   [[ $ok -eq 1 ]] && log_pass "TEST-004(dupac) no false positives (compact/range/lean)" || log_fail "TEST-004(dupac) no false positives"
 }
@@ -781,7 +784,7 @@ test_dupac_005_real_corpus() {
   local out rc ok=1
   out="$(runlint "$PROJECT_ROOT" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-005(dupac) real corpus" || ok=0
-  echo "$out" | grep -q "duplicate-ac-id" && { log_info "TEST-005(dupac): real corpus produced a duplicate-ac-id finding: $out"; ok=0; }
+  assert_payload_not_contains "$out" "duplicate-ac-id" "TEST-005(dupac): real corpus produced a duplicate-ac-id finding: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-005(dupac) real corpus zero duplicate-ac-id findings" || log_fail "TEST-005(dupac) real corpus"
 }
 
@@ -798,8 +801,8 @@ test_specidshape_001_bareslug_flagged() {
   expect_exit 1 "$rc" "TEST-001(specidshape)" || ok=0
   n=$(echo "$out" | grep -c "\[spec-id-shape\]")
   [[ "$n" -eq 1 ]] || { log_info "TEST-001(specidshape): expected exactly 1 spec-id-shape finding, got $n: $out"; ok=0; }
-  echo "$out" | grep -q 'secrets-preflight-env-multiline' || { log_info "TEST-001(specidshape): id not named in finding"; ok=0; }
-  echo "$out" | grep -q 'spec-<change-slug>' || { log_info "TEST-001(specidshape): spec-<change-slug> guidance missing"; ok=0; }
+  assert_payload_contains "$out" "secrets-preflight-env-multiline" "TEST-001(specidshape): id not named in finding" || ok=0
+  assert_payload_contains "$out" "spec-<change-slug>" "TEST-001(specidshape): spec-<change-slug> guidance missing" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-001(specidshape) bare-slug spec id flagged" || log_fail "TEST-001(specidshape) bare-slug spec id flagged"
 }
 
@@ -813,7 +816,7 @@ test_specidshape_002_negative_controls() {
   clean_spec_body > "$FIX/docs/specs/SPEC-DRAFT-prefixed.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-002(specidshape) prefixed" || ok=0
-  echo "$out" | grep -q "spec-id-shape" && { log_info "TEST-002(specidshape): spec--prefixed id falsely flagged: $out"; ok=0; }
+  assert_payload_not_contains "$out" "spec-id-shape" "TEST-002(specidshape): spec--prefixed id falsely flagged: $out" || ok=0
 
   # legacy numbered SPEC-NNNN control
   new_fixture_root
@@ -821,7 +824,7 @@ test_specidshape_002_negative_controls() {
     > "$FIX/docs/specs/SPEC-DRAFT-numbered.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-002(specidshape) numbered" || ok=0
-  echo "$out" | grep -q "spec-id-shape" && { log_info "TEST-002(specidshape): numbered SPEC-NNNN id falsely flagged: $out"; ok=0; }
+  assert_payload_not_contains "$out" "spec-id-shape" "TEST-002(specidshape): numbered SPEC-NNNN id falsely flagged: $out" || ok=0
 
   [[ $ok -eq 1 ]] && log_pass "TEST-002(specidshape) prefixed + numbered ids lint clean" || log_fail "TEST-002(specidshape) negative controls"
 }
@@ -836,7 +839,7 @@ test_specidshape_003_type_guard() {
   local out rc ok=1
   out="$(runlint "$FIX" --path docs/specs/SPEC-DRAFT-research.md 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-003(specidshape)" || ok=0
-  echo "$out" | grep -q "spec-id-shape" && { log_info "TEST-003(specidshape): non-spec --path doc falsely flagged: $out"; ok=0; }
+  assert_payload_not_contains "$out" "spec-id-shape" "TEST-003(specidshape): non-spec --path doc falsely flagged: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-003(specidshape) type guard: non-spec --path doc not flagged" || log_fail "TEST-003(specidshape) type guard"
 }
 
@@ -849,9 +852,7 @@ test_specidshape_004_real_corpus_loop() {
     [[ -f "$f" ]] || continue
     rel="docs/specs/$(basename "$f")"
     out="$(cd "$PROJECT_ROOT" && node "$LINT" --path "$rel" 2>&1)"; rc=$?
-    if echo "$out" | grep -q "spec-id-shape"; then
-      log_info "TEST-004(specidshape): $rel produced a spec-id-shape finding: $out"; ok=0
-    fi
+    assert_payload_not_contains "$out" "spec-id-shape" "TEST-004(specidshape): $rel produced a spec-id-shape finding: $out" || ok=0
     if [[ $rc -eq 2 ]]; then
       log_info "TEST-004(specidshape): $rel unreadable (exit 2): $out"; ok=0
     fi
@@ -914,7 +915,7 @@ test_stratev_001_direct_demanding_red() {
   expect_exit 1 "$rc" "TEST-001(stratev)" || ok=0
   n=$(echo "$out" | grep -c "\[strategy-evidence-mismatch\]")
   [[ "$n" -ge 1 ]] || { log_info "TEST-001(stratev): no strategy-evidence-mismatch finding: $out"; ok=0; }
-  echo "$out" | grep -q "direct" || { log_info "TEST-001(stratev): recorded strategy not named"; ok=0; }
+  assert_payload_contains "$out" "direct" "TEST-001(stratev): recorded strategy not named" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-001(stratev) direct-strategy spec demanding a stored RED artifact is flagged" \
     || log_fail "TEST-001(stratev) direct-strategy RED demand"
 }
@@ -927,8 +928,7 @@ test_stratev_002_tdd_hybrid_unchanged() {
     red_demanding_body "$s" > "$FIX/docs/specs/SPEC-DRAFT-$s-red.md"
     out="$(runlint "$FIX" 2>&1)"; rc=$?
     expect_exit 0 "$rc" "TEST-002(stratev) $s" || ok=0
-    echo "$out" | grep -q "strategy-evidence-mismatch" \
-      && { log_info "TEST-002(stratev): $s strategy falsely flagged: $out"; ok=0; }
+    assert_payload_not_contains "$out" "strategy-evidence-mismatch" "TEST-002(stratev): $s strategy falsely flagged: $out" || ok=0
   done
   [[ $ok -eq 1 ]] && log_pass "TEST-002(stratev) identical RED demand under tdd/hybrid stays clean" \
     || log_fail "TEST-002(stratev) tdd/hybrid non-regression"
@@ -941,16 +941,14 @@ test_stratev_003_untested_and_unknown() {
   red_demanding_body untested > "$FIX/docs/specs/SPEC-DRAFT-untested-red.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-003(stratev) untested" || ok=0
-  echo "$out" | grep -q "strategy-evidence-mismatch" \
-    || { log_info "TEST-003(stratev): untested not flagged: $out"; ok=0; }
+  assert_payload_contains "$out" "strategy-evidence-mismatch" "TEST-003(stratev): untested not flagged: $out" || ok=0
 
   # unknown strategy (no recorded value anywhere) -> NO finding, exit 0
   new_fixture_root
   red_demanding_body none > "$FIX/docs/specs/SPEC-DRAFT-nostrategy-red.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-003(stratev) unknown" || ok=0
-  echo "$out" | grep -q "strategy-evidence-mismatch" \
-    && { log_info "TEST-003(stratev): unknown strategy produced a finding (must fail open): $out"; ok=0; }
+  assert_payload_not_contains "$out" "strategy-evidence-mismatch" "TEST-003(stratev): unknown strategy produced a finding (must fail open): $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-003(stratev) untested flagged; unknown strategy fails open" \
     || log_fail "TEST-003(stratev) untested + fail-open"
 }
@@ -973,8 +971,7 @@ test_stratev_004_negative_controls() {
 EOF
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-004(stratev) waiver" || ok=0
-  echo "$out" | grep -q "strategy-evidence-mismatch" \
-    && { log_info "TEST-004(stratev): explicit waiver falsely flagged: $out"; ok=0; }
+  assert_payload_not_contains "$out" "strategy-evidence-mismatch" "TEST-004(stratev): explicit waiver falsely flagged: $out" || ok=0
 
   new_fixture_root
   clean_spec_body \
@@ -983,8 +980,7 @@ EOF
     > "$FIX/docs/specs/SPEC-DRAFT-direct-rationale.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-004(stratev) rationale" || ok=0
-  echo "$out" | grep -q "strategy-evidence-mismatch" \
-    && { log_info "TEST-004(stratev): strategy-rationale prose falsely flagged: $out"; ok=0; }
+  assert_payload_not_contains "$out" "strategy-evidence-mismatch" "TEST-004(stratev): strategy-rationale prose falsely flagged: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-004(stratev) negative controls (explicit waiver, rationale prose)" \
     || log_fail "TEST-004(stratev) negative controls"
 }
@@ -999,13 +995,11 @@ test_stratev_005_strategy_flag() {
   local p=docs/specs/SPEC-DRAFT-flag.md
   out="$(runlint "$FIX" --path "$p" --strategy direct 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-005(stratev) flag direct" || ok=0
-  echo "$out" | grep -q "strategy-evidence-mismatch" \
-    || { log_info "TEST-005(stratev): --strategy direct did not supply the strategy: $out"; ok=0; }
+  assert_payload_contains "$out" "strategy-evidence-mismatch" "TEST-005(stratev): --strategy direct did not supply the strategy: $out" || ok=0
 
   out="$(runlint "$FIX" --path "$p" --strategy tdd 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-005(stratev) flag tdd" || ok=0
-  echo "$out" | grep -q "strategy-evidence-mismatch" \
-    && { log_info "TEST-005(stratev): --strategy tdd still flagged: $out"; ok=0; }
+  assert_payload_not_contains "$out" "strategy-evidence-mismatch" "TEST-005(stratev): --strategy tdd still flagged: $out" || ok=0
 
   # the flag OUTRANKS the spec's own record (STATE is the authority the caller has)
   new_fixture_root
@@ -1050,8 +1044,7 @@ test_stratev_007_real_corpus() {
   local out rc ok=1
   out="$(runlint "$PROJECT_ROOT" 2>&1)"; rc=$?
   [[ $rc -eq 2 ]] && { log_info "TEST-007(stratev): real-corpus scan errored: $out"; ok=0; }
-  echo "$out" | grep -q "strategy-evidence-mismatch" \
-    && { log_info "TEST-007(stratev): real corpus produced a strategy-evidence-mismatch: $out"; ok=0; }
+  assert_payload_not_contains "$out" "strategy-evidence-mismatch" "TEST-007(stratev): real corpus produced a strategy-evidence-mismatch: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-007(stratev) real corpus: zero strategy-evidence-mismatch findings" \
     || log_fail "TEST-007(stratev) real corpus"
 }
@@ -1068,9 +1061,7 @@ test_stratev_template_no_selfflag() {
   # `set -u` the lint NEVER ran and the assertion below was vacuously true.
   # The suite's script variable is $LINT.
   local out; out="$(node "$LINT" --path "$d/SPEC-0001-spec-t8.md" 2>&1)" || true
-  if printf '%s' "$out" | grep -q 'strategy-evidence-mismatch'; then
-    log_fail "TEST-008(stratev): template guidance self-flagged: $out"
-  fi
+  assert_payload_not_contains "$out" "strategy-evidence-mismatch" "TEST-008(stratev): template guidance self-flagged: $out"
   rm -rf "$d"
   log_pass "TEST-008(stratev): template-derived direct spec clean"
 }
@@ -1099,8 +1090,7 @@ test_halffrozen_001_marker_without_status() {
     half_frozen_body "$s" true > "$FIX/docs/specs/SPEC-DRAFT-hf-$s.md"
     out="$(runlint "$FIX" 2>&1)"; rc=$?
     expect_exit 1 "$rc" "TEST-001(halffrozen) $s" || ok=0
-    echo "$out" | grep -q "half-frozen" \
-      || { log_info "TEST-001(halffrozen): marker + status $s not flagged: $out"; ok=0; }
+    assert_payload_contains "$out" "half-frozen" "TEST-001(halffrozen): marker + status $s not flagged: $out" || ok=0
   done
   [[ $ok -eq 1 ]] && log_pass "TEST-001(halffrozen) SPEC-FROZEN marker without status implementing is a finding" \
     || log_fail "TEST-001(halffrozen) marker-without-status"
@@ -1112,8 +1102,7 @@ test_halffrozen_002_status_without_marker() {
   half_frozen_body implementing false > "$FIX/docs/specs/SPEC-DRAFT-hf-nomarker.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-002(halffrozen)" || ok=0
-  echo "$out" | grep -q "half-frozen" \
-    || { log_info "TEST-002(halffrozen): status implementing without the marker not flagged: $out"; ok=0; }
+  assert_payload_contains "$out" "half-frozen" "TEST-002(halffrozen): status implementing without the marker not flagged: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-002(halffrozen) status implementing without the SPEC-FROZEN marker is a finding" \
     || log_fail "TEST-002(halffrozen) status-without-marker"
 }
@@ -1125,8 +1114,7 @@ test_halffrozen_003_negative_controls() {
   half_frozen_body implementing true > "$FIX/docs/specs/SPEC-DRAFT-hf-ok.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-003(halffrozen) both halves" || ok=0
-  echo "$out" | grep -q "half-frozen" \
-    && { log_info "TEST-003(halffrozen): a correctly frozen spec was flagged: $out"; ok=0; }
+  assert_payload_not_contains "$out" "half-frozen" "TEST-003(halffrozen): a correctly frozen spec was flagged: $out" || ok=0
 
   # (b) NEITHER half (an unfrozen draft) is clean — this rule is about the
   # MIXED state only, never about un-frozen planning drafts.
@@ -1134,8 +1122,7 @@ test_halffrozen_003_negative_controls() {
   half_frozen_body draft false > "$FIX/docs/specs/SPEC-DRAFT-hf-neither.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-003(halffrozen) neither half" || ok=0
-  echo "$out" | grep -q "half-frozen" \
-    && { log_info "TEST-003(halffrozen): an unfrozen draft was flagged: $out"; ok=0; }
+  assert_payload_not_contains "$out" "half-frozen" "TEST-003(halffrozen): an unfrozen draft was flagged: $out" || ok=0
 
   # (c) a `done` spec with no marker is HISTORY, not a half-freeze: the rule's
   # status arm is scoped to `implementing` so the legacy corpus stays clean.
@@ -1143,8 +1130,7 @@ test_halffrozen_003_negative_controls() {
   half_frozen_body done false > "$FIX/docs/specs/SPEC-DRAFT-hf-done.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-003(halffrozen) done without marker" || ok=0
-  echo "$out" | grep -q "half-frozen" \
-    && { log_info "TEST-003(halffrozen): a done spec without the marker was flagged: $out"; ok=0; }
+  assert_payload_not_contains "$out" "half-frozen" "TEST-003(halffrozen): a done spec without the marker was flagged: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-003(halffrozen) negative controls: both halves / neither half / legacy done stay clean" \
     || log_fail "TEST-003(halffrozen) negative controls"
 }
@@ -1153,8 +1139,7 @@ test_halffrozen_004_real_corpus() {
   local out rc ok=1
   out="$(cd "$PROJECT_ROOT" && node "$LINT" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-004(halffrozen) real corpus" || ok=0
-  echo "$out" | grep -q "half-frozen" \
-    && { log_info "TEST-004(halffrozen): real corpus produced a half-frozen finding: $out"; ok=0; }
+  assert_payload_not_contains "$out" "half-frozen" "TEST-004(halffrozen): real corpus produced a half-frozen finding: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-004(halffrozen) real corpus zero half-frozen findings" \
     || log_fail "TEST-004(halffrozen) real corpus"
 }
@@ -1174,8 +1159,8 @@ test_actest_001_untested_ac() {
   local out rc ok=1
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-001(actest)" || ok=0
-  echo "$out" | grep -q "ac-without-test" || { log_info "TEST-001(actest): no ac-without-test finding: $out"; ok=0; }
-  echo "$out" | grep -q "Spec-AC-02" || { log_info "TEST-001(actest): untested id not named: $out"; ok=0; }
+  assert_payload_contains "$out" "ac-without-test" "TEST-001(actest): no ac-without-test finding: $out" || ok=0
+  assert_payload_contains "$out" "Spec-AC-02" "TEST-001(actest): untested id not named: $out" || ok=0
   echo "$out" | grep -q "ac-without-test.*Spec-AC-01" \
     && { log_info "TEST-001(actest): the COVERED AC was flagged too: $out"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-001(actest) untested Spec-AC flagged, covered one is not" \
@@ -1244,8 +1229,8 @@ Ceremony justification: single-surface fixture fix.
 EOF
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-003(actest) lean untested" || ok=0
-  echo "$out" | grep -q "ac-without-test" || { log_info "TEST-003(actest): lean table AC not checked: $out"; ok=0; }
-  echo "$out" | grep -q "Spec-AC-02" || { log_info "TEST-003(actest): lean untested id not named: $out"; ok=0; }
+  assert_payload_contains "$out" "ac-without-test" "TEST-003(actest): lean table AC not checked: $out" || ok=0
+  assert_payload_contains "$out" "Spec-AC-02" "TEST-003(actest): lean untested id not named: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-003(actest) lean L1 AC table gets the same reverse check" \
     || log_fail "TEST-003(actest) lean table reverse check"
 }
@@ -1261,8 +1246,7 @@ test_actest_004_terminal_scope() {
   clean_spec_body | grep -v '^| TEST-002 ' | sed 's/^status: implementing$/status: done/' \
     > "$FIX/docs/specs/SPEC-DRAFT-doneuntested.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
-  echo "$out" | grep -q "ac-without-test" \
-    && { log_info "TEST-004(actest): a done spec was flagged: $out"; ok=0; }
+  assert_payload_not_contains "$out" "ac-without-test" "TEST-004(actest): a done spec was flagged: $out" || ok=0
 
   # and the mirror: the SAME body at an in-flight status IS flagged
   new_fixture_root
@@ -1270,8 +1254,7 @@ test_actest_004_terminal_scope() {
     | sed '/^SPEC-FROZEN: true$/d' > "$FIX/docs/specs/SPEC-DRAFT-draftuntested.md"
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-004(actest) draft arm" || ok=0
-  echo "$out" | grep -q "ac-without-test" \
-    || { log_info "TEST-004(actest): a draft spec was NOT flagged: $out"; ok=0; }
+  assert_payload_contains "$out" "ac-without-test" "TEST-004(actest): a draft spec was NOT flagged: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-004(actest) terminal specs exempt, in-flight specs checked" \
     || log_fail "TEST-004(actest) terminal-status scope"
 }
@@ -1281,8 +1264,7 @@ test_actest_005_real_corpus() {
   local out rc ok=1
   out="$(cd "$PROJECT_ROOT" && node "$LINT" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-005(actest) real corpus" || ok=0
-  echo "$out" | grep -q "ac-without-test" \
-    && { log_info "TEST-005(actest): real corpus produced an ac-without-test finding: $out"; ok=0; }
+  assert_payload_not_contains "$out" "ac-without-test" "TEST-005(actest): real corpus produced an ac-without-test finding: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-005(actest) real corpus zero ac-without-test findings" \
     || log_fail "TEST-005(actest) real corpus"
 }

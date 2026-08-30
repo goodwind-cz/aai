@@ -9,6 +9,9 @@
 set -u
 TEST_NAME="test-aai-feedback-triage"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-feedback-triage.mjs"
@@ -51,9 +54,9 @@ test_001_gates() {
   } > "$sp"
   [ "$(run "$sp" "" "$rep")" = "0" ] || log_fail "TEST-001: engine must exit 0"
   local reasons; reasons="$(rp "$rep" dropped)"
-  echo "$reasons" | grep -q "bad_schema_version" || log_fail "TEST-001: must drop bad schema_version ($reasons)"
-  echo "$reasons" | grep -q "non_taxonomy_failure_class" || log_fail "TEST-001: must drop non-taxonomy class ($reasons)"
-  echo "$reasons" | grep -q "unsanitized_key" || log_fail "TEST-001: must drop an unsanitized key ($reasons)"
+  assert_payload_contains "$reasons" "bad_schema_version" "TEST-001: must drop bad schema_version ($reasons)"
+  assert_payload_contains "$reasons" "non_taxonomy_failure_class" "TEST-001: must drop non-taxonomy class ($reasons)"
+  assert_payload_contains "$reasons" "unsanitized_key" "TEST-001: must drop an unsanitized key ($reasons)"
   [ "$(rp "$rep" kept)" = "1" ] || log_fail "TEST-001: exactly the one valid obs kept (got $(rp "$rep" kept))"
   log_pass "hard gates drop bad schema / non-taxonomy class / unsanitized key with reasons (TEST-001)"
 }

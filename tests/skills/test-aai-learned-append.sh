@@ -72,6 +72,9 @@ set -euo pipefail
 TEST_NAME="aai-learned-append"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
@@ -381,10 +384,8 @@ test_013_wrapup_step3_wired() {
     cap { print }
   ' "$WRAP_UP_PROMPT")"
   [ -n "$step3" ] || log_fail "TEST-013: step 3 (PROPOSE NEW LEARNED RULES) section not found"
-  printf '%s' "$step3" | grep -qF "learned-append.mjs" \
-    || log_fail "TEST-013: step 3 must name the gate script learned-append.mjs"
-  printf '%s' "$step3" | grep -qF -- "--source" \
-    || log_fail "TEST-013: step 3 must show the --source flag in the invocation"
+  assert_payload_contains "$step3" "learned-append.mjs" "TEST-013: step 3 must name the gate script learned-append.mjs"
+  assert_payload_contains "$step3" "--source" "TEST-013: step 3 must show the --source flag in the invocation"
   printf '%s' "$step3" | grep -qi "critic" \
     || log_fail "TEST-013: step 3 must route the proposal through a critic pass"
   printf '%s' "$step3" | grep -qi "never a direct edit" \
@@ -407,8 +408,7 @@ test_013_wrapup_step3_wired() {
   printf '%s' "$step6" | grep -qi "step 3" \
     || log_fail "TEST-013: step 6 must cross-reference the step 3 critic-then-gate flow"
   # Pinned contracts from test-aai-friction-wiring.sh TEST-015 must survive untouched.
-  printf '%s' "$step6" | grep -qF "aai-feedback-triage.mjs" \
-    || log_fail "TEST-013: step 6 must still name the triage engine (pinned contract)"
+  assert_payload_contains "$step6" "aai-feedback-triage.mjs" "TEST-013: step 6 must still name the triage engine (pinned contract)"
   printf '%s' "$step6" | grep -qi "SILENT" \
     || log_fail "TEST-013: step 6 must still document the empty-spool SILENT contract (pinned contract)"
   log_pass "SKILL_WRAP_UP step 3 critic-then-gate wired; step 6 cross-references it (TEST-013)"
@@ -435,8 +435,7 @@ test_015_profiles_classified() {
   log_info "Test: PROFILES.yaml classifies learned-append.mjs under core; real layer-profiles suite green (TEST-015)..."
   local core_block
   core_block="$(awk '/^core:/{cap=1; next} /^extended:/{cap=0} cap' "$PROFILES")"
-  printf '%s' "$core_block" | grep -qF ".aai/scripts/learned-append.mjs" \
-    || log_fail "TEST-015: .aai/scripts/learned-append.mjs must be classified under 'core:' in PROFILES.yaml"
+  assert_payload_contains "$core_block" ".aai/scripts/learned-append.mjs" "TEST-015: .aai/scripts/learned-append.mjs must be classified under 'core:' in PROFILES.yaml"
   [ -f "$LAYER_PROFILES_TEST" ] || log_fail "TEST-015: $LAYER_PROFILES_TEST missing"
   local out code=0
   out="$(bash "$LAYER_PROFILES_TEST" 2>&1)" || code=$?

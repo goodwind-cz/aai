@@ -45,6 +45,9 @@ set -euo pipefail
 TEST_NAME="aai-docs-hub"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 GENERATOR="$PROJECT_ROOT/.aai/scripts/generate-docs-hub.mjs"
 
@@ -213,8 +216,7 @@ test_002_missing_goal_degrades_with_note() {
   goal="$(node_get "$dj" 'm.skills.find(x=>x.dir==="aai-nogoal").goal')"
   [[ "$goal" == "null" ]] || log_fail "aai-nogoal goal must be null (no '## Goal' heading present), got $goal"
   notes="$(node_get "$dj" 'JSON.stringify(m.skills.find(x=>x.dir==="aai-nogoal").notes)')"
-  printf '%s' "$notes" | grep -qF 'Goal' \
-    || log_fail "aai-nogoal notes array must name the missing Goal section, got: $notes"
+  assert_payload_contains "$notes" "Goal" "aai-nogoal notes array must name the missing Goal section, got: $notes"
 
   local html="$d/docs/SKILL_CATALOG.html"
   grep -qF "NOTE" "$html" || log_fail "rendered HTML must carry a visible NOTE for the degraded extraction"
@@ -241,8 +243,7 @@ test_003_no_prompt_reference_degrades() {
   goal="$(node_get "$dj" 'm.skills.find(x=>x.dir==="aai-scriptonly").goal')"
   [[ "$goal" == "null" ]] || log_fail "aai-scriptonly goal must be null, got $goal"
   notes="$(node_get "$dj" 'JSON.stringify(m.skills.find(x=>x.dir==="aai-scriptonly").notes)')"
-  printf '%s' "$notes" | grep -qF 'prompt' \
-    || log_fail "aai-scriptonly notes array must name the missing prompt reference, got: $notes"
+  assert_payload_contains "$notes" "prompt" "aai-scriptonly notes array must name the missing prompt reference, got: $notes"
 
   log_pass "Script-first skill (no prompt reference) degrades with its own distinct NOTE (docs-hub-generator TEST-003)"
 }

@@ -23,6 +23,9 @@ set -euo pipefail
 
 TEST_NAME="aai-update-check"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CHECK_SCRIPT="$PROJECT_ROOT/.aai/scripts/update-check.mjs"
 DRIFT_SCRIPT="$PROJECT_ROOT/.aai/scripts/layer-drift.mjs"
@@ -449,8 +452,7 @@ STUB
   set -e
   [[ -f "$marker" ]] || log_fail "hook did NOT invoke update-check.mjs (marker absent -> not wired)"
   [[ "$rc" -eq 0 ]] || log_fail "hook must exit 0 when the check FAILS (got $rc)"
-  echo "$out" | grep -qF "META_SKILL_SENTINEL_CONTENT" \
-    || log_fail "hook must still emit meta-skill content when the check fails, got: $out"
+  assert_payload_contains "$out" "META_SKILL_SENTINEL_CONTENT" "hook must still emit meta-skill content when the check fails, got: $out"
 
   # (b) HANG: the check writes the marker, then never exits — the hook's own
   # watchdog must bound it, still exit 0, and still emit meta.
@@ -469,8 +471,7 @@ STUB
   elapsed=$((end - start))
   [[ -f "$marker" ]] || log_fail "hook did NOT invoke update-check.mjs in the hang case (marker absent)"
   [[ "$rc" -eq 0 ]] || log_fail "hook must exit 0 when the check HANGS (got $rc)"
-  echo "$out" | grep -qF "META_SKILL_SENTINEL_CONTENT" \
-    || log_fail "hook must still emit meta-skill content when the check hangs, got: $out"
+  assert_payload_contains "$out" "META_SKILL_SENTINEL_CONTENT" "hook must still emit meta-skill content when the check hangs, got: $out"
   [[ "$elapsed" -lt 20 ]] || log_fail "hook watchdog did not bound a hanging check (took ${elapsed}s)"
   log_pass "TEST-011 SessionStart hook is provably non-blocking (fail + hang, both exit 0 + emit, invocation proven)"
 }
@@ -538,8 +539,7 @@ STUB
   set -e
   end="$(date +%s)"; elapsed=$((end - start))
   [[ "$rc" -eq 0 ]] || log_fail "hook must exit 0 on the auto path (got $rc)"
-  echo "$out" | grep -qF "META_SKILL_SENTINEL_CONTENT" \
-    || log_fail "hook must still emit meta-skill content on the auto path, got: $out"
+  assert_payload_contains "$out" "META_SKILL_SENTINEL_CONTENT" "hook must still emit meta-skill content on the auto path, got: $out"
   [[ "$elapsed" -lt 4 ]] || log_fail "hook must return BEFORE the 4s sync completes (took ${elapsed}s) -> not detached/non-blocking"
   [[ ! -f "$marker" ]] || log_fail "sync marker present immediately after the hook -> sync ran synchronously, not detached"
   wait_for_grep "$outcome" '"result":"applied"' 20 || log_fail "detached sync outcome not written within timeout: $(cat "$outcome" 2>/dev/null)"
@@ -630,7 +630,7 @@ test_future_dated_cache_probes() {
   set +e
   j="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --cache "$cache" --now "2026-07-20T11:00:00Z" --json 2>/dev/null)"; rc=$?
   set -e
-  echo "$j" | grep -q '"throttled":false' || log_fail "future-dated cache must yield throttled:false, got: $j"
+  assert_payload_contains "$j" "\"throttled\":false" "future-dated cache must yield throttled:false, got: $j"
   log_pass "TEST-017 future-dated throttle cache forces a probe (self-heals)"
 }
 
