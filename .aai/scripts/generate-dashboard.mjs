@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 // forked (SPEC-0089 single-source contract; test_120 in test-aai-metrics.sh
 // fails if the raw regex literal exists in more than one source file).
 import { extractUsageTotal } from './lib/usage-note.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 // finiteNum(v) -> v when it is a real recorded number, else null. JSON null
 // (the real ledger's tokens_in/tokens_out on almost every run) must NOT
@@ -69,7 +70,7 @@ function parseArgs(argv) {
     if (token === '--metrics' || token === '--output') {
       if (!argv[i + 1]) {
         console.error(`${token} requires a value`);
-        process.exit(2);
+        exit(2);
       }
       if (token === '--metrics') { args.metricsPath = argv[i + 1]; metricsSet = true; }
       else { args.outputPath = argv[i + 1]; outputSet = true; }
@@ -82,7 +83,7 @@ function parseArgs(argv) {
     if (token.startsWith('-')) {
       console.error(`unknown flag: ${token}`);
       console.error('Usage: generate-dashboard.mjs [--metrics <path>] [--output <path>] [--from D] [--to D] [--skill S] [--data-only]');
-      process.exit(2);
+      exit(2);
     }
 
     if (!token.startsWith('-') && !metricsSet) {
@@ -447,7 +448,7 @@ function generateDashboard({ metricsPath, outputPath, from, to, skill, dataOnly 
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
-  try {
+  runMain(() => {
     const args = parseArgs(process.argv);
     const data = generateDashboard(args);
 
@@ -463,10 +464,12 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
     if (!args.dataOnly) {
       console.log(`- ${args.outputPath}`);
     }
-  } catch (error) {
-    console.error(error.message);
-    process.exit(1);
-  }
+  }, {
+    onError(error) {
+      console.error(error.message);
+      process.exitCode = 1;
+    },
+  });
 }
 
 export { generateDashboard, parseJsonl, normalizeEntries, buildData };

@@ -71,10 +71,15 @@ new_bare_fixture() {
 # script-location root resolution, not just the --root override path.
 install_doctor_copy() {
   local d="$1"; shift
-  mkdir -p "$d/.aai/scripts"
+  mkdir -p "$d/.aai/scripts/lib"
   cp "$DOCTOR" "$d/.aai/scripts/aai-doctor.mjs"
+  # aai-doctor.mjs's own pipe-exit-discipline import (cli-exit-truncates-pipe-
+  # sweep) — a hard dependency of every copy, not an opt-in helper like the
+  # ones below.
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
   local helper
   for helper in "$@"; do
+    mkdir -p "$d/.aai/scripts/$(dirname "$helper")"
     cp "$PROJECT_ROOT/.aai/scripts/$helper" "$d/.aai/scripts/$helper"
   done
 }

@@ -69,6 +69,7 @@
 // Zero dependencies (Node stdlib only, per docs/TECHNOLOGY.md).
 
 import { readFileSync, existsSync } from 'node:fs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 export const WAIVER_SENTINEL = 'AAI-VALIDATION-WAIVER';
 export const WAIVER_VERSION = 2;
@@ -319,7 +320,7 @@ function bootstrapHint() {
 function usage(msg) {
   console.error(`validation-waiver: ${msg}`);
   console.error('usage: validation-waiver.mjs (--state <STATE.yaml> | --notes <text> [--status <s>] [--ref <scope>]) [--json]');
-  process.exit(2);
+  exit(2);
 }
 
 function main(argv) {
@@ -354,7 +355,7 @@ function main(argv) {
         console.log('  Remediation:');
         for (const step of remediation) console.log(`    ${step}`);
       }
-      process.exit(1);
+      exit(1);
     }
     const yaml = readFileSync(opts.state, 'utf8');
     block = readValidationBlock(yaml);
@@ -368,7 +369,7 @@ function main(argv) {
   const v = evaluateGate(block, fallbackRef);
   if (opts.json) {
     console.log(JSON.stringify({ ...v }, null, 2));
-    process.exit(v.open ? 0 : 1);
+    exit(v.open ? 0 : 1);
   }
   console.log(`VALIDATION-GATE ${v.open ? 'open' : 'blocked'} reason=${v.reason}`);
   console.log(`status=${v.status ?? 'absent'}`);
@@ -378,11 +379,11 @@ function main(argv) {
     console.log(`waiver_by=${v.waiver.by} waiver_ref=${v.waiver.ref} waiver_at=${v.waiver.at}`);
     console.log(`waiver_reason=${v.waiver.reason}`);
   }
-  process.exit(v.open ? 0 : 1);
+  exit(v.open ? 0 : 1);
 }
 
 // Only run the CLI when invoked directly — the factory report and the metrics
 // flush import the parser from here (one grammar, every consumer).
 if (process.argv[1] && process.argv[1].endsWith('validation-waiver.mjs')) {
-  main(process.argv.slice(2));
+  runMain(() => main(process.argv.slice(2)));
 }

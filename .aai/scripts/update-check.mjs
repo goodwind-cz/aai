@@ -59,6 +59,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -78,7 +79,7 @@ function usage() {
 function fail(msg) {
   console.error(`update-check: ${msg}`);
   usage();
-  process.exit(2);
+  exit(2);
 }
 
 function parseArgs(argv) {
@@ -627,7 +628,7 @@ function runSyncMode(args) {
   // the reclaimer's live lock. A crash before here leaves a stale lock the
   // >30min rule reclaims.
   releaseSyncLock(syncLockPath(args.outcome), args.lockToken);
-  process.exit(0);
+  exit(0);
 }
 
 // Recover an orphaned surfacing claim (Finding C). Called only when the real
@@ -763,7 +764,7 @@ function main() {
     result.throttled = true;
     if (args.json) console.log(JSON.stringify(result));
     else if (emit.length) console.log(emit.join('\n'));
-    process.exit(0);
+    exit(0);
   }
 
   const verdict = runLayerDrift({ pin: args.pin, remote: args.remote, timeoutMs: args.timeoutMs });
@@ -857,7 +858,7 @@ function main() {
   } else if (emit.length) {
     console.log(emit.join('\n'));
   }
-  process.exit(0);
+  exit(0);
 }
 
 // Allow `import { resolveConfig }` from tests without running the CLI.
@@ -866,5 +867,5 @@ function realOrResolve(p) {
   try { return fs.realpathSync(p); } catch { return path.resolve(p); }
 }
 if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
-  main();
+  runMain(() => main());
 }

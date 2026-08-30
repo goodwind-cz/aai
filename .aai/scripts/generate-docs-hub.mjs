@@ -40,6 +40,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
 const SKILLS_DIR = '.claude/skills';
@@ -52,13 +53,13 @@ function parseArgs(argv) {
     if (tok === '--data-only') { args.dataOnly = true; continue; }
     if (tok === '-h' || tok === '--help') {
       console.log('Usage: generate-docs-hub.mjs [--output <html path>] [--data-only]');
-      process.exit(0);
+      exit(0);
     }
     // The wrapper prompt promises exit 2 + nothing written on a typo'd flag
     // (review PR #180) — silent fall-through would run a full generation.
     console.error(`unknown flag: ${tok}`);
     console.error('Usage: generate-docs-hub.mjs [--output <html path>] [--data-only]');
-    process.exit(2);
+    exit(2);
   }
   return args;
 }
@@ -251,4 +252,4 @@ function main() {
   console.log(`- docs/skill-catalog-data.json`);
 }
 
-main();
+runMain(() => main());

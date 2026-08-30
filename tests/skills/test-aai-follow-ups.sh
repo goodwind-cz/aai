@@ -1344,20 +1344,33 @@ test_021_early_close_is_not_a_failure() {
   # such treatment: with stderr merged into the same pipe and the reader gone
   # BEFORE the write, an unhandled EPIPE is an uncaught exception and the
   # process exits 1 — silently replacing the usage code a caller reads.
-  # MEASURED both ways: 2 with the guard, 1 without it, six runs each.
-  # The reader is the shell builtin `true`, which is gone microseconds after
-  # the fork and long before node has booted, so the close always wins the
-  # race; a node-based reader does not, and made this arm flaky.
-  local ecf="$TEST_DIR/.t021ec"
-  rm -f "$ecf"
-  run_bounded 20 "{ node $(printf '%q' "$FU") bogus 2>&1 ; echo \$? > $(printf '%q' "$ecf") ; } | true"
+  #
+  # PRECONDITION, ASSERTED (not raced): an earlier version of this arm used
+  # `| true` and only HOPED the reader closed before the write — code review
+  # (fu-test021c-precondition-unasserted) measured that this arm reached the
+  # SAME observable (exit 2) 10-of-10 runs whether or not installPipeGuard was
+  # even present, i.e. it never actually proved the reader was gone first. The
+  # fix: the reader here is a genuine background job reading a FIFO; the
+  # writer keeps its OWN fd (4) open on that FIFO across the reader's exit,
+  # and `wait` on the reader's pid blocks until the kernel has REAPED it
+  # (which closes every fd it held) before fd 4 is ever written to — so by
+  # the time node runs, "reader gone" is a fact this arm has confirmed, not a
+  # timing hope. The precondition is asserted BELOW, before the exit-code
+  # assertion even looks at what node did.
+  local fifo="$TEST_DIR/.t021c.fifo" ecf="$TEST_DIR/.t021ec" precf="$TEST_DIR/.t021precond"
+  rm -f "$fifo" "$ecf" "$precf"
+  run_bounded 20 "mkfifo $(printf '%q' "$fifo"); : < $(printf '%q' "$fifo") & readerpid=\$!; exec 4> $(printf '%q' "$fifo"); wait \"\$readerpid\"; if kill -0 \"\$readerpid\" 2>/dev/null; then echo alive > $(printf '%q' "$precf"); else echo dead > $(printf '%q' "$precf"); fi; node $(printf '%q' "$FU") bogus 1>&4 2>&4; echo \$? > $(printf '%q' "$ecf"); exec 4>&-"
   [[ "$BOUNDED_EC" == 0 ]] || log_fail "the closed-pipe usage-error run must finish inside the bound (BOUNDED_EC=$BOUNDED_EC)"
+  [[ -f "$precf" ]] || log_fail "the reader-closed precondition was never recorded — the fifo setup did not run to completion"
+  local precond; precond="$(cat "$precf")"
+  [[ "$precond" == "dead" ]] \
+    || log_fail "TEST-021c PRECONDITION FAILED: the reader must be confirmed exited (wait + kill -0) before node ever writes — this arm proves nothing about EPIPE-before-write otherwise, got \"$precond\""
   [[ -f "$ecf" ]] || log_fail "the writer's exit code was never recorded — the write end did not run to completion"
   local closed_ec; closed_ec="$(cat "$ecf")"
   [[ "$closed_ec" == 2 ]] \
-    || log_fail "a usage error whose output pipe was closed BEFORE the write must still exit 2 (an unhandled EPIPE reports 1), got $closed_ec"
+    || log_fail "a usage error whose output pipe's reader was CONFIRMED gone before the write must still exit 2 (an unhandled EPIPE reports 1), got $closed_ec"
 
-  log_pass "an early-closing reader (head -n 1) leaves the writer at exit 0 with an empty stderr on both branches, the first line still arrives, and a usage error into an already-closed pipe still exits 2 rather than 1 (TEST-021)"
+  log_pass "an early-closing reader (head -n 1) leaves the writer at exit 0 with an empty stderr on both branches, the first line still arrives, and a usage error into a fifo whose reader is CONFIRMED gone before the write still exits 2 rather than 1 (TEST-021)"
 }
 
 # ==================== TEST-022 (cli-output-survives-a-pipe Spec-AC-05) ======

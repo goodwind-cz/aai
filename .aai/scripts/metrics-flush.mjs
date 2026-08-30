@@ -119,6 +119,7 @@ import { USAGE_NOTE_RE } from './lib/usage-note.mjs';
 // which THIS script overwrites on every reset — so before the reset it is
 // copied into the LEDGER, the only durable home the factory report can read.
 import { readValidationBlock, parseWaiver, refMatchesScope, formatWaiver } from './validation-waiver.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 setEngineFailPrefix('metrics-flush');
 
@@ -134,7 +135,7 @@ const PROTECTED = new Set(['METRICS.jsonl', 'decisions.jsonl', 'STATE.yaml', 'pu
 
 function fail(msg, code = 2) {
   console.error(`metrics-flush: ${msg}`);
-  process.exit(code);
+  exit(code);
 }
 
 // git user.email -> a sanitized actor slug, mirroring append-event.mjs's own
@@ -735,7 +736,7 @@ function handleRetire(ctx) {
       would_remove_from_state: true,
       event,
     }, null, 2));
-    process.exit(0);
+    exit(0);
   }
 
   // 5) Mutate a COPY of origLines via the EXISTING surgical helper (drops the
@@ -772,7 +773,7 @@ function handleRetire(ctx) {
 
   console.log(`Retired: ${ref} -> ${path.relative(process.cwd(), eventsPath)} (metric_retired)`);
   console.log(`check-state: OK (${path.relative(process.cwd(), statePath)})`);
-  process.exit(0);
+  exit(0);
 }
 
 // --- R-GUARD flush-time forensic backstop (S2/3, SPEC-0113) ----------------------------
@@ -928,7 +929,7 @@ function main() {
       ref: opts.retire, reason: opts.reason, entries, vStatus, vRef,
       eventsPath, statePath, origLines, trailingNewline, raw, nowIsoStr, opts,
     });
-    return; // unreached — handleRetire always process.exit()s.
+    return; // unreached — handleRetire always exit()s.
   }
 
   const skipped = {};
@@ -1062,13 +1063,13 @@ function main() {
       cleanup_planned: fullReset,
     };
     console.log(JSON.stringify(plan, null, 2));
-    process.exit(0);
+    exit(0);
   }
 
   if (completedRefs.length === 0) {
     for (const [ref, why] of Object.entries(skipped)) console.log(`SKIP ${ref}: ${why}`);
     console.log('Nothing to flush.');
-    process.exit(0);
+    exit(0);
   }
 
   // 1) LEDGER FIRST (durable history lives in the ledger, never in STATE).
@@ -1112,7 +1113,7 @@ function main() {
   for (const l of report) console.log(l);
   console.log(`check-state: OK (${path.relative(process.cwd(), statePath)})`);
   regenerateOverviewBestEffort();
-  process.exit(0);
+  exit(0);
 }
 
-main();
+runMain(() => main());

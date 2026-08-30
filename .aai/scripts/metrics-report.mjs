@@ -26,10 +26,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadPricing, runCostUsd } from './lib/pricing.mjs';
 import { extractUsageTotal } from './lib/usage-note.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 function fail(msg, code = 2) {
   console.error(`metrics-report: ${msg}`);
-  process.exit(code);
+  exit(code);
 }
 
 function parseArgs(argv) {
@@ -92,7 +93,7 @@ function main() {
   const pricingPath = path.resolve(process.cwd(), opts.pricing);
   if (!fs.existsSync(metricsPath)) {
     console.log('No metrics recorded yet.');
-    process.exit(0);
+    exit(0);
   }
   const pricing = loadPricing(pricingPath);
   const entries = [];
@@ -108,7 +109,7 @@ function main() {
   }
   if (entries.length === 0) {
     console.log('No metrics recorded yet.');
-    process.exit(0);
+    exit(0);
   }
 
   // Resolve each run's effective cost ONCE (ledger value, else pricing fill
@@ -244,7 +245,7 @@ function main() {
     out.push('');
   }
   console.log(out.join('\n'));
-  process.exit(0);
+  exit(0);
 }
 
-main();
+runMain(() => main());

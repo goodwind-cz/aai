@@ -50,6 +50,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const SELF_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = resolve(SELF_DIR, '..', '..');
@@ -344,19 +345,19 @@ function main() {
         diff_surface: { count: surface.count, classes: surface.classes, ok: surface.ok, detail: surface.detail },
       },
     }, null, 2));
-    process.exit(0);
+    exit(0);
   }
 
   console.log(fast ? 'LANE fast' : `LANE heavy reason=${reason}`);
   for (const l of lines) console.log(l);
-  process.exit(0);
+  exit(0);
 }
 
-try {
-  main();
-} catch (err) {
-  // Any unexpected internal error -> HEAVY, exit 0 (never fail the ceremony).
-  console.log('LANE heavy reason=internal-error');
-  console.log(`internal_error=${String((err && err.message) || err).slice(0, 160)}`);
-  process.exit(0);
-}
+runMain(() => main(), {
+  onError(err) {
+    // Any unexpected internal error -> HEAVY, exit 0 (never fail the ceremony).
+    console.log('LANE heavy reason=internal-error');
+    console.log(`internal_error=${String((err && err.message) || err).slice(0, 160)}`);
+    process.exitCode = 0;
+  },
+});

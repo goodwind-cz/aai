@@ -102,6 +102,48 @@
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
+// --- exit discipline (cli-exit-truncates-pipe-sweep) ------------------------
+// INLINED, not imported from ./lib/cli-pipe-guard.mjs: this checker's own
+// TEST-006 pins it to node: imports ONLY (zero project-file dependencies, so
+// it still runs under `env -i` from any cwd) — a deliberate trust-boundary
+// contract for a script that other checks may spawn standalone. Keep this
+// block byte-for-byte in sync with lib/cli-pipe-guard.mjs's exit()/runMain().
+class ExitSignal extends Error {
+  constructor(code) {
+    super(`exit ${code}`);
+    this.name = 'ExitSignal';
+    this.code = code;
+  }
+}
+
+function exit(code) {
+  throw new ExitSignal(code);
+}
+
+function installPipeGuard(stream) {
+  stream.on('error', (err) => {
+    const code = err && err.code;
+    if (code === 'EPIPE' || code === 'ERR_STREAM_DESTROYED') {
+      process.exit(typeof process.exitCode === 'number' ? process.exitCode : 0);
+    }
+    throw err;
+  });
+}
+
+function runMain(mainFn) {
+  installPipeGuard(process.stdout);
+  installPipeGuard(process.stderr);
+  try {
+    mainFn();
+  } catch (err) {
+    if (err instanceof ExitSignal) {
+      process.exitCode = err.code;
+      return;
+    }
+    throw err;
+  }
+}
+
 const REQUIRED_FIELDS = [
   'scope',
   'role',
@@ -138,7 +180,7 @@ function usageError(msg) {
     + '  gates (R04 no code written, R09 no worktree created); they are no-ops\n'
     + '  for every other role.\n'
   );
-  process.exit(1);
+  exit(1);
 }
 
 function parseArgs(argv) {
@@ -577,23 +619,23 @@ function main() {
   const candidate = extractLastResultBlock(text);
   if (!candidate) {
     console.log('ROLE-OUTPUT-VIOLATION: E-NO-BLOCK no parseable subagent_result YAML fence found');
-    process.exit(1);
+    exit(1);
   }
 
   const parsed = parseSubagentResultBlock(candidate);
   if (!parsed) {
     console.log('ROLE-OUTPUT-VIOLATION: E-NO-BLOCK subagent_result fence body is unparseable');
-    process.exit(1);
+    exit(1);
   }
 
   const violations = validateResult(parsed, nowMs);
   violations.push(...planningGateViolations(parsed, { baseRef, worktreeBaseline, worktreeGuard }));
-  if (violations.length === 0) process.exit(0);
+  if (violations.length === 0) exit(0);
 
   for (const [code, detail] of violations) {
     console.log(`ROLE-OUTPUT-VIOLATION: ${code} ${detail}`);
   }
-  process.exit(1);
+  exit(1);
 }
 
-main();
+runMain(() => main());

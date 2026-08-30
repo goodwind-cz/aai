@@ -28,6 +28,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const DEFAULT_TTL = 1800; // seconds (30 min) — SPEC-0004 D3
 const LOCKS_DIR = process.env.AAI_LOCK_DIR
@@ -49,7 +50,7 @@ function sleepMs(ms) {
 
 function fail(msg, code = 2) {
   console.error(`docs-lock: ${msg}`);
-  process.exit(code);
+  exit(code);
 }
 
 function usage() {
@@ -334,7 +335,7 @@ function main() {
   const sub = process.argv[2];
   if (!sub || sub === '-h' || sub === '--help') {
     usage();
-    process.exit(2);
+    exit(2);
   }
   const opts = parseArgs(process.argv, 3);
   switch (sub) {
@@ -348,4 +349,4 @@ function main() {
   }
 }
 
-main();
+runMain(() => main());

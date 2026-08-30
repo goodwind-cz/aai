@@ -129,6 +129,7 @@ import { extractUsageTotal, hasUsageSentinel, isHarnessDispatchedRole } from './
 import { unresolvedCitations } from './lib/evidence-paths.mjs';
 import { loadState, findBlock, readScalar, unquoteScalar } from './lib/state-engine.mjs';
 import { duplicateKeys, splitLines } from './lib/state-core.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -153,7 +154,7 @@ function usageError(msg) {
     'usage: node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N> --commit <sha> ' +
       '[--spec <spec-slug>] [--review <pass|waived|none>] [--dry-run]\n'
   );
-  process.exit(2);
+  exit(2);
 }
 
 function parseArgs(argv) {
@@ -570,7 +571,7 @@ function emitPostMergeCloseWarning(root, commit, pr) {
 // --- self-verify (D6.4) -------------------------------------------------------
 
 // code-review B1 fix-at-cause: THROW on failure instead of calling
-// process.exit() directly. process.exit() is uncatchable — when this ran
+// exit() directly. exit() is uncatchable — when this ran
 // from inside the post-apply selfVerify() (:436), it terminated the process
 // before the enclosing try's catch(err) (:444, which owns rollback()) ever
 // ran, leaving a half-closed doc + appended EVENTS on disk with exit 1
@@ -1135,7 +1136,7 @@ function planStateReconcile(root, resolved, args) {
   }
   // Pre-check duplicate top-level keys OURSELVES before calling the protected
   // loadState(): loadState() refuses via engineFail(), which calls
-  // process.exit() directly and is NOT catchable — invoking it against an
+  // exit() directly and is NOT catchable — invoking it against an
   // already-corrupt STATE would hard-crash this whole close. A STATE defect
   // must never block a verified close (Article 4 / D3), so this precondition
   // is guaranteed before loadState() is ever reached, and its own duplicate-
@@ -1307,7 +1308,7 @@ function main() {
     const r = resolveDoc(ROOT, slug);
     if (!r.found) {
       process.stderr.write(`close-work-item: ${r.reasons.join('; ')}\n`);
-      process.exit(2);
+      exit(2);
     }
     // code-review B3 fix-at-cause: reject a doc with no usable frontmatter
     // "id:" (resolved only via the display-id fallback) BEFORE any write.
@@ -1321,18 +1322,18 @@ function main() {
       process.stderr.write(
         `close-work-item: doc ${r.doc.rel} (${slug}) has no frontmatter "id:" — cannot resolve a stable slug ref for close events; add an "id:" key before closing\n`
       );
-      process.exit(2);
+      exit(2);
     }
     const status = String(r.doc.fm?.status ?? '').toLowerCase();
     if (!status) {
       process.stderr.write(`close-work-item: doc ${r.doc.rel} (${slug}) has no frontmatter status\n`);
-      process.exit(2);
+      exit(2);
     }
     if (status !== 'done' && !FLIP_ELIGIBLE.has(status)) {
       process.stderr.write(
         `close-work-item: doc ${r.doc.rel} (${slug}) has non-done-terminal status "${status}" — refusing to reopen/repurpose\n`
       );
-      process.exit(2);
+      exit(2);
     }
     resolved.push({ slug, ...r.doc, status });
   }
@@ -1347,7 +1348,7 @@ function main() {
   const productDocGate = evaluateProductDocGate(resolved[0]);
   if (!args.dryRun && productDocGate.severity === 'refuse') {
     process.stderr.write(`close-work-item: REFUSED (product-doc gate) — ${productDocGate.reason}\n`);
-    process.exit(3);
+    exit(3);
   }
   if (!args.dryRun && productDocGate.severity === 'warn') {
     process.stderr.write(`close-work-item: WARNING (product-doc gate) — ${productDocGate.reason}\n`);
@@ -1362,7 +1363,7 @@ function main() {
   const usageGate = evaluateUsageCaptureGate(resolved[0].fmId);
   if (!args.dryRun && usageGate.severity === 'refuse') {
     process.stderr.write(`close-work-item: REFUSED (usage-capture gate) — ${usageGate.reason}\n`);
-    process.exit(4);
+    exit(4);
   }
   if (!args.dryRun && usageGate.severity === 'warn') {
     process.stderr.write(`close-work-item: WARNING (usage-capture gate) — ${usageGate.reason}\n`);
@@ -1378,7 +1379,7 @@ function main() {
   const evidenceGate = evaluateEvidencePathGate(resolved, evidenceRoot);
   if (!args.dryRun && evidenceGate.severity === 'refuse') {
     process.stderr.write(`close-work-item: REFUSED (evidence-path gate) — ${evidenceGate.reason}\n`);
-    process.exit(5);
+    exit(5);
   }
   if (!args.dryRun && evidenceGate.severity === 'warn') {
     process.stderr.write(`close-work-item: WARNING (evidence-path gate) — ${evidenceGate.reason}\n`);
@@ -1451,7 +1452,7 @@ function main() {
       null,
       2
     ));
-    process.exit(0);
+    exit(0);
   }
 
   const refs = plan.map((p) => p.fmId);
@@ -1464,13 +1465,13 @@ function main() {
     if (problems.length > 0) {
       process.stderr.write('close-work-item: already-closed state failed self-verify (no write made this run):\n');
       for (const p of problems) process.stderr.write(`  - ${p}\n`);
-      process.exit(1);
+      exit(1);
     }
     console.log(`close-work-item: nothing to do (already closed) for ${refs.join(', ')}`);
     // statePlan.severity can be 'none', 'skip', OR 'apply' here — this tail
     // runs the reconcile itself (Spec-AC-02), so a stale-STATE-only repo
     // still self-recovers without ever routing through the write path above.
-    process.exit(runStateReconcile(statePlan, evidenceRoot));
+    exit(runStateReconcile(statePlan, evidenceRoot));
   }
 
   // D6.1 — SNAPSHOT before any write. The product doc (when planned) joins
@@ -1514,7 +1515,7 @@ function main() {
       }
       process.stderr.write('close-work-item: post-close audit not CLEAN — rolled back. Findings:\n');
       for (const p of problems) process.stderr.write(`  - ${p}\n`);
-      process.exit(1);
+      exit(1);
     }
   } catch (err) {
     rollback(snapshot, eventsSnapshotLen);
@@ -1524,7 +1525,7 @@ function main() {
       /* best-effort revert of the INDEX; the doc/EVENTS rollback above is what matters */
     }
     process.stderr.write(`close-work-item: internal error — rolled back (${err.message})\n`);
-    process.exit(1);
+    exit(1);
   }
 
   const pruned = pruneBriefs(plan);
@@ -1546,12 +1547,12 @@ function main() {
   // try/catch above has proved the close CLEAN: OUTSIDE that block's rollback
   // scope by construction. Never affects the doc/event transaction; only its
   // own 0/6 tail.
-  process.exit(runStateReconcile(statePlan, evidenceRoot));
+  exit(runStateReconcile(statePlan, evidenceRoot));
 }
 
-try {
-  main();
-} catch (err) {
-  process.stderr.write(`close-work-item: internal error (${err.message})\n`);
-  process.exit(1);
-}
+runMain(() => main(), {
+  onError(err) {
+    process.stderr.write(`close-work-item: internal error (${err.message})\n`);
+    process.exitCode = 1;
+  },
+});

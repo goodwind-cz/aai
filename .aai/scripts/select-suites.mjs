@@ -48,6 +48,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { exit, runMain, ExitSignal } from './lib/cli-pipe-guard.mjs';
 
 const SELF_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = resolve(SELF_DIR, '..', '..');
@@ -70,7 +71,7 @@ function parseArgs(argv) {
 
 function fullRun(reason, path) {
   console.log(`FULL_RUN reason=${reason} path=${path}`);
-  process.exit(0);
+  exit(0);
 }
 
 // ---- minimal glob matcher (zero deps): '**' = any chars incl. '/', '*' =
@@ -306,8 +307,13 @@ function main() {
   console.log(`DROPPED ${dropped}`);
 }
 
-try {
-  main();
-} catch (err) {
-  fullRun('internal-error', String((err && err.message) || err).slice(0, 200));
-}
+runMain(() => main(), {
+  onError(err) {
+    try {
+      fullRun('internal-error', String((err && err.message) || err).slice(0, 200));
+    } catch (e) {
+      if (e instanceof ExitSignal) { process.exitCode = e.code; return; }
+      throw e;
+    }
+  },
+});

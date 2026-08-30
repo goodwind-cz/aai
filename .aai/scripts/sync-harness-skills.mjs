@@ -41,6 +41,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = path.resolve(SELF_DIR, '..', '..');
@@ -48,30 +49,11 @@ const DEFAULT_REPO_ROOT = path.resolve(SELF_DIR, '..', '..');
 const SOURCE_TREE = '.claude/skills';
 const REQUIRED_MIRROR_TREES = ['.agents/skills', '.codex/skills', '.gemini/skills'];
 
-// --- exit discipline (cli-output-survives-a-pipe: throw, never process.exit
-// directly, so queued stdout drains before the process ends) -----------------
-
-class ExitSignal extends Error {
-  constructor(code) {
-    super(`exit ${code}`);
-    this.name = 'ExitSignal';
-    this.code = code;
-  }
-}
-
-function exit(code) {
-  throw new ExitSignal(code);
-}
-
-function installPipeGuard(stream) {
-  stream.on('error', (err) => {
-    const code = err && err.code;
-    if (code === 'EPIPE' || code === 'ERR_STREAM_DESTROYED') {
-      process.exit(typeof process.exitCode === 'number' ? process.exitCode : 0);
-    }
-    throw err;
-  });
-}
+// --- exit discipline -----------------------------------------------------
+// exit()/runMain() now come from ./lib/cli-pipe-guard.mjs (originally
+// hand-rolled here and in follow-ups.mjs; cli-exit-truncates-pipe-sweep
+// extracted both into one shared module: throw instead of calling
+// `process.exit` directly, so queued stdout drains before the process ends).
 
 class ManifestError extends Error {}
 
@@ -548,19 +530,9 @@ function main(argv) {
   exit(0);
 }
 
-function runMain() {
-  installPipeGuard(process.stdout);
-  installPipeGuard(process.stderr);
-  try {
-    main(process.argv.slice(2));
-  } catch (err) {
-    if (err instanceof ExitSignal) {
-      process.exitCode = err.code;
-      return;
-    }
+runMain(() => main(process.argv.slice(2)), {
+  onError(err) {
     process.stderr.write(`sync-harness-skills: unexpected error: ${err && err.stack ? err.stack : err}\n`);
     process.exitCode = 2;
-  }
-}
-
-runMain();
+  },
+});
