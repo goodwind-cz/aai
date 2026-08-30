@@ -21,6 +21,9 @@ set -euo pipefail
 
 TEST_NAME="aai-layer-drift"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DRIFT_SCRIPT="$PROJECT_ROOT/.aai/scripts/layer-drift.mjs"
 SYNC_SH="$PROJECT_ROOT/.aai/scripts/aai-sync.sh"
@@ -134,9 +137,9 @@ test_behind_local() {
   out="$(rundrift --pin "$pin" 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 3 ]] || log_fail "behind pin must exit 3 (got $rc): $out"
-  echo "$out" | grep -q "BEHIND" || log_fail "expected BEHIND line, got: $out"
-  echo "$out" | grep -q "2 commit" || log_fail "expected distance '2 commit(s)', got: $out"
-  echo "$out" | grep -q "/aai-update" || log_fail "expected /aai-update remedy, got: $out"
+  assert_payload_contains "$out" "BEHIND" "expected BEHIND line, got: $out"
+  assert_payload_contains "$out" "2 commit" "expected distance '2 commit(s)', got: $out"
+  assert_payload_contains "$out" "/aai-update" "expected /aai-update remedy, got: $out"
   log_pass "TEST-003 BEHIND by N with remedy (local tier)"
 }
 
@@ -160,7 +163,7 @@ test_lsremote_tier() {
   set -e
   [[ "$rc2" -eq 3 ]] || log_fail "differing pin via file:// must exit 3 (got $rc2): $out2"
   echo "$out2" | grep -qi "unknown distance" || log_fail "expected 'unknown distance', got: $out2"
-  echo "$out2" | grep -q "/aai-update" || log_fail "expected /aai-update remedy, got: $out2"
+  assert_payload_contains "$out2" "/aai-update" "expected /aai-update remedy, got: $out2"
   log_pass "TEST-004b drift with unknown distance (ls-remote tier)"
 }
 
@@ -220,7 +223,7 @@ test_source_path_fallback() {
   out="$(rundrift --pin "$pin" 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 3 ]] || log_fail "source-path fallback must compute drift, exit 3 (got $rc): $out"
-  echo "$out" | grep -q "2 commit" || log_fail "source-path fallback must compute real distance, got: $out"
+  assert_payload_contains "$out" "2 commit" "source-path fallback must compute real distance, got: $out"
   log_pass "TEST-008 Source path fallback (backward-tolerant pin)"
 }
 

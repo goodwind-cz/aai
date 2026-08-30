@@ -27,6 +27,9 @@ set -euo pipefail
 
 TEST_NAME="aai-suite-select"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SELECTOR="${SELECT_SUITES_SCRIPT:-$PROJECT_ROOT/.aai/scripts/select-suites.mjs}"
 WORKFLOW_FILE="$PROJECT_ROOT/.github/workflows/skill-suite.yml"
@@ -154,8 +157,7 @@ test_005_unmapped_fail_open() {  # Spec-AC-02
   small_map "$TEST_DIR"
   run_sel "$TEST_DIR" "totally/unmapped/file.txt"
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qF 'FULL_RUN reason=unmapped path=totally/unmapped/file.txt' \
-    || log_fail "expected FULL_RUN reason=unmapped naming the path: $OUT"
+  assert_payload_contains "$OUT" "FULL_RUN reason=unmapped path=totally/unmapped/file.txt" "expected FULL_RUN reason=unmapped naming the path: $OUT"
   log_pass "Unmapped path fail-open (TEST-005)"
 }
 
@@ -165,8 +167,7 @@ test_006_shared_lib_fail_open() {  # Spec-AC-02
   small_map "$TEST_DIR"
   run_sel "$TEST_DIR" ".aai/scripts/lib/some-shared.mjs"
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qF 'FULL_RUN reason=shared-lib path=.aai/scripts/lib/some-shared.mjs' \
-    || log_fail "expected FULL_RUN reason=shared-lib naming the path: $OUT"
+  assert_payload_contains "$OUT" "FULL_RUN reason=shared-lib path=.aai/scripts/lib/some-shared.mjs" "expected FULL_RUN reason=shared-lib naming the path: $OUT"
   log_pass "Shared-lib fail-open (TEST-006)"
 }
 
@@ -183,8 +184,7 @@ protected_paths_l3:
 YAML
   run_sel "$TEST_DIR" "docs/CONSTITUTION.md"
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qF 'FULL_RUN reason=protected-l3 path=docs/CONSTITUTION.md' \
-    || log_fail "expected FULL_RUN reason=protected-l3 naming the path: $OUT"
+  assert_payload_contains "$OUT" "FULL_RUN reason=protected-l3 path=docs/CONSTITUTION.md" "expected FULL_RUN reason=protected-l3 naming the path: $OUT"
   log_pass "Protected-L3 fail-open reads the live docs-audit.yaml list (TEST-007)"
 }
 
@@ -202,8 +202,7 @@ YAML
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0, got $CODE: $OUT"
   echo "$OUT" | grep -qE 'reason=protected-l3' && log_fail "near-miss must not trip protected-l3 (exact match only): $OUT"
   echo "$OUT" | grep -qE 'reason=shared-lib' && log_fail "near-miss must not trip shared-lib (not under .aai/scripts/lib/): $OUT"
-  echo "$OUT" | grep -qF 'FULL_RUN reason=unmapped path=.aai/scripts/state.mjs.bak' \
-    || log_fail "near-miss falls through to plain unmapped, not a fail-open trigger misfire: $OUT"
+  assert_payload_contains "$OUT" "FULL_RUN reason=unmapped path=.aai/scripts/state.mjs.bak" "near-miss falls through to plain unmapped, not a fail-open trigger misfire: $OUT"
   log_pass "Negative control: near-miss path takes the unmapped path, not L3/shared-lib (TEST-008)"
 }
 
@@ -220,8 +219,7 @@ test_009_whole_diff_scanned_before_output() {  # Spec-AC-02 (fixture diversity: 
   local lines
   lines="$(echo "$OUT" | grep -c . || true)"
   [[ "$lines" -eq 1 ]] || log_fail "FULL_RUN must be the ONLY output line, got $lines: $OUT"
-  echo "$OUT" | grep -qF 'FULL_RUN reason=unmapped path=nowhere/mapped.txt' \
-    || log_fail "expected FULL_RUN naming the unmapped path: $OUT"
+  assert_payload_contains "$OUT" "FULL_RUN reason=unmapped path=nowhere/mapped.txt" "expected FULL_RUN naming the unmapped path: $OUT"
   log_pass "Mid-diff unmapped path suppresses partial selection output (TEST-009)"
 }
 

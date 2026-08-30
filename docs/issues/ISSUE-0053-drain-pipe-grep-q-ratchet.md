@@ -2,7 +2,12 @@
 id: drain-pipe-grep-q-ratchet
 type: issue
 number: 53
-status: draft
+status: done
+links:
+  commits:
+    - 561ab40
+  pr:
+    - 315
 ---
 
 # P2 backlog cluster: assertions-must-not-die-on-their-own-payload (5 items)

@@ -61,6 +61,52 @@ protected L3 surface is touched (`state.mjs`/`lib/state-engine.mjs`/
   `main` while an open PR touches the same generated file — that gap still
   stands as filed and belongs to a separate, larger ride about orchestrator
   push discipline.
+## [unreleased] — fix(tests): drain 187 pipe-into-grep-q sites and close the argstrlen/SIGPIPE cluster [L2]
+
+Ceremony justification: touches 27 `tests/skills/*.sh` files plus a shared
+generated baseline; no CI selection mechanism change was needed (the
+selection fix already shipped) and no protected-surface or engine change.
+
+- **`fu-drain-pipe-grep-q-ratchet` (P2, partial):** converted 187 of the 389
+  baselined `printf|echo "$var" | grep -q... "needle"` sites (175 by an
+  automated, per-site-verified transform plus 12 hand-reviewed edge cases —
+  `if`-wrapped forms and command-substitution payloads) to the pipe-free
+  `assert_payload_contains`/`assert_payload_not_contains` helpers
+  (`tests/skills/lib/assert-payload.sh`), across 27 files; 7 files
+  (`test-aai-role-output.sh`, `test-aai-constitution.sh`,
+  `test-aai-docs-hub.sh`, `test-aai-feedback-triage.sh`,
+  `test-aai-overview.sh`, `test-aai-prune-stale-briefs.sh`,
+  `test-aai-worktree.sh`) are now fully drained (0 occurrences).
+  `tests/skills/lib/pipe-grep-q-baseline.tsv` re-recorded at 202
+  occurrences across 31 files. The remaining 202 are deliberately
+  UNCONVERTED because the helper library only does case-sensitive fixed-
+  string containment: `grep -qi` (case-insensitive), `grep -qE`/anchored
+  `^...$` (real regex/exact-line semantics), and `grep -qx` sites would
+  change what the assertion checks if swapped in as-is — draining them
+  needs either a library extension or per-site regex analysis, out of
+  scope for this ride. Left open; see the issue for the residual-scope note.
+- **`fu-ceremony-levels-nearest-miss-30kb` (P2, done):** the three
+  `test-aai-ceremony-levels.sh` TEST-019 sites (the largest real payload in
+  the framework, 30048 B) converted to `assert_payload_contains`, verified
+  against the real on-disk `*validation-cost-calibration.md` spec.
+- **`fu-ratchet-not-selected-on-rise` (P2, done, no new code):** already
+  fixed by commit `5a30648` ("a ratchet must run on the change it exists to
+  catch"), which promoted `aai-hygiene-pack` to `core:` in
+  `tests/skills/suite-map.yaml` — landed before this backlog was filed.
+  Reproduced the pre-fix miss against that commit's parent
+  (`select-suites.mjs --files-from` a single changed suite file dropped
+  `aai-hygiene-pack` among 77 others) and confirmed the current tree selects
+  it as CORE for the same input.
+- **`fu-fixture-arg-exceeds-linux-argstrlen` (P2, done, no new code):**
+  searched the repo for any oversize (>128 KB) payload passed as a single
+  argv entry; found none beyond the already-fixed `test_100(c)` in
+  `test-aai-hygiene-pack.sh` (which reads the payload from a file via
+  `--payload-file`).
+- **`fu-sigpipe-code-differs-by-platform` (P2, done, no new code):** the one
+  arm in the repo that pins a SIGPIPE-class exit code (`test_101` CONTROL A
+  in `test-aai-hygiene-pack.sh`) already accepts both 141 and 1 and already
+  runs a small-payload CONTROL B first to keep the two failure modes
+  distinguishable; no other exit-141 assertion exists in the tree.
 
 ## [unreleased] — fix(hygiene): a hygiene-pack check catches a leaked cd inside a command substitution [L1]
 

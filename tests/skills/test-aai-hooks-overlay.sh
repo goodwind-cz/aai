@@ -23,6 +23,9 @@ set -uo pipefail
 
 TEST_NAME="aai-hooks-overlay"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
@@ -206,8 +209,7 @@ test_005_commit_gate() {
   local err
   err=$(payload_for "git commit -m 'x'" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" bash "$PROJECT_ROOT/$ADAPTER" commit 2>&1 >/dev/null)); rc=$?
   [[ "$rc" -eq 2 ]] || { log_info "TEST-005: commit w/ failing checks exited $rc (want 2)"; ok=0; }
-  printf '%s' "$err" | grep -q "pre-commit" \
-    || { log_info "TEST-005: block reason does not name the pre-commit gate: $err"; ok=0; }
+  assert_payload_contains "$err" "pre-commit" "TEST-005: block reason does not name the pre-commit gate: $err" || ok=0
   # git commit embedded after && also matches.
   rc=$(run_gate "$d" commit "git add x && git commit -m 'x'")
   [[ "$rc" -eq 2 ]] || { log_info "TEST-005: compound commit exited $rc (want 2)"; ok=0; }
@@ -222,8 +224,7 @@ test_006_merge_gate() {
   d="$(new_fixture)"
   err=$(payload_for "git merge feature-x" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" env -u AAI_OPERATOR_MERGE bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
   [[ "$rc" -eq 2 ]] || { log_info "TEST-006: git merge exited $rc (want 2)"; ok=0; }
-  printf '%s' "$err" | grep -q "AAI_OPERATOR_MERGE" \
-    || { log_info "TEST-006: deny message does not name the AAI_OPERATOR_MERGE escape"; ok=0; }
+  assert_payload_contains "$err" "AAI_OPERATOR_MERGE" "TEST-006: deny message does not name the AAI_OPERATOR_MERGE escape" || ok=0
   printf '%s' "$err" | grep -qi "article 7\|operator-only" \
     || { log_info "TEST-006: deny message does not cite article 7 / operator-only"; ok=0; }
   payload_for "gh pr merge 42 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" env -u AAI_OPERATOR_MERGE bash "$PROJECT_ROOT/$ADAPTER" merge >/dev/null 2>&1); rc=$?
@@ -251,8 +252,7 @@ test_007_state_dump_gate() {
   err=$(payload_for "python3 -c 'import yaml; yaml.dump(d, open(\"docs/ai/STATE.yaml\",\"w\"))'" \
     | (cd "$d" && CLAUDE_PROJECT_DIR="$d" bash "$PROJECT_ROOT/$ADAPTER" state-dump 2>&1 >/dev/null)); rc=$?
   [[ "$rc" -eq 2 ]] || { log_info "TEST-007: yaml.dump on STATE.yaml exited $rc (want 2)"; ok=0; }
-  printf '%s' "$err" | grep -q "state.mjs" \
-    || { log_info "TEST-007: deny message does not point at state.mjs"; ok=0; }
+  assert_payload_contains "$err" "state.mjs" "TEST-007: deny message does not point at state.mjs" || ok=0
   rc=$(run_gate "$d" state-dump "python3 -c 'import yaml; yaml.safe_dump(d, open(\"docs/ai/STATE.yaml\",\"w\"))'")
   [[ "$rc" -eq 2 ]] || { log_info "TEST-007: safe_dump on STATE.yaml exited $rc (want 2)"; ok=0; }
   rc=$(run_gate "$d" state-dump "python3 -c 'import yaml; yaml.dump(d, open(\"other.yaml\",\"w\"))'")

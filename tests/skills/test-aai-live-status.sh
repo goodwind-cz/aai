@@ -30,6 +30,9 @@ set -euo pipefail
 TEST_NAME="aai-live-status"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 GEN="$PROJECT_ROOT/.aai/scripts/generate-live-status.mjs"
 SPOOL="$PROJECT_ROOT/.aai/scripts/live-spool.sh"
@@ -187,7 +190,7 @@ test_006_registry_refuses_malformed_entry() {
     });
   ' "$REGISTRY" 2>&1)"
   [[ "$msg" == THROW:* ]] || log_fail "expected a thrown named error, got: $msg"
-  echo "$msg" | grep -q "accumulation" || log_fail "error must name the missing field (accumulation): $msg"
+  assert_payload_contains "$msg" "accumulation" "error must name the missing field (accumulation): $msg"
   log_pass "TEST-006: malformed registry entry refused with a named error: $msg"
 }
 
@@ -313,7 +316,7 @@ test_012_quotas_skip_no_tap() {
   [[ "$(node_get "$DATA" 'm.quotas.source')" == "null" ]] || log_fail "quotas source must be null when no tap/session data exists"
   [[ "$(node_get "$DATA" 'typeof m.quotas.skip')" == "object" ]] || log_fail "quotas.skip must be present"
   echo "$(node_get "$DATA" 'm.quotas.skip.reason')" | grep -qi "spool" || log_fail "skip reason must name the absent spool"
-  echo "$(node_get "$DATA" 'm.quotas.skip.install')" | grep -q "live-spool.sh" || log_fail "skip install hint must name live-spool.sh"
+  assert_payload_contains "$(node_get "$DATA" 'm.quotas.skip.install')" "live-spool.sh" "skip install hint must name live-spool.sh"
   # Isolate the quotas section of the page and assert it carries no % figure.
   local quotasSection
   quotasSection="$(node -e '
@@ -321,8 +324,8 @@ test_012_quotas_skip_no_tap() {
     const s=h.indexOf("Official quotas"); const e=h.indexOf("Live sessions");
     process.stdout.write(h.slice(s, e>s?e:h.length));
   ' "$HTML")"
-  echo "$quotasSection" | grep -q "SKIP" || log_fail "quotas section must render the word SKIP"
-  if echo "$quotasSection" | grep -q "%"; then log_fail "quotas section must render no percentage figure when skipped"; fi
+  assert_payload_contains "$quotasSection" "SKIP" "quotas section must render the word SKIP"
+  assert_payload_not_contains "$quotasSection" "%" "quotas section must render no percentage figure when skipped"
   log_pass "TEST-012: quotas SKIP names the absent spool + install command, no percentage figure"
 }
 
@@ -375,7 +378,7 @@ JSONL
   [[ "$(node_get "$DATA" "(m.live_sessions.find(s=>s.sessionId==='s1')||{}).state")" == "finished" ]] || log_fail "s1 must be finished"
   [[ "$(node_get "$DATA" "(m.live_sessions.find(s=>s.sessionId==='s2')||{}).state")" == "waiting-on-approval" ]] || log_fail "s2 must be waiting-on-approval"
   local s3state; s3state="$(node_get "$DATA" "(m.live_sessions.find(s=>s.sessionId==='s3')||{}).state")"
-  echo "$s3state" | grep -q "heuristic" || log_fail "s3 (no spool line) must carry the literal word heuristic, got: $s3state"
+  assert_payload_contains "$s3state" "heuristic" "s3 (no spool line) must carry the literal word heuristic, got: $s3state"
   log_pass "TEST-015: hook-derived finished/waiting-on-approval badges; no-line session carries heuristic"
 }
 
