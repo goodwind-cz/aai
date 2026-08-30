@@ -61,12 +61,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const PREFIX = 'reconcile-telemetry';
 
 function fail(msg, code = 2) {
   console.error(`${PREFIX}: ${msg}`);
-  process.exit(code);
+  exit(code);
 }
 
 function parseArgs(argv) {
@@ -350,27 +351,27 @@ function main() {
       noop,
     };
     console.log(JSON.stringify(plan, null, 2));
-    process.exit(0);
+    exit(0);
   }
 
   if (siblings.length === 0) {
     console.log(`${PREFIX}: inline scope (no sibling worktree) — nothing to carry for ref=${args.ref}`);
-    process.exit(0);
+    exit(0);
   }
   if (totalCarried === 0) {
     console.log(`${PREFIX}: nothing to carry for ref=${args.ref} (checked ${siblings.length} sibling worktree(s))`);
-    process.exit(0);
+    exit(0);
   }
 
   const metricsResult = processFile(rootAbs, args.metrics, metricsSources, args);
   if (!metricsResult.ok) {
     console.error(`${PREFIX}: ${args.metrics} — ${metricsResult.reason} — reverted, source untouched, ceremony STOPPED`);
-    process.exit(1);
+    exit(1);
   }
   const eventsResult = processFile(rootAbs, args.events, eventsSources, args);
   if (!eventsResult.ok) {
     console.error(`${PREFIX}: ${args.events} — ${eventsResult.reason} — reverted, source untouched, ceremony STOPPED`);
-    process.exit(1);
+    exit(1);
   }
 
   const alreadyPresentMetrics = metricsResult.allCarried.length - metricsResult.toAppend.length;
@@ -393,7 +394,7 @@ function main() {
     }
   }
 
-  process.exit(0);
+  exit(0);
 }
 
-main();
+runMain(() => main());

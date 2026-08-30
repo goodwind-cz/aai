@@ -62,6 +62,7 @@
 // Node stdlib only (Technology contract: zero runtime dependencies).
 
 import { readFileSync, existsSync, statSync } from 'node:fs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const RED_CLASS_RE = /^RED_CLASS:[ \t]*(\S+)[ \t]*$/;
 const VALID_VALUES = new Set(['product_red', 'infra_fail']);
@@ -71,7 +72,7 @@ function usageError(msg) {
   process.stderr.write(
     'usage: node .aai/scripts/tdd-evidence-check.mjs --red <path-to-red-log>\n'
   );
-  process.exit(3);
+  exit(3);
 }
 
 function parseArgs(argv) {
@@ -133,22 +134,22 @@ function main() {
     console.log(
       `UNCLASSIFIED: ${redPath} (${matches.length} RED_CLASS line(s) found, exactly 1 required)`
     );
-    process.exit(2);
+    exit(2);
   }
 
   const value = matches[0];
   if (!VALID_VALUES.has(value)) {
     console.log(`UNCLASSIFIED: ${redPath} (unrecognized RED_CLASS value "${value}")`);
-    process.exit(2);
+    exit(2);
   }
 
   if (value === 'infra_fail') {
     console.log(`REJECTED (infra_fail): ${redPath}`);
-    process.exit(1);
+    exit(1);
   }
 
   console.log(`ACCEPTED (product_red): ${redPath}`);
-  process.exit(0);
+  exit(0);
 }
 
-main();
+runMain(() => main());

@@ -549,6 +549,7 @@ test_create_fail_loud_missing_template() {  # TEST-006 / review pin: absent temp
   mkdir -p "$sandbox/.aai/scripts/lib"
   cp "$PROJECT_ROOT/.aai/scripts/check-state.mjs" "$sandbox/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/lib/state-core.mjs" "$sandbox/.aai/scripts/lib/"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$sandbox/.aai/scripts/lib/"
   # deliberately NO .aai/templates/STATE_TEMPLATE.yaml sibling
   local rc=0
   (cd "$sandbox" && node .aai/scripts/check-state.mjs --repair docs/ai/STATE.yaml > "$TEST_DIR/no-template.log" 2>&1) || rc=$?
@@ -564,6 +565,7 @@ test_create_fail_loud_missing_placeholder() {  # TEST-007 / review pin: template
   mkdir -p "$sandbox/.aai/scripts/lib" "$sandbox/.aai/templates"
   cp "$PROJECT_ROOT/.aai/scripts/check-state.mjs" "$sandbox/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/lib/state-core.mjs" "$sandbox/.aai/scripts/lib/"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$sandbox/.aai/scripts/lib/"
   sed '/^updated_at_utc: TEMPLATE_PLACEHOLDER$/d' "$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml" \
     > "$sandbox/.aai/templates/STATE_TEMPLATE.yaml"
   local rc=0

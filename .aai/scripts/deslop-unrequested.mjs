@@ -85,6 +85,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const USAGE = 'Usage: deslop-unrequested.mjs --diff [--base <ref>] [--json] | --all [--json]';
 const NOT_SCANNED_NOTE = 'NOTE: scanned surface is exactly .aai/scripts/**/*.{mjs,sh,ps1} and .aai/system/*.yaml — everything else (.aai/*.prompt.md, .aai/workflow/**, .aai/templates/**, .aai/system/*.md, tests/**, docs/**, agent wrapper trees, anything outside .aai/) is NOT scanned.';
@@ -103,7 +104,7 @@ const REQUIREMENT_TYPES = new Set(REQUIREMENT_TYPE_LIST);
 
 function usageExit() {
   console.error(USAGE);
-  process.exit(2);
+  exit(2);
 }
 
 function parseArgs(argv) {
@@ -1210,9 +1211,13 @@ function renderJson(result) {
 // Entry point
 // ---------------------------------------------------------------------------
 
-const args = parseArgs(process.argv);
-if (!args) usageExit();
+function main() {
+  const args = parseArgs(process.argv);
+  if (!args) usageExit();
 
-const result = args.diff ? scanDiff({ base: args.base }) : scanAll();
-console.log(args.json ? renderJson(result) : renderHuman(result));
-process.exit(0);
+  const result = args.diff ? scanDiff({ base: args.base }) : scanAll();
+  console.log(args.json ? renderJson(result) : renderHuman(result));
+  exit(0);
+}
+
+runMain(() => main());

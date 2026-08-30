@@ -62,13 +62,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classify, extractHost } from './pr-platform.mjs';
 import { loadOrDegrade, atomicWrite } from './lib/runtime-file.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const DEFAULT_SIDECAR = 'docs/ai/hitl-channel.json';
 const WRITE_PERMS = ['admin', 'write', 'maintain'];
 
 function usage(msg) {
   console.error(`hitl-channel: ${msg}`);
-  process.exit(2);
+  exit(2);
 }
 
 // Shallow flag parser: --key value pairs + boolean --json/--dry-run. The first
@@ -152,7 +153,7 @@ function loadSidecarOrDegrade(opts, p) {
   if (sc && sc.corrupt) {
     console.error('HITL-CHANNEL degraded reason=sidecar_corrupt (ledger damaged — not proceeding as empty)');
     if (opts.json) console.log(JSON.stringify({ status: 'degraded', reason: 'sidecar_corrupt' }));
-    process.exit(0);
+    exit(0);
   }
   return sc;
 }
@@ -179,7 +180,7 @@ function ghBinOf(opts) {
 function degradePost(opts, reason) {
   console.error(`HITL-CHANNEL degraded reason=${reason} (falling back to terminal HITL)`);
   if (opts.json) console.log(JSON.stringify({ status: 'degraded', reason }));
-  process.exit(0);
+  exit(0);
 }
 
 function cmdPost(opts) {
@@ -206,7 +207,7 @@ function cmdPost(opts) {
   if (existing) {
     console.error(`HITL-CHANNEL already-posted token=${token} thread=${thread} kind=${kind} comment_id=${existing.comment_id}`);
     if (opts.json) console.log(JSON.stringify({ status: 'already-posted', ...existing }));
-    process.exit(0);
+    exit(0);
   }
 
   // Resolve the body into a file (gh -F body=@file avoids arg-length/escaping).
@@ -221,7 +222,7 @@ function cmdPost(opts) {
 
   if (opts.dryRun) {
     console.log(`HITL-CHANNEL dry-run post token=${token} thread=${thread} kind=${kind}`);
-    process.exit(0);
+    exit(0);
   }
 
   // Post via the GitHub issues comments API (serves PR threads too). gh fills
@@ -272,7 +273,7 @@ function cmdPost(opts) {
 
   console.error(`HITL-CHANNEL posted token=${token} thread=${thread} kind=${kind} comment_id=${commentId}`);
   if (opts.json) console.log(JSON.stringify({ status: 'posted', ...entry }));
-  return process.exit(0);
+  return exit(0);
 }
 
 function selfSet(opts) {
@@ -401,7 +402,7 @@ function cmdPoll(opts) {
         + (r.author ? ` author=${r.author}` : ''));
     }
   }
-  process.exit(0);
+  exit(0);
 }
 
 // resolve — the CONSUMPTION half of the lifecycle (validation RR-resume-no-
@@ -426,7 +427,7 @@ function cmdResolve(opts) {
   const out = { status: n > 0 ? 'resolved' : 'noop', token, entries_resolved: n };
   if (opts.json) console.log(JSON.stringify(out));
   else console.log(`HITL-CHANNEL resolve token=${token} entries_resolved=${n}`);
-  process.exit(0);
+  exit(0);
 }
 
 function main() {
@@ -434,7 +435,7 @@ function main() {
   const sub = opts._[0];
   if (sub === '--help' || !sub) {
     console.log('Usage: node hitl-channel.mjs <post|poll|resolve> [flags] (see file header)');
-    process.exit(sub ? 0 : 2);
+    exit(sub ? 0 : 2);
   }
   if (sub === 'post') return cmdPost(opts);
   if (sub === 'poll') return cmdPoll(opts);
@@ -443,6 +444,6 @@ function main() {
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) main();
+if (isMain) runMain(() => main());
 
 export { sanitizeBody, detectPlatform, loadSidecar, authorPermission, afterPosted };

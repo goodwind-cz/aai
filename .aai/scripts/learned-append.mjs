@@ -75,13 +75,14 @@
 import { readFileSync, writeFileSync, renameSync, existsSync, openSync, closeSync, unlinkSync, statSync, chmodSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const DEFAULT_TARGET = 'docs/knowledge/LEARNED.md';
 const HEADING_RE = /^## (.+?)\s*$/;
 
 function fail(msg, exitCode = 2) {
   console.error(`learned-append: ${msg}`);
-  process.exit(exitCode);
+  exit(exitCode);
 }
 
 function printHelp() {
@@ -105,7 +106,7 @@ function requireValue(argv, i, flag) {
   const v = argv[i];
   if (v === undefined || v.startsWith('--')) {
     process.stderr.write(`learned-append: usage error — ${flag} requires a value\n`);
-    process.exit(2);
+    exit(2);
   }
   return v;
 }
@@ -153,7 +154,7 @@ function formatEntry(text, source, dateStr) {
   // "entry" smuggle arbitrary extra lines past the format (PR #169 P2).
   if (/[\r\n]/.test(text) || /[\r\n]/.test(source)) {
     process.stderr.write('learned-append: usage error — rule text and source must be single-line (no line breaks)\n');
-    process.exit(2);
+    exit(2);
   }
   return `- [${dateStr}] ${text} (source: ${source})`;
 }
@@ -275,14 +276,14 @@ function withAppendLock(targetPath, fn) {
     }
   }
   process.stderr.write(`learned-append: rejected — could not acquire ${lock} (concurrent writer); retry later\n`);
-  process.exit(1);
+  exit(1);
 }
 
 function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
     printHelp();
-    process.exit(0);
+    exit(0);
   }
 
   const targetPath = path.resolve(process.cwd(), args.target || DEFAULT_TARGET);
@@ -303,7 +304,7 @@ function main() {
 
   if (!isPureAppend(original, candidate)) {
     console.error(`learned-append: rejected — ${diffSummary(original, candidate)}`);
-    process.exit(1);
+    exit(1);
   }
 
   const appended = candidate.slice(original.length);
@@ -314,7 +315,7 @@ function main() {
       console.log('learned-append: dry-run — would append:');
       process.stdout.write(appended);
     }
-    process.exit(0);
+    exit(0);
   }
 
   withAppendLock(targetPath, () => {
@@ -326,12 +327,12 @@ function main() {
     if (current !== original) {
       if (!isPureAppend(original, current)) {
         process.stderr.write('learned-append: rejected — target changed non-appendingly under our feet; re-run against the current file\n');
-        process.exit(1);
+        exit(1);
       }
       toWrite = current + candidate.slice(original.length);
       if (!isPureAppend(current, toWrite)) {
         process.stderr.write('learned-append: rejected — re-based candidate is not a pure append of the current file\n');
-        process.exit(1);
+        exit(1);
       }
     }
     atomicWrite(targetPath, toWrite);
@@ -341,4 +342,4 @@ function main() {
     : `learned-append: appended ${appended.length} bytes to ${targetPath}`);
 }
 
-main();
+runMain(() => main());

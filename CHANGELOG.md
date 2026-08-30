@@ -11,6 +11,56 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(scripts): CLI exit no longer truncates piped output [L2]
+
+Ceremony justification: a broad mechanical change across ~38 `.aai/scripts/*.mjs`
+CLIs (extracting one shared exit-discipline library and applying it file by
+file), even though each individual file's diff is small and the library's
+behavior is byte-identical to the two hand-rolled copies it replaces; no
+protected L3 surface is touched (`state.mjs`/`lib/state-engine.mjs`/
+`allocate-doc-number.mjs` are explicitly deferred, unmodified).
+
+- **`fu-cli-exit-truncates-pipe-sweep` (P2): 41 of the `.aai/scripts/*.mjs` CLIs
+  printed with `console.log` and then called `process.exit()` directly** — the
+  exact shape that truncated `follow-ups.mjs list --json` at 65536 bytes on a
+  pipe (the incident `cli-output-survives-a-pipe` fixed for that one file).
+  `follow-ups.mjs` and `sync-harness-skills.mjs` had each independently
+  hand-rolled the same `ExitSignal`-throwing `installPipeGuard`/`runMain` fix;
+  both are now deduplicated onto one new `.aai/scripts/lib/cli-pipe-guard.mjs`.
+  36 more CLIs (the four largest — `docs-audit.mjs`, `test-canon.mjs`,
+  `docs-canon.mjs`, `metrics-flush.mjs` — plus 32 others) now import it too;
+  `check-role-output.mjs` and `update-doctor-report.mjs` carry an inlined,
+  byte-identical copy instead, since each has its own tested zero-dependency
+  (node: imports only) contract. Reproduced the real truncation on
+  `metrics-flush.mjs --dry-run` pre-fix (a slow pipe reader received exactly
+  65536 of 381230 bytes, corrupt JSON, exit 0) and confirmed the post-fix
+  version delivers all 381230 bytes, byte-identical to a file redirect, on
+  3-of-3 runs each way. `state.mjs`, `lib/state-engine.mjs` and
+  `allocate-doc-number.mjs` are protected L3 surfaces
+  (`docs/ai/docs-audit.yaml`) requiring a frozen `ceremony_level: 3` spec —
+  out of scope here and left unmodified; `generate-live-status.mjs` (a
+  long-running watch process with different exit semantics) is also deferred.
+- **`fu-test021c-precondition-unasserted` (P2): TEST-021(c) in
+  `tests/skills/test-aai-follow-ups.sh` never asserted its own precondition
+  that the reader was gone before the write**, so the arm reached the same
+  observable pass/fail outcome whether or not `installPipeGuard` was actually
+  invoked. Rewritten to use a FIFO-backed reader whose exit is confirmed via
+  `wait` before the writer ever touches the pipe, so "reader gone before
+  write" is a proven fact, not a race. Mutation-proved: with
+  `installPipeGuard` removed in a scratch copy, this arm now fails (exit 1,
+  not the expected 2); restored, it passes.
+- **`fu-orchestrator-mutated-real-file` (P2): closed, no code change.** Its
+  scar is already the cited incident behind `HAZ-RESTORE` in
+  `.aai/SUBAGENT_CONTRACT.md` — every dispatch's mandatory first read —
+  verified still accurate and present.
+- **`fu-main-push-conflicts-open-pr` (P2): left open, narrowed.** The
+  RESOLUTION mechanics already exist (`.aai/SKILL_PR.prompt.md` step 5b:
+  regenerate `docs/INDEX.md`, stack both `[unreleased]` blocks, union-merge
+  `EVENTS.jsonl`), but no PREVENTION guidance exists anywhere in
+  `.aai/ORCHESTRATION.prompt.md` to stop the orchestrator from pushing to
+  `main` while an open PR touches the same generated file — that gap still
+  stands as filed and belongs to a separate, larger ride about orchestrator
+  push discipline.
 ## [unreleased] — fix(tests): drain 187 pipe-into-grep-q sites and close the argstrlen/SIGPIPE cluster [L2]
 
 Ceremony justification: touches 27 `tests/skills/*.sh` files plus a shared

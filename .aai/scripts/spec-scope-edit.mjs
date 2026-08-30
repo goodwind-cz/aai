@@ -57,6 +57,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { normalizeNewlines, parseFrontmatter, toPosix } from './lib/docs-model.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
 const WRAP_COLS = 76;
@@ -81,13 +82,13 @@ function usage() {
 function fail(msg) {
   console.error(`spec-scope-edit: ${msg}`);
   usage();
-  process.exit(2);
+  exit(2);
 }
 
 function refuse(code, msg, json) {
   if (json) console.log(JSON.stringify({ ok: false, refused: true, exit: code, reason: msg }, null, 2));
   else console.error(`spec-scope-edit: REFUSED — ${msg}`);
-  process.exit(code);
+  exit(code);
 }
 
 function parseArgs(argv) {
@@ -105,7 +106,7 @@ function parseArgs(argv) {
     else if (tok === '--include') args.include = need(++i, '--include');
     else if (tok === '--exclude') args.exclude = need(++i, '--exclude');
     else if (tok === '--base-ref') args.baseRef = need(++i, '--base-ref');
-    else if (tok === '-h' || tok === '--help') { usage(); process.exit(2); }
+    else if (tok === '-h' || tok === '--help') { usage(); exit(2); }
     else fail(`unknown flag: ${tok}`);
   }
   if (!args.spec) fail('missing --spec');
@@ -470,17 +471,17 @@ function main() {
   else if (!changed) console.log(`spec-scope-edit: "${target}" is already ${op === 'include' ? 'in' : 'out of'} the review scope of ${args.spec} — no write`);
   else if (args.dryRun) console.log(`spec-scope-edit: DRY RUN — would ${op} "${target}" (review scope would become: ${next.join(', ') || '(none)'})`);
   else console.log(`spec-scope-edit: ${op}d "${target}" in ${args.spec} (review scope: ${next.join(', ') || '(none)'})`);
-  process.exit(0);
+  exit(0);
 }
 
 function realOrResolve(p) {
   try { return fs.realpathSync(p); } catch { return path.resolve(p); }
 }
 if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
-  try {
-    main();
-  } catch (err) {
-    console.error(`spec-scope-edit: internal error: ${err && err.stack ? err.stack : err}`);
-    process.exit(1);
-  }
+  runMain(() => main(), {
+    onError(err) {
+      console.error(`spec-scope-edit: internal error: ${err && err.stack ? err.stack : err}`);
+      process.exitCode = 1;
+    },
+  });
 }

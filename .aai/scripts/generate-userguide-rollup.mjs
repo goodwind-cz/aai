@@ -30,6 +30,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { missingProductSections, extractSection } from './lib/product-doc.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
 
@@ -47,7 +48,7 @@ function parseArgs(argv) {
     if (tok === '--output' && argv[i + 1]) { args.outputPath = argv[i + 1]; i += 1; continue; }
     if (tok === '-h' || tok === '--help') {
       console.log('Usage: generate-userguide-rollup.mjs [--output <USER_GUIDE.md path>]');
-      process.exit(0);
+      exit(0);
     }
   }
   return args;
@@ -177,4 +178,4 @@ function main() {
   console.log(`userguide-rollup: ${docs.length} delivered feature(s) rendered -> ${path.relative(ROOT, outPath)}`);
 }
 
-main();
+runMain(() => main());

@@ -33,6 +33,7 @@ import {
   runPhase2, detectDrift,
   writeJson, readJson,
 } from './lib/test-canon-core.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
 
@@ -42,7 +43,7 @@ function usage(code) {
   console.log('  --phase2  apply an approved proposal');
   console.log('  --drift   report-only drift check');
   console.log('  --resync  with --phase2: refresh proposal before applying');
-  process.exit(code);
+  exit(code);
 }
 
 function parseArgs(argv) {
@@ -86,7 +87,7 @@ function phase2(args) {
   if (!isApprovedMap(map)) {
     console.error(`FAIL: ${MAP_PATH} is missing or not approved (need "approved": true with >=1 domain).`);
     console.error('Run --phase1, review the proposal, and persist an approved map first.');
-    process.exit(1);
+    exit(1);
   }
   const resync = Boolean(args?.resync);
   const result = runPhase2(ROOT, map, { resync });
@@ -109,13 +110,13 @@ function phase2(args) {
 
 function drift() {
   const map = readJson(ROOT, MAP_PATH);
-  if (!map) { console.error(`FAIL: ${MAP_PATH} not found.`); process.exit(1); }
+  if (!map) { console.error(`FAIL: ${MAP_PATH} not found.`); exit(1); }
   const d = detectDrift(map, ROOT);
   console.log(`## test-canon — Drift report`);
   console.log('');
   console.log(`- Clean domains: ${d.clean.length} (${d.clean.join(', ') || '—'})`);
   console.log(`- DRIFTED domains: ${d.drifted.length} (${d.drifted.join(', ') || '—'})`);
-  if (d.drifted.length > 0) process.exit(1);
+  if (d.drifted.length > 0) exit(1);
 }
 
 function main() {
@@ -125,4 +126,4 @@ function main() {
   else if (args.phase === 'drift') drift();
 }
 
-main();
+runMain(() => main());

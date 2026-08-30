@@ -60,6 +60,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 // --- generic helpers -----------------------------------------------------
 
@@ -798,7 +799,7 @@ function parseArgs(argv) {
     const tok = toks[i];
     if (tok === '--root') {
       const v = toks[++i];
-      if (v === undefined) { console.error('aai-doctor: --root needs a value'); process.exit(2); }
+      if (v === undefined) { console.error('aai-doctor: --root needs a value'); exit(2); }
       args.root = path.resolve(v);
     } else if (tok === '--json') {
       args.json = true;
@@ -807,7 +808,7 @@ function parseArgs(argv) {
     } else {
       console.error(`aai-doctor: unknown flag: ${tok}`);
       console.error('Usage: aai-doctor [--root <path>] [--json] [--strict]');
-      process.exit(2);
+      exit(2);
     }
   }
   return args;
@@ -846,7 +847,7 @@ function main() {
   const root = args.root || defaultRoot();
   if (!fs.existsSync(root)) {
     console.error(`aai-doctor: --root does not exist: ${root}`);
-    process.exit(2);
+    exit(2);
   }
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const categories = runDoctor(root, scriptDir);
@@ -880,12 +881,12 @@ function main() {
     }
     console.log(`DOCTOR ${verdict === 'CLEAN' ? 'CLEAN' : `ISSUES(${issueCount})`}`);
   }
-  process.exit(exitCode);
+  exit(exitCode);
 }
 
 function realOrResolve(p) {
   try { return fs.realpathSync(p); } catch { return path.resolve(p); }
 }
 if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
-  main();
+  runMain(() => main());
 }

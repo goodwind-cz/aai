@@ -47,6 +47,7 @@ import {
 } from './lib/docs-audit-core.mjs';
 import { parseFrontmatter, normalizeNewlines } from './lib/docs-model.mjs';
 import fs from 'node:fs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
 
@@ -63,7 +64,7 @@ const ROOT = process.cwd();
 function requireValue(flag, value) {
   if (value == null || String(value).trim() === '') {
     console.error(`USAGE ERROR: ${flag} requires a non-empty value`);
-    process.exit(2);
+    exit(2);
   }
   return value;
 }
@@ -121,7 +122,7 @@ function runLintBody(args) {
     console.log('');
     console.log('Report-only: body lint never fails this mode without --strict.');
   }
-  process.exit(args.strict && findings.length > 0 ? 1 : 0);
+  exit(args.strict && findings.length > 0 ? 1 : 0);
 }
 
 // SPEC-0013 H1 — `--lint-body-file <file>`: pure predicate on an explicit file
@@ -133,15 +134,15 @@ function runLintBodyFile(filePath) {
   const res = lintFile(ROOT, filePath);
   if (!res.found) {
     console.log(`LINT ERROR: file not found or unreadable: "${filePath}"`);
-    process.exit(2);
+    exit(2);
   }
   if (res.findings.length === 0) {
     console.log('LINT PASS: no body-lint findings.');
-    process.exit(0);
+    exit(0);
   }
   console.log('LINT FAIL — body-lint findings:');
   for (const f of res.findings) console.log(`- line ${f.line} [${f.rule}] ${f.detail}`);
-  process.exit(1);
+  exit(1);
 }
 
 // spec-intake-numbers-some-doc-types-immediately — `--intake-file <file>`: the
@@ -294,15 +295,15 @@ function runIntakeFile(filePath) {
   const res = intakeShapeFile(ROOT, filePath);
   if (!res.found) {
     console.log(`INTAKE ERROR: ${res.error}`);
-    process.exit(2);
+    exit(2);
   }
   if (res.findings.length === 0) {
     console.log('INTAKE PASS: unnumbered draft with the prefix and directory its type requires.');
-    process.exit(0);
+    exit(0);
   }
   console.log('INTAKE FAIL — this artifact is not the unnumbered draft intake must produce:');
   for (const f of res.findings) console.log(`- ${f}`);
-  process.exit(1);
+  exit(1);
 }
 
 // SPEC-0011 G1 — `--gate <DOC-ID>` offline close-time predicate. Prints the
@@ -324,15 +325,15 @@ function emitGate(header, res) {
   console.log('');
   if (!res.found) {
     console.log(`GATE ERROR: ${res.reasons.join('; ')}`);
-    process.exit(2);
+    exit(2);
   }
   if (res.ok) {
     console.log('GATE PASS: AC Status table complete (every row terminal, every done row evidenced, every Review-By valid).');
-    process.exit(0);
+    exit(0);
   }
   console.log('GATE FAIL — the AC Status table is not reconciled:');
   for (const r of res.reasons) console.log(`- ${r}`);
-  process.exit(1);
+  exit(1);
 }
 
 function table(header, rows) {
@@ -619,7 +620,7 @@ function main() {
 
   if (!args.quick && args.event) emitEvent(result, scope);
 
-  if (args.check && result.hardFail) process.exit(1);
+  if (args.check && result.hardFail) exit(1);
 }
 
-main();
+runMain(() => main());

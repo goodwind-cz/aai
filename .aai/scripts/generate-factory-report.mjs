@@ -47,6 +47,7 @@ import { loadRegistry } from './follow-ups.mjs';
 // counted apart from operator ones so a gate an agent cleared for itself can
 // never hide inside the operator total.
 import { scanWaivers, normalizeWaiverRecord } from './validation-waiver.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
 
@@ -117,7 +118,7 @@ function parseArgs(argv) {
     if (tok === '--data-only') { args.dataOnly = true; continue; }
     if (tok === '-h' || tok === '--help') {
       console.log('Usage: generate-factory-report.mjs [--output <html>] [--data-only] [--metrics <path>] [--events <path>] [--releases <dir>] [--decisions <path>]');
-      process.exit(0);
+      exit(0);
     }
   }
   return args;
@@ -1025,6 +1026,6 @@ function main() {
   console.log(`- ${path.relative(ROOT, dataPath)}`);
 }
 
-main();
+runMain(() => main());
 
 export { buildModel, normalizeRole, isoWeek, readReleaseMembers, median };

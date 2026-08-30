@@ -117,6 +117,7 @@ core:
   - .aai/scripts/layer-drift.mjs
   - .aai/scripts/learned-append.mjs
   - .aai/scripts/lib/append-lock.sh
+  - .aai/scripts/lib/cli-pipe-guard.mjs
   - .aai/scripts/lib/docs-audit-core.mjs
   - .aai/scripts/lib/docs-model.mjs
   - .aai/scripts/lib/evidence-paths.mjs

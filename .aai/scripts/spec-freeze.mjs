@@ -74,6 +74,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { normalizeNewlines, parseFrontmatter, parseAcTable, parseLeanAcTable } from './lib/docs-model.mjs';
 import { lintContent } from './spec-lint.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
 const FROZEN_STATUS = 'implementing';
@@ -110,13 +111,13 @@ function usage() {
 function fail(msg) {
   console.error(`spec-freeze: ${msg}`);
   usage();
-  process.exit(2);
+  exit(2);
 }
 
 function refuse(msg, json) {
   if (json) console.log(JSON.stringify({ ok: false, refused: true, reason: msg }, null, 2));
   else console.error(`spec-freeze: REFUSED — ${msg}`);
-  process.exit(3);
+  exit(3);
 }
 
 function parseArgs(argv) {
@@ -131,7 +132,7 @@ function parseArgs(argv) {
       if (args.path === undefined || args.path.startsWith('--')) fail('--path needs a value');
     } else if (tok === '-h' || tok === '--help') {
       usage();
-      process.exit(2);
+      exit(2);
     } else fail(`unknown flag: ${tok}`);
   }
   if (!args.path) fail('missing --path');
@@ -315,7 +316,7 @@ function main() {
   else if (!changed) console.log(`spec-freeze: ${args.path} is already frozen (status: ${FROZEN_STATUS} + SPEC-FROZEN: true) — no write`);
   else if (args.dryRun) console.log(`spec-freeze: DRY RUN — would freeze ${args.path} (status ${res.from} -> ${FROZEN_STATUS} + SPEC-FROZEN: true)`);
   else console.log(`spec-freeze: froze ${args.path} (status ${res.from} -> ${FROZEN_STATUS} + SPEC-FROZEN: true)`);
-  process.exit(0);
+  exit(0);
 }
 
 // Run only when executed directly (tests may import freezeContent).
@@ -323,10 +324,10 @@ function realOrResolve(p) {
   try { return fs.realpathSync(p); } catch { return path.resolve(p); }
 }
 if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
-  try {
-    main();
-  } catch (err) {
-    console.error(`spec-freeze: internal error: ${err && err.stack ? err.stack : err}`);
-    process.exit(1);
-  }
+  runMain(() => main(), {
+    onError(err) {
+      console.error(`spec-freeze: internal error: ${err && err.stack ? err.stack : err}`);
+      process.exitCode = 1;
+    },
+  });
 }

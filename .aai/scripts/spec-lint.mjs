@@ -86,6 +86,7 @@ import {
   specFrozenInBody, walk, toPosix, parseLeanAcTable, parseDeltasSection,
   parseTestPlanTable, splitTableCells,
 } from './lib/docs-model.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
 const CEREMONY_ENUM = ['0', '1', '2', '3'];
@@ -113,7 +114,7 @@ function usage() {
 function fail(msg) {
   console.error(`spec-lint: ${msg}`);
   usage();
-  process.exit(2);
+  exit(2);
 }
 
 function parseArgs(argv) {
@@ -755,7 +756,7 @@ function main() {
         for (const f of findings) console.log(`- ${f.rel} [${f.rule}] ${f.detail}`);
       }
     }
-    process.exit(clean ? 0 : 1);
+    exit(clean ? 0 : 1);
   }
 
   const findings = [];
@@ -805,7 +806,7 @@ function main() {
       }
     }
   }
-  process.exit(clean ? 0 : 1);
+  exit(clean ? 0 : 1);
 }
 
 // Run only when executed directly (tests may import lintContent).
@@ -814,5 +815,5 @@ function realOrResolve(p) {
   try { return fs.realpathSync(p); } catch { return path.resolve(p); }
 }
 if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
-  main();
+  runMain(() => main());
 }
