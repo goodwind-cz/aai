@@ -11,6 +11,72 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(harness): a tripwire failure no longer hides why a suite also failed on its own [L1]
+
+Ceremony justification: one additive conditional block in `suite_report`
+(guarded by the suite's own exit code, no new schema, no protected path),
+one dead `.gitignore` line removed, and two canon-prose clarifications added
+outside the diet-governed prompt glob at zero ledger cost. The whole cluster
+is a re-triage of ISSUE-0071 (`test-runs-jsonl-tracked-ignored`), a 7-item P2
+backlog measured 2026-08-19 against a `tests/skills/test-framework.sh` that
+has since been rewritten twice (ISSUE-0045/SPEC-0155 disposable-worktree
+isolation; CHANGE-0166/PR #307 parallel-sweep waves) — most items turned out
+already-fixed or fixed here as small, focused changes.
+
+- **`fu-tripwire-fail-hides-suite-log-tail` (P2, real, re-derived against
+  current code and fixed).** `suite_report`'s outcome switch still forced a
+  dirty suite straight to the `tripwire)` case regardless of its own exit
+  code, and that case never ran the failure-lines(whole log)+tail(30 lines)
+  dump the `*` (plain failure) case runs — so a suite that BOTH failed on its
+  own exit code AND dirtied the shipping repository left a reader with only
+  the tripwire violation report and no idea why the suite itself exited
+  non-zero. Fixed: the `tripwire)` case now also runs that dump when the
+  suite's own exit code is a genuine failure (not 0, not 42 — a dirty-but-
+  exit-0 suite still gets only the tripwire report, correctly). New
+  `tests/skills/test-aai-repo-tripwire.sh` TEST-016 reproduces the old
+  bug RED, is GREEN after the fix, and a mutation inverting the exit-code
+  guard turns it red again.
+- **`fu-test-runs-jsonl-tracked-ignored` (P2, real, fixed).** `docs/ai/tests/test-runs.jsonl`
+  is TRACKED on purpose (SPEC-0137 D2/AC-02, HAZ-LEDGER) and was ALSO listed
+  in `.gitignore`, which has no effect on an already-tracked path and reads
+  as a claim the repository does not act on. Removed the dead entry; the
+  file stays tracked exactly as designed.
+- **`fu-parallel-roles-dirty-the-tree` (P2, real, fixed via orchestration
+  guidance).** CHANGE-0166's wave/re-run concurrency only arbitrates
+  suite-vs-suite contention inside ONE framework process; it has no
+  visibility into a separately-dispatched report-writing role's writes
+  landing mid-sweep. Added an explicit bullet to `.aai/SUBAGENT_PROTOCOL.md`
+  "When to decompose" naming this as the same pre-existing mutable-state
+  rule, not a new one.
+- **`fu-suggested-ids-read-as-filed` (P2, real, fixed).** No canon prompt
+  distinguished a follow-up id a role only SUGGESTED from one it actually
+  FILED via `follow-ups.mjs add`. Added a "Follow-up honesty" clause to
+  `.aai/SUBAGENT_CONTRACT.md` (binds every dispatched role, not only
+  Validation).
+- **`fu-acgate-vs-falseopen-catch22` (P2, already fixed, closed with
+  evidence).** SPEC-0151/`spec-validation-defers-the-ac-flip-to-close`
+  (PR #285, done) already added the AC-FLIP DEFERRAL carve to
+  `.aai/VALIDATION.prompt.md`'s AC STATUS GATE: a still-open frontmatter
+  status with only Rule-1 non-terminal rows no longer blocks PASS, so the
+  terminal-AC-table-plus-open-frontmatter shape that tripped docs-audit's
+  false-open heuristic never exists at ceremony-1 validation time.
+- **`fu-framework-rundir-same-second` (P2, already fixed, closed with
+  evidence).** CHANGE-0166/PR #307 (commit `12112e4`) replaced the plain
+  `mkdir -p "$RUN_DIR"` with an atomic `mkdir` test-and-set plus a
+  PID-suffixed fallback on collision. Reproduced the OLD bug against
+  `12112e4^` (two same-second callers silently share one `RUN_DIR`) and
+  confirmed the current code creates two distinct directories for the same
+  scenario.
+- **`fu-tripwire-allowed-ignores-pre-dirty` (P2, left OPEN, description
+  corrected).** Its own "mooted by the disposable-worktree successor" hedge
+  is stale — `SPEC-0137` already carries a `CORRECTION (2026-08-23)`
+  withdrawing that framing, and independent re-derivation here agrees: a
+  ratchet-allowlisted suite's production script still writes `$PROJECT_ROOT`
+  regardless of isolation (open P1 `fu-isolated-suite-reaches-shipping-repo`),
+  so cross-suite pre-dirt within one run is still possible. Not fixed here —
+  closing it needs the framework to diff each suite's own before-snapshot,
+  a real framework change out of proportion to this ride's ceremony budget.
+
 ## [unreleased] — fix(hygiene): a hygiene-pack check catches a leaked cd inside a command substitution [L1]
 
 Ceremony justification: single new detection script plus its wiring into the

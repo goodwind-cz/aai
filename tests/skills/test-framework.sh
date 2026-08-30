@@ -1290,6 +1290,24 @@ suite_report() {
         fi
       fi
       echo "--- end tripwire ($skill_name) ---"
+
+      # fu-tripwire-fail-hides-suite-log-tail: a suite that ALSO failed on its
+      # own exit code (not merely dirtied the tree at exit 0/42) must not lose
+      # the generic failure diagnostic to the tripwire block above. Before this,
+      # the outcome switch treated `tripwire` as a terminal case and a reader
+      # got the violation report with no idea why the suite's OWN exit code was
+      # non-zero — exactly the CI-undiagnosable gap TEST-016 (repo-tripwire
+      # suite) reproduces and this block closes, unconditionally paired with
+      # the `*` branch's own dump below.
+      if [[ "$tw_fail_kind" != "lost" && $exit_code -ne 0 && $exit_code -ne 42 ]]; then
+        echo "--- Error Details ($skill_name) ---"
+        echo "--- failure lines (whole log) ---"
+        grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$log_file" 2>/dev/null | head -n 25 \
+          || echo "(no explicit failure marker matched — see tail below)"
+        echo "--- tail (last 30 lines) ---"
+        tail -n 30 "$log_file"
+        echo "--- end $skill_name ---"
+      fi
       ;;
     *)
       printf "${RED}FAIL${NC} (%.1fs) [%s]\n" "$duration" "$tw_note"

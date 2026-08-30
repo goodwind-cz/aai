@@ -949,6 +949,56 @@ test_015_always_watch_floor_is_declared() {
   log_pass "TEST-015 the always-watch floor is declared ($floor_n paths), seeds the watch set, and seeds the dedup set — the D7 fix is asserted, not just present"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-016 (fu-tripwire-fail-hides-suite-log-tail) — a suite that fails on its
+# OWN exit code AND dirties the shipping repository must get BOTH diagnostics:
+# the TRIPWIRE VIOLATION block (which names the offending suite and the paths
+# it touched) AND the generic failure-lines-plus-log-tail dump that makes a CI
+# log diagnosable. Before the fix, suite_report's outcome switch routed a dirty
+# suite straight to the `tripwire)` case regardless of its own exit code, and
+# that case never ran the "failure lines (whole log)" / "tail (last 30 lines)"
+# block the `*` (plain failure) case runs — so a suite that both crashed AND
+# dirtied the tree left a reader with the tripwire report and no idea WHY the
+# suite itself exited non-zero.
+# ---------------------------------------------------------------------------
+test_016_tripwire_failure_still_dumps_the_log_tail() {
+  local d out rc=0 ok=1
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" t-dirty-and-failing '
+printf "dirt\n" >> "$R/tracked.txt"
+echo "AAI-DISTINCTIVE-ASSERTION-MARKER: expected 2, got 3"
+echo "not ok 1 - the distinctive assertion"
+exit 7'
+  commit_fixture_repo "$d" || { log_fail "TEST-016 fixture repo init failed"; return; }
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 1 ]] || { log_info "TEST-016: framework exit=$rc (want 1)"; ok=0; }
+
+  # Outcome is still reported as the tripwire violation (D1: a suite that
+  # changed the shipping repository fails and names itself, whatever its own
+  # exit code said) — this half is NOT the regression under test, it is the
+  # pre-existing, correct behaviour this fix must not disturb.
+  grep -qE 'aai-t-dirty-and-failing .*FAIL.*\[TRIPWIRE\]' <<<"$out" \
+    || { log_info "TEST-016: the double-failing suite was not marked FAIL [TRIPWIRE]: $out"; ok=0; }
+  grep -qF "AAI-TRIPWIRE FAIL: test suite 'aai-t-dirty-and-failing'" <<<"$out" \
+    || { log_info "TEST-016: the tripwire violation block is missing: $out"; ok=0; }
+
+  # THE BUG: the suite's own failure evidence must ALSO be present. Before the
+  # fix these three greps fail — the tripwire branch returned before reaching
+  # the generic diagnostic dump, so a reader gets the tripwire report and no
+  # reason at all for the suite's own exit code.
+  grep -qF -e '--- failure lines (whole log) ---' <<<"$out" \
+    || { log_info "TEST-016: the failure-lines-whole-log header is missing for a suite that also tripped the tripwire: $out"; ok=0; }
+  grep -qF -e 'AAI-DISTINCTIVE-ASSERTION-MARKER' <<<"$out" \
+    || { log_info "TEST-016: the suite's own distinctive failure line never surfaced: $out"; ok=0; }
+  grep -qF -e '--- tail (last 30 lines) ---' <<<"$out" \
+    || { log_info "TEST-016: the log-tail dump is missing for a suite that also tripped the tripwire: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-016 a suite that fails on its own exit code AND trips the tripwire gets both the tripwire violation block and the failure-lines-plus-tail dump" \
+    || log_fail "TEST-016 tripwire failure still dumps the log tail"
+}
+
 test_014_shipped_ratchet_length_is_ratcheted() {
   local d="" base_count="" base_rc=0 ctl_count="" ctl_rc=0 shipped_count="" shipped_rc=0
 
@@ -1028,6 +1078,7 @@ main() {
   test_013_drained_list_exempts_nobody
   test_014_shipped_ratchet_length_is_ratcheted
   test_015_always_watch_floor_is_declared
+  test_016_tripwire_failure_still_dumps_the_log_tail
   echo ""
   if [[ $FAILED -eq 0 ]]; then
     echo "All tests passed!"
