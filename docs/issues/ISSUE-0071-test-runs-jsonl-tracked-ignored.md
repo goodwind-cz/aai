@@ -2,7 +2,12 @@
 id: test-runs-jsonl-tracked-ignored
 type: issue
 number: 71
-status: draft
+status: done
+links:
+  commits:
+    - 15c9222
+  pr:
+    - 317
 ---
 
 # P2 backlog cluster: suites-must-not-touch-the-shipping-repo (7 items)

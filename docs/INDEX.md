@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-30T20:51:12.997Z
+Generated: 2026-08-30T21:15:35.822Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -48,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (377)
+## Done (378)
 
 | ID | Type | Path |
 |---|---|---|
@@ -258,6 +258,7 @@ _None._
 | ISSUE-0045 | issues | docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md |
 | ISSUE-0049 | issues | docs/issues/ISSUE-0049-cli-exit-truncates-pipe-sweep.md |
 | ISSUE-0053 | issues | docs/issues/ISSUE-0053-drain-pipe-grep-q-ratchet.md |
+| ISSUE-0071 | issues | docs/issues/ISSUE-0071-test-runs-jsonl-tracked-ignored.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -430,7 +431,7 @@ _None._
 | SPEC-0156 | specs | docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (41)
+## Drafts (40)
 
 | ID | Type | Path |
 |---|---|---|
@@ -470,7 +471,6 @@ _None._
 | ISSUE-0068 | issues | docs/issues/ISSUE-0068-seed-loss-turns-an-arm-into-a-skip.md |
 | ISSUE-0069 | issues | docs/issues/ISSUE-0069-setfocus-keeps-stale-spec-path.md |
 | ISSUE-0070 | issues | docs/issues/ISSUE-0070-sweep-scope-excludes-repo-root.md |
-| ISSUE-0071 | issues | docs/issues/ISSUE-0071-test-runs-jsonl-tracked-ignored.md |
 | ISSUE-0072 | issues | docs/issues/ISSUE-0072-typemap-missing-research-hotfix.md |
 | ISSUE-0073 | issues | docs/issues/ISSUE-0073-uncarved-dispatch-lanes.md |
 | ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
