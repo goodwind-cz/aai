@@ -60,6 +60,7 @@ import { specContentHash, acTableGreen } from './lib/docs-model.mjs';
 import { splitLines, duplicateKeys, inlineChildConflicts } from './lib/state-core.mjs';
 import { findBlock, readScalar, indentOf, unquoteScalar, agentRunsFor, lastImplementerModel } from './lib/state-engine.mjs';
 import { computeEffectivePromptHash, componentHashes, shortHash } from './lib/prompt-hash.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
 
@@ -1027,7 +1028,7 @@ function parseArgs(argv) {
     const tok = argv[i];
     if (tok === '--state' || tok === '--root') {
       const v = argv[i + 1];
-      if (!v || v.startsWith('--')) { usage(); console.error(`orchestration-dispatch: ${tok} requires a value`); process.exit(2); }
+      if (!v || v.startsWith('--')) { usage(); console.error(`orchestration-dispatch: ${tok} requires a value`); exit(2); }
       opts[tok.slice(2)] = v;
       i += 1;
     } else if (tok === '--human') {
@@ -1038,11 +1039,11 @@ function parseArgs(argv) {
       opts.confirm = true;
     } else if (tok === '-h' || tok === '--help') {
       usage();
-      process.exit(2);
+      exit(2);
     } else {
       usage();
       console.error(`orchestration-dispatch: unknown flag "${tok}"`);
-      process.exit(2);
+      exit(2);
     }
   }
   return opts;
@@ -1255,7 +1256,7 @@ function main() {
   const opts = parseArgs(process.argv);
   if (opts.rules) {
     printRules();
-    process.exit(0);
+    exit(0);
   }
   const statePath = path.resolve(process.cwd(), opts.state);
   const root = path.resolve(process.cwd(), opts.root);
@@ -1360,15 +1361,15 @@ function main() {
     }
   } catch (err) {
     console.error(`orchestration-dispatch: internal error: ${err && err.stack ? err.stack : err}`);
-    process.exit(1);
+    exit(1);
   }
   console.log(JSON.stringify(out));
   if (opts.human) humanBlock(out);
-  process.exit(out.verdict === 'dispatch' ? 0 : out.verdict === 'no_action' ? 3 : 4);
+  exit(out.verdict === 'dispatch' ? 0 : out.verdict === 'no_action' ? 3 : 4);
 }
 
 // Run as CLI only when invoked directly; importable for unit tests.
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) main();
+if (isMain) runMain(() => main());
 
 export { RULES };

@@ -56,6 +56,48 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+// --- exit discipline (cli-exit-truncates-pipe-sweep) ------------------------
+// INLINED, not imported from ./lib/cli-pipe-guard.mjs: this helper's own
+// 0137-TEST-005 pins it to node: imports ONLY (zero-network/zero-LLM,
+// zero-dependency posture for the post-update doctor field report). Keep
+// this block byte-for-byte in sync with lib/cli-pipe-guard.mjs's
+// exit()/runMain().
+class ExitSignal extends Error {
+  constructor(code) {
+    super(`exit ${code}`);
+    this.name = 'ExitSignal';
+    this.code = code;
+  }
+}
+
+function exit(code) {
+  throw new ExitSignal(code);
+}
+
+function installPipeGuard(stream) {
+  stream.on('error', (err) => {
+    const code = err && err.code;
+    if (code === 'EPIPE' || code === 'ERR_STREAM_DESTROYED') {
+      process.exit(typeof process.exitCode === 'number' ? process.exitCode : 0);
+    }
+    throw err;
+  });
+}
+
+function runMain(mainFn) {
+  installPipeGuard(process.stdout);
+  installPipeGuard(process.stderr);
+  try {
+    mainFn();
+  } catch (err) {
+    if (err instanceof ExitSignal) {
+      process.exitCode = err.code;
+      return;
+    }
+    throw err;
+  }
+}
+
 const DEFAULT_TIMEOUT_MS = 240_000;
 const DEFAULT_MAX_REPORTS = 10;
 const REPORT_SHAPE = /^doctor-\d{8}T\d{6}Z-[a-z0-9-]+\.md$/;
@@ -66,7 +108,7 @@ function usageFail(msg) {
     'Usage: update-doctor-report [--root <path>] [--config <path>] '
     + '[--doctor <path>] [--timeout-ms <n>] [--max-reports <n>]',
   );
-  process.exit(2);
+  exit(2);
 }
 
 function parseArgs(argv) {
@@ -105,7 +147,7 @@ function emitSkip(reason) {
   // PS pipeline), so the line can never be dropped by the process.exit that
   // callers rely on for never-returns control flow (review NB-1 class).
   fs.writeSync(1, `DOCTOR-REPORT SKIP ${reason} - update unaffected\n`);
-  process.exit(0);
+  exit(0);
 }
 
 // --- Config (column-0 scan; first occurrence wins — resolveConfig precedent)
@@ -226,7 +268,7 @@ function main() {
 
   if (resolvePostUpdateDoctor(cfgPath) === 'off') {
     fs.writeSync(1, 'DOCTOR-REPORT SKIP disabled by config (post_update_doctor: off)\n');
-    process.exit(0);
+    exit(0);
   }
 
   if (!fs.existsSync(doctor)) emitSkip('doctor script missing');
@@ -298,11 +340,11 @@ function main() {
   pruneReports(reportsDir, args.maxReports);
 
   console.log(`DOCTOR ${verdict} - full report: ${relPath}`);
-  // Review NB-1 (PR round): process.exit(0) can drop the line above
+  // Review NB-1 (PR round): exit(0) can drop the line above
   // unflushed when stdout is an async pipe (the Windows PS pipeline) —
   // a silent postamble at exit 0 that no fallback would catch. Setting
   // exitCode and returning lets Node drain stdout before exiting.
   process.exitCode = 0;
 }
 
-main();
+runMain(() => main());

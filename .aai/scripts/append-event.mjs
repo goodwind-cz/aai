@@ -22,6 +22,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
 const SCHEMA_VERSION = 1;
@@ -50,7 +51,7 @@ function actorSlug() {
 
 function fail(msg, exitCode = 2) {
   console.error(`append-event: ${msg}`);
-  process.exit(exitCode);
+  exit(exitCode);
 }
 
 function main() {
@@ -163,4 +164,4 @@ function main() {
   console.log(`Appended: ${JSON.stringify(entry)}`);
 }
 
-main();
+runMain(() => main());

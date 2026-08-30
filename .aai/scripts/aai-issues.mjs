@@ -85,6 +85,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { classify, extractHost } from './pr-platform.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const PREFIX = 'aai-issues';
 
@@ -98,7 +99,7 @@ const GENERIC_REASON =
 
 function fail(msg) {
   console.error(`${PREFIX}: ${msg}`);
-  process.exit(2);
+  exit(2);
 }
 
 function usage() {
@@ -123,7 +124,7 @@ function usage() {
       '      2 usage error (unknown flag / missing value) -- nothing printed.',
     ].join('\n'),
   );
-  process.exit(0);
+  exit(0);
 }
 
 function parseArgs(argv) {
@@ -319,11 +320,11 @@ function main() {
   const args = parseArgs(process.argv);
   const result = run(args);
   printResult(result, args.json);
-  process.exit(0);
+  exit(0);
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) main();
+if (isMain) runMain(() => main());
 
 export {
   detectPlatform,

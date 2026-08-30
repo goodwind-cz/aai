@@ -107,6 +107,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const DEFAULT_LEDGER = 'docs/ai/decisions.jsonl';
 const FOLLOW_UP_ID_RE = /^fu-[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -338,53 +339,15 @@ function appendLine(absPath, entry) {
 }
 
 // --- exit discipline ----------------------------------------------------------
-
-// ExitSignal + exit(): the ONLY way this CLI ends. `process.exit` discards
-// whatever stdout has queued but not yet flushed, which is every byte past the
-// pipe buffer when the reader is a pipe. Throwing instead lets `runMain` record
-// the code in `process.exitCode` and return, so Node exits on its own once the
-// stream has drained. The thrown value is not an ordinary error: no `catch`
-// block in this file wraps a call to exit(), so it always reaches runMain.
-class ExitSignal extends Error {
-  constructor(code) {
-    super(`exit ${code}`);
-    this.name = 'ExitSignal';
-    this.code = code;
-  }
-}
-
-function exit(code) {
-  throw new ExitSignal(code);
-}
-
-// A reader that closes early (`| head -1`) makes the remaining writes fail with
-// EPIPE. That is the reader's choice, not a tool failure, and it must not turn
-// into an unhandled 'error' event (exit 1 plus a stack trace on stderr). There
-// is nothing left to flush once the far end is gone, so ending immediately with
-// the code we already meant is both correct and the only thing that terminates.
-function installPipeGuard(stream) {
-  stream.on('error', (err) => {
-    const code = err && err.code;
-    if (code === 'EPIPE' || code === 'ERR_STREAM_DESTROYED') {
-      process.exit(typeof process.exitCode === 'number' ? process.exitCode : 0);
-    }
-    throw err;
-  });
-}
-
-function runMain() {
-  installPipeGuard(process.stdout);
-  installPipeGuard(process.stderr);
-  try {
-    main();
-  } catch (err) {
-    if (err instanceof ExitSignal) {
-      process.exitCode = err.code;
-      return;
-    }
-    throw err;
-  }
-}
+//
+// exit()/runMain() now come from ./lib/cli-pipe-guard.mjs (originally
+// hand-rolled here; sync-harness-skills.mjs independently hand-rolled the
+// same fix, so cli-exit-truncates-pipe-sweep extracted both into one shared
+// module). Behavior unchanged: `exit(code)` throws instead of calling
+// `process.exit` directly, so `runMain` can record `process.exitCode` and let
+// Node drain stdout/stderr before the process actually ends. No `catch`
+// block in this file wraps a call to `exit()`, so it always reaches
+// `runMain`'s default (re-throw any non-exit error).
 
 // --- CLI ----------------------------------------------------------------------
 
@@ -685,7 +648,7 @@ function realpathOrResolve(p) {
 }
 const __filename = fileURLToPath(import.meta.url);
 const isMain = process.argv[1] && realpathOrResolve(process.argv[1]) === realpathOrResolve(__filename);
-if (isMain) runMain();
+if (isMain) runMain(() => main());
 
 export {
   DEFAULT_LEDGER,

@@ -382,8 +382,9 @@ test_profile_pin_tolerance() {
 test_space_in_path() {  # Review B1 regression
   log_info "TEST-014: CLI executes from a path containing a space (main-guard URL-decode bug)..."
   local d="$TMP_ROOT/space dir/.aai/scripts"
-  mkdir -p "$d"
+  mkdir -p "$d/lib"
   cp "$PROJECT_ROOT/.aai/scripts/layer-drift.mjs" "$d/"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/lib/"
   local out rc
   set +e
   out="$(node "$TMP_ROOT/space dir/.aai/scripts/layer-drift.mjs" --pin "$TMP_ROOT/nope/AAI_PIN.md" 2>&1)"; rc=$?

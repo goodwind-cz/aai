@@ -60,10 +60,11 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 function fail(msg) {
   console.error(`pr-platform: ${msg}`);
-  process.exit(2);
+  exit(2);
 }
 
 function parseArgs(argv) {
@@ -84,7 +85,7 @@ function parseArgs(argv) {
       opts.json = true;
     } else if (tok === '-h' || tok === '--help') {
       console.log('Usage: node pr-platform.mjs [--remote-url <url>] [--pr-config <path>] [--json]');
-      process.exit(0);
+      exit(0);
     } else {
       fail(`unknown flag "${tok}"`);
     }
@@ -224,7 +225,7 @@ function main() {
     } else {
       console.log('PLATFORM none');
     }
-    process.exit(0);
+    exit(0);
   }
 
   const host = extractHost(remoteUrl);
@@ -243,10 +244,10 @@ function main() {
   } else {
     console.log(`PLATFORM ${platform} remote=${sanitizedRemote} reviewer_bots=${reviewerBots}`);
   }
-  process.exit(0);
+  exit(0);
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) main();
+if (isMain) runMain(() => main());
 
 export { classify, extractHost, sanitize, readReviewerBots };

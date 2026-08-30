@@ -45,6 +45,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const PLACEHOLDER_RE = /^<.*>$/;
@@ -61,7 +62,7 @@ function usage() {
 function fail(msg) {
   console.error(`layer-drift: ${msg}`);
   usage();
-  process.exit(2);
+  exit(2);
 }
 
 function parseArgs(argv) {
@@ -275,7 +276,7 @@ function main() {
   } else {
     console.log(result.message);
   }
-  process.exit(result.exit);
+  exit(result.exit);
 }
 
 // Allow `import { parsePin, decide }` from tests without running the CLI.
@@ -289,5 +290,5 @@ function realOrResolve(p) {
   try { return fs.realpathSync(p); } catch { return path.resolve(p); }
 }
 if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
-  main();
+  runMain(() => main());
 }

@@ -43,6 +43,7 @@ import {
   parseDeltasSection, parseRequirementsSection, parseFrontmatter,
   stripHtmlComments, normalizeNewlines,
 } from './lib/docs-model.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 // --- CLI --------------------------------------------------------------------
 
@@ -268,7 +269,7 @@ function applyToFile(rawText, entries, spec) {
 
 function fail(msg) {
   console.error(`delta-merge: FAIL-CLOSED — ${msg}`);
-  process.exit(1);
+  exit(1);
 }
 
 function main() {
@@ -284,7 +285,7 @@ function main() {
   const parsed = parseDeltasSection(specContent);
   if (!parsed.present || parsed.deltas.length === 0) {
     console.log('delta-merge: no `## Deltas` to apply (no-op).');
-    process.exit(0);
+    exit(0);
   }
   if (parsed.violations.length) {
     fail(`the spec\'s Deltas are invalid — ${parsed.violations.map(v => `${v.code}: ${v.detail}`).join('; ')}`);
@@ -326,13 +327,13 @@ function main() {
   if (args.check) {
     if (writes.length === 0) console.log('delta-merge: --check OK — already merged (no changes).');
     else console.log(`delta-merge: --check OK — ${writes.length} canonical file(s) would change (no writes made).`);
-    process.exit(0);
+    exit(0);
   }
 
   for (const w of writes) fs.writeFileSync(w.abs, w.text);
   if (writes.length === 0) console.log(`delta-merge: nothing to do — ${spec} already merged (byte-idempotent).`);
   else console.log(`delta-merge: applied ${spec} into ${writes.map(w => w.rel).join(', ')}.`);
-  process.exit(0);
+  exit(0);
 }
 
-main();
+runMain(() => main());

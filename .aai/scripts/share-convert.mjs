@@ -4,17 +4,20 @@
 
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'fs';
 import { dirname, basename, join, resolve, extname } from 'path';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+
+function main() {
 
 const [,, srcPath, outDir] = process.argv;
 if (!srcPath || !outDir) {
   console.error('Usage: node share-convert.mjs <source.md> <output-dir>');
-  process.exit(1);
+  exit(1);
 }
 
 const srcAbs = resolve(srcPath);
 if (!existsSync(srcAbs)) {
   console.error(`File not found: ${srcAbs}`);
-  process.exit(1);
+  exit(1);
 }
 
 const srcDir = dirname(srcAbs);
@@ -297,3 +300,6 @@ writeFileSync(join(outDir, 'index.html'), html, 'utf-8');
 console.log(`Converted: ${srcPath}`);
 console.log(`Output: ${join(outDir, 'index.html')}`);
 console.log(`Images: ${imageCount}`);
+}
+
+runMain(() => main());

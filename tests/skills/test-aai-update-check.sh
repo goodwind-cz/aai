@@ -514,8 +514,10 @@ test_hook_detached_auto_sync() {
   local fx="$TMP_ROOT/t014"
   mkdir -p "$fx/hooks" "$fx/.aai/scripts" "$fx/.aai/system" "$fx/docs/ai"
   cp "$HOOK_SH" "$fx/hooks/session-start.sh"
+  mkdir -p "$fx/.aai/scripts/lib"
   cp "$CHECK_SCRIPT" "$fx/.aai/scripts/update-check.mjs"   # REAL update-check
   cp "$DRIFT_SCRIPT" "$fx/.aai/scripts/layer-drift.mjs"    # REAL detection
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$fx/.aai/scripts/lib/cli-pipe-guard.mjs"
   printf 'META_SKILL_SENTINEL_CONTENT\n' > "$fx/.aai/SKILL_META.prompt.md"
   # SLOW STUB aai-update: proves the hook returns BEFORE the sync completes.
   cat > "$fx/.aai/scripts/aai-update.sh" <<'STUB'
@@ -645,8 +647,10 @@ test_source_agreement() {
   git -C "$dir" remote add origin "https://example.invalid/some-owner/target.git"
   # REAL update-check + layer-drift copied in so the detached child's SELF_DIR
   # resolves to a RECORDING stub aai-update.sh sitting beside them.
+  mkdir -p "$dir/.aai/scripts/lib"
   cp "$CHECK_SCRIPT" "$dir/.aai/scripts/update-check.mjs"
   cp "$DRIFT_SCRIPT" "$dir/.aai/scripts/layer-drift.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$dir/.aai/scripts/lib/cli-pipe-guard.mjs"
   recorded="$dir/.aai/recorded-source.txt"
   cat > "$dir/.aai/scripts/aai-update.sh" <<STUB
 #!/usr/bin/env bash

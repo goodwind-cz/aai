@@ -41,10 +41,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 function fail(msg, code = 2) {
   console.error(`orchestration-mode: ${msg}`);
-  process.exit(code);
+  exit(code);
 }
 
 function usage() {
@@ -283,7 +284,7 @@ function parseArgs(argv) {
       }
     } else if (tok === '-h' || tok === '--help') {
       usage();
-      process.exit(2);
+      exit(2);
     } else if (tok.startsWith('--')) {
       usage();
       fail(`unknown flag "${tok}"`, 2);
@@ -331,12 +332,12 @@ function main() {
   const input = readInput(inputFile);
   const out = selectGroups(input);
   console.log(JSON.stringify(out));
-  process.exit(0);
+  exit(0);
 }
 
 // Run as CLI only when invoked directly; importable for unit tests.
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) main();
+if (isMain) runMain(() => main());
 
 export {
   normalizePath,

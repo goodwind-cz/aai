@@ -25,6 +25,7 @@ import {
   normalizeAcStatus, detectNearMissAcTable,
 } from './lib/docs-model.mjs';
 import { runAudit, suggestedStep, loadConfig, firstCommitDate } from './lib/docs-audit-core.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
 const ARGV = process.argv.slice(2);
@@ -157,7 +158,7 @@ function main() {
   if (!checkMarker()) {
     console.error(`ERROR: ${path.relative(ROOT, OUT_PATH)} exists without the auto-generated marker.`);
     console.error(`       Rename or delete it, or restore the marker line: "${MARKER}"`);
-    process.exit(2);
+    exit(2);
   }
 
   const docs = [];
@@ -272,7 +273,7 @@ function main() {
       console.error('FAIL (strict): schema violations:');
       for (const f of hard) console.error(`  - ${f}`);
       console.error('Fix the docs above, or run without --strict for a best-effort index.');
-      process.exit(1);
+      exit(1);
     }
     // Non-strict default: never abort — every violation is already in `skipped`.
     if (hard.length > 0) {
@@ -293,7 +294,7 @@ function main() {
       console.error('FAIL (strict): row-level AC status violation(s):');
       for (const v of acStatusViolations) console.error(`  - ${v.rel}: unknown AC status "${v.raw}" for ${v.specAc}`);
       console.error('Use a canonical status or `<canonical> (<qualifier>)`; run without --strict for a best-effort index.');
-      process.exit(1);
+      exit(1);
     }
     console.warn(`WARNING: ${acStatusViolations.length} row-level AC status violation(s) — doc(s) kept in index, rows flagged in INDEX.violations.md (run with --strict to fail):`);
     for (const v of acStatusViolations) console.warn(`  - ${v.rel}: unknown AC status "${v.raw}" for ${v.specAc}`);
@@ -401,7 +402,7 @@ function main() {
       console.error('FAIL (strict): coverage invariant — doc(s) land in zero placement sections:');
       for (const d of coverageGaps) console.error(`  - ${d.id} (${d.path}, status: ${d.status})`);
       console.error('Add a doc-level section for that status, or fix the doc frontmatter; run without --strict for a best-effort index.');
-      process.exit(1);
+      exit(1);
     }
     console.warn(`WARNING: ${coverageGaps.length} doc(s) land in zero placement sections — surfaced as Coverage gaps (run with --strict to fail):`);
     for (const d of coverageGaps) console.warn(`  - ${d.id} (${d.path}, status: ${d.status})`);
@@ -602,4 +603,4 @@ function main() {
   }
 }
 
-main();
+runMain(() => main());

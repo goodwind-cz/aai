@@ -30,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 // top-level key" / line normalization / block location, shared with the
 // transactional writer .aai/scripts/state.mjs — no logic fork.
 import { TOP_KEY_RE, duplicateKeys, inlineChildConflicts, splitLines, topBlockRanges } from './lib/state-core.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 // Report the "child lines under an inline-valued top-level header" corruption
 // (e.g. `metrics: {}` followed by indented `work_items:` — a mapping value
@@ -41,7 +42,7 @@ function failOnInlineChildConflicts(lines) {
   for (const c of conflicts) {
     console.error(`  - ${c.key} (line ${c.line}) — convert the inline value to block form (bare \`${c.key}:\` header) by hand`);
   }
-  process.exit(1);
+  exit(1);
 }
 
 const ARGV = process.argv.slice(2);
@@ -165,7 +166,7 @@ function failOnOrphanItemViolations(lines) {
   console.error('This is the ISSUE-0007 remediation class (a whole-field rewrite over a');
   console.error('0-relative-indent list left its items orphaned). Re-attach the flagged');
   console.error('item(s) to the right key (or delete them) by hand.');
-  process.exit(1);
+  exit(1);
 }
 
 function failOnListIndentViolations(lines) {
@@ -177,7 +178,7 @@ function failOnListIndentViolations(lines) {
   }
   console.error('This is the ISSUE-0007 class (a list append written shallower than its');
   console.error('siblings). Re-indent the flagged item(s) to match the first item by hand.');
-  process.exit(1);
+  exit(1);
 }
 
 // --- structural metrics-block merge (repair) --------------------------------
@@ -321,18 +322,18 @@ function createFromTemplate(abs) {
   );
   if (!fs.existsSync(templatePath)) {
     console.error(`ERROR: STATE file not found: ${target}, and the canonical template is also missing: ${templatePath}`);
-    process.exit(2);
+    exit(2);
   }
   let templateBody;
   try {
     templateBody = fs.readFileSync(templatePath, 'utf8');
   } catch (err) {
     console.error(`ERROR: could not read the canonical template ${templatePath}: ${err.code || err.message}`);
-    process.exit(1);
+    exit(1);
   }
   if (!templateBody.includes(UPDATED_AT_PLACEHOLDER_LINE)) {
     console.error(`ERROR: template ${templatePath} is missing the expected placeholder line ("${UPDATED_AT_PLACEHOLDER_LINE}") — refusing to create a STATE file with a stale/unstamped timestamp.`);
-    process.exit(1);
+    exit(1);
   }
   const stamp = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
   const body = templateBody.replace(UPDATED_AT_PLACEHOLDER_LINE, `updated_at_utc: ${stamp}`);
@@ -341,10 +342,10 @@ function createFromTemplate(abs) {
     fs.writeFileSync(abs, body);
   } catch (err) {
     console.error(`ERROR: could not create ${target} from template: ${err.code || err.message} — check directory permissions on ${path.dirname(abs)}.`);
-    process.exit(1);
+    exit(1);
   }
   console.log(`CREATED: ${target} did not exist — created from template ${path.relative(process.cwd(), templatePath)}, stamped updated_at_utc: ${stamp}.`);
-  process.exit(0);
+  exit(0);
 }
 
 function main() {
@@ -352,7 +353,7 @@ function main() {
   if (!fs.existsSync(abs)) {
     if (REPAIR) createFromTemplate(abs);   // never returns (process.exit)
     console.error(`ERROR: STATE file not found: ${target}`);
-    process.exit(2);
+    exit(2);
   }
   const original = fs.readFileSync(abs, 'utf8');
   // splitLines drops the synthetic trailing empty element from a terminal
@@ -380,13 +381,13 @@ function main() {
         const note = d.key === 'metrics' ? '' : ' (not auto-merged — only `metrics:` is repaired; resolve by hand)';
         console.error(`  - ${d.key} (x${d.count})${note}`);
       }
-      process.exit(1);
+      exit(1);
     }
     failOnInlineChildConflicts(lines);
     failOnListIndentViolations(lines);
     failOnOrphanItemViolations(lines);
     console.log('OK: STATE.yaml has exactly one of every top-level key.');
-    process.exit(0);
+    exit(0);
   }
 
   const dups = duplicateKeys(lines);
@@ -396,13 +397,13 @@ function main() {
     console.error('A duplicate top-level `metrics:` key silently shadows the first block on a');
     console.error('lenient YAML load (ISSUE-0004). Run with --repair to merge duplicate');
     console.error('`metrics:` blocks (union work_items, concatenate agent_runs, zero data loss).');
-    process.exit(1);
+    exit(1);
   }
   failOnInlineChildConflicts(lines);
   failOnListIndentViolations(lines);
   failOnOrphanItemViolations(lines);
   console.log(`OK: ${target} has exactly one of every top-level key.`);
-  process.exit(0);
+  exit(0);
 }
 
-main();
+runMain(() => main());

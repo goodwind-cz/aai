@@ -2867,6 +2867,11 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
     git -C "$wt" apply "$seed_patch" \
       || log_fail "test_113: could not apply the current seeded harness diff to the nested worktree"
   fi
+  # HSK_GENERATOR_REL's own pipe-exit-discipline import (cli-exit-truncates-
+  # pipe-sweep): a plain `git diff HEAD` never carries an untracked new file,
+  # so the seed_patch above cannot include it — copy it directly instead.
+  mkdir -p "$wt/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$wt/.aai/scripts/lib/cli-pipe-guard.mjs"
 
   cmp -s "$PROJECT_ROOT/$HSK_GENERATOR_REL" "$wt/$HSK_GENERATOR_REL" \
     || log_fail "test_113: nested worktree did not inherit the current seeded generator bytes"
@@ -2965,6 +2970,11 @@ test_118_bite_proofs_preserve_seeded_state() {  # PR review / seeded-wrapper reg
     || log_fail "test_118: could not seed the current generator into the fixture"
   cp "$shipping_root/tests/skills/test-aai-hygiene-pack.sh" "$seeded_root/tests/skills/test-aai-hygiene-pack.sh" \
     || log_fail "test_118: could not seed the current parity arm into the fixture"
+  # HSK_GENERATOR_REL's own pipe-exit-discipline import (cli-exit-truncates-
+  # pipe-sweep): `git clone` only carries committed bytes, so an uncommitted
+  # new lib file never reaches the clone — seed it explicitly too.
+  mkdir -p "$seeded_root/.aai/scripts/lib"
+  cp "$shipping_root/.aai/scripts/lib/cli-pipe-guard.mjs" "$seeded_root/.aai/scripts/lib/cli-pipe-guard.mjs"
 
   local source_skill="$seeded_root/.claude/skills/aai-wrap-up/SKILL.md"
   local changed_skill="$TEST_DIR/t118-changed-wrap-up.md"
@@ -3003,6 +3013,11 @@ test_119_generator_idempotence_preserves_seeded_state() {  # PR review / seeded-
     || log_fail "test_119: could not create seeded fixture repository"
   cp "$shipping_root/$HSK_GENERATOR_REL" "$seeded_root/$HSK_GENERATOR_REL" \
     || log_fail "test_119: could not seed the current generator into the fixture"
+  # HSK_GENERATOR_REL's own pipe-exit-discipline import (cli-exit-truncates-
+  # pipe-sweep): `git clone` only carries committed bytes, so an uncommitted
+  # new lib file never reaches the clone — seed it explicitly too.
+  mkdir -p "$seeded_root/.aai/scripts/lib"
+  cp "$shipping_root/.aai/scripts/lib/cli-pipe-guard.mjs" "$seeded_root/.aai/scripts/lib/cli-pipe-guard.mjs"
 
   local source_skill="$seeded_root/.claude/skills/aai-wrap-up/SKILL.md"
   local changed_skill="$TEST_DIR/t119-changed-wrap-up.md"

@@ -61,6 +61,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { splitLines } from './lib/state-core.mjs';
 import { readScalar, unquoteScalar } from './lib/state-engine.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 // Recognized NON-work-item branch prefixes. A CLOSED allowlist: a branch whose
 // name starts with one of these legitimately has no work item to verify against
@@ -215,7 +216,7 @@ function parseArgs(argv) {
       const v = argv[i + 1];
       if (!v || v.startsWith('--')) {
         console.error(`branch-guard: ${tok} requires a value`);
-        process.exit(4);
+        exit(4);
       }
       opts[tok.slice(2)] = v;
       i += 1;
@@ -223,10 +224,10 @@ function parseArgs(argv) {
       opts.suggest = true;
     } else if (tok === '-h' || tok === '--help') {
       console.error('Usage: node branch-guard.mjs [--base <branch>] [--suggest] [--state <path>]');
-      process.exit(4);
+      exit(4);
     } else {
       console.error(`branch-guard: unknown flag "${tok}"`);
-      process.exit(4);
+      exit(4);
     }
   }
   return opts;
@@ -252,15 +253,15 @@ function main() {
     const statePath = resolveStatePath(opts, cwd);
     if (!statePath) {
       console.error('branch-guard: cannot resolve STATE.yaml (not a git repo and no --state given)');
-      process.exit(4);
+      exit(4);
     }
     const focus = readFocus(statePath);
     if (!focus.ok) {
       console.error('branch-guard: current_focus.ref_id is not set in STATE.yaml');
-      process.exit(4);
+      exit(4);
     }
     console.log(`${typeToken(focus.type)}/${focus.refId}`);
-    process.exit(0);
+    exit(0);
   }
 
   // Order item 1 — must be inside a git work tree. Two different failures live
@@ -278,7 +279,7 @@ function main() {
     } else {
       console.error('branch-guard: not inside a git work tree (cannot determine the current branch)');
     }
-    process.exit(4);
+    exit(4);
   }
 
   // Order item 2 — detached HEAD wins over the STATE read (best-effort remediation).
@@ -288,7 +289,7 @@ function main() {
     const focus = statePath ? readFocus(statePath) : { type: null, refId: null };
     console.error('branch-guard: HEAD is detached — no work-item branch is checked out.');
     console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
-    process.exit(2);
+    exit(2);
   }
 
   // Order item 3 — Tier A: STATE cannot be opened/read at all -> fail closed,
@@ -317,7 +318,7 @@ function main() {
       console.error('branch-guard: current_focus.ref_id is not set in STATE.yaml (cannot verify the branch).');
       console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
     }
-    process.exit(4);
+    exit(4);
   }
 
   // Order item 4 — current branch equals the base branch. Checked BEFORE the
@@ -328,11 +329,11 @@ function main() {
     if (!focus.ok) {
       console.error('branch-guard: current_focus.ref_id is not set in STATE.yaml (cannot verify the branch).');
       console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
-      process.exit(4);
+      exit(4);
     }
     console.error(`branch-guard: on the base branch "${opts.base}" — start a dedicated work-item branch first.`);
     console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
-    process.exit(1);
+    exit(1);
   }
 
   // Order item 5 — NEW: a recognized non-work-item branch prefix passes with a
@@ -342,7 +343,7 @@ function main() {
   const prefix = matchAllowlistPrefix(branch);
   if (prefix) {
     console.log(`branch-guard: OK — "${branch}" is a recognized non-work-item branch (prefix "${prefix}"; no work item claimed).`);
-    process.exit(0);
+    exit(0);
   }
 
   // Order item 6 — Tier B on a non-allowlisted branch -> fail closed (identical
@@ -350,7 +351,7 @@ function main() {
   if (!focus.ok) {
     console.error('branch-guard: current_focus.ref_id is not set in STATE.yaml (cannot verify the branch).');
     console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
-    process.exit(4);
+    exit(4);
   }
 
   // Order item 7 — branch name must CONTAIN the ref_id slug (per intake
@@ -359,16 +360,16 @@ function main() {
   if (!branch.includes(focus.refId)) {
     console.error(`branch-guard: branch "${branch}" does not correspond to current_focus.ref_id "${focus.refId}".`);
     console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
-    process.exit(3);
+    exit(3);
   }
 
   // Order item 8 — pass.
   console.log(`branch-guard: OK — branch "${branch}" matches current_focus.ref_id "${focus.refId}".`);
-  process.exit(0);
+  exit(0);
 }
 
 // Run as CLI only when invoked directly; importable for unit tests.
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) main();
+if (isMain) runMain(() => main());
 
 export { TYPE_TOKENS, typeToken, remediation };

@@ -20,6 +20,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { extractUsageTotal } from './lib/usage-note.mjs';
+import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ['docs/issues', 'docs/rfc', 'docs/requirements', 'docs/releases'];
@@ -33,7 +34,7 @@ function parseArgs(argv) {
     if (tok === '--data-only') { args.dataOnly = true; continue; }
     if (tok === '-h' || tok === '--help') {
       console.log('Usage: generate-overview.mjs [--output <html path>] [--data-only]');
-      process.exit(0);
+      exit(0);
     }
   }
   return args;
@@ -472,4 +473,4 @@ function main() {
   console.log(`- docs/ai/overview-data.json`);
 }
 
-main();
+runMain(() => main());
