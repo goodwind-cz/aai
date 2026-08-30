@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-30T19:48:58.627Z
+Generated: 2026-08-30T20:51:12.997Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -48,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (376)
+## Done (377)
 
 | ID | Type | Path |
 |---|---|---|
@@ -256,6 +256,7 @@ _None._
 | ISSUE-0037 | issues | docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md |
 | ISSUE-0038 | issues | docs/issues/ISSUE-0038-checks-that-assert-less-than-they-claim.md |
 | ISSUE-0045 | issues | docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md |
+| ISSUE-0049 | issues | docs/issues/ISSUE-0049-cli-exit-truncates-pipe-sweep.md |
 | ISSUE-0053 | issues | docs/issues/ISSUE-0053-drain-pipe-grep-q-ratchet.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
@@ -429,7 +430,7 @@ _None._
 | SPEC-0156 | specs | docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (42)
+## Drafts (41)
 
 | ID | Type | Path |
 |---|---|---|
@@ -449,7 +450,6 @@ _None._
 | ISSUE-0046 | issues | docs/issues/ISSUE-0046-adhoc-probes-unisolated-report-only.md |
 | ISSUE-0047 | issues | docs/issues/ISSUE-0047-agents-tree-not-synced.md |
 | ISSUE-0048 | issues | docs/issues/ISSUE-0048-bare-main-baseref-sweep.md |
-| ISSUE-0049 | issues | docs/issues/ISSUE-0049-cli-exit-truncates-pipe-sweep.md |
 | ISSUE-0050 | issues | docs/issues/ISSUE-0050-contract-prefix-order-unenforced.md |
 | ISSUE-0051 | issues | docs/issues/ISSUE-0051-dispatch-prompt-coaching-bias.md |
 | ISSUE-0052 | issues | docs/issues/ISSUE-0052-docsaudit-idmention-probe-per-doc.md |

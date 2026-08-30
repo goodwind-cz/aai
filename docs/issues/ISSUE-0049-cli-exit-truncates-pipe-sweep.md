@@ -2,7 +2,12 @@
 id: cli-exit-truncates-pipe-sweep
 type: issue
 number: 49
-status: draft
+status: done
+links:
+  commits:
+    - 4d5f8c0
+  pr:
+    - 316
 ---
 
 # P2 backlog cluster: cli-output-survives-a-pipe (4 items)

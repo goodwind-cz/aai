@@ -104,7 +104,11 @@ docs/ai/live/**
 
 # Test outputs
 tests/skills/results/
-docs/ai/tests/test-runs.jsonl
+# docs/ai/tests/test-runs.jsonl is deliberately NOT listed here: it is a
+# TRACKED, append-only run ledger (HAZ-LEDGER; SPEC-0137 D2/AC-02), committed
+# with a ride's own changes, not a local-only artifact. A gitignore entry has
+# no effect on an already-tracked path and reads as a claim this file makes
+# false (fu-test-runs-jsonl-tracked-ignored) — removed rather than left dead.
 
 # OS
 .DS_Store

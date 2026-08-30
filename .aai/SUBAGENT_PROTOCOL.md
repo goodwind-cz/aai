@@ -19,6 +19,14 @@ An agent MUST NOT spawn subagents when:
 - Units share mutable state or depend on each other's output
 - The platform does not support concurrent task execution (fall back to sequential)
 - The scope is already at minimum granularity (single file/single requirement)
+- A report-writing role (code review, validation, PR) would run while a
+  `tests/skills/test-framework.sh` sweep is in flight — both write into the
+  shipping working tree, so the sweep's tripwire can misattribute the
+  report's own write to a suite (fu-parallel-roles-dirty-the-tree, measured
+  2026-08-19). This is the mutable-state rule above, not a new one:
+  CHANGE-0166's wave/re-run concurrency only arbitrates suite-vs-suite
+  contention inside ONE framework process and has no visibility into a
+  separate process's writes, so it does not cover this case.
 
 ## Subagent call contract
 

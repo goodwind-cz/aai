@@ -63,6 +63,9 @@ Timing capture rules:
 
 Usage-note honesty: a subagent MUST NOT self-report token usage — it cannot
 observe its own; the orchestrator captures usage from the harness at merge time.
+Follow-up honesty (fu-suggested-ids-read-as-filed): label a follow-up id
+`suggested:` unless `follow-ups.mjs add` actually ran and exited 0 for it —
+only then `filed:`; a suggested id relayed as filed never enters the ledger.
 
 ## Single-writer rule (HARD — RFC-0004 / SPEC-0004 D7)
 
