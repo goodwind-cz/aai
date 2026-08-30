@@ -1078,7 +1078,47 @@ main() {
   test_013_drained_list_exempts_nobody
   test_014_shipped_ratchet_length_is_ratcheted
   test_015_always_watch_floor_is_declared
+# TEST-017 (bot review on PR #317, Copilot + Codex independently) — TEST-016
+# only covered tw_fail_kind == "dirty" (the tree changed but is still
+# readable). The OTHER tripwire-fail kind, "lost" (the suite left the
+# repository unreadable — e.g. it deleted its own .git — so the after-
+# snapshot cannot even be taken), was excluded from the same diagnostic dump
+# by the first cut of the TEST-016 fix, reproducing the exact bug for one
+# tripwire outcome instead of closing it for both. $log_file is a fixed path
+# the framework writes independently of tripwire state, so it stays readable
+# even when the snapshot comparison cannot run.
+test_017_tripwire_lost_kind_still_dumps_the_log_tail() {
+  local d out rc=0 ok=1
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" t-lost-and-failing '
+rm -rf "$R/.git"
+echo "AAI-DISTINCTIVE-LOST-MARKER: expected 2, got 3"
+echo "not ok 1 - the distinctive assertion"
+exit 7'
+  commit_fixture_repo "$d" || { log_fail "TEST-017 fixture repo init failed"; return; }
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 1 ]] || { log_info "TEST-017: framework exit=$rc (want 1)"; ok=0; }
+
+  grep -qF "An unavailable snapshot is not evidence of a clean tree" <<<"$out" \
+    || { log_info "TEST-017: the tripwire 'lost' report is missing: $out"; ok=0; }
+
+  # THE BUG: the suite's own failure evidence must ALSO be present for the
+  # "lost" kind, exactly as TEST-016 already requires for "dirty".
+  grep -qF -e '--- failure lines (whole log) ---' <<<"$out" \
+    || { log_info "TEST-017: the failure-lines-whole-log header is missing for a suite whose snapshot was lost: $out"; ok=0; }
+  grep -qF -e 'AAI-DISTINCTIVE-LOST-MARKER' <<<"$out" \
+    || { log_info "TEST-017: the suite's own distinctive failure line never surfaced: $out"; ok=0; }
+  grep -qF -e '--- tail (last 30 lines) ---' <<<"$out" \
+    || { log_info "TEST-017: the log-tail dump is missing for a suite whose snapshot was lost: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-017 a suite whose after-snapshot was lost AND that failed on its own exit code gets both the tripwire report and the failure-lines-plus-tail dump" \
+    || log_fail "TEST-017 tripwire lost-kind still dumps the log tail"
+}
+
   test_016_tripwire_failure_still_dumps_the_log_tail
+  test_017_tripwire_lost_kind_still_dumps_the_log_tail
   echo ""
   if [[ $FAILED -eq 0 ]]; then
     echo "All tests passed!"

@@ -1299,7 +1299,17 @@ suite_report() {
       # non-zero — exactly the CI-undiagnosable gap TEST-016 (repo-tripwire
       # suite) reproduces and this block closes, unconditionally paired with
       # the `*` branch's own dump below.
-      if [[ "$tw_fail_kind" != "lost" && $exit_code -ne 0 && $exit_code -ne 42 ]]; then
+      #
+      # Bot review (PR #317, Copilot + Codex, independently): the first cut
+      # excluded tw_fail_kind == "lost" (the after-snapshot itself became
+      # unreadable, e.g. a suite deleted .git) on the theory that nothing
+      # useful survives — but $log_file is a fixed path written by the
+      # framework itself (line ~1109), set BEFORE and independent of the
+      # tripwire snapshot comparison, so it stays readable even when the
+      # snapshot comparison cannot. Excluding "lost" reproduced the exact bug
+      # this block exists to close, just for one tripwire outcome instead of
+      # all of them.
+      if [[ $exit_code -ne 0 && $exit_code -ne 42 ]]; then
         echo "--- Error Details ($skill_name) ---"
         echo "--- failure lines (whole log) ---"
         grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$log_file" 2>/dev/null | head -n 25 \
