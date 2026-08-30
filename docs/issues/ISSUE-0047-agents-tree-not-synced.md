@@ -16,7 +16,7 @@ status: draft
 ## Current Behavior
 - **`fu-agents-tree-not-synced`**: .agents/skills/ is a tracked shipped skill tree that neither aai-sync.sh nor aai-sync.ps1 copies
   - Measured: it is Cursor's FIRST documented project-skills path, so a vendored downstream project never receives it; grep for '.agents' in both sync scripts returns nothing; deliberately out of the CHANGE scope because the sync scripts carry a byte-identity test plus two managed-prefix lists (distinct blast radius)
-  - Source: .aai/scripts/aai-sync.sh; .aai/scripts/aai-sync.ps1; docs/specs/SPEC-DRAFT-harness-surfaces-drift-unguarded.md D5
+  - Source: .aai/scripts/aai-sync.sh; .aai/scripts/aai-sync.ps1; docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md D5
 
 ## Expected Behavior
 - Each item's own Expected Behavior is scoped at Planning/implementation time from the measured decision text above — this intake's job is to make the cluster a numbered, trackable work item, not to pre-design the fix.

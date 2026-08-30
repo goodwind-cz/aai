@@ -20,7 +20,7 @@ status: draft
 
 - **`fu-sweep-regex-misses-present-tense`**: the AC-004 correction sweep regex matches only future-tense removal wording (will be removed, to be deleted, goes away), so a present-tense statement of a planned deletion passes through uncorrected
   - Measured: validation round 2 found SPEC-0138:75 (they are deleted by a separate change) and CHANGE-0152:31-33 (deleted by a separate one) still uncorrected inside AC-004's own declared docs/** scope; both are the document pair the correcting spec itself links, and both were invisible to the recorded sweep command because it has no bare are/is deleted alternative
-  - Source: validation round 2 of the-tripwire-is-permanent-not-transitional; sweep command at docs/specs/SPEC-DRAFT-spec-the-tripwire-is-permanent-not-transitional.md line 332
+  - Source: validation round 2 of the-tripwire-is-permanent-not-transitional; sweep command (TEST-004 block) at docs/specs/SPEC-0148-spec-the-tripwire-is-permanent-not-transitional.md:363-370
 
 - **`fu-overview-shows-closed-ride-inflight`**: STATE has no terminal phase and no clear-focus, so after close-work-item the generated overview keeps publishing the finished ride as the current in-flight scope until the NEXT ride calls set-focus
   - Measured: two independent bots flagged the shipped overview-data.json naming a closed scope as in-flight; the phase enum is planning|preparation|implementation|validation|code_review|remediation with nothing terminal, so the dashboard is structurally wrong between every pair of rides, not just this once

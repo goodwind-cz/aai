@@ -36,7 +36,7 @@ links:
   0 at `Passed: 2 (100%)` with the write landed."
 - THE MAIN ROUTE IS ALREADY CLOSED, qualifiedly, by work in flight. The ride
   `isolation-shares-the-shipping-git` (branch `fix/suite-isolation-owns-its-git`,
-  `docs/specs/SPEC-DRAFT-isolation-shares-the-shipping-git.md`, SPEC-FROZEN) replaces the
+  `docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md`, SPEC-FROZEN) replaces the
   shared-`.git` worktree with a per-suite `git clone --local --no-hardlinks` (D1) and
   redefines `isolated` as a MEASURED property (D3): the checkout's own
   `git rev-parse --git-common-dir` must not equal the shipping one nor be prefixed by

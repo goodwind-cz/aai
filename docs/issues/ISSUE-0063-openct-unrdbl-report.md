@@ -15,7 +15,7 @@ status: draft
 
 ## Current Behavior
 - **`fu-openct-unrdbl-report`**: generate-factory-report.mjs:616 publishes follow_ups.open_count: 0 for an UNREADABLE ledger (e.g. --decisions a directory), the same 'a bad input reads as good news' shape D2 refuses on the CLI; the file's own oldest_age_days convention two lines down already uses null, never 0, for exactly this degradation
-  - Measured: the honest fix is open_count: registry.unreadable ? null : openFollowUps.length, but Spec-AC-07 of SPEC-DRAFT-spec-followups-cli-hardening.md pins generate-factory-report.mjs byte-unchanged, so it cannot be done inside that scope without breaking a frozen AC
+  - Measured: the honest fix is open_count: registry.unreadable ? null : openFollowUps.length, but Spec-AC-07 of SPEC-0135-spec-followups-cli-hardening.md pins generate-factory-report.mjs byte-unchanged, so it cannot be done inside that scope without breaking a frozen AC
   - Source: docs/ai/reviews/review-20260818T094328Z-followups-cli-hardening.md NB-3
 
 - **`fu-sync-hash-compare-fails-open`**: file_content_different in aai-sync.sh treats an unobtainable hash as different, so a transient sha256sum hiccup silently rewrites the target's copilot shim and plants a project-overrides file

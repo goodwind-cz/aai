@@ -16,7 +16,7 @@ status: draft
 ## Current Behavior
 - **`fu-cli-exit-truncates-pipe-sweep`**: 41 of the .aai/scripts/*.mjs CLIs still print with console.log and then call process.exit, the exact shape that truncated follow-ups.mjs list --json at 65536 bytes on a pipe; docs-audit.mjs (23 logs), test-canon.mjs (28), docs-canon.mjs (23) and metrics-flush.mjs (15) are the largest payloads
   - Measured: cli-output-survives-a-pipe deliberately fixed ONE file; a repo-wide sweep needs its own scope, its own per-CLI exit-code proof and its own regression pins, and doing it inside that ride would have made the diff unreviewable
-  - Source: docs/specs/SPEC-DRAFT-spec-cli-output-survives-a-pipe.md D7
+  - Source: docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md D7
 
 - **`fu-orchestrator-mutated-real-file`**: the orchestrator ran a bite-proof mutation against the tracked suite file instead of a copy, and the first restore attempt silently failed on a mis-anchored sed pattern
   - Measured: every role dispatch this week forbids exactly this, and the near-miss was shipping a test with a shrunken fixture that cannot fail, inside a ride about assertions that cannot fail; the restore also had no verification step until one was added by hand afterwards
