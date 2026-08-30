@@ -25,6 +25,9 @@ set -uo pipefail
 
 TEST_NAME="aai-constitution"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
@@ -125,14 +128,8 @@ test_005_planning_freeze_step() {
   # slice would find the literal anywhere and falsely pass.
   section=$(sed -n '/^10) /,/^11) /p' "$PLANNING_FILE")
   local ok=1
-  if ! printf '%s\n' "$section" | grep -qF "Constitution deviations"; then
-    log_info "TEST-005: 'Constitution deviations' check not inside PLANNING step 10"
-    ok=0
-  fi
-  if ! printf '%s\n' "$section" | grep -qF "docs/CONSTITUTION.md"; then
-    log_info "TEST-005: step 10 does not point at docs/CONSTITUTION.md"
-    ok=0
-  fi
+  assert_payload_contains "$section" "Constitution deviations" "TEST-005: 'Constitution deviations' check not inside PLANNING step 10" || ok=0
+  assert_payload_contains "$section" "docs/CONSTITUTION.md" "TEST-005: step 10 does not point at docs/CONSTITUTION.md" || ok=0
   grep -qE '^11\) Emit the work-item brief' "$PLANNING_FILE" \
     || { log_info "TEST-005: step 11 (brief emit) missing or renumbered"; ok=0; }
   grep -qE '^12\) Update docs/ai/STATE\.yaml' "$PLANNING_FILE" \

@@ -60,6 +60,9 @@ set -u
 
 TEST_NAME="test-aai-friction-wiring"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
@@ -315,8 +318,7 @@ test_008_hooks_enumerated() {
   log_info "Test: protocol seam enumerates the three deterministic hooks (TEST-008 / spec TEST-001)..."
   local seam; seam="$(extract_seam "$PROTOCOL")"
   [ -n "$seam" ] || log_fail "TEST-008: seam section is empty or missing"
-  printf '%s' "$seam" | grep -qF "$DETERMINISTIC_HEADING" \
-    || log_fail "TEST-008: seam must carry the '$DETERMINISTIC_HEADING' subsection"
+  assert_payload_contains "$seam" "$DETERMINISTIC_HEADING" "TEST-008: seam must carry the '$DETERMINISTIC_HEADING' subsection"
   printf '%s' "$seam" | grep -qi "validation FAIL" \
     || log_fail "TEST-008: seam must name the validation-FAIL hook"
   printf '%s' "$seam" | grep -qi "remediation dispatch" \
@@ -509,8 +511,7 @@ test_015_wrapup_step6_wired() {
     cap { print }
   ' "$SKILL_WRAP_UP_PROMPT")"
   [ -n "$step6" ] || log_fail "TEST-015: step 6 (FRICTION FEEDBACK NUDGE) section not found"
-  printf '%s' "$step6" | grep -qF "aai-feedback-triage.mjs" \
-    || log_fail "TEST-015: step 6 must name the triage engine aai-feedback-triage.mjs"
+  assert_payload_contains "$step6" "aai-feedback-triage.mjs" "TEST-015: step 6 must name the triage engine aai-feedback-triage.mjs"
   printf '%s' "$step6" | grep -qi "proposed-intake" \
     || log_fail "TEST-015: step 6 must surface proposed-intake one-liners"
   printf '%s' "$step6" | grep -qi "review_candidate" \

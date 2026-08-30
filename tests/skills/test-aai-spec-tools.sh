@@ -24,6 +24,9 @@ set -uo pipefail
 
 TEST_NAME="aai-spec-tools"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SCOPE_EDIT="$PROJECT_ROOT/.aai/scripts/spec-scope-edit.mjs"
 FREEZE="$PROJECT_ROOT/.aai/scripts/spec-freeze.mjs"
@@ -154,12 +157,9 @@ test_scope_001_exclude_untouched() {
   expect_exit 0 "$rc" "TEST-001(scope) exclude untouched" || ok=0
   local list
   list="$(scope_list)"
-  echo "$list" | grep -q "requirements.txt" \
-    && { log_info "TEST-001(scope): requirements.txt still in scope: $list"; ok=0; }
-  echo "$list" | grep -q "src/touched.mjs" \
-    || { log_info "TEST-001(scope): the edit dropped an unrelated entry: $list"; ok=0; }
-  echo "$list" | grep -q "tests/skills/test-x.sh" \
-    || { log_info "TEST-001(scope): the edit dropped an unrelated entry: $list"; ok=0; }
+  assert_payload_not_contains "$list" "requirements.txt" "TEST-001(scope): requirements.txt still in scope: $list" || ok=0
+  assert_payload_contains "$list" "src/touched.mjs" "TEST-001(scope): the edit dropped an unrelated entry: $list" || ok=0
+  assert_payload_contains "$list" "tests/skills/test-x.sh" "TEST-001(scope): the edit dropped an unrelated entry: $list" || ok=0
   # ONLY the review-scope section may change: the AC table is byte-identical.
   grep -q "^| Spec-AC-01 | first       | done   | tests/a.sh | —         | —     |$" "$SPEC" \
     || { log_info "TEST-001(scope): the AC table was modified"; ok=0; }
@@ -357,15 +357,13 @@ test_freeze_003_repairs_half_frozen() {
   spec_body draft true "src/touched.mjs" > "$SPEC"
   out="$(cd "$REPO" && node "$PROJECT_ROOT/.aai/scripts/spec-lint.mjs" --path docs/specs/SPEC-0001-fx.md 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-008(freeze) half-frozen lints dirty first" || ok=0
-  echo "$out" | grep -q "half-frozen" \
-    || { log_info "TEST-008(freeze): the half-frozen fixture was not flagged: $out"; ok=0; }
+  assert_payload_contains "$out" "half-frozen" "TEST-008(freeze): the half-frozen fixture was not flagged: $out" || ok=0
 
   out="$(runfreeze --path docs/specs/SPEC-0001-fx.md 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-008(freeze) repair" || ok=0
   out="$(cd "$REPO" && node "$PROJECT_ROOT/.aai/scripts/spec-lint.mjs" --path docs/specs/SPEC-0001-fx.md 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-008(freeze) clean after repair" || ok=0
-  echo "$out" | grep -q "half-frozen" \
-    && { log_info "TEST-008(freeze): still half-frozen after the repair: $out"; ok=0; }
+  assert_payload_not_contains "$out" "half-frozen" "TEST-008(freeze): still half-frozen after the repair: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-008(freeze) repairs a half-frozen doc in one write; spec-lint goes finding -> clean" \
     || log_fail "TEST-008(freeze) half-frozen repair"
 }
@@ -688,10 +686,8 @@ test_freeze_020_precondition_ac_without_test() {
   expect_exit 3 "$rc" "TEST-020(freeze) untested AC" || ok=0
   echo "$out" | grep -qi "refus" \
     || { log_info "TEST-020(freeze): refusal not named: $out"; ok=0; }
-  echo "$out" | grep -qF "ac-without-test" \
-    || { log_info "TEST-020(freeze): the refusal must name its reason (ac-without-test): $out"; ok=0; }
-  echo "$out" | grep -qF "Spec-AC-01" \
-    || { log_info "TEST-020(freeze): the refusal must name the offending AC: $out"; ok=0; }
+  assert_payload_contains "$out" "ac-without-test" "TEST-020(freeze): the refusal must name its reason (ac-without-test): $out" || ok=0
+  assert_payload_contains "$out" "Spec-AC-01" "TEST-020(freeze): the refusal must name the offending AC: $out" || ok=0
   [[ "$before" == "$(cksum "$SPEC")" ]] \
     || { log_info "TEST-020(freeze): a refused freeze still wrote the spec"; ok=0; }
   grep -q "^SPEC-FROZEN: true$" "$SPEC" \
@@ -706,10 +702,8 @@ test_freeze_020_precondition_ac_without_test() {
   # --json must carry a machine-readable refusal (the orchestrator's path).
   out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --json --no-event 2>&1)"; rc=$?
   expect_exit 3 "$rc" "TEST-020(freeze) json refusal" || ok=0
-  echo "$out" | grep -qF '"refused": true' \
-    || { log_info "TEST-020(freeze): --json refusal shape wrong: $out"; ok=0; }
-  echo "$out" | grep -qF 'ac-without-test' \
-    || { log_info "TEST-020(freeze): --json refusal must name the reason: $out"; ok=0; }
+  assert_payload_contains "$out" "\"refused\": true" "TEST-020(freeze): --json refusal shape wrong: $out" || ok=0
+  assert_payload_contains "$out" "ac-without-test" "TEST-020(freeze): --json refusal must name the reason: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-020(freeze) an untested Spec-AC refuses the freeze (exit 3, named reason, nothing written)" \
     || log_fail "TEST-020(freeze) ac-without-test precondition"
 }
@@ -723,8 +717,7 @@ test_freeze_021_precondition_strategy() {
     before="$(cksum "$SPEC")"
     out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --no-event 2>&1)"; rc=$?
     expect_exit 3 "$rc" "TEST-021(freeze) strategy $variant" || ok=0
-    echo "$out" | grep -qF "frozen-without-strategy" \
-      || { log_info "TEST-021(freeze) $variant: the refusal must name its reason: $out"; ok=0; }
+    assert_payload_contains "$out" "frozen-without-strategy" "TEST-021(freeze) $variant: the refusal must name its reason: $out" || ok=0
     [[ "$before" == "$(cksum "$SPEC")" ]] \
       || { log_info "TEST-021(freeze) $variant: a refused freeze still wrote the spec"; ok=0; }
   done
@@ -793,8 +786,7 @@ test_freeze_023_help_documents_preconditions() {
   local out rc ok=1
   new_repo || { log_fail "TEST-023(freeze) fixture setup failed"; return; }
   out="$(runfreeze --help 2>&1)"; rc=$?
-  echo "$out" | grep -qF "ac-without-test" \
-    || { log_info "TEST-023(freeze): --help does not name the ac-without-test precondition: $out"; ok=0; }
+  assert_payload_contains "$out" "ac-without-test" "TEST-023(freeze): --help does not name the ac-without-test precondition: $out" || ok=0
   echo "$out" | grep -qi "strategy" \
     || { log_info "TEST-023(freeze): --help does not name the strategy precondition: $out"; ok=0; }
   # measurability is NOT claimed by the tool — the honest split
@@ -836,7 +828,7 @@ SPEC
   before="$(cksum "$d/SPEC-0001-spec-x.md")"
   out="$(node "$FREEZE" --path "$d/SPEC-0001-spec-x.md" --no-event 2>&1)" || rc=$?
   [[ "$rc" -eq 3 ]] || log_fail "TEST-024(freeze): must refuse exit 3 (got $rc): $out"
-  printf '%s' "$out" | grep -q 'ac-row-unparsed' || log_fail "TEST-024(freeze): reason must name ac-row-unparsed: $out"
+  assert_payload_contains "$out" "ac-row-unparsed" "TEST-024(freeze): reason must name ac-row-unparsed: $out"
   after="$(cksum "$d/SPEC-0001-spec-x.md")"
   [[ "$before" == "$after" ]] || log_fail "TEST-024(freeze): refusal must write nothing"
   rm -rf "$d"

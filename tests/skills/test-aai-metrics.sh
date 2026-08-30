@@ -32,6 +32,9 @@ set -euo pipefail
 TEST_NAME="aai-metrics"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FLUSH="$PROJECT_ROOT/.aai/scripts/metrics-flush.mjs"
 REPORT="$PROJECT_ROOT/.aai/scripts/metrics-report.mjs"
@@ -1308,7 +1311,7 @@ test_101_sweep_flag_parse() {
   local usage_out usage_ec=0
   usage_out="$( (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs --bogus-flag 2>&1) )" || usage_ec=$?
   [[ "$usage_ec" == 2 ]] || log_fail "unknown flag must still exit 2 (got $usage_ec): $usage_out"
-  echo "$usage_out" | grep -qF -- '--sweep' || log_fail "unknown-flag usage string must list --sweep: $usage_out"
+  assert_payload_contains "$usage_out" "--sweep" "unknown-flag usage string must list --sweep: $usage_out"
   log_pass "--sweep parses, is accepted, and is listed in usage (TEST-101)"
 }
 
@@ -1705,13 +1708,13 @@ test_116_retire_documented_not_in_prompt() {  # TEST-008 (Spec-AC-08)
   # (a) top-of-file comment block (before the first import) documents both flags.
   local header
   header="$(sed -n '1,/^import /p' "$FLUSH")"
-  echo "$header" | grep -qF -- '--retire' || log_fail "top-of-file comment must document --retire"
-  echo "$header" | grep -qF -- '--reason' || log_fail "top-of-file comment must document --reason"
+  assert_payload_contains "$header" "--retire" "top-of-file comment must document --retire"
+  assert_payload_contains "$header" "--reason" "top-of-file comment must document --reason"
   # (b) unknown-flag usage string lists --retire (grep the parseArgs fail text).
   local usage_out usage_ec=0
   usage_out="$( (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs --bogus-flag 2>&1) )" || usage_ec=$?
   [[ "$usage_ec" == 2 ]] || log_fail "unknown flag must exit 2 (got $usage_ec): $usage_out"
-  echo "$usage_out" | grep -qF -- '--retire' || log_fail "unknown-flag usage string must list --retire: $usage_out"
+  assert_payload_contains "$usage_out" "--retire" "unknown-flag usage string must list --retire: $usage_out"
   # (c) SPEC-0054 negative invariant re-verified locally: the prompt file must
   # NOT carry the literal work_item_closed (documenting retire's guard there
   # would risk reintroducing it — retire is documented in the script only).
@@ -1824,8 +1827,7 @@ test_120_shared_lib_grep_contract() {  # token-economics TEST-003 (Spec-AC-01)
   hits="$(grep -rlF 'usage_total_tokens=(\d+)' "$PROJECT_ROOT/.aai/scripts" 2>/dev/null || true)"
   n="$(printf '%s\n' "$hits" | grep -c . || true)"
   [[ "$n" == "1" ]] || log_fail "raw usage-note regex literal must exist in exactly one file (got $n): $hits"
-  printf '%s\n' "$hits" | grep -qF ".aai/scripts/lib/usage-note.mjs" \
-    || log_fail "the single source file must be .aai/scripts/lib/usage-note.mjs (got: $hits)"
+  assert_payload_contains "$hits" ".aai/scripts/lib/usage-note.mjs" "the single source file must be .aai/scripts/lib/usage-note.mjs (got: $hits)"
   grep -qE "from '\\./lib/usage-note\\.mjs'" "$PROJECT_ROOT/.aai/scripts/metrics-flush.mjs" \
     || log_fail "metrics-flush.mjs must import from lib/usage-note.mjs"
   grep -qE "USAGE_NOTE_RE" "$PROJECT_ROOT/.aai/scripts/metrics-flush.mjs" \
@@ -2044,14 +2046,12 @@ test_133_model_marker_grep_contract() {  # validation-cost-calibration spec TEST
   hits="$(grep -rlF 'requested_model=' "$PROJECT_ROOT/.aai/scripts" 2>/dev/null || true)"
   n="$(printf '%s\n' "$hits" | grep -c . || true)"
   [[ "$n" == "1" ]] || log_fail "requested_model= raw regex literal must exist in exactly one file (got $n): $hits"
-  printf '%s\n' "$hits" | grep -qF ".aai/scripts/lib/usage-note.mjs" \
-    || log_fail "the single source file for requested_model= must be .aai/scripts/lib/usage-note.mjs (got: $hits)"
+  assert_payload_contains "$hits" ".aai/scripts/lib/usage-note.mjs" "the single source file for requested_model= must be .aai/scripts/lib/usage-note.mjs (got: $hits)"
 
   hits="$(grep -rlF 'actual_model=' "$PROJECT_ROOT/.aai/scripts" 2>/dev/null || true)"
   n="$(printf '%s\n' "$hits" | grep -c . || true)"
   [[ "$n" == "1" ]] || log_fail "actual_model= raw regex literal must exist in exactly one file (got $n): $hits"
-  printf '%s\n' "$hits" | grep -qF ".aai/scripts/lib/usage-note.mjs" \
-    || log_fail "the single source file for actual_model= must be .aai/scripts/lib/usage-note.mjs (got: $hits)"
+  assert_payload_contains "$hits" ".aai/scripts/lib/usage-note.mjs" "the single source file for actual_model= must be .aai/scripts/lib/usage-note.mjs (got: $hits)"
 
   log_pass "requested_model=/actual_model= raw regex literals: exactly one file each, lib/usage-note.mjs (TEST-133/spec TEST-008)"
 }

@@ -19,6 +19,9 @@ set -euo pipefail
 
 TEST_NAME="aai-docs-lock"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOCK_SCRIPT="${DOCS_LOCK_SCRIPT:-$PROJECT_ROOT/.aai/scripts/docs-lock.mjs}"
 PROTOCOL_DOC="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
@@ -331,8 +334,8 @@ test_collision_guard() {
   out="$(runlock list 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "list must exit 0 (got $rc)"
-  echo "$out" | grep -qF "x/y" || log_fail "list must show raw scope 'x/y'"
-  echo "$out" | grep -qF "x_y" || log_fail "list must show raw scope 'x_y'"
+  assert_payload_contains "$out" "x/y" "list must show raw scope 'x/y'"
+  assert_payload_contains "$out" "x_y" "list must show raw scope 'x_y'"
   # Cross-branch (review finding): a scope literally named like the disambiguated
   # output of an unsafe scope must NOT collide with it. The "~" namespace prefix
   # makes the unsafe form unreachable by any naturally-safe scope id.
@@ -366,10 +369,10 @@ test_list_view() {
   out="$(runlock list 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "list must exit 0 (got $rc)"
-  echo "$out" | grep -qF "ALPHA" || log_fail "list must show scope ALPHA"
-  echo "$out" | grep -qF "BETA" || log_fail "list must show scope BETA"
-  echo "$out" | grep -qF "owner-1" || log_fail "list must show owner-1"
-  echo "$out" | grep -qF "owner-2" || log_fail "list must show owner-2"
+  assert_payload_contains "$out" "ALPHA" "list must show scope ALPHA"
+  assert_payload_contains "$out" "BETA" "list must show scope BETA"
+  assert_payload_contains "$out" "owner-1" "list must show owner-1"
+  assert_payload_contains "$out" "owner-2" "list must show owner-2"
   log_pass "list reports held locks and a no-locks marker when empty"
 }
 
@@ -400,8 +403,7 @@ test_gitignore() {
   local porcelain
   porcelain="$(cd "$gitdir" && git status --porcelain)"
   set -e
-  echo "$porcelain" | grep -qF "docs/ai/locks" \
-    && log_fail "lock files must never appear in git status --porcelain"
+  assert_payload_not_contains "$porcelain" "docs/ai/locks" "lock files must never appear in git status --porcelain"
   log_pass "docs/ai/locks/ is gitignored; lock files invisible to git"
 }
 

@@ -36,6 +36,9 @@ set -uo pipefail
 
 TEST_NAME="aai-planning-probes"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CHECKER="$PROJECT_ROOT/.aai/scripts/check-role-output.mjs"
 PROTOCOL_DOC="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
@@ -135,14 +138,10 @@ test_001_r04_code_write_caught() {
 
   out="$(runcheck --file "$TMP_ROOT/msg.md" --now 2026-06-01T00:00:00Z --base-ref main)"; rc=$?
   expect_exit 1 "$rc" "PROBE-001 code write" || ok=0
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-PLANNING-WROTE-CODE" \
-    || { log_info "PROBE-001: no E-PLANNING-WROTE-CODE line: $out"; ok=0; }
-  echo "$out" | grep -qF "src/app.mjs" \
-    || { log_info "PROBE-001: the modified source file was not named: $out"; ok=0; }
-  echo "$out" | grep -qF "tests-new.sh" \
-    || { log_info "PROBE-001: the NEW untracked file was not named (untracked writes must count): $out"; ok=0; }
-  echo "$out" | grep -qF "docs/specs/SPEC-DRAFT-x.md" \
-    && { log_info "PROBE-001: an ALLOWED path was reported as a violation: $out"; ok=0; }
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-PLANNING-WROTE-CODE" "PROBE-001: no E-PLANNING-WROTE-CODE line: $out" || ok=0
+  assert_payload_contains "$out" "src/app.mjs" "PROBE-001: the modified source file was not named: $out" || ok=0
+  assert_payload_contains "$out" "tests-new.sh" "PROBE-001: the NEW untracked file was not named (untracked writes must count): $out" || ok=0
+  assert_payload_not_contains "$out" "docs/specs/SPEC-DRAFT-x.md" "PROBE-001: an ALLOWED path was reported as a violation: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "PROBE-001 (R04) a Planning run that writes code/tests is caught, tracked AND untracked" \
     || log_fail "PROBE-001 (R04) code write"
 }
@@ -180,10 +179,8 @@ test_003_r09_new_worktree_caught() {
 
   out="$(runcheck --file "$TMP_ROOT/msg.md" --now 2026-06-01T00:00:00Z --worktree-baseline "$TMP_ROOT/wt-baseline.txt")"; rc=$?
   expect_exit 1 "$rc" "PROBE-003 new worktree" || ok=0
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-PLANNING-WORKTREE" \
-    || { log_info "PROBE-003: no E-PLANNING-WORKTREE line: $out"; ok=0; }
-  echo "$out" | grep -qF "wt-CHANGE-0113" \
-    || { log_info "PROBE-003: the new worktree was not named: $out"; ok=0; }
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-PLANNING-WORKTREE" "PROBE-003: no E-PLANNING-WORKTREE line: $out" || ok=0
+  assert_payload_contains "$out" "wt-CHANGE-0113" "PROBE-003: the new worktree was not named: $out" || ok=0
 
   # CONTROL: the same baseline against an UNCHANGED worktree list is clean.
   new_repo || { log_fail "PROBE-003 control setup failed"; return; }
@@ -207,8 +204,7 @@ test_004_r09_scope_guard() {
   result_block "$TMP_ROOT/msg.md" "Planning"
   out="$(runcheck --file "$TMP_ROOT/msg.md" --now 2026-06-01T00:00:00Z --worktree-guard)"; rc=$?
   expect_exit 1 "$rc" "PROBE-004 scope-named worktree" || ok=0
-  echo "$out" | grep -qF "E-PLANNING-WORKTREE" \
-    || { log_info "PROBE-004: scope-named worktree not caught: $out"; ok=0; }
+  assert_payload_contains "$out" "E-PLANNING-WORKTREE" "PROBE-004: scope-named worktree not caught: $out" || ok=0
 
   # CONTROL: an unrelated worktree is NOT this scope's and does not fire.
   new_repo || { log_fail "PROBE-004 control setup failed"; return; }
@@ -258,10 +254,8 @@ test_006_flag_contract() {
 
   # (c) the usage text names both optional flags.
   out="$(node "$CHECKER" --bogus-flag 2>&1)"; rc=$?
-  echo "$out" | grep -qF -- "--base-ref" \
-    || { log_info "PROBE-006: usage does not name --base-ref: $out"; ok=0; }
-  echo "$out" | grep -qF -- "--worktree-guard" \
-    || { log_info "PROBE-006: usage does not name --worktree-guard: $out"; ok=0; }
+  assert_payload_contains "$out" "--base-ref" "PROBE-006: usage does not name --base-ref: $out" || ok=0
+  assert_payload_contains "$out" "--worktree-guard" "PROBE-006: usage does not name --worktree-guard: $out" || ok=0
 
   # (d) the WIRING TRUTH is written down where an operator will find it: the
   # merge protocol says the flags exist and that step 1 does not pass them.

@@ -22,6 +22,9 @@ set -euo pipefail
 
 TEST_NAME="aai-prune-stale-briefs"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PRUNE="$PROJECT_ROOT/.aai/scripts/prune-stale-briefs.mjs"
 TEST_DIR=""
@@ -84,11 +87,10 @@ main() {
   local out; out="$(run --dry-run)"
   b done-slug.md && b CHANGE-0001.md && b nobody-here.md && b open-slug.md && b weird-slug.md \
     || log_fail "TEST-005: --dry-run must not remove any brief"
-  echo "$out" | grep -q "would prune 3" \
-    || log_fail "TEST-005: --dry-run must report 3 stale (done slug + done display-id + orphan), got: $out"
+  assert_payload_contains "$out" "would prune 3" "TEST-005: --dry-run must report 3 stale (done slug + done display-id + orphan), got: $out"
   local jout; jout="$(run --dry-run --json)"
-  echo "$jout" | grep -q '"kept_open": 2' || log_fail "TEST-005: --json must report kept_open:2 (open + unknown-status), got: $jout"
-  echo "$jout" | grep -q '"dry_run": true' || log_fail "TEST-005: --json must report dry_run:true"
+  assert_payload_contains "$jout" "\"kept_open\": 2" "TEST-005: --json must report kept_open:2 (open + unknown-status), got: $jout"
+  assert_payload_contains "$jout" "\"dry_run\": true" "TEST-005: --json must report dry_run:true"
   log_pass "TEST-005: --dry-run reports 3 stale / 2 kept, removes nothing, --json shape ok"
 
   # Real sweep.
@@ -105,7 +107,7 @@ main() {
   log_info "TEST-006: .gitkeep untouched, idempotent no-op second run..."
   b .gitkeep || log_fail "TEST-006: .gitkeep must never be pruned"
   local out2; out2="$(run)"
-  echo "$out2" | grep -q "nothing to prune" || log_fail "TEST-006: second run must be a no-op, got: $out2"
+  assert_payload_contains "$out2" "nothing to prune" "TEST-006: second run must be a no-op, got: $out2"
   log_pass "TEST-006: .gitkeep preserved; second run is a clean no-op"
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
