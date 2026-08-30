@@ -1971,3 +1971,6 @@
 {"v":1,"ts":"2026-08-29T18:02:06.334Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"checks-that-assert-less-than-they-claim","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-29T18:02:06.365Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"checks-that-assert-less-than-they-claim","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-29T18:02:06.399Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"checks-that-assert-less-than-they-claim","payload":{"commit":"b2906a8"}}
+{"v":1,"ts":"2026-08-30T14:44:03.700Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"drain-pipe-grep-q-ratchet","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-30T14:44:03.732Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"drain-pipe-grep-q-ratchet","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-30T14:44:03.765Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"drain-pipe-grep-q-ratchet","payload":{"commit":"561ab40"}}

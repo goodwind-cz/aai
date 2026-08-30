@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-30T11:53:12.192Z
+Generated: 2026-08-30T14:44:03.838Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -48,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (375)
+## Done (376)
 
 | ID | Type | Path |
 |---|---|---|
@@ -256,6 +256,7 @@ _None._
 | ISSUE-0037 | issues | docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md |
 | ISSUE-0038 | issues | docs/issues/ISSUE-0038-checks-that-assert-less-than-they-claim.md |
 | ISSUE-0045 | issues | docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md |
+| ISSUE-0053 | issues | docs/issues/ISSUE-0053-drain-pipe-grep-q-ratchet.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -428,7 +429,7 @@ _None._
 | SPEC-0156 | specs | docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (43)
+## Drafts (42)
 
 | ID | Type | Path |
 |---|---|---|
@@ -452,7 +453,6 @@ _None._
 | ISSUE-0050 | issues | docs/issues/ISSUE-0050-contract-prefix-order-unenforced.md |
 | ISSUE-0051 | issues | docs/issues/ISSUE-0051-dispatch-prompt-coaching-bias.md |
 | ISSUE-0052 | issues | docs/issues/ISSUE-0052-docsaudit-idmention-probe-per-doc.md |
-| ISSUE-0053 | issues | docs/issues/ISSUE-0053-drain-pipe-grep-q-ratchet.md |
 | ISSUE-0054 | issues | docs/issues/ISSUE-0054-drained-suites-still-write-unisolated.md |
 | ISSUE-0055 | issues | docs/issues/ISSUE-0055-exit-contract-pin-comment-dup.md |
 | ISSUE-0056 | issues | docs/issues/ISSUE-0056-index-regen-eats-untracked.md |
