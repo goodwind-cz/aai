@@ -48,6 +48,9 @@ set -euo pipefail
 TEST_NAME="aai-overview"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 OVERVIEW="$PROJECT_ROOT/.aai/scripts/generate-overview.mjs"
 REPORT="$PROJECT_ROOT/.aai/scripts/metrics-report.mjs"
@@ -374,11 +377,11 @@ test_dph01_in_flight_renders_focus_and_chips() {
   local section
   section="$(awk '/In flight now/,/<\/section>/' "$html")"
   grep -qF "FIX-DPH1" "$html" || log_fail "missing focus ref"
-  printf '%s' "$section" | grep -qF "implementation" || log_fail "missing focus phase chip"
+  assert_payload_contains "$section" "implementation" "missing focus phase chip"
   grep -qF "tdd" "$html" || log_fail "missing strategy chip"
   grep -qF "recommended" "$html" || log_fail "missing worktree recommendation chip"
-  printf '%s' "$section" | grep -qF "inline" || log_fail "missing worktree user-decision chip"
-  printf '%s' "$section" | grep -qF "pass" || log_fail "missing validation-status chip"
+  assert_payload_contains "$section" "inline" "missing worktree user-decision chip"
+  assert_payload_contains "$section" "pass" "missing validation-status chip"
   grep -qF "not_run" "$html" || log_fail "missing review-status chip"
   log_pass "In-flight section renders focus/phase/strategy/worktree/validation/review (dev-progress-hub TEST-001)"
 }

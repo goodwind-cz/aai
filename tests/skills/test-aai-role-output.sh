@@ -22,6 +22,9 @@ set -euo pipefail
 
 TEST_NAME="aai-role-output"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CHECKER="$PROJECT_ROOT/.aai/scripts/check-role-output.mjs"
 FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures/role-outputs"
@@ -83,29 +86,25 @@ test_002_violating_fixtures() {
   out="$(runcheck --file "$FIXTURES_DIR/implementation-violating.md" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "implementation-violating.md expected exit 1, got $rc"
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-MISSING-FIELD" \
-    || log_fail "implementation-violating.md expected E-MISSING-FIELD, got: $out"
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-MISSING-FIELD" "implementation-violating.md expected E-MISSING-FIELD, got: $out"
 
   set +e
   out="$(runcheck --file "$FIXTURES_DIR/validation-violating.md" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "validation-violating.md expected exit 1, got $rc"
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-BAD-STATUS" \
-    || log_fail "validation-violating.md expected E-BAD-STATUS, got: $out"
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-BAD-STATUS" "validation-violating.md expected E-BAD-STATUS, got: $out"
 
   set +e
   out="$(runcheck --file "$FIXTURES_DIR/review-violating.md" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "review-violating.md expected exit 1, got $rc"
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-NO-EVIDENCE" \
-    || log_fail "review-violating.md expected E-NO-EVIDENCE, got: $out"
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-NO-EVIDENCE" "review-violating.md expected E-NO-EVIDENCE, got: $out"
 
   set +e
   out="$(runcheck --file "$FIXTURES_DIR/planning-violating.md" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "planning-violating.md expected exit 1, got $rc"
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-BAD-TIMESTAMP" \
-    || log_fail "planning-violating.md expected E-BAD-TIMESTAMP, got: $out"
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-BAD-TIMESTAMP" "planning-violating.md expected E-BAD-TIMESTAMP, got: $out"
 
   log_pass "TEST-002 all violating fixtures rejected with their expected code"
 }
@@ -226,7 +225,7 @@ EOF
   out="$(runcheck --file "$good_then_bad" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "last-invalid case expected exit 1 (last fence wins), got $rc"
-  echo "$out" | grep -qF "E-BAD-STATUS" || log_fail "last-invalid case expected E-BAD-STATUS, got: $out"
+  assert_payload_contains "$out" "E-BAD-STATUS" "last-invalid case expected E-BAD-STATUS, got: $out"
   log_pass "TEST-004 LAST fence wins in both directions"
 }
 
@@ -325,8 +324,7 @@ EOF
   out="$(runcheck --file "$beyond" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "duration off by 5s must be rejected, got rc=$rc"
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-BAD-DURATION" \
-    || log_fail "expected E-BAD-DURATION, got: $out"
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-BAD-DURATION" "expected E-BAD-DURATION, got: $out"
   log_pass "TEST-007 duration +/-1s tolerance enforced"
 }
 
@@ -338,8 +336,7 @@ test_008_bad_timestamp() {
   out="$(runcheck --file "$FIXTURES_DIR/planning-violating.md" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "expected exit 1, got $rc"
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-BAD-TIMESTAMP" \
-    || log_fail "expected E-BAD-TIMESTAMP, got: $out"
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-BAD-TIMESTAMP" "expected E-BAD-TIMESTAMP, got: $out"
 
   # A non-UTC offset (missing explicit Z/+00:00) must also be rejected.
   local offset="$TMP_ROOT/offset-timestamp.md"
@@ -364,8 +361,7 @@ EOF
   out="$(runcheck --file "$offset" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "non-UTC offset timestamp must be rejected, got rc=$rc"
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-BAD-TIMESTAMP" \
-    || log_fail "expected E-BAD-TIMESTAMP for non-UTC offset, got: $out"
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-BAD-TIMESTAMP" "expected E-BAD-TIMESTAMP for non-UTC offset, got: $out"
   log_pass "TEST-008 malformed / non-UTC timestamps rejected"
 }
 
@@ -378,15 +374,13 @@ test_009_field_bundle() {
   out="$(runcheck --file "$FIXTURES_DIR/implementation-violating.md" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "missing-field fixture expected exit 1, got $rc"
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-MISSING-FIELD" \
-    || log_fail "expected E-MISSING-FIELD, got: $out"
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-MISSING-FIELD" "expected E-MISSING-FIELD, got: $out"
 
   set +e
   out="$(runcheck --file "$FIXTURES_DIR/validation-violating.md" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "bad-status fixture expected exit 1, got $rc"
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-BAD-STATUS" \
-    || log_fail "expected E-BAD-STATUS, got: $out"
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-BAD-STATUS" "expected E-BAD-STATUS, got: $out"
 
   # Empty evidence list (no entries at all) -> E-NO-EVIDENCE.
   local empty_ev="$TMP_ROOT/empty-evidence.md"
@@ -408,8 +402,7 @@ EOF
   out="$(runcheck --file "$empty_ev" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "empty-evidence fixture expected exit 1, got $rc"
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-NO-EVIDENCE" \
-    || log_fail "expected E-NO-EVIDENCE for empty evidence list, got: $out"
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-NO-EVIDENCE" "expected E-NO-EVIDENCE for empty evidence list, got: $out"
 
   log_pass "TEST-009 missing-field / bad-status / no-evidence bundle"
 }
@@ -438,8 +431,7 @@ test_010_canon_wiring() {
     || log_fail "SUBAGENT_PROTOCOL.md must document the reject-and-re-prompt-once rule"
   local step1
   step1="$(awk '/^## Merge protocol/{f=1} f && /^2\. Evaluate overall status/{exit} f' "$PROTOCOL_DOC")"
-  echo "$step1" | grep -qF "check-role-output.mjs" \
-    || log_fail "the mandatory checker invocation must live in merge-protocol STEP 1 (before step 2), got step-1 text:"$'\n'"$step1"
+  assert_payload_contains "$step1" "check-role-output.mjs" "the mandatory checker invocation must live in merge-protocol STEP 1 (before step 2), got step-1 text:"$'\n'"$step1"
   grep -qF "300 seconds in the future" "$PROTOCOL_DOC" \
     || log_fail "SEAM-2: PROTOCOL must still document the 300s future-timestamp rule"
   log_pass "TEST-010 canon wiring: CONTRACT $n lines + EXPECT pointer; PROTOCOL step 1 mandatory invocation"
@@ -490,8 +482,7 @@ EOF
   out="$(runcheck --file "$future" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "started_utc 601s ahead of --now must be rejected, got rc=$rc"
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-FUTURE-STARTED" \
-    || log_fail "expected E-FUTURE-STARTED, got: $out"
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-FUTURE-STARTED" "expected E-FUTURE-STARTED, got: $out"
 
   # Exactly at the 300s boundary must still be accepted (>300s rejects, not >=).
   local boundary="$TMP_ROOT/boundary-started.md"
@@ -585,10 +576,8 @@ test_021_planning_verdict_rejected() {
   out="$(runcheck --file "$FIXTURES_DIR/planning-verdict-violating.md" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "planning-verdict-violating.md expected exit 1, got $rc; output: $out"
-  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-PLANNING-VERDICT" \
-    || log_fail "expected E-PLANNING-VERDICT, got: $out"
-  echo "$out" | grep -qF "last_validation" \
-    || log_fail "the violation line must name the offending field, got: $out"
+  assert_payload_contains "$out" "ROLE-OUTPUT-VIOLATION: E-PLANNING-VERDICT" "expected E-PLANNING-VERDICT, got: $out"
+  assert_payload_contains "$out" "last_validation" "the violation line must name the offending field, got: $out"
 
   # every reserved verdict field, and a lowercase role spelling
   local key msg
@@ -615,8 +604,7 @@ test_021_planning_verdict_rejected() {
     out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
     set -e
     [[ "$rc" -eq 1 ]] || log_fail "Planning block with '$key' expected exit 1, got $rc"
-    echo "$out" | grep -qF "E-PLANNING-VERDICT" \
-      || log_fail "Planning block with '$key' expected E-PLANNING-VERDICT, got: $out"
+    assert_payload_contains "$out" "E-PLANNING-VERDICT" "Planning block with '$key' expected E-PLANNING-VERDICT, got: $out"
   done
   log_pass "TEST-021 Planning blocks claiming a validation verdict are rejected (5 field spellings, case-insensitive role)"
 }

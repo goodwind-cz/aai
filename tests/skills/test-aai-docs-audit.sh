@@ -4593,8 +4593,7 @@ MD
       || log_fail "TEST-001: $id must be flagged probable-false-open"
   done
   local row; row="$(grep -F "CHANGE-5801" "$d/drift-sec.txt" | head -1)"
-  echo "$row" | grep -qF "delivery commit(s)" \
-    || log_fail "TEST-001: reasons must name the delivery-commit signal"
+  assert_payload_contains "$row" "delivery commit(s)" "TEST-001: reasons must name the delivery-commit signal"
   echo "$row" | grep -Eq '[0-9a-f]{7}' \
     || log_fail "TEST-001: drift row Evidence cell must carry a short commit hash"
   rm -rf "$d"
@@ -5266,8 +5265,7 @@ test_change0028_userguide_mentions_work_item_closed() {  # TEST-011 / Spec-AC-10
   # would pass vacuously and not prove THIS bullet was updated (D8).
   local bullet
   bullet="$(awk '/^- `probable-false-open`/{flag=1} flag{print} flag && /^- `probable-partial`/{exit}' "$PROJECT_ROOT/docs/USER_GUIDE.md")"
-  echo "$bullet" | grep -qF "work_item_closed" \
-    || log_fail "TEST-011: the probable-false-open bullet itself must name the work_item_closed event"
+  assert_payload_contains "$bullet" "work_item_closed" "TEST-011: the probable-false-open bullet itself must name the work_item_closed event"
   log_pass "USER_GUIDE.md probable-false-open bullet names the work_item_closed event (TEST-011)"
 }
 

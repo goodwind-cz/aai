@@ -28,6 +28,9 @@ set -euo pipefail
 TEST_NAME="aai-ceremony-levels"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DISPATCH="$PROJECT_ROOT/.aai/scripts/orchestration-dispatch.mjs"
 
@@ -661,10 +664,8 @@ test_008_planning_step10() {
   # Extract the step-10 block (from '10)' to the '11)' line).
   block="$(awk '/^10\) /{f=1} /^11\) /{f=0} f' "$p")"
   [[ -n "$block" ]] || log_fail "PLANNING step 10 block not found"
-  echo "$block" | grep -q "ceremony_level" \
-    || log_fail "level declaration must live INSIDE the step-10 block"
-  echo "$block" | grep -q "Ceremony justification:" \
-    || log_fail "step 10 must name the L0/L1 justification line"
+  assert_payload_contains "$block" "ceremony_level" "level declaration must live INSIDE the step-10 block"
+  assert_payload_contains "$block" "Ceremony justification:" "step 10 must name the L0/L1 justification line"
   grep -q "^11) Emit the work-item brief" "$p" || log_fail "step 11 must survive unrenumbered"
   grep -q "^12) Update docs/ai/STATE.yaml" "$p" || log_fail "step 12 must survive unrenumbered"
   grep -qE "^13\) " "$p" && log_fail "no step 13 may be introduced (renumber guard)"
@@ -1016,7 +1017,7 @@ test_015_prompt_lane_surfaces() {
   [[ -n "$block" ]] || log_fail "CEREMONY LANE block body not found (must end before PROCESS)"
   echo "$block" | grep -qi "fail-closed" || log_fail "CEREMONY LANE block must name the fail-closed rule"
   echo "$block" | grep -qi "declared" || log_fail "CEREMONY LANE block must name the L0/L1 declared-scope validation rule"
-  echo "$block" | grep -q "lane.selected" || log_fail "CEREMONY LANE block must reference the dispatch lane.selected field"
+  assert_payload_contains "$block" "lane.selected" "CEREMONY LANE block must reference the dispatch lane.selected field"
   # validation-cost-calibration Spec-AC-01 (spec TEST-001): the lightweight
   # lane PROHIBITS a blanket full-suite re-execution, MANDATES adversarial
   # probes on the seams in addition to the declared scope, and NAMES
@@ -1029,7 +1030,7 @@ test_015_prompt_lane_surfaces() {
   block="$(awk '/^10\) /{f=1} /^11\) /{f=0} f' "$p")"
   [[ -n "$block" ]] || log_fail "PLANNING step 10 block not found"
   echo "$block" | grep -qi "dispatch lane" || log_fail "step 10 must name the dispatch lane"
-  echo "$block" | grep -q "L0/L1" || log_fail "step 10 lane wording must name L0/L1"
+  assert_payload_contains "$block" "L0/L1" "step 10 lane wording must name L0/L1"
   grep -q "^11) Emit the work-item brief" "$p" || log_fail "step 11 must survive unrenumbered"
   grep -q "^12) Update docs/ai/STATE.yaml" "$p" || log_fail "step 12 must survive unrenumbered"
   grep -qE "^13\) " "$p" && log_fail "no step 13 may be introduced (renumber guard)"
@@ -1144,12 +1145,9 @@ test_019_kpi_pin_survives_rename() {
     # Prose wraps across lines in the markdown source; normalize whitespace
     # before matching so the pin is line-break tolerant.
     flat="$(tr '\n' ' ' < "$spec" | tr -s ' ')"
-    printf '%s' "$flat" | grep -qF "Validation median tokens/run decreases while ride remediation rate does not increase" \
-      || log_fail "TEST-019: $spec must record the pre-registered KPI sentence verbatim"
-    printf '%s' "$flat" | grep -qF "Rollback action: revert the CEREMONY LANE prohibition clause" \
-      || log_fail "TEST-019: $spec must record the named rollback action verbatim"
-    printf '%s' "$flat" | grep -qF "is NOT rolled back with it" \
-      || log_fail "TEST-019: $spec must state Spec-AC-02 to Spec-AC-04 are NOT rolled back with the lane rule"
+    assert_payload_contains "$flat" "Validation median tokens/run decreases while ride remediation rate does not increase" "TEST-019: $spec must record the pre-registered KPI sentence verbatim"
+    assert_payload_contains "$flat" "Rollback action: revert the CEREMONY LANE prohibition clause" "TEST-019: $spec must record the named rollback action verbatim"
+    assert_payload_contains "$flat" "is NOT rolled back with it" "TEST-019: $spec must state Spec-AC-02 to Spec-AC-04 are NOT rolled back with the lane rule"
   done
   log_pass "KPI sentence + rollback action recorded verbatim, glob-matched (TEST-019/spec TEST-012)"
 }
@@ -1161,22 +1159,17 @@ test_018_step10_workflow_pointer() {
   block="$(awk '/^10\) /{f=1} /^11\) /{f=0} f' "$p")"
   [[ -n "$block" ]] || log_fail "TEST-018: PLANNING step 10 block not found"
 
-  echo "$block" | grep -qF ".aai/workflow/WORKFLOW.md" \
-    || log_fail "TEST-018: step 10 must point at .aai/workflow/WORKFLOW.md as the single source of the ceremony levels"
+  assert_payload_contains "$block" ".aai/workflow/WORKFLOW.md" "TEST-018: step 10 must point at .aai/workflow/WORKFLOW.md as the single source of the ceremony levels"
   echo "$block" | grep -qi "typo/docs-only" \
     && log_fail "TEST-018: step 10 must not restate the four-level meaning paraphrase (found 'typo/docs-only')"
-  echo "$block" | grep -qF "MANDATORY when the scope touches" \
-    && log_fail "TEST-018: step 10 must not restate the protected-surface MANDATORY-L3 mechanic"
+  assert_payload_not_contains "$block" "MANDATORY when the scope touches" "TEST-018: step 10 must not restate the protected-surface MANDATORY-L3 mechanic"
 
   # role-specific residue Planning alone owns must survive the trim.
-  echo "$block" | grep -q "ceremony_level" \
-    || log_fail "TEST-018: step 10 must still declare ceremony_level"
-  echo "$block" | grep -q "Ceremony justification:" \
-    || log_fail "TEST-018: step 10 must still name the Ceremony justification: line"
+  assert_payload_contains "$block" "ceremony_level" "TEST-018: step 10 must still declare ceremony_level"
+  assert_payload_contains "$block" "Ceremony justification:" "TEST-018: step 10 must still name the Ceremony justification: line"
   echo "$block" | grep -qi "dispatch lane" \
     || log_fail "TEST-018: step 10 must still name the dispatch lane"
-  echo "$block" | grep -q "L0/L1" \
-    || log_fail "TEST-018: step 10 must still name L0/L1"
+  assert_payload_contains "$block" "L0/L1" "TEST-018: step 10 must still name L0/L1"
 
   # no full ceremony gate table row (the table lives ONLY in WORKFLOW.md).
   if grep -qE '^\|[^|]*\|[^|]*\bL0\b[^|]*\|[^|]*\bL1\b[^|]*\|[^|]*\bL2\b[^|]*\|[^|]*\bL3\b[^|]*\|' "$p"; then
