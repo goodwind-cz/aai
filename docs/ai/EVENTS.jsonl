@@ -1977,3 +1977,6 @@
 {"v":1,"ts":"2026-08-30T20:51:12.840Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"cli-exit-truncates-pipe-sweep","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-30T20:51:12.878Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"cli-exit-truncates-pipe-sweep","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-30T20:51:12.917Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"cli-exit-truncates-pipe-sweep","payload":{"commit":"4d5f8c0"}}
+{"v":1,"ts":"2026-08-30T21:15:35.677Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"test-runs-jsonl-tracked-ignored","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-30T21:15:35.711Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"test-runs-jsonl-tracked-ignored","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-30T21:15:35.749Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"test-runs-jsonl-tracked-ignored","payload":{"commit":"15c9222"}}
