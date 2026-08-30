@@ -30,7 +30,7 @@ status: draft
   - Measured: the two spellings are still not aligned; this remediation added a two-readings-agree cross-check to TEST-013 so the divergence is now DETECTED and named, but the underlying strictness asymmetry (and TEST-014's table-removal grep -v sharing the same single-space assumption) remains. Named fu-intake-table-parser-strictness-asymmetry in the round-2 report (43 chars, over the cap)
   - Source: validation round2 F8 mutation A7; review-20260821T074214Z NB-4
 
-- **`fu-intake-common-fallback-numbers-doc`**: the legacy FALLBACK block in .aai/INTAKE_COMMON.md still instructs scan-and-mint of docs/<type>/<TYPE>-000N-<slug>.md, which is exactly the numbered filename the new --intake-file predicate rejects
+- **`fu-intake-common-fallback-numbers-doc`**: the legacy FALLBACK block in .aai/INTAKE_COMMON.md still instructs scan-and-mint of `docs/<type>/<TYPE>-000N-<slug>.md`, which is exactly the numbered filename the new --intake-file predicate rejects
   - Measured: the POST-SAVE escape hatch excuses only a MISSING docs-audit.mjs, not a missing allocator, so on an older AAI layer that has docs-audit.mjs but no allocator the role follows the fallback, writes a numbered file, then hits 'fix the FILENAME and re-run until both pass' with no reachable fixed point. Round-1 finding F5, neither fixed nor filed
   - Source: round-1 validation of intake-numbers-some-doc-types-immediately F5; review-20260821T074214Z NB-5 (.aai/INTAKE_COMMON.md:27)
 
