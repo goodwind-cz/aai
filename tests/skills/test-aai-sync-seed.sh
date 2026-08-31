@@ -682,7 +682,7 @@ test_bash_seed_crlf_safe() {
     source "$GITIGNORE_LIB"
     aai_gitignore_seed_runtime "$dst/.gitignore" "$RUNTIME_LIST" "# AAI runtime sidecars"
   ) >/dev/null 2>&1 || log_fail "TEST-021: aai_gitignore_seed_runtime failed"
-  local dup count
+  local dup=0 count
   while IFS= read -r pattern; do
     [[ -z "$pattern" || "$pattern" == \#* ]] && continue
     count="$(tr -d '\r' < "$dst/.gitignore" | grep -cxF -- "$pattern")"
@@ -691,7 +691,7 @@ test_bash_seed_crlf_safe() {
       dup=1
     fi
   done < "$RUNTIME_LIST"
-  [[ -n "$dup" ]] || log_pass "TEST-021 every runtime-sidecar pattern occurs exactly once against a pre-existing CRLF .gitignore (no CR-blind duplication)"
+  [[ "$dup" -eq 0 ]] && log_pass "TEST-021 every runtime-sidecar pattern occurs exactly once against a pre-existing CRLF .gitignore (no CR-blind duplication)"
 }
 
 
