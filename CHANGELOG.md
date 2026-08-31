@@ -1,3 +1,14 @@
+# Changelog
+
+All notable changes to AAI are documented in this file. Format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). AAI does not yet
+follow semantic versioning — entries are grouped by date or release event.
+
+For target projects: run `/aai-update` to pull the latest layer. After
+updating, run `/aai-doctor` to surface any migration actions specific to
+your project (for example, the STATE-to-local migration introduced in
+RFC-0001).
+
 ## [unreleased]
 
 ## [unreleased] — fix(update): aai-update reconciles the runtime .gitignore block on every sync engine

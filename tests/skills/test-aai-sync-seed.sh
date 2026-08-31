@@ -349,9 +349,9 @@ test_ps1_second_run_idempotent() {
   mkdir -p "$dst"
   printf 'node_modules/\n' > "$dst/.gitignore"
   pwsh -NoProfile -File "$SYNC_PS1" -TargetRoot "$dst" >/dev/null 2>&1 || log_fail "TEST-008: first run failed"
-  before="$(shasum -a 256 "$dst/.gitignore" | awk '{print $1}')"
+  before="$({ sha256sum "$dst/.gitignore" 2>/dev/null || shasum -a 256 "$dst/.gitignore"; } | awk '{print $1}')"
   pwsh -NoProfile -File "$SYNC_PS1" -TargetRoot "$dst" >/dev/null 2>&1 || log_fail "TEST-008: second run failed"
-  after="$(shasum -a 256 "$dst/.gitignore" | awk '{print $1}')"
+  after="$({ sha256sum "$dst/.gitignore" 2>/dev/null || shasum -a 256 "$dst/.gitignore"; } | awk '{print $1}')"
   [[ "$before" == "$after" ]] || log_fail "TEST-008: .gitignore changed on second run (before=$before after=$after)"
   local pattern count
   while IFS= read -r pattern; do
@@ -644,9 +644,9 @@ test_bash_sync_regression_pin() {
   local missing
   missing="$(comm -23 <(grep -v '^#' "$RUNTIME_LIST" | grep -v '^$' | sort) <(sort "$dst/.gitignore") | wc -l | tr -d ' ')"
   [[ "$missing" -eq 0 ]] || log_fail "TEST-018: $missing runtime-sidecar pattern(s) missing after bash sync"
-  before="$(shasum -a 256 "$dst/.gitignore" | awk '{print $1}')"
+  before="$({ sha256sum "$dst/.gitignore" 2>/dev/null || shasum -a 256 "$dst/.gitignore"; } | awk '{print $1}')"
   bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-018: second bash sync run failed"
-  after="$(shasum -a 256 "$dst/.gitignore" | awk '{print $1}')"
+  after="$({ sha256sum "$dst/.gitignore" 2>/dev/null || shasum -a 256 "$dst/.gitignore"; } | awk '{print $1}')"
   [[ "$before" == "$after" ]] || log_fail "TEST-018: bash sync is not idempotent after the extraction (before=$before after=$after)"
   local pattern count
   while IFS= read -r pattern; do
@@ -656,6 +656,44 @@ test_bash_sync_regression_pin() {
   done < "$RUNTIME_LIST"
   log_pass "TEST-018 bash aai-sync.sh regression pin: 0 missing, byte-identical re-run, every pattern occurs exactly once"
 }
+
+
+# --- TEST-021 -- CRLF-terminated .gitignore does not get duplicate patterns ---
+# (Copilot review, PR #326): grep -qxF against a CRLF file's on-disk lines
+# (each carrying a trailing CR that plain grep never strips) used to treat an
+# already-present LF pattern as missing and duplicate it. Calls
+# aai_gitignore_seed_runtime DIRECTLY (source the library, not the full
+# aai-sync.sh pipeline) -- aai-sync.sh runs its own separate stale-line
+# de-duplication pass afterward that would silently absorb this exact
+# defect, so exercising the full script would prove nothing about the
+# library function's OWN contract (idempotent, exact-match, no duplication).
+test_bash_seed_crlf_safe() {
+  log_info "TEST-021: a CRLF-terminated .gitignore does not get its already-present patterns duplicated..."
+  local dst="$TMP_ROOT/bash-crlf-safe"
+  mkdir -p "$dst"
+  local pattern
+  {
+    while IFS= read -r pattern; do
+      [[ -z "$pattern" || "$pattern" == \#* ]] && continue
+      printf '%s\r\n' "$pattern"
+    done < "$RUNTIME_LIST"
+  } > "$dst/.gitignore"
+  (
+    source "$GITIGNORE_LIB"
+    aai_gitignore_seed_runtime "$dst/.gitignore" "$RUNTIME_LIST" "# AAI runtime sidecars"
+  ) >/dev/null 2>&1 || log_fail "TEST-021: aai_gitignore_seed_runtime failed"
+  local dup count
+  while IFS= read -r pattern; do
+    [[ -z "$pattern" || "$pattern" == \#* ]] && continue
+    count="$(tr -d '\r' < "$dst/.gitignore" | grep -cxF -- "$pattern")"
+    if [[ "$count" -ne 1 ]]; then
+      log_fail "TEST-021: pattern '$pattern' occurs $count time(s) in a CRLF .gitignore, expected 1 (duplicated by a CR-blind exact match)"
+      dup=1
+    fi
+  done < "$RUNTIME_LIST"
+  [[ -n "$dup" ]] || log_pass "TEST-021 every runtime-sidecar pattern occurs exactly once against a pre-existing CRLF .gitignore (no CR-blind duplication)"
+}
+
 
 main() {
   echo "=== Test Suite: $TEST_NAME ==="
@@ -679,6 +717,7 @@ main() {
   test_git_status_clean_after_spool_creation
   test_runtime_ignore_header_consumer_accuracy
   test_bash_sync_regression_pin
+  test_bash_seed_crlf_safe
   if [[ "$PWSH_ARM_SKIPPED" -eq 1 ]]; then
     log_skip "pwsh absent — one or more PowerShell assertions were not exercised (all bash-only assertions above passed)"
   fi

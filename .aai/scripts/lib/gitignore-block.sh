@@ -56,11 +56,20 @@ aai_gitignore_seed_runtime() {
     return 0
   fi
 
+  # Match against a CR-STRIPPED copy of the target, read once: a
+  # CRLF-terminated .gitignore (Windows-authored, or CRLF-normalized by a
+  # later step) carries a trailing CR on every on-disk line that plain
+  # grep -xF never strips, so an already-present LF pattern would never
+  # exact-match its own CR-suffixed line on disk and get silently
+  # re-appended on every run (Copilot review, PR #326).
+  local target_content
+  target_content=$(tr -d "\r" < "$gitignore_path" 2>/dev/null)
+
   local line
   local missing=()
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" == \#* ]] && continue
-    grep -qxF "$line" "$gitignore_path" 2>/dev/null || missing+=("$line")
+    grep -qxF "$line" <<<"$target_content" || missing+=("$line")
   done < "$runtime_list_path"
 
   [[ ${#missing[@]} -eq 0 ]] && return 0
