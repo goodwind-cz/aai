@@ -11,6 +11,34 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(harness): close ceremony ordering is now enforced, not remembered [L2]
+
+- The PR ceremony's close-before-push ordering (`.aai/SKILL_PR.prompt.md`)
+  was prose an agent had to remember: validation round 4 of
+  `deslop-corpus-honesty` measured that 5 `tests/skills/test-framework.sh`
+  reds are ride-caused and clear only once `close-work-item.mjs` has run, so
+  pushing first cost a whole diagnostic round every ride
+  (`fu-close-before-push-ordering`).
+- The correct order (close before push) collided with a genuine paradox:
+  `close-work-item.mjs --pr <N>` needs a PR number that does not exist until
+  after the push it must precede — the historical fix was a guessed
+  N+1 that happened to be right by luck (`fu-close-requires-pr-before-it-exists`).
+- Both are fixed together by splitting the transaction, never by guessing:
+  `close-work-item.mjs` now accepts the literal sentinel `--pr TBD` for the
+  close itself (status flip + event set + self-verify, unchanged otherwise),
+  and a new, separate `--stamp-pr <N>` mode replaces the placeholder once the
+  PR exists — a narrow transaction that never re-runs the status flip or
+  re-emits the close event set.
+- A stale, unstamped `TBD` can never go quietly unfilled: every later
+  `close-work-item.mjs` invocation anywhere in the repo prints a named
+  stderr `WARNING` for it, and the new `close-before-push-guard.mjs` fails
+  closed (before the push line in `SKILL_PR.prompt.md` step 5) when the
+  current ref's work-item doc is not yet `status: done`.
+- `.aai/SKILL_PR.prompt.md` gains step 4c (CLOSE BEFORE PUSH, runs before any
+  push) and a rewritten, lighter step 5c (STAMP THE PR NUMBER, runs after
+  the PR exists); `VALIDATION.prompt.md` / `METRICS_FLUSH.prompt.md` cross-
+  references move with it.
+
 ## [unreleased] — fix(harness): a tripwire failure no longer hides why a suite also failed on its own [L1]
 
 Ceremony justification: one additive conditional block in `suite_report`

@@ -126,6 +126,44 @@ PROCESS
    - Reference the ref id (e.g. CHANGE-0007 / SPEC-0013) in the subject or body.
    - Commit only after the step-3 audit passes and the PRECONDITIONS hold.
 
+4c. CLOSE BEFORE PUSH (fu-close-before-push-ordering / fu-close-requires-pr-
+   before-it-exists) — run the close ceremony on THIS local commit, BEFORE
+   any push exists to trigger CI: pushing first means CI runs against a
+   still-open doc, and 5 tests/skills/test-framework.sh reds that only clear
+   once close-work-item.mjs has run get misread as genuine CI failures every
+   ride (measured, validation round 4). Step 5's push refuses below if this
+   step is skipped.
+   - FLIP THE AC TABLE FIRST (its own ordered step — .aai/VALIDATION.prompt.md
+     step 8a defers it to here): set every Spec-AC row of the scope's doc(s)
+     terminal, fill each Evidence cell from the validation report's per-AC
+     evidence, and clear VALIDATION 8b's close gate on the flipped table; the
+     window this opens lasts the seconds until the next command, never ships.
+   - THEN run the deterministic close ceremony instead of hand-editing
+     frontmatter or hand-emitting close events. The PR does not exist yet, so
+     `--pr` takes the literal sentinel `TBD` — NEVER a guessed number (the
+     historical read-the-highest-existing-number-and-add-one guess was luck,
+     not procedure):
+     node .aai/scripts/close-work-item.mjs --ref <slug> --pr TBD --commit <this-commit-sha> \
+       [--spec <spec-slug>] --review <pass|waived|none>
+   - `<slug>` is the primary work-item doc's frontmatter `id`; pass
+     `--spec <spec-slug>` when this scope also has a linked spec doc.
+     `--review` mirrors `code_review.status` (pass/waived/none).
+   - Exit 0 = closed (or already closed — idempotent). Exit 1 = the post-close
+     self-verify audit was not CLEAN; the script already rolled back — STOP
+     and investigate before retrying. Exit 2 = usage error (bad ref, a
+     non-done-terminal status); nothing was written — fix the flag and retry.
+   If `close-work-item.mjs` then exits non-zero other than 6, REVERT the flip
+   before anything else — an open doc with terminal evidenced rows is the
+   exact false-open shape this ordering exists to prevent, and the script's
+   own rollback cannot see edits made before it ran. Exit 6 means the close
+   STOOD: keep the flip; run the echoed remaining state.mjs command(s).
+   - Stage the mutated doc(s) + docs/ai/EVENTS.jsonl and commit as a SECOND
+     local commit, `chore(close): <ref> close ceremony (PR pending)` — do NOT
+     push yet, there is no PR to update. This commit rides out together with
+     the FIRST push in step 5, so the very first CI run already sees a
+     closed doc.
+   - Merge boundary unchanged: this step never merges, and never pushes.
+
 5. PLATFORM GATE + PUSH + PR:
    - Detect the platform FIRST — before ANY push (a `PLATFORM none` repo has
      no origin to push to; pushing first would error out of the ceremony):
@@ -138,7 +176,7 @@ PROCESS
      final diff is known, classify the ride with the deterministic gate
      (NO agent judgment — a bad or inflated declaration can only ever pick the
      HEAVY lane, fail-closed). RECOMPUTE after ANY later commit lands on the
-     branch (the close-ceremony commit of step 5c included): the lane verdict
+     branch (the stamp-pr commit of step 5c included): the lane verdict
      that governs steps 5c/5d is the one computed over the FINAL branch diff —
      if the recomputed lane is heavy, the ride reverts to the full envelope
      (a fast verdict can be lost by growth, never regained by trimming):
@@ -156,6 +194,12 @@ PROCESS
      so a reviewer can SEE why a ride went light (never a hidden decision). The
      fast lane only REMOVES ceremony from a deterministically-small ride; it
      can never add risk to a large one. Steps 5c/5d branch on this verdict.
+   - CLOSE-BEFORE-PUSH GATE (fu-close-before-push-ordering) — immediately
+     before the push line below:
+       node .aai/scripts/close-before-push-guard.mjs --ref <slug>
+     Exit 0: proceed. Non-zero: STOP — step 4c did not run (or its commit is
+     missing from this branch); go back and complete 4c. Never push a ride
+     whose work-item doc is not yet `status: done`.
    - `github`/`azure`/`unknown` with a remote: `git push -u origin <branch>`.
      `none`: skip the push entirely and go straight to GENERIC MODE below.
    - Branch on the value the step-5 probe printed — NEVER guess:
@@ -224,40 +268,36 @@ PROCESS
      the resolution commit then claimed a merge that never happened). Confirm
      `.git/MERGE_HEAD` exists (merge in progress) or the commit has 2 parents.
 
-5c. CLOSE THE WORK ITEM (CHANGE-0037 / SPEC-0053) — now that the PR number and
-   head commit are known:
-   - FLIP THE AC TABLE FIRST (its own ordered step — .aai/VALIDATION.prompt.md
-   If `close-work-item.mjs` then exits non-zero other than 6, REVERT the flip
-   before anything else — an open doc with terminal evidenced rows is the
-   exact false-open shape this ordering exists to prevent, and the script's
-   own rollback cannot see edits made before it ran. Exit 6 means the close
-   STOOD: keep the flip; run the echoed remaining state.mjs command(s).
-     step 8a defers it to here): set every Spec-AC row of the scope's doc(s)
-     terminal, fill each Evidence cell from the validation report's per-AC
-     evidence, and clear VALIDATION 8b's close gate on the flipped table; the
-     window this opens lasts the seconds until the next command, never ships.
-   - THEN run the deterministic close ceremony instead of hand-editing
-     frontmatter or hand-emitting close events:
-     node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N> --commit <sha> \
-       [--spec <spec-slug>] --review <pass|waived|none>
-   - `<slug>` is the primary work-item doc's frontmatter `id`; pass
-     `--spec <spec-slug>` when this scope also has a linked spec doc.
-     `--review` mirrors `code_review.status` (pass/waived/none).
-   - Exit 0 = closed (or already closed — idempotent). Exit 1 = the post-close
-     self-verify audit was not CLEAN; the script already rolled back — STOP
-     and investigate before retrying. Exit 2 = usage error (bad ref, a
-     non-done-terminal status); nothing was written — fix the flag and retry.
-   - Stage and push the mutated doc(s) + docs/ai/EVENTS.jsonl as a follow-up
-     `chore(close): <ref> close ceremony` commit on the SAME branch (same
-     scope-only staging discipline as steps 2-4), updating the open PR.
-   - FAST LANE (lightweight-e2e-lane): on `LANE fast`, this close commit's diff
-     is docs frontmatter + docs/ai/EVENTS.jsonl + docs/INDEX.md only, which
-     select-suites.mjs routes to the CORE suites (docs-audit, check-state,
-     spec-lint), NEVER FULL_RUN — one narrowed feature round + one CORE-only
-     close round instead of two full-framework rounds. The post-merge push-to-
-     main + nightly FULL run (SPEC-0097) remain the backstop. close-work-item
-     ordering is unchanged (it still runs after PR open, needing --pr N); only
-     the CI cost of the round narrows. Heavy lane unchanged.
+5c. STAMP THE PR NUMBER (fu-close-requires-pr-before-it-exists) — the close
+   itself already ran and self-verified CLEAN in step 4c, before this PR
+   existed; now that the PR number N is known, replace the `TBD` placeholder
+   step 4c stamped with the real number:
+     node .aai/scripts/close-work-item.mjs --ref <slug> --stamp-pr <N> \
+       [--spec <spec-slug>]
+   - This is a NARROW, separate transaction — it never re-runs the status
+     flip or re-emits the close event set (both already happened, self-
+     verified, in step 4c); it only replaces `links.pr`.
+   - Exit 0 = stamped (or already stamped with N — idempotent). Exit 1 = the
+     post-stamp self-verify audit was not CLEAN; the script already rolled
+     back — STOP and investigate. Exit 2 = usage error — most commonly no
+     `TBD` placeholder was found, meaning step 4c did not run with `--pr TBD`
+     before this push (the ordering was violated somewhere): fix the
+     ordering and re-run 4c, never hand-edit `links.pr`.
+   - Stage and push the mutated doc(s) as a follow-up `chore(close): <ref>
+     stamp PR #<N>` commit on the SAME branch (same scope-only staging
+     discipline as steps 2-4), updating the open PR.
+   - FAST LANE (lightweight-e2e-lane): on `LANE fast`, this stamp-pr commit's
+     diff is a single frontmatter line (`links.pr`) — even lighter than
+     before this change, because the close ceremony's real diff (status flip
+     + `links.commits` + docs/ai/EVENTS.jsonl) already rode out with the
+     FIRST push in step 4c. select-suites.mjs routes this commit to the CORE
+     suites (docs-audit, check-state, spec-lint), NEVER FULL_RUN. The
+     post-merge push-to-main + nightly FULL run (SPEC-0097) remain the
+     backstop. Heavy lane unchanged.
+   - MUST NOT GO UNFILLED: if for any reason this step is skipped, EVERY
+     later close-work-item.mjs invocation anywhere in this repo prints a
+     named stderr WARNING for this doc's stale `TBD` (see close-work-item.mjs
+     PR-NUMBER SPLIT) — a stale placeholder is loud, not silent.
    - Merge boundary unchanged: this step never merges.
 
 5d. POST-OPEN REVIEW SWEEP (CHANGE-0060) — external reviewer bots (Copilot,

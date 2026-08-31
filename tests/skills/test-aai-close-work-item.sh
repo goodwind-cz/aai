@@ -88,6 +88,7 @@ cd "$PROJECT_ROOT"
 CLOSE_SCRIPT="$PROJECT_ROOT/.aai/scripts/close-work-item.mjs"
 DOCS_AUDIT="$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"
 SKILL_PR="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+CLOSE_BEFORE_PUSH_GUARD="$PROJECT_ROOT/.aai/scripts/close-before-push-guard.mjs"
 VALIDATION_PROMPT="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
 TEST_SELF="$PROJECT_ROOT/tests/skills/test-aai-close-work-item.sh"
 GUARD_CONFIG_LIB="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs"
@@ -695,6 +696,16 @@ assert_exit() {
   local desc="$1" expected="$2" actual="$3"
   [[ "$actual" == "$expected" ]] \
     || log_fail "$desc: expected exit $expected, got $actual"
+}
+
+# run_guard <fixture_dir> <outfile> <errfile> <args...> — echoes the exit
+# code of close-before-push-guard.mjs (fu-close-before-push-ordering).
+run_guard() {
+  local dir="$1" outfile="$2" errfile="$3"
+  shift 3
+  local code=0
+  ( cd "$dir" && node "$CLOSE_BEFORE_PUSH_GUARD" "$@" > "$outfile" 2> "$errfile" ) || code=$?
+  echo "$code"
 }
 
 file_size() { wc -c < "$1" | tr -d ' '; }
@@ -2684,13 +2695,13 @@ test_054_state_reconcile_warn_and_partial() {
 # WITHDRAWAL — see the residual note on the assertions below.  --------------
 
 test_055_skill_pr_exit6_carve_pinned() {
-  log_info "Test: SKILL_PR step 5c exit-6 carve is pinned — revert trigger names an exit OTHER THAN 6, and a following instruction keeps the flip and runs the echoed remaining state.mjs command(s) on exit 6 (spec-close-leaves-state-stale TEST-012 / Spec-AC-10)..."
+  log_info "Test: SKILL_PR step 4c exit-6 carve is pinned — revert trigger names an exit OTHER THAN 6, and a following instruction keeps the flip and runs the echoed remaining state.mjs command(s) on exit 6 (spec-close-leaves-state-stale TEST-012 / Spec-AC-10; relocated from the old post-push step 5c to the pre-push step 4c by close-ceremony-ordering, fu-close-before-push-ordering)..."
 
-  # Isolate step 5c's own text so a match elsewhere in the file (e.g. a
+  # Isolate step 4c's own text so a match elsewhere in the file (e.g. a
   # decoy sentence living in an unrelated step) cannot satisfy this arm.
   local block
-  block=$(awk '/^5d\./{exit} /^5c\. CLOSE THE WORK ITEM/{flag=1} flag' "$SKILL_PR")
-  [[ -n "$block" ]] || log_fail "t055: could not isolate step 5c's text in $SKILL_PR"
+  block=$(awk '/^5\. PLATFORM GATE/{exit} /^4c\. CLOSE BEFORE PUSH/{flag=1} flag' "$SKILL_PR")
+  [[ -n "$block" ]] || log_fail "t055: could not isolate step 4c's text in $SKILL_PR"
 
   # Pipe-free throughout (tests/skills/lib/assert-payload.sh,
   # spec-assertions-must-not-die-on-their-own-payload) and matched against a
@@ -2725,7 +2736,208 @@ test_055_skill_pr_exit6_carve_pinned() {
   assert_payload_contains "$joined" 'run the echoed remaining state.mjs command(s)' \
     "t055: step 5c must instruct running the echoed remaining state.mjs command(s) on exit 6, not just mention exit 6 in passing"
 
-  log_pass "SKILL_PR step 5c exit-6 carve pinned against deletion: exit 6 is the one non-zero exit where the flip STAYS (TEST-055 / spec TEST-012)"
+  log_pass "SKILL_PR step 4c exit-6 carve pinned against deletion: exit 6 is the one non-zero exit where the flip STAYS (TEST-055 / spec TEST-012)"
+}
+
+# --- TEST-056..062 (fu-close-before-push-ordering / fu-close-requires-pr-
+# before-it-exists, ride ref close-ceremony-ordering) -----------------------
+
+test_056_pr_tbd_close_then_stamp() {
+  log_info "Test: --pr TBD closes cleanly (status done, links.pr: [TBD], real audit tracked-done); --stamp-pr N then replaces TBD, real audit stays clean, second stamp is a no-op (TEST-056)..."
+  local dir; dir=$(new_fixture_repo "t056")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t056.md" "t056-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t056a.out" err="$TEST_DIR/t056a.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t056-slug --pr TBD --commit a0a0056)
+  assert_exit "t056 close with --pr TBD" 0 "$code"
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t056.md" \
+    || log_fail "t056: status was not flipped to done"
+  grep -q '^    - TBD$' "$dir/docs/issues/CHANGE-0001-t056.md" \
+    || log_fail "t056: links.pr does not carry the literal TBD placeholder"
+
+  local audit_out="$TEST_DIR/t056-audit-a.out"
+  ( cd "$dir" && node "$DOCS_AUDIT" --list --no-event ) > "$audit_out" 2>&1 || true
+  grep -qF "| t056-slug | tracked-done |" "$audit_out" \
+    || log_fail "t056: real audit does not classify t056-slug tracked-done with a TBD pr placeholder: $(cat "$audit_out")"
+
+  out="$TEST_DIR/t056b.out"; err="$TEST_DIR/t056b.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t056-slug --stamp-pr 56)
+  assert_exit "t056 stamp-pr" 0 "$code"
+  grep -q '^    - 56$' "$dir/docs/issues/CHANGE-0001-t056.md" \
+    || log_fail "t056: links.pr does not carry the stamped 56 after --stamp-pr"
+  grep -q 'TBD' "$dir/docs/issues/CHANGE-0001-t056.md" \
+    && log_fail "t056: TBD placeholder survived the stamp"
+
+  local audit_out2="$TEST_DIR/t056-audit-b.out"
+  ( cd "$dir" && node "$DOCS_AUDIT" --list --no-event ) > "$audit_out2" 2>&1 || true
+  grep -qF "| t056-slug | tracked-done | done | aligned |" "$audit_out2" \
+    || log_fail "t056: real audit not tracked-done/aligned after stamp: $(cat "$audit_out2")"
+
+  # Idempotent re-run: a second --stamp-pr 56 is a no-op (exit 0, byte-identical doc).
+  cp "$dir/docs/issues/CHANGE-0001-t056.md" "$TEST_DIR/t056-after-stamp.md"
+  out="$TEST_DIR/t056c.out"; err="$TEST_DIR/t056c.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t056-slug --stamp-pr 56)
+  assert_exit "t056 second stamp-pr is idempotent" 0 "$code"
+  diff -q "$TEST_DIR/t056-after-stamp.md" "$dir/docs/issues/CHANGE-0001-t056.md" >/dev/null \
+    || log_fail "t056: second --stamp-pr mutated the doc (not idempotent)"
+
+  log_pass "TBD close + stamp-pr: TBD closes clean, stamp replaces it, audit stays tracked-done/aligned throughout, re-stamp is byte-idempotent (TEST-056)"
+}
+
+test_057_stamp_pr_before_close_refuses() {
+  log_info "Test: --stamp-pr on a doc that has not been closed yet (status draft) refuses with exit 2, doc untouched (TEST-057)..."
+  local dir; dir=$(new_fixture_repo "t057")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t057.md" "t057-slug" "draft"
+  commit_fixture_docs "$dir"
+  cp "$dir/docs/issues/CHANGE-0001-t057.md" "$TEST_DIR/t057-before.md"
+
+  local out="$TEST_DIR/t057.out" err="$TEST_DIR/t057.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t057-slug --stamp-pr 7)
+  assert_exit "t057 stamp-pr before close" 2 "$code"
+  grep -qiE "not.*done|close ceremony has not run" "$err" \
+    || log_fail "t057: expected a named reason in stderr, got: $(cat "$err")"
+  diff -q "$TEST_DIR/t057-before.md" "$dir/docs/issues/CHANGE-0001-t057.md" >/dev/null \
+    || log_fail "t057: doc was mutated despite exit 2"
+
+  log_pass "stamp-pr-before-close guard: refuses with exit 2, doc byte-unchanged (TEST-057)"
+}
+
+test_058_stamp_pr_without_tbd_refuses() {
+  log_info "Test: a doc closed with a REAL --pr number (never TBD) refuses --stamp-pr — no placeholder to replace (TEST-058)..."
+  local dir; dir=$(new_fixture_repo "t058")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t058.md" "t058-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t058a.out" err="$TEST_DIR/t058a.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t058-slug --pr 12 --commit a0a0058)
+  assert_exit "t058 close with a real --pr" 0 "$code"
+  cp "$dir/docs/issues/CHANGE-0001-t058.md" "$TEST_DIR/t058-after-close.md"
+
+  out="$TEST_DIR/t058b.out"; err="$TEST_DIR/t058b.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t058-slug --stamp-pr 99)
+  assert_exit "t058 stamp-pr with no TBD present" 2 "$code"
+  grep -qiE "no TBD placeholder" "$err" \
+    || log_fail "t058: expected a named 'no TBD placeholder' reason in stderr, got: $(cat "$err")"
+  diff -q "$TEST_DIR/t058-after-close.md" "$dir/docs/issues/CHANGE-0001-t058.md" >/dev/null \
+    || log_fail "t058: doc was mutated despite exit 2"
+
+  log_pass "stamp-pr without a prior TBD refuses (exit 2), doc byte-unchanged (TEST-058)"
+}
+
+test_059_stamp_pr_mutually_exclusive_flags() {
+  log_info "Test: --stamp-pr rejects being combined with --pr/--commit/--dry-run, and rejects a non-integer value (TEST-059)..."
+  local dir; dir=$(new_fixture_repo "t059")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t059.md" "t059-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t059a.out" err="$TEST_DIR/t059a.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t059-slug --stamp-pr 5 --pr 5)
+  assert_exit "t059 --stamp-pr + --pr" 2 "$code"
+
+  out="$TEST_DIR/t059b.out"; err="$TEST_DIR/t059b.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t059-slug --stamp-pr 5 --commit deadbee)
+  assert_exit "t059 --stamp-pr + --commit" 2 "$code"
+
+  out="$TEST_DIR/t059c.out"; err="$TEST_DIR/t059c.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t059-slug --stamp-pr 5 --dry-run)
+  assert_exit "t059 --stamp-pr + --dry-run" 2 "$code"
+
+  out="$TEST_DIR/t059d.out"; err="$TEST_DIR/t059d.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t059-slug --stamp-pr banana)
+  assert_exit "t059 --stamp-pr non-integer" 2 "$code"
+
+  log_pass "stamp-pr usage guards: rejects --pr/--commit/--dry-run combos and non-integer values, all exit 2 (TEST-059)"
+}
+
+test_060_pr_value_only_integer_or_tbd() {
+  log_info "Test: --pr accepts an integer or the literal TBD (any case) and NOTHING ELSE — a plausible-looking non-numeric string is still rejected (TEST-060)..."
+  local dir; dir=$(new_fixture_repo "t060")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t060a.md" "t060a-slug" "draft"
+  write_change_doc "$dir/docs/issues/CHANGE-0002-t060b.md" "t060b-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t060a.out" err="$TEST_DIR/t060a.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t060a-slug --pr banana --commit a0a0060)
+  assert_exit "t060 bogus non-numeric --pr" 2 "$code"
+  grep -qiE "invalid --pr" "$err" \
+    || log_fail "t060: expected an 'invalid --pr' reason in stderr, got: $(cat "$err")"
+
+  out="$TEST_DIR/t060b.out"; err="$TEST_DIR/t060b.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t060b-slug --pr tbd --commit b0b0060)
+  assert_exit "t060 lowercase tbd is accepted" 0 "$code"
+  grep -q '^    - TBD$' "$dir/docs/issues/CHANGE-0002-t060b.md" \
+    || log_fail "t060: lowercase 'tbd' was not canonicalized to the literal TBD in links.pr"
+
+  log_pass "pr-value grammar: integer or TBD (case-insensitive) only — a bogus string is rejected, not silently accepted (TEST-060)"
+}
+
+test_061_stale_tbd_warning_fires_and_clears() {
+  log_info "Test: closing one ref with --pr TBD makes EVERY LATER close-work-item.mjs invocation warn about it on stderr, until --stamp-pr clears it (fu-close-requires-pr-before-it-exists must-not-go-unfilled, TEST-061)..."
+  local dir; dir=$(new_fixture_repo "t061")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t061a.md" "t061a-slug" "draft"
+  write_change_doc "$dir/docs/issues/CHANGE-0002-t061b.md" "t061b-slug" "draft"
+  write_change_doc "$dir/docs/issues/CHANGE-0003-t061c.md" "t061c-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t061a.out" err="$TEST_DIR/t061a.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t061a-slug --pr TBD --commit a0a0061)
+  assert_exit "t061 close a with TBD" 0 "$code"
+
+  # Closing b must warn about a's stale TBD.
+  out="$TEST_DIR/t061b.out"; err="$TEST_DIR/t061b.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t061b-slug --pr TBD --commit b0b0061)
+  assert_exit "t061 close b" 0 "$code"
+  grep -qF "t061a-slug" "$err" || log_fail "t061: closing b did not warn about a's stale TBD, got: $(cat "$err")"
+  grep -qiE "WARNING.*TBD" "$err" || log_fail "t061: expected a named WARNING about the stale TBD, got: $(cat "$err")"
+
+  # Stamp a's PR number.
+  out="$TEST_DIR/t061-stamp.out"; err="$TEST_DIR/t061-stamp.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t061a-slug --stamp-pr 161)
+  assert_exit "t061 stamp a" 0 "$code"
+
+  # Closing c must NOT warn about a anymore (cleared), but MUST warn about b's still-stale TBD.
+  out="$TEST_DIR/t061c.out"; err="$TEST_DIR/t061c.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t061c-slug --pr TBD --commit c0c0061)
+  assert_exit "t061 close c" 0 "$code"
+  grep -qF "t061a-slug" "$err" && log_fail "t061: closing c still warns about a's TBD after it was stamped, got: $(cat "$err")"
+  grep -qF "t061b-slug" "$err" || log_fail "t061: closing c did not warn about b's still-stale TBD, got: $(cat "$err")"
+
+  log_pass "stale-TBD advisory: fires on every later close for an unstamped ref, clears once stamped, never mentions the ref being closed itself (TEST-061)"
+}
+
+test_062_close_before_push_guard() {
+  log_info "Test: close-before-push-guard.mjs refuses (exit 1) before the close ceremony has run, passes (exit 0) after, and fails closed (exit 2) on an unresolvable ref (fu-close-before-push-ordering, TEST-062)..."
+  local dir; dir=$(new_fixture_repo "t062")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t062.md" "t062-slug" "implementing"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t062a.out" err="$TEST_DIR/t062a.err" code
+  code=$(run_guard "$dir" "$out" "$err" --ref t062-slug)
+  assert_exit "t062 guard before close" 1 "$code"
+  grep -qiE "REFUSED" "$err" || log_fail "t062: expected a REFUSED reason before close, got: $(cat "$err")"
+
+  code=$(run_close "$dir" "$TEST_DIR/t062-close.out" "$TEST_DIR/t062-close.err" --ref t062-slug --pr TBD --commit a0a0062)
+  assert_exit "t062 close" 0 "$code"
+
+  out="$TEST_DIR/t062b.out"; err="$TEST_DIR/t062b.err"
+  code=$(run_guard "$dir" "$out" "$err" --ref t062-slug)
+  assert_exit "t062 guard after close" 0 "$code"
+  grep -qiE "OK" "$out" || log_fail "t062: expected an OK line on stdout after close, got: $(cat "$out")"
+
+  # Mutation proof — the guard reads LIVE status, not a cached/hardcoded
+  # pass: hand-reopening the doc must flip the guard back to REFUSED.
+  sed -i.bak 's/^status: done$/status: implementing/' "$dir/docs/issues/CHANGE-0001-t062.md"
+  rm -f "$dir/docs/issues/CHANGE-0001-t062.md.bak"
+  out="$TEST_DIR/t062c.out"; err="$TEST_DIR/t062c.err"
+  code=$(run_guard "$dir" "$out" "$err" --ref t062-slug)
+  assert_exit "t062 guard after hand-reopen (mutation proof)" 1 "$code"
+
+  out="$TEST_DIR/t062d.out"; err="$TEST_DIR/t062d.err"
+  code=$(run_guard "$dir" "$out" "$err" --ref nope-slug)
+  assert_exit "t062 guard unresolvable ref" 2 "$code"
+
+  log_pass "close-before-push-guard.mjs: refuses pre-close, passes post-close, re-refuses on a hand-reopen (mutation-proofed), fails closed on an unresolvable ref (TEST-062)"
 }
 
 main() {
@@ -2792,6 +3004,13 @@ main() {
   test_053_state_reconcile_idempotent_recovery
   test_054_state_reconcile_warn_and_partial
   test_055_skill_pr_exit6_carve_pinned
+  test_056_pr_tbd_close_then_stamp
+  test_057_stamp_pr_before_close_refuses
+  test_058_stamp_pr_without_tbd_refuses
+  test_059_stamp_pr_mutually_exclusive_flags
+  test_060_pr_value_only_integer_or_tbd
+  test_061_stale_tbd_warning_fires_and_clears
+  test_062_close_before_push_guard
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
