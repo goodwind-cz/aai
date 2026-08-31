@@ -20,7 +20,7 @@ RUN
    `--sweep` mode below only READS it, read-only, and never writes it).
    `close-work-item.mjs` (CHANGE-0037/SPEC-0053) is the SINGLE SOURCE OF TRUTH
    for the close lifecycle, run through the canonical close flow
-   (.aai/SKILL_PR.prompt.md step 5c) — never this flush. The `--events` flag
+   (.aai/SKILL_PR.prompt.md step 4c) — never this flush. The `--events` flag
    is accepted for back-compat only and is a NO-OP unless `--sweep` is passed.
    Optional `--sweep` (opt-in, additive): also flushes every STRANDED
    metrics.work_items entry with DURABLE completion provenance — a committed
