@@ -133,17 +133,30 @@ PROCESS
    once close-work-item.mjs has run get misread as genuine CI failures every
    ride (measured, validation round 4). Step 5's push refuses below if this
    step is skipped.
+   - PROBE THE PLATFORM FIRST, before stamping anything (fu-close-before-
+     push-ordering F-1 remediation, PR #320 Codex review — moved here from
+     step 5 so this step never stamps a `TBD` it can never later resolve;
+     the probe is a read-only `git remote get-url origin` check with no
+     dependency on the commit/push that follows, so running it this early
+     costs nothing):
+       node .aai/scripts/pr-platform.mjs
+     `github`/`azure` -> a real PR WILL exist once step 5 pushes; use `--pr
+     TBD` below. `unknown`/`none` -> GENERIC MODE (step 5 never opens a PR
+     for either): use `--pr NONE` below instead — the terminal "correctly,
+     permanently, no PR" sentinel, never `TBD`, which a generic-mode ride
+     could never later resolve via step 5c. Step 5's own platform bullet
+     REUSES this same result; it is not re-probed there.
    - FLIP THE AC TABLE FIRST (its own ordered step — .aai/VALIDATION.prompt.md
      step 8a defers it to here): set every Spec-AC row of the scope's doc(s)
      terminal, fill each Evidence cell from the validation report's per-AC
      evidence, and clear VALIDATION 8b's close gate on the flipped table; the
      window this opens lasts the seconds until the next command, never ships.
    - THEN run the deterministic close ceremony instead of hand-editing
-     frontmatter or hand-emitting close events. The PR does not exist yet, so
-     `--pr` takes the literal sentinel `TBD` — NEVER a guessed number (the
+     frontmatter or hand-emitting close events, with `--pr` set to whichever
+     sentinel the probe above selected — NEVER a guessed number (the
      historical read-the-highest-existing-number-and-add-one guess was luck,
      not procedure):
-     node .aai/scripts/close-work-item.mjs --ref <slug> --pr TBD --commit <this-commit-sha> \
+     node .aai/scripts/close-work-item.mjs --ref <slug> --pr <TBD|NONE> --commit <this-commit-sha> \
        [--spec <spec-slug>] --review <pass|waived|none>
    - `<slug>` is the primary work-item doc's frontmatter `id`; pass
      `--spec <spec-slug>` when this scope also has a linked spec doc.
@@ -165,9 +178,11 @@ PROCESS
    - Merge boundary unchanged: this step never merges, and never pushes.
 
 5. PLATFORM GATE + PUSH + PR:
-   - Detect the platform FIRST — before ANY push (a `PLATFORM none` repo has
-     no origin to push to; pushing first would error out of the ceremony):
-       node .aai/scripts/pr-platform.mjs
+   - Reuse the platform value step 4c already probed (do NOT re-run
+     `node .aai/scripts/pr-platform.mjs` here — it is read-only and
+     deterministic, so a second invocation is dead-weight duplication, not
+     a fresher answer). That value is why a `PLATFORM none` repo never
+     reaches a push line here: it has no origin to push to.
    - The probe also prints `reviewer_bots=<expected|none|unknown>` (from the
      repo-local `docs/ai/pr-config.yaml` knob; absent == `none`, assume-none).
      Step 5d branches on it so a GitHub repo with NO reviewer bots never waits

@@ -224,6 +224,69 @@ pre_change_close_script() {
   echo "$_PRE_CHANGE_CLOSE_SCRIPT"
 }
 
+# PRE_F2_CLOSE_WORK_ITEM_BLOB / PRE_F3_GUARD_BLOB — the git blob shas of
+# close-work-item.mjs and close-before-push-guard.mjs exactly as PR #320
+# shipped them (the tree at this ride's own delivery commit, BEFORE the
+# F-2/F-3 remediation in this same scope), pinned the same N4/B2 way as
+# PRE_G1_CLOSE_WORK_ITEM_BLOB above and for the same reason: HEAD becomes the
+# POST-remediation tree the moment this scope's own commit lands, so a
+# HEAD-relative "pre-change" lookup would silently start reading the FIXED
+# code. Recorded once, by hand, via `git ls-tree HEAD -- <path>` on the
+# pre-remediation tree.
+PRE_F2_CLOSE_WORK_ITEM_BLOB="d9832263af393402642630f568af2c314673c37b"
+PRE_F3_GUARD_BLOB="e0387cd52d2c4a77bd84341ac0ac26389da3b7ae"
+
+# pre_f2_close_script -> prints the path to a runnable copy of the PR #320
+# close-work-item.mjs BEFORE the F-2 (stale-scan silent-drop-on-read-error)
+# remediation. Same sibling-swap discipline as pre_change_close_script.
+_PRE_F2_CLOSE_SCRIPT=""
+pre_f2_close_script() {
+  if [[ -n "$_PRE_F2_CLOSE_SCRIPT" && -f "$_PRE_F2_CLOSE_SCRIPT" ]]; then
+    echo "$_PRE_F2_CLOSE_SCRIPT"
+    return
+  fi
+  local root="$TEST_DIR/pre-f2-tree"
+  mkdir -p "$root/.aai"
+  cp -r "$PROJECT_ROOT/.aai/scripts" "$root/.aai/scripts"
+  local content
+  content=$(cd "$PROJECT_ROOT" && git cat-file -p "$PRE_F2_CLOSE_WORK_ITEM_BLOB") \
+    || log_fail "pre_f2_close_script: git cat-file of the pinned pre-F2 blob failed"
+  case "$content" in
+    *"readErrors"*)
+      log_fail "pre_f2_close_script: the pinned pre-F2 blob unexpectedly already carries readErrors — PRE_F2_CLOSE_WORK_ITEM_BLOB points at the wrong object"
+      ;;
+  esac
+  printf '%s\n' "$content" > "$root/.aai/scripts/close-work-item.mjs"
+  _PRE_F2_CLOSE_SCRIPT="$root/.aai/scripts/close-work-item.mjs"
+  echo "$_PRE_F2_CLOSE_SCRIPT"
+}
+
+# pre_f3_guard_script -> prints the path to a runnable copy of the PR #320
+# close-before-push-guard.mjs BEFORE the F-3 (unhandled readFileSync
+# exception) remediation. Same sibling-swap discipline as
+# pre_change_close_script / pre_f2_close_script.
+_PRE_F3_GUARD_SCRIPT=""
+pre_f3_guard_script() {
+  if [[ -n "$_PRE_F3_GUARD_SCRIPT" && -f "$_PRE_F3_GUARD_SCRIPT" ]]; then
+    echo "$_PRE_F3_GUARD_SCRIPT"
+    return
+  fi
+  local root="$TEST_DIR/pre-f3-tree"
+  mkdir -p "$root/.aai"
+  cp -r "$PROJECT_ROOT/.aai/scripts" "$root/.aai/scripts"
+  local content
+  content=$(cd "$PROJECT_ROOT" && git cat-file -p "$PRE_F3_GUARD_BLOB") \
+    || log_fail "pre_f3_guard_script: git cat-file of the pinned pre-F3 blob failed"
+  case "$content" in
+    *"function fail("*)
+      log_fail "pre_f3_guard_script: the pinned pre-F3 blob unexpectedly already carries the fail() helper — PRE_F3_GUARD_BLOB points at the wrong object"
+      ;;
+  esac
+  printf '%s\n' "$content" > "$root/.aai/scripts/close-before-push-guard.mjs"
+  _PRE_F3_GUARD_SCRIPT="$root/.aai/scripts/close-before-push-guard.mjs"
+  echo "$_PRE_F3_GUARD_SCRIPT"
+}
+
 commit_fixture_docs() {
   local dir="$1"
   git -C "$dir" add -A
@@ -2690,7 +2753,7 @@ test_054_state_reconcile_warn_and_partial() {
 }
 
 # --- TEST-055 (spec TEST-012, Spec-AC-10): the exit-6 carve in SKILL_PR step
-# 5c is pinned against DELETION of either half. Reverting either half back to
+# 4c is pinned against DELETION of either half. Reverting either half back to
 # the pre-carve wording (commit 3ceaf3f^) must turn this red. It does NOT pin
 # WITHDRAWAL — see the residual note on the assertions below.  --------------
 
@@ -2709,8 +2772,8 @@ test_055_skill_pr_exit6_carve_pinned() {
   # this arm (F-12). RESIDUAL, stated plainly rather than papered over: this
   # arm pins DELETION and pre-carve wording, not WITHDRAWAL — a decoy that
   # keeps the sentences verbatim under a "superseded / do not follow" framing
-  # and states an inverted rule elsewhere in step 5c passes. Pinning
-  # withdrawal would need a machine-readable exit->action mapping in step 5c,
+  # and states an inverted rule elsewhere in step 4c passes. Pinning
+  # withdrawal would need a machine-readable exit->action mapping in step 4c,
   # which costs corpus bytes the amended Spec-AC-08 does not budget
   # (successor work).
   local joined
@@ -2722,19 +2785,19 @@ test_055_skill_pr_exit6_carve_pinned() {
   # "other than 6" somewhere unconnected to a REVERT instruction fails the
   # second.
   assert_payload_contains "$joined" 'other than 6' \
-    "t055: step 5c's revert trigger must name a non-zero exit OTHER THAN 6 (pre-carve blanket wording must fail this)"
+    "t055: step 4c's revert trigger must name a non-zero exit OTHER THAN 6 (pre-carve blanket wording must fail this)"
   assert_payload_contains "$joined" 'REVERT the flip' \
-    "t055: step 5c must instruct REVERTing the flip on the non-6 exception"
+    "t055: step 4c must instruct REVERTing the flip on the non-6 exception"
 
   # Assertion 2 — a following instruction in the SAME step gives exit 6 the
   # opposite imperative: keep the flip, and complete the echoed remaining
   # state.mjs command(s) rather than reverting.
   assert_payload_contains "$joined" 'Exit 6 means the close STOOD' \
-    "t055: step 5c must state that exit 6 means the close STOOD"
+    "t055: step 4c must state that exit 6 means the close STOOD"
   assert_payload_contains "$joined" 'keep the flip' \
-    "t055: step 5c must instruct keeping the flip on exit 6"
+    "t055: step 4c must instruct keeping the flip on exit 6"
   assert_payload_contains "$joined" 'run the echoed remaining state.mjs command(s)' \
-    "t055: step 5c must instruct running the echoed remaining state.mjs command(s) on exit 6, not just mention exit 6 in passing"
+    "t055: step 4c must instruct running the echoed remaining state.mjs command(s) on exit 6, not just mention exit 6 in passing"
 
   log_pass "SKILL_PR step 4c exit-6 carve pinned against deletion: exit 6 is the one non-zero exit where the flip STAYS (TEST-055 / spec TEST-012)"
 }
@@ -2940,6 +3003,253 @@ test_062_close_before_push_guard() {
   log_pass "close-before-push-guard.mjs: refuses pre-close, passes post-close, re-refuses on a hand-reopen (mutation-proofed), fails closed on an unresolvable ref (TEST-062)"
 }
 
+# --- TEST-063 (PR #320 Codex F-1): --pr NONE is a genuine terminal no-PR ----
+# completion, distinct from --pr TBD, and cannot become an unstampable
+# placeholder the way a generic-mode ride's TBD would have. -----------------
+
+test_063_pr_none_terminal_completion() {
+  log_info "Test: --pr NONE closes cleanly, is EXCLUDED from the stale-TBD scan forever, --stamp-pr refuses to touch it, and the PRE-fix script (which never accepted the sentinel at all) is proven to reject it (fu-close-before-push-ordering F-1 remediation, PR #320 Codex review, TEST-063)..."
+  local dir; dir=$(new_fixture_repo "t063")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t063a.md" "t063a-slug" "draft"
+  write_change_doc "$dir/docs/issues/CHANGE-0002-t063b.md" "t063b-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  # 1. Simulate the generic-mode branch: pr-platform.mjs returned
+  #    none/unknown, so step 4c stamps NONE, never TBD.
+  local out="$TEST_DIR/t063a.out" err="$TEST_DIR/t063a.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t063a-slug --pr NONE --commit a0a0063)
+  assert_exit "t063 close with --pr NONE" 0 "$code"
+  grep -q '^    - NONE$' "$dir/docs/issues/CHANGE-0001-t063a.md" \
+    || log_fail "t063: --pr NONE was not stamped literally into links.pr"
+
+  # Case-insensitivity mirrors TBD's own rule; a repeat close is idempotent.
+  out="$TEST_DIR/t063a2.out"; err="$TEST_DIR/t063a2.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t063a-slug --pr none --commit a0a0063)
+  assert_exit "t063 re-close with lowercase none is idempotent" 0 "$code"
+
+  # 2. --stamp-pr must REFUSE a NONE-closed doc: it is not a pending
+  #    placeholder, and stamping over it would silently contradict the
+  #    "permanently no PR" record.
+  out="$TEST_DIR/t063stamp.out"; err="$TEST_DIR/t063stamp.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t063a-slug --stamp-pr 999)
+  assert_exit "t063 --stamp-pr on a NONE-closed doc refuses" 2 "$code"
+  grep -qiE "NONE" "$err" \
+    || log_fail "t063: refusal message does not explain the doc was closed with --pr NONE, got: $(cat "$err")"
+  grep -q '^    - 999$' "$dir/docs/issues/CHANGE-0001-t063a.md" \
+    && log_fail "t063: --stamp-pr must not have written 999 into a NONE-closed doc"
+
+  # 3. THE CORE F-1 PROOF: closing a SECOND ref with --pr TBD must NEVER be
+  #    told that t063a-slug (closed with NONE) is a stale unfilled TBD. If
+  #    the ceremony had instead stamped TBD there (the pre-fix behavior for
+  #    a generic-mode ride), this ref would show up in EVERY future close's
+  #    stale-TBD warning forever, since no PR will ever exist to satisfy
+  #    --stamp-pr for it — exactly the "unstampable TBD forever" the finding
+  #    named. NONE must never trigger that warning.
+  out="$TEST_DIR/t063b.out"; err="$TEST_DIR/t063b.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t063b-slug --pr TBD --commit b0b0063)
+  assert_exit "t063 close b with TBD" 0 "$code"
+  grep -qF "t063a-slug" "$err" \
+    && log_fail "t063: a NONE-closed doc was reported by the stale-TBD scan — NONE must be a genuinely terminal sentinel, not a TBD synonym, got: $(cat "$err")"
+
+  # 4. Grammar stays closed: a plausible near-miss ("nones") is still
+  #    rejected, exactly like TEST-060 proves for --pr banana.
+  out="$TEST_DIR/t063bogus.out"; err="$TEST_DIR/t063bogus.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t063b-slug --pr nones --commit c0c0063)
+  assert_exit "t063 bogus near-miss --pr nones is rejected" 2 "$code"
+
+  # 5. Mutation proof against the PRE-fix script (PR #320 shipped bytes,
+  #    blob $PRE_F2_CLOSE_WORK_ITEM_BLOB): it has NO NONE sentinel at all —
+  #    a generic-mode ride under the OLD code had only TBD available, so it
+  #    would have been left exactly as unstampable as the finding describes.
+  local dir2; dir2=$(new_fixture_repo "t063old")
+  write_change_doc "$dir2/docs/issues/CHANGE-0001-t063old.md" "t063old-slug" "draft"
+  commit_fixture_docs "$dir2"
+  local old_script; old_script=$(pre_f2_close_script)
+  local old_out="$TEST_DIR/t063old.out" old_err="$TEST_DIR/t063old.err" old_code=0
+  ( cd "$dir2" && node "$old_script" --ref t063old-slug --pr NONE --commit d0d0063 > "$old_out" 2> "$old_err" ) || old_code=$?
+  assert_exit "t063 PRE-fix script rejects --pr NONE (no such sentinel existed yet)" 2 "$old_code"
+  grep -qiE "invalid --pr" "$old_err" \
+    || log_fail "t063: PRE-fix script did not reject --pr NONE as an invalid value, got: $(cat "$old_err")"
+
+  log_pass "pr-value NONE: a genuine terminal no-PR completion, never mistaken for a stale TBD, refused by --stamp-pr, proven absent from the PRE-fix script (TEST-063)"
+}
+
+# --- TEST-064 (PR #320 Codex F-2): a read failure during the stale-TBD -----
+# scan must surface a NAMED warning, never silently drop the file out of
+# scope. Mutation-proofed against the exact PR #320 shipped bytes. ----------
+
+test_064_stale_scan_read_error_named_warning() {
+  log_info "Test: a scanned doc that cannot be read during the stale-TBD scan surfaces a NAMED stderr warning (path + error) instead of silently dropping out of scope, without losing a genuine stale-TBD warning on another doc; mutation-proofed against the PRE-fix script, which drops it silently (Codex F-2, PR #320, TEST-064)..."
+  local base; base=$(new_fixture_repo "t064")
+  # A genuinely stale doc: status done, links.pr still carrying TBD (hand-
+  # written — no need to run the close ceremony on it first).
+  cat > "$base/docs/issues/CHANGE-0001-t064stale.md" <<'EOF'
+---
+id: t064stale-slug
+type: change
+status: done
+links:
+  pr:
+    - TBD
+  commits: []
+---
+
+# Change — Fixture t064stale-slug
+EOF
+  write_change_doc "$base/docs/issues/CHANGE-0002-t064other.md" "t064other-slug" "draft"
+  write_change_doc "$base/docs/issues/CHANGE-0003-t064unreadable.md" "t064unreadable-slug" "draft"
+  commit_fixture_docs "$base"
+
+  local pre_dir="$TEST_DIR/t064-pre" post_dir="$TEST_DIR/t064-post"
+  cp -r "$base" "$pre_dir"
+  cp -r "$base" "$post_dir"
+  chmod 000 "$pre_dir/docs/issues/CHANGE-0003-t064unreadable.md"
+  chmod 000 "$post_dir/docs/issues/CHANGE-0003-t064unreadable.md"
+
+  local pre_script; pre_script=$(pre_f2_close_script)
+
+  local pre_out="$TEST_DIR/t064-pre.out" pre_err="$TEST_DIR/t064-pre.err" pre_code=0
+  ( cd "$pre_dir" && node "$pre_script" --ref t064other-slug --pr TBD --commit a0a0064 > "$pre_out" 2> "$pre_err" ) || pre_code=$?
+  chmod 644 "$pre_dir/docs/issues/CHANGE-0003-t064unreadable.md"
+
+  local post_out="$TEST_DIR/t064-post.out" post_err="$TEST_DIR/t064-post.err" post_code
+  post_code=$(run_close "$post_dir" "$post_out" "$post_err" --ref t064other-slug --pr TBD --commit a0a0064)
+  chmod 644 "$post_dir/docs/issues/CHANGE-0003-t064unreadable.md"
+
+  # NOTE on exit codes: resolveDoc() shares the exact same unguarded-read
+  # shape scanForStaleTbdPr had (an ADJACENT defect discovered while proving
+  # this fix, root-caused and fixed alongside F-2 — see the close-work-item.mjs
+  # comment at resolveDoc's catch block). With BOTH fixed, an unreadable
+  # sibling doc now makes resolveDoc fail closed too (exit 2, D2's own
+  # ambiguous/no-match shape), not exit 0 — this test is NOT asserting the
+  # close otherwise succeeds; it is isolating the STALE-SCAN WARNING itself,
+  # which fires and completes BEFORE resolveDoc ever runs.
+  assert_exit "t064 PRE-fix close crashes generically (uncaught, caught only by the top-level runMain handler)" 1 "$pre_code"
+  assert_exit "t064 POST-fix close fails closed cleanly (resolveDoc's own adjacent fix, D2 usage-error shape)" 2 "$post_code"
+
+  # PRE-fix (buggy, PR #320 shipped bytes): scanForStaleTbdPr's OWN warning
+  # never names the unreadable path or frames it as a read-error (F-2's
+  # missing mechanism) — the path only leaks incidentally, later, inside the
+  # UNRELATED generic "internal error" crash message from resolveDoc's own
+  # (separate, pre-existing) unguarded read. The dedicated framing this fix
+  # adds is what must be absent here.
+  grep -qiE "could not scan .*for a stale TBD" "$pre_err" \
+    && log_fail "t064: mutation-proof invariant violated — the PRE-fix script already carries the F-2 warning framing (wrong blob pin, or the bug predates this test), got: $(cat "$pre_err")"
+  grep -qF "t064stale-slug" "$pre_err" \
+    || log_fail "t064: PRE-fix script lost the real stale-TBD warning too — fixture problem, not a behavior difference, got: $(cat "$pre_err")"
+
+  # POST-fix (this remediation): a NAMED, dedicated warning citing the
+  # unreadable path AND framed as a stale-TBD-scan read failure, AND the
+  # real stale-TBD warning must still fire — a read error on one file must
+  # never suppress a genuine finding on another. Both must appear BEFORE
+  # resolveDoc's own (later) fail-closed refusal line for the same path.
+  grep -qiE "could not scan .*t064unreadable.*for a stale TBD PR placeholder" "$post_err" \
+    || log_fail "t064: NEW code did not emit the dedicated F-2 read-error warning, got: $(cat "$post_err")"
+  grep -qF "t064stale-slug" "$post_err" \
+    || log_fail "t064: NEW code lost the real stale-TBD warning behind the read-error path, got: $(cat "$post_err")"
+  grep -qF "cannot read docs/issues/CHANGE-0003-t064unreadable.md" "$post_err" \
+    || log_fail "t064: resolveDoc's own adjacent fail-closed refusal did not name the path either, got: $(cat "$post_err")"
+
+  log_pass "stale-TBD scan surfaces a dedicated named read-error warning without losing a real stale-TBD warning; PRE-fix script proven to lack that framing entirely (TEST-064)"
+}
+
+# --- TEST-065 (PR #320 Copilot F-3): close-before-push-guard.mjs must fail --
+# CLOSED (exit 2, clear reason) on an unreadable scanned doc, never crash
+# with an unhandled exception. Mutation-proofed against PR #320's bytes. ----
+
+test_065_guard_unreadable_file_fails_closed() {
+  log_info "Test: close-before-push-guard.mjs fails CLOSED (exit 2, named path + reason) on an unreadable scanned doc instead of crashing with an unhandled exception; mutation-proofed against the PRE-fix script, which crashes with a Node stack trace and an uncontrolled exit code (Copilot F-3, PR #320, TEST-065)..."
+  local base; base=$(new_fixture_repo "t065")
+  write_change_doc "$base/docs/issues/CHANGE-0001-t065.md" "t065-slug" "implementing"
+  write_change_doc "$base/docs/issues/CHANGE-0002-t065unreadable.md" "t065unreadable-slug" "draft"
+  commit_fixture_docs "$base"
+
+  local pre_dir="$TEST_DIR/t065-pre" post_dir="$TEST_DIR/t065-post"
+  cp -r "$base" "$pre_dir"
+  cp -r "$base" "$post_dir"
+  chmod 000 "$pre_dir/docs/issues/CHANGE-0002-t065unreadable.md"
+  chmod 000 "$post_dir/docs/issues/CHANGE-0002-t065unreadable.md"
+
+  local pre_guard; pre_guard=$(pre_f3_guard_script)
+
+  local pre_out="$TEST_DIR/t065-pre.out" pre_err="$TEST_DIR/t065-pre.err" pre_code=0
+  ( cd "$pre_dir" && node "$pre_guard" --ref t065-slug > "$pre_out" 2> "$pre_err" ) || pre_code=$?
+  chmod 644 "$pre_dir/docs/issues/CHANGE-0002-t065unreadable.md"
+
+  local post_out="$TEST_DIR/t065-post.out" post_err="$TEST_DIR/t065-post.err" post_code
+  post_code=$(run_guard "$post_dir" "$post_out" "$post_err" --ref t065-slug)
+  chmod 644 "$post_dir/docs/issues/CHANGE-0002-t065unreadable.md"
+
+  # PRE-fix (buggy): an unhandled exception — never the documented exit 2,
+  # and a Node stack trace naming this exact file lands on stderr instead of
+  # a clean, named reason.
+  [[ "$pre_code" != "2" ]] \
+    || log_fail "t065: mutation-proof invariant violated — the PRE-fix guard already exits 2 cleanly (wrong blob pin, or already fixed)"
+  grep -qE "close-before-push-guard\.mjs:[0-9]+:[0-9]+" "$pre_err" \
+    || log_fail "t065: PRE-fix guard did not crash with the expected Node stack trace, got: $(cat "$pre_err")"
+
+  # POST-fix: exit 2, fail-closed, a clear stderr reason naming the path, NO
+  # stack trace leaked.
+  assert_exit "t065 guard fails closed on an unreadable scanned doc" 2 "$post_code"
+  grep -qF "CHANGE-0002-t065unreadable.md" "$post_err" \
+    || log_fail "t065: guard did not name the unreadable path, got: $(cat "$post_err")"
+  grep -qE "close-before-push-guard\.mjs:[0-9]+:[0-9]+" "$post_err" \
+    && log_fail "t065: guard still leaked a Node stack trace on stderr, got: $(cat "$post_err")"
+
+  log_pass "close-before-push-guard.mjs fails closed (exit 2, named path) on an unreadable doc; PRE-fix guard proven to crash with a stack trace instead (TEST-065)"
+}
+
+# --- TEST-066 (PR #320 Copilot F-5): --stamp-pr's grammar is --ref + -------
+# --stamp-pr [+ --spec] ONLY — a --review flag outside that grammar is a
+# NAMED usage error, never silently accepted and ignored. --------------------
+
+test_066_stamp_pr_rejects_review_flag() {
+  log_info "Test: --stamp-pr rejects a --review flag (valid only in the close-transaction mode) with a NAMED usage error instead of silently accepting and ignoring it; mutation-proofed against the PRE-fix script, which silently accepts it (Copilot F-5, PR #320, TEST-066)..."
+  local dir; dir=$(new_fixture_repo "t066")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t066.md" "t066-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t066a.out" err="$TEST_DIR/t066a.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t066-slug --pr TBD --commit a0a0066 --review pass)
+  assert_exit "t066 close with TBD" 0 "$code"
+
+  # NEW behavior: --stamp-pr + --review is a NAMED usage error, exit 2,
+  # nothing written (the doc must stay exactly as the close left it).
+  out="$TEST_DIR/t066b.out"; err="$TEST_DIR/t066b.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t066-slug --stamp-pr 66 --review waived)
+  assert_exit "t066 --stamp-pr + --review is refused" 2 "$code"
+  grep -qiE -- "--review" "$err" \
+    || log_fail "t066: refusal did not name --review, got: $(cat "$err")"
+  grep -q '^    - TBD$' "$dir/docs/issues/CHANGE-0001-t066.md" \
+    || log_fail "t066: doc must be untouched (still TBD) after the refused --stamp-pr + --review call"
+
+  # A clean (grammar-only) --stamp-pr call must still work afterward — the
+  # refusal above wrote nothing, so there is nothing to undo.
+  out="$TEST_DIR/t066c.out"; err="$TEST_DIR/t066c.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t066-slug --stamp-pr 66)
+  assert_exit "t066 clean --stamp-pr still succeeds" 0 "$code"
+  grep -q '^    - 66$' "$dir/docs/issues/CHANGE-0001-t066.md" \
+    || log_fail "t066: clean --stamp-pr did not replace TBD with 66"
+
+  # Mutation proof against the PRE-fix script: --stamp-pr + --review used to
+  # be silently ACCEPTED — --review just fell on the floor unread.
+  local dir2; dir2=$(new_fixture_repo "t066old")
+  write_change_doc "$dir2/docs/issues/CHANGE-0001-t066old.md" "t066old-slug" "draft"
+  commit_fixture_docs "$dir2"
+  local old_script; old_script=$(pre_f2_close_script)
+  local old_out1="$TEST_DIR/t066old1.out" old_err1="$TEST_DIR/t066old1.err" old_code1=0
+  ( cd "$dir2" && node "$old_script" --ref t066old-slug --pr TBD --commit b0b0066 > "$old_out1" 2> "$old_err1" ) || old_code1=$?
+  assert_exit "t066 PRE-fix close with TBD" 0 "$old_code1"
+
+  local old_out2="$TEST_DIR/t066old2.out" old_err2="$TEST_DIR/t066old2.err" old_code2=0
+  ( cd "$dir2" && node "$old_script" --ref t066old-slug --stamp-pr 166 --review waived > "$old_out2" 2> "$old_err2" ) || old_code2=$?
+  assert_exit "t066 mutation proof — PRE-fix script silently ACCEPTS --stamp-pr + --review" 0 "$old_code2"
+  grep -q '^    - 166$' "$dir2/docs/issues/CHANGE-0001-t066old.md" \
+    || log_fail "t066: PRE-fix mutation-proof fixture did not actually stamp — invariant not demonstrated, got: $(cat "$old_err2")"
+
+  log_pass "--stamp-pr rejects a --review flag outside its grammar with a named usage error; PRE-fix script proven to silently accept and ignore it (TEST-066)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -3011,6 +3321,10 @@ main() {
   test_060_pr_value_only_integer_or_tbd
   test_061_stale_tbd_warning_fires_and_clears
   test_062_close_before_push_guard
+  test_063_pr_none_terminal_completion
+  test_064_stale_scan_read_error_named_warning
+  test_065_guard_unreadable_file_fails_closed
+  test_066_stamp_pr_rejects_review_flag
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

@@ -30,9 +30,10 @@
 //       close-work-item.mjs --pr TBD already ran) — push is safe.
 //   1 — the doc resolves but status is NOT `done` — step 4c has not run (or
 //       failed) yet. REFUSED; names the remediation command.
-//   2 — usage error: missing --ref, or the ref does not resolve to exactly
-//       one scanned doc (unresolvable / ambiguous) — fail-closed, never a
-//       silent pass.
+//   2 — usage error (missing --ref, or the ref does not resolve to exactly
+//       one scanned doc — unresolvable / ambiguous), OR a scanned file could
+//       not be read (permissions/I-O/transient) — fail-closed either way,
+//       never a silent pass and never an unhandled crash.
 //
 // Node stdlib + the shared docs-audit-core/docs-model libraries only
 // (docs/TECHNOLOGY.md). No forked scanning/parsing logic.
@@ -41,6 +42,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { scanAuditDocs, loadConfig } from './lib/docs-audit-core.mjs';
 import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES, slugFamilyForPath } from './lib/docs-model.mjs';
+
+// fail(msg) — exit 2, fail-closed, no "usage:" line: for a runtime failure
+// (Copilot F-3's unreadable-file case) rather than a flag-parsing mistake.
+function fail(msg) {
+  process.stderr.write(`close-before-push-guard: ${msg}\n`);
+  process.exit(2);
+}
 
 function usageError(msg) {
   process.stderr.write(`close-before-push-guard: ${msg}\n`);
@@ -69,13 +77,23 @@ function resolveDocStatus(root, slug) {
   const files = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] })
     .filter((f) => slugFamilyForPath(f.rel)?.type !== 'product');
   const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
-  const entries = files.map((f) => {
+  const entries = [];
+  for (const f of files) {
     const abs = path.join(root, f.rel);
-    const content = fs.readFileSync(abs, 'utf8');
+    let content;
+    try {
+      content = fs.readFileSync(abs, 'utf8');
+    } catch (err) {
+      // Copilot F-3 (PR #320): an unreadable scanned file (permissions,
+      // I/O, transient) must fail this guard CLOSED with the documented
+      // exit code 2 and a clear reason, not crash with an unhandled
+      // exception (uncontrolled exit code + stack trace).
+      fail(`cannot read ${f.rel}: ${err?.message ?? String(err)}`);
+    }
     const fm = parseFrontmatter(content);
     const ids = extractDocIds(path.basename(f.rel), categoryPrefixes) ?? { primary: f.fileId };
-    return { rel: f.rel, fm, fmId: fm?.id ?? null, fileIds: [ids.primary, f.fileId].filter(Boolean) };
-  });
+    entries.push({ rel: f.rel, fm, fmId: fm?.id ?? null, fileIds: [ids.primary, f.fileId].filter(Boolean) });
+  }
   let matches = entries.filter((e) => e.fmId === slug);
   if (matches.length === 0) matches = entries.filter((e) => e.fileIds.includes(slug));
   if (matches.length === 0) return { found: false, reason: `no scanned doc resolves to id "${slug}"` };

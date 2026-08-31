@@ -15,30 +15,39 @@
 // predicate (`git merge-base --is-ancestor`), never the PR API. Never
 // changes the exit code or stdout; fail-open on any git failure.
 //
-// GRAMMAR (D1, closed; extended fu-close-requires-pr-before-it-exists —
-// see the PR-NUMBER SPLIT note below)
-//   node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N|TBD> --commit <sha>
+// GRAMMAR (D1, closed; extended fu-close-requires-pr-before-it-exists /
+// fu-close-before-push-ordering F-1 remediation — see the PR-NUMBER SPLIT
+// note below)
+//   node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N|TBD|NONE> --commit <sha>
 //     [--spec <spec-slug>] [--review <pass|waived|none>] [--dry-run]
 //   node .aai/scripts/close-work-item.mjs --ref <slug> --stamp-pr <N> [--spec <spec-slug>]
-//   --ref <slug>     the primary work-item doc's frontmatter slug `id`
-//                     (change/issue/debt/spec). Required.
-//   --pr <N|TBD>     PR number stamped into links.pr (integer; required).
-//                     The literal sentinel `TBD` (case-insensitive, stored
-//                     canonicalized as `TBD`) is accepted for the ordering
-//                     paradox described below — it is NEVER a guess.
-//   --commit <sha>   delivery commit stamped into links.commits AND used as
-//                     the ac_evidence commit (required).
-//   --spec <slug>    optional second doc (the spec) closed in the SAME
-//                     transaction as the primary doc.
-//   --review <t>     the code_review token for work_item_closed; optional,
-//                     default "none" (validation is always "pass" — this
-//                     ceremony only runs after a PASS).
-//   --dry-run        print the planned mutation + event set as JSON, write
-//                     nothing, exit 0.
-//   --stamp-pr <N>   SEPARATE mode (mutually exclusive with --pr/--commit/
-//                     --dry-run): replaces an already-stamped `TBD` in
-//                     links.pr with the real integer N, once the PR exists.
-//                     See PR-NUMBER SPLIT below.
+//   --ref <slug>       the primary work-item doc's frontmatter slug `id`
+//                       (change/issue/debt/spec). Required.
+//   --pr <N|TBD|NONE>  PR number stamped into links.pr. Required. Accepts an
+//                       integer, OR one of two literal sentinels
+//                       (case-insensitive on input, stored canonicalized
+//                       exactly as shown): `TBD` for the ordering paradox
+//                       described below (a real PR is coming, stamped later
+//                       via --stamp-pr), or `NONE` for a ride that will
+//                       NEVER open a PR at all (generic mode — see NO-PR
+//                       COMPLETION below). Neither sentinel is ever a guess.
+//   --commit <sha>     delivery commit stamped into links.commits AND used
+//                       as the ac_evidence commit (required).
+//   --spec <slug>      optional second doc (the spec) closed in the SAME
+//                       transaction as the primary doc.
+//   --review <t>       the code_review token for work_item_closed; optional,
+//                       default "none" (validation is always "pass" — this
+//                       ceremony only runs after a PASS).
+//   --dry-run          print the planned mutation + event set as JSON, write
+//                       nothing, exit 0.
+//   --stamp-pr <N>     SEPARATE mode (mutually exclusive with --pr/--commit/
+//                       --dry-run/--review; grammar is --ref + --stamp-pr
+//                       [+ --spec] ONLY): replaces an already-stamped `TBD`
+//                       in links.pr with the real integer N, once the PR
+//                       exists. See PR-NUMBER SPLIT below. Never valid
+//                       against a doc closed with `--pr NONE` — that
+//                       placeholder is permanent by design, not a pending
+//                       one.
 //
 // PR-NUMBER SPLIT (fu-close-before-push-ordering / fu-close-requires-pr-
 // before-it-exists, ride ref close-ceremony-ordering): the correct ceremony
@@ -64,10 +73,31 @@
 // invocation in this repo — far more discoverable than a wrong guess, which
 // looks correct until someone checks.
 //
+// NO-PR COMPLETION (`--pr NONE`, fu-close-before-push-ordering F-1
+// remediation, PR #320 Codex review): a generic-mode ride (pr-platform.mjs
+// prints `PLATFORM none` or `unknown`) never opens a PR at all — GENERIC
+// MODE in .aai/SKILL_PR.prompt.md step 5 stops before step 5c can ever run.
+// Stamping `TBD` there would create a placeholder `--stamp-pr` can NEVER
+// resolve: permanently "unknown yet" for a doc that in fact will NEVER carry
+// a PR, and a permanent (unfixable) source of the stale-TBD WARNING above.
+// `NONE` is a DIFFERENT, terminal sentinel meaning "correctly, permanently,
+// no PR" — SKILL_PR's step 4c detects generic mode BEFORE stamping (the
+// platform probe is a read-only `git remote get-url origin` check with no
+// dependency on the commit/push that follows, so running it earlier costs
+// nothing) and stamps `NONE` instead of `TBD` on that branch. `NONE` is by
+// construction excluded from scanForStaleTbdPr's scan (which only ever
+// matches the literal TBD_SENTINEL) and refused by --stamp-pr (which only
+// ever matches a doc actually carrying TBD) — it can never trigger the
+// stale-TBD warning and never be mistaken for an unresolved placeholder.
+//
 // RESOLUTION (D2): each slug is resolved against the SAME two-pass scan the
 // docs-audit gate uses — exact frontmatter `id` match first, then filename-
 // derived display-id fallback. Zero or >1 matches is a fatal usage error
-// (exit 2) naming every candidate — fail-closed, never guess.
+// (exit 2) naming every candidate — fail-closed, never guess. A scanned doc
+// that cannot be READ at all (permissions/I-O/transient) is the same kind of
+// inconclusive result — it could be the true match or a hidden duplicate —
+// so it refuses with the same exit 2 shape, naming the path, rather than
+// silently skipping it or crashing (fix-at-cause alongside F-2/F-3, PR #320).
 //
 // STATUS TRANSITION (D3): the doc's ACTUAL on-disk `fm.status` drives the
 // transition, never an assumed value (fixes the SPEC-0046 flip-miss class):
@@ -184,47 +214,62 @@ const FLIP_ELIGIBLE = new Set(['draft', 'implementing', 'accepted']);
 function usageError(msg) {
   process.stderr.write(`close-work-item: ${msg}\n`);
   process.stderr.write(
-    'usage: node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N|TBD> --commit <sha> ' +
+    'usage: node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N|TBD|NONE> --commit <sha> ' +
       '[--spec <spec-slug>] [--review <pass|waived|none>] [--dry-run]\n' +
       '   or: node .aai/scripts/close-work-item.mjs --ref <slug> --stamp-pr <N> [--spec <spec-slug>]\n'
   );
   exit(2);
 }
 
-// TBD_SENTINEL — the ONLY non-integer value --pr accepts (case-insensitive
-// on input, stored canonicalized as this exact literal). See PR-NUMBER
-// SPLIT above.
+// TBD_SENTINEL / NONE_SENTINEL — the ONLY two non-integer values --pr
+// accepts (case-insensitive on input, stored canonicalized as these exact
+// literals). TBD means "a real PR is coming, stamp it later via
+// --stamp-pr" (PR-NUMBER SPLIT above); NONE means "correctly, permanently,
+// no PR" for a generic-mode ride that never opens one (NO-PR COMPLETION
+// above, fu-close-before-push-ordering F-1 remediation).
 const TBD_SENTINEL = 'TBD';
+const NONE_SENTINEL = 'NONE';
 
 function parseArgs(argv) {
   const args = { spec: null, review: 'none', dryRun: false, stampPr: null };
+  let reviewProvided = false;
   for (let i = 0; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--ref') args.ref = argv[++i];
     else if (tok === '--pr') args.pr = argv[++i];
     else if (tok === '--commit') args.commit = argv[++i];
     else if (tok === '--spec') args.spec = argv[++i];
-    else if (tok === '--review') args.review = argv[++i];
-    else if (tok === '--dry-run') args.dryRun = true;
+    else if (tok === '--review') {
+      args.review = argv[++i];
+      reviewProvided = true;
+    } else if (tok === '--dry-run') args.dryRun = true;
     else if (tok === '--stamp-pr') args.stampPr = argv[++i];
     else usageError(`unrecognized flag: ${tok}`);
   }
   if (!args.ref) usageError('missing --ref');
 
   if (args.stampPr !== null) {
-    // --stamp-pr mode: mutually exclusive with the close-transaction flags.
+    // --stamp-pr mode: its OWN grammar is --ref + --stamp-pr [+ --spec]
+    // ONLY (SKILL_PR.prompt.md step 5c) — every other close-transaction flag
+    // is a usage error, never a silently-ignored no-op (Copilot F-5, PR
+    // #320: --review used to parse fine here and just go unread, hiding a
+    // real usage mistake instead of naming it).
     if (args.pr !== undefined) usageError('--stamp-pr cannot be combined with --pr (they are separate modes)');
     if (args.commit !== undefined) usageError('--stamp-pr cannot be combined with --commit (they are separate modes)');
     if (args.dryRun) usageError('--stamp-pr cannot be combined with --dry-run');
+    if (reviewProvided) usageError('--stamp-pr cannot be combined with --review (--stamp-pr only accepts --ref, --stamp-pr and --spec)');
     if (!/^\d+$/.test(String(args.stampPr))) usageError('--stamp-pr requires an integer PR number');
     return args;
   }
 
-  if (!args.pr) usageError('missing --pr (integer, or the literal TBD before the PR exists)');
-  if (String(args.pr).toUpperCase() === TBD_SENTINEL) {
+  if (!args.pr) usageError('missing --pr (integer, TBD before the PR exists, or NONE for a ride that opens no PR)');
+  const prUpper = String(args.pr).toUpperCase();
+  if (prUpper === TBD_SENTINEL) {
     args.pr = TBD_SENTINEL;
+  } else if (prUpper === NONE_SENTINEL) {
+    args.pr = NONE_SENTINEL;
   } else if (!/^\d+$/.test(String(args.pr))) {
-    usageError('invalid --pr (integer, or the literal TBD before the PR exists)');
+    usageError('invalid --pr (integer, TBD before the PR exists, or NONE for a ride that opens no PR)');
   }
   if (!args.commit) usageError('missing --commit');
   if (!['pass', 'waived', 'none'].includes(args.review)) usageError('--review must be one of pass|waived|none');
@@ -246,13 +291,28 @@ function resolveDoc(root, slug) {
   const files = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] })
     .filter((f) => slugFamilyForPath(f.rel)?.type !== 'product');
   const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
-  const entries = files.map((f) => {
+  const entries = [];
+  for (const f of files) {
     const abs = path.join(root, f.rel);
-    const content = fs.readFileSync(abs, 'utf8');
+    let content;
+    try {
+      content = fs.readFileSync(abs, 'utf8');
+    } catch (err) {
+      // Adjacent fix-at-cause discovered while proving F-2 (PR #320): this
+      // resolution scan has the SAME unguarded fs.readFileSync shape F-2
+      // (scanForStaleTbdPr) and F-3 (close-before-push-guard.mjs) both
+      // named. An unreadable doc here could itself be the true match or a
+      // hidden duplicate, so silently skipping it (or crashing past it,
+      // as before) would violate D2's own "ambiguous id -> fail-closed,
+      // never guess" guarantee. Refuse immediately with the SAME exit 2
+      // usage-error shape D2 already uses for no-match/ambiguous — never a
+      // guess, never an uncaught crash.
+      return { found: false, reasons: [`cannot read ${f.rel}: ${err?.message ?? String(err)}`] };
+    }
     const fm = parseFrontmatter(content);
     const ids = extractDocIds(path.basename(f.rel), categoryPrefixes) ?? { primary: f.fileId };
-    return { rel: f.rel, abs, content, fm, fmId: fm?.id ?? null, fileIds: [ids.primary, f.fileId].filter(Boolean) };
-  });
+    entries.push({ rel: f.rel, abs, content, fm, fmId: fm?.id ?? null, fileIds: [ids.primary, f.fileId].filter(Boolean) });
+  }
   let pass = 'frontmatter-id';
   let matches = entries.filter((e) => e.fmId === slug);
   if (matches.length === 0) {
@@ -274,27 +334,35 @@ function resolveDoc(root, slug) {
   return { found: true, doc: matches[0] };
 }
 
-// scanForStaleTbdPr(root, excludeSlugs) -> the rel paths of every `status:
-// done` doc (other than the refs THIS invocation is itself closing/stamping)
-// whose links.pr still carries the literal TBD sentinel (fu-close-requires-
-// pr-before-it-exists — "must not go unfilled"). Report-only, mechanized:
-// close-work-item.mjs runs on nearly every ride, so a forgotten `--stamp-pr`
-// surfaces as a named stderr WARNING on the very next invocation ANYWHERE in
-// the repo, not a silently-wrong-forever placeholder. Never refuses, never
-// affects the exit code — a stale doc elsewhere must not block an unrelated
-// close.
+// scanForStaleTbdPr(root, excludeSlugs) -> { stale, readErrors }. `stale` is
+// the rel paths of every `status: done` doc (other than the refs THIS
+// invocation is itself closing/stamping) whose links.pr still carries the
+// literal TBD sentinel (fu-close-requires-pr-before-it-exists — "must not go
+// unfilled"). Report-only, mechanized: close-work-item.mjs runs on nearly
+// every ride, so a forgotten `--stamp-pr` surfaces as a named stderr WARNING
+// on the very next invocation ANYWHERE in the repo, not a silently-wrong-
+// forever placeholder. `readErrors` is every scanned doc this pass could NOT
+// read (permissions, I/O, a transient filesystem error) — Codex F-2 (PR
+// #320): the OLD code swallowed a read failure with a bare `continue`, so a
+// closed doc genuinely carrying a stale TBD could sit behind an unreadable
+// file and evade the "always loud" guarantee above forever. Collecting the
+// failure instead of dropping it keeps that guarantee true even in this edge
+// case. Neither list ever refuses or affects the exit code — a stale or
+// unreadable doc elsewhere must not block an unrelated close.
 function scanForStaleTbdPr(root, excludeSlugs) {
   const exclude = new Set(excludeSlugs);
   const config = loadConfig(root);
   const files = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] })
     .filter((f) => slugFamilyForPath(f.rel)?.type !== 'product');
   const stale = [];
+  const readErrors = [];
   for (const f of files) {
     const abs = path.join(root, f.rel);
     let content;
     try {
       content = fs.readFileSync(abs, 'utf8');
-    } catch {
+    } catch (err) {
+      readErrors.push({ rel: f.rel, error: err?.message ?? String(err) });
       continue;
     }
     const fm = parseFrontmatter(content);
@@ -303,10 +371,16 @@ function scanForStaleTbdPr(root, excludeSlugs) {
     if (String(fm?.status ?? '').toLowerCase() !== 'done') continue;
     if (hasLinkValue(content, 'pr', TBD_SENTINEL)) stale.push({ rel: f.rel, ref: fmId });
   }
-  return stale;
+  return { stale, readErrors };
 }
 
-function emitStaleTbdWarning(stale) {
+function emitStaleTbdWarning({ stale, readErrors }) {
+  for (const e of readErrors) {
+    process.stderr.write(
+      `close-work-item: WARNING could not scan ${e.rel} for a stale TBD PR placeholder ` +
+        `(fu-close-requires-pr-before-it-exists) — read failed: ${e.error}\n`
+    );
+  }
   if (stale.length === 0) return;
   process.stderr.write(
     `close-work-item: WARNING ${stale.length} closed doc(s) still carry an unstamped TBD PR placeholder ` +
@@ -1194,9 +1268,13 @@ function runStampPr(args) {
   const missingTbd = needsWrite.filter((p) => !p.hasTbd);
   if (missingTbd.length > 0) {
     for (const p of missingTbd) {
+      const closedNone = hasLinkValue(p.content, 'pr', NONE_SENTINEL);
       process.stderr.write(
-        `close-work-item: doc ${p.rel} (${p.fmId}) has no TBD placeholder in links.pr to stamp — ` +
-          'this doc was not closed with --pr TBD; use the full close ceremony\'s --pr <N> instead\n'
+        closedNone
+          ? `close-work-item: doc ${p.rel} (${p.fmId}) was closed with --pr NONE (permanently no PR) — ` +
+              'a PR now existing for it is a process error, not a --stamp-pr case; resolve it by hand\n'
+          : `close-work-item: doc ${p.rel} (${p.fmId}) has no TBD placeholder in links.pr to stamp — ` +
+              'this doc was not closed with --pr TBD; use the full close ceremony\'s --pr <N> instead\n'
       );
     }
     return 2;
