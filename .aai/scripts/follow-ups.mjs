@@ -69,7 +69,7 @@
 //        [--origin backfill] [--source-ts <ISO8601Z>]
 //   node .aai/scripts/follow-ups.mjs close --id <id> --resolved-by <ref>
 //        [--source <sha|url|path>] [--status done|dropped] [--ledger <path>]
-//        [--actor <slug>]
+//        [--actor <slug>] [--correct]
 //   node .aai/scripts/follow-ups.mjs --help
 //
 // CLOSING IS A DOCUMENTED MANUAL STEP (D5) — close-work-item.mjs is
@@ -360,7 +360,15 @@ const USAGE = `Usage:
        [--origin backfill] [--source-ts <ISO8601Z>]
   node .aai/scripts/follow-ups.mjs close --id <id> --resolved-by <ref>
        [--source <sha|url|path>] [--status done|dropped] [--ledger <path>]
-       [--actor <slug>] [--origin backfill] [--source-ts <ISO8601Z>]
+       [--actor <slug>] [--origin backfill] [--source-ts <ISO8601Z>] [--correct]
+
+An already-closed id refuses a second close as a no-op UNLESS --correct is
+given, which appends a new follow_up_status record so the fold's LATEST
+record — what list/report actually project — reflects a fixed attribution.
+--correct refuses on an item that is not already closed, and refuses when
+the new --resolved-by/--status would be identical to the current one (a
+correction that changes nothing is not a correction). The original,
+misattributed record is never edited — HAZ-LEDGER: this file is append-only.
   node .aai/scripts/follow-ups.mjs --help
 
 Ids match ^fu-[a-z0-9]+(-[a-z0-9]+)*$ (max ${ID_MAX_LEN} chars) and are never
@@ -394,7 +402,7 @@ function usageError(msg) {
 const FLAG_SPECS = {
   list: ['--ledger', '--ref', '--status', '--age-days'],
   add: ['--ledger', '--id', '--ref', '--severity', '--what', '--why', '--source', '--actor', '--origin', '--source-ts'],
-  close: ['--ledger', '--id', '--resolved-by', '--source', '--status', '--actor', '--origin', '--source-ts'],
+  close: ['--ledger', '--id', '--resolved-by', '--source', '--status', '--actor', '--origin', '--source-ts', '--correct'],
 };
 
 // D1 — a value is a value unless it is EXACTLY a token this subcommand knows.
@@ -437,6 +445,17 @@ function parseArgs(argv) {
     if (tok === '--json') {
       if (sub !== 'list') usageError(`--json is only valid on \`list\``);
       opts.json = true;
+      continue;
+    }
+    // --correct: a BOOLEAN flag on `close`, mirroring --json's special-case —
+    // every other flag in this CLI takes a value, but forcing a dummy value
+    // here (`--correct true`) would not match how the rest of the surface
+    // reads. Consumes no following token, so it must be handled here, before
+    // the generic value-flag loop below would otherwise try to eat the next
+    // argument as --correct's "value".
+    if (tok === '--correct') {
+      if (sub !== 'close') usageError(`--correct is only valid on \`close\``);
+      opts.correct = true;
       continue;
     }
     // D1 rule 1 — the `--flag=value` escape hatch: split on the FIRST `=`,
@@ -600,9 +619,28 @@ function cmdClose(opts) {
   if (before.unreadable) usageError(`ledger not readable: ${abs} (${before.unreadable.code}: ${before.unreadable.message})`);
   const current = before.items.find((i) => i.id === id);
   if (!current) usageError(`unknown --id "${id}" — no follow_up with that id in ${abs}`);
-  if (current.closed) {
-    console.log(`NOTE follow-up ${id} is already ${current.status} (resolved_by ${current.resolved_by ?? 'n/a'}) — nothing appended, re-close is idempotent`);
+  if (current.closed && !opts.correct) {
+    console.log(`NOTE follow-up ${id} is already ${current.status} (resolved_by ${current.resolved_by ?? 'n/a'}) — nothing appended, re-close is idempotent. If this attribution is WRONG (not just unwanted), re-run with --correct.`);
     exit(0);
+  }
+  // --correct: fu-registry-has-no-reopen's actual fix for the misattribution
+  // half of that gap (2026-08-30) — a wrongly attributed CLOSE, as opposed to
+  // a wrongly OPEN item, which still has no reopen path and is not what this
+  // flag does. It appends a SECOND follow_up_status line so the fold (which
+  // always projects the LATEST record for an id) reflects the correction; the
+  // original misattributed line is never edited, per HAZ-LEDGER. Two guards
+  // keep it from becoming a backdoor for casual re-closing: it refuses on an
+  // item that is not ALREADY closed (there is nothing to correct), and it
+  // refuses when the new resolved_by/status would be IDENTICAL to the
+  // current projection (a correction that changes nothing is not a
+  // correction — it is either a mistake or an attempt to pad the ledger).
+  if (opts.correct) {
+    if (!current.closed) usageError(`--correct requires ${id} to already be closed (it is currently open) — use \`close\` without --correct`);
+    const sameResolver = current.resolved_by === opts.resolved_by;
+    const sameStatus = current.status === status;
+    if (sameResolver && sameStatus) {
+      usageError(`--correct requires a DIFFERENT --resolved-by or --status than the current projection (resolved_by=${current.resolved_by ?? 'n/a'}, status=${current.status}) — nothing would change`);
+    }
   }
 
   const entry = {

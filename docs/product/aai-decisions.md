@@ -62,7 +62,14 @@ node .aai/scripts/follow-ups.mjs close --id fu-bom-first-line-key \
 `close` appends the resolution, then re-reads the ledger from disk, re-folds
 it, prints the item's new status, and exits 0 only when the re-read confirms
 the flip. Re-closing an already-closed id is a no-op with a note, not an
-error. The close ceremony (`close-work-item.mjs`) is deliberately NOT wired to
+error. If the ATTRIBUTION itself was wrong (not just unwanted — the fix
+shipped under a different ref/commit than the one the close named), re-run
+the same command with `--correct`: it appends a NEW `follow_up_status` record
+that becomes the id's latest fold (the append-only ledger is never rewritten),
+and refuses at exit 2 both on an item that is not yet closed and on a
+`--correct` that would not actually change `resolved_by` or `status` — a
+correction must be a real correction, not a second identical close. The close
+ceremony (`close-work-item.mjs`) is deliberately NOT wired to
 this ledger: its rollback arm truncates a telemetry file by byte length, and a
 bug in a second such arm would delete decision history to save one typed
 command. The compensating control is the report — an item nobody closes shows
@@ -142,8 +149,12 @@ Degradations are always named, never silent:
   authorization for every scheduled routine, with no error anywhere near the
   cause. Going through the tool makes that failure class unreachable.
 - `node .aai/scripts/follow-ups.mjs close --id --resolved-by [--source]
-  [--status done|dropped] [--ledger] [--actor]` — appends one
+  [--status done|dropped] [--ledger] [--actor] [--correct]` — appends one
   `follow_up_status` line and proves the flip by re-reading from disk.
+  `--correct` re-closes an ALREADY-closed id to fix a wrong attribution
+  (requires the id to be closed already, and requires the new
+  `resolved_by`/`status` to differ from the current projection — otherwise
+  exit 2).
 - `node .aai/scripts/follow-ups.mjs --help` — the grammar and this contract.
 - Exit codes (stable): `0` success, including a NON-EMPTY backlog (never an
   error), an empty backlog, a skipped malformed line and an idempotent
