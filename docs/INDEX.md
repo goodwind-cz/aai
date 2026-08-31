@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-31T08:44:58.394Z
+Generated: 2026-08-31T16:09:48.727Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0157 | specs | implementing | 9 done | docs/specs/SPEC-0157-spec-aai-update-gitignore-drift-reconcile.md |
 
 ## Canonical layer (0)
 
@@ -432,7 +433,7 @@ _None._
 | SPEC-0156 | specs | docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (39)
+## Drafts (40)
 
 | ID | Type | Path |
 |---|---|---|
@@ -475,6 +476,7 @@ _None._
 | ISSUE-0073 | issues | docs/issues/ISSUE-0073-uncarved-dispatch-lanes.md |
 | ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
 | ISSUE-0075 | issues | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
+| ISSUE-0076 | issues | docs/issues/ISSUE-0076-aai-update-gitignore-drift-reconcile.md |
 
 ## Deferred (whole-doc) (0)
 

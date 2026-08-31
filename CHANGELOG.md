@@ -1,15 +1,25 @@
-# Changelog
-
-All notable changes to AAI are documented in this file. Format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). AAI does not yet
-follow semantic versioning — entries are grouped by date or release event.
-
-For target projects: run `/aai-update` to pull the latest layer. After
-updating, run `/aai-doctor` to surface any migration actions specific to
-your project (for example, the STATE-to-local migration introduced in
-RFC-0001).
-
 ## [unreleased]
+
+## [unreleased] — fix(update): aai-update reconciles the runtime .gitignore block on every sync engine
+
+- `aai-sync.ps1` gained the runtime-sidecar `.gitignore` reconcile it never
+  had -- the actual root cause of ISSUE-0076: a project synced only from
+  Windows, or pinned before the bash-side fix (PR #223), kept seeing
+  per-developer AAI spool paths (`docs/ai/STATE.yaml`,
+  `docs/ai/{briefs,reports,tdd,validation,friction,archive,locks,loop}/**`,
+  etc.) show up as untracked on every `/aai-update`.
+- Collapsed the bash-side fork: `.aai/scripts/lib/gitignore-block.sh` (new)
+  is now the single shared reconcile both `aai-bootstrap.sh` and
+  `aai-sync.sh` source, replacing two independent copies that used different
+  marker text and could double-marker a target synced by both paths.
+  `.aai/system/RUNTIME_IGNORE.list` is the one data file all three engines
+  read; its header now names its real consumers.
+- Idempotent, marker-prefix-based (never full-string) duplicate detection,
+  preserves every pre-existing user `.gitignore` entry verbatim, and
+  degrades to a named skip (never a hard failure) when the shared list or
+  library is missing.
+- `.aai/scripts/lib/gitignore-block.sh` classified in `PROFILES.yaml` core.
+- ISSUE-0076 / SPEC-0157.
 
 ## [unreleased] — fix(tests): the intake opening-line pin defends the actual claim, and the table-parser strictness asymmetry is closed [L1]
 

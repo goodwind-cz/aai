@@ -23,6 +23,13 @@ GENERATOR=".aai/scripts/aai-bootstrap.sh"
 SKILL_MARKER="AAI-DYNAMIC-SKILL:START"
 FILE_MARKER="AAI-DYNAMIC-FILE:START"
 
+# Shared runtime-sidecar .gitignore reconcile (spec-aai-update-gitignore-drift-reconcile).
+GITIGNORE_BLOCK_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/gitignore-block.sh"
+if [[ -f "$GITIGNORE_BLOCK_LIB" ]]; then
+  # shellcheck source=lib/gitignore-block.sh
+  source "$GITIGNORE_BLOCK_LIB"
+fi
+
 usage() {
   sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
 }
@@ -773,34 +780,23 @@ ensure_gitignore() {
   # regenerated at close). Idempotent: grep-before-append per pattern; written
   # under one marker comment on first need.
   # Patterns come from the SINGLE SOURCE list (bot review: three inline
-  # copies would drift). Missing list file -> skip with a note, never fail.
+  # copies would drift). Reconcile itself lives in the shared library
+  # (gitignore-block.sh) so this and the sync engine cannot drift apart;
+  # missing list file or missing library -> skip with a note, never fail.
   local runtime_list
   runtime_list="$(cd "$(dirname "${BASH_SOURCE[0]}")/../system" 2>/dev/null && pwd)/RUNTIME_IGNORE.list"
-  local runtime_patterns=()
-  if [[ -f "$runtime_list" ]]; then
-    while IFS= read -r pattern; do
-      [[ -z "$pattern" || "$pattern" == \#* ]] && continue
-      runtime_patterns+=("$pattern")
-    done < "$runtime_list"
-  else
-    WRITTEN+=("skipped runtime-sidecar gitignore seed: $runtime_list missing")
-  fi
+  # Prefix must match AAI_GITIGNORE_MARKER_PREFIX (lib/gitignore-block.sh) --
+  # the canonical copy; also mirrored in aai-sync.sh and aai-sync.ps1
+  # (detection regex + written text). TEST-020 pins all 5 to that constant.
   local marker="# AAI runtime sidecars (seeded by aai-bootstrap; per-dev, never commit)"
-  local missing=()
-  for pattern in "${runtime_patterns[@]}"; do
-    grep -qxF "$pattern" "$path" 2>/dev/null || missing+=("$pattern")
-  done
-  if [[ ${#missing[@]} -gt 0 ]]; then
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-      WRITTEN+=("[dry-run] $path add ${#missing[@]} AAI runtime sidecar pattern(s)")
-    else
-      {
-        echo
-        grep -qF "$marker" "$path" 2>/dev/null || echo "$marker"
-        printf '%s\n' "${missing[@]}"
-      } >> "$path"
-      WRITTEN+=("$path add ${#missing[@]} AAI runtime sidecar pattern(s)")
+  if declare -f aai_gitignore_seed_runtime >/dev/null 2>&1; then
+    local seed_note
+    seed_note="$(aai_gitignore_seed_runtime "$path" "$runtime_list" "$marker" "$DRY_RUN")"
+    if [[ -n "$seed_note" ]]; then
+      WRITTEN+=("$seed_note")
     fi
+  else
+    WRITTEN+=("skipped runtime-sidecar gitignore seed: $GITIGNORE_BLOCK_LIB missing")
   fi
 }
 

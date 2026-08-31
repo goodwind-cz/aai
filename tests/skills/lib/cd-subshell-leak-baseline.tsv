@@ -15,7 +15,7 @@
 # substitution followed by an unguarded top-level `git` shortly after
 # fails whether or not this file mentions it.
 #
-2	.aai/scripts/aai-bootstrap.sh
+3	.aai/scripts/aai-bootstrap.sh
 1	.aai/scripts/aai-canonicalize.sh
 2	.aai/scripts/aai-live.sh
 10	.aai/scripts/aai-run-tests.sh
@@ -101,7 +101,7 @@
 19	tests/skills/test-aai-suite-isolation.sh
 2	tests/skills/test-aai-suite-select.sh
 7	tests/skills/test-aai-sweep-parallel.sh
-2	tests/skills/test-aai-sync-seed.sh
+4	tests/skills/test-aai-sync-seed.sh
 4	tests/skills/test-aai-tdd-evidence.sh
 2	tests/skills/test-aai-tdd.sh
 2	tests/skills/test-aai-test-canon.sh

@@ -64,6 +64,7 @@ suites:
   aai-bootstrap:
     globs:
       - .aai/scripts/aai-bootstrap.sh
+      - .aai/scripts/lib/gitignore-block.sh
       - .aai/BOOTSTRAP.prompt.md
       - .aai/BOOTSTRAP_DIFF.prompt.md
       - .aai/SKILL_BOOTSTRAP.prompt.md
@@ -465,6 +466,8 @@ suites:
     globs:
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/lib/gitignore-block.sh
+      - .aai/system/RUNTIME_IGNORE.list
       - .aai/templates/update-config.template.yaml
       - .aai/templates/docs-audit.template.yaml
       - .aai/system/PROFILES.yaml
