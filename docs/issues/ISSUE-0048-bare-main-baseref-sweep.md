@@ -2,7 +2,12 @@
 id: bare-main-baseref-sweep
 type: issue
 number: 48
-status: draft
+status: done
+links:
+  commits:
+    - 3ef4c4f
+  pr:
+    - 320
 ---
 
 # P2 backlog cluster: deslop-corpus-honesty (5 items)
