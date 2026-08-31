@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-31T08:00:51.730Z",
+  "generatedAt": "2026-08-31T16:11:31.837Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 130,
-    "delivered": 386,
+    "delivered": 388,
     "active_weeks": 10,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (386 closes vs 130 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 386,
-    "delivered_per_week_avg": 38.6,
+    "note": "\"delivered\" counts every work_item_closed event (388 closes vs 130 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 388,
+    "delivered_per_week_avg": 38.8,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -24,7 +24,7 @@
       "2026-W33": 33,
       "2026-W34": 33,
       "2026-W35": 20,
-      "2026-W36": 1
+      "2026-W36": 3
     },
     "delivered_groups": [
       {
@@ -302,7 +302,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 123,
+        "count": 125,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -426,7 +426,9 @@
           "drain-pipe-grep-q-ratchet",
           "cli-exit-truncates-pipe-sweep",
           "test-runs-jsonl-tracked-ignored",
-          "bare-main-baseref-sweep"
+          "bare-main-baseref-sweep",
+          "aai-update-gitignore-drift-reconcile",
+          "spec-aai-update-gitignore-drift-reconcile"
         ]
       }
     ],
@@ -1975,12 +1977,20 @@
         {
           "ref": "bare-main-baseref-sweep",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "aai-update-gitignore-drift-reconcile",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-aai-update-gitignore-drift-reconcile",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3892,
       "mean_seconds": 121271.4,
       "measured": 126,
-      "unmeasurable": 260
+      "unmeasurable": 262
     }
   },
   "speed": {
@@ -3299,7 +3309,7 @@
     },
     {
       "week": "2026-W36",
-      "delivered": 1,
+      "delivered": 3,
       "median_lead_time_seconds": null,
       "busy_seconds": null,
       "tokens": null,
@@ -3308,7 +3318,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 81,
+    "open_count": 78,
     "oldest_age_days": 17,
     "items": [
       {
@@ -3355,7 +3365,7 @@
         "id": "fu-setfocus-keeps-stale-spec-path",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "set-focus to a new ref leaves the previous scope's spec_path in current_focus, so the next dispatch hands the role a foreign spec as an input",
         "status": "open"
       },
@@ -3363,7 +3373,7 @@
         "id": "fu-tdd-skips-full-sweep",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "the TDD role declares done after targeted suites only, so defects visible only to the full framework sweep surface two roles later and cost a whole validate-remediate lap each",
         "status": "open"
       },
@@ -3395,7 +3405,7 @@
         "id": "fu-no-nul-guard",
         "ref": "docs-model-nul-escape",
         "severity": "P2",
-        "age_days": 13,
+        "age_days": 14,
         "what": "nothing checks tracked text files for NUL bytes, so a control character can silently turn a source file binary to POSIX grep",
         "status": "open"
       },
@@ -3419,7 +3429,7 @@
         "id": "fu-openct-unrdbl-report",
         "ref": "followups-cli-hardening",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "generate-factory-report.mjs:616 publishes follow_ups.open_count: 0 for an UNREADABLE ledger (e.g. --decisions a directory), the same 'a bad input reads as good news' shape D2 refuses on the CLI; the file's own oldest_age_days convention two lines down already uses null, never 0, for exactly this degradation",
         "status": "open"
       },
@@ -3427,7 +3437,7 @@
         "id": "fu-sync-hash-compare-fails-open",
         "ref": "followups-cli-hardening",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "file_content_different in aai-sync.sh treats an unobtainable hash as different, so a transient sha256sum hiccup silently rewrites the target's copilot shim and plants a project-overrides file",
         "status": "open"
       },
@@ -3459,7 +3469,7 @@
         "id": "fu-docsaudit-t003-red-on-new-doc",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "test-aai-docs-audit.sh TEST-003 regenerates docs/INDEX.md and diffs it against the committed one, so it is RED for the whole life of any scope that adds a doc, and test-aai-delta-stage3.sh TEST-007 inherits the failure",
         "status": "open"
       },
@@ -3467,7 +3477,7 @@
         "id": "fu-ismain-symlink-realpath",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 10,
+        "age_days": 11,
         "what": "every .mjs CLI guards main() with path.resolve(process.argv[1]) === fileURLToPath(import.meta.url), which is FALSE whenever the checkout is reached through a symlink, so the CLI exits 0 having printed nothing",
         "status": "open"
       },
@@ -3475,7 +3485,7 @@
         "id": "fu-orchestrator-monitor-uses-gnu-find",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 10,
+        "age_days": 11,
         "what": "the orchestrator's liveness check for running agents used GNU find syntax (-newermt '-N minutes') with stderr sent to /dev/null; on this host find rejects it, so the check reported zero writes as a RESULT when it was a silent command failure",
         "status": "open"
       },
@@ -3568,22 +3578,6 @@
         "status": "open"
       },
       {
-        "id": "fu-ledger-backticks-ran-as-command",
-        "ref": "intake-numbers-some-doc-types-immediately",
-        "severity": "P2",
-        "age_days": 10,
-        "what": "unescaped backticks inside a double-quoted bash string in tests/skills/lib/prompt-diet-ledger.sh ran as command substitution on every source, printing 'extra: command not found' to stderr and silently deleting the word from the ledger text",
-        "status": "open"
-      },
-      {
-        "id": "fu-intake-dir-pin-is-set-not-opening",
-        "ref": "intake-numbers-some-doc-types-immediately",
-        "severity": "P2",
-        "age_days": 10,
-        "what": "Spec-AC-02 and its AC-Status Evidence cell say every per-type prompt's OPENING directory line, but tests/skills/test-aai-intake.sh TEST-013 pins the file-wide SET of docs/<dir> mentions, which is also fence-blind and therefore brittle in the other direction",
-        "status": "open"
-      },
-      {
         "id": "fu-intake-dir-unanchored-research-hotfix",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
@@ -3592,34 +3586,10 @@
         "status": "open"
       },
       {
-        "id": "fu-intake-table-parser-asymmetry",
-        "ref": "intake-numbers-some-doc-types-immediately",
-        "severity": "P2",
-        "age_days": 10,
-        "what": "tests/skills/test-aai-intake.sh intake_table_lines requires single-space table cells while the shipped parseIntakeTypeTable in .aai/scripts/docs-audit.mjs allows \\s*, so a double-spaced ninth row is live in the gate and invisible to the arm that pins row count, prefix and directory",
-        "status": "open"
-      },
-      {
-        "id": "fu-ledger-no-backtick-claim-is-absolute",
-        "ref": "intake-numbers-some-doc-types-immediately",
-        "severity": "P3",
-        "age_days": 10,
-        "what": "the intake-numbers ledger entry in tests/skills/lib/prompt-diet-ledger.sh asserted 'no backtick in any ledger entry', which is literally false because line 69 carries an escaped pair; the true invariant is no UNESCAPED backtick",
-        "status": "open"
-      },
-      {
-        "id": "fu-intake-common-fallback-numbers-doc",
-        "ref": "intake-numbers-some-doc-types-immediately",
-        "severity": "P2",
-        "age_days": 10,
-        "what": "the legacy FALLBACK block in .aai/INTAKE_COMMON.md still instructs scan-and-mint of docs/<type>/<TYPE>-000N-<slug>.md, which is exactly the numbered filename the new --intake-file predicate rejects",
-        "status": "open"
-      },
-      {
         "id": "fu-report-ids-exceed-registry-cap",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "roles routinely write follow-up ids into their reports that the registry CLI refuses, because the ids exceed the hard 40-character cap, so a finding reported as filed can never have been filed under that name",
         "status": "open"
       },
@@ -3627,7 +3597,7 @@
         "id": "fu-posix-arm-reddens-on-prose-backslash",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "index_posix_findings tests every line for a backslash, not only path tokens, so a Notes cell mentioning a regex reddens the arm with index path is not POSIX",
         "status": "open"
       },
@@ -3635,7 +3605,7 @@
         "id": "fu-staleness-source-line-self-certifies",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "index_stale_findings derives its scanned dirs from the Source: line of the index under test, so an index stale because a family was added never checks that family",
         "status": "open"
       },
@@ -3643,7 +3613,7 @@
         "id": "fu-posix-predicate-exit-conflates-infra",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "index_posix_findings exits 1 both for real path findings and for the predicate failing to run, and does not fold stderr into the captured output, so an infrastructure failure surfaces as a path defect with an empty message",
         "status": "open"
       },
@@ -3651,7 +3621,7 @@
         "id": "fu-docsaudit-idmention-probe-per-doc",
         "ref": "spec-docs-history-is-one-git-call-per-doc",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "docs-audit still spends one git log -1 --grep per document for the id-mention probe",
         "status": "open"
       },
@@ -3731,7 +3701,7 @@
         "id": "fu-contract-prefix-order-unenforced",
         "ref": "the-subagent-contract-omits-the-hazards",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "the D1 cap argument rests on the CONTRACT being copied stable-first into the dispatch prefix, but that ordering lives only as prose in .aai/ORCHESTRATION_PARALLEL.prompt.md:142-143; no code assembles the payload and no test pins the ordering (SPEC-0110 TEST-033 compares the SPEC-0096 file-bytes hash, not the assembled prompt), and the Validation dispatch of this very scope shipped a POINTER to the CONTRACT instead of a copy",
         "status": "open"
       },
@@ -3739,7 +3709,7 @@
         "id": "fu-metrics-flush-advises-git-restore",
         "ref": "the-subagent-contract-omits-the-hazards",
         "severity": "P3",
-        "age_days": 7,
+        "age_days": 8,
         "what": ".aai/scripts/metrics-flush.mjs:801-803 emits 'EVENTS is append-only per RFC-0001 - restore from git before continuing' to whatever agent runs the flush, telling it to run a restoring git command on a tracked append-only ledger in the same sentence that cites the append-only rule",
         "status": "open"
       },
@@ -3747,7 +3717,7 @@
         "id": "fu-contract-ledger-rule-stated-twice",
         "ref": "the-subagent-contract-omits-the-hazards",
         "severity": "P3",
-        "age_days": 7,
+        "age_days": 8,
         "what": ".aai/SUBAGENT_CONTRACT.md states the EVENTS.jsonl append-only rule twice in one file: HAZ-LEDGER at lines 27-31 and the Single-writer MAY-write list at lines 72-74 ('docs/ai/EVENTS.jsonl via append-event.mjs (the append-only, commutative audit log)')",
         "status": "open"
       },
@@ -3827,7 +3797,7 @@
         "id": "fu-usage-pin-misses-appended-flag",
         "ref": "a-branch-diff-pin-taxes-every-later-scope",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "TEST-011(clarify) pins spec-freeze's usage line with grep -qF, so a flag APPENDED after the pinned run does not trip it",
         "status": "open"
       },
@@ -3835,7 +3805,7 @@
         "id": "fu-lean-ac-heading-two-authorities",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "docs-audit --gate accepts a lean AC table under the heading Acceptance Criteria while generate-docs-index.mjs near-miss flags exactly that heading and demands Acceptance Criteria Status",
         "status": "open"
       },
@@ -3843,7 +3813,7 @@
         "id": "fu-pgq-grep-error-reopened",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "pgq_scan sends grep stderr to /dev/null and treats a per-file error as count 0, so an unreadable file is reported as an improvement (reopens fu-pgq-scan-silent-on-grep-error)",
         "status": "open"
       },
@@ -3851,7 +3821,7 @@
         "id": "fu-overview-project-from-dirname",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "generate-overview.mjs derives the project field from path.basename(ROOT) (line 343), so any non-canonically named checkout (worktree, CI dir) leaks its local directory name into the committed overview pages",
         "status": "open"
       },
@@ -3859,7 +3829,7 @@
         "id": "fu-exit-contract-pin-comment-dup",
         "ref": "a-branch-diff-pin-taxes-every-later-scope",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "TEST-011(clarify)'s spec-freeze exit-contract pins (grep -qF \"$p\" \"$f\") check the WHOLE FILE, not the emitted string; spec-freeze.mjs's header comment (lines 54-61) duplicates all four exit-contract phrases verbatim above the runtime strings (lines 101-106) that actually compose the CLI output",
         "status": "open"
       },
@@ -3867,7 +3837,7 @@
         "id": "fu-overview-links-gitignored-reports",
         "ref": "a-branch-diff-pin-taxes-every-later-scope",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "the committed overview embeds links to gitignored validation/review report paths, so every such link 404s from a fresh clone",
         "status": "open"
       },
@@ -3907,7 +3877,7 @@
         "id": "fu-probe-redirect-lands-in-shipping-cwd",
         "ref": "isolation-shares-the-shipping-git",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "a mutation probe's relative redirect resolved against the agent's own shell cwd - the shipping repository - because the fixture script ran before any cd, writing a stray file there",
         "status": "open"
       },
@@ -3931,7 +3901,7 @@
         "id": "fu-metrics-verdict-has-no-staleness",
         "ref": "agent-shell-can-write-the-shipping-repo",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the metrics ledger records verdict PASS with no notion of whether the verdict covers the final bytes, so a ride whose last work lands after its last review is counted as reviewed-and-passed",
         "status": "open"
       },
@@ -3939,7 +3909,7 @@
         "id": "fu-overview-bakes-untracked-state",
         "ref": "agent-shell-can-write-the-shipping-repo",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "docs/ai/overview.html and overview-data.json are tracked artefacts generated from docs/ai/STATE.yaml, which is untracked by design, so every commit of them bakes one machine's local state into the repository",
         "status": "open"
       },
@@ -3955,8 +3925,24 @@
         "id": "fu-registry-has-no-reopen",
         "ref": "operator-waiver-unblocks-pr",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "follow-ups.mjs close accepts only done|dropped, so an item closed on a mistaken premise cannot be reopened without hand-editing an append-only ledger",
+        "status": "open"
+      },
+      {
+        "id": "fu-ac08-negation-coverage",
+        "ref": "aai-update-gitignore-drift-reconcile",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "TEST-015 (Spec-AC-08) exercises only 4 of 29 RUNTIME_IGNORE.list patterns and never asserts the negation lines (!docs/ai/*/.gitkeep) keep placeholders tracked",
+        "status": "open"
+      },
+      {
+        "id": "fu-gitignore-crlf-exact-line",
+        "ref": "aai-update-gitignore-drift-reconcile",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "gitignore-block.sh's grep -qxF exact-line match does not strip CR, so on a CRLF-terminated .gitignore repeated aai-sync runs re-append every runtime pattern each time",
         "status": "open"
       }
     ]

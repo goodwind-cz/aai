@@ -9,6 +9,7 @@ delivered_by:
   - CHANGE-0138
   - spec-doctor-honesty-batch
   - doctor-honesty-batch
+  - aai-update-gitignore-drift-reconcile
 spec: docs/specs/SPEC-0124-spec-update-doctor-field-report.md
 updated: 2026-08-31
 ---

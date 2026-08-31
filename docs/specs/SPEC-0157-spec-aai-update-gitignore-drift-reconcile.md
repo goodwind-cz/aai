@@ -2,13 +2,15 @@
 id: spec-aai-update-gitignore-drift-reconcile
 type: spec
 number: 157
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0076-aai-update-gitignore-drift-reconcile.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - d88247a209c1cb3c88724d53c323f67acfc80f8c
 ---
 
 # aai-update reconciles the runtime-sidecar .gitignore block into existing projects

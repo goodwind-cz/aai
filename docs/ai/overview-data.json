@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-31T16:08:10.807Z",
+  "generatedAt": "2026-08-31T16:11:31.739Z",
   "project": "aai-fix-aai-update-gitignore-drift-reconcile",
   "counts": {
-    "delivered": 220,
-    "in_progress": 41,
+    "delivered": 221,
+    "in_progress": 40,
     "releases": 1,
     "tokens_total": 55659205
   },
@@ -572,19 +572,6 @@
       "review": null
     },
     {
-      "ref": "aai-update-gitignore-drift-reconcile",
-      "title": "aai-update doesn't reconcile the runtime .gitignore block into existing projects",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0076-aai-update-gitignore-drift-reconcile.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0157-spec-aai-update-gitignore-drift-reconcile.md",
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -609,6 +596,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "aai-update-gitignore-drift-reconcile",
+      "title": "aai-update doesn't reconcile the runtime .gitignore block into existing projects",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0076-aai-update-gitignore-drift-reconcile.md",
+      "closed_on": "2026-08-31",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0157-spec-aai-update-gitignore-drift-reconcile.md",
       "validation": null,
       "review": null
     },
@@ -3476,6 +3476,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "aai-update-gitignore-drift-reconcile",
+          "title": "aai-update doesn't reconcile the runtime .gitignore block into existing projects",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0076-aai-update-gitignore-drift-reconcile.md",
+          "closed_on": "2026-08-31",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0157-spec-aai-update-gitignore-drift-reconcile.md",
           "validation": null,
           "review": null
         },
