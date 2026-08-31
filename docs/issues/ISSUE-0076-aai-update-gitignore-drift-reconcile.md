@@ -7,7 +7,7 @@ user_visible: true
 capability: aai-update
 links:
   pr:
-    - TBD
+    - 326
   commits:
     - d88247a209c1cb3c88724d53c323f67acfc80f8c
   source_issue: https://github.com/goodwind-cz/aai/issues/325

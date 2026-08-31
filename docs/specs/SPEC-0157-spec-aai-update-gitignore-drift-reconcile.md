@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/ISSUE-0076-aai-update-gitignore-drift-reconcile.md
   rfc: null
   pr:
-    - TBD
+    - 326
   commits:
     - d88247a209c1cb3c88724d53c323f67acfc80f8c
 ---
