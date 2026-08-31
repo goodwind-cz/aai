@@ -419,33 +419,91 @@ intake_table_lines() {
 # The SAME table, read by the SHIPPED parser (docs-audit.mjs's own
 # parseIntakeTypeTable), in the same "intakeType|type|dir|prefix" shape.
 #
-# Independence without a cross-check is only half-built. The awk above requires
-# exactly one space around every cell; the shipped regex allows `\s*`. A row
-# written with double spaces is therefore LIVE in the gate and INVISIBLE to
-# every arm that derives its row universe from the awk — TEST-013's counts and
-# TEST-014's per-row drive both do. Comparing the two readings is what turns
-# that blind spot into a named failure while keeping the independent reader
-# (a tool that only reads its own table proves nothing).
+# Independence without a cross-check is only half-built. The awk above and the
+# shipped regex both now require exactly one space around every cell
+# (fu-intake-table-parser-asymmetry, closed: the shipped regex used to allow
+# `\s*`, so a row written with double spaces was LIVE in the gate and
+# INVISIBLE to every arm that derives its row universe from the awk —
+# TEST-013's counts and TEST-014's per-row drive both do). Comparing the two
+# readings is what turns any FUTURE such blind spot into a named failure while
+# keeping the independent reader (a tool that only reads its own table proves
+# nothing); see the bite check below, which proves that on a deliberately
+# reverted (lenient) copy of the parser rather than the shipped one, since the
+# shipped one no longer diverges from the awk on this input.
 #
 # Importing docs-audit.mjs runs its main(); it is invoked from a throwaway
 # fixture cwd holding nothing but .aai/INTAKE_COMMON.md, with --quick and
 # --no-event, so the audit sees zero docs, appends no EVENTS line and touches
 # nothing in this repository. The FIRST argv token after -e is skipped by
-# parseArgs (it starts at index 2), hence the leading placeholder.
+# parseArgs (it starts at index 2), hence the leading placeholder. $2 is the
+# script to import — defaults to the shipped one; TEST-013's bite check passes
+# a mutated scratch copy instead so it never has to import the tracked file
+# under a mutated identity (HAZ-RESTORE: mutate a COPY, never the real file).
 intake_table_lines_tool() {
-  local src="${1:-$PROJECT_ROOT/.aai/INTAKE_COMMON.md}" cwd out
+  local src="${1:-$PROJECT_ROOT/.aai/INTAKE_COMMON.md}" script="${2:-$PROJECT_ROOT/.aai/scripts/docs-audit.mjs}" cwd out rc
   cwd=$(mktemp -d "${TMPDIR:-/tmp}/aai-intake-toolparse-XXXXXX")
   mkdir -p "$cwd/.aai"
   cp "$src" "$cwd/.aai/INTAKE_COMMON.md"
+  # $? is captured IMMEDIATELY after the command substitution and returned
+  # explicitly — the earlier version fell through to `rm`/`printf` first,
+  # both of which always succeed, so the function's own exit status was
+  # ALWAYS 0 regardless of whether node actually ran: a genuine tool failure
+  # (a broken import path, a syntax error in a mutated copy) came out
+  # indistinguishable from "the table is legitimately empty", and every
+  # caller's `|| tool_lines=""` fallback was dead code (Copilot review, PR
+  # #324).
   out=$( (cd "$cwd" && node --input-type=module -e '
     import fs from "node:fs";
     const m = await import(process.argv[2]);
-    const rows = m.parseIntakeTypeTable(fs.readFileSync(process.argv[3], "utf8"));
+    const { rows } = m.parseIntakeTypeTable(fs.readFileSync(process.argv[3], "utf8"));
     fs.writeFileSync(process.argv[4],
       rows.map(r => [r.intakeType, r.type, r.dir, r.prefix].join("|")).join("\n"));
-  ' -- placeholder "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$src" "$cwd/rows.txt" --quick --no-event >/dev/null && cat "$cwd/rows.txt") )
+  ' -- placeholder "$script" "$src" "$cwd/rows.txt" --quick --no-event >/dev/null && cat "$cwd/rows.txt") )
+  rc=$?
   rm -rf "$cwd"
   printf '%s\n' "$out"
+  return "$rc"
+}
+
+# Extract the `docs/<dir>` token(s) named in a per-type intake prompt's
+# OPENING section — Spec-AC-02's actual claim, and D3's rationale: a role that
+# reads the prompt in isolation, without scrolling past RULES, has to be told
+# where to write in that first look. Scoped to the span from the "Goal:"
+# marker up to (not including) the "RULES" heading — the file's opening
+# paragraph today, but not pinned to exactly one physical line, so a
+# legitimate second sentence added to that same paragraph is not a false
+# defect. Fence-blind WITHIN that span (a ``` toggle suspends extraction)
+# because a worked example inside the opening paragraph must not be read as
+# the real directory statement — and content outside the span (fenced or not,
+# e.g. a cross-reference in RULES or a footnote near BEGIN) is already outside
+# scope and never counted at all, which is what makes a footnote-only
+# directory mention (fu-intake-dir-pin-is-set-not-opening direction a) and a
+# legitimate fenced example elsewhere (direction b) come out right without
+# needing more than this one span rule.
+# ANCHORED to a line containing "save" AND "under" (Codex review, PR #324):
+# without this, an UNFENCED cross-reference inside the same span that happens
+# to name the SAME directory as the real save instruction — "See
+# docs/issues/ISSUE-0001.md for context." with the actual save-under sentence
+# deleted — read as the correct directory by coincidence, so the exact
+# regression Spec-AC-02/D3 exists to catch (the prompt no longer tells the
+# role where to save) went undetected. Every one of the eight shipped prompts
+# states the directory as "...and save it under docs/<dir>/." on one physical
+# line, so requiring "save" and "under" on the SAME line as the docs/ token
+# still matches every real statement while refusing to credit an unrelated
+# mention of the right path.
+intake_opening_dirs() {
+  awk '
+    /^Goal:$/ { g = 1; next }
+    /^RULES$/ { g = 0 }
+    g && /^```/ { infence = !infence; next }
+    g && !infence && /save/ && /under/ {
+      s = $0
+      while (match(s, /docs\/[a-z]+/)) {
+        print substr(s, RSTART, RLENGTH)
+        s = substr(s, RSTART + RLENGTH)
+      }
+    }
+  ' "$1"
 }
 
 # Write a minimal intake-shaped artifact. $1 abs path, $2 type, $3 number literal.
@@ -635,23 +693,34 @@ test_013_one_prefix_per_type_matches_the_allocator() {
   else
     log_info "  both readings agree: $n rows, identical row set"
   fi
-  # Bite check for the cross-check itself: a ninth row written with DOUBLE
-  # spaces is exactly the shape that slips past the awk and into the gate. Run
-  # BOTH readers over a synthetic copy (never the tracked file) and require
-  # them to disagree — otherwise the agreement above is vacuous.
-  local bite bite_awk bite_tool
+  # Bite check for the cross-check itself. fu-intake-table-parser-asymmetry
+  # closed the underlying gap by tightening the SHIPPED parser to the same
+  # exactly-one-space rule the awk already used, so a double-spaced ninth row
+  # no longer diverges between the two readers on the shipped script — that is
+  # the fix working, not the cross-check going vacuous. To prove the
+  # cross-check would still bite a FUTURE regression back to leniency, mutate
+  # a scratch COPY of the shipped parser (never the tracked file, HAZ-RESTORE)
+  # reverting just its whitespace strictness, and require the awk and the
+  # MUTATED tool to disagree on the same double-spaced ninth row.
+  local bite bite_awk bite_tool mutant
   bite=$(mktemp "${TMPDIR:-/tmp}/aai-intake-ninthrow-XXXXXX")
   cat "$PROJECT_ROOT/.aai/INTAKE_COMMON.md" > "$bite"
   printf '|  spec  |  spec  |  docs/specs  |  SPEC  |\n' >> "$bite"
-  bite_awk=$(intake_table_lines "$bite" | grep -c '|') || bite_awk=0
-  bite_tool=$(intake_table_lines_tool "$bite" | grep -c '|') || bite_tool=0
-  rm -f "$bite"
-  if [[ "$bite_awk" -eq "$bite_tool" ]]; then
-    log_info "TEST-013: double-spaced ninth row read as $bite_awk by both readers — the cross-check cannot bite (test bug, not a real finding)"
+  mutant=$(intake_mutant_script '/line\.match/ { s/| /|\\s*/g; s/ \\|/\\s*\\|/g; }') || mutant=""
+  if [[ -z "$mutant" ]]; then
+    log_info "TEST-013: the leniency-revert mutation changed nothing in a copy of docs-audit.mjs (test bug, not a real finding)"
     ok=0
   else
-    log_info "  bite proven: double-spaced ninth row -> awk $bite_awk rows, shipped parser $bite_tool rows"
+    bite_awk=$(intake_table_lines "$bite" | grep -c '|') || bite_awk=0
+    bite_tool=$(intake_table_lines_tool "$bite" "$mutant" | grep -c '|') || bite_tool=0
+    if [[ "$bite_awk" -eq "$bite_tool" ]]; then
+      log_info "TEST-013: double-spaced ninth row read as $bite_awk by both readers even against the leniency-reverted mutant — the cross-check cannot bite (test bug, not a real finding)"
+      ok=0
+    else
+      log_info "  bite proven: double-spaced ninth row -> awk $bite_awk rows, leniency-reverted mutant $bite_tool rows (the cross-check would catch this regression if the shipped parser ever re-loosened)"
+    fi
   fi
+  rm -f "$bite"
   # The prefix is stated in ONE place: no per-type prompt may restate one.
   local f base p
   for f in "$PROJECT_ROOT"/.aai/INTAKE_*.prompt.md; do
@@ -667,26 +736,85 @@ test_013_one_prefix_per_type_matches_the_allocator() {
   # role reads in isolation has to say where to write. Nine agreeing statements
   # with nothing holding them together is exactly how the RES/RESEARCH split
   # happened, so INTAKE_COMMON claims to be the AUTHORITY for the directory and
-  # this pins that claim: every `docs/<dir>` a per-type prompt names must be its
-  # own table row's directory, and no other. The prompt filename carries the
-  # intake type (INTAKE_TECHDEBT -> techdebt), and the RULES bullet's literal
-  # `docs/<dir>/` placeholder cannot collide — angle brackets are not [a-z].
+  # this pins that claim: every `docs/<dir>` named in a per-type prompt's own
+  # OPENING section (not a file-wide scan — fu-intake-dir-pin-is-set-not-opening)
+  # must be its own table row's directory, and no other. The prompt filename
+  # carries the intake type (INTAKE_TECHDEBT -> techdebt), and the RULES
+  # bullet's literal `docs/<dir>/` placeholder cannot collide — angle brackets
+  # are not [a-z] — but that bullet sits AFTER the "RULES" heading and is
+  # therefore outside intake_opening_dirs' scan span regardless.
   local it_from_file want got
   for f in "$PROJECT_ROOT"/.aai/INTAKE_*.prompt.md; do
     base=$(basename "$f")
     it_from_file=$(printf '%s' "${base#INTAKE_}" | sed 's/\.prompt\.md$//' | tr '[:upper:]' '[:lower:]')
     want=$(printf '%s\n' "$lines" | awk -F'|' -v t="$it_from_file" '$1 == t { print $3 }' | sort -u | tr '\n' ' ')
-    # grep's no-match status is caught, never inherited: a prompt that names no
-    # directory at all must reach the named mismatch below, not abort the suite.
-    got=$( { grep -oE 'docs/[a-z]+' "$f" || true; } | sort -u | tr '\n' ' ')
+    got=$(intake_opening_dirs "$f" | sort -u | tr '\n' ' ')
     if [[ "$got" != "$want" ]]; then
-      log_info "TEST-013: $base names directory '${got:-(none)}' for intake type '$it_from_file'; the table row says '${want:-(no row)}'"
+      log_info "TEST-013: $base's opening section names directory '${got:-(none)}' for intake type '$it_from_file'; the table row says '${want:-(no row)}'"
       ok=0
     else
-      log_info "  $base: directory ${want% } matches the table row for $it_from_file"
+      log_info "  $base: opening section directory ${want% } matches the table row for $it_from_file"
     fi
   done
-  [[ $ok -eq 1 ]] && log_pass "TEST-013 $n rows (awk and the shipped parser agree, divergence proven detectable), one prefix per type, research=RES, no prefix restated in any prompt, every prompt's directory matches its table row" \
+  # Bite check, direction (a) — fu-intake-dir-pin-is-set-not-opening: deleting
+  # the real opening-section directory statement and naming the directory only
+  # in a footnote used to stay green under the old file-wide-set pin. Build a
+  # synthetic prompt (never the tracked file) that does exactly that and
+  # require the opening-section reading to come up EMPTY, not 'docs/issues'.
+  local bite_a bite_a_got
+  bite_a=$(mktemp "${TMPDIR:-/tmp}/aai-intake-openingbite-a-XXXXXX.md")
+  cat > "$bite_a" <<'EOF'
+You are a TEST INTAKE ASSISTANT.
+
+Goal:
+Capture a test item using .aai/templates/TEST_TEMPLATE.md
+and save it.
+
+RULES
+- NEVER a numbered filename.
+
+(Artifacts for this intake type go under docs/issues/.)
+EOF
+  bite_a_got=$(intake_opening_dirs "$bite_a" | sort -u | tr '\n' ' ')
+  rm -f "$bite_a"
+  if [[ -n "$bite_a_got" ]]; then
+    log_info "TEST-013: a footnote-only directory mention (opening line deleted) still reads as '${bite_a_got}' — the opening-section pin cannot bite this direction (test bug, not a real finding)"
+    ok=0
+  else
+    log_info "  bite proven (direction a): footnote-only directory mention reads as '(none)' in the opening section, not 'docs/issues'"
+  fi
+  # Bite check, direction (b) — the FIRST legitimate cross-reference or fenced
+  # example path added to any intake prompt used to redden the old file-wide
+  # pin for a non-defect. Build a synthetic prompt whose opening section names
+  # its real directory AND carries a fenced example citing a DIFFERENT docs/
+  # path, and require the opening-section reading to stay exactly the real
+  # directory (fence-blind).
+  local bite_b bite_b_got
+  bite_b=$(mktemp "${TMPDIR:-/tmp}/aai-intake-openingbite-b-XXXXXX.md")
+  cat > "$bite_b" <<'EOF'
+You are a TEST INTAKE ASSISTANT.
+
+Goal:
+Capture a test item using .aai/templates/TEST_TEMPLATE.md
+and save it under docs/issues/.
+
+Example cross-reference:
+```
+See docs/adr/ADR-0001.md for background.
+```
+
+RULES
+- NEVER a numbered filename.
+EOF
+  bite_b_got=$(intake_opening_dirs "$bite_b" | sort -u | tr '\n' ' ')
+  rm -f "$bite_b"
+  if [[ "$bite_b_got" != "docs/issues " ]]; then
+    log_info "TEST-013: a legitimate fenced cross-reference inside the opening section reddened the pin ('${bite_b_got:-(none)}' != 'docs/issues ') for a non-defect (test bug, not a real finding)"
+    ok=0
+  else
+    log_info "  bite proven (direction b): a fenced cross-reference to a different docs/ path leaves the opening-section reading as 'docs/issues', unaffected"
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-013 $n rows (awk and the shipped parser agree, divergence proven detectable), one prefix per type, research=RES, no prefix restated in any prompt, every prompt's OPENING section directory matches its table row (both pin directions proven to bite)" \
     || log_fail "TEST-013 type/prefix table contract"
 }
 
@@ -1043,6 +1171,96 @@ test_018_slug_shape_matches_the_documented_constraint() {
     || log_fail "TEST-018 documented slug constraint is not enforced"
 }
 
+# ============= TEST-019 (bot review remediation, PR #324) ===================
+test_019_malformed_table_and_helper_fidelity() {
+  log_info "TEST-019: a malformed type-table row fails --intake-file CLOSED (not misdiagnosed as unknown-type); intake_opening_dirs stays anchored to the actual save-under statement, not a coincidental same-dir mention; intake_table_lines_tool propagates a genuine tool failure as a nonzero exit instead of masking it as empty output..."
+  local ok=1
+
+  # --- F1 (Codex): a malformed row must fail closed for the WHOLE table, ---
+  # --- named as a table defect, not silently dropped and misdiagnosed as ---
+  # --- unknown-type on whichever artifact happened to use that row's type.
+  local root res rc out
+  root=$(intake_fixture_root)
+  sed 's/| research | research | docs\/specs | RES |/|  research  |  research | docs\/specs | RES |/'     "$PROJECT_ROOT/.aai/INTAKE_COMMON.md" > "$root/.aai/INTAKE_COMMON.md"
+  if cmp -s "$root/.aai/INTAKE_COMMON.md" "$PROJECT_ROOT/.aai/INTAKE_COMMON.md"; then
+    log_info "TEST-019: the double-space mutation changed nothing in the copied table (test bug, not a real finding)"
+    ok=0
+  else
+    intake_write_artifact "$root/docs/specs/RES-DRAFT-demo.md" research null
+    res=$(intake_guard "$root" "docs/specs/RES-DRAFT-demo.md")
+    rc="${res%%|*}"; out="${res#*|}"
+    if [[ "$rc" != "2" || "$out" != *"malformed type-table row"* ]]; then
+      log_info "TEST-019: a malformed table row exited $rc without naming it as a malformed row: $out"
+      ok=0
+    elif [[ "$out" == *"unknown-type"* ]]; then
+      log_info "TEST-019: a malformed row was misdiagnosed as unknown-type instead of a table defect: $out"
+      ok=0
+    else
+      log_info "  malformed table row -> exit 2, named as a table defect (not unknown-type): $out"
+    fi
+  fi
+
+  # --- F2 (Codex): intake_opening_dirs must not credit a coincidental ---
+  # --- same-directory mention when the actual save-under statement is gone.
+  local attack attack_got
+  attack=$(mktemp "${TMPDIR:-/tmp}/aai-intake-t019-attack-XXXXXX.md")
+  cat > "$attack" <<'EOF'
+Goal:
+Capture a bug/issue report using .aai/templates/ISSUE_TEMPLATE.md.
+See docs/issues/ISSUE-0001.md for an example.
+
+RULES
+- NEVER a numbered filename.
+EOF
+  attack_got=$(intake_opening_dirs "$attack" | sort -u | tr '
+' ' ')
+  rm -f "$attack"
+  if [[ -n "$attack_got" ]]; then
+    log_info "TEST-019: a coincidental same-directory cross-reference (no save/under statement) still reads as '${attack_got}' — the anchor cannot bite this direction (Codex regression)"
+    ok=0
+  else
+    log_info "  bite proven: a coincidental same-directory mention with no save/under statement reads as '(none)', not the coincidentally-matching directory"
+  fi
+  # Control: the real save-under statement must still be read correctly.
+  local ctrl ctrl_got
+  ctrl=$(mktemp "${TMPDIR:-/tmp}/aai-intake-t019-ctrl-XXXXXX.md")
+  cat > "$ctrl" <<'EOF'
+Goal:
+Capture a small enhancement request using .aai/templates/CHANGE_TEMPLATE.md
+and save it under docs/issues/.
+
+RULES
+EOF
+  ctrl_got=$(intake_opening_dirs "$ctrl" | sort -u | tr '
+' ' ')
+  rm -f "$ctrl"
+  if [[ "$ctrl_got" != "docs/issues " ]]; then
+    log_info "TEST-019: a genuine save-under statement read as '${ctrl_got:-(none)}' instead of 'docs/issues' (anchor too strict)"
+    ok=0
+  else
+    log_info "  control: a genuine save-under statement still reads as 'docs/issues'"
+  fi
+
+  # --- F3 (Copilot): intake_table_lines_tool must propagate a genuine ---
+  # --- node failure as a nonzero exit, never mask it as empty-but-OK.
+  local broken_dir broken tool_out tool_rc
+  broken_dir=$(intake_scratch)
+  broken="$broken_dir/docs-audit.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$broken"
+  printf '
+syntax error {{{
+' >> "$broken"
+  tool_out=$(intake_table_lines_tool "$PROJECT_ROOT/.aai/INTAKE_COMMON.md" "$broken" 2>/dev/null) && tool_rc=0 || tool_rc=$?
+  if [[ "$tool_rc" -eq 0 ]]; then
+    log_info "TEST-019: a genuinely broken parser script still exited 0 from intake_table_lines_tool (output: '${tool_out}') — a real tool failure is indistinguishable from a legitimately empty table"
+    ok=0
+  else
+    log_info "  bite proven: a genuinely broken parser script exits $tool_rc from intake_table_lines_tool, not silently 0"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-019 malformed table row fails --intake-file closed and named (not unknown-type); intake_opening_dirs anchor rejects a coincidental same-dir mention while still reading the real save-under statement; intake_table_lines_tool propagates a genuine tool failure as nonzero"     || log_fail "TEST-019 bot-review remediation (PR #324) regressed"
+}
+
 # Main test execution
 main() {
   echo "Testing: $TEST_NAME"
@@ -1070,6 +1288,7 @@ main() {
   test_016_value_flags_refuse_an_empty_value
   test_017_wrong_prefix_finding_means_wrong_prefix
   test_018_slug_shape_matches_the_documented_constraint
+  test_019_malformed_table_and_helper_fidelity
 
   echo ""
   echo "All tests passed!"
