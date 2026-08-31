@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-31T08:44:58.394Z
+Generated: 2026-08-31T18:51:59.100Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -25,7 +25,7 @@ _None._
 | aai-decisions | aai-decisions | 2 | docs/product/aai-decisions.md |
 | aai-deslop | aai-deslop | 2 | docs/product/aai-deslop.md |
 | aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
-| aai-update | aai-update | 5 | docs/product/aai-update.md |
+| aai-update | aai-update | 6 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
@@ -48,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (379)
+## Done (381)
 
 | ID | Type | Path |
 |---|---|---|
@@ -260,6 +260,7 @@ _None._
 | ISSUE-0049 | issues | docs/issues/ISSUE-0049-cli-exit-truncates-pipe-sweep.md |
 | ISSUE-0053 | issues | docs/issues/ISSUE-0053-drain-pipe-grep-q-ratchet.md |
 | ISSUE-0071 | issues | docs/issues/ISSUE-0071-test-runs-jsonl-tracked-ignored.md |
+| ISSUE-0076 | issues | docs/issues/ISSUE-0076-aai-update-gitignore-drift-reconcile.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -430,6 +431,7 @@ _None._
 | SPEC-0154 | specs | docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md |
 | SPEC-0155 | specs | docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md |
 | SPEC-0156 | specs | docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md |
+| SPEC-0157 | specs | docs/specs/SPEC-0157-spec-aai-update-gitignore-drift-reconcile.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (39)

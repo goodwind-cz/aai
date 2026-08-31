@@ -627,6 +627,53 @@ if ($missingRuntimeStateEntries.Count -gt 0) {
   Write-Host "        run pwsh .aai/scripts/migrate-state-to-local.ps1 in the target project."
 }
 
+# Runtime-sidecar patterns (spec-aai-update-gitignore-drift-reconcile): seeded
+# on EVERY sync from the SINGLE SOURCE .aai/system/RUNTIME_IGNORE.list, so
+# this PowerShell path gains parity with the bash aai-sync.sh reconcile
+# (previously this engine seeded none of these patterns at all -- the root
+# cause of the reported drift). Exact-line match; a comment mentioning a path
+# never suppresses a seed; missing list -> skip with a note, never fail.
+# Marker detection is by PREFIX ("# AAI runtime sidecars"), never full-string,
+# so a target already carrying the bash engine's marker text never gets a
+# second marker line here (Spec-AC-05). Windows PowerShell 5.1 compatible
+# constructs only.
+$runtimeListPath = Join-Path $SrcRoot ".aai/system/RUNTIME_IGNORE.list"
+if (-not (Test-Path $runtimeListPath)) {
+  $runtimeListPath = Join-Path $TargetRoot ".aai/system/RUNTIME_IGNORE.list"
+}
+if (Test-Path $runtimeListPath) {
+  $runtimeSidecarLines = Get-Content -Path $runtimeListPath -ErrorAction SilentlyContinue
+  $runtimeSidecarPatterns = @()
+  foreach ($rawLine in $runtimeSidecarLines) {
+    $trimmedLine = $rawLine.TrimEnd("`r")
+    if ([string]::IsNullOrEmpty($trimmedLine)) { continue }
+    if ($trimmedLine.StartsWith("#")) { continue }
+    $runtimeSidecarPatterns += $trimmedLine
+  }
+  $giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
+  $missingRuntimeSidecarPatterns = @()
+  foreach ($entry in $runtimeSidecarPatterns) {
+    if ($giContent -notmatch ("(?m)^" + [regex]::Escape($entry) + "\r?$")) {
+      $missingRuntimeSidecarPatterns += $entry
+    }
+  }
+  if ($missingRuntimeSidecarPatterns.Count -gt 0) {
+    # Prefix ("# AAI runtime sidecars") must match AAI_GITIGNORE_MARKER_PREFIX
+    # (.aai/scripts/lib/gitignore-block.sh) -- the canonical copy; also
+    # mirrored in aai-bootstrap.sh and aai-sync.sh marker texts.
+    # tests/skills/test-aai-sync-seed.sh TEST-020 pins all 5 to that constant.
+    $runtimeSidecarBlock = @()
+    if ($giContent -notmatch "(?m)^# AAI runtime sidecars") {
+      $runtimeSidecarBlock += "# AAI runtime sidecars (seeded by aai-sync.ps1; per-dev, never commit)"
+    }
+    $runtimeSidecarBlock += $missingRuntimeSidecarPatterns
+    Add-Content -Path $gitignorePath -Value ("`n" + ($runtimeSidecarBlock -join "`n"))
+    Write-Host "  Added $($missingRuntimeSidecarPatterns.Count) AAI runtime-sidecar pattern(s) to $gitignorePath"
+  }
+} else {
+  Write-Host "  skipped runtime-sidecar gitignore seed: $runtimeListPath missing"
+}
+
 # Self-heal: collapse duplicate AAI-managed .gitignore lines left behind by
 # older syncs (pre-CRLF-fix runs re-appended managed blocks on every update).
 # Conservative: only de-duplicates AAI-owned lines, keeping the first of each;

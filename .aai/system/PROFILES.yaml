@@ -122,6 +122,7 @@ core:
   - .aai/scripts/lib/docs-audit-core.mjs
   - .aai/scripts/lib/docs-model.mjs
   - .aai/scripts/lib/evidence-paths.mjs
+  - .aai/scripts/lib/gitignore-block.sh
   - .aai/scripts/lib/guard-config.mjs
   - .aai/scripts/lib/pricing.mjs
   - .aai/scripts/lib/product-doc.mjs

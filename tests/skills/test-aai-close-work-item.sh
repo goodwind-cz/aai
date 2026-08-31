@@ -195,6 +195,34 @@ push_head_to_origin_main() {
 # descends from the pre-change tree.
 PRE_G1_CLOSE_WORK_ITEM_BLOB="4594d98cb2598d2380116c0f48f70c6481c55278"
 
+# Read a pinned blob by SHA for git cat-file; if it is not present locally,
+# best-effort fetch a named lightweight TAG that anchors it and retry once.
+# WHY THIS EXISTS: a pinned "pre-remediation" blob can end up reachable only
+# from a feature branch's pre-squash-merge commits (recorded once, by hand,
+# via `git ls-tree HEAD` while still on that branch) — squash-merging drops
+# those commits from main's history entirely, and once GitHub auto-deletes
+# the now-merged branch, a CI checkout that fetches only main (however deep)
+# never sees the blob, while any developer's full local clone (which already
+# has every branch fetched) never notices. PRE_F2_CLOSE_WORK_ITEM_BLOB and
+# PRE_F3_GUARD_BLOB hit exactly this: both were recorded on the abandoned
+# fix/close-ceremony-ordering branch (PR #320's actual head branch, squash-
+# merged as 3ef4c4f), so a single-branch CI checkout of main never fetches
+# them (confirmed: `git ls-remote origin fix/close-ceremony-ordering` is now
+# empty). Fixed at the object layer, not by editing the pin: each orphaned
+# blob got a lightweight tag (test-fixture-pre-f2-close-work-item,
+# test-fixture-pre-f3-guard) pushed to origin so it stays permanently
+# fetchable — `actions/checkout@v4` does not pass --tags in its own fetch, so
+# this helper fetches the ONE named tag on demand rather than requiring a
+# workflow-wide `fetch-tags: true` change. Degrades gracefully: an offline or
+# already-fetched environment (PRE_G1_CLOSE_WORK_ITEM_BLOB above, or any full
+# local clone) finds the object first-try and never touches the network.
+git_blob_with_tag_fallback() {
+  local blob="$1" tag="$2" out
+  out=$(cd "$PROJECT_ROOT" && git cat-file -p "$blob" 2>/dev/null) && { printf '%s\n' "$out"; return 0; }
+  (cd "$PROJECT_ROOT" && git fetch --quiet origin tag "$tag" >/dev/null 2>&1) || true
+  (cd "$PROJECT_ROOT" && git cat-file -p "$blob")
+}
+
 # pre_change_close_script -> prints the path to a runnable copy of the
 # PRE-G1 close-work-item.mjs. Siblings (append-event.mjs, the generate-*.mjs
 # best-effort regenerators, lib/*.mjs — none of which G1 touches) come from
@@ -249,8 +277,8 @@ pre_f2_close_script() {
   mkdir -p "$root/.aai"
   cp -r "$PROJECT_ROOT/.aai/scripts" "$root/.aai/scripts"
   local content
-  content=$(cd "$PROJECT_ROOT" && git cat-file -p "$PRE_F2_CLOSE_WORK_ITEM_BLOB") \
-    || log_fail "pre_f2_close_script: git cat-file of the pinned pre-F2 blob failed"
+  content=$(git_blob_with_tag_fallback "$PRE_F2_CLOSE_WORK_ITEM_BLOB" test-fixture-pre-f2-close-work-item) \
+    || log_fail "pre_f2_close_script: git cat-file of the pinned pre-F2 blob failed (even after fetching the anchor tag)"
   case "$content" in
     *"readErrors"*)
       log_fail "pre_f2_close_script: the pinned pre-F2 blob unexpectedly already carries readErrors — PRE_F2_CLOSE_WORK_ITEM_BLOB points at the wrong object"
@@ -275,8 +303,8 @@ pre_f3_guard_script() {
   mkdir -p "$root/.aai"
   cp -r "$PROJECT_ROOT/.aai/scripts" "$root/.aai/scripts"
   local content
-  content=$(cd "$PROJECT_ROOT" && git cat-file -p "$PRE_F3_GUARD_BLOB") \
-    || log_fail "pre_f3_guard_script: git cat-file of the pinned pre-F3 blob failed"
+  content=$(git_blob_with_tag_fallback "$PRE_F3_GUARD_BLOB" test-fixture-pre-f3-guard) \
+    || log_fail "pre_f3_guard_script: git cat-file of the pinned pre-F3 blob failed (even after fetching the anchor tag)"
   case "$content" in
     *"function fail("*)
       log_fail "pre_f3_guard_script: the pinned pre-F3 blob unexpectedly already carries the fail() helper — PRE_F3_GUARD_BLOB points at the wrong object"

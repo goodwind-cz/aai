@@ -227,6 +227,38 @@ test_gitignore_seed_idempotent_and_respectful() {
   log_pass "gitignore seed idempotent, respectful of user entries, dashboards stay tracked"
 }
 
+# --- TEST-017 (spec-aai-update-gitignore-drift-reconcile) ---------------------
+# The runtime-sidecar reconcile moved out of ensure_gitignore() into a shared
+# library (.aai/scripts/lib/gitignore-block.sh), also sourced by aai-sync.sh.
+# This pins that the extraction changed NOTHING observable here: bootstrap
+# still sources the library, and a --force re-run still yields exactly one
+# marker-prefix line with pre-existing entries surviving (Spec-AC-04,
+# Spec-AC-05). This exact scenario (a --force re-run once every pattern is
+# already present) is what caught a `set -e` regression during development:
+# the extraction's early-return path silently aborted the whole script.
+test_gitignore_seed_uses_shared_library() {
+  log_info "TEST-017: bootstrap's gitignore reconcile is backed by the shared library; marker count 1 and pre-existing entries survive extraction..."
+  local lib="$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.sh"
+  assert_file "$lib"
+  assert_contains "$BOOTSTRAP_SCRIPT" "gitignore-block.sh"
+
+  local dir="$TEST_DIR/test-017-fixture"
+  mkdir -p "$dir"
+  printf 'node_modules/\ndocs/ai/STATE.yaml\n# see docs/ai/briefs/** for handoffs\n' > "$dir/.gitignore"
+  bash "$BOOTSTRAP_SCRIPT" "$dir" >/dev/null 2>&1 || log_fail "TEST-017: bootstrap failed on the fixture"
+  # re-run once every pattern is already present — the extraction's early-return arm.
+  bash "$BOOTSTRAP_SCRIPT" "$dir" --force >/dev/null 2>&1 || log_fail "TEST-017: bootstrap --force re-run failed"
+
+  local n_state n_marker
+  n_state="$(grep -cF 'docs/ai/STATE.yaml' "$dir/.gitignore")"
+  [[ "$n_state" -eq 1 ]] || log_fail "TEST-017: docs/ai/STATE.yaml duplicated ($n_state occurrences) after extraction"
+  n_marker="$(grep -cF 'AAI runtime sidecars' "$dir/.gitignore")"
+  [[ "$n_marker" -eq 1 ]] || log_fail "TEST-017: marker comment count is $n_marker after extraction, expected 1"
+  assert_contains "$dir/.gitignore" "node_modules/"
+
+  log_pass "TEST-017 shared library sourced; marker count 1 and pre-existing entries survive the extraction"
+}
+
 test_managed_skill_is_stable() {
   log_info "Test: managed skill can be regenerated without content churn..."
   local unit="$TEST_DIR/.claude/skills/aai-test-unit/SKILL.md"
@@ -289,6 +321,7 @@ main() {
   test_dry_run_has_no_writes
   test_generate_dynamic_skills
   test_gitignore_seed_idempotent_and_respectful
+  test_gitignore_seed_uses_shared_library
   test_managed_skill_is_stable
   test_no_overwrite_without_force
   test_force_is_explicit_overwrite

@@ -9,8 +9,9 @@ delivered_by:
   - CHANGE-0138
   - spec-doctor-honesty-batch
   - doctor-honesty-batch
+  - aai-update-gitignore-drift-reconcile
 spec: docs/specs/SPEC-0124-spec-update-doctor-field-report.md
-updated: 2026-08-13
+updated: 2026-08-31
 ---
 
 # `/aai-update` refreshes the vendored AAI layer and ends with a doctor field report
@@ -84,6 +85,25 @@ As of CHANGE-0138 the config handling is honest about degraded shapes:
   per run, so a fully degraded run adds at most two stderr lines while
   stdout keeps its exactly-one-line contract and the exit code stays 0.
 
+## Runtime `.gitignore` reconciliation
+
+Every sync now reconciles the runtime-sidecar `.gitignore` block — the
+per-developer AAI spool paths (`docs/ai/STATE.yaml`, `docs/ai/LOOP_TICKS.jsonl`,
+`docs/ai/{briefs,reports,tdd,validation,friction,archive,locks,loop}/**`, and
+related agent-skill entries) — the same block CHANGE-0115 already seeded at
+bootstrap time. Previously this only happened on the bash sync path
+(`aai-sync.sh`); the PowerShell path (`aai-sync.ps1`) had no equivalent, so a
+project pinned before that sync-side fix, or synced only from Windows, could
+run `/aai-update` repeatedly and still see per-developer runtime files show up
+as untracked in `git status`. Both engines now read the same single data file,
+`.aai/system/RUNTIME_IGNORE.list`, through one shared reconcile per language
+(`.aai/scripts/lib/gitignore-block.sh` for both bash entrypoints; an
+equivalent PowerShell-5.1-safe block in `aai-sync.ps1`), so the two engines
+cannot drift apart again. The reconcile is idempotent (a pattern already
+present is never duplicated), preserves every pre-existing user entry in the
+target `.gitignore` verbatim, and degrades to a named skip (never a hard
+failure) when the shared list or library file is missing.
+
 ## Data model
 
 - `docs/ai/reports/doctor-<yyyymmdd>T<HHMMSS>Z-<machine>.md` — the field
@@ -100,6 +120,10 @@ As of CHANGE-0138 the config handling is honest about degraded shapes:
 - `docs/ai/update-config.yaml` gains the `post_update_doctor: on|off` key
   (column-0 scan, same discipline as the existing `mode:`/`throttle_hours:`
   keys, which are unaffected).
+- `.aai/system/RUNTIME_IGNORE.list` — the single data file both engines read
+  to seed/reconcile the runtime-sidecar `.gitignore` block. Its header names
+  every script that actually reads it; edits should keep header and reality
+  in sync.
 
 ## Interfaces and contracts
 
@@ -117,6 +141,11 @@ As of CHANGE-0138 the config handling is honest about degraded shapes:
   report from.
 - Zero network, zero LLM calls, no dependency beyond node (which the doctor
   itself already requires).
+- `.aai/scripts/lib/gitignore-block.sh` — the shared bash reconcile function
+  both `aai-bootstrap.sh` and `aai-sync.sh` source; marker detection is by
+  prefix (`# AAI runtime sidecars`) so legacy marker text never produces a
+  duplicate. Exit 0 always; a missing list or library degrades to a named
+  skip line, never a hard failure.
 
 ## Limits and non-goals
 
@@ -129,11 +158,19 @@ As of CHANGE-0138 the config handling is honest about degraded shapes:
   to an issue is a deliberate human act.
 - Two updates within the same second on one machine overwrite one report
   file (whole-file write, no interleaving).
+- The reconcile stops the runtime-ignore block from growing further; it does
+  not collapse marker lines a project already accumulated from past syncs
+  before this fix.
+- Real Windows PowerShell 5.1 semantics for the new `aai-sync.ps1` block are
+  covered by the `windows-5_1` CI job, not by local development (which runs
+  pwsh 7).
 
 ## Links
 
 - Request: docs/issues/CHANGE-0137-update-doctor-field-report.md
 - Spec: docs/specs/SPEC-0124-spec-update-doctor-field-report.md
+- Request (gitignore reconciliation): docs/issues/ISSUE-0076-aai-update-gitignore-drift-reconcile.md
+- Spec (gitignore reconciliation): docs/specs/SPEC-0157-spec-aai-update-gitignore-drift-reconcile.md
 - Validation evidence: docs/ai/reports/ (gitignored runtime directory —
   evidence lands per ride, not committed)
 - Doctor engine: docs/product/aai-doctor.md

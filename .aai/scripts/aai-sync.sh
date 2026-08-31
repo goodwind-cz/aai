@@ -85,6 +85,13 @@ if [[ ! -d "$SRC_ROOT/.aai" ]]; then
   exit 1
 fi
 
+# Shared runtime-sidecar .gitignore reconcile (spec-aai-update-gitignore-drift-reconcile).
+GITIGNORE_BLOCK_LIB="$SRC_ROOT/.aai/scripts/lib/gitignore-block.sh"
+if [[ -f "$GITIGNORE_BLOCK_LIB" ]]; then
+  # shellcheck source=lib/gitignore-block.sh
+  source "$GITIGNORE_BLOCK_LIB"
+fi
+
 echo "Syncing AAI from: $SRC_ROOT"
 echo "Target project:     $DST_ROOT"
 echo "Profile:            $PROFILE"
@@ -519,26 +526,25 @@ fi
 # Runtime-sidecar patterns (validation-runtime-ignore): seeded on EVERY sync
 # so EXISTING installations pick up new patterns without a manual bootstrap
 # (bot review — bootstrap alone only covers fresh installs). Single source:
-# .aai/system/RUNTIME_IGNORE.list (synced with the layer). Exact-line match;
-# a comment mentioning a path never suppresses a seed; missing list -> skip.
+# .aai/system/RUNTIME_IGNORE.list (synced with the layer). Reconcile itself
+# lives in the shared library (gitignore-block.sh) so this and the bootstrap
+# path cannot drift apart; missing list or missing library -> skip with a
+# note, never fail.
 _runtime_list="$SRC_ROOT/.aai/system/RUNTIME_IGNORE.list"
 [[ -f "$_runtime_list" ]] || _runtime_list="$DST_ROOT/.aai/system/RUNTIME_IGNORE.list"
-if [[ -f "$_runtime_list" ]]; then
-  _added=0
-  _marker="# AAI runtime sidecars (seeded from .aai/system/RUNTIME_IGNORE.list; per-dev, never commit)"
-  while IFS= read -r _pattern; do
-    [[ -z "$_pattern" || "$_pattern" == \#* ]] && continue
-    if ! grep -qxF "$_pattern" "$DST_ROOT/.gitignore" 2>/dev/null; then
-      if [[ "$_added" -eq 0 ]] && ! grep -qxF "$_marker" "$DST_ROOT/.gitignore" 2>/dev/null; then
-        printf '\n%s\n' "$_marker" >> "$DST_ROOT/.gitignore"
-      fi
-      printf '%s\n' "$_pattern" >> "$DST_ROOT/.gitignore"
-      _added=$((_added + 1))
-    fi
-  done < "$_runtime_list"
-  [[ "$_added" -gt 0 ]] && echo "  Added $_added AAI runtime-sidecar pattern(s) to $DST_ROOT/.gitignore"
+# Prefix must match AAI_GITIGNORE_MARKER_PREFIX (lib/gitignore-block.sh) --
+# the canonical copy; also mirrored in aai-bootstrap.sh and aai-sync.ps1
+# (detection regex + written text). TEST-020 pins all 5 to that constant.
+_marker="# AAI runtime sidecars (seeded from .aai/system/RUNTIME_IGNORE.list; per-dev, never commit)"
+if declare -f aai_gitignore_seed_runtime >/dev/null 2>&1; then
+  _seed_note="$(aai_gitignore_seed_runtime "$DST_ROOT/.gitignore" "$_runtime_list" "$_marker")"
+  if [[ -n "$_seed_note" ]]; then
+    echo "  $_seed_note"
+  fi
+else
+  echo "  skipped runtime-sidecar gitignore seed: $GITIGNORE_BLOCK_LIB missing"
 fi
-unset _runtime_list _pattern _added _marker
+unset _runtime_list _marker _seed_note
 
 # Ensure .cloudflare-publish* and .wrangler/ are gitignored (aai-share temp dirs)
 for pattern in '.cloudflare-publish*' '.wrangler/'; do
