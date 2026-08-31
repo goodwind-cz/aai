@@ -11,6 +11,55 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(tests): the intake opening-line pin defends the actual claim, and the table-parser strictness asymmetry is closed [L1]
+
+- `fu-intake-dir-pin-is-set-not-opening`: `tests/skills/test-aai-intake.sh`
+  TEST-013 pinned the file-wide SET of `docs/<dir>` mentions across each
+  per-type intake prompt, which was wrong in both directions — deleting the
+  real opening-section directory statement and naming the directory only in
+  a footnote stayed green, and the first legitimate fenced example or
+  cross-reference added anywhere in a prompt would have reddened it for a
+  non-defect. TEST-013 now scopes a new `intake_opening_dirs` helper to the
+  prompt's own OPENING section (the `Goal:` paragraph, up to `RULES`,
+  fence-blind), matching Spec-AC-02's actual claim and D3's rationale (a role
+  reading the prompt in isolation has to be told where to write). Both
+  directions are proven to bite with synthetic fixtures (never the tracked
+  files): a footnote-only mention now reads empty and fails the pin; a
+  fenced cross-reference inside the opening section is ignored and the pin
+  stays green.
+- `fu-intake-table-parser-asymmetry`: the shipped `parseIntakeTypeTable`
+  (`.aai/scripts/docs-audit.mjs`) accepted `\s*` around every table cell
+  while TEST-013's own independent awk reader required exactly one space, so
+  a double-spaced row was live in the real `--intake-file` gate and
+  invisible to the test's row-count/prefix/directory pins. Tightened the
+  shipped parser to the same exactly-one-space rule (verified against every
+  existing row in `.aai/INTAKE_COMMON.md` — all eight already single-spaced,
+  so this is a same-behavior tightening, not a change) rather than loosening
+  the awk, since loosening the awk would also have required loosening
+  TEST-014's `grep -v` table-removal fixture to keep stripping every real
+  row — one edit instead of two, for strictly more safety. The prior
+  two-readings-agree cross-check is retargeted at a mutated (deliberately
+  re-loosened) scratch copy of the parser to prove it still catches a future
+  regression, since the double-spaced fixture no longer diverges on the
+  fixed, shipped script.
+- `fu-intake-common-fallback-numbers-doc`: `.aai/INTAKE_COMMON.md`'s legacy
+  FALLBACK sentence triggered on "allocator absent" and unconditionally
+  scan-and-minted a NUMBERED filename — exactly the shape the newer
+  `--intake-file` predicate rejects regardless of the allocator. On a layer
+  with `docs-audit.mjs` present but the allocator absent, following it wrote
+  a numbered file, hit "fix the FILENAME and re-run", and looped with no
+  reachable fixed point. Retargeted the fallback's trigger to
+  "`docs-audit.mjs` absent" (matching the POST-SAVE CHECK's own escape
+  hatch) and added one sentence covering the docs-audit-present/allocator-
+  absent case: save the normal DRAFT-shaped file, the number just awaits a
+  human or an upgraded layer. Hand-walked on a scratch fixture with
+  `docs-audit.mjs` present and the allocator absent: both POST-SAVE CHECK
+  invocations now exit 0 on the first save.
+- `fu-intake-dir-unanchored-research-hotfix` and
+  `fu-ceremony-test016-blanket-byte-pin` are explicitly OUT OF SCOPE for
+  this ride (protected-path-adjacent, need an L3-ceremony spec and owner
+  sign-off) and remain open.
+
 ## [unreleased] — fix(harness): close ceremony ordering is now enforced, not remembered [L2]
 
 - The PR ceremony's close-before-push ordering (`.aai/SKILL_PR.prompt.md`)

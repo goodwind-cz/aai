@@ -24,9 +24,14 @@ dominant width across all numbered docs; greenfield defaults: PRD 3-digit,
 e.g. PRD-001, all other prefixes 4-digit, e.g. RFC-0001).
 NEVER predict the eventual TYPE-000N number in any text (docs, commit messages,
 changelog entries, PR titles) before the allocator assigns it — use the slug id.
-FALLBACK (allocator absent, older AAI layer): scan-and-mint the next free
-TYPE-000N from existing docs and name the file docs/<type>/<TYPE>-000N-<slug>.md
-directly; the CI/pre-commit duplicate-number guard is the backstop.
+FALLBACK (docs-audit.mjs absent, older AAI layer with no --intake-file
+predicate to enforce this): scan-and-mint the next free TYPE-000N from
+existing docs and name the file docs/<type>/<TYPE>-000N-<slug>.md directly;
+the CI/pre-commit duplicate-number guard is the backstop. If docs-audit.mjs IS
+present but the allocator is absent, this fallback does NOT apply: still save
+the normal DRAFT-shaped file above — --intake-file rejects a numbered file
+regardless of the allocator — and note that the display number awaits a human
+or an upgraded layer to assign it.
 This table is the ONLY statement of the PREFIX per type, and the AUTHORITY for
 the directory: a per-type prompt names its own directory in its own opening
 line, and that line must match this table's row. Never improvise either half.
