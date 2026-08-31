@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-30T21:15:49.790Z",
+  "generatedAt": "2026-08-31T08:00:51.730Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 130,
-    "delivered": 385,
-    "active_weeks": 9,
+    "delivered": 386,
+    "active_weeks": 10,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (385 closes vs 130 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 385,
-    "delivered_per_week_avg": 42.8,
+    "note": "\"delivered\" counts every work_item_closed event (386 closes vs 130 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 386,
+    "delivered_per_week_avg": 38.6,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -23,7 +23,8 @@
       "2026-W32": 19,
       "2026-W33": 33,
       "2026-W34": 33,
-      "2026-W35": 20
+      "2026-W35": 20,
+      "2026-W36": 1
     },
     "delivered_groups": [
       {
@@ -301,7 +302,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 122,
+        "count": 123,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -424,7 +425,8 @@
           "checks-that-assert-less-than-they-claim",
           "drain-pipe-grep-q-ratchet",
           "cli-exit-truncates-pipe-sweep",
-          "test-runs-jsonl-tracked-ignored"
+          "test-runs-jsonl-tracked-ignored",
+          "bare-main-baseref-sweep"
         ]
       }
     ],
@@ -1969,12 +1971,16 @@
         {
           "ref": "test-runs-jsonl-tracked-ignored",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "bare-main-baseref-sweep",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3892,
       "mean_seconds": 121271.4,
       "measured": 126,
-      "unmeasurable": 259
+      "unmeasurable": 260
     }
   },
   "speed": {
@@ -3144,6 +3150,41 @@
               "median_tokens": 172169
             }
           ]
+        },
+        {
+          "week": "2026-W36",
+          "roles": [
+            {
+              "role": "TDD Implementation",
+              "runs_marked": 0,
+              "median_tokens": null
+            },
+            {
+              "role": "Implementation",
+              "runs_marked": 0,
+              "median_tokens": null
+            },
+            {
+              "role": "Code Review",
+              "runs_marked": 0,
+              "median_tokens": null
+            },
+            {
+              "role": "Remediation",
+              "runs_marked": 0,
+              "median_tokens": null
+            },
+            {
+              "role": "Validation",
+              "runs_marked": 0,
+              "median_tokens": null
+            },
+            {
+              "role": "Planning",
+              "runs_marked": 0,
+              "median_tokens": null
+            }
+          ]
         }
       ]
     }
@@ -3255,18 +3296,26 @@
       "busy_seconds": 74738,
       "tokens": 7136260,
       "first_pass_rate": 0
+    },
+    {
+      "week": "2026-W36",
+      "delivered": 1,
+      "median_lead_time_seconds": null,
+      "busy_seconds": null,
+      "tokens": null,
+      "first_pass_rate": null
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 86,
-    "oldest_age_days": 16,
+    "open_count": 81,
+    "oldest_age_days": 17,
     "items": [
       {
         "id": "fu-orchestrator-git-add-scope-bleed",
         "ref": "CHANGE-0142",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "orchestrator must never git add -A while a subagent edits the same worktree; stage explicit paths",
         "status": "open"
       },
@@ -3274,7 +3323,7 @@
         "id": "fu-verify-staged-set-after-commit",
         "ref": "CHANGE-0142",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "orchestrator must verify git show --stat after every commit, not the exit code",
         "status": "open"
       },
@@ -3282,7 +3331,7 @@
         "id": "fu-mask-duplicates-docs-audit-core",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "the specimen masker in spec-lint.mjs duplicates docs-audit-core.mjs:782-875 more weakly, reintroducing both bugs that file fixed under SPEC-0013 W3",
         "status": "open"
       },
@@ -3290,7 +3339,7 @@
         "id": "fu-vague-term-line-attribution",
         "ref": "CHANGE-0144",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "ac-vague-term reports the Test Plan row's line number when the Test Plan section precedes the AC table (measured 19 vs 25)",
         "status": "open"
       },
@@ -3298,7 +3347,7 @@
         "id": "fu-rollup-creates-userguide",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "the spec's edge case says the rollup generator no-ops when USER_GUIDE.md is absent; it CREATES the file",
         "status": "open"
       },
@@ -3322,7 +3371,7 @@
         "id": "fu-validation-staleness-undetected",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 15,
+        "age_days": 16,
         "what": "a validation pass survives a later remediation that rewrites the validated code, and the default routing skips re-validation",
         "status": "open"
       },
@@ -3354,7 +3403,7 @@
         "id": "fu-validation-ignores-suite-selector",
         "ref": "ride-cost-readout",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "validation picks its suites from the declared review scope while CI picks them from select-suites, so a CORE suite can be skipped in validation and fail in CI",
         "status": "open"
       },
@@ -3362,7 +3411,7 @@
         "id": "fu-orchestrator-does-not-watch-ci",
         "ref": "ride-cost-readout",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "after pushing a PR the orchestrator stops instead of watching CI, so a failure sits undetected until the owner asks",
         "status": "open"
       },
@@ -3380,46 +3429,6 @@
         "severity": "P2",
         "age_days": 12,
         "what": "file_content_different in aai-sync.sh treats an unobtainable hash as different, so a transient sha256sum hiccup silently rewrites the target's copilot shim and plants a project-overrides file",
-        "status": "open"
-      },
-      {
-        "id": "fu-bare-main-baseref-sweep",
-        "ref": "deslop-corpus-honesty",
-        "severity": "P2",
-        "age_days": 12,
-        "what": "No guard stops a NEW test or script from pinning a bare 'main' ref that silently never resolves on a pull_request checkout",
-        "status": "open"
-      },
-      {
-        "id": "fu-close-before-push-ordering",
-        "ref": "deslop-corpus-honesty",
-        "severity": "P2",
-        "age_days": 12,
-        "what": "The PR ceremony ordering - run close-work-item.mjs BEFORE the push, not after - is currently only a habit; nothing enforces it, so a ride can push first and then spend a round chasing framework reds that the close would have cleared.",
-        "status": "open"
-      },
-      {
-        "id": "fu-test028-exitcode-not-clean",
-        "ref": "deslop-corpus-honesty",
-        "severity": "P2",
-        "age_days": 11,
-        "what": "TEST-028 asserts docs-audit is clean by checking its EXIT CODE, but docs-audit exits 0 even at NEEDS-TRIAGE, so the arm is green while the audit is not clean",
-        "status": "open"
-      },
-      {
-        "id": "fu-docnumbering-logfail-aborts-suite",
-        "ref": "deslop-corpus-honesty",
-        "severity": "P2",
-        "age_days": 11,
-        "what": "log_fail in tests/skills/test-aai-doc-numbering.sh calls exit 1, so the first failed assertion aborts the whole suite and every later arm silently never runs",
-        "status": "open"
-      },
-      {
-        "id": "fu-close-requires-pr-before-it-exists",
-        "ref": "deslop-corpus-honesty",
-        "severity": "P2",
-        "age_days": 11,
-        "what": "close-work-item.mjs requires --pr <N>, but the correct ceremony order runs it BEFORE the push that creates the PR, so the number must be guessed",
         "status": "open"
       },
       {
@@ -3522,7 +3531,7 @@
         "id": "fu-cli-exit-truncates-pipe-sweep",
         "ref": "cli-output-survives-a-pipe",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "41 of the .aai/scripts/*.mjs CLIs still print with console.log and then call process.exit, the exact shape that truncated follow-ups.mjs list --json at 65536 bytes on a pipe; docs-audit.mjs (23 logs), test-canon.mjs (28), docs-canon.mjs (23) and metrics-flush.mjs (15) are the largest payloads",
         "status": "open"
       },
@@ -3530,7 +3539,7 @@
         "id": "fu-main-push-conflicts-open-pr",
         "ref": "cli-output-survives-a-pipe",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "the orchestrator pushed a commit to main that regenerated docs/INDEX.md while a PR shipping the same generated file was open, turning that PR CONFLICTING",
         "status": "open"
       },
@@ -3538,7 +3547,7 @@
         "id": "fu-typemap-missing-research-hotfix",
         "ref": "spec-intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "allocate-doc-number.mjs TYPE_MAP has no research and no hotfix row, so --type research and --type hotfix exit 2 as unknown types",
         "status": "open"
       },
@@ -3546,7 +3555,7 @@
         "id": "fu-ceremony-test016-blanket-byte-pin",
         "ref": "spec-intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "test-aai-ceremony-levels.sh TEST-016 pins .aai/scripts/lib/docs-audit-core.mjs with a bare git diff --exit-code, so ANY later scope that touches that shared library fails a test written for SPEC-0041",
         "status": "open"
       },
@@ -3554,7 +3563,7 @@
         "id": "fu-intake-templates-lack-number-key",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P3",
-        "age_days": 9,
+        "age_days": 10,
         "what": "seven of the eight intake templates carry no number: key, so a verbatim copy now fails docs-audit --intake-file with number-absent",
         "status": "open"
       },
@@ -3562,7 +3571,7 @@
         "id": "fu-ledger-backticks-ran-as-command",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "unescaped backticks inside a double-quoted bash string in tests/skills/lib/prompt-diet-ledger.sh ran as command substitution on every source, printing 'extra: command not found' to stderr and silently deleting the word from the ledger text",
         "status": "open"
       },
@@ -3570,7 +3579,7 @@
         "id": "fu-intake-dir-pin-is-set-not-opening",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "Spec-AC-02 and its AC-Status Evidence cell say every per-type prompt's OPENING directory line, but tests/skills/test-aai-intake.sh TEST-013 pins the file-wide SET of docs/<dir> mentions, which is also fence-blind and therefore brittle in the other direction",
         "status": "open"
       },
@@ -3578,7 +3587,7 @@
         "id": "fu-intake-dir-unanchored-research-hotfix",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "for the two intake types TYPE_MAP does not know (research, hotfix) the .aai/INTAKE_COMMON.md table row and the per-type prompt can drift together to a wrong directory with the whole intake suite green",
         "status": "open"
       },
@@ -3586,7 +3595,7 @@
         "id": "fu-intake-table-parser-asymmetry",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "tests/skills/test-aai-intake.sh intake_table_lines requires single-space table cells while the shipped parseIntakeTypeTable in .aai/scripts/docs-audit.mjs allows \\s*, so a double-spaced ninth row is live in the gate and invisible to the arm that pins row count, prefix and directory",
         "status": "open"
       },
@@ -3594,7 +3603,7 @@
         "id": "fu-ledger-no-backtick-claim-is-absolute",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P3",
-        "age_days": 9,
+        "age_days": 10,
         "what": "the intake-numbers ledger entry in tests/skills/lib/prompt-diet-ledger.sh asserted 'no backtick in any ledger entry', which is literally false because line 69 carries an escaped pair; the true invariant is no UNESCAPED backtick",
         "status": "open"
       },
@@ -3602,7 +3611,7 @@
         "id": "fu-intake-common-fallback-numbers-doc",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "the legacy FALLBACK block in .aai/INTAKE_COMMON.md still instructs scan-and-mint of docs/<type>/<TYPE>-000N-<slug>.md, which is exactly the numbered filename the new --intake-file predicate rejects",
         "status": "open"
       },
@@ -3658,7 +3667,7 @@
         "id": "fu-isolation-suite-not-hermetic",
         "ref": "a-run-must-say-whether-isolation-armed",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "test-aai-suite-isolation TEST-001, TEST-003 and TEST-005 inherit AAI_TEST_ISOLATION instead of stating it, so they go red when the operator exports 0",
         "status": "open"
       },
@@ -3666,7 +3675,7 @@
         "id": "fu-seed-loss-turns-an-arm-into-a-skip",
         "ref": "a-half-seeded-checkout-says-it-is-isolated",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "a seed path present in the working tree but absent from the checkout leaves the run GREEN at exit 0 while a suite reads an empty file, so an assertion silently becomes a passing skip",
         "status": "open"
       },
@@ -3698,7 +3707,7 @@
         "id": "fu-drained-suites-still-write-unisolated",
         "ref": "drain-the-tripwire-known-offender-list",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "the four formerly exempt suites still write the shipping repository when isolation is off, so 'zero tripwire ALLOWED lines before the drain' proves the branch was unreachable, not that nothing was forgiven",
         "status": "open"
       },
@@ -3706,7 +3715,7 @@
         "id": "fu-test013-uncovered-on-legal-max-raise",
         "ref": "drain-the-tripwire-known-offender-list",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "TEST-013 is coupled to a shipped entry count of exactly zero, so the ratchet's 'the cheapest legal edit is one number' argument does not hold: raising TRIPWIRE_RATCHET_MAX_ENTRIES leaves the suite red",
         "status": "open"
       },
@@ -3714,7 +3723,7 @@
         "id": "fu-drain-spec-says-d7-filed-not-fixed",
         "ref": "drain-the-tripwire-known-offender-list",
         "severity": "P3",
-        "age_days": 7,
+        "age_days": 8,
         "what": "the spec's Edge cases section still says the D7 reopening is 'filed, not fixed' and 'out of scope to fix', which contradicts the TRIPWIRE_ALWAYS_WATCH floor the same branch ships",
         "status": "open"
       },
@@ -3802,7 +3811,7 @@
         "id": "fu-spec-d6-enumeration-stale",
         "ref": "the-tripwire-is-permanent-not-transitional",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "the correcting spec's own enumerations (D6, the implementation plan, the AC-004 Notes cell) undercount what it corrected, and three documents still call one registry closure moot",
         "status": "open"
       },
@@ -3810,7 +3819,7 @@
         "id": "fu-overview-shows-closed-ride-inflight",
         "ref": "the-tripwire-is-permanent-not-transitional",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "STATE has no terminal phase and no clear-focus, so after close-work-item the generated overview keeps publishing the finished ride as the current in-flight scope until the NEXT ride calls set-focus",
         "status": "open"
       },
@@ -3874,7 +3883,7 @@
         "id": "fu-closeworkitem-pin-tail-wording",
         "ref": "close-leaves-state-stale",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "close-work-item.mjs EXIT CONTRACT header for code 6 and the matching CLOSE_WORK_ITEM_ALLOWED_HASHES entry both say the STATE reconcile runs strictly AFTER the existing try/catch, which is literally true of the full write path only: on the D6.2 idempotency short-circuit the reconcile is reached BEFORE the try block, a tail that route never enters",
         "status": "open"
       },
@@ -3882,7 +3891,7 @@
         "id": "fu-reconcile-skip-drops-commands",
         "ref": "ISSUE-0035",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "planStateReconcile skip() rebuilds the result with an empty echo array, so a reason raised by the second arm discards a command the first arm already planned",
         "status": "open"
       },
@@ -3914,7 +3923,7 @@
         "id": "fu-test210-branch-now-dead-code",
         "ref": "isolation-shares-the-shipping-git",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "TEST-210's deregistration mutation became unreachable when the D3 gate moved earlier, so the arm still passes but no longer exercises the branch it was written for",
         "status": "open"
       },
