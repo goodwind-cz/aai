@@ -1446,10 +1446,70 @@ test_022_output_format_is_pinned() {
   log_pass "list header, row field order, --json key set and indentation, add and close confirmation lines all unchanged; file bytes equal pipe bytes on both branches through a 400 ms slow reader (TEST-022)"
 }
 
+# ==================== TEST-023 (registry-attribution-correction) ============
+test_023_correct_flag() {
+  log_info "Test: close --correct fixes a WRONG attribution on an already-closed id by appending a NEW follow_up_status record (never rewriting the old one); refuses on an OPEN id and on a no-op correction; a plain re-close without --correct stays the existing idempotent no-op (TEST-023)..."
+  local led; led="$(mk_ledger t023)"
+  printf '%s\n' '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-misattributed","ref_id":"CHANGE-0100","severity":"P2","finding":"needs the right credit","decision":"deferred","source":"s"}' >> "$led"
+
+  run_fu close --ledger "$led" --id fu-misattributed --resolved-by WRONG-REF --source "s"
+  [[ "$EC" == 0 ]] || log_fail "TEST-023: initial close must exit 0, got $EC: $ERR"
+
+  # --correct on an OPEN id must refuse (exit 2, nothing appended).
+  local led2; led2="$(mk_ledger t023-open)"
+  printf '%s\n' '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-still-open","ref_id":"CHANGE-0100","severity":"P3","finding":"never closed","decision":"deferred","source":"s"}' >> "$led2"
+  local before_open; before_open="$(fsize "$led2")"
+  run_fu close --ledger "$led2" --id fu-still-open --resolved-by X --correct
+  [[ "$EC" == 2 ]] || log_fail "TEST-023: --correct on an open id must exit 2, got $EC: $ERR"
+  grep -qE "already be closed" <<<"$ERR" || log_fail "TEST-023: the open-id refusal must name the requirement: $ERR"
+  [[ "$(fsize "$led2")" == "$before_open" ]] || log_fail "TEST-023: --correct on an open id must append nothing"
+
+  # A plain re-close (no --correct) is still the existing idempotent no-op —
+  # --correct must not have loosened the default path.
+  local before; before="$(fsize "$led")"
+  run_fu close --ledger "$led" --id fu-misattributed --resolved-by WRONG-REF --source "s"
+  [[ "$EC" == 0 ]] || log_fail "TEST-023: a plain re-close must still exit 0, got $EC: $ERR"
+  grep -qE "NOTE" <<<"$OUT$ERR" || log_fail "TEST-023: a plain re-close must still be a NOTE: $OUT $ERR"
+  [[ "$(fsize "$led")" == "$before" ]] || log_fail "TEST-023: a plain re-close must still append nothing"
+
+  # --correct with NO actual change (same resolved-by, same status) must
+  # refuse — a correction that changes nothing is not a correction.
+  run_fu close --ledger "$led" --id fu-misattributed --resolved-by WRONG-REF --status done --correct
+  [[ "$EC" == 2 ]] || log_fail "TEST-023: a no-op --correct must exit 2, got $EC: $ERR"
+  grep -qE "DIFFERENT" <<<"$ERR" || log_fail "TEST-023: the no-op refusal must name the requirement: $ERR"
+  [[ "$(fsize "$led")" == "$before" ]] || log_fail "TEST-023: a no-op --correct must append nothing"
+
+  # --correct with a genuine change: succeeds, and the ledger grows (a NEW
+  # record is appended — the wrong one is never rewritten).
+  run_fu close --ledger "$led" --id fu-misattributed --resolved-by RIGHT-REF --source "94ee37d" --correct
+  [[ "$EC" == 0 ]] || log_fail "TEST-023: a genuine --correct must exit 0, got $EC: $ERR"
+  [[ "$(fsize "$led")" -gt "$before" ]] || log_fail "TEST-023: a genuine --correct must append a new line"
+
+  run_fu list --ledger "$led" --status done --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-023: post-correct list must exit 0"
+  local corrected
+  corrected="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const it=j.items.find(i=>i.id==="fu-misattributed");
+    if (!it) { console.log("MISSING"); process.exit(0); }
+    console.log(it.resolved_by==="RIGHT-REF" ? "OK" : JSON.stringify(it));
+  ' "$OUT")"
+  [[ "$corrected" == "OK" ]] || log_fail "TEST-023: post-correct fold must project the corrected resolved_by: $corrected"
+
+  # Append-only: BOTH the wrong close and the corrective close survive on
+  # disk — a correction is a new record, never an edit of the old one.
+  local wrong_count; wrong_count="$(grep -c "WRONG-REF" "$led")"
+  [[ "$wrong_count" -ge 1 ]] || log_fail "TEST-023: the original wrong attribution must remain on disk (append-only, HAZ-LEDGER), found $wrong_count"
+
+  log_pass "close --correct fixes a wrong attribution by appending a new record, refuses on an open id and on a no-op correction, and leaves the plain re-close no-op untouched (TEST-023)"
+}
+
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-followup-registry TEST-001..005, 008, 009; role-verification-guards TEST-010/Spec-AC-09 N1)"
   echo "  + followups-cli-hardening TEST-011..015,017"
   echo "  + cli-output-survives-a-pipe TEST-018..022"
+  echo "  + registry-attribution-correction TEST-023"
   check_deps
   setup_fixture
   test_001_schema_and_id_discipline
@@ -1471,6 +1531,7 @@ main() {
   test_020_exit_codes_survive_the_flush
   test_021_early_close_is_not_a_failure
   test_022_output_format_is_pinned
+  test_023_correct_flag
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
