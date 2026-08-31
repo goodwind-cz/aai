@@ -440,19 +440,29 @@ intake_table_lines() {
 # a mutated scratch copy instead so it never has to import the tracked file
 # under a mutated identity (HAZ-RESTORE: mutate a COPY, never the real file).
 intake_table_lines_tool() {
-  local src="${1:-$PROJECT_ROOT/.aai/INTAKE_COMMON.md}" script="${2:-$PROJECT_ROOT/.aai/scripts/docs-audit.mjs}" cwd out
+  local src="${1:-$PROJECT_ROOT/.aai/INTAKE_COMMON.md}" script="${2:-$PROJECT_ROOT/.aai/scripts/docs-audit.mjs}" cwd out rc
   cwd=$(mktemp -d "${TMPDIR:-/tmp}/aai-intake-toolparse-XXXXXX")
   mkdir -p "$cwd/.aai"
   cp "$src" "$cwd/.aai/INTAKE_COMMON.md"
+  # $? is captured IMMEDIATELY after the command substitution and returned
+  # explicitly — the earlier version fell through to `rm`/`printf` first,
+  # both of which always succeed, so the function's own exit status was
+  # ALWAYS 0 regardless of whether node actually ran: a genuine tool failure
+  # (a broken import path, a syntax error in a mutated copy) came out
+  # indistinguishable from "the table is legitimately empty", and every
+  # caller's `|| tool_lines=""` fallback was dead code (Copilot review, PR
+  # #324).
   out=$( (cd "$cwd" && node --input-type=module -e '
     import fs from "node:fs";
     const m = await import(process.argv[2]);
-    const rows = m.parseIntakeTypeTable(fs.readFileSync(process.argv[3], "utf8"));
+    const { rows } = m.parseIntakeTypeTable(fs.readFileSync(process.argv[3], "utf8"));
     fs.writeFileSync(process.argv[4],
       rows.map(r => [r.intakeType, r.type, r.dir, r.prefix].join("|")).join("\n"));
   ' -- placeholder "$script" "$src" "$cwd/rows.txt" --quick --no-event >/dev/null && cat "$cwd/rows.txt") )
+  rc=$?
   rm -rf "$cwd"
   printf '%s\n' "$out"
+  return "$rc"
 }
 
 # Extract the `docs/<dir>` token(s) named in a per-type intake prompt's
@@ -470,12 +480,23 @@ intake_table_lines_tool() {
 # directory mention (fu-intake-dir-pin-is-set-not-opening direction a) and a
 # legitimate fenced example elsewhere (direction b) come out right without
 # needing more than this one span rule.
+# ANCHORED to a line containing "save" AND "under" (Codex review, PR #324):
+# without this, an UNFENCED cross-reference inside the same span that happens
+# to name the SAME directory as the real save instruction — "See
+# docs/issues/ISSUE-0001.md for context." with the actual save-under sentence
+# deleted — read as the correct directory by coincidence, so the exact
+# regression Spec-AC-02/D3 exists to catch (the prompt no longer tells the
+# role where to save) went undetected. Every one of the eight shipped prompts
+# states the directory as "...and save it under docs/<dir>/." on one physical
+# line, so requiring "save" and "under" on the SAME line as the docs/ token
+# still matches every real statement while refusing to credit an unrelated
+# mention of the right path.
 intake_opening_dirs() {
   awk '
     /^Goal:$/ { g = 1; next }
     /^RULES$/ { g = 0 }
     g && /^```/ { infence = !infence; next }
-    g && !infence {
+    g && !infence && /save/ && /under/ {
       s = $0
       while (match(s, /docs\/[a-z]+/)) {
         print substr(s, RSTART, RLENGTH)
@@ -1150,6 +1171,96 @@ test_018_slug_shape_matches_the_documented_constraint() {
     || log_fail "TEST-018 documented slug constraint is not enforced"
 }
 
+# ============= TEST-019 (bot review remediation, PR #324) ===================
+test_019_malformed_table_and_helper_fidelity() {
+  log_info "TEST-019: a malformed type-table row fails --intake-file CLOSED (not misdiagnosed as unknown-type); intake_opening_dirs stays anchored to the actual save-under statement, not a coincidental same-dir mention; intake_table_lines_tool propagates a genuine tool failure as a nonzero exit instead of masking it as empty output..."
+  local ok=1
+
+  # --- F1 (Codex): a malformed row must fail closed for the WHOLE table, ---
+  # --- named as a table defect, not silently dropped and misdiagnosed as ---
+  # --- unknown-type on whichever artifact happened to use that row's type.
+  local root res rc out
+  root=$(intake_fixture_root)
+  sed 's/| research | research | docs\/specs | RES |/|  research  |  research | docs\/specs | RES |/'     "$PROJECT_ROOT/.aai/INTAKE_COMMON.md" > "$root/.aai/INTAKE_COMMON.md"
+  if cmp -s "$root/.aai/INTAKE_COMMON.md" "$PROJECT_ROOT/.aai/INTAKE_COMMON.md"; then
+    log_info "TEST-019: the double-space mutation changed nothing in the copied table (test bug, not a real finding)"
+    ok=0
+  else
+    intake_write_artifact "$root/docs/specs/RES-DRAFT-demo.md" research null
+    res=$(intake_guard "$root" "docs/specs/RES-DRAFT-demo.md")
+    rc="${res%%|*}"; out="${res#*|}"
+    if [[ "$rc" != "2" || "$out" != *"malformed type-table row"* ]]; then
+      log_info "TEST-019: a malformed table row exited $rc without naming it as a malformed row: $out"
+      ok=0
+    elif [[ "$out" == *"unknown-type"* ]]; then
+      log_info "TEST-019: a malformed row was misdiagnosed as unknown-type instead of a table defect: $out"
+      ok=0
+    else
+      log_info "  malformed table row -> exit 2, named as a table defect (not unknown-type): $out"
+    fi
+  fi
+
+  # --- F2 (Codex): intake_opening_dirs must not credit a coincidental ---
+  # --- same-directory mention when the actual save-under statement is gone.
+  local attack attack_got
+  attack=$(mktemp "${TMPDIR:-/tmp}/aai-intake-t019-attack-XXXXXX.md")
+  cat > "$attack" <<'EOF'
+Goal:
+Capture a bug/issue report using .aai/templates/ISSUE_TEMPLATE.md.
+See docs/issues/ISSUE-0001.md for an example.
+
+RULES
+- NEVER a numbered filename.
+EOF
+  attack_got=$(intake_opening_dirs "$attack" | sort -u | tr '
+' ' ')
+  rm -f "$attack"
+  if [[ -n "$attack_got" ]]; then
+    log_info "TEST-019: a coincidental same-directory cross-reference (no save/under statement) still reads as '${attack_got}' — the anchor cannot bite this direction (Codex regression)"
+    ok=0
+  else
+    log_info "  bite proven: a coincidental same-directory mention with no save/under statement reads as '(none)', not the coincidentally-matching directory"
+  fi
+  # Control: the real save-under statement must still be read correctly.
+  local ctrl ctrl_got
+  ctrl=$(mktemp "${TMPDIR:-/tmp}/aai-intake-t019-ctrl-XXXXXX.md")
+  cat > "$ctrl" <<'EOF'
+Goal:
+Capture a small enhancement request using .aai/templates/CHANGE_TEMPLATE.md
+and save it under docs/issues/.
+
+RULES
+EOF
+  ctrl_got=$(intake_opening_dirs "$ctrl" | sort -u | tr '
+' ' ')
+  rm -f "$ctrl"
+  if [[ "$ctrl_got" != "docs/issues " ]]; then
+    log_info "TEST-019: a genuine save-under statement read as '${ctrl_got:-(none)}' instead of 'docs/issues' (anchor too strict)"
+    ok=0
+  else
+    log_info "  control: a genuine save-under statement still reads as 'docs/issues'"
+  fi
+
+  # --- F3 (Copilot): intake_table_lines_tool must propagate a genuine ---
+  # --- node failure as a nonzero exit, never mask it as empty-but-OK.
+  local broken_dir broken tool_out tool_rc
+  broken_dir=$(intake_scratch)
+  broken="$broken_dir/docs-audit.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$broken"
+  printf '
+syntax error {{{
+' >> "$broken"
+  tool_out=$(intake_table_lines_tool "$PROJECT_ROOT/.aai/INTAKE_COMMON.md" "$broken" 2>/dev/null) && tool_rc=0 || tool_rc=$?
+  if [[ "$tool_rc" -eq 0 ]]; then
+    log_info "TEST-019: a genuinely broken parser script still exited 0 from intake_table_lines_tool (output: '${tool_out}') — a real tool failure is indistinguishable from a legitimately empty table"
+    ok=0
+  else
+    log_info "  bite proven: a genuinely broken parser script exits $tool_rc from intake_table_lines_tool, not silently 0"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-019 malformed table row fails --intake-file closed and named (not unknown-type); intake_opening_dirs anchor rejects a coincidental same-dir mention while still reading the real save-under statement; intake_table_lines_tool propagates a genuine tool failure as nonzero"     || log_fail "TEST-019 bot-review remediation (PR #324) regressed"
+}
+
 # Main test execution
 main() {
   echo "Testing: $TEST_NAME"
@@ -1177,6 +1288,7 @@ main() {
   test_016_value_flags_refuse_an_empty_value
   test_017_wrong_prefix_finding_means_wrong_prefix
   test_018_slug_shape_matches_the_documented_constraint
+  test_019_malformed_table_and_helper_fidelity
 
   echo ""
   echo "All tests passed!"

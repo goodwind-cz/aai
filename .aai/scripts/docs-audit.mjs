@@ -169,10 +169,19 @@ const INTAKE_COMMON_PATH = '.aai/INTAKE_COMMON.md';
 
 // Parse the DURABLE DOC IDENTITY type table out of INTAKE_COMMON.md. One row
 // per intake type: "| <intake type> | <frontmatter type> | docs/<dir> | PREFIX |".
-// The header row and the |---| separator cannot match by construction (their
-// cells carry spaces and capitals), so no row-skipping heuristic is needed.
-// Returns [] when the table is absent — callers treat that as an error, never
-// as "no rule" (degrade LOUDLY, never silently permit).
+// Returns { rows, malformed }: rows is [] when the table is absent — callers
+// treat that as an error, never as "no rule" (degrade LOUDLY, never silently
+// permit). malformed collects every ROW-SHAPED line (starts and ends with
+// "|") that fails the strict per-cell grammar — a typo'd or hand-edited row
+// (an extra space, a capitalized type, a missing cell) used to be silently
+// EXCLUDED from rows with no signal anywhere, so a file whose real type was
+// on that broken row got misdiagnosed as unknown-type by intakeShapeFindings
+// instead of "the table itself is broken" (Codex review, PR #324, this is
+// the same discipline as the empty-table case below: a table this parser
+// cannot fully trust must fail closed for every caller, not just the one row
+// it happened to still parse). Callers that only care about accepted rows
+// still see the same rows array; intakeShapeFile refuses outright when
+// malformed is non-empty (see below).
 // EXPORTED for one reason: tests/skills/test-aai-intake.sh TEST-013 reads the
 // table with a deliberately independent single-space awk. This regex used to
 // allow \s* around every cell, so a row written with double (or other) inner
@@ -196,11 +205,15 @@ const INTAKE_COMMON_PATH = '.aai/INTAKE_COMMON.md';
 // production imports it; main() below is the only caller.
 export function parseIntakeTypeTable(content) {
   const rows = [];
+  const malformed = [];
   for (const line of normalizeNewlines(String(content ?? '')).split('\n')) {
+    const trimmed = line.trim();
+    if (!(trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.length > 1)) continue;
     const m = line.match(/^\| ([a-z]+) \| ([a-z]+) \| (docs\/[a-z]+) \| ([A-Z]+) \|$/);
-    if (m) rows.push({ intakeType: m[1], type: m[2], dir: m[3], prefix: m[4] });
+    if (m) { rows.push({ intakeType: m[1], type: m[2], dir: m[3], prefix: m[4] }); continue; }
+    malformed.push(trimmed);
   }
-  return rows;
+  return { rows, malformed };
 }
 
 // Pure predicate: does this artifact have the shape intake is required to
@@ -294,9 +307,17 @@ function intakeShapeFile(root, filePath) {
   let content;
   try { content = fs.readFileSync(abs, 'utf8'); }
   catch { return { found: false, findings: [], error: `file not found or unreadable: "${filePath}"` }; }
-  let table;
-  try { table = parseIntakeTypeTable(fs.readFileSync(path.join(root, INTAKE_COMMON_PATH), 'utf8')); }
+  let parsed;
+  try { parsed = parseIntakeTypeTable(fs.readFileSync(path.join(root, INTAKE_COMMON_PATH), 'utf8')); }
   catch { return { found: false, findings: [], error: `${INTAKE_COMMON_PATH} not found or unreadable — the type/prefix table is the single source of truth and cannot be inferred` }; }
+  // A table this parser cannot fully trust must refuse for EVERY caller, not
+  // just silently drop the one row it could not parse — the artifact whose
+  // type lived on that row would otherwise be misdiagnosed as unknown-type
+  // instead of "the table itself is broken" (Codex review, PR #324).
+  if (parsed.malformed.length > 0) {
+    return { found: false, findings: [], error: `${INTAKE_COMMON_PATH} has ${parsed.malformed.length} malformed type-table row(s), first: "${parsed.malformed[0]}" (want exactly "| intaketype | type | docs/dir | PREFIX |", one space around every cell) — fix the table before any --intake-file check can be trusted` };
+  }
+  const table = parsed.rows;
   if (table.length === 0) {
     return { found: false, findings: [], error: `${INTAKE_COMMON_PATH} carries no DURABLE DOC IDENTITY type table` };
   }
