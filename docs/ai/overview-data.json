@@ -1,68 +1,18 @@
 {
-  "generatedAt": "2026-08-31T16:11:31.739Z",
+  "generatedAt": "2026-08-31T16:13:48.959Z",
   "project": "aai-fix-aai-update-gitignore-drift-reconcile",
   "counts": {
     "delivered": 221,
     "in_progress": 40,
     "releases": 1,
-    "tokens_total": 55659205
+    "tokens_total": 56514230
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "aai-update-gitignore-drift-reconcile",
-    "type": "intake_issue"
+    "ref": null,
+    "type": "none"
   },
-  "in_flight": {
-    "focus": {
-      "ref": "aai-update-gitignore-drift-reconcile",
-      "type": "intake_issue",
-      "phase": "code_review"
-    },
-    "strategy": "direct",
-    "worktree": {
-      "recommendation": "not_needed",
-      "user_decision": "worktree"
-    },
-    "validation_status": "pass",
-    "review_status": "pass",
-    "ticks": [
-      {
-        "tick": 7,
-        "role": "Code Review",
-        "scope": "aai-update-gitignore-drift-reconcile",
-        "duration_seconds": 1006,
-        "harness_version": "2.1.251 (Claude Code)"
-      },
-      {
-        "tick": 6,
-        "role": "Remediation",
-        "scope": "aai-update-gitignore-drift-reconcile",
-        "duration_seconds": 853,
-        "harness_version": "2.1.251 (Claude Code)"
-      },
-      {
-        "tick": 5,
-        "role": "Code Review",
-        "scope": "aai-update-gitignore-drift-reconcile",
-        "duration_seconds": 848,
-        "harness_version": "2.1.251 (Claude Code)"
-      },
-      {
-        "tick": 4,
-        "role": "Validation",
-        "scope": "aai-update-gitignore-drift-reconcile",
-        "duration_seconds": 1205,
-        "harness_version": "2.1.251 (Claude Code)"
-      },
-      {
-        "tick": 3,
-        "role": "Implementation",
-        "scope": "aai-update-gitignore-drift-reconcile",
-        "duration_seconds": 1708,
-        "harness_version": "2.1.251 (Claude Code)"
-      }
-    ]
-  },
+  "in_flight": null,
   "in_progress": [
     {
       "ref": "residuals-of-the-per-suite-clone-ride",
@@ -606,8 +556,8 @@
       "status": "done",
       "path": "docs/issues/ISSUE-0076-aai-update-gitignore-drift-reconcile.md",
       "closed_on": "2026-08-31",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 94,
+      "token_total": 855025,
       "spec": "docs/specs/SPEC-0157-spec-aai-update-gitignore-drift-reconcile.md",
       "validation": null,
       "review": null
@@ -3486,8 +3436,8 @@
           "status": "done",
           "path": "docs/issues/ISSUE-0076-aai-update-gitignore-drift-reconcile.md",
           "closed_on": "2026-08-31",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 94,
+          "token_total": 855025,
           "spec": "docs/specs/SPEC-0157-spec-aai-update-gitignore-drift-reconcile.md",
           "validation": null,
           "review": null
