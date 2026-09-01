@@ -1,23 +1,24 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-31T18:51:59.100Z
+Generated: 2026-09-01T01:47:36.845Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0158 | specs | implementing | 11 implementing | docs/specs/SPEC-0158-spec-intake-staleness-preflight-warning.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (26)
+## Product (27)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -34,6 +35,7 @@ _None._
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
 | implementation-mode-choice | implementation-mode-choice | 1 | docs/product/implementation-mode-choice.md |
+| intake-staleness-preflight-warning | intake-staleness-preflight-warning | 1 | docs/product/intake-staleness-preflight-warning.md |
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
 | lightweight-e2e-lane | lightweight-e2e-lane | 1 | docs/product/lightweight-e2e-lane.md |
@@ -434,12 +436,13 @@ _None._
 | SPEC-0157 | specs | docs/specs/SPEC-0157-spec-aai-update-gitignore-drift-reconcile.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (39)
+## Drafts (40)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0166 | issues | docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md |
 | CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
+| CHANGE-0168 | issues | docs/issues/CHANGE-0168-intake-staleness-preflight-warning.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -507,4 +510,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-31 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-01 — counts above use this date for overdue checks.

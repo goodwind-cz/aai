@@ -36,7 +36,7 @@
 4	tests/skills/test-aai-branch-guard.sh
 2	tests/skills/test-aai-ceremony-levels.sh
 2	tests/skills/test-aai-check-state.sh
-7	tests/skills/test-aai-close-work-item.sh
+6	tests/skills/test-aai-close-work-item.sh
 2	tests/skills/test-aai-constitution.sh
 2	tests/skills/test-aai-dashboard.sh
 2	tests/skills/test-aai-debug-gate.sh
@@ -65,7 +65,7 @@
 10	tests/skills/test-aai-hooks-overlay.sh
 45	tests/skills/test-aai-hygiene-pack.sh
 2	tests/skills/test-aai-implementation-mode.sh
-6	tests/skills/test-aai-intake.sh
+14	tests/skills/test-aai-intake.sh
 2	tests/skills/test-aai-issues.sh
 2	tests/skills/test-aai-layer-drift.sh
 3	tests/skills/test-aai-layer-profiles.sh

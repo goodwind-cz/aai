@@ -2500,6 +2500,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Stale-checkout warning before intake
+
+Before any AAI intake (change, bug, RFC, hotfix, techdebt, research, PRD, or release) asks its first question, the factory now checks — read-only — whether the checkout you're drafting against is behind. It compares your current branch against its upstream and every initialized submodule against its own remote, using a real `git fetch` rather than trusting a possibly-stale local cache. If anything is behind, you see one named line per stale ref (which branch or submodule, and by how many commits) before the first question is asked. If nothing is behind — the common case — you see nothing at all: no extra noise on a clean run. Either way, intake always proceeds to its first question; this is a heads-up, never a gate. You decide whether to pull first or keep going.
+
+[Product doc](product/intake-staleness-preflight-warning.md) · [Spec](specs/SPEC-0158-spec-intake-staleness-preflight-warning.md)
+
 ### `/aai-update` refreshes the vendored AAI layer and ends with a doctor field report
 
 `/aai-update` is the one-command refresh of a project's vendored AAI layer: it materializes the canonical AAI repository's `main` (or a chosen ref), runs the layer sync into the current project, and prints concise post-sync evidence — changed files, the updated AAI pin, and any conflict advisory. It never commits; the user reviews the diff and commits manually.

@@ -75,7 +75,7 @@ test_002_skill_intake_wiring() {
   confirm_ln=$(grep -n "INTAKE COMPLETE" "$SKILL_INTAKE" | head -1 | cut -d: -f1)
   { [[ -n "$choice_ln" && -n "$confirm_ln" && "$choice_ln" -lt "$confirm_ln" ]]; } \
     || { log_info "TEST-002: choice step must precede the INTAKE COMPLETE output (choice=$choice_ln confirm=$confirm_ln)"; ok=0; }
-  grep -qF "five blocks" "$SKILL_INTAKE" || { log_info "TEST-002: SHARED POLICY must name five blocks"; ok=0; }
+  grep -qF "six blocks" "$SKILL_INTAKE" || { log_info "TEST-002: SHARED POLICY must name six blocks"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-002 SKILL_INTAKE surfaces the choice before the completion output" || log_fail "TEST-002 SKILL_INTAKE wiring"
 }
 

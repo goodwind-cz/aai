@@ -11,6 +11,21 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(intake): read-only staleness preflight on the shared intake entry point
+
+- Every `.aai/INTAKE_*.prompt.md` now runs a bounded, silent-by-default
+  staleness check (`.aai/scripts/intake-staleness-check.mjs`) before the
+  first intake question: a read-only `git fetch` (never mutates the working
+  tree, index, or local branch refs) compares the current branch against its
+  upstream and every initialized submodule against its remote.
+- Soft warning, never a hard gate: prints one named `AAI-STALE:` line per
+  behind branch/submodule and still proceeds to the first question — the
+  operator decides whether to update first or continue. Silent on the common
+  case (nothing behind) and on any failure (offline, no upstream, detached
+  HEAD, no submodules, git unavailable, or a bounded fetch timeout) — a
+  connectivity failure is never confused with genuine staleness.
+- CHANGE-0168 / SPEC-0158.
+
 ## [unreleased] — fix(update): aai-update reconciles the runtime .gitignore block on every sync engine
 
 - `aai-sync.ps1` gained the runtime-sidecar `.gitignore` reconcile it never

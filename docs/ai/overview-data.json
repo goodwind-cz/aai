@@ -1,18 +1,68 @@
 {
-  "generatedAt": "2026-08-31T18:43:09.217Z",
-  "project": "aai-fix-aai-update-gitignore-drift-reconcile",
+  "generatedAt": "2026-09-01T01:46:36.078Z",
+  "project": "aai-feature-intake-staleness-preflight-warning",
   "counts": {
     "delivered": 221,
-    "in_progress": 40,
+    "in_progress": 41,
     "releases": 1,
     "tokens_total": 56514230
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": null,
-    "type": "none"
+    "ref": "intake-staleness-preflight-warning",
+    "type": "intake_change"
   },
-  "in_flight": null,
+  "in_flight": {
+    "focus": {
+      "ref": "intake-staleness-preflight-warning",
+      "type": "intake_change",
+      "phase": "code_review"
+    },
+    "strategy": "hybrid",
+    "worktree": {
+      "recommendation": "recommended",
+      "user_decision": "worktree"
+    },
+    "validation_status": "pass",
+    "review_status": "pass",
+    "ticks": [
+      {
+        "tick": 6,
+        "role": "Metrics Flush",
+        "scope": "intake-staleness-preflight-warning",
+        "duration_seconds": 153,
+        "harness_version": "2.1.251 (Claude Code)"
+      },
+      {
+        "tick": 5,
+        "role": "Code Review",
+        "scope": "intake-staleness-preflight-warning",
+        "duration_seconds": 937,
+        "harness_version": "2.1.251 (Claude Code)"
+      },
+      {
+        "tick": 4,
+        "role": "Validation",
+        "scope": "intake-staleness-preflight-warning",
+        "duration_seconds": 1218,
+        "harness_version": "2.1.251 (Claude Code)"
+      },
+      {
+        "tick": 3,
+        "role": "TDD Implementation",
+        "scope": "intake-staleness-preflight-warning",
+        "duration_seconds": 4753,
+        "harness_version": "2.1.251 (Claude Code)"
+      },
+      {
+        "tick": 2,
+        "role": "Implementation Preparation / Worktree decision",
+        "scope": "intake-staleness-preflight-warning",
+        "duration_seconds": 188,
+        "harness_version": "2.1.251 (Claude Code)"
+      }
+    ]
+  },
   "in_progress": [
     {
       "ref": "residuals-of-the-per-suite-clone-ride",
@@ -39,6 +89,19 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "intake-staleness-preflight-warning",
+      "title": "Warn about a stale repo/submodules before intake starts",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0168-intake-staleness-preflight-warning.md",
+      "closed_on": null,
+      "agent_minutes": 115,
+      "token_total": 735322,
+      "spec": "docs/specs/SPEC-0158-spec-intake-staleness-preflight-warning.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-intake-staleness-preflight-warning-20260831T223528Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",

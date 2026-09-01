@@ -1261,6 +1261,428 @@ syntax error {{{
   [[ $ok -eq 1 ]] && log_pass "TEST-019 malformed table row fails --intake-file closed and named (not unknown-type); intake_opening_dirs anchor rejects a coincidental same-dir mention while still reading the real save-under statement; intake_table_lines_tool propagates a genuine tool failure as nonzero"     || log_fail "TEST-019 bot-review remediation (PR #324) regressed"
 }
 
+# ============= TEST-020..031 (intake-staleness-preflight-warning) ===========
+# Spec-AC-01..06 exercise a NEW script (.aai/scripts/intake-staleness-check.mjs)
+# whose dominant failure mode is SILENCE — three of the six ACs (02/05/06) pass
+# by printing nothing, so every fixture below is a REAL git repository built
+# under INTAKE_SCRATCH_DIR (mktemp -d, removed on EXIT), never the shipping
+# tree, and the silence arms (TEST-021/024/025) each carry a mandatory bite
+# proof (mutate a COPY of the script so it would unconditionally emit, and
+# confirm the arm goes RED under that mutation).
+
+STALENESS_SCRIPT="$PROJECT_ROOT/.aai/scripts/intake-staleness-check.mjs"
+
+# Deterministic branch name regardless of this machine's init.defaultBranch —
+# every fixture below calls this on a fresh clone, before its first commit.
+stale_force_branch() {
+  git -C "$1" symbolic-ref HEAD "refs/heads/$2"
+}
+
+# Copy the shipped staleness script (plus its lib/ dependency) into a scratch
+# tree and apply ONE sed expression to the copy; echo the mutated script's
+# path. Returns 1 when the expression changed NOTHING — a bite proof against
+# an unmutated copy proves nothing and must fail as a test bug, not pass
+# quietly (mirrors intake_mutant_script's contract for docs-audit.mjs).
+stale_mutant_script() {
+  local expr="$1" d
+  d=$(intake_scratch)
+  mkdir -p "$d/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/scripts/lib/cli-pipe-guard.mjs"
+  sed "$expr" "$STALENESS_SCRIPT" > "$d/scripts/intake-staleness-check.mjs"
+  if cmp -s "$d/scripts/intake-staleness-check.mjs" "$STALENESS_SCRIPT"; then
+    return 1
+  fi
+  printf '%s\n' "$d/scripts/intake-staleness-check.mjs"
+}
+
+# A bare origin plus two clones (w1, w2), both on `main`, single commit, level.
+# Echoes the scratch dir.
+stale_fixture_pair() {
+  local d
+  d=$(intake_scratch)
+  git init -q --bare "$d/origin.git"
+  git clone -q "$d/origin.git" "$d/w1" 2>/dev/null
+  stale_force_branch "$d/w1" main
+  ( cd "$d/w1" && git config user.email t@t.example && git config user.name t \
+      && echo one > f.txt && git add f.txt && git commit -qm init \
+      && git push -q origin HEAD:main -u ) >/dev/null 2>&1
+  git clone -q "$d/origin.git" "$d/w2" 2>/dev/null
+  ( cd "$d/w2" && git config user.email t@t.example && git config user.name t ) >/dev/null 2>&1
+  printf '%s\n' "$d"
+}
+
+# A superproject with one initialized submodule, both level with their
+# respective origins. Builds sub-origin.git/sub-w1, super-origin.git/super-w1
+# (the "authoring" clones) plus super-w2 (the "inspected" clone, recursively
+# cloned). Echoes the scratch dir.
+stale_fixture_with_submodule() {
+  local d
+  d=$(intake_scratch)
+  git init -q --bare "$d/sub-origin.git"
+  git clone -q "$d/sub-origin.git" "$d/sub-w1" 2>/dev/null
+  stale_force_branch "$d/sub-w1" main
+  ( cd "$d/sub-w1" && git config user.email t@t.example && git config user.name t \
+      && echo s1 > s.txt && git add s.txt && git commit -qm init \
+      && git push -q origin HEAD:main -u ) >/dev/null 2>&1
+
+  git init -q --bare "$d/super-origin.git"
+  git -c protocol.file.allow=always clone -q "$d/super-origin.git" "$d/super-w1" 2>/dev/null
+  stale_force_branch "$d/super-w1" main
+  ( cd "$d/super-w1" && git config user.email t@t.example && git config user.name t \
+      && echo x > x.txt && git add x.txt && git commit -qm init \
+      && git -c protocol.file.allow=always submodule add -q "$d/sub-origin.git" sub \
+      && git commit -qam "add submodule" \
+      && git push -q origin HEAD:main -u ) >/dev/null 2>&1
+
+  git -c protocol.file.allow=always clone -q --recurse-submodules "$d/super-origin.git" "$d/super-w2" 2>/dev/null
+  ( cd "$d/super-w2" && git config user.email t@t.example && git config user.name t ) >/dev/null 2>&1
+  printf '%s\n' "$d"
+}
+
+# TEST-020 (Spec-AC-01) — branch behind upstream by N -> one AAI-STALE: branch line.
+test_020_branch_behind_prints_one_stale_line() {
+  log_info "TEST-020 (Spec-AC-01): branch behind upstream by 3 -> exactly one AAI-STALE: branch line, exit 0..."
+  local ok=1 d out rc n_lines
+  d=$(stale_fixture_pair)
+  ( cd "$d/w1" && for i in 1 2 3; do echo "$i" >> f.txt && git commit -qam "c$i" >/dev/null; done \
+      && git push -q origin HEAD ) >/dev/null 2>&1
+  out=$(node "$STALENESS_SCRIPT" --repo "$d/w2" 2>&1) && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-020: exit $rc (want 0): $out"; ok=0; }
+  n_lines=$(printf '%s\n' "$out" | grep -c '^AAI-STALE:' || true)
+  [[ "$n_lines" -eq 1 ]] || { log_info "TEST-020: found $n_lines AAI-STALE line(s) (want 1): $out"; ok=0; }
+  [[ "$out" == "AAI-STALE: branch main is 3 commit(s) behind origin/main" ]] \
+    || { log_info "TEST-020: line was '$out' (want the exact branch/3/origin-main shape)"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-020 branch behind by 3 -> exactly one AAI-STALE: branch line naming main/3/origin-main, exit 0" \
+    || log_fail "TEST-020 branch-behind detection (Spec-AC-01)"
+}
+
+# TEST-021 (Spec-AC-02) — level checkout, no submodules -> zero-byte stdout
+# (bite proof mandatory: silence must be provably load-bearing, not vacuous).
+test_021_silent_when_current() {
+  log_info "TEST-021 (Spec-AC-02): level checkout, no submodules -> zero bytes stdout, exit 0 (bite proof)..."
+  local ok=1 d out rc bytes mutant
+  d=$(stale_fixture_pair)
+  out=$(node "$STALENESS_SCRIPT" --repo "$d/w2" 2>&1) && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-021: exit $rc (want 0): $out"; ok=0; }
+  bytes=$(node "$STALENESS_SCRIPT" --repo "$d/w2" 2>/dev/null | wc -c | tr -d ' ')
+  [[ "$bytes" -eq 0 ]] || { log_info "TEST-021: stdout was $bytes bytes (want 0): $out"; ok=0; }
+
+  # BITE: neuter the branch arm's "nothing to report" guard so it always
+  # pushes a line, even at count 0 on a level checkout.
+  if mutant=$(stale_mutant_script 's/if (!Number.isInteger(n) || n <= 0) return;/if (false) return;/'); then
+    local bite_bytes
+    bite_bytes=$(node "$mutant" --repo "$d/w2" 2>&1 | wc -c | tr -d ' ')
+    if [[ "$bite_bytes" -eq 0 ]]; then
+      log_info "TEST-021: mutation left stdout at 0 bytes -- the assertion cannot bite (test bug, not a real finding)"
+      ok=0
+    else
+      log_info "  bite proven: forcing the branch arm to emit unconditionally on a level checkout produces $bite_bytes bytes of stdout"
+    fi
+  else
+    log_info "TEST-021: bite mutation matched nothing in the script (test bug, not a real finding)"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-021 level checkout with no submodules -> zero-byte stdout, exit 0; bite proven (mutation reddens the arm)" \
+    || log_fail "TEST-021 silent-when-current (Spec-AC-02)"
+}
+
+# TEST-022 (Spec-AC-03) — submodule behind, superproject level -> one
+# AAI-STALE: submodule line, zero AAI-STALE: branch lines.
+test_022_submodule_behind_independent_of_branch() {
+  log_info "TEST-022 (Spec-AC-03): submodule behind by 2, superproject level -> one submodule line, zero branch lines..."
+  local ok=1 d out rc n_sub n_branch
+  d=$(stale_fixture_with_submodule)
+  ( cd "$d/sub-w1" && echo s2 >> s.txt && git commit -qam c1 && echo s3 >> s.txt && git commit -qam c2 \
+      && git push -q origin HEAD ) >/dev/null 2>&1
+  out=$(node "$STALENESS_SCRIPT" --repo "$d/super-w2" 2>&1) && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-022: exit $rc (want 0): $out"; ok=0; }
+  n_sub=$(printf '%s\n' "$out" | grep -c '^AAI-STALE: submodule' || true)
+  n_branch=$(printf '%s\n' "$out" | grep -c '^AAI-STALE: branch' || true)
+  [[ "$n_sub" -eq 1 ]] || { log_info "TEST-022: found $n_sub submodule line(s) (want 1): $out"; ok=0; }
+  [[ "$n_branch" -eq 0 ]] || { log_info "TEST-022: found $n_branch branch line(s) (want 0): $out"; ok=0; }
+  [[ "$out" == "AAI-STALE: submodule sub is 2 commit(s) behind origin/main" ]] \
+    || { log_info "TEST-022: line was '$out' (want the exact submodule/2/origin-main shape)"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-022 submodule behind by 2, superproject level -> exactly one AAI-STALE: submodule line, zero branch lines" \
+    || log_fail "TEST-022 submodule-behind detection (Spec-AC-03)"
+}
+
+# TEST-023 (Spec-AC-04) — the check never mutates the tree: git status
+# --porcelain / git rev-parse HEAD / git for-each-ref refs/heads / git
+# submodule status are byte-identical before and after a real-staleness run.
+test_023_tree_mutation_proof() {
+  log_info "TEST-023 (Spec-AC-04): status/HEAD/refs-heads/submodule-status byte-identical before and after..."
+  local ok=1 d out rc
+  d=$(stale_fixture_with_submodule)
+  ( cd "$d/sub-w1" && echo s2 >> s.txt && git commit -qam c1 && git push -q origin HEAD ) >/dev/null 2>&1
+  ( cd "$d/super-w1" && echo y >> x.txt && git commit -qam c-super && git push -q origin HEAD ) >/dev/null 2>&1
+
+  local before_status before_head before_refs before_sub after_status after_head after_refs after_sub
+  before_status=$(cd "$d/super-w2" && git status --porcelain)
+  before_head=$(cd "$d/super-w2" && git rev-parse HEAD)
+  before_refs=$(cd "$d/super-w2" && git for-each-ref refs/heads)
+  before_sub=$(cd "$d/super-w2" && git submodule status)
+
+  out=$(node "$STALENESS_SCRIPT" --repo "$d/super-w2" 2>&1) && rc=0 || rc=$?
+
+  after_status=$(cd "$d/super-w2" && git status --porcelain)
+  after_head=$(cd "$d/super-w2" && git rev-parse HEAD)
+  after_refs=$(cd "$d/super-w2" && git for-each-ref refs/heads)
+  after_sub=$(cd "$d/super-w2" && git submodule status)
+
+  # Guard against vacuity: a script that is absent, crashes, or never runs at
+  # all would trivially leave the tree unchanged too. Require it to have
+  # actually done real work (both arms genuinely stale in this fixture) before
+  # trusting the byte-identical comparison below as evidence of anything.
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-023: the script itself exited $rc (want 0) -- cannot trust a no-op run as mutation-free: $out"; ok=0; }
+  # Pipe-free substring checks (pipe-grep-q-ratchet, spec-assertions-must-not
+  # -die-on-their-own-payload): piping this payload into a quiet grep would
+  # report FAILURE on a payload that MATCHED once it passes the pipe buffer,
+  # so a plain `case` match is required here instead.
+  case "$out" in
+    *"AAI-STALE: branch"*) : ;;
+    *) log_info "TEST-023: no AAI-STALE: branch line -- the run may not have done real work: $out"; ok=0 ;;
+  esac
+  case "$out" in
+    *"AAI-STALE: submodule"*) : ;;
+    *) log_info "TEST-023: no AAI-STALE: submodule line -- the run may not have done real work: $out"; ok=0 ;;
+  esac
+
+  [[ "$before_status" == "$after_status" ]] || { log_info "TEST-023: git status --porcelain changed"; ok=0; }
+  [[ "$before_head" == "$after_head" ]] || { log_info "TEST-023: git rev-parse HEAD changed"; ok=0; }
+  [[ "$before_refs" == "$after_refs" ]] || { log_info "TEST-023: git for-each-ref refs/heads changed"; ok=0; }
+  [[ "$before_sub" == "$after_sub" ]] || { log_info "TEST-023: git submodule status changed"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-023 real staleness on both arms detected, exit 0, status/HEAD/refs-heads/submodule-status byte-identical before and after" \
+    || log_fail "TEST-023 tree-mutation proof (Spec-AC-04)"
+}
+
+# TEST-024 (Spec-AC-05) — unreachable remote + closed stdin -> silent, exit 0,
+# within budget+2000ms (bite proof mandatory).
+test_024_network_unreachable_silent_within_budget() {
+  log_info "TEST-024 (Spec-AC-05): unreachable remote + closed stdin -> silent, exit 0, within budget+2000ms (bite proof)..."
+  local ok=1 d rc out start end elapsed_ms mutant
+  d=$(stale_fixture_pair)
+  ( cd "$d/w2" && git remote set-url origin "http://192.0.2.1:9/aai-staleness-test-unroutable.git" ) >/dev/null 2>&1
+  start=$(date +%s%N)
+  out=$(node "$STALENESS_SCRIPT" --repo "$d/w2" --budget-ms 3000 < /dev/null 2>&1) && rc=0 || rc=$?
+  end=$(date +%s%N)
+  elapsed_ms=$(( (end - start) / 1000000 ))
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-024: exit $rc (want 0): $out"; ok=0; }
+  [[ -z "$out" ]] || { log_info "TEST-024: stdout was non-empty: $out"; ok=0; }
+  if [[ "$elapsed_ms" -ge 5000 ]]; then
+    log_info "TEST-024: elapsed ${elapsed_ms}ms exceeds budget(3000)+2000ms"
+    ok=0
+  else
+    log_info "  elapsed ${elapsed_ms}ms within budget+2000ms"
+  fi
+
+  # BITE: force the fetch-failure branch arm to keep going and emit anyway.
+  if mutant=$(stale_mutant_script 's/if (!fetchRes.ok) return;/if (!fetchRes.ok) { console.log("AAI-STALE: bite"); return; }/'); then
+    local bite_out
+    bite_out=$(node "$mutant" --repo "$d/w2" --budget-ms 3000 < /dev/null 2>&1)
+    if [[ -z "$bite_out" ]]; then
+      log_info "TEST-024: mutation left stdout empty -- the assertion cannot bite (test bug, not a real finding)"
+      ok=0
+    else
+      log_info "  bite proven: forcing the branch arm past a fetch failure produces output: $bite_out"
+    fi
+  else
+    log_info "TEST-024: bite mutation matched nothing in the script (test bug, not a real finding)"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-024 unreachable remote -> silent, exit 0, within budget+2000ms; bite proven" \
+    || log_fail "TEST-024 network-unreachable degradation (Spec-AC-05)"
+}
+
+# TEST-025 (Spec-AC-06) — no-upstream and detached-HEAD both skip the branch
+# arm silently WITHOUT short-circuiting the submodule arm (bite proof mandatory).
+test_025_no_upstream_and_detached_head_skip_branch_arm_only() {
+  log_info "TEST-025 (Spec-AC-06): no-upstream and detached-HEAD skip the branch arm silently, submodule arm unaffected (bite proof)..."
+  local ok=1 d out rc mutant n_branch n_sub
+  d=$(stale_fixture_with_submodule)
+  ( cd "$d/sub-w1" && echo s2 >> s.txt && git commit -qam c1 && git push -q origin HEAD ) >/dev/null 2>&1
+
+  # (a) fresh branch, no configured upstream.
+  ( cd "$d/super-w2" && git checkout -q -b feature/no-upstream ) >/dev/null 2>&1
+  out=$(node "$STALENESS_SCRIPT" --repo "$d/super-w2" 2>&1) && rc=0 || rc=$?
+  n_branch=$(printf '%s\n' "$out" | grep -c '^AAI-STALE: branch' || true)
+  n_sub=$(printf '%s\n' "$out" | grep -c '^AAI-STALE: submodule' || true)
+  if [[ "$rc" -ne 0 || "$n_branch" -ne 0 || "$n_sub" -ne 1 ]]; then
+    log_info "TEST-025: no-upstream case: rc=$rc branch-lines=$n_branch submodule-lines=$n_sub out='$out'"
+    ok=0
+  else
+    log_info "  no-upstream: zero branch lines, one submodule line"
+  fi
+
+  # (b) detached HEAD.
+  ( cd "$d/super-w2" && git checkout -q main && git checkout -q --detach HEAD ) >/dev/null 2>&1
+  out=$(node "$STALENESS_SCRIPT" --repo "$d/super-w2" 2>&1) && rc=0 || rc=$?
+  n_branch=$(printf '%s\n' "$out" | grep -c '^AAI-STALE: branch' || true)
+  n_sub=$(printf '%s\n' "$out" | grep -c '^AAI-STALE: submodule' || true)
+  if [[ "$rc" -ne 0 || "$n_branch" -ne 0 || "$n_sub" -ne 1 ]]; then
+    log_info "TEST-025: detached-HEAD case: rc=$rc branch-lines=$n_branch submodule-lines=$n_sub out='$out'"
+    ok=0
+  else
+    log_info "  detached HEAD: zero branch lines, one submodule line"
+  fi
+
+  # BITE: force the branch arm to emit even on a detached HEAD, where there is
+  # no branch name and no upstream to compare against.
+  if mutant=$(stale_mutant_script 's/if (!headRef.ok) return; \/\/ detached HEAD -> skip silently/if (!headRef.ok) { console.log("AAI-STALE: bite"); return; }/'); then
+    local bite_out bite_marker
+    # The fixture's submodule is genuinely 1 commit behind, so the mutated
+    # run's stdout legitimately carries BOTH the injected branch-arm marker
+    # and the real submodule line — isolate the marker so the evidence line
+    # does not conflate the two independent arms.
+    bite_out=$(node "$mutant" --repo "$d/super-w2" 2>&1)
+    bite_marker=$(printf '%s\n' "$bite_out" | grep -c '^AAI-STALE: bite$' || true)
+    if [[ "$bite_marker" -ne 1 ]]; then
+      log_info "TEST-025: detached-HEAD mutation did not produce the injected branch-arm marker (found $bite_marker) -- the assertion cannot bite (test bug, not a real finding): $bite_out"
+      ok=0
+    else
+      log_info "  bite proven: forcing the branch arm to emit on detached HEAD produces the injected marker (submodule arm output alongside it, unaffected): $bite_out"
+    fi
+  else
+    log_info "TEST-025: detached-HEAD bite mutation matched nothing in the script (test bug, not a real finding)"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-025 no-upstream and detached-HEAD both skip the branch arm silently while the submodule arm still reports; bite proven" \
+    || log_fail "TEST-025 branch-arm silent-skip independence (Spec-AC-06)"
+}
+
+# TEST-026 (Spec-AC-07, Spec-AC-08) — exactly one STALENESS PREFLIGHT block in
+# INTAKE_COMMON.md (script path + verbatim relay + proceed-regardless rule);
+# all nine entry-point files name the preflight.
+test_026_staleness_preflight_block_and_wiring() {
+  log_info "TEST-026 (Spec-AC-07/Spec-AC-08): STALENESS PREFLIGHT block + all nine entry points name it..."
+  local ok=1 n_heading common="$PROJECT_ROOT/.aai/INTAKE_COMMON.md"
+  n_heading=$(grep -c '^## STALENESS PREFLIGHT' "$common" || true)
+  [[ "$n_heading" -eq 1 ]] || { log_info "TEST-026: found $n_heading '## STALENESS PREFLIGHT' heading(s) in INTAKE_COMMON.md (want 1)"; ok=0; }
+  grep -qF ".aai/scripts/intake-staleness-check.mjs" "$common" \
+    || { log_info "TEST-026: block does not name the script path"; ok=0; }
+  grep -qiF "relay" "$common" || { log_info "TEST-026: block does not state the verbatim-relay rule"; ok=0; }
+  grep -qiF "proceed" "$common" || { log_info "TEST-026: block does not state the proceed-regardless rule"; ok=0; }
+  grep -qiF "four universal blocks" "$common" \
+    && { log_info "TEST-026: opening sentence still says 'four universal blocks'"; ok=0; }
+
+  local f base
+  for f in "$PROJECT_ROOT/.aai/SKILL_INTAKE.prompt.md" "$PROJECT_ROOT"/.aai/INTAKE_*.prompt.md; do
+    base=$(basename "$f")
+    grep -qiF "staleness preflight" "$f" \
+      || { log_info "TEST-026: $base does not name the staleness preflight"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-026 exactly one STALENESS PREFLIGHT block (script path + relay + proceed-regardless), all nine entry points name it, opening sentence updated" \
+    || log_fail "TEST-026 staleness preflight block/wiring (Spec-AC-07/Spec-AC-08)"
+}
+
+# ordering helper for TEST-027: echoes 1 when the FIRST match of $2 precedes
+# the FIRST match of $3 in file $1 (both required to exist), else 0.
+stale_ordering_ok() {
+  # `-m1` stops grep itself after the first match, so there is no `| head`
+  # for grep to SIGPIPE against under the suite's own `set -o pipefail` on a
+  # file with more than one match (the same class of bug this file's TEST-012
+  # comment already documents for `awk | grep -q`).
+  local f="$1" first="$2" second="$3" l1 l2
+  l1=$(grep -inm1 -- "$first" "$f" | cut -d: -f1)
+  l2=$(grep -inm1 -- "$second" "$f" | cut -d: -f1)
+  if [[ -z "$l1" || -z "$l2" ]]; then echo 0; return; fi
+  if [[ "$l1" -lt "$l2" ]]; then echo 1; else echo 0; fi
+}
+
+# TEST-027 (Spec-AC-08) — the staleness-preflight reference precedes each
+# file's first-question line; the ordering check proven to bite both ways.
+test_027_staleness_preflight_precedes_first_question() {
+  log_info "TEST-027 (Spec-AC-08): staleness preflight line precedes each file's first-question line; ordering check proven to bite both directions..."
+  local ok=1 f base res
+  for f in .aai/INTAKE_CHANGE.prompt.md .aai/INTAKE_HOTFIX.prompt.md .aai/INTAKE_ISSUE.prompt.md \
+           .aai/INTAKE_PRD.prompt.md .aai/INTAKE_RELEASE.prompt.md .aai/INTAKE_RESEARCH.prompt.md \
+           .aai/INTAKE_RFC.prompt.md .aai/INTAKE_TECHDEBT.prompt.md; do
+    base=$(basename "$f")
+    res=$(stale_ordering_ok "$PROJECT_ROOT/$f" "staleness preflight" "^BEGIN with")
+    [[ "$res" -eq 1 ]] || { log_info "TEST-027: $base staleness-preflight line is not above its BEGIN with line"; ok=0; }
+  done
+  res=$(stale_ordering_ok "$PROJECT_ROOT/.aai/SKILL_INTAKE.prompt.md" "staleness preflight" "^STEP 1 — DETECT TYPE")
+  [[ "$res" -eq 1 ]] || { log_info "TEST-027: SKILL_INTAKE staleness-preflight line is not above STEP 1 — DETECT TYPE"; ok=0; }
+
+  # BITE (violation direction): a scratch fixture with the order reversed must
+  # be reported as out of order.
+  local scratch reversed ordered
+  scratch=$(intake_scratch)
+  reversed="$scratch/reversed.md"
+  cat > "$reversed" <<'EOF'
+BEGIN with (in the user's language):
+"..."
+
+SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply the staleness preflight.
+EOF
+  res=$(stale_ordering_ok "$reversed" "staleness preflight" "^BEGIN with")
+  if [[ "$res" -ne 0 ]]; then
+    log_info "TEST-027: a REVERSED fixture (BEGIN with above the preflight line) was read as ordered correctly -- the check cannot bite (test bug)"
+    ok=0
+  else
+    log_info "  bite proven: a reversed fixture is correctly reported as out of order"
+  fi
+
+  # Control (compliant direction): a correctly-ordered fixture still passes.
+  ordered="$scratch/ordered.md"
+  cat > "$ordered" <<'EOF'
+SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply the staleness preflight.
+
+BEGIN with (in the user's language):
+"..."
+EOF
+  res=$(stale_ordering_ok "$ordered" "staleness preflight" "^BEGIN with")
+  if [[ "$res" -ne 1 ]]; then
+    log_info "TEST-027: a correctly-ordered control fixture was read as out of order (check too strict)"
+    ok=0
+  else
+    log_info "  control: a correctly-ordered fixture passes"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-027 staleness preflight precedes the first-question line in all nine entry points; ordering check proven to bite both directions" \
+    || log_fail "TEST-027 staleness-preflight ordering (Spec-AC-08)"
+}
+
+# TEST-028 (Spec-AC-09) — PROFILES.yaml lists the new script exactly once,
+# in core:, using the same awk extraction test-aai-layer-profiles.sh uses.
+test_028_profiles_yaml_classifies_new_script_in_core() {
+  log_info "TEST-028 (Spec-AC-09): PROFILES.yaml lists the new script exactly once, in core:..."
+  local ok=1 manifest="$PROJECT_ROOT/.aai/system/PROFILES.yaml" target=".aai/scripts/intake-staleness-check.mjs"
+  local core_hits ext_hits
+  core_hits=$(awk -v key="core:" '
+    $0 == key { f = 1; next }
+    /^[^ ]/   { f = 0 }
+    f && sub(/^  - /, "") { sub(/[ \t\r]+$/, ""); print }
+  ' "$manifest" | grep -Fxc "$target" || true)
+  ext_hits=$(awk -v key="extended:" '
+    $0 == key { f = 1; next }
+    /^[^ ]/   { f = 0 }
+    f && sub(/^  - /, "") { sub(/[ \t\r]+$/, ""); print }
+  ' "$manifest" | grep -Fxc "$target" || true)
+  [[ "$core_hits" -eq 1 ]] || { log_info "TEST-028: core: contains $core_hits hit(s) for $target (want 1)"; ok=0; }
+  [[ "$ext_hits" -eq 0 ]] || { log_info "TEST-028: extended: contains $ext_hits hit(s) for $target (want 0)"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-028 $target classified exactly once, in core:" \
+    || log_fail "TEST-028 PROFILES.yaml classification (Spec-AC-09)"
+}
+
+# TEST-031 (Spec-AC-09) — select-suites.mjs maps the new script to aai-intake,
+# with no FULL_RUN escalation.
+test_031_select_suites_maps_the_new_script_to_aai_intake() {
+  log_info "TEST-031 (Spec-AC-09): select-suites.mjs maps the new script to aai-intake, no FULL_RUN escalation..."
+  local ok=1 out
+  out=$(printf '%s\n' ".aai/scripts/intake-staleness-check.mjs" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --repo-root "$PROJECT_ROOT" --files-from - 2>&1)
+  # Pipe-free substring checks (pipe-grep-q-ratchet): a leading newline lets
+  # the `*<newline>needle*` pattern also match a needle on the FIRST line.
+  case $'\n'"$out" in
+    *"FULL_RUN"*) log_info "TEST-031: escalated to FULL_RUN: $out"; ok=0 ;;
+  esac
+  case $'\n'"$out" in
+    *$'\n'"SELECTED aai-intake reason="*) : ;;
+    *) log_info "TEST-031: aai-intake not selected. Got: $out"; ok=0 ;;
+  esac
+  [[ $ok -eq 1 ]] && log_pass "TEST-031 select-suites.mjs selects aai-intake for the new script, no FULL_RUN escalation" \
+    || log_fail "TEST-031 select-suites.mjs mapping (Spec-AC-09)"
+}
+
 # Main test execution
 main() {
   echo "Testing: $TEST_NAME"
@@ -1289,6 +1711,16 @@ main() {
   test_017_wrong_prefix_finding_means_wrong_prefix
   test_018_slug_shape_matches_the_documented_constraint
   test_019_malformed_table_and_helper_fidelity
+  test_020_branch_behind_prints_one_stale_line
+  test_021_silent_when_current
+  test_022_submodule_behind_independent_of_branch
+  test_023_tree_mutation_proof
+  test_024_network_unreachable_silent_within_budget
+  test_025_no_upstream_and_detached_head_skip_branch_arm_only
+  test_026_staleness_preflight_block_and_wiring
+  test_027_staleness_preflight_precedes_first_question
+  test_028_profiles_yaml_classifies_new_script_in_core
+  test_031_select_suites_maps_the_new_script_to_aai_intake
 
   echo ""
   echo "All tests passed!"
