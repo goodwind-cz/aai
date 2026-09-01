@@ -2,13 +2,15 @@
 id: spec-gate-ac-row-escaped-pipe-blind
 type: spec
 number: 160
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0077-gate-ac-row-escaped-pipe-blind.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - abea135
 ---
 
 # SPEC — Canonical AC Status Table Gains the Silent-Drop Reconciliation (docs-audit --gate / --check)

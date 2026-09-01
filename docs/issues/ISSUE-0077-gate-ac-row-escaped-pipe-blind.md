@@ -2,10 +2,12 @@
 id: gate-ac-row-escaped-pipe-blind
 number: 77
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - abea135
   source_issue: https://github.com/goodwind-cz/aai/issues/330
 ---
 
