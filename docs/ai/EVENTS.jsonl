@@ -2016,3 +2016,11 @@
 {"v":1,"ts":"2026-09-01T01:48:12.840Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-intake-staleness-preflight-warning","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-01T01:48:12.872Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-intake-staleness-preflight-warning","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-01T01:48:12.904Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-intake-staleness-preflight-warning","payload":{"commit":"019e96a"}}
+{"v":1,"ts":"2026-09-01T06:36:59.709Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-adhoc-probes-unisolated-report-only","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-01T11:00:32.850Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"adhoc-probes-unisolated-report-only","payload":{"status":"pass","hash":"80cef64dc6c66eaaf5dc2149a59a081b623f939e8174a1463928e70ddc66be2a"}}
+{"v":1,"ts":"2026-09-01T15:10:22.510Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"adhoc-probes-unisolated-report-only","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-01T15:10:22.549Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"adhoc-probes-unisolated-report-only","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-01T15:10:22.589Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"adhoc-probes-unisolated-report-only","payload":{"commit":"24385e3"}}
+{"v":1,"ts":"2026-09-01T15:10:22.629Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-adhoc-probes-unisolated-report-only","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-01T15:10:22.672Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-adhoc-probes-unisolated-report-only","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-01T15:10:22.713Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-adhoc-probes-unisolated-report-only","payload":{"commit":"24385e3"}}

@@ -6,8 +6,9 @@ status: current
 delivered_by:
   - CHANGE-0142
   - followups-cli-hardening
+  - adhoc-probes-unisolated-report-only
 spec: docs/specs/SPEC-0129-spec-followup-registry.md
-updated: 2026-08-18
+updated: 2026-09-01
 ---
 
 # Follow-up registry on the decision ledger
@@ -74,6 +75,28 @@ this ledger: its rollback arm truncates a telemetry file by byte length, and a
 bug in a second such arm would delete decision history to save one typed
 command. The compensating control is the report — an item nobody closes shows
 up, and keeps ageing, on a page that refreshes itself.
+
+A spec's or issue's own "Registry items closed by this scope" line is prose —
+nobody checked it against this ledger, so a frozen document could claim a
+closure that never happened (measured: three such claims existed on `main`
+before this check was written). Verify one document, or every document under
+`docs/specs/` and `docs/issues/`:
+
+```
+node .aai/scripts/follow-ups.mjs verify-closures --path docs/specs/SPEC-0001-....md
+node .aai/scripts/follow-ups.mjs verify-closures             # the whole corpus
+node .aai/scripts/follow-ups.mjs verify-closures --json      # machine-readable
+node .aai/scripts/follow-ups.mjs verify-closures --strict    # exit 1 on a MISS
+```
+
+Report-only by default (exit 0 whatever it finds) — a subset ratchet in
+`tests/skills/test-aai-follow-ups.sh` is what turns a NEW unverified claim red
+on a sweep, and a later real close still drains the ratchet's own allowlist.
+A claimed id that is not `done` in the ledger (including one absent from it
+entirely) is a MISS; a claimed id that IS `done` but whose `resolved_by`
+bears no textual relation to the claiming document is a report-only
+ATTRIBUTION note — the real `resolved_by` corpus mixes doc ids, requirement
+ids and ride-ref slugs, so that tier never affects the exit code.
 
 See the open backlog in the report:
 
@@ -155,6 +178,19 @@ Degradations are always named, never silent:
   (requires the id to be closed already, and requires the new
   `resolved_by`/`status` to differ from the current projection — otherwise
   exit 2).
+- `node .aai/scripts/follow-ups.mjs verify-closures [--path <doc>] [--ledger
+  <path>] [--strict] [--json]` — parses a document's own "Registry items
+  closed by this scope" claim (a labelled `##` heading section, or the inline
+  `Registry items closed by this scope:` label) and folds every claimed id
+  against this ledger. With no `--path`, walks `docs/specs/` and
+  `docs/issues/` and unions the claims. Report-only (exit 0) by default;
+  `--strict` exits 1 when at least one claimed id is not `done` (a MISS). A
+  `done` id whose `resolved_by` bears no textual relation to the claiming
+  document is reported as an ATTRIBUTION note, which never affects the exit
+  code. Landed as a subcommand here, not wired into `close-work-item.mjs`
+  (its rollback arm truncates and must not be extended to a second ledger)
+  and not folded into `docs-audit.mjs --check --strict`'s CLEAN verdict
+  (real unverified claims already exist in documents outside any one scope).
 - `node .aai/scripts/follow-ups.mjs --help` — the grammar and this contract.
 - Exit codes (stable): `0` success, including a NON-EMPTY backlog (never an
   error), an empty backlog, a skipped malformed line and an idempotent

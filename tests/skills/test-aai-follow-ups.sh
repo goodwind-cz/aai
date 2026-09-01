@@ -1505,11 +1505,379 @@ test_023_correct_flag() {
 }
 
 
+# mk_doc <name> <content> -> echoes a fresh fixture doc path under $TEST_DIR.
+mk_doc() {
+  local f="$TEST_DIR/$1.md"
+  printf '%s\n' "$2" > "$f"
+  printf '%s' "$f"
+}
+
+SELECT_SUITES="$PROJECT_ROOT/.aai/scripts/select-suites.mjs"
+
+# The declared known-unverified allowlist (D10, Spec-AC-11): a SUBSET ratchet,
+# not equality, so a later real close drains it and this arm still passes. At
+# delivery it holds exactly the three claims measured at planning time —
+# `docs/specs/SPEC-0156-...` claiming `fu-empty-path-cd-stays-in-shipping-repo`
+# under CLOSED QUALIFIEDLY, and `docs/issues/CHANGE-0146-...` claiming
+# `fu-validation-staleness-undetected` and `fu-tdd-skips-full-sweep` inline.
+KNOWN_UNVERIFIED_CLOSURE_CLAIMS=(
+  "fu-empty-path-cd-stays-in-shipping-repo"
+  "fu-validation-staleness-undetected"
+  "fu-tdd-skips-full-sweep"
+)
+
+# miss_ids_json <json> -> newline-separated MISS ids from a verify-closures
+# --json payload (node does the parsing; bash never touches the JSON shape).
+miss_ids_json() {
+  node -e '
+    const j = JSON.parse(process.argv[1]);
+    for (const c of j.claims) if (c.verdict === "MISS") console.log(c.id);
+  ' "$1"
+}
+
+# misses_subset_of_allowlist <newline-separated miss ids> -> 0 (true) when
+# every miss id is a member of KNOWN_UNVERIFIED_CLOSURE_CLAIMS, 1 otherwise.
+misses_subset_of_allowlist() {
+  local miss allowed found
+  while IFS= read -r miss; do
+    [[ -n "$miss" ]] || continue
+    found=0
+    for allowed in "${KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}"; do
+      [[ "$miss" == "$allowed" ]] && { found=1; break; }
+    done
+    [[ "$found" -eq 1 ]] || return 1
+  done <<<"$1"
+  return 0
+}
+
+# ============================ TEST-024 (Spec-AC-06) ==========================
+test_024_verify_closures_reads_both_claim_shapes() {
+  log_info "Test: verify-closures --path --json parses BOTH recognized claim shapes (a labelled ## heading section, and the inline 'Registry items closed by this scope:' label) and reports every claimed fu- id with its folded ledger status (TEST-006)..."
+  local led; led="$(mk_ledger t024)"
+  printf '%s\n' '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-inline-claim-one","ref_id":"CHANGE-0100","severity":"P2","finding":"x","decision":"y","source":"s"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-07-02T00:00:00Z","actor":"a","type":"follow_up_status","id":"fu-inline-claim-one","status":"done","resolved_by":"CHANGE-0100","source":"s"}' >> "$led"
+
+  local doc_heading; doc_heading="$(mk_doc t024-heading "## Registry items closed by this scope
+
+CLOSED FULLY:
+
+- \`fu-heading-claim-one\` (P2) — description of the fix.
+
+NOT CLOSED:
+
+- \`fu-heading-disclaimed\` (P2) — a neighbour, not claimed.
+")"
+  run_fu verify-closures --path "$doc_heading" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-024: heading-shape run must exit 0, got $EC: $ERR"
+  local h_check
+  h_check="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const ids=j.claims.map(c=>c.id).sort();
+    if (JSON.stringify(ids)!==JSON.stringify(["fu-heading-claim-one"])) { console.log("IDS:"+ids.join(",")); process.exit(0); }
+    const c=j.claims[0];
+    console.log(c.status==="absent" && c.verdict==="MISS" ? "OK" : JSON.stringify(c));
+  ' "$OUT")"
+  [[ "$h_check" == "OK" ]] || log_fail "TEST-024: heading-shape claim/status wrong: $h_check ($OUT)"
+
+  local doc_inline; doc_inline="$(mk_doc t024-inline "## Notes
+- Registry items closed by this scope: \`fu-inline-claim-one\`, \`fu-inline-claim-two\`.
+")"
+  run_fu verify-closures --path "$doc_inline" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-024: inline-shape run must exit 0, got $EC: $ERR"
+  local i_check
+  i_check="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const ids=j.claims.map(c=>c.id).sort();
+    if (JSON.stringify(ids)!==JSON.stringify(["fu-inline-claim-one","fu-inline-claim-two"])) { console.log("IDS:"+ids.join(",")); process.exit(0); }
+    const one=j.claims.find(c=>c.id==="fu-inline-claim-one");
+    const two=j.claims.find(c=>c.id==="fu-inline-claim-two");
+    if (one.status!=="done" || one.verdict==="MISS") { console.log("ONE:"+JSON.stringify(one)); process.exit(0); }
+    if (two.status!=="absent" || two.verdict!=="MISS") { console.log("TWO:"+JSON.stringify(two)); process.exit(0); }
+    console.log("OK");
+  ' "$OUT")"
+  [[ "$i_check" == "OK" ]] || log_fail "TEST-024: inline-shape claim/status wrong: $i_check ($OUT)"
+
+  log_pass "verify-closures parses both the labelled heading shape and the inline label shape, reporting every claimed id with its folded status (TEST-006)"
+}
+
+# ============================ TEST-025 (Spec-AC-07) ==========================
+test_025_four_parse_branches_exact_sets() {
+  log_info "Test: the four D9 parse branches — labelled (claim vs disclaim), unlabelled 'none' sentinel (zero claims), any other unlabelled (every fu- id claimed), and the inline label vs. its untouched 'ratchet holds open' neighbour — each yield the EXACT claimed set, not merely a count (TEST-007)..."
+  local led; led="$(mk_ledger t025)"
+
+  local d1; d1="$(mk_doc t025-labelled "## Registry items closed by this scope
+
+CLOSED FULLY:
+
+- \`fu-labelled-claim-a\` (P2) — closed.
+
+NOT CLOSED:
+
+- \`fu-labelled-disclaim-b\` (P2) — not claimed.
+")"
+  run_fu verify-closures --path "$d1" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-025(labelled): must exit 0, got $EC: $ERR"
+  local c1; c1="$(node -e 'console.log(JSON.parse(process.argv[1]).claims.map(c=>c.id).sort().join(","))' "$OUT")"
+  [[ "$c1" == "fu-labelled-claim-a" ]] || log_fail "TEST-025(labelled): claim set wrong: [$c1]"
+
+  local d2; d2="$(mk_doc t025-none "## Registry items closed by this scope
+
+none. A neighbour \`fu-none-neighbor\` is discussed here but not claimed.
+")"
+  run_fu verify-closures --path "$d2" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-025(none): must exit 0, got $EC: $ERR"
+  local c2; c2="$(node -e 'console.log(JSON.parse(process.argv[1]).claims.length)' "$OUT")"
+  [[ "$c2" == "0" ]] || log_fail "TEST-025(none): the none-sentinel section must yield ZERO claims, got $c2: $OUT"
+
+  local d3; d3="$(mk_doc t025-other "## Registry items closed by this scope
+
+68 items; see the analysis doc. One worth naming directly is \`fu-other-bare-claim\`.
+")"
+  run_fu verify-closures --path "$d3" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-025(other): must exit 0, got $EC: $ERR"
+  local c3; c3="$(node -e 'console.log(JSON.parse(process.argv[1]).claims.map(c=>c.id).sort().join(","))' "$OUT")"
+  [[ "$c3" == "fu-other-bare-claim" ]] || log_fail "TEST-025(other): claim set wrong: [$c3]"
+
+  local d4; d4="$(mk_doc t025-inline "## Notes
+- Registry items closed: \`fu-inline-real-claim\`.
+- Registry items the ratchet holds open: \`fu-ratchet-neighbor-not-a-claim\`.
+")"
+  run_fu verify-closures --path "$d4" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-025(inline): must exit 0, got $EC: $ERR"
+  local c4; c4="$(node -e 'console.log(JSON.parse(process.argv[1]).claims.map(c=>c.id).sort().join(","))' "$OUT")"
+  [[ "$c4" == "fu-inline-real-claim" ]] || log_fail "TEST-025(inline): the 'ratchet holds open' neighbour must NOT be a claim: [$c4]"
+
+  log_pass "all four D9 parse branches yield the exact claimed set (TEST-007)"
+}
+
+# ============================ TEST-026 (Spec-AC-08) ==========================
+test_026_miss_and_attribution_tiers() {
+  log_info "Test: a claimed id that is not done (absent from the ledger included) is a MISS; a claimed id that IS done but whose resolved_by bears no textual relation to the claiming document is an ATTRIBUTION note that never affects the exit code (TEST-008)..."
+  local led; led="$(mk_ledger t026)"
+  printf '%s\n' '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-done-but-unrelated","ref_id":"CHANGE-0100","severity":"P2","finding":"x","decision":"y","source":"s"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-07-02T00:00:00Z","actor":"a","type":"follow_up_status","id":"fu-done-but-unrelated","status":"done","resolved_by":"zzz-completely-unrelated-slug","source":"s"}' >> "$led"
+
+  local doc; doc="$(mk_doc CHANGE-9999-fixture-attribution-test "## Registry items closed by this scope
+
+- \`fu-open-miss-id\` (P2) — never in the ledger at all.
+- \`fu-done-but-unrelated\` (P2) — done, but resolved_by names something else entirely.
+")"
+  run_fu verify-closures --path "$doc" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-026: report-only run must exit 0 regardless of misses, got $EC: $ERR"
+  local tally
+  tally="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const miss=j.claims.filter(c=>c.verdict==="MISS");
+    const attr=j.claims.filter(c=>c.verdict==="ATTRIBUTION");
+    if (miss.length!==1 || miss[0].id!=="fu-open-miss-id") { console.log("MISS:"+JSON.stringify(miss)); process.exit(0); }
+    if (attr.length!==1 || attr[0].id!=="fu-done-but-unrelated") { console.log("ATTR:"+JSON.stringify(attr)); process.exit(0); }
+    console.log("OK");
+  ' "$OUT")"
+  [[ "$tally" == "OK" ]] || log_fail "TEST-026: expected exactly one MISS and one ATTRIBUTION: $tally ($OUT)"
+
+  log_pass "an absent/non-done claim is MISS, a done-but-misattributed claim is a report-only ATTRIBUTION note (TEST-008)"
+}
+
+# ============================ TEST-027 (Spec-AC-09) ==========================
+test_027_exit_code_contract() {
+  log_info "Test: verify-closures exits 0 in report-only mode regardless of misses, 1 under --strict when at least one MISS exists, and 2 on a usage error or an unreadable ledger/path (TEST-009)..."
+  local led; led="$(mk_ledger t027)"
+  local doc; doc="$(mk_doc t027-miss "## Registry items closed by this scope
+
+- \`fu-t027-open-miss\` (P2) — never in the ledger.
+")"
+
+  run_fu verify-closures --path "$doc" --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "TEST-027(a): report-only with a miss present must exit 0, got $EC: $ERR"
+
+  run_fu verify-closures --path "$doc" --ledger "$led" --strict
+  [[ "$EC" == 1 ]] || log_fail "TEST-027(b): --strict with a miss must exit 1, got $EC: $ERR"
+
+  run_fu verify-closures --path "$TEST_DIR/does-not-exist.md" --ledger "$led"
+  [[ "$EC" == 2 ]] || log_fail "TEST-027(c): an unreadable --path must exit 2, got $EC: $ERR"
+
+  log_pass "verify-closures exit contract: 0 report-only, 1 --strict-with-a-miss, 2 usage/unreadable (TEST-009)"
+}
+
+# ============================ TEST-028 (Spec-AC-10) ==========================
+test_028_corpus_walk_unions_both_roots() {
+  log_info "Test: verify-closures with no --path walks docs/specs and docs/issues and unions claims across both roots; a document with no closure statement contributes zero claims and no error (SEAM-4, TEST-010)..."
+  local corpus="$TEST_DIR/t028-corpus"
+  rm -rf "$corpus"
+  mkdir -p "$corpus/docs/specs" "$corpus/docs/issues"
+  local led; led="$(mk_ledger t028)"
+
+  cat > "$corpus/docs/specs/SPEC-9001-fixture.md" <<'EOF'
+## Registry items closed by this scope
+
+CLOSED FULLY:
+
+- `fu-corpus-spec-claim` (P2) — closed.
+EOF
+  cat > "$corpus/docs/issues/CHANGE-9001-fixture.md" <<'EOF'
+## Notes
+- Registry items closed by this scope: `fu-corpus-issue-claim`.
+EOF
+  cat > "$corpus/docs/specs/SPEC-9002-silent.md" <<'EOF'
+# A perfectly ordinary spec with no closure statement at all.
+
+Nothing here mentions any fu- id.
+EOF
+
+  local out ec=0
+  out="$(cd "$corpus" && node "$FU" verify-closures --ledger "$led" --json 2>&1)" || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-028: corpus walk must exit 0, got $ec: $out"
+  local check
+  check="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const ids=j.claims.map(c=>c.id).sort();
+    if (JSON.stringify(ids)!==JSON.stringify(["fu-corpus-issue-claim","fu-corpus-spec-claim"])) { console.log("IDS:"+ids.join(",")); process.exit(0); }
+    console.log("OK");
+  ' "$out")"
+  [[ "$check" == "OK" ]] || log_fail "TEST-028: expected the union of both roots' claims and nothing from the silent doc: $check ($out)"
+
+  log_pass "verify-closures with no --path unions claims across docs/specs and docs/issues; a silent doc contributes zero claims and no error (SEAM-4, TEST-010)"
+}
+
+# ============================ TEST-029 (Spec-AC-11) ==========================
+test_029_real_corpus_ratchet_is_a_subset() {
+  log_info "Test: corpus mode over the REAL repository exits 0 and its MISS set is a SUBSET of the declared allowlist (exactly 3 entries at delivery); a fixture claim outside the allowlist would fail this arm's own subset check (TEST-011)..."
+  local out ec=0
+  out="$(cd "$PROJECT_ROOT" && node "$FU" verify-closures --json 2>&1)" || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-029: real-corpus report-only run must exit 0, got $ec: $out"
+
+  # N2 (review round-3): a MISS-set-is-a-subset check alone passes vacuously
+  # over an empty scan (zero docs found, zero claims extracted) — the exact
+  # silent-guard failure mode this scope exists to close. A broken cwd, a
+  # renamed docs root, or a regex regression in extractClaims must fail this
+  # ratchet loudly instead of passing it. Floors are conservative against the
+  # measured real-repo counts (docs=410, claims=33 at review time).
+  local floor_check; floor_check="$(node -e '
+    const j = JSON.parse(process.argv[1]);
+    if (j.docs_scanned > 100 && j.counts.claims > 10) { console.log("OK"); process.exit(0); }
+    console.log(`TOO_LOW docs_scanned=${j.docs_scanned} claims=${j.counts.claims}`);
+  ' "$out")"
+  [[ "$floor_check" == "OK" ]] \
+    || log_fail "TEST-029: the real-corpus scan found suspiciously few docs/claims (want docs_scanned > 100 and claims > 10) — $floor_check ($out)"
+
+  local misses; misses="$(miss_ids_json "$out")"
+  misses_subset_of_allowlist "$misses" \
+    || log_fail "TEST-029: the real corpus reported a MISS outside the declared allowlist — either a real closure claim broke, or the allowlist needs a deliberate, reviewed update. misses=[$misses] allowlist=[${KNOWN_UNVERIFIED_CLOSURE_CLAIMS[*]}]"
+
+  [[ "${#KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}" -eq 3 ]] \
+    || log_fail "TEST-029: the allowlist must hold exactly the three measured entries at delivery, got ${#KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}"
+  local expected="fu-empty-path-cd-stays-in-shipping-repo fu-tdd-skips-full-sweep fu-validation-staleness-undetected"
+  local sorted; sorted="$(printf '%s\n' "${KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}" | sort | tr '\n' ' ')"
+  sorted="${sorted% }"
+  [[ "$sorted" == "$expected" ]] || log_fail "TEST-029: allowlist contents drifted from the three measured entries: [$sorted]"
+
+  # A fixture claim to an id that is definitely never in the ledger, and
+  # definitely not in the allowlist, must FAIL the subset check — proving the
+  # ratchet mechanism itself (not just the real corpus's current shape).
+  local led; led="$(mk_ledger t029)"
+  local doc; doc="$(mk_doc t029-outside-allowlist "## Registry items closed by this scope
+
+- \`fu-t029-never-real-never-allowed\` (P2) — a synthetic miss outside the allowlist.
+")"
+  run_fu verify-closures --path "$doc" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-029: the synthetic fixture run must itself exit 0 (report-only), got $EC: $ERR"
+  local synth_misses; synth_misses="$(miss_ids_json "$OUT")"
+  if misses_subset_of_allowlist "$synth_misses"; then
+    log_fail "TEST-029: a MISS outside the allowlist was incorrectly accepted as a subset — the ratchet mechanism itself is broken: [$synth_misses]"
+  fi
+
+  log_pass "the real corpus's MISS set is a subset of the exactly-three-entry allowlist; the subset check itself correctly rejects a MISS outside it (TEST-011)"
+}
+
+# ============================ TEST-030 (Spec-AC-12) ==========================
+test_030_suite_map_glob_and_seam3_regression() {
+  log_info "Test: select-suites.mjs maps a changed docs/specs/*.md and docs/issues/*.md path to aai-follow-ups via the new suite-map.yaml globs; the pre-existing list --json assertions (TEST-002) are re-run unchanged (SEAM-3, TEST-012)..."
+  [[ -f "$SELECT_SUITES" ]] || log_skip "select-suites.mjs not found: $SELECT_SUITES"
+
+  local sel_spec
+  sel_spec="$(printf '%s\n' "docs/specs/SPEC-9999-does-not-need-to-exist.md" | node "$SELECT_SUITES" --repo-root "$PROJECT_ROOT" --files-from - 2>&1)"
+  grep -qF "SELECTED aai-follow-ups" <<<"$sel_spec" \
+    || log_fail "TEST-030: a changed docs/specs/*.md must select aai-follow-ups: $sel_spec"
+
+  local sel_issue
+  sel_issue="$(printf '%s\n' "docs/issues/CHANGE-9999-does-not-need-to-exist.md" | node "$SELECT_SUITES" --repo-root "$PROJECT_ROOT" --files-from - 2>&1)"
+  grep -qF "SELECTED aai-follow-ups" <<<"$sel_issue" \
+    || log_fail "TEST-030: a changed docs/issues/*.md must select aai-follow-ups: $sel_issue"
+
+  # SEAM-3: the new subcommand must not move `list`'s own argv parse or exit
+  # contract — re-run the pre-existing TEST-002 assertions verbatim.
+  test_002_query_path
+
+  log_pass "select-suites.mjs maps a changed docs/specs or docs/issues path to aai-follow-ups; the pre-existing list --json assertions still hold unchanged (SEAM-3, TEST-012)"
+}
+
+# ============================ TEST-031 (Spec-AC-13) ==========================
+# Direct lane (spec's own strategy split): a ledger close transaction has no
+# meaningful RED phase. This arm verifies the CLOSURE STEP actually landed —
+# it is expected to be RED until that step runs (the ids start `open`), and
+# GREEN once `follow-ups.mjs close` has been run for real against the live
+# ledger for both ids this scope's ISSUE-0046 names.
+test_031_both_registry_items_closed_for_real() {
+  log_info "Test: both fu-adhoc-probes-unisolated-report-only and fu-spec-closes-claim-unverified are closed for real in the live ledger, resolved_by naming this scope; no other frozen spec document is amended by this scope's diff (TEST-013)..."
+  local out ec=0
+  out="$(cd "$PROJECT_ROOT" && node "$FU" list --ref registry-audit-20260820 --status all --json 2>&1)" || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-031: list must exit 0, got $ec: $out"
+  local check
+  check="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const want=["fu-adhoc-probes-unisolated-report-only","fu-spec-closes-claim-unverified"];
+    for (const id of want) {
+      const it=j.items.find(i=>i.id===id);
+      if (!it) { console.log("MISSING:"+id); process.exit(0); }
+      if (it.status!=="done") { console.log("NOT-DONE:"+id+" status="+it.status); process.exit(0); }
+      if (!it.resolved_by || !/adhoc-probes-unisolated-report-only/.test(it.resolved_by)) {
+        console.log("BAD-RESOLVED-BY:"+id+" resolved_by="+it.resolved_by); process.exit(0);
+      }
+    }
+    console.log("OK");
+  ' "$out")"
+  [[ "$check" == "OK" ]] \
+    || log_fail "TEST-031: both registry items must be closed done with resolved_by naming this scope — run the documented close step if this is the first failure: $check"
+
+  # Delivery-diff guard: this scope's OWN delivery must not have amended any
+  # OTHER frozen spec document's "Registry items closed by this scope" claim
+  # (Spec-AC-13). This is a fact about THIS scope's delivery diff, not a
+  # standing invariant about whatever branch happens to run this shared
+  # suite later — a naive `$BASE_REF...HEAD` comparison is branch-agnostic
+  # and re-fires on every future unrelated branch that touches ANY
+  # docs/specs/*.md file, since suite-map.yaml routes such diffs straight at
+  # this suite (BLOCKING B1, review round 2). Gate the check on this scope's
+  # own spec document actually being part of the live diff: that is true
+  # only while this scope's own branch is being delivered (before merge, or
+  # standalone in a fixture clone that still carries these commits) and
+  # false for every branch before or after it, so the assertion cannot
+  # misfire on someone else's delivery while still catching a real
+  # violation in this scope's own.
+  if git -C "$PROJECT_ROOT" rev-parse --verify -q "$BASE_REF" >/dev/null 2>&1; then
+    local spec_diff own_spec_touched other_specs
+    spec_diff="$(git -C "$PROJECT_ROOT" diff --name-only "$BASE_REF"...HEAD -- 'docs/specs/*.md' 2>/dev/null)"
+    own_spec_touched="$(printf '%s\n' "$spec_diff" | grep -F 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md' || true)"
+    if [[ -n "$own_spec_touched" ]]; then
+      other_specs="$(printf '%s\n' "$spec_diff" \
+        | grep -v 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md' || true)"
+      [[ -z "$other_specs" ]] \
+        || log_fail "TEST-031: this scope's diff touches another frozen spec document, which Spec-AC-13 forbids: $other_specs"
+    else
+      log_info "TEST-031: this scope's own spec document is not part of the live $BASE_REF...HEAD diff — not this scope's delivery branch, delivery-diff guard not applicable here"
+    fi
+  else
+    log_info "TEST-031: base ref $BASE_REF not resolvable here — skipping the delivery-diff guard (degrade, not a failure)"
+  fi
+
+  log_pass "both registry items named by ISSUE-0046 are closed for real, resolved_by naming this scope; no other frozen spec document is touched (TEST-013)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-followup-registry TEST-001..005, 008, 009; role-verification-guards TEST-010/Spec-AC-09 N1)"
   echo "  + followups-cli-hardening TEST-011..015,017"
   echo "  + cli-output-survives-a-pipe TEST-018..022"
   echo "  + registry-attribution-correction TEST-023"
+  echo "  + spec-adhoc-probes-unisolated-report-only verify-closures TEST-006..013"
   check_deps
   setup_fixture
   test_001_schema_and_id_discipline
@@ -1532,6 +1900,14 @@ main() {
   test_021_early_close_is_not_a_failure
   test_022_output_format_is_pinned
   test_023_correct_flag
+  test_024_verify_closures_reads_both_claim_shapes
+  test_025_four_parse_branches_exact_sets
+  test_026_miss_and_attribution_tiers
+  test_027_exit_code_contract
+  test_028_corpus_walk_unions_both_roots
+  test_029_real_corpus_ratchet_is_a_subset
+  test_030_suite_map_glob_and_seam3_regression
+  test_031_both_registry_items_closed_for_real
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

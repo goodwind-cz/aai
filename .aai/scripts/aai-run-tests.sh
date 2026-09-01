@@ -33,6 +33,15 @@
 #   AAI_UNAME         test-only override for the `uname -s` probe below
 #                      (SPEC-0046 Spec-AC-05); unset on macOS/Linux in normal
 #                      use — this file's behavior there is UNCHANGED.
+#   AAI_SHIPPING_WRITE_FATAL=1  opt-in teeth (D5,
+#                      spec-adhoc-probes-unisolated-report-only): unset (the
+#                      default), an ad-hoc command that dirties the shipping
+#                      repository still exits with its own real status. Set,
+#                      and only for an ad-hoc invocation whose tripwire state
+#                      is dirty, a wrapped command that exited 0 exits 12
+#                      instead; a wrapped command that already failed keeps
+#                      its own non-zero status. Never affects a suite run or
+#                      test-framework.sh.
 #
 # Platform matrix (Spec-AC-07 / SPEC-0046-spec-test-wrapper-windows-fallback;
 # kept identical across this header, aai-reap-tests.sh, aai-run-tests.ps1,
@@ -314,6 +323,24 @@ aai_iso_exec_script() {
   return 0
 }
 
+# aai_iso_is_framework_script - true when the script "$@" actually EXECUTES
+# (per aai_iso_exec_script) resolves, by RESOLVED PATH and never by suffix, to
+# this repository's own tests/skills/test-framework.sh. The single predicate
+# behind D5's framework opt-out; shared by aai_iso_is_suite_run below and by
+# the AAI_INVOCATION_KIND 'framework' classification further down (N3,
+# spec-adhoc-probes-unisolated-report-only) so a future bypass fix only has to
+# land in one place, never two.
+aai_iso_is_framework_script() {
+  ai_fs_exec=$(aai_iso_exec_script "$@")
+  if [ -n "$ai_fs_exec" ] && [ "${ai_fs_exec##*/}" = "test-framework.sh" ] && [ -f "$ai_fs_exec" ]; then
+    ai_fs_d=$(cd "$(dirname "$ai_fs_exec")" 2>/dev/null && pwd) || ai_fs_d=''
+    if [ -n "$ai_fs_d" ] && [ "$ai_fs_d/test-framework.sh" = "$AAI_REPO_ROOT/tests/skills/test-framework.sh" ]; then
+      return 0
+    fi
+  fi
+  return 1
+}
+
 # aai_iso_is_suite_run - true when an argument names an existing test suite file
 # inside this repository's tests/ tree. The framework is never a suite run.
 #
@@ -328,12 +355,8 @@ aai_iso_exec_script() {
 # repository's tests/skills/test-framework.sh opts out; TEST-005(e)/(f)/(g)
 # hold all three directions.
 aai_iso_is_suite_run() {
-  ai_exec=$(aai_iso_exec_script "$@")
-  if [ -n "$ai_exec" ] && [ "${ai_exec##*/}" = "test-framework.sh" ] && [ -f "$ai_exec" ]; then
-    ai_d=$(cd "$(dirname "$ai_exec")" 2>/dev/null && pwd) || ai_d=''
-    if [ -n "$ai_d" ] && [ "$ai_d/test-framework.sh" = "$AAI_REPO_ROOT/tests/skills/test-framework.sh" ]; then
-      return 1
-    fi
+  if aai_iso_is_framework_script "$@"; then
+    return 1
   fi
   for ai_a in "$@"; do
     case "$ai_a" in
@@ -349,6 +372,17 @@ aai_iso_is_suite_run() {
   return 1
 }
 
+# --- INVOCATION KIND (D1, spec-adhoc-probes-unisolated-report-only) --------
+# One of three words, read-only classification: `suite` (a real test suite
+# file under this repository's tests/ tree), `framework` (this repository's
+# own tests/skills/test-framework.sh, the isolation opt-out
+# `aai_iso_is_suite_run` already carries), or `ad-hoc` (everything else - a
+# build, a generator, a node one-liner, any probe). This NEVER feeds back into
+# `aai_iso_is_suite_run`'s own predicate and never changes which invocations
+# get isolated (SEAM-1) - it only lets the tripwire report below say which of
+# the three it is instead of assuming every dirty run is a suite.
+AAI_INVOCATION_KIND='ad-hoc'
+
 # THE SUITE-RUN TEST COMES FIRST, and the two environment preconditions are
 # reported branches inside it rather than silent members of one conjunction.
 # The SET of invocations that get isolated is unchanged - all three predicates
@@ -357,6 +391,7 @@ aai_iso_is_suite_run() {
 # suite run which is NOT isolated can now say which of the three reasons it was,
 # instead of being indistinguishable from a build.
 if aai_iso_is_suite_run "$@"; then
+ AAI_INVOCATION_KIND='suite'
  if [ -z "$AAI_REPO_ROOT" ]; then
   AAI_ISO_STATUS='degraded'
   AAI_ISO_WHY='no repository root could be resolved'
@@ -545,6 +580,19 @@ if aai_iso_is_suite_run "$@"; then
  fi
 fi
 
+# The second half of D1's classification: this repository's own
+# test-framework.sh is never a suite (the opt-out above already excludes it
+# from `aai_iso_is_suite_run`), but it is not an ad-hoc probe either - it is
+# the load-bearing funnel CI runs. Checked only when the invocation was not
+# already classified `suite`, and read-only: `aai_iso_is_framework_script`
+# only reads and `cd`s inside a subshell, so this cannot move a single
+# invocation between isolation branches (SEAM-1). "$@" is unmodified here for
+# a non-suite invocation - the retarget loop above only ever runs on the
+# `isolated` path, which requires `suite`.
+if [ "$AAI_INVOCATION_KIND" != 'suite' ] && aai_iso_is_framework_script "$@"; then
+  AAI_INVOCATION_KIND='framework'
+fi
+
 # The status lines, on stderr, exactly once each, and only for an invocation
 # isolation was meant to cover. Both vocabularies are the framework's own, so the
 # two funnels cannot be read as disagreeing. The SEEDING notes above are
@@ -665,6 +713,13 @@ WATCHDOG_PID=$!
 # Wait for the command; capture its REAL exit status.
 wait "$CMD_PID"
 STATUS=$?
+# AAI_CMD_REAL_STATUS is the wrapped command's own exit status, fixed here
+# before anything below (namely the AAI_SHIPPING_WRITE_FATAL escalation to 12
+# further down) can overwrite $STATUS. Friction capture at the tail of this
+# script must judge the wrapped command by this value, not by the wrapper's
+# own final exit code - a dirty-but-successful ad-hoc command escalated to 12
+# did not fail, and must never be recorded as a deterministic_script_failure.
+AAI_CMD_REAL_STATUS=$STATUS
 
 # Stop the watchdog (it may already have exited).
 kill "$WATCHDOG_PID" 2>/dev/null
@@ -709,8 +764,30 @@ if [ "$AAI_TW_ARMED" -eq 1 ]; then
   AAI_TW_STATE=$(aai_tripwire_state "$AAI_TW_BEFORE" "$AAI_TW_AFTER")
   case "$AAI_TW_STATE" in
     dirty)
-      aai_tripwire_report "$AAI_TW_BEFORE" "$AAI_TW_AFTER" \
-        "the wrapped command [$AAI_CMD_DESC]" "AAI-TRIPWIRE" >&2
+      if [ "$AAI_INVOCATION_KIND" = 'ad-hoc' ]; then
+        # D3: the trailing remediation line names the REAL remedy for an
+        # ad-hoc invocation (a disposable checkout is not made for this kind,
+        # D2) and the opt-in below, instead of the suite/fixture sentence that
+        # sends the reader looking for a fixture that does not exist here.
+        aai_tripwire_report "$AAI_TW_BEFORE" "$AAI_TW_AFTER" \
+          "the wrapped command [$AAI_CMD_DESC]" "AAI-TRIPWIRE" \
+          "This command's working tree was the shipping repository, not a disposable checkout. Set AAI_SHIPPING_WRITE_FATAL=1 to fail this exit code the next time an ad-hoc command writes to it." >&2
+        # Spec-AC-01/D1: exactly one line naming the shipping repository path
+        # as this command's working tree, printed only here - a clean ad-hoc
+        # run (Spec-AC-02) and a suite/framework run (D3) never print it.
+        echo "AAI-ADHOC: $AAI_TW_ROOT was this command's working tree (the shipping repository, not a disposable checkout)." >&2
+        # D5: opt-in teeth. A wrapped command that already failed keeps its own
+        # non-zero status - a real failure outranks the guard. The watchdog
+        # path never reaches here with TIMED_OUT=1 meaningfully affected: the
+        # final exit sequence below checks TIMED_OUT before STATUS, so 124
+        # still outranks 12 unconditionally.
+        if [ "${AAI_SHIPPING_WRITE_FATAL:-0}" = "1" ] && [ "$STATUS" -eq 0 ]; then
+          STATUS=12
+        fi
+      else
+        aai_tripwire_report "$AAI_TW_BEFORE" "$AAI_TW_AFTER" \
+          "the wrapped command [$AAI_CMD_DESC]" "AAI-TRIPWIRE" >&2
+      fi
       ;;
     unavailable)
       # Two opposite cases hide behind one `unavailable`, and the library keeps
@@ -739,7 +816,7 @@ if [ "$TIMED_OUT" -eq 1 ]; then
   aai_capture_friction 124 stalled_progress
   exit 124
 fi
-if [ "$STATUS" -ne 0 ]; then
-  aai_capture_friction "$STATUS" deterministic_script_failure
+if [ "$AAI_CMD_REAL_STATUS" -ne 0 ]; then
+  aai_capture_friction "$AAI_CMD_REAL_STATUS" deterministic_script_failure
 fi
 exit "$STATUS"
