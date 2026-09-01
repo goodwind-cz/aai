@@ -449,7 +449,7 @@ function parseArgs(argv) {
     exit(0);
   }
   if (!Object.prototype.hasOwnProperty.call(FLAG_SPECS, sub)) {
-    usageError(`unknown subcommand "${sub}" (expected list, add or close)`);
+    usageError(`unknown subcommand "${sub}" (expected list, add, close or verify-closures)`);
   }
   const valueFlags = FLAG_SPECS[sub];
   // Lookahead-ambiguous tokens (D1 rule 2): a value-taking flag's NEXT token

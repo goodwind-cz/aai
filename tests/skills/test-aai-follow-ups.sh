@@ -1746,6 +1746,20 @@ test_029_real_corpus_ratchet_is_a_subset() {
   out="$(cd "$PROJECT_ROOT" && node "$FU" verify-closures --json 2>&1)" || ec=$?
   [[ "$ec" == 0 ]] || log_fail "TEST-029: real-corpus report-only run must exit 0, got $ec: $out"
 
+  # N2 (review round-3): a MISS-set-is-a-subset check alone passes vacuously
+  # over an empty scan (zero docs found, zero claims extracted) — the exact
+  # silent-guard failure mode this scope exists to close. A broken cwd, a
+  # renamed docs root, or a regex regression in extractClaims must fail this
+  # ratchet loudly instead of passing it. Floors are conservative against the
+  # measured real-repo counts (docs=410, claims=33 at review time).
+  local floor_check; floor_check="$(node -e '
+    const j = JSON.parse(process.argv[1]);
+    if (j.docs_scanned > 100 && j.counts.claims > 10) { console.log("OK"); process.exit(0); }
+    console.log(`TOO_LOW docs_scanned=${j.docs_scanned} claims=${j.counts.claims}`);
+  ' "$out")"
+  [[ "$floor_check" == "OK" ]] \
+    || log_fail "TEST-029: the real-corpus scan found suspiciously few docs/claims (want docs_scanned > 100 and claims > 10) — $floor_check ($out)"
+
   local misses; misses="$(miss_ids_json "$out")"
   misses_subset_of_allowlist "$misses" \
     || log_fail "TEST-029: the real corpus reported a MISS outside the declared allowlist — either a real closure claim broke, or the allowlist needs a deliberate, reviewed update. misses=[$misses] allowlist=[${KNOWN_UNVERIFIED_CLOSURE_CLAIMS[*]}]"
