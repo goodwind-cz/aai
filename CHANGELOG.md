@@ -11,6 +11,25 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(harness): reconcile the AC Status table before the close gate trusts it
+
+- `docs-audit.mjs --gate` and `--check` could report `GATE PASS: AC Status
+  table complete` while the shared markdown table parser (`parseAcTable`)
+  had silently dropped one or more declared rows — including the only
+  non-terminal one — because a cell held an escaped pipe (`\|`) the parser
+  didn't honour as an escape, throwing off the cell count against the
+  header. `spec-lint.mjs` already caught this shape
+  (`ac-row-unparseable`); the gate did not share that detection and asserted
+  completeness only over the rows that happened to survive parsing.
+- Both the canonical and lean-volunteered table shapes now reconcile
+  `declaredIds` against the parsed rows before `checkRows` runs, and the
+  `status: done` drift check mirrors the same reconciliation, so a
+  pipe-dropped row FAILS the gate (or reports `NEEDS-TRIAGE` on a `done`
+  drift check) naming the row, across plain/escaped/indented pipes and
+  absent/L2/L3 ceremony levels. A clean table is byte-identical.
+- Filed from GitHub issue #330; ISSUE-DRAFT-gate-ac-row-escaped-pipe-blind /
+  SPEC-DRAFT-spec-gate-ac-row-escaped-pipe-blind.
+
 ## [v2026.09.01] — fix(harness): name an ad-hoc shipping-repo write and check a spec's own closure claims
 
 - `.aai/scripts/aai-run-tests.sh` now classifies every invocation as

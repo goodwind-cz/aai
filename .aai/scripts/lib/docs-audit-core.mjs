@@ -62,25 +62,27 @@ const CEREMONY_JUSTIFICATION_RE = /(?:^|\n)Ceremony justification:[ \t]*\S/;
 // dispatch: a bad declaration can only ever ADD ceremony, never remove it).
 const isLeanCeremonyLevel = (clRaw) => clRaw !== undefined && clRaw !== null
   && (String(clRaw) === '0' || String(clRaw) === '1');
-// spec-l1-close-gate — the lean AC parser splits rows on a naive `|`, so a row
-// whose cell carries a literal pipe (plain `|` OR an escaped `\|`, which this
-// parser does NOT unescape) gains a phantom cell, fails the column-count check,
-// and is SILENTLY dropped — leaving a consumer to validate only the survivors
-// while a declared row goes unchecked. parseLeanAcTable returns `declaredIds`
-// (every Spec-AC id in the SAME line set it walks, dropped rows included); a
-// declared id absent from the parsed `rows` is an unparseable row. Both the
-// close gate and the done-drift check reconcile on it so neither can pass/clean
-// while a declared AC is invisible.
-const unparseableLeanIds = (lean) => {
+// spec-l1-close-gate / gate-ac-row-escaped-pipe-blind — the AC table parsers
+// (both the lean `parseLeanAcTable` and the canonical `parseAcTable`) split
+// rows on a naive `|`, so a row whose cell carries a literal pipe (plain `|`
+// OR an escaped `\|`, which neither parser unescapes) gains a phantom cell,
+// fails the column-count check, and is SILENTLY dropped — leaving a consumer
+// to validate only the survivors while a declared row goes unchecked. Both
+// parsers return `declaredIds` (every Spec-AC id in the SAME line set the row
+// loop walks, dropped rows included); a declared id absent from the parsed
+// `rows` is an unparseable row. One shared reconciliation function serves
+// BOTH table shapes (gate-ac-row-escaped-pipe-blind D2) so the close gate and
+// the done-drift check can never diverge from each other, for either shape.
+const unparseableAcIds = (table) => {
   // Compare on the LEADING Spec-AC-NN of each parsed row's id cell, matching how
   // declaredIds is extracted (`^\s*\|\s*(Spec-AC-\d+)\b`). A well-formed but
   // suffixed id cell (e.g. "Spec-AC-02 (note)") parses cleanly and must NOT be
   // misreported as an unparseable pipe-drop — it declared and it parsed.
-  const parsed = new Set(lean.rows.map(r => {
+  const parsed = new Set(table.rows.map(r => {
     const m = String(r['Spec-AC'] ?? '').match(/^(Spec-AC-\d+)\b/);
     return m ? m[1] : r['Spec-AC'];
   }));
-  return (lean.declaredIds ?? []).filter(id => !parsed.has(id));
+  return (table.declaredIds ?? []).filter(id => !parsed.has(id));
 };
 const DEFAULT_STALE_DAYS = 90;
 // closeout-candidate detection (SPEC-0003 / CHANGE-0004): parents are scoped to
@@ -1232,8 +1234,14 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
       const baseOf = (r) => r._baseStatus ?? (r['Status'] ?? '').toLowerCase();
       const nonTerminal = ac.rows.filter(r => !TERMINAL_AC.has(baseOf(r)));
       const doneNoEvidence = ac.rows.filter(r => baseOf(r) === 'done' && !rowHasEvidence(r));
-      if (ac.hasGate && (nonTerminal.length || doneNoEvidence.length)) {
+      // gate-ac-row-escaped-pipe-blind D4 — mirror the gate's silent-drop
+      // reconciliation on the canonical table too: an unparseable declared row
+      // hides its own status, so a done spec carrying one cannot read
+      // tracked-done/aligned just because the survivors all look terminal.
+      const unparseableCanonical = ac.hasGate ? unparseableAcIds(ac) : [];
+      if (ac.hasGate && (nonTerminal.length || doneNoEvidence.length || unparseableCanonical.length)) {
         doc.verdict = 'probable-false-done';
+        if (unparseableCanonical.length) doc.reasons.push(`${unparseableCanonical.length} AC row(s) unparseable (${unparseableCanonical.join(', ')} — a literal "|" in a cell hides the row's status)`);
         if (nonTerminal.length) doc.reasons.push(`${nonTerminal.length} AC row(s) non-terminal`);
         if (doneNoEvidence.length) doc.reasons.push(`${doneNoEvidence.length} done AC row(s) without evidence`);
       } else if (!ac.hasGate && type === 'spec') {
@@ -1258,7 +1266,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
           // declared row (literal pipe) hides its own status, so a done spec
           // carrying one cannot be trusted done (probable-false-done), exactly
           // as the close gate refuses to pass it.
-          const unparseable = unparseableLeanIds(lean);
+          const unparseable = unparseableAcIds(lean);
           const leanNonTerminal = lean.rows.filter(r => !TERMINAL_AC.has(normalizeAcStatus(r['Status'] ?? '').status));
           if (unparseable.length) {
             doc.verdict = 'probable-false-done';
@@ -1667,23 +1675,35 @@ function gateContent(content, extraMethods) {
       }
     }
   };
+  // gate-ac-row-escaped-pipe-blind D3 — before trusting `ac.rows` as the
+  // complete canonical table, reconcile it against `ac.declaredIds`: a
+  // declared row the parser silently dropped (cell count breaks on a literal
+  // or escaped pipe) must fail the gate by name, not evaluate as absent.
+  const reconcileCanonical = () => {
+    for (const id of unparseableAcIds(ac)) {
+      reasons.push(`${id} is declared in the AC Status table but its row did not parse (a literal "|" inside a cell breaks the row — reword to remove pipes)`);
+    }
+  };
   if (!isLeanCeremonyLevel(clRaw)) {
     // Legacy path — absent/null/garbage/2/3: unchanged behavior.
     if (!ac.hasGate || ac.rows.length === 0) {
       reasons.push('missing AC Status table');
     } else {
+      reconcileCanonical();
       checkRows(ac.rows, true);
     }
   } else if (ac.hasGate && ac.rows.length > 0) {
     // A lean-eligible doc that volunteers the full canonical table gets the
-    // full canonical checks.
+    // full canonical checks — this is the SAME gap SPEC-0036 review F3
+    // flagged and explicitly left open.
+    reconcileCanonical();
     checkRows(ac.rows, true);
   } else {
     const lean = parseLeanAcTable(content);
     if (!lean.hasLean || lean.rows.length === 0) {
       reasons.push(`missing AC table (ceremony_level ${clRaw} lean shape: a "## Acceptance Criteria" table with Spec-AC + Status columns)`);
     } else {
-      for (const id of unparseableLeanIds(lean)) {
+      for (const id of unparseableAcIds(lean)) {
         reasons.push(`${id} is declared in the AC table but its row did not parse (a literal "|" inside a cell breaks the row — reword to remove pipes)`);
       }
       checkRows(lean.rows, false);

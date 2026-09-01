@@ -4389,6 +4389,237 @@ test_l1gate_done_drift_pipe_drop() {  # spec-l1-close-gate TEST-008 / Spec-AC-04
   log_pass "Done-drift check mirrors the gate: pipe-dropped non-terminal row flips probable-false-done naming it"
 }
 
+# --- gate-ac-row-escaped-pipe-blind: canonical AC Status table twin of the ----
+# --- lean-table fix above (GitHub #330) ---------------------------------------
+
+test_gateac_canonical_pipe_drop_reconciled() {  # TEST-001 / Spec-AC-01
+  log_info "Test: a CANONICAL AC Status row broken by a literal pipe is silently dropped by parseAcTable — the gate must reconcile declared-vs-parsed and FAIL naming it (plain/escaped/indented), across absent/L2/L3 ceremony levels; a clean table is byte-identical (TEST-001)..."
+  local d ec
+  d="$(setup_iso_repo gateac-pipedrop)"
+  # Legacy/absent ceremony_level. Spec-AC-02's Notes cell carries a literal
+  # '|', so the naive split yields a phantom cell, the row fails the
+  # column-count check, and parseAcTable DROPS it. Pre-fix the gate validated
+  # only Spec-AC-01 (terminal) and PASSED.
+  cat > "$d/docs/specs/SPEC-7201-pipedrop.md" <<'MD'
+---
+id: SPEC-7201
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Fixture spec SPEC-7201
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
+|------------|-------------|--------------|----------|-----------|-------|
+| Spec-AC-01 | first       | done         | a1b2c3d  | TDD       | —     |
+| Spec-AC-02 | second      | implementing | —        | —         | value is a | inside the cell |
+MD
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7201 > g.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "pipe-dropped declared canonical row must FAIL the gate, not pass on survivors (got $ec): $(cat "$d/g.log")"
+  grep -qF "Spec-AC-02" "$d/g.log" || log_fail "gate reason must NAME the unparseable declared row Spec-AC-02: $(cat "$d/g.log")"
+  grep -qiF "did not parse" "$d/g.log" || log_fail "gate reason must explain the row did not parse: $(cat "$d/g.log")"
+  # negative control: escaping the pipe as \| does NOT rescue the author.
+  sed 's/a | inside/a \\| inside/' "$d/docs/specs/SPEC-7201-pipedrop.md" | sed 's/SPEC-7201/SPEC-7202/' > "$d/docs/specs/SPEC-7202-esc.md"
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7202 > g2.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "escaped-pipe canonical row must STILL fail (parser does not unescape) (got $ec): $(cat "$d/g2.log")"
+  grep -qF "Spec-AC-02" "$d/g2.log" || log_fail "escaped-pipe variant must also name Spec-AC-02"
+  # indented broken row (same whitespace tolerance as the lean fix, TEST-007 review F1).
+  cat > "$d/docs/specs/SPEC-7203-indent.md" <<'MD'
+---
+id: SPEC-7203
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Fixture spec SPEC-7203
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+  | Spec-AC-02 | second    | done   | b2c3d4e  | TDD       | indented with a | pipe |
+MD
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7203 > g3.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "INDENTED pipe-dropped canonical row must FAIL the gate, not pass (got $ec): $(cat "$d/g3.log")"
+  grep -qF "Spec-AC-02" "$d/g3.log" || log_fail "indented variant must also name Spec-AC-02: $(cat "$d/g3.log")"
+  # explicit L2 and L3 ceremony levels take the SAME legacy branch — parity check.
+  for cl in 2 3; do
+    cat > "$d/docs/specs/SPEC-72${cl}0-cl${cl}.md" <<MD
+---
+id: SPEC-72${cl}0
+type: spec
+status: draft
+ceremony_level: ${cl}
+links:
+  pr: []
+---
+# Fixture spec SPEC-72${cl}0
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
+|------------|-------------|--------------|----------|-----------|-------|
+| Spec-AC-01 | first       | done         | a1b2c3d  | TDD       | —     |
+| Spec-AC-02 | second      | implementing | —        | —         | value is a | inside the cell |
+MD
+    ec=0
+    (cd "$d" && node .aai/scripts/docs-audit.mjs --gate "SPEC-72${cl}0" > "gcl${cl}.log" 2>&1) || ec=$?
+    [[ "$ec" == 1 ]] || log_fail "ceremony_level ${cl} pipe-dropped row must also FAIL the gate (got $ec): $(cat "$d/gcl${cl}.log")"
+    grep -qF "Spec-AC-02" "$d/gcl${cl}.log" || log_fail "ceremony_level ${cl} variant must also name Spec-AC-02"
+  done
+  # negative control: a fully parseable canonical table (pipe reworded out,
+  # all rows terminal) must gate PASS exactly as before this change.
+  cat > "$d/docs/specs/SPEC-7209-clean.md" <<'MD'
+---
+id: SPEC-7209
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Fixture spec SPEC-7209
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+| Spec-AC-02 | second      | done   | b2c3d4e  | TDD       | value is safe, no pipes here |
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7209 > gclean.log 2>&1) \
+    || log_fail "a fully-parseable canonical table must still PASS the gate: $(cat "$d/gclean.log")"
+  rm -rf "$d"
+  log_pass "Pipe-broken declared canonical row is reconciled and fails the gate naming it (plain + escaped + indented + L2/L3); clean table unaffected"
+}
+
+test_gateac_lean_volunteering_full_table() {  # TEST-002 / Spec-AC-01
+  log_info "Test: a lean-eligible (ceremony_level 0/1) doc that VOLUNTEERS the full canonical table with a pipe-dropped row still FAILS the gate naming it — closes the SPEC-0036 review-F3 gap (TEST-002)..."
+  local d ec
+  d="$(setup_iso_repo gateac-leanvol)"
+  cat > "$d/docs/specs/SPEC-7211-leanvol.md" <<'MD'
+---
+id: SPEC-7211
+type: spec
+status: draft
+ceremony_level: 1
+links:
+  pr: []
+---
+# Fixture spec SPEC-7211
+
+Ceremony justification: S-sized single-surface fix (one script, one test).
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+| Spec-AC-02 | second      | done   | b2c3d4e  | TDD       | value is a | inside the cell |
+MD
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7211 > g.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "a lean-eligible doc volunteering the full canonical table with a dropped row must still FAIL (got $ec): $(cat "$d/g.log")"
+  grep -qF "Spec-AC-02" "$d/g.log" || log_fail "gate reason must NAME the unparseable declared row Spec-AC-02: $(cat "$d/g.log")"
+  grep -qiF "did not parse" "$d/g.log" || log_fail "gate reason must explain the row did not parse: $(cat "$d/g.log")"
+  rm -rf "$d"
+  log_pass "Lean-eligible doc volunteering the full canonical table still reconciles pipe-dropped rows (SPEC-0036 review-F3 gap closed)"
+}
+
+test_gateac_done_drift_canonical_pipe_drop() {  # TEST-003 / Spec-AC-02
+  log_info "Test: a DONE canonical spec with a pipe-dropped NON-TERMINAL declared row must NOT report CLEAN — the done-drift check mirrors the gate on the canonical table too (TEST-003)..."
+  local d
+  d="$(setup_iso_repo gateac-driftdrop)"
+  cat > "$d/docs/specs/SPEC-7221-driftdrop.md" <<'MD'
+---
+id: SPEC-7221
+type: spec
+status: done
+links:
+  pr: []
+---
+# Fixture spec SPEC-7221
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
+|------------|-------------|--------------|----------|-----------|-------|
+| Spec-AC-01 | first       | done         | a1b2c3d  | TDD       | —     |
+| Spec-AC-02 | second      | implementing | —        | —         | value is a | in the cell |
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event > chk.log 2>&1) || true
+  assert_contains "$d/chk.log" "NEEDS-TRIAGE"
+  assert_contains "$d/chk.log" "probable-false-done"
+  grep -qF "Spec-AC-02" "$d/chk.log" || log_fail "drift reason must NAME the invisible non-terminal row Spec-AC-02: $(cat "$d/chk.log")"
+  grep -qiF "unparseable" "$d/chk.log" || log_fail "drift reason must flag the row unparseable: $(cat "$d/chk.log")"
+  # negative control: reword the pipe out, all rows terminal+evidenced -> CLEAN.
+  cat > "$d/docs/specs/SPEC-7221-driftdrop.md" <<'MD'
+---
+id: SPEC-7221
+type: spec
+status: done
+links:
+  pr: []
+---
+# Fixture spec SPEC-7221
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+| Spec-AC-02 | second      | done   | b2c3d4e  | TDD       | value is safe, no pipes here |
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > chk2.log 2>&1) \
+    || log_fail "reworked done canonical spec must be CLEAN under strict: $(cat "$d/chk2.log")"
+  assert_contains "$d/chk2.log" "CLEAN"
+  rm -rf "$d"
+  log_pass "Done-drift check mirrors the gate on the canonical table: pipe-dropped non-terminal row flips probable-false-done naming it"
+}
+
+test_gateac_issue330_crosscheck() {  # TEST-004 / Spec-AC-03
+  log_info "Test: the GitHub #330 minimal repro run through BOTH spec-lint.mjs --path and docs-audit.mjs --gate must report the SAME row — never disagree (TEST-004)..."
+  local d
+  d="$(setup_iso_repo gateac-issue330)"
+  cp "$PROJECT_ROOT/.aai/scripts/spec-lint.mjs" "$d/.aai/scripts/"
+  # Verbatim repro shape from the issue: Spec-AC-01 done, Spec-AC-02 blocked
+  # with an escaped pipe inside a test-runner-summary-style Notes cell.
+  cat > "$d/docs/specs/SPEC-DRAFT-spec-gate-probe.md" <<'MD'
+---
+id: spec-gate-probe
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Fixture spec spec-gate-probe
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status  | Evidence | Review-By | Notes |
+|------------|-------------|---------|----------|-----------|-------|
+| Spec-AC-01 | first       | done    | a1b2c3d  | TDD       | —     |
+| Spec-AC-02 | second      | blocked | —        | —         | counts read `527 passed \| 1 skipped` |
+MD
+  (cd "$d" && node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-gate-probe.md > lint.log 2>&1) || true
+  assert_contains "$d/lint.log" "ac-row-unparseable"
+  grep -qF "Spec-AC-02" "$d/lint.log" || log_fail "spec-lint must name Spec-AC-02 as the unparseable row: $(cat "$d/lint.log")"
+  local ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate spec-gate-probe > gate.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "--gate must FAIL on the same repro (RED pre-fix: exit 0 'GATE PASS'), got $ec: $(cat "$d/gate.log")"
+  grep -qF "Spec-AC-02" "$d/gate.log" || log_fail "--gate must name the SAME row spec-lint flagged, Spec-AC-02: $(cat "$d/gate.log")"
+  assert_not_contains "$d/gate.log" "GATE PASS"
+  rm -rf "$d"
+  log_pass "spec-lint.mjs and docs-audit.mjs --gate agree on the #330 repro: both name Spec-AC-02, neither claims completeness"
+}
+
 # --- RFC-0011 (delta-spec lifecycle) D3: canonical-provenance drift check ------
 
 # Write a canonical doc for $2 (domain) into repo dir $1 with the requirement
@@ -6393,6 +6624,10 @@ main() {
   test_l1gate_garbage_level_fail_closed
   test_l1gate_pipe_drop_reconciled
   test_l1gate_done_drift_pipe_drop
+  test_gateac_canonical_pipe_drop_reconciled
+  test_gateac_lean_volunteering_full_table
+  test_gateac_done_drift_canonical_pipe_drop
+  test_gateac_issue330_crosscheck
   test_delta3_provenance_drift
   test_delta3_empty_canonical_control
   test_change0027_delivery_commit_flags
