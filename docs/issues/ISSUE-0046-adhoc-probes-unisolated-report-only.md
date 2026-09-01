@@ -2,7 +2,12 @@
 id: adhoc-probes-unisolated-report-only
 type: issue
 number: 46
-status: draft
+status: done
+links:
+  commits:
+    - 24385e3
+  pr:
+    - TBD
 ---
 
 # P2 backlog cluster: registry-audit-20260820 (2 items)

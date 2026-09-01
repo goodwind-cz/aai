@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-01T15:09:14.465Z
+Generated: 2026-09-01T15:11:03.215Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0159 | specs | implementing | 13 implementing | docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md |
 
 ## Canonical layer (0)
 
@@ -50,7 +49,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (383)
+## Done (385)
 
 | ID | Type | Path |
 |---|---|---|
@@ -259,6 +258,7 @@ _None._
 | ISSUE-0037 | issues | docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md |
 | ISSUE-0038 | issues | docs/issues/ISSUE-0038-checks-that-assert-less-than-they-claim.md |
 | ISSUE-0045 | issues | docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md |
+| ISSUE-0046 | issues | docs/issues/ISSUE-0046-adhoc-probes-unisolated-report-only.md |
 | ISSUE-0048 | issues | docs/issues/ISSUE-0048-bare-main-baseref-sweep.md |
 | ISSUE-0049 | issues | docs/issues/ISSUE-0049-cli-exit-truncates-pipe-sweep.md |
 | ISSUE-0053 | issues | docs/issues/ISSUE-0053-drain-pipe-grep-q-ratchet.md |
@@ -436,9 +436,10 @@ _None._
 | SPEC-0156 | specs | docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md |
 | SPEC-0157 | specs | docs/specs/SPEC-0157-spec-aai-update-gitignore-drift-reconcile.md |
 | SPEC-0158 | specs | docs/specs/SPEC-0158-spec-intake-staleness-preflight-warning.md |
+| SPEC-0159 | specs | docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (39)
+## Drafts (38)
 
 | ID | Type | Path |
 |---|---|---|
@@ -455,7 +456,6 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
-| ISSUE-0046 | issues | docs/issues/ISSUE-0046-adhoc-probes-unisolated-report-only.md |
 | ISSUE-0047 | issues | docs/issues/ISSUE-0047-agents-tree-not-synced.md |
 | ISSUE-0050 | issues | docs/issues/ISSUE-0050-contract-prefix-order-unenforced.md |
 | ISSUE-0051 | issues | docs/issues/ISSUE-0051-dispatch-prompt-coaching-bias.md |
