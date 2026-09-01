@@ -732,8 +732,9 @@ const LABEL_RE = /\b(CLOSED FULLY|CLOSED QUALIFIEDLY|NOT CLOSED)\b/g;
 
 function extractHeadingClaims(text) {
   const claims = new Set();
+  // No `g` flag on HEADING_RE, so `.exec` always starts at index 0 and
+  // `.lastIndex` is never consulted — safe to reuse across documents as-is.
   const hm = HEADING_RE.exec(text);
-  HEADING_RE.lastIndex = 0; // this regex is reused across documents
   if (!hm) return claims;
   const rest = text.slice(hm.index + hm[0].length);
   const nextHeading = rest.search(/\n##[ \t]+/);
