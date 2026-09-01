@@ -18,7 +18,7 @@
 3	.aai/scripts/aai-bootstrap.sh
 1	.aai/scripts/aai-canonicalize.sh
 2	.aai/scripts/aai-live.sh
-10	.aai/scripts/aai-run-tests.sh
+11	.aai/scripts/aai-run-tests.sh
 2	.aai/scripts/aai-sync.sh
 1	.aai/scripts/aai-update.sh
 1	.aai/scripts/claude-hook-gate.sh
@@ -55,7 +55,7 @@
 2	tests/skills/test-aai-feedback-status.sh
 2	tests/skills/test-aai-feedback-triage.sh
 2	tests/skills/test-aai-feedback-upsert.sh
-4	tests/skills/test-aai-follow-ups.sh
+7	tests/skills/test-aai-follow-ups.sh
 2	tests/skills/test-aai-friction-capture-points.sh
 2	tests/skills/test-aai-friction-wiring.sh
 2	tests/skills/test-aai-friction.sh
@@ -98,7 +98,7 @@
 7	tests/skills/test-aai-spec-lint.sh
 9	tests/skills/test-aai-spec-tools.sh
 2	tests/skills/test-aai-state.sh
-19	tests/skills/test-aai-suite-isolation.sh
+24	tests/skills/test-aai-suite-isolation.sh
 2	tests/skills/test-aai-suite-select.sh
 7	tests/skills/test-aai-sweep-parallel.sh
 4	tests/skills/test-aai-sync-seed.sh
