@@ -1839,17 +1839,32 @@ test_031_both_registry_items_closed_for_real() {
   [[ "$check" == "OK" ]] \
     || log_fail "TEST-031: both registry items must be closed done with resolved_by naming this scope — run the documented close step if this is the first failure: $check"
 
-  # Delivery-diff guard: this scope must not have amended any OTHER frozen
-  # spec document's "Registry items closed by this scope" claim. Best-effort
-  # against the branch's merge-base with $BASE_REF; degrades to a named SKIP
-  # rather than a false failure when the base ref cannot be resolved (a
-  # shallow clone, a detached fixture checkout run standalone, etc).
+  # Delivery-diff guard: this scope's OWN delivery must not have amended any
+  # OTHER frozen spec document's "Registry items closed by this scope" claim
+  # (Spec-AC-13). This is a fact about THIS scope's delivery diff, not a
+  # standing invariant about whatever branch happens to run this shared
+  # suite later — a naive `$BASE_REF...HEAD` comparison is branch-agnostic
+  # and re-fires on every future unrelated branch that touches ANY
+  # docs/specs/*.md file, since suite-map.yaml routes such diffs straight at
+  # this suite (BLOCKING B1, review round 2). Gate the check on this scope's
+  # own spec document actually being part of the live diff: that is true
+  # only while this scope's own branch is being delivered (before merge, or
+  # standalone in a fixture clone that still carries these commits) and
+  # false for every branch before or after it, so the assertion cannot
+  # misfire on someone else's delivery while still catching a real
+  # violation in this scope's own.
   if git -C "$PROJECT_ROOT" rev-parse --verify -q "$BASE_REF" >/dev/null 2>&1; then
-    local other_specs
-    other_specs="$(git -C "$PROJECT_ROOT" diff --name-only "$BASE_REF"...HEAD -- 'docs/specs/*.md' 2>/dev/null \
-      | grep -v 'SPEC-DRAFT-spec-adhoc-probes-unisolated-report-only.md' || true)"
-    [[ -z "$other_specs" ]] \
-      || log_fail "TEST-031: this scope's diff touches another frozen spec document, which Spec-AC-13 forbids: $other_specs"
+    local spec_diff own_spec_touched other_specs
+    spec_diff="$(git -C "$PROJECT_ROOT" diff --name-only "$BASE_REF"...HEAD -- 'docs/specs/*.md' 2>/dev/null)"
+    own_spec_touched="$(printf '%s\n' "$spec_diff" | grep -F 'SPEC-DRAFT-spec-adhoc-probes-unisolated-report-only.md' || true)"
+    if [[ -n "$own_spec_touched" ]]; then
+      other_specs="$(printf '%s\n' "$spec_diff" \
+        | grep -v 'SPEC-DRAFT-spec-adhoc-probes-unisolated-report-only.md' || true)"
+      [[ -z "$other_specs" ]] \
+        || log_fail "TEST-031: this scope's diff touches another frozen spec document, which Spec-AC-13 forbids: $other_specs"
+    else
+      log_info "TEST-031: this scope's own spec document is not part of the live $BASE_REF...HEAD diff — not this scope's delivery branch, delivery-diff guard not applicable here"
+    fi
   else
     log_info "TEST-031: base ref $BASE_REF not resolvable here — skipping the delivery-diff guard (degrade, not a failure)"
   fi
