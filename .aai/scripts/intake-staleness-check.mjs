@@ -156,7 +156,17 @@ function checkBranchArm(args, lines, deadline) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) return; // budget already spent -> skip silently
     const fetchTimeout = Math.min(timeoutMs, remaining);
-    const fetchRes = git(repo, ['fetch', '--quiet', remoteName, remoteBranch], fetchTimeout);
+    // EXPLICIT destination refspec (never a bare `<remote> <branch>` pair):
+    // a plain `git fetch origin main` only updates `refs/remotes/origin/main`
+    // as an AMBIENT side effect of the remote's already-configured fetch
+    // refspec matching that ref — behavior this script must not depend on,
+    // since `--repo` can point at a checkout whose remote config diverges
+    // from a fresh clone's default. Forcing an explicit `+<branch>:refs/remotes/<remote>/<branch>`
+    // writes exactly the ref the next command reads, deterministically,
+    // regardless of ambient refspec config (found: CI-only TEST-020 failure
+    // with 0 AAI-STALE lines where the local reproduction was clean).
+    const fetchRefspec = `+${remoteBranch}:refs/remotes/${remoteName}/${remoteBranch}`;
+    const fetchRes = git(repo, ['fetch', '--quiet', remoteName, fetchRefspec], fetchTimeout);
     if (!fetchRes.ok) return; // unreachable / auth failure / timeout / stale remote -> skip silently
   }
 
