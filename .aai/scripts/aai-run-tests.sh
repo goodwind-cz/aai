@@ -323,6 +323,24 @@ aai_iso_exec_script() {
   return 0
 }
 
+# aai_iso_is_framework_script - true when the script "$@" actually EXECUTES
+# (per aai_iso_exec_script) resolves, by RESOLVED PATH and never by suffix, to
+# this repository's own tests/skills/test-framework.sh. The single predicate
+# behind D5's framework opt-out; shared by aai_iso_is_suite_run below and by
+# the AAI_INVOCATION_KIND 'framework' classification further down (N3,
+# spec-adhoc-probes-unisolated-report-only) so a future bypass fix only has to
+# land in one place, never two.
+aai_iso_is_framework_script() {
+  ai_fs_exec=$(aai_iso_exec_script "$@")
+  if [ -n "$ai_fs_exec" ] && [ "${ai_fs_exec##*/}" = "test-framework.sh" ] && [ -f "$ai_fs_exec" ]; then
+    ai_fs_d=$(cd "$(dirname "$ai_fs_exec")" 2>/dev/null && pwd) || ai_fs_d=''
+    if [ -n "$ai_fs_d" ] && [ "$ai_fs_d/test-framework.sh" = "$AAI_REPO_ROOT/tests/skills/test-framework.sh" ]; then
+      return 0
+    fi
+  fi
+  return 1
+}
+
 # aai_iso_is_suite_run - true when an argument names an existing test suite file
 # inside this repository's tests/ tree. The framework is never a suite run.
 #
@@ -337,12 +355,8 @@ aai_iso_exec_script() {
 # repository's tests/skills/test-framework.sh opts out; TEST-005(e)/(f)/(g)
 # hold all three directions.
 aai_iso_is_suite_run() {
-  ai_exec=$(aai_iso_exec_script "$@")
-  if [ -n "$ai_exec" ] && [ "${ai_exec##*/}" = "test-framework.sh" ] && [ -f "$ai_exec" ]; then
-    ai_d=$(cd "$(dirname "$ai_exec")" 2>/dev/null && pwd) || ai_d=''
-    if [ -n "$ai_d" ] && [ "$ai_d/test-framework.sh" = "$AAI_REPO_ROOT/tests/skills/test-framework.sh" ]; then
-      return 1
-    fi
+  if aai_iso_is_framework_script "$@"; then
+    return 1
   fi
   for ai_a in "$@"; do
     case "$ai_a" in
@@ -570,19 +584,13 @@ fi
 # test-framework.sh is never a suite (the opt-out above already excludes it
 # from `aai_iso_is_suite_run`), but it is not an ad-hoc probe either - it is
 # the load-bearing funnel CI runs. Checked only when the invocation was not
-# already classified `suite`, and read-only: `aai_iso_exec_script` only reads
-# and `cd`s inside a subshell, so this cannot move a single invocation between
-# isolation branches (SEAM-1). "$@" is unmodified here for a non-suite
-# invocation - the retarget loop above only ever runs on the `isolated` path,
-# which requires `suite`.
-if [ "$AAI_INVOCATION_KIND" != 'suite' ]; then
-  ai_fw_exec=$(aai_iso_exec_script "$@")
-  if [ -n "$ai_fw_exec" ] && [ "${ai_fw_exec##*/}" = "test-framework.sh" ] && [ -f "$ai_fw_exec" ]; then
-    ai_fw_d=$(cd "$(dirname "$ai_fw_exec")" 2>/dev/null && pwd) || ai_fw_d=''
-    if [ -n "$ai_fw_d" ] && [ "$ai_fw_d/test-framework.sh" = "$AAI_REPO_ROOT/tests/skills/test-framework.sh" ]; then
-      AAI_INVOCATION_KIND='framework'
-    fi
-  fi
+# already classified `suite`, and read-only: `aai_iso_is_framework_script`
+# only reads and `cd`s inside a subshell, so this cannot move a single
+# invocation between isolation branches (SEAM-1). "$@" is unmodified here for
+# a non-suite invocation - the retarget loop above only ever runs on the
+# `isolated` path, which requires `suite`.
+if [ "$AAI_INVOCATION_KIND" != 'suite' ] && aai_iso_is_framework_script "$@"; then
+  AAI_INVOCATION_KIND='framework'
 fi
 
 # The status lines, on stderr, exactly once each, and only for an invocation
@@ -705,6 +713,13 @@ WATCHDOG_PID=$!
 # Wait for the command; capture its REAL exit status.
 wait "$CMD_PID"
 STATUS=$?
+# AAI_CMD_REAL_STATUS is the wrapped command's own exit status, fixed here
+# before anything below (namely the AAI_SHIPPING_WRITE_FATAL escalation to 12
+# further down) can overwrite $STATUS. Friction capture at the tail of this
+# script must judge the wrapped command by this value, not by the wrapper's
+# own final exit code - a dirty-but-successful ad-hoc command escalated to 12
+# did not fail, and must never be recorded as a deterministic_script_failure.
+AAI_CMD_REAL_STATUS=$STATUS
 
 # Stop the watchdog (it may already have exited).
 kill "$WATCHDOG_PID" 2>/dev/null
@@ -801,7 +816,7 @@ if [ "$TIMED_OUT" -eq 1 ]; then
   aai_capture_friction 124 stalled_progress
   exit 124
 fi
-if [ "$STATUS" -ne 0 ]; then
-  aai_capture_friction "$STATUS" deterministic_script_failure
+if [ "$AAI_CMD_REAL_STATUS" -ne 0 ]; then
+  aai_capture_friction "$AAI_CMD_REAL_STATUS" deterministic_script_failure
 fi
 exit "$STATUS"

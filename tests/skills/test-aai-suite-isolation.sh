@@ -42,6 +42,12 @@ TRIPWIRE_LIB="$PROJECT_ROOT/.aai/scripts/lib/repo-tripwire.sh"
 APPEND_LOCK_LIB="$PROJECT_ROOT/.aai/scripts/lib/append-lock.sh"
 FRAMEWORK="$PROJECT_ROOT/tests/skills/test-framework.sh"
 WRAPPER="$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh"
+# Only TEST-305(e) needs these two: a fixture wrapper cannot actually spool a
+# friction observation without its own byte copy of the capture CLI and its
+# one pure-stdlib dependency (aai_capture_friction resolves both relative to
+# the wrapper's OWN directory, never PROJECT_ROOT's).
+FRICTION_CLI="$PROJECT_ROOT/.aai/scripts/aai-friction.mjs"
+AAI_REDACT_LIB="$PROJECT_ROOT/.aai/scripts/lib/aai-redact.mjs"
 
 FAILED=0
 # A FILE, not an array, and that is the whole fix. Every `new_fixture` call site
@@ -2330,8 +2336,95 @@ exit "${1:-0}"'
   ( cd "$d" && AAI_SHIPPING_WRITE_FATAL=1 AAI_TEST_ISOLATION=0 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wsuite305.sh 0 ) >/dev/null 2>&1 || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-305(d): exit=$rc (want 0 — the flag must never touch a suite run)"; ok=0; }
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-305 AAI_SHIPPING_WRITE_FATAL=1 escalates only an ad-hoc dirty success to exit 12, preserves a real failure's own status, leaves a clean ad-hoc run at 0, and never touches a suite run" \
+  # (e) B1 regression (D6): the wrapped command below exits 0, same as (a),
+  # but this time with real friction capture turned ON and pointed at a
+  # fixture spool. The wrapper must still escalate to 12 - but
+  # aai_capture_friction must judge the WRAPPED COMMAND by its own real exit
+  # status (0), never by the wrapper's escalated $STATUS, or a command that
+  # never failed is recorded as a deterministic_script_failure: a false
+  # record the spec's own D6 says this scope must never produce, and one
+  # aai-feedback-triage.mjs/aai-feedback-upsert.mjs could turn into a false
+  # upstream issue.
+  mkdir -p "$d/.aai/scripts/lib"
+  cp "$FRICTION_CLI" "$d/.aai/scripts/aai-friction.mjs"
+  cp "$AAI_REDACT_LIB" "$d/.aai/scripts/lib/aai-redact.mjs"
+  local spool
+  spool="$(new_fixture)" || return
+  rc=0
+  ( cd "$d" && AAI_SHIPPING_WRITE_FATAL=1 AAI_FRICTION_CAPTURE=1 AAI_FRICTION_SPOOL_DIR="$spool" \
+      bash .aai/scripts/aai-run-tests.sh sh -c 'printf x > stray-e.txt; exit 0' ) >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 12 ]] || { log_info "TEST-305(e): exit=$rc (want 12 - the escalation itself must be untouched)"; ok=0; }
+  if command -v node >/dev/null 2>&1; then
+    if [[ -s "$spool/observations.jsonl" ]]; then
+      log_info "TEST-305(e): friction spool has $(wc -l < "$spool/observations.jsonl" | tr -d ' ') line(s) for a wrapped command that exited 0 (want zero - B1 regression, contradicts D6)"
+      ok=0
+    fi
+  else
+    log_uncovered "TEST-305(e): node not found, friction capture cannot run to prove the negative"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-305 AAI_SHIPPING_WRITE_FATAL=1 escalates only an ad-hoc dirty success to exit 12, preserves a real failure's own status, leaves a clean ad-hoc run at 0, never touches a suite run, and never spools a false deterministic_script_failure for the escalated success (B1)" \
     || log_fail "TEST-305 ad-hoc flag-set escalation is scoped correctly"
+}
+
+test_306_framework_shaped_invocation_pins_framework_kind() {
+  # N3 (spec-adhoc-probes-unisolated-report-only round-3 review): the
+  # framework opt-out is a proven site of future bypasses (two already
+  # closed, see aai_iso_is_framework_script's own comment) and, until now, no
+  # automated arm ever pinned `bash tests/skills/test-framework.sh` itself
+  # through the ad-hoc wrapper. A THIRD bypass that misclassified this
+  # invocation as `ad-hoc` would print an AAI-ADHOC line where there must be
+  # none, and — worse — under AAI_SHIPPING_WRITE_FATAL=1 would escalate the
+  # wrapper's exit code to 12 in place of the framework's own real status.
+  local d out rc=0 ok=1
+
+  # (a) DIRTY: AAI_TEST_ISOLATION=0 forces the framework's OWN suite
+  # isolation off so a fixture suite's dirt actually reaches the fixture
+  # repository the outer wrapper is watching (same technique as TEST-303(b),
+  # one funnel over). The framework's OWN per-suite tripwire catches this as
+  # that suite's failure first, so the framework's real exit code is 1 (a
+  # genuine test failure, never 124/12) - the outer wrapper must report the
+  # suite/fixture sentence, never an AAI-ADHOC line, and must leave that real
+  # 1 alone.
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" wsuite306dirty '
+printf "dirt\n" >> "$R/tracked.txt"
+printf "x\n" > "$R/untracked-dirt306.txt"
+exit 0'
+  commit_fixture_repo "$d" || { log_fail "TEST-306 fixture repo init failed"; return; }
+
+  out="$(cd "$d" && AAI_TEST_ISOLATION=0 AAI_SHIPPING_WRITE_FATAL=1 AAI_FRICTION_CAPTURE=0 \
+    bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh 2>&1 >/dev/null)" || rc=$?
+
+  [[ "$rc" -eq 1 ]] || { log_info "TEST-306(a): exit=$rc (want 1 - the framework's own real failure status from its inner per-suite tripwire, never 12)"; ok=0; }
+  grep -qF 'A suite must run against a fixture, never against PROJECT_ROOT.' <<<"$out" \
+    || { log_info "TEST-306(a): a dirtying framework-shaped run did not carry the suite/fixture tripwire sentence: $out"; ok=0; }
+  grep -qF 'AAI-ADHOC' <<<"$out" \
+    && { log_info "TEST-306(a): a framework-shaped invocation printed an AAI-ADHOC line: $out"; ok=0; }
+
+  # (b) CLEAN: a passing suite that never dirties the tree, run under default
+  # (isolated) suite isolation, so the fixture repository stays clean end to
+  # end. A successful framework run under AAI_SHIPPING_WRITE_FATAL=1 must
+  # still exit 0, not 12 - the escalation is scoped to the `ad-hoc` kind only
+  # (SEAM-2) and must never fire for a framework run just because the flag is
+  # set.
+  local d2 out2 rc2=0
+  d2="$(new_fixture)" || return
+  build_framework_repo "$d2"
+  write_fixture_suite "$d2" wsuite306clean '
+echo "clean suite ok"
+exit 0'
+  commit_fixture_repo "$d2" || { log_fail "TEST-306 fixture repo (b) init failed"; return; }
+
+  out2="$(cd "$d2" && AAI_SHIPPING_WRITE_FATAL=1 AAI_FRICTION_CAPTURE=0 \
+    bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh 2>&1 >/dev/null)" || rc2=$?
+  [[ "$rc2" -eq 0 ]] || { log_info "TEST-306(b): exit=$rc2 (want 0 - a successful framework run must never be escalated to 12)"; ok=0; }
+  grep -qF 'AAI-ADHOC' <<<"$out2" \
+    && { log_info "TEST-306(b): a clean framework-shaped invocation printed an AAI-ADHOC line: $out2"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-306 bash tests/skills/test-framework.sh through the ad-hoc wrapper classifies as framework kind: a dirty run carries the suite sentence, no AAI-ADHOC line and its own real (1) exit code, and a clean run under AAI_SHIPPING_WRITE_FATAL=1 stays at its own real 0, never 12" \
+    || log_fail "TEST-306 framework-shaped invocation pins framework kind"
 }
 
 main() {
@@ -2374,6 +2467,7 @@ main() {
   test_303_report_is_kind_correct_and_suite_output_byte_identical
   test_304_adhoc_flag_unset_exit_code_untouched
   test_305_adhoc_flag_set_escalates_only_ad_hoc_dirty_success
+  test_306_framework_shaped_invocation_pins_framework_kind
   echo ""
   # Both halves, because either one alone is a lie on some path: FAILED is
   # blind to a subshell failure, and the registry is blind to a machine where
