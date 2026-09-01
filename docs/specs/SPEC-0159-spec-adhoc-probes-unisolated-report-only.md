@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/ISSUE-0046-adhoc-probes-unisolated-report-only.md
   rfc: null
   pr:
-    - TBD
+    - 328
   commits:
     - 569320db948d0f65c1a6f855aeb6941ab7fe9570
     - 24385e3
