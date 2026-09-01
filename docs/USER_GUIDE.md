@@ -2500,6 +2500,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Follow-up registry on the decision ledger
+
+Deferred work used to disappear. When a review found something real but the ride did not fix it, the deferral was written as free prose inside a decision entry — 14 such clauses had accumulated against exactly one typed entry, and nothing in the toolchain could list any of them. One lesson recorded that way was repeated verbatim as a defect one ride later.
+
+[Product doc](product/aai-decisions.md) · [Spec](specs/SPEC-0129-spec-followup-registry.md)
+
 ### Stale-checkout warning before intake
 
 Before any AAI intake (change, bug, RFC, hotfix, techdebt, research, PRD, or release) asks its first question, the factory now checks — read-only — whether the checkout you're drafting against is behind. It compares your current branch against its upstream and every initialized submodule against its own remote, using a real `git fetch` rather than trusting a possibly-stale local cache. If anything is behind, you see one named line per stale ref (which branch or submodule, and by how many commits) before the first question is asked. If nothing is behind — the common case — you see nothing at all: no extra noise on a clean run. Either way, intake always proceeds to its first question; this is a heads-up, never a gate. You decide whether to pull first or keep going.
@@ -2511,12 +2517,6 @@ Before any AAI intake (change, bug, RFC, hotfix, techdebt, research, PRD, or rel
 `/aai-update` is the one-command refresh of a project's vendored AAI layer: it materializes the canonical AAI repository's `main` (or a chosen ref), runs the layer sync into the current project, and prints concise post-sync evidence — changed files, the updated AAI pin, and any conflict advisory. It never commits; the user reviews the diff and commits manually.
 
 [Product doc](product/aai-update.md) · [Spec](specs/SPEC-0124-spec-update-doctor-field-report.md)
-
-### Follow-up registry on the decision ledger
-
-Deferred work used to disappear. When a review found something real but the ride did not fix it, the deferral was written as free prose inside a decision entry — 14 such clauses had accumulated against exactly one typed entry, and nothing in the toolchain could list any of them. One lesson recorded that way was repeated verbatim as a defect one ride later.
-
-[Product doc](product/aai-decisions.md) · [Spec](specs/SPEC-0129-spec-followup-registry.md)
 
 ### Deslop pass — removing AI slop, and finding code nobody asked for
 

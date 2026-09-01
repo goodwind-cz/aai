@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff main...HEAD (worktree /Users/ales/Projects/aai-fix-adhoc-probes-unisolated-report-only, branch fix/adhoc-probes-unisolated-report-only; 6 commits 569320d, 41df498, 5699eef, bd1efd2, de3fec6, 393e32a)"
-  spec: docs/specs/SPEC-DRAFT-spec-adhoc-probes-unisolated-report-only.md
+  spec: docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -79,7 +79,7 @@ review:
   time and again after every probe I ran (all fixtures were built in a
   scratch directory, never in the worktree). Exactly one scope, no unrelated
   dirty changes.
-- Spec: `docs/specs/SPEC-DRAFT-spec-adhoc-probes-unisolated-report-only.md`,
+- Spec: `docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md`,
   SPEC-FROZEN: true, ceremony_level 2, read in full.
 - 15 files changed, +1804/-22.
 

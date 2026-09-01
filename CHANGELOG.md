@@ -31,7 +31,7 @@ RFC-0001).
   MISS. A subset ratchet in `tests/skills/test-aai-follow-ups.sh` runs the
   real corpus on every sweep; at delivery it named three real unverified
   claims that predate this scope and are not this scope's to close.
-- ISSUE-0046 / SPEC-DRAFT-spec-adhoc-probes-unisolated-report-only, closing
+- ISSUE-0046 / SPEC-0159-spec-adhoc-probes-unisolated-report-only, closing
   `fu-adhoc-probes-unisolated-report-only` and
   `fu-spec-closes-claim-unverified`.
 

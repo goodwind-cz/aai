@@ -1,7 +1,7 @@
 ---
 id: spec-adhoc-probes-unisolated-report-only
 type: spec
-number: null
+number: 159
 status: implementing
 ceremony_level: 2
 links:

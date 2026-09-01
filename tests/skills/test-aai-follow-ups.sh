@@ -1856,10 +1856,10 @@ test_031_both_registry_items_closed_for_real() {
   if git -C "$PROJECT_ROOT" rev-parse --verify -q "$BASE_REF" >/dev/null 2>&1; then
     local spec_diff own_spec_touched other_specs
     spec_diff="$(git -C "$PROJECT_ROOT" diff --name-only "$BASE_REF"...HEAD -- 'docs/specs/*.md' 2>/dev/null)"
-    own_spec_touched="$(printf '%s\n' "$spec_diff" | grep -F 'SPEC-DRAFT-spec-adhoc-probes-unisolated-report-only.md' || true)"
+    own_spec_touched="$(printf '%s\n' "$spec_diff" | grep -F 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md' || true)"
     if [[ -n "$own_spec_touched" ]]; then
       other_specs="$(printf '%s\n' "$spec_diff" \
-        | grep -v 'SPEC-DRAFT-spec-adhoc-probes-unisolated-report-only.md' || true)"
+        | grep -v 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md' || true)"
       [[ -z "$other_specs" ]] \
         || log_fail "TEST-031: this scope's diff touches another frozen spec document, which Spec-AC-13 forbids: $other_specs"
     else

@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff main...HEAD (worktree fix/adhoc-probes-unisolated-report-only; 4 commits 569320d, 41df498, 5699eef, bd1efd2)"
-  spec: docs/specs/SPEC-DRAFT-spec-adhoc-probes-unisolated-report-only.md
+  spec: docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -81,7 +81,7 @@ review:
   `docs/ai/EVENTS.jsonl` (+1 `validation_verdict` line) and
   `docs/ai/tests/test-runs.jsonl` (+1 sweep row) — round-2 validation telemetry,
   append-only, no unrelated dirty change. One clean scope established.
-- Spec: `docs/specs/SPEC-DRAFT-spec-adhoc-probes-unisolated-report-only.md`,
+- Spec: `docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md`,
   SPEC-FROZEN: true, ceremony_level 2, 13 Spec-AC, 13 TEST ids, D1-D10,
   SEAM-1..4. Read in full.
 
