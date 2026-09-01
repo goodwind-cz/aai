@@ -2181,6 +2181,159 @@ exit 0'
     || log_fail "TEST-213 a push to origin from inside the disposable checkout does not reach the shipping repository"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-301..305 (spec-adhoc-probes-unisolated-report-only Spec-AC-01..05,
+# that spec's own TEST-001..005 — renumbered 3xx in THIS file's own local
+# sequence to avoid colliding with this file's pre-existing SPEC-0138
+# TEST-001..006). The wrapper already distinguished a suite run, the
+# framework opt-out and everything else; these arms cover the ad-hoc kind
+# gaining a name (D1), the tripwire's trailing sentence becoming kind-correct
+# (D3) while staying byte-identical for a suite run (SEAM-1), and the opt-in
+# exit-code teeth (D5) staying scoped to the ad-hoc kind only.
+# ---------------------------------------------------------------------------
+test_301_adhoc_dirty_run_names_the_working_tree() {
+  local d d_norm out rc=0 ok=1 count
+  d="$(new_fixture)" || return
+  # Normalized the same way the wrapper resolves its own repo root (`cd && pwd`):
+  # on macOS $TMPDIR carries a trailing slash, so mktemp's raw path can carry a
+  # `//` that a straight string-equality check against the wrapper's own
+  # (normalized) banner would never match — a path-form artifact, not a defect
+  # in the banner. Every OTHER use of $d in this file only ever asserts
+  # INEQUALITY against it, which hid this; an equality check needs the
+  # normalized form.
+  d_norm="$(cd "$d" && pwd)"
+  mkdir -p "$d/.aai/scripts/lib"
+  cp "$WRAPPER" "$d/.aai/scripts/aai-run-tests.sh"
+  cp "$TRIPWIRE_LIB" "$d/.aai/scripts/lib/repo-tripwire.sh"
+  printf 'baseline\n' > "$d/tracked.txt"
+  commit_fixture_repo "$d" || { log_fail "TEST-301 fixture repo init failed"; return; }
+
+  out="$(cd "$d" && AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh sh -c 'printf x > stray.txt' 2>&1 >/dev/null)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-301: exit=$rc (want the command's own 0)"; ok=0; }
+  count="$(grep -c '^AAI-ADHOC: ' <<<"$out")"
+  [[ "$count" -eq 1 ]] || { log_info "TEST-301: expected exactly one AAI-ADHOC line, got $count: $out"; ok=0; }
+  grep -qF "AAI-ADHOC: $d_norm" <<<"$out" \
+    || { log_info "TEST-301: the AAI-ADHOC line does not name the fixture (shipping) repository root: $out (want root $d_norm)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-301 an ad-hoc invocation that dirties the shipping repository prints exactly one AAI-ADHOC line naming its working tree" \
+    || log_fail "TEST-301 ad-hoc dirty run names the working tree"
+}
+
+test_302_adhoc_clean_run_is_silent() {
+  local d out rc=0 ok=1
+  d="$(new_fixture)" || return
+  mkdir -p "$d/.aai/scripts/lib"
+  cp "$WRAPPER" "$d/.aai/scripts/aai-run-tests.sh"
+  cp "$TRIPWIRE_LIB" "$d/.aai/scripts/lib/repo-tripwire.sh"
+  printf 'baseline\n' > "$d/tracked.txt"
+  commit_fixture_repo "$d" || { log_fail "TEST-302 fixture repo init failed"; return; }
+
+  out="$(cd "$d" && AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh true 2>&1 >/dev/null)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-302: exit=$rc (want 0)"; ok=0; }
+  grep -qF 'AAI-ADHOC' <<<"$out" \
+    && { log_info "TEST-302: a clean ad-hoc run printed an AAI-ADHOC line: $out"; ok=0; }
+  grep -qF 'AAI-ISOLATION' <<<"$out" \
+    && { log_info "TEST-302: a clean ad-hoc run printed an AAI-ISOLATION line: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-302 a clean ad-hoc run prints no AAI-ADHOC and no AAI-ISOLATION line (D4, SPEC-0144 preserved)" \
+    || log_fail "TEST-302 ad-hoc clean run is silent"
+}
+
+test_303_report_is_kind_correct_and_suite_output_byte_identical() {
+  local d out rc=0 ok=1 sentence_count block expected
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" wsuite '
+printf "dirt\n" >> "$R/tracked.txt"
+printf "x\n" > "$R/untracked-dirt.txt"
+exit "${1:-0}"'
+  commit_fixture_repo "$d" || { log_fail "TEST-303 fixture repo init failed"; return; }
+
+  # (a) an ad-hoc dirty run must carry ZERO occurrences of the suite/fixture
+  # sentence (D3).
+  out="$(cd "$d" && AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh sh -c 'printf x > stray-adhoc.txt' 2>&1 >/dev/null)" || rc=$?
+  grep -qF 'A suite must run against a fixture, never against PROJECT_ROOT.' <<<"$out" \
+    && { log_info "TEST-303(a): an ad-hoc dirty run still carried the suite sentence: $out"; ok=0; }
+
+  # (b) a dirtying SUITE run, forced degraded (AAI_TEST_ISOLATION=0) so the
+  # dirt actually reaches the shipping tree, carries exactly one suite
+  # sentence and its whole tripwire block is byte-identical to the pre-change
+  # capture (SEAM-1) — captured against the UNMODIFIED wrapper+library before
+  # this scope's D1-D5 changes landed.
+  rc=0
+  out="$(cd "$d" && AAI_TEST_ISOLATION=0 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wsuite.sh 0 2>&1 >/dev/null)" || rc=$?
+  sentence_count="$(grep -cF 'A suite must run against a fixture, never against PROJECT_ROOT.' <<<"$out")"
+  [[ "$sentence_count" -eq 1 ]] || { log_info "TEST-303(b): expected exactly one suite sentence, got $sentence_count: $out"; ok=0; }
+  block="$(tail -n 4 <<<"$out")"
+  expected="$(cat <<'BLOCK'
+AAI-TRIPWIRE FAIL: the wrapped command [bash tests/skills/test-aai-wsuite.sh 0] changed the shipping repository.
+AAI-TRIPWIRE   now:  M tracked.txt
+AAI-TRIPWIRE   now: ?? untracked-dirt.txt
+AAI-TRIPWIRE   A suite must run against a fixture, never against PROJECT_ROOT.
+BLOCK
+)"
+  [[ "$block" == "$expected" ]] \
+    || { log_info "TEST-303(b): the suite-run tripwire block moved a byte. got=[$block] want=[$expected]"; ok=0; }
+  grep -qF 'AAI-ADHOC' <<<"$out" \
+    && { log_info "TEST-303(b): a suite run printed an AAI-ADHOC line: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-303 the ad-hoc report drops the suite sentence while a dirtying suite run's whole tripwire block stays byte-identical to the pre-change capture" \
+    || log_fail "TEST-303 report is kind-correct and suite output is byte-identical"
+}
+
+test_304_adhoc_flag_unset_exit_code_untouched() {
+  local d rc=0 ok=1
+  d="$(new_fixture)" || return
+  mkdir -p "$d/.aai/scripts/lib"
+  cp "$WRAPPER" "$d/.aai/scripts/aai-run-tests.sh"
+  cp "$TRIPWIRE_LIB" "$d/.aai/scripts/lib/repo-tripwire.sh"
+  printf 'baseline\n' > "$d/tracked.txt"
+  commit_fixture_repo "$d" || { log_fail "TEST-304 fixture repo init failed"; return; }
+
+  ( cd "$d" && AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh sh -c 'printf x > stray-a.txt; exit 0' ) >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-304(a): exit=$rc (want 0)"; ok=0; }
+
+  rc=0
+  ( cd "$d" && AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh sh -c 'printf x > stray-b.txt; exit 7' ) >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 7 ]] || { log_info "TEST-304(b): exit=$rc (want the command's own 7 — the wrapper contract is untouched with the flag unset, SEAM-2)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-304 with AAI_SHIPPING_WRITE_FATAL unset, an ad-hoc dirty command's exit code is the wrapped command's own, unchanged (SEAM-2)" \
+    || log_fail "TEST-304 ad-hoc flag-unset exit fidelity"
+}
+
+test_305_adhoc_flag_set_escalates_only_ad_hoc_dirty_success() {
+  local d rc=0 ok=1
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" wsuite305 '
+printf "dirt\n" >> "$R/tracked.txt"
+exit "${1:-0}"'
+  commit_fixture_repo "$d" || { log_fail "TEST-305 fixture repo init failed"; return; }
+
+  # (a) ad-hoc dirty, wrapped command exits 0 -> wrapper exits 12.
+  ( cd "$d" && AAI_SHIPPING_WRITE_FATAL=1 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh sh -c 'printf x > stray-c.txt; exit 0' ) >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 12 ]] || { log_info "TEST-305(a): exit=$rc (want 12)"; ok=0; }
+
+  # (b) ad-hoc dirty, wrapped command already fails -> its own status survives.
+  rc=0
+  ( cd "$d" && AAI_SHIPPING_WRITE_FATAL=1 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh sh -c 'printf x > stray-d.txt; exit 7' ) >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 7 ]] || { log_info "TEST-305(b): exit=$rc (want the command's own 7 — a real failure outranks the guard)"; ok=0; }
+
+  # (c) ad-hoc CLEAN, flag set -> still 0 (nothing to escalate).
+  rc=0
+  ( cd "$d" && AAI_SHIPPING_WRITE_FATAL=1 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh true ) >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-305(c): exit=$rc (want 0)"; ok=0; }
+
+  # (d) a dirtying SUITE run (forced degraded), flag set -> exit code
+  # untouched by the flag; the flag only ever acts on the ad-hoc kind.
+  rc=0
+  ( cd "$d" && AAI_SHIPPING_WRITE_FATAL=1 AAI_TEST_ISOLATION=0 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wsuite305.sh 0 ) >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-305(d): exit=$rc (want 0 — the flag must never touch a suite run)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-305 AAI_SHIPPING_WRITE_FATAL=1 escalates only an ad-hoc dirty success to exit 12, preserves a real failure's own status, leaves a clean ad-hoc run at 0, and never touches a suite run" \
+    || log_fail "TEST-305 ad-hoc flag-set escalation is scoped correctly"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-suites-run-in-a-disposable-worktree) ==="
   check_deps
@@ -2216,6 +2369,11 @@ main() {
   test_211_prefix_checkout_under_project_root_is_degraded
   test_212_the_gate_runs_before_iso_create_writes_identity_config
   test_213_origin_push_from_the_checkout_does_not_reach_the_source
+  test_301_adhoc_dirty_run_names_the_working_tree
+  test_302_adhoc_clean_run_is_silent
+  test_303_report_is_kind_correct_and_suite_output_byte_identical
+  test_304_adhoc_flag_unset_exit_code_untouched
+  test_305_adhoc_flag_set_escalates_only_ad_hoc_dirty_success
   echo ""
   # Both halves, because either one alone is a lie on some path: FAILED is
   # blind to a subshell failure, and the registry is blind to a machine where

@@ -30,9 +30,12 @@
 #   aai_tripwire_state <before_file> <after_file>
 #       Echoes exactly one of: clean | dirty | unavailable. Always returns 0 so
 #       a `set -e` caller can capture it.
-#   aai_tripwire_report <before_file> <after_file> <label> <prefix>
+#   aai_tripwire_report <before_file> <after_file> <label> <prefix> [remediation]
 #       Prints the named, human-readable difference (what changed, not merely
 #       that something did). The CALLER decides the exit-code consequence.
+#       [remediation] is OPTIONAL and defaults to the suite sentence below —
+#       every caller that omits it prints a byte-identical block to before
+#       this parameter existed (D3, spec-adhoc-probes-unisolated-report-only).
 #   aai_tripwire_changed_paths <before_file> <after_file>
 #       Echoes one repository-relative path per line, one per status line that
 #       appears on only one side, for a caller that must decide WHICH paths
@@ -151,11 +154,17 @@ aai_tripwire_state() {
 }
 
 aai_tripwire_report() {
-  # $1 = before file, $2 = after file, $3 = label, $4 = line prefix
+  # $1 = before file, $2 = after file, $3 = label, $4 = line prefix,
+  # $5 = OPTIONAL trailing remediation line (D3,
+  # spec-adhoc-probes-unisolated-report-only). Defaulted to today's sentence so
+  # every EXISTING caller (test-framework.sh, and this wrapper's own suite/
+  # framework branch) prints a byte-identical block by omitting it; only the
+  # ad-hoc caller in aai-run-tests.sh ever passes something else.
   tw_before="$1"
   tw_after="$2"
   tw_label="$3"
   tw_prefix="$4"
+  tw_remediation="${5:-A suite must run against a fixture, never against PROJECT_ROOT.}"
   printf '%s FAIL: %s changed the shipping repository.\n' "$tw_prefix" "$tw_label"
   tw_hb=$(head -n 1 "$tw_before")
   tw_ha=$(head -n 1 "$tw_after")
@@ -190,7 +199,7 @@ aai_tripwire_report() {
         "$tw_prefix" "$tw_more" "$AAI_TRIPWIRE_MAX_LINES"
     fi
   }
-  printf '%s   A suite must run against a fixture, never against PROJECT_ROOT.\n' "$tw_prefix"
+  printf '%s   %s\n' "$tw_prefix" "$tw_remediation"
   return 0
 }
 

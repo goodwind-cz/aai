@@ -2016,3 +2016,4 @@
 {"v":1,"ts":"2026-09-01T01:48:12.840Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-intake-staleness-preflight-warning","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-01T01:48:12.872Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-intake-staleness-preflight-warning","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-01T01:48:12.904Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-intake-staleness-preflight-warning","payload":{"commit":"019e96a"}}
+{"v":1,"ts":"2026-09-01T06:36:59.709Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-adhoc-probes-unisolated-report-only","payload":{"from":"draft","to":"implementing"}}

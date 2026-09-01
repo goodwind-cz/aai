@@ -282,6 +282,12 @@ suites:
       # close-work-item.mjs via the shared close-work-item-pin.sh library —
       # neither was previously globbed here (fu-pin-lib-suite-map-route).
       - .aai/scripts/close-work-item.mjs
+      # spec-adhoc-probes-unisolated-report-only Spec-AC-12: `verify-closures`
+      # reads every document under these two roots for a closure claim, so a
+      # new or edited one has to keep this suite reachable from a docs-only
+      # diff even though other suites already glob the same tree.
+      - docs/specs/**
+      - docs/issues/**
       - tests/skills/lib/close-work-item-pin.sh
 
   aai-friction-capture-points:

@@ -70,7 +70,25 @@
 //   node .aai/scripts/follow-ups.mjs close --id <id> --resolved-by <ref>
 //        [--source <sha|url|path>] [--status done|dropped] [--ledger <path>]
 //        [--actor <slug>] [--correct]
+//   node .aai/scripts/follow-ups.mjs verify-closures [--path <doc>]
+//        [--ledger <path>] [--strict] [--json]
 //   node .aai/scripts/follow-ups.mjs --help
+//
+// VERIFY-CLOSURES (spec-adhoc-probes-unisolated-report-only D6-D9) — a spec's
+// or issue's own "Registry items closed by this scope" claim is prose, never
+// checked against this ledger; a frozen document can claim a closure that
+// never happened. This subcommand parses that claim (both recognized shapes,
+// D9) out of one document (--path) or every document under docs/specs/ and
+// docs/issues/ (no --path), folds each claimed id against THIS SAME ledger,
+// and reports two verdict tiers (D8): MISS (not `done`, absent from the
+// ledger included — the only tier that can move the exit code, and only
+// under --strict) and ATTRIBUTION (done, but `resolved_by` bears no textual
+// relation to the claiming document — report-only, always, because the real
+// `resolved_by` corpus mixes doc ids, requirement ids and ride-ref slugs).
+// Landed as a subcommand here — not wired into close-work-item.mjs (D5 forbids
+// extending its snapshot/rollback transaction to a second ledger) and not
+// folded into docs-audit.mjs's CLEAN verdict (three real unverified claims
+// exist on `main` today in documents outside this scope) — deliberately.
 //
 // CLOSING IS A DOCUMENTED MANUAL STEP (D5) — close-work-item.mjs is
 //   deliberately NOT wired to this ledger. Its transaction snapshots the
@@ -390,8 +408,17 @@ decision history). Run it yourself when a follow-up ships:
 It appends the status line, RE-READS the ledger from disk, re-folds it, and
 exits 0 only when the re-read confirms the flip.
 
+verify-closures checks a document's OWN "Registry items closed by this
+scope" claim against this ledger. With --path, one document; with no --path,
+every document under docs/specs/ and docs/issues/. Report-only by default
+(exit 0 regardless of misses); --strict exits 1 when at least one claimed id
+is not done in the ledger (a MISS). A claimed id that IS done but whose
+resolved_by bears no textual relation to the claiming document is reported
+as an ATTRIBUTION note, which never affects the exit code.
+
 Exit codes: 0 success (a non-empty backlog is NEVER an error) | 1 the
-post-append re-read did not confirm the write | 2 usage error.`;
+post-append re-read did not confirm the write, OR --strict found a MISS |
+2 usage error, an unreadable ledger, or an unreadable --path.`;
 
 function usageError(msg) {
   process.stderr.write(`follow-ups: ${msg}\n`);
@@ -403,6 +430,7 @@ const FLAG_SPECS = {
   list: ['--ledger', '--ref', '--status', '--age-days'],
   add: ['--ledger', '--id', '--ref', '--severity', '--what', '--why', '--source', '--actor', '--origin', '--source-ts'],
   close: ['--ledger', '--id', '--resolved-by', '--source', '--status', '--actor', '--origin', '--source-ts', '--correct'],
+  'verify-closures': ['--ledger', '--path', '--strict'],
 };
 
 // D1 — a value is a value unless it is EXACTLY a token this subcommand knows.
@@ -443,7 +471,7 @@ function parseArgs(argv) {
       exit(0);
     }
     if (tok === '--json') {
-      if (sub !== 'list') usageError(`--json is only valid on \`list\``);
+      if (sub !== 'list' && sub !== 'verify-closures') usageError(`--json is only valid on \`list\` or \`verify-closures\``);
       opts.json = true;
       continue;
     }
@@ -456,6 +484,14 @@ function parseArgs(argv) {
     if (tok === '--correct') {
       if (sub !== 'close') usageError(`--correct is only valid on \`close\``);
       opts.correct = true;
+      continue;
+    }
+    // --strict: same BOOLEAN shape, on `verify-closures` only (Spec-AC-09):
+    // report-only stays exit 0 regardless of misses; --strict is what turns
+    // at least one MISS into exit 1.
+    if (tok === '--strict') {
+      if (sub !== 'verify-closures') usageError(`--strict is only valid on \`verify-closures\``);
+      opts.strict = true;
       continue;
     }
     // D1 rule 1 — the `--flag=value` escape hatch: split on the FIRST `=`,
@@ -670,10 +706,245 @@ function cmdClose(opts) {
   exit(0);
 }
 
+// --- verify-closures: claim parsing (D9) ---------------------------------
+//
+// The parser is derived from the corpus, not invented (D9): measured over
+// every document that carries a closure statement today, four shapes exist.
+// Two independent scanners below cover them; a document may carry either or
+// both (edge case: "a document with two claim statements — the union of
+// both, deduplicated").
+
+const CLAIM_ID_RE = /fu-[a-z0-9]+(?:-[a-z0-9]+)*/g;
+
+function extractIds(str) {
+  return String(str ?? '').match(CLAIM_ID_RE) ?? [];
+}
+
+// extractHeadingClaims(text) -> Set<id> — the "## Registry items closed by
+// this scope" heading shape. Three sub-shapes inside its body (D9):
+//   - labelled: CLOSED FULLY / CLOSED QUALIFIEDLY ids are claims, NOT CLOSED
+//     ids are disclaimed:
+//   - unlabelled, opening with the `none` sentinel (backticks tolerated):
+//     zero claims — every id in it is a neighbour, not a claim.
+//   - any other unlabelled body: every fu- id in it is a claim.
+const HEADING_RE = /^##[ \t]+Registry items closed by this scope[ \t]*$/m;
+const LABEL_RE = /\b(CLOSED FULLY|CLOSED QUALIFIEDLY|NOT CLOSED)\b/g;
+
+function extractHeadingClaims(text) {
+  const claims = new Set();
+  const hm = HEADING_RE.exec(text);
+  HEADING_RE.lastIndex = 0; // this regex is reused across documents
+  if (!hm) return claims;
+  const rest = text.slice(hm.index + hm[0].length);
+  const nextHeading = rest.search(/\n##[ \t]+/);
+  const body = nextHeading === -1 ? rest : rest.slice(0, nextHeading);
+
+  const labels = [];
+  let lm;
+  const labelRe = new RegExp(LABEL_RE);
+  while ((lm = labelRe.exec(body)) !== null) {
+    labels.push({ label: lm[1], start: lm.index, end: lm.index + lm[0].length });
+  }
+
+  if (labels.length === 0) {
+    const cleaned = body.trim().replace(/^`+/, '');
+    if (/^none\b/i.test(cleaned)) return claims; // the none sentinel: zero claims
+    for (const id of extractIds(body)) claims.add(id);
+    return claims;
+  }
+  for (let i = 0; i < labels.length; i += 1) {
+    if (labels[i].label === 'NOT CLOSED') continue; // disclaimed, never a claim
+    // This label's segment runs from just after ITS OWN match to the START
+    // of the NEXT label's match (or the end of the body for the last one) —
+    // so the next label's own text is never scanned as part of this segment.
+    const segEnd = i + 1 < labels.length ? labels[i + 1].start : body.length;
+    const seg = body.slice(labels[i].end, segEnd);
+    for (const id of extractIds(seg)) claims.add(id);
+  }
+  return claims;
+}
+
+// extractInlineClaims(text) -> Set<id> — the inline bullet-label shape:
+// `Registry items closed:` or `Registry items closed by this scope:`,
+// exact text, the claim list is the rest of that statement up to the next
+// top-level bullet or a blank line. The neighbouring `Registry items the
+// ratchet holds open:` label is a DIFFERENT string and is never matched.
+const INLINE_LABEL_RE = /Registry items closed(?: by this scope)?:/g;
+
+function extractInlineClaims(text) {
+  const claims = new Set();
+  const re = new RegExp(INLINE_LABEL_RE);
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const after = text.slice(m.index + m[0].length);
+    const nextBullet = after.search(/\n-[ \t]/);
+    const blank = after.search(/\n[ \t]*\n/);
+    let cut = after.length;
+    if (nextBullet !== -1) cut = Math.min(cut, nextBullet);
+    if (blank !== -1) cut = Math.min(cut, blank);
+    for (const id of extractIds(after.slice(0, cut))) claims.add(id);
+  }
+  return claims;
+}
+
+function extractClaims(text) {
+  return new Set([...extractHeadingClaims(text), ...extractInlineClaims(text)]);
+}
+
+// --- verify-closures: attribution heuristic (D8, report-only, never fatal) --
+//
+// The measured resolved_by corpus mixes doc ids, requirement ids and
+// ride-ref slugs (D8), so this is a loose textual-relation check, not an
+// equality test — a false ATTRIBUTION note costs nothing (it never touches
+// the exit code); the failure mode this whole scope is written against is a
+// false-alarm MISS, which this heuristic cannot produce.
+function slugForAttribution(value) {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function docAttributionCandidates(docPath, docText) {
+  const candidates = [];
+  const base = path.basename(docPath).replace(/\.md$/i, '');
+  candidates.push(base);
+  // Strip a leading TYPE-NNNN- prefix (SPEC-0156-..., CHANGE-0146-...,
+  // ISSUE-0046-...) so the SLUG half alone is also a candidate — several
+  // real resolved_by values are the slug without the type/number.
+  const stripped = base.replace(/^[A-Za-z]+-\d+-/, '');
+  if (stripped !== base) candidates.push(stripped);
+  const fm = docText.match(/^id:\s*(.+)\s*$/m);
+  if (fm) candidates.push(fm[1].trim());
+  return candidates;
+}
+
+function isAttributionRelated(resolvedBy, docPath, docText) {
+  const rb = slugForAttribution(resolvedBy);
+  if (!rb) return false;
+  for (const cand of docAttributionCandidates(docPath, docText)) {
+    const c = slugForAttribution(cand);
+    if (c && (c.includes(rb) || rb.includes(c))) return true;
+  }
+  return false;
+}
+
+// --- verify-closures: doc walk ---------------------------------------------
+
+function listMarkdownFiles(dirAbs) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dirAbs, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const e of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+    const full = path.join(dirAbs, e.name);
+    if (e.isDirectory()) out.push(...listMarkdownFiles(full));
+    else if (e.isFile() && /\.md$/i.test(e.name)) out.push(full);
+  }
+  return out;
+}
+
+function cmdVerifyClosures(opts) {
+  const abs = ledgerPath(opts);
+  requireReadableLedger(abs);
+  const reg = loadRegistry(abs);
+  if (reg.unreadable) usageError(`ledger not readable: ${abs} (${reg.unreadable.code}: ${reg.unreadable.message})`);
+  const byId = new Map(reg.items.map((i) => [i.id, i]));
+
+  let docPaths;
+  if (opts.path !== undefined) {
+    const docAbs = path.resolve(process.cwd(), opts.path);
+    let st;
+    try {
+      st = fs.statSync(docAbs);
+    } catch (err) {
+      usageError(`--path not readable: ${docAbs} (${err && err.code})`);
+      return;
+    }
+    if (!st.isFile()) usageError(`--path is not a regular file: ${docAbs}`);
+    try {
+      fs.accessSync(docAbs, fs.constants.R_OK);
+    } catch {
+      usageError(`--path not readable: ${docAbs}`);
+    }
+    docPaths = [docAbs];
+  } else {
+    docPaths = [
+      ...listMarkdownFiles(path.resolve(process.cwd(), 'docs/specs')),
+      ...listMarkdownFiles(path.resolve(process.cwd(), 'docs/issues')),
+    ];
+  }
+
+  const claims = [];
+  const seenPerDoc = new Map(); // docPath -> Set(id) already emitted (dedup within one doc)
+  for (const docAbs of docPaths) {
+    let text;
+    try {
+      text = fs.readFileSync(docAbs, 'utf8');
+    } catch {
+      continue; // unreadable individual doc in corpus mode: contributes zero claims, never an error
+    }
+    const ids = extractClaims(text);
+    if (ids.size === 0) continue;
+    const seen = seenPerDoc.get(docAbs) ?? new Set();
+    for (const id of ids) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const item = byId.get(id);
+      let verdict;
+      let status;
+      if (!item) {
+        verdict = 'MISS';
+        status = 'absent';
+      } else if (item.status !== 'done') {
+        verdict = 'MISS';
+        status = item.status;
+      } else if (!isAttributionRelated(item.resolved_by, docAbs, text)) {
+        verdict = 'ATTRIBUTION';
+        status = item.status;
+      } else {
+        verdict = 'OK';
+        status = item.status;
+      }
+      claims.push({
+        doc: path.relative(process.cwd(), docAbs),
+        id,
+        status,
+        verdict,
+        resolved_by: item ? item.resolved_by : null,
+      });
+    }
+    seenPerDoc.set(docAbs, seen);
+  }
+
+  const counts = {
+    claims: claims.length,
+    miss: claims.filter((c) => c.verdict === 'MISS').length,
+    attribution: claims.filter((c) => c.verdict === 'ATTRIBUTION').length,
+    ok: claims.filter((c) => c.verdict === 'OK').length,
+  };
+  const strict = opts.strict === true;
+
+  if (opts.json) {
+    console.log(JSON.stringify({ ledger: abs, strict, docs_scanned: docPaths.length, claims, counts }, null, 2));
+  } else {
+    console.log(`verify-closures: docs=${docPaths.length} claims=${counts.claims} miss=${counts.miss} attribution=${counts.attribution} ok=${counts.ok} ledger=${abs}`);
+    for (const c of claims) {
+      if (c.verdict === 'OK') continue;
+      console.log(`${c.verdict}  ${c.id}  status=${c.status}  doc=${c.doc}${c.resolved_by ? `  resolved_by=${c.resolved_by}` : ''}`);
+    }
+    if (counts.miss === 0 && counts.attribution === 0) console.log('(no misses or attribution notes)');
+  }
+
+  if (strict && counts.miss > 0) exit(1);
+  exit(0);
+}
+
 function main() {
   const opts = parseArgs(process.argv);
   if (opts._sub === 'add') return cmdAdd(opts);
   if (opts._sub === 'close') return cmdClose(opts);
+  if (opts._sub === 'verify-closures') return cmdVerifyClosures(opts);
   return cmdList(opts);
 }
 

@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-01T02:32:38.972Z
+Generated: 2026-09-01T07:09:24.929Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-adhoc-probes-unisolated-report-only | specs | implementing | 13 planned | docs/specs/SPEC-DRAFT-spec-adhoc-probes-unisolated-report-only.md |
 
 ## Canonical layer (0)
 
@@ -22,7 +23,7 @@ _None._
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
 | aai-dashboard | aai-dashboard | 2 | docs/product/aai-dashboard.md |
-| aai-decisions | aai-decisions | 2 | docs/product/aai-decisions.md |
+| aai-decisions | aai-decisions | 3 | docs/product/aai-decisions.md |
 | aai-deslop | aai-deslop | 2 | docs/product/aai-deslop.md |
 | aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
 | aai-update | aai-update | 6 | docs/product/aai-update.md |
