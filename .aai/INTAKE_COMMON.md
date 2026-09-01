@@ -1,9 +1,17 @@
 # Shared intake policy blocks (CHANGE-0011)
 
 Applies to every `.aai/INTAKE_*.prompt.md` intake assistant. Each intake prompt
-references this file with a single SHARED POLICY line; apply the four
+references this file with a single SHARED POLICY line; apply the five
 universal blocks below exactly as written, plus the SECRETS PREFLIGHT block
 where the dispatching prompt names it.
+
+## STALENESS PREFLIGHT (before the first question)
+Before asking the first question, run once:
+  node .aai/scripts/intake-staleness-check.mjs
+If stdout is non-empty, relay it to the user verbatim; proceed to the first
+question in EVERY case, including a non-empty warning. Never run `git pull`,
+`git submodule update`, or any other repair on the author's behalf. If the
+script or `node` is unavailable (older AAI layer), skip silently and continue.
 
 ## LANGUAGE POLICY
 - Accept user responses in any language.

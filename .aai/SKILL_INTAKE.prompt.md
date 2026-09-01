@@ -17,6 +17,10 @@ INTAKE TYPE MAP
 
 ROUTING ALGORITHM
 
+STEP 0 — STALENESS PREFLIGHT
+Apply the "STALENESS PREFLIGHT (before the first question)" block from
+.aai/INTAKE_COMMON.md exactly, before STEP 1.
+
 STEP 1 — DETECT TYPE
 If the caller supplied a work description (in any language):
   - Infer the intake type from the description using the INTAKE TYPE MAP above.
@@ -81,7 +85,7 @@ Index:     docs/INDEX.md regenerated
 Next step: Run .aai/ORCHESTRATION.prompt.md to dispatch the next role.
 ---
 
-SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its five blocks (language policy, durable doc identity, post-save check, metrics question, implementation mode choice) exactly.
+SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its six blocks (staleness preflight, language policy, durable doc identity, post-save check, metrics question, implementation mode choice) exactly.
 
 EFFICIENCY RULES
 - Ask only for missing high-impact fields.

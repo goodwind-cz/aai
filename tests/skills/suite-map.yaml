@@ -401,6 +401,7 @@ suites:
     globs:
       - .aai/SKILL_INTAKE.prompt.md
       - .aai/INTAKE_COMMON.md
+      - .aai/scripts/intake-staleness-check.mjs
       - .aai/INTAKE_CHANGE.prompt.md
       - .aai/INTAKE_HOTFIX.prompt.md
       - .aai/INTAKE_ISSUE.prompt.md

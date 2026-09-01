@@ -115,6 +115,7 @@ core:
   - .aai/scripts/lane-gate.mjs
   - .aai/scripts/install-pre-commit-hook.ps1
   - .aai/scripts/install-pre-commit-hook.sh
+  - .aai/scripts/intake-staleness-check.mjs
   - .aai/scripts/layer-drift.mjs
   - .aai/scripts/learned-append.mjs
   - .aai/scripts/lib/append-lock.sh
