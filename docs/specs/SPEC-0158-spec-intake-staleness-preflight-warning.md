@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/CHANGE-0168-intake-staleness-preflight-warning.md
   rfc: null
   pr:
-    - TBD
+    - 327
   commits:
     - 019e96a
 ---
