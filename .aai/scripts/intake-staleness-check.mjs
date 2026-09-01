@@ -246,7 +246,9 @@ function checkSubmodulesArm(args, lines, deadline) {
       const remaining = deadline - Date.now();
       if (remaining <= 0) break; // budget spent mid-list -> stop silently
       const fetchTimeout = Math.min(timeoutMs, remaining);
-      const fetchRes = git(subDir, ['fetch', '--quiet', 'origin', branch], fetchTimeout);
+      // Explicit destination refspec — same reasoning as the branch arm
+      // above: never depend on ambient tracking-ref-update behavior.
+      const fetchRes = git(subDir, ['fetch', '--quiet', 'origin', `+${branch}:refs/remotes/origin/${branch}`], fetchTimeout);
       if (!fetchRes.ok) continue; // this submodule alone degrades, others still checked
     }
 

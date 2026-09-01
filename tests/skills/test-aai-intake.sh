@@ -1301,6 +1301,12 @@ stale_fixture_pair() {
   local d
   d=$(intake_scratch)
   git init -q --bare "$d/origin.git"
+  # Force the bare origin's OWN HEAD to refs/heads/main, independent of
+  # whatever init.defaultBranch this machine happens to default to (CI-only
+  # failure, reproduced: a runner defaulting elsewhere leaves origin's HEAD
+  # pointing at a branch nobody ever pushes, so w2 below clones onto an
+  # empty, unborn, upstream-less checkout instead of a real behind-main one).
+  git -C "$d/origin.git" symbolic-ref HEAD refs/heads/main
   git clone -q "$d/origin.git" "$d/w1" 2>/dev/null
   stale_force_branch "$d/w1" main
   ( cd "$d/w1" && git config user.email t@t.example && git config user.name t \
@@ -1319,6 +1325,7 @@ stale_fixture_with_submodule() {
   local d
   d=$(intake_scratch)
   git init -q --bare "$d/sub-origin.git"
+  git -C "$d/sub-origin.git" symbolic-ref HEAD refs/heads/main
   git clone -q "$d/sub-origin.git" "$d/sub-w1" 2>/dev/null
   stale_force_branch "$d/sub-w1" main
   ( cd "$d/sub-w1" && git config user.email t@t.example && git config user.name t \
@@ -1326,6 +1333,7 @@ stale_fixture_with_submodule() {
       && git push -q origin HEAD:main -u ) >/dev/null 2>&1
 
   git init -q --bare "$d/super-origin.git"
+  git -C "$d/super-origin.git" symbolic-ref HEAD refs/heads/main
   git -c protocol.file.allow=always clone -q "$d/super-origin.git" "$d/super-w1" 2>/dev/null
   stale_force_branch "$d/super-w1" main
   ( cd "$d/super-w1" && git config user.email t@t.example && git config user.name t \
