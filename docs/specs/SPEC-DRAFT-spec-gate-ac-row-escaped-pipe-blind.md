@@ -291,21 +291,26 @@ Seam analysis:
   read the SAME function for, without reading the new field. TEST-005's full
   suite re-run (which exercises all three transitively) is the crossing test
   proving the additive field introduces no regression there.
-- Residual risk (recorded, scope boundary D5): `generate-docs-index.mjs` and
-  `spec-freeze.mjs` both call `parseAcTable` directly and neither reconciles
-  `declaredIds` against `rows` — an unparseable canonical row stays invisible
-  to the generated index's own summary and to a fresh freeze's untested-AC
-  refusal. Both are bounded by the post-freeze `spec-lint.mjs` advisory run
-  (which already catches this shape) and by the fact that neither makes a
-  PASS/FAIL claim the way the close gate does (the index is a report; freeze
-  happens before there is anything to close). Widening either is a separate,
-  larger change (index-generator behavior, or freeze-time refusal semantics)
-  and is deliberately not folded into this fix.
+- Residual risk (recorded, scope boundary D5): `generate-docs-index.mjs` calls
+  `parseAcTable` directly and does not reconcile `declaredIds` against
+  `rows` — an unparseable canonical row stays invisible to the generated
+  index's own summary. Bounded by the fact that the index makes a report,
+  not a PASS/FAIL claim the way the close gate does, and by the post-freeze
+  `spec-lint.mjs` advisory run (which already catches this shape). Widening
+  the index generator is a separate, larger change and is deliberately not
+  folded into this fix. `spec-freeze.mjs` is NOT part of this residual risk:
+  it carries its own independent `ac-row-unparsed` refusal (raw-line count
+  vs. parsed-row count) that already fails freeze on exactly this shape —
+  confirmed live during code review, not merely assumed.
 - Residual risk (recorded, D5 edge case): a duplicate declared id where one
   copy is dropped is reconciled presence-only here (unlike spec-lint's
-  count-aware SPEC-0051 nuance) — bounded because `ac-id-duplicate` already
-  flags the duplicate itself at lint time, and a fully-vanished id (the
-  actually dangerous case) is still caught.
+  count-aware SPEC-0051 nuance) — bounded because `duplicate-ac-id` already
+  flags the duplicate itself at lint time (the sibling rule `ac-id-duplicate`
+  requires two surviving, parseable rows and cannot fire for this one-copy-
+  dropped shape), and a fully-vanished id (the actually dangerous case) is
+  still caught. Filed as `fu-gate-ac-duplicate-id-pipe-drop` (P2) rather than
+  folded into this fix, since closing it needs count-aware (multiset)
+  reconciliation in the shared function, a small but separate change.
 - Registry items closed by this scope: none (`node .aai/scripts/follow-ups.mjs
   list` carries no filed item on this subject; this scope instead resolves
   the informally-recorded residual risk in

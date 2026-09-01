@@ -4393,7 +4393,7 @@ test_l1gate_done_drift_pipe_drop() {  # spec-l1-close-gate TEST-008 / Spec-AC-04
 # --- lean-table fix above (GitHub #330) ---------------------------------------
 
 test_gateac_canonical_pipe_drop_reconciled() {  # TEST-001 / Spec-AC-01
-  log_info "Test: a CANONICAL AC Status row broken by a literal pipe is silently dropped by parseAcTable — the gate must reconcile declared-vs-parsed and FAIL naming it (plain/escaped/indented), across absent/L2/L3 ceremony levels; a clean table is byte-identical (TEST-001)..."
+  log_info "Test: a CANONICAL AC Status row broken by a literal pipe is silently dropped by parseAcTable — the gate must reconcile declared-vs-parsed and FAIL naming it (plain/escaped/indented), across absent/L2/L3 ceremony levels; a clean table still gate PASSes (exit 0) (TEST-001)..."
   local d ec
   d="$(setup_iso_repo gateac-pipedrop)"
   # Legacy/absent ceremony_level. Spec-AC-02's Notes cell carries a literal

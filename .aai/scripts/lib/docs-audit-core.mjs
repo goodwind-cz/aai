@@ -1681,7 +1681,7 @@ function gateContent(content, extraMethods) {
   // or escaped pipe) must fail the gate by name, not evaluate as absent.
   const reconcileCanonical = () => {
     for (const id of unparseableAcIds(ac)) {
-      reasons.push(`${id} is declared in the AC Status table but its row did not parse (a literal "|" inside a cell breaks the row — reword to remove pipes)`);
+      reasons.push(`${id} is declared in the AC Status table but its row did not parse (its cell count does not match the header — check for a raw or escaped "|" in a cell, or a missing cell)`);
     }
   };
   if (!isLeanCeremonyLevel(clRaw)) {
@@ -1704,7 +1704,7 @@ function gateContent(content, extraMethods) {
       reasons.push(`missing AC table (ceremony_level ${clRaw} lean shape: a "## Acceptance Criteria" table with Spec-AC + Status columns)`);
     } else {
       for (const id of unparseableAcIds(lean)) {
-        reasons.push(`${id} is declared in the AC table but its row did not parse (a literal "|" inside a cell breaks the row — reword to remove pipes)`);
+        reasons.push(`${id} is declared in the AC table but its row did not parse (its cell count does not match the header — check for a raw or escaped "|" in a cell, or a missing cell)`);
       }
       checkRows(lean.rows, false);
     }
