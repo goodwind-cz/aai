@@ -27,8 +27,8 @@ RFC-0001).
   pipe-dropped row FAILS the gate (or reports `NEEDS-TRIAGE` on a `done`
   drift check) naming the row, across plain/escaped/indented pipes and
   absent/L2/L3 ceremony levels. A clean table is byte-identical.
-- Filed from GitHub issue #330; ISSUE-DRAFT-gate-ac-row-escaped-pipe-blind /
-  SPEC-DRAFT-spec-gate-ac-row-escaped-pipe-blind.
+- Filed from GitHub issue #330; ISSUE-0077-gate-ac-row-escaped-pipe-blind /
+  SPEC-0160-spec-gate-ac-row-escaped-pipe-blind.
 
 ## [v2026.09.01] — fix(harness): name an ad-hoc shipping-repo write and check a spec's own closure claims
 

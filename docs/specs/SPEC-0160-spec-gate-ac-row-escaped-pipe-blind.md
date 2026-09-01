@@ -1,11 +1,11 @@
 ---
 id: spec-gate-ac-row-escaped-pipe-blind
 type: spec
-number: null
+number: 160
 status: implementing
 ceremony_level: 2
 links:
-  requirement: docs/issues/ISSUE-DRAFT-gate-ac-row-escaped-pipe-blind.md
+  requirement: docs/issues/ISSUE-0077-gate-ac-row-escaped-pipe-blind.md
   rfc: null
   pr: []
   commits: []
@@ -17,7 +17,7 @@ SPEC-FROZEN: true
 
 ## Links
 - Issue: gate-ac-row-escaped-pipe-blind
-  (docs/issues/ISSUE-DRAFT-gate-ac-row-escaped-pipe-blind.md, GitHub #330)
+  (docs/issues/ISSUE-0077-gate-ac-row-escaped-pipe-blind.md, GitHub #330)
 - Prior art (same defect class, lean table only):
   docs/specs/SPEC-0036-spec-l1-close-gate.md D6, whose own "Seam analysis"
   section explicitly deferred this exact canonical-table gap ("Closing the
@@ -101,8 +101,8 @@ Explicit review scope (code_review):
   `unparseableAcIds`; wired into `gateContent`'s canonical branches and the
   `status: done` drift check's canonical branch)
 - tests/skills/test-aai-docs-audit.sh (new stanzas)
-- docs/specs/SPEC-DRAFT-spec-gate-ac-row-escaped-pipe-blind.md,
-  docs/issues/ISSUE-DRAFT-gate-ac-row-escaped-pipe-blind.md
+- docs/specs/SPEC-0160-spec-gate-ac-row-escaped-pipe-blind.md,
+  docs/issues/ISSUE-0077-gate-ac-row-escaped-pipe-blind.md
 - docs/INDEX.md (regenerated, mechanical)
 
 ## Design decisions
@@ -241,10 +241,10 @@ operator-only (this scope ends at `gh pr create`).
 
 | Spec-AC    | Description                                                        | Status  | Evidence | Review-By | Notes |
 |------------|---------------------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | Gate FAILs naming a canonical row dropped by the shared parser (plain/escaped/indented); clean table unaffected | planned | —        | —         | —     |
-| Spec-AC-02 | Done-drift check mirrors the gate for the canonical table (probable-false-done, not CLEAN) | planned | —        | —         | —     |
-| Spec-AC-03 | One shared declaredIds field + one shared reconciliation function; spec-lint and --gate never disagree on the #330 repro | planned | —        | —         | —     |
-| Spec-AC-04 | Existing docs-audit/ceremony-levels/spec-lint/close-work-item suites + repo-wide strict audit stay green/CLEAN | planned | —        | —         | —     |
+| Spec-AC-01 | Gate FAILs naming a canonical row dropped by the shared parser (plain/escaped/indented); clean table unaffected | done | TEST-001/002, tests/skills/test-aai-docs-audit.sh; commit 2f2f02f; independently RED/GREEN-reproduced in validation round 2 | tdd:2026-09-01 | — |
+| Spec-AC-02 | Done-drift check mirrors the gate for the canonical table (probable-false-done, not CLEAN) | done | TEST-003, tests/skills/test-aai-docs-audit.sh; commit 2f2f02f | tdd:2026-09-01 | — |
+| Spec-AC-03 | One shared declaredIds field + one shared reconciliation function; spec-lint and --gate never disagree on the #330 repro | done | TEST-004, tests/skills/test-aai-docs-audit.sh; commit 2f2f02f; corpus check over 159 opted-in specs byte-identical pre/post-fix (validation round 2) | tdd:2026-09-01 | duplicate-id one-copy-dropped edge case filed as fu-gate-ac-duplicate-id-pipe-drop (P2), not fixed here |
+| Spec-AC-04 | Existing docs-audit/ceremony-levels/spec-lint/close-work-item suites + repo-wide strict audit stay green/CLEAN | done | TEST-005; full framework sweep 84/84 on committed tree, commit 0fae71a; docs-audit --check --strict CLEAN | tdd:2026-09-01 | — |
 
 ## Implementation plan
 - Components/modules affected: `.aai/scripts/lib/docs-model.mjs`

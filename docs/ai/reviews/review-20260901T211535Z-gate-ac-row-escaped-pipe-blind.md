@@ -1,7 +1,7 @@
 ```yaml
 review:
-  scope: "git diff 7eaeecb..HEAD (branch fix/gate-ac-row-escaped-pipe-blind, commits 2f2f02f, 34ec205) — .aai/scripts/lib/docs-model.mjs, .aai/scripts/lib/docs-audit-core.mjs, tests/skills/test-aai-docs-audit.sh, tests/skills/lib/cd-subshell-leak-baseline.tsv, docs/ai/tests/test-runs.jsonl, CHANGELOG.md, docs/specs/SPEC-DRAFT-spec-gate-ac-row-escaped-pipe-blind.md, docs/issues/ISSUE-DRAFT-gate-ac-row-escaped-pipe-blind.md, docs/INDEX.md"
-  spec: docs/specs/SPEC-DRAFT-spec-gate-ac-row-escaped-pipe-blind.md
+  scope: "git diff 7eaeecb..HEAD (branch fix/gate-ac-row-escaped-pipe-blind, commits 2f2f02f, 34ec205) — .aai/scripts/lib/docs-model.mjs, .aai/scripts/lib/docs-audit-core.mjs, tests/skills/test-aai-docs-audit.sh, tests/skills/lib/cd-subshell-leak-baseline.tsv, docs/ai/tests/test-runs.jsonl, CHANGELOG.md, docs/specs/SPEC-0160-spec-gate-ac-row-escaped-pipe-blind.md, docs/issues/ISSUE-0077-gate-ac-row-escaped-pipe-blind.md, docs/INDEX.md"
+  spec: docs/specs/SPEC-0160-spec-gate-ac-row-escaped-pipe-blind.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -40,7 +40,7 @@ review:
 Scope: `git diff 7eaeecb..HEAD` in worktree
 `/Users/ales/Projects/aai-fix-gate-ac-row-escaped-pipe-blind`, branch
 `fix/gate-ac-row-escaped-pipe-blind`, commits `2f2f02f` + `34ec205`.
-Spec: `docs/specs/SPEC-DRAFT-spec-gate-ac-row-escaped-pipe-blind.md`
+Spec: `docs/specs/SPEC-0160-spec-gate-ac-row-escaped-pipe-blind.md`
 (SPEC-FROZEN, ceremony_level 2).
 
 Dispatch note (anti-gaming contract): the dispatch pre-characterized four

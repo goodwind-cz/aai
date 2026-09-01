@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-01T22:14:55.084Z
+Generated: 2026-09-01T23:39:42.071Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-gate-ac-row-escaped-pipe-blind | specs | implementing | 4 planned | docs/specs/SPEC-DRAFT-spec-gate-ac-row-escaped-pipe-blind.md |
+| SPEC-0160 | specs | implementing | 4 done | docs/specs/SPEC-0160-spec-gate-ac-row-escaped-pipe-blind.md |
 
 ## Canonical layer (0)
 
@@ -482,7 +482,7 @@ _None._
 | ISSUE-0073 | issues | docs/issues/ISSUE-0073-uncarved-dispatch-lanes.md |
 | ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
 | ISSUE-0075 | issues | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
-| gate-ac-row-escaped-pipe-blind (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-gate-ac-row-escaped-pipe-blind.md |
+| ISSUE-0077 | issues | docs/issues/ISSUE-0077-gate-ac-row-escaped-pipe-blind.md |
 
 ## Deferred (whole-doc) (0)
 

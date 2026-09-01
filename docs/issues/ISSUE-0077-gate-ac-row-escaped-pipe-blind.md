@@ -1,6 +1,6 @@
 ---
 id: gate-ac-row-escaped-pipe-blind
-number: null
+number: 77
 type: issue
 status: draft
 links:
