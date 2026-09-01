@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(harness): name an ad-hoc shipping-repo write and check a spec's own closure claims
+## [v2026.09.01] — fix(harness): name an ad-hoc shipping-repo write and check a spec's own closure claims
 
 - `.aai/scripts/aai-run-tests.sh` now classifies every invocation as
   `suite`, `framework`, or `ad-hoc` (read-only; the isolation SET is
@@ -35,7 +35,7 @@ RFC-0001).
   `fu-adhoc-probes-unisolated-report-only` and
   `fu-spec-closes-claim-unverified`.
 
-## [unreleased] — feat(intake): read-only staleness preflight on the shared intake entry point
+## [v2026.09.01] — feat(intake): read-only staleness preflight on the shared intake entry point
 
 - Every `.aai/INTAKE_*.prompt.md` now runs a bounded, silent-by-default
   staleness check (`.aai/scripts/intake-staleness-check.mjs`) before the
@@ -50,7 +50,7 @@ RFC-0001).
   connectivity failure is never confused with genuine staleness.
 - CHANGE-0168 / SPEC-0158.
 
-## [unreleased] — fix(update): aai-update reconciles the runtime .gitignore block on every sync engine
+## [v2026.09.01] — fix(update): aai-update reconciles the runtime .gitignore block on every sync engine
 
 - `aai-sync.ps1` gained the runtime-sidecar `.gitignore` reconcile it never
   had -- the actual root cause of ISSUE-0076: a project synced only from
@@ -71,7 +71,7 @@ RFC-0001).
 - `.aai/scripts/lib/gitignore-block.sh` classified in `PROFILES.yaml` core.
 - ISSUE-0076 / SPEC-0157.
 
-## [unreleased] — fix(tests): the intake opening-line pin defends the actual claim, and the table-parser strictness asymmetry is closed [L1]
+## [v2026.09.01] — fix(tests): the intake opening-line pin defends the actual claim, and the table-parser strictness asymmetry is closed [L1]
 
 - `fu-intake-dir-pin-is-set-not-opening`: `tests/skills/test-aai-intake.sh`
   TEST-013 pinned the file-wide SET of `docs/<dir>` mentions across each
@@ -120,7 +120,7 @@ RFC-0001).
   this ride (protected-path-adjacent, need an L3-ceremony spec and owner
   sign-off) and remain open.
 
-## [unreleased] — fix(harness): close ceremony ordering is now enforced, not remembered [L2]
+## [v2026.09.01] — fix(harness): close ceremony ordering is now enforced, not remembered [L2]
 
 - The PR ceremony's close-before-push ordering (`.aai/SKILL_PR.prompt.md`)
   was prose an agent had to remember: validation round 4 of
@@ -148,7 +148,7 @@ RFC-0001).
   the PR exists); `VALIDATION.prompt.md` / `METRICS_FLUSH.prompt.md` cross-
   references move with it.
 
-## [unreleased] — fix(harness): a tripwire failure no longer hides why a suite also failed on its own [L1]
+## [v2026.09.01] — fix(harness): a tripwire failure no longer hides why a suite also failed on its own [L1]
 
 Ceremony justification: one additive conditional block in `suite_report`
 (guarded by the suite's own exit code, no new schema, no protected path),
@@ -213,7 +213,7 @@ already-fixed or fixed here as small, focused changes.
   so cross-suite pre-dirt within one run is still possible. Not fixed here —
   closing it needs the framework to diff each suite's own before-snapshot,
   a real framework change out of proportion to this ride's ceremony budget.
-## [unreleased] — fix(scripts): CLI exit no longer truncates piped output [L2]
+## [v2026.09.01] — fix(scripts): CLI exit no longer truncates piped output [L2]
 
 Ceremony justification: a broad mechanical change across ~38 `.aai/scripts/*.mjs`
 CLIs (extracting one shared exit-discipline library and applying it file by
@@ -263,7 +263,7 @@ protected L3 surface is touched (`state.mjs`/`lib/state-engine.mjs`/
   `main` while an open PR touches the same generated file — that gap still
   stands as filed and belongs to a separate, larger ride about orchestrator
   push discipline.
-## [unreleased] — fix(tests): drain 187 pipe-into-grep-q sites and close the argstrlen/SIGPIPE cluster [L2]
+## [v2026.09.01] — fix(tests): drain 187 pipe-into-grep-q sites and close the argstrlen/SIGPIPE cluster [L2]
 
 Ceremony justification: touches 27 `tests/skills/*.sh` files plus a shared
 generated baseline; no CI selection mechanism change was needed (the
@@ -310,7 +310,7 @@ selection fix already shipped) and no protected-surface or engine change.
   runs a small-payload CONTROL B first to keep the two failure modes
   distinguishable; no other exit-141 assertion exists in the tree.
 
-## [unreleased] — fix(hygiene): a hygiene-pack check catches a leaked cd inside a command substitution [L1]
+## [v2026.09.01] — fix(hygiene): a hygiene-pack check catches a leaked cd inside a command substitution [L1]
 
 Ceremony justification: single new detection script plus its wiring into the
 already-CORE hygiene pack; no protected surface, no engine change, no change
