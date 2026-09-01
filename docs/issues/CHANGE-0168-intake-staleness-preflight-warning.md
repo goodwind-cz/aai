@@ -2,10 +2,12 @@
 id: intake-staleness-preflight-warning
 number: 168
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 019e96a
 ---
 
 # Warn about a stale repo/submodules before intake starts

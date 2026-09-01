@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-09-01T01:46:36.078Z",
+  "generatedAt": "2026-09-01T01:48:28.711Z",
   "project": "aai-feature-intake-staleness-preflight-warning",
   "counts": {
-    "delivered": 221,
-    "in_progress": 41,
+    "delivered": 222,
+    "in_progress": 40,
     "releases": 1,
-    "tokens_total": 56514230
+    "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -89,19 +89,6 @@
       "spec": null,
       "validation": null,
       "review": null
-    },
-    {
-      "ref": "intake-staleness-preflight-warning",
-      "title": "Warn about a stale repo/submodules before intake starts",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0168-intake-staleness-preflight-warning.md",
-      "closed_on": null,
-      "agent_minutes": 115,
-      "token_total": 735322,
-      "spec": "docs/specs/SPEC-0158-spec-intake-staleness-preflight-warning.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-intake-staleness-preflight-warning-20260831T223528Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -599,6 +586,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "intake-staleness-preflight-warning",
+      "title": "Warn about a stale repo/submodules before intake starts",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0168-intake-staleness-preflight-warning.md",
+      "closed_on": "2026-09-01",
+      "agent_minutes": 115,
+      "token_total": 735322,
+      "spec": "docs/specs/SPEC-0158-spec-intake-staleness-preflight-warning.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-intake-staleness-preflight-warning-20260831T223528Z.md"
+    },
     {
       "ref": "bare-main-baseref-sweep",
       "title": "P2 backlog cluster: deslop-corpus-honesty (5 items)",
@@ -3474,6 +3474,26 @@
     }
   ],
   "delivered_groups": [
+    {
+      "key": "month:2026-09",
+      "kind": "month",
+      "label": "2026-09",
+      "items": [
+        {
+          "ref": "intake-staleness-preflight-warning",
+          "title": "Warn about a stale repo/submodules before intake starts",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0168-intake-staleness-preflight-warning.md",
+          "closed_on": "2026-09-01",
+          "agent_minutes": 115,
+          "token_total": 735322,
+          "spec": "docs/specs/SPEC-0158-spec-intake-staleness-preflight-warning.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-intake-staleness-preflight-warning-20260831T223528Z.md"
+        }
+      ]
+    },
     {
       "key": "month:2026-08",
       "kind": "month",
