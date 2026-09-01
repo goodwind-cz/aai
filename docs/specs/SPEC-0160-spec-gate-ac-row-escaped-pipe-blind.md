@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/ISSUE-0077-gate-ac-row-escaped-pipe-blind.md
   rfc: null
   pr:
-    - TBD
+    - 331
   commits:
     - abea135
 ---

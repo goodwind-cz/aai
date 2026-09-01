@@ -5,7 +5,7 @@ type: issue
 status: done
 links:
   pr:
-    - TBD
+    - 331
   commits:
     - abea135
   source_issue: https://github.com/goodwind-cz/aai/issues/330
