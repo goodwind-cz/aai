@@ -957,13 +957,27 @@ function main() {
   const toFlush = [];
   const toResume = [];
   const sweptRefs = [];
+  // ARCHIVE ELIGIBILITY IS A POSITIVE PROPERTY, CARRIED FROM THE DEFAULT GATE.
+  // An archive record CLAIMS that a validation PASS existed and merely MOVED
+  // to the ledger, and only the DEFAULT predicate below establishes that. It
+  // is collected here as an ALLOWLIST rather than derived downstream by
+  // subtracting `sweptRefs`, because subtraction only ever covers the lanes
+  // somebody remembered to subtract: the RESUME branch never enters
+  // `sweptRefs` at all, so `partialRefs.filter(r => !sweptRefs.includes(r))`
+  // was a no-op for every resumed ref and minted the record anyway.
+  const defaultOkRefs = new Set();
   for (const entry of entries) {
     const ref = entry.ref;
     if (opts.ref && ref !== opts.ref) { skipped[ref] = 'not selected (--ref restriction)'; continue; }
-    if (inLedger.has(ref)) { toResume.push(entry); continue; }   // interrupted flush
 
     // DEFAULT gate — BYTE-UNCHANGED from the pre-sweep logic (D2): the
     // current-validation ref, review pass/waived when required, runs>0.
+    // Evaluated for EVERY selected entry, the resumed ones included. It is a
+    // PURE read of the un-committed STATE (no writes, no `skipped` entry, no
+    // ordering effect), so hoisting it above the resume short-circuit changes
+    // nothing about which refs flush, resume or skip — it only makes the
+    // predicate's ANSWER available for refs the short-circuit used to skip
+    // asking about.
     let defaultReason = null;
     if (!(vStatus === 'pass' && refMatches(vRef, ref))) {
       defaultReason = vStatus === 'pass'
@@ -974,6 +988,9 @@ function main() {
     } else if (entry.runs.length === 0) {
       defaultReason = 'no agent_runs recorded in STATE metrics';
     }
+    if (defaultReason === null) defaultOkRefs.add(ref);
+
+    if (inLedger.has(ref)) { toResume.push(entry); continue; }   // interrupted flush
 
     if (defaultReason === null) { toFlush.push(entry); continue; }
 
@@ -1045,18 +1062,27 @@ function main() {
       partialRefs = completedRefs.filter(r => r === focusRef || refMatches(vRef, r));
       // ARCHIVE ELIGIBILITY IS NOT RESET ELIGIBILITY. An archive record is a
       // claim that a validation PASS existed and merely MOVED to the ledger,
-      // and only the DEFAULT gate above establishes that (it demands
+      // and only the DEFAULT gate establishes that (it demands
       // `last_validation.status: pass` NAMING the ref, plus a pass-or-waived
-      // `code_review` where required). The `--sweep` gate deliberately
-      // substitutes a durable `work_item_closed` event plus `status: done` for
-      // that PASS — sound for RETIRING stranded metrics, no basis at all for
-      // opening the PR gate. Minting a record for a swept ref would hand a
-      // ride that never validated an opening it never had, and since this same
-      // reset also zeroes `code_review.required`, BOTH SKILL_PR preconditions
-      // would then read satisfied for a ride that satisfied neither. Swept
-      // refs therefore reset BYTE-UNCHANGED and archive nothing; a
-      // default-flushed ref in the same reset still archives.
-      const archiveRefs = partialRefs.filter(r => !sweptRefs.includes(r));
+      // `code_review` where required). Every OTHER route into this reset
+      // substitutes something weaker: `--sweep` takes a durable
+      // `work_item_closed` event plus `status: done` in place of the PASS, and
+      // the RESUME branch takes the mere PRESENCE of a ledger line — which can
+      // be a swept line, or a line from any earlier same-day flush. Both are
+      // sound for RETIRING stranded metrics and neither is a basis for opening
+      // the PR gate: minting a record there hands a ride that never validated
+      // an opening it never had, and since this same reset also zeroes
+      // `code_review.required`, BOTH SKILL_PR preconditions would then read
+      // satisfied for a ride that satisfied neither.
+      //
+      // So eligibility is taken from the ALLOWLIST the gate loop built, never
+      // by subtracting a lane. A subtraction has to enumerate the ways in
+      // (and `sweptRefs` alone missed the resume branch entirely); the
+      // allowlist enumerates the one way that EARNS the claim, and every lane
+      // that does not satisfy the default predicate resets BYTE-UNCHANGED and
+      // archives nothing. A ref that DOES satisfy it still archives, whether
+      // it flushed here or is being resumed after an interrupted flush.
+      const archiveRefs = partialRefs.filter(r => defaultOkRefs.has(r));
       if (partialRefs.length > 0) applyPartialReset(lines, partialRefs, nowIsoStr, carryWaiver, archiveRefs);
     }
     bumpUpdatedAt(lines, nowIsoStr);

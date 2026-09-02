@@ -789,7 +789,7 @@ ARCHIVE_SENTINEL_TOKEN="[AAI-VALIDATION-ARCHIVED"
 # is what keeps the flush on the PARTIAL branch (a full reset nulls
 # current_focus, and branch-guard.mjs refuses before the gate is ever reached).
 #
-# Four OPTIONAL env overrides exist for TEST-17 alone, each defaulting to the
+# Five OPTIONAL env overrides exist for TEST-17 alone, each defaulting to the
 # value every other arm already relied on, so TEST-11..16 are byte-unchanged:
 #   MK_VSTATUS / MK_VREF     — last_validation.status / ref_id (pass/$ARCHIVED_REF)
 #   MK_REVIEW_REQUIRED       — code_review.required (false)
@@ -798,10 +798,21 @@ ARCHIVE_SENTINEL_TOKEN="[AAI-VALIDATION-ARCHIVED"
 #                              work_item_closed event for every done ref, so
 #                              the flush's sweep gate is the one that fires
 #                              (empty = the default gate only, as before)
+#   MK_RESUME                — puts the ref in the ledger BEFORE the measured
+#                              flush, so metrics-flush takes its RESUME branch
+#                              (`inLedger.has(ref)`) instead of either gate:
+#                                crash   — a first flush killed after the ledger
+#                                          append (AAI_FLUSH_INJECT_CRASH, the
+#                                          real fault hook TEST-107 uses); the
+#                                          MEASURED flush is a plain re-run
+#                                cheat   — a pre-existing same-day PASS line for
+#                                          $ARCHIVED_REF; no crash, no --sweep
+#                              (empty = one flush, as before)
 mk_flushed() {
   local name="$1" focus="${2:-$ARCHIVED_REF}" d fec=0
   local vstatus="${MK_VSTATUS:-pass}" vref="${MK_VREF:-$ARCHIVED_REF}"
   local review_required="${MK_REVIEW_REQUIRED:-false}" swept="${MK_SWEPT:-}"
+  local resume="${MK_RESUME:-}"
   d="$TEST_DIR/$name"
   rm -rf "$d"; mkdir -p "$d/docs/ai" "$d/docs/issues"
   printf '# ledger comment header\n' > "$d/docs/ai/METRICS.jsonl"
@@ -911,6 +922,28 @@ metrics:
 
 updated_at_utc: 2026-08-30T08:30:00Z
 YAML
+  # RESUME SETUP — get $ARCHIVED_REF into the ledger WITHOUT committing STATE,
+  # which is the one shape that makes the measured flush take its resume
+  # branch. Both routes are real: `crash` is the fault hook TEST-107 already
+  # exercises; `cheat` is a same-day ledger line that simply already exists.
+  if [[ "$resume" == cheat ]]; then
+    printf '{"date_utc":"%s","ref_id":"%s","title":"pre-existing same-day line","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":0},"strategy":"tdd","reliability":null,"verdict":"PASS"}\n' \
+      "$FLUSH_DAY" "$ARCHIVED_REF" >> "$d/docs/ai/METRICS.jsonl"
+  fi
+  if [[ "$resume" == crash ]]; then
+    local cec=0
+    (cd "$PROJECT_ROOT" && AAI_FLUSH_INJECT_CRASH=after-ledger node .aai/scripts/metrics-flush.mjs \
+      --state "$d/docs/ai/STATE.yaml" --metrics "$d/docs/ai/METRICS.jsonl" \
+      --ticks "$d/docs/ai/LOOP_TICKS.jsonl" --pricing "$d/PRICING.yaml" \
+      --events "$d/docs/ai/EVENTS.jsonl" --now "$FLUSH_NOW" $sweep_flag \
+      > "$d/crash.log" 2>&1) || cec=$?
+    [[ "$cec" != 0 ]] \
+      || { echo "mk_flushed($name): the injected crash must NOT exit 0: $(cat "$d/crash.log")" >&2; return 1; }
+    grep -qE "^ {4}${ARCHIVED_REF}:" "$d/docs/ai/STATE.yaml" \
+      || { echo "mk_flushed($name): STATE must still carry $ARCHIVED_REF pre-resume (the crash is before the commit)" >&2; return 1; }
+    # The MEASURED flush is a PLAIN re-run — no --sweep, nothing but cleanup.
+    sweep_flag=""
+  fi
   (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs \
     --state "$d/docs/ai/STATE.yaml" --metrics "$d/docs/ai/METRICS.jsonl" \
     --ticks "$d/docs/ai/LOOP_TICKS.jsonl" --pricing "$d/PRICING.yaml" \
@@ -1212,24 +1245,38 @@ test_16_archive_never_blocks_a_waiver() {
 }
 
 # --- TEST-17 -----------------------------------------------------------------
-# A SWEPT REF MUST NOT BE ARCHIVED (Spec-AC-08, amendment A1). The archive
-# record claims a validation PASS existed and merely MOVED to the ledger. Only
-# metrics-flush's DEFAULT gate establishes that; the `--sweep` gate deliberately
-# substitutes a durable `work_item_closed` event plus `status: done` for the
-# PASS, which is a sound basis for RETIRING stranded metrics and no basis at all
-# for opening the PR gate. Minting a record there would hand a ride that never
-# validated an opening it never had — and because the same reset also zeroes
-# `code_review.required`, BOTH SKILL_PR preconditions would be satisfied for a
-# ride that satisfied neither.
+# ONLY A REF THAT SATISFIED THE DEFAULT GATE MAY BE ARCHIVED (Spec-AC-09). The
+# archive record claims a validation PASS existed and merely MOVED to the
+# ledger. Only metrics-flush's DEFAULT gate establishes that. Two other lanes
+# reach the same partial reset and neither establishes it:
+#   * `--sweep` substitutes a durable `work_item_closed` event plus
+#     `status: done` for the PASS — a sound basis for RETIRING stranded metrics
+#     and no basis at all for opening the PR gate;
+#   * the RESUME branch (`inLedger.has(ref)`) short-circuits BEFORE either gate
+#     is evaluated and completes the reset for any ref that merely already HAS a
+#     ledger line, whatever wrote it.
+# Minting a record on either lane hands a ride that never validated an opening
+# it never had — and because the same reset also zeroes `code_review.required`,
+# BOTH SKILL_PR preconditions would be satisfied for a ride that satisfied
+# neither.
 #
-# (a) is the harm case, end to end on the real flush and the real gate: the
-# verdict must be the one base gives (blocked, `validation_not_run_no_waiver`).
-# (b) is the non-vacuity control — one flush that sweeps ONE ref and
-# default-flushes ANOTHER, both landing in the same partial reset. Exactly one
-# record must be written and it must name the DEFAULT-flushed ref. A fix that
-# simply stopped archiving whenever `--sweep` was passed fails (b).
+# Five arms, two of them non-vacuity controls in OPPOSITE directions:
+#  (a) harm case, sweep lane, end to end on the real flush and the real gate:
+#      the verdict must be the one base gives (`validation_not_run_no_waiver`).
+#  (b) control — one flush that sweeps ONE ref and default-flushes ANOTHER into
+#      the same partial reset. Exactly one record, naming the DEFAULT-flushed
+#      ref. A fix that stopped archiving whenever `--sweep` was passed fails (b).
+#  (c) harm case, resume lane via the sweep: TEST-107's own crash-then-resume
+#      fixture. A resumed ref is never in `sweptRefs`, so subtracting the sweep
+#      set cannot reach it — this arm is what forces a POSITIVE eligibility
+#      property rather than a subtraction.
+#  (d) harm case, resume lane with NO sweep and NO crash: a pre-existing
+#      same-day ledger line for the focus ref plus a plain flush.
+#  (e) control — a crash-resume of a ride that DOES satisfy the default gate
+#      must STILL archive. A fix that never archived on resume fails (e), and
+#      would break SPEC-0068's designed crash-recovery path.
 test_17_swept_ref_is_never_archived() {
-  log_info "TEST-17: --sweep retires stranded metrics but mints no archive record..."
+  log_info "TEST-17: neither the sweep gate nor the resume branch mints an archive record..."
   local d sp
 
   # (a) THE HARM CASE. Nothing validated: last_validation not_run / ref_id
@@ -1296,7 +1343,79 @@ test_17_swept_ref_is_never_archived() {
     "TEST-17(b): the swept ref must stay blocked even while a sibling record sits in the same note" || return 1
   assert_payload_not_contains "$GATE_OUT" "open reason=" \
     "TEST-17(b): nothing in a mixed sweep may open the gate for the swept ref" || return 1
-  log_pass "TEST-17 --sweep retires metrics without minting an opening; a default-flushed sibling in the same reset still archives"
+
+  # (c) THE RESUME LANE, VIA THE SWEEP. `metrics-flush.mjs` short-circuits on
+  # `inLedger.has(ref)` BEFORE either gate is evaluated, so a ref that reached
+  # the ledger through the sweep and was then resumed is not in `sweptRefs` at
+  # all — subtracting the sweep set cannot reach it. The fixture is TEST-107's
+  # own designed state (SPEC-0068 Spec-AC-06: crash-then-resume is
+  # cleanup-only): --sweep, killed after the ledger append, then a plain
+  # re-flush. Nothing validated at any point, so the verdict must be the one
+  # base gives.
+  d="$(MK_VSTATUS=not_run MK_VREF=null MK_REVIEW_REQUIRED=true MK_SWEPT=$SWEPT_REF MK_RESUME=crash \
+        mk_flushed swept_resume)" || log_fail "TEST-17(c): fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+
+  # PREMISE: the measured flush really took the RESUME branch and really
+  # appended nothing — the arm must not pass because the flush did no work.
+  grep -qF "RESUME $ARCHIVED_REF" "$d/flush.log" \
+    || log_fail "TEST-17(c) premise: the measured flush must RESUME $ARCHIVED_REF: $(cat "$d/flush.log")"
+  ! grep -qF "Flushed:" "$d/flush.log" \
+    || log_fail "TEST-17(c) premise: a resume is cleanup-only — it must append no ledger line: $(cat "$d/flush.log")"
+  [[ "$(grep -cv -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" || true)" == 2 ]] \
+    || log_fail "TEST-17(c) premise: the pre-crash sweep's two ledger lines must survive un-duplicated: $(cat "$d/docs/ai/METRICS.jsonl")"
+  assert_payload_contains "$(cat "$sp")" "reset after flush of" \
+    "TEST-17(c): the partial-reset prose must be untouched — only the record is withheld" || return 1
+  assert_payload_not_contains "$(cat "$sp")" "$ARCHIVE_SENTINEL_TOKEN" \
+    "TEST-17(c): a ref RESUMED into the ledger without satisfying the default gate must mint NO archive record" || return 1
+
+  run_gate "$sp"
+  expect_rc 1 "TEST-17(c) resumed swept ref, nothing validated"
+  assert_payload_contains "$GATE_OUT" "reason=validation_not_run_no_waiver" \
+    "TEST-17(c): a resumed swept ride must reach the PR gate with exactly the verdict it had before the flush" || return 1
+  assert_payload_not_contains "$GATE_OUT" "validation_archived_pass" \
+    "TEST-17(c): the archive lane must never open for a ride that never validated, resumed or not" || return 1
+
+  # (d) THE RESUME LANE WITHOUT A SWEEP AND WITHOUT A CRASH. A same-day PASS
+  # line for the focus ref already sits in METRICS.jsonl while STATE still
+  # carries the metrics entry; a plain flush then resumes it. No `--sweep` is
+  # passed anywhere in this arm, which is what proves the defect is the RESUME
+  # branch itself and not a sweep-only carve-out.
+  d="$(MK_VSTATUS=not_run MK_VREF=null MK_REVIEW_REQUIRED=true MK_RESUME=cheat \
+        mk_flushed plain_resume)" || log_fail "TEST-17(d): fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+
+  grep -qF "RESUME $ARCHIVED_REF" "$d/flush.log" \
+    || log_fail "TEST-17(d) premise: the flush must RESUME $ARCHIVED_REF: $(cat "$d/flush.log")"
+  [[ ! -e "$d/crash.log" ]] \
+    || log_fail "TEST-17(d) premise: this arm must involve no crashed flush at all"
+  [[ "$(grep -cv -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" || true)" == 1 ]] \
+    || log_fail "TEST-17(d) premise: exactly the pre-existing line, no duplicate: $(cat "$d/docs/ai/METRICS.jsonl")"
+  assert_payload_not_contains "$(cat "$sp")" "$ARCHIVE_SENTINEL_TOKEN" \
+    "TEST-17(d): a plain flush that only RESUMES a ledger line must mint no archive record" || return 1
+
+  run_gate "$sp"
+  expect_rc 1 "TEST-17(d) resumed ref, no sweep, no crash, nothing validated"
+  assert_payload_contains "$GATE_OUT" "reason=validation_not_run_no_waiver" \
+    "TEST-17(d): a pre-existing ledger line must not become a PR-gate opening" || return 1
+
+  # (e) SECOND NON-VACUITY CONTROL. The resume lane is not the defect — an
+  # UNVALIDATED resume is. A ride that genuinely satisfies the default gate and
+  # is resumed after a crash MUST still archive, or the fix would have been
+  # "never archive on resume", which breaks the very crash-recovery path
+  # SPEC-0068 designed.
+  d="$(MK_RESUME=crash mk_flushed validated_resume)" || log_fail "TEST-17(e): fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+  grep -qF "RESUME $ARCHIVED_REF" "$d/flush.log" \
+    || log_fail "TEST-17(e) premise: the measured flush must RESUME $ARCHIVED_REF: $(cat "$d/flush.log")"
+  assert_payload_contains "$(cat "$sp")" "$ARCHIVE_SENTINEL_TOKEN v1 ref=$ARCHIVED_REF at=$FLUSH_NOW" \
+    "TEST-17(e): a resumed ref that DOES satisfy the default gate must still be archived" || return 1
+  run_gate "$sp"
+  expect_rc 0 "TEST-17(e) resumed ref that genuinely validated"
+  assert_payload_contains "$GATE_OUT" "reason=validation_archived_pass" \
+    "TEST-17(e): the archive lane must still open for a genuinely-validated resumed ride" || return 1
+
+  log_pass "TEST-17 neither the sweep gate nor the resume branch mints an opening; refs that satisfy the DEFAULT gate still archive"
 }
 
 # --- runner ------------------------------------------------------------------

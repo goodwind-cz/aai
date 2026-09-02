@@ -105,11 +105,17 @@
 //      that scope on `at`'s own day. The record is a CLAIM; the ledger entry
 //      corroborates it. The trust does NOT rest on the ledger line alone:
 //      `metrics-flush --sweep` writes `verdict: PASS` lines for stranded
-//      rides that never validated. It rests on the RECORD, which
-//      metrics-flush emits ONLY for refs its DEFAULT gate flushed — a live
-//      `pass` naming the ref, plus a pass-or-waived `code_review` where
-//      required. A swept ref is reset WITHOUT a record and so reaches this
-//      gate with exactly the verdict it had before the flush.
+//      rides that never validated, and its RESUME branch completes a reset
+//      for any ref that merely already HAS a ledger line, whatever wrote it.
+//      The trust rests on the RECORD, which metrics-flush emits only for a
+//      ref that SATISFIES ITS DEFAULT GATE at flush time — a live `pass`
+//      naming the ref, plus a pass-or-waived `code_review` where required,
+//      plus a recorded agent run. That is a positive allowlist, evaluated for
+//      every ref the flush completes and independent of WHICH lane completed
+//      it: a swept ref and an unvalidated resumed ref are both reset WITHOUT
+//      a record and so reach this gate with exactly the verdict they had
+//      before the flush, while a genuinely-validated ref still archives even
+//      when it is being resumed after an interrupted flush.
 //
 // PRECEDENCE — the lane may only ever OPEN. If it does not, the waiver lane
 // runs BYTE-FOR-BYTE as it did before, every existing refusal token included;

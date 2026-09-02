@@ -23,7 +23,7 @@ SPEC-FROZEN: true
   `spec-ac-table-premature-flip-recurs` (PR #333) — two consumers of one signal
   resolved by extracting ONE shared predicate, never a second heuristic.
 
-## Amendment (post-freeze, 2026-09-02 — validation round-1 B1 BLOCKING)
+## Amendment (post-freeze, 2026-09-02 — validation rounds 1-2, B1 + B2 BLOCKING)
 
 This is a FROZEN spec, amended at remediation and disclosed here rather than
 rewritten silently. `SPEC-FROZEN: true` is preserved; the mechanism is the
@@ -34,34 +34,61 @@ additive-with-disclosure convention `docs/specs/SPEC-0132-...md`,
 re-freeze path, so the convention IS the mechanism. `.aai/system/AUTONOMOUS_LOOP.md:25`
 assigns scope changes to HITL; **no prior owner sign-off was obtained and the
 owner may reverse this.** This is the fourth such unsigned amendment this repo
-carries, and the owner has an open intake about that gap.
+carries, and the owner has an open intake about that gap. Round 2 asked whether
+it could be RETIRED; the answer, argued in item 4 below, is no — the narrowing
+is load-bearing and the alternative that would have avoided it does not close
+the defect.
 
-1. **The trust argument was false on the `--sweep` path** (B1, BLOCKING). Three
-   places in this spec and in `.aai/scripts/validation-waiver.mjs` argued that a
+1. **The trust argument was false wherever the archive record was minted
+   without the DEFAULT gate having held** (B1 + B2, BLOCKING). Three places in
+   this spec and in `.aai/scripts/validation-waiver.mjs` argued that a
    `verdict: PASS` ledger entry proves the flush gates held — "Why the archive
    record is trustworthy" below, the `fu-metrics-verdict-has-no-staleness`
    paragraph's "can only ever open the gate for a ride whose live status WAS
    `pass` moments earlier", and R4's "forging one requires editing STATE and the
-   ledger consistently". All three were false as delivered: `metrics-flush
-   --sweep` substitutes a durable `work_item_closed` event plus
-   `active_work_items[ref].status == 'done'` for the validation PASS, the entry
-   builder hardcodes `verdict: 'PASS'`, and `partialRefs` included swept refs —
-   so a sweep minted a gate-opening archive record for a ride that never
-   validated, and the same reset zeroed `code_review.required`, satisfying BOTH
-   SKILL_PR preconditions for a ride that satisfied neither. Reproduced end to
-   end: `open: true, reason: validation_archived_pass` where base returns
-   `open: false, reason: validation_not_run_no_waiver`.
+   ledger consistently". All three were false as delivered, on TWO lanes:
+   - **B1, the sweep lane.** `metrics-flush --sweep` substitutes a durable
+     `work_item_closed` event plus `active_work_items[ref].status == 'done'` for
+     the validation PASS, the entry builder hardcodes `verdict: 'PASS'`, and
+     `partialRefs` included swept refs.
+   - **B2, the resume lane** (found in round 2, after B1 was fixed and
+     confirmed closed). `metrics-flush.mjs`'s `if (inLedger.has(ref)) {
+     toResume.push(entry); continue; }` short-circuits BEFORE either gate is
+     evaluated, and resumed refs flow into `completedRefs` → `partialRefs` →
+     `archiveRefs`. A resumed ref can therefore NEVER be in `sweptRefs`, so
+     round 1's `partialRefs.filter(r => !sweptRefs.includes(r))` was a no-op for
+     exactly this class. Two reproductions, both opening where base blocks:
+     `--sweep` then `AAI_FLUSH_INJECT_CRASH=after-ledger` then a plain re-flush
+     (which is `tests/skills/test-aai-metrics.sh` TEST-107's own fixture, the
+     designed crash-recovery state of SPEC-0068 Spec-AC-06); and a pre-existing
+     same-day `verdict: PASS` ledger line for the focus ref followed by a plain
+     flush with **no `--sweep` and no crash at all**.
+
+   Either way the same reset zeroed `code_review.required`, so BOTH SKILL_PR
+   preconditions read satisfied for a ride that satisfied neither. Reproduced
+   end to end on all three shapes: `open: true, reason: validation_archived_pass`
+   where base returns `open: false, reason: validation_not_run_no_waiver`.
 2. **The fix narrows Spec-AC-01, and Spec-AC-09 is ADDED** rather than
    Spec-AC-01 being rewritten. Spec-AC-01 said "one archive record per reset
-   ref"; the delivered behaviour is one record per ARCHIVE-ELIGIBLE reset ref —
-   `partialRefs.filter(r => !sweptRefs.includes(r))`, threaded into
-   `applyPartialReset` as a separate `archiveRefs` argument. The RESET itself is
-   byte-unchanged (prose, `run_at_utc`, `ref_id`, both blocks); only the record
-   is withheld, so a swept ref reaches the gate with exactly the verdict it had
-   before the flush. Spec-AC-01 remains true for every ref the DEFAULT gate
-   flushed, which is every ref TEST-001..008 exercise; the carve-out is recorded
-   in its Notes cell and in the section text below rather than by editing the
-   frozen sentence.
+   ref"; the delivered behaviour is one record per ARCHIVE-ELIGIBLE reset ref,
+   threaded into `applyPartialReset` as a separate `archiveRefs` argument.
+   Eligibility is a POSITIVE property carried from the default gate — the loop
+   evaluates the default predicate for EVERY selected entry (it is a pure read
+   of the un-committed STATE, so hoisting it above the resume short-circuit
+   changes nothing about which refs flush, resume or skip) and collects the
+   satisfying refs into a `defaultOkRefs` allowlist; the caller then passes
+   `partialRefs.filter(r => defaultOkRefs.has(r))`. Round 1's subtraction of
+   `sweptRefs` is REPLACED, not supplemented: a subtraction has to enumerate
+   every lane that must not archive and it missed one, while the allowlist
+   enumerates the single lane that EARNS the claim and is closed under new
+   lanes by construction. The RESET itself is byte-unchanged (prose,
+   `run_at_utc`, `ref_id`, both blocks); only the record is withheld, so a
+   swept or unvalidated-resumed ref reaches the gate with exactly the verdict it
+   had before the flush, while a genuinely-validated ref still archives even
+   when it is being RESUMED after an interrupted flush. Spec-AC-01 remains true
+   for every ref that satisfies the DEFAULT gate, which is every ref
+   TEST-001..008 exercise; the carve-out is recorded in its Notes cell and in
+   the section text below rather than by editing the frozen sentence.
 3. **Two prose-accuracy corrections in `.aai/scripts/validation-waiver.mjs`**
    (non-blocking findings (a) and (b), no behaviour change): the RECENCY
    paragraph claimed the record is "UN-INHERITABLE" more absolutely than the
@@ -76,6 +103,40 @@ carries, and the owner has an open intake about that gap.
    flush-producible (the preservation path only ever carries a waiver that
    already parsed `ok`); reaching it takes a hand-edited
    `last_validation.notes`, and the prose now says so.
+4. **Why this amendment is KEPT rather than retired.** Validation round 2 put
+   the question directly: an alternative fix — stop hardcoding
+   `verdict: 'PASS'` in the entry builder and emit a non-`PASS` verdict for
+   sweep-gated entries — would have left the frozen sentence "one archive
+   record per reset ref" literally true, made Spec-AC-09 and TEST-009
+   unnecessary, and let this whole section be deleted. It was evaluated and
+   REJECTED, on the merits and not on effort:
+   - **It does not close B2.** Binding 3 corroborates a record against a
+     same-day `verdict: PASS` ledger line. Marking SWEPT lines non-`PASS`
+     removes the corroboration for a resumed *swept* ref only. It leaves the
+     second reproduction wide open: a pre-existing ledger line that IS a
+     genuine `PASS` (any earlier same-day default flush wrote one) still
+     corroborates a record minted for a ref whose live `last_validation` now
+     says `fail` — or `not_run` — because the resume branch never asked. A fix
+     that has to be paired with the allowlist anyway cannot be the reason to
+     drop the allowlist.
+   - **It changes a different feature's ledger semantics.** `verdict` is
+     SPEC-0068's field and the factory report's input; re-typing it for sweeps
+     is a product-intent change to the sweep lane, made from inside a frozen
+     spec that is about the archive lane. Round 1's stated reason for the
+     restraint ("it would move METRICS.jsonl bytes for every past sweep") was
+     WRONG and is corrected here — past lines are already written, so only
+     future sweeps would change — but the correct reason still holds.
+   - **With the allowlist in place it adds no protection to this gate.** A
+     swept ref never receives a record, so binding 3 is never reached for one.
+     Its only remaining value is against a HAND-AUTHORED record (R5), where the
+     ledger requirement is already the harder half. That is worth a follow-up
+     registry item on `verdict` honesty, not a scope expansion here.
+
+   So Spec-AC-01 genuinely narrows, the narrowing is what closes B1 and B2, and
+   the disclosure has to stay. What round 2 did change is the honesty of the
+   claim: the amendment no longer says the narrowing was unavoidable in the
+   abstract — it says the one alternative that would have avoided it was
+   examined and is insufficient.
 
 ## Frontmatter status values
 - draft: spec being written, not yet ready for implementation
@@ -201,11 +262,16 @@ returns null rather than emit a record its own parser would refuse.
 **AMENDED 2026-09-02 (`## Amendment`, items 1-2) — "one record per reset ref"
 is one record per ARCHIVE-ELIGIBLE reset ref.** `applyPartialReset` takes
 `archiveRefs` as a separate argument from `flushedRefs`; the caller passes
-`partialRefs.filter(r => !sweptRefs.includes(r))`. Reset eligibility and archive
+`partialRefs.filter(r => defaultOkRefs.has(r))`, where `defaultOkRefs` is the
+allowlist the gate loop builds by evaluating the DEFAULT predicate for every
+selected entry — including the ones the resume short-circuit
+(`inLedger.has(ref)`) used to skip asking about. Reset eligibility and archive
 eligibility are different questions: the reset covers every ref this flush
-completed, while a record CLAIMS a validation PASS existed and merely moved, and
-only the DEFAULT gate establishes that. Swept refs reset byte-identically and
-archive nothing (Spec-AC-09, TEST-009).
+completed, whichever lane completed it, while a record CLAIMS a validation PASS
+existed and merely moved, and only the DEFAULT gate establishes that. Swept refs
+and resumed refs that do not satisfy that predicate reset byte-identically and
+archive nothing; a ref that does satisfy it archives even when it is being
+resumed after an interrupted flush (Spec-AC-09, TEST-009).
 
 ### Reader — `.aai/scripts/validation-waiver.mjs`
 
@@ -269,15 +335,20 @@ satisfied — which is why finding 1 above (the vacuous `code_review` check) doe
 not need a second mechanism here.
 
 **AMENDED 2026-09-02 (see `## Amendment`, item 1) — the paragraph above is true
-of the DEFAULT gate and false of `--sweep`.** The sweep gate is an additional OR
-path that substitutes a durable `work_item_closed` event plus `status: done` for
-the validation PASS, and the entry builder hardcodes `verdict: 'PASS'` for it
-too. A ledger line is therefore NOT on its own proof that the gates held. What
-carries the trust is the ARCHIVE RECORD, which is now emitted only for the refs
-the DEFAULT gate flushed (`partialRefs.filter(r => !sweptRefs.includes(r))`).
-Swept refs are reset byte-identically and archive nothing, so the entry's
-existence still corroborates a record, and only a record the default gate
-earned can exist to be corroborated.
+of the DEFAULT gate and false of every other route into the ledger.** Two exist.
+`--sweep` is an additional OR path that substitutes a durable
+`work_item_closed` event plus `status: done` for the validation PASS, and the
+entry builder hardcodes `verdict: 'PASS'` for it too. The RESUME branch
+(`inLedger.has(ref)`) completes an interrupted flush for any ref that merely
+already HAS a ledger line — a swept one, or one from any earlier same-day flush
+— and it short-circuits before either gate is consulted at all. A ledger line is
+therefore NOT on its own proof that the gates held. What carries the trust is
+the ARCHIVE RECORD, which is emitted only for a ref that SATISFIES THE DEFAULT
+PREDICATE at flush time (`partialRefs.filter(r => defaultOkRefs.has(r))`), an
+allowlist evaluated per ref and independent of which lane completed it. Refs
+that do not satisfy it are reset byte-identically and archive nothing, so the
+entry's existence still corroborates a record, and only a record the default
+gate earned can exist to be corroborated.
 
 ### Rejected sub-alternative, recorded
 
@@ -322,7 +393,7 @@ None.
 
 | Spec-AC    | Description                                                                                                                                                                                 | Status  | Evidence | Review-By | Notes                                              |
 |------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|----------|-----------|----------------------------------------------------|
-| Spec-AC-01 | WHEN metrics-flush takes the partial-reset branch the system SHALL append one archive record per reset ref to last_validation.notes whose at equals last_validation.run_at_utc exactly       | planned | —        | —         | writer side; NARROWED post-freeze to archive-eligible reset refs, see Spec-AC-09 and `## Amendment` |
+| Spec-AC-01 | WHEN metrics-flush takes the partial-reset branch the system SHALL append one archive record per reset ref to last_validation.notes whose at equals last_validation.run_at_utc exactly       | planned | —        | —         | writer side; NARROWED post-freeze to reset refs that satisfy the DEFAULT gate, see Spec-AC-09 and `## Amendment` |
 | Spec-AC-02 | WHEN a real flush is followed by the real gate on the same STATE the system SHALL exit 0 and print reason=validation_archived_pass                                                            | planned | —        | —         | the end-to-end seam, writer to reader              |
 | Spec-AC-03 | WHEN the archive record names a scope that has no PASS entry in METRICS.jsonl the system SHALL exit 1 with reason=archive_no_ledger_pass                                                      | planned | —        | —         | the intake's negative control                      |
 | Spec-AC-04 | WHEN a later set-validation re-stamps run_at_utc while inheriting the note the system SHALL exit 1 with reason=archive_stale                                                                  | planned | —        | —         | recency, not ref_id alone                          |
@@ -330,7 +401,7 @@ None.
 | Spec-AC-06 | WHEN the archive sentinel is present but its grammar is not satisfied the system SHALL exit 1 with reason=archive_malformed and never fall through to a silent open                           | planned | —        | —         | fail-closed on a broken record                     |
 | Spec-AC-07 | The nine pre-existing arms of tests/skills/test-aai-pr-waiver.sh SHALL pass unchanged, and a preserved-waiver note carrying archive records for other refs SHALL still open on its own waiver | planned | —        | —         | no loosening and no new blocking                   |
 | Spec-AC-08 | SKILL_PR SHALL document the archive lane in its VALIDATION precondition bullet and the prompt-diet ledger SHALL be trued up to the MEASURED byte growth                                       | planned | —        | —         | companion obligation, measured not copied          |
-| Spec-AC-09 | WHEN a ref reaches METRICS.jsonl through the --sweep gate rather than the default gate the system SHALL reset it WITHOUT an archive record, so the PR gate returns the same verdict it returned before the flush | planned | —        | —         | ADDED post-freeze, validation round-1 B1; a default-flushed ref in the SAME reset still archives |
+| Spec-AC-09 | WHEN a ref reaches METRICS.jsonl by any route other than satisfying the default gate at flush time (the --sweep gate, or the resume branch over a ledger line that already existed) the system SHALL reset it WITHOUT an archive record, so the PR gate returns the same verdict it returned before the flush | planned | —        | —         | ADDED post-freeze, validation rounds 1-2 B1 and B2; a ref that DOES satisfy the default gate still archives in the same reset, resumed or not |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 
@@ -344,7 +415,7 @@ Status values: planned | implementing | done | deferred | blocked | rejected
 > (`.aai/SKILL_PR.prompt.md` step 4c), in the same transaction as the
 > frontmatter `status`. Consequently
 > `node .aai/scripts/docs-audit.mjs --gate spec-metrics-flush-invalidates-pr-precondition`
-> reports the eight rows as non-terminal at hand-off; that is the EXPECTED
+> reports the nine rows as non-terminal at hand-off; that is the EXPECTED
 > state under this rule, and it is
 > `node .aai/scripts/docs-audit.mjs --ac-flip-check spec-metrics-flush-invalidates-pr-precondition`
 > (exit 0, clean) that is the binding pre-handoff self-check here.
@@ -415,7 +486,7 @@ Out of scope, deliberately:
 | TEST-006 | Spec-AC-06 | unit        | tests/skills/test-aai-pr-waiver.sh       | sentinel present with a broken grammar and with a v2 token; exit 1, reason archive_malformed then obsolete_version   | green   |
 | TEST-007 | Spec-AC-07 | integration | tests/skills/test-aai-pr-waiver.sh       | the nine existing arms rerun green, plus a preserved-waiver note carrying a foreign archive record still opens       | green   |
 | TEST-008 | Spec-AC-08 | integration | tests/skills/test-aai-prompt-diet.sh     | JUSTIFIED_GROWTH_BYTES equals the bumped want_growth and the independent re-sum                                      | green   |
-| TEST-009 | Spec-AC-09 | e2e         | tests/skills/test-aai-pr-waiver.sh       | real flush --sweep then real gate; no archive record and exit 1 reason=validation_not_run_no_waiver, plus a mixed sweep where only the default-flushed sibling is archived | green   |
+| TEST-009 | Spec-AC-09 | e2e         | tests/skills/test-aai-pr-waiver.sh       | five arms on the real flush then the real gate: (a) --sweep, (b) mixed sweep where only the default-flushed sibling is archived, (c) --sweep crashed after the ledger then a plain re-flush, (d) a plain flush over a pre-existing same-day ledger line with no sweep and no crash, (e) a crash-resume of a genuinely-validated ride that must STILL archive | green   |
 
 Test status values: pending -> red -> green
 
@@ -519,9 +590,14 @@ closed:
   unchanged in scope.
   **AMENDED 2026-09-02 (`## Amendment`, item 1):** that "WAS `pass` moments
   earlier" sentence was FALSE as first delivered — `--sweep` minted records for
-  refs whose live status was `not_run`. It is true again only because archive
-  records are now withheld from swept refs (Spec-AC-09); it is a property the
-  fix establishes, not one the design had.
+  refs whose live status was `not_run`, and so did the RESUME branch, for any
+  ref that already had a ledger line, with no sweep and no crash needed. It is
+  true again only because a record is now withheld from every ref that does not
+  satisfy the default predicate at flush time (Spec-AC-09); it is a property the
+  fix establishes, not one the design had. The strengthened form the allowlist
+  earns: a record exists only where `last_validation.status` was `pass` and
+  NAMED that ref at the instant of the reset, whichever lane wrote the ledger
+  line beside it.
 - `fu-cli-exit-truncates-pipe-sweep` (P2) names `metrics-flush.mjs` as one of
   the console.log-then-exit offenders. This scope adds no new print to a piped
   payload path (`validation-waiver.mjs` already routes through
@@ -554,9 +630,13 @@ closed:
   **AMENDED 2026-09-02 (`## Amendment`, item 1):** as first delivered this risk
   understated the exposure in the direction that matters — `metrics-flush
   --sweep` performed BOTH halves of that "consistent edit" for you, from one
-  ordinary command, with no hand-editing at all. Withholding records from swept
-  refs (Spec-AC-09) is what restores the sentence. What survives as a genuine
-  residual is narrower and is recorded as R5.
+  ordinary command, with no hand-editing at all, and a plain re-flush over an
+  existing same-day ledger line did the same through the RESUME branch.
+  Withholding the record from every ref that does not satisfy the default
+  predicate (Spec-AC-09) is what restores the sentence: forging one again
+  requires making `last_validation` say `pass` for the scope AND holding a
+  matching ledger entry, which is the "consistent edit" the sentence claims.
+  What survives as a genuine residual is narrower and is recorded as R5.
 - R5. A RECORD CAN BE HAND-AUTHORED, not merely inherited.
   `state.mjs set-validation --clear <field> --notes '<text>'` writes arbitrary
   notes WITHOUT re-stamping `run_at_utc` (`--status` is optional once `--clear`

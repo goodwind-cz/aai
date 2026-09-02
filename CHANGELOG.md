@@ -22,14 +22,22 @@ RFC-0001).
   preserved-waiver clause stay first and unchanged.
 - ARCHIVE ELIGIBILITY IS NOT RESET ELIGIBILITY. A record claims a validation
   PASS existed and merely MOVED to the ledger, and only the flush's DEFAULT
-  gate establishes that. `--sweep` deliberately substitutes a durable
-  `work_item_closed` event plus `status: done` for the PASS — sound for
-  retiring stranded metrics, no basis for opening the PR gate — so swept refs
-  reset byte-identically and archive NOTHING, while a default-flushed ref in
-  the same reset still archives. Without this a sweep would have handed a ride
-  that never validated an opening it never had, and since the same reset zeroes
-  `code_review.required`, both `aai-pr` preconditions would have read satisfied
-  for a ride that satisfied neither.
+  gate establishes that. Eligibility is therefore an ALLOWLIST: the default
+  predicate (a live `pass` naming the ref, a pass-or-waived `code_review` where
+  required, a recorded agent run) is evaluated for EVERY ref the flush
+  completes, and only the refs that satisfy it get a record — whichever lane
+  completed them. The two lanes that do not establish a PASS both archive
+  nothing: `--sweep` substitutes a durable `work_item_closed` event plus
+  `status: done` for the PASS, and the RESUME branch (`inLedger.has(ref)`,
+  which short-circuits BEFORE either gate) completes the reset for any ref that
+  merely already has a ledger line — a swept line, or any earlier same-day one.
+  Those refs reset byte-identically and archive NOTHING, while a ref that does
+  satisfy the default gate still archives, including when it is being resumed
+  after an interrupted flush. Without this, a sweep — or a plain re-flush after
+  a crash, or a plain flush over a pre-existing same-day ledger line — would
+  have handed a ride that never validated an opening it never had, and since
+  the same reset zeroes `code_review.required`, both `aai-pr` preconditions
+  would have read satisfied for a ride that satisfied neither.
 - `.aai/scripts/validation-waiver.mjs` gains an ARCHIVE LANE inside the one
   `evaluateGate` predicate, plus the `formatArchive` / `parseArchive` /
   `readArchiveLedger` trio and a `--metrics <path>` flag (defaulting to
