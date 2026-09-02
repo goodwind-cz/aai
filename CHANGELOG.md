@@ -11,6 +11,36 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(docs-audit): guard the premature AC-table flip at the Implementation hand-off
+
+- New `node .aai/scripts/docs-audit.mjs --ac-flip-check <DOC-ID>` predicate:
+  exit 1 when a doc whose frontmatter `status` is still open (`draft` /
+  `implementing` / `accepted`) carries a fully terminal `## Acceptance Criteria
+  Status` table in which a `done` row's Evidence cites DELIVERY — a
+  git-verified commit hash or a PR reference — instead of the proof artifact.
+  Exit 0 clean, exit 2 on an id that resolves to no scanned doc or to more than
+  one, mirroring `--gate`'s contract and reusing its two-pass id resolution.
+  The output names the doc, each offending row with its citation token, and the
+  close flip as the citation's proper home.
+- The predicate is NOT a second heuristic: `falseOpenEvidence`'s D2(c) arm is
+  extracted verbatim into one exported `acTableDeliverySignal(root, ac)` in
+  `.aai/scripts/lib/docs-audit-core.mjs`, and both the audit arm and the new
+  `acFlipCheckDoc(root, docId)` call it. One definition, two consumers, so the
+  guard and `docs-audit --check` cannot drift apart. `--gate`, `--check` and
+  every existing caller keep byte-identical behavior.
+- What it deliberately does NOT forbid: a terminal AC table on an open doc
+  whose Evidence cites only a `docs/ai/tdd/` proof path. That is the legitimate
+  mid-flight state `--check --strict` calls CLEAN, and `--gate` — required by
+  the same pre-handoff step — demands every row terminal, so a stricter guard
+  would deadlock against its own caller. The close ceremony's own
+  `status: done` end state is excluded structurally, before the table is read.
+- `.aai/ROLE_COMMON.md` PRE-HANDOFF AC-TABLE RECONCILIATION — the single block
+  `.aai/IMPLEMENTATION.prompt.md` step 9b and `.aai/SKILL_TDD.prompt.md` Phase 4
+  step 1b both inherit — stops naming a commit SHA as an acceptable pre-handoff
+  Evidence citation (it was instructing the exact state
+  `.aai/VALIDATION.prompt.md` step 8a forbids) and gains the new self-check next
+  to the existing `--gate` invocation.
+
 ## [unreleased] — fix(release): fall back to a PR when the target branch is protected
 
 - `.aai/scripts/aai-release.sh` and `.aai/scripts/aai-release.ps1` now push the

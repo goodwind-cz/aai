@@ -427,11 +427,23 @@ const PLAUSIBLE_HASH_RE = /^[0-9a-f]{7,40}$/;
 // consulted for a cell that ALSO mentions docs/ai/tdd/ (the mixed-cell case);
 // a TDD-mention-free cell is already handled by the preserved v1 arm.
 function cellHasDeliveryCitation(root, cell) {
+  return deliveryCitationToken(root, cell) !== null;
+}
+
+// spec-ac-table-premature-flip-recurs D4 — the SAME probe as
+// cellHasDeliveryCitation, returning WHICH token made the cell delivery-grade
+// instead of a bare boolean. The pre-handoff guard has to name the offending
+// citation for the agent to fix it; a predicate that only says "somewhere in
+// this cell" would send the agent hunting (Constitution Art. 4). Hash tokens
+// are probed first and in cell order, exactly as the v2 arm did, so the
+// boolean wrapper above is behavior-identical to its previous body.
+function deliveryCitationToken(root, cell) {
   const tokens = cell.match(HASH_TOKEN_RE) ?? [];
   for (const tok of tokens) {
-    if (git(root, `rev-parse --quiet --verify ${tok}^{commit}`) !== null) return true;
+    if (git(root, `rev-parse --quiet --verify ${tok}^{commit}`) !== null) return tok;
   }
-  return PR_REF_RE.test(cell) || PR_URL_RE.test(cell);
+  const pr = PR_REF_RE.exec(cell) ?? PR_URL_RE.exec(cell);
+  return pr ? pr[0] : null;
 }
 
 // #134 — committer date of a delivery commit, normalized to UTC `Z` so it
@@ -470,6 +482,39 @@ function deliveryCommitsForId(root, id) {
 // time — falls back to the event-derived timestamp, never throws).
 const FLUSH_DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const flushDateToTs = (d) => (typeof d === 'string' && FLUSH_DATE_ONLY_RE.test(d)) ? `${d}T23:59:59.999Z` : '';
+
+// spec-ac-table-premature-flip-recurs D1 — D2(c) as ONE function with TWO
+// consumers: falseOpenEvidence below (the audit's own arm, unchanged in
+// behavior) and acFlipCheckDoc (the pre-handoff guard). The guard's whole
+// value is that it agrees with the audit case for case; keying it on the
+// audit's own arm makes that agreement STRUCTURAL instead of maintained, the
+// same one-definition/two-gate-consumers pattern SPEC-0160 D2 established
+// after a live instance of exactly this divergence.
+//
+// Returns { fires, deliveryRows }. `fires` is the D2(c) verdict; `deliveryRows`
+// are the done rows whose Evidence carries the delivery-grade citation, which
+// the guard needs to name and the audit ignores.
+//
+// Read the block's doc comment (above falseOpenEvidence's call site) for WHY
+// the TDD-log discriminator exists — it is the distinction between "the tests
+// passed here" and "this shipped", and it is what keeps a mid-flight terminal
+// table legitimate.
+export function acTableDeliverySignal(root, ac) {
+  if (!ac?.hasGate || ac.rows.length === 0) return { fires: false, deliveryRows: [] };
+  const statuses = ac.rows.map(r => normalizeAcStatus(r['Status'] ?? '').status);
+  const allTerminal = statuses.every(s => TERMINAL_AC.has(s));
+  const doneRows = ac.rows.filter((r, i) => statuses[i] === 'done');
+  const allDoneEvidenced = doneRows.every(r => rowHasEvidence(r));
+  const deliveryRows = doneRows.filter(r => {
+    if (!rowHasEvidence(r)) return false;
+    const cell = String(r['Evidence'] ?? '');
+    return !TDD_LOG_EVIDENCE_RE.test(cell) || cellHasDeliveryCitation(root, cell);
+  });
+  return {
+    fires: allTerminal && allDoneEvidenced && deliveryRows.length > 0,
+    deliveryRows,
+  };
+}
 
 // CHANGE-0027 / SPEC-0039 — D2's three delivery-evidence signals for one
 // eligible open doc. Returns { evidenced, reasons }; reasons names every
@@ -542,21 +587,11 @@ function falseOpenEvidence(root, doc, events) {
   // (NEW) a MIXED cell — TDD log plus other content — still counts when that
   // other content is a delivery-grade citation (cellHasDeliveryCitation).
   // rowHasEvidence itself is unchanged (still reused as-is — no parser fork).
-  const ac = doc.ac;
-  if (ac?.hasGate && ac.rows.length > 0) {
-    const statuses = ac.rows.map(r => normalizeAcStatus(r['Status'] ?? '').status);
-    const allTerminal = statuses.every(s => TERMINAL_AC.has(s));
-    const doneRows = ac.rows.filter((r, i) => statuses[i] === 'done');
-    const allDoneEvidenced = doneRows.every(r => rowHasEvidence(r));
-    const hasDeliveryEvidence = doneRows.some(r => {
-      if (!rowHasEvidence(r)) return false;
-      const cell = String(r['Evidence'] ?? '');
-      return !TDD_LOG_EVIDENCE_RE.test(cell) || cellHasDeliveryCitation(root, cell);
-    });
-    if (allTerminal && allDoneEvidenced && hasDeliveryEvidence) {
-      evidenced = true;
-      reasons.push('AC Status table fully terminal with evidence');
-    }
+  // The arm's BODY now lives in acTableDeliverySignal above (one definition,
+  // two consumers); this call site keeps the reason string byte-identical.
+  if (acTableDeliverySignal(root, doc.ac).fires) {
+    evidenced = true;
+    reasons.push('AC Status table fully terminal with evidence');
   }
 
   // Arm D (NEW, #133 / D1) — METRICS.jsonl flush record. A work item is written
@@ -1720,11 +1755,18 @@ function gateContent(content, extraMethods) {
 // => exit 2) listing every candidate path — the old per-file first-match loop
 // silently gated whichever file sorted first, i.e. the WRONG doc on an id
 // collision.
-export function gateDoc(root, docId) {
+//
+// Shared by every by-id predicate mode. Extracted from gateDoc
+// (spec-ac-table-premature-flip-recurs D2, SEAM S2) so `--gate` and
+// `--ac-flip-check` cannot resolve the same id to different docs: the close
+// path reaches BOTH, and a resolution change made for one of them silently
+// moving the other is precisely the class of drift this scope exists to stop.
+// Returns { found, entry, config } or { found:false, reasons } with gateDoc's
+// original, byte-identical reason strings.
+function resolveDocById(root, docId) {
   const config = loadConfig(root);
   const files = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] });
   const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
-  const extraMethods = config?.review_by_methods ?? [];
   const entries = files.map(f => {
     const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
     const fm = parseFrontmatter(content);
@@ -1738,19 +1780,65 @@ export function gateDoc(root, docId) {
     matches = entries.filter(e => e.fileIds.includes(docId));
   }
   if (matches.length === 0) {
-    return { found: false, ok: false, reasons: [`no scanned doc resolves to id "${docId}"`] };
+    return { found: false, reasons: [`no scanned doc resolves to id "${docId}"`] };
   }
   if (matches.length > 1) {
     return {
-      found: false, ok: false,
+      found: false,
       reasons: [
         `ambiguous id "${docId}": ${matches.length} scanned docs match in the ${pass} pass — fail-closed, no doc gated`,
         ...matches.map(m => `candidate: ${m.rel}`),
       ],
     };
   }
-  const { ok, reasons } = gateContent(matches[0].content, extraMethods);
+  return { found: true, entry: matches[0], config };
+}
+
+export function gateDoc(root, docId) {
+  const res = resolveDocById(root, docId);
+  if (!res.found) return { found: false, ok: false, reasons: res.reasons };
+  const extraMethods = res.config?.review_by_methods ?? [];
+  const { ok, reasons } = gateContent(res.entry.content, extraMethods);
   return { found: true, ok, reasons };
+}
+
+// spec-ac-table-premature-flip-recurs D2/D3 — the PRE-HANDOFF guard: does this
+// still-open doc's AC Status table already claim DELIVERY? Returns
+// { found, ok, rel, status, rows, reasons }.
+//
+// What it refuses is narrower than it looks, and deliberately so: NOT "a
+// terminal AC table on an open doc" (SPEC-0040 D2(c) v2 tolerates that when
+// the Evidence cites only a docs/ai/tdd/ proof path, `--check --strict` calls
+// it CLEAN, and `--gate` — which the same PRE-HANDOFF step requires to exit 0
+// — DEMANDS every row terminal, so a stricter guard would deadlock against
+// its own caller). What it refuses is a terminal table whose Evidence claims
+// delivery while the frontmatter still says the work is open.
+//
+// The discrimination is structural, not heuristic: the table is not read at
+// all unless the frontmatter status is open, which is what excludes the close
+// ceremony's `status: done` end state before any content is inspected. The
+// `umbrella: true` suppression mirrors runAudit's own frontmatter-only carve
+// for a deliberately-open multi-phase parent.
+export function acFlipCheckDoc(root, docId) {
+  const res = resolveDocById(root, docId);
+  if (!res.found) return { found: false, ok: false, rel: null, status: null, rows: [], reasons: res.reasons };
+  const { rel, content } = res.entry;
+  const fm = parseFrontmatter(content);
+  const status = String(fm?.status ?? '').toLowerCase();
+  const clean = { found: true, ok: true, rel, status, rows: [], reasons: [] };
+  if (!FALSE_OPEN_STATUSES.has(status)) return clean;
+  if (String(fm?.umbrella ?? '').toLowerCase() === 'true') return clean;
+  const signal = acTableDeliverySignal(root, parseAcTable(content));
+  if (!signal.fires) return clean;
+  const rows = signal.deliveryRows.map(r => {
+    const cell = String(r['Evidence'] ?? '');
+    return {
+      id: String(r['Spec-AC'] ?? '(unnamed row)'),
+      token: deliveryCitationToken(root, cell),
+      cell,
+    };
+  });
+  return { found: true, ok: false, rel, status, rows, reasons: [] };
 }
 
 // SPEC-0011 G5 — gate the content of an EXPLICIT file path (not resolved by id).

@@ -15,6 +15,14 @@
 //   node .aai/scripts/docs-audit.mjs --lint-body    # body-lint digest only
 //                                                   # (SPEC-0013 H1; exit 0 unless
 //                                                   # combined with --strict)
+//   node .aai/scripts/docs-audit.mjs --ac-flip-check <DOC-ID>  # pure predicate:
+//                                                   # is this STILL-OPEN doc's AC
+//                                                   # Status table already citing
+//                                                   # DELIVERY (a git-verified
+//                                                   # commit hash or a PR ref)
+//                                                   # rather than the proof
+//                                                   # artifact? 1 defect / 0 clean
+//                                                   # / 2 unresolvable id
 //   node .aai/scripts/docs-audit.mjs --lint-body-file <f>  # pure predicate on an
 //                                                   # explicit file (a materialized
 //                                                   # STAGED blob): 1 findings /
@@ -42,7 +50,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
-  runAudit, suggestedStep, gateDoc, gateFile, lintBody, lintFile,
+  runAudit, suggestedStep, gateDoc, gateFile, lintBody, lintFile, acFlipCheckDoc,
   scanAuditDocs, loadConfig, CONFIG_PATH,
 } from './lib/docs-audit-core.mjs';
 import { parseFrontmatter, normalizeNewlines } from './lib/docs-model.mjs';
@@ -82,6 +90,7 @@ function parseArgs(argv) {
     else if (tok === '--path') args.path = requireValue(tok, argv[++i]);
     else if (tok === '--gate') args.gate = requireValue(tok, argv[++i]);
     else if (tok === '--gate-file') args.gateFile = requireValue(tok, argv[++i]);
+    else if (tok === '--ac-flip-check') args.acFlipCheck = requireValue(tok, argv[++i]);
     else if (tok === '--lint-body') args.lintBody = true;
     else if (tok === '--lint-body-file') args.lintBodyFile = requireValue(tok, argv[++i]);
     else if (tok === '--intake-file') args.intakeFile = requireValue(tok, argv[++i]);
@@ -356,6 +365,41 @@ function runGateFile(filePath) {
   emitGate(`## Close Gate — ${filePath}`, gateFile(ROOT, filePath));
 }
 
+// spec-ac-table-premature-flip-recurs D2 — `--ac-flip-check <DOC-ID>`: the
+// PRE-HANDOFF self-check that stops an Implementation hand-off from leaving
+// behind the one content shape `--check` reads as probable-false-open. Opt-in
+// and scope-limited to the one doc; deliberately NOT folded into `--gate`,
+// because .aai/SKILL_PR.prompt.md step 4c legitimately produces this shape for
+// the window between the AC flip and close-work-item.mjs's frontmatter flip,
+// and a `--gate` that refused it would block every close ceremony in the repo.
+// Same exit contract as `--gate` (1 defect / 0 clean / 2 unresolvable id) and
+// the same id resolution; never emits a docs_audit event.
+function runAcFlipCheck(docId) {
+  const res = acFlipCheckDoc(ROOT, docId);
+  console.log(`## AC-Flip Check — ${docId}`);
+  console.log('');
+  if (!res.found) {
+    console.log(`AC-FLIP ERROR: ${res.reasons.join('; ')}`);
+    exit(2);
+  }
+  if (res.ok) {
+    console.log('AC-FLIP PASS: no done row claims delivery ahead of the close flip.');
+    exit(0);
+  }
+  console.log(`AC-FLIP FAIL — ${res.rel} is still open (status: ${res.status}) but its AC Status table already claims DELIVERY:`);
+  for (const r of res.rows) {
+    console.log(r.token
+      ? `- ${r.id}: Evidence cites the delivery-grade token "${r.token}" — ${r.cell}`
+      : `- ${r.id}: Evidence names no proof artifact at all — ${r.cell}`);
+  }
+  // D4 — name the fix, not just the fault. There are TWO legitimate shapes
+  // here and a message that does not say which one to move to sends the agent
+  // to the wrong one.
+  console.log('Remediation: at hand-off, cite the PROOF artifact instead — a docs/ai/tdd/*.log path, a RUN_ID, or a suite output path.');
+  console.log('The delivery citation (commit SHA / PR reference) belongs to the close flip: .aai/SKILL_PR.prompt.md step 4c writes it in the same transaction as the frontmatter status.');
+  exit(1);
+}
+
 function emitGate(header, res) {
   console.log(header);
   console.log('');
@@ -400,6 +444,7 @@ function main() {
   if (args.intakeFile) runIntakeFile(args.intakeFile);   // exits 1/0/2; never returns
   if (args.gate) runGate(args.gate);   // exits 1/0/2; never returns
   if (args.gateFile) runGateFile(args.gateFile);   // exits 1/0/2; never returns
+  if (args.acFlipCheck) runAcFlipCheck(args.acFlipCheck);   // exits 1/0/2; never returns
   if (args.lintBodyFile) runLintBodyFile(args.lintBodyFile);   // exits 1/0/2; never returns
   if (args.lintBody) runLintBody(args);   // exits 0 (or 1 with --strict); never returns
   const result = runAudit(ROOT, {
