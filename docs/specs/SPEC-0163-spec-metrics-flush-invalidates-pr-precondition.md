@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/ISSUE-0079-metrics-flush-invalidates-pr-precondition.md
   rfc: null
   pr:
-    - TBD
+    - 334
   commits:
     - 05c7880
 ---
