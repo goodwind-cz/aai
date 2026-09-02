@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/CHANGE-0169-release-protected-branch-fallback.md
   rfc: null
   pr:
-    - TBD
+    - 332
   commits:
     - b84819c
 ---
