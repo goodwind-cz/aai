@@ -80,6 +80,7 @@ fi
 OUT=""
 NOTES=""
 PUSH_LOG=""
+PR_OUT=""
 cleanup() {
   # A trap handler's own final exit status would otherwise silently replace
   # the script's real exit code (bash trap semantics) — every path ends in
@@ -87,6 +88,7 @@ cleanup() {
   [[ -n "$OUT" && -f "$OUT" ]] && rm -f "$OUT"
   [[ -n "$NOTES" && -f "$NOTES" ]] && rm -f "$NOTES"
   [[ -n "$PUSH_LOG" && -f "$PUSH_LOG" ]] && rm -f "$PUSH_LOG"
+  [[ -n "$PR_OUT" && -f "$PR_OUT" ]] && rm -f "$PR_OUT"
   true
 }
 trap cleanup EXIT
@@ -400,10 +402,16 @@ the tag against the merge commit (a squash merge produces a new SHA).
 
 Opened by .aai/scripts/aai-release.sh — it never merges this PR."
     pr_rc=0
-    # stdout only: gh's own diagnostics stay on stderr where they belong
-    # (Constitution article 4 — never swallow the tool's error text).
-    PR_URL="$( cd "$ROOT" && gh pr create --base "$BRANCH" --head "$RELEASE_BRANCH" \
-                 --title "chore(release): $VERSION" --body "$PR_BODY" )" || pr_rc=$?
+    # gh's stdout goes to a temp file, its stderr passes straight through:
+    # the URL is captured, the diagnostics are never swallowed (Constitution
+    # article 4). The `cd` stays inside a plain SUBSHELL rather than a command
+    # substitution — a `cd` inside `$( )` is the leak shape
+    # .aai/scripts/check-cd-subshell-leak.mjs refuses.
+    PR_OUT="$(mktemp "${TMPDIR:-/tmp}/aai-release-pr.XXXXXX")"
+    ( cd "$ROOT" && gh pr create --base "$BRANCH" --head "$RELEASE_BRANCH" \
+        --title "chore(release): $VERSION" --body "$PR_BODY" ) >"$PR_OUT" || pr_rc=$?
+    PR_URL="$(cat "$PR_OUT")"
+    rm -f "$PR_OUT"; PR_OUT=""
     if [[ "$pr_rc" != "0" ]]; then
       fallback_incomplete "gh pr create failed (exit $pr_rc; its output is on stderr above) — the release branch IS pushed, only the PR is missing"
     fi
