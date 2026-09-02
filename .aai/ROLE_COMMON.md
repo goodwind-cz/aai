@@ -54,12 +54,13 @@ Phase 4 step 1b. Before handing off to Validation, reconcile the spec's
 `## Acceptance Criteria Status` table for every Spec-AC covered by the
 completed work:
 - Set each covered row to a terminal status (done | deferred | blocked |
-  rejected) with Evidence naming the PROOF artifact: a `docs/ai/tdd/*.log`
-  path, a RUN_ID, or a suite output path. NOT a commit SHA and NOT a PR
-  reference — a delivery citation under a still-open `status` is the exact
-  shape `docs-audit --check` reads as probable-false-open. The delivery
-  citation is written by the close flip (`.aai/SKILL_PR.prompt.md` step 4c),
-  in the same transaction as the frontmatter `status`.
+  rejected) with Evidence naming the PROOF artifact: the cell MUST carry a
+  `docs/ai/tdd/*.log` path; a RUN_ID or suite output path may accompany it,
+  never replace it. NOT a commit SHA and NOT a PR reference — a delivery
+  citation under a still-open `status` is the exact shape
+  `docs-audit --check` reads as probable-false-open. The delivery citation is
+  written by the close flip (`.aai/SKILL_PR.prompt.md` step 4c), in the same
+  transaction as the frontmatter `status`.
 - A row you truthfully cannot finish gets `deferred`/`blocked` with a FUTURE
   Review-By date plus Notes — never a fabricated `done`.
 - Emit `ac_status` events (best-effort):

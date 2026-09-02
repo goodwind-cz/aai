@@ -6529,6 +6529,14 @@ EOF
 #   SPEC-7105  done   + terminal + commit-hash Evidence (close ceremony end
 #                                  state, written by close-work-item.mjs) -> clean
 #   SPEC-7106  open   + umbrella: true + terminal + commit-hash Evidence -> clean
+#   SPEC-7107  open   + terminal + a RUN_ID and NOTHING else             -> FIRES
+#   SPEC-7108  open   + terminal + a suite output path and nothing else  -> FIRES
+#   SPEC-7109  open   + terminal + a RUN_ID ALONGSIDE a proof-log path   -> clean
+#
+# 7107/7108/7109 are the convergence boundary (TEST-008): the guard accepts a
+# cell ONLY when it carries a docs/ai/tdd/ path, so a remediation line — or a
+# ROLE_COMMON bullet — offering a RUN_ID or a suite output path INSTEAD of one
+# sends the agent to a shape the same guard rejects, and no fixed point exists.
 #
 # setup_fo_repo's CHANGE-9001 positive control rides along: it is
 # probable-false-open through the DELIVERY-COMMIT arm and carries no AC table
@@ -6651,9 +6659,71 @@ links:
 | Spec-AC-01 | first       | done   | TEST-001 green — docs/ai/tdd/green-20260101T000000Z-h.log; delivered ${hash} | — | — |
 MD
 
+  cat > "$d/docs/specs/SPEC-7107-acflip-runid.md" <<'MD'
+---
+id: SPEC-7107
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec whose terminal AC table cites a RUN_ID and nothing else
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | RUN_ID test-20260902-120527 | — | — |
+MD
+
+  cat > "$d/docs/specs/SPEC-7108-acflip-suitepath.md" <<'MD'
+---
+id: SPEC-7108
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec whose terminal AC table cites a suite output path only
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | tests/skills/results/test-20260902-120527/x.log | — | — |
+MD
+
+  cat > "$d/docs/specs/SPEC-7109-acflip-accompanied.md" <<'MD'
+---
+id: SPEC-7109
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec: a RUN_ID ACCOMPANYING a proof-log path (the fixed point)
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | RUN_ID test-20260902-120527 — docs/ai/tdd/green-20260101T000000Z-i.log | — | — |
+MD
+
   (cd "$d" && git add docs/specs && git commit -qm "docs: add the ac-flip discrimination corpus")
   printf '%s' "$d"
 }
+
+# The disjunction the guard's remediation line and the ROLE_COMMON bullet both
+# used to print: it names two shapes (RUN_ID / suite output path) as usable
+# INSTEAD of the proof-log path, and the guard rejects both. Pinned as the
+# retired literal in the two surfaces at once — an agent reads whichever it
+# reaches first, so one corrected surface is not a fix.
+ACFLIP_RETIRED_DISJUNCTION='a RUN_ID, or a suite output path'
+# The positive half: both surfaces must say the accompanying shapes may not
+# stand in for the proof log. Pinned on the clause that carries that meaning,
+# because "contains docs/ai/tdd/" is satisfied by the broken text too.
+ACFLIP_ACCOMPANY_CLAUSE='never replace it'
 
 # Run `--ac-flip-check <id>` inside fixture repo $1, logging to $1/acflip-<id>.log.
 # Echoes the exit code. Never dies on a non-zero status (errexit-safe).
@@ -6781,7 +6851,8 @@ test_acflip_predicate_agrees_with_check() {  # TEST-004 / Spec-AC-04
   # in the corpus precisely as a doc the audit DOES call probable-false-open
   # through another arm — the guard must not fire on it.
   local id ec armed
-  for id in SPEC-7101 SPEC-7102 SPEC-7103 SPEC-7104 SPEC-7105 SPEC-7106 CHANGE-9001; do
+  for id in SPEC-7101 SPEC-7102 SPEC-7103 SPEC-7104 SPEC-7105 SPEC-7106 \
+            SPEC-7107 SPEC-7108 SPEC-7109 CHANGE-9001; do
     ec="$(acflip_check_rc "$d" "$id")"
     armed=0
     if grep -F "$id" "$d/drift-sec.txt" | grep -qF "AC Status table fully terminal with evidence"; then
@@ -6808,6 +6879,76 @@ test_acflip_predicate_agrees_with_check() {  # TEST-004 / Spec-AC-04
 
   rm -rf "$d"
   log_pass "Guard and --check agree case for case in both directions; one predicate, two consumers (TEST-004)"
+}
+
+test_acflip_remediation_is_reachable() {  # TEST-008 / Spec-AC-08
+  log_info "Test: the guard's remediation and the ROLE_COMMON bullet name a shape the guard accepts (TEST-008)..."
+  local d; d="$(setup_acflip_repo)"
+  local ec rem block
+
+  # (a) The guard's REAL firing condition is wider than "cites a commit or a
+  # PR": a done row whose Evidence carries no docs/ai/tdd/ path at all fires
+  # too, because the table-alone signal has nothing proving the tests passed
+  # HERE. Both shapes the retired disjunction offered are in that set.
+  ec="$(acflip_check_rc "$d" SPEC-7107)"
+  [[ "$ec" == 1 ]] \
+    || log_fail "TEST-008: a RUN_ID-only Evidence cell must exit 1 (got $ec): $(cat "$d/acflip-SPEC-7107.log")"
+  assert_contains "$d/acflip-SPEC-7107.log" "AC-FLIP FAIL"
+  assert_contains "$d/acflip-SPEC-7107.log" "Spec-AC-01"
+
+  ec="$(acflip_check_rc "$d" SPEC-7108)"
+  [[ "$ec" == 1 ]] \
+    || log_fail "TEST-008: a suite-output-path-only Evidence cell must exit 1 (got $ec): $(cat "$d/acflip-SPEC-7108.log")"
+  assert_contains "$d/acflip-SPEC-7108.log" "AC-FLIP FAIL"
+
+  # (b) CONVERGENCE — the fixed point exists and is the one the two prose
+  # surfaces must name: the same RUN_ID ACCOMPANYING a proof-log path passes.
+  # Without this arm the pins below are wording checks; with it they are the
+  # claim that following the printed instruction actually clears the guard.
+  ec="$(acflip_check_rc "$d" SPEC-7109)"
+  [[ "$ec" == 0 ]] \
+    || log_fail "TEST-008: a RUN_ID accompanying a docs/ai/tdd/ path must exit 0 (got $ec): $(cat "$d/acflip-SPEC-7109.log")"
+  assert_contains "$d/acflip-SPEC-7109.log" "AC-FLIP PASS"
+
+  # (c) The printed remediation must name THAT shape and must not offer the
+  # two rejected ones as substitutes — a guard whose remediation line repeats
+  # the input it just refused leaves a compliant agent with no move to make.
+  rem="$(grep -m1 '^Remediation:' "$d/acflip-SPEC-7107.log" || true)"
+  if [[ -z "$rem" ]]; then
+    log_fail "TEST-008: the AC-FLIP FAIL output carries no Remediation: line"
+  fi
+  case "$rem" in
+    *"$ACFLIP_RETIRED_DISJUNCTION"*)
+      log_fail "TEST-008: the remediation line still offers '$ACFLIP_RETIRED_DISJUNCTION', which this same guard rejects: $rem" ;;
+  esac
+  case "$rem" in
+    *"docs/ai/tdd/"*) : ;;
+    *) log_fail "TEST-008: the remediation line does not name the docs/ai/tdd/ proof path: $rem" ;;
+  esac
+  case "$rem" in
+    *"$ACFLIP_ACCOMPANY_CLAUSE"*) : ;;
+    *) log_fail "TEST-008: the remediation line does not say the accompanying shapes may not replace the proof path: $rem" ;;
+  esac
+
+  # (d) The same instruction on its other surface. .aai/ROLE_COMMON.md is what
+  # an implementer reads BEFORE the guard ever runs, so a corrected guard and
+  # an uncorrected bullet still produce the rejected cell.
+  block="$(awk '/^## PRE-HANDOFF AC-TABLE RECONCILIATION/{f=1; print; next} f && /^## /{exit} f{print}' \
+    "$PROJECT_ROOT/.aai/ROLE_COMMON.md")"
+  if [[ -z "$block" ]]; then
+    log_fail "TEST-008: .aai/ROLE_COMMON.md has no PRE-HANDOFF AC-TABLE RECONCILIATION block"
+  fi
+  case "$block" in
+    *"$ACFLIP_RETIRED_DISJUNCTION"*)
+      log_fail "TEST-008: the ROLE_COMMON bullet still offers '$ACFLIP_RETIRED_DISJUNCTION' as pre-handoff Evidence" ;;
+  esac
+  case "$block" in
+    *"$ACFLIP_ACCOMPANY_CLAUSE"*) : ;;
+    *) log_fail "TEST-008: the ROLE_COMMON bullet does not say the accompanying shapes may not replace the proof path" ;;
+  esac
+
+  rm -rf "$d"
+  log_pass "Guard rejects proof-log-less cells and both prose surfaces name the shape it accepts (TEST-008)"
 }
 
 test_acflip_real_repo_clean() {  # TEST-005 / Spec-AC-05
@@ -7008,6 +7149,7 @@ main() {
   test_acflip_deferred_table_clean
   test_acflip_close_end_state_clean
   test_acflip_predicate_agrees_with_check
+  test_acflip_remediation_is_reachable
   test_acflip_real_repo_clean
   echo ""
   log_pass "All $TEST_NAME tests passed"

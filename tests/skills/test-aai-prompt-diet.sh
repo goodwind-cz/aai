@@ -734,10 +734,15 @@ test_012_growth_sum_matches_ledger() {
   # release-protected-branch-fallback: +1192 B itemized entry (SKILL_RELEASE
   # exit codes 1/17/18 + the never-merge/never-publish Safety bullet), pin
   # moves 8127 -> 9319.
-  # ac-table-premature-flip-recurs: +418 B itemized entry (ROLE_COMMON
+  # ac-table-premature-flip-recurs: +472 B itemized entry (ROLE_COMMON
   # PRE-HANDOFF AC-TABLE RECONCILIATION evidence-shape correction + the
-  # --ac-flip-check self-check line), pin moves 9319 -> 9737.
-  local want_growth=9737
+  # --ac-flip-check self-check line), pin moves 9319 -> 9791. The entry was
+  # 418 B until validation round 1 F1: the first correction named a shape the
+  # guard rejects, so the bullet grew the conjunction clause (+54 B).
+  # .aai/SKILL_TDD.prompt.md shrank 4 B in the same round (F2, its local
+  # restatement of the evidence shape deleted) — a shrink owes no ledger line,
+  # it moves TEST-010 headroom 0 -> 4/2048.
+  local want_growth=9791
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1198,6 +1203,21 @@ test_021_ledger_has_no_unescaped_backtick() {
 # pin by breaking that one.
 AC_FLIP_COMMAND='node .aai/scripts/docs-audit.mjs --ac-flip-check'
 RETIRED_SHA_CITATION='concrete Evidence (commit SHA, RUN_ID, or log path)'
+# Round-1 validation F1: the FIRST correction of this bullet replaced one
+# unreachable instruction with another. It offered a RUN_ID or a suite output
+# path as citations usable INSTEAD of the proof-log path, and
+# acTableDeliverySignal accepts a cell only when it carries a docs/ai/tdd/
+# path — so an agent obeying the bullet produced exactly what the guard the
+# same block tells it to run then refuses, with no fixed point in between.
+# The behavioural half (both shapes exit 1, the accompanied shape exits 0, and
+# the guard's own printed Remediation line names the accompanied shape) is
+# TEST-008 in tests/skills/test-aai-docs-audit.sh. This pin is deliberately
+# NOT a duplicate of it: suite-map selects THIS suite on .aai/ROLE_COMMON.md
+# and that one on the audit engine, so each surface's regression has to be
+# catchable by the suite its own file selects.
+RETIRED_ALT_CITATION='a RUN_ID, or a suite output path'
+ACCOMPANY_CLAUSE='never replace it'
+RETIRED_TDD_CITATION='commit SHA, RUN_ID, or the docs/ai/tdd/*.log paths'
 
 # Echo the PRE-HANDOFF AC-TABLE RECONCILIATION block of .aai/ROLE_COMMON.md
 # (heading through the line before the next `## ` heading), so an assertion
@@ -1243,6 +1263,20 @@ test_022_ac_flip_guard_canon_wiring() {
     *) log_info "TEST-022: the PRE-HANDOFF block does not name the close flip as the delivery citation's home"; ok=0 ;;
   esac
 
+  # (c2) and the shape it names must be one the guard in the same block
+  # ACCEPTS: the cell carries a docs/ai/tdd/ path, with a RUN_ID or a suite
+  # output path allowed only alongside it. "Contains docs/ai/tdd/" alone is
+  # satisfied by the unreachable wording too, so the clause is pinned.
+  case "$block" in
+    *"$RETIRED_ALT_CITATION"*)
+      log_info "TEST-022: the PRE-HANDOFF block offers '$RETIRED_ALT_CITATION', which docs-audit.mjs --ac-flip-check rejects"; ok=0 ;;
+    *) : ;;
+  esac
+  case "$block" in
+    *"$ACCOMPANY_CLAUSE"*) : ;;
+    *) log_info "TEST-022: the PRE-HANDOFF block does not say the RUN_ID / suite output path may not replace the proof-log path"; ok=0 ;;
+  esac
+
   # (d) the command string exists exactly ONCE across the prompt corpus
   # (SPEC-0151 D3 anti-duplication: one canonical block, pointers elsewhere).
   n=$(grep -lF -- "$AC_FLIP_COMMAND" .aai/*.prompt.md .aai/AGENTS.md .aai/ROLE_COMMON.md 2>/dev/null | wc -l | tr -d ' ')
@@ -1263,6 +1297,14 @@ test_022_ac_flip_guard_canon_wiring() {
     grep -qF "Acceptance Criteria Status" "$f" || { log_info "TEST-022: $f lost the Acceptance Criteria Status literal (TEST-017 pin)"; ok=0; }
     grep -qF "docs-audit.mjs --gate" "$f" || { log_info "TEST-022: $f lost the docs-audit.mjs --gate literal (TEST-017 pin)"; ok=0; }
     grep -qF "exit 0 before reporting complete" "$f" || { log_info "TEST-022: $f lost the exit-0 literal (TEST-017 pin)"; ok=0; }
+    # Round-1 validation F2: pointing at the shared block and then RESTATING
+    # the evidence shape locally reintroduces the defect the shared block was
+    # corrected to remove — a reader stops at the nearer sentence. Neither
+    # implementer prompt may carry its own evidence-shape list.
+    if grep -qF "$RETIRED_TDD_CITATION" "$f"; then
+      log_info "TEST-022: $f restates the evidence shape as '$RETIRED_TDD_CITATION' below its own ROLE_COMMON pointer"
+      ok=0
+    fi
   done
 
   [[ $ok -eq 1 ]] && log_pass "TEST-022 (spec TEST-006) PRE-HANDOFF block names the AC-flip guard, drops the commit-SHA citation, appears once, TEST-017 pins intact" \

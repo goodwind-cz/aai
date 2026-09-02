@@ -40,6 +40,14 @@ RFC-0001).
   Evidence citation (it was instructing the exact state
   `.aai/VALIDATION.prompt.md` step 8a forbids) and gains the new self-check next
   to the existing `--gate` invocation.
+- The shape it names is one the guard ACCEPTS: the Evidence cell must carry a
+  `docs/ai/tdd/*.log` path, which a RUN_ID or a suite output path may accompany
+  but never replace. The guard's own `Remediation:` line says the same. Naming
+  those two as usable INSTEAD of the proof path leaves an agent with no move —
+  the guard rejects a cell without a `docs/ai/tdd/` path — so the boundary is
+  pinned by test: a RUN_ID-only cell and a suite-output-path-only cell exit 1,
+  the same RUN_ID alongside a proof-log path exits 0. `.aai/SKILL_TDD.prompt.md`
+  Phase 4 step 1b no longer restates the evidence shape locally; it inherits it.
 
 ## [unreleased] — fix(release): fall back to a PR when the target branch is protected
 

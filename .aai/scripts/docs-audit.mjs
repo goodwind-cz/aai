@@ -386,16 +386,20 @@ function runAcFlipCheck(docId) {
     console.log('AC-FLIP PASS: no done row claims delivery ahead of the close flip.');
     exit(0);
   }
-  console.log(`AC-FLIP FAIL — ${res.rel} is still open (status: ${res.status}) but its AC Status table already claims DELIVERY:`);
+  console.log(`AC-FLIP FAIL — ${res.rel} is still open (status: ${res.status}) but its AC Status table already reads as DELIVERED:`);
   for (const r of res.rows) {
     console.log(r.token
       ? `- ${r.id}: Evidence cites the delivery-grade token "${r.token}" — ${r.cell}`
-      : `- ${r.id}: Evidence names no proof artifact at all — ${r.cell}`);
+      : `- ${r.id}: Evidence carries no docs/ai/tdd/ proof-log path — ${r.cell}`);
   }
-  // D4 — name the fix, not just the fault. There are TWO legitimate shapes
-  // here and a message that does not say which one to move to sends the agent
-  // to the wrong one.
-  console.log('Remediation: at hand-off, cite the PROOF artifact instead — a docs/ai/tdd/*.log path, a RUN_ID, or a suite output path.');
+  // D4 — name the fix, not just the fault. The named shape must be one THIS
+  // predicate accepts: acTableDeliverySignal clears a done row only when its
+  // Evidence carries a docs/ai/tdd/ path, so a remediation offering a RUN_ID
+  // or a suite output path INSTEAD of one hands the agent a cell this same
+  // guard rejects on the next run — no reachable fixed point (round-1
+  // validation F1; pinned by TEST-008 in tests/skills/test-aai-docs-audit.sh,
+  // which follows the printed instruction and asserts it clears the guard).
+  console.log('Remediation: at hand-off, cite the PROOF artifact instead — the Evidence cell must carry a docs/ai/tdd/*.log path; a RUN_ID or suite output path may accompany it, never replace it.');
   console.log('The delivery citation (commit SHA / PR reference) belongs to the close flip: .aai/SKILL_PR.prompt.md step 4c writes it in the same transaction as the frontmatter status.');
   exit(1);
 }

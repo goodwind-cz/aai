@@ -15,6 +15,57 @@ links:
 
 SPEC-FROZEN: true
 
+## Amendment (post-freeze, 2026-09-02 — validation round-1 F1 BLOCKING + F2)
+
+This is a FROZEN spec, amended at remediation and disclosed here rather than
+rewritten silently. `SPEC-FROZEN: true` is preserved; the mechanism is the
+additive-with-disclosure convention `docs/specs/SPEC-0132-...md`,
+`docs/specs/SPEC-0153-...md` and `docs/specs/SPEC-0161-...md` already
+established — nothing in `.aai/workflow/WORKFLOW.md`, `spec-lint.mjs` or
+`spec-freeze.mjs` defines a re-freeze path, so the convention IS the mechanism.
+
+1. **D5's evidence-shape parenthetical was itself unreachable** (F1). It named
+   "a `docs/ai/tdd/*.log` path, a RUN_ID, a suite output path" as three
+   alternatives, and `acTableDeliverySignal` clears a done row ONLY when its
+   Evidence cell carries a `docs/ai/tdd/` path — so the delivered bullet, and
+   the guard's own `Remediation:` line, instructed a cell the same guard
+   rejects. Read as a DISJUNCTION it has no fixed point; it is amended to the
+   CONJUNCTION the engine actually implements: the cell must carry a
+   `docs/ai/tdd/*.log` path, and a RUN_ID or suite output path may accompany
+   it, never replace it. The predicate is NOT loosened — `--check` classifies
+   both rejected shapes `probable-false-open` with the same reason string, so
+   D1's structural agreement is what makes the engine right and the prose
+   wrong.
+2. **D5's "single source" claim was false for the evidence-shape sentence**
+   (F2). `.aai/SKILL_TDD.prompt.md` Phase 4 step 1b pointed at ROLE_COMMON and
+   then RESTATED the shape locally ("Evidence may be a commit SHA, RUN_ID, or
+   the docs/ai/tdd/*.log paths from those cycles"), so a TDD implementer
+   reading the nearer sentence still wrote this ride's exact defect. The
+   restatement is deleted (the file shrinks 4 B, 16701 -> 16697);
+   `.aai/IMPLEMENTATION.prompt.md` stays byte-untouched and
+   `tests/skills/test-aai-state.sh` TEST-017's three pinned literals stay true
+   in both prompts. The follow-up filed for it,
+   `fu-skilltdd-offers-commit-sha`, is closed by this remediation rather than
+   deferred at a severity two independent roles judged wrong.
+3. **Spec-AC-08 and TEST-008 added, additively.** No existing AC's text moved.
+   Spec-AC-01 remains true as the sufficient condition it states; the guard's
+   firing condition is WIDER than that condition (any done row whose Evidence
+   carries no `docs/ai/tdd/` path fires, whether or not it cites a commit or a
+   PR), and nothing pinned that boundary or the reachability of the printed
+   remediation. Spec-AC-08 pins both.
+4. **Spec-AC-07's "TEST-010 headroom unchanged" is superseded by measurement.**
+   The corrected bullet measures 472 B, not 418 B (`.aai/ROLE_COMMON.md`
+   4863 -> 5335), credited 1:1 with the TEST-012 pin moved 9319 -> 9791; and
+   the 4 B SKILL_TDD shrink moves TEST-010 headroom 0 -> 4/2048, inside the
+   2048 cap. A shrink owes no ledger line, so the 1:1 rule is intact.
+
+Disclosure: item 3 adds an acceptance criterion and item 4 moves a measured
+claim inside a frozen spec, which `.aai/system/AUTONOMOUS_LOOP.md` reads as a
+scope change assigned to HITL. No prior owner sign-off was obtained; it is
+disclosed here and in `docs/ai/decisions.jsonl` (`type: spec_amendment`,
+ts 2026-09-02) and the owner may reverse it. Both items are strictly additive
+or corrective of a claim measurement contradicts; no product surface is added.
+
 ## Links
 - Requirement: docs/issues/ISSUE-DRAFT-ac-table-premature-flip-recurs.md
 - Prior art, directly reused mechanism: docs/specs/SPEC-0160-spec-gate-ac-row-escaped-pipe-blind.md
@@ -202,15 +253,21 @@ the agent to the wrong one (Constitution Art. 4).
 both implementer prompts inherit this rule from, so both fixes land there and
 nowhere else:
 - the evidence-shape bullet stops naming a commit SHA as an acceptable
-  pre-handoff citation and names the proof artifact instead (a
-  `docs/ai/tdd/*.log` path, a RUN_ID, a suite output path), stating that the
-  delivery citation is added by the close flip.
+  pre-handoff citation and names the proof artifact instead — the cell must
+  carry a `docs/ai/tdd/*.log` path, which a RUN_ID or suite output path may
+  accompany but never replace (amended post-freeze, item 1: the frozen text
+  read as a three-way disjunction, and two of the three shapes are ones this
+  scope's own guard rejects) — stating that the delivery citation is added by
+  the close flip.
 - the self-check bullet gains the second command next to the existing
   `--gate` invocation.
 
-`.aai/IMPLEMENTATION.prompt.md` step 9b and `.aai/SKILL_TDD.prompt.md` Phase 4
-step 1b are NOT edited: `tests/skills/test-aai-state.sh` TEST-017 pins the
-literals `Acceptance Criteria Status`, `docs-audit.mjs --gate` and
+`.aai/IMPLEMENTATION.prompt.md` step 9b is NOT edited, and
+`.aai/SKILL_TDD.prompt.md` Phase 4 step 1b is edited only to DELETE its local
+restatement of the evidence shape (amended post-freeze, item 2: the frozen
+"both fixes land there and nowhere else" was false for that sentence, and a
+reader stops at the nearer one). `tests/skills/test-aai-state.sh` TEST-017
+pins the literals `Acceptance Criteria Status`, `docs-audit.mjs --gate` and
 `exit 0 before reporting complete` in both files, and those literals stay
 true and untouched. The new command string appears exactly once in the whole
 prompt corpus, which is the anti-duplication discipline SPEC-0151 D3
@@ -315,6 +372,17 @@ the audit engine; Art. 7 — the scope ends at `gh pr create`.
     `bash tests/skills/test-aai-prompt-diet.sh` SHALL exit 0 with TEST-010
     headroom unchanged.
   - Verification: TEST-007.
+- Maps to ISSUE Expected Behavior, boundary half (added post-freeze, see
+  Amendment item 3: a guard whose remediation is unreachable is not a guard)
+  - Spec-AC-08: WHEN the same mode runs against an open spec whose terminal AC
+    table has a done row whose Evidence carries NO `docs/ai/tdd/` path — a
+    RUN_ID alone, or a suite output path alone — THEN it SHALL exit 1; WHEN
+    that same RUN_ID accompanies a `docs/ai/tdd/` path in the cell, THEN it
+    SHALL exit 0. The `Remediation:` line the failing run prints, and the
+    `.aai/ROLE_COMMON.md` PRE-HANDOFF bullet, SHALL both name the accompanied
+    shape and SHALL NOT offer a RUN_ID or a suite output path as a citation
+    usable instead of the proof-log path.
+  - Verification: TEST-008.
 
 ## Acceptance Criteria Status
 
@@ -327,6 +395,7 @@ the audit engine; Art. 7 — the scope ends at `gh pr create`.
 | Spec-AC-05 | Repo-wide strict audit stays CLEAN and the five named suites stay green                         | planned | —        | —         | —     |
 | Spec-AC-06 | ROLE_COMMON names the guard and drops the commit-SHA citation; the command appears once; TEST-017 green | planned | —        | —         | —     |
 | Spec-AC-07 | Measured corpus growth credited 1:1 in the ledger with the TEST-012 pin moved by the same integer | planned | —        | —         | —     |
+| Spec-AC-08 | The guard rejects a proof-log-less cell and both prose surfaces name a shape it accepts | planned | —        | —         | —     |
 
 ## Implementation plan
 
@@ -364,7 +433,8 @@ the audit engine; Art. 7 — the scope ends at `gh pr create`.
 | TEST-004 | Spec-AC-04 | integration | tests/skills/test-aai-docs-audit.sh     | Cross-check over the four fixtures: --ac-flip-check exit 1 if and only if --check classifies that doc probable-false-open citing the AC Status table reason; plus a grep asserting one definition site of the predicate | green   |
 | TEST-005 | Spec-AC-05 | integration | tests/skills/test-aai-docs-audit.sh     | Repo-wide docs-audit --check --strict --no-event exits 0 CLEAN post-change; the five named suites re-run green; generate-docs-index.mjs idempotent on a second run | green   |
 | TEST-006 | Spec-AC-06 | integration | tests/skills/test-aai-prompt-diet.sh    | ROLE_COMMON PRE-HANDOFF block carries the --ac-flip-check invocation and no longer offers a commit SHA as pre-handoff evidence; corpus-wide occurrence count of the command string is 1; test-aai-state.sh TEST-017 re-run green | green   |
-| TEST-007 | Spec-AC-07 | integration | tests/skills/test-aai-prompt-diet.sh    | The measured wc -c delta of .aai/ROLE_COMMON.md equals the new ledger entry's leading integer and the want_growth movement; TEST-010 and TEST-012 exit 0 with headroom unchanged | green   |
+| TEST-007 | Spec-AC-07 | integration | tests/skills/test-aai-prompt-diet.sh    | The measured wc -c delta of .aai/ROLE_COMMON.md equals the new ledger entry's leading integer and the want_growth movement; TEST-010 and TEST-012 exit 0 with headroom inside the cap | green   |
+| TEST-008 | Spec-AC-08 | integration | tests/skills/test-aai-docs-audit.sh     | Three added fixtures in the same corpus: a RUN_ID-only cell and a suite-output-path-only cell exit 1, the same RUN_ID accompanying a docs/ai/tdd/ path exits 0, and the printed Remediation line plus the ROLE_COMMON block are pinned against the retired disjunction and for the accompany clause; TEST-004's both-directions cross-check runs over the added fixtures too | green   |
 
 Seam analysis:
 - Seam S1 — `falseOpenEvidence` is the producer whose D2(c) arm moves. Its
@@ -397,7 +467,9 @@ Seam analysis:
   block alone will not select the suite carrying TEST-017. This scope does
   not introduce the gap and does not widen the glob; file as
   `fu-suitemap-state-missing-role-common` (P3).
-- Registry items closed by this scope: none.
+- Registry items closed by this scope: fu-skilltdd-offers-commit-sha (added
+  post-freeze, Amendment item 2 — the item was filed by this ride's own
+  Implementation role and is closed by its remediation, not deferred).
 - Adjacent open registry items, deliberately left open (split out of the
   bullet above so `follow-ups.mjs verify-closures` cannot read these ids as
   closure claims — its inline-label scan runs to the next bullet, and
