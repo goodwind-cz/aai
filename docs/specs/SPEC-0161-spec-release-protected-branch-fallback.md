@@ -1,11 +1,11 @@
 ---
 id: spec-release-protected-branch-fallback
 type: spec
-number: null
+number: 161
 status: implementing
 ceremony_level: 2
 links:
-  requirement: docs/issues/CHANGE-DRAFT-release-protected-branch-fallback.md
+  requirement: docs/issues/CHANGE-0169-release-protected-branch-fallback.md
   rfc: null
   pr: []
   commits: []
@@ -46,7 +46,7 @@ may reverse it. It is strictly additive — it pins behavior the engines already
 had, adds no product surface, and no other AC's text moved.
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-release-protected-branch-fallback.md
+- Requirement: docs/issues/CHANGE-0169-release-protected-branch-fallback.md
 - Reference incident: goodwind-cz/aai PR #329 (`chore(release): v2026.09.01`), 2026-09-01
 - Technology contract: docs/TECHNOLOGY.md
 - Prior spec for this engine: docs/specs/SPEC-0063-spec-aai-release-skill.md
@@ -330,7 +330,7 @@ Commands (run from the worktree root):
 - `bash tests/skills/test-aai-git-ref-guard.sh` -> exit 0
 - `bash tests/skills/test-ps1-quality.sh` -> exit 0 (or 42 with pwsh absent;
   pwsh is present locally at /opt/homebrew/bin/pwsh and on the ps1 gate)
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-release-protected-branch-fallback.md` -> no blocking findings
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0161-spec-release-protected-branch-fallback.md` -> no blocking findings
 - `node .aai/scripts/docs-audit.mjs --gate release-protected-branch-fallback` -> exit 0 at AC-flip time
 - CORE suites selected for this file set: aai-check-state, aai-docs-audit,
   aai-spec-lint, aai-hygiene-pack; SELECTED: aai-release, aai-prompt-diet,

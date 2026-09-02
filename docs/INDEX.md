@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-02T06:41:25.568Z
+Generated: 2026-09-02T06:54:45.305Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-release-protected-branch-fallback | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-release-protected-branch-fallback.md |
+| SPEC-0161 | specs | implementing | 9 planned | docs/specs/SPEC-0161-spec-release-protected-branch-fallback.md |
 
 ## Canonical layer (0)
 
@@ -446,7 +446,7 @@ _None._
 |---|---|---|
 | CHANGE-0166 | issues | docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md |
 | CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
-| release-protected-branch-fallback (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-release-protected-branch-fallback.md |
+| CHANGE-0169 | issues | docs/issues/CHANGE-0169-release-protected-branch-fallback.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

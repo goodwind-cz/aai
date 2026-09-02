@@ -1,68 +1,18 @@
 {
-  "generatedAt": "2026-09-01T15:10:41.919Z",
-  "project": "aai-fix-adhoc-probes-unisolated-report-only",
+  "generatedAt": "2026-09-02T06:54:33.463Z",
+  "project": "aai-change-release-protected-branch-fallback",
   "counts": {
     "delivered": 223,
-    "in_progress": 39,
+    "in_progress": 40,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "adhoc-probes-unisolated-report-only",
-    "type": "intake_issue"
+    "ref": "release-protected-branch-fallback",
+    "type": "intake_change"
   },
-  "in_flight": {
-    "focus": {
-      "ref": "adhoc-probes-unisolated-report-only",
-      "type": "intake_issue",
-      "phase": "code_review"
-    },
-    "strategy": "hybrid",
-    "worktree": {
-      "recommendation": "recommended",
-      "user_decision": "worktree"
-    },
-    "validation_status": "pass",
-    "review_status": "pass",
-    "ticks": [
-      {
-        "tick": 11,
-        "role": "Code Review (round 3)",
-        "scope": "adhoc-probes-unisolated-report-only",
-        "duration_seconds": 2225,
-        "harness_version": "2.1.251"
-      },
-      {
-        "tick": 10,
-        "role": "Remediation (round 3)",
-        "scope": "adhoc-probes-unisolated-report-only",
-        "duration_seconds": 3498,
-        "harness_version": "2.1.251"
-      },
-      {
-        "tick": 9,
-        "role": "Code Review (round 2)",
-        "scope": "adhoc-probes-unisolated-report-only",
-        "duration_seconds": 2255,
-        "harness_version": "2.1.251"
-      },
-      {
-        "tick": 8,
-        "role": "Remediation (round 2)",
-        "scope": "adhoc-probes-unisolated-report-only",
-        "duration_seconds": 4164,
-        "harness_version": "2.1.251"
-      },
-      {
-        "tick": 7,
-        "role": "Code Review",
-        "scope": "adhoc-probes-unisolated-report-only",
-        "duration_seconds": 974,
-        "harness_version": "2.1.251"
-      }
-    ]
-  },
+  "in_flight": null,
   "in_progress": [
     {
       "ref": "residuals-of-the-per-suite-clone-ride",
@@ -89,6 +39,19 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "release-protected-branch-fallback",
+      "title": "aai-release should fall back to a PR when main is a protected branch",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0169-release-protected-branch-fallback.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0161-spec-release-protected-branch-fallback.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260902T065105Z-release-protected-branch-fallback.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
