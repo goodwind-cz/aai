@@ -734,7 +734,15 @@ test_012_growth_sum_matches_ledger() {
   # release-protected-branch-fallback: +1192 B itemized entry (SKILL_RELEASE
   # exit codes 1/17/18 + the never-merge/never-publish Safety bullet), pin
   # moves 8127 -> 9319.
-  local want_growth=9319
+  # ac-table-premature-flip-recurs: +472 B itemized entry (ROLE_COMMON
+  # PRE-HANDOFF AC-TABLE RECONCILIATION evidence-shape correction + the
+  # --ac-flip-check self-check line), pin moves 9319 -> 9791. The entry was
+  # 418 B until validation round 1 F1: the first correction named a shape the
+  # guard rejects, so the bullet grew the conjunction clause (+54 B).
+  # .aai/SKILL_TDD.prompt.md shrank 4 B in the same round (F2, its local
+  # restatement of the evidence shape deleted) — a shrink owes no ledger line,
+  # it moves TEST-010 headroom 0 -> 4/2048.
+  local want_growth=9791
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1178,6 +1186,192 @@ test_021_ledger_has_no_unescaped_backtick() {
     || log_fail "TEST-021 ledger library unescaped-backtick sweep"
 }
 
+# TEST-022 (spec-ac-table-premature-flip-recurs TEST-006 / Spec-AC-06) — the
+# canon that INSTRUCTED the premature AC flip is corrected at its single
+# source, and the correction did not break the two prompts that inherit it.
+#
+# SPEC-0151 rewrote the Validation end and the close end of the AC-flip rule
+# and left the Implementation end saying "concrete Evidence (commit SHA,
+# RUN_ID, or log path)" — and a commit SHA is exactly the delivery-grade
+# citation docs-audit's D2(c) arm reads as probable-false-open. An agent
+# following the old bullet to the letter manufactured the state VALIDATION
+# step 8a forbids.
+#
+# SEAM S3 is asserted in ONE stanza on purpose: .aai/ROLE_COMMON.md is a
+# producer for two prompt consumers that test-aai-state.sh TEST-017 pins by
+# literal. Checking only the ROLE_COMMON side would let an edit satisfy this
+# pin by breaking that one.
+AC_FLIP_COMMAND='node .aai/scripts/docs-audit.mjs --ac-flip-check'
+RETIRED_SHA_CITATION='concrete Evidence (commit SHA, RUN_ID, or log path)'
+# Round-1 validation F1: the FIRST correction of this bullet replaced one
+# unreachable instruction with another. It offered a RUN_ID or a suite output
+# path as citations usable INSTEAD of the proof-log path, and
+# acTableDeliverySignal accepts a cell only when it carries a docs/ai/tdd/
+# path — so an agent obeying the bullet produced exactly what the guard the
+# same block tells it to run then refuses, with no fixed point in between.
+# The behavioural half (both shapes exit 1, the accompanied shape exits 0, and
+# the guard's own printed Remediation line names the accompanied shape) is
+# TEST-008 in tests/skills/test-aai-docs-audit.sh. This pin is deliberately
+# NOT a duplicate of it: suite-map selects THIS suite on .aai/ROLE_COMMON.md
+# and that one on the audit engine, so each surface's regression has to be
+# catchable by the suite its own file selects.
+RETIRED_ALT_CITATION='a RUN_ID, or a suite output path'
+ACCOMPANY_CLAUSE='never replace it'
+RETIRED_TDD_CITATION='commit SHA, RUN_ID, or the docs/ai/tdd/*.log paths'
+
+# Echo the PRE-HANDOFF AC-TABLE RECONCILIATION block of .aai/ROLE_COMMON.md
+# (heading through the line before the next `## ` heading), so an assertion
+# about "the block" cannot pass on text living somewhere else in the file.
+ac_flip_prehandoff_block() {
+  awk '/^## PRE-HANDOFF AC-TABLE RECONCILIATION/{f=1; print; next} f && /^## /{exit} f{print}' \
+    .aai/ROLE_COMMON.md
+}
+
+test_022_ac_flip_guard_canon_wiring() {
+  local ok=1 block n f
+
+  block="$(ac_flip_prehandoff_block)"
+  if [[ -z "$block" ]]; then
+    log_fail "TEST-022 .aai/ROLE_COMMON.md has no PRE-HANDOFF AC-TABLE RECONCILIATION block"
+    return
+  fi
+
+  # (a) the block names the guard command.
+  case "$block" in
+    *"$AC_FLIP_COMMAND"*) : ;;
+    *) log_info "TEST-022: the PRE-HANDOFF block does not name '$AC_FLIP_COMMAND'"; ok=0 ;;
+  esac
+
+  # (b) the block no longer offers a commit SHA as a PRE-HANDOFF citation.
+  # Pinned as the retired literal, not as the substring "commit SHA": the
+  # corrected bullet legitimately says a commit SHA is NOT acceptable yet.
+  case "$block" in
+    *"$RETIRED_SHA_CITATION"*)
+      log_info "TEST-022: the PRE-HANDOFF block still offers '$RETIRED_SHA_CITATION'"; ok=0 ;;
+    *) : ;;
+  esac
+
+  # (c) the block names the PROOF-artifact shape that IS acceptable pre-handoff
+  # and names where the delivery citation belongs, or the correction tells the
+  # agent what is wrong without telling it which legitimate shape to move to.
+  case "$block" in
+    *"docs/ai/tdd/"*) : ;;
+    *) log_info "TEST-022: the PRE-HANDOFF block does not name the docs/ai/tdd/ proof-artifact shape"; ok=0 ;;
+  esac
+  case "$block" in
+    *"SKILL_PR.prompt.md"*) : ;;
+    *) log_info "TEST-022: the PRE-HANDOFF block does not name the close flip as the delivery citation's home"; ok=0 ;;
+  esac
+
+  # (c2) and the shape it names must be one the guard in the same block
+  # ACCEPTS: the cell carries a docs/ai/tdd/ path, with a RUN_ID or a suite
+  # output path allowed only alongside it. "Contains docs/ai/tdd/" alone is
+  # satisfied by the unreachable wording too, so the clause is pinned.
+  case "$block" in
+    *"$RETIRED_ALT_CITATION"*)
+      log_info "TEST-022: the PRE-HANDOFF block offers '$RETIRED_ALT_CITATION', which docs-audit.mjs --ac-flip-check rejects"; ok=0 ;;
+    *) : ;;
+  esac
+  case "$block" in
+    *"$ACCOMPANY_CLAUSE"*) : ;;
+    *) log_info "TEST-022: the PRE-HANDOFF block does not say the RUN_ID / suite output path may not replace the proof-log path"; ok=0 ;;
+  esac
+
+  # (d) the command string exists exactly ONCE across the prompt corpus
+  # (SPEC-0151 D3 anti-duplication: one canonical block, pointers elsewhere).
+  n=$(grep -lF -- "$AC_FLIP_COMMAND" .aai/*.prompt.md .aai/AGENTS.md .aai/ROLE_COMMON.md 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "$n" != "1" ]]; then
+    log_info "TEST-022: '$AC_FLIP_COMMAND' appears in $n corpus files (want exactly 1, .aai/ROLE_COMMON.md)"
+    ok=0
+  fi
+  n=$(grep -cF -- "$AC_FLIP_COMMAND" .aai/ROLE_COMMON.md || true)
+  if [[ "$n" != "1" ]]; then
+    log_info "TEST-022: '$AC_FLIP_COMMAND' appears $n times in .aai/ROLE_COMMON.md (want 1)"
+    ok=0
+  fi
+
+  # (e) SEAM S3, the other side: test-aai-state.sh TEST-017's three pinned
+  # literals must still be true in BOTH implementer prompts — this scope fixes
+  # the shared block precisely so those two files stay untouched.
+  for f in .aai/IMPLEMENTATION.prompt.md .aai/SKILL_TDD.prompt.md; do
+    grep -qF "Acceptance Criteria Status" "$f" || { log_info "TEST-022: $f lost the Acceptance Criteria Status literal (TEST-017 pin)"; ok=0; }
+    grep -qF "docs-audit.mjs --gate" "$f" || { log_info "TEST-022: $f lost the docs-audit.mjs --gate literal (TEST-017 pin)"; ok=0; }
+    grep -qF "exit 0 before reporting complete" "$f" || { log_info "TEST-022: $f lost the exit-0 literal (TEST-017 pin)"; ok=0; }
+    # Round-1 validation F2: pointing at the shared block and then RESTATING
+    # the evidence shape locally reintroduces the defect the shared block was
+    # corrected to remove — a reader stops at the nearer sentence. Neither
+    # implementer prompt may carry its own evidence-shape list.
+    if grep -qF "$RETIRED_TDD_CITATION" "$f"; then
+      log_info "TEST-022: $f restates the evidence shape as '$RETIRED_TDD_CITATION' below its own ROLE_COMMON pointer"
+      ok=0
+    fi
+  done
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-022 (spec TEST-006) PRE-HANDOFF block names the AC-flip guard, drops the commit-SHA citation, appears once, TEST-017 pins intact" \
+    || log_fail "TEST-022 (spec TEST-006) AC-flip guard canon wiring"
+}
+
+# TEST-023 (spec-ac-table-premature-flip-recurs TEST-007 / Spec-AC-07) — the
+# .aai/ROLE_COMMON.md growth this scope pays for is credited 1:1, measured
+# rather than rounded. .aai/ROLE_COMMON.md sits in TEST-010's extra-file
+# accounting (not the .aai/*.prompt.md glob), so it is credited at the same
+# exact delta.
+#
+# The pin the scope moved FROM. Recorded here, not re-derived, so a later
+# scope cannot quietly absorb this credit into its own arithmetic.
+AC_FLIP_LEDGER_KEY='ac-table-premature-flip-recurs'
+AC_FLIP_ROLE_COMMON_BEFORE=4863
+AC_FLIP_PIN_BEFORE=9319
+
+test_023_ac_flip_growth_credited() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-023 (spec TEST-007) JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local ok=1 _e entry='' n=0 lead after measured now
+
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    case "$_e" in
+      *"$AC_FLIP_LEDGER_KEY"*) entry="$_e"; n=$((n + 1)) ;;
+    esac
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-023 (spec TEST-007) JUSTIFIED_ADDITIONS carries $n entries naming $AC_FLIP_LEDGER_KEY (want exactly 1)"
+    return
+  fi
+
+  lead="${entry%% *}"
+  # The entry states its own measurement as "<before> -> <after>"; a credit
+  # whose arithmetic is only in the prose is a credit nobody can re-check.
+  after="$(printf '%s' "$entry" | sed -n "s/.*${AC_FLIP_ROLE_COMMON_BEFORE} -> \([0-9][0-9]*\).*/\1/p" | head -1)"
+  if [[ -z "$after" ]]; then
+    log_info "TEST-023: the ledger entry does not record its measurement as '$AC_FLIP_ROLE_COMMON_BEFORE -> <after>'"
+    ok=0
+  else
+    measured=$(( after - AC_FLIP_ROLE_COMMON_BEFORE ))
+    if [[ "$lead" -ne "$measured" ]]; then
+      log_info "TEST-023: entry credits $lead B but its own measurement is $measured B ($AC_FLIP_ROLE_COMMON_BEFORE -> $after)"
+      ok=0
+    fi
+    now=$(wc -c < .aai/ROLE_COMMON.md | tr -d ' ')
+    if [[ "$now" -ne "$after" ]]; then
+      log_info "TEST-023: .aai/ROLE_COMMON.md is $now B on disk but the ledger entry recorded $after B"
+      ok=0
+    fi
+  fi
+
+  # The TEST-012 pin moved by exactly the credited amount — not rounded, not
+  # absorbed into headroom (headroom is 0, so a rounded number breaks the cap).
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne $(( AC_FLIP_PIN_BEFORE + lead )) ]]; then
+    log_info "TEST-023: JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $AC_FLIP_PIN_BEFORE + $lead = $(( AC_FLIP_PIN_BEFORE + lead )))"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-023 (spec TEST-007) ROLE_COMMON growth $lead B credited 1:1, pin $AC_FLIP_PIN_BEFORE -> $JUSTIFIED_GROWTH_BYTES" \
+    || log_fail "TEST-023 (spec TEST-007) AC-flip growth credit"
+}
+
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1205,6 +1399,8 @@ main() {
   test_019_core_prompt_diet_dedup
   test_020_g4_disk_artifact_poll_contract
   test_021_ledger_has_no_unescaped_backtick
+  test_022_ac_flip_guard_canon_wiring
+  test_023_ac_flip_growth_credited
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

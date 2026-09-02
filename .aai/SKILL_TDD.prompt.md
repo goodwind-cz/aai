@@ -261,8 +261,8 @@ No completion claim in this phase without the `.aai/SKILL_VERIFY.prompt.md` gate
    `## Acceptance Criteria Status` table, then run
    `node .aai/scripts/docs-audit.mjs --gate <SPEC-ID>` and fix until
    exit 0 before reporting complete. "Covered by" here
-   means every Spec-AC covered by the completed TDD cycles; Evidence may be a
-   commit SHA, RUN_ID, or the docs/ai/tdd/*.log paths from those cycles.
+   means every Spec-AC covered by the completed TDD cycles; the Evidence
+   shape is the one ROLE_COMMON names — deliberately not restated here.
 
 2. **Run Standard Validation**
    - Execute `.aai/VALIDATION.prompt.md` or dispatch Validation through

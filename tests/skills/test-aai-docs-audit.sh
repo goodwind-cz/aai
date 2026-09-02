@@ -6512,6 +6512,477 @@ EOF
   log_pass "firstCommitDate still exported, still answers for one document, still null for a ghost path"
 }
 
+# --- spec-ac-table-premature-flip-recurs — `--ac-flip-check`, the pre-handoff
+# guard against a premature AC flip (TEST-001..005) ---------------------------
+# AC-FLIP GUARD STANZAS (begin)
+#
+# ONE fixture corpus, six specs, four discrimination cases, built by
+# setup_acflip_repo. The corpus is shared rather than per-stanza on purpose:
+# Spec-AC-04 cross-checks the new guard against the audit's OWN D2(c) arm, and
+# two hand-kept fixture sets would let the two drift apart — which is the exact
+# divergence the shared-predicate design (D1) exists to prevent.
+#
+#   SPEC-7101  open   + terminal + mixed TDD-log/commit-hash Evidence -> FIRES
+#   SPEC-7102  open   + terminal + mixed TDD-log/PR-reference Evidence -> FIRES
+#   SPEC-7103  open   + one row still planned                          -> clean
+#   SPEC-7104  open   + terminal + docs/ai/tdd/ proof paths ONLY       -> clean
+#   SPEC-7105  done   + terminal + commit-hash Evidence (close ceremony end
+#                                  state, written by close-work-item.mjs) -> clean
+#   SPEC-7106  open   + umbrella: true + terminal + commit-hash Evidence -> clean
+#   SPEC-7107  open   + terminal + a RUN_ID and NOTHING else             -> FIRES
+#   SPEC-7108  open   + terminal + a suite output path and nothing else  -> FIRES
+#   SPEC-7109  open   + terminal + a RUN_ID ALONGSIDE a proof-log path   -> clean
+#
+# 7107/7108/7109 are the convergence boundary (TEST-008): the guard accepts a
+# cell ONLY when it carries a docs/ai/tdd/ path, so a remediation line — or a
+# ROLE_COMMON bullet — offering a RUN_ID or a suite output path INSTEAD of one
+# sends the agent to a shape the same guard rejects, and no fixed point exists.
+#
+# setup_fo_repo's CHANGE-9001 positive control rides along: it is
+# probable-false-open through the DELIVERY-COMMIT arm and carries no AC table
+# at all, so it also pins that the guard keys on the AC-table arm alone.
+setup_acflip_repo() {
+  local d; d="$(setup_fo_repo acflip)"
+  # A real commit in the fixture repo whose hash the Evidence cells cite.
+  # Subject is chore:-shaped but names none of the SPEC-71xx ids, so the D2(a)
+  # delivery-commit arm cannot fire on any fixture and the AC-table arm is the
+  # only signal under test.
+  echo "delivery" > "$d/ACFLIP-DELIVERY.md"
+  (cd "$d" && git add ACFLIP-DELIVERY.md \
+    && git commit -qm "chore: unrelated delivery commit for the hash citation")
+  local hash; hash="$(cd "$d" && git rev-parse --short=10 HEAD)"
+  printf '%s' "$hash" > "$d/acflip-hash.txt"
+
+  cat > "$d/docs/specs/SPEC-7101-acflip-hash.md" <<MD
+---
+id: SPEC-7101
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec whose terminal AC table already claims delivery (hash)
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | TEST-001 green — docs/ai/tdd/green-20260101T000000Z-a.log; delivered ${hash} | — | — |
+| Spec-AC-02 | second      | done   | TEST-002 green — docs/ai/tdd/green-20260101T000000Z-b.log | — | — |
+MD
+
+  cat > "$d/docs/specs/SPEC-7102-acflip-pr.md" <<'MD'
+---
+id: SPEC-7102
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec whose terminal AC table already claims delivery (PR ref)
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | TEST-001 green — docs/ai/tdd/green-20260101T000000Z-c.log; landed via PR #91 | — | — |
+MD
+
+  cat > "$d/docs/specs/SPEC-7103-acflip-inflight.md" <<'MD'
+---
+id: SPEC-7103
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec still in flight: one row is not terminal yet
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status  | Evidence | Review-By | Notes |
+|------------|-------------|---------|----------|-----------|-------|
+| Spec-AC-01 | first       | done    | TEST-001 green — docs/ai/tdd/green-20260101T000000Z-d.log | — | — |
+| Spec-AC-02 | second      | planned | —        | —         | —     |
+MD
+
+  cat > "$d/docs/specs/SPEC-7104-acflip-tddlog.md" <<'MD'
+---
+id: SPEC-7104
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec, terminal table, evidenced ONLY by proof logs (legitimate)
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | TEST-001 green — docs/ai/tdd/green-20260101T000000Z-e.log | — | — |
+| Spec-AC-02 | second      | done   | TEST-002 green — docs/ai/tdd/green-20260101T000000Z-f.log | — | — |
+MD
+
+  cat > "$d/docs/specs/SPEC-7105-acflip-closed.md" <<MD
+---
+id: SPEC-7105
+type: spec
+status: done
+links:
+  pr: []
+---
+# Closed spec: the close ceremony's own terminal + delivery-cited end state
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | TEST-001 green — docs/ai/tdd/green-20260101T000000Z-g.log; delivered ${hash} | — | — |
+MD
+
+  cat > "$d/docs/specs/SPEC-7106-acflip-umbrella.md" <<MD
+---
+id: SPEC-7106
+type: spec
+status: implementing
+umbrella: true
+links:
+  pr: []
+---
+# Deliberately-open umbrella parent, terminal table, delivery-cited
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | TEST-001 green — docs/ai/tdd/green-20260101T000000Z-h.log; delivered ${hash} | — | — |
+MD
+
+  cat > "$d/docs/specs/SPEC-7107-acflip-runid.md" <<'MD'
+---
+id: SPEC-7107
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec whose terminal AC table cites a RUN_ID and nothing else
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | RUN_ID test-20260902-120527 | — | — |
+MD
+
+  cat > "$d/docs/specs/SPEC-7108-acflip-suitepath.md" <<'MD'
+---
+id: SPEC-7108
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec whose terminal AC table cites a suite output path only
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | tests/skills/results/test-20260902-120527/x.log | — | — |
+MD
+
+  cat > "$d/docs/specs/SPEC-7109-acflip-accompanied.md" <<'MD'
+---
+id: SPEC-7109
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec: a RUN_ID ACCOMPANYING a proof-log path (the fixed point)
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | RUN_ID test-20260902-120527 — docs/ai/tdd/green-20260101T000000Z-i.log | — | — |
+MD
+
+  (cd "$d" && git add docs/specs && git commit -qm "docs: add the ac-flip discrimination corpus")
+  printf '%s' "$d"
+}
+
+# The disjunction the guard's remediation line and the ROLE_COMMON bullet both
+# used to print: it names two shapes (RUN_ID / suite output path) as usable
+# INSTEAD of the proof-log path, and the guard rejects both. Pinned as the
+# retired literal in the two surfaces at once — an agent reads whichever it
+# reaches first, so one corrected surface is not a fix.
+ACFLIP_RETIRED_DISJUNCTION='a RUN_ID, or a suite output path'
+# The positive half: both surfaces must say the accompanying shapes may not
+# stand in for the proof log. Pinned on the clause that carries that meaning,
+# because "contains docs/ai/tdd/" is satisfied by the broken text too.
+ACFLIP_ACCOMPANY_CLAUSE='never replace it'
+
+# Run `--ac-flip-check <id>` inside fixture repo $1, logging to $1/acflip-<id>.log.
+# Echoes the exit code. Never dies on a non-zero status (errexit-safe).
+acflip_check_rc() {
+  local d="$1" id="$2" ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --ac-flip-check "$id" > "acflip-$id.log" 2>&1) || ec=$?
+  printf '%s' "$ec"
+}
+
+test_acflip_delivery_citation_flags() {  # TEST-001 / Spec-AC-01
+  log_info "Test: --ac-flip-check exits 1 on an open spec whose terminal AC table cites delivery (TEST-001)..."
+  local d; d="$(setup_acflip_repo)"
+  local hash; hash="$(cat "$d/acflip-hash.txt")"
+  local ec
+
+  ec="$(acflip_check_rc "$d" SPEC-7101)"
+  [[ "$ec" == 1 ]] \
+    || log_fail "TEST-001: --ac-flip-check SPEC-7101 must exit 1 (got $ec): $(cat "$d/acflip-SPEC-7101.log")"
+  # D4 — the output must name the doc, the offending ROW, the offending TOKEN,
+  # and where the delivery citation actually belongs. A guard that says only
+  # "wrong" sends the agent to the wrong one of two legitimate shapes.
+  assert_contains "$d/acflip-SPEC-7101.log" "docs/specs/SPEC-7101-acflip-hash.md"
+  assert_contains "$d/acflip-SPEC-7101.log" "Spec-AC-01"
+  assert_contains "$d/acflip-SPEC-7101.log" "$hash"
+  assert_contains "$d/acflip-SPEC-7101.log" "docs/ai/tdd/"
+  assert_contains "$d/acflip-SPEC-7101.log" "close flip"
+  # Spec-AC-02 is evidenced by a proof log ONLY — it is not an offender and
+  # must not be listed, or the remediation line points at a correct row.
+  assert_not_contains "$d/acflip-SPEC-7101.log" "Spec-AC-02"
+
+  # PR-reference variant: the same delivery-grade claim in its other shape.
+  ec="$(acflip_check_rc "$d" SPEC-7102)"
+  [[ "$ec" == 1 ]] \
+    || log_fail "TEST-001: --ac-flip-check SPEC-7102 (PR reference) must exit 1 (got $ec): $(cat "$d/acflip-SPEC-7102.log")"
+  assert_contains "$d/acflip-SPEC-7102.log" "PR #91"
+
+  rm -rf "$d"
+  log_pass "--ac-flip-check exits 1 and names row, token and remediation on both delivery-citation shapes (TEST-001)"
+}
+
+test_acflip_deferred_table_clean() {  # TEST-002 / Spec-AC-02
+  log_info "Test: --ac-flip-check exits 0 on an in-flight table and on a proof-log-only terminal table (TEST-002)..."
+  local d; d="$(setup_acflip_repo)"
+  local ec
+
+  ec="$(acflip_check_rc "$d" SPEC-7103)"
+  [[ "$ec" == 0 ]] \
+    || log_fail "TEST-002: a non-terminal in-flight table must exit 0 (got $ec): $(cat "$d/acflip-SPEC-7103.log")"
+  # Non-vacuity, and the reason this suite states it on EVERY must-not-fire
+  # arm: an unknown flag falls through parseArgs to a full repository audit
+  # that ALSO exits 0, so a bare exit-code assertion passes identically against
+  # an engine that has no guard at all.
+  assert_contains "$d/acflip-SPEC-7103.log" "AC-FLIP PASS"
+
+  # The counter-intuitive half of D1: a FULLY TERMINAL table on an open doc is
+  # legitimate when its Evidence cites only the proof artifact. SPEC-0040 D2(c)
+  # v2 accepts it as CLEAN, and `--gate` REQUIRES every row terminal — a
+  # stricter guard here would deadlock against the same PRE-HANDOFF step.
+  ec="$(acflip_check_rc "$d" SPEC-7104)"
+  [[ "$ec" == 0 ]] \
+    || log_fail "TEST-002: a terminal table evidenced only by docs/ai/tdd/ proof paths must exit 0 (got $ec): $(cat "$d/acflip-SPEC-7104.log")"
+  assert_contains "$d/acflip-SPEC-7104.log" "AC-FLIP PASS"
+
+  rm -rf "$d"
+  log_pass "--ac-flip-check stays silent on the in-flight and proof-log-only shapes (TEST-002)"
+}
+
+test_acflip_close_end_state_clean() {  # TEST-003 / Spec-AC-03
+  log_info "Test: --ac-flip-check exits 0 on the close ceremony end state and on an umbrella; --gate unmoved (TEST-003)..."
+  local d; d="$(setup_acflip_repo)"
+  local ec id
+
+  # close-work-item.mjs leaves exactly this behind: status done + a terminal,
+  # delivery-cited table. The frontmatter-status test (D3) excludes it BEFORE
+  # the table is ever read, which is what makes the discrimination structural.
+  ec="$(acflip_check_rc "$d" SPEC-7105)"
+  [[ "$ec" == 0 ]] \
+    || log_fail "TEST-003: the close ceremony's status:done end state must exit 0 (got $ec): $(cat "$d/acflip-SPEC-7105.log")"
+  assert_contains "$d/acflip-SPEC-7105.log" "AC-FLIP PASS"
+
+  ec="$(acflip_check_rc "$d" SPEC-7106)"
+  [[ "$ec" == 0 ]] \
+    || log_fail "TEST-003: a frontmatter umbrella:true open doc must exit 0 (got $ec): $(cat "$d/acflip-SPEC-7106.log")"
+  assert_contains "$d/acflip-SPEC-7106.log" "AC-FLIP PASS"
+
+  # Unresolvable / ambiguous ids keep --gate's exit-2 "could not evaluate" arm.
+  ec="$(acflip_check_rc "$d" SPEC-9999)"
+  [[ "$ec" == 2 ]] \
+    || log_fail "TEST-003: an unresolvable id must exit 2 (got $ec): $(cat "$d/acflip-SPEC-9999.log")"
+  assert_contains "$d/acflip-SPEC-9999.log" "AC-FLIP ERROR"
+
+  # SEAM S2 — the close path shares gateDoc's id resolution with the new mode.
+  # Pin --gate's exit code AND its reason on every fixture so a resolution
+  # change made for the guard cannot silently move the close gate.
+  for id in SPEC-7101 SPEC-7102 SPEC-7104 SPEC-7105 SPEC-7106; do
+    ec=0
+    (cd "$d" && node .aai/scripts/docs-audit.mjs --gate "$id" > "gate-$id.log" 2>&1) || ec=$?
+    [[ "$ec" == 0 ]] \
+      || log_fail "TEST-003: --gate $id must still exit 0 (got $ec): $(cat "$d/gate-$id.log")"
+    assert_contains "$d/gate-$id.log" "GATE PASS"
+  done
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7103 > gate-SPEC-7103.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] \
+    || log_fail "TEST-003: --gate SPEC-7103 must still exit 1 on the non-terminal row (got $ec): $(cat "$d/gate-SPEC-7103.log")"
+  assert_contains "$d/gate-SPEC-7103.log" "Spec-AC-02 is non-terminal"
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-9999 > gate-SPEC-9999.log 2>&1) || ec=$?
+  [[ "$ec" == 2 ]] \
+    || log_fail "TEST-003: --gate on an unresolvable id must still exit 2 (got $ec): $(cat "$d/gate-SPEC-9999.log")"
+
+  rm -rf "$d"
+  log_pass "Close end state and umbrella stay clean; --gate keeps its exit codes and reasons (TEST-003)"
+}
+
+test_acflip_predicate_agrees_with_check() {  # TEST-004 / Spec-AC-04
+  log_info "Test: --ac-flip-check exit 1 iff --check cites the AC Status table arm, over one corpus (TEST-004)..."
+  local d; d="$(setup_acflip_repo)"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+
+  # Both directions, case for case: the guard fires exactly where the audit's
+  # own D2(c) arm names the AC Status table, and nowhere else. CHANGE-9001 is
+  # in the corpus precisely as a doc the audit DOES call probable-false-open
+  # through another arm — the guard must not fire on it.
+  local id ec armed
+  for id in SPEC-7101 SPEC-7102 SPEC-7103 SPEC-7104 SPEC-7105 SPEC-7106 \
+            SPEC-7107 SPEC-7108 SPEC-7109 CHANGE-9001; do
+    ec="$(acflip_check_rc "$d" "$id")"
+    armed=0
+    if grep -F "$id" "$d/drift-sec.txt" | grep -qF "AC Status table fully terminal with evidence"; then
+      armed=1
+    fi
+    if [[ "$ec" == 1 && "$armed" != 1 ]]; then
+      log_fail "TEST-004: --ac-flip-check fired on $id but --check does not cite the AC Status table arm"
+    fi
+    if [[ "$ec" != 1 && "$armed" == 1 ]]; then
+      log_fail "TEST-004: --check cites the AC Status table arm on $id but --ac-flip-check exited $ec"
+    fi
+  done
+
+  # Spec-AC-04's structural half: ONE definition site, two consumers. The two
+  # lines that ARE the predicate (the TDD-log discriminator and the
+  # delivery-citation probe) must exist exactly once in the shared library.
+  local core="$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" n
+  n=$(grep -cF 'export function acTableDeliverySignal(' "$core" || true)
+  [[ "$n" == 1 ]] || log_fail "TEST-004: acTableDeliverySignal must be defined exactly once in docs-audit-core.mjs (found $n)"
+  n=$(grep -cF 'TDD_LOG_EVIDENCE_RE.test(' "$core" || true)
+  [[ "$n" == 1 ]] || log_fail "TEST-004: the TDD-log discriminator must have exactly ONE evaluation site (found $n)"
+  n=$(grep -cF 'acTableDeliverySignal(' "$core" || true)
+  [[ "$n" == 3 ]] || log_fail "TEST-004: the shared predicate must appear 3 times — one definition plus its two consumers, falseOpenEvidence and acFlipCheckDoc (found $n)"
+
+  rm -rf "$d"
+  log_pass "Guard and --check agree case for case in both directions; one predicate, two consumers (TEST-004)"
+}
+
+test_acflip_remediation_is_reachable() {  # TEST-008 / Spec-AC-08
+  log_info "Test: the guard's remediation and the ROLE_COMMON bullet name a shape the guard accepts (TEST-008)..."
+  local d; d="$(setup_acflip_repo)"
+  local ec rem block
+
+  # (a) The guard's REAL firing condition is wider than "cites a commit or a
+  # PR": a done row whose Evidence carries no docs/ai/tdd/ path at all fires
+  # too, because the table-alone signal has nothing proving the tests passed
+  # HERE. Both shapes the retired disjunction offered are in that set.
+  ec="$(acflip_check_rc "$d" SPEC-7107)"
+  [[ "$ec" == 1 ]] \
+    || log_fail "TEST-008: a RUN_ID-only Evidence cell must exit 1 (got $ec): $(cat "$d/acflip-SPEC-7107.log")"
+  assert_contains "$d/acflip-SPEC-7107.log" "AC-FLIP FAIL"
+  assert_contains "$d/acflip-SPEC-7107.log" "Spec-AC-01"
+
+  ec="$(acflip_check_rc "$d" SPEC-7108)"
+  [[ "$ec" == 1 ]] \
+    || log_fail "TEST-008: a suite-output-path-only Evidence cell must exit 1 (got $ec): $(cat "$d/acflip-SPEC-7108.log")"
+  assert_contains "$d/acflip-SPEC-7108.log" "AC-FLIP FAIL"
+
+  # (b) CONVERGENCE — the fixed point exists and is the one the two prose
+  # surfaces must name: the same RUN_ID ACCOMPANYING a proof-log path passes.
+  # Without this arm the pins below are wording checks; with it they are the
+  # claim that following the printed instruction actually clears the guard.
+  ec="$(acflip_check_rc "$d" SPEC-7109)"
+  [[ "$ec" == 0 ]] \
+    || log_fail "TEST-008: a RUN_ID accompanying a docs/ai/tdd/ path must exit 0 (got $ec): $(cat "$d/acflip-SPEC-7109.log")"
+  assert_contains "$d/acflip-SPEC-7109.log" "AC-FLIP PASS"
+
+  # (c) The printed remediation must name THAT shape and must not offer the
+  # two rejected ones as substitutes — a guard whose remediation line repeats
+  # the input it just refused leaves a compliant agent with no move to make.
+  rem="$(grep -m1 '^Remediation:' "$d/acflip-SPEC-7107.log" || true)"
+  if [[ -z "$rem" ]]; then
+    log_fail "TEST-008: the AC-FLIP FAIL output carries no Remediation: line"
+  fi
+  case "$rem" in
+    *"$ACFLIP_RETIRED_DISJUNCTION"*)
+      log_fail "TEST-008: the remediation line still offers '$ACFLIP_RETIRED_DISJUNCTION', which this same guard rejects: $rem" ;;
+  esac
+  case "$rem" in
+    *"docs/ai/tdd/"*) : ;;
+    *) log_fail "TEST-008: the remediation line does not name the docs/ai/tdd/ proof path: $rem" ;;
+  esac
+  case "$rem" in
+    *"$ACFLIP_ACCOMPANY_CLAUSE"*) : ;;
+    *) log_fail "TEST-008: the remediation line does not say the accompanying shapes may not replace the proof path: $rem" ;;
+  esac
+
+  # (d) The same instruction on its other surface. .aai/ROLE_COMMON.md is what
+  # an implementer reads BEFORE the guard ever runs, so a corrected guard and
+  # an uncorrected bullet still produce the rejected cell.
+  block="$(awk '/^## PRE-HANDOFF AC-TABLE RECONCILIATION/{f=1; print; next} f && /^## /{exit} f{print}' \
+    "$PROJECT_ROOT/.aai/ROLE_COMMON.md")"
+  if [[ -z "$block" ]]; then
+    log_fail "TEST-008: .aai/ROLE_COMMON.md has no PRE-HANDOFF AC-TABLE RECONCILIATION block"
+  fi
+  case "$block" in
+    *"$ACFLIP_RETIRED_DISJUNCTION"*)
+      log_fail "TEST-008: the ROLE_COMMON bullet still offers '$ACFLIP_RETIRED_DISJUNCTION' as pre-handoff Evidence" ;;
+  esac
+  case "$block" in
+    *"$ACFLIP_ACCOMPANY_CLAUSE"*) : ;;
+    *) log_fail "TEST-008: the ROLE_COMMON bullet does not say the accompanying shapes may not replace the proof path" ;;
+  esac
+
+  rm -rf "$d"
+  log_pass "Guard rejects proof-log-less cells and both prose surfaces name the shape it accepts (TEST-008)"
+}
+
+test_acflip_real_repo_clean() {  # TEST-005 / Spec-AC-05
+  log_info "Test: real-repo strict audit stays CLEAN after the extraction; index generation idempotent (TEST-005)..."
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/acflip-audit.log" 2>&1) \
+    || log_fail "TEST-005: real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/acflip-audit.log")"
+  assert_contains "$TEST_DIR/acflip-audit.log" "Verdict: CLEAN"
+  assert_contains "$TEST_DIR/acflip-audit.log" "False-open: 0"
+  assert_not_contains "$TEST_DIR/acflip-audit.log" "CHECK FAILED"
+  # This scope's own spec must survive its own guard: it is handed off open,
+  # so its AC rows may not carry a delivery citation (the ordering note in the
+  # spec's Implementation plan — the scope dogfoods itself).
+  local ec=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --ac-flip-check spec-ac-table-premature-flip-recurs \
+    > "$TEST_DIR/acflip-self.log" 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] \
+    || log_fail "TEST-005: this scope's own spec must pass its own guard (got $ec): $(cat "$TEST_DIR/acflip-self.log")"
+  # Non-vacuity: an UNKNOWN flag falls through parseArgs to a full repository
+  # audit that also exits 0, so the exit code alone cannot tell "the guard
+  # passed" from "the guard does not exist".
+  assert_contains "$TEST_DIR/acflip-self.log" "AC-FLIP PASS"
+  # docs/INDEX.md regeneration is idempotent on a second run (the restore floor
+  # armed by setup_fixture puts the tracked file back on every exit path).
+  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1) \
+    || log_fail "TEST-005: generate-docs-index.mjs must exit 0"
+  cp "$PROJECT_ROOT/docs/INDEX.md" "$TEST_DIR/acflip-index-1.md"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1) \
+    || log_fail "TEST-005: generate-docs-index.mjs must exit 0 on the second run"
+  diff <(index_strip_dated "$TEST_DIR/acflip-index-1.md") <(index_strip_dated "$PROJECT_ROOT/docs/INDEX.md") > "$TEST_DIR/acflip-index-diff.txt" 2>&1 \
+    || log_fail "TEST-005: generate-docs-index.mjs is not idempotent: $(head -20 "$TEST_DIR/acflip-index-diff.txt")"
+  log_pass "Real-repo strict audit CLEAN, own spec passes its own guard, index generation idempotent (TEST-005)"
+}
+# AC-FLIP GUARD STANZAS (end)
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -6674,6 +7145,12 @@ main() {
   test_histmap_rename_needs_no_renames
   test_histmap_no_history_yields_null
   test_histmap_first_commit_date_still_exported
+  test_acflip_delivery_citation_flags
+  test_acflip_deferred_table_clean
+  test_acflip_close_end_state_clean
+  test_acflip_predicate_agrees_with_check
+  test_acflip_remediation_is_reachable
+  test_acflip_real_repo_clean
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
