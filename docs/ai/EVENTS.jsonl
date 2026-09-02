@@ -2048,3 +2048,4 @@
 {"v":1,"ts":"2026-09-02T15:46:11.100Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-ac-table-premature-flip-recurs","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-02T15:46:11.138Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-ac-table-premature-flip-recurs","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-02T15:46:11.176Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-ac-table-premature-flip-recurs","payload":{"commit":"cbead77"}}
+{"v":1,"ts":"2026-09-02T17:42:30.036Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-metrics-flush-invalidates-pr-precondition","payload":{"from":"draft","to":"implementing"}}

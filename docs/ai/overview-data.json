@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-09-02T15:46:29.951Z",
-  "project": "aai-fix-ac-table-premature-flip-recurs",
+  "generatedAt": "2026-09-02T18:03:12.974Z",
+  "project": "aai-fix-metrics-flush",
   "counts": {
     "delivered": 226,
-    "in_progress": 39,
+    "in_progress": 40,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "ac-table-premature-flip-recurs",
+    "ref": "metrics-flush-invalidates-pr-precondition",
     "type": "intake_issue"
   },
   "in_flight": null,
@@ -505,6 +505,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "metrics-flush-invalidates-pr-precondition",
+      "title": "Metrics Flush resets the exact STATE fields SKILL_PR's own preconditions require",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-DRAFT-metrics-flush-invalidates-pr-precondition.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-DRAFT-spec-metrics-flush-invalidates-pr-precondition.md",
       "validation": null,
       "review": null
     },

@@ -9,6 +9,14 @@
 # v1 grammar, and the END-TO-END durability of a waiver through the REAL
 # metrics flush into the REAL factory report (F-2).
 #
+# TEST-11..TEST-16 cover the ARCHIVE LANE
+# (spec-metrics-flush-invalidates-pr-precondition, Spec-AC-02..Spec-AC-07):
+# the flush archives a PASS into METRICS.jsonl and resets the live fields, so
+# the gate learns to read the durable proof back. The lane may only ever OPEN
+# — every arm below pins either the ONE shape that opens it or one of the
+# EIGHT neighbouring shapes that must not, and TEST-16 pins that a note the
+# archive lane refuses still opens on its own waiver exactly as it does today.
+#
 # Drives .aai/scripts/validation-waiver.mjs — the executable form of the
 # aai-pr VALIDATION precondition (.aai/SKILL_PR.prompt.md), which before this
 # change existed only as a sentence of prose no test could reach.
@@ -108,6 +116,15 @@ run_gate_env() {
   GATE_OUT=""
   GATE_RC=0
   GATE_OUT="$(env "$1" node "$GATE" --state "$2" 2>&1)" || GATE_RC=$?
+}
+
+# run_gate_ref <state-path> <scope-ref> — the gate with an explicit FALLBACK
+# scope, the shape SKILL_PR reaches when the flush has nulled
+# `last_validation.ref_id` and the ride in hand is a different one.
+run_gate_ref() {
+  GATE_OUT=""
+  GATE_RC=0
+  GATE_OUT="$(node "$GATE" --state "$1" --ref "$2" 2>&1)" || GATE_RC=$?
 }
 
 expect_rc() {
@@ -753,9 +770,406 @@ test_10_absent_vs_corrupt_state() {
   log_pass "TEST-10 absent STATE names the bootstrap route (text and json); present-but-broken STATE keeps its own distinct reason with no --repair suggestion"
 }
 
+# --- the archive lane: fixture builder ----------------------------------------
+# spec-metrics-flush-invalidates-pr-precondition. Every archive arm starts from
+# a STATE the REAL metrics-flush.mjs produced: the reset note, the re-stamped
+# `run_at_utc` and the METRICS.jsonl line all come out of ONE `nowIso` in ONE
+# transaction, and the gate cross-checks all three. A hand-built note would
+# test the mock — it could never prove the folded block scalar round-trips the
+# grammar, nor that the writer and the reader agree on the instant.
+ARCHIVED_REF="ARCH-1"
+HOLD_REF="ARCH-2"
+FLUSH_NOW="2026-08-30T09:00:00Z"
+FLUSH_DAY="2026-08-30"
+ARCHIVE_SENTINEL_TOKEN="[AAI-VALIDATION-ARCHIVED"
+
+# mk_flushed <name> [focus-ref] -> echoes the repo dir. `focus-ref` defaults to
+# the flushed ref; pass `null` for the scope-less shape. The second work item
+# is what keeps the flush on the PARTIAL branch (a full reset nulls
+# current_focus, and branch-guard.mjs refuses before the gate is ever reached).
+mk_flushed() {
+  local name="$1" focus="${2:-$ARCHIVED_REF}" d fec=0
+  d="$TEST_DIR/$name"
+  rm -rf "$d"; mkdir -p "$d/docs/ai" "$d/docs/issues"
+  printf '# ledger comment header\n' > "$d/docs/ai/METRICS.jsonl"
+  printf 'schema_version: 2\nmodels: {}\n' > "$d/PRICING.yaml"
+  cat > "$d/docs/ai/STATE.yaml" <<YAML
+project_status: active
+current_focus:
+  type: intake_issue
+  ref_id: $focus
+  primary_path: docs/issues/${ARCHIVED_REF}.md
+active_work_items:
+  - ref_id: $ARCHIVED_REF
+    status: done
+    phase: validation
+    primary_path: docs/issues/${ARCHIVED_REF}.md
+  - ref_id: $HOLD_REF
+    status: in_progress
+    phase: implementation
+    primary_path: docs/issues/${HOLD_REF}.md
+implementation_strategy:
+  selected: tdd
+  source: null
+  rationale: null
+worktree:
+  recommendation: not_needed
+  user_decision: undecided
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: false
+  status: not_run
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+last_validation:
+  status: pass
+  run_at_utc: 2026-08-30T08:00:00Z
+  ref_id: $ARCHIVED_REF
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+  spec_path: null
+  test_path: null
+  evidence:
+    red: null
+    green: null
+    refactor: null
+metrics:
+  work_items:
+    $ARCHIVED_REF:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Implementation
+          model_id: claude-sonnet-5
+          started_utc: 2026-08-30T07:00:00Z
+          ended_utc: 2026-08-30T07:10:00Z
+          duration_seconds: 600
+          tokens_in: 1000
+          tokens_out: 100
+          cost_usd: 0.5
+
+updated_at_utc: 2026-08-30T08:30:00Z
+YAML
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs \
+    --state "$d/docs/ai/STATE.yaml" --metrics "$d/docs/ai/METRICS.jsonl" \
+    --ticks "$d/docs/ai/LOOP_TICKS.jsonl" --pricing "$d/PRICING.yaml" \
+    --events "$d/docs/ai/EVENTS.jsonl" --now "$FLUSH_NOW" \
+    > "$d/flush.log" 2>&1) || fec=$?
+  [[ "$fec" == 0 ]] \
+    || { echo "mk_flushed($name): the REAL flush must exit 0 (got $fec): $(cat "$d/flush.log")" >&2; return 1; }
+  grep -qF "Partial-flush reset applied" "$d/flush.log" \
+    || { echo "mk_flushed($name): the PARTIAL reset must have fired: $(cat "$d/flush.log")" >&2; return 1; }
+  echo "$d"
+}
+
+# ledger_field <metrics-path> — echoes "<ref_id>|<verdict>|<date_utc>" of the
+# single flushed entry, so an arm can mutate exactly one of the three bindings.
+ledger_field() {
+  node -e '
+    const fs = require("fs");
+    const l = fs.readFileSync(process.argv[1], "utf8").split("\n").filter((x) => x.trim() && !x.startsWith("#"));
+    const e = JSON.parse(l[0]);
+    console.log(`${e.ref_id}|${e.verdict}|${e.date_utc}`);
+  ' "$1"
+}
+
+# rewrite_ledger <metrics-path> <key> <value> — rewrites ONE field of the one
+# flushed entry, leaving the record otherwise byte-identical. The negative
+# controls need to change exactly one binding at a time.
+rewrite_ledger() {
+  node -e '
+    const fs = require("fs");
+    const p = process.argv[1];
+    const raw = fs.readFileSync(p, "utf8").split("\n");
+    const out = raw.map((l) => {
+      if (!l.trim() || l.startsWith("#")) return l;
+      const e = JSON.parse(l);
+      e[process.argv[2]] = process.argv[3];
+      return JSON.stringify(e);
+    });
+    fs.writeFileSync(p, out.join("\n"));
+  ' "$1" "$2" "$3"
+}
+
+# --- TEST-11 -----------------------------------------------------------------
+# THE SEAM (Spec-AC-02). The intake's block: the flush archives the PASS, the
+# gate reads `not_run` and refuses a ride that DID validate. This arm runs the
+# REAL flush and then the REAL gate over the STATE and ledger it produced —
+# nothing hand-built on either side — and the gate must open by its own named
+# reason. The negative control strips ONLY the archive record from the note
+# (the ledger PASS stays put), proving it is the record that opens the gate
+# and not the mere existence of a ledger line.
+test_11_archived_pass_opens() {
+  log_info "TEST-11: a real flush followed by the real gate opens on the durable ledger PASS..."
+  local d
+  d="$(mk_flushed arch_ok)" || log_fail "TEST-11: fixture build failed"
+  local sp="$d/docs/ai/STATE.yaml"
+
+  # PREMISE: the flush really did invalidate the live verdict. Without this the
+  # arm would be passing on `status: pass` and prove nothing at all.
+  sed -n '/^last_validation:/,/^[a-z_]*:/p' "$sp" > "$d/lv.block"
+  grep -qE '^  status: not_run$' "$d/lv.block" \
+    || log_fail "TEST-11 premise: the flush must have reset last_validation to not_run: $(cat "$d/lv.block")"
+  grep -qE '^  ref_id: null$' "$d/lv.block" \
+    || log_fail "TEST-11 premise: the flush must have nulled last_validation.ref_id: $(cat "$d/lv.block")"
+
+  run_gate "$sp"
+  expect_rc 0 "TEST-11 archived pass"
+  assert_payload_contains "$GATE_OUT" "VALIDATION-GATE open reason=validation_archived_pass" \
+    "TEST-11: the archived PASS must open the gate by its own named reason" || return 1
+  assert_payload_contains "$GATE_OUT" "status=not_run" \
+    "TEST-11: the reported status must stay not_run — the archive never dresses itself as a pass" || return 1
+  assert_payload_contains "$GATE_OUT" "scope_ref=$ARCHIVED_REF" \
+    "TEST-11: the scope must resolve from current_focus once the flush nulled last_validation.ref_id" || return 1
+  assert_payload_contains "$GATE_OUT" "archive_ref=$ARCHIVED_REF archive_at=$FLUSH_NOW" \
+    "TEST-11: the gate must echo WHICH record it honoured and WHEN it was archived" || return 1
+
+  # NEGATIVE CONTROL — the record text, and NOTHING else, cut out of the file
+  # (a surgical strip rather than a state.mjs rewrite, because set-validation
+  # requires --status and would re-stamp run_at_utc, changing two things at
+  # once). The ledger PASS, the reset prose and the instant all stay exactly as
+  # the flush left them, so the ONLY variable between the two runs is the
+  # record itself.
+  local before_at after_at
+  before_at="$(node -e 'const m=require("fs").readFileSync(process.argv[1],"utf8").match(/^  run_at_utc: (\S+)$/m);console.log(m?m[1]:"MISSING")' "$sp")"
+  node -e '
+    const fs = require("fs");
+    const p = process.argv[1];
+    fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(/ *\[AAI-VALIDATION-ARCHIVED[^\]]*\]/g, ""));
+  ' "$sp"
+  after_at="$(node -e 'const m=require("fs").readFileSync(process.argv[1],"utf8").match(/^  run_at_utc: (\S+)$/m);console.log(m?m[1]:"MISSING")' "$sp")"
+  [[ "$before_at" == "$after_at" && "$before_at" != "MISSING" ]] \
+    || log_fail "TEST-11 control: run_at_utc must be untouched by the strip (before=$before_at after=$after_at)"
+  assert_payload_not_contains "$(cat "$sp")" "$ARCHIVE_SENTINEL_TOKEN" \
+    "TEST-11 control: the record must actually be gone from the note" || return 1
+  [[ "$(ledger_field "$d/docs/ai/METRICS.jsonl")" == "$ARCHIVED_REF|PASS|$FLUSH_DAY" ]] \
+    || log_fail "TEST-11 control: the ledger PASS must still be there — it is what must NOT be sufficient on its own"
+  run_gate "$sp"
+  expect_rc 1 "TEST-11 control (record stripped, ledger PASS still there)"
+  assert_payload_contains "$GATE_OUT" "reason=validation_not_run_no_waiver" \
+    "TEST-11 control: a ledger PASS with no archive record must block exactly as a bare not_run does" || return 1
+  log_pass "TEST-11 the real flush-to-gate seam opens on validation_archived_pass; stripping the record alone re-blocks it"
+}
+
+# --- TEST-12 -----------------------------------------------------------------
+# THE INTAKE'S NEGATIVE CONTROL (Spec-AC-03). The record is a CLAIM; the ledger
+# is the proof. All four sub-cases keep a perfectly well-formed record and
+# break exactly one of the three ledger bindings — presence, verdict, day — or
+# duplicate the proof. A gate that trusted the note alone passes none of them.
+test_12_archive_needs_ledger_pass() {
+  log_info "TEST-12: an archive record with no single matching ledger PASS is refused by name..."
+  local d sp
+
+  # (a) no ledger entry at all.
+  d="$(mk_flushed arch_noledger)" || log_fail "TEST-12(a): fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+  printf '# ledger comment header\n' > "$d/docs/ai/METRICS.jsonl"
+  run_gate "$sp"
+  expect_rc 1 "TEST-12(a) empty ledger"
+  assert_payload_contains "$GATE_OUT" "VALIDATION-GATE blocked reason=archive_no_ledger_pass" \
+    "TEST-12(a): a record whose scope has no ledger PASS must be refused by name" || return 1
+
+  # (b) the entry exists but its verdict is not PASS.
+  d="$(mk_flushed arch_notpass)" || log_fail "TEST-12(b): fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+  [[ "$(ledger_field "$d/docs/ai/METRICS.jsonl")" == "$ARCHIVED_REF|PASS|$FLUSH_DAY" ]] \
+    || log_fail "TEST-12(b) premise: the flushed entry must be $ARCHIVED_REF|PASS|$FLUSH_DAY — got $(ledger_field "$d/docs/ai/METRICS.jsonl")"
+  rewrite_ledger "$d/docs/ai/METRICS.jsonl" verdict FAIL
+  run_gate "$sp"
+  expect_rc 1 "TEST-12(b) non-PASS verdict"
+  assert_payload_contains "$GATE_OUT" "reason=archive_no_ledger_pass" \
+    "TEST-12(b): a ledger entry that is not a PASS must not open the gate" || return 1
+
+  # (c) the entry is a PASS for the right ref but on a DIFFERENT day — the
+  # inherited-record shape a ref check alone would wave through.
+  d="$(mk_flushed arch_otherday)" || log_fail "TEST-12(c): fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+  rewrite_ledger "$d/docs/ai/METRICS.jsonl" date_utc 2026-08-29
+  run_gate "$sp"
+  expect_rc 1 "TEST-12(c) PASS on another day"
+  assert_payload_contains "$GATE_OUT" "reason=archive_no_ledger_pass" \
+    "TEST-12(c): a PASS whose date_utc does not match the record's day must not open the gate" || return 1
+
+  # (d) two matching PASS entries: which ride is being proven is no longer
+  # decidable, so the gate refuses rather than picking one.
+  d="$(mk_flushed arch_dupledger)" || log_fail "TEST-12(d): fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/dup.line"
+  cat "$d/dup.line" >> "$d/docs/ai/METRICS.jsonl"
+  run_gate "$sp"
+  expect_rc 1 "TEST-12(d) duplicated ledger PASS"
+  assert_payload_contains "$GATE_OUT" "reason=archive_ledger_ambiguous" \
+    "TEST-12(d): two matching ledger PASS entries must be refused as ambiguous, never resolved by picking one" || return 1
+  log_pass "TEST-12 the ledger PASS is load-bearing: absent, non-PASS, wrong-day and duplicated all refuse by name"
+}
+
+# --- TEST-13 -----------------------------------------------------------------
+# RECENCY, NOT ref_id ALONE (Spec-AC-04). `state.mjs set-validation` re-stamps
+# `run_at_utc` on any call carrying a --status while PRESERVING notes — the
+# exact call the NEXT ride makes. The record therefore goes stale the moment a
+# later ride writes a status, and an inherited record can never open the gate
+# for a ride that did not earn it.
+test_13_archive_goes_stale_on_restamp() {
+  log_info "TEST-13: a later set-validation re-stamps run_at_utc and the inherited record goes stale..."
+  local d
+  d="$(mk_flushed arch_stale)" || log_fail "TEST-13: fixture build failed"
+  local sp="$d/docs/ai/STATE.yaml"
+
+  run_gate "$sp"
+  expect_rc 0 "TEST-13 premise (the record opens the gate before the re-stamp)"
+
+  # The next ride's bare status write. No --notes: the record is INHERITED.
+  reset_validation_ref "$sp" "$ARCHIVED_REF" || log_fail "TEST-13: state.mjs refused the re-stamp"
+
+  # PREMISE: the record is still physically there and the ledger PASS is still
+  # there — the ONLY thing that changed is the instant beside it.
+  assert_payload_contains "$(cat "$sp")" "$ARCHIVE_SENTINEL_TOKEN v1 ref=$ARCHIVED_REF at=$FLUSH_NOW" \
+    "TEST-13 premise: the record must survive the re-stamp verbatim, or staleness is not what is being tested" || return 1
+  [[ "$(ledger_field "$d/docs/ai/METRICS.jsonl")" == "$ARCHIVED_REF|PASS|$FLUSH_DAY" ]] \
+    || log_fail "TEST-13 premise: the ledger PASS must be untouched"
+
+  run_gate "$sp"
+  expect_rc 1 "TEST-13 re-stamped run_at_utc"
+  assert_payload_contains "$GATE_OUT" "VALIDATION-GATE blocked reason=archive_stale" \
+    "TEST-13: a record whose at no longer equals run_at_utc must be refused as stale, by name" || return 1
+  log_pass "TEST-13 an inherited archive record goes stale the instant a later ride writes a status"
+}
+
+# --- TEST-14 -----------------------------------------------------------------
+# SCOPE BINDING (Spec-AC-05), the same leak v2 closed for waivers. A record
+# names ONE ride; a different ride in hand must be refused BY NAME, never
+# silently, and a ride with no scope at all is the worst case of the same bug.
+test_14_archive_ref_binding() {
+  log_info "TEST-14: a record naming another ride, and a ride with no scope at all, are both refused by name..."
+  local d
+  d="$(mk_flushed arch_mismatch)" || log_fail "TEST-14: fixture build failed"
+  local sp="$d/docs/ai/STATE.yaml"
+
+  run_gate_ref "$sp" "$HOLD_REF"
+  expect_rc 1 "TEST-14 record names another ride"
+  assert_payload_contains "$GATE_OUT" "VALIDATION-GATE blocked reason=archive_ref_mismatch" \
+    "TEST-14: a record issued for another ride must be refused by name, not as a generic no-waiver" || return 1
+  assert_payload_contains "$GATE_OUT" "scope_ref=$HOLD_REF" \
+    "TEST-14: the gate must say which scope it was asked about" || return 1
+
+  # Control: the SAME state, asked about the ride the record actually names.
+  run_gate_ref "$sp" "$ARCHIVED_REF"
+  expect_rc 0 "TEST-14 control (the ride the record names)"
+  assert_payload_contains "$GATE_OUT" "reason=validation_archived_pass" \
+    "TEST-14 control: the named ride must still open — only the scope differs between these two runs" || return 1
+
+  # No scope anywhere: last_validation.ref_id nulled by the flush AND
+  # current_focus.ref_id null. A record with no context to check against is
+  # refused, exactly as a scope-less waiver is.
+  d="$(mk_flushed arch_noscope null)" || log_fail "TEST-14: scope-less fixture build failed"
+  run_gate "$d/docs/ai/STATE.yaml"
+  expect_rc 1 "TEST-14 no scope at all"
+  assert_payload_contains "$GATE_OUT" "reason=archive_scope_unknown" \
+    "TEST-14: a record with no scope to check against must be refused by its own name" || return 1
+  log_pass "TEST-14 the archive record is scope-bound: another ride refuses, no ride at all refuses, the named ride opens"
+}
+
+# --- TEST-15 -----------------------------------------------------------------
+# FAIL-CLOSED ON A BROKEN RECORD (Spec-AC-06). A sentinel that is PRESENT but
+# whose grammar is not satisfied must be refused BY NAME and must never fall
+# through to a silent open. A future-version record is refused under its OWN
+# name — "this predates the binding" and "somebody mistyped" are different
+# facts, the same doctrine the waiver grammar already applies.
+test_15_archive_grammar_fail_closed() {
+  log_info "TEST-15: a present-but-broken archive sentinel is refused by name, never silently honoured..."
+  local sp
+  local bad_instant="[AAI-VALIDATION-ARCHIVED v1 ref=$SCOPE_REF at=yesterday]"
+  local impossible="[AAI-VALIDATION-ARCHIVED v1 ref=$SCOPE_REF at=2026-13-45T99:00:00Z]"
+  local future_ver="[AAI-VALIDATION-ARCHIVED v2 ref=$SCOPE_REF at=$AT]"
+  local doubled="[AAI-VALIDATION-ARCHIVED v1 ref=$SCOPE_REF at=$AT] [AAI-VALIDATION-ARCHIVED v1 ref=$SCOPE_REF at=$AT]"
+
+  sp="$(write_state arch_badinstant not_run "reset after flush of $SCOPE_REF $bad_instant")"
+  run_gate "$sp"
+  expect_rc 1 "TEST-15 unparseable instant"
+  assert_payload_contains "$GATE_OUT" "VALIDATION-GATE blocked reason=archive_malformed" \
+    "TEST-15: a sentinel the grammar cannot parse must be REFUSED by name" || return 1
+
+  sp="$(write_state arch_impossible not_run "reset after flush of $SCOPE_REF $impossible")"
+  run_gate "$sp"
+  expect_rc 1 "TEST-15 calendar-impossible instant"
+  assert_payload_contains "$GATE_OUT" "reason=archive_malformed" \
+    "TEST-15: an instant that matches the shape but is not a real date must be REFUSED" || return 1
+
+  sp="$(write_state arch_futurever not_run "reset after flush of $SCOPE_REF $future_ver")"
+  run_gate "$sp"
+  expect_rc 1 "TEST-15 non-current version"
+  assert_payload_contains "$GATE_OUT" "reason=archive_obsolete_version" \
+    "TEST-15: a non-current version must be refused under its OWN name, never degraded to malformed" || return 1
+
+  sp="$(write_state arch_doubled not_run "reset after flush of $SCOPE_REF $doubled")"
+  run_gate "$sp"
+  expect_rc 1 "TEST-15 duplicated record"
+  assert_payload_contains "$GATE_OUT" "reason=archive_ambiguous" \
+    "TEST-15: two records for one ref must be refused as ambiguous, never resolved by picking one" || return 1
+  log_pass "TEST-15 broken, calendar-impossible, future-version and duplicated records all refuse by their own names"
+}
+
+# --- TEST-16 -----------------------------------------------------------------
+# THE LANE MAY ONLY OPEN (Spec-AC-07). The flush PRESERVES an unflushed waiver
+# into the very note it writes the archive records to, and by construction that
+# waiver names a ref that was NOT flushed — a different ref from every record
+# beside it. An archive-decides-terminally rule would therefore have BLOCKED a
+# scope whose own preserved waiver opens the gate today. This arm is that
+# regression, pinned in both directions: a refused archive record must leave
+# the waiver lane running exactly as it did before this change.
+test_16_archive_never_blocks_a_waiver() {
+  log_info "TEST-16: a note whose archive record is refused still opens on its own waiver..."
+  local sp
+  local foreign="[AAI-VALIDATION-ARCHIVED v1 ref=OTHER-RIDE at=$AT]"
+  local broken="[AAI-VALIDATION-ARCHIVED v1 ref=$SCOPE_REF at=nonsense]"
+
+  # The real preserved-waiver shape: prose, the waiver, and a record for a ref
+  # the waiver does not name.
+  sp="$(write_state arch_with_waiver not_run "reset after flush of OTHER-RIDE — PRESERVED unflushed validation waiver: $OPERATOR_RECORD $foreign")"
+  run_gate "$sp"
+  expect_rc 0 "TEST-16 preserved waiver beside a foreign archive record"
+  assert_payload_contains "$GATE_OUT" "VALIDATION-GATE open reason=waived_by_operator" \
+    "TEST-16: a preserved waiver must still open the gate when a foreign archive record sits beside it" || return 1
+
+  # And a record the archive lane refuses OUTRIGHT still must not become
+  # terminal: the waiver lane runs and opens.
+  sp="$(write_state arch_broken_with_waiver not_run "$OPERATOR_RECORD $broken")"
+  run_gate "$sp"
+  expect_rc 0 "TEST-16 broken archive record beside a valid waiver"
+  assert_payload_contains "$GATE_OUT" "reason=waived_by_operator" \
+    "TEST-16: an archive refusal must never take precedence over a waiver that opens today" || return 1
+
+  # Symmetrically: a BROKEN WAIVER beside a good record keeps its own waiver
+  # refusal. The archive lane adds an opening, never a loosening.
+  local broken_waiver="[AAI-VALIDATION-WAIVER v2 by=operator ref=$SCOPE_REF at=$AT reason=\"\"]"
+  sp="$(write_state arch_with_broken_waiver not_run "$broken_waiver $foreign")"
+  run_gate "$sp"
+  expect_rc 1 "TEST-16 broken waiver beside an archive record"
+  assert_payload_contains "$GATE_OUT" "reason=waiver_empty_reason" \
+    "TEST-16: an existing waiver refusal must survive byte-for-byte — the archive lane never overrides it" || return 1
+  log_pass "TEST-16 the archive lane only ever OPENS: preserved waivers still open, waiver refusals still refuse"
+}
+
 # --- runner ------------------------------------------------------------------
 
-ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state"
+ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state 11_archived_pass_opens 12_archive_needs_ledger_pass 13_archive_goes_stale_on_restamp 14_archive_ref_binding 15_archive_grammar_fail_closed 16_archive_never_blocks_a_waiver"
 
 main() {
   local requested="${1:-}"

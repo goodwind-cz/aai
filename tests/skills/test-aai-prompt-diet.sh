@@ -742,7 +742,10 @@ test_012_growth_sum_matches_ledger() {
   # .aai/SKILL_TDD.prompt.md shrank 4 B in the same round (F2, its local
   # restatement of the evidence shape deleted) — a shrink owes no ledger line,
   # it moves TEST-010 headroom 0 -> 4/2048.
-  local want_growth=9791
+  # metrics-flush-invalidates-pr-precondition: +154 B itemized entry (the
+  # SKILL_PR VALIDATION precondition bullet gains the archive-record clause
+  # beside the waiver clause it already carried), pin moves 9791 -> 9945.
+  local want_growth=9945
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1329,10 +1332,19 @@ test_023_ac_flip_growth_credited() {
     return
   fi
   local ok=1 _e entry='' n=0 lead after measured now
-
+  # The ledger PREFIX through this scope's own entry — every entry up to and
+  # including it. Checking the prefix rather than JUSTIFIED_GROWTH_BYTES is
+  # what keeps the assertion about THIS scope's arithmetic: pinning the whole
+  # running total would have made the test fail on the next legitimate append
+  # by an unrelated ride, which is exactly what happened to
+  # metrics-flush-invalidates-pr-precondition, the first scope after it.
+  local prefix=0 prefix_closed=0
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    if [[ "$prefix_closed" -eq 0 ]]; then
+      prefix=$(( prefix + ${_e%% *} ))
+    fi
     case "$_e" in
-      *"$AC_FLIP_LEDGER_KEY"*) entry="$_e"; n=$((n + 1)) ;;
+      *"$AC_FLIP_LEDGER_KEY"*) entry="$_e"; n=$((n + 1)); prefix_closed=1 ;;
     esac
   done
   if [[ "$n" -ne 1 ]]; then
@@ -1360,14 +1372,16 @@ test_023_ac_flip_growth_credited() {
     fi
   fi
 
-  # The TEST-012 pin moved by exactly the credited amount — not rounded, not
-  # absorbed into headroom (headroom is 0, so a rounded number breaks the cap).
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne $(( AC_FLIP_PIN_BEFORE + lead )) ]]; then
-    log_info "TEST-023: JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $AC_FLIP_PIN_BEFORE + $lead = $(( AC_FLIP_PIN_BEFORE + lead )))"
+  # The pin moved by exactly the credited amount — not rounded, not absorbed
+  # into headroom (headroom was 0, so a rounded number breaks the cap). Read
+  # off the ledger prefix through this entry, so a LATER scope's own itemized
+  # append never disturbs it and never absorbs this credit either.
+  if [[ "$prefix" -ne $(( AC_FLIP_PIN_BEFORE + lead )) ]]; then
+    log_info "TEST-023: ledger prefix through this entry=$prefix (want $AC_FLIP_PIN_BEFORE + $lead = $(( AC_FLIP_PIN_BEFORE + lead )))"
     ok=0
   fi
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-023 (spec TEST-007) ROLE_COMMON growth $lead B credited 1:1, pin $AC_FLIP_PIN_BEFORE -> $JUSTIFIED_GROWTH_BYTES" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-023 (spec TEST-007) ROLE_COMMON growth $lead B credited 1:1, pin $AC_FLIP_PIN_BEFORE -> $prefix" \
     || log_fail "TEST-023 (spec TEST-007) AC-flip growth credit"
 }
 

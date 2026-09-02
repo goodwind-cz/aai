@@ -1293,6 +1293,67 @@ test_023_ledger_shape_unchanged() {  # TEST-005 (Spec-AC-04, regression control)
   log_pass "Ledger record shape unchanged by removing the events emission (TEST-005)"
 }
 
+# --- TEST-134: the partial reset archives the proof it is throwing away --------
+# spec-metrics-flush-invalidates-pr-precondition TEST-001 / Spec-AC-01.
+#
+# applyPartialReset already composes the reset note, stamps `run_at_utc` and
+# appends the ledger line from ONE `nowIso` in ONE transaction. This arm pins
+# the third use of that instant: one archive record per reset ref, whose `at`
+# is BYTE-EQUAL to the `run_at_utc` written beside it and whose day is the
+# ledger entry's `date_utc`. Byte equality is the whole recency binding — a
+# record one second off must not read as this ride's proof — so every value is
+# read back OUT OF THE WRITTEN FILES and compared to each other, never to the
+# fixture's own NOW_PIN.
+test_134_partial_reset_archives_the_proof() {
+  log_info "Test: partial reset appends one archive record per reset ref, bound to run_at_utc and the ledger day (TEST-134, Spec-AC-01)..."
+  local d
+  d="$(mk_repo t134)"
+  write_flush_state "$d/docs/ai/STATE.yaml" two
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF "Partial-flush reset applied" "$OUT" \
+    || log_fail "TEST-134 premise: this fixture must take the PARTIAL branch: $(cat "$OUT")"
+
+  sed -n '/^last_validation:/,/^[a-z_]*:/p' "$d/docs/ai/STATE.yaml" > "$d/lv.block"
+  # The pre-existing prose stays FIRST and unchanged — TEST-011's assertion is
+  # the same string, and the record is an addition, not a rewrite.
+  grep -qF "reset after flush of CHANGE-0001" "$d/lv.block" \
+    || log_fail "TEST-134: the existing flush-provenance prose must survive unchanged: $(cat "$d/lv.block")"
+  grep -qF "[AAI-VALIDATION-ARCHIVED v1 ref=CHANGE-0001 at=" "$d/lv.block" \
+    || log_fail "TEST-134: the reset note must carry an archive record for the reset ref: $(cat "$d/lv.block")"
+
+  # The three-way binding, all values read back from what was actually written.
+  local bound
+  bound="$(node -e '
+    const fs = require("fs");
+    const state = fs.readFileSync(process.argv[1], "utf8");
+    const block = (state.match(/^last_validation:\n(?:[ \t].*\n|\n)*/m) || [""])[0];
+    const runAt = (block.match(/^  run_at_utc: (\S+)$/m) || [])[1] || "MISSING";
+    const at = (block.match(/\[AAI-VALIDATION-ARCHIVED v1 ref=CHANGE-0001 at=([^\]]*)\]/) || [])[1] || "MISSING";
+    const line = fs.readFileSync(process.argv[2], "utf8").split("\n").filter((l) => l.trim() && !l.startsWith("#"))[0];
+    const e = JSON.parse(line);
+    console.log([runAt === at, at === `${e.date_utc}T${at.slice(11)}`, e.ref_id, e.verdict, runAt, at].join("|"));
+  ' "$d/docs/ai/STATE.yaml" "$d/docs/ai/METRICS.jsonl")"
+  case "$bound" in
+    "true|true|CHANGE-0001|PASS|"*) : ;;
+    *) log_fail "TEST-134: record.at must equal run_at_utc byte for byte and share the ledger PASS's day — got '$bound'" ;;
+  esac
+
+  # SCOPE BOUNDARY, pinned so nobody widens it by accident: the FULL reset is
+  # deliberately NOT covered (it nulls current_focus, so branch-guard.mjs
+  # refuses long before the validation gate is reached).
+  local f
+  f="$(mk_repo t134full)"
+  write_flush_state "$f/docs/ai/STATE.yaml" single
+  write_ticks "$f/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$f"
+  [[ "$EC" == 0 ]] || log_fail "full-reset flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF "[AAI-VALIDATION-ARCHIVED" "$f/docs/ai/STATE.yaml" \
+    && log_fail "TEST-134: the FULL reset is out of scope and must mint no archive record"
+  log_pass "Partial reset archives one record per reset ref, bound byte-for-byte to run_at_utc and the ledger day; full reset mints none (TEST-134)"
+}
+
 # --- metrics-flush-strands-completed-refs: --sweep (TEST-101..109) -------------
 # SPEC-0068-spec-metrics-flush-sweep.md D1-D5. Every fixture is a scratch
 # temp-dir repo; the real docs/ai/{STATE.yaml,METRICS.jsonl,EVENTS.jsonl} are
@@ -2184,6 +2245,7 @@ main() {
   test_021_flush_then_close_no_double_emit
   test_022_close_then_flush_no_double_emit
   test_023_ledger_shape_unchanged
+  test_134_partial_reset_archives_the_proof
   test_101_sweep_flag_parse
   test_102_sweep_flushes_closed_ref
   test_103_sweep_fail_closed

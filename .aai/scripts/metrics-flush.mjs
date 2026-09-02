@@ -118,7 +118,7 @@ import { USAGE_NOTE_RE } from './lib/usage-note.mjs';
 // PR #303 F-2): a validation waiver lives in STATE `last_validation.notes`,
 // which THIS script overwrites on every reset — so before the reset it is
 // copied into the LEDGER, the only durable home the factory report can read.
-import { readValidationBlock, parseWaiver, refMatchesScope, formatWaiver } from './validation-waiver.mjs';
+import { readValidationBlock, parseWaiver, refMatchesScope, formatWaiver, formatArchive } from './validation-waiver.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 setEngineFailPrefix('metrics-flush');
@@ -550,9 +550,25 @@ function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver = null) {
   // note instead of being overwritten (bot review PR #303 F-2: losing a waiver
   // must be loud, never rendered as "no waivers"). It stays scope-bound by its
   // own `ref=`, so preserving it can never open a gate it did not name.
-  const note = carryWaiver === null
+  const prose = carryWaiver === null
     ? `reset after flush of ${flushedRefs.join(', ')}`
     : `reset after flush of ${flushedRefs.join(', ')} — PRESERVED unflushed validation waiver: ${carryWaiver}`;
+  // The proof this reset is throwing away is not gone — it just moved to the
+  // ledger appended in this same transaction. One ARCHIVE RECORD per reset ref
+  // says so, in a grammar the PR gate can read back
+  // (spec-metrics-flush-invalidates-pr-precondition). `nowIso` is the SAME
+  // instant stamped into `run_at_utc` below and sliced into the ledger's
+  // `date_utc`; that three-way agreement is the whole recency binding, and it
+  // is free because there is only ever one instant here.
+  //
+  // Rendered through validation-waiver.mjs's own `formatArchive`, which
+  // returns null rather than emit a record its parser would refuse — so this
+  // writer can never produce a shape that reader rejects. The prose above
+  // stays FIRST and unchanged; the records are an addition, not a rewrite.
+  const archives = flushedRefs
+    .map(ref => formatArchive({ ref, at: nowIso }))
+    .filter(rec => rec !== null);
+  const note = archives.length === 0 ? prose : `${prose} ${archives.join(' ')}`;
   editBlock(lines, 'last_validation', bl => {
     setField(bl, 2, 'status', [scalarLine(2, 'status', 'not_run')]);
     setField(bl, 2, 'run_at_utc', [scalarLine(2, 'run_at_utc', nowIso)]);
