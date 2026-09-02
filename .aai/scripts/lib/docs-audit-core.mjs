@@ -1241,7 +1241,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
       const unparseableCanonical = ac.hasGate ? unparseableAcIds(ac) : [];
       if (ac.hasGate && (nonTerminal.length || doneNoEvidence.length || unparseableCanonical.length)) {
         doc.verdict = 'probable-false-done';
-        if (unparseableCanonical.length) doc.reasons.push(`${unparseableCanonical.length} AC row(s) unparseable (${unparseableCanonical.join(', ')} — a literal "|" in a cell hides the row's status)`);
+        if (unparseableCanonical.length) doc.reasons.push(`${unparseableCanonical.length} AC row(s) unparseable (${unparseableCanonical.join(', ')} — the cell count does not match the header, so the row's status is hidden; check for a raw or escaped "|" in a cell, or a missing cell)`);
         if (nonTerminal.length) doc.reasons.push(`${nonTerminal.length} AC row(s) non-terminal`);
         if (doneNoEvidence.length) doc.reasons.push(`${doneNoEvidence.length} done AC row(s) without evidence`);
       } else if (!ac.hasGate && type === 'spec') {
@@ -1270,7 +1270,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
           const leanNonTerminal = lean.rows.filter(r => !TERMINAL_AC.has(normalizeAcStatus(r['Status'] ?? '').status));
           if (unparseable.length) {
             doc.verdict = 'probable-false-done';
-            doc.reasons.push(`${unparseable.length} lean AC row(s) unparseable (${unparseable.join(', ')} — a literal "|" in a cell hides the row's status)`);
+            doc.reasons.push(`${unparseable.length} lean AC row(s) unparseable (${unparseable.join(', ')} — the cell count does not match the header, so the row's status is hidden; check for a raw or escaped "|" in a cell, or a missing cell)`);
           }
           if (leanNonTerminal.length) {
             doc.verdict = 'probable-false-done';
