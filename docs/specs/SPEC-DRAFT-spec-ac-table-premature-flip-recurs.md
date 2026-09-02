@@ -397,7 +397,12 @@ Seam analysis:
   block alone will not select the suite carrying TEST-017. This scope does
   not introduce the gap and does not widen the glob; file as
   `fu-suitemap-state-missing-role-common` (P3).
-- Registry items closed by this scope: none. `node
+- Registry items closed by this scope: none.
+- Adjacent open registry items, deliberately left open (split out of the
+  bullet above so `follow-ups.mjs verify-closures` cannot read these ids as
+  closure claims — its inline-label scan runs to the next bullet, and
+  test-aai-follow-ups.sh TEST-029 reported both as MISSes when they shared a
+  bullet with the "closed by this scope" label): `node
   .aai/scripts/follow-ups.mjs list` carries one open item on an adjacent
   subject, `fu-ac-flip-must-precede-close` (P3), which is about the ORDER of
   two steps INSIDE the close ceremony (flip before `close-work-item.mjs`, not
