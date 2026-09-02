@@ -2,10 +2,12 @@
 id: release-protected-branch-fallback
 number: 169
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - b84819c
 ---
 
 # aai-release should fall back to a PR when main is a protected branch

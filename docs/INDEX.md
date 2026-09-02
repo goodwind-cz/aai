@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-02T06:54:45.305Z
+Generated: 2026-09-02T06:55:58.351Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0161 | specs | implementing | 9 planned | docs/specs/SPEC-0161-spec-release-protected-branch-fallback.md |
 
 ## Canonical layer (0)
 
@@ -50,7 +49,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (385)
+## Done (387)
 
 | ID | Type | Path |
 |---|---|---|
@@ -219,6 +218,7 @@ _None._
 | CHANGE-0164 | issues | docs/issues/CHANGE-0164-validation-defers-the-ac-flip-to-close.md |
 | CHANGE-0165 | issues | docs/issues/CHANGE-0165-single-writer-canon-contradiction.md |
 | CHANGE-0168 | issues | docs/issues/CHANGE-0168-intake-staleness-preflight-warning.md |
+| CHANGE-0169 | issues | docs/issues/CHANGE-0169-release-protected-branch-fallback.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -438,15 +438,15 @@ _None._
 | SPEC-0157 | specs | docs/specs/SPEC-0157-spec-aai-update-gitignore-drift-reconcile.md |
 | SPEC-0158 | specs | docs/specs/SPEC-0158-spec-intake-staleness-preflight-warning.md |
 | SPEC-0159 | specs | docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md |
+| SPEC-0161 | specs | docs/specs/SPEC-0161-spec-release-protected-branch-fallback.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (39)
+## Drafts (38)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0166 | issues | docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md |
 | CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
-| CHANGE-0169 | issues | docs/issues/CHANGE-0169-release-protected-branch-fallback.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
