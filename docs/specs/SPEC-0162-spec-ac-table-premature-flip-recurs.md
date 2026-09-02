@@ -8,7 +8,7 @@ links:
   requirement: ac-table-premature-flip-recurs
   rfc: null
   pr:
-    - TBD
+    - 333
   commits:
     - cbead77
 ---
