@@ -2030,3 +2030,10 @@
 {"v":1,"ts":"2026-09-01T23:39:53.535Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-gate-ac-row-escaped-pipe-blind","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-01T23:39:53.569Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-gate-ac-row-escaped-pipe-blind","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-01T23:39:53.602Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-gate-ac-row-escaped-pipe-blind","payload":{"commit":"abea135"}}
+{"v":1,"ts":"2026-09-02T04:17:46.078Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-protected-branch-fallback","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-02T06:55:29.546Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"release-protected-branch-fallback","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-02T06:55:29.580Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"release-protected-branch-fallback","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-02T06:55:29.615Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"release-protected-branch-fallback","payload":{"commit":"b84819c"}}
+{"v":1,"ts":"2026-09-02T06:55:29.649Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-protected-branch-fallback","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-02T06:55:29.684Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-release-protected-branch-fallback","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-02T06:55:29.717Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-release-protected-branch-fallback","payload":{"commit":"b84819c"}}

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-01T23:41:41.132Z
+Generated: 2026-09-02T08:49:17.584Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -49,7 +49,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (387)
+## Done (389)
 
 | ID | Type | Path |
 |---|---|---|
@@ -218,6 +218,7 @@ _None._
 | CHANGE-0164 | issues | docs/issues/CHANGE-0164-validation-defers-the-ac-flip-to-close.md |
 | CHANGE-0165 | issues | docs/issues/CHANGE-0165-single-writer-canon-contradiction.md |
 | CHANGE-0168 | issues | docs/issues/CHANGE-0168-intake-staleness-preflight-warning.md |
+| CHANGE-0169 | issues | docs/issues/CHANGE-0169-release-protected-branch-fallback.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -439,6 +440,7 @@ _None._
 | SPEC-0158 | specs | docs/specs/SPEC-0158-spec-intake-staleness-preflight-warning.md |
 | SPEC-0159 | specs | docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md |
 | SPEC-0160 | specs | docs/specs/SPEC-0160-spec-gate-ac-row-escaped-pipe-blind.md |
+| SPEC-0161 | specs | docs/specs/SPEC-0161-spec-release-protected-branch-fallback.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (38)
@@ -513,4 +515,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-01 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-02 — counts above use this date for overdue checks.

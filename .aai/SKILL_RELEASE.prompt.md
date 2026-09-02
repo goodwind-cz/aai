@@ -57,6 +57,7 @@ its output.
 
 3. If the script exits non-zero, report the cause plainly and stop — do not
    retry with different flags on the agent's own initiative:
+   - exit 1 = bad argument (the script prints its own usage)
    - exit 10 = not a git repository
    - exit 11 = no `CHANGELOG.md` at the repo root
    - exit 12 = malformed `[unreleased]` heading in `CHANGELOG.md` (fix the
@@ -68,6 +69,15 @@ its output.
    - exit 16 = `gh` absent or unauthenticated on the publish path (dry-run
      still works offline; pass `--no-remote` to skip publishing, or fix `gh
      auth login`)
+   - exit 17 = the target branch is PROTECTED, so the script fell back to a
+     `chore/release-<version>` branch and opened a PR. The release is NOT
+     published and the annotated tag is LOCAL ONLY. Relay the PR URL and the
+     post-merge sequence the script printed (`git tag -d`, `git tag -a`,
+     `git push origin refs/tags/<version>`, `gh release create`); the operator
+     runs it once the PR merges — never run it yourself.
+   - exit 18 = the protected-branch fallback engaged but could NOT finish
+     (branch name taken, branch push failed, or `gh pr create` failed). Relay
+     the reason and the manual commands the script named; change nothing else.
 
 ## Safety
 - NEVER pass `--confirm`/`--yes` on the agent's own initiative — publishing a
@@ -77,6 +87,12 @@ its output.
 - NEVER auto-publish. The script itself never pushes or calls `gh release
   create` under `--no-remote`/`AAI_RELEASE_NO_REMOTE=1`, and a bare/`--dry-run`
   invocation never writes anything at all.
+- The protected-branch fallback never merges and never publishes. If the push
+  to the target branch is rejected as protected, the script creates
+  `chore/release-<version>` at the release commit, resets the target branch to
+  its pre-cut SHA, pushes that branch, opens a PR and stops (exit 17). It calls
+  neither `gh pr merge` nor `gh release create`, and it does not push the tag —
+  the tag stays local until the operator re-points it at the merge commit.
 - The CHANGELOG rewrite is line-surgical and idempotent — re-running after a
   successful cut with no new `[unreleased]` entries correctly REFUSES (there
   is nothing left to roll); that refusal is expected, not a bug.

@@ -1030,9 +1030,18 @@ Describe 'aai-release.ps1' {
             $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'rev-parse',\s*'--short',\s*'HEAD'"
         }
 
-        It 'both git push calls are invoked through Invoke-NativeChecked' {
+        It 'every git push is invoked through Invoke-NativeChecked (target branch, fallback branch, tag)' {
+            # release-protected-branch-fallback: the two BRANCH pushes carry
+            # --no-follow-tags. Without it a repo-level or global
+            # push.followTags=true makes the branch push publish
+            # refs/tags/$Version as a side effect -- and since GitHub's branch
+            # protection is per-ref and non-atomic, a GH006-rejected branch
+            # push then leaves an ORPHANED tag on the remote (the v2026.09.01 /
+            # PR #329 incident). The tag push itself must stay follow-tags-free
+            # of that flag and run only after a successful branch push.
             $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'push',\s*'origin',\s*\`$branch\)"
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'push',\s*'--no-follow-tags',\s*'origin',\s*\`$branch\)"
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'push',\s*'--no-follow-tags',\s*'origin',\s*\`$releaseBranch\)"
             $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'push',\s*'origin',\s*""refs/tags"
         }
 
