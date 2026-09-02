@@ -618,6 +618,9 @@ suites:
       - .aai/scripts/aai-release.sh
       - .aai/scripts/aai-release.ps1
       - .aai/SKILL_RELEASE.prompt.md
+      # release-protected-branch-fallback: the ps1 classifier's unit tests
+      # live here, so editing them must re-run this suite (TEST-033/SEAM-3).
+      - tests/skills/aai-release.Tests.ps1
       - CHANGELOG.md
       - .claude/skills/aai-release/**
       - .codex/skills/aai-release/**

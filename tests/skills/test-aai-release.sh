@@ -3,8 +3,10 @@
 # Test: aai-release.sh — deterministic release-cut engine (aai-release-skill /
 # SPEC-0063-spec-aai-release-skill, TEST-001..021), plus the live-CHANGELOG
 # integrity pins: scaffold invariants (test_022/023), no-deleted-unreleased-
-# heading vs merge-base (test_024, CHANGE-0135) and the released-region class
-# pin vs the latest ancestor release tag (test_025/026, CHANGE-0141).
+# heading vs merge-base (test_024, CHANGE-0135), the released-region class
+# pin vs the latest ancestor release tag (test_025/026, CHANGE-0141) and the
+# protected-branch PR fallback (test_027..034,
+# spec-release-protected-branch-fallback).
 #
 # Covers the CHANGELOG [unreleased] rollup transform (D1), release-notes
 # extraction (D2, SEAM-1), version resolution (D3), the operator gate (D4),
@@ -137,6 +139,10 @@ for a in "\$@"; do
   prev="\$a"
 done
 if [[ "\${1:-}" == "auth" ]]; then exit $auth_exit; fi
+if [[ "\${1:-}" == "pr" && "\${2:-}" == "create" ]]; then
+  printf '%s\n' "$STUB_PR_URL"
+  exit 0
+fi
 exit 0
 STUBEOF
   chmod +x "$bin_dir/gh"
@@ -958,6 +964,310 @@ test_026_released_region_scratch_matrix() {
   log_pass "TEST-026 scratch matrix: glue FAILS, deep retitle FAILS, unreleased edit PASSES, tagless yields the named skip (all naming v2026.08.13.2 where resolved)"
 }
 
+# --- Protected-branch PR fallback (release-protected-branch-fallback) -------
+#
+# TEST-027..TEST-034 pin the CONFIRM path's behavior when the target branch is
+# a GitHub-protected branch requiring status checks: the engines fall back to
+# a release branch + `gh pr create` and STOP, never publishing and never
+# merging (Constitution article 7).
+#
+# Fixture note (probed 2026-09-02, spec D-plan): the bare remote rejects via a
+# PER-REF `hooks/update` hook, never `pre-receive`. GitHub's protection is
+# per-ref and non-atomic, so a rejected branch push still lets OTHER refs of
+# the same push through — which is exactly how `push.followTags=true` orphaned
+# refs/tags/v2026.09.01 on the real incident (PR #329). A `pre-receive`
+# rejection is atomic and would block the tag too, hiding the very orphan
+# TEST-030 exists to catch.
+
+STUB_PR_URL="https://github.com/aai-fixture/aai/pull/4242"
+
+build_protected_bare() {
+  # $1 = bare repo path, $2 = fully-qualified ref this remote refuses
+  local bare="$1" ref="$2"
+  git init -q --bare "$bare"
+  mkdir -p "$bare/hooks"
+  cat > "$bare/hooks/update" <<HOOKEOF
+#!/usr/bin/env bash
+if [ "\$1" = "$ref" ]; then
+  echo "remote: error: GH006: Protected branch update failed for $ref." >&2
+  echo "remote: error: 3 of 3 required status checks are expected." >&2
+  exit 1
+fi
+exit 0
+HOOKEOF
+  chmod +x "$bare/hooks/update"
+}
+
+# setup_protected_fixture <name> [followtags]
+# $TMP_ROOT/<name>          scratch repo (two_entries CHANGELOG, remote origin)
+# $TMP_ROOT/<name>-bare.git bare remote refusing refs/heads/main
+# $TMP_ROOT/<name>-stub     stub gh dir, $TMP_ROOT/<name>-ghlog its argv log
+setup_protected_fixture() {
+  local name="$1" followtags="${2:-0}"
+  local repo="$TMP_ROOT/$name" bare="$TMP_ROOT/$name-bare.git"
+  build_repo "$repo" two_entries
+  build_protected_bare "$bare" "refs/heads/main"
+  git -C "$repo" remote add origin "file://$bare"
+  if [[ "$followtags" == "1" ]]; then
+    git -C "$repo" config push.followTags true
+  fi
+  build_stub_gh "$TMP_ROOT/$name-stub" "$TMP_ROOT/$name-ghlog" 0
+}
+
+# --- TEST-027 (Spec-AC-01): the fallback sequence itself --------------------
+
+test_027_protected_branch_fallback() {
+  log_info "TEST-027: a GH006-rejected branch push falls back to chore/release-<version> + gh pr create..."
+  local repo="$TMP_ROOT/t027" bare="$TMP_ROOT/t027-bare.git" stub="$TMP_ROOT/t027-stub" log="$TMP_ROOT/t027-ghlog"
+  setup_protected_fixture t027
+  local pre_sha rc=0 n
+  pre_sha="$(git -C "$repo" rev-parse HEAD)"
+
+  ( cd "$repo" && PATH="$stub:$PATH" bash "$RELEASE_SH" --version v9.3.0 --confirm ) \
+    >"$TMP_ROOT/t027.out" 2>"$TMP_ROOT/t027.err" || rc=$?
+
+  [[ "$rc" == "17" ]] || log_fail "TEST-027: expected exit 17 (fallback complete), got $rc:"$'\n'"$(cat "$TMP_ROOT/t027.out" "$TMP_ROOT/t027.err")"
+  git -C "$repo" rev-parse -q --verify "refs/heads/chore/release-v9.3.0" >/dev/null 2>&1 \
+    || log_fail "TEST-027: local release branch chore/release-v9.3.0 was not created"
+  [[ "$(git -C "$repo" rev-parse HEAD)" == "$pre_sha" ]] \
+    || log_fail "TEST-027: target branch main was not reset to its pre-cut SHA ($pre_sha)"
+  [[ "$(git -C "$repo" rev-parse "refs/heads/chore/release-v9.3.0")" != "$pre_sha" ]] \
+    || log_fail "TEST-027: the release commit did not survive on the release branch"
+  git -C "$bare" show-ref --verify --quiet "refs/heads/chore/release-v9.3.0" \
+    || log_fail "TEST-027: release branch was not pushed to the remote"
+  [[ -f "$log" ]] || log_fail "TEST-027: gh was never invoked (no PR opened)"
+  n="$(grep -c '^ARGS: pr create ' "$log" || true)"
+  [[ "$n" == "1" ]] || log_fail "TEST-027: expected exactly 1 'gh pr create', got $n:"$'\n'"$(cat "$log")"
+  grep -qF -- "--base main" "$log" || log_fail "TEST-027: gh pr create did not target --base main: $(cat "$log")"
+  grep -qF -- "--head chore/release-v9.3.0" "$log" || log_fail "TEST-027: gh pr create did not carry --head chore/release-v9.3.0: $(cat "$log")"
+  log_pass "TEST-027 protected-branch fallback: release branch created+pushed, target reset, exactly one gh pr create"
+}
+
+# --- TEST-028 (Spec-AC-02): never publishes, never merges -------------------
+
+test_028_fallback_never_publishes_or_merges() {
+  log_info "TEST-028: the fallback exits 17 and calls neither 'gh release create' nor 'gh pr merge'..."
+  local repo="$TMP_ROOT/t028" stub="$TMP_ROOT/t028-stub" log="$TMP_ROOT/t028-ghlog" rc=0
+  setup_protected_fixture t028
+
+  ( cd "$repo" && PATH="$stub:$PATH" bash "$RELEASE_SH" --version v9.3.1 --confirm ) \
+    >"$TMP_ROOT/t028.out" 2>"$TMP_ROOT/t028.err" || rc=$?
+  [[ "$rc" == "17" ]] || log_fail "TEST-028: expected exit 17, got $rc:"$'\n'"$(cat "$TMP_ROOT/t028.out" "$TMP_ROOT/t028.err")"
+
+  if grep -q 'release create' "$log"; then
+    log_fail "TEST-028: the fallback path invoked 'gh release create' — a protected-branch fallback must NEVER publish: $(cat "$log")"
+  fi
+  if grep -q 'pr merge' "$log"; then
+    log_fail "TEST-028: the fallback path invoked 'gh pr merge' — Constitution article 7 (operator-only merge): $(cat "$log")"
+  fi
+  log_pass "TEST-028 fallback exits 17 with zero 'release create' and zero 'pr merge' invocations"
+}
+
+# --- TEST-029 (Spec-AC-03): tag stays LOCAL, report names the re-point ------
+
+test_029_tag_is_local_and_report_names_the_repoint() {
+  log_info "TEST-029: no remote tag, a local annotated tag at the release commit, and the re-tag sequence on stdout..."
+  local repo="$TMP_ROOT/t029" bare="$TMP_ROOT/t029-bare.git" stub="$TMP_ROOT/t029-stub" rc=0 out="$TMP_ROOT/t029.out"
+  setup_protected_fixture t029
+
+  ( cd "$repo" && PATH="$stub:$PATH" bash "$RELEASE_SH" --version v9.3.2 --confirm ) \
+    >"$out" 2>"$TMP_ROOT/t029.err" || rc=$?
+  [[ "$rc" == "17" ]] || log_fail "TEST-029: expected exit 17, got $rc:"$'\n'"$(cat "$out" "$TMP_ROOT/t029.err")"
+
+  [[ -z "$(git -C "$bare" show-ref --tags 2>/dev/null || true)" ]] \
+    || log_fail "TEST-029: the remote carries a tag after the fallback — the tag must stay local: $(git -C "$bare" show-ref --tags)"
+  [[ "$(git -C "$repo" cat-file -t v9.3.2 2>/dev/null)" == "tag" ]] \
+    || log_fail "TEST-029: local annotated tag v9.3.2 is missing after the fallback"
+  [[ "$(git -C "$repo" rev-parse 'v9.3.2^{commit}')" == "$(git -C "$repo" rev-parse 'refs/heads/chore/release-v9.3.2')" ]] \
+    || log_fail "TEST-029: local tag v9.3.2 does not point at the release commit"
+
+  grep -qF "$STUB_PR_URL" "$out" || log_fail "TEST-029: report does not name the PR URL: $(cat "$out")"
+  grep -qF "git tag -d" "$out" || log_fail "TEST-029: report does not name 'git tag -d': $(cat "$out")"
+  grep -qF "git tag -a" "$out" || log_fail "TEST-029: report does not name 'git tag -a': $(cat "$out")"
+  grep -qF "git push origin refs/tags/" "$out" || log_fail "TEST-029: report does not name 'git push origin refs/tags/': $(cat "$out")"
+  grep -qF "gh release create" "$out" || log_fail "TEST-029: report does not name the post-merge 'gh release create': $(cat "$out")"
+  log_pass "TEST-029 tag is local-only and the report spells out the post-merge re-tag sequence"
+}
+
+# --- TEST-030 (Spec-AC-04): push.followTags can never orphan the tag --------
+
+test_030_followtags_cannot_orphan_the_tag() {
+  log_info "TEST-030: push.followTags=true + a rejected branch push leaves NO refs/tags on the remote..."
+  local repo="$TMP_ROOT/t030" bare="$TMP_ROOT/t030-bare.git" stub="$TMP_ROOT/t030-stub" rc=0
+  setup_protected_fixture t030 1
+  [[ "$(git -C "$repo" config --get push.followTags)" == "true" ]] \
+    || log_fail "TEST-030 fixture bug: push.followTags is not set in the scratch repo"
+
+  ( cd "$repo" && PATH="$stub:$PATH" bash "$RELEASE_SH" --version v9.4.0 --confirm ) \
+    >"$TMP_ROOT/t030.out" 2>"$TMP_ROOT/t030.err" || rc=$?
+
+  local remote_tags
+  remote_tags="$(git -C "$bare" show-ref --tags 2>/dev/null || true)"
+  [[ -z "$remote_tags" ]] \
+    || log_fail "TEST-030: the rejected branch push published a tag anyway (the PR #329 orphan) — expected none, got:"$'\n'"$remote_tags"
+  log_pass "TEST-030 --no-follow-tags: a rejected branch push cannot publish refs/tags/<version> (rc=$rc)"
+}
+
+# --- TEST-031 (Spec-AC-05): unprotected path unchanged ----------------------
+
+test_031_unprotected_path_byte_identical() {
+  log_info "TEST-031: on an UNPROTECTED remote the cut's SHA-masked stdout matches the pre-change engine byte for byte..."
+  local old_engine="$TMP_ROOT/t031-old-release.sh" ref base_ref=""
+  for ref in origin/main main; do
+    if git -C "$PROJECT_ROOT" show "$ref:.aai/scripts/aai-release.sh" > "$old_engine" 2>/dev/null; then
+      base_ref="$ref"
+      break
+    fi
+  done
+
+  # Arm A — the working-tree engine over an unprotected bare.
+  local repoA="$TMP_ROOT/t031a" bareA="$TMP_ROOT/t031a-bare.git" stubA="$TMP_ROOT/t031a-stub" rcA=0
+  build_repo "$repoA" two_entries
+  git init -q --bare "$bareA"
+  git -C "$repoA" remote add origin "file://$bareA"
+  build_stub_gh "$stubA" "$TMP_ROOT/t031a-ghlog" 0
+  ( cd "$repoA" && PATH="$stubA:$PATH" bash "$RELEASE_SH" --version v9.5.5 --confirm ) \
+    >"$TMP_ROOT/t031a.out" 2>"$TMP_ROOT/t031a.err" || rcA=$?
+  [[ "$rcA" == "0" ]] || log_fail "TEST-031: unprotected cut exited $rcA, expected 0:"$'\n'"$(cat "$TMP_ROOT/t031a.out" "$TMP_ROOT/t031a.err")"
+  git -C "$bareA" show-ref --verify --quiet refs/heads/main || log_fail "TEST-031: refs/heads/main missing on the unprotected remote"
+  git -C "$bareA" show-ref --verify --quiet refs/tags/v9.5.5 || log_fail "TEST-031: refs/tags/v9.5.5 missing on the unprotected remote"
+
+  if [[ -z "$base_ref" ]]; then
+    log_info "TEST-031: neither origin/main nor main carries .aai/scripts/aai-release.sh here — stdout byte-comparison arm skipped (degrade and report)"
+    log_pass "TEST-031 unprotected path: exit 0 and both refs pushed (byte-comparison arm skipped, no base engine)"
+    return 0
+  fi
+
+  # Arm B — the pre-change engine over an identically seeded fixture.
+  local repoB="$TMP_ROOT/t031b" bareB="$TMP_ROOT/t031b-bare.git" stubB="$TMP_ROOT/t031b-stub" rcB=0
+  build_repo "$repoB" two_entries
+  git init -q --bare "$bareB"
+  git -C "$repoB" remote add origin "file://$bareB"
+  build_stub_gh "$stubB" "$TMP_ROOT/t031b-ghlog" 0
+  ( cd "$repoB" && PATH="$stubB:$PATH" bash "$old_engine" --version v9.5.5 --confirm ) \
+    >"$TMP_ROOT/t031b.out" 2>"$TMP_ROOT/t031b.err" || rcB=$?
+  [[ "$rcB" == "0" ]] || log_fail "TEST-031: the $base_ref engine exited $rcB over the same fixture:"$'\n'"$(cat "$TMP_ROOT/t031b.out" "$TMP_ROOT/t031b.err")"
+
+  sed 's/^- Commit:.*$/- Commit:  <masked>/' "$TMP_ROOT/t031a.out" > "$TMP_ROOT/t031a.masked"
+  sed 's/^- Commit:.*$/- Commit:  <masked>/' "$TMP_ROOT/t031b.out" > "$TMP_ROOT/t031b.masked"
+  local dcmp=0
+  diff -u "$TMP_ROOT/t031b.masked" "$TMP_ROOT/t031a.masked" > "$TMP_ROOT/t031.diff" 2>&1 || dcmp=$?
+  [[ "$dcmp" == "0" ]] \
+    || log_fail "TEST-031: unprotected-path stdout diverged from the $base_ref engine:"$'\n'"$(cat "$TMP_ROOT/t031.diff")"
+  log_pass "TEST-031 unprotected path byte-identical to the $base_ref engine (masked commit line), exit 0, both refs pushed"
+}
+
+# --- TEST-032 (Spec-AC-06): any OTHER push failure degrades raw -------------
+
+test_032_non_protected_failure_degrades_raw() {
+  log_info "TEST-032: a non-fast-forward rejection keeps today's raw behavior (no fallback, git's own exit code)..."
+  local repo="$TMP_ROOT/t032" bare="$TMP_ROOT/t032-bare.git" stub="$TMP_ROOT/t032-stub" other="$TMP_ROOT/t032-other" rc=0
+  build_repo "$repo" two_entries
+  git init -q --bare "$bare"
+  git -C "$repo" remote add origin "file://$bare"
+  git -C "$repo" push -q origin main
+  git clone -q "$bare" "$other"
+  git -C "$other" config user.email "test@example.com"
+  git -C "$other" config user.name "AAI Release Test"
+  echo "diverged" > "$other/diverged.txt"
+  git -C "$other" add -A
+  git -C "$other" commit -q -m "diverge the remote"
+  git -C "$other" push -q origin main
+  build_stub_gh "$stub" "$TMP_ROOT/t032-ghlog" 0
+
+  ( cd "$repo" && PATH="$stub:$PATH" bash "$RELEASE_SH" --version v9.6.0 --confirm ) \
+    >"$TMP_ROOT/t032.out" 2>"$TMP_ROOT/t032.err" || rc=$?
+
+  [[ "$rc" != "0" ]] || log_fail "TEST-032: the cut reported success against a diverged remote"
+  [[ "$rc" != "17" && "$rc" != "18" ]] \
+    || log_fail "TEST-032: a non-fast-forward rejection engaged the protected-branch fallback (exit $rc) — it must degrade raw"
+  if git -C "$repo" rev-parse -q --verify "refs/heads/chore/release-v9.6.0" >/dev/null 2>&1; then
+    log_fail "TEST-032: a release branch was created for a non-protected failure"
+  fi
+  [[ "$(git -C "$repo" log -1 --format=%s)" == "chore(release): v9.6.0" ]] \
+    || log_fail "TEST-032: the target branch HEAD moved off the release commit (got '$(git -C "$repo" log -1 --format=%s)')"
+  grep -qi "rejected" "$TMP_ROOT/t032.err" \
+    || log_fail "TEST-032: git's own rejection text never reached stderr:"$'\n'"$(cat "$TMP_ROOT/t032.err")"
+  log_pass "TEST-032 non-fast-forward rejection degrades raw (exit $rc, no fallback, git's diagnostic preserved)"
+}
+
+# --- TEST-033 (Spec-AC-07, SEAM-3): ps1 twin drives the same fixture --------
+
+test_033_ps1_fallback_parity() {
+  log_info "TEST-033: SEAM-3 — the ps1 twin's classifier and fallback match the bash arm on the same fixture..."
+  if ! command -v pwsh >/dev/null 2>&1; then
+    log_info "TEST-033: pwsh is absent on this host — the ps1 parity arm cannot run here; the CI 'ps1 gate' runs it"
+    log_pass "TEST-033 SKIPPED with a named reason (pwsh absent)"
+    return 0
+  fi
+
+  # (a) classifier unit check through the dot-source seam (the function must
+  #     live ABOVE the InvocationName guard, or dot-sourcing defines nothing).
+  local cls
+  cls="$(pwsh -NoProfile -Command '
+    . "'"$RELEASE_PS1"'"
+    $yes = Test-ProtectedBranchRejection -Text "remote: error: GH006: Protected branch update failed for refs/heads/main.`nremote: error: 3 of 3 required status checks are expected."
+    $no  = Test-ProtectedBranchRejection -Text " ! [rejected] main -> main (non-fast-forward)"
+    Write-Output "$yes/$no"
+  ' 2>&1)"
+  [[ "$cls" == "True/False" ]] \
+    || log_fail "TEST-033: dot-sourced Test-ProtectedBranchRejection gave '$cls', expected 'True/False'"
+
+  # (b) the same protected fixture, driven through the ps1 engine.
+  local repo="$TMP_ROOT/t033" bare="$TMP_ROOT/t033-bare.git" stub="$TMP_ROOT/t033-stub" log="$TMP_ROOT/t033-ghlog" rc=0 pre_sha n
+  setup_protected_fixture t033
+  pre_sha="$(git -C "$repo" rev-parse HEAD)"
+  ( cd "$repo" && PATH="$stub:$PATH" pwsh -NoProfile -File "$RELEASE_PS1" --version v9.7.5 --confirm ) \
+    >"$TMP_ROOT/t033.out" 2>"$TMP_ROOT/t033.err" || rc=$?
+  [[ "$rc" == "17" ]] || log_fail "TEST-033: ps1 engine exited $rc, expected 17:"$'\n'"$(cat "$TMP_ROOT/t033.out" "$TMP_ROOT/t033.err")"
+  git -C "$repo" rev-parse -q --verify "refs/heads/chore/release-v9.7.5" >/dev/null 2>&1 \
+    || log_fail "TEST-033: ps1 engine did not create chore/release-v9.7.5"
+  [[ "$(git -C "$repo" rev-parse HEAD)" == "$pre_sha" ]] \
+    || log_fail "TEST-033: ps1 engine did not reset main to its pre-cut SHA"
+  git -C "$bare" show-ref --verify --quiet "refs/heads/chore/release-v9.7.5" \
+    || log_fail "TEST-033: ps1 engine did not push the release branch"
+  [[ -z "$(git -C "$bare" show-ref --tags 2>/dev/null || true)" ]] \
+    || log_fail "TEST-033: ps1 engine published a tag on the fallback path"
+  n="$(grep -c '^ARGS: pr create ' "$log" || true)"
+  [[ "$n" == "1" ]] || log_fail "TEST-033: expected exactly 1 ps1-side 'gh pr create', got $n:"$'\n'"$(cat "$log" 2>/dev/null || true)"
+  if grep -q 'release create' "$log"; then log_fail "TEST-033: ps1 fallback invoked 'gh release create'"; fi
+  if grep -q 'pr merge' "$log"; then log_fail "TEST-033: ps1 fallback invoked 'gh pr merge'"; fi
+  log_pass "TEST-033 SEAM-3: ps1 twin classifier + fallback match the bash arm (exit 17, branch, reset, one PR, no tag)"
+}
+
+# --- TEST-034 (Spec-AC-08, SEAM-2): exit codes documented + ledger true-up --
+
+test_034_exit_codes_documented() {
+  log_info "TEST-034: SEAM-2 — every non-zero exit code aai-release.sh emits is documented in SKILL_RELEASE.prompt.md..."
+  local prompt="$PROJECT_ROOT/.aai/SKILL_RELEASE.prompt.md"
+  [[ -f "$prompt" ]] || log_fail "TEST-034: .aai/SKILL_RELEASE.prompt.md not found"
+
+  local codes_file="$TMP_ROOT/t034-codes.txt" code
+  sed -n 's/^[[:space:]]*exit \([0-9][0-9]*\).*$/\1/p' "$RELEASE_SH" | LC_ALL=C sort -u > "$codes_file"
+  [[ -s "$codes_file" ]] || log_fail "TEST-034: no literal 'exit <n>' statements found in aai-release.sh (parser bug)"
+  while IFS= read -r code; do
+    if [[ -z "$code" || "$code" == "0" ]]; then continue; fi
+    grep -qF "exit $code =" "$prompt" \
+      || log_fail "TEST-034: aai-release.sh emits exit $code but SKILL_RELEASE.prompt.md never documents it (SEAM-2 drift)"
+  done < "$codes_file"
+
+  grep -qF "chore/release-" "$prompt" || log_fail "TEST-034: the prompt never names the chore/release-<version> branch shape"
+  grep -qF "git tag -d" "$prompt" || log_fail "TEST-034: the prompt never names 'git tag -d' in the post-merge re-tag sequence"
+  grep -qF "git tag -a" "$prompt" || log_fail "TEST-034: the prompt never names 'git tag -a' in the post-merge re-tag sequence"
+  grep -qF "git push origin refs/tags/" "$prompt" || log_fail "TEST-034: the prompt never names 'git push origin refs/tags/'"
+
+  # SEAM-4: the diet ledger's own sum must equal the TEST-012 pin this scope bumped.
+  local ledger="$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh"
+  local diet="$PROJECT_ROOT/tests/skills/test-aai-prompt-diet.sh"
+  local want live
+  want="$(sed -n 's/^[[:space:]]*local want_growth=\([-0-9][0-9]*\)[[:space:]]*$/\1/p' "$diet")"
+  live="$(bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s" "$JUSTIFIED_GROWTH_BYTES"' _ "$ledger")"
+  [[ -n "$want" ]] || log_fail "TEST-034: could not read want_growth out of test-aai-prompt-diet.sh"
+  [[ "$want" == "$live" ]] \
+    || log_fail "TEST-034: prompt-diet ledger sum is $live but TEST-012 pins want_growth=$want — the companion true-up is unpaid"
+  log_pass "TEST-034 SEAM-2/SEAM-4: all non-zero exit codes documented, branch shape + re-tag sequence named, ledger sum == TEST-012 pin ($live)"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -994,6 +1304,14 @@ main() {
   test_024_no_deleted_unreleased_heading_vs_main
   test_025_released_region_pin_vs_tag
   test_026_released_region_scratch_matrix
+  test_027_protected_branch_fallback
+  test_028_fallback_never_publishes_or_merges
+  test_029_tag_is_local_and_report_names_the_repoint
+  test_030_followtags_cannot_orphan_the_tag
+  test_031_unprotected_path_byte_identical
+  test_032_non_protected_failure_degrades_raw
+  test_033_ps1_fallback_parity
+  test_034_exit_codes_documented
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-01T17:21:27.479Z
+Generated: 2026-09-02T04:37:39.463Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-release-protected-branch-fallback | specs | implementing | 8 planned | docs/specs/SPEC-DRAFT-spec-release-protected-branch-fallback.md |
 
 ## Canonical layer (0)
 
@@ -439,12 +440,13 @@ _None._
 | SPEC-0159 | specs | docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (38)
+## Drafts (39)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0166 | issues | docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md |
 | CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
+| release-protected-branch-fallback (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-release-protected-branch-fallback.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -511,4 +513,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-01 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-02 — counts above use this date for overdue checks.
