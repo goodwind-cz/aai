@@ -46,7 +46,7 @@
 12	tests/skills/test-aai-deslop.sh
 2	tests/skills/test-aai-doc-number-reservation.sh
 11	tests/skills/test-aai-doc-numbering.sh
-15	tests/skills/test-aai-docs-audit.sh
+16	tests/skills/test-aai-docs-audit.sh
 2	tests/skills/test-aai-docs-canon.sh
 2	tests/skills/test-aai-docs-hub.sh
 3	tests/skills/test-aai-docs-lock.sh

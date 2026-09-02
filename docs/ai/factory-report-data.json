@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-09-02T06:55:46.580Z",
+  "generatedAt": "2026-09-02T08:48:58.534Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 132,
-    "delivered": 394,
+    "delivered": 396,
     "active_weeks": 10,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (394 closes vs 132 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 394,
-    "delivered_per_week_avg": 39.4,
+    "note": "\"delivered\" counts every work_item_closed event (396 closes vs 132 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 396,
+    "delivered_per_week_avg": 39.6,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -24,7 +24,7 @@
       "2026-W33": 33,
       "2026-W34": 33,
       "2026-W35": 20,
-      "2026-W36": 9
+      "2026-W36": 11
     },
     "delivered_groups": [
       {
@@ -435,12 +435,14 @@
         "key": "month:2026-09",
         "kind": "month",
         "label": "2026-09",
-        "count": 6,
+        "count": 8,
         "refs": [
           "intake-staleness-preflight-warning",
           "spec-intake-staleness-preflight-warning",
           "adhoc-probes-unisolated-report-only",
           "spec-adhoc-probes-unisolated-report-only",
+          "gate-ac-row-escaped-pipe-blind",
+          "spec-gate-ac-row-escaped-pipe-blind",
           "release-protected-branch-fallback",
           "spec-release-protected-branch-fallback"
         ]
@@ -2017,6 +2019,14 @@
           "lead_time_seconds": null
         },
         {
+          "ref": "gate-ac-row-escaped-pipe-blind",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-gate-ac-row-escaped-pipe-blind",
+          "lead_time_seconds": null
+        },
+        {
           "ref": "release-protected-branch-fallback",
           "lead_time_seconds": null
         },
@@ -2028,7 +2038,7 @@
       "median_seconds": 3901,
       "mean_seconds": 119606,
       "measured": 128,
-      "unmeasurable": 266
+      "unmeasurable": 268
     }
   },
   "speed": {
@@ -3363,7 +3373,7 @@
     },
     {
       "week": "2026-W36",
-      "delivered": 9,
+      "delivered": 11,
       "median_lead_time_seconds": 14691,
       "busy_seconds": 12523,
       "tokens": 1590347,
@@ -3411,7 +3421,7 @@
         "id": "fu-rollup-creates-userguide",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 18,
+        "age_days": 19,
         "what": "the spec's edge case says the rollup generator no-ops when USER_GUIDE.md is absent; it CREATES the file",
         "status": "open"
       },
@@ -3467,7 +3477,7 @@
         "id": "fu-validation-ignores-suite-selector",
         "ref": "ride-cost-readout",
         "severity": "P2",
-        "age_days": 14,
+        "age_days": 15,
         "what": "validation picks its suites from the declared review scope while CI picks them from select-suites, so a CORE suite can be skipped in validation and fail in CI",
         "status": "open"
       },
@@ -3475,7 +3485,7 @@
         "id": "fu-orchestrator-does-not-watch-ci",
         "ref": "ride-cost-readout",
         "severity": "P2",
-        "age_days": 14,
+        "age_days": 15,
         "what": "after pushing a PR the orchestrator stops instead of watching CI, so a failure sits undetected until the owner asks",
         "status": "open"
       },
@@ -3611,7 +3621,7 @@
         "id": "fu-intake-templates-lack-number-key",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P3",
-        "age_days": 11,
+        "age_days": 12,
         "what": "seven of the eight intake templates carry no number: key, so a verbatim copy now fails docs-audit --intake-file with number-absent",
         "status": "open"
       },
@@ -3619,7 +3629,7 @@
         "id": "fu-intake-dir-unanchored-research-hotfix",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 11,
+        "age_days": 12,
         "what": "for the two intake types TYPE_MAP does not know (research, hotfix) the .aai/INTAKE_COMMON.md table row and the per-type prompt can drift together to a wrong directory with the whole intake suite green",
         "status": "open"
       },
@@ -3627,7 +3637,7 @@
         "id": "fu-report-ids-exceed-registry-cap",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 11,
+        "age_days": 12,
         "what": "roles routinely write follow-up ids into their reports that the registry CLI refuses, because the ids exceed the hard 40-character cap, so a finding reported as filed can never have been filed under that name",
         "status": "open"
       },
@@ -3683,7 +3693,7 @@
         "id": "fu-seed-loss-turns-an-arm-into-a-skip",
         "ref": "a-half-seeded-checkout-says-it-is-isolated",
         "severity": "P2",
-        "age_days": 10,
+        "age_days": 11,
         "what": "a seed path present in the working tree but absent from the checkout leaves the run GREEN at exit 0 while a suite reads an empty file, so an assertion silently becomes a passing skip",
         "status": "open"
       },
@@ -3835,7 +3845,7 @@
         "id": "fu-usage-pin-misses-appended-flag",
         "ref": "a-branch-diff-pin-taxes-every-later-scope",
         "severity": "P3",
-        "age_days": 8,
+        "age_days": 9,
         "what": "TEST-011(clarify) pins spec-freeze's usage line with grep -qF, so a flag APPENDED after the pinned run does not trip it",
         "status": "open"
       },

@@ -604,17 +604,25 @@ export function parseAcTable(content) {
   // the next line-start `## ` heading or end of string.
   const sectionRe = /(?:^|\n)##\s+Acceptance Criteria Status\b[^\n]*\n([\s\S]+?)(?=\n##\s|\n*$)/i;
   const m = content.match(sectionRe);
-  if (!m) return { hasGate: false, rows: [] };
+  if (!m) return { hasGate: false, rows: [], declaredIds: [] };
   const section = m[1];
   const lines = section.split('\n').filter(l => l.trim().startsWith('|'));
-  if (lines.length < 2) return { hasGate: false, rows: [] };
+  if (lines.length < 2) return { hasGate: false, rows: [], declaredIds: [] };
   const header = lines[0].split('|').map(c => c.trim()).filter(Boolean);
   const hasGate = header.some(c => c === 'Review-By');
-  if (!hasGate) return { hasGate: false, rows: [] };
+  if (!hasGate) return { hasGate: false, rows: [], declaredIds: [] };
   const sepIdx = lines.findIndex((l, i) => i > 0 && /^\|\s*[-:|\s]+\|/.test(l));
-  if (sepIdx < 0) return { hasGate: true, rows: [] };
+  if (sepIdx < 0) return { hasGate: true, rows: [], declaredIds: [] };
   const rows = [];
+  // declaredIds is drawn from the SAME line set the parser walks — a row whose
+  // cell-count breaks (e.g. a literal or escaped pipe) is still counted as
+  // declared, so a consumer can reconcile declared-vs-parsed and never
+  // silently lose an AC. Mirrors parseLeanAcTable's identical discipline
+  // (docs-audit-core F1): one source of truth for both table shapes.
+  const declaredIds = [];
   for (const line of lines.slice(sepIdx + 1)) {
+    const idm = line.match(/^\s*\|\s*(Spec-AC-\d+)\b/);
+    if (idm) declaredIds.push(idm[1]);
     const cells = line.split('|').map(c => c.trim()).slice(1, -1);
     if (cells.length !== header.length) continue;
     const row = {};
@@ -622,7 +630,7 @@ export function parseAcTable(content) {
     if (!row['Spec-AC'] || row['Spec-AC'].startsWith('Spec-AC-xx') || row['Spec-AC'].startsWith('<')) continue;
     rows.push(row);
   }
-  return { hasGate: true, rows };
+  return { hasGate: true, rows, declaredIds };
 }
 
 // spec-l1-close-gate D1 — lean AC table for ceremony_level 0/1 docs
