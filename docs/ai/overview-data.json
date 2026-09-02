@@ -1,68 +1,18 @@
 {
-  "generatedAt": "2026-09-01T15:10:41.919Z",
-  "project": "aai-fix-adhoc-probes-unisolated-report-only",
+  "generatedAt": "2026-09-01T23:40:11.083Z",
+  "project": "aai-fix-gate-ac-row-escaped-pipe-blind",
   "counts": {
-    "delivered": 223,
+    "delivered": 224,
     "in_progress": 39,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "adhoc-probes-unisolated-report-only",
+    "ref": "gate-ac-row-escaped-pipe-blind",
     "type": "intake_issue"
   },
-  "in_flight": {
-    "focus": {
-      "ref": "adhoc-probes-unisolated-report-only",
-      "type": "intake_issue",
-      "phase": "code_review"
-    },
-    "strategy": "hybrid",
-    "worktree": {
-      "recommendation": "recommended",
-      "user_decision": "worktree"
-    },
-    "validation_status": "pass",
-    "review_status": "pass",
-    "ticks": [
-      {
-        "tick": 11,
-        "role": "Code Review (round 3)",
-        "scope": "adhoc-probes-unisolated-report-only",
-        "duration_seconds": 2225,
-        "harness_version": "2.1.251"
-      },
-      {
-        "tick": 10,
-        "role": "Remediation (round 3)",
-        "scope": "adhoc-probes-unisolated-report-only",
-        "duration_seconds": 3498,
-        "harness_version": "2.1.251"
-      },
-      {
-        "tick": 9,
-        "role": "Code Review (round 2)",
-        "scope": "adhoc-probes-unisolated-report-only",
-        "duration_seconds": 2255,
-        "harness_version": "2.1.251"
-      },
-      {
-        "tick": 8,
-        "role": "Remediation (round 2)",
-        "scope": "adhoc-probes-unisolated-report-only",
-        "duration_seconds": 4164,
-        "harness_version": "2.1.251"
-      },
-      {
-        "tick": 7,
-        "role": "Code Review",
-        "scope": "adhoc-probes-unisolated-report-only",
-        "duration_seconds": 974,
-        "harness_version": "2.1.251"
-      }
-    ]
-  },
+  "in_flight": null,
   "in_progress": [
     {
       "ref": "residuals-of-the-per-suite-clone-ride",
@@ -598,6 +548,19 @@
       "spec": "docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260901T143306Z-adhoc-probes-unisolated-report-only-round3.md"
+    },
+    {
+      "ref": "gate-ac-row-escaped-pipe-blind",
+      "title": "docs-audit --gate reports \"AC Status table complete\" while the shared parser silently drops rows with an escaped pipe",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0077-gate-ac-row-escaped-pipe-blind.md",
+      "closed_on": "2026-09-01",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0160-spec-gate-ac-row-escaped-pipe-blind.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260901T211535Z-gate-ac-row-escaped-pipe-blind.md"
     },
     {
       "ref": "bare-main-baseref-sweep",
@@ -3504,6 +3467,19 @@
           "spec": "docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260901T143306Z-adhoc-probes-unisolated-report-only-round3.md"
+        },
+        {
+          "ref": "gate-ac-row-escaped-pipe-blind",
+          "title": "docs-audit --gate reports \"AC Status table complete\" while the shared parser silently drops rows with an escaped pipe",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0077-gate-ac-row-escaped-pipe-blind.md",
+          "closed_on": "2026-09-01",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0160-spec-gate-ac-row-escaped-pipe-blind.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260901T211535Z-gate-ac-row-escaped-pipe-blind.md"
         }
       ]
     },
