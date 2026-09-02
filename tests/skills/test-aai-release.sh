@@ -434,6 +434,13 @@ test_006_seam1_notes_equal_rolled_section() {
   local repo="$TMP_ROOT/t006" bare="$TMP_ROOT/t006-bare.git" stub_bin="$TMP_ROOT/t006-stub" log_file="$TMP_ROOT/t006-ghlog"
   build_repo "$repo" two_entries
   git init -q --bare "$bare"
+  # `git init --bare` sets HEAD from the PER-MACHINE init.defaultBranch, not
+  # from whatever the fixture branches its own clones to. A runner whose
+  # default is `master` leaves any clone of this bare on a nonexistent ref
+  # ("remote HEAD refers to nonexistent ref"), so the next `push origin main`
+  # dies with "src refspec main does not match any" — CI-only, invisible
+  # locally. Pin it explicitly.
+  git -C "$bare" symbolic-ref HEAD refs/heads/main
   git -C "$repo" remote add origin "file://$bare"
   build_stub_gh "$stub_bin" "$log_file" 0
 
@@ -461,6 +468,13 @@ test_007_remote_seam() {
   local repo="$TMP_ROOT/t007a" bare="$TMP_ROOT/t007a-bare.git" stub_bin="$TMP_ROOT/t007a-stub" log_file="$TMP_ROOT/t007a-ghlog"
   build_repo "$repo" two_entries
   git init -q --bare "$bare"
+  # `git init --bare` sets HEAD from the PER-MACHINE init.defaultBranch, not
+  # from whatever the fixture branches its own clones to. A runner whose
+  # default is `master` leaves any clone of this bare on a nonexistent ref
+  # ("remote HEAD refers to nonexistent ref"), so the next `push origin main`
+  # dies with "src refspec main does not match any" — CI-only, invisible
+  # locally. Pin it explicitly.
+  git -C "$bare" symbolic-ref HEAD refs/heads/main
   git -C "$repo" remote add origin "file://$bare"
   build_stub_gh "$stub_bin" "$log_file" 0
   local rc=0
@@ -475,6 +489,13 @@ test_007_remote_seam() {
   local repo2="$TMP_ROOT/t007b" bare2="$TMP_ROOT/t007b-bare.git" stub_bin2="$TMP_ROOT/t007b-stub" log_file2="$TMP_ROOT/t007b-ghlog"
   build_repo "$repo2" two_entries
   git init -q --bare "$bare2"
+  # `git init --bare` sets HEAD from the PER-MACHINE init.defaultBranch, not
+  # from whatever the fixture branches its own clones to. A runner whose
+  # default is `master` leaves any clone of this bare on a nonexistent ref
+  # ("remote HEAD refers to nonexistent ref"), so the next `push origin main`
+  # dies with "src refspec main does not match any" — CI-only, invisible
+  # locally. Pin it explicitly.
+  git -C "$bare2" symbolic-ref HEAD refs/heads/main
   git -C "$repo2" remote add origin "file://$bare2"
   build_stub_gh "$stub_bin2" "$log_file2" 0
   rc=0
@@ -992,6 +1013,13 @@ build_protected_bare() {
   # $1 = bare repo path, $2 = fully-qualified ref this remote refuses
   local bare="$1" ref="$2"
   git init -q --bare "$bare"
+  # `git init --bare` sets HEAD from the PER-MACHINE init.defaultBranch, not
+  # from whatever the fixture branches its own clones to. A runner whose
+  # default is `master` leaves any clone of this bare on a nonexistent ref
+  # ("remote HEAD refers to nonexistent ref"), so the next `push origin main`
+  # dies with "src refspec main does not match any" — CI-only, invisible
+  # locally. Pin it explicitly.
+  git -C "$bare" symbolic-ref HEAD refs/heads/main
   mkdir -p "$bare/hooks"
   cat > "$bare/hooks/update" <<HOOKEOF
 #!/usr/bin/env bash
@@ -1134,6 +1162,13 @@ test_031_unprotected_path_byte_identical() {
   local repoA="$TMP_ROOT/t031a" bareA="$TMP_ROOT/t031a-bare.git" stubA="$TMP_ROOT/t031a-stub" rcA=0
   build_repo "$repoA" two_entries
   git init -q --bare "$bareA"
+  # `git init --bare` sets HEAD from the PER-MACHINE init.defaultBranch, not
+  # from whatever the fixture branches its own clones to. A runner whose
+  # default is `master` leaves any clone of this bare on a nonexistent ref
+  # ("remote HEAD refers to nonexistent ref"), so the next `push origin main`
+  # dies with "src refspec main does not match any" — CI-only, invisible
+  # locally. Pin it explicitly.
+  git -C "$bareA" symbolic-ref HEAD refs/heads/main
   git -C "$repoA" remote add origin "file://$bareA"
   build_stub_gh "$stubA" "$TMP_ROOT/t031a-ghlog" 0
   ( cd "$repoA" && PATH="$stubA:$PATH" bash "$RELEASE_SH" --version v9.5.5 --confirm ) \
@@ -1152,6 +1187,13 @@ test_031_unprotected_path_byte_identical() {
   local repoB="$TMP_ROOT/t031b" bareB="$TMP_ROOT/t031b-bare.git" stubB="$TMP_ROOT/t031b-stub" rcB=0
   build_repo "$repoB" two_entries
   git init -q --bare "$bareB"
+  # `git init --bare` sets HEAD from the PER-MACHINE init.defaultBranch, not
+  # from whatever the fixture branches its own clones to. A runner whose
+  # default is `master` leaves any clone of this bare on a nonexistent ref
+  # ("remote HEAD refers to nonexistent ref"), so the next `push origin main`
+  # dies with "src refspec main does not match any" — CI-only, invisible
+  # locally. Pin it explicitly.
+  git -C "$bareB" symbolic-ref HEAD refs/heads/main
   git -C "$repoB" remote add origin "file://$bareB"
   build_stub_gh "$stubB" "$TMP_ROOT/t031b-ghlog" 0
   ( cd "$repoB" && PATH="$stubB:$PATH" bash "$old_engine" --version v9.5.5 --confirm ) \
@@ -1174,6 +1216,13 @@ test_032_non_protected_failure_degrades_raw() {
   local repo="$TMP_ROOT/t032" bare="$TMP_ROOT/t032-bare.git" stub="$TMP_ROOT/t032-stub" other="$TMP_ROOT/t032-other" rc=0
   build_repo "$repo" two_entries
   git init -q --bare "$bare"
+  # `git init --bare` sets HEAD from the PER-MACHINE init.defaultBranch, not
+  # from whatever the fixture branches its own clones to. A runner whose
+  # default is `master` leaves any clone of this bare on a nonexistent ref
+  # ("remote HEAD refers to nonexistent ref"), so the next `push origin main`
+  # dies with "src refspec main does not match any" — CI-only, invisible
+  # locally. Pin it explicitly.
+  git -C "$bare" symbolic-ref HEAD refs/heads/main
   git -C "$repo" remote add origin "file://$bare"
   git -C "$repo" push -q origin main
   git clone -q "$bare" "$other"
