@@ -2,13 +2,15 @@
 id: spec-metrics-flush-invalidates-pr-precondition
 type: spec
 number: 163
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0079-metrics-flush-invalidates-pr-precondition.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 05c7880
 ---
 
 # Spec — the flush archives the proof, so the PR gate must be able to read it
@@ -393,15 +395,15 @@ None.
 
 | Spec-AC    | Description                                                                                                                                                                                 | Status  | Evidence | Review-By | Notes                                              |
 |------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|----------|-----------|----------------------------------------------------|
-| Spec-AC-01 | WHEN metrics-flush takes the partial-reset branch the system SHALL append one archive record per reset ref to last_validation.notes whose at equals last_validation.run_at_utc exactly       | planned | —        | —         | writer side; NARROWED post-freeze to reset refs that satisfy the DEFAULT gate, see Spec-AC-09 and `## Amendment` |
-| Spec-AC-02 | WHEN a real flush is followed by the real gate on the same STATE the system SHALL exit 0 and print reason=validation_archived_pass                                                            | planned | —        | —         | the end-to-end seam, writer to reader              |
-| Spec-AC-03 | WHEN the archive record names a scope that has no PASS entry in METRICS.jsonl the system SHALL exit 1 with reason=archive_no_ledger_pass                                                      | planned | —        | —         | the intake's negative control                      |
-| Spec-AC-04 | WHEN a later set-validation re-stamps run_at_utc while inheriting the note the system SHALL exit 1 with reason=archive_stale                                                                  | planned | —        | —         | recency, not ref_id alone                          |
-| Spec-AC-05 | WHEN the archive record names a different ref than the scope in hand the system SHALL exit 1 with reason=archive_ref_mismatch                                                                 | planned | —        | —         | ref binding, mirrors waiver v2                     |
-| Spec-AC-06 | WHEN the archive sentinel is present but its grammar is not satisfied the system SHALL exit 1 with reason=archive_malformed and never fall through to a silent open                           | planned | —        | —         | fail-closed on a broken record                     |
-| Spec-AC-07 | The nine pre-existing arms of tests/skills/test-aai-pr-waiver.sh SHALL pass unchanged, and a preserved-waiver note carrying archive records for other refs SHALL still open on its own waiver | planned | —        | —         | no loosening and no new blocking                   |
-| Spec-AC-08 | SKILL_PR SHALL document the archive lane in its VALIDATION precondition bullet and the prompt-diet ledger SHALL be trued up to the MEASURED byte growth                                       | planned | —        | —         | companion obligation, measured not copied          |
-| Spec-AC-09 | WHEN a ref reaches METRICS.jsonl by any route other than satisfying the default gate at flush time (the --sweep gate, or the resume branch over a ledger line that already existed) the system SHALL reset it WITHOUT an archive record, so the PR gate returns the same verdict it returned before the flush | planned | —        | —         | ADDED post-freeze, validation rounds 1-2 B1 and B2; a ref that DOES satisfy the default gate still archives in the same reset, resumed or not |
+| Spec-AC-01 | WHEN metrics-flush takes the partial-reset branch the system SHALL append one archive record per reset ref to last_validation.notes whose at equals last_validation.run_at_utc exactly       | done | TEST-001, tests/skills/test-aai-metrics.sh; commit 922bf86; base-vs-HEAD byte diff across six lanes in validation round 3 | tdd:2026-09-03 | writer side; NARROWED post-freeze to reset refs that satisfy the DEFAULT gate, see Spec-AC-09 and `## Amendment` |
+| Spec-AC-02 | WHEN a real flush is followed by the real gate on the same STATE the system SHALL exit 0 and print reason=validation_archived_pass                                                            | done | TEST-11, tests/skills/test-aai-pr-waiver.sh; commit 922bf86; real flush driving the real gate | tdd:2026-09-03 | the end-to-end seam, writer to reader              |
+| Spec-AC-03 | WHEN the archive record names a scope that has no PASS entry in METRICS.jsonl the system SHALL exit 1 with reason=archive_no_ledger_pass                                                      | done | TEST-12, tests/skills/test-aai-pr-waiver.sh; commit 922bf86 | tdd:2026-09-03 | the intake's negative control                      |
+| Spec-AC-04 | WHEN a later set-validation re-stamps run_at_utc while inheriting the note the system SHALL exit 1 with reason=archive_stale                                                                  | done | TEST-13, tests/skills/test-aai-pr-waiver.sh; commit 922bf86; re-stamp behaviour probed live | tdd:2026-09-03 | recency, not ref_id alone                          |
+| Spec-AC-05 | WHEN the archive record names a different ref than the scope in hand the system SHALL exit 1 with reason=archive_ref_mismatch                                                                 | done | TEST-14, tests/skills/test-aai-pr-waiver.sh; commit 922bf86 | tdd:2026-09-03 | ref binding, mirrors waiver v2                     |
+| Spec-AC-06 | WHEN the archive sentinel is present but its grammar is not satisfied the system SHALL exit 1 with reason=archive_malformed and never fall through to a silent open                           | done | TEST-15, tests/skills/test-aai-pr-waiver.sh; commit 922bf86; six grammar mutations | tdd:2026-09-03 | fail-closed on a broken record                     |
+| Spec-AC-07 | The nine pre-existing arms of tests/skills/test-aai-pr-waiver.sh SHALL pass unchanged, and a preserved-waiver note carrying archive records for other refs SHALL still open on its own waiver | done | TEST-01..10 and TEST-16, tests/skills/test-aai-pr-waiver.sh; 17-case base-vs-HEAD behavioural diff of the waiver lane in validation round 1 | tdd:2026-09-03 | no loosening and no new blocking                   |
+| Spec-AC-08 | SKILL_PR SHALL document the archive lane in its VALIDATION precondition bullet and the prompt-diet ledger SHALL be trued up to the MEASURED byte growth                                       | done | TEST-012 and TEST-023, tests/skills/test-aai-prompt-diet.sh; commit 922bf86; 154 B measured 1:1, pin 9945, headroom 4 of 2048 | tdd:2026-09-03 | companion obligation, measured not copied          |
+| Spec-AC-09 | WHEN a ref reaches METRICS.jsonl by any route other than satisfying the default gate at flush time (the --sweep gate, or the resume branch over a ledger line that already existed) the system SHALL reset it WITHOUT an archive record, so the PR gate returns the same verdict it returned before the flush | done | TEST-17 arms a-e and TEST-18, tests/skills/test-aai-pr-waiver.sh; commits 0520207 and 028cc63; five mutations prove every arm load-bearing | tdd:2026-09-03 | ADDED post-freeze, validation rounds 1-2 B1 and B2; a ref that DOES satisfy the default gate still archives in the same reset, resumed or not |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 

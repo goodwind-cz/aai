@@ -2,10 +2,12 @@
 id: metrics-flush-invalidates-pr-precondition
 number: 79
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 05c7880
 ---
 
 # Metrics Flush resets the exact STATE fields SKILL_PR's own preconditions require
