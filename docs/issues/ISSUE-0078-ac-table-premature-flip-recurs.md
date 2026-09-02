@@ -2,10 +2,12 @@
 id: ac-table-premature-flip-recurs
 number: 78
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - cbead77
 ---
 
 # AC-table premature-flip defect recurs despite a documented rule (needs a mechanical guard)

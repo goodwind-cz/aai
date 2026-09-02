@@ -2,13 +2,15 @@
 id: spec-ac-table-premature-flip-recurs
 type: spec
 number: 162
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: ac-table-premature-flip-recurs
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - cbead77
 ---
 
 # SPEC — the premature AC flip gets a mechanical guard at Implementation hand-off
@@ -388,14 +390,14 @@ the audit engine; Art. 7 — the scope ends at `gh pr create`.
 
 | Spec-AC    | Description                                                                                   | Status  | Evidence | Review-By | Notes |
 |------------|-----------------------------------------------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | The guard exits 1 on an open doc whose terminal AC table carries a delivery-grade citation      | planned | —        | —         | —     |
-| Spec-AC-02 | The guard exits 0 on a non-terminal in-flight table and on a terminal table cited only by a proof log | planned | —        | —         | —     |
-| Spec-AC-03 | The guard exits 0 on the close ceremony's terminal-plus-done end state; --gate stays byte-identical | planned | —        | —         | —     |
-| Spec-AC-04 | One shared predicate; guard and --check agree case for case in both directions                  | planned | —        | —         | —     |
-| Spec-AC-05 | Repo-wide strict audit stays CLEAN and the five named suites stay green                         | planned | —        | —         | —     |
-| Spec-AC-06 | ROLE_COMMON names the guard and drops the commit-SHA citation; the command appears once; TEST-017 green | planned | —        | —         | —     |
-| Spec-AC-07 | Measured corpus growth credited 1:1 in the ledger with the TEST-012 pin moved by the same integer | planned | —        | —         | —     |
-| Spec-AC-08 | The guard rejects a proof-log-less cell and both prose surfaces name a shape it accepts | planned | —        | —         | —     |
+| Spec-AC-01 | The guard exits 1 on an open doc whose terminal AC table carries a delivery-grade citation      | done | TEST-001, tests/skills/test-aai-docs-audit.sh; commit 691b75a; RED-proved and re-derived on independent fixtures in validation round 2 | tdd:2026-09-02 | —     |
+| Spec-AC-02 | The guard exits 0 on a non-terminal in-flight table and on a terminal table cited only by a proof log | done | TEST-002, tests/skills/test-aai-docs-audit.sh; commit 691b75a | tdd:2026-09-02 | —     |
+| Spec-AC-03 | The guard exits 0 on the close ceremony's terminal-plus-done end state; --gate stays byte-identical | done | TEST-003, tests/skills/test-aai-docs-audit.sh; commit 691b75a; both carves mutation-proved load-bearing in validation round 2 | tdd:2026-09-02 | —     |
+| Spec-AC-04 | One shared predicate; guard and --check agree case for case in both directions                  | done | TEST-004, tests/skills/test-aai-docs-audit.sh; commit 691b75a; one definition two callers verified by reading in code review | tdd:2026-09-02 | —     |
+| Spec-AC-05 | Repo-wide strict audit stays CLEAN and the five named suites stay green                         | done | TEST-005, tests/skills/test-aai-docs-audit.sh; commit 691b75a; repo-wide docs-audit --check --strict CLEAN, 457 docs | tdd:2026-09-02 | —     |
+| Spec-AC-06 | ROLE_COMMON names the guard and drops the commit-SHA citation; the command appears once; TEST-017 green | done | TEST-022, tests/skills/test-aai-prompt-diet.sh; commits 691b75a, 17163ec; TEST-017 literals re-checked in both implementer prompts | tdd:2026-09-02 | —     |
+| Spec-AC-07 | Measured corpus growth credited 1:1 in the ledger with the TEST-012 pin moved by the same integer | done | TEST-023, tests/skills/test-aai-prompt-diet.sh; commit 17163ec; 472 B credited 1:1, pin 9319 to 9791, headroom 4 of 2048 | tdd:2026-09-02 | —     |
+| Spec-AC-08 | The guard rejects a proof-log-less cell and both prose surfaces name a shape it accepts | done | TEST-008, tests/skills/test-aai-docs-audit.sh; commit 17163ec; six mutations all bit in validation round 2, convergence arm proves a reachable fixed point | tdd:2026-09-02 | —     |
 
 ## Implementation plan
 

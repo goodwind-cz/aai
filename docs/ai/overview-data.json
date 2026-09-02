@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-02T15:45:34.153Z",
+  "generatedAt": "2026-09-02T15:46:29.951Z",
   "project": "aai-fix-ac-table-premature-flip-recurs",
   "counts": {
-    "delivered": 225,
-    "in_progress": 40,
+    "delivered": 226,
+    "in_progress": 39,
     "releases": 1,
     "tokens_total": 57249552
   },
@@ -509,19 +509,6 @@
       "review": null
     },
     {
-      "ref": "ac-table-premature-flip-recurs",
-      "title": "AC-table premature-flip defect recurs despite a documented rule (needs a mechanical guard)",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0078-ac-table-premature-flip-recurs.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0162-spec-ac-table-premature-flip-recurs.md",
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -548,6 +535,19 @@
       "spec": "docs/specs/SPEC-0161-spec-release-protected-branch-fallback.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260902T065105Z-release-protected-branch-fallback.md"
+    },
+    {
+      "ref": "ac-table-premature-flip-recurs",
+      "title": "AC-table premature-flip defect recurs despite a documented rule (needs a mechanical guard)",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0078-ac-table-premature-flip-recurs.md",
+      "closed_on": "2026-09-02",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0162-spec-ac-table-premature-flip-recurs.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "intake-staleness-preflight-warning",
@@ -3480,6 +3480,19 @@
           "spec": "docs/specs/SPEC-0161-spec-release-protected-branch-fallback.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260902T065105Z-release-protected-branch-fallback.md"
+        },
+        {
+          "ref": "ac-table-premature-flip-recurs",
+          "title": "AC-table premature-flip defect recurs despite a documented rule (needs a mechanical guard)",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0078-ac-table-premature-flip-recurs.md",
+          "closed_on": "2026-09-02",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0162-spec-ac-table-premature-flip-recurs.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "intake-staleness-preflight-warning",
