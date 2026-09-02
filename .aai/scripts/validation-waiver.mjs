@@ -470,8 +470,13 @@ function evaluateArchive(notes, scopeRef, runAtUtc, ledger) {
   // fields by one flush transaction. Anything else is an inherited record.
   if (rec.at !== runAtUtc) return { open: false, reason: 'archive_stale', archive_ref: rec.ref };
   const day = rec.at.slice(0, 10);
+  // Corroborate the RECORD, not the scope. `rec` already matched the scope
+  // above, but a `/`-joined scopeRef matches any of its members — so binding
+  // the ledger lookup to scopeRef would let a PASS line for a SIBLING ref
+  // corroborate a record naming this one (code review N1). `rec.ref` names a
+  // single ref, so this is exact equality in practice.
   const hits = (ledger ?? []).filter(
-    (e) => e.verdict === 'PASS' && e.date_utc === day && refMatchesScope(e.ref_id, scopeRef),
+    (e) => e.verdict === 'PASS' && e.date_utc === day && refMatchesScope(e.ref_id, rec.ref),
   );
   if (hits.length === 0) return { open: false, reason: 'archive_no_ledger_pass', archive_ref: rec.ref };
   if (hits.length > 1) return { open: false, reason: 'archive_ledger_ambiguous', archive_ref: rec.ref };

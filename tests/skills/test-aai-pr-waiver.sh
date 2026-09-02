@@ -1418,9 +1418,84 @@ test_17_swept_ref_is_never_archived() {
   log_pass "TEST-17 neither the sweep gate nor the resume branch mints an opening; refs that satisfy the DEFAULT gate still archive"
 }
 
+# --- TEST-18 -----------------------------------------------------------------
+# THE RECORD IS CORROBORATED, NOT THE SCOPE (code review N1). `refMatchesScope`
+# deliberately tolerates a `/`-joined scope, so a scope of "A/B" matches a
+# record naming A *and* a ledger line naming B. Binding the ledger lookup to
+# the SCOPE therefore let a sibling ride's PASS corroborate this ride's record
+# — including a line the sweep gate wrote for a ride that never validated,
+# which is the exact class B1 and B2 closed on the writer side. The lookup
+# binds to `rec.ref`, so the two must agree.
+#
+# Reachable only from a hand-edited STATE (`state.mjs` refuses `/` in --ref for
+# both set-focus and set-validation), i.e. inside R5 — but R5 is a disclosed
+# residual about AUTHORING a record, never about one ride's record borrowing
+# another ride's proof.
+test_18_ledger_corroborates_the_record_not_the_scope() {
+  log_info "TEST-18: a sibling ref's ledger PASS must not corroborate this ride's archive record (joined scope)..."
+  local d sp inst day
+  d="$(mktemp -d)" || log_fail "TEST-18: fixture build failed"
+  mkdir -p "$d/docs/ai"
+  inst="2026-09-02T10:00:00Z"
+  day="${inst%%T*}"
+
+  # STATE: a record naming ARCH-1 only. Live status is the post-flush shape.
+  cat > "$d/docs/ai/STATE.yaml" <<YAML
+project_status: active
+current_focus:
+  type: intake_issue
+  ref_id: null
+last_validation:
+  status: not_run
+  ref_id: null
+  run_at_utc: $inst
+  notes: >-
+    reset after flush of $ARCHIVED_REF [AAI-VALIDATION-ARCHIVED v1 ref=$ARCHIVED_REF at=$inst]
+code_review:
+  required: false
+  status: not_run
+YAML
+
+  # LEDGER: a same-day PASS for the SIBLING ($HOLD_REF) and none for the ride
+  # the record actually names.
+  {
+    printf '# ledger comment header\n'
+    printf '{"date_utc":"%s","ref_id":"%s","verdict":"PASS"}\n' "$day" "$HOLD_REF"
+  } > "$d/docs/ai/METRICS.jsonl"
+  sp="$d/docs/ai/STATE.yaml"
+
+  # PREMISE: the joined scope really does match both halves, or the arm proves
+  # nothing about the binding.
+  node -e '
+    import("'"$PWD"'/.aai/scripts/validation-waiver.mjs").then((m) => {
+      const ok = m.refMatchesScope("'"$ARCHIVED_REF"'", "'"$ARCHIVED_REF"'/'"$HOLD_REF"'")
+              && m.refMatchesScope("'"$HOLD_REF"'", "'"$ARCHIVED_REF"'/'"$HOLD_REF"'");
+      process.exit(ok ? 0 : 1);
+    });
+  ' || log_fail "TEST-18 premise: the joined scope must match BOTH halves — otherwise the leak this arm guards is unreachable and the arm is vacuous"
+
+  run_gate_ref "$sp" "$ARCHIVED_REF/$HOLD_REF"
+  expect_rc 1 "TEST-18 sibling ledger line must not corroborate"
+  assert_payload_contains "$GATE_OUT" "reason=archive_no_ledger_pass" \
+    "TEST-18: with no PASS line for the ride the record NAMES, the gate must refuse by name — a sibling's line is not this ride's proof" || return 1
+
+  # CONTROL (opposite direction): add the record-holder's OWN same-day PASS and
+  # the very same joined scope must open. Without this the arm would also pass
+  # against an implementation that simply refuses every joined scope.
+  printf '{"date_utc":"%s","ref_id":"%s","verdict":"PASS"}\n' "$day" "$ARCHIVED_REF" \
+    >> "$d/docs/ai/METRICS.jsonl"
+  run_gate_ref "$sp" "$ARCHIVED_REF/$HOLD_REF"
+  expect_rc 0 "TEST-18 control (the record-holder's own ledger line)"
+  assert_payload_contains "$GATE_OUT" "reason=validation_archived_pass" \
+    "TEST-18 control: the ride the record names must still open on its OWN ledger line — the binding tightened, it did not start refusing joined scopes" || return 1
+
+  rm -rf "$d"
+  log_pass "TEST-18 the ledger lookup binds to the record's ref, not the scope: a sibling's PASS refuses, the record-holder's own PASS opens"
+}
+
 # --- runner ------------------------------------------------------------------
 
-ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state 11_archived_pass_opens 12_archive_needs_ledger_pass 13_archive_goes_stale_on_restamp 14_archive_ref_binding 15_archive_grammar_fail_closed 16_archive_never_blocks_a_waiver 17_swept_ref_is_never_archived"
+ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state 11_archived_pass_opens 12_archive_needs_ledger_pass 13_archive_goes_stale_on_restamp 14_archive_ref_binding 15_archive_grammar_fail_closed 16_archive_never_blocks_a_waiver 17_swept_ref_is_never_archived 18_ledger_corroborates_the_record_not_the_scope"
 
 main() {
   local requested="${1:-}"
