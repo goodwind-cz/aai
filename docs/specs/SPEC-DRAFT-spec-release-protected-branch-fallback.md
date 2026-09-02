@@ -126,8 +126,16 @@ push ALSO leaves the tag on the remote.
   classifies the captured text as a protected-branch rejection: the text
   contains the token `GH006`, OR it contains `protected branch` AND
   `status check` (both case-insensitive). Any other failure re-emits the raw
-  output and exits with git's own exit code — today's behavior exactly
-  (Constitution article 4).
+  output and exits with git's own exit code (Constitution article 4).
+  For the bash engine this is today's behavior exactly. For the ps1 twin it
+  is a disclosed, strictly-better change measured in validation round 2: the
+  pre-change ps1 let the push failure surface as an uncaught PowerShell
+  exception, which exited **1** with a PS exception banner regardless of
+  git's own code; it now exits git's code (measured 128 for an unreachable
+  remote, 1 for a non-fast-forward, matching the bash engine in both cases).
+  No Spec-AC pins the old ps1 exit, and the new behavior is what D7's parity
+  invariant requires — recorded here because the original wording claimed
+  both engines were unchanged, which was accurate only for bash.
 - D2 — Orphan-tag guard. The target-branch push gains `--no-follow-tags`, so a
   repo-level or global `push.followTags=true` can never publish the annotated
   tag as a side effect of a rejected branch push. The tag push stays strictly
@@ -337,8 +345,9 @@ Evidence artifacts:
 - the suite run directory under `tests/skills/results/`
 - `docs/ai/tests/test-runs.jsonl` append
 
-PASS criteria: all TEST-027..TEST-034 green AND all Spec-AC in a terminal
-status with non-empty Evidence.
+PASS criteria: all TEST-027..TEST-035 green AND all Spec-AC in a terminal
+status with non-empty Evidence. (TEST-035 arrived with the post-freeze
+amendment below; this line was extended to match it in validation round 2.)
 
 ## Evidence contract
 
