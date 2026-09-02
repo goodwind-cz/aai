@@ -1,16 +1,16 @@
 {
-  "generatedAt": "2026-09-01T23:40:11.083Z",
-  "project": "aai-fix-gate-ac-row-escaped-pipe-blind",
+  "generatedAt": "2026-09-02T08:48:58.489Z",
+  "project": "aai-change-release-protected-branch-fallback",
   "counts": {
-    "delivered": 224,
+    "delivered": 225,
     "in_progress": 39,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "gate-ac-row-escaped-pipe-blind",
-    "type": "intake_issue"
+    "ref": "release-protected-branch-fallback",
+    "type": "intake_change"
   },
   "in_flight": null,
   "in_progress": [
@@ -523,6 +523,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "release-protected-branch-fallback",
+      "title": "aai-release should fall back to a PR when main is a protected branch",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0169-release-protected-branch-fallback.md",
+      "closed_on": "2026-09-02",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0161-spec-release-protected-branch-fallback.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260902T065105Z-release-protected-branch-fallback.md"
+    },
     {
       "ref": "intake-staleness-preflight-warning",
       "title": "Warn about a stale repo/submodules before intake starts",
@@ -3442,6 +3455,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "release-protected-branch-fallback",
+          "title": "aai-release should fall back to a PR when main is a protected branch",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0169-release-protected-branch-fallback.md",
+          "closed_on": "2026-09-02",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0161-spec-release-protected-branch-fallback.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260902T065105Z-release-protected-branch-fallback.md"
+        },
         {
           "ref": "intake-staleness-preflight-warning",
           "title": "Warn about a stale repo/submodules before intake starts",

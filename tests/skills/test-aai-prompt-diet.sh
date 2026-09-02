@@ -731,7 +731,10 @@ test_012_growth_sum_matches_ledger() {
   # a number printed from the constant cannot.
   # intake-staleness-preflight-warning: +787 B itemized entry (staleness
   # preflight block + nine-file wiring), pin moves 7340 -> 8127.
-  local want_growth=8127
+  # release-protected-branch-fallback: +1192 B itemized entry (SKILL_RELEASE
+  # exit codes 1/17/18 + the never-merge/never-publish Safety bullet), pin
+  # moves 8127 -> 9319.
+  local want_growth=9319
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

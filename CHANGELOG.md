@@ -11,6 +11,36 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(release): fall back to a PR when the target branch is protected
+
+- `.aai/scripts/aai-release.sh` and `.aai/scripts/aai-release.ps1` now push the
+  target branch with `--no-follow-tags`. With `push.followTags=true` set in the
+  repo's or the operator's global git config, the branch push itself carried
+  `refs/tags/<version>` — so a GH006-rejected branch push still published the
+  tag, leaving it pointing at a commit the remote's default branch never
+  received (the `v2026.09.01` / PR #329 incident). The tag push stays strictly
+  after a successful branch push and never runs on the fallback path.
+- When that push is rejected as a protected-branch / required-status-checks
+  failure (GitHub's `GH006`, or `protected branch` plus `status check`,
+  case-insensitively), both engines now recover instead of leaving a half-cut
+  release: they create `chore/release-<version>` at the release commit, reset
+  the target branch to its pre-cut SHA, push the release branch, open a PR with
+  `gh pr create`, and stop at the new exit code **17**. If the fallback engages
+  but cannot finish (branch name taken, branch push failed, `gh pr create`
+  failed), they stop at the new exit code **18** and print the exact commands
+  to finish by hand.
+- The fallback never publishes and never merges: `gh release create` and
+  `gh pr merge` are not called on that path (Constitution article 7), and the
+  annotated tag stays LOCAL. The report names the PR URL and the literal
+  post-merge `git tag -d` / `git tag -a` / `git push origin refs/tags/<version>`
+  / `gh release create` sequence for the operator to run once the PR lands.
+- Any other push failure (auth, network, non-fast-forward) is unchanged: git's
+  own output is re-emitted and the script exits with git's own code. On an
+  unprotected branch the cut's stdout, exit code and pushed refs are
+  byte-identical to before.
+- `.aai/SKILL_RELEASE.prompt.md` documents exit codes 1, 17 and 18 and the
+  never-merge/never-publish rule.
+
 ## [unreleased] — fix(harness): reconcile the AC Status table before the close gate trusts it
 
 - `docs-audit.mjs --gate` and `--check` could report `GATE PASS: AC Status

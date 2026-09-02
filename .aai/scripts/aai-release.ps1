@@ -25,7 +25,9 @@
 #   11 no CHANGELOG.md | 12 malformed [unreleased] region | 13 no rollable
 #   [unreleased] entries (absent/empty) | 14 dirty working tree (cut path) |
 #   15 tag already exists (cut path) | 16 gh absent/unauthenticated (publish
-#   path only; dry-run works offline).
+#   path only; dry-run works offline) | 17 target branch is protected: fell
+#   back to a release branch + PR, release NOT published | 18 protected-branch
+#   fallback engaged but INCOMPLETE (see the report's manual commands).
 param(
   [string]$Version = "",
   [switch]$DryRun,
@@ -92,6 +94,55 @@ function Invoke-NativeChecked {
     throw "$Exe $($Arguments -join ' ') failed (exit ${exitCode}): $joined"
   }
   return ,$out
+}
+
+function Test-ProtectedBranchRejection {
+  # D1 classifier, parity twin of aai-release.sh's is_protected_branch_rejection:
+  # is this captured `git push` output a protected-branch / required-status-
+  # checks rejection? GitHub's own `GH006` token, or the host-agnostic wording
+  # pair, both case-insensitively. Deliberately narrow -- every OTHER failure
+  # class (auth, network, non-fast-forward) must keep today's raw behavior, so
+  # a miss degrades to "re-emit and exit with git's code", never to a wrong
+  # recovery (Constitution article 4).
+  #
+  # Defined ABOVE the dot-source guard on purpose: dot-sourcing this file must
+  # define the classifier WITHOUT parsing args or cutting a release, so
+  # tests/skills/aai-release.Tests.ps1 can unit-test it (same seam as
+  # Invoke-NativeChecked, ps1-native-stderr-guard Spec-AC-03).
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][AllowEmptyString()][string]$Text
+  )
+  if ([string]::IsNullOrEmpty($Text)) { return $false }
+  $t = $Text.ToLowerInvariant()
+  if ($t.Contains('gh006')) { return $true }
+  if ($t.Contains('protected branch') -and $t.Contains('status check')) { return $true }
+  return $false
+}
+
+function Select-CapturedValue {
+  # Invoke-NativeChecked folds the child's stdout AND stderr into ONE array and
+  # returns it wrapped (`return ,$out`), so the pipeline sees a SINGLE object:
+  # `| Select-Object -Last 1` therefore yields the WHOLE array, which then
+  # string-interpolates into an $OFS-joined blob the moment the child writes
+  # anything to stderr. Real `gh pr create` does exactly that non-interactively
+  # ("Creating pull request for <head> into <base> in <repo>"), which would
+  # otherwise append that progress text to the PR URL in the D8 report. Pick
+  # the one captured line that actually looks like the value being read
+  # instead of trusting position; the bash twin has no equivalent hazard
+  # because it captures stdout alone (`>"$PR_OUT"`, `$(git rev-parse HEAD)`).
+  #
+  # Above the dot-source guard for the same reason as Test-ProtectedBranchRejection.
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][AllowNull()][AllowEmptyCollection()][object]$Captured,
+    [Parameter(Mandatory)][string]$Pattern
+  )
+  foreach ($line in @($Captured)) {
+    $text = "$line".Trim()
+    if ($text -match $Pattern) { return $text }
+  }
+  return ''
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
@@ -312,6 +363,11 @@ try {
   }
 
   # --- D7 cut sequence: rewrite -> add -> commit -> tag -> (push + publish)
+  # D3 step 2 (bash parity): the target branch's pre-cut position, captured
+  # BEFORE the release commit exists. The protected-branch fallback resets the
+  # target branch back to exactly this SHA.
+  $preCutSha = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', 'HEAD')) -Pattern '^[0-9a-f]{7,40}$'
+
   Move-Item -Force -LiteralPath $OutFile -Destination $Changelog
   $OutFile = $null
 
@@ -331,14 +387,128 @@ try {
   Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'commit', '-q', '-m', "chore(release): $Version") | Out-Null
   Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'tag', '-a', $Version, '-m', $Version) | Out-Null
 
-  $shortSha = (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', '--short', 'HEAD') | Select-Object -Last 1)
+  $shortSha = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', '--short', 'HEAD')) -Pattern '^[0-9a-f]{7,40}$'
   Write-Host "## aai-release - cut complete"
   Write-Host "- Version: $Version"
   Write-Host "- Commit:  $shortSha"
   Write-Host "- Tag:     $Version (annotated)"
 
   if (-not $NoRemote) {
-    Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'push', 'origin', $branch) | Out-Null
+    # D2 --no-follow-tags (bash parity): with `push.followTags=true` in the
+    # repo or the operator's GLOBAL git config this branch push would carry
+    # refs/tags/$Version with it, and GitHub's branch protection is per-ref and
+    # NON-atomic -- so a GH006-rejected branch push still publishes the tag.
+    # That is how v2026.09.01 (PR #329) left an orphaned tag behind. The tag
+    # push stays strictly AFTER a successful branch push and never runs on the
+    # fallback path.
+    $pushError = ''
+    try {
+      Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'push', '--no-follow-tags', 'origin', $branch) | Out-Null
+    } catch {
+      # Invoke-NativeChecked folds the child's captured stdout+stderr into the
+      # thrown message, so no diagnostic is lost by catching here.
+      $pushError = "$($_.Exception.Message)"
+    }
+
+    if ($pushError) {
+      [Console]::Error.WriteLine($pushError)
+      if (-not (Test-ProtectedBranchRejection -Text $pushError)) {
+        # Every other failure class keeps today's behavior: git's raw output
+        # (already on stderr above) and git's own exit code.
+        $rawExit = 1
+        if ($pushError -match 'failed \(exit (\d+)\)') { $rawExit = [int]$Matches[1] }
+        exit $rawExit
+      }
+
+      # --- D3 protected-branch fallback: release branch + PR, then STOP -----
+      $releaseBranch = "chore/release-$Version"
+      [Console]::Error.WriteLine("## aai-release - target branch '$branch' is PROTECTED (push rejected)")
+      $releaseSha = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', 'HEAD')) -Pattern '^[0-9a-f]{7,40}$'
+
+      # D5 exit 18: the fallback engaged but could not finish -- name the exact
+      # manual commands rather than leaving a half-cut release to reconstruct.
+      $fallbackIncomplete = {
+        param([string]$Reason)
+        Write-Host "## aai-release - PROTECTED-BRANCH FALLBACK INCOMPLETE"
+        Write-Host "- Reason:  $Reason"
+        Write-Host "- Version: $Version (release commit exists LOCALLY, tag is LOCAL ONLY)"
+        Write-Host "- Finish by hand:"
+        Write-Host "    git branch $releaseBranch $releaseSha     # if that ref does not exist yet"
+        Write-Host "    git reset --hard $preCutSha               # on $branch"
+        Write-Host "    git push --no-follow-tags origin $releaseBranch"
+        Write-Host "    gh pr create --base $branch --head $releaseBranch --title 'chore(release): $Version'"
+        Write-Host "- The release is NOT published and no tag was pushed."
+        exit 18
+      }
+
+      # No detached-HEAD arm here, bash parity: with a detached HEAD $branch is
+      # the literal "HEAD" and `git push origin HEAD` fails CLIENT-side ("The
+      # destination you provided is not a full refname", exit 1), so the
+      # classifier cannot match and this block is unreachable in that state.
+      # Detached HEAD degrades raw at git's own exit code, as it does today.
+      git -C $Root rev-parse -q --verify "refs/heads/$releaseBranch" *> $null
+      if ($LASTEXITCODE -eq 0) {
+        & $fallbackIncomplete "branch $releaseBranch already exists - never clobbering an existing ref"
+      }
+
+      Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'branch', $releaseBranch, $releaseSha) | Out-Null
+      Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'reset', '-q', '--hard', $preCutSha) | Out-Null
+
+      $branchPushError = ''
+      try {
+        Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'push', '--no-follow-tags', 'origin', $releaseBranch) | Out-Null
+      } catch {
+        $branchPushError = "$($_.Exception.Message)"
+      }
+      if ($branchPushError) {
+        [Console]::Error.WriteLine($branchPushError)
+        & $fallbackIncomplete "pushing $releaseBranch to origin failed (its output is on stderr above)"
+      }
+
+      $prBody = @(
+        "Automated release cut for $Version.",
+        '',
+        "The target branch ``$branch`` is protected, so ``aai-release`` did not push to it",
+        "directly. This PR carries the release commit; ``$branch`` was reset to",
+        "$preCutSha and is unchanged.",
+        '',
+        "The release is NOT published and the annotated tag ``$Version`` exists only in",
+        'the cutting operator''s local clone. After this PR merges, re-point and publish',
+        'the tag against the merge commit (a squash merge produces a new SHA).',
+        '',
+        'Opened by .aai/scripts/aai-release.ps1 - it never merges this PR.'
+      ) -join [Environment]::NewLine
+
+      $prUrl = ''
+      $prError = ''
+      Push-Location $Root
+      try {
+        $prUrl = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'gh' -Arguments @('pr', 'create', '--base', $branch, '--head', $releaseBranch, '--title', "chore(release): $Version", '--body', $prBody)) -Pattern '^https?://'
+      } catch {
+        $prError = "$($_.Exception.Message)"
+      } finally { Pop-Location }
+      if ($prError) {
+        [Console]::Error.WriteLine($prError)
+        & $fallbackIncomplete "gh pr create failed (its output is on stderr above) - the release branch IS pushed, only the PR is missing"
+      }
+
+      # D8 report. D4: no `gh release create`, no `gh pr merge` - ever, on this
+      # path (Constitution article 7). Pinned by TEST-033.
+      Write-Host "## aai-release - PROTECTED BRANCH: fell back to a release PR"
+      Write-Host "- PR:              $prUrl"
+      Write-Host "- Release branch:  $releaseBranch (pushed, carries the release commit $releaseSha)"
+      Write-Host "- Target branch:   $branch - reset to its pre-cut SHA $preCutSha (left clean)"
+      Write-Host "- Release:         NOT PUBLISHED - CI must pass and the PR must be merged first."
+      Write-Host "- Tag:             $Version is annotated LOCALLY ONLY and was NOT pushed."
+      Write-Host "- After the PR merges, re-point the tag at the merge commit and publish:"
+      Write-Host "    git checkout $branch && git pull"
+      Write-Host "    git tag -d $Version"
+      Write-Host "    git tag -a $Version -m $Version"
+      Write-Host "    git push origin refs/tags/$Version"
+      Write-Host "    gh release create $Version --title $Version --notes-file <the [$Version] CHANGELOG section>"
+      exit 17
+    }
+
     Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'push', 'origin', "refs/tags/$Version") | Out-Null
     Push-Location $Root
     try { Invoke-NativeChecked -Exe 'gh' -Arguments @('release', 'create', $Version, '--title', $Version, '--notes-file', $NotesFile) | Out-Null } finally { Pop-Location }
