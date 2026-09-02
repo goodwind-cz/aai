@@ -779,6 +779,7 @@ test_10_absent_vs_corrupt_state() {
 # grammar, nor that the writer and the reader agree on the instant.
 ARCHIVED_REF="ARCH-1"
 HOLD_REF="ARCH-2"
+SWEPT_REF="ARCH-3"
 FLUSH_NOW="2026-08-30T09:00:00Z"
 FLUSH_DAY="2026-08-30"
 ARCHIVE_SENTINEL_TOKEN="[AAI-VALIDATION-ARCHIVED"
@@ -787,12 +788,55 @@ ARCHIVE_SENTINEL_TOKEN="[AAI-VALIDATION-ARCHIVED"
 # the flushed ref; pass `null` for the scope-less shape. The second work item
 # is what keeps the flush on the PARTIAL branch (a full reset nulls
 # current_focus, and branch-guard.mjs refuses before the gate is ever reached).
+#
+# Four OPTIONAL env overrides exist for TEST-17 alone, each defaulting to the
+# value every other arm already relied on, so TEST-11..16 are byte-unchanged:
+#   MK_VSTATUS / MK_VREF     — last_validation.status / ref_id (pass/$ARCHIVED_REF)
+#   MK_REVIEW_REQUIRED       — code_review.required (false)
+#   MK_SWEPT                 — a THIRD work item, `done`, with its own metrics
+#                              entry, plus `--sweep` and a durable
+#                              work_item_closed event for every done ref, so
+#                              the flush's sweep gate is the one that fires
+#                              (empty = the default gate only, as before)
 mk_flushed() {
   local name="$1" focus="${2:-$ARCHIVED_REF}" d fec=0
+  local vstatus="${MK_VSTATUS:-pass}" vref="${MK_VREF:-$ARCHIVED_REF}"
+  local review_required="${MK_REVIEW_REQUIRED:-false}" swept="${MK_SWEPT:-}"
   d="$TEST_DIR/$name"
   rm -rf "$d"; mkdir -p "$d/docs/ai" "$d/docs/issues"
   printf '# ledger comment header\n' > "$d/docs/ai/METRICS.jsonl"
   printf 'schema_version: 2\nmodels: {}\n' > "$d/PRICING.yaml"
+  # The optional third item is spliced in as a LEADING-newline chunk so an
+  # empty $swept leaves the fixture byte-identical to what TEST-11..16 built.
+  local swept_item="" swept_metrics="" sweep_flag=""
+  if [[ -n "$swept" ]]; then
+    swept_item="
+  - ref_id: $swept
+    status: done
+    phase: validation
+    primary_path: docs/issues/${swept}.md"
+    swept_metrics="
+    $swept:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Implementation
+          model_id: claude-sonnet-5
+          started_utc: 2026-08-30T07:20:00Z
+          ended_utc: 2026-08-30T07:30:00Z
+          duration_seconds: 600
+          tokens_in: 1000
+          tokens_out: 100
+          cost_usd: 0.5"
+    sweep_flag="--sweep"
+    : > "$d/docs/ai/EVENTS.jsonl"
+    local cref
+    for cref in "$ARCHIVED_REF" "$swept"; do
+      printf '{"v":1,"ts":"2026-08-30T08:00:00Z","actor":"test","event":"work_item_closed","ref":"%s","payload":{}}\n' \
+        "$cref" >> "$d/docs/ai/EVENTS.jsonl"
+    done
+  fi
   cat > "$d/docs/ai/STATE.yaml" <<YAML
 project_status: active
 current_focus:
@@ -803,7 +847,7 @@ active_work_items:
   - ref_id: $ARCHIVED_REF
     status: done
     phase: validation
-    primary_path: docs/issues/${ARCHIVED_REF}.md
+    primary_path: docs/issues/${ARCHIVED_REF}.md${swept_item}
   - ref_id: $HOLD_REF
     status: in_progress
     phase: implementation
@@ -821,7 +865,7 @@ worktree:
   inline_review_scope: null
   rationale: null
 code_review:
-  required: false
+  required: $review_required
   status: not_run
   scope: null
   base_ref: main
@@ -830,9 +874,9 @@ code_review:
   report_paths: []
   notes: null
 last_validation:
-  status: pass
+  status: $vstatus
   run_at_utc: 2026-08-30T08:00:00Z
-  ref_id: $ARCHIVED_REF
+  ref_id: $vref
   evidence_paths: []
   notes: null
 human_input:
@@ -863,14 +907,14 @@ metrics:
           duration_seconds: 600
           tokens_in: 1000
           tokens_out: 100
-          cost_usd: 0.5
+          cost_usd: 0.5${swept_metrics}
 
 updated_at_utc: 2026-08-30T08:30:00Z
 YAML
   (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs \
     --state "$d/docs/ai/STATE.yaml" --metrics "$d/docs/ai/METRICS.jsonl" \
     --ticks "$d/docs/ai/LOOP_TICKS.jsonl" --pricing "$d/PRICING.yaml" \
-    --events "$d/docs/ai/EVENTS.jsonl" --now "$FLUSH_NOW" \
+    --events "$d/docs/ai/EVENTS.jsonl" --now "$FLUSH_NOW" $sweep_flag \
     > "$d/flush.log" 2>&1) || fec=$?
   [[ "$fec" == 0 ]] \
     || { echo "mk_flushed($name): the REAL flush must exit 0 (got $fec): $(cat "$d/flush.log")" >&2; return 1; }
@@ -1167,9 +1211,97 @@ test_16_archive_never_blocks_a_waiver() {
   log_pass "TEST-16 the archive lane only ever OPENS: preserved waivers still open, waiver refusals still refuse"
 }
 
+# --- TEST-17 -----------------------------------------------------------------
+# A SWEPT REF MUST NOT BE ARCHIVED (Spec-AC-08, amendment A1). The archive
+# record claims a validation PASS existed and merely MOVED to the ledger. Only
+# metrics-flush's DEFAULT gate establishes that; the `--sweep` gate deliberately
+# substitutes a durable `work_item_closed` event plus `status: done` for the
+# PASS, which is a sound basis for RETIRING stranded metrics and no basis at all
+# for opening the PR gate. Minting a record there would hand a ride that never
+# validated an opening it never had — and because the same reset also zeroes
+# `code_review.required`, BOTH SKILL_PR preconditions would be satisfied for a
+# ride that satisfied neither.
+#
+# (a) is the harm case, end to end on the real flush and the real gate: the
+# verdict must be the one base gives (blocked, `validation_not_run_no_waiver`).
+# (b) is the non-vacuity control — one flush that sweeps ONE ref and
+# default-flushes ANOTHER, both landing in the same partial reset. Exactly one
+# record must be written and it must name the DEFAULT-flushed ref. A fix that
+# simply stopped archiving whenever `--sweep` was passed fails (b).
+test_17_swept_ref_is_never_archived() {
+  log_info "TEST-17: --sweep retires stranded metrics but mints no archive record..."
+  local d sp
+
+  # (a) THE HARM CASE. Nothing validated: last_validation not_run / ref_id
+  # null, code_review REQUIRED and not_run — the shape base refuses.
+  d="$(MK_VSTATUS=not_run MK_VREF=null MK_REVIEW_REQUIRED=true MK_SWEPT=$SWEPT_REF \
+        mk_flushed swept_norecord)" || log_fail "TEST-17(a): fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+
+  # PREMISE: the sweep really did fire and really did retire the metrics — the
+  # arm must not be passing because the flush quietly did nothing.
+  grep -qF "Flushed: $ARCHIVED_REF" "$d/flush.log" \
+    || log_fail "TEST-17(a) premise: the sweep must have flushed $ARCHIVED_REF: $(cat "$d/flush.log")"
+  [[ "$(grep -cv -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" || true)" == 2 ]] \
+    || log_fail "TEST-17(a) premise: the sweep must still append both ledger entries — this fix retires nothing: $(cat "$d/docs/ai/METRICS.jsonl")"
+  ! grep -qE "^ {4}${ARCHIVED_REF}:" "$sp" \
+    || log_fail "TEST-17(a) premise: the swept metrics entry must be gone from STATE (the sweep's whole job)"
+
+  # The reset itself is BYTE-UNCHANGED: the prose still names every reset ref.
+  assert_payload_contains "$(cat "$sp")" "reset after flush of" \
+    "TEST-17(a): the partial-reset prose must be untouched — only the record is withheld" || return 1
+  assert_payload_not_contains "$(cat "$sp")" "$ARCHIVE_SENTINEL_TOKEN" \
+    "TEST-17(a): a ref that reached the ledger through the SWEEP gate must mint NO archive record" || return 1
+
+  run_gate "$sp"
+  expect_rc 1 "TEST-17(a) swept ref, nothing validated"
+  assert_payload_contains "$GATE_OUT" "reason=validation_not_run_no_waiver" \
+    "TEST-17(a): a swept ride must reach the PR gate with exactly the verdict it had before the flush" || return 1
+  assert_payload_not_contains "$GATE_OUT" "validation_archived_pass" \
+    "TEST-17(a): the archive lane must never open for a ride that never validated" || return 1
+
+  # (b) NON-VACUITY CONTROL. One flush, one partial reset, two refs: $SWEPT_REF
+  # satisfies the DEFAULT gate (the live PASS names it) and $ARCHIVED_REF only
+  # the sweep gate. Both are reset; exactly one is archived.
+  d="$(MK_VSTATUS=pass MK_VREF=$SWEPT_REF MK_SWEPT=$SWEPT_REF \
+        mk_flushed swept_mixed)" || log_fail "TEST-17(b): fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+  # The reset writes the SAME note into both `last_validation` and
+  # `code_review`, so the count is taken over one block, not the whole file.
+  local lv_block="$d/lv17.block" nrec=0
+  sed -n '/^last_validation:/,/^human_input:/p' "$sp" > "$lv_block"
+  nrec="$(grep -c -F "$ARCHIVE_SENTINEL_TOKEN" "$lv_block" || true)"
+  [[ "$nrec" == 1 ]] \
+    || log_fail "TEST-17(b): exactly one archive record must survive a mixed sweep — got $nrec: $(cat "$lv_block")"
+  assert_payload_contains "$(cat "$lv_block")" "[AAI-VALIDATION-ARCHIVED v1 ref=$SWEPT_REF at=$FLUSH_NOW]" \
+    "TEST-17(b): the DEFAULT-flushed ref must still be archived — the fix withholds records per ref, it does not disable the lane" || return 1
+  assert_payload_not_contains "$(cat "$lv_block")" "ref=$ARCHIVED_REF at=" \
+    "TEST-17(b): the SWEPT ref must not appear in any archive record beside it" || return 1
+  assert_payload_contains "$(cat "$lv_block")" "reset after flush of" \
+    "TEST-17(b): both refs must still be named by the reset prose" || return 1
+
+  # And the gate agrees per ref: open for the one that validated, blocked for
+  # the one that was only swept.
+  run_gate_ref "$sp" "$SWEPT_REF"
+  expect_rc 0 "TEST-17(b) default-flushed ref"
+  assert_payload_contains "$GATE_OUT" "reason=validation_archived_pass" \
+    "TEST-17(b): the default-flushed ref must still open on its archived PASS" || return 1
+  # The swept ref resolves its scope from current_focus and finds only the
+  # SIBLING's record, so it blocks by the lane's own scope-mismatch name (the
+  # binding TEST-14 pins) rather than the generic no-waiver token. Either way
+  # it blocks — what matters is that no record ever names it.
+  run_gate "$sp"
+  expect_rc 1 "TEST-17(b) swept ref (resolved from current_focus)"
+  assert_payload_contains "$GATE_OUT" "reason=archive_ref_mismatch" \
+    "TEST-17(b): the swept ref must stay blocked even while a sibling record sits in the same note" || return 1
+  assert_payload_not_contains "$GATE_OUT" "open reason=" \
+    "TEST-17(b): nothing in a mixed sweep may open the gate for the swept ref" || return 1
+  log_pass "TEST-17 --sweep retires metrics without minting an opening; a default-flushed sibling in the same reset still archives"
+}
+
 # --- runner ------------------------------------------------------------------
 
-ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state 11_archived_pass_opens 12_archive_needs_ledger_pass 13_archive_goes_stale_on_restamp 14_archive_ref_binding 15_archive_grammar_fail_closed 16_archive_never_blocks_a_waiver"
+ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state 11_archived_pass_opens 12_archive_needs_ledger_pass 13_archive_goes_stale_on_restamp 14_archive_ref_binding 15_archive_grammar_fail_closed 16_archive_never_blocks_a_waiver 17_swept_ref_is_never_archived"
 
 main() {
   local requested="${1:-}"

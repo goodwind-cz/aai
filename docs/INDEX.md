@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-02T18:36:42.665Z
+Generated: 2026-09-02T19:16:57.584Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-metrics-flush-invalidates-pr-precondition | specs | implementing | 8 planned | docs/specs/SPEC-DRAFT-spec-metrics-flush-invalidates-pr-precondition.md |
+| spec-metrics-flush-invalidates-pr-precondition | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-metrics-flush-invalidates-pr-precondition.md |
 
 ## Canonical layer (0)
 

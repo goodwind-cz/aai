@@ -87,17 +87,29 @@
 //      `refMatchesScope` binding waiver v2 established, for the same reason:
 //      a record must never be honoured for a ride nobody issued it for).
 //   2. RECENCY — `at` BYTE-EQUAL to `last_validation.run_at_utc`. This is what
-//      makes the record UN-INHERITABLE. `state.mjs set-validation` re-stamps
+//      makes an INHERITED record stale: `state.mjs set-validation` re-stamps
 //      `run_at_utc` on every call carrying a `--status` while PRESERVING
-//      `notes`, so the moment any later ride writes a status the inherited
-//      record goes stale and this lane refuses. (`reset-block` cannot defeat
-//      it either: it is a documented no-op when the status is already
-//      `not_run`, which is exactly the post-flush state.)
+//      `notes`, so the moment any later ride writes a status the record its
+//      predecessor left behind stops matching and this lane refuses.
+//      (`reset-block` cannot defeat it either: it is a documented no-op when
+//      the status is already `not_run`, which is exactly the post-flush
+//      state.) That is the whole guarantee, and it is narrower than
+//      "un-forgeable": `set-validation --clear <field> --notes '<text>'`
+//      writes arbitrary notes WITHOUT re-stamping `run_at_utc` (`--status` is
+//      optional once `--clear` is given), so a record CAN be hand-authored
+//      against the instant already in the field. That is authoring, not
+//      inheritance, and it buys nothing on its own — binding 3 still demands
+//      a real ledger PASS for that scope on that day, which is strictly more
+//      than the single hand-written record the waiver lane has always taken.
 //   3. LEDGER PROOF — exactly one `verdict: PASS` entry in METRICS.jsonl for
 //      that scope on `at`'s own day. The record is a CLAIM; the ledger entry
-//      is the PROOF, and it is a proof worth trusting because metrics-flush
-//      refuses to build one unless the PASS named the ref and code_review was
-//      pass-or-waived when required.
+//      corroborates it. The trust does NOT rest on the ledger line alone:
+//      `metrics-flush --sweep` writes `verdict: PASS` lines for stranded
+//      rides that never validated. It rests on the RECORD, which
+//      metrics-flush emits ONLY for refs its DEFAULT gate flushed — a live
+//      `pass` naming the ref, plus a pass-or-waived `code_review` where
+//      required. A swept ref is reset WITHOUT a record and so reaches this
+//      gate with exactly the verdict it had before the flush.
 //
 // PRECEDENCE — the lane may only ever OPEN. If it does not, the waiver lane
 // runs BYTE-FOR-BYTE as it did before, every existing refusal token included;
@@ -108,6 +120,14 @@
 // flushed — a different ref from every record beside it. An
 // archive-decides-terminally rule would have blocked a scope whose own
 // preserved waiver opens the gate today.
+//
+// That paragraph is about the REFUSAL side. On the OPEN side the archive
+// decides FIRST and overrides what follows: a note carrying BOTH a valid
+// archive record AND a waiver record the waiver lane refuses opens here, where
+// base blocked on the waiver's own `waiver_*` token. No flush can write that
+// note — the preservation path only ever carries a waiver that already parsed
+// `ok` — so reaching it takes a hand-edited `last_validation.notes`, and what
+// opens is still the archive's own three-way binding, never the broken waiver.
 //
 // FAIL-CLOSED, exactly as the waiver lane is: a sentinel that is PRESENT but
 // whose grammar is not satisfied is REFUSED by name (`archive_malformed`),

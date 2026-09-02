@@ -545,7 +545,7 @@ function removeDoneWorkItems(lines, refs) {
   }
 }
 
-function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver = null) {
+function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver, archiveRefs) {
   // A waiver that reached no ledger entry is PRESERVED verbatim in the reset
   // note instead of being overwritten (bot review PR #303 F-2: losing a waiver
   // must be loud, never rendered as "no waivers"). It stays scope-bound by its
@@ -554,18 +554,23 @@ function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver = null) {
     ? `reset after flush of ${flushedRefs.join(', ')}`
     : `reset after flush of ${flushedRefs.join(', ')} — PRESERVED unflushed validation waiver: ${carryWaiver}`;
   // The proof this reset is throwing away is not gone — it just moved to the
-  // ledger appended in this same transaction. One ARCHIVE RECORD per reset ref
-  // says so, in a grammar the PR gate can read back
+  // ledger appended in this same transaction. One ARCHIVE RECORD per
+  // ARCHIVE-ELIGIBLE ref says so, in a grammar the PR gate can read back
   // (spec-metrics-flush-invalidates-pr-precondition). `nowIso` is the SAME
   // instant stamped into `run_at_utc` below and sliced into the ledger's
   // `date_utc`; that three-way agreement is the whole recency binding, and it
   // is free because there is only ever one instant here.
   //
+  // `archiveRefs` is a SUBSET of `flushedRefs`, never the same question: the
+  // reset covers every ref this flush completed, while a record CLAIMS a
+  // validation PASS existed and merely moved. The caller decides which refs
+  // earned that claim; this writer never assumes a reset ref did.
+  //
   // Rendered through validation-waiver.mjs's own `formatArchive`, which
   // returns null rather than emit a record its parser would refuse — so this
   // writer can never produce a shape that reader rejects. The prose above
   // stays FIRST and unchanged; the records are an addition, not a rewrite.
-  const archives = flushedRefs
+  const archives = archiveRefs
     .map(ref => formatArchive({ ref, at: nowIso }))
     .filter(rec => rec !== null);
   const note = archives.length === 0 ? prose : `${prose} ${archives.join(' ')}`;
@@ -1038,7 +1043,21 @@ function main() {
       applyFullReset(lines, carryWaiver);
     } else {
       partialRefs = completedRefs.filter(r => r === focusRef || refMatches(vRef, r));
-      if (partialRefs.length > 0) applyPartialReset(lines, partialRefs, nowIsoStr, carryWaiver);
+      // ARCHIVE ELIGIBILITY IS NOT RESET ELIGIBILITY. An archive record is a
+      // claim that a validation PASS existed and merely MOVED to the ledger,
+      // and only the DEFAULT gate above establishes that (it demands
+      // `last_validation.status: pass` NAMING the ref, plus a pass-or-waived
+      // `code_review` where required). The `--sweep` gate deliberately
+      // substitutes a durable `work_item_closed` event plus `status: done` for
+      // that PASS — sound for RETIRING stranded metrics, no basis at all for
+      // opening the PR gate. Minting a record for a swept ref would hand a
+      // ride that never validated an opening it never had, and since this same
+      // reset also zeroes `code_review.required`, BOTH SKILL_PR preconditions
+      // would then read satisfied for a ride that satisfied neither. Swept
+      // refs therefore reset BYTE-UNCHANGED and archive nothing; a
+      // default-flushed ref in the same reset still archives.
+      const archiveRefs = partialRefs.filter(r => !sweptRefs.includes(r));
+      if (partialRefs.length > 0) applyPartialReset(lines, partialRefs, nowIsoStr, carryWaiver, archiveRefs);
     }
     bumpUpdatedAt(lines, nowIsoStr);
   }
