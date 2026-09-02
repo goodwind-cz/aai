@@ -16,12 +16,14 @@ RFC-0001).
 - New `node .aai/scripts/docs-audit.mjs --ac-flip-check <DOC-ID>` predicate:
   exit 1 when a doc whose frontmatter `status` is still open (`draft` /
   `implementing` / `accepted`) carries a fully terminal `## Acceptance Criteria
-  Status` table in which a `done` row's Evidence cites DELIVERY — a
+  Status` table that already reads as DELIVERED. A `done` row fails EITHER
+  way: its Evidence carries no `docs/ai/tdd/` proof-log path at all (a bare
+  RUN_ID or a suite-output path is not one), OR it cites DELIVERY — a
   git-verified commit hash or a PR reference — instead of the proof artifact.
   Exit 0 clean, exit 2 on an id that resolves to no scanned doc or to more than
   one, mirroring `--gate`'s contract and reusing its two-pass id resolution.
-  The output names the doc, each offending row with its citation token, and the
-  close flip as the citation's proper home.
+  The output names the doc, each offending row with which of the two it hit,
+  and the close flip as the citation's proper home.
 - The predicate is NOT a second heuristic: `falseOpenEvidence`'s D2(c) arm is
   extracted verbatim into one exported `acTableDeliverySignal(root, ac)` in
   `.aai/scripts/lib/docs-audit-core.mjs`, and both the audit arm and the new

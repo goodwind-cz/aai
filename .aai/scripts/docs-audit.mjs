@@ -16,8 +16,13 @@
 //                                                   # (SPEC-0013 H1; exit 0 unless
 //                                                   # combined with --strict)
 //   node .aai/scripts/docs-audit.mjs --ac-flip-check <DOC-ID>  # pure predicate:
-//                                                   # is this STILL-OPEN doc's AC
-//                                                   # Status table already citing
+//                                                   # does this STILL-OPEN doc's
+//                                                   # AC Status table already read
+//                                                   # as DELIVERED? A done row
+//                                                   # fails EITHER way: its
+//                                                   # Evidence carries no
+//                                                   # docs/ai/tdd/ proof-log path
+//                                                   # at all, OR it cites
 //                                                   # DELIVERY (a git-verified
 //                                                   # commit hash or a PR ref)
 //                                                   # rather than the proof
