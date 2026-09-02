@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T20:59:50.199Z",
+  "generatedAt": "2026-09-02T22:42:41.229Z",
   "project": "aai-fix-metrics-flush",
   "counts": {
     "delivered": 226,
@@ -513,11 +513,11 @@
       "title": "Metrics Flush resets the exact STATE fields SKILL_PR's own preconditions require",
       "type": "issue",
       "status": "draft",
-      "path": "docs/issues/ISSUE-DRAFT-metrics-flush-invalidates-pr-precondition.md",
+      "path": "docs/issues/ISSUE-0079-metrics-flush-invalidates-pr-precondition.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
-      "spec": "docs/specs/SPEC-DRAFT-spec-metrics-flush-invalidates-pr-precondition.md",
+      "spec": "docs/specs/SPEC-0163-spec-metrics-flush-invalidates-pr-precondition.md",
       "validation": null,
       "review": null
     },

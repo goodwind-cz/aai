@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-02T22:21:30.253Z
+Generated: 2026-09-02T22:42:53.966Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-metrics-flush-invalidates-pr-precondition | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-metrics-flush-invalidates-pr-precondition.md |
+| SPEC-0163 | specs | implementing | 9 planned | docs/specs/SPEC-0163-spec-metrics-flush-invalidates-pr-precondition.md |
 
 ## Canonical layer (0)
 
@@ -488,7 +488,7 @@ _None._
 | ISSUE-0073 | issues | docs/issues/ISSUE-0073-uncarved-dispatch-lanes.md |
 | ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
 | ISSUE-0075 | issues | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
-| metrics-flush-invalidates-pr-precondition (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-metrics-flush-invalidates-pr-precondition.md |
+| ISSUE-0079 | issues | docs/issues/ISSUE-0079-metrics-flush-invalidates-pr-precondition.md |
 
 ## Deferred (whole-doc) (0)
 

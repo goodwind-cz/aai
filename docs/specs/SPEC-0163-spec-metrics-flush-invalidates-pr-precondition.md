@@ -1,11 +1,11 @@
 ---
 id: spec-metrics-flush-invalidates-pr-precondition
 type: spec
-number: null
+number: 163
 status: implementing
 ceremony_level: 2
 links:
-  requirement: docs/issues/ISSUE-DRAFT-metrics-flush-invalidates-pr-precondition.md
+  requirement: docs/issues/ISSUE-0079-metrics-flush-invalidates-pr-precondition.md
   rfc: null
   pr: []
   commits: []
@@ -16,7 +16,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: `docs/issues/ISSUE-DRAFT-metrics-flush-invalidates-pr-precondition.md`
+- Requirement: `docs/issues/ISSUE-0079-metrics-flush-invalidates-pr-precondition.md`
 - Decision records: `docs/ai/decisions.jsonl` (no open registry item on this subject — see "Registry items closed by this scope")
 - Technology contract: `docs/TECHNOLOGY.md` (Node stdlib only, zero runtime deps, bash 3.2 in suites)
 - Prior art this design deliberately follows: SPEC-0160 (PR #331) and
@@ -532,7 +532,7 @@ Commands, in order:
 5. `bash tests/skills/test-aai-orchestration-dispatch.sh` — expect exit 0 (the
    rule table is untouched; this is the proof that direction 2 was not
    half-taken).
-6. `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-metrics-flush-invalidates-pr-precondition.md`
+6. `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0163-spec-metrics-flush-invalidates-pr-precondition.md`
    — advisory, report findings.
 7. Full framework sweep before close: `bash tests/skills/test-framework.sh`.
 
