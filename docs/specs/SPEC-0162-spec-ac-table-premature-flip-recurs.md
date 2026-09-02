@@ -1,7 +1,7 @@
 ---
 id: spec-ac-table-premature-flip-recurs
 type: spec
-number: null
+number: 162
 status: implementing
 ceremony_level: 2
 links:
@@ -67,7 +67,7 @@ ts 2026-09-02) and the owner may reverse it. Both items are strictly additive
 or corrective of a claim measurement contradicts; no product surface is added.
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-ac-table-premature-flip-recurs.md
+- Requirement: docs/issues/ISSUE-0078-ac-table-premature-flip-recurs.md
 - Prior art, directly reused mechanism: docs/specs/SPEC-0160-spec-gate-ac-row-escaped-pipe-blind.md
   (one shared reconciliation function feeding two gate-level consumers, so the
   two can never drift; that spec fixed a live instance of exactly the
@@ -173,8 +173,8 @@ Explicit review scope (code_review):
 - tests/skills/test-aai-docs-audit.sh (new stanzas)
 - tests/skills/test-aai-prompt-diet.sh (wiring pin, ledger pin bump)
 - tests/skills/lib/prompt-diet-ledger.sh (JUSTIFIED_ADDITIONS entry)
-- docs/specs/SPEC-DRAFT-spec-ac-table-premature-flip-recurs.md,
-  docs/issues/ISSUE-DRAFT-ac-table-premature-flip-recurs.md
+- docs/specs/SPEC-0162-spec-ac-table-premature-flip-recurs.md,
+  docs/issues/ISSUE-0078-ac-table-premature-flip-recurs.md
 - docs/INDEX.md (regenerated, mechanical)
 
 ## Design decisions

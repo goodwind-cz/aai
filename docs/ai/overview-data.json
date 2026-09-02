@@ -1,16 +1,16 @@
 {
-  "generatedAt": "2026-09-02T08:48:58.489Z",
-  "project": "aai-change-release-protected-branch-fallback",
+  "generatedAt": "2026-09-02T15:45:34.153Z",
+  "project": "aai-fix-ac-table-premature-flip-recurs",
   "counts": {
     "delivered": 225,
-    "in_progress": 39,
+    "in_progress": 40,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "release-protected-branch-fallback",
-    "type": "intake_change"
+    "ref": "ac-table-premature-flip-recurs",
+    "type": "intake_issue"
   },
   "in_flight": null,
   "in_progress": [
@@ -505,6 +505,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "ac-table-premature-flip-recurs",
+      "title": "AC-table premature-flip defect recurs despite a documented rule (needs a mechanical guard)",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0078-ac-table-premature-flip-recurs.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0162-spec-ac-table-premature-flip-recurs.md",
       "validation": null,
       "review": null
     },
