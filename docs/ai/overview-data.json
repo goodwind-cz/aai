@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-09-02T15:46:29.951Z",
-  "project": "aai-fix-ac-table-premature-flip-recurs",
+  "generatedAt": "2026-09-02T22:43:35.727Z",
+  "project": "aai-fix-metrics-flush",
   "counts": {
-    "delivered": 226,
+    "delivered": 227,
     "in_progress": 39,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "ac-table-premature-flip-recurs",
+    "ref": "metrics-flush-invalidates-pr-precondition",
     "type": "intake_issue"
   },
   "in_flight": null,
@@ -546,6 +546,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0162-spec-ac-table-premature-flip-recurs.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "metrics-flush-invalidates-pr-precondition",
+      "title": "Metrics Flush resets the exact STATE fields SKILL_PR's own preconditions require",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0079-metrics-flush-invalidates-pr-precondition.md",
+      "closed_on": "2026-09-02",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0163-spec-metrics-flush-invalidates-pr-precondition.md",
       "validation": null,
       "review": null
     },
@@ -3491,6 +3504,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0162-spec-ac-table-premature-flip-recurs.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "metrics-flush-invalidates-pr-precondition",
+          "title": "Metrics Flush resets the exact STATE fields SKILL_PR's own preconditions require",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0079-metrics-flush-invalidates-pr-precondition.md",
+          "closed_on": "2026-09-02",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0163-spec-metrics-flush-invalidates-pr-precondition.md",
           "validation": null,
           "review": null
         },

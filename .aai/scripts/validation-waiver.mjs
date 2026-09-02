@@ -61,14 +61,106 @@
 // block scalar (`>-`), which YAML re-joins with single spaces — so the reader
 // below folds the same way, and the grammar stays single-line.
 //
+// ---------------------------------------------------------------------------
+// THE ARCHIVE LANE (spec-metrics-flush-invalidates-pr-precondition)
+//
+// `metrics-flush.mjs` ARCHIVES a ride's PASS into `docs/ai/METRICS.jsonl` and
+// resets `last_validation` to `not_run` — designed behaviour, since the
+// durable record moved. But this gate reads the live fields, so a flush that
+// runs before SKILL_PR blocked the ship path with
+// `validation_not_run_no_waiver`: "this ride never validated", which is false,
+// with the PASS sitting in the ledger a directory away.
+//
+// So `not_run` has a SECOND opening: a durable ARCHIVE RECORD the flush leaves
+// in the reset note, cross-checked against the ledger it wrote in the same
+// transaction. This is a second EVIDENCE SOURCE inside the one predicate, not
+// a second decider — `evaluateGate` remains the single executable authority,
+// with one call site and one exit-code contract.
+//
+// GRAMMAR (v1) — one record per reset ref, on one line, same folded-scalar
+// discipline as the waiver, and rendered only through `formatArchive`:
+//
+//   [AAI-VALIDATION-ARCHIVED v1 ref=<REF-ID> at=<YYYY-MM-DDTHH:MM:SSZ>]
+//
+// The lane opens ONLY when all three bindings hold, and each has a job:
+//   1. REF — exactly one record matching the scope in hand (the same
+//      `refMatchesScope` binding waiver v2 established, for the same reason:
+//      a record must never be honoured for a ride nobody issued it for).
+//   2. RECENCY — `at` BYTE-EQUAL to `last_validation.run_at_utc`. This is what
+//      makes an INHERITED record stale: `state.mjs set-validation` re-stamps
+//      `run_at_utc` on every call carrying a `--status` while PRESERVING
+//      `notes`, so the moment any later ride writes a status the record its
+//      predecessor left behind stops matching and this lane refuses.
+//      (`reset-block` cannot defeat it either: it is a documented no-op when
+//      the status is already `not_run`, which is exactly the post-flush
+//      state.) That is the whole guarantee, and it is narrower than
+//      "un-forgeable": `set-validation --clear <field> --notes '<text>'`
+//      writes arbitrary notes WITHOUT re-stamping `run_at_utc` (`--status` is
+//      optional once `--clear` is given), so a record CAN be hand-authored
+//      against the instant already in the field. That is authoring, not
+//      inheritance, and it buys nothing on its own — binding 3 still demands
+//      a real ledger PASS for that scope on that day, which is strictly more
+//      than the single hand-written record the waiver lane has always taken.
+//   3. LEDGER PROOF — exactly one `verdict: PASS` entry in METRICS.jsonl for
+//      that scope on `at`'s own day. The record is a CLAIM; the ledger entry
+//      corroborates it. The trust does NOT rest on the ledger line alone:
+//      `metrics-flush --sweep` writes `verdict: PASS` lines for stranded
+//      rides that never validated, and its RESUME branch completes a reset
+//      for any ref that merely already HAS a ledger line, whatever wrote it.
+//      The trust rests on the RECORD, which metrics-flush emits only for a
+//      ref that SATISFIES ITS DEFAULT GATE at flush time — a live `pass`
+//      naming the ref, plus a pass-or-waived `code_review` where required,
+//      plus a recorded agent run. That is a positive allowlist, evaluated for
+//      every ref the flush completes and independent of WHICH lane completed
+//      it: a swept ref and an unvalidated resumed ref are both reset WITHOUT
+//      a record and so reach this gate with exactly the verdict they had
+//      before the flush, while a genuinely-validated ref still archives even
+//      when it is being resumed after an interrupted flush.
+//
+// PRECEDENCE — the lane may only ever OPEN. If it does not, the waiver lane
+// runs BYTE-FOR-BYTE as it did before, every existing refusal token included;
+// the archive's own named refusal is surfaced ONLY where the waiver lane would
+// otherwise have printed the generic `validation_not_run_no_waiver`. This is
+// not cosmetic: the flush PRESERVES an unflushed waiver into the very note it
+// writes archive records to, and such a waiver names a ref that was NOT
+// flushed — a different ref from every record beside it. An
+// archive-decides-terminally rule would have blocked a scope whose own
+// preserved waiver opens the gate today.
+//
+// That paragraph is about the REFUSAL side. On the OPEN side the archive
+// decides FIRST and overrides what follows: a note carrying BOTH a valid
+// archive record AND a waiver record the waiver lane refuses opens here, where
+// base blocked on the waiver's own `waiver_*` token. No flush can write that
+// note — the preservation path only ever carries a waiver that already parsed
+// `ok` — so reaching it takes a hand-edited `last_validation.notes`, and what
+// opens is still the archive's own three-way binding, never the broken waiver.
+//
+// FAIL-CLOSED, exactly as the waiver lane is: a sentinel that is PRESENT but
+// whose grammar is not satisfied is REFUSED by name (`archive_malformed`),
+// never degraded to "no record was intended"; a NON-CURRENT version is
+// `archive_obsolete_version`, because "this predates the binding" and
+// "somebody mistyped" are different facts. Unparseable LEDGER lines are
+// skipped rather than fatal — skipping can only ever make the gate more
+// closed. `fail` is still never openable; nothing here lowers a bar.
+//
+// A waiver would have been the zero-code shortcut and is WRONG: a waiver
+// asserts "nothing ran and we proceeded anyway", while here validation ran and
+// PASSED. Recording a pass as a self-waiver would corrupt every waiver count
+// the factory report shows and make every flushed ride read as self-waived.
+// ---------------------------------------------------------------------------
+//
 // Usage:
-//   node .aai/scripts/validation-waiver.mjs --state docs/ai/STATE.yaml [--json]
+//   node .aai/scripts/validation-waiver.mjs --state docs/ai/STATE.yaml [--metrics <path>] [--json]
 //   node .aai/scripts/validation-waiver.mjs --notes '<text>' [--status <s>] [--ref <scope>] [--json]
+//
+// `--metrics` defaults to `METRICS.jsonl` beside the `--state` path (never the
+// CWD, or every fixture would silently read the real ledger).
 //
 // Exit codes: 0 gate OPEN | 1 gate BLOCKED (incl. unreadable state) | 2 usage.
 // Zero dependencies (Node stdlib only, per docs/TECHNOLOGY.md).
 
 import { readFileSync, existsSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 export const WAIVER_SENTINEL = 'AAI-VALIDATION-WAIVER';
@@ -87,6 +179,18 @@ const RECORD_RE = new RegExp(
   'g',
 );
 const BY_VALUES = ['operator', 'agent'];
+
+export const ARCHIVE_SENTINEL = 'AAI-VALIDATION-ARCHIVED';
+export const ARCHIVE_VERSION = 1;
+const ARCHIVE_SENTINEL_RE = /\[AAI-VALIDATION-ARCHIVED\b/g;
+const ARCHIVE_VERSION_RE = /\[AAI-VALIDATION-ARCHIVED v(\d+)\b/g;
+// Same `REF_TOKEN` as the waiver, and for the same reason: one record names
+// ONE scope, and `/` is how STATE joins several refs into one `ref_id`.
+const ARCHIVE_RECORD_RE = new RegExp(
+  `\\[AAI-VALIDATION-ARCHIVED v${ARCHIVE_VERSION} ref=(${REF_TOKEN}) `
+  + 'at=(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z)\\]',
+  'g',
+);
 
 // A syntactically well-formed instant is not necessarily a real one
 // (2026-13-45T99:00:00Z parses the regex fine). Round-tripping through Date
@@ -150,6 +254,82 @@ export function parseWaiver(text) {
   if (!isRealInstant(at)) return { present: true, ok: false, error: 'waiver_bad_instant' };
   if (reason.trim() === '') return { present: true, ok: false, error: 'waiver_empty_reason' };
   return { present: true, ok: true, error: null, by, ref, at, reason: reason.trim() };
+}
+
+// formatArchive({ref, at}) -> the record TEXT, or null when the fields cannot
+// be rendered into a record this file's own grammar would parse back. The
+// SINGLE writer for the archive grammar, the same discipline formatWaiver
+// establishes: metrics-flush.mjs renders through here, so the producer can
+// never emit a shape this reader refuses.
+export function formatArchive(a) {
+  if (!a || typeof a !== 'object') return null;
+  const ref = String(a.ref ?? a.ref_id ?? '');
+  const at = String(a.at ?? '');
+  const text = `[${ARCHIVE_SENTINEL} v${ARCHIVE_VERSION} ref=${ref} at=${at}]`;
+  const back = parseArchive(text);
+  return back.ok ? text : null;
+}
+
+// parseArchive(text) -> a closed verdict about the archive records ONE piece of
+// note text carries. Same three-shape contract as parseWaiver, plus `records`:
+//   { present:false, ok:false, error:null, records:[] }   — no sentinel anywhere
+//   { present:true,  ok:false, error:<code>, records:[] } — refused, code names why
+//   { present:true,  ok:true,  error:null, records:[{ref,at},...] }
+// A partial reset can name SEVERAL refs, so a well-formed note carries one
+// record per ref; the scope in hand selects which one is read. Two records for
+// the SAME ref is `archive_ambiguous` — picking one would decide silently.
+export function parseArchive(text) {
+  const s = String(text ?? '');
+  ARCHIVE_SENTINEL_RE.lastIndex = 0;
+  const sentinels = s.match(ARCHIVE_SENTINEL_RE);
+  if (!sentinels) return { present: false, ok: false, error: null, records: [] };
+  // Version FIRST, by its own name: a future-version record is not a typo.
+  ARCHIVE_VERSION_RE.lastIndex = 0;
+  const versions = [...s.matchAll(ARCHIVE_VERSION_RE)];
+  if (versions.some((m) => Number(m[1]) !== ARCHIVE_VERSION)) {
+    return { present: true, ok: false, error: 'archive_obsolete_version', records: [] };
+  }
+  ARCHIVE_RECORD_RE.lastIndex = 0;
+  const found = [...s.matchAll(ARCHIVE_RECORD_RE)];
+  // A sentinel the grammar cannot fully parse is a BROKEN record, not a
+  // missing one — refusing it is what keeps a half-written record from reading
+  // as "no archive intended" and silently taking the bare-not_run path.
+  if (found.length === 0 || found.length !== sentinels.length) {
+    return { present: true, ok: false, error: 'archive_malformed', records: [] };
+  }
+  const records = found.map(([, ref, at]) => ({ ref, at }));
+  if (records.some((r) => !isRealInstant(r.at))) {
+    return { present: true, ok: false, error: 'archive_malformed', records: [] };
+  }
+  const refs = records.map((r) => r.ref);
+  if (new Set(refs).size !== refs.length) {
+    return { present: true, ok: false, error: 'archive_ambiguous', records: [] };
+  }
+  return { present: true, ok: true, error: null, records };
+}
+
+// readArchiveLedger(metricsPath) -> the {ref_id, verdict, date_utc} triples
+// docs/ai/METRICS.jsonl carries, or null when there is no readable ledger.
+// Comment and blank lines are skipped as the flush itself skips them, and a
+// line that is not parseable JSON is SKIPPED rather than fatal: a dropped
+// line can only ever remove a proof, i.e. close the gate further.
+export function readArchiveLedger(metricsPath) {
+  if (typeof metricsPath !== 'string' || metricsPath === '') return null;
+  if (!existsSync(metricsPath)) return null;
+  const out = [];
+  for (const line of readFileSync(metricsPath, 'utf8').split('\n')) {
+    const t = line.trim();
+    if (t === '' || t.startsWith('#')) continue;
+    let e;
+    try { e = JSON.parse(t); } catch { continue; }
+    if (!e || typeof e !== 'object') continue;
+    out.push({
+      ref_id: typeof e.ref_id === 'string' ? e.ref_id : null,
+      verdict: typeof e.verdict === 'string' ? e.verdict : null,
+      date_utc: typeof e.date_utc === 'string' ? e.date_utc : null,
+    });
+  }
+  return out;
 }
 
 // refMatchesScope(waiverRef, scopeRef) -> does the record name the scope in
@@ -244,9 +424,11 @@ function readIndentedBlock(yamlText, blockName) {
   return out;
 }
 
-// readValidationBlock(yamlText) -> { status, notes, ref_id } for the top-level
-// `last_validation:` block, or null when the block is absent. `ref_id` is the
-// scope the recorded verdict names — the field the waiver must agree with.
+// readValidationBlock(yamlText) -> { status, notes, ref_id, run_at_utc } for
+// the top-level `last_validation:` block, or null when the block is absent.
+// `ref_id` is the scope the recorded verdict names — the field the waiver must
+// agree with; `run_at_utc` is the instant an archive record must match to be
+// this ride's proof rather than an inherited one.
 export function readValidationBlock(yamlText) {
   const b = readIndentedBlock(yamlText, 'last_validation');
   if (b === null) return null;
@@ -254,6 +436,7 @@ export function readValidationBlock(yamlText) {
     status: b.status === undefined || b.status === '' ? null : b.status,
     notes: b.notes ?? '',
     ref_id: b.ref_id === undefined || b.ref_id === '' ? null : b.ref_id,
+    run_at_utc: b.run_at_utc === undefined || b.run_at_utc === '' ? null : b.run_at_utc,
   };
 }
 
@@ -265,12 +448,50 @@ export function readFocusRef(yamlText) {
   return b.ref_id === undefined || b.ref_id === '' ? null : b.ref_id;
 }
 
-// evaluateGate({status, notes, ref_id}, fallbackRef) -> the PR precondition
-// verdict. `pass` opens it as it always did. `not_run` opens it ONLY with a
-// well-formed waiver THAT NAMES THE SCOPE IN HAND. Everything else — `fail`,
-// an unknown status, a broken waiver, a waiver issued for another ride —
-// blocks. A waiver never overrides a recorded FAIL: nothing here lowers a bar.
-export function evaluateGate(block, fallbackRef = null) {
+// evaluateArchive(notes, scopeRef, runAtUtc, ledger) -> the archive lane's own
+// verdict about ONE note, or null when the note carries no archive sentinel at
+// all (i.e. the lane has nothing to say and does not exist for this input).
+// Never called anywhere but from evaluateGate: the gate stays one predicate.
+function evaluateArchive(notes, scopeRef, runAtUtc, ledger) {
+  const a = parseArchive(notes);
+  if (!a.present) return null;
+  if (!a.ok) return { open: false, reason: a.error };
+  // A record with no scope to check against is not a record we may honour —
+  // the leak this binding closes is a record surviving into a context nobody
+  // issued it for, and "there is no context" is that case at its worst.
+  if (scopeRef === null) return { open: false, reason: 'archive_scope_unknown' };
+  const matches = a.records.filter((r) => refMatchesScope(r.ref, scopeRef));
+  if (matches.length === 0) {
+    return { open: false, reason: 'archive_ref_mismatch', archive_ref: a.records.map((r) => r.ref).join(' ') };
+  }
+  if (matches.length > 1) return { open: false, reason: 'archive_ambiguous' };
+  const rec = matches[0];
+  // RECENCY. Byte equality, not tolerance: one instant, written into both
+  // fields by one flush transaction. Anything else is an inherited record.
+  if (rec.at !== runAtUtc) return { open: false, reason: 'archive_stale', archive_ref: rec.ref };
+  const day = rec.at.slice(0, 10);
+  // Corroborate the RECORD, not the scope. `rec` already matched the scope
+  // above, but a `/`-joined scopeRef matches any of its members — so binding
+  // the ledger lookup to scopeRef would let a PASS line for a SIBLING ref
+  // corroborate a record naming this one (code review N1). `rec.ref` names a
+  // single ref, so this is exact equality in practice.
+  const hits = (ledger ?? []).filter(
+    (e) => e.verdict === 'PASS' && e.date_utc === day && refMatchesScope(e.ref_id, rec.ref),
+  );
+  if (hits.length === 0) return { open: false, reason: 'archive_no_ledger_pass', archive_ref: rec.ref };
+  if (hits.length > 1) return { open: false, reason: 'archive_ledger_ambiguous', archive_ref: rec.ref };
+  return { open: true, reason: 'validation_archived_pass', archive: { ref: rec.ref, at: rec.at } };
+}
+
+// evaluateGate({status, notes, ref_id, run_at_utc}, fallbackRef, ledger) -> the
+// PR precondition verdict. `pass` opens it as it always did. `not_run` opens it
+// on EITHER of two durable evidence sources: a well-formed waiver THAT NAMES
+// THE SCOPE IN HAND, or an archive record whose ref, instant and ledger PASS
+// all agree (see THE ARCHIVE LANE in the header). Everything else — `fail`, an
+// unknown status, a broken record of either kind, a record issued for another
+// ride — blocks. Neither source ever overrides a recorded FAIL: nothing here
+// lowers a bar.
+export function evaluateGate(block, fallbackRef = null, ledger = null) {
   if (!block || block.status === null) {
     return { open: false, reason: 'validation_block_unreadable', waiver: null, status: null, scope_ref: null };
   }
@@ -280,8 +501,26 @@ export function evaluateGate(block, fallbackRef = null) {
   if (status !== 'not_run') {
     return { open: false, reason: `validation_${status}`, waiver: null, status, scope_ref: scopeRef };
   }
+  // The archive lane may only ever OPEN. When it does not, its NAMED refusal
+  // is carried to the one position where the waiver lane would otherwise have
+  // printed the generic `validation_not_run_no_waiver`, and every other waiver
+  // outcome below runs byte-for-byte as it did before the lane existed.
+  const archive = evaluateArchive(block.notes, scopeRef, block.run_at_utc ?? null, ledger);
+  if (archive !== null && archive.open) {
+    return { open: true, reason: archive.reason, waiver: null, status, scope_ref: scopeRef, archive: archive.archive };
+  }
   const w = parseWaiver(block.notes);
-  if (!w.present) return { open: false, reason: 'validation_not_run_no_waiver', waiver: null, status, scope_ref: scopeRef };
+  if (!w.present) {
+    const blocked = {
+      open: false,
+      reason: archive === null ? 'validation_not_run_no_waiver' : archive.reason,
+      waiver: null,
+      status,
+      scope_ref: scopeRef,
+    };
+    if (archive !== null && archive.archive_ref !== undefined) blocked.archive_ref = archive.archive_ref;
+    return blocked;
+  }
   if (!w.ok) return { open: false, reason: w.error, waiver: null, status, scope_ref: scopeRef };
   // Scope binding. A waiver with no scope to check against is NOT a waiver we
   // may honour — the leak this closes is precisely a record surviving into a
@@ -319,15 +558,16 @@ function bootstrapHint() {
 
 function usage(msg) {
   console.error(`validation-waiver: ${msg}`);
-  console.error('usage: validation-waiver.mjs (--state <STATE.yaml> | --notes <text> [--status <s>] [--ref <scope>]) [--json]');
+  console.error('usage: validation-waiver.mjs (--state <STATE.yaml> | --notes <text> [--status <s>] [--ref <scope>]) [--metrics <METRICS.jsonl>] [--json]');
   exit(2);
 }
 
 function main(argv) {
-  const opts = { state: null, notes: null, status: 'not_run', ref: null, json: false };
+  const opts = { state: null, notes: null, status: 'not_run', ref: null, metrics: null, json: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--state') { opts.state = argv[++i]; if (opts.state === undefined) usage('--state needs a path'); }
+    else if (a === '--metrics') { opts.metrics = argv[++i]; if (opts.metrics === undefined) usage('--metrics needs a path'); }
     else if (a === '--notes') { opts.notes = argv[++i]; if (opts.notes === undefined) usage('--notes needs a value'); }
     else if (a === '--status') { opts.status = argv[++i]; if (opts.status === undefined) usage('--status needs a value'); }
     else if (a === '--ref') { opts.ref = argv[++i]; if (opts.ref === undefined) usage('--ref needs a value'); }
@@ -338,6 +578,7 @@ function main(argv) {
   if (opts.state === null && opts.notes === null) usage('one of --state / --notes is required');
 
   let block;
+  let ledger = null;
   let fallbackRef = opts.ref;
   if (opts.state !== null) {
     if (!existsSync(opts.state)) {
@@ -362,11 +603,18 @@ function main(argv) {
     // The scope the ride is actually on, used only when the validation block
     // records none of its own.
     fallbackRef = opts.ref ?? readFocusRef(yaml);
+    // Resolved as a SIBLING of the state file, never off the CWD — otherwise
+    // every fixture in every suite would silently read the real ledger.
+    ledger = readArchiveLedger(opts.metrics ?? join(dirname(resolve(opts.state)), 'METRICS.jsonl'));
   } else {
-    block = { status: opts.status, notes: opts.notes, ref_id: null };
+    // No STATE means no `run_at_utc` to bind an archive record to, so the
+    // archive lane cannot open here by construction — fail-closed, and the
+    // waiver lane this mode exists for is unaffected.
+    block = { status: opts.status, notes: opts.notes, ref_id: null, run_at_utc: null };
+    ledger = opts.metrics === null ? null : readArchiveLedger(opts.metrics);
   }
 
-  const v = evaluateGate(block, fallbackRef);
+  const v = evaluateGate(block, fallbackRef, ledger);
   if (opts.json) {
     console.log(JSON.stringify({ ...v }, null, 2));
     exit(v.open ? 0 : 1);
@@ -375,6 +623,8 @@ function main(argv) {
   console.log(`status=${v.status ?? 'absent'}`);
   console.log(`scope_ref=${v.scope_ref ?? 'absent'}`);
   if (v.waiver_ref !== undefined) console.log(`waiver_ref=${v.waiver_ref}`);
+  if (v.archive_ref !== undefined) console.log(`archive_ref=${v.archive_ref}`);
+  if (v.archive) console.log(`archive_ref=${v.archive.ref} archive_at=${v.archive.at}`);
   if (v.waiver) {
     console.log(`waiver_by=${v.waiver.by} waiver_ref=${v.waiver.ref} waiver_at=${v.waiver.at}`);
     console.log(`waiver_reason=${v.waiver.reason}`);

@@ -22,7 +22,9 @@ PRECONDITIONS (all must hold before any git write)
   then `node .aai/scripts/state.mjs set-focus --type <type> --ref <ref-id> --path <primary-path>`.
 - Validation gate open — `node .aai/scripts/validation-waiver.mjs --state docs/ai/STATE.yaml`
   exits 0. Open on `last_validation.status: pass`, OR on `not_run` plus a
-  well-formed waiver record in its `notes` (grammar + actors: the script's
+  well-formed waiver record in its `notes`, OR on `not_run` plus an archive
+  record the metrics flush left in those `notes` when it moved this ride's PASS
+  to `docs/ai/METRICS.jsonl` (grammars + actors + bindings: the script's
   header). Bare `not_run`, an empty reason, `fail`: blocked. Non-zero: STOP.
 - If `code_review.required == true`: `code_review.status` is `pass` or `waived`.
 - Explicit user confirmation to commit/push (AGENTS.md commit gating policy:

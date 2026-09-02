@@ -11,6 +11,87 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(pr-gate): let the PR gate read the proof the metrics flush archived
+
+- `.aai/scripts/metrics-flush.mjs` `applyPartialReset` now APPENDS one durable
+  archive record per ARCHIVE-ELIGIBLE reset ref to the reset note it already
+  writes: `[AAI-VALIDATION-ARCHIVED v1 ref=<REF> at=<ISO>]`. The instant is the
+  same `nowIso` already stamped into `last_validation.run_at_utc` and sliced
+  into the ledger entry's `date_utc` — one instant, three places, one
+  transaction. The existing `reset after flush of <refs>` prose and the
+  preserved-waiver clause stay first and unchanged.
+- ARCHIVE ELIGIBILITY IS NOT RESET ELIGIBILITY. A record claims a validation
+  PASS existed and merely MOVED to the ledger, and only the flush's DEFAULT
+  gate establishes that. Eligibility is therefore an ALLOWLIST: the default
+  predicate (a live `pass` naming the ref, a pass-or-waived `code_review` where
+  required, a recorded agent run) is evaluated for EVERY ref the flush
+  completes, and only the refs that satisfy it get a record — whichever lane
+  completed them. The two lanes that do not establish a PASS both archive
+  nothing: `--sweep` substitutes a durable `work_item_closed` event plus
+  `status: done` for the PASS, and the RESUME branch (`inLedger.has(ref)`,
+  which short-circuits BEFORE either gate) completes the reset for any ref that
+  merely already has a ledger line — a swept line, or any earlier same-day one.
+  Those refs reset byte-identically and archive NOTHING, while a ref that does
+  satisfy the default gate still archives, including when it is being resumed
+  after an interrupted flush. Without this, a sweep — or a plain re-flush after
+  a crash, or a plain flush over a pre-existing same-day ledger line — would
+  have handed a ride that never validated an opening it never had, and since
+  the same reset zeroes `code_review.required`, both `aai-pr` preconditions
+  would have read satisfied for a ride that satisfied neither.
+- `.aai/scripts/validation-waiver.mjs` gains an ARCHIVE LANE inside the one
+  `evaluateGate` predicate, plus the `formatArchive` / `parseArchive` /
+  `readArchiveLedger` trio and a `--metrics <path>` flag (defaulting to
+  `METRICS.jsonl` beside `--state`, never the CWD). On `not_run` the lane opens
+  the gate only when the record's ref matches the scope in hand, its `at` is
+  BYTE-EQUAL to `last_validation.run_at_utc`, and `docs/ai/METRICS.jsonl` holds
+  exactly one `verdict: PASS` entry for that scope on that day.
+- THE BUG THIS CLOSES: the flush archives a ride's PASS and resets the live
+  fields, and `.aai/SKILL_PR.prompt.md`'s VALIDATION precondition read those
+  same live fields — so a flush that ran before SKILL_PR blocked the ship path
+  with `validation_not_run_no_waiver`, i.e. "this ride never validated", while
+  the durable PASS sat in the ledger. Confirmed once in the wild; the operator
+  had to restore the verdict by hand.
+- The lane may only ever OPEN. When it does not, the waiver lane runs
+  byte-for-byte as before, every existing refusal token included; the archive's
+  own named refusal appears ONLY where the generic
+  `validation_not_run_no_waiver` would have. This is load-bearing, not
+  cosmetic: the flush preserves an unflushed waiver into the very note it
+  writes archive records to, and that waiver names a ref that was NOT flushed.
+  That ordering is about the refusal side; on the OPEN side the archive decides
+  first, so a hand-edited note holding both a valid archive record and a
+  malformed waiver record opens. No flush can write such a note — the
+  preservation path only ever carries a waiver that already parsed `ok`.
+- Fail-closed on eight named refusal shapes, each with its own token and its
+  own RED observation: `archive_malformed`, `archive_obsolete_version`,
+  `archive_ambiguous`, `archive_ref_mismatch`, `archive_stale`,
+  `archive_no_ledger_pass`, `archive_ledger_ambiguous`,
+  `archive_scope_unknown`. The recency binding is what makes an INHERITED
+  record go stale: `state.mjs set-validation` re-stamps `run_at_utc` on any
+  `--status` call while preserving notes, so a record a previous ride left
+  behind stops matching the moment a later ride writes a status. That is the
+  whole guarantee — `set-validation --clear <field> --notes` writes notes
+  WITHOUT re-stamping, so a record can still be hand-authored against a live
+  instant, which is worthless without a matching ledger PASS for that scope on
+  that day and is strictly harder than the single hand-written record the
+  waiver lane has always accepted.
+- NOT a second decider: one predicate, one call site, one exit-code contract —
+  a second EVIDENCE SOURCE inside `evaluateGate`, and one writer / one parser
+  for the grammar in the same file as the reader, the discipline
+  `formatWaiver` / `parseWaiver` already established there.
+- `.aai/SKILL_PR.prompt.md`'s VALIDATION precondition bullet names the archive
+  record beside the waiver record and delegates the grammars, actors and
+  bindings to the script header (+154 B, credited 1:1 in the prompt-diet
+  ledger; the TEST-012 pin moves 9791 -> 9945).
+- `tests/skills/test-aai-prompt-diet.sh` TEST-023 now checks the ledger PREFIX
+  through its own entry instead of the whole running total, which had pinned
+  `JUSTIFIED_GROWTH_BYTES` to one scope's arithmetic and would have failed on
+  every later legitimate append.
+- Out of scope by design and recorded: the FULL-reset branch (it nulls
+  `current_focus`, so `branch-guard.mjs` refuses before the gate is reached),
+  the manual `STATE_FALLBACK.md` reset path (it mints no record and blocks as
+  today), and rides flushed BEFORE this change (a second grammar for legacy
+  prose would be exactly the duplicated heuristic this design refuses).
+
 ## [unreleased] — fix(docs-audit): guard the premature AC-table flip at the Implementation hand-off
 
 - New `node .aai/scripts/docs-audit.mjs --ac-flip-check <DOC-ID>` predicate:

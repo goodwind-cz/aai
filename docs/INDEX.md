@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-02T15:48:06.089Z
+Generated: 2026-09-02T22:44:51.679Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -49,7 +49,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (391)
+## Done (393)
 
 | ID | Type | Path |
 |---|---|---|
@@ -267,6 +267,7 @@ _None._
 | ISSUE-0076 | issues | docs/issues/ISSUE-0076-aai-update-gitignore-drift-reconcile.md |
 | ISSUE-0077 | issues | docs/issues/ISSUE-0077-gate-ac-row-escaped-pipe-blind.md |
 | ISSUE-0078 | issues | docs/issues/ISSUE-0078-ac-table-premature-flip-recurs.md |
+| ISSUE-0079 | issues | docs/issues/ISSUE-0079-metrics-flush-invalidates-pr-precondition.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -443,6 +444,7 @@ _None._
 | SPEC-0160 | specs | docs/specs/SPEC-0160-spec-gate-ac-row-escaped-pipe-blind.md |
 | SPEC-0161 | specs | docs/specs/SPEC-0161-spec-release-protected-branch-fallback.md |
 | SPEC-0162 | specs | docs/specs/SPEC-0162-spec-ac-table-premature-flip-recurs.md |
+| SPEC-0163 | specs | docs/specs/SPEC-0163-spec-metrics-flush-invalidates-pr-precondition.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (38)
