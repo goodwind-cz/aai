@@ -15,6 +15,36 @@ links:
 
 SPEC-FROZEN: true
 
+## Amendment (post-freeze, 2026-09-02 — validation round-1 F3/F4 + recorded residual)
+
+This is a FROZEN spec, amended after the freeze and disclosed here rather than
+rewritten silently. `SPEC-FROZEN: true` is preserved; the convention is the
+additive-with-disclosure one `docs/specs/SPEC-0132-...md`,
+`docs/specs/SPEC-0153-...md` and `docs/specs/SPEC-0072-...md` already
+established — nothing in `.aai/workflow/WORKFLOW.md`, `spec-lint.mjs` or
+`spec-freeze.mjs` defines a re-freeze path, so the convention IS the mechanism.
+
+Three amendments, all made at remediation on the dispatch of Independent
+Validation round 1:
+
+1. **Implementation strategy** — the blanket sentence "All other TEST rows are
+   loop-implemented with an observed ... failing run before the change" was
+   inaccurate. TEST-031 and TEST-032 are no-regression pins over pre-existing
+   behavior, where a RED is impossible by construction. Carved out in place.
+2. **Edge cases, detached HEAD** (F3) — the frozen line claimed exit 18 with a
+   named reason. Measured false: the fallback is unreachable in that state and
+   the cut degrades raw at exit 1. Corrected, and the dead guard removed from
+   both engines.
+3. **Spec-AC-09 / TEST-035** (F4) — D5's exit-18 arm shipped with no AC and no
+   test in either engine. One added, additively; no existing AC changed.
+
+Disclosure: item 3 adds an acceptance criterion to a frozen spec, which
+`.aai/system/AUTONOMOUS_LOOP.md` reads as a scope change assigned to HITL. No
+prior owner sign-off was obtained; it is disclosed here and in
+`docs/ai/decisions.jsonl` (`type: spec_amendment`, ts 2026-09-02) and the owner
+may reverse it. It is strictly additive — it pins behavior the engines already
+had, adds no product surface, and no other AC's text moved.
+
 ## Links
 - Requirement: docs/issues/CHANGE-DRAFT-release-protected-branch-fallback.md
 - Reference incident: goodwind-cz/aai PR #329 (`chore(release): v2026.09.01`), 2026-09-01
@@ -31,8 +61,14 @@ SPEC-FROZEN: true
   RED-first ceremony buys nothing over a targeted green run.
 
 AC-gating tests requiring a STORED RED artifact under `docs/ai/tdd/`:
-TEST-027 and TEST-030. All other TEST rows are loop-implemented with an
-observed (not necessarily stored) failing run before the change.
+TEST-027 and TEST-030. TEST-028, TEST-029, TEST-033, TEST-034 and TEST-035 are
+loop-implemented with an observed (not necessarily stored) failing run before
+the change. TEST-031 and TEST-032 are the exception and carry NO red of any
+kind: they are no-regression pins over behavior that already exists (the
+unprotected cut's byte-identical stdout, and a non-fast-forward rejection's raw
+degrade), so the pre-change behavior IS the expected behavior and a RED is
+impossible by construction. Amended at remediation after Independent
+Validation flagged the original blanket sentence as inaccurate.
 
 ## Isolation and review
 - Worktree recommendation: recommended
@@ -159,6 +195,7 @@ Spec-AC-02's assertion that `gh pr merge` is never invoked.
 | Spec-AC-06 | WHEN the target-branch push fails as a non-fast-forward rejection THEN no chore-release branch ref exists, the target branch HEAD is unchanged from the release commit, git's own error text appears on stderr, and the exit code is neither 17 nor 18 | planned | —        | —         | degrade-and-report, Constitution article 4      |
 | Spec-AC-07 | WHEN the same protected-remote fixture is driven through aai-release.ps1 under pwsh THEN the branch, reset, gh pr create call and exit 17 match the bash arm, and the dot-sourced classifier accepts the GH006 text while rejecting a non-fast-forward text | planned | —        | —         | pwsh present locally and on the ps1 gate        |
 | Spec-AC-08 | WHEN the engines carry exit codes 17 and 18 THEN .aai/SKILL_RELEASE.prompt.md documents both plus the branch-name shape and the post-merge re-tag sequence, and the prompt-diet ledger carries a new JUSTIFIED_ADDITIONS entry equal to the measured byte growth with TEST-012's want_growth moved by exactly that amount | planned | —        | —         | companion obligation, current pin 8127          |
+| Spec-AC-09 | WHEN a GH006-rejected branch push meets an ALREADY-EXISTING chore-release-VERSION ref THEN the engine exits 18, leaves that ref at its original SHA, leaves the target branch un-reset at the release commit, opens no PR, pushes nothing to the remote, and its report names both the reason and the manual finish-by-hand commands | planned | —        | —         | added at remediation; D5's exit-18 arm was untested |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 
@@ -209,9 +246,19 @@ Edge cases:
 - The release branch name already exists locally -> exit 18, no reset, no push.
 - `--no-remote` -> the fallback is unreachable; unchanged behavior.
 - `--dry-run` / bare invocation -> unreachable; unchanged output shape.
-- Detached HEAD (`$BRANCH == "HEAD"`) -> the fallback still works (the release
-  branch is created at HEAD), but `gh pr create --base HEAD` would be wrong;
-  the engines refuse the fallback with exit 18 and a named reason.
+- Detached HEAD (`$BRANCH == "HEAD"`) -> the fallback is UNREACHABLE, and the
+  cut degrades raw at git's own exit code 1. AMENDED at remediation: the
+  original wording ("the engines refuse the fallback with exit 18 and a named
+  reason") described a guard that can never run. Measured 2026-09-02 — with a
+  detached HEAD, `git push --no-follow-tags origin HEAD` fails CLIENT-side
+  ("error: The destination you provided is not a full refname", exit 1) without
+  the remote ever answering, so the captured text carries no GH006, the D1
+  classifier correctly misses, and the engine re-emits git's own output and
+  exits 1 exactly as it does today. Both engines' `$BRANCH == "HEAD"` guards
+  inside the fallback block were therefore REMOVED as dead code (they asserted
+  a condition the push above already excludes) and replaced with a comment
+  recording the measurement, so nobody re-adds them. The behavior is
+  unchanged from today's and is covered by D1's degrade-raw arm.
 - A push rejected for auth or network reasons -> classifier misses, raw exit
   (Spec-AC-06 covers the non-fast-forward representative of this class).
 
@@ -227,6 +274,7 @@ Edge cases:
 | TEST-032 | Spec-AC-06 | integration | tests/skills/test-aai-release.sh      | bare seeded with a diverging main so the push is a non-fast-forward; asserts no release branch ref, unchanged HEAD, git's error text on stderr, and an exit code outside 17 and 18 | green   |
 | TEST-033 | Spec-AC-07 | integration | tests/skills/test-aai-release.sh and tests/skills/aai-release.Tests.ps1 | pwsh arm drives the protected fixture through the ps1 engine for the same branch, reset, PR-create and exit-17 outcome, skipping with a named reason when pwsh is absent; the Pester file dot-sources the ps1 and asserts the classifier accepts GH006 text and rejects non-fast-forward text | green   |
 | TEST-034 | Spec-AC-08 | integration | tests/skills/test-aai-release.sh and tests/skills/test-aai-prompt-diet.sh | asserts every exit code emitted by aai-release.sh appears in .aai/SKILL_RELEASE.prompt.md, that the prompt names the branch shape and the re-tag sequence, and that the diet ledger sum equals the bumped TEST-012 pin | green   |
+| TEST-035 | Spec-AC-09 | integration | tests/skills/test-aai-release.sh      | protected bare remote with chore/release-VERSION already squatted at the pre-cut commit; asserts exit 18, the squatted ref unmoved, the target branch still at the release commit, an empty bare, no gh pr create, and the report's reason plus manual commands | green   |
 
 Test status values: pending -> red -> green
 
@@ -305,6 +353,7 @@ status with non-empty Evidence.
 - Spec-AC-06: `bash tests/skills/test-aai-release.sh test_032_non_protected_failure_degrades_raw` -> exit 0
 - Spec-AC-07: `bash tests/skills/test-aai-release.sh test_033_ps1_fallback_parity` -> exit 0 and `bash tests/skills/test-ps1-quality.sh` -> exit 0
 - Spec-AC-08: `bash tests/skills/test-aai-release.sh test_034_exit_codes_documented` -> exit 0 and `bash tests/skills/test-aai-prompt-diet.sh` -> exit 0
+- Spec-AC-09: `bash tests/skills/test-aai-release.sh test_035_fallback_incomplete_exits_18` -> exit 0
 - Review scope: `.aai/scripts/aai-release.sh`, `.aai/scripts/aai-release.ps1`,
   `.aai/SKILL_RELEASE.prompt.md`, `tests/skills/test-aai-release.sh`,
   `tests/skills/aai-release.Tests.ps1`,

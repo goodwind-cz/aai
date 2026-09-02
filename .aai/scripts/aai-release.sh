@@ -371,9 +371,14 @@ if [[ "$NO_REMOTE" != "1" ]]; then
 
     RELEASE_SHA="$(git -C "$ROOT" rev-parse HEAD)"
 
-    if [[ "$BRANCH" == "HEAD" ]]; then
-      fallback_incomplete "detached HEAD — there is no target branch for 'gh pr create --base', so the fallback refuses rather than opening a PR against a bogus base"
-    fi
+    # No detached-HEAD arm here on purpose. With a detached HEAD $BRANCH is the
+    # literal "HEAD", and `git push origin HEAD` then fails CLIENT-side ("The
+    # destination you provided is not a full refname", exit 1) without the
+    # remote ever answering — so the classifier cannot match and this block is
+    # unreachable in that state. Detached HEAD degrades raw at git's own exit
+    # code, exactly as it does today (Constitution article 4). Measured
+    # 2026-09-02; a guard here would be dead code asserting a condition the
+    # push above already excludes.
     if git -C "$ROOT" rev-parse -q --verify "refs/heads/$RELEASE_BRANCH" >/dev/null 2>&1; then
       fallback_incomplete "branch $RELEASE_BRANCH already exists — never clobbering an existing ref"
     fi

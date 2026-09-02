@@ -140,6 +140,13 @@ for a in "\$@"; do
 done
 if [[ "\${1:-}" == "auth" ]]; then exit $auth_exit; fi
 if [[ "\${1:-}" == "pr" && "\${2:-}" == "create" ]]; then
+  # Real \`gh pr create\` prints a progress line to STDERR non-interactively
+  # while the URL alone goes to stdout. The stub reproduces that split: a stub
+  # that is silent on stderr cannot catch an engine that captures stdout and
+  # stderr together and then treats the whole capture as the URL (the ps1
+  # \`Invoke-NativeChecked | Select-Object -Last 1\` defect, remediation F2).
+  printf '\n' >&2
+  printf 'Creating pull request for chore/release-branch into main in aai-fixture/aai\n' >&2
   printf '%s\n' "$STUB_PR_URL"
   exit 0
 fi
@@ -1081,7 +1088,10 @@ test_029_tag_is_local_and_report_names_the_repoint() {
   [[ "$(git -C "$repo" rev-parse 'v9.3.2^{commit}')" == "$(git -C "$repo" rev-parse 'refs/heads/chore/release-v9.3.2')" ]] \
     || log_fail "TEST-029: local tag v9.3.2 does not point at the release commit"
 
-  grep -qF "$STUB_PR_URL" "$out" || log_fail "TEST-029: report does not name the PR URL: $(cat "$out")"
+  local pr_line
+  pr_line="$(sed -n 's/^- PR:[[:space:]]*//p' "$out")"
+  [[ "$pr_line" == "$STUB_PR_URL" ]] \
+    || log_fail "TEST-029: the report's '- PR:' line must carry the PR URL and nothing else (gh writes a progress line to stderr; it must not be folded into the captured URL) — got '$pr_line':"$'\n'"$(cat "$out")"
   grep -qF "git tag -d" "$out" || log_fail "TEST-029: report does not name 'git tag -d': $(cat "$out")"
   grep -qF "git tag -a" "$out" || log_fail "TEST-029: report does not name 'git tag -a': $(cat "$out")"
   grep -qF "git push origin refs/tags/" "$out" || log_fail "TEST-029: report does not name 'git push origin refs/tags/': $(cat "$out")"
@@ -1214,7 +1224,7 @@ test_033_ps1_fallback_parity() {
     || log_fail "TEST-033: dot-sourced Test-ProtectedBranchRejection gave '$cls', expected 'True/False'"
 
   # (b) the same protected fixture, driven through the ps1 engine.
-  local repo="$TMP_ROOT/t033" bare="$TMP_ROOT/t033-bare.git" stub="$TMP_ROOT/t033-stub" log="$TMP_ROOT/t033-ghlog" rc=0 pre_sha n
+  local repo="$TMP_ROOT/t033" bare="$TMP_ROOT/t033-bare.git" stub="$TMP_ROOT/t033-stub" log="$TMP_ROOT/t033-ghlog" rc=0 pre_sha n pr_line
   setup_protected_fixture t033
   pre_sha="$(git -C "$repo" rev-parse HEAD)"
   ( cd "$repo" && PATH="$stub:$PATH" pwsh -NoProfile -File "$RELEASE_PS1" --version v9.7.5 --confirm ) \
@@ -1230,6 +1240,13 @@ test_033_ps1_fallback_parity() {
     || log_fail "TEST-033: ps1 engine published a tag on the fallback path"
   n="$(grep -c '^ARGS: pr create ' "$log" || true)"
   [[ "$n" == "1" ]] || log_fail "TEST-033: expected exactly 1 ps1-side 'gh pr create', got $n:"$'\n'"$(cat "$log" 2>/dev/null || true)"
+  # SEAM-3, remediation F2: the ps1 helper folds the child's stdout AND stderr
+  # into one captured array, so the report line must be pinned to the URL
+  # ALONE — gh's stderr progress line (the stub emits one, like the real gh)
+  # must never end up interpolated onto the end of it.
+  pr_line="$(sed -n 's/^- PR:[[:space:]]*//p' "$TMP_ROOT/t033.out")"
+  [[ "$pr_line" == "$STUB_PR_URL" ]] \
+    || log_fail "TEST-033: the ps1 report's '- PR:' line must carry the PR URL and nothing else — got '$pr_line':"$'\n'"$(cat "$TMP_ROOT/t033.out")"
   if grep -q 'release create' "$log"; then log_fail "TEST-033: ps1 fallback invoked 'gh release create'"; fi
   if grep -q 'pr merge' "$log"; then log_fail "TEST-033: ps1 fallback invoked 'gh pr merge'"; fi
   log_pass "TEST-033 SEAM-3: ps1 twin classifier + fallback match the bash arm (exit 17, branch, reset, one PR, no tag)"
@@ -1266,6 +1283,38 @@ test_034_exit_codes_documented() {
   [[ "$want" == "$live" ]] \
     || log_fail "TEST-034: prompt-diet ledger sum is $live but TEST-012 pins want_growth=$want — the companion true-up is unpaid"
   log_pass "TEST-034 SEAM-2/SEAM-4: all non-zero exit codes documented, branch shape + re-tag sequence named, ledger sum == TEST-012 pin ($live)"
+}
+
+# --- TEST-035 (Spec-AC-09, D5): the fallback's INCOMPLETE arm, exit 18 ------
+
+test_035_fallback_incomplete_exits_18() {
+  log_info "TEST-035: a taken chore/release-<version> ref stops the fallback at exit 18 — no clobber, no reset, no PR..."
+  local repo="$TMP_ROOT/t035" bare="$TMP_ROOT/t035-bare.git" stub="$TMP_ROOT/t035-stub" log="$TMP_ROOT/t035-ghlog" rc=0 out="$TMP_ROOT/t035.out" squatter
+  setup_protected_fixture t035
+  # Squat the release branch name at the PRE-cut commit. D3 step 1 must refuse
+  # rather than move or reuse an existing ref.
+  git -C "$repo" branch "chore/release-v9.8.0" HEAD
+  squatter="$(git -C "$repo" rev-parse "refs/heads/chore/release-v9.8.0")"
+
+  ( cd "$repo" && PATH="$stub:$PATH" bash "$RELEASE_SH" --version v9.8.0 --confirm ) \
+    >"$out" 2>"$TMP_ROOT/t035.err" || rc=$?
+
+  [[ "$rc" == "18" ]] \
+    || log_fail "TEST-035: expected exit 18 (fallback INCOMPLETE), got $rc:"$'\n'"$(cat "$out" "$TMP_ROOT/t035.err")"
+  [[ "$(git -C "$repo" rev-parse "refs/heads/chore/release-v9.8.0")" == "$squatter" ]] \
+    || log_fail "TEST-035: the pre-existing chore/release-v9.8.0 ref was clobbered"
+  [[ "$(git -C "$repo" log -1 --format=%s)" == "chore(release): v9.8.0" ]] \
+    || log_fail "TEST-035: the target branch was reset even though the fallback stopped at the branch-name check"
+  grep -qF "FALLBACK INCOMPLETE" "$out" || log_fail "TEST-035: the report never names the incomplete fallback:"$'\n'"$(cat "$out")"
+  grep -qF "already exists" "$out" || log_fail "TEST-035: the report never names the reason (branch already exists):"$'\n'"$(cat "$out")"
+  grep -qF "gh pr create --base main --head chore/release-v9.8.0" "$out" \
+    || log_fail "TEST-035: the report does not name the manual 'gh pr create' command:"$'\n'"$(cat "$out")"
+  if [[ -f "$log" ]] && grep -q 'pr create' "$log"; then
+    log_fail "TEST-035: the INCOMPLETE fallback opened a PR anyway: $(cat "$log")"
+  fi
+  [[ -z "$(git -C "$bare" show-ref 2>/dev/null || true)" ]] \
+    || log_fail "TEST-035: the INCOMPLETE fallback published refs to the remote: $(git -C "$bare" show-ref)"
+  log_pass "TEST-035 D5 exit 18: a taken release-branch name stops the fallback before the reset, names the manual commands, opens no PR"
 }
 
 main() {
@@ -1312,6 +1361,7 @@ main() {
   test_032_non_protected_failure_degrades_raw
   test_033_ps1_fallback_parity
   test_034_exit_codes_documented
+  test_035_fallback_incomplete_exits_18
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

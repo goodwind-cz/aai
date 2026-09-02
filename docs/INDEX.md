@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-02T05:20:14.661Z
+Generated: 2026-09-02T05:56:32.170Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-release-protected-branch-fallback | specs | implementing | 8 planned | docs/specs/SPEC-DRAFT-spec-release-protected-branch-fallback.md |
+| spec-release-protected-branch-fallback | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-release-protected-branch-fallback.md |
 
 ## Canonical layer (0)
 

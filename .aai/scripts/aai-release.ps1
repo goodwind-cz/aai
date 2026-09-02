@@ -120,6 +120,31 @@ function Test-ProtectedBranchRejection {
   return $false
 }
 
+function Select-CapturedValue {
+  # Invoke-NativeChecked folds the child's stdout AND stderr into ONE array and
+  # returns it wrapped (`return ,$out`), so the pipeline sees a SINGLE object:
+  # `| Select-Object -Last 1` therefore yields the WHOLE array, which then
+  # string-interpolates into an $OFS-joined blob the moment the child writes
+  # anything to stderr. Real `gh pr create` does exactly that non-interactively
+  # ("Creating pull request for <head> into <base> in <repo>"), which would
+  # otherwise append that progress text to the PR URL in the D8 report. Pick
+  # the one captured line that actually looks like the value being read
+  # instead of trusting position; the bash twin has no equivalent hazard
+  # because it captures stdout alone (`>"$PR_OUT"`, `$(git rev-parse HEAD)`).
+  #
+  # Above the dot-source guard for the same reason as Test-ProtectedBranchRejection.
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][AllowNull()][AllowEmptyCollection()][object]$Captured,
+    [Parameter(Mandatory)][string]$Pattern
+  )
+  foreach ($line in @($Captured)) {
+    $text = "$line".Trim()
+    if ($text -match $Pattern) { return $text }
+  }
+  return ''
+}
+
 if ($MyInvocation.InvocationName -ne '.') {
 
 $extra = @(); if ($ExtraArgs) { $extra = @($ExtraArgs) }
@@ -341,7 +366,7 @@ try {
   # D3 step 2 (bash parity): the target branch's pre-cut position, captured
   # BEFORE the release commit exists. The protected-branch fallback resets the
   # target branch back to exactly this SHA.
-  $preCutSha = (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', 'HEAD') | Select-Object -Last 1)
+  $preCutSha = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', 'HEAD')) -Pattern '^[0-9a-f]{7,40}$'
 
   Move-Item -Force -LiteralPath $OutFile -Destination $Changelog
   $OutFile = $null
@@ -362,7 +387,7 @@ try {
   Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'commit', '-q', '-m', "chore(release): $Version") | Out-Null
   Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'tag', '-a', $Version, '-m', $Version) | Out-Null
 
-  $shortSha = (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', '--short', 'HEAD') | Select-Object -Last 1)
+  $shortSha = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', '--short', 'HEAD')) -Pattern '^[0-9a-f]{7,40}$'
   Write-Host "## aai-release - cut complete"
   Write-Host "- Version: $Version"
   Write-Host "- Commit:  $shortSha"
@@ -398,7 +423,7 @@ try {
       # --- D3 protected-branch fallback: release branch + PR, then STOP -----
       $releaseBranch = "chore/release-$Version"
       [Console]::Error.WriteLine("## aai-release - target branch '$branch' is PROTECTED (push rejected)")
-      $releaseSha = (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', 'HEAD') | Select-Object -Last 1)
+      $releaseSha = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', 'HEAD')) -Pattern '^[0-9a-f]{7,40}$'
 
       # D5 exit 18: the fallback engaged but could not finish -- name the exact
       # manual commands rather than leaving a half-cut release to reconstruct.
@@ -416,9 +441,11 @@ try {
         exit 18
       }
 
-      if ($branch -eq 'HEAD') {
-        & $fallbackIncomplete "detached HEAD - there is no target branch for 'gh pr create --base', so the fallback refuses rather than opening a PR against a bogus base"
-      }
+      # No detached-HEAD arm here, bash parity: with a detached HEAD $branch is
+      # the literal "HEAD" and `git push origin HEAD` fails CLIENT-side ("The
+      # destination you provided is not a full refname", exit 1), so the
+      # classifier cannot match and this block is unreachable in that state.
+      # Detached HEAD degrades raw at git's own exit code, as it does today.
       git -C $Root rev-parse -q --verify "refs/heads/$releaseBranch" *> $null
       if ($LASTEXITCODE -eq 0) {
         & $fallbackIncomplete "branch $releaseBranch already exists - never clobbering an existing ref"
@@ -456,7 +483,7 @@ try {
       $prError = ''
       Push-Location $Root
       try {
-        $prUrl = (Invoke-NativeChecked -Exe 'gh' -Arguments @('pr', 'create', '--base', $branch, '--head', $releaseBranch, '--title', "chore(release): $Version", '--body', $prBody) | Select-Object -Last 1)
+        $prUrl = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'gh' -Arguments @('pr', 'create', '--base', $branch, '--head', $releaseBranch, '--title', "chore(release): $Version", '--body', $prBody)) -Pattern '^https?://'
       } catch {
         $prError = "$($_.Exception.Message)"
       } finally { Pop-Location }
