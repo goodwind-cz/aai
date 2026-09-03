@@ -2,13 +2,15 @@
 id: spec-role-progress-heartbeat
 type: spec
 number: 164
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0170-role-progress-heartbeat.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - b66c3f4
 ---
 
 # Spec — a long-running role writes a progress heartbeat the observer can read without asking the orchestrator
@@ -363,16 +365,16 @@ untouched: this scope writes no STATE.yaml and needs no carve-out in
 
 | Spec-AC    | Description                                                                                                                                                | Status  | Evidence | Review-By | Notes                                                        |
 |------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|----------|-----------|--------------------------------------------------------------|
-| Spec-AC-01 | WHEN a heartbeat is written from a linked worktree the system SHALL make it readable by one read invocation run from the main worktree of the same repository | planned | —        | —         | the load-bearing seam; real git worktree, never a stand-in     |
-| Spec-AC-02 | WHEN read runs where no heartbeat was ever written the system SHALL print exactly heartbeat: none recorded and exit 0                                        | planned | —        | —         | cold-start; an error here would be the intake's named defect   |
-| Spec-AC-03 | WHEN two roles write concurrently the system SHALL preserve both slots and a repeat write SHALL replace only its own slot                                    | planned | —        | —         | per-slot files, so no cross-process read-modify-write exists   |
-| Spec-AC-04 | WHEN --message carries control or bidi characters the system SHALL sanitize and truncate at 200, and WHEN it is empty after sanitization SHALL refuse exit 2 | planned | —        | —         | the REJECTED input plus the component's own literal message    |
-| Spec-AC-05 | WHEN the heartbeat directory is unwritable or git is unavailable write SHALL exit 0, print a named degrade note, and write nothing                            | planned | —        | —         | best-effort clause; absence degrades to today's silence        |
-| Spec-AC-06 | WHEN one slot file is corrupt read SHALL name it in its output, still print every readable slot, and exit 0                                                  | planned | —        | —         | class B; a damaged slot is never read as nothing there         |
-| Spec-AC-07 | WHEN write runs it SHALL reap every hb- prefixed file more than 24 hours from now, keep prefixed files inside that window, and leave untouched every file without the prefix | planned | —        | —         | class D orphan GC via reapAsides; the bound is the hb- prefix and NOT ownership, and the window is symmetric so a future-dated prefixed file is reaped too |
-| Spec-AC-08 | The gate-script corpus SHALL contain zero heartbeat references outside a named allowlist and this scope SHALL add no gitignore, RUNTIME_IGNORE or DOCS_AI_CANON entry | planned | —        | —         | anti-SPEC-0163, deny-by-default rather than an enumerated list |
-| Spec-AC-09 | .aai/VALIDATION.prompt.md SHALL carry a greppable heartbeat write invocation plus never-changes-the-verdict wording and SHALL be the only role prompt wired  | planned | —        | —         | one proof wiring; other role prompts priced separately later   |
-| Spec-AC-10 | The prompt-diet ledger, PROFILES.yaml and suite-map.yaml companion obligations SHALL be satisfied with the MEASURED byte growth                             | planned | —        | —         | measured by Implementation; no byte number is written here     |
+| Spec-AC-01 | WHEN a heartbeat is written from a linked worktree the system SHALL make it readable by one read invocation run from the main worktree of the same repository | done | TEST-001/002, tests/skills/test-aai-heartbeat.sh; real git worktree add; re-derived independently in validation rounds 1 and 3 | tdd:2026-09-03 | the load-bearing seam; real git worktree, never a stand-in     |
+| Spec-AC-02 | WHEN read runs where no heartbeat was ever written the system SHALL print exactly heartbeat: none recorded and exit 0                                        | done | TEST-003, tests/skills/test-aai-heartbeat.sh; cold read reproduced by hand under a git-less PATH | tdd:2026-09-03 | cold-start; an error here would be the intake's named defect   |
+| Spec-AC-03 | WHEN two roles write concurrently the system SHALL preserve both slots and a repeat write SHALL replace only its own slot                                    | done | TEST-004, tests/skills/test-aai-heartbeat.sh; one file per slot, no cross-process read-modify-write | tdd:2026-09-03 | per-slot files, so no cross-process read-modify-write exists   |
+| Spec-AC-04 | WHEN --message carries control or bidi characters the system SHALL sanitize and truncate at 200, and WHEN it is empty after sanitization SHALL refuse exit 2 | done | TEST-005/006/007, tests/skills/test-aai-heartbeat.sh; traversal and bidi probes in validation round 1 | tdd:2026-09-03 | the REJECTED input plus the component's own literal message    |
+| Spec-AC-05 | WHEN the heartbeat directory is unwritable or git is unavailable write SHALL exit 0, print a named degrade note, and write nothing                            | done | TEST-008/009/018, tests/skills/test-aai-heartbeat.sh; TEST-018 mutation-proved non-tautological in validation round 2 | tdd:2026-09-03 | best-effort clause; absence degrades to today's silence        |
+| Spec-AC-06 | WHEN one slot file is corrupt read SHALL name it in its output, still print every readable slot, and exit 0                                                  | done | TEST-010, tests/skills/test-aai-heartbeat.sh; loadOrDegrade plus isSlotShape | tdd:2026-09-03 | class B; a damaged slot is never read as nothing there         |
+| Spec-AC-07 | WHEN write runs it SHALL reap every hb- prefixed file more than 24 hours from now, keep prefixed files inside that window, and leave untouched every file without the prefix | done | TEST-011, tests/skills/test-aai-heartbeat.sh; all four GC outcomes plus temp, directory and symlink third-bound probes reproduced in validation round 3 | tdd:2026-09-03 | class D orphan GC via reapAsides; the bound is the hb- prefix and NOT ownership, and the window is symmetric so a future-dated prefixed file is reaped too |
+| Spec-AC-08 | The gate-script corpus SHALL contain zero heartbeat references outside a named allowlist and this scope SHALL add no gitignore, RUNTIME_IGNORE or DOCS_AI_CANON entry | done | TEST-012/013, tests/skills/test-aai-heartbeat.sh; deny-by-default over 118 of 119 entries, allowlist path-bound at 64718ad after a nested plant passed the basename form | tdd:2026-09-03 | anti-SPEC-0163, deny-by-default rather than an enumerated list |
+| Spec-AC-09 | .aai/VALIDATION.prompt.md SHALL carry a greppable heartbeat write invocation plus never-changes-the-verdict wording and SHALL be the only role prompt wired  | done | TEST-014, tests/skills/test-aai-heartbeat.sh; VALIDATION.prompt.md step 5 c3 | tdd:2026-09-03 | one proof wiring; other role prompts priced separately later   |
+| Spec-AC-10 | The prompt-diet ledger, PROFILES.yaml and suite-map.yaml companion obligations SHALL be satisfied with the MEASURED byte growth                             | done | TEST-015/016/017, tests/skills/test-aai-prompt-diet.sh and the layer-profiles and hygiene-pack suites; 379 B credited 1:1, pin 10324, headroom 4 of 2048 | tdd:2026-09-03 | measured by Implementation; no byte number is written here     |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 

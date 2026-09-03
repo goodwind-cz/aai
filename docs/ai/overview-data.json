@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-03T09:25:37.166Z",
+  "generatedAt": "2026-09-03T09:26:36.393Z",
   "project": "aai-change-heartbeat",
   "counts": {
-    "delivered": 227,
-    "in_progress": 40,
+    "delivered": 228,
+    "in_progress": 39,
     "releases": 1,
     "tokens_total": 57249552
   },
@@ -39,19 +39,6 @@
       "spec": null,
       "validation": null,
       "review": null
-    },
-    {
-      "ref": "role-progress-heartbeat",
-      "title": "Long-running dispatched roles should emit a live progress heartbeat",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0170-role-progress-heartbeat.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0164-spec-role-progress-heartbeat.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-role-progress-heartbeat-20260903T085925Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -536,6 +523,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "role-progress-heartbeat",
+      "title": "Long-running dispatched roles should emit a live progress heartbeat",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0170-role-progress-heartbeat.md",
+      "closed_on": "2026-09-03",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0164-spec-role-progress-heartbeat.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-role-progress-heartbeat-20260903T085925Z.md"
+    },
     {
       "ref": "release-protected-branch-fallback",
       "title": "aai-release should fall back to a PR when main is a protected branch",
@@ -3494,6 +3494,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "role-progress-heartbeat",
+          "title": "Long-running dispatched roles should emit a live progress heartbeat",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0170-role-progress-heartbeat.md",
+          "closed_on": "2026-09-03",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0164-spec-role-progress-heartbeat.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-role-progress-heartbeat-20260903T085925Z.md"
+        },
         {
           "ref": "release-protected-branch-fallback",
           "title": "aai-release should fall back to a PR when main is a protected branch",

@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-09-02T22:43:35.838Z",
+  "generatedAt": "2026-09-03T09:26:36.500Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 132,
-    "delivered": 400,
+    "delivered": 402,
     "active_weeks": 10,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (400 closes vs 132 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 400,
-    "delivered_per_week_avg": 40,
+    "note": "\"delivered\" counts every work_item_closed event (402 closes vs 132 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 402,
+    "delivered_per_week_avg": 40.2,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -24,7 +24,7 @@
       "2026-W33": 33,
       "2026-W34": 33,
       "2026-W35": 20,
-      "2026-W36": 15
+      "2026-W36": 17
     },
     "delivered_groups": [
       {
@@ -435,7 +435,7 @@
         "key": "month:2026-09",
         "kind": "month",
         "label": "2026-09",
-        "count": 12,
+        "count": 14,
         "refs": [
           "intake-staleness-preflight-warning",
           "spec-intake-staleness-preflight-warning",
@@ -448,7 +448,9 @@
           "ac-table-premature-flip-recurs",
           "spec-ac-table-premature-flip-recurs",
           "metrics-flush-invalidates-pr-precondition",
-          "spec-metrics-flush-invalidates-pr-precondition"
+          "spec-metrics-flush-invalidates-pr-precondition",
+          "role-progress-heartbeat",
+          "spec-role-progress-heartbeat"
         ]
       }
     ],
@@ -2053,12 +2055,20 @@
         {
           "ref": "spec-metrics-flush-invalidates-pr-precondition",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "role-progress-heartbeat",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-role-progress-heartbeat",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3901,
       "mean_seconds": 119606,
       "measured": 128,
-      "unmeasurable": 272
+      "unmeasurable": 274
     }
   },
   "speed": {
@@ -3393,7 +3403,7 @@
     },
     {
       "week": "2026-W36",
-      "delivered": 15,
+      "delivered": 17,
       "median_lead_time_seconds": 14691,
       "busy_seconds": 12523,
       "tokens": 1590347,
@@ -3402,7 +3412,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 97,
+    "open_count": 101,
     "oldest_age_days": 20,
     "items": [
       {
@@ -3417,7 +3427,7 @@
         "id": "fu-verify-staged-set-after-commit",
         "ref": "CHANGE-0142",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "orchestrator must verify git show --stat after every commit, not the exit code",
         "status": "open"
       },
@@ -3425,7 +3435,7 @@
         "id": "fu-mask-duplicates-docs-audit-core",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "the specimen masker in spec-lint.mjs duplicates docs-audit-core.mjs:782-875 more weakly, reintroducing both bugs that file fixed under SPEC-0013 W3",
         "status": "open"
       },
@@ -3433,7 +3443,7 @@
         "id": "fu-vague-term-line-attribution",
         "ref": "CHANGE-0144",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "ac-vague-term reports the Test Plan row's line number when the Test Plan section precedes the AC table (measured 19 vs 25)",
         "status": "open"
       },
@@ -3441,7 +3451,7 @@
         "id": "fu-rollup-creates-userguide",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "the spec's edge case says the rollup generator no-ops when USER_GUIDE.md is absent; it CREATES the file",
         "status": "open"
       },
@@ -3497,7 +3507,7 @@
         "id": "fu-validation-ignores-suite-selector",
         "ref": "ride-cost-readout",
         "severity": "P2",
-        "age_days": 15,
+        "age_days": 16,
         "what": "validation picks its suites from the declared review scope while CI picks them from select-suites, so a CORE suite can be skipped in validation and fail in CI",
         "status": "open"
       },
@@ -3505,7 +3515,7 @@
         "id": "fu-orchestrator-does-not-watch-ci",
         "ref": "ride-cost-readout",
         "severity": "P2",
-        "age_days": 15,
+        "age_days": 16,
         "what": "after pushing a PR the orchestrator stops instead of watching CI, so a failure sits undetected until the owner asks",
         "status": "open"
       },
@@ -3617,7 +3627,7 @@
         "id": "fu-main-push-conflicts-open-pr",
         "ref": "cli-output-survives-a-pipe",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "the orchestrator pushed a commit to main that regenerated docs/INDEX.md while a PR shipping the same generated file was open, turning that PR CONFLICTING",
         "status": "open"
       },
@@ -3625,7 +3635,7 @@
         "id": "fu-typemap-missing-research-hotfix",
         "ref": "spec-intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "allocate-doc-number.mjs TYPE_MAP has no research and no hotfix row, so --type research and --type hotfix exit 2 as unknown types",
         "status": "open"
       },
@@ -3633,7 +3643,7 @@
         "id": "fu-ceremony-test016-blanket-byte-pin",
         "ref": "spec-intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "test-aai-ceremony-levels.sh TEST-016 pins .aai/scripts/lib/docs-audit-core.mjs with a bare git diff --exit-code, so ANY later scope that touches that shared library fails a test written for SPEC-0041",
         "status": "open"
       },
@@ -3641,7 +3651,7 @@
         "id": "fu-intake-templates-lack-number-key",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "seven of the eight intake templates carry no number: key, so a verbatim copy now fails docs-audit --intake-file with number-absent",
         "status": "open"
       },
@@ -3649,7 +3659,7 @@
         "id": "fu-intake-dir-unanchored-research-hotfix",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "for the two intake types TYPE_MAP does not know (research, hotfix) the .aai/INTAKE_COMMON.md table row and the per-type prompt can drift together to a wrong directory with the whole intake suite green",
         "status": "open"
       },
@@ -3657,7 +3667,7 @@
         "id": "fu-report-ids-exceed-registry-cap",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "roles routinely write follow-up ids into their reports that the registry CLI refuses, because the ids exceed the hard 40-character cap, so a finding reported as filed can never have been filed under that name",
         "status": "open"
       },
@@ -3705,7 +3715,7 @@
         "id": "fu-isolation-suite-not-hermetic",
         "ref": "a-run-must-say-whether-isolation-armed",
         "severity": "P2",
-        "age_days": 11,
+        "age_days": 12,
         "what": "test-aai-suite-isolation TEST-001, TEST-003 and TEST-005 inherit AAI_TEST_ISOLATION instead of stating it, so they go red when the operator exports 0",
         "status": "open"
       },
@@ -3713,7 +3723,7 @@
         "id": "fu-seed-loss-turns-an-arm-into-a-skip",
         "ref": "a-half-seeded-checkout-says-it-is-isolated",
         "severity": "P2",
-        "age_days": 11,
+        "age_days": 12,
         "what": "a seed path present in the working tree but absent from the checkout leaves the run GREEN at exit 0 while a suite reads an empty file, so an assertion silently becomes a passing skip",
         "status": "open"
       },
@@ -3745,7 +3755,7 @@
         "id": "fu-drained-suites-still-write-unisolated",
         "ref": "drain-the-tripwire-known-offender-list",
         "severity": "P2",
-        "age_days": 10,
+        "age_days": 11,
         "what": "the four formerly exempt suites still write the shipping repository when isolation is off, so 'zero tripwire ALLOWED lines before the drain' proves the branch was unreachable, not that nothing was forgiven",
         "status": "open"
       },
@@ -3753,7 +3763,7 @@
         "id": "fu-test013-uncovered-on-legal-max-raise",
         "ref": "drain-the-tripwire-known-offender-list",
         "severity": "P2",
-        "age_days": 10,
+        "age_days": 11,
         "what": "TEST-013 is coupled to a shipped entry count of exactly zero, so the ratchet's 'the cheapest legal edit is one number' argument does not hold: raising TRIPWIRE_RATCHET_MAX_ENTRIES leaves the suite red",
         "status": "open"
       },
@@ -3761,7 +3771,7 @@
         "id": "fu-drain-spec-says-d7-filed-not-fixed",
         "ref": "drain-the-tripwire-known-offender-list",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "the spec's Edge cases section still says the D7 reopening is 'filed, not fixed' and 'out of scope to fix', which contradicts the TRIPWIRE_ALWAYS_WATCH floor the same branch ships",
         "status": "open"
       },
@@ -3865,7 +3875,7 @@
         "id": "fu-usage-pin-misses-appended-flag",
         "ref": "a-branch-diff-pin-taxes-every-later-scope",
         "severity": "P3",
-        "age_days": 9,
+        "age_days": 10,
         "what": "TEST-011(clarify) pins spec-freeze's usage line with grep -qF, so a flag APPENDED after the pinned run does not trip it",
         "status": "open"
       },
@@ -3873,7 +3883,7 @@
         "id": "fu-lean-ac-heading-two-authorities",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 9,
+        "age_days": 10,
         "what": "docs-audit --gate accepts a lean AC table under the heading Acceptance Criteria while generate-docs-index.mjs near-miss flags exactly that heading and demands Acceptance Criteria Status",
         "status": "open"
       },
@@ -3921,7 +3931,7 @@
         "id": "fu-closeworkitem-pin-tail-wording",
         "ref": "close-leaves-state-stale",
         "severity": "P3",
-        "age_days": 8,
+        "age_days": 9,
         "what": "close-work-item.mjs EXIT CONTRACT header for code 6 and the matching CLOSE_WORK_ITEM_ALLOWED_HASHES entry both say the STATE reconcile runs strictly AFTER the existing try/catch, which is literally true of the full write path only: on the D6.2 idempotency short-circuit the reconcile is reached BEFORE the try block, a tail that route never enters",
         "status": "open"
       },
@@ -3929,7 +3939,7 @@
         "id": "fu-reconcile-skip-drops-commands",
         "ref": "ISSUE-0035",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "planStateReconcile skip() rebuilds the result with an empty echo array, so a reason raised by the second arm discards a command the first arm already planned",
         "status": "open"
       },
@@ -3961,7 +3971,7 @@
         "id": "fu-test210-branch-now-dead-code",
         "ref": "isolation-shares-the-shipping-git",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "TEST-210's deregistration mutation became unreachable when the D3 gate moved earlier, so the arm still passes but no longer exercises the branch it was written for",
         "status": "open"
       },
@@ -4137,7 +4147,7 @@
         "id": "fu-layer-profiles-fixture-build-race",
         "ref": "release-protected-branch-fallback",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "test-aai-layer-profiles flakes under parallel load because its own fixture-source build swallows 'WARN core-listed file missing in source (skipped)' instead of failing loudly",
         "status": "open"
       },
@@ -4179,6 +4189,38 @@
         "severity": "P3",
         "age_days": 0,
         "what": "metrics-flush.mjs hardcodes verdict PASS for every ledger entry including sweep-gated ones, where the sweep gate accepts a work_item_closed event plus status done INSTEAD of a validation PASS - so a durable, now gate-bearing ledger asserts a validation verdict that never happened",
+        "status": "open"
+      },
+      {
+        "id": "fu-reaper-epoch-export-fails-test005",
+        "ref": "role-progress-heartbeat",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "exporting AAI_REAP_STEP_START_EPOCH into the test command's environment, which is the literal shape VALIDATION step 5c's wording invites, makes tests/skills/test-aai-run-tests.sh TEST-005 fail DETERMINISTICALLY - that suite tests the reaper itself; validation reproduced 5/5 with the export and 0/2 without it, on base main and on HEAD alike",
+        "status": "open"
+      },
+      {
+        "id": "fu-heartbeat-slot-name-not-injective",
+        "ref": "role-progress-heartbeat",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "heartbeat slot names are not injective: two distinct --ref values that sanitize to the same token share one slot and the second write silently wins",
+        "status": "open"
+      },
+      {
+        "id": "fu-layer-profiles-suite-load-fragile",
+        "ref": "role-progress-heartbeat",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "tests/skills/test-aai-layer-profiles.sh fails nondeterministically under concurrency: TEST-003 reports arbitrary core-listed files missing after an aai-sync core run and TEST-004 reports the tree changed on the second sync; reproduced 3 of 8 at 8-way concurrency on BASE with no scope changes present, 1 of 8 on the change branch, standalone runs green and a manual two-sync digest probe byte-identical",
+        "status": "open"
+      },
+      {
+        "id": "fu-heartbeat-read-narrower-than-gc",
+        "ref": "role-progress-heartbeat",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "heartbeat.mjs read filters hb-* AND .json while the GC filters hb-* alone, so the visible set is strictly narrower than the deletable set: a prefixed non-json file is reaped but was never listable, and no degrade note names it",
         "status": "open"
       }
     ]

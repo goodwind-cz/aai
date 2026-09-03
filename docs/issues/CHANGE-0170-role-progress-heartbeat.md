@@ -2,10 +2,12 @@
 id: role-progress-heartbeat
 number: 170
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - b66c3f4
 ---
 
 # Long-running dispatched roles should emit a live progress heartbeat
