@@ -107,8 +107,9 @@
 //   reverse it?"), not per ledger line.
 //
 //   MEASURED CONSTRAINT: follow-ups.mjs enforces ^fu-[a-z0-9]+(-[a-z0-9]+)*$
-//   at 40 chars max, and marks a longer id MALFORMED-ID on every read. Three
-//   of the five live spec ids fit; two do not
+//   at 40 chars max, and marks a longer id MALFORMED-ID on every read. TWO
+//   of the five live spec ids fit (38 and 37 chars); THREE do not (44, 47,
+//   55) — one is shortened, two are truncated-and-hashed
 //   (`fu-amend-spec-metrics-flush-invalidates-pr-precondition` is 55). So
 //   `amendItemId` is a FITTING function, not a concatenation: it returns the
 //   plain form when it fits, else drops the redundant leading `spec-`, else
@@ -770,6 +771,20 @@ function cmdClassify(opts) {
   if (!signed) {
     const candidate = trackedBy ?? target.tracked_by;
     if (candidate !== null) {
+      // `pickAmendItemId` refuses to attach a NEW amendment to a DISCHARGED
+      // obligation — "it would mark it signed by an owner who never saw it".
+      // An explicit `--tracked-by` bypassed that check entirely, so naming a
+      // CLOSED item took the gate green while `follow-ups.mjs list --status
+      // open` — the drain list the refusal itself advertises — stayed empty.
+      // That is this script's own defect class: an obligation with no outflow
+      // (code review NB-B, reproduced). Refusing here does not strand anyone:
+      // D2's fail-OPEN rule covers a MISSING item, and the remedy is to drop
+      // the flag and let the writer reopen the obligation under a stamped id,
+      // which the message below names.
+      const named = reg.followUps.get(candidate) ?? null;
+      if (trackedBy !== null && named !== null && named.closed) {
+        usageError(`--tracked-by ${candidate} names an obligation that is already ${named.status}; attaching a new amendment to a discharged item would mark it signed by an owner who never saw it, and it would not appear in \`follow-ups.mjs list --status open\`. Drop --tracked-by and re-run: the writer reopens the obligation under a stamped id.`);
+      }
       entry.tracked_by = candidate;
     } else {
       const picked = pickAmendItemId(reg, specKey, entry.ts);
@@ -897,7 +912,11 @@ function cmdList(opts) {
         process.stderr.write(`  (no runnable remedy: this record carries no ${missing}, and classify matches on the ts+ref pair. Neither writer can emit that, so the record was hand-appended; append a corrected record rather than editing it.)\n`);
         continue;
       }
-      process.stderr.write(`  node .aai/scripts/spec-amend.mjs classify --ts "${v.ts}" --ref "${v.ref_id}" --signoff none --why "<one line>" --source "<evidence>"\n`);
+      // JSON.stringify, not bare quotes: `--ref` is unvalidated free text at
+      // `add`, so a ref carrying a double quote produced a line that breaks
+      // when pasted — and TEST-013 runs this line through `eval` (code
+      // review NB-E, reproduced through the writer, not only by hand-append).
+      process.stderr.write(`  node .aai/scripts/spec-amend.mjs classify --ts ${JSON.stringify(v.ts)} --ref ${JSON.stringify(v.ref_id)} --signoff none --why "<one line>" --source "<evidence>"\n`);
     }
     process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to attach an item you have already filed.\n');
     process.stderr.write('NOT remedies: `spec-amend.mjs add` records a NEW amendment and leaves the record named above untracked; `follow-ups.mjs add` files an item but attaches it to nothing. Never edit the ledger in place (HAZ-LEDGER).\n');

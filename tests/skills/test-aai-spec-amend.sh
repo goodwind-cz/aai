@@ -395,7 +395,8 @@ test_004_seam2_read_back_through_follow_ups() {
   # The consumer must not merely SEE the id — it must accept it as well-formed.
   # A MALFORMED-ID marker here means the producer wrote an id outside the
   # consumer's own grammar, which is what the amendItemId fitting function
-  # exists to prevent (three of the five live spec ids fit, two do not).
+  # exists to prevent (TWO of the five live spec ids fit at 38 and 37 chars;
+  # THREE do not at 44, 47 and 55 — one shortened, two hashed).
   grep -qF "MALFORMED-ID" <<<"$OUT" \
     && log_fail "TEST-004: follow-ups.mjs flagged the produced id as MALFORMED-ID — the producer wrote outside the consumer's grammar: $OUT"
 
@@ -1075,8 +1076,55 @@ test_015_unmatchable_record_gets_an_honest_refusal() {
   log_pass "TEST-015 an unmatchable record is told so by name; a matchable one still gets its runnable command"
 }
 
+test_016_closed_item_cannot_excuse_a_new_amendment() {
+  log_info "Test: --tracked-by naming a DISCHARGED obligation is refused, and the refusal's own named remedy works (TEST-016, code review NB-B/NB-E)..."
+  local led out ec
+  led="$(mk_ledger t016)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-03T21:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t016","spec_id":"spec-t016","owner_signoff":false}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-03T21:01:00Z","actor":"a","type":"follow_up","id":"fu-amend-spec-t016","ref_id":"t016","severity":"P2","finding":"f","decision":"d","source":"s"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-03T21:02:00Z","actor":"a","type":"follow_up_status","id":"fu-amend-spec-t016","status":"done","resolved_by":"x"}' >> "$led"
+  local before after
+  before="$(wc -l < "$led")"
+
+  run_sa classify --ts "2026-09-03T21:00:00Z" --ref t016 --signoff none \
+    --tracked-by fu-amend-spec-t016 --why w --source s --ledger "$led"
+  [[ "$EC" == 2 ]] \
+    || log_fail "TEST-016: attaching a new amendment to a DISCHARGED obligation marks it signed by an owner who never saw it — pickAmendItemId's own comment forbids exactly this, so --tracked-by must not be a way around it; got $EC"
+  grep -qF "already done" <<<"$ERR" \
+    || log_fail "TEST-016: the refusal must say the item is discharged; stderr was: $ERR"
+  after="$(wc -l < "$led")"
+  [[ "$before" == "$after" ]] \
+    || log_fail "TEST-016: a refusal must write NOTHING (HAZ-LEDGER); ledger went $before -> $after"
+
+  # The refusal names a remedy. F1 was a refusal whose remedy did not clear
+  # it, so this arm proves the named route actually reaches a green gate AND
+  # leaves a DRAINABLE item — an obligation the owner cannot see is the very
+  # defect this script removes.
+  grep -qF "Drop --tracked-by and re-run" <<<"$ERR" \
+    || log_fail "TEST-016: the refusal must NAME the remedy; stderr was: $ERR"
+  run_sa classify --ts "2026-09-03T21:00:00Z" --ref t016 --signoff none --why w --source s --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "TEST-016: the named remedy must run, got $EC (stderr: $ERR)"
+  run_sa list --ledger "$led" --strict
+  [[ "$EC" == 0 ]] || log_fail "TEST-016: the named remedy must take the gate to 0, got $EC (stdout: $OUT)"
+  out="$(node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --ledger "$led" 2>&1)" || true
+  grep -qF "fu-amend-spec-t016" <<<"$out" \
+    || log_fail "TEST-016: the reopened obligation must be DRAINABLE — a green gate whose \`--status open\` list is empty is an obligation with no outflow; list was: $out"
+
+  # NB-E: a ref carrying a double quote is reachable through \`add\`, and
+  # TEST-013 runs the printed line through eval.
+  local led2
+  led2="$(mk_ledger t016b)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-03T22:00:00Z","actor":"a","type":"spec_amendment","ref_id":"quote\"ride","spec_id":"spec-t016b","owner_signoff":false}' >> "$led2"
+  run_sa list --ledger "$led2" --strict
+  [[ "$EC" == 1 ]] || log_fail "TEST-016 NB-E: the quoted-ref record must still violate, got $EC"
+  grep -qF '\"' <<<"$ERR" \
+    || log_fail "TEST-016 NB-E: a ref containing a double quote must be ESCAPED in the printed remedy, or the line breaks when pasted; stderr was: $ERR"
+
+  log_pass "TEST-016 a discharged obligation cannot excuse a new amendment, the refusal's named remedy reaches a green gate with a drainable item, and a quoted ref stays pasteable"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010)"
+  echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
   setup_fixture
   test_001_add_creates_both_records
@@ -1092,6 +1140,7 @@ main() {
   test_013_refusal_names_a_reachable_fixed_point
   test_014_whitespace_type_cannot_evade_the_gate
   test_015_unmatchable_record_gets_an_honest_refusal
+  test_016_closed_item_cannot_excuse_a_new_amendment
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

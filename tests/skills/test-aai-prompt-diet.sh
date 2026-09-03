@@ -1383,7 +1383,7 @@ test_023_ac_flip_growth_credited() {
     # The disk check is a FLOOR, not an equality. The prefix check above was
     # already written so a later scope's own itemized append cannot disturb
     # this arm; this line was not, and unsigned-spec-amendment-has-no-outflow
-    # was the first later scope to legitimately grow the same file (+691 B for
+    # was the first later scope to legitimately grow the same file (+977 B for
     # the POST-FREEZE SPEC AMENDMENT block, itemized in its own ledger entry).
     # What this arm actually needs to know is that the bytes THIS entry
     # credited still exist — so a SHRINK below the recorded size still fails
