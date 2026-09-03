@@ -479,7 +479,7 @@ test_003_degrade_notes_and_zero_network() {
 # The 11 source timestamps are the D3 inventory, pinned here; K is RECOMPUTED
 # from the live ledger so the pin can never drift from the prose silently.
 test_004_backfill_accounting() {
-  log_info "Test: backfill accounting — per-source-ts clause counts recomputed from the ledger equal the appended origin:backfill counts, totalling 14 across 11 source entries (TEST-004)..."
+  log_info "Test: backfill accounting — per-source-ts clause counts recomputed from the ledger equal the appended origin:backfill counts (14 across the 11 SPEC-0129 D3 source entries, plus 5 independently accounted amendment obligations) (TEST-004)..."
   [[ -f "$LIVE_LEDGER" ]] || log_fail "live ledger not found: $LIVE_LEDGER"
   local result
   result="$(node -e '
@@ -489,6 +489,20 @@ test_004_backfill_accounting() {
       ["2026-08-11T23:18:00Z",1],["2026-08-13T01:26:00Z",4],["2026-08-13T02:26:00Z",1],
       ["2026-08-13T10:50:00Z",1],["2026-08-13T11:22:00Z",1],["2026-08-13T15:48:00Z",1],
       ["2026-08-13T16:05:00Z",1],["2026-08-13T18:47:00Z",1],
+    ];
+    // A SECOND, separately named backfill inventory
+    // (unsigned-spec-amendment-has-no-outflow): the five per-spec owner
+    // sign-off obligations back-filed for the nine standing unsigned
+    // post-freeze spec amendments, one line each, citing the FIRST amendment
+    // ts on its spec. It gets its own inventory rather than being folded into
+    // the D3 one because the D3 arm below recomputes K from FOLLOW-UP clauses
+    // in a `decision` field, a shape these items do not have — and rather than
+    // being waived, because the unknown-source_ts sweep further down is
+    // DENY-BY-DEFAULT and must stay that way: a stray backfill line citing an
+    // unlisted source ts still fails, exactly as before.
+    const AMEND_INVENTORY=[
+      ["2026-08-25T01:52:00Z",1],["2026-09-02T06:20:00Z",1],["2026-09-02T13:52:00Z",1],
+      ["2026-09-02T17:05:00Z",1],["2026-09-03T05:40:00Z",1],
     ];
     const errs=[];
     const recs=[];
@@ -522,9 +536,18 @@ test_004_backfill_accounting() {
       if (got!==k) errs.push(`accounting violation at ${ts}: ${k} clause(s) but ${got} appended line(s)`);
     }
     if (pinnedTotal!==14) errs.push("D3 inventory must total 14, got "+pinnedTotal);
-    if (backfillTotal!==14) errs.push("total source_ts-carrying backfill lines must be 14, got "+backfillTotal);
-    // No backfill line may cite a source ts outside the pinned inventory.
-    const known=new Set(INVENTORY.map(x=>x[0]));
+    let amendTotal=0;
+    for (const [ts,k] of AMEND_INVENTORY) {
+      amendTotal+=k;
+      const got=backfilled.get(ts)||0;
+      if (got!==k) errs.push(`amendment backfill accounting violation at ${ts}: ${k} obligation(s) but ${got} appended line(s)`);
+    }
+    if (amendTotal!==5) errs.push("amendment inventory must total 5, got "+amendTotal);
+    if (backfillTotal!==pinnedTotal+amendTotal) errs.push(`total source_ts-carrying backfill lines must be ${pinnedTotal+amendTotal}, got ${backfillTotal}`);
+    // No backfill line may cite a source ts outside the pinned inventories.
+    // Deny-by-default: a new backfill campaign adds its OWN named inventory
+    // above; it is never waived by widening this set to "anything".
+    const known=new Set([...INVENTORY, ...AMEND_INVENTORY].map(x=>x[0]));
     for (const ts of backfilled.keys()) if (!known.has(ts)) errs.push("backfill line cites an unknown source_ts: "+ts);
     // Every backfilled follow_up must carry a schema-valid id.
     for (const r of recs) {
@@ -1647,7 +1670,34 @@ none. A neighbour \`fu-none-neighbor\` is discussed here but not claimed.
   local c4; c4="$(node -e 'console.log(JSON.parse(process.argv[1]).claims.map(c=>c.id).sort().join(","))' "$OUT")"
   [[ "$c4" == "fu-inline-real-claim" ]] || log_fail "TEST-025(inline): the 'ratchet holds open' neighbour must NOT be a claim: [$c4]"
 
-  log_pass "all four D9 parse branches yield the exact claimed set (TEST-007)"
+  # The FIFTH branch, added by unsigned-spec-amendment-has-no-outflow: the
+  # `none` sentinel under the INLINE label. It was implemented only for the
+  # heading shape, so the same statement claimed nothing through one door and
+  # four false MISSes through the other — reached the moment a spec wrote
+  # "Registry items closed by this scope: none." followed by prose naming the
+  # OPEN items it had checked. Both shapes now share one sentinel predicate.
+  local d5; d5="$(mk_doc t025-inline-none "## Links
+Registry items closed by this scope: none. \`node .aai/scripts/follow-ups.mjs list\`
+returns open items (\`fu-inline-none-neighbor-a\`, \`fu-inline-none-neighbor-b\`);
+none names this scope's subject.
+")"
+  run_fu verify-closures --path "$d5" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-025(inline-none): must exit 0, got $EC: $ERR"
+  local c5; c5="$(node -e 'console.log(JSON.parse(process.argv[1]).claims.length)' "$OUT")"
+  [[ "$c5" == "0" ]] || log_fail "TEST-025(inline-none): a statement saying 'none' claims nothing whichever shape carries it, got $c5: $OUT"
+
+  # Bite control: the SAME inline label without the sentinel still claims, so
+  # the branch above is a sentinel check and not a blanket exemption for the
+  # inline shape.
+  local d6; d6="$(mk_doc t025-inline-still-claims "## Links
+Registry items closed by this scope: \`fu-inline-none-neighbor-a\` was closed here.
+")"
+  run_fu verify-closures --path "$d6" --ledger "$led" --json
+  local c6; c6="$(node -e 'console.log(JSON.parse(process.argv[1]).claims.map(c=>c.id).join(","))' "$OUT")"
+  [[ "$c6" == "fu-inline-none-neighbor-a" ]] \
+    || log_fail "TEST-025(inline-none bite): the inline shape must still claim when it does NOT say none: [$c6]"
+
+  log_pass "all five D9 parse branches yield the exact claimed set, including the inline 'none' sentinel and its bite control (TEST-007)"
 }
 
 # ============================ TEST-026 (Spec-AC-08) ==========================

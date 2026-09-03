@@ -96,6 +96,7 @@
 2	tests/skills/test-aai-run-tests.sh
 2	tests/skills/test-aai-runtime-file.sh
 2	tests/skills/test-aai-secrets-preflight.sh
+2	tests/skills/test-aai-spec-amend.sh
 7	tests/skills/test-aai-spec-lint.sh
 9	tests/skills/test-aai-spec-tools.sh
 2	tests/skills/test-aai-state.sh

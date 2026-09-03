@@ -720,6 +720,17 @@ function extractIds(str) {
   return String(str ?? '').match(CLAIM_ID_RE) ?? [];
 }
 
+// The `none` sentinel, defined ONCE for both scanners below. It used to live
+// only inside extractHeadingClaims, so the two parsers disagreed about the
+// same vocabulary: "Registry items closed by this scope: none. <prose naming
+// four OPEN items>" yielded zero claims under the heading shape and four
+// FALSE claims under the inline shape — the neighbour-vs-claim confusion the
+// sentinel exists to remove, reachable only through the other door. A
+// statement that says NONE claims nothing, whichever shape carries it.
+function opensWithNoneSentinel(text) {
+  return /^none\b/i.test(String(text ?? '').trim().replace(/^`+/, ''));
+}
+
 // extractHeadingClaims(text) -> Set<id> — the "## Registry items closed by
 // this scope" heading shape. Three sub-shapes inside its body (D9):
 //   - labelled: CLOSED FULLY / CLOSED QUALIFIEDLY ids are claims, NOT CLOSED
@@ -748,8 +759,7 @@ function extractHeadingClaims(text) {
   }
 
   if (labels.length === 0) {
-    const cleaned = body.trim().replace(/^`+/, '');
-    if (/^none\b/i.test(cleaned)) return claims; // the none sentinel: zero claims
+    if (opensWithNoneSentinel(body)) return claims; // the none sentinel: zero claims
     for (const id of extractIds(body)) claims.add(id);
     return claims;
   }
@@ -783,7 +793,9 @@ function extractInlineClaims(text) {
     let cut = after.length;
     if (nextBullet !== -1) cut = Math.min(cut, nextBullet);
     if (blank !== -1) cut = Math.min(cut, blank);
-    for (const id of extractIds(after.slice(0, cut))) claims.add(id);
+    const segment = after.slice(0, cut);
+    if (opensWithNoneSentinel(segment)) continue;  // same sentinel as the heading shape
+    for (const id of extractIds(segment)) claims.add(id);
   }
   return claims;
 }

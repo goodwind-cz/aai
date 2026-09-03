@@ -148,6 +148,12 @@ PROCESS
      permanently, no PR" sentinel, never `TBD`, which a generic-mode ride
      could never later resolve via step 5c. Step 5's own platform bullet
      REUSES this same result; it is not re-probed there.
+   - AMENDMENT GATE — run `node .aai/scripts/spec-amend.mjs list --strict`.
+     Exit 0: proceed. Exit 1: it names each record that is untracked or
+     unclassified — file the missing obligation (`spec-amend.mjs add`) or
+     back-classify by APPEND (`spec-amend.mjs classify`, never an in-place
+     edit) before closing. An unsigned post-freeze amendment with no tracked
+     item discharges an owner HITL gate by self-disclosure.
    - FLIP THE AC TABLE FIRST (its own ordered step — .aai/VALIDATION.prompt.md
      step 8a defers it to here): set every Spec-AC row of the scope's doc(s)
      terminal, fill each Evidence cell from the validation report's per-AC

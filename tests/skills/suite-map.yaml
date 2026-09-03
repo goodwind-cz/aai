@@ -714,6 +714,25 @@ suites:
       - .codex/skills/aai-share/**
       - .gemini/skills/aai-share/**
 
+  aai-spec-amend:
+    globs:
+      - .aai/scripts/spec-amend.mjs
+      - .aai/scripts/follow-ups.mjs
+      - .aai/system/AUTONOMOUS_LOOP.md
+      - .aai/ROLE_COMMON.md
+      - .aai/SKILL_PR.prompt.md
+      # The suite reads the LIVE ledger in TEST-003/008/009 (the format trap,
+      # the append-only prefix proof and the post-backfill strict-clean state),
+      # so an amendment appended by any other ride must reach this suite.
+      - docs/ai/decisions.jsonl
+      # TEST-009 asserts no frozen `status: done` spec body was edited, and
+      # TEST-006 crosses the draft-to-numbered rename seam.
+      - docs/specs/**
+      # SEAM-4: routine-emit.mjs reads the WHOLE ledger fail-closed, so a
+      # change there can silently revoke merge authorization over records this
+      # scope writes.
+      - .aai/scripts/routine-emit.mjs
+
   aai-spec-lint:
     globs:
       - .aai/scripts/spec-lint.mjs

@@ -82,3 +82,13 @@ Action: dispatch `.aai/SKILL_WORKTREE.prompt.md` operation `recommendation gate`
 and STOP until the user answers. Never create a worktree without user
 confirmation. Each caller below adds its own handling for the already-decided
 `worktree`/`inline` cases.
+
+## POST-FREEZE SPEC AMENDMENT (any role whose scope outgrows a frozen spec)
+Amending a frozen spec is a scope change, so the sign-off belongs to the owner.
+Never hand-write the ledger record: run `node .aai/scripts/spec-amend.mjs add
+--spec <path> --ref <ride-ref> --what "<one line>" --why "<one line>" --signoff
+none`, which appends the record AND files the `fu-amend-<spec frontmatter id>`
+obligation in the same call, and never refuses for a missing item — so it
+cannot strand a round. Use `--signoff owner --authority "<evidence>"` only when
+the owner actually decided, naming the record that proves it. The convention is
+stated ONCE, in `.aai/system/AUTONOMOUS_LOOP.md` section 6a.

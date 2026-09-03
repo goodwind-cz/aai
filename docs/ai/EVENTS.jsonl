@@ -2074,3 +2074,4 @@
 {"v":1,"ts":"2026-09-03T09:26:18.884Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-role-progress-heartbeat","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-03T09:26:18.918Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-role-progress-heartbeat","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-03T09:26:18.950Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-role-progress-heartbeat","payload":{"commit":"b66c3f4"}}
+{"v":1,"ts":"2026-09-03T16:02:28.400Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-unsigned-spec-amendment-has-no-outflow","payload":{"from":"draft","to":"implementing"}}
