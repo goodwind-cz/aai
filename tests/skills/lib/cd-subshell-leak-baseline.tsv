@@ -60,6 +60,7 @@
 2	tests/skills/test-aai-friction-wiring.sh
 2	tests/skills/test-aai-friction.sh
 15	tests/skills/test-aai-git-ref-guard.sh
+2	tests/skills/test-aai-heartbeat.sh
 2	tests/skills/test-aai-hitl-channel.sh
 3	tests/skills/test-aai-hitl-propagation.sh
 10	tests/skills/test-aai-hooks-overlay.sh

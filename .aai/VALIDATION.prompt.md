@@ -178,6 +178,11 @@ PROCESS
       does NOT require a full sweep. ONE full
       `bash tests/skills/test-framework.sh` runs before the close ceremony and
       is the sweep the TEST rows cite. State which of the two this round was.
+   c3) PROGRESS HEARTBEAT (advisory). At each round boundary run
+      `node .aai/scripts/heartbeat.mjs write --ref <REF-ID> --role Validation --message "<this round>"`
+      so an observer reads progress without asking the orchestrator. Its
+      outcome never changes the verdict: it exits 0 on every runtime failure,
+      and an absent heartbeat is silence, never a finding.
    d) If e2e tests exist (config file or test directory found) but were NOT executed → automatic FAIL.
    e) Record exit code and output for every test command as evidence.
    f) For each seam identified during planning (PLANNING step 6a), confirm an INTEGRATION test actually crosses it and was
