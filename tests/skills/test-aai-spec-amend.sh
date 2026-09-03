@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-spec-amend
-# (docs/specs/SPEC-DRAFT-spec-unsigned-spec-amendment-has-no-outflow.md,
+# (docs/specs/SPEC-0165-spec-unsigned-spec-amendment-has-no-outflow.md,
 #  TEST-001..010)
 #
 # Verifies .aai/scripts/spec-amend.mjs — the fail-OPEN writer that co-creates a

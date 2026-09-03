@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-03T20:43:49.939Z
+Generated: 2026-09-03T21:06:57.236Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-unsigned-spec-amendment-has-no-outflow | specs | implementing | 9 implementing | docs/specs/SPEC-DRAFT-spec-unsigned-spec-amendment-has-no-outflow.md |
+| SPEC-0165 | specs | implementing | 9 implementing | docs/specs/SPEC-0165-spec-unsigned-spec-amendment-has-no-outflow.md |
 
 ## Canonical layer (0)
 
@@ -456,7 +456,7 @@ _None._
 |---|---|---|
 | CHANGE-0166 | issues | docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md |
 | CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
-| unsigned-spec-amendment-has-no-outflow (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-unsigned-spec-amendment-has-no-outflow.md |
+| CHANGE-0171 | issues | docs/issues/CHANGE-0171-unsigned-spec-amendment-has-no-outflow.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

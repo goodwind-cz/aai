@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-09-03T09:26:36.393Z",
-  "project": "aai-change-heartbeat",
+  "generatedAt": "2026-09-03T21:06:35.320Z",
+  "project": "aai-change-amendment",
   "counts": {
     "delivered": 228,
-    "in_progress": 39,
+    "in_progress": 40,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "role-progress-heartbeat",
+    "ref": "unsigned-spec-amendment-has-no-outflow",
     "type": "intake_change"
   },
   "in_flight": null,
@@ -37,6 +37,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "unsigned-spec-amendment-has-no-outflow",
+      "title": "An unsigned post-freeze spec amendment must file a tracked item, not just a sentence",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0171-unsigned-spec-amendment-has-no-outflow.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0165-spec-unsigned-spec-amendment-has-no-outflow.md",
       "validation": null,
       "review": null
     },

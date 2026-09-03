@@ -1,11 +1,11 @@
 ---
 id: spec-unsigned-spec-amendment-has-no-outflow
 type: spec
-number: null
+number: 165
 status: implementing
 ceremony_level: 2
 links:
-  requirement: docs/issues/CHANGE-DRAFT-unsigned-spec-amendment-has-no-outflow.md
+  requirement: docs/issues/CHANGE-0171-unsigned-spec-amendment-has-no-outflow.md
   rfc: null
   pr: []
   commits: []
@@ -16,7 +16,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: `docs/issues/CHANGE-DRAFT-unsigned-spec-amendment-has-no-outflow.md`
+- Requirement: `docs/issues/CHANGE-0171-unsigned-spec-amendment-has-no-outflow.md`
 - Decision records: `docs/ai/decisions.jsonl` (see "Registry items closed by this scope")
 - Technology contract: `docs/TECHNOLOGY.md` (Node stdlib only, zero deps, bash-3.2 in suites)
 - Prior art this scope reuses rather than duplicates: `.aai/scripts/follow-ups.mjs`
@@ -447,7 +447,7 @@ engine exists, and the failing output is stored at
 - `node .aai/scripts/spec-amend.mjs list --strict` — exit 0 over the live ledger
 - `node .aai/scripts/follow-ups.mjs list --status open` — five `fu-amend-*` items
 - `git diff --stat docs/ai/decisions.jsonl` — insertions only, zero deletions
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-unsigned-spec-amendment-has-no-outflow.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0165-spec-unsigned-spec-amendment-has-no-outflow.md`
 - `node .aai/scripts/docs-audit.mjs --check --strict --no-event`
 - PASS criteria: all TEST-xxx green AND all Spec-AC in a terminal status
 

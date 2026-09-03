@@ -1,6 +1,6 @@
 ---
 id: unsigned-spec-amendment-has-no-outflow
-number: null
+number: 171
 type: change
 status: draft
 links:
