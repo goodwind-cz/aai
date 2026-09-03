@@ -94,10 +94,21 @@ Why this location, against the two disqualifying facts the intake recorded:
   role writing inside its worktree and an observer reading from the main
   checkout therefore hit the same file. This is exactly the defect that ruled
   out `docs/ai/STATE.yaml`.
-- **The relative/absolute split is a real trap**, not a hypothetical: a naive
-  `path.join(root, out)` is correct in a worktree and wrong in the main
-  checkout. `path.resolve(root, out)` is correct in both. Spec-AC-01 pins it
-  with a REAL linked worktree, not a fixture stand-in.
+- **The relative/absolute split is a real trap**, not a hypothetical:
+  `path.resolve(root, out)` is correct in both cases; a naive
+  `path.join(root, out)` is not. Spec-AC-01 pins it with a REAL linked
+  worktree, not a fixture stand-in.
+  CORRECTED post-freeze (2026-09-03, amendment item 1): this bullet and the
+  Edge-cases line below originally named the failing case BACKWARDS. Measured
+  independently twice (Implementation, then Validation, git 2.50.1): the raw
+  output is relative in the main checkout (`.git`, or `../.git` from a
+  subdirectory) and ABSOLUTE in a linked worktree, so `path.join` is CORRECT
+  in the main checkout and WRONG in the worktree, where it glues the absolute
+  path onto the worktree root and yields a path that does not exist. The code,
+  the `heartbeat.mjs` header, `CHANGELOG.md` and TEST-002 all state the
+  measured direction; only these two spec lines were inverted, so no delivered
+  behaviour changes. A spec that teaches a trap backwards is worse than one
+  that omits it, hence the correction rather than a silent carry.
 - **Structurally never committed.** Nothing under `.git/` can be added to the
   index. This satisfies the intake's AC-004 without a `.gitignore` line, so
   this scope adds NO entry to `.gitignore`, `.aai/system/RUNTIME_IGNORE.list`,
@@ -321,7 +332,8 @@ repo -> stdout.
 
 - `--git-common-dir` is RELATIVE in the main worktree (`.git`, or `../.git`
   from a subdirectory) and ABSOLUTE in a linked worktree. MEASURED, git 2.50.1.
-  Always `path.resolve(root, out)`; a `path.join` is wrong in the main checkout.
+  Always `path.resolve(root, out)`; a `path.join` is wrong in a LINKED
+  WORKTREE (see the corrected D1 bullet — this line was inverted at freeze).
 - Repo reached through a symlink: `fu-ismain-symlink-realpath` is an open
   registry item about `path.resolve(process.argv[1]) === fileURLToPath(...)`
   main-guards failing under a symlinked checkout. `heartbeat.mjs` must not
