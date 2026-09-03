@@ -17,6 +17,12 @@
 #   TEST-008 SEAM-3 — append-only, proved by byte comparison
 #   TEST-009 post-backfill live state + SEAM-4 whole-ledger readers
 #   TEST-010 the SPEC-0132 canon guard, deny-by-default on repo-relative paths
+#   TEST-013 validation F1 — every remedy the refusal NAMES clears the refusal
+#   TEST-014 validation NB-2 — a padded `type` cannot hide from the gate
+#
+# TEST-011 and TEST-012 of this spec's Test Plan live in other suites
+# (test-aai-hygiene-pack.sh and test-aai-prompt-diet.sh), so the two arms added
+# at remediation continue the numbering at 013 rather than reusing those ids.
 #
 # ALL write fixtures are scratch temp-dir ledgers — the real docs/ai tree is
 # only ever READ (TEST-003/008/009/010 read it; none of them write it).
@@ -877,6 +883,164 @@ test_010_spec0132_canon_guard() {
   log_pass "TEST-010 the canon names SPEC-0132 as an owner decision and not precedent; the .aai/** sweep is deny-by-default on repo-relative paths ($scanned files scanned)"
 }
 
+# --- TEST-013 (validation round 1, F1) ----------------------------------------
+# THE GATE'S OWN REFUSAL MUST NAME A REACHABLE FIXED POINT.
+#
+# `list --strict` is a fail-CLOSED backstop, so the role that hits it is by
+# construction a role that has already gone wrong once. Every command its
+# refusal names must therefore take the ledger OUT of the refusing state. Round
+# 1 measured that none of them did: `spec-amend add` (named in
+# .aai/SKILL_PR.prompt.md) left exit 1 AND appended a spurious second
+# amendment, `follow-ups.mjs add` (named in the stderr) filed an item attached
+# to nothing, and `classify` without `--tracked-by` (also named in the stderr)
+# re-classified the record as exactly the bucket it was already in. The only
+# working route existed in no prose at all.
+#
+# The strongest arm here does not construct a command from this file's own idea
+# of the remedy — it READS the command out of the tool's refusal and runs THAT.
+# A prose fix that drifts from the behaviour reddens here.
+test_013_refusal_names_a_reachable_fixed_point() {
+  log_info "Test: every remedy \`list --strict\` names actually clears \`list --strict\`, and the ones that do not are named as not doing it (TEST-013, validation F1)..."
+  [[ -f "$FU" ]] || log_skip "follow-ups.mjs not found: $FU"
+  local led spec suggested cmd n_before n_after
+  led="$(mk_ledger t013)"
+  spec="$(mk_spec t013-spec.md spec-t013-fixture)"
+
+  # The R1 shape, and the shape all nine live records had before the backfill:
+  # a hand-appended amendment that never went through the writer.
+  printf '%s\n' '{"v":1,"ts":"2026-09-03T20:00:00Z","actor":"remediation","type":"spec_amendment","ref_id":"t013-ride","spec":"docs/specs/SPEC-DRAFT-spec-t013-fixture.md","spec_id":"spec-t013-fixture","owner_signoff":false,"what":"widened D3","why":"scope outgrew the frozen spec"}' >> "$led"
+  n_before="$(count_amendments "$led")"
+  [[ "$n_before" == 1 ]] || log_fail "TEST-013 setup: fixture must hold exactly 1 amendment, got $n_before"
+
+  run_sa list --ledger "$led" --strict
+  [[ "$EC" == 1 ]] || log_fail "TEST-013 setup: the fixture must refuse, got $EC"
+
+  # ARM 1 — the refusal's OWN suggested command, read off its stderr, run
+  # verbatim, and the gate must then reach 0. Placeholders are filled and the
+  # fixture ledger is pointed at; nothing else about the line is rewritten.
+  suggested="$(sed -n 's/^ *node \.aai\/scripts\/spec-amend\.mjs \(classify .*\)$/\1/p' <<<"$ERR" | head -1)"
+  [[ -n "$suggested" ]] \
+    || log_fail "TEST-013 arm 1: the --strict refusal must PRINT a runnable remedy naming the offending record; stderr was: $ERR"
+  grep -qF 't013-ride' <<<"$suggested" \
+    || log_fail "TEST-013 arm 1: the suggested remedy must carry the offending record's OWN ref, not a placeholder; got: $suggested"
+  grep -qF '2026-09-03T20:00:00Z' <<<"$suggested" \
+    || log_fail "TEST-013 arm 1: the suggested remedy must carry the offending record's OWN ts; got: $suggested"
+  cmd="${suggested//<one line>/back-classified at the gate}"
+  cmd="${cmd//<evidence>/tests/skills/test-aai-spec-amend.sh TEST-013}"
+  EC=0
+  eval "node \"\$SA\" $cmd --ledger \"\$led\"" > "$TEST_DIR/.stdout" 2> "$TEST_DIR/.stderr" || EC=$?
+  OUT="$(cat "$TEST_DIR/.stdout")"; ERR="$(cat "$TEST_DIR/.stderr")"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-013 arm 1: the command the refusal itself printed must succeed, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  run_sa list --ledger "$led" --strict
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-013 arm 1: after running the ONLY command the refusal named, --strict must reach 0 — a refusal whose documented remedy leaves it refusing has no outflow, which is the defect this whole scope removes; got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  # ARM 2 — the item is REAL, asserted through the other tool, no mock (SEAM-2).
+  run_fu list --ledger "$led" --status open
+  grep -qF "fu-amend-spec-t013-fixture" <<<"$OUT" \
+    || log_fail "TEST-013 arm 2: the co-created obligation must appear in the REAL follow-ups.mjs open list; stdout was: $OUT"
+  grep -qF "spec-t013-fixture" <<<"$OUT" \
+    || log_fail "TEST-013 arm 2: the obligation must NAME the spec whose sign-off is owed; stdout was: $OUT"
+
+  # ARM 3 — clearing the gate must not grow the amendment population. `classify`
+  # is an overlay writer; a remedy that appends a SECOND amendment has made the
+  # ledger worse while claiming to fix it.
+  n_after="$(count_amendments "$led")"
+  [[ "$n_after" == "$n_before" ]] \
+    || log_fail "TEST-013 arm 3: clearing the gate must append NO new spec_amendment record (append-only ledger), went $n_before -> $n_after"
+
+  # ARM 4 — the two NON-remedies are named as such, and still do not work. This
+  # pins the measurement that made F1 blocking, so no later edit can quietly
+  # re-name `add` as the fix.
+  local led2
+  led2="$(mk_ledger t013b)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-03T20:00:00Z","actor":"remediation","type":"spec_amendment","ref_id":"t013-ride","spec":"x","spec_id":"spec-t013-fixture","owner_signoff":false,"what":"widened D3","why":"y"}' >> "$led2"
+  run_sa list --ledger "$led2" --strict
+  grep -qF 'spec-amend.mjs add' <<<"$ERR" \
+    || log_fail "TEST-013 arm 4: the refusal must say plainly that \`add\` is NOT the remedy; stderr was: $ERR"
+  grep -qF 'follow-ups.mjs add' <<<"$ERR" \
+    || log_fail "TEST-013 arm 4: the refusal must say plainly that \`follow-ups.mjs add\` is NOT the remedy; stderr was: $ERR"
+  run_sa add --ledger "$led2" --spec "$spec" --ref t013-ride \
+    --what "widened D3" --why "scope outgrew the frozen spec" --signoff none
+  [[ "$EC" == 0 ]] || log_fail "TEST-013 arm 4: \`add\` must still never refuse (D2 fail-OPEN), got $EC"
+  run_sa list --ledger "$led2" --strict
+  [[ "$EC" == 1 ]] \
+    || log_fail "TEST-013 arm 4: \`add\` must NOT clear a pre-existing untracked record — it records a NEW amendment; got $EC"
+  [[ "$(count_amendments "$led2")" == 2 ]] \
+    || log_fail "TEST-013 arm 4: \`add\` appends a second amendment, which is exactly why it is not the remedy"
+
+  # ARM 5 — the prose the role actually reads names the working route, and no
+  # longer names the one that leaves the gate red.
+  local gate_bullet
+  gate_bullet="$(sed -n '/AMENDMENT GATE/,/^   - /p' "$PROJECT_ROOT/.aai/SKILL_PR.prompt.md")"
+  [[ -n "$gate_bullet" ]] || log_fail "TEST-013 arm 5: .aai/SKILL_PR.prompt.md has no AMENDMENT GATE bullet"
+  grep -qF 'spec-amend.mjs classify' <<<"$gate_bullet" \
+    || log_fail "TEST-013 arm 5: the AMENDMENT GATE bullet must name the remedy that CLEARS the gate; bullet was: $gate_bullet"
+  # `add` may be NAMED here, but only as the thing not to run. The round-1
+  # bullet offered it ("file the missing obligation (`spec-amend.mjs add`)"),
+  # which is the exact wording this arm exists to keep out.
+  if grep -qF 'spec-amend.mjs add' <<<"$gate_bullet"; then
+    grep -qF 'never `spec-amend.mjs add`' <<<"$gate_bullet" \
+      || log_fail "TEST-013 arm 5: the AMENDMENT GATE bullet may mention \`spec-amend.mjs add\` ONLY to rule it out — it does not clear a record the gate already named; bullet was: $gate_bullet"
+  fi
+  grep -qF 'spec-amend.mjs classify' "$CANON" \
+    || log_fail "TEST-013 arm 5: AUTONOMOUS_LOOP.md section 6a must name the remedy for a red gate, not only the writer"
+
+  # ARM 6 — `--tracked-by` still wins when given (the backfill route, unchanged),
+  # and an owner classification owes no item at all.
+  local led3
+  led3="$(mk_ledger t013c)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T06:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t013-explicit","spec_id":"spec-t013-explicit","owner_signoff":false}' >> "$led3"
+  printf '%s\n' '{ "v":1, "ts":"2026-09-01T07:00:00Z", "actor":"a", "type": "spec_amendment", "ref_id":"t013-absent", "spec_id":"spec-t013-absent" }' >> "$led3"
+  run_sa classify --ledger "$led3" --ts "2026-09-01T06:00:00Z" --ref t013-explicit \
+    --signoff none --why "w" --source "s" --tracked-by fu-amend-chosen-by-hand
+  [[ "$EC" == 0 ]] || log_fail "TEST-013 arm 6: an explicit --tracked-by must still be honoured, got $EC (stderr: $ERR)"
+  run_fu list --ledger "$led3" --status open
+  grep -qF "fu-amend-chosen-by-hand" <<<"$OUT" \
+    || log_fail "TEST-013 arm 6: the EXPLICIT id must be the one filed, never a derived one; stdout was: $OUT"
+  grep -qF "fu-amend-spec-t013-explicit" <<<"$OUT" \
+    && log_fail "TEST-013 arm 6: no derived id may be filed alongside the explicit one (that is an orphan item); stdout was: $OUT"
+  run_sa classify --ledger "$led3" --ts "2026-09-01T07:00:00Z" --ref t013-absent \
+    --signoff owner --why "the owner decided" --source "hitl_decision record"
+  [[ "$EC" == 0 ]] || log_fail "TEST-013 arm 6: an owner classification must succeed, got $EC (stderr: $ERR)"
+  run_fu list --ledger "$led3" --status open
+  grep -qF "fu-amend-spec-t013-absent" <<<"$OUT" \
+    && log_fail "TEST-013 arm 6: an OWNER-signed classification owes no obligation and must file none; stdout was: $OUT"
+  run_sa list --ledger "$led3" --strict
+  [[ "$EC" == 0 ]] || log_fail "TEST-013 arm 6: both routes together must clear the gate, got $EC (stdout: $OUT)"
+
+  log_pass "TEST-013 the refusal prints a runnable remedy, that remedy clears the gate in ONE call without growing the amendment population, and the two non-remedies are named as such"
+}
+
+# --- TEST-014 (validation round 1, NB-2) --------------------------------------
+# The gate's reach and the excuse's reach point in OPPOSITE directions.
+test_014_whitespace_type_cannot_evade_the_gate() {
+  log_info "Test: a \`type\` value carrying stray whitespace is still caught by --strict, while a whitespace-typed follow_up still does NOT excuse an amendment (TEST-014, validation NB-2)..."
+  local led led2
+  led="$(mk_ledger t014)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T06:00:00Z","actor":"a","type":" spec_amendment ","ref_id":"t014-padded","spec_id":"spec-t014","owner_signoff":false}' >> "$led"
+  run_sa list --ledger "$led" --strict
+  [[ "$EC" == 1 ]] \
+    || log_fail "TEST-014: a record whose \`type\` reads as an amendment to any human must not be invisible to the GATE, got $EC (stdout: $OUT)"
+  grep -qF "t014-padded" <<<"$OUT" \
+    || log_fail "TEST-014: --strict must NAME the padded record; stdout was: $OUT"
+
+  # The opposite direction, on purpose: over-detecting what EXCUSES an
+  # amendment would launder one, so the follow-up types stay exact-match.
+  led2="$(mk_ledger t014b)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T06:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t014-excuse","spec_id":"spec-t014b","owner_signoff":false,"tracked_by":"fu-amend-spec-t014b"}' >> "$led2"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T06:30:00Z","actor":"a","type":" follow_up ","id":"fu-amend-spec-t014b","ref_id":"t014-excuse","severity":"P2","finding":"f","decision":"d","source":"s"}' >> "$led2"
+  run_sa list --ledger "$led2" --strict
+  [[ "$EC" == 1 ]] \
+    || log_fail "TEST-014: a padded follow_up is not an obligation any registry reader can drain, so it must NOT excuse the amendment; got $EC (stdout: $OUT)"
+  grep -qF "unsigned-untracked" <<<"$OUT" \
+    || log_fail "TEST-014: the amendment excused only by a padded follow_up must stay unsigned-untracked; stdout was: $OUT"
+
+  log_pass "TEST-014 the trim widens what the gate CATCHES and never what EXCUSES it — the two error directions stay opposite"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010)"
   check_deps
@@ -891,6 +1055,8 @@ main() {
   test_008_append_only
   test_009_live_backfill_and_whole_ledger_readers
   test_010_spec0132_canon_guard
+  test_013_refusal_names_a_reachable_fixed_point
+  test_014_whitespace_type_cannot_evade_the_gate
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

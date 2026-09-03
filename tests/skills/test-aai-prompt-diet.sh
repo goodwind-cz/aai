@@ -749,15 +749,18 @@ test_012_growth_sum_matches_ledger() {
   # gains the c3 PROGRESS HEARTBEAT sub-item -- the runnable heartbeat.mjs write
   # invocation plus its never-changes-the-verdict wording), pin moves
   # 9945 -> 10324. Headroom is unchanged at 4/2048.
-  # unsigned-spec-amendment-has-no-outflow: +1129 B itemized entry, the sum of
+  # unsigned-spec-amendment-has-no-outflow: +1621 B itemized entry, the sum of
   # the ONLY two in-glob-or-extra pointers this scope adds — .aai/ROLE_COMMON.md
-  # POST-FREEZE SPEC AMENDMENT (+691 B, extra-file accounting) and
-  # .aai/SKILL_PR.prompt.md step 4c AMENDMENT GATE (+438 B, the live glob). The
+  # POST-FREEZE SPEC AMENDMENT (+977 B, extra-file accounting) and
+  # .aai/SKILL_PR.prompt.md step 4c AMENDMENT GATE (+644 B, the live glob). The
   # convention BODY is .aai/system/AUTONOMOUS_LOOP.md section 6a, which is
   # system/ and not corpus, so it carries no ledger cost; neither do
-  # .aai/scripts/spec-amend.mjs or the new suite. Pin moves 10324 -> 11453,
-  # headroom unchanged at 4/2048.
-  local want_growth=11453
+  # .aai/scripts/spec-amend.mjs or the new suite. Both figures were REMEASURED
+  # at remediation round 1 (validation F1: the gate's own refusal named
+  # remedies that leave it refusing, so both pointers were rewritten), moving
+  # the credit 1129 -> 1621. Pin moves 10324 -> 11945, headroom unchanged at
+  # 4/2048.
+  local want_growth=11945
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

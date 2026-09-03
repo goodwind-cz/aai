@@ -15,11 +15,20 @@ RFC-0001).
 
 - NEW `.aai/scripts/spec-amend.mjs` — a fail-OPEN writer plus a fail-CLOSED
   detector for post-freeze spec amendments. `add --signoff none` appends the
-  `spec_amendment` record AND manufactures the `fu-amend-<spec frontmatter id>`
-  follow-up naming the sign-off still owed, in one invocation; it never refuses
-  for a missing tracked item, so it cannot strand an autonomous ride at the
-  moment a frozen spec proves incomplete. `list --strict` exits 1 on any
-  untracked or unclassified amendment and runs at the PR/close gate.
+  `spec_amendment` record AND manufactures the `fu-amend-…` follow-up naming the
+  sign-off still owed, in one invocation; it never refuses for a missing tracked
+  item, so it cannot strand an autonomous ride at the moment a frozen spec
+  proves incomplete. The item's id keys on the spec's frontmatter `id`, fitted
+  to the registry's 40-char grammar (so it may be shortened or hashed — let the
+  script derive it). `list --strict` exits 1 on any untracked or unclassified
+  amendment and runs at the PR/close gate.
+- `classify --signoff none` co-creates the tracked item too, so ONE call takes a
+  record from `unsigned-untracked` or `unclassified` to `unsigned-tracked` and
+  the gate to exit 0 — and the refusal PRINTS that runnable line per offending
+  record, already carrying its `--ts`/`--ref`. A fail-closed gate whose named
+  remedy leaves it refusing is the same defect as an amendment whose disclosure
+  has no outflow, one level up, so the refusal now also names `spec-amend add`
+  and `follow-ups.mjs add` as the two commands that do NOT clear it.
 - The classifier is the `owner_signoff` FIELD, never heading text and never
   prose: three buckets, with an absent key landing in its own `unclassified`
   bucket rather than being guessed either way. Every query parses JSON per

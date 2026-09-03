@@ -117,6 +117,25 @@
 //   exactly — the id is still a pure function of the spec's durable identity
 //   and of nothing else.
 //
+//   Because it FITS, it is not the identity: the id is `fu-amend-<spec id>`
+//   only when that fits, and two of the five live ids are the shortened or
+//   hashed form. Anything that states the rule as a plain concatenation is
+//   wrong, and `.aai/system/AUTONOMOUS_LOOP.md` section 6a and
+//   `.aai/ROLE_COMMON.md` say "fitted" for that reason.
+//
+//   NOT INJECTIVE ACROSS THE `spec-` STRIP, accepted (validation NB-1). The
+//   shortening branch maps `spec-<X>` and `<X>` to the same id whenever
+//   `fu-amend-spec-<X>` exceeds 40 chars and `fu-amend-<X>` does not.
+//   Measured: 0 collisions across all 167 spec frontmatter ids in docs/specs.
+//   Hashing that branch too would restore injectivity and cost every future
+//   id its readability at the gate, where a human reads
+//   `fu-amend-spec-close-leaves-state-stale` and knows which spec is owed a
+//   sign-off without resolving a hash first. The failure it would prevent
+//   is two specs sharing ONE owner obligation — visible in the item's own
+//   `finding`, which names its spec, and never a laundering: the record still
+//   reads `unsigned-tracked`, never `signed`. Readability wins until a
+//   collision is reachable.
+//
 // EXIT CONTRACT
 //   0  success (including `list` with a non-empty unsigned backlog — a backlog
 //      is the point of this tool, never an error)
@@ -251,9 +270,20 @@ function foldAmendments(records) {
 
   for (const rec of records) {
     if (!rec || typeof rec !== 'object') continue;
-    if (rec.type === 'spec_amendment') {
+    // THE TWO ERROR DIRECTIONS ARE DELIBERATELY OPPOSITE (validation NB-2).
+    // A `type` value carrying stray whitespace (`" spec_amendment "`) reads as
+    // an amendment to every human and to no exact-match query, so the two
+    // AMENDMENT types are matched on the TRIMMED value: over-detecting what
+    // the gate must catch can only turn a green gate red, never launder a
+    // record. The follow-up types keep the house exact-match convention on
+    // purpose — those are what EXCUSE an amendment, and over-detecting an
+    // excuse is the one error this file must not make. A record that reaches
+    // `--strict` through the trim and is tracked by an item that only a trim
+    // would find therefore still fails, which is the correct answer.
+    const recType = typeof rec.type === 'string' ? rec.type.trim() : rec.type;
+    if (recType === 'spec_amendment') {
       amendments.push(rec);
-    } else if (rec.type === 'spec_amendment_classification') {
+    } else if (recType === 'spec_amendment_classification') {
       const key = overlayKey(rec.classifies_ts, rec.classifies_ref);
       if (key === null) {
         danglingOverlays += 1;
@@ -369,6 +399,45 @@ function nowIso() {
   return `${new Date().toISOString().slice(0, 19)}Z`;
 }
 
+// pickAmendItemId — the ONE place that decides which item an unsigned
+// amendment attaches to, shared by `add` and `classify` so the two writers
+// cannot drift. A base item that is already open is reused (the owner's
+// decision is per SPEC, not per ledger line); one that is already CLOSED is
+// not silently re-used, because attaching a new amendment to a discharged
+// obligation would mark it signed by an owner who never saw it — the
+// obligation reopens under a disambiguated, stamped id instead.
+function pickAmendItemId(reg, specKey, tsIso) {
+  const base = amendItemId(specKey);
+  const existing = reg.followUps.get(base) ?? null;
+  if (existing === null) return { itemId: base, note: null };
+  if (!existing.closed) {
+    return { itemId: base, note: `tracked item ${base} already open — this amendment attaches to it (the owner's decision is per SPEC, not per ledger line)` };
+  }
+  const stamp = stampFor(tsIso);
+  let candidate = amendItemIdStamped(specKey, stamp);
+  if (reg.followUps.has(candidate)) candidate = amendItemIdStamped(`${specKey}-${stamp}`, '2');
+  return { itemId: candidate, note: `tracked item ${base} is ${existing.status} — this amendment reopens the obligation as ${candidate}` };
+}
+
+// appendAmendItem — the follow-ups.mjs `follow_up` line both writers file, in
+// ONE place: the item `add` co-creates and the item `classify` co-creates are
+// the same obligation in the same words, so a gate cleared by either route
+// reads identically in `follow-ups.mjs list`.
+function appendAmendItem(absPath, { actor, itemId, ref, specId, specRel, what, why, sourceTs }) {
+  appendLine(absPath, {
+    v: 1,
+    ts: nowIso(),
+    actor,
+    type: 'follow_up',
+    id: itemId,
+    ref_id: ref,
+    severity: ITEM_SEVERITY,
+    finding: `owner sign-off owed on the post-freeze amendment(s) to ${specId} (${specRel}): ${what}`,
+    decision: `filed unsigned under the additive-with-disclosure convention by ${actor}; the owner may accept the amended spec or reverse it. ${why}`,
+    source: `${path.relative(process.cwd(), absPath) || absPath} ts=${sourceTs} type=spec_amendment ref_id=${ref}`,
+  });
+}
+
 function appendLine(absPath, entry) {
   let prefix = '';
   try {
@@ -421,6 +490,14 @@ tool exists to stop.
 \`classify\` back-classifies an existing record by APPENDING an overlay
 (docs/ai/decisions.jsonl is append-only — HAZ-LEDGER); the target record is
 never edited. The target is the (--ts, --ref) PAIR, never a line number.
+Like \`add\`, \`classify --signoff none\` CO-CREATES the tracked item when the
+target has none, so ONE call takes a record from \`unsigned-untracked\` or
+\`unclassified\` to \`unsigned-tracked\` and \`list --strict\` to exit 0. Pass
+\`--tracked-by fu-…\` only to attach an item you have already filed; the id is
+otherwise derived from the target's own \`spec_id\`. That is why the ONLY
+remedy \`--strict\` names is \`classify\`: \`add\` records a NEW amendment and
+leaves the offending record untracked, and \`follow-ups.mjs add\` files an item
+that is attached to nothing.
 
 A flag value may begin with two dashes as long as it is not EXACTLY a flag
 token this CLI knows. When it is, write it as --flag=value instead, which
@@ -592,29 +669,11 @@ function cmdAdd(opts) {
   };
 
   let itemId = null;
-  let createItem = false;
   let reusedNote = null;
   if (!signed) {
-    const base = amendItemId(specId);
-    const existing = reg.followUps.get(base) ?? null;
-    if (existing === null) {
-      itemId = base;
-      createItem = true;
-    } else if (!existing.closed) {
-      itemId = base;
-      reusedNote = `tracked item ${base} already open — this amendment attaches to it (the owner's decision is per SPEC, not per ledger line)`;
-    } else {
-      // The owner already signed off once and the item was closed; a new
-      // amendment REOPENS the obligation under a disambiguated id rather than
-      // re-opening a closed record (the ledger is append-only, and
-      // follow-ups.mjs has no reopen path).
-      const stamp = stampFor(entry.ts);
-      let candidate = amendItemIdStamped(specId, stamp);
-      if (reg.followUps.has(candidate)) candidate = amendItemIdStamped(`${specId}-${stamp}`, '2');
-      itemId = candidate;
-      createItem = true;
-      reusedNote = `tracked item ${base} is ${existing.status} — this amendment reopens the obligation as ${candidate}`;
-    }
+    const picked = pickAmendItemId(reg, specId, entry.ts);
+    itemId = picked.itemId;
+    reusedNote = picked.note;
     entry.tracked_by = itemId;
   } else {
     entry.authority = opts.authority;
@@ -622,18 +681,16 @@ function cmdAdd(opts) {
 
   appendLine(abs, entry);
 
-  if (createItem) {
-    appendLine(abs, {
-      v: 1,
-      ts: nowIso(),
+  if (!signed && !reg.followUps.has(itemId)) {
+    appendAmendItem(abs, {
       actor: entry.actor,
-      type: 'follow_up',
-      id: itemId,
-      ref_id: opts.ref,
-      severity: ITEM_SEVERITY,
-      finding: `owner sign-off owed on the post-freeze amendment(s) to ${specId} (${specRel}): ${opts.what}`,
-      decision: `filed unsigned under the additive-with-disclosure convention by ${entry.actor}; the owner may accept the amended spec or reverse it. ${opts.why}`,
-      source: `${path.relative(process.cwd(), abs) || abs} ts=${entry.ts} type=spec_amendment ref_id=${opts.ref}`,
+      itemId,
+      ref: opts.ref,
+      specId,
+      specRel,
+      what: opts.what,
+      why: opts.why,
+      sourceTs: entry.ts,
     });
   }
 
@@ -697,16 +754,67 @@ function cmdClassify(opts) {
   };
   if (opts.origin !== undefined) entry.origin = opts.origin;
   entry.source = opts.source;
-  if (trackedBy !== null) entry.tracked_by = trackedBy;
+
+  // `classify --signoff none` CO-CREATES, exactly as `add` does (validation
+  // F1). Until this was here, `classify` was a writer that could leave the
+  // gate red: back-classifying a record as unsigned told `--strict` the
+  // record was unsigned and untracked, and the only route to a green gate ran
+  // through `--tracked-by` plus a separately filed item — a fixed point named
+  // in no prose, while the prose that WAS written named `classify` alone.
+  // D2's fail-OPEN half applies to BOTH writers or to neither: a refusal whose
+  // documented remedy does not clear the refusal is the very defect this
+  // script exists to remove, one level up.
+  const target = targets[0];
+  const specKey = target.spec_id ?? target.ref_id;
+  let reusedNote = null;
+  if (!signed) {
+    const candidate = trackedBy ?? target.tracked_by;
+    if (candidate !== null) {
+      entry.tracked_by = candidate;
+    } else {
+      const picked = pickAmendItemId(reg, specKey, entry.ts);
+      entry.tracked_by = picked.itemId;
+      reusedNote = picked.note;
+    }
+  } else if (trackedBy !== null) {
+    entry.tracked_by = trackedBy;
+  }
   appendLine(abs, entry);
 
-  const after = loadLedger(abs);
-  const landed = after.byKey.get(overlayKey(opts.ts, opts.ref)) ?? null;
+  // The item is filed against the EFFECTIVE tracked id read back off disk, not
+  // against the one this call proposed: the fold lets a record's OWN
+  // `tracked_by` outrank any overlay's, so filing before the re-read could
+  // manufacture an orphan item for an id the gate will never consult.
+  let after = loadLedger(abs);
+  let landed = after.byKey.get(overlayKey(opts.ts, opts.ref)) ?? null;
+  if (!signed && landed !== null && landed.tracked_by !== null && !after.followUps.has(landed.tracked_by)) {
+    appendAmendItem(abs, {
+      actor: entry.actor,
+      itemId: landed.tracked_by,
+      ref: opts.ref,
+      specId: target.spec_id ?? specKey,
+      specRel: target.spec ?? '(spec path not on the record)',
+      what: target.what || `back-classified as unsigned: ${opts.why}`,
+      why: opts.why,
+      sourceTs: opts.ts,
+    });
+    after = loadLedger(abs);
+    landed = after.byKey.get(overlayKey(opts.ts, opts.ref)) ?? null;
+  }
+
   if (landed === null || landed.owner_signoff !== signed) {
     process.stderr.write(`spec-amend: appended the classification for ts=${opts.ts} ref=${opts.ref}, but the re-read of ${abs} shows owner_signoff "${landed ? landed.owner_signoff : 'MISSING'}" — the classification is NOT proven (a later-dated overlay for this target may shadow it)\n`);
     exit(1);
   }
+  if (!signed && landed.bucket === 'unsigned-untracked') {
+    process.stderr.write(`spec-amend: appended the classification for ts=${opts.ts} ref=${opts.ref} but the re-read of ${abs} still shows it ${landed.bucket} — the tracked item this call owed is NOT on the ledger, so \`list --strict\` would still refuse\n`);
+    exit(1);
+  }
   console.log(`spec-amend: classified ts=${opts.ts} ref=${opts.ref} as owner_signoff=${signed} — bucket ${landed.bucket}, proven by re-reading ${abs}`);
+  if (!signed) {
+    console.log(`spec-amend: tracked by ${landed.tracked_by} — drain it with: node .aai/scripts/follow-ups.mjs list --status open`);
+    if (reusedNote) console.log(`NOTE ${reusedNote}`);
+  }
   exit(0);
 }
 
@@ -767,7 +875,17 @@ function cmdList(opts) {
   }
 
   if (opts.strict && violations.length > 0) {
-    process.stderr.write(`spec-amend: --strict found ${violations.length} amendment record(s) that are untracked or unclassified — an unsigned amendment with no tracked item has no outflow, and an unclassified one cannot be told from a signed one. Fix with \`spec-amend classify\` (back-classify by APPEND) or \`follow-ups.mjs add\` (file the missing obligation).\n`);
+    // A refusal whose named remedy does not clear the refusal is the defect
+    // this script exists to remove, one level up (validation F1). Every
+    // command named here is one that takes a record OUT of the two violating
+    // buckets, and the two commands that do NOT are named as not doing it.
+    process.stderr.write(`spec-amend: --strict found ${violations.length} amendment record(s) that are untracked or unclassified — an unsigned amendment with no tracked item has no outflow, and an unclassified one cannot be told from a signed one.\n`);
+    process.stderr.write('Clear EACH record named above by APPEND, with its own ts and ref:\n');
+    for (const v of violations) {
+      process.stderr.write(`  node .aai/scripts/spec-amend.mjs classify --ts "${v.ts ?? '<ts>'}" --ref "${v.ref_id ?? '<ref>'}" --signoff none --why "<one line>" --source "<evidence>"\n`);
+    }
+    process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to attach an item you have already filed.\n');
+    process.stderr.write('NOT remedies: `spec-amend.mjs add` records a NEW amendment and leaves the record named above untracked; `follow-ups.mjs add` files an item but attaches it to nothing. Never edit the ledger in place (HAZ-LEDGER).\n');
     exit(1);
   }
   exit(0);

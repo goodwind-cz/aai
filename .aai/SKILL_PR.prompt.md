@@ -149,11 +149,14 @@ PROCESS
      could never later resolve via step 5c. Step 5's own platform bullet
      REUSES this same result; it is not re-probed there.
    - AMENDMENT GATE — run `node .aai/scripts/spec-amend.mjs list --strict`.
-     Exit 0: proceed. Exit 1: it names each record that is untracked or
-     unclassified — file the missing obligation (`spec-amend.mjs add`) or
-     back-classify by APPEND (`spec-amend.mjs classify`, never an in-place
-     edit) before closing. An unsigned post-freeze amendment with no tracked
-     item discharges an owner HITL gate by self-disclosure.
+     Exit 0: proceed. Exit 1: it PRINTS one runnable `spec-amend.mjs classify`
+     line per offending record, already carrying that record's `--ts`/`--ref`.
+     Run each (`--signoff none` also files the tracked item, so one call per
+     record clears the gate; `--signoff owner` when the owner really decided).
+     Never an in-place edit, and never `spec-amend.mjs add` — that records a
+     NEW amendment and leaves the named record untracked. An unsigned
+     post-freeze amendment with no tracked item discharges an owner HITL gate
+     by self-disclosure.
    - FLIP THE AC TABLE FIRST (its own ordered step — .aai/VALIDATION.prompt.md
      step 8a defers it to here): set every Spec-AC row of the scope's doc(s)
      terminal, fill each Evidence cell from the validation report's per-AC

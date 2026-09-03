@@ -115,13 +115,28 @@ decided, naming the record that proves it. Two rules hold this together:
   SPEC-0164 carries three unsigned amendments and no `## Amendment` heading at
   all, so heading text could not classify them even in principle.
 - **The obligation is drained through the registry.** The tracked item is
-  `fu-amend-<spec frontmatter id>` — one per SPEC, because the owner's
+  keyed on the spec's frontmatter `id` — one per SPEC, because the owner's
   decision is per spec — and it appears in
   `node .aai/scripts/follow-ups.mjs list --status open`, which Planning
-  already reads. Closing it is the owner's sign-off, not the ride's.
+  already reads. Closing it is the owner's sign-off, not the ride's. The id is
+  `fu-amend-<spec frontmatter id>` only when that FITS the registry's 40-char
+  grammar; longer ids are shortened or truncated-and-hashed, so two of the five
+  live ids are not the plain concatenation. Let the script derive it — never
+  compose it by hand from this sentence.
 
 `node .aai/scripts/spec-amend.mjs list --strict` exits 1 while any amendment
 on the ledger is untracked or unclassified. It runs at the PR/close gate.
+
+**When that gate refuses, run what it prints.** It emits one runnable
+`spec-amend.mjs classify --ts … --ref …` line per offending record, already
+carrying that record's own pair. Under `--signoff none` that one call
+back-classifies the record AND files the tracked item it owes, so the record
+leaves the violating bucket and the gate reaches 0. Two commands that look like
+remedies are not: `spec-amend.mjs add` records a NEW amendment and leaves the
+offending record exactly as untracked as it was, and `follow-ups.mjs add` files
+an item attached to nothing. A gate whose named remedy does not clear the gate
+is the same defect as an amendment whose disclosure has no outflow, one level
+up — which is why the refusal names only the command that works.
 
 **SPEC-0132 is NOT precedent for proceeding unsigned.** Its amendment is
 headed `## Amendment (owner decision, 2026-08-15T08:14:24Z)` and cites a real
