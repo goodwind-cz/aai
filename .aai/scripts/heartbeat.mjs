@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // heartbeat.mjs — role progress heartbeat (role-progress-heartbeat /
-// docs/specs/SPEC-DRAFT-spec-role-progress-heartbeat.md). Node stdlib only,
+// docs/specs/SPEC-0164-spec-role-progress-heartbeat.md). Node stdlib only,
 // zero deps.
 //
 // WHAT THIS IS FOR, stated honestly. During a long autonomous ride the only

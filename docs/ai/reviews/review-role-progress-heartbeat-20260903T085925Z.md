@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 4774e90..0947c3a (branch change/role-progress-heartbeat, worktree /Users/ales/Projects/aai-change-heartbeat)"
-  spec: docs/specs/SPEC-DRAFT-spec-role-progress-heartbeat.md
+  spec: docs/specs/SPEC-0164-spec-role-progress-heartbeat.md
   spec_compliance:
     verdict: pass
     ac_walk:

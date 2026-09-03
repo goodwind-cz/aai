@@ -1,11 +1,11 @@
 ---
 id: spec-role-progress-heartbeat
 type: spec
-number: null
+number: 164
 status: implementing
 ceremony_level: 2
 links:
-  requirement: docs/issues/CHANGE-DRAFT-role-progress-heartbeat.md
+  requirement: docs/issues/CHANGE-0170-role-progress-heartbeat.md
   rfc: null
   pr: []
   commits: []
@@ -16,7 +16,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: `docs/issues/CHANGE-DRAFT-role-progress-heartbeat.md`
+- Requirement: `docs/issues/CHANGE-0170-role-progress-heartbeat.md`
 - Decision records: `docs/ai/decisions.jsonl` (see "Registry items closed by this scope")
 - Technology contract: `docs/TECHNOLOGY.md` (Node stdlib only, zero deps, bash-3.2 in suites)
 - Adjacent surface this scope deliberately does NOT extend:
@@ -24,7 +24,7 @@ SPEC-FROZEN: true
 - Convention this scope is bound by: `.aai/scripts/lib/runtime-file.mjs` header,
   "CONVENTION PIN" — a new runtime sidecar MUST use the shared primitives.
 - Storage decision (owner-approved 2026-09-03, NOT re-opened here):
-  `docs/issues/CHANGE-DRAFT-role-progress-heartbeat.md` "Why not STATE.yaml".
+  `docs/issues/CHANGE-0170-role-progress-heartbeat.md` "Why not STATE.yaml".
 
 ## Problem this solves, stated honestly
 
@@ -521,7 +521,7 @@ recorded, storage optional per the `loop` row of `### Evidence by strategy`.
 - `node .aai/scripts/select-suites.mjs --files-from <changed files>` for the
   intermediate rounds; ONE `bash tests/skills/test-framework.sh` full sweep
   before the close ceremony (`.aai/VALIDATION.prompt.md` step 5 c2).
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-role-progress-heartbeat.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0164-spec-role-progress-heartbeat.md`
 - `node .aai/scripts/docs-audit.mjs --gate <SPEC-ID>` -> exit 0 at close
 - PASS criteria: all TEST-xxx green AND all Spec-AC terminal.
 

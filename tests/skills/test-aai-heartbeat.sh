@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-heartbeat (role-progress-heartbeat /
-# SPEC-DRAFT-spec-role-progress-heartbeat.md, TEST-001..014 and TEST-018).
+# SPEC-0164-spec-role-progress-heartbeat.md, TEST-001..014 and TEST-018).
 #
 # Verifies .aai/scripts/heartbeat.mjs — the advisory, machine-written progress
 # signal a long-running dispatched role emits so an observer can read it

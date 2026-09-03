@@ -1,16 +1,16 @@
 {
-  "generatedAt": "2026-09-02T22:43:35.727Z",
-  "project": "aai-fix-metrics-flush",
+  "generatedAt": "2026-09-03T09:25:37.166Z",
+  "project": "aai-change-heartbeat",
   "counts": {
     "delivered": 227,
-    "in_progress": 39,
+    "in_progress": 40,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "metrics-flush-invalidates-pr-precondition",
-    "type": "intake_issue"
+    "ref": "role-progress-heartbeat",
+    "type": "intake_change"
   },
   "in_flight": null,
   "in_progress": [
@@ -39,6 +39,19 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "role-progress-heartbeat",
+      "title": "Long-running dispatched roles should emit a live progress heartbeat",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0170-role-progress-heartbeat.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0164-spec-role-progress-heartbeat.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-role-progress-heartbeat-20260903T085925Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-03T09:25:01.456Z
+Generated: 2026-09-03T09:25:55.576Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-role-progress-heartbeat | specs | implementing | 10 planned | docs/specs/SPEC-DRAFT-spec-role-progress-heartbeat.md |
+| SPEC-0164 | specs | implementing | 10 planned | docs/specs/SPEC-0164-spec-role-progress-heartbeat.md |
 
 ## Canonical layer (0)
 
@@ -454,7 +454,7 @@ _None._
 |---|---|---|
 | CHANGE-0166 | issues | docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md |
 | CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
-| role-progress-heartbeat (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-role-progress-heartbeat.md |
+| CHANGE-0170 | issues | docs/issues/CHANGE-0170-role-progress-heartbeat.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
