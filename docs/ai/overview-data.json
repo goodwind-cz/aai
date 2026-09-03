@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-03T21:06:35.320Z",
+  "generatedAt": "2026-09-03T21:07:40.916Z",
   "project": "aai-change-amendment",
   "counts": {
-    "delivered": 228,
-    "in_progress": 40,
+    "delivered": 229,
+    "in_progress": 39,
     "releases": 1,
     "tokens_total": 57249552
   },
@@ -37,19 +37,6 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "unsigned-spec-amendment-has-no-outflow",
-      "title": "An unsigned post-freeze spec amendment must file a tracked item, not just a sentence",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0171-unsigned-spec-amendment-has-no-outflow.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0165-spec-unsigned-spec-amendment-has-no-outflow.md",
       "validation": null,
       "review": null
     },
@@ -548,6 +535,19 @@
       "spec": "docs/specs/SPEC-0164-spec-role-progress-heartbeat.md",
       "validation": null,
       "review": "docs/ai/reviews/review-role-progress-heartbeat-20260903T085925Z.md"
+    },
+    {
+      "ref": "unsigned-spec-amendment-has-no-outflow",
+      "title": "An unsigned post-freeze spec amendment must file a tracked item, not just a sentence",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0171-unsigned-spec-amendment-has-no-outflow.md",
+      "closed_on": "2026-09-03",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0165-spec-unsigned-spec-amendment-has-no-outflow.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "release-protected-branch-fallback",
@@ -3519,6 +3519,19 @@
           "spec": "docs/specs/SPEC-0164-spec-role-progress-heartbeat.md",
           "validation": null,
           "review": "docs/ai/reviews/review-role-progress-heartbeat-20260903T085925Z.md"
+        },
+        {
+          "ref": "unsigned-spec-amendment-has-no-outflow",
+          "title": "An unsigned post-freeze spec amendment must file a tracked item, not just a sentence",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0171-unsigned-spec-amendment-has-no-outflow.md",
+          "closed_on": "2026-09-03",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0165-spec-unsigned-spec-amendment-has-no-outflow.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "release-protected-branch-fallback",

@@ -2,10 +2,12 @@
 id: unsigned-spec-amendment-has-no-outflow
 number: 171
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 6157f85
 ---
 
 # An unsigned post-freeze spec amendment must file a tracked item, not just a sentence
