@@ -118,8 +118,8 @@
 //   and of nothing else.
 //
 //   Because it FITS, it is not the identity: the id is `fu-amend-<spec id>`
-//   only when that fits, and two of the five live ids are the shortened or
-//   hashed form. Anything that states the rule as a plain concatenation is
+//   only when that fits, and THREE of the five live ids are the shortened or
+//   hashed form (one shortened, two hashed). Anything that states the rule as a plain concatenation is
 //   wrong, and `.aai/system/AUTONOMOUS_LOOP.md` section 6a and
 //   `.aai/ROLE_COMMON.md` say "fitted" for that reason.
 //
@@ -882,7 +882,22 @@ function cmdList(opts) {
     process.stderr.write(`spec-amend: --strict found ${violations.length} amendment record(s) that are untracked or unclassified — an unsigned amendment with no tracked item has no outflow, and an unclassified one cannot be told from a signed one.\n`);
     process.stderr.write('Clear EACH record named above by APPEND, with its own ts and ref:\n');
     for (const v of violations) {
-      process.stderr.write(`  node .aai/scripts/spec-amend.mjs classify --ts "${v.ts ?? '<ts>'}" --ref "${v.ref_id ?? '<ref>'}" --signoff none --why "<one line>" --source "<evidence>"\n`);
+      // A record missing `ts` or `ref_id` cannot be matched by `classify`,
+      // which keys on that pair — so printing a `<ts>` placeholder would be
+      // a remedy that cannot be run, the degenerate cousin of the very
+      // defect this block was rewritten to remove (validation OBS-1). Say
+      // that instead. Neither writer can produce such a record (`add`
+      // always stamps both), so reaching this line means the ledger was
+      // hand-appended.
+      if (v.ts === undefined || v.ts === null || v.ref_id === undefined || v.ref_id === null) {
+        const missing = [
+          (v.ts === undefined || v.ts === null) ? 'ts' : null,
+          (v.ref_id === undefined || v.ref_id === null) ? 'ref_id' : null,
+        ].filter(Boolean).join(' and ');
+        process.stderr.write(`  (no runnable remedy: this record carries no ${missing}, and classify matches on the ts+ref pair. Neither writer can emit that, so the record was hand-appended; append a corrected record rather than editing it.)\n`);
+        continue;
+      }
+      process.stderr.write(`  node .aai/scripts/spec-amend.mjs classify --ts "${v.ts}" --ref "${v.ref_id}" --signoff none --why "<one line>" --source "<evidence>"\n`);
     }
     process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to attach an item you have already filed.\n');
     process.stderr.write('NOT remedies: `spec-amend.mjs add` records a NEW amendment and leaves the record named above untracked; `follow-ups.mjs add` files an item but attaches it to nothing. Never edit the ledger in place (HAZ-LEDGER).\n');

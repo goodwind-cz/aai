@@ -120,8 +120,8 @@ decided, naming the record that proves it. Two rules hold this together:
   `node .aai/scripts/follow-ups.mjs list --status open`, which Planning
   already reads. Closing it is the owner's sign-off, not the ride's. The id is
   `fu-amend-<spec frontmatter id>` only when that FITS the registry's 40-char
-  grammar; longer ids are shortened or truncated-and-hashed, so two of the five
-  live ids are not the plain concatenation. Let the script derive it — never
+  grammar; longer ids are shortened or truncated-and-hashed, so THREE of the
+  five live ids are not the plain concatenation (one shortened, two hashed). Let the script derive it — never
   compose it by hand from this sentence.
 
 `node .aai/scripts/spec-amend.mjs list --strict` exits 1 while any amendment

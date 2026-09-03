@@ -1041,6 +1041,40 @@ test_014_whitespace_type_cannot_evade_the_gate() {
   log_pass "TEST-014 the trim widens what the gate CATCHES and never what EXCUSES it — the two error directions stay opposite"
 }
 
+test_015_unmatchable_record_gets_an_honest_refusal() {
+  log_info "Test: a record classify cannot match must be told so, not handed a placeholder it can never fill (TEST-015, validation OBS-1)..."
+  local led led2
+  led="$(mk_ledger t015)"
+  # No `ts`. `classify` keys on the ts+ref pair, so no invocation can reach
+  # this record. Neither writer can emit it (`add` always stamps both), so
+  # this shape only exists on a hand-appended ledger.
+  printf '%s\n' '{"v":1,"type":"spec_amendment","ref_id":"t015-no-ts","spec_id":"spec-t015","owner_signoff":false}' >> "$led"
+  run_sa list --ledger "$led" --strict
+  [[ "$EC" == 1 ]] \
+    || log_fail "TEST-015: an unmatchable record must still violate, got $EC (stdout: $OUT)"
+  if grep -qF 'classify --ts "<ts>"' <<<"$ERR"; then
+    log_fail "TEST-015: printing a <ts> placeholder is a remedy that cannot be run — the exact defect F1 removed, one shape down; stderr was: $ERR"
+  fi
+  grep -qF "no runnable remedy" <<<"$ERR" \
+    || log_fail "TEST-015: the refusal must SAY the record is unmatchable rather than implying a command exists; stderr was: $ERR"
+  grep -qF "carries no ts" <<<"$ERR" \
+    || log_fail "TEST-015: the refusal must name WHICH field is missing, or the operator cannot act on it; stderr was: $ERR"
+
+  # CONTROL, opposite direction: a well-formed record must still get a real,
+  # runnable command — the honesty branch must not swallow the happy path.
+  led2="$(mk_ledger t015b)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-03T20:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t015-ok","spec_id":"spec-t015b","owner_signoff":false}' >> "$led2"
+  run_sa list --ledger "$led2" --strict
+  [[ "$EC" == 1 ]] || log_fail "TEST-015 control: a well-formed violation must still exit 1, got $EC"
+  grep -qF 'classify --ts "2026-09-03T20:00:00Z" --ref "t015-ok"' <<<"$ERR" \
+    || log_fail "TEST-015 control: a matchable record must still be handed its own runnable line; stderr was: $ERR"
+  if grep -qF "no runnable remedy" <<<"$ERR"; then
+    log_fail "TEST-015 control: the honesty branch must not fire on a record classify CAN match; stderr was: $ERR"
+  fi
+
+  log_pass "TEST-015 an unmatchable record is told so by name; a matchable one still gets its runnable command"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010)"
   check_deps
@@ -1057,6 +1091,7 @@ main() {
   test_010_spec0132_canon_guard
   test_013_refusal_names_a_reachable_fixed_point
   test_014_whitespace_type_cannot_evade_the_gate
+  test_015_unmatchable_record_gets_an_honest_refusal
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
