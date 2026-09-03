@@ -9,14 +9,23 @@
 // announced a dispatch it had not actually made, and the only reason it
 // surfaced was the operator asking. The value of this signal is that it does
 // NOT come from the orchestrator's narration.
-//   PROVES, machine-written and un-narratable: a process existed, ran in
-//     worktree <w> at pid <p>, and wrote at time <t>. An announced dispatch
-//     that never happened leaves NO slot file at all — that absence is the
-//     real detection.
+//   PROVES, machine-written: SOME process existed, ran in worktree <w> at pid
+//     <p>, and wrote at time <t>. An announced dispatch that never happened
+//     leaves NO slot file at all — that absence is the real detection, and it
+//     is the load-bearing half.
+//   DOES NOT PROVE which process. `pid` and `worktree` identify a writer, not
+//     the DISPATCHED writer: nothing stops the orchestrator writing a slot
+//     itself, so a PRESENT slot is corroboration, never proof of a dispatch.
+//     Calling this signal un-narratable over-reads it.
 //   DOES NOT PROVE: that `message` is accurate. The message is still the
 //     role's self-report. The timestamp is the trustworthy field, not the prose.
 //
-// STORAGE — <git-common-dir>/aai/heartbeat/<slot>.json, one file per slot.
+// STORAGE — <git-common-dir>/aai/heartbeat/hb-<slot>.json, one file per slot.
+// The `hb-` prefix is not decoration: it is what makes THIS feature's files
+// identifiable in a directory it does not own. `--dir`/AAI_HEARTBEAT_DIR is a
+// first-class override, so the directory is caller-named and may hold anything;
+// the GC below sweeps by that prefix and `read` lists by it, and neither ever
+// considers a file this script did not write.
 // The location is worktree-independent BY CONSTRUCTION: `git rev-parse
 // --git-common-dir` prints `.git` from a main checkout's root, `../.git` from
 // a subdirectory of it, and an ABSOLUTE path from a linked worktree (measured,
@@ -62,8 +71,9 @@
 // threshold here would be the first step toward something a gate could learn to
 // read. Which is also why NO GATE MAY EVER READ THIS FILE: an advisory signal a
 // gate learned to read became a blocker nobody intended (SPEC-0163 / PR #334).
-// test-aai-heartbeat.sh TEST-012 makes that a mechanical, failable check over
-// the named gate scripts rather than a promise in this comment.
+// test-aai-heartbeat.sh TEST-012 makes that a mechanical, failable check —
+// deny-by-default over the WHOLE .aai/scripts corpus with a two-file allowlist,
+// not an enumerated list of gates whose forgotten member is the hole.
 //
 // POSITIONING: this lives BESIDE .aai/scripts/generate-live-status.mjs, not
 // inside it. That generator observes the HARNESS from the outside and answers
@@ -88,6 +98,9 @@ import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 const MESSAGE_MAX = 200;
 const COMPONENT_MAX = 64;
 const GC_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Every file this script writes starts with this. It is what bounds the GC
+// sweep and the read listing to files this feature owns; see STORAGE above.
+const SLOT_PREFIX = 'hb-';
 
 // Resolved from THIS SCRIPT's own location, so the caller's cwd is irrelevant
 // (the live-spool.sh discipline). In a linked worktree this is that worktree's
@@ -192,7 +205,7 @@ function cmdWrite(opts) {
   if (!ref) usage('--ref is empty after sanitization');
   const role = sanitizeComponent(opts.role);
   if (!role) usage('--role is empty after sanitization');
-  let slotName = `${ref}__${role}`;
+  let slotName = `${SLOT_PREFIX}${ref}__${role}`;
   if (opts.slot !== undefined) {
     const slot = sanitizeComponent(opts.slot);
     if (!slot) usage('--slot is empty after sanitization');
@@ -206,10 +219,14 @@ function cmdWrite(opts) {
   const dir = resolved.dir;
 
   // Class-D orphan GC before the write, so a failed sweep degrades without
-  // leaving a half-tended directory behind. An empty prefix sweeps every entry
-  // (slot files and any abandoned atomicWrite temp alike); reapAsides keeps
-  // every FRESH one, so a live producer's slot is never taken.
-  const swept = reapAsides(dir, '', Date.now(), GC_WINDOW_MS);
+  // leaving a half-tended directory behind. BOUNDED BY SLOT_PREFIX, which is
+  // reapAsides' whole contract ("every entry whose name starts with prefix"):
+  // an empty prefix here would make this an unbounded 24-hour GC over whatever
+  // directory the caller named — deleting an operator's files with exit 0 and a
+  // success line. The prefix still covers abandoned atomicWrite temps, which
+  // are named `<slot-file>.tmp.<pid>.<seq>` and so inherit it. reapAsides keeps
+  // every FRESH entry, so a live producer's slot is never taken.
+  const swept = reapAsides(dir, SLOT_PREFIX, Date.now(), GC_WINDOW_MS);
   if (swept.error) degrade(`orphan sweep failed (${swept.error})`);
 
   // The SANITIZED components, not the raw ones. Two reasons: the payload is
@@ -255,7 +272,9 @@ function cmdRead(opts) {
     process.stderr.write(`heartbeat: degraded — ${resolved.reason}\n`);
   } else {
     try {
-      names = fs.readdirSync(resolved.dir).filter((n) => n.endsWith('.json')).sort();
+      names = fs.readdirSync(resolved.dir)
+        .filter((n) => n.startsWith(SLOT_PREFIX) && n.endsWith('.json'))
+        .sort();
     } catch (e) {
       if (!e || e.code !== 'ENOENT') {
         const entry = { source: resolved.dir, reason: `directory unreadable (${(e && e.code) || 'unknown'})` };
@@ -320,6 +339,13 @@ function cmdRead(opts) {
 
 function main(argv) {
   const opts = parseArgs(argv);
+  // The same empty-after-a-value refusal --ref/--role/--message carry, extended
+  // to --dir, and checked here so every subcommand inherits it. path.resolve('')
+  // is the CURRENT DIRECTORY, so an accepted empty --dir silently aims the write
+  // — and the GC beside it — at wherever the caller happens to stand, which from
+  // the repo root is the shipping tree. USAGE grade, not a degrade: a caller
+  // that passed an unset shell variable has a wiring bug and must be told.
+  if (opts.dir !== undefined && opts.dir === '') usage('--dir is empty');
   const sub = opts._[0];
   if (sub === '--help' || !sub) {
     process.stdout.write(

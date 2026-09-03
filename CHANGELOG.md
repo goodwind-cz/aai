@@ -20,7 +20,7 @@ RFC-0001).
   them. Node stdlib only, zero deps, built on `.aai/scripts/lib/runtime-file.mjs`
   (`atomicWrite`, `loadOrDegrade`, `reapAsides`) per that library's CONVENTION
   PIN, and on `lib/cli-pipe-guard.mjs` so the output survives a pipe.
-- Storage is `<git-common-dir>/aai/heartbeat/<slot>.json`, resolved from the
+- Storage is `<git-common-dir>/aai/heartbeat/hb-<slot>.json`, resolved from the
   script's own location so the caller's cwd is irrelevant. That location is
   worktree-independent BY CONSTRUCTION: `git rev-parse --git-common-dir`
   prints `.git` from a main checkout, `../.git` from a subdirectory and an
@@ -31,13 +31,21 @@ RFC-0001).
   TEST-001/002 cross that seam with a real `git worktree add`.) It is also
   structurally uncommittable — nothing under `.git/` can enter the index — so
   this change adds no `.gitignore`, `RUNTIME_IGNORE.list` or
-  `DOCS_AI_CANON.list` entry. `AAI_HEARTBEAT_DIR` overrides the directory.
-- What it proves, stated honestly: a process existed, ran in worktree `<w>` at
-  pid `<p>`, and wrote at time `<t>` — none of which comes from the
-  orchestrator's narration, so an announced dispatch that never happened
-  leaves no slot file at all. What it does NOT prove: that the `message` text
-  is accurate. The timestamp is the trustworthy field; the prose is the role's
-  own self-report.
+  `DOCS_AI_CANON.list` entry. `AAI_HEARTBEAT_DIR` (or `--dir`) overrides the
+  directory; an EMPTY value is refused at usage grade, because `path.resolve("")`
+  is the current directory and silently aiming the write — and its 24-hour GC —
+  at the caller's cwd is not an override anyone asked for. Every file this
+  script writes carries the `hb-` prefix, and both the GC sweep and the `read`
+  listing are bounded to it, so a caller-named directory keeps whatever else
+  lives in it.
+- What it proves, stated honestly: SOME process existed, ran in worktree `<w>`
+  at pid `<p>`, and wrote at time `<t>`. The load-bearing half is the ABSENCE —
+  an announced dispatch that never happened leaves no slot file at all. What it
+  does NOT prove: WHICH process. `pid` and `worktree` identify a writer, not the
+  dispatched one; nothing stops the orchestrator writing a slot itself, so a
+  present slot is corroboration rather than proof. Nor does it prove the
+  `message` text is accurate — the timestamp is the trustworthy field, the prose
+  is the role's own self-report.
 - Two failure grades, deliberately separated. A caller that cannot identify
   itself is a WIRING bug and REFUSES loudly (exit 2, its own literal message);
   every runtime condition — no git, unwritable directory, failed sweep —
@@ -48,10 +56,12 @@ RFC-0001).
 - Deliberately absent: no `clear`, no lease, and NO stale/stuck verdict.
   `read` prints `age_seconds`, a fact, and defines no threshold — inventing one
   would be the first step toward something a gate could learn to read.
-  `test-aai-heartbeat.sh` TEST-012 makes "no gate reads this" MECHANICAL,
-  asserting zero heartbeat references across `docs-audit`, `close-work-item`,
-  `branch-guard`, `check-role-output`, `spec-freeze`, `check-state`,
-  `validation-waiver`, `metrics-flush` and both `pre-commit-checks` files.
+  `test-aai-heartbeat.sh` TEST-012 makes "no gate reads this" MECHANICAL, and
+  DENY-BY-DEFAULT: it sweeps every `.mjs`/`.sh`/`.ps1` under `.aai/scripts/`
+  (117 files) and allowlists exactly two — `heartbeat.mjs` itself and
+  `generate-live-status.mjs`, the sanctioned observation seam. An enumerated
+  list of gates was the first shape, and its forgotten member was the hole: a
+  planted reference in `lane-gate.mjs` left it green.
 - `.aai/VALIDATION.prompt.md` step 5 gains one sub-item, `c3 PROGRESS
   HEARTBEAT`, at the per-round boundary — the only role prompt wired in this
   scope, since its full-sweep rounds are the most reproducibly long operation

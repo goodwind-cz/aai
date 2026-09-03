@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-heartbeat (role-progress-heartbeat /
-# SPEC-DRAFT-spec-role-progress-heartbeat.md, TEST-001..014).
+# SPEC-DRAFT-spec-role-progress-heartbeat.md, TEST-001..014 and TEST-018).
 #
 # Verifies .aai/scripts/heartbeat.mjs — the advisory, machine-written progress
 # signal a long-running dispatched role emits so an observer can read it
@@ -17,8 +17,9 @@
 #     degrades to today's silence (TEST-008/009).
 #   - read: cold start prints exactly `heartbeat: none recorded` (TEST-003); a
 #     corrupt slot is NAMED, never read as "nothing there" (TEST-010).
-#   - NEVER GATES ANYTHING: TEST-012 asserts zero heartbeat references in the
-#     named gate scripts, mechanically rather than in prose. The anti-pattern
+#   - NEVER GATES ANYTHING: TEST-012 sweeps the WHOLE .aai/scripts corpus
+#     deny-by-default (two allowlisted files) rather than an enumerated list of
+#     gates, whose forgotten member is where the hole lives. The anti-pattern
 #     it guards shipped once already (SPEC-0163 / PR #334) and cost three
 #     validation rounds.
 #
@@ -165,7 +166,7 @@ test_001_worktree_to_main_checkout() {
   assert_payload_contains "$OUT" "full sweep round 2 of 3" \
     "TEST-001: main-checkout read must carry the worktree's message" || return
   assert_payload_contains "$OUT" "$wt" \
-    "TEST-001: the recorded worktree path makes the signal un-narratable" || return
+    "TEST-001: the payload must record the worktree the write actually ran in" || return
   log_pass "TEST-001 heartbeat written in a real linked worktree is read from the main checkout"
 }
 
@@ -482,14 +483,17 @@ test_010_corrupt_slot_named_not_dropped() {
     log_fail "TEST-010: setup write exited $RC"
     return
   fi
-  printf '{ not json at all' > "$dir/refBad__Validation.json"
+  # The hb- prefix is what marks a file as THIS feature's, for reading as well
+  # as for the GC sweep: an unprefixed file in a caller-named directory belongs
+  # to someone else and is neither read nor reported as a damaged slot.
+  printf '{ not json at all' > "$dir/hb-refBad__Validation.json"
 
   AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" read
   if [[ "$RC" -ne 0 ]]; then
     log_fail "TEST-010: read with a corrupt slot must exit 0, got $RC"
     return
   fi
-  assert_payload_contains "$OUT" "refBad__Validation.json" \
+  assert_payload_contains "$OUT" "hb-refBad__Validation.json" \
     "TEST-010: the corrupt slot must be NAMED in the output" || return
   assert_payload_contains "$OUT" "still fine" \
     "TEST-010: the readable slot beside a corrupt one must still be printed" || return
@@ -511,8 +515,18 @@ test_010_corrupt_slot_named_not_dropped() {
 }
 
 # --- TEST-011 / Spec-AC-07 ----------------------------------------------------
-# Class D orphan GC, bounded: older than 24 h goes, fresher stays. A live
-# producer's fresh slot is never swept.
+# Class D orphan GC, and the BOUND on it. Spec-AC-07 says `write` reaps SLOT
+# FILES older than 24 h; it does not license a sweep of whatever else lives in
+# the directory. `--dir` / AAI_HEARTBEAT_DIR is a documented first-class
+# override ("tests, and any host where the git probe cannot run"), so the
+# directory is caller-named and may hold files this feature does not own.
+# Three outcomes in one arm, because the defect is only visible when all three
+# are asserted together: a FOREIGN file survives, a stale SLOT is reaped, a
+# fresh slot is kept. Plus the cwd case, which is the same defect at its worst:
+# `--dir ""` resolves to the CURRENT DIRECTORY, so from the repo root — the
+# canonical invocation directory — an unbounded sweep deletes every stale
+# top-level file in the shipping repo. That is a USAGE error (exit 2), the same
+# grade the other empty-value refusals already carry.
 test_011_reap_stale_keep_fresh() {
   local dir="$TEST_DIR/reap/heartbeat"
   mkdir -p "$dir"
@@ -522,6 +536,23 @@ test_011_reap_stale_keep_fresh() {
     log_fail "TEST-011: setup expected 2 slots, found $(count_slots "$dir")"
     return
   fi
+
+  # Slot files carry a COMMON PREFIX so the sweep has something to be bounded
+  # BY. Without it reapAsides is called with an empty prefix and matches every
+  # entry in the directory, which is outside its documented terms.
+  local old_slot="$dir/hb-refOld__Validation.json"
+  local recent_slot="$dir/hb-refRecent__Validation.json"
+  local new_slot="$dir/hb-refNew__Validation.json"
+  if [[ ! -f "$old_slot" || ! -f "$recent_slot" ]]; then
+    log_fail "TEST-011: slot files must carry the hb- prefix that bounds the GC sweep; expected $old_slot and $recent_slot, found: $(find "$dir" -maxdepth 1 -name '*.json' -type f -exec basename {} \; | tr '\n' ' ')"
+    return
+  fi
+
+  # Files the heartbeat does not own, aged well PAST the window so a sweep that
+  # is not bounded to slot files is guaranteed to take them.
+  printf 'operator notes\n' > "$dir/operator-notes.txt"
+  printf '{"tool":"other"}\n' > "$dir/other-tool.json"
+
   node -e '
     const fs = require("fs");
     const now = Date.now();
@@ -531,26 +562,63 @@ test_011_reap_stale_keep_fresh() {
     };
     age(process.argv[1], 25);
     age(process.argv[2], 1);
-  ' "$dir/refOld__Validation.json" "$dir/refRecent__Validation.json"
+    age(process.argv[3], 30);
+    age(process.argv[4], 30);
+  ' "$old_slot" "$recent_slot" "$dir/operator-notes.txt" "$dir/other-tool.json"
 
   AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" write --ref refNew --role Validation --message "now"
   if [[ "$RC" -ne 0 ]]; then
     log_fail "TEST-011: the reaping write exited $RC"
     return
   fi
-  if [[ -f "$dir/refOld__Validation.json" ]]; then
+  if [[ -f "$old_slot" ]]; then
     log_fail "TEST-011: a 25-hour-old slot must be reaped by the next write"
     return
   fi
-  if [[ ! -f "$dir/refRecent__Validation.json" ]]; then
+  if [[ ! -f "$recent_slot" ]]; then
     log_fail "TEST-011: a 1-hour-old slot must be KEPT (a live producer is never swept)"
     return
   fi
-  if [[ ! -f "$dir/refNew__Validation.json" ]]; then
+  if [[ ! -f "$new_slot" ]]; then
     log_fail "TEST-011: the write that ran the GC must still have written its own slot"
     return
   fi
-  log_pass "TEST-011 a 25-hour-old slot is reaped by the next write; the 1-hour-old slot is kept"
+  if [[ ! -f "$dir/operator-notes.txt" || ! -f "$dir/other-tool.json" ]]; then
+    log_fail "TEST-011: the GC must never touch a file this feature did not write, but a 30-hour-old foreign file was deleted from the caller-named directory (survivors: $(find "$dir" -maxdepth 1 -type f -exec basename {} \; | tr '\n' ' '))"
+    return
+  fi
+
+  # The cwd case. path.resolve("") is the current directory, so an accepted
+  # empty --dir points the whole write — GC included — at wherever the caller
+  # happens to stand.
+  local cwdfix="$TEST_DIR/reap-cwd"
+  mkdir -p "$cwdfix"
+  printf 'export const x = 1;\n' > "$cwdfix/important.mjs"
+  printf 'load-bearing\n' > "$cwdfix/NOTES.md"
+  node -e '
+    const fs = require("fs");
+    const t = new Date(Date.now() - 30 * 3600 * 1000);
+    for (const f of process.argv.slice(1)) fs.utimesSync(f, t, t);
+  ' "$cwdfix/important.mjs" "$cwdfix/NOTES.md"
+
+  RC=0
+  # A plain subshell, NOT `$(cd ...)`: a cd inside a command substitution leaks
+  # its scope back to the parent shell (check-cd-subshell-leak.mjs).
+  ( cd "$cwdfix" && node "$HB" write --ref refE --role Validation --message "round 1" --dir "" ) \
+    >"$TEST_DIR/hb.out" 2>"$TEST_DIR/hb.err" || RC=$?
+  OUT="$(cat "$TEST_DIR/hb.out")"
+  ERR="$(cat "$TEST_DIR/hb.err")"
+  if [[ "$RC" -ne 2 ]]; then
+    log_fail "TEST-011: an empty --dir must be REFUSED at usage grade (exit 2), got $RC — path.resolve(\"\") is the current directory, so accepting it aims the write and its GC at the caller's cwd (stderr: $(payload_preview "$ERR"))"
+    return
+  fi
+  assert_payload_contains "$ERR" "heartbeat: --dir is empty" \
+    "TEST-011: an empty --dir must carry its own literal message, like the other empty-value refusals" || return
+  if [[ ! -f "$cwdfix/important.mjs" || ! -f "$cwdfix/NOTES.md" ]]; then
+    log_fail "TEST-011: an empty --dir deleted stale files from the CURRENT DIRECTORY (survivors: $(find "$cwdfix" -maxdepth 1 -type f -exec basename {} \; | tr '\n' ' '))"
+    return
+  fi
+  log_pass "TEST-011 the GC reaps a 25-hour-old slot, keeps the 1-hour-old one, never touches a foreign file, and an empty --dir is refused before it can sweep the cwd"
 }
 
 # --- TEST-012 / Spec-AC-08 ----------------------------------------------------
@@ -558,26 +626,50 @@ test_011_reap_stale_keep_fresh() {
 # an advisory signal a gate learned to read became a blocker nobody intended,
 # shipped in PR #334, and cost three validation rounds. "No gate reads this" is
 # only true while something fails when it stops being true.
+#
+# DENY BY DEFAULT, not an enumerated list. This arm shipped its first round as
+# ten named gate scripts, and the forgotten member is exactly where the hole
+# lives: a heartbeat reference planted in lane-gate.mjs — a deterministic PR
+# fast-lane gate sitting in the same PROFILES `core:` list as the ten — left
+# the suite GREEN, while the same mutation in branch-guard.mjs failed. The list
+# also never named close-before-push-guard.mjs, check-test-registration.mjs,
+# check-base-ref-pins.mjs, tdd-evidence-check.mjs, spec-lint.mjs,
+# layer-drift.mjs or claude-hook-gate.sh. So the corpus is now EVERY executable
+# under .aai/scripts/ and the exceptions are enumerated instead — a new gate is
+# covered the day it is added, with nobody having to remember a list.
+#
+# The allowlist is exactly two files: heartbeat.mjs itself, and
+# generate-live-status.mjs, the sanctioned observation seam this signal was
+# deliberately built BESIDE rather than inside.
 test_012_no_gate_reads_the_heartbeat() {
-  local gates="branch-guard.mjs check-role-output.mjs check-state.mjs close-work-item.mjs docs-audit.mjs metrics-flush.mjs pre-commit-checks.ps1 pre-commit-checks.sh spec-freeze.mjs validation-waiver.mjs"
-  local g path hits offenders="" checked=0
-  for g in $gates; do
-    path="$PROJECT_ROOT/.aai/scripts/$g"
-    if [[ ! -f "$path" ]]; then
-      log_fail "TEST-012: named gate script is missing, so this pin cannot vouch for it: $path"
-      return
-    fi
+  local allow=" heartbeat.mjs generate-live-status.mjs "
+  local f base hits offenders="" checked=0
+  # A `while read` over find, not a glob: the corpus is recursive (lib/,
+  # live-parsers/) and bash-3.2 has no globstar.
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    base="$(basename "$f")"
+    case "$allow" in *" $base "*) continue ;; esac
     checked=$((checked + 1))
-    hits="$(grep -ic 'heartbeat' "$path" || true)"
+    hits="$(grep -ic 'heartbeat' "$f" || true)"
     if [[ "$hits" != "0" ]]; then
-      offenders="$offenders $g($hits)"
+      offenders="$offenders ${f#"$PROJECT_ROOT/"}($hits)"
     fi
-  done
-  if [[ -n "$offenders" ]]; then
-    log_fail "TEST-012: a GATE now references the heartbeat —$offenders. The heartbeat is advisory and must never gate anything (SPEC-0163 / PR #334 is what happens when it does)."
+  done <<EOF
+$(find "$PROJECT_ROOT/.aai/scripts" -type f \( -name '*.mjs' -o -name '*.sh' -o -name '*.ps1' \) | sort)
+EOF
+  # A deny-by-default sweep whose corpus came back empty would pass while
+  # proving nothing. The floor is well under the live count (119 at the time of
+  # writing) so it tracks a broken find, not the corpus growing or shrinking.
+  if [[ "$checked" -lt 60 ]]; then
+    log_fail "TEST-012: the corpus sweep found only $checked scripts under .aai/scripts — that is a broken enumeration, not a clean result, and a deny-by-default check that scans nothing passes vacuously"
     return
   fi
-  log_pass "TEST-012 zero heartbeat references across all $checked named gate scripts"
+  if [[ -n "$offenders" ]]; then
+    log_fail "TEST-012: a script in the gate corpus now references the heartbeat —$offenders. The heartbeat is advisory and must never gate anything (SPEC-0163 / PR #334 is what happens when it does). If this is a deliberate, non-gating seam, add it to this arm's allowlist and say why."
+    return
+  fi
+  log_pass "TEST-012 zero heartbeat references across all $checked .aai/scripts entries outside the two-file allowlist"
 }
 
 # --- TEST-013 / Spec-AC-08 ----------------------------------------------------
@@ -648,6 +740,36 @@ test_014_validation_prompt_is_the_only_wiring() {
   log_pass "TEST-014 VALIDATION.prompt.md carries the live wiring plus the never-changes-the-verdict wording, and is the only wired prompt"
 }
 
+# --- TEST-018 / Spec-AC-05 (DEGRADED path) ------------------------------------
+# The THIRD degrade branch. D4 names "GC failure" beside the unwritable
+# directory and the absent git, but only the other two had arms: TEST-008's
+# read-only parent fails at `cannot write`, never at `orphan sweep failed`, so
+# that branch shipped with no coverage at all. Driven here by pointing the
+# override at a REGULAR FILE, which makes the sweep's readdir fail ENOTDIR —
+# a real host condition (a stale file where a directory is expected), not an
+# injected fault.
+test_018_sweep_failure_degrades() {
+  local notadir="$TEST_DIR/sweep-fail/heartbeat"
+  mkdir -p "$TEST_DIR/sweep-fail"
+  printf 'not a directory\n' > "$notadir"
+
+  AAI_HEARTBEAT_DIR="$notadir" run_hb "$HB" write \
+    --ref refS --role Validation --message "round 1"
+  if [[ "$RC" -ne 0 ]]; then
+    log_fail "TEST-018: a failed orphan sweep must exit 0 (best effort), got $RC — a role's outcome must never move because of a heartbeat (stderr: $(payload_preview "$ERR"))"
+    return
+  fi
+  assert_payload_contains "$ERR" "heartbeat: degraded — orphan sweep failed" \
+    "TEST-018: the failed sweep must NAME its own branch, not borrow another degrade's wording" || return
+  # Nothing written, and nothing clobbered: the file that stood in for the
+  # directory must still hold its own content.
+  if [[ "$(cat "$notadir")" != "not a directory" ]]; then
+    log_fail "TEST-018: a degraded write must write nothing, but $notadir was modified"
+    return
+  fi
+  log_pass "TEST-018 a failed orphan sweep degrades (exit 0, its own named note, nothing written)"
+}
+
 # --- run ----------------------------------------------------------------------
 check_deps
 test_001_worktree_to_main_checkout
@@ -664,9 +786,10 @@ test_011_reap_stale_keep_fresh
 test_012_no_gate_reads_the_heartbeat
 test_013_no_ignore_list_entries
 test_014_validation_prompt_is_the_only_wiring
+test_018_sweep_failure_degrades
 
 if [[ "$FAILED" == 0 ]]; then
-  echo "PASS: all $TEST_NAME tests (TEST-001..014)"
+  echo "PASS: all $TEST_NAME tests (TEST-001..014, TEST-018)"
   exit 0
 else
   echo "FAIL: $TEST_NAME suite had failures" >&2

@@ -37,9 +37,18 @@ orchestrator's narration.
 
 What the heartbeat therefore does and does not prove (an honest boundary, kept
 here so no later reader over-claims it):
-- PROVES, machine-written and un-narratable: a process existed, ran in worktree
-  `<w>` at pid `<p>`, and wrote at time `<t>`. An announced dispatch that never
-  happened leaves NO slot file at all — that absence is the real detection.
+- PROVES, machine-written: SOME process existed, ran in worktree `<w>` at pid
+  `<p>`, and wrote at time `<t>`. An announced dispatch that never happened
+  leaves NO slot file at all — that absence is the real detection, and it is
+  the load-bearing half.
+- DOES NOT PROVE WHICH PROCESS.
+  CORRECTED post-freeze (2026-09-03, amendment item 2): the word
+  "un-narratable" above over-read what the payload establishes, and this
+  bullet did not exist. `pid` and `worktree` identify A writer, not the
+  DISPATCHED writer — nothing stops the orchestrator writing a slot itself, so
+  a PRESENT slot is corroboration and only the ABSENCE of one is evidence. The
+  claim is narrowed here, in `heartbeat.mjs`'s header and in `CHANGELOG.md`
+  together; no delivered behaviour changes.
 - DOES NOT PROVE: that the `message` text is accurate. The message is still the
   role's self-report. The timestamp is the trustworthy field; the prose is not.
 
@@ -129,9 +138,19 @@ cross-process read-modify-write anywhere in this design, so class-A TOCTOU
 occur even under `K >= 2` parallel dispatch, where a shared-file design would
 silently lose one role's entry at every collision.
 
-Slot name: `<ref>__<role>[__<slot>].json`, each component passed through
+Slot name: `hb-<ref>__<role>[__<slot>].json`, each component passed through
 `[^A-Za-z0-9._-] -> '-'` and capped at 64 characters. A component that
 sanitizes to the empty string is a usage error (D4), never a nameless file.
+CORRECTED post-freeze (2026-09-03, amendment item 2): the frozen text omitted
+the `hb-` prefix, which did not exist at freeze time. It is load-bearing, not
+cosmetic. `AAI_HEARTBEAT_DIR`/`--dir` is a first-class override, so the
+directory is CALLER-NAMED and may hold files this feature does not own; the
+prefix is what the class-D GC sweep and the `read` listing are bounded BY.
+Without it the sweep ran with an empty prefix — an unbounded 24-hour GC over
+whatever directory the caller named, which deleted an operator's own files
+while exiting 0 with a success line (code review, BLOCKING). Abandoned
+`atomicWrite` temps are named `<slot-file>.tmp.<pid>.<seq>` and so inherit the
+prefix, which is why the sweep still reaches them.
 
 ### D3 — Payload
 
@@ -147,14 +166,19 @@ sanitizes to the empty string is a usage error (D4), never a nameless file.
 ```
 
 The four fields the intake's AC-001 names, plus `pid` and `worktree` — the two
-fields that make the signal un-narratable (D-problem statement above).
+fields that tie the signal to a real process rather than to narration. They
+identify A writer, not the dispatched one; see the corrected boundary in the
+D-problem statement above.
 
 ### D4 — Two failure grades, deliberately separated
 
 - **USAGE (exit 2, loud).** A caller that cannot identify itself is a wiring
   bug and must surface at implementation/test time, not degrade into silence:
   missing `--ref`, `--role`, or `--message`; a component that sanitizes empty;
-  a `--message` that is empty after sanitization.
+  a `--message` that is empty after sanitization; an EMPTY `--dir`
+  (`path.resolve("")` is the current directory, so accepting it aims the write
+  and its GC at wherever the caller stands — added post-freeze, amendment
+  item 2).
 - **RUNTIME DEGRADE (exit 0, named note on stderr).** No git, no repo,
   unwritable directory, GC failure. The role's own outcome must never move
   because of a heartbeat, so every runtime condition exits 0 with
@@ -178,7 +202,13 @@ could learn to read.
 The intake cites the Metrics-Flush/SKILL_PR collision (SPEC-0163, PR #334) as
 the anti-pattern: an advisory signal a gate learned to read became a blocker
 nobody intended. Spec-AC-08 makes "no gate reads this" a MECHANICAL, failable
-check over a named list of gate scripts, not a promise in prose.
+check, not a promise in prose. CORRECTED post-freeze (2026-09-03, amendment
+item 2): it was first written as a NAMED LIST of gate scripts, and a planted
+reference in `lane-gate.mjs` — a gate the list did not name — left it green
+(code review, mutation-proved). The check is now DENY-BY-DEFAULT over every
+`.mjs`/`.sh`/`.ps1` under `.aai/scripts/` with a two-file allowlist
+(`heartbeat.mjs`, `generate-live-status.mjs`), so a gate added tomorrow is
+covered without anyone remembering to extend a list.
 
 ### D7 — Shared primitives, not a bespoke lifecycle
 
@@ -250,10 +280,15 @@ separately-priced decision.
 - Spec-AC-06: WHEN one slot file is corrupt `read` SHALL name it in its output
   and still print every readable slot, exiting 0.
 - Spec-AC-07: WHEN `write` runs it SHALL reap slot files whose mtime is older
-  than 24 hours and SHALL keep fresher ones.
-- Spec-AC-08 (intake Constraints, anti-SPEC-0163): the named gate scripts SHALL
-  contain zero references to the heartbeat, and this scope SHALL add no
-  `.gitignore` / `RUNTIME_IGNORE.list` / `DOCS_AI_CANON.list` entry.
+  than 24 hours, SHALL keep fresher ones, and SHALL leave untouched every file
+  in the directory it did not itself write (the last clause added post-freeze,
+  amendment item 2: it was always the intent — "slot files" — but only the
+  first two clauses were testable as written, and the gap shipped as a
+  BLOCKING defect).
+- Spec-AC-08 (intake Constraints, anti-SPEC-0163): the gate-script corpus SHALL
+  contain zero references to the heartbeat outside a named allowlist, and this
+  scope SHALL add no `.gitignore` / `RUNTIME_IGNORE.list` /
+  `DOCS_AI_CANON.list` entry.
 - Spec-AC-09 (intake AC-002): `.aai/VALIDATION.prompt.md` SHALL carry a live,
   greppable `heartbeat.mjs write` invocation at its per-round boundary together
   with wording that its outcome never changes the verdict, and SHALL be the
@@ -287,8 +322,8 @@ untouched: this scope writes no STATE.yaml and needs no carve-out in
 | Spec-AC-04 | WHEN --message carries control or bidi characters the system SHALL sanitize and truncate at 200, and WHEN it is empty after sanitization SHALL refuse exit 2 | planned | —        | —         | the REJECTED input plus the component's own literal message    |
 | Spec-AC-05 | WHEN the heartbeat directory is unwritable or git is unavailable write SHALL exit 0, print a named degrade note, and write nothing                            | planned | —        | —         | best-effort clause; absence degrades to today's silence        |
 | Spec-AC-06 | WHEN one slot file is corrupt read SHALL name it in its output, still print every readable slot, and exit 0                                                  | planned | —        | —         | class B; a damaged slot is never read as nothing there         |
-| Spec-AC-07 | WHEN write runs it SHALL reap slot files older than 24 hours and SHALL keep fresher ones                                                                     | planned | —        | —         | class D orphan GC via reapAsides, bounded and best-effort      |
-| Spec-AC-08 | The named gate scripts SHALL contain zero heartbeat references and this scope SHALL add no gitignore, RUNTIME_IGNORE or DOCS_AI_CANON entry                  | planned | —        | —         | the anti-SPEC-0163 check, mechanical rather than promised      |
+| Spec-AC-07 | WHEN write runs it SHALL reap slot files older than 24 hours, keep fresher ones, and leave untouched every file it did not itself write                       | planned | —        | —         | class D orphan GC via reapAsides, bounded by the hb- prefix    |
+| Spec-AC-08 | The gate-script corpus SHALL contain zero heartbeat references outside a named allowlist and this scope SHALL add no gitignore, RUNTIME_IGNORE or DOCS_AI_CANON entry | planned | —        | —         | anti-SPEC-0163, deny-by-default rather than an enumerated list |
 | Spec-AC-09 | .aai/VALIDATION.prompt.md SHALL carry a greppable heartbeat write invocation plus never-changes-the-verdict wording and SHALL be the only role prompt wired  | planned | —        | —         | one proof wiring; other role prompts priced separately later   |
 | Spec-AC-10 | The prompt-diet ledger, PROFILES.yaml and suite-map.yaml companion obligations SHALL be satisfied with the MEASURED byte growth                             | planned | —        | —         | measured by Implementation; no byte number is written here     |
 
@@ -391,13 +426,14 @@ repo -> stdout.
 | TEST-008 | Spec-AC-05 | unit        | tests/skills/test-aai-heartbeat.sh    | DEGRADED input: an unwritable AAI_HEARTBEAT_DIR makes write exit 0, print the named degrade note, and create no file          | green   |
 | TEST-009 | Spec-AC-05 | unit        | tests/skills/test-aai-heartbeat.sh    | DEGRADED input: with git absent from a stubbed PATH and no AAI_HEARTBEAT_DIR, write exits 0 and read prints none recorded     | green   |
 | TEST-010 | Spec-AC-06 | unit        | tests/skills/test-aai-heartbeat.sh    | one slot file of invalid JSON plus one valid slot; read exits 0, names the corrupt slot, and still prints the valid one       | green   |
-| TEST-011 | Spec-AC-07 | unit        | tests/skills/test-aai-heartbeat.sh    | a slot touched to 25 hours old is reaped by the next write while a 1-hour-old slot is kept                                    | green   |
-| TEST-012 | Spec-AC-08 | integration | tests/skills/test-aai-heartbeat.sh    | zero heartbeat references in docs-audit, close-work-item, branch-guard, check-role-output, spec-freeze, check-state, validation-waiver, metrics-flush and both pre-commit-checks files | green   |
+| TEST-011 | Spec-AC-07 | unit        | tests/skills/test-aai-heartbeat.sh    | a slot touched to 25 hours old is reaped by the next write, a 1-hour-old slot is kept, two 30-hour-old FOREIGN files in the same caller-named directory survive, and an empty --dir is refused exit 2 before it can sweep the cwd | green   |
+| TEST-012 | Spec-AC-08 | integration | tests/skills/test-aai-heartbeat.sh    | zero heartbeat references across every .mjs, .sh and .ps1 under .aai/scripts outside the two-file allowlist heartbeat.mjs plus generate-live-status.mjs, with a corpus-size floor so an empty sweep cannot pass vacuously | green   |
 | TEST-013 | Spec-AC-08 | unit        | tests/skills/test-aai-heartbeat.sh    | git diff of .gitignore, .aai/system/RUNTIME_IGNORE.list and .aai/system/DOCS_AI_CANON.list against the base ref is empty      | green   |
 | TEST-014 | Spec-AC-09 | unit        | tests/skills/test-aai-heartbeat.sh    | VALIDATION.prompt.md carries a live heartbeat.mjs write line with --ref, --role and --message plus never-changes-the-verdict wording, and it is the only .aai/*.prompt.md that names heartbeat.mjs | green   |
 | TEST-015 | Spec-AC-10 | integration | tests/skills/test-aai-prompt-diet.sh  | existing TEST-010 and TEST-012 arms re-pinned to the measured growth; the ledger sum equals the pin                           | green   |
 | TEST-016 | Spec-AC-10 | integration | tests/skills/test-aai-layer-profiles.sh | existing TEST-001 arm: .aai/scripts/heartbeat.mjs is classified, union equals the live tree                                 | green   |
 | TEST-017 | Spec-AC-10 | integration | tests/skills/test-aai-hygiene-pack.sh | existing arm: suites.aai-heartbeat row exists for tests/skills/test-aai-heartbeat.sh                                          | green   |
+| TEST-018 | Spec-AC-05 | unit        | tests/skills/test-aai-heartbeat.sh    | DEGRADED input: an AAI_HEARTBEAT_DIR pointing at a regular file makes the orphan sweep fail ENOTDIR, so write exits 0 with its own orphan sweep failed note and writes nothing (added post-freeze, amendment item 2 — D4 named GC failure as a degrade branch but no arm covered it) | green   |
 
 Test status values: pending -> red -> green
 
