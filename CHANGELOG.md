@@ -36,16 +36,27 @@ RFC-0001).
   is the current directory and silently aiming the write — and its 24-hour GC —
   at the caller's cwd is not an override anyone asked for. Every file this
   script writes carries the `hb-` prefix, and both the GC sweep and the `read`
-  listing are bounded to it, so a caller-named directory keeps whatever else
-  lives in it.
+  listing are bounded to THAT PREFIX — not to ownership. A caller-named
+  directory keeps everything that does not start with `hb-`; a stale file that
+  does start with `hb-` is reaped even if this script never wrote it, so a
+  shared directory has to leave that prefix free. (Shape-gating the reap was
+  considered and rejected: it cannot cover the abandoned `.tmp.<pid>.<seq>`
+  temps the sweep exists to collect.) The window is symmetric, so a
+  future-dated `hb-` file is stale too — a far-future mtime must never wedge a
+  GC.
 - What it proves, stated honestly: SOME process existed, ran in worktree `<w>`
-  at pid `<p>`, and wrote at time `<t>`. The load-bearing half is the ABSENCE —
-  an announced dispatch that never happened leaves no slot file at all. What it
-  does NOT prove: WHICH process. `pid` and `worktree` identify a writer, not the
-  dispatched one; nothing stops the orchestrator writing a slot itself, so a
-  present slot is corroboration rather than proof. Nor does it prove the
-  `message` text is accurate — the timestamp is the trustworthy field, the prose
-  is the role's own self-report.
+  at pid `<p>`, and wrote at time `<t>`. That POSITIVE half is what the
+  mechanism surfaces. What it does NOT prove: WHICH process. `pid` and
+  `worktree` identify a writer, not the dispatched one; nothing stops the
+  orchestrator writing a slot itself, so a present slot is corroboration rather
+  than proof. And it proves NOTHING BY ITS ABSENCE, by construction: a missing
+  slot is produced identically by an announced-but-never-made dispatch, by a
+  role that has not reached a round boundary yet, by a role in a separate clone,
+  and by any role whose write hit a degrade — every degrade exits 0 and writes
+  nothing. Absence is the one observable this design refuses to interpret; an
+  absent heartbeat is silence, never a finding. Nor does it prove the `message`
+  text is accurate — the timestamp is the trustworthy field, the prose is the
+  role's own self-report.
 - Two failure grades, deliberately separated. A caller that cannot identify
   itself is a WIRING bug and REFUSES loudly (exit 2, its own literal message);
   every runtime condition — no git, unwritable directory, failed sweep —
@@ -58,10 +69,13 @@ RFC-0001).
   would be the first step toward something a gate could learn to read.
   `test-aai-heartbeat.sh` TEST-012 makes "no gate reads this" MECHANICAL, and
   DENY-BY-DEFAULT: it sweeps every `.mjs`/`.sh`/`.ps1` under `.aai/scripts/`
-  (117 files) and allowlists exactly two — `heartbeat.mjs` itself and
-  `generate-live-status.mjs`, the sanctioned observation seam. An enumerated
+  (118 files) and allowlists exactly one — `heartbeat.mjs` itself. An enumerated
   list of gates was the first shape, and its forgotten member was the hole: a
   planted reference in `lane-gate.mjs` left it green.
+  `generate-live-status.mjs` was allowlisted in the first deny-by-default round
+  and has been removed from the allowlist: it carries zero heartbeat references,
+  the panel seam is explicitly not built here, and pre-authorising an unbuilt
+  seam only costs the coverage that would catch it.
 - `.aai/VALIDATION.prompt.md` step 5 gains one sub-item, `c3 PROGRESS
   HEARTBEAT`, at the per-round boundary — the only role prompt wired in this
   scope, since its full-sweep rounds are the most reproducibly long operation

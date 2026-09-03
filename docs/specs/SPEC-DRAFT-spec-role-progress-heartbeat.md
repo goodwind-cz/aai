@@ -38,17 +38,32 @@ orchestrator's narration.
 What the heartbeat therefore does and does not prove (an honest boundary, kept
 here so no later reader over-claims it):
 - PROVES, machine-written: SOME process existed, ran in worktree `<w>` at pid
-  `<p>`, and wrote at time `<t>`. An announced dispatch that never happened
-  leaves NO slot file at all — that absence is the real detection, and it is
-  the load-bearing half.
+  `<p>`, and wrote at time `<t>`. That POSITIVE half is the whole of what the
+  mechanism surfaces.
 - DOES NOT PROVE WHICH PROCESS.
   CORRECTED post-freeze (2026-09-03, amendment item 2): the word
   "un-narratable" above over-read what the payload establishes, and this
   bullet did not exist. `pid` and `worktree` identify A writer, not the
   DISPATCHED writer — nothing stops the orchestrator writing a slot itself, so
-  a PRESENT slot is corroboration and only the ABSENCE of one is evidence. The
-  claim is narrowed here, in `heartbeat.mjs`'s header and in `CHANGELOG.md`
-  together; no delivered behaviour changes.
+  a PRESENT slot is corroboration rather than proof of a dispatch. The claim is
+  narrowed here, in `heartbeat.mjs`'s header and in `CHANGELOG.md` together; no
+  delivered behaviour changes.
+- DOES NOT PROVE ANYTHING BY ITS ABSENCE, and that is BY CONSTRUCTION.
+  EXTENDED post-freeze (2026-09-03, amendment item 2, round 3): the first
+  correction above narrowed WHICH PROCESS correctly and then over-corrected in
+  the other direction, asserting that "an announced dispatch that never happened
+  leaves NO slot file at all — that absence is the real detection, and it is the
+  load-bearing half". That was falsified against this same spec and the wiring
+  it ships, not merely improved on: an absent slot is produced identically by an
+  announced-but-never-made dispatch, by a role that has not yet reached a round
+  boundary, by a role in a separate CLONE (R1), and by ANY role that called
+  `write` and hit a degrade — every degrade exits 0 and writes nothing (D4).
+  Absence is therefore the one observable this design deliberately REFUSES to
+  interpret, which is what R2 ("absence degrades to today's silence, never to a
+  new failure mode"), `.aai/VALIDATION.prompt.md` c3 ("an absent heartbeat is
+  silence, never a finding") and D5's refusal to define a threshold all already
+  said. Corrected in this spec, in `heartbeat.mjs`'s header and in
+  `CHANGELOG.md` together; no delivered behaviour changes.
 - DOES NOT PROVE: that the `message` text is accurate. The message is still the
   role's self-report. The timestamp is the trustworthy field; the prose is not.
 
@@ -82,7 +97,10 @@ Deliberately cheap future seam (NOT built here, NOT a follow-up obligation):
 `heartbeat.mjs read --json` emits a stable `{slots: [...], degraded: [...]}`
 shape, which is the same `degraded`-array convention `generate-live-status.mjs`
 already uses. If a heartbeat panel is ever wanted there, it is one read of one
-JSON payload — no reshaping of this scope's output.
+JSON payload — no reshaping of this scope's output. That seam is NOT
+pre-authorised in Spec-AC-08's allowlist: `generate-live-status.mjs` was
+dropped from it in amendment item 2 round 3, so building the panel costs one
+allowlist line on the day it is built (see D6).
 
 ## Design
 
@@ -206,9 +224,18 @@ check, not a promise in prose. CORRECTED post-freeze (2026-09-03, amendment
 item 2): it was first written as a NAMED LIST of gate scripts, and a planted
 reference in `lane-gate.mjs` — a gate the list did not name — left it green
 (code review, mutation-proved). The check is now DENY-BY-DEFAULT over every
-`.mjs`/`.sh`/`.ps1` under `.aai/scripts/` with a two-file allowlist
-(`heartbeat.mjs`, `generate-live-status.mjs`), so a gate added tomorrow is
-covered without anyone remembering to extend a list.
+`.mjs`/`.sh`/`.ps1` under `.aai/scripts/` with a ONE-file allowlist
+(`heartbeat.mjs` itself), so a gate added tomorrow is covered without anyone
+remembering to extend a list.
+NARROWED post-freeze (2026-09-03, amendment item 2 round 3): the allowlist was
+two files, the second being `generate-live-status.mjs`. It is dropped. That file
+has zero heartbeat references today, this spec's own "Positioning" section calls
+the panel seam "NOT built here, NOT a follow-up obligation", and it is a
+674-line `core:` script — the file in the corpus most likely to grow one. A
+gate-shaped read planted in it left the suite green (validation, mutation-proved),
+so pre-authorising the unbuilt seam bought nothing and cost the only coverage
+that would have caught it. If the panel is ever built, the allowlist gains one
+line that day, with a reason attached.
 
 ### D7 — Shared primitives, not a bespoke lifecycle
 
@@ -279,12 +306,32 @@ separately-priced decision.
   `heartbeat: degraded — <reason>` on stderr and write nothing.
 - Spec-AC-06: WHEN one slot file is corrupt `read` SHALL name it in its output
   and still print every readable slot, exiting 0.
-- Spec-AC-07: WHEN `write` runs it SHALL reap slot files whose mtime is older
-  than 24 hours, SHALL keep fresher ones, and SHALL leave untouched every file
-  in the directory it did not itself write (the last clause added post-freeze,
-  amendment item 2: it was always the intent — "slot files" — but only the
-  first two clauses were testable as written, and the gap shipped as a
-  BLOCKING defect).
+- Spec-AC-07: WHEN `write` runs it SHALL reap every file carrying this
+  feature's `hb-` prefix whose mtime is more than 24 hours from now, SHALL keep
+  prefixed files inside that window, and SHALL leave untouched every file that
+  does not carry the prefix.
+  (Third clause added post-freeze, amendment item 2: only the reap/keep halves
+  were testable as written, and the gap shipped as a BLOCKING defect.
+  NARROWED post-freeze, amendment item 2 round 3: it read "leave untouched
+  every file in the directory it did not itself write", which validation
+  FALSIFIED by reproduction five ways — `--dir .`, `--dir ..`, a relative dir, a
+  symlinked dir and `AAI_HEARTBEAT_DIR` each deleted an `hb-`-named file this
+  script never wrote, at exit 0 with a success line. The mechanism is bounded by
+  PREFIX, not by ownership, and the AC now says so. Shape-gating the reap on
+  `isSlotShape` was considered as the alternative fix and rejected: it cannot
+  cover the `<slot>.tmp.<pid>.<seq>` temps the sweep exists to collect, and is
+  more machinery than the risk warrants. The operational consequence is stated
+  in R6.
+  FIRST CLAUSE likewise corrected in the same round: it said "older than 24
+  hours", but `reapAsides` delegates to `isStale`, whose window is SYMMETRIC
+  (stale iff `|now - mtime| > window`) so a FUTURE-dated `hb-` file is reaped
+  too — reproduced at +48 h. That is deliberate library semantics, not a defect:
+  `runtime-file.mjs` classes C+F exist so a far-future mtime can never wedge a
+  GC. It was simply undocumented.)
+  Verification: TEST-011 asserts all four outcomes together — a 25-hour-old slot
+  reaped, a 1-hour-old slot kept, an UNPREFIXED foreign file surviving, and a
+  PREFIXED foreign file (30 h old) plus a prefixed future-dated file (+48 h)
+  both reaped.
 - Spec-AC-08 (intake Constraints, anti-SPEC-0163): the gate-script corpus SHALL
   contain zero references to the heartbeat outside a named allowlist, and this
   scope SHALL add no `.gitignore` / `RUNTIME_IGNORE.list` /
@@ -322,7 +369,7 @@ untouched: this scope writes no STATE.yaml and needs no carve-out in
 | Spec-AC-04 | WHEN --message carries control or bidi characters the system SHALL sanitize and truncate at 200, and WHEN it is empty after sanitization SHALL refuse exit 2 | planned | —        | —         | the REJECTED input plus the component's own literal message    |
 | Spec-AC-05 | WHEN the heartbeat directory is unwritable or git is unavailable write SHALL exit 0, print a named degrade note, and write nothing                            | planned | —        | —         | best-effort clause; absence degrades to today's silence        |
 | Spec-AC-06 | WHEN one slot file is corrupt read SHALL name it in its output, still print every readable slot, and exit 0                                                  | planned | —        | —         | class B; a damaged slot is never read as nothing there         |
-| Spec-AC-07 | WHEN write runs it SHALL reap slot files older than 24 hours, keep fresher ones, and leave untouched every file it did not itself write                       | planned | —        | —         | class D orphan GC via reapAsides, bounded by the hb- prefix    |
+| Spec-AC-07 | WHEN write runs it SHALL reap every hb- prefixed file more than 24 hours from now, keep prefixed files inside that window, and leave untouched every file without the prefix | planned | —        | —         | class D orphan GC via reapAsides; the bound is the hb- prefix and NOT ownership, and the window is symmetric so a future-dated prefixed file is reaped too |
 | Spec-AC-08 | The gate-script corpus SHALL contain zero heartbeat references outside a named allowlist and this scope SHALL add no gitignore, RUNTIME_IGNORE or DOCS_AI_CANON entry | planned | —        | —         | anti-SPEC-0163, deny-by-default rather than an enumerated list |
 | Spec-AC-09 | .aai/VALIDATION.prompt.md SHALL carry a greppable heartbeat write invocation plus never-changes-the-verdict wording and SHALL be the only role prompt wired  | planned | —        | —         | one proof wiring; other role prompts priced separately later   |
 | Spec-AC-10 | The prompt-diet ledger, PROFILES.yaml and suite-map.yaml companion obligations SHALL be satisfied with the MEASURED byte growth                             | planned | —        | —         | measured by Implementation; no byte number is written here     |
@@ -426,8 +473,8 @@ repo -> stdout.
 | TEST-008 | Spec-AC-05 | unit        | tests/skills/test-aai-heartbeat.sh    | DEGRADED input: an unwritable AAI_HEARTBEAT_DIR makes write exit 0, print the named degrade note, and create no file          | green   |
 | TEST-009 | Spec-AC-05 | unit        | tests/skills/test-aai-heartbeat.sh    | DEGRADED input: with git absent from a stubbed PATH and no AAI_HEARTBEAT_DIR, write exits 0 and read prints none recorded     | green   |
 | TEST-010 | Spec-AC-06 | unit        | tests/skills/test-aai-heartbeat.sh    | one slot file of invalid JSON plus one valid slot; read exits 0, names the corrupt slot, and still prints the valid one       | green   |
-| TEST-011 | Spec-AC-07 | unit        | tests/skills/test-aai-heartbeat.sh    | a slot touched to 25 hours old is reaped by the next write, a 1-hour-old slot is kept, two 30-hour-old FOREIGN files in the same caller-named directory survive, and an empty --dir is refused exit 2 before it can sweep the cwd | green   |
-| TEST-012 | Spec-AC-08 | integration | tests/skills/test-aai-heartbeat.sh    | zero heartbeat references across every .mjs, .sh and .ps1 under .aai/scripts outside the two-file allowlist heartbeat.mjs plus generate-live-status.mjs, with a corpus-size floor so an empty sweep cannot pass vacuously | green   |
+| TEST-011 | Spec-AC-07 | unit        | tests/skills/test-aai-heartbeat.sh    | a slot touched to 25 hours old is reaped by the next write, a 1-hour-old slot is kept, two 30-hour-old UNPREFIXED foreign files in the same caller-named directory survive, two 30-hour-old hb- PREFIXED foreign files and one hb- prefixed file dated +48 h are REAPED (the honest bound, extended round 3), and an empty --dir is refused exit 2 before it can sweep the cwd | green   |
+| TEST-012 | Spec-AC-08 | integration | tests/skills/test-aai-heartbeat.sh    | zero heartbeat references across every .mjs, .sh and .ps1 under .aai/scripts outside the ONE-file allowlist heartbeat.mjs (generate-live-status.mjs dropped from it in round 3), with a corpus-size floor so an empty sweep cannot pass vacuously | green   |
 | TEST-013 | Spec-AC-08 | unit        | tests/skills/test-aai-heartbeat.sh    | git diff of .gitignore, .aai/system/RUNTIME_IGNORE.list and .aai/system/DOCS_AI_CANON.list against the base ref is empty      | green   |
 | TEST-014 | Spec-AC-09 | unit        | tests/skills/test-aai-heartbeat.sh    | VALIDATION.prompt.md carries a live heartbeat.mjs write line with --ref, --role and --message plus never-changes-the-verdict wording, and it is the only .aai/*.prompt.md that names heartbeat.mjs | green   |
 | TEST-015 | Spec-AC-10 | integration | tests/skills/test-aai-prompt-diet.sh  | existing TEST-010 and TEST-012 arms re-pinned to the measured growth; the ledger sum equals the pin                           | green   |
@@ -515,6 +562,29 @@ observed RED, storage optional).
 - R5 — `fu-orchestrator-monitor-uses-gnu-find` remains open: the orchestrator's
   existing liveness probe is still a fragile `find -newermt` call. This scope
   gives it a better signal but does not rewrite the probe.
+- R6 (added post-freeze, amendment item 2 round 3) — THE GC IS BOUNDED BY
+  PREFIX, NOT BY OWNERSHIP. A file named `hb-*` that this feature never wrote,
+  living in a directory the caller named via `--dir` / `AAI_HEARTBEAT_DIR` and
+  whose mtime is more than 24 hours from now in either direction, is DELETED by
+  the next `write`, at exit 0 with a success line. Reproduced five ways
+  (`--dir .`, `--dir ..`, a relative dir, a symlinked dir, `AAI_HEARTBEAT_DIR`).
+  ACCEPTED, with the mitigation being that Spec-AC-07, the `heartbeat.mjs`
+  header, `CHANGELOG.md` and TEST-011 now all state the prefix bound plainly
+  instead of promising an ownership bound the code does not implement: anyone
+  pointing this feature at a shared directory must keep `hb-` free there. The
+  stronger mechanism (shape-gating the reap on `isSlotShape`) was priced and
+  declined — it cannot cover the `<slot>.tmp.<pid>.<seq>` temps the sweep exists
+  to collect, so it would trade a documented bound for an undocumented hole.
+- R7 (added post-freeze, amendment item 2 round 3) — PRE-RELEASE ORPHANS. Slot
+  files written by the UNPREFIXED build of `heartbeat.mjs` (before the `hb-`
+  prefix landed) are, in the real default directory
+  `<git-common-dir>/aai/heartbeat/`, now invisible to `read` AND outside their
+  own GC's prefix bound, so nothing will ever collect them. IMMATERIAL in
+  practice and recorded as a choice rather than left as an accident: no merged
+  tree ever ran the unprefixed version, so the only directories that can hold
+  such files are the development checkouts of this ride. Sweeping them is a
+  one-line `rm` an operator may run; no code compensates for a state no released
+  version could produce.
 
 ## Registry items closed by this scope
 

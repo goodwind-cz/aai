@@ -10,13 +10,22 @@
 // surfaced was the operator asking. The value of this signal is that it does
 // NOT come from the orchestrator's narration.
 //   PROVES, machine-written: SOME process existed, ran in worktree <w> at pid
-//     <p>, and wrote at time <t>. An announced dispatch that never happened
-//     leaves NO slot file at all — that absence is the real detection, and it
-//     is the load-bearing half.
+//     <p>, and wrote at time <t>. That POSITIVE half is the whole of what this
+//     mechanism surfaces.
 //   DOES NOT PROVE which process. `pid` and `worktree` identify a writer, not
 //     the DISPATCHED writer: nothing stops the orchestrator writing a slot
 //     itself, so a PRESENT slot is corroboration, never proof of a dispatch.
 //     Calling this signal un-narratable over-reads it.
+//   PROVES NOTHING BY ITS ABSENCE, and that is BY CONSTRUCTION. A missing slot
+//     is produced identically by an announced-but-never-made dispatch, by a
+//     role that has not reached a round boundary yet, by a role running in a
+//     separate CLONE, and by any role whose write hit a degrade — every degrade
+//     exits 0 and writes nothing. Absence is the one observable this design
+//     REFUSES to interpret: .aai/VALIDATION.prompt.md c3 states that an absent
+//     heartbeat is silence and never a finding, and the no-threshold rule below
+//     is the same refusal in another place. Reading absence as detection would
+//     turn today's silence into a new failure mode, which is exactly what the
+//     spec's residual R2 rules out.
 //   DOES NOT PROVE: that `message` is accurate. The message is still the
 //     role's self-report. The timestamp is the trustworthy field, not the prose.
 //
@@ -24,8 +33,16 @@
 // The `hb-` prefix is not decoration: it is what makes THIS feature's files
 // identifiable in a directory it does not own. `--dir`/AAI_HEARTBEAT_DIR is a
 // first-class override, so the directory is caller-named and may hold anything;
-// the GC below sweeps by that prefix and `read` lists by it, and neither ever
-// considers a file this script did not write.
+// the GC below sweeps by that prefix and `read` lists by it.
+//   THE BOUND IS THE PREFIX, NOT OWNERSHIP. A file named `hb-*` that this
+//   script never wrote is still listed by `read` and, once its mtime falls
+//   outside the window, still REAPED. Aiming --dir/AAI_HEARTBEAT_DIR at a
+//   directory shared with something else therefore requires that `hb-` be left
+//   free there. Shape-gating the reap on isSlotShape was considered and
+//   rejected: it cannot cover the abandoned `.tmp.<pid>.<seq>` temps the sweep
+//   exists to collect, and is more machinery than the risk warrants.
+//   tests/skills/test-aai-heartbeat.sh TEST-011 pins BOTH halves — an
+//   unprefixed foreign file survives, a prefixed one does not.
 // The location is worktree-independent BY CONSTRUCTION: `git rev-parse
 // --git-common-dir` prints `.git` from a main checkout's root, `../.git` from
 // a subdirectory of it, and an ABSOLUTE path from a linked worktree (measured,
@@ -72,8 +89,9 @@
 // read. Which is also why NO GATE MAY EVER READ THIS FILE: an advisory signal a
 // gate learned to read became a blocker nobody intended (SPEC-0163 / PR #334).
 // test-aai-heartbeat.sh TEST-012 makes that a mechanical, failable check —
-// deny-by-default over the WHOLE .aai/scripts corpus with a two-file allowlist,
-// not an enumerated list of gates whose forgotten member is the hole.
+// deny-by-default over the WHOLE .aai/scripts corpus with THIS FILE as the only
+// allowlisted one, not an enumerated list of gates whose forgotten member is
+// the hole.
 //
 // POSITIONING: this lives BESIDE .aai/scripts/generate-live-status.mjs, not
 // inside it. That generator observes the HARNESS from the outside and answers
@@ -226,6 +244,12 @@ function cmdWrite(opts) {
   // success line. The prefix still covers abandoned atomicWrite temps, which
   // are named `<slot-file>.tmp.<pid>.<seq>` and so inherit it. reapAsides keeps
   // every FRESH entry, so a live producer's slot is never taken.
+  //   The bound is the prefix and NOTHING ELSE: a prefixed file this script
+  //   never wrote is reaped too (see STORAGE above). And the window is
+  //   SYMMETRIC, not "older than" — reapAsides delegates to isStale, which is
+  //   stale iff |now - mtime| > window, so a FUTURE-dated prefixed file is
+  //   stale as well. That is deliberate library semantics (runtime-file.mjs
+  //   classes C+F: a far-future mtime must never wedge a GC), not an accident.
   const swept = reapAsides(dir, SLOT_PREFIX, Date.now(), GC_WINDOW_MS);
   if (swept.error) degrade(`orphan sweep failed (${swept.error})`);
 

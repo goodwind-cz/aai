@@ -18,7 +18,8 @@
 #   - read: cold start prints exactly `heartbeat: none recorded` (TEST-003); a
 #     corrupt slot is NAMED, never read as "nothing there" (TEST-010).
 #   - NEVER GATES ANYTHING: TEST-012 sweeps the WHOLE .aai/scripts corpus
-#     deny-by-default (two allowlisted files) rather than an enumerated list of
+#     deny-by-default (heartbeat.mjs is the only allowlisted file) rather than
+#     an enumerated list of
 #     gates, whose forgotten member is where the hole lives. The anti-pattern
 #     it guards shipped once already (SPEC-0163 / PR #334) and cost three
 #     validation rounds.
@@ -101,11 +102,14 @@ make_repo() {
   git -C "$root" commit -qm "fixture"
 }
 
-# count_slots <dir> — number of *.json slot files, 0 when the directory is absent.
+# count_slots <dir> — number of THIS FEATURE's slot files, 0 when the directory
+# is absent. Bounded by the same `hb-` prefix the writer, the reader and the GC
+# are bounded by: a caller-named directory may hold foreign `.json` files, and a
+# prefix-blind `-name '*.json'` count would silently include them.
 count_slots() {
   local dir="$1" n=0
   [[ -d "$dir" ]] || { echo 0; return; }
-  n="$(find "$dir" -maxdepth 1 -name '*.json' -type f | wc -l | tr -d ' ')"
+  n="$(find "$dir" -maxdepth 1 -name 'hb-*.json' -type f | wc -l | tr -d ' ')"
   echo "$n"
 }
 
@@ -515,14 +519,32 @@ test_010_corrupt_slot_named_not_dropped() {
 }
 
 # --- TEST-011 / Spec-AC-07 ----------------------------------------------------
-# Class D orphan GC, and the BOUND on it. Spec-AC-07 says `write` reaps SLOT
-# FILES older than 24 h; it does not license a sweep of whatever else lives in
-# the directory. `--dir` / AAI_HEARTBEAT_DIR is a documented first-class
-# override ("tests, and any host where the git probe cannot run"), so the
-# directory is caller-named and may hold files this feature does not own.
-# Three outcomes in one arm, because the defect is only visible when all three
-# are asserted together: a FOREIGN file survives, a stale SLOT is reaped, a
-# fresh slot is kept. Plus the cwd case, which is the same defect at its worst:
+# Class D orphan GC, and the REAL BOUND on it. `--dir` / AAI_HEARTBEAT_DIR is a
+# documented first-class override ("tests, and any host where the git probe
+# cannot run"), so the directory is caller-named and may hold files this feature
+# does not own.
+#
+# THE BOUND IS THE `hb-` PREFIX, NOT OWNERSHIP — and this arm asserts the bound
+# that EXISTS rather than the one an earlier draft of Spec-AC-07 wished for.
+# That draft said the sweep "leaves untouched every file it did not itself
+# write"; validation falsified it by reproduction (an `hb-`-named file this
+# script never wrote, aged past the window, was deleted at exit 0 with a success
+# line). Both halves are pinned below, because a test that only plants
+# UNPREFIXED foreign files is strictly weaker than the criterion it carries and
+# would stay green under either mechanism:
+#   - an UNPREFIXED foreign file SURVIVES  (the bound that is real)
+#   - an `hb-`-PREFIXED foreign file IS REAPED  (the honest cost of that bound)
+# The prefix bound was chosen over shape-gating on isSlotShape deliberately: a
+# shape gate cannot cover the abandoned `<slot>.tmp.<pid>.<seq>` temps the sweep
+# exists to collect, and it is more machinery than the risk warrants. Anyone
+# pointing this feature at a shared directory must therefore keep `hb-` free.
+#
+# The window is also SYMMETRIC, not "older than": reapAsides delegates to
+# isStale, which is stale iff |now - mtime| > window (runtime-file.mjs classes
+# C+F — a far-future timestamp must never wedge a GC). A FUTURE-dated `hb-` file
+# is therefore reaped too, and that is pinned here rather than left as folklore.
+#
+# Plus the cwd case, which is the unbounded-sweep defect at its worst:
 # `--dir ""` resolves to the CURRENT DIRECTORY, so from the repo root — the
 # canonical invocation directory — an unbounded sweep deletes every stale
 # top-level file in the shipping repo. That is a USAGE error (exit 2), the same
@@ -548,10 +570,17 @@ test_011_reap_stale_keep_fresh() {
     return
   fi
 
-  # Files the heartbeat does not own, aged well PAST the window so a sweep that
-  # is not bounded to slot files is guaranteed to take them.
+  # Files the heartbeat does not own, aged well PAST the window. UNPREFIXED, so
+  # the prefix bound must keep them.
   printf 'operator notes\n' > "$dir/operator-notes.txt"
   printf '{"tool":"other"}\n' > "$dir/other-tool.json"
+  # Files the heartbeat does not own but which DO carry the prefix. The bound is
+  # the prefix, so these are reaped — asserted, not wished away.
+  printf '{"tool":"someone-else"}\n' > "$dir/hb-foreign-tool.json"
+  printf 'not even json\n' > "$dir/hb-foreign-notes.txt"
+  # A prefixed file dated into the FUTURE. isStale's window is symmetric, so
+  # this is stale too.
+  printf '{"tool":"clock-skewed"}\n' > "$dir/hb-future-tool.json"
 
   node -e '
     const fs = require("fs");
@@ -564,7 +593,11 @@ test_011_reap_stale_keep_fresh() {
     age(process.argv[2], 1);
     age(process.argv[3], 30);
     age(process.argv[4], 30);
-  ' "$old_slot" "$recent_slot" "$dir/operator-notes.txt" "$dir/other-tool.json"
+    age(process.argv[5], 30);
+    age(process.argv[6], 30);
+    age(process.argv[7], -48);
+  ' "$old_slot" "$recent_slot" "$dir/operator-notes.txt" "$dir/other-tool.json" \
+    "$dir/hb-foreign-tool.json" "$dir/hb-foreign-notes.txt" "$dir/hb-future-tool.json"
 
   AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" write --ref refNew --role Validation --message "now"
   if [[ "$RC" -ne 0 ]]; then
@@ -584,7 +617,22 @@ test_011_reap_stale_keep_fresh() {
     return
   fi
   if [[ ! -f "$dir/operator-notes.txt" || ! -f "$dir/other-tool.json" ]]; then
-    log_fail "TEST-011: the GC must never touch a file this feature did not write, but a 30-hour-old foreign file was deleted from the caller-named directory (survivors: $(find "$dir" -maxdepth 1 -type f -exec basename {} \; | tr '\n' ' '))"
+    log_fail "TEST-011: the GC must not touch a file that does not carry the hb- prefix, but a 30-hour-old UNPREFIXED foreign file was deleted from the caller-named directory (survivors: $(find "$dir" -maxdepth 1 -type f -exec basename {} \; | tr '\n' ' '))"
+    return
+  fi
+  # The honest other half. The bound is the PREFIX, not ownership: an hb--named
+  # file this script never wrote IS reaped. Asserted so the suite records the
+  # mechanism that exists — if the sweep is ever narrowed to files it owns, this
+  # fails and Spec-AC-07's third clause has to be re-widened in the same commit.
+  if [[ -f "$dir/hb-foreign-tool.json" || -f "$dir/hb-foreign-notes.txt" ]]; then
+    log_fail "TEST-011: the GC is bounded by the hb- PREFIX, not by ownership, so a stale hb--prefixed file this script never wrote must be reaped — Spec-AC-07 and the heartbeat.mjs header both state that bound (survivors: $(find "$dir" -maxdepth 1 -type f -exec basename {} \; | tr '\n' ' '))"
+    return
+  fi
+  # isStale's window is SYMMETRIC (|now - mtime| > window), so a future-dated
+  # prefixed file is stale and reclaimable — a far-future mtime must never wedge
+  # the GC (runtime-file.mjs classes C+F).
+  if [[ -f "$dir/hb-future-tool.json" ]]; then
+    log_fail "TEST-011: the reap window is symmetric, so an hb- file dated 48 hours into the FUTURE must be reaped too — a far-future mtime must never wedge the sweep (survivors: $(find "$dir" -maxdepth 1 -type f -exec basename {} \; | tr '\n' ' '))"
     return
   fi
 
@@ -618,7 +666,7 @@ test_011_reap_stale_keep_fresh() {
     log_fail "TEST-011: an empty --dir deleted stale files from the CURRENT DIRECTORY (survivors: $(find "$cwdfix" -maxdepth 1 -type f -exec basename {} \; | tr '\n' ' '))"
     return
   fi
-  log_pass "TEST-011 the GC reaps a 25-hour-old slot, keeps the 1-hour-old one, never touches a foreign file, and an empty --dir is refused before it can sweep the cwd"
+  log_pass "TEST-011 the GC reaps a 25-hour-old slot, keeps the 1-hour-old one, is bounded by the hb- prefix (unprefixed foreign files survive; prefixed ones, future-dated included, are reaped), and an empty --dir is refused before it can sweep the cwd"
 }
 
 # --- TEST-012 / Spec-AC-08 ----------------------------------------------------
@@ -638,11 +686,16 @@ test_011_reap_stale_keep_fresh() {
 # under .aai/scripts/ and the exceptions are enumerated instead — a new gate is
 # covered the day it is added, with nobody having to remember a list.
 #
-# The allowlist is exactly two files: heartbeat.mjs itself, and
-# generate-live-status.mjs, the sanctioned observation seam this signal was
-# deliberately built BESIDE rather than inside.
+# The allowlist is exactly ONE file: heartbeat.mjs itself. generate-live-status.mjs
+# was allowlisted in the first deny-by-default round and is REMOVED here: it has
+# zero heartbeat references, the spec calls that seam "NOT built here, NOT a
+# follow-up obligation", and a 674-line `core:` script is the file most likely to
+# grow one — validation planted a gate-shaped read in it and this arm stayed
+# green. Pre-authorising an unbuilt seam buys nothing that adding one allowlist
+# line the day it is built would not buy, and costs the only coverage that would
+# have caught it. If that panel is ever built, add it back HERE with the reason.
 test_012_no_gate_reads_the_heartbeat() {
-  local allow=" heartbeat.mjs generate-live-status.mjs "
+  local allow=" heartbeat.mjs "
   local f base hits offenders="" checked=0
   # A `while read` over find, not a glob: the corpus is recursive (lib/,
   # live-parsers/) and bash-3.2 has no globstar.
@@ -669,7 +722,7 @@ EOF
     log_fail "TEST-012: a script in the gate corpus now references the heartbeat —$offenders. The heartbeat is advisory and must never gate anything (SPEC-0163 / PR #334 is what happens when it does). If this is a deliberate, non-gating seam, add it to this arm's allowlist and say why."
     return
   fi
-  log_pass "TEST-012 zero heartbeat references across all $checked .aai/scripts entries outside the two-file allowlist"
+  log_pass "TEST-012 zero heartbeat references across all $checked .aai/scripts entries outside the one-file allowlist (heartbeat.mjs)"
 }
 
 # --- TEST-013 / Spec-AC-08 ----------------------------------------------------
