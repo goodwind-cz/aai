@@ -83,6 +83,74 @@
   - mark work as blocked,
   - do not perform speculative implementation.
 
+### 6a) Post-freeze spec amendments (the additive-with-disclosure convention)
+
+A frozen spec that proves incomplete mid-ride is amended, never quietly
+rewritten: the new text is ADDITIVE, the original sentence stays, and the
+change is DISCLOSED on `docs/ai/decisions.jsonl`. Amending a frozen spec is a
+scope change, so section 6 assigns the decision to the owner. Waiting for that
+decision would strand an autonomous ride at exactly the moment the convention
+earns its keep — so the ride proceeds AND the sign-off it defers becomes a
+tracked obligation the owner can drain, rather than a sentence in a ledger
+nobody is obliged to read.
+
+Record it with the writer, never by hand:
+
+```
+node .aai/scripts/spec-amend.mjs add --spec <path-to-spec> --ref <ride-ref> \
+     --what "<one line>" --why "<one line>" --signoff none
+```
+
+`add --signoff none` appends the `spec_amendment` record AND files the
+follow-up naming the spec and the sign-off still owed, in one invocation. It
+never refuses for want of a tracked item — the obligation is created, not
+demanded — so this path cannot block a remediation round. Use
+`--signoff owner --authority "<evidence>"` only when the owner actually
+decided, naming the record that proves it. Two rules hold this together:
+
+- **The classifier is the `owner_signoff` field, never heading text and never
+  prose.** A record with the field absent is `unclassified`, its own bucket:
+  deciding after the fact which of the other two an old record "must have
+  been" is precisely the laundering this convention has already suffered.
+  SPEC-0164 carries three unsigned amendments and no `## Amendment` heading at
+  all, so heading text could not classify them even in principle.
+- **The obligation is drained through the registry.** The tracked item is
+  keyed on the spec's frontmatter `id` — one per SPEC, because the owner's
+  decision is per spec — and it appears in
+  `node .aai/scripts/follow-ups.mjs list --status open`, which Planning
+  already reads. Closing it is the owner's sign-off, not the ride's. The id is
+  `fu-amend-<spec frontmatter id>` only when that FITS the registry's 40-char
+  grammar; longer ids are shortened or truncated-and-hashed, so THREE of the
+  five live ids are not the plain concatenation (one shortened, two hashed). Let the script derive it — never
+  compose it by hand from this sentence.
+
+`node .aai/scripts/spec-amend.mjs list --strict` exits 1 while any amendment
+on the ledger is untracked or unclassified. It runs at the PR/close gate.
+
+**When that gate refuses, run what it prints.** For every record carrying a
+`ts` and a `ref` — which is every record either writer can emit — it emits one
+runnable `spec-amend.mjs classify --ts … --ref …` line, already carrying that
+record's own pair. A hand-appended record missing either field gets a line
+saying so instead, because `classify` matches on that pair and no invocation
+could reach it; a placeholder there would be a remedy that cannot be run. Under `--signoff none` that one call
+back-classifies the record AND files the tracked item it owes, so the record
+leaves the violating bucket and the gate reaches 0. Two commands that look like
+remedies are not: `spec-amend.mjs add` records a NEW amendment and leaves the
+offending record exactly as untracked as it was, and `follow-ups.mjs add` files
+an item attached to nothing. A gate whose named remedy does not clear the gate
+is the same defect as an amendment whose disclosure has no outflow, one level
+up — which is why the refusal names only the command that works.
+
+**SPEC-0132 is NOT precedent for proceeding unsigned.** Its amendment is
+headed `## Amendment (owner decision, 2026-08-15T08:14:24Z)` and cites a real
+`hitl_decision` record on `docs/ai/decisions.jsonl` —
+`ref_id: deslop-scope-and-unrequested-engine`, timestamp
+`2026-08-15T08:14:24.000Z`, actor `ales_holubec.net`. The owner decided that
+one. Citing it as the precedent that makes an UNSIGNED amendment routine
+conflates a decision the owner made with a notice nobody read, and is the
+transmission mechanism this section exists to break. Cite this section
+instead; it is the convention's only statement.
+
 ## 7) Parallelism policy
 - Allowed parallelism:
   - multiple planning threads on different scope IDs,

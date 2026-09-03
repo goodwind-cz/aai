@@ -11,6 +11,47 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(canon): an unsigned post-freeze spec amendment files a tracked item, not just a sentence
+
+- NEW `.aai/scripts/spec-amend.mjs` — a fail-OPEN writer plus a fail-CLOSED
+  detector for post-freeze spec amendments. `add --signoff none` appends the
+  `spec_amendment` record AND manufactures the `fu-amend-…` follow-up naming the
+  sign-off still owed, in one invocation; it never refuses for a missing tracked
+  item, so it cannot strand an autonomous ride at the moment a frozen spec
+  proves incomplete. The item's id keys on the spec's frontmatter `id`, fitted
+  to the registry's 40-char grammar (so it may be shortened or hashed — let the
+  script derive it). `list --strict` exits 1 on any untracked or unclassified
+  amendment and runs at the PR/close gate.
+- `classify --signoff none` co-creates the tracked item too, so ONE call takes a
+  record from `unsigned-untracked` or `unclassified` to `unsigned-tracked` and
+  the gate to exit 0 — and the refusal PRINTS that runnable line per offending
+  record, already carrying its `--ts`/`--ref`. A fail-closed gate whose named
+  remedy leaves it refusing is the same defect as an amendment whose disclosure
+  has no outflow, one level up, so the refusal now also names `spec-amend add`
+  and `follow-ups.mjs add` as the two commands that do NOT clear it.
+- The classifier is the `owner_signoff` FIELD, never heading text and never
+  prose: three buckets, with an absent key landing in its own `unclassified`
+  bucket rather than being guessed either way. Every query parses JSON per
+  line — a tight grep for `"type":"spec_amendment"` counted 4 of the 10 records
+  on the live ledger, because six serialize the key with a space.
+- `.aai/system/AUTONOMOUS_LOOP.md` section 6a states the additive-with-disclosure
+  convention for the first time (it had zero hits anywhere under `.aai/`) and
+  names SPEC-0132's amendment as a genuine OWNER decision, citing its
+  `hitl_decision` record — explicitly NOT precedent for proceeding unsigned.
+  A deny-by-default sweep over `.aai/**`, matched on repo-relative paths, keeps
+  the precedent chain from re-forming.
+- Back-classified the ten standing `spec_amendment` records and surfaced the
+  nine unsigned ones (SPEC-0153, SPEC-0161, SPEC-0162, SPEC-0163, SPEC-0164) as
+  five open owner obligations. Done purely by APPEND — the existing records are
+  untouched, no amendment is reversed, and no frozen `status: done` spec body
+  was edited.
+- FIX `follow-ups.mjs verify-closures` — the `none` sentinel existed only for
+  the heading claim shape, so "Registry items closed by this scope: none."
+  followed by prose naming OPEN items read as four false closure claims through
+  the inline shape. Both shapes now share one sentinel predicate.
+- CHANGE unsigned-spec-amendment-has-no-outflow / SPEC
+  spec-unsigned-spec-amendment-has-no-outflow.
+
 ## [unreleased] — feat(heartbeat): a long-running role writes progress the observer can read without asking the orchestrator
 
 - NEW `.aai/scripts/heartbeat.mjs` — an advisory, machine-written progress

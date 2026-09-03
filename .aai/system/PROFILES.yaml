@@ -153,6 +153,7 @@ core:
   - .aai/scripts/reconcile-telemetry.mjs
   - .aai/scripts/secrets-preflight.mjs
   - .aai/scripts/select-suites.mjs
+  - .aai/scripts/spec-amend.mjs
   - .aai/scripts/spec-freeze.mjs
   - .aai/scripts/spec-lint.mjs
   - .aai/scripts/spec-scope-edit.mjs

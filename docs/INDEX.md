@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-03T09:27:51.217Z
+Generated: 2026-09-03T22:01:35.512Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -49,7 +49,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (395)
+## Done (397)
 
 | ID | Type | Path |
 |---|---|---|
@@ -220,6 +220,7 @@ _None._
 | CHANGE-0168 | issues | docs/issues/CHANGE-0168-intake-staleness-preflight-warning.md |
 | CHANGE-0169 | issues | docs/issues/CHANGE-0169-release-protected-branch-fallback.md |
 | CHANGE-0170 | issues | docs/issues/CHANGE-0170-role-progress-heartbeat.md |
+| CHANGE-0171 | issues | docs/issues/CHANGE-0171-unsigned-spec-amendment-has-no-outflow.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -447,6 +448,7 @@ _None._
 | SPEC-0162 | specs | docs/specs/SPEC-0162-spec-ac-table-premature-flip-recurs.md |
 | SPEC-0163 | specs | docs/specs/SPEC-0163-spec-metrics-flush-invalidates-pr-precondition.md |
 | SPEC-0164 | specs | docs/specs/SPEC-0164-spec-role-progress-heartbeat.md |
+| SPEC-0165 | specs | docs/specs/SPEC-0165-spec-unsigned-spec-amendment-has-no-outflow.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (38)

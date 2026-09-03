@@ -749,7 +749,18 @@ test_012_growth_sum_matches_ledger() {
   # gains the c3 PROGRESS HEARTBEAT sub-item -- the runnable heartbeat.mjs write
   # invocation plus its never-changes-the-verdict wording), pin moves
   # 9945 -> 10324. Headroom is unchanged at 4/2048.
-  local want_growth=10324
+  # unsigned-spec-amendment-has-no-outflow: +1621 B itemized entry, the sum of
+  # the ONLY two in-glob-or-extra pointers this scope adds — .aai/ROLE_COMMON.md
+  # POST-FREEZE SPEC AMENDMENT (+977 B, extra-file accounting) and
+  # .aai/SKILL_PR.prompt.md step 4c AMENDMENT GATE (+644 B, the live glob). The
+  # convention BODY is .aai/system/AUTONOMOUS_LOOP.md section 6a, which is
+  # system/ and not corpus, so it carries no ledger cost; neither do
+  # .aai/scripts/spec-amend.mjs or the new suite. Both figures were REMEASURED
+  # at remediation round 1 (validation F1: the gate's own refusal named
+  # remedies that leave it refusing, so both pointers were rewritten), moving
+  # the credit 1129 -> 1621. Pin moves 10324 -> 11945, headroom unchanged at
+  # 4/2048.
+  local want_growth=11945
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1369,10 +1380,21 @@ test_023_ac_flip_growth_credited() {
       log_info "TEST-023: entry credits $lead B but its own measurement is $measured B ($AC_FLIP_ROLE_COMMON_BEFORE -> $after)"
       ok=0
     fi
+    # The disk check is a FLOOR, not an equality. The prefix check above was
+    # already written so a later scope's own itemized append cannot disturb
+    # this arm; this line was not, and unsigned-spec-amendment-has-no-outflow
+    # was the first later scope to legitimately grow the same file (+977 B for
+    # the POST-FREEZE SPEC AMENDMENT block, itemized in its own ledger entry).
+    # What this arm actually needs to know is that the bytes THIS entry
+    # credited still exist — so a SHRINK below the recorded size still fails
+    # (the credit would then be paying for bytes that are gone), while later
+    # growth that carries its own credit is named and allowed.
     now=$(wc -c < .aai/ROLE_COMMON.md | tr -d ' ')
-    if [[ "$now" -ne "$after" ]]; then
-      log_info "TEST-023: .aai/ROLE_COMMON.md is $now B on disk but the ledger entry recorded $after B"
+    if [[ "$now" -lt "$after" ]]; then
+      log_info "TEST-023: .aai/ROLE_COMMON.md is $now B on disk, BELOW the $after B this entry credited — the credited bytes no longer exist, so the credit must be reclaimed (see TEST-010's cap-guard message)"
       ok=0
+    elif [[ "$now" -ne "$after" ]]; then
+      log_info "TEST-023: .aai/ROLE_COMMON.md has grown to $now B since this entry recorded $after B — later growth must carry its OWN itemized ledger entry (TEST-012 re-sums the whole array, so an uncredited byte reddens there)"
     fi
   fi
 
