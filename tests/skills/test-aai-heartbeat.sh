@@ -695,14 +695,18 @@ test_011_reap_stale_keep_fresh() {
 # line the day it is built would not buy, and costs the only coverage that would
 # have caught it. If that panel is ever built, add it back HERE with the reason.
 test_012_no_gate_reads_the_heartbeat() {
-  local allow=" heartbeat.mjs "
-  local f base hits offenders="" checked=0
+  # Allowlist on the REPO-RELATIVE PATH, never the basename: code review round 2
+  # planted .aai/scripts/lib/heartbeat.mjs with a gate-shaped read and this arm
+  # PASSED, silently dropping its own count 119 -> 118. That is the same shape as
+  # the enumerated-list hole that drove this arm's inversion, one directory down.
+  local allow=" .aai/scripts/heartbeat.mjs "
+  local f rel hits offenders="" checked=0
   # A `while read` over find, not a glob: the corpus is recursive (lib/,
   # live-parsers/) and bash-3.2 has no globstar.
   while IFS= read -r f; do
     [[ -n "$f" ]] || continue
-    base="$(basename "$f")"
-    case "$allow" in *" $base "*) continue ;; esac
+    rel="${f#"$PROJECT_ROOT/"}"
+    case "$allow" in *" $rel "*) continue ;; esac
     checked=$((checked + 1))
     hits="$(grep -ic 'heartbeat' "$f" || true)"
     if [[ "$hits" != "0" ]]; then
