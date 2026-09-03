@@ -324,6 +324,11 @@ suites:
       - .aai/SUBAGENT_CONTRACT.md
       - docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md
 
+  aai-heartbeat:
+    globs:
+      - .aai/scripts/heartbeat.mjs
+      - .aai/VALIDATION.prompt.md
+
   aai-hitl-channel:
     globs:
       - .aai/scripts/hitl-channel.mjs

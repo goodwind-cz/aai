@@ -745,7 +745,11 @@ test_012_growth_sum_matches_ledger() {
   # metrics-flush-invalidates-pr-precondition: +154 B itemized entry (the
   # SKILL_PR VALIDATION precondition bullet gains the archive-record clause
   # beside the waiver clause it already carried), pin moves 9791 -> 9945.
-  local want_growth=9945
+  # role-progress-heartbeat: +379 B itemized entry (VALIDATION.prompt.md step 5
+  # gains the c3 PROGRESS HEARTBEAT sub-item -- the runnable heartbeat.mjs write
+  # invocation plus its never-changes-the-verdict wording), pin moves
+  # 9945 -> 10324. Headroom is unchanged at 4/2048.
+  local want_growth=10324
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

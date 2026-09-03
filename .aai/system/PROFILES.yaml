@@ -111,6 +111,11 @@ core:
   - .aai/scripts/docs-lock.mjs
   - .aai/scripts/follow-ups.mjs
   - .aai/scripts/generate-docs-index.mjs
+  # core rather than extended: the classification rule puts a core prompt's
+  # import closure in core, and .aai/VALIDATION.prompt.md (core) names this
+  # script. A core prompt pointing at a file absent from the core profile
+  # would be drift, even though the heartbeat's own absence is harmless.
+  - .aai/scripts/heartbeat.mjs
   - .aai/scripts/hitl-channel.mjs
   - .aai/scripts/lane-gate.mjs
   - .aai/scripts/install-pre-commit-hook.ps1

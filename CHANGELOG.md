@@ -11,6 +11,87 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(heartbeat): a long-running role writes progress the observer can read without asking the orchestrator
+
+- NEW `.aai/scripts/heartbeat.mjs` — an advisory, machine-written progress
+  signal a dispatched role emits at its own checkpoints, readable from a
+  second terminal with one command. `write --ref <R> --role <Role> --message
+  <text>` stores one JSON file per slot; `read [--json] [--ref <R>]` prints
+  them. Node stdlib only, zero deps, built on `.aai/scripts/lib/runtime-file.mjs`
+  (`atomicWrite`, `loadOrDegrade`, `reapAsides`) per that library's CONVENTION
+  PIN, and on `lib/cli-pipe-guard.mjs` so the output survives a pipe.
+- Storage is `<git-common-dir>/aai/heartbeat/hb-<slot>.json`, resolved from the
+  script's own location so the caller's cwd is irrelevant. That location is
+  worktree-independent BY CONSTRUCTION: `git rev-parse --git-common-dir`
+  prints `.git` from a main checkout, `../.git` from a subdirectory and an
+  ABSOLUTE path from a linked worktree, and all three `path.resolve` to one
+  place — so a role writing inside its worktree and an operator reading from
+  the main checkout hit the same file. (`path.join` does NOT: it glues the
+  absolute spelling onto the worktree root. `tests/skills/test-aai-heartbeat.sh`
+  TEST-001/002 cross that seam with a real `git worktree add`.) It is also
+  structurally uncommittable — nothing under `.git/` can enter the index — so
+  this change adds no `.gitignore`, `RUNTIME_IGNORE.list` or
+  `DOCS_AI_CANON.list` entry. `AAI_HEARTBEAT_DIR` (or `--dir`) overrides the
+  directory; an EMPTY value is refused at usage grade, because `path.resolve("")`
+  is the current directory and silently aiming the write — and its 24-hour GC —
+  at the caller's cwd is not an override anyone asked for. Every file this
+  script writes carries the `hb-` prefix, and both the GC sweep and the `read`
+  listing are bounded to THAT PREFIX — not to ownership. A caller-named
+  directory keeps everything that does not start with `hb-`; a stale file that
+  does start with `hb-` is reaped even if this script never wrote it, so a
+  shared directory has to leave that prefix free. The two bounds are not
+  identical: `read` additionally requires a `.json` suffix, so a prefixed
+  NON-json file is reaped without ever having been listable. Filed as
+  `fu-heartbeat-read-narrower-than-gc` (P3) rather than closed here —
+  narrowing the sweep to `.json` instead would strand the abandoned
+  `.tmp.<pid>.<seq>` temps forever, so the fix widens `read` and wants its
+  own RED. (Shape-gating the reap was
+  considered and rejected: it cannot cover the abandoned `.tmp.<pid>.<seq>`
+  temps the sweep exists to collect.) The window is symmetric, so a
+  future-dated `hb-` file is stale too — a far-future mtime must never wedge a
+  GC.
+- What it proves, stated honestly: SOME process existed, ran in worktree `<w>`
+  at pid `<p>`, and wrote at time `<t>`. That POSITIVE half is what the
+  mechanism surfaces. What it does NOT prove: WHICH process. `pid` and
+  `worktree` identify a writer, not the dispatched one; nothing stops the
+  orchestrator writing a slot itself, so a present slot is corroboration rather
+  than proof. And it proves NOTHING BY ITS ABSENCE, by construction: a missing
+  slot is produced identically by an announced-but-never-made dispatch, by a
+  role that has not reached a round boundary yet, by a role in a separate clone,
+  and by any role whose write hit a degrade — every degrade exits 0 and writes
+  nothing. Absence is the one observable this design refuses to interpret; an
+  absent heartbeat is silence, never a finding. Nor does it prove the `message`
+  text is accurate — the timestamp is the trustworthy field, the prose is the
+  role's own self-report.
+- Two failure grades, deliberately separated. A caller that cannot identify
+  itself is a WIRING bug and REFUSES loudly (exit 2, its own literal message);
+  every runtime condition — no git, unwritable directory, failed sweep —
+  exits 0 with `heartbeat: degraded — <reason>` and writes nothing, so a role's
+  own outcome can never move because of a heartbeat. A cold `read` prints
+  exactly `heartbeat: none recorded`; a corrupt slot is NAMED and the readable
+  slots beside it still print.
+- Deliberately absent: no `clear`, no lease, and NO stale/stuck verdict.
+  `read` prints `age_seconds`, a fact, and defines no threshold — inventing one
+  would be the first step toward something a gate could learn to read.
+  `test-aai-heartbeat.sh` TEST-012 makes "no gate reads this" MECHANICAL, and
+  DENY-BY-DEFAULT: it sweeps every `.mjs`/`.sh`/`.ps1` under `.aai/scripts/`
+  (118 files) and allowlists exactly one — `heartbeat.mjs` itself. An enumerated
+  list of gates was the first shape, and its forgotten member was the hole: a
+  planted reference in `lane-gate.mjs` left it green.
+  `generate-live-status.mjs` was allowlisted in the first deny-by-default round
+  and has been removed from the allowlist: it carries zero heartbeat references,
+  the panel seam is explicitly not built here, and pre-authorising an unbuilt
+  seam only costs the coverage that would catch it.
+- `.aai/VALIDATION.prompt.md` step 5 gains one sub-item, `c3 PROGRESS
+  HEARTBEAT`, at the per-round boundary — the only role prompt wired in this
+  scope, since its full-sweep rounds are the most reproducibly long operation
+  observed. The other long roles stay silent until separately priced.
+- Lives BESIDE `.aai/scripts/generate-live-status.mjs`, not inside it: that
+  generator observes the harness from outside and answers "what is running now
+  and what did it cost", while this is written by the role about its own ride
+  semantics. `read --json` emits `{slots, degraded}` using that generator's own
+  `degraded`-array convention, as a cheap future seam only.
+
 ## [unreleased] — fix(pr-gate): let the PR gate read the proof the metrics flush archived
 
 - `.aai/scripts/metrics-flush.mjs` `applyPartialReset` now APPENDS one durable
