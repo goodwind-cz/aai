@@ -386,6 +386,13 @@ function loadLedger(absPath) {
   const { records, malformed, missing, unreadable } = readDecisionsLedger(absPath);
   const folded = foldAmendments(records);
   const notes = [];
+  // UNREACHABLE FROM THIS CLI, on purpose: `loadLedgerOrRefuse` calls
+  // `requireReadableFile` first, so an absent `--ledger` exits 2 rather than
+  // reporting "nothing to report". A gate that reads a missing path as clean
+  // could be silenced by naming one, which is the attack class `--strict` is
+  // built to survive (validation probed it: absent, directory, chmod 000 and
+  // /dev/null all exit 2). The note stays because `loadLedger` is also the
+  // plain reader, where absence is genuinely not a refusal (external review).
   if (missing) notes.push(`NOTE decision ledger absent at ${absPath} — no amendments to report`);
   if (unreadable) notes.push(`NOTE decision ledger at ${absPath} could not be read (${unreadable.code}: ${unreadable.message}) — refused, never treated as an empty ledger`);
   if (malformed) {
@@ -414,10 +421,28 @@ function pickAmendItemId(reg, specKey, tsIso) {
   if (!existing.closed) {
     return { itemId: base, note: `tracked item ${base} already open — this amendment attaches to it (the owner's decision is per SPEC, not per ledger line)` };
   }
+  // Search until the id is genuinely FREE or OPEN — a single retry was not
+  // enough: with the base id and the first stamped id both CLOSED, the one
+  // fallback landed on another discharged item, the gate went green and
+  // `follow-ups.mjs list --status open` was EMPTY (external review, reproduced).
+  // That is the same defect the `--tracked-by` guard above refuses, reached
+  // by the automatic path instead of the explicit one, so it gets the same
+  // answer rather than a second special case.
   const stamp = stampFor(tsIso);
   let candidate = amendItemIdStamped(specKey, stamp);
-  if (reg.followUps.has(candidate)) candidate = amendItemIdStamped(`${specKey}-${stamp}`, '2');
-  return { itemId: candidate, note: `tracked item ${base} is ${existing.status} — this amendment reopens the obligation as ${candidate}` };
+  for (let n = 2; n <= 50; n += 1) {
+    const held = reg.followUps.get(candidate) ?? null;
+    // Free, or open: either is a real obligation the owner can still drain.
+    if (held === null || !held.closed) {
+      return { itemId: candidate, note: `tracked item ${base} is ${existing.status} — this amendment reopens the obligation as ${candidate}` };
+    }
+    candidate = amendItemIdStamped(`${specKey}-${stamp}`, String(n));
+  }
+  // 50 discharged ids in one stamp window is not a state any writer produces.
+  // Refusing beats returning a closed id: a green gate with an empty drain
+  // list is the failure this whole script exists to prevent.
+  usageError(`cannot reopen the obligation for ${specKey}: ${base} and 50 stamped variants are all discharged. Attaching to any of them would mark this amendment signed by an owner who never saw it. File a fresh item with follow-ups.mjs add and pass it with --tracked-by.`);
+  return { itemId: candidate, note: null };
 }
 
 // appendAmendItem — the follow-ups.mjs `follow_up` line both writers file, in
@@ -494,8 +519,10 @@ never edited. The target is the (--ts, --ref) PAIR, never a line number.
 Like \`add\`, \`classify --signoff none\` CO-CREATES the tracked item when the
 target has none, so ONE call takes a record from \`unsigned-untracked\` or
 \`unclassified\` to \`unsigned-tracked\` and \`list --strict\` to exit 0. Pass
-\`--tracked-by fu-…\` only to attach an item you have already filed; the id is
-otherwise derived from the target's own \`spec_id\`. That is why the ONLY
+\`--tracked-by fu-…\` to NAME the item this amendment attaches to: an id that
+does not exist yet is FILED for you, and one naming a DISCHARGED item is
+REFUSED (attaching to it would mark this amendment signed by an owner who
+never saw it). Omitted, the id is derived from the target's own \`spec_id\`. That is why the ONLY
 remedy \`--strict\` names is \`classify\`: \`add\` records a NEW amendment and
 leaves the offending record untracked, and \`follow-ups.mjs add\` files an item
 that is attached to nothing.
@@ -918,7 +945,7 @@ function cmdList(opts) {
       // review NB-E, reproduced through the writer, not only by hand-append).
       process.stderr.write(`  node .aai/scripts/spec-amend.mjs classify --ts ${JSON.stringify(v.ts)} --ref ${JSON.stringify(v.ref_id)} --signoff none --why "<one line>" --source "<evidence>"\n`);
     }
-    process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to attach an item you have already filed.\n');
+    process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to name the item it attaches to (a new id is filed for you; a discharged one is refused).\n');
     process.stderr.write('NOT remedies: `spec-amend.mjs add` records a NEW amendment and leaves the record named above untracked; `follow-ups.mjs add` files an item but attaches it to nothing. Never edit the ledger in place (HAZ-LEDGER).\n');
     exit(1);
   }

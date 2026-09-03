@@ -127,9 +127,12 @@ decided, naming the record that proves it. Two rules hold this together:
 `node .aai/scripts/spec-amend.mjs list --strict` exits 1 while any amendment
 on the ledger is untracked or unclassified. It runs at the PR/close gate.
 
-**When that gate refuses, run what it prints.** It emits one runnable
-`spec-amend.mjs classify --ts … --ref …` line per offending record, already
-carrying that record's own pair. Under `--signoff none` that one call
+**When that gate refuses, run what it prints.** For every record carrying a
+`ts` and a `ref` — which is every record either writer can emit — it emits one
+runnable `spec-amend.mjs classify --ts … --ref …` line, already carrying that
+record's own pair. A hand-appended record missing either field gets a line
+saying so instead, because `classify` matches on that pair and no invocation
+could reach it; a placeholder there would be a remedy that cannot be run. Under `--signoff none` that one call
 back-classifies the record AND files the tracked item it owes, so the record
 leaves the violating bucket and the gate reaches 0. Two commands that look like
 remedies are not: `spec-amend.mjs add` records a NEW amendment and leaves the

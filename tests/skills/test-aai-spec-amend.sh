@@ -1123,6 +1123,37 @@ test_016_closed_item_cannot_excuse_a_new_amendment() {
   log_pass "TEST-016 a discharged obligation cannot excuse a new amendment, the refusal's named remedy reaches a green gate with a drainable item, and a quoted ref stays pasteable"
 }
 
+test_017_reopen_never_lands_on_a_discharged_item() {
+  log_info "Test: the automatic reopen keeps searching past DISCHARGED ids — a green gate whose drain list is empty is the failure this script exists to prevent (TEST-017, external review)..."
+  local led stamp open_count
+  led="$(mk_ledger t017)"
+  # The stamp is taken from the classification's OWN clock, so seed the ids
+  # this run will actually try. A single retry was not enough: with the base
+  # and the first stamped id both closed, the one fallback landed on another
+  # discharged item.
+  stamp="$(node -e 'const d=new Date();const p=n=>String(n).padStart(2,"0");console.log(`${d.getUTCFullYear()}${p(d.getUTCMonth()+1)}${p(d.getUTCDate())}t${p(d.getUTCHours())}${p(d.getUTCMinutes())}`)')"
+  printf '%s\n' '{"v":1,"ts":"2026-09-03T21:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t017","spec_id":"spec-t017","owner_signoff":false}' >> "$led"
+  local id
+  for id in "fu-amend-spec-t017" "fu-amend-spec-t017-${stamp}" "fu-amend-spec-t017-${stamp}-2"; do
+    printf '%s\n' "{\"v\":1,\"ts\":\"2026-09-03T20:00:00Z\",\"actor\":\"a\",\"type\":\"follow_up\",\"id\":\"${id}\",\"ref_id\":\"t017\",\"severity\":\"P2\",\"finding\":\"f\",\"decision\":\"d\",\"source\":\"s\"}" >> "$led"
+    printf '%s\n' "{\"v\":1,\"ts\":\"2026-09-03T20:01:00Z\",\"actor\":\"a\",\"type\":\"follow_up_status\",\"id\":\"${id}\",\"status\":\"done\",\"resolved_by\":\"x\"}" >> "$led"
+  done
+
+  run_sa classify --ts "2026-09-03T21:00:00Z" --ref t017 --signoff none --why w --source s --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "TEST-017: the reopen must succeed, got $EC (stderr: $ERR)"
+  run_sa list --ledger "$led" --strict
+  [[ "$EC" == 0 ]] || log_fail "TEST-017: the gate must reach 0 after the reopen, got $EC (stdout: $OUT)"
+
+  # THE ASSERTION THAT MATTERS. A green gate is worthless if the obligation it
+  # points at is already discharged: `follow-ups.mjs list --status open` is the
+  # drain list the refusal itself advertises, and it must not be empty.
+  open_count="$(node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --ledger "$led" 2>&1 | grep -c "fu-amend-spec-t017" || true)"
+  [[ "$open_count" -ge 1 ]] \
+    || log_fail "TEST-017: the gate went green while EVERY fu-amend-spec-t017 item is discharged — an obligation with no outflow, which is the defect this whole script removes"
+
+  log_pass "TEST-017 the reopen searches past discharged ids, so a green gate always leaves a drainable obligation"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -1141,6 +1172,7 @@ main() {
   test_014_whitespace_type_cannot_evade_the_gate
   test_015_unmatchable_record_gets_an_honest_refusal
   test_016_closed_item_cannot_excuse_a_new_amendment
+  test_017_reopen_never_lands_on_a_discharged_item
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
