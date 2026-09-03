@@ -39,7 +39,13 @@ RFC-0001).
   listing are bounded to THAT PREFIX — not to ownership. A caller-named
   directory keeps everything that does not start with `hb-`; a stale file that
   does start with `hb-` is reaped even if this script never wrote it, so a
-  shared directory has to leave that prefix free. (Shape-gating the reap was
+  shared directory has to leave that prefix free. The two bounds are not
+  identical: `read` additionally requires a `.json` suffix, so a prefixed
+  NON-json file is reaped without ever having been listable. Filed as
+  `fu-heartbeat-read-narrower-than-gc` (P3) rather than closed here —
+  narrowing the sweep to `.json` instead would strand the abandoned
+  `.tmp.<pid>.<seq>` temps forever, so the fix widens `read` and wants its
+  own RED. (Shape-gating the reap was
   considered and rejected: it cannot cover the abandoned `.tmp.<pid>.<seq>`
   temps the sweep exists to collect.) The window is symmetric, so a
   future-dated `hb-` file is stale too — a far-future mtime must never wedge a

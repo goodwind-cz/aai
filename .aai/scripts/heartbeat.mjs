@@ -33,10 +33,18 @@
 // The `hb-` prefix is not decoration: it is what makes THIS feature's files
 // identifiable in a directory it does not own. `--dir`/AAI_HEARTBEAT_DIR is a
 // first-class override, so the directory is caller-named and may hold anything;
-// the GC below sweeps by that prefix and `read` lists by it.
+// the GC below sweeps by that prefix; `read` lists by it AND by a `.json`
+// suffix, so the two sets are NOT the same (see the asymmetry note below).
 //   THE BOUND IS THE PREFIX, NOT OWNERSHIP. A file named `hb-*` that this
-//   script never wrote is still listed by `read` and, once its mtime falls
-//   outside the window, still REAPED. Aiming --dir/AAI_HEARTBEAT_DIR at a
+//   script never wrote is, once its mtime falls outside the window, still
+//   REAPED — and if it does not end in `.json` it is reaped WITHOUT ever
+//   having been listable, because `read` filters on `hb-*.json` while the
+//   sweep filters on `hb-*` alone. The visible set is therefore strictly
+//   NARROWER than the deletable set. Found independently by code review and
+//   by an external reviewer; filed as fu-heartbeat-read-narrower-than-gc
+//   (P3). Deliberately NOT closed here by narrowing the sweep to `.json`:
+//   that would strand the abandoned `.tmp.<pid>.<seq>` temps forever. The
+//   fix widens `read`, which is a behaviour change and wants its own RED. Aiming --dir/AAI_HEARTBEAT_DIR at a
 //   directory shared with something else therefore requires that `hb-` be left
 //   free there. Shape-gating the reap on isSlotShape was considered and
 //   rejected: it cannot cover the abandoned `.tmp.<pid>.<seq>` temps the sweep
