@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/CHANGE-0171-unsigned-spec-amendment-has-no-outflow.md
   rfc: null
   pr:
-    - TBD
+    - 336
   commits:
     - 6157f85
 ---
