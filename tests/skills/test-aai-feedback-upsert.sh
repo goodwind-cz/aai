@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: RFC-0012 Phase 2c / Slice C — review-mode GitHub upsert (approval-gated)
-# (.aai/scripts/aai-feedback-upsert.mjs), TEST-001..031 (ids 003 and 009 fold
+# (.aai/scripts/aai-feedback-upsert.mjs), TEST-001..035 (ids 003 and 009 fold
 # into 002 and the profiles case respectively; there is no TEST-003 function).
 #
 # `gh` is MOCKED via a stub on AAI_GH_BIN that RECORDS every invocation AND
@@ -766,6 +766,29 @@ test_034_config_parse_label_drop_is_named() {
   log_pass "a label dropped at config parse is named (TEST-034)"
 }
 
+# --- TEST-035 (PR #337 Copilot): the duplicate gate is per DESTINATION ---------
+# Matching on the fingerprint alone would make the first destination this machine
+# ever published to the only one it can publish to.
+test_035_duplicate_gate_is_per_destination() {
+  log_info "Test: a fingerprint filed to another destination does not block this one (TEST-035)..."
+  seed_single_candidate
+  local led="$TEST_DIR/friction/upsert-ledger.jsonl"
+  echo '{"event":"issue_created","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","ts_ms":1,"destination":"someone-else/other-repo"}' > "$led"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  [ "$(creates)" = "1" ] || log_fail "TEST-035: a record for a DIFFERENT destination must not block this one (made $(creates), out=$(cat "$TEST_DIR/out"))"
+  # the same destination still blocks
+  seed_single_candidate
+  echo '{"event":"issue_created","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","ts_ms":1,"destination":"goodwind-cz/aai"}' > "$led"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  [ "$(creates)" = "0" ] || log_fail "TEST-035: a record for the SAME destination must still block (made $(creates))"
+  # a record with no destination at all predates the field and blocks conservatively
+  seed_single_candidate
+  echo '{"event":"issue_created","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","ts_ms":1}' > "$led"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  [ "$(creates)" = "0" ] || log_fail "TEST-035: a legacy record with no destination must block conservatively (made $(creates))"
+  log_pass "the duplicate gate is per destination, and unattributable records still block (TEST-035)"
+}
+
 test_009_profiles() {
   log_info "Test: new .aai files classified; layer-profiles green (TEST-009)..."
   local out code; out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
@@ -810,6 +833,7 @@ main() {
   test_032_create_argv_destination_and_content
   test_033_ledger_append_failure_is_loud
   test_034_config_parse_label_drop_is_named
+  test_035_duplicate_gate_is_per_destination
   test_009_profiles
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

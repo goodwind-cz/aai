@@ -10,7 +10,7 @@ links:
   pr:
     - 337
   commits:
-    - TBD
+    - 8546b1e
 ---
 
 # Spec — the friction upsert channel can actually file, and its argv is pinned

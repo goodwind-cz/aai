@@ -247,13 +247,20 @@ function readLedgerOrRefuse() {
   }
 }
 
-function alreadyFiledLocally(fp) {
+function alreadyFiledLocally(fp, destination) {
   const raw = readLedgerOrRefuse();
   for (const line of raw.split('\n')) {
     if (!line.trim()) continue;
     try {
       const rec = JSON.parse(line);
-      if (rec && rec.event === 'issue_created' && rec.fingerprint === fp) return true;
+      if (!rec || rec.event !== 'issue_created' || rec.fingerprint !== fp) continue;
+      // The record carries the destination it was filed to, so the match must
+      // use it: an issue filed to repo A is no reason to withhold one from
+      // repo B, and pinning only the fingerprint would silently make the first
+      // destination the only one this machine can ever publish to. A record
+      // with NO destination predates that field and cannot be attributed, so it
+      // matches conservatively — refusing is the safe direction here.
+      if (rec.destination === undefined || rec.destination === null || rec.destination === destination) return true;
     } catch { /* a malformed ledger line cannot authorize a create */ }
   }
   return false;
@@ -436,7 +443,7 @@ function main() {
     // must never fan out into a duplicate.
     // Local-ledger gate BEFORE the network dedup: it costs nothing and it closes
     // the search-index lag window that the remote search cannot.
-    if (alreadyFiledLocally(fp)) {
+    if (alreadyFiledLocally(fp, cfg.destination)) {
       process.stdout.write(`this machine already filed an issue for ${fp} (see ${LEDGER}); skipping duplicate create\n`);
       process.exit(0);
     }

@@ -7,7 +7,7 @@ links:
   pr:
     - 337
   commits:
-    - TBD
+    - 8546b1e
 ---
 
 # The friction upsert channel cannot file a single issue — two stacked defects, both invisible to a permissive `gh` mock
