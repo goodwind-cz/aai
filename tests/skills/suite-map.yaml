@@ -273,6 +273,10 @@ suites:
     globs:
       - .aai/scripts/aai-feedback-upsert.mjs
 
+  aai-live-serve:
+    globs:
+      - .aai/scripts/aai-live-serve.mjs
+
   aai-follow-ups:
     globs:
       - .aai/scripts/follow-ups.mjs

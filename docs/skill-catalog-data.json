@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-05T07:27:21.525Z",
-  "skillsCount": 39,
-  "degradedCount": 24,
+  "generatedAt": "2026-09-05T17:44:34.304Z",
+  "skillsCount": 40,
+  "degradedCount": 25,
   "skills": [
     {
       "dir": "aai-auto-trigger",
@@ -209,6 +209,17 @@
       "goal": null,
       "notes": [
         "NOTE: no \"## Goal\" section found in .aai/SKILL_ISSUES.prompt.md"
+      ]
+    },
+    {
+      "dir": "aai-live",
+      "name": "aai-live",
+      "description": "Use when you want to watch, in a browser, what every AAI agent is doing right now and whether anything waits on you — a locally served page, zero tokens, refreshes itself.",
+      "model": null,
+      "promptFile": ".aai/SKILL_LIVE.prompt.md",
+      "goal": null,
+      "notes": [
+        "NOTE: no \"## Goal\" section found in .aai/SKILL_LIVE.prompt.md"
       ]
     },
     {

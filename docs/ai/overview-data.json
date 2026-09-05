@@ -1,21 +1,21 @@
 {
-  "generatedAt": "2026-09-05T16:21:23.758Z",
+  "generatedAt": "2026-09-05T17:57:23.796Z",
   "project": "aai",
   "counts": {
     "delivered": 230,
-    "in_progress": 40,
+    "in_progress": 41,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "friction-upsert-channel-cannot-file",
-    "type": "intake_issue"
+    "ref": "live-agent-dashboard-served-locally",
+    "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "friction-upsert-channel-cannot-file",
-      "type": "intake_issue",
+      "ref": "live-agent-dashboard-served-locally",
+      "type": "intake_change",
       "phase": null
     },
     "strategy": "hybrid",
@@ -100,6 +100,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "live-agent-dashboard-served-locally",
+      "title": "A locally served live dashboard: what every agent does, what it waits on, for how long",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0173-live-agent-dashboard-served-locally.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0167-spec-live-agent-dashboard-served-locally.md",
       "validation": null,
       "review": null
     },

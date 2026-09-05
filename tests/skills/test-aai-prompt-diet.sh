@@ -759,8 +759,9 @@ test_012_growth_sum_matches_ledger() {
   # at remediation round 1 (validation F1: the gate's own refusal named
   # remedies that leave it refusing, so both pointers were rewritten), moving
   # the credit 1129 -> 1621. Pin moves 10324 -> 11945, headroom unchanged at
-  # 4/2048.
-  local want_growth=11945
+  # 4/2048. Then 11945 -> 12647: live-agent-dashboard adds .aai/SKILL_LIVE.prompt.md
+  # (+702 B measured, credited 1:1), headroom unchanged.
+  local want_growth=12647
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
