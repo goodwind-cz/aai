@@ -72,6 +72,7 @@
 3	tests/skills/test-aai-layer-profiles.sh
 2	tests/skills/test-aai-learned-append.sh
 2	tests/skills/test-aai-lightweight-lane.sh
+2	tests/skills/test-aai-live-serve.sh
 5	tests/skills/test-aai-live-status.sh
 6	tests/skills/test-aai-metrics.sh
 3	tests/skills/test-aai-orchestration-dispatch.sh

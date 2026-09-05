@@ -193,6 +193,7 @@ AAI uses two different classes of documentation:
 | Skill | Usage | What it does |
 |-------|-------|--------------|
 | `/aai-dashboard` | View metrics | Interactive charts |
+| `/aai-live` | Watch agents live | Loopback page: who runs, what waits on you, ages; zero tokens |
 | `/aai-factory-report` | Factory KPIs | Trended throughput/speed/cost/quality report |
 | `/aai-code-review` | Review code | AI-powered review |
 | `/aai-docs-audit` | Docs hygiene | Drift detection: claimed vs implemented |
@@ -1309,6 +1310,27 @@ wrangler login
 ---
 
 ### 6. Metrics & Analytics
+
+#### `/aai-live`
+**What:** A locally served page (loopback only, zero LLM tokens) that refreshes itself every 5 s and shows what waits on you first, then every agent with a live heartbeat, then sessions and spend.
+
+**When to use:**
+- A ride is running and you want to see where it is without asking in the CLI
+- You suspect an agent is waiting on a decision from you
+
+**Example:**
+```bash
+/aai-live
+# or: node .aai/scripts/aai-live-serve.mjs --port 7331
+# prints http://127.0.0.1:7331/ — open it; Ctrl-C stops it
+```
+
+**Shows:**
+- Waits on you: the pending `human_input` question and how long STATE has carried it
+- Agents: ride, role, last heartbeat message, age (stale after 120 s, never hidden)
+- Sessions and spend from the existing live-status data
+
+**Refuses:** any `--host` beyond loopback (exit 2); a busy port (exit 1). Writes nothing under the repository.
 
 #### `/aai-dashboard`
 **What:** Interactive HTML dashboard with metrics visualization.

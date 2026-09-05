@@ -116,6 +116,7 @@ core:
   # script. A core prompt pointing at a file absent from the core profile
   # would be drift, even though the heartbeat's own absence is harmless.
   - .aai/scripts/heartbeat.mjs
+  - .aai/scripts/aai-live-serve.mjs
   - .aai/scripts/hitl-channel.mjs
   - .aai/scripts/lane-gate.mjs
   - .aai/scripts/install-pre-commit-hook.ps1
@@ -214,6 +215,7 @@ extended:
   - .aai/SKILL_DOCS_HUB.prompt.md
   - .aai/SKILL_FEEDBACK_TRIAGE.prompt.md
   - .aai/SKILL_FEEDBACK_UPSERT.prompt.md
+  - .aai/SKILL_LIVE.prompt.md
   - .aai/SKILL_INTERROGATE.prompt.md
   - .aai/SKILL_ISSUES.prompt.md
   - .aai/SKILL_PROFILE.prompt.md

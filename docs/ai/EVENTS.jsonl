@@ -2112,3 +2112,15 @@
 {"v":1,"ts":"2026-09-05T15:33:36.745Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":466,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-09-05T16:19:46.918Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":466,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-09-05T16:21:40.943Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":466,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-05T16:34:37.613Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":466,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-05T17:06:21.240Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":468,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-05T17:08:09.326Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-live-agent-dashboard-served-locally","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-05T17:08:25.188Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":469,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-05T17:31:23.769Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":469,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-05T17:57:39.245Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":468,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-05T17:58:24.360Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"live-agent-dashboard-served-locally","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-05T17:58:24.393Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"live-agent-dashboard-served-locally","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-05T17:58:24.431Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"live-agent-dashboard-served-locally","payload":{"commit":"129422c6"}}
+{"v":1,"ts":"2026-09-05T17:58:24.467Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-live-agent-dashboard-served-locally","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-05T17:58:24.504Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-live-agent-dashboard-served-locally","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-05T17:58:24.538Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-live-agent-dashboard-served-locally","payload":{"commit":"129422c6"}}

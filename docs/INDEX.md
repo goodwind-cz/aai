@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-05T16:52:27.416Z
+Generated: 2026-09-05T17:59:30.259Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -49,7 +49,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (399)
+## Done (401)
 
 | ID | Type | Path |
 |---|---|---|
@@ -221,6 +221,7 @@ _None._
 | CHANGE-0169 | issues | docs/issues/CHANGE-0169-release-protected-branch-fallback.md |
 | CHANGE-0170 | issues | docs/issues/CHANGE-0170-role-progress-heartbeat.md |
 | CHANGE-0171 | issues | docs/issues/CHANGE-0171-unsigned-spec-amendment-has-no-outflow.md |
+| CHANGE-0173 | issues | docs/issues/CHANGE-0173-live-agent-dashboard-served-locally.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -451,6 +452,7 @@ _None._
 | SPEC-0164 | specs | docs/specs/SPEC-0164-spec-role-progress-heartbeat.md |
 | SPEC-0165 | specs | docs/specs/SPEC-0165-spec-unsigned-spec-amendment-has-no-outflow.md |
 | SPEC-0166 | specs | docs/specs/SPEC-0166-spec-friction-upsert-channel-cannot-file.md |
+| SPEC-0167 | specs | docs/specs/SPEC-0167-spec-live-agent-dashboard-served-locally.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (39)

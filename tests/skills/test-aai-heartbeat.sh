@@ -699,7 +699,10 @@ test_012_no_gate_reads_the_heartbeat() {
   # planted .aai/scripts/lib/heartbeat.mjs with a gate-shaped read and this arm
   # PASSED, silently dropping its own count 119 -> 118. That is the same shape as
   # the enumerated-list hole that drove this arm's inversion, one directory down.
-  local allow=" .aai/scripts/heartbeat.mjs "
+  # aai-live-serve.mjs READS slots (heartbeat.mjs read --json) to display them on
+  # the /aai-live page; it gates nothing and changes no verdict — a consumer, not
+  # a gate (SPEC live-agent-dashboard-served-locally D2).
+  local allow=" .aai/scripts/heartbeat.mjs .aai/scripts/aai-live-serve.mjs "
   local f rel hits offenders="" checked=0
   # A `while read` over find, not a glob: the corpus is recursive (lib/,
   # live-parsers/) and bash-3.2 has no globstar.
