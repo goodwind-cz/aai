@@ -1,6 +1,6 @@
 ---
 id: hand-authored-friction-is-second-class
-number: null
+number: 172
 type: change
 status: draft
 links:
