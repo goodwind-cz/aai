@@ -2,13 +2,15 @@
 id: spec-live-agent-dashboard-served-locally
 type: spec
 number: 167
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0173-live-agent-dashboard-served-locally.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 129422c6
 ---
 
 # Spec — a locally served live dashboard of agents, waits and ages

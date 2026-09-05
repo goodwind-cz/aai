@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-05T17:57:23.796Z",
+  "generatedAt": "2026-09-05T17:58:47.452Z",
   "project": "aai",
   "counts": {
-    "delivered": 230,
-    "in_progress": 41,
+    "delivered": 231,
+    "in_progress": 40,
     "releases": 1,
     "tokens_total": 57249552
   },
@@ -100,19 +100,6 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "live-agent-dashboard-served-locally",
-      "title": "A locally served live dashboard: what every agent does, what it waits on, for how long",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0173-live-agent-dashboard-served-locally.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0167-spec-live-agent-dashboard-served-locally.md",
       "validation": null,
       "review": null
     },
@@ -599,6 +586,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "live-agent-dashboard-served-locally",
+      "title": "A locally served live dashboard: what every agent does, what it waits on, for how long",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0173-live-agent-dashboard-served-locally.md",
+      "closed_on": "2026-09-05",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0167-spec-live-agent-dashboard-served-locally.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "friction-upsert-channel-cannot-file",
       "title": "The friction upsert channel cannot file a single issue — two stacked defects, both invisible to a permissive `gh` mock",
@@ -3596,6 +3596,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "live-agent-dashboard-served-locally",
+          "title": "A locally served live dashboard: what every agent does, what it waits on, for how long",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0173-live-agent-dashboard-served-locally.md",
+          "closed_on": "2026-09-05",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0167-spec-live-agent-dashboard-served-locally.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "friction-upsert-channel-cannot-file",
           "title": "The friction upsert channel cannot file a single issue — two stacked defects, both invisible to a permissive `gh` mock",

@@ -2,11 +2,13 @@
 id: live-agent-dashboard-served-locally
 number: 173
 type: change
-status: draft
+status: done
 capability: live-agent-dashboard
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 129422c6
 ---
 
 # A locally served live dashboard: what every agent does, what it waits on, for how long
