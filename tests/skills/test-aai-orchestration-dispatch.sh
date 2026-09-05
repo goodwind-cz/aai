@@ -623,7 +623,7 @@ test_005_flush_arm_and_independence() {
 
 # --- TEST-006 (Spec TEST-001/Spec-AC-01): decide() 4a table ---------------------
 
-# --- TEST-0XX (spec-roadmap-driven-ride-selection-with-budget Spec-AC-07): the 4a
+# --- TEST-048 (spec-roadmap-driven-ride-selection-with-budget Spec-AC-07): the 4a
 # retarget honours the roadmap gate carried on each candidate. decide() is pure:
 # it reads candidate.gate only; the spawn lives in buildOpenIntakes.
 test_0rs_arm4a_roadmap_gate() {

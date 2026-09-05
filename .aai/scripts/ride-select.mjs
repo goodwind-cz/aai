@@ -86,13 +86,13 @@ function loadRoadmap(p) {
     // reported as "appears twice" — true, but not the reason that matters.
     if (pr.capability === pr.maintenance) return { error: `pair ${n}: capability and maintenance are the same ref "${pr.capability}"` };
     for (const r of [pr.capability, pr.maintenance]) {
-      if (!SLUG.test(r)) return { error: `pair ${n}: "${r}" is not a slug` };
+      if (!SLUG.test(r)) return { error: `pair ${n}: "${r}" is neither a slug id nor a numbered display id` };
       if (seen.has(r)) return { error: `pair ${n}: "${r}" appears twice in the roadmap` };
       seen.add(r);
     }
   }
   for (const r of rm.wave_2) {
-    if (!SLUG.test(r)) return { error: `wave_2: "${r}" is not a slug` };
+    if (!SLUG.test(r)) return { error: `wave_2: "${r}" is neither a slug id nor a numbered display id` };
     if (seen.has(r)) return { error: `wave_2: "${r}" appears twice in the roadmap` };
     seen.add(r);
   }
@@ -182,8 +182,8 @@ function main() {
   }
 
   // gate
-  if (!a.ref) usage('gate requires --ref <slug>');
-  if (!SLUG.test(a.ref)) usage(`--ref "${a.ref}" is not a slug`);
+  if (!a.ref) usage('gate requires --ref <id> (a slug id like live-agent-dashboard-served-locally, or a numbered display id like CHANGE-0173)');
+  if (!SLUG.test(a.ref)) usage(`--ref "${a.ref}" is neither a slug id nor a numbered display id (TYPE-0000)`);
   if (a.override !== null && a.override.trim() === '') usage('--override requires a reason');
   const intake = a.intake ? readIntake(a.intake) : findDoc(a.docs, a.ref);
   if (a.intake && intake && intake.id && intake.id !== a.ref) usage(`--intake ${a.intake} has id "${intake.id}", not --ref ${a.ref}`);
