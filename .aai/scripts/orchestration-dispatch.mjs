@@ -418,10 +418,17 @@ function decideRuleTable(snapshot, opts = {}) {
       && !focusHasFailVerdict) {
     if (s.flushed === true) {
       const fromRef = s.focus.ref_id;
-      const candidates = s.open_intakes;
+      const allCandidates = s.open_intakes;
       // Probe failure: fail-closed, never guess.
-      if (candidates === null) return needsLlm(s, ['open_intake_scan_failed'], '4a');
-      if (candidates.length === 0) return noAction('4a', s, ['scope_complete_no_open_intake']);
+      if (allCandidates === null) return needsLlm(s, ['open_intake_scan_failed'], '4a');
+      if (allCandidates.length === 0) return noAction('4a', s, ['scope_complete_no_open_intake']);
+      // Roadmap gate: a refused candidate is not a candidate. When the gate
+      // refused everything, say so per ref — the remedy is in each reason.
+      const refused = allCandidates.filter(c => c.gate && c.gate.admitted === false);
+      const candidates = allCandidates.filter(c => !(c.gate && c.gate.admitted === false));
+      if (candidates.length === 0) {
+        return noAction('4a', s, refused.map(c => `roadmap_gate_refused:${c.ref_id ?? c.primary_path}:${c.gate.reason}`));
+      }
       if (candidates.length >= 2) {
         const names = candidates.map(c => c.ref_id ?? c.primary_path);
         return needsLlm(s, [`multiple_open_intakes:${names.join(',')}`], '4a');
@@ -672,9 +679,48 @@ function buildOpenIntakes(root, focusRef, workItems) {
 
     const refId = matchedItem ? matchedItem.ref_id : id;
     const focusType = OPEN_INTAKE_DOC_TYPES[type] ?? null;
-    candidates.push({ ref_id: refId, primary_path: relPath, doc_type: type, item_status: status, unmappable: focusType == null });
+    candidates.push({ ref_id: refId, primary_path: relPath, doc_type: type, item_status: status, unmappable: focusType == null, gate: roadmapGate(root, refId, relPath) });
   }
   return candidates;
+}
+
+// ROADMAP GATE (spec-roadmap-driven-ride-selection-with-budget D3, owner
+// decisions capability-roadmap-drives-rides + maintenance-budget-one-to-one).
+// The autonomous path chooses the next ride HERE, so this is where the gate
+// must sit — the LOOP/SHIP prompt wiring alone gated ride 1 and never rides
+// 2..n (validation round 1, F-01). Semantics:
+//   · docs/ai/roadmap.yaml ABSENT  -> roadmap discipline not adopted in this
+//     project; the gate is NOT consulted and the candidate carries
+//     { admitted: true, consulted: false }. A downstream project that never
+//     wrote a roadmap keeps its autonomous path.
+//   · roadmap PRESENT             -> ride-select.mjs decides; a refusal (exit
+//     1) or an invalid roadmap (exit 1/2) marks the candidate NOT admitted with
+//     the gate's own one-line reason. Fail-closed: the gate crashing or missing
+//     is a refusal, never an admission.
+// Pure decide() reads only `candidate.gate`; the spawn lives here in the
+// snapshot builder like every other filesystem probe.
+function roadmapGate(root, refId, relPath) {
+  const roadmap = path.resolve(root, 'docs/ai/roadmap.yaml');
+  if (!fs.existsSync(roadmap)) return { admitted: true, consulted: false, reason: 'roadmap absent — gate not consulted' };
+  const gate = path.resolve(root, '.aai/scripts/ride-select.mjs');
+  if (!fs.existsSync(gate)) return { admitted: false, consulted: true, reason: 'roadmap present but ride-select.mjs missing — fail closed' };
+  if (refId == null) return { admitted: false, consulted: true, reason: 'candidate has no ref — cannot be gated' };
+  // The roadmap is keyed by frontmatter slug ids. A mixed-ref candidate (work
+  // item CHANGE-0002, frontmatter id a slug) must be gated by the SLUG, or the
+  // gate's own --intake/--ref consistency check refuses a legitimate capability.
+  let gateRef = refId;
+  try {
+    const head = fs.readFileSync(path.resolve(root, relPath), 'utf8').split('\n').slice(0, 30);
+    const idLine = head.find((l) => /^id:\s*\S/.test(l));
+    if (idLine) gateRef = idLine.replace(/^id:\s*/, '').trim().replace(/^["']|["']$/g, '');
+  } catch { /* fall back to refId */ }
+  try {
+    const out = execFileSync(process.execPath, [gate, 'gate', '--ref', gateRef, '--intake', path.resolve(root, relPath), '--roadmap', roadmap, '--docs', path.resolve(root, 'docs')], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 15000 });
+    return { admitted: true, consulted: true, reason: String(out).trim().split('\n')[0] };
+  } catch (e) {
+    const msg = String((e && e.stderr) || (e && e.message) || 'gate failed').trim().split('\n')[0];
+    return { admitted: false, consulted: true, reason: msg };
+  }
 }
 
 // TREE_HASH_EXCLUDE_PATHS (role-verification-guards G2, B1 fix —

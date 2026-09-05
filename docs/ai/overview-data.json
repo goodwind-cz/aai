@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-09-05T17:58:47.452Z",
+  "generatedAt": "2026-09-05T20:01:30.027Z",
   "project": "aai",
   "counts": {
     "delivered": 231,
-    "in_progress": 40,
+    "in_progress": 41,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "live-agent-dashboard-served-locally",
+    "ref": "roadmap-driven-ride-selection-with-budget",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "live-agent-dashboard-served-locally",
+      "ref": "roadmap-driven-ride-selection-with-budget",
       "type": "intake_change",
       "phase": null
     },
@@ -100,6 +100,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "roadmap-driven-ride-selection-with-budget",
+      "title": "Rides come from the roadmap, and every maintenance ride must be paired with a capability",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0174-roadmap-driven-ride-selection-with-budget.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0168-spec-roadmap-driven-ride-selection-with-budget.md",
       "validation": null,
       "review": null
     },

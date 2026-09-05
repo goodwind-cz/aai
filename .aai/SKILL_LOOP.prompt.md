@@ -105,6 +105,11 @@ print its one-line verdict as an INFORMATIONAL line (never block or branch on
 its exit code; the script is read-only and self-bounded). If the script is
 absent (older vendored layer), skip silently.
 
+Also at loop start (once): RIDE GATE — when `current_focus.ref_id` is set, run
+`node .aai/scripts/ride-select.mjs gate --ref <ref_id> --intake <primary_path>`;
+non-zero → print its message verbatim and EXIT (same shape as stop 2b). A ride
+the roadmap does not admit is not made to progress by ticking at it.
+
 For each tick (1..max_ticks):
 
   1. READ docs/ai/STATE.yaml.

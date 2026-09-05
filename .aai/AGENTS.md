@@ -289,6 +289,30 @@ Project discussion continuity belongs in `docs/project-sessions/`.
 Use that folder for human-readable narrative rationale and session resume context.
 Do not use it as a substitute for specs, decisions, facts, or validation evidence.
 
+### Operator contract
+
+Owner decisions of 2026-09-05 (`hitl_decision` records: internal-work-without-asking,
+review-round-cap, capability-roadmap-drives-rides, maintenance-budget-one-to-one).
+Rules 1–3 bind every agent here and in every project that vendors this file.
+Rule 4 applies once a project writes `docs/ai/roadmap.yaml`; without one the
+gate is not consulted (roadmap discipline is opt-in downstream).
+
+1. **Internal work is done without asking.** Fix, chore, harness, guard and
+   test rides are taken to a green, review-passed PR without a question and
+   reported in ONE line. Merging stays the operator action this file already
+   names (an owner may grant a standing merge authorization per repository;
+   this contract does not create one). The owner is asked only for a NEW
+   capability or a public / external side effect.
+2. **A question is a menu.** When the owner must decide, present options with
+   a recommended default (AskUserQuestion or the equivalent), never an
+   open-ended "what next?".
+3. **Two review rounds max.** A third finding-bearing round means the ride was
+   cut wrong: split it, do not re-verify it.
+4. **Rides come from the roadmap, 1:1.** `docs/ai/roadmap.yaml` is the ride
+   source; `node .aai/scripts/ride-select.mjs gate` refuses a maintenance ride
+   whose paired capability has not started and an off-roadmap fix (file it to
+   the backlog). The owner may `--override "<reason>"`; it is logged, never silent.
+
 ## Rules
 - Do not claim PASS without executable evidence.
 - Do not invent technologies: read docs/TECHNOLOGY.md first.

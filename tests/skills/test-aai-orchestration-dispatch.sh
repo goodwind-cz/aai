@@ -623,6 +623,45 @@ test_005_flush_arm_and_independence() {
 
 # --- TEST-006 (Spec TEST-001/Spec-AC-01): decide() 4a table ---------------------
 
+# --- TEST-0XX (spec-roadmap-driven-ride-selection-with-budget Spec-AC-07): the 4a
+# retarget honours the roadmap gate carried on each candidate. decide() is pure:
+# it reads candidate.gate only; the spawn lives in buildOpenIntakes.
+test_0rs_arm4a_roadmap_gate() {
+  log_info "Test: decide() 4a skips a gate-refused candidate, retargets to the admitted one, and reports refusal reasons when nothing is admitted (roadmap gate)..."
+  cat > "$TEST_DIR/trs.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+const admitted = { ref_id: 'decisions-as-menus-in-dashboard', primary_path: 'docs/issues/CHANGE-DRAFT-decisions-as-menus-in-dashboard.md', doc_type: 'change', item_status: 'draft', unmappable: false,
+  gate: { admitted: true, consulted: true, reason: 'ride-select: ADMIT decisions-as-menus-in-dashboard — a roadmap capability' } };
+const refused = { ref_id: 'some-harness-fix', primary_path: 'docs/issues/ISSUE-DRAFT-some-harness-fix.md', doc_type: 'issue', item_status: 'draft', unmappable: false,
+  gate: { admitted: false, consulted: true, reason: 'ride-select: REFUSED — some-harness-fix is maintenance and not on the roadmap — file it to the backlog' } };
+const legacy = { ref_id: 'no-gate-field', primary_path: 'docs/issues/CHANGE-DRAFT-no-gate-field.md', doc_type: 'change', item_status: 'draft', unmappable: false };
+const base = (open) => ({
+  project_status: 'active', human_input_required: false, technology_present: true, workflow_present: true, locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0173' }, work_item: { phase: 'validation', status: 'done' },
+  spec: { path: 'docs/specs/SPEC-0167-x.md', present: true, frozen: true, frontmatter_status: 'done', ceremony_level: 2 },
+  strategy_selected: 'tdd', worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'pass', ref_id: 'CHANGE-0173' }, review: { required: true, status: 'pass' }, flushed: true,
+  implementer_model: null, last_run_role: 'Metrics Flush', open_intakes: open,
+});
+// (1) admitted + refused -> retarget to the admitted one only (the refused one is not a candidate, so no "multiple" needs_llm)
+{ const d = decide(base([refused, admitted])); assert.strictEqual(d.verdict, 'dispatch'); assert.strictEqual(d.rule, '4a'); assert.strictEqual(d.ref_id, admitted.ref_id, JSON.stringify(d)); }
+// (2) refused only -> no_action naming the ref and the gate's own reason
+{ const d = decide(base([refused])); assert.strictEqual(d.verdict, 'no_action', JSON.stringify(d));
+  assert.ok(d.reasons.some(r => r.startsWith('roadmap_gate_refused:some-harness-fix:') && r.includes('file it to the backlog')), JSON.stringify(d.reasons)); }
+// (3) a candidate with NO gate field (older snapshot / roadmap absent) is admitted as before
+{ const d = decide(base([legacy])); assert.strictEqual(d.verdict, 'dispatch'); assert.strictEqual(d.ref_id, legacy.ref_id); }
+// (4) two admitted -> the pre-existing multiple_open_intakes needs_llm still applies
+{ const d = decide(base([admitted, legacy])); assert.strictEqual(d.verdict, 'needs_llm'); assert.ok(d.reasons.some(r => r.startsWith('multiple_open_intakes:')), JSON.stringify(d.reasons)); }
+console.log('ok');
+EOF
+  local out; out="$(node "$TEST_DIR/trs.mjs" "$PROJECT_ROOT" 2>&1)" || log_fail "roadmap-gate 4a arm: $out"
+  [[ "$out" == "ok" ]] || log_fail "roadmap-gate 4a arm unexpected output: $out"
+  log_pass "decide() 4a honours the roadmap gate: refused skipped, admitted retargeted, nothing-admitted reported, legacy shape unchanged"
+}
+
 test_006_arm4a_decide_table() {
   log_info "Test: decide() 4a arm: done+flushed / absent+flushed + one open intake -> Planning retarget with payload/reason/lane full; done+unflushed -> close pipeline untouched (TEST-001)..."
   cat > "$TEST_DIR/t6.mjs" <<'EOF'
@@ -1372,6 +1411,7 @@ test_016_survival_negative_control() {
   test_004_fail_closed
   test_005_flush_arm_and_independence
   test_006_arm4a_decide_table
+  test_0rs_arm4a_roadmap_gate
   test_007_rule11_done_skip
   test_008_arm4a_ambiguity
   test_009_cli_integration
