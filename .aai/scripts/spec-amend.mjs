@@ -458,7 +458,13 @@ function appendAmendItem(absPath, { actor, itemId, ref, specId, specRel, what, w
     id: itemId,
     ref_id: ref,
     severity: ITEM_SEVERITY,
-    finding: `owner sign-off owed on the post-freeze amendment(s) to ${specId} (${specRel}): ${what}`,
+    // The spec is named by its FRONTMATTER ID, never by its path. A draft path
+    // dies the moment allocate-doc-number.mjs renames the file, and this ledger
+    // is append-only, so the dead reference can never be corrected at the
+    // source — it then lands in a generated page and fails the doc-numbering
+    // stale-draft-ref guard on every later run. The id survives renaming by
+    // construction (RFC-0007 durable doc identity).
+    finding: `owner sign-off owed on the post-freeze amendment(s) to ${specId}: ${what}`,
     decision: `filed unsigned under the additive-with-disclosure convention by ${actor}; the owner may accept the amended spec or reverse it. ${why}`,
     source: `${path.relative(process.cwd(), absPath) || absPath} ts=${sourceTs} type=spec_amendment ref_id=${ref}`,
   });

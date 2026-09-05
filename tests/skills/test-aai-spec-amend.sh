@@ -1154,6 +1154,33 @@ test_017_reopen_never_lands_on_a_discharged_item() {
   log_pass "TEST-017 the reopen searches past discharged ids, so a green gate always leaves a drainable obligation"
 }
 
+# --- TEST-018: the tracked item names the spec by ID, never by PATH -----------
+# A draft path dies when allocate-doc-number.mjs renames the file. This ledger is
+# append-only, so a path written here can never be corrected — and it then lands
+# in a generated page and fails the doc-numbering stale-draft-ref guard forever.
+# Cost one CI failure on PR #337 before it was found.
+test_018_item_names_spec_by_id_not_path() {
+  log_info "Test: the manufactured follow-up carries no spec PATH (TEST-018)..."
+  local d; d="$(mktemp -d "${TMPDIR:-/tmp}/aai-amend-path.XXXXXX")"
+  mkdir -p "$d/docs/specs"
+  printf -- '---\nid: spec-a-topic\ntype: spec\nnumber: null\nstatus: implementing\n---\n\nSPEC-FROZEN: true\n' \
+    > "$d/docs/specs/SPEC-DRAFT-spec-a-topic.md"
+  : > "$d/ledger.jsonl"
+  node "$SA" add --spec "$d/docs/specs/SPEC-DRAFT-spec-a-topic.md" --ref a-topic \
+    --what "a change" --why "a reason" --signoff none --ledger "$d/ledger.jsonl" >/dev/null 2>&1 \
+    || log_fail "TEST-018: add must succeed"
+  # Only the FOLLOW_UP record. The spec_amendment record's `amends` field is a
+  # path on purpose — it states which file was amended at that moment, a
+  # historical fact, and nothing renders it into a generated page. The follow-up
+  # IS rendered (factory-report lists open items), so a path there is the trap.
+  local fu; fu="$(grep -F '"follow_up"' "$d/ledger.jsonl" | head -1)"
+  [ -n "$fu" ] || log_fail "TEST-018: add must manufacture a follow_up record"
+  case "$fu" in *SPEC-DRAFT-*) log_fail "TEST-018: the follow-up must not embed a DRAFT path — it dies at allocation and this ledger is append-only: $fu";; esac
+  case "$fu" in *spec-a-topic*) ;; *) log_fail "TEST-018: the follow-up must still name the spec by its frontmatter id: $fu";; esac
+  rm -rf "$d"
+  log_pass "the tracked item names the spec by id, not by path (TEST-018)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -1173,6 +1200,7 @@ main() {
   test_015_unmatchable_record_gets_an_honest_refusal
   test_016_closed_item_cannot_excuse_a_new_amendment
   test_017_reopen_never_lands_on_a_discharged_item
+  test_018_item_names_spec_by_id_not_path
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

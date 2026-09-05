@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-03T22:01:35.512Z
+Generated: 2026-09-05T08:57:46.054Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -49,7 +49,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (397)
+## Done (399)
 
 | ID | Type | Path |
 |---|---|---|
@@ -270,6 +270,7 @@ _None._
 | ISSUE-0077 | issues | docs/issues/ISSUE-0077-gate-ac-row-escaped-pipe-blind.md |
 | ISSUE-0078 | issues | docs/issues/ISSUE-0078-ac-table-premature-flip-recurs.md |
 | ISSUE-0079 | issues | docs/issues/ISSUE-0079-metrics-flush-invalidates-pr-precondition.md |
+| ISSUE-0080 | issues | docs/issues/ISSUE-0080-friction-upsert-channel-cannot-file.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -449,6 +450,7 @@ _None._
 | SPEC-0163 | specs | docs/specs/SPEC-0163-spec-metrics-flush-invalidates-pr-precondition.md |
 | SPEC-0164 | specs | docs/specs/SPEC-0164-spec-role-progress-heartbeat.md |
 | SPEC-0165 | specs | docs/specs/SPEC-0165-spec-unsigned-spec-amendment-has-no-outflow.md |
+| SPEC-0166 | specs | docs/specs/SPEC-0166-spec-friction-upsert-channel-cannot-file.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (38)
@@ -523,4 +525,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-03 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-05 — counts above use this date for overdue checks.

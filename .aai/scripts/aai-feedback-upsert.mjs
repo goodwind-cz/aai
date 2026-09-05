@@ -126,7 +126,12 @@ function loadConfig(path) {
         } else if (sub === 'labels') {
           const m = line.match(/^-[ \t]+(.+)$/);
           const lab = m && stripComment(m[1].trim());
+          // A label the charset gate refuses is DROPPED here, before the
+          // destination is ever consulted. Saying so matters: GitHub label names
+          // may contain spaces ("good first issue"), so this silently discarded
+          // legitimate configuration while D2 promised every drop is named.
           if (lab && /^[A-Za-z0-9._-]{1,50}$/.test(lab)) cfg.labels.push(lab);
+          else if (lab) process.stderr.write(`aai-feedback-upsert: configured label ${JSON.stringify(lab)} is not of the form [A-Za-z0-9._-]{1,50} and was dropped before the destination was consulted\n`);
         }
       }
     }
@@ -184,10 +189,81 @@ function ghAuthHint(state) {
 // refuses to create, so a search hiccup can never fan out into a duplicate).
 function dedupSearch(destination, fp) {
   if (!destination) return { searched: false, exists: false };
-  const r = runGh(['search', 'issues', '--repo', destination, '--match', 'body', `aai-friction:${fp}`, '--state', 'all', '--json', 'number', '--limit', '1']);
+  // NO `--state`: `gh search issues` accepts only {open|closed}, and `--state all`
+  // — which this call carried until 2026-09-04 — is rejected by the CLI on every
+  // invocation. Omitting the flag searches ALL states, which is the semantics the
+  // dedup needs. The rejection made `searched` permanently false, so the
+  // fail-closed below refused every create and the channel could never file.
+  const r = runGh(['search', 'issues', '--repo', destination, '--match', 'body', `aai-friction:${fp}`, '--json', 'number', '--limit', '1']);
   if (!r.ok) return { searched: false, exists: false };
   try { const arr = JSON.parse(r.stdout); return { searched: true, exists: Array.isArray(arr) && arr.length > 0 }; }
   catch { return { searched: false, exists: false }; }
+}
+
+// Labels that actually EXIST in the destination. `gh issue create` refuses an
+// unknown label, so a cosmetic label the repo never defined would fail the whole
+// write. TRI-STATE like dedupSearch, but the caller degrades the OPPOSITE way:
+// { read:false } means "drop every label and file anyway". The asymmetry is
+// deliberate — a duplicate issue is a real harm, an unlabelled issue is not.
+const LABEL_LIST_LIMIT = 500;
+function existingLabels(destination) {
+  if (!destination) return { read: false, names: [], truncated: false };
+  const r = runGh(['label', 'list', '--repo', destination, '--json', 'name', '--limit', String(LABEL_LIST_LIMIT)]);
+  if (!r.ok) return { read: false, names: [], truncated: false };
+  try {
+    const arr = JSON.parse(r.stdout);
+    if (!Array.isArray(arr)) return { read: false, names: [], truncated: false };
+    const names = arr.map((x) => (x && typeof x.name === 'string' ? x.name : '')).filter(Boolean);
+    // A full page means the list MAY be cut short, so "does not exist" would be
+    // a claim we cannot support. Say "not in the first N" instead of asserting
+    // absence — an untrue guard message is an untrue instruction.
+    return { read: true, names, truncated: arr.length >= LABEL_LIST_LIMIT };
+  } catch { return { read: false, names: [], truncated: false }; }
+}
+
+// GitHub label names are case-insensitive for matching purposes.
+function hasLabel(names, label) {
+  const want = label.toLowerCase();
+  return names.some((n) => n.toLowerCase() === want);
+}
+
+// Has THIS fingerprint already been filed from THIS machine? The dedup search is
+// the authority, but GitHub's search index lags a fresh issue by seconds to
+// minutes, so two confirmed publishes in a row could both see an empty search
+// and both create. The local ledger closes that window. It is a SECOND gate, not
+// a replacement: it only ever refuses, never authorizes.
+// ONE read for both local gates. An unreadable ledger (a directory at the path,
+// a permissions error) used to crash with an unhandled EISDIR, and the first fix
+// — treating the budget as exhausted — was worse: it printed "budget reached"
+// and exited 0, silently and permanently blocking a legitimate publish under a
+// reason that was not true. Both gates depend on this file, so neither can
+// honestly proceed without it: refuse loudly, name the path, exit non-zero.
+function readLedgerOrRefuse() {
+  if (!existsSync(LEDGER)) return '';
+  try { return readFileSync(LEDGER, 'utf8'); }
+  catch (e) {
+    process.stderr.write(`aai-feedback-upsert: cannot read the local upsert ledger ${LEDGER} (${e && e.code ? e.code : 'unreadable'}) — refusing to publish: both the duplicate check and the budget check depend on it\n`);
+    process.exit(1);
+  }
+}
+
+function alreadyFiledLocally(fp, destination) {
+  const raw = readLedgerOrRefuse();
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const rec = JSON.parse(line);
+      if (!rec || rec.event !== 'issue_created' || rec.fingerprint !== fp) continue;
+      // The record carries the destination it was filed to, so the match must
+      // use it: an issue filed to repo A is no reason to withhold one from
+      // repo B, and pinning only the fingerprint would silently make the first
+      // destination the only one this machine can ever publish to. A record
+      // with NO destination predates that field and cannot be attributed, so it
+      // matches conservatively — refusing is the safe direction here.
+      if (rec.destination === undefined || rec.destination === null || rec.destination === destination) return true;
+    } catch { /* a malformed ledger line cannot authorize a create */ }
+  }
+  return false;
 }
 
 // Representative observation for a fingerprint: highest v2 signal, else first.
@@ -281,8 +357,9 @@ function buildPayload(rep, cluster, fp) {
 // Rolling 7-day budget from the local ledger (created issues only).
 function newIssuesLast7d(nowMs) {
   if (!existsSync(LEDGER)) return 0;
+  const ledgerRaw = readLedgerOrRefuse();
   let n = 0;
-  for (const l of readFileSync(LEDGER, 'utf8').split('\n')) {
+  for (const l of ledgerRaw.split('\n')) {
     if (!l.trim()) continue;
     try { const e = JSON.parse(l); if (e.event === 'issue_created' && typeof e.ts_ms === 'number' && nowMs - e.ts_ms < WEEK_MS) n += 1; } catch { /* skip */ }
   }
@@ -320,6 +397,14 @@ function prepare(args, cfg) {
   return prepared;
 }
 
+// Why a prepared cluster is not offered a --publish command. Keyed by the same
+// status the draft carries, so the file and the console never disagree.
+const BLOCK_REASON = {
+  blocked_dedup_unavailable: 'the dedup search could not run, so a create would be refused (fail-closed)',
+  update_existing: 'an issue already carries this fingerprint marker',
+  deferred_budget: 'the 7-day new-issue budget is exhausted',
+};
+
 function main() {
   const argv = process.argv.slice(2);
   let args; try { args = parseArgs(argv); }
@@ -356,6 +441,12 @@ function main() {
     // Dedup FIRST, fail-closed: if we cannot CONFIRM there is no existing issue
     // (gh unavailable or unparseable output), REFUSE to create — a search hiccup
     // must never fan out into a duplicate.
+    // Local-ledger gate BEFORE the network dedup: it costs nothing and it closes
+    // the search-index lag window that the remote search cannot.
+    if (alreadyFiledLocally(fp, cfg.destination)) {
+      process.stdout.write(`this machine already filed an issue for ${fp} (see ${LEDGER}); skipping duplicate create\n`);
+      process.exit(0);
+    }
     const ds = dedupSearch(cfg.destination, fp);
     if (!ds.searched) {
       process.stderr.write(`aai-feedback-upsert: could not verify dedup for ${fp} (gh search unavailable) — refusing to create\n`);
@@ -373,11 +464,32 @@ function main() {
     }
     const payload = buildPayload(rep, cluster, fp);
     const ghArgs = ['issue', 'create', '--repo', cfg.destination, '--title', payload.title, '--body', payload.body];
-    for (const label of cfg.labels) ghArgs.push('--label', label);
+    // Label degrade (never fail the write over a label). Each drop is NAMED, so a
+    // missing label is visible to the operator rather than silently swallowed.
+    if (cfg.labels.length) {
+      const ls = existingLabels(cfg.destination);
+      if (!ls.read) {
+        process.stderr.write(`aai-feedback-upsert: could not read the label set for ${cfg.destination} — filing without labels (${cfg.labels.join(', ')})\n`);
+      } else {
+        for (const label of cfg.labels) {
+          if (hasLabel(ls.names, label)) ghArgs.push('--label', label);
+          else if (ls.truncated) process.stderr.write(`aai-feedback-upsert: label "${label}" is not among the first ${LABEL_LIST_LIMIT} labels of ${cfg.destination} — filing without it\n`);
+          else process.stderr.write(`aai-feedback-upsert: label "${label}" does not exist in ${cfg.destination} — filing without it\n`);
+        }
+      }
+    }
     const r = runGh(ghArgs, { mutating: true });
     if (!r.ok) { process.stderr.write('aai-feedback-upsert: gh issue create failed (is gh authenticated?)\n'); process.exit(1); }
-    ensureDir(FRICTION_DIR);
-    appendFileSync(LEDGER, JSON.stringify({ event: 'issue_created', fingerprint: fp, ts_ms: nowMs, destination: cfg.destination }) + '\n');
+    // The issue EXISTS now. If the ledger append fails, the duplicate window this
+    // ledger was added to close is reopened, so the failure must be loud and the
+    // exit non-zero — a silent success here is the worst outcome available.
+    try {
+      ensureDir(FRICTION_DIR);
+      appendFileSync(LEDGER, JSON.stringify({ event: 'issue_created', fingerprint: fp, ts_ms: nowMs, destination: cfg.destination }) + '\n');
+    } catch (e) {
+      process.stderr.write(`aai-feedback-upsert: FILED the issue for ${fp} in ${cfg.destination}, but could not record it in ${LEDGER} (${e && e.code ? e.code : 'write failed'}). The local duplicate guard is now blind to this fingerprint — record it by hand before publishing again.\n`);
+      process.exit(1);
+    }
     process.stdout.write(`filed issue for ${fp} in ${cfg.destination}\n`);
     process.exit(0);
   }
@@ -405,7 +517,14 @@ function main() {
   const ov = overrides ? ` ${overrides}` : '';
   process.stdout.write(`prepared ${prepared.length} issue draft(s) in ${PENDING_DIR} (mode=review, dest=${cfg.destination}):\n`);
   for (const p of prepared) {
-    process.stdout.write(`  ${p.status.padEnd(24)} ${p.fingerprint}  -> review then: node .aai/scripts/aai-feedback-upsert.mjs${ov} --publish ${p.fingerprint} --confirm\n`);
+    // Only a cluster the engine actually cleared gets a runnable command. A
+    // blocked one used to be printed WITH a --publish line that was guaranteed
+    // to refuse — an instruction the tool would not honour.
+    if (p.status === 'new') {
+      process.stdout.write(`  ${p.status.padEnd(24)} ${p.fingerprint}  -> review then: node .aai/scripts/aai-feedback-upsert.mjs${ov} --publish ${p.fingerprint} --confirm\n`);
+    } else {
+      process.stdout.write(`  ${p.status.padEnd(24)} ${p.fingerprint}  -> not offered: ${BLOCK_REASON[p.status] || p.status}\n`);
+    }
   }
 }
 
