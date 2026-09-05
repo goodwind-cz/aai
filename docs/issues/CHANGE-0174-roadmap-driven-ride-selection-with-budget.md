@@ -2,10 +2,12 @@
 id: roadmap-driven-ride-selection-with-budget
 number: 174
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - c3381428
 ---
 
 # Rides come from the roadmap, and every maintenance ride must be paired with a capability

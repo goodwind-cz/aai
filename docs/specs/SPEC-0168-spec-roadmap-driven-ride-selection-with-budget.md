@@ -2,13 +2,15 @@
 id: spec-roadmap-driven-ride-selection-with-budget
 type: spec
 number: 168
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0174-roadmap-driven-ride-selection-with-budget.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - c3381428
 ---
 
 # Spec — rides come from the roadmap, and every maintenance ride is paired with a capability
