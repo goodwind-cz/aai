@@ -178,6 +178,10 @@ PROCESS
       does NOT require a full sweep. ONE full
       `bash tests/skills/test-framework.sh` runs before the close ceremony and
       is the sweep the TEST rows cite. State which of the two this round was.
+      TWO ROUNDS MAX (owner decision review-round-cap, 2026-09-05): a third
+      finding-bearing round is a STOP whose only instruction is "split the
+      ride" — never a fourth round. Each round so far found a real escape,
+      which means the scope was cut wrong, not under-verified.
    c3) PROGRESS HEARTBEAT (advisory). At each round boundary run
       `node .aai/scripts/heartbeat.mjs write --ref <REF-ID> --role Validation --message "<this round>"`
       so an observer reads progress without asking the orchestrator. Its

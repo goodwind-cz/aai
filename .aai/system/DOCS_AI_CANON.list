@@ -51,6 +51,7 @@ live-status.html
 overview-data.json
 overview.html
 pr-config.yaml
+roadmap.yaml
 update-config.yaml
 .pre-compact-state-backup.yaml
 .session-context.md

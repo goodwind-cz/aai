@@ -1,0 +1,25 @@
+# docs/ai/roadmap.yaml — machine form of docs/project-sessions/2026-09-05-capability-roadmap.md
+# Read by .aai/scripts/ride-select.mjs (validate | next | gate). Owner decisions:
+# capability-roadmap-drives-rides, maintenance-budget-one-to-one (hitl_decision, 2026-09-05).
+#
+# SHAPE (closed; anything else is invalid and the gate fails closed):
+#   budget.maintenance_per_capability: 1
+#   pairs: ordered; each has capability, maintenance (both slugs), status planned|active|done
+#   wave_2: slugs deferred by the owner (not gated, listed so `next` can say what follows)
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: live-agent-dashboard-served-locally
+    maintenance: roadmap-driven-ride-selection-with-budget
+    status: active
+  - capability: decisions-as-menus-in-dashboard
+    maintenance: canon-one-line-report-and-downstream-rules
+    status: planned
+  - capability: standardized-backlog-drain
+    maintenance: windows-codex-test-dispatch
+    status: planned
+wave_2:
+  - hand-authored-friction-is-second-class
+  - review-round-cap-in-validation-canon
+  - residuals-of-the-per-suite-clone-ride
+  - cloud-morning-digest

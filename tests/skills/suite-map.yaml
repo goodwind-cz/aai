@@ -273,6 +273,11 @@ suites:
     globs:
       - .aai/scripts/aai-feedback-upsert.mjs
 
+  aai-ride-select:
+    globs:
+      - .aai/scripts/ride-select.mjs
+      - docs/ai/roadmap.yaml
+
   aai-live-serve:
     globs:
       - .aai/scripts/aai-live-serve.mjs

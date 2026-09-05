@@ -24,6 +24,11 @@ AUTOPILOT DEFAULTS (recorded, never silent)
 RUN
 1. INTAKE — follow .aai/SKILL_INTAKE.prompt.md with the need, applying the
    defaults above. Capture the resulting ref_id.
+   1a. RIDE GATE — run `node .aai/scripts/ride-select.mjs gate --ref <ref_id>
+   --intake <primary_path>`. Non-zero: STOP and print its message verbatim
+   (a maintenance ride before its paired capability, an off-roadmap fix that
+   belongs in the backlog, a done ref, or an unreadable roadmap). The owner's
+   `--override "<reason>"` is logged to EVENTS, never silent.
 2. LOOP — follow .aai/SKILL_LOOP.prompt.md (checkpoint_mode=none), applying
    default 2 whenever the loop surfaces the worktree gate. Honor every
    dispatch's suggested_model (MODEL_ROUTING binding) when the platform

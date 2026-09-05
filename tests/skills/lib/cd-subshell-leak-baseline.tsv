@@ -92,6 +92,7 @@
 2	tests/skills/test-aai-redact.sh
 2	tests/skills/test-aai-release.sh
 3	tests/skills/test-aai-repo-tripwire.sh
+2	tests/skills/test-aai-ride-select.sh
 2	tests/skills/test-aai-role-output.sh
 2	tests/skills/test-aai-routine.sh
 2	tests/skills/test-aai-run-tests.sh

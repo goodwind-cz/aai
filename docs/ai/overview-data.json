@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-09-05T17:58:47.452Z",
+  "generatedAt": "2026-09-05T20:02:14.593Z",
   "project": "aai",
   "counts": {
-    "delivered": 231,
+    "delivered": 232,
     "in_progress": 40,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "live-agent-dashboard-served-locally",
+    "ref": "roadmap-driven-ride-selection-with-budget",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "live-agent-dashboard-served-locally",
+      "ref": "roadmap-driven-ride-selection-with-budget",
       "type": "intake_change",
       "phase": null
     },
@@ -596,6 +596,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0167-spec-live-agent-dashboard-served-locally.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "roadmap-driven-ride-selection-with-budget",
+      "title": "Rides come from the roadmap, and every maintenance ride must be paired with a capability",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0174-roadmap-driven-ride-selection-with-budget.md",
+      "closed_on": "2026-09-05",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0168-spec-roadmap-driven-ride-selection-with-budget.md",
       "validation": null,
       "review": null
     },
@@ -3606,6 +3619,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0167-spec-live-agent-dashboard-served-locally.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "roadmap-driven-ride-selection-with-budget",
+          "title": "Rides come from the roadmap, and every maintenance ride must be paired with a capability",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0174-roadmap-driven-ride-selection-with-budget.md",
+          "closed_on": "2026-09-05",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0168-spec-roadmap-driven-ride-selection-with-budget.md",
           "validation": null,
           "review": null
         },

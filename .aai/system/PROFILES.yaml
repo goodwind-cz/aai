@@ -117,6 +117,7 @@ core:
   # would be drift, even though the heartbeat's own absence is harmless.
   - .aai/scripts/heartbeat.mjs
   - .aai/scripts/aai-live-serve.mjs
+  - .aai/scripts/ride-select.mjs
   - .aai/scripts/hitl-channel.mjs
   - .aai/scripts/lane-gate.mjs
   - .aai/scripts/install-pre-commit-hook.ps1
