@@ -11,6 +11,30 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(feedback): the friction upsert channel can actually file an issue
+
+- `.aai/scripts/aai-feedback-upsert.mjs` passed `--state all` to `gh search
+  issues`, a value the CLI rejects (`{open|closed}`). The dedup search failed on
+  every invocation, the fail-closed guard correctly refused every create, and the
+  sanctioned upstream feedback channel (RFC-0012 Phase 2c) had never been able to
+  file a single issue. The flag is dropped; omitting it searches all states.
+- `gh issue create` refuses an unknown label, and the configured `aai-friction`
+  label does not exist in the destination. Labels are now checked against the
+  destination and the missing ones DROPPED with a named reason, so a cosmetic
+  label can never cost an observation. The dedup keeps failing CLOSED — a
+  duplicate issue is a real harm, an unlabelled issue is not.
+- A repeat confirmed publish of the same fingerprint could file a duplicate,
+  because GitHub's search index lags a freshly created issue. A local-ledger gate
+  now precedes the network dedup.
+- The suite's `gh` mock exit-0'd for every argv, so it could attest that `gh` was
+  called but never anything about the call itself. It now pins the EXACT argv the
+  engine may emit — four flag skeletons, including the `auth status` preflight —
+  and refuses everything else, while the mutating create's destination, title,
+  filed body and redaction are pinned by their own case. Four successive
+  allowlist versions were each escaped through a door they did not enumerate.
+- `.aai/feedback.yaml` sets `triage.mode: review`, enabling the approval-gated
+  channel. A publish still requires an explicit `--publish <fp> --confirm`.
+
 ## [unreleased] — feat(canon): an unsigned post-freeze spec amendment files a tracked item, not just a sentence
 
 - NEW `.aai/scripts/spec-amend.mjs` — a fail-OPEN writer plus a fail-CLOSED

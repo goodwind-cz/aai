@@ -21,7 +21,7 @@ triage:
   # (.aai/scripts/aai-feedback-triage.mjs): `local` (default) summarizes to a
   # local report only. `review`/`auto` are parsed but have NO network effect in
   # this slice (later slices add the upsert + auto-gate). Fail-closed to local.
-  mode: local
+  mode: review
   thresholds:
     # A cluster whose composite score (impact + confidence + reproducible +
     # recurrence) reaches this becomes a `review_candidate` in the report.
