@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/ISSUE-0080-friction-upsert-channel-cannot-file.md
   rfc: null
   pr:
-    - TBD
+    - 337
   commits:
     - TBD
 ---
