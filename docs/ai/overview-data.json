@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-05T07:27:33.517Z",
+  "generatedAt": "2026-09-05T16:21:23.758Z",
   "project": "aai",
   "counts": {
     "delivered": 230,
-    "in_progress": 39,
+    "in_progress": 40,
     "releases": 1,
     "tokens_total": 57249552
   },
@@ -83,6 +83,19 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "hand-authored-friction-is-second-class",
+      "title": "A hand-authored friction observation cannot be scored, cannot carry prose, and can never reach upstream",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0172-hand-authored-friction-is-second-class.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
