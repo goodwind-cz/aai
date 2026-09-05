@@ -59,10 +59,14 @@ CANON="$PROJECT_ROOT/.aai/system/AUTONOMOUS_LOOP.md"
 # The five specs whose amendments stood unsigned when this scope was written.
 BACKFILLED_SPEC_IDS="spec-close-leaves-state-stale spec-release-protected-branch-fallback spec-ac-table-premature-flip-recurs spec-metrics-flush-invalidates-pr-precondition spec-role-progress-heartbeat"
 
-# Measured at the base commit be0c8ed and pinned there rather than against the
-# working tree: the base blob never changes, so this number cannot rot as
-# later rides append their own amendments (TEST-003 asserts the live tree
-# separately, as a FLOOR plus an independent recount).
+# Measured at the base commit be0c8ed. The comment used to say this pin "cannot
+# rot as later rides append", while the code read it from the MOVING `origin/main`
+# — so the moment PR #337 merged six amendments the count went 10 -> 16 and the
+# arm failed on main for everyone, not just on the branch that added them. The
+# claim was right and the reference was wrong; the immutable SHA below is what
+# the claim always described. TEST-003 asserts the live tree separately, as a
+# FLOOR plus an independent recount, which is what tracks later rides.
+BASE_AMENDMENT_PIN_COMMIT=be0c8edb53705285063a984cbb0e6304f36db164
 BASE_AMENDMENT_COUNT=10
 BASE_TIGHT_GREP_COUNT=4
 
@@ -303,8 +307,10 @@ test_003_live_ledger_format_trap() {
   log_info "Test: \`list --json\` over the LIVE ledger counts by PARSING, not by grepping — the arm a grep-based implementation fails (TEST-003)..."
   [[ -f "$LIVE_LEDGER" ]] || log_fail "TEST-003: live ledger not found at $LIVE_LEDGER"
 
-  # The base blob is the durable pin: it cannot rot as later rides append.
-  if git -C "$PROJECT_ROOT" show "$BASE_REF:docs/ai/decisions.jsonl" > "$TEST_DIR/base.jsonl" 2>/dev/null; then
+  # The pin reads an IMMUTABLE COMMIT, never the moving base ref: origin/main
+  # gains amendments as later rides merge, and an equality against a moving
+  # target is a landmine for whoever merges next.
+  if git -C "$PROJECT_ROOT" show "$BASE_AMENDMENT_PIN_COMMIT:docs/ai/decisions.jsonl" > "$TEST_DIR/base.jsonl" 2>/dev/null; then
     local base_parsed base_tight
     base_parsed="$(count_amendments "$TEST_DIR/base.jsonl")"
     base_tight="$(/usr/bin/grep -c '"type":"spec_amendment"' "$TEST_DIR/base.jsonl" || true)"
@@ -312,9 +318,9 @@ test_003_live_ledger_format_trap() {
       || log_fail "TEST-003: the base ledger must carry exactly $BASE_AMENDMENT_COUNT spec_amendment records when parsed as JSON, counted $base_parsed"
     [[ "$base_tight" == "$BASE_TIGHT_GREP_COUNT" ]] \
       || log_fail "TEST-003: the tight grep must still under-report the base ledger at $BASE_TIGHT_GREP_COUNT (the trap this arm exists for), counted $base_tight"
-    log_info "TEST-003: base $BASE_REF ledger — parsed=$base_parsed tight-grep=$base_tight (the 60% undercount)"
+    log_info "TEST-003: pinned ${BASE_AMENDMENT_PIN_COMMIT:0:7} ledger — parsed=$base_parsed tight-grep=$base_tight (the 60% undercount)"
   else
-    log_info "TEST-003: base ref $BASE_REF has no docs/ai/decisions.jsonl (shallow clone or detached base) — base pin not applicable here"
+    log_info "TEST-003: pin commit ${BASE_AMENDMENT_PIN_COMMIT:0:7} unreachable (shallow clone) — base pin not applicable here"
   fi
 
   local parsed spaced tool_total
