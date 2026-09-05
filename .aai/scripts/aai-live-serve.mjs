@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -32,8 +33,12 @@ const POLL_MS = 5000;           // the page's own refresh; Spec-AC-04
 
 function parseArgs(argv) {
   const a = { port: 7331, host: '127.0.0.1', heartbeatDir: null, state: path.join(ROOT, 'docs/ai/STATE.yaml'), liveStatus: true, liveInterval: 30 };
+  // A flag that takes a value must HAVE one: `--state` as the last token used to
+  // become the string "undefined" and read a file of that name.
+  const need = (k, v) => { if (v === undefined || v.startsWith('--')) { process.stderr.write(`aai-live-serve: ${k} requires a value\n`); process.exit(2); } return v; };
   for (let i = 0; i < argv.length; i += 1) {
-    const k = argv[i]; const v = argv[i + 1];
+    const k = argv[i]; const raw = argv[i + 1];
+    const v = ['--port', '--host', '--heartbeat-dir', '--state', '--live-status-interval'].includes(k) ? need(k, raw) : raw;
     if (k === '--port') { a.port = Number(v); i += 1; }
     else if (k === '--host') { a.host = String(v); i += 1; }
     else if (k === '--heartbeat-dir') { a.heartbeatDir = v; i += 1; }
@@ -121,7 +126,9 @@ const liveCache = { at: 0, data: null, degraded: [] };
 // The generator's index cache defaults to <repo>/.aai/cache/live-status-index.json.
 // It is gitignored, but D4 says the server writes NOTHING under the repository,
 // so the cache is redirected to os.tmpdir(); it still persists across refreshes.
-const LIVE_CACHE_FILE = path.join(os.tmpdir(), 'aai-live-status-index.json');
+// One cache per repository: a fixed name would let two checkouts (or two
+// concurrent servers of different repos) clobber each other's index.
+const LIVE_CACHE_FILE = path.join(os.tmpdir(), `aai-live-status-index-${crypto.createHash('sha1').update(ROOT).digest('hex').slice(0, 12)}.json`);
 const LIVE_SPAWN_TIMEOUT_MS = 20000;
 // spend.today / spend.seven_day are arrays of per-project rows in live-status
 // data; rendering them raw printed "[object Object]" (validation F4). Summarise

@@ -30,8 +30,13 @@ cleanup() { stop_server; rm -rf "$TEST_DIR"; }
 trap cleanup EXIT
 
 stop_server() {
+  # Bounded: an unbounded `wait` would turn a broken SIGINT handler into a hung
+  # suite instead of a failed one.
   if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
-    kill -INT "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null
+    kill -INT "$SERVER_PID" 2>/dev/null
+    local k=0; while [ "$k" -lt 30 ] && kill -0 "$SERVER_PID" 2>/dev/null; do sleep 0.1; k=$((k+1)); done
+    if kill -0 "$SERVER_PID" 2>/dev/null; then kill -9 "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null; SERVER_PID=""; echo "FAIL: server ignored SIGINT for 3s and was killed" >&2; exit 1; fi
+    wait "$SERVER_PID" 2>/dev/null
   fi
   SERVER_PID=""
 }
