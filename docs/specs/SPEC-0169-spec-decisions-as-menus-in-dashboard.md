@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md
   rfc: null
   pr:
-    - TBD
+    - 346
   commits:
     - b9c70aca
 ---
