@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-06T18:39:24.215Z",
+  "generatedAt": "2026-09-06T18:49:09.935Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -3482,7 +3482,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 140,
+    "open_count": 141,
     "oldest_age_days": 23,
     "items": [
       {
@@ -3665,7 +3665,7 @@
         "id": "fu-iso-bases-reset-discards-entries",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "ISOLATION_BASES=() resets the array WHOLESALE at tests/skills/test-framework.sh (run_test, both the seeding-missed branch and the post-run destroy), discarding any entry it did not create",
         "status": "open"
       },
@@ -3673,7 +3673,7 @@
         "id": "fu-iso-wrapper-traps-dont-reap-group",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "the wrapper's INT/TERM/HUP traps (.aai/scripts/aai-run-tests.sh) call aai_iso_cleanup and exit WITHOUT reaping the wrapped command's process group first",
         "status": "open"
       },
@@ -4603,6 +4603,14 @@
         "severity": "P3",
         "age_days": 0,
         "what": "heartbeat.mjs write stores pid: process.pid — the pid of the short-lived writer that exits immediately, not of the agent. The field reads as a liveness handle and is not one; it should be documented as such or removed",
+        "status": "open"
+      },
+      {
+        "id": "fu-head-moved-between-commands",
+        "ref": "live-page-shows-dead-heartbeats-not-live-work",
+        "severity": "P1",
+        "age_days": 0,
+        "what": "HEAD changed branch between two consecutive commands with no checkout of mine in between: git branch --show-current reported main and git log showed a commit made there, yet the very next command's git reset --hard applied to the ride branch, per that branch's own reflog. A ceremony step was therefore run against the wrong tree (close-work-item reported 'no scanned doc resolves to id' and a regenerated INDEX dropped from 477 to 475 documents), and a stamp commit landed on main",
         "status": "open"
       }
     ]
