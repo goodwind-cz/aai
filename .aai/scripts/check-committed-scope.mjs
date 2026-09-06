@@ -103,9 +103,29 @@ function scopeFromState(statePath) {
     raw = raw.startsWith('>') ? parts.join(' ').replace(/ {2,}/g, ' ').trim() : parts.join('\n').trim();
   }
   raw = raw.replace(/^["']|["']$/g, '');
-  const paths = raw.split(',').map((s) => s.trim()).filter(Boolean);
-  if (paths.length === 0) return { paths: [], degraded: ['code_review.scope is empty — nothing to check'] };
-  return { paths, degraded: [] };
+  const tokens = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  if (tokens.length === 0) return { paths: [], degraded: ['code_review.scope is empty — nothing to check'] };
+
+  // A DIFF RANGE is a documented scope form, not a path. PLANNING.prompt.md
+  // says `--scope "<explicit paths or diff range>"`, so a scope of `main...HEAD`
+  // is legal — and treating it as a filename made the guard report "nothing
+  // checked" and, under --strict, block every such PR AFTER the commit was
+  // already made (bot review, PR #349). A range is expanded to the paths it
+  // names; a bare ref is left alone, because it cannot be told from a path.
+  const paths = []; const degraded = [];
+  for (const t of tokens) {
+    if (!/^[^\s]+\.{2,3}[^\s]+$/.test(t)) { paths.push(t); continue; }
+    const r = spawnSync('git', ['diff', '--name-only', '-z', t], { encoding: 'buffer', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+    if (r.error || r.status !== 0) {
+      degraded.push(`code_review.scope carries the range ${t}, which git could not expand — nothing from it was checked`);
+      continue;
+    }
+    const named = r.stdout.toString().split('\0').map((x) => x.trim()).filter(Boolean);
+    if (!named.length) degraded.push(`code_review.scope range ${t} names no changed path`);
+    paths.push(...named);
+  }
+  if (paths.length === 0 && degraded.length === 0) return { paths: [], degraded: ['code_review.scope is empty — nothing to check'] };
+  return { paths, degraded };
 }
 
 // Is the path known to the comparison target at all? `git rev-parse --verify`

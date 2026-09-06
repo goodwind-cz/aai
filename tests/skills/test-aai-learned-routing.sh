@@ -62,12 +62,26 @@ test_002_release_names_unlogged_pr() {
   local d="$TEST_DIR/rel"; mkrepo "$d"
   mkdir -p "$d/.aai/scripts"
   cp "$RELEASE" "$d/.aai/scripts/aai-release.sh"
-  printf '# Changelog\n\n## [unreleased] — feat(x): the logged one\n\n- did a thing (#101)\n\n' > "$d/CHANGELOG.md"
+  # The second section is the DISCRIMINATOR for the two-token subject below.
+  # It carries the TRUNCATED body text (`fix(z): a`) and NOT the number, so a
+  # parser that cuts the body at the FIRST `(#` finds a match here and calls
+  # #104 logged, while the correct parser — cutting at the LAST token — looks
+  # for `fix(z): a (#12) thing`, finds nothing, and names it.
+  printf '# Changelog\n\n## [unreleased] — feat(x): the logged one\n\n- did a thing (#101)\n\n## [unreleased] — an unrelated note\n\n- fix(z): a — mentioned, but this is not that PR\n\n' > "$d/CHANGELOG.md"
   git -C "$d" add -A >/dev/null && git -C "$d" commit -qm "base"
   git -C "$d" tag -a v0.0.1 -m v0.0.1
   # two merged PRs after the tag; only #101 has a section
   printf 'a\n' > "$d/a.txt"; git -C "$d" add a.txt; git -C "$d" commit -qm "feat(x): the logged one (#101)"
   printf 'b\n' > "$d/b.txt"; git -C "$d" add b.txt; git -C "$d" commit -qm "feat(y): the FORGOTTEN one (#102)"
+  # A PR merged with GitHub's merge-commit strategy carries its number in a
+  # different shape and used to be skipped in silence, while this block promised
+  # to name EVERY merged PR since the tag (bot review, PR #349).
+  printf 'c\n' > "$d/c.txt"; git -C "$d" add c.txt
+  git -C "$d" commit -qm "Merge pull request #103 from goodwind-cz/some-branch"
+  # a subject carrying two PR tokens must be matched on the LAST one, with the
+  # body taken from before that same token — not truncated at the first
+  printf 'e\n' > "$d/e.txt"; git -C "$d" add e.txt
+  git -C "$d" commit -qm "fix(z): a (#12) thing (#104)"
   local out; out="$(cd "$d" && AAI_RELEASE_NO_REMOTE=1 bash .aai/scripts/aai-release.sh --dry-run 2>&1)"
   printf '%s' "$out" > "$TEST_DIR/rel.out"
   # Assert on the PRECONDITIONS BLOCK, not the whole output: the notes preview
@@ -77,6 +91,10 @@ test_002_release_names_unlogged_pr() {
   [ -s "$TEST_DIR/rel.pre" ] || log_fail "TEST-002: no Preconditions block in the dry run: $(tail -20 "$TEST_DIR/rel.out")"
   grep -q '#102' "$TEST_DIR/rel.pre" \
     || log_fail "TEST-002: the unlogged PR #102 must be NAMED under Preconditions: $(cat "$TEST_DIR/rel.pre")"
+  grep -q '#103' "$TEST_DIR/rel.pre" \
+    || log_fail "TEST-002: a PR merged as a MERGE COMMIT must be named too, not skipped in silence: $(cat "$TEST_DIR/rel.pre")"
+  grep -q '#104' "$TEST_DIR/rel.pre" \
+    || log_fail "TEST-002: a subject carrying two PR tokens must be read on the LAST one: $(cat "$TEST_DIR/rel.pre")"
   grep -q 'NAMED (not blocking)' "$TEST_DIR/rel.pre" \
     || log_fail "TEST-002: it must be reported as named-not-blocking, never as a block"
   grep -q '#101' "$TEST_DIR/rel.pre" \
@@ -85,7 +103,7 @@ test_002_release_names_unlogged_pr() {
   grep -q 'would block' "$TEST_DIR/rel.pre" \
     && log_fail "TEST-002: an unlogged PR must not block the cut"
   # the complete case: with BOTH logged, the block says exactly "none"
-  printf '# Changelog\n\n## [unreleased] — feat(x): the logged one\n\n- did a thing (#101)\n\n## [unreleased] — feat(y): the FORGOTTEN one\n\n- and another (#102)\n\n' > "$d/CHANGELOG.md"
+  printf '# Changelog\n\n## [unreleased] — feat(x): the logged one\n\n- did a thing (#101)\n\n## [unreleased] — feat(y): the FORGOTTEN one\n\n- and another (#102)\n\n## [unreleased] — the merge-commit one\n\n- merged the other way (#103)\n\n## [unreleased] — the two-token one\n\n- carried two numbers (#104)\n\n' > "$d/CHANGELOG.md"
   git -C "$d" add CHANGELOG.md >/dev/null && git -C "$d" commit -qm "chore: log both"
   out="$(cd "$d" && AAI_RELEASE_NO_REMOTE=1 bash .aai/scripts/aai-release.sh --dry-run 2>&1)"
   printf '%s' "$out" | awk '/^## Preconditions/{f=1;next} /^## /{f=0} f' > "$TEST_DIR/rel.pre2"
@@ -93,7 +111,7 @@ test_002_release_names_unlogged_pr() {
     && log_fail "TEST-002: with every merged PR logged, nothing may be named: $(cat "$TEST_DIR/rel.pre2")"
   grep -q 'none — ready to cut' "$TEST_DIR/rel.pre2" \
     || log_fail "TEST-002: a complete cut must report no preconditions: $(cat "$TEST_DIR/rel.pre2")"
-  log_pass "the release dry run names the unlogged PR only, and does not block (TEST-002)"
+  log_pass "the release dry run names the unlogged PRs (squash, merge-commit and two-token subjects) and does not block (TEST-002)"
 }
 
 # --- TEST-003 (Spec-AC-03): the exact 2026-09-06 shape ------------------------
@@ -162,7 +180,26 @@ test_004_clean_and_degrades() {
   rc=0; ( cd "$sd" && node "$CHECK" --from-state > "$TEST_DIR/s2.out" 2>&1 ) || rc=$?
   [ "$rc" = "1" ] || log_fail "TEST-004: --from-state must still catch a mismatch, got $rc"
   grep -q 'two.txt' "$TEST_DIR/s2.out" || log_fail "TEST-004: the mismatch through --from-state must name the path"
-  log_pass "clean passes; newline difference caught; untracked and non-repo degrade named; a folded scope reads both paths (TEST-004)"
+  # A DIFF RANGE is a documented scope form (PLANNING.prompt.md: "explicit
+  # paths or diff range"). Read as a filename it yields nothing checked, and
+  # --strict then blocks the PR AFTER the commit was made — bot review, PR #349.
+  local rg="$TEST_DIR/range"; mkrepo "$rg"; mkdir -p "$rg/docs/ai"
+  printf 'a\n' > "$rg/a.txt"; printf 'b\n' > "$rg/b.txt"
+  git -C "$rg" add a.txt b.txt >/dev/null && git -C "$rg" commit -qm base
+  git -C "$rg" checkout -q -b work
+  printf 'a2\n' > "$rg/a.txt"; git -C "$rg" add a.txt >/dev/null && git -C "$rg" commit -qm change
+  printf 'code_review:\n  required: true\n  scope: >-\n    main...HEAD\n  base_ref: main\n' > "$rg/docs/ai/STATE.yaml"
+  rc=0; ( cd "$rg" && node "$CHECK" --from-state --strict --rev HEAD --json > "$TEST_DIR/rg.out" 2>&1 ) || rc=$?
+  [ "$rc" = "0" ] || log_fail "TEST-004: a diff-range scope must expand and pass on a clean tree, got $rc: $(cat "$TEST_DIR/rg.out")"
+  local rn; rn="$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(String(d.checked))' "$TEST_DIR/rg.out")"
+  [ "$rn" = "1" ] || log_fail "TEST-004: the range must expand to the ONE path it names, checked=$rn: $(cat "$TEST_DIR/rg.out")"
+  grep -q 'main\.\.\.HEAD' "$TEST_DIR/rg.out" && log_fail "TEST-004: the range itself must never be treated as a path: $(cat "$TEST_DIR/rg.out")"
+  # and it still catches a real gap through that form
+  printf 'a3\n' > "$rg/a.txt"
+  rc=0; ( cd "$rg" && node "$CHECK" --from-state --strict --rev HEAD > "$TEST_DIR/rg2.out" 2>&1 ) || rc=$?
+  [ "$rc" = "1" ] || log_fail "TEST-004: an uncommitted edit must still fail through a range scope, got $rc"
+  grep -q 'a.txt' "$TEST_DIR/rg2.out" || log_fail "TEST-004: the mismatch through a range must name the path"
+  log_pass "clean passes; newline difference caught; untracked and non-repo degrade named; a folded scope reads both paths; a diff-range scope expands (TEST-004)"
 }
 
 # --- TEST-005 (Spec-AC-04): the ceremony actually runs it ---------------------

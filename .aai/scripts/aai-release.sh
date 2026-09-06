@@ -104,9 +104,24 @@ unlogged_prs() {  # $1 = rolled-up notes file
   local notes="$1" prev
   prev="$(git describe --tags --abbrev=0 2>/dev/null || true)"
   [ -n "$prev" ] || return 0
+  # `|| true` on the pipeline as well as on both call sites. The call sites make
+  # `set -e` dormant inside this function today, but that exemption depends on
+  # the caller's shape; a future direct call would inherit an abort from a
+  # transient git failure, and this precondition must never be why a cut dies.
   git log --format='%s' "$prev"..HEAD 2>/dev/null | while IFS= read -r subj; do
+    # Two merge strategies, two subject shapes. Squash gives `title (#310)`;
+    # GitHub's merge-commit gives `Merge pull request #310 from org/branch`,
+    # which the first pattern alone skipped silently — so a PR merged that way
+    # went unnamed while this block promised to name every merged PR (bot
+    # review, PR #349; the shape exists in this history at 2bf1a3c).
     case "$subj" in
       *'(#'*')'*) ;;
+      'Merge pull request #'*)
+        mnum="${subj#Merge pull request #}"; mnum="${mnum%% *}"
+        case "$mnum" in ''|*[!0-9]*) continue ;; esac
+        grep -qF -- "(#${mnum})" "$notes" 2>/dev/null || echo "#${mnum} (merge commit, no subject text)"
+        continue
+        ;;
       *) continue ;;
     esac
     # Take the LAST "(#" for the number and the text BEFORE that same token for
@@ -128,7 +143,7 @@ unlogged_prs() {  # $1 = rolled-up notes file
     if ! grep -qF -- "(#${num})" "$notes" 2>/dev/null && ! grep -qF -- "$body" "$notes" 2>/dev/null; then
       echo "#${num} ${body}"
     fi
-  done
+  done || true
   # This precondition NAMES; it must never be the reason a release fails. Under
   # `set -euo pipefail` a non-zero from the pipeline above would propagate out of
   # the command substitution and abort the whole run with no output at all —
