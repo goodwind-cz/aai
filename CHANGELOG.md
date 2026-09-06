@@ -11,6 +11,63 @@ RFC-0001).
 
 ## [unreleased]
 
+## [v2026.09.06] — feat(live): a locally served live page of agents, waits and ages
+
+- `/aai-live` starts a loopback-only, Node-stdlib-only, zero-token HTTP server
+  and prints one URL. The page shows, in this order: what waits on the owner
+  (the pending `human_input` question and how long STATE has carried it), every
+  role with a live heartbeat (ride, role, last message, age; stale after 120 s
+  and marked, never hidden), then sessions and spend. It polls itself every 5 s
+  and keeps the last data when the server dies.
+- Sources are reused through their own CLIs, never re-parsed: `heartbeat.mjs
+  read --json`, STATE's `human_input` block, and `generate-live-status.mjs
+  --data-only` with its index cache redirected to `os.tmpdir()`.
+- `--host` beyond loopback exits 2; a busy port exits 1 naming the port.
+- CHANGE-0173 / SPEC-0167 (#344).
+
+## [v2026.09.06] — feat(roadmap): rides come from the roadmap, and every maintenance ride is paired with a capability
+
+- `docs/ai/roadmap.yaml` is the machine form of the owner-ranked roadmap, in a
+  closed shape: duplicate keys, duplicate sections and a budget other than 1 all
+  refuse.
+- `ride-select.mjs` adds `validate`, `next` (capability first unless it has
+  already started, then the maintenance half) and `gate`, which denies by
+  default: a maintenance ride whose paired capability has not started, an
+  off-roadmap fix (with the exact `follow-ups.mjs add` remedy), a ref already
+  done, and an unreadable roadmap. `--override "<reason>"` is logged to
+  `EVENTS.jsonl` with the git actor slug, never silent.
+- The gate sits in `orchestration-dispatch.mjs` rule 4a, where the AUTONOMOUS
+  path picks rides — prompt wiring alone gated only the first ride of a loop. A
+  project with no `roadmap.yaml` is not gated (opt-in downstream); a present but
+  invalid roadmap fails closed.
+- `.aai/AGENTS.md` gains `### Operator contract`: internal work without asking,
+  questions as menus, two review rounds max, roadmap-driven rides 1:1.
+  `VALIDATION.prompt.md` c2 carries the two-round STOP.
+- CHANGE-0174 / SPEC-0168 (#345).
+
+## [v2026.09.06] — feat(live): answer a pending decision from the dashboard
+
+- The page gains a write surface: a pending `human_input` can be answered from
+  the browser. It is a SECOND TRANSPORT for the existing async-HITL channel, not
+  a second resolution path — the answer is appended to the gitignored
+  `docs/ai/hitl-answers.jsonl`, and `hitl-channel.mjs poll` surfaces it in the
+  same `{status:'reply'}` shape a GitHub reply produces, so SKILL_HITL is
+  unchanged. When both transports answered, the EARLIER wins and `source` names
+  which; a local answer also survives GitHub being unreachable.
+- **Loopback is not a CSRF control.** Any page the operator has open can POST to
+  `127.0.0.1`, and a CORS-safelisted `text/plain` body needs no preflight — two
+  independent reviews proved a cross-origin write. The surface now checks
+  content-type, `Origin`, `Sec-Fetch-Site` and `Host`, routes only POST, caps
+  the body, requires a string answer and a token that can be polled back, and
+  answers 409 when nothing is pending.
+- `resolve` now APPENDS a resolution marker instead of rewriting the ledger: the
+  rewrite lost an answer appended during it, returning 200 while the decision
+  never reached `poll`.
+- Parsed option BUTTONS are deliberately NOT in this release — the parser both
+  invented options from prose and dropped real ones phrased as questions, so it
+  was split out as CHANGE-0176. The page ships the free-text box.
+- CHANGE-0175 / SPEC-0169 (#346).
+
 ## [v2026.09.06] — fix(feedback): the friction upsert channel can actually file an issue
 
 - `.aai/scripts/aai-feedback-upsert.mjs` passed `--state all` to `gh search
