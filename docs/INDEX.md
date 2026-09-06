@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-06T08:12:45.743Z
+Generated: 2026-09-06T11:57:16.641Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0170 | specs | implementing | 8 done | docs/specs/SPEC-0170-spec-lessons-that-must-hold-downstream-are-guards.md |
 
 ## Canonical layer (0)
 
@@ -459,7 +460,7 @@ _None._
 | SPEC-0169 | specs | docs/specs/SPEC-0169-spec-decisions-as-menus-in-dashboard.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (40)
+## Drafts (41)
 
 | ID | Type | Path |
 |---|---|---|
@@ -467,6 +468,7 @@ _None._
 | CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
 | CHANGE-0172 | issues | docs/issues/CHANGE-0172-hand-authored-friction-is-second-class.md |
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
+| CHANGE-0177 | issues | docs/issues/CHANGE-0177-lessons-that-must-hold-downstream-are-guards.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

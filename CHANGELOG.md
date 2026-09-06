@@ -11,6 +11,40 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(canon): a lesson that must hold downstream is a guard, not a note
+
+- **Operator contract rule 5** (`.aai/AGENTS.md`, vendored by `/aai-update`):
+  anything that must behave correctly *wherever AAI is installed* is implemented
+  as a guard in the vendored layer. `docs/knowledge/LEARNED.md` records only what
+  is local to this repository and its environment. The split was not theoretical:
+  the file has said since 2026-07-03 that a content check must read the staged
+  blob, and the same mistake shipped twice on 2026-09-06 (PR #346, PR #347).
+- **NEW `check-committed-scope.mjs`** — for every in-scope path, what the commit
+  carries must equal the worktree. `git add` handed a path something already
+  renamed aborts the WHOLE add, and the commit still looks plausible because
+  other steps stage files of their own; `git status` cannot tell that apart from
+  a later edit, only the blob can. Wired into `SKILL_PR` as step 4a, after the
+  commit and before the push, with `--strict` so a path missing from the commit
+  fails rather than degrading to a pass. The comparison is `git diff`'s, not a
+  hand-rolled byte compare: git knows its own CRLF filters, file modes and
+  symlinks, so the guard does not STOP every PR on a Windows checkout.
+- **The release cut names an omitted PR.** `aai-release.sh` lists, under
+  `## Preconditions` and on the real `--confirm` cut too, every PR merged since
+  the previous tag with no matching rolled-up section. It NAMES and never blocks
+  — a release has one shot. `v2026.09.06` would have shipped notes omitting the
+  three things an operator would have noticed.
+- **`LEARNED.md` triaged**: all 15 dated entries now carry `[local]` or
+  `[guard → <id>]`, every guard pointer resolves to an open follow-up or a
+  shipped script, and no entry text was removed — asserted against an immutable
+  pin, not promised.
+- **The dashboard can see the test sweep.** `/aai-live` reports the run on disk:
+  suites started, done and failed, the newest one and its age, whether the run
+  is still going, and whether it has finished. It reads the `<suite>.log` and
+  `<suite>.result` markers the framework already writes, so the longest job in
+  the factory stopped being the one thing the page could not show. No expected
+  total is published, because nothing on disk states one while a run is in
+  flight — the counts are measured, not estimated.
+
 ## [v2026.09.06] — feat(live): a locally served live page of agents, waits and ages
 
 - `/aai-live` starts a loopback-only, Node-stdlib-only, zero-token HTTP server

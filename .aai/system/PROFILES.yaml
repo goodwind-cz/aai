@@ -118,6 +118,7 @@ core:
   - .aai/scripts/heartbeat.mjs
   - .aai/scripts/aai-live-serve.mjs
   - .aai/scripts/ride-select.mjs
+  - .aai/scripts/check-committed-scope.mjs
   - .aai/scripts/hitl-channel.mjs
   - .aai/scripts/lane-gate.mjs
   - .aai/scripts/install-pre-commit-hook.ps1

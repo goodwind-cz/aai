@@ -2,7 +2,7 @@
 #
 # Test: SPEC live-agent-dashboard-served-locally — a loopback-only HTTP server
 # that shows every agent's heartbeat, what waits on the owner, and ages.
-# (.aai/scripts/aai-live-serve.mjs), TEST-001..011. The option parser is a
+# (.aai/scripts/aai-live-serve.mjs), TEST-001..012. The option parser is a
 # separate ride (validation round 2 split); TEST-008 pins the free-text fallback.
 #
 # Fixtures only: heartbeat slots go to a temp --heartbeat-dir, STATE to a temp
@@ -448,6 +448,152 @@ test_011_csrf_guards() {
   log_pass "cross-site POSTs refused on four independent grounds; the page's own request unaffected (TEST-011)"
 }
 
+# --- TEST-012 (fu-live-page-blind-to-the-sweep): the page can see the sweep ---
+# The longest job in the factory is the full test sweep, and the page could not
+# see it: it lists heartbeat slots and the runner writes none. The operator asked
+# three times in one session whether anything was running. The framework already
+# writes one <suite>.result per finished suite, so this is a read, not plumbing.
+test_012_sweep_progress() {
+  log_info "Test: the page reports sweep progress from the results directory, and never invents a total (TEST-012)..."
+  mkdir -p "$TEST_DIR/hb"; : > "$TEST_DIR/answers.jsonl"; write_state false null
+  local rd="$TEST_DIR/results/test-20260906-000000"; rm -rf "$TEST_DIR/results"; mkdir -p "$rd"
+  printf 'PASS\n' > "$rd/alpha.result"; printf 'PASS\n' > "$rd/beta.result"; printf 'FAIL\n' > "$rd/gamma.result"
+  # a real run directory also holds logs; only .result files are suite verdicts,
+  # and a log named FAIL-ish must not inflate either counter
+  printf 'FAIL somewhere in the log text\n' > "$rd/gamma.log"; printf 'x\n' > "$rd/summary.txt"
+  # the verdict is the first word of the file and nothing else: a SKIP whose
+  # body mentions failure is a skip, not a failure
+  printf 'SKIP\nnot run because an earlier FAIL blocked it\n' > "$rd/delta.result"
+  # <suite>.log appears when a suite STARTS; six started, four finished
+  for n in alpha beta gamma delta epsilon zeta; do printf 'log\n' > "$rd/$n.log"; done
+  PORT="$(pick_port)" || log_fail "no free port"
+  node "$ENGINE" --port "$PORT" --heartbeat-dir "$TEST_DIR/hb" --state "$TEST_DIR/STATE.yaml" \
+    --answers "$TEST_DIR/answers.jsonl" --results-dir "$TEST_DIR/results" --no-live-status \
+    > "$TEST_DIR/server.out" 2> "$TEST_DIR/server.err" &
+  SERVER_PID=$!
+  local i=0; while [ "$i" -lt 30 ]; do curl -s --max-time 1 "http://127.0.0.1:$PORT/data.json" >/dev/null 2>&1 && break; sleep 0.2; i=$((i+1)); done
+  curl -s --max-time 2 -o "$TEST_DIR/sw.json" "http://127.0.0.1:$PORT/data.json"
+  [ "$(json_get "$TEST_DIR/sw.json" 'd.sweep.done')" = "4" ] \
+    || log_fail "TEST-012: the four .result files must count as four done: $(cat "$TEST_DIR/sw.json")"
+  [ "$(json_get "$TEST_DIR/sw.json" 'd.sweep.failed')" = "1" ] || log_fail "TEST-012: exactly the FAIL .result counts as failed, logs must not inflate it"
+  [ "$(json_get "$TEST_DIR/sw.json" 'd.sweep.started')" = "6" ] \
+    || log_fail "TEST-012: started must count .log files, six of them: $(cat "$TEST_DIR/sw.json")"
+  [ "$(json_get "$TEST_DIR/sw.json" 'd.sweep.run')" = '"test-20260906-000000"' ] || log_fail "TEST-012: the run directory must be named"
+  [ "$(json_get "$TEST_DIR/sw.json" 'd.sweep.active')" = "true" ] || log_fail "TEST-012: a run whose newest result is seconds old must read as active"
+  # a total is NOT invented: nothing publishes the expected suite count
+  [ "$(json_get "$TEST_DIR/sw.json" 'd.sweep.total')" = "undefined" ] \
+    || log_fail "TEST-012: the page must not invent an expected total, got $(json_get "$TEST_DIR/sw.json" 'd.sweep.total')"
+  # an old run reads as not active, and is still reported rather than hidden
+  node -e 'const fs=require("fs"),p=require("path");const d=process.argv[1];const t=new Date(Date.now()-3600e3);for(const n of fs.readdirSync(d))fs.utimesSync(p.join(d,n),t,t);fs.utimesSync(d,t,t);' "$rd"
+  curl -s --max-time 2 -o "$TEST_DIR/sw2.json" "http://127.0.0.1:$PORT/data.json"
+  [ "$(json_get "$TEST_DIR/sw2.json" 'd.sweep.active')" = "false" ] || log_fail "TEST-012: an hour-old run must not read as active"
+  [ "$(json_get "$TEST_DIR/sw2.json" 'd.sweep.done')" = "4" ] || log_fail "TEST-012: an inactive run must still be REPORTED, never hidden"
+  stop_server
+  # a run that has JUST started has no .result yet: it is active all the same,
+  # dated by its own directory. Found against a real sweep, where a 40-second-old
+  # run reported inactive — the exact blindness this panel removes.
+  local nd="$TEST_DIR/results/test-20260906-999999"; mkdir -p "$nd"
+  PORT="$(pick_port)" || log_fail "no free port"
+  node "$ENGINE" --port "$PORT" --heartbeat-dir "$TEST_DIR/hb" --state "$TEST_DIR/STATE.yaml" \
+    --answers "$TEST_DIR/answers.jsonl" --results-dir "$TEST_DIR/results" --no-live-status \
+    > "$TEST_DIR/server.out" 2> "$TEST_DIR/server.err" &
+  SERVER_PID=$!
+  i=0; while [ "$i" -lt 30 ]; do curl -s --max-time 1 "http://127.0.0.1:$PORT/data.json" >/dev/null 2>&1 && break; sleep 0.2; i=$((i+1)); done
+  curl -s --max-time 2 -o "$TEST_DIR/sw4.json" "http://127.0.0.1:$PORT/data.json"
+  [ "$(json_get "$TEST_DIR/sw4.json" 'd.sweep.run')" = '"test-20260906-999999"' ] \
+    || log_fail "TEST-012: the newest run wins even with no results yet: $(cat "$TEST_DIR/sw4.json")"
+  [ "$(json_get "$TEST_DIR/sw4.json" 'd.sweep.active')" = "true" ] \
+    || log_fail "TEST-012: a just-started run with no .result yet must read as ACTIVE"
+  [ "$(json_get "$TEST_DIR/sw4.json" 'd.sweep.started')" = "0" ] \
+    || log_fail "TEST-012: an empty run directory has started=0"
+  [ "$(json_get "$TEST_DIR/sw4.json" 'd.sweep.done')" = "0" ] \
+    || log_fail "TEST-012: a just-started run has done=0, not a fabricated count"
+  [ "$(json_get "$TEST_DIR/sw4.json" 'd.sweep.last_age_seconds')" = "null" ] \
+    || log_fail "TEST-012: with no result yet there is no newest-result age to report"
+  stop_server; rm -rf "$nd"
+  # A STRAY FILE named test-… must not blank the panel, and must be NAMED.
+  # statSync succeeds on a file, and the readdir that follows throws ENOTDIR —
+  # which used to return a bare null the page rendered as the confident
+  # "No sweep run on disk." while real runs sat right next to it.
+  : > "$TEST_DIR/results/test-stray.txt"
+  PORT="$(pick_port)" || log_fail "no free port"
+  node "$ENGINE" --port "$PORT" --heartbeat-dir "$TEST_DIR/hb" --state "$TEST_DIR/STATE.yaml" \
+    --answers "$TEST_DIR/answers.jsonl" --results-dir "$TEST_DIR/results" --no-live-status \
+    > "$TEST_DIR/server.out" 2> "$TEST_DIR/server.err" &
+  SERVER_PID=$!
+  i=0; while [ "$i" -lt 30 ]; do curl -s --max-time 1 "http://127.0.0.1:$PORT/data.json" >/dev/null 2>&1 && break; sleep 0.2; i=$((i+1)); done
+  curl -s --max-time 2 -o "$TEST_DIR/sw5.json" "http://127.0.0.1:$PORT/data.json"
+  [ "$(json_get "$TEST_DIR/sw5.json" 'd.sweep.run')" = '"test-20260906-000000"' ] \
+    || log_fail "TEST-012: a stray file named test-… must not hide the real run: $(cat "$TEST_DIR/sw5.json")"
+  grep -q 'test-stray.txt' "$TEST_DIR/sw5.json" \
+    || log_fail "TEST-012: the ignored stray must be NAMED in degraded, never dropped silently"
+  rm -f "$TEST_DIR/results/test-stray.txt"
+  # A FINISHED run says so at once. summary.txt gains its Total line only when
+  # the run ends, so a run whose last suite landed seconds ago reads finished
+  # rather than staying `running` for the rest of the stale window.
+  # VACUOUS ARM, caught by round-two review: the arm above aged this run by an
+  # hour, so `active:false` held for the age alone and the assertion said
+  # nothing about `complete` — dropping `!complete &&` from the engine left the
+  # test PASSING. Make the run fresh first, so only `complete` can explain it.
+  touch "$rd"/*.result "$rd"
+  printf 'AAI Skills Test Summary\n\nResults:\n--------\nTotal:   4\nPassed:  3\n' > "$rd/summary.txt"
+  curl -s --max-time 2 -o "$TEST_DIR/sw6.json" "http://127.0.0.1:$PORT/data.json"
+  [ "$(json_get "$TEST_DIR/sw6.json" 'd.sweep.complete')" = "true" ] \
+    || log_fail "TEST-012: a run whose summary carries a Total line is complete: $(cat "$TEST_DIR/sw6.json")"
+  [ "$(json_get "$TEST_DIR/sw6.json" 'd.sweep.active')" = "false" ] \
+    || log_fail "TEST-012: a complete run must not keep reading as running"
+  # the earlier arm aged this run an hour; make it fresh again so the assertion
+  # below is about `complete`, not about staleness
+  printf 'Test run started at 2026-09-06T00:00:00Z\n' > "$rd/summary.txt"
+  touch "$rd/alpha.result" "$rd"
+  curl -s --max-time 2 -o "$TEST_DIR/sw7.json" "http://127.0.0.1:$PORT/data.json"
+  [ "$(json_get "$TEST_DIR/sw7.json" 'd.sweep.complete')" = "false" ] \
+    || log_fail "TEST-012: an in-flight summary (start line only) is NOT complete"
+  [ "$(json_get "$TEST_DIR/sw7.json" 'd.sweep.active')" = "true" ] \
+    || log_fail "TEST-012: an in-flight run with fresh results is active again"
+  rm -f "$rd/summary.txt"
+  # A FIFO summary.txt must not wedge the request thread. readFileSync on a
+  # FIFO blocks forever, and this read runs inside every /data.json request, so
+  # the page would stop updating with no error at all — the exact blindness the
+  # panel exists to remove.
+  if command -v mkfifo >/dev/null 2>&1; then
+    mkfifo "$rd/summary.txt" 2>/dev/null || true
+    if [ -p "$rd/summary.txt" ]; then
+      rc=0; curl -s --max-time 5 -o "$TEST_DIR/sw8.json" "http://127.0.0.1:$PORT/data.json" || rc=$?
+      [ "$rc" = "0" ] || log_fail "TEST-012: a FIFO summary.txt must not hang /data.json (curl rc=$rc)"
+      [ "$(json_get "$TEST_DIR/sw8.json" 'd.sweep.done')" = "4" ] \
+        || log_fail "TEST-012: the run must still be reported past an unreadable summary"
+      grep -q 'not a regular file' "$TEST_DIR/sw8.json" \
+        || log_fail "TEST-012: a non-regular summary.txt must be NAMED in degraded, not swallowed"
+    fi
+    rm -f "$rd/summary.txt"
+  fi
+  # A short SELECTED run finishing while a full sweep is in flight creates a
+  # NEWER directory; the panel must keep showing the sweep that is still going,
+  # not the one-suite run that just finished.
+  local lr="$TEST_DIR/results/test-20260906-000001"; mkdir -p "$lr"
+  printf 'PASS\n' > "$lr/only.result"; printf 'log\n' > "$lr/only.log"
+  printf 'Total:   1\n' > "$lr/summary.txt"
+  touch "$rd"/*.result "$rd"; touch "$lr"/* "$lr"
+  curl -s --max-time 2 -o "$TEST_DIR/sw9.json" "http://127.0.0.1:$PORT/data.json"
+  [ "$(json_get "$TEST_DIR/sw9.json" 'd.sweep.run')" = '"test-20260906-000000"' ] \
+    || log_fail "TEST-012: a finished newer run must not eclipse the sweep still in flight: $(cat "$TEST_DIR/sw9.json")"
+  rm -rf "$lr"
+  stop_server
+  # no results directory at all: null, not a crash and not a fabricated zero-run
+  PORT="$(pick_port)" || log_fail "no free port"
+  node "$ENGINE" --port "$PORT" --heartbeat-dir "$TEST_DIR/hb" --state "$TEST_DIR/STATE.yaml" \
+    --answers "$TEST_DIR/answers.jsonl" --results-dir "$TEST_DIR/no-such-results" --no-live-status \
+    > "$TEST_DIR/server.out" 2> "$TEST_DIR/server.err" &
+  SERVER_PID=$!
+  i=0; while [ "$i" -lt 30 ]; do curl -s --max-time 1 "http://127.0.0.1:$PORT/data.json" >/dev/null 2>&1 && break; sleep 0.2; i=$((i+1)); done
+  curl -s --max-time 2 -o "$TEST_DIR/sw3.json" "http://127.0.0.1:$PORT/data.json"
+  [ "$(json_get "$TEST_DIR/sw3.json" 'd.sweep')" = "null" ] \
+    || log_fail "TEST-012: with no results directory the page must say null, not invent a run: $(cat "$TEST_DIR/sw3.json")"
+  stop_server
+  log_pass "sweep progress read from disk; inactive runs still reported; no invented total (TEST-012)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -464,6 +610,7 @@ main() {
   test_009_answer_write_surface
   test_010_answer_cycle_no_repo_writes
   test_011_csrf_guards
+  test_012_sweep_progress
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

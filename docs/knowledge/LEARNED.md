@@ -1,5 +1,31 @@
 # Project-Specific Learned Rules
 
+**Where a lesson goes** (Operator contract rule 5, `.aai/AGENTS.md`). Anything
+that must behave correctly *wherever AAI is installed* is implemented as a
+GUARD in the vendored layer — a script, a test, a canon rule. This file records
+only what is **local to this repository and its environment**.
+
+The split was not theoretical. The entry of 2026-07-03 below said a content
+check must read the staged blob, never the worktree; the same mistake shipped
+twice on 2026-09-06 (PR #346, PR #347). A note asks the next author to remember.
+A guard does not.
+
+Every **dated** entry — the `- [YYYY-MM-DD] …` lines below — carries one marker:
+- `[local]` — a quirk of this repository or its environment; the note IS the fix.
+- `[guard → <id>]` — the enforcement belongs in the layer. The id is the
+  follow-up that will build it, or the guard that already does. **Nothing is
+  deleted when it moves**: removing a lesson because its enforcement changed
+  hands is how the lesson is lost.
+
+The older `## Session …` sections further down are an undated running log and
+are **not yet triaged**; several of them are the downstream class this rule is
+about (BSD-vs-GNU tool differences, `git clean` under `docs/`, validating a new
+gate against the whole corpus). Working through them is tracked as
+`fu-triage-undated-learned-log` — until then, do not read the absence of a
+marker there as a classification. Saying "every entry carries a marker" while
+twenty of them do not is the kind of claim a downstream reader disproves by
+scrolling, so it is not made here.
+
 <!--
   This file captures corrections and learnings from user feedback.
   Rules here are loaded into context for every session to prevent repeating mistakes.
@@ -14,17 +40,17 @@
 
 ## Testing
 <!-- Example: - [2026-03-08] E2E tests must use playwright-mcp server, not local Playwright (source: user preference) -->
-- [2026-07-01] A `vitest run` (or any runner) that does not exit on its own is a test-leak bug — an open handle / unhandled rejection (timer, unclosed mock client, dangling promise), NOT "pre-existing teardown noise". Fix the open handle so the process exits; consider `test.dangerouslyIgnoreUnhandledErrors=false` so it FAILS loud instead of hanging (source: ISSUE-0002 — a long aai-loop orphaned ~40 vitest trees / ~5.6 GB).
+- [2026-07-01] [guard → fu-learned-vitest-leak-is-a-guard] A `vitest run` (or any runner) that does not exit on its own is a test-leak bug — an open handle / unhandled rejection (timer, unclosed mock client, dangling promise), NOT "pre-existing teardown noise". Fix the open handle so the process exits; consider `test.dangerouslyIgnoreUnhandledErrors=false` so it FAILS loud instead of hanging (source: ISSUE-0002 — a long aai-loop orphaned ~40 vitest trees / ~5.6 GB).
 
 ## Workflow
 <!-- Example: - [2026-03-08] Always run /aai-bootstrap after adding new npm packages (source: debugging session) -->
-- [2026-07-01] The loop and test skills must NEVER launch `vitest`/`tsc`/dev-servers directly — route every externally-spawned command through the AAI test wrapper (`.aai/scripts/aai-run-tests.sh`) so a hung process can't outlive the step that spawned it (source: ISSUE-0002).
-- [2026-07-04] When a feature worktree was seeded with copies of not-yet-committed docs from the main checkout, delete those stale untracked copies in the main checkout (and reset generated files like docs/INDEX.md) BEFORE `git pull` after the PR merges — otherwise the pull silently aborts on the untracked-vs-incoming collision while its output still prints "Updating …" (source: post-merge of PR #34/#36; the tail of the pull output hid the abort).
+- [2026-07-01] [guard → fu-learned-external-runner-routing] The loop and test skills must NEVER launch `vitest`/`tsc`/dev-servers directly — route every externally-spawned command through the AAI test wrapper (`.aai/scripts/aai-run-tests.sh`) so a hung process can't outlive the step that spawned it (source: ISSUE-0002).
+- [2026-07-04] [guard → fu-learned-worktree-seeded-copies] When a feature worktree was seeded with copies of not-yet-committed docs from the main checkout, delete those stale untracked copies in the main checkout (and reset generated files like docs/INDEX.md) BEFORE `git pull` after the PR merges — otherwise the pull silently aborts on the untracked-vs-incoming collision while its output still prints "Updating …" (source: post-merge of PR #34/#36; the tail of the pull output hid the abort).
 
 ## Architecture
 <!-- Example: - [2026-03-08] Use queue for email sending, never synchronous in request handler (source: code review) -->
-- [2026-07-01] Framework-owns-HOW invariant: the target project declares WHAT to run (its test/build command); AAI owns HOW it runs. Every externally-spawned process must be (a) in its own killable process group, (b) resource-bounded (e.g. vitest `maxForks`), (c) reaped on the step boundary (scoped to `$PWD`+etime, never global), and (d) accounted for in the tick log. Prefer safe-by-construction via `aai-bootstrap` defaults over post-hoc remediation. Silent resource growth is a bug — make it visible (source: ISSUE-0002).
-- [2026-07-03] A pre-commit content check must evaluate the STAGED blob (`git show ":<path>"`), never the worktree file. Detecting a change via `git diff --cached` but then validating the on-disk file is a TOCTOU hole: a staged, unreconciled change can pass whenever the worktree holds compensating unstaged edits, so the bad staged version is still committed. Gate what is actually being committed (source: PR #27 F2 — Codex found the SPEC-0011 G5 close-gate hook gating the worktree instead of the staged spec).
+- [2026-07-01] [guard → fu-learned-framework-owns-how] Framework-owns-HOW invariant: the target project declares WHAT to run (its test/build command); AAI owns HOW it runs. Every externally-spawned process must be (a) in its own killable process group, (b) resource-bounded (e.g. vitest `maxForks`), (c) reaped on the step boundary (scoped to `$PWD`+etime, never global), and (d) accounted for in the tick log. Prefer safe-by-construction via `aai-bootstrap` defaults over post-hoc remediation. Silent resource growth is a bug — make it visible (source: ISSUE-0002).
+- [2026-07-03] [guard → check-committed-scope.mjs] A pre-commit content check must evaluate the STAGED blob (`git show ":<path>"`), never the worktree file. Detecting a change via `git diff --cached` but then validating the on-disk file is a TOCTOU hole: a staged, unreconciled change can pass whenever the worktree holds compensating unstaged edits, so the bad staged version is still committed. Gate what is actually being committed (source: PR #27 F2 — Codex found the SPEC-0011 G5 close-gate hook gating the worktree instead of the staged spec).
 
 ## Conventions
 <!-- Example: - [2026-03-08] Write repository documents in English, chat in user's language (source: project rule) -->
@@ -212,8 +238,8 @@
   cannot attest green-on-Linux. Weave CI into the loop: implementer pushes, the
   CI run is the RED->GREEN evidence, Validation verifies `gh run` conclusion +
   headSha-matches-HEAD + local non-regression. (Source: CHANGE-0043 loop.)
-- [2026-07-27] Bash 3.2 (macOS default): never cross-reference variables inside ONE local statement (local name="$1" d="$ROOT/$name" leaves d empty under set -u) — split into two local lines; and every git-fixture helper must refuse to run when its target dir is empty or non-absolute (guard [[ -n "$d" && "$d" = /* ]] before any git -C "$d"), otherwise a broken fixture silently operates on the REAL repository. (source: doctor-determinize ride 2026-07-28: fixture helper bug executed git -C '' against the real repo (self-corrected; forensically verified))
-- [2026-08-02] Node has NO `process.getpgrp()` (nor getpgid/setpgrp) — the
+- [2026-07-27] [guard → fu-learned-bash32-local-crossref] Bash 3.2 (macOS default): never cross-reference variables inside ONE local statement (local name="$1" d="$ROOT/$name" leaves d empty under set -u) — split into two local lines; and every git-fixture helper must refuse to run when its target dir is empty or non-absolute (guard [[ -n "$d" && "$d" = /* ]] before any git -C "$d"), otherwise a broken fixture silently operates on the REAL repository. (source: doctor-determinize ride 2026-07-28: fixture helper bug executed git -C '' against the real repo (self-corrected; forensically verified))
+- [2026-08-02] [local] Node has NO `process.getpgrp()` (nor getpgid/setpgrp) — the
   POSIX cousins make it read as obviously-real, it survives author + internal
   L3-style review, and a `try/catch` fallback hides the failure at runtime
   (orphan-sweep's self-kill guard silently guarded nothing; a PR bot caught
@@ -221,7 +247,7 @@
   10-second existence probe (`node -e 'console.log(typeof <api>)'`) before
   review sign-off; known phantoms are pinned by hygiene-pack test_092.
   (Source: CHANGE-0108 bot sweep.)
-- [2026-08-05] LLM-written tests share the author's blind spots (same model
+- [2026-08-05] [guard → fu-learned-positive-control-for-absence] LLM-written tests share the author's blind spots (same model
   writes code AND tests): three concrete failure shapes shipped green suites
   around real defects — (1) a test whose NAME claims a universal negative
   while asserting only refusal paths, (2) fixtures idealized vs the messy
@@ -233,7 +259,7 @@
   corpus-sweep rule (parsers must sweep all real instances), review pin on
   overpromising test names. Author tests catch regressions; foreign eyes
   catch illusions. (Source: CHANGE-0120 L2 saga, PR #229.)
-- [2026-08-07] Windows sandbox escalation hygiene (Codex harness, live
+- [2026-08-07] [local] Windows sandbox escalation hygiene (Codex harness, live
   operator friction): after a `CreateProcessAsUserW` error 1920 the agent
   sticky-set `require_escalated` and the UI re-prompted for EVERY subsequent
   command — including `Get-Content`, which the operator had explicitly
@@ -247,27 +273,27 @@
 
 ## Session 2026-08-24 (registry triage — the-registry-has-no-outflow)
 
-- [2026-08-24] A corpus-wide claim correction is completed by READING the
+- [2026-08-24] [local] A corpus-wide claim correction is completed by READING the
   enumerated files, never by regex: three independent gates each found live
   misses of one sweep by a different route (a directory hole, a
   present-tense hole, occurrences past an already-placed correction in the
   same file). Regex finds candidates; only reading closes the claim.
   (Source: the-tripwire-is-permanent-not-transitional ride; closes
   fu-claim-sweep-needs-reading-not-regex.)
-- [2026-08-24] Merge an append-only ledger (docs/ai/decisions.jsonl,
+- [2026-08-24] [guard → fu-learned-ledger-merge-procedure] Merge an append-only ledger (docs/ai/decisions.jsonl,
   docs/ai/EVENTS.jsonl) by keeping the BASE side a byte-exact prefix and
   appending both branches' new lines after it; a union in any other order
   rewrites existing bytes from the base's point of view even when no record
   is lost. Never accept an auto-merge of these files without diffing the
   prefix. (Source: cli-output-survives-a-pipe ride; closes
   fu-append-only-merge-needs-prefix-order.)
-- [2026-08-24] Writing prose ABOUT a control-character escape reliably
+- [2026-08-24] [local] Writing prose ABOUT a control-character escape reliably
   inserts the literal control character into the file: after editing any
   document that discusses escapes (\0, \x00, NUL and kin), scan the file for
   the literal byte before committing (portable probe, BSD grep has no -P:
   node -e 'process.exit(require("fs").readFileSync(process.argv[1]).includes(0)?1:0)' <file>;
   expect exit 0). (Source: docs-model-nul-escape ride; closes
   fu-escape-literals-self-inflict.)
-- [2026-09-05] An enumerated allowlist's forgotten member IS the hole — pin the expected SHAPE and deny everything else. Four consecutive review rounds each escaped a different version of one gh-stub flag gate (subcommand-prefix match; unknown-flag-only with no required flags; a `--[a-z]*` detector blind to `--Force` and `-Z`; unvalidated `--match`/`--sort`/`--json`/`--repo` VALUES, where `--repo ''` makes gh fall back to the local repo and a duplicate `--repo` retargets the write). Premise: a mock more permissive than the real tool attests that a call happened, never that the tool would accept it. TWO layers were needed and the first alone was not enough — a deny-by-default stub pinning the exact FLAG SKELETON (which flags, in which order, how many tokens) for each call the engine may emit, PLUS a separate case pinning the VALUES on the mutating path (destination, title, filed body, redaction). Round 4 still shipped `issue create --repo attacker/evil` green against the skeleton alone. (source: ISSUE-0080/SPEC-0166, PR #337 — validation rounds 1-4 plus code review, 24 blocking findings)
-- [2026-09-05] A pin described as immutable must READ an immutable ref. tests/skills/test-aai-spec-amend.sh TEST-003 asserted the base ledger carries exactly 10 spec_amendment records, and its own comment claimed the pin "cannot rot as later rides append their own amendments" — while the code resolved the base to `origin/main`, a moving ref. The first merge that added amendments turned main red for everyone branching off it, not just for the branch that added them. Pin the SHA the comment describes; keep a moving base only for arms genuinely asking about the branch base (append-only check, touched-files check), and prefer a FLOOR plus an independent recount over an equality for anything measured against the live tree. (source: PR #340 — main was red and the PR that surfaced it did not cause it)
-- [2026-09-05] A new early-exit gate can make a distant assertion unreachable, and a vacuous pass is indistinguishable from a real one. The local-ledger duplicate gate added by ISSUE-0080 short-circuited TEST-010's secret-token arm (it reused one fingerprint), so the arm recorded no gh call at all and grepped an empty string — and a mutation making `passesRedactor` return true, which would send a live `ghp_`/`sk_live_`/`AKIA` credential verbatim to a PUBLIC issue, shipped a fully green suite. When adding a gate, sweep every test that depends on reaching code past it. An assertion about an ABSENCE (nothing leaked) needs a positive control that the thing under test actually ran — assert `creates=1`, not only that nothing bad appeared. (source: ISSUE-0080 validation round 4, PR #337 — a fourth shape of the 2026-08-05 vacuous-green family)
+- [2026-09-05] [guard → fu-learned-deny-by-default-mocks] An enumerated allowlist's forgotten member IS the hole — pin the expected SHAPE and deny everything else. Four consecutive review rounds each escaped a different version of one gh-stub flag gate (subcommand-prefix match; unknown-flag-only with no required flags; a `--[a-z]*` detector blind to `--Force` and `-Z`; unvalidated `--match`/`--sort`/`--json`/`--repo` VALUES, where `--repo ''` makes gh fall back to the local repo and a duplicate `--repo` retargets the write). Premise: a mock more permissive than the real tool attests that a call happened, never that the tool would accept it. TWO layers were needed and the first alone was not enough — a deny-by-default stub pinning the exact FLAG SKELETON (which flags, in which order, how many tokens) for each call the engine may emit, PLUS a separate case pinning the VALUES on the mutating path (destination, title, filed body, redaction). Round 4 still shipped `issue create --repo attacker/evil` green against the skeleton alone. (source: ISSUE-0080/SPEC-0166, PR #337 — validation rounds 1-4 plus code review, 24 blocking findings)
+- [2026-09-05] [guard → fu-learned-immutable-pin-lint] A pin described as immutable must READ an immutable ref. tests/skills/test-aai-spec-amend.sh TEST-003 asserted the base ledger carries exactly 10 spec_amendment records, and its own comment claimed the pin "cannot rot as later rides append their own amendments" — while the code resolved the base to `origin/main`, a moving ref. The first merge that added amendments turned main red for everyone branching off it, not just for the branch that added them. Pin the SHA the comment describes; keep a moving base only for arms genuinely asking about the branch base (append-only check, touched-files check), and prefer a FLOOR plus an independent recount over an equality for anything measured against the live tree. (source: PR #340 — main was red and the PR that surfaced it did not cause it)
+- [2026-09-05] [guard → fu-learned-positive-control-for-absence] A new early-exit gate can make a distant assertion unreachable, and a vacuous pass is indistinguishable from a real one. The local-ledger duplicate gate added by ISSUE-0080 short-circuited TEST-010's secret-token arm (it reused one fingerprint), so the arm recorded no gh call at all and grepped an empty string — and a mutation making `passesRedactor` return true, which would send a live `ghp_`/`sk_live_`/`AKIA` credential verbatim to a PUBLIC issue, shipped a fully green suite. When adding a gate, sweep every test that depends on reaching code past it. An assertion about an ABSENCE (nothing leaked) needs a positive control that the thing under test actually ran — assert `creates=1`, not only that nothing bad appeared. (source: ISSUE-0080 validation round 4, PR #337 — a fourth shape of the 2026-08-05 vacuous-green family)
