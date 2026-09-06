@@ -186,14 +186,19 @@ test_004_clean_and_degrades() {
   local rg="$TEST_DIR/range"; mkrepo "$rg"; mkdir -p "$rg/docs/ai"
   printf 'a\n' > "$rg/a.txt"; printf 'b\n' > "$rg/b.txt"
   git -C "$rg" add a.txt b.txt >/dev/null && git -C "$rg" commit -qm base
+  # The base is captured as a SHA, never as the name `main`. init.defaultBranch
+  # is the runner's business — the branch is `master` on some hosts and the
+  # range then names a ref that does not exist, which is a CI-only red (it was,
+  # on PR #349; same family as the bare-origin HEAD trap).
+  local base_sha; base_sha="$(git -C "$rg" rev-parse HEAD)"
   git -C "$rg" checkout -q -b work
   printf 'a2\n' > "$rg/a.txt"; git -C "$rg" add a.txt >/dev/null && git -C "$rg" commit -qm change
-  printf 'code_review:\n  required: true\n  scope: >-\n    main...HEAD\n  base_ref: main\n' > "$rg/docs/ai/STATE.yaml"
+  printf 'code_review:\n  required: true\n  scope: >-\n    %s...HEAD\n  base_ref: %s\n' "$base_sha" "$base_sha" > "$rg/docs/ai/STATE.yaml"
   rc=0; ( cd "$rg" && node "$CHECK" --from-state --strict --rev HEAD --json > "$TEST_DIR/rg.out" 2>&1 ) || rc=$?
   [ "$rc" = "0" ] || log_fail "TEST-004: a diff-range scope must expand and pass on a clean tree, got $rc: $(cat "$TEST_DIR/rg.out")"
   local rn; rn="$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(String(d.checked))' "$TEST_DIR/rg.out")"
   [ "$rn" = "1" ] || log_fail "TEST-004: the range must expand to the ONE path it names, checked=$rn: $(cat "$TEST_DIR/rg.out")"
-  grep -q 'main\.\.\.HEAD' "$TEST_DIR/rg.out" && log_fail "TEST-004: the range itself must never be treated as a path: $(cat "$TEST_DIR/rg.out")"
+  grep -q "$base_sha\.\.\.HEAD" "$TEST_DIR/rg.out" && log_fail "TEST-004: the range itself must never be treated as a path: $(cat "$TEST_DIR/rg.out")"
   # and it still catches a real gap through that form
   printf 'a3\n' > "$rg/a.txt"
   rc=0; ( cd "$rg" && node "$CHECK" --from-state --strict --rev HEAD > "$TEST_DIR/rg2.out" 2>&1 ) || rc=$?
