@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-06T11:58:01.009Z",
+  "generatedAt": "2026-09-06T12:27:26.344Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -4392,7 +4392,7 @@
         "ref": "friction-upsert-channel-cannot-file",
         "severity": "P2",
         "age_days": 2,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-friction-upsert-channel-cannot-file (docs/specs/SPEC-DRAFT-spec-friction-upsert-channel-cannot-file.md): renumbered the Test Plan ids to avoid collision with the suite's existing TEST-001..012, replaced the planned RED control with a stub-contract plus source-token pair, and pinned one-line-per-invocation recording in the gh stub",
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-friction-upsert-channel-cannot-file (docs/specs/spec-friction-upsert-channel-cannot-file): renumbered the Test Plan ids to avoid collision with the suite's existing TEST-001..012, replaced the planned RED control with a stub-contract plus source-token pair, and pinned one-line-per-invocation recording in the gh stub",
         "status": "open"
       },
       {

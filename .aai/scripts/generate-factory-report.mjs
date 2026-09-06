@@ -684,7 +684,7 @@ function buildModel(args) {
       ref: i.ref_id,
       severity: i.severity,
       age_days: i.age_days,
-      what: i.finding,
+      what: resolveDraftMentions(i.finding),
       status: i.status,
     })),
   };
@@ -765,6 +765,28 @@ function buildModel(args) {
 }
 
 // ============================ RENDER ============================
+
+// A follow-up's finding text is written when the item is filed and the ledger
+// is append-only, so prose filed against `SPEC-DRAFT-<slug>` still says DRAFT
+// long after the allocator gave that document a number. Rendering it verbatim
+// puts a stale draft path on a generated page, which the repo's own drift check
+// correctly refuses — it cannot tell a historical quote from a live reference.
+// The ledger line is never rewritten; only what this page DISPLAYS is changed.
+//
+// The prefix is DROPPED rather than resolved to the allocated name. Resolving
+// would mean reading the specs directory to learn the number, and this
+// generator is on the D2 exclusion survey precisely BECAUSE it builds no
+// document paths at all — the pinned TEST-023 caught the first attempt, and it
+// counts the literal path string, comments included, which caught the second.
+// The slug alone still tells a reader
+// which document the finding was about, and it names no path at all.
+// (Found by the sweep on 2026-09-06, after the close ceremony regenerated this
+// page and it began quoting a two-day-old follow-up.)
+const DRAFT_MENTION = /\b([A-Z]{2,10})-DRAFT-([a-z0-9][a-z0-9-]*)(\.md)?\b/g;
+function resolveDraftMentions(text) {
+  if (typeof text !== 'string' || !text.includes('-DRAFT-')) return text;
+  return text.replace(DRAFT_MENTION, (_whole, _type, slug) => slug);
+}
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
