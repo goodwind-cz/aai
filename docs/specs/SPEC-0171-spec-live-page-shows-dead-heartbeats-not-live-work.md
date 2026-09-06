@@ -170,10 +170,23 @@ extract the page's own `render()` and run it against a fake DOM, the technique
 TEST-008 already used and documented.
 
 ## Verification
-- `bash .aai/scripts/aai-run-tests.sh --skill aai-heartbeat` — exit 0.
-- `bash .aai/scripts/aai-run-tests.sh --skill aai-live-serve` — exit 0.
-- `AAI_TEST_TIMEOUT=3000 bash .aai/scripts/aai-run-tests.sh` — full sweep, no
-  regression against the run recorded in the brief.
+
+`aai-run-tests.sh` is a process-group WRAPPER: its interface is
+`aai-run-tests.sh <command> [args...]`, so it needs a command to run. The three
+lines here first passed it `--skill` and `AAI_TEST_TIMEOUT` alone, which exit 1
+(`setsid: unrecognized option`) and 2 (usage) — none of the recorded green runs
+was reproducible from them (bot review, PR #351). The author had already hit
+the same wall once during this ride and still wrote the wrong form down.
+
+- `bash tests/skills/test-aai-heartbeat.sh` — exit 0.
+- `bash tests/skills/test-aai-live-serve.sh` — exit 0.
+- Either suite through the wrapper, when a process-group kill matters:
+  `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-heartbeat.sh`
+- Full sweep:
+  `AAI_TEST_TIMEOUT=3000 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh`
+  The timeout is not optional: the wrapper's watchdog defaults to 300 s and the
+  sweep needs about thirty minutes, so without it the run is killed around
+  suite 8 of 89 with exit 124, which reads as a hang (`fu-sweep-dies-at-wrapper-default`).
 - PASS criteria: all TEST-xxx green AND all Spec-AC in a terminal status.
 
 ## Evidence contract

@@ -858,6 +858,26 @@ test_023_inflight_temp_not_a_degrade() {
   else
     log_fail "TEST-023: an in-flight temp must be silent, got slots/degraded = $n"
   fi
+
+  # ...but an ABANDONED one must be NAMED. A writer killed between create and
+  # rename leaves a temp no read would ever mention under a blanket exclusion,
+  # until some later write's GC removed it — which is exactly the GC-owned input
+  # this change exists to expose (bot review, PR #351).
+  local old_temp="$dir/hb-live.json.tmp.999.7"
+  printf '{}' > "$old_temp"
+  node -e 'const fs=require("fs");const t=new Date(Date.now()-3600e3);fs.utimesSync(process.argv[1],t,t);' "$old_temp"
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" read --json
+  [[ "$RC" -eq 0 ]] || { log_fail "TEST-023: read --json exited $RC on the abandoned-temp arm"; return; }
+  local named
+  named="$(printf '%s' "$OUT" | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+    const e=j.degraded.find(x=>/tmp\.999\.7$/.test(x.source));
+    process.stdout.write(e?(/abandoned/.test(e.reason)?"named":"named-wrong-reason"):"missing")})')"
+  if [[ "$named" == "named" ]]; then
+    log_pass "TEST-023 an ABANDONED atomicWrite temp is named as abandoned, not silently excluded"
+  else
+    log_fail "TEST-023: an hour-old atomicWrite temp must be named as abandoned, got '$named'"
+  fi
 }
 
 test_024_stray_report_capped() {

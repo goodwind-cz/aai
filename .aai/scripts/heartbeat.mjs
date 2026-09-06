@@ -126,6 +126,11 @@ const COMPONENT_MAX = 64;
 const GC_WINDOW_MS = 24 * 60 * 60 * 1000;
 // How many prefixed non-slot entries a single read will NAME before summarising.
 const STRAY_REPORT_MAX = 20;
+// How long an atomicWrite temp may exist before it stops counting as in flight.
+// A real create-to-rename window is milliseconds; a minute is generous enough
+// that a loaded machine never trips it and short enough that an abandoned temp
+// surfaces on the next read rather than in 24 hours.
+const TEMP_INFLIGHT_MS = 60 * 1000;
 // Every file this script writes starts with this. It is what bounds the GC
 // sweep and the read listing to files this feature owns; see STORAGE above.
 const SLOT_PREFIX = 'hb-';
@@ -288,6 +293,8 @@ function cmdWrite(opts) {
 
 function cmdRead(opts) {
   const resolved = resolveDir(opts.dir);
+  // Hoisted above the readdir: the stray scan dates atomicWrite temps with it.
+  const now = Date.now();
   const slots = [];
   // `degraded` is the JSON contract and carries EVERY degrade, the failed probe
   // included. `slotDegraded` is the subset that says something about the data
@@ -320,9 +327,20 @@ function cmdRead(opts) {
       //     is stated instead.
       const all = fs.readdirSync(resolved.dir).sort();
       names = all.filter((n) => n.startsWith(SLOT_PREFIX) && n.endsWith('.json'));
-      const strays = all.filter((n) => n.startsWith(SLOT_PREFIX) && !n.endsWith('.json') && !/\.tmp\.\d+\.\d+$/.test(n));
+      // An atomicWrite temp is excluded only while it is plausibly IN FLIGHT.
+      // A blanket exclusion hid the abandoned ones — a writer killed between
+      // create and rename leaves a temp that no read would ever mention, until
+      // some later write's GC removed it, which is exactly the GC-owned input
+      // this change exists to expose (bot review, PR #351). Fresh: skip.
+      // Stale: name it, and say what it is.
+      const isTemp = (n) => /\.tmp\.\d+\.\d+$/.test(n);
+      const ageOf = (n) => { try { return now - fs.statSync(path.join(resolved.dir, n)).mtimeMs; } catch { return Infinity; } };
+      const strays = all.filter((n) => n.startsWith(SLOT_PREFIX) && !n.endsWith('.json')
+        && !(isTemp(n) && ageOf(n) < TEMP_INFLIGHT_MS));
       for (const n of strays.slice(0, STRAY_REPORT_MAX)) {
-        const entry = { source: n, reason: 'carries the heartbeat prefix but is not a .json slot — the GC may delete it, this read cannot interpret it' };
+        const entry = { source: n, reason: isTemp(n)
+          ? 'an abandoned atomicWrite temp — a writer died between create and rename; the GC will remove it, this read cannot interpret it'
+          : 'carries the heartbeat prefix but is not a .json slot — the GC may delete it, this read cannot interpret it' };
         degraded.push(entry);
         slotDegraded.push(entry);
       }
@@ -340,7 +358,6 @@ function cmdRead(opts) {
     }
   }
 
-  const now = Date.now();
   for (const name of names) {
     const res = loadOrDegrade(path.join(resolved.dir, name), { isShape: isSlotShape });
     if (res.status !== 'ok') {
