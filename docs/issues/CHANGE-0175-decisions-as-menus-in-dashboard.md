@@ -11,13 +11,16 @@ links:
     - b9c70aca
 ---
 
-# A pending decision appears in the dashboard as buttons, and one click answers it
+# A pending decision is answerable from the dashboard, through the channel that already exists
 
 ## Summary
 - Roadmap wave 1, pair 2, capability half (`hitl_decision` `capability-roadmap-wave-1`).
   Paired maintenance ride: `canon-one-line-report-and-downstream-rules`.
 - `/aai-live` (CHANGE-0173) already shows *that* something waits on the owner.
   It cannot be answered from there: the owner still has to find the terminal.
+- The ride was named for buttons. They are NOT in it: Amendment 1 split the
+  option parser out as CHANGE-0176 after it failed in both directions. What
+  ships is the answer path and a free-text box; the title says so now.
 
 ## What exists (measured)
 - `docs/ai/STATE.yaml` `human_input: {required, question, blocking_reason}`; the

@@ -798,7 +798,15 @@ test_023_resolve_is_append_only() {
   run_channel poll --sidecar "$sc" --answers "$ans" --json
   local found; found="$(jfield "$OUT" 'o.filter(function(x){return x.body==="after the garbage";}).length')"
   [[ "$found" == 1 ]] || { log_fail "TEST-023: an answer AFTER a malformed line must still be read (the header promises the line is skipped, not that the read stops): $(cat "$OUT")"; return; }
-  log_pass "TEST-023 resolve appends a marker; parked-path resolved filter and --ref guard hold; a malformed line is skipped, not fatal"
+  # An UNREADABLE ledger must appear in poll's JSON, not only on stderr: STEP 0
+  # reads the JSON, so a stderr-only warning drops the operator's answer in
+  # silence (PR #346 bot review).
+  local dirled="$d/as-a-directory"; mkdir -p "$dirled"
+  run_channel poll --sidecar "$sc" --answers "$dirled" --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-023: an unreadable ledger must not crash poll, got $EC"; return; }
+  local deg; deg="$(jfield "$OUT" 'o.filter(function(x){return x.status==="degraded"&&/local_answers_unreadable/.test(x.reason||"");}).length')"
+  [[ "$deg" == 1 ]] || { log_fail "TEST-023: an unreadable ledger must surface as a degraded entry IN THE JSON, got: $(cat "$OUT")"; return; }
+  log_pass "TEST-023 resolve appends a marker; parked-path resolved filter and --ref guard hold; a malformed line is skipped; an unreadable ledger degrades in the JSON"
 }
 
 test_019_corrupt_sidecar_failclosed() {

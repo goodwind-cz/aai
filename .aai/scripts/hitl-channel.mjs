@@ -358,6 +358,11 @@ function authorPermission(opts, login) {
 // and unlike the channel sidecar there is no "read as empty" hazard here — an
 // unreadable file simply means no local answers, which poll already handles by
 // falling through to GitHub.
+// SKILL_HITL STEP 0 reads poll's JSON; a warning on stderr is not part of that
+// surface, so an unreadable ledger has to travel IN the JSON or the operator's
+// answer is dropped in silence (PR #346 bot review). Collected here, emitted by
+// cmdPoll as a degraded entry alongside the normal results.
+const localLedgerNotes = [];
 function readLocalAnswers(p) {
   let raw;
   try { raw = fs.readFileSync(p, 'utf8'); }
@@ -367,7 +372,11 @@ function readLocalAnswers(p) {
     // operator's decision. Surface it and treat it as no answers — the GitHub
     // path still runs, but a parked entry whose local answer is unreachable
     // reports `none`/`degraded` rather than the answer sitting on disk.
-    if (!e || e.code !== 'ENOENT') process.stderr.write(`hitl-channel: local answers ledger unreadable (${(e && e.code) || 'error'}): ${p}\n`);
+    if (!e || e.code !== 'ENOENT') {
+      const reason = `local_answers_unreadable:${(e && e.code) || 'error'}`;
+      if (!localLedgerNotes.includes(reason)) localLedgerNotes.push(reason);
+      process.stderr.write(`hitl-channel: local answers ledger unreadable (${(e && e.code) || 'error'}): ${p}\n`);
+    }
     return [];
   }
   const rows = []; const resolvedKeys = new Set();
@@ -485,13 +494,18 @@ function cmdPoll(opts) {
     results.push({ status: 'reply', source: 'local', token: r.token, ref: r.ref ?? null, thread_ref: null, comment_id: null, author: null, body: sanitizeBody(r.answer), reply_comment_id: null });
   }
 
+  // An unreadable ledger is a DEGRADE the caller must see, not an absence.
+  for (const reason of localLedgerNotes) {
+    results.push({ status: 'degraded', reason, token: null, ref: opts.ref ?? null, thread_ref: null, comment_id: null, source: 'local' });
+  }
+
   if (opts.json) {
     console.log(JSON.stringify(results, null, 2));
   } else if (results.length === 0) {
     console.log('HITL-CHANNEL poll: no parked entries');
   } else {
     for (const r of results) {
-      console.log(`HITL-CHANNEL poll status=${r.status} token=${r.token} thread=${r.thread_ref}`
+      console.log(`HITL-CHANNEL poll status=${r.status}${r.reason ? ` reason=${r.reason}` : ''} token=${r.token} thread=${r.thread_ref}`
         + (r.source ? ` source=${r.source}` : '') + (r.author ? ` author=${r.author}` : ''));
     }
   }

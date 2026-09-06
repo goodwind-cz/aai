@@ -16,9 +16,11 @@ Prints one URL. Open it; the page refreshes itself every 5 s. Ctrl-C stops it.
 3. Live sessions and today's spend, from the existing live-status data.
 
 ## Answering
-A pending decision renders as buttons (parsed from the question, recommended
-marked) plus a free-text box. One click appends the answer to the ledger and
-`hitl-channel.mjs poll` hands it to SKILL_HITL like a GitHub reply.
+A pending decision renders with a free-text box. Typing an answer appends it to
+the ledger and `hitl-channel.mjs poll` hands it to SKILL_HITL like a GitHub
+reply. Parsed option BUTTONS are not shipped yet — they are
+CHANGE-0176-decision-menu-options-parser, split out because the parser both
+invented options from prose and dropped real ones phrased as questions.
 
 ## Refusals
 `--host` beyond loopback exits 2. A busy port exits 1 naming the port. `POST
