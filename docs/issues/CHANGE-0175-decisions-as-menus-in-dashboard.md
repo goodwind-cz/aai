@@ -2,11 +2,13 @@
 id: decisions-as-menus-in-dashboard
 number: 175
 type: change
-status: draft
+status: done
 capability: live-agent-dashboard
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - b9c70aca
 ---
 
 # A pending decision appears in the dashboard as buttons, and one click answers it

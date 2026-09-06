@@ -2,13 +2,15 @@
 id: spec-decisions-as-menus-in-dashboard
 type: spec
 number: 169
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - b9c70aca
 ---
 
 # Spec — a pending decision is answerable from the dashboard, through the channel that already exists

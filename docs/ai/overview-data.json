@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-06T07:02:43.906Z",
+  "generatedAt": "2026-09-06T07:04:43.262Z",
   "project": "aai",
   "counts": {
-    "delivered": 232,
-    "in_progress": 42,
+    "delivered": 233,
+    "in_progress": 41,
     "releases": 1,
     "tokens_total": 57249552
   },
@@ -100,19 +100,6 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "decisions-as-menus-in-dashboard",
-      "title": "A pending decision appears in the dashboard as buttons, and one click answers it",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0169-spec-decisions-as-menus-in-dashboard.md",
       "validation": null,
       "review": null
     },
@@ -612,6 +599,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "decisions-as-menus-in-dashboard",
+      "title": "A pending decision appears in the dashboard as buttons, and one click answers it",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md",
+      "closed_on": "2026-09-06",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0169-spec-decisions-as-menus-in-dashboard.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "live-agent-dashboard-served-locally",
       "title": "A locally served live dashboard: what every agent does, what it waits on, for how long",
@@ -3635,6 +3635,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "decisions-as-menus-in-dashboard",
+          "title": "A pending decision appears in the dashboard as buttons, and one click answers it",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md",
+          "closed_on": "2026-09-06",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0169-spec-decisions-as-menus-in-dashboard.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "live-agent-dashboard-served-locally",
           "title": "A locally served live dashboard: what every agent does, what it waits on, for how long",
