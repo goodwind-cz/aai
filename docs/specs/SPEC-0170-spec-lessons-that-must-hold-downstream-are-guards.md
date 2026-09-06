@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/CHANGE-0177-lessons-that-must-hold-downstream-are-guards.md
   rfc: null
   pr:
-    - TBD
+    - 349
   commits:
     - ea83f73370f9fbd85ddee1ec4938ebc219d60f34
 ---
