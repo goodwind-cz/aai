@@ -273,6 +273,17 @@ suites:
     globs:
       - .aai/scripts/aai-feedback-upsert.mjs
 
+  aai-learned-routing:
+    globs:
+      - .aai/scripts/check-committed-scope.mjs
+      - docs/knowledge/LEARNED.md
+      # TEST-001 asserts on AGENTS, TEST-002 executes aai-release.sh and
+      # TEST-005 asserts on SKILL_PR — editing any of them must select this
+      # suite, or its assertions guard nothing (code review, 2026-09-06).
+      - .aai/AGENTS.md
+      - .aai/SKILL_PR.prompt.md
+      - .aai/scripts/aai-release.sh
+
   aai-ride-select:
     globs:
       - .aai/scripts/ride-select.mjs

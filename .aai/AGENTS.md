@@ -293,9 +293,10 @@ Do not use it as a substitute for specs, decisions, facts, or validation evidenc
 
 Owner decisions of 2026-09-05 (`hitl_decision` records: internal-work-without-asking,
 review-round-cap, capability-roadmap-drives-rides, maintenance-budget-one-to-one).
-Rules 1–3 bind every agent here and in every project that vendors this file.
-Rule 4 applies once a project writes `docs/ai/roadmap.yaml`; without one the
-gate is not consulted (roadmap discipline is opt-in downstream).
+Rules 1–3 and 5 bind every agent here and in every project that vendors this
+file — rule 5's whole premise is that it travels. Rule 4 applies once a project
+writes `docs/ai/roadmap.yaml`; without one the gate is not consulted (roadmap
+discipline is opt-in downstream).
 
 1. **Internal work is done without asking.** Fix, chore, harness, guard and
    test rides are taken to a green, review-passed PR without a question and
@@ -312,6 +313,13 @@ gate is not consulted (roadmap discipline is opt-in downstream).
    source; `node .aai/scripts/ride-select.mjs gate` refuses a maintenance ride
    whose paired capability has not started and an off-roadmap fix (file it to
    the backlog). The owner may `--override "<reason>"`; it is logged, never silent.
+5. **A lesson that must hold downstream is a guard, not a note.** Anything that
+   must behave correctly wherever AAI is installed is implemented in the
+   vendored layer — a script, a test, a canon rule. `docs/knowledge/LEARNED.md`
+   records only what is local to THIS repository and its environment. The
+   evidence for the split: LEARNED said since 2026-07-03 that a content check
+   must read the staged blob, and the same mistake shipped twice on 2026-09-06.
+   A note asks the next author to remember; a guard does not.
 
 ## Rules
 - Do not claim PASS without executable evidence.

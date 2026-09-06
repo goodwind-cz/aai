@@ -71,6 +71,7 @@
 2	tests/skills/test-aai-layer-drift.sh
 3	tests/skills/test-aai-layer-profiles.sh
 2	tests/skills/test-aai-learned-append.sh
+5	tests/skills/test-aai-learned-routing.sh
 2	tests/skills/test-aai-lightweight-lane.sh
 2	tests/skills/test-aai-live-serve.sh
 5	tests/skills/test-aai-live-status.sh

@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-09-06T07:13:03.024Z",
+  "generatedAt": "2026-09-06T11:58:00.904Z",
   "project": "aai",
   "counts": {
-    "delivered": 233,
+    "delivered": 234,
     "in_progress": 41,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "decisions-as-menus-in-dashboard",
+    "ref": "lessons-that-must-hold-downstream-are-guards",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "decisions-as-menus-in-dashboard",
+      "ref": "lessons-that-must-hold-downstream-are-guards",
       "type": "intake_change",
       "phase": null
     },
@@ -24,7 +24,7 @@
       "user_decision": "worktree"
     },
     "validation_status": "pass",
-    "review_status": "pass",
+    "review_status": "not_run",
     "ticks": [
       {
         "tick": 2,
@@ -601,7 +601,7 @@
   "delivered": [
     {
       "ref": "decisions-as-menus-in-dashboard",
-      "title": "A pending decision appears in the dashboard as buttons, and one click answers it",
+      "title": "A pending decision is answerable from the dashboard, through the channel that already exists",
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md",
@@ -609,6 +609,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0169-spec-decisions-as-menus-in-dashboard.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "lessons-that-must-hold-downstream-are-guards",
+      "title": "A lesson that must hold downstream is a guard, not a note",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0177-lessons-that-must-hold-downstream-are-guards.md",
+      "closed_on": "2026-09-06",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0170-spec-lessons-that-must-hold-downstream-are-guards.md",
       "validation": null,
       "review": null
     },
@@ -3637,7 +3650,7 @@
       "items": [
         {
           "ref": "decisions-as-menus-in-dashboard",
-          "title": "A pending decision appears in the dashboard as buttons, and one click answers it",
+          "title": "A pending decision is answerable from the dashboard, through the channel that already exists",
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md",
@@ -3645,6 +3658,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0169-spec-decisions-as-menus-in-dashboard.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "lessons-that-must-hold-downstream-are-guards",
+          "title": "A lesson that must hold downstream is a guard, not a note",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0177-lessons-that-must-hold-downstream-are-guards.md",
+          "closed_on": "2026-09-06",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0170-spec-lessons-that-must-hold-downstream-are-guards.md",
           "validation": null,
           "review": null
         },

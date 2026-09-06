@@ -764,7 +764,7 @@ test_012_growth_sum_matches_ledger() {
   # roadmap-driven-ride-selection, +976 B in-glob wiring + 1461 B AGENTS contract (re-measured).
   # Then 15084 -> 15657: decisions-as-menus adds the SKILL_LIVE Answering/Refusals
   # sections (+717 B measured, re-measured after the bot review).
-  local want_growth=15801
+  local want_growth=17581
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

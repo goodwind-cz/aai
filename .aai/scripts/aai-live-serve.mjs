@@ -10,6 +10,9 @@
 // Sources, each REUSED through its own CLI so there is one parser per truth:
 //   roles    heartbeat.mjs read --json   (slots: role, ref_id, message, updated_at, age_seconds)
 //   waiting  docs/ai/STATE.yaml human_input block (required / question / blocking_reason)
+//   sweep    tests/skills/results/test-<stamp>/ — the framework writes one
+//            *.result per finished suite, so the longest job in the factory
+//            (~30 min) already publishes its progress; the page just reads it.
 //   answer   POST /answer -> docs/ai/hitl-answers.jsonl (gitignored). The page is
 //            a SECOND TRANSPORT for the existing async-HITL channel: hitl-channel
 //            poll surfaces the record in the same shape a GitHub reply produces,
@@ -19,7 +22,8 @@
 //
 // Usage:
 //   node .aai/scripts/aai-live-serve.mjs [--port 7331] [--host 127.0.0.1]
-//     [--heartbeat-dir <dir>] [--state <STATE.yaml>] [--answers <path>] [--no-live-status]
+//     [--heartbeat-dir <dir>] [--state <STATE.yaml>] [--answers <path>]
+//     [--results-dir <dir>] [--no-live-status]
 //     [--live-status-interval <seconds, default 30>]
 // Exit: 0 on SIGINT/SIGTERM · 1 port busy · 2 usage / non-loopback host.
 
@@ -40,6 +44,7 @@ const STALE_AFTER_S = 120;      // a heartbeat older than this is shown as stale
 const POLL_MS = 5000;           // the page's own refresh; Spec-AC-04
 const ANSWER_MAX_BYTES = 4096;  // D4: a decision is a sentence, not an upload
 const DEFAULT_ANSWERS = 'docs/ai/hitl-answers.jsonl';
+const SWEEP_RESULTS_DIR = 'tests/skills/results';
 
 // SPLIT (validation round 2, under the owner's two-round cap). The option
 // parser left this scope and ships as its own ride. Round 1 caught it
@@ -54,13 +59,13 @@ const DEFAULT_ANSWERS = 'docs/ai/hitl-answers.jsonl';
 // can drift, and the AC would be false the day they did.
 
 function parseArgs(argv) {
-  const a = { port: 7331, host: '127.0.0.1', heartbeatDir: null, state: path.join(ROOT, 'docs/ai/STATE.yaml'), answers: path.join(ROOT, DEFAULT_ANSWERS), liveStatus: true, liveInterval: 30 };
+  const a = { port: 7331, host: '127.0.0.1', heartbeatDir: null, state: path.join(ROOT, 'docs/ai/STATE.yaml'), answers: path.join(ROOT, DEFAULT_ANSWERS), results: path.join(ROOT, SWEEP_RESULTS_DIR), liveStatus: true, liveInterval: 30 };
   // A flag that takes a value must HAVE one: `--state` as the last token used to
   // become the string "undefined" and read a file of that name.
   const need = (k, v) => { if (v === undefined || v.startsWith('--')) { process.stderr.write(`aai-live-serve: ${k} requires a value\n`); process.exit(2); } return v; };
   for (let i = 0; i < argv.length; i += 1) {
     const k = argv[i]; const raw = argv[i + 1];
-    const v = ['--port', '--host', '--heartbeat-dir', '--state', '--live-status-interval', '--answers'].includes(k) ? need(k, raw) : raw;
+    const v = ['--port', '--host', '--heartbeat-dir', '--state', '--live-status-interval', '--answers', '--results-dir'].includes(k) ? need(k, raw) : raw;
     if (k === '--port') { a.port = Number(v); i += 1; }
     else if (k === '--host') { a.host = String(v); i += 1; }
     else if (k === '--heartbeat-dir') { a.heartbeatDir = v; i += 1; }
@@ -68,6 +73,7 @@ function parseArgs(argv) {
     else if (k === '--no-live-status') { a.liveStatus = false; }
     else if (k === '--live-status-interval') { a.liveInterval = Number(v); i += 1; }
     else if (k === '--answers') { a.answers = need(k, raw); i += 1; }
+    else if (k === '--results-dir') { a.results = need(k, raw); i += 1; }
     else if (k === '--help' || k === '-h') { a.help = true; }
     else { process.stderr.write(`aai-live-serve: unknown argument ${k}\n`); process.exit(2); }
   }
@@ -210,17 +216,125 @@ function readLive(intervalS) {
   return liveCache;
 }
 
+// SWEEP PROGRESS. The full test sweep is the longest-running job here and the
+// page could not see it: it lists heartbeat slots, and aai-run-tests.sh writes
+// none. The operator asked three times in one session whether anything was
+// running and had to be answered with `pgrep`. No new plumbing is needed — the
+// framework already writes one `<suite>.result` per finished suite into
+// tests/skills/results/test-<stamp>/, so this reads what is already there.
+// A run counts as ACTIVE while its newest file is younger than the stale
+// window; older than that it is reported as finished-or-abandoned, never hidden.
+const SWEEP_STALE_S = 300;
+// Returns { data, degraded } — the same shape every other reader on this page
+// uses. An earlier version returned a bare null on four different paths, so a
+// single stray FILE named `test-…` in the results directory made the panel say
+// "No sweep run on disk." with nothing in `degraded` to say why. A panel added
+// to end blindness must not be the one reader that goes quiet (code review,
+// 2026-09-06).
+// A read that cannot hang. `readFileSync` on a FIFO or a character device
+// blocks forever, and this runs inside every /data.json request — round-two
+// review wedged the server with a `mkfifo`'d summary.txt and with a symlink to
+// /dev/zero, which also grew memory without bound. Anything that is not a
+// regular file, or is larger than the cap, is refused and NAMED.
+const SWEEP_READ_CAP = 1 << 20;
+function readSmallFile(f, degraded, label) {
+  let st;
+  try { st = fs.lstatSync(f); }
+  catch (e) { if (e && e.code !== 'ENOENT') degraded.push(`sweep: ${label} unreadable (${(e && e.code) || 'error'})`); return null; }
+  if (!st.isFile()) { degraded.push(`sweep: ${label} is not a regular file — ignored`); return null; }
+  if (st.size > SWEEP_READ_CAP) { degraded.push(`sweep: ${label} is ${st.size} B, over the ${SWEEP_READ_CAP} B cap — ignored`); return null; }
+  try { return fs.readFileSync(f, 'utf8'); }
+  catch (e) { degraded.push(`sweep: ${label} unreadable (${(e && e.code) || 'error'})`); return null; }
+}
+
+function readSweep(base) {
+  const degraded = [];
+  const none = (why) => { if (why) degraded.push(why); return { data: null, degraded }; };
+  let entries;
+  try { entries = fs.readdirSync(base); } catch (e) {
+    // A missing results directory is the ordinary state of a fresh checkout,
+    // not a degrade; anything else is.
+    return none(e && e.code === 'ENOENT' ? null : `sweep results unreadable at ${base} (${(e && e.code) || 'error'})`);
+  }
+  // WHICH RUN. The newest directory is the obvious choice and it is wrong on
+  // its own: running one selected suite while a full sweep is in flight creates
+  // a NEWER directory that finishes in seconds and publishes its own summary,
+  // and the panel would then report "finished · 1 suite done" while the
+  // thirty-minute sweep it was built to show carried on unseen (round-two
+  // review). A run still in flight therefore wins over a finished one; among
+  // equals, the newest.
+  let newest = null; let newestLive = null;
+  for (const r of entries) {
+    if (!r.startsWith('test-')) continue;
+    // A run is a DIRECTORY. statSync succeeds on a file too, and the readdir
+    // below then throws ENOTDIR — which used to blank the whole panel.
+    let st; try { st = fs.statSync(path.join(base, r)); } catch { continue; }
+    if (!st.isDirectory()) { degraded.push(`sweep: ${r} is not a run directory — ignored`); continue; }
+    const cand = { name: r, mtimeMs: st.mtimeMs };
+    if (!newest || st.mtimeMs > newest.mtimeMs) newest = cand;
+    const sum = readSmallFile(path.join(base, r, 'summary.txt'), degraded, `${r}/summary.txt`);
+    const done = sum !== null && /^Total:\s+\d+/m.test(sum);
+    const fresh = (Date.now() - st.mtimeMs) / 1000 < SWEEP_STALE_S;
+    if (!done && fresh && (!newestLive || st.mtimeMs > newestLive.mtimeMs)) newestLive = cand;
+  }
+  if (newestLive) newest = newestLive;
+  if (!newest) return none(null);
+  const dir = path.join(base, newest.name);
+  let names;
+  try { names = fs.readdirSync(dir); }
+  catch (e) { return none(`sweep: run ${newest.name} could not be read (${(e && e.code) || 'error'})`); }
+  const results = names.filter((n) => n.endsWith('.result'));
+  // The framework opens `<suite>.log` when a suite STARTS and writes
+  // `<suite>.result` when it ends, so started-minus-done is the number in
+  // flight right now. This is measured, not the expected total, which nothing
+  // on disk states — during the first minutes of a parallel sweep it is the
+  // only thing that distinguishes "running hard" from "wedged".
+  const started = names.filter((n) => n.endsWith('.log')).length;
+  let last = null; let lastAt = 0; let failed = 0;
+  for (const n of results) {
+    const f = path.join(dir, n);
+    let st; try { st = fs.statSync(f); } catch { continue; }
+    if (st.mtimeMs > lastAt) { lastAt = st.mtimeMs; last = n.replace(/\.result$/, ''); }
+    // The framework writes exactly one verdict word (PASS | SKIP | FAIL) into
+    // each file, so the verdict is compared exactly: a substring match would
+    // count a SKIP whose text merely mentions failure, or any future log line.
+    const body = readSmallFile(f, degraded, `${newest.name}/${n}`);
+    if (body !== null && (body.split('\n')[0] || '').trim() === 'FAIL') failed += 1;
+  }
+  const ageS = lastAt ? Math.round((Date.now() - lastAt) / 1000) : null;
+  // Liveness is measured from the newest THING the run produced, and for the
+  // first minutes of a sweep that is the run directory itself: no suite has
+  // finished yet, so there is no .result to date it by. Found by running this
+  // against a real sweep — a run 40 seconds old reported `active: false`, which
+  // is the exact blindness this panel exists to remove.
+  const freshestMs = Math.max(lastAt, newest.mtimeMs);
+  const activeAgeS = Math.round((Date.now() - freshestMs) / 1000);
+  // A FINISHED run is finished the moment it says so, not five minutes later.
+  // The framework writes the full summary (with its `Total:` line) only when the
+  // run ends, so this is a fact on disk rather than a guess from timing — which
+  // matters because a run whose last suite finished 30 seconds ago would
+  // otherwise keep reading `running` for the rest of the stale window.
+  const summary = readSmallFile(path.join(dir, 'summary.txt'), degraded, `${newest.name}/summary.txt`);
+  const complete = summary !== null && /^Total:\s+\d+/m.test(summary);
+  // The expected total is not published anywhere WHILE a run is in flight, so
+  // it is NOT invented: the page reports started, done and failed — all
+  // measured — and lets the reader judge.
+  return { data: { run: newest.name, started, done: results.length, failed, last, last_age_seconds: ageS, complete, active: !complete && activeAgeS < SWEEP_STALE_S }, degraded };
+}
+
 function buildData(a) {
   const roles = readRoles(a.heartbeatDir);
   const waiting = readWaiting(a.state);
   const live = a.liveStatus ? readLive(a.liveInterval) : { data: null, degraded: [] };
+  const sweep = readSweep(a.results);
   return {
     generated_at: new Date().toISOString(),
     waiting: waiting.waiting,
     roles: roles.roles,
     live: live.data,
+    sweep: sweep.data,
     stale_after_seconds: STALE_AFTER_S,
-    degraded: [...roles.degraded, ...waiting.degraded, ...live.degraded],
+    degraded: [...roles.degraded, ...waiting.degraded, ...live.degraded, ...sweep.degraded],
   };
 }
 
@@ -243,6 +357,7 @@ th{color:#666;font-weight:600}tr.stale td{color:#999}tr.stale td.age{color:#b300
 <h1>AAI live <span id="status" class="small">connecting…</span></h1>
 <section id="waiting"><h2>Waits on you</h2><div id="waiting-body" class="card muted">loading…</div></section>
 <section id="roles"><h2>Agents</h2><div id="roles-body" class="card muted">loading…</div></section>
+<section id="sweep"><h2>Test sweep</h2><div id="sweep-body" class="card muted small">loading…</div></section>
 <section id="live"><h2>Sessions &amp; spend</h2><div id="live-body" class="card muted small">loading…</div></section>
 <section id="degraded" hidden><h2>Degraded</h2><div id="degraded-body" class="card small"></div></section>
 <script>
@@ -273,6 +388,15 @@ function render(d){
   const r=document.getElementById('roles-body');
   if(!d.roles.length){r.className='card muted';r.textContent='No agent has a live heartbeat.';}
   else{r.className='card';r.innerHTML='<table><tr><th>Role</th><th>Ride</th><th>Last message</th><th>Age</th></tr>'+d.roles.map(x=>'<tr class="'+(x.stale?'stale':'')+'"><td>'+esc(x.role)+'</td><td>'+esc(x.ref_id)+'</td><td>'+esc(x.message)+'</td><td class="age">'+ago(x.age_seconds)+(x.stale?' · stale':'')+'</td></tr>').join('')+'</table>';}
+  const sw=document.getElementById('sweep-body');
+  if(!d.sweep){sw.className='card muted small';sw.textContent='No sweep run on disk.';}
+  else{sw.className='card small';
+    const inflight=Math.max(0,(d.sweep.started||0)-d.sweep.done);
+    sw.innerHTML=(d.sweep.active?'<b>running</b> · ':(d.sweep.complete?'finished · ':'last run · '))+esc(d.sweep.done)+' suite(s) done'
+      +(inflight?' · '+esc(inflight)+' in flight':'')
+      +(d.sweep.failed?' · <span class="stale">'+esc(d.sweep.failed)+' failed</span>':'')
+      +(d.sweep.last?' · newest '+esc(d.sweep.last)+' '+ago(d.sweep.last_age_seconds)+' ago':'')
+      +' <span class="muted">('+esc(d.sweep.run)+')</span>';}
   const l=document.getElementById('live-body');
   if(!d.live){l.className='card muted small';l.textContent='Live-status scan disabled or unavailable.';}
   else{l.className='card small';l.innerHTML=esc(d.live.sessions_active)+' active of '+esc(d.live.sessions_total)+' sessions · harnesses: '+d.live.harnesses.map(h=>esc(h.id)+(h.available?'':' (absent)')).join(', ')+(d.live.spend&&d.live.spend.today?' · spend today: '+esc(d.live.spend.today.entries)+' project(s)'+(d.live.spend.today.total!=null?', '+esc(d.live.spend.today.total.toLocaleString())+' tokens':''):'');}
@@ -365,7 +489,7 @@ function handleAnswer(req, res, a) {
 
 function main() {
   const a = parseArgs(process.argv.slice(2));
-  if (a.help) { process.stdout.write('usage: node .aai/scripts/aai-live-serve.mjs [--port 7331] [--host 127.0.0.1] [--heartbeat-dir <dir>] [--state <STATE.yaml>] [--answers <path>] [--no-live-status] [--live-status-interval <s>]\n'); process.exit(0); }
+  if (a.help) { process.stdout.write('usage: node .aai/scripts/aai-live-serve.mjs [--port 7331] [--host 127.0.0.1] [--heartbeat-dir <dir>] [--state <STATE.yaml>] [--answers <path>] [--results-dir <dir>] [--no-live-status] [--live-status-interval <s>]\n'); process.exit(0); }
   refuseUnlessLoopback(a.host);
   const srv = http.createServer((req, res) => {
     const url = (req.url || '/').split('?')[0];

@@ -128,6 +128,23 @@ PROCESS
    - Reference the ref id (e.g. CHANGE-0007 / SPEC-0013) in the subject or body.
    - Commit only after the step-3 audit passes and the PRECONDITIONS hold.
 
+4a. VERIFY THE COMMITTED BLOB (spec-lessons-that-must-hold-downstream-are-guards
+   D3) — AFTER the commit above and BEFORE the push, run
+     node .aai/scripts/check-committed-scope.mjs --from-state --strict --rev HEAD
+   Non-zero: STOP and print its message verbatim; re-stage the named paths and
+   `git commit --amend`. `git add` handed a path something already renamed aborts
+   the WHOLE add, and the commit still looks plausible because other steps stage
+   files of their own — `git status` cannot tell that apart from a later edit,
+   only the blob can. This step is numbered 4a and placed here deliberately: an
+   earlier draft put it before step 2, where nothing is staged yet, so it
+   reported every ordinary edit as a mismatch and its own remedy — amend — had
+   no commit to amend (code review, 2026-09-06).
+   `--strict` is required, not optional: without it a path missing from the
+   commit degrades to exit 0, and a dropped path is exactly the incident.
+   `--rev HEAD` is required too: the default compares the INDEX, so a path
+   staged after the commit but never committed reads clean — this step's whole
+   claim is about the COMMIT (round-two review, 2026-09-06).
+
 4c. CLOSE BEFORE PUSH (fu-close-before-push-ordering / fu-close-requires-pr-
    before-it-exists) — run the close ceremony on THIS local commit, BEFORE
    any push exists to trigger CI: pushing first means CI runs against a

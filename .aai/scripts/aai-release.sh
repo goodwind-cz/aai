@@ -93,6 +93,64 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# --- unlogged-PR precondition (spec-lessons-that-must-hold-downstream-are-guards
+# D2). The cut rolls up "## [unreleased]" sections; a PR merged since the previous
+# tag that never wrote one is omitted SILENTLY. v2026.09.06 would have shipped
+# notes covering seven fixes while omitting /aai-live, the roadmap ride gate and
+# answering from the dashboard — the three things an operator would notice. This
+# NAMES them; it never blocks, because a release has one shot and a PR whose
+# section merged under another title is a false positive.
+unlogged_prs() {  # $1 = rolled-up notes file
+  local notes="$1" prev
+  prev="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+  [ -n "$prev" ] || return 0
+  # `|| true` on the pipeline as well as on both call sites. The call sites make
+  # `set -e` dormant inside this function today, but that exemption depends on
+  # the caller's shape; a future direct call would inherit an abort from a
+  # transient git failure, and this precondition must never be why a cut dies.
+  git log --format='%s' "$prev"..HEAD 2>/dev/null | while IFS= read -r subj; do
+    # Two merge strategies, two subject shapes. Squash gives `title (#310)`;
+    # GitHub's merge-commit gives `Merge pull request #310 from org/branch`,
+    # which the first pattern alone skipped silently — so a PR merged that way
+    # went unnamed while this block promised to name every merged PR (bot
+    # review, PR #349; the shape exists in this history at 2bf1a3c).
+    case "$subj" in
+      *'(#'*')'*) ;;
+      'Merge pull request #'*)
+        mnum="${subj#Merge pull request #}"; mnum="${mnum%% *}"
+        case "$mnum" in ''|*[!0-9]*) continue ;; esac
+        grep -qF -- "(#${mnum})" "$notes" 2>/dev/null || echo "#${mnum} (merge commit, no subject text)"
+        continue
+        ;;
+      *) continue ;;
+    esac
+    # Take the LAST "(#" for the number and the text BEFORE that same token for
+    # the body. Splitting the number off the last token while truncating the
+    # body at the FIRST one made `fix(x): a (#12) thing (#340)` search the notes
+    # for `fix(x): a`, which matches almost anything (round-two review).
+    num="${subj##*(#}"; num="${num%%)*}"
+    case "$num" in ''|*[!0-9]*) continue ;; esac
+    body="${subj% (#${num})*}"
+    # `--` before the pattern: a commit subject beginning with a dash otherwise
+    # reaches grep as an option ("invalid option", rc=2), which reads as "not
+    # found" and names a PR that IS logged (code review, 2026-09-06).
+    # An empty body would make `grep -qF -- ""` match every file and silently
+    # mark the PR as logged, so the number is then the only evidence.
+    if [ -z "$body" ]; then
+      grep -qF -- "(#${num})" "$notes" 2>/dev/null || echo "#${num} (no subject text)"
+      continue
+    fi
+    if ! grep -qF -- "(#${num})" "$notes" 2>/dev/null && ! grep -qF -- "$body" "$notes" 2>/dev/null; then
+      echo "#${num} ${body}"
+    fi
+  done || true
+  # This precondition NAMES; it must never be the reason a release fails. Under
+  # `set -euo pipefail` a non-zero from the pipeline above would propagate out of
+  # the command substitution and abort the whole run with no output at all —
+  # the exact HAZ this scope was told to avoid.
+  return 0
+}
+
 # --- D6 ALWAYS-checked preconditions (a)/(b): not a git repo / no CHANGELOG --
 if ! ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   echo "REFUSED: not a git repository (cwd=$(pwd))." >&2
@@ -269,7 +327,20 @@ if [[ "$CONFIRM" != "1" ]]; then
   [[ "$DIRTY" == "1" ]] && { echo "- would block: working tree is dirty"; blocked=1; }
   [[ "$TAG_EXISTS" == "1" ]] && { echo "- would block: tag $VERSION already exists"; blocked=1; }
   [[ "$GH_BLOCK" == "1" ]] && { echo "- would block (publish path): $GH_REASON"; blocked=1; }
-  [[ "$blocked" == "0" ]] && echo "- none — ready to cut with --confirm"
+  UNLOGGED="$(unlogged_prs "$NOTES" || true)"
+  if [[ -n "$UNLOGGED" ]]; then
+    echo "- NAMED (not blocking): $(printf '%s\n' "$UNLOGGED" | wc -l | tr -d ' ') PR(s) merged since the previous tag have no matching section in these notes:"
+    printf '%s\n' "$UNLOGGED" | sed 's/^/    - /'
+    echo "    Add a '## [unreleased] — <title>' section for each, or confirm they are covered under another title."
+  fi
+  # "none" must mean the whole block found nothing. Saying "none — ready to cut"
+  # directly under a list of named PRs is the report contradicting itself in the
+  # one document an operator reads before cutting (code review, 2026-09-06).
+  if [[ "$blocked" == "0" && -z "$UNLOGGED" ]]; then
+    echo "- none — ready to cut with --confirm"
+  elif [[ "$blocked" == "0" ]]; then
+    echo "- nothing blocks the cut; the NAMED item above is for you to confirm first"
+  fi
   echo
   echo "## Remote"
   if [[ "$NO_REMOTE" == "1" ]]; then
@@ -292,6 +363,18 @@ fi
 if [[ "$GH_BLOCK" == "1" ]]; then
   echo "REFUSED: $GH_REASON (publish path) — dry-run works offline; pass --no-remote/AAI_RELEASE_NO_REMOTE=1 to skip publish, or fix gh auth." >&2
   exit 16
+fi
+
+# The unlogged-PR precondition also runs on the REAL cut, not only the dry run.
+# `--confirm` is a documented, supported invocation: an operator who cuts
+# directly was previously never told a merged PR had no section, which is the
+# whole omission this precondition exists to surface (code review, 2026-09-06).
+# It NAMES and never blocks here either — a release has one shot.
+UNLOGGED_CUT="$(unlogged_prs "$NOTES" || true)"
+if [[ -n "$UNLOGGED_CUT" ]]; then
+  echo "NOTE (not blocking): $(printf '%s\n' "$UNLOGGED_CUT" | wc -l | tr -d ' ') PR(s) merged since the previous tag have no matching section in these notes:" >&2
+  printf '%s\n' "$UNLOGGED_CUT" | sed 's/^/  - /' >&2
+  echo "  They are being released WITHOUT a notes entry. Re-run with --dry-run to review." >&2
 fi
 
 # --- D7 cut sequence: rewrite -> add -> commit -> tag -> (push + publish) --
