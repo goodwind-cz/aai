@@ -124,6 +124,8 @@ import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 const MESSAGE_MAX = 200;
 const COMPONENT_MAX = 64;
 const GC_WINDOW_MS = 24 * 60 * 60 * 1000;
+// How many prefixed non-slot entries a single read will NAME before summarising.
+const STRAY_REPORT_MAX = 20;
 // Every file this script writes starts with this. It is what bounds the GC
 // sweep and the read listing to files this feature owns; see STORAGE above.
 const SLOT_PREFIX = 'hb-';
@@ -304,9 +306,31 @@ function cmdRead(opts) {
     process.stderr.write(`heartbeat: degraded — ${resolved.reason}\n`);
   } else {
     try {
-      names = fs.readdirSync(resolved.dir)
-        .filter((n) => n.startsWith(SLOT_PREFIX) && n.endsWith('.json'))
-        .sort();
+      // The GC beside this is free to delete anything matching the prefix, so a
+      // prefixed entry this read silently ignored was a file one seam could
+      // remove and the other could not see (fu-heartbeat-read-narrower-than-gc).
+      //
+      // TWO EXCLUSIONS, both found by review:
+      //   - `<slot>.tmp.<pid>.<seq>` is atomicWrite's own in-flight temp. The
+      //     live page reads every five seconds while roles write heartbeats, so
+      //     a read landing inside a write window would light the Degraded panel
+      //     for a perfectly healthy write.
+      //   - the list is CAPPED. 3000 stray files produced 3000 entries and a
+      //     452 KB /data.json on every five-second poll; past the cap the count
+      //     is stated instead.
+      const all = fs.readdirSync(resolved.dir).sort();
+      names = all.filter((n) => n.startsWith(SLOT_PREFIX) && n.endsWith('.json'));
+      const strays = all.filter((n) => n.startsWith(SLOT_PREFIX) && !n.endsWith('.json') && !/\.tmp\.\d+\.\d+$/.test(n));
+      for (const n of strays.slice(0, STRAY_REPORT_MAX)) {
+        const entry = { source: n, reason: 'carries the heartbeat prefix but is not a .json slot — the GC may delete it, this read cannot interpret it' };
+        degraded.push(entry);
+        slotDegraded.push(entry);
+      }
+      if (strays.length > STRAY_REPORT_MAX) {
+        const entry = { source: resolved.dir, reason: `and ${strays.length - STRAY_REPORT_MAX} more prefixed non-slot entr${strays.length - STRAY_REPORT_MAX === 1 ? 'y' : 'ies'} not listed` };
+        degraded.push(entry);
+        slotDegraded.push(entry);
+      }
     } catch (e) {
       if (!e || e.code !== 'ENOENT') {
         const entry = { source: resolved.dir, reason: `directory unreadable (${(e && e.code) || 'unknown'})` };

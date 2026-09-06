@@ -830,6 +830,78 @@ test_018_sweep_failure_degrades() {
   log_pass "TEST-018 a failed orphan sweep degrades (exit 0, its own named note, nothing written)"
 }
 
+# --- TEST-022 (SPEC live-page-shows-dead-heartbeats, Spec-AC-04) -------------
+# The GC beside this read may delete anything carrying the slot prefix; a read
+# that silently ignored a prefixed non-json entry left one seam able to remove
+# what the other could not see (fu-heartbeat-read-narrower-than-gc).
+plant_slot() { # $1 = dir  $2 = name  $3 = pid  $4 = ref
+  mkdir -p "$1"
+  printf '{"v":1,"ref_id":"%s","role":"implementation","message":"m","updated_at":"%s","pid":%s,"worktree":"/tmp/x"}\n' \
+    "$4" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$3" > "$1/$2"
+}
+
+test_023_inflight_temp_not_a_degrade() {
+  local dir="$TEST_DIR/inflight/heartbeat"; rm -rf "$TEST_DIR/inflight"; mkdir -p "$dir"
+  plant_slot "$dir" "hb-live.json" "$$" "this-ride"
+  # atomicWrite's own in-flight temp. The live page reads every five seconds
+  # while roles write heartbeats, so a read landing inside a write window must
+  # not light the Degraded panel for a perfectly healthy write.
+  printf '{}' > "$dir/hb-live.json.tmp.12345.1"
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" read --json
+  [[ "$RC" -eq 0 ]] || { log_fail "TEST-023: read --json exited $RC"; return; }
+  local n
+  n="$(printf '%s' "$OUT" | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+    process.stdout.write(j.slots.length+"/"+j.degraded.length)})')"
+  if [[ "$n" == "1/0" ]]; then
+    log_pass "TEST-023 an in-flight atomicWrite temp is not reported as a degrade"
+  else
+    log_fail "TEST-023: an in-flight temp must be silent, got slots/degraded = $n"
+  fi
+}
+
+test_024_stray_report_capped() {
+  local dir="$TEST_DIR/many/heartbeat"; rm -rf "$TEST_DIR/many"; mkdir -p "$dir"
+  plant_slot "$dir" "hb-live.json" "$$" "this-ride"
+  # 3000 strays produced 3000 entries and a 452 KB /data.json on every poll
+  local i=0; while [[ $i -lt 40 ]]; do printf 'x' > "$dir/hb-stray-$i.bad"; i=$((i+1)); done
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" read --json
+  [[ "$RC" -eq 0 ]] || { log_fail "TEST-024: read --json exited $RC"; return; }
+  local n more
+  n="$(printf '%s' "$OUT" | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+    process.stdout.write(String(j.degraded.length))})')"
+  more="$(printf '%s' "$OUT" | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+    process.stdout.write(j.degraded.some(x=>/more prefixed non-slot/.test(x.reason))?"yes":"no")})')"
+  if [[ "$n" -le 21 && "$more" == "yes" ]]; then
+    log_pass "TEST-024 the stray report is capped and states how many it did not list"
+  else
+    log_fail "TEST-024: 40 strays must yield a capped list plus a count, got $n entries, summary=$more"
+  fi
+}
+
+test_022_prefixed_non_json_named() {
+  local dir="$TEST_DIR/prefixed/heartbeat"; rm -rf "$TEST_DIR/prefixed"; mkdir -p "$dir"
+  plant_slot "$dir" "hb-live.json" "$$" "this-ride"
+  # the GC beside this read is free to delete anything with the prefix; a read
+  # that ignored it left one seam able to remove what the other could not see
+  printf 'not json\n' > "$dir/hb-stray.tmp"
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" read --json
+  [[ "$RC" -eq 0 ]] || { log_fail "TEST-022: read --json exited $RC"; return; }
+  local d
+  d="$(printf '%s' "$OUT" | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+    process.stdout.write(j.degraded.map(x=>x.source).join(","))})')"
+  # `a || b && c` runs c after b as well — the first draft of these arms printed
+  # FAIL and PASS for the same assertion. An if/else says what was meant.
+  if [[ "$d" == "hb-stray.tmp" ]]; then
+    log_pass "TEST-022 a prefixed non-json entry the GC may delete is named, not ignored"
+  else
+    log_fail "TEST-022: a prefixed non-json entry must be NAMED in degraded, got '$d'"
+  fi
+}
+
 # --- run ----------------------------------------------------------------------
 check_deps
 test_001_worktree_to_main_checkout
@@ -847,9 +919,12 @@ test_012_no_gate_reads_the_heartbeat
 test_013_no_ignore_list_entries
 test_014_validation_prompt_is_the_only_wiring
 test_018_sweep_failure_degrades
+test_022_prefixed_non_json_named
+test_023_inflight_temp_not_a_degrade
+test_024_stray_report_capped
 
 if [[ "$FAILED" == 0 ]]; then
-  echo "PASS: all $TEST_NAME tests (TEST-001..014, TEST-018)"
+  echo "PASS: all $TEST_NAME tests (TEST-001..014, TEST-018, TEST-022..024)"
   exit 0
 else
   echo "FAIL: $TEST_NAME suite had failures" >&2
