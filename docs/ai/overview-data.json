@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-09-05T20:02:14.593Z",
+  "generatedAt": "2026-09-06T07:02:43.906Z",
   "project": "aai",
   "counts": {
     "delivered": 232,
-    "in_progress": 40,
+    "in_progress": 42,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "roadmap-driven-ride-selection-with-budget",
+    "ref": "decisions-as-menus-in-dashboard",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "roadmap-driven-ride-selection-with-budget",
+      "ref": "decisions-as-menus-in-dashboard",
       "type": "intake_change",
       "phase": null
     },
@@ -96,6 +96,32 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0172-hand-authored-friction-is-second-class.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "decisions-as-menus-in-dashboard",
+      "title": "A pending decision appears in the dashboard as buttons, and one click answers it",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0169-spec-decisions-as-menus-in-dashboard.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "decision-menu-options-parser",
+      "title": "The dashboard turns a pending decision's options into buttons — reliably in both directions",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-DRAFT-decision-menu-options-parser.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,

@@ -633,8 +633,8 @@ import assert from 'node:assert';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
-const admitted = { ref_id: 'decisions-as-menus-in-dashboard', primary_path: 'docs/issues/CHANGE-DRAFT-decisions-as-menus-in-dashboard.md', doc_type: 'change', item_status: 'draft', unmappable: false,
-  gate: { admitted: true, consulted: true, reason: 'ride-select: ADMIT decisions-as-menus-in-dashboard — a roadmap capability' } };
+const admitted = { ref_id: 'fixture-admitted-capability', primary_path: 'docs/issues/CHANGE-9001-fixture-admitted-capability.md', doc_type: 'change', item_status: 'draft', unmappable: false,
+  gate: { admitted: true, consulted: true, reason: 'ride-select: ADMIT fixture-admitted-capability — a roadmap capability' } };
 const refused = { ref_id: 'some-harness-fix', primary_path: 'docs/issues/ISSUE-DRAFT-some-harness-fix.md', doc_type: 'issue', item_status: 'draft', unmappable: false,
   gate: { admitted: false, consulted: true, reason: 'ride-select: REFUSED — some-harness-fix is maintenance and not on the roadmap — file it to the backlog' } };
 const legacy = { ref_id: 'no-gate-field', primary_path: 'docs/issues/CHANGE-DRAFT-no-gate-field.md', doc_type: 'change', item_status: 'draft', unmappable: false };

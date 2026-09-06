@@ -762,7 +762,9 @@ test_012_growth_sum_matches_ledger() {
   # 4/2048. Then 11945 -> 12647: live-agent-dashboard adds .aai/SKILL_LIVE.prompt.md
   # (+702 B measured, credited 1:1), headroom unchanged. Then 12647 -> 15084:
   # roadmap-driven-ride-selection, +976 B in-glob wiring + 1461 B AGENTS contract (re-measured).
-  local want_growth=15084
+  # Then 15084 -> 15657: decisions-as-menus adds the SKILL_LIVE Answering/Refusals
+  # sections (+573 B measured).
+  local want_growth=15657
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

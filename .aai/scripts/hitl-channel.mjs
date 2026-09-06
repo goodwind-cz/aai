@@ -25,6 +25,15 @@
 //           the lifecycle; run AFTER the answer is applied so poll never
 //           re-surfaces an already-answered reply). An optional --ref narrows
 //           to token+ref (trust guard for recurring tokens). Idempotent, exit 0.
+//   LOCAL ANSWERS (spec-decisions-as-menus-in-dashboard D1/D3). /aai-live can
+//   answer a parked question from the browser. It appends to a SECOND gitignored
+//   sidecar, docs/ai/hitl-answers.jsonl ({v,ts,token,ref,answer,source}), and
+//   poll reads it alongside GitHub, surfacing it in the SAME {status:'reply'}
+//   shape so SKILL_HITL STEP 0 needs no change. When both a GitHub reply and a
+//   local answer exist for one token the EARLIER wins and `source` names which.
+//   resolve consumes local answers too. The dashboard is a second TRANSPORT for
+//   this channel, never a second resolution path.
+//
 //   poll  — read the sidecar, fetch replies to each unresolved thread, and
 //           surface the FIRST QUALIFYING human reply as UNTRUSTED DATA for
 //           SKILL_HITL. A qualifying reply is: created AFTER our posted_utc,
@@ -44,7 +53,8 @@
 //        [--json] [--dry-run]
 //   node hitl-channel.mjs poll [--sidecar <path>] [--self <login[,login...]>]
 //        [--ref <REF>]
-//   node hitl-channel.mjs resolve --token <HITL-n> [--ref <REF>] [--sidecar <path>] [--json]
+//   node hitl-channel.mjs resolve --token <HITL-n> [--ref <REF>] [--sidecar <path>]
+//        [--answers <path>] [--json]
 //        [--gh-bin <path>] [--input <comments.json>] [--perm-input <perms.json>]
 //        [--json]
 //
@@ -65,6 +75,7 @@ import { loadOrDegrade, atomicWrite } from './lib/runtime-file.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const DEFAULT_SIDECAR = 'docs/ai/hitl-channel.json';
+const DEFAULT_ANSWERS = process.env.AAI_HITL_ANSWERS || 'docs/ai/hitl-answers.jsonl';
 const WRITE_PERMS = ['admin', 'write', 'maintain'];
 
 function usage(msg) {
@@ -341,6 +352,61 @@ function authorPermission(opts, login) {
   }
 }
 
+// --- local answers (the /aai-live transport) --------------------------------
+// Append-only JSONL, gitignored, one record per answer. A malformed line is
+// SKIPPED with the rest still read: a corrupt tail must not hide a real answer,
+// and unlike the channel sidecar there is no "read as empty" hazard here — an
+// unreadable file simply means no local answers, which poll already handles by
+// falling through to GitHub.
+function readLocalAnswers(p) {
+  let raw;
+  try { raw = fs.readFileSync(p, 'utf8'); }
+  catch (e) {
+    // ENOENT is "no local answers"; anything else (a directory, permissions) is
+    // a ledger we cannot read, and reading it as empty would silently drop the
+    // operator's decision. Surface it and treat it as no answers — the GitHub
+    // path still runs, but a parked entry whose local answer is unreachable
+    // reports `none`/`degraded` rather than the answer sitting on disk.
+    if (!e || e.code !== 'ENOENT') process.stderr.write(`hitl-channel: local answers ledger unreadable (${(e && e.code) || 'error'}): ${p}\n`);
+    return [];
+  }
+  const rows = []; const resolvedKeys = new Set();
+  for (const line of raw.replace(/\r\n?/g, '\n').split('\n')) {
+    if (!line.trim()) continue;
+    let r; try { r = JSON.parse(line); } catch { continue; }
+    if (!r || typeof r.token !== 'string') continue;
+    if (r.resolved === true && typeof r.answer !== 'string') { resolvedKeys.add(`${r.token}\u0000${r.resolves_ts ?? ''}`); continue; }
+    if (typeof r.answer !== 'string') continue;
+    rows.push(r);
+  }
+  // Fold the resolution markers onto the answers they consume.
+  for (const r of rows) {
+    if (resolvedKeys.has(`${r.token}\u0000${r.ts ?? ''}`)) r.resolved = true;
+  }
+  return rows;
+}
+
+function localAnswerFor(opts, token, ref) {
+  const p = opts.answers || DEFAULT_ANSWERS;
+  const rows = readLocalAnswers(p)
+    .filter((r) => r.token === token)
+    .filter((r) => !r.resolved)
+    .filter((r) => !ref || r.ref === ref)
+    .sort((a, b) => Date.parse(a.ts || 0) - Date.parse(b.ts || 0));
+  return rows[0] || null;
+}
+function resolveLocalAnswers(p, token, ref) {
+  // APPEND a resolution marker; never rewrite the ledger. A rewrite loses an
+  // answer the dashboard appends during the resolve (code review proved it:
+  // HTTP 200 to the operator, and the decision never reaches poll). Appending
+  // also makes D2's "append-only JSONL" true rather than aspirational.
+  const pending = readLocalAnswers(p).filter((r) => r.token === token && (!ref || r.ref === ref) && !r.resolved);
+  if (pending.length === 0) return 0;
+  const lines = pending.map((r) => JSON.stringify({ v: 1, ts: nowUtc(), token, ref: r.ref ?? null, resolves_ts: r.ts ?? null, resolved: true }));
+  try { fs.appendFileSync(p, `${lines.join('\n')}\n`); } catch { return 0; }
+  return pending.length;
+}
+
 function afterPosted(createdAt, postedUtc) {
   if (!postedUtc) return true;
   const c = Date.parse(createdAt);
@@ -352,8 +418,15 @@ function afterPosted(createdAt, postedUtc) {
 function pollEntry(opts, entry, self) {
   const thread = entry.thread_ref;
   const base = { token: entry.hitl_token, ref: entry.ref ?? null, thread_ref: thread, comment_id: entry.comment_id };
+  const localFirst = localAnswerFor(opts, entry.hitl_token, entry.ref);
   const fetched = fetchComments(opts, thread);
-  if (!fetched.ok) return { status: 'degraded', ...base };
+  if (!fetched.ok) {
+    // GitHub is unreachable. A local answer is exactly what should survive that
+    // — being answerable when the platform is down is half the point of the
+    // dashboard transport. Only with NO local answer is this a degrade.
+    if (localFirst) return { status: 'reply', source: 'local', ...base, author: null, body: sanitizeBody(localFirst.answer), reply_comment_id: null };
+    return { status: 'degraded', ...base };
+  }
 
   // Earliest-first: honour the first qualifying human reply after our question.
   const candidates = fetched.comments
@@ -363,18 +436,27 @@ function pollEntry(opts, entry, self) {
     .filter((c) => !self.includes(c.user.login.toLowerCase()))
     .sort((a, b) => Date.parse(a.created_at || 0) - Date.parse(b.created_at || 0));
 
+  const local = localFirst;
   for (const c of candidates) {
     const perm = authorPermission(opts, c.user.login);
     if (perm && WRITE_PERMS.includes(perm)) {
+      // D3: both transports answered — the EARLIER answer is the operator's
+      // first word on it, and the source is named so nobody has to guess where
+      // a decision came from.
+      if (local && Date.parse(local.ts || 0) < Date.parse(c.created_at || 0)) break;
       // Reply body is UNTRUSTED DATA — sanitized and surfaced, never executed.
       return {
         status: 'reply',
+        source: 'github',
         ...base,
         author: c.user.login,
         body: sanitizeBody(c.body),
         reply_comment_id: c.id ?? null,
       };
     }
+  }
+  if (local) {
+    return { status: 'reply', source: 'local', ...base, author: null, body: sanitizeBody(local.answer), reply_comment_id: null };
   }
   return { status: 'none', ...base };
 }
@@ -392,6 +474,17 @@ function cmdPoll(opts) {
 
   const results = unresolved.map((e) => pollEntry(opts, e, self));
 
+  // A question raised with NO GitHub thread parks no sidecar entry, so a local
+  // answer would have nothing to hang on. Surface those too, keyed by token.
+  const seen = new Set(unresolved.map((e) => e.hitl_token));
+  const answersPath = opts.answers || DEFAULT_ANSWERS;
+  for (const r of readLocalAnswers(answersPath)) {
+    if (r.resolved || seen.has(r.token)) continue;
+    if (opts.ref && r.ref !== opts.ref) continue;
+    seen.add(r.token);
+    results.push({ status: 'reply', source: 'local', token: r.token, ref: r.ref ?? null, thread_ref: null, comment_id: null, author: null, body: sanitizeBody(r.answer), reply_comment_id: null });
+  }
+
   if (opts.json) {
     console.log(JSON.stringify(results, null, 2));
   } else if (results.length === 0) {
@@ -399,7 +492,7 @@ function cmdPoll(opts) {
   } else {
     for (const r of results) {
       console.log(`HITL-CHANNEL poll status=${r.status} token=${r.token} thread=${r.thread_ref}`
-        + (r.author ? ` author=${r.author}` : ''));
+        + (r.source ? ` source=${r.source}` : '') + (r.author ? ` author=${r.author}` : ''));
     }
   }
   exit(0);
@@ -424,9 +517,10 @@ function cmdResolve(opts) {
     }
   }
   if (n > 0) saveSidecar(sidecarPath, sidecar);
-  const out = { status: n > 0 ? 'resolved' : 'noop', token, entries_resolved: n };
+  const localN = resolveLocalAnswers(opts.answers || DEFAULT_ANSWERS, token, opts.ref);
+  const out = { status: (n + localN) > 0 ? 'resolved' : 'noop', token, entries_resolved: n, local_answers_resolved: localN };
   if (opts.json) console.log(JSON.stringify(out));
-  else console.log(`HITL-CHANNEL resolve token=${token} entries_resolved=${n}`);
+  else console.log(`HITL-CHANNEL resolve token=${token} entries_resolved=${n} local_answers_resolved=${localN}`);
   exit(0);
 }
 

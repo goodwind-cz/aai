@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-05T20:27:24.849Z
+Generated: 2026-09-06T07:04:15.526Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0169 | specs | implementing | 7 done | docs/specs/SPEC-0169-spec-decisions-as-menus-in-dashboard.md |
 
 ## Canonical layer (0)
 
@@ -457,13 +458,15 @@ _None._
 | SPEC-0168 | specs | docs/specs/SPEC-0168-spec-roadmap-driven-ride-selection-with-budget.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (39)
+## Drafts (41)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0166 | issues | docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md |
 | CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
 | CHANGE-0172 | issues | docs/issues/CHANGE-0172-hand-authored-friction-is-second-class.md |
+| CHANGE-0175 | issues | docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md |
+| decision-menu-options-parser (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-decision-menu-options-parser.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -530,4 +533,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-05 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-06 — counts above use this date for overdue checks.

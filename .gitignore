@@ -119,3 +119,4 @@ Thumbs.db
 # can leave one behind, and an untracked directory under docs/ is baked into the
 # regenerated docs/INDEX.md by the pre-commit hook.
 *.aai-lock/
+docs/ai/hitl-answers.jsonl

@@ -2,7 +2,8 @@
 #
 # Test: SPEC live-agent-dashboard-served-locally — a loopback-only HTTP server
 # that shows every agent's heartbeat, what waits on the owner, and ages.
-# (.aai/scripts/aai-live-serve.mjs), TEST-001..007.
+# (.aai/scripts/aai-live-serve.mjs), TEST-001..011. The option parser is a
+# separate ride (validation round 2 split); TEST-008 pins the free-text fallback.
 #
 # Fixtures only: heartbeat slots go to a temp --heartbeat-dir, STATE to a temp
 # --state, and the transcript scan is disabled with --no-live-status. The server
@@ -52,6 +53,34 @@ pick_port() {
   return 1
 }
 
+write_state_q() { # $1=required  $2=question body, already indented four spaces
+  cat > "$TEST_DIR/STATE.yaml" <<YAML
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: a-ride
+human_input:
+  required: $1
+  question: >-
+$2
+  blocking_reason: "[HITL-7] waiting for the owner"
+YAML
+}
+start_server_answers() {
+  PORT="$(pick_port)" || log_fail "no free port"
+  node "$ENGINE" --port "$PORT" --heartbeat-dir "$TEST_DIR/hb" --state "$TEST_DIR/STATE.yaml" --answers "$TEST_DIR/answers.jsonl" --no-live-status \
+    > "$TEST_DIR/server.out" 2> "$TEST_DIR/server.err" &
+  SERVER_PID=$!
+  local i=0; while [ "$i" -lt 30 ]; do curl -s --max-time 1 "http://127.0.0.1:$PORT/data.json" >/dev/null 2>&1 && return 0; sleep 0.2; i=$((i+1)); done
+  log_fail "server did not answer on 127.0.0.1:$PORT: $(cat "$TEST_DIR/server.err")"
+}
+post_answer() { # $1 = raw JSON body -> prints the HTTP status
+  curl -s --max-time 3 -o "$TEST_DIR/resp" -w '%{http_code}' -X POST -H 'content-type: application/json' --data "$1" "http://127.0.0.1:$PORT/answer"
+}
+post_raw() { # $1 = body, rest = extra curl args -> prints the HTTP status
+  local body="$1"; shift
+  curl -s --max-time 3 -o "$TEST_DIR/resp" -w '%{http_code}' -X POST --data "$body" "$@" "http://127.0.0.1:$PORT/answer"
+}
 write_state() { # $1=required(true|false) $2=question
   cat > "$TEST_DIR/STATE.yaml" <<YAML
 project_status: active
@@ -277,6 +306,148 @@ test_007_escape_and_freshness() {
   log_pass "escaping proven on the page's own esc(); /data.json is fresh per poll (TEST-007)"
 }
 
+# --- TEST-008 (Spec-AC-01, narrowed by the split): the free-text box, always ---
+# The option parser left this scope (validation round 2). What remains is D5's
+# documented fallback: `options` is always empty and the page always offers the
+# free-text box. Asserted on the RENDERED block, not on the static template —
+# the input is in the template whether or not anything pends, so grepping the
+# page source would pass with `waiting: null`.
+test_008_free_text_always() {
+  log_info "Test: a pending decision renders the free-text box; this scope ships no menu (TEST-008)..."
+  mkdir -p "$TEST_DIR/hb"; : > "$TEST_DIR/answers.jsonl"
+  write_state_q true "    Merge PR 999 or hold?
+    - hold it
+    - merge now (recommended)"
+  start_server_answers
+  curl -s --max-time 2 -o "$TEST_DIR/data.json" "http://127.0.0.1:$PORT/data.json"
+  [ "$(json_get "$TEST_DIR/data.json" 'd.waiting.options.length')" = "0" ] \
+    || log_fail "TEST-008: this scope ships no parsed options — the parser is a separate ride: $(cat "$TEST_DIR/data.json")"
+  [ "$(json_get "$TEST_DIR/data.json" 'd.waiting.token')" = '"HITL-7"' ] || log_fail "TEST-008: the [HITL-n] stamp must reach the page"
+  [ "$(json_get "$TEST_DIR/data.json" 'd.waiting.ref')" = '"a-ride"' ] || log_fail "TEST-008: the focus ref must reach the page"
+  curl -s --max-time 2 -o "$TEST_DIR/index.html" "http://127.0.0.1:$PORT/"
+  node -e '
+    const fs=require("fs");
+    const html=fs.readFileSync(process.argv[1],"utf8");
+    const d=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+    const m=/function render\(d\)\{([\s\S]*?)\n\}/.exec(html);
+    if(!m){console.error("render() not found");process.exit(1);}
+    const el=(id)=>({id,className:"",set innerHTML(v){this._h=v;},get innerHTML(){return this._h||"";},set textContent(v){this._h=v;},get textContent(){return this._h||"";},hidden:false,querySelector:()=>null});
+    const store={};
+    global.document={getElementById:(id)=>(store[id]=store[id]||el(id)),querySelector:()=>null};
+    const esc=(s)=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+    const ago=(s)=>s+" s";
+    new Function("d","esc","ago","document", m[1])(d, esc, ago, global.document);
+    const w=(store["waiting-body"]||{}).innerHTML||"";
+    if(!/id="answer-text"/.test(w)){console.error("no free-text box in the rendered waiting block: "+w.slice(0,200));process.exit(1);}
+    if(/class="opt/.test(w)){console.error("this scope must render NO option buttons: "+w.slice(0,200));process.exit(1);}
+  ' "$TEST_DIR/index.html" "$TEST_DIR/data.json" \
+    || log_fail "TEST-008: the rendered waiting block must carry the free-text box and no option buttons"
+  stop_server
+  log_pass "the free-text box always renders; no menu in this scope (TEST-008)"
+}
+
+# --- TEST-009 (Spec-AC-02/04/06): the write surface refuses more than it accepts
+test_009_answer_write_surface() {
+  log_info "Test: POST /answer records one line and refuses malformed/empty/oversized/mismatched/no-pending (TEST-009)..."
+  mkdir -p "$TEST_DIR/hb"; : > "$TEST_DIR/answers.jsonl"
+  write_state_q true "    Merge or hold?
+    - hold"
+  start_server_answers
+  [ "$(post_answer '{"token":"HITL-7","ref":"a-ride","answer":"hold"}')" = "200" ] \
+    || log_fail "TEST-009: a valid answer must be 200: $(cat "$TEST_DIR/resp")"
+  [ "$(wc -l < "$TEST_DIR/answers.jsonl" | tr -d ' ')" = "1" ] || log_fail "TEST-009: exactly one record must be appended"
+  grep -q '"source":"local-dashboard"' "$TEST_DIR/answers.jsonl" || log_fail "TEST-009: the record must name its source"
+  # AC-002: the 200 ECHOES what it recorded — an empty 200 tells the operator
+  # nothing about what the loop will actually see.
+  [ "$(json_get "$TEST_DIR/resp" 'd.recorded.answer')" = '"hold"' ] \
+    || log_fail "TEST-009: the 200 must echo the recorded answer, got $(cat "$TEST_DIR/resp")"
+  [ "$(json_get "$TEST_DIR/resp" 'd.recorded.token')" = '"HITL-7"' ] \
+    || log_fail "TEST-009: the 200 must echo the recorded token, got $(cat "$TEST_DIR/resp")"
+  local before; before="$(cksum "$TEST_DIR/answers.jsonl")"
+  [ "$(post_answer 'not json')" = "400" ] || log_fail "TEST-009: a malformed body must be 400"
+  [ "$(post_answer '{"answer":"   "}')" = "400" ] || log_fail "TEST-009: an empty answer must be 400"
+  local big; big="$(node -e 'process.stdout.write(JSON.stringify({answer:"x".repeat(5000)}))')"
+  [ "$(post_answer "$big")" = "400" ] || log_fail "TEST-009: an oversized answer must be 400"
+  [ "$(post_answer '{"token":"HITL-99","answer":"x"}')" = "400" ] || log_fail "TEST-009: a mismatched token must be 400"
+  [ "$(post_answer '{"ref":"other-ride","answer":"x"}')" = "400" ] || log_fail "TEST-009: a mismatched ref must be 400"
+  [ "$before" = "$(cksum "$TEST_DIR/answers.jsonl")" ] || log_fail "TEST-009: a refused answer must append NOTHING"
+  # control/bidi characters are stripped on store, exactly as a GitHub reply body is
+  local dirty; dirty="$(node -e 'process.stdout.write(JSON.stringify({answer:"a"+String.fromCharCode(9)+String.fromCharCode(0x202e)+"b"}))')"
+  post_answer "$dirty" >/dev/null
+  grep -q '"answer":"a b"' "$TEST_DIR/answers.jsonl" \
+    || log_fail "TEST-009: control/bidi chars must be stripped on store: $(tail -1 "$TEST_DIR/answers.jsonl")"
+  stop_server
+  write_state false null
+  start_server_answers
+  local before409; before409="$(cksum "$TEST_DIR/answers.jsonl")"
+  [ "$(post_answer '{"answer":"x"}')" = "409" ] || log_fail "TEST-009: with nothing pending the answer must be 409, got $(cat "$TEST_DIR/resp")"
+  [ "$before409" = "$(cksum "$TEST_DIR/answers.jsonl")" ] || log_fail "TEST-009: a 409 must append NOTHING"
+  stop_server
+  log_pass "one record on success; malformed/empty/oversized/mismatched refused; 409 when nothing pends (TEST-009)"
+}
+
+# --- TEST-010 (Spec-AC-07): the answer cycle leaves the repository alone ------
+test_010_answer_cycle_no_repo_writes() {
+  log_info "Test: a full answer cycle writes only the gitignored sidecar (TEST-010)..."
+  mkdir -p "$TEST_DIR/hb"; : > "$TEST_DIR/answers.jsonl"
+  write_state_q true "    Decide
+    - yes"
+  local marker="$TEST_DIR/marker2"; : > "$marker"; sleep 1
+  start_server_answers
+  post_answer '{"answer":"yes"}' >/dev/null
+  stop_server
+  local newer; newer="$(find "$PROJECT_ROOT" -newer "$marker" -type f -not -path '*/.git/*' -not -path '*/tests/skills/results/*' 2>/dev/null)"
+  [ -z "$newer" ] || log_fail "TEST-010: the answer cycle wrote under the repository:
+$newer"
+  [ "$(wc -l < "$TEST_DIR/answers.jsonl" | tr -d ' ')" = "1" ] || log_fail "TEST-010: the answer must be recorded in the fixture sidecar"
+  log_pass "the answer cycle writes only its gitignored sidecar (TEST-010)"
+}
+
+# --- TEST-011 (code review B1): the browser can reach 127.0.0.1, so loopback is
+# not a guard. A cross-site POST must be refused BEFORE anything is recorded.
+test_011_csrf_guards() {
+  log_info "Test: cross-site POST /answer is refused on content-type, Origin, Sec-Fetch-Site and Host (TEST-011)..."
+  mkdir -p "$TEST_DIR/hb"; : > "$TEST_DIR/answers.jsonl"
+  write_state_q true "    Merge or hold?
+    - hold"
+  start_server_answers
+  local before; before="$(cksum "$TEST_DIR/answers.jsonl")"
+  # 1. a CORS-safelisted content-type needs no preflight — this is the live exploit
+  [ "$(post_raw '{"answer":"pwned"}' -H 'content-type: text/plain')" = "415" ] \
+    || log_fail "TEST-011: text/plain must be refused 415 (it is CORS-safelisted, so it reaches us cross-site): $(cat "$TEST_DIR/resp")"
+  [ "$(post_raw 'answer=pwned' -H 'content-type: application/x-www-form-urlencoded')" = "415" ] \
+    || log_fail "TEST-011: a form content-type must be refused 415"
+  [ "$(post_raw '{"answer":"pwned"}')" = "415" ] || log_fail "TEST-011: no content-type must be refused 415"
+  # 2. a foreign Origin
+  [ "$(post_raw '{"answer":"pwned"}' -H 'content-type: application/json' -H 'origin: https://evil.example')" = "403" ] \
+    || log_fail "TEST-011: a cross-site Origin must be refused 403: $(cat "$TEST_DIR/resp")"
+  # 3. Sec-Fetch-Site the browser attaches on a cross-site request
+  [ "$(post_raw '{"answer":"pwned"}' -H 'content-type: application/json' -H 'sec-fetch-site: cross-site')" = "403" ] \
+    || log_fail "TEST-011: Sec-Fetch-Site cross-site must be refused 403"
+  # 4. DNS rebinding: a non-loopback Host is not this server
+  [ "$(post_raw '{"answer":"pwned"}' -H 'content-type: application/json' -H 'host: evil.example')" = "403" ] \
+    || log_fail "TEST-011: a non-loopback Host must be refused 403"
+  [ "$before" = "$(cksum "$TEST_DIR/answers.jsonl")" ] || log_fail "TEST-011: a refused cross-site POST must append NOTHING"
+  # only POST reaches the handler at all
+  local meth
+  for meth in GET PUT DELETE PATCH; do
+    local code; code="$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' -X "$meth" -H 'content-type: application/json' --data '{"answer":"x"}' "http://127.0.0.1:$PORT/answer")"
+    [ "$code" = "404" ] || log_fail "TEST-011: $meth /answer must not reach the write handler (got $code)"
+  done
+  [ "$before" = "$(cksum "$TEST_DIR/answers.jsonl")" ] || log_fail "TEST-011: a non-POST method must append NOTHING"
+  # a non-string answer is refused, never coerced ("[object Object]" was recorded)
+  [ "$(post_answer '{"answer":{}}')" = "400" ] || log_fail "TEST-011: an object answer must be 400, not coerced"
+  [ "$(post_answer '{"answer":["x"]}')" = "400" ] || log_fail "TEST-011: an array answer must be 400, not coerced"
+  [ "$(post_answer '{"answer":123}')" = "400" ] || log_fail "TEST-011: a numeric answer must be 400, not coerced"
+  [ "$before" = "$(cksum "$TEST_DIR/answers.jsonl")" ] || log_fail "TEST-011: a coerced-type refusal must append NOTHING"
+  # and the page's OWN request still works, with the headers a browser sends
+  [ "$(post_raw '{"answer":"hold"}' -H 'content-type: application/json' -H "origin: http://127.0.0.1:$PORT" -H 'sec-fetch-site: same-origin')" = "200" ] \
+    || log_fail "TEST-011: the page's own same-origin request must still be accepted: $(cat "$TEST_DIR/resp")"
+  [ "$(wc -l < "$TEST_DIR/answers.jsonl" | tr -d ' ')" = "1" ] || log_fail "TEST-011: exactly the legitimate answer must be recorded"
+  stop_server
+  log_pass "cross-site POSTs refused on four independent grounds; the page's own request unaffected (TEST-011)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -289,6 +460,10 @@ main() {
   test_005_no_repo_writes
   test_006_sigint_clean
   test_007_escape_and_freshness
+  test_008_free_text_always
+  test_009_answer_write_surface
+  test_010_answer_cycle_no_repo_writes
+  test_011_csrf_guards
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"
