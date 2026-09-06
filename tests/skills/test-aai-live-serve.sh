@@ -594,6 +594,169 @@ test_012_sweep_progress() {
   log_pass "sweep progress read from disk; inactive runs still reported; no invented total (TEST-012)"
 }
 
+# render_block <index.html> <data.json> <elementId> — prints what the page's own
+# render() actually puts into that element, by extracting render() and running
+# it against a fake DOM. Asserting on the SERVED SOURCE instead is vacuous: the
+# static template contains every heading and literal the page can ever show, so
+# a grep over it passes with the rendering deleted. Review proved exactly that
+# against four page-level mutations here; TEST-008 already knew and said so.
+render_block() {
+  node -e '
+    const fs=require("fs");
+    const html=fs.readFileSync(process.argv[1],"utf8");
+    const d=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+    const m=/function render\(d\)\{([\s\S]*?)\n\}/.exec(html);
+    if(!m){console.error("render() not found in the served page");process.exit(1);}
+    const el=(id)=>({id,className:"",set innerHTML(v){this._h=v;},get innerHTML(){return this._h||"";},set textContent(v){this._h=v;},get textContent(){return this._h||"";},hidden:false,querySelector:()=>null});
+    const store={};
+    global.document={getElementById:(id)=>(store[id]=store[id]||el(id)),querySelector:()=>null};
+    const esc=(s)=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+    const ago=(s)=>s+" s";
+    new Function("d","esc","ago","document", m[1])(d, esc, ago, global.document);
+    process.stdout.write((store[process.argv[3]]||{}).innerHTML||"");
+  ' "$1" "$2" "$3"
+}
+
+# --- TEST-013 (SPEC live-page-shows-dead-heartbeats AC-01..03) ----------------
+# The reported defect: three slots from three days earlier sat under "Agents"
+# as if work were in progress. The recorded pid cannot answer "is it alive" —
+# heartbeat.mjs write stores the pid of the short-lived writer, which exits at
+# once — so freshness is the signal, and it FAILS OPEN: a slot past the stale
+# mark but inside the hide window stays listed.
+test_013_stale_slots_withheld() {
+  log_info "Test: slots older than the hide window are withheld and counted, never presented as agents (TEST-013)..."
+  rm -rf "$TEST_DIR/hb"; mkdir -p "$TEST_DIR/hb"; write_state false null
+  node "$HEARTBEAT" write --ref fresh-ride --role Implementation --message "editing" --dir "$TEST_DIR/hb" >/dev/null 2>&1 \
+    || log_fail "TEST-013: heartbeat write (fresh) failed"
+  node "$HEARTBEAT" write --ref thinking-ride --role Validation --message "reading the sweep" --dir "$TEST_DIR/hb" >/dev/null 2>&1 \
+    || log_fail "TEST-013: heartbeat write (thinking) failed"
+  node "$HEARTBEAT" write --ref ancient-ride --role Planning --message "three days ago" --dir "$TEST_DIR/hb" >/dev/null 2>&1 \
+    || log_fail "TEST-013: heartbeat write (ancient) failed"
+  # a SECOND withheld slot, so "newest withheld" is distinguishable from oldest
+  # and from any: with one slot, min/max/first all agree and the assertion below
+  # would pass for the wrong reason (review caught Math.min -> Math.max alive)
+  node "$HEARTBEAT" write --ref older-ride --role Planning --message "two hours ago" --dir "$TEST_DIR/hb" >/dev/null 2>&1 \
+    || log_fail "TEST-013: heartbeat write (older) failed"
+  # thinking-ride: 10 minutes — past the stale mark, inside the hide window.
+  # ancient-ride: 3 days — the shape actually observed on 2026-09-06.
+  node -e '
+    const fs=require("fs"),p=require("path"); const dir=process.argv[1];
+    const age=(frag,ms)=>{for(const n of fs.readdirSync(dir)){if(!n.includes(frag))continue;
+      const f=p.join(dir,n); const d=JSON.parse(fs.readFileSync(f,"utf8"));
+      d.updated_at=new Date(Date.now()-ms).toISOString(); fs.writeFileSync(f,JSON.stringify(d));}};
+    age("thinking-ride", 600000); age("older-ride", 2*3600*1000); age("ancient-ride", 3*24*3600*1000);' "$TEST_DIR/hb"
+  start_server --results-dir "$TEST_DIR/no-results"
+  curl -s --max-time 2 -o "$TEST_DIR/wh.json" "http://127.0.0.1:$PORT/data.json"
+  curl -s --max-time 2 -o "$TEST_DIR/wh.html" "http://127.0.0.1:$PORT/"
+  local ids
+  ids="$(json_get "$TEST_DIR/wh.json" 'd.roles.map(r=>r.ref_id).sort().join(",")')"
+  [ "$ids" = '"fresh-ride,thinking-ride"' ] \
+    || log_fail "TEST-013: the three-day-old slot must be withheld and the other two kept, got '$ids'"
+  # FAILS OPEN: past the stale mark is marked, not hidden
+  [ "$(json_get "$TEST_DIR/wh.json" 'd.roles.find(r=>r.ref_id==="thinking-ride").stale')" = "true" ] \
+    || log_fail "TEST-013: a 10-minute-old slot must still be LISTED and marked stale, never hidden"
+  # what was withheld is COUNTED, with the newest age — a bare count cannot tell
+  # minutes-old work from a graveyard
+  [ "$(json_get "$TEST_DIR/wh.json" 'd.roles_withheld.count')" = "2" ] \
+    || log_fail "TEST-013: both old slots must be counted: $(cat "$TEST_DIR/wh.json")"
+  # NEWEST, not oldest: the two-hour slot, not the three-day one
+  local age; age="$(json_get "$TEST_DIR/wh.json" 'd.roles_withheld.newest_age_seconds')"
+  [ "$age" -gt 6000 ] && [ "$age" -lt 20000 ] 2>/dev/null \
+    || log_fail "TEST-013: the NEWEST withheld age must be the two-hour slot (~7200 s), got $age"
+  # the RENDERED block, not the served template
+  local blk; blk="$(render_block "$TEST_DIR/wh.html" "$TEST_DIR/wh.json" 'roles-body')"
+  case "$blk" in *"older slot(s) on disk"*) ;; *) log_fail "TEST-013: the rendered Agents block must state what was withheld, got: ${blk:0:200}";; esac
+  case "$blk" in *"ancient-ride"*) log_fail "TEST-013: a withheld slot must NOT appear in the rendered Agents block";; esac
+  case "$blk" in *"thinking-ride"*) ;; *) log_fail "TEST-013: the stale-but-recent slot must appear in the rendered block, got: ${blk:0:200}";; esac
+  stop_server
+  # and with ONLY ancient slots the section says so instead of listing a graveyard
+  rm -rf "$TEST_DIR/hb"; mkdir -p "$TEST_DIR/hb"
+  node "$HEARTBEAT" write --ref only-ancient --role Planning --message "gone" --dir "$TEST_DIR/hb" >/dev/null 2>&1
+  node -e '
+    const fs=require("fs"),p=require("path"); const dir=process.argv[1];
+    for(const n of fs.readdirSync(dir)){const f=p.join(dir,n);const d=JSON.parse(fs.readFileSync(f,"utf8"));
+      d.updated_at=new Date(Date.now()-3*24*3600*1000).toISOString(); fs.writeFileSync(f,JSON.stringify(d));}' "$TEST_DIR/hb"
+  start_server --results-dir "$TEST_DIR/no-results"
+  curl -s --max-time 2 -o "$TEST_DIR/wh2.json" "http://127.0.0.1:$PORT/data.json"
+  [ "$(json_get "$TEST_DIR/wh2.json" 'd.roles.length')" = "0" ] \
+    || log_fail "TEST-013: a directory of only ancient slots must yield no agents"
+  [ "$(json_get "$TEST_DIR/wh2.json" 'd.roles_withheld.count')" = "1" ] \
+    || log_fail "TEST-013: it must still say one slot is on disk"
+  stop_server
+  log_pass "old slots withheld and counted; a stale-but-recent slot still listed; the page states what it withheld (TEST-013)"
+}
+
+# --- TEST-014 (SPEC live-page-shows-dead-heartbeats AC-05..06) ----------------
+# The page loaded per-session detail and threw it away, rendering the sentence
+# "N active of M sessions" while harness, project and state sat in its own data.
+test_014_live_sessions_rendered() {
+  log_info "Test: /data.json carries a row per running session and the page renders them (TEST-014)..."
+  rm -rf "$TEST_DIR/hb"; mkdir -p "$TEST_DIR/hb"; write_state false null
+  local fake="$TEST_DIR/fake-live"; mkdir -p "$fake"
+  # a stub live-status that emits a known payload: two running, one finished
+  cat > "$fake/generate-live-status.mjs" <<'STUB'
+import fs from 'node:fs'; import path from 'node:path';
+const out = process.argv[process.argv.indexOf('--output') + 1];
+const dir = path.dirname(out);
+fs.writeFileSync(path.join(dir, 'live-status-data.json'), JSON.stringify({
+  generatedAt: '2026-09-06T12:00:00Z',
+  harnesses: [{ id: 'claude-code', available: true, sessions_total: 3 }],
+  live_sessions: [
+    { harness: 'claude-code', project: 'aai', state: 'running (heuristic)' },
+    { harness: 'codex', project: 'other-repo', state: 'running' },
+    { harness: 'claude-code', project: 'old', state: 'finished' },
+  ],
+  spend: {}, degraded: [],
+}));
+fs.writeFileSync(out, '<html></html>');
+STUB
+  PORT="$(pick_port)" || log_fail "no free port"
+  node "$ENGINE" --port "$PORT" \
+    --heartbeat-dir "$TEST_DIR/hb" --state "$TEST_DIR/STATE.yaml" --answers "$TEST_DIR/answers.jsonl" \
+    --live-status-script "$fake/generate-live-status.mjs" --live-status-interval 1 \
+    --results-dir "$TEST_DIR/no-results" \
+    > "$TEST_DIR/server.out" 2> "$TEST_DIR/server.err" &
+  SERVER_PID=$!
+  # the same exited-early guard start_server carries: without it a server that
+  # dies on startup turns into a curl timeout and a confusing later assertion
+  local i=0
+  while [ "$i" -lt 30 ]; do
+    curl -s --max-time 1 "http://127.0.0.1:$PORT/data.json" >/dev/null 2>&1 && break
+    kill -0 "$SERVER_PID" 2>/dev/null || log_fail "TEST-014: server exited early: $(cat "$TEST_DIR/server.err")"
+    sleep 0.2; i=$((i+1))
+  done
+  curl -s --max-time 3 -o "$TEST_DIR/ls.json" "http://127.0.0.1:$PORT/data.json"
+  local n; n="$(json_get "$TEST_DIR/ls.json" 'd.live && d.live.sessions ? d.live.sessions.length : "none"')"
+  [ "$n" != "none" ] || log_fail "TEST-014: /data.json carries no session rows at all: $(cat "$TEST_DIR/ls.json")"
+  [ "$n" = "2" ] || log_fail "TEST-014: only the two RUNNING sessions become rows, got $n: $(cat "$TEST_DIR/ls.json")"
+  [ "$(json_get "$TEST_DIR/ls.json" 'd.live.sessions[0].project')" = '"aai"' ] \
+    || log_fail "TEST-014: the row must carry the project, not just a count"
+  [ "$(json_get "$TEST_DIR/ls.json" 'd.live.sessions_total')" = "3" ] \
+    || log_fail "TEST-014: the finished session must still be counted in the total"
+  # THE RENDERED BLOCK. Grepping the served page for 'Live sessions' matched the
+  # static <h2> heading and passed with the entire rendering deleted — review
+  # ran that mutation and it survived.
+  curl -s --max-time 2 -o "$TEST_DIR/ls.html" "http://127.0.0.1:$PORT/"
+  local blk; blk="$(render_block "$TEST_DIR/ls.html" "$TEST_DIR/ls.json" 'sessions-body')"
+  case "$blk" in *"<table>"*) ;; *) log_fail "TEST-014: the rendered block must be a table of sessions, got: ${blk:0:200}";; esac
+  case "$blk" in *"aai"*) ;; *) log_fail "TEST-014: the running session's project must be rendered, got: ${blk:0:200}";; esac
+  case "$blk" in *"codex"*) ;; *) log_fail "TEST-014: every running session must get a row, got: ${blk:0:200}";; esac
+  case "$blk" in *"old"*) log_fail "TEST-014: a FINISHED session must not be rendered as a row: ${blk:0:200}";; esac
+  # the scan time it came from, so a frozen page cannot look current
+  case "$blk" in *"2026-09-06T12:00:00Z"*) ;; *) log_fail "TEST-014: the rendered block must state the scan timestamp, got: ${blk:0:200}";; esac
+  case "$blk" in *"2 running of 3"*) ;; *) log_fail "TEST-014: non-running sessions must be summarised as a count, got: ${blk:0:200}";; esac
+  # The DEGRADED panel must name the file. heartbeat degrades are {source,reason}
+  # objects, and a bare map(esc) rendered them as [object Object] on the very
+  # page this ride fixes.
+  local dg; dg="$(render_block "$TEST_DIR/ls.html" "$TEST_DIR/dg.json" 'degraded-body' 2>/dev/null || true)"
+  printf '{"degraded":[{"source":"hb-bad.json","reason":"unreadable"}],"roles":[],"roles_withheld":null,"waiting":null,"live":null,"sweep":null}\n' > "$TEST_DIR/dg.json"
+  dg="$(render_block "$TEST_DIR/ls.html" "$TEST_DIR/dg.json" 'degraded-body')"
+  case "$dg" in *"hb-bad.json"*) ;; *) log_fail "TEST-014: a degrade object must render its source, got: ${dg:0:200}";; esac
+  case "$dg" in *"[object Object]"*) log_fail "TEST-014: a degrade object must never render as [object Object]: ${dg:0:200}";; esac
+  stop_server
+  log_pass "running sessions become rows with harness, project and state; finished ones stay a count; a degrade names its file (TEST-014)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -611,6 +774,8 @@ main() {
   test_010_answer_cycle_no_repo_writes
   test_011_csrf_guards
   test_012_sweep_progress
+  test_013_stale_slots_withheld
+  test_014_live_sessions_rendered
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

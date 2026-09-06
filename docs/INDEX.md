@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-06T17:29:31.252Z
+Generated: 2026-09-06T19:19:47.901Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -49,7 +49,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (407)
+## Done (409)
 
 | ID | Type | Path |
 |---|---|---|
@@ -225,6 +225,7 @@ _None._
 | CHANGE-0174 | issues | docs/issues/CHANGE-0174-roadmap-driven-ride-selection-with-budget.md |
 | CHANGE-0175 | issues | docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md |
 | CHANGE-0177 | issues | docs/issues/CHANGE-0177-lessons-that-must-hold-downstream-are-guards.md |
+| CHANGE-0178 | issues | docs/issues/CHANGE-0178-live-page-shows-dead-heartbeats-not-live-work.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -459,6 +460,7 @@ _None._
 | SPEC-0168 | specs | docs/specs/SPEC-0168-spec-roadmap-driven-ride-selection-with-budget.md |
 | SPEC-0169 | specs | docs/specs/SPEC-0169-spec-decisions-as-menus-in-dashboard.md |
 | SPEC-0170 | specs | docs/specs/SPEC-0170-spec-lessons-that-must-hold-downstream-are-guards.md |
+| SPEC-0171 | specs | docs/specs/SPEC-0171-spec-live-page-shows-dead-heartbeats-not-live-work.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (40)

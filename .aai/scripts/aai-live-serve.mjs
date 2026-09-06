@@ -39,8 +39,20 @@ import { sanitizeBody as sanitizeAnswer } from './hitl-channel.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
 const HEARTBEAT = path.join(HERE, 'heartbeat.mjs');
-const LIVE_STATUS = path.join(HERE, 'generate-live-status.mjs');
-const STALE_AFTER_S = 120;      // a heartbeat older than this is shown as stale, never hidden
+const LIVE_STATUS_DEFAULT = path.join(HERE, 'generate-live-status.mjs');
+const STALE_AFTER_S = 120;      // a heartbeat older than this is MARKED stale — still shown
+// A heartbeat is a heartbeat: a role that is working refreshes its slot, and
+// the `pid` field never identified the agent (heartbeat.mjs write records the
+// pid of the short-lived node process that wrote the slot, which exits at once
+// — so "is that process alive" is not a question the data can answer).
+// Freshness is the only liveness signal there is.
+//
+// WITHHOLD, not delete, and at an hour rather than at STALE_AFTER_S. The
+// reported defect was three slots from three days earlier presented as agents;
+// an hour removes that without hiding a role that paused to think for ten
+// minutes. Hiding is more destructive than marking, so the threshold fails open,
+// and what is withheld is COUNTED under the table rather than dropped.
+const HIDE_AFTER_S = 3600;
 const POLL_MS = 5000;           // the page's own refresh; Spec-AC-04
 const ANSWER_MAX_BYTES = 4096;  // D4: a decision is a sentence, not an upload
 const DEFAULT_ANSWERS = 'docs/ai/hitl-answers.jsonl';
@@ -59,13 +71,13 @@ const SWEEP_RESULTS_DIR = 'tests/skills/results';
 // can drift, and the AC would be false the day they did.
 
 function parseArgs(argv) {
-  const a = { port: 7331, host: '127.0.0.1', heartbeatDir: null, state: path.join(ROOT, 'docs/ai/STATE.yaml'), answers: path.join(ROOT, DEFAULT_ANSWERS), results: path.join(ROOT, SWEEP_RESULTS_DIR), liveStatus: true, liveInterval: 30 };
+  const a = { port: 7331, host: '127.0.0.1', heartbeatDir: null, state: path.join(ROOT, 'docs/ai/STATE.yaml'), answers: path.join(ROOT, DEFAULT_ANSWERS), results: path.join(ROOT, SWEEP_RESULTS_DIR), liveScript: LIVE_STATUS_DEFAULT, liveStatus: true, liveInterval: 30 };
   // A flag that takes a value must HAVE one: `--state` as the last token used to
   // become the string "undefined" and read a file of that name.
   const need = (k, v) => { if (v === undefined || v.startsWith('--')) { process.stderr.write(`aai-live-serve: ${k} requires a value\n`); process.exit(2); } return v; };
   for (let i = 0; i < argv.length; i += 1) {
     const k = argv[i]; const raw = argv[i + 1];
-    const v = ['--port', '--host', '--heartbeat-dir', '--state', '--live-status-interval', '--answers', '--results-dir'].includes(k) ? need(k, raw) : raw;
+    const v = ['--port', '--host', '--heartbeat-dir', '--state', '--live-status-interval', '--answers', '--results-dir', '--live-status-script'].includes(k) ? need(k, raw) : raw;
     if (k === '--port') { a.port = Number(v); i += 1; }
     else if (k === '--host') { a.host = String(v); i += 1; }
     else if (k === '--heartbeat-dir') { a.heartbeatDir = v; i += 1; }
@@ -74,6 +86,11 @@ function parseArgs(argv) {
     else if (k === '--live-status-interval') { a.liveInterval = Number(v); i += 1; }
     else if (k === '--answers') { a.answers = need(k, raw); i += 1; }
     else if (k === '--results-dir') { a.results = need(k, raw); i += 1; }
+    // A test seam beside --state / --answers / --heartbeat-dir / --results-dir:
+    // it lets a suite drive readLive from a known payload instead of whatever
+    // sessions happen to be running on the machine. Operator-supplied on the
+    // command line, same trust level as the other seams.
+    else if (k === '--live-status-script') { a.liveScript = need(k, raw); i += 1; }
     else if (k === '--help' || k === '-h') { a.help = true; }
     else { process.stderr.write(`aai-live-serve: unknown argument ${k}\n`); process.exit(2); }
   }
@@ -95,13 +112,25 @@ function readRoles(heartbeatDir) {
   const args = [HEARTBEAT, 'read', '--json'];
   if (heartbeatDir) args.push('--dir', heartbeatDir);
   const r = spawnSync(process.execPath, args, { encoding: 'utf8', timeout: 5000 });
-  if (r.status !== 0) return { roles: [], degraded: [`heartbeat read failed: ${(r.stderr || '').trim() || `exit ${r.status}`}`] };
-  let parsed; try { parsed = JSON.parse(r.stdout); } catch { return { roles: [], degraded: ['heartbeat read produced no JSON'] }; }
-  const roles = (parsed.slots || []).map((s) => ({
+  if (r.status !== 0) return { roles: [], withheld: null, degraded: [`heartbeat read failed: ${(r.stderr || '').trim() || `exit ${r.status}`}`] };
+  let parsed; try { parsed = JSON.parse(r.stdout); } catch { return { roles: [], withheld: null, degraded: ['heartbeat read produced no JSON'] }; }
+  const all = (parsed.slots || []).map((s) => ({
     role: s.role, ref_id: s.ref_id, message: s.message, updated_at: s.updated_at,
     age_seconds: s.age_seconds, stale: Number(s.age_seconds) > STALE_AFTER_S, worktree: s.worktree,
   })).sort((x, y) => x.age_seconds - y.age_seconds);
-  return { roles, degraded: parsed.degraded || [] };
+  const roles = all.filter((x) => Number(x.age_seconds) <= HIDE_AFTER_S);
+  const old_slots = all.filter((x) => Number(x.age_seconds) > HIDE_AFTER_S);
+  // reduce, not `Math.min(...arr)`: the spread throws RangeError once the array
+  // is large enough, and buildData's catch would turn that into a 500 that
+  // takes the whole page down.
+  const newestOld = old_slots.reduce((m, x) => (m === null || Number(x.age_seconds) < m ? Number(x.age_seconds) : m), null);
+  return {
+    roles,
+    // Never a bare count: the newest age is what tells a reader whether these
+    // are minutes-old work or a graveyard.
+    withheld: old_slots.length ? { count: old_slots.length, newest_age_seconds: newestOld } : null,
+    degraded: parsed.degraded || [],
+  };
 }
 
 // --- waiting: the human_input block of STATE.yaml, line-level, no YAML lib ------
@@ -185,7 +214,7 @@ function summariseSpend(spend) {
   };
   return { today: one(spend.today), seven_day: one(spend.seven_day) };
 }
-function readLive(intervalS) {
+function readLive(intervalS, script) {
   const now = Date.now();
   // A failed run is cached for the same interval: without that, a broken scan
   // would be re-run on every 5 s poll instead of every 30 s.
@@ -195,15 +224,29 @@ function readLive(intervalS) {
   try {
     outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aai-live-'));
     const html = path.join(outDir, 'live-status.html');
-    const r = spawnSync(process.execPath, [LIVE_STATUS, '--data-only', '--output', html, '--cache', LIVE_CACHE_FILE],
+    const r = spawnSync(process.execPath, [script || LIVE_STATUS_DEFAULT, '--data-only', '--output', html, '--cache', LIVE_CACHE_FILE],
       { encoding: 'utf8', cwd: ROOT, timeout: LIVE_SPAWN_TIMEOUT_MS });
     const d = JSON.parse(fs.readFileSync(path.join(outDir, 'live-status-data.json'), 'utf8'));
     const sessions = d.live_sessions || [];
+    // One reading of each field, used by BOTH the filter and the row: the
+    // filter used String(x.state) while the row used x.state ?? 'unknown', so a
+    // session with no state counted as RUNNING and then rendered as 'unknown'.
+    const field = (v) => (v === null || v === undefined ? 'unknown' : (typeof v === 'object' ? JSON.stringify(v) : String(v)));
+    const isRunning = (x) => !/finished|idle/i.test(field(x.state));
+    // The per-session detail was loaded and then thrown away: the page rendered
+    // "N active of M sessions" while harness, project and state sat right here.
+    // A count is not an answer to "what is happening now" — the rows are.
+    // Only RUNNING sessions become rows; the rest stay a count, because a list
+    // of finished work is the graveyard problem in another table.
+    const rows = sessions.filter(isRunning).map((x) => ({
+      harness: field(x.harness), project: field(x.project), state: field(x.state),
+    }));
     liveCache.data = {
       generated_at: d.generatedAt,
       harnesses: (d.harnesses || []).map((h) => ({ id: h.id, available: h.available, sessions_total: h.sessions_total })),
       sessions_total: sessions.length,
-      sessions_active: sessions.filter((s) => !/finished|idle/i.test(String(s.state))).length,
+      sessions_active: rows.length,
+      sessions: rows,
       spend: summariseSpend(d.spend),
     };
     liveCache.degraded = [...(d.degraded || []), ...(r.error ? [`live-status: ${r.error.code === 'ETIMEDOUT' ? 'timed out' : r.error.message}`] : [])];
@@ -325,12 +368,13 @@ function readSweep(base) {
 function buildData(a) {
   const roles = readRoles(a.heartbeatDir);
   const waiting = readWaiting(a.state);
-  const live = a.liveStatus ? readLive(a.liveInterval) : { data: null, degraded: [] };
+  const live = a.liveStatus ? readLive(a.liveInterval, a.liveScript) : { data: null, degraded: [] };
   const sweep = readSweep(a.results);
   return {
     generated_at: new Date().toISOString(),
     waiting: waiting.waiting,
     roles: roles.roles,
+    roles_withheld: roles.withheld,
     live: live.data,
     sweep: sweep.data,
     stale_after_seconds: STALE_AFTER_S,
@@ -358,6 +402,7 @@ th{color:#666;font-weight:600}tr.stale td{color:#999}tr.stale td.age{color:#b300
 <section id="waiting"><h2>Waits on you</h2><div id="waiting-body" class="card muted">loading…</div></section>
 <section id="roles"><h2>Agents</h2><div id="roles-body" class="card muted">loading…</div></section>
 <section id="sweep"><h2>Test sweep</h2><div id="sweep-body" class="card muted small">loading…</div></section>
+<section id="sessions"><h2>Live sessions</h2><div id="sessions-body" class="card muted">loading…</div></section>
 <section id="live"><h2>Sessions &amp; spend</h2><div id="live-body" class="card muted small">loading…</div></section>
 <section id="degraded" hidden><h2>Degraded</h2><div id="degraded-body" class="card small"></div></section>
 <script>
@@ -386,8 +431,22 @@ function render(d){
     if(inp)inp.onkeydown=(e)=>{if(e.key==='Enter'){const v=(inp.value||'').trim();if(v)post(v);}};}
   else{w.className='card muted';w.textContent='Nothing waits on you.';}
   const r=document.getElementById('roles-body');
-  if(!d.roles.length){r.className='card muted';r.textContent='No agent has a live heartbeat.';}
-  else{r.className='card';r.innerHTML='<table><tr><th>Role</th><th>Ride</th><th>Last message</th><th>Age</th></tr>'+d.roles.map(x=>'<tr class="'+(x.stale?'stale':'')+'"><td>'+esc(x.role)+'</td><td>'+esc(x.ref_id)+'</td><td>'+esc(x.message)+'</td><td class="age">'+ago(x.age_seconds)+(x.stale?' · stale':'')+'</td></tr>').join('')+'</table>';}
+  // ONE sink, so TEST-007's rule — every innerHTML render visibly escapes —
+  // still reads true of it. A precomputed fragment assigned in a second branch
+  // hid its esc() from that check even though the values were escaped.
+  r.className=d.roles.length?'card':'card muted';
+  // ONE LINE, deliberately: TEST-007 greps each innerHTML assignment per line,
+  // so an expression wrapped across lines hides its esc() from the check even
+  // when every value is escaped. Keeping the sink on one line keeps the guard
+  // able to see it. (Backticks are also forbidden here: this whole page is a
+  // template literal, and one in a comment ends it.)
+  r.innerHTML=(d.roles.length?'<table><tr><th>Role</th><th>Ride</th><th>Last message</th><th>Age</th></tr>'+d.roles.map(x=>'<tr class="'+(x.stale?'stale':'')+'"><td>'+esc(x.role)+'</td><td>'+esc(x.ref_id)+'</td><td>'+esc(x.message)+'</td><td class="age">'+ago(x.age_seconds)+(x.stale?' · stale':'')+'</td></tr>').join('')+'</table>':'No agent has a live heartbeat.')+(d.roles_withheld?'<div class="small muted">'+esc(d.roles_withheld.count)+' older slot(s) on disk, newest '+ago(d.roles_withheld.newest_age_seconds)+' ago — not shown as agents.</div>':'');
+  const ss=document.getElementById('sessions-body');
+  if(!d.live||!d.live.sessions){ss.className='card muted';ss.textContent='Live-status scan disabled or unavailable.';}
+  else if(!d.live.sessions.length){ss.className='card muted';ss.textContent='No session is running.'
+    +(d.live.sessions_total?' ('+d.live.sessions_total+' finished or idle)':'');}
+  else{ss.className='card';
+    ss.innerHTML='<table><tr><th>Harness</th><th>Project</th><th>State</th></tr>'+d.live.sessions.map(x=>'<tr><td>'+esc(x.harness)+'</td><td>'+esc(x.project)+'</td><td>'+esc(x.state)+'</td></tr>').join('')+'</table><div class="small muted">'+esc(d.live.sessions.length)+' running of '+esc(d.live.sessions_total)+' · scanned '+esc(d.live.generated_at||'unknown')+'</div>';}
   const sw=document.getElementById('sweep-body');
   if(!d.sweep){sw.className='card muted small';sw.textContent='No sweep run on disk.';}
   else{sw.className='card small';
@@ -401,7 +460,7 @@ function render(d){
   if(!d.live){l.className='card muted small';l.textContent='Live-status scan disabled or unavailable.';}
   else{l.className='card small';l.innerHTML=esc(d.live.sessions_active)+' active of '+esc(d.live.sessions_total)+' sessions · harnesses: '+d.live.harnesses.map(h=>esc(h.id)+(h.available?'':' (absent)')).join(', ')+(d.live.spend&&d.live.spend.today?' · spend today: '+esc(d.live.spend.today.entries)+' project(s)'+(d.live.spend.today.total!=null?', '+esc(d.live.spend.today.total.toLocaleString())+' tokens':''):'');}
   const g=document.getElementById('degraded');
-  if(d.degraded&&d.degraded.length){g.hidden=false;document.getElementById('degraded-body').innerHTML=d.degraded.map(esc).join('<br>');}else{g.hidden=true;}
+  if(d.degraded&&d.degraded.length){g.hidden=false;document.getElementById('degraded-body').innerHTML=d.degraded.map(x=>esc(typeof x==='string'?x:((x&&x.source?x.source+': ':'')+((x&&x.reason)||JSON.stringify(x))))).join('<br>');}else{g.hidden=true;}
 }
 async function poll(){
   const st=document.getElementById('status');
@@ -489,7 +548,7 @@ function handleAnswer(req, res, a) {
 
 function main() {
   const a = parseArgs(process.argv.slice(2));
-  if (a.help) { process.stdout.write('usage: node .aai/scripts/aai-live-serve.mjs [--port 7331] [--host 127.0.0.1] [--heartbeat-dir <dir>] [--state <STATE.yaml>] [--answers <path>] [--results-dir <dir>] [--no-live-status] [--live-status-interval <s>]\n'); process.exit(0); }
+  if (a.help) { process.stdout.write('usage: node .aai/scripts/aai-live-serve.mjs [--port 7331] [--host 127.0.0.1] [--heartbeat-dir <dir>] [--state <STATE.yaml>] [--answers <path>] [--results-dir <dir>] [--live-status-script <p>] [--no-live-status] [--live-status-interval <s>]\n'); process.exit(0); }
   refuseUnlessLoopback(a.host);
   const srv = http.createServer((req, res) => {
     const url = (req.url || '/').split('?')[0];

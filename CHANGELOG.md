@@ -11,6 +11,28 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(live): the page shows what is running, not what once ran
+
+- **The Agents table stopped being a graveyard.** It listed heartbeat slots
+  whose processes had exited days earlier — on 2026-09-06 three rows dated
+  2026-09-03/04. Slots older than an hour are now withheld and reported as a
+  count with the age of the newest, so nothing is hidden silently. The 120 s
+  stale mark still only MARKS: a role that pauses to think for ten minutes never
+  disappears, because hiding is more destructive than marking.
+- **A Live sessions table.** The page already loaded harness, project and state
+  per session and threw them away to render the sentence "N active of M". It now
+  renders a row per running session with the scan time they came from, and keeps
+  finished ones as a count.
+- **`heartbeat.mjs read` names a prefixed entry it cannot interpret**, instead of
+  ignoring a file the GC beside it is free to delete. In-flight `atomicWrite`
+  temps are excluded — the page reads every five seconds while roles write, so
+  reporting those would flag healthy writes — and the list is capped.
+- Recorded, because it cost a design: the `pid` in a slot is the pid of the
+  short-lived process that WROTE it, not of the agent. The first implementation
+  probed it, measured "0 live, 3 dead" against the real repository, and that
+  looked exactly like success while being total blindness. A heartbeat's
+  liveness signal is that a working role refreshes it.
+
 ## [unreleased] — fix(canon): a lesson that must hold downstream is a guard, not a note
 
 - **Operator contract rule 5** (`.aai/AGENTS.md`, vendored by `/aai-update`):
