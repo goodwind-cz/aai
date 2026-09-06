@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(feedback): the friction upsert channel can actually file an issue
+## [v2026.09.06] — fix(feedback): the friction upsert channel can actually file an issue
 
 - `.aai/scripts/aai-feedback-upsert.mjs` passed `--state all` to `gh search
   issues`, a value the CLI rejects (`{open|closed}`). The dedup search failed on
@@ -35,7 +35,7 @@ RFC-0001).
 - `.aai/feedback.yaml` sets `triage.mode: review`, enabling the approval-gated
   channel. A publish still requires an explicit `--publish <fp> --confirm`.
 
-## [unreleased] — feat(canon): an unsigned post-freeze spec amendment files a tracked item, not just a sentence
+## [v2026.09.06] — feat(canon): an unsigned post-freeze spec amendment files a tracked item, not just a sentence
 
 - NEW `.aai/scripts/spec-amend.mjs` — a fail-OPEN writer plus a fail-CLOSED
   detector for post-freeze spec amendments. `add --signoff none` appends the
@@ -76,7 +76,7 @@ RFC-0001).
 - CHANGE unsigned-spec-amendment-has-no-outflow / SPEC
   spec-unsigned-spec-amendment-has-no-outflow.
 
-## [unreleased] — feat(heartbeat): a long-running role writes progress the observer can read without asking the orchestrator
+## [v2026.09.06] — feat(heartbeat): a long-running role writes progress the observer can read without asking the orchestrator
 
 - NEW `.aai/scripts/heartbeat.mjs` — an advisory, machine-written progress
   signal a dispatched role emits at its own checkpoints, readable from a
@@ -157,7 +157,7 @@ RFC-0001).
   semantics. `read --json` emits `{slots, degraded}` using that generator's own
   `degraded`-array convention, as a cheap future seam only.
 
-## [unreleased] — fix(pr-gate): let the PR gate read the proof the metrics flush archived
+## [v2026.09.06] — fix(pr-gate): let the PR gate read the proof the metrics flush archived
 
 - `.aai/scripts/metrics-flush.mjs` `applyPartialReset` now APPENDS one durable
   archive record per ARCHIVE-ELIGIBLE reset ref to the reset note it already
@@ -238,7 +238,7 @@ RFC-0001).
   today), and rides flushed BEFORE this change (a second grammar for legacy
   prose would be exactly the duplicated heuristic this design refuses).
 
-## [unreleased] — fix(docs-audit): guard the premature AC-table flip at the Implementation hand-off
+## [v2026.09.06] — fix(docs-audit): guard the premature AC-table flip at the Implementation hand-off
 
 - New `node .aai/scripts/docs-audit.mjs --ac-flip-check <DOC-ID>` predicate:
   exit 1 when a doc whose frontmatter `status` is still open (`draft` /
@@ -278,7 +278,7 @@ RFC-0001).
   the same RUN_ID alongside a proof-log path exits 0. `.aai/SKILL_TDD.prompt.md`
   Phase 4 step 1b no longer restates the evidence shape locally; it inherits it.
 
-## [unreleased] — fix(release): fall back to a PR when the target branch is protected
+## [v2026.09.06] — fix(release): fall back to a PR when the target branch is protected
 
 - `.aai/scripts/aai-release.sh` and `.aai/scripts/aai-release.ps1` now push the
   target branch with `--no-follow-tags`. With `push.followTags=true` set in the
@@ -308,7 +308,7 @@ RFC-0001).
 - `.aai/SKILL_RELEASE.prompt.md` documents exit codes 1, 17 and 18 and the
   never-merge/never-publish rule.
 
-## [unreleased] — fix(harness): reconcile the AC Status table before the close gate trusts it
+## [v2026.09.06] — fix(harness): reconcile the AC Status table before the close gate trusts it
 
 - `docs-audit.mjs --gate` and `--check` could report `GATE PASS: AC Status
   table complete` while the shared markdown table parser (`parseAcTable`)
