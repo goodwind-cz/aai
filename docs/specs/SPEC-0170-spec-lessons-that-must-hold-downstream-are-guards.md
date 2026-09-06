@@ -2,13 +2,15 @@
 id: spec-lessons-that-must-hold-downstream-are-guards
 type: spec
 number: 170
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0177-lessons-that-must-hold-downstream-are-guards.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - ea83f73370f9fbd85ddee1ec4938ebc219d60f34
 ---
 
 # Spec — a lesson that must hold downstream is a guard, not a note

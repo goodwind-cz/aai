@@ -2,10 +2,12 @@
 id: lessons-that-must-hold-downstream-are-guards
 number: 177
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - ea83f73370f9fbd85ddee1ec4938ebc219d60f34
 ---
 
 # A lesson that must hold downstream is a guard, not a note
