@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-06T07:05:45.529Z
+Generated: 2026-09-06T07:13:47.868Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -466,7 +466,7 @@ _None._
 | CHANGE-0166 | issues | docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md |
 | CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
 | CHANGE-0172 | issues | docs/issues/CHANGE-0172-hand-authored-friction-is-second-class.md |
-| decision-menu-options-parser (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-decision-menu-options-parser.md |
+| CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
