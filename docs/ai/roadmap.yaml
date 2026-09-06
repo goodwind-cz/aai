@@ -11,7 +11,7 @@ budget:
 pairs:
   - capability: live-agent-dashboard-served-locally
     maintenance: roadmap-driven-ride-selection-with-budget
-    status: active
+    status: done
   - capability: decisions-as-menus-in-dashboard
     maintenance: canon-one-line-report-and-downstream-rules
     status: planned
@@ -19,6 +19,7 @@ pairs:
     maintenance: windows-codex-test-dispatch
     status: planned
 wave_2:
+  - decision-menu-options-parser
   - hand-authored-friction-is-second-class
   - review-round-cap-in-validation-canon
   - residuals-of-the-per-suite-clone-ride

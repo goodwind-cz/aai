@@ -2,17 +2,24 @@
 // aai-live-serve.mjs — a locally served live dashboard: what every agent does,
 // what waits on the owner, and for how long. SPEC live-agent-dashboard-served-locally.
 //
-// Loopback only. Node stdlib only. Zero LLM tokens. Writes nothing under the
-// repository — its only writes go to os.tmpdir() (the cached live-status run).
+// Loopback only. Node stdlib only. Zero LLM tokens. The ONE file it writes under
+// the repository is the gitignored answer ledger docs/ai/hitl-answers.jsonl
+// (POST /answer); its other writes go to os.tmpdir(). It never writes
+// docs/ai/STATE.yaml, a protected L3 surface.
 //
 // Sources, each REUSED through its own CLI so there is one parser per truth:
 //   roles    heartbeat.mjs read --json   (slots: role, ref_id, message, updated_at, age_seconds)
 //   waiting  docs/ai/STATE.yaml human_input block (required / question / blocking_reason)
+//   answer   POST /answer -> docs/ai/hitl-answers.jsonl (gitignored). The page is
+//            a SECOND TRANSPORT for the existing async-HITL channel: hitl-channel
+//            poll surfaces the record in the same shape a GitHub reply produces,
+//            so SKILL_HITL needs no change. STATE.yaml is protected L3 and is
+//            NEVER written here — clearing human_input stays SKILL_HITL's job.
 //   live     generate-live-status.mjs --data-only (harnesses, live_sessions, spend), cached
 //
 // Usage:
 //   node .aai/scripts/aai-live-serve.mjs [--port 7331] [--host 127.0.0.1]
-//     [--heartbeat-dir <dir>] [--state <STATE.yaml>] [--no-live-status]
+//     [--heartbeat-dir <dir>] [--state <STATE.yaml>] [--answers <path>] [--no-live-status]
 //     [--live-status-interval <seconds, default 30>]
 // Exit: 0 on SIGINT/SIGTERM · 1 port busy · 2 usage / non-loopback host.
 
@@ -23,6 +30,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { sanitizeBody as sanitizeAnswer } from './hitl-channel.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -30,21 +38,36 @@ const HEARTBEAT = path.join(HERE, 'heartbeat.mjs');
 const LIVE_STATUS = path.join(HERE, 'generate-live-status.mjs');
 const STALE_AFTER_S = 120;      // a heartbeat older than this is shown as stale, never hidden
 const POLL_MS = 5000;           // the page's own refresh; Spec-AC-04
+const ANSWER_MAX_BYTES = 4096;  // D4: a decision is a sentence, not an upload
+const DEFAULT_ANSWERS = 'docs/ai/hitl-answers.jsonl';
+
+// SPLIT (validation round 2, under the owner's two-round cap). The option
+// parser left this scope and ships as its own ride. Round 1 caught it
+// fabricating buttons out of prose; the round-1 anchor fix then silently
+// DROPPED real options phrased as questions — and the operator contract's own
+// shape is "a question is a menu". Two rounds is the cap, so the page serves
+// the free-text box here, which is D5's documented no-options fallback and
+// needs no new code.
+
+// AC-004 says the SAME predicate as the GitHub path, so `sanitizeAnswer` is
+// IMPORTED (top of file) rather than re-typed: a copy is two predicates that
+// can drift, and the AC would be false the day they did.
 
 function parseArgs(argv) {
-  const a = { port: 7331, host: '127.0.0.1', heartbeatDir: null, state: path.join(ROOT, 'docs/ai/STATE.yaml'), liveStatus: true, liveInterval: 30 };
+  const a = { port: 7331, host: '127.0.0.1', heartbeatDir: null, state: path.join(ROOT, 'docs/ai/STATE.yaml'), answers: path.join(ROOT, DEFAULT_ANSWERS), liveStatus: true, liveInterval: 30 };
   // A flag that takes a value must HAVE one: `--state` as the last token used to
   // become the string "undefined" and read a file of that name.
   const need = (k, v) => { if (v === undefined || v.startsWith('--')) { process.stderr.write(`aai-live-serve: ${k} requires a value\n`); process.exit(2); } return v; };
   for (let i = 0; i < argv.length; i += 1) {
     const k = argv[i]; const raw = argv[i + 1];
-    const v = ['--port', '--host', '--heartbeat-dir', '--state', '--live-status-interval'].includes(k) ? need(k, raw) : raw;
+    const v = ['--port', '--host', '--heartbeat-dir', '--state', '--live-status-interval', '--answers'].includes(k) ? need(k, raw) : raw;
     if (k === '--port') { a.port = Number(v); i += 1; }
     else if (k === '--host') { a.host = String(v); i += 1; }
     else if (k === '--heartbeat-dir') { a.heartbeatDir = v; i += 1; }
     else if (k === '--state') { a.state = v; i += 1; }
     else if (k === '--no-live-status') { a.liveStatus = false; }
     else if (k === '--live-status-interval') { a.liveInterval = Number(v); i += 1; }
+    else if (k === '--answers') { a.answers = need(k, raw); i += 1; }
     else if (k === '--help' || k === '-h') { a.help = true; }
     else { process.stderr.write(`aai-live-serve: unknown argument ${k}\n`); process.exit(2); }
   }
@@ -77,6 +100,10 @@ function readRoles(heartbeatDir) {
 
 // --- waiting: the human_input block of STATE.yaml, line-level, no YAML lib ------
 // Only the three keys the block defines are read; anything else is ignored.
+function focusRef(stateText) {
+  const m = /^current_focus:\n(?:[ \t]+.*\n)*?[ \t]+ref_id:[ \t]*(.+)$/m.exec(stateText);
+  return m ? m[1].trim().replace(/^["']|["']$/g, '') : null;
+}
 function readWaiting(statePath) {
   let text; let stat;
   try { text = fs.readFileSync(statePath, 'utf8'); stat = fs.statSync(statePath); } catch { return { waiting: null, degraded: [`STATE not readable: ${statePath}`] }; }
@@ -115,6 +142,13 @@ function readWaiting(statePath) {
   return {
     waiting: {
       question: block.question, blocking_reason: block.blocking_reason,
+      options: [],   // see the SPLIT note above
+      // ORCHESTRATION_HITL stamps the token into blocking_reason as [HITL-<n>];
+      // the ref is the focus the block belongs to. Both may be absent (a
+      // hand-written block), and POST /answer only ENFORCES a match when the
+      // live block actually carries one.
+      token: ((/\[(HITL-\d+)\]/.exec(`${block.blocking_reason || ''} ${block.question || ''}`) || [])[1]) || null,
+      ref: focusRef(text),
       since: stat.mtime.toISOString(), since_source: 'STATE.yaml mtime (rewritten by every tick — an upper bound on the wait, not the wait itself)',
     },
     degraded: [],
@@ -199,6 +233,9 @@ h1{font-size:16px;margin:0 0 12px}h2{font-size:13px;text-transform:uppercase;let
 #status{font-size:12px;color:#666}#status.stale{color:#b30000;font-weight:600}
 .card{background:#fff;border:1px solid #e3e3df;border-radius:6px;padding:10px 12px;margin:6px 0}
 .wait{border-color:#e0a000;background:#fff8e1}.wait b{display:block;font-size:15px;margin-bottom:4px}
+#opts{margin:8px 0 4px}button{font:inherit;padding:5px 10px;margin:0 6px 6px 0;border:1px solid #c9c9c4;border-radius:5px;background:#fff;cursor:pointer}
+button.rec{border-color:#2a7;box-shadow:inset 0 0 0 1px #2a7}.recmark{color:#2a7;font-size:11px}
+#freeform input{font:inherit;padding:5px 8px;border:1px solid #c9c9c4;border-radius:5px;width:min(420px,60%)}
 table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:5px 8px;border-bottom:1px solid #eee;font-size:13px}
 th{color:#666;font-weight:600}tr.stale td{color:#999}tr.stale td.age{color:#b30000}
 .muted{color:#888}.small{font-size:12px}
@@ -215,7 +252,23 @@ const ago=s=>s<60?s+' s':s<3600?Math.round(s/60)+' min':Math.round(s/360)/10+' h
 function render(d){
   const w=document.getElementById('waiting-body');
   if(d.waiting){const since=Math.max(0,Math.round((Date.now()-Date.parse(d.waiting.since))/1000));
-    w.className='card wait';w.innerHTML='<b>'+esc(d.waiting.question)+'</b>'+(d.waiting.blocking_reason?esc(d.waiting.blocking_reason)+' · ':'')+'waiting '+ago(since)+' <span class="muted">(since '+esc(d.waiting.since_source)+')</span>';}
+    const opts=(d.waiting.options||[]);
+    w.className='card wait';
+    w.innerHTML='<b>'+esc(d.waiting.question)+'</b>'+(d.waiting.blocking_reason?esc(d.waiting.blocking_reason)+' · ':'')+'waiting '+ago(since)+' <span class="muted">(since '+esc(d.waiting.since_source)+')</span>'
+      +(opts.length?'<div id="opts">'+opts.map((o,i)=>'<button class="opt'+(o.recommended?' rec':'')+'" data-i="'+i+'">'+esc(o.text)+(o.recommended?' <span class="recmark">recommended</span>':'')+'</button>').join('')+'</div>':'')
+      +'<div id="freeform"><input id="answer-text" type="text" placeholder="or type an answer…" maxlength="4000"><button id="answer-send">Send</button></div>'
+      +'<div id="answer-status" class="small muted"></div>';
+    const post=async(text)=>{
+      const st=document.getElementById('answer-status');st.textContent='sending…';
+      try{const r=await fetch('/answer',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:d.waiting.token,ref:d.waiting.ref,answer:text})});
+        const j=await r.json();
+        st.textContent=r.ok?('recorded — the loop picks it up on its next poll: '+esc(j.recorded.answer)):('refused: '+esc(j.error));
+        st.className='small'+(r.ok?'':' stale');}
+      catch(e){st.className='small stale';st.textContent='could not reach the server';}};
+    opts.forEach((o,i)=>{const b=w.querySelector('button.opt[data-i="'+i+'"]');if(b)b.onclick=()=>post(o.text);});
+    const send=document.getElementById('answer-send'),inp=document.getElementById('answer-text');
+    if(send)send.onclick=()=>{const v=(inp.value||'').trim();if(v)post(v);};
+    if(inp)inp.onkeydown=(e)=>{if(e.key==='Enter'){const v=(inp.value||'').trim();if(v)post(v);}};}
   else{w.className='card muted';w.textContent='Nothing waits on you.';}
   const r=document.getElementById('roles-body');
   if(!d.roles.length){r.className='card muted';r.textContent='No agent has a live heartbeat.';}
@@ -236,9 +289,83 @@ poll();setInterval(poll,POLL_MS);
 </script></body></html>`;
 }
 
+
+// D4 — the one write surface. It refuses more than it accepts: loopback only
+// (the server binds nowhere else), a 4 KB cap read as it streams, JSON only, a
+// non-empty answer, a token/ref that matches the LIVE block, and 409 when
+// nothing is pending — the page must not be able to manufacture a decision
+// nobody asked for. On success it appends exactly one line to one gitignored
+// file and writes nothing else, ever.
+function handleAnswer(req, res, a) {
+  const send = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); };
+
+  // CSRF / DNS-REBINDING GUARDS. "Loopback only" is NOT a guard against the
+  // browser: any page the operator has open can POST to 127.0.0.1, and a
+  // `content-type: text/plain` body (CORS-safelisted, no preflight — also a
+  // plain <form enctype="text/plain">) reaches this handler cross-site. Code
+  // review proved it: 200 and a recorded answer from `Origin: https://evil…`.
+  // Four checks, none of which the page's own fetch can fail:
+  //   1. content-type must be application/json (a safelisted type cannot be)
+  //   2. Origin, when sent, must be this very server
+  //   3. Sec-Fetch-Site, when sent, must be same-origin
+  //   4. Host must be loopback — a rebound DNS name is not this server
+  const hdr = (n) => { const v = req.headers[n]; return Array.isArray(v) ? v[0] : (v || ''); };
+  const ctype = hdr('content-type').split(';')[0].trim().toLowerCase();
+  if (ctype !== 'application/json') return send(415, { error: `content-type must be application/json, got ${ctype || '(none)'}` });
+  const hostOk = (h) => /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i.test(h);
+  const host = hdr('host');
+  if (!hostOk(host)) return send(403, { error: `Host ${host || '(none)'} is not loopback — refusing (DNS rebinding)` });
+  const origin = hdr('origin');
+  if (origin) {
+    let oh = '';
+    try { oh = new URL(origin).host; } catch { oh = 'x'; }
+    if (!hostOk(oh)) return send(403, { error: `cross-site request from ${origin} refused` });
+  }
+  const sfs = hdr('sec-fetch-site').toLowerCase();
+  if (sfs && sfs !== 'same-origin' && sfs !== 'none') return send(403, { error: `Sec-Fetch-Site ${sfs} refused` });
+
+  let size = 0; const chunks = [];
+  let aborted = false;
+  req.on('data', (c) => {
+    if (aborted) return;
+    size += c.length;
+    if (size > ANSWER_MAX_BYTES) { aborted = true; send(400, { error: `answer body exceeds ${ANSWER_MAX_BYTES} bytes` }); req.destroy(); return; }
+    chunks.push(c);
+  });
+  req.on('end', () => {
+    if (aborted) return;
+    let body;
+    try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return send(400, { error: 'body must be JSON' }); }
+    if (!body || typeof body !== 'object') return send(400, { error: 'body must be a JSON object' });
+    if (typeof body.answer !== 'string') return send(400, { error: `answer must be a string, got ${Array.isArray(body.answer) ? 'array' : typeof body.answer}` });
+    const answer = sanitizeAnswer(body.answer);
+    if (!answer) return send(400, { error: 'answer must be a non-empty string' });
+    const w = readWaiting(a.state).waiting;
+    if (!w) return send(409, { error: 'nothing waits on you — the dashboard cannot record a decision nobody asked for' });
+    const token = typeof body.token === 'string' ? body.token : null;
+    const ref = typeof body.ref === 'string' ? body.ref : null;
+    if (token && w.token && token !== w.token) return send(400, { error: `token ${token} does not match the pending decision` });
+    if (ref && w.ref && ref !== w.ref) return send(400, { error: `ref ${ref} does not match the pending decision` });
+    // A record with no token can never be polled back (readLocalAnswers requires
+    // a string token), so accepting it would tell the operator "recorded" and
+    // then lose the decision in silence. Refuse instead — validation round 2.
+    const finalToken = token || w.token || null;
+    if (!finalToken) return send(409, { error: 'this pending decision carries no [HITL-n] token, so an answer could not be routed back to the loop — answer it in the terminal' });
+    const rec = { v: 1, ts: new Date().toISOString(), token: finalToken, ref: ref || w.ref || null, answer, source: 'local-dashboard' };
+    try {
+      fs.mkdirSync(path.dirname(a.answers), { recursive: true });
+      fs.appendFileSync(a.answers, `${JSON.stringify(rec)}\n`);
+    } catch (e) {
+      return send(500, { error: `could not record the answer: ${(e && e.code) || 'write failed'}` });
+    }
+    send(200, { recorded: rec });
+  });
+  req.on('error', () => { if (!aborted) send(400, { error: 'request failed' }); });
+}
+
 function main() {
   const a = parseArgs(process.argv.slice(2));
-  if (a.help) { process.stdout.write('usage: node .aai/scripts/aai-live-serve.mjs [--port 7331] [--host 127.0.0.1] [--heartbeat-dir <dir>] [--state <STATE.yaml>] [--no-live-status] [--live-status-interval <s>]\n'); process.exit(0); }
+  if (a.help) { process.stdout.write('usage: node .aai/scripts/aai-live-serve.mjs [--port 7331] [--host 127.0.0.1] [--heartbeat-dir <dir>] [--state <STATE.yaml>] [--answers <path>] [--no-live-status] [--live-status-interval <s>]\n'); process.exit(0); }
   refuseUnlessLoopback(a.host);
   const srv = http.createServer((req, res) => {
     const url = (req.url || '/').split('?')[0];
@@ -246,6 +373,7 @@ function main() {
       let body; try { body = JSON.stringify(buildData(a)); } catch (e) { res.writeHead(500, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: String(e && e.message) })); return; }
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(body); return;
     }
+    if (url === '/answer' && (req.method || 'GET').toUpperCase() === 'POST') { return handleAnswer(req, res, a); }
     if (url === '/') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); res.end(page()); return; }
     res.writeHead(404, { 'content-type': 'text/plain' }); res.end('not found\n');
   });

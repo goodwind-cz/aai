@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Test: aai-hitl-channel (async-hitl-platform-comments /
-# SPEC-0111-spec-async-hitl-platform-comments.md, TEST-001..019).
+# SPEC-0111-spec-async-hitl-platform-comments.md, TEST-001..019;
+# spec-decisions-as-menus-in-dashboard TEST-020..023 — the LOCAL transport).
 #
 # Verifies .aai/scripts/hitl-channel.mjs — the deterministic post/poll channel
 # that turns a terminal [HITL-<n>] block into an asynchronous platform comment
@@ -29,6 +30,10 @@ TEST_NAME="aai-hitl-channel"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CHANNEL="${AAI_HITL_CHANNEL:-$PROJECT_ROOT/.aai/scripts/hitl-channel.mjs}"
+# Baseline of the operator's REAL answer ledger, taken before any case runs, so
+# TEST-023 can prove this suite never touched it (empty when the file is absent).
+REAL_LEDGER_CKSUM=""
+[[ -f "$PROJECT_ROOT/docs/ai/hitl-answers.jsonl" ]] && REAL_LEDGER_CKSUM="$(cksum "$PROJECT_ROOT/docs/ai/hitl-answers.jsonl")"
 ORCH_HITL="$PROJECT_ROOT/.aai/ORCHESTRATION_HITL.prompt.md"
 SKILL_HITL="$PROJECT_ROOT/.aai/SKILL_HITL.prompt.md"
 
@@ -112,7 +117,11 @@ jfield() {
 OUT=""; ERR=""; EC=0
 run_channel() {  # run_channel <args...>
   OUT="$TEST_DIR/out.$$"; ERR="$TEST_DIR/err.$$"; EC=0
-  ( cd "$PROJECT_ROOT" && node "$CHANNEL" "$@" >"$OUT" 2>"$ERR" ) || EC=$?
+  # run_channel cds to PROJECT_ROOT, so a relative default answers ledger would
+  # resolve to the OPERATOR'S REAL docs/ai/hitl-answers.jsonl — code review
+  # proved a forgotten --answers marked a real pending answer resolved and broke
+  # two unrelated cases. AAI_HITL_ANSWERS makes the default a fixture instead.
+  ( cd "$PROJECT_ROOT" && AAI_HITL_ANSWERS="$TEST_DIR/default-answers.jsonl" node "$CHANNEL" "$@" >"$OUT" 2>"$ERR" ) || EC=$?
 }
 
 # ---------------- TEST-001 (Spec-AC-01): post once records the sidecar --------
@@ -617,6 +626,189 @@ EOF
 # A garbage (unparseable) sidecar must NOT be treated as an empty ledger — poll
 # emits a loud degraded note (reason=sidecar_corrupt) and exits 0 with status
 # degraded, so an operator never mistakes a damaged ledger for "nothing parked".
+# --- TEST-020 (spec-decisions-as-menus-in-dashboard Spec-AC-03): a local answer
+# surfaces in the SAME shape a GitHub reply does, so SKILL_HITL STEP 0 is unchanged.
+test_020_local_answer_surfaces() {
+  log_info "TEST-020: a local /aai-live answer surfaces as status=reply source=local, with no GitHub thread involved..."
+  local d="$TEST_DIR/t020"; mkdir -p "$d"
+  local sc="$d/sidecar.json" ans="$d/answers.jsonl"
+  printf '{"entries":[]}\n' > "$sc"
+  printf '{"v":1,"ts":"2026-09-06T00:00:00Z","token":"HITL-4","ref":"a-ride","answer":"hold it","source":"local-dashboard"}\n' > "$ans"
+  run_channel poll --sidecar "$sc" --answers "$ans" --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-020: poll exited $EC: $(cat "$ERR")"; return; }
+  local n st src body tok
+  n="$(jfield "$OUT" 'o.length')";       [[ "$n" == 1 ]]        || { log_fail "TEST-020: expected one result, got $n: $(cat "$OUT")"; return; }
+  st="$(jfield "$OUT" 'o[0].status')";   [[ "$st" == reply ]]   || { log_fail "TEST-020: status must be reply, got $st"; return; }
+  src="$(jfield "$OUT" 'o[0].source')";  [[ "$src" == local ]]  || { log_fail "TEST-020: source must be local, got $src"; return; }
+  tok="$(jfield "$OUT" 'o[0].token')";   [[ "$tok" == HITL-4 ]] || { log_fail "TEST-020: token must survive, got $tok"; return; }
+  body="$(jfield "$OUT" 'o[0].body')";   [[ "$body" == "hold it" ]] || { log_fail "TEST-020: body must be the answer, got $body"; return; }
+  # a --ref for a DIFFERENT ride must not pick it up (the same trust guard as GitHub)
+  run_channel poll --sidecar "$sc" --answers "$ans" --ref other-ride --json
+  n="$(jfield "$OUT" 'o.length')"; [[ "$n" == 0 ]] || { log_fail "TEST-020: a foreign --ref must not surface this answer, got $n"; return; }
+  # An answer carrying NO ref must not slip past a narrowed poll either: a
+  # refless record matching every ref is the trust guard failing open, and it
+  # would let an old ride's HITL-<n> resolve a new ride's same-numbered token.
+  printf '{"v":1,"ts":"2026-09-06T00:00:00Z","token":"HITL-4","answer":"refless","source":"local-dashboard"}\n' > "$ans"
+  run_channel poll --sidecar "$sc" --answers "$ans" --ref a-ride --json
+  n="$(jfield "$OUT" 'o.length')"; [[ "$n" == 0 ]] || { log_fail "TEST-020: a refless answer must NOT match a narrowed --ref, got $n: $(cat "$OUT")"; return; }
+  run_channel poll --sidecar "$sc" --answers "$ans" --json
+  n="$(jfield "$OUT" 'o.length')"; [[ "$n" == 1 ]] || { log_fail "TEST-020: an unnarrowed poll must still surface a refless answer, got $n"; return; }
+  # Same guard on the OTHER path: with a question PARKED for this token, the
+  # answer is matched against the parked entry's ref. A refless answer must not
+  # attach to it either — an answer nobody can attribute must not resolve a
+  # named question. (The dashboard always stamps the focus ref, so this shape
+  # only arises from a hand-written record.)
+  local sc2="$d/sidecar-parked.json"
+  write_sidecar "$sc2" HITL-4 91 github 900020 question "2026-09-06T00:00:00Z"
+  printf '{"v":1,"ts":"2026-09-06T00:30:00Z","token":"HITL-4","answer":"refless","source":"local-dashboard"}\n' > "$ans"
+  local none="$d/no-comments.json"; printf '[]\n' > "$none"
+  run_channel poll --sidecar "$sc2" --answers "$ans" --input "$none" --json
+  st="$(jfield "$OUT" 'o[0].status')"
+  [[ "$st" != reply ]] || { log_fail "TEST-020: a refless answer must not attach to a question parked for ref $(jfield "$OUT" 'o[0].ref'), got status=$st body=$(jfield "$OUT" 'o[0].body')"; return; }
+  # ...while the SAME answer carrying the parked entry's ref does attach
+  printf '{"v":1,"ts":"2026-09-06T00:30:00Z","token":"HITL-4","ref":"CHANGE-0001","answer":"attributed","source":"local-dashboard"}\n' > "$ans"
+  run_channel poll --sidecar "$sc2" --answers "$ans" --input "$none" --json
+  st="$(jfield "$OUT" 'o[0].status')"; body="$(jfield "$OUT" 'o[0].body')"
+  [[ "$st" == reply && "$body" == attributed ]] || { log_fail "TEST-020: an answer carrying the parked ref must attach, got status=$st body=$body"; return; }
+  # GitHub unreachable is exactly when the dashboard transport must still work:
+  # a local answer survives a degraded fetch, and only its ABSENCE is a degrade.
+  run_channel poll --sidecar "$sc2" --answers "$ans" --gh-bin /nonexistent-gh --json
+  st="$(jfield "$OUT" 'o[0].status')"; body="$(jfield "$OUT" 'o[0].body')"
+  [[ "$st" == reply && "$body" == attributed ]] || { log_fail "TEST-020: with gh unreachable a local answer must still surface, got status=$st body=$body"; return; }
+  printf '' > "$ans"
+  run_channel poll --sidecar "$sc2" --answers "$ans" --gh-bin /nonexistent-gh --json
+  st="$(jfield "$OUT" 'o[0].status')"
+  [[ "$st" == degraded ]] || { log_fail "TEST-020: with gh unreachable and NO local answer the entry must degrade, got $st"; return; }
+  log_pass "TEST-020 local answer surfaces as reply/local, honours the --ref trust guard"
+}
+
+# --- TEST-021 (Spec-AC-03/04): both transports answered -> the EARLIER wins,
+# the source is named, and the body is sanitized by the same rule either way.
+test_021_local_vs_github_earlier_wins() {
+  log_info "TEST-021: with a GitHub reply and a local answer for one token, the earlier wins and names its source..."
+  local d="$TEST_DIR/t021"; mkdir -p "$d"
+  local sc="$d/sidecar.json" ans="$d/answers.jsonl" cin="$d/comments.json" pin="$d/perms.json"
+  write_sidecar "$sc" HITL-5 77 github 900021 question "2026-09-06T00:00:00Z"
+  printf '{"owner":"admin"}\n' > "$pin"
+  printf '[{"id":1,"created_at":"2026-09-06T02:00:00Z","user":{"login":"owner","type":"User"},"body":"from github"}]\n' > "$cin"
+  # local answer is EARLIER than the github reply
+  printf '{"v":1,"ts":"2026-09-06T01:00:00Z","token":"HITL-5","ref":"CHANGE-0001","answer":"from dashboard","source":"local-dashboard"}\n' > "$ans"
+  run_channel poll --sidecar "$sc" --answers "$ans" --input "$cin" --perm-input "$pin" --json
+  local src body
+  src="$(jfield "$OUT" 'o[0].source')"; body="$(jfield "$OUT" 'o[0].body')"
+  [[ "$src" == local ]] || { log_fail "TEST-021: the earlier (local) answer must win, got source=$src body=$body"; return; }
+  [[ "$body" == "from dashboard" ]] || { log_fail "TEST-021: the winning body must be the local one, got $body"; return; }
+  # now make the GitHub reply the earlier one
+  printf '{"v":1,"ts":"2026-09-06T03:00:00Z","token":"HITL-5","ref":"CHANGE-0001","answer":"from dashboard","source":"local-dashboard"}\n' > "$ans"
+  run_channel poll --sidecar "$sc" --answers "$ans" --input "$cin" --perm-input "$pin" --json
+  src="$(jfield "$OUT" 'o[0].source')"; body="$(jfield "$OUT" 'o[0].body')"
+  [[ "$src" == github ]] || { log_fail "TEST-021: the earlier (github) reply must win, got source=$src body=$body"; return; }
+  [[ "$body" == "from github" ]] || { log_fail "TEST-021: the winning body must be the github one, got $body"; return; }
+  # sanitization: a control/bidi-laden local answer is stripped exactly like a reply body
+  node -e '
+    const fs=require("fs");
+    fs.writeFileSync(process.argv[1], JSON.stringify({v:1,ts:"2026-09-06T00:00:00Z",token:"HITL-5",ref:"CHANGE-0001",
+      answer:"a"+String.fromCharCode(9)+String.fromCharCode(0x202e)+"b",source:"local-dashboard"})+"\n");' "$ans"
+  run_channel poll --sidecar "$sc" --answers "$ans" --input "$cin" --perm-input "$pin" --json
+  body="$(jfield "$OUT" 'o[0].body')"
+  [[ "$body" == "a b" ]] || { log_fail "TEST-021: a local answer must be sanitized like a reply body, got [$body]"; return; }
+  log_pass "TEST-021 earlier answer wins in both directions, source named, local body sanitized"
+}
+
+# --- TEST-022 (Spec-AC-05): resolve consumes the local answer too -------------
+test_022_resolve_consumes_local() {
+  log_info "TEST-022: resolve marks a local answer consumed so poll does not re-surface it; idempotent..."
+  local d="$TEST_DIR/t022"; mkdir -p "$d"
+  local sc="$d/sidecar.json" ans="$d/answers.jsonl"
+  printf '{"entries":[]}\n' > "$sc"
+  printf '{"v":1,"ts":"2026-09-06T00:00:00Z","token":"HITL-6","ref":"a-ride","answer":"go","source":"local-dashboard"}\n' > "$ans"
+  run_channel resolve --token HITL-6 --sidecar "$sc" --answers "$ans" --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-022: resolve exited $EC: $(cat "$ERR")"; return; }
+  local n; n="$(jfield "$OUT" 'o.local_answers_resolved')"
+  [[ "$n" == 1 ]] || { log_fail "TEST-022: one local answer must be resolved, got $n: $(cat "$OUT")"; return; }
+  run_channel poll --sidecar "$sc" --answers "$ans" --json
+  n="$(jfield "$OUT" 'o.length')"
+  [[ "$n" == 0 ]] || { log_fail "TEST-022: a resolved local answer must not re-surface, got $n: $(cat "$OUT")"; return; }
+  run_channel resolve --token HITL-6 --sidecar "$sc" --answers "$ans" --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-022: a second resolve must be a no-op exit 0, got $EC"; return; }
+  n="$(jfield "$OUT" 'o.local_answers_resolved')"
+  [[ "$n" == 0 ]] || { log_fail "TEST-022: the second resolve must consume nothing, got $n"; return; }
+  log_pass "TEST-022 resolve consumes the local answer; second poll clean; resolve idempotent"
+}
+
+# --- TEST-023 (code review B2 + B3): resolve is append-only, so an answer that
+# lands DURING a resolve survives; and this suite never touches the real ledger.
+test_023_resolve_is_append_only() {
+  log_info "TEST-023: an answer appended during a resolve survives; the real ledger is never touched..."
+  local d="$TEST_DIR/t023"; mkdir -p "$d"
+  local sc="$d/sidecar.json" ans="$d/answers.jsonl"
+  printf '{"entries":[]}\n' > "$sc"
+  printf '{"v":1,"ts":"2026-09-06T00:00:00Z","token":"HITL-8","ref":"a-ride","answer":"first","source":"local-dashboard"}\n' > "$ans"
+  # a second answer appended AFTER the resolve reads but BEFORE it would rewrite:
+  # with an append-only resolve there is no rewrite, so simply append then resolve
+  # the FIRST one and check the second is still live.
+  printf '{"v":1,"ts":"2026-09-06T00:00:05Z","token":"HITL-9","ref":"a-ride","answer":"second","source":"local-dashboard"}\n' >> "$ans"
+  run_channel resolve --token HITL-8 --sidecar "$sc" --answers "$ans" --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-023: resolve exited $EC: $(cat "$ERR")"; return; }
+  # the ledger must have GROWN (a marker appended), never shrunk or been rewritten
+  local lines; lines="$(wc -l < "$ans" | tr -d ' ')"
+  [[ "$lines" == 3 ]] || { log_fail "TEST-023: resolve must APPEND a marker (expected 3 lines, got $lines): $(cat "$ans")"; return; }
+  grep -q '"answer":"first"' "$ans" || { log_fail "TEST-023: the original answer line must survive verbatim"; return; }
+  grep -q '"answer":"second"' "$ans" || { log_fail "TEST-023: a concurrently appended answer must survive the resolve"; return; }
+  run_channel poll --sidecar "$sc" --answers "$ans" --json
+  local n tok; n="$(jfield "$OUT" 'o.length')"; tok="$(jfield "$OUT" 'o[0].token')"
+  [[ "$n" == 1 ]] || { log_fail "TEST-023: exactly the unresolved answer must surface, got $n: $(cat "$OUT")"; return; }
+  [[ "$tok" == HITL-9 ]] || { log_fail "TEST-023: the surviving answer must be the unresolved one, got $tok"; return; }
+  # the operator's real ledger is untouched by this whole suite
+  local real="$PROJECT_ROOT/docs/ai/hitl-answers.jsonl"
+  if [[ -f "$real" ]]; then
+    [[ "$REAL_LEDGER_CKSUM" == "$(cksum "$real")" ]] || { log_fail "TEST-023: the suite modified the operator's real $real"; return; }
+  else
+    [[ -z "$REAL_LEDGER_CKSUM" ]] || { log_fail "TEST-023: the suite created the operator's real $real"; return; }
+  fi
+  # The parked path has its OWN resolved filter (localAnswerFor). Mutating it
+  # survived TEST-022, whose sidecar is empty and so uses the orphan path. The
+  # parked entry's ref is CHANGE-0001, so the answer must carry that ref or the
+  # ref filter excludes it before the resolved filter is ever consulted — the
+  # first version of this arm missed the mutation for exactly that reason.
+  local sc3="$d/parked.json" ans3="$d/answers-parked.jsonl"
+  write_sidecar "$sc3" HITL-11 93 github 900023 question "2026-09-06T00:00:00Z"
+  local none3="$d/none.json"; printf '[]\n' > "$none3"
+  printf '{"v":1,"ts":"2026-09-06T00:10:00Z","token":"HITL-11","ref":"CHANGE-0001","answer":"parked answer","source":"local-dashboard"}\n' > "$ans3"
+  # unresolved: it MUST surface (or the arm below would pass vacuously)
+  run_channel poll --sidecar "$sc3" --answers "$ans3" --input "$none3" --json
+  local st3; st3="$(jfield "$OUT" 'o[0].status')"
+  [[ "$st3" == reply ]] || { log_fail "TEST-023: an unresolved answer must surface on the parked path, got $st3 — the resolved arm below would be vacuous"; return; }
+  # Append the resolution marker DIRECTLY: calling `resolve` would also mark the
+  # SIDECAR entry resolved, so poll would skip the entry entirely and the arm
+  # would pass without ever reaching localAnswerFor — vacuous, and it hid a
+  # mutation. Here the parked question stays live and only the answer is spent.
+  printf '{"v":1,"ts":"2026-09-06T00:20:00Z","token":"HITL-11","ref":"CHANGE-0001","resolves_ts":"2026-09-06T00:10:00Z","resolved":true}\n' >> "$ans3"
+  run_channel poll --sidecar "$sc3" --answers "$ans3" --input "$none3" --json
+  st3="$(jfield "$OUT" 'o[0].status')"
+  [[ "$st3" == none ]] || { log_fail "TEST-023: with the answer spent the parked entry must report none, got $st3 body=$(jfield "$OUT" 'o[0].body')"; return; }
+  # resolve --ref must not consume an answer belonging to another ride
+  printf '{"v":1,"ts":"2026-09-06T01:00:00Z","token":"HITL-8","ref":"other-ride","answer":"theirs","source":"local-dashboard"}\n' >> "$ans"
+  run_channel resolve --token HITL-8 --ref a-ride --sidecar "$sc" --answers "$ans" --json
+  local consumed; consumed="$(jfield "$OUT" 'o.local_answers_resolved')"
+  [[ "$consumed" == 0 ]] || { log_fail "TEST-023: --ref a-ride must not consume an answer filed under other-ride, consumed $consumed"; return; }
+  # a malformed line is SKIPPED, and the answers after it are still read
+  printf 'this is not json\n' >> "$ans"
+  printf '{"v":1,"ts":"2026-09-06T02:00:00Z","token":"HITL-10","ref":"a-ride","answer":"after the garbage","source":"local-dashboard"}\n' >> "$ans"
+  run_channel poll --sidecar "$sc" --answers "$ans" --json
+  local found; found="$(jfield "$OUT" 'o.filter(function(x){return x.body==="after the garbage";}).length')"
+  [[ "$found" == 1 ]] || { log_fail "TEST-023: an answer AFTER a malformed line must still be read (the header promises the line is skipped, not that the read stops): $(cat "$OUT")"; return; }
+  # An UNREADABLE ledger must appear in poll's JSON, not only on stderr: STEP 0
+  # reads the JSON, so a stderr-only warning drops the operator's answer in
+  # silence (PR #346 bot review).
+  local dirled="$d/as-a-directory"; mkdir -p "$dirled"
+  run_channel poll --sidecar "$sc" --answers "$dirled" --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-023: an unreadable ledger must not crash poll, got $EC"; return; }
+  local deg; deg="$(jfield "$OUT" 'o.filter(function(x){return x.status==="degraded"&&/local_answers_unreadable/.test(x.reason||"");}).length')"
+  [[ "$deg" == 1 ]] || { log_fail "TEST-023: an unreadable ledger must surface as a degraded entry IN THE JSON, got: $(cat "$OUT")"; return; }
+  log_pass "TEST-023 resolve appends a marker; parked-path resolved filter and --ref guard hold; a malformed line is skipped; an unreadable ledger degrades in the JSON"
+}
+
 test_019_corrupt_sidecar_failclosed() {
   log_info "TEST-019: a corrupt sidecar degrades loudly (never a silent empty ledger)..."
   local d="$TEST_DIR/t019"; mkdir -p "$d"
@@ -656,9 +848,13 @@ test_016_ref_match
 test_017_followup_supersedes
 test_018_pagination
 test_019_corrupt_sidecar_failclosed
+test_020_local_answer_surfaces
+test_021_local_vs_github_earlier_wins
+test_022_resolve_consumes_local
+test_023_resolve_is_append_only
 
 if [[ "$FAILED" == 0 ]]; then
-  echo "PASS: all aai-hitl-channel tests (TEST-001..019)"
+  echo "PASS: all aai-hitl-channel tests (TEST-001..023)"
   exit 0
 else
   echo "FAIL: aai-hitl-channel suite had failures" >&2

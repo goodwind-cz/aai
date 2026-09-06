@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-05T20:27:24.849Z
+Generated: 2026-09-06T07:40:32.579Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -49,7 +49,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (403)
+## Done (405)
 
 | ID | Type | Path |
 |---|---|---|
@@ -223,6 +223,7 @@ _None._
 | CHANGE-0171 | issues | docs/issues/CHANGE-0171-unsigned-spec-amendment-has-no-outflow.md |
 | CHANGE-0173 | issues | docs/issues/CHANGE-0173-live-agent-dashboard-served-locally.md |
 | CHANGE-0174 | issues | docs/issues/CHANGE-0174-roadmap-driven-ride-selection-with-budget.md |
+| CHANGE-0175 | issues | docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -455,15 +456,17 @@ _None._
 | SPEC-0166 | specs | docs/specs/SPEC-0166-spec-friction-upsert-channel-cannot-file.md |
 | SPEC-0167 | specs | docs/specs/SPEC-0167-spec-live-agent-dashboard-served-locally.md |
 | SPEC-0168 | specs | docs/specs/SPEC-0168-spec-roadmap-driven-ride-selection-with-budget.md |
+| SPEC-0169 | specs | docs/specs/SPEC-0169-spec-decisions-as-menus-in-dashboard.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (39)
+## Drafts (40)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0166 | issues | docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md |
 | CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
 | CHANGE-0172 | issues | docs/issues/CHANGE-0172-hand-authored-friction-is-second-class.md |
+| CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -530,4 +533,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-05 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-06 — counts above use this date for overdue checks.
