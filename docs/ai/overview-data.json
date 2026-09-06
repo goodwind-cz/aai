@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-06T18:38:32.460Z",
+  "generatedAt": "2026-09-06T18:39:24.109Z",
   "project": "aai",
   "counts": {
-    "delivered": 234,
-    "in_progress": 42,
+    "delivered": 235,
+    "in_progress": 41,
     "releases": 1,
     "tokens_total": 57249552
   },
@@ -24,7 +24,7 @@
       "user_decision": "worktree"
     },
     "validation_status": "pass",
-    "review_status": "not_run",
+    "review_status": "pass",
     "ticks": [
       {
         "tick": 2,
@@ -113,19 +113,6 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "live-page-shows-dead-heartbeats-not-live-work",
-      "title": "The live page shows dead heartbeats as agents and hides the live work",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0178-live-page-shows-dead-heartbeats-not-live-work.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0171-spec-live-page-shows-dead-heartbeats-not-live-work.md",
       "validation": null,
       "review": null
     },
@@ -635,6 +622,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0170-spec-lessons-that-must-hold-downstream-are-guards.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "live-page-shows-dead-heartbeats-not-live-work",
+      "title": "The live page shows dead heartbeats as agents and hides the live work",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0178-live-page-shows-dead-heartbeats-not-live-work.md",
+      "closed_on": "2026-09-06",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0171-spec-live-page-shows-dead-heartbeats-not-live-work.md",
       "validation": null,
       "review": null
     },
@@ -3684,6 +3684,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0170-spec-lessons-that-must-hold-downstream-are-guards.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "live-page-shows-dead-heartbeats-not-live-work",
+          "title": "The live page shows dead heartbeats as agents and hides the live work",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0178-live-page-shows-dead-heartbeats-not-live-work.md",
+          "closed_on": "2026-09-06",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0171-spec-live-page-shows-dead-heartbeats-not-live-work.md",
           "validation": null,
           "review": null
         },

@@ -2,13 +2,15 @@
 id: spec-live-page-shows-dead-heartbeats-not-live-work
 type: spec
 number: 171
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: live-page-shows-dead-heartbeats-not-live-work
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 1412b4830e6924ad64506b8a759eed9966238217
 ---
 
 # The live page shows dead heartbeats as agents and hides the live work

@@ -2,10 +2,12 @@
 id: live-page-shows-dead-heartbeats-not-live-work
 number: 178
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 1412b4830e6924ad64506b8a759eed9966238217
 ---
 
 # The live page shows dead heartbeats as agents and hides the live work

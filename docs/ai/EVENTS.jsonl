@@ -2178,3 +2178,10 @@
 {"v":1,"ts":"2026-09-06T14:11:59.041Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":475,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-09-06T17:58:02.380Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":477,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
 {"v":1,"ts":"2026-09-06T18:11:59.795Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":477,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-06T18:39:08.279Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"live-page-shows-dead-heartbeats-not-live-work","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-06T18:39:08.316Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"live-page-shows-dead-heartbeats-not-live-work","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-06T18:39:08.354Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"live-page-shows-dead-heartbeats-not-live-work","payload":{"commit":"1412b4830e6924ad64506b8a759eed9966238217"}}
+{"v":1,"ts":"2026-09-06T18:39:08.389Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-live-page-shows-dead-heartbeats-not-live-work","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-06T18:39:08.424Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-live-page-shows-dead-heartbeats-not-live-work","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-06T18:39:08.459Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-live-page-shows-dead-heartbeats-not-live-work","payload":{"commit":"1412b4830e6924ad64506b8a759eed9966238217"}}
+{"v":1,"ts":"2026-09-06T18:39:31.947Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":477,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
