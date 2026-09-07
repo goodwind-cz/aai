@@ -11,6 +11,33 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — docs(research): where the factory's tokens actually go, measured
+
+- **A reproducible measurement of this repo's own token spend.** A new
+  `docs/analysis/mechanical-context-offload/ledger-token-attribution.mjs`
+  re-derives the whole baseline from `docs/ai/METRICS.jsonl` and reconciles
+  every grouping against the total, so the numbers in the findings can be
+  re-run rather than trusted.
+- **The honest bound is 0% to 21% of runs, or 29.4% of tokens.** No per-tool
+  attribution exists anywhere in the ledger, so the mechanical share is stated
+  as a proxy upper bound with its method, over a denominator of 611 runs — not
+  the 384 that carry a usage marker. The 227 uncovered runs are reported, not
+  dropped.
+- **The pre-tool-block pattern is available-with-cost, not free.** Read from
+  the published `shunt` plugin source rather than from an article: the
+  mechanism is a mid-session model flip by construction, which conflicts with
+  this repo's own no-mid-session-flip prompt-cache rule, and it is
+  Claude-Code-only rather than harness-universal.
+- **Harness-universal routing is a contract already violated in practice.**
+  `MODEL_ROUTING.yaml` binds Anthropic ids only and no `--harness` reaches
+  dispatch, while cross-vendor runs already sit in the ledger. The
+  suffix-key proposal is recorded as `undecided`, not upheld — only one of its
+  three named falsifiers was genuinely tested.
+- **Five sized follow-ups, none filed.** Every recommendation is labelled
+  `suggested:` and verified absent from the registry, so nothing claims a
+  tracking id it does not have.
+- Refs: RES-0002, SPEC-0173.
+
 ## [unreleased] — fix(live): the page shows what is running, not what once ran
 
 - **The Agents table stopped being a graveyard.** It listed heartbeat slots

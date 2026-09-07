@@ -2526,7 +2526,7 @@ read its gate warning) to see which section is missing.
 
 Three things now hold on every ride, and each of them is measured rather than promised.
 
-[Product doc](product/simple-and-friendly-to-use.md) · [Spec](specs/SPEC-0172-spec-simple-and-friendly-to-use.md)
+[Product doc](product/ride-completion.md) · [Spec](specs/SPEC-0172-spec-simple-and-friendly-to-use.md)
 
 ### Follow-up registry on the decision ledger
 

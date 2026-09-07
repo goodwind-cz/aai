@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-07T10:18:43.520Z
+Generated: 2026-09-07T13:05:02.162Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0173 | specs | implementing | 8 planned | docs/specs/SPEC-0173-spec-mechanical-context-offload-to-cheap-tier.md |
 
 ## Canonical layer (0)
 
@@ -466,7 +467,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (44)
+## Drafts (45)
 
 | ID | Type | Path |
 |---|---|---|
@@ -514,6 +515,7 @@ _None._
 | ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
 | ISSUE-0075 | issues | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
 | ISSUE-0081 | issues | docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md |
+| RES-0002 | specs | docs/specs/RES-0002-mechanical-context-offload-to-cheap-tier.md |
 
 ## Deferred (whole-doc) (0)
 
