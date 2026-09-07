@@ -389,7 +389,10 @@ test_020_harness_surfaces_select_hygiene_pack() {  # TEST-010 / Spec-AC-09 (harn
 test_021_docs_or_ledger_only_manifests_never_full_run() {  # TEST-009 / Spec-AC-07 (simple-and-friendly-to-use)
   log_info "Test: PR #350 and PR #347 manifests replay through the real map with no FULL_RUN; docs/ai/tests/** and docs/ai/AAI_VERSION.md each select a suite (TEST-009)..."
   local root="${1:-$PROJECT_ROOT}"
-  local fx="$PROJECT_ROOT/tests/fixtures/select-suites"
+  # Fixtures live beside the ROOT under test, not beside this suite: passing a
+  # different root and then reading manifests out of $PROJECT_ROOT would test one
+  # checkout's map against another checkout's fixtures (Copilot review, PR #355).
+  local fx="$root/tests/fixtures/select-suites"
   TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
   local m out rc
   for m in pr-350.txt pr-347.txt; do

@@ -355,6 +355,17 @@ function gateJson(ctx, ref, stepEnv) {
   const r = spawnSync('node', [path.join(ctx.fixture, '.aai', 'scripts', 'nothing-left-behind.mjs'), '--ref', ref, '--json'], {
     cwd: ctx.fixture, env: stepEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
   });
+  // NON-ZERO HERE IS NOT A FLOW FAILURE, and that is deliberate — see TEST-006.
+  // The gate exits 1 whenever it has something to report, and its counts are
+  // carried into the record's files_left / docs_open / audit_findings /
+  // registry_self_items, byte-equal to this JSON (TEST-006 asserts that
+  // equality against an independent gate run). A leftover file is a FINDING,
+  // not a failed step: the flow still exits 0, and `--diff` is what exits 1 when
+  // any counter RISES between two runs (Spec-AC-05). Reported as P1 in the PR
+  // #355 bot review and re-derived as a false positive against this design —
+  // documented here so the next reader does not "fix" it back.
+  // `ok` therefore means PARSEABLE, never PASSED; only an unreadable gate is a
+  // problem entry, because then the counters would be silently absent.
   try { return { ok: true, json: JSON.parse(r.stdout), exit_code: r.status }; }
   catch (err) { return { ok: false, json: null, exit_code: r.status, error: `${err.message}: ${(r.stderr || r.stdout).trim().slice(0, OUTPUT_CHARS)}` }; }
 }
@@ -400,7 +411,11 @@ function readRecords(recordPath) {
   const out = [];
   for (const line of fs.readFileSync(recordPath, 'utf8').split('\n')) {
     if (!line.trim()) continue;
-    try { out.push(JSON.parse(line)); } catch { /* a malformed line is named below, never crashes the diff */ out.push({ malformed: line.slice(0, 80) }); }
+    // A malformed line is NAMED and never crashes the diff — but it must not be
+    // compared either: every counter reads `undefined`, nothing can be
+    // classified as rising, and `--diff` would print `0 worse` and exit 0 over a
+    // corrupt record. runDiff refuses instead (Codex review P2, PR #355).
+    try { out.push(JSON.parse(line)); } catch { out.push({ malformed: line.slice(0, 80) }); }
   }
   return out;
 }
@@ -412,6 +427,11 @@ function runDiff(recordPath) {
     exit(0);
   }
   const [prev, last] = records.slice(-2);
+  const bad = [prev, last].filter((r) => r && r.malformed !== undefined);
+  if (bad.length) {
+    process.stderr.write(`golden-flow --diff: refusing to compare a malformed record in ${recordPath}: ${bad.map((r) => r.malformed).join(' | ')}\n`);
+    exit(2);
+  }
   const keys = [...new Set([...Object.keys(prev), ...Object.keys(last)])].filter(k => k !== 'questions');
   let worse = 0, differ = 0;
   for (const k of keys) {
