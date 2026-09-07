@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-07T14:48:15.791Z
+Generated: 2026-09-07T15:56:18.593Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| unattended-rides-human-gate-at-merge | rfc | accepted | — | docs/rfc/RFC-DRAFT-unattended-rides-human-gate-at-merge.md |
 
 ## Canonical layer (0)
 
