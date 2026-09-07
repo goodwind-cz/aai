@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-07T07:26:42.904Z
+Generated: 2026-09-07T07:32:47.444Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -473,9 +473,9 @@ _None._
 | CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
 | CHANGE-0172 | issues | docs/issues/CHANGE-0172-hand-authored-friction-is-second-class.md |
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
-| friction-issues-arrive-without-a-description (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-friction-issues-arrive-without-a-description.md |
-| shared-worktree-moves-another-agents-head (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-shared-worktree-moves-another-agents-head.md |
-| unrecorded-spec-amendment-is-invisible (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-unrecorded-spec-amendment-is-invisible.md |
+| CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
+| CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
+| CHANGE-0181 | issues | docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -512,7 +512,7 @@ _None._
 | ISSUE-0073 | issues | docs/issues/ISSUE-0073-uncarved-dispatch-lanes.md |
 | ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
 | ISSUE-0075 | issues | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
-| close-ceremony-fires-only-via-aai-pr (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-close-ceremony-fires-only-via-aai-pr.md |
+| ISSUE-0081 | issues | docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 
 ## Deferred (whole-doc) (0)
