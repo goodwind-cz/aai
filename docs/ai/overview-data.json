@@ -1,68 +1,18 @@
 {
-  "generatedAt": "2026-09-06T18:49:09.887Z",
+  "generatedAt": "2026-09-07T08:46:12.721Z",
   "project": "aai",
   "counts": {
-    "delivered": 235,
-    "in_progress": 41,
+    "delivered": 236,
+    "in_progress": 46,
     "releases": 1,
     "tokens_total": 57249552
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "live-page-shows-dead-heartbeats-not-live-work",
-    "type": "intake_change"
+    "ref": null,
+    "type": "none"
   },
-  "in_flight": {
-    "focus": {
-      "ref": "live-page-shows-dead-heartbeats-not-live-work",
-      "type": "intake_change",
-      "phase": "planning"
-    },
-    "strategy": "hybrid",
-    "worktree": {
-      "recommendation": "optional",
-      "user_decision": "worktree"
-    },
-    "validation_status": "pass",
-    "review_status": "pass",
-    "ticks": [
-      {
-        "tick": 2,
-        "role": "Preparation (worktree gate)",
-        "scope": "adhoc-probes-unisolated-report-only",
-        "duration_seconds": 5,
-        "harness_version": "2.1.251"
-      },
-      {
-        "tick": 1,
-        "role": "Planning",
-        "scope": "adhoc-probes-unisolated-report-only",
-        "duration_seconds": 801,
-        "harness_version": "2.1.251"
-      },
-      {
-        "tick": 1,
-        "role": "Planning",
-        "scope": "intake-staleness-preflight-warning",
-        "duration_seconds": 356,
-        "harness_version": "2.1.251 (Claude Code)"
-      },
-      {
-        "tick": 1,
-        "role": "Planning",
-        "scope": "aai-update-gitignore-drift-reconcile",
-        "duration_seconds": 740,
-        "harness_version": "2.1.251 (Claude Code)"
-      },
-      {
-        "tick": 160,
-        "role": "Metrics Flush",
-        "scope": "harness-surfaces-drift-unguarded",
-        "duration_seconds": 18,
-        "harness_version": "codex-cli 0.144.5"
-      }
-    ]
-  },
+  "in_flight": null,
   "in_progress": [
     {
       "ref": "residuals-of-the-per-suite-clone-ride",
@@ -109,6 +59,45 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0176-decision-menu-options-parser.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "friction-issues-arrive-without-a-description",
+      "title": "A friction issue arrives with a failure class and no description",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "shared-worktree-moves-another-agents-head",
+      "title": "One agent's branch switch moves another agent's HEAD mid-ceremony",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "unrecorded-spec-amendment-is-invisible",
+      "title": "An amendment nobody recorded is invisible to the gate that exists to catch it",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -585,6 +574,19 @@
       "review": null
     },
     {
+      "ref": "close-ceremony-fires-only-via-aai-pr",
+      "title": "The close ceremony fires only through /aai-pr, so any other route ships silent drafts",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -596,9 +598,35 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "unattended-rides-human-gate-at-merge",
+      "title": "RFC (Decision Proposal)",
+      "type": "rfc",
+      "status": "draft",
+      "path": "docs/rfc/RFC-DRAFT-unattended-rides-human-gate-at-merge.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
     }
   ],
   "delivered": [
+    {
+      "ref": "simple-and-friendly-to-use",
+      "title": "AAI is simple and friendly to use",
+      "type": "requirement",
+      "status": "done",
+      "path": "docs/requirements/PRD-0001-simple-and-friendly-to-use.md",
+      "closed_on": "2026-09-07",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0172-spec-simple-and-friendly-to-use.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "decisions-as-menus-in-dashboard",
       "title": "A pending decision is answerable from the dashboard, through the channel that already exists",
@@ -3661,6 +3689,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "simple-and-friendly-to-use",
+          "title": "AAI is simple and friendly to use",
+          "type": "requirement",
+          "status": "done",
+          "path": "docs/requirements/PRD-0001-simple-and-friendly-to-use.md",
+          "closed_on": "2026-09-07",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0172-spec-simple-and-friendly-to-use.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "decisions-as-menus-in-dashboard",
           "title": "A pending decision is answerable from the dashboard, through the channel that already exists",
