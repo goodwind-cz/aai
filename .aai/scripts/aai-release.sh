@@ -93,6 +93,55 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# --- golden-flow record precondition (simple-and-friendly-to-use D4). A release
+# is the cadence the PRD asks the golden flow to run at, and a missing record is
+# what "we never measured this release" looks like. NAMED, never blocking (the
+# same posture as the unlogged-PR check below): a release has one shot. Prints
+# ONE line when no docs/ai/tests/golden-flow.jsonl record has a run_utc newer
+# than the previous tag's commit date (or the file is absent), nothing otherwise
+# — so a repo with a fresh record keeps its block byte-identical. Arms only
+# where the command it names exists (.aai/scripts/golden-flow.mjs): a repo that
+# never vendored the flow cannot be told to run it.
+golden_flow_record_gap() {
+  local prev rec_utc last newer_tag
+  prev="$(git -C "$ROOT" describe --tags --abbrev=0 2>/dev/null || true)"
+  [ -n "$prev" ] || return 0
+  [ -f "$ROOT/.aai/scripts/golden-flow.mjs" ] || return 0
+  if [ ! -s "$ROOT/docs/ai/tests/golden-flow.jsonl" ]; then
+    echo "no record file (docs/ai/tests/golden-flow.jsonl) since $prev"
+    return 0
+  fi
+  # The newest record is the last line; the writer serializes run_utc as
+  # "run_utc":"<ISO-8601Z>", so a fixed sed on that key is the whole parser.
+  last="$(tail -n 1 "$ROOT/docs/ai/tests/golden-flow.jsonl")"
+  rec_utc="$(printf '%s\n' "$last" | sed -n 's/.*"run_utc":"\([^"]*\)".*/\1/p')"
+  if [ -z "$rec_utc" ]; then
+    echo "newest record carries no run_utc, so nothing proves a run since $prev"
+    return 0
+  fi
+  # A non-empty but UNPARSABLE run_utc must be NAMED, not handed to git:
+  # git's approxidate resolves garbage to `now`, so `--after=<garbage>` lists
+  # nothing, the comparison below stays silent, and a release with no evidence
+  # reads as ready — the exact silence D4 exists to remove. golden-flow.mjs
+  # serializes run_utc as `new Date().toISOString()` with the milliseconds
+  # stripped, so the shape is fixed and the check is a glob, not a parser.
+  case "$rec_utc" in
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
+    *)
+      echo "newest record carries an unparsable run_utc (\"$rec_utc\"), so nothing proves a run since $prev"
+      return 0
+      ;;
+  esac
+  # git compares the dates: the tag's commit is listed under --after=<run_utc>
+  # only when it is newer than the record (no date(1) parsing, which differs
+  # between BSD and GNU).
+  newer_tag="$(git -C "$ROOT" log -1 --after="$rec_utc" --format=%H "$prev" 2>/dev/null || true)"
+  if [ -n "$newer_tag" ]; then
+    echo "newest record $rec_utc is older than $prev ($(git -C "$ROOT" log -1 --format=%ci "$prev" 2>/dev/null || true))"
+  fi
+  return 0
+}
+
 # --- unlogged-PR precondition (spec-lessons-that-must-hold-downstream-are-guards
 # D2). The cut rolls up "## [unreleased]" sections; a PR merged since the previous
 # tag that never wrote one is omitted SILENTLY. v2026.09.06 would have shipped
@@ -333,10 +382,18 @@ if [[ "$CONFIRM" != "1" ]]; then
     printf '%s\n' "$UNLOGGED" | sed 's/^/    - /'
     echo "    Add a '## [unreleased] — <title>' section for each, or confirm they are covered under another title."
   fi
+  GOLDEN_GAP="$(golden_flow_record_gap || true)"
+  if [[ -n "$GOLDEN_GAP" ]]; then
+    echo "- NAMED (not blocking): no golden-flow record since the previous tag — $GOLDEN_GAP."
+    # A CONCRETE scratch dir, not a placeholder: the flow rebuilds <out>/target,
+    # which is the build-output directory of Rust/Maven/Gradle. golden-flow.mjs
+    # refuses a non-empty --out it did not create, and mktemp makes an empty one.
+    echo "    Produce one with: node .aai/scripts/golden-flow.mjs --out \"\$(mktemp -d)\" --metrics docs/ai/METRICS.jsonl"
+  fi
   # "none" must mean the whole block found nothing. Saying "none — ready to cut"
   # directly under a list of named PRs is the report contradicting itself in the
   # one document an operator reads before cutting (code review, 2026-09-06).
-  if [[ "$blocked" == "0" && -z "$UNLOGGED" ]]; then
+  if [[ "$blocked" == "0" && -z "$UNLOGGED" && -z "$GOLDEN_GAP" ]]; then
     echo "- none — ready to cut with --confirm"
   elif [[ "$blocked" == "0" ]]; then
     echo "- nothing blocks the cut; the NAMED item above is for you to confirm first"

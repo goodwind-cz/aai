@@ -26,7 +26,6 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
 // A ref is a slug id OR a numbered display id (CHANGE-0042, RFC-0012): 36 docs carry the latter.
 const SLUG = /^(?:[a-z0-9][a-z0-9-]{1,79}|[A-Z]{2,10}-\d{4})$/;
-const DOC_STATUSES = new Set(['draft', 'implementing', 'done', 'deferred', 'rejected', 'superseded']);
 const STARTED = new Set(['implementing', 'done']);
 // Words in a slug that mark maintenance when the intake type does not already.
 const MAINT_WORDS = /(^|-)(fix|guard|harness|hygiene|tripwire|flake|refactor|cleanup|lint|chore|test|ci)(-|$)/;

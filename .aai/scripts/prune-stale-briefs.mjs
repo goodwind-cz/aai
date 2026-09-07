@@ -3,7 +3,7 @@
 // A brief `docs/ai/briefs/<REF-ID>.md` is a Planning-emitted subagent handoff — a
 // gitignored runtime artifact (like docs/ai/reports/). It is LIVE only while its
 // work item is OPEN; once the item reaches a terminal status
-// (done | deferred | rejected | superseded | legacy) — or its doc no longer exists
+// (lib/docs-model.mjs TERMINAL_DOC_STATUS) — or its doc no longer exists
 // at all (an orphan) — the brief is dead clutter. `close-work-item.mjs` prunes the
 // brief of the doc IT closes, but briefs closed BEFORE that hook shipped, or in
 // bulk, accumulate as a backlog. This sweep prunes every stale brief in one pass.
@@ -23,18 +23,18 @@
 
 import { readFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES } from './lib/docs-model.mjs';
+import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES, TERMINAL_DOC_STATUS } from './lib/docs-model.mjs';
 import { scanAuditDocs } from './lib/docs-audit-core.mjs';
 
-// Statuses at which a work item is still in flight, so its brief is a LIVE handoff.
-// Every other DOC_STATUS_ENUM value (done|deferred|rejected|superseded|legacy) is
-// terminal — the brief is consumed and safe to prune.
-// The EXPLICIT terminal set — a brief is pruned ONLY when its doc's status is one
-// of these (or the brief is an orphan). Everything NOT here — an open status, an
-// empty status, or an unrecognized/typo'd value — is KEPT. Deleting on merely
-// "not open" would over-prune an unknown/future status (PR #152 review, Codex +
-// Copilot P2): the safe direction for a delete is to keep on any uncertainty.
-const TERMINAL_STATUSES = new Set(['done', 'deferred', 'rejected', 'superseded', 'legacy']);
+// A brief is pruned ONLY when its doc's status is terminal (or the brief is an
+// orphan). The set is the layer's ONE lifecycle partition, lib/docs-model.mjs
+// TERMINAL_DOC_STATUS — this file used to carry a private copy that predated
+// `current` and so kept a steady-state product doc's consumed brief forever.
+// Everything NOT terminal — an open status, an empty status, or an
+// unrecognized/typo'd value — is still KEPT: deleting on merely "not open"
+// would over-prune an unknown/future status (PR #152 review, Codex + Copilot
+// P2), and the imported set is literal (never a complement), so an
+// unclassified status can never drift INTO it.
 
 const ROOT = process.cwd();
 const BRIEFS_DIR = path.join(ROOT, 'docs', 'ai', 'briefs');
@@ -46,7 +46,16 @@ const BRIEFS_DIR = path.join(ROOT, 'docs', 'ai', 'briefs');
 // read/parse error (only a brief with NO doc file at all is treated as an orphan).
 function buildStatusIndex() {
   const idx = new Map();
-  for (const { rel } of scanAuditDocs(ROOT)) {
+  // SORTED, not raw scan order. scanAuditDocs walks readdirSync, which returns
+  // whatever the filesystem gives: APFS hands back name order, ext4 with
+  // dir_index hands back hash order. This loop DECIDES A DELETE, and the
+  // shadowed-id case below is resolved by which of two docs sharing one id is
+  // seen first — so an unsorted walk makes the outcome, and the regression arm
+  // that guards it, depend on the developer's filesystem. Measured: the arm
+  // catches on macOS and is vacuous under the reversed order, i.e. blind on the
+  // Linux CI leg that gates the merge (code review R1, 2026-09-07).
+  const scanned = [...scanAuditDocs(ROOT)].sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  for (const { rel } of scanned) {
     const display = extractDocIds(path.basename(rel), DEFAULT_CATEGORY_PREFIXES);
     let fm = null;
     try { fm = parseFrontmatter(readFileSync(path.join(ROOT, rel), 'utf8')); } catch { /* unparseable */ }
@@ -54,10 +63,20 @@ function buildStatusIndex() {
     // Slug id only when parsed; display id (from the filename) is always available.
     const keys = [fm && fm.id, display && display.primary].filter(Boolean);
     for (const key of keys) {
-      // First writer wins — a doc's ids are unique; a later duplicate id is itself a
-      // docs-audit finding, not this sweep's concern. An empty status -> 'unknown'
-      // so the brief is kept, not pruned.
-      if (!idx.has(key)) idx.set(key, status || 'unknown');
+      // First writer wins, EXCEPT that a non-terminal status always beats a
+      // terminal one for the same key. Ids are not unique across FAMILIES by
+      // design: a capability-keyed product doc (docs/product/<capability>.md,
+      // steady state `current`) legitimately shares its slug with the ride's
+      // own intake doc, so a plain first-writer-wins let the settled product
+      // doc shadow an OPEN work item and prune its live handoff — the exact
+      // over-prune direction PR #152's review closed. Keep on any uncertainty:
+      // an empty status -> 'unknown', which is non-terminal and therefore also
+      // wins over a terminal one.
+      const next = status || 'unknown';
+      const prev = idx.get(key);
+      if (prev === undefined || (TERMINAL_DOC_STATUS.has(prev) && !TERMINAL_DOC_STATUS.has(next))) {
+        idx.set(key, next);
+      }
     }
   }
   return idx;
@@ -77,7 +96,7 @@ function sweep(dryRun) {
     const status = index.get(name);
     let reason;
     if (status === undefined) reason = 'orphan (no matching doc)';
-    else if (TERMINAL_STATUSES.has(status)) reason = `terminal (${status})`;
+    else if (TERMINAL_DOC_STATUS.has(status)) reason = `terminal (${status})`;
     else { kept.push({ file, status }); continue; }  // OPEN or unrecognized -> KEEP
     if (!dryRun) {
       try { rmSync(path.join(BRIEFS_DIR, file)); } catch { /* best-effort */ }

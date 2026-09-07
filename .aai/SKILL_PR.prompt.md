@@ -243,6 +243,14 @@ PROCESS
      Exit 0: proceed. Non-zero: STOP — step 4c did not run (or its commit is
      missing from this branch); go back and complete 4c. Never push a ride
      whose work-item doc is not yet `status: done`.
+   - NOTHING-LEFT-BEHIND GATE (simple-and-friendly-to-use D2) — after the
+     close ceremony's final commit and before the push line below:
+       node .aai/scripts/nothing-left-behind.mjs --ref <slug>
+     Exit 0 prints CLEAN: proceed. Non-zero: STOP, quote its output in full
+     (every item is named under files_left / docs_open / audit_findings /
+     registry_self_items) and clear each item before pushing — an untracked
+     file, a doc still `draft`, an audit finding or a follow-up this ride
+     filed about its own ceremony is what a merged ride leaves behind.
    - `github`/`azure`/`unknown` with a remote: `git push -u origin <branch>`.
      `none`: skip the push entirely and go straight to GENERIC MODE below.
    - Branch on the value the step-5 probe printed — NEVER guess:

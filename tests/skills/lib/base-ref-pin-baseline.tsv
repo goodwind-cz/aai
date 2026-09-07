@@ -15,6 +15,7 @@
 #
 1	test-aai-deslop.sh
 1	test-aai-factory-report.sh
+1	test-aai-golden-flow.sh
 1	test-aai-hitl-propagation.sh
 1	test-aai-hooks-overlay.sh
 1	test-aai-release.sh

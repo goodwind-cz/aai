@@ -1,23 +1,24 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-06T20:10:57.748Z
+Generated: 2026-09-07T07:26:42.904Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0172 | specs | implementing | 8 done | docs/specs/SPEC-0172-spec-simple-and-friendly-to-use.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (27)
+## Product (28)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -44,6 +45,7 @@ _None._
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
+| simple-and-friendly-to-use | simple-and-friendly-to-use | 1 | docs/product/simple-and-friendly-to-use.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
@@ -463,7 +465,7 @@ _None._
 | SPEC-0171 | specs | docs/specs/SPEC-0171-spec-live-page-shows-dead-heartbeats-not-live-work.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (40)
+## Drafts (45)
 
 | ID | Type | Path |
 |---|---|---|
@@ -471,6 +473,9 @@ _None._
 | CHANGE-0167 | issues | docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md |
 | CHANGE-0172 | issues | docs/issues/CHANGE-0172-hand-authored-friction-is-second-class.md |
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
+| friction-issues-arrive-without-a-description (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-friction-issues-arrive-without-a-description.md |
+| shared-worktree-moves-another-agents-head (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-shared-worktree-moves-another-agents-head.md |
+| unrecorded-spec-amendment-is-invisible (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-unrecorded-spec-amendment-is-invisible.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -507,6 +512,8 @@ _None._
 | ISSUE-0073 | issues | docs/issues/ISSUE-0073-uncarved-dispatch-lanes.md |
 | ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
 | ISSUE-0075 | issues | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
+| close-ceremony-fires-only-via-aai-pr (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-close-ceremony-fires-only-via-aai-pr.md |
+| PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -537,4 +544,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-06 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-07 — counts above use this date for overdue checks.

@@ -386,6 +386,40 @@ test_020_harness_surfaces_select_hygiene_pack() {  # TEST-010 / Spec-AC-09 (harn
   log_pass "test_020: all five harness surface paths select aai-hygiene-pack, none unmapped (TEST-010)"
 }
 
+test_021_docs_or_ledger_only_manifests_never_full_run() {  # TEST-009 / Spec-AC-07 (simple-and-friendly-to-use)
+  log_info "Test: PR #350 and PR #347 manifests replay through the real map with no FULL_RUN; docs/ai/tests/** and docs/ai/AAI_VERSION.md each select a suite (TEST-009)..."
+  local root="${1:-$PROJECT_ROOT}"
+  local fx="$PROJECT_ROOT/tests/fixtures/select-suites"
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local m out rc
+  for m in pr-350.txt pr-347.txt; do
+    [[ -f "$fx/$m" ]] || log_fail "test_021: manifest fixture missing: $fx/$m"
+    out="$(node "$SELECTOR" --repo-root "$root" --files-from "$fx/$m" 2>&1)"; rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "test_021: exit code must be 0 for $m, got $rc: $out"
+    case "$out" in
+      *"FULL_RUN"*) log_fail "test_021: $m is docs-or-ledger-only and must not escalate: $out" ;;
+    esac
+    case "$out" in
+      *"SELECTED "*) ;;
+      *) log_fail "test_021: $m must select at least one suite: $out" ;;
+    esac
+  done
+  local list="$TEST_DIR/t021-files.txt" p
+  for p in "docs/ai/tests/x.jsonl" "docs/ai/AAI_VERSION.md"; do
+    printf '%s\n' "$p" > "$list"
+    out="$(node "$SELECTOR" --repo-root "$root" --files-from "$list" 2>&1)"; rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "test_021: exit code must be 0 for $p, got $rc: $out"
+    case "$out" in
+      *"FULL_RUN reason=unmapped"*) log_fail "test_021: $p must be mapped: $out" ;;
+    esac
+    case "$out" in
+      *"SELECTED "*) ;;
+      *) log_fail "test_021: $p must select at least one suite: $out" ;;
+    esac
+  done
+  log_pass "test_021: docs-or-ledger-only manifests never FULL_RUN; both ledger paths mapped (TEST-009)"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -406,6 +440,7 @@ main() {
   test_018_gate_job_contract
   test_019_ghost_core_entry_fails_open
   test_020_harness_surfaces_select_hygiene_pack
+  test_021_docs_or_ledger_only_manifests_never_full_run
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

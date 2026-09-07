@@ -1366,6 +1366,72 @@ test_035_fallback_incomplete_exits_18() {
   log_pass "TEST-035 D5 exit 18: a taken release-branch name stops the fallback before the reset, names the manual commands, opens no PR"
 }
 
+# --- TEST-036 (simple-and-friendly-to-use Spec-AC-06 / spec TEST-008): the
+# dry run NAMES a missing golden-flow record; never blocks; byte-identical
+# `## Preconditions` block when a record newer than the tag exists ----------
+
+test_036_golden_flow_record_precondition() {
+  log_info "TEST-036 (spec TEST-008): no record / stale record -> NAMED line; fresh record -> Preconditions byte-identical..."
+  local repo="$TMP_ROOT/t036" out rc pre
+  build_repo "$repo" two_entries
+  # The precondition names `node .aai/scripts/golden-flow.mjs`, so it arms only
+  # where that command exists (a generic repo's block stays byte-identical).
+  mkdir -p "$repo/.aai/scripts" "$repo/docs/ai/tests"
+  cp "$PROJECT_ROOT/.aai/scripts/golden-flow.mjs" "$repo/.aai/scripts/golden-flow.mjs"
+  commit_all "$repo" "vendor golden-flow"
+  git -C "$repo" tag -a v2026.01.01 -m v2026.01.01
+  local tag_date; tag_date="$(git -C "$repo" log -1 --format=%ci v2026.01.01)"
+  printf 'x\n' > "$repo/x.txt"; commit_all "$repo" "feat: after the tag (#1)"
+  printf '# Changelog\n\n## [unreleased] — feat: after the tag\n\n- did it (#1)\n\n## [v2026.01.01] — feat: old release (REF-0)\n\n- old content\n' > "$repo/CHANGELOG.md"
+  commit_all "$repo" "chore: log #1"
+  extract_pre() { awk '/^## Preconditions/{f=1;next} /^## /{f=0} f' "$1"; }
+
+  # Arm (a): no record file at all.
+  out="$TMP_ROOT/t036-a.out"; rc=0
+  ( cd "$repo" && AAI_RELEASE_NO_REMOTE=1 bash "$RELEASE_SH" --dry-run ) > "$out" 2>&1 || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "TEST-036(a): dry run must exit 0, got $rc: $(cat "$out")"
+  pre="$(extract_pre "$out")"
+  case "$pre" in *"NAMED (not blocking)"*"golden-flow"*"v2026.01.01"*) ;; *) log_fail "TEST-036(a): absent record must be NAMED with the tag: $pre" ;; esac
+  case "$pre" in *"node .aai/scripts/golden-flow.mjs"*) ;; *) log_fail "TEST-036(a): the line must name the command that produces a record: $pre" ;; esac
+  case "$pre" in *"would block"*) log_fail "TEST-036(a): a missing record must never block: $pre" ;; esac
+
+  # Arm (b): a record OLDER than the tag's commit date.
+  printf '{"v":1,"run_utc":"2020-01-01T00:00:00Z","steps_failed":0}\n' > "$repo/docs/ai/tests/golden-flow.jsonl"
+  commit_all "$repo" "chore: stale golden-flow record"
+  out="$TMP_ROOT/t036-b.out"; rc=0
+  ( cd "$repo" && AAI_RELEASE_NO_REMOTE=1 bash "$RELEASE_SH" --dry-run ) > "$out" 2>&1 || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "TEST-036(b): dry run must exit 0, got $rc"
+  pre="$(extract_pre "$out")"
+  case "$pre" in *"NAMED (not blocking)"*"golden-flow"*"2020-01-01T00:00:00Z"*) ;; *) log_fail "TEST-036(b): a stale record must be NAMED with its run_utc: $pre" ;; esac
+  case "$pre" in *"would block"*) log_fail "TEST-036(b): a stale record must never block: $pre" ;; esac
+
+  # Arm (c): a record NEWER than the tag -> the block is byte-identical to the
+  # pre-change shape for a clean, fully-logged, tagged repo.
+  printf '{"v":1,"run_utc":"2020-01-01T00:00:00Z","steps_failed":0}\n{"v":1,"run_utc":"2099-01-01T00:00:00Z","steps_failed":0}\n' > "$repo/docs/ai/tests/golden-flow.jsonl"
+  commit_all "$repo" "chore: fresh golden-flow record"
+  out="$TMP_ROOT/t036-c.out"; rc=0
+  ( cd "$repo" && AAI_RELEASE_NO_REMOTE=1 bash "$RELEASE_SH" --dry-run ) > "$out" 2>&1 || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "TEST-036(c): dry run must exit 0, got $rc"
+  pre="$(extract_pre "$out")"
+  local expected; expected="$(printf -- '- none — ready to cut with --confirm\n')"
+  [[ "$pre" == "$expected" ]] || log_fail "TEST-036(c): with a record newer than the tag ($tag_date) the block must be byte-identical to the pre-change shape; got: $pre"
+
+  # Arm (d): a non-empty but UNPARSABLE run_utc. git's approxidate resolves
+  # garbage to `now`, so `--after=<garbage>` lists nothing and the check used
+  # to fall silent — reporting "ready to cut" for a release with no evidence.
+  # It must be NAMED like the empty case, and still never block.
+  printf '{"v":1,"run_utc":"not-a-date-at-all","steps_failed":0}\n' > "$repo/docs/ai/tests/golden-flow.jsonl"
+  commit_all "$repo" "chore: unparsable golden-flow record"
+  out="$TMP_ROOT/t036-d.out"; rc=0
+  ( cd "$repo" && AAI_RELEASE_NO_REMOTE=1 bash "$RELEASE_SH" --dry-run ) > "$out" 2>&1 || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "TEST-036(d): dry run must exit 0, got $rc: $(cat "$out")"
+  pre="$(extract_pre "$out")"
+  case "$pre" in *"unparsable run_utc"*"not-a-date-at-all"*) ;; *) log_fail "TEST-036(d): an unparsable run_utc must be NAMED with its value: $pre" ;; esac
+  case "$pre" in *"would block"*) log_fail "TEST-036(d): an unparsable record must never block: $pre" ;; esac
+  [[ "$pre" != "$expected" ]] || log_fail "TEST-036(d): an unparsable run_utc must not read as ready to cut: $pre"
+  log_pass "TEST-036 (spec TEST-008): missing/stale/unparsable record NAMED (never blocking); fresh record leaves the block byte-identical"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -1411,6 +1477,7 @@ main() {
   test_033_ps1_fallback_parity
   test_034_exit_codes_documented
   test_035_fallback_incomplete_exits_18
+  test_036_golden_flow_record_precondition
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
