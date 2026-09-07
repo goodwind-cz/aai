@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-07T14:09:57.537Z
+Generated: 2026-09-07T14:41:28.364Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -468,7 +468,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (44)
+## Drafts (45)
 
 | ID | Type | Path |
 |---|---|---|
@@ -516,6 +516,7 @@ _None._
 | ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
 | ISSUE-0075 | issues | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
 | ISSUE-0081 | issues | docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md |
+| unattended-rides-human-gate-at-merge (unnumbered draft) | rfc | docs/rfc/RFC-DRAFT-unattended-rides-human-gate-at-merge.md |
 
 ## Deferred (whole-doc) (0)
 

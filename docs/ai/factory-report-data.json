@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T13:07:24.860Z",
+  "generatedAt": "2026-09-07T14:40:49.835Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -3697,7 +3697,7 @@
         "id": "fu-docsaudit-t003-red-on-new-doc",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P3",
-        "age_days": 17,
+        "age_days": 18,
         "what": "test-aai-docs-audit.sh TEST-003 regenerates docs/INDEX.md and diffs it against the committed one, so it is RED for the whole life of any scope that adds a doc, and test-aai-delta-stage3.sh TEST-007 inherits the failure",
         "status": "open"
       },
@@ -3705,7 +3705,7 @@
         "id": "fu-ismain-symlink-realpath",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 17,
+        "age_days": 18,
         "what": "every .mjs CLI guards main() with path.resolve(process.argv[1]) === fileURLToPath(import.meta.url), which is FALSE whenever the checkout is reached through a symlink, so the CLI exits 0 having printed nothing",
         "status": "open"
       },
@@ -3713,7 +3713,7 @@
         "id": "fu-orchestrator-monitor-uses-gnu-find",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 17,
+        "age_days": 18,
         "what": "the orchestrator's liveness check for running agents used GNU find syntax (-newermt '-N minutes') with stderr sent to /dev/null; on this host find rejects it, so the check reported zero writes as a RESULT when it was a silent command failure",
         "status": "open"
       },
@@ -3833,7 +3833,7 @@
         "id": "fu-docsaudit-idmention-probe-per-doc",
         "ref": "spec-docs-history-is-one-git-call-per-doc",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "docs-audit still spends one git log -1 --grep per document for the id-mention probe",
         "status": "open"
       },
@@ -4153,7 +4153,7 @@
         "id": "fu-ac08-negation-coverage",
         "ref": "aai-update-gitignore-drift-reconcile",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "TEST-015 (Spec-AC-08) exercises only 4 of 29 RUNTIME_IGNORE.list patterns and never asserts the negation lines (!docs/ai/*/.gitkeep) keep placeholders tracked",
         "status": "open"
       },
@@ -4161,7 +4161,7 @@
         "id": "fu-gitignore-crlf-exact-line",
         "ref": "aai-update-gitignore-drift-reconcile",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "gitignore-block.sh's grep -qxF exact-line match does not strip CR, so on a CRLF-terminated .gitignore repeated aai-sync runs re-append every runtime pattern each time",
         "status": "open"
       },
@@ -4241,7 +4241,7 @@
         "id": "fu-closure-allowlist-pin-blocks-draining",
         "ref": "adhoc-probes-unisolated-report-only",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "test-aai-follow-ups.sh pins the Spec-AC-11 known-unverified-closure allowlist to both a hardcoded count (-eq 3) and exact sorted contents, permanently, inside a suite that now runs on every docs-only diff",
         "status": "open"
       },
@@ -4249,7 +4249,7 @@
         "id": "fu-inline-claim-blankline-dropped",
         "ref": "adhoc-probes-unisolated-report-only",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "extractInlineClaims in follow-ups.mjs cuts the claim list at the first blank line after the 'Registry items closed by this scope:' label, so the common markdown shape of a label line, a blank line, then a bullet list of ids yields zero claims",
         "status": "open"
       },
@@ -4257,7 +4257,7 @@
         "id": "fu-test031-guard-dies-at-rename",
         "ref": "adhoc-probes-unisolated-report-only",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "TEST-031's delivery-diff guard in test-aai-follow-ups.sh is keyed to a literal grep for this scope's own SPEC-DRAFT filename; once the close ceremony renames the spec to its numbered SPEC-XXXX form, the grep stops matching, the guard silently skips its own check, and log_pass still prints the claim that no other frozen spec document is touched",
         "status": "open"
       },
@@ -4265,7 +4265,7 @@
         "id": "fu-verify-closures-corpus-cwd-silent",
         "ref": "adhoc-probes-unisolated-report-only",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "verify-closures corpus mode resolves docs/specs and docs/issues against process.cwd() and reports zero claims/zero misses with exit 0 (even under --strict) when both roots resolve to nothing from a foreign cwd",
         "status": "open"
       },
@@ -4361,7 +4361,7 @@
         "id": "fu-amend-ac-table-premature-flip-recurs",
         "ref": "ac-table-premature-flip-recurs",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "owner sign-off owed on 1 unsigned post-freeze amendment to SPEC-0162 (spec-ac-table-premature-flip-recurs): accept the amended spec, or reverse the amendment",
         "status": "open"
       },
@@ -4481,7 +4481,7 @@
         "id": "fu-friction-issue-body-is-prose-free",
         "ref": "friction-upsert-channel-cannot-file",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "with capture.summary_enabled false (RFC-0013 D2, a deliberate redaction-safety default) a filed friction issue carries only templated structured fields: failure_class, skill, phase, impact, os_family, node_major, recurrence, score and the dedup marker; there is no sentence saying what went wrong, so a maintainer reading it upstream cannot act on it",
         "status": "open"
       },
@@ -4489,7 +4489,7 @@
         "id": "fu-friction-scoring-rewards-recurrence",
         "ref": "friction-upsert-channel-cannot-file",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "the triage score is dominated by recurrence, so 4 of 7 review candidates are low-confidence aai-run-tests records while the two high-confidence ones rank mid-table; and a schema-v1 observation carries no impact/confidence fields at all, so the three friction items the owner dictated by hand (backlog-drain standardisation, live agent dashboard, untested guard text) can never become candidates",
         "status": "open"
       },
@@ -4497,7 +4497,7 @@
         "id": "fu-friction-prose-free-list-inexact",
         "ref": "friction-upsert-channel-cannot-file",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "correction to fu-friction-issue-body-is-prose-free: its enumeration of the filed issue body was presented as exhaustive and was not. The template also emits confidence, aai_pin, and where present reproducible, workaround and evidence_ref. That weakens the original claim rather than merely completing it: evidence_ref and workaround ARE partly actionable, so the honest statement is that the body carries no free-text description of what went wrong, not that it is pure telemetry",
         "status": "open"
       },

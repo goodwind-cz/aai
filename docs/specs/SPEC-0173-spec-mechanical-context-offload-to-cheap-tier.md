@@ -11,6 +11,7 @@ links:
     - 357
   commits:
     - 1a386877
+    - 60912836
 ---
 
 # Spec — offloading mechanical context work to a cheap tier (research spike)
