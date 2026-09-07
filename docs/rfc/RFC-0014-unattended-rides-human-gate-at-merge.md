@@ -1,7 +1,7 @@
 ---
 id: unattended-rides-human-gate-at-merge
 type: rfc
-number: null
+number: 14
 status: accepted
 links:
   spec: null
