@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-07T10:18:43.520Z
+Generated: 2026-09-07T14:09:57.537Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -50,7 +50,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (411)
+## Done (413)
 
 | ID | Type | Path |
 |---|---|---|
@@ -290,6 +290,7 @@ _None._
 | RFC-0011 | rfc | docs/rfc/RFC-0011-delta-spec-lifecycle.md |
 | RFC-0013 | rfc | docs/rfc/RFC-0013-friction-record-v2-redaction.md |
 | RES-0001 | specs | docs/specs/RES-0001-aai-competitive-gap-and-model-efficiency.md |
+| RES-0002 | specs | docs/specs/RES-0002-mechanical-context-offload-to-cheap-tier.md |
 | RESEARCH-0001 | specs | docs/specs/RESEARCH-0001-spec-kit-comparative.md |
 | SPEC-0001 | specs | docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md |
 | SPEC-0002 | specs | docs/specs/SPEC-0002-docs-canonicalization-skill.md |
@@ -463,6 +464,7 @@ _None._
 | SPEC-0170 | specs | docs/specs/SPEC-0170-spec-lessons-that-must-hold-downstream-are-guards.md |
 | SPEC-0171 | specs | docs/specs/SPEC-0171-spec-live-page-shows-dead-heartbeats-not-live-work.md |
 | SPEC-0172 | specs | docs/specs/SPEC-0172-spec-simple-and-friendly-to-use.md |
+| SPEC-0173 | specs | docs/specs/SPEC-0173-spec-mechanical-context-offload-to-cheap-tier.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
