@@ -2,10 +2,12 @@
 id: mechanical-context-offload-to-cheap-tier
 type: research
 number: 2
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 1a386877
 ---
 
 # Research — Offloading Mechanical Context Work to a Cheap Tier

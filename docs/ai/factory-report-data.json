@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-09-07T08:46:12.834Z",
+  "generatedAt": "2026-09-07T13:07:24.860Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 132,
-    "delivered": 418,
+    "delivered": 420,
     "active_weeks": 11,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (418 closes vs 132 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 418,
-    "delivered_per_week_avg": 38,
+    "note": "\"delivered\" counts every work_item_closed event (420 closes vs 132 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 420,
+    "delivered_per_week_avg": 38.2,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -25,7 +25,7 @@
       "2026-W34": 33,
       "2026-W35": 20,
       "2026-W36": 31,
-      "2026-W37": 2
+      "2026-W37": 4
     },
     "delivered_groups": [
       {
@@ -436,7 +436,7 @@
         "key": "month:2026-09",
         "kind": "month",
         "label": "2026-09",
-        "count": 30,
+        "count": 32,
         "refs": [
           "intake-staleness-preflight-warning",
           "spec-intake-staleness-preflight-warning",
@@ -467,7 +467,9 @@
           "live-page-shows-dead-heartbeats-not-live-work",
           "spec-live-page-shows-dead-heartbeats-not-live-work",
           "simple-and-friendly-to-use",
-          "spec-simple-and-friendly-to-use"
+          "spec-simple-and-friendly-to-use",
+          "mechanical-context-offload-to-cheap-tier",
+          "spec-mechanical-context-offload-to-cheap-tier"
         ]
       }
     ],
@@ -2144,12 +2146,20 @@
         {
           "ref": "spec-simple-and-friendly-to-use",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "mechanical-context-offload-to-cheap-tier",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-mechanical-context-offload-to-cheap-tier",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3901,
       "mean_seconds": 119606,
       "measured": 128,
-      "unmeasurable": 290
+      "unmeasurable": 292
     }
   },
   "speed": {
@@ -3527,7 +3537,7 @@
     },
     {
       "week": "2026-W37",
-      "delivered": 2,
+      "delivered": 4,
       "median_lead_time_seconds": null,
       "busy_seconds": null,
       "tokens": null,
@@ -3536,7 +3546,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 148,
+    "open_count": 150,
     "oldest_age_days": 24,
     "items": [
       {
@@ -3583,7 +3593,7 @@
         "id": "fu-setfocus-keeps-stale-spec-path",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 23,
+        "age_days": 24,
         "what": "set-focus to a new ref leaves the previous scope's spec_path in current_focus, so the next dispatch hands the role a foreign spec as an input",
         "status": "open"
       },
@@ -3647,7 +3657,7 @@
         "id": "fu-openct-unrdbl-report",
         "ref": "followups-cli-hardening",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "generate-factory-report.mjs:616 publishes follow_ups.open_count: 0 for an UNREADABLE ledger (e.g. --decisions a directory), the same 'a bad input reads as good news' shape D2 refuses on the CLI; the file's own oldest_age_days convention two lines down already uses null, never 0, for exactly this degradation",
         "status": "open"
       },
@@ -3655,7 +3665,7 @@
         "id": "fu-sync-hash-compare-fails-open",
         "ref": "followups-cli-hardening",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "file_content_different in aai-sync.sh treats an unobtainable hash as different, so a transient sha256sum hiccup silently rewrites the target's copilot shim and plants a project-overrides file",
         "status": "open"
       },
@@ -3799,7 +3809,7 @@
         "id": "fu-posix-arm-reddens-on-prose-backslash",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "index_posix_findings tests every line for a backslash, not only path tokens, so a Notes cell mentioning a regex reddens the arm with index path is not POSIX",
         "status": "open"
       },
@@ -3807,7 +3817,7 @@
         "id": "fu-staleness-source-line-self-certifies",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "index_stale_findings derives its scanned dirs from the Source: line of the index under test, so an index stale because a family was added never checks that family",
         "status": "open"
       },
@@ -3815,7 +3825,7 @@
         "id": "fu-posix-predicate-exit-conflates-infra",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "index_posix_findings exits 1 both for real path findings and for the predicate failing to run, and does not fold stderr into the captured output, so an infrastructure failure surfaces as a path defect with an empty message",
         "status": "open"
       },
@@ -4007,7 +4017,7 @@
         "id": "fu-lean-ac-heading-two-authorities",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "docs-audit --gate accepts a lean AC table under the heading Acceptance Criteria while generate-docs-index.mjs near-miss flags exactly that heading and demands Acceptance Criteria Status",
         "status": "open"
       },
@@ -4015,7 +4025,7 @@
         "id": "fu-pgq-grep-error-reopened",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "pgq_scan sends grep stderr to /dev/null and treats a per-file error as count 0, so an unreadable file is reported as an improvement (reopens fu-pgq-scan-silent-on-grep-error)",
         "status": "open"
       },
@@ -4023,7 +4033,7 @@
         "id": "fu-overview-project-from-dirname",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "generate-overview.mjs derives the project field from path.basename(ROOT) (line 343), so any non-canonically named checkout (worktree, CI dir) leaks its local directory name into the committed overview pages",
         "status": "open"
       },
@@ -4031,7 +4041,7 @@
         "id": "fu-exit-contract-pin-comment-dup",
         "ref": "a-branch-diff-pin-taxes-every-later-scope",
         "severity": "P2",
-        "age_days": 13,
+        "age_days": 14,
         "what": "TEST-011(clarify)'s spec-freeze exit-contract pins (grep -qF \"$p\" \"$f\") check the WHOLE FILE, not the emitted string; spec-freeze.mjs's header comment (lines 54-61) duplicates all four exit-contract phrases verbatim above the runtime strings (lines 101-106) that actually compose the CLI output",
         "status": "open"
       },
@@ -4039,7 +4049,7 @@
         "id": "fu-overview-links-gitignored-reports",
         "ref": "a-branch-diff-pin-taxes-every-later-scope",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "the committed overview embeds links to gitignored validation/review report paths, so every such link 404s from a fresh clone",
         "status": "open"
       },
@@ -4111,7 +4121,7 @@
         "id": "fu-metrics-verdict-has-no-staleness",
         "ref": "agent-shell-can-write-the-shipping-repo",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "the metrics ledger records verdict PASS with no notion of whether the verdict covers the final bytes, so a ride whose last work lands after its last review is counted as reviewed-and-passed",
         "status": "open"
       },
@@ -4119,7 +4129,7 @@
         "id": "fu-overview-bakes-untracked-state",
         "ref": "agent-shell-can-write-the-shipping-repo",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "docs/ai/overview.html and overview-data.json are tracked artefacts generated from docs/ai/STATE.yaml, which is untracked by design, so every commit of them bakes one machine's local state into the repository",
         "status": "open"
       },
@@ -4135,7 +4145,7 @@
         "id": "fu-registry-has-no-reopen",
         "ref": "operator-waiver-unblocks-pr",
         "severity": "P3",
-        "age_days": 8,
+        "age_days": 9,
         "what": "follow-ups.mjs close accepts only done|dropped, so an item closed on a mistaken premise cannot be reopened without hand-editing an append-only ledger",
         "status": "open"
       },
@@ -4215,7 +4225,7 @@
         "id": "fu-verify-closures-strict-value-off",
         "ref": "adhoc-probes-unisolated-report-only",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "verify-closures --strict=<value> is accepted by the --flag=value escape hatch and silently means report-only (the boolean check requires exact ===true)",
         "status": "open"
       },
@@ -4223,7 +4233,7 @@
         "id": "fu-verify-closures-claim-before-label",
         "ref": "adhoc-probes-unisolated-report-only",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "extractHeadingClaims only scans segments after each label match; a fu- id named in prose before the first CLOSED FULLY/QUALIFIEDLY/NOT CLOSED label is silently never checked",
         "status": "open"
       },
@@ -4327,7 +4337,7 @@
         "id": "fu-specs-embed-developer-local-paths",
         "ref": "release-protected-branch-fallback",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "24 merged specs under docs/specs embed a developer-local absolute path (/Users/ales/...), mostly in the Isolation-and-review worktree line that Planning writes; the path is useful provenance during a ride and dead weight plus an environment leak after merge",
         "status": "open"
       },
@@ -4335,7 +4345,7 @@
         "id": "fu-ac-flip-guard-lean-table-blind",
         "ref": "ac-table-premature-flip-recurs",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "docs-audit --ac-flip-check cannot see a premature AC flip on a lean ceremony_level 0/1 table, because the D2(c) arm it shares with falseOpenEvidence reads only the canonical parseAcTable table",
         "status": "open"
       },
@@ -4343,7 +4353,7 @@
         "id": "fu-suitemap-state-missing-role-common",
         "ref": "ac-table-premature-flip-recurs",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "tests/skills/suite-map.yaml's aai-state globs do not list .aai/ROLE_COMMON.md, so an edit touching only the shared PRE-HANDOFF block never selects the suite carrying test-aai-state.sh TEST-017, the test that pins the two implementer prompts against exactly that block",
         "status": "open"
       },
@@ -4463,7 +4473,7 @@
         "id": "fu-factory-report-stale-draft-path",
         "ref": "friction-upsert-channel-cannot-file",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "regenerating docs/ai/factory-report.html while fu-amend-friction-upsert-channel-ba7701 is open reintroduces a stale SPEC-DRAFT literal and fails the doc-numbering stale-draft-ref guard; PR 337 left the page at its origin/main version rather than regenerated, so the next person to regenerate and commit it meets a red CI they did not cause",
         "status": "open"
       },
@@ -4543,7 +4553,7 @@
         "id": "fu-learned-bash32-local-crossref",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "bash 3.2 forbids cross-referencing variables inside one local statement — the hygiene pack lints suite shell and could carry this as a rule",
         "status": "open"
       },
@@ -4551,7 +4561,7 @@
         "id": "fu-learned-external-runner-routing",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the loop and test skills must never launch vitest/tsc/dev-servers directly — this is a rule about vendored prompts and belongs in a check over those prompts, not in a note",
         "status": "open"
       },
@@ -4559,7 +4569,7 @@
         "id": "fu-learned-framework-owns-how",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the framework-owns-HOW invariant is an architectural rule of the layer, not a lesson: it belongs in canon (AGENTS/CONSTITUTION) where a downstream reader will find it",
         "status": "open"
       },
@@ -4567,7 +4577,7 @@
         "id": "fu-learned-ledger-merge-procedure",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "merging an append-only ledger (keep both sides, dedupe, sort, verify nothing lost from main) is a procedure written as prose; it should be a script so the steps cannot be half-remembered mid-conflict",
         "status": "open"
       },
@@ -4575,7 +4585,7 @@
         "id": "fu-learned-vitest-leak-is-a-guard",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "a runner that does not exit on its own is a test-leak bug — the reaper already enforces this at the harness level, so the LEARNED entry should point at that guard rather than ask the next author to recognise the shape",
         "status": "open"
       },
@@ -4583,7 +4593,7 @@
         "id": "fu-learned-worktree-seeded-copies",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "a feature worktree seeded with copies of not-yet-committed docs silently diverges — a worktree-hygiene check could detect the shape at creation",
         "status": "open"
       },
@@ -4591,7 +4601,7 @@
         "id": "fu-amend-lessons-that-must-hold-d-13bccc",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-lessons-that-must-hold-downstream-are-guards: a guard marker in LEARNED.md may point at an already-shipped script, not only at an open follow-up; the test asserts each kind against reality",
         "status": "open"
       },
@@ -4599,7 +4609,7 @@
         "id": "fu-sweep-dies-at-wrapper-default",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "The full sweep run the canonical way is killed by the wrapper's own default watchdog: AAI_TEST_TIMEOUT defaults to 300s, the sweep needs ~30 min, so it dies at suite 8 of 89 with exit 124 and no explanation",
         "status": "open"
       },
@@ -4607,7 +4617,7 @@
         "id": "fu-triage-undated-learned-log",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "The ~20 undated entries in the '## Session …' sections of docs/knowledge/LEARNED.md carry no [local] / [guard] marker and were never triaged; several are plainly the downstream class (BSD vs GNU tools on macOS versus Ubuntu CI, never git clean under docs/, a new audit gate must be validated against the whole corpus)",
         "status": "open"
       },
@@ -4615,7 +4625,7 @@
         "id": "fu-learned-deny-by-default-mocks",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "A guard that flags a test double which exits 0 on argv it does not recognise: a mock must pin the expected shape and deny everything else, and where it stands in for a mutating call it must pin the VALUES too",
         "status": "open"
       },
@@ -4623,7 +4633,7 @@
         "id": "fu-learned-immutable-pin-lint",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "A lint over tests/skills that flags any assertion whose comment claims a pin is immutable while the code resolves the base through a moving ref (origin/main, HEAD, a branch name)",
         "status": "open"
       },
@@ -4631,7 +4641,7 @@
         "id": "fu-learned-positive-control-for-absence",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "A suite asserting an ABSENCE (nothing leaked, no call made, no write happened) must carry a positive control proving the code under test actually ran; the framework should refuse or flag an absence-assertion arm that records zero invocations",
         "status": "open"
       },
@@ -4639,7 +4649,7 @@
         "id": "fu-blob-check-ledger-append-noise",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "The committed-blob check fires on the append-only ledgers (docs/ai/EVENTS.jsonl, decisions.jsonl) whenever tooling appends a line between staging and committing — on its first real run it named EVENTS.jsonl for one docs_audit telemetry line",
         "status": "open"
       },
@@ -4721,6 +4731,22 @@
         "severity": "P3",
         "age_days": 0,
         "what": "golden-flow questions_asked counts every failed step rather than only steps that actually asked a human, because the questions array is a problem log and questions_asked is its length",
+        "status": "open"
+      },
+      {
+        "id": "fu-product-doc-id-collides-with-intake",
+        "ref": "simple-and-friendly-to-use",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "a product doc keyed by the ride slug shares its frontmatter id with the ride's own intake doc, and close-work-item then rolls back forever: the post-close audit resolves that id to the product doc, whose steady state current docs-audit classifies as tracked-open",
+        "status": "open"
+      },
+      {
+        "id": "fu-spec-evidence-cites-gitignored-path",
+        "ref": "simple-and-friendly-to-use",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "a spec Evidence cell citing tests/skills/results/<RUN_ID> names a gitignored directory, so the close-time evidence-path gate refuses it; this spec was the only one in the repo doing it",
         "status": "open"
       }
     ]

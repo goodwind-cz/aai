@@ -2200,3 +2200,9 @@
 {"v":1,"ts":"2026-09-07T08:45:55.920Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-simple-and-friendly-to-use","payload":{"commit":"230921a89853440b1d091a8c91987239ef2f3035"}}
 {"v":1,"ts":"2026-09-07T04:37:40.089Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-mechanical-context-offload-to-cheap-tier","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-09-07T04:52:34.413Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":479,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-07T13:07:08.730Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"mechanical-context-offload-to-cheap-tier","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-07T13:07:08.763Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"mechanical-context-offload-to-cheap-tier","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-07T13:07:08.801Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"mechanical-context-offload-to-cheap-tier","payload":{"commit":"1a386877"}}
+{"v":1,"ts":"2026-09-07T13:07:08.837Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-mechanical-context-offload-to-cheap-tier","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-07T13:07:08.872Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-mechanical-context-offload-to-cheap-tier","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-07T13:07:08.904Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-mechanical-context-offload-to-cheap-tier","payload":{"commit":"1a386877"}}
