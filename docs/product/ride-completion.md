@@ -1,7 +1,7 @@
 ---
-id: simple-and-friendly-to-use
+id: ride-completion
 type: product
-capability: simple-and-friendly-to-use
+capability: ride-completion
 status: current
 delivered_by:
   - simple-and-friendly-to-use

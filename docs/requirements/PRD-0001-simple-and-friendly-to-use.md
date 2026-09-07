@@ -1,12 +1,15 @@
 ---
 id: simple-and-friendly-to-use
 type: requirement
+capability: ride-completion
 number: 1
-status: draft
+status: done
 links:
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 355
+  commits:
+    - 230921a89853440b1d091a8c91987239ef2f3035
 ---
 
 # AAI is simple and friendly to use

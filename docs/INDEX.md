@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-07T08:08:55.749Z
+Generated: 2026-09-07T10:18:43.520Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0172 | specs | implementing | 8 done | docs/specs/SPEC-0172-spec-simple-and-friendly-to-use.md |
 
 ## Canonical layer (0)
 
@@ -44,14 +43,14 @@ _None._
 | platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
+| ride-completion | ride-completion | 1 | docs/product/ride-completion.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
-| simple-and-friendly-to-use | simple-and-friendly-to-use | 1 | docs/product/simple-and-friendly-to-use.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (409)
+## Done (411)
 
 | ID | Type | Path |
 |---|---|---|
@@ -463,9 +462,11 @@ _None._
 | SPEC-0169 | specs | docs/specs/SPEC-0169-spec-decisions-as-menus-in-dashboard.md |
 | SPEC-0170 | specs | docs/specs/SPEC-0170-spec-lessons-that-must-hold-downstream-are-guards.md |
 | SPEC-0171 | specs | docs/specs/SPEC-0171-spec-live-page-shows-dead-heartbeats-not-live-work.md |
+| SPEC-0172 | specs | docs/specs/SPEC-0172-spec-simple-and-friendly-to-use.md |
+| PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (45)
+## Drafts (44)
 
 | ID | Type | Path |
 |---|---|---|
@@ -513,7 +514,6 @@ _None._
 | ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
 | ISSUE-0075 | issues | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
 | ISSUE-0081 | issues | docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md |
-| PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 
 ## Deferred (whole-doc) (0)
 
