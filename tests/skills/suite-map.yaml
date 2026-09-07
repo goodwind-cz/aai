@@ -289,6 +289,15 @@ suites:
       - .aai/scripts/ride-select.mjs
       - docs/ai/roadmap.yaml
 
+  aai-unattended:
+    globs:
+      - .aai/scripts/unattended-gate.mjs
+      - .aai/SKILL_SHIP.prompt.md
+      - .aai/SKILL_LOOP.prompt.md
+      - .aai/SKILL_PR.prompt.md
+      - .aai/SKILL_HITL.prompt.md
+      - .aai/AGENTS.md
+
   aai-live-serve:
     globs:
       - .aai/scripts/aai-live-serve.mjs

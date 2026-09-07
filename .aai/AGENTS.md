@@ -348,8 +348,11 @@ discipline is opt-in downstream).
 - Intake efficiency policy: ask only for missing high-impact fields, prefer
   explicit assumptions over long clarification loops, and keep intake token-light.
 - Commit gating policy: create a commit only after the full intake-scoped task
-  is completed, verified with executable evidence, fully documented, and only
-  after explicit user confirmation.
+  is completed, verified with executable evidence, and fully documented, at
+  which point validation PASS plus the satisfied review gate ARE the
+  authority to commit, push and open the pull request (RFC-0014 D2) — the
+  human confirmation this policy required sits at the merge, not before the
+  pull request.
 
 ## Engineering Best Practices
 - Prefer DRY: avoid duplicated logic; extract shared behavior behind clear interfaces.

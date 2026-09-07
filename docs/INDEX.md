@@ -7,11 +7,12 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-unattended-rides-human-gate-at-merge | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-unattended-rides-human-gate-at-merge.md |
 | RFC-0014 | rfc | accepted | — | docs/rfc/RFC-0014-unattended-rides-human-gate-at-merge.md |
 
 ## Canonical layer (0)

@@ -27,9 +27,12 @@ PRECONDITIONS (all must hold before any git write)
   to `docs/ai/METRICS.jsonl` (grammars + actors + bindings: the script's
   header). Bare `not_run`, an empty reason, `fail`: blocked. Non-zero: STOP.
 - If `code_review.required == true`: `code_review.status` is `pass` or `waived`.
-- Explicit user confirmation to commit/push (AGENTS.md commit gating policy:
-  commit only after the full intake-scoped task is completed, verified with
-  executable evidence, fully documented, and confirmed by the user).
+- Authority to commit/push (AGENTS.md commit gating policy, RFC-0014 D2): the
+  full intake-scoped task is completed, verified with executable evidence,
+  and fully documented — validation PASS plus the satisfied review gate above
+  ARE the authority to commit, push and open the pull request; no separate
+  confirmation is asked here. The human confirmation moves to the merge — the
+  pull request this ceremony opens IS the surface that confirmation waits at.
 If any precondition fails, STOP and report which gate is open.
 
 PROCESS

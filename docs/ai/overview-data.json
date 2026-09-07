@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T16:03:31.279Z",
+  "generatedAt": "2026-09-07T18:21:22.266Z",
   "project": "aai",
   "counts": {
     "delivered": 236,
@@ -9,10 +9,60 @@
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": null,
-    "type": "none"
+    "ref": "unattended-rides-human-gate-at-merge",
+    "type": "intake_rfc"
   },
-  "in_flight": null,
+  "in_flight": {
+    "focus": {
+      "ref": "unattended-rides-human-gate-at-merge",
+      "type": "intake_rfc",
+      "phase": "planning"
+    },
+    "strategy": "tdd",
+    "worktree": {
+      "recommendation": "optional",
+      "user_decision": "inline"
+    },
+    "validation_status": "pass",
+    "review_status": "not_run",
+    "ticks": [
+      {
+        "tick": 2,
+        "role": "Preparation (worktree gate)",
+        "scope": "adhoc-probes-unisolated-report-only",
+        "duration_seconds": 5,
+        "harness_version": "2.1.251"
+      },
+      {
+        "tick": 1,
+        "role": "Planning",
+        "scope": "adhoc-probes-unisolated-report-only",
+        "duration_seconds": 801,
+        "harness_version": "2.1.251"
+      },
+      {
+        "tick": 1,
+        "role": "Planning",
+        "scope": "intake-staleness-preflight-warning",
+        "duration_seconds": 356,
+        "harness_version": "2.1.251 (Claude Code)"
+      },
+      {
+        "tick": 1,
+        "role": "Planning",
+        "scope": "aai-update-gitignore-drift-reconcile",
+        "duration_seconds": 740,
+        "harness_version": "2.1.251 (Claude Code)"
+      },
+      {
+        "tick": 160,
+        "role": "Metrics Flush",
+        "scope": "harness-surfaces-drift-unguarded",
+        "duration_seconds": 18,
+        "harness_version": "codex-cli 0.144.5"
+      }
+    ]
+  },
   "in_progress": [
     {
       "ref": "residuals-of-the-per-suite-clone-ride",

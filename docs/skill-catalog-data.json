@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T14:40:49.794Z",
+  "generatedAt": "2026-09-07T18:08:04.845Z",
   "skillsCount": 40,
   "degradedCount": 25,
   "skills": [
@@ -327,7 +327,7 @@
     {
       "dir": "aai-ship",
       "name": "aai-ship",
-      "description": "Use when the user states a need and wants the factory to take it end-to-end autonomously — intake, planning, implementation, validation, review, product docs — pausing only at one ship checkpoint that opens the PR. Never merges.",
+      "description": "Use when the user states a need and wants the factory to take it end-to-end autonomously — intake, planning, implementation, validation, review, product docs — opening the pull request on PASS with no question, pausing only at one checkpoint at the merge. Never merges.",
       "model": null,
       "promptFile": ".aai/SKILL_SHIP.prompt.md",
       "goal": null,
