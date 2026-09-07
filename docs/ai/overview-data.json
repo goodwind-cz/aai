@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-07T14:40:49.724Z",
+  "generatedAt": "2026-09-07T16:03:31.279Z",
   "project": "aai",
   "counts": {
     "delivered": 236,
-    "in_progress": 46,
+    "in_progress": 45,
     "releases": 1,
     "tokens_total": 57249552
   },
@@ -592,19 +592,6 @@
       "type": "rfc",
       "status": "implementing",
       "path": "docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "unattended-rides-human-gate-at-merge",
-      "title": "RFC (Decision Proposal)",
-      "type": "rfc",
-      "status": "draft",
-      "path": "docs/rfc/RFC-DRAFT-unattended-rides-human-gate-at-merge.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
