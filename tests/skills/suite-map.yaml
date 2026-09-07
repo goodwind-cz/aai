@@ -344,6 +344,22 @@ suites:
       - .aai/SUBAGENT_CONTRACT.md
       - docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md
 
+  # simple-and-friendly-to-use (Spec-AC-08): the golden flow drives the vendored
+  # layer's ride CLIs in a fixture, so the two new scripts, the record ledger,
+  # the target fixture it copies, and the CLIs it composes all re-run it.
+  aai-golden-flow:
+    globs:
+      - .aai/scripts/golden-flow.mjs
+      - .aai/scripts/nothing-left-behind.mjs
+      - docs/ai/tests/golden-flow.jsonl
+      - tests/fixtures/target-project/**
+      - .aai/scripts/aai-sync.sh
+      - .aai/scripts/close-work-item.mjs
+      - .aai/scripts/spec-freeze.mjs
+      - .aai/scripts/docs-audit.mjs
+      - .aai/scripts/follow-ups.mjs
+      - .aai/SKILL_PR.prompt.md
+
   aai-heartbeat:
     globs:
       - .aai/scripts/heartbeat.mjs
@@ -643,6 +659,13 @@ suites:
       - .aai/scripts/aai-release.sh
       - .aai/scripts/aai-release.ps1
       - .aai/SKILL_RELEASE.prompt.md
+      # simple-and-friendly-to-use (Spec-AC-07 / D5): the version stamp was
+      # unmapped, so every release PR escalated to the full sweep; this suite
+      # and aai-update are the readers of AAI_VERSION.md.
+      - docs/ai/AAI_VERSION.md
+      # simple-and-friendly-to-use (Spec-AC-06 / D4): the release dry run
+      # reads the golden-flow record ledger for its NAMED precondition line.
+      - docs/ai/tests/golden-flow.jsonl
       # release-protected-branch-fallback: the ps1 classifier's unit tests
       # live here, so editing them must re-run this suite (TEST-033/SEAM-3).
       - tests/skills/aai-release.Tests.ps1
@@ -659,6 +682,14 @@ suites:
       - tests/skills/test-framework.sh
       - tests/skills/test-aai-doc-numbering.sh
       - tests/skills/test-aai-deslop.sh
+      # simple-and-friendly-to-use (Spec-AC-07 / D5): the docs/ai/tests ledger
+      # family was unmapped, so every close-ceremony PR (which appends to
+      # docs/ai/tests/test-runs.jsonl) escalated to the 25-minute full sweep.
+      # Owned HERE, not by aai-metrics: this suite actually reads that ledger
+      # family, and test-aai-metrics.sh does not reference it at all — a path
+      # mapped to a suite that does not cover it silently reassures, which is
+      # worse than leaving it unmapped (code review, 2026-09-06).
+      - docs/ai/tests/**
 
   # spec-suites-run-in-a-disposable-worktree: the sibling of the row above and
   # its inverse. Both funnels are pinned because the isolation is armed at both.
@@ -826,6 +857,9 @@ suites:
       # CHANGE-0137: the post-update doctor field report helper is pinned by
       # this suite's 0137-TEST-001..012 rows — an edit to it must select it.
       - .aai/scripts/update-doctor-report.mjs
+      # simple-and-friendly-to-use (Spec-AC-07 / D5): aai-update reads the
+      # version stamp; mapped so a release PR never escalates as unmapped.
+      - docs/ai/AAI_VERSION.md
       - .claude/skills/aai-update/**
       - .codex/skills/aai-update/**
       - .gemini/skills/aai-update/**
@@ -897,3 +931,6 @@ suites:
       - tests/skills/suite-map.yaml
       - .aai/scripts/select-suites.mjs
       - .github/workflows/skill-suite.yml
+      # simple-and-friendly-to-use (Spec-AC-07): the PR #350 / #347 manifest
+      # fixtures TEST-009 replays through the real map.
+      - tests/fixtures/select-suites/**

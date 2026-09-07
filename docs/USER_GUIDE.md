@@ -2522,6 +2522,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### A ride that finishes, measurably
+
+Three things now hold on every ride, and each of them is measured rather than promised.
+
+[Product doc](product/simple-and-friendly-to-use.md) · [Spec](specs/SPEC-0172-spec-simple-and-friendly-to-use.md)
+
 ### Follow-up registry on the decision ledger
 
 Deferred work used to disappear. When a review found something real but the ride did not fix it, the deferral was written as free prose inside a decision entry — 14 such clauses had accumulated against exactly one typed entry, and nothing in the toolchain could list any of them. One lesson recorded that way was repeated verbatim as a defect one ride later.

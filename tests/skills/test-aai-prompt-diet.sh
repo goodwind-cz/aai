@@ -764,7 +764,10 @@ test_012_growth_sum_matches_ledger() {
   # roadmap-driven-ride-selection, +976 B in-glob wiring + 1461 B AGENTS contract (re-measured).
   # Then 15084 -> 15657: decisions-as-menus adds the SKILL_LIVE Answering/Refusals
   # sections (+717 B measured, re-measured after the bot review).
-  local want_growth=17581
+  # Then 17581 -> 18159: simple-and-friendly-to-use adds the SKILL_PR step 5
+  # NOTHING-LEFT-BEHIND GATE bullet (+578 B, measured 28320 -> 28898 with
+  # /usr/bin/wc -c under plain bash), the only in-glob edit of that ride.
+  local want_growth=18159
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

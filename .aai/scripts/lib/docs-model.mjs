@@ -33,6 +33,66 @@ export const DOC_STATUS_ENUM = new Set([
   // capability doc — no new status needed there.
   'current',
 ]);
+
+// spec-simple-and-friendly-to-use review round 2 — the ONE doc-status
+// partition for status TERMINALITY: is this doc's lifecycle settled, or is the
+// work still in flight? That question, and only that one, is answered here.
+// It is NOT a general status registry: the per-heuristic subsets elsewhere in
+// the layer — docs-audit-core.mjs OPEN_STATUSES (probable-stale-open) and
+// FALSE_OPEN_STATUSES (the false-open drift heuristic), close-work-item.mjs
+// FLIP_ELIGIBLE (which statuses a close may flip to done) — are deliberately
+// NARROWER than IN_FLIGHT_DOC_STATUS and are NOT to be migrated onto it. Each
+// answers a different question ("which open docs does THIS heuristic act on"),
+// each is a strict subset of IN_FLIGHT_DOC_STATUS, and FLIP_ELIGIBLE is
+// disjoint from TERMINAL_DOC_STATUS; widening one to match this partition
+// would change that heuristic's behaviour, not de-duplicate a copy. Only a set
+// that means "settled vs in flight" belongs here.
+//
+// A different namespace is also out of scope: follow-ups.mjs:134 and
+// spec-amend.mjs each carry `TERMINAL_STATUSES = ['done','dropped']` for
+// REGISTRY items, not docs — same word, different lifecycle, not this pin's.
+//
+// Two private copies of the TERMINALITY question itself had drifted:
+// prune-stale-briefs.mjs listed five terminal statuses (its comment still
+// enumerated the enum as it stood BEFORE `current` was added, so a
+// steady-state product doc kept its consumed brief forever), and
+// nothing-left-behind.mjs listed four (dropping BOTH `legacy` and `current`,
+// so a retired or steady-state doc read as "still open for work" on every run
+// with no way to clear the item). Neither disagreement was intentional: both
+// are the same drift — a private copy written against an older enum.
+// TERMINAL_DOC_STATUS is the answer, because `legacy` (retired) and `current`
+// (the documented steady state of a capability-keyed product doc, see the
+// DOC_STATUS_ENUM note above) are both settled, not in flight.
+//
+// Both halves are LITERAL, not derived by complement: an unclassified status
+// must not silently default to terminal (prune-stale-briefs DELETES on
+// terminal, and PR #152 review fixed exactly that over-prune — keep on any
+// uncertainty). The partition assertion below is the anti-drift pin: adding a
+// status to DOC_STATUS_ENUM without classifying it here throws at import,
+// loudly, instead of picking a default for you. Everything in NEITHER set
+// (an empty status, a typo, a future unclassified value) is non-terminal by
+// construction at every call site, which is the safe direction for a delete.
+export const IN_FLIGHT_DOC_STATUS = new Set([
+  'draft', 'proposed', 'accepted', 'implementing', 'frozen',
+]);
+export const TERMINAL_DOC_STATUS = new Set([
+  'done', 'deferred', 'rejected', 'superseded', 'legacy', 'current',
+]);
+{
+  const classified = new Set([...IN_FLIGHT_DOC_STATUS, ...TERMINAL_DOC_STATUS]);
+  const unclassified = [...DOC_STATUS_ENUM].filter((s) => !classified.has(s));
+  const stray = [...classified].filter((s) => !DOC_STATUS_ENUM.has(s));
+  const overlap = [...IN_FLIGHT_DOC_STATUS].filter((s) => TERMINAL_DOC_STATUS.has(s));
+  if (unclassified.length || stray.length || overlap.length) {
+    throw new Error(
+      'docs-model: IN_FLIGHT_DOC_STATUS + TERMINAL_DOC_STATUS must partition DOC_STATUS_ENUM'
+      + (unclassified.length ? ` (unclassified: ${unclassified.join(', ')})` : '')
+      + (stray.length ? ` (not in the enum: ${stray.join(', ')})` : '')
+      + (overlap.length ? ` (in both: ${overlap.join(', ')})` : ''),
+    );
+  }
+}
+
 export const AC_STATUS_ENUM = new Set([
   'planned', 'implementing', 'done', 'deferred', 'blocked', 'rejected',
 ]);

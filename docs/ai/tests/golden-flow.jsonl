@@ -1,0 +1,1 @@
+{"v":1,"run_utc":"2026-09-06T22:30:57Z","aai_version":"v2026.09.06","node_major":22,"os_family":"darwin","steps_total":40,"steps_failed":0,"questions_asked":0,"questions":[],"files_left":0,"docs_open":0,"audit_findings":0,"registry_self_items":0,"gate_ref":"golden-bugfix","tokens_median_last10":1640003,"tokens_ceiling":1640003,"ci_docs_only_full_run":false}

@@ -1,0 +1,10 @@
+docs/INDEX.md
+docs/ai/EVENTS.jsonl
+docs/ai/factory-report-data.json
+docs/ai/factory-report.html
+docs/ai/overview-data.json
+docs/ai/overview.html
+docs/ai/tests/test-runs.jsonl
+docs/issues/CHANGE-0177-lessons-that-must-hold-downstream-are-guards.md
+docs/skill-catalog-data.json
+docs/specs/SPEC-0170-spec-lessons-that-must-hold-downstream-are-guards.md

@@ -18,6 +18,9 @@ pairs:
   - capability: standardized-backlog-drain
     maintenance: windows-codex-test-dispatch
     status: planned
+  - capability: simple-and-friendly-to-use
+    maintenance: close-ceremony-fires-only-via-aai-pr
+    status: planned
 wave_2:
   - canon-one-line-report-and-downstream-rules
   - decision-menu-options-parser

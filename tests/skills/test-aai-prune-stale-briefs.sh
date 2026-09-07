@@ -11,6 +11,13 @@
 #   - TEST-003: a brief for an OPEN (implementing) doc is KEPT — a live handoff is
 #     never removed.
 #   - TEST-004: an ORPHAN brief (no matching doc) is pruned.
+#   - TEST-004b: a doc with an UNRECOGNIZED status is KEPT — never prune on an
+#     unknown or future status.
+#   - TEST-004c: one id carried by TWO docs with different lifecycle statuses —
+#     a terminal product doc and a draft requirement — KEEPS the brief. A
+#     non-terminal status beats a terminal one for the same id, or a settled doc
+#     silently deletes an open ride's live handoff. The scan is SORTED so this
+#     arm's detection power does not depend on the filesystem's readdir order.
 #   - TEST-005: --dry-run removes NOTHING but reports the same set; --json shape.
 #   - TEST-006: .gitkeep is never touched; exit 0 always.
 #
@@ -73,6 +80,17 @@ setup_fixture() {
   printf 'b\n' > "$TEST_DIR/docs/ai/briefs/weird-slug.md"
   printf 'b\n' > "$TEST_DIR/docs/ai/briefs/nobody-here.md"
   : > "$TEST_DIR/docs/ai/briefs/.gitkeep"
+  # SHADOWED ID (code review B1, 2026-09-07): one id carried by TWO docs in
+  # different families with different lifecycle statuses. A capability-keyed
+  # product doc reaches its steady state `current` — terminal — while the ride
+  # that delivers it is still `draft`. Under plain first-writer-wins the settled
+  # product doc shadows the open work item and the live handoff is DELETED. This
+  # is not hypothetical: it happened to this very ride's brief when `current`
+  # became terminal, which is what the prev/next guard was written to stop.
+  mkdir -p "$TEST_DIR/docs/product" "$TEST_DIR/docs/requirements"
+  write_doc "$TEST_DIR/docs/product/shadowed-slug.md" "shadowed-slug" "current"
+  write_doc "$TEST_DIR/docs/requirements/PRD-DRAFT-shadowed.md" "shadowed-slug" "draft"
+  printf 'b\n' > "$TEST_DIR/docs/ai/briefs/shadowed-slug.md"
 }
 
 run() { ( cd "$TEST_DIR" && node "$PRUNE" "$@" ); }
@@ -85,13 +103,13 @@ main() {
   # TEST-005 first: --dry-run must remove NOTHING.
   log_info "TEST-005: --dry-run removes nothing, reports the stale set..."
   local out; out="$(run --dry-run)"
-  b done-slug.md && b CHANGE-0001.md && b nobody-here.md && b open-slug.md && b weird-slug.md \
+  b done-slug.md && b CHANGE-0001.md && b nobody-here.md && b open-slug.md && b weird-slug.md && b shadowed-slug.md \
     || log_fail "TEST-005: --dry-run must not remove any brief"
   assert_payload_contains "$out" "would prune 3" "TEST-005: --dry-run must report 3 stale (done slug + done display-id + orphan), got: $out"
   local jout; jout="$(run --dry-run --json)"
-  assert_payload_contains "$jout" "\"kept_open\": 2" "TEST-005: --json must report kept_open:2 (open + unknown-status), got: $jout"
+  assert_payload_contains "$jout" "\"kept_open\": 3" "TEST-005: --json must report kept_open:3 (open + unknown-status + shadowed-id), got: $jout"
   assert_payload_contains "$jout" "\"dry_run\": true" "TEST-005: --json must report dry_run:true"
-  log_pass "TEST-005: --dry-run reports 3 stale / 2 kept, removes nothing, --json shape ok"
+  log_pass "TEST-005: --dry-run reports 3 stale / 3 kept, removes nothing, --json shape ok"
 
   # Real sweep.
   log_info "TEST-001..004: real sweep prunes terminal + orphan, keeps open + unknown..."
@@ -101,7 +119,8 @@ main() {
   b open-slug.md    || log_fail "TEST-003: OPEN (implementing) doc's brief must be KEPT (live handoff)"
   b nobody-here.md  && log_fail "TEST-004: ORPHAN brief (no doc) must be pruned"
   b weird-slug.md   || log_fail "TEST-004b: UNRECOGNIZED-status doc's brief must be KEPT (never prune on an unknown/future status — Codex/Copilot P2)"
-  log_pass "TEST-001..004: terminal (slug + display-id) + orphan pruned; open + unknown-status kept"
+  b shadowed-slug.md || log_fail "TEST-004c: an id shared by a TERMINAL product doc and a DRAFT requirement must keep the brief — a non-terminal status beats a terminal one for the same id, or a settled doc silently deletes an open ride's live handoff (code review B1)"
+  log_pass "TEST-001..004: terminal (slug + display-id) + orphan pruned; open, unknown-status and shadowed-id kept"
 
   # TEST-006: .gitkeep survives; a second run is a clean no-op (idempotent).
   log_info "TEST-006: .gitkeep untouched, idempotent no-op second run..."
