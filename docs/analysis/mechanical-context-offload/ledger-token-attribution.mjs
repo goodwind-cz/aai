@@ -88,7 +88,13 @@ function extractUsageTokens(note) {
 }
 
 function readLedgerLines(ledgerPath) {
-  const raw = fs.readFileSync(ledgerPath, 'utf8');
+  let raw;
+  try {
+    raw = fs.readFileSync(ledgerPath, 'utf8');
+  } catch (err) {
+    console.error(`ledger-token-attribution: cannot read ${ledgerPath}: ${err.code || err.message}`);
+    process.exit(1);
+  }
   return raw
     .split('\n')
     .filter((line) => line.trim().startsWith('{'));
@@ -138,7 +144,11 @@ function main() {
       missingRunsField += 1;
       continue;
     }
-    if (!Array.isArray(runs) || runs.length === 0) {
+    if (!Array.isArray(runs)) {
+      console.error(`ledger-token-attribution: agent_runs is ${typeof runs}, not an array, in record ${record.ref_id ?? `#${workItems}`}; refusing to report a total that silently drops it`);
+      process.exit(1);
+    }
+    if (runs.length === 0) {
       emptyRunsArrays += 1;
       continue;
     }

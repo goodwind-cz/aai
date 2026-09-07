@@ -401,8 +401,8 @@ over its `event` field) and carries none: its ten event types
 transitions, never a tool call or a file path read - every record's key set
 is `actor / event / payload / ref / ts / v`, with no field carrying a tool
 name or a file path. The only resolution available is a role-level proxy,
-stated as an explicit upper bound, never as a measurement of what actually
-happened inside a run.
+stated as an explicit bound over the roles it covers, never as a measurement
+of what actually happened inside a run.
 
 Method: the do-not-delegate table below (Spec-AC-05) classifies
 `Implementation` and `TDD Implementation` as `delegable` — the two role keys
@@ -430,6 +430,21 @@ tokens = **29.4%**, the token-weighted upper bound. The two figures diverge
 because run count and token count are not proportional across roles; the
 run-count figure is what Spec-AC-03 requires verbatim and stays above
 unchanged, and the token-weighted figure is what answers sub-question 1.
+
+**What these two figures do NOT bound, and in which direction.** Both are
+upper bounds *for the two roles the do-not-delegate table classifies
+`delegable`*. Neither is an upper bound on mechanical work across the
+factory, because a role classified `never` can still perform mechanical work
+that this arithmetic excludes outright - `.aai/SKILL_CODE_REVIEW.prompt.md`
+requires Code Review to read the full diff, which is bulk reading by any
+definition, and Code Review alone carries 10,016,256 marker-bearing tokens.
+So as a statement about the two delegable roles these figures are ceilings;
+as a statement about the factory's total mechanical spend they are a
+**floor**, and the real opportunity is larger by an amount this data cannot
+resolve. Read them as a safely-delegable-role share, not as the global
+mechanical share, and treat the recommendation ordering below as ordered on
+that narrower basis. Closing this gap needs per-tool attribution, which is
+exactly what Recommendation 2 proposes.
 
 Instrumentation that would replace this proxy with a measurement: extending
 `.aai/scripts/state.mjs`'s `append-run` capture so a run records a coarse
