@@ -124,6 +124,7 @@ mkdir -p \
   "$DST_ROOT/.aai/scripts" \
   "$DST_ROOT/.aai/system" \
   "$DST_ROOT/.aai/knowledge" \
+  "$DST_ROOT/.agents/skills" \
   "$DST_ROOT/.claude/skills" \
   "$DST_ROOT/.claude-plugin" \
   "$DST_ROOT/.codex/skills" \
@@ -494,6 +495,18 @@ if [[ -d "$DST_ROOT/.gemini/skills.local" ]]; then
   echo "  PRESERVE local Gemini dynamic index: $DST_ROOT/.gemini/skills.local"
 fi
 
+# Agents skill index. This is the mirror modern Gemini CLI and Cursor read as
+# their PRIMARY discovery path (`.agents/skills/`), overriding the per-harness
+# copies. It must be synced here like every other mirror tree; a target that is
+# left with a stale, sync-unmanaged .agents/skills/ shadows the fresh
+# .gemini/skills/ and .codex/skills/ with old skills (and hides new ones).
+if [[ -d "$SRC_ROOT/.agents/skills" && -d "$DST_ROOT/.agents/skills" ]] && directory_content_different "$SRC_ROOT/.agents/skills" "$DST_ROOT/.agents/skills"; then
+  OVERWRITE_CONFLICTS+=(".agents/skills/|Target Agents skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched.")
+fi
+if [[ -d "$SRC_ROOT/.agents/skills" ]]; then
+  copy_replace "$SRC_ROOT/.agents/skills" "$DST_ROOT/.agents/skills"
+fi
+
 # Claude Code plugin manifest
 if [[ -f "$SRC_ROOT/.claude-plugin/plugin.json" ]]; then
   copy_replace "$SRC_ROOT/.claude-plugin/plugin.json" "$DST_ROOT/.claude-plugin/plugin.json"
@@ -577,6 +590,7 @@ fi
 
 # Ensure synced agent skill indexes are gitignored (sync-managed artifacts)
 AGENT_SKILL_PATTERNS=(
+  '.agents/skills/'
   '.claude/skills/'
   '.codex/skills/'
   '.codex/skills.local/'
@@ -643,6 +657,7 @@ if [[ -f "$gitignore_file" ]]; then
       managed["docs/ai/reports/**"]=1
       managed["!docs/ai/reports/"]=1
       managed["!docs/ai/reports/.gitkeep"]=1
+      managed[".agents/skills/"]=1
       managed[".claude/skills/"]=1
       managed[".codex/skills/"]=1
       managed[".codex/skills.local/"]=1

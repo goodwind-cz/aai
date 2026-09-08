@@ -163,7 +163,7 @@ if ($Profile -eq "core") {
 }
 
 # Target directories (AAI layer only)
-foreach ($d in @(".aai/workflow",".aai/roles",".aai/templates",".aai/scripts",".aai/system",".aai/knowledge",".claude/skills",".claude-plugin",".codex/skills",".codex/skills.local",".cursor/rules",".gemini/skills",".gemini/skills.local",".github","docs/knowledge","docs/ai","hooks")) {
+foreach ($d in @(".aai/workflow",".aai/roles",".aai/templates",".aai/scripts",".aai/system",".aai/knowledge",".agents/skills",".claude/skills",".claude-plugin",".codex/skills",".codex/skills.local",".cursor/rules",".gemini/skills",".gemini/skills.local",".github","docs/knowledge","docs/ai","hooks")) {
   New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot $d) | Out-Null
 }
 
@@ -511,6 +511,23 @@ if (Test-Path (Join-Path $TargetRoot ".gemini/skills.local")) {
   Write-Host "  PRESERVE local Gemini dynamic index: $(Join-Path $TargetRoot ".gemini/skills.local")"
 }
 
+# Agents skill index. This is the mirror modern Gemini CLI and Cursor read as
+# their PRIMARY discovery path (.agents/skills/), overriding the per-harness
+# copies. It must be synced here like every other mirror tree; a target left
+# with a stale, sync-unmanaged .agents/skills/ shadows the fresh .gemini/skills/
+# and .codex/skills/ with old skills (and hides new ones).
+$agentsSkills = Join-Path $SrcRoot ".agents/skills"
+$dstAgentsSkills = Join-Path $TargetRoot ".agents/skills"
+if ((Test-Path $agentsSkills) -and (Test-Path $dstAgentsSkills) -and (Test-DirectoryContentDifferent -Src $agentsSkills -Dst $dstAgentsSkills)) {
+  $overwriteConflicts += [pscustomobject]@{
+    Path = ".agents/skills/"
+    Recommendation = "Target Agents skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched."
+  }
+}
+if (Test-Path $agentsSkills) {
+  Copy-Replace $agentsSkills $dstAgentsSkills
+}
+
 # Claude Code plugin manifest
 $pluginJson = Join-Path $SrcRoot ".claude-plugin/plugin.json"
 if (Test-Path $pluginJson) {
@@ -581,6 +598,7 @@ if ($giContent -notmatch [regex]::Escape('docs/ai/reports/**')) {
 # Ensure synced agent skill indexes are gitignored (sync-managed artifacts)
 $giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
 $agentSkillEntries = @(
+  ".agents/skills/"
   ".claude/skills/"
   ".codex/skills/"
   ".codex/skills.local/"
@@ -693,6 +711,7 @@ if (Test-Path $gitignorePath) {
       'docs/ai/reports/**'
       '!docs/ai/reports/'
       '!docs/ai/reports/.gitkeep'
+      '.agents/skills/'
       '.claude/skills/'
       '.codex/skills/'
       '.codex/skills.local/'
