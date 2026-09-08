@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(harness): aai-sync manages the .agents/skills mirror
+## [v2026.09.08] — fix(harness): aai-sync manages the .agents/skills mirror
 
 - **`.agents/skills` is now synced and gitignored like every other mirror.**
   `aai-sync.(sh|ps1)` propagated only `.claude/.codex/.gemini` skills, yet
@@ -29,7 +29,7 @@ RFC-0001).
   is propagated, gitignored exactly once, skill-set-equal to `.gemini/skills`,
   refreshed from a stale copy on re-sync, and handled by the `.ps1` engine.
 
-## [unreleased] — docs(research): where the factory's tokens actually go, measured
+## [v2026.09.08] — docs(research): where the factory's tokens actually go, measured
 
 - **A reproducible measurement of this repo's own token spend.** A new
   `docs/analysis/mechanical-context-offload/ledger-token-attribution.mjs`
@@ -56,7 +56,7 @@ RFC-0001).
   tracking id it does not have.
 - Refs: RES-0002, SPEC-0173.
 
-## [unreleased] — fix(live): the page shows what is running, not what once ran
+## [v2026.09.08] — fix(live): the page shows what is running, not what once ran
 
 - **The Agents table stopped being a graveyard.** It listed heartbeat slots
   whose processes had exited days earlier — on 2026-09-06 three rows dated
@@ -78,7 +78,7 @@ RFC-0001).
   looked exactly like success while being total blindness. A heartbeat's
   liveness signal is that a working role refreshes it.
 
-## [unreleased] — fix(canon): a lesson that must hold downstream is a guard, not a note
+## [v2026.09.08] — fix(canon): a lesson that must hold downstream is a guard, not a note
 
 - **Operator contract rule 5** (`.aai/AGENTS.md`, vendored by `/aai-update`):
   anything that must behave correctly *wherever AAI is installed* is implemented
