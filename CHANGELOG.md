@@ -11,6 +11,24 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(harness): aai-sync manages the .agents/skills mirror
+
+- **`.agents/skills` is now synced and gitignored like every other mirror.**
+  `aai-sync.(sh|ps1)` propagated only `.claude/.codex/.gemini` skills, yet
+  `.agents/skills` is the mirror modern Gemini CLI (v0.24+) and Cursor read as
+  their PRIMARY discovery path. A downstream project left with a stale,
+  sync-unmanaged `.agents/skills/` shadowed the freshly-synced per-harness
+  copies — old skills won and newer skills (for example `aai-pr`) never
+  surfaced in `/skills list`.
+- **Both engines fixed at parity.** `.agents/skills` is created, copied
+  wholesale (with the same overwrite-conflict advisory as the other mirrors),
+  and added once to the managed `.gitignore` block and its de-dup list, in the
+  bash and PowerShell sync paths alike. A stale target mirror is refreshed on
+  the next `/aai-update`.
+- **Guarded.** `tests/skills/test-aai-sync-seed.sh` TEST-022 asserts the mirror
+  is propagated, gitignored exactly once, skill-set-equal to `.gemini/skills`,
+  refreshed from a stale copy on re-sync, and handled by the `.ps1` engine.
+
 ## [unreleased] — docs(research): where the factory's tokens actually go, measured
 
 - **A reproducible measurement of this repo's own token spend.** A new

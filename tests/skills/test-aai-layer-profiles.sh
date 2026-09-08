@@ -216,17 +216,22 @@ test_default_byte_identity() {
   # AFTER the pre-profile OLD engine, so the OLD engine never emits them —
   # legitimate additive seeds, excluded from this profile-refactor copy-set
   # invariant just like the TECHNOLOGY.md seed predates them in both.
+  # .agents/skills is the same case: the mirror Gemini CLI / Cursor read as
+  # their primary discovery path, added to the sync copy set AFTER the
+  # pre-profile OLD engine (fix(harness): aai-sync manages the .agents/skills
+  # mirror), so it too is a legitimate additive copy the OLD engine never emits.
   local differing
-  differing="$(diff -rq "$t_old" "$t_new" 2>/dev/null | grep -v '/\.git' | grep -v 'docs/ai/reports' | grep -v 'update-config.yaml' | grep -v 'docs-audit.yaml' | grep '^Files ' | awk '{print $2}' | sed "s|^$t_old/||" || true)"
+  differing="$(diff -rq "$t_old" "$t_new" 2>/dev/null | grep -v '/\.git' | grep -v 'docs/ai/reports' | grep -v 'update-config.yaml' | grep -v 'docs-audit.yaml' | grep -v '\.agents' | grep '^Files ' | awk '{print $2}' | sed "s|^$t_old/||" || true)"
   local allowed=".aai/scripts/aai-sync.sh
 .aai/system/AAI_PIN.md"
   local unexpected
   unexpected="$(comm -23 <(printf '%s\n' "$differing" | LC_ALL=C sort) <(printf '%s\n' "$allowed" | LC_ALL=C sort))"
   [[ -z "$unexpected" ]] || log_fail "default run NOT byte-identical to pre-change sync; unexpected diffs:"$'\n'"$unexpected"
-  # Paths present in one target only (excluding .git, runtime reports, and the
-  # post-profile update-config / docs-audit seeds) would be a copy-set change.
+  # Paths present in one target only (excluding .git, runtime reports, the
+  # post-profile update-config / docs-audit seeds, and the post-profile
+  # .agents/skills mirror) would be a copy-set change.
   local only
-  only="$(diff -rq "$t_old" "$t_new" 2>/dev/null | grep -v '/\.git' | grep -v 'docs/ai/reports' | grep -v 'update-config.yaml' | grep -v 'docs-audit.yaml' | grep '^Only in ' || true)"
+  only="$(diff -rq "$t_old" "$t_new" 2>/dev/null | grep -v '/\.git' | grep -v 'docs/ai/reports' | grep -v 'update-config.yaml' | grep -v 'docs-audit.yaml' | grep -v '\.agents' | grep '^Only in ' || true)"
   [[ -z "$only" ]] || log_fail "default run changed the copied file SET vs pre-change sync:"$'\n'"$only"
 
   # (c) the pin diff is EXACTLY the additive documented Profile line.

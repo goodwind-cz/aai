@@ -695,6 +695,82 @@ test_bash_seed_crlf_safe() {
 }
 
 
+# --- TEST-022 — .agents/skills mirror is synced + gitignored (parity fix) -----
+# Root cause (real downstream incident): .agents/skills is the mirror modern
+# Gemini CLI and Cursor read as their PRIMARY discovery path, but aai-sync used
+# to sync only .claude/.codex/.gemini skills. A target that ever acquired a
+# .agents/skills tree kept a STALE, sync-unmanaged copy that SHADOWED the fresh
+# per-harness copies (old skills win, new skills like aai-pr never surface).
+# This pins: aai-sync now propagates .agents/skills, gitignores it once,
+# refreshes a stale copy on re-sync, and the .ps1 engine does the same.
+test_agents_skills_mirror_synced() {
+  log_info "TEST-022: aai-sync propagates + gitignores .agents/skills (primary Gemini/Cursor discovery path)..."
+  local dst="$TMP_ROOT/agents-skills-mirror"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-022: sync failed"
+
+  # (a) the mirror lands with real skills, not just an empty directory.
+  [[ -f "$dst/.agents/skills/aai-pr/SKILL.md" ]] \
+    || log_fail "TEST-022: .agents/skills/aai-pr/SKILL.md missing after sync (mirror not propagated)"
+
+  # (b) skill-set parity with .gemini/skills. README.md is a .gemini-only
+  #     regenerated index (HARNESS_SKILLS.yaml: .gemini/skills|drop|yes vs
+  #     .agents/skills|carry|no), so compare skill DIRECTORIES only.
+  local agents_dirs gemini_dirs
+  agents_dirs="$(find "$dst/.agents/skills" -mindepth 1 -maxdepth 1 -type d | sed 's#.*/##' | LC_ALL=C sort)"
+  gemini_dirs="$(find "$dst/.gemini/skills" -mindepth 1 -maxdepth 1 -type d | sed 's#.*/##' | LC_ALL=C sort)"
+  [[ "$agents_dirs" == "$gemini_dirs" ]] \
+    || log_fail "TEST-022: .agents/skills skill set differs from .gemini/skills"
+
+  # (c) gitignored exactly once (sync-managed, like the other mirrors).
+  local count
+  count="$(grep -cxF ".agents/skills/" "$dst/.gitignore")"
+  [[ "$count" -eq 1 ]] || log_fail "TEST-022: .agents/skills/ occurs $count time(s) in .gitignore, expected 1"
+
+  # (d) canonical entries are REFRESHED on re-sync (the shadow the fix kills)
+  #     AND a target-only project skill is PRESERVED — the entry-by-entry sync
+  #     must never wholesale-delete a downstream's own .agents/skills entry.
+  rm -rf "$dst/.agents/skills/aai-pr"
+  printf 'STALE\n' > "$dst/.agents/skills/aai-loop/SKILL.md"
+  mkdir -p "$dst/.agents/skills/aai-project-acme"
+  printf 'project-owned\n' > "$dst/.agents/skills/aai-project-acme/SKILL.md"
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-022: re-sync failed"
+  [[ -f "$dst/.agents/skills/aai-pr/SKILL.md" ]] \
+    || log_fail "TEST-022: re-sync did not restore a removed .agents/skills entry (stale shadow would persist)"
+  if grep -q STALE "$dst/.agents/skills/aai-loop/SKILL.md"; then
+    log_fail "TEST-022: re-sync left a tampered .agents/skills entry stale (would shadow fresh skills)"
+  fi
+  { [[ -f "$dst/.agents/skills/aai-project-acme/SKILL.md" ]] \
+      && grep -q 'project-owned' "$dst/.agents/skills/aai-project-acme/SKILL.md"; } \
+    || log_fail "TEST-022: re-sync DELETED a target-only project skill under .agents/skills (data loss)"
+
+  # (e) the gitignore entry stays de-duplicated across re-sync.
+  count="$(grep -cxF ".agents/skills/" "$dst/.gitignore")"
+  [[ "$count" -eq 1 ]] || log_fail "TEST-022: .agents/skills/ duplicated to $count after re-sync (not idempotent)"
+
+  # (f) ps1 parity — actually RUN the PowerShell engine (when pwsh is present)
+  #     and assert it propagates the mirror and gitignores it, not merely that
+  #     the path string appears somewhere in the script.
+  if command -v pwsh >/dev/null 2>&1; then
+    local pdst="$TMP_ROOT/agents-skills-ps1"
+    mkdir -p "$pdst"
+    git -C "$pdst" init -q -b main
+    pwsh -NoProfile -File "$SYNC_PS1" -TargetRoot "$pdst" >/dev/null 2>&1 \
+      || log_fail "TEST-022: aai-sync.ps1 run failed"
+    [[ -f "$pdst/.agents/skills/aai-pr/SKILL.md" ]] \
+      || log_fail "TEST-022: aai-sync.ps1 did not propagate .agents/skills (ps1 parity broken)"
+    [[ "$(grep -cxF ".agents/skills/" "$pdst/.gitignore")" -eq 1 ]] \
+      || log_fail "TEST-022: aai-sync.ps1 did not gitignore .agents/skills/ exactly once"
+  else
+    PWSH_ARM_SKIPPED=1
+    log_info "TEST-022 note: pwsh absent — ps1 parity arm SKIPPED (bash assertions above still ran)"
+  fi
+
+  log_pass "TEST-022 .agents/skills synced entry-by-entry (target-only preserved), gitignored once, refreshed on re-sync, ps1 parity exercised"
+}
+
+
 main() {
   echo "=== Test Suite: $TEST_NAME ==="
   check_deps
@@ -718,6 +794,7 @@ main() {
   test_runtime_ignore_header_consumer_accuracy
   test_bash_sync_regression_pin
   test_bash_seed_crlf_safe
+  test_agents_skills_mirror_synced
   if [[ "$PWSH_ARM_SKIPPED" -eq 1 ]]; then
     log_skip "pwsh absent — one or more PowerShell assertions were not exercised (all bash-only assertions above passed)"
   fi

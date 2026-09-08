@@ -163,7 +163,7 @@ if ($Profile -eq "core") {
 }
 
 # Target directories (AAI layer only)
-foreach ($d in @(".aai/workflow",".aai/roles",".aai/templates",".aai/scripts",".aai/system",".aai/knowledge",".claude/skills",".claude-plugin",".codex/skills",".codex/skills.local",".cursor/rules",".gemini/skills",".gemini/skills.local",".github","docs/knowledge","docs/ai","hooks")) {
+foreach ($d in @(".aai/workflow",".aai/roles",".aai/templates",".aai/scripts",".aai/system",".aai/knowledge",".agents/skills",".claude/skills",".claude-plugin",".codex/skills",".codex/skills.local",".cursor/rules",".gemini/skills",".gemini/skills.local",".github","docs/knowledge","docs/ai","hooks")) {
   New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot $d) | Out-Null
 }
 
@@ -511,6 +511,40 @@ if (Test-Path (Join-Path $TargetRoot ".gemini/skills.local")) {
   Write-Host "  PRESERVE local Gemini dynamic index: $(Join-Path $TargetRoot ".gemini/skills.local")"
 }
 
+# Agents skill index (primary Gemini CLI / Cursor discovery path). A stale,
+# sync-unmanaged .agents/skills/ shadows the fresh per-harness copies, so it
+# must be synced. Because this is the path where a project may legitimately
+# place its OWN skills, copy template skills entry-by-entry and PRESERVE
+# target-only skills (same discipline as .claude/skills) — never a wholesale
+# replace that would delete an unmatched (possibly untracked) project skill.
+$agentsSkills = Join-Path $SrcRoot ".agents/skills"
+if (Test-Path $agentsSkills) {
+  $targetAgentsSkills = Join-Path $TargetRoot ".agents/skills"
+  New-Item -ItemType Directory -Force -Path $targetAgentsSkills | Out-Null
+  Get-ChildItem -Path $agentsSkills -Force | ForEach-Object {
+    $dstEntry = Join-Path $targetAgentsSkills $_.Name
+    $srcSkillMd = Join-Path $_.FullName "SKILL.md"
+    $dstSkillMd = Join-Path $dstEntry "SKILL.md"
+    if (Test-Path $dstEntry) {
+      if ((Test-Path $srcSkillMd) -and (Test-Path $dstSkillMd)) {
+        if (Test-FileContentDifferent -Src $srcSkillMd -Dst $dstSkillMd) {
+          $overwriteConflicts += [pscustomobject]@{
+            Path = ".agents/skills/$($_.Name)/SKILL.md"
+            Recommendation = "Template skill differs in target. Use AI agent to merge intentional project guidance into a project-owned skill (for example .agents/skills/aai-project-<topic>/SKILL.md) and keep synced template skills unchanged."
+          }
+        }
+      } elseif (Test-DirectoryContentDifferent -Src $_.FullName -Dst $dstEntry) {
+        $overwriteConflicts += [pscustomobject]@{
+          Path = ".agents/skills/$($_.Name)"
+          Recommendation = "Directory differs in target. Use AI agent to extract project-specific content into project-owned skills and keep sync-managed entries as template-only."
+        }
+      }
+    }
+    Copy-Replace $_.FullName $dstEntry
+  }
+  Write-Host "  PRESERVE target-only skills under: $targetAgentsSkills"
+}
+
 # Claude Code plugin manifest
 $pluginJson = Join-Path $SrcRoot ".claude-plugin/plugin.json"
 if (Test-Path $pluginJson) {
@@ -581,6 +615,7 @@ if ($giContent -notmatch [regex]::Escape('docs/ai/reports/**')) {
 # Ensure synced agent skill indexes are gitignored (sync-managed artifacts)
 $giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
 $agentSkillEntries = @(
+  ".agents/skills/"
   ".claude/skills/"
   ".codex/skills/"
   ".codex/skills.local/"
@@ -693,6 +728,7 @@ if (Test-Path $gitignorePath) {
       'docs/ai/reports/**'
       '!docs/ai/reports/'
       '!docs/ai/reports/.gitkeep'
+      '.agents/skills/'
       '.claude/skills/'
       '.codex/skills/'
       '.codex/skills.local/'

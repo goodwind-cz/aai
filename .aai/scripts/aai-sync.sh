@@ -124,6 +124,7 @@ mkdir -p \
   "$DST_ROOT/.aai/scripts" \
   "$DST_ROOT/.aai/system" \
   "$DST_ROOT/.aai/knowledge" \
+  "$DST_ROOT/.agents/skills" \
   "$DST_ROOT/.claude/skills" \
   "$DST_ROOT/.claude-plugin" \
   "$DST_ROOT/.codex/skills" \
@@ -494,6 +495,34 @@ if [[ -d "$DST_ROOT/.gemini/skills.local" ]]; then
   echo "  PRESERVE local Gemini dynamic index: $DST_ROOT/.gemini/skills.local"
 fi
 
+# Agents skill index. This is the mirror modern Gemini CLI and Cursor read as
+# their PRIMARY discovery path (`.agents/skills/`), overriding the per-harness
+# copies. A target left with a stale, sync-unmanaged .agents/skills/ shadows the
+# fresh per-harness copies with old skills (and hides new ones), so it must be
+# synced here. Because this is exactly the path where a project may legitimately
+# place its OWN skills, copy template skills entry-by-entry and PRESERVE
+# target-only skills (same discipline as .claude/skills) — never a wholesale
+# replace that would delete an unmatched (possibly untracked) project skill.
+if [[ -d "$SRC_ROOT/.agents/skills" ]]; then
+  mkdir -p "$DST_ROOT/.agents/skills"
+  for src_entry in "$SRC_ROOT/.agents/skills/"*; do
+    [[ -e "$src_entry" ]] || continue
+    entry_name="$(basename "$src_entry")"
+    dst_entry="$DST_ROOT/.agents/skills/$entry_name"
+    src_skill_md="$src_entry/SKILL.md"
+    dst_skill_md="$dst_entry/SKILL.md"
+    if [[ -e "$dst_entry" ]]; then
+      if [[ -f "$src_skill_md" && -f "$dst_skill_md" ]] && file_content_different "$src_skill_md" "$dst_skill_md"; then
+        OVERWRITE_CONFLICTS+=(".agents/skills/$entry_name/SKILL.md|Template skill differs in target. Use AI agent to merge intentional project guidance into a project-owned skill (for example .agents/skills/aai-project-<topic>/SKILL.md) and keep synced template skills unchanged.")
+      elif directory_content_different "$src_entry" "$dst_entry"; then
+        OVERWRITE_CONFLICTS+=(".agents/skills/$entry_name|Directory differs in target. Use AI agent to extract project-specific content into project-owned skills and keep sync-managed entries as template-only.")
+      fi
+    fi
+    copy_replace "$src_entry" "$dst_entry"
+  done
+  echo "  PRESERVE target-only skills under: $DST_ROOT/.agents/skills"
+fi
+
 # Claude Code plugin manifest
 if [[ -f "$SRC_ROOT/.claude-plugin/plugin.json" ]]; then
   copy_replace "$SRC_ROOT/.claude-plugin/plugin.json" "$DST_ROOT/.claude-plugin/plugin.json"
@@ -577,6 +606,7 @@ fi
 
 # Ensure synced agent skill indexes are gitignored (sync-managed artifacts)
 AGENT_SKILL_PATTERNS=(
+  '.agents/skills/'
   '.claude/skills/'
   '.codex/skills/'
   '.codex/skills.local/'
@@ -643,6 +673,7 @@ if [[ -f "$gitignore_file" ]]; then
       managed["docs/ai/reports/**"]=1
       managed["!docs/ai/reports/"]=1
       managed["!docs/ai/reports/.gitkeep"]=1
+      managed[".agents/skills/"]=1
       managed[".claude/skills/"]=1
       managed[".codex/skills/"]=1
       managed[".codex/skills.local/"]=1
