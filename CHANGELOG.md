@@ -11,6 +11,24 @@ RFC-0001).
 
 ## [unreleased]
 
+## [v2026.09.08] — feat(factory): a ride that finishes, measurably
+
+- **A ride leaves nothing behind.** Before a push, a gate checks four things:
+  no uncommitted files, no document still open for work that shipped, no
+  outstanding audit finding, and no follow-up the ride filed about its own
+  ceremony. If any holds, the push stops and names what is left. It runs on the
+  real path, not only in tests.
+- **The whole journey is scripted and timed.** One command drives a throwaway
+  project from intake through freeze, commit, merge, close and audit with input
+  closed, and reports steps run, failures, and how many times something asked a
+  question. Current answer: 40 steps, 0 failures, 0 questions.
+- **Documentation changes stop paying for a full test run.** Two file families
+  were missing from the suite-selection map, so any change touching them
+  escalated to the ~25-minute full sweep. They now map to the suites that
+  actually read them; replaying two real past pull requests selects real suites
+  and never escalates.
+- Refs: PRD-0001, SPEC-0172, PR #355.
+
 ## [v2026.09.08] — fix(harness): aai-sync manages the .agents/skills mirror
 
 - **`.agents/skills` is now synced and gitignored like every other mirror.**
