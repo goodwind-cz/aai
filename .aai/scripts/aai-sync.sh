@@ -497,14 +497,30 @@ fi
 
 # Agents skill index. This is the mirror modern Gemini CLI and Cursor read as
 # their PRIMARY discovery path (`.agents/skills/`), overriding the per-harness
-# copies. It must be synced here like every other mirror tree; a target that is
-# left with a stale, sync-unmanaged .agents/skills/ shadows the fresh
-# .gemini/skills/ and .codex/skills/ with old skills (and hides new ones).
-if [[ -d "$SRC_ROOT/.agents/skills" && -d "$DST_ROOT/.agents/skills" ]] && directory_content_different "$SRC_ROOT/.agents/skills" "$DST_ROOT/.agents/skills"; then
-  OVERWRITE_CONFLICTS+=(".agents/skills/|Target Agents skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched.")
-fi
+# copies. A target left with a stale, sync-unmanaged .agents/skills/ shadows the
+# fresh per-harness copies with old skills (and hides new ones), so it must be
+# synced here. Because this is exactly the path where a project may legitimately
+# place its OWN skills, copy template skills entry-by-entry and PRESERVE
+# target-only skills (same discipline as .claude/skills) — never a wholesale
+# replace that would delete an unmatched (possibly untracked) project skill.
 if [[ -d "$SRC_ROOT/.agents/skills" ]]; then
-  copy_replace "$SRC_ROOT/.agents/skills" "$DST_ROOT/.agents/skills"
+  mkdir -p "$DST_ROOT/.agents/skills"
+  for src_entry in "$SRC_ROOT/.agents/skills/"*; do
+    [[ -e "$src_entry" ]] || continue
+    entry_name="$(basename "$src_entry")"
+    dst_entry="$DST_ROOT/.agents/skills/$entry_name"
+    src_skill_md="$src_entry/SKILL.md"
+    dst_skill_md="$dst_entry/SKILL.md"
+    if [[ -e "$dst_entry" ]]; then
+      if [[ -f "$src_skill_md" && -f "$dst_skill_md" ]] && file_content_different "$src_skill_md" "$dst_skill_md"; then
+        OVERWRITE_CONFLICTS+=(".agents/skills/$entry_name/SKILL.md|Template skill differs in target. Use AI agent to merge intentional project guidance into a project-owned skill (for example .agents/skills/aai-project-<topic>/SKILL.md) and keep synced template skills unchanged.")
+      elif directory_content_different "$src_entry" "$dst_entry"; then
+        OVERWRITE_CONFLICTS+=(".agents/skills/$entry_name|Directory differs in target. Use AI agent to extract project-specific content into project-owned skills and keep sync-managed entries as template-only.")
+      fi
+    fi
+    copy_replace "$src_entry" "$dst_entry"
+  done
+  echo "  PRESERVE target-only skills under: $DST_ROOT/.agents/skills"
 fi
 
 # Claude Code plugin manifest

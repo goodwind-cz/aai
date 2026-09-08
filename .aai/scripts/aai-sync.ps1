@@ -511,21 +511,38 @@ if (Test-Path (Join-Path $TargetRoot ".gemini/skills.local")) {
   Write-Host "  PRESERVE local Gemini dynamic index: $(Join-Path $TargetRoot ".gemini/skills.local")"
 }
 
-# Agents skill index. This is the mirror modern Gemini CLI and Cursor read as
-# their PRIMARY discovery path (.agents/skills/), overriding the per-harness
-# copies. It must be synced here like every other mirror tree; a target left
-# with a stale, sync-unmanaged .agents/skills/ shadows the fresh .gemini/skills/
-# and .codex/skills/ with old skills (and hides new ones).
+# Agents skill index (primary Gemini CLI / Cursor discovery path). A stale,
+# sync-unmanaged .agents/skills/ shadows the fresh per-harness copies, so it
+# must be synced. Because this is the path where a project may legitimately
+# place its OWN skills, copy template skills entry-by-entry and PRESERVE
+# target-only skills (same discipline as .claude/skills) — never a wholesale
+# replace that would delete an unmatched (possibly untracked) project skill.
 $agentsSkills = Join-Path $SrcRoot ".agents/skills"
-$dstAgentsSkills = Join-Path $TargetRoot ".agents/skills"
-if ((Test-Path $agentsSkills) -and (Test-Path $dstAgentsSkills) -and (Test-DirectoryContentDifferent -Src $agentsSkills -Dst $dstAgentsSkills)) {
-  $overwriteConflicts += [pscustomobject]@{
-    Path = ".agents/skills/"
-    Recommendation = "Target Agents skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched."
-  }
-}
 if (Test-Path $agentsSkills) {
-  Copy-Replace $agentsSkills $dstAgentsSkills
+  $targetAgentsSkills = Join-Path $TargetRoot ".agents/skills"
+  New-Item -ItemType Directory -Force -Path $targetAgentsSkills | Out-Null
+  Get-ChildItem -Path $agentsSkills -Force | ForEach-Object {
+    $dstEntry = Join-Path $targetAgentsSkills $_.Name
+    $srcSkillMd = Join-Path $_.FullName "SKILL.md"
+    $dstSkillMd = Join-Path $dstEntry "SKILL.md"
+    if (Test-Path $dstEntry) {
+      if ((Test-Path $srcSkillMd) -and (Test-Path $dstSkillMd)) {
+        if (Test-FileContentDifferent -Src $srcSkillMd -Dst $dstSkillMd) {
+          $overwriteConflicts += [pscustomobject]@{
+            Path = ".agents/skills/$($_.Name)/SKILL.md"
+            Recommendation = "Template skill differs in target. Use AI agent to merge intentional project guidance into a project-owned skill (for example .agents/skills/aai-project-<topic>/SKILL.md) and keep synced template skills unchanged."
+          }
+        }
+      } elseif (Test-DirectoryContentDifferent -Src $_.FullName -Dst $dstEntry) {
+        $overwriteConflicts += [pscustomobject]@{
+          Path = ".agents/skills/$($_.Name)"
+          Recommendation = "Directory differs in target. Use AI agent to extract project-specific content into project-owned skills and keep sync-managed entries as template-only."
+        }
+      }
+    }
+    Copy-Replace $_.FullName $dstEntry
+  }
+  Write-Host "  PRESERVE target-only skills under: $targetAgentsSkills"
 }
 
 # Claude Code plugin manifest
