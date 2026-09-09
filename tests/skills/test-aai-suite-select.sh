@@ -14,7 +14,8 @@
 # All fixtures use scratch temp-dir trees carrying their OWN tiny
 # suite-map.yaml (and, where relevant, their own docs-audit.yaml) — the real
 # repo's tests/skills/suite-map.yaml is exercised only by TEST-012's
-# real-git-fixture SEAM and TEST-013's workflow-wiring greps.
+# real-git-fixture SEAM, TEST-013's workflow-wiring greps, TEST-020/021/022's
+# real-map ceremony/harness-surface pins.
 #
 # The script under test is overridable via SELECT_SUITES_SCRIPT.
 #
@@ -303,6 +304,19 @@ test_013_workflow_wiring() {  # Spec-AC-04
     || log_fail "workflow must invoke .aai/scripts/select-suites.mjs"
   grep -qF -- '--skill' "$WORKFLOW_FILE" \
     || log_fail "workflow must run selected suites via test-framework.sh --skill"
+  grep -qF "AAI_TEST_PARALLEL: '4'" "$WORKFLOW_FILE" \
+    || log_fail "workflow must pin AAI_TEST_PARALLEL=4 on the skills jobs (a 4-core runner otherwise lands at cpus-2 = width 2)"
+  grep -qF 'args+=(--skill' "$WORKFLOW_FILE" \
+    || log_fail "skills-selected must accumulate --skill flags into one framework invocation so PARALLEL_WIDTH applies"
+  grep -qF 'bash tests/skills/test-framework.sh --skill "$s"' "$WORKFLOW_FILE" \
+    && log_fail "skills-selected must not invoke the framework once per suite (serial isolation clones, ignores PARALLEL_WIDTH)"
+  grep -qF 'for s in ${{ needs.select.outputs.suites }}' "$WORKFLOW_FILE" \
+    && log_fail "skills-selected must not interpolate suites into 'for s in' (empty output becomes a bash syntax error)"
+  grep -qF 'suite_list="' "$WORKFLOW_FILE" \
+    || log_fail "skills-selected must bind the suite list to a variable before word-splitting"
+  FRAMEWORK_FILE="$PROJECT_ROOT/tests/skills/test-framework.sh"
+  grep -qF 'SPECIFIC_SKILLS+=("$2")' "$FRAMEWORK_FILE" \
+    || log_fail "test-framework.sh --skill must be repeatable (append to SPECIFIC_SKILLS), not a single overwrite"
   grep -qE '^\s*branches:\s*\[main\]' "$WORKFLOW_FILE" \
     || log_fail "workflow must keep push-to-main as a full-run trigger"
   grep -qF 'schedule:' "$WORKFLOW_FILE" \
@@ -423,6 +437,30 @@ test_021_docs_or_ledger_only_manifests_never_full_run() {  # TEST-009 / Spec-AC-
   log_pass "test_021: docs-or-ledger-only manifests never FULL_RUN; both ledger paths mapped (TEST-009)"
 }
 
+test_022_ceremony_leftovers_never_full_run() {
+  log_info "Test: generated skill READMEs and docs/ai/reviews/** are mapped so a close-ceremony PR does not FULL_RUN (TEST-022)..."
+  local root="${1:-$PROJECT_ROOT}"
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local list="$TEST_DIR/t022-files.txt" p out rc
+  for p in \
+    ".codex/skills/README.md" \
+    ".gemini/skills/README.md" \
+    "docs/ai/reviews/review-fixture.md"
+  do
+    printf '%s\n' "$p" > "$list"
+    out="$(node "$SELECTOR" --repo-root "$root" --files-from "$list" 2>&1)"; rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "test_022: exit code must be 0 for $p, got $rc: $out"
+    case "$out" in
+      *"FULL_RUN"*) log_fail "test_022: $p must not escalate to FULL_RUN: $out" ;;
+    esac
+    case "$out" in
+      *"SELECTED "*|*"CORE "*) ;;
+      *) log_fail "test_022: $p must select at least one suite: $out" ;;
+    esac
+  done
+  log_pass "test_022: skill-index READMEs and docs/ai/reviews/** stay selected, never FULL_RUN"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -444,6 +482,7 @@ main() {
   test_019_ghost_core_entry_fails_open
   test_020_harness_surfaces_select_hygiene_pack
   test_021_docs_or_ledger_only_manifests_never_full_run
+  test_022_ceremony_leftovers_never_full_run
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

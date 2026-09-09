@@ -13,9 +13,12 @@ name: skill-suite
 # tests/skills/suite-map.yaml suites. Two outcomes:
 #   - mode=selected: `skills-selected` runs ONLY the matched suites + the
 #     always-on core set (check-state, docs-audit, spec-lint, hygiene-pack), via
-#     `test-framework.sh --skill <name>` per suite (never a hand-rolled
-#     runner — reuses the exit-42-is-SKIP contract test-framework.sh already
-#     owns).
+#     ONE `test-framework.sh` invocation with a repeated `--skill <name>` flag
+#     per suite (never a hand-rolled runner — reuses the exit-42-is-SKIP
+#     contract and the bounded-width wave path test-framework.sh already
+#     owns). A per-suite `for` loop of `--skill` would clone isolation
+#     serially and ignore PARALLEL_WIDTH. Both skills jobs pin
+#     AAI_TEST_PARALLEL=4 so a 4-core runner is not stuck at cpus-2 = 2.
 #   - mode=full: `skills-full` runs the complete framework via
 #     `test-framework.sh`, unchanged from before this feature. This is the
 #     FAIL-OPEN path: an unmapped changed path, a `.aai/scripts/lib/**`
@@ -118,6 +121,8 @@ jobs:
     if: needs.select.outputs.mode == 'selected'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      AAI_TEST_PARALLEL: '4'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -127,14 +132,26 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Run selected suites (each via test-framework.sh --skill <name>)
+      - name: Run selected suites (one test-framework.sh invocation, repeated --skill)
         run: |
-          set -e
-          for s in ${{ needs.select.outputs.suites }}; do
-            echo "::group::$s"
-            bash tests/skills/test-framework.sh --skill "$s"
-            echo "::endgroup::"
+          set -euo pipefail
+          args=()
+          # Actions interpolates the suite list before bash parses the script.
+          # Expanding that list in a `for s in ...; do` clause becomes
+          # `for s in ; do` (syntax error) when the output is empty,
+          # and the empty-args guard below never runs. Bind first, then
+          # word-split: suite names are charset-validated [A-Za-z0-9_-]+.
+          suite_list="${{ needs.select.outputs.suites }}"
+          # shellcheck disable=SC2086
+          set -- $suite_list
+          for s in "$@"; do
+            args+=(--skill "$s")
           done
+          if [ "${#args[@]}" -eq 0 ]; then
+            echo "select produced an empty suite list; refusing to fall through to a full sweep"
+            exit 1
+          fi
+          bash tests/skills/test-framework.sh "${args[@]}"
 
   skills-full:
     name: skill test suite (full framework, via test-framework.sh)
@@ -142,6 +159,8 @@ jobs:
     if: needs.select.outputs.mode == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      AAI_TEST_PARALLEL: '4'
     steps:
       - uses: actions/checkout@v4
         with:

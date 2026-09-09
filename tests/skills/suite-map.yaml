@@ -431,6 +431,18 @@ suites:
       - .agents/skills/**/SKILL.md
       - .codex/skills/**/SKILL.md
       - .gemini/skills/**/SKILL.md
+      # close-ceremony leftovers: generated skill indexes are not SKILL.md, so
+      # the globs above miss them and every sync that rewrites README.md
+      # escalated to FULL_RUN. This suite's test_111/test_117 actually read
+      # those files.
+      - .codex/skills/README.md
+      - .gemini/skills/README.md
+      # Same class as docs/ai/tests/** on aai-repo-tripwire: a close-ceremony
+      # review report was unmapped, so every reviewed PR paid the full sweep.
+      # Owned HERE because TEST-022 pins the SKILL_PR whitelist for this
+      # directory (and WRAP_UP's orphan call-out); aai-overview also maps it
+      # because generate-overview.mjs reads the tree as evidence.
+      - docs/ai/reviews/**
       - hooks/session-start.sh
       - hooks/session-start.ps1
       - hooks/hooks.json
@@ -582,6 +594,7 @@ suites:
       - docs/product/**
       - docs/ai/overview.html
       - docs/ai/overview-data.json
+      - docs/ai/reviews/**
 
   aai-planning-probes:
     globs:

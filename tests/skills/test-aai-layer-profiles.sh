@@ -287,7 +287,14 @@ test_core_prune_and_idempotence() {
     || log_fail "second core sync failed"
   snap2="$(tree_manifest "$t")"
   local pin2; pin2="$(pin_stable "$t/.aai/system/AAI_PIN.md")"
-  [[ "$snap1" == "$snap2" ]] || log_fail "core sync not idempotent (tree changed on second run)"
+  # fu-sync-hash-compare-fails-open: a hash-pipeline hiccup used to take the
+  # copilot merge branch and plant this directory. Pin it so a regression is
+  # named, not just "tree changed".
+  [[ ! -e "$t/docs/ai/project-overrides" ]] \
+    || log_fail "core re-sync planted docs/ai/project-overrides (hash-compare fail-open)"
+  if [[ "$snap1" != "$snap2" ]]; then
+    log_fail "core sync not idempotent (tree changed on second run):"$'\n'"$(diff -u <(printf '%s\n' "$snap1") <(printf '%s\n' "$snap2") || true)"
+  fi
   [[ "$pin1" == "$pin2" ]] || log_fail "core sync not idempotent (pin changed beyond volatile lines)"
   log_pass "TEST-004 prune + preserve + real idempotence probe"
 }

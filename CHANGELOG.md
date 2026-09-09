@@ -11,6 +11,32 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(sync): identical files stay identical when a hash tool hiccups
+
+- **`aai-sync.sh` no longer treats a failed content hash as "different".**
+  Under `set -o pipefail` a transient `sha256sum | awk` fork failure
+  (`|| return 0`) flipped the copilot shim from copy into merge and planted
+  `docs/ai/project-overrides/` — the nested `aai-release` TEST-020 /
+  `aai-layer-profiles` TEST-004 failure on selected CI (`core sync not
+  idempotent`). Compare with `cmp`; an error is fail-closed. PowerShell
+  `Test-FileContentDifferent` matches.
+
+## [unreleased] — ci(tests): selected suites share one concurrent sweep; ceremony leftovers stay selected
+
+- **Selected CI is one framework invocation, not a serial `--skill` loop.**
+  `skills-selected` accumulates `--skill <name>` flags and runs
+  `test-framework.sh` once, so isolation clones ride the bounded-width wave
+  path instead of paying a fresh clone-and-teardown per suite.
+  `AAI_TEST_PARALLEL=4` is pinned on both skills jobs: a 4-core GitHub
+  runner otherwise lands at `cpus - 2 = 2`, which is what made the nightly
+  full sweep ~28 minutes.
+- **Close-ceremony files no longer force FULL_RUN.** `.codex/skills/README.md`,
+  `.gemini/skills/README.md` and `docs/ai/reviews/**` were unmapped, so a
+  reviewed PR that only rewrote a generated skill index or dropped a review
+  report paid the 90-suite sweep. They now map to `aai-hygiene-pack` (which
+  already asserts on those paths) and, for reviews, also `aai-overview`
+  (`generate-overview.mjs` reads the tree).
+
 ## [unreleased] — fix(ship): the human gate moves to the merge, and an opted-in unattended ride answers its own quality questions
 
 - **The consent gate moves from before the pull request to the merge, for every ride** (RFC-0014 D2). `/aai-ship` now opens the pull request on validation PASS with the review gate satisfied, with no question asked — a PR is reversible (closable, force-pushable, left unmerged), so consent belongs at the merge, the first genuinely irreversible step. `.aai/SKILL_PR.prompt.md`'s precondition and `.aai/AGENTS.md`'s commit gating policy both name validation PASS plus the satisfied review gate as the authority to commit, push and open the PR. Merging stays operator-only; `docs/CONSTITUTION.md` Article 7 is unchanged.
