@@ -372,8 +372,8 @@ test_014_target_command_seam() {
   run classify --trigger HITL-8 --ref r1 --question q --answer 'docs/"foo".md' --ledger "$TEST_DIR/decisions.jsonl" --json >/dev/null
   local hitl8_tc; hitl8_tc="$(jf target_command)"
   [ -n "$hitl8_tc" ] || log_fail "TEST-014: HITL-8 with --answer must emit a target_command"
-  echo "$hitl8_tc" | grep -q "set-code-review --scope '" || log_fail "TEST-014: HITL-8 target_command must POSIX-single-quote --scope, got: $hitl8_tc"
-  echo "$hitl8_tc" | grep -F -- '--scope "docs/"' && log_fail "TEST-014: HITL-8 must not interpolate --answer inside double quotes, got: $hitl8_tc"
+  assert_payload_contains "$hitl8_tc" "set-code-review --scope '" "TEST-014: HITL-8 target_command must POSIX-single-quote --scope"
+  assert_payload_not_contains "$hitl8_tc" '--scope "docs/"' "TEST-014: HITL-8 must not interpolate --answer inside double quotes"
   fresh_ledger
   run classify --trigger HITL-8 --ref r1 --question q --ledger "$TEST_DIR/decisions.jsonl" --json >/dev/null
   [ "$(jf target_command)" = "" ] || log_fail "TEST-014: HITL-8 without --answer must not invent a placeholder target_command, got: $(jf target_command)"
