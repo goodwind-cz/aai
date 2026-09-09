@@ -11,6 +11,14 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(ship): the human gate moves to the merge, and an opted-in unattended ride answers its own quality questions
+
+- **The consent gate moves from before the pull request to the merge, for every ride** (RFC-0014 D2). `/aai-ship` now opens the pull request on validation PASS with the review gate satisfied, with no question asked — a PR is reversible (closable, force-pushable, left unmerged), so consent belongs at the merge, the first genuinely irreversible step. `.aai/SKILL_PR.prompt.md`'s precondition and `.aai/AGENTS.md`'s commit gating policy both name validation PASS plus the satisfied review gate as the authority to commit, push and open the PR. Merging stays operator-only; `docs/CONSTITUTION.md` Article 7 is unchanged.
+- **A new deterministic engine, `.aai/scripts/unattended-gate.mjs`, decides auto-versus-park for an opted-in unattended ride** (RFC-0014 D1) — never a role's self-assessment. It reads the mechanically stamped `[HITL-<n>]` trigger token against a frozen 13-row table: a QUALITY question (HITL-5, HITL-7 except `required`/ceremony 3, HITL-8, HITL-9) resolves autonomously and is recorded to `docs/ai/decisions.jsonl` before any verdict prints; a SCOPE, COST, IRREVERSIBILITY or GUARD question always parks for a human. `waived` is unreachable on every code path — HITL-9 always resolves `fail`, routing to Remediation.
+- **Unattended never authors an intake and never starts without a declared run budget.** `unattended-gate.mjs preflight` refuses to admit a ride whose `max_run_tokens` and `max_run_cost_usd` are both zero (the guard the RFC called load-bearing but was not actually armed), refuses a raised `max_ticks`/`stagnation_limit`, refuses `max_prs` outside 1-5, and refuses a missing or nonexistent `--intake` path. `.aai/SKILL_LOOP.prompt.md` gains the `unattended`/`max_prs` parameters, an unattended branch on stop condition (b) that classifies-and-continues instead of exiting on an auto verdict, and a chaining branch on stop condition (c) that adopts the next roadmap ride only when its intake already exists on disk.
+- **A morning summary, not a new artifact.** `unattended-gate.mjs summary --since <ISO>` renders the ledger's auto/parked decisions since a cutoff and names `gh pr list` for the pull requests, writing nothing.
+- Refs: RFC-0014, SPEC-0174.
+
 ## [unreleased] — ci(release): publish a GitHub release from a pushed tag
 
 - **A tag-triggered release publisher.** `.github/workflows/release.yml` runs on

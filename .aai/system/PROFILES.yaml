@@ -118,6 +118,10 @@ core:
   - .aai/scripts/heartbeat.mjs
   - .aai/scripts/aai-live-serve.mjs
   - .aai/scripts/ride-select.mjs
+  # core rather than extended: SKILL_LOOP.prompt.md (core) and SKILL_SHIP.prompt.md
+  # (core) both call this engine directly (RFC-0014 D1 auto-vs-park boundary),
+  # the same precedent as ride-select.mjs immediately above.
+  - .aai/scripts/unattended-gate.mjs
   - .aai/scripts/check-committed-scope.mjs
   - .aai/scripts/hitl-channel.mjs
   - .aai/scripts/lane-gate.mjs

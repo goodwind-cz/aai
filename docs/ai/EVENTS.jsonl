@@ -2208,3 +2208,11 @@
 {"v":1,"ts":"2026-09-07T13:07:08.904Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-mechanical-context-offload-to-cheap-tier","payload":{"commit":"1a386877"}}
 {"v":1,"ts":"2026-09-07T14:40:33.507Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"mechanical-context-offload-to-cheap-tier","payload":{"commit":"60912836"}}
 {"v":1,"ts":"2026-09-07T14:40:33.544Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-mechanical-context-offload-to-cheap-tier","payload":{"commit":"60912836"}}
+{"v":1,"ts":"2026-09-07T16:52:11.116Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-unattended-rides-human-gate-at-merge","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-07T17:44:49.269Z","actor":"ales_holubec.net","event":"ride_gate_override","ref":"unattended-rides-human-gate-at-merge","payload":{"reason":"owner directed this ride in session 2026-09-07 after accepting RFC-0014; not added to roadmap.yaml because the closed pair shape requires choosing a maintenance ride to budget 1:1 alongside it, which is the owner's planning decision, not the agent's"}}
+{"v":1,"ts":"2026-09-09T17:11:46.559Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"unattended-rides-human-gate-at-merge","payload":{"from":"accepted","to":"done"}}
+{"v":1,"ts":"2026-09-09T17:11:46.600Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"unattended-rides-human-gate-at-merge","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-09T17:11:46.640Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"unattended-rides-human-gate-at-merge","payload":{"commit":"d9638a845d199653f59f0a9850e6124a3eeb712e"}}
+{"v":1,"ts":"2026-09-09T17:11:46.678Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-unattended-rides-human-gate-at-merge","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-09T17:11:46.730Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-unattended-rides-human-gate-at-merge","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-09T17:11:46.774Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-unattended-rides-human-gate-at-merge","payload":{"commit":"d9638a845d199653f59f0a9850e6124a3eeb712e"}}
