@@ -7,7 +7,9 @@
 #   bash tests/skills/test-framework.sh [OPTIONS]
 #
 # Options:
-#   --skill SKILL    Test specific skill only (e.g., aai-share)
+#   --skill SKILL    Test specific skill only (e.g., aai-share). Repeatable:
+#                    `--skill a --skill b` runs both in one invocation so
+#                    PARALLEL_WIDTH applies (CI selected mode uses this).
 #   --fix            Auto-fix common issues
 #   --verbose        Show detailed output
 #   --help           Show this help message
@@ -662,7 +664,7 @@ RUN_ID="test-$(date -u +%Y%m%d-%H%M%S)"
 RUN_DIR="$RESULTS_DIR/$RUN_ID"
 VERBOSE=false
 AUTO_FIX=false
-SPECIFIC_SKILL=""
+SPECIFIC_SKILLS=()
 
 # --- BOUNDED-WIDTH CONCURRENCY (spec-sweep-runs-in-parallel) ---------------
 # The sweep was strictly sequential because every suite shared one `.git`.
@@ -797,7 +799,30 @@ SEEDING_REASONS=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --skill)
-      SPECIFIC_SKILL="$2"
+      if [[ $# -lt 2 ]]; then
+        echo "--skill requires a skill name"
+        echo "Use --help for usage information"
+        exit 2
+      fi
+      case "$2" in
+        ''|*[!A-Za-z0-9_-]*)
+          echo "Invalid --skill name: $2 (expected [A-Za-z0-9_-]+)"
+          echo "Use --help for usage information"
+          exit 2
+          ;;
+      esac
+      # Repeatable: CI selected mode passes one --skill per suite so the
+      # bounded-width wave path runs them concurrently. Dedup so CORE+SELECTED
+      # overlap cannot run a suite twice.
+      already=0
+      if [[ ${#SPECIFIC_SKILLS[@]} -gt 0 ]]; then
+        for existing in "${SPECIFIC_SKILLS[@]}"; do
+          if [[ "$existing" == "$2" ]]; then already=1; break; fi
+        done
+      fi
+      if [[ "$already" -eq 0 ]]; then
+        SPECIFIC_SKILLS+=("$2")
+      fi
       shift 2
       ;;
     --fix)
@@ -874,15 +899,17 @@ setup_results_dir() {
 
 # Discover all skill test files
 discover_tests() {
-  if [[ -n "$SPECIFIC_SKILL" ]]; then
-    # Test specific skill
-    local test_file="$SCRIPT_DIR/test-${SPECIFIC_SKILL}.sh"
-    if [[ -f "$test_file" ]]; then
-      echo "$test_file"
-    else
-      log_fail "Test file not found: $test_file"
-      exit 2
-    fi
+  if [[ ${#SPECIFIC_SKILLS[@]} -gt 0 ]]; then
+    local skill test_file
+    for skill in "${SPECIFIC_SKILLS[@]}"; do
+      test_file="$SCRIPT_DIR/test-${skill}.sh"
+      if [[ -f "$test_file" ]]; then
+        echo "$test_file"
+      else
+        log_fail "Test file not found: $test_file"
+        exit 2
+      fi
+    done
   else
     # Find all test files
     find "$SCRIPT_DIR" -name "test-aai-*.sh" -type f | sort

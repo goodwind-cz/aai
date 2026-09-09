@@ -11,6 +11,22 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — ci(tests): selected suites share one concurrent sweep; ceremony leftovers stay selected
+
+- **Selected CI is one framework invocation, not a serial `--skill` loop.**
+  `skills-selected` accumulates `--skill <name>` flags and runs
+  `test-framework.sh` once, so isolation clones ride the bounded-width wave
+  path instead of paying a fresh clone-and-teardown per suite.
+  `AAI_TEST_PARALLEL=4` is pinned on both skills jobs: a 4-core GitHub
+  runner otherwise lands at `cpus - 2 = 2`, which is what made the nightly
+  full sweep ~28 minutes.
+- **Close-ceremony files no longer force FULL_RUN.** `.codex/skills/README.md`,
+  `.gemini/skills/README.md` and `docs/ai/reviews/**` were unmapped, so a
+  reviewed PR that only rewrote a generated skill index or dropped a review
+  report paid the 90-suite sweep. They now map to `aai-hygiene-pack` (which
+  already asserts on those paths) and, for reviews, also `aai-overview`
+  (`generate-overview.mjs` reads the tree).
+
 ## [unreleased] — ci(release): publish a GitHub release from a pushed tag
 
 - **A tag-triggered release publisher.** `.github/workflows/release.yml` runs on
