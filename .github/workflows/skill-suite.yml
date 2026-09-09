@@ -136,7 +136,14 @@ jobs:
         run: |
           set -euo pipefail
           args=()
-          for s in ${{ needs.select.outputs.suites }}; do
+          # Actions interpolates before bash parses. `for s in ${{...}}; do`
+          # becomes `for s in ; do` (syntax error) when the output is empty,
+          # and the empty-args guard below never runs. Bind first, then
+          # word-split: suite names are charset-validated [A-Za-z0-9_-]+.
+          suite_list="${{ needs.select.outputs.suites }}"
+          # shellcheck disable=SC2086
+          set -- $suite_list
+          for s in "$@"; do
             args+=(--skill "$s")
           done
           if [ "${#args[@]}" -eq 0 ]; then

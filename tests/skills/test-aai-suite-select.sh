@@ -310,6 +310,10 @@ test_013_workflow_wiring() {  # Spec-AC-04
     || log_fail "skills-selected must accumulate --skill flags into one framework invocation so PARALLEL_WIDTH applies"
   grep -qF 'bash tests/skills/test-framework.sh --skill "$s"' "$WORKFLOW_FILE" \
     && log_fail "skills-selected must not invoke the framework once per suite (serial isolation clones, ignores PARALLEL_WIDTH)"
+  grep -qF 'for s in ${{ needs.select.outputs.suites }}' "$WORKFLOW_FILE" \
+    && log_fail "skills-selected must not interpolate suites into 'for s in' (empty output becomes a bash syntax error)"
+  grep -qF 'suite_list="' "$WORKFLOW_FILE" \
+    || log_fail "skills-selected must bind the suite list to a variable before word-splitting"
   FRAMEWORK_FILE="$PROJECT_ROOT/tests/skills/test-framework.sh"
   grep -qF 'SPECIFIC_SKILLS+=("$2")' "$FRAMEWORK_FILE" \
     || log_fail "test-framework.sh --skill must be repeatable (append to SPECIFIC_SKILLS), not a single overwrite"

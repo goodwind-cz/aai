@@ -814,6 +814,9 @@ while [[ $# -gt 0 ]]; do
       # Repeatable: CI selected mode passes one --skill per suite so the
       # bounded-width wave path runs them concurrently. Dedup so CORE+SELECTED
       # overlap cannot run a suite twice.
+      # bash 3.2.57 + set -u: ${#arr[@]} on an empty array is 0 (safe).
+      # "${arr[@]}" on an empty array is unbound (hard error). Only expand
+      # [@] after the length check.
       already=0
       if [[ ${#SPECIFIC_SKILLS[@]} -gt 0 ]]; then
         for existing in "${SPECIFIC_SKILLS[@]}"; do
