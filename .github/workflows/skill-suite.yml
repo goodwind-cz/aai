@@ -136,8 +136,9 @@ jobs:
         run: |
           set -euo pipefail
           args=()
-          # Actions interpolates before bash parses. `for s in ${{...}}; do`
-          # becomes `for s in ; do` (syntax error) when the output is empty,
+          # Actions interpolates the suite list before bash parses the script.
+          # Expanding that list in a `for s in ...; do` clause becomes
+          # `for s in ; do` (syntax error) when the output is empty,
           # and the empty-args guard below never runs. Bind first, then
           # word-split: suite names are charset-validated [A-Za-z0-9_-]+.
           suite_list="${{ needs.select.outputs.suites }}"
