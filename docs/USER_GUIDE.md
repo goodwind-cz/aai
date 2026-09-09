@@ -678,7 +678,7 @@ releasing AAI itself or a downstream project with the AAI layer deployed.
 
 #### `/aai-ship`
 
-**What:** Takes a stated need end-to-end autonomously — intake, planning, implementation, validation, review, product docs — and pauses at exactly one checkpoint, where it opens the PR.
+**What:** Takes a stated need end-to-end autonomously — intake, planning, implementation, validation, review, product docs — opens the pull request on validation PASS with the review gate satisfied (no question asked), and pauses at exactly one checkpoint, at the merge.
 
 **When to use:**
 - You can describe the need in a sentence and want the whole pipeline run for it
@@ -689,7 +689,7 @@ releasing AAI itself or a downstream project with the AAI layer deployed.
 /aai-ship "the release notes should name the PR that shipped each change"
 ```
 
-**Note:** It never merges. The one checkpoint is the ship gate: the PR is opened, the merge button stays yours.
+**Note:** It never merges. The one checkpoint sits at the merge: the pull request is already open, and the merge button stays yours.
 
 ### 4. Quality & Validation
 
@@ -1903,14 +1903,25 @@ The shortest path from a stated need to a PR is the ship autopilot:
 ```
 
 It chains intake -> loop (planning, implementation, validation, review) ->
-product docs -> PR behind exactly ONE approval surface (the ship checkpoint:
-scope, diff stat, evidence links, "Ship? [y/n]"). Autopilot defaults are
-recorded, never silent: the intake metrics question is skipped, and the
-worktree gate auto-resolves (`optional`/`not_needed` -> inline,
-`recommended` -> worktree) — except `required` recommendations and ceremony
-L3 scopes, which always stop for a human. Genuine judgment calls (HITL-1..6)
-still pause the ride; answer them and re-run `/aai-ship` to resume. The agent
+product docs -> pull request, opened automatically on validation PASS with
+the review gate satisfied (no question asked), behind exactly ONE approval
+surface at the merge (scope, diff stat, evidence links, the PR URL —
+merging stays operator-only). Autopilot defaults are recorded, never
+silent: the intake metrics question is skipped, and the worktree gate
+auto-resolves (`optional`/`not_needed` -> inline, `recommended` ->
+worktree) — except `required` recommendations and ceremony L3 scopes,
+which always stop for a human. Genuine judgment calls (HITL-1..6) still
+pause the ride; answer them and re-run `/aai-ship` to resume. The agent
 never merges — that stays operator-only.
+
+An opted-in **unattended** ride (`unattended=true` plus an existing
+`--intake <path>` — never free text) additionally resolves its own QUALITY
+questions through `.aai/scripts/unattended-gate.mjs` (RFC-0014 D1) — how to
+fix a defect, worktree isolation, review findings — while any question about
+scope, cost or irreversibility still parks for a human. It requires a
+declared run budget up front (`preflight` refuses to start without one) and
+may chain rides up to `max_prs` (default 3, cap 5) so a night yields several
+pull requests to review by morning.
 
 Two supporting surfaces:
 

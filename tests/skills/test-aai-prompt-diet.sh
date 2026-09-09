@@ -767,7 +767,14 @@ test_012_growth_sum_matches_ledger() {
   # Then 17581 -> 18159: simple-and-friendly-to-use adds the SKILL_PR step 5
   # NOTHING-LEFT-BEHIND GATE bullet (+578 B, measured 28320 -> 28898 with
   # /usr/bin/wc -c under plain bash), the only in-glob edit of that ride.
-  local want_growth=18159
+  # Then 18159 -> 23777: unattended-rides-human-gate-at-merge adds the D2 gate
+  # move (SKILL_SHIP +1862, SKILL_LOOP +3512, SKILL_PR +244 -- sum +5618 B,
+  # measured with /usr/bin/wc -c against base commit 19fe6cf8), the only
+  # in-glob edits; the new unattended-gate.mjs engine + its test suite +
+  # AGENTS.md's commit-gating sentence all sit outside the live glob.
+  # Then 23777 -> 24559: unattended-rides-bot-review-365 (+782 B, SKILL_LOOP
+  # +668, SKILL_SHIP +114) opens each chained PR before the next ref.
+  local want_growth=24559
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

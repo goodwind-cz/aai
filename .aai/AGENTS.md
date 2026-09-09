@@ -82,7 +82,7 @@ Use them when the agent supports subagent spawning or sequential tool use.
 
 #### Universal Skills (AAI Template)
 ```text
-Follow .aai/SKILL_SHIP.prompt.md         # End-to-end autopilot: need -> intake -> loop -> product docs -> ONE ship checkpoint -> PR (never merges)
+Follow .aai/SKILL_SHIP.prompt.md         # End-to-end autopilot: need -> intake -> loop -> product docs -> PR -> ONE checkpoint at the merge (never merges)
 Follow .aai/SKILL_LOOP.prompt.md         # Full autonomous multi-tick loop (replaces shell loop runner)
 Follow .aai/SKILL_INTAKE.prompt.md       # Universal intake router — auto-detects type from description
 Follow .aai/SKILL_HITL.prompt.md         # Human-in-the-loop resolver — surfaces blocked question, unblocks state
@@ -348,8 +348,11 @@ discipline is opt-in downstream).
 - Intake efficiency policy: ask only for missing high-impact fields, prefer
   explicit assumptions over long clarification loops, and keep intake token-light.
 - Commit gating policy: create a commit only after the full intake-scoped task
-  is completed, verified with executable evidence, fully documented, and only
-  after explicit user confirmation.
+  is completed, verified with executable evidence, and fully documented, at
+  which point validation PASS plus the satisfied review gate ARE the
+  authority to commit, push and open the pull request (RFC-0014 D2) — the
+  human confirmation this policy required sits at the merge, not before the
+  pull request.
 
 ## Engineering Best Practices
 - Prefer DRY: avoid duplicated logic; extract shared behavior behind clear interfaces.
