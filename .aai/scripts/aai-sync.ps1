@@ -69,7 +69,9 @@ function Test-FileContentDifferent {
     $dstHash = (Get-FileHash -Algorithm SHA256 -Path $Dst).Hash
     return $srcHash -ne $dstHash
   } catch {
-    return $true
+    # Fail closed (fu-sync-hash-compare-fails-open): an unobtainable hash must
+    # not flip the copilot shim into the merge branch.
+    return $false
   }
 }
 

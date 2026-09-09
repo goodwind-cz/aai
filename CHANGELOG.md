@@ -11,6 +11,16 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(sync): identical files stay identical when a hash tool hiccups
+
+- **`aai-sync.sh` no longer treats a failed content hash as "different".**
+  Under `set -o pipefail` a transient `sha256sum | awk` fork failure
+  (`|| return 0`) flipped the copilot shim from copy into merge and planted
+  `docs/ai/project-overrides/` — the nested `aai-release` TEST-020 /
+  `aai-layer-profiles` TEST-004 failure on selected CI (`core sync not
+  idempotent`). Compare with `cmp`; an error is fail-closed. PowerShell
+  `Test-FileContentDifferent` matches.
+
 ## [unreleased] — ci(tests): selected suites share one concurrent sweep; ceremony leftovers stay selected
 
 - **Selected CI is one framework invocation, not a serial `--skill` loop.**

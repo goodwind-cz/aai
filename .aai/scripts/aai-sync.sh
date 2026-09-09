@@ -147,36 +147,32 @@ copy_replace() {
   cp -a "$src" "$dst"
 }
 
+# Byte compare, never a hash pipeline. Under `set -o pipefail` a transient
+# `sha256sum | awk` fork failure used to return "different" (`|| return 0`),
+# which flipped the copilot shim from copy_replace into the merge branch and
+# planted docs/ai/project-overrides/ — CI-only, load-sensitive
+# (fu-sync-hash-compare-fails-open). cmp exit 2 (error) is fail-closed: not
+# different, so a hiccup cannot rewrite the target.
 file_content_different() {
-  local src="$1"
-  local dst="$2"
+  local src="$1" dst="$2" rc=0
   [[ -f "$src" && -f "$dst" ]] || return 0
-  local src_hash dst_hash
-  src_hash="$(sha256sum "$src" 2>/dev/null | awk '{print $1}')" || return 0
-  dst_hash="$(sha256sum "$dst" 2>/dev/null | awk '{print $1}')" || return 0
-  [[ "$src_hash" != "$dst_hash" ]]
+  cmp -s "$src" "$dst" || rc=$?
+  [[ "$rc" -eq 1 ]]
 }
 
 directory_content_different() {
-  local src="$1"
-  local dst="$2"
+  local src="$1" dst="$2" rc=0 f
   [[ -d "$src" && -d "$dst" ]] || return 0
-  local src_manifest dst_manifest
-  src_manifest="$(mktemp)"
-  dst_manifest="$(mktemp)"
-  (
-    cd "$src"
-    find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum 2>/dev/null
-  ) > "$src_manifest" || true
-  (
-    cd "$dst"
-    find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum 2>/dev/null
-  ) > "$dst_manifest" || true
-  if ! cmp -s "$src_manifest" "$dst_manifest"; then
-    rm -f "$src_manifest" "$dst_manifest"
-    return 0
-  fi
-  rm -f "$src_manifest" "$dst_manifest"
+  local src_list dst_list
+  src_list="$(cd "$src" && find . -type f | LC_ALL=C sort)"
+  dst_list="$(cd "$dst" && find . -type f | LC_ALL=C sort)"
+  [[ "$src_list" == "$dst_list" ]] || return 0
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    rc=0
+    cmp -s "$src/$f" "$dst/$f" || rc=$?
+    [[ "$rc" -eq 1 ]] && return 0
+  done <<< "$src_list"
   return 1
 }
 
