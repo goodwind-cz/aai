@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: RFC-0012 Phase 2 / RFC-0013 Slice B — offline triage engine
-# (.aai/scripts/aai-feedback-triage.mjs), TEST-001..012.
+# (.aai/scripts/aai-feedback-triage.mjs), TEST-001..013.
 #
 # Offline triage: read the friction spool, hard-gate, score from v2 signals with a
 # v1 recurrence fallback, cluster by fingerprint, write a LOCAL report. No network.
@@ -14,8 +14,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
+PROFILES="$PROJECT_ROOT/.aai/system/PROFILES.yaml"
 SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-feedback-triage.mjs"
-LAYER_PROFILES_TEST="$SCRIPT_DIR/test-aai-layer-profiles.sh"
 
 cleanup() {
   if [ -n "${KEEP_TEST_DIR:-}" ]; then echo "INFO: keeping $TEST_DIR"
@@ -28,7 +28,6 @@ log_info() { echo "INFO: $*"; }
 log_skip() { echo "SKIP: $*"; exit 42; }
 
 command -v node >/dev/null 2>&1 || log_skip "node not found"
-[ -f "$LAYER_PROFILES_TEST" ] || log_fail "test-aai-layer-profiles.sh not found"
 
 setup() { TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-triage-test.XXXXXX")"; }
 
@@ -210,10 +209,19 @@ test_012_failclosed_config() {
 
 # --- TEST-013: profiles classification --------------------------------------
 test_013_profiles() {
-  log_info "Test: new .aai files classified; layer-profiles green (TEST-013)..."
-  local out code; out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
-  [ "$code" = "0" ] || log_fail "TEST-013: test-aai-layer-profiles.sh must pass: $(printf '%s' "$out" | tail -3)"
-  log_pass "new .aai files classified; layer-profiles green (TEST-013)"
+  log_info "Test: feedback-triage prompt + engine classified once under extended (TEST-013)..."
+  [ -f "$PROFILES" ] || log_fail "TEST-013: PROFILES.yaml not found: $PROFILES"
+  local extended_block n
+  extended_block="$(awk '/^extended:/{cap=1; next} cap' "$PROFILES")"
+  assert_payload_contains "$extended_block" ".aai/SKILL_FEEDBACK_TRIAGE.prompt.md" \
+    "TEST-013: feedback-triage prompt must be classified under 'extended:' in PROFILES.yaml"
+  assert_payload_contains "$extended_block" ".aai/scripts/aai-feedback-triage.mjs" \
+    "TEST-013: feedback-triage engine must be classified under 'extended:' in PROFILES.yaml"
+  n="$(grep -cF '  - .aai/SKILL_FEEDBACK_TRIAGE.prompt.md' "$PROFILES" || true)"
+  [ "$n" = "1" ] || log_fail "TEST-013: feedback-triage prompt must be classified exactly once (got $n)"
+  n="$(grep -cF '  - .aai/scripts/aai-feedback-triage.mjs' "$PROFILES" || true)"
+  [ "$n" = "1" ] || log_fail "TEST-013: feedback-triage engine must be classified exactly once (got $n)"
+  log_pass "feedback-triage prompt + engine classified once under extended (TEST-013)"
 }
 
 main() {
