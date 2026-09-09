@@ -160,12 +160,21 @@ file_content_different() {
   [[ "$rc" -eq 1 ]]
 }
 
+# Relpaths from `find "$root"` (never `cd` inside `$(...)` — that shape is
+# ratcheted by check-cd-subshell-leak.mjs even when the cd cannot leak).
+_aai_rel_files() {
+  local root="$1" p
+  find "$root" -type f | LC_ALL=C sort | while IFS= read -r p; do
+    printf '%s\n' "${p#"$root"/}"
+  done
+}
+
 directory_content_different() {
   local src="$1" dst="$2" rc=0 f
   [[ -d "$src" && -d "$dst" ]] || return 0
   local src_list dst_list
-  src_list="$(cd "$src" && find . -type f | LC_ALL=C sort)"
-  dst_list="$(cd "$dst" && find . -type f | LC_ALL=C sort)"
+  src_list="$(_aai_rel_files "$src")"
+  dst_list="$(_aai_rel_files "$dst")"
   [[ "$src_list" == "$dst_list" ]] || return 0
   while IFS= read -r f; do
     [[ -n "$f" ]] || continue
