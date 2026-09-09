@@ -1,0 +1,65 @@
+name: release
+
+# Publish a GitHub Release when a version tag is pushed.
+#
+# This is the automation path that lets a release be published WITHOUT any
+# agent (or CI job other than this one) holding gh write permissions: an
+# operator — or `.aai/scripts/aai-release.sh` — creates the annotated `vX` tag
+# and pushes it, and this workflow turns that pushed tag into a published
+# Release using the built-in GITHUB_TOKEN.
+#
+# Notes come from the matching `## [<tag>]` CHANGELOG.md section(s), the same
+# source `aai-release.sh` uses for its own `--notes-file`. The step is
+# IDEMPOTENT: if the release already exists (for example because someone ran
+# `aai-release.sh --confirm` with gh write and it published directly), it does
+# nothing, so the two paths never double-publish or fail each other.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: publish GitHub release from the pushed tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish release (idempotent; notes from the CHANGELOG section)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # Already published (e.g. by aai-release.sh --confirm on a host with
+          # gh write) — nothing to do. Never double-publish.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — nothing to do."
+            exit 0
+          fi
+
+          # Extract every consecutive '## [<tag>] — ...' section from the
+          # CHANGELOG (a cut rolls one titled block per entry under the same
+          # version), stopping at the next DIFFERENT version header. Literal
+          # prefix match (index ==1) so a version's dots are never treated as
+          # regex. Mirrors the section aai-release.sh writes to its notes file.
+          notes="$(mktemp)"
+          awk -v tag="$TAG" '
+            index($0, "## [" tag "]") == 1 { grab = 1; print; next }
+            grab && index($0, "## [") == 1 && index($0, "## [" tag "]") != 1 { exit }
+            grab { print }
+          ' CHANGELOG.md > "$notes" || true
+
+          if [ -s "$notes" ]; then
+            gh release create "$TAG" --title "$TAG" --notes-file "$notes"
+            echo "Published $TAG with notes from the CHANGELOG [$TAG] section."
+          else
+            echo "No '## [$TAG]' section in CHANGELOG.md — using auto-generated notes."
+            gh release create "$TAG" --title "$TAG" --generate-notes
+          fi
