@@ -10,9 +10,11 @@ name: release
 #
 # Notes come from the matching `## [<tag>]` CHANGELOG.md section(s), the same
 # source `aai-release.sh` uses for its own `--notes-file`. The step is
-# IDEMPOTENT: if the release already exists (for example because someone ran
-# `aai-release.sh --confirm` with gh write and it published directly), it does
-# nothing, so the two paths never double-publish or fail each other.
+# IDEMPOTENT: a pre-check of `gh release view` skips work when the release
+# already exists, and a failed `gh release create` is still treated as success
+# when the release is then visible (the race with a concurrent
+# `aai-release.sh --confirm` publish). The two paths never double-publish or
+# fail each other.
 
 on:
   push:
@@ -37,11 +39,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Already published (e.g. by aai-release.sh --confirm on a host with
-          # gh write) — nothing to do. Never double-publish.
+          # Cheap skip when already published (e.g. by aai-release.sh --confirm
+          # on a host with gh write). The create call below is the real
+          # idempotency gate: a concurrent publisher can pass this check and
+          # still win the create.
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists — nothing to do."
             exit 0
+          fi
+
+          if [ ! -f CHANGELOG.md ]; then
+            echo "CHANGELOG.md is missing from the tagged commit — refusing to publish." >&2
+            exit 1
           fi
 
           # Extract every consecutive '## [<tag>] — ...' section from the
@@ -49,17 +58,35 @@ jobs:
           # version), stopping at the next DIFFERENT version header. Literal
           # prefix match (index ==1) so a version's dots are never treated as
           # regex. Mirrors the section aai-release.sh writes to its notes file.
+          # No `|| true`: an awk/IO failure must fail the job, not publish
+          # truncated or auto-generated notes under a false "no section" claim.
           notes="$(mktemp)"
+          trap 'rm -f "$notes"' EXIT
           awk -v tag="$TAG" '
             index($0, "## [" tag "]") == 1 { grab = 1; print; next }
             grab && index($0, "## [") == 1 && index($0, "## [" tag "]") != 1 { exit }
             grab { print }
-          ' CHANGELOG.md > "$notes" || true
+          ' CHANGELOG.md > "$notes"
 
-          if [ -s "$notes" ]; then
-            gh release create "$TAG" --title "$TAG" --notes-file "$notes"
-            echo "Published $TAG with notes from the CHANGELOG [$TAG] section."
+          publish() {
+            if [ -s "$notes" ]; then
+              gh release create "$TAG" --title "$TAG" --notes-file "$notes"
+              echo "Published $TAG with notes from the CHANGELOG [$TAG] section."
+            else
+              echo "No '## [$TAG]' section in CHANGELOG.md — using auto-generated notes."
+              gh release create "$TAG" --title "$TAG" --generate-notes
+            fi
+          }
+
+          set +e
+          pub_out="$(publish 2>&1)"
+          pub_rc=$?
+          set -e
+          if [ "$pub_rc" -eq 0 ]; then
+            printf '%s\n' "$pub_out"
+          elif gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists (created concurrently) — nothing to do."
           else
-            echo "No '## [$TAG]' section in CHANGELOG.md — using auto-generated notes."
-            gh release create "$TAG" --title "$TAG" --generate-notes
+            printf '%s\n' "$pub_out" >&2
+            exit "$pub_rc"
           fi

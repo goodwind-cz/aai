@@ -19,12 +19,15 @@ RFC-0001).
   that lets a release be published without any agent holding gh write
   permissions: an operator (or `aai-release.sh`) creates and pushes the
   annotated tag, and CI turns it into a published Release.
-- **Notes come from the CHANGELOG, idempotently.** The job extracts the matching
+- **Notes come from the CHANGELOG, fail-closed.** The job extracts the matching
   `## [<tag>]` section(s) from `CHANGELOG.md` — the same source
   `aai-release.sh --notes-file` uses — and falls back to auto-generated notes
-  when no such section exists. It first checks `gh release view` and no-ops if
-  the release already exists, so it never double-publishes or conflicts with a
-  direct `aai-release.sh --confirm` publish.
+  only when that section is genuinely absent. A missing CHANGELOG or an awk/IO
+  failure fails the job instead of publishing truncated notes.
+- **Create is the idempotency gate.** A pre-check of `gh release view` skips
+  work when the release already exists; a failed `gh release create` is still
+  treated as success when the release is then visible, so a concurrent
+  `aai-release.sh --confirm` publish cannot flake the workflow.
 
 ## [v2026.09.08] — feat(factory): a ride that finishes, measurably
 
