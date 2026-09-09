@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // unattended-gate.mjs — the deterministic auto-versus-park boundary for an
-// opted-in unattended ride (RFC-0014 D1 / SPEC-DRAFT-spec-unattended-rides-
+// opted-in unattended ride (RFC-0014 D1 / SPEC-0174-spec-unattended-rides-
 // human-gate-at-merge). The trigger set is CLOSED and mechanically stamped
 // (`[HITL-<n>]` by .aai/ORCHESTRATION_HITL.prompt.md; `stagnation` /
 // `run-budget` / `review-round-cap` by .aai/SKILL_LOOP.prompt.md's own stop

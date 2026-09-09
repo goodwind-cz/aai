@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Test: unattended-rides-human-gate-at-merge (SPEC-DRAFT-spec-unattended-rides-human-gate-at-merge)
+# Test: unattended-rides-human-gate-at-merge (SPEC-0174-spec-unattended-rides-human-gate-at-merge)
 # .aai/scripts/unattended-gate.mjs — the deterministic auto-versus-park engine
 # (D1), TEST-001..015 (TEST-016 lives in test-aai-prompt-diet.sh, TEST-017 in
 # test-aai-golden-flow.sh — the spec's own numbering, unrelated to this file's).

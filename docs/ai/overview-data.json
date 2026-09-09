@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T18:21:22.266Z",
+  "generatedAt": "2026-09-09T17:08:13.239Z",
   "project": "aai",
   "counts": {
     "delivered": 236,
@@ -16,7 +16,7 @@
     "focus": {
       "ref": "unattended-rides-human-gate-at-merge",
       "type": "intake_rfc",
-      "phase": "planning"
+      "phase": "code_review"
     },
     "strategy": "tdd",
     "worktree": {
@@ -24,7 +24,7 @@
       "user_decision": "inline"
     },
     "validation_status": "pass",
-    "review_status": "not_run",
+    "review_status": "pass",
     "ticks": [
       {
         "tick": 2,
