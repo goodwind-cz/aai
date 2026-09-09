@@ -2,11 +2,13 @@
 id: unattended-rides-human-gate-at-merge
 type: rfc
 number: 14
-status: accepted
+status: done
 links:
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - d9638a845d199653f59f0a9850e6124a3eeb712e
 ---
 
 # RFC (Decision Proposal)

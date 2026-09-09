@@ -2,13 +2,15 @@
 id: spec-unattended-rides-human-gate-at-merge
 type: spec
 number: 174
-status: implementing
+status: done
 ceremony_level: 3
 links:
   requirement: docs/rfc/RFC-0014-unattended-rides-human-gate-at-merge.md
   rfc: docs/rfc/RFC-0014-unattended-rides-human-gate-at-merge.md
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - d9638a845d199653f59f0a9850e6124a3eeb712e
 ---
 
 # Spec — the human gate moves to the merge, and an opted-in unattended ride answers its own quality questions
