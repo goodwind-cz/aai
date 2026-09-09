@@ -109,7 +109,16 @@ test_002_unknown_fail_closed() {
   [ "$(jf class)" = "unknown" ] || log_fail "TEST-002: invented trigger class must be unknown"
   fresh_ledger
   [ "$(run classify --trigger "banana" --ref r1 --question q --ledger "$TEST_DIR/decisions.jsonl" --json)" = "3" ] || log_fail "TEST-002: invented word trigger must exit 3"
-  log_pass "absent/empty/lowercase/whitespace/invented triggers all park unknown, exit 3 (TEST-002)"
+  # Mechanically stamped `[HITL-<n>]` is the form SKILL_LOOP reads from
+  # blocking_reason — stripping the display brackets is not a fuzzy match.
+  fresh_ledger
+  [ "$(run classify --trigger "[HITL-9]" --ref r1 --question q --ledger "$TEST_DIR/decisions.jsonl" --json)" = "0" ] || log_fail "TEST-002: bracketed [HITL-9] must classify as HITL-9 auto, not unknown/park: $(err)"
+  [ "$(jf trigger)" = "HITL-9" ] || log_fail "TEST-002: bracketed [HITL-9] must resolve trigger HITL-9, got $(jf trigger)"
+  [ "$(jf decision)" = "auto" ] || log_fail "TEST-002: bracketed [HITL-9] decision must be auto"
+  fresh_ledger
+  [ "$(run classify --trigger "[HITL-1]" --ref r1 --question q --ledger "$TEST_DIR/decisions.jsonl" --json)" = "3" ] || log_fail "TEST-002: bracketed [HITL-1] must still park"
+  [ "$(jf trigger)" = "HITL-1" ] || log_fail "TEST-002: bracketed [HITL-1] must resolve trigger HITL-1, got $(jf trigger)"
+  log_pass "absent/empty/lowercase/whitespace/invented triggers all park unknown, exit 3; stamped [HITL-n] strips to the table row (TEST-002)"
 }
 
 # --- TEST-003 (Spec-AC-02): waived unreachable on HITL-9 -----------------------
@@ -178,10 +187,10 @@ test_005_ledger_append() {
 # --- TEST-006 (Spec-AC-03): unwritable ledger -> non-zero, no verdict ---------
 test_006_unwritable_ledger() {
   log_info "Test: an unwritable ledger makes classify exit non-zero and print no verdict (TEST-006)..."
-  mkdir -p "$TEST_DIR/lockeddir"
-  chmod 000 "$TEST_DIR/lockeddir"
-  local rc; rc="$(run classify --trigger HITL-9 --ref r1 --question q --ledger "$TEST_DIR/lockeddir/decisions.jsonl" --json)"
-  chmod 755 "$TEST_DIR/lockeddir"
+  # Parent-is-a-file, not chmod 000: root in a container can still write a
+  # 000 directory, so permission bits are not a reliable refusal.
+  printf 'not a directory\n' > "$TEST_DIR/notadir"
+  local rc; rc="$(run classify --trigger HITL-9 --ref r1 --question q --ledger "$TEST_DIR/notadir/decisions.jsonl" --json)"
   [ "$rc" != "0" ] || log_fail "TEST-006: an unwritable ledger must not exit 0"
   [ -s "$TEST_DIR/out" ] && log_fail "TEST-006: no verdict may be printed to stdout when the ledger append fails, got: $(out)"
   log_pass "an unwritable ledger exits non-zero (rc=$rc) with no verdict printed (TEST-006)"
@@ -226,6 +235,9 @@ test_008_preflight_refusals() {
   [ "$(run preflight --max-run-tokens 100000 --max-ticks 10 --stagnation-limit 2 --max-prs 2)" = "3" ] || log_fail "TEST-008: a missing --intake must exit 3"
   grep -qi "intake" "$TEST_DIR/err" || log_fail "TEST-008: the missing-intake refusal must name intake: $(err)"
   [ "$(run preflight --intake "$TEST_DIR/does-not-exist.md" --max-run-tokens 100000 --max-ticks 10 --stagnation-limit 2 --max-prs 2)" = "3" ] || log_fail "TEST-008: a non-existent --intake path must exit 3"
+  mkdir -p "$TEST_DIR/intake-dir"
+  [ "$(run preflight --intake "$TEST_DIR/intake-dir" --max-run-tokens 100000 --max-ticks 10 --stagnation-limit 2 --max-prs 2)" = "3" ] || log_fail "TEST-008: a directory --intake must exit 3 (intake is a document, not a folder)"
+  grep -qi "file\|regular\|directory" "$TEST_DIR/err" || log_fail "TEST-008: a directory --intake refusal must name that it is not a file: $(err)"
   log_pass "five preflight refusal arms each independently turn exit 0 into exit 3, each named (TEST-008)"
 }
 
@@ -298,7 +310,9 @@ test_012_gate_moved() {
   local const_file="$PROJECT_ROOT/docs/CONSTITUTION.md"
   grep -qF 'Ship? [y] open PR' "$ship_file" && log_fail "TEST-012: the literal 'Ship? [y] open PR' must be absent from SKILL_SHIP"
   grep -qF 'never assume consent' "$ship_file" && log_fail "TEST-012: the literal 'never assume consent' must be absent from SKILL_SHIP"
-  grep -qi "merge" "$ship_file" | grep -qi "operator" || grep -qi "operator-only" "$ship_file" || log_fail "TEST-012: SKILL_SHIP must name merging as operator-only at its checkpoint"
+  grep -qi "merge" "$ship_file" || log_fail "TEST-012: SKILL_SHIP must mention merge at its checkpoint"
+  grep -qi "operator" "$ship_file" || log_fail "TEST-012: SKILL_SHIP must name merging as operator-only at its checkpoint"
+  grep -qi "already opened\|already has an open PR\|skip a second create" "$ship_file" || log_fail "TEST-012: SKILL_SHIP must skip a second gh pr create when unattended chaining already opened this ref's PR"
   grep -qi "open the pull request" "$ship_file" || grep -q "gh pr create" "$ship_file" || log_fail "TEST-012: SKILL_SHIP must open the PR on PASS without asking"
   grep -q "PR URL\|pull request.*URL\|its URL" "$ship_file" || log_fail "TEST-012: the merge checkpoint must name the PR URL"
   grep -qi "validation PASS\|the review gate" "$pr_file" || log_fail "TEST-012: SKILL_PR precondition must name validation PASS / review gate as the authority to commit"
@@ -320,6 +334,10 @@ test_013_loop_default_and_hitl_block() {
   grep -qi "unattended" "$loop_file" || log_fail "TEST-013: SKILL_LOOP must gain an unattended branch"
   grep -q "unattended-gate.mjs classify" "$loop_file" || log_fail "TEST-013: SKILL_LOOP's unattended branch must invoke unattended-gate.mjs classify"
   grep -q "max_prs" "$loop_file" || log_fail "TEST-013: SKILL_LOOP must gain max_prs as a loop parameter"
+  grep -q "SKILL_PR.prompt.md" "$loop_file" || log_fail "TEST-013: unattended chaining must follow SKILL_PR for the completed ride before adopting another ref"
+  grep -q "branch-guard.mjs --suggest" "$loop_file" || log_fail "TEST-013: unattended chaining must cut a dedicated branch via branch-guard --suggest before the next ref"
+  grep -qi "strip" "$loop_file" || log_fail "TEST-013: unattended classify must strip [HITL-n] display brackets before --trigger"
+  grep -q -- "--answer" "$loop_file" || log_fail "TEST-013: unattended HITL-8 must pass --answer from the spec/STATE review scope"
   local block; block="$(awk '/^HITL OUTPUT FORMAT$/{f=1} f{print} f&&/^---$/{c++; if(c==2) exit}' "$loop_file")"
   assert_payload_contains "$block" "LOOP PAUSED" "TEST-013: HITL OUTPUT FORMAT block must still contain 'LOOP PAUSED'"
   assert_payload_contains "$block" "NEXT STEP: Answer the question above, then run .aai/SKILL_HITL.prompt.md to resume the loop." "TEST-013: HITL OUTPUT FORMAT's NEXT STEP line must stay byte-identical"
@@ -349,6 +367,20 @@ test_014_target_command_seam() {
   fresh_ledger
   run classify --trigger HITL-5 --ref r1 --question q --ledger "$TEST_DIR/decisions.jsonl" --json >/dev/null
   [ "$(jf target_command)" = "" ] || log_fail "TEST-014: HITL-5 (STEP 4c target 'none') must have empty target_command, got: $(jf target_command)"
+
+  fresh_ledger
+  run classify --trigger HITL-8 --ref r1 --question q --answer 'docs/"foo".md' --ledger "$TEST_DIR/decisions.jsonl" --json >/dev/null
+  local hitl8_tc; hitl8_tc="$(jf target_command)"
+  [ -n "$hitl8_tc" ] || log_fail "TEST-014: HITL-8 with --answer must emit a target_command"
+  echo "$hitl8_tc" | grep -q "set-code-review --scope '" || log_fail "TEST-014: HITL-8 target_command must POSIX-single-quote --scope, got: $hitl8_tc"
+  echo "$hitl8_tc" | grep -F -- '--scope "docs/"' && log_fail "TEST-014: HITL-8 must not interpolate --answer inside double quotes, got: $hitl8_tc"
+  fresh_ledger
+  run classify --trigger HITL-8 --ref r1 --question q --ledger "$TEST_DIR/decisions.jsonl" --json >/dev/null
+  [ "$(jf target_command)" = "" ] || log_fail "TEST-014: HITL-8 without --answer must not invent a placeholder target_command, got: $(jf target_command)"
+  [ "$(jf decision)" = "auto" ] || log_fail "TEST-014: HITL-8 without --answer still auto (Spec-AC-01); LOOP parks when target_command is empty"
+
+  fresh_ledger
+  [ "$(run classify --trigger HITL-7 --ref r1 --question q --worktree-recommendation optional --ceremony 3.5 --ledger "$TEST_DIR/decisions.jsonl" --json)" = "2" ] || log_fail "TEST-014: --ceremony 3.5 must be a usage error, not a silent auto: $(err)"
 
   for t in HITL-1 HITL-2 HITL-3 HITL-4 HITL-6 stagnation run-budget review-round-cap; do
     fresh_ledger

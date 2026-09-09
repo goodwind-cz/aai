@@ -132,10 +132,15 @@ For each tick (1..max_ticks):
         → UNATTENDED BRANCH (unattended == true, RFC-0014 D1): before
           exiting, read `human_input.blocking_reason` for its stamped
           `[HITL-<n>]` token (or `stagnation`/`run-budget`/`review-round-cap`
-          for those escalations — see stop conditions (e)/(f) and rule 3),
-          and run:
+          for those escalations — see stop conditions (e)/(f) and rule 3).
+          Strip surrounding `[]` so `--trigger` is the bare `HITL-<n>` (the
+          engine also accepts the bracketed form). For HITL-8 pass `--answer`
+          as the spec Isolation / STATE `inline_review_scope` or
+          `code_review.scope` — never the placeholder `inferred: <path not
+          provided>`. Then run:
             node .aai/scripts/unattended-gate.mjs classify --trigger <token>
               --ref <current_focus.ref_id> --question <question_ref content>
+              [--answer <inferred scope>]
               [--worktree-recommendation <val>] [--ceremony <n>] --json
           The call appends its own audit line to docs/ai/decisions.jsonl
           before printing a verdict (D3) — do not duplicate that append.
@@ -147,19 +152,21 @@ For each tick (1..max_ticks):
             trigger), THEN clear the gate exactly as SKILL_HITL STEP 5 does:
             `node .aai/scripts/state.mjs set-human-input --required false`.
             Do NOT exit — continue the loop from step 1 on the same tick
-            budget. A `classify` exit other than 0 (auto) or 3 (park) — a
-            ledger-append failure or a usage error — is treated as UNMAPPABLE:
-            print the HITL block and EXIT (fail closed, never guess).
+            budget. HITL-8 with an empty `target_command` (no `--answer`)
+            is treated as park: print the HITL block and EXIT. A `classify`
+            exit other than 0 (auto) or 3 (park) — a ledger-append failure
+            or a usage error — is treated as UNMAPPABLE: print the HITL
+            block and EXIT (fail closed, never guess).
      c. last_validation.status == pass AND active_work_items are all done/empty
         AND (code_review.required != true OR code_review.status in [pass, waived])
         → DEFAULT (unattended is false or unset): Print: "LOOP COMPLETE:
           validation PASS, review gate satisfied, no open items." and EXIT.
         → UNATTENDED CHAINING (unattended == true, RFC-0014 D5): this ride is
-          done — SKILL_SHIP's own step 5 opens its pull request from this
-          state. Before exiting, count pull requests already opened this run;
-          if it has reached `max_prs`, print "LOOP STOPPED: max_prs reached
-          (<n>)." and EXIT (finish the ride in flight, never abandon it, then
-          stop rather than starting another). Otherwise run
+          done. BEFORE adopting another ref, follow `.aai/SKILL_PR.prompt.md`
+          for THIS ride (open and close its PR on the current branch — the
+          human gate stays at merge). Then count pull requests opened this
+          run (`gh pr list`); if it has reached `max_prs`, print "LOOP
+          STOPPED: max_prs reached (<n>)." and EXIT. Otherwise run
           `node .aai/scripts/ride-select.mjs next --json` for a candidate:
           - No candidate (wave 1 complete) → print "LOOP COMPLETE: <next's
             message>." and EXIT.
@@ -168,8 +175,11 @@ For each tick (1..max_ticks):
             intake document — unattended never authors one (D5)." and EXIT.
           - A candidate whose intake exists AND
             `node .aai/scripts/ride-select.mjs gate --ref <ref> --intake
-            <path>` exits 0 → adopt it (`state.mjs set-focus`) and CONTINUE
-            the loop from step 1 (a fresh ride, same run).
+            <path>` exits 0 → cut a dedicated branch (`node
+            .aai/scripts/branch-guard.mjs --suggest`, then `git checkout -b`
+            that name), adopt it (`state.mjs set-focus`), and CONTINUE the
+            loop from step 1 (a fresh ride, same run, never pile onto the
+            previous ride's branch).
           - Otherwise (gate refuses) → print the gate's refusal verbatim and
             EXIT.
      d. tick_count >= max_ticks

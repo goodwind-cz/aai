@@ -62,19 +62,6 @@ const WORKTREE_RESOLUTION = Object.freeze({
   // 'required' is never resolved here — it always parks (see classifyTrigger).
 });
 
-function parseCommonArgs(argv, extra) {
-  const a = { ledger: DEFAULT_LEDGER, json: false, ...extra };
-  const need = (k, v) => {
-    if (v === undefined || (typeof v === 'string' && v.startsWith('--') && v !== '')) {
-      // allow negative-looking or empty values through; only a genuinely
-      // missing next token (undefined) or another flag token is an error.
-    }
-    if (v === undefined) usage(`${k} requires a value`);
-    return v;
-  };
-  return { a, need };
-}
-
 function parseClassifyArgs(argv) {
   const a = {
     trigger: undefined,
@@ -106,7 +93,9 @@ function parseClassifyArgs(argv) {
   if (!['not_needed', 'optional', 'recommended', 'required'].includes(a.worktreeRecommendation)) {
     usage(`--worktree-recommendation must be one of not_needed|optional|recommended|required, got "${a.worktreeRecommendation}"`);
   }
-  if (!Number.isFinite(a.ceremony)) usage('--ceremony must be numeric');
+  if (!Number.isInteger(a.ceremony) || a.ceremony < 0 || a.ceremony > 3) {
+    usage('--ceremony must be an integer 0..3');
+  }
   return a;
 }
 
@@ -156,11 +145,24 @@ function parseSummaryArgs(argv) {
 
 // --- classify ----------------------------------------------------------------
 
+function shellSingleQuote(s) {
+  return `'${String(s).replace(/'/g, `'\\''`)}'`;
+}
+
+// The HITL token in blocking_reason is stamped as `[HITL-<n>]`. The D1 table
+// keys are the bare `HITL-<n>` form SKILL_HITL STEP 4c uses. Strip only that
+// exact display wrapper — never trim, never case-fold, never a partial match.
+function bareTrigger(rawTrigger) {
+  const t = typeof rawTrigger === 'string' ? rawTrigger : '';
+  const m = /^\[(HITL-\d+)\]$/.exec(t);
+  return m ? m[1] : t;
+}
+
 // Resolve the D1 row for a raw trigger token. Absent/empty/malformed/case-
 // mismatched/whitespace-padded/invented tokens ALL fall to the closed
 // "unknown" row (fail-closed) — never a guess, never a partial match.
 function resolveRow(rawTrigger) {
-  const t = typeof rawTrigger === 'string' ? rawTrigger : '';
+  const t = bareTrigger(rawTrigger);
   if (Object.prototype.hasOwnProperty.call(D1_TABLE, t)) return { trigger: t, row: D1_TABLE[t] };
   return { trigger: t || '(absent)', row: { class: 'unknown', decision: 'park' } };
 }
@@ -193,8 +195,14 @@ function classifyTrigger(a) {
     targetCommand = 'node .aai/scripts/state.mjs set-code-review --status fail';
   } else if (trigger === 'HITL-8') {
     decision = 'auto';
-    answer = a.answer != null && a.answer !== '' ? a.answer : 'inferred: <path not provided>';
-    targetCommand = `node .aai/scripts/state.mjs set-code-review --scope "${answer}"`;
+    const provided = a.answer != null && a.answer !== '';
+    answer = provided ? a.answer : 'inferred: <path not provided>';
+    // POSIX-single-quote --scope so a path with `"`, `$()`, backticks or
+    // newlines cannot break the shell line SKILL_LOOP executes. No --answer
+    // means no command: LOOP treats empty HITL-8 target_command as park.
+    targetCommand = provided
+      ? `node .aai/scripts/state.mjs set-code-review --scope ${shellSingleQuote(answer)}`
+      : '';
   } else if (trigger === 'HITL-5') {
     decision = 'auto';
     answer = a.answer != null && a.answer !== '' ? a.answer : 'recommended-default';
@@ -273,8 +281,11 @@ function runPreflight(argv) {
   if (a.maxPrs < 1 || a.maxPrs > 5) refusals.push(`max_prs ${a.maxPrs} is outside the allowed range 1 to 5`);
   if (!a.intake) {
     refusals.push('--intake is required: unattended never authors an intake document, it only consumes one already on disk');
-  } else if (!fs.existsSync(a.intake)) {
-    refusals.push(`--intake ${a.intake} does not exist on disk`);
+  } else {
+    let st = null;
+    try { st = fs.statSync(a.intake); } catch { st = null; }
+    if (!st) refusals.push(`--intake ${a.intake} does not exist on disk`);
+    else if (!st.isFile()) refusals.push(`--intake ${a.intake} is not a regular file`);
   }
 
   if (refusals.length > 0) {

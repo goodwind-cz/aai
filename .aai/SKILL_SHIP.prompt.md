@@ -70,7 +70,8 @@ RUN
    staging, close ceremony, push, gh pr create) WITHOUT asking permission to
    open it: a pull request is reversible — closable, force-pushable, or left
    unmerged indefinitely — so it is not the irreversible step consent
-   belongs at. Report the PR URL.
+   belongs at. If unattended chaining already opened a PR for the current
+   `ref_id`, report that URL and skip a second create. Report the PR URL.
 6. MERGE CHECKPOINT (the one human gate, at the merge) — present exactly:
    - scope: ref_id + one-line outcome
    - diff stat (files/insertions/deletions) and the branch name
