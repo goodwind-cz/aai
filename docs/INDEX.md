@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-12T20:14:17.190Z
+Generated: 2026-09-12T20:41:22.898Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-harness-universal-routing | specs | implementing | 10 planned | docs/specs/SPEC-DRAFT-spec-harness-universal-routing.md |
 
 ## Canonical layer (0)
 
