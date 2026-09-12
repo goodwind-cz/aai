@@ -102,6 +102,52 @@
 // never re-implemented. This file owns NO frontmatter write and NO
 // EVENTS.jsonl write of its own (Spec-AC-04 / TEST-005) — every mutation
 // happens inside that script's own D6 snapshot/rollback transaction.
+//
+// REMEDIATION ROUND 4 (2026-09-12, owner decision recorded in
+// docs/ai/decisions.jsonl ts=2026-09-12T08:08:23Z; PR #372 bot review) —
+// two fixes at cause, both in computeItems below, neither touching
+// pairItems() or close-work-item.mjs:
+//
+// P1 (Codex) — attribution was computed ONCE for the whole range and
+// applied to EVERY item: `commits[0].sha` (the newest commit overall) and
+// `parsePrNumber(commits)` (the newest commit overall carrying a trailing
+// "(#N)"). A pushed range carrying two delivery commits — `deliver a
+// (#101)` then `deliver b (#102)` — stamped BOTH documents with commit b
+// and PR 102, regardless of which commit actually touched which document.
+// `--apply`, or an operator pasting the printed remediation command, then
+// wrote wrong links.pr/links.commits and wrong close telemetry into an
+// append-only ledger. This was ALSO a divergence from D4's own written
+// framing ("the item is reported... REFUSES THAT ITEM by name"), which was
+// already per-item in prose; the code just never matched it. Fixed by
+// resolving attribution PER ITEM (`attributionFor`, per doc rel), from
+// `git log a..b -- <rel>` — only the commits that touched THAT path, never
+// the range's aggregate list. RULE CHOSEN: when several commits in the
+// range touch the same path, the newest one (git log's own default order)
+// is that path's delivery commit, and the PR number comes from the newest
+// of those SAME path-scoped commits whose subject carries a trailing
+// "(#N)" — the identical "newest wins" convention D1 already uses
+// range-wide, scoped down to one path. A path with zero path-scoped
+// commits cannot occur through normal flow (it reached `docPaths` via
+// `git diff --name-only`, so some commit touched it) but is refused
+// (reason `attribution-unresolvable`) rather than falling back to the
+// range's aggregate `b` sha the way the pre-fix code silently did.
+// Residual R4 is corrected: its claim that the per-push CI trigger
+// mitigates this is now false (a batched direct push defeats it — this
+// very remediation branch received one) and is superseded by this fix.
+// New Spec-AC-11 / TEST-014.
+//
+// P2 (Codex) — an unreadable touched document (`fs.readFileSync` throwing
+// on permissions or a filesystem race) was silently dropped by a bare
+// `catch { continue; }`. When it was the ONLY firing document, `--check`
+// printed CLEAN and exited 0: the gate certified an incomplete scan as
+// clean. Fixed by collecting these into a separate `unreadable` list
+// (never merged into `items`, since its frontmatter/status genuinely
+// cannot be read) that both `runCheck` and `runApply` treat as an
+// unconditional non-CLEAN, non-zero-exit condition, naming the path and
+// the read error — independent of whether `items` itself is empty. The
+// neighbouring `if (!fs.existsSync(abs)) continue;` immediately above is
+// UNCHANGED and stays correct: a document deleted by the range genuinely
+// has nothing to close. New Spec-AC-12 / TEST-015.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -186,11 +232,17 @@ function changedPaths(root, a, b) {
   return out.split('\n').map((s) => s.trim()).filter(Boolean);
 }
 
-// commitLog(root, a, b) -> [{ sha, subject }] newest-first (git log's own
-// default order for a..b). commits[0] is the delivery sha (D1: "the newest
-// commit in the range").
-function commitLog(root, a, b) {
-  const out = execFileSync('git', ['log', '--format=%H%x09%s', `${a}..${b}`], {
+// commitLog(root, a, b, pathspec?) -> [{ sha, subject }] newest-first (git
+// log's own default order for a..b). commits[0] is the delivery sha (D1:
+// "the newest commit in the range"). REMEDIATION ROUND 4 (P1): an optional
+// `pathspec` scopes the log to only the commits that touched that ONE path
+// (`git log a..b -- pathspec`) — the per-item attribution `attributionFor`
+// in computeItems uses this to resolve each document's OWN delivery
+// commit/PR, instead of the range's aggregate newest commit.
+function commitLog(root, a, b, pathspec) {
+  const args = ['log', '--format=%H%x09%s', `${a}..${b}`];
+  if (pathspec) args.push('--', pathspec);
+  const out = execFileSync('git', args, {
     cwd: root, encoding: 'utf8',
   });
   return out.split('\n').filter(Boolean).map((line) => {
@@ -223,19 +275,41 @@ function isUmbrellaDoc(fm) {
   return String(fm?.umbrella ?? '').toLowerCase() === 'true';
 }
 
-// computeItems(root, a, b) -> { items, deliverySha, prNumber }
-// items: [{ rel, fmId, status, arm, reason, isSpec }]. `reason` is only set
-// to 'slug-unresolvable' when the doc's frontmatter has no usable `id:` —
-// still reported (fail-closed, never silently skipped) but always refused
-// by --apply.
+// computeItems(root, a, b) -> { items, unreadable }
+// items: [{ rel, fmId, status, arm, reason, isSpec, deliverySha, prNumber }].
+// `reason` (fail-closed: still reported, never silently skipped, always
+// refused by --apply):
+//   'slug-unresolvable'         doc frontmatter has no usable `id:`.
+//   'attribution-unresolvable'  REMEDIATION ROUND 4 (P1) — no commit in the
+//                                range touches this doc's own path (should
+//                                not occur: the path only reaches here via
+//                                `git diff --name-only`, so SOME commit
+//                                touched it — refused rather than guessed).
+//   'pr-number-unknown'         a commit touches this doc's own path, but
+//                                none of THOSE commits' subjects carry a
+//                                trailing "(#N)" (now resolved per item,
+//                                never from some OTHER item's commit).
+// `unreadable`: [{ rel, error }] — REMEDIATION ROUND 4 (P2) — a touched doc
+// whose fs.readFileSync failed (permissions, a filesystem race). Kept OUT
+// of `items` (its frontmatter genuinely cannot be read) but surfaced
+// separately so runCheck/runApply both fail closed whenever it is
+// non-empty, independent of whether `items` itself is empty.
 function computeItems(root, a, b) {
   const changed = changedPaths(root, a, b);
   const config = loadConfig(root);
   const docSet = new Set(scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] }).map((d) => d.rel));
   const docPaths = changed.filter((rel) => docSet.has(rel));
-  const commits = commitLog(root, a, b);
-  const deliverySha = commits.length ? commits[0].sha : b;
-  const prNumber = parsePrNumber(commits);
+
+  // attributionFor(rel) -> { ok, deliverySha, prNumber }. REMEDIATION
+  // ROUND 4 (P1) — resolved from ONLY the commits in this range that
+  // touched THIS path (see commitLog's pathspec above), never from the
+  // range's aggregate commit list. See the file-header comment for the
+  // full rationale and the "newest wins" rule.
+  function attributionFor(rel) {
+    const commits = commitLog(root, a, b, rel);
+    if (commits.length === 0) return { ok: false, deliverySha: null, prNumber: null };
+    return { ok: true, deliverySha: commits[0].sha, prNumber: parsePrNumber(commits) };
+  }
 
   // Read every touched doc's frontmatter + body ONCE, regardless of its own
   // terminal status. BLOCKING-1's pairing pass below needs to see an
@@ -243,13 +317,17 @@ function computeItems(root, a, b) {
   // currently-firing one, so terminal docs stay in `touched` and are only
   // excluded per-purpose (own-arm firing skips them; pairing does not).
   const touched = [];
+  const unreadable = [];
   for (const rel of docPaths) {
     const abs = path.join(root, rel);
     if (!fs.existsSync(abs)) continue; // deleted by the range: nothing to close
     let content;
     try {
       content = fs.readFileSync(abs, 'utf8');
-    } catch {
+    } catch (err) {
+      // REMEDIATION ROUND 4 (P2) — named and surfaced, never a silent
+      // drop: see the file-header comment and runCheck/runApply below.
+      unreadable.push({ rel, error: String(err?.message || err).trim() });
       continue;
     }
     const fm = parseFrontmatter(content);
@@ -266,6 +344,7 @@ function computeItems(root, a, b) {
       status,
       isFrozen: FROZEN_MARKER_RE.test(bodyOf(content)),
       isSpec: rel.startsWith('docs/specs/'),
+      attribution: attributionFor(rel),
     });
   }
 
@@ -275,13 +354,19 @@ function computeItems(root, a, b) {
   const pushItem = (d) => {
     if (pushed.has(d.rel)) return; // already an item via the other pass
     pushed.add(d.rel);
+    let reason = null;
+    if (!d.fmId) reason = 'slug-unresolvable';
+    else if (!d.attribution.ok) reason = 'attribution-unresolvable';
+    else if (d.attribution.prNumber === null) reason = 'pr-number-unknown';
     items.push({
       rel: d.rel,
       fmId: d.fmId,
       status: d.status,
       arm: 'frozen_work_merged',
-      reason: d.fmId ? null : 'slug-unresolvable',
+      reason,
       isSpec: d.isSpec,
+      deliverySha: d.attribution.ok ? d.attribution.deliverySha : null,
+      prNumber: d.attribution.ok ? d.attribution.prNumber : null,
     });
   };
 
@@ -311,32 +396,51 @@ function computeItems(root, a, b) {
     pushItem(primary);
   }
 
-  return { items, deliverySha, prNumber };
+  return { items, unreadable };
 }
 
 function runCheck(root, a, b) {
-  const { items, deliverySha, prNumber } = computeItems(root, a, b);
-  if (items.length === 0) {
+  const { items, unreadable } = computeItems(root, a, b);
+  // REMEDIATION ROUND 4 (P2) — an unreadable doc is reported and forces a
+  // non-CLEAN result UNCONDITIONALLY, even when `items` is otherwise empty:
+  // a gate that could not read part of its input has not verified anything
+  // about that part.
+  for (const u of unreadable) {
+    console.log(`close-reconcile: OPEN ${u.rel} reason=doc-unreadable detail=${u.error}`);
+  }
+  if (items.length === 0 && unreadable.length === 0) {
     console.log('close-reconcile: CLEAN');
     exit(0);
   }
   for (const it of items) {
     if (it.reason === 'slug-unresolvable') {
-      console.log(`close-reconcile: OPEN ${it.rel} reason=slug-unresolvable sha=${deliverySha}`);
+      console.log(`close-reconcile: OPEN ${it.rel} reason=slug-unresolvable sha=${it.deliverySha ?? 'unknown'}`);
       continue;
     }
-    console.log(`close-reconcile: OPEN ${it.rel} id=${it.fmId} arm=${it.arm} sha=${deliverySha}`);
-    if (prNumber === null) {
+    if (it.reason === 'attribution-unresolvable') {
       console.log(
-        `close-reconcile:   remediation: BLOCKED — no commit subject in the range carries a trailing "(#N)", so no PR number can be resolved; this cannot be closed by command until one is known`
+        `close-reconcile: OPEN ${it.rel} id=${it.fmId} reason=attribution-unresolvable — no commit in the range touches this path, so no delivery commit can be resolved`
+      );
+      continue;
+    }
+    console.log(`close-reconcile: OPEN ${it.rel} id=${it.fmId} arm=${it.arm} sha=${it.deliverySha}`);
+    if (it.reason === 'pr-number-unknown') {
+      console.log(
+        `close-reconcile:   remediation: BLOCKED — no commit subject touching ${it.rel} carries a trailing "(#N)", so no PR number can be resolved for this item; this cannot be closed by command until one is known`
       );
       continue;
     }
     console.log(
-      `close-reconcile:   remediation: node .aai/scripts/close-work-item.mjs --ref ${it.fmId} --pr ${prNumber} --commit ${deliverySha}`
+      `close-reconcile:   remediation: node .aai/scripts/close-work-item.mjs --ref ${it.fmId} --pr ${it.prNumber} --commit ${it.deliverySha}`
     );
   }
-  console.log(`close-reconcile: ${items.length} item(s) found — the close ceremony did not run before merge`);
+  if (unreadable.length > 0) {
+    console.log(
+      `close-reconcile: ${items.length} item(s) found, ${unreadable.length} document(s) could not be read — the close ceremony did not run before merge, or the scan is incomplete`
+    );
+  } else {
+    console.log(`close-reconcile: ${items.length} item(s) found — the close ceremony did not run before merge`);
+  }
   exit(1);
 }
 
@@ -364,37 +468,61 @@ function pairItems(items) {
 }
 
 function runApply(root, a, b) {
-  const { items, deliverySha, prNumber } = computeItems(root, a, b);
-  if (items.length === 0) {
+  const { items, unreadable } = computeItems(root, a, b);
+  if (items.length === 0 && unreadable.length === 0) {
     console.log('close-reconcile: CLEAN — nothing to apply');
     exit(0);
   }
 
-  const unresolvable = items.filter((i) => i.reason === 'slug-unresolvable');
-  for (const it of unresolvable) {
+  let failed = false;
+
+  // REMEDIATION ROUND 4 (P2) — an unreadable doc refuses --apply too; the
+  // scan is incomplete and this file writes nothing for a path it cannot
+  // even read.
+  for (const u of unreadable) {
+    failed = true;
+    process.stderr.write(
+      `close-reconcile: REFUSED ${u.rel} reason=doc-unreadable — could not read this touched document (${u.error}); the scan is incomplete, nothing written for it\n`
+    );
+  }
+
+  const unresolvableSlug = items.filter((i) => i.reason === 'slug-unresolvable');
+  for (const it of unresolvableSlug) {
+    failed = true;
     process.stderr.write(
       `close-reconcile: REFUSED ${it.rel} reason=slug-unresolvable — no frontmatter "id:", cannot close, nothing written\n`
     );
   }
 
-  // D4 — one PR number sourced from the whole range. None present: every
-  // resolvable item is refused by name, exit non-zero, nothing written.
-  if (prNumber === null) {
-    for (const it of items) {
-      if (it.reason === 'slug-unresolvable') continue;
-      process.stderr.write(
-        `close-reconcile: REFUSED ${it.rel} id=${it.fmId} reason=pr-number-unknown — no commit subject in the range carries a trailing "(#N)", nothing written\n`
-      );
-    }
-    exit(1);
+  const unresolvableAttribution = items.filter((i) => i.reason === 'attribution-unresolvable');
+  for (const it of unresolvableAttribution) {
+    failed = true;
+    process.stderr.write(
+      `close-reconcile: REFUSED ${it.rel} id=${it.fmId} reason=attribution-unresolvable — no commit in the range touches this path, cannot close, nothing written\n`
+    );
   }
 
-  const resolvable = items.filter((i) => i.reason !== 'slug-unresolvable');
-  let failed = unresolvable.length > 0;
+  // D4 (REMEDIATION ROUND 4, P1) — a document's PR number comes ONLY from
+  // the commits that touched IT; when none of those carry a trailing
+  // "(#N)" this ONE item is refused by name — never the whole batch, and
+  // never a silent fallback to some OTHER item's PR number.
+  const prUnknown = items.filter((i) => i.reason === 'pr-number-unknown');
+  for (const it of prUnknown) {
+    failed = true;
+    process.stderr.write(
+      `close-reconcile: REFUSED ${it.rel} id=${it.fmId} reason=pr-number-unknown — no commit subject touching ${it.rel} carries a trailing "(#N)", nothing written\n`
+    );
+  }
 
+  const resolvable = items.filter((i) => !i.reason);
   const plan = pairItems(resolvable);
   for (const { primary, spec } of plan) {
-    const cliArgs = ['--ref', primary.fmId, '--pr', prNumber, '--commit', deliverySha];
+    // The PAIR shares ONE close-work-item.mjs invocation, so it shares ONE
+    // --pr/--commit pair: the PRIMARY's own per-item attribution drives it
+    // (primary is the document this pairing pass exists to close
+    // correctly — BLOCKING-1 — and is always in `resolvable` here since a
+    // blocked reason would have excluded it above).
+    const cliArgs = ['--ref', primary.fmId, '--pr', primary.prNumber, '--commit', primary.deliverySha];
     if (spec) cliArgs.push('--spec', spec.fmId);
     try {
       execFileSync('node', [CLOSE_WORK_ITEM, ...cliArgs], {
@@ -432,7 +560,7 @@ function runApply(root, a, b) {
       );
       continue;
     }
-    console.log(`close-reconcile: CLOSED ${primary.rel} (pr #${prNumber}, commit ${deliverySha})`);
+    console.log(`close-reconcile: CLOSED ${primary.rel} (pr #${primary.prNumber}, commit ${primary.deliverySha})`);
   }
   exit(failed ? 1 : 0);
 }

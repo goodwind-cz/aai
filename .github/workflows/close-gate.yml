@@ -1,7 +1,7 @@
 name: close-gate
 
 # Loud at merge time (D5, ride ref close-ceremony-fires-only-via-aai-pr /
-# docs/specs/SPEC-DRAFT-spec-close-ceremony-fires-only-via-aai-pr.md). Runs
+# docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md). Runs
 # close-reconcile.mjs --check over the pushed range and FAILS the job when
 # the ceremony did not run before merge — the merge has ALREADY happened by
 # the time this job runs, so it gates nothing and blocks nobody; failing it

@@ -212,6 +212,81 @@ additive-with-disclosure convention `docs/specs/SPEC-0072-...md`,
    round; not reproduced against, and not required by, the round-3 dispatch
    that authored item 5's original text.
 
+7. **ADDED 2026-09-12 (REMEDIATION ROUND 4, owner decision recorded in
+   docs/ai/decisions.jsonl ts=2026-09-12T08:08:23Z) — two real defects bot
+   review found on the OPEN pull request (Codex P1, Codex P2), plus a cheap
+   Copilot-flagged workflow-comment correction, fixed at cause in
+   `computeItems()`, `runCheck()` and `runApply()`; neither `pairItems()`
+   nor `close-work-item.mjs` touched.**
+
+   **Codex P1 (attribution computed once for the whole range).**
+   `close-reconcile.mjs:236-238` (pre-fix line numbers) computed
+   `deliverySha` (`commits[0].sha`, the range's newest commit) and
+   `prNumber` (`parsePrNumber(commits)`, over the same range-wide list)
+   ONCE and applied both to EVERY item. A pushed range carrying two
+   delivery commits — `deliver a (#101)` then `deliver b (#102)` — stamped
+   BOTH documents with commit b and PR 102. `--apply`, or an operator
+   pasting the printed remediation command, then wrote wrong `links.pr`,
+   wrong `links.commits` and wrong close telemetry into an append-only
+   ledger. R4 had named the shape but claimed the per-push CI trigger
+   mitigated it — false, and refuted by this very branch, which pushed two
+   delivery commits in one range during this remediation round. Fixed by
+   resolving attribution PER ITEM: `attributionFor(rel)` runs
+   `git log a..b -- rel`, scoping the "newest commit, newest subject
+   carrying (#N)" rule D1 already used range-wide down to the ONE path
+   being attributed. RULE CHOSEN, stated once here rather than re-derived
+   per reader: when several commits in the range touch the SAME path, the
+   newest one (git log's own default order) is that path's delivery
+   commit, and the PR number comes from the newest of those SAME
+   path-scoped commits carrying a trailing `(#N)` — never from any OTHER
+   item's commits. An item whose own path has zero path-scoped commits
+   (not reproduced — the path only reaches `computeItems` via
+   `git diff --name-only`, so some commit touched it) is refused with
+   reason `attribution-unresolvable` rather than falling back to the
+   range's aggregate sha the way the pre-fix code did. A paired
+   primary+spec item still shares ONE `close-work-item.mjs` invocation
+   (`pairItems()` unchanged): the PRIMARY's own per-item attribution drives
+   that call, since the primary is the document the BLOCKING-1 pairing
+   pass (item 5 above) exists to close correctly, and it is always fully
+   resolved whenever the pair actually closes. A pair whose primary and
+   paired spec are attributed to DIFFERENT commits/PRs (not reproduced by
+   this corpus — spec-freeze.mjs and its paired primary are conventionally
+   touched by the SAME delivery commit) is not separately guarded against;
+   left open, not required by this round's dispatch. New Spec-AC-11 /
+   TEST-014, RED captured against the pre-fix binary:
+   `docs/ai/tdd/red-close-reconcile-TEST-014-20260912T081631Z.log`.
+
+   **Codex P2 (an unreadable document vanishes, the gate says CLEAN).**
+   `close-reconcile.mjs:251-254` (pre-fix line numbers) had
+   `try { content = fs.readFileSync(abs, 'utf8'); } catch { continue; }` —
+   a touched document that could not be read (permissions, a filesystem
+   race) was silently dropped from `touched`, so it never became an item.
+   When it was the ONLY firing document, `--check` printed CLEAN and
+   exited 0: the gate certified a scan it had not actually completed. This
+   was undisclosed anywhere in this spec. Fixed by collecting these into a
+   separate `unreadable` list (`{ rel, error }`, never merged into
+   `items` — its frontmatter genuinely cannot be read, so it cannot be
+   classified one way or the other) that `runCheck` and `runApply` both
+   treat as an UNCONDITIONAL non-CLEAN, non-zero-exit condition, naming
+   the path and the read error, independent of whether `items` itself is
+   empty. The neighbouring `if (!fs.existsSync(abs)) continue;` on the
+   line immediately above is UNCHANGED and stays correct — a document
+   deleted BY the range genuinely has nothing to close; that is a
+   different case from one that exists but cannot be opened. New
+   Spec-AC-12 / TEST-015, RED captured against the pre-fix binary:
+   `docs/ai/tdd/red-close-reconcile-TEST-015-20260912T081631Z.log`.
+
+   **Copilot (cheap).** `.github/workflows/close-gate.yml`'s header
+   comment still cited the pre-allocation `docs/specs/SPEC-DRAFT-spec-close-ceremony-fires-only-via-aai-pr.md`
+   path from before this spec was numbered. Corrected to
+   `docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md`;
+   comment-only, no behavioural change, no test required (the suite
+   extracts and replays the workflow's embedded script, not its header).
+
+   Both Codex fixes are covered by full-suite green:
+   `docs/ai/tdd/green-close-reconcile-ALL-20260912T081843Z.log` (all
+   fifteen rows, including TEST-014 and TEST-015).
+
 ## What is actually missing
 
 The capability half already shipped the ENGINE of a route-independent check: `.aai/scripts/nothing-left-behind.mjs` names a `docs_open` class whose header cites this exact upstream issue. What it did NOT ship is a route-independent TRIGGER — the gate is invoked from one place, a bullet in `.aai/SKILL_PR.prompt.md` step 5, and it takes `--ref <slug>`, a value only the ride that is running knows. A PR opened with `gh pr create`, through the GitHub UI, or by a merge queue never reaches that bullet, and after the merge no `--ref` exists for anyone to pass.
@@ -271,6 +346,8 @@ None.
 - Maps to: the intake's "Verification" bullet 2 (a mutation arm) -> Spec-AC-08
 - Maps to: the closed companion-obligation list (a new `.aai/**` file) -> Spec-AC-09
 - Maps to: code review round 3 BLOCKING-2 (an umbrella parent must never misfire this gate) -> Spec-AC-10 (ADDED 2026-09-12, Amendment item 5)
+- Maps to: PR #372 bot review, Codex P1 (attribution computed once for the whole range, stamped onto every item) -> Spec-AC-11 (ADDED 2026-09-12, Amendment item 7)
+- Maps to: PR #372 bot review, Codex P2 (an unreadable touched document silently dropped, --check prints CLEAN) -> Spec-AC-12 (ADDED 2026-09-12, Amendment item 7)
 
 ## Acceptance Criteria Status
 
@@ -286,6 +363,8 @@ None.
 | Spec-AC-08 | A fixture ride that opens and merges its change WITHOUT ever invoking /aai-pr or .aai/SKILL_PR.prompt.md, whose INTAKE doc stays `draft` throughout (paired with a spec that reaches `implementing` — the shape spec-freeze.mjs and close-work-item.mjs actually produce; `implementing` never lands on an intake doc in this corpus) SHALL end with that INTAKE doc at `status: done` after the gate runs; and the MUTATION control, exercising the real close-reconcile.mjs then stubbing it to exit 0, SHALL first show the real binary flagging the fixture, then return the SAME intake doc to its original `draft` status when stubbed, and turn the arm red when the implementation is stubbed or absent. Verified by TEST-010 and TEST-011. | done | docs/ai/tdd/green-close-reconcile-TEST-010-20260911T224414Z.log (red: docs/ai/tdd/red-close-reconcile-TEST-010-20260911T224341Z.log) and TEST-011: docs/ai/tdd/green-close-reconcile-TEST-011-20260911T224414Z.log | — | AMENDED 2026-09-12 (Amendment item 5, code review round 3 spec_compliance non-compliant) — the prior row text was proven only on a fixture whose INTAKE doc itself reached `implementing`, a state 0 of 268 docs/issues docs have ever carried; corrected to the draft-intake + implementing-spec pair the corpus actually produces. AMENDED 2026-09-11 (see Amendment item 1) history: route independence plus the intake's mutation arm, now exercising the real binary (was tautological pre-remediation) |
 | Spec-AC-09 | .aai/scripts/close-reconcile.mjs SHALL appear exactly once across the two lists in .aai/system/PROFILES.yaml and SHALL be mapped to a suite in tests/skills/suite-map.yaml, with tests/skills/test-aai-layer-profiles.sh and tests/skills/test-aai-hygiene-pack.sh green. Verified by TEST-012. | done | docs/ai/tdd/green-close-reconcile-TEST-012-20260911T152431Z.log; neighbour-suite run in tests/skills/results/ | — | closed companion-obligation list, new .aai file entry |
 | Spec-AC-10 | ADDED 2026-09-12 (Amendment item 5, code review round 3 BLOCKING-2). WHEN a touched doc's frontmatter carries `umbrella: true` (docs-audit-core.mjs's own predicate, read verbatim, string-compared case-insensitively — never a second, weaker notion of it), close-reconcile.mjs SHALL treat that doc as exempt from every arm regardless of its own status, in both --check and --apply. Verified by TEST-013. | done | docs/ai/tdd/green-close-reconcile-TEST-013-20260911T224414Z.log (red: docs/ai/tdd/red-close-reconcile-TEST-013-20260911T224341Z.log) | — | a deliberately-open multi-phase parent (e.g. docs/rfc/RFC-0012) must never misfire this gate |
+| Spec-AC-11 | ADDED 2026-09-12 (Amendment item 7, PR #372 bot review, Codex P1). WHEN a range carries commits touching more than one item's own path, close-reconcile.mjs SHALL resolve EACH item's delivery sha and PR number from ONLY the commits that touched that item's own path (never from the range's aggregate newest commit), in both --check output and the --apply remediation command / close-work-item.mjs invocation; an item whose own path carries zero commits SHALL be refused with reason attribution-unresolvable rather than defaulting to any other item's attribution. Verified by TEST-014. | done | docs/ai/tdd/green-close-reconcile-ALL-20260912T081843Z.log (red: docs/ai/tdd/red-close-reconcile-TEST-014-20260912T081631Z.log) | — | closes the range-wide-attribution defect named in R4 |
+| Spec-AC-12 | ADDED 2026-09-12 (Amendment item 7, PR #372 bot review, Codex P2). WHEN a touched document's frontmatter cannot be read (fs.readFileSync throws), close-reconcile.mjs SHALL name that path and the read error and SHALL exit non-zero in both --check and --apply, even when it is the only touched document and every other item is otherwise clean — --check SHALL NEVER print CLEAN in this case. Verified by TEST-015. | done | docs/ai/tdd/green-close-reconcile-ALL-20260912T081843Z.log (red: docs/ai/tdd/red-close-reconcile-TEST-015-20260912T081631Z.log) | — | a gate that could not read part of its input has not verified anything about that part |
 
 ## Implementation plan
 
@@ -329,8 +408,10 @@ Edge cases:
 | TEST-011 | Spec-AC-08 | e2e | tests/skills/test-aai-close-reconcile.sh | MUTATION control, first exercises the REAL close-reconcile.mjs on the SAME draft-intake/implementing-spec pair (fails RED if it is missing or degraded), then the gate stubbed to exit 0 returns the intake doc to its original `draft` status (AMENDED 2026-09-11, Amendment item 1: was tautological pre-remediation, never referenced the real binary; AMENDED 2026-09-12, Amendment item 5: fixture corrected the same way as TEST-010) | green |
 | TEST-012 | Spec-AC-09 | unit | tests/skills/test-aai-close-reconcile.sh | PROFILES.yaml classifies the new file exactly once and suite-map.yaml maps it, with the layer-profiles and hygiene-pack suites green | green |
 | TEST-013 | Spec-AC-10 | integration | tests/skills/test-aai-close-reconcile.sh | ADDED 2026-09-12 (Amendment item 5, BLOCKING-2): a doc carrying frontmatter `umbrella: true` at `status: implementing` fires neither arm -> --check exits 0 CLEAN | green |
+| TEST-014 | Spec-AC-11 | integration | tests/skills/test-aai-close-reconcile.sh | ADDED 2026-09-12 (Amendment item 7, Codex P1): a range carrying TWO delivery commits, each touching a different item, attributes EACH item to the commit and PR number that actually touched IT (both --check output and --apply's written links.pr / links.commits), never to the range's aggregate newest commit | green |
+| TEST-015 | Spec-AC-12 | integration | tests/skills/test-aai-close-reconcile.sh | ADDED 2026-09-12 (Amendment item 7, Codex P2): a touched document made unreadable (chmod 000) after its delivery commit makes both --check and --apply exit non-zero naming the path and reason doc-unreadable; --check NEVER prints CLEAN | green |
 
-Every Spec-AC has at least one TEST row and every TEST row names a Spec-AC. Test ids are stable after freeze; TEST-013 is a round-3 ADDITION (a new id, not a renumbering of an existing one).
+Every Spec-AC has at least one TEST row and every TEST row names a Spec-AC. Test ids are stable after freeze; TEST-013 is a round-3 ADDITION (a new id, not a renumbering of an existing one); TEST-014 and TEST-015 are round-4 ADDITIONS (Amendment item 7), likewise new ids.
 
 ### Seams this Test Plan crosses
 
@@ -372,7 +453,7 @@ Each RED run is recorded with its command, exit code and first output lines in t
 ## Verification
 
 Commands to run:
-- `bash tests/skills/test-aai-close-reconcile.sh` — the new suite, all thirteen rows green.
+- `bash tests/skills/test-aai-close-reconcile.sh` — the new suite, all fifteen rows green.
 - `bash tests/skills/test-framework.sh --skill aai-close-work-item --skill aai-doc-numbering --skill aai-follow-ups --skill aai-orchestration-dispatch` — the four suites that pin `close-work-item.mjs` content (`tests/skills/lib/close-work-item-pin.sh` and the two pre-change blob pins).
 - `bash tests/skills/test-framework.sh --skill aai-golden-flow --skill aai-docs-audit --skill aai-layer-profiles --skill aai-hygiene-pack` — the neighbours this scope's new file and map entries touch.
 - `node .aai/scripts/docs-audit.mjs --check --strict --no-event` — clean over this repository.
@@ -402,7 +483,7 @@ Strategy is `tdd`: a stored RED artifact is owed per AC-gating test, plus the fu
 - **R1 — a project with no CI is uncovered.** The trigger is a GitHub Actions job. A downstream project that merges locally or has Actions disabled gets the CLI but no automatic firing. The local `post-merge` git hook that would cover it is named in D7 as out of scope; suggested follow-up `fu-close-gate-needs-local-hook`.
 - **R2 — an umbrella parent is still not reconciled when a child closes.** The issue's second half is untouched: a parent still describes shipped symptoms in the present tense after a child delivers, and this gate does nothing to update it. Suggested follow-up `fu-umbrella-parent-not-reconciled`. CORRECTED 2026-09-12 (Amendment item 5): the earlier text here also claimed the `umbrella: true` marker meant this gate itself regressed nothing; code review round 3 BLOCKING-2 found the opposite — `close-reconcile.mjs` did not read the marker at all, so a parent's OWN delivery pushes (e.g. `docs/rfc/RFC-0012`, `status: implementing` + `umbrella: true`) misfired `frozen_work_merged` with no dial and no legitimate clearing action. That half is now fixed (Spec-AC-10 / TEST-013); this residual narrows to the reconciliation gap only.
 - **R3 — the PR number depends on a subject convention.** `(#N)` is the squash-merge subject shape on this repository and the GitHub default; a project that rewrites subjects gets `pr: unknown` and a refused `--apply` item rather than a wrong number. Loud, and by D4 deliberate.
-- **R4 — a push containing several merges.** Every item is still reported and each carries its own sha, but a single push that lands two PRs can attribute the newest PR number to both. `--apply` stamps per item from the newest subject in the range; the mitigation is that the CI trigger is per push and a merge-queue push carries one merge. Named, not tested.
+- **R4 — a push containing several merges.** CORRECTED 2026-09-12 (Amendment item 7, PR #372 bot review, Codex P1): this residual's own mitigation claim — "the CI trigger is per push and a merge-queue push carries one merge" — is FALSE. A batched direct push to `main` carries multiple merges too, and this very remediation branch received one (its own dispatch pushed two delivery commits in one range). The underlying defect is now FIXED, not merely mitigated: `--apply`/`--check` used to stamp EVERY item from the range's single newest subject (`commits[0]`), so a push landing two PRs attributed the newer PR number to both items regardless of which commit actually touched which document. `computeItems` now resolves each item's delivery sha and PR number from ONLY the commits that touched that item's own path (`git log a..b -- <rel>`), never from the range's aggregate list. See Spec-AC-11 / TEST-014. Named, tested.
 - **R5 — a red `main` job is a new noise source.** By D5 it blocks nothing, but it does turn the default branch red until the reconcile runs. Accepted deliberately: the whole issue is that the current signal is too quiet to be seen.
 - **R6 — ADDED 2026-09-11 (Amendment item 3) — `close-work-item.mjs` hardcodes `validation: pass` into `work_item_closed`, and `close-reconcile.mjs --apply` is a second, route-independent way to reach it.** A ride closed through this gate, by construction, never ran `/aai-pr` or the validation pipeline SKILL_PR gates on — the whole point of D1 is that this trigger does not care which route delivered the code. The `work_item_closed` event it produces nonetheless carries an unretractable `validation: pass` claim identical to one a real independent Validation would have written. Pre-existing in `close-work-item.mjs` (out of scope here — PROTECTED, hash-pinned by four suites, D3), but newly REACHABLE through a route that skips validation entirely. No mitigation designed here; named so it is not silently inherited. Not filed as a follow-up id at remediation time — left for the operator to triage against the existing `close-work-item.mjs` backlog.
 - **R7 — ADDED 2026-09-11 (Amendment item 2) — a doc already `status: done` at the delivery sha is invisible to this gate.** Two of the three documented post-merge close-ceremony escapes in this repository's history (`#350` for `#349`, `#358` for `#357`) went undetected under both the original two-arm design and the amended one-arm design, because the doc's frontmatter already read `done` by the time the reconciling range ran — what those follow-ups actually fixed was `links.commits` and close telemetry, not a non-terminal status. D1/D2 read only post-merge doc status; a status-driven trigger structurally cannot see this class. Filed as `fu-close-gate-status-trigger-blind` (P2, open); explicitly out of scope for this remediation to design against.

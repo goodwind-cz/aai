@@ -261,6 +261,19 @@ links:
 EOF
 }
 
+# seed_make_unreadable <path> -> 0 if this uid is actually denied read access
+# after chmod 000, 1 if not (root/CI perm bypass — same shape as
+# test-aai-suite-isolation.sh's helper of the same name; chmod denies
+# nothing to root, so an arm that assumed it worked would measure a
+# perfectly-seeded run and call it a bug).
+seed_make_unreadable() {
+  chmod 000 "$1" 2>/dev/null
+  if cat "$1" >/dev/null 2>&1; then
+    return 1
+  fi
+  return 0
+}
+
 # --- TEST-001 (Spec-AC-01) ---------------------------------------------------
 test_001_open_range_reports_doc_arm_sha_remediation() {
   log_info "TEST-001 (Spec-AC-01): a non-terminal doc left status:implementing -> --check exits 1, names doc/arm/sha/remediation..."
@@ -612,6 +625,99 @@ test_013_umbrella_parent_is_exempt() {
   log_pass "TEST-013: umbrella: true parent is exempt even while status: implementing"
 }
 
+# --- TEST-014 (Spec-AC-11, REMEDIATION ROUND 4, Codex P1 / PR #372 bot review) ---
+test_014_attribution_is_resolved_per_item_not_per_range() {
+  log_info "TEST-014 (Spec-AC-11): a range carrying TWO delivery commits attributes EACH item to the commit that touched IT, not to the range's newest commit..."
+  local dir base head1 head out rc
+
+  dir=$(init_range_repo "t014")
+  base=$(git -C "$dir" rev-parse HEAD)
+
+  write_issue_doc "$dir/docs/issues/ISSUE-0014-t014a.md" "t014a-ref" "implementing"
+  echo "changed a" >> "$dir/src/app.js"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver a (#201)"
+  head1=$(git -C "$dir" rev-parse HEAD)
+
+  write_issue_doc "$dir/docs/issues/ISSUE-0014-t014b.md" "t014b-ref" "implementing"
+  echo "changed b" >> "$dir/src/app.js"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver b (#202)"
+  head=$(git -C "$dir" rev-parse HEAD)
+
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-014: expected exit 1, got $rc. Output:\n$out"
+  assert_payload_contains "$out" "OPEN docs/issues/ISSUE-0014-t014a.md id=t014a-ref arm=frozen_work_merged sha=$head1" \
+    "TEST-014: item a must carry ITS OWN delivery sha ($head1), not the range's newest ($head)"
+  assert_payload_contains "$out" "remediation: node .aai/scripts/close-work-item.mjs --ref t014a-ref --pr 201 --commit $head1" \
+    "TEST-014: item a's remediation command must carry PR 201 and sha $head1, resolved from the commit that touched item a"
+  assert_payload_contains "$out" "OPEN docs/issues/ISSUE-0014-t014b.md id=t014b-ref arm=frozen_work_merged sha=$head" \
+    "TEST-014: item b must carry its own delivery sha ($head)"
+  assert_payload_contains "$out" "remediation: node .aai/scripts/close-work-item.mjs --ref t014b-ref --pr 202 --commit $head" \
+    "TEST-014: item b's remediation command must carry PR 202 and sha $head"
+
+  out="$(node "$CLOSE_RECONCILE" --apply --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-014: expected exit 0 from --apply, got $rc. Output:\n$out"
+
+  grep -qF "    - 201" "$dir/docs/issues/ISSUE-0014-t014a.md" \
+    || log_fail "TEST-014: item a must carry ITS OWN PR (201) in links.pr, not the range's newest"
+  grep -qF "    - $head1" "$dir/docs/issues/ISSUE-0014-t014a.md" \
+    || log_fail "TEST-014: item a must carry ITS OWN delivery commit ($head1) in links.commits, not the range's newest ($head)"
+  if grep -qF "    - 202" "$dir/docs/issues/ISSUE-0014-t014a.md"; then
+    log_fail "TEST-014: item a wrongly carries PR 202 (the range-wide-attribution defect this test guards against)"
+  fi
+  if grep -qF "    - $head" "$dir/docs/issues/ISSUE-0014-t014a.md"; then
+    log_fail "TEST-014: item a wrongly carries the range's newest commit ($head) instead of its own ($head1)"
+  fi
+  grep -qF "    - 202" "$dir/docs/issues/ISSUE-0014-t014b.md" \
+    || log_fail "TEST-014: item b must carry PR 202 in links.pr"
+  grep -qF "    - $head" "$dir/docs/issues/ISSUE-0014-t014b.md" \
+    || log_fail "TEST-014: item b must carry the delivery commit ($head) in links.commits"
+
+  log_pass "TEST-014: each item is attributed from the commit that actually touched IT, never from the range's aggregate newest commit"
+}
+
+# --- TEST-015 (Spec-AC-12, REMEDIATION ROUND 4, Codex P2 / PR #372 bot review) ---
+test_015_unreadable_doc_never_reads_clean() {
+  log_info "TEST-015 (Spec-AC-12): an unreadable touched document must never let --check print CLEAN or exit 0..."
+  local dir base head out rc target
+
+  dir=$(init_range_repo "t015")
+  base=$(git -C "$dir" rev-parse HEAD)
+  target="$dir/docs/issues/ISSUE-0015-t015.md"
+  write_issue_doc "$target" "t015-ref" "implementing"
+  echo "changed" >> "$dir/src/app.js"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver t015 (#115)"
+  head=$(git -C "$dir" rev-parse HEAD)
+
+  if ! seed_make_unreadable "$target"; then
+    log_info "TEST-015: chmod 000 denies this uid nothing (root/CI perm bypass) — the unreadable-doc defect cannot be exercised on this machine, skipping this test's assertions"
+    chmod 644 "$target" 2>/dev/null || true
+    return 0
+  fi
+
+  # The file stays unreadable through BOTH invocations below (only restored
+  # at the very end, for cleanup) — restoring it between --check and
+  # --apply would let --apply actually read and close it, proving nothing
+  # about the refusal path this test exists to cover.
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || { chmod 644 "$target" 2>/dev/null || true; log_fail "TEST-015: an unreadable doc must not let --check exit 0, got rc=0. Output:\n$out"; }
+  assert_payload_not_contains "$out" "close-reconcile: CLEAN" \
+    "TEST-015: --check reported CLEAN despite a touched document it could not read — the gate certified an incomplete scan"
+  assert_payload_contains "$out" "docs/issues/ISSUE-0015-t015.md" \
+    "TEST-015: output does not name the unreadable path"
+  assert_payload_contains "$out" "doc-unreadable" \
+    "TEST-015: output does not name the doc-unreadable reason"
+
+  local out2 rc2
+  out2="$(node "$CLOSE_RECONCILE" --apply --range "$base..$head" --root "$dir" 2>&1)" && rc2=0 || rc2=$?
+  chmod 644 "$target" 2>/dev/null || true
+  [[ "$rc2" -ne 0 ]] || log_fail "TEST-015: --apply must also refuse (non-zero) rather than silently skip the unreadable doc, got rc=0. Output:\n$out2"
+
+  log_pass "TEST-015: an unreadable touched document fails the gate closed (named path, non-zero exit) in both --check and --apply, instead of vanishing into a false CLEAN"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -636,6 +742,8 @@ main() {
   test_011_mutation_control_stub_leaves_draft
   test_012_profiles_and_suite_map_wiring
   test_013_umbrella_parent_is_exempt
+  test_014_attribution_is_resolved_per_item_not_per_range
+  test_015_unreadable_doc_never_reads_clean
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
