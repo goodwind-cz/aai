@@ -80,7 +80,10 @@ RUN
    - the pull request's URL
    - "Merging stays operator-only — review the PR above and merge it
      yourself when ready."
-   /aai-ship's own run ends here. It NEVER merges or releases.
+   UNDER A STANDING AUTHORIZATION (SKILL_PR step 6: an owner-signed
+   `hitl_decision` in docs/ai/decisions.jsonl whose every condition this ride
+   meets) merge per that step and report the record cited; otherwise
+   /aai-ship's own run ends here. It never releases.
 7. Report the same summary as step 6 as the run's final output.
 
 STRICT RULES
@@ -90,5 +93,5 @@ STRICT RULES
   irreversibility, guard, unknown), L3/required worktree gates, and review
   waivers are NEVER auto-answered.
 - No PASS without executable evidence; no pull request without validation
-  PASS and the satisfied review gate. Merging is always a separate,
-  operator-only action.
+  PASS and the satisfied review gate. Merging is operator-only unless an
+  owner-signed standing authorization covers the ride (SKILL_PR step 6).

@@ -779,7 +779,9 @@ test_012_growth_sum_matches_ledger() {
   # states the required-followup convention; headroom was already positive
   # (2046/2048) before this entry, so it is credited for accounting truth,
   # not to rescue TEST-010.
-  local want_growth=25283
+  # Then 25283 -> 26515: standing-merge-authorization-in-canon (+1232 B,
+  # SKILL_PR step 6 + SKILL_SHIP step 6 standing-authorization clauses, PR #375).
+  local want_growth=26515
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
