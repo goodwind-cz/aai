@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-12T07:53:27.493Z",
+  "generatedAt": "2026-09-12T16:51:02.417Z",
   "project": "aai",
   "counts": {
     "delivered": 238,
@@ -9,18 +9,18 @@
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "close-ceremony-fires-only-via-aai-pr",
+    "ref": "friction-publish-hides-required-followup",
     "type": "intake_issue"
   },
   "in_flight": {
     "focus": {
-      "ref": "close-ceremony-fires-only-via-aai-pr",
+      "ref": "friction-publish-hides-required-followup",
       "type": "intake_issue",
-      "phase": "validation"
+      "phase": "code_review"
     },
     "strategy": "tdd",
     "worktree": {
-      "recommendation": "recommended",
+      "recommendation": "optional",
       "user_decision": "inline"
     },
     "validation_status": "pass",
@@ -624,15 +624,15 @@
       "review": null
     },
     {
-      "ref": "update-installs-ref-guard-undisclosed",
-      "title": "/aai-update silently arms a git ref-guard in every consumer, under a licence written for a different hook",
+      "ref": "friction-publish-hides-required-followup",
+      "title": "The friction publish flow files an unactionable issue and never says a second step is required",
       "type": "issue",
       "status": "draft",
-      "path": "docs/issues/ISSUE-DRAFT-update-installs-ref-guard-undisclosed.md",
+      "path": "docs/issues/ISSUE-0082-friction-publish-hides-required-followup.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
-      "spec": null,
+      "spec": "docs/specs/SPEC-0176-spec-friction-publish-hides-required-followup.md",
       "validation": null,
       "review": null
     },

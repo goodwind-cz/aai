@@ -41,6 +41,14 @@ const LEDGER = join(FRICTION_DIR, 'upsert-ledger.jsonl');
 const MARKER = (fp) => `<!-- aai-friction:${fp} -->`;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+// A STATIC, literal, structurally-commented-out skeleton (D4). It interpolates
+// NOTHING -- not the fingerprint, not the destination, not one spool field --
+// so there is no value in it that redaction would ever need to certify. It is
+// appended to the draft AFTER payload.body (D4/D5) and is never read by the
+// publish path, which rebuilds the transmitted body from the report and spool
+// instead (seam S1) -- so a placeholder here can never leak into a filed body.
+const DRAFT_FOLLOWUP_SKELETON = `\n<!--\n## Analysis (reporter follow-up)\n(operator: fill in after filing -- what happened, how to reproduce, and the\nsuggested fix. This skeleton is inert: it is never read by the publish path.)\n-->\n`;
+
 const MODES = new Set(['local', 'review', 'auto']);
 
 const HELP = `aai-feedback-upsert — RFC-0012 Phase 2c review-mode upsert (approval-gated).
@@ -57,6 +65,12 @@ is filed ONLY via the explicit human-confirmed path:
   --publish <fingerprint> --confirm
 which re-runs the transmit redaction + budget check immediately before the write.
 'auto' mode is refused (locked). 'local' (default) prepares nothing to send.
+
+Filing an issue is NOT the end of the work: the transmitted record is
+prose-free by design (structured fields only), so a maintainer cannot act on
+it without a human-written follow-up. On a confirmed publish the engine prints
+the filed issue's URL and a runnable gh issue comment <n> --repo <destination>
+--body-file <file> command -- it only PRINTS that command, it never runs it.
 
 Exit codes: 0 success / --help   2 usage error   1 internal error
 `;
@@ -154,15 +168,162 @@ function readSpool(path) {
 }
 
 // The single `gh` seam. `mutating:true` is asserted ONLY on the confirmed path.
-// Returns { ok, stdout } ; never throws on a missing/failing gh (degrade).
+// Returns { ok, stdout, status, stderrFirst } ; never throws on a missing/
+// failing gh (degrade). `status` is the process exit code (null when it could
+// not be determined, e.g. gh itself is missing); `stderrFirst` is the FIRST
+// non-empty line of stderr, RAW and UNTRUNCATED — callers that print it must
+// run it through ghFailDetail() first (spec-friction-publish-hides-required-
+// followup D6: one sanitizer decides what may be printed, never the caller).
 function runGh(args, { mutating } = {}) {
   const bin = process.env.AAI_GH_BIN || 'gh';
   try {
-    const stdout = execFileSync(bin, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-    return { ok: true, stdout };
-  } catch {
-    return { ok: false, stdout: '' };
+    const stdout = execFileSync(bin, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return { ok: true, stdout, status: 0, stderrFirst: '' };
+  } catch (e) {
+    const stderrRaw = typeof e.stderr === 'string' ? e.stderr : (e.stderr ? e.stderr.toString('utf8') : '');
+    const stderrFirst = stderrRaw.split('\n').find((l) => l.trim().length > 0) || '';
+    const status = typeof e.status === 'number' ? e.status : null;
+    return { ok: false, stdout: '', status, stderrFirst };
   }
+}
+
+// A GitHub rate-limit-shaped 403 is diagnosed on the RAW, pre-redaction first
+// stderr line (D7) -- redaction may suppress the line itself, but the
+// signature check must still see it. Two real wordings are matched, both
+// drawn from `goodwind-cz/aai#371`'s "Aside" (not invented, not derived from
+// this regex -- TEST-042 pins the reporter's own literal line, not a string
+// shaped to satisfy it):
+//   "API rate limit exceeded for user ID ..." -- what `gh search issues`
+//     actually printed for the reporter when the SEARCH endpoint's own
+//     throttle fired, even while `gh api rate_limit` (the PRIMARY quota) read
+//     full (30/30). This is the wording the ORIGINAL signature missed
+//     entirely -- it matched only the wording below, so the exact case #371
+//     exists to fix never fired the hint (remediation F1).
+//   "You have exceeded a secondary rate limit ..." -- GitHub's own literal
+//     wording for the secondary/abuse limiter.
+// The first wording is ALSO GitHub's genuine primary-limit message, so this
+// signature cannot and does not claim which class fired -- see
+// RATE_LIMIT_HINT, which states only the fact the reporter established, not a
+// guess at the class.
+const RATE_LIMIT_SIGNATURE_RE = /rate limit exceeded|secondary rate limit/i;
+// Fixed, non-interpolated sentence (D7): naming it is safe even when the raw
+// line that triggered it is not. Deliberately does NOT assert primary or
+// secondary -- asserting "secondary" on a wording that is also GitHub's
+// genuine primary-limit message would be a new wrong claim on a real primary
+// hit. What it states instead is the reporter's own diagnosis: `gh api
+// rate_limit` does not reliably report this refusal. The reason is
+// NARROWER than "gh search has its own throttle separate from the primary
+// quota it shows" (validation round 3, N2) -- that clause is false: `gh api
+// rate_limit` DOES report the search throttle, as `resources.search`,
+// measured live in this session at 30/30 while a search 403 was in play.
+// What is true and checkable instead: `gh api rate_limit` does not report
+// SECONDARY limits at all, and its reading can disagree with whichever
+// endpoint is actually enforcing the refusal (a read taken a moment before
+// or after the call that failed).
+const RATE_LIMIT_HINT = 'NOTE: this looks like a GitHub API rate-limit refusal (primary or secondary) -- `gh api rate_limit` does not reliably report this class, since it does not report secondary limits at all and its reading can disagree with the endpoint actually enforcing the refusal; it typically clears on its own within a minute, so retrying shortly may succeed.\n';
+
+// ONE sanitizer decides what a gh stderr line may print (D6). Truncates to 200
+// chars BEFORE redaction (never after -- a truncated secret prefix cannot
+// survive to look like a certified value), then certifies via the same
+// fail-closed redactSummary() used for free-text elsewhere. Returns:
+//   null                              -- no stderr output to show at all
+//   'stderr suppressed by the redactor' -- stderr existed but failed certification
+//   <the certified line>              -- safe to print verbatim
+function ghFailDetail(r) {
+  const first = r && r.stderrFirst ? r.stderrFirst : '';
+  if (!first) return null;
+  const truncated = first.length > 200 ? first.slice(0, 200) : first;
+  const cert = redactSummary(truncated);
+  return cert.ok ? cert.value : 'stderr suppressed by the redactor';
+}
+
+// Build a one-block refusal: names the exit status either way, names the
+// certified detail (or omits it entirely when stderr was empty -- never a
+// bare suppression placeholder for a call that produced no stderr at all),
+// and appends the fixed rate-limit hint when the RAW line matches it.
+function ghRefusalLine(prefix, r) {
+  const statusPart = (r && typeof r.status === 'number') ? `exit ${r.status}` : 'exit status unknown';
+  const detail = ghFailDetail(r);
+  const base = detail === null ? `${prefix} (${statusPart})\n` : `${prefix} (${statusPart}): ${detail}\n`;
+  const hint = (r && r.stderrFirst && RATE_LIMIT_SIGNATURE_RE.test(r.stderrFirst)) ? RATE_LIMIT_HINT : '';
+  return base + hint;
+}
+
+// Parse the FIRST non-empty line of `gh issue create`'s stdout against the
+// issue-URL shape (D1), then CERTIFY it before it is ever handed to a caller
+// -- the URL is subprocess output, not a trusted value, and printing it
+// verbatim was a leak class of its own (validation probes P7/P8, remediation
+// F6/F7): the bare shape admits userinfo (`user:token@host`) and any host at
+// all, so a compromised or proxied `gh` could hand back a credentialed or
+// foreign-host URL and have it echoed as "your filed issue". Certification
+// is four checks on the PARSED pieces, never the raw line:
+//   - no userinfo: the host component may not contain `@`, RAW or
+//     percent-encoded (`%40`) -- decoding is attempted so `%40`/`%3A` cannot
+//     walk past a literal `.includes('@')` check the way validation round 3
+//     probe V3 (`aleho%3Aghp_...%40github.com`) demonstrated; a value the
+//     decoder cannot even parse falls back to the RAW host string (the
+//     decode failure itself is not a refusal) -- safe because a host that
+//     fails to decode can never equal the literal `github.com` the exact
+//     pin below requires, so it is refused there instead.
+//   - the host MUST equal `github.com` exactly, case-insensitively (DNS
+//     names are) -- not merely "contains no @". Validation round 3's
+//     BLOCKING finding (B1) was exactly this: a foreign host whose owner/repo
+//     happened to match the destination (`evil.example.com/goodwind-cz/aai`)
+//     printed as "your filed issue" because nothing pinned the host at all.
+//     Once host and owner/repo (below) are both pinned to exact, known
+//     values inside `ISSUE_URL_RE`'s `^...$`-anchored shape, every character
+//     of a certified line is either a fixed literal, a value read from the
+//     ADMIN-CONFIGURED `destination`, or a digit -- there is no reachable
+//     position left for a credential, a look-alike host, a control
+//     character or an ANSI escape sequence to survive certification. Length
+//     and control-character filtering are therefore closed BY CONSTRUCTION
+//     for the host/owner/repo, not by a separate scan (see spec Amendment 3,
+//     R6) -- validated live against V1-V5/V16 in
+//     validation-2026-09-12-round2-probes.sh.
+//   - the owner/repo captured MUST equal the CONFIGURED destination
+//     (case-insensitive; GitHub repo slugs are), never a value read out of
+//     the URL itself -- the same principle D3 already applies to the printed
+//     `--repo`, applied here to the printed URL.
+//   - the captured issue NUMBER is the one piece the anchored shape leaves
+//     unconstrained (`\d+` has no length cap of its own): a certified host
+//     and owner/repo with a digit run padded past any real GitHub issue
+//     number would still print verbatim otherwise. `MAX_ISSUE_NUMBER_DIGITS`
+//     closes that -- ten digits comfortably covers any real issue number
+//     with room to spare.
+// A shape mismatch (garbled/absent stdout) and a shape match that fails
+// certification are DIFFERENT failure modes: the caller must degrade the
+// first with D2's generic NOTE, and must name the second as its own refusal
+// rather than silently reusing that same generic NOTE (a silent drop is
+// exactly what remediation F6/F7 closes).
+const ISSUE_URL_RE = /^https?:\/\/([^\s/]+)\/([^\s/]+)\/([^\s/]+)\/issues\/(\d+)$/;
+const TRUSTED_ISSUE_HOST = 'github.com';
+const MAX_ISSUE_NUMBER_DIGITS = 10;
+function parseIssueUrl(stdout, destination) {
+  const lines = (stdout || '').split('\n');
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = ISSUE_URL_RE.exec(line);
+    if (!m) return { certified: false, reason: 'unparseable' };
+    const [, host, owner, repo, number] = m;
+    let decodedHost;
+    try { decodedHost = decodeURIComponent(host); } catch { decodedHost = host; }
+    if (host.includes('@') || decodedHost.includes('@')) {
+      return { certified: false, reason: 'untrusted_url', detail: 'the reported URL carries embedded userinfo (a credential shape, raw or percent-encoded) and was not printed' };
+    }
+    if (host.toLowerCase() !== TRUSTED_ISSUE_HOST) {
+      return { certified: false, reason: 'untrusted_url', detail: 'the reported URL host is not github.com and was not printed' };
+    }
+    if (number.length > MAX_ISSUE_NUMBER_DIGITS) {
+      return { certified: false, reason: 'untrusted_url', detail: 'the reported URL carries an implausibly long issue number and was not printed' };
+    }
+    const ownerRepo = `${owner}/${repo}`;
+    if (!destination || ownerRepo.toLowerCase() !== destination.toLowerCase()) {
+      return { certified: false, reason: 'untrusted_url', detail: 'the reported URL does not match the configured destination and was not printed' };
+    }
+    return { certified: true, url: line, number };
+  }
+  return { certified: false, reason: 'unparseable' };
 }
 
 // Read-only `gh auth status` preflight so the operator gets a clear, up-front
@@ -188,16 +349,16 @@ function ghAuthHint(state) {
 // (safe to create) from "could not search" (the confirm path fails CLOSED and
 // refuses to create, so a search hiccup can never fan out into a duplicate).
 function dedupSearch(destination, fp) {
-  if (!destination) return { searched: false, exists: false };
+  if (!destination) return { searched: false, exists: false, ghResult: null };
   // NO `--state`: `gh search issues` accepts only {open|closed}, and `--state all`
   // — which this call carried until 2026-09-04 — is rejected by the CLI on every
   // invocation. Omitting the flag searches ALL states, which is the semantics the
   // dedup needs. The rejection made `searched` permanently false, so the
   // fail-closed below refused every create and the channel could never file.
   const r = runGh(['search', 'issues', '--repo', destination, '--match', 'body', `aai-friction:${fp}`, '--json', 'number', '--limit', '1']);
-  if (!r.ok) return { searched: false, exists: false };
-  try { const arr = JSON.parse(r.stdout); return { searched: true, exists: Array.isArray(arr) && arr.length > 0 }; }
-  catch { return { searched: false, exists: false }; }
+  if (!r.ok) return { searched: false, exists: false, ghResult: r };
+  try { const arr = JSON.parse(r.stdout); return { searched: true, exists: Array.isArray(arr) && arr.length > 0, ghResult: r }; }
+  catch { return { searched: false, exists: false, ghResult: r }; }
 }
 
 // Labels that actually EXIST in the destination. `gh issue create` refuses an
@@ -338,7 +499,12 @@ function buildPayload(rep, cluster, fp) {
     confidence ? `- confidence: ${confidence}` : null,
     rep.reproducible === true || rep.reproducible === false ? `- reproducible: ${rep.reproducible}` : null,
     workaround ? `- workaround: ${workaround}` : null,
-    evidenceRef ? `- evidence_ref: ${evidenceRef}` : null,
+    // 2026-09-12 owner hitl_decision (fu-evidence-ref-cannot-travel, P3): the
+    // field stays, labelled reporter-local so a maintainer does not try to
+    // follow a path that typically cannot resolve outside the reporter's own
+    // (often gitignored) checkout. The value itself is unchanged (no field
+    // added/removed from the transmitted record, per the reporter's #371 fence).
+    evidenceRef ? `- evidence_ref (reporter-local, may not resolve for a maintainer): ${evidenceRef}` : null,
     `- os_family: ${safeOsFamily(rep.os_family)}  node_major: ${safeInt(rep.node_major)}  aai_pin: ${safePin(rep.aai_pin)}`,
     `- recurrence: ${safeInt(cluster.recurrence)}  score: ${safeInt(cluster.score)}`,
   ].filter(Boolean);
@@ -391,7 +557,7 @@ function prepare(args, cfg) {
       : 'new';
     const draftPath = join(PENDING_DIR, `${fp.replace(/[^A-Za-z0-9]/g, '_')}.md`);
     writeFileSync(draftPath,
-      `# ${payload.title}\n\n<!-- status: ${status} | redaction: ${payload.redaction_status} -->\n\n${payload.body}`);
+      `# ${payload.title}\n\n<!-- status: ${status} | redaction: ${payload.redaction_status} -->\n\n${payload.body}${DRAFT_FOLLOWUP_SKELETON}`);
     prepared.push({ fingerprint: fp, status, draftPath });
   }
   return prepared;
@@ -449,7 +615,7 @@ function main() {
     }
     const ds = dedupSearch(cfg.destination, fp);
     if (!ds.searched) {
-      process.stderr.write(`aai-feedback-upsert: could not verify dedup for ${fp} (gh search unavailable) — refusing to create\n`);
+      process.stderr.write(ghRefusalLine(`aai-feedback-upsert: could not verify dedup for ${fp} — refusing to create`, ds.ghResult || { ok: false, status: null, stderrFirst: '' }));
       process.exit(1);
     }
     if (ds.exists) {
@@ -479,7 +645,10 @@ function main() {
       }
     }
     const r = runGh(ghArgs, { mutating: true });
-    if (!r.ok) { process.stderr.write('aai-feedback-upsert: gh issue create failed (is gh authenticated?)\n'); process.exit(1); }
+    if (!r.ok) {
+      process.stderr.write(ghRefusalLine('aai-feedback-upsert: gh issue create failed', r));
+      process.exit(1);
+    }
     // The issue EXISTS now. If the ledger append fails, the duplicate window this
     // ledger was added to close is reopened, so the failure must be loud and the
     // exit non-zero — a silent success here is the worst outcome available.
@@ -490,7 +659,26 @@ function main() {
       process.stderr.write(`aai-feedback-upsert: FILED the issue for ${fp} in ${cfg.destination}, but could not record it in ${LEDGER} (${e && e.code ? e.code : 'write failed'}). The local duplicate guard is now blind to this fingerprint — record it by hand before publishing again.\n`);
       process.exit(1);
     }
-    process.stdout.write(`filed issue for ${fp} in ${cfg.destination}\n`);
+    // The record stays prose-free by design (D3/D4 untouched) -- which is
+    // exactly why filing is NOT the end of the work: a maintainer needs a
+    // human-written follow-up comment to act on it. Parse the real issue
+    // number from gh's own stdout (D1); an unparseable stdout degrades with a
+    // NOTE and a literal placeholder rather than ever echoing the raw blob
+    // (D2). The advertised `gh issue comment` command always names the
+    // CONFIGURED destination (D3), never one parsed out of the URL, and it is
+    // only ever PRINTED here -- never executed (seam S3).
+    const parsed = parseIssueUrl(r.stdout, cfg.destination);
+    const followup = [];
+    if (parsed.certified) {
+      followup.push(parsed.url);
+    } else if (parsed.reason === 'untrusted_url') {
+      followup.push(`NOTE: ${parsed.detail} -- verify the filed issue directly in ${cfg.destination} and fill in <issue-number> below by hand.`);
+    } else {
+      followup.push('NOTE: could not read the issue number from gh\'s output -- fill in <issue-number> below by hand.');
+    }
+    followup.push('This record is prose-free by design: a human analysis comment is required for the issue to be actionable.');
+    followup.push(`gh issue comment ${parsed.certified ? parsed.number : '<issue-number>'} --repo ${cfg.destination} --body-file <file>`);
+    process.stdout.write(`filed issue for ${fp} in ${cfg.destination}\n${followup.join('\n')}\n`);
     process.exit(0);
   }
 

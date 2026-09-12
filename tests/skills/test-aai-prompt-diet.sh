@@ -774,7 +774,12 @@ test_012_growth_sum_matches_ledger() {
   # AGENTS.md's commit-gating sentence all sit outside the live glob.
   # Then 23777 -> 24559: unattended-rides-bot-review-365 (+782 B, SKILL_LOOP
   # +668, SKILL_SHIP +114) opens each chained PR before the next ref.
-  local want_growth=24559
+  # Then 24559 -> 25283: friction-publish-hides-required-followup (+724 B,
+  # SKILL_FEEDBACK_UPSERT.prompt.md new "After a confirmed publish" section)
+  # states the required-followup convention; headroom was already positive
+  # (2046/2048) before this entry, so it is credited for accounting truth,
+  # not to rescue TEST-010.
+  local want_growth=25283
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

@@ -21,10 +21,15 @@ pairs:
   - capability: simple-and-friendly-to-use
     maintenance: close-ceremony-fires-only-via-aai-pr
     status: planned
+  - capability: friction-publish-hides-required-followup
+    maintenance: hand-authored-friction-is-second-class
+    status: planned
+  - capability: update-installs-ref-guard-undisclosed
+    maintenance: agents-tree-not-synced
+    status: planned
 wave_2:
   - canon-one-line-report-and-downstream-rules
   - decision-menu-options-parser
-  - hand-authored-friction-is-second-class
   - review-round-cap-in-validation-canon
   - residuals-of-the-per-suite-clone-ride
   - cloud-morning-digest

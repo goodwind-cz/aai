@@ -34,6 +34,17 @@ node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm
   it shells to an authenticated `gh`; missing/unauthenticated `gh` degrades to
   prepare-nothing.
 
+## After a confirmed publish: the work is not finished when the issue is filed
+The transmitted record is prose-free by design (structured fields only) — a
+maintainer cannot act on it without a human-written follow-up comment. On a
+confirmed publish the engine prints the filed issue's URL and a runnable
+`gh issue comment <n> --repo <destination> --body-file <file>` command; it only
+PRINTS that command, it never runs it. The prepared draft in
+`pending-issues/<fp>.md` also carries a static, commented-out
+`## Analysis (reporter follow-up)` skeleton so the shape is visible before you
+confirm. Write your own analysis, save it to a file, and run the printed
+comment command by hand — that is the required second step.
+
 ## When to run
 Explicitly, after reviewing the triage report — and only after the operator has
 decided to file. Never a daemon; never without `--confirm` for a write.
