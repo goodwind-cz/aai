@@ -1,9 +1,12 @@
 # Capability roadmap — wave 2, owner-ranked (2026-09-12)
 
-Why this exists: wave 1 shipped three of its four pairs (live dashboard,
-decisions-as-menus, simple-and-friendly-to-use) and the day of 2026-09-12 put
-two more scopes into main (`close-ceremony-fires-only-via-aai-pr`,
-`friction-publish-hides-required-followup`). The same day produced the evidence
+Why this exists: wave 1 was ranked on 2026-09-05 as three pairs (live
+dashboard, decisions-as-menus, backlog drain). `docs/ai/roadmap.yaml` later
+gained a fourth pair, `simple-and-friendly-to-use`, outside that ranking. Of
+the four pairs the file held before today, three are done (live dashboard,
+decisions-as-menus, simple-and-friendly-to-use) and the backlog-drain pair is
+carried into this wave. The day of 2026-09-12 put two more scopes into main
+(`close-ceremony-fires-only-via-aai-pr`, `friction-publish-hides-required-followup`). The same day produced the evidence
 this wave is ranked on. Ledger: `hitl_decision` records of 2026-09-12 with
 `ref_id: wave-2-roadmap` (standing merge authorization, standing decisions a
 and b) plus the per-scope decisions of the two rides.
