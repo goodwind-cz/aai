@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-12T07:54:44.915Z
+Generated: 2026-09-12T07:59:45.377Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -472,7 +472,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (44)
+## Drafts (43)
 
 | ID | Type | Path |
 |---|---|---|
@@ -519,7 +519,6 @@ _None._
 | ISSUE-0073 | issues | docs/issues/ISSUE-0073-uncarved-dispatch-lanes.md |
 | ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
 | ISSUE-0075 | issues | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
-| update-installs-ref-guard-undisclosed (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-update-installs-ref-guard-undisclosed.md |
 
 ## Deferred (whole-doc) (0)
 
