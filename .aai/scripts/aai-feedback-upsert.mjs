@@ -177,7 +177,15 @@ function readSpool(path) {
 function runGh(args, { mutating } = {}) {
   const bin = process.env.AAI_GH_BIN || 'gh';
   try {
-    const stdout = execFileSync(bin, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    // maxBuffer set explicitly (remediation F1, spec-friction-publish-hides-
+    // required-followup Amendment 6): execFileSync's 1 MiB default throws
+    // (ENOBUFS-shaped) once gh (or a wrapper) emits more than that on either
+    // stream, and the catch below then has no real e.status/e.stderr to read
+    // -- collapsing this whole seam's exit-status diagnosis into a generic
+    // refusal. 64 MB matches the value already used for the same class of
+    // problem elsewhere in this repository (check-committed-scope.mjs,
+    // orchestration-dispatch.mjs).
+    const stdout = execFileSync(bin, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
     return { ok: true, stdout, status: 0, stderrFirst: '' };
   } catch (e) {
     const stderrRaw = typeof e.stderr === 'string' ? e.stderr : (e.stderr ? e.stderr.toString('utf8') : '');
@@ -273,13 +281,17 @@ function ghRefusalLine(prefix, r) {
 //     Once host and owner/repo (below) are both pinned to exact, known
 //     values inside `ISSUE_URL_RE`'s `^...$`-anchored shape, every character
 //     of a certified line is either a fixed literal, a value read from the
-//     ADMIN-CONFIGURED `destination`, or a digit -- there is no reachable
-//     position left for a credential, a look-alike host, a control
-//     character or an ANSI escape sequence to survive certification. Length
-//     and control-character filtering are therefore closed BY CONSTRUCTION
-//     for the host/owner/repo, not by a separate scan (see spec Amendment 3,
-//     R6) -- validated live against V1-V5/V16 in
-//     validation-2026-09-12-round2-probes.sh.
+//     ADMIN-CONFIGURED `destination`, or a digit -- with one measured
+//     exception in the owner/repo portion, disclosed in spec R6 (Amendment
+//     5, NB-3): `U+212A KELVIN SIGN` lowercases to ASCII `k` and can stand in
+//     for a `k`/`K` in a destination that contains that letter (empty set for
+//     this repository's `goodwind-cz/aai`). Outside that one disclosed
+//     exception there is no reachable position left for a credential, a
+//     look-alike host, a control character or an ANSI escape sequence to
+//     survive certification. Length and control-character filtering are
+//     therefore closed BY CONSTRUCTION for the host/owner/repo, not by a
+//     separate scan (see spec Amendment 3, R6) -- validated live against
+//     V1-V5/V16 in validation-2026-09-12-round2-probes.sh.
 //   - the owner/repo captured MUST equal the CONFIGURED destination
 //     (case-insensitive; GitHub repo slugs are), never a value read out of
 //     the URL itself -- the same principle D3 already applies to the printed

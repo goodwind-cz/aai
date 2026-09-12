@@ -88,7 +88,15 @@ case "$1 $2" in
       # cannot express that on its own (unset AND empty both fall to the default), so
       # the spec's own edge case -- "stderr empty on a non-zero exit prints the exit
       # status alone" -- had no reachable fixture (remediation F2 / mutation U-08).
-      if [ "${SEARCH_STDERR_EMPTY:-0}" != "1" ]; then printf '%s\n' "${SEARCH_STDERR:-search failed}" >&2; fi
+      # SEARCH_STDERR_FILE (Amendment 6 / TEST-063) sources stderr from a FILE
+      # instead of the SEARCH_STDERR env var: a multi-megabyte payload cannot
+      # travel through `export` + exec without risking "Argument list too
+      # long" (ARG_MAX), which the stub's own reachability, not the engine
+      # under test, would then fail on.
+      if [ "${SEARCH_STDERR_EMPTY:-0}" != "1" ]; then
+        if [ -n "${SEARCH_STDERR_FILE:-}" ]; then cat "$SEARCH_STDERR_FILE" >&2
+        else printf '%s\n' "${SEARCH_STDERR:-search failed}" >&2; fi
+      fi
       exit "${SEARCH_FAIL_CODE:-1}"
     fi
     cat "${SEARCH_RESULT:-/dev/null}" 2>/dev/null || echo "[]"
@@ -156,6 +164,7 @@ SH
   SEARCH_FAIL=0; export SEARCH_FAIL
   SEARCH_STDERR=""; export SEARCH_STDERR
   SEARCH_STDERR_EMPTY=0; export SEARCH_STDERR_EMPTY
+  SEARCH_STDERR_FILE=""; export SEARCH_STDERR_FILE
   CREATE_FAIL=0; export CREATE_FAIL
   CREATE_STDERR=""; export CREATE_STDERR
   CREATE_STDERR_EMPTY=0; export CREATE_STDERR_EMPTY
@@ -1393,6 +1402,43 @@ test_062_empty_create_stdout_degrades() {
   log_pass "genuinely empty create stdout hits the post-loop return and degrades with the exact NOTE text (TEST-062)"
 }
 
+# --- TEST-063 (Spec-AC-08, Amendment 6 remediation of PR review F1) ----------
+# `runGh`'s single execFileSync call relied on Node's 1 MiB default maxBuffer;
+# a gh stderr sized past that threw (ENOBUFS-shaped) before e.status/e.stderr
+# could ever be read as real values, so the refusal degraded to a generic
+# "exit status unknown" -- destroying the exact diagnosis this whole scope
+# exists to provide. This fixture pads well past the OLD 1 MiB default (and
+# stays well under the new 64 MiB maxBuffer) and proves the refusal still
+# names the real exit status and the certified opening text of the first
+# stderr line.
+test_063_large_stderr_does_not_lose_exit_status() {
+  log_info "Test: a stderr sized past the old 1 MiB execFileSync default still names the exit status (TEST-063)..."
+  seed_single_candidate
+  local marker="TEST-063 dedup probe padded past the default execFileSync buffer"
+  local big="$TEST_DIR/big_search_stderr.txt"
+  # The marker sits alone on the FIRST line (what runGh's stderrFirst reads,
+  # and what the redactor certifies) so the assertion below is on clean text,
+  # never redactor-suppressed. The padding -- 2,000,000 'a' bytes, comfortably
+  # past the OLD 1 MiB execFileSync default (1,048,576 bytes) and comfortably
+  # under the NEW 64 MiB maxBuffer -- lives on a SECOND line: it is what makes
+  # the TOTAL buffered stderr exceed the old limit (execFileSync buffers the
+  # whole stream, not just the first line), without ever becoming the "first
+  # non-empty line" the engine reads.
+  printf '%s\n' "$marker" > "$big"
+  head -c 2000000 /dev/zero | tr '\0' 'a' >> "$big"
+  SEARCH_FAIL=1; SEARCH_STDERR_FILE="$big"
+  reset_calls; local code
+  code="$(RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  SEARCH_FAIL=0; SEARCH_STDERR_FILE=""
+  [ "$code" != "0" ] || log_fail "TEST-063: an exit-1 search with oversized stderr must still fail the publish"
+  [ "$(creates)" = "0" ] || log_fail "TEST-063: must not create when the search failed (made $(creates))"
+  local err; err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "exit 1" "TEST-063: the refusal must still name the real exit status, not degrade past a thrown execFileSync"
+  assert_payload_not_contains "$err" "exit status unknown" "TEST-063: an oversized stderr must never fall back to the generic exit-status-unknown refusal"
+  assert_payload_contains "$err" "$marker" "TEST-063: the refusal must still carry the certified opening text of the first stderr line"
+  log_pass "a stderr sized past the old 1 MiB execFileSync default still names the exit status and a certified line (TEST-063)"
+}
+
 test_009_profiles() {
   log_info "Test: new .aai files classified; layer-profiles green (TEST-009)..."
   local out code; out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
@@ -1464,6 +1510,7 @@ main() {
   test_060_case_differing_url_uses_configured_destination_casing
   test_061_certified_url_is_trimmed_not_raw
   test_062_empty_create_stdout_degrades
+  test_063_large_stderr_does_not_lose_exit_status
   test_009_profiles
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

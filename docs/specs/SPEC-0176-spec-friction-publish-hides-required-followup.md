@@ -332,6 +332,16 @@ changed.
 No new Spec-AC. One new Test ID (TEST-062, NB-1, mapped to Spec-AC-02). R6 is
 amended in place, disclosed, not deleted, per NB-3.
 
+## Amendment 6 (post-freeze, 2026-09-12 — remediation of three PR review findings, disposition remediate-in-tree)
+
+Bot review on the open PR (`#373`, branch `fix/friction-publish-hides-required-followup`) raised three findings, closed here following the same additive-with-disclosure convention as Amendments 1-5 above. `SPEC-FROZEN: true` is preserved; nothing below moves or deletes an existing AC's text.
+
+- **F1 (Copilot, Spec-AC-08, NEW and valid) — `runGh`'s single `execFileSync` call relied on the 1 MiB default `maxBuffer`; a `gh` (or a wrapper around it) emitting more than that on either stdout or stderr made `execFileSync` THROW (ENOBUFS-shaped), and the `catch` block then had no real `e.status`/`e.stderr` to read — collapsing the exit-status diagnosis this whole scope exists to provide into a generic, exit-status-less refusal.** Fixed at cause: an explicit `maxBuffer: 64 * 1024 * 1024` is now passed to that one `execFileSync` call, matching the value this repository already uses for the identical class of problem (`.aai/scripts/check-committed-scope.mjs`'s `git diff` capture, `.aai/scripts/orchestration-dispatch.mjs`'s tree-hash `git diff` capture — both `64 * 1024 * 1024`). This IS a behaviour change, and it is the only one this amendment authorises. New test **TEST-063** (mapped to the existing Spec-AC-08; same call site and assertions as TEST-041, but with a stub stderr sized past the OLD 1 MiB default) proves the refusal still names the real exit status and the certified first stderr line rather than degrading to "exit status unknown". **Mutation control**, verified on an HAZ-SCRATCH scratch copy, never the shipping tree: reverting the `execFileSync` call to omit `maxBuffer` (restoring Node's 1 MiB default) reddens TEST-063 — observed output: `...refusing to create (exit status unknown): TEST-063 dedup probe padded past the default execFileSync buffer` — Node's thrown error still carries the buffered-so-far stderr text (so the certified line survives), but `e.status` is no longer a real number once `execFileSync` throws on the oversized buffer, so the exit status specifically degrades to "unknown". TEST-063's `exit 1` assertion catches exactly that loss. The unmutated engine passes TEST-063.
+- **F2 (Copilot, comment only, no AC, no test) — the by-construction comment at `.aai/scripts/aai-feedback-upsert.mjs` (the block beginning "Once host and owner/repo... are both pinned") stated absolutely that every character of a certified line is a fixed literal, a destination-sourced value, or a digit — with no mention of the one measured exception R6 already discloses (Amendment 5, NB-3): `U+212A KELVIN SIGN` lowercases to ASCII `k` and can stand in for `k`/`K` in a certified owner/repo when the configured destination contains that letter.** The spec disclosed the exception (R6, below); the code comment did not, so a reader of the code alone would believe a stronger guarantee than the shipped code and spec both actually make. Corrected to name the exception and point at R6. No behaviour changed.
+- **F3 (mine, found while judging Codex's P2 finding) — the Acceptance Criteria Mapping sentence "Spec-AC-08 to Spec-AC-11 realise bullet 4 (a refused `gh` call is diagnosable without leaking)" overclaimed.** Those four AC are written and tested per call site — `gh search issues` (Spec-AC-08) and `gh issue create` (Spec-AC-11), with Spec-AC-09/Spec-AC-10 pinning the shared refusal-formatting mechanics exercised through that same search call site — and never cover `gh label list`. As written, the sentence said bullet 4 was realised while one of the three `gh` call sites this engine makes (`existingLabels`, the `gh label list` caller) still discards its exit status and stderr on failure, silently treating "could not read" the same as "genuinely has no labels" — filed and left open as `fu-existinglabels-discards-status` (P2), per this dispatch's owner decision not to widen this remediation into a fourth behaviour change. Corrected below to name exactly which call sites are covered and the gap that leaves bullet 4 only partially delivered — the ride's own recurring defect (a record claiming more than it delivers), stated plainly rather than softened.
+
+No new Spec-AC. One new Test ID (TEST-063, F1, mapped to the existing Spec-AC-08).
+
 ## Links
 - Requirement: `docs/issues/ISSUE-0082-friction-publish-hides-required-followup.md`
 - Primary source (the specification proper): `goodwind-cz/aai#371` body plus the reporter's hand-written `## Analysis (reporter follow-up)` comment, read with `gh issue view 371 --repo goodwind-cz/aai --comments`. The reporter is the repository owner; the comment names the symptom, the exact suggested output text, two optional extras ranked by effort, and a precise diagnosis of the 403. This spec implements that comment.
@@ -391,7 +401,7 @@ Each crossing is produced on one side and asserted on the other by a real run, n
 - Spec-AC-01 to Spec-AC-02 realise bullet 1 (success line names the URL and the required follow-up)
 - Spec-AC-03 to Spec-AC-05 realise bullet 2 (the draft skeleton, and the hazard it must not create)
 - Spec-AC-06 to Spec-AC-07 realise bullet 3 (the convention is stated where an agent and an operator look)
-- Spec-AC-08 to Spec-AC-11 realise bullet 4 (a refused `gh` call is diagnosable without leaking)
+- Spec-AC-08 to Spec-AC-11 realise bullet 4 (a refused `gh` call is diagnosable without leaking) only for the call sites they actually test: Spec-AC-08 covers `gh search issues`, Spec-AC-11 covers `gh issue create`, and Spec-AC-09/Spec-AC-10 pin the shared refusal-formatting mechanics (the rate-limit hint, the redaction cap) exercised through that same search call site. None of the four covers `gh label list` -- its refusal path discards `existingLabels`'s exit-status/stderr diagnosis, filed and open as `fu-existinglabels-discards-status` (P2) -- so bullet 4 is only partially delivered as written here. (Amendment 6, 2026-09-12.)
 - Spec-AC-12 is the PLANNING companion obligation for prompt-corpus growth
 
 ## Constitution deviations
@@ -409,7 +419,7 @@ None.
 | Spec-AC-05 | WHEN the prepared draft on disk is overwritten with unredacted prose and a token-shaped string before the publish, the recorded gh issue create argv SHALL be byte-identical to the argv recorded for the same fixture with an untouched draft | done | docs/ai/tdd/spec-friction-publish-hides-required-followup/green-040.txt; mutation-040.txt | — | proves the mechanism, not the wording (D5); mutation control, not a RED; TEST-040 |
 | Spec-AC-06 | .aai/SKILL_FEEDBACK_UPSERT.prompt.md SHALL contain the literal Analysis (reporter follow-up), the literal gh issue comment, and a sentence stating that the work is not finished when the issue is filed | done | docs/ai/tdd/spec-friction-publish-hides-required-followup/red-046.txt; green-046.txt; red-047.txt; green-047.txt; mutation-sweep.txt (sweep 7) | — | the agent-facing half of the convention; TEST-046/047 |
 | Spec-AC-07 | The --help output of aai-feedback-upsert.mjs SHALL contain the literal gh issue comment and the words prose-free | done | docs/ai/tdd/spec-friction-publish-hides-required-followup/red-045.txt; green-045.txt; mutation-sweep.txt (sweep 8) | — | one of the reporter's four places; TEST-045 |
-| Spec-AC-08 | WHEN gh search issues exits non-zero, the dedup refusal on stderr SHALL name the exit status and the certified first line of that stderr, the process SHALL exit 1, and the recorded gh issue create count SHALL be 0 | done | docs/ai/tdd/spec-friction-publish-hides-required-followup/red-041.txt; green-041.txt; green-048.txt; mutation-048.txt; mutation-sweep.txt (sweep 3) | — | fail-closed behaviour is unchanged; only the message grows; TEST-041/048 |
+| Spec-AC-08 | WHEN gh search issues exits non-zero, the dedup refusal on stderr SHALL name the exit status and the certified first line of that stderr, the process SHALL exit 1, and the recorded gh issue create count SHALL be 0 | done | docs/ai/tdd/spec-friction-publish-hides-required-followup/red-041.txt; green-041.txt; green-048.txt; mutation-048.txt; mutation-sweep.txt (sweep 3); green-063.txt; mutation-063.txt | — | fail-closed behaviour is unchanged; only the message grows; a large stderr must not throw past `runGh`'s `maxBuffer` and lose the diagnosis (Amendment 6, remediation F1); TEST-041/048/063 |
 | Spec-AC-09 | WHEN the first stderr line of a failed gh call matches a rate-limit signature, the refusal SHALL additionally print a fixed sentence naming gh api rate_limit and the word secondary, and that sentence SHALL interpolate nothing from the stderr | done | docs/ai/tdd/spec-friction-publish-hides-required-followup/red-042.txt; green-042.txt; mutation-sweep.txt (sweep 6) | — | matched on the raw line, printed as a constant (D7); TEST-042 |
 | Spec-AC-10 | WHEN gh stderr carries a token-shaped string, a URL, or more than one line, the refusal SHALL contain neither the token nor the URL, SHALL contain the literal suppressed placeholder, SHALL still name the exit status, and SHALL contain at most one line originating from gh stderr | done | docs/ai/tdd/spec-friction-publish-hides-required-followup/red-043.txt; green-043.txt; mutation-sweep.txt (sweep 4-5) | — | seam S7; the redactor decides, this scope writes no new detector; TEST-043 |
 | Spec-AC-11 | WHEN gh issue create itself exits non-zero, its refusal SHALL name the exit status and the certified first stderr line by the same helper, and the process SHALL exit 1 having appended nothing to the upsert ledger | done | docs/ai/tdd/spec-friction-publish-hides-required-followup/red-044.txt; green-044.txt; mutation-sweep.txt (sweep 3) | — | one sanitizer, every refusal site; TEST-044 |
@@ -470,6 +480,7 @@ Status values: planned | implementing | done | deferred | blocked | rejected
 | TEST-060 | Spec-AC-14 | integration | tests/skills/test-aai-feedback-upsert.sh | (Amendment 3) a certified URL whose owner/repo differs from the configured destination only in case still prints, and the advertised gh issue comment command names the configured destination's own casing, never the URL's | green |
 | TEST-061 | Spec-AC-01 | integration | tests/skills/test-aai-feedback-upsert.sh | (Amendment 3) the printed URL is the certified, trimmed match; trailing whitespace after an otherwise-legitimate stdout line never survives into what is printed | green |
 | TEST-062 | Spec-AC-02 | integration | tests/skills/test-aai-feedback-upsert.sh | (Amendment 5, remediation of NB-1) a genuinely EMPTY create stdout hits parseIssueUrl's POST-LOOP unparseable return, distinct from TEST-037's non-matching-line fixture; the exact NOTE reason text appears and the printed command falls back to the placeholder while still naming the configured destination | green |
+| TEST-063 | Spec-AC-08 | integration | tests/skills/test-aai-feedback-upsert.sh | (Amendment 6, remediation of PR review F1) search stub exits 1 with a stderr line preceded by padding sized past Node's 1 MiB execFileSync default; engine stderr still names the real exit status and the certified first line, never a generic exit-status-less refusal | green |
 
 Test status values: pending to red to green.
 
@@ -597,6 +608,22 @@ changed test below was mutation-checked against a scratch copy of the engine
   Reddens: a safe line merely over 200 characters fails `redactSummary`'s own
   length cap outright and prints the suppression placeholder, when the
   correct order would have truncated it to a certifiable, safe prefix first.
+
+**Amendment 6 mutation control (PR review F1)**, verified on a scratch copy per
+HAZ-SCRATCH, never the shipping tree:
+
+- **TEST-063 (new, Spec-AC-08)** — control: `runGh`'s `execFileSync` call
+  reverted to omit `maxBuffer` (restoring Node's 1 MiB default). Reddens:
+  against a stub stderr padded past 1 MiB, `execFileSync` throws
+  (ENOBUFS-shaped); the thrown error's buffered-so-far text still surfaces as
+  the certified first line, but `e.status` is no longer a real number, so the
+  refusal prints `exit status unknown` — observed verbatim: `...refusing to
+  create (exit status unknown): TEST-063 dedup probe padded past the default
+  execFileSync buffer`. TEST-063's `exit 1` assertion fails against that
+  output. The unmutated engine (`maxBuffer: 64 * 1024 * 1024`) passes
+  TEST-063: the large stderr is captured in full and the refusal names the
+  real exit status and the certified first line, same as TEST-041's
+  ordinary-sized fixture.
 
 ## Verification
 
