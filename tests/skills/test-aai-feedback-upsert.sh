@@ -20,6 +20,9 @@
 set -u
 TEST_NAME="test-aai-feedback-upsert"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-feedback-upsert.mjs"
@@ -80,7 +83,22 @@ case "$1 $2" in
     case "$7" in aai-friction:v1:*) ;; *) gh_reject "expected the aai-friction:<fp> marker, got: $7" ;; esac
     [ "$8" = "--json" ] && [ "$9" = "number" ] || gh_reject "expected --json number, got: $8 $9"
     [ "${10}" = "--limit" ] && [ "${11}" = "1" ] || gh_reject "expected --limit 1, got: ${10} ${11}"
-    if [ "${SEARCH_FAIL:-0}" = "1" ]; then echo "search failed" >&2; exit 1; fi
+    if [ "${SEARCH_FAIL:-0}" = "1" ]; then
+      # SEARCH_STDERR_EMPTY forces a GENUINELY empty stderr: `${SEARCH_STDERR:-search failed}`
+      # cannot express that on its own (unset AND empty both fall to the default), so
+      # the spec's own edge case -- "stderr empty on a non-zero exit prints the exit
+      # status alone" -- had no reachable fixture (remediation F2 / mutation U-08).
+      # SEARCH_STDERR_FILE (Amendment 6 / TEST-063) sources stderr from a FILE
+      # instead of the SEARCH_STDERR env var: a multi-megabyte payload cannot
+      # travel through `export` + exec without risking "Argument list too
+      # long" (ARG_MAX), which the stub's own reachability, not the engine
+      # under test, would then fail on.
+      if [ "${SEARCH_STDERR_EMPTY:-0}" != "1" ]; then
+        if [ -n "${SEARCH_STDERR_FILE:-}" ]; then cat "$SEARCH_STDERR_FILE" >&2
+        else printf '%s\n' "${SEARCH_STDERR:-search failed}" >&2; fi
+      fi
+      exit "${SEARCH_FAIL_CODE:-1}"
+    fi
     cat "${SEARCH_RESULT:-/dev/null}" 2>/dev/null || echo "[]"
     exit 0 ;;
 
@@ -100,6 +118,11 @@ case "$1 $2" in
     [ "$3" = "--repo" ] && is_repo "$4" || gh_reject "expected --repo <owner/name>, got: $3 $4"
     [ "$5" = "--title" ] && [ -n "$6" ] || gh_reject "expected --title <non-empty>, got: $5"
     [ "$7" = "--body" ] && [ -n "$8" ] || gh_reject "expected --body <non-empty>, got: $7"
+    create_dest="$4"
+    if [ "${CREATE_FAIL:-0}" = "1" ]; then
+      if [ "${CREATE_STDERR_EMPTY:-0}" != "1" ]; then printf '%s\n' "${CREATE_STDERR:-create failed}" >&2; fi
+      exit "${CREATE_FAIL_CODE:-1}"
+    fi
     shift 8
     while [ "$#" -gt 0 ]; do
       [ "$1" = "--label" ] || gh_reject "only --label may follow --body, got: $1"
@@ -109,7 +132,23 @@ case "$1 $2" in
         || { echo "could not add label: '$2' not found" >&2; exit 1; }
       shift 2
     done
-    echo "https://github.com/x/y/issues/1"
+    # A non-1 issue number (Spec-AC-01, spec-friction-publish-hides-required-followup):
+    # a hardcoded constant issue number must not be able to satisfy the printed
+    # gh issue comment command, so the stub's number is deliberately non-trivial.
+    # A genuinely EMPTY stdout (some gh configurations print nothing on
+    # success) has to be its own knob, not the absence of an override: an
+    # empty CREATE_STDOUT_OVERRIDE is indistinguishable from "unset" under
+    # `[ -n ]`, so it always fell through to the default URL below and the
+    # post-loop `unparseable` return in parseIssueUrl() could never be
+    # reached by any fixture (remediation of NB-1, mirrors CREATE_STDERR_EMPTY).
+    if [ "${CREATE_STDOUT_EMPTY:-0}" = "1" ]; then exit 0; fi
+    if [ -n "${CREATE_STDOUT_OVERRIDE:-}" ]; then printf '%s\n' "$CREATE_STDOUT_OVERRIDE"; exit 0; fi
+    # The default (non-override) response echoes back the REAL --repo the
+    # engine passed, the way real `gh issue create` does -- a stub URL that
+    # names an unrelated repo (the previous literal x/y) cannot exercise URL
+    # certification (remediation F6/F7): every "happy path" case would then
+    # look identical to a foreign-host mismatch.
+    echo "https://github.com/${create_dest}/issues/4271"
     exit 0 ;;
 esac
 gh_reject "unpinned command: $*"
@@ -123,6 +162,14 @@ SH
   printf '[]' > "$TEST_DIR/nolabels.json"
   LABEL_LIST_FAIL=0; export LABEL_LIST_FAIL
   SEARCH_FAIL=0; export SEARCH_FAIL
+  SEARCH_STDERR=""; export SEARCH_STDERR
+  SEARCH_STDERR_EMPTY=0; export SEARCH_STDERR_EMPTY
+  SEARCH_STDERR_FILE=""; export SEARCH_STDERR_FILE
+  CREATE_FAIL=0; export CREATE_FAIL
+  CREATE_STDERR=""; export CREATE_STDERR
+  CREATE_STDERR_EMPTY=0; export CREATE_STDERR_EMPTY
+  CREATE_STDOUT_OVERRIDE=""; export CREATE_STDOUT_OVERRIDE
+  CREATE_STDOUT_EMPTY=0; export CREATE_STDOUT_EMPTY
   # a review-mode config WITH a labels list, created here rather than inside one
   # test: cases 016..020 each need it, and building it in 016 made every later
   # case silently depend on 016 having run. In selected-case mode that dependency
@@ -789,6 +836,609 @@ test_035_duplicate_gate_is_per_destination() {
   log_pass "the duplicate gate is per destination, and unattributable records still block (TEST-035)"
 }
 
+# --- TEST-036 (Spec-AC-01): success line carries URL, prose-free statement, --
+# the printed (never run) gh issue comment command ---------------------------
+test_036_success_line_url_and_followup() {
+  log_info "Test: confirmed publish stdout carries URL, prose-free phrase, gh issue comment line; zero comment invocations (TEST-036)..."
+  seed_single_candidate
+  reset_calls
+  local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  [ "$code" = "0" ] || log_fail "TEST-036: confirmed publish must exit 0 (err=$(cat "$TEST_DIR/err"))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_contains "$out" "https://github.com/goodwind-cz/aai/issues/4271" "TEST-036: stdout must carry the filed issue URL"
+  assert_payload_contains "$out" "prose-free" "TEST-036: stdout must state the record is prose-free by design"
+  assert_payload_contains "$out" "gh issue comment 4271 --repo goodwind-cz/aai --body-file" "TEST-036: stdout must carry a runnable gh issue comment command with the parsed number and configured destination"
+  local n; n="$(grep -c "^issue comment" "$GH_CALLS" 2>/dev/null)"; n="${n:-0}"
+  [ "$n" = "0" ] || log_fail "TEST-036: the advertised gh issue comment command must never actually run (ran $n)"
+  log_pass "success line carries URL, prose-free statement, runnable comment command; zero comment calls (TEST-036)"
+}
+
+# --- TEST-037 (Spec-AC-02): unparseable create stdout degrades cleanly ------
+test_037_unparseable_create_stdout_degrades() {
+  log_info "Test: unparseable create stdout degrades with NOTE + placeholder, exit 0, never echoes raw stdout (TEST-037)..."
+  seed_single_candidate
+  CREATE_STDOUT_OVERRIDE="not-a-github-url-marker-XYZ"
+  reset_calls
+  local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-037: must still exit 0 when the issue number cannot be parsed (err=$(cat "$TEST_DIR/err"))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_contains "$out" "NOTE" "TEST-037: stdout must carry a NOTE naming the unparseable number"
+  assert_payload_contains "$out" "<issue-number>" "TEST-037: stdout must carry the literal placeholder in the command"
+  assert_payload_not_contains "$out" "not-a-github-url-marker-XYZ" "TEST-037: the raw unparsed gh stdout must never be echoed"
+  log_pass "unparseable create stdout degrades with a NOTE and the placeholder command (TEST-037)"
+}
+
+# --- TEST-038 (Spec-AC-03): the prepared draft carries the commented-out ----
+# Analysis skeleton, with the opener and closer ADJACENT to the heading, not -
+# merely somewhere-before/somewhere-after it (remediation F4 / kills mutation -
+# U-02) -----------------------------------------------------------------------
+test_038_draft_skeleton_present() {
+  log_info "Test: prepare-only draft carries the commented-out Analysis skeleton (TEST-038)..."
+  seed_single_candidate
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
+  local draft="$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md"
+  [ -f "$draft" ] || log_fail "TEST-038: draft must exist"
+  local body; body="$(cat "$draft")"
+  # The body ALSO carries an unrelated `<!-- aai-friction:<fp> --> ` marker
+  # comment, earlier in the file, that is not the skeleton's own opener/closer.
+  # A line-order check ("some <!-- before the heading, some --> after it") was
+  # satisfied by THAT marker even when the skeleton's own opener was deleted
+  # (U-02: opener removed, closer left) -- the marker's `<!--` stood in for it.
+  # Pinning the EXACT, byte-contiguous block below cannot be satisfied by any
+  # other comment in the file, so it is not fooled the same way.
+  local expected_skeleton
+  expected_skeleton="$(printf '<!--\n## Analysis (reporter follow-up)\n(operator: fill in after filing -- what happened, how to reproduce, and the\nsuggested fix. This skeleton is inert: it is never read by the publish path.)\n-->')"
+  assert_payload_contains "$body" "$expected_skeleton" "TEST-038: draft must carry the exact commented-out Analysis skeleton, opener and closer immediately wrapping the heading"
+  log_pass "draft carries the commented-out Analysis (reporter follow-up) skeleton (TEST-038)"
+}
+
+# --- TEST-039 (Spec-AC-04, seam S1): the skeleton never reaches the filed ---
+# body. CANNOT go RED on the pre-change tree (nothing prints the heading text
+# anywhere yet, so "zero occurrences" is vacuously true) -- its evidence is the
+# mutation control recorded separately, not a RED log (dispatch instruction).
+test_039_skeleton_never_reaches_filed_body() {
+  log_info "Test: seam S1 -- the draft skeleton never reaches the filed gh issue create argv (TEST-039)..."
+  seed_single_candidate
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
+  RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  local line; line="$(grep '^issue create' "$GH_CALLS" | head -1)"
+  [ -n "$line" ] || log_fail "TEST-039: no issue create call was recorded"
+  assert_payload_not_contains "$line" "Analysis (reporter follow-up)" "TEST-039: the filed argv must not carry the draft skeleton heading"
+  assert_payload_contains "$line" "aai-friction:v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "TEST-039: the filed argv must still carry the dedup marker"
+  log_pass "the draft skeleton never reaches the filed argv (TEST-039)"
+}
+
+# --- TEST-040 (Spec-AC-05, seam S1 mechanism): a poisoned draft cannot change -
+# one byte of the filed argv. CANNOT go RED (today's publish already ignores
+# the draft) -- evidence is the mutation control, not a RED log.
+test_040_poisoned_draft_does_not_change_filed_argv() {
+  log_info "Test: seam S1 mechanism -- a poisoned on-disk draft changes nothing in the filed argv (TEST-040)..."
+  seed_single_candidate
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
+  RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  local clean; clean="$(grep '^issue create' "$GH_CALLS" | head -1)"
+  # a second, matched fixture: same candidate, draft overwritten with prose plus
+  # a token-shaped string before the publish
+  seed_single_candidate
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
+  local draft="$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md"
+  local GHTOK="gh""p_POISONEDTOKEN1234567890"
+  printf 'unredacted prose at /Users/ales/.ssh/id_rsa and a token %s\n' "$GHTOK" > "$draft"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  local poisoned; poisoned="$(grep '^issue create' "$GH_CALLS" | head -1)"
+  [ "$clean" = "$poisoned" ] || log_fail "TEST-040: the filed argv must be byte-identical whether or not the on-disk draft was poisoned (clean=[$clean] poisoned=[$poisoned])"
+  log_pass "a poisoned on-disk draft cannot change the filed argv (TEST-040)"
+}
+
+# --- TEST-041 (Spec-AC-08): a failed dedup search names the exit status and --
+# the certified first stderr line -------------------------------------------
+test_041_dedup_search_failure_named() {
+  log_info "Test: search stub exit 1 -> refusal names the exit status and stderr line (TEST-041)..."
+  seed_single_candidate
+  SEARCH_FAIL=1; SEARCH_STDERR="dedup probe exploded"
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  SEARCH_FAIL=0; SEARCH_STDERR=""
+  [ "$code" != "0" ] || log_fail "TEST-041: an exit-1 search must fail the publish"
+  [ "$(creates)" = "0" ] || log_fail "TEST-041: must not create when the search failed (made $(creates))"
+  local err; err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "exit 1" "TEST-041: the refusal must name the exit status"
+  assert_payload_contains "$err" "dedup probe exploded" "TEST-041: the refusal must carry the certified first stderr line"
+  # Negative direction (remediation F1 / kills mutation U-07): an ordinary
+  # non-rate-limit refusal must carry NO rate-limit hint at all. Without this,
+  # a mutation that prints the hint on EVERY refusal (unconditionally) leaves
+  # the whole suite green, because no other test asserts its ABSENCE.
+  assert_payload_not_contains "$err" "rate limit" "TEST-041: an ordinary refusal must carry no rate-limit hint"
+  assert_payload_not_contains "$err" "gh api rate_limit" "TEST-041: an ordinary refusal must not point at gh api rate_limit"
+  log_pass "a failed dedup search names the exit status and stderr line, with no rate-limit hint (TEST-041)"
+}
+
+# --- TEST-042 (Spec-AC-09): a rate-limit-shaped signature adds a fixed hint -
+# naming gh api rate_limit and secondary (remediation F1: the fixture is the
+# reporter's own LITERAL line from goodwind-cz/aai#371's "Aside" section, not
+# a string shaped to satisfy the regex -- the original fixture used GitHub's
+# literal "secondary rate limit" wording, which is exactly what the original
+# signature matched, so it could never prove the signature covers what the
+# reporter actually observed) ------------------------------------------------
+test_042_secondary_rate_limit_hint() {
+  log_info "Test: the reporter's own 403 line adds the fixed rate-limit hint (TEST-042)..."
+  seed_single_candidate
+  SEARCH_FAIL=1
+  # Verbatim from #371's "Aside": `gh search issues` returned this while
+  # `gh api rate_limit` read 30/30 (primary quota full and unused) -- the
+  # wording the original signature MISSED.
+  SEARCH_STDERR="HTTP 403: API rate limit exceeded for user ID 1234567. (https://api.github.com/search/issues)"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  SEARCH_FAIL=0; SEARCH_STDERR=""
+  local err; err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "secondary" "TEST-042: the refusal must name secondary (word required by Spec-AC-09)"
+  assert_payload_contains "$err" "gh api rate_limit" "TEST-042: the refusal must point at gh api rate_limit"
+  # GitHub's own literal secondary-limit wording must ALSO still fire the hint
+  # (the original fixture, kept here as a second case so both real wordings
+  # stay covered).
+  SEARCH_FAIL=1
+  SEARCH_STDERR="HTTP 403: You have exceeded a secondary rate limit. See https://docs.github.com/rest/rate-limits for details."
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  SEARCH_FAIL=0; SEARCH_STDERR=""
+  local err2; err2="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err2" "secondary" "TEST-042: GitHub's own secondary-limit wording must also name secondary"
+  assert_payload_contains "$err2" "gh api rate_limit" "TEST-042: GitHub's own secondary-limit wording must also point at gh api rate_limit"
+  log_pass "the reporter's own rate-limit line, and GitHub's literal secondary wording, both add the fixed hint (TEST-042)"
+}
+
+# --- TEST-043 (Spec-AC-10): a hostile multi-line stderr is capped to the ----
+# certified first line, never leaking a token or a URL -----------------------
+test_043_hostile_stderr_is_capped_and_redacted() {
+  log_info "Test: a hostile multi-line stderr with a token+URL is capped to the certified first line (TEST-043)..."
+  seed_single_candidate
+  local GHTOK="gh""p_1234567890ABCDEFGHIJ"
+  local many="leaked token ${GHTOK} at https://evil.example.com/x"
+  local i=1
+  while [ "$i" -le 50 ]; do many="$many
+extra line $i"; i=$((i+1)); done
+  SEARCH_FAIL=1; SEARCH_STDERR="$many"
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  SEARCH_FAIL=0; SEARCH_STDERR=""
+  [ "$code" != "0" ] || log_fail "TEST-043: a hostile search failure must still fail the publish"
+  local err; err="$(cat "$TEST_DIR/err")"
+  assert_payload_not_contains "$err" "$GHTOK" "TEST-043: the token must never appear in the refusal"
+  assert_payload_not_contains "$err" "evil.example.com" "TEST-043: the URL must never appear in the refusal"
+  assert_payload_not_contains "$err" "extra line" "TEST-043: at most one gh-stderr-derived line may appear in the refusal"
+  assert_payload_contains "$err" "suppressed" "TEST-043: the refusal must carry the suppression placeholder"
+  assert_payload_contains "$err" "exit 1" "TEST-043: the refusal must still name the exit status"
+  # A second, matched fixture where the FIRST line is safe prose and the hostile
+  # content is on a LATER line. This is the boundary "only the first line" must
+  # actually enforce: printing every line (joined) would ALSO get suppressed
+  # here (the joined string still contains the token/URL), so that mutation
+  # would otherwise pass invisibly. The correct engine prints the safe first
+  # line VERBATIM, uncorrupted by anything after it.
+  local safe_first="dedup probe hit a transient error"
+  local many2="$safe_first
+leaked token ${GHTOK} at https://evil.example.com/x"
+  SEARCH_FAIL=1; SEARCH_STDERR="$many2"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  SEARCH_FAIL=0; SEARCH_STDERR=""
+  local err2; err2="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err2" "$safe_first" "TEST-043: a safe FIRST line must print verbatim, proving only the first line is considered (not every line joined)"
+  assert_payload_not_contains "$err2" "$GHTOK" "TEST-043: a token on a LATER line must never leak even when the first line is safe"
+  assert_payload_not_contains "$err2" "evil.example.com" "TEST-043: a URL on a LATER line must never leak even when the first line is safe"
+  log_pass "hostile multi-line stderr is capped and redacted (TEST-043)"
+}
+
+# --- TEST-044 (Spec-AC-11): a failed gh issue create is diagnosable and -----
+# appends nothing to the ledger -----------------------------------------------
+test_044_create_failure_named_and_no_ledger() {
+  log_info "Test: gh issue create exit 1 -> refusal names exit status + stderr line; no ledger append (TEST-044)..."
+  seed_single_candidate
+  CREATE_FAIL=1; CREATE_STDERR="create exploded on the far side"
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_FAIL=0; CREATE_STDERR=""
+  [ "$code" != "0" ] || log_fail "TEST-044: a failed create must exit non-zero"
+  local err; err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "exit 1" "TEST-044: the refusal must name the exit status"
+  assert_payload_contains "$err" "create exploded on the far side" "TEST-044: the refusal must carry the certified first stderr line"
+  if [ -f "$TEST_DIR/friction/upsert-ledger.jsonl" ]; then
+    grep -qF "issue_created" "$TEST_DIR/friction/upsert-ledger.jsonl" && log_fail "TEST-044: a failed create must append nothing to the ledger"
+  fi
+  log_pass "a failed gh issue create is diagnosable and appends nothing to the ledger (TEST-044)"
+}
+
+# --- TEST-045 (Spec-AC-07): --help mentions the comment command and prose- --
+# free ------------------------------------------------------------------------
+test_045_help_mentions_comment_and_prose_free() {
+  log_info "Test: --help mentions gh issue comment and prose-free (TEST-045)..."
+  local out code; out="$(node "$SCRIPT" --help)"; code=$?
+  [ "$code" = "0" ] || log_fail "TEST-045: --help must exit 0"
+  assert_payload_contains "$out" "gh issue comment" "TEST-045: --help must mention gh issue comment"
+  assert_payload_contains "$out" "prose-free" "TEST-045: --help must mention prose-free"
+  log_pass "--help documents the follow-up convention (TEST-045)"
+}
+
+# --- TEST-046 (Spec-AC-06, seam S4): three surfaces agree on one command ---
+# skeleton ---------------------------------------------------------------------
+test_046_drift_guard_three_surfaces() {
+  log_info "Test: seam S4 -- gh issue comment / --repo / --body-file agree across stdout, --help, and the prompt (TEST-046)..."
+  seed_single_candidate
+  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  local pub; pub="$(cat "$TEST_DIR/out")"
+  local help; help="$(node "$SCRIPT" --help)"
+  local prompt; prompt="$(cat "$PROJECT_ROOT/.aai/SKILL_FEEDBACK_UPSERT.prompt.md")"
+  local tok
+  for tok in "gh issue comment" "--repo" "--body-file"; do
+    assert_payload_contains "$pub" "$tok" "TEST-046: publish stdout must carry '$tok'"
+    assert_payload_contains "$help" "$tok" "TEST-046: --help must carry '$tok'"
+    assert_payload_contains "$prompt" "$tok" "TEST-046: the prompt must carry '$tok'"
+  done
+  log_pass "the three surfaces agree on the command skeleton tokens (TEST-046)"
+}
+
+# --- TEST-047 (Spec-AC-06): the prompt states the work is not finished at --
+# filed ------------------------------------------------------------------------
+test_047_prompt_states_not_finished() {
+  log_info "Test: the prompt carries the heading and states the work is not finished at filed (TEST-047)..."
+  local prompt="$PROJECT_ROOT/.aai/SKILL_FEEDBACK_UPSERT.prompt.md"
+  grep -qF "Analysis (reporter follow-up)" "$prompt" || log_fail "TEST-047: the prompt must carry the heading text"
+  grep -qi "not finished" "$prompt" || log_fail "TEST-047: the prompt must state the work is not finished when the issue is filed"
+  log_pass "the prompt states the convention and that filing is not the end (TEST-047)"
+}
+
+# --- TEST-048 (Spec-AC-08, seam S2): tri-state REGRESSION guard. Already ----
+# true today -- CANNOT go RED -- evidence is the mutation control, not a RED.
+test_048_tristate_regression_search_and_labels() {
+  log_info "Test: seam S2 regression -- search failure still fails closed, label failure still degrades open (TEST-048)..."
+  seed_single_candidate
+  SEARCH_FAIL=1
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  SEARCH_FAIL=0
+  [ "$(creates)" = "0" ] || log_fail "TEST-048: a failing search must still fail closed (created $(creates))"
+  seed_single_candidate
+  LABEL_LIST_FAIL=1
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  LABEL_LIST_FAIL=0
+  [ "$(creates)" = "1" ] || log_fail "TEST-048: a failing label list must still degrade open and file (created $(creates))"
+  grep -qF -- "--label" "$GH_CALLS" && log_fail "TEST-048: no --label token may reach the argv when the label list could not be read"
+  # An UNREADABLE label set must be reported as UNREADABLE, not silently
+  # relabelled as "does not exist" -- a label-read failure that comes back
+  # read:true with an empty list would still file unlabelled (same observable
+  # creates/--label outcome above) while telling the operator the wrong story.
+  grep -qF "could not read the label set" "$TEST_DIR/err" \
+    || log_fail "TEST-048: an unreadable label set must say so, not 'does not exist' ($(cat "$TEST_DIR/err"))"
+  log_pass "tri-states unchanged: dedup fail-closed, labels degrade-open (TEST-048)"
+}
+
+# --- TEST-049 (Spec-AC-03, seam S5): status still reports one pending draft -
+# after the skeleton is appended. CANNOT go RED -- evidence is the mutation --
+# control, not a RED.
+test_049_status_still_reports_one_pending() {
+  log_info "Test: seam S5 -- after a prepare with the skeleton, status still reports one pending draft (TEST-049)..."
+  seed_single_candidate
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
+  local out; out="$(AAI_FRICTION_DIR="$TEST_DIR/friction" node "$PROJECT_ROOT/.aai/scripts/aai-feedback-status.mjs" --json)"
+  assert_payload_contains "$out" '"drafts": 1' "TEST-049: expected exactly one pending draft"
+  log_pass "status still reports one pending draft after the skeleton is appended (TEST-049)"
+}
+
+# --- TEST-051 (Spec-AC-13, Amendment): evidence_ref is labelled reporter-local -
+# 2026-09-12 owner hitl_decision against fu-evidence-ref-cannot-travel (P3):
+# keep the field, but label it so a maintainer does not try to follow a path
+# that cannot travel out of the reporter's own checkout.
+test_051_evidence_ref_labelled_reporter_local() {
+  log_info "Test: a present evidence_ref is labelled reporter-local in the templated body (TEST-051)..."
+  seed_single_candidate
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","evidence_ref":"SPEC-0113"}
+JSONL
+  reset_calls; RUN "$TEST_DIR/fb.yaml" >/dev/null
+  local draft="$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md"
+  local body; body="$(cat "$draft")"
+  assert_payload_contains "$body" "reporter-local" "TEST-051: a present evidence_ref must be labelled reporter-local"
+  assert_payload_contains "$body" "evidence_ref" "TEST-051: the evidence_ref value itself must still be present"
+  assert_payload_contains "$body" "SPEC-0113" "TEST-051: the evidence_ref value itself must still be present"
+  # Validation round 3 V-M8: a grep on the bare token "reporter-local" alone
+  # survives the label prose being reworded around it. Pin the exact,
+  # byte-contiguous line so a wording/punctuation drift reddens this test.
+  assert_payload_contains "$body" "- evidence_ref (reporter-local, may not resolve for a maintainer): SPEC-0113" "TEST-051: the exact labelled line must be present, byte-for-byte -- a reworded label that still contains the token 'reporter-local' must not pass silently"
+  log_pass "evidence_ref is labelled reporter-local when present (TEST-051)"
+}
+
+# --- TEST-052 (Spec-AC-14, Amendment 2, remediation F6/F7): a gh-reported ---
+# issue URL carrying embedded userinfo (a credential shape) is CERTIFIED and
+# refused, never printed -------------------------------------------------------
+test_052_untrusted_url_credentials_not_printed() {
+  log_info "Test: a gh-reported URL with embedded credentials is never printed (TEST-052)..."
+  seed_single_candidate
+  local TOK="gh""p_ABCDEFGHIJ1234567890"
+  CREATE_STDOUT_OVERRIDE="https://aleho:${TOK}@github.com/goodwind-cz/aai/issues/4271"
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-052: the issue is already filed, so publish must still exit 0 (err=$(cat "$TEST_DIR/err"))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_not_contains "$out" "$TOK" "TEST-052: the embedded credential must never be printed"
+  assert_payload_not_contains "$out" "aleho:" "TEST-052: the userinfo prefix must never be printed"
+  assert_payload_contains "$out" "NOTE" "TEST-052: a failed certification must be a NAMED refusal, not a silent drop"
+  # Validation round 3: this fixture's host (aleho:TOKEN@github.com) also
+  # fails the round-3 host pin (it is not the literal string "github.com"),
+  # so a refusal alone no longer proves the DEDICATED userinfo detector fired
+  # -- pin the reason text so removing that detector (leaving only the host
+  # pin) still reddens this test on its own named property.
+  assert_payload_contains "$out" "userinfo" "TEST-052: the refusal must specifically name the embedded-userinfo/credential-shape reason, not a generic host mismatch"
+  assert_payload_contains "$out" "<issue-number>" "TEST-052: the command must fall back to the literal placeholder"
+  assert_payload_not_contains "$out" "could not read the issue number" "TEST-052: this is a certification refusal, distinct from the generic unparseable degrade"
+  log_pass "a gh-reported URL with embedded credentials is never printed (TEST-052)"
+}
+
+# --- TEST-053 (Spec-AC-14, Amendment 2, remediation F6/F7): a gh-reported ---
+# issue URL naming a repo other than the CONFIGURED destination is CERTIFIED
+# and refused, never printed ---------------------------------------------------
+test_053_untrusted_url_foreign_host_not_printed() {
+  log_info "Test: a gh-reported URL naming a foreign repo is never printed (TEST-053)..."
+  seed_single_candidate
+  CREATE_STDOUT_OVERRIDE="https://evil.example.com/attacker/repo/issues/9"
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-053: the issue is already filed, so publish must still exit 0 (err=$(cat "$TEST_DIR/err"))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_not_contains "$out" "evil.example.com" "TEST-053: a foreign host must never be printed as the filed issue"
+  assert_payload_not_contains "$out" "attacker/repo" "TEST-053: a foreign repo must never be printed as the filed issue"
+  assert_payload_contains "$out" "NOTE" "TEST-053: a failed certification must be a NAMED refusal, not a silent drop"
+  assert_payload_contains "$out" "gh issue comment <issue-number> --repo goodwind-cz/aai --body-file" "TEST-053: the printed command must still target the CONFIGURED destination, never the foreign one"
+  log_pass "a gh-reported URL naming a foreign repo is never printed (TEST-053)"
+}
+
+# --- TEST-054 (Spec-AC-11 edge case, remediation F2): a genuinely empty ------
+# stderr on a non-zero exit prints the exit status ALONE, no suppression -----
+# placeholder (kills mutation U-08; unreachable before the stub gained the ---
+# *_STDERR_EMPTY knob) ---------------------------------------------------------
+test_054_empty_stderr_prints_status_alone() {
+  log_info "Test: an empty stderr on a non-zero create exit prints the exit status alone (TEST-054)..."
+  seed_single_candidate
+  CREATE_FAIL=1; CREATE_STDERR_EMPTY=1
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_FAIL=0; CREATE_STDERR_EMPTY=0
+  [ "$code" != "0" ] || log_fail "TEST-054: a failed create must exit non-zero"
+  local err; err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "exit 1" "TEST-054: the refusal must name the exit status"
+  assert_payload_not_contains "$err" "suppressed" "TEST-054: a truly empty stderr must print NO suppression placeholder"
+  assert_payload_not_contains "$err" "(exit 1):" "TEST-054: no colon-detail may follow the status when stderr was empty"
+  log_pass "an empty stderr on a non-zero exit prints the exit status alone (TEST-054)"
+}
+
+# --- TEST-055 (Spec-AC-01 edge case, remediation F3): D1 -- only the FIRST --
+# non-empty line of gh's stdout is ever parsed; a URL on a LATER line is -----
+# never extracted (kills mutation U-05) ----------------------------------------
+test_055_first_line_only_url() {
+  log_info "Test: D1 -- a non-matching FIRST line makes a later URL unusable (TEST-055)..."
+  seed_single_candidate
+  CREATE_STDOUT_OVERRIDE='Warning: a new release of gh is available
+https://github.com/goodwind-cz/aai/issues/4271'
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-055: must still exit 0 (err=$(cat "$TEST_DIR/err"))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_not_contains "$out" "https://github.com/goodwind-cz/aai/issues/4271" "TEST-055: D1 says only the FIRST non-empty line is parsed -- a URL on a LATER line must not be extracted"
+  assert_payload_contains "$out" "NOTE" "TEST-055: must degrade with a NOTE"
+  assert_payload_contains "$out" "<issue-number>" "TEST-055: must fall back to the literal placeholder"
+  log_pass "only the first non-empty line is ever parsed for the issue URL (TEST-055)"
+}
+
+# --- TEST-056 (Spec-AC-01 edge case, remediation F3): D1 -- the issue-URL ---
+# shape is anchored at the tail; trailing junk after the number is never -----
+# accepted (kills mutation U-12) -----------------------------------------------
+test_056_url_shape_rejects_trailing_junk() {
+  log_info "Test: D1 -- trailing junk after the issue number is never accepted (TEST-056)..."
+  seed_single_candidate
+  CREATE_STDOUT_OVERRIDE="https://github.com/goodwind-cz/aai/issues/4271-and-more-junk"
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-056: must still exit 0 (err=$(cat "$TEST_DIR/err"))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_not_contains "$out" "4271-and-more-junk" "TEST-056: a URL with trailing junk after the number must never be printed as the parsed URL"
+  assert_payload_contains "$out" "NOTE" "TEST-056: must degrade with a NOTE"
+  assert_payload_contains "$out" "<issue-number>" "TEST-056: must fall back to the literal placeholder"
+  log_pass "trailing junk after the issue number is never accepted (TEST-056)"
+}
+
+# --- TEST-057 (Spec-AC-10 edge case, remediation F5): stderr is truncated ---
+# to 200 chars BEFORE certification, never after (kills mutation U-06) --------
+test_057_truncate_before_redact() {
+  log_info "Test: a safe first line over 200 chars is truncated before certification, not redacted-then-truncated (TEST-057)..."
+  seed_single_candidate
+  local phrase="dedup probe safe message marker padding words continue onward further still more "
+  local safe_long="" k=1
+  while [ "$k" -le 4 ]; do safe_long="$safe_long$phrase"; k=$((k+1)); done
+  SEARCH_FAIL=1; SEARCH_STDERR="$safe_long"
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  SEARCH_FAIL=0; SEARCH_STDERR=""
+  [ "$code" != "0" ] || log_fail "TEST-057: a failed search must still fail the publish"
+  local err; err="$(cat "$TEST_DIR/err")"
+  # A safe line merely OVER LENGTH (no secret anywhere in it) must still print
+  # its truncated, certified prefix. If truncation happened AFTER redaction,
+  # the full 324-char line would fail redactSummary's own length cap on its
+  # own and ALWAYS suppress, regardless of content -- that is exactly what
+  # distinguishes the two orders here.
+  assert_payload_not_contains "$err" "suppressed" "TEST-057: truncation must happen BEFORE certification, never after"
+  assert_payload_contains "$err" "dedup probe safe message marker" "TEST-057: the certified, truncated prefix must print verbatim"
+  log_pass "a long safe first line is truncated before certification, not redacted-then-truncated (TEST-057)"
+}
+
+# --- TEST-058 (Spec-AC-14, validation round 3 B1): a gh-reported URL naming -
+# a FOREIGN HOST but a MATCHING owner/repo is never printed -- this is the ---
+# exact gap round-1 probe P8 and TEST-053's own fixture could not tell apart
+# from a plain destination mismatch, because TEST-053's foreign-host fixture
+# ALSO mismatched the repo (kills the mutation removing the host pin) --------
+test_058_untrusted_url_foreign_host_matching_repo_not_printed() {
+  log_info "Test: a gh-reported URL on a foreign host but matching owner/repo is never printed (TEST-058)..."
+  seed_single_candidate
+  CREATE_STDOUT_OVERRIDE="https://evil.example.com/goodwind-cz/aai/issues/9"
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-058: the issue is already filed, so publish must still exit 0 (err=$(cat "$TEST_DIR/err"))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_not_contains "$out" "evil.example.com" "TEST-058: a foreign host must never be printed as the filed issue, even when the owner/repo it names matches the configured destination"
+  assert_payload_contains "$out" "NOTE" "TEST-058: a failed certification must be a NAMED refusal, not a silent drop"
+  assert_payload_contains "$out" "<issue-number>" "TEST-058: the command must fall back to the literal placeholder"
+  assert_payload_contains "$out" "gh issue comment <issue-number> --repo goodwind-cz/aai --body-file" "TEST-058: the printed command must still target the CONFIGURED destination"
+  # F-1 remediation (validation round 3 survivor): the fixture above only
+  # proves the host pin EXISTS -- evil.example.com shares no suffix with
+  # github.com at all, so it would refuse the same way under an EXACT
+  # equality check or a weakened `.endsWith(TRUSTED_ISSUE_HOST)` check alike.
+  # This second fixture targets exactness itself: evilgithub.com ENDS WITH
+  # github.com, so `.endsWith()` would wrongly certify it while `!==` refuses
+  # it. Re-seed so the same fingerprint can publish a second time in this
+  # fixture (seed_single_candidate clears the upsert-ledger dedup gate).
+  seed_single_candidate
+  CREATE_STDOUT_OVERRIDE="https://evilgithub.com/goodwind-cz/aai/issues/9"
+  reset_calls; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-058: the issue is already filed, so publish must still exit 0 (err=$(cat "$TEST_DIR/err"))"
+  out="$(cat "$TEST_DIR/out")"
+  assert_payload_not_contains "$out" "evilgithub.com" "TEST-058: a host that merely ENDS WITH github.com (suffix match) must never be printed as the filed issue -- the host pin must be EXACT equality, not endsWith"
+  assert_payload_contains "$out" "the reported URL host is not github.com and was not printed" "TEST-058: the refusal must name the host-pin reason specifically (not a generic/destination reason), so a suffix-match weakening cannot pass by reddening the wrong check"
+  log_pass "a gh-reported URL on a foreign host with a matching owner/repo is never printed (TEST-058)"
+}
+
+# --- TEST-059 (Spec-AC-14, validation round 3 length bound): a certified ----
+# host/owner/repo with an implausibly long, padded issue number is never -----
+# printed (kills the mutation removing MAX_ISSUE_NUMBER_DIGITS; the anchored
+# URL shape leaves the digit run as the one piece host/destination pinning
+# does not already bound) ------------------------------------------------------
+test_059_untrusted_url_oversized_issue_number_not_printed() {
+  log_info "Test: a certified host/repo with an oversized padded issue number is never printed (TEST-059)..."
+  seed_single_candidate
+  local padded_number="" k=1
+  while [ "$k" -le 60 ]; do padded_number="${padded_number}9"; k=$((k+1)); done
+  CREATE_STDOUT_OVERRIDE="https://github.com/goodwind-cz/aai/issues/${padded_number}"
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-059: the issue is already filed, so publish must still exit 0 (err=$(cat "$TEST_DIR/err"))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_not_contains "$out" "$padded_number" "TEST-059: an implausibly long issue number must never be printed even when host and destination both certify"
+  assert_payload_contains "$out" "NOTE" "TEST-059: a failed certification must be a NAMED refusal, not a silent drop"
+  assert_payload_contains "$out" "<issue-number>" "TEST-059: the command must fall back to the literal placeholder"
+  log_pass "an oversized issue number never certifies even with a legitimate host/repo (TEST-059)"
+}
+
+# --- TEST-060 (Spec-AC-14/D3, validation round 3 V-M10/V-M2): a certified ---
+# URL whose owner/repo differs from the CONFIGURED destination only in CASE -
+# must still print (case-insensitive match, V-M2), and the advertised ------
+# gh issue comment command must name the CONFIGURED destination's own ------
+# casing, never the URL's (V-M10). The collateral stub fix (default -------
+# issue-create echoes the real --repo it was given) made every prior green -
+# fixture's certified URL owner/repo BYTE-IDENTICAL to cfg.destination, so --
+# nothing before this test could tell the two sources apart -----------------
+test_060_case_differing_url_uses_configured_destination_casing() {
+  log_info "Test: a case-differing certified URL still prints, and --repo names the CONFIGURED casing, not the URL's (TEST-060)..."
+  seed_single_candidate
+  CREATE_STDOUT_OVERRIDE="https://github.com/GoodWind-CZ/AAI/issues/4321"
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-060: the issue is already filed, so publish must still exit 0 (err=$(cat "$TEST_DIR/err"))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_contains "$out" "https://github.com/GoodWind-CZ/AAI/issues/4321" "TEST-060: destination comparison is deliberately case-insensitive -- a case-differing but otherwise legitimate URL must still certify and print"
+  assert_payload_contains "$out" "gh issue comment 4321 --repo goodwind-cz/aai --body-file" "TEST-060: the advertised command must name the CONFIGURED destination's own casing, never a value read out of the URL (D3)"
+  assert_payload_not_contains "$out" "--repo GoodWind-CZ/AAI" "TEST-060: the URL's own casing must never be substituted for the configured destination in the printed command"
+  # F-2 remediation (validation round 3 survivor): the case-differing fixture
+  # above proves the destination comparison is case-INSENSITIVE (an exact
+  # match once lower-cased); it does not prove the match is still EXACT and
+  # not a PREFIX match. This second fixture targets that: goodwind-cz/aai-evil
+  # STARTS WITH the configured destination goodwind-cz/aai, so a weakened
+  # `!ownerRepo.startsWith(destination)` check would wrongly certify it while
+  # `!==` (after lower-casing) refuses it. Distinct from TEST-053's
+  # attacker/repo fixture, which shares no prefix with the destination at all
+  # and so cannot distinguish exact-match from prefix-match refusal. Re-seed
+  # so the same fingerprint can publish a second time in this fixture.
+  seed_single_candidate
+  CREATE_STDOUT_OVERRIDE="https://github.com/goodwind-cz/aai-evil/issues/9"
+  reset_calls; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-060: the issue is already filed, so publish must still exit 0 (err=$(cat "$TEST_DIR/err"))"
+  out="$(cat "$TEST_DIR/out")"
+  assert_payload_not_contains "$out" "aai-evil" "TEST-060: an owner/repo that merely STARTS WITH the configured destination must never be printed as the filed issue -- the destination match must be EXACT equality, not startsWith"
+  assert_payload_contains "$out" "the reported URL does not match the configured destination and was not printed" "TEST-060: the refusal must name the destination-match reason specifically (not a generic/host reason), so a prefix-match weakening cannot pass by reddening the wrong check"
+  log_pass "a case-differing certified URL still prints, with the command naming the configured destination casing (TEST-060)"
+}
+
+# --- TEST-061 (Spec-AC-01, validation round 3 V-M4): the printed URL is the -
+# CERTIFIED, TRIMMED match, never the raw stdout line -- trailing whitespace
+# after an otherwise-legitimate line must not survive into what is printed --
+test_061_certified_url_is_trimmed_not_raw() {
+  log_info "Test: the printed URL is the trimmed, certified match -- no trailing whitespace survives (TEST-061)..."
+  seed_single_candidate
+  CREATE_STDOUT_OVERRIDE="https://github.com/goodwind-cz/aai/issues/4271   "
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-061: the issue is already filed, so publish must still exit 0 (err=$(cat "$TEST_DIR/err"))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_not_contains "$out" "4271   " "TEST-061: trailing whitespace after the certified URL must never survive into the printed line"
+  assert_payload_contains "$out" "https://github.com/goodwind-cz/aai/issues/4271
+This record is prose-free" "TEST-061: the printed URL must be immediately followed by the next followup line with nothing else between -- proves the CERTIFIED trimmed value is printed, not the raw stdout line"
+  log_pass "the printed URL is the trimmed, certified match, never the raw stdout line (TEST-061)"
+}
+
+# --- TEST-062 (Spec-AC-02, remediation of NB-1): a genuinely EMPTY create ---
+# stdout (some gh configurations print nothing on success) can only reach the
+# POST-LOOP `unparseable` return in parseIssueUrl() -- TEST-037's fixture is a
+# non-empty line that fails to MATCH the URL shape, which hits the IN-LOOP
+# return instead and never exercises the post-loop path at all. Before the
+# CREATE_STDOUT_EMPTY knob existed, an empty CREATE_STDOUT_OVERRIDE was
+# indistinguishable from "unset" under `[ -n ]` and silently fell through to
+# the stub's default URL, so the post-loop return had no reachable fixture and
+# no mutation control (kills mutation M-A: replacing that return with a
+# fabricated `certified: true` URL, which left TEST-001..TEST-061 all green).
+test_062_empty_create_stdout_degrades() {
+  log_info "Test: genuinely empty create stdout hits the post-loop unparseable return and degrades with the exact NOTE (TEST-062)..."
+  seed_single_candidate
+  CREATE_STDOUT_EMPTY=1
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_EMPTY=0
+  [ "$code" = "0" ] || log_fail "TEST-062: must still exit 0 when create's stdout is genuinely empty (err=$(cat "$TEST_DIR/err"))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  # The specific reason text, not merely the substring "NOTE" or the URL's
+  # absence -- a mutation that fabricates a certified URL would drop this
+  # exact sentence entirely, which a bare "URL not printed" check would miss.
+  assert_payload_contains "$out" "NOTE: could not read the issue number from gh's output -- fill in <issue-number> below by hand." "TEST-062: the exact unparseable-NOTE sentence must appear"
+  assert_payload_contains "$out" "gh issue comment <issue-number> --repo goodwind-cz/aai --body-file <file>" "TEST-062: the printed command must fall back to the literal placeholder and still name the configured destination"
+  assert_payload_not_contains "$out" "https://github.com/goodwind-cz/aai/issues/" "TEST-062: no fabricated or default certified URL may be printed when gh's create stdout was genuinely empty"
+  log_pass "genuinely empty create stdout hits the post-loop return and degrades with the exact NOTE text (TEST-062)"
+}
+
+# --- TEST-063 (Spec-AC-08, Amendment 6 remediation of PR review F1) ----------
+# `runGh`'s single execFileSync call relied on Node's 1 MiB default maxBuffer;
+# a gh stderr sized past that threw (ENOBUFS-shaped) before e.status/e.stderr
+# could ever be read as real values, so the refusal degraded to a generic
+# "exit status unknown" -- destroying the exact diagnosis this whole scope
+# exists to provide. This fixture pads well past the OLD 1 MiB default (and
+# stays well under the new 64 MiB maxBuffer) and proves the refusal still
+# names the real exit status and the certified opening text of the first
+# stderr line.
+test_063_large_stderr_does_not_lose_exit_status() {
+  log_info "Test: a stderr sized past the old 1 MiB execFileSync default still names the exit status (TEST-063)..."
+  seed_single_candidate
+  local marker="TEST-063 dedup probe padded past the default execFileSync buffer"
+  local big="$TEST_DIR/big_search_stderr.txt"
+  # The marker sits alone on the FIRST line (what runGh's stderrFirst reads,
+  # and what the redactor certifies) so the assertion below is on clean text,
+  # never redactor-suppressed. The padding -- 2,000,000 'a' bytes, comfortably
+  # past the OLD 1 MiB execFileSync default (1,048,576 bytes) and comfortably
+  # under the NEW 64 MiB maxBuffer -- lives on a SECOND line: it is what makes
+  # the TOTAL buffered stderr exceed the old limit (execFileSync buffers the
+  # whole stream, not just the first line), without ever becoming the "first
+  # non-empty line" the engine reads.
+  printf '%s\n' "$marker" > "$big"
+  head -c 2000000 /dev/zero | tr '\0' 'a' >> "$big"
+  SEARCH_FAIL=1; SEARCH_STDERR_FILE="$big"
+  reset_calls; local code
+  code="$(RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  SEARCH_FAIL=0; SEARCH_STDERR_FILE=""
+  [ "$code" != "0" ] || log_fail "TEST-063: an exit-1 search with oversized stderr must still fail the publish"
+  [ "$(creates)" = "0" ] || log_fail "TEST-063: must not create when the search failed (made $(creates))"
+  local err; err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "exit 1" "TEST-063: the refusal must still name the real exit status, not degrade past a thrown execFileSync"
+  assert_payload_not_contains "$err" "exit status unknown" "TEST-063: an oversized stderr must never fall back to the generic exit-status-unknown refusal"
+  assert_payload_contains "$err" "$marker" "TEST-063: the refusal must still carry the certified opening text of the first stderr line"
+  log_pass "a stderr sized past the old 1 MiB execFileSync default still names the exit status and a certified line (TEST-063)"
+}
+
 test_009_profiles() {
   log_info "Test: new .aai files classified; layer-profiles green (TEST-009)..."
   local out code; out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
@@ -834,6 +1484,33 @@ main() {
   test_033_ledger_append_failure_is_loud
   test_034_config_parse_label_drop_is_named
   test_035_duplicate_gate_is_per_destination
+  test_036_success_line_url_and_followup
+  test_037_unparseable_create_stdout_degrades
+  test_038_draft_skeleton_present
+  test_039_skeleton_never_reaches_filed_body
+  test_040_poisoned_draft_does_not_change_filed_argv
+  test_041_dedup_search_failure_named
+  test_042_secondary_rate_limit_hint
+  test_043_hostile_stderr_is_capped_and_redacted
+  test_044_create_failure_named_and_no_ledger
+  test_045_help_mentions_comment_and_prose_free
+  test_046_drift_guard_three_surfaces
+  test_047_prompt_states_not_finished
+  test_048_tristate_regression_search_and_labels
+  test_049_status_still_reports_one_pending
+  test_051_evidence_ref_labelled_reporter_local
+  test_052_untrusted_url_credentials_not_printed
+  test_053_untrusted_url_foreign_host_not_printed
+  test_054_empty_stderr_prints_status_alone
+  test_055_first_line_only_url
+  test_056_url_shape_rejects_trailing_junk
+  test_057_truncate_before_redact
+  test_058_untrusted_url_foreign_host_matching_repo_not_printed
+  test_059_untrusted_url_oversized_issue_number_not_printed
+  test_060_case_differing_url_uses_configured_destination_casing
+  test_061_certified_url_is_trimmed_not_raw
+  test_062_empty_create_stdout_degrades
+  test_063_large_stderr_does_not_lose_exit_status
   test_009_profiles
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

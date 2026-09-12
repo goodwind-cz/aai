@@ -11,6 +11,30 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(friction): the publish flow says what it filed, and what still needs doing
+
+- **The confirmed-publish success line now names the issue URL** and states
+  plainly that the record is prose-free by design and an analysis comment is
+  required, with a runnable `gh issue comment` line. It is PRINTED, never run —
+  proved by call log across ~20 publish runs (ISSUE-0082 / SPEC-0176).
+- **The printed URL is certified before display.** Userinfo is refused raw and
+  percent-decoded, the host is pinned to an exact `github.com`, the issue-number
+  digit run is capped, and the owner/repo must equal the configured destination.
+  Each refusal is named and distinct. This closed a leak the URL printing itself
+  introduced: a credentialed or foreign-host URL was being echoed verbatim.
+- **`runGh` surfaces why a call was refused** — one sanitizer, truncate-then-redact,
+  first stderr line only. A GitHub rate-limit refusal now carries a hint saying
+  `gh api rate_limit` does not reliably report this class, which is what actually
+  misled the reporter.
+- **The prepared draft carries an inert `## Analysis (reporter follow-up)`
+  skeleton**, and the prompt and `--help` state the convention, so a first-time
+  reporter is not left to infer it from having seen one.
+- `evidence_ref` is kept but labelled reporter-local: it can point at a path no
+  maintainer can open, which the source issue demonstrated on itself.
+- Closes `fu-friction-issue-body-is-prose-free` and its correction: the source
+  issue answers their complaint and refuses the remedy they imply.
+- Upstream: `goodwind-cz/aai#371`. ISSUE-0082 / SPEC-0176.
+
 ## [unreleased] — fix(close): the close ceremony fires from the merge, not only from /aai-pr
 
 - **New `.aai/scripts/close-reconcile.mjs --range A..B`** reconciles a
