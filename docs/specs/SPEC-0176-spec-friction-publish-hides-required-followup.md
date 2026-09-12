@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/ISSUE-0082-friction-publish-hides-required-followup.md
   rfc: docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md
   pr:
-    - TBD
+    - 373
   commits:
     - da9cab69
 ---
