@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-12T20:00:58.534Z",
+  "generatedAt": "2026-09-12T20:05:06.027Z",
   "project": "aai",
   "counts": {
     "delivered": 239,
@@ -160,7 +160,7 @@
       "title": "The dispatcher knows which harness it is running in, and routes models for that harness",
       "type": "change",
       "status": "draft",
-      "path": "docs/issues/CHANGE-DRAFT-harness-universal-routing.md",
+      "path": "docs/issues/CHANGE-0182-harness-universal-routing.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -173,7 +173,7 @@
       "title": "Run telemetry is recorded as fields, so cost and reliability stop depending on prose",
       "type": "change",
       "status": "draft",
-      "path": "docs/issues/CHANGE-DRAFT-telemetry-fields-not-prose.md",
+      "path": "docs/issues/CHANGE-0183-telemetry-fields-not-prose.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -654,7 +654,7 @@
       "title": "/aai-update silently arms a git ref-guard in every consumer, under a licence written for a different hook",
       "type": "issue",
       "status": "draft",
-      "path": "docs/issues/ISSUE-DRAFT-update-installs-ref-guard-undisclosed.md",
+      "path": "docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,

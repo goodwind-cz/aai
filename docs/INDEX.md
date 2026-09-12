@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-12T20:01:40.120Z
+Generated: 2026-09-12T20:05:19.786Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -485,8 +485,8 @@ _None._
 | CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0181 | issues | docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md |
-| harness-universal-routing (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-harness-universal-routing.md |
-| telemetry-fields-not-prose (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-telemetry-fields-not-prose.md |
+| CHANGE-0182 | issues | docs/issues/CHANGE-0182-harness-universal-routing.md |
+| CHANGE-0183 | issues | docs/issues/CHANGE-0183-telemetry-fields-not-prose.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -523,7 +523,7 @@ _None._
 | ISSUE-0073 | issues | docs/issues/ISSUE-0073-uncarved-dispatch-lanes.md |
 | ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
 | ISSUE-0075 | issues | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
-| update-installs-ref-guard-undisclosed (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-update-installs-ref-guard-undisclosed.md |
+| ISSUE-0083 | issues | docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md |
 
 ## Deferred (whole-doc) (0)
 
