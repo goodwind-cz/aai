@@ -14,22 +14,31 @@ pairs:
     status: done
   - capability: decisions-as-menus-in-dashboard
     maintenance: lessons-that-must-hold-downstream-are-guards
+    status: done
+  - capability: simple-and-friendly-to-use
+    maintenance: close-ceremony-fires-only-via-aai-pr
+    status: done
+  - capability: harness-universal-routing
+    maintenance: telemetry-fields-not-prose
+    status: planned
+  - capability: update-installs-ref-guard-undisclosed
+    maintenance: agents-tree-not-synced
+    status: planned
+  - capability: mutation-gate-for-tests
+    maintenance: residuals-of-the-per-suite-clone-ride
+    status: planned
+  - capability: canon-is-a-build-artifact
+    maintenance: unrecorded-spec-amendment-is-invisible
     status: planned
   - capability: standardized-backlog-drain
     maintenance: windows-codex-test-dispatch
     status: planned
-  - capability: simple-and-friendly-to-use
-    maintenance: close-ceremony-fires-only-via-aai-pr
-    status: planned
   - capability: friction-publish-hides-required-followup
     maintenance: hand-authored-friction-is-second-class
-    status: planned
-  - capability: update-installs-ref-guard-undisclosed
-    maintenance: agents-tree-not-synced
     status: planned
 wave_2:
   - canon-one-line-report-and-downstream-rules
   - decision-menu-options-parser
   - review-round-cap-in-validation-canon
-  - residuals-of-the-per-suite-clone-ride
   - cloud-morning-digest
+  - cross-harness-universality-proof
