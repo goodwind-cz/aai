@@ -95,6 +95,12 @@ suites:
       - .aai/IMPLEMENTATION.prompt.md
       - .aai/SKILL_TDD.prompt.md
 
+  aai-close-reconcile:
+    globs:
+      - .aai/scripts/close-reconcile.mjs
+      - .github/workflows/close-gate.yml
+      - .aai/scripts/close-work-item.mjs
+
   aai-close-work-item:
     globs:
       - .aai/scripts/close-work-item.mjs
