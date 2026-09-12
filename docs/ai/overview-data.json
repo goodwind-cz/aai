@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-12T07:46:55.186Z",
+  "generatedAt": "2026-09-12T07:53:27.493Z",
   "project": "aai",
   "counts": {
-    "delivered": 237,
-    "in_progress": 46,
+    "delivered": 238,
+    "in_progress": 45,
     "releases": 1,
     "tokens_total": 57430847
   },
@@ -624,19 +624,6 @@
       "review": null
     },
     {
-      "ref": "close-ceremony-fires-only-via-aai-pr",
-      "title": "The close ceremony fires only through /aai-pr, so any other route ships silent drafts",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md",
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "update-installs-ref-guard-undisclosed",
       "title": "/aai-update silently arms a git ref-guard in every consumer, under a licence written for a different hook",
       "type": "issue",
@@ -664,6 +651,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "close-ceremony-fires-only-via-aai-pr",
+      "title": "The close ceremony fires only through /aai-pr, so any other route ships silent drafts",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md",
+      "closed_on": "2026-09-12",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "unattended-rides-human-gate-at-merge",
       "title": "RFC (Decision Proposal)",
@@ -3752,6 +3752,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "close-ceremony-fires-only-via-aai-pr",
+          "title": "The close ceremony fires only through /aai-pr, so any other route ships silent drafts",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md",
+          "closed_on": "2026-09-12",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "unattended-rides-human-gate-at-merge",
           "title": "RFC (Decision Proposal)",

@@ -2,13 +2,15 @@
 id: spec-close-ceremony-fires-only-via-aai-pr
 type: spec
 number: 175
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - b5cfa6f0
 ---
 
 # Spec — the close ceremony fires on the merge, not on the command that opened the PR

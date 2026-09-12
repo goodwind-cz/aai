@@ -2,10 +2,12 @@
 id: close-ceremony-fires-only-via-aai-pr
 type: issue
 number: 81
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - b5cfa6f0
 ---
 
 # The close ceremony fires only through /aai-pr, so any other route ships silent drafts
