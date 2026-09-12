@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-12T18:23:49.376Z",
+  "generatedAt": "2026-09-12T18:49:14.377Z",
   "project": "aai",
   "counts": {
     "delivered": 239,
-    "in_progress": 45,
+    "in_progress": 44,
     "releases": 1,
     "tokens_total": 59242493
   },
@@ -616,19 +616,6 @@
       "type": "issue",
       "status": "draft",
       "path": "docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "update-installs-ref-guard-undisclosed",
-      "title": "/aai-update silently arms a git ref-guard in every consumer, under a licence written for a different hook",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-DRAFT-update-installs-ref-guard-undisclosed.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,

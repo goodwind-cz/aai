@@ -145,8 +145,8 @@ This is a shipped spec, amended and disclosed here rather than edited silently.
 amendment only records the withdrawal of one that was never satisfiable by this
 project's own effort.
 
-The row named above carried `deferred` with a `Review-By` of 2026-09-15, already
-extended once on 2026-08-13. `VALIDATION.prompt.md` Rule 3 makes an overdue
+Spec-AC-06 in the Acceptance Criteria Status table BELOW carried `deferred`
+with a `Review-By` of 2026-09-15, already extended once on 2026-08-13. `VALIDATION.prompt.md` Rule 3 makes an overdue
 `deferred` row a REPO-WIDE interrupt: from 2026-09-16 it would have blocked every
 PASS verdict in this repository, in every scope, not only this one.
 
@@ -158,7 +158,11 @@ contract asked for a first live Azure adoption round trip, which is an external
 event nobody has planned, so the row was an accepted residual wearing the
 costume of scheduled work.
 
-What IS proven stays proven, and the tests that prove it are named in the row.
+The row itself now states exactly what the existing tests cover and, more
+importantly, what they do NOT: no test exercises Azure, so the command
+arguments, exit codes and thread JSON are unverified. An earlier draft of this
+amendment said the command shapes were "proven", which overstated grep pins on
+the prompt as behavioural proof; bot review on PR #374 caught it.
 What is withdrawn is filed as `fu-azure-live-proof-on-adoption` (P3) so the
 verification happens on the first real adoption instead of being forgotten.
 
@@ -173,7 +177,7 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 | Spec-AC-03 | 5d reviewer-fallback REQUIRED contract | done | docs/ai/tdd/green-20260728T081246Z-pr-platform.log | — | TEST-017 grep pin |
 | Spec-AC-04 | Findings published as PR threads + closing reply | done | docs/ai/tdd/green-20260728T081246Z-pr-platform.log | — | TEST-017 grep pin (shared with Spec-AC-03) |
 | Spec-AC-05 | GENERIC MODE skip + mandatory internal review + loud line | done | docs/ai/tdd/green-20260728T081246Z-pr-platform.log | — | TEST-018 grep pin |
-| Spec-AC-06 | Live Azure CLI command-shape proof | rejected | — | — | REJECTED 2026-09-12 (owner decision, see Amendment below). Its evidence contract required a first live Azure adoption round trip, and no Azure remote exists in this repository or environment with none planned, so the criterion was a claim on an external event rather than on work this scope could do. It had already been extended once (2026-08-13, from 2026-08-15) and on 2026-09-16 would have become a repo-wide Rule-3 interrupt blocking every PASS. The az command SHAPES are proven by TEST-015 through TEST-018; only the live round trip is withdrawn, and it is filed as fu-azure-live-proof-on-adoption (P3) to be done on first adoption |
+| Spec-AC-06 | Live Azure CLI command-shape proof | rejected | — | — | REJECTED 2026-09-12 (owner decision, see Amendment below). Its evidence contract required a first live Azure adoption round trip, and no Azure remote exists in this repository or environment with none planned, so the criterion was a claim on an external event rather than on work this scope could do. It had already been extended once (2026-08-13, from 2026-08-15) and on 2026-09-16 would have become a repo-wide Rule-3 interrupt blocking every PASS. What the existing tests DO cover, stated precisely rather than generously: TEST-015 and TEST-016 are grep pins proving the documented az command set appears in the prompt, and TEST-017 and TEST-018 cover reviewer fallback and generic mode. NONE of them exercises Azure itself, so the az arguments, exit codes and thread JSON remain UNVERIFIED. That is exactly the withdrawn evidence, filed as fu-azure-live-proof-on-adoption (P3) to be done on first adoption |
 
 ## Implementation plan
 - `.aai/scripts/pr-platform.mjs` (new): zero-dep CLI. `readOriginUrl()` runs

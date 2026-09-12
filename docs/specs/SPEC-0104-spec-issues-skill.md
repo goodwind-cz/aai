@@ -128,8 +128,8 @@ This is a shipped spec, amended and disclosed here rather than edited silently.
 amendment only records the withdrawal of one that was never satisfiable by this
 project's own effort.
 
-The row named above carried `deferred` with a `Review-By` of 2026-09-15, already
-extended once on 2026-08-13. `VALIDATION.prompt.md` Rule 3 makes an overdue
+Spec-AC-03 in the Acceptance Criteria Status table BELOW carried `deferred`
+with a `Review-By` of 2026-09-15, already extended once on 2026-08-13. `VALIDATION.prompt.md` Rule 3 makes an overdue
 `deferred` row a REPO-WIDE interrupt: from 2026-09-16 it would have blocked every
 PASS verdict in this repository, in every scope, not only this one.
 
@@ -141,7 +141,11 @@ contract asked for a first live Azure adoption round trip, which is an external
 event nobody has planned, so the row was an accepted residual wearing the
 costume of scheduled work.
 
-What IS proven stays proven, and the tests that prove it are named in the row.
+The row itself now states exactly what the existing tests cover and what they
+do NOT: no test exercises az boards, so its live behaviour is unverified. An
+earlier draft of this amendment claimed the wiring was covered without that
+qualification; bot review on PR #374 caught the same overstatement in the
+sibling spec.
 What is withdrawn is filed as `fu-azure-live-proof-on-adoption` (P3) so the
 verification happens on the first real adoption instead of being forgotten.
 
@@ -153,7 +157,7 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 |---|---|---|---|---|---|
 | Spec-AC-01 | aai-issues.mjs deterministic fetch + normalize (github wired) | done | docs/ai/tdd/green-20260728T143042Z-aai-issues.log | — | TEST-001..012 green |
 | Spec-AC-02 | SKILL_ISSUES triage taxonomy + one checkpoint + write-back contract | done | docs/ai/tdd/green-20260728T143042Z-aai-issues.log | — | TEST-013..017 grep pins |
-| Spec-AC-03 | Azure az-boards degrade line + generic-mode loud degrade | rejected | — | — | REJECTED 2026-09-12 (owner decision, see Amendment below). Its evidence contract required a first live az boards round trip, and no Azure remote exists in this repository or environment with none planned, so the criterion was a claim on an external event rather than on work this scope could do. It had already been extended once (2026-08-13, from 2026-08-15) and on 2026-09-16 would have become a repo-wide Rule-3 interrupt blocking every PASS. The degrade-line WIRING is done and covered by TEST-018 through TEST-020; only the live round trip is withdrawn, and it is filed as fu-azure-live-proof-on-adoption (P3) to be done on first adoption |
+| Spec-AC-03 | Azure az-boards degrade line + generic-mode loud degrade | rejected | — | — | REJECTED 2026-09-12 (owner decision, see Amendment below). Its evidence contract required a first live az boards round trip, and no Azure remote exists in this repository or environment with none planned, so the criterion was a claim on an external event rather than on work this scope could do. It had already been extended once (2026-08-13, from 2026-08-15) and on 2026-09-16 would have become a repo-wide Rule-3 interrupt blocking every PASS. What the existing tests DO cover, stated precisely rather than generously: TEST-018 through TEST-020 cover the degrade-line wiring as this repository can reach it, with no Azure remote in play. No test exercises az boards itself, so its live behaviour remains UNVERIFIED. That is exactly the withdrawn evidence, filed as fu-azure-live-proof-on-adoption (P3) to be done on first adoption |
 
 ## Implementation plan
 - `.aai/scripts/aai-issues.mjs` (new): zero-dep CLI. Imports `classify`,
