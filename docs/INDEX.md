@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-12T18:01:53.548Z
+Generated: 2026-09-12T18:50:00.256Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -526,12 +526,10 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (3)
+## Deferred items (per-AC, across all specs) (1)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
-| SPEC-0103 | Spec-AC-06 | 2026-09-15 | defer_extended 2026-08-13 (was 2026-08-15): still no Azure remote in this repo/environment and none is planned before the new date — the blocker is external availability, not missing work; evidence contract unchanged = first live Azure adoption round trip logged under docs/ai/reports/ |
-| SPEC-0104 | Spec-AC-03 | 2026-09-15 | defer_extended 2026-08-13 (was 2026-08-15): still no Azure remote in this repo/environment and none is planned before the new date; evidence contract unchanged = first live az boards round trip logged under docs/ai/reports/; degrade-line WIRING itself is done and covered by TEST-018..020 |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
