@@ -421,6 +421,18 @@ PROCESS
    - NEVER merge. `gh pr merge` is FORBIDDEN in this skill, in the loop, and in
      any subagent it spawns. Merging is an operator-only action performed by a
      human after their own review. Do not enable auto-merge either.
+   - STANDING AUTHORIZATION (scoped exception, never a default): when
+     docs/ai/decisions.jsonl carries an owner-signed `hitl_decision` granting a
+     standing merge authorization for THIS repository, this step MAY run
+     `gh pr merge --squash` (setting the operator marker on that one command)
+     ONLY for a ride meeting EVERY condition the record names. The record of
+     2026-09-12 (ref wave-2-roadmap) names: an internal ride (fix, chore,
+     guard, harness, test) at ceremony 2 or below; validation AND code review
+     both recorded pass; CI fully green on the final head; every bot review
+     thread answered AND resolved; residuals disclosed in the PR body. A
+     capability ride, any public or external side effect, or ceremony 3 is
+     NEVER covered. Cite the record in the merge report. Absent such a record,
+     or on any unmet condition, the hard rule above stands unchanged.
    - Hook marker (RFC-0010, opt-in overlay): projects with the Claude hooks
      overlay installed deny `git merge` / `gh pr merge` mechanically unless
      `AAI_OPERATOR_MERGE=1` is set on that command. The agent NEVER sets this
@@ -441,7 +453,8 @@ STRICT RULES
 - No `git add -A`, no `git add .`, no `git commit -a`.
 - No force-push unless the operator explicitly asks for it by name.
 - Do not rewrite history of a pushed branch.
-- Do not merge, approve, or enable auto-merge — operator-only.
+- Do not merge, approve, or enable auto-merge — operator-only, except a merge
+  covered by step 6's recorded standing authorization.
 - If the staged-vs-scope audit cannot be made clean, STOP and report.
 
 FINAL OUTPUT

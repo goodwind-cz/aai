@@ -3,6 +3,7 @@ id: shared-worktree-moves-another-agents-head
 number: 180
 type: change
 status: draft
+blocks: standardized-backlog-drain
 links:
   pr: []
   commits: []
