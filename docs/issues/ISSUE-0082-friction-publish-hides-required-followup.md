@@ -2,10 +2,12 @@
 id: friction-publish-hides-required-followup
 type: issue
 number: 82
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - da9cab69
 ---
 
 # The friction publish flow files an unactionable issue and never says a second step is required

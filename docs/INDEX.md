@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-12T16:51:34.769Z
+Generated: 2026-09-12T16:52:12.348Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0176 | specs | implementing | 14 done | docs/specs/SPEC-0176-spec-friction-publish-hides-required-followup.md |
 
 ## Canonical layer (0)
 
@@ -51,7 +50,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (417)
+## Done (419)
 
 | ID | Type | Path |
 |---|---|---|
@@ -279,6 +278,7 @@ _None._
 | ISSUE-0079 | issues | docs/issues/ISSUE-0079-metrics-flush-invalidates-pr-precondition.md |
 | ISSUE-0080 | issues | docs/issues/ISSUE-0080-friction-upsert-channel-cannot-file.md |
 | ISSUE-0081 | issues | docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md |
+| ISSUE-0082 | issues | docs/issues/ISSUE-0082-friction-publish-hides-required-followup.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -470,10 +470,11 @@ _None._
 | SPEC-0173 | specs | docs/specs/SPEC-0173-spec-mechanical-context-offload-to-cheap-tier.md |
 | SPEC-0174 | specs | docs/specs/SPEC-0174-spec-unattended-rides-human-gate-at-merge.md |
 | SPEC-0175 | specs | docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md |
+| SPEC-0176 | specs | docs/specs/SPEC-0176-spec-friction-publish-hides-required-followup.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (44)
+## Drafts (43)
 
 | ID | Type | Path |
 |---|---|---|
@@ -520,7 +521,6 @@ _None._
 | ISSUE-0073 | issues | docs/issues/ISSUE-0073-uncarved-dispatch-lanes.md |
 | ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
 | ISSUE-0075 | issues | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
-| ISSUE-0082 | issues | docs/issues/ISSUE-0082-friction-publish-hides-required-followup.md |
 
 ## Deferred (whole-doc) (0)
 

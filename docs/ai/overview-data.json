@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-12T16:51:02.417Z",
+  "generatedAt": "2026-09-12T16:52:06.035Z",
   "project": "aai",
   "counts": {
-    "delivered": 238,
-    "in_progress": 45,
+    "delivered": 239,
+    "in_progress": 44,
     "releases": 1,
     "tokens_total": 57430847
   },
@@ -624,19 +624,6 @@
       "review": null
     },
     {
-      "ref": "friction-publish-hides-required-followup",
-      "title": "The friction publish flow files an unactionable issue and never says a second step is required",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0082-friction-publish-hides-required-followup.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0176-spec-friction-publish-hides-required-followup.md",
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -661,6 +648,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "friction-publish-hides-required-followup",
+      "title": "The friction publish flow files an unactionable issue and never says a second step is required",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0082-friction-publish-hides-required-followup.md",
+      "closed_on": "2026-09-12",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0176-spec-friction-publish-hides-required-followup.md",
       "validation": null,
       "review": null
     },
@@ -3762,6 +3762,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "friction-publish-hides-required-followup",
+          "title": "The friction publish flow files an unactionable issue and never says a second step is required",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0082-friction-publish-hides-required-followup.md",
+          "closed_on": "2026-09-12",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0176-spec-friction-publish-hides-required-followup.md",
           "validation": null,
           "review": null
         },

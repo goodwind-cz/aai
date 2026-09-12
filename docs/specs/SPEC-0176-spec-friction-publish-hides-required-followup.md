@@ -2,13 +2,15 @@
 id: spec-friction-publish-hides-required-followup
 type: spec
 number: 176
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0082-friction-publish-hides-required-followup.md
   rfc: docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - da9cab69
 ---
 
 # Spec — the publish path says the second step exists, and a refused gh call says why
