@@ -1,26 +1,26 @@
 {
-  "generatedAt": "2026-09-09T17:12:05.960Z",
+  "generatedAt": "2026-09-12T07:53:27.493Z",
   "project": "aai",
   "counts": {
-    "delivered": 237,
+    "delivered": 238,
     "in_progress": 45,
     "releases": 1,
-    "tokens_total": 57249552
+    "tokens_total": 57430847
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "unattended-rides-human-gate-at-merge",
-    "type": "intake_rfc"
+    "ref": "close-ceremony-fires-only-via-aai-pr",
+    "type": "intake_issue"
   },
   "in_flight": {
     "focus": {
-      "ref": "unattended-rides-human-gate-at-merge",
-      "type": "intake_rfc",
-      "phase": "code_review"
+      "ref": "close-ceremony-fires-only-via-aai-pr",
+      "type": "intake_issue",
+      "phase": "validation"
     },
     "strategy": "tdd",
     "worktree": {
-      "recommendation": "optional",
+      "recommendation": "recommended",
       "user_decision": "inline"
     },
     "validation_status": "pass",
@@ -624,11 +624,11 @@
       "review": null
     },
     {
-      "ref": "close-ceremony-fires-only-via-aai-pr",
-      "title": "The close ceremony fires only through /aai-pr, so any other route ships silent drafts",
+      "ref": "update-installs-ref-guard-undisclosed",
+      "title": "/aai-update silently arms a git ref-guard in every consumer, under a licence written for a different hook",
       "type": "issue",
       "status": "draft",
-      "path": "docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md",
+      "path": "docs/issues/ISSUE-DRAFT-update-installs-ref-guard-undisclosed.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -652,14 +652,27 @@
   ],
   "delivered": [
     {
+      "ref": "close-ceremony-fires-only-via-aai-pr",
+      "title": "The close ceremony fires only through /aai-pr, so any other route ships silent drafts",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md",
+      "closed_on": "2026-09-12",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "unattended-rides-human-gate-at-merge",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
       "status": "done",
       "path": "docs/rfc/RFC-0014-unattended-rides-human-gate-at-merge.md",
       "closed_on": "2026-09-09",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 11,
+      "token_total": 181295,
       "spec": "docs/specs/SPEC-0174-spec-unattended-rides-human-gate-at-merge.md",
       "validation": null,
       "review": "docs/ai/reviews/review-unattended-rides-human-gate-at-merge-20260909T170601Z.md"
@@ -3740,14 +3753,27 @@
       "label": "2026-09",
       "items": [
         {
+          "ref": "close-ceremony-fires-only-via-aai-pr",
+          "title": "The close ceremony fires only through /aai-pr, so any other route ships silent drafts",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md",
+          "closed_on": "2026-09-12",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md",
+          "validation": null,
+          "review": null
+        },
+        {
           "ref": "unattended-rides-human-gate-at-merge",
           "title": "RFC (Decision Proposal)",
           "type": "rfc",
           "status": "done",
           "path": "docs/rfc/RFC-0014-unattended-rides-human-gate-at-merge.md",
           "closed_on": "2026-09-09",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 11,
+          "token_total": 181295,
           "spec": "docs/specs/SPEC-0174-spec-unattended-rides-human-gate-at-merge.md",
           "validation": null,
           "review": "docs/ai/reviews/review-unattended-rides-human-gate-at-merge-20260909T170601Z.md"

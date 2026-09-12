@@ -11,6 +11,31 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(close): the close ceremony fires from the merge, not only from /aai-pr
+
+- **New `.aai/scripts/close-reconcile.mjs --range A..B`** reconciles a
+  skipped close ceremony from the MERGE itself — git-only, no PR API, no
+  `--ref`, so it works for a ride that never invoked `/aai-pr`. `--apply`
+  SPAWNS `close-work-item.mjs`, never re-implements it.
+- **`.github/workflows/close-gate.yml`** runs it on every push to `main` and
+  FAILS loud. The existing docs-numbering job already ran a check here, but
+  under `continue-on-error: true` — a warning on a green job was the reported
+  silence (ISSUE-0081).
+- **One arm, deliberately.** A two-arm design measured 1 true / 7 false over
+  40 real pushes and was dropped on an owner decision; the shipped
+  `frozen_work_merged` arm measured 4 true / 0 false over 200 pushes, firing
+  on 1.0% of them.
+- **`--apply` closes the spec+intake PAIR in one invocation**, and `--check`
+  can no longer report CLEAN over a half-closed pair — the half-close left an
+  intake `draft` with empty `links.pr`, verbatim the corruption this issue
+  reports.
+- **`umbrella: true` parents are exempt**, using `docs-audit-core.mjs`'s own
+  predicate, so a live multi-phase parent is never closed by a child delivery.
+- Known and disclosed: recall is 2 of 8 measured escapes (R9); the pairing
+  keys on the `spec-<primary id>` convention, which 2 of 161 spec ids break
+  (R8, `fu-close-reconcile-pair-id-convention`).
+- ISSUE-0081 / SPEC-0175.
+
 ## [v2026.09.09] — fix(sync): identical files stay identical when a hash tool hiccups
 
 - **`aai-sync.sh` no longer treats a failed content hash as "different".**

@@ -1,0 +1,71 @@
+name: close-gate
+
+# Loud at merge time (D5, ride ref close-ceremony-fires-only-via-aai-pr /
+# docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md). Runs
+# close-reconcile.mjs --check over the pushed range and FAILS the job when
+# the ceremony did not run before merge — the merge has ALREADY happened by
+# the time this job runs, so it gates nothing and blocks nobody; failing it
+# is purely the notification. No "continue on error", no report-only dial:
+# the existing docs-numbering.yml warning-shaped signal is exactly the
+# silence this issue reports.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: close ceremony reconcile
+    runs-on: ubuntu-latest
+    steps:
+      # Full history so the pushed range (before..sha) is resolvable.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: close-reconcile.mjs --check over the pushed range
+        shell: bash
+        env:
+          RANGE_BEFORE: ${{ github.event.before }}
+          RANGE_SHA: ${{ github.sha }}
+        run: |
+          # BEGIN close-gate-range
+          set +e
+          before="$RANGE_BEFORE"
+          sha="$RANGE_SHA"
+          # D5 — an unusable `before` (the all-zero sha GitHub sends for a new
+          # branch, or an empty value on workflow_dispatch) falls back to
+          # HEAD^..HEAD. A force push does NOT hit this fallback: GitHub sends
+          # the actual previous head sha, not all-zero. When that sha is no
+          # longer reachable (e.g. pruned after the force push), rev-parse
+          # fails and close-reconcile.mjs itself fail-closes (exit 2) instead
+          # — a behaviour D5 accepts, never a silent pass.
+          if [ -z "$before" ] || echo "$before" | grep -Eq '^0+$'; then
+            range="HEAD^..HEAD"
+          else
+            range="$before..$sha"
+          fi
+          echo "close-gate: range=$range"
+          bin="${CLOSE_RECONCILE_BIN:-.aai/scripts/close-reconcile.mjs}"
+          root="${CLOSE_RECONCILE_ROOT:-.}"
+          out="$(node "$bin" --check --range "$range" --root "$root" 2>&1)"
+          rc=$?
+          echo "$out"
+          if [ "$rc" -ne 0 ]; then
+            echo "$out" | while IFS= read -r line; do
+              case "$line" in
+                *"OPEN "*) echo "::error::$line" ;;
+              esac
+            done
+            exit "$rc"
+          fi
+          exit 0
+          # END close-gate-range
