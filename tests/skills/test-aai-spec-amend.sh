@@ -67,9 +67,11 @@ unsigned_spec_ids() {
   node "$SA" list --ledger "$LIVE_LEDGER" --status unsigned --json 2>/dev/null \
     | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);const ids=[...new Set((j.items||[]).map(r=>r.spec_id).filter(Boolean))];console.log(ids.join("\n"))})'
 }
-signed_spec_ids() {
-  node "$SA" list --ledger "$LIVE_LEDGER" --status signed --json 2>/dev/null \
-    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);const ids=[...new Set((j.items||[]).map(r=>r.spec_id).filter(Boolean))];console.log(ids.join("\n"))})'
+# Tracked items whose EVERY amendment record is signed (keyed on tracked_by,
+# so records with no spec path count too) — these must carry no OPEN item.
+fully_signed_tracked_ids() {
+  node "$SA" list --ledger "$LIVE_LEDGER" --status all --json 2>/dev/null \
+    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);const by={};for(const r of (j.items||[])){const t=r.tracked_by;if(!t)continue;by[t]=by[t]||{s:0,u:0};(String(r.bucket||"").startsWith("signed")?by[t].s++:by[t].u++)}console.log(Object.entries(by).filter(([,v])=>v.s>0&&v.u===0).map(([t])=>t).join("\n"))})'
 }
 
 # Measured at the base commit be0c8ed. The comment used to say this pin "cannot
@@ -731,7 +733,7 @@ test_009_live_backfill_and_whole_ledger_readers() {
     || log_fail "TEST-009: the live ledger still carries unclassified amendments: $OUT"
 
   # One OPEN tracked item per unsigned spec, named through the REAL reader.
-  run_fu list --status open
+  run_fu list --ledger "$LIVE_LEDGER" --status open
   [[ "$EC" == 0 ]] || log_fail "TEST-009: follow-ups.mjs list must exit 0 over the live ledger, got $EC (stderr: $ERR)"
   local open_out="$OUT" sid missing="" unsigned_ids
   unsigned_ids="$(unsigned_spec_ids)"
@@ -751,28 +753,22 @@ test_009_live_backfill_and_whole_ledger_readers() {
   done
   [[ -z "$missing" ]] \
     || log_fail "TEST-009: no OPEN tracked item for:$missing — the standing amendments are not surfaced for an owner decision"
-  # Negative control: a spec whose amendments are ALL signed carries no OPEN
-  # tracked item any more (the owner decision closed it) — so the arm above
-  # discriminates signed from unsigned rather than demanding an item for every
-  # spec that was ever amended. Requires at least one signed spec with a
-  # closed item to be a real control; this ledger has had one since 2026-09-14.
-  local signed_ids sid2 signed_checked=0 still_open=""
-  signed_ids="$(signed_spec_ids)"
-  for sid2 in $signed_ids; do
-    grep -qF -- "$sid2" <<<"$unsigned_ids" && continue   # mixed spec: some records still unsigned
-    local expect2
-    expect2="$(node -e '
-      const { pathToFileURL } = require("node:url");
-      import(pathToFileURL(process.argv[2]).href)
-        .then((m) => process.stdout.write(m.amendItemId(process.argv[1])));
-    ' "$sid2" "$SA")"
+  # Negative control: a tracked item whose amendment records are ALL signed
+  # carries no OPEN follow-up any more (the owner decision closed it) — so the
+  # arm above discriminates signed from unsigned rather than demanding an item
+  # for everything ever amended. Keyed on tracked_by so records with no spec
+  # path count. Requires at least one fully signed item to be a real control;
+  # this ledger has had seven since 2026-09-14.
+  local signed_items tid signed_checked=0 still_open=""
+  signed_items="$(fully_signed_tracked_ids)"
+  for tid in $signed_items; do
     signed_checked=$((signed_checked+1))
-    grep -qF "$expect2" <<<"$open_out" && still_open="$still_open $sid2($expect2)"
+    grep -qF -- "$tid" <<<"$open_out" && still_open="$still_open $tid"
   done
   [[ "$signed_checked" -ge 1 ]] \
-    || log_fail "TEST-009: the signed-set control checked zero specs — a control that checks nothing proves nothing"
+    || log_fail "TEST-009: the signed-set control checked zero items — a control that checks nothing proves nothing"
   [[ -z "$still_open" ]] \
-    || log_fail "TEST-009: a fully SIGNED spec still carries an OPEN tracked item:$still_open — the owner decision was taken but the item was not closed"
+    || log_fail "TEST-009: a fully SIGNED amendment item is still OPEN:$still_open — the owner decision was taken but the item was not closed"
   grep -qF "MALFORMED-ID" <<<"$open_out" \
     && log_fail "TEST-009: the backfilled item ids are outside follow-ups.mjs's own grammar: $open_out"
 
