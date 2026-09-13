@@ -18,8 +18,8 @@ RFC-0001).
   did not test. `mutation-gate-for-tests` now rides immediately after sweeps 2
   and 3, so the close-ceremony, ref-guard and friction sweeps run under a
   structural guard (spec-lint mutation section, one recorded mutation per
-  TEST, dispatch text that pre-rates findings refused). `canon-is-a-build-
-  artifact` moves to the end of wave 3. `hitl_decision` appended.
+  TEST, dispatch text that pre-rates findings refused). `canon-is-a-build-artifact` moves to the end of
+  wave 3. `hitl_decision` appended.
 
 ## [unreleased] — chore(ledger): owner signs off seven post-freeze amendment follow-ups
 
