@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/CHANGE-0183-telemetry-fields-not-prose.md
   rfc: null
   pr:
-    - TBD
+    - 378
   commits:
     - 6105b291
 ---
