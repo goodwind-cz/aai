@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-13T01:32:11.162Z
+Generated: 2026-09-13T06:46:32.054Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -476,7 +476,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (46)
+## Drafts (22)
 
 | ID | Type | Path |
 |---|---|---|
@@ -501,30 +501,6 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0047 | issues | docs/issues/ISSUE-0047-agents-tree-not-synced.md |
-| ISSUE-0050 | issues | docs/issues/ISSUE-0050-contract-prefix-order-unenforced.md |
-| ISSUE-0051 | issues | docs/issues/ISSUE-0051-dispatch-prompt-coaching-bias.md |
-| ISSUE-0052 | issues | docs/issues/ISSUE-0052-docsaudit-idmention-probe-per-doc.md |
-| ISSUE-0054 | issues | docs/issues/ISSUE-0054-drained-suites-still-write-unisolated.md |
-| ISSUE-0055 | issues | docs/issues/ISSUE-0055-exit-contract-pin-comment-dup.md |
-| ISSUE-0056 | issues | docs/issues/ISSUE-0056-index-regen-eats-untracked.md |
-| ISSUE-0057 | issues | docs/issues/ISSUE-0057-ismain-symlink-realpath.md |
-| ISSUE-0058 | issues | docs/issues/ISSUE-0058-isolation-suite-not-hermetic.md |
-| ISSUE-0059 | issues | docs/issues/ISSUE-0059-ledger-backticks-ran-as-command.md |
-| ISSUE-0060 | issues | docs/issues/ISSUE-0060-mask-duplicates-docs-audit-core.md |
-| ISSUE-0061 | issues | docs/issues/ISSUE-0061-metrics-verdict-has-no-staleness.md |
-| ISSUE-0062 | issues | docs/issues/ISSUE-0062-no-nul-guard.md |
-| ISSUE-0063 | issues | docs/issues/ISSUE-0063-openct-unrdbl-report.md |
-| ISSUE-0064 | issues | docs/issues/ISSUE-0064-orchestrator-git-add-scope-bleed.md |
-| ISSUE-0065 | issues | docs/issues/ISSUE-0065-posix-arm-reddens-on-prose-backslash.md |
-| ISSUE-0066 | issues | docs/issues/ISSUE-0066-probe-redirect-lands-in-shipping-cwd.md |
-| ISSUE-0067 | issues | docs/issues/ISSUE-0067-reconcile-skip-drops-commands.md |
-| ISSUE-0068 | issues | docs/issues/ISSUE-0068-seed-loss-turns-an-arm-into-a-skip.md |
-| ISSUE-0069 | issues | docs/issues/ISSUE-0069-setfocus-keeps-stale-spec-path.md |
-| ISSUE-0070 | issues | docs/issues/ISSUE-0070-sweep-scope-excludes-repo-root.md |
-| ISSUE-0072 | issues | docs/issues/ISSUE-0072-typemap-missing-research-hotfix.md |
-| ISSUE-0073 | issues | docs/issues/ISSUE-0073-uncarved-dispatch-lanes.md |
-| ISSUE-0074 | issues | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
-| ISSUE-0075 | issues | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
 | ISSUE-0083 | issues | docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md |
 
 ## Deferred (whole-doc) (0)
@@ -545,9 +521,34 @@ _None._
 
 _None._
 
-## Rejected / Superseded (0)
+## Rejected / Superseded (24)
 
-_None._
+| ID | Type | Status | Path |
+|---|---|---|---|
+| ISSUE-0050 | issues | superseded | docs/issues/ISSUE-0050-contract-prefix-order-unenforced.md |
+| ISSUE-0051 | issues | superseded | docs/issues/ISSUE-0051-dispatch-prompt-coaching-bias.md |
+| ISSUE-0052 | issues | superseded | docs/issues/ISSUE-0052-docsaudit-idmention-probe-per-doc.md |
+| ISSUE-0054 | issues | superseded | docs/issues/ISSUE-0054-drained-suites-still-write-unisolated.md |
+| ISSUE-0055 | issues | superseded | docs/issues/ISSUE-0055-exit-contract-pin-comment-dup.md |
+| ISSUE-0056 | issues | superseded | docs/issues/ISSUE-0056-index-regen-eats-untracked.md |
+| ISSUE-0057 | issues | superseded | docs/issues/ISSUE-0057-ismain-symlink-realpath.md |
+| ISSUE-0058 | issues | superseded | docs/issues/ISSUE-0058-isolation-suite-not-hermetic.md |
+| ISSUE-0059 | issues | superseded | docs/issues/ISSUE-0059-ledger-backticks-ran-as-command.md |
+| ISSUE-0060 | issues | superseded | docs/issues/ISSUE-0060-mask-duplicates-docs-audit-core.md |
+| ISSUE-0061 | issues | superseded | docs/issues/ISSUE-0061-metrics-verdict-has-no-staleness.md |
+| ISSUE-0062 | issues | superseded | docs/issues/ISSUE-0062-no-nul-guard.md |
+| ISSUE-0063 | issues | superseded | docs/issues/ISSUE-0063-openct-unrdbl-report.md |
+| ISSUE-0064 | issues | superseded | docs/issues/ISSUE-0064-orchestrator-git-add-scope-bleed.md |
+| ISSUE-0065 | issues | superseded | docs/issues/ISSUE-0065-posix-arm-reddens-on-prose-backslash.md |
+| ISSUE-0066 | issues | superseded | docs/issues/ISSUE-0066-probe-redirect-lands-in-shipping-cwd.md |
+| ISSUE-0067 | issues | superseded | docs/issues/ISSUE-0067-reconcile-skip-drops-commands.md |
+| ISSUE-0068 | issues | superseded | docs/issues/ISSUE-0068-seed-loss-turns-an-arm-into-a-skip.md |
+| ISSUE-0069 | issues | superseded | docs/issues/ISSUE-0069-setfocus-keeps-stale-spec-path.md |
+| ISSUE-0070 | issues | superseded | docs/issues/ISSUE-0070-sweep-scope-excludes-repo-root.md |
+| ISSUE-0072 | issues | superseded | docs/issues/ISSUE-0072-typemap-missing-research-hotfix.md |
+| ISSUE-0073 | issues | superseded | docs/issues/ISSUE-0073-uncarved-dispatch-lanes.md |
+| ISSUE-0074 | issues | superseded | docs/issues/ISSUE-0074-validation-ignores-suite-selector.md |
+| ISSUE-0075 | issues | superseded | docs/issues/ISSUE-0075-wrapper-hidden-suite-run-unreported.md |
 
 ## Legacy (no frontmatter) (0)
 

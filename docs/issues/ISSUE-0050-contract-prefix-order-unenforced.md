@@ -2,7 +2,7 @@
 id: contract-prefix-order-unenforced
 type: issue
 number: 50
-status: draft
+status: superseded
 ---
 
 # P2 backlog cluster: the-subagent-contract-omits-the-hazards (4 items)
@@ -35,3 +35,7 @@ status: draft
 
 ## Notes
 - Registry ref: `the-subagent-contract-omits-the-hazards`. This intake may close some, all, or none of the member `fu-*` ids depending on what Planning finds still applies when work starts — do not assume every listed item survives triage unchanged (two sibling items in this same backlog were found already-fixed-but-not-closed today; check before implementing).
+
+## Superseded (2026-09-13)
+
+This draft is a machine-clustered index of follow-up registry items, not a work item of its own. Under the wave-3 mandate (`docs/project-sessions/2026-09-13-wave-3-subsystem-sweeps.md`) the registry items it lists are closed by the subsystem sweep that owns them; each item keeps its own `follow-ups.mjs` record and resolution. Superseded so the intake list shows only work.

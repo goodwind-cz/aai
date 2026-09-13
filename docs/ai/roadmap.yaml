@@ -20,25 +20,27 @@ pairs:
     status: done
   - capability: harness-universal-routing
     maintenance: telemetry-fields-not-prose
+    status: active
+  - capability: test-framework-sweep
+    maintenance: residuals-of-the-per-suite-clone-ride
+    status: planned
+  - capability: dispatch-state-sweep
+    maintenance: focus-and-validation-state-go-stale-silently
+    status: planned
+  - capability: close-ceremony-sweep
+    maintenance: unrecorded-spec-amendment-is-invisible
     status: planned
   - capability: update-installs-ref-guard-undisclosed
     maintenance: agents-tree-not-synced
     status: planned
-  - capability: mutation-gate-for-tests
-    maintenance: residuals-of-the-per-suite-clone-ride
-    status: planned
-  - capability: canon-is-a-build-artifact
-    maintenance: unrecorded-spec-amendment-is-invisible
-    status: planned
-  - capability: standardized-backlog-drain
-    maintenance: windows-codex-test-dispatch
-    status: planned
-  - capability: friction-publish-hides-required-followup
+  - capability: friction-channel-sweep
     maintenance: hand-authored-friction-is-second-class
     status: planned
+  - capability: canon-is-a-build-artifact
+    maintenance: mutation-gate-for-tests
+    status: planned
 wave_2:
-  - canon-one-line-report-and-downstream-rules
+  - standardized-backlog-drain
   - decision-menu-options-parser
-  - review-round-cap-in-validation-canon
   - cloud-morning-digest
   - cross-harness-universality-proof
