@@ -11,6 +11,15 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — chore(ledger): owner signs off seven post-freeze amendment follow-ups
+
+- The owner accepted the fourteen amendment records tracked by seven
+  `fu-amend-*` follow-ups as they stand (menu answer A, 2026-09-14): every
+  one was additive-with-disclosure on a spec that has since shipped and been
+  validated against the amended text. Records classified `--signoff owner`,
+  the seven follow-ups closed, one `hitl_decision` appended. Amendments filed
+  by the wave-3 sweeps stay unsigned-tracked for a later menu.
+
 ## [unreleased] — fix(telemetry): run telemetry is recorded as fields, so cost and reliability stop depending on prose
 
 - **`state.mjs append-run` takes fields** — `--harness`, `--tokens-total`,
