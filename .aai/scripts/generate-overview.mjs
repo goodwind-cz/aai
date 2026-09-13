@@ -32,10 +32,9 @@ const SPEC_DIR = 'docs/specs';
 // still report the MAIN repo's name, not the worktree directory's basename
 // (PR #326/#337 already show this churn shipping and reverting). A linked
 // worktree's `git rev-parse --git-common-dir` resolves to
-// `<main-root>/.git` regardless of which worktree runs it (same mechanism
-// heartbeat.mjs's resolveDir() already relies on for a worktree-independent
-// path); the basename of that path's parent is the main root's directory
-// name. Falls back to the cwd basename when git is unavailable or this
+// `<main-root>/.git` regardless of which worktree runs it (the same
+// worktree-independent resolution other scripts in this tree already use);
+// the basename of that path's parent is the main root's directory name. Falls back to the cwd basename when git is unavailable or this
 // is not a git checkout at all (a non-git consumer of the generator).
 function detectProjectName(root) {
   try {
