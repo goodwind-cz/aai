@@ -418,6 +418,50 @@ function eventContradictedByNewerFail(entry, ref, eventTs, vStatus, vRef, vRunAt
   return false;
 }
 
+// telemetry-fields-not-prose D6 Round-7 fix at cause (reviewer bot P1,
+// PR #378): source 1 (D7 per-ref field) used to be admitted the instant it
+// read `pass`, without ever comparing it against source 2 (the global
+// `last_validation` block). A legal same-ref sequence — `set-validation --ref
+// R --status pass` (stamps BOTH the per-ref field and the global block to
+// pass), then a LATER `set-validation --status fail` with NO `--ref` (a
+// legal call: `--ref` restricts which per-ref stamp gets refreshed, it does
+// not gate whether the global block itself may change) — leaves the global
+// block `fail` for the same ref while the per-ref stamp stays the stale
+// `pass`, and the old source-1 branch flushed PASS off that stale stamp
+// without ever looking at the newer global fail. This mirrors source 3's
+// existing eventContradictedByNewerFail veto: source 1 is admitted only when
+// no NEWER same-ref global fail outranks it. "Newer" is the per-ref stamp's
+// own `at` vs `last_validation.run_at_utc` (both `state.mjs` `nowIso()`
+// self-stamps, i.e. directly comparable — unlike source 3's comparison
+// against an EVENTS.jsonl millisecond `ts`), at whole-SECOND precision with
+// a tie counting as newer, same convention as eventContradictedByNewerFail's
+// Round-4 refinement. A missing/unparseable timestamp on EITHER side is
+// fail-closed as a veto: ambiguity must never manufacture a PASS in the
+// append-only ledger.
+//
+// Rejected: refreshing the per-ref stamp inside `set-validation` when
+// `--ref` is omitted but `last_validation.ref_id` already names a ref (i.e.
+// fixing this at the write site instead of the read site). D7's own
+// contract is "set-validation stamps the ref it NAMES" — a `--ref`-less call
+// is legal precisely because the caller is not naming any one ref (e.g. a
+// blanket reset before re-validating several), and silently reinterpreting
+// "no --ref given" as "the ref last_validation happens to still remember"
+// would let a STALE, unrelated ref_id (left over from an earlier call)
+// receive a write the caller never asked for. The veto below needs no
+// change to what `set-validation` writes or to D7's contract; it only makes
+// the flush gate compare the two self-stamped timestamps it already reads.
+function perRefPassVetoedByNewerGlobalFail(entry, ref, vStatus, vRef, vRunAt) {
+  if (!(vStatus === 'fail' && refMatches(vRef, ref))) return false;
+  const baseAt = entry.validation && typeof entry.validation.at === 'string' ? entry.validation.at : null;
+  const baseMs = baseAt !== null && ISO_RE.test(baseAt) ? Date.parse(baseAt) : null;
+  if (baseMs === null) return true; // fail-closed: an unstamped/unparseable per-ref pass cannot outrank a same-ref global fail
+  const vMs = typeof vRunAt === 'string' && ISO_RE.test(vRunAt) ? Date.parse(vRunAt) : null;
+  if (vMs === null) return true; // fail-closed: an unparseable global fail timestamp still vetoes
+  const baseSecMs = Math.floor(baseMs / 1000) * 1000;
+  const vSecMs = Math.floor(vMs / 1000) * 1000;
+  return vSecMs >= baseSecMs; // tie counts as newer (same whole-second convention as source 3)
+}
+
 // Sum of human_resume review_duration_seconds -> minutes rounded UP; null when
 // the ticks file is absent or carries no resume lines.
 function ticksReviewMinutes(ticksPath) {
@@ -655,6 +699,16 @@ function buildEntry(entry, ctx) {
     // note-derived guess used above for costing).
     out.harness = typeof r.harness === 'string' ? r.harness : null;
     out.tokens_total = typeof r.tokens_total === 'number' ? r.tokens_total : null;
+    // Round-7 (PR #378 P1): `requested_model`/`actual_model` are ALREADY
+    // captured into `r` by parseMetricsEntries' generic `run[key]` reader
+    // (measurement 10) — this projection just never copied them onward, so
+    // the STATE cleanup (which deletes the flushed work_items entry) erased
+    // the only place they lived. D1 emits them ONLY when the flag was
+    // passed (unlike harness/verdict, which always default), so the ledger
+    // mirrors that same "absent stays absent" shape `prompt_hash` already
+    // uses above, rather than harness/tokens_total's null-default shape.
+    if (typeof r.requested_model === 'string') out.requested_model = r.requested_model;
+    if (typeof r.actual_model === 'string') out.actual_model = r.actual_model;
     const roleLower = typeof r.role === 'string' ? r.role.toLowerCase() : '';
     const relevantForVerdict = roleLower.includes('validation') || roleLower.includes('review');
     out.verdict = typeof r.verdict === 'string' && r.verdict !== '' ? r.verdict : null;
@@ -740,7 +794,7 @@ function removeDoneWorkItems(lines, refs) {
   }
 }
 
-function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver, archiveRefs) {
+function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver, archiveRefs, focusRef = null, existingScopeRef = null) {
   // A waiver that reached no ledger entry is PRESERVED verbatim in the reset
   // note instead of being overwritten (bot review PR #303 F-2: losing a waiver
   // must be loud, never rendered as "no waivers"). It stays scope-bound by its
@@ -785,7 +839,7 @@ function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver, archiveRefs)
     // (M18 restores the old null-out to prove this arm is exercised) and
     // instead stamps `scope_ref_id` so a later reader knows WHOSE scope this
     // is (M19 deletes the stamp independently of the preservation).
-    setField(bl, 2, 'scope_ref_id', [scalarLine(2, 'scope_ref_id', yqRef(flushedRefs))]);
+    setField(bl, 2, 'scope_ref_id', [scalarLine(2, 'scope_ref_id', yqRef(flushedRefs, focusRef, existingScopeRef))]);
     setField(bl, 2, 'report_paths', [scalarLine(2, 'report_paths', '[]')]);
     setField(bl, 2, 'notes', textFieldLines(2, 'notes', note));
     return bl;
@@ -794,9 +848,26 @@ function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver, archiveRefs)
 
 // D8: `scope_ref_id` names the flushed ref. A partial flush can complete more
 // than one ref in the same reset (multiple completed refs sharing one
-// STATE); the field names the FIRST — the same ref check-committed-scope.mjs
-// compares against `current_focus.ref_id`, which is itself always singular.
-function yqRef(flushedRefs) {
+// STATE); the field names the ref check-committed-scope.mjs compares against
+// `current_focus.ref_id`, which is itself always singular — so ownership,
+// not array position, decides which one.
+//
+// Round-7 (PR #378 P2): `flushedRefs` is ordered by `metrics.work_items`
+// insertion order, which has no relationship to which flushed ref belongs to
+// the CURRENT ride. Picking `flushedRefs[0]` therefore bound the preserved
+// scope to whichever completed ref happened to be inserted first, not to the
+// ride check-committed-scope.mjs is about to check. Preference order:
+//   1. the current-focus ref, when it is among the flushed refs — this IS
+//      the current ride's scope.
+//   2. the PRE-flush `scope_ref_id` (read by the caller off the untouched
+//      original STATE), when it already names one of the flushed refs — an
+//      existing binding that still resolves is preserved rather than
+//      reassigned by array order.
+//   3. `flushedRefs[0]` — the old fallback, kept only for the case neither 1
+//      nor 2 resolves (e.g. a --sweep-only flush with no live focus).
+function yqRef(flushedRefs, focusRef = null, existingScopeRef = null) {
+  if (focusRef !== null && flushedRefs.includes(focusRef)) return yq(focusRef);
+  if (existingScopeRef !== null && flushedRefs.includes(existingScopeRef)) return yq(existingScopeRef);
   return flushedRefs.length > 0 ? yq(flushedRefs[0]) : 'null';
 }
 
@@ -1148,6 +1219,12 @@ function main() {
   const rRequired = readScalar(origLines, 'code_review', 'required') === 'true';
   const rStatus = readScalar(origLines, 'code_review', 'status');
   const focusRef = scalarOrNull(readScalar(origLines, 'current_focus', 'ref_id'));
+  // Round-7 (PR #378 P2): the PRE-flush `code_review.scope_ref_id`, read once
+  // off the untouched original STATE — applyPartialReset's scope binding
+  // below falls back to this when the current-focus ref is not among the
+  // refs this reset flushed, so an existing scope binding that already names
+  // one of them survives instead of being overwritten by array order.
+  const existingScopeRef = scalarOrNull(readScalar(origLines, 'code_review', 'scope_ref_id'));
   // Truth-scoring R5: the strategy singleton is scoped to the refs the PASS
   // verdict names (every flushed ref, by the gate above) — 'undecided' or an
   // absent block records null, never a guess.
@@ -1208,19 +1285,31 @@ function main() {
     // instead of the generic "validation verdict is ..." message, so the
     // skip is legible as a corroboration refusal rather than a plain miss.
     let eventRejectionReason = null;
-    if (entry.validation && entry.validation.status === 'pass') {
+    // Round-7 (PR #378 P1): set only when source 1 (per-ref field) reads
+    // `pass` but a NEWER same-ref global fail vetoes it
+    // (perRefPassVetoedByNewerGlobalFail) — a vetoed source 1 is NOT
+    // admitted, so evaluation falls through to sources 2 and 3 exactly as if
+    // source 1 had not matched at all.
+    let perRefRejectionReason = null;
+    if (entry.validation && entry.validation.status === 'pass'
+      && !perRefPassVetoedByNewerGlobalFail(entry, ref, vStatus, vRef, vRunAt)) {
       verdictBasis = 'per-ref-field';
-    } else if (vStatus === 'pass' && refMatches(vRef, ref)) {
-      verdictBasis = 'global-block';
     } else {
-      const eventWarnings = [];
-      const ev = latestValidationEvent(eventsPath, ref, eventWarnings);
-      if (eventWarnings.length > 0) eventWarningsByRef[ref] = eventWarnings;
-      if (ev && ev.status === 'pass') {
-        if (eventContradictedByNewerFail(entry, ref, ev.ts, vStatus, vRef, vRunAt)) {
-          eventRejectionReason = `a validation_verdict pass event exists for ${ref} but is not admitted — a newer fail is recorded (per-ref field, last_validation, or a Validation run) after the event (ts ${ev.ts ?? 'unknown'})`;
-        } else {
-          verdictBasis = 'event';
+      if (entry.validation && entry.validation.status === 'pass') {
+        perRefRejectionReason = `a per-ref validation pass is recorded for ${ref} (metrics.work_items.${ref}.validation) but is not admitted — a newer last_validation fail is recorded for the same ref (run_at_utc ${vRunAt ?? 'unknown'})`;
+      }
+      if (vStatus === 'pass' && refMatches(vRef, ref)) {
+        verdictBasis = 'global-block';
+      } else {
+        const eventWarnings = [];
+        const ev = latestValidationEvent(eventsPath, ref, eventWarnings);
+        if (eventWarnings.length > 0) eventWarningsByRef[ref] = eventWarnings;
+        if (ev && ev.status === 'pass') {
+          if (eventContradictedByNewerFail(entry, ref, ev.ts, vStatus, vRef, vRunAt)) {
+            eventRejectionReason = `a validation_verdict pass event exists for ${ref} but is not admitted — a newer fail is recorded (per-ref field, last_validation, or a Validation run) after the event (ts ${ev.ts ?? 'unknown'})`;
+          } else {
+            verdictBasis = 'event';
+          }
         }
       }
     }
@@ -1233,7 +1322,7 @@ function main() {
     // asking about.
     let defaultReason = null;
     if (verdictBasis === null) {
-      defaultReason = eventRejectionReason ?? (vStatus === 'pass'
+      defaultReason = perRefRejectionReason ?? eventRejectionReason ?? (vStatus === 'pass'
         ? `validation verdict does not name ${ref} (last_validation.ref_id: ${vRef ?? 'null'}) — needs PASS for this ref`
         : `validation verdict is "${vStatus ?? 'null'}" (needs PASS or CANCELLED)`);
     } else if (rRequired && !['pass', 'waived'].includes(rStatus ?? '')) {
@@ -1344,7 +1433,7 @@ function main() {
       // archives nothing. A ref that DOES satisfy it still archives, whether
       // it flushed here or is being resumed after an interrupted flush.
       const archiveRefs = partialRefs.filter(r => defaultOkRefs.has(r));
-      if (partialRefs.length > 0) applyPartialReset(lines, partialRefs, nowIsoStr, carryWaiver, archiveRefs);
+      if (partialRefs.length > 0) applyPartialReset(lines, partialRefs, nowIsoStr, carryWaiver, archiveRefs, focusRef, existingScopeRef);
     }
     bumpUpdatedAt(lines, nowIsoStr);
   }

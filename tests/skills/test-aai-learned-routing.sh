@@ -36,7 +36,16 @@ TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-learned-routing.XXXXXX")"
 trap 'rm -rf "$TEST_DIR"' EXIT
 
 mkrepo() { # $1 = dir
-  mkdir -p "$1" && git -C "$1" init -q . && git -C "$1" config user.email t@e.st && git -C "$1" config user.name t
+  # Round-7 (PR #378 Copilot, memory-class bare-origin-head-defaultbranch):
+  # TEST-007's write_scope_gate_repo fixture hard-codes `main` into STATE
+  # current_focus/code_review base_ref/head_ref, so the scratch repo's
+  # initial branch must actually BE main regardless of the host's
+  # `init.defaultBranch` — `-b main` on a git new enough to support it,
+  # falling back to a config override for older git (same portable pattern
+  # as test-aai-factory-report.sh / test-aai-live-status.sh).
+  mkdir -p "$1" \
+    && { git -C "$1" init -q -b main . 2>/dev/null || git -C "$1" -c init.defaultBranch=main init -q .; } \
+    && git -C "$1" config user.email t@e.st && git -C "$1" config user.name t
 }
 
 # --- TEST-001 (Spec-AC-01): the routing rule is canon, and vendored -----------

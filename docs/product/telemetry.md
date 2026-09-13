@@ -94,7 +94,11 @@ one capability:
   into METRICS.jsonl. Absent fields render exactly as before.
 - Additive fields on `agent_runs[]`: `harness` (closed enum, derived — never
   caller-supplied), `tokens_total` (numeric, undecomposed), `verdict`
-  (`pass | fail | none`), `requested_model` / `actual_model`. The ledger's
+  (`pass | fail | none`), `requested_model` / `actual_model` — the latter two,
+  like `prompt_hash`, present only when the flag was passed and copied
+  byte-for-byte from STATE.yaml into METRICS.jsonl (Round-7, PR #378 P1: the
+  flush's output projection used to drop both before the STATE cleanup
+  erased the only other place they lived). The ledger's
   per-ride `reliability` object carries `basis`; `cost_usd`/`cost_basis` may
   read `total-blended` (with a `cost_bounds_usd` all-input/all-output range)
   when only a token total is known — derived from `PRICING.yaml`'s

@@ -55,6 +55,134 @@ still accept or reverse the underlying post-freeze widening itself (the P2
 follow-up above remains open for that decision); this addendum only makes the
 spec text match the claim already on the ledger.
 
+## Amendment — Round 7 — external bot findings on PR #378
+
+Four external bot findings on the open PR (`chatgpt-codex-connector[bot]` P1
+x2, P2 x1; Copilot P1 x1) were fixed at cause, each mutation-verified against
+the running suite. This is a BOUNDED remediation round on an already-closed,
+`status: done` spec: no scope was widened, no AC or Test Plan row was
+reopened; every fix and its evidence are disclosed here, additively.
+
+1. **D6 source order: a stale per-ref pass outranking a newer global fail**
+   (Codex P1, `.aai/scripts/metrics-flush.mjs:1214`). D6's fixed-order gate
+   (source 1 per-ref-field, source 2 global-block, source 3 event) admitted
+   source 1 the instant it read `pass`, without ever comparing it to source
+   2. A legal sequence — `set-validation --ref R --status pass` (stamps
+   BOTH the per-ref field and the global block to `pass`) followed LATER by
+   a legal `set-validation --status fail` with NO `--ref` (the global block
+   becomes `fail` for the same ref, since `ref_id` is left unchanged by an
+   omitted `--ref`, while the per-ref stamp — refreshed only when `--ref` is
+   given — stays the stale `pass`) — let the stale per-ref stamp win and
+   flush `PASS`. Fixed by adding `perRefPassVetoedByNewerGlobalFail`
+   (`metrics-flush.mjs`, beside `eventContradictedByNewerFail`): source 1 is
+   admitted only when no NEWER same-ref global fail outranks it, comparing
+   the per-ref stamp's own `at` against `last_validation.run_at_utc` (both
+   `state.mjs` `nowIso()` self-stamps, directly comparable) at whole-second
+   precision with a tie counting as newer — the same convention D6's
+   Round-4 refinement already established for source 3. A vetoed source 1
+   falls through to sources 2 and 3 exactly as if it had not matched.
+   Considered and REJECTED: refreshing the per-ref stamp inside
+   `set-validation` when `--ref` is omitted but `last_validation.ref_id`
+   still names a ref — D7's contract is "stamps the ref it NAMES", and a
+   `--ref`-less call is legal precisely because the caller is not naming
+   one; reinterpreting that as "the ref last_validation happens to still
+   remember" could write a STALE, unrelated ref's stamp the caller never
+   asked for. The flush-side veto needs no change to what `set-validation`
+   writes or to D7's contract. TEST: `tests/skills/test-aai-metrics.sh`
+   `test_146_per_ref_pass_vetoed_by_newer_global_fail` (TEST-146) — (a) the
+   reviewer's exact sequence SKIPs naming the veto reason, zero ledger
+   bytes; (b) positive control, a per-ref pass NEWER than the global fail
+   still flushes naming `per-ref-field`; (c) a same-whole-second tie counts
+   as newer and vetoes. Mutation: reverting the veto (source 1 admits
+   unconditionally again) reddens (a) and (c) — observed: flush exits 0 and
+   writes a `verdict_basis":"per-ref-field"` ledger line for the vetoed
+   ref, which the assertion catches as `FAIL: (a) the stale per-ref pass
+   must NOT flush`.
+
+2. **Output projection drops `requested_model`/`actual_model`** (Codex P1,
+   `metrics-flush.mjs:661`). `parseMetricsEntries`'s generic `run[key]`
+   reader already captured both fields off STATE (measurement 10), but the
+   ledger-run projection in `buildEntry` never copied them onward, and the
+   STATE cleanup that follows a flush deletes the `metrics.work_items` entry
+   they lived in — so a flushed ride's requested/actual model became
+   unrecoverable except by parsing the legacy prose note, the exact
+   dependency D1 exists to remove. Fixed by copying both fields onto the
+   ledger run entry, present only when recorded (mirroring `prompt_hash`'s
+   "absent stays absent" shape, per D1's own emission rule for these two
+   fields — unlike `harness`/`tokens_total`, which always default).
+   `docs/product/telemetry.md`'s Data model list updated to state the
+   ledger now carries them byte-for-byte from STATE.yaml, same as
+   `prompt_hash`; Spec-AC-01 and Spec-AC-12 were checked and need no edit —
+   AC-01 is scoped to `append-run`/STATE, not the ledger projection, and
+   neither AC's Notes column nor the Evidence contract enumerates ledger
+   keys. TEST: `test_147_requested_actual_model_passthrough` (TEST-147) — an
+   Implementation run carrying both fields flushes with both on the ledger
+   line; a sibling Validation run recording neither carries neither key.
+   Mutation: dropping the two copy lines reddens — observed:
+   `Implementation run must carry requested_model claude-sonnet-5, got
+   undefined`.
+
+3. **`scope_ref_id` selection picks array order, not ownership** (Codex P2,
+   `metrics-flush.mjs:800`). A partial flush completing more than one ref in
+   the same reset picked `flushedRefs[0]` — the FIRST ref in
+   `metrics.work_items` insertion order — regardless of which flushed ref
+   actually belonged to the current ride, so an older ref appearing first
+   could steal the scope binding `check-committed-scope --from-state
+   --strict` then checks against `current_focus.ref_id`. Fixed by
+   preferring, in order: (1) the current-focus ref, when it is among the
+   flushed refs; (2) the PRE-flush `code_review.scope_ref_id` (read off the
+   untouched original STATE before this flush's edits), when it already
+   names one of the flushed refs; (3) `flushedRefs[0]`, kept only as the
+   last resort neither 1 nor 2 resolves. TEST:
+   `test_148_scope_ref_id_binds_to_focus` (TEST-148) — a fixture with
+   `metrics.work_items` listing CHANGE-0002 before CHANGE-0001, both
+   admitted by the default gate via a composite `last_validation.ref_id`
+   (`refMatches`' documented `"/"`-joined form): (a) current focus
+   CHANGE-0001 (second in order) still gets `scope_ref_id: CHANGE-0001`;
+   (b) focus moved on to an unrelated ref, but a pre-existing
+   `scope_ref_id: CHANGE-0001` (also second in order) survives instead of
+   being overwritten by array order. Mutation: reverting `yqRef` to plain
+   `flushedRefs[0]` reddens (a) — observed: `scope_ref_id: CHANGE-0002`
+   instead of the expected `CHANGE-0001`.
+
+4. **Scratch git repo helper omits `-b main`** (Copilot,
+   `tests/skills/test-aai-learned-routing.sh:341`, memory-class
+   `bare-origin-head-defaultbranch`). `mkrepo()` called `git init -q .`
+   with no explicit initial branch; `write_scope_gate_repo`'s fixture
+   STATE hard-codes `main` into `worktree.base_ref` and
+   `code_review.base_ref`, so a host whose `git init` default is not `main`
+   would leave those STATE claims and the fixture's real branch
+   disagreeing. Fixed by making `mkrepo()` init with `-b main` (falling
+   back to `-c init.defaultBranch=main` for a pre-2.28 git, the same
+   portable pattern already used in `test-aai-factory-report.sh` /
+   `test-aai-live-status.sh`) — verified directly: `git -c
+   init.defaultBranch=master init -q .` on this repo's `mkrepo()` still
+   produces `refs/heads/main`, confirmed by reading `symbolic-ref HEAD`
+   after invoking the fixed function under a hostile
+   `init.defaultBranch=master` override. A grep of this ride's own
+   `tests/skills` diff (`git diff main...HEAD -- tests/skills`) for other
+   ADDED `git init` calls without `-b main` found none — the only match is
+   this pre-existing helper, newly exercised by TEST-007's addition, not a
+   line this ride added. Mutation as directed (remove `-b main` while
+   setting `init.defaultBranch=master` in the fixture) does NOT redden any
+   current assertion in `test-aai-learned-routing.sh`: `git -C "$d" -c
+   init.defaultBranch=master init -q .` was run directly and confirmed to
+   actually produce a `master`-headed repo, but `test_007_scope_ref_id_gate`'s
+   `check-committed-scope --from-state` path diffs the declared scope
+   against the git index/HEAD, never against a ref literally named `main`
+   (`worktree.base_ref`/`code_review.base_ref: main` are read but not
+   resolved as a git revision on this path), and the full suite run under
+   the mutation still passes end to end. The fix is applied as a
+   correctness/portability fix regardless — matching the project's own
+   established convention in five other suites carry the same two-arm pattern and the standing
+   `bare-origin-head-defaultbranch` lesson — and this absence of a currently
+   red assertion is disclosed rather than a fabricated one substituted.
+
+RECORD: `docs/ai/decisions.jsonl` `type: spec_amendment`, `ref_id:
+telemetry-fields-not-prose`, via `.aai/scripts/spec-amend.mjs add`, `--signoff
+none` (owner sign-off owed, matching the standing convention this spec's own
+Round-2 amendment above uses).
+
 ## Links
 - Requirement: docs/issues/CHANGE-0183-telemetry-fields-not-prose.md
 - Roadmap: docs/project-sessions/2026-09-12-wave-2-roadmap.md (wave 2, pair 1, maintenance half)
@@ -607,7 +735,7 @@ Components affected:
   basis columns and the field-versus-marker counts.
 - `.aai/SUBAGENT_PROTOCOL.md` — the "Harness-reported usage capture" section.
 - Suites: `tests/skills/test-aai-state.sh` (TEST-026..031),
-  `tests/skills/test-aai-metrics.sh` (TEST-135..145),
+  `tests/skills/test-aai-metrics.sh` (TEST-135..148),
   `tests/skills/test-aai-friction.sh` (TEST-113),
   `tests/skills/test-aai-feedback-triage.sh` (TEST-011, TEST-014 — post-freeze
   addition, see `## Amendment`),

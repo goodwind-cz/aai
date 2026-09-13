@@ -3023,6 +3023,241 @@ test_145_field_note_disagreement() {  # TEST-145 / Spec-AC-04 / NON-BLOCKING-B (
   grep -qF 'verdict field is "fail"' "$OUT" || log_fail "the (b) disagreement NOTE must name the field value fail: $(cat "$OUT")"
   log_pass "Field/note disagreement: the FIELD always wins (both directions), and each disagreeing run prints exactly one NOTE (TEST-145)"
 }
+test_146_per_ref_pass_vetoed_by_newer_global_fail() {  # TEST-146 / Spec-AC-06 / Round-7 (PR #378 Codex P1)
+  log_info "Test: a per-ref validation pass stamp does not outrank a NEWER same-ref global last_validation fail (TEST-146)..."
+  local runs='        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+
+  # (a) reviewer's exact sequence: `set-validation --ref CHANGE-0001 --status
+  # pass` (per-ref stamp at 09:00:00Z) then a LATER LEGAL `set-validation
+  # --status fail` with NO `--ref` (global block: fail, ref_id STILL
+  # CHANGE-0001 from the earlier call, run_at_utc 10:00:00Z, newer) -> the
+  # newer global fail must VETO the stale per-ref pass: SKIP, zero ledger
+  # bytes, reason names the veto.
+  local extra='      validation:
+        status: pass
+        at: 2026-07-15T09:00:00Z'
+  local d; d="$(mk_repo t146a)"
+  write_gate_state "$d/docs/ai/STATE.yaml" CHANGE-0001 fail CHANGE-0001 "$runs" "$extra" 2026-07-15T10:00:00Z
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 0 ]] || log_fail "(a) the stale per-ref pass must NOT flush: $(cat "$d/docs/ai/METRICS.jsonl")"
+  grep -qF "SKIP CHANGE-0001" "$OUT" || log_fail "(a) the skip must name CHANGE-0001: $(cat "$OUT")"
+  grep -qi 'newer last_validation fail' "$OUT" || log_fail "(a) the skip reason must name the newer global fail: $(cat "$OUT")"
+
+  # (b) positive control: the per-ref pass is NEWER (10:00:00Z) than the
+  # global fail naming the same ref (09:00:00Z) -> the per-ref pass still
+  # wins, basis per-ref-field, exactly like TEST-138.
+  local extra2='      validation:
+        status: pass
+        at: 2026-07-15T10:00:00Z'
+  local d2; d2="$(mk_repo t146b)"
+  write_gate_state "$d2/docs/ai/STATE.yaml" CHANGE-0001 fail CHANGE-0001 "$runs" "$extra2" 2026-07-15T09:00:00Z
+  write_ticks "$d2/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d2"
+  [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF '"verdict_basis":"per-ref-field"' "$d2/docs/ai/METRICS.jsonl" \
+    || log_fail "(b) a per-ref pass NEWER than the global fail must still flush naming per-ref-field: $(cat "$d2/docs/ai/METRICS.jsonl")"
+
+  # (c) second-precision tie (same convention eventContradictedByNewerFail's
+  # Round-4 refinement uses): the per-ref stamp's own `at` carries no
+  # sub-second part (implicit .000) while the global fail's run_at_utc lands
+  # later in the SAME whole second -> counts as newer (fail-closed) -> vetoed.
+  local extra3='      validation:
+        status: pass
+        at: 2026-07-15T10:00:00Z'
+  local d3; d3="$(mk_repo t146c)"
+  write_gate_state "$d3/docs/ai/STATE.yaml" CHANGE-0001 fail CHANGE-0001 "$runs" "$extra3" 2026-07-15T10:00:00.750Z
+  write_ticks "$d3/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d3"
+  [[ "$EC" == 0 ]] || log_fail "(c) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d3")" == 0 ]] || log_fail "(c) a same-second tie must count as newer and veto: $(cat "$d3/docs/ai/METRICS.jsonl")"
+
+  log_pass "Per-ref pass veto: a newer same-ref global fail vetoes a stale per-ref pass, an older global fail never blocks a newer per-ref pass, and a same-second tie counts as newer (TEST-146)"
+}
+
+test_147_requested_actual_model_passthrough() {  # TEST-147 / Round-7 (PR #378 Codex P1)
+  log_info "Test: flush copies requested_model and actual_model into the ledger run entry; a sibling run recording neither carries neither key (TEST-147)..."
+  local runs='        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          requested_model: claude-sonnet-5
+          actual_model: claude-haiku-5
+        - role: Validation
+          model_id: claude-v
+          verdict: pass
+          started_utc: 2026-07-15T10:02:00Z
+          ended_utc: 2026-07-15T10:03:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  local d; d="$(mk_repo t147)"
+  write_gate_state "$d/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-0001 "$runs"
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  node -e '
+    const line = require("fs").readFileSync(process.argv[1], "utf8").trim();
+    const o = JSON.parse(line);
+    const runs = o.agent_runs;
+    const impl = runs.find(r => r.role === "Implementation");
+    const val = runs.find(r => r.role === "Validation");
+    if (impl.requested_model !== "claude-sonnet-5") { console.error("Implementation run must carry requested_model claude-sonnet-5, got " + JSON.stringify(impl.requested_model)); process.exit(1); }
+    if (impl.actual_model !== "claude-haiku-5") { console.error("Implementation run must carry actual_model claude-haiku-5, got " + JSON.stringify(impl.actual_model)); process.exit(1); }
+    if ("requested_model" in val || "actual_model" in val) { console.error("Validation run recorded neither flag and must carry NEITHER key, got " + JSON.stringify(val)); process.exit(1); }
+  ' "$d/got.jsonl" || log_fail "requested_model/actual_model must pass through to the ledger run entry, present only when recorded"
+  log_pass "Flush copies requested_model and actual_model into the ledger run entry; a sibling run without them carries neither key (TEST-147)"
+}
+
+test_148_scope_ref_id_binds_to_focus() {  # TEST-148 / Spec-AC-09 / Round-7 (PR #378 Codex P2)
+  log_info "Test: a partial flush completing multiple refs binds the preserved scope_ref_id to the CURRENT FOCUS ref, not to metrics.work_items array order (TEST-148)..."
+
+  # Shared shape: metrics.work_items lists CHANGE-0002 BEFORE CHANGE-0001 (so
+  # array order alone would pick CHANGE-0002); last_validation admits BOTH
+  # via a composite ref_id "CHANGE-0002/CHANGE-0001" (refMatches' documented
+  # "/"-joined form); a third active work item (CHANGE-0003, in_progress,
+  # absent from metrics) keeps the reset PARTIAL, never full.
+  write_scope148_state() {
+    local f="$1" focus_ref="$2" existing_scope_ref="$3"
+    cat > "$f" <<YAML
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: $focus_ref
+  primary_path: null
+active_work_items:
+  - ref_id: CHANGE-0001
+    status: done
+    phase: validation
+    primary_path: docs/issues/CHANGE-0001-a.md
+  - ref_id: CHANGE-0002
+    status: done
+    phase: validation
+    primary_path: docs/issues/CHANGE-0002-b.md
+  - ref_id: CHANGE-0003
+    status: in_progress
+    phase: implementation
+    primary_path: docs/issues/CHANGE-0003-c.md
+implementation_strategy:
+  selected: tdd
+  source: null
+  rationale: null
+worktree:
+  recommendation: not_needed
+  user_decision: undecided
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: false
+  status: not_run
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+  scope_ref_id: $existing_scope_ref
+last_validation:
+  status: pass
+  run_at_utc: 2026-07-15T11:00:00Z
+  ref_id: CHANGE-0002/CHANGE-0001
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+  spec_path: null
+  test_path: null
+  evidence:
+    red: null
+    green: null
+    refactor: null
+metrics:
+  work_items:
+    CHANGE-0002:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T09:00:00Z
+          ended_utc: 2026-07-15T09:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+    CHANGE-0001:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+
+updated_at_utc: 2026-07-15T11:30:00Z
+YAML
+  }
+
+  # (a) focus ref (CHANGE-0001) is AMONG the flushed refs but SECOND in
+  # metrics.work_items order (CHANGE-0002 is first) -> scope_ref_id must name
+  # CHANGE-0001, not the array-order CHANGE-0002 (M-scope: reverting to
+  # flushedRefs[0] reddens this arm).
+  local d; d="$(mk_repo t148a)"
+  write_scope148_state "$d/docs/ai/STATE.yaml" CHANGE-0001 null
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "(a) both CHANGE-0001 and CHANGE-0002 must flush: $(cat "$d/docs/ai/METRICS.jsonl")"
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$d/docs/ai/STATE.yaml" > "$d/cr.block"
+  grep -qE '^ {2}scope_ref_id: CHANGE-0001$' "$d/cr.block" \
+    || log_fail "(a) scope_ref_id must bind to the current-focus ref CHANGE-0001, not array order: $(cat "$d/cr.block")"
+
+  # (b) focus ref is NOT among the flushed refs (current_focus already moved
+  # on to CHANGE-9999), but the PRE-flush scope_ref_id already names
+  # CHANGE-0001 — one of the flushed refs, again second in array order — so
+  # that existing binding must be PRESERVED rather than overwritten by
+  # array-order CHANGE-0002.
+  local d2; d2="$(mk_repo t148b)"
+  write_scope148_state "$d2/docs/ai/STATE.yaml" CHANGE-9999 CHANGE-0001
+  write_ticks "$d2/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d2"
+  [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$d2/docs/ai/STATE.yaml" > "$d2/cr.block"
+  grep -qE '^ {2}scope_ref_id: CHANGE-0001$' "$d2/cr.block" \
+    || log_fail "(b) an existing scope_ref_id naming a flushed ref must be PRESERVED, not overwritten by array order: $(cat "$d2/cr.block")"
+
+  log_pass "scope_ref_id binds to the current-focus ref when it is among the flushed refs, else preserves an existing matching binding, never plain array order (TEST-148)"
+}
+
 
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
@@ -3088,6 +3323,9 @@ main() {
   test_143_append_only_prefix
   test_144_event_corroboration
   test_145_field_note_disagreement
+  test_146_per_ref_pass_vetoed_by_newer_global_fail
+  test_147_requested_actual_model_passthrough
+  test_148_scope_ref_id_binds_to_focus
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

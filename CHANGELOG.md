@@ -44,6 +44,10 @@ RFC-0001).
 - Measured before: 135 of 138 ledger lines had null cost, 5 `VERDICT FAIL`
   notes without the colon were invisible, `validation_fails` 2 against
   `remediation_runs` 69.
+- **Post-review (PR #378 bots)**: a per-ref `pass` stamp is vetoed by a newer
+  same-ref global `fail`; `requested_model` / `actual_model` reach the ledger
+  run entry; the preserved review scope binds to the current-focus ref when
+  several refs flush together.
 - Spec: SPEC-0178 (telemetry-fields-not-prose), ceremony 3 (`state.mjs` is a
   protected surface), TDD, 18 + 6 tests, 25 + 12 mutations, four validation
   rounds, two review rounds. Wave 3 sweep 1 (CHANGE-0183). Merged by the
