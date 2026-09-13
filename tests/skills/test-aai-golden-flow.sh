@@ -58,6 +58,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FLOW="$PROJECT_ROOT/.aai/scripts/golden-flow.mjs"
 GATE="$PROJECT_ROOT/.aai/scripts/nothing-left-behind.mjs"
 FOLLOW_UPS="$PROJECT_ROOT/.aai/scripts/follow-ups.mjs"
+APPEND_LOCK_MJS="$PROJECT_ROOT/.aai/scripts/lib/append-lock.mjs"
 APPEND_EVENT="$PROJECT_ROOT/.aai/scripts/append-event.mjs"
 SKILL_PR="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
 
@@ -665,6 +666,106 @@ test_007_record_append_only_and_diff() {
   log_pass "TEST-007 record append-only; fields present; --diff 0 on equal, 1 on a raised files_left; median null / 1640003"
 }
 
+# --- TEST-417 (Spec-AC-10) --------------------------------------------------
+# The append SHALL go through the SAME lock discipline the other docs/ai/
+# ledgers use (tests/skills/lib/append-lock.sh, ported to Node as
+# .aai/scripts/lib/append-lock.mjs — mkdir-mutex-beside-the-file,
+# staleness-timeout reclaim, AAI_APPEND_LOCK_TIMEOUT override). Two halves:
+#   1. 12 REAL concurrent golden-flow rides append 12 whole, parseable
+#      records to the SAME --record file, and the one pre-existing line
+#      (seeded first) stays an exact byte prefix.
+#   2. A lock another process is genuinely holding makes the run REPORT the
+#      refusal (non-zero exit, a message naming the lock) rather than write
+#      around it -- this is the half that cannot pass on the pre-change code
+#      at all, since it has no lock to consult: on this filesystem a single
+#      small appendFileSync() is atomic in practice (confirmed empirically
+#      during planning), so part 1 alone would not reliably RED.
+# ---------------------------------------------------------------------------
+test_417_locked_concurrent_appends() {
+  log_info "TEST-417: 12 concurrent appends produce 12 whole parseable records with the pre-existing bytes a prefix; a held lock is reported, not written around..."
+  local record="$TEST_DIR/t417-record.jsonl"
+  flow_env_run "$TEST_DIR/t417-out0" "$record"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-417 seed run: expected exit 0, got $CODE: $OUT"
+  local first; first="$(head -1 "$record")"
+
+  mkdir -p "$TEST_DIR/home"
+  local i pids=()
+  for i in $(seq 1 12); do
+    (
+      env -i PATH="$PATH" HOME="$TEST_DIR/home" TMPDIR="$TEST_DIR" \
+        node "$FLOW" --out "$TEST_DIR/t417-out$i" --record "$record" </dev/null \
+        >"$TEST_DIR/t417-log$i" 2>&1
+    ) &
+    pids+=("$!")
+  done
+  local p rc12=0
+  for p in "${pids[@]}"; do
+    wait "$p" || rc12=1
+  done
+  [[ "$rc12" -eq 0 ]] || log_fail "TEST-417: at least one of the 12 concurrent runs exited non-zero (see $TEST_DIR/t417-log*)"
+
+  local total; total="$(wc -l < "$record" | tr -d ' ')"
+  [[ "$total" -eq 13 ]] || log_fail "TEST-417: expected 13 lines (1 seed + 12 concurrent), got $total"
+  [[ "$(head -1 "$record")" == "$first" ]] || log_fail "TEST-417: the pre-existing first line must stay an exact byte prefix"
+  local bad
+  bad="$(node -e '
+    const fs = require("node:fs");
+    const lines = fs.readFileSync(process.argv[1], "utf8").split("\n").filter(l => l.trim());
+    let n = 0;
+    for (const l of lines) { try { JSON.parse(l); } catch { n++; } }
+    process.stdout.write(String(n));
+  ' "$record")"
+  [[ "$bad" -eq 0 ]] || log_fail "TEST-417: $bad of the 13 lines did not parse as whole JSON"
+
+  # Half 2: a REAL holder — using the same append-lock.mjs library, so the
+  # protocol is identical — takes the lock and keeps its stamp fresh (a
+  # continuous 200ms refresh) so it can never be misread as abandoned. A
+  # static pre-created lock directory was tried first and is WRONG: golden-
+  # flow's own fixture build (git init, template rendering, 40 steps) takes
+  # several real seconds before it ever reaches the lock, so any fixed
+  # AAI_APPEND_LOCK_TIMEOUT either misjudges a pre-planted lock as stale on
+  # the very first check (timeout too small) or lets the contender simply
+  # outlast a fixed-duration holder (timeout too large) — both raced the
+  # ride's own unpredictable startup latency. A continuously-refreshed
+  # holder decouples the two: age never grows, so the contender is
+  # GUARANTEED to exhaust its own short patience while the lock is still
+  # genuinely, demonstrably held, however long the ride took to get there.
+  cat > "$TEST_DIR/lock-holder.mjs" <<'HOLDER'
+import fs from 'node:fs';
+import path from 'node:path';
+const [, , libUrl, record, holdMs] = process.argv;
+const { withAppendLock } = await import(libUrl);
+const lockDir = `${record}.aai-lock`;
+withAppendLock(record, () => {
+  const until = Date.now() + Number(holdMs);
+  while (Date.now() < until) {
+    try { fs.writeFileSync(path.join(lockDir, 'stamp'), String(Math.floor(Date.now() / 1000))); } catch { /* holder keeps trying */ }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+  }
+});
+HOLDER
+  local hold_ms=15000
+  node "$TEST_DIR/lock-holder.mjs" "file://$APPEND_LOCK_MJS" "$record" "$hold_ms" &
+  local holder_pid=$!
+  sleep 0.3   # let the holder win the mkdir race before the contender starts
+
+  local before_total="$total" code2=0 out2
+  out2="$(env -i PATH="$PATH" HOME="$TEST_DIR/home" TMPDIR="$TEST_DIR" AAI_APPEND_LOCK_TIMEOUT=2 \
+    node "$FLOW" --out "$TEST_DIR/t417-outlock" --record "$record" </dev/null 2>&1)" || code2=$?
+
+  kill "$holder_pid" >/dev/null 2>&1 || true
+  wait "$holder_pid" 2>/dev/null || true
+  rm -rf "$record.aai-lock"
+
+  [[ "$code2" -ne 0 ]] || log_fail "TEST-417: a run that could not acquire the append lock must not exit 0: $out2"
+  case "$out2" in *lock*) ;; *) log_fail "TEST-417: the refusal must name the lock: $out2" ;; esac
+  local after_total; after_total="$(wc -l < "$record" | tr -d ' ')"
+  [[ "$after_total" -eq "$before_total" ]] \
+    || log_fail "TEST-417: a lock that could not be taken must not be written around (before $before_total, after $after_total)"
+
+  log_pass "TEST-417 (Spec-AC-10) 12 concurrent appends produced 13 whole parseable records with the pre-existing bytes an exact prefix, and a held lock was reported rather than bypassed"
+}
+
 main() {
   echo "Testing $TEST_NAME (simple-and-friendly-to-use / SPEC-0172-spec-simple-and-friendly-to-use)"
   check_deps
@@ -681,6 +782,7 @@ main() {
   test_003_steps_from_questions
   test_006_record_reads_gate_and_skill_pr_wiring
   test_007_record_append_only_and_diff
+  test_417_locked_concurrent_appends
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -37,6 +37,13 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 GUARD="${AAI_BRANCH_GUARD:-$PROJECT_ROOT/.aai/scripts/branch-guard.mjs}"
 STATE_CLI="$PROJECT_ROOT/.aai/scripts/state.mjs"
 
+# CHANGE-0180 D4 — the three ceremony scripts that re-check the HEAD pin via
+# --expect-branch (TEST-405..408). Overridable so a RED phase can point at a
+# pre-change (flag-less) copy and observe the genuine failure.
+CCS_SCRIPT="${AAI_CHECK_COMMITTED_SCOPE:-$PROJECT_ROOT/.aai/scripts/check-committed-scope.mjs}"
+CBPG_SCRIPT="${AAI_CLOSE_BEFORE_PUSH_GUARD:-$PROJECT_ROOT/.aai/scripts/close-before-push-guard.mjs}"
+CWI_SCRIPT="${AAI_CLOSE_WORK_ITEM:-$PROJECT_ROOT/.aai/scripts/close-work-item.mjs}"
+
 # Wiring targets (grep asserts).
 SKILL_PR_DOC="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
 AGENTS_DOC="$PROJECT_ROOT/.aai/AGENTS.md"
@@ -95,6 +102,20 @@ run_guard() {  # run_guard <repo> [guard-args...]
   rm -f "$errf"
 }
 
+# run_out <repo> <cmd...> — run <cmd...> inside <repo> via a REAL subshell and
+# print what it printed. Every NEW call site added in this scope goes through
+# this helper instead of a bare `$( cd "$repo" && ... )`: the `cd` then lives
+# textually inside a function body, never inside a command substitution — the
+# exact raw shape tests/skills/lib/cd-subshell-leak-baseline.tsv ratchets per
+# file (check-cd-subshell-leak.mjs), which this file's TEST-403+ additions
+# would otherwise have risen against (4 -> 20). Trailing redirections on the
+# call (`run_out "$repo" cmd 2>&1`) still apply to the whole invocation, same
+# as they did on the bare `cd && cmd` form.
+run_out() {
+  local repo="$1"; shift
+  ( cd "$repo" && "$@" )
+}
+
 check_deps() {
   log_info "Checking dependencies..."
   command -v bash >/dev/null 2>&1 || log_skip "bash not found"
@@ -102,6 +123,15 @@ check_deps() {
   command -v node >/dev/null 2>&1 || log_skip "node not found"
   command -v mktemp >/dev/null 2>&1 || log_skip "mktemp not found"
   TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aai-branch-guard-test.XXXXXX")"
+  # Resolve through any $TMPDIR symlink (macOS: /tmp, /var -> /private/...) ONCE,
+  # here. TEST-408 invokes a script copy under this root directly as node's
+  # entry point; node's own module resolution realpaths import.meta.url, and
+  # comparing that against an UNRESOLVED process.argv[1] is exactly the
+  # fu-ismain-symlink-realpath defect (Spec-AC-22, a later AC in this same
+  # scope, not fixed here) — every isMain guard in this repo has it today.
+  # Building every fixture path from an already-resolved root sidesteps it for
+  # THIS suite without touching that shared guard shape out of turn.
+  TMP_ROOT="$(run_out "$TMP_ROOT" pwd -P)"
   log_pass "Dependencies checked"
 }
 
@@ -161,8 +191,8 @@ test_003() {
     || log_fail "fixture setup: could not detach HEAD"
   run_guard "$repo" --base main
   [[ "$RC" -eq 2 ]] || log_fail "detached HEAD must exit 2 (got $RC; stderr: $ERR)"
-  echo "$ERR" | grep -qE "git checkout -b .+ origin/main" \
-    || log_fail "detached exit must still print a copy-pasteable remediation (got: $ERR)"
+  assert_payload_line_matches "$ERR" "git checkout -b .+ origin/main" \
+    "detached exit must still print a copy-pasteable remediation (got: $ERR)"
   # Sub-case: detached AND STATE unreadable -> STILL exit 2 (detached check at
   # order item 2 precedes the STATE read at item 3).
   rm -f "$repo/docs/ai/STATE.yaml"
@@ -197,8 +227,8 @@ test_005() {
     || log_fail "fixture setup: could not create fix/whatever"
   run_guard "$repo" --base main
   [[ "$RC" -eq 4 ]] || log_fail "empty/null ref_id must exit 4 in guard mode (got $RC; stderr: $ERR)"
-  echo "$ERR" | grep -qi "ref_id" \
-    || log_fail "exit-4 stderr must name the missing piece (ref_id) (got: $ERR)"
+  assert_payload_contains_i "$ERR" "ref_id" \
+    "exit-4 stderr must name the missing piece (ref_id) (got: $ERR)"
   # Case A' — --suggest with the same broken STATE also exits 4 (never a silent pass).
   run_guard "$repo" --suggest
   [[ "$RC" -eq 4 ]] || log_fail "empty/null ref_id must exit 4 in --suggest mode too (got $RC; stderr: $ERR)"
@@ -292,7 +322,7 @@ test_008() {
 # --- TEST-009 — allowlisted non-work-item prefix, set-but-unrelated ref_id -> exit 0 (Spec-AC-01) --
 test_009() {
   log_info "TEST-009: chore/, release/, docs/ prefixed branches with a set-but-unrelated ref_id -> guard exit 0 naming the matched prefix..."
-  local pair prefix branch repo ref="unrelated-work-item"
+  local pair prefix branch repo ref="unrelated-work-item" _bg_nc_restore
   for pair in \
       "chore/:chore/tenant-cleanup" \
       "release/:release/v1.2.3" \
@@ -309,8 +339,19 @@ test_009() {
       || log_fail "allowlisted branch $branch with an unrelated ref_id must exit 0 (got $RC; stderr: $ERR)"
     assert_payload_contains "$OUT" "$prefix" "stdout must name the matched prefix $prefix (got: $OUT)"
     # Distinct from the ref_id-match pass message — it must NOT claim a ref_id match.
-    echo "$OUT" | grep -qiF "matches current_focus.ref_id" \
-      && log_fail "allowlist pass must use a DISTINCT message, not the ref_id-match line (got: $OUT)"
+    # Pipe-free, case-insensitive substring NEGATIVE check (spec-assertions-must-not-die-
+    # on-their-own-payload): assert_payload_contains_i always auto-fails on a MISS, so it
+    # cannot be wrapped in `if ... ; then log_fail` for a negative (found => fail) shape —
+    # that would call log_fail on the expected/success (not-found) path instead.
+    _bg_nc_restore="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+    shopt -s nocasematch
+    case "$OUT" in
+      *"matches current_focus.ref_id"*)
+        eval "$_bg_nc_restore"
+        log_fail "allowlist pass must use a DISTINCT message, not the ref_id-match line (got: $OUT)"
+        ;;
+    esac
+    eval "$_bg_nc_restore"
   done
   log_pass "chore//release//docs/ branches with an unrelated ref_id -> exit 0 with a distinct prefix-naming message"
 }
@@ -494,7 +535,208 @@ test_014() {
   log_pass "absent STATE names the real bootstrap route; unreadable-but-present and malformed-content STATE both keep today's cautious text with no --repair suggestion"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014"
+# --- TEST-405 — --pin + a plain checkout of another branch -> --verify-pin
+#     exits non-zero, naming expected/actual and citing a concurrent session
+#     (CHANGE-0180 AC-001/AC-003, Spec-AC-03) --------------------------------
+test_405() {
+  log_info "TEST-405: --pin then a plain checkout of another branch -> --verify-pin refuses, citing a concurrent session..."
+  local repo; repo="$(make_repo t405)"
+  ( cd "$repo" && git checkout -qb feat/pinned ) \
+    || log_fail "fixture setup: could not create feat/pinned"
+  ( cd "$repo" && git checkout -qb other/session main ) \
+    || log_fail "fixture setup: could not create other/session"
+  ( cd "$repo" && git checkout -q feat/pinned ) \
+    || log_fail "fixture setup: could not return to feat/pinned"
+
+  run_guard "$repo" --pin
+  [[ "$RC" -eq 0 ]] || log_fail "--pin on a clean branch must exit 0 (got $RC; stderr: $ERR)"
+
+  # A plain `git checkout` of another EXISTING branch — the real shape of a
+  # second live session in the same worktree moving HEAD (the P1 scar).
+  ( cd "$repo" && git checkout -q other/session ) \
+    || log_fail "fixture setup: could not simulate the concurrent checkout"
+
+  run_guard "$repo" --verify-pin
+  [[ "$RC" -ne 0 ]] || log_fail "--verify-pin after a concurrent checkout must exit non-zero (got 0)"
+  assert_payload_contains "$ERR" "feat/pinned" "refusal must name the EXPECTED branch"
+  assert_payload_contains "$ERR" "other/session" "refusal must name the ACTUAL branch"
+  assert_payload_contains "$ERR" "concurrent session" "refusal must cite a concurrent session"
+
+  # SAME branch name, DIFFERENT sha (a concurrent session resetting/rebasing
+  # this exact branch, or a later commit landing under the ceremony) must
+  # ALSO refuse — the pin compares the SHA, not merely the branch name. A
+  # guard that dropped the sha half of the comparison would pass this.
+  ( cd "$repo" && git checkout -q feat/pinned ) \
+    || log_fail "fixture setup: could not return to feat/pinned for the same-branch/new-sha case"
+  run_guard "$repo" --pin
+  [[ "$RC" -eq 0 ]] || log_fail "--pin (second round) must exit 0 (got $RC; stderr: $ERR)"
+  ( cd "$repo" && git commit --allow-empty -qm "concurrent commit on the same branch" ) \
+    || log_fail "fixture setup: could not add a new commit on feat/pinned"
+  run_guard "$repo" --verify-pin
+  [[ "$RC" -ne 0 ]] || log_fail "--verify-pin must refuse a SAME-branch, DIFFERENT-sha move (got exit 0) — the sha half of the comparison is not being checked"
+  assert_payload_contains "$ERR" "feat/pinned" "same-branch/new-sha refusal must still name the branch"
+
+  log_pass "--verify-pin refuses a plain concurrent checkout, naming expected/actual and citing a concurrent session; a same-branch new-sha move also refuses"
+}
+
+# --- TEST-406 — detached HEAD and a renamed branch produce DISTINCT
+#     messages/exit codes, neither the concurrent-session text (Spec-AC-03) --
+test_406() {
+  log_info "TEST-406: detached HEAD and a renamed pinned branch each get a distinct message and exit code, neither the concurrent-session text..."
+  local repo; repo="$(make_repo t406)"
+
+  # (a) detached HEAD under the pin.
+  ( cd "$repo" && git checkout -qb feat/detach-me ) \
+    || log_fail "fixture setup: could not create feat/detach-me"
+  run_guard "$repo" --pin
+  [[ "$RC" -eq 0 ]] || log_fail "--pin must exit 0 (got $RC; stderr: $ERR)"
+  ( cd "$repo" && git checkout -q --detach HEAD ) \
+    || log_fail "fixture setup: could not detach HEAD"
+  run_guard "$repo" --verify-pin
+  local detached_rc="$RC" detached_err="$ERR"
+  [[ "$detached_rc" -ne 0 ]] || log_fail "--verify-pin under detached HEAD must exit non-zero (got 0)"
+  assert_payload_contains "$detached_err" "detach" "detached-HEAD message must say so"
+  assert_payload_not_contains "$detached_err" "concurrent session" "detached HEAD must NOT read as the concurrent-session cause"
+
+  # (b) branch renamed under the pin (still on it, same sha, new name).
+  repo="$(make_repo t406b)"
+  ( cd "$repo" && git checkout -qb feat/rename-me ) \
+    || log_fail "fixture setup: could not create feat/rename-me"
+  run_guard "$repo" --pin
+  [[ "$RC" -eq 0 ]] || log_fail "--pin must exit 0 (got $RC; stderr: $ERR)"
+  ( cd "$repo" && git branch -m feat/rename-me feat/renamed-under-pin ) \
+    || log_fail "fixture setup: could not rename the pinned branch"
+  run_guard "$repo" --verify-pin
+  local renamed_rc="$RC" renamed_err="$ERR"
+  [[ "$renamed_rc" -ne 0 ]] || log_fail "--verify-pin after a rename must exit non-zero (got 0)"
+  assert_payload_contains "$renamed_err" "renamed" "renamed-branch message must say so"
+  assert_payload_not_contains "$renamed_err" "concurrent session" "a rename must NOT read as the concurrent-session cause"
+
+  [[ "$detached_rc" -ne "$renamed_rc" ]] \
+    || log_fail "detached HEAD and a renamed branch must produce DISTINCT exit codes (both were $detached_rc)"
+
+  log_pass "detached HEAD and a renamed pinned branch each report distinctly, never as a concurrent session, with distinct exit codes ($detached_rc vs $renamed_rc)"
+}
+
+# --- TEST-407 — a pin in place + HEAD moved -> all three ceremony scripts
+#     refuse BEFORE writing (CHANGE-0180 D4, Spec-AC-03) ---------------------
+test_407() {
+  log_info "TEST-407: pin + moved HEAD -> check-committed-scope, close-before-push-guard and close-work-item all refuse before writing..."
+  local repo; repo="$(make_repo t407)"
+  ( cd "$repo" && git checkout -qb feat/ceremony ) \
+    || log_fail "fixture setup: could not create feat/ceremony"
+  ( cd "$repo" && git checkout -qb other/concurrent main ) \
+    || log_fail "fixture setup: could not create other/concurrent"
+  ( cd "$repo" && git checkout -q feat/ceremony ) \
+    || log_fail "fixture setup: could not return to feat/ceremony"
+  run_guard "$repo" --pin
+  [[ "$RC" -eq 0 ]] || log_fail "--pin must exit 0 (got $RC; stderr: $ERR)"
+
+  local before_log before_status
+  before_log="$(run_out "$repo" git log --format=%H --all)"
+  before_status="$(run_out "$repo" git status --porcelain)"
+
+  # A second session moves HEAD in this same worktree.
+  ( cd "$repo" && git checkout -q other/concurrent ) \
+    || log_fail "fixture setup: could not simulate the concurrent checkout"
+
+  local rc out
+  out="$(run_out "$repo" node "$CCS_SCRIPT" --expect-branch feat/ceremony --from-state 2>&1)"; rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "check-committed-scope.mjs must refuse when HEAD moved under the pin (got exit 0; output: $out)"
+  assert_payload_contains "$out" "REFUSED" "check-committed-scope.mjs must name the refusal"
+
+  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch feat/ceremony 2>&1)"; rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "close-before-push-guard.mjs must refuse when HEAD moved under the pin (got exit 0; output: $out)"
+  assert_payload_contains "$out" "REFUSED" "close-before-push-guard.mjs must name the refusal"
+
+  out="$(run_out "$repo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch feat/ceremony 2>&1)"; rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "close-work-item.mjs must refuse when HEAD moved under the pin (got exit 0; output: $out)"
+  assert_payload_contains "$out" "REFUSED" "close-work-item.mjs must name the refusal"
+
+  local after_log after_status
+  after_log="$(run_out "$repo" git log --format=%H --all)"
+  after_status="$(run_out "$repo" git status --porcelain)"
+  [[ "$after_log" == "$before_log" ]] \
+    || log_fail "no commit must have been created by any of the three refused invocations"
+  [[ "$after_status" == "$before_status" ]] \
+    || log_fail "no path must have been staged/modified by any of the three refused invocations (before: [$before_status] after: [$after_status])"
+
+  log_pass "all three ceremony scripts refuse before writing when HEAD moved under the pin; git log/status unchanged"
+}
+
+# --- TEST-408 — no pin file -> all three scripts + branch-guard.mjs are
+#     byte-identical to their pre-change selves (CHANGE-0180 AC-004) --------
+test_408() {
+  log_info "TEST-408: with no pin file, --expect-branch/--verify-pin are no-ops — stdout+exit identical to the pre-change scripts..."
+  # The pre-change blob is simply what HEAD carries right now: this scope's
+  # own edit to these four files is still UNSTAGED/uncommitted on this ride's
+  # branch, so `git show HEAD:<path>` is the genuine pre-change script. Every
+  # one of the four has relative `./lib/...` imports, so the extracted copies
+  # must sit BESIDE an extracted lib/ directory, not as flat mktemp files, or
+  # node's module resolution fails before the script's own logic ever runs.
+  local oldroot oldccs oldcbpg oldcwi oldguard libfile
+  oldroot="$(mktemp -d "$TMP_ROOT/old-scripts.XXXXXX")"
+  mkdir -p "$oldroot/lib"
+  for libfile in "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs; do
+    ( cd "$PROJECT_ROOT" && git show "HEAD:.aai/scripts/lib/$(basename "$libfile")" ) \
+      > "$oldroot/lib/$(basename "$libfile")" 2>/dev/null
+  done
+  oldccs="$oldroot/check-committed-scope.mjs"
+  oldcbpg="$oldroot/close-before-push-guard.mjs"
+  oldcwi="$oldroot/close-work-item.mjs"
+  oldguard="$oldroot/branch-guard.mjs"
+  ( cd "$PROJECT_ROOT" && git show HEAD:.aai/scripts/check-committed-scope.mjs ) > "$oldccs" \
+    || log_fail "could not extract pre-change check-committed-scope.mjs from HEAD"
+  ( cd "$PROJECT_ROOT" && git show HEAD:.aai/scripts/close-before-push-guard.mjs ) > "$oldcbpg" \
+    || log_fail "could not extract pre-change close-before-push-guard.mjs from HEAD"
+  ( cd "$PROJECT_ROOT" && git show HEAD:.aai/scripts/close-work-item.mjs ) > "$oldcwi" \
+    || log_fail "could not extract pre-change close-work-item.mjs from HEAD"
+  ( cd "$PROJECT_ROOT" && git show HEAD:.aai/scripts/branch-guard.mjs ) > "$oldguard" \
+    || log_fail "could not extract pre-change branch-guard.mjs from HEAD"
+
+  local repo; repo="$(make_repo t408)"
+  # No --pin was ever run in this fixture — Spec-AC-04's absence branch.
+
+  local new_out new_rc old_out old_rc
+
+  new_out="$(run_out "$repo" node "$CCS_SCRIPT" --from-state 2>&1)"; new_rc=$?
+  old_out="$(run_out "$repo" node "$oldccs" --from-state 2>&1)"; old_rc=$?
+  [[ "$new_rc" -eq "$old_rc" ]] || log_fail "check-committed-scope.mjs exit code changed with no pin (old $old_rc, new $new_rc)"
+  [[ "$new_out" == "$old_out" ]] || log_fail "check-committed-scope.mjs stdout changed with no pin (old: [$old_out] new: [$new_out])"
+
+  new_out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref bogus-slug 2>&1)"; new_rc=$?
+  old_out="$(run_out "$repo" node "$oldcbpg" --ref bogus-slug 2>&1)"; old_rc=$?
+  [[ "$new_rc" -eq "$old_rc" ]] || log_fail "close-before-push-guard.mjs exit code changed with no pin (old $old_rc, new $new_rc)"
+  [[ "$new_out" == "$old_out" ]] || log_fail "close-before-push-guard.mjs stdout changed with no pin (old: [$old_out] new: [$new_out])"
+
+  new_out="$(run_out "$repo" node "$CWI_SCRIPT" --ref bogus-slug --pr TBD --commit deadbeef 2>&1)"; new_rc=$?
+  old_out="$(run_out "$repo" node "$oldcwi" --ref bogus-slug --pr TBD --commit deadbeef 2>&1)"; old_rc=$?
+  [[ "$new_rc" -eq "$old_rc" ]] || log_fail "close-work-item.mjs exit code changed with no pin (old $old_rc, new $new_rc)"
+  [[ "$new_out" == "$old_out" ]] || log_fail "close-work-item.mjs stdout changed with no pin (old: [$old_out] new: [$new_out])"
+
+  # branch-guard.mjs itself, with NO new flag at all, on a real guard-mode run.
+  ( cd "$repo" && git checkout -qb fix/whatever ) \
+    || log_fail "fixture setup: could not create fix/whatever"
+  new_out="$(run_out "$repo" node "$GUARD" --base main 2>&1)"; new_rc=$?
+  old_out="$(run_out "$repo" node "$oldguard" --base main 2>&1)"; old_rc=$?
+  [[ "$new_rc" -eq "$old_rc" ]] || log_fail "branch-guard.mjs exit code changed with no new flag (old $old_rc, new $new_rc)"
+  [[ "$new_out" == "$old_out" ]] || log_fail "branch-guard.mjs stdout changed with no new flag (old: [$old_out] new: [$new_out])"
+
+  # And the absence branch itself: --verify-pin with no pin file costs one
+  # stat and exits 0.
+  run_guard "$repo" --verify-pin
+  [[ "$RC" -eq 0 ]] || log_fail "--verify-pin with no pin file must exit 0 (got $RC; stderr: $ERR)"
+  # The no-pin path is a single `stat` and nothing else (Spec-AC-04): no git
+  # call, no diagnostic. A mutation that runs the pin check before the
+  # existence test (mutation-408) pays an extra git call here and prints
+  # something — this is the assertion that mutation must redden.
+  [[ -z "$ERR" ]] || log_fail "--verify-pin with no pin file must print nothing to stderr (got: $ERR)"
+  [[ -z "$OUT" ]] || log_fail "--verify-pin with no pin file must print nothing to stdout (got: $OUT)"
+
+  log_pass "no pin file -> all three ceremony scripts and branch-guard.mjs are byte-identical to their pre-change selves"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 405 406 407 408"
 
 main() {
   echo "Testing $TEST_NAME (deterministic branch-per-work-item hygiene guard)"

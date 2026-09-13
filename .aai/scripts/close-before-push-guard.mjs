@@ -42,6 +42,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { scanAuditDocs, loadConfig } from './lib/docs-audit-core.mjs';
 import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES, slugFamilyForPath } from './lib/docs-model.mjs';
+import { checkBranchPin } from './branch-guard.mjs';
 
 // fail(msg) — exit 2, fail-closed, no "usage:" line: for a runtime failure
 // (Copilot F-3's unreadable-file case) rather than a flag-parsing mistake.
@@ -52,20 +53,32 @@ function fail(msg) {
 
 function usageError(msg) {
   process.stderr.write(`close-before-push-guard: ${msg}\n`);
-  process.stderr.write('usage: node .aai/scripts/close-before-push-guard.mjs --ref <slug> [--root <dir>]\n');
+  process.stderr.write('usage: node .aai/scripts/close-before-push-guard.mjs --ref <slug> [--root <dir>] [--expect-branch <branch>]\n');
   process.exit(2);
 }
 
 function parseArgs(argv) {
-  const args = { root: process.cwd() };
+  const args = { root: process.cwd(), expectBranch: null };
   for (let i = 0; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--ref') args.ref = argv[++i];
     else if (tok === '--root') args.root = argv[++i];
+    else if (tok === '--expect-branch') args.expectBranch = argv[++i];
     else usageError(`unrecognized flag: ${tok}`);
   }
   if (!args.ref) usageError('missing --ref');
   return args;
+}
+
+// CHANGE-0180 D4 — see check-committed-scope.mjs's twin for the full
+// rationale. ADDITIVE (Spec-AC-04): no --expect-branch, no pin file -> both
+// leave this script's pre-change behaviour byte-identical.
+function verifyExpectedBranch(expectBranch, cwd) {
+  if (!expectBranch) return;
+  const result = checkBranchPin(cwd);
+  if (result.ok) return;
+  process.stderr.write(`close-before-push-guard: REFUSED (HEAD moved) — ${result.message}\n`);
+  process.exit(3);
 }
 
 // Same two-pass resolution close-work-item.mjs's resolveDoc uses (frontmatter
@@ -109,6 +122,7 @@ function resolveDocStatus(root, slug) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
+  verifyExpectedBranch(args.expectBranch, args.root);
   const result = resolveDocStatus(args.root, args.ref);
   if (!result.found) {
     process.stderr.write(`close-before-push-guard: ${result.reason}\n`);

@@ -56,6 +56,22 @@ log_fail() { echo "FAIL: $*" >&2; exit 1; }
 log_skip() { echo "SKIP: $*"; exit 42; }
 log_info() { echo "INFO: $*"; }
 
+# assert_not_contains_i <payload> <needle> [message] — case-INSENSITIVE
+# "must NOT contain" assertion (found => fail). No ready-made helper in
+# lib/assert-payload.sh covers this shape (assert_payload_contains_i calls the
+# suite's own log_fail on its OWN miss path, so wrapping it in `&& log_fail`
+# would wrongly abort the suite on the expected/success — miss — case). The
+# shopt is always restored on every path.
+assert_not_contains_i() {
+  local _p="$1" _n="$2" _m="$3" _s
+  _s="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+  shopt -s nocasematch
+  case "$_p" in
+    *"$_n"*) eval "$_s"; log_fail "$_m" ;;
+    *) eval "$_s" ;;
+  esac
+}
+
 # Run update-check; never aborts the suite on non-zero exit (callers inspect $?).
 runcheck() {
   node "$CHECK_SCRIPT" "$@"
@@ -198,7 +214,7 @@ test_notify_behind() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "notify+behind must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "newer AAI release" || log_fail "expected 'newer AAI release' line, got: $out"
+  assert_payload_contains_i "$out" "newer AAI release" "expected 'newer AAI release' line, got: $out"
   after="$(cd "$dir" && git status --porcelain)"
   [[ -z "$after" ]] || log_fail "notify mode mutated repo files (porcelain not empty): [$after]"
   [[ "$(cat "$dir/sentinel.txt")" == "keep-me" ]] || log_fail "notify mode altered a repo file"
@@ -218,7 +234,7 @@ test_notify_equal() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "notify+equal must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "newer AAI release" && log_fail "up-to-date must NOT print a notify line, got: $out"
+  assert_not_contains_i "$out" "newer AAI release" "up-to-date must NOT print a notify line, got: $out"
   log_pass "TEST-002 up-to-date is quiet"
 }
 
@@ -246,7 +262,7 @@ test_auto_sync() {
   [[ "$rc" -eq 0 ]] || log_fail "auto+behind must exit 0 (got $rc): $out"
   # DETACHED model: the run returns without blocking; the sync completes in the
   # background and its outcome lands in the persistent outcome log.
-  echo "$out" | grep -qi "background" || log_fail "auto+behind must report a detached/background sync, got: $out"
+  assert_payload_contains_i "$out" "background" "auto+behind must report a detached/background sync, got: $out"
   wait_for_grep "$outcome" '"result":"applied"' 20 || log_fail "detached sync outcome not applied within timeout: $(cat "$outcome" 2>/dev/null)"
   [[ -f "$dir/.aai/system-marker.txt" ]] || log_fail "detached sync did not materialize the synced marker: $(cat "$outcome" 2>/dev/null)"
   log_pass "TEST-003 auto invokes aai-update sync DETACHED (outcome eventually applied)"
@@ -279,7 +295,7 @@ test_auto_canonical_refuse() {
   set +e
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --source "goodwind-cz/aai" --outcome "$outcome" --force 2>&1)"; rc=$?
   set -e
-  echo "$out" | grep -qi "refused" || log_fail "refused outcome must surface on the next run, got: $out"
+  assert_payload_contains_i "$out" "refused" "refused outcome must surface on the next run, got: $out"
   log_pass "TEST-004 auto refuses on canonical repo (detached), refused outcome surfaced, no mutation"
 }
 
@@ -296,8 +312,8 @@ test_notify_unverifiable() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "file://$TMP_ROOT/does-not-exist-anywhere" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "notify+unverifiable must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "could not check" || log_fail "expected 'could not check' note, got: $out"
-  echo "$out" | grep -qi "newer AAI release" && log_fail "unverifiable must NOT claim a newer release, got: $out"
+  assert_payload_contains_i "$out" "could not check" "expected 'could not check' note, got: $out"
+  assert_not_contains_i "$out" "newer AAI release" "unverifiable must NOT claim a newer release, got: $out"
   log_pass "TEST-005 unverifiable degrades to could-not-check (notify)"
 }
 
@@ -320,7 +336,7 @@ test_auto_unverifiable_no_sync() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "file://$TMP_ROOT/does-not-exist-anywhere" --source "$src" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "auto+unverifiable must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "could not check" || log_fail "expected 'could not check' note, got: $out"
+  assert_payload_contains_i "$out" "could not check" "expected 'could not check' note, got: $out"
   [[ ! -f "$dir/.aai/system-marker.txt" ]] || log_fail "auto synced despite unverifiable verdict (must never sync unless behind)"
   log_pass "TEST-006 auto never syncs on unverifiable"
 }
@@ -340,7 +356,7 @@ test_config_absent_default_notify() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "absent config must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "newer AAI release" || log_fail "absent config must default to notify line, got: $out"
+  assert_payload_contains_i "$out" "newer AAI release" "absent config must default to notify line, got: $out"
   [[ ! -f "$dir/.aai/system-marker.txt" ]] || log_fail "absent config must NOT auto-sync"
   log_pass "TEST-007 absent config == notify default"
 }
@@ -364,14 +380,14 @@ test_unknown_mode_fallback() {
   set -e
   err="$(cat "$TMP_ROOT/t008.err")"
   [[ "$rc" -eq 0 ]] || log_fail "unknown mode must still exit 0 (got $rc)"
-  echo "$err" | grep -qi "mode" || log_fail "unknown mode must emit a clear stderr error naming 'mode', got stderr: $err"
+  assert_payload_contains_i "$err" "mode" "unknown mode must emit a clear stderr error naming 'mode', got stderr: $err"
   [[ ! -f "$dir/.aai/system-marker.txt" ]] || log_fail "unknown mode auto-synced (must fall back to notify, never auto)"
   # fell back to notify -> the behind line still surfaces on stdout
   local out
   set +e
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --source "$src" --force 2>/dev/null)"
   set -e
-  echo "$out" | grep -qi "newer AAI release" || log_fail "unknown mode must fall back to a notify line, got: $out"
+  assert_payload_contains_i "$out" "newer AAI release" "unknown mode must fall back to a notify line, got: $out"
   log_pass "TEST-008 unknown mode -> stderr error + notify fallback (never auto)"
 }
 
@@ -391,7 +407,7 @@ test_throttle_skip() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --cache "$cache" --now "2026-07-20T11:00:00Z" 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "throttled run must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "newer AAI release" && log_fail "throttled run must NOT probe/notify, got: $out"
+  assert_not_contains_i "$out" "newer AAI release" "throttled run must NOT probe/notify, got: $out"
   [[ -z "$(echo "$out" | tr -d '[:space:]')" ]] || log_fail "throttled run must be silent (fast path), got: $out"
   log_pass "TEST-009 throttle skips probe within window"
 }
@@ -412,7 +428,7 @@ test_throttle_probe() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --cache "$cache" --now "2026-07-20T11:00:00Z" 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "outside-window run must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "newer AAI release" || log_fail "outside-window run must probe and notify, got: $out"
+  assert_payload_contains_i "$out" "newer AAI release" "outside-window run must probe and notify, got: $out"
   # cache refreshed to the injected clock after a probe.
   grep -q "2026-07-20T11:00:00Z" "$cache" || log_fail "successful probe must refresh the throttle cache, cache: $(cat "$cache")"
   # (b) INSIDE the window but --force overrides the throttle.
@@ -420,7 +436,7 @@ test_throttle_probe() {
   set +e
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --cache "$cache" --now "2026-07-20T11:00:00Z" --force 2>&1)"; rc=$?
   set -e
-  echo "$out" | grep -qi "newer AAI release" || log_fail "--force must probe despite a fresh cache, got: $out"
+  assert_payload_contains_i "$out" "newer AAI release" "--force must probe despite a fresh cache, got: $out"
   log_pass "TEST-010 probe runs outside window and on --force; cache refreshed"
 }
 
@@ -564,14 +580,14 @@ test_report_next_session() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --outcome "$outcome" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "surfacing run must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "auto-update applied" || log_fail "a completed outcome must be surfaced, got: $out"
-  echo "$out" | grep -qi "review the diff" || log_fail "an applied outcome must advise reviewing the diff, got: $out"
+  assert_payload_contains_i "$out" "auto-update applied" "a completed outcome must be surfaced, got: $out"
+  assert_payload_contains_i "$out" "review the diff" "an applied outcome must advise reviewing the diff, got: $out"
   grep -q '"reported":true' "$outcome" || log_fail "surfaced outcome must be marked reported, cache: $(cat "$outcome")"
   # second run: outcome already reported -> not surfaced again (shows once).
   set +e
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --outcome "$outcome" --force 2>&1)"; rc=$?
   set -e
-  echo "$out" | grep -qi "auto-update applied" && log_fail "a reported outcome must NOT surface again, got: $out"
+  assert_not_contains_i "$out" "auto-update applied" "a reported outcome must NOT surface again, got: $out"
   log_pass "TEST-015 completed detached outcome surfaced once, then marked reported"
 }
 
@@ -601,7 +617,7 @@ test_concurrent_sync_guard() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --source "$src" --outcome "$outcome" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "run2 must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "in progress" || log_fail "run2 must report an in-flight sync (concurrent guard), got: $out"
+  assert_payload_contains_i "$out" "in progress" "run2 must report an in-flight sync (concurrent guard), got: $out"
   # wait for the single sync to finish, then assert EXACTLY ONE invocation.
   wait_for_grep "$outcome" '"result":"applied"' 20 || log_fail "detached sync outcome not applied: $(cat "$outcome" 2>/dev/null)"
   n="$(wc -l < "$dir/.aai/sync-invocations" 2>/dev/null | tr -d ' ')"
@@ -625,8 +641,7 @@ test_future_dated_cache_probes() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --cache "$cache" --now "2026-07-20T11:00:00Z" 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "future-dated cache run must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "newer AAI release" \
-    || log_fail "future-dated cache must force a probe (not throttle forever), got: $out"
+  assert_payload_contains_i "$out" "newer AAI release" "future-dated cache must force a probe (not throttle forever), got: $out"
   # confirm via --json that throttled:false (empirical repro of the review finding).
   printf '{"last_check_utc":"2099-01-01T00:00:00Z"}' > "$cache"
   set +e
@@ -720,8 +735,8 @@ test_future_dated_running_marker() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --source "$src" --outcome "$outcome" --now "2026-07-20T11:00:00Z" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "future-dated running marker run must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "in progress" && log_fail "future-dated running marker must NOT be treated as in-flight, got: $out"
-  echo "$out" | grep -qi "background" || log_fail "a new detached sync must be launched (background), got: $out"
+  assert_not_contains_i "$out" "in progress" "future-dated running marker must NOT be treated as in-flight, got: $out"
+  assert_payload_contains_i "$out" "background" "a new detached sync must be launched (background), got: $out"
   wait_for_grep "$outcome" '"result":"applied"' 20 || log_fail "the freshly launched sync outcome not applied: $(cat "$outcome" 2>/dev/null)"
   log_pass "TEST-020 future-dated running marker frees the concurrent guard (self-heals)"
 }
@@ -748,7 +763,7 @@ test_throttle_hours_strict() {
     [[ "$rc" -eq 0 ]] || log_fail "throttle_hours '$bad' run must exit 0 (got $rc): $out"
     grep -qi "throttle_hours" "$errf" || log_fail "throttle_hours '$bad' must warn on stderr, got: [$(cat "$errf")]"
     grep -qi "not a non-negative integer" "$errf" || log_fail "throttle_hours '$bad' warning must name the contract, got: [$(cat "$errf")]"
-    echo "$out" | grep -qi "newer AAI release" && log_fail "throttle_hours '$bad' must default to 24 (stay throttled within 24h), but it probed/notified: $out"
+    assert_not_contains_i "$out" "newer AAI release" "throttle_hours '$bad' must default to 24 (stay throttled within 24h), but it probed/notified: $out"
   done
   log_pass "TEST-021 throttle_hours non-digit token rejected -> stderr warning + default 24"
 }
@@ -768,9 +783,21 @@ test_failed_outcome_message() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --outcome "$outcome" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "failed-outcome surfacing run must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "auto-update failed" || log_fail "a failed outcome must be surfaced, got: $out"
-  echo "$out" | grep -qiE "git status|git diff" || log_fail "failed message must point at git status/diff, got: $out"
-  echo "$out" | grep -qi "No changes were forced" && log_fail "failed message must NOT falsely claim cleanliness, got: $out"
+  assert_payload_contains_i "$out" "auto-update failed" "a failed outcome must be surfaced, got: $out"
+  # Case-insensitive ALTERNATION substring ("git status" OR "git diff"), which
+  # none of the shipped helpers cover directly (assert_payload_contains_i is a
+  # single literal needle; assert_payload_line_matches is case-sensitive).
+  # Restructured inline rather than substituted, same as the negated
+  # case-insensitive sites above: a saved/restored nocasematch `case`.
+  local _uc022_nc; _uc022_nc="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+  shopt -s nocasematch
+  local _uc022_hit=false
+  case "$out" in
+    *"git status"*|*"git diff"*) _uc022_hit=true ;;
+  esac
+  eval "$_uc022_nc"
+  [[ "$_uc022_hit" == true ]] || log_fail "failed message must point at git status/diff, got: $out"
+  assert_not_contains_i "$out" "No changes were forced" "failed message must NOT falsely claim cleanliness, got: $out"
   log_pass "TEST-022 failed outcome message advises git status/diff, no false cleanliness claim"
 }
 
@@ -853,8 +880,8 @@ test_lock_reclaim_and_block() {
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --source "$src" --outcome "$outcome" --now "2026-07-20T11:00:00Z" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "fresh-lock run must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "in progress" || log_fail "a FRESH lock must make the run back off 'in progress', got: $out"
-  echo "$out" | grep -qi "detached" && log_fail "a FRESH lock must NOT spawn a duplicate sync (detached), got: $out"
+  assert_payload_contains_i "$out" "in progress" "a FRESH lock must make the run back off 'in progress', got: $out"
+  assert_not_contains_i "$out" "detached" "a FRESH lock must NOT spawn a duplicate sync (detached), got: $out"
   sleep 1
   [[ ! -f "$dir/.aai/sync-invocations" ]] || log_fail "a FRESH lock must prevent any sync invocation, got: $(cat "$dir/.aai/sync-invocations")"
 
@@ -874,7 +901,7 @@ test_lock_reclaim_and_block() {
   out="$(cd "$d2" && runcheck --pin "$p2" --config "$c2" --remote "$CANON" --source "$s2" --outcome "$o2" --now "2026-07-20T11:00:00Z" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "stale-lock run must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "detached" || log_fail "a STALE lock must be reclaimed and a fresh sync spawned (detached), got: $out"
+  assert_payload_contains_i "$out" "detached" "a STALE lock must be reclaimed and a fresh sync spawned (detached), got: $out"
   wait_for_grep "$o2" '"result":"applied"' 20 || log_fail "reclaimed stale-lock sync outcome not applied: $(cat "$o2" 2>/dev/null)"
 
   # (c) FUTURE-dated lock -> reclaimed (mirror the future-date guards).
@@ -893,7 +920,7 @@ test_lock_reclaim_and_block() {
   out="$(cd "$d3" && runcheck --pin "$p3" --config "$c3" --remote "$CANON" --source "$s3" --outcome "$o3" --now "2026-07-20T11:00:00Z" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "future-lock run must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "detached" || log_fail "a FUTURE-dated lock must be reclaimed (detached), got: $out"
+  assert_payload_contains_i "$out" "detached" "a FUTURE-dated lock must be reclaimed (detached), got: $out"
   wait_for_grep "$o3" '"result":"applied"' 20 || log_fail "reclaimed future-lock sync outcome not applied: $(cat "$o3" 2>/dev/null)"
   log_pass "TEST-025 fresh lock blocks; stale + future locks reclaimed (never wedges)"
 }
@@ -1049,8 +1076,8 @@ PRE
     node "$CHECK_SCRIPT" --pin "$pin" --config "$cfg" --remote "$CANON" --source "$src" --outcome "$outcome" --force 2>/dev/null)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "linkSync-ENOSYS run must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "detached" || log_fail "linkSync-unsupported must fall back to wx and SPAWN the sync (detached), got: $out"
-  echo "$out" | grep -qi "in progress" && log_fail "linkSync-unsupported must NOT report a bogus in-progress sync, got: $out"
+  assert_payload_contains_i "$out" "detached" "linkSync-unsupported must fall back to wx and SPAWN the sync (detached), got: $out"
+  assert_not_contains_i "$out" "in progress" "linkSync-unsupported must NOT report a bogus in-progress sync, got: $out"
   wait_for_grep "$outcome" '"result":"applied"' 20 || log_fail "wx-fallback sync outcome not applied: $(cat "$outcome" 2>/dev/null)"
   [[ -f "$dir/.aai/system-marker.txt" ]] || log_fail "wx-fallback sync did not materialize the synced marker"
 
@@ -1074,7 +1101,7 @@ PRE
   [[ "$rc" -eq 0 ]] || log_fail "genuine-error run must still exit 0 non-fatally (got $rc): $out / $(cat "$err")"
   grep -qi "WARNING" "$err" || log_fail "a genuine claim error must emit a loud stderr WARNING, got stderr: [$(cat "$err")]"
   grep -qi "lock" "$err" || log_fail "the genuine-error warning must name the lock, got stderr: [$(cat "$err")]"
-  echo "$out" | grep -qi "in progress" && log_fail "a genuine claim error must NOT masquerade as 'in progress', got: $out"
+  assert_not_contains_i "$out" "in progress" "a genuine claim error must NOT masquerade as 'in progress', got: $out"
   sleep 1
   [[ ! -f "$d2/.aai/system-marker.txt" ]] || log_fail "a genuine claim error must NOT spawn a sync"
   log_pass "TEST-029 linkSync-unsupported falls back to wx (sync spawns); genuine error is a loud non-silent skip"

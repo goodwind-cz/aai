@@ -994,7 +994,7 @@ GOLDEN
   ec=0
   out="$( (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-report.mjs --metrics "$d/bad.jsonl" --pricing "$d/PRICING.yaml") 2>&1 )" || ec=$?
   [[ "$ec" == 1 ]] || log_fail "corrupt ledger line must exit 1 (got $ec): $out"
-  echo "$out" | grep -qE "line 2" || log_fail "corrupt-line error must name the line number: $out"
+  assert_payload_contains "$out" "line 2" "corrupt-line error must name the line number: $out"
   log_pass "Report byte-deterministic, golden-exact, ~ partial marker, lex model order, empty + corrupt handled (TEST-014)"
 }
 

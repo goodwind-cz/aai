@@ -30,6 +30,7 @@
 1	.aai/scripts/pre-commit-checks.sh
 1	.aai/scripts/triage.sh
 1	.aai/scripts/validate-skills.sh
+2	tests/skills/lib/degenerate-pass-ratchet.sh
 2	tests/skills/lib/pipe-grep-q-ratchet.sh
 2	tests/skills/test-aai-advisory-skills.sh
 2	tests/skills/test-aai-bootstrap.sh
@@ -101,6 +102,7 @@
 2	tests/skills/test-aai-run-tests.sh
 2	tests/skills/test-aai-runtime-file.sh
 2	tests/skills/test-aai-secrets-preflight.sh
+7	tests/skills/test-aai-session-lock.sh
 2	tests/skills/test-aai-spec-amend.sh
 7	tests/skills/test-aai-spec-lint.sh
 9	tests/skills/test-aai-spec-tools.sh

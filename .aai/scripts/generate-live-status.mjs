@@ -25,7 +25,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import PARSERS from './live-parsers/registry.mjs';
 import { loadOrDegrade, atomicWrite } from './lib/runtime-file.mjs';
 
@@ -662,13 +662,19 @@ function main() {
 
 // B1 fix (validation blocker): comparing path.resolve(process.argv[1]) (raw)
 // against path.resolve(new URL(import.meta.url).pathname) (percent-encoded)
-// never matches once the path contains a space or other URL-encoded
-// character — a silent exit-0 no-op, and unconditionally broken on Windows
-// drive-letter paths. Adopt the proven idiom from generate-dashboard.mjs:370
-// — normalize both sides to a file:// URL string instead of comparing a
-// decoded path against an encoded one.
+// never matched once the path contained a space or other URL-encoded
+// character. Spec-AC-22 (test-framework-sweep) then found that comparing
+// file:// URL strings does not survive a symlinked checkout either (Node's
+// loader can resolve one side through the symlink and not the other).
+// realOrResolve settles both problems at once: it resolves each side to a
+// plain absolute path via fs.realpathSync (falling back to path.resolve on
+// ENOENT), so there is no URL encoding step left to mismatch and a symlink
+// component on either side is followed identically.
+function realOrResolve(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
 const isMain = Boolean(process.argv[1])
-  && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
+  && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 if (isMain) main();
 
 export { buildModel, renderHtml, parseArgs, accumulate };

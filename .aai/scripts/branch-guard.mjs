@@ -15,6 +15,7 @@
 // (single writer is state.mjs) is preserved.
 //
 // CLI: node branch-guard.mjs [--base <branch>] [--suggest] [--state <path>]
+//                             [--pin] [--verify-pin]
 //   --base <branch>  base branch to compare against; default `main`.
 //   --state <path>   override the STATE.yaml path; default
 //                    <git-toplevel>/docs/ai/STATE.yaml (works from any subdir).
@@ -22,6 +23,34 @@
 //                    exit; performs NO git-branch check (meant to run before the
 //                    branch exists). Still reads STATE — a broken/empty ref_id
 //                    exits 4, never a silent pass.
+//   --pin            record the current branch + HEAD sha + pid + worktree at
+//                    `$(git rev-parse --git-dir)/aai/branch-pin.json`
+//                    (CHANGE-0180 D4). Per-worktree by construction — never
+//                    shared across a linked worktree — and structurally
+//                    uncommittable, so it owes no `.gitignore` entry. Exit 0
+//                    on success.
+//   --verify-pin     re-read the pin and compare it to the CURRENT branch +
+//                    HEAD sha. No pin file at all -> exit 0 (a ceremony that
+//                    never pinned is unaffected — CHANGE-0180 AC-004 — and
+//                    this costs exactly one `stat`). A pin that still matches
+//                    -> exit 0. A mismatch names the expected and the actual
+//                    value and distinguishes THREE causes rather than
+//                    collapsing them (CHANGE-0180 AC-003):
+//                      exit 5 — HEAD is now detached.
+//                      exit 6 — the pinned branch no longer exists as a ref
+//                               (renamed or removed under this session).
+//                      exit 7 — the pinned branch still exists, but HEAD now
+//                               points elsewhere (a concurrent session moved
+//                               HEAD in this same worktree, or reset/rebased
+//                               this same branch name to a different sha).
+//   `checkBranchPin(cwd)` (exported, not a CLI flag) is the same check as
+//   `--verify-pin`, returned as a plain result object rather than an exit, so
+//   the three ceremony scripts that still stand between the agent and a git
+//   write (check-committed-scope.mjs, close-before-push-guard.mjs,
+//   close-work-item.mjs) can reuse ONE implementation behind their own
+//   `--expect-branch` re-check rather than each re-deriving the pin logic
+//   (Article 2 — one new lib module in this scope is the session lock, not a
+//   second copy of this).
 //
 // A branch may also legitimately have NO work item — a chore, a release cut, or
 // a docs-only edit. Such branches carry a recognized non-work-item PREFIX
@@ -54,6 +83,12 @@
 //   3 — current branch name does not contain the ref_id slug.
 //   4 — config/usage error (not a git repo, STATE unreadable, ref_id empty/null
 //       on a non-allowlisted branch, bad flag).
+//
+// --verify-pin's own exit codes (guard-mode 0-4 above do not apply to it):
+//   0 — no pin file (nothing to verify), or the pin still matches.
+//   5 — HEAD is detached under a pin.
+//   6 — the pinned branch was renamed/removed under the session.
+//   7 — a concurrent session moved HEAD (the pinned branch still exists).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -209,7 +244,7 @@ function readFocus(statePath) {
 }
 
 function parseArgs(argv) {
-  const opts = { base: 'main', suggest: false, state: null };
+  const opts = { base: 'main', suggest: false, state: null, pin: false, verifyPin: false };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--base' || tok === '--state') {
@@ -222,8 +257,12 @@ function parseArgs(argv) {
       i += 1;
     } else if (tok === '--suggest') {
       opts.suggest = true;
+    } else if (tok === '--pin') {
+      opts.pin = true;
+    } else if (tok === '--verify-pin') {
+      opts.verifyPin = true;
     } else if (tok === '-h' || tok === '--help') {
-      console.error('Usage: node branch-guard.mjs [--base <branch>] [--suggest] [--state <path>]');
+      console.error('Usage: node branch-guard.mjs [--base <branch>] [--suggest] [--state <path>] [--pin] [--verify-pin]');
       exit(4);
     } else {
       console.error(`branch-guard: unknown flag "${tok}"`);
@@ -244,9 +283,129 @@ function resolveStatePath(opts, cwd) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// HEAD pin (CHANGE-0180 D4). Per-worktree by construction: `git rev-parse
+// --git-dir` resolves to a DISTINCT path for the main checkout and for every
+// linked worktree (never one shared path), so the pin lives at
+// `<that>/aai/branch-pin.json` — the same directory session-lock.mjs uses for
+// its own lock (D5), structurally uncommittable, owing no `.gitignore` entry.
+// ---------------------------------------------------------------------------
+
+const PIN_FILENAME = 'branch-pin.json';
+
+function pinDir(cwd) {
+  return path.join(path.resolve(cwd, git(['rev-parse', '--git-dir'], cwd)), 'aai');
+}
+
+function pinFilePath(cwd) {
+  return path.join(pinDir(cwd), PIN_FILENAME);
+}
+
+// Unreadable/corrupt is treated the same as absent (never throws the caller
+// closed on a read failure it did not ask about) — the absence branch is
+// CHANGE-0180 AC-004's own control, so a pin that cannot be trusted degrades
+// to the same "unaffected" outcome as one that was never written.
+function readPin(cwd) {
+  const p = pinFilePath(cwd);
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function refExists(cwd, branch) {
+  try {
+    execFileSync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], { cwd, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function doPin(cwd) {
+  const branch = currentBranch(cwd);
+  if (branch === 'HEAD') {
+    console.error('branch-guard: cannot --pin a detached HEAD (check out a branch first).');
+    exit(4);
+  }
+  const sha = git(['rev-parse', 'HEAD'], cwd);
+  const dir = pinDir(cwd);
+  fs.mkdirSync(dir, { recursive: true });
+  const payload = {
+    branch,
+    sha,
+    pid: process.pid,
+    worktree: topLevel(cwd),
+    pinned_utc: new Date().toISOString(),
+  };
+  fs.writeFileSync(pinFilePath(cwd), JSON.stringify(payload));
+  console.log(`branch-guard: pinned branch "${branch}" at ${sha}`);
+  exit(0);
+}
+
+// checkBranchPin(cwd) -> {ok:true} | {ok:false, code, cause, message}
+// PURE — never calls exit() — so both `--verify-pin` (below) and the three
+// ceremony scripts' `--expect-branch` re-check can share this ONE
+// implementation and map the result to their own exit codes.
+//   code 0 / ok:true  — no pin, or the pin still matches current HEAD.
+//   code 5, cause 'detached'  — HEAD is now detached.
+//   code 6, cause 'renamed'   — the pinned branch no longer exists as a ref.
+//   code 7, cause 'concurrent'— the pinned branch still exists; HEAD moved
+//                               elsewhere (another session, or this same
+//                               branch name reset/rebased to a new sha).
+function checkBranchPin(cwd) {
+  const pin = readPin(cwd);
+  if (!pin) return { ok: true, code: 0, cause: null };
+
+  const branch = currentBranch(cwd);
+  if (branch === 'HEAD') {
+    return {
+      ok: false,
+      code: 5,
+      cause: 'detached',
+      message: `HEAD is detached (expected branch "${pin.branch}" at ${pin.sha}); check out a branch before continuing.`,
+    };
+  }
+
+  const sha = git(['rev-parse', 'HEAD'], cwd);
+  if (branch === pin.branch && sha === pin.sha) return { ok: true, code: 0, cause: null };
+
+  if (!refExists(cwd, pin.branch)) {
+    return {
+      ok: false,
+      code: 6,
+      cause: 'renamed',
+      message: `branch "${pin.branch}" was renamed or removed under this session (now on "${branch}" at ${sha}; expected "${pin.branch}" at ${pin.sha}).`,
+    };
+  }
+
+  return {
+    ok: false,
+    code: 7,
+    cause: 'concurrent',
+    message: `a concurrent session changed HEAD (expected branch "${pin.branch}" at ${pin.sha}; actual branch "${branch}" at ${sha}).`,
+  };
+}
+
+function doVerifyPin(cwd) {
+  const result = checkBranchPin(cwd);
+  if (result.ok) exit(0);
+  console.error(`branch-guard: HEAD moved — ${result.message}`);
+  exit(result.code);
+}
+
 function main() {
   const opts = parseArgs(process.argv);
   const cwd = process.cwd();
+
+  // --pin / --verify-pin are their own modes, dispatched before every other
+  // check below (guard-mode, --suggest): neither reads STATE or the ref_id at
+  // all, and Spec-AC-04's own control is that NEITHER flag given leaves every
+  // byte of the rest of this function's behaviour unchanged.
+  if (opts.pin) doPin(cwd);
+  if (opts.verifyPin) doVerifyPin(cwd);
 
   // --suggest — no git-branch check; still reads STATE (fail-closed on ref_id).
   if (opts.suggest) {
@@ -369,7 +528,10 @@ function main() {
 }
 
 // Run as CLI only when invoked directly; importable for unit tests.
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+function realOrResolve(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
+const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 if (isMain) runMain(() => main());
 
-export { TYPE_TOKENS, typeToken, remediation };
+export { TYPE_TOKENS, typeToken, remediation, checkBranchPin, pinFilePath };

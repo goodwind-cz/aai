@@ -860,7 +860,15 @@ test_312_contract_and_diet() {
     log_fail "TEST-312: prompt-diet output does not report JUSTIFIED_GROWTH_BYTES at all: $(printf '%s\n' "$diet_out" | grep -i justified | head -1)"
     ok=0
   elif [[ -z "${base_pin:-}" ]]; then
-    log_info "TEST-312: origin/main's ledger is unreadable here; corpus-credit drift not checked this run"
+    # Spec-AC-12 (TEST-446): an unreadable base used to soft-skip this arm
+    # (log_info, ok left at 1) — a guard that degrades to "not checked" on
+    # exactly the input a shallow clone or a detached CI checkout produces is
+    # the DEBT-0004 shape (green for a reason that has nothing to do with
+    # correctness). Fails closed instead: the corpus-credit drift claim
+    # cannot be made at all without the base ledger, so it is refused, named,
+    # rather than silently passed.
+    log_fail "TEST-446/TEST-312: origin/main's tests/skills/lib/prompt-diet-ledger.sh is unreadable here — the corpus-credit drift arm cannot be evaluated and must FAIL rather than silently skip (Spec-AC-12, fails closed on an unreadable base)"
+    ok=0
   elif [[ "$live_pin" -ne "$base_pin" ]]; then
     # A MOVED credit is not by itself a defect, and asserting equality made it
     # one: the credit is the SUM of JUSTIFIED_ADDITIONS, so demanding it never

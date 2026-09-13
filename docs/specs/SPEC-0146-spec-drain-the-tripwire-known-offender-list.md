@@ -199,13 +199,25 @@ so the format keeps arms that go red if the parser's expectations drift.
   the content-hash watch set. Every use site already guards with
   `"${ARRAY[@]:-}"`, and `${#TRIPWIRE_WATCH_PATHS[@]}` on an empty global array
   under `set -euo pipefail` is fine on bash 3.2.57 (verified on the host).
-  CONSEQUENCE, in scope to NAME and out of scope to fix: the D7 status-class
-  blind spot re-opens for those three paths. It re-opens because the writer that
-  used to seed the masking is gone — but a FAILING suite does not revert its
-  write, so a second writer of the same path later in the same run is again
-  invisible. This is filed, not fixed: closing it means watching a path set that
-  no longer derives from anything, which is a new mechanism and a different
-  scope.
+  CONSEQUENCE when this spec was written: the D7 status-class blind spot would
+  re-open for those three paths, because the writer that used to seed the
+  masking is gone — but a FAILING suite does not revert its write, so a
+  second writer of the same path later in the same run would again be
+  invisible.
+
+  **Correction (spec-test-framework-sweep, 2026-09-13,
+  fu-drain-spec-says-d7-filed-not-fixed):** this bullet originally closed by
+  calling that consequence out of scope here and requiring "a new mechanism
+  and a different scope" to close it — text superseded by what actually
+  shipped, so it is corrected in place rather than left standing.
+  `tests/skills/test-framework.sh` gained `TRIPWIRE_ALWAYS_WATCH`, exactly
+  that new mechanism, in the same branch: an always-hashed floor of the three
+  paths named above (`docs/INDEX.md`, `docs/ai/overview.html`,
+  `docs/ai/overview-data.json`), independent of whether the exemption table
+  that used to derive them holds any entries. The D7 blind spot for those
+  three paths is CLOSED, not merely named; the general D7 limit (any path
+  outside this fixed floor) remains, and is the one `repo-tripwire.sh`'s own
+  header still documents.
 - The ratchet paths are hashed once per suite. With zero watch paths the
   framework does strictly less work; no accounting line changes shape, because
   the `Tripwire: N/M attested clean` line does not mention the ratchet unless

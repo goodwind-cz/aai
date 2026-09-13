@@ -163,6 +163,14 @@
 //      verified CLEAN (this exit is reached only strictly after the existing
 //      try/catch above, never a rollback path). Named PARTIAL block on
 //      stderr naming applied-of-total and the remaining commands verbatim.
+//   7  HEAD PIN REFUSED (CHANGE-0180 D4, --expect-branch): the ceremony
+//      pinned its HEAD earlier (branch-guard.mjs --pin) and the branch or the
+//      HEAD sha no longer matches at the time this close runs — a concurrent
+//      session moved HEAD in this same worktree, the pinned branch was
+//      renamed, or HEAD is now detached. Checked FIRST in main(), before even
+//      the --stamp-pr dispatch — nothing is written. ADDITIVE: no
+//      --expect-branch given, or no pin file at all, and this check is a
+//      complete no-op (Spec-AC-04) — every path above is unaffected.
 //
 // STATE RECONCILE (D1-D6, spec-close-leaves-state-stale) — after self-verify
 // proves the close CLEAN (strictly outside the doc/event try/catch's rollback
@@ -193,6 +201,7 @@ import { unresolvedCitations } from './lib/evidence-paths.mjs';
 import { loadState, findBlock, readScalar, unquoteScalar } from './lib/state-engine.mjs';
 import { duplicateKeys, splitLines } from './lib/state-core.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { checkBranchPin } from './branch-guard.mjs';
 
 const ROOT = process.cwd();
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -231,7 +240,7 @@ const TBD_SENTINEL = 'TBD';
 const NONE_SENTINEL = 'NONE';
 
 function parseArgs(argv) {
-  const args = { spec: null, review: 'none', dryRun: false, stampPr: null };
+  const args = { spec: null, review: 'none', dryRun: false, stampPr: null, expectBranch: null };
   let reviewProvided = false;
   for (let i = 0; i < argv.length; i += 1) {
     const tok = argv[i];
@@ -244,6 +253,7 @@ function parseArgs(argv) {
       reviewProvided = true;
     } else if (tok === '--dry-run') args.dryRun = true;
     else if (tok === '--stamp-pr') args.stampPr = argv[++i];
+    else if (tok === '--expect-branch') args.expectBranch = argv[++i];
     else usageError(`unrecognized flag: ${tok}`);
   }
   if (!args.ref) usageError('missing --ref');
@@ -1589,8 +1599,21 @@ function runStateReconcile(statePlan, evidenceRoot) {
 
 // --- main ----------------------------------------------------------------------
 
+// CHANGE-0180 D4 — see check-committed-scope.mjs's twin for the full
+// rationale. ADDITIVE (Spec-AC-04): no --expect-branch, no pin file -> both
+// leave this script's pre-change behaviour byte-identical. Checked before
+// EVERY write path this CLI has, including --stamp-pr.
+function verifyExpectedBranch(expectBranch) {
+  if (!expectBranch) return;
+  const result = checkBranchPin(ROOT);
+  if (result.ok) return;
+  process.stderr.write(`close-work-item: REFUSED (HEAD moved) — ${result.message}\n`);
+  exit(7);
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
+  verifyExpectedBranch(args.expectBranch);
 
   // fu-close-requires-pr-before-it-exists — --stamp-pr is a SEPARATE, narrow
   // mode: dispatch it before any of the main close-transaction resolution/

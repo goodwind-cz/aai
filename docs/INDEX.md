@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-13T06:51:51.625Z
+Generated: 2026-09-13T13:28:22.034Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-test-framework-sweep | specs | implementing | 28 planned | docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md |
 
 ## Canonical layer (0)
 
@@ -476,7 +477,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (22)
+## Drafts (23)
 
 | ID | Type | Path |
 |---|---|---|
@@ -489,6 +490,7 @@ _None._
 | CHANGE-0181 | issues | docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md |
 | CHANGE-0183 | issues | docs/issues/CHANGE-0183-telemetry-fields-not-prose.md |
 | CHANGE-0184 | issues | docs/issues/CHANGE-0184-roadmap-gate-admits-only-the-next-pair.md |
+| test-framework-sweep (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-test-framework-sweep.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

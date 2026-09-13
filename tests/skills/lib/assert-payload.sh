@@ -98,3 +98,68 @@ assert_payload_not_contains() {
     *) return 0 ;;
   esac
 }
+
+# THREE MORE HELPERS (Spec-AC-11 / DEBT-0006 drain). `assert_payload_contains`
+# is a case-SENSITIVE, substring, whole-payload match — a drop-in for exactly
+# 5 of the 202 `printf | grep -q` sites this scope drains. The other 197 need
+# one of these three, which is why they ship BEFORE any suite file is touched:
+# a helper written to fit its first call site, mid-drain, is a helper shaped
+# by an accident of file order rather than by what the idiom actually needs.
+
+# assert_payload_contains_i <payload> <needle> [message] — case-INSENSITIVE
+# substring (the `grep -qi`/`grep -qiF` sites, ~90 of the 202). `shopt -s
+# nocasematch` is bash 3.1+ (this repo's floor is 3.2), so no external tool is
+# needed; the shopt is saved and restored on every exit path, never leaked
+# into the caller — a case-insensitive `case` left armed would silently widen
+# every OTHER pattern match downstream in the same shell.
+assert_payload_contains_i() {
+  _assert_payload_needle_ok "$@" || return 1
+  local _ap_payload="$1" _ap_needle="$2" _ap_msg="${3:-}"
+  local _ap_nc_restore _ap_rc=1
+  _ap_nc_restore="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+  shopt -s nocasematch
+  case "$_ap_payload" in
+    *"$_ap_needle"*) _ap_rc=0 ;;
+  esac
+  eval "$_ap_nc_restore"
+  [ "$_ap_rc" -eq 0 ] && return 0
+  _assert_payload_report "${_ap_msg:-payload must contain the needle (case-insensitive)} (needle: '$_ap_needle'), got: $(payload_preview "$_ap_payload")"
+}
+
+# assert_payload_has_line <payload> <line> [message] — an EXACT WHOLE LINE,
+# not a substring (the `grep -qxF`/`grep -qx` sites, ~56 of the 202: a
+# substring match would pass on "not ok 1 - foo" when the assertion means the
+# whole line "ok 1"). Implemented as a `case` over the payload bracketed with
+# a leading and trailing newline, so the first and last lines match on the
+# same footing as an interior one, with no pipe and no line-splitting loop.
+assert_payload_has_line() {
+  _assert_payload_needle_ok "$@" || return 1
+  local _ap_payload="$1" _ap_line="$2" _ap_msg="${3:-}"
+  case $'\n'"$_ap_payload"$'\n' in
+    *$'\n'"$_ap_line"$'\n'*) return 0 ;;
+  esac
+  _assert_payload_report "${_ap_msg:-payload must contain the exact line} (line: '$_ap_line'), got: $(payload_preview "$_ap_payload")"
+}
+
+# assert_payload_line_matches <payload> <ere> [message] — an EXTENDED regex,
+# tested ONE LINE AT A TIME (the `grep -qE` sites carrying a metacharacter,
+# ~41 of the 202). THE TRAP THIS EXISTS TO AVOID: bash's `[[ str =~ ere ]]`
+# does not set REG_NEWLINE, so `^` and `$` bind to the START and END OF THE
+# WHOLE STRING, not to each line — a naive `[[ "$payload" =~ $ere ]]` rewrite
+# of an anchored site (`^foo$`) would silently stop matching a payload where
+# "foo" is a MIDDLE line, changing what the assertion actually proves without
+# any visible error. Splitting into a per-line loop first, then applying the
+# regex to each line, restores exactly `grep`'s own per-line anchor semantics.
+assert_payload_line_matches() {
+  _assert_payload_needle_ok "$@" || return 1
+  local _ap_payload="$1" _ap_ere="$2" _ap_msg="${3:-}"
+  local _ap_line
+  while IFS= read -r _ap_line; do
+    if [[ "$_ap_line" =~ $_ap_ere ]]; then
+      return 0
+    fi
+  done <<EOF
+$_ap_payload
+EOF
+  _assert_payload_report "${_ap_msg:-no line of the payload matches the pattern} (pattern: '$_ap_ere'), got: $(payload_preview "$_ap_payload")"
+}

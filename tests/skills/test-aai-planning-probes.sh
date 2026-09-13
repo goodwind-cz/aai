@@ -245,8 +245,7 @@ test_006_flag_contract() {
   # (a) a bad --base-ref must be a loud usage error, never a silent pass.
   out="$(runcheck --file "$TMP_ROOT/msg.md" --now 2026-06-01T00:00:00Z --base-ref no-such-ref 2>&1)"; rc=$?
   expect_exit 1 "$rc" "PROBE-006 bad base-ref" || ok=0
-  echo "$out" | grep -qi "base-ref" \
-    || { log_info "PROBE-006: a bad --base-ref did not explain itself: $out"; ok=0; }
+  assert_payload_contains_i "$out" "base-ref" "PROBE-006: a bad --base-ref did not explain itself: $out" || ok=0
 
   # (b) an unreadable --worktree-baseline is a loud usage error too.
   out="$(runcheck --file "$TMP_ROOT/msg.md" --now 2026-06-01T00:00:00Z --worktree-baseline /nonexistent/baseline.txt 2>&1)"; rc=$?

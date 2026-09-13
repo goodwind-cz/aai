@@ -315,7 +315,7 @@ test_012_quotas_skip_no_tap() {
   [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
   [[ "$(node_get "$DATA" 'm.quotas.source')" == "null" ]] || log_fail "quotas source must be null when no tap/session data exists"
   [[ "$(node_get "$DATA" 'typeof m.quotas.skip')" == "object" ]] || log_fail "quotas.skip must be present"
-  echo "$(node_get "$DATA" 'm.quotas.skip.reason')" | grep -qi "spool" || log_fail "skip reason must name the absent spool"
+  assert_payload_contains_i "$(node_get "$DATA" 'm.quotas.skip.reason')" "spool" "skip reason must name the absent spool"
   assert_payload_contains "$(node_get "$DATA" 'm.quotas.skip.install')" "live-spool.sh" "skip install hint must name live-spool.sh"
   # Isolate the quotas section of the page and assert it carries no % figure.
   local quotasSection
@@ -587,7 +587,7 @@ test_027_opener_refusal() {
   local out
   out="$(PATH="$fakebin" "$bash_abs" "$LIVE" --data-only --home "$TEST_DIR/t027home" 2>&1)" || rc=$?
   [[ "$rc" != 0 ]] || log_fail "aai-live.sh must refuse (non-zero exit) when no opener is on PATH"
-  echo "$out" | grep -qi "opener" || log_fail "refusal must name the missing opener, got: $out"
+  assert_payload_contains_i "$out" "opener" "refusal must name the missing opener, got: $out"
   log_pass "TEST-027: aai-live.sh refuses with a named error when no opener is found (rc=$rc)"
 }
 

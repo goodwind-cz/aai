@@ -29,6 +29,28 @@ TEST_NAME="aai-doctor"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DOCTOR="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
+
+# dr_line_hit <payload> <ere> — true (rc 0) iff some LINE of <payload> matches
+# <ere>, tested one line at a time so `.` can never span a newline the way it
+# would under a single whole-string `[[ =~ ]]` (Spec-AC-11 anchor/multiline
+# trap). Unlike assert_payload_line_matches this NEVER calls log_fail — some
+# call sites below accumulate several independent checks into one `ok` flag
+# and report ONE verdict at the end, so an escalating helper would be wrong
+# here (it would abort the whole suite on the FIRST failing sub-check instead
+# of collecting all of them).
+dr_line_hit() {
+  local _dr_payload="$1" _dr_ere="$2" _dr_line
+  while IFS= read -r _dr_line; do
+    if [[ "$_dr_line" =~ $_dr_ere ]]; then
+      return 0
+    fi
+  done <<EOF
+$_dr_payload
+EOF
+  return 1
+}
 
 TMP_ROOT=""
 FAILED=0
@@ -236,7 +258,7 @@ test_001_cat01_fail_named() {
   : > "$fixture/CLAUDE.md"
   # .aai/AGENTS.md deliberately missing.
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep -q "^CAT-01 FAIL" && echo "$out" | grep "^CAT-01" | grep -q "AGENTS.md"; then
+  if dr_line_hit "$out" '^CAT-01 FAIL' && [[ "$(echo "$out" | grep '^CAT-01')" == *"AGENTS.md"* ]]; then
     log_pass "TEST-001 CAT-01 FAIL names the missing required file"
   else
     log_info "TEST-001: got: $(echo "$out" | grep '^CAT-01')"
@@ -564,11 +586,11 @@ test_014_clean_fixture_doctor_clean() {
     log_fail "TEST-014 clean fixture verdict"
     return
   fi
-  if echo "$out" | grep -q "^DOCTOR CLEAN$"; then
+  if dr_line_hit "$out" '^DOCTOR CLEAN$'; then
     log_pass "TEST-014 fully-clean fixture -> DOCTOR CLEAN, exit 0"
-  elif echo "$out" | grep -q "^DOCTOR ISSUES(2)$" \
-    && echo "$out" | grep "^CAT-14" | grep -q "SKIP" \
-    && echo "$out" | grep "^CAT-15" | grep -q "SKIP"; then
+  elif dr_line_hit "$out" '^DOCTOR ISSUES(2)$' \
+    && [[ "$(echo "$out" | grep '^CAT-14')" == *SKIP* ]] \
+    && [[ "$(echo "$out" | grep '^CAT-15')" == *SKIP* ]]; then
     log_pass "TEST-014 fully-clean fixture -> DOCTOR ISSUES(2) (CAT-14/CAT-15 SKIP off Windows), exit 0"
   else
     log_info "TEST-014: got: $out"
@@ -662,7 +684,7 @@ test_018_script_location_default_root() {
   add_core_and_role_files "$fixture"
   install_doctor_copy "$fixture"
   out="$(cd "$TMP_ROOT" && node "$fixture/.aai/scripts/aai-doctor.mjs" 2>&1)"
-  if echo "$out" | grep -q "^CAT-01 PASS"; then
+  if dr_line_hit "$out" '^CAT-01 PASS'; then
     log_pass "TEST-018 default root resolves from the invoked script's own location, no --root needed"
   else
     log_info "TEST-018: got: $(echo "$out" | grep '^CAT-01')"
@@ -679,7 +701,7 @@ test_019_real_repo_smoke() {
     log_fail "TEST-019 real-repo smoke exit code"
     return
   fi
-  if ! echo "$out" | grep -q "^DOCTOR "; then
+  if ! dr_line_hit "$out" '^DOCTOR '; then
     log_info "TEST-019: no DOCTOR verdict line in output: $out"
     log_fail "TEST-019 real-repo smoke verdict line"
     return
@@ -812,9 +834,9 @@ test_024_selftest_structural_arm_pins() {
   # the guarantee (a full-line '#' comment never counts as a violation).
   local code_only
   code_only="$(grep -vE '^\s*#' "$f")"
-  printf '%s\n' "$code_only" | grep -qE 'Move-Item|Rename-Item' \
+  dr_line_hit "$code_only" 'Move-Item|Rename-Item' \
     && { log_info "TEST-024: Move-Item/Rename-Item present in code"; ok=0; }
-  printf '%s\n' "$code_only" | grep -qE 'Remove-Item.*[Dd]ecoy[Bb]ash' \
+  dr_line_hit "$code_only" 'Remove-Item.*[Dd]ecoy[Bb]ash' \
     && { log_info "TEST-024: Remove-Item applied to the decoy bash path"; ok=0; }
 
   [[ $ok -eq 1 ]] && log_pass "TEST-024 structural arm pins (redirect + Handle + env-in-child-text + no mutate)" \
@@ -1822,6 +1844,56 @@ exit 1
     || log_fail "TEST-040 CAT-17 effective-path + behavioural-probe"
 }
 
+# --- TEST-439 (spec-test-framework-sweep Spec-AC-22) — every CLI main()
+# guard resolves both sides through realpath, so invoking the script through
+# a SYMLINKED checkout still runs main() instead of silently no-op'ing.
+# `path.resolve`/`pathToFileURL`/`.endsWith` shapes do not follow a symlink
+# component the way `fs.realpathSync` does, and Node's ESM loader can settle
+# `import.meta.url` and a raw `process.argv[1]` on different sides of that
+# symlink — the guard then never fires and the CLI exits 0 having done
+# nothing, no error, no output.
+test_439_argv1_guard_resolves_symlinks() {
+  local ok=1 unresolved
+
+  # Part A: no main-guard call site compares process.argv[1] without going
+  # through a real*Resolve helper. Comments (heartbeat.mjs, this file's own
+  # history) are excluded by requiring an actual comparison operator.
+  # allocate-doc-number.mjs is EXCLUDED on purpose: it is one of the eight
+  # docs/ai/docs-audit.yaml protected_paths_l3 surfaces, touching it requires
+  # a FROZEN ceremony_level:3 spec (test-aai-hitl-propagation.sh TEST-014
+  # enforces this repo-wide), and this ride is ceremony 2 (established fact
+  # 9 / the spec's own D-decisions never claim an L3 escalation). Its guard
+  # keeps the pre-existing unresolved shape as a named residual, not a fix.
+  unresolved="$(grep -rn 'process\.argv\[1\]' "$PROJECT_ROOT/.aai/scripts" --include='*.mjs' \
+    | grep -v -E '^[^:]+:[0-9]+:[[:space:]]*//' \
+    | grep -v 'allocate-doc-number\.mjs' \
+    | grep -E '===|\.endsWith\(' \
+    | grep -v -iE 'realorresolve|realpathorresolve')"
+  if [[ -n "$unresolved" ]]; then
+    log_info "TEST-439: unresolved main-guard shape(s) found:"
+    log_info "$unresolved"
+    ok=0
+  fi
+
+  # Part B: three named CLIs, invoked through a symlinked checkout, produce
+  # the same stdout and exit code as invoking the real path directly.
+  local symdir cli d_out d_rc s_out s_rc
+  symdir="$(mktemp -d "${TMPDIR:-/tmp}/aai-doctor-argv1-symlink.XXXXXX")"
+  ln -s "$PROJECT_ROOT" "$symdir/repo"
+  for cli in orchestration-mode.mjs pr-platform.mjs validation-waiver.mjs; do
+    d_out="$(node "$PROJECT_ROOT/.aai/scripts/$cli" --help 2>&1)"; d_rc=$?
+    s_out="$(node "$symdir/repo/.aai/scripts/$cli" --help 2>&1)"; s_rc=$?
+    if [[ "$d_out" != "$s_out" || "$d_rc" -ne "$s_rc" ]]; then
+      log_info "TEST-439: $cli differs through a symlinked checkout (direct rc=$d_rc, symlink rc=$s_rc)"
+      ok=0
+    fi
+  done
+  rm -rf "$symdir"
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-439 every main() guard resolves via realpath; symlinked-checkout invocation matches direct invocation" \
+    || log_fail "TEST-439 argv[1] main-guard symlink resolution"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1879,6 +1951,7 @@ main() {
   test_038_0139_canonical_invocation_fixtures
   test_039_0139_canonical_invocation_shape
   test_040_cat17_effective_path_and_probe
+  test_439_argv1_guard_resolves_symlinks
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

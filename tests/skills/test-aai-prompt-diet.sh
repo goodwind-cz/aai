@@ -781,7 +781,9 @@ test_012_growth_sum_matches_ledger() {
   # not to rescue TEST-010.
   # Then 25283 -> 26515: standing-merge-authorization-in-canon (+1232 B,
   # SKILL_PR step 6 + SKILL_SHIP step 6 standing-authorization clauses, PR #375).
-  local want_growth=26515
+  # Then 26515 -> 26712: test-framework-sweep-select-suites-truing (+197 B,
+  # SKILL_TDD.prompt.md Phase 4 step 0 names select-suites.mjs, Spec-AC-16).
+  local want_growth=26712
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1433,6 +1435,38 @@ test_023_ac_flip_growth_credited() {
 }
 
 
+# TEST-429 (spec-test-framework-sweep Spec-AC-16) — both implementer-facing
+# prompts name the selector for an intermediate round, and the ledger carries
+# a dedicated entry for this ride's SKILL_TDD.prompt.md growth (not folded
+# into an unrelated one, which would leave the true cause unauditable).
+test_429_select_suites_named_in_both_prompts() {
+  local ok=1
+  if ! grep -qF 'select-suites.mjs' "$PROJECT_ROOT/.aai/SKILL_TDD.prompt.md"; then
+    log_info "TEST-429: .aai/SKILL_TDD.prompt.md does not name select-suites.mjs"
+    ok=0
+  fi
+  if ! grep -qF 'select-suites.mjs' "$PROJECT_ROOT/.aai/VALIDATION.prompt.md"; then
+    log_info "TEST-429: .aai/VALIDATION.prompt.md does not name select-suites.mjs"
+    ok=0
+  fi
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-429 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local n=0 _e
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    case "$_e" in
+      *"test-framework-sweep-select-suites-truing"*) n=$((n + 1)) ;;
+    esac
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_info "TEST-429: ledger carries $n entries naming test-framework-sweep-select-suites-truing (want exactly 1)"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-429 both prompts name select-suites.mjs, ledger entry present" \
+    || log_fail "TEST-429 select-suites.mjs prompt-corpus truing"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1462,6 +1496,7 @@ main() {
   test_021_ledger_has_no_unescaped_backtick
   test_022_ac_flip_guard_canon_wiring
   test_023_ac_flip_growth_credited
+  test_429_select_suites_named_in_both_prompts
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

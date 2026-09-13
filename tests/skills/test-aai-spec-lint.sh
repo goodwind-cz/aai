@@ -626,8 +626,8 @@ EOF
   assert_payload_contains "$out" "duplicate-ac-id" "TEST-001(dupac): no duplicate-ac-id finding" || ok=0
   assert_payload_contains "$out" "Spec-AC-02" "TEST-001(dupac): repeated id not named" || ok=0
   # Spec-AC-02: detail reports the raw-vs-parsed delta (2 raw rows, 1 survived).
-  echo "$out" | grep -qE "Spec-AC-02 appears in 2 raw AC-table rows but only 1 survived" \
-    || { log_info "TEST-001(dupac): raw-vs-parsed delta (2 raw / 1 parsed) not reported: $out"; ok=0; }
+  assert_payload_contains "$out" "Spec-AC-02 appears in 2 raw AC-table rows but only 1 survived" \
+    "TEST-001(dupac): raw-vs-parsed delta (2 raw / 1 parsed) not reported: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-001(dupac) dropped-duplicate names id + raw-vs-parsed delta" || log_fail "TEST-001(dupac) dropped-duplicate reconciliation"
 }
 
@@ -1161,8 +1161,13 @@ test_actest_001_untested_ac() {
   expect_exit 1 "$rc" "TEST-001(actest)" || ok=0
   assert_payload_contains "$out" "ac-without-test" "TEST-001(actest): no ac-without-test finding: $out" || ok=0
   assert_payload_contains "$out" "Spec-AC-02" "TEST-001(actest): untested id not named: $out" || ok=0
-  echo "$out" | grep -q "ac-without-test.*Spec-AC-01" \
-    && { log_info "TEST-001(actest): the COVERED AC was flagged too: $out"; ok=0; }
+  local actest_covered_flagged=0 actest_line
+  while IFS= read -r actest_line; do
+    [[ "$actest_line" =~ ac-without-test.*Spec-AC-01 ]] && actest_covered_flagged=1
+  done <<<"$out"
+  if [[ "$actest_covered_flagged" -eq 1 ]]; then
+    log_info "TEST-001(actest): the COVERED AC was flagged too: $out"; ok=0
+  fi
   [[ $ok -eq 1 ]] && log_pass "TEST-001(actest) untested Spec-AC flagged, covered one is not" \
     || log_fail "TEST-001(actest) untested Spec-AC"
 }
@@ -1627,16 +1632,37 @@ test_clarify_010_prompt_and_guide() {
 # --- TEST-011(clarify) — zero added ceremony (contract pins) ------------------
 test_clarify_011_no_new_ceremony() {
   local ok=1 f p
-  grep -qF "Usage: spec-lint [--path <file>] [--json] [--slug-handles] [--strategy <v>]" "$LINT" \
+  # Spec-AC-13 (fu-usage-pin-misses-appended-flag): `grep -qF` is a SUBSTRING
+  # match, so a flag APPENDED after the pinned text (the new flag landing
+  # before the source string's own closing quote) leaves the OLD pinned
+  # string still present as a prefix of the new line, and the pin never
+  # trips. Each pin below is extended to the string's own closing boundary in
+  # the source (the literal `\n'` escape-then-quote a template-literal line
+  # ends on, or `.',` for the Exit line, which is the template's last
+  # segment) so nothing can be inserted before that boundary undetected.
+  grep -qF "Usage: spec-lint [--path <file>] [--json] [--slug-handles] [--strategy <v>]\\n'" "$LINT" \
     || { log_info "TEST-011(clarify): spec-lint's usage line changed (a new flag?)"; ok=0; }
-  grep -qF "Exit: 0 clean | 1 findings | 2 usage error / unreadable --path." "$LINT" \
+  grep -qF "Exit: 0 clean | 1 findings | 2 usage error / unreadable --path.'," "$LINT" \
     || { log_info "TEST-011(clarify): spec-lint's exit contract line changed"; ok=0; }
   f="$PROJECT_ROOT/.aai/scripts/spec-freeze.mjs"
-  grep -qF "Usage: spec-freeze --path <spec> [--json] [--dry-run] [--no-event]" "$f" \
+  grep -qF "Usage: spec-freeze --path <spec> [--json] [--dry-run] [--no-event]\\n'" "$f" \
     || { log_info "TEST-011(clarify): spec-freeze's usage line changed (a new flag?)"; ok=0; }
+  # Spec-AC-12 (fu-exit-contract-pin-comment-dup, TEST-422): these four
+  # phrases occur TWICE in spec-freeze.mjs — once in the header comment
+  # (prose, never executed) and once inside the RUNTIME `usage()` function
+  # that is actually printed on a usage error. A whole-file `grep -qF`
+  # passes as long as EITHER copy survives, so mutating only the runtime
+  # copy (the one a caller actually sees) leaves the header's copy to keep
+  # this pin green on a broken CLI. Scoped to the `usage()` function body
+  # only, dynamically sliced rather than by a hardcoded line range so a
+  # harmless reflow of the function does not itself redden this pin.
+  local usage_body
+  usage_body="$(sed -n '/^function usage()/,/^}/p' "$f")"
+  [[ -n "$usage_body" ]] \
+    || { log_info "TEST-011(clarify): could not locate spec-freeze.mjs's usage() function body"; ok=0; }
   for p in "0 frozen, or already frozen (idempotent no-op)" "2 usage error" "3 REFUSED" "1 internal error"; do
-    grep -qF "$p" "$f" \
-      || { log_info "TEST-011(clarify): spec-freeze's exit contract lost \"$p\""; ok=0; }
+    grep -qF "$p" <<<"$usage_body" \
+      || { log_info "TEST-011(clarify): spec-freeze's RUNTIME exit contract (usage()) lost \"$p\""; ok=0; }
   done
   # --- containment, measured against the LIVE tree ----------------------------
   # The clarify scope touched a fixed set of .aai/ paths — the manifest below.

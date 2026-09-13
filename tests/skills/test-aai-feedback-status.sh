@@ -9,6 +9,8 @@
 set -u
 TEST_NAME="test-aai-feedback-status"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-feedback-status.mjs"
@@ -52,7 +54,7 @@ test_002_gh_state() {
   mock_gh 1
   local out; out="$(run "$TD/friction" "$TD/bin/gh")"; local code=$?
   [ "$code" = "0" ] || log_fail "TEST-002: must never fail the caller (exit $code)"
-  echo "$out" | grep -qi "gh auth login" || log_fail "TEST-002: unauthenticated gh -> 'gh auth login' hint"
+  assert_payload_contains_i "$out" "gh auth login" "TEST-002: unauthenticated gh -> 'gh auth login' hint"
   [ "$(run "$TD/friction" "/nonexistent/gh" --json | jq_field gh)" = "absent" ] || log_fail "TEST-002: missing gh -> absent"
   log_pass "gh state ready/unauthenticated/absent surfaced; caller never fails (TEST-002)"
 }
@@ -65,6 +67,10 @@ test_003_no_mutation() {
   grep -qE "'issue'|'create'|-X POST|createIssue|'--confirm'" "$SCRIPT" && log_fail "TEST-003: status must have no mutating gh call site" || true
   mock_gh 0; : > "$GH_CALLS"
   run "$TD/friction" "$TD/bin/gh" >/dev/null
+  # POSITIVE CONTROL (fu-learned-positive-control-for-absence): the absence
+  # check below proves nothing if gh was never invoked at all — assert the
+  # read-only probe actually ran before trusting its silence.
+  [ -s "$GH_CALLS" ] || log_fail "TEST-003: \$GH_CALLS is empty — gh was never invoked, so the absence-of-mutation check below proves nothing"
   # the ONLY gh call may be `auth status` (read-only)
   if grep -vqE "^auth status$" "$GH_CALLS" && [ -s "$GH_CALLS" ]; then
     grep -qE "issue create|-X POST" "$GH_CALLS" && log_fail "TEST-003: made a mutating gh call: $(cat "$GH_CALLS")"

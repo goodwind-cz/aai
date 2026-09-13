@@ -34,6 +34,27 @@ log_pass() { echo "PASS: $*"; }
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
 log_info() { echo "INFO: $*"; }
 log_skip() { echo "SKIP: $*"; exit 42; }
+
+# Spec-AC-28 / D3: a nested suite's failure used to be rendered into ONE
+# log_fail argument via `grep -n -A40 "FAIL" | head -60`. Since the nested
+# suite's own `log_fail` exits immediately, its FAIL line is almost always
+# the LAST line of its output, so `-A40` (context AFTER the match) captures
+# nothing beyond that single line — the framework's own whole-log
+# failure-line extraction (test-framework.sh) then shows only that first
+# line, and every line of real diagnostic context (the nested suite's own
+# INFO/PASS progress up to the failure) is lost. This writes the complete
+# nested output to a file, names that file and its line count, and surfaces
+# the actual matched failure lines (prefixed so the outer FAIL/ERROR
+# extraction keeps more than one of them) instead of a single truncated line.
+nested_suite_fail() {
+  local label="$1" out="$2" code="$3"
+  local nfile="$TEST_DIR/nested-${label// /_}.log"
+  printf '%s\n' "$out" > "$nfile"
+  local n; n="$(wc -l < "$nfile" | tr -d ' ')"
+  local ctx
+  ctx="$(grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$nfile" 2>/dev/null | head -n 25 | sed 's/^/FAIL-CTX: /' || true)"
+  log_fail "$label failed (exit $code); nested output: $nfile ($n lines)"$'\n'"$ctx"
+}
 command -v node >/dev/null 2>&1 || log_skip "node not found"
 
 # Mock gh: $1 records calls; SEARCH_RESULT controls the search response.
@@ -258,7 +279,7 @@ test_005_budget() {
   for i in 1 2 3; do echo "{\"event\":\"issue_created\",\"fingerprint\":\"v1:old$i\",\"ts_ms\":999999999999}" >> "$led"; done
   reset_calls; local out; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null; out="$(cat "$TEST_DIR/out")"
   [ "$(creates)" = "0" ] || log_fail "TEST-005: over-budget publish must NOT create an issue"
-  echo "$out" | grep -qi "budget" || log_fail "TEST-005: must report the budget deferral"
+  assert_payload_contains_i "$out" "budget" "TEST-005: must report the budget deferral"
   log_pass "budget met -> deferred, no create (TEST-005)"
 }
 
@@ -1442,8 +1463,50 @@ test_063_large_stderr_does_not_lose_exit_status() {
 test_009_profiles() {
   log_info "Test: new .aai files classified; layer-profiles green (TEST-009)..."
   local out code; out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
-  [ "$code" = "0" ] || log_fail "TEST-009: layer-profiles must pass: $(printf '%s' "$out" | grep -n -A40 "FAIL" | head -60)"
+  [ "$code" = "0" ] || nested_suite_fail "TEST-009: layer-profiles" "$out" "$code"
   log_pass "new .aai files classified; layer-profiles green (TEST-009)"
+}
+
+# --- TEST-404 (Spec-AC-28): nesting wrapper names a file + line count, and
+# preserves more than the nested failure's first line -----------------------
+test_404_nested_failure_names_file_with_linecount() {
+  log_info "Test: nested_suite_fail writes the full nested output to a named file with its line count (TEST-404)..."
+  # A synthetic nested failure whose FAIL line is the LAST line of the
+  # output (the real shape: the nested suite's own log_fail exits
+  # immediately) — this is exactly the case where the OLD `grep -A40 "FAIL"`
+  # rendering degenerated to one line, since there is nothing AFTER it.
+  local payload
+  payload="$(printf 'INFO: step one\nPASS: step one ok\nINFO: step two\nPASS: step two ok\nINFO: step three\nFAIL: the real cause of the failure')"
+  local msg rc
+  set +e
+  msg="$(nested_suite_fail "probe label" "$payload" "1" 2>&1)"; rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || log_fail "TEST-404: nested_suite_fail must exit non-zero"
+
+  local nfile
+  nfile="$(printf '%s\n' "$msg" | grep -oE "$TEST_DIR/nested-[^ ]*\.log" | head -1)"
+  [ -n "$nfile" ] || log_fail "TEST-404: message must name the nested-output file, got: $msg"
+  [ -f "$nfile" ] || log_fail "TEST-404: named file must actually exist: $nfile"
+
+  local file_lines stated_n
+  file_lines="$(wc -l < "$nfile" | tr -d ' ')"
+  stated_n="$(printf '%s\n' "$msg" | grep -oE '\([0-9]+ lines\)' | grep -oE '[0-9]+' | head -1)"
+  [ -n "$stated_n" ] || log_fail "TEST-404: message must state the file's line count, got: $msg"
+  [ "$stated_n" = "$file_lines" ] || log_fail "TEST-404: stated line count ($stated_n) must match the file's actual line count ($file_lines)"
+
+  # The file preserves the WHOLE nested payload, not just its first line.
+  grep -qF "step one ok" "$nfile" || log_fail "TEST-404: nested file lost early context lines: $(cat "$nfile")"
+  grep -qF "the real cause of the failure" "$nfile" || log_fail "TEST-404: nested file lost the actual FAIL line"
+
+  # The framework's own whole-log FAIL/ERROR/not-ok/✗ extraction, applied to
+  # the wrapper's OWN message (what actually lands in the outer suite's
+  # log_file), must now see MORE than one matching line — the residual this
+  # AC exists to close.
+  local matched
+  matched="$(printf '%s\n' "$msg" | grep -cE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' || true)"
+  [ "$matched" -gt 1 ] || log_fail "TEST-404: framework-style extraction over the wrapper's message must show more than one line, got $matched: $msg"
+
+  log_pass "nesting wrapper names a file + line count and survives whole-log extraction (TEST-404, Spec-AC-28)"
 }
 
 main() {
@@ -1512,6 +1575,7 @@ main() {
   test_062_empty_create_stdout_degrades
   test_063_large_stderr_does_not_lose_exit_status
   test_009_profiles
+  test_404_nested_failure_names_file_with_linecount
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

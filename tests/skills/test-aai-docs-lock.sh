@@ -22,6 +22,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
+
+# assert_payload_not_contains_i <payload> <needle> [message] — case-INSENSITIVE
+# substring, ASSERTS ABSENCE (fails when found). No ready-made helper covers
+# this shape (assert_payload_contains_i's own log_fail fires on a MISS, which
+# is the SUCCESS path here, so it cannot be inverted with `&&`/`||`).
+assert_payload_not_contains_i() {
+  local _p="$1" _n="$2" _m="${3:-payload must NOT contain the needle}"
+  local _nc_save; _nc_save="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+  shopt -s nocasematch
+  case "$_p" in
+    *"$_n"*) eval "$_nc_save"; log_fail "$_m" ;;
+    *) eval "$_nc_save" ;;
+  esac
+}
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOCK_SCRIPT="${DOCS_LOCK_SCRIPT:-$PROJECT_ROOT/.aai/scripts/docs-lock.mjs}"
 PROTOCOL_DOC="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
@@ -89,12 +103,10 @@ test_cli_surface() {
   local out
   out="$(runlock acquire 2>&1)"; rc=$?
   [[ "$rc" -eq 2 ]] || log_fail "acquire with no args must exit 2 (got $rc)"
-  echo "$out" | grep -qiF "unknown subcommand" \
-    && log_fail "acquire must be recognized, not reported as unknown subcommand"
+  assert_payload_not_contains_i "$out" "unknown subcommand" "acquire must be recognized, not reported as unknown subcommand"
   out="$(runlock release 2>&1)"; rc=$?
   [[ "$rc" -eq 2 ]] || log_fail "release with no args must exit 2 (got $rc)"
-  echo "$out" | grep -qiF "unknown subcommand" \
-    && log_fail "release must be recognized, not reported as unknown subcommand"
+  assert_payload_not_contains_i "$out" "unknown subcommand" "release must be recognized, not reported as unknown subcommand"
   set -e
   log_pass "CLI surface + usage/exit-2 contract correct"
 }
@@ -229,7 +241,7 @@ test_reap_reclaims_expired() {
   sleep 2
   out="$(runlock reap 2>&1)"; rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "reap must exit 0 (got $rc)"
-  echo "$out" | grep -qiF "EXPIRES" || log_fail "reap must report the reclaimed scope EXPIRES"
+  assert_payload_contains_i "$out" "EXPIRES" "reap must report the reclaimed scope EXPIRES"
   [[ -f "$LOCKDIR/EXPIRES.lock" ]] && log_fail "reap must delete the expired lock file"
   runlock acquire EXPIRES newOwner >/dev/null 2>&1; rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "acquire after reap must exit 0 (got $rc)"
@@ -362,7 +374,7 @@ test_list_view() {
   out="$(runlock list 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "list on empty dir must exit 0 (got $rc)"
-  echo "$out" | grep -qiF "no locks" || log_fail "empty list must print a no-locks marker"
+  assert_payload_contains_i "$out" "no locks" "empty list must print a no-locks marker"
   set +e
   runlock acquire ALPHA owner-1 >/dev/null 2>&1
   runlock acquire BETA owner-2 >/dev/null 2>&1

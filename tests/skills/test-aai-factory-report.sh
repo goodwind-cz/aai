@@ -30,6 +30,9 @@ set -euo pipefail
 TEST_NAME="aai-factory-report"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPORT="$PROJECT_ROOT/.aai/scripts/generate-factory-report.mjs"
 METRICS_REPORT="$PROJECT_ROOT/.aai/scripts/metrics-report.mjs"
@@ -1838,14 +1841,14 @@ test_039_scope_cost_product_doc_pins() {
   # between the first two literal '---' delimiter lines), never the whole doc.
   local frontmatter
   frontmatter="$(awk '/^---$/{n++; next} n==1' "$doc")"
-  echo "$frontmatter" | grep -qE '^[[:space:]]*-[[:space:]]*ride-cost-readout[[:space:]]*$' \
-    || log_fail "product doc frontmatter delivered_by must include ride-cost-readout"
+  assert_payload_line_matches "$frontmatter" '^[[:space:]]*-[[:space:]]*ride-cost-readout[[:space:]]*$' \
+    "product doc frontmatter delivered_by must include ride-cost-readout"
   # NB-3: a literal date pin turns every future legitimate edit of this doc
   # into a failure of an unrelated scope's test (Spec-AC-09 itself requires
   # 'updated' to be bumped on every touch). Assert the frontmatter carries a
   # well-formed ISO date, not this scope's specific one.
-  echo "$frontmatter" | grep -qE '^updated: [0-9]{4}-[0-9]{2}-[0-9]{2}$' \
-    || log_fail "product doc frontmatter updated must be a well-formed ISO date"
+  assert_payload_line_matches "$frontmatter" '^updated: [0-9]{4}-[0-9]{2}-[0-9]{2}$' \
+    "product doc frontmatter updated must be a well-formed ISO date"
   local change="$PROJECT_ROOT/docs/issues/CHANGE-0148-ride-cost-readout.md"
   [[ -f "$change" ]] || log_fail "intake not found: $change"
   grep -qF 'capability: factory-performance-report' "$change" || log_fail "intake frontmatter capability must read factory-performance-report"

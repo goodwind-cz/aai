@@ -633,10 +633,8 @@ test_013_subagent_protocol_model_marker_prose() {
 
   assert_payload_contains "$block" "requested_model=" "TEST-013 (spec TEST-010): usage-capture section must name the requested_model= marker"
   assert_payload_contains "$block" "actual_model=" "TEST-013 (spec TEST-010): usage-capture section must name the actual_model= marker"
-  echo "$block" | grep -qiF 'GRANTED model' \
-    || log_fail "TEST-013 (spec TEST-010): usage-capture section must state model_id records the GRANTED model"
-  echo "$block" | grep -qiF 'both markers' \
-    || log_fail "TEST-013 (spec TEST-010): usage-capture section must state both markers are recorded whenever an override was requested"
+  assert_payload_contains_i "$block" "GRANTED model" "TEST-013 (spec TEST-010): usage-capture section must state model_id records the GRANTED model"
+  assert_payload_contains_i "$block" "both markers" "TEST-013 (spec TEST-010): usage-capture section must state both markers are recorded whenever an override was requested"
   # Sharper than a bare 'actual_model' grep (subsumed by the earlier
   # 'actual_model=' pin, review-20260812T083704Z CQ-2, mutation-proved: the
   # old pin stayed GREEN after deleting the whole "Any claim of validator
@@ -644,10 +642,8 @@ test_013_subagent_protocol_model_marker_prose() {
   # that sentence -- "must cite" and "claim of validator independence" (the
   # word "independence" alone recurs elsewhere in the block, e.g.
   # "independence that never happened", so it cannot anchor alone).
-  echo "$block" | grep -qiF 'must cite' \
-    || log_fail "TEST-013 (spec TEST-010): usage-capture section must state validator-independence claims MUST cite actual_model"
-  echo "$block" | grep -qiF 'claim of validator independence' \
-    || log_fail "TEST-013 (spec TEST-010): usage-capture section must name the validator-independence claim actual_model must be cited for"
+  assert_payload_contains_i "$block" "must cite" "TEST-013 (spec TEST-010): usage-capture section must state validator-independence claims MUST cite actual_model"
+  assert_payload_contains_i "$block" "claim of validator independence" "TEST-013 (spec TEST-010): usage-capture section must name the validator-independence claim actual_model must be cited for"
 
   log_pass "SUBAGENT_PROTOCOL usage-capture prose: model_id==granted, both-markers-together, independence-cites-actual_model (TEST-013/spec TEST-010)"
 }

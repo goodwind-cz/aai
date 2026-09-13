@@ -80,7 +80,7 @@ test_007() {
   marker_count="$(echo "$out" | grep -c "AAI-DEGRADED-MODE")"
   [[ "$marker_count" -eq 1 ]] \
     || log_fail "expected exactly one AAI-DEGRADED-MODE marker under AAI_UNAME=MSYS_NT-10.0, got $marker_count"
-  echo "$out" | grep -qi "MSYS" || log_fail "degraded marker must name the detected MSYS/MINGW uname"
+  assert_payload_contains_i "$out" "MSYS" "degraded marker must name the detected MSYS/MINGW uname"
 
   AAI_UNAME="MSYS_NT-10.0" sh "$RUN_TESTS_SCRIPT" sh -c 'exit 5' >/dev/null 2>&1; rc=$?
   [[ "$rc" -eq 5 ]] || log_fail "AAI_UNAME=MSYS_NT-10.0: exit-code fidelity broke (expected 5, got $rc)"
@@ -282,8 +282,8 @@ test_017() {
     if [[ -n "$skip_lines" ]]; then
       while IFS= read -r line; do
         assert_payload_contains "$line" "PosixOnly" "$f: a -Skip:\$script:SkipOnWindows It is missing the PosixOnly token in its name: $line"
-        echo "$line" | grep -qE 'PosixOnly:[[:space:]]*[^)'"'"']+' \
-          || log_fail "$f: a -Skip:\$script:SkipOnWindows It carries PosixOnly with no non-empty reason: $line"
+        assert_payload_line_matches "$line" 'PosixOnly:[[:space:]]*[^)'"'"']+' \
+          "$f: a -Skip:\$script:SkipOnWindows It carries PosixOnly with no non-empty reason: $line"
       done <<< "$skip_lines"
       skip_count="$(grep -cE "^[[:space:]]*It[[:space:]]+'.*'[[:space:]]+-Skip:\\\$script:SkipOnWindows" "$f")"
       total_skip_lines=$((total_skip_lines + skip_count))

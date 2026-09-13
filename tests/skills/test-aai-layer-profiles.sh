@@ -24,6 +24,9 @@ set -euo pipefail
 
 TEST_NAME="aai-layer-profiles"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MANIFEST="$PROJECT_ROOT/.aai/system/PROFILES.yaml"
 SYNC_SH="$PROJECT_ROOT/.aai/scripts/aai-sync.sh"
@@ -51,6 +54,48 @@ log_pass() { echo "PASS: $*"; }
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
 log_skip() { echo "SKIP: $*"; exit 42; }
 log_info() { echo "INFO: $*"; }
+
+# Spec-AC-02 / D2: an assertion that fires on a payload rendering as zero
+# visible lines (e.g. a lone newline or whitespace byte — non-empty as a
+# string, invisible when printed) must dump that payload byte for byte
+# instead of silently printing what looks like an empty list. This is the
+# exact shape CI run 34737181188 produced: `[[ -z "$missing" ]]` was false on
+# a value with no visible lines.
+assert_list_empty() {
+  local val="$1" msg="$2"
+  [[ -z "$val" ]] && return 0
+  if [[ -z "$(printf '%s' "$val" | tr -d '[:space:]')" ]]; then
+    log_fail "$msg (payload is non-empty but renders as zero visible lines — byte dump follows):"$'\n'"$(printf '%s' "$val" | od -c | head -20)"
+  fi
+  log_fail "$msg:"$'\n'"$val"
+}
+
+# Spec-AC-02 / D2: a `--profile core` sync's own "missing in source" WARN
+# line (aai-sync.sh:297) must be captured and failed on directly, rather than
+# discarded to /dev/null and left to surface only as a downstream
+# missing-file set two tests later (or not at all, if nothing else notices).
+sync_output_ok() {
+  # Pipe-free membership check (spec-assertions-must-not-die-on-their-own-payload):
+  # piping a large captured payload into `grep -q` can take SIGPIPE past the
+  # 64 KiB pipe buffer, turning a MATCHED payload into a false "not found"
+  # under `set -o pipefail`. `case` pattern matching has no pipe.
+  case "$1" in
+    *'missing in source'*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+run_sync_or_fail() {
+  local desc="$1"; shift
+  local out rc=0
+  out="$(bash "$@" 2>&1)" || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    log_fail "$desc (exit $rc): $out"
+  fi
+  if ! sync_output_ok "$out"; then
+    log_fail "$desc: sync reported a 'missing in source' WARN it should never hit against this fixture:"$'\n'"$(printf '%s\n' "$out" | grep 'missing in source')"
+  fi
+}
 
 # Extract one profile's path list from a PROFILES.yaml (line-based, no yaml lib —
 # the same discipline the sync scripts use).
@@ -107,6 +152,46 @@ check_deps() {
   log_pass "Dependencies checked"
 }
 
+# Spec-AC-01 / D2: every `cp -R` the fixture build issues is checked, and a
+# failure names both sides of the copy instead of aborting on a bare `set -e`
+# trace. `AAI_TEST_LP_CP_FAIL_ITEM` is a test-only hook (unset in every real
+# run) that forces one named item's copy to fail against a real, nonexistent
+# source path — a genuine cp failure, not a mock.
+copy_fixture_item() {
+  local item="$1" src="$2" dst="$3"
+  if [[ -n "${AAI_TEST_LP_CP_FAIL_ITEM:-}" && "$item" == "${AAI_TEST_LP_CP_FAIL_ITEM}" ]]; then
+    src="$src/__aai_test_forced_missing__"
+  fi
+  cp -R "$src" "$dst" || log_fail "fixture build: cp -R failed copying '$item' from $src to $dst"
+}
+
+# Repo-relative file listing under <root>/<item> (same idiom as aai_files_of /
+# tree_manifest above: the `cd` lives inside this function's OWN subshell, not
+# textually inside a `$(...)` command substitution at the call site — the
+# shape the repo's cd-subshell-leak ratchet counts).
+find_files_relative() {
+  local root="$1" item="$2"
+  ( cd "$root" 2>/dev/null && find "$item" -type f ! -path '.aai/cache/*' 2>/dev/null | LC_ALL=C sort )
+}
+
+# Spec-AC-01 / D2: after every copy, compare the file set the build PRODUCED
+# against the file set it copied FROM, and exit non-zero naming every path
+# that is missing — before any assertion (TEST-001 etc.) runs. A `cp -R` that
+# succeeds INCOMPLETELY used to be invisible; this makes it loud.
+verify_fixture_copy_completeness() {
+  local item missing_all=""
+  for item in .aai CLAUDE.md CODEX.md GEMINI.md SKILLS.md README.md hooks \
+              .claude .codex .gemini .cursor .claude-plugin docs/knowledge; do
+    [[ -e "$PROJECT_ROOT/$item" ]] || continue
+    local src_files dst_files missing
+    src_files="$(find_files_relative "$PROJECT_ROOT" "$item")"
+    dst_files="$(find_files_relative "$FIX_SRC" "$item")"
+    missing="$(comm -23 <(printf '%s\n' "$src_files") <(printf '%s\n' "$dst_files"))"
+    [[ -z "$missing" ]] || missing_all="${missing_all}${missing}"$'\n'
+  done
+  [[ -z "$missing_all" ]] || log_fail "fixture build incomplete: files copied from the project root but missing under $FIX_SRC:"$'\n'"$missing_all"
+}
+
 # Copy this repo's distribution surfaces into a fixture source and git-init it.
 build_fixture_sources() {
   log_info "Building fixture sources (real distribution tree, no network)..."
@@ -116,16 +201,24 @@ build_fixture_sources() {
   for item in .aai CLAUDE.md CODEX.md GEMINI.md SKILLS.md README.md hooks \
               .claude .codex .gemini .cursor .claude-plugin; do
     if [[ -e "$PROJECT_ROOT/$item" ]]; then
-      cp -R "$PROJECT_ROOT/$item" "$FIX_SRC/$item"
+      copy_fixture_item "$item" "$PROJECT_ROOT/$item" "$FIX_SRC/$item"
     fi
   done
   mkdir -p "$FIX_SRC/.github" "$FIX_SRC/docs/knowledge"
   [[ -f "$PROJECT_ROOT/.github/copilot-instructions.md" ]] &&
     cp "$PROJECT_ROOT/.github/copilot-instructions.md" "$FIX_SRC/.github/"
   if [[ -d "$PROJECT_ROOT/docs/knowledge" ]]; then
-    cp -R "$PROJECT_ROOT/docs/knowledge/." "$FIX_SRC/docs/knowledge/"
+    copy_fixture_item "docs/knowledge" "$PROJECT_ROOT/docs/knowledge/." "$FIX_SRC/docs/knowledge/"
   fi
   rm -rf "$FIX_SRC/.aai/cache"
+
+  # Test-only fault injection (unset in every real run): simulate a copy that
+  # succeeded but was INCOMPLETE, to prove the completeness check below
+  # actually catches it (Spec-AC-01, TEST-401).
+  if [[ -n "${AAI_TEST_LP_DROP_FILE:-}" ]]; then
+    rm -f "$FIX_SRC/${AAI_TEST_LP_DROP_FILE}"
+  fi
+  verify_fixture_copy_completeness
 
   git -C "$FIX_SRC" init -q -b main
   git -C "$FIX_SRC" config user.email "test@example.invalid"
@@ -173,22 +266,22 @@ test_manifest_conformance() {
   actual="$(cd "$PROJECT_ROOT" && find .aai -type f ! -path '.aai/cache/*' | LC_ALL=C sort)"
 
   dupes="$(printf '%s\n' "$listed" | uniq -d)"
-  [[ -z "$dupes" ]] || log_fail "duplicate/overlapping manifest entries:"$'\n'"$dupes"
+  assert_list_empty "$dupes" "duplicate/overlapping manifest entries"
   overlap="$(comm -12 <(printf '%s\n' "$core" | LC_ALL=C sort) <(printf '%s\n' "$extended" | LC_ALL=C sort))"
-  [[ -z "$overlap" ]] || log_fail "paths listed in BOTH profiles:"$'\n'"$overlap"
+  assert_list_empty "$overlap" "paths listed in BOTH profiles"
 
   local unclassified stale
   unclassified="$(comm -23 <(printf '%s\n' "$actual") <(printf '%s\n' "$listed"))"
-  [[ -z "$unclassified" ]] || log_fail "UNCLASSIFIED vendored files (add to PROFILES.yaml):"$'\n'"$unclassified"
+  assert_list_empty "$unclassified" "UNCLASSIFIED vendored files (add to PROFILES.yaml)"
   stale="$(comm -13 <(printf '%s\n' "$actual") <(printf '%s\n' "$listed"))"
-  [[ -z "$stale" ]] || log_fail "stale manifest entries (no such file):"$'\n'"$stale"
+  assert_list_empty "$stale" "stale manifest entries (no such file)"
 
   local n_core n_ext n_all
   n_core="$(printf '%s\n' "$core" | grep -c .)"
   n_ext="$(printf '%s\n' "$extended" | grep -c .)"
   n_all="$(printf '%s\n' "$actual" | grep -c .)"
   [[ $((n_core + n_ext)) -eq "$n_all" ]] || log_fail "count mismatch: core($n_core)+extended($n_ext) != tree($n_all)"
-  echo "$core" | grep -qx '.aai/system/PROFILES.yaml' || log_fail "PROFILES.yaml must classify itself as core"
+  assert_payload_has_line "$core" ".aai/system/PROFILES.yaml" "PROFILES.yaml must classify itself as core"
   log_pass "TEST-001 manifest conformance: core=$n_core extended=$n_ext total=$n_all (100%)"
 }
 
@@ -198,9 +291,9 @@ test_default_byte_identity() {
   local t_old="$TMP_ROOT/t-old" t_new="$TMP_ROOT/t-new" t_ext="$TMP_ROOT/t-ext"
   new_target "$t_old"; new_target "$t_new"; new_target "$t_ext"
 
-  bash "$FIX_SRC_OLD/.aai/scripts/aai-sync.sh" "$t_old" >/dev/null 2>&1 || log_fail "old-engine sync failed"
-  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t_new" >/dev/null 2>&1 || log_fail "new-engine default sync failed"
-  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t_ext" --profile extended >/dev/null 2>&1 || log_fail "--profile extended sync failed"
+  run_sync_or_fail "old-engine sync failed" "$FIX_SRC_OLD/.aai/scripts/aai-sync.sh" "$t_old"
+  run_sync_or_fail "new-engine default sync failed" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t_new"
+  run_sync_or_fail "--profile extended sync failed" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t_ext" --profile extended
 
   # (a) default == --profile extended, byte-for-byte apart from pin timestamp.
   diff <(tree_manifest "$t_new") <(tree_manifest "$t_ext") >/dev/null \
@@ -247,8 +340,7 @@ test_core_exact_set() {
   log_info "TEST-003: --profile core installs exactly the manifest core set..."
   local t_core="$TMP_ROOT/t-core"
   new_target "$t_core"
-  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t_core" --profile core >/dev/null 2>&1 \
-    || log_fail "--profile core sync failed"
+  run_sync_or_fail "--profile core sync failed" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t_core" --profile core
 
   local want got
   want="$(profile_list "$FIX_SRC/.aai/system/PROFILES.yaml" core | LC_ALL=C sort)"
@@ -256,8 +348,8 @@ test_core_exact_set() {
   local missing extra
   missing="$(comm -23 <(printf '%s\n' "$want") <(printf '%s\n' "$got"))"
   extra="$(comm -13 <(printf '%s\n' "$want") <(printf '%s\n' "$got"))"
-  [[ -z "$missing" ]] || log_fail "core sync MISSING core-listed files:"$'\n'"$missing"
-  [[ -z "$extra" ]] || log_fail "core sync copied files beyond the core set:"$'\n'"$extra"
+  assert_list_empty "$missing" "core sync MISSING core-listed files"
+  assert_list_empty "$extra" "core sync copied files beyond the core set"
   [[ -f "$t_core/.aai/PLANNING.prompt.md" ]] || log_fail "workflow engine file absent from core install"
   [[ ! -f "$t_core/.aai/SKILL_DASHBOARD.prompt.md" ]] || log_fail "extended-only prompt leaked into core install"
   # Non-.aai surfaces are profile-independent (D3): shims/hooks/wrappers still land.
@@ -270,12 +362,11 @@ test_core_prune_and_idempotence() {
   log_info "TEST-004: extended->core re-sync prunes; target-only script preserved; core re-run idempotent..."
   local t="$TMP_ROOT/t-downgrade"
   new_target "$t"
-  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" >/dev/null 2>&1 || log_fail "seed extended sync failed"
+  run_sync_or_fail "seed extended sync failed" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t"
   [[ -f "$t/.aai/SKILL_DASHBOARD.prompt.md" ]] || log_fail "seed extended install incomplete"
   echo "#!/usr/bin/env bash" > "$t/.aai/scripts/project-custom.sh"
 
-  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile core >/dev/null 2>&1 \
-    || log_fail "core re-sync over extended target failed"
+  run_sync_or_fail "core re-sync over extended target failed" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile core
   [[ ! -f "$t/.aai/SKILL_DASHBOARD.prompt.md" ]] || log_fail "extended-only file survived core re-sync (no prune)"
   [[ ! -f "$t/.aai/scripts/generate-dashboard.mjs" ]] || log_fail "extended-only script survived core re-sync"
   [[ -f "$t/.aai/scripts/project-custom.sh" ]] || log_fail "target-only script was NOT preserved by core prune"
@@ -283,8 +374,7 @@ test_core_prune_and_idempotence() {
   local snap1 snap2
   snap1="$(tree_manifest "$t")"
   local pin1; pin1="$(pin_stable "$t/.aai/system/AAI_PIN.md")"
-  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile core >/dev/null 2>&1 \
-    || log_fail "second core sync failed"
+  run_sync_or_fail "second core sync failed" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile core
   snap2="$(tree_manifest "$t")"
   local pin2; pin2="$(pin_stable "$t/.aai/system/AAI_PIN.md")"
   # fu-sync-hash-compare-fails-open: a hash-pipeline hiccup used to take the
@@ -308,7 +398,7 @@ test_invalid_profile() {
   out="$(bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile bogus 2>&1)"; rc=$?
   set -e
   [[ "$rc" -ne 0 ]] || log_fail "--profile bogus must fail (got exit 0)"
-  echo "$out" | grep -qi "profile" || log_fail "error must name the profile flag, got: $out"
+  assert_payload_contains_i "$out" "profile" "error must name the profile flag, got: $out"
   [[ ! -d "$t/.aai" ]] || log_fail "invalid profile run must not create .aai in the target"
   set +e
   bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile >/dev/null 2>&1; rc=$?
@@ -321,8 +411,7 @@ test_invalid_profile() {
   # so the prune loop deleted every core file (only the pin survived).
   local tb="$TMP_ROOT/t-bracket[1]"
   mkdir -p "$tb"
-  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$tb" --profile core >/dev/null 2>&1 \
-    || log_fail "core sync into a bracket-path target failed"
+  run_sync_or_fail "core sync into a bracket-path target failed" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$tb" --profile core
   local n; n="$(find "$tb/.aai" -type f | wc -l | tr -d ' ')"
   [[ "$n" -gt 50 ]] || log_fail "F1: bracket-path core sync left only $n .aai files (mass-delete regression)"
   [[ -f "$tb/.aai/scripts/state.mjs" ]] || log_fail "F1: core file state.mjs missing after bracket-path sync"
@@ -335,18 +424,18 @@ test_pin_stamp_and_sticky() {
   log_info "TEST-006: pin records the profile; flag-less re-sync honors the sticky pin..."
   local t="$TMP_ROOT/t-sticky"
   new_target "$t"
-  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile core >/dev/null 2>&1 || log_fail "core sync failed"
+  run_sync_or_fail "core sync failed" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile core
   grep -q '^- Profile: core$' "$t/.aai/system/AAI_PIN.md" \
     || log_fail "pin lacks '- Profile: core':"$'\n'"$(cat "$t/.aai/system/AAI_PIN.md")"
 
-  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" >/dev/null 2>&1 || log_fail "flag-less re-sync failed"
+  run_sync_or_fail "flag-less re-sync failed" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t"
   grep -q '^- Profile: core$' "$t/.aai/system/AAI_PIN.md" \
     || log_fail "flag-less re-sync lost the sticky core profile (pin now: $(grep '^- Profile:' "$t/.aai/system/AAI_PIN.md" || echo '<absent>'))"
   [[ ! -f "$t/.aai/SKILL_DASHBOARD.prompt.md" ]] \
     || log_fail "flag-less re-sync reinstalled the extended layer over a core target"
 
   # Explicit upgrade still works: core -> extended by flag.
-  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile extended >/dev/null 2>&1 || log_fail "core->extended upgrade failed"
+  run_sync_or_fail "core->extended upgrade failed" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile extended
   grep -q '^- Profile: extended$' "$t/.aai/system/AAI_PIN.md" || log_fail "upgrade did not restamp pin to extended"
   [[ -f "$t/.aai/SKILL_DASHBOARD.prompt.md" ]] || log_fail "upgrade did not reinstall extended files"
   # Pin contract documents the field.
@@ -398,7 +487,7 @@ test_ps1_parity() {
   # End-to-end: ps1 core run produces the same .aai file set as the sh core run.
   local t_sh="$TMP_ROOT/t-par-sh" t_ps="$TMP_ROOT/t-par-ps"
   new_target "$t_sh"; new_target "$t_ps"
-  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t_sh" --profile core >/dev/null 2>&1 || log_fail "sh core run failed"
+  run_sync_or_fail "sh core run failed" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t_sh" --profile core
   pwsh -NoProfile -File "$FIX_SRC/.aai/scripts/aai-sync.ps1" -TargetRoot "$t_ps" -Profile core >/dev/null 2>&1 \
     || log_fail "ps1 core run failed"
   diff <(aai_files_of "$t_sh") <(aai_files_of "$t_ps") >/dev/null \
@@ -408,13 +497,98 @@ test_ps1_parity() {
   # ps1 default run stays extended (full set parity with sh default).
   local t_ps_def="$TMP_ROOT/t-par-ps-def" t_sh_def="$TMP_ROOT/t-par-sh-def"
   new_target "$t_ps_def"; new_target "$t_sh_def"
-  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t_sh_def" >/dev/null 2>&1 || log_fail "sh default run failed"
+  run_sync_or_fail "sh default run failed" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t_sh_def"
   pwsh -NoProfile -File "$FIX_SRC/.aai/scripts/aai-sync.ps1" -TargetRoot "$t_ps_def" >/dev/null 2>&1 \
     || log_fail "ps1 default run failed"
   diff <(aai_files_of "$t_sh_def") <(aai_files_of "$t_ps_def") >/dev/null \
     || log_fail "ps1 default install file set differs from sh default"
   grep -q '^- Profile: extended$' "$t_ps_def/.aai/system/AAI_PIN.md" || log_fail "ps1 default pin not stamped extended"
   log_pass "TEST-008 ps1 parity (parse + structure + end-to-end set equality)"
+}
+
+# --- TEST-401 — fixture build fails loudly on an incomplete or failed copy
+# (Spec-AC-01) ----------------------------------------------------------------
+test_401_fixture_build_completeness() {
+  log_info "TEST-401: fixture build verifies its own copy completeness..."
+  local out rc
+
+  rc=0
+  out="$(AAI_TEST_LP_DROP_FILE=".aai/PLANNING.prompt.md" bash "${BASH_SOURCE[0]}" __fixture_build_probe 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-401: build must fail when a copied file is missing from the fixture, got exit 0: $out"
+  assert_payload_contains "$out" ".aai/PLANNING.prompt.md" "TEST-401: failure must name the missing path .aai/PLANNING.prompt.md"
+
+  rc=0
+  out="$(AAI_TEST_LP_CP_FAIL_ITEM="hooks" bash "${BASH_SOURCE[0]}" __fixture_build_probe 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-401: build must fail when a cp -R fails, got exit 0: $out"
+  assert_payload_contains "$out" "hooks" "TEST-401: cp failure must name the failed item"
+  assert_payload_contains "$out" "cp -R failed" "TEST-401: cp failure message must identify itself as a cp -R failure"
+
+  log_pass "TEST-401 fixture build fails loudly on incomplete/failed copies (Spec-AC-01)"
+}
+
+# --- TEST-402 — core sync's own WARN is captured and failed on, not left to
+# the downstream missing-file set (Spec-AC-02) --------------------------------
+test_402_core_sync_warn_captured() {
+  log_info "TEST-402: sync_output_ok catches a real 'missing in source' WARN..."
+  local victim backup out rc
+  victim="$(profile_list "$FIX_SRC/.aai/system/PROFILES.yaml" core | grep -m1 '^\.aai/')"
+  [[ -n "$victim" ]] || log_fail "TEST-402: could not pick a core-listed victim file from the fixture"
+  backup="$TMP_ROOT/402-backup-$(basename "$victim")"
+  cp "$FIX_SRC/$victim" "$backup"
+  rm -f "$FIX_SRC/$victim"
+
+  rc=0
+  new_target "$TMP_ROOT/t-402"
+  out="$(bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$TMP_ROOT/t-402" --profile core 2>&1)" || rc=$?
+
+  # restore the fixture immediately so later tests are unaffected
+  mkdir -p "$FIX_SRC/$(dirname "$victim")"
+  cp "$backup" "$FIX_SRC/$victim"
+
+  assert_payload_contains "$out" "$victim" "TEST-402: real sync output must name the missing path $victim"
+  if sync_output_ok "$out"; then
+    log_fail "TEST-402: sync_output_ok must detect the 'missing in source' WARN for $victim, reported ok. out: $out"
+  fi
+
+  # run_sync_or_fail (what every happy-path call site now goes through) must
+  # itself refuse on that captured output, naming the WARN, rather than
+  # silently letting the caller fall through to a downstream missing-file
+  # check two tests later. Exercised against a FRESH victim (the first was
+  # already restored above) so the fixture is left clean either way.
+  local victim2 backup2
+  victim2="$(profile_list "$FIX_SRC/.aai/system/PROFILES.yaml" core | grep -v -F "$victim" | grep -m1 '^\.aai/')"
+  [[ -n "$victim2" ]] || log_fail "TEST-402: could not pick a second core-listed victim file"
+  backup2="$TMP_ROOT/402-backup2-$(basename "$victim2")"
+  cp "$FIX_SRC/$victim2" "$backup2"
+  rm -f "$FIX_SRC/$victim2"
+  rc=0
+  new_target "$TMP_ROOT/t-402c"
+  out="$(run_sync_or_fail "victim2 sync" "$FIX_SRC/.aai/scripts/aai-sync.sh" "$TMP_ROOT/t-402c" --profile core 2>&1)" || rc=$?
+  mkdir -p "$FIX_SRC/$(dirname "$victim2")"
+  cp "$backup2" "$FIX_SRC/$victim2"
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-402: run_sync_or_fail must refuse on a real 'missing in source' WARN, got exit 0"
+  assert_payload_contains "$out" "$victim2" "TEST-402: run_sync_or_fail's refusal must name the missing path $victim2"
+
+  log_pass "TEST-402 core sync WARN captured and failed on before the downstream miss-check (Spec-AC-02)"
+}
+
+# --- TEST-403 — an invisible-but-nonempty payload dumps byte for byte
+# (Spec-AC-02) ------------------------------------------------------------
+test_403_payload_dump_on_invisible_nonempty() {
+  log_info "TEST-403: assert_list_empty dumps byte-for-byte when a payload renders as zero visible lines..."
+  local out rc
+
+  rc=0
+  out="$(assert_list_empty $'\n' "probe label" 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-403: a non-empty whitespace-only payload must fail the check, got exit 0"
+  assert_payload_contains "$out" "byte" "TEST-403: failure must announce a byte-for-byte dump for an invisible payload"
+
+  rc=0
+  out="$(assert_list_empty "real/path/here" "probe label" 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-403: a real non-empty payload must still fail"
+  assert_payload_contains "$out" "real/path/here" "TEST-403: a real payload should still print visibly"
+
+  log_pass "TEST-403 invisible-but-nonempty payload triggers byte dump (Spec-AC-02)"
 }
 
 # --- Spec-AC self-check — no real network schemes in this suite ---------------
@@ -428,7 +602,21 @@ test_no_real_network() {
 
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
+  # Test-only probe entry point (Spec-AC-01, TEST-401): builds the fixture in
+  # isolation, under fault-injection hooks, and exits — no other test runs.
+  if [[ "${1:-}" == "__fixture_build_probe" ]]; then
+    check_deps
+    build_fixture_sources
+    echo "PROBE_OK: $FIX_SRC"
+    return 0
+  fi
   check_deps
+  if [[ $# -gt 0 ]]; then
+    build_fixture_sources
+    "$1"
+    echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="
+    return
+  fi
   test_manifest_conformance
   build_fixture_sources
   test_default_byte_identity
@@ -438,6 +626,9 @@ main() {
   test_pin_stamp_and_sticky
   test_doctor_display
   test_ps1_parity
+  test_401_fixture_build_completeness
+  test_402_core_sync_warn_captured
+  test_403_payload_dump_on_invisible_nonempty
   test_no_real_network
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }

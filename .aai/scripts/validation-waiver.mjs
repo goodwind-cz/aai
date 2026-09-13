@@ -159,8 +159,9 @@
 // Exit codes: 0 gate OPEN | 1 gate BLOCKED (incl. unreadable state) | 2 usage.
 // Zero dependencies (Node stdlib only, per docs/TECHNOLOGY.md).
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 export const WAIVER_SENTINEL = 'AAI-VALIDATION-WAIVER';
@@ -633,7 +634,13 @@ function main(argv) {
 }
 
 // Only run the CLI when invoked directly — the factory report and the metrics
-// flush import the parser from here (one grammar, every consumer).
-if (process.argv[1] && process.argv[1].endsWith('validation-waiver.mjs')) {
+// flush import the parser from here (one grammar, every consumer). The old
+// `.endsWith('validation-waiver.mjs')` shape matched any importer whose own
+// path happened to end that way and never followed a symlinked checkout;
+// realOrResolve compares the two real, absolute paths instead (Spec-AC-22).
+function realOrResolve(p) {
+  try { return realpathSync(p); } catch { return resolve(p); }
+}
+if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
   runMain(() => main(process.argv.slice(2)));
 }

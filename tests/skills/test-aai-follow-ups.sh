@@ -33,6 +33,8 @@ set -euo pipefail
 TEST_NAME="aai-follow-ups"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FU="$PROJECT_ROOT/.aai/scripts/follow-ups.mjs"
 ROUTINE_EMIT="$PROJECT_ROOT/.aai/scripts/routine-emit.mjs"
@@ -1201,10 +1203,10 @@ test_017_grammar_and_product_doc_pins() {
 
   local frontmatter
   frontmatter="$(awk '/^---$/{n++; next} n==1' "$pdoc")"
-  echo "$frontmatter" | grep -qE '^[[:space:]]*-[[:space:]]*followups-cli-hardening[[:space:]]*$' \
-    || log_fail "product doc frontmatter delivered_by must include followups-cli-hardening"
-  echo "$frontmatter" | grep -qE '^updated: [0-9]{4}-[0-9]{2}-[0-9]{2}$' \
-    || log_fail "product doc frontmatter updated must be a well-formed ISO date"
+  assert_payload_line_matches "$frontmatter" '^[[:space:]]*-[[:space:]]*followups-cli-hardening[[:space:]]*$' \
+    "product doc frontmatter delivered_by must include followups-cli-hardening"
+  assert_payload_line_matches "$frontmatter" '^updated: [0-9]{4}-[0-9]{2}-[0-9]{2}$' \
+    "product doc frontmatter updated must be a well-formed ISO date"
 
   # NOTE (review NB-6): `--check` exits 0 on NEEDS-TRIAGE too (it only exits
   # non-zero on result.hardFail) — this is a smoke assertion that the audit
@@ -1573,6 +1575,23 @@ misses_subset_of_allowlist() {
   return 0
 }
 
+# allowlist_entries_outside <space-separated delivery set> <space-separated
+# members> -> prints every member NOT in the delivery set (Spec-AC-13,
+# fu-closure-allowlist-pin-blocks-draining / fu-test029-count-not-subset):
+# the delivery set is a CEILING on what the allowlist may ever carry, never
+# a floor, so this only ever flags growth past it, never a drain below it.
+allowlist_entries_outside() {
+  local delivery_set=" $1 " members="$2" m
+  local out=""
+  for m in $members; do
+    case "$delivery_set" in
+      *" $m "*) ;;
+      *) out="$out $m" ;;
+    esac
+  done
+  printf '%s' "${out# }"
+}
+
 # ============================ TEST-024 (Spec-AC-06) ==========================
 test_024_verify_closures_reads_both_claim_shapes() {
   log_info "Test: verify-closures --path --json parses BOTH recognized claim shapes (a labelled ## heading section, and the inline 'Registry items closed by this scope:' label) and reports every claimed fu- id with its folded ledger status (TEST-006)..."
@@ -1814,12 +1833,45 @@ test_029_real_corpus_ratchet_is_a_subset() {
   misses_subset_of_allowlist "$misses" \
     || log_fail "TEST-029: the real corpus reported a MISS outside the declared allowlist — either a real closure claim broke, or the allowlist needs a deliberate, reviewed update. misses=[$misses] allowlist=[${KNOWN_UNVERIFIED_CLOSURE_CLAIMS[*]}]"
 
-  [[ "${#KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}" -eq 3 ]] \
-    || log_fail "TEST-029: the allowlist must hold exactly the three measured entries at delivery, got ${#KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}"
-  local expected="fu-empty-path-cd-stays-in-shipping-repo fu-tdd-skips-full-sweep fu-validation-staleness-undetected"
-  local sorted; sorted="$(printf '%s\n' "${KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}" | sort | tr '\n' ' ')"
-  sorted="${sorted% }"
-  [[ "$sorted" == "$expected" ]] || log_fail "TEST-029: allowlist contents drifted from the three measured entries: [$sorted]"
+  # Spec-AC-13 (fu-closure-allowlist-pin-blocks-draining,
+  # fu-test029-count-not-subset): the property this pin MEANS is "no entry
+  # outside the allowlist", which is a SUBSET claim about the allowlist's
+  # relationship to the three entries measured at delivery — not a COUNT or
+  # a byte-identity claim about the allowlist itself. `-eq 3` plus an exact
+  # sorted-contents match reddened the suite the moment any ONE of the three
+  # was legitimately closed and drained (the allowlist's whole reason to
+  # exist), which is D7's exact shape: the cheapest legal repair (closing one
+  # entry) broke a test written for a different claim. The delivery-time set
+  # is now the CEILING, never the floor: the allowlist may shrink to zero as
+  # entries close, but every entry it still carries must come from that set.
+  local delivery_set="fu-empty-path-cd-stays-in-shipping-repo fu-tdd-skips-full-sweep fu-validation-staleness-undetected"
+  [[ "${#KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}" -le 3 ]] \
+    || log_fail "TEST-029: the allowlist may only DRAIN from the three entries measured at delivery, never grow past them, got ${#KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}: [${KNOWN_UNVERIFIED_CLOSURE_CLAIMS[*]}]"
+  local outside; outside="$(allowlist_entries_outside "$delivery_set" "${KNOWN_UNVERIFIED_CLOSURE_CLAIMS[*]}")"
+  [[ -z "$outside" ]] \
+    || log_fail "TEST-029: allowlist entry outside the three entries measured at delivery ($delivery_set) — draining a listed entry is fine, adding one that was never in it is not: $outside"
+
+  # Negative control (Spec-AC-12/DEBT-0004, TEST-424): the real check above
+  # only ever runs over the shipped (currently-legal) array, so it has never
+  # been OBSERVED failing on a growth outside the delivery set, nor
+  # OBSERVED passing on a legal drain. Two local scratch arrays, never the
+  # global one, prove both.
+  # (Two members assigned to plain variables FIRST, not inlined as string
+  # literals inside a command substitution: one of the real fu- ids below
+  # spells "-cd-", and the hygiene pack's cd-subshell-leak scanner matches a
+  # bare `cd` token anywhere inside a `$( ... )` payload — a false positive
+  # on this literal DATA, not a real leak, that a variable reference does
+  # not trigger.)
+  local drained_members="fu-empty-path-cd-stays-in-shipping-repo fu-tdd-skips-full-sweep"
+  local drained_outside; drained_outside="$(allowlist_entries_outside "$delivery_set" "$drained_members")"
+  [[ -z "$drained_outside" ]] \
+    || log_fail "TEST-029 negative control: draining the allowlist to two of the three delivery entries was wrongly flagged: $drained_outside"
+  local grown_members="fu-empty-path-cd-stays-in-shipping-repo fu-tdd-skips-full-sweep fu-validation-staleness-undetected fu-never-in-the-delivery-set"
+  local grown_outside; grown_outside="$(allowlist_entries_outside "$delivery_set" "$grown_members")"
+  case "$grown_outside" in
+    *fu-never-in-the-delivery-set*) ;;
+    *) log_fail "TEST-029 negative control: an allowlist entry outside the delivery set was NOT detected by allowlist_entries_outside() — the guard would stay silent on the exact growth it exists to catch" ;;
+  esac
 
   # A fixture claim to an id that is definitely never in the ledger, and
   # definitely not in the allowlist, must FAIL the subset check — proving the
@@ -1859,6 +1911,19 @@ test_030_suite_map_glob_and_seam3_regression() {
   test_002_query_path
 
   log_pass "select-suites.mjs maps a changed docs/specs or docs/issues path to aai-follow-ups; the pre-existing list --json assertions still hold unchanged (SEAM-3, TEST-012)"
+}
+
+# other_frozen_specs_touched(diff_text, own_spec_filename) — given the
+# newline-separated `docs/specs/*.md` paths a diff touched, and the filename
+# of the spec whose OWN delivery the diff is expected to be, returns every
+# OTHER spec path present. Factored out of test_031 (Spec-AC-12/TEST-448) so
+# the SAME comparison the real check runs can also be driven, in-suite,
+# against a fixture diff that proves it actually flags a second frozen spec
+# — not only that it stays quiet on the (now permanent) case where the
+# diff never touches SPEC-0159 at all.
+other_frozen_specs_touched() {
+  local diff_text="$1" own="$2"
+  printf '%s\n' "$diff_text" | grep -v -F "$own" | grep -v '^$' || true
 }
 
 # ============================ TEST-031 (Spec-AC-13) ==========================
@@ -1908,18 +1973,124 @@ test_031_both_registry_items_closed_for_real() {
     spec_diff="$(git -C "$PROJECT_ROOT" diff --name-only "$BASE_REF"...HEAD -- 'docs/specs/*.md' 2>/dev/null)"
     own_spec_touched="$(printf '%s\n' "$spec_diff" | grep -F 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md' || true)"
     if [[ -n "$own_spec_touched" ]]; then
-      other_specs="$(printf '%s\n' "$spec_diff" \
-        | grep -v 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md' || true)"
+      other_specs="$(other_frozen_specs_touched "$spec_diff" 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md')"
       [[ -z "$other_specs" ]] \
         || log_fail "TEST-031: this scope's diff touches another frozen spec document, which Spec-AC-13 forbids: $other_specs"
     else
-      log_info "TEST-031: this scope's own spec document is not part of the live $BASE_REF...HEAD diff — not this scope's delivery branch, delivery-diff guard not applicable here"
+      # Spec-AC-13 (fu-test031-guard-dies-at-rename): SPEC-0159 is this
+      # guard's OWN scope, now merged history — it will never again be part
+      # of a live $BASE_REF...HEAD diff, so this branch is not an occasional
+      # degrade, it is this guard's PERMANENT resting state on every branch
+      # from here on. The old text ("not this scope's delivery branch,
+      # guard not applicable here") read as a claim that something was
+      # checked; nothing was. Name that honestly.
+      log_info "TEST-031: UNCOVERED — this scope's own spec document (SPEC-0159, now merged history) is not part of the live $BASE_REF...HEAD diff, so the delivery-diff guard has nothing of its own delivery to check on this branch"
     fi
   else
-    log_info "TEST-031: base ref $BASE_REF not resolvable here — skipping the delivery-diff guard (degrade, not a failure)"
+    log_info "TEST-031: UNCOVERED — base ref $BASE_REF not resolvable here, so the delivery-diff guard cannot compute a diff at all (degrade, not a failure)"
   fi
 
-  log_pass "both registry items named by ISSUE-0046 are closed for real, resolved_by naming this scope; no other frozen spec document is touched (TEST-013)"
+  # Negative control (Spec-AC-12/DEBT-0004, TEST-448): the real arm above can
+  # only ever run on SPEC-0159's own now-merged delivery branch, which no
+  # longer exists — it has never been OBSERVED failing on a real violation.
+  # A fixture diff naming two frozen specs, ONE of them "own", proves the
+  # SAME comparison the real check uses actually flags the other one.
+  local fx_diff fx_violation
+  fx_diff="$(printf '%s\n' \
+    'docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md' \
+    'docs/specs/SPEC-0042-spec-some-other-frozen-scope.md')"
+  fx_violation="$(other_frozen_specs_touched "$fx_diff" 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md')"
+  case "$fx_violation" in
+    *SPEC-0042-spec-some-other-frozen-scope.md*) ;;
+    *) log_fail "TEST-031 negative control: a fixture diff touching a second frozen spec was NOT flagged by other_frozen_specs_touched() — the delivery-diff guard would stay silent on the exact violation it exists to catch" ;;
+  esac
+  fx_diff="$(printf '%s\n' 'docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md')"
+  fx_violation="$(other_frozen_specs_touched "$fx_diff" 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md')"
+  [[ -z "$fx_violation" ]] \
+    || log_fail "TEST-031 negative control: a diff touching ONLY this scope's own spec was wrongly flagged: $fx_violation"
+
+  log_pass "both registry items named by ISSUE-0046 are closed for real, resolved_by naming this scope; no other frozen spec document is touched, and the delivery-diff guard's fixture negative control proves it still has teeth (TEST-013/TEST-448/Spec-AC-12+13)"
+}
+
+# ============================ TEST-443 (Spec-AC-26) ===========================
+# spec-test-framework-sweep's own registry closure claim, over the REAL ledger:
+# `verify-closures --strict` over the spec exits 0, every one of the 84 frozen
+# bucket ids (docs/ai/tdd/spec-test-framework-sweep/bucket-open-2026-09-13.txt)
+# is terminal (done or dropped) with resolved_by naming this ride, and the
+# union of the spec's own closed(48)+rejected(36) tables is EXACTLY those 84
+# ids — no more, no fewer.
+test_032_spec_test_framework_sweep_closure_is_real() {
+  log_info "Test: spec-test-framework-sweep's registry closure — verify-closures --strict exits 0, all 84 frozen bucket ids are terminal and resolved_by this ride, and the closed+rejected union is exactly the 84 ids (TEST-443)..."
+  local spec_path="$PROJECT_ROOT/docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md"
+  local bucket="$PROJECT_ROOT/docs/ai/tdd/spec-test-framework-sweep/bucket-open-2026-09-13.txt"
+  [[ -f "$spec_path" ]] || log_skip "spec not found: $spec_path"
+  [[ -f "$bucket" ]] || log_skip "frozen bucket list not found: $bucket"
+
+  local vc_out vc_rc=0
+  vc_out="$(node "$FU" verify-closures --path "$spec_path" --strict 2>&1)" || vc_rc=$?
+  [[ "$vc_rc" == 0 ]] || log_fail "TEST-443: verify-closures --strict must exit 0 over this spec, got $vc_rc: $vc_out"
+  grep -qE 'miss=0' <<<"$vc_out" \
+    || log_fail "TEST-443: verify-closures reported a nonzero miss count: $vc_out"
+
+  # The 84 frozen bucket ids, one per line as "P<n> fu-<id> [ref] text".
+  local bucket_ids
+  bucket_ids="$(awk '{print $2}' "$bucket" | sort -u)"
+  local bucket_count
+  bucket_count="$(printf '%s\n' "$bucket_ids" | grep -c .)"
+  [[ "$bucket_count" == 84 ]] \
+    || log_fail "TEST-443: the frozen bucket list itself no longer holds 84 ids (got $bucket_count) — the FROZEN partition moved, which this test cannot reconcile"
+
+  # Union of the spec's OWN closed+rejected tables, read straight from its
+  # prose (the same two headings verify-closures itself parses for `claims`).
+  local closed_ids rejected_ids union_ids diff1 diff2
+  closed_ids="$(awk '/^## Registry items closed by this scope/{f=1;next} /^## Registry items rejected by this scope/{f=0} f' "$spec_path" \
+    | grep -oE 'fu-[a-z0-9-]+' | sort -u)"
+  rejected_ids="$(awk '/^## Registry items rejected by this scope/{f=1;next} /^## GitHub issues/{f=0} f' "$spec_path" \
+    | grep -oE '^\| fu-[a-z0-9-]+' | grep -oE 'fu-[a-z0-9-]+' | sort -u)"
+  union_ids="$(printf '%s\n%s\n' "$closed_ids" "$rejected_ids" | sort -u)"
+  local union_count
+  union_count="$(printf '%s\n' "$union_ids" | grep -c .)"
+  [[ "$union_count" == 84 ]] \
+    || log_fail "TEST-443: the spec's closed+rejected union is $union_count ids, want 84"
+
+  diff1="$(comm -23 <(printf '%s\n' "$bucket_ids") <(printf '%s\n' "$union_ids"))"
+  diff2="$(comm -13 <(printf '%s\n' "$bucket_ids") <(printf '%s\n' "$union_ids"))"
+  [[ -z "$diff1" ]] \
+    || log_fail "TEST-443: frozen bucket id(s) missing from the spec's closed+rejected union: $diff1"
+  [[ -z "$diff2" ]] \
+    || log_fail "TEST-443: the spec's closed+rejected union names id(s) outside the frozen bucket: $diff2"
+
+  # Every one of the 84 ids is terminal in the REAL ledger, resolved_by this
+  # ride — not merely claimed in the spec's own prose.
+  local id status resolved_by bad_status="" bad_attrib=""
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    local row
+    row="$(node "$FU" list --status all --json 2>/dev/null | node -e '
+      const fs=require("fs");
+      let d="";process.stdin.on("data",c=>d+=c);
+      process.stdin.on("end",()=>{
+        const j=JSON.parse(d);
+        const items=Array.isArray(j)?j:(j.items||j.followUps||[]);
+        const it=items.find(x=>x.id===process.argv[1]);
+        console.log(it?JSON.stringify(it):"MISSING");
+      });' "$id")"
+    [[ "$row" != "MISSING" ]] || { bad_status="${bad_status:+$bad_status }$id(missing)"; continue; }
+    status="$(node -e "console.log(JSON.parse(process.argv[1]).status)" "$row" 2>/dev/null)"
+    resolved_by="$(node -e "console.log(JSON.parse(process.argv[1]).resolved_by||'')" "$row" 2>/dev/null)"
+    case "$status" in
+      done|dropped) ;;
+      *) bad_status="${bad_status:+$bad_status }$id($status)" ;;
+    esac
+    [[ "$resolved_by" == "test-framework-sweep" ]] \
+      || bad_attrib="${bad_attrib:+$bad_attrib }$id($resolved_by)"
+  done <<< "$bucket_ids"
+  [[ -z "$bad_status" ]] \
+    || log_fail "TEST-443: id(s) not terminal in the real ledger: $bad_status"
+  [[ -z "$bad_attrib" ]] \
+    || log_fail "TEST-443: id(s) not resolved_by test-framework-sweep: $bad_attrib"
+
+  log_pass "TEST-443: verify-closures --strict exits 0 over spec-test-framework-sweep, all 84 frozen bucket ids are terminal and resolved_by this ride, and the closed+rejected union is exactly those 84 ids"
 }
 
 main() {
@@ -1958,6 +2129,7 @@ main() {
   test_029_real_corpus_ratchet_is_a_subset
   test_030_suite_map_glob_and_seam3_regression
   test_031_both_registry_items_closed_for_real
+  test_032_spec_test_framework_sweep_closure_is_real
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

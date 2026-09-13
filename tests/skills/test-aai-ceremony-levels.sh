@@ -1015,21 +1015,21 @@ test_015_prompt_lane_surfaces() {
   grep -q "^CEREMONY LANE" "$v" || log_fail "VALIDATION.prompt.md must carry a CEREMONY LANE block"
   block="$(awk '/^CEREMONY LANE/{f=1} /^PROCESS$/{f=0} f' "$v")"
   [[ -n "$block" ]] || log_fail "CEREMONY LANE block body not found (must end before PROCESS)"
-  echo "$block" | grep -qi "fail-closed" || log_fail "CEREMONY LANE block must name the fail-closed rule"
-  echo "$block" | grep -qi "declared" || log_fail "CEREMONY LANE block must name the L0/L1 declared-scope validation rule"
+  assert_payload_contains_i "$block" "fail-closed" "CEREMONY LANE block must name the fail-closed rule"
+  assert_payload_contains_i "$block" "declared" "CEREMONY LANE block must name the L0/L1 declared-scope validation rule"
   assert_payload_contains "$block" "lane.selected" "CEREMONY LANE block must reference the dispatch lane.selected field"
   # validation-cost-calibration Spec-AC-01 (spec TEST-001): the lightweight
   # lane PROHIBITS a blanket full-suite re-execution, MANDATES adversarial
   # probes on the seams in addition to the declared scope, and NAMES
   # close-before-CI ordering as the reason the full-suite proof still exists.
-  echo "$block" | grep -qi "do not run a blanket full-suite re-execution" \
-    || log_fail "CEREMONY LANE block must prohibit a blanket full-suite re-execution at lightweight (Spec-AC-01)"
-  echo "$block" | grep -qi "adversarial" || log_fail "CEREMONY LANE block must mandate adversarial seam probes at lightweight (Spec-AC-01)"
-  echo "$block" | grep -qi "close-before-ci" || log_fail "CEREMONY LANE block must name close-before-CI ordering as why the full-suite proof still exists (Spec-AC-01)"
+  assert_payload_contains_i "$block" "do not run a blanket full-suite re-execution" \
+    "CEREMONY LANE block must prohibit a blanket full-suite re-execution at lightweight (Spec-AC-01)"
+  assert_payload_contains_i "$block" "adversarial" "CEREMONY LANE block must mandate adversarial seam probes at lightweight (Spec-AC-01)"
+  assert_payload_contains_i "$block" "close-before-ci" "CEREMONY LANE block must name close-before-CI ordering as why the full-suite proof still exists (Spec-AC-01)"
 
   block="$(awk '/^10\) /{f=1} /^11\) /{f=0} f' "$p")"
   [[ -n "$block" ]] || log_fail "PLANNING step 10 block not found"
-  echo "$block" | grep -qi "dispatch lane" || log_fail "step 10 must name the dispatch lane"
+  assert_payload_contains_i "$block" "dispatch lane" "step 10 must name the dispatch lane"
   assert_payload_contains "$block" "L0/L1" "step 10 lane wording must name L0/L1"
   grep -q "^11) Emit the work-item brief" "$p" || log_fail "step 11 must survive unrenumbered"
   grep -q "^12) Update docs/ai/STATE.yaml" "$p" || log_fail "step 12 must survive unrenumbered"
@@ -1077,17 +1077,21 @@ test_016_misuse_guard_survival() {
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --gate-file "$fx/l1-clean.md" > "$fx/gate-c.log" 2>&1) || ec=$?
   [[ "$ec" == 0 ]] || log_fail "(c) docs-audit --gate-file must pass a fully-declared L1 fixture (got $ec): $(cat "$fx/gate-c.log")"
 
-  # Hard constraint (Spec-AC-06 / D6): docs-audit-core.mjs byte-untouched by
-  # this scope. spec-lint.mjs is NOT held to a blanket byte-untouched rule —
-  # it is an intentionally-evolving, non-protected tool (e.g. CHANGE-0035
-  # added an additive --slug-handles scan mode); the D6 freeze-time boundary
-  # this test guards (frozen-without-ac-table detection) is verified
-  # functionally by cases (a)/(b)/(c) above, which stay meaningful across any
-  # such future additive change.
-  (cd "$PROJECT_ROOT" && git diff --exit-code -- .aai/scripts/lib/docs-audit-core.mjs > "$fx/diff.log" 2>&1) \
-    || log_fail "docs-audit-core.mjs must be byte-untouched by this scope: $(cat "$fx/diff.log")"
+  # Spec-AC-13 (fu-ceremony-test016-blanket-byte-pin): the bare
+  # `git diff --exit-code -- docs-audit-core.mjs` this block used to run
+  # compares the WORKTREE against the INDEX, with no ref — so it reddens
+  # only while an edit to that shared library is unstaged, and goes silent
+  # the instant the edit is committed (verified in a scratch repo: staged or
+  # committed gives rc 0, unstaged gives rc 1). Worse, it pins ANY later
+  # scope that ever legitimately touches that shared library, for a reason
+  # this scope never had — TEST-006/D6's actual claim (frozen-without-
+  # ac-table detection survives at both the freeze-time and close-time
+  # boundary) is already proven, functionally and meaningfully across any
+  # future additive change, by cases (a)/(b)/(c) above. Deleted in favour of
+  # them, per D7: a guard that means one thing does not stay in the file as
+  # a check for something else.
 
-  log_pass "Misuse guardrails survive unmodified: freeze-time (spec-lint) + close-time (docs-audit gate) both still fire; guardrail files untouched (TEST-016/spec TEST-006)"
+  log_pass "Misuse guardrails survive unmodified: freeze-time (spec-lint) + close-time (docs-audit gate) both still fire (TEST-016/spec TEST-006)"
 }
 
 # --- TEST-017 (Spec TEST-007/Spec-AC-04..06): seam survival --------------------
@@ -1160,15 +1164,18 @@ test_018_step10_workflow_pointer() {
   [[ -n "$block" ]] || log_fail "TEST-018: PLANNING step 10 block not found"
 
   assert_payload_contains "$block" ".aai/workflow/WORKFLOW.md" "TEST-018: step 10 must point at .aai/workflow/WORKFLOW.md as the single source of the ceremony levels"
-  echo "$block" | grep -qi "typo/docs-only" \
-    && log_fail "TEST-018: step 10 must not restate the four-level meaning paraphrase (found 'typo/docs-only')"
+  local _nc_save; _nc_save="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+  shopt -s nocasematch
+  case "$block" in
+    *"typo/docs-only"*) eval "$_nc_save"; log_fail "TEST-018: step 10 must not restate the four-level meaning paraphrase (found 'typo/docs-only')" ;;
+    *) eval "$_nc_save" ;;
+  esac
   assert_payload_not_contains "$block" "MANDATORY when the scope touches" "TEST-018: step 10 must not restate the protected-surface MANDATORY-L3 mechanic"
 
   # role-specific residue Planning alone owns must survive the trim.
   assert_payload_contains "$block" "ceremony_level" "TEST-018: step 10 must still declare ceremony_level"
   assert_payload_contains "$block" "Ceremony justification:" "TEST-018: step 10 must still name the Ceremony justification: line"
-  echo "$block" | grep -qi "dispatch lane" \
-    || log_fail "TEST-018: step 10 must still name the dispatch lane"
+  assert_payload_contains_i "$block" "dispatch lane" "TEST-018: step 10 must still name the dispatch lane"
   assert_payload_contains "$block" "L0/L1" "TEST-018: step 10 must still name L0/L1"
 
   # no full ceremony gate table row (the table lives ONLY in WORKFLOW.md).

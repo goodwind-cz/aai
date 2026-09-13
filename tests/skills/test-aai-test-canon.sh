@@ -24,6 +24,23 @@ set -euo pipefail
 TEST_NAME="aai-test-canon"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
+
+# Local positive per-line ERE test (Spec-AC-11): unlike assert_payload_line_matches,
+# this returns a plain boolean with no auto-fail, for the call sites below that run
+# their own extra diagnostics/cleanup before deciding how to fail.
+payload_line_matches() {
+  local _p="$1" _e="$2" _l
+  while IFS= read -r _l; do
+    if [[ "$_l" =~ $_e ]]; then return 0; fi
+  done <<EOF
+$_p
+EOF
+  return 1
+}
+
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TEST_CANON_SCRIPT="$PROJECT_ROOT/.aai/scripts/test-canon.mjs"
 
@@ -507,7 +524,7 @@ test_006() {
   # drift present, so do NOT gate the assertion on exit code.
   local phase2_out
   phase2_out=$(run_script --phase2 2>&1) || true
-  if ! echo "$phase2_out" | grep -Eq "DRIFT \(changed since synthesis, NOT rewritten\): [1-9][0-9]* \(.*${domain}.*\)"; then
+  if ! payload_line_matches "$phase2_out" "DRIFT \(changed since synthesis, NOT rewritten\): [1-9][0-9]* \(.*${domain}.*\)"; then
     echo "$phase2_out" >&2
     rm -rf "$snapshot_dir"
     log_fail "Phase 2 did not report DRIFT naming domain '${domain}' after archived-source drift"
@@ -552,7 +569,7 @@ test_006() {
   # assertion that just passed on the drift-skip path.
   local resync_out
   resync_out=$(run_script --phase2 --resync 2>&1) || true
-  if ! echo "$resync_out" | grep -Eq "Re-synced \(drift resolved\): [1-9][0-9]* \(.*${domain}.*\)"; then
+  if ! payload_line_matches "$resync_out" "Re-synced \(drift resolved\): [1-9][0-9]* \(.*${domain}.*\)"; then
     echo "$resync_out" >&2
     rm -rf "$snapshot_dir"
     log_fail "--resync did not reclassify domain '${domain}' as Re-synced (drift resolved)"
@@ -696,8 +713,20 @@ test_009() {
   local stderr
   stderr=$(run_script --phase1 2>&1 1>/dev/null) || log_fail "Phase 1 failed without docs/canonical/"
 
-  # Check that degrade message was emitted to stderr
-  if echo "$stderr" | grep -qi "degrad\|absent\|missing\|no canonical\|fallback\|raw docs"; then
+  # Check that degrade message was emitted to stderr. Pipe-free, case-insensitive
+  # substring-OR check (spec-assertions-must-not-die-on-their-own-payload): the
+  # original idiom piped this same $stderr through a quiet, case-insensitive
+  # grep inside an `if`, so a large $stderr degrading via SIGPIPE/pipefail
+  # would not crash the suite — it would silently flip this to a false negative
+  # instead.
+  local _degrade_nc_restore _degrade_hit=1
+  _degrade_nc_restore="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+  shopt -s nocasematch
+  case "$stderr" in
+    *degrad*|*absent*|*missing*|*"no canonical"*|*fallback*|*"raw docs"*) _degrade_hit=0 ;;
+  esac
+  eval "$_degrade_nc_restore"
+  if [[ "$_degrade_hit" -eq 0 ]]; then
     log_pass "Degrade mode detected: message about absent docs/canonical/"
   else
     log_info "Checking stderr for degrade message: $stderr"

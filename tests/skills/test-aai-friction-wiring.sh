@@ -90,6 +90,69 @@ log_fail() { echo "FAIL: $*" >&2; exit 1; }
 log_skip() { echo "SKIP: $*"; exit 42; }
 log_info() { echo "INFO: $*"; }
 
+# assert_payload_line_matches_i <payload> <ere> [message] — case-INSENSITIVE
+# per-line ERE match (DEBT-0006 drain; the `grep -qiE` sites carrying a
+# genuine regex metacharacter, not one of tests/skills/lib/assert-payload.sh's
+# five helpers, which stop at case-insensitive SUBSTRING). nocasematch is
+# saved/restored so it never leaks into the caller's shell.
+assert_payload_line_matches_i() {
+  local _p="$1" _e="$2" _m="${3:-}" _l _rc=1 _nc
+  _nc="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+  shopt -s nocasematch
+  while IFS= read -r _l; do
+    if [[ "$_l" =~ $_e ]]; then _rc=0; break; fi
+  done <<EOF
+$_p
+EOF
+  eval "$_nc"
+  [ "$_rc" -eq 0 ] && return 0
+  _assert_payload_report "${_m:-no line of the payload matches the pattern (case-insensitive)} (pattern: '$_e'), got: $(payload_preview "$_p")"
+}
+
+# assert_payload_line_not_matches <payload> <ere> [message] — negative
+# counterpart to assert_payload_line_matches: fails if ANY line matches.
+# For a NEGATIVE, genuine-regex (no -i) `grep -qE ... && log_fail` site.
+assert_payload_line_not_matches() {
+  local _p="$1" _e="$2" _m="$3" _l
+  while IFS= read -r _l; do
+    if [[ "$_l" =~ $_e ]]; then log_fail "$_m"; return; fi
+  done <<EOF
+$_p
+EOF
+  return 0
+}
+
+# assert_not_contains_i <payload> <needle> [message] — case-INSENSITIVE
+# substring, ASSERTS ABSENCE (found => fail). Safe restructuring for a
+# `grep -qiF ... && log_fail` site: assert_payload_contains_i cannot be
+# wrapped for this because its OWN miss path calls the suite's real
+# (exiting) log_fail, and here a miss is the expected/success case.
+assert_not_contains_i() {
+  local _p="$1" _n="$2" _m="$3" _s
+  _s="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+  shopt -s nocasematch
+  case "$_p" in
+    *"$_n"*) eval "$_s"; log_fail "$_m" ;;
+    *) eval "$_s" ;;
+  esac
+}
+
+# Spec-AC-28 / D3: the same nesting-wrapper fix as test-aai-feedback-upsert.sh
+# — see that file's header comment for the full rationale. Writes the
+# complete nested output to a file, names the file and its line count, and
+# surfaces the matched failure lines instead of rendering everything into one
+# `log_fail` argument (which the framework's whole-log extraction then shows
+# only the first line of).
+nested_suite_fail() {
+  local label="$1" out="$2" code="$3"
+  local nfile="$TEST_DIR/nested-${label// /_}.log"
+  printf '%s\n' "$out" > "$nfile"
+  local n; n="$(wc -l < "$nfile" | tr -d ' ')"
+  local ctx
+  ctx="$(grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$nfile" 2>/dev/null | head -n 25 | sed 's/^/FAIL-CTX: /' || true)"
+  log_fail "$label failed (exit $code); nested output: $nfile ($n lines)"$'\n'"$ctx"
+}
+
 check_deps() {
   log_info "Checking dependencies..."
   command -v node >/dev/null 2>&1 || log_skip "node not found"
@@ -200,12 +263,9 @@ test_004_shadow_contract() {
   log_info "Test: seam documents the shadow best-effort / never-mask / swallow contract (TEST-004)..."
   local seam; seam="$(extract_seam "$PROTOCOL")"
   [ -n "$seam" ] || log_fail "TEST-004: seam section is empty or missing"
-  printf '%s' "$seam" | grep -qi "best-effort" \
-    || log_fail "TEST-004: seam must state capture is best-effort"
-  printf '%s' "$seam" | grep -qiE "never (mask|change)|must not (mask|change|replace)" \
-    || log_fail "TEST-004: seam must state capture never masks/changes the skill result"
-  printf '%s' "$seam" | grep -qi "swallow" \
-    || log_fail "TEST-004: seam must state a capture failure is swallowed"
+  assert_payload_contains_i "$seam" "best-effort" "TEST-004: seam must state capture is best-effort"
+  assert_payload_line_matches_i "$seam" "never (mask|change)|must not (mask|change|replace)" "TEST-004: seam must state capture never masks/changes the skill result"
+  assert_payload_contains_i "$seam" "swallow" "TEST-004: seam must state a capture failure is swallowed"
   log_pass "Seam documents the shadow best-effort / never-mask / swallow contract (TEST-004)"
 }
 
@@ -218,14 +278,10 @@ test_005_no_phase2_surface() {
   local forbidden="aai-feedback-triage feedback.yaml upsert"
   local tok
   for tok in $forbidden; do
-    if printf '%s' "$seam" | grep -qiF "$tok"; then
-      log_fail "TEST-005: seam must not introduce Phase-2 surface token '$tok'"
-    fi
+    assert_not_contains_i "$seam" "$tok" "TEST-005: seam must not introduce Phase-2 surface token '$tok'"
   done
   # No GitHub/network invocation wired into the seam.
-  if printf '%s' "$seam" | grep -qE '(^|[^a-zA-Z])gh (issue|pr|api)'; then
-    log_fail "TEST-005: seam must not wire a gh network call"
-  fi
+  assert_payload_line_not_matches "$seam" '(^|[^a-zA-Z])gh (issue|pr|api)' "TEST-005: seam must not wire a gh network call"
   log_pass "Seam introduces no Phase-2 surface (TEST-005)"
 }
 
@@ -235,10 +291,43 @@ test_006_companion_suites() {
   log_info "Test: companion prompt-diet + layer-profiles suites green (TEST-006)..."
   local out code
   out="$(bash "$PROMPT_DIET_TEST" 2>&1)"; code=$?
-  [ "$code" = "0" ] || log_fail "TEST-006: test-aai-prompt-diet.sh must pass (exit $code): $(printf '%s' "$out" | grep -n -A40 "FAIL" | head -60)"
+  [ "$code" = "0" ] || nested_suite_fail "TEST-006: test-aai-prompt-diet.sh" "$out" "$code"
   out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
-  [ "$code" = "0" ] || log_fail "TEST-006: test-aai-layer-profiles.sh must pass (exit $code): $(printf '%s' "$out" | grep -n -A40 "FAIL" | head -60)"
+  [ "$code" = "0" ] || nested_suite_fail "TEST-006: test-aai-layer-profiles.sh" "$out" "$code"
   log_pass "Companion prompt-diet + layer-profiles suites green (TEST-006)"
+}
+
+# --- TEST-449 (Spec-AC-28): the same nesting-wrapper property, proven against
+# this file's own nested_suite_fail (the second nesting wrapper) -----------
+test_449_nested_failure_names_file_with_linecount() {
+  log_info "Test: nested_suite_fail writes the full nested output to a named file with its line count (TEST-449)..."
+  local payload
+  payload="$(printf 'INFO: step one\nPASS: step one ok\nINFO: step two\nPASS: step two ok\nINFO: step three\nFAIL: the real cause of the failure')"
+  local msg rc
+  set +e
+  msg="$(nested_suite_fail "probe label" "$payload" "1" 2>&1)"; rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || log_fail "TEST-449: nested_suite_fail must exit non-zero"
+
+  local nfile
+  nfile="$(printf '%s\n' "$msg" | grep -oE "$TEST_DIR/nested-[^ ]*\.log" | head -1)"
+  [ -n "$nfile" ] || log_fail "TEST-449: message must name the nested-output file, got: $msg"
+  [ -f "$nfile" ] || log_fail "TEST-449: named file must actually exist: $nfile"
+
+  local file_lines stated_n
+  file_lines="$(wc -l < "$nfile" | tr -d ' ')"
+  stated_n="$(printf '%s\n' "$msg" | grep -oE '\([0-9]+ lines\)' | grep -oE '[0-9]+' | head -1)"
+  [ -n "$stated_n" ] || log_fail "TEST-449: message must state the file's line count, got: $msg"
+  [ "$stated_n" = "$file_lines" ] || log_fail "TEST-449: stated line count ($stated_n) must match the file's actual line count ($file_lines)"
+
+  grep -qF "step one ok" "$nfile" || log_fail "TEST-449: nested file lost early context lines: $(cat "$nfile")"
+  grep -qF "the real cause of the failure" "$nfile" || log_fail "TEST-449: nested file lost the actual FAIL line"
+
+  local matched
+  matched="$(printf '%s\n' "$msg" | grep -cE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' || true)"
+  [ "$matched" -gt 1 ] || log_fail "TEST-449: framework-style extraction over the wrapper's message must show more than one line, got $matched: $msg"
+
+  log_pass "nesting wrapper names a file + line count and survives whole-log extraction (TEST-449, Spec-AC-28)"
 }
 
 # --- TEST-007 (Spec-AC-01, integration): documented command runs e2e --------
@@ -319,12 +408,9 @@ test_008_hooks_enumerated() {
   local seam; seam="$(extract_seam "$PROTOCOL")"
   [ -n "$seam" ] || log_fail "TEST-008: seam section is empty or missing"
   assert_payload_contains "$seam" "$DETERMINISTIC_HEADING" "TEST-008: seam must carry the '$DETERMINISTIC_HEADING' subsection"
-  printf '%s' "$seam" | grep -qi "validation FAIL" \
-    || log_fail "TEST-008: seam must name the validation-FAIL hook"
-  printf '%s' "$seam" | grep -qi "remediation dispatch" \
-    || log_fail "TEST-008: seam must name the remediation-dispatch hook"
-  printf '%s' "$seam" | grep -qi "canon-file gate/lint/CI failure" \
-    || log_fail "TEST-008: seam must name the canon-file gate/lint/CI failure hook"
+  assert_payload_contains_i "$seam" "validation FAIL" "TEST-008: seam must name the validation-FAIL hook"
+  assert_payload_contains_i "$seam" "remediation dispatch" "TEST-008: seam must name the remediation-dispatch hook"
+  assert_payload_contains_i "$seam" "canon-file gate/lint/CI failure" "TEST-008: seam must name the canon-file gate/lint/CI failure hook"
   log_pass "Protocol seam enumerates all three deterministic hooks (TEST-008 / spec TEST-001)"
 }
 
@@ -512,12 +598,9 @@ test_015_wrapup_step6_wired() {
   ' "$SKILL_WRAP_UP_PROMPT")"
   [ -n "$step6" ] || log_fail "TEST-015: step 6 (FRICTION FEEDBACK NUDGE) section not found"
   assert_payload_contains "$step6" "aai-feedback-triage.mjs" "TEST-015: step 6 must name the triage engine aai-feedback-triage.mjs"
-  printf '%s' "$step6" | grep -qi "proposed-intake" \
-    || log_fail "TEST-015: step 6 must surface proposed-intake one-liners"
-  printf '%s' "$step6" | grep -qi "review_candidate" \
-    || log_fail "TEST-015: step 6 must name the review_candidate decision it lists"
-  printf '%s' "$step6" | grep -qi "SILENT" \
-    || log_fail "TEST-015: step 6 must keep the empty-spool SILENT contract documented"
+  assert_payload_contains_i "$step6" "proposed-intake" "TEST-015: step 6 must surface proposed-intake one-liners"
+  assert_payload_contains_i "$step6" "review_candidate" "TEST-015: step 6 must name the review_candidate decision it lists"
+  assert_payload_contains_i "$step6" "SILENT" "TEST-015: step 6 must keep the empty-spool SILENT contract documented"
   log_pass "SKILL_WRAP_UP step 6 names the triage invocation + proposed-intake, silence preserved (TEST-015 / spec TEST-008)"
 }
 
@@ -594,6 +677,7 @@ main() {
   test_014_wrapup_triage_seam_b
   test_015_wrapup_step6_wired
   test_016_unwritable_spool_negative_control
+  test_449_nested_failure_names_file_with_linecount
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

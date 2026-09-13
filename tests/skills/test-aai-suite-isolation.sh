@@ -217,7 +217,7 @@ exit 0"
   commit_fixture_repo "$d" || { log_fail "TEST-001 fixture repo init failed"; return; }
 
   before="$(repo_state "$d")"
-  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
   after="$(repo_state "$d")"
 
   [[ "$rc" -eq 0 ]] || { log_info "TEST-001: framework exit=$rc (want 0 — neither suite reached the repository): $out"; ok=0; }
@@ -329,7 +329,7 @@ exit 0'
   git -C "$d" check-ignore -q docs/ai/STATE.yaml \
     || { log_info "TEST-003: the fixture's STATE.yaml is not gitignored, so the arm proves nothing"; ok=0; }
 
-  out="$(bash "$d/tests/skills/test-framework.sh" --verbose 2>&1 | strip_ansi)" || rc=$?
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" --verbose 2>&1 | strip_ansi)" || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-003: framework exit=$rc (want 0): $out"; ok=0; }
   grep -qF 'ASSERTED against the per-dev STATE.yaml' <<<"$out" \
     || { log_info "TEST-003: the gitignored per-dev file was NOT seeded, so the assertion turned into a passing skip: $out"; ok=0; }
@@ -341,7 +341,7 @@ exit 0'
   # could pass on a framework that seeds nothing but happens to be run in a
   # checkout that already carries the file.
   local out2 rc2=0
-  out2="$(AAI_TEST_ISOLATION_SEED='docs/ai/not-a-real-file' bash "$d/tests/skills/test-framework.sh" --verbose 2>&1 | strip_ansi)" || rc2=$?
+  out2="$(AAI_TEST_ISOLATION=1 AAI_TEST_ISOLATION_SEED='docs/ai/not-a-real-file' bash "$d/tests/skills/test-framework.sh" --verbose 2>&1 | strip_ansi)" || rc2=$?
   grep -qF 'SKIPPING: no per-dev STATE.yaml present' <<<"$out2" \
     || { log_info "TEST-003(control): with the seed list emptied the suite did NOT skip, so the seeding is not what made the positive arm pass: $out2"; ok=0; }
 
@@ -503,7 +503,7 @@ exit \"\${1:-0}\""
 
   # (a) a suite run, relative path, exit 0.
   before="$(repo_state "$d")"
-  ( cd "$d" && AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wsuite.sh 0 ) >/dev/null 2>&1 || rc=$?
+  ( cd "$d" && AAI_TEST_ISOLATION=1 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wsuite.sh 0 ) >/dev/null 2>&1 || rc=$?
   after="$(repo_state "$d")"
   [[ "$rc" -eq 0 ]] || { log_info "TEST-005(a): exit=$rc (want the command's own 0)"; ok=0; }
   [[ "$before" == "$after" ]] || { log_info "TEST-005(a): the shipping repository MOVED. before=[$before] after=[$after]"; ok=0; }
@@ -513,7 +513,7 @@ exit \"\${1:-0}\""
 
   # (b) the exit code is the command's own, unchanged, on a failure too.
   rc=0
-  ( cd "$d" && AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wsuite.sh 7 ) >/dev/null 2>&1 || rc=$?
+  ( cd "$d" && AAI_TEST_ISOLATION=1 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wsuite.sh 7 ) >/dev/null 2>&1 || rc=$?
   after="$(repo_state "$d")"
   [[ "$rc" -eq 7 ]] || { log_info "TEST-005(b): exit=$rc (want the command's own 7 — the wrapper contract is untouched)"; ok=0; }
   [[ "$before" == "$after" ]] || { log_info "TEST-005(b): the shipping repository MOVED on the failure path"; ok=0; }
@@ -524,7 +524,7 @@ exit \"\${1:-0}\""
   # full path.
   rc=0
   rm -f "$evid/wroot.txt"
-  ( cd / && AAI_FRICTION_CAPTURE=0 bash "$d/.aai/scripts/aai-run-tests.sh" bash "$d/tests/skills/test-aai-wsuite.sh" 0 ) >/dev/null 2>&1 || rc=$?
+  ( cd / && AAI_TEST_ISOLATION=1 AAI_FRICTION_CAPTURE=0 bash "$d/.aai/scripts/aai-run-tests.sh" bash "$d/tests/skills/test-aai-wsuite.sh" 0 ) >/dev/null 2>&1 || rc=$?
   after="$(repo_state "$d")"
   [[ "$rc" -eq 0 ]] || { log_info "TEST-005(c): exit=$rc (want 0)"; ok=0; }
   [[ -f "$evid/wroot.txt" ]] || { log_info "TEST-005(c): the suite never ran from its absolute path"; ok=0; }
@@ -536,7 +536,7 @@ exit \"\${1:-0}\""
   # generators; discarding their output with the checkout would be a
   # regression, so a non-suite command still runs in the real tree.
   rc=0
-  ( cd "$d" && AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh sh -c 'printf built > build-artifact.txt' ) >/dev/null 2>&1 || rc=$?
+  ( cd "$d" && AAI_TEST_ISOLATION=1 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh sh -c 'printf built > build-artifact.txt' ) >/dev/null 2>&1 || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-005(d): exit=$rc (want 0)"; ok=0; }
   [[ "$(cat "$d/build-artifact.txt" 2>/dev/null)" == "built" ]] \
     || { log_info "TEST-005(d): a NON-suite command was isolated and its artifact was discarded with the checkout — that is a regression, not a guard"; ok=0; }
@@ -549,7 +549,7 @@ exit \"\${1:-0}\""
   rc=0
   rm -f "$evid/wroot.txt"
   before="$(repo_state "$d")"
-  ( cd "$d" && AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wsuite.sh 0 my-test-framework.sh ) >/dev/null 2>&1 || rc=$?
+  ( cd "$d" && AAI_TEST_ISOLATION=1 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wsuite.sh 0 my-test-framework.sh ) >/dev/null 2>&1 || rc=$?
   after="$(repo_state "$d")"
   [[ "$rc" -eq 0 ]] || { log_info "TEST-005(e): exit=$rc (want 0)"; ok=0; }
   [[ -s "$evid/wroot.txt" ]] || { log_info "TEST-005(e): the suite never ran"; ok=0; }
@@ -572,7 +572,7 @@ exit \"\${1:-0}\""
   # tree is the observable that separates the two.
   rc=0
   rm -rf "$d/tests/skills/results"
-  ( cd "$d" && AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh ) >/dev/null 2>&1 || rc=$?
+  ( cd "$d" && AAI_TEST_ISOLATION=1 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh ) >/dev/null 2>&1 || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-005(f): the framework run through the wrapper exited $rc (want 0)"; ok=0; }
   [[ -n "$(ls -A "$d/tests/skills/results" 2>/dev/null)" ]] \
     || { log_info "TEST-005(f): the wrapper isolated the framework — its run ledger went with the disposable checkout instead of landing in the real tree (D5)"; ok=0; }
@@ -589,7 +589,7 @@ exit \"\${1:-0}\""
   rc=0
   rm -f "$evid/wroot.txt"
   before="$(repo_state "$d")"
-  ( cd "$d" && AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wsuite.sh 0 tests/skills/test-framework.sh ) >/dev/null 2>&1 || rc=$?
+  ( cd "$d" && AAI_TEST_ISOLATION=1 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wsuite.sh 0 tests/skills/test-framework.sh ) >/dev/null 2>&1 || rc=$?
   after="$(repo_state "$d")"
   [[ "$rc" -eq 0 ]] || { log_info "TEST-005(g): exit=$rc (want the command's own 0)"; ok=0; }
   [[ -s "$evid/wroot.txt" ]] || { log_info "TEST-005(g): the suite never ran, so the arm proves nothing"; ok=0; }
@@ -659,9 +659,20 @@ test_006_added_wall_clock_per_suite() {
 # ===========================================================================
 # TEST-101..107 (spec-a-run-must-say-whether-isolation-armed)
 #
-# The arms above prove isolation WORKS. These prove the run SAYS SO — which is
-# the hard precondition for deleting the tripwire: with the tripwire gone, a run
-# where isolation never armed would otherwise stay green in silence.
+# The arms above prove isolation WORKS. These prove the run SAYS SO.
+#
+# fu-isolation-suite-presumes-deletion: this section once justified itself by
+# naming these arms a precondition for removing the tripwire mechanism,
+# presuming the tripwire would go away once isolation shipped. That presumption
+# is withdrawn
+# (owner hitl_decision 2026-08-23T20:05:00Z: the tripwire, its ratchet and its
+# hashing are PERMANENT). What actually shipped, and what these arms are for:
+# isolation and the tripwire are two INDEPENDENT layers — isolation stops a
+# suite from reaching the shipping repository at all, the tripwire catches it
+# if isolation ever fails to. A run where isolation never armed, tripwire or
+# no tripwire, would silently be running every suite against the shipping
+# repository with only the tripwire between it and a real write; these arms
+# make that state loud instead of leaving it to be discovered from a diff.
 #
 # Numbered from 101 so SPEC-0138's TEST-001..006 keep their ids in this file.
 #
@@ -2427,6 +2438,206 @@ exit 0'
     || log_fail "TEST-306 framework-shaped invocation pins framework kind"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-431 (Spec-AC-17, spec-test-framework-sweep) —
+# fu-iso-bases-reset-discards-entries: two mid-run sites used to reset
+# `ISOLATION_BASES=()` WHOLESALE instead of dropping just the one entry they
+# were retiring (suite_prepare's seed-missed branch, suite_run's post-run
+# destroy) — a base some OTHER iso_create registered and never got to
+# destroy itself (the shape a P2 code review named: an append that lands,
+# followed by a failure path with no cleanup of its own) would lose its
+# tracking right there and never reach the framework's own final EXIT trap,
+# leaking its directory on disk.
+#
+# No natural two-registrations-at-once window exists in today's serial
+# scheduler (iso_create's own explicit failure paths already call
+# iso_destroy+iso_bases_forget on themselves), so this arm MANUFACTURES the
+# otherwise-untestable precondition the same way a mutation check does: a
+# byte copy of the framework is patched with ONE extra registration line
+# right after the real `ISOLATION_BASES+=("$base")` append, firing only for
+# a suite named "sentinel" — so exactly one extra ("phantom") entry exists
+# in the array for the span of that one suite's own run. Fixed code: the
+# phantom outlives that suite's own removal and is destroyed by the real
+# EXIT trap when the whole framework run ends (directory gone). The
+# wholesale-reset regression (this test's own mutation control) discards the
+# phantom's tracking along with the real base's, so it is never destroyed
+# and survives the run — proving the leak the finding names.
+# ---------------------------------------------------------------------------
+test_401_iso_bases_forget_keeps_other_entries() {
+  local d tmphome sentinel out rc=0 ok=1
+  d="$(new_fixture)" || return
+  tmphome="$(new_fixture)" || return
+  sentinel="$(new_fixture)" || return
+  build_framework_repo "$d"
+
+  perl -0pi -e 's#(  ISOLATION_BASES\+=\("\$base"\)\n)#$1  [[ "\$skill" == "sentinel" ]] \&\& ISOLATION_BASES+=("'"$sentinel"'")\n#' \
+    "$d/tests/skills/test-framework.sh"
+  grep -qF "ISOLATION_BASES+=(\"$sentinel\")" "$d/tests/skills/test-framework.sh" \
+    || { log_fail "TEST-431: setup could not patch the sentinel registration into the fixture framework copy"; return; }
+
+  # `--skill sentinel` below resolves to the literal file `test-sentinel.sh`
+  # (discover_tests's SPECIFIC_SKILLS branch, no `aai-` infix), unlike
+  # `write_fixture_suite`'s own always-`test-aai-*.sh` naming — written
+  # directly here so the name matches what `--skill` actually looks for.
+  printf '#!/usr/bin/env bash\nset -uo pipefail\necho sentinel\nexit 0\n' > "$d/tests/skills/test-sentinel.sh"
+  commit_fixture_repo "$d" || { log_fail "TEST-431 fixture repo init failed"; return; }
+
+  out="$(TMPDIR="$tmphome" AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" --skill sentinel 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-431: the run itself failed unexpectedly (rc=$rc): $out"; ok=0; }
+  if [[ -d "$sentinel" ]]; then
+    log_info "TEST-431: the sentinel base — registered by iso_create alongside the suite's own real base, retired by name only from the real one — survived the run's own EXIT trap: $out"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-431 a per-suite ISOLATION_BASES removal (suite_prepare's seed-missed branch, suite_run's post-run destroy) drops only its own entry — a base registered elsewhere in the array still reaches the final EXIT trap instead of leaking past a wholesale reset" \
+    || log_fail "TEST-431 iso_bases_forget keeps other registered entries intact"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-432 lives in tests/skills/test-aai-run-tests.sh (the wrapper's own
+# suite) — fu-iso-wrapper-traps-dont-reap-group, the second Spec-AC-17 fix.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# TEST-433 (Spec-AC-18, spec-test-framework-sweep) — three ways a seeding
+# failure must never read as "seeded":
+#
+# (a) fu-seed-loss-turns-an-arm-into-a-skip — a seed path present in the
+#     working tree and absent from the checkout (the step-3 uncopyable-file
+#     lever TEST-111 already proves reddens the run; restated here, under
+#     this AC's own id, as a regression pin rather than a re-derivation).
+# (b) fu-seed-step2-enumeration-silent — the NEW fix: `ls-files` stderr used
+#     to be discarded outright, so an unreadable directory made step 2's
+#     enumeration silently PARTIAL (git still exits 0, with only a warning)
+#     and nothing downstream ever learned a directory's worth of untracked
+#     content was skipped.
+# (c) fu-marker-append-failure-discarded — the NEW fix, on the WRAPPER: a
+#     failed marker append used to be discarded outright, so on a
+#     filesystem where the marker itself could not be written the `-s`
+#     check read as "nothing to report" even though the underlying `cp` had
+#     already failed. A byte copy of the wrapper is patched (same technique
+#     as TEST-431) to pre-create `seedfail-untracked` as a DIRECTORY, so the
+#     real marker append fails for a controlled, reproducible reason and the
+#     fallback marker is what the run must be seen to depend on.
+# ---------------------------------------------------------------------------
+test_402_seeding_failure_never_reads_as_seeded() {
+  local ok=1
+
+  # (a) STEP 3 — present in the working tree, absent from the checkout.
+  local da evida outa rca=0
+  da="$(new_fixture)" || return
+  evida="$(new_fixture)" || return
+  seed_status_fixture "$da" "$evida" step3 || { log_fail "TEST-433(a) fixture repo init failed"; return; }
+  if seed_make_unreadable "$da/docs/ai/STATE.yaml" "TEST-433(a)"; then
+    outa="$(seed_run "$da")" || rca=$?
+    [[ "$rca" -eq 0 ]] || { log_info "TEST-433(a): framework exit=$rca (want 0)"; ok=0; }
+    grep -qF 'seed path(s) could not be copied into its disposable checkout' <<<"$outa" \
+      || { log_info "TEST-433(a): a seed path present in the working tree and absent from the checkout was not reported: $outa"; ok=0; }
+    seed_expect_counts "TEST-433(a)" "$outa" 0 2 2 0 || ok=0
+  else
+    log_uncovered "TEST-433(a): file mode denies this user nothing (root?); NOT COVERED on this machine"
+  fi
+
+  # (b) STEP 2 enumeration — an unreadable directory hides its content from
+  # `ls-files --others`, so a copy that never happens must still be named.
+  local db evidb outb rcb=0
+  db="$(new_fixture)" || return
+  evidb="$(new_fixture)" || return
+  build_framework_repo "$db"
+  write_fixture_suite "$db" t-enum "
+[[ -f \"\$R/untracked-dir/secret.txt\" ]] && cat \"\$R/untracked-dir/secret.txt\" > '$evidb/saw-secret.txt' || : > '$evidb/saw-secret.txt'
+echo one
+exit 0"
+  commit_fixture_repo "$db" || { log_fail "TEST-433(b) fixture repo init failed"; return; }
+  mkdir -p "$db/untracked-dir"
+  printf 'do-not-copy\n' > "$db/untracked-dir/secret.txt"
+  if chmod 000 "$db/untracked-dir" 2>/dev/null && ! ls "$db/untracked-dir" >/dev/null 2>&1; then
+    outb="$(TMPDIR="$evidb" AAI_TEST_ISOLATION=1 bash "$db/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rcb=$?
+    chmod 755 "$db/untracked-dir" 2>/dev/null || true
+    [[ "$rcb" -eq 0 ]] || { log_info "TEST-433(b): framework exit=$rcb (want 0): $outb"; ok=0; }
+    grep -qF 'the untracked-file enumeration could not read part of the working tree' <<<"$outb" \
+      || { log_info "TEST-433(b): an unreadable directory during step-2 enumeration was not reported: $outb"; ok=0; }
+    [[ -z "$(cat "$evidb/saw-secret.txt" 2>/dev/null)" ]] \
+      || { log_info "TEST-433(b): the file under the unreadable directory reached the checkout anyway, so the lever did not fire"; ok=0; }
+  else
+    chmod 755 "$db/untracked-dir" 2>/dev/null || true
+    log_uncovered "TEST-433(b): this user is not denied directory listing by chmod 000 (running as root?); NOT COVERED on this machine"
+  fi
+
+  # (c) the WRAPPER's marker-append failure. A byte copy of aai-run-tests.sh
+  # is patched to pre-create the primary marker path as a zero-byte,
+  # chmod-444 FILE once a sentinel env var is set, so the real `>>` append
+  # fails (EACCES) for a reproducible reason while the marker stays at size
+  # 0 — a pre-existing DIRECTORY was tried first and rejected: POSIX `-s`
+  # (size > 0) reads true for many directories too, so it would have left
+  # even the UNFIXED `-s`-only check accidentally reporting the failure,
+  # proving nothing. Only the differently-named broken-append marker (unaffected
+  # by this file's own permissions) can still say what happened.
+  local dc evidc outc rcc=0
+  dc="$(new_fixture)" || return
+  evidc="$(new_fixture)" || return
+  build_framework_repo "$dc"
+  # A pre-existing DIRECTORY at the marker's path was tried first and
+  # rejected: POSIX `-s` (size > 0) reads true for many directories too, so
+  # it would have made even the UNFIXED `-s`-only check accidentally still
+  # report the failure — proving nothing about the fix. A zero-byte,
+  # chmod-444 FILE is the real fault: the `>>` append fails (EACCES) while
+  # the file stays at size 0, so `-s` alone genuinely cannot see it — only
+  # the fallback broken-append marker (a DIFFERENT filename, unaffected by
+  # this file's own permissions) can.
+  perl -0pi -e "s/(    AAI_SEED_STATUS='seeded'\n)/\$1    if [ -n \"\\\${AAI_TEST_INJECT_MARKER_DIR:-}\" ]; then : > \"\\\$AAI_ISO_BASE\/seedfail-untracked\" 2>\/dev\/null; chmod 444 \"\\\$AAI_ISO_BASE\/seedfail-untracked\" 2>\/dev\/null; fi\n/" \
+    "$dc/.aai/scripts/aai-run-tests.sh"
+  grep -qF 'AAI_TEST_INJECT_MARKER_DIR' "$dc/.aai/scripts/aai-run-tests.sh" \
+    || { log_fail "TEST-433(c): setup could not patch the marker-directory injection into the fixture wrapper copy"; return; }
+  write_fixture_suite "$dc" t-adhoc-marker 'echo unused; exit 0'
+  commit_fixture_repo "$dc" || { log_fail "TEST-433(c) fixture repo init failed"; return; }
+  printf 'do-not-copy\n' > "$dc/untracked-secret.txt"
+  if seed_make_unreadable "$dc/untracked-secret.txt" "TEST-433(c)"; then
+    outc="$(AAI_TEST_ISOLATION=1 AAI_TEST_INJECT_MARKER_DIR=1 AAI_FRICTION_CAPTURE=0 \
+      bash "$dc/.aai/scripts/aai-run-tests.sh" bash "$dc/tests/skills/test-aai-t-adhoc-marker.sh" 2>&1)" || rcc=$?
+    [[ "$rcc" -eq 0 ]] || { log_info "TEST-433(c): wrapper exit=$rcc (want 0): $outc"; ok=0; }
+    grep -qF 'AAI-SEEDING: partial' <<<"$outc" \
+      || { log_info "TEST-433(c): with its primary marker path pre-occupied by a directory, the wrapper still reported seeded instead of falling back to the broken-append marker: $outc"; ok=0; }
+    grep -qF 'AAI-SEEDING: seeded' <<<"$outc" \
+      && { log_info "TEST-433(c): the wrapper reported seeded even though the untracked file's copy failed and its own failure marker could not be written: $outc"; ok=0; }
+  else
+    log_uncovered "TEST-433(c): file mode denies this user nothing (root?); NOT COVERED on this machine"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-433 a seed path missing from the checkout, an unreadable enumeration directory, and a failed marker append each report the run partly seeded, never seeded" \
+    || log_fail "TEST-433 seeding failure never reads as seeded"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-434 (Spec-AC-19, spec-test-framework-sweep) —
+# fu-isolation-suite-not-hermetic: TEST-001, TEST-003 and TEST-005 used to
+# INHERIT AAI_TEST_ISOLATION from the operator's own shell instead of
+# stating it, so a legitimate `export AAI_TEST_ISOLATION=0` (a real operator
+# setting, not a bug) made them measure a run that never isolated at all and
+# go red for a reason unrelated to what they claim to test. Each now states
+# AAI_TEST_ISOLATION=1 as its own command prefix; this arm proves the
+# override holds by re-running the real TEST-001 function under exactly that
+# ambient setting and checking the SHARED failure registry — not $FAILED,
+# which a re-run inside a subshell cannot write back (the identical
+# subshell boundary this file's own header documents) — for a new entry.
+# ---------------------------------------------------------------------------
+test_403_states_isolation_rather_than_inherits() {
+  local before_lines after_lines
+  before_lines=0
+  [[ -f "$FAILURE_REGISTRY" ]] && before_lines=$(wc -l < "$FAILURE_REGISTRY" | tr -d ' ')
+  ( export AAI_TEST_ISOLATION=0
+    test_001_writes_do_not_reach_the_working_tree_by_accident )
+  after_lines=0
+  [[ -f "$FAILURE_REGISTRY" ]] && after_lines=$(wc -l < "$FAILURE_REGISTRY" | tr -d ' ')
+  if [[ "$after_lines" -gt "$before_lines" ]]; then
+    log_info "TEST-434: with AAI_TEST_ISOLATION=0 exported ambiently, TEST-001 failed on re-run — it is inheriting rather than stating its own isolation:"
+    sed -n "$((before_lines + 1)),\$p" "$FAILURE_REGISTRY" 2>/dev/null | sed 's/^/    /'
+    log_fail "TEST-434 TEST-001 states AAI_TEST_ISOLATION rather than inheriting it"
+    return
+  fi
+  log_pass "TEST-434 TEST-001 (and, by the same fix, TEST-003 and TEST-005) states AAI_TEST_ISOLATION=1 rather than inheriting the operator's own ambient setting — re-run under an exported AAI_TEST_ISOLATION=0 it still passes"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-suites-run-in-a-disposable-worktree) ==="
   check_deps
@@ -2468,6 +2679,9 @@ main() {
   test_304_adhoc_flag_unset_exit_code_untouched
   test_305_adhoc_flag_set_escalates_only_ad_hoc_dirty_success
   test_306_framework_shaped_invocation_pins_framework_kind
+  test_401_iso_bases_forget_keeps_other_entries
+  test_402_seeding_failure_never_reads_as_seeded
+  test_403_states_isolation_rather_than_inherits
   echo ""
   # Both halves, because either one alone is a lie on some path: FAILED is
   # blind to a subshell failure, and the registry is blind to a machine where

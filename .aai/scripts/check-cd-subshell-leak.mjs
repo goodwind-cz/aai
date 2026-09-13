@@ -512,6 +512,9 @@ function main() {
 // with a space would otherwise never match and this script would exit 0
 // having done nothing (the same anti-no-op reasoning as the sibling
 // check-base-ref-pins.mjs).
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+function realOrResolve(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
+if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
   main();
 }

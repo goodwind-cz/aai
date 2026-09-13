@@ -111,6 +111,26 @@ build_framework_repo() {
   printf 'tests/skills/results/\ndocs/ai/tests/test-runs.jsonl\n*.aai-lock/\n' > "$d/.gitignore"
 }
 
+# add_heartbeat_engine <repo> — copies the REAL heartbeat.mjs plus its two
+# stdlib-only lib dependencies into a fixture built by build_framework_repo,
+# so the fixture's own copy of test-framework.sh resolves
+# "$PROJECT_ROOT/.aai/scripts/heartbeat.mjs" to a real, working engine (TEST-416
+# / Spec-AC-09). A dedicated helper rather than folding this into
+# build_framework_repo: every other TEST-4xx and pre-existing arm in this file
+# builds a fixture through that shared function, and heartbeat_pulse() degrades
+# to a no-op when the script is absent, so adding it there would be unobserved
+# by anything but this one test — needless shared-fixture churn for a helper
+# only one test needs.
+add_heartbeat_engine() {
+  local d="$1" hb_src lib_src
+  hb_src="$PROJECT_ROOT/.aai/scripts/heartbeat.mjs"
+  mkdir -p "$d/.aai/scripts/lib"
+  cp "$hb_src" "$d/.aai/scripts/heartbeat.mjs"
+  for lib_src in runtime-file.mjs cli-pipe-guard.mjs; do
+    cp "$PROJECT_ROOT/.aai/scripts/lib/$lib_src" "$d/.aai/scripts/lib/$lib_src"
+  done
+}
+
 commit_fixture_repo() {
   local d="$1"
   (
@@ -132,6 +152,23 @@ timed_run() {
   ( cd "$repo" && AAI_TEST_PARALLEL="$width" bash "$repo/tests/skills/test-framework.sh" ) >/dev/null 2>&1 || rc=$?
   e=$(date +%s)
   echo "$(( e - s )) $rc"
+}
+
+# captured_run <repo> <width> — run the fixture framework at a width and echo
+# its ANSI-stripped output, returning its exit code. Deliberately NOT an
+# inline `out="$( ( cd "$repo" && ... ) | strip_ansi )"`: the cd-subshell-leak
+# ratchet (tests/skills/lib/cd-subshell-leak-baseline.tsv) counts a `cd`
+# lexically inside a command substitution as its own tracked shape, and a new
+# call site written that way raises the count. Putting the `cd` in a function
+# BODY instead — called plainly, with no `cd` text at the call site — is the
+# ratchet's own documented escape hatch, and matches timed_run() just above.
+captured_run() {
+  local repo="$1" width="$2" out_file rc=0
+  out_file="$(mktemp "${TMPDIR:-/tmp}/aai-sweep-parallel-out.XXXXXX")" || return 1
+  ( cd "$repo" && AAI_TEST_PARALLEL="$width" bash "$repo/tests/skills/test-framework.sh" ) >"$out_file" 2>&1 || rc=$?
+  strip_ansi < "$out_file"
+  rm -f "$out_file"
+  return "$rc"
 }
 
 # verdict_set <repo> — every per-suite verdict of the LAST run, one
@@ -641,6 +678,299 @@ exit 1"
     || log_fail "TEST-010 (AC-001) a wave child leaks nothing into its suite"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-411 (Spec-AC-06) — a freed slot is refilled, not left idle for the rest
+# of a wave.
+#
+# One 10s suite and seven 1s suites at width 2. The fixed-wave barrier this
+# replaces chunks discovery order into waves of 2 and waits for the slower of
+# each wave before starting the next: wave A (10s, 1s) -> 10s, then three more
+# waves of (1s, 1s) -> 1s each, total 13s. A refilling queue keeps the long
+# suite's sibling SLOT continuously refilled from the six remaining 1s suites
+# while the long suite runs, so the whole run is bounded by its own 10s plus
+# whatever of the ~7s of short work does not fit inside that window — nowhere
+# near the barrier's 13s. Eight suites (not four) and a wide 3s gap between the
+# two models' totals, deliberately, so per-suite isolation overhead (a real
+# `git clone --local` per suite) cannot turn this into a flake the way a
+# narrower margin did the first time this arm was measured.
+# The assertion is on the CLOCK, not on the presence of any scheduler code.
+# ---------------------------------------------------------------------------
+test_411_a_freed_slot_is_refilled_not_left_idle() {
+  local d ok=1 t2 rc=0 i barrier_would_take=13
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" w-1-long "sleep 10
+exit 0"
+  for i in 2 3 4 5 6 7 8; do
+    write_fixture_suite "$d" "w-$i-short" "sleep 1
+exit 0"
+  done
+  commit_fixture_repo "$d" || { log_fail "TEST-411 fixture repo init failed"; return; }
+
+  read -r t2 rc <<< "$(timed_run "$d" 2)"
+
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-411: the width-2 run exited $rc (want 0)"; ok=0; }
+  [[ "$t2" -ge 10 ]] || { log_info "TEST-411: width-2 run took ${t2}s (want >= 10 — the longest suite alone is 10s, so anything faster proves nothing)"; ok=0; }
+  [[ "$t2" -lt "$barrier_would_take" ]] \
+    || { log_info "TEST-411: width-2 run took ${t2}s (want < ${barrier_would_take}s — the fixed-wave barrier's own total for this fixture) — a freed slot was left idle instead of refilled"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-411 (Spec-AC-06) a freed slot is refilled immediately: a 10s suite plus seven 1s suites at width 2 took ${t2}s, under the ${barrier_would_take}s a fixed-wave barrier would have taken" \
+    || log_fail "TEST-411 (Spec-AC-06) a freed slot is refilled, not left idle"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-412 (Spec-AC-06) — the refilling queue loses nothing a fixed wave
+# would have reported: the per-suite verdict set, the summary totals and the
+# exit code are identical at width 1 and at width 4.
+#
+# The twin of TEST-002, run specifically at width 4 (multiple refills over a
+# corpus of 4 on an 8-wide default machine would never engage the queue at
+# all) against a fixture carrying one of each outcome the framework
+# distinguishes.
+# ---------------------------------------------------------------------------
+test_412_verdict_set_identical_width1_and_width4_on_the_queue() {
+  local d ok=1 rc1=0 rc4=0 v1 v4 sum1 sum4
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" q-pass  'echo ok; exit 0'
+  write_fixture_suite "$d" q-fail  'echo "FAIL something"; exit 1'
+  write_fixture_suite "$d" q-skip  'echo skipping; exit 42'
+  write_fixture_suite "$d" q-crash 'echo boom; exit 7'
+  commit_fixture_repo "$d" || { log_fail "TEST-412 fixture repo init failed"; return; }
+
+  ( cd "$d" && AAI_TEST_PARALLEL=1 bash "$d/tests/skills/test-framework.sh" ) >"$d/serial.out" 2>&1 || rc1=$?
+  v1="$(verdict_set "$d")"
+  sum1="$(strip_ansi < "$d/serial.out" | /usr/bin/grep -E '^\[(INFO|PASS|FAIL|SKIP)\] (Total:|Passed:|Failed:|Skipped:)' || true)"
+  rm -rf "$d/tests/skills/results"
+
+  ( cd "$d" && AAI_TEST_PARALLEL=4 bash "$d/tests/skills/test-framework.sh" ) >"$d/par.out" 2>&1 || rc4=$?
+  v4="$(verdict_set "$d")"
+  sum4="$(strip_ansi < "$d/par.out" | /usr/bin/grep -E '^\[(INFO|PASS|FAIL|SKIP)\] (Total:|Passed:|Failed:|Skipped:)' || true)"
+
+  [[ -n "$v1" ]] || { log_info "TEST-412: the width-1 run produced no verdicts at all"; ok=0; }
+  if [[ "$v1" != "$v4" ]]; then
+    log_info "TEST-412: the verdict sets differ."
+    log_info "  width1: $(printf '%s' "$v1" | tr '\n' ';')"
+    log_info "  width4: $(printf '%s' "$v4" | tr '\n' ';')"
+    ok=0
+  fi
+  [[ "$rc1" -eq "$rc4" ]] || { log_info "TEST-412: framework exit code differs (width1=$rc1 width4=$rc4)"; ok=0; }
+  [[ "$sum1" == "$sum4" ]] || { log_info "TEST-412: the summary totals differ. width1='$sum1' width4='$sum4'"; ok=0; }
+  assert_payload_contains "$v1" "q-fail FAIL" "TEST-412: the fixture's failing suite was not reported FAIL at width 1" || ok=0
+  assert_payload_contains "$v1" "q-skip SKIP" "TEST-412: the fixture's skipping suite was not reported SKIP at width 1" || ok=0
+  assert_payload_contains "$v1" "q-crash FAIL" "TEST-412: the fixture's crashing suite was not reported FAIL at width 1" || ok=0
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-412 (Spec-AC-06) the per-suite verdict set, the summary totals and the exit code are identical at width 1 and width 4 on the refilling queue across PASS/FAIL/SKIP/crash" \
+    || log_fail "TEST-412 (Spec-AC-06) same verdict set at width 1 and width 4 on the queue"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-413 (Spec-AC-07) — the rolling attribution window: a writer is named,
+# no sibling is blamed, and the serial re-run set is bounded at 2x the width.
+#
+# Width 2, and the writer is launched in the INITIAL batch, not via a refill —
+# proving the rolling window (a snapshot pair per completion, not one barrier
+# per wave) still isolates a genuine sibling from the blame the moment the
+# writer's own completion trips the check.
+# ---------------------------------------------------------------------------
+test_413_rolling_window_bounds_the_serial_rerun_at_2x_width() {
+  local d ok=1 rc=0 out width=2 max=4
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" r-a-writer "
+printf 'committed dirt\n' >> '$d/tracked.txt'
+git -C '$d' add -A >/dev/null 2>&1
+git -C '$d' commit -q -m 'a suite committed into the shipping repo' >/dev/null 2>&1
+exit 0"
+  write_fixture_suite "$d" r-b-sleeper "sleep 2
+exit 0"
+  write_fixture_suite "$d" r-c-quiet 'exit 0'
+  write_fixture_suite "$d" r-d-quiet 'exit 0'
+  commit_fixture_repo "$d" || { log_fail "TEST-413 fixture repo init failed"; return; }
+
+  out="$(captured_run "$d" "$width")" || rc=$?
+
+  [[ "$rc" -eq 1 ]] || { log_info "TEST-413: the run exited $rc (want 1 — a suite committed into the shipping repository and that must stay red)"; ok=0; }
+  assert_payload_contains "$out" "--- TRIPWIRE VIOLATION (aai-r-a-writer) ---" \
+    "TEST-413: the suite that actually committed was not reported as the violator" || ok=0
+  assert_payload_not_contains "$out" "--- TRIPWIRE VIOLATION (aai-r-b-sleeper) ---" \
+    "TEST-413: a sibling that only slept was blamed for a concurrent detection" || ok=0
+  assert_payload_not_contains "$out" "--- TRIPWIRE VIOLATION (aai-r-c-quiet) ---" \
+    "TEST-413: a suite queued well after the writer was blamed for a concurrent detection" || ok=0
+  assert_payload_not_contains "$out" "--- TRIPWIRE VIOLATION (aai-r-d-quiet) ---" \
+    "TEST-413: a suite queued well after the writer was blamed for a concurrent detection" || ok=0
+  assert_payload_contains "$out" "Failed:  1 (" \
+    "TEST-413: the run did not fail exactly one suite — the rolling window blamed more than the writer" || ok=0
+  # Widening the candidate set to the whole corpus would re-run suites the
+  # queue had not even started yet, alongside the queue eventually reaching
+  # and starting them too — a duplicate that this Total count, not just the
+  # bound below, is what actually catches: the two coincide at exactly 4 here
+  # only when the window stays properly bounded.
+  assert_payload_contains "$out" "Total:   4" \
+    "TEST-413: not all four suites were reported exactly once — the candidate set leaked beyond the window" || ok=0
+
+  # The bound itself: parse "N suite(s) total" out of the concurrency line and
+  # check it against 2x the width, rather than trusting a comment to be true.
+  local suite_count
+  suite_count="$(printf '%s\n' "$out" | sed -E -n 's/.*wave\(s\) re-run serially \(([0-9]+) suite\(s\) total\).*/\1/p' | head -n1)"
+  [[ -n "$suite_count" ]] || { log_info "TEST-413: could not find the re-run suite count in the summary"; ok=0; }
+  [[ -n "$suite_count" && "$suite_count" -ge 1 ]] \
+    || { log_info "TEST-413: the re-run suite count was $suite_count (want >= 1 — the writer itself must be in it)"; ok=0; }
+  [[ -n "$suite_count" && "$suite_count" -le "$max" ]] \
+    || { log_info "TEST-413: the re-run suite count was $suite_count (want <= $max = 2x width $width) — the whole corpus was re-run instead of a bounded window"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-413 (Spec-AC-07) the rolling window named the writer, blamed no sibling, and bounded its serial re-run at $suite_count suite(s) (<= $max = 2x width $width)" \
+    || log_fail "TEST-413 (Spec-AC-07) the rolling window bounds the serial re-run at 2x width"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-414 (Spec-AC-07) — a SECOND append to an already-dirty tracked path is
+# still detected, through a suite that only entered the window via a REFILL,
+# proving the content-hash widening (D7's fix, ported from run_wave) survives
+# the rolling window and the drain-then-refill mechanics that replaced it.
+#
+# Width 2, four suites: two quiet ones fill and clear the first two slots, a
+# refill starts a slow innocent sleeper AND a delayed writer together. The
+# writer's own append moves tracked.txt's git-status CLASS once (clean -> " M")
+# — the rolling window's completion check catches THAT. Its serial re-run then
+# appends to tracked.txt A SECOND TIME, whose class cannot move again; only
+# the content-hash widening this window applies for the re-run's duration can
+# still see it. The sleeper is drained into the same candidate window by
+# timing (still active when the writer's completion trips the check) and must
+# come out unblamed.
+# ---------------------------------------------------------------------------
+test_414_second_append_to_an_already_dirty_path_survives_the_window_change() {
+  local d ok=1 rc=0 out width=2 max=4
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" q1-quiet 'exit 0'
+  write_fixture_suite "$d" q2-quiet 'exit 0'
+  write_fixture_suite "$d" q3-dirty "
+sleep 1
+printf 'more dirt\n' >> '$d/tracked.txt'
+exit 0"
+  write_fixture_suite "$d" q4-quiet 'exit 0'
+  write_fixture_suite "$d" q5-slow "sleep 3
+exit 0"
+  commit_fixture_repo "$d" || { log_fail "TEST-414 fixture repo init failed"; return; }
+
+  out="$(captured_run "$d" "$width")" || rc=$?
+
+  [[ "$rc" -eq 1 ]] || { log_info "TEST-414: the run exited $rc (want 1) — a working-tree write that entered the window via a refill went unreported"; ok=0; }
+  assert_payload_contains "$out" "--- TRIPWIRE VIOLATION (aai-q3-dirty) ---" \
+    "TEST-414: the suite that wrote tracked.txt a second time was not named" || ok=0
+  assert_payload_contains "$out" "tracked.txt" \
+    "TEST-414: the path that changed was not named" || ok=0
+  assert_payload_not_contains "$out" "--- TRIPWIRE VIOLATION (aai-q4-quiet) ---" \
+    "TEST-414: a suite that had already cleanly finished before the writer's own event was blamed for the write" || ok=0
+  assert_payload_not_contains "$out" "--- TRIPWIRE VIOLATION (aai-q5-slow) ---" \
+    "TEST-414: an innocent sleeper drained into the writer's candidate window by timing was blamed for the write" || ok=0
+  assert_payload_contains "$out" "Failed:  1 (" \
+    "TEST-414: the run did not fail exactly one suite" || ok=0
+  assert_payload_contains "$out" "Total:   5" \
+    "TEST-414: not all five suites were reported" || ok=0
+
+  # The rolling window's own accounting: exactly the writer plus whatever was
+  # still active when its completion tripped the check (q4 had ALREADY
+  # cleanly resolved by then and left the window), never the whole corpus.
+  local suite_count
+  suite_count="$(printf '%s\n' "$out" | sed -E -n 's/.*wave\(s\) re-run serially \(([0-9]+) suite\(s\) total\).*/\1/p' | head -n1)"
+  [[ -n "$suite_count" ]] || { log_info "TEST-414: could not find the re-run suite count in the summary"; ok=0; }
+  [[ -n "$suite_count" && "$suite_count" -ge 1 && "$suite_count" -le "$max" ]] \
+    || { log_info "TEST-414: the re-run suite count was $suite_count (want between 1 and $max = 2x width $width)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-414 (Spec-AC-07) a second, class-invisible append to an already-dirty tracked path — made by a suite that entered the window through a refill — is still detected, and the innocent sleeper drained beside it is not blamed ($suite_count suite(s) re-run)" \
+    || log_fail "TEST-414 (Spec-AC-07) a second append to an already-dirty path survives the window change"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-416 (Spec-AC-09) — a sweep in flight writes a heartbeat slot through the
+# shipped heartbeat.mjs carrying the finished-suite count and the discovered
+# total, so the existing /aai-live page shows it with no change to the page,
+# and the slot stops being refreshed once the run ends (seam 5: the write
+# side; the existing heartbeat deny-by-default arm, test-aai-heartbeat.sh
+# TEST-012, keeps proving no gate reads it — that scan covers .aai/scripts and
+# test-framework.sh lives outside it).
+#
+# Four fixture suites at widths that stagger their completion (0s, 1s, 2s,
+# 3s) run at width 2, so the queue refills and completions land at four
+# distinct moments rather than all at once. The heartbeat slot is polled from
+# OUTSIDE the run, while the framework runs in the background, and the
+# assertion is on what was actually OBSERVED rising — not on a source grep for
+# the call site, which the spec's own mutation ("writing the heartbeat slot
+# only once, at the end of the run") is written to catch.
+# ---------------------------------------------------------------------------
+test_416_heartbeat_pulses_while_the_sweep_runs() {
+  command -v node >/dev/null 2>&1 || { log_uncovered "TEST-416: node not found — the heartbeat engine could not be exercised on this host"; return; }
+
+  local d ok=1 rc=0 width=2 out_file bg_pid
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  add_heartbeat_engine "$d"
+  write_fixture_suite "$d" hb1 'exit 0'
+  write_fixture_suite "$d" hb2 'sleep 1; exit 0'
+  write_fixture_suite "$d" hb3 'sleep 2; exit 0'
+  write_fixture_suite "$d" hb4 'sleep 3; exit 0'
+  commit_fixture_repo "$d" || { log_fail "TEST-416 fixture repo init failed"; return; }
+
+  local slot="$d/.git/aai/heartbeat/hb-sweep__Sweep.json"
+  out_file="$(mktemp "${TMPDIR:-/tmp}/aai-sweep-parallel-out.XXXXXX")" || { log_fail "TEST-416: mktemp failed"; return; }
+
+  ( cd "$d" && AAI_TEST_PARALLEL="$width" bash "$d/tests/skills/test-framework.sh" ) >"$out_file" 2>&1 &
+  bg_pid=$!
+
+  local seen_ns="" msg n before_end_updated
+  while kill -0 "$bg_pid" 2>/dev/null; do
+    if [[ -f "$slot" ]]; then
+      msg="$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$slot" 2>/dev/null | head -n1)"
+      n="${msg%%/*}"
+      if [[ "$n" =~ ^[0-9]+$ ]]; then
+        case " $seen_ns " in *" $n "*) ;; *) seen_ns="$seen_ns $n" ;; esac
+      fi
+    fi
+    sleep 0.15
+  done
+  wait "$bg_pid" 2>/dev/null || rc=$?
+
+  # One more sample of the settled, post-run file — the last suite's own
+  # write can land in the gap between this loop's final `kill -0` and the
+  # process actually exiting.
+  if [[ -f "$slot" ]]; then
+    msg="$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$slot" 2>/dev/null | head -n1)"
+    n="${msg%%/*}"
+    if [[ "$n" =~ ^[0-9]+$ ]]; then
+      case " $seen_ns " in *" $n "*) ;; *) seen_ns="$seen_ns $n" ;; esac
+    fi
+  fi
+
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-416: the fixture sweep exited $rc (want 0)"; ok=0; }
+  [[ -f "$slot" ]] || { log_info "TEST-416: no heartbeat slot was ever written at $slot"; ok=0; }
+
+  local seen_count
+  seen_count="$(printf '%s\n' $seen_ns | grep -c '[0-9]')"
+  [[ "$seen_count" -ge 2 ]] \
+    || { log_info "TEST-416: only $seen_count distinct finished-count(s) observed ($seen_ns) — the slot must rise as suites finish, not jump straight to the end"; ok=0; }
+  case " $seen_ns " in
+    *" 4 "*) ;;
+    *) log_info "TEST-416: the finished count never reached 4 (observed:$seen_ns)"; ok=0 ;;
+  esac
+
+  if [[ -f "$slot" ]]; then
+    assert_payload_contains "$(cat "$slot")" "\"message\": \"4/4 suites finished\"" \
+      "TEST-416: the settled slot must read the discovered total (4) as its finished count" || ok=0
+    before_end_updated="$(sed -n 's/.*"updated_at": *"\([^"]*\)".*/\1/p' "$slot" | head -n1)"
+    sleep 1
+    local after_end_updated
+    after_end_updated="$(sed -n 's/.*"updated_at": *"\([^"]*\)".*/\1/p' "$slot" | head -n1)"
+    [[ "$before_end_updated" == "$after_end_updated" ]] \
+      || { log_info "TEST-416: the slot's updated_at moved after the run ended ($before_end_updated -> $after_end_updated) — it must stop being refreshed"; ok=0; }
+  fi
+
+  rm -f "$out_file"
+  [[ $ok -eq 1 ]] && log_pass "TEST-416 (Spec-AC-09) the heartbeat slot rose through $seen_count distinct finished-count(s) (observed:$seen_ns) to 4/4, and stopped refreshing once the run ended" \
+    || log_fail "TEST-416 (Spec-AC-09) heartbeat pulses while the sweep runs, and stops when it ends"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -654,6 +984,11 @@ main() {
   test_008_a_bad_width_degrades_to_serial
   test_009_an_unisolated_run_is_serial
   test_010_a_wave_child_leaks_nothing_into_its_suite
+  test_411_a_freed_slot_is_refilled_not_left_idle
+  test_412_verdict_set_identical_width1_and_width4_on_the_queue
+  test_413_rolling_window_bounds_the_serial_rerun_at_2x_width
+  test_414_second_append_to_an_already_dirty_path_survives_the_window_change
+  test_416_heartbeat_pulses_while_the_sweep_runs
   echo ""
   if [[ "$UNCOVERED" -gt 0 ]]; then
     echo "NOTE: $UNCOVERED arm(s) NOT COVERED on this machine — their lever is unavailable here; the suite exercised less than its full set"

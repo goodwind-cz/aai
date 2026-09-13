@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 // Canonical usage_total_tokens=<N> note-marker grammar — IMPORTED, never
 // forked (SPEC-0089 single-source contract; test_120 in test-aai-metrics.sh
 // fails if the raw regex literal exists in more than one source file).
@@ -447,7 +447,10 @@ function generateDashboard({ metricsPath, outputPath, from, to, skill, dataOnly 
   return data;
 }
 
-if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+function realOrResolve(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
+if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
   runMain(() => {
     const args = parseArgs(process.argv);
     const data = generateDashboard(args);

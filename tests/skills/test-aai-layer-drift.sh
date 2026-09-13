@@ -52,6 +52,26 @@ log_fail() { echo "FAIL: $*" >&2; exit 1; }
 log_skip() { echo "SKIP: $*"; exit 42; }
 log_info() { echo "INFO: $*"; }
 
+# assert_payload_line_matches_i <payload> <ere> [message] — case-INSENSITIVE
+# per-line ERE match (DEBT-0006 drain; the `grep -qiE`/`grep -qi` sites
+# carrying a genuine regex metacharacter such as alternation, not one of
+# tests/skills/lib/assert-payload.sh's five helpers, which stop at
+# case-insensitive SUBSTRING). nocasematch is saved/restored so it never
+# leaks into the caller's shell.
+assert_payload_line_matches_i() {
+  local _p="$1" _e="$2" _m="${3:-}" _l _rc=1 _nc
+  _nc="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+  shopt -s nocasematch
+  while IFS= read -r _l; do
+    if [[ "$_l" =~ $_e ]]; then _rc=0; break; fi
+  done <<EOF
+$_p
+EOF
+  eval "$_nc"
+  [ "$_rc" -eq 0 ] && return 0
+  _assert_payload_report "${_m:-no line of the payload matches the pattern (case-insensitive)} (pattern: '$_e'), got: $(payload_preview "$_p")"
+}
+
 # Run the drift CLI; never aborts the suite on non-zero exit (callers inspect $?).
 rundrift() {
   node "$DRIFT_SCRIPT" "$@"
@@ -124,7 +144,7 @@ test_equal_local() {
   out="$(rundrift --pin "$pin" 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "equal pin must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "up-to-date" || log_fail "expected up-to-date line, got: $out"
+  assert_payload_contains_i "$out" "up-to-date" "expected up-to-date line, got: $out"
   log_pass "TEST-002 up-to-date (local tier)"
 }
 
@@ -152,7 +172,7 @@ test_lsremote_tier() {
   out="$(rundrift --pin "$pin" 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "equal pin via file:// must exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "up-to-date" || log_fail "expected up-to-date line, got: $out"
+  assert_payload_contains_i "$out" "up-to-date" "expected up-to-date line, got: $out"
   log_pass "TEST-004a up-to-date (ls-remote tier)"
 
   log_info "TEST-004b: file:// remote, pin differs -> unknown distance + remedy, exit 3..."
@@ -162,7 +182,7 @@ test_lsremote_tier() {
   out2="$(rundrift --pin "$pin2" 2>&1)"; rc2=$?
   set -e
   [[ "$rc2" -eq 3 ]] || log_fail "differing pin via file:// must exit 3 (got $rc2): $out2"
-  echo "$out2" | grep -qi "unknown distance" || log_fail "expected 'unknown distance', got: $out2"
+  assert_payload_contains_i "$out2" "unknown distance" "expected 'unknown distance', got: $out2"
   assert_payload_contains "$out2" "/aai-update" "expected /aai-update remedy, got: $out2"
   log_pass "TEST-004b drift with unknown distance (ls-remote tier)"
 }
@@ -176,7 +196,7 @@ test_offline() {
   out="$(rundrift --pin "$pin" 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 4 ]] || log_fail "unreachable remote must exit 4 (got $rc): $out"
-  echo "$out" | grep -qi "unverifiable" || log_fail "expected unverifiable line, got: $out"
+  assert_payload_contains_i "$out" "unverifiable" "expected unverifiable line, got: $out"
   log_pass "TEST-005 unverifiable when canonical unreachable"
 }
 
@@ -188,7 +208,7 @@ test_missing_pin() {
   out="$(rundrift --pin "$TMP_ROOT/nope/AAI_PIN.md" 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 4 ]] || log_fail "missing pin must exit 4 (got $rc): $out"
-  echo "$out" | grep -qi "unverifiable" || log_fail "expected unverifiable line, got: $out"
+  assert_payload_contains_i "$out" "unverifiable" "expected unverifiable line, got: $out"
   log_pass "TEST-006 unverifiable when pin missing"
 }
 
@@ -209,8 +229,8 @@ EOF
   out="$(rundrift --pin "$pin" 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 4 ]] || log_fail "placeholder pin must exit 4 (got $rc): $out"
-  echo "$out" | grep -qi "unverifiable" || log_fail "expected unverifiable line, got: $out"
-  echo "$out" | grep -qi "not stamped\|never synced\|template" || log_fail "expected not-stamped reason, got: $out"
+  assert_payload_contains_i "$out" "unverifiable" "expected unverifiable line, got: $out"
+  assert_payload_line_matches_i "$out" "not stamped|never synced|template" "expected not-stamped reason, got: $out"
   log_pass "TEST-007 unverifiable on placeholder pin"
 }
 
@@ -328,8 +348,7 @@ test_doctor_wiring() {
   local cat13_line
   cat13_line="$(node "$DOCTOR_SCRIPT" 2>&1 | grep '^CAT-13')" \
     || log_fail "doctor produced no CAT-13 line"
-  echo "$cat13_line" | grep -qE '^CAT-13 (PASS|WARN|SKIP) ' \
-    || log_fail "CAT-13 must never be FAIL (informational only): $cat13_line"
+  assert_payload_line_matches "$cat13_line" '^CAT-13 (PASS|WARN|SKIP) ' "CAT-13 must never be FAIL (informational only): $cat13_line"
   log_pass "TEST-011 doctor CAT-13 wiring (prompt -> script -> layer-drift.mjs)"
 }
 
@@ -363,7 +382,7 @@ test_profile_pin_tolerance() {
   out="$(rundrift --pin "$pin" 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "Profile-stamped pin must still verify up-to-date, exit 0 (got $rc): $out"
-  echo "$out" | grep -qi "up-to-date" || log_fail "expected up-to-date line, got: $out"
+  assert_payload_contains_i "$out" "up-to-date" "expected up-to-date line, got: $out"
   # --json contract stays intact with the extra pin line present.
   set +e
   out="$(rundrift --pin "$pin" --json 2>&1)"
@@ -396,7 +415,7 @@ test_space_in_path() {  # Review B1 regression
   # EMPTY output, exit 0 — doctor would read that as "up-to-date".
   [[ -n "$out" ]] || log_fail "CLI from a space-containing path must produce output (main-guard must fire)"
   [[ "$rc" -eq 4 ]] || log_fail "expected unverifiable exit 4 from space path (got $rc): $out"
-  echo "$out" | grep -qi "unverifiable" || log_fail "expected unverifiable line, got: $out"
+  assert_payload_contains_i "$out" "unverifiable" "expected unverifiable line, got: $out"
   log_pass "TEST-014 main-guard fires from a space-containing path (B1)"
 }
 

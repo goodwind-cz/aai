@@ -71,13 +71,27 @@ WRAPPER="$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh"
 TRIPWIRE_RATCHET_MAX_ENTRIES=0
 
 FAILED=0
-WORKDIRS=()
+# fu-tripwire-fixture-dirs-leak: every `new_fixture` call site is
+# `d="$(new_fixture)"` — a command substitution, which runs in a SUBSHELL, so
+# a plain array append here (`WORKDIRS+=(...)`) is invisible to the parent
+# and the EXIT trap below drained an empty list — 13 fixture directories
+# measured left behind after a full run. Identical shape and identical fix
+# to tests/skills/test-aai-suite-isolation.sh's own WORKDIR_REGISTRY: a FILE,
+# not an array, crosses the subshell boundary.
+WORKDIR_REGISTRY="$(mktemp "${TMPDIR:-/tmp}/aai-tripwire-registry.XXXXXX")" \
+  || { echo "FAIL $TEST_NAME: no workdir registry could be made; refusing to run a suite that would then leak every fixture it creates" >&2; exit 1; }
+register_workdir() { printf '%s\n' "$1" >> "$WORKDIR_REGISTRY"; }
 
 cleanup() {
   local d
-  for d in "${WORKDIRS[@]:-}"; do
-    [[ -n "$d" && -d "$d" ]] && rm -rf "$d"
-  done
+  while IFS= read -r d; do
+    [[ -n "$d" && -d "$d" ]] || continue
+    if [[ -d "$d/.git" ]]; then
+      git -C "$d" worktree prune >/dev/null 2>&1 || true
+    fi
+    rm -rf "$d"
+  done < "$WORKDIR_REGISTRY"
+  rm -f "$WORKDIR_REGISTRY"
 }
 trap cleanup EXIT
 
@@ -104,7 +118,7 @@ new_fixture() {
     log_fail "new_fixture: unsafe temp dir '$d'"
     return 1
   fi
-  WORKDIRS+=("$d")
+  register_workdir "$d"
   echo "$d"
 }
 
@@ -531,9 +545,17 @@ test_007_wrapper_reports_the_same_violation() {
 # also true of a suite that skipped or crashed, so the line told the operator to
 # delete a live entry. NOTHING here asserts that absence: no arm constrains
 # framework output for an unused entry, so reintroducing a drain would not turn
-# this arm red. Left uncovered deliberately — the ratchet is transitional
-# (owner hitl_decision 2026-08-19: tripwire, ratchet and hashing are deleted
-# once suites run in a disposable worktree).
+# this arm red. Left uncovered deliberately: this arm's OWN header once justified
+# that with a since-withdrawn claim ("the ratchet is transitional… deleted once
+# suites run in a disposable worktree", owner hitl_decision 2026-08-19). A later
+# decision (owner hitl_decision 2026-08-23T20:05:00Z) supersedes it — the
+# tripwire, its ratchet and its hashing are PERMANENT, not a mechanism being
+# phased out. What actually shipped: disposable-worktree isolation removed the
+# CAUSE of the four original exemptions (spec-drain-the-tripwire-known-offender-
+# list), which is why the shipped table is empty; it did not, and does not,
+# retire the ratchet MECHANISM this test seeds and exercises. The coverage gap
+# this comment originally excused stands on its own now — re-argued rather than
+# assumed away — tracked as fu-tripwire-suite-comment-transitional.
 # ---------------------------------------------------------------------------
 test_008_known_offender_ratchet() {
   local d out rc=0 ok=1
@@ -836,8 +858,23 @@ test_013_drained_list_exempts_nobody() {
     log_fail "TEST-013 UNCOVERED — the byte copy carries no readable TRIPWIRE_KNOWN_OFFENDERS table (count_ratchet_entries exit $shipped_rc), so 'the drained table exempts nobody' was never exercised"
     return
   fi
-  if [[ "$shipped_count" -ne 0 ]]; then
-    log_fail "TEST-013 UNCOVERED — the shipped table holds $shipped_count entr(ies), so this arm is not testing a drained table; drain it or fix TEST-014's maximum first"
+  # Spec-AC-13 (fu-test013-uncovered-on-legal-max-raise): this arm MEANS
+  # "neither fixture suite it plants below is in the offender table", not
+  # "the table has zero entries" — the two are the same thing only by
+  # coincidence of when this was written. A `-ne 0` premise reddens the
+  # cheapest legal repair a maintainer can make (a reviewed raise of
+  # TRIPWIRE_RATCHET_MAX_ENTRIES to admit a genuinely new, reviewed
+  # exemption unrelated to either name below), which is exactly D7's shape:
+  # a COUNT pin standing in for a SUBSET claim. Checked against the actual
+  # property instead.
+  local table_body
+  table_body="$(awk '
+    /^TRIPWIRE_KNOWN_OFFENDERS=\(/ { inside = 1; next }
+    inside && /^\)[[:space:]]*$/    { inside = 0; next }
+    inside { print }
+  ' "$d/tests/skills/test-framework.sh")"
+  if grep -qE 'aai-hitl-propagation|aai-metrics' <<<"$table_body"; then
+    log_fail "TEST-013 UNCOVERED — the shipped table already lists aai-hitl-propagation or aai-metrics as exempt, so this arm's fixture suites would not be proving a REMOVED exemption; use different fixture suite names or a different arm"
     return
   fi
 
@@ -1060,6 +1097,151 @@ test_014_shipped_ratchet_length_is_ratcheted() {
   log_pass "TEST-014 the shipped known-offender table holds $shipped_count entr(ies), at or under the declared maximum of $TRIPWIRE_RATCHET_MAX_ENTRIES, measured by a counter proved able to see 2 seeded entries and to refuse an anchorless file"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-436 (Spec-AC-20, spec-test-framework-sweep) — two related fixes to the
+# same ratchet-accounting code:
+#
+# (a) fu-tripwire-allowed-ignores-pre-dirty: the path-subset test only sees
+#     paths that MOVED between a suite's own before/after snapshot, so a
+#     path already dirty when a suite STARTS is invisible to it. An
+#     allowlisted suite writing only its own listed path used to read
+#     ALLOWED even while an EARLIER, unlisted suite's write sat there
+#     untouched and unmentioned. `a-earlier` runs first (alphabetical suite
+#     discovery), dirties a path nobody's entry names, and is not itself
+#     allowlisted — the run already fails on that suite alone (D8's own
+#     framing: this degrades a red run's offender list, it does not turn a
+#     green run red). `a-listed` runs after it, allowlisted, and writes only
+#     its own single listed path.
+# (b) fu-tripwire-degrade-not-on-suite-line: under the no-hasher degrade
+#     (AAI_TRIPWIRE_HASHER pointed at a command that does not exist) a
+#     SECOND write to an already-dirty ratchet path is invisible to a
+#     class-only comparison, so the writing suite's own progress line used
+#     to be a bare PASS and its metrics.jsonl record read
+#     tripwire_attested:true with nothing to tell a reader the hasher could
+#     not have contradicted it. The unmutated control (hasher present) shows
+#     the SAME fixture shape genuinely FAILS instead — the content hash
+#     catches the second write outright — which is how the two are told
+#     apart.
+# ---------------------------------------------------------------------------
+test_018_tripwire_allowed_accounts_for_pre_dirty_and_degrade_is_on_the_suite_line() {
+  local ok=1
+
+  # (a) pre-dirty accounting.
+  local da outa rca=0
+  da="$(new_fixture)" || return
+  build_framework_repo "$da"
+  mkdir -p "$da/docs/ai"
+  printf 'index\n' > "$da/docs/INDEX.md"
+  inject_ratchet_entries "$da/tests/skills/test-framework.sh" \
+    "aai-a-listed|fu-fixture-pre-dirty-listed|docs/INDEX.md" \
+    || { log_fail "TEST-436(a) could not seed the ratchet entry"; return; }
+  write_fixture_suite "$da" a-earlier '
+printf "stray\n" > "$R/pre-existing-stray.txt"
+exit 0'
+  write_fixture_suite "$da" a-listed '
+printf "my own path\n" >> "$R/docs/INDEX.md"
+exit 0'
+  commit_fixture_repo "$da" || { log_fail "TEST-436(a) fixture repo init failed"; return; }
+
+  outa="$(bash "$da/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rca=$?
+  grep -qE 'a-listed +FAIL.*\[TRIPWIRE\]' <<<"$outa" \
+    || { log_info "TEST-436(a): the allowlisted suite still read ALLOWED while an earlier suite's unlisted, already-dirty write sat untouched: $outa"; ok=0; }
+  grep -qF 'pre-existing-stray.txt' <<<"$outa" \
+    || { log_info "TEST-436(a): the failure did not name the pre-dirty out-of-entry path: $outa"; ok=0; }
+  grep -qE 'a-listed .*ALLOWED' <<<"$outa" \
+    && { log_info "TEST-436(a): the run still printed an ALLOWED verdict for a-listed: $outa"; ok=0; }
+
+  # (b) hasher-degrade reporting, WITHOUT a hasher: the second write to an
+  # already-dirty ratchet path is masked, and the masked suite's own PASS
+  # line and metrics record must both say so.
+  local db outb rcb=0
+  db="$(new_fixture)" || return
+  build_framework_repo "$db"
+  mkdir -p "$db/docs/ai"
+  printf 'index\n' > "$db/docs/INDEX.md"
+  write_fixture_suite "$db" b-first '
+printf "first write\n" >> "$R/docs/INDEX.md"
+exit 0'
+  write_fixture_suite "$db" b-second '
+printf "second write, masked without a hasher\n" >> "$R/docs/INDEX.md"
+exit 0'
+  commit_fixture_repo "$db" || { log_fail "TEST-436(b) fixture repo init failed"; return; }
+
+  outb="$(AAI_TRIPWIRE_HASHER='aai-no-such-hasher-436' bash "$db/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rcb=$?
+  grep -qE 'b-second .*PASS.*DEGRADED — no content hasher' <<<"$outb" \
+    || { log_info "TEST-436(b): the masked suite's own PASS line did not carry the hasher-degrade note: $outb"; ok=0; }
+  local metricsb
+  metricsb="$(find "$db/tests/skills/results" -name metrics.jsonl 2>/dev/null | head -n1)"
+  [[ -n "$metricsb" ]] || { log_info "TEST-436(b): no metrics.jsonl produced"; ok=0; }
+  if [[ -n "$metricsb" ]]; then
+    grep -qF '"skill":"aai-b-second"' "$metricsb" 2>/dev/null && grep -qF '"tripwire_hasher_degraded":true' <<<"$(grep 'aai-b-second' "$metricsb")" \
+      || { log_info "TEST-436(b): aai-b-second's metrics.jsonl record does not carry tripwire_hasher_degraded:true: $(grep 'aai-b-second' "$metricsb" 2>/dev/null)"; ok=0; }
+  fi
+
+  # Unmutated control: WITH a real hasher, the same fixture shape genuinely
+  # FAILS (the content hash catches the second write) instead of passing
+  # degraded — proving the degrade note above is not printed unconditionally.
+  local dc outc rcc=0
+  dc="$(new_fixture)" || return
+  build_framework_repo "$dc"
+  mkdir -p "$dc/docs/ai"
+  printf 'index\n' > "$dc/docs/INDEX.md"
+  write_fixture_suite "$dc" c-first '
+printf "first write\n" >> "$R/docs/INDEX.md"
+exit 0'
+  write_fixture_suite "$dc" c-second '
+printf "second write, caught by the real hasher\n" >> "$R/docs/INDEX.md"
+exit 0'
+  commit_fixture_repo "$dc" || { log_fail "TEST-436(control) fixture repo init failed"; return; }
+  outc="$(bash "$dc/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rcc=$?
+  grep -qE 'c-second .*FAIL.*\[TRIPWIRE\]' <<<"$outc" \
+    || { log_info "TEST-436(control): with a real hasher available, a second write to an already-dirty ratchet path did not fail the run — the arm is not measuring what it claims: $outc"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-436 an ALLOWED verdict accounts for a path already dirty before the suite ran, and a hasher degrade that masks a write is named on the masked suite's own line and in its telemetry record (with a real hasher, the same shape genuinely fails instead)" \
+    || log_fail "TEST-436 tripwire ALLOWED accounts for pre-dirty paths, and degrade is on the suite's own line"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-437 (Spec-AC-20, spec-test-framework-sweep) —
+# fu-tripwire-fixture-dirs-leak: every `new_fixture` call site in THIS suite
+# is `d="$(new_fixture)"`, a command substitution running in a SUBSHELL, so
+# the old plain-array `WORKDIRS+=(...)` append was invisible to the parent
+# and the EXIT trap drained an empty list — measured 13 fixture directories
+# left behind after a full run. `new_fixture` now registers through a FILE
+# (`register_workdir`), the identical fix already shipped for
+# tests/skills/test-aai-suite-isolation.sh's own WORKDIR_REGISTRY. This runs
+# THIS ENTIRE SUITE as a real subprocess (the only way to prove a FULL run
+# leaks nothing) inside its own scoped TMPDIR, and requires that directory to
+# be empty afterward.
+# ---------------------------------------------------------------------------
+test_019_full_run_leaves_no_temp_directory_behind() {
+  # A nested full run would itself reach this same test and launch ANOTHER
+  # nested full run — unbounded recursion, not a second measurement. The
+  # child sees this flag and reports itself skipped instead.
+  if [[ -n "${AAI_TRIPWIRE_NESTED_437:-}" ]]; then
+    log_pass "TEST-019 (nested invocation — this recursion guard fired; the OUTER run is what actually verifies TEST-437)"
+    return
+  fi
+  local scoped_tmp out rc=0 leftover
+  scoped_tmp="$(new_fixture)" || return
+  out="$(TMPDIR="$scoped_tmp" AAI_TRIPWIRE_NESTED_437=1 bash "$PROJECT_ROOT/tests/skills/test-aai-repo-tripwire.sh" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-437: the nested full run exited $rc (want 0)"; }
+  # Scoped to THIS suite's own naming (aai-tripwire-fixture.*, the registry
+  # file aai-tripwire-registry.*): the nested run's own TEST-006 legitimately
+  # invokes the REAL test-aai-deslop.sh suite against the real checkout,
+  # which leaks its own aai-deslop-fixture.* directories under the same
+  # inherited TMPDIR — a pre-existing defect of a different suite, not named
+  # by this AC's fu id, and not this arm's claim.
+  leftover="$(find "$scoped_tmp" -mindepth 1 -maxdepth 1 \( -name 'aai-tripwire-fixture.*' -o -name 'aai-tripwire-registry.*' \) 2>/dev/null)"
+  if [[ -n "$leftover" ]]; then
+    log_info "TEST-437: temporary entries survived a full run under a scoped TMPDIR:"
+    printf '%s\n' "$leftover" | sed 's/^/    /'
+    log_fail "TEST-437 a full run of the tripwire suite leaves no temporary directory behind"
+    return
+  fi
+  log_pass "TEST-437 a full run of this suite (nested, under its own scoped TMPDIR) leaves no aai-tripwire-fixture.* or aai-tripwire-registry.* directory behind"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-suites-must-not-touch-the-shipping-repo) ==="
   check_deps
@@ -1119,6 +1301,8 @@ exit 7'
 
   test_016_tripwire_failure_still_dumps_the_log_tail
   test_017_tripwire_lost_kind_still_dumps_the_log_tail
+  test_018_tripwire_allowed_accounts_for_pre_dirty_and_degrade_is_on_the_suite_line
+  test_019_full_run_leaves_no_temp_directory_behind
   echo ""
   if [[ $FAILED -eq 0 ]]; then
     echo "All tests passed!"

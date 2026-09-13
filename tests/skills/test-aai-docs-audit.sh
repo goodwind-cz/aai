@@ -1894,6 +1894,33 @@ test_spec0006_no_regression_real_repo() {  # TEST-007 / Spec-AC-07
   log_pass "Real-repo audit CLEAN and INDEX idempotent (no regression)"
 }
 
+# ============================ TEST-444 (Spec-AC-27) ===========================
+# CHANGE-0166's closeout: docs-audit --check --strict over that ONE doc is
+# CLEAN, its frontmatter status is terminal, and it carries a delivering PR.
+test_change0166_closeout_is_clean_and_terminal() {
+  log_info "Test: CHANGE-0166's closeout — docs-audit --check --strict over it is CLEAN, frontmatter status is terminal, and it names a delivering PR (TEST-444)..."
+  local doc_rel="docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md"
+  local doc="$PROJECT_ROOT/$doc_rel"
+  [[ -f "$doc" ]] || log_skip "CHANGE-0166 doc not found: $doc"
+
+  local status pr_count
+  status="$(awk -F': ' '/^status:/{print $2; exit}' "$doc" | tr -d '\r')"
+  case "$status" in
+    done|superseded|rejected) ;;
+    *) log_fail "TEST-444: CHANGE-0166's frontmatter status is not terminal, got '$status'" ;;
+  esac
+  pr_count="$(awk '/^  pr:/{p=1;next} p && /^    - /{print; next} {p=0}' "$doc" | grep -c .)"
+  [[ "$pr_count" -ge 1 ]] \
+    || log_fail "TEST-444: CHANGE-0166's frontmatter links.pr is empty — no delivering PR named"
+
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event --path "$doc_rel" > "$TEST_DIR/change0166-audit.log" 2>&1) \
+    || log_fail "TEST-444: docs-audit --check --strict over CHANGE-0166 must exit 0: $(tail -10 "$TEST_DIR/change0166-audit.log")"
+  assert_contains "$TEST_DIR/change0166-audit.log" "Verdict: CLEAN"
+  assert_not_contains "$TEST_DIR/change0166-audit.log" "CHECK FAILED"
+
+  log_pass "TEST-444: CHANGE-0166's frontmatter status ($status) is terminal with $pr_count delivering PR(s) named, and docs-audit --check --strict over it is CLEAN"
+}
+
 # --- SPEC-0007 fixtures (ISSUE-0001): CRLF/lone-CR-tolerant parsers + POSIX paths ---
 
 # Build an isolated mini-repo under $TEST_DIR with the vendored scripts, so a
@@ -4825,8 +4852,7 @@ MD
   done
   local row; row="$(grep -F "CHANGE-5801" "$d/drift-sec.txt" | head -1)"
   assert_payload_contains "$row" "delivery commit(s)" "TEST-001: reasons must name the delivery-commit signal"
-  echo "$row" | grep -Eq '[0-9a-f]{7}' \
-    || log_fail "TEST-001: drift row Evidence cell must carry a short commit hash"
+  assert_payload_line_matches "$row" '[0-9a-f]{7}' "TEST-001: drift row Evidence cell must carry a short commit hash"
   rm -rf "$d"
   log_pass "Delivery-commit signal flags every eligible open status, with a hash cited (TEST-001)"
 }
@@ -6983,6 +7009,107 @@ test_acflip_real_repo_clean() {  # TEST-005 / Spec-AC-05
 }
 # AC-FLIP GUARD STANZAS (end)
 
+# TEST-441 (spec-test-framework-sweep Spec-AC-24, fu-docsaudit-t003-red-on-new-doc)
+# — a self-contained isolated fixture, independent of setup_fixture, so it can
+# run in isolation via sourcing. A document present only in the working tree
+# (untracked, never regenerated into docs/INDEX.md) must not make the audit
+# arm FAIL; a genuine drift unrelated to that new document must still FAIL,
+# so the tolerance for an in-flight new doc is not a blanket leniency.
+setup_ac24_fixture() {
+  # Self-sufficient: works whether or not the shared setup_fixture ran first
+  # (single-test sourced RED/GREEN evidence capture never runs it).
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  local d="$TEST_DIR/iso-ac24-$1"
+  rm -rf "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/issues" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  cat > "$d/docs/ai/docs-audit.yaml" <<'YAML'
+legacy_until_date: 2026-01-01
+stale_after_days: 90
+scan_exclude: []
+backlog_globs: []
+YAML
+  cat > "$d/docs/issues/ISSUE-001-seed.md" <<'MD'
+---
+id: ISSUE-001
+type: issue
+status: done
+links:
+  pr: []
+---
+# Seed issue
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | seeded      | done   | a1b2c3d  | —         | —     |
+MD
+  (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test" \
+    && git add -A && git commit -qm "chore: seed")
+  # Committed docs/INDEX.md, generated for real, listing the one seed doc.
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1)
+  (cd "$d" && git add docs/INDEX.md && git commit -qm "chore: index")
+  printf '%s' "$d"
+}
+
+test_441_untracked_new_doc_passes_genuine_drift_still_fails() {
+  log_info "Test: a document present in the working tree and absent from the committed docs/INDEX.md does not fail the audit arm, and a genuine drift unrelated to it still does (TEST-441)..."
+  local d rc out
+  d="$(setup_ac24_fixture t441)"
+
+  # Part A: add an UNTRACKED new doc, never regenerated into docs/INDEX.md.
+  cat > "$d/docs/issues/ISSUE-002-new-untracked.md" <<'MD'
+---
+id: ISSUE-002
+type: issue
+status: draft
+links:
+  pr: []
+---
+# New untracked issue, mid-intake
+MD
+  rc=0
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    log_info "TEST-441 Part A: an untracked new doc must not fail the audit arm (got rc=$rc): $(printf '%s' "$out" | tail -20)"
+    log_fail "TEST-441 Part A: untracked new document"
+  fi
+
+  # Part B: on the SAME tree (untracked doc still present), also corrupt the
+  # COMMITTED seed doc's frontmatter status to an unknown value — a genuine
+  # violation (docs-audit-core.mjs: `unknown frontmatter status`), unrelated
+  # to the untracked doc. The arm must still FAIL: tolerance for an in-flight
+  # new doc is not a blanket leniency that also swallows a real violation.
+  cat > "$d/docs/issues/ISSUE-001-seed.md" <<'MD'
+---
+id: ISSUE-001
+type: issue
+status: bogus-status
+links:
+  pr: []
+---
+# Seed issue
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | seeded      | done   | a1b2c3d  | —         | —     |
+MD
+  rc=0
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    log_info "TEST-441 Part B: a genuine false-open drift must still fail the audit arm even with an untracked new doc present, got rc=0: $(printf '%s' "$out" | tail -20)"
+    log_fail "TEST-441 Part B: genuine drift still fails"
+  fi
+  rm -rf "$d"
+  log_pass "TEST-441 an untracked working-tree document does not fail the audit arm, and a genuine drift still does"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -7032,6 +7159,7 @@ main() {
   test_spec0006_close_policy_prose
   test_spec0006_open_decision_guard
   test_spec0006_no_regression_real_repo
+  test_change0166_closeout_is_clean_and_terminal
   test_issue0001_frontmatter_crlf_tolerance
   test_issue0001_actable_crlf_tolerance
   setup_indexarm_snapshots
@@ -7151,6 +7279,7 @@ main() {
   test_acflip_predicate_agrees_with_check
   test_acflip_remediation_is_reachable
   test_acflip_real_repo_clean
+  test_441_untracked_new_doc_passes_genuine_drift_still_fails
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -44,6 +44,18 @@ cd "$PROJECT_ROOT"
 RELEASE_SH="$PROJECT_ROOT/.aai/scripts/aai-release.sh"
 RELEASE_PS1="$PROJECT_ROOT/.aai/scripts/aai-release.ps1"
 
+# Spec-AC-13 (fu-test031-self-neutralizes-post-merge): TEST-031's byte-
+# identity comparison used to resolve its "pre-change engine" from
+# origin/main at RUN TIME, so once this scope's own PR merges, origin/main
+# IS the new engine and the pin compares the working tree to itself forever
+# after — a guard that stopped guarding without ever going red. A fixed blob
+# sha does not move when history moves: it is the aai-release.sh content as
+# of commit 230921a8 (the engine this scope inherited, unmodified by it),
+# addressed by content hash rather than by ref, so it keeps meaning "the
+# pre-change engine" regardless of what merges later. The legal one-line
+# repair for a deliberate stdout-shape change is to re-pin this constant.
+RELEASE_ENGINE_PIN_SHA="f5e5305a269ffa52ae17880a08d35463ecc761a2"
+
 TMP_ROOT=""
 
 log_pass() { echo "PASS: $*"; }
@@ -834,6 +846,24 @@ test_023_cut_consumes_existing_scaffold() {
   log_pass "TEST-023 cut consumes the pre-existing scaffold (exactly one remains)"
 }
 
+# A merge-base unreleased heading may legitimately disappear in exactly ONE
+# way: a release roll renames `## [unreleased] — <title>` to
+# `## [vX] — <title>`. The title (everything after the first " — ") is the
+# identity that must survive; only the version marker may change. Factored
+# out of test_024 (Spec-AC-12/TEST-421) so the SAME comparison the real
+# check runs can also be driven, in-suite, against a scratch pair that
+# proves it detects a genuine deletion — not only that it stays quiet on an
+# honest repo.
+unreleased_heading_diff() {
+  local base_file="$1" live_file="$2"
+  awk '
+    function title(line) { sub(/^## \[[^]]*\] — /, "", line); return line }
+    NR==FNR { if ($0 ~ /^## \[unreleased\] — /) base[title($0)]=$0; next }
+    $0 ~ /^## \[[^]]*\] — / { live[title($0)]=1 }
+    END { for (t in base) if (!(t in live)) print base[t] }
+  ' "$base_file" "$live_file"
+}
+
 test_024_no_deleted_unreleased_heading_vs_main() {
   # CLASS guard (code review, CHANGE-0135): the second heading-deletion
   # incident in one week (CHANGE-0128, then cf6f037 on this branch) — a docs
@@ -861,18 +891,23 @@ test_024_no_deleted_unreleased_heading_vs_main() {
   elif git -C "$PROJECT_ROOT" rev-parse --verify --quiet main >/dev/null 2>&1; then
     base_ref="main"
   else
-    log_pass "TEST-024 skipped: neither 'origin/main' nor 'main' ref reachable"
+    # Spec-AC-14 (DEBT-0004 Target State item b): this branch used to report
+    # PASS on a check it never ran — a fresh clone with neither ref would
+    # look identical to a clean repo with nothing deleted. UNCOVERED, reported
+    # as a failure: the claim "no heading was deleted" cannot be made at all
+    # without a base to diff against.
+    log_fail "TEST-024 UNCOVERED — neither 'origin/main' nor 'main' ref reachable, so the merge-base deletion check cannot run"
     return
   fi
   local base
   base="$(git -C "$PROJECT_ROOT" merge-base HEAD "$base_ref" 2>/dev/null)" || base=""
   if [[ -z "$base" ]]; then
-    log_pass "TEST-024 skipped: no merge-base with main"
+    log_fail "TEST-024 UNCOVERED — no merge-base with $base_ref, so the merge-base deletion check cannot run"
     return
   fi
   local base_file="$TMP_ROOT/t024-base-changelog.md"
   if ! git -C "$PROJECT_ROOT" show "$base:CHANGELOG.md" >"$base_file" 2>/dev/null; then
-    log_pass "TEST-024 skipped: CHANGELOG.md not present at merge-base $base"
+    log_fail "TEST-024 UNCOVERED — CHANGELOG.md not present at merge-base $base, so the merge-base deletion check cannot run"
     return
   fi
   local missing
@@ -887,17 +922,44 @@ test_024_no_deleted_unreleased_heading_vs_main() {
   # first " — ") is the identity that must survive; only the version marker may
   # change, and a title vanishing from BOTH forms is still the deletion this
   # guard was built to catch.
-  missing="$(awk '
-    function title(line) { sub(/^## \[[^]]*\] — /, "", line); return line }
-    NR==FNR { if ($0 ~ /^## \[unreleased\] — /) base[title($0)]=$0; next }
-    $0 ~ /^## \[[^]]*\] — / { live[title($0)]=1 }
-    END { for (t in base) if (!(t in live)) print base[t] }
-  ' "$base_file" "$PROJECT_ROOT/CHANGELOG.md")"
+  missing="$(unreleased_heading_diff "$base_file" "$PROJECT_ROOT/CHANGELOG.md")"
   if [[ -n "$missing" ]]; then
     log_fail "TEST-024: unreleased heading(s) present at merge-base ($base) are missing from the live CHANGELOG — deleted rather than added above: $missing"
     return
   fi
-  log_pass "TEST-024 every merge-base unreleased heading is still present verbatim in the live CHANGELOG"
+
+  # Negative control (Spec-AC-12/DEBT-0004, TEST-421): the real check above
+  # only ever exercises the honest-repo path (nothing was deleted); it has
+  # never been OBSERVED failing on a deletion. A scratch pair through the
+  # same comparison function proves the guard actually detects one, and that
+  # the one legal repair (a release roll renaming the heading, title
+  # preserved) does not false-flag.
+  local nc_base="$TMP_ROOT/t024-nc-base.md" nc_live_del="$TMP_ROOT/t024-nc-live-del.md" nc_live_ok="$TMP_ROOT/t024-nc-live-ok.md" nc_missing
+  cat >"$nc_base" <<'FIXTURE'
+## [unreleased] — feat: alpha (REF-A)
+- alpha bullet
+## [unreleased] — feat: beta (REF-B)
+- beta bullet
+FIXTURE
+  cat >"$nc_live_del" <<'FIXTURE'
+## [unreleased] — feat: beta (REF-B)
+- beta bullet
+FIXTURE
+  nc_missing="$(unreleased_heading_diff "$nc_base" "$nc_live_del")"
+  case "$nc_missing" in
+    *"feat: alpha (REF-A)"*) ;;
+    *) log_fail "TEST-024 negative control: a deleted merge-base heading was NOT detected by unreleased_heading_diff — the guard would stay silent on the exact incident it exists to catch" ;;
+  esac
+  cat >"$nc_live_ok" <<'FIXTURE'
+## [v9.9.9] — feat: alpha (REF-A)
+- alpha bullet
+## [unreleased] — feat: beta (REF-B)
+- beta bullet
+FIXTURE
+  nc_missing="$(unreleased_heading_diff "$nc_base" "$nc_live_ok")"
+  [[ -z "$nc_missing" ]] \
+    || log_fail "TEST-024 negative control: a release-rolled heading (title preserved, version marker changed) was wrongly reported missing: $nc_missing"
+  log_pass "TEST-024 every merge-base unreleased heading is still present verbatim in the live CHANGELOG, and the negative control proves a deletion is caught while a legal rename is not (TEST-421/Spec-AC-12)"
 }
 
 test_025_released_region_pin_vs_tag() {
@@ -919,7 +981,11 @@ test_025_released_region_pin_vs_tag() {
       log_pass "TEST-025 released region byte-identical vs ${verdict#PASS } (latest ancestor release tag)"
       ;;
     SKIP\ *)
-      log_pass "TEST-025 skipped: ${verdict#SKIP }"
+      # Spec-AC-14 (DEBT-0004 Target State item b): TEST-026's scratch matrix
+      # already proves this exact SKIP verdict is named correctly (the
+      # tagless arm) — this own arm's job is only the LIVE repo, and a SKIP
+      # here means the live check could not run, not that it passed.
+      log_fail "TEST-025 UNCOVERED — ${verdict#SKIP }, so the released-region comparison could not run on the live repo (TEST-026 covers this verdict's own correctness separately)"
       ;;
     FAIL\ *)
       log_fail "TEST-025: ${verdict#FAIL }"
@@ -1149,14 +1215,15 @@ test_030_followtags_cannot_orphan_the_tag() {
 # --- TEST-031 (Spec-AC-05): unprotected path unchanged ----------------------
 
 test_031_unprotected_path_byte_identical() {
-  log_info "TEST-031: on an UNPROTECTED remote the cut's SHA-masked stdout matches the pre-change engine byte for byte..."
-  local old_engine="$TMP_ROOT/t031-old-release.sh" ref base_ref=""
-  for ref in origin/main main; do
-    if git -C "$PROJECT_ROOT" show "$ref:.aai/scripts/aai-release.sh" > "$old_engine" 2>/dev/null; then
-      base_ref="$ref"
-      break
-    fi
-  done
+  log_info "TEST-031: on an UNPROTECTED remote the cut's SHA-masked stdout matches the pre-change engine byte for byte (pinned blob, TEST-421/Spec-AC-12+13)..."
+  local old_engine="$TMP_ROOT/t031-old-release.sh" base_ref="$RELEASE_ENGINE_PIN_SHA"
+  # Fixed-blob pin (Spec-AC-13): NOT resolved from origin/main or main, which
+  # both drift forward to equal the working engine once this scope's own PR
+  # merges. A blob is a git object, reachable forever once it is part of any
+  # commit's tree — no ref, moving or otherwise, is consulted here.
+  if ! git -C "$PROJECT_ROOT" cat-file blob "$RELEASE_ENGINE_PIN_SHA" > "$old_engine" 2>/dev/null; then
+    log_fail "TEST-031: pinned engine blob $RELEASE_ENGINE_PIN_SHA is unreadable (shallow clone missing objects, or a corrupt checkout) -- this must FAIL, not soft-skip, because a fixed sha is expected to always resolve in a full checkout (Spec-AC-13, fu-test031-self-neutralizes-post-merge)"
+  fi
 
   # Arm A — the working-tree engine over an unprotected bare.
   local repoA="$TMP_ROOT/t031a" bareA="$TMP_ROOT/t031a-bare.git" stubA="$TMP_ROOT/t031a-stub" rcA=0
@@ -1176,12 +1243,6 @@ test_031_unprotected_path_byte_identical() {
   [[ "$rcA" == "0" ]] || log_fail "TEST-031: unprotected cut exited $rcA, expected 0:"$'\n'"$(cat "$TMP_ROOT/t031a.out" "$TMP_ROOT/t031a.err")"
   git -C "$bareA" show-ref --verify --quiet refs/heads/main || log_fail "TEST-031: refs/heads/main missing on the unprotected remote"
   git -C "$bareA" show-ref --verify --quiet refs/tags/v9.5.5 || log_fail "TEST-031: refs/tags/v9.5.5 missing on the unprotected remote"
-
-  if [[ -z "$base_ref" ]]; then
-    log_info "TEST-031: neither origin/main nor main carries .aai/scripts/aai-release.sh here — stdout byte-comparison arm skipped (degrade and report)"
-    log_pass "TEST-031 unprotected path: exit 0 and both refs pushed (byte-comparison arm skipped, no base engine)"
-    return 0
-  fi
 
   # Arm B — the pre-change engine over an identically seeded fixture.
   local repoB="$TMP_ROOT/t031b" bareB="$TMP_ROOT/t031b-bare.git" stubB="$TMP_ROOT/t031b-stub" rcB=0

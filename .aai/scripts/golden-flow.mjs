@@ -64,6 +64,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { extractUsageTotal } from './lib/usage-note.mjs';
+import { withAppendLock } from './lib/append-lock.mjs';
 
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SELF_ROOT = path.resolve(SELF_DIR, '..', '..');
@@ -386,22 +387,37 @@ function ciDocsOnlyFullRun(ctx, outDir) {
   return /^FULL_RUN /m.test(r.stdout ?? '');
 }
 
+// Spec-AC-10: the same mkdir-mutex lock discipline the other docs/ai/
+// ledgers use (tests/skills/lib/append-lock.sh, ported to Node as
+// lib/append-lock.mjs), not a bare appendFileSync. A single small write is
+// atomic in practice on today's filesystems, which is exactly the "property
+// of the current payload, not of the file" the shell library's own header
+// warns against relying on. The read-tail-byte-then-append sequence below
+// runs ENTIRELY inside the lock, so two concurrent callers can never both
+// read "already ends in a newline" and then race to append. A lock that
+// cannot be acquired is REPORTED and the record is NOT written — never
+// written around (the shell contract's own words).
 function appendRecord(recordPath, record) {
-  fs.mkdirSync(path.dirname(recordPath), { recursive: true });
-  // One O_APPEND write of one serialized line — the house JSONL pattern; the
-  // base is left a byte-exact prefix (HAZ-LEDGER).
-  let prefixNewline = '';
-  if (fs.existsSync(recordPath)) {
-    const st = fs.statSync(recordPath);
-    if (st.size > 0) {
-      const fd = fs.openSync(recordPath, 'r');
-      const buf = Buffer.alloc(1);
-      fs.readSync(fd, buf, 0, 1, st.size - 1);
-      fs.closeSync(fd);
-      if (buf[0] !== 0x0a) prefixNewline = '\n';
+  const res = withAppendLock(recordPath, () => {
+    // One O_APPEND write of one serialized line — the house JSONL pattern;
+    // the base is left a byte-exact prefix (HAZ-LEDGER).
+    let prefixNewline = '';
+    if (fs.existsSync(recordPath)) {
+      const st = fs.statSync(recordPath);
+      if (st.size > 0) {
+        const fd = fs.openSync(recordPath, 'r');
+        const buf = Buffer.alloc(1);
+        fs.readSync(fd, buf, 0, 1, st.size - 1);
+        fs.closeSync(fd);
+        if (buf[0] !== 0x0a) prefixNewline = '\n';
+      }
     }
+    fs.appendFileSync(recordPath, prefixNewline + JSON.stringify(record) + '\n');
+  });
+  if (!res.ok) {
+    process.stderr.write(`golden-flow: ${res.reason} — the record was NOT written\n`);
+    exit(1);
   }
-  fs.appendFileSync(recordPath, prefixNewline + JSON.stringify(record) + '\n');
 }
 
 // ---- --diff ------------------------------------------------------------------------

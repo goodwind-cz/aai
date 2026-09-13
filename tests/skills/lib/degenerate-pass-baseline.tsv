@@ -1,0 +1,29 @@
+# tests/skills/lib/degenerate-pass-baseline.tsv
+#
+# GENERATED, never hand-edited:
+#   bash tests/skills/lib/degenerate-pass-ratchet.sh --record
+#
+# One `<sites>\t<suite file>` row per tests/skills/*.sh file that still
+# calls log_pass on a branch its own message calls "skipped" or "not
+# applicable" (DEBT-0004 Target State item b). The count may FALL, never
+# RISE: a rise fails tests/skills/test-aai-hygiene-pack.sh and names the
+# file. Nine such sites named in Spec-AC-14 are guards, converted to a
+# failing UNCOVERED report instead of ratcheted; this baseline is the
+# measured remainder — legitimate platform/environment skips.
+#
+2	test-aai-check-state.sh
+1	test-aai-deslop.sh
+1	test-aai-doc-number-reservation.sh
+1	test-aai-docs-audit.sh
+1	test-aai-factory-report.sh
+1	test-aai-feedback-upsert.sh
+1	test-aai-follow-ups.sh
+2	test-aai-hitl-channel.sh
+1	test-aai-hygiene-pack.sh
+2	test-aai-live-status.sh
+2	test-aai-metrics.sh
+2	test-aai-orchestration-dispatch.sh
+1	test-aai-overview.sh
+1	test-aai-repo-tripwire.sh
+2	test-aai-run-tests.sh
+5	test-aai-suite-isolation.sh

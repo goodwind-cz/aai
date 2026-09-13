@@ -62,15 +62,11 @@ test_001_capability_detection_contract() {
   assert_payload_contains "$block" "spawn_model_catalog" "TEST-001: Capability detection section must name spawn_model_catalog"
   assert_payload_contains "$block" "fork_turns_supported" "TEST-001: Capability detection section must name fork_turns_supported"
 
-  echo "$block" | grep -qiF 'runtime' \
-    || log_fail "TEST-001: capabilities must be resolved AT RUNTIME"
-  echo "$block" | grep -qiF 're-resolved' \
-    || log_fail "TEST-001: capabilities must be re-resolved when a spawn call is refused"
-  echo "$block" | grep -qiF 'fail' \
-    || log_fail "TEST-001: an unknown capability must fail closed to the next isolation tier"
-  echo "$block" | grep -qiF 'harness' \
-    && echo "$block" | grep -qiF 'not on harness name equality' \
-    || log_fail "TEST-001: behavior must be keyed on detected capabilities, NOT harness-name equality"
+  assert_payload_contains_i "$block" "runtime" "TEST-001: capabilities must be resolved AT RUNTIME"
+  assert_payload_contains_i "$block" "re-resolved" "TEST-001: capabilities must be re-resolved when a spawn call is refused"
+  assert_payload_contains_i "$block" "fail" "TEST-001: an unknown capability must fail closed to the next isolation tier"
+  assert_payload_contains_i "$block" "harness" "TEST-001: behavior must be keyed on detected capabilities, NOT harness-name equality" \
+    && assert_payload_contains_i "$block" "not on harness name equality" "TEST-001: behavior must be keyed on detected capabilities, NOT harness-name equality"
 
   log_pass "Capability-detection contract: four fields + runtime/re-resolution/fail-closed/no-harness-equality wording (TEST-001/spec TEST-003)"
 }
@@ -132,8 +128,7 @@ test_003_four_tiers_in_order() {
   [[ -n "$pos_codex_exec" ]] || log_fail "TEST-003: tier 3 token 'codex exec -m' not found"
   [[ -n "$pos_last_resort" ]] || log_fail "TEST-003: tier 4 'last resort' wording not found"
 
-  echo "$block" | grep -qiF 'residual risk' \
-    || log_fail "TEST-003: tier 4 (last resort) must record a residual risk"
+  assert_payload_contains_i "$block" "residual risk" "TEST-003: tier 4 (last resort) must record a residual risk"
 
   # File-order check: tier 1 tokens < tier-2 catalog retry < tier-3 codex exec < tier-4 last resort.
   if ! [[ "$pos_spawn_agent" -lt "$pos_catalog_retry" && "$pos_fork_turns" -lt "$pos_catalog_retry" \
@@ -141,8 +136,7 @@ test_003_four_tiers_in_order() {
     log_fail "TEST-003: the four tiers must appear IN FILE ORDER (spawn_agent/fork_turns < spawn_model_catalog retry < codex exec -m < last resort); got positions $pos_spawn_agent/$pos_fork_turns/$pos_catalog_retry/$pos_codex_exec/$pos_last_resort"
   fi
 
-  echo "$block" | grep -qiF 'verify' \
-    || log_fail "TEST-003: the orchestrator must VERIFY the granted model rather than assume the override took"
+  assert_payload_contains_i "$block" "verify" "TEST-003: the orchestrator must VERIFY the granted model rather than assume the override took"
 
   log_pass "Four isolation tiers in file order + residual-risk + verify-granted-model clause (TEST-003/spec TEST-005)"
 }

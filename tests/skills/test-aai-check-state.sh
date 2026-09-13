@@ -523,8 +523,7 @@ test_skill_check_state_names_template_as_authoritative() {  # TEST-004 / Spec-AC
   para="$(awk '/^AUTHORITATIVE SCHEMA$/{flag=1; next} flag && /^$/{exit} flag' "$skill")"
   [[ -n "$para" ]] || log_fail "AUTHORITATIVE SCHEMA paragraph not found in $skill"
   assert_payload_contains "$para" ".aai/templates/STATE_TEMPLATE.yaml" "AUTHORITATIVE SCHEMA paragraph must name .aai/templates/STATE_TEMPLATE.yaml as the canonical schema source: $para"
-  echo "$para" | grep -qiF "gitignored" \
-    || log_fail "AUTHORITATIVE SCHEMA paragraph should explain docs/ai/STATE.yaml is gitignored on a fresh checkout (why the template, not the live file, is canonical): $para"
+  assert_payload_contains_i "$para" "gitignored" "AUTHORITATIVE SCHEMA paragraph should explain docs/ai/STATE.yaml is gitignored on a fresh checkout (why the template, not the live file, is canonical): $para"
   log_pass "SKILL_CHECK_STATE.prompt.md names the template as the authoritative schema source"
 }
 

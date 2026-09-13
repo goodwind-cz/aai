@@ -25,6 +25,8 @@ set -euo pipefail
 
 TEST_NAME="ps1-quality"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PS_DIR="$PROJECT_ROOT/.aai/scripts"
 SETTINGS="$PS_DIR/PSScriptAnalyzerSettings.psd1"
@@ -64,9 +66,7 @@ parse_out="$(PS_DIR="$PS_DIR" pwsh -NoProfile -Command '
   Write-Output ("PARSEBAD=" + $bad)
 ' 2>&1)"
 echo "$parse_out" | grep -v '^PARSEBAD=' || true
-if ! echo "$parse_out" | grep -q '^PARSEBAD=0$'; then
-  log_fail "one or more .ps1 scripts have parse errors (see above)"
-fi
+assert_payload_has_line "$parse_out" "PARSEBAD=0" "one or more .ps1 scripts have parse errors (see above)"
 log_pass "all .ps1 scripts parse cleanly"
 
 # --- 2. PSScriptAnalyzer -------------------------------------------------------
@@ -93,9 +93,7 @@ if [[ "$has_pssa" == "yes" ]]; then
     Write-Output ("COMPATBAD=" + $all.Count)
   ' 2>&1)"
   echo "$compat_out" | grep -v '^COMPATBAD=' || true
-  if ! echo "$compat_out" | grep -q '^COMPATBAD=0$'; then
-    log_fail "PSScriptAnalyzer found cross-version syntax incompatibilities or parse Errors (see above)"
-  fi
+  assert_payload_has_line "$compat_out" "COMPATBAD=0" "PSScriptAnalyzer found cross-version syntax incompatibilities or parse Errors (see above)"
   log_pass "PSScriptAnalyzer: .aai/scripts + tests/skills are 5.1 + 7.0 syntax compatible, 0 parse Errors"
 
   # 2b. INFORMATIONAL: quality warnings (non-blocking; CLI scripts intentionally

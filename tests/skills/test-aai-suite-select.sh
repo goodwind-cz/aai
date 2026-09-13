@@ -31,6 +31,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
+
+# Local restructuring for the NEGATED, per-line-anchored/regex control shape
+# (Spec-AC-11): the helper library has no "assert no line matches this ERE"
+# primitive, so these sites are restructured rather than substituted.
+assert_payload_line_not_matches() {
+  local _p="$1" _e="$2" _m="$3" _l
+  while IFS= read -r _l; do
+    if [[ "$_l" =~ $_e ]]; then log_fail "$_m"; return; fi
+  done <<EOF
+$_p
+EOF
+  return 0
+}
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SELECTOR="${SELECT_SUITES_SCRIPT:-$PROJECT_ROOT/.aai/scripts/select-suites.mjs}"
 WORKFLOW_FILE="$PROJECT_ROOT/.github/workflows/skill-suite.yml"
@@ -106,11 +119,11 @@ test_001_mapped_diff_selects_exact_plus_core() {  # Spec-AC-01
   small_map "$TEST_DIR"
   run_sel "$TEST_DIR" "src/alpha/foo.js"
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^CORE aai-core-a reason=core$' || log_fail "missing CORE aai-core-a: $OUT"
-  echo "$OUT" | grep -qE '^CORE aai-core-b reason=core$' || log_fail "missing CORE aai-core-b: $OUT"
-  echo "$OUT" | grep -qE '^SELECTED aai-alpha reason=src/alpha/foo\.js$' || log_fail "missing SELECTED aai-alpha: $OUT"
-  echo "$OUT" | grep -qE '^SELECTED aai-beta' && log_fail "aai-beta must NOT be selected (glob does not match foo.js): $OUT"
-  echo "$OUT" | grep -qE '^DROPPED 1$' || log_fail "expected DROPPED 1 (only aai-beta unselected): $OUT"
+  assert_payload_has_line "$OUT" "CORE aai-core-a reason=core" "missing CORE aai-core-a: $OUT"
+  assert_payload_has_line "$OUT" "CORE aai-core-b reason=core" "missing CORE aai-core-b: $OUT"
+  assert_payload_has_line "$OUT" "SELECTED aai-alpha reason=src/alpha/foo.js" "missing SELECTED aai-alpha: $OUT"
+  assert_payload_line_not_matches "$OUT" '^SELECTED aai-beta' "aai-beta must NOT be selected (glob does not match foo.js): $OUT"
+  assert_payload_has_line "$OUT" "DROPPED 1" "expected DROPPED 1 (only aai-beta unselected): $OUT"
   log_pass "Exact mapped selection + core always present (TEST-001)"
 }
 
@@ -120,9 +133,9 @@ test_002_multi_writer_overlap() {  # Spec-AC-01 (fixture diversity: multi-source
   small_map "$TEST_DIR"
   run_sel "$TEST_DIR" "src/alpha/shared.js"
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^SELECTED aai-alpha reason=src/alpha/shared\.js$' || log_fail "missing SELECTED aai-alpha: $OUT"
-  echo "$OUT" | grep -qE '^SELECTED aai-beta reason=src/alpha/shared\.js$' || log_fail "missing SELECTED aai-beta: $OUT"
-  echo "$OUT" | grep -qE '^DROPPED 0$' || log_fail "both non-core suites selected -> DROPPED 0: $OUT"
+  assert_payload_has_line "$OUT" "SELECTED aai-alpha reason=src/alpha/shared.js" "missing SELECTED aai-alpha: $OUT"
+  assert_payload_has_line "$OUT" "SELECTED aai-beta reason=src/alpha/shared.js" "missing SELECTED aai-beta: $OUT"
+  assert_payload_has_line "$OUT" "DROPPED 0" "both non-core suites selected -> DROPPED 0: $OUT"
   log_pass "Overlapping selection: one path selects every matching suite (TEST-002)"
 }
 
@@ -132,9 +145,9 @@ test_003_zero_remainder() {  # Spec-AC-01 (fixture diversity: fully-covered / ze
   small_map "$TEST_DIR"
   run_sel "$TEST_DIR" "docs/core-a.md" "docs/core-b.md" "src/alpha/foo.js" "src/beta/bar.js"
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^SELECTED aai-alpha' || log_fail "missing SELECTED aai-alpha: $OUT"
-  echo "$OUT" | grep -qE '^SELECTED aai-beta' || log_fail "missing SELECTED aai-beta: $OUT"
-  echo "$OUT" | grep -qE '^DROPPED 0$' || log_fail "every non-core suite matched -> DROPPED 0: $OUT"
+  assert_payload_line_matches "$OUT" '^SELECTED aai-alpha' "missing SELECTED aai-alpha: $OUT"
+  assert_payload_line_matches "$OUT" '^SELECTED aai-beta' "missing SELECTED aai-beta: $OUT"
+  assert_payload_has_line "$OUT" "DROPPED 0" "every non-core suite matched -> DROPPED 0: $OUT"
   log_pass "Zero-remainder: nothing dropped when every suite's surface is touched (TEST-003)"
 }
 
@@ -146,9 +159,9 @@ test_004_empty_diff() {  # Spec-AC-01 (fixture diversity: degenerate/empty)
   OUT="$(node "$SELECTOR" --repo-root "$TEST_DIR" --files-from "$TEST_DIR/files.txt" 2>&1)"
   CODE=$?
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^CORE aai-core-a reason=core$' || log_fail "missing CORE aai-core-a on empty diff: $OUT"
-  echo "$OUT" | grep -qE '^SELECTED' && log_fail "empty diff must select nothing beyond core: $OUT"
-  echo "$OUT" | grep -qE '^DROPPED 2$' || log_fail "empty diff drops both non-core suites: $OUT"
+  assert_payload_has_line "$OUT" "CORE aai-core-a reason=core" "missing CORE aai-core-a on empty diff: $OUT"
+  assert_payload_line_not_matches "$OUT" '^SELECTED' "empty diff must select nothing beyond core: $OUT"
+  assert_payload_has_line "$OUT" "DROPPED 2" "empty diff drops both non-core suites: $OUT"
   log_pass "Degenerate empty diff: core only, DROPPED equals all non-core suites (TEST-004)"
 }
 
@@ -201,8 +214,8 @@ YAML
   # Not an exact match (extra suffix) and not under .aai/scripts/lib/.
   run_sel "$TEST_DIR" ".aai/scripts/state.mjs.bak"
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE 'reason=protected-l3' && log_fail "near-miss must not trip protected-l3 (exact match only): $OUT"
-  echo "$OUT" | grep -qE 'reason=shared-lib' && log_fail "near-miss must not trip shared-lib (not under .aai/scripts/lib/): $OUT"
+  assert_payload_not_contains "$OUT" "reason=protected-l3" "near-miss must not trip protected-l3 (exact match only): $OUT"
+  assert_payload_not_contains "$OUT" "reason=shared-lib" "near-miss must not trip shared-lib (not under .aai/scripts/lib/): $OUT"
   assert_payload_contains "$OUT" "FULL_RUN reason=unmapped path=.aai/scripts/state.mjs.bak" "near-miss falls through to plain unmapped, not a fail-open trigger misfire: $OUT"
   log_pass "Negative control: near-miss path takes the unmapped path, not L3/shared-lib (TEST-008)"
 }
@@ -215,8 +228,8 @@ test_009_whole_diff_scanned_before_output() {  # Spec-AC-02 (fixture diversity: 
   # path's match may leak into stdout before the FULL_RUN escalation.
   run_sel "$TEST_DIR" "src/alpha/foo.js" "nowhere/mapped.txt"
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^SELECTED' && log_fail "no SELECTED line may appear once any path is unmapped: $OUT"
-  echo "$OUT" | grep -qE '^CORE' && log_fail "no CORE line may appear once any path is unmapped: $OUT"
+  assert_payload_line_not_matches "$OUT" '^SELECTED' "no SELECTED line may appear once any path is unmapped: $OUT"
+  assert_payload_line_not_matches "$OUT" '^CORE' "no CORE line may appear once any path is unmapped: $OUT"
   local lines
   lines="$(echo "$OUT" | grep -c . || true)"
   [[ "$lines" -eq 1 ]] || log_fail "FULL_RUN must be the ONLY output line, got $lines: $OUT"
@@ -237,7 +250,7 @@ test_010_auditable_output_shape() {  # Spec-AC-05
   dropped_lines="$(echo "$OUT" | grep -cE '^DROPPED [0-9]+$' || true)"
   [[ "$dropped_lines" -eq 1 ]] || log_fail "expected exactly ONE DROPPED count line, got $dropped_lines: $OUT"
   # Arithmetic: total non-core suites (2: alpha, beta) - selected(1: beta) = 1.
-  echo "$OUT" | grep -qE '^DROPPED 1$' || log_fail "DROPPED count must reflect exact arithmetic: $OUT"
+  assert_payload_has_line "$OUT" "DROPPED 1" "DROPPED count must reflect exact arithmetic: $OUT"
   log_pass "Selection output is auditable: reasons present, single accurate DROPPED line (TEST-010)"
 }
 
@@ -248,7 +261,7 @@ test_011_cli_robustness_always_exit_zero() {  # Spec-AC-05 (never fails the buil
   # (a) no --base-ref and no --files-from.
   OUT="$(node "$SELECTOR" --repo-root "$TEST_DIR" 2>&1)"; CODE=$?
   [[ "$CODE" -eq 0 ]] || log_fail "no-args must still exit 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^FULL_RUN reason=internal-error' || log_fail "no-args must fall open: $OUT"
+  assert_payload_line_matches "$OUT" '^FULL_RUN reason=internal-error' "no-args must fall open: $OUT"
 
   # (b) suite-map.yaml absent entirely.
   local empty_dir="$TEST_DIR/no-map"
@@ -256,7 +269,7 @@ test_011_cli_robustness_always_exit_zero() {  # Spec-AC-05 (never fails the buil
   : > "$empty_dir/files-src/list.txt"
   OUT="$(node "$SELECTOR" --repo-root "$empty_dir" --files-from "$empty_dir/files-src/list.txt" 2>&1)"; CODE=$?
   [[ "$CODE" -eq 0 ]] || log_fail "missing map must still exit 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^FULL_RUN reason=internal-error' || log_fail "missing map must fall open: $OUT"
+  assert_payload_line_matches "$OUT" '^FULL_RUN reason=internal-error' "missing map must fall open: $OUT"
 
   # (c) bad base-ref against a real (but ref-less) git repo.
   local repo="$TEST_DIR/badref-repo"
@@ -264,7 +277,7 @@ test_011_cli_robustness_always_exit_zero() {  # Spec-AC-05 (never fails the buil
   (cd "$repo" && git init -q && small_map "$repo")
   OUT="$(node "$SELECTOR" --repo-root "$repo" --base-ref does-not-exist-anywhere 2>&1)"; CODE=$?
   [[ "$CODE" -eq 0 ]] || log_fail "bad base-ref must still exit 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^FULL_RUN reason=internal-error' || log_fail "bad base-ref must fall open: $OUT"
+  assert_payload_line_matches "$OUT" '^FULL_RUN reason=internal-error' "bad base-ref must fall open: $OUT"
 
   log_pass "CLI never fails the build: every error path degrades to FULL_RUN, exit 0 (TEST-011)"
 }
@@ -292,8 +305,7 @@ test_012_real_git_diff_seam() {  # Spec-AC-01, SEAM: real git diff --name-only -
   OUT="$(node "$SELECTOR" --repo-root "$repo" --base-ref main 2>&1)"
   CODE=$?
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^SELECTED aai-alpha reason=src/alpha/new\.js$' \
-    || log_fail "real git diff must drive the same selection as --files-from: $OUT"
+  assert_payload_has_line "$OUT" "SELECTED aai-alpha reason=src/alpha/new.js" "real git diff must drive the same selection as --files-from: $OUT"
   log_pass "Real git diff --name-only end-to-end selection (TEST-012, SEAM)"
 }
 
@@ -340,8 +352,8 @@ test_017_hostile_core_name_fails_open() {  # review remediation: core-name chars
     > "$TEST_DIR/tests/skills/suite-map.yaml"
   run_sel "$TEST_DIR" "src/alpha/foo.js"
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0 even on hostile core name, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^FULL_RUN reason=internal-error' || log_fail "hostile core name must degrade to FULL_RUN internal-error: $OUT"
-  echo "$OUT" | grep -qE '^(SELECTED|CORE) ' && log_fail "no SELECTED/CORE lines may leak past a malformed map: $OUT"
+  assert_payload_line_matches "$OUT" '^FULL_RUN reason=internal-error' "hostile core name must degrade to FULL_RUN internal-error: $OUT"
+  assert_payload_line_not_matches "$OUT" '^(SELECTED|CORE) ' "no SELECTED/CORE lines may leak past a malformed map: $OUT"
   log_pass "Hostile core name never reaches the workflow shell: FULL_RUN internal-error, exit 0 (TEST-017)"
 }
 
@@ -353,9 +365,8 @@ test_019_ghost_core_entry_fails_open() {  # 5d sweep (Codex P2): core name witho
     > "$TEST_DIR/tests/skills/suite-map.yaml"
   run_sel "$TEST_DIR" "src/alpha/foo.js"
   [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0 on ghost core entry, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^FULL_RUN reason=internal-error path=core entry has no suites row: aai-ghost$' \
-    || log_fail "ghost core entry must degrade to FULL_RUN internal-error naming the entry: $OUT"
-  echo "$OUT" | grep -qE '^(SELECTED|CORE|DROPPED) ' && log_fail "no selection lines may leak past a ghost core entry: $OUT"
+  assert_payload_has_line "$OUT" "FULL_RUN reason=internal-error path=core entry has no suites row: aai-ghost" "ghost core entry must degrade to FULL_RUN internal-error naming the entry: $OUT"
+  assert_payload_line_not_matches "$OUT" '^(SELECTED|CORE|DROPPED) ' "no selection lines may leak past a ghost core entry: $OUT"
   log_pass "Ghost core entry fails open, never emitted to the workflow (TEST-019)"
 }
 
@@ -461,6 +472,21 @@ test_022_ceremony_leftovers_never_full_run() {
   log_pass "test_022: skill-index READMEs and docs/ai/reviews/** stay selected, never FULL_RUN"
 }
 
+test_430_role_common_selects_aai_state() {  # Spec-AC-16 (spec-test-framework-sweep)
+  log_info "Test: a change list containing only .aai/ROLE_COMMON.md selects aai-state, against the real repo suite-map (TEST-430)..."
+  local root="${1:-$PROJECT_ROOT}"
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local list="$TEST_DIR/t430-files.txt" out rc
+  printf '%s\n' ".aai/ROLE_COMMON.md" > "$list"
+  out="$(node "$SELECTOR" --repo-root "$root" --files-from "$list" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_430: exit code must be 0, got $rc: $out"
+  case "$out" in
+    *"aai-state"*) ;;
+    *) log_fail "test_430: .aai/ROLE_COMMON.md must select aai-state: $out" ;;
+  esac
+  log_pass "test_430: .aai/ROLE_COMMON.md selects aai-state (TEST-430)"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -483,6 +509,7 @@ main() {
   test_020_harness_surfaces_select_hygiene_pack
   test_021_docs_or_ledger_only_manifests_never_full_run
   test_022_ceremony_leftovers_never_full_run
+  test_430_role_common_selects_aai_state
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

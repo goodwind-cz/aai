@@ -46,11 +46,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { checkBranchPin } from './branch-guard.mjs';
 
 function usage(msg) { process.stderr.write(`check-committed-scope: ${msg}\n`); process.exit(2); }
 
 function parseArgs(argv) {
-  const a = { paths: [], fromState: false, fromStdin: false, state: 'docs/ai/STATE.yaml', rev: null, json: false, strict: false };
+  const a = { paths: [], fromState: false, fromStdin: false, state: 'docs/ai/STATE.yaml', rev: null, json: false, strict: false, expectBranch: null };
   for (let i = 0; i < argv.length; i += 1) {
     const k = argv[i]; const v = argv[i + 1];
     const need = () => { if (v === undefined || v.startsWith('--')) usage(`${k} requires a value`); i += 1; return v; };
@@ -60,11 +61,27 @@ function parseArgs(argv) {
     else if (k === '--rev') a.rev = need();
     else if (k === '--json') a.json = true;
     else if (k === '--strict') a.strict = true;
-    else if (k === '--help' || k === '-h') { process.stdout.write('usage: check-committed-scope.mjs <path>... | --from-state | --from-stdin [--state <p>] [--rev <ref>] [--strict] [--json]\n'); process.exit(0); }
+    else if (k === '--expect-branch') a.expectBranch = need();
+    else if (k === '--help' || k === '-h') { process.stdout.write('usage: check-committed-scope.mjs <path>... | --from-state | --from-stdin [--state <p>] [--rev <ref>] [--strict] [--json] [--expect-branch <branch>]\n'); process.exit(0); }
     else if (k.startsWith('--')) usage(`unknown argument ${k}`);
     else a.paths.push(k);
   }
   return a;
+}
+
+// CHANGE-0180 D4 — re-check the HEAD pin, when the caller opted in with
+// --expect-branch. ADDITIVE: a caller that never passes the flag sees
+// byte-identical behaviour (Spec-AC-04), and the check itself is a single
+// early exit when no pin file exists at all (one `stat`, via branch-guard's
+// own readPin). Fails CLOSED before this script's real work (the git diff
+// comparisons) so a HEAD moved out from under the ceremony refuses before
+// comparing against the wrong commit.
+function verifyExpectedBranch(expectBranch) {
+  if (!expectBranch) return;
+  const result = checkBranchPin(process.cwd());
+  if (result.ok) return;
+  process.stderr.write(`check-committed-scope: REFUSED (HEAD moved) — ${result.message}\n`);
+  process.exit(3);
 }
 
 // STATE's code_review.scope is the list SKILL_PR already derives; reading it
@@ -165,6 +182,7 @@ function gitDiffers(rev, rel, cwd) {
 
 function main() {
   const a = parseArgs(process.argv.slice(2));
+  verifyExpectedBranch(a.expectBranch);
   if (a.fromStdin) {
     let raw = '';
     try { raw = fs.readFileSync(0, 'utf8'); } catch { raw = ''; }

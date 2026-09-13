@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-09-13T06:51:51.551Z",
+  "generatedAt": "2026-09-13T13:26:28.345Z",
   "project": "aai",
   "counts": {
     "delivered": 240,
-    "in_progress": 23,
+    "in_progress": 24,
     "releases": 1,
     "tokens_total": 61061545
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "telemetry-fields-not-prose",
+    "ref": "test-framework-sweep",
     "type": "intake_change"
   },
   "in_flight": null,
@@ -128,6 +128,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "test-framework-sweep",
+      "title": "The test framework is fast, hermetic and honest about what it ran",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-DRAFT-test-framework-sweep.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md",
       "validation": null,
       "review": null
     },

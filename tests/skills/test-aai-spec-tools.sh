@@ -176,8 +176,7 @@ test_scope_002_refuse_diff_path() {
   before="$(cksum "$SPEC")"
   out="$(runscope --spec docs/specs/SPEC-0001-fx.md --exclude src/touched.mjs --base-ref main 2>&1)"; rc=$?
   expect_exit 3 "$rc" "TEST-002(scope) refuse diff path" || ok=0
-  echo "$out" | grep -qi "refus" \
-    || { log_info "TEST-002(scope): refusal not named in the output: $out"; ok=0; }
+  assert_payload_contains_i "$out" "refus" "TEST-002(scope): refusal not named in the output: $out" || ok=0
   [[ "$before" == "$(cksum "$SPEC")" ]] \
     || { log_info "TEST-002(scope): a REFUSED edit still wrote the spec"; ok=0; }
   [[ -f "$REPO/docs/ai/EVENTS.jsonl" ]] \
@@ -269,7 +268,7 @@ test_scope_005_fail_closed() {
   # the exit contract is DOCUMENTED in --help
   out="$(runscope --help 2>&1)"; rc=$?
   for code in 0 2 3 4; do
-    echo "$out" | grep -qE "^\s*$code " || { log_info "TEST-005(scope): --help does not document exit $code: $out"; ok=0; }
+    assert_payload_line_matches "$out" "^[[:space:]]*$code " "TEST-005(scope): --help does not document exit $code: $out" || ok=0
   done
   [[ $ok -eq 1 ]] && log_pass "TEST-005(scope) fail-closed on structure/probe failure; usage contract + documented exit codes" \
     || log_fail "TEST-005(scope) fail-closed"
@@ -341,7 +340,7 @@ test_freeze_002_half_state_refusal() {
   expect_exit 2 "$rc" "TEST-007(freeze) missing --path" || ok=0
   out="$(runfreeze --help 2>&1)"; rc=$?
   for code in 0 2 3; do
-    echo "$out" | grep -qE "^\s*$code " || { log_info "TEST-007(freeze): --help does not document exit $code: $out"; ok=0; }
+    assert_payload_line_matches "$out" "^[[:space:]]*$code " "TEST-007(freeze): --help does not document exit $code: $out" || ok=0
   done
   [[ $ok -eq 1 ]] && log_pass "TEST-007(freeze) refuses every half-state it cannot write atomically; documented exits" \
     || log_fail "TEST-007(freeze) half-state refusal"
@@ -463,8 +462,7 @@ EOF
   before="$(cksum "$REPO/docs/specs/SPEC-0102-dual.md")"
   out="$(runfreeze --path docs/specs/SPEC-0102-dual.md --no-event 2>&1)"; rc=$?
   expect_exit 1 "$rc" "TEST-009(freeze) post-transform assertion" || ok=0
-  echo "$out" | grep -qi "post-transform assertion" \
-    || { log_info "TEST-009(freeze): the assertion did not name itself: $out"; ok=0; }
+  assert_payload_contains_i "$out" "post-transform assertion" "TEST-009(freeze): the assertion did not name itself: $out" || ok=0
   [[ "$before" == "$(cksum "$REPO/docs/specs/SPEC-0102-dual.md")" ]] \
     || { log_info "TEST-009(freeze): a failed assertion still wrote the file"; ok=0; }
 
@@ -612,8 +610,7 @@ EOF
   before="$(cksum "$REPO/docs/specs/SPEC-0008-zero.md")"
   out="$(runscope --spec docs/specs/SPEC-0008-zero.md --exclude requirements.txt --base-ref main 2>&1)"; rc=$?
   expect_exit 4 "$rc" "TEST-011(scope) zero parsable entries" || ok=0
-  echo "$out" | grep -qi "no parsable path entries" \
-    || { log_info "TEST-011(scope): the refusal did not explain itself: $out"; ok=0; }
+  assert_payload_contains_i "$out" "no parsable path entries" "TEST-011(scope): the refusal did not explain itself: $out" || ok=0
   [[ "$before" == "$(cksum "$REPO/docs/specs/SPEC-0008-zero.md")" ]] \
     || { log_info "TEST-011(scope): a refused zero-parsable edit still wrote"; ok=0; }
 
@@ -684,8 +681,7 @@ test_freeze_020_precondition_ac_without_test() {
   before="$(cksum "$SPEC")"
   out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --no-event 2>&1)"; rc=$?
   expect_exit 3 "$rc" "TEST-020(freeze) untested AC" || ok=0
-  echo "$out" | grep -qi "refus" \
-    || { log_info "TEST-020(freeze): refusal not named: $out"; ok=0; }
+  assert_payload_contains_i "$out" "refus" "TEST-020(freeze): refusal not named: $out" || ok=0
   assert_payload_contains "$out" "ac-without-test" "TEST-020(freeze): the refusal must name its reason (ac-without-test): $out" || ok=0
   assert_payload_contains "$out" "Spec-AC-01" "TEST-020(freeze): the refusal must name the offending AC: $out" || ok=0
   [[ "$before" == "$(cksum "$SPEC")" ]] \
@@ -775,8 +771,7 @@ EOF
     > "$REPO/docs/specs/SPEC-0201-done.md"
   out="$(runfreeze --path docs/specs/SPEC-0201-done.md --no-event 2>&1)"; rc=$?
   expect_exit 3 "$rc" "TEST-022(freeze) terminal status still refuses" || ok=0
-  echo "$out" | grep -qi "only draft" \
-    || { log_info "TEST-022(freeze): terminal-status refusal changed wording: $out"; ok=0; }
+  assert_payload_contains_i "$out" "only draft" "TEST-022(freeze): terminal-status refusal changed wording: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-022(freeze) compliant + lean-L1 specs still freeze; other refusals unchanged" \
     || log_fail "TEST-022(freeze) precondition negative controls"
 }
@@ -787,8 +782,7 @@ test_freeze_023_help_documents_preconditions() {
   new_repo || { log_fail "TEST-023(freeze) fixture setup failed"; return; }
   out="$(runfreeze --help 2>&1)"; rc=$?
   assert_payload_contains "$out" "ac-without-test" "TEST-023(freeze): --help does not name the ac-without-test precondition: $out" || ok=0
-  echo "$out" | grep -qi "strategy" \
-    || { log_info "TEST-023(freeze): --help does not name the strategy precondition: $out"; ok=0; }
+  assert_payload_contains_i "$out" "strategy" "TEST-023(freeze): --help does not name the strategy precondition: $out" || ok=0
   # measurability is NOT claimed by the tool — the honest split
   grep -qi "measurab" "$FREEZE" \
     || { log_info "TEST-023(freeze): the script must document that measurability stays prompt judgment"; ok=0; }
