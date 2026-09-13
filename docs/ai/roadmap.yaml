@@ -27,8 +27,11 @@ pairs:
   - capability: dispatch-state-sweep
     maintenance: focus-and-validation-state-go-stale-silently
     status: planned
-  - capability: close-ceremony-sweep
+  - capability: mutation-gate-for-tests
     maintenance: unrecorded-spec-amendment-is-invisible
+    status: planned
+  - capability: close-ceremony-sweep
+    maintenance: residuals-of-the-close-gate
     status: planned
   - capability: update-installs-ref-guard-undisclosed
     maintenance: agents-tree-not-synced
@@ -37,7 +40,7 @@ pairs:
     maintenance: hand-authored-friction-is-second-class
     status: planned
   - capability: canon-is-a-build-artifact
-    maintenance: mutation-gate-for-tests
+    maintenance: dispatch-prefix-assembly-residuals
     status: planned
 wave_2:
   - standardized-backlog-drain
