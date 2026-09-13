@@ -235,9 +235,9 @@ test_006_companion_suites() {
   log_info "Test: companion prompt-diet + layer-profiles suites green (TEST-006)..."
   local out code
   out="$(bash "$PROMPT_DIET_TEST" 2>&1)"; code=$?
-  [ "$code" = "0" ] || log_fail "TEST-006: test-aai-prompt-diet.sh must pass (exit $code): $(printf '%s' "$out" | tail -3)"
+  [ "$code" = "0" ] || log_fail "TEST-006: test-aai-prompt-diet.sh must pass (exit $code): $(printf '%s' "$out" | grep -n "FAIL\|MISSING\|Only in\|^[<>+-]" | head -40)"
   out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
-  [ "$code" = "0" ] || log_fail "TEST-006: test-aai-layer-profiles.sh must pass (exit $code): $(printf '%s' "$out" | tail -3)"
+  [ "$code" = "0" ] || log_fail "TEST-006: test-aai-layer-profiles.sh must pass (exit $code): $(printf '%s' "$out" | grep -n "FAIL\|MISSING\|Only in\|^[<>+-]" | head -40)"
   log_pass "Companion prompt-diet + layer-profiles suites green (TEST-006)"
 }
 
