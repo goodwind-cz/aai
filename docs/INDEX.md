@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-13T13:28:15.055Z
+Generated: 2026-09-13T13:29:36.820Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0178 | specs | implementing | 14 planned | docs/specs/SPEC-0178-spec-telemetry-fields-not-prose.md |
 
 ## Canonical layer (0)
 
@@ -51,7 +50,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (421)
+## Done (423)
 
 | ID | Type | Path |
 |---|---|---|
@@ -229,6 +228,7 @@ _None._
 | CHANGE-0177 | issues | docs/issues/CHANGE-0177-lessons-that-must-hold-downstream-are-guards.md |
 | CHANGE-0178 | issues | docs/issues/CHANGE-0178-live-page-shows-dead-heartbeats-not-live-work.md |
 | CHANGE-0182 | issues | docs/issues/CHANGE-0182-harness-universal-routing.md |
+| CHANGE-0183 | issues | docs/issues/CHANGE-0183-telemetry-fields-not-prose.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -474,10 +474,11 @@ _None._
 | SPEC-0175 | specs | docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md |
 | SPEC-0176 | specs | docs/specs/SPEC-0176-spec-friction-publish-hides-required-followup.md |
 | SPEC-0177 | specs | docs/specs/SPEC-0177-spec-harness-universal-routing.md |
+| SPEC-0178 | specs | docs/specs/SPEC-0178-spec-telemetry-fields-not-prose.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (22)
+## Drafts (21)
 
 | ID | Type | Path |
 |---|---|---|
@@ -488,7 +489,6 @@ _None._
 | CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0181 | issues | docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md |
-| CHANGE-0183 | issues | docs/issues/CHANGE-0183-telemetry-fields-not-prose.md |
 | CHANGE-0184 | issues | docs/issues/CHANGE-0184-roadmap-gate-admits-only-the-next-pair.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |

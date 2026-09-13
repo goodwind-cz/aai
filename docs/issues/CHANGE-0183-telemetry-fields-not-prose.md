@@ -2,10 +2,12 @@
 id: telemetry-fields-not-prose
 type: change
 number: 183
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 6105b291
 ---
 
 # Run telemetry is recorded as fields, so cost and reliability stop depending on prose

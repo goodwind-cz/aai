@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-09-13T13:28:21.685Z",
+  "generatedAt": "2026-09-13T13:29:49.808Z",
   "project": "aai",
   "counts": {
-    "delivered": 240,
-    "in_progress": 23,
+    "delivered": 241,
+    "in_progress": 22,
     "releases": 1,
-    "tokens_total": 63984269
+    "tokens_total": 64220459
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -104,19 +104,6 @@
       "spec": null,
       "validation": null,
       "review": null
-    },
-    {
-      "ref": "telemetry-fields-not-prose",
-      "title": "Run telemetry is recorded as fields, so cost and reliability stop depending on prose",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0183-telemetry-fields-not-prose.md",
-      "closed_on": null,
-      "agent_minutes": 380,
-      "token_total": 236190,
-      "spec": "docs/specs/SPEC-0178-spec-telemetry-fields-not-prose.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-telemetry-fields-not-prose-20260913T114019Z.md"
     },
     {
       "ref": "roadmap-gate-admits-only-the-next-pair",
@@ -327,6 +314,19 @@
       "spec": "docs/specs/SPEC-0177-spec-harness-universal-routing.md",
       "validation": null,
       "review": "docs/ai/reviews/review-harness-universal-routing-20260913T002056Z.md"
+    },
+    {
+      "ref": "telemetry-fields-not-prose",
+      "title": "Run telemetry is recorded as fields, so cost and reliability stop depending on prose",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0183-telemetry-fields-not-prose.md",
+      "closed_on": "2026-09-13",
+      "agent_minutes": 380,
+      "token_total": 236190,
+      "spec": "docs/specs/SPEC-0178-spec-telemetry-fields-not-prose.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-telemetry-fields-not-prose-20260913T114019Z.md"
     },
     {
       "ref": "close-ceremony-fires-only-via-aai-pr",
@@ -3454,6 +3454,19 @@
           "spec": "docs/specs/SPEC-0177-spec-harness-universal-routing.md",
           "validation": null,
           "review": "docs/ai/reviews/review-harness-universal-routing-20260913T002056Z.md"
+        },
+        {
+          "ref": "telemetry-fields-not-prose",
+          "title": "Run telemetry is recorded as fields, so cost and reliability stop depending on prose",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0183-telemetry-fields-not-prose.md",
+          "closed_on": "2026-09-13",
+          "agent_minutes": 380,
+          "token_total": 236190,
+          "spec": "docs/specs/SPEC-0178-spec-telemetry-fields-not-prose.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-telemetry-fields-not-prose-20260913T114019Z.md"
         },
         {
           "ref": "close-ceremony-fires-only-via-aai-pr",
