@@ -1,7 +1,7 @@
 ---
 id: spec-harness-universal-routing
 type: spec
-number: null
+number: 177
 status: implementing
 ceremony_level: 2
 links:
@@ -21,6 +21,162 @@ SPEC-FROZEN: true
 - Standing tier decision: docs/specs/RES-0002-mechanical-context-offload-to-cheap-tier.md
 - Technology contract: docs/TECHNOLOGY.md
 
+## Amendment (post-freeze, 2026-09-12 — remediation of validation FAIL)
+
+Round-1 independent validation (`docs/ai/STATE.yaml` `last_validation`, run
+2026-09-12T22:33:15Z; evidence under `docs/ai/tdd/spec-harness-universal-routing/
+validation-20260912T222805Z-*`) returned `fail` on one BLOCKING defect plus test-side
+findings. This amendment records the remediation, following the same
+additive-with-disclosure convention already established (`docs/specs/SPEC-0132-...md`,
+`docs/specs/SPEC-0153-...md`, `docs/specs/SPEC-0176-...md`). `SPEC-FROZEN: true` is
+preserved; nothing below moves or deletes an existing AC's text.
+
+- **BLOCKING-1 (Spec-AC-01/D6) — the `--confirm` record-failure fallback verdict
+  carried NO `harness` key and, under the shipped Mode B routing file, regressed
+  `suggested_model` to `null`.** `main()` stamped `out.harness = detectHarness(...)`
+  once, then the confirm-record-failure arm replaced the whole object
+  (`out = fallback`) with a fresh `decide()` result that was never re-stamped.
+  Fixed at cause: `detectHarness(process.env)` is still called exactly ONCE per
+  process (no-mid-session-flip stands), captured into a local (`harness`), and the
+  local is re-applied (`fallback.harness = harness`) after the ONE arm that replaces
+  `out`. TEST-038 gains a `harness`/`suggested_model` assertion against the shipped
+  Mode B routing file (copied into the fixture root, matching the validator's own
+  repro); reverting the re-stamp reddens it exactly (`mutation-sweep.txt`,
+  "REMEDIATION ROUND 1", `BLOCKING-1`).
+- **Test-strength findings (Spec-AC-04/Spec-AC-09), all mutation-verified** — the
+  round-1 mutation matrix (`validation-20260912T222805Z-mutation-matrix.txt`) found
+  two shipped controls that did not actually redden their named test (M7, M13) and
+  four untested shapes (N3, N5, N6, N8), all confirmed as test-coverage gaps against
+  the UNMUTATED shipped code, not shipped defects:
+  - **M7** was a weak mutation that could not reach TEST-051's cursor arm. Replaced
+    with the literal shape the spec bullet names (harness has no map at all falls
+    through to the unsuffixed maps); re-recorded reddening.
+  - **M13**'s test comment claimed "any ONE of the three header sentences" reddens
+    TEST-058, but the "MODE A vs MODE B (D2), decided by the FILE" lead-in sentence
+    was never separately pinned. TEST-058 gained a 5th header grep for that exact
+    sentence; re-recorded reddening.
+  - **N3** — TEST-051 gained a `tiers@gemini: {premium: ...}` (no `standard` row)
+    fixture, proving a harness WITH a map but a missing routed-tier row also
+    resolves null (the map-exists-row-missing shape D2 forbids), not just the
+    no-map-at-all shape M7 already covered.
+  - **N5** — TEST-053 gained a case where a differing `tiers@H` candidate and a
+    differing `validation_alternate@H` both exist with DIFFERENT ids, pinning D4's
+    stated order (tiers@H at/above the routed tier before validation_alternate@H).
+  - **N6** — TEST-058 gained a `roles@codex:`-only fixture (no `tiers@codex:`
+    alongside it) proving that section ALONE trips Mode B.
+  - **N8** — TEST-050 gained an `AAI_HARNESS=bogus` assertion on the D3-required
+    stderr NOTE text itself (previously only the resulting `unknown` value was
+    checked).
+  Every new/corrected mutation is recorded in `mutation-sweep.txt`'s "REMEDIATION
+  ROUND 1" section with the exact code mutation, the reddening output, and a
+  same-run confirmation that the UNMUTATED shipped code passes.
+- **Undeclared surface (Spec-AC-08's suite-file boundary)** —
+  `tests/skills/lib/cd-subshell-leak-baseline.tsv` changed (3 -> 4 for
+  `test-aai-orchestration-dispatch.sh`'s subshell count) as a side effect of this
+  scope's TDD implementation adding CLI test coverage, but the file sits outside
+  this spec's declared surface (see `## Scope` and the Inline review scope below)
+  and outside the recorded code-review scope. Declared here per the
+  additive-with-disclosure convention: the Inline review scope line under
+  `## Isolation and review` now names it, and this remediation returns a
+  `state.mjs set-code-review --scope` command widening `docs/ai/STATE.yaml`
+  `code_review.scope` to match, for the orchestrator to run (subagents do not
+  write STATE — `.aai/SUBAGENT_CONTRACT.md` single-writer rule).
+
+No new Spec-AC, no new Test ID — every change above extends an EXISTING test's
+fixtures/assertions (TEST-038, TEST-050, TEST-051, TEST-053, TEST-058) or is a
+declared-surface note.
+
+### Round 2 — remediation of code-review NON-BLOCKING dispositions (2026-09-13)
+
+Independent code review (`docs/ai/reviews/review-harness-universal-routing-20260913T002056Z.md`,
+overall `pass`, 0 BLOCKING, 7 NON-BLOCKING) dispositioned six findings
+`remediate-in-tree`. This records that remediation; `SPEC-FROZEN: true` is
+preserved and no existing AC's text moves or is deleted. No new Spec-AC, no
+new Test ID — every fix below extends an EXISTING test (TEST-038, TEST-051,
+TEST-053, TEST-058) or a header comment/doc-only change.
+
+- **NB-1 (fallback arm asserted at one harness value)** — `test_038` gained a
+  second, independent fixture under `AAI_HARNESS=codex` asserting
+  `o.harness === "codex"` and `o.suggested_model === "gpt-5"` (never the
+  claude sentinel). No source change. Mutation: hardcoding
+  `fallback.harness = 'claude'` reddens the new codex arm (observed:
+  `assert failed: "harness" in o && o.harness === "codex"`, got
+  `"harness":"claude"`), while leaving the pre-existing claude arm green.
+- **NB-2 (`startIdx + 1` unpinned upper/self boundary)** — `test_053` gained a
+  case where the routed tier (`premium`, the top of `TIER_ORDER`) is the ONLY
+  differing candidate anywhere in the harness map (`roles@codex: { Validation:
+  gpt-5-mini }` colliding with `implementer_model` at `suggested_tier:
+  premium`, `tiers@codex.premium` differing). No source change (the shipped
+  scan already starts at `startIdx`, not `startIdx + 1` — the gap was
+  test-only). Mutation: `for (let i = startIdx + 1; ...)` reddens (observed:
+  `AssertionError: expected 'gpt-5.3-codex-premium-nb2', got 'gpt-5-mini'` —
+  the loop walks off the end of `TIER_ORDER` and the residual token fires
+  instead of the in-map swap).
+- **NB-3 (`validation_alternate@H` alone untested for Mode B)** — `test_058`
+  gained a fourth fixture carrying ONLY `validation_alternate@codex:` (no
+  `tiers@codex:`/`roles@codex:`) alongside a leftover unsuffixed `tiers:` row,
+  symmetric with the existing N6 (`roles@<harness>`-only) case. No source
+  change. Mutation: dropping `routing.mode = 'B'` from the
+  `validation_alternate(?:@...)` branch reddens (observed:
+  `assert failed: o.suggested_model === null`, got
+  `"suggested_model":"leftover-must-never-leak-nb3"` — the file stayed Mode A
+  and the leftover unsuffixed row leaked to both harnesses).
+- **NB-4 (`--human` claims the routing file is absent when it is present)** —
+  `orchestration-dispatch.mjs`: `humanBlock` now takes the loaded `routing`
+  and a new `suggestedModelUnboundReason(out, routing)` helper distinguishes
+  a genuinely absent/unreadable file (`routing === null`, the pre-existing
+  string) from a present Mode B file with no `@<harness>` section for the
+  detected harness (a new, truthful string naming the harness), falling back
+  to a generic "no matching tier/role" string for every other null case
+  (Mode A no-match, or a non-`dispatch` verdict). `test_051`'s cursor arm
+  gained `--human` and two assertions: the new string appears, and the old
+  "no .aai/system/MODEL_ROUTING.yaml" string does not. Mutation: restoring
+  the old unconditional string reddens the first assertion (observed:
+  `Suggested model id: (unbound — no .aai/system/MODEL_ROUTING.yaml)` printed
+  against a fixture where three OTHER harnesses resolve real sentinels from
+  that same file).
+- **NB-6, documentation half only** — an `UPGRADING` paragraph was added to
+  `.aai/system/MODEL_ROUTING.yaml`'s header stating plainly that the file is
+  core-vendored and `/aai-update` overwrites a consumer's copy; a consumer's
+  Mode A back-compat (Spec-AC-06) is a property of the CODE reading an
+  old-shaped file, not a guarantee the file itself survives an update, and a
+  customization is preserved across updates only by re-applying it as
+  `@<harness>` section(s). The `aai-sync.sh` preserve-rule half of NB-6 is
+  explicitly OUT of scope here (tracked by
+  `fu-routing-file-overwritten-on-update`, filed at round-1 freeze) and is
+  untouched.
+- **NB-7 (four GREEN artifacts predated the tests they evidence)** —
+  `green-050.txt`, `green-051.txt`, `green-053.txt` and `green-058.txt` under
+  `docs/ai/tdd/spec-harness-universal-routing/` were re-captured against the
+  CURRENT test file (individual `test_0NN_...` runs); each now carries its
+  named clause (N8 in 050, N3 in 051, N5+NB-2 in 053, N6+NB-3 in 058).
+  Evidence-only; no source or test assertion changed by this item itself.
+- **INFO-1 (`suggestModel` mutates its argument, undocumented)** — one comment
+  added immediately above `suggestModel`'s declaration stating it both
+  returns a value and mutates `out.validator_independence` in place; left
+  non-mutating rewrite NOT done (single call site, mutated object is the one
+  printed as the verdict — no behavior difference either way, so the comment
+  is the whole fix).
+
+Left alone, per the review's own disposition (not this scope's to fix):
+**NB-5** (out-of-set/mis-cased `@<harness>` suffix degrades to `null` silently
+— follow-up, contradicts D2's literal absent-file parity text, needs an owner
+decision) and **INFO-2** (`test_056` re-implements the routing parser inline
+rather than importing `loadModelRouting` — deliberate, stronger-as-evidence
+per the reviewer's own read). Both are pre-existing filed items, untouched.
+
+Full verification re-run after all of the above (`env -u AAI_ROLE bash
+tests/skills/test-aai-orchestration-dispatch.sh`): 83 PASS lines (81 test headers, 58 top-level invocations), exit 0 — the round-2 text said 84; round-3 validation measured 83 and this line was corrected after the round-3 verdict (text-only).
+`test-framework.sh --skill aai-orchestration-dispatch --skill
+aai-layer-profiles --skill aai-hygiene-pack --skill aai-token-capture`: 4/4
+PASS. Mode A byte-identity (TEST-055) against the pinned blob
+`0fb736ca831c9646d5b06d13fe5f62039cba02e7` still holds (stdout/exit identical
+on every harness once the additive `harness` key is excluded) — the round-2
+changes touch only the fallback re-stamp assertion depth, the D4 tier-scan
+test depth, the Mode B trigger test depth, and the `--human`
+already-in-scope string, none of which the Mode A arm (`routing.mode !==
+'B'`) reaches.
+
 ## Implementation strategy
 - Strategy: tdd
 - Rationale: recorded at intake by the user (CHANGE-0182 `## Notes`, `Implementation mode (user choice): tdd`). Behavioral and multi-surface — detector, routing parser, two resolution modes, validator independence, PRICING resolution — and resolution order is exactly the logic where a test that cannot fail passes a wrong routing silently. Planning keeps the recorded choice.
@@ -31,7 +187,7 @@ SPEC-FROZEN: true
 - User decision: undecided
 - Base ref: main (branch `feat/harness-universal-routing`, off 181d67e0)
 - Worktree branch/path: to be decided by Implementation Preparation
-- Inline review scope: `.aai/scripts/orchestration-dispatch.mjs .aai/scripts/lib/harness.mjs .aai/system/MODEL_ROUTING.yaml .aai/system/PROFILES.yaml .aai/SUBAGENT_PROTOCOL.md tests/skills/test-aai-orchestration-dispatch.sh`
+- Inline review scope: `.aai/scripts/orchestration-dispatch.mjs .aai/scripts/lib/harness.mjs .aai/system/MODEL_ROUTING.yaml .aai/system/PROFILES.yaml .aai/SUBAGENT_PROTOCOL.md tests/skills/test-aai-orchestration-dispatch.sh tests/skills/lib/cd-subshell-leak-baseline.tsv` (the `.tsv` addition is a remediation-round-1 disclosure — see `## Amendment` above — of a mechanical byte-count ratchet update the TDD implementation triggered as a side effect, 3 -> 4 for `test-aai-orchestration-dispatch.sh`)
 
 ## Registry items closed by this scope
 
@@ -258,16 +414,16 @@ None.
 
 | Spec-AC    | Description | Status | Evidence | Review-By | Notes |
 |------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN any tick runs the dispatcher the verdict JSON SHALL carry a top-level `harness` string from the closed set on all three verdict kinds, and the exit code SHALL be unchanged in every arm. | planned | — | — | Verify by `node .aai/scripts/orchestration-dispatch.mjs --state <fixture> --root <fixture>` under a scrubbed env, a paused fixture and a broken-state fixture, asserting `harness` present and exit codes 0, 3 and 4. |
-| Spec-AC-02 | WHEN `detectHarness(env)` is called it SHALL return the first match of the D3 ladder, with `AAI_HARNESS` outranking every probe, an out-of-set `AAI_HARNESS` value resolving `unknown`, and an empty env resolving `unknown`. | planned | — | — | Ten-row table assertion over the pure export. |
-| Spec-AC-03 | WHEN the env carries `GEMINI_CLI_IDE_SERVER_PORT`, or `CLAUDE_CONFIG_DIR`, or the root carries `.claude/`, `.codex/` and `.gemini/` directories, detection SHALL NOT be decided by any of them. | planned | — | — | Negative controls only. The third arm additionally asserts the detector performs zero filesystem reads by deciding `unknown` on a root full of mirror directories. |
-| Spec-AC-04 | WHEN a Mode B routing file is present, a dispatch under `codex` SHALL resolve `suggested_model` from the codex map and never to an id starting `claude-`, and a harness with no map SHALL resolve null with `suggested_tier` unchanged. | planned | — | — | Distinct per-harness sentinels so a coincidental identity cannot pass for a resolution. |
-| Spec-AC-05 | WHEN a Validation dispatch's routed model equals `implementer_model`, the replacement SHALL come from the detected harness's own map, and WHEN that map cannot supply a different id the verdict SHALL carry `validator_independence.residual` equal to `single_model_harness_reuse` rather than a foreign vendor's id. | planned | — | — | Both arms asserted pure and end to end through the CLI. |
-| Spec-AC-06 | WHEN the routing file declares no `@<harness>` section, the dispatcher's stdout JSON and exit code SHALL be identical to the pinned pre-change script's on the same STATE fixture once the additive `harness` key is removed, on every harness. | planned | — | — | Real `cmp`-shaped comparison against a pinned blob, following the TEST-042 precedent in the same suite. |
-| Spec-AC-07 | WHEN every model id in every section of the SHIPPED `MODEL_ROUTING.yaml` is run through `resolveModelKey` against the SHIPPED `PRICING.yaml`, no id SHALL resolve to `unknown`. | planned | — | — | Uses the real shared resolver over the real files, so flush can cost every routed run. |
-| Spec-AC-08 | The shipped routing file SHALL contain zero occurrences of `claude-opus-4-8`, and `tiers@claude` SHALL name exactly `claude-haiku-4-5`, `claude-sonnet-5` and `claude-opus-5`. | planned | — | — | `/usr/bin/grep -c` over the shipped file; the explicit `Metrics Flush` row must survive under `roles@claude`. |
-| Spec-AC-09 | The routing parser SHALL keep the one-level row shape, the file header SHALL state the `@<harness>` key form, the resolution order and the Mode A versus Mode B rule, and a Mode B file carrying leftover unsuffixed model rows SHALL emit one stderr NOTE naming them while stdout stays valid JSON and the exit code is unchanged. | planned | — | — | Header contract asserted by literal-token grep, mirroring TEST-026 in the same suite. |
-| Spec-AC-10 | The new `.aai/scripts/lib/harness.mjs` SHALL be classified in `.aai/system/PROFILES.yaml` so the live-tree union invariant holds. | planned | — | — | Companion obligation, PLANNING step 3a. Enforced by an existing suite, not a new one. |
+| Spec-AC-01 | WHEN any tick runs the dispatcher the verdict JSON SHALL carry a top-level `harness` string from the closed set on all three verdict kinds, and the exit code SHALL be unchanged in every arm. | done | docs/ai/tdd/spec-harness-universal-routing/red-050.txt; green-050.txt | — | TEST-050 |
+| Spec-AC-02 | WHEN `detectHarness(env)` is called it SHALL return the first match of the D3 ladder, with `AAI_HARNESS` outranking every probe, an out-of-set `AAI_HARNESS` value resolving `unknown`, and an empty env resolving `unknown`. | done | docs/ai/tdd/spec-harness-universal-routing/red-048.txt; green-048.txt; mutation-sweep.txt (M1, M2) | — | TEST-048 |
+| Spec-AC-03 | WHEN the env carries `GEMINI_CLI_IDE_SERVER_PORT`, or `CLAUDE_CONFIG_DIR`, or the root carries `.claude/`, `.codex/` and `.gemini/` directories, detection SHALL NOT be decided by any of them. | done | docs/ai/tdd/spec-harness-universal-routing/red-049.txt; green-049.txt; mutation-sweep.txt (M3, M4, M5) | — | TEST-049 |
+| Spec-AC-04 | WHEN a Mode B routing file is present, a dispatch under `codex` SHALL resolve `suggested_model` from the codex map and never to an id starting `claude-`, and a harness with no map SHALL resolve null with `suggested_tier` unchanged. | done | docs/ai/tdd/spec-harness-universal-routing/red-051.txt; green-051.txt; red-052.txt; green-052.txt; mutation-sweep.txt (M7, M8) | — | TEST-051, TEST-052 |
+| Spec-AC-05 | WHEN a Validation dispatch's routed model equals `implementer_model`, the replacement SHALL come from the detected harness's own map, and WHEN that map cannot supply a different id the verdict SHALL carry `validator_independence.residual` equal to `single_model_harness_reuse` rather than a foreign vendor's id. | done | docs/ai/tdd/spec-harness-universal-routing/red-053.txt; green-053.txt; red-054.txt; green-054.txt; mutation-sweep.txt (M9, M10, M11) | — | TEST-053, TEST-054 |
+| Spec-AC-06 | WHEN the routing file declares no `@<harness>` section, the dispatcher's stdout JSON and exit code SHALL be identical to the pinned pre-change script's on the same STATE fixture once the additive `harness` key is removed, on every harness. | done | docs/ai/tdd/spec-harness-universal-routing/green-055.txt; mutation-055.txt | — | TEST-055 cannot RED by construction (Mutation checks); mutation-055.txt substitutes |
+| Spec-AC-07 | WHEN every model id in every section of the SHIPPED `MODEL_ROUTING.yaml` is run through `resolveModelKey` against the SHIPPED `PRICING.yaml`, no id SHALL resolve to `unknown`. | done | docs/ai/tdd/spec-harness-universal-routing/red-056.txt; green-056.txt; mutation-056.txt | — | TEST-056 |
+| Spec-AC-08 | The shipped routing file SHALL contain zero occurrences of `claude-opus-4-8`, and `tiers@claude` SHALL name exactly `claude-haiku-4-5`, `claude-sonnet-5` and `claude-opus-5`. | done | docs/ai/tdd/spec-harness-universal-routing/red-057.txt; green-057.txt | — | TEST-057; TEST-020's shipped-file grep updated in the same commit |
+| Spec-AC-09 | The routing parser SHALL keep the one-level row shape, the file header SHALL state the `@<harness>` key form, the resolution order and the Mode A versus Mode B rule, and a Mode B file carrying leftover unsuffixed model rows SHALL emit one stderr NOTE naming them while stdout stays valid JSON and the exit code is unchanged. | done | docs/ai/tdd/spec-harness-universal-routing/red-058.txt; green-058.txt; red-060.txt; green-060.txt; mutation-sweep.txt (M12, M13, M14) | — | TEST-058, TEST-060 |
+| Spec-AC-10 | The new `.aai/scripts/lib/harness.mjs` SHALL be classified in `.aai/system/PROFILES.yaml` so the live-tree union invariant holds. | done | docs/ai/tdd/spec-harness-universal-routing/red-059.txt; green-059.txt | — | TEST-059 (test-aai-layer-profiles.sh) |
 
 ## Implementation plan
 
@@ -311,19 +467,19 @@ harness variables (`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT ...`) or sets
 
 | Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
 |----------|------------|------|----------------------|-------------|--------|
-| TEST-048 | Spec-AC-02 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Pure `detectHarness(env)` ladder table — each of the five markers, the `AAI_HARNESS` override for all five values, an out-of-set override value, an empty-string override, and an empty env. | pending |
-| TEST-049 | Spec-AC-03 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Negative controls — `CLAUDECODE` plus `GEMINI_CLI_IDE_SERVER_PORT` together resolve `claude`, `GEMINI_CLI_IDE_SERVER_PORT` alone resolves `unknown`, `CLAUDE_CONFIG_DIR` alone resolves `unknown`. | pending |
-| TEST-050 | Spec-AC-01 | integration | tests/skills/test-aai-orchestration-dispatch.sh | CLI — `harness` present on a dispatch (exit 0), a paused no_action (exit 3) and a broken-state needs_llm (exit 4) verdict; scrubbed env reads `unknown`; `AAI_HARNESS=codex` reads `codex`; the three exit codes are identical with and without the override. | pending |
-| TEST-051 | Spec-AC-04 | integration | tests/skills/test-aai-orchestration-dispatch.sh | CLI over a Mode B fixture — codex resolves a codex sentinel and no id matching `^claude-`, claude resolves the claude sentinel, cursor resolves null with `suggested_tier` equal to the claude arm's, unknown resolves null. | pending |
-| TEST-052 | Spec-AC-04 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Pure per-harness precedence — `roles@H[role@lane]` then `roles@H[role]` then `tiers@H[tier]` then null, with distinct sentinels per harness, plus the control that a `@codex` row never satisfies a claude lookup and vice versa. | pending |
-| TEST-053 | Spec-AC-05 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Pure independence — a codex map whose standard id equals `implementer_model` resolves the codex PREMIUM id; a codex map that repeats one id with no alternate leaves the model unchanged and sets `residual` to `single_model_harness_reuse`; no arm ever returns an id from another harness's map. | pending |
-| TEST-054 | Spec-AC-05 | integration | tests/skills/test-aai-orchestration-dispatch.sh | CLI end to end — the residual token appears on a real Validation verdict's `validator_independence` block and on the `--human` stderr line, exit code unchanged. | pending |
-| TEST-055 | Spec-AC-06 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Byte-identity — a legacy unsuffixed routing fixture run through the pinned pre-change blob and through the current script on the same STATE fixture produce identical stdout once the additive `harness` key is deleted, and identical exit codes; repeated under `AAI_HARNESS=codex` to prove Mode A is harness-independent. | pending |
-| TEST-056 | Spec-AC-07 | integration | tests/skills/test-aai-orchestration-dispatch.sh | PRICING sweep — every id in every section of the SHIPPED routing file resolved through `lib/pricing.mjs` against the SHIPPED `PRICING.yaml`; any `unknown` fails, and the sweep asserts it examined at least one id per shipped harness map. | pending |
-| TEST-057 | Spec-AC-08 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Shipped-file contract — zero occurrences of `claude-opus-4-8`, the three `tiers@claude` rows exactly as specified, and the explicit `Metrics Flush` row present under `roles@claude`. | pending |
-| TEST-058 | Spec-AC-09 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Header contract and loud degrade — the shipped header states the `@<harness>` form, the resolution order and the Mode A versus Mode B rule; a fixture carrying both `tiers@codex:` and an unsuffixed `tiers:` emits one stderr NOTE naming the ignored rows while stdout stays parseable JSON and the exit code is unchanged. | pending |
-| TEST-059 | Spec-AC-10 | integration | tests/skills/test-aai-layer-profiles.sh | The live-tree classification invariant over the new `.aai/scripts/lib/harness.mjs`, run as `bash tests/skills/test-aai-layer-profiles.sh`. | pending |
-| TEST-060 | Spec-AC-09 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Parser shape guard — a four-space-indented key under `tiers@codex:` is NOT read, proving the one-level nesting contract is unchanged by the new section form. | pending |
+| TEST-048 | Spec-AC-02 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Pure `detectHarness(env)` ladder table — each of the five markers, the `AAI_HARNESS` override for all five values, an out-of-set override value, an empty-string override, and an empty env. | green |
+| TEST-049 | Spec-AC-03 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Negative controls — `CLAUDECODE` plus `GEMINI_CLI_IDE_SERVER_PORT` together resolve `claude`, `GEMINI_CLI_IDE_SERVER_PORT` alone resolves `unknown`, `CLAUDE_CONFIG_DIR` alone resolves `unknown`. | green |
+| TEST-050 | Spec-AC-01 | integration | tests/skills/test-aai-orchestration-dispatch.sh | CLI — `harness` present on a dispatch (exit 0), a paused no_action (exit 3) and a broken-state needs_llm (exit 4) verdict; scrubbed env reads `unknown`; `AAI_HARNESS=codex` reads `codex`; the three exit codes are identical with and without the override. | green |
+| TEST-051 | Spec-AC-04 | integration | tests/skills/test-aai-orchestration-dispatch.sh | CLI over a Mode B fixture — codex resolves a codex sentinel and no id matching `^claude-`, claude resolves the claude sentinel, cursor resolves null with `suggested_tier` equal to the claude arm's, unknown resolves null. | green |
+| TEST-052 | Spec-AC-04 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Pure per-harness precedence — `roles@H[role@lane]` then `roles@H[role]` then `tiers@H[tier]` then null, with distinct sentinels per harness, plus the control that a `@codex` row never satisfies a claude lookup and vice versa. | green |
+| TEST-053 | Spec-AC-05 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Pure independence — a codex map whose standard id equals `implementer_model` resolves the codex PREMIUM id; a codex map that repeats one id with no alternate leaves the model unchanged and sets `residual` to `single_model_harness_reuse`; no arm ever returns an id from another harness's map. | green |
+| TEST-054 | Spec-AC-05 | integration | tests/skills/test-aai-orchestration-dispatch.sh | CLI end to end — the residual token appears on a real Validation verdict's `validator_independence` block and on the `--human` stderr line, exit code unchanged. | green |
+| TEST-055 | Spec-AC-06 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Byte-identity — a legacy unsuffixed routing fixture run through the pinned pre-change blob and through the current script on the same STATE fixture produce identical stdout once the additive `harness` key is deleted, and identical exit codes; repeated under `AAI_HARNESS=codex` to prove Mode A is harness-independent. | green |
+| TEST-056 | Spec-AC-07 | integration | tests/skills/test-aai-orchestration-dispatch.sh | PRICING sweep — every id in every section of the SHIPPED routing file resolved through `lib/pricing.mjs` against the SHIPPED `PRICING.yaml`; any `unknown` fails, and the sweep asserts it examined at least one id per shipped harness map. | green |
+| TEST-057 | Spec-AC-08 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Shipped-file contract — zero occurrences of `claude-opus-4-8`, the three `tiers@claude` rows exactly as specified, and the explicit `Metrics Flush` row present under `roles@claude`. | green |
+| TEST-058 | Spec-AC-09 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Header contract and loud degrade — the shipped header states the `@<harness>` form, the resolution order and the Mode A versus Mode B rule; a fixture carrying both `tiers@codex:` and an unsuffixed `tiers:` emits one stderr NOTE naming the ignored rows while stdout stays parseable JSON and the exit code is unchanged. | green |
+| TEST-059 | Spec-AC-10 | integration | tests/skills/test-aai-layer-profiles.sh | The live-tree classification invariant over the new `.aai/scripts/lib/harness.mjs`, run as `bash tests/skills/test-aai-layer-profiles.sh`. | green |
+| TEST-060 | Spec-AC-09 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Parser shape guard — a four-space-indented key under `tiers@codex:` is NOT read, proving the one-level nesting contract is unchanged by the new section form. | green |
 
 Every Spec-AC has at least one TEST row and every TEST row names exactly one Spec-AC.
 Test ids continue the suite's existing sequence, which ends at TEST-047.
@@ -451,8 +607,8 @@ Residual risks, written down because no automated test crosses them:
   about the resolver it owns.
 - One full `bash tests/skills/test-framework.sh` sweep before the close ceremony
   (`AAI_TEST_TIMEOUT=3000`), per the VALIDATION suite-scope-per-round rule.
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-harness-universal-routing.md`
-- `node .aai/scripts/docs-audit.mjs --check --strict --no-event --path docs/specs/SPEC-DRAFT-spec-harness-universal-routing.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0177-spec-harness-universal-routing.md`
+- `node .aai/scripts/docs-audit.mjs --check --strict --no-event --path docs/specs/SPEC-0177-spec-harness-universal-routing.md`
 - PASS criteria: every TEST row green AND every Spec-AC in a terminal status.
 
 ## Evidence contract

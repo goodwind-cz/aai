@@ -138,6 +138,7 @@ core:
   - .aai/scripts/lib/evidence-paths.mjs
   - .aai/scripts/lib/gitignore-block.sh
   - .aai/scripts/lib/guard-config.mjs
+  - .aai/scripts/lib/harness.mjs
   - .aai/scripts/lib/pricing.mjs
   - .aai/scripts/lib/product-doc.mjs
   - .aai/scripts/lib/prompt-hash.mjs
