@@ -19,12 +19,36 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { extractUsageTotal } from './lib/usage-note.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ['docs/issues', 'docs/rfc', 'docs/requirements', 'docs/releases'];
 const SPEC_DIR = 'docs/specs';
+
+// PR #376 Copilot finding (companion fix, disclosed in SPEC-0177 Amendment
+// Round 3): a ride run from a linked worktree (e.g. aai-feat-<slug>) must
+// still report the MAIN repo's name, not the worktree directory's basename
+// (PR #326/#337 already show this churn shipping and reverting). A linked
+// worktree's `git rev-parse --git-common-dir` resolves to
+// `<main-root>/.git` regardless of which worktree runs it (same mechanism
+// heartbeat.mjs's resolveDir() already relies on for a worktree-independent
+// path); the basename of that path's parent is the main root's directory
+// name. Falls back to the cwd basename when git is unavailable or this
+// is not a git checkout at all (a non-git consumer of the generator).
+function detectProjectName(root) {
+  try {
+    const common = execFileSync(
+      'git', ['-C', root, 'rev-parse', '--path-format=absolute', '--git-common-dir'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim();
+    if (common) return path.basename(path.dirname(common));
+  } catch {
+    // git unavailable / not a repository — fall back below.
+  }
+  return path.basename(root);
+}
 
 function parseArgs(argv) {
   const args = { outputPath: 'docs/ai/overview.html', dataOnly: false };
@@ -341,7 +365,7 @@ function buildModel() {
 
   return {
     generatedAt: new Date().toISOString(),
-    project: path.basename(ROOT),
+    project: detectProjectName(ROOT),
     counts: { delivered: delivered.length, in_progress: inProgress.length, releases: releases.length, tokens_total: tokensTotal },
     waiting_on_you: state && state.human_required
       ? { question: state.human_question, focus: state.focus_ref }

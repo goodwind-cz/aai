@@ -1137,7 +1137,17 @@ export function loadModelRouting(root) {
   if (!fs.existsSync(p)) return null;
   const routing = {
     tiers: {}, roles: {}, effort_tiers: {}, effort_roles: {}, validation_alternate: null,
-    harnesses: {}, mode: 'A',
+    // Object.create(null): a header typo like `tiers@constructor:` or
+    // `tiers@toString:` must never resolve to an INHERITED Object.prototype
+    // member (a function) instead of a fresh per-harness map — that was the
+    // Codex P2 finding on PR #376 (review-harness-universal-routing-
+    // 20260913T002056Z): harnessMap('constructor') returned the inherited
+    // constructor function, and the next row's `.tiers[...] = ...` write
+    // dereferenced `.tiers` on that function and crashed the whole tick.
+    // A null-prototype dict has no such inherited members, so the plain
+    // `if (!routing.harnesses[h])` check below is now a true own-property
+    // check by construction — no separate hasOwnProperty needed.
+    harnesses: Object.create(null), mode: 'A',
   };
   const harnessMap = (h) => {
     if (!routing.harnesses[h]) routing.harnesses[h] = { tiers: {}, roles: {}, validation_alternate: null };
@@ -1145,6 +1155,11 @@ export function loadModelRouting(root) {
   };
   let section = null;        // 'tiers' | 'roles' | 'effort_tiers' | 'effort_roles' | null
   let sectionHarness = null; // non-null only while the active section is harness-scoped
+  // Every `@<suffix>` header seen during the parse, valid or not (harness-
+  // universal-routing follow-up fu-routing-malformed-suffix-silent): swept
+  // AFTER the loop below so a typo'd suffix is rejected with one NOTE per
+  // offending header, never silently accepted into Mode B.
+  const seenHeaders = [];
   let raw;
   try {
     raw = fs.readFileSync(p, 'utf8');
@@ -1157,13 +1172,19 @@ export function loadModelRouting(root) {
     if ((m = line.match(/^tiers(?:@([A-Za-z0-9_-]+))?:\s*$/))) {
       section = 'tiers';
       sectionHarness = m[1] || null;
-      if (sectionHarness) { harnessMap(sectionHarness); routing.mode = 'B'; }
+      if (sectionHarness) {
+        seenHeaders.push({ headerText: line.trim(), suffix: sectionHarness });
+        harnessMap(sectionHarness); routing.mode = 'B';
+      }
       continue;
     }
     if ((m = line.match(/^roles(?:@([A-Za-z0-9_-]+))?:\s*$/))) {
       section = 'roles';
       sectionHarness = m[1] || null;
-      if (sectionHarness) { harnessMap(sectionHarness); routing.mode = 'B'; }
+      if (sectionHarness) {
+        seenHeaders.push({ headerText: line.trim(), suffix: sectionHarness });
+        harnessMap(sectionHarness); routing.mode = 'B';
+      }
       continue;
     }
     // cache-friendly-dispatch: advisory reasoning-effort routing sections,
@@ -1174,8 +1195,10 @@ export function loadModelRouting(root) {
     if (/^effort_roles:\s*$/.test(line)) { section = 'effort_roles'; sectionHarness = null; continue; }
     if ((m = line.match(/^validation_alternate(?:@([A-Za-z0-9_-]+))?:\s*(\S+)\s*$/))) {
       const val = m[2] === 'null' ? null : m[2];
-      if (m[1]) { harnessMap(m[1]).validation_alternate = val; routing.mode = 'B'; }
-      else { routing.validation_alternate = val; }
+      if (m[1]) {
+        seenHeaders.push({ headerText: `validation_alternate@${m[1]}:`, suffix: m[1] });
+        harnessMap(m[1]).validation_alternate = val; routing.mode = 'B';
+      } else { routing.validation_alternate = val; }
       section = null; sectionHarness = null;
       continue;
     }
@@ -1185,6 +1208,30 @@ export function loadModelRouting(root) {
       if (sectionHarness) harnessMap(sectionHarness)[section][kv[1].trim()] = kv[2];
       else routing[section][kv[1].trim()] = kv[2];
     }
+  }
+  // fu-routing-malformed-suffix-silent (Codex review on PR #376): an
+  // `@<suffix>` outside HARNESS_VALUES (exact, case-sensitive) is a typo,
+  // not a new harness — `tiers@CLAUDE:`/`tiers@codx:`/`roles@windsurf:` must
+  // never silently resolve to a section nothing will ever match. Reject
+  // each offending HEADER with its own NOTE (a typo repeated under both
+  // tiers@ and roles@ is two mistakes, not one — hence the loop over
+  // seenHeaders rather than over the deduplicated harness keys), then purge
+  // every invalid harness key so it can never be looked up during
+  // resolution. A file whose ONLY @<harness> section(s) were all invalid
+  // never legitimately entered Mode B: revert to Mode A so any unsuffixed
+  // sections it also carries resolve exactly as they would in a file with
+  // zero @<harness> sections (Spec-AC-06 byte-identity), instead of being
+  // silently swallowed by the D2 leftover-rows check below.
+  for (const { headerText, suffix } of seenHeaders) {
+    if (!HARNESS_VALUES.includes(suffix)) {
+      console.error(`orchestration-dispatch: NOTE — MODEL_ROUTING.yaml section "${headerText}" ignored — "${suffix}" is not a harness (${HARNESS_VALUES.join(', ')})`);
+    }
+  }
+  for (const h of Object.keys(routing.harnesses)) {
+    if (!HARNESS_VALUES.includes(h)) delete routing.harnesses[h];
+  }
+  if (routing.mode === 'B' && Object.keys(routing.harnesses).length === 0) {
+    routing.mode = 'A';
   }
   // D2 loud degrade: a Mode B file that STILL carries unsuffixed
   // tiers:/roles:/validation_alternate: rows is a half migration. Those rows

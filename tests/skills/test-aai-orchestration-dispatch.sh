@@ -4103,7 +4103,104 @@ YAML
   [[ "$EC" == 0 ]] || log_fail "TEST-058/NB-3 claude arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
   jassert "$OUT" 'o.suggested_model === null'
 
-  log_pass "Header contract (key form, resolution order, Mode A/B) + loud degrade for leftover unsuffixed rows, exactly once, incl. a roles@<harness>-only file (N6) and a validation_alternate@<harness>-only file (NB-3) (TEST-058)"
+  # N7 (review-harness-universal-routing-20260913T002056Z / Codex P2 on PR
+  # #376, fu-routing-malformed-suffix-silent): a header suffix outside the
+  # closed HARNESS_VALUES set (claude/codex/gemini/cursor/unknown) — a typo
+  # like `tiers@constructor:`/`tiers@CLAUDE:`/`roles@windsurf:`, or one that
+  # happens to collide with an inherited Object.prototype member — must
+  # never (a) crash the dispatcher, (b) silently flip Mode B with a section
+  # nothing will ever match, or (c) go unreported.
+
+  # N7a: `tiers@constructor:` alone (no unsuffixed leftover at all) must not
+  # crash — the historical bug (`routing.harnesses = {}` + `if
+  # (!routing.harnesses[h])` reads the INHERITED Object.prototype.constructor
+  # function, and the row write then dereferences `.tiers` on that function)
+  # — and must behave exactly like an EMPTY routing file: NOTE present,
+  # suggested_model null, exit 0.
+  local d5
+  d5="$(mk_root t58n7a)"
+  write_dstate "$d5/docs/ai/STATE.yaml"
+  mkdir -p "$d5/.aai/system"
+  cat > "$d5/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers@constructor:
+  standard: constructor-should-be-rejected-n7a
+YAML
+  run_dispatch_scrubbed "$d5" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/N7a: tiers@constructor: must not crash the dispatcher (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === null'
+  grep -qiE 'NOTE.*"tiers@constructor:".*not a harness' "$ERR" \
+    || log_fail "TEST-058/N7a: stderr must carry the malformed-suffix NOTE naming tiers@constructor: $(cat "$ERR")"
+  local n7a_notes
+  n7a_notes=$(grep -c 'NOTE' "$ERR" || true)
+  [[ "${n7a_notes:-0}" == 1 ]] || log_fail "TEST-058/N7a: exactly ONE NOTE line (got ${n7a_notes:-0}): $(cat "$ERR")"
+
+  # N7b: `tiers@CLAUDE:` (mis-cased — HARNESS_VALUES is exact/case-sensitive)
+  # beside a plain unsuffixed `tiers:` proves the file never truly entered
+  # Mode B: the unsuffixed row must resolve (Mode A fallback), not the
+  # mis-cased section's value, and not null (which is what a wrongly-latched
+  # Mode B would give every harness, since no real harness ever matches
+  # "CLAUDE").
+  local d6
+  d6="$(mk_root t58n7b)"
+  write_dstate "$d6/docs/ai/STATE.yaml"
+  mkdir -p "$d6/.aai/system"
+  cat > "$d6/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers@CLAUDE:
+  standard: claude-mis-cased-sentinel-n7b
+tiers:
+  standard: modeA-should-still-resolve-n7b
+YAML
+  run_dispatch_scrubbed "$d6" claude
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/N7b claude arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "modeA-should-still-resolve-n7b"'
+  grep -qiE 'NOTE.*"tiers@CLAUDE:".*not a harness' "$ERR" \
+    || log_fail "TEST-058/N7b: stderr must carry the malformed-suffix NOTE naming tiers@CLAUDE: $(cat "$ERR")"
+  grep -qF 'claude-mis-cased-sentinel-n7b' "$OUT" \
+    && log_fail "TEST-058/N7b: the mis-cased section's sentinel must never resolve: $(cat "$OUT")"
+  run_dispatch_scrubbed "$d6" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/N7b codex arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "modeA-should-still-resolve-n7b"'
+
+  # N7c: symmetric with N7b using roles@<invalid>: instead of tiers@<invalid>:.
+  local d7
+  d7="$(mk_root t58n7c)"
+  write_dstate "$d7/docs/ai/STATE.yaml"
+  mkdir -p "$d7/.aai/system"
+  cat > "$d7/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+roles@windsurf:
+  Validation: windsurf-role-sentinel-n7c
+tiers:
+  standard: modeA-should-still-resolve-n7c
+YAML
+  run_dispatch_scrubbed "$d7" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/N7c codex arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "modeA-should-still-resolve-n7c"'
+  grep -qiE 'NOTE.*"roles@windsurf:".*not a harness' "$ERR" \
+    || log_fail "TEST-058/N7c: stderr must carry the malformed-suffix NOTE naming roles@windsurf: $(cat "$ERR")"
+
+  # N7d: a VALID `tiers@codex:` beside an INVALID `tiers@codx:` (adjacent
+  # typo) must still reach Mode B via the valid section, resolve codex
+  # normally, and emit exactly ONE NOTE — for codx only.
+  local d8
+  d8="$(mk_root t58n7d)"
+  write_dstate "$d8/docs/ai/STATE.yaml"
+  mkdir -p "$d8/.aai/system"
+  cat > "$d8/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers@codex:
+  standard: codex-sentinel-n7d
+tiers@codx:
+  standard: codx-should-be-rejected-n7d
+YAML
+  run_dispatch_scrubbed "$d8" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/N7d codex arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "codex-sentinel-n7d"'
+  grep -qiE 'NOTE.*"tiers@codx:".*not a harness' "$ERR" \
+    || log_fail "TEST-058/N7d: stderr must carry the malformed-suffix NOTE naming tiers@codx: $(cat "$ERR")"
+  local n7d_notes
+  n7d_notes=$(grep -c 'NOTE' "$ERR" || true)
+  [[ "${n7d_notes:-0}" == 1 ]] || log_fail "TEST-058/N7d: exactly ONE NOTE line — codx only, codex must stay silent (got ${n7d_notes:-0}): $(cat "$ERR")"
+
+  log_pass "Header contract (key form, resolution order, Mode A/B) + loud degrade for leftover unsuffixed rows, exactly once, incl. a roles@<harness>-only file (N6), a validation_alternate@<harness>-only file (NB-3), and a malformed/out-of-set @<suffix> rejected with one NOTE per offending header without crashing or false Mode B (N7a-d, fu-routing-malformed-suffix-silent) (TEST-058)"
 }
 
 # --- TEST-060 (Spec-AC-09): parser one-level nesting guard --------------------

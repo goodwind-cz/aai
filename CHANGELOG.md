@@ -33,8 +33,17 @@ RFC-0001).
   longest-prefix would double recorded premium cost).
 - **`--human` says truthfully why a model is unbound**: file absent, or file
   present with no section for the detected harness (review NB-4).
-- **Known limits, filed**: a malformed `@suffix` flips the file to Mode B and
-  matches nothing with no stderr (`fu-routing-malformed-suffix-silent`); the
+- **A malformed `@suffix` degrades loudly, never crashes** (Codex review on
+  PR #376): the harness map is a null-prototype dictionary, so
+  `tiers@constructor:` no longer throws and blocks every tick, and a suffix
+  outside the closed set is ignored with one stderr NOTE, does not select
+  Mode B, and leaves stdout and the exit code unchanged. `effort_*@` headers
+  still fall through silently (`fu-routing-effort-suffix-unnoted`).
+- **`generate-overview.mjs` names the main worktree, not the cwd** (Copilot
+  review on PR #376): `project` in `overview-data.json` no longer churns to
+  the sibling-worktree name (it had, in #326 and #337). Companion fix outside
+  the frozen scope, disclosed in the spec's Amendment.
+- **Known limits, filed**: the
   file is core-vendored, so `/aai-update` overwrites a consumer's copy — the
   header now says so (`fu-routing-file-overwritten-on-update`). Cross-harness
   behaviour is proved by environment simulation only; a live Codex/Gemini

@@ -59,6 +59,11 @@
 #   unsuffixed model rows emits ONE stderr NOTE naming them and continues
 #   (degrade and report); the shipped file below carries none, so the NOTE
 #   never fires on a clean install.
+# - An `@<suffix>` outside the closed harness set (claude / codex / gemini /
+#   cursor / unknown, exact and case-sensitive -- e.g. `tiers@CLAUDE:` or
+#   `tiers@codx:`) is a typo, not a new harness: that section is ignored with
+#   ONE stderr NOTE naming it and does NOT select Mode B on its own -- a file
+#   whose only `@<harness>` section(s) are all invalid stays Mode A.
 # - `effort_tiers:` / `effort_roles:` below are NEVER harness-scoped: advisory
 #   reasoning effort is a property of the ROLE, not the vendor, and is read
 #   identically in Mode A and Mode B.

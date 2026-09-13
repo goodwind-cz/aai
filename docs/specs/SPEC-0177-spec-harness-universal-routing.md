@@ -179,6 +179,115 @@ test depth, the Mode B trigger test depth, and the `--human`
 already-in-scope string, none of which the Mode A arm (`routing.mode !==
 'B'`) reaches.
 
+### Round 3 — external bot findings on PR #376 (2026-09-13)
+
+Two external bot findings on PR #376 (Codex P2 + Copilot), remediated at
+cause; `SPEC-FROZEN: true` preserved, no existing AC text moves or is
+deleted.
+
+- **Codex P2 (`loadModelRouting`, ~line 1140) — prototype-pollution crash
+  plus silent malformed-suffix acceptance, fixed together.**
+  `routing.harnesses` is now `Object.create(null)` (a header like
+  `tiers@constructor:`/`tiers@toString:` can no longer read an INHERITED
+  Object.prototype member instead of a fresh per-harness map; the plain
+  `if (!routing.harnesses[h])` check in `harnessMap` is now a true
+  own-property check by construction, no separate `hasOwnProperty` needed).
+  Separately, every `@<suffix>` on a `tiers:`/`roles:`/`validation_alternate:`
+  header is now validated against the closed `HARNESS_VALUES` set (`claude`,
+  `codex`, `gemini`, `cursor`, `unknown` — exact, case-sensitive, from
+  `.aai/scripts/lib/harness.mjs`) in a post-parse sweep: every `@<suffix>`
+  seen is recorded during parsing (parsing itself is unchanged — an invalid
+  suffix's rows are still safely written into its own throwaway harness map,
+  never crashing, thanks to the null-prototype dict), then after the full
+  file is read, each offending header gets exactly ONE stderr NOTE naming
+  the header text and the accepted set, its harness key is purged from
+  `routing.harnesses` so it can never be looked up during resolution, and —
+  if NO valid `@<harness>` section survives the purge — `routing.mode`
+  reverts from `B` to `A` so any unsuffixed sections the file also carries
+  resolve exactly as they would in a file with zero `@<harness>` sections
+  (Spec-AC-06 byte-identity). Exit code unchanged; stdout JSON untouched;
+  the NOTE is stderr-only. This closes the already-filed
+  `fu-routing-malformed-suffix-silent` (closed via
+  `follow-ups.mjs close --id fu-routing-malformed-suffix-silent
+  --resolved-by harness-universal-routing --source "TEST-058 extension
+  (N7a-d), PR #376"`).
+  The `MODEL_ROUTING.yaml` header (HARNESS-SCOPED KEY FORM section) gained
+  one sentence documenting the rejection rule; TEST-058's five header-phrase
+  greps stay green.
+  Tests: `tests/skills/test-aai-orchestration-dispatch.sh` `test_058_header_
+  contract_and_leftover_note` (TEST-058) gained four sub-cases — N7a
+  (`tiers@constructor:` alone: no crash, behaves like an empty routing file,
+  suggested_model null, exactly ONE NOTE), N7b (`tiers@CLAUDE:` mis-cased
+  beside a plain unsuffixed `tiers:`: ONE NOTE, the mis-cased section's
+  sentinel never resolves, and — proving Mode A truly reasserts itself
+  rather than merely returning null — the unsuffixed row's value resolves
+  on EVERY harness arm), N7c (symmetric with N7b via `roles@windsurf:`), N7d
+  (a valid `tiers@codex:` beside an invalid `tiers@codx:`: Mode B holds,
+  codex resolves normally, exactly ONE NOTE naming only `codx`). No new
+  Spec-AC, no new Test ID — all four extend the existing TEST-058.
+  Mutations run and observed (fixture file, then restored via `diff` against
+  a scratchpad copy before re-running the full suite):
+  - m1 (revert `Object.create(null)` back to `{}`, keep the closed-set
+    check): N7a reddened — `orchestration-dispatch: internal error:
+    TypeError: Cannot set properties of undefined (setting 'standard')` at
+    `loadModelRouting`, exit 1. Reproduces the exact crash the finding
+    describes and confirms the null-prototype dict — not the closed-set
+    check — is what prevents it (the closed-set purge runs only AFTER the
+    row has already been written into the per-suffix map during parsing).
+  - m2 (delete the `HARNESS_VALUES` check, i.e. neither the per-header NOTE
+    loop nor the purge loop ever fires): N7a reddened —
+    `TEST-058/N7a: stderr must carry the malformed-suffix NOTE naming
+    tiers@constructor:` (no NOTE emitted; per the task's own framing this is
+    the (b)/(c)-class mutation and N7a/b/c all cover it).
+  - m3 (keep the check and the purge, but never revert `routing.mode` from
+    `B` back to `A` when no valid harness survives): N7b reddened — the
+    `jassert` on `o.suggested_model === "modeA-should-still-resolve-n7b"`
+    failed, actual `suggested_model: null` (Mode B stayed latched with an
+    empty `harnesses` map, so the unsuffixed fallback row never resolves).
+  - m4 (drop the `console.error` NOTE line, keep the purge/mode-revert
+    logic): N7a reddened — same missing-NOTE failure as m2, confirming the
+    NOTE is a distinct, independently-necessary line.
+  All four mutations reddened their target case; each was restored (`diff`
+  confirmed byte-identical to the pre-mutation file) before the next
+  mutation and before the final full-suite re-run.
+
+- **Companion fix, disclosed (outside the frozen scope, Copilot finding on
+  PR #376): `generate-overview.mjs` `project` field.** `path.basename(ROOT)`
+  derived the project name from the CURRENT working directory, so a ride run
+  in a linked worktree (e.g. `aai-feat-harness-universal-routing`) shipped
+  that worktree's own directory name instead of the main checkout's (the
+  same churn already shipped and reverted in PR #326/#337 — `git log -S`
+  confirms). Fixed at cause: `detectProjectName()` now shells out to `git
+  rev-parse --path-format=absolute --git-common-dir` (worktree-independent —
+  the same mechanism `heartbeat.mjs`'s `resolveDir()` already relies on) and
+  takes the basename of that path's PARENT — the main worktree's directory
+  name — regardless of which worktree the generator runs from; falls back to
+  `path.basename(root)` when git is unavailable or the tree is not a git
+  checkout (a non-git consumer). This is a companion fix, not part of
+  harness-universal-routing's frozen scope; it is recorded here only because
+  the same PR carried the finding. Test: `tests/skills/test-aai-overview.sh`
+  gained `test_008_project_name_from_main_worktree` (TEST-008) — builds a
+  REAL throwaway git repo plus a REAL linked worktree under the suite's own
+  `mktemp` `TEST_DIR` (never inside this repo), runs the generator from the
+  linked worktree, and asserts `overview-data.json`'s `project` equals the
+  MAIN repo's directory basename. Mutation: reverted `detectProjectName(ROOT)`
+  back to `path.basename(ROOT)` — TEST-008 reddened (`got
+  'some-other-worktree-name-t008'`, expected the main root's basename),
+  exit 1; restored and the full `test-aai-overview.sh` suite re-run clean
+  (13 PASS, 0 FAIL). `docs/ai/overview-data.json` and `docs/ai/overview.html`
+  were regenerated from this worktree after the fix and now carry
+  `"project":"aai"`.
+
+Full verification after both fixes: `test-aai-orchestration-dispatch.sh`
+83 PASS / 0 FAIL, exit 0; `test-aai-overview.sh` 13 PASS / 0 FAIL, exit 0;
+`test-framework.sh --skill aai-orchestration-dispatch --skill
+aai-layer-profiles --skill aai-hygiene-pack --skill aai-token-capture
+--skill aai-prompt-diet --skill aai-overview`: 6/6 PASS (isolated,
+disposable-checkout runs); Mode A byte-identity re-confirmed by diffing
+stdout+stderr from the pre-fix script against the post-fix script on the
+same Mode A fixture (`tiers:` only, no `@<harness>` sections) — identical.
+`docs-audit.mjs --check --strict --no-event`: CLEAN, exit 0.
+
 ## Implementation strategy
 - Strategy: tdd
 - Rationale: recorded at intake by the user (CHANGE-0182 `## Notes`, `Implementation mode (user choice): tdd`). Behavioral and multi-surface — detector, routing parser, two resolution modes, validator independence, PRICING resolution — and resolution order is exactly the logic where a test that cannot fail passes a wrong routing silently. Planning keeps the recorded choice.
