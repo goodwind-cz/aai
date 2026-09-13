@@ -56,8 +56,21 @@ ROUTINE_EMIT="$PROJECT_ROOT/.aai/scripts/routine-emit.mjs"
 LIVE_LEDGER="$PROJECT_ROOT/docs/ai/decisions.jsonl"
 CANON="$PROJECT_ROOT/.aai/system/AUTONOMOUS_LOOP.md"
 
-# The five specs whose amendments stood unsigned when this scope was written.
-BACKFILLED_SPEC_IDS="spec-close-leaves-state-stale spec-release-protected-branch-fallback spec-ac-table-premature-flip-recurs spec-metrics-flush-invalidates-pr-precondition spec-role-progress-heartbeat"
+# The specs whose amendments stand UNSIGNED are derived from the live ledger
+# at run time (spec-amend list --status unsigned --json), never pinned: the
+# five that stood unsigned when this scope was written were signed off by the
+# owner on 2026-09-14 (menu answer A), and a pinned list then demanded an OPEN
+# item for a spec whose decision had already been taken — the pin-instead-of-
+# property shape this repository keeps finding. unsigned_spec_ids prints one
+# spec id per line; signed_spec_ids the complement, for the negative control.
+unsigned_spec_ids() {
+  node "$SA" list --ledger "$LIVE_LEDGER" --status unsigned --json 2>/dev/null \
+    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);const ids=[...new Set((j.items||[]).map(r=>r.spec_id).filter(Boolean))];console.log(ids.join("\n"))})'
+}
+signed_spec_ids() {
+  node "$SA" list --ledger "$LIVE_LEDGER" --status signed --json 2>/dev/null \
+    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);const ids=[...new Set((j.items||[]).map(r=>r.spec_id).filter(Boolean))];console.log(ids.join("\n"))})'
+}
 
 # Measured at the base commit be0c8ed. The comment used to say this pin "cannot
 # rot as later rides append", while the code read it from the MOVING `origin/main`
@@ -720,8 +733,10 @@ test_009_live_backfill_and_whole_ledger_readers() {
   # One OPEN tracked item per unsigned spec, named through the REAL reader.
   run_fu list --status open
   [[ "$EC" == 0 ]] || log_fail "TEST-009: follow-ups.mjs list must exit 0 over the live ledger, got $EC (stderr: $ERR)"
-  local open_out="$OUT" sid missing=""
-  for sid in $BACKFILLED_SPEC_IDS; do
+  local open_out="$OUT" sid missing="" unsigned_ids
+  unsigned_ids="$(unsigned_spec_ids)"
+  [[ -n "$unsigned_ids" ]] || log_info "TEST-009: no unsigned amendment in the live ledger — the open-item arm has nothing to check (the signed-set control below still runs)"
+  for sid in $unsigned_ids; do
     local expect
     # The spec id comes FIRST on purpose: spec-amend.mjs decides isMain by
     # comparing realpath(process.argv[1]) against its own module path, so
@@ -736,6 +751,28 @@ test_009_live_backfill_and_whole_ledger_readers() {
   done
   [[ -z "$missing" ]] \
     || log_fail "TEST-009: no OPEN tracked item for:$missing — the standing amendments are not surfaced for an owner decision"
+  # Negative control: a spec whose amendments are ALL signed carries no OPEN
+  # tracked item any more (the owner decision closed it) — so the arm above
+  # discriminates signed from unsigned rather than demanding an item for every
+  # spec that was ever amended. Requires at least one signed spec with a
+  # closed item to be a real control; this ledger has had one since 2026-09-14.
+  local signed_ids sid2 signed_checked=0 still_open=""
+  signed_ids="$(signed_spec_ids)"
+  for sid2 in $signed_ids; do
+    grep -qF -- "$sid2" <<<"$unsigned_ids" && continue   # mixed spec: some records still unsigned
+    local expect2
+    expect2="$(node -e '
+      const { pathToFileURL } = require("node:url");
+      import(pathToFileURL(process.argv[2]).href)
+        .then((m) => process.stdout.write(m.amendItemId(process.argv[1])));
+    ' "$sid2" "$SA")"
+    signed_checked=$((signed_checked+1))
+    grep -qF "$expect2" <<<"$open_out" && still_open="$still_open $sid2($expect2)"
+  done
+  [[ "$signed_checked" -ge 1 ]] \
+    || log_fail "TEST-009: the signed-set control checked zero specs — a control that checks nothing proves nothing"
+  [[ -z "$still_open" ]] \
+    || log_fail "TEST-009: a fully SIGNED spec still carries an OPEN tracked item:$still_open — the owner decision was taken but the item was not closed"
   grep -qF "MALFORMED-ID" <<<"$open_out" \
     && log_fail "TEST-009: the backfilled item ids are outside follow-ups.mjs's own grammar: $open_out"
 
