@@ -204,6 +204,8 @@ ugrep in the authoring shell, and zsh rewrites `$r:tests/...`).
    converts the nine guards and ratchets the rest rather than banning the shape.
    `.aai/scripts/*.mjs` files referencing `process.argv[1]`: **24**.
 
+- **2026-09-14, orchestrator ledger repair (after merging main at PR #379):** the AC-26 closure had dropped five owner sign-off trackers (`fu-amend-live-agent-dashboard-ser-e1ff12`, `fu-amend-roadmap-driven-ride-sele-1e2448`, `fu-amend-lessons-that-must-hold-d-13bccc`, `fu-amend-friction-publish-hides-r-b86049`, `fu-amend-spec-harness-universal-routing`) as "owner sign-off backlog". A sign-off item is not a test-framework item, and dropping its tracker left thirteen unsigned amendment records with no OPEN item, which the ledger-derived TEST-009 of `test-aai-spec-amend.sh` (merged in PR #379) reports. Repair, append-only: five re-track items (`fu-amend-live-agent-dashboard-retrack`, `fu-amend-roadmap-driven-ride-retrack`, `fu-amend-lessons-must-hold-retrack`, `fu-amend-friction-publish-hides-retrack`, `fu-amend-harness-universal-retrack`) and one `classify --signoff none --tracked-by` overlay per record. The five dropped ids stay terminal (TEST-443 and the row-count pin are unchanged); the rejected-items table row for each now says "re-tracked, not a framework item".
+
 ## Decisions
 
 ### D1 — A sweep partitions its whole bucket; nothing is deferred
@@ -684,11 +686,11 @@ heading as a claim of `done`.
 | fu-specs-embed-developer-local-paths | wrong subsystem: a docs hygiene sweep over merged specs, sweep 4; this spec avoids adding a twenty-fifth instance |
 | fu-spec-evidence-cites-gitignored-path | claim narrowed (code review NB-14, corrected via `follow-ups.mjs close --correct`): the original reason overclaimed ("no spec in the repository cites a gitignored evidence path today") — gitignored evidence citation is a common house style for AC evidence across many specs, not a residual (validation round 4 F-6: the exact count is extraction-method-sensitive — three independent measurements this ride produced three different pairs, from ~16% to ~82%, depending on which path forms and cells are scanned — so no specific digit is asserted here as fact; `docs/ai/decisions.jsonl:917`'s own "470 of 575 … 842 of 1193 … 120 specs" figures are unreproducible without the record naming its extraction, and the record cannot be edited — append-only). The narrower, true claim stands regardless of the exact count: the spec that prompted this item no longer cites its own evidence in the shape originally described |
 | fu-amend-friction-upsert-channel-ba7701 | owner sign-off backlog: only the owner can discharge an amendment sign-off |
-| fu-amend-live-agent-dashboard-ser-e1ff12 | owner sign-off backlog |
-| fu-amend-roadmap-driven-ride-sele-1e2448 | owner sign-off backlog |
-| fu-amend-lessons-that-must-hold-d-13bccc | owner sign-off backlog |
-| fu-amend-friction-publish-hides-r-b86049 | owner sign-off backlog |
-| fu-amend-spec-harness-universal-routing | owner sign-off backlog |
+| fu-amend-live-agent-dashboard-ser-e1ff12 | re-tracked, not a framework item (see Amendment 2026-09-14) |
+| fu-amend-roadmap-driven-ride-sele-1e2448 | re-tracked, not a framework item (see Amendment 2026-09-14) |
+| fu-amend-lessons-that-must-hold-d-13bccc | re-tracked, not a framework item (see Amendment 2026-09-14) |
+| fu-amend-friction-publish-hides-r-b86049 | re-tracked, not a framework item (see Amendment 2026-09-14) |
+| fu-amend-spec-harness-universal-routing | re-tracked, not a framework item (see Amendment 2026-09-14) |
 
 ## GitHub issues
 
