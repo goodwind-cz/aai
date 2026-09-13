@@ -45,6 +45,22 @@ lookup_rules:
     - unknown-fallback
   strip_suffix_pattern: "\\[[^\\]]*\\]$"
 
+# telemetry-fields-not-prose D5: the input/output SHARE metrics-flush.mjs uses
+# to blend a cost estimate out of a run's undecomposed token TOTAL (tokens_total
+# field, or failing that the usage_total_tokens= note marker) when no
+# tokens_in/tokens_out split was recorded. Measured fact this key exists to
+# make explicit: this repository has NO recorded input/output ratio anywhere
+# (628 recorded runs, zero carrying both tokens_in and tokens_out) — 0.5 is the
+# midpoint of the only interval that IS known, not an observation. Every
+# derived cost carries `cost_basis: total-blended` plus `cost_bounds_usd`
+# (the all-input / all-output extremes), so a reader who needs the true width
+# — or a different share — is never stuck with only the point estimate.
+cost_blend:
+  input_share: 0.5
+  basis: convention
+  source_ref: null
+  reason: "no run in docs/ai/METRICS.jsonl carries both tokens_in and tokens_out (0 of 628, measured); docs/ai/LOOP_TICKS.jsonl does not exist in this worktree and its in/out-split claim is NOT VERIFIABLE HERE, not asserted as fact — 0.5 is the interval midpoint, not a measurement"
+
 sources:
   openai-pricing:
     provider: openai

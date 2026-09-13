@@ -110,9 +110,9 @@ import { fileURLToPath } from 'node:url';
 import { splitLines, duplicateKeys, inlineChildConflicts } from './lib/state-core.mjs';
 import {
   setEngineFailPrefix, findBlock, editBlock, setField, scalarLine, textFieldLines,
-  nullFieldIfPresent, readScalar, unquoteScalar, indentOf, writeState, bumpUpdatedAt,
+  nullFieldIfPresent, readScalar, unquoteScalar, indentOf, writeState, bumpUpdatedAt, yq,
 } from './lib/state-engine.mjs';
-import { loadPricing, runCostUsd } from './lib/pricing.mjs';
+import { loadPricing, runCostUsd, blendedCostUsd } from './lib/pricing.mjs';
 import { USAGE_NOTE_RE } from './lib/usage-note.mjs';
 // ONE grammar, every consumer (operator-waiver-unblocks-pr, bot review
 // PR #303 F-2): a validation waiver lives in STATE `last_validation.notes`,
@@ -220,14 +220,27 @@ function parseMetricsEntries(lines) {
     // Trim trailing blank lines out of the removable span (keep separators).
     let trimmed = end;
     while (trimmed > i + 1 && lines[trimmed - 1].trim() === '') trimmed -= 1;
-    const entry = { ref, start: i, end: trimmed, intake: null, reviews: null, runs: [] };
+    const entry = { ref, start: i, end: trimmed, intake: null, reviews: null, validation: null, runs: [] };
     let run = null;
+    // telemetry-fields-not-prose D7/D6 source 1: `validation:` is a SIBLING
+    // block of `human_time_minutes:`/`agent_runs:` (indent 6) carrying
+    // `status`/`at` scalars (indent 8) — tracked the same way run-boundary
+    // detection already scopes `- role:` fields, so a ref's own status/at
+    // pair can never be confused with another ref's or with intake/reviews.
+    let inValidation = false;
     for (let j = i + 1; j < trimmed; j += 1) {
       const l = lines[j];
+      if (indentOf(l) === 6) inValidation = /^ {6}validation:\s*$/.test(l);
       let mm = l.match(/^ {8}intake:\s*(.*)$/);
       if (mm) { entry.intake = asNumber(scalarOrNull(mm[1])); continue; }
       mm = l.match(/^ {8}reviews:\s*(.*)$/);
       if (mm) { entry.reviews = asNumber(scalarOrNull(mm[1])); continue; }
+      if (inValidation) {
+        mm = l.match(/^ {8}status:\s*(.*)$/);
+        if (mm) { entry.validation = entry.validation || {}; entry.validation.status = scalarOrNull(mm[1]); continue; }
+        mm = l.match(/^ {8}at:\s*(.*)$/);
+        if (mm) { entry.validation = entry.validation || {}; entry.validation.at = scalarOrNull(mm[1]); continue; }
+      }
       mm = l.match(/^ {8}- role:\s*(.*)$/);
       if (mm) { run = { role: scalarOrNull(mm[1]) }; entry.runs.push(run); continue; }
       if (!run) continue;
@@ -243,7 +256,7 @@ function parseMetricsEntries(lines) {
       const rawV = mm[2].trim();
       if (key === 'note' && /^[|>]/.test(rawV)) { run.note = ''; continue; }
       const v = scalarOrNull(rawV);
-      run[key] = ['duration_seconds', 'tokens_in', 'tokens_out', 'cost_usd', 'tdd_tests'].includes(key) ? asNumber(v) : v;
+      run[key] = ['duration_seconds', 'tokens_in', 'tokens_out', 'cost_usd', 'tdd_tests', 'tokens_total'].includes(key) ? asNumber(v) : v;
     }
     entries.push(entry);
     i = end;
@@ -317,6 +330,136 @@ function closedRefs(eventsPath) {
     } catch { /* best-effort matching probe */ }
   }
   return refs;
+}
+
+// telemetry-fields-not-prose D6 source 3 / Spec-AC-08: the LATEST
+// `validation_verdict` event for `ref` in EVENTS.jsonl — { status, ts } off
+// `payload.status` and the event's own `ts`, or null when none exists.
+// READ-ONLY and existence-guarded (never creates the file — the default-gate
+// invariant TEST-012 pins) and tolerant of a missing or malformed line
+// (skipped with one NOTE pushed to `warnings`, never a crash — M16 removes
+// the try/catch to prove this arm is exercised). `ts` feeds BLOCKING-1's
+// corroboration check below (eventContradictedByNewerFail) — it is NOT an
+// admission signal by itself.
+function latestValidationEvent(eventsPath, ref, warnings) {
+  if (!fs.existsSync(eventsPath)) return null;
+  let latest = null;
+  for (const line of fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/)) {
+    const t = line.trim();
+    if (t === '' || t.startsWith('#')) continue;
+    let o;
+    try {
+      o = JSON.parse(t);
+    } catch {
+      warnings.push(`NOTE malformed EVENTS.jsonl line skipped while resolving validation_verdict for ${ref}`);
+      continue;
+    }
+    if (o && o.event === 'validation_verdict' && o.ref === ref
+      && o.payload && typeof o.payload.status === 'string') {
+      // last matching line in file order = latest (append-only).
+      latest = { status: o.payload.status, ts: typeof o.ts === 'string' ? o.ts : null };
+    }
+  }
+  return latest;
+}
+
+// telemetry-fields-not-prose BLOCKING-1 (post-review-2026-09-13T105322Z fix
+// at cause): a `validation_verdict` event is a SNAPSHOT of what
+// `last_validation.status` WAS at stamp time — it never changes after the
+// fact (this is the N-4 lesson orchestration-dispatch.mjs:351-362 already
+// states and withStaleAdvisory() already honours). D6 source 3 must not
+// admit an event on its own say-so: it is corroborated ONLY when no NEWER
+// fail for the same ref is recorded anywhere durable —
+//   (i)   the D7 per-ref field (entry.validation.status === 'fail')
+//   (ii)  last_validation, when it names this ref (vStatus === 'fail')
+//   (iii) any agent_runs entry with role Validation carrying verdict: fail
+//         (the field), falling back to the note marker whenever the field
+//         does NOT decide it — absent, OR the explicit non-answer `none`
+//         (review NON-BLOCKING-4 / finding 4, 20260913T114019Z: reliabilityOf's
+//         field-first rule is right for reliability COUNTS, where `verdict:
+//         none` legitimately means "not counted"; it is the wrong default
+//         here, where `none` must never SILENCE a `VERDICT: FAIL` note and
+//         manufacture corroboration for a stale pass). `verdict: fail` and
+//         `verdict: pass` still win outright, exactly as reliabilityOf does.
+// "Newer" means timestamped after the event's own `ts`, compared at
+// whole-SECOND precision with a tie counting as newer (review NON-BLOCKING-3
+// / finding 3: `state.mjs`'s `nowIso()` truncates to the second while
+// `append-event.mjs` keeps milliseconds, so a STATE-stamped fail inside the
+// event's own second must not read as older merely because its sub-second
+// part was truncated away). A fail signal whose timestamp is missing or
+// unparseable is treated as newer (fail-closed): ambiguity must never
+// manufacture a PASS in the append-only ledger. The positive control — a
+// genuinely stranded ref with a pass event and no fail anywhere — carries no
+// fail signal at all, so this check is a no-op for it.
+function eventContradictedByNewerFail(entry, ref, eventTs, vStatus, vRef, vRunAt) {
+  const eventMs = typeof eventTs === 'string' && ISO_RE.test(eventTs) ? Date.parse(eventTs) : null;
+  const eventSecMs = eventMs === null ? null : Math.floor(eventMs / 1000) * 1000;
+  const isNewer = (tsRaw) => {
+    if (eventSecMs === null) return true;
+    if (typeof tsRaw !== 'string' || !ISO_RE.test(tsRaw)) return true;
+    const ms = Date.parse(tsRaw);
+    if (Number.isNaN(ms)) return true;
+    const secMs = Math.floor(ms / 1000) * 1000;
+    return secMs >= eventSecMs;
+  };
+  if (entry.validation && entry.validation.status === 'fail' && isNewer(entry.validation.at)) {
+    return true;
+  }
+  if (vStatus === 'fail' && refMatches(vRef, ref) && isNewer(vRunAt)) {
+    return true;
+  }
+  for (const r of entry.runs) {
+    const roleRaw = typeof r.role === 'string' ? r.role : '';
+    if (!roleRaw.toLowerCase().includes('validation')) continue;
+    const fieldDecides = r.verdict === 'fail' || r.verdict === 'pass';
+    const isFail = fieldDecides ? r.verdict === 'fail' : (typeof r.note === 'string' && FAIL_MARKER_RE.test(r.note));
+    if (isFail && isNewer(r.ended_utc)) return true;
+  }
+  return false;
+}
+
+// telemetry-fields-not-prose D6 Round-7 fix at cause (reviewer bot P1,
+// PR #378): source 1 (D7 per-ref field) used to be admitted the instant it
+// read `pass`, without ever comparing it against source 2 (the global
+// `last_validation` block). A legal same-ref sequence — `set-validation --ref
+// R --status pass` (stamps BOTH the per-ref field and the global block to
+// pass), then a LATER `set-validation --status fail` with NO `--ref` (a
+// legal call: `--ref` restricts which per-ref stamp gets refreshed, it does
+// not gate whether the global block itself may change) — leaves the global
+// block `fail` for the same ref while the per-ref stamp stays the stale
+// `pass`, and the old source-1 branch flushed PASS off that stale stamp
+// without ever looking at the newer global fail. This mirrors source 3's
+// existing eventContradictedByNewerFail veto: source 1 is admitted only when
+// no NEWER same-ref global fail outranks it. "Newer" is the per-ref stamp's
+// own `at` vs `last_validation.run_at_utc` (both `state.mjs` `nowIso()`
+// self-stamps, i.e. directly comparable — unlike source 3's comparison
+// against an EVENTS.jsonl millisecond `ts`), at whole-SECOND precision with
+// a tie counting as newer, same convention as eventContradictedByNewerFail's
+// Round-4 refinement. A missing/unparseable timestamp on EITHER side is
+// fail-closed as a veto: ambiguity must never manufacture a PASS in the
+// append-only ledger.
+//
+// Rejected: refreshing the per-ref stamp inside `set-validation` when
+// `--ref` is omitted but `last_validation.ref_id` already names a ref (i.e.
+// fixing this at the write site instead of the read site). D7's own
+// contract is "set-validation stamps the ref it NAMES" — a `--ref`-less call
+// is legal precisely because the caller is not naming any one ref (e.g. a
+// blanket reset before re-validating several), and silently reinterpreting
+// "no --ref given" as "the ref last_validation happens to still remember"
+// would let a STALE, unrelated ref_id (left over from an earlier call)
+// receive a write the caller never asked for. The veto below needs no
+// change to what `set-validation` writes or to D7's contract; it only makes
+// the flush gate compare the two self-stamped timestamps it already reads.
+function perRefPassVetoedByNewerGlobalFail(entry, ref, vStatus, vRef, vRunAt) {
+  if (!(vStatus === 'fail' && refMatches(vRef, ref))) return false;
+  const baseAt = entry.validation && typeof entry.validation.at === 'string' ? entry.validation.at : null;
+  const baseMs = baseAt !== null && ISO_RE.test(baseAt) ? Date.parse(baseAt) : null;
+  if (baseMs === null) return true; // fail-closed: an unstamped/unparseable per-ref pass cannot outrank a same-ref global fail
+  const vMs = typeof vRunAt === 'string' && ISO_RE.test(vRunAt) ? Date.parse(vRunAt) : null;
+  if (vMs === null) return true; // fail-closed: an unparseable global fail timestamp still vetoes
+  const baseSecMs = Math.floor(baseMs / 1000) * 1000;
+  const vSecMs = Math.floor(vMs / 1000) * 1000;
+  return vSecMs >= baseSecMs; // tie counts as newer (same whole-second convention as source 3)
 }
 
 // Sum of human_resume review_duration_seconds -> minutes rounded UP; null when
@@ -412,54 +555,129 @@ function trustedDuration(run, nowMs) {
 // counts to be zero rather than trusting the marker-gated counts alone.
 const FAIL_MARKER_RE = /\bVERDICT:\s*FAIL\b/i;
 
-function reliabilityOf(runs) {
+// telemetry-fields-not-prose D3/D4: FIELD-FIRST. A Validation/Code Review run
+// carrying the `verdict` field (D1) is counted from that field; the note
+// marker is a FALLBACK used ONLY when the field is absent (never both, never
+// note-overrides-field). `reliability.basis` names which one produced the
+// counts across every validation/review run in the entry: field | note |
+// mixed | none (no such run at all). Every run that fell back pushes ONE
+// NOTE line naming the run and the basis (D3's degrade-and-report rule) —
+// regardless of whether the note text ends up matching the fail marker, so a
+// test asserting only the resulting counts (which may legitimately stay at
+// their pre-scope value, per measurement 5's colon-less markers) cannot miss
+// the fallback happening (M10).
+function reliabilityOf(runs, ref, warnings) {
   let validationFails = 0;
   let reviewFails = 0;
   let remediationRuns = 0;
+  const bases = new Set();
   for (const r of runs) {
-    const role = typeof r.role === 'string' ? r.role.toLowerCase() : '';
-    const failNoted = typeof r.note === 'string' && FAIL_MARKER_RE.test(r.note);
+    const roleRaw = typeof r.role === 'string' ? r.role : '';
+    const role = roleRaw.toLowerCase();
     if (role.includes('remediation')) remediationRuns += 1;
-    if (role.includes('validation') && failNoted) validationFails += 1;
-    if (role.includes('review') && failNoted) reviewFails += 1;
+    const isValidation = role.includes('validation');
+    const isReview = role.includes('review');
+    if (!isValidation && !isReview) continue;
+    const hasField = typeof r.verdict === 'string' && r.verdict !== '';
+    let isFail;
+    let basis;
+    if (hasField) {
+      basis = 'field';
+      isFail = r.verdict === 'fail';
+      // NON-BLOCKING-B (review-telemetry-fields-not-prose-20260913T105322Z) /
+      // spec Implementation-plan edge case: the FIELD wins ALWAYS (never
+      // note-overrides-field), but a run whose note marker DISAGREES with the
+      // field is not silently dropped — it prints the one NOTE line the spec
+      // promised so a reader can see the field overrode contradicting prose.
+      if (typeof r.note === 'string' && r.note !== '') {
+        const noteIsFail = FAIL_MARKER_RE.test(r.note);
+        if (noteIsFail !== isFail) {
+          warnings.push(`NOTE ${ref} run ${roleRaw}: field/note disagreement — verdict field is "${r.verdict}" but the note ${noteIsFail ? 'carries' : 'does not carry'} the VERDICT: FAIL marker; the FIELD wins (basis field)`);
+        }
+      }
+    } else {
+      basis = 'note';
+      isFail = typeof r.note === 'string' && FAIL_MARKER_RE.test(r.note);
+      warnings.push(`NOTE ${ref} run ${roleRaw}: no verdict field recorded — reliability falls back to the note marker (basis note)`);
+    }
+    bases.add(basis);
+    if (isValidation && isFail) validationFails += 1;
+    if (isReview && isFail) reviewFails += 1;
   }
+  let basis;
+  if (bases.size === 0) basis = 'none';
+  else if (bases.size > 1) basis = 'mixed';
+  else basis = [...bases][0];
   return {
     validation_fails: validationFails,
     review_fails: reviewFails,
     remediation_runs: remediationRuns,
     first_pass_clean: validationFails === 0 && reviewFails === 0 && remediationRuns === 0,
+    basis,
   };
 }
 
 function buildEntry(entry, ctx) {
-  const { pricing, nowMs, dateUtc, reviewsFromTicks, title, strategy, waiver = null } = ctx;
+  const { pricing, nowMs, dateUtc, reviewsFromTicks, title, strategy, waiver = null, verdictBasis = null } = ctx;
   const warnings = [];
   const runs = entry.runs.map(r => {
     const tokensIn = typeof r.tokens_in === 'number' ? r.tokens_in : null;
     const tokensOut = typeof r.tokens_out === 'number' ? r.tokens_out : null;
     let cost = typeof r.cost_usd === 'number' ? r.cost_usd : null;
+    let costBasis = 'none';
+    let costBounds = null;
     if (cost === null) cost = runCostUsd(pricing, r.model_id, tokensIn, tokensOut);
+    if (cost !== null) costBasis = 'decomposed';
     // Token-capture-canary 3-way classification (Spec-AC-01): numeric
     // tokens_in AND tokens_out -> decomposed (no line, handled above); else a
     // note matching the canonical usage_total_tokens=<digits> grammar ->
-    // undecomposed-note (one INFO line, cost unattributable BY DESIGN — the
-    // harness never exposed the split); else -> capture-missing (one WARNING
-    // line — the harness observed a total and it was silently dropped). The
-    // marker must be the COMPLETE canonical token, delimited on both sides:
-    // a malformed value (usage_total_tokens=123oops) or a prefixed key
-    // (not_usage_total_tokens=456) falls through to capture-missing on
-    // purpose — a malformed note is not an honest total (PR #158 bot review).
+    // undecomposed-note (one INFO line, naming what actually happened to the
+    // cost); else -> capture-missing (one WARNING line — the harness observed
+    // a total and it was silently dropped). The marker must be the COMPLETE
+    // canonical token, delimited on both sides: a malformed value
+    // (usage_total_tokens=123oops) or a prefixed key (not_usage_total_tokens=456)
+    // falls through to capture-missing on purpose — a malformed note is not an
+    // honest total (PR #158 bot review). Spec-AC-01 (token-economics-end-to-end):
+    // USAGE_NOTE_RE now lives in lib/usage-note.mjs (single source) — imported
+    // here, not re-declared. Match semantics unchanged: same regex object,
+    // same `.match()` call, same first-capture-group read.
+    const noteMatch = typeof r.note === 'string' ? r.note.match(USAGE_NOTE_RE) : null;
+    // telemetry-fields-not-prose D5: when no decomposed cost exists, blend an
+    // ESTIMATE out of a token TOTAL — the `tokens_total` FIELD first, falling
+    // back to the note's usage_total_tokens=<N> marker (the same 400-of-628
+    // runs the INFO line below already recognizes). Never relabels an unpriced
+    // model's null into a fabricated number (M13). `total` is resolved BEFORE
+    // the INFO/WARNING line below and is now the SAME value both the cost
+    // derivation and the line's own gate read (round-5 remediation, review
+    // NON-BLOCKING-1 / finding 5, 20260913T114019Z): the
+    // gate used to test `noteMatch` alone, so a run carrying `tokens_total`
+    // as a FIELD with no usage note fell to the capture-missing WARNING
+    // ("tokens not recorded") beside a ledger line this SAME function had
+    // just priced from that field — an operator reading the flush output and
+    // an operator reading the ledger reached opposite conclusions about the
+    // same run. The line now says what happened: unattributable stays
+    // reserved for a run with no tokens signal AT ALL (the WARNING branch) or
+    // one whose model PRICING cannot resolve (blend genuinely fails); a run
+    // whose total DID price — from either source — states the basis instead.
+    let blended = null;
+    const tokensTotalField = typeof r.tokens_total === 'number' ? r.tokens_total : null;
+    const total = tokensTotalField !== null ? tokensTotalField
+      : (noteMatch ? Number(noteMatch[1]) : null);
+    if (cost === null && total !== null) {
+      blended = blendedCostUsd(pricing, r.model_id, total);
+      if (blended !== null) {
+        cost = blended.cost;
+        costBounds = blended.bounds;
+        costBasis = 'total-blended';
+      }
+    }
     if (tokensIn === null || tokensOut === null) {
-      // Spec-AC-01 (token-economics-end-to-end): USAGE_NOTE_RE now lives in
-      // lib/usage-note.mjs (single source) — imported here, not re-declared.
-      // Match semantics unchanged: same regex object, same `.match()` call,
-      // same first-capture-group read, so every existing golden and the
-      // classify tests above stay byte-identical.
-      const noteMatch = typeof r.note === 'string'
-        ? r.note.match(USAGE_NOTE_RE)
-        : null;
-      if (noteMatch) {
-        warnings.push(`INFO ${entry.ref} run ${r.role} (${r.model_id ?? 'unknown'}): undecomposed total ${noteMatch[1]} observed; cost unattributable by design`);
+      if (total !== null) {
+        if (blended !== null) {
+          warnings.push(`INFO ${entry.ref} run ${r.role} (${r.model_id ?? 'unknown'}): undecomposed total ${total} observed; cost estimated from the total (cost_basis total-blended)`);
+        } else {
+          warnings.push(`INFO ${entry.ref} run ${r.role} (${r.model_id ?? 'unknown'}): undecomposed total ${total} observed; cost unattributable by design`);
+        }
       } else {
         warnings.push(`WARNING ${entry.ref} run ${r.role} (${r.model_id ?? 'unknown'}): cost unattributable — tokens not recorded`);
       }
@@ -472,8 +690,29 @@ function buildEntry(entry, ctx) {
     out.tokens_in = tokensIn;
     out.tokens_out = tokensOut;
     out.cost_usd = cost;
+    out.cost_basis = costBasis;
+    if (costBounds !== null) out.cost_bounds_usd = costBounds;
     if (typeof r.tdd_tests === 'number') out.tdd_tests = r.tdd_tests;
     if (typeof r.prompt_hash === 'string') out.prompt_hash = r.prompt_hash;
+    // telemetry-fields-not-prose D1/D3: per-run harness/verdict/verdict_basis
+    // and the raw recorded tokens_total (the FIELD value only — never the
+    // note-derived guess used above for costing).
+    out.harness = typeof r.harness === 'string' ? r.harness : null;
+    out.tokens_total = typeof r.tokens_total === 'number' ? r.tokens_total : null;
+    // Round-7 (PR #378 P1): `requested_model`/`actual_model` are ALREADY
+    // captured into `r` by parseMetricsEntries' generic `run[key]` reader
+    // (measurement 10) — this projection just never copied them onward, so
+    // the STATE cleanup (which deletes the flushed work_items entry) erased
+    // the only place they lived. D1 emits them ONLY when the flag was
+    // passed (unlike harness/verdict, which always default), so the ledger
+    // mirrors that same "absent stays absent" shape `prompt_hash` already
+    // uses above, rather than harness/tokens_total's null-default shape.
+    if (typeof r.requested_model === 'string') out.requested_model = r.requested_model;
+    if (typeof r.actual_model === 'string') out.actual_model = r.actual_model;
+    const roleLower = typeof r.role === 'string' ? r.role.toLowerCase() : '';
+    const relevantForVerdict = roleLower.includes('validation') || roleLower.includes('review');
+    out.verdict = typeof r.verdict === 'string' && r.verdict !== '' ? r.verdict : null;
+    out.verdict_basis = out.verdict !== null ? 'field' : (relevantForVerdict ? 'note' : 'none');
     return out;
   });
   const reviews = entry.reviews !== null && typeof entry.reviews === 'number'
@@ -484,6 +723,11 @@ function buildEntry(entry, ctx) {
   const agentSeconds = runs.reduce((a, r) => a + (r.duration_seconds ?? 0), 0);
   const anyNullCost = runs.some(r => r.cost_usd === null);
   const totalCost = anyNullCost ? null : runs.reduce((a, r) => a + r.cost_usd, 0);
+  // telemetry-fields-not-prose D3: the entry-level cost basis across every
+  // run — decomposed | total-blended | mixed | none.
+  const costBasisSet = new Set(runs.map(r => r.cost_basis));
+  const totalsCostBasis = costBasisSet.size === 0 ? 'none'
+    : (costBasisSet.size > 1 ? 'mixed' : [...costBasisSet][0]);
   const ledgerEntry = {
     date_utc: dateUtc,
     ref_id: entry.ref,
@@ -494,9 +738,14 @@ function buildEntry(entry, ctx) {
       human_time_minutes: human,
       agent_duration_seconds: agentSeconds,
       total_cost_usd: totalCost,
+      cost_basis: totalsCostBasis,
     },
     strategy,
-    reliability: reliabilityOf(entry.runs),
+    reliability: reliabilityOf(entry.runs, entry.ref, warnings),
+    // D6: which of the three default-gate sources admitted this ref — null
+    // for a ref that flushed by a route other than the default gate (e.g.
+    // --sweep) or that was never gated (a resumed/interrupted flush).
+    verdict_basis: verdictBasis,
     verdict: 'PASS',
   };
   // The waiver this ride was closed under, made DURABLE (bot review PR #303
@@ -545,7 +794,7 @@ function removeDoneWorkItems(lines, refs) {
   }
 }
 
-function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver, archiveRefs) {
+function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver, archiveRefs, focusRef = null, existingScopeRef = null) {
   // A waiver that reached no ledger entry is PRESERVED verbatim in the reset
   // note instead of being overwritten (bot review PR #303 F-2: losing a waiver
   // must be loud, never rendered as "no waivers"). It stays scope-bound by its
@@ -585,13 +834,41 @@ function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver, archiveRefs)
   editBlock(lines, 'code_review', bl => {
     setField(bl, 2, 'required', [scalarLine(2, 'required', 'false')]);
     setField(bl, 2, 'status', [scalarLine(2, 'status', 'not_run')]);
-    setField(bl, 2, 'scope', [scalarLine(2, 'scope', 'null')]);
-    setField(bl, 2, 'base_ref', [scalarLine(2, 'base_ref', 'null')]);
-    setField(bl, 2, 'head_ref', [scalarLine(2, 'head_ref', 'null')]);
+    // D8: `scope`/`base_ref`/`head_ref` are an INPUT to a later step (SKILL_PR
+    // step 4a), not verdict state — a partial reset leaves them UNCHANGED
+    // (M18 restores the old null-out to prove this arm is exercised) and
+    // instead stamps `scope_ref_id` so a later reader knows WHOSE scope this
+    // is (M19 deletes the stamp independently of the preservation).
+    setField(bl, 2, 'scope_ref_id', [scalarLine(2, 'scope_ref_id', yqRef(flushedRefs, focusRef, existingScopeRef))]);
     setField(bl, 2, 'report_paths', [scalarLine(2, 'report_paths', '[]')]);
     setField(bl, 2, 'notes', textFieldLines(2, 'notes', note));
     return bl;
   });
+}
+
+// D8: `scope_ref_id` names the flushed ref. A partial flush can complete more
+// than one ref in the same reset (multiple completed refs sharing one
+// STATE); the field names the ref check-committed-scope.mjs compares against
+// `current_focus.ref_id`, which is itself always singular — so ownership,
+// not array position, decides which one.
+//
+// Round-7 (PR #378 P2): `flushedRefs` is ordered by `metrics.work_items`
+// insertion order, which has no relationship to which flushed ref belongs to
+// the CURRENT ride. Picking `flushedRefs[0]` therefore bound the preserved
+// scope to whichever completed ref happened to be inserted first, not to the
+// ride check-committed-scope.mjs is about to check. Preference order:
+//   1. the current-focus ref, when it is among the flushed refs — this IS
+//      the current ride's scope.
+//   2. the PRE-flush `scope_ref_id` (read by the caller off the untouched
+//      original STATE), when it already names one of the flushed refs — an
+//      existing binding that still resolves is preserved rather than
+//      reassigned by array order.
+//   3. `flushedRefs[0]` — the old fallback, kept only for the case neither 1
+//      nor 2 resolves (e.g. a --sweep-only flush with no live focus).
+function yqRef(flushedRefs, focusRef = null, existingScopeRef = null) {
+  if (focusRef !== null && flushedRefs.includes(focusRef)) return yq(focusRef);
+  if (existingScopeRef !== null && flushedRefs.includes(existingScopeRef)) return yq(existingScopeRef);
+  return flushedRefs.length > 0 ? yq(flushedRefs[0]) : 'null';
 }
 
 // Full reset — the STATE_FALLBACK.md flush-reset defaults, via engine edits.
@@ -631,6 +908,11 @@ function applyFullReset(lines, carryWaiver = null) {
     }
     setField(bl, 2, 'report_paths', [scalarLine(2, 'report_paths', '[]')]);
     setField(bl, 2, 'notes', [scalarLine(2, 'notes', 'null')]);
+    // NON-BLOCKING-A (review-telemetry-fields-not-prose-20260913T105322Z): a
+    // full reset nulls scope/base_ref/head_ref above but previously left
+    // applyPartialReset's scope_ref_id stamp behind — clear it only when
+    // present, same idiom as current_focus.spec_path below.
+    nullFieldIfPresent(bl, 2, 'scope_ref_id');
     return bl;
   });
   editBlock(lines, 'current_focus', bl => {
@@ -925,6 +1207,10 @@ function main() {
   const { entries } = parseMetricsEntries(origLines);
   const vStatus = readScalar(origLines, 'last_validation', 'status');
   const vRef = scalarOrNull(readScalar(origLines, 'last_validation', 'ref_id'));
+  // BLOCKING-1 corroboration source (ii): read alongside vStatus/vRef so the
+  // gate below can tell whether last_validation's own fail postdates a stale
+  // pass event, never re-read per-ref inside the loop.
+  const vRunAt = scalarOrNull(readScalar(origLines, 'last_validation', 'run_at_utc'));
   // The waiver recorded against this validation, read BEFORE any reset (F-2).
   // Only a record the gate itself would accept is durable-worthy; a broken one
   // is left where it is, which is what the gate already refuses on.
@@ -933,6 +1219,12 @@ function main() {
   const rRequired = readScalar(origLines, 'code_review', 'required') === 'true';
   const rStatus = readScalar(origLines, 'code_review', 'status');
   const focusRef = scalarOrNull(readScalar(origLines, 'current_focus', 'ref_id'));
+  // Round-7 (PR #378 P2): the PRE-flush `code_review.scope_ref_id`, read once
+  // off the untouched original STATE — applyPartialReset's scope binding
+  // below falls back to this when the current-focus ref is not among the
+  // refs this reset flushed, so an existing scope binding that already names
+  // one of them survives instead of being overwritten by array order.
+  const existingScopeRef = scalarOrNull(readScalar(origLines, 'code_review', 'scope_ref_id'));
   // Truth-scoring R5: the strategy singleton is scoped to the refs the PASS
   // verdict names (every flushed ref, by the gate above) — 'undecided' or an
   // absent block records null, never a guess.
@@ -966,12 +1258,62 @@ function main() {
   // `sweptRefs` at all, so `partialRefs.filter(r => !sweptRefs.includes(r))`
   // was a no-op for every resumed ref and minted the record anyway.
   const defaultOkRefs = new Set();
+  // telemetry-fields-not-prose D6: which of the three sources admitted a ref
+  // via the default gate — read back by buildEntry (ledgerEntry.verdict_basis)
+  // and the plan/skip lines below, so the answer is never re-derived twice.
+  const verdictBasisByRef = {};
+  const eventWarningsByRef = {};
   for (const entry of entries) {
     const ref = entry.ref;
     if (opts.ref && ref !== opts.ref) { skipped[ref] = 'not selected (--ref restriction)'; continue; }
 
-    // DEFAULT gate — BYTE-UNCHANGED from the pre-sweep logic (D2): the
-    // current-validation ref, review pass/waived when required, runs>0.
+    // DEFAULT gate verdict admission (D6): the flush window closes at CAUSE —
+    // three sources, in this FIXED order, first match wins (never reordered:
+    // M14 proves a reorder still flushes the ref but mislabels the basis):
+    //   1. metrics.work_items[ref].validation.status === 'pass' (D7's per-ref
+    //      stamp)                                    -> basis per-ref-field
+    //   2. last_validation.status === pass naming ref (byte-unchanged D2
+    //      predicate)                                -> basis global-block
+    //   3. the LATEST validation_verdict event for ref in EVENTS.jsonl is pass
+    //      (read UNCONDITIONALLY here for the first time — Spec-AC-08 keeps
+    //      it existence-guarded and read-only) AND that pass is CORROBORATED
+    //      — no newer fail recorded anywhere durable for ref (BLOCKING-1,
+    //      eventContradictedByNewerFail)               -> basis event
+    let verdictBasis = null;
+    // BLOCKING-1: set only when source 3 (event) is admitted but CANNOT be
+    // corroborated — names the reason the default gate below must use
+    // instead of the generic "validation verdict is ..." message, so the
+    // skip is legible as a corroboration refusal rather than a plain miss.
+    let eventRejectionReason = null;
+    // Round-7 (PR #378 P1): set only when source 1 (per-ref field) reads
+    // `pass` but a NEWER same-ref global fail vetoes it
+    // (perRefPassVetoedByNewerGlobalFail) — a vetoed source 1 is NOT
+    // admitted, so evaluation falls through to sources 2 and 3 exactly as if
+    // source 1 had not matched at all.
+    let perRefRejectionReason = null;
+    if (entry.validation && entry.validation.status === 'pass'
+      && !perRefPassVetoedByNewerGlobalFail(entry, ref, vStatus, vRef, vRunAt)) {
+      verdictBasis = 'per-ref-field';
+    } else {
+      if (entry.validation && entry.validation.status === 'pass') {
+        perRefRejectionReason = `a per-ref validation pass is recorded for ${ref} (metrics.work_items.${ref}.validation) but is not admitted — a newer last_validation fail is recorded for the same ref (run_at_utc ${vRunAt ?? 'unknown'})`;
+      }
+      if (vStatus === 'pass' && refMatches(vRef, ref)) {
+        verdictBasis = 'global-block';
+      } else {
+        const eventWarnings = [];
+        const ev = latestValidationEvent(eventsPath, ref, eventWarnings);
+        if (eventWarnings.length > 0) eventWarningsByRef[ref] = eventWarnings;
+        if (ev && ev.status === 'pass') {
+          if (eventContradictedByNewerFail(entry, ref, ev.ts, vStatus, vRef, vRunAt)) {
+            eventRejectionReason = `a validation_verdict pass event exists for ${ref} but is not admitted — a newer fail is recorded (per-ref field, last_validation, or a Validation run) after the event (ts ${ev.ts ?? 'unknown'})`;
+          } else {
+            verdictBasis = 'event';
+          }
+        }
+      }
+    }
+
     // Evaluated for EVERY selected entry, the resumed ones included. It is a
     // PURE read of the un-committed STATE (no writes, no `skipped` entry, no
     // ordering effect), so hoisting it above the resume short-circuit changes
@@ -979,16 +1321,19 @@ function main() {
     // predicate's ANSWER available for refs the short-circuit used to skip
     // asking about.
     let defaultReason = null;
-    if (!(vStatus === 'pass' && refMatches(vRef, ref))) {
-      defaultReason = vStatus === 'pass'
+    if (verdictBasis === null) {
+      defaultReason = perRefRejectionReason ?? eventRejectionReason ?? (vStatus === 'pass'
         ? `validation verdict does not name ${ref} (last_validation.ref_id: ${vRef ?? 'null'}) — needs PASS for this ref`
-        : `validation verdict is "${vStatus ?? 'null'}" (needs PASS or CANCELLED)`;
+        : `validation verdict is "${vStatus ?? 'null'}" (needs PASS or CANCELLED)`);
     } else if (rRequired && !['pass', 'waived'].includes(rStatus ?? '')) {
       defaultReason = `code_review required but status "${rStatus ?? 'null'}" (needs pass or waived)`;
     } else if (entry.runs.length === 0) {
       defaultReason = 'no agent_runs recorded in STATE metrics';
     }
-    if (defaultReason === null) defaultOkRefs.add(ref);
+    if (defaultReason === null) {
+      defaultOkRefs.add(ref);
+      verdictBasisByRef[ref] = verdictBasis;
+    }
 
     if (inLedger.has(ref)) { toResume.push(entry); continue; }   // interrupted flush
 
@@ -1028,7 +1373,12 @@ function main() {
     strategy,
     // Scope-bound exactly as the gate binds it: the record must NAME this ref.
     waiver: vWaiver !== null && refMatchesScope(vWaiver.ref, entry.ref) ? vWaiver : null,
+    verdictBasis: verdictBasisByRef[entry.ref] ?? null,
   }));
+  // Malformed EVENTS.jsonl lines encountered while resolving source 3 (D6) —
+  // surfaced exactly like every other degrade-and-report NOTE, never a crash.
+  const eventNoteWarnings = toFlush.concat(toResume)
+    .flatMap(e => eventWarningsByRef[e.ref] ?? []);
 
   const completedRefs = [...toFlush.map(e => e.ref), ...toResume.map(e => e.ref)];
 
@@ -1083,7 +1433,7 @@ function main() {
       // archives nothing. A ref that DOES satisfy it still archives, whether
       // it flushed here or is being resumed after an interrupted flush.
       const archiveRefs = partialRefs.filter(r => defaultOkRefs.has(r));
-      if (partialRefs.length > 0) applyPartialReset(lines, partialRefs, nowIsoStr, carryWaiver, archiveRefs);
+      if (partialRefs.length > 0) applyPartialReset(lines, partialRefs, nowIsoStr, carryWaiver, archiveRefs, focusRef, existingScopeRef);
     }
     bumpUpdatedAt(lines, nowIsoStr);
   }
@@ -1115,8 +1465,12 @@ function main() {
       swept: sweptRefs,
       resume: toResume.map(e => e.ref),
       skipped,
+      // D6: which source admitted each default-gate-eligible ref — named
+      // here so the plan itself says which of the three decided it, not just
+      // that the ref flushed.
+      verdict_basis: verdictBasisByRef,
       entries: built.map(b => b.ledgerEntry),
-      warnings: [...built.flatMap(b => b.warnings), ...waiverWarnings],
+      warnings: [...built.flatMap(b => b.warnings), ...eventNoteWarnings, ...waiverWarnings],
       forensic_warnings: forensicWarnings,
       validation_waiver_persisted: waiverPersistedRefs,
       partial_reset: partialRefs,
@@ -1160,6 +1514,13 @@ function main() {
 
   // Report.
   for (const b of built) console.log(`Flushed: ${b.ledgerEntry.ref_id} -> ${path.relative(process.cwd(), metricsPath)}`);
+  // D6: name which of the three sources admitted each ref (a swept ref, whose
+  // eligibility never went through the default gate, has no basis to name).
+  for (const b of built) {
+    const basis = b.ledgerEntry.verdict_basis;
+    if (basis !== null) console.log(`  verdict_basis: ${b.ledgerEntry.ref_id} -> ${basis}`);
+  }
+  for (const w of eventNoteWarnings) console.log(w);
   for (const b of built) for (const w of b.warnings) console.log(w);
   // R-GUARD forensic WARNs (S2/3, SPEC-0113): visible, never blocking.
   for (const w of forensicWarnings) console.log(w);

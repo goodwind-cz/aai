@@ -2265,3 +2265,12 @@
 {"v":1,"ts":"2026-09-13T01:29:41.887Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-harness-universal-routing","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-13T01:29:41.923Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-harness-universal-routing","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-13T01:29:41.956Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-harness-universal-routing","payload":{"commit":"08f3abc1"}}
+{"v":1,"ts":"2026-09-13T07:01:10.455Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-telemetry-fields-not-prose","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-13T10:36:29.832Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"telemetry-fields-not-prose","payload":{"status":"pass","hash":"e7f4571696a5a79f0c13fbf8b2e78e84d755972b928503cc1cb01a0909f76f8f"}}
+{"v":1,"ts":"2026-09-13T13:27:49.180Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"telemetry-fields-not-prose","payload":{"status":"pass","hash":"abbcf922a70bd677b294d03edf1af6872eae45afe77ec00f0838b1a1aa27b03e"}}
+{"v":1,"ts":"2026-09-13T13:29:36.563Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"telemetry-fields-not-prose","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-13T13:29:36.598Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"telemetry-fields-not-prose","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-13T13:29:36.631Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"telemetry-fields-not-prose","payload":{"commit":"6105b291"}}
+{"v":1,"ts":"2026-09-13T13:29:36.666Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-telemetry-fields-not-prose","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-13T13:29:36.707Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-telemetry-fields-not-prose","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-13T13:29:36.745Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-telemetry-fields-not-prose","payload":{"commit":"6105b291"}}

@@ -584,7 +584,10 @@ JSONL
   DJ="$d/docs/ai/factory-report-data.json"
   local fr rep
   fr="$(node_get "$DJ" 'm.cost.tokens_total')"
-  rep="$( (cd "$PROJECT_ROOT" && node "$METRICS_REPORT" --metrics "$d/docs/ai/METRICS.jsonl" --pricing "$d/PRICING.yaml") | grep -E '^\| SEAM \|' | awk -F'|' '{gsub(/ /,"",$7); print $7}')"
+  # telemetry-fields-not-prose Spec-AC-12: metrics-report's Per Work Item
+  # table gained a "cost basis" column between cost USD and agent tokens, so
+  # the undecomposed-tokens column shifted from field 7 to field 8.
+  rep="$( (cd "$PROJECT_ROOT" && node "$METRICS_REPORT" --metrics "$d/docs/ai/METRICS.jsonl" --pricing "$d/PRICING.yaml") | grep -E '^\| SEAM \|' | awk -F'|' '{gsub(/ /,"",$8); print $8}')"
   [[ "$fr" == "1000" ]] || log_fail "factory-report tokens must be 777+223=1000, got $fr"
   [[ "$rep" == "1000" ]] || log_fail "metrics-report per-item column must be 1000, got $rep"
   [[ "$fr" == "$rep" ]] || log_fail "SEAM 1 violated: factory ($fr) != report ($rep)"
@@ -1008,6 +1011,7 @@ JSONL
     delete model.follow_ups;
     delete model.scope_cost;
     delete model.validation_waivers;
+    delete model.verdict_provenance;
     model.notes = model.notes.filter((n) => !n.includes("(scope_cost)"));
     model.generatedAt = PLACEHOLDER;
     const normalizedData = JSON.stringify(model, null, 2) + "\n";
@@ -1024,7 +1028,7 @@ JSONL
     const rawModel = JSON.parse(fs.readFileSync(dataPath, "utf8")); // un-mutated: real generatedAt
     html = html.split(rawModel.generatedAt).join(PLACEHOLDER);
     const closeTag = "</section>";
-    for (const startTag of ["<section id=\"role-consumption\">", "<section id=\"scope-cost\">", "<section id=\"follow-ups\">", "<section id=\"validation-waivers\">"]) {
+    for (const startTag of ["<section id=\"role-consumption\">", "<section id=\"scope-cost\">", "<section id=\"follow-ups\">", "<section id=\"validation-waivers\">", "<section id=\"verdict-provenance\">"]) {
       const start = html.indexOf(startTag);
       if (start === -1) { console.log(`FAIL:section-missing:no ${startTag} found`); process.exit(1); }
       const end = html.indexOf(closeTag, start);
@@ -1852,6 +1856,40 @@ test_039_scope_cost_product_doc_pins() {
   log_pass "product doc pins present: section, two time labels + divergence, marker-only + denominator, named no-marker line, remediation-not-failure, frontmatter-anchored delivered_by + well-formed updated date; intake capability fixed (TEST-039)"
 }
 
+# --- TEST-042 (Spec-AC-12): verdict-source + cost-basis per ride -------------
+test_042_verdict_provenance() {
+  log_info "Test: factory report over field-derived, marker-derived and pre-basis rides renders a verdict-source and cost-basis per ride plus a field-vs-marker KPI, legacy shown n/a never zero (TEST-042)..."
+  local d; d="$(mk_repo t042)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"FIELD-0001","title":"Field ride","agent_runs":[{"role":"Validation","duration_seconds":60,"verdict":"fail"}],"totals":{"total_cost_usd":null,"cost_basis":"none"},"strategy":"tdd","reliability":{"validation_fails":1,"review_fails":0,"remediation_runs":0,"first_pass_clean":false,"basis":"field"},"verdict_basis":"global-block","verdict":"PASS"}
+{"date_utc":"2026-07-02","ref_id":"MARKER-0001","title":"Marker ride","agent_runs":[{"role":"Validation","duration_seconds":60,"note":"VERDICT: FAIL"}],"totals":{"total_cost_usd":null,"cost_basis":"none"},"strategy":"tdd","reliability":{"validation_fails":1,"review_fails":0,"remediation_runs":0,"first_pass_clean":false,"basis":"note"},"verdict_basis":"global-block","verdict":"PASS"}
+{"date_utc":"2026-07-03","ref_id":"LEGACY-0001","title":"Pre-scope ride","agent_runs":[{"role":"Implementation","duration_seconds":60}],"totals":{"total_cost_usd":null},"strategy":"tdd","verdict":"PASS"}
+JSONL
+  run_report "$d"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local vp; vp="$(node_get "$DJ" 'JSON.stringify(m.verdict_provenance)')"
+  node -e '
+    const vp = JSON.parse(process.argv[1]);
+    const errors = [];
+    if (vp.field_derived !== 1) errors.push(`field_derived must be 1, got ${vp.field_derived}`);
+    if (vp.marker_derived !== 1) errors.push(`marker_derived must be 1, got ${vp.marker_derived}`);
+    if (vp.no_basis !== 1) errors.push(`no_basis (the legacy ride) must be 1, got ${vp.no_basis}`);
+    const byRef = Object.fromEntries(vp.rides.map((r) => [r.ref, r]));
+    if (byRef["FIELD-0001"].verdict_source !== "field") errors.push("FIELD-0001 verdict_source must be field");
+    if (byRef["MARKER-0001"].verdict_source !== "note") errors.push("MARKER-0001 verdict_source must be note");
+    if (byRef["LEGACY-0001"].verdict_source !== null) errors.push("LEGACY-0001 (pre-basis) verdict_source must be null (n/a), never a fabricated guess");
+    if (errors.length) { console.log("FAIL:" + errors.join("; ")); process.exit(1); }
+  ' "$vp" || log_fail "verdict_provenance KPI/per-ride shape wrong: $vp"
+  local html="$d/docs/ai/factory-report.html"
+  grep -qF 'id="verdict-provenance"' "$html" || log_fail "HTML must carry the verdict-provenance section"
+  grep -qF '<code>LEGACY-0001</code>' "$html" || log_fail "the legacy ride must appear in the verdict-provenance table"
+  # The legacy ride's row must render n/a for both new columns — never 0 or blank.
+  grep -qE '<td><code>LEGACY-0001</code></td><td>n/a</td><td>n/a</td>' "$html" \
+    || log_fail "the legacy ride's row must render n/a/n/a (never 0, never blank): $(grep -A1 'LEGACY-0001' "$html")"
+  log_pass "factory report renders per-ride verdict-source + cost-basis and the field-vs-marker KPI; legacy ride shown n/a, never zero (TEST-042)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019; telemetry-completeness TEST-020..021; role-token-trend TEST-022..027; followup-registry TEST-028..029; scope-cost TEST-031..037,039)"
   echo "  + followups-cli-hardening TEST-040; operator-waiver-unblocks-pr TEST-041"
@@ -1894,6 +1932,7 @@ main() {
   test_036_scope_cost_report_only
   test_037_scope_cost_html_parity
   test_039_scope_cost_product_doc_pins
+  test_042_verdict_provenance
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

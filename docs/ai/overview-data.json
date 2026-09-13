@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-09-13T06:51:51.551Z",
+  "generatedAt": "2026-09-13T13:29:49.808Z",
   "project": "aai",
   "counts": {
-    "delivered": 240,
-    "in_progress": 23,
+    "delivered": 241,
+    "in_progress": 22,
     "releases": 1,
-    "tokens_total": 61061545
+    "tokens_total": 64220459
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -98,19 +98,6 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "telemetry-fields-not-prose",
-      "title": "Run telemetry is recorded as fields, so cost and reliability stop depending on prose",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0183-telemetry-fields-not-prose.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -329,14 +316,27 @@
       "review": "docs/ai/reviews/review-harness-universal-routing-20260913T002056Z.md"
     },
     {
+      "ref": "telemetry-fields-not-prose",
+      "title": "Run telemetry is recorded as fields, so cost and reliability stop depending on prose",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0183-telemetry-fields-not-prose.md",
+      "closed_on": "2026-09-13",
+      "agent_minutes": 380,
+      "token_total": 236190,
+      "spec": "docs/specs/SPEC-0178-spec-telemetry-fields-not-prose.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-telemetry-fields-not-prose-20260913T114019Z.md"
+    },
+    {
       "ref": "close-ceremony-fires-only-via-aai-pr",
       "title": "The close ceremony fires only through /aai-pr, so any other route ships silent drafts",
       "type": "issue",
       "status": "done",
       "path": "docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md",
       "closed_on": "2026-09-12",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 303,
+      "token_total": 1999935,
       "spec": "docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md",
       "validation": null,
       "review": null
@@ -647,8 +647,8 @@
       "status": "done",
       "path": "docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md",
       "closed_on": "2026-08-28",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 144,
+      "token_total": 922789,
       "spec": "docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260828T144437Z-agent-shell-can-write-the-shipping-repo.md"
@@ -3456,14 +3456,27 @@
           "review": "docs/ai/reviews/review-harness-universal-routing-20260913T002056Z.md"
         },
         {
+          "ref": "telemetry-fields-not-prose",
+          "title": "Run telemetry is recorded as fields, so cost and reliability stop depending on prose",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0183-telemetry-fields-not-prose.md",
+          "closed_on": "2026-09-13",
+          "agent_minutes": 380,
+          "token_total": 236190,
+          "spec": "docs/specs/SPEC-0178-spec-telemetry-fields-not-prose.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-telemetry-fields-not-prose-20260913T114019Z.md"
+        },
+        {
           "ref": "close-ceremony-fires-only-via-aai-pr",
           "title": "The close ceremony fires only through /aai-pr, so any other route ships silent drafts",
           "type": "issue",
           "status": "done",
           "path": "docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md",
           "closed_on": "2026-09-12",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 303,
+          "token_total": 1999935,
           "spec": "docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md",
           "validation": null,
           "review": null
@@ -3781,8 +3794,8 @@
           "status": "done",
           "path": "docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md",
           "closed_on": "2026-08-28",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 144,
+          "token_total": 922789,
           "spec": "docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260828T144437Z-agent-shell-can-write-the-shipping-repo.md"

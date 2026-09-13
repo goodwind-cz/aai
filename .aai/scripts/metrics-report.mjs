@@ -130,8 +130,8 @@ function main() {
   out.push('## AAI Metrics Summary');
   out.push('');
   out.push('### Per Work Item');
-  out.push('| ref_id | title | human (min) | agent (sec) | cost USD | agent tokens (undecomposed) | leverage | verdict |');
-  out.push('|--------|-------|-------------|-------------|----------|------------------------------|----------|---------|');
+  out.push('| ref_id | title | human (min) | agent (sec) | cost USD | cost basis | agent tokens (undecomposed) | leverage | verdict |');
+  out.push('|--------|-------|-------------|-------------|----------|------------|------------------------------|----------|---------|');
   let totalHuman = 0;
   let totalAgent = 0;
   let passCount = 0;
@@ -144,7 +144,11 @@ function main() {
     if (verdict === 'PASS') passCount += 1;
     totalHuman += human;
     totalAgent += agent;
-    out.push(`| ${e.ref_id ?? 'n/a'} | ${e.title ?? 'n/a'} | ${human} | ${agent} | ${costCell(e._runs)} | ${undecomposedTokenCell(e._runs)} | ${leverage} | ${verdict} |`);
+    // telemetry-fields-not-prose Spec-AC-12: the entry-level cost basis this
+    // scope's flush writes (`totals.cost_basis`) — 'n/a' on a pre-scope
+    // ledger line that never carried the field (never fabricated).
+    const costBasis = e.totals && typeof e.totals.cost_basis === 'string' ? e.totals.cost_basis : 'n/a';
+    out.push(`| ${e.ref_id ?? 'n/a'} | ${e.title ?? 'n/a'} | ${human} | ${agent} | ${costCell(e._runs)} | ${costBasis} | ${undecomposedTokenCell(e._runs)} | ${leverage} | ${verdict} |`);
   }
   out.push('');
   out.push('Note: "~" prefix on cost means partial (some runs had null token data).');
@@ -186,8 +190,8 @@ function main() {
   out.push('Note: undecomposed tokens are display-only — never converted to a USD figure (the marker carries no in/out split to price).');
   out.push('');
   out.push('### Per-Strategy Reliability');
-  out.push('| strategy | items | first-pass clean | avg validation fails | avg review fails | avg remediations |');
-  out.push('|----------|-------|------------------|----------------------|------------------|------------------|');
+  out.push('| strategy | items | first-pass clean | avg validation fails | avg review fails | avg remediations | basis |');
+  out.push('|----------|-------|------------------|----------------------|------------------|------------------|-------|');
   const byStrategy = new Map();
   for (const e of entries) {
     const key = typeof e.strategy === 'string' && e.strategy !== '' ? e.strategy : 'n/a';
@@ -201,12 +205,22 @@ function main() {
     if (vals.length === 0) return 'n/a';
     return (vals.reduce((a, v) => a + v, 0) / vals.length).toFixed(1);
   };
+  // telemetry-fields-not-prose Spec-AC-12: the distinct `reliability.basis`
+  // values across the group's entries — 'n/a' when no entry in the group
+  // carries the field (a pre-scope ledger line), the single value when every
+  // entry agrees, else 'mixed'.
+  const basisCell = group => {
+    const bases = new Set(group.map(relOf).filter(r => r && typeof r.basis === 'string').map(r => r.basis));
+    if (bases.size === 0) return 'n/a';
+    if (bases.size > 1) return 'mixed';
+    return [...bases][0];
+  };
   for (const key of [...byStrategy.keys()].sort()) {
     const group = byStrategy.get(key);
     const flagged = group.map(relOf).filter(r => r && typeof r.first_pass_clean === 'boolean');
     const clean = flagged.filter(r => r.first_pass_clean === true).length;
     const fpc = flagged.length === 0 ? 'n/a' : `${clean}/${flagged.length} (${(100 * clean / flagged.length).toFixed(0)}%)`;
-    out.push(`| ${key} | ${group.length} | ${fpc} | ${avgCell(group, 'validation_fails')} | ${avgCell(group, 'review_fails')} | ${avgCell(group, 'remediation_runs')} |`);
+    out.push(`| ${key} | ${group.length} | ${fpc} | ${avgCell(group, 'validation_fails')} | ${avgCell(group, 'review_fails')} | ${avgCell(group, 'remediation_runs')} | ${basisCell(group)} |`);
   }
   out.push('');
   out.push('Note: reliability derives from runs recorded at flush; older ledger lines without it render n/a.');

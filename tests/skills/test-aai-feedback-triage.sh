@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: RFC-0012 Phase 2 / RFC-0013 Slice B — offline triage engine
-# (.aai/scripts/aai-feedback-triage.mjs), TEST-001..013.
+# (.aai/scripts/aai-feedback-triage.mjs), TEST-001..014.
 #
 # Offline triage: read the friction spool, hard-gate, score from v2 signals with a
 # v1 recurrence fallback, cluster by fingerprint, write a LOCAL report. No network.
@@ -224,6 +224,22 @@ test_013_profiles() {
   log_pass "feedback-triage prompt + engine classified once under extended (TEST-013)"
 }
 
+# --- TEST-014: harness key survives triage; out-of-set value normalizes -----
+test_014_harness_key() {
+  log_info "Test: harness key is allowed through the gate and closed-set normalized (TEST-014)..."
+  local sp="$TEST_DIR/s14"; local rep="$TEST_DIR/r14"
+  { obs "v1:harness-ok" "contract_violation" ',"harness":"codex"'
+    obs "v1:harness-bogus" "contract_violation" ',"harness":"not-a-real-harness"'
+  } > "$sp"
+  [ "$(run "$sp" "" "$rep")" = "0" ] || log_fail "TEST-014: triage must exit 0"
+  [ "$(rp "$rep" kept)" = "2" ] || log_fail "TEST-014: harness key must not be gated as unsanitized (kept=$(rp "$rep" kept))"
+  [ "$(clu "$rep" v1:harness-ok harness)" = "codex" ] || \
+    log_fail "TEST-014: an in-set harness value must pass through (got $(clu "$rep" v1:harness-ok harness))"
+  [ "$(clu "$rep" v1:harness-bogus harness)" = "unknown" ] || \
+    log_fail "TEST-014: an out-of-set harness value must normalize to unknown, not be rejected (got $(clu "$rep" v1:harness-bogus harness))"
+  log_pass "harness key allowed through the gate; closed-set normalized, never rejected whole (TEST-014)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   setup
@@ -240,6 +256,7 @@ main() {
   test_011_capture_seam
   test_012_failclosed_config
   test_013_profiles
+  test_014_harness_key
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"
