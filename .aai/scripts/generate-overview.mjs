@@ -415,7 +415,7 @@ function inFlightSection(model) {
   return `<section><h2>In flight now</h2>
 <p><strong>${esc(f.focus.ref)}</strong> <span class="meta">${esc(f.focus.type)}${f.focus.phase ? ` · ${esc(f.focus.phase)}` : ''}</span></p>
 <div class="chips">${chips}</div>
-<table class="ticks"><thead><tr><th>Tick</th><th>Role</th><th>Scope</th><th>Duration (s)</th><th>Harness</th></tr></thead><tbody>
+<table class="ticks"><thead><tr><th>Tick</th><th>Role</th><th>Scope</th><th>Duration (s)</th><th>Harness version</th></tr></thead><tbody>
 ${rows}
 </tbody></table>
 </section>`;
