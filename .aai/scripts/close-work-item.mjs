@@ -224,8 +224,8 @@ function usageError(msg) {
   process.stderr.write(`close-work-item: ${msg}\n`);
   process.stderr.write(
     'usage: node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N|TBD|NONE> --commit <sha> ' +
-      '[--spec <spec-slug>] [--review <pass|waived|none>] [--dry-run]\n' +
-      '   or: node .aai/scripts/close-work-item.mjs --ref <slug> --stamp-pr <N> [--spec <spec-slug>]\n'
+      '[--spec <spec-slug>] [--review <pass|waived|none>] [--dry-run] [--expect-branch <branch>]\n' +
+      '   or: node .aai/scripts/close-work-item.mjs --ref <slug> --stamp-pr <N> [--spec <spec-slug>] [--expect-branch <branch>]\n'
   );
   exit(2);
 }
@@ -253,7 +253,15 @@ function parseArgs(argv) {
       reviewProvided = true;
     } else if (tok === '--dry-run') args.dryRun = true;
     else if (tok === '--stamp-pr') args.stampPr = argv[++i];
-    else if (tok === '--expect-branch') args.expectBranch = argv[++i];
+    else if (tok === '--expect-branch') {
+      // review NB-1: a missing value must be a usage error, not a silent
+      // fail-open — see close-before-push-guard.mjs's twin for the full
+      // rationale (the sibling check-committed-scope.mjs's `need()` already
+      // gets this right).
+      const val = argv[++i];
+      if (val === undefined || val.startsWith('--')) usageError('--expect-branch requires a value');
+      args.expectBranch = val;
+    }
     else usageError(`unrecognized flag: ${tok}`);
   }
   if (!args.ref) usageError('missing --ref');
@@ -1605,7 +1613,7 @@ function runStateReconcile(statePlan, evidenceRoot) {
 // EVERY write path this CLI has, including --stamp-pr.
 function verifyExpectedBranch(expectBranch) {
   if (!expectBranch) return;
-  const result = checkBranchPin(ROOT);
+  const result = checkBranchPin(ROOT, expectBranch);
   if (result.ok) return;
   process.stderr.write(`close-work-item: REFUSED (HEAD moved) — ${result.message}\n`);
   exit(7);

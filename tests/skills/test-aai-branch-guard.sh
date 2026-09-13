@@ -48,6 +48,21 @@ CWI_SCRIPT="${AAI_CLOSE_WORK_ITEM:-$PROJECT_ROOT/.aai/scripts/close-work-item.mj
 SKILL_PR_DOC="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
 AGENTS_DOC="$PROJECT_ROOT/.aai/AGENTS.md"
 
+# NON-BLOCKING (validation round 2): TEST-408's pre-change branch-guard.mjs
+# used to be extracted from the MOVING ref origin/main — the same
+# fu-test031-self-neutralizes-post-merge shape test-aai-release.sh:74 fixed
+# for TEST-031 by pinning a fixed blob sha. The moment this branch merges,
+# `origin/main:.aai/scripts/branch-guard.mjs` becomes the POST-change engine
+# and this arm degrades to an identity check. Pinned instead, the same way:
+# the blob sha of origin/main's branch-guard.mjs as measured when this pin
+# was recorded (`git rev-parse origin/main:.aai/scripts/branch-guard.mjs`),
+# genuinely pre-change (`git diff BRANCH_GUARD_PIN_SHA HEAD:.aai/scripts/branch-guard.mjs`
+# is non-empty: 166 insertions, the pinDirFast fast-path this ride added).
+# Only branch-guard.mjs itself is pinned — the other three ceremony scripts
+# and lib/*.mjs are untouched by this ride's diff, so extracting them from
+# the still-moving $base_ref stays correct without a pin of their own.
+BRANCH_GUARD_PIN_SHA="3ea27c8e75f4c6d3cd13c3e504202fe3c782e318"
+
 TMP_ROOT=""
 
 log_pass() { echo "PASS: $*"; }
@@ -74,6 +89,14 @@ make_repo() {  # make_repo <slug>
     && git -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit \
          --allow-empty -m init >/dev/null 2>&1 )
   echo "$repo"
+}
+
+# make_nonrepo <slug> — a throwaway directory with NO .git anywhere up its
+# chain (TEST-451: the "not inside a git work tree" arm). TMP_ROOT itself was
+# resolved from $TMPDIR/tmp (never under PROJECT_ROOT), so a plain mktemp
+# child carries no repo marker.
+make_nonrepo() {  # make_nonrepo <slug>
+  mktemp -d "$TMP_ROOT/${1}.XXXXXX"
 }
 
 # Write a minimal STATE.yaml carrying a current_focus block. A `null` ref_id or
@@ -668,31 +691,48 @@ test_407() {
 #     byte-identical to their pre-change selves (CHANGE-0180 AC-004) --------
 test_408() {
   log_info "TEST-408: with no pin file, --expect-branch/--verify-pin are no-ops — stdout+exit identical to the pre-change scripts..."
-  # The pre-change blob is simply what HEAD carries right now: this scope's
-  # own edit to these four files is still UNSTAGED/uncommitted on this ride's
-  # branch, so `git show HEAD:<path>` is the genuine pre-change script. Every
-  # one of the four has relative `./lib/...` imports, so the extracted copies
-  # must sit BESIDE an extracted lib/ directory, not as flat mktemp files, or
-  # node's module resolution fails before the script's own logic ever runs.
+  # Validation round 1 BLOCKING-2: `git show HEAD:<path>` is NOT the
+  # pre-change script — the CHANGE-0180 edit to these four files is already
+  # COMMITTED on this ride's branch (`git show HEAD:.aai/scripts/branch-guard.mjs
+  # | grep -c verify-pin` = 8), so that extraction compared the working tree
+  # against its own post-change HEAD: an identity check, not a regression
+  # check. The genuine pre-change blob is `origin/main` (falling back to
+  # `main` for a checkout with no remote), resolved once and FAILED CLOSED
+  # (never soft-skipped) if neither ref resolves — this arm's whole claim is
+  # unverifiable without a real base, and a false PASS there would be the
+  # exact DEBT-0004 shape this scope's other fixes remove. Every one of the
+  # four has relative `./lib/...` imports, so the extracted copies must sit
+  # BESIDE an extracted lib/ directory, not as flat mktemp files, or node's
+  # module resolution fails before the script's own logic ever runs.
+  local base_ref=""
+  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+    base_ref="origin/main"
+  elif git -C "$PROJECT_ROOT" rev-parse --verify --quiet main >/dev/null 2>&1; then
+    base_ref="main"
+  else
+    log_fail "TEST-408 UNCOVERED — neither 'origin/main' nor 'main' ref reachable, so the pre-change baseline cannot be extracted"
+    return
+  fi
   local oldroot oldccs oldcbpg oldcwi oldguard libfile
   oldroot="$(mktemp -d "$TMP_ROOT/old-scripts.XXXXXX")"
   mkdir -p "$oldroot/lib"
   for libfile in "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs; do
-    ( cd "$PROJECT_ROOT" && git show "HEAD:.aai/scripts/lib/$(basename "$libfile")" ) \
+    ( cd "$PROJECT_ROOT" && git show "$base_ref:.aai/scripts/lib/$(basename "$libfile")" ) \
       > "$oldroot/lib/$(basename "$libfile")" 2>/dev/null
   done
   oldccs="$oldroot/check-committed-scope.mjs"
   oldcbpg="$oldroot/close-before-push-guard.mjs"
   oldcwi="$oldroot/close-work-item.mjs"
   oldguard="$oldroot/branch-guard.mjs"
-  ( cd "$PROJECT_ROOT" && git show HEAD:.aai/scripts/check-committed-scope.mjs ) > "$oldccs" \
-    || log_fail "could not extract pre-change check-committed-scope.mjs from HEAD"
-  ( cd "$PROJECT_ROOT" && git show HEAD:.aai/scripts/close-before-push-guard.mjs ) > "$oldcbpg" \
-    || log_fail "could not extract pre-change close-before-push-guard.mjs from HEAD"
-  ( cd "$PROJECT_ROOT" && git show HEAD:.aai/scripts/close-work-item.mjs ) > "$oldcwi" \
-    || log_fail "could not extract pre-change close-work-item.mjs from HEAD"
-  ( cd "$PROJECT_ROOT" && git show HEAD:.aai/scripts/branch-guard.mjs ) > "$oldguard" \
-    || log_fail "could not extract pre-change branch-guard.mjs from HEAD"
+  ( cd "$PROJECT_ROOT" && git show "$base_ref:.aai/scripts/check-committed-scope.mjs" ) > "$oldccs" \
+    || log_fail "could not extract pre-change check-committed-scope.mjs from $base_ref"
+  ( cd "$PROJECT_ROOT" && git show "$base_ref:.aai/scripts/close-before-push-guard.mjs" ) > "$oldcbpg" \
+    || log_fail "could not extract pre-change close-before-push-guard.mjs from $base_ref"
+  ( cd "$PROJECT_ROOT" && git show "$base_ref:.aai/scripts/close-work-item.mjs" ) > "$oldcwi" \
+    || log_fail "could not extract pre-change close-work-item.mjs from $base_ref"
+  # Pinned blob, not $base_ref: see BRANCH_GUARD_PIN_SHA above.
+  ( cd "$PROJECT_ROOT" && git show "$BRANCH_GUARD_PIN_SHA" ) > "$oldguard" \
+    || log_fail "could not extract pre-change branch-guard.mjs from pinned blob $BRANCH_GUARD_PIN_SHA"
 
   local repo; repo="$(make_repo t408)"
   # No --pin was ever run in this fixture — Spec-AC-04's absence branch.
@@ -736,7 +776,261 @@ test_408() {
   log_pass "no pin file -> all three ceremony scripts and branch-guard.mjs are byte-identical to their pre-change selves"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 405 406 407 408"
+# --- TEST-450 — a missing --expect-branch VALUE must REFUSE (usage), never
+#     silently disable the HEAD-pin re-check (review NB-1) ------------------
+test_450() {
+  log_info "TEST-450: --expect-branch with no value must be a usage error, not a fail-open no-op..."
+  local repo; repo="$(make_repo t450)"
+  ( cd "$repo" && git checkout -qb feat/ceremony ) \
+    || log_fail "fixture setup: could not create feat/ceremony"
+  ( cd "$repo" && git checkout -qb other/concurrent main ) \
+    || log_fail "fixture setup: could not create other/concurrent"
+  ( cd "$repo" && git checkout -q feat/ceremony ) \
+    || log_fail "fixture setup: could not return to feat/ceremony"
+  run_guard "$repo" --pin
+  [[ "$RC" -eq 0 ]] || log_fail "--pin must exit 0 (got $RC; stderr: $ERR)"
+  # A second session moves HEAD, same as TEST-407 — so a fail-open bug here
+  # (the missing value silently disabling the re-check) would let the push
+  # guard pass straight through despite the moved HEAD.
+  ( cd "$repo" && git checkout -q other/concurrent ) \
+    || log_fail "fixture setup: could not simulate the concurrent checkout"
+
+  local rc out
+  # --expect-branch as the LAST token: argv[++i] reads past the end.
+  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch 2>&1)"; rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "close-before-push-guard.mjs: --expect-branch with no value must not silently pass (got exit 0; output: $out)"
+  assert_payload_contains "$out" "requires a value" "close-before-push-guard.mjs must name the missing-value usage error (got: $out)"
+
+  out="$(run_out "$repo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch 2>&1)"; rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "close-work-item.mjs: --expect-branch with no value must not silently pass (got exit 0; output: $out)"
+  assert_payload_contains "$out" "requires a value" "close-work-item.mjs must name the missing-value usage error (got: $out)"
+
+  log_pass "a missing --expect-branch value is a named usage refusal in both scripts, never a silent fail-open"
+}
+
+# --- TEST-451 — outside a git work tree, --verify-pin/--expect-branch REFUSE
+#     with a named message, never an uncaught exception (review NB-2) -------
+test_451() {
+  log_info "TEST-451: --verify-pin and --expect-branch outside a git work tree must refuse cleanly, never crash..."
+  local nonrepo; nonrepo="$(make_nonrepo t451)"
+
+  # Each script's own DOCUMENTED exit code for this refusal — not merely
+  # "non-zero": a raw uncaught-exception crash exits 1, which is ALSO
+  # non-zero, so a loose rc!=0 check would not distinguish a named refusal
+  # from the very crash this test exists to catch. A Node stack trace always
+  # carries a "    at " frame line; asserting its absence is the second,
+  # independent signal.
+  run_guard "$nonrepo" --verify-pin
+  [[ "$RC" -eq 4 ]] || log_fail "branch-guard.mjs --verify-pin outside a work tree must exit 4 (got $RC; stderr: $ERR)"
+  assert_payload_not_contains "$ERR" "    at " "branch-guard.mjs must not print a raw Node stack trace (got: $ERR)"
+  assert_payload_contains "$ERR" "not inside a git work tree" "branch-guard.mjs must name the refusal"
+
+  # F-1 (validation round 4): --pin itself, not only --verify-pin, must take
+  # the SAME named refusal outside a work tree — main()'s work-tree probe
+  # gates `opts.pin || opts.verifyPin` together, but until this assertion
+  # only the --verify-pin arm was ever exercised here (mutation M-B: deleting
+  # that probe left every existing test green while `--pin` outside a work
+  # tree crashed with a raw Node stack trace, rc 1).
+  run_guard "$nonrepo" --pin
+  [[ "$RC" -eq 4 ]] || log_fail "branch-guard.mjs --pin outside a work tree must exit 4 (got $RC; stderr: $ERR)"
+  assert_payload_not_contains "$ERR" "    at " "branch-guard.mjs --pin must not print a raw Node stack trace (got: $ERR)"
+  assert_payload_contains "$ERR" "not inside a git work tree" "branch-guard.mjs --pin must name the refusal"
+
+  local rc out
+  out="$(run_out "$nonrepo" node "$CCS_SCRIPT" --expect-branch feat/ceremony /tmp/does-not-matter 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "check-committed-scope.mjs --expect-branch outside a work tree must exit 3 (got $rc; output: $out)"
+  assert_payload_not_contains "$out" "    at " "check-committed-scope.mjs must not print a raw Node stack trace (got: $out)"
+  assert_payload_contains "$out" "not inside a git work tree" "check-committed-scope.mjs must name the refusal"
+
+  out="$(run_out "$nonrepo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch feat/ceremony 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "close-before-push-guard.mjs --expect-branch outside a work tree must exit 3 (got $rc; output: $out)"
+  assert_payload_not_contains "$out" "    at " "close-before-push-guard.mjs must not print a raw Node stack trace (got: $out)"
+  assert_payload_contains "$out" "not inside a git work tree" "close-before-push-guard.mjs must name the refusal"
+
+  out="$(run_out "$nonrepo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch feat/ceremony 2>&1)"; rc=$?
+  [[ "$rc" -eq 7 ]] || log_fail "close-work-item.mjs --expect-branch outside a work tree must exit 7 (got $rc; output: $out)"
+  assert_payload_not_contains "$out" "    at " "close-work-item.mjs must not print a raw Node stack trace (got: $out)"
+  assert_payload_contains "$out" "not inside a git work tree" "close-work-item.mjs must name the refusal"
+
+  log_pass "branch-guard.mjs --verify-pin and all three ceremony scripts' --expect-branch refuse with a named message and their own documented exit code outside a git work tree, never a raw crash"
+}
+
+# --- TEST-452 — --expect-branch GIVEN but no pin file yet is still a no-op
+#     (Spec-AC-04's additive promise holds even when a caller actively opts
+#     in, e.g. a freshly-wired SKILL_PR step run before step 0's own --pin,
+#     or a downstream consumer whose SKILL_WORKTREE was not yet updated to
+#     call session-lock/--pin) ------------------------------------------
+test_452() {
+  log_info "TEST-452: --expect-branch given but no pin file yet must still pass through, never refuse..."
+  local repo; repo="$(make_repo t452)"
+  ( cd "$repo" && git checkout -qb feat/never-pinned ) \
+    || log_fail "fixture setup: could not create feat/never-pinned"
+  # No --pin was ever run in this fixture.
+
+  local with_out with_rc without_out without_rc
+
+  with_out="$(run_out "$repo" node "$CCS_SCRIPT" --from-state --expect-branch feat/never-pinned 2>&1)"; with_rc=$?
+  without_out="$(run_out "$repo" node "$CCS_SCRIPT" --from-state 2>&1)"; without_rc=$?
+  [[ "$with_rc" -eq "$without_rc" ]] || log_fail "check-committed-scope.mjs: --expect-branch with no pin changed the exit code (with=$with_rc without=$without_rc)"
+  [[ "$with_out" == "$without_out" ]] || log_fail "check-committed-scope.mjs: --expect-branch with no pin changed stdout (with: [$with_out] without: [$without_out])"
+
+  with_out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref bogus-slug --expect-branch feat/never-pinned 2>&1)"; with_rc=$?
+  without_out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref bogus-slug 2>&1)"; without_rc=$?
+  [[ "$with_rc" -eq "$without_rc" ]] || log_fail "close-before-push-guard.mjs: --expect-branch with no pin changed the exit code (with=$with_rc without=$without_rc)"
+  [[ "$with_out" == "$without_out" ]] || log_fail "close-before-push-guard.mjs: --expect-branch with no pin changed stdout (with: [$with_out] without: [$without_out])"
+
+  with_out="$(run_out "$repo" node "$CWI_SCRIPT" --ref bogus-slug --pr TBD --commit deadbeef --expect-branch feat/never-pinned 2>&1)"; with_rc=$?
+  without_out="$(run_out "$repo" node "$CWI_SCRIPT" --ref bogus-slug --pr TBD --commit deadbeef 2>&1)"; without_rc=$?
+  [[ "$with_rc" -eq "$without_rc" ]] || log_fail "close-work-item.mjs: --expect-branch with no pin changed the exit code (with=$with_rc without=$without_rc)"
+  [[ "$with_out" == "$without_out" ]] || log_fail "close-work-item.mjs: --expect-branch with no pin changed stdout (with: [$with_out] without: [$without_out])"
+
+  log_pass "--expect-branch actively passed with no pin file yet is a byte-identical no-op in all three ceremony scripts"
+}
+
+# --- TEST-453 — the CHANGE-0180 mechanism is ARMED: SKILL_PR.prompt.md and
+#     SKILL_WORKTREE.prompt.md actually wire --pin/--expect-branch/session-lock
+#     (review NB-10: was built, tested and vendored, but nothing called it) --
+test_453() {
+  log_info "TEST-453: SKILL_PR/SKILL_WORKTREE wire the CHANGE-0180 D4/D5 mechanism..."
+  local pr_doc="$SKILL_PR_DOC" wt_doc="$PROJECT_ROOT/.aai/SKILL_WORKTREE.prompt.md"
+  [[ -f "$pr_doc" ]] || log_fail "missing $pr_doc"
+  [[ -f "$wt_doc" ]] || log_fail "missing $wt_doc"
+
+  grep -qF 'branch-guard.mjs --pin' "$pr_doc" \
+    || log_fail "SKILL_PR.prompt.md step 0 must run branch-guard.mjs --pin (got no match)"
+  grep -qF -- '--expect-branch' "$pr_doc" \
+    || log_fail "SKILL_PR.prompt.md must pass --expect-branch somewhere"
+  # F-2 (validation round 4): the PER-STEP greps run BEFORE the generic count
+  # below, so losing the flag at ONE specific step names THAT step rather
+  # than falling through to the count assertion's step-agnostic message.
+  # -A1 context: close-work-item.mjs's own invocation line-continues onto the
+  # next line, so the flag is checked in a 2-line window rather than requiring
+  # both on one grep line (portable across BSD/GNU grep, no -P/-z).
+  grep -A1 -- 'check-committed-scope.mjs --from-state --strict --rev HEAD' "$pr_doc" | grep -q -- '--expect-branch' \
+    || log_fail "SKILL_PR.prompt.md step 4a must pass --expect-branch to check-committed-scope.mjs"
+  grep -A1 -- 'close-work-item.mjs --ref <slug> --pr' "$pr_doc" | grep -q -- '--expect-branch' \
+    || log_fail "SKILL_PR.prompt.md step 4c must pass --expect-branch to close-work-item.mjs"
+  grep -- 'close-before-push-guard.mjs --ref <slug> --expect-branch' "$pr_doc" >/dev/null \
+    || log_fail "SKILL_PR.prompt.md step 5 must pass --expect-branch to close-before-push-guard.mjs"
+  local expect_branch_sites
+  expect_branch_sites="$(grep -c -- '--expect-branch <branch>' "$pr_doc")"
+  [[ "$expect_branch_sites" -ge 3 ]] \
+    || log_fail "SKILL_PR.prompt.md must pass --expect-branch <branch> at steps 4a/4c/5 (found $expect_branch_sites site(s), want >= 3)"
+
+  grep -qF 'session-lock.mjs acquire' "$wt_doc" \
+    || log_fail "SKILL_WORKTREE.prompt.md must acquire the session lock (session-lock.mjs acquire)"
+  grep -qF 'session-lock.mjs release' "$wt_doc" \
+    || log_fail "SKILL_WORKTREE.prompt.md must release the session lock at cleanup (session-lock.mjs release)"
+
+  # F-7 (validation round 4): Setup Worktree's acquire only covers a
+  # freshly-created worktree — the 2026-09-06 incident CHANGE-0180 was filed
+  # for was two sessions sharing an EXISTING checkout, which never runs Setup
+  # Worktree at all. SKILL_PR step 0 must claim the lock too, and step 5 must
+  # release it.
+  grep -qF 'session-lock.mjs acquire' "$pr_doc" \
+    || log_fail "SKILL_PR.prompt.md step 0 must acquire the session lock for a shared-existing checkout (session-lock.mjs acquire)"
+  grep -qF 'session-lock.mjs release' "$pr_doc" \
+    || log_fail "SKILL_PR.prompt.md step 5 must release the session lock (session-lock.mjs release)"
+
+  log_pass "SKILL_PR.prompt.md and SKILL_WORKTREE.prompt.md both wire the CHANGE-0180 mechanism"
+}
+
+# --- TEST-454 — END TO END: pin -> the ceremony's OWN commit -> all three
+#     --expect-branch call sites pass; a GENUINE concurrent HEAD move at each
+#     still refuses with its documented code (remediation round 4 BLOCKING-1:
+#     the wired mechanism used to refuse the ceremony that armed it) --------
+test_454() {
+  log_info "TEST-454: pin -> commit -> check-committed-scope/close-work-item/close-before-push-guard all pass; a genuinely concurrent HEAD move at each still refuses..."
+  local repo; repo="$(make_repo t454)"
+  mkdir -p "$repo/docs/ai" "$repo/docs/issues"
+  : > "$repo/docs/ai/EVENTS.jsonl"
+  cat > "$repo/docs/ai/docs-audit.yaml" <<'YAML'
+legacy_until_date: 2020-01-01
+stale_after_days: 90
+scan_exclude: []
+backlog_globs: []
+close_gate: report-only
+doc_number_guard: report-only
+protected_paths_l3: []
+YAML
+  ( cd "$repo" && git add -A && git -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -q -m "fixture scaffolding" ) \
+    || log_fail "fixture setup: could not commit scaffolding"
+  ( cd "$repo" && git checkout -qb feat/e2e-ceremony ) \
+    || log_fail "fixture setup: could not create feat/e2e-ceremony"
+
+  # step 0.
+  run_guard "$repo" --pin
+  [[ "$RC" -eq 0 ]] || log_fail "step 0 --pin must exit 0 (got $RC; stderr: $ERR)"
+
+  # A resolvable, already-closed work-item doc for close-before-push-guard's
+  # OWN real check (not merely the pin re-check).
+  cat > "$repo/docs/issues/CHANGE-0001-t454.md" <<'EOF'
+---
+id: t454-slug
+type: change
+status: done
+links:
+  pr: []
+  commits: []
+---
+
+# Change — Fixture t454-slug
+EOF
+
+  # step 4 — the ceremony's OWN commit. This is exactly what BLOCKING-1
+  # named: the pin's sha is now stale by the ceremony's own write.
+  ( cd "$repo" && git add -A && git -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -q -m "feat: scope commit" ) \
+    || log_fail "fixture setup: could not make the ceremony's own commit"
+
+  local out rc
+  # step 4a.
+  out="$(run_out "$repo" node "$CCS_SCRIPT" docs/issues/CHANGE-0001-t454.md --strict --rev HEAD --expect-branch feat/e2e-ceremony 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "step 4a check-committed-scope.mjs must pass after the ceremony's own commit (got $rc; output: $out)"
+
+  # step 4c — close-work-item.mjs's OWN shared guard function (branch-guard's
+  # exported checkBranchPin, exactly what verifyExpectedBranch calls and maps
+  # to exit 7), not the full close ceremony: that needs a live
+  # STATE.yaml/active_work_items entry this narrow end-to-end probe does not
+  # set up. All three ceremony scripts share ONE implementation, so this
+  # exercises the identical code path close-work-item.mjs's CLI would.
+  out="$(run_out "$repo" node --input-type=module -e "
+    import { checkBranchPin } from '$GUARD';
+    const r = checkBranchPin(process.cwd(), 'feat/e2e-ceremony');
+    if (r.ok) process.exit(0);
+    process.stderr.write('close-work-item: REFUSED (HEAD moved) — ' + r.message + '\n');
+    process.exit(7);
+  " 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "step 4c close-work-item.mjs's guard function must pass after the ceremony's own commit (got $rc; output: $out)"
+
+  # step 5.
+  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref t454-slug --expect-branch feat/e2e-ceremony 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "step 5 close-before-push-guard.mjs must pass after the ceremony's own commit (got $rc; output: $out)"
+
+  # Now a GENUINE concurrent session: reset this same branch back to an
+  # OLDER commit — a non-descendant of the pin — the "someone reset/switched
+  # me" case the advance-only sha arm must still catch.
+  ( cd "$repo" && git reset --hard -q HEAD~2 ) \
+    || log_fail "fixture setup: could not simulate the concurrent reset"
+
+  out="$(run_out "$repo" node "$CCS_SCRIPT" docs/issues/CHANGE-0001-t454.md --strict --rev HEAD --expect-branch feat/e2e-ceremony 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "step 4a must refuse (exit 3) after a genuine concurrent reset (got $rc; output: $out)"
+
+  out="$(run_out "$repo" node --input-type=module -e "
+    import { checkBranchPin } from '$GUARD';
+    const r = checkBranchPin(process.cwd(), 'feat/e2e-ceremony');
+    if (r.ok) process.exit(0);
+    process.stderr.write('close-work-item: REFUSED (HEAD moved) — ' + r.message + '\n');
+    process.exit(7);
+  " 2>&1)"; rc=$?
+  [[ "$rc" -eq 7 ]] || log_fail "step 4c's guard function must refuse (exit 7) after a genuine concurrent reset (got $rc; output: $out)"
+
+  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref t454-slug --expect-branch feat/e2e-ceremony 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "step 5 must refuse (exit 3) after a genuine concurrent reset (got $rc; output: $out)"
+
+  log_pass "pin -> the ceremony's own commit -> all three --expect-branch call sites pass; a genuine concurrent reset afterward still refuses at each, with its documented code"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 405 406 407 408 450 451 452 453 454"
 
 main() {
   echo "Testing $TEST_NAME (deterministic branch-per-work-item hygiene guard)"

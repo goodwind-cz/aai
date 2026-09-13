@@ -32,9 +32,10 @@
 #   - TEST-004 (Spec-AC-03, SEAM S3): EVENTS.jsonl pre-apply bytes stay a
 #     byte-exact prefix of the post-apply file; docs-audit --check --strict
 #     --no-event is clean over the fixture afterwards.
-#   - TEST-005 (Spec-AC-04): close-work-item.mjs carries no uncommitted
-#     change (PROTECTED, hash-pinned by four suites); close-reconcile.mjs
-#     contains no direct file write of its own.
+#   - TEST-005 (Spec-AC-04): close-work-item.mjs's content hash is on the
+#     shared allowlist (tests/skills/lib/close-work-item-pin.sh, three
+#     consuming suites); close-reconcile.mjs contains no direct file write
+#     of its own.
 #   - TEST-006 (Spec-AC-05): no commit subject in the range carries a
 #     trailing (#N) -> --apply refuses by name, exits non-zero, the doc's
 #     bytes are unchanged.
@@ -117,6 +118,8 @@ CLOSE_GATE_YML="$PROJECT_ROOT/.github/workflows/close-gate.yml"
 
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
+# shellcheck source=lib/close-work-item-pin.sh
+. "$SCRIPT_DIR/lib/close-work-item-pin.sh"
 
 cleanup() {
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
@@ -405,14 +408,28 @@ test_004_apply_preserves_events_prefix_and_audit_clean() {
 
 # --- TEST-005 (Spec-AC-04) ---------------------------------------------------
 test_005_close_work_item_untouched_and_no_own_writes() {
-  log_info "TEST-005 (Spec-AC-04): close-work-item.mjs carries no uncommitted change; close-reconcile.mjs writes no doc path of its own..."
+  log_info "TEST-005 (Spec-AC-04): close-work-item.mjs content is on the shared hash-pin allowlist; close-reconcile.mjs writes no doc path of its own..."
   [[ -f "$CLOSE_RECONCILE" ]] || log_fail "TEST-005: close-reconcile.mjs does not exist yet"
-  git -C "$PROJECT_ROOT" diff --quiet -- .aai/scripts/close-work-item.mjs \
-    || log_fail "TEST-005: .aai/scripts/close-work-item.mjs has uncommitted modifications — PROTECTED, hash-pinned by four suites"
+  # review remediation (test-framework-sweep, code review NB-1): this used
+  # to be a raw `git diff --quiet` against HEAD, which reads any LEGITIMATE,
+  # reviewed, re-pinned edit to close-work-item.mjs (tests/skills/lib/
+  # close-work-item-pin.sh's own stated, intended path — "growing the list
+  # is the INTENDED path for a legitimate future edit") as a failure, purely
+  # because the edit had not yet been committed — a false negative on the
+  # exact ride this ceremony runs uncommitted-until-close. The shared
+  # allowlist this file already vendors is the real guard (a reviewed,
+  # itemized re-affirmation of both frozen invariants, keyed off CONTENT,
+  # not commit status); reuse it instead of a second, weaker, independent
+  # check on the same file (this suite is now the THIRD consumer of the
+  # shared pin in tests/skills/lib/close-work-item-pin.sh, alongside
+  # test-aai-doc-numbering.sh and test-aai-follow-ups.sh).
+  local pin_result
+  pin_result="$(close_work_item_pin_assert "$PROJECT_ROOT")" \
+    || log_fail "TEST-005: $pin_result"
   local hits
   hits=$(grep -c "fs\.writeFileSync\|fs\.appendFileSync\|fs\.writeFile\b" "$CLOSE_RECONCILE" 2>/dev/null || true)
   [[ "${hits:-0}" -eq 0 ]] || log_fail "TEST-005: close-reconcile.mjs writes a file directly (${hits} occurrence(s)) — all mutation must go through close-work-item.mjs"
-  log_pass "TEST-005: close-work-item.mjs untouched; close-reconcile.mjs owns no write of its own"
+  log_pass "TEST-005: close-work-item.mjs content is on the shared pin allowlist ($pin_result); close-reconcile.mjs owns no write of its own"
 }
 
 # --- TEST-006 (Spec-AC-05) ---------------------------------------------------

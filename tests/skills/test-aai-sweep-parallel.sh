@@ -111,6 +111,35 @@ build_framework_repo() {
   printf 'tests/skills/results/\ndocs/ai/tests/test-runs.jsonl\n*.aai-lock/\n' > "$d/.gitignore"
 }
 
+# apply_unbounded_window_mutation <framework-copy> — BLOCKING-4 negative
+# control (Spec-AC-07 remediation). Removes the clean-path window reset
+# (test-framework.sh:1858 `window=("${active_files[@]...}")`) and the
+# 2x-width truncation (:1800-1802 `if [[ $clen -gt $max ]]; then ... fi`)
+# from a THROWAWAY fixture copy of the framework — never the tracked file
+# (HAZ-RESTORE / HAZ-SCRATCH). Both lines are located by exact content, not a
+# hardcoded line number, so the mutation still lands if the surrounding code
+# ever shifts. Exits non-zero (via log_fail, caller checks $?) if either
+# anchor cannot be found, rather than silently mutating nothing.
+apply_unbounded_window_mutation() {
+  local fw="$1" reset_line if_line
+  reset_line="$(/usr/bin/grep -nF 'window=("${active_files[@]+"${active_files[@]}"}")' "$fw" | head -n1 | cut -d: -f1)"
+  if_line="$(/usr/bin/grep -nF 'if [[ $clen -gt $max ]]; then' "$fw" | head -n1 | cut -d: -f1)"
+  [[ -n "$reset_line" && -n "$if_line" ]] || {
+    log_fail "apply_unbounded_window_mutation: could not locate the reset or truncation anchor in $fw — the mutation was NOT applied"
+    return 1
+  }
+  # The truncation is exactly 3 lines: `if ...; then` / `cand=(...)` / `fi`.
+  local fi_line=$((if_line + 2))
+  [[ "$(sed -n "${fi_line}p" "$fw")" == *'fi'* ]] || {
+    log_fail "apply_unbounded_window_mutation: the truncation block at $fw:$if_line is not the expected 3 lines"
+    return 1
+  }
+  sed -i.bak \
+    -e "${if_line},${fi_line}d" \
+    -e "${reset_line}s|.*|      : # mutation: clean-path window reset removed (unbounded window)|" \
+    "$fw" && rm -f "$fw.bak"
+}
+
 # add_heartbeat_engine <repo> — copies the REAL heartbeat.mjs plus its two
 # stdlib-only lib dependencies into a fixture built by build_framework_repo,
 # so the fixture's own copy of test-framework.sh resolves
@@ -819,7 +848,64 @@ exit 0"
   [[ -n "$suite_count" && "$suite_count" -le "$max" ]] \
     || { log_info "TEST-413: the re-run suite count was $suite_count (want <= $max = 2x width $width) — the whole corpus was re-run instead of a bounded window"; ok=0; }
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-413 (Spec-AC-07) the rolling window named the writer, blamed no sibling, and bounded its serial re-run at $suite_count suite(s) (<= $max = 2x width $width)" \
+  # --- Negative control (BLOCKING-4): this fixture's own writer sits in the
+  # INITIAL batch, so `window` can never approach 2x width here — the
+  # clean-path reset (test-framework.sh:1858) rebuilds it from the
+  # currently-active set on every single completion, which structurally caps
+  # it at PARALLEL_WIDTH. That makes the `suite_count <= max` check above
+  # true on EVERY corpus, mutated or not, and proves nothing about the
+  # truncation at :1800-1802. A SECOND, larger fixture — 10 suites at width
+  # 2 with the writer queued well after the initial batch, so several
+  # siblings complete cleanly (and, without the reset, accumulate in
+  # `window`) before it fires — is run twice: once against the shipped
+  # framework (must still bound at 2x width) and once against a copy with
+  # the reset and the truncation removed (must now EXCEED 2x width,
+  # reddening this test and proving the removed code was load-bearing).
+  local d2s d2m i suite_count2 suite_count2m
+  d2s="$(new_fixture)" || return
+  build_framework_repo "$d2s"
+  for i in 01 02 03 04; do
+    write_fixture_suite "$d2s" "u-$i-quiet" 'exit 0'
+  done
+  write_fixture_suite "$d2s" u-05-writer "
+printf 'committed dirt\n' >> '$d2s/tracked.txt'
+git -C '$d2s' add -A >/dev/null 2>&1
+git -C '$d2s' commit -q -m 'a late suite committed into the shipping repo' >/dev/null 2>&1
+exit 0"
+  for i in 06 07 08 09 10; do
+    write_fixture_suite "$d2s" "u-$i-quiet" 'exit 0'
+  done
+  commit_fixture_repo "$d2s" || { log_fail "TEST-413 unbounded-window (shipped) fixture repo init failed"; return; }
+
+  d2m="$(new_fixture)" || return
+  cp -R "$d2s/." "$d2m/" 2>/dev/null
+  rm -rf "$d2m/.git"
+  ( cd "$d2m" && git init -q -b main && git config user.email 'sweep-parallel-test@example.com' \
+      && git config user.name 'sweep-parallel-test' && git add -A && git commit -q -m 'fixture baseline' ) >/dev/null 2>&1
+  # Re-anchor the writer suite's absolute paths onto the mutated fixture's own directory.
+  write_fixture_suite "$d2m" u-05-writer "
+printf 'committed dirt\n' >> '$d2m/tracked.txt'
+git -C '$d2m' add -A >/dev/null 2>&1
+git -C '$d2m' commit -q -m 'a late suite committed into the shipping repo' >/dev/null 2>&1
+exit 0"
+  ( cd "$d2m" && git add -A && git commit -q -m 'writer path re-anchored' ) >/dev/null 2>&1
+  apply_unbounded_window_mutation "$d2m/tests/skills/test-framework.sh" || ok=0
+
+  local out2 out2m rc2=0 rc2m=0
+  out2="$(captured_run "$d2s" "$width")" || rc2=$?
+  out2m="$(captured_run "$d2m" "$width")" || rc2m=$?
+
+  suite_count2="$(printf '%s\n' "$out2" | sed -E -n 's/.*wave\(s\) re-run serially \(([0-9]+) suite\(s\) total\).*/\1/p' | head -n1)"
+  suite_count2m="$(printf '%s\n' "$out2m" | sed -E -n 's/.*wave\(s\) re-run serially \(([0-9]+) suite\(s\) total\).*/\1/p' | head -n1)"
+
+  [[ "$rc2" -eq 1 ]] || { log_info "TEST-413 (unbounded-window control, shipped): exited $rc2 (want 1)"; ok=0; }
+  [[ -n "$suite_count2" && "$suite_count2" -le "$max" ]] \
+    || { log_info "TEST-413 (unbounded-window control, shipped): re-run count was '$suite_count2' (want <= $max) on the 10-suite/late-writer fixture"; ok=0; }
+  [[ "$rc2m" -eq 1 ]] || { log_info "TEST-413 (unbounded-window control, MUTATED): exited $rc2m (want 1 — the write is still real)"; ok=0; }
+  [[ -n "$suite_count2m" && "$suite_count2m" -gt "$max" ]] \
+    || { log_info "TEST-413 (unbounded-window control, MUTATED): re-run count was '$suite_count2m' (want > $max) — removing the reset and the truncation did not blow the bound, so the guard has no bite"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-413 (Spec-AC-07) the rolling window named the writer, blamed no sibling, bounded its serial re-run at $suite_count suite(s) (<= $max = 2x width $width), AND the unbounded-window mutation (reset + truncation removed) reddened the same bound on a 10-suite/late-writer fixture ($suite_count2 shipped vs $suite_count2m mutated, both against max=$max)" \
     || log_fail "TEST-413 (Spec-AC-07) the rolling window bounds the serial re-run at 2x width"
 }
 

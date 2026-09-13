@@ -281,7 +281,7 @@ exit 0"
 printf '%s\n' \"\$(cat \"\$R/lib/prod.txt\")\" > '$evid/brandnew-sees.txt'
 exit 0"
 
-  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
 
   [[ "$rc" -eq 0 ]] || { log_info "TEST-002: framework exit=$rc (want 0): $out"; ok=0; }
   grep -qF 'Found 2 test(s)' <<<"$out" \
@@ -369,7 +369,7 @@ test_004_the_checkout_is_removed_on_every_exit() {
     [[ "$case_name" == "fail" ]] && body_exit=1
     write_fixture_suite "$d" t-$case_name "echo '$case_name fixture'; exit $body_exit"
     commit_fixture_repo "$d" || { log_fail "TEST-004($case_name) fixture repo init failed"; return; }
-    out="$(TMPDIR="$tmphome" bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+    out="$(TMPDIR="$tmphome" AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
     if [[ "$case_name" == "pass" ]]; then
       [[ "$rc" -eq 0 ]] || { log_info "TEST-004(a): a passing run exited $rc: $out"; ok=0; }
     else
@@ -427,7 +427,13 @@ exit 0"
     # may not trap a signal that was ignored on entry — so without this reset
     # the framework would ignore the interrupt entirely and the arm would
     # measure a 30-second sleep instead of a Ctrl-C. Measured.
-    TMPDIR="$tmphome_d" perl -e '$SIG{INT} = "DEFAULT"; use POSIX qw(setsid); setsid(); exec @ARGV' \
+    # AAI_TEST_ISOLATION=1 is set on perl's OWN environment, not passed as an
+    # argv element after `--`: perl's `exec @ARGV` calls execvp() directly on
+    # the LIST, bypassing the shell, so a literal "AAI_TEST_ISOLATION=1"
+    # argv element would never be parsed as an env assignment — it would be
+    # argv[0], and execvp() would fail looking for a program by that name.
+    # Setting it here instead relies on ordinary env inheritance across exec.
+    TMPDIR="$tmphome_d" AAI_TEST_ISOLATION=1 perl -e '$SIG{INT} = "DEFAULT"; use POSIX qw(setsid); setsid(); exec @ARGV' \
       -- bash "$dd/tests/skills/test-framework.sh" >/dev/null 2>&1 &
     pid=$!
     for i in $(seq 1 200); do
@@ -468,7 +474,7 @@ rm -rf "$R/.git"
 echo "removed my own checkout .git directory"
 exit 0'
   commit_fixture_repo "$de" || { log_fail "TEST-004(e) fixture repo init failed"; return; }
-  out_e="$(TMPDIR="$tmphome_e" bash "$de/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc_e=$?
+  out_e="$(TMPDIR="$tmphome_e" AAI_TEST_ISOLATION=1 bash "$de/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc_e=$?
   [[ "$rc_e" -eq 0 ]] || { log_info "TEST-004(e): the run exited $rc_e (want 0 — a suite wrecking its OWN copy is not a shipping-repository event): $out_e"; ok=0; }
   leaked_e="$(leaked_worktrees "$de" "$tmphome_e")"
   [[ "$leaked_e" -eq 0 ]] \
@@ -636,7 +642,7 @@ test_006_added_wall_clock_per_suite() {
   AAI_TEST_ISOLATION=0 bash "$d/tests/skills/test-framework.sh" >/dev/null 2>&1 \
     || { log_info "TEST-006: the isolation-off baseline run failed"; ok=0; }
   t1=$(date +%s)
-  bash "$d/tests/skills/test-framework.sh" >/dev/null 2>&1 \
+  AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" >/dev/null 2>&1 \
     || { log_info "TEST-006: the isolated run failed"; ok=0; }
   t2=$(date +%s)
 
@@ -1169,7 +1175,7 @@ seed_run() {
   local fixture="$1"
   shift
   env AAI_TEST_ISOLATION=1 AAI_TEST_ISOLATION_SEED='docs/ai/STATE.yaml' "$@" \
-    bash "$fixture/tests/skills/test-framework.sh" 2>&1 | strip_ansi
+    AAI_TEST_ISOLATION=1 bash "$fixture/tests/skills/test-framework.sh" 2>&1 | strip_ansi
 }
 
 # SEED_STEP1_ENV — the step-1 smudge lever's command, as GIT_CONFIG_KEY_n/
@@ -1574,7 +1580,7 @@ exit 0"
   commit_fixture_repo "$d" || { log_fail "TEST-201 fixture repo init failed"; return; }
   ship_common="$(cd "$d" && cd "$(git rev-parse --git-common-dir)" && pwd -P)"
 
-  out="$(TMPDIR="$tmphome" bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  out="$(TMPDIR="$tmphome" AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-201: framework exit=$rc (want 0): $out"; ok=0; }
   [[ -s "$evid/common.txt" ]] || { log_info "TEST-201: the fixture never recorded its resolved common dir: $out"; ok=0; }
   seen="$(cat "$evid/common.txt" 2>/dev/null)"
@@ -1612,7 +1618,7 @@ printf '#!/bin/sh\nexit 0\n' > \"\$hookdir/isolation-probe.sh\" 2>/dev/null
 exit 0"
   commit_fixture_repo "$d" || { log_fail "TEST-202 fixture repo init failed"; return; }
 
-  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-202: framework exit=$rc (want 0): $out"; ok=0; }
   grep -qE 'aai-t-write +PASS' <<<"$out" \
     || { log_info "TEST-202: the writing fixture did not run to a PASS: $out"; ok=0; }
@@ -1667,7 +1673,7 @@ test_203_the_mutation_proof_gate_catches_a_shared_git_surface() {
   grep -qF 'iso_git worktree add --detach --quiet "$wt" HEAD' "$d/tests/skills/test-framework.sh" \
     || { log_fail "TEST-203: the mutation did not take — the sed target has drifted from the real iso_create"; return; }
 
-  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-203: framework exit=$rc (want 0 — a degraded run is still a passing run): $out"; ok=0; }
   iso_expect_counts "TEST-203" "$out" 0 "$n" "$n" || ok=0
   grep -qF "the disposable checkout's git surface still resolves to the shipping repository" <<<"$out" \
@@ -1691,7 +1697,7 @@ test_204_the_unmutated_control_reports_isolated() {
   done
   commit_fixture_repo "$d" || { log_fail "TEST-204 fixture repo init failed"; return; }
 
-  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-204: framework exit=$rc (want 0): $out"; ok=0; }
   iso_expect_counts "TEST-204" "$out" "$n" "$n" 0 || ok=0
   run_id="$(iso_run_id "$out")"
@@ -1744,7 +1750,7 @@ exit 0"
   want_commits="$(git -C "$d" rev-list --count HEAD)"
   want_remotes_list="$(git -C "$d" for-each-ref --format='%(refname) %(objectname)' refs/remotes | sort)"
 
-  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-205: framework exit=$rc (want 0): $out"; ok=0; }
   [[ -s "$evid/refs.txt" ]] || { log_info "TEST-205: the fixture never recorded its ref surface: $out"; ok=0; }
   if [[ -s "$evid/refs.txt" ]]; then
@@ -1790,7 +1796,7 @@ test_206_accounting_invariant_holds_across_a_multi_suite_run() {
   done
   commit_fixture_repo "$d" || { log_fail "TEST-206 fixture repo init failed"; return; }
 
-  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-206: framework exit=$rc (want 0): $out"; ok=0; }
   summary="$(iso_summary_line "$out")"
   if [[ -z "$summary" ]]; then
@@ -1873,7 +1879,7 @@ git -C '$d' worktree list > '$evid/mid-worktree-list.txt' 2>/dev/null
 exit 0"
   commit_fixture_repo "$d" || { log_fail "TEST-208 fixture repo init failed"; return; }
 
-  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-208: framework exit=$rc (want 0): $out"; ok=0; }
   [[ -s "$evid/mid-worktree-list.txt" ]] || { log_info "TEST-208: the fixture never recorded a mid-run worktree list: $out"; ok=0; }
   [[ "$(cat "$evid/mid-worktrees.txt" 2>/dev/null)" == "absent-or-empty" ]] \
@@ -1921,7 +1927,7 @@ test_209_unresolvable_checkout_git_removed_is_degraded() {
   grep -qF 'rm -rf "$wt/.git"' "$d/tests/skills/test-framework.sh" \
     || { log_fail "TEST-209: the mutation did not take — the sed target has drifted from the real iso_create"; return; }
 
-  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-209: framework exit=$rc (want 0 — a degraded run is still a passing run): $out"; ok=0; }
   iso_expect_counts "TEST-209" "$out" 0 "$n" "$n" || ok=0
   grep -qF "the disposable checkout's git surface still resolves to the shipping repository" <<<"$out" \
@@ -1969,7 +1975,7 @@ test_210_unresolvable_deregistered_linked_worktree_is_degraded() {
   grep -qF 'rm -rf "$(git -C "$wt" rev-parse --git-dir 2>/dev/null)"' "$d/tests/skills/test-framework.sh" \
     || { log_fail "TEST-210: the deregistration mutation did not take — the sed target has drifted from the real iso_create"; return; }
 
-  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-210: framework exit=$rc (want 0 — a degraded run is still a passing run): $out"; ok=0; }
   iso_expect_counts "TEST-210" "$out" 0 "$n" "$n" || ok=0
   grep -qF "the disposable checkout's git surface still resolves to the shipping repository" <<<"$out" \
@@ -2008,7 +2014,7 @@ test_211_prefix_checkout_under_project_root_is_degraded() {
   done
   commit_fixture_repo "$d" || { log_fail "TEST-211 fixture repo init failed"; return; }
 
-  out="$(TMPDIR="$d" bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  out="$(TMPDIR="$d" AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-211: framework exit=$rc (want 0 — a degraded run is still a passing run): $out"; ok=0; }
   iso_expect_counts "TEST-211" "$out" 0 "$n" "$n" || ok=0
   grep -qF "the disposable checkout's git surface still resolves to the shipping repository" <<<"$out" \
@@ -2091,7 +2097,7 @@ EOF
   grep -qF 'iso_git worktree add --detach --quiet "$wt" HEAD' "$dm/tests/skills/test-framework.sh" \
     || { log_fail "TEST-212: the mutation did not take — the sed target has drifted from the real iso_create"; return; }
 
-  HOME="$fakehome" GIT_CONFIG_GLOBAL="$fakehome/.gitconfig" TMPDIR="$tmphome_m" bash "$dm/tests/skills/test-framework.sh" >/dev/null 2>&1
+  HOME="$fakehome" GIT_CONFIG_GLOBAL="$fakehome/.gitconfig" TMPDIR="$tmphome_m" AAI_TEST_ISOLATION=1 bash "$dm/tests/skills/test-framework.sh" >/dev/null 2>&1
 
   if git -C "$dm" config --local --get user.name >/dev/null 2>&1; then
     log_info "TEST-212: the shared (mutated) fixture's LOCAL user.name is now '$(git -C "$dm" config --local --get user.name)' — iso_create's identity-writing git config command ran before the D3 gate could abort it"
@@ -2117,7 +2123,7 @@ EOF
   git -C "$dc" config --local --unset user.name
   git -C "$dc" config --local --unset user.email
 
-  HOME="$fakehome" GIT_CONFIG_GLOBAL="$fakehome/.gitconfig" TMPDIR="$tmphome_c" bash "$dc/tests/skills/test-framework.sh" >/dev/null 2>&1
+  HOME="$fakehome" GIT_CONFIG_GLOBAL="$fakehome/.gitconfig" TMPDIR="$tmphome_c" AAI_TEST_ISOLATION=1 bash "$dc/tests/skills/test-framework.sh" >/dev/null 2>&1
 
   if git -C "$dc" config --local --get user.name >/dev/null 2>&1; then
     log_info "TEST-212(control): the unmutated fixture's LOCAL user.name is '$(git -C "$dc" config --local --get user.name)' — the identity write should never reach the fixture's OWN config when the checkout is a real clone"
@@ -2174,7 +2180,7 @@ exit 0'
   grep -qF 'remote set-url origin "$wt/.git/ORIGIN-DISABLED-BY-ISOLATION"' "$dm/tests/skills/test-framework.sh" \
     && { log_fail "TEST-213: the mutation did not take — the sed target has drifted from the real iso_create"; return; }
 
-  bash "$dm/tests/skills/test-framework.sh" >/dev/null 2>&1
+  AAI_TEST_ISOLATION=1 bash "$dm/tests/skills/test-framework.sh" >/dev/null 2>&1
 
   git -C "$dm" rev-parse --verify -q refs/heads/isolation-probe-push >/dev/null 2>&1 \
     || { log_info "TEST-213: MUTATED case — the probe push did not reach the fixture repository even with the origin-defang step neutralised; the arm's own precondition failed to reproduce the reported hole, so it proves nothing"; ok=0; }
@@ -2189,7 +2195,7 @@ git -C "$R" push origin HEAD:refs/heads/isolation-probe-push >/dev/null 2>&1
 exit 0'
   commit_fixture_repo "$dc" || { log_fail "TEST-213 control fixture repo init failed"; return; }
 
-  bash "$dc/tests/skills/test-framework.sh" >/dev/null 2>&1
+  AAI_TEST_ISOLATION=1 bash "$dc/tests/skills/test-framework.sh" >/dev/null 2>&1
 
   git -C "$dc" rev-parse --verify -q refs/heads/isolation-probe-push >/dev/null 2>&1 \
     && { log_info "TEST-213(control): the probe push REACHED the fixture repository (refs/heads/isolation-probe-push exists) — a push to origin from inside the disposable checkout is not blocked"; ok=0; }
@@ -2616,26 +2622,39 @@ exit 0"
 # setting, not a bug) made them measure a run that never isolated at all and
 # go red for a reason unrelated to what they claim to test. Each now states
 # AAI_TEST_ISOLATION=1 as its own command prefix; this arm proves the
-# override holds by re-running the real TEST-001 function under exactly that
-# ambient setting and checking the SHARED failure registry — not $FAILED,
-# which a re-run inside a subshell cannot write back (the identical
-# subshell boundary this file's own header documents) — for a new entry.
+# override holds for ALL THREE — not just TEST-001 re-run with a log_pass
+# prose claim about the other two (validation round 1 BLOCKING-21: that
+# shape is exactly what fu-allowlist-count-is-prose-not-asserted exists to
+# eliminate, and it was also simply WRONG — TEST-003/005 still failed under
+# an ambient AAI_TEST_ISOLATION=0 at the time). Each of the three is
+# actually re-run here, under exactly that ambient setting, and checked
+# against the SHARED failure registry — not $FAILED, which a re-run inside a
+# subshell cannot write back (the identical subshell boundary this file's
+# own header documents) — for a new entry.
 # ---------------------------------------------------------------------------
 test_403_states_isolation_rather_than_inherits() {
-  local before_lines after_lines
-  before_lines=0
-  [[ -f "$FAILURE_REGISTRY" ]] && before_lines=$(wc -l < "$FAILURE_REGISTRY" | tr -d ' ')
-  ( export AAI_TEST_ISOLATION=0
-    test_001_writes_do_not_reach_the_working_tree_by_accident )
-  after_lines=0
-  [[ -f "$FAILURE_REGISTRY" ]] && after_lines=$(wc -l < "$FAILURE_REGISTRY" | tr -d ' ')
-  if [[ "$after_lines" -gt "$before_lines" ]]; then
-    log_info "TEST-434: with AAI_TEST_ISOLATION=0 exported ambiently, TEST-001 failed on re-run — it is inheriting rather than stating its own isolation:"
-    sed -n "$((before_lines + 1)),\$p" "$FAILURE_REGISTRY" 2>/dev/null | sed 's/^/    /'
-    log_fail "TEST-434 TEST-001 states AAI_TEST_ISOLATION rather than inheriting it"
-    return
-  fi
-  log_pass "TEST-434 TEST-001 (and, by the same fix, TEST-003 and TEST-005) states AAI_TEST_ISOLATION=1 rather than inheriting the operator's own ambient setting — re-run under an exported AAI_TEST_ISOLATION=0 it still passes"
+  local ok=1 before_lines after_lines fn label
+  for fn_label in \
+    "test_001_writes_do_not_reach_the_working_tree_by_accident:TEST-001" \
+    "test_003_gitignored_per_dev_files_are_seeded:TEST-003" \
+    "test_005_wrapper_isolates_a_suite_run:TEST-005"
+  do
+    fn="${fn_label%%:*}"
+    label="${fn_label##*:}"
+    before_lines=0
+    [[ -f "$FAILURE_REGISTRY" ]] && before_lines=$(wc -l < "$FAILURE_REGISTRY" | tr -d ' ')
+    ( export AAI_TEST_ISOLATION=0
+      "$fn" )
+    after_lines=0
+    [[ -f "$FAILURE_REGISTRY" ]] && after_lines=$(wc -l < "$FAILURE_REGISTRY" | tr -d ' ')
+    if [[ "$after_lines" -gt "$before_lines" ]]; then
+      log_info "TEST-434: with AAI_TEST_ISOLATION=0 exported ambiently, $label failed on re-run — it is inheriting rather than stating its own isolation:"
+      sed -n "$((before_lines + 1)),\$p" "$FAILURE_REGISTRY" 2>/dev/null | sed 's/^/    /'
+      log_fail "TEST-434 $label states AAI_TEST_ISOLATION rather than inheriting it"
+      ok=0
+    fi
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-434 TEST-001, TEST-003 and TEST-005 each states AAI_TEST_ISOLATION=1 rather than inheriting the operator's own ambient setting — each was actually re-run under an exported AAI_TEST_ISOLATION=0 and each still passed"
 }
 
 main() {

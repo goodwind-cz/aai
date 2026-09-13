@@ -784,7 +784,12 @@ test_012_growth_sum_matches_ledger() {
   # Then 26515 -> 26731: standing-merge / ROLE_COMMON --verdict (+216 B, SPEC-0178).
   # Then 26731 -> 26928: test-framework-sweep-select-suites-truing (+197 B,
   # SKILL_TDD.prompt.md Phase 4 step 0 names select-suites.mjs, Spec-AC-16).
-  local want_growth=26928
+  # Then 26928 -> 29362: change-0180-mechanism-armed (+2434 B, review NB-10 --
+  # SKILL_PR.prompt.md --pin/--expect-branch wiring + SKILL_WORKTREE.prompt.md
+  # session-lock acquire/release; validation round 4 F-7 folded in: SKILL_PR
+  # step 0 also claims the session lock for a shared-EXISTING checkout and
+  # step 5's true end releases it, +789 B over the round-3 measurement).
+  local want_growth=29362
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

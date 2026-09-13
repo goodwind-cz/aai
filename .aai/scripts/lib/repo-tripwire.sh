@@ -87,19 +87,24 @@
 # library reports the paths that MOVED, and a path that was ALREADY dirty when
 # the observed command started does not move. So a caller comparing
 # `aai_tripwire_changed_paths` against an allowlist cannot see an out-of-list
-# write to a path that was dirty beforehand. In
-# `tests/skills/test-framework.sh` that means an allowlisted suite writing both
-# a listed path and an already-dirty NON-ratchet path reads
-# `tripwire ALLOWED ... inside its listed path(s)` at exit 0, with the
-# out-of-entry write landed (reproduced with a pre-existing `M docs/other.md`).
-# Ratchet paths are exempt — they are content-hashed. It is stated rather than
-# enforced because on a clean start the only way a non-ratchet path becomes
-# pre-dirty is an earlier command that already failed the run, so it degrades a
-# red run's offender list rather than making a run green. A caller that
-# needs the bound closed must diff against its own before-snapshot, which it
-# holds. Tracked as `fu-tripwire-allowed-ignores-pre-dirty` (validation
-# suggested `fu-tripwire-attested-clean-ignores-pre-dirty-paths`, 10 characters
-# over the ledger's 40-char id limit).
+# write to a path that was dirty beforehand. Ratchet paths are exempt — they
+# are content-hashed. It is stated here rather than enforced IN THIS LIBRARY
+# because on a clean start the only way a non-ratchet path becomes pre-dirty
+# is an earlier command that already failed the run, so it degrades a red
+# run's offender list rather than making a run green. A caller that needs the
+# bound closed must diff against its own before-snapshot, which it already
+# holds (`$tw_before` in the caller below).
+#
+# CLOSED for the one caller that needed it: `tests/skills/test-framework.sh`
+# used to read `tripwire ALLOWED ... inside its listed path(s)` at exit 0 for
+# an allowlisted suite that wrote both a listed path and an already-dirty
+# NON-ratchet path (reproduced with a pre-existing `M docs/other.md`); it now
+# folds every `$tw_before`-dirty, out-of-entry path into `tw_unlisted` the
+# same as a newly-moved one (TEST-436, test-framework-sweep). That fix lives
+# in the CALLER, not here — this library's own bound is unchanged, and any
+# OTHER caller that does not do the same before-snapshot diff still has it.
+# Was tracked as `fu-tripwire-allowed-ignores-pre-dirty`; closed `done`,
+# resolved_by test-framework-sweep.
 
 # Maximum number of changed status lines reported before truncation. A suite
 # that rewrites hundreds of files must not flood a CI log; the truncation is

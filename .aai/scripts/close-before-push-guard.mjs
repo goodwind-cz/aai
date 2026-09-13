@@ -20,10 +20,11 @@
 // uses, via the shared docs-audit-core / docs-model libraries. Never writes
 // anything.
 //
-// CLI: node close-before-push-guard.mjs --ref <slug> [--root <dir>]
+// CLI: node close-before-push-guard.mjs --ref <slug> [--root <dir>] [--expect-branch <branch>]
 //   --ref <slug>   the primary work-item doc's frontmatter slug `id`
 //                  (the same --ref close-work-item.mjs was/will be given).
 //   --root <dir>   repo root to scan; default process.cwd().
+//   --expect-branch <branch>  CHANGE-0180 D4 HEAD-pin re-check; see below.
 //
 // Exit codes:
 //   0 — the doc resolves and its frontmatter status is `done` (step 4c's
@@ -34,6 +35,10 @@
 //       one scanned doc — unresolvable / ambiguous), OR a scanned file could
 //       not be read (permissions/I-O/transient) — fail-closed either way,
 //       never a silent pass and never an unhandled crash.
+//   3 — HEAD PIN REFUSED (CHANGE-0180 D4, --expect-branch given): the pinned
+//       branch/sha no longer matches at the time this guard runs. ADDITIVE:
+//       no --expect-branch given, or no pin file at all, and this check is a
+//       complete no-op (Spec-AC-04) — every path above is unaffected.
 //
 // Node stdlib + the shared docs-audit-core/docs-model libraries only
 // (docs/TECHNOLOGY.md). No forked scanning/parsing logic.
@@ -63,7 +68,18 @@ function parseArgs(argv) {
     const tok = argv[i];
     if (tok === '--ref') args.ref = argv[++i];
     else if (tok === '--root') args.root = argv[++i];
-    else if (tok === '--expect-branch') args.expectBranch = argv[++i];
+    else if (tok === '--expect-branch') {
+      // review NB-1: a missing value (the flag as the last token, or an
+      // unset shell variable handed straight through) used to set
+      // expectBranch to undefined/'' — verifyExpectedBranch's `if
+      // (!expectBranch) return` then silently disabled the whole re-check
+      // instead of refusing. A missing value is a usage error, not a
+      // fail-open no-op — the sibling check-committed-scope.mjs's `need()`
+      // already gets this right.
+      const val = argv[++i];
+      if (val === undefined || val.startsWith('--')) usageError('--expect-branch requires a value');
+      args.expectBranch = val;
+    }
     else usageError(`unrecognized flag: ${tok}`);
   }
   if (!args.ref) usageError('missing --ref');
@@ -75,7 +91,7 @@ function parseArgs(argv) {
 // leave this script's pre-change behaviour byte-identical.
 function verifyExpectedBranch(expectBranch, cwd) {
   if (!expectBranch) return;
-  const result = checkBranchPin(cwd);
+  const result = checkBranchPin(cwd, expectBranch);
   if (result.ok) return;
   process.stderr.write(`close-before-push-guard: REFUSED (HEAD moved) — ${result.message}\n`);
   process.exit(3);

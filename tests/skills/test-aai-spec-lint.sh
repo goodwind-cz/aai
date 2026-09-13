@@ -1702,22 +1702,93 @@ test_clarify_011_no_new_ceremony() {
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"
 }
 
-# --- TEST-012(clarify) — every stored RED log is classified at capture --------
-test_clarify_012_red_class_stamped() {
-  local ok=1 f first n=0
-  for f in "$PROJECT_ROOT"/docs/ai/tdd/red-*vagueness-gate*.log; do
+# t012_scan_red_logs <dir> — scans <dir>/red-*vagueness-gate*.log, the SAME
+# glob and the SAME regex the primary claim and the positive control both
+# rely on (one copy, not two — R2-2, validation round 2: a duplicated regex
+# in the control proved only that the DUPLICATE discriminates, never that
+# this loop does). Prints one "FILE:<name> STAMPED" or
+# "FILE:<name> UNSTAMPED:<first line>" per log found, then a final
+# "TOTAL n=<count> bad=<count>" line.
+t012_scan_red_logs() {
+  local dir="$1" f first n=0 bad=0
+  for f in "$dir"/red-*vagueness-gate*.log; do
     [[ -f "$f" ]] || continue
     n=$((n + 1))
     first="$(head -1 "$f")"
-    grep -qE '^RED_CLASS: (product_red|infra_fail)$' <<<"$first" \
-      || { log_info "TEST-012(clarify): $(basename "$f") line 1 is not a RED_CLASS line: $first"; ok=0; }
+    if grep -qE '^RED_CLASS: (product_red|infra_fail)$' <<<"$first"; then
+      printf 'FILE:%s STAMPED\n' "$(basename "$f")"
+    else
+      bad=$((bad + 1))
+      printf 'FILE:%s UNSTAMPED:%s\n' "$(basename "$f")" "$first"
+    fi
   done
+  printf 'TOTAL n=%s bad=%s\n' "$n" "$bad"
+}
+
+# --- TEST-012(clarify) — every stored RED log is classified at capture --------
+test_clarify_012_red_class_stamped() {
+  local ok=1 scan_root result line n bad
+  # R2-2 (validation round 2): the scan root is now a variable, defaulting to
+  # the real evidence directory, so the positive control below can point the
+  # SAME loop at a scratch copy instead of scanning it in place.
+  scan_root="${AAI_T012_SCAN_ROOT:-$PROJECT_ROOT/docs/ai/tdd}"
+  result="$(t012_scan_red_logs "$scan_root")"
+  n=0; bad=0
+  while IFS= read -r line; do
+    case "$line" in
+      FILE:*UNSTAMPED:*)
+        log_info "TEST-012(clarify): ${line#FILE:} is not a RED_CLASS line"
+        ;;
+      TOTAL\ n=*)
+        n="${line#TOTAL n=}"; n="${n%% bad=*}"
+        bad="${line##* bad=}"
+        ;;
+    esac
+  done <<<"$result"
+  [[ "$bad" -eq 0 ]] || ok=0
   # docs/ai/tdd/** is gitignored per-dev runtime evidence (pruned by
   # METRICS_FLUSH after 7 days), so a fresh clone / CI runner legitimately has
   # none. Degrade with a NOTE rather than failing on someone else's machine —
   # the assertion is "every log that EXISTS was classified at capture".
-  [[ "$n" -ge 1 ]] || log_info "TEST-012(clarify): NOTE — no stored RED log for this scope under docs/ai/tdd/ (gitignored per-dev runtime evidence); nothing to classify"
-  [[ $ok -eq 1 ]] && log_pass "TEST-012(clarify) all $n stored RED log(s) carry RED_CLASS as line 1" \
+  [[ "$n" -ge 1 ]] || log_info "TEST-012(clarify): NOTE — no stored RED log for this scope under $scan_root (gitignored per-dev runtime evidence); nothing to classify"
+
+  # POSITIVE CONTROL (validation round 1 BLOCKING-17 finding 4; validation
+  # round 2 R2-2: the control used to plant into $TMP_ROOT, outside the loop's
+  # own scan root, and re-applied a COPY of the regex — the loop above was
+  # never entered and its n stayed 0 regardless of what this control proved).
+  # A scratch COPY of the real scan root is built, the fixture pair is
+  # planted INSIDE it, and the SAME t012_scan_red_logs function — not a
+  # duplicate — is re-run against that copy: the loop's OWN reported n must
+  # rise by exactly the two planted files, and it must classify one STAMPED
+  # and the other UNSTAMPED.
+  local pc_root pc_result pc_line pc_n pc_bad pc_stamped=0 pc_unstamped=0
+  pc_root="$(mktemp -d "$TMP_ROOT/t012-positive-control.XXXXXX")"
+  cp "$scan_root"/red-*vagueness-gate*.log "$pc_root"/ 2>/dev/null || true
+  { echo "RED_CLASS: product_red"; echo "FAIL: fixture"; } > "$pc_root/red-001-t012-positive-control-vagueness-gate.log"
+  { echo "FAIL: fixture with no classification line"; } > "$pc_root/red-002-t012-positive-control-vagueness-gate.log"
+  pc_result="$(t012_scan_red_logs "$pc_root")"
+  pc_n=0; pc_bad=0
+  while IFS= read -r pc_line; do
+    case "$pc_line" in
+      FILE:red-001-t012-positive-control-vagueness-gate.log\ STAMPED) pc_stamped=1 ;;
+      FILE:red-002-t012-positive-control-vagueness-gate.log\ UNSTAMPED:*) pc_unstamped=1 ;;
+      TOTAL\ n=*)
+        pc_n="${pc_line#TOTAL n=}"; pc_n="${pc_n%% bad=*}"
+        pc_bad="${pc_line##* bad=}"
+        ;;
+    esac
+  done <<<"$pc_result"
+  local pc_ok=1
+  [[ "$pc_n" -ge "$((n + 2))" ]] \
+    || { log_info "TEST-012(clarify) positive control: the loop's own n over the scratch copy was $pc_n (want >= $((n + 2)), the real $n plus the two planted files) — the loop was not actually entered"; pc_ok=0; }
+  [[ "$pc_stamped" -eq 1 ]] \
+    || { log_info "TEST-012(clarify) positive control: the loop did not report the WELL-FORMED planted fixture as STAMPED"; pc_ok=0; }
+  [[ "$pc_unstamped" -eq 1 ]] \
+    || { log_info "TEST-012(clarify) positive control: the loop did not report the MALFORMED planted fixture as UNSTAMPED"; pc_ok=0; }
+  [[ $pc_ok -eq 1 ]] \
+    || { log_fail "TEST-012(clarify) positive control: the loop over a scratch copy of $scan_root does not discriminate a well-formed log from a malformed one"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-012(clarify) all $n stored RED log(s) under $scan_root carry RED_CLASS as line 1, and the SAME scan loop — re-run over a scratch copy carrying a planted fixture pair — is proven to discriminate well-formed from malformed rather than passing vacuously" \
     || log_fail "TEST-012(clarify) RED_CLASS stamping"
 }
 

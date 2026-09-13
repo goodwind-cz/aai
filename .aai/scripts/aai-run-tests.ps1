@@ -78,7 +78,7 @@
 #   this dispatcher owns interpreter routing.
 #
 # Environment:
-#   AAI_TEST_TIMEOUT  timeout in seconds (default 300; non-integer or <=0 -> 300;
+#   AAI_TEST_TIMEOUT  timeout in seconds (default 3000; non-integer or <=0 -> 3000;
 #                      same coercion as the .sh wrapper)
 #
 # Diagnostics (PR #247 iter-4): on both the wsl and gitbash branches, ONE
@@ -434,7 +434,7 @@ function Write-BranchDiag {
   # branch=unknown even though the wrapper genuinely dispatched). This is the
   # unconditional counterpart: ALWAYS one stderr line, on both the wsl and
   # gitbash branches, naming the chosen branch plus the EFFECTIVE
-  # AAI_TEST_TIMEOUT and whether it came from the env var or the 300s
+  # AAI_TEST_TIMEOUT and whether it came from the env var or the 3000s
   # default — cheap, and it settles "did AAI_TEST_TIMEOUT actually arrive?"
   # definitively on the very next run. Never called on the error branch:
   # Write-EnvError's Spec-AC-02 contract is EXACTLY one stderr line, and
@@ -465,12 +465,12 @@ function Get-EffectiveTimeout {
   # NB-B remediation: '^[0-9]+$' alone admits digit strings arbitrarily beyond
   # Int32 range (e.g. AAI_TEST_TIMEOUT=99999999999, a fat-fingered paste); a
   # bare [int]$Raw cast on those throws an overflow conversion error instead
-  # of coercing to the safe 300s default, unlike the .sh wrapper's coercion.
+  # of coercing to the safe 3000s default, unlike the .sh wrapper's coercion.
   # Parse into Int64 first (TryParse never throws) and only accept the value
   # if it also fits Int32 — everything downstream (Wait-ProcessWithTimeout's
   # WaitForExit(ms), Start-GitBashProcess's env var) is Int32-typed, so a
   # value that doesn't fit is exactly as unusable as a non-integer one and
-  # falls back to 300 the same way.
+  # falls back to 3000 the same way.
   [CmdletBinding()] param([string]$Raw)
   if ($Raw -and ($Raw -match '^[0-9]+$')) {
     $parsed = [long]0
@@ -478,7 +478,7 @@ function Get-EffectiveTimeout {
       return [int]$parsed
     }
   }
-  return 300
+  return 3000
 }
 
 function Get-EffectiveTimeoutSource {

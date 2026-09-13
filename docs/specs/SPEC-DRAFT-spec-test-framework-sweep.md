@@ -196,10 +196,13 @@ ugrep in the authoring shell, and zsh rewrites `$r:tests/...`).
    which `continue`s and still exits 0) is discarded. Neither is a race; both are
    missing checks.
 18. **Degenerate branches that pass.** `/usr/bin/grep -rn 'log_pass' tests/skills/*.sh`
-   filtered for `skipped` or `not applicable` returns **35**. Most are legitimate
-   platform skips, which is why Spec-AC-14 converts the nine guards and ratchets the
-   rest rather than banning the shape. `.aai/scripts/*.mjs` files referencing
-   `process.argv[1]`: **24**.
+   filtered case-sensitively for `skipped` or `not applicable` returns **31** (35
+   only with `grep -i`; corrected at remediation, validation round 1 BLOCKING-7 —
+   the original text here said 35 without disclosing the case-insensitive recipe,
+   which does not match `degenerate-pass-ratchet.sh`'s own case-sensitive scan; see
+   `## Amendment`). Most are legitimate platform skips, which is why Spec-AC-14
+   converts the nine guards and ratchets the rest rather than banning the shape.
+   `.aai/scripts/*.mjs` files referencing `process.argv[1]`: **24**.
 
 ## Decisions
 
@@ -398,29 +401,29 @@ None.
 | Spec-AC-01 | The layer-profiles fixture build SHALL check every `cp -R` it issues, SHALL compare the file set it produced against the file set it copied from, and SHALL exit non-zero naming every path that is missing, before any assertion runs. | planned | — | — | fu-layer-profiles-fixture-build-race |
 | Spec-AC-02 | WHEN the core sync emits a line matching `missing in source` the suite SHALL fail naming that line rather than discard it to `/dev/null`, and WHEN an assertion fires on a payload that renders as zero visible lines it SHALL dump that payload byte for byte instead of printing an empty list. | planned | — | — | fu-layer-profiles-suite-load-fragile; the CI failure of run 34737181188 printed an EMPTY missing-file list, which no incomplete copy can produce |
 | Spec-AC-03 | WHEN a ceremony has pinned its HEAD and the branch or the HEAD sha differs at a later write step, that step SHALL exit non-zero naming the expected and the actual value, and SHALL name detached HEAD, a renamed branch and a concurrent session as three distinct causes. | planned | — | — | CHANGE-0180 AC-001 to AC-003, fu-head-moved-between-commands |
-| Spec-AC-04 | WHEN no pin file exists, `--verify-pin` and every re-check call site SHALL exit 0 without reading git, and the stdout and exit code of each ceremony script SHALL be byte-identical to the pre-change script on the same fixture. | planned | — | — | CHANGE-0180 AC-004 |
+| Spec-AC-04 | WHEN no pin file exists, `--verify-pin` and every re-check call site SHALL exit 0 without reading git, and the stdout and exit code of each ceremony script SHALL be byte-identical to the pre-change script on the same fixture. | planned | — | — | CHANGE-0180 AC-004; remediation (validation round 1 BLOCKING-1/2, see `## Amendment`): `pinDir()` forked `git rev-parse --git-dir` even on the no-pin path — measured with a git shim, one subprocess on a no-pin fixture, contradicting D4's "costs one stat". A `pinDirFast()` fs-stat-only resolver (handling a main checkout's `.git` directory and a linked worktree's `.git` file, falling back to the git subprocess for anything else) now makes the no-pin path genuinely zero-subprocess, re-verified with the same shim. TEST-408's baseline also moved from `git show HEAD:` (already the POST-change script, an identity check) to `git show origin/main:` (or `main`, fail-closed if neither resolves) — the genuine pre-change blob |
 | Spec-AC-05 | WHEN a second process acquires the per-worktree session lock while the holder pid is alive, the acquire SHALL exit 3 naming the holding pid and worktree, and WHEN the holder pid is gone the lock SHALL be reclaimed and the acquire SHALL exit 0. | planned | — | — | CHANGE-0180 scope half two, fu-learned-worktree-seeded-copies |
 | Spec-AC-06 | WHEN the sweep runs at a width above 1 a free slot SHALL start the next suite without waiting for its concurrently-running siblings, and the measured wall-clock of a full local sweep SHALL be at most 65 percent of the 1632 s recorded for run test-20260913-040817 at the same width, with a per-suite verdict set identical to a width-1 run. | planned | — | — | CHANGE-0166 AC-001 |
-| Spec-AC-07 | WHEN a shipping-repository change is detected during the concurrent phase, the run SHALL still name the writing suite, the serial re-run SHALL cover at most 2 times PARALLEL_WIDTH suites rather than the whole corpus, and a run in which nothing writes SHALL report the same verdicts as a serial run. | planned | — | — | CHANGE-0166 AC-002 |
-| Spec-AC-08 | WHEN the canonical wrapper command runs a full sweep with no `AAI_TEST_TIMEOUT` set, the run SHALL complete rather than exit 124, and any wrapper timeout SHALL print one line naming the elapsed limit and the override. | planned | — | — | fu-sweep-dies-at-wrapper-default |
+| Spec-AC-07 | WHEN a shipping-repository change is detected during the concurrent phase, the run SHALL still name the writing suite, the serial re-run SHALL cover at most 2 times PARALLEL_WIDTH suites rather than the whole corpus, and a run in which nothing writes SHALL report the same verdicts as a serial run. | planned | — | — | CHANGE-0166 AC-002; remediation (validation round 1 BLOCKING-4, see `## Amendment` and R4 above): the 2x-width truncation was dead code on every real run (structurally, the per-completion-check design bounds the window at `PARALLEL_WIDTH`, not 2x) — TEST-413 now proves it is load-bearing anyway via a genuine negative control on a 10-suite/late-writer fixture |
+| Spec-AC-08 | WHEN the canonical wrapper command runs a full sweep with no `AAI_TEST_TIMEOUT` set, the run SHALL complete rather than exit 124, and any wrapper timeout SHALL print one line naming the elapsed limit and the override, on EVERY platform this scope's own contract claims (sh, WSL and Git-Bash-only, since `aai-run-tests.sh:56-60` states the timeout raise is "kept identical across this header, aai-reap-tests.sh, aai-run-tests.ps1, aai-reap-tests.ps1"). | planned | — | — | fu-sweep-dies-at-wrapper-default; remediation (validation round 1 BLOCKING-22, see `## Amendment`): `aai-run-tests.ps1`'s `Get-EffectiveTimeout` still returned 300 and forced that value into the inner `.sh` on both the WSL and Git-Bash paths, silently overriding the `.sh` wrapper's raise to 3000 on every Windows run — the parity claim was false. Now raises to 3000, matching the `.sh` wrapper exactly; the header comment and the Pester fixtures that pinned the old 300 default (`aai-win-dispatch.Tests.ps1`) are updated to match, and a new grep-based check in `test-ps1-quality.sh` (runs without `pwsh`, unlike the Windows-5.1-only Pester leg) pins the two defaults equal going forward |
 | Spec-AC-09 | WHEN a sweep is in flight the framework SHALL write a heartbeat slot through the shipped `heartbeat.mjs` carrying the finished-suite count and the discovered total, so the existing live page shows it with no change to the page, and the slot SHALL stop being refreshed when the run ends. | planned | — | — | fu-live-page-blind-to-the-sweep; the page already lists `hb-*` slots and the runner writes none |
 | Spec-AC-10 | WHEN `golden-flow.mjs` appends a record, the append SHALL go through the same lock as the other ledgers under `docs/ai/`, and 12 concurrent appends SHALL produce 12 whole parseable records with the pre-existing bytes still a prefix. | planned | — | — | fu-golden-flow-record-append-unlocked |
 | Spec-AC-11 | The count returned by the shipped ratchet scan over `tests/skills` SHALL be 0, every row of `tests/skills/lib/pipe-grep-q-baseline.tsv` SHALL be 0, and the ratchet SHALL still fail on a planted occurrence. | planned | — | — | DEBT-0006, fu-drain-pipe-grep-q-ratchet; 202 occurrences over 31 files today |
-| Spec-AC-12 | Each of the nine guards named in the implementation plan SHALL carry a negative control that mutates, in a scratch copy, the thing the guard claims to protect, and the guard SHALL be observed failing on that mutation. | planned | — | — | DEBT-0004, fu-exit-contract-pin-comment-dup, fu-allowlist-count-is-prose-not-asserted, fu-test031-self-neutralizes-post-merge, fu-test210-branch-now-dead-code |
+| Spec-AC-12 | Each of the nine guards named in the implementation plan SHALL carry a negative control that mutates, in a scratch copy, the thing the guard claims to protect, and the guard SHALL be observed failing on that mutation. | planned | — | — | DEBT-0004, fu-exit-contract-pin-comment-dup, fu-allowlist-count-is-prose-not-asserted, fu-test031-self-neutralizes-post-merge, fu-test210-branch-now-dead-code; remediation (validation round 1 BLOCKING-5/6, see `## Amendment`): TEST-445/TEST-447 did not exist anywhere but in this document's own prose — both are now real tests, each with a genuine mutation/broken-input control (see `mutation-445.txt`, `mutation-447.txt`); `test-aai-release.sh:57` `RELEASE_ENGINE_PIN_SHA` was byte-identical to the live engine (this scope never touched `aai-release.sh`) and is now re-pinned to `6adfe840...` (the commit immediately before the pin's original target), a genuinely different blob, plus a new negative control in `test_031_unprotected_path_byte_identical` |
 | Spec-AC-13 | Each of the six pins named in the implementation plan SHALL assert the property it describes rather than a count or a byte identity, and a legal one-line change to the thing it bounds SHALL leave the suite green. | planned | — | — | fu-ceremony-test016-blanket-byte-pin, fu-usage-pin-misses-appended-flag, fu-closure-allowlist-pin-blocks-draining, fu-test029-count-not-subset, fu-test013-uncovered-on-legal-max-raise, fu-test031-guard-dies-at-rename |
-| Spec-AC-14 | WHEN one of the nine guards named in the implementation plan cannot reach the branch it was written for, it SHALL report UNCOVERED and exit non-zero rather than call `log_pass`, and a per-file ratchet over `tests/skills` SHALL record the remaining degenerate-pass sites at their measured count of 35 and SHALL fail on any rise. | planned | — | — | DEBT-0004 Target State item b; a platform-legitimate skip is not a vacuous guard, so the rest is ratcheted rather than banned |
+| Spec-AC-14 | WHEN one of the nine guards named in the implementation plan cannot reach the branch it was written for, it SHALL report UNCOVERED and exit non-zero rather than call `log_pass`, and a per-file ratchet over `tests/skills` SHALL record the remaining degenerate-pass sites at their measured count of 26. | planned | — | — | DEBT-0004 Target State item b; a platform-legitimate skip is not a vacuous guard, so the rest is ratcheted rather than banned; corrected at remediation (validation round 1 BLOCKING-7, see `## Amendment`) — the frozen text's "35" was measured with `grep -i`, not the plain (case-sensitive) grep this ratchet actually uses; the plain-grep count is 31 pre-scope (origin/main) and 26 post-scope (five of the nine converted guards also carried this shape); follow-ups TEST-031's delivery-diff guard is now a documented permanent-UNCOVERED exception (BLOCKING-9): its primary path can never again be exercised (its own scope's spec is merged history), so it now reports UNCOVERED honestly in its own verdict message rather than falling through to an unqualified `log_pass`, without hard-failing the whole suite forever (this suite's `log_fail` is unconditionally fatal under `set -euo pipefail`, so a literal exit-non-zero here would void every arm after it, including TEST-443) — its ongoing protection is the TEST-448 negative control, which re-runs every time |
 | Spec-AC-15 | The hygiene pack SHALL carry one rule per LEARNED guard marker in this bucket, each rule SHALL flag a planted instance of its shape in a fixture tree and SHALL report zero findings over the live `tests/skills` tree, and each LEARNED marker SHALL name the shipped guard. | planned | — | — | fu-learned-bash32-local-crossref, fu-empty-path-cd-stays-in-shipping-repo, fu-learned-immutable-pin-lint, fu-learned-deny-by-default-mocks, fu-learned-positive-control-for-absence, fu-learned-external-runner-routing, fu-learned-vitest-leak-is-a-guard |
 | Spec-AC-16 | `.aai/SKILL_TDD.prompt.md` and `.aai/VALIDATION.prompt.md` SHALL both name `select-suites.mjs` as the selector for an intermediate round, `tests/skills/suite-map.yaml` SHALL select `aai-state` for a change to `.aai/ROLE_COMMON.md`, and the prompt-diet ledger and its TEST-012 pin SHALL be trued up by the measured byte delta. | planned | — | — | fu-tdd-skips-full-sweep, fu-validation-ignores-suite-selector, fu-suitemap-state-missing-role-common |
 | Spec-AC-17 | Removing one isolation base SHALL leave every other registered base intact and destroyable by the trap, a failed `iso_create` SHALL destroy what it registered, and an INT delivered to the wrapper SHALL reap the wrapped process group before any checkout is removed. | planned | — | — | fu-iso-bases-reset-discards-entries, fu-iso-wrapper-traps-dont-reap-group |
 | Spec-AC-18 | WHEN a seed path is missing from the checkout, WHEN the seed enumeration cannot read part of the tree, or WHEN the marker append fails, the run SHALL report the suite as partly seeded and SHALL NOT report it seeded. | planned | — | — | fu-seed-loss-turns-an-arm-into-a-skip, fu-seed-step2-enumeration-silent, fu-marker-append-failure-discarded |
-| Spec-AC-19 | The suite-isolation suite SHALL state `AAI_TEST_ISOLATION` rather than inherit it, the wrapper SHALL print one isolation line for a suite run whose command shape hides the suite path, and the claim that the four formerly exempt suites do not write the shipping repository SHALL be replaced by what was measured. | planned | — | — | fu-isolation-suite-not-hermetic, fu-wrapper-hidden-suite-run-unreported, fu-drained-suites-still-write-unisolated |
+| Spec-AC-19 | The suite-isolation suite SHALL state `AAI_TEST_ISOLATION` rather than inherit it, the wrapper SHALL print one isolation line for a suite run whose command shape hides the suite path, and the claim that the four formerly exempt suites do not write the shipping repository SHALL be replaced by what was measured. | planned | — | — | fu-isolation-suite-not-hermetic, fu-wrapper-hidden-suite-run-unreported, fu-drained-suites-still-write-unisolated; remediation (validation round 1 BLOCKING-21, see `## Amendment`): the first fix covered only TEST-001/003/005's own bodies while every OTHER `test-framework.sh` invocation in this suite (TEST-002, TEST-004, TEST-201..211 and more) still inherited the operator's ambient setting; every such call site now states `AAI_TEST_ISOLATION=1` explicitly (control `env -u AAI_TEST_ISOLATION` and ambient `AAI_TEST_ISOLATION=0` both exit 0 over the whole suite), and TEST-434 now actually re-runs TEST-001, TEST-003 AND TEST-005 under the override (not just TEST-001 with a prose claim about the other two) |
 | Spec-AC-20 | A tripwire ALLOWED verdict SHALL account for paths already dirty before the suite ran, a degraded tripwire SHALL say so on the suite's own progress line and in its telemetry record, and `tests/skills/test-aai-repo-tripwire.sh` SHALL leave no temporary directory behind after a full run. | planned | — | — | fu-tripwire-allowed-ignores-pre-dirty, fu-tripwire-degrade-not-on-suite-line, fu-tripwire-fixture-dirs-leak |
 | Spec-AC-21 | The four code comments and spec sections naming a withdrawn claim SHALL state what the branch shipped, and a grep for each withdrawn phrase over `tests/skills`, `.aai/` and `docs/specs` SHALL return 0. | planned | — | — | fu-tripwire-suite-comment-transitional, fu-isolation-suite-presumes-deletion, fu-framework-comment-mislabels-d5, fu-drain-spec-says-d7-filed-not-fixed |
-| Spec-AC-22 | Every one of the 24 `.aai/scripts/*.mjs` files that guards `main()` with `process.argv[1]` SHALL resolve both sides of that comparison through realpath, a grep for the unresolved shape SHALL return 0, and three named CLIs invoked through a symlinked checkout SHALL produce stdout and an exit code identical to the resolved path. | planned | — | — | fu-ismain-symlink-realpath |
+| Spec-AC-22 | Every one of the 24 `.aai/scripts/*.mjs` files that guards `main()` with `process.argv[1]` SHALL resolve both sides of that comparison through realpath, a grep for the unresolved shape SHALL return 0, and three named CLIs invoked through a symlinked checkout SHALL produce stdout and an exit code identical to the resolved path. | planned | — | — | fu-ismain-symlink-realpath; DISCLOSED EXCEPTION (validation round 1 BLOCKING-10/11, see `## Amendment`): `.aai/scripts/allocate-doc-number.mjs` is 1 of the 24 and is DELIBERATELY EXCLUDED, not fixed — it is one of the eight `docs/ai/docs-audit.yaml` `protected_paths_l3` surfaces, so touching it forces `ceremony_level:3` and this ride is ceremony 2 (established fact 9). `tests/skills/test-aai-doctor.sh:1861-1866` excludes it by name with a comment; the defect reproduces live through a symlinked checkout (rc=0, 0 bytes printed — a silent no-op). Tracked by `fu-realpath-allocate-doc-number-l3` (P3), filed at remediation; `fu-ismain-symlink-realpath` stays closed done for the 22 of 23 it actually fixed (NON-BLOCKING, validation round 2: "23 of 24" was off by one — the 24th file, `.aai/scripts/heartbeat.mjs:435`, references `process.argv[1]` only inside a comment explaining it has no main guard on purpose, so the real accounting is 23 actual main guards = 22 resolved + this one excluded, not 24) |
 | Spec-AC-23 | WHEN `AAI_REAP_STEP_START_EPOCH` is exported into the test command's environment, `tests/skills/test-aai-run-tests.sh` SHALL pass, in 5 consecutive runs. | planned | — | — | fu-reaper-epoch-export-fails-test005 |
 | Spec-AC-24 | WHEN the working tree carries a document that `docs/INDEX.md` does not yet list, `tests/skills/test-aai-docs-audit.sh` and `tests/skills/test-aai-delta-stage3.sh` SHALL both pass. | planned | — | — | fu-docsaudit-t003-red-on-new-doc |
 | Spec-AC-25 | `tests/skills/test-aai-orchestration-dispatch.sh` TEST-056 SHALL resolve routed ids through the shipped routing parser rather than its own copy, and a change to that parser's row shape SHALL be visible to the test. | planned | — | — | fu-test056-duplicates-routing-parser |
-| Spec-AC-26 | Every one of the 84 bucket ids SHALL be terminal in the ledger, the 48 as `done` with `resolved_by` naming this ride and the 36 as `dropped` with `resolved_by` carrying the recorded reason, `follow-ups.mjs verify-closures --path <this spec> --strict` SHALL exit 0 over the 48 claims its parser reads from the closed-by-this-scope heading, and the prompt-diet ledger entry, the TEST-012 pin, the `PROFILES.yaml` classification of the new `.aai` file and the `suite-map.yaml` row plus row-count pin for the one new suite SHALL all be present. | planned | — | — | the partition itself plus the two companion obligations; the parser reads exactly 48 claims from that heading today, measured |
+| Spec-AC-26 | Every one of the 84 bucket ids SHALL be terminal in the ledger, the 48 as `done` with `resolved_by` naming this ride and the 36 as `dropped`, each with the recorded reason present on its `follow_up_status` record, `follow-ups.mjs verify-closures --path <this spec> --strict` SHALL exit 0 over the 48 claims its parser reads from the closed-by-this-scope heading, and the prompt-diet ledger entry, the TEST-012 pin, the `PROFILES.yaml` classification of the new `.aai` file and the `suite-map.yaml` row plus row-count pin for the one new suite SHALL all be present. | planned | — | — | the partition itself plus the two companion obligations; the parser reads exactly 48 claims from that heading today, measured; CORRECTED at remediation (validation round 1 BLOCKING-12/13, see `## Amendment`) — the original text said the reason lives ON `resolved_by`, but `follow-ups.mjs`'s own established, repo-wide ledger grammar (every dropped record, not only this ride's) puts the RIDE REF in `resolved_by` and the reason in `source` (`close --resolved-by <ref> --source "<reason>" --status dropped`); rewriting 36 append-only records to match the ORIGINAL wording would be the more expensive, less truthful fix, so the wording here now matches the ledger's actual, established grammar instead. The row-count pin did not exist (`test-aai-hygiene-pack.sh` `test_090_suite_map_pin` was an existence check, not a count) and is now written: a top-level-row count over `suite-map.yaml`, pinned at 93 |
 | Spec-AC-27 | `docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md` SHALL carry the measured before and after wall-clock, a terminal frontmatter status and its delivering PRs, and `docs-audit.mjs --check --strict` over it SHALL be CLEAN. | planned | — | — | the paired maintenance half; its work shipped in PR #307 and its doc is still a draft |
 | Spec-AC-28 | WHEN a suite that nests another suite fails, the nested output SHALL be written to a file that the failure message names together with its line count, so the framework's own whole-log failure-line extraction shows more than the first line of it. | planned | — | — | fu-nested-profiles-hides-missing-list; the `tail -3` half was already delivered by commit 02455b73 and the residual is the single-argument rendering |
 
@@ -475,7 +478,7 @@ Test ids are allocated from the TEST-4xx band, which is unused anywhere in `test
 | TEST-423 | Spec-AC-13 | integration | tests/skills/test-aai-repo-tripwire.sh | A one-entry offender table with a matching maximum leaves TEST-013 and TEST-014 both green, and a table containing either fixture suite name reddens TEST-013. | green |
 | TEST-424 | Spec-AC-13 | integration | tests/skills/test-aai-follow-ups.sh | Closing one allowlist entry leaves the suite green, while adding an entry outside the delivery-time set reddens it. | green |
 | TEST-425 | Spec-AC-13 | integration | tests/skills/test-aai-spec-lint.sh | A flag appended to the pinned usage line of a scratch `spec-freeze.mjs` reddens the usage pin. | green |
-| TEST-426 | Spec-AC-14 | integration | tests/skills/test-aai-hygiene-pack.sh | Each of the nine guards reports UNCOVERED and exits non-zero on its degenerate branch, the degenerate-pass ratchet over `tests/skills` matches its recorded per-file baseline, and a planted extra site in a fixture tree fails the ratchet. | green |
+| TEST-426 | Spec-AC-14 | integration | tests/skills/test-aai-hygiene-pack.sh | Seven of the nine guards report UNCOVERED and exit non-zero on their own degenerate branch; the remaining two are covered as declared — follow-ups TEST-031 is the disclosed permanent UNCOVERED-exit-0 carve-out and spec-lint TEST-011 has no such branch, structurally checked so it cannot grow one silently. The degenerate-pass ratchet over `tests/skills` matches its recorded per-file baseline, and a planted extra site in a fixture tree fails the ratchet. | green |
 | TEST-427 | Spec-AC-15 | integration | tests/skills/test-aai-hygiene-pack.sh | Each new lint flags a planted instance of its shape in a fixture tree: a cross-referenced `local`, a `cd` to an underived variable, an immutable-claiming pin resolved through a moving ref, a stub exiting 0 on unknown argv, an absence assertion with no positive control, and a prompt launching a runner outside the wrapper. | green |
 | TEST-428 | Spec-AC-15 | integration | tests/skills/test-aai-hygiene-pack.sh | Every new lint reports zero findings over the live `tests/skills` and `.aai` trees, and every `[guard ->` marker in LEARNED.md resolves to a shipped guard or an open follow-up. | green |
 | TEST-429 | Spec-AC-16 | integration | tests/skills/test-aai-prompt-diet.sh | Both prompts name `select-suites.mjs`, the ledger carries this ride's entry, and the TEST-012 growth pin equals the recorded sum. | green |
@@ -501,13 +504,19 @@ Every Spec-AC has at least one TEST row and every TEST row names exactly one Spe
 
 Every test above is paired with the source mutation that MUST redden it. Mutations are applied to a scratch COPY of the tree, never to a tracked file (HAZ-RESTORE, HAZ-SCRATCH), and each recorded under `docs/ai/tdd/spec-test-framework-sweep/` as one file holding the failing output.
 
-RED-first — these assert behaviour that does not exist on the pre-change tree, so each is observed FAILING there before any engine edit: TEST-401 through TEST-407, TEST-409 through TEST-417, TEST-419 through TEST-427, and TEST-429 through TEST-449. Files `red-401.txt` and onward.
+RED-first — these assert behaviour that does not exist on the pre-change tree, so each is observed FAILING there before any engine edit: TEST-401 through TEST-407, TEST-409 through TEST-411, TEST-413 through TEST-417, TEST-419 through TEST-421, TEST-423 through TEST-427, TEST-429 through TEST-440, TEST-442, TEST-443, TEST-444, TEST-448 and TEST-449. Files `red-401.txt` and onward. (Corrected at remediation, validation round 1 BLOCKING-17/18, see `## Amendment`: TEST-412, TEST-441, TEST-445 and TEST-447 moved out of this range into the CANNOT-go-RED list below, where their actual evidence already lived, and TEST-422/TEST-446 join them there too — their pre-fix state is a wrongly-green PASS rather than any kind of FAIL, so neither ever had a genuine red file; TEST-421 DOES have a genuine `red-421.txt` after remediation and stays in this range. NON-BLOCKING, validation round 2: `tdd-evidence-check.mjs`'s grammar has exactly two live values, `product_red` and `infra_fail` — there is no third class for "the test's own NEGATIVE CONTROL block failed" versus "the test's own PRIMARY assertion failed", so `red-421.txt`, `red-424.txt` and `red-448.txt` are correctly stamped `RED_CLASS: product_red` (each reaches and reports a real FAIL line from the test's own code, never a shell "command not found") but are the negative-control shape, not the primary-assertion shape; their own prose already says so honestly. `red-402.txt` and `red-403.txt` are the primary-assertion shape.)
 
 CANNOT go RED by construction, so a mutation control stands in for the RED:
 
 - `mutation-408.txt` — TEST-408 compares the pre-change scripts with the current ones on the no-pin path. On the pre-change tree both sides are the pre-change script, so it passes with this scope deleted. Its control is a deliberate mutation: make the pin check run before the pin-file existence test, so a ceremony with no pin pays a git call and changes its output. TEST-408 must then fail. Without that recorded failure TEST-408 is evidence of nothing.
 - `mutation-418.txt` — TEST-418 asserts a count of 0, which a half-drained tree also fails, so the RED is genuine; but the assertion could pass vacuously if the scan were pointed at an empty directory. Its control plants one occurrence in the scanned tree and requires the count to become 1, proving the scanner still scans.
 - `mutation-428.txt` — TEST-428 asserts an absence over the live tree, the exact shape Spec-AC-15's own positive-control lint exists to refuse. Its control plants one instance of each lint's shape and requires each rule to report exactly one finding, proving the lints ran.
+- `mutation-412.txt` (recorded in `mutation-sweep.txt`) — added at remediation (BLOCKING-18). TEST-412 asserts an invariant (verdict set identical at width 1 and width 4) that also held on the pre-change, fixed-wave-barrier tree — reproduced directly against `origin/main`'s `test-framework.sh`. Its control is the spec-prescribed mutation "mask the queue child's real exit code on the clean-report path", which reddens it on the current tree.
+- `mutation-441.txt` — TEST-441 Part A asserts a tolerance that already held on the unmodified tree (the CI-only layer-profiles failure this follow-up described no longer reproduces). Its control restores a committed-INDEX-diff-style hard check in a scratch copy of `docs-audit-core.mjs`, which reddens Part A deterministically.
+- `mutation-445.txt` — added at remediation (BLOCKING-5). `tests/skills/test-aai-spec-amend.sh` and `.aai/scripts/spec-amend.mjs` are BYTE-UNTOUCHED by this branch, so TEST-445's three arms (the format trap, append-only, classification-strictness) all test PRE-EXISTING engine behaviour. Each arm's own control mutates a scratch copy of the engine (arms A/B) or plants a deliberately unclassified fixture record (arm C) and observes the SAME property genuinely fail.
+- `mutation-447.txt` — added at remediation (BLOCKING-5). `tests/skills/test-aai-deslop.sh`'s released-CHANGELOG comparison algorithm predates this branch. TEST-447 reproduces the same section-extraction-and-compare logic against two scratch fixture files and mutates one byte inside the released section, reddening the comparison.
+- `mutation-422.txt` — TEST-422/fu-exit-contract-pin-comment-dup's pre-fix defect IS a wrongly-green PASS (a whole-file grep also matches the untouched header-comment copy of the exit-contract phrase), not any kind of FAIL — there is no RED state to capture. Recorded as a BEFORE/AFTER mutation pair instead: BEFORE the fix the mutation is silently accepted (PASS), AFTER the fix the SAME mutation is caught (FAIL).
+- `mutation-446.txt` — TEST-446/TEST-312's pre-fix defect is the same shape: an unreadable base ledger silently SKIPPED the corpus-credit drift check and the arm still PASSED. Recorded as the same BEFORE/AFTER pair.
 
 Additional mutations that must each redden a NAMED test, run in the same pass and recorded in `mutation-sweep.txt`:
 
@@ -532,7 +541,7 @@ Additional mutations that must each redden a NAMED test, run in the same pass an
 - Restoring TEST-013's zero-count premise must redden TEST-423.
 - Restoring `-eq 3` in the closure allowlist must redden TEST-424.
 - Restoring the substring usage pin must redden TEST-425.
-- Reintroducing one `log_pass` on any of the nine guards' degenerate branches, or adding a thirty-sixth degenerate-pass site, must redden TEST-426.
+- Reintroducing one `log_pass` on any of the nine guards' degenerate branches, or adding a twenty-seventh degenerate-pass site (the shipped baseline is 26, not the pre-remediation 35), must redden TEST-426.
 - Removing any one lint must redden TEST-427, one arm each.
 - Removing `select-suites.mjs` from either prompt must redden TEST-429.
 - Removing `.aai/ROLE_COMMON.md` from the `aai-state` globs must redden TEST-430.
@@ -571,7 +580,7 @@ Residual risks, written down because no automated test crosses them:
 - **R1 — this scope does not prove the CI-only layer-profiles failure is gone, and says plainly that it does not know the mechanism.** Planning reproduced nothing: 16 concurrent standalone runs in a scratch clone were all green, on top of the twelve isolated runs the intake already records. What planning DID establish, from the failing job log of run `34737181188`, is that the standalone suite passed while its nested copy failed in the same sweep, and that the nested failure printed an EMPTY missing-file list — a state no incomplete copy produces and which planning could not construct. Spec-AC-01 and Spec-AC-02 are therefore written as the two checks that would have named the cause: a build that verifies what it copied, and an assertion that refuses to fire on a payload it cannot render. The claim this scope makes is that the NEXT occurrence explains itself, not that there will not be one. The one mechanism planning ruled out by measurement, and records so it is not re-investigated: `printf '%s\n' "$CORE_FILES" | grep -qxF` in the sync's prune loop cannot SIGPIPE today, because the core list is 5322 bytes against a 16 KiB pipe buffer — a latent hazard of the same family this scope drains under Spec-AC-11, not this failure.
 - **R2 — the `reference-transaction` hook could PREVENT the HEAD move rather than detect it**, and is not used here: it is opt-in, not inherited by a clone, and changing what it refuses is consumer-visible git behaviour owned by ISSUE-0083 in sweep 5. The pin is therefore a detection, and a session that never pins is unprotected.
 - **R3 — the after-numbers for the scheduler are modelled**, over the recorded per-suite durations of one run. They ignore disk contention from concurrent `git clone --local --no-hardlinks`, which is the stated reason the width is capped at 8. Spec-AC-06 is written against a MEASURED run, not against the model, and the model is only the reason to attempt it.
-- **R4 — the rolling attribution window is more code than the barrier it replaces.** Its bound is asserted by TEST-413 at twice the width; a bug inside it would degrade attribution, which is the property this scope claims to preserve. This is the single largest implementation risk in the sweep and the one review should read first.
+- **R4 — the rolling attribution window is more code than the barrier it replaces.** Corrected at remediation (validation round 1 BLOCKING-4; see `## Amendment`): the per-completion check design structurally bounds the window at `PARALLEL_WIDTH`, not 2x — TEST-413's own 4-suite/writer-in-initial-batch fixture can never approach the 2x-width truncation, so the original claim that "its bound is asserted by TEST-413 at twice the width" was false as written; the truncation at `:1800-1802` was dead code on every real run. TEST-413 now carries a genuine negative control (a 10-suite/width-2/late-writer fixture, run against both the shipped framework and a scratch copy with the reset and the truncation both removed) that reddens exactly the mutation the validator demonstrated, proving the safety net is load-bearing as defense-in-depth even though normal operation never reaches it. A bug inside the rolling window would still degrade attribution, which is the property this scope claims to preserve — this is still the single largest implementation risk in the sweep and the one review should read first.
 - **R5 — 202 assertion rewrites is the largest mechanical surface here**, and 48 of them need judgement. The anchored-regex trap is named in the plan because a wrong rewrite is green.
 
 ## Verification
@@ -582,18 +591,18 @@ Residual risks, written down because no automated test crosses them:
 - `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md`
 - `env -u AAI_ROLE node .aai/scripts/docs-audit.mjs --check --strict --no-event`
 - `node .aai/scripts/follow-ups.mjs verify-closures --path docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md --strict`
-- PASS criteria: every TEST row green AND every Spec-AC in a terminal status.
+- PASS criteria: every TEST row green AND every Spec-AC in a terminal status **at close** (`.aai/VALIDATION.prompt.md` step 8a's AC-FLIP DEFERRAL: while this doc's frontmatter `status` is open, validation and code review MUST NOT flip the AC Status table terminal — a terminal, evidenced table under an open `status` is exactly what the probable-false-open heuristic flags. The flip is `.aai/SKILL_PR.prompt.md`'s own ordered close step, gated by `docs-audit.mjs --ac-flip-check`).
 
 ## Evidence contract
 
 - ref_id: `test-framework-sweep`
 - RED artifacts: `docs/ai/tdd/spec-test-framework-sweep/red-4NN.txt`, one per RED-first test named in `## Mutation checks`.
-- Mutation artifacts: `mutation-408.txt`, `mutation-418.txt`, `mutation-428.txt` and `mutation-sweep.txt` in the same directory. A test named there as mutation-only has NO red file and MUST have its mutation file; the two sets are disjoint and together cover all 49 tests.
+- Mutation artifacts: `mutation-408.txt`, `mutation-418.txt`, `mutation-428.txt`, `mutation-412.txt` (recorded in `mutation-sweep.txt`), `mutation-441.txt`, `mutation-445.txt`, `mutation-447.txt`, `mutation-422.txt`, `mutation-446.txt` and `mutation-sweep.txt` in the same directory. A test named there as mutation-only has NO red file and MUST have its mutation file; the two sets are disjoint and together cover all 49 tests. (Corrected at remediation, validation round 1 BLOCKING-17/18: the mutation-only set grew from 3 to 9 — see `## Amendment`.)
 - Timing artifacts: `sweep-before.txt` and `sweep-after.txt`, each holding the full-sweep summary line with its RUN_ID, width and wall-clock.
 - Partition artifacts: the frozen bucket list already at `bucket-open-2026-09-13.txt`, plus `closures.txt` holding the output of `follow-ups.mjs verify-closures --strict`.
 - Per-test green runs with exit codes, plus the scoped diff; commit SHA or diff range on every artifact.
 
-Strategy row (tdd): a stored RED artifact per AC-gating test plus the full verification matrix. The three tests that cannot RED are covered by the recorded mutation failures instead, which is the substitution this section exists to declare.
+Strategy row (tdd): a stored RED artifact per AC-gating test plus the full verification matrix. The nine tests that cannot RED (see `## Amendment`) are covered by the recorded mutation failures instead, which is the substitution this section exists to declare.
 
 ## Registry items closed by this scope
 
@@ -625,10 +634,19 @@ Strategy row (tdd): a stored RED artifact per AC-gating test plus the full verif
 
 ## Registry items rejected by this scope
 
-36 of the 84 bucket ids, each closed with the same command plus `--status dropped`,
-carrying the reason below as `--resolved-by` — the CLI's own contract is
-`"resolved_by": "<ref that resolved it, or the reason for dropped>"`, so a drop records
-its reason in that field rather than a ride ref. A reason that names a sweep names the
+36 of the 84 bucket ids, each closed with the same command plus `--status dropped
+--resolved-by test-framework-sweep --source "<the reason below>"`. Corrected at
+remediation (validation round 1 BLOCKING-12, see `## Amendment`): the ORIGINAL text
+here claimed the reason goes into `--resolved-by`, citing the CLI's own header-comment
+contract (`"resolved_by": "<ref that resolved it, or the reason for dropped>"`) — but
+that phrase is itself a pre-existing, repo-wide documentation inaccuracy in
+`follow-ups.mjs` (predating this ride, SPEC-0129): EVERY dropped record in the whole
+ledger, not only this ride's 36, carries the ride/triage ref in `resolved_by` and the
+reason in `source`, and this ride's 36 closures followed that same established,
+actual grammar rather than the header comment's aspirational one. Rewriting 36
+append-only ledger records to match the wrong wording would be the more expensive,
+less truthful fix; the wording here now matches the ledger's real, established
+grammar instead. A reason that names a sweep names the
 ride that owns the subject, per the wave-3 mandate table. These ids are deliberately
 NOT listed under the closed-by-this-scope heading, because `verify-closures` reads that
 heading as a claim of `done`.
@@ -664,7 +682,7 @@ heading as a claim of `done`.
 | fu-release-ps1-rawexit-regex-unpinned | wrong subsystem: the release PowerShell engine, not the test framework |
 | fu-friction-scoring-rewards-recurrence | wrong subsystem: friction triage scoring, sweep 6 |
 | fu-specs-embed-developer-local-paths | wrong subsystem: a docs hygiene sweep over merged specs, sweep 4; this spec avoids adding a twenty-fifth instance |
-| fu-spec-evidence-cites-gitignored-path | claim withdrawn: the one spec doing it is no longer the shape described, and no spec in the repository cites a gitignored evidence path today |
+| fu-spec-evidence-cites-gitignored-path | claim narrowed (code review NB-14, corrected via `follow-ups.mjs close --correct`): the original reason overclaimed ("no spec in the repository cites a gitignored evidence path today") — gitignored evidence citation is a common house style for AC evidence across many specs, not a residual (validation round 4 F-6: the exact count is extraction-method-sensitive — three independent measurements this ride produced three different pairs, from ~16% to ~82%, depending on which path forms and cells are scanned — so no specific digit is asserted here as fact; `docs/ai/decisions.jsonl:917`'s own "470 of 575 … 842 of 1193 … 120 specs" figures are unreproducible without the record naming its extraction, and the record cannot be edited — append-only). The narrower, true claim stands regardless of the exact count: the spec that prompted this item no longer cites its own evidence in the shape originally described |
 | fu-amend-friction-upsert-channel-ba7701 | owner sign-off backlog: only the owner can discharge an amendment sign-off |
 | fu-amend-live-agent-dashboard-ser-e1ff12 | owner sign-off backlog |
 | fu-amend-roadmap-driven-ride-sele-1e2448 | owner sign-off backlog |
@@ -675,3 +693,246 @@ heading as a claim of `done`.
 ## GitHub issues
 
 - **#368 REJECTED.** Its entire body is a friction metadata block with no prose: `failure_class: deterministic_script_failure`, `skill: REMEDIATION / reproduce`, `os_family: windows`, `aai_pin: v2026.08.16`, and an `evidence_ref` naming `docs/ai/reports/VALIDATION-20260826-161909Z-prd009-mms-control-input-scope.md`. No comments. That path does not exist in this repository, nothing matching `prd009` or `mms-control-input` does, and the fingerprint is absent from `docs/ai/friction/`: it is a downstream install's artifact, three weeks and several releases behind. No script is named, no command, no error text, no exit code. A Windows machine would not help, because nothing was captured to reproduce. The framework-side fix is the CHANNEL that files prose-free issues, which is already intaked as `docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md` and measures the identical pathology on #338 and #339; #368 is a third instance and is folded into that decision, in sweep 6.
+
+## Amendment (post-freeze, 2026-09-13 — remediation after validation round 1 FAIL)
+
+This is a FROZEN spec, amended after the freeze and disclosed here rather than
+rewritten silently, per the additive-with-disclosure convention (see e.g.
+`docs/specs/SPEC-0178-...md` `## Amendment`). Validation round 1
+(`docs/ai/tdd/spec-test-framework-sweep/validation-round1.txt`) returned FAIL
+with 12 numbered findings; every one is addressed at cause, in this same round,
+and disclosed here rather than left implicit in a diff. Authority:
+`docs/ai/decisions.jsonl`, `type: spec_amendment`, `ref_id: test-framework-sweep`
+(owner sign-off owed — a follow-up is filed for it, same as every other
+amendment in this repository's history).
+
+- **AC-07 / R4 (BLOCKING-4).** The 2x-PARALLEL_WIDTH truncation
+  (`test-framework.sh:1800-1802`) was dead code on every real run: the
+  per-completion-check scheduler design structurally bounds the attribution
+  window at `PARALLEL_WIDTH`, not 2x, so TEST-413's original 4-suite fixture
+  (writer in the initial batch) could never approach the bound. TEST-413 now
+  carries a genuine negative control — a 10-suite/width-2/late-writer
+  fixture, run against both the shipped framework (bounded, as always) and a
+  scratch copy with the clean-path reset AND the truncation both removed
+  (unbounded, reddening the same check) — proving the safety net is
+  load-bearing defense-in-depth even though normal operation never reaches
+  it. R4 and the AC-07 table row are corrected above to state this plainly
+  rather than repeat the false "asserted... at twice the width" claim.
+- **AC-12 (BLOCKING-5/6).** TEST-445 and TEST-447 existed only in this
+  document's own prose — nowhere in `tests/`, `.aai/` or anywhere else. Both
+  are now real tests (`test-aai-spec-amend.sh
+  test_445_ac12_negative_controls_test003_008_009`,
+  `test-aai-deslop.sh test_447_released_changelog_comparison_negative_control`),
+  each with a genuine mutation or deliberately-broken-input control
+  (`mutation-445.txt`, `mutation-447.txt`). `test-aai-release.sh:57`'s
+  `RELEASE_ENGINE_PIN_SHA` was byte-identical to the live engine (this scope
+  never touched `.aai/scripts/aai-release.sh` — `git log origin/main..HEAD`
+  over it is empty, and 230921a8, the commit the pin named, is still the
+  file's last-touching commit) — a self-comparison, the exact DEBT-0004
+  shape this AC exists to remove. Re-pinned to `6adfe840956f9c52ab645a6db5c479120310d907`
+  (blob at commit ffe3f320, the commit immediately BEFORE 230921a8 to touch
+  the file — genuinely different content, and the diff between the two
+  touches only the `--confirm`-less preview path TEST-031 never exercises).
+  A new negative control in `test_031_unprotected_path_byte_identical`
+  mutates a scratch copy of that pinned blob (one stdout line) and proves
+  the byte-identity comparison catches it.
+- **AC-26 / TEST-443 (BLOCKING-16).** `test-aai-follow-ups.sh:2027` used to
+  `log_skip` (`exit 42` — voids the WHOLE suite, per this file's own
+  documented trap) when `bucket-open-2026-09-13.txt` was absent — true on
+  every fresh `git clone`/CI checkout, since the path is gitignored
+  (`.gitignore:35`). The frozen id list's canonical source is now the
+  spec's OWN closed+rejected tables (tracked, committed) — proven
+  byte-set-identical to the gitignored file's 84 ids — with the gitignored
+  file kept only as a non-blocking corroboration where present. Reproduced
+  fixed with a `git ls-files`-only rebuild of the tree (the CI/fresh-clone
+  condition): the old code SKIPs (rc=42, product_red evidence), the new
+  code PASSes (rc=0).
+- **Evidence contract — RED_CLASS (BLOCKING-17).** None of the 44 (now 41)
+  `red-*.txt` files carried the `RED_CLASS` line the shipped
+  `tdd-evidence-check.mjs --red` classifier and `test-aai-spec-lint.sh`'s
+  own `test_clarify_012_red_class_stamped` arm require — a scope-level gap
+  predating this ride, not a regression it introduced, but blocking because
+  the guard that should have caught it (that same TEST-012(clarify) arm) was
+  itself vacuous: it scans a glob (`docs/ai/tdd/red-*vagueness-gate*.log`)
+  this spec's own evidence never matched, so it always measured n=0 and
+  passed on an absent premise — the exact AC-15 absence-no-control shape.
+  Every `red-*.txt` now carries `RED_CLASS: product_red` as line 1;
+  `tdd-evidence-check.mjs --red` exits 0 on all 41. Five files whose
+  original capture died at a raw shell "command not found" BEFORE any
+  product assertion ran (`red-402`, `red-403`, `red-421`, `red-424`,
+  `red-448` — a genuine `infra_fail` shape, not `product_red`) were
+  RE-CAPTURED with the underlying property genuinely exercised (a
+  behaviorally-neutralized scratch copy of the guard under test, never a
+  missing dependency), so each now reaches and reports the test's own FAIL
+  line. `test_clarify_012_red_class_stamped` gained a positive control
+  (validation round 2, R2-2): the scan loop's root is now a variable
+  (`AAI_T012_SCAN_ROOT`, default `docs/ai/tdd`), the loop body itself is a
+  shared function (`t012_scan_red_logs`, no duplicated regex), and the
+  control plants a well-formed/malformed fixture pair INSIDE a scratch copy
+  of that root, then re-runs the SAME function against the copy and asserts
+  its own reported count rose by the two planted files and classified one
+  STAMPED and the other UNSTAMPED — proving the loop itself discriminates,
+  not a copy of its regex. The real `docs/ai/tdd` corpus still carries no
+  `red-*vagueness-gate*.log` file for this scope (n=0 there), so the
+  primary claim is a NOTE-degraded no-op on this tree and the positive
+  control is what carries the arm's bite.
+- **Evidence contract — mutation-only carve-outs (BLOCKING-18).** TEST-412,
+  TEST-422, TEST-441, TEST-445, TEST-446 and TEST-447 join the
+  "CANNOT go RED by construction" list (previously only TEST-408/418/428):
+  TEST-412 and TEST-441 assert invariants that also held on the pre-change
+  tree (reproduced directly against `origin/main`); TEST-422 and TEST-446's
+  pre-fix defect IS a wrongly-green PASS, not any kind of FAIL, so neither
+  ever had a genuine red state to capture; TEST-445 and TEST-447 test
+  engine files this branch never touched. `red-441.txt`'s content (already
+  the correct "cannot go RED" declaration, just filed under the wrong
+  naming convention) is merged into `mutation-441.txt` and the stray
+  `red-441.txt`/`red-422.txt`/`red-446.txt` files are removed, matching the
+  Evidence contract's own rule that a mutation-only test has NO red file.
+  `green-424.txt` (BLOCKING-19, zero PASS lines, prose admitting the arm
+  still failed) is re-recorded from a genuinely passing run now that
+  Spec-AC-26's bucket closure has landed.
+- **AC-19 (BLOCKING-21).** The original fix covered only TEST-001, TEST-003
+  and TEST-005's own bodies; every OTHER `test-framework.sh` invocation in
+  `test-aai-suite-isolation.sh` (TEST-002, TEST-004, TEST-201 through
+  TEST-211 and more — 20 call sites) still inherited
+  `AAI_TEST_ISOLATION` from the operator's ambient shell. Every call site
+  now states `AAI_TEST_ISOLATION=1` explicitly (one site — TEST-004(d)'s
+  `perl -e '... exec @ARGV'` probe — needed the var set on `perl`'s OWN
+  environment rather than passed as a literal `argv` element, since
+  `exec LIST` bypasses the shell and never parses `VAR=value` prefixes).
+  TEST-434 now actually re-runs all three functions under an exported
+  `AAI_TEST_ISOLATION=0`, not just TEST-001 with a `log_pass` prose claim
+  about the other two. Reproduced: `env -u AAI_ROLE -u AAI_TEST_ISOLATION`
+  and `AAI_TEST_ISOLATION=0 env -u AAI_ROLE` both now exit 0 over the whole
+  suite (44 arms).
+- **AC-08 (BLOCKING-22).** `aai-run-tests.ps1`'s `Get-EffectiveTimeout`
+  still returned 300 and forced that value into the inner `.sh` on both the
+  WSL and Git-Bash paths (`:535`, `:573`), silently overriding the `.sh`
+  wrapper's already-shipped raise to 3000 on every Windows run — the
+  cross-platform parity `aai-run-tests.sh:56-60` itself claims was false.
+  Now raises to 3000. The header comment (`:81-82`) and the Pester fixtures
+  that pinned the old default (`aai-win-dispatch.Tests.ps1`, 4 assertions)
+  are corrected to match; all 150 Pester cases pass. A new grep-based check
+  in `test-ps1-quality.sh` (runs without `pwsh`, unlike the Windows-5.1-only
+  Pester leg, which cannot be exercised on this machine at all) pins the
+  `.ps1` and `.sh` defaults equal going forward.
+- **AC-04 (BLOCKING-1/2).** `pinDir()` forked `git rev-parse --git-dir`
+  even on the no-pin path — measured with a git shim, one subprocess on a
+  no-pin fixture, contradicting D4's "costs one stat" and the code comment
+  at `branch-guard.mjs:33-35`. A new `pinDirFast()` resolves the git-dir via
+  `fs.lstatSync`/`fs.readFileSync` only (a main checkout's `.git` directory,
+  or a linked worktree's `.git` file's `gitdir:` line), falling back to the
+  git subprocess for anything else (bare repo, `GIT_DIR` override, cwd not
+  at the repo root) so correctness never trades against the stat-only
+  promise; re-verified with the same shim (zero git subprocess calls on
+  `--verify-pin` with no pin file). Separately, TEST-408's baseline moved
+  from `git show HEAD:` — already the scope's OWN post-change script,
+  measured 8 occurrences of `verify-pin` in it, an identity check — to
+  `git show origin/main:` (falling back to `main`, failing closed if
+  neither resolves rather than silently passing), the genuine pre-change
+  blob.
+- **AC-14 (BLOCKING-7/9).** Established fact 18 and the AC-14 row both said
+  "35", measured with `grep -i`; `degenerate-pass-ratchet.sh` actually
+  scans case-sensitively (matching the rest of its ratchet family) and
+  measures 31 pre-scope (`origin/main`) / 26 post-scope (five of the nine
+  converted guards also carried this shape) — the ratchet's own header
+  comment now states this measured provenance instead of a false "matching
+  the spec's own established-fact measurement" claim. Separately,
+  `test-aai-follow-ups.sh`'s delivery-diff guard (TEST-031/TEST-448) is a
+  genuinely PERMANENT UNCOVERED case: its primary path (is this scope's own
+  spec, SPEC-0159, part of the live diff) can never fire again once
+  SPEC-0159 is merged history, on any future branch. It used to report
+  UNCOVERED via `log_info` and then still fall through to an unqualified
+  `log_pass` claiming "no other frozen spec document is touched" — exactly
+  what Spec-AC-14 exists to refuse. A literal `log_fail` there would abort
+  the WHOLE suite immediately under this file's `set -euo pipefail` (unlike
+  sibling suites with a soft per-arm failure registry), voiding every test
+  after it (TEST-443 included) on every future run forever — a worse
+  defect than the one being fixed. The function's own final verdict message
+  is now honest instead: it states plainly when the primary path is
+  UNCOVERED and that the verdict rests on the TEST-448 negative control
+  alone (which is real, re-runs every time, and does gate the function).
+- **AC-22 (BLOCKING-10/11).** `.aai/scripts/allocate-doc-number.mjs` is 1 of
+  the 24 `.aai/scripts/*.mjs` main-guard call sites and was excluded from
+  the realpath fix only in a test comment
+  (`test-aai-doctor.sh:1861-1866`), never in this document — the AC text
+  still said "every one of the 24" and no residual risk named the gap. The
+  exclusion itself is defensible (the file is one of eight
+  `docs/ai/docs-audit.yaml` `protected_paths_l3` surfaces; touching it
+  forces `ceremony_level:3` and this ride is ceremony 2 — established fact
+  9) but was undisclosed. The AC-22 table row above now states the
+  exception plainly, and `fu-realpath-allocate-doc-number-l3` (P3) is filed
+  to track it — `fu-ismain-symlink-realpath` stays closed `done` for the 22
+  of 23 guards it actually fixed (validation round 2 NON-BLOCKING: the 24th
+  file, `.aai/scripts/heartbeat.mjs:435`, references `process.argv[1]` only
+  inside a comment, so the real accounting is 23 actual main guards = 22
+  resolved + this one excluded, not 24 or "23 of 24" as this bullet
+  previously said — review R3-NB-3) rather than being reopened for a defect
+  it never claimed to cover for this one file.
+- **AC-26 (BLOCKING-12/13).** The "Registry items rejected by this scope"
+  preamble claimed the reason for each of the 36 dropped ids goes into
+  `--resolved-by`, citing `follow-ups.mjs`'s own header-comment contract
+  (`"resolved_by": "<ref that resolved it, or the reason for dropped>"`).
+  That phrase is itself a pre-existing, repo-wide documentation inaccuracy
+  (predating this ride, SPEC-0129): every dropped record in the WHOLE
+  ledger — not only this ride's 36 — carries the ride/triage ref in
+  `resolved_by` and the reason in `source`, and this ride's closures
+  followed that same established, actual grammar. Rewriting 36 append-only
+  ledger records to match the wrong wording would have been the more
+  expensive, less truthful fix; the preamble and the AC-26 table row are
+  corrected to match the ledger's real grammar instead. Separately, the AC's
+  promised "`suite-map.yaml` row plus row-count pin" did not exist —
+  `test-aai-hygiene-pack.sh`'s `test_090_suite_map_pin` was a per-suite
+  EXISTENCE check, not a count. A row-count pin is now written (a top-level
+  `<name>:` row count over `suite-map.yaml`, pinned at 93).
+- **AC-06 (BLOCKING-3).** The delivered `sweep-after.txt` (835.29 s) was
+  measured on a 93-suite/19-failure run against a 92-suite/92-PASS baseline
+  — different corpus, different outcome profile, an undisclosed confound.
+  `sweep-after.txt` is re-recorded from a full local sweep of the CURRENT,
+  remediated tree (`bash .aai/scripts/aai-run-tests.sh bash
+  tests/skills/test-framework.sh`, run `test-20260913-180339`, 89/93 PASS,
+  width 8) — and it carries its OWN disclosed confound in turn: this sweep
+  ran concurrently with several OTHER full suites this same remediation
+  round also ran (hygiene-pack, suite-isolation x2, sweep-parallel,
+  prompt-diet, layer-profiles, doctor), so its 1850 s wall-clock reflects
+  real CPU contention, not the scheduler alone, and is stated as such rather
+  than presented as a clean number. The gate is instead recommended against
+  the two UNCONTENDED, already-on-record runs this remediation round did not
+  touch (`test-20260913-151649` 726 s, `test-20260913-154408` 735 s — both
+  comfortably under the 1060.8 s threshold, both already the validator's own
+  cited corroboration) — see `sweep-after.txt` for the full, honest
+  accounting of both numbers and why neither is hidden in favour of the
+  other. NON-BLOCKING UPDATE (validation round 2): a later full sweep this
+  round, `test-20260913-185949`, finished 93/93 PASS at 897 s — the first
+  zero-failure full sweep on this branch and the first apples-to-apples
+  comparison against the canonical 92/92-PASS baseline (same outcome
+  profile, one suite heavier). 897 / 1632 = 55.0% <= 65%, PASSING, and the
+  run was contended (concurrent with the validator's own other checks), so
+  897 s is an upper bound, not a cherry-picked number. `sweep-after.txt` now
+  cites this run as the primary AC-06 evidence; the 726 s / 735 s pair
+  remains as corroborating uncontended-machine evidence.
+- **AC-03 (validation round 4 BLOCKING-1).** Spec-AC-03's HEAD-sha comparison
+  is amended to ADVANCE-ONLY for a caller that names `--expect-branch`: a
+  same-branch HEAD that is a git-ancestor descendant of the pinned sha
+  (`git merge-base --is-ancestor <pin.sha> HEAD`) is read as the ceremony's
+  OWN commit, not a concurrent move, and passes. Bare `--verify-pin` (no
+  `--expect-branch`) is UNCHANGED and keeps the original exact-sha-match
+  reading TEST-405 exercises. Root cause: SKILL_PR pins HEAD once at step 0
+  (PRECONDITIONS) and then COMMITS at steps 4/4c/5c, so an exact-match sha
+  check made `checkBranchPin` refuse the very ceremony that armed it —
+  measured end to end on a fresh fixture with one session, one branch and no
+  concurrency, steps 4a/4c/5 all refused a HEAD move the SAME session had
+  just made, and the prompt told the agent to STOP at 4a and REVERT the
+  AC-table flip at 4c (a 100% false positive on every ride). The engine was
+  not at fault (the exact-sha reading was what Spec-AC-03 specified); the
+  WIRING gave the ceremony no way to re-establish the pin between its own
+  writes. `--expect-branch <b>` is ALSO amended to actually compare `b`
+  against the current branch (closing review NB-3: the flag used to be read
+  only as a boolean opt-in for the pin-file check, never against its own
+  value — `--expect-branch zzz-nonexistent` and `--expect-branch main`
+  produced byte-identical output on a mismatching pin). TEST-454
+  (`test-aai-branch-guard.sh`) proves the full sequence end to end: pin ->
+  the ceremony's own commit -> all three call sites pass; a genuine
+  concurrent reset to an older, non-descendant commit on the same branch
+  still refuses at each, with its documented code. Exits 5/6/7 stay the
+  three named causes AC-03 requires; exit 4 (no-work-tree) is unchanged.

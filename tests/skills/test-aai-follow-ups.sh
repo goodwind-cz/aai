@@ -1935,6 +1935,7 @@ other_frozen_specs_touched() {
 test_031_both_registry_items_closed_for_real() {
   log_info "Test: both fu-adhoc-probes-unisolated-report-only and fu-spec-closes-claim-unverified are closed for real in the live ledger, resolved_by naming this scope; no other frozen spec document is amended by this scope's diff (TEST-013)..."
   local out ec=0
+  local uncovered_note=""
   out="$(cd "$PROJECT_ROOT" && node "$FU" list --ref registry-audit-20260820 --status all --json 2>&1)" || ec=$?
   [[ "$ec" == 0 ]] || log_fail "TEST-031: list must exit 0, got $ec: $out"
   local check
@@ -1977,16 +1978,32 @@ test_031_both_registry_items_closed_for_real() {
       [[ -z "$other_specs" ]] \
         || log_fail "TEST-031: this scope's diff touches another frozen spec document, which Spec-AC-13 forbids: $other_specs"
     else
-      # Spec-AC-13 (fu-test031-guard-dies-at-rename): SPEC-0159 is this
+      # Spec-AC-13 (fu-test031-guard-dies-at-rename), corrected at
+      # remediation (validation round 1 BLOCKING-9): SPEC-0159 is this
       # guard's OWN scope, now merged history — it will never again be part
-      # of a live $BASE_REF...HEAD diff, so this branch is not an occasional
-      # degrade, it is this guard's PERMANENT resting state on every branch
-      # from here on. The old text ("not this scope's delivery branch,
-      # guard not applicable here") read as a claim that something was
-      # checked; nothing was. Name that honestly.
-      log_info "TEST-031: UNCOVERED — this scope's own spec document (SPEC-0159, now merged history) is not part of the live $BASE_REF...HEAD diff, so the delivery-diff guard has nothing of its own delivery to check on this branch"
+      # of a live $BASE_REF...HEAD diff, so this branch is not an
+      # occasional degrade, it is this guard's PERMANENT resting state on
+      # every branch from here on. Reporting UNCOVERED and then still
+      # falling through to a log_pass that claimed "no other frozen spec
+      # document is touched" was exactly the shape Spec-AC-14 exists to
+      # refuse: UNCOVERED is not a synonym for verified, so the marker below
+      # is threaded into this function's OWN final verdict message instead
+      # of being silently absorbed into an unqualified PASS claim. A hard
+      # `log_fail` here — this suite runs `set -euo pipefail` with a
+      # fatal-on-first-failure log_fail, unlike the soft per-arm registries
+      # some sibling suites use — would abort the WHOLE suite immediately
+      # and void every test after this one (TEST-443, TEST-032 and more),
+      # exactly the BLOCKING-16 log_skip trap this same ride fixed
+      # elsewhere; this permanent condition would then fail every run
+      # forever with no way to observe anything past it. The negative
+      # control immediately below is this guard's real, ongoing protection
+      # (it exercises the SAME comparison function on a live fixture on
+      # every run) and is what actually gates this function's PASS/FAIL.
+      uncovered_note="TEST-031's delivery-diff guard: PERMANENTLY UNCOVERED on its primary path (SPEC-0159 is merged history and can never again appear in a live $BASE_REF...HEAD diff) — only the fixture negative control below still exercises it"
+      log_info "TEST-031: UNCOVERED — this scope's own spec document (SPEC-0159, now merged history) is not part of the live $BASE_REF...HEAD diff, so the delivery-diff guard's PRIMARY path has nothing of its own delivery left to check, on this branch or any future one"
     fi
   else
+    uncovered_note="TEST-031's delivery-diff guard: UNCOVERED — base ref $BASE_REF not resolvable here — only the fixture negative control below still exercises it"
     log_info "TEST-031: UNCOVERED — base ref $BASE_REF not resolvable here, so the delivery-diff guard cannot compute a diff at all (degrade, not a failure)"
   fi
 
@@ -2009,22 +2026,36 @@ test_031_both_registry_items_closed_for_real() {
   [[ -z "$fx_violation" ]] \
     || log_fail "TEST-031 negative control: a diff touching ONLY this scope's own spec was wrongly flagged: $fx_violation"
 
-  log_pass "both registry items named by ISSUE-0046 are closed for real, resolved_by naming this scope; no other frozen spec document is touched, and the delivery-diff guard's fixture negative control proves it still has teeth (TEST-013/TEST-448/Spec-AC-12+13)"
+  if [[ -n "$uncovered_note" ]]; then
+    log_pass "both registry items named by ISSUE-0046 are closed for real, resolved_by naming this scope; the delivery-diff guard's PRIMARY path is UNCOVERED ($uncovered_note), so this verdict rests on its fixture negative control alone, which proves it still has teeth (TEST-013/TEST-448/Spec-AC-12+13)"
+  else
+    log_pass "both registry items named by ISSUE-0046 are closed for real, resolved_by naming this scope; no other frozen spec document is touched, and the delivery-diff guard's fixture negative control proves it still has teeth (TEST-013/TEST-448/Spec-AC-12+13)"
+  fi
 }
 
 # ============================ TEST-443 (Spec-AC-26) ===========================
 # spec-test-framework-sweep's own registry closure claim, over the REAL ledger:
 # `verify-closures --strict` over the spec exits 0, every one of the 84 frozen
-# bucket ids (docs/ai/tdd/spec-test-framework-sweep/bucket-open-2026-09-13.txt)
-# is terminal (done or dropped) with resolved_by naming this ride, and the
-# union of the spec's own closed(48)+rejected(36) tables is EXACTLY those 84
-# ids — no more, no fewer.
+# bucket ids is terminal (done or dropped) with resolved_by naming this ride,
+# and the union of the spec's own closed(48)+rejected(36) tables is EXACTLY
+# those 84 ids — no more, no fewer.
+#
+# The frozen id list's canonical source is now the spec's OWN closed+rejected
+# tables (docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md, tracked and
+# committed), not docs/ai/tdd/spec-test-framework-sweep/bucket-open-2026-09-13.txt
+# (.gitignore:35 `docs/ai/tdd/**` — untracked). BLOCKING-16 (validation round
+# 1): that file does not exist in a fresh clone, and this test used to
+# `log_skip` on its absence — `log_skip` is `exit 42`, which VOIDS THE WHOLE
+# SUITE (see the warning at the top of this file). NEVER log_skip here for
+# that reason. The spec's two tables are proven byte-set-identical to the
+# frozen bucket file's 84 ids (diff empty both ways, checked when building
+# this fix); the bucket file, where present, is still cross-checked below as
+# a non-blocking corroboration — its absence no longer removes coverage.
 test_032_spec_test_framework_sweep_closure_is_real() {
   log_info "Test: spec-test-framework-sweep's registry closure — verify-closures --strict exits 0, all 84 frozen bucket ids are terminal and resolved_by this ride, and the closed+rejected union is exactly the 84 ids (TEST-443)..."
   local spec_path="$PROJECT_ROOT/docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md"
   local bucket="$PROJECT_ROOT/docs/ai/tdd/spec-test-framework-sweep/bucket-open-2026-09-13.txt"
   [[ -f "$spec_path" ]] || log_skip "spec not found: $spec_path"
-  [[ -f "$bucket" ]] || log_skip "frozen bucket list not found: $bucket"
 
   local vc_out vc_rc=0
   vc_out="$(node "$FU" verify-closures --path "$spec_path" --strict 2>&1)" || vc_rc=$?
@@ -2032,17 +2063,10 @@ test_032_spec_test_framework_sweep_closure_is_real() {
   grep -qE 'miss=0' <<<"$vc_out" \
     || log_fail "TEST-443: verify-closures reported a nonzero miss count: $vc_out"
 
-  # The 84 frozen bucket ids, one per line as "P<n> fu-<id> [ref] text".
-  local bucket_ids
-  bucket_ids="$(awk '{print $2}' "$bucket" | sort -u)"
-  local bucket_count
-  bucket_count="$(printf '%s\n' "$bucket_ids" | grep -c .)"
-  [[ "$bucket_count" == 84 ]] \
-    || log_fail "TEST-443: the frozen bucket list itself no longer holds 84 ids (got $bucket_count) — the FROZEN partition moved, which this test cannot reconcile"
-
   # Union of the spec's OWN closed+rejected tables, read straight from its
   # prose (the same two headings verify-closures itself parses for `claims`).
-  local closed_ids rejected_ids union_ids diff1 diff2
+  # This union IS the frozen bucket — the canonical, tracked source.
+  local closed_ids rejected_ids union_ids
   closed_ids="$(awk '/^## Registry items closed by this scope/{f=1;next} /^## Registry items rejected by this scope/{f=0} f' "$spec_path" \
     | grep -oE 'fu-[a-z0-9-]+' | sort -u)"
   rejected_ids="$(awk '/^## Registry items rejected by this scope/{f=1;next} /^## GitHub issues/{f=0} f' "$spec_path" \
@@ -2053,12 +2077,26 @@ test_032_spec_test_framework_sweep_closure_is_real() {
   [[ "$union_count" == 84 ]] \
     || log_fail "TEST-443: the spec's closed+rejected union is $union_count ids, want 84"
 
-  diff1="$(comm -23 <(printf '%s\n' "$bucket_ids") <(printf '%s\n' "$union_ids"))"
-  diff2="$(comm -13 <(printf '%s\n' "$bucket_ids") <(printf '%s\n' "$union_ids"))"
-  [[ -z "$diff1" ]] \
-    || log_fail "TEST-443: frozen bucket id(s) missing from the spec's closed+rejected union: $diff1"
-  [[ -z "$diff2" ]] \
-    || log_fail "TEST-443: the spec's closed+rejected union names id(s) outside the frozen bucket: $diff2"
+  local bucket_ids="$union_ids"
+  if [[ -f "$bucket" ]]; then
+    # Non-blocking corroboration only: a mismatch here is real evidence
+    # (recorded via log_fail), but the file's ABSENCE (the CI/fresh-clone
+    # case, since it is gitignored) must never remove coverage — only a
+    # `log_fail` below can do that, never a `log_skip`.
+    local raw_bucket_ids raw_bucket_count diff1 diff2
+    raw_bucket_ids="$(awk '{print $2}' "$bucket" | sort -u)"
+    raw_bucket_count="$(printf '%s\n' "$raw_bucket_ids" | grep -c .)"
+    [[ "$raw_bucket_count" == 84 ]] \
+      || log_fail "TEST-443: the frozen bucket list itself no longer holds 84 ids (got $raw_bucket_count) — the FROZEN partition moved, which this test cannot reconcile"
+    diff1="$(comm -23 <(printf '%s\n' "$raw_bucket_ids") <(printf '%s\n' "$union_ids"))"
+    diff2="$(comm -13 <(printf '%s\n' "$raw_bucket_ids") <(printf '%s\n' "$union_ids"))"
+    [[ -z "$diff1" ]] \
+      || log_fail "TEST-443: frozen bucket id(s) missing from the spec's closed+rejected union: $diff1"
+    [[ -z "$diff2" ]] \
+      || log_fail "TEST-443: the spec's closed+rejected union names id(s) outside the frozen bucket: $diff2"
+  else
+    log_info "TEST-443: the untracked bucket file is absent here (expected in a fresh clone/CI — it is gitignored); the frozen id list is read from the spec's own tracked closed+rejected tables instead, which is now the canonical source"
+  fi
 
   # Every one of the 84 ids is terminal in the REAL ledger, resolved_by this
   # ride — not merely claimed in the spec's own prose.
@@ -2082,8 +2120,18 @@ test_032_spec_test_framework_sweep_closure_is_real() {
       done|dropped) ;;
       *) bad_status="${bad_status:+$bad_status }$id($status)" ;;
     esac
-    [[ "$resolved_by" == "test-framework-sweep" ]] \
-      || bad_attrib="${bad_attrib:+$bad_attrib }$id($resolved_by)"
+    # "test-framework-sweep" exactly, OR "test-framework-sweep-<suffix>" --
+    # the one disclosed carve-out this ride's own remediation used
+    # (fu-spec-evidence-cites-gitignored-path, --correct'd to
+    # "test-framework-sweep-remediation": the tool's own close --correct
+    # requires a DIFFERENT resolved_by than the record being corrected, so a
+    # same-ride-prefixed variant is how a WITHIN-RIDE reason correction is
+    # expressed at all; review NB-14). Still ties every id to THIS ride —
+    # an unrelated resolved_by fails exactly as before.
+    case "$resolved_by" in
+      test-framework-sweep|test-framework-sweep-*) ;;
+      *) bad_attrib="${bad_attrib:+$bad_attrib }$id($resolved_by)" ;;
+    esac
   done <<< "$bucket_ids"
   [[ -z "$bad_status" ]] \
     || log_fail "TEST-443: id(s) not terminal in the real ledger: $bad_status"

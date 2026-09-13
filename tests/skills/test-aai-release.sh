@@ -49,12 +49,29 @@ RELEASE_PS1="$PROJECT_ROOT/.aai/scripts/aai-release.ps1"
 # origin/main at RUN TIME, so once this scope's own PR merges, origin/main
 # IS the new engine and the pin compares the working tree to itself forever
 # after — a guard that stopped guarding without ever going red. A fixed blob
-# sha does not move when history moves: it is the aai-release.sh content as
-# of commit 230921a8 (the engine this scope inherited, unmodified by it),
-# addressed by content hash rather than by ref, so it keeps meaning "the
-# pre-change engine" regardless of what merges later. The legal one-line
-# repair for a deliberate stdout-shape change is to re-pin this constant.
-RELEASE_ENGINE_PIN_SHA="f5e5305a269ffa52ae17880a08d35463ecc761a2"
+# sha does not move when history moves, addressed by content hash rather than
+# by ref, so it keeps meaning "the pre-change engine" regardless of what
+# merges later. The legal one-line repair for a deliberate stdout-shape
+# change is to re-pin this constant.
+#
+# Validation round 1 (BLOCKING-6): this scope never touched
+# .aai/scripts/aai-release.sh at all (`git log origin/main..HEAD -- <it>` is
+# empty), so the FIRST pin — the file's content as of commit 230921a8, "the
+# engine this scope inherited" — was ALSO the file's live content: 230921a8
+# is still the last commit to touch this file, so that pin compared the
+# working tree to itself byte for byte (both sides f5e5305a...), which is
+# exactly the self-comparison DEBT-0004/Spec-AC-12 exist to catch. There is
+# no "pre-this-scope" content that differs from today's, because this scope
+# made no edit — so the pin instead goes one commit further back, to ffe3f320
+# (the commit immediately BEFORE 230921a8 to touch this file), a genuinely
+# DIFFERENT blob (`git diff ffe3f320 230921a8 -- .aai/scripts/aai-release.sh`
+# is non-empty: it added a NAMED, non-blocking golden-flow-record-gap notice
+# to the `--confirm`-less PREVIEW path only). TEST-031 always runs with
+# `--confirm`, which that added block never touches, so the comparison below
+# stays a genuine, non-vacuous regression check on the path this arm
+# exercises: a real historical engine, run for real, producing byte-identical
+# `--confirm` stdout to today's — not two copies of the same content.
+RELEASE_ENGINE_PIN_SHA="6adfe840956f9c52ab645a6db5c479120310d907"
 
 TMP_ROOT=""
 
@@ -1267,7 +1284,33 @@ test_031_unprotected_path_byte_identical() {
   diff -u "$TMP_ROOT/t031b.masked" "$TMP_ROOT/t031a.masked" > "$TMP_ROOT/t031.diff" 2>&1 || dcmp=$?
   [[ "$dcmp" == "0" ]] \
     || log_fail "TEST-031: unprotected-path stdout diverged from the $base_ref engine:"$'\n'"$(cat "$TMP_ROOT/t031.diff")"
-  log_pass "TEST-031 unprotected path byte-identical to the $base_ref engine (masked commit line), exit 0, both refs pushed"
+
+  # Negative control (Spec-AC-12/DEBT-0004, TEST-421 — validation round 1
+  # BLOCKING-5, "release TEST-031 -> pin only, NO mutation control"): the
+  # byte-identity comparison above has only ever been OBSERVED passing; a
+  # mutated copy of the SAME pinned blob, with one --confirm stdout line
+  # changed, proves the same comparison actually catches a real divergence.
+  local mut_engine="$TMP_ROOT/t031-mut-release.sh"
+  cp "$old_engine" "$mut_engine"
+  sed -i.bak 's/echo "- Version: \$VERSION"/echo "- version: $VERSION"/' "$mut_engine" && rm -f "$mut_engine.bak"
+  grep -qF 'echo "- version: $VERSION"' "$mut_engine" \
+    || log_fail "TEST-031 negative control: could not apply the stdout-line mutation to the scratch engine copy — the anchor line was not found"
+
+  local repoC="$TMP_ROOT/t031c" bareC="$TMP_ROOT/t031c-bare.git" stubC="$TMP_ROOT/t031c-stub" rcC=0
+  build_repo "$repoC" two_entries
+  git init -q --bare "$bareC"
+  git -C "$bareC" symbolic-ref HEAD refs/heads/main
+  git -C "$repoC" remote add origin "file://$bareC"
+  build_stub_gh "$stubC" "$TMP_ROOT/t031c-ghlog" 0
+  ( cd "$repoC" && PATH="$stubC:$PATH" bash "$mut_engine" --version v9.5.5 --confirm ) \
+    >"$TMP_ROOT/t031c.out" 2>"$TMP_ROOT/t031c.err" || rcC=$?
+  sed 's/^- Commit:.*$/- Commit:  <masked>/' "$TMP_ROOT/t031c.out" > "$TMP_ROOT/t031c.masked"
+  local dcmpC=0
+  diff -u "$TMP_ROOT/t031c.masked" "$TMP_ROOT/t031a.masked" > "$TMP_ROOT/t031c.diff" 2>&1 || dcmpC=$?
+  [[ "$dcmpC" != "0" ]] \
+    || log_fail "TEST-031 negative control: a mutated engine (one stdout line changed) was reported byte-identical — the comparison has no bite"
+
+  log_pass "TEST-031 unprotected path byte-identical to the $base_ref engine (masked commit line), exit 0, both refs pushed, and a mutated copy of that same engine is caught diverging"
 }
 
 # --- TEST-032 (Spec-AC-06): any OTHER push failure degrades raw -------------

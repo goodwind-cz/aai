@@ -20,6 +20,16 @@ PRECONDITIONS (all must hold before any git write)
   the current `current_focus.ref_id`. No `docs/ai/STATE.yaml` at all (a fresh
   hand-implementation clone): `node .aai/scripts/check-state.mjs --repair`,
   then `node .aai/scripts/state.mjs set-focus --type <type> --ref <ref-id> --path <primary-path>`.
+  On exit 0, also run `node .aai/scripts/branch-guard.mjs --pin` (CHANGE-0180
+  D4): records this session's branch+HEAD so steps 4a/4c/5 can re-check below
+  that no concurrent session moved it before each write. Also claim the
+  session lock (D5's other half — the shared-EXISTING-checkout case the
+  2026-09-06 incident actually was, which Setup Worktree's own acquire never
+  covers): `node .aai/scripts/lib/session-lock.mjs status`; a `pid` already
+  `$$` means this session holds it, skip. Otherwise
+  `node .aai/scripts/lib/session-lock.mjs acquire --pid "$$" --ref <ref-id>`;
+  exit 3 names a live session already in this checkout — STOP. Release at the
+  end of step 5: `node .aai/scripts/lib/session-lock.mjs release --pid "$$"`.
 - Validation gate open — `node .aai/scripts/validation-waiver.mjs --state docs/ai/STATE.yaml`
   exits 0. Open on `last_validation.status: pass`, OR on `not_run` plus a
   well-formed waiver record in its `notes`, OR on `not_run` plus an archive
@@ -133,8 +143,10 @@ PROCESS
 
 4a. VERIFY THE COMMITTED BLOB (spec-lessons-that-must-hold-downstream-are-guards
    D3) — AFTER the commit above and BEFORE the push, run
-     node .aai/scripts/check-committed-scope.mjs --from-state --strict --rev HEAD
-   Non-zero: STOP and print its message verbatim; re-stage the named paths and
+     node .aai/scripts/check-committed-scope.mjs --from-state --strict --rev HEAD --expect-branch <branch>
+   `--expect-branch` re-checks step 0's pin (CHANGE-0180 D4); exit 3 means a
+   concurrent session moved HEAD — STOP, do not stage/commit/push. Non-zero
+   otherwise: STOP and print its message verbatim; re-stage the named paths and
    `git commit --amend`. `git add` handed a path something already renamed aborts
    the WHOLE add, and the commit still looks plausible because other steps stage
    files of their own — `git status` cannot tell that apart from a later edit,
@@ -188,10 +200,13 @@ PROCESS
      historical read-the-highest-existing-number-and-add-one guess was luck,
      not procedure):
      node .aai/scripts/close-work-item.mjs --ref <slug> --pr <TBD|NONE> --commit <this-commit-sha> \
-       [--spec <spec-slug>] --review <pass|waived|none>
+       [--spec <spec-slug>] --review <pass|waived|none> --expect-branch <branch>
    - `<slug>` is the primary work-item doc's frontmatter `id`; pass
      `--spec <spec-slug>` when this scope also has a linked spec doc.
      `--review` mirrors `code_review.status` (pass/waived/none).
+     `--expect-branch` re-checks step 0's pin (CHANGE-0180 D4) FIRST, before
+     any write; exit 7 means a concurrent session moved HEAD — STOP, REVERT
+     the AC-table flip above, do not retry blind.
    - Exit 0 = closed (or already closed — idempotent). Exit 1 = the post-close
      self-verify audit was not CLEAN; the script already rolled back — STOP
      and investigate before retrying. Exit 2 = usage error (bad ref, a
@@ -242,8 +257,10 @@ PROCESS
      can never add risk to a large one. Steps 5c/5d branch on this verdict.
    - CLOSE-BEFORE-PUSH GATE (fu-close-before-push-ordering) — immediately
      before the push line below:
-       node .aai/scripts/close-before-push-guard.mjs --ref <slug>
-     Exit 0: proceed. Non-zero: STOP — step 4c did not run (or its commit is
+       node .aai/scripts/close-before-push-guard.mjs --ref <slug> --expect-branch <branch>
+     `--expect-branch` re-checks step 0's pin (CHANGE-0180 D4) one last time
+     before the push; exit 3 means a concurrent session moved HEAD. Exit 0:
+     proceed. Non-zero: STOP — step 4c did not run (or its commit is
      missing from this branch); go back and complete 4c. Never push a ride
      whose work-item doc is not yet `status: done`.
    - NOTHING-LEFT-BEHIND GATE (simple-and-friendly-to-use D2) — after the
@@ -415,6 +432,10 @@ PROCESS
      a CI check or bot finding here surfaces an AAI-owned defect, best-effort
      record it per .aai/system/FRICTION_PROTOCOL.md "Deterministic hook
      points" (schema v2); swallow any capture failure, never block the sweep.
+   - Release the step-0 session lock now, at the true end of step 5 (5b/5c/5d
+     included — every git write this ceremony makes is done): `node
+     .aai/scripts/lib/session-lock.mjs release --pid "$$"` — a no-op if
+     nothing is held under this pid.
    - Merge boundary unchanged: this step never merges.
 
 6. MERGE BOUNDARY (hard rule):

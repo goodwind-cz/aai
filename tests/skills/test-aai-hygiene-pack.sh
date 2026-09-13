@@ -1080,7 +1080,23 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   done
   [[ "$missing" -eq 0 ]] \
     || log_fail "one or more test-aai-*.sh suites have no tests/skills/suite-map.yaml row (see MISSING lines above) — a new suite must be mapped or it silently escapes selection accounting"
-  log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003)"
+
+  # Row-count pin (Spec-AC-26, spec-test-framework-sweep, validation round 1
+  # BLOCKING-13): the AC's own text promises a suite-map.yaml row PLUS a
+  # row-count pin for the one new suite this ride adds
+  # (test-aai-session-lock.sh, 92 rows -> 93), and no numeric pin existed
+  # anywhere in tests/ or .aai/ — the existence check above would silently
+  # tolerate a row SWAPPED for a different suite name at the same count, or
+  # simply never notice the count moving at all. A plain top-level-key count
+  # over the mapping (one 2-space-indented "<name>:" line per suite), pinned
+  # to the measured total, so any future suite addition or removal must
+  # touch this number deliberately.
+  local row_count
+  row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
+  [[ "$row_count" -eq 93 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 93 (pin last moved for aai-session-lock, spec-test-framework-sweep) — a suite was added or removed without updating this pin"
+
+  log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
 
 test_070_companion_obligations() {  # spec-planning-companion-obligations TEST-001..003 / Spec-AC-01..03
@@ -1702,23 +1718,108 @@ test_124_degenerate_pass_guards_uncovered_and_ratcheted() {  # TEST-426 / Spec-A
   # shellcheck source=lib/degenerate-pass-ratchet.sh
   . "$ratchet"
 
-  # Half 1 — the nine guards: NONE of their own TEST id may appear on a
-  # log_pass line this file's own established-fact grep would count. A
-  # guard's mutation control (TEST-421 etc.) already proves the POSITIVE
-  # branch has teeth; this proves the DEGENERATE branch no longer claims a
-  # pass it never earned.
-  local entry f tid hit
+  # Half 1 — the nine guards, BY BEHAVIOUR. Validation round 2 (R2-1): the
+  # previous Half 1 only proved a log_pass LINE lost two words
+  # ("skipped"/"not applicable") next to the guard's TEST id — satisfied by
+  # rewording alone, and blind to spec-amend TEST-003/008/009, whose
+  # degenerate branch used neither word. This half instead DRIVES each
+  # guard down its own degenerate branch (its base ref or pin commit
+  # broken, via a `git` PATH shim or the guard's own override env var — the
+  # real-world shape of a shallow clone / fetch-less CI checkout) and
+  # requires a NON-ZERO exit, except the one guard with a disclosed,
+  # permanent carve-out (below).
+  local entry f tid
   for entry in "${DPR_NINE_GUARDS[@]}"; do
     f="${entry%%:*}"
     tid="${entry#*:}"
     [[ -f "$PROJECT_ROOT/tests/skills/$f" ]] \
       || log_fail "test_124: guard carrier missing: $f"
-    hit="$("$DPR_GREP" "log_pass" "$PROJECT_ROOT/tests/skills/$f" 2>/dev/null \
-      | "$DPR_GREP" -E 'skipped|not applicable' \
-      | "$DPR_GREP" -F "$tid")" || hit=""
-    [[ -z "$hit" ]] \
-      || log_fail "test_124: $f still reports $tid as a PASS on its degenerate branch: $hit"
   done
+
+  local d shimdir real_git spec_amend_pin
+  d="$(ap_tmpdir)"
+  shimdir="$d/dpr-426-git-shim"
+  mkdir -p "$shimdir"
+  real_git="$(command -v git)"
+  # test-aai-spec-amend.sh's own BASE_AMENDMENT_PIN_COMMIT (TEST-003's pin,
+  # read here rather than retyped, so this arm cannot drift from the real
+  # constant): the base-vs-live format trap it guards.
+  spec_amend_pin="$("$DPR_GREP" -oE '^BASE_AMENDMENT_PIN_COMMIT=[0-9a-f]+' \
+    "$PROJECT_ROOT/tests/skills/test-aai-spec-amend.sh" | cut -d= -f2)"
+  [[ -n "$spec_amend_pin" ]] \
+    || log_fail "test_124: could not read BASE_AMENDMENT_PIN_COMMIT from test-aai-spec-amend.sh"
+  # Blocks ONLY the exact base-ref / pin-commit lookups these guards use to
+  # resolve their comparison point (`origin/main`/`main` reachability, an
+  # `origin/main:<path>` read, the tag listing release's TEST-025 walks, and
+  # spec-amend TEST-003's pinned commit). Every other git invocation made by
+  # check_deps or the rest of each test function — there IS no other git
+  # invocation in these nine functions — passes through to the real binary.
+  cat > "$shimdir/git" <<SHIMEOF
+#!/bin/sh
+REAL_GIT="$real_git"
+ARGS="\$*"
+case "\$ARGS" in
+  *"rev-parse --verify --quiet origin/main"|*"rev-parse --verify -q origin/main"|*"rev-parse --verify --quiet main"|*"rev-parse --verify -q main")
+    exit 1 ;;
+  *"show origin/main:"*)
+    echo "fatal: dpr-426 shim: origin/main blocked" >&2
+    exit 128 ;;
+  *"tag --list v[0-9]*"*)
+    exit 0 ;;
+  *"show $spec_amend_pin:"*)
+    echo "fatal: dpr-426 shim: pin commit blocked" >&2
+    exit 128 ;;
+  *)
+    exec "\$REAL_GIT" "\$@" ;;
+esac
+SHIMEOF
+  chmod +x "$shimdir/git"
+
+  local rc out failures=""
+  out="$(PATH="$shimdir:$PATH" env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-release.sh" test_024_no_deleted_unreleased_heading_vs_main 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures release.sh:TEST-024(rc=0)"
+  out="$(PATH="$shimdir:$PATH" env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-release.sh" test_025_released_region_pin_vs_tag 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures release.sh:TEST-025(rc=0)"
+  out="$(PATH="$shimdir:$PATH" env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-git-ref-guard.sh" 312_contract_and_diet 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures git-ref-guard.sh:TEST-312(rc=0)"
+  out="$(PATH="$shimdir:$PATH" env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-deslop.sh" test_028_published_surfaces_state_the_new_rule 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures deslop.sh:TEST-028(rc=0)"
+  out="$(PATH="$shimdir:$PATH" env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-spec-amend.sh" test_003_live_ledger_format_trap 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures spec-amend.sh:TEST-003(rc=0)"
+  out="$(AAI_SPEC_AMEND_BASE_REF=refs/heads/dpr-426-no-such-base-ref env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-spec-amend.sh" test_008_append_only 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures spec-amend.sh:TEST-008(rc=0)"
+  out="$(AAI_SPEC_AMEND_BASE_REF=refs/heads/dpr-426-no-such-base-ref env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-spec-amend.sh" test_009_live_backfill_and_whole_ledger_readers 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures spec-amend.sh:TEST-009(rc=0)"
+  rm -rf "$shimdir"
+
+  [[ -z "$failures" ]] \
+    || log_fail "test_124 Half 1: guard(s) did NOT fail closed with their base ref/pin commit broken (want a non-zero exit):$failures"
+
+  # follow-ups TEST-031 is the one DISCLOSED, PERMANENT carve-out (AC-14
+  # Notes): its primary path can never again run (SPEC-0159 is merged
+  # history — no future diff can reintroduce it), so a literal log_fail
+  # there would void TEST-443/TEST-032 on every future run. It keeps
+  # log_pass, but ONLY as long as that pass line still says UNCOVERED — its
+  # degenerate branch is already permanently live, so this is checked on
+  # the ordinary run, not a broken one.
+  out="$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-follow-ups.sh" test_031_both_registry_items_closed_for_real 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_124: follow-ups.sh TEST-031's disclosed carve-out must still exit 0 on its own fixture negative control, got rc=$rc: $out"
+  "$DPR_GREP" -qF "UNCOVERED" <<<"$out" \
+    || log_fail "test_124: follow-ups.sh TEST-031 no longer discloses UNCOVERED on its permanent degenerate branch — this is the one carved-out guard and it must keep saying so: $out"
+
+  # spec-lint TEST-011 has no base-ref-dependent branch to drive at all (read
+  # from the source: every clause in test_011_seam_survival() reports through
+  # the same local `ok` registry and log_fails for real on any failure —
+  # there is no origin/main lookup and no "not applicable" soft-skip).
+  # Structural check that this stays true, so a future edit that grows a
+  # soft-skip there is still caught by this arm.
+  local t011_body
+  t011_body="$(awk '/^test_011_seam_survival\(\)/,/^}/' "$PROJECT_ROOT/tests/skills/test-aai-spec-lint.sh")"
+  [[ -n "$t011_body" ]] \
+    || log_fail "test_124: test_011_seam_survival() not found in test-aai-spec-lint.sh"
+  "$DPR_GREP" -qiE 'origin/main|not applicable|unreachable' <<<"$t011_body" \
+    && log_fail "test_124: test-aai-spec-lint.sh TEST-011 grew a base-ref-shaped degenerate branch this arm does not yet drive — extend the coverage above rather than trusting the structural check alone"
 
   # Half 2 — the ratchet: the live scan over the real tree must match the
   # recorded baseline exactly (no RISE, no NEW — a SHRINK/GONE would also be

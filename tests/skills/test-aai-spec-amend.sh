@@ -306,6 +306,7 @@ test_002_rejected_input_and_never_refuses() {
 test_003_live_ledger_format_trap() {
   log_info "Test: \`list --json\` over the LIVE ledger counts by PARSING, not by grepping — the arm a grep-based implementation fails (TEST-003)..."
   [[ -f "$LIVE_LEDGER" ]] || log_fail "TEST-003: live ledger not found at $LIVE_LEDGER"
+  local ok=1
 
   # The pin reads an IMMUTABLE COMMIT, never the moving base ref: origin/main
   # gains amendments as later rides merge, and an equality against a moving
@@ -320,7 +321,15 @@ test_003_live_ledger_format_trap() {
       || log_fail "TEST-003: the tight grep must still under-report the base ledger at $BASE_TIGHT_GREP_COUNT (the trap this arm exists for), counted $base_tight"
     log_info "TEST-003: pinned ${BASE_AMENDMENT_PIN_COMMIT:0:7} ledger — parsed=$base_parsed tight-grep=$base_tight (the 60% undercount)"
   else
-    log_info "TEST-003: pin commit ${BASE_AMENDMENT_PIN_COMMIT:0:7} unreachable (shallow clone) — base pin not applicable here"
+    # R2-1 (validation round 2): a missing pin commit used to soft-skip this
+    # arm (log_info, ok left unset) — the base-vs-live format trap this test
+    # exists for was never checked and the arm still log_passed. A shallow
+    # clone or fetch-less CI checkout is the real-world version of this
+    # branch, and it is exactly the DEBT-0004 shape AC-14 forbids. FAILS
+    # CLOSED: the 10-vs-4 base-ledger trap cannot be demonstrated without the
+    # pinned commit, so it is refused and named rather than silently skipped.
+    log_info "TEST-003: pin commit ${BASE_AMENDMENT_PIN_COMMIT:0:7} unreachable (shallow clone) — the base-ledger format trap cannot be verified here; FAILING CLOSED (this is a missing commit, NOT a detected defect)"
+    ok=0
   fi
 
   local parsed spaced tool_total
@@ -364,7 +373,9 @@ test_003_live_ledger_format_trap() {
   [[ -z "$missing" ]] \
     || log_fail "TEST-003: space-serialized records missing from \`list --json\`: $missing"
 
-  log_pass "TEST-003 live ledger: parsed=$parsed (>= $BASE_AMENDMENT_COUNT), tight-grep=$tight, $spaced space-serialized records all reported"
+  [[ $ok -eq 1 ]] \
+    && log_pass "TEST-003 live ledger: parsed=$parsed (>= $BASE_AMENDMENT_COUNT), tight-grep=$tight, $spaced space-serialized records all reported" \
+    || log_fail "TEST-003 the base-ledger format trap is UNCOVERED (pin commit unreachable) — see the INFO line above"
 }
 
 # --- TEST-004 (Spec-AC-01) — SEAM-2 ------------------------------------------
@@ -620,7 +631,7 @@ test_007_both_strict_arms() {
 
 test_008_append_only() {
   log_info "Test: SEAM-3 — every write path APPENDS; the pre-change bytes are a byte-exact prefix afterwards, and the same predicate REJECTS a planted rewrite (TEST-008)..."
-  local led before
+  local led before ok=1
   led="$(mk_ledger t008)"
   # Seed the fixture with a real copy of the live ledger so the comparison is
   # over the shape this scope actually backfilled, not a toy file.
@@ -697,10 +708,20 @@ test_008_append_only() {
       || log_fail "TEST-008: the live ledger is not a pure append over $BASE_REF — $live_verdict"
     log_info "TEST-008: live ledger vs $BASE_REF — $live_verdict"
   else
-    log_info "TEST-008: base ref $BASE_REF has no docs/ai/decisions.jsonl — the live append-only arm is not applicable here"
+    # R2-1 (validation round 2): a missing base ref used to soft-skip this
+    # arm (log_info, ok left unset) — the live ledger's append-only claim
+    # against a real pre-change base was never checked and the arm still
+    # log_passed. A shallow clone or fetch-less CI checkout is the real-world
+    # version of this branch. FAILS CLOSED: the live-append-only claim cannot
+    # be demonstrated without the base ref, so it is refused and named rather
+    # than silently skipped.
+    log_info "TEST-008: base ref $BASE_REF has no docs/ai/decisions.jsonl — the live append-only arm cannot be verified here; FAILING CLOSED (this is a missing ref, NOT a detected rewrite)"
+    ok=0
   fi
 
-  log_pass "TEST-008 both write paths append only; the pre-change bytes survive byte-exact and a planted rewrite is rejected"
+  [[ $ok -eq 1 ]] \
+    && log_pass "TEST-008 both write paths append only; the pre-change bytes survive byte-exact and a planted rewrite is rejected" \
+    || log_fail "TEST-008 the live append-only arm is UNCOVERED (base ref unresolvable) — see the INFO line above"
 }
 
 # --- TEST-009 (Spec-AC-07) — post-backfill live state + SEAM-4 ---------------
@@ -708,6 +729,7 @@ test_008_append_only() {
 test_009_live_backfill_and_whole_ledger_readers() {
   log_info "Test: the LIVE ledger after the backfill — \`list --strict\` exits 0, every record carries an effective classification, one open item per unsigned spec, and the whole-ledger readers still work (TEST-009)..."
   [[ -f "$FU" ]] || log_skip "follow-ups.mjs not found: $FU"
+  local ok=1
 
   run_sa list --ledger "$LIVE_LEDGER" --strict
   [[ "$EC" == 0 ]] \
@@ -750,7 +772,14 @@ test_009_live_backfill_and_whole_ledger_readers() {
     [[ -z "$touched" ]] \
       || log_fail "TEST-009: this scope edited a frozen \`status: done\` spec body, which the requirement puts out of scope: $touched"
   else
-    log_info "TEST-009: base ref $BASE_REF not resolvable — the untouched-frozen-specs arm is not applicable here"
+    # R2-1 (validation round 2): an unresolvable base ref used to soft-skip
+    # this arm (log_info, ok left unset) — the untouched-frozen-specs claim
+    # was never checked and the arm still log_passed. A shallow clone or
+    # fetch-less CI checkout is the real-world version of this branch. FAILS
+    # CLOSED: the claim cannot be demonstrated without the base ref, so it is
+    # refused and named rather than silently skipped.
+    log_info "TEST-009: base ref $BASE_REF not resolvable — the untouched-frozen-specs arm cannot be verified here; FAILING CLOSED (this is a missing ref, NOT a detected edit)"
+    ok=0
   fi
 
   # SEAM-4 — routine-emit.mjs reads the WHOLE ledger fail-closed and returns
@@ -779,10 +808,18 @@ test_009_live_backfill_and_whole_ledger_readers() {
     grep -qF "MERGE DISABLED" <<<"$pois_out" \
       || log_fail "TEST-009 SEAM-4: mutation control failed — a malformed line did NOT revoke authorization, so the tolerance arm above is vacuous"
   else
-    log_info "TEST-009: routine-emit.mjs not found — SEAM-4 arm not applicable here"
+    # R2-1 (validation round 2): a missing routine-emit.mjs used to soft-skip
+    # this arm (log_info, ok left unset) — the whole-ledger-reader tolerance
+    # claim was never checked and the arm still log_passed. FAILS CLOSED: the
+    # SEAM-4 tolerance claim cannot be demonstrated without the script, so it
+    # is refused and named rather than silently skipped.
+    log_info "TEST-009: routine-emit.mjs not found — the SEAM-4 whole-ledger-reader arm cannot be verified here; FAILING CLOSED (this is a missing script, NOT a detected intolerance)"
+    ok=0
   fi
 
-  log_pass "TEST-009 the live ledger is strict-clean, every unsigned spec has one open item, no frozen spec body was edited, and the whole-ledger readers tolerate the new types"
+  [[ $ok -eq 1 ]] \
+    && log_pass "TEST-009 the live ledger is strict-clean, every unsigned spec has one open item, no frozen spec body was edited, and the whole-ledger readers tolerate the new types" \
+    || log_fail "TEST-009 UNCOVERED (base ref or routine-emit.mjs unavailable) — see the INFO line(s) above"
 }
 
 # --- TEST-010 (Spec-AC-08) — the SPEC-0132 canon guard ------------------------
@@ -1187,6 +1224,153 @@ test_018_item_names_spec_by_id_not_path() {
   log_pass "the tracked item names the spec by id, not by path (TEST-018)"
 }
 
+# --- TEST-445 (Spec-AC-12, spec-test-framework-sweep) — negative controls for
+# TEST-003/008/009 ------------------------------------------------------------
+#
+# Validation round 1 (BLOCKING-5): TEST-445 was named in
+# docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md's Test Plan and Mutation
+# checks as the control covering TEST-003 (the format trap), TEST-008
+# (append-only) and TEST-009 (post-backfill classification), but no such test
+# existed anywhere — the strings occurred only in the spec's prose. This is
+# the deliverable: each of the three properties, driven through a SCRATCH
+# FIXTURE that takes the branch it was written for (never the live ledger,
+# which can rot into a degenerate "not applicable" path), and each proven to
+# fail on a deliberately broken input or a mutated copy of the engine.
+test_445_ac12_negative_controls_test003_008_009() {
+  log_info "Test: AC-12 negative controls for TEST-003/008/009 — each driven through its own fixture and reddened by a deliberate mutation, not merely reported not-applicable (TEST-445)..."
+
+  # --- Arm A (TEST-003 shape): JSON-parsing, not tight-grepping ------------
+  # A fixture ledger with three tightly-serialized and three SPACE-serialized
+  # spec_amendment records (the population a naive `grep -F '"type":"spec_amendment"'`
+  # silently drops). The real engine must count all six; a copy of the engine
+  # mutated to pre-filter lines with that same tight grep before JSON.parse —
+  # reproducing exactly the trap TEST-003 exists to catch — must undercount.
+  local ledA="$TEST_DIR/t445a.jsonl" i
+  rm -f "$ledA"
+  {
+    echo "# Decision Log — append-only, one JSON object per line (JSONL format)"
+    echo "#"
+  } > "$ledA"
+  for i in 1 2 3; do
+    printf '{"v":1,"ts":"2026-09-0%dT00:00:00Z","type":"spec_amendment","ref_id":"t445-tight-%d","spec":"s","amends":"s","what":"w","why":"y","owner_signoff":true}\n' "$i" "$i" >> "$ledA"
+  done
+  for i in 4 5 6; do
+    printf '{"v":1,"ts":"2026-09-0%dT00:00:00Z", "type": "spec_amendment","ref_id":"t445-spaced-%d","spec":"s","amends":"s","what":"w","why":"y","owner_signoff":true}\n' "$i" "$i" >> "$ledA"
+  done
+
+  run_sa list --ledger "$ledA" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-445 arm A: \`list --json\` over the fixture must exit 0, got $EC (stderr: $ERR)"
+  local totalA
+  totalA="$(json_field "$OUT" 'j.counts.total')"
+  [[ "$totalA" == 6 ]] \
+    || log_fail "TEST-445 arm A: the real engine counted $totalA amendments (want 6) — the space-serialized half was dropped even without any mutation"
+
+  # MUTATION: a scratch copy of spec-amend.mjs, with readDecisionsLedger given
+  # a tight-grep pre-filter ahead of JSON.parse — the regression this arm must
+  # catch, applied to a THROWAWAY copy only (HAZ-RESTORE / HAZ-SCRATCH).
+  # spec-amend.mjs imports './lib/cli-pipe-guard.mjs' relative to its own
+  # directory, so the scratch copy needs that sibling too.
+  local saDirA="$TEST_DIR/sa-mut-a"
+  mkdir -p "$saDirA/lib"
+  cp "$(dirname "$SA")/lib/cli-pipe-guard.mjs" "$saDirA/lib/cli-pipe-guard.mjs"
+  local saMut="$saDirA/spec-amend.mjs"
+  cp "$SA" "$saMut"
+  # Portable sed insertion keyed on readDecisionsLedger's unique skip-blank/
+  # skip-comment line: append a tight-grep pre-filter right after it, dropping
+  # any spec_amendment line serialized with a space before JSON.parse ever
+  # sees it — reproducing the exact undercount TEST-003 exists to catch.
+  sed -i.bak "/if (t === '' || t.startsWith('#')) continue;/a\\
+    if (!/\"type\":\"spec_amendment\"/.test(t)) continue; // MUTATION: tight-grep pre-filter
+" "$saMut" && rm -f "$saMut.bak"
+  grep -qF 'MUTATION: tight-grep pre-filter' "$saMut" \
+    || log_fail "TEST-445 arm A: could not apply the tight-grep mutation to the scratch copy — the anchor line was not found"
+
+  local mutOutA mutEcA=0
+  mutOutA="$(node "$saMut" list --ledger "$ledA" --json 2>&1)" || mutEcA=$?
+  local mutTotalA
+  mutTotalA="$(json_field "$mutOutA" 'j.counts.total')"
+  [[ "$mutTotalA" == 3 ]] \
+    || log_fail "TEST-445 arm A: the tight-grep mutation reported $mutTotalA amendments (want 3 — only the tightly-serialized half) — the mutation did not bite, so the JSON-parsing property is unproven"
+
+  # --- Arm B (TEST-008 shape): append-only, on a mutated engine ------------
+  # The real engine's own append primitive (appendLine -> fs.appendFileSync)
+  # must never rewrite existing bytes. A scratch copy with appendFileSync
+  # replaced by writeFileSync (truncate-and-rewrite) is the mutation: it must
+  # make the SAME before/after prefix check catch a real, in-product
+  # regression, not just a hand-edited fixture byte.
+  local ledB spec
+  ledB="$(mk_ledger t445b)"
+  spec="$(mk_spec "SPEC-DRAFT-t445b.md" "spec-t445b-fixture")"
+  local beforeB="$TEST_DIR/t445b-before.jsonl"
+  cp "$ledB" "$beforeB"
+  run_sa add --ledger "$ledB" --spec "$spec" --ref t445b-ride --what "w" --why "y" --signoff none
+  [[ "$EC" == 0 ]] || log_fail "TEST-445 arm B: add must succeed on the real engine, got $EC (stderr: $ERR)"
+
+  local prefixVerdictB
+  prefixVerdictB="$(node -e '
+    const fs=require("fs");
+    const base=fs.readFileSync(process.argv[1]);
+    const head=fs.readFileSync(process.argv[2]);
+    if (head.length < base.length) { console.log("SHORTER"); process.exit(0); }
+    const prefix=head.subarray(0, base.length);
+    console.log(prefix.equals(base) ? "PREFIX-OK" : "DIVERGES");
+  ' "$beforeB" "$ledB")"
+  [[ "$prefixVerdictB" == "PREFIX-OK" ]] \
+    || log_fail "TEST-445 arm B: the real engine's add did not append cleanly — $prefixVerdictB"
+
+  local saDirB="$TEST_DIR/sa-mut-b"
+  mkdir -p "$saDirB/lib"
+  cp "$(dirname "$SA")/lib/cli-pipe-guard.mjs" "$saDirB/lib/cli-pipe-guard.mjs"
+  local saMutB="$saDirB/spec-amend.mjs"
+  cp "$SA" "$saMutB"
+  sed -i.bak "s/fs\.appendFileSync(absPath, \`\${prefix}\${JSON\.stringify(entry)}\\\\n\`);/fs.writeFileSync(absPath, \`\${JSON.stringify(entry)}\\\\n\`);/" "$saMutB" && rm -f "$saMutB.bak"
+  grep -qF 'fs.writeFileSync(absPath, `${JSON.stringify(entry)}' "$saMutB" \
+    || log_fail "TEST-445 arm B: could not apply the truncate-on-append mutation to the scratch copy — the anchor line was not found"
+
+  local ledB2="$TEST_DIR/t445b2.jsonl" beforeB2="$TEST_DIR/t445b2-before.jsonl"
+  cp "$ledB" "$ledB2"
+  cp "$ledB2" "$beforeB2"
+  local spec2; spec2="$(mk_spec "SPEC-DRAFT-t445b2.md" "spec-t445b2-fixture")"
+  node "$saMutB" add --ledger "$ledB2" --spec "$spec2" --ref t445b2-ride --what "w" --why "y" --signoff none >/dev/null 2>&1 || true
+  local prefixVerdictB2
+  prefixVerdictB2="$(node -e '
+    const fs=require("fs");
+    const base=fs.readFileSync(process.argv[1]);
+    const head=fs.readFileSync(process.argv[2]);
+    if (head.length < base.length) { console.log("SHORTER"); process.exit(0); }
+    const prefix=head.subarray(0, base.length);
+    console.log(prefix.equals(base) ? "PREFIX-OK" : "DIVERGES");
+  ' "$beforeB2" "$ledB2")"
+  [[ "$prefixVerdictB2" == "DIVERGES" || "$prefixVerdictB2" == "SHORTER" ]] \
+    || log_fail "TEST-445 arm B: mutation control failed — a truncate-and-rewrite engine still passed the append-only prefix check ($prefixVerdictB2)"
+
+  # --- Arm C (TEST-009 shape): every amendment carries an effective
+  # classification, on a fixture — a DELIBERATELY UNCLASSIFIED record is the
+  # broken input the guard must catch. ---------------------------------------
+  local ledC="$TEST_DIR/t445c.jsonl"
+  rm -f "$ledC"
+  {
+    echo "# Decision Log — append-only, one JSON object per line (JSONL format)"
+    echo "#"
+  } > "$ledC"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T00:00:00Z","type":"spec_amendment","ref_id":"t445c-ride","spec":"s","amends":"s","what":"w","why":"y","tracked_by":"fu-amend-t445c"}' >> "$ledC"
+
+  run_sa list --ledger "$ledC" --strict
+  [[ "$EC" != 0 ]] \
+    || log_fail "TEST-445 arm C: \`list --strict\` must refuse an unclassified amendment, got exit 0"
+  grep -qiF "unclassified" <<<"$OUT$ERR" \
+    || log_fail "TEST-445 arm C: the refusal must name the unclassified violation: out=$OUT err=$ERR"
+
+  run_sa classify --ledger "$ledC" --ts "2026-09-01T00:00:00Z" --ref t445c-ride \
+    --signoff none --why "fixture classification" --source "fixture" --tracked-by fu-amend-t445c
+  [[ "$EC" == 0 ]] || log_fail "TEST-445 arm C: classify must succeed on the fixture, got $EC (stderr: $ERR)"
+  run_sa list --ledger "$ledC" --strict
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-445 arm C: \`list --strict\` must exit 0 once the amendment is classified and tracked, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  log_pass "TEST-445 all three arms (format trap, append-only, classification) are proven on fixtures that take the branch they were written for, and each reddens on its own deliberate mutation (arm A: 6 real vs $mutTotalA mutated; arm B: $prefixVerdictB real vs $prefixVerdictB2 mutated; arm C: unclassified refused, classified accepted)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -1207,6 +1391,7 @@ main() {
   test_016_closed_item_cannot_excuse_a_new_amendment
   test_017_reopen_never_lands_on_a_discharged_item
   test_018_item_names_spec_by_id_not_path
+  test_445_ac12_negative_controls_test003_008_009
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

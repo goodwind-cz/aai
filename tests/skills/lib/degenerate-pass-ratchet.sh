@@ -3,15 +3,28 @@
 # THE SHAPE IT COUNTS
 #   a `log_pass` call whose own message says the branch it sits on is
 #   "skipped" or "not applicable" — a guard reporting success on a check it
-#   never ran. Established fact 18 of the frozen spec measured this shape at
-#   35 sites over `tests/skills/*.sh` before this ride; nine of them were
-#   named guards whose degenerate branch is a DEBT-0004 vacuous-pass and are
-#   converted to a failing UNCOVERED report by this same scope (Spec-AC-14).
-#   The rest are legitimate platform/environment skips (a missing binary, an
-#   OS this suite does not run on) that stay `log_pass`-shaped on purpose —
-#   this ratchet holds THAT remainder at its measured count so a NEW vacuous
-#   guard cannot be added silently, without demanding every skip become a
-#   hard failure.
+#   never ran. Established fact 18 of the frozen spec named this shape at 35
+#   sites, measured with a CASE-INSENSITIVE grep; validation round 1
+#   (BLOCKING-7) found that number both undisclosed as such and inconsistent
+#   with what this file actually scans with. The plain (case-sensitive) grep
+#   this file uses — see DPR_PATTERN/DPR_QUALIFIER below — measures 31 sites
+#   over `tests/skills/*.sh` on origin/main before this ride (35 only with
+#   `grep -i`; measured, the four-site gap is entirely qualifier CASING —
+#   "Skipped"/"SKIPPED" instead of "skipped" — never a different word; the
+#   plain grep is the deliberate choice, matching every OTHER ratchet in
+#   this file's own family (pipe-grep-q-ratchet.sh, cd-subshell-leak, etc.),
+#   all case-sensitive). Nine of the
+#   31 were named guards whose degenerate branch is a DEBT-0004 vacuous-pass
+#   and are converted to a failing UNCOVERED report by this same scope
+#   (Spec-AC-14); five of those nine happened to also carry this file's own
+#   log_pass+skipped/not-applicable shape, so the SHIPPED baseline is 26 (31
+#   minus those five — see docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md
+#   `## Amendment`, which corrects Established fact 18 to these measured
+#   numbers). The rest are legitimate platform/environment skips (a missing
+#   binary, an OS this suite does not run on) that stay `log_pass`-shaped on
+#   purpose — this ratchet holds THAT remainder at its measured count so a
+#   NEW vacuous guard cannot be added silently, without demanding every skip
+#   become a hard failure.
 #
 # This file is a PURE library when sourced: no `set -u`, no `cd`, no test
 # execution. `--record` is the one direct entry point. bash-3.2 safe: no
@@ -20,8 +33,16 @@
 # render/record shape, a different pattern.
 
 # The idiom. Kept in one place so the scan and the record mode can never
-# disagree about what is being counted. Plain (non -i) grep, matching the
-# spec's own established-fact measurement.
+# disagree about what is being counted. Plain (non -i) grep: this is the
+# MEASURED provenance of the 31/26 counts above (case-sensitive; `grep -i`
+# over the same corpus reads 35/30 instead, entirely qualifier casing —
+# "Skipped"/"SKIPPED" — never a different word), not the other way around —
+# validation round 2 (NB-11): an earlier draft of this comment instead
+# claimed the grep was chosen to MATCH the spec's established-fact number,
+# which had the causality backwards and was corrected here. (Review NB-7 /
+# validator R3-NB-4: the post-scope `-i` figure was mis-typed 31 here; it is
+# 30, measured under bash with /usr/bin/grep — the casing gap is 4 in both
+# directions, 35-31 pre-scope and 30-26 post-scope.)
 DPR_PATTERN='log_pass'
 DPR_QUALIFIER='skipped|not applicable'
 

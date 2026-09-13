@@ -167,10 +167,16 @@ Create a new worktree for a feature/task.
    node .aai/scripts/state.mjs set-worktree --user-decision worktree \
      --base-ref "$base_branch" --branch "$task_name" --path "$worktree_path"
    node .aai/scripts/check-state.mjs        # MUST pass before first dispatch
+   node .aai/scripts/lib/session-lock.mjs acquire --pid "$$" --ref "$ref_id"  # CHANGE-0180 D5
    ```
    The final `check-state` is the gate: an incomplete init fails LOUDLY here,
    not silently at dispatch time. Set any field it still reports via the
    matching `state.mjs` mutator — never by hand-editing the file.
+   `--pid "$$"` is this SHELL's pid, stable across every later one-shot node
+   call in this session (a bare default would re-pid per invocation and
+   never match at release). `acquire` claims this worktree for THIS session;
+   exit 3 means a live session already holds it (named pid) — do not proceed
+   in the same worktree. Released by Cleanup Worktree step 3 below.
 
 5. **Update Worktree Registry**
    - Create/update `.git/worktrees-registry.jsonl` in main repo
@@ -226,6 +232,12 @@ Remove a completed or abandoned worktree.
 
 3. **Remove Worktree**
    ```bash
+   # Release the session lock BEFORE removal (CHANGE-0180 D5) — the lock
+   # file lives under the worktree's own .git dir, so it must go first.
+   # --pid must match the acquiring shell's $$ (Setup Worktree step 4); a
+   # cleanup run from a DIFFERENT shell passes that recorded pid instead.
+   ( cd [worktree-path] && node .aai/scripts/lib/session-lock.mjs release --pid "$$" )
+
    git worktree remove [worktree-path]
 
    # Or force if needed (after confirmation)

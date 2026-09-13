@@ -101,7 +101,7 @@ Describe 'aai-run-tests.ps1' {
             Mock Start-GitBashProcess { $null }
             $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
             $rc | Should -Be 0
-            $script:capturedArgs | Should -Be @('-e', 'env', 'AAI_TEST_TIMEOUT=300', '/mnt/c/repo/.aai/scripts/aai-run-tests.sh', 'sh', '-c', 'exit 0')
+            $script:capturedArgs | Should -Be @('-e', 'env', 'AAI_TEST_TIMEOUT=3000', '/mnt/c/repo/.aai/scripts/aai-run-tests.sh', 'sh', '-c', 'exit 0')
             Should -Invoke Invoke-WslProcess -Times 1 -Exactly
             Should -Invoke Start-GitBashProcess -Times 0 -Exactly
         }
@@ -296,13 +296,13 @@ Describe 'aai-run-tests.ps1' {
         # table caching quirk unrelated to this repo's code (reproduced in
         # isolation outside this file). Ordering first sidesteps it cleanly.
         It 'AAI_TEST_TIMEOUT coercion parity (matches the .sh default): <_.Raw> -> <_.Expected>' -ForEach @(
-            @{ Raw = 'bogus'; Expected = 300 }
-            @{ Raw = '0'; Expected = 300 }
-            @{ Raw = '-5'; Expected = 300 }
-            @{ Raw = ''; Expected = 300 }
-            @{ Raw = $null; Expected = 300 }
+            @{ Raw = 'bogus'; Expected = 3000 }
+            @{ Raw = '0'; Expected = 3000 }
+            @{ Raw = '-5'; Expected = 3000 }
+            @{ Raw = ''; Expected = 3000 }
+            @{ Raw = $null; Expected = 3000 }
             @{ Raw = '45'; Expected = 45 }
-            @{ Raw = '99999999999'; Expected = 300 }
+            @{ Raw = '99999999999'; Expected = 3000 }
         ) {
             Get-EffectiveTimeout -Raw $Raw | Should -Be $Expected
         }
@@ -854,7 +854,7 @@ Write-Output "GRANDCHILD_SAW=$childSaw"
             $raw = $_
             $value = Get-EffectiveTimeout -Raw $raw
             $source = Get-EffectiveTimeoutSource -Raw $raw
-            if ($source -eq 'default') { $value | Should -Be 300 }
+            if ($source -eq 'default') { $value | Should -Be 3000 }
         }
     }
 
@@ -886,7 +886,7 @@ Write-Output "GRANDCHILD_SAW=$childSaw"
                 [Console]::SetError($origErr)
             }
             $rc | Should -Be 0
-            $sw.ToString() | Should -Match '^AAI-BRANCH: WSL \| AAI-TIMEOUT: 300s \(source=default\)'
+            $sw.ToString() | Should -Match '^AAI-BRANCH: WSL \| AAI-TIMEOUT: 3000s \(source=default\)'
         }
 
         It 'Invoke-Dispatch prints AAI-BRANCH naming Git Bash, with the env-sourced timeout, on the gitbash branch' {
