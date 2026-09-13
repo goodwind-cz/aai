@@ -2533,6 +2533,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Usage & cost telemetry
+
+The factory records what each run cost and under which instructions it ran, surfaces those numbers in reports and the stakeholder overview, and makes every capture gap loud instead of silent. Three delivered pieces make up one capability:
+
+[Product doc](product/telemetry.md) · [Spec](specs/SPEC-0089-spec-token-economics-end-to-end.md)
+
 ### A ride that finishes, measurably
 
 Three things now hold on every ride, and each of them is measured rather than promised.
@@ -2658,12 +2664,6 @@ The PR ceremony (`/aai-pr`, `/aai-ship`) now works beyond GitHub. A deterministi
 Product docs — the user-facing "what shipped" layer — are a first-class doc family: keyed by user capability, scanned by docs-audit, listed in docs/INDEX.md under a Product section, and updated in place as multiple rides extend one capability.
 
 [Product doc](product/product-docs-capability-model.md) · [Spec](specs/SPEC-0105-spec-product-docs-capability-model.md)
-
-### Usage & cost telemetry
-
-The factory records what each run cost and under which instructions it ran, surfaces those numbers in reports and the stakeholder overview, and makes every capture gap loud instead of silent. Three delivered pieces make up one capability:
-
-[Product doc](product/telemetry.md) · [Spec](specs/SPEC-0089-spec-token-economics-end-to-end.md)
 
 ### CI test impact selection
 

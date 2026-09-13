@@ -165,6 +165,13 @@ test_003_role_carveout_canon() {
 
   grep -qE 'Subagent-mode carve-out.*SUBAGENT_PROTOCOL\.md' "$ROLE_COMMON" \
     || log_fail "TEST-003: .aai/ROLE_COMMON.md must carry the canonical subagent-mode carve-out body referencing SUBAGENT_PROTOCOL.md (D5)"
+  # telemetry-fields-not-prose round-1 BLOCKING-3 fix (validation round 2
+  # NON-BLOCKING-4): the append-run example must name --verdict, or a
+  # direct-execution Validation/Code Review run trips the new refusal with no
+  # worked example to follow. Content-level guard, not the prompt-diet byte
+  # count alone (which any unrelated 216 B would also satisfy).
+  grep -qF -- "--verdict" "$ROLE_COMMON" \
+    || log_fail "TEST-003: .aai/ROLE_COMMON.md's append-run example must name --verdict"
 
   local names=("PLANNING" "IMPLEMENTATION" "VALIDATION" "REMEDIATION" "SKILL_TDD")
   local files=("$PLANNING" "$IMPLEMENTATION" "$VALIDATION" "$REMEDIATION" "$SKILL_TDD")
@@ -352,8 +359,12 @@ test_005_seam_total_note_roundtrip() {
     || log_fail "TEST-005: flushed METRICS.jsonl line must carry the note verbatim: $(cat "$m")"
   grep -q '"tokens_in":null' "$m" \
     || log_fail "TEST-005: flushed METRICS.jsonl run must keep tokens_in null"
-  grep -qE '^INFO CHANGE-9001 run Implementation .*undecomposed total 262134 observed; cost unattributable by design' "$flush_log" \
-    || log_fail "TEST-005 (spec TEST-004): flush must emit an INFO line for the undecomposed-note run (reclassified from WARNING, never silenced): $(cat "$flush_log")"
+  # telemetry-fields-not-prose review NON-BLOCKING-5 (20260913T114019Z,
+  # finding 5): claude-test is a PRICED fixture model, so D5 blends a real
+  # cost_usd here too — the wording must say so (basis total-blended), not
+  # the stale "unattributable by design" text beside an attributed cost.
+  grep -qE '^INFO CHANGE-9001 run Implementation .*undecomposed total 262134 observed; cost estimated from the total \(cost_basis total-blended\)' "$flush_log" \
+    || log_fail "TEST-005 (spec TEST-004): flush must emit an INFO line for the undecomposed-note run (reclassified from WARNING, never silenced), naming the TRUE basis: $(cat "$flush_log")"
   grep -qE '^WARNING CHANGE-9001 run Implementation' "$flush_log" \
     && log_fail "TEST-005 (spec TEST-004): the undecomposed-note run must NOT also emit the generic capture-missing WARNING: $(cat "$flush_log")"
   grep -qE '^WARNING CHANGE-9001 run Planning .*cost unattributable' "$flush_log" \
@@ -575,7 +586,7 @@ test_012_model_marker_seam_roundtrip() {
   local ar_log="$d/append-run.log"
   (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" append-run \
     --ref CHANGE-9001 --role Validation --model claude-opus-4-8 --started "$NOW_UTC" \
-    --note "$note" > "$ar_log" 2>&1) \
+    --note "$note" --verdict none > "$ar_log" 2>&1) \
     || log_fail "TEST-012 (spec TEST-009): append-run with model+usage note must exit 0: $(cat "$ar_log")"
 
   grep -qF "requested_model=claude-opus-4-8" "$s" \

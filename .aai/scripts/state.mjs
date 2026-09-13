@@ -126,6 +126,10 @@ import {
 } from './lib/state-engine.mjs';
 // Single JS parser of the docs-audit.yaml guard dials (CHANGE-0009 D8).
 import { readGuardConfig } from './lib/guard-config.mjs';
+// telemetry-fields-not-prose D2/D9: the SAME harness-detection function pair 1
+// shipped — never re-derived here. state.mjs runs as a child of the
+// orchestrating session, so it inherits that session's harness environment.
+import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
 
 setEngineFailPrefix('state');
 
@@ -152,6 +156,11 @@ const BOOLS = ['true', 'false'];
 const TICK_TYPES = ['tick', 'recovery'];
 const MODES = ['single', 'parallel'];
 const RESETTABLE_BLOCKS = ['last_validation', 'code_review'];
+// telemetry-fields-not-prose D1/D2: append-run's five new fields. `none` is
+// the recorded-absence value (distinct from the field being entirely absent),
+// valid for every role; Validation/Code Review refuse its OMISSION (D2/D3).
+const VERDICT_VALUES = ['pass', 'fail', 'none'];
+const VERDICT_REQUIRED_ROLES = ['Validation', 'Code Review'];
 
 const REF_RE = /^[A-Z]+-\d+$/;
 // CHANGE-0012 / spec-slug-refs-across-tooling D1: SLUG shape — aligned with the
@@ -211,7 +220,8 @@ const CMD_FLAGS = {
   'set-worktree': ['recommendation', 'user_decision', 'base_ref', 'branch', 'path', 'inline_scope', 'rationale', 'clear'],
   'set-tdd-cycle': ['status', 'test_id', 'spec_path', 'test_path', 'red', 'green', 'refactor'],
   'set-human-input': ['required', 'question', 'reason'],
-  'append-run': ['ref', 'role', 'model', 'started', 'note', 'tokens_in', 'tokens_out', 'tdd_tests', 'prompt_hash'],
+  'append-run': ['ref', 'role', 'model', 'started', 'note', 'tokens_in', 'tokens_out', 'tdd_tests', 'prompt_hash',
+    'harness', 'tokens_total', 'verdict', 'requested_model', 'actual_model'],
   'log-tick': ['tick', 'role', 'scope', 'started', 'type', 'exit_code', 'mode', 'k', 'harness',
     'tokens_in', 'tokens_out', 'cache_read', 'cost', 'lingering_procs', 'free_memory',
     'focus_before', 'validation_before'],
@@ -529,6 +539,53 @@ function cmdSetPhase(state, flags) {
   return `set-phase: ${ref} phase=${phase}${status ? ` status=${status}` : ''}`;
 }
 
+// telemetry-fields-not-prose D7: stamp `validation: {status, at}` onto an
+// ALREADY-EXISTING metrics.work_items[<ref>] entry. Never auto-inits a
+// missing entry (M6) — a verdict for a ref with no recorded runs would mint a
+// metrics entry the flush can then never flush ("no agent_runs recorded"),
+// which is how strands are born; creating more of them to fix stranding
+// would be self-defeating. `bl` is the full `metrics:` block's lines.
+function stampPerRefValidation(bl, ref, status, atIso) {
+  let wiIdx = -1;
+  for (let i = 1; i < bl.length; i += 1) {
+    if (/^ {2}work_items:\s*$/.test(bl[i])) { wiIdx = i; break; }
+  }
+  if (wiIdx === -1) return;   // no work_items block at all — nothing to stamp
+
+  const blockEnd = () => {
+    let at = bl.length;
+    while (at > 1 && (bl[at - 1].trim() === '' || bl[at - 1].startsWith('#'))) at -= 1;
+    return at;
+  };
+
+  let e0 = -1;
+  let e1 = -1;
+  for (let i = wiIdx + 1; i < bl.length; i += 1) {
+    if (new RegExp(`^ {4}${ref}:\\s*$`).test(bl[i])) {
+      e0 = i;
+      e1 = blockEnd();
+      for (let j = i + 1; j < bl.length; j += 1) {
+        if (/^ {4}[\w-]+:\s*$/.test(bl[j]) || (bl[j].trim() !== '' && indentOf(bl[j]) < 4)) { e1 = Math.min(e1, j); break; }
+      }
+      break;
+    }
+  }
+  if (e0 === -1) return;   // D7: never auto-init a missing entry.
+
+  let vIdx = -1;
+  for (let i = e0 + 1; i < e1; i += 1) {
+    if (/^ {6}validation:\s*$/.test(bl[i])) { vIdx = i; break; }
+  }
+  const freshLines = ['      validation:', scalarLine(8, 'status', status), scalarLine(8, 'at', atIso)];
+  if (vIdx === -1) {
+    bl.splice(e1, 0, ...freshLines);
+    return;
+  }
+  let vEnd = vIdx + 1;
+  while (vEnd < e1 && bl[vEnd].trim() !== '' && indentOf(bl[vEnd]) >= 8) vEnd += 1;
+  bl.splice(vIdx, vEnd - vIdx, ...freshLines);
+}
+
 function cmdSetValidation(state, flags) {
   const clears = resolveClearList('set-validation', flags);
   // `--clear` alone is a valid invocation (SPEC-0014 D1); --status stays
@@ -582,6 +639,16 @@ function cmdSetValidation(state, flags) {
     if (notes !== undefined) setField(bl, 2, 'notes', textFieldLines(2, 'notes', notes));
     return bl;
   });
+  // D7: the per-ref stamp — ONLY when a status is actually being set and a
+  // ref names which work item it belongs to; and ONLY when a `metrics:` block
+  // already exists (never auto-created just to hold this stamp).
+  if (status !== undefined && ref !== undefined && findBlock(state.lines, 'metrics')) {
+    const stampAt = nowIso();
+    editBlock(state.lines, 'metrics', bl => {
+      stampPerRefValidation(bl, ref, status, stampAt);
+      return bl;
+    });
+  }
   return status !== undefined
     ? `set-validation: status=${status} (run_at_utc self-stamped)`
     : `set-validation: cleared ${clears.join(',')}`;
@@ -604,7 +671,17 @@ function cmdSetCodeReview(state, flags) {
     applyClears(bl, 'set-code-review', clears);
     if (required !== undefined) setField(bl, 2, 'required', [scalarLine(2, 'required', required)]);
     if (status !== undefined) setField(bl, 2, 'status', [scalarLine(2, 'status', status)]);
-    if (scope !== undefined) setField(bl, 2, 'scope', textFieldLines(2, 'scope', scope));
+    if (scope !== undefined) {
+      setField(bl, 2, 'scope', textFieldLines(2, 'scope', scope));
+      // NON-BLOCKING-A (review-telemetry-fields-not-prose-20260913T105322Z):
+      // scope_ref_id is a PROVENANCE stamp on the scope, only ever written by
+      // metrics-flush.mjs's applyPartialReset — this ride's own scope write
+      // must refresh it too, or an OLDER flush's stamp outlives the scope it
+      // named and check-committed-scope degrades a scope this ride just set
+      // correctly. Refreshed to current_focus.ref_id (never left stale).
+      const focusRef = readScalar(state.lines, 'current_focus', 'ref_id');
+      setField(bl, 2, 'scope_ref_id', [scalarLine(2, 'scope_ref_id', focusRef === null ? 'null' : yq(focusRef))]);
+    }
     if (baseRef !== undefined) setField(bl, 2, 'base_ref', [scalarLine(2, 'base_ref', yq(baseRef))]);
     if (headRef !== undefined) setField(bl, 2, 'head_ref', [scalarLine(2, 'head_ref', yq(headRef))]);
     if (reports !== undefined) appendListItems(bl, 2, 'report_paths', reports);
@@ -748,6 +825,33 @@ function cmdAppendRun(state, flags) {
   const tokensOut = intFlag(flags, 'tokens-out', 'append-run');
   const tddTests = intFlag(flags, 'tdd-tests', 'append-run');
   const promptHash = hexFlag(flags, 'prompt-hash', 'append-run');
+  // telemetry-fields-not-prose D1/D2/D3: --harness given an out-of-set value
+  // is a REFUSAL (enumFlag, exit 2, pre-write) — NOT a degrade to "unknown"
+  // the way the ambient-env detectHarness ladder degrades (M3: this must stay
+  // enumFlag, never strFlag, or the bogus-value arm stops exiting 2).
+  const harnessFlag = enumFlag(flags, 'harness', HARNESS_VALUES, 'append-run');
+  const tokensTotal = intFlag(flags, 'tokens-total', 'append-run');
+  const verdictFlag = enumFlag(flags, 'verdict', VERDICT_VALUES, 'append-run');
+  const requestedModel = strFlag(flags, 'requested-model', 'append-run');
+  const actualModel = strFlag(flags, 'actual-model', 'append-run');
+
+  // D2/D3: Validation and Code Review REFUSE an absent --verdict — exit 2,
+  // BEFORE any write (checked here, ahead of editBlock, so the byte-identity
+  // guarantee holds even if the refusal moved — see M5, which moves this
+  // check AFTER editBlock to prove the ordering matters). Role matching is
+  // exact-set membership over the closed ROLES enum (no prefix normalizer
+  // needed — enumFlag above already closes the spelling space).
+  if (VERDICT_REQUIRED_ROLES.includes(role) && verdictFlag === undefined) {
+    fail(`append-run: --verdict is required when --role is "${role}" `
+      + `(pass|fail|none) — a missing verdict must never be indistinguishable from a passing one`);
+  }
+
+  // D1 emission rule: `harness` and `verdict` are ALWAYS emitted (both carry
+  // defaults); `tokens_total`/`requested_model`/`actual_model` are emitted
+  // ONLY when the flag was passed — an absent key must stay distinguishable
+  // from a recorded absence.
+  const harnessValue = harnessFlag !== undefined ? harnessFlag : detectHarness(process.env);
+  const verdictValue = verdictFlag !== undefined ? verdictFlag : 'none';
 
   const ended = nowIso();   // SELF-STAMPED from the system clock
   const duration = Math.max(0, Math.round((Date.parse(ended) - Date.parse(started)) / 1000));
@@ -768,6 +872,13 @@ function cmdAppendRun(state, flags) {
   );
   if (tddTests !== undefined) runLines.push(`          tdd_tests: ${tddTests}`);
   if (promptHash !== undefined) runLines.push(`          prompt_hash: ${promptHash}`);
+  // telemetry-fields-not-prose D1: five discrete pushes (M1 deletes ONE field
+  // at a time in turn) — harness/verdict always emitted, the rest conditional.
+  runLines.push(`          harness: ${harnessValue}`);
+  if (tokensTotal !== undefined) runLines.push(`          tokens_total: ${tokensTotal}`);
+  runLines.push(`          verdict: ${verdictValue}`);
+  if (requestedModel !== undefined) runLines.push(`          requested_model: ${yq(requestedModel)}`);
+  if (actualModel !== undefined) runLines.push(`          actual_model: ${yq(actualModel)}`);
 
   editBlock(state.lines, 'metrics', bl => {
     // Ensure `  work_items:` exists directly under metrics.
@@ -898,6 +1009,13 @@ function cmdResetBlock(state, pos, flags, statePath) {
           bl.splice(idx, n, '  notes: >-', `    ${rest}`, `    ${marker}`);
         }
       }
+    } else if (block === 'code_review') {
+      // NON-BLOCKING-A (review-telemetry-fields-not-prose-20260913T105322Z):
+      // a code_review reset invalidates the scope's provenance too — clear
+      // scope_ref_id only when present, same idiom as current_focus.spec_path
+      // in applyFullReset (metrics-flush.mjs), so a stale stamp from BEFORE
+      // this reset can never be read as naming the NEXT ride's scope.
+      nullFieldIfPresent(bl, 2, 'scope_ref_id');
     }
     return bl;
   });

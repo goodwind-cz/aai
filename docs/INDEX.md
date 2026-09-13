@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-13T07:04:28.424Z
+Generated: 2026-09-13T13:28:15.055Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-telemetry-fields-not-prose | specs | implementing | 14 planned | docs/specs/SPEC-DRAFT-spec-telemetry-fields-not-prose.md |
+| SPEC-0178 | specs | implementing | 14 planned | docs/specs/SPEC-0178-spec-telemetry-fields-not-prose.md |
 
 ## Canonical layer (0)
 
@@ -46,7 +46,7 @@ _None._
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | ride-completion | ride-completion | 1 | docs/product/ride-completion.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
-| telemetry | telemetry | 3 | docs/product/telemetry.md |
+| telemetry | telemetry | 4 | docs/product/telemetry.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |

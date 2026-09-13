@@ -196,7 +196,7 @@ Token usage is captured ONLY from the harness-level result visible to the dispat
   exposed nothing. Numeric token flags are OMITTED. NEVER split a total into
   in/out components, and NEVER relabel it as `tokens_out`/`tokens_in` —
   input and output prices differ, so a mislabeled total would poison
-  `cost_usd`. The flush now classifies this as undecomposed-note and emits an INFO line, not the capture-missing WARNING — cost stays unattributable by design (D3, reclassified: token-capture-canary).
+  `cost_usd`. The flush now classifies this as undecomposed-note and emits an INFO line, not the capture-missing WARNING — cost is blended from the total when the model is priced (`cost_basis total-blended`), and stays unattributable by design only when the model's PRICING cannot resolve (D3/D5, reclassified: token-capture-canary / telemetry-fields-not-prose).
 - Nothing exposed: omit all usage flags — the existing null/never-fabricate
   behavior is preserved byte-for-byte; no estimation path exists (D4).
 - Prompt hash (SPEC-0098 consumer wiring): when the dispatch JSON carried a
@@ -218,6 +218,18 @@ Token usage is captured ONLY from the harness-level result visible to the dispat
   independence that never happened. Any claim of validator independence
   (maker≠checker, "Spawning a validator" above) MUST cite `actual_model`,
   never `requested_model` — the request is not proof the isolation landed.
+- Structured fields, not prose (telemetry-fields-not-prose D1/D2/D9): every
+  `append-run` also passes `--harness`, `--tokens-total`, `--verdict`,
+  `--requested-model` and `--actual-model` as their OWN fields — `note` stays
+  free text and is never parsed for them. `--harness` may be omitted (it
+  defaults to the harness that ran the dispatch); `--tokens-total` names an
+  undecomposed total AS A FIELD (in addition to, never instead of, the
+  `usage_total_tokens=<N>` note above); `--requested-model`/`--actual-model`
+  mirror the note markers above as fields. `--verdict` (`pass|fail|none`)
+  defaults to `none` for every role EXCEPT Validation and Code Review, where
+  omitting `--verdict` is a REFUSAL: `append-run --role Validation` or
+  `--role "Code Review"` without `--verdict` exits 2 and writes nothing — a
+  missing verdict must never be indistinguishable from a passing one.
 
 | Rationalization                                  | Reality                                                                                                          |
 |---------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|

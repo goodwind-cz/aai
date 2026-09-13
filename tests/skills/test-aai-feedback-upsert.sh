@@ -26,6 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-feedback-upsert.mjs"
+FRICTION_SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-friction.mjs"
 LAYER_PROFILES_TEST="$SCRIPT_DIR/test-aai-layer-profiles.sh"
 
 cleanup() { [ -n "${TEST_DIR:-}" ] && [ -z "${KEEP_TEST_DIR:-}" ] && rm -rf "$TEST_DIR"; }
@@ -1439,6 +1440,67 @@ test_063_large_stderr_does_not_lose_exit_status() {
   log_pass "a stderr sized past the old 1 MiB execFileSync default still names the exit status and a certified line (TEST-063)"
 }
 
+# --- TEST-064 (Spec-AC-11): harness in the payload ---------------------------
+test_064_harness_in_payload() {
+  log_info "Test: harness in the payload — a spool line with harness codex renders it on the facts line; an off-set value and an absent key both render unknown (TEST-064)..."
+  local draft="$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md"
+
+  # (a) harness codex -> renders on the facts line beside os_family.
+  # The spool line is produced by a REAL `aai-friction.mjs record` call, not a
+  # hand-written heredoc (Seams preamble: "Two unit tests that mock the
+  # boundary would test the mock"; validation round 2 NON-BLOCKING-1). Only
+  # os_family/aai_pin/node_major/fingerprint are DERIVED by the real CLI, so
+  # they are read back from its own output rather than assumed.
+  cat > "$TEST_DIR/rec064.json" <<'JSON'
+{"schema_version":2,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","expected_behavior":"the marker validates","observed_behavior":"the marker was accepted as prose","impact":"high"}
+JSON
+  rm -f "$TEST_DIR/friction/observations.jsonl"
+  local rec_code=0
+  AAI_HARNESS=codex AAI_FRICTION_SPOOL_DIR="$TEST_DIR/friction" \
+    node "$FRICTION_SCRIPT" record --input "$TEST_DIR/rec064.json" \
+    > "$TEST_DIR/rec064.out" 2> "$TEST_DIR/rec064.err" || rec_code=$?
+  [ "$rec_code" = "0" ] || log_fail "(a) real record call must exit 0: $(cat "$TEST_DIR/rec064.err")"
+  local real_os real_fp draft_a
+  real_os="$(node -e 'const l=require("fs").readFileSync(process.argv[1],"utf8").trim();process.stdout.write(JSON.parse(l).os_family)' "$TEST_DIR/friction/observations.jsonl")"
+  real_fp="$(node -e 'const l=require("fs").readFileSync(process.argv[1],"utf8").trim();process.stdout.write(JSON.parse(l).fingerprint)' "$TEST_DIR/friction/observations.jsonl")"
+  draft_a="$TEST_DIR/friction/pending-issues/$(printf '%s' "$real_fp" | tr -c 'A-Za-z0-9' '_').md"
+  cat > "$TEST_DIR/friction/triage-report.json" <<JSON
+{"clusters":[{"fingerprint":"$real_fp","failure_class":"contract_violation","recurrence":2,"score":9,"decision":"review_candidate","auto_publishable":false}]}
+JSON
+  rm -f "$TEST_DIR/friction/upsert-ledger.jsonl" "$draft_a"
+  local code; code="$(RUN)"
+  [ "$code" = "0" ] || log_fail "(a) plain run must exit 0: $(cat "$TEST_DIR/err")"
+  [ -f "$draft_a" ] || log_fail "(a) a draft must be written"
+  grep -qE 'harness: codex' "$draft_a" || log_fail "(a) the facts line must render harness: codex: $(cat "$draft_a")"
+  grep -qE "os_family: $real_os" "$draft_a" || log_fail "(a) harness must render beside the real record-derived os_family ($real_os) on the same facts line: $(cat "$draft_a")"
+
+  # (b) an off-set harness value -> renders unknown (closed-set sanitizer).
+  # triage-report.json must be rewritten back to the static fingerprint here:
+  # arm (a) above left it pointing at the real record's own computed
+  # fingerprint, which does not match this arm's fixture fingerprint.
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"harness":"not-a-real-harness","skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high"}
+JSONL
+  cat > "$TEST_DIR/friction/triage-report.json" <<'JSON'
+{"clusters":[{"fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","failure_class":"contract_violation","recurrence":2,"score":9,"decision":"review_candidate","auto_publishable":false}]}
+JSON
+  rm -f "$TEST_DIR/friction/upsert-ledger.jsonl" "$draft"
+  code="$(RUN)"
+  [ "$code" = "0" ] || log_fail "(b) plain run must exit 0: $(cat "$TEST_DIR/err")"
+  grep -qE 'harness: unknown' "$draft" || log_fail "(b) an off-set harness value must render unknown: $(cat "$draft")"
+
+  # (c) no harness key at all (legacy spool line) -> renders unknown.
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high"}
+JSONL
+  rm -f "$TEST_DIR/friction/upsert-ledger.jsonl" "$draft"
+  code="$(RUN)"
+  [ "$code" = "0" ] || log_fail "(c) plain run must exit 0: $(cat "$TEST_DIR/err")"
+  grep -qE 'harness: unknown' "$draft" || log_fail "(c) a legacy line with no harness key must render unknown: $(cat "$draft")"
+
+  log_pass "harness renders on the facts line; off-set and absent both degrade to unknown (TEST-064)"
+}
+
 test_009_profiles() {
   log_info "Test: new .aai files classified; layer-profiles green (TEST-009)..."
   local out code; out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
@@ -1511,6 +1573,7 @@ main() {
   test_061_certified_url_is_trimmed_not_raw
   test_062_empty_create_stdout_degrades
   test_063_large_stderr_does_not_lose_exit_status
+  test_064_harness_in_payload
   test_009_profiles
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

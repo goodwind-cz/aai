@@ -523,7 +523,7 @@ test_009_inline_agent_runs_conversion() {  # TEST-009 / Spec-AC-11
   write_inline_runs_state "$s"
   capture_now
 
-  st "$s" "$TEST_DIR/t9.log" append-run --ref CHANGE-0003 --role Validation --model claude-test --started "$NOW_UTC" --note "inline conversion run" \
+  st "$s" "$TEST_DIR/t9.log" append-run --ref CHANGE-0003 --role Validation --model claude-test --started "$NOW_UTC" --note "inline conversion run" --verdict none \
     || log_fail "append-run into inline agent_runs: [] must exit 0: $(cat "$TEST_DIR/t9.log")"
   local ar_count
   ar_count="$(grep -cE '^ {6}agent_runs:' "$s" || true)"
@@ -1736,7 +1736,7 @@ test_039_slug_append_run_checkstate() {  # CHANGE-0012 TEST-003 / Spec-AC-01 (in
     || log_fail "REAL check-state must exit 0 on the slug-keyed STATE (Seam 1): $(cat "$TEST_DIR/t39-ck.log")"
   # Second append lands INSIDE the same slug entry (no duplicate key).
   st "$s" "$TEST_DIR/t39b.log" append-run --ref slug-refs-across-tooling --role Validation \
-    --model claude-test --started "$NOW_UTC" \
+    --model claude-test --started "$NOW_UTC" --verdict none \
     || log_fail "second slug append-run must exit 0: $(cat "$TEST_DIR/t39b.log")"
   local n
   n="$(grep -cE '^    slug-refs-across-tooling:$' "$s" || true)"
@@ -2020,7 +2020,7 @@ test_047_append_run_token_warning() {  # CHANGE-0010 TEST-007 / Spec-AC-04
   grep -q 'WARNING tokens_in/tokens_out null' "$TEST_DIR/t47a.log" \
     && log_fail "no token warning expected when both tokens are supplied: $(cat "$TEST_DIR/t47a.log")"
   # Tokens omitted: exit 0 AND exactly ONE stderr warning line.
-  st "$s" "$TEST_DIR/t47b.log" append-run --ref CHANGE-0001 --role Validation --model claude-test --started "$NOW_UTC" \
+  st "$s" "$TEST_DIR/t47b.log" append-run --ref CHANGE-0001 --role Validation --model claude-test --started "$NOW_UTC" --verdict none \
     || log_fail "append-run without tokens must still exit 0 (warn, never block): $(cat "$TEST_DIR/t47b.log")"
   n="$(grep -c 'WARNING tokens_in/tokens_out null' "$TEST_DIR/t47b.log" || true)"
   [[ "$n" == "1" ]] || log_fail "exactly ONE token warning line expected (got $n): $(cat "$TEST_DIR/t47b.log")"
@@ -2391,7 +2391,7 @@ test_057_prompt_hash_valid() {  # prompt-hash-telemetry TEST-002 / Spec-AC-02
   # Boundary: minimum 12-hex length also accepted.
   local h12="0123456789ab"
   st "$s" "$TEST_DIR/t57b.log" append-run --ref CHANGE-0001 --role Validation --model claude-test \
-      --started "$NOW_UTC" --prompt-hash "$h12" \
+      --started "$NOW_UTC" --prompt-hash "$h12" --verdict none \
     || log_fail "append-run with a valid 12-hex --prompt-hash must exit 0: $(cat "$TEST_DIR/t57b.log")"
   sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE "^ {10}prompt_hash: ${h12}\$" \
     || log_fail "prompt_hash must be stored as a scalar on the run entry (12-hex boundary case)"
@@ -2642,6 +2642,214 @@ test_063_rguard_marker_absent_bytewise() {  # r-guard TEST-RG-STATE-02 / Spec-AC
   log_pass "R-GUARD Stage 1: marker absent/other -> byte-identical write to baseline modulo the self-stamped updated_at_utc, which BOTH runs bumped (Spec-AC-02)"
 }
 
+# --- telemetry-fields-not-prose: TEST-026..030 -------------------------------
+# The env vars detectHarness's ladder reads, beyond AAI_HARNESS itself — every
+# arm below either sets AAI_HARNESS explicitly or scrubs all of these (the
+# suite hazard: CLAUDECODE is set in a developer session, absent on CI).
+HARNESS_ENV_VARS="CLAUDECODE CLAUDE_CODE_ENTRYPOINT CODEX_HOME CODEX_SANDBOX CURSOR_TRACE_ID CURSOR_AGENT GEMINI_HOME AAI_HARNESS"
+
+test_064_append_run_five_fields() {  # TEST-026 / Spec-AC-01
+  log_info "Test: append-run with all five new flags writes five fields + expected indentation; note unchanged; check-state exits 0 (TEST-026)..."
+  local s="$TEST_DIR/t64-state.yaml"
+  write_state_fixture "$s"
+  capture_now
+  st "$s" "$TEST_DIR/t64.log" append-run --ref CHANGE-0001 --role "TDD Implementation" --model claude-test \
+      --started "$NOW_UTC" --note "five-field run" \
+      --harness codex --tokens-total 4242 --verdict pass --requested-model claude-opus-4-8 --actual-model "claude-opus-4-8[1m]" \
+    || log_fail "append-run with all five new flags must exit 0: $(cat "$TEST_DIR/t64.log")"
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" > "$TEST_DIR/t64-entry.txt"
+  grep -qE '^ {10}harness: codex$' "$TEST_DIR/t64-entry.txt" || log_fail "harness field must be written at 10-space indent"
+  grep -qE '^ {10}tokens_total: 4242$' "$TEST_DIR/t64-entry.txt" || log_fail "tokens_total field must be written at 10-space indent"
+  grep -qE '^ {10}verdict: pass$' "$TEST_DIR/t64-entry.txt" || log_fail "verdict field must be written at 10-space indent"
+  grep -qE '^ {10}requested_model: claude-opus-4-8$' "$TEST_DIR/t64-entry.txt" || log_fail "requested_model field must be written at 10-space indent"
+  grep -qE '^ {10}actual_model: claude-opus-4-8\[1m\]$' "$TEST_DIR/t64-entry.txt" || log_fail "actual_model field must be written at 10-space indent"
+  grep -qF "five-field run" "$s" || log_fail "note text must be written unchanged alongside the five new fields"
+  ck "$s" "$TEST_DIR/t64-ck.log" || log_fail "check-state after five-field append-run must exit 0: $(cat "$TEST_DIR/t64-ck.log")"
+  log_pass "append-run writes all five new fields at the expected indentation, note unchanged, check-state clean (TEST-026)"
+}
+
+test_065_append_run_defaults_and_enum_refusal() {  # TEST-027 / Spec-AC-02
+  log_info "Test: --harness default/refusal + --verdict default for a non-gated role (TEST-027)..."
+  local s="$TEST_DIR/t65-state.yaml"
+  write_state_fixture "$s"
+  capture_now
+
+  # (a) AAI_HARNESS=codex with no --harness -> harness codex.
+  ( export AAI_HARNESS=codex
+    st "$s" "$TEST_DIR/t65a.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" ) \
+    || log_fail "(a) append-run must exit 0: $(cat "$TEST_DIR/t65a.log")"
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {10}harness: codex$' \
+    || log_fail "(a) --harness omitted must default to detectHarness(process.env) (AAI_HARNESS=codex)"
+
+  # (b) fully scrubbed env, no --harness -> harness unknown.
+  local s2="$TEST_DIR/t65b-state.yaml"
+  write_state_fixture "$s2"
+  ( unset $HARNESS_ENV_VARS
+    st "$s2" "$TEST_DIR/t65b.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" ) \
+    || log_fail "(b) append-run must exit 0: $(cat "$TEST_DIR/t65b.log")"
+  sed -n '/^    CHANGE-0001:$/,$p' "$s2" | grep -qE '^ {10}harness: unknown$' \
+    || log_fail "(b) a fully scrubbed environment must default to harness unknown"
+
+  # (c) --harness bogus -> exit 2, STATE byte-identical.
+  local s3="$TEST_DIR/t65c-state.yaml" ec=0
+  write_state_fixture "$s3"
+  cp "$s3" "$TEST_DIR/t65c-snapshot.yaml"
+  st "$s3" "$TEST_DIR/t65c.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" --harness bogus || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "(c) --harness bogus must exit 2 (got $ec): $(cat "$TEST_DIR/t65c.log")"
+  cmp -s "$s3" "$TEST_DIR/t65c-snapshot.yaml" || log_fail "(c) STATE must stay byte-identical after the --harness refusal"
+
+  # (d) --verdict omitted for a non-gated role (Planning) -> verdict none.
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {10}verdict: none$' \
+    || log_fail "(d) --verdict omitted for Planning must default to none"
+
+  log_pass "--harness default (AAI_HARNESS)/scrub-to-unknown/bogus-refusal + --verdict default none all hold (TEST-027)"
+}
+
+test_066_append_run_verdict_refusal() {  # TEST-028 / Spec-AC-03
+  log_info "Test: --role Validation/Code Review without --verdict refuse exit 2, byte-identical; --verdict fail writes verdict fail (TEST-028)..."
+  local s="$TEST_DIR/t66-state.yaml" ec=0
+  write_state_fixture "$s"
+  capture_now
+  cp "$s" "$TEST_DIR/t66-snapshot.yaml"
+
+  ec=0
+  st "$s" "$TEST_DIR/t66a.log" append-run --ref CHANGE-0001 --role Validation --model m --started "$NOW_UTC" || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "(a) Validation without --verdict must exit 2 (got $ec): $(cat "$TEST_DIR/t66a.log")"
+  grep -qF -- '--verdict' "$TEST_DIR/t66a.log" || log_fail "(a) the refusal message must name --verdict: $(cat "$TEST_DIR/t66a.log")"
+  cmp -s "$s" "$TEST_DIR/t66-snapshot.yaml" || log_fail "(a) STATE must stay byte-identical after the Validation refusal"
+
+  ec=0
+  st "$s" "$TEST_DIR/t66b.log" append-run --ref CHANGE-0001 --role "Code Review" --model m --started "$NOW_UTC" || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "(b) Code Review without --verdict must exit 2 (got $ec): $(cat "$TEST_DIR/t66b.log")"
+  grep -qF -- '--verdict' "$TEST_DIR/t66b.log" || log_fail "(b) the refusal message must name --verdict: $(cat "$TEST_DIR/t66b.log")"
+  cmp -s "$s" "$TEST_DIR/t66-snapshot.yaml" || log_fail "(b) STATE must stay byte-identical after the Code Review refusal"
+
+  st "$s" "$TEST_DIR/t66c.log" append-run --ref CHANGE-0001 --role Validation --model m --started "$NOW_UTC" --verdict fail \
+    || log_fail "(c) Validation WITH --verdict fail must exit 0: $(cat "$TEST_DIR/t66c.log")"
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {10}verdict: fail$' \
+    || log_fail "(c) the run must carry verdict fail"
+
+  log_pass "Validation/Code Review refuse a missing --verdict exit 2 byte-identical; --verdict fail writes through (TEST-028)"
+}
+
+test_067_set_validation_per_ref_stamp() {  # TEST-029 / Spec-AC-07
+  log_info "Test: set-validation --ref R stamps validation:{status,at} on an EXISTING entry only; never auto-inits; global block always written (TEST-029)..."
+  local s="$TEST_DIR/t67-state.yaml"
+  write_state_fixture "$s"
+  capture_now
+
+  # (a) CHANGE-0001 already has a metrics.work_items entry (fixture) -> stamped.
+  st "$s" "$TEST_DIR/t67a.log" set-validation --status pass --ref CHANGE-0001 \
+    || log_fail "(a) set-validation must exit 0: $(cat "$TEST_DIR/t67a.log")"
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {6}validation:$' \
+    || log_fail "(a) an EXISTING metrics.work_items entry must gain a validation: block"
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {8}status: pass$' \
+    || log_fail "(a) validation.status must be pass"
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {8}at: ' \
+    || log_fail "(a) validation.at must be stamped"
+  grep -qE '^  status: pass$' "$s" || log_fail "(a) the global last_validation block must still be written"
+  ck "$s" "$TEST_DIR/t67a-ck.log" || log_fail "(a) check-state must exit 0: $(cat "$TEST_DIR/t67a-ck.log")"
+
+  # (b) a ref with NO metrics.work_items entry -> no entry created (D7).
+  st "$s" "$TEST_DIR/t67b.log" set-validation --status pass --ref no-such-work-item \
+    || log_fail "(b) set-validation must exit 0 even for a ref with no metrics entry: $(cat "$TEST_DIR/t67b.log")"
+  grep -qE '^    no-such-work-item:$' "$s" && log_fail "(b) D7: a metrics.work_items entry must NEVER be auto-inited by set-validation"
+  grep -qE '^  ref_id: no-such-work-item$' "$s" || log_fail "(b) the global last_validation block must still name the ref"
+  ck "$s" "$TEST_DIR/t67b-ck.log" || log_fail "(b) check-state must exit 0: $(cat "$TEST_DIR/t67b-ck.log")"
+
+  # (c) NON-BLOCKING-C (review-telemetry-fields-not-prose-20260913T105322Z):
+  # the stamped VALUE must track --status, not a hardcoded 'pass' — a mutant
+  # that hardcodes the literal 'pass' regardless of --status must go RED here
+  # (MX6 in the spec's own Mutation checks survived TEST-029 before this arm).
+  st "$s" "$TEST_DIR/t67c.log" set-validation --status fail --ref CHANGE-0001 \
+    || log_fail "(c) set-validation --status fail must exit 0: $(cat "$TEST_DIR/t67c.log")"
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {8}status: fail$' \
+    || log_fail "(c) validation.status must track --status fail, not stay/hardcode pass: $(cat "$s")"
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {8}status: pass$' \
+    && log_fail "(c) validation.status must NOT still read pass after --status fail: $(cat "$s")"
+  ck "$s" "$TEST_DIR/t67c-ck.log" || log_fail "(c) check-state must exit 0: $(cat "$TEST_DIR/t67c-ck.log")"
+
+  log_pass "set-validation stamps validation:{status,at} on an existing entry only, never auto-inits, global block always written, and the stamped VALUE tracks --status (TEST-029)"
+}
+
+test_068_subagent_protocol_names_flags() {  # TEST-030 / Spec-AC-13
+  log_info "Test: SUBAGENT_PROTOCOL.md names all five flags + the refusal sentence; zero corpus bytes added (prompt-diet) (TEST-030)..."
+  local protocol="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
+  [[ -f "$protocol" ]] || log_fail "SUBAGENT_PROTOCOL.md not found: $protocol"
+  for flag in --harness --tokens-total --verdict --requested-model --actual-model; do
+    grep -qF -- "$flag" "$protocol" || log_fail "SUBAGENT_PROTOCOL.md must name $flag"
+  done
+  grep -qiE 'without .?.?--verdict' "$protocol" \
+    || log_fail "SUBAGENT_PROTOCOL.md must state the Validation/Code Review --verdict refusal"
+
+  # The prompt-diet corpus (TEST-010's own set): .aai/*.prompt.md plus the
+  # three named extras. Zero occurrences of the THREE orchestrator-only flag
+  # names below proves D9's claim that THOSE THREE added no corpus bytes for
+  # this scope, rather than merely asserting it. `--harness` and `--verdict`
+  # are deliberately excluded from this probe — not because `--verdict` is a
+  # substring match risk (this is `grep -F -- "--verdict"`, an exact literal
+  # match on the two-dash flag, not a match on the prose word "verdict"):
+  # `--harness` is a PRE-EXISTING log-tick flag already documented in this
+  # corpus (measurement predates this scope), and `--verdict` is, as of
+  # round-1 remediation (BLOCKING-3), LEGITIMATELY carried by
+  # .aai/ROLE_COMMON.md's own append-run example (the direct-execution
+  # callers' PRIMARY PATH) — testing it here would fail on that intentional,
+  # ledger-credited occurrence, not catch a regression.
+  local corpus_files hits=0
+  corpus_files="$(ls "$PROJECT_ROOT"/.aai/*.prompt.md 2>/dev/null) $PROJECT_ROOT/.aai/INTAKE_COMMON.md $PROJECT_ROOT/.aai/STATE_FALLBACK.md $PROJECT_ROOT/.aai/ROLE_COMMON.md"
+  for f in $corpus_files; do
+    [[ -f "$f" ]] || continue
+    for flag in --tokens-total --requested-model --actual-model; do
+      if grep -qF -- "$flag" "$f"; then
+        hits=$((hits + 1))
+        log_info "unexpected corpus hit: $flag in $f"
+      fi
+    done
+  done
+  [[ "$hits" == 0 ]] || log_fail "the append-run-only flag names must add ZERO bytes to the prompt-diet corpus (got $hits hits)"
+  log_pass "SUBAGENT_PROTOCOL.md names all five flags + the refusal; zero prompt-diet corpus hits (TEST-030)"
+}
+
+test_069_scope_ref_id_lifecycle() {  # TEST-031 / Spec-AC-09 (NON-BLOCKING-A, review-telemetry-fields-not-prose-20260913T105322Z)
+  log_info "Test: set-code-review --scope REFRESHES code_review.scope_ref_id to current_focus.ref_id, and reset-block code_review CLEARS it (TEST-031)..."
+  local s="$TEST_DIR/t69-state.yaml"
+  write_state_fixture "$s" pass fail   # code_review status fail -> reset-block succeeds without --force
+
+  # (a) set-code-review --scope stamps scope_ref_id from current_focus.ref_id
+  # (CHANGE-0001 in the fixture), never leaving a prior/absent stamp behind.
+  st "$s" "$TEST_DIR/t69-1.log" set-code-review --scope "fresh scope text" \
+    || log_fail "set-code-review --scope must exit 0: $(cat "$TEST_DIR/t69-1.log")"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}scope_ref_id: CHANGE-0001$' \
+    || log_fail "set-code-review --scope must stamp scope_ref_id to current_focus.ref_id (CHANGE-0001): $(cat "$s")"
+  ck "$s" "$TEST_DIR/t69-1c.log" || log_fail "check-state after set-code-review --scope: $(cat "$TEST_DIR/t69-1c.log")"
+
+  # (b) a NON-scope set-code-review call must NOT touch scope_ref_id.
+  st "$s" "$TEST_DIR/t69-2.log" set-code-review --notes "unrelated note" \
+    || log_fail "set-code-review --notes must exit 0: $(cat "$TEST_DIR/t69-2.log")"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}scope_ref_id: CHANGE-0001$' \
+    || log_fail "a set-code-review call that does not set --scope must leave scope_ref_id untouched: $(cat "$s")"
+
+  # (c) reset-block code_review CLEARS the stamp (fail -> not_run) — a stale
+  # scope_ref_id from BEFORE the reset can never be read as naming the NEXT
+  # ride's scope.
+  st "$s" "$TEST_DIR/t69-3.log" reset-block code_review \
+    || log_fail "reset-block code_review must exit 0: $(cat "$TEST_DIR/t69-3.log")"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}scope_ref_id: null$' \
+    || log_fail "reset-block code_review must clear scope_ref_id to null: $(cat "$s")"
+  ck "$s" "$TEST_DIR/t69-3c.log" || log_fail "check-state after reset-block code_review: $(cat "$TEST_DIR/t69-3c.log")"
+
+  # (d) reset-block code_review on a fixture that never carried scope_ref_id
+  # (legacy STATE, back-compat) must still exit 0 and never CREATE the field.
+  local s2="$TEST_DIR/t69-state2.yaml"
+  write_state_fixture "$s2" pass fail
+  grep -qF 'scope_ref_id' "$s2" && log_fail "fixture setup: scope_ref_id must be absent before this arm"
+  st "$s2" "$TEST_DIR/t69-4.log" reset-block code_review \
+    || log_fail "reset-block code_review on a legacy STATE must exit 0: $(cat "$TEST_DIR/t69-4.log")"
+  grep -qF 'scope_ref_id' "$s2" && log_fail "reset-block code_review must never CREATE scope_ref_id on a legacy STATE: $(cat "$s2")"
+
+  log_pass "code_review.scope_ref_id: set-code-review --scope refreshes it, an unrelated set-code-review call leaves it alone, and reset-block code_review clears it without creating it on a legacy STATE (TEST-031)"
+}
+
 main() {
   echo "Testing $TEST_NAME (transactional STATE CLI — SPEC-0012 TEST-001..025 + SPEC-0014 additions)"
   check_deps
@@ -2709,6 +2917,12 @@ main() {
   test_061_untested_requires_rationale
   test_062_rguard_subagent_refuses_mutators
   test_063_rguard_marker_absent_bytewise
+  test_064_append_run_five_fields
+  test_065_append_run_defaults_and_enum_refusal
+  test_066_append_run_verdict_refusal
+  test_067_set_validation_per_ref_stamp
+  test_068_subagent_protocol_names_flags
+  test_069_scope_ref_id_lifecycle
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

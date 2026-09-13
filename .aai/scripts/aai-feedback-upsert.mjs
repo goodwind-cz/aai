@@ -25,6 +25,9 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { redactSummary } from './lib/aai-redact.mjs';
+// telemetry-fields-not-prose D10/S7: the SAME closed set append-run and
+// aai-friction.mjs assert against — a divergent private copy would show.
+import { HARNESS_VALUES } from './lib/harness.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..');
@@ -475,6 +478,12 @@ function safeIdent(v) {
 }
 function safeEnum(v, set) { return (typeof v === 'string' && set.has(v)) ? v : null; }
 function safeOsFamily(v) { return OS_FAMILY.has(v) ? v : 'unknown'; }
+// telemetry-fields-not-prose D10/Spec-AC-11: a spool value outside the closed
+// HARNESS_VALUES set renders unknown — same shape as safeOsFamily. A spool
+// line reaches a public GitHub issue body, so this closed-set sanitizer is
+// the injection control (never trust the recorder, even though aai-friction.mjs
+// itself only ever derives the value).
+function safeHarness(v) { return HARNESS_VALUES.includes(v) ? v : 'unknown'; }
 function safeInt(v) { return Number.isInteger(v) ? String(v) : '?'; }
 function safePin(v) {
   if (typeof v !== 'string' || !/^[A-Za-z0-9._+-]{1,64}$/.test(v)) return REDACTED;
@@ -517,7 +526,7 @@ function buildPayload(rep, cluster, fp) {
     // (often gitignored) checkout. The value itself is unchanged (no field
     // added/removed from the transmitted record, per the reporter's #371 fence).
     evidenceRef ? `- evidence_ref (reporter-local, may not resolve for a maintainer): ${evidenceRef}` : null,
-    `- os_family: ${safeOsFamily(rep.os_family)}  node_major: ${safeInt(rep.node_major)}  aai_pin: ${safePin(rep.aai_pin)}`,
+    `- os_family: ${safeOsFamily(rep.os_family)}  node_major: ${safeInt(rep.node_major)}  aai_pin: ${safePin(rep.aai_pin)}  harness: ${safeHarness(rep.harness)}`,
     `- recurrence: ${safeInt(cluster.recurrence)}  score: ${safeInt(cluster.score)}`,
   ].filter(Boolean);
   // Transmit redaction of the ONLY free-text field: summary. Dropped if unsafe.

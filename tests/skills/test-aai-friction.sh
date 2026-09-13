@@ -235,7 +235,45 @@ test_001_protocol_sections() {
     n="$(grep -cF "$h" "$PROTOCOL" || true)"
     [ "$n" = "1" ] || log_fail "TEST-001: heading '$h' must appear exactly once (got $n)"
   done
-  log_pass "Protocol doc: all five required sections present exactly once (TEST-001)"
+
+  # NON-BLOCKING-E (review-telemetry-fields-not-prose-20260913T105322Z,
+  # round-3 NB-2): the D6 table was previously guarded for PRESENCE of the
+  # section only — its KEY ROWS could drift (or be deleted entirely) from
+  # aai-friction.mjs's actual persisted set with this suite still green,
+  # which is exactly how round-2 BLOCKING-2 happened. Derive both sides from
+  # their sources and assert they are the SAME SET, so the contract a reader
+  # consults is pinned to the code rather than maintained beside it.
+  local doc_keys code_keys
+  doc_keys="$(awk '/^## D6 persisted-field allowlist/,/^---$/' "$PROTOCOL" \
+    | grep -oE '^\| `[a-z_]+`' | tr -d '| `' | sort)"
+  code_keys="$(awk '/const persisted = \{/,/^  \};$/' "$SCRIPT" \
+    | grep -oE '^\s+[a-z_]+:' | tr -d ' :' | sort)"
+  [ -n "$doc_keys" ] || log_fail "TEST-001: the D6 table's key rows could not be extracted (table missing or reshaped)"
+  [ -n "$code_keys" ] || log_fail "TEST-001: aai-friction.mjs's persisted{} key set could not be extracted (object literal missing or reshaped)"
+  [ "$doc_keys" = "$code_keys" ] \
+    || log_fail "TEST-001: the D6 table's key rows must equal aai-friction.mjs's persisted{} key set (doc: $(echo "$doc_keys" | tr '\n' ',') vs code: $(echo "$code_keys" | tr '\n' ','))"
+  [[ "$doc_keys" == *"harness"* ]] || log_fail "TEST-001: the D6 table must carry a harness row"
+
+  # Validation round-4 NON-BLOCKING-4 / review NON-BLOCKING-6 (finding 6,
+  # 20260913T114019Z): the KEY ROWS above are pinned to the code's persisted{}
+  # set, but the COUNT WORD in "EXACTLY these <word> keys" was still loose
+  # prose — a table left untouched with "nine" silently changed to "eight"
+  # left this test green. Derive the expected word from the persisted set's
+  # ACTUAL size (doc_keys, already proven equal to code_keys above) so the
+  # word itself is pinned to reality, not retyped beside it.
+  local n_keys count_word
+  n_keys="$(printf '%s\n' "$doc_keys" | grep -c .)"
+  case "$n_keys" in
+    1) count_word=one ;; 2) count_word=two ;; 3) count_word=three ;;
+    4) count_word=four ;; 5) count_word=five ;; 6) count_word=six ;;
+    7) count_word=seven ;; 8) count_word=eight ;; 9) count_word=nine ;;
+    10) count_word=ten ;; 11) count_word=eleven ;; 12) count_word=twelve ;;
+    *) log_fail "TEST-001: no count word mapped for a persisted set of size $n_keys (extend the case table)" ;;
+  esac
+  grep -qF "EXACTLY these ${count_word} keys" "$PROTOCOL" \
+    || log_fail "TEST-001: the D6 section must say 'EXACTLY these ${count_word} keys', matching the persisted set's actual size (${n_keys}): $(grep -n 'EXACTLY these' "$PROTOCOL")"
+
+  log_pass "Protocol doc: all five required sections present exactly once, the D6 table's key rows equal the code's persisted set, and the count word matches that set's actual size (TEST-001)"
 }
 
 # --- TEST-002 (Spec-AC-02): well-formed record accepted ---------------------
@@ -260,8 +298,8 @@ test_002_wellformed_accepted() {
   assert_key_present "TEST-002" "$keys" "skill_phase"
   assert_key_present "TEST-002" "$keys" "failure_class"
   assert_key_present "TEST-002" "$keys" "fingerprint"
-  [ "$keys" = "aai_pin,failure_class,fingerprint,node_major,os_family,schema_version,skill_id,skill_phase" ] \
-    || log_fail "TEST-002: spool line key set must be EXACTLY the 8 allowlist keys (got $keys)"
+  [ "$keys" = "aai_pin,failure_class,fingerprint,harness,node_major,os_family,schema_version,skill_id,skill_phase" ] \
+    || log_fail "TEST-002: spool line key set must be EXACTLY the 9 allowlist keys (got $keys)"
 
   local got_pin want_pin
   got_pin="$(line_get "$spool" aai_pin)"
@@ -343,8 +381,8 @@ test_005_forbidden_keys_dropped() {
   assert_key_absent "TEST-005" "$keys" "repo_remote"
   assert_key_absent "TEST-005" "$keys" "username"
   assert_key_absent "TEST-005" "$keys" "project_id"
-  [ "$keys" = "aai_pin,failure_class,fingerprint,node_major,os_family,schema_version,skill_id,skill_phase" ] \
-    || log_fail "TEST-005: spool line must contain ONLY the 8 allowlist keys (got $keys)"
+  [ "$keys" = "aai_pin,failure_class,fingerprint,harness,node_major,os_family,schema_version,skill_id,skill_phase" ] \
+    || log_fail "TEST-005: spool line must contain ONLY the 9 allowlist keys (got $keys)"
 
   # Locally derived fields must NOT trust caller-supplied values.
   [ "$(line_get "$spool" os_family)" != "caller-lied-os" ] \
@@ -370,8 +408,8 @@ test_006_novel_key_dropped() {
   local keys; keys="$(line_keys "$spool")"
   assert_key_absent "TEST-006" "$keys" "extra_debug_note"
   assert_key_absent "TEST-006" "$keys" "another_unlisted_field"
-  [ "$keys" = "aai_pin,failure_class,fingerprint,node_major,os_family,schema_version,skill_id,skill_phase" ] \
-    || log_fail "TEST-006: novel keys prove deny-by-default; only the 8 allowlist keys may survive (got $keys)"
+  [ "$keys" = "aai_pin,failure_class,fingerprint,harness,node_major,os_family,schema_version,skill_id,skill_phase" ] \
+    || log_fail "TEST-006: novel keys prove deny-by-default; only the 9 allowlist keys may survive (got $keys)"
   log_pass "Novel unknown key dropped — allowlist is deny-by-default, not a denylist (TEST-006)"
 }
 
@@ -551,7 +589,7 @@ test_014_profiles_classified() {
 # --- TEST-015 (Spec-AC-10): --help documents the contract -------------------
 
 test_015_help() {
-  log_info "Test: --help exits 0 and documents record/--input/allowlist/network (TEST-015)..."
+  log_info "Test: --help exits 0 and documents record/--input/allowlist/network/harness (TEST-015)..."
   local out="$TEST_DIR/help.out" err="$TEST_DIR/help.err" code=0
   node "$SCRIPT" --help > "$out" 2> "$err" || code=$?
   assert_exit "--help" 0 "$code"
@@ -559,7 +597,11 @@ test_015_help() {
   grep -qF -- "--input" "$out" || log_fail "TEST-015: --help must mention '--input'"
   grep -qF "allowlist" "$out" || log_fail "TEST-015: --help must mention 'allowlist'"
   grep -qF "network"   "$out" || log_fail "TEST-015: --help must mention 'network'"
-  log_pass "--help documents record/--input/allowlist/network, exit 0 (TEST-015)"
+  # telemetry-fields-not-prose D10: harness is the ninth persisted allowlist
+  # key; the --help text must name it or the contract drifts silently again
+  # (validation round 2 BLOCKING-2).
+  grep -qF "harness"   "$out" || log_fail "TEST-015: --help must mention 'harness'"
+  log_pass "--help documents record/--input/allowlist/network/harness, exit 0 (TEST-015)"
 }
 
 # --- TEST-016 (Spec-AC-11): node:-only imports; full mktemp templates -------
@@ -694,20 +736,20 @@ JSON
 
 # --- TEST-101 (Spec-AC-01): v1 stays byte-identical (backward compat) --------
 test_101_v1_backward_compat() {
-  log_info "Test: a schema-v1 record persists exactly the 8 legacy keys (TEST-101)..."
+  log_info "Test: a schema-v1 record persists exactly the 9 legacy keys, harness included (TEST-101)..."
   local sp="$TEST_DIR/sp101"; mkdir -p "$sp"
   write_wellformed "$TEST_DIR/v1.json"
   local code; code="$(run_record "$sp" "$TEST_DIR/v1.json")"
   assert_exit "v1 record" 0 "$code"
   local keys; keys="$(line_keys "$sp/observations.jsonl")"
-  [ "$keys" = "aai_pin,failure_class,fingerprint,node_major,os_family,schema_version,skill_id,skill_phase" ] \
-    || log_fail "TEST-101: v1 must persist exactly the 8 legacy keys (got: $keys)"
+  [ "$keys" = "aai_pin,failure_class,fingerprint,harness,node_major,os_family,schema_version,skill_id,skill_phase" ] \
+    || log_fail "TEST-101: v1 must persist exactly the 9 legacy keys (got: $keys)"
   # Byte-compat is about ORDER too: assert the raw JSONL key order is the exact
   # pre-v2 sequence (Object.keys preserves insertion order), not just the set.
   local order; order="$(node -e 'const l=require("fs").readFileSync(process.argv[1],"utf8").trim();process.stdout.write(Object.keys(JSON.parse(l)).join(","))' "$sp/observations.jsonl")"
-  [ "$order" = "schema_version,os_family,aai_pin,node_major,skill_id,skill_phase,failure_class,fingerprint" ] \
-    || log_fail "TEST-101: v1 key ORDER must be byte-identical to the pre-v2 tool (got: $order)"
-  log_pass "v1 record byte-compatible: exactly the 8 legacy keys in the original order (TEST-101)"
+  [ "$order" = "schema_version,os_family,aai_pin,node_major,harness,skill_id,skill_phase,failure_class,fingerprint" ] \
+    || log_fail "TEST-101: v1 key ORDER must match the (telemetry-fields-not-prose D10 harness-extended) pre-v2 tool (got: $order)"
+  log_pass "v1 record byte-compatible: exactly the 9 legacy keys (harness included) in order (TEST-101)"
 }
 
 # --- TEST-102 (Spec-AC-01): v2 persists structured; forged key dropped -------
@@ -918,6 +960,43 @@ test_020_stalled_progress_class() {
   echo "PASS: TEST-020 stalled_progress accepted + enum rejection names seven values"
 }
 
+# --- TEST-113 (Spec-AC-10): harness on observations --------------------------
+
+test_113_harness_on_observations() {
+  log_info "Test: harness on observations — AAI_HARNESS=codex persists harness codex; a supplied 'harness' input key is dropped for the DERIVED value; a legacy (harness-unaware) caller still records fine (TEST-113)..."
+  local rec sdir keys got
+
+  # (a) AAI_HARNESS=codex, ordinary well-formed input -> harness codex.
+  rec="$TEST_DIR/t113a.json"; sdir="$TEST_DIR/t113a-spool"; mkdir -p "$sdir"
+  write_wellformed "$rec"
+  AAI_HARNESS=codex AAI_FRICTION_SPOOL_DIR="$sdir" node "$SCRIPT" record --input "$rec" \
+    > "$OUT" 2> "$ERR" || log_fail "(a) record must exit 0: $(cat "$ERR")"
+  got="$(line_get "$sdir/observations.jsonl" harness)"
+  [ "$got" = "codex" ] || log_fail "(a) harness must persist as codex (got $got)"
+
+  # (b) an input object carrying harness:gemini persists the DERIVED value
+  # (AAI_HARNESS=codex), never the supplied one — the deny-by-default control.
+  rec="$TEST_DIR/t113b.json"; sdir="$TEST_DIR/t113b-spool"; mkdir -p "$sdir"
+  write_wellformed "$rec" ',
+  "harness": "gemini"'
+  AAI_HARNESS=codex AAI_FRICTION_SPOOL_DIR="$sdir" node "$SCRIPT" record --input "$rec" \
+    > "$OUT" 2> "$ERR" || log_fail "(b) record must exit 0: $(cat "$ERR")"
+  got="$(line_get "$sdir/observations.jsonl" harness)"
+  [ "$got" = "codex" ] || log_fail "(b) a supplied harness:gemini must be DROPPED — persisted value must be the derived codex (got $got)"
+
+  # (c) a legacy (harness-unaware) caller — an input object that names no
+  # harness at all, exactly the shape every pre-scope caller sends — still
+  # records successfully and gains the derived field.
+  rec="$TEST_DIR/t113c.json"; sdir="$TEST_DIR/t113c-spool"; mkdir -p "$sdir"
+  write_wellformed "$rec"
+  AAI_FRICTION_SPOOL_DIR="$sdir" node "$SCRIPT" record --input "$rec" \
+    > "$OUT" 2> "$ERR" || log_fail "(c) a legacy harness-unaware caller must still record successfully: $(cat "$ERR")"
+  keys="$(line_keys "$sdir/observations.jsonl")"
+  assert_key_present "TEST-113(c)" "$keys" "harness"
+
+  log_pass "harness derived from the environment, a supplied value dropped, a legacy caller still records (TEST-113)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -959,6 +1038,7 @@ main() {
   test_107_only_summary_redacted
   test_108_redactor_no_network_static
   test_112_summary_enabled_scoped
+  test_113_harness_on_observations
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

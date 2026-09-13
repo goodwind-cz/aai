@@ -16,13 +16,13 @@
 //   `--input -` reads the observation JSON from stdin; otherwise it is a path.
 //
 // D6 DENY-BY-DEFAULT (the privacy crux)
-//   The persisted record is built by COPYING ONLY the eight allowlisted keys
+//   The persisted record is built by COPYING ONLY the nine allowlisted keys
 //   into a fresh object literal — never by copying the input and deleting a
 //   denylist. Named identity fields (hostname, absolute path, repo remote,
 //   username, project id) AND any novel/unknown key a caller supplies are
 //   therefore absent from the spool line by construction. The locally derived
-//   fields (os_family, aai_pin, node_major) are derived on this machine and
-//   are never trusted from the caller.
+//   fields (os_family, aai_pin, node_major, harness) are derived on this
+//   machine and are never trusted from the caller.
 //
 // EXIT CONTRACT
 //   0  success (a line was appended), or --help.
@@ -38,6 +38,9 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { redactSummary, MAX_SUMMARY_LEN } from './lib/aai-redact.mjs';
+// telemetry-fields-not-prose D10: SAME derivation pair as os_family/node_major
+// — never re-derived, never accepted from the caller.
+import { detectHarness } from './lib/harness.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..');
@@ -98,12 +101,13 @@ record
 
 Guarantees:
   - Offline: no token and no network access is ever used.
-  - D6 allowlist (deny-by-default): the persisted line contains ONLY the eight
-    safe v1 keys (schema_version, os_family, aai_pin, node_major, skill_id,
-    skill_phase, failure_class, fingerprint) plus, for schema_version 2, the
-    leak-free structured signal fields (reproducible, impact, confidence,
-    workaround, evidence_ref, redaction_status). Every other input key — named
-    identity fields or any novel key — is dropped by construction.
+  - D6 allowlist (deny-by-default): the persisted line contains ONLY the nine
+    safe v1 keys (schema_version, os_family, aai_pin, node_major, harness,
+    skill_id, skill_phase, failure_class, fingerprint) plus, for schema_version
+    2, the leak-free structured signal fields (reproducible, impact,
+    confidence, workaround, evidence_ref, redaction_status). Every other
+    input key — named identity fields or any novel key — is dropped by
+    construction.
   - Redaction (RFC-0013): the opt-in free-text 'summary' (schema v2) is persisted
     only when .aai/feedback.yaml enables it AND the hard redactor certifies it
     clean; otherwise it is dropped fail-closed (the record still persists).
@@ -437,14 +441,19 @@ function record(rest) {
   const obj = readInput(inputArg);
   const fields = validate(obj);
 
-  // D6 deny-by-default: build the persisted record by copying ONLY the eight
-  // allowlisted keys into a fresh object. No input key other than the three
-  // explicitly named below can reach this object.
+  // D6 deny-by-default: build the persisted record by copying ONLY the
+  // allowlisted keys into a fresh object. No input key other than the ones
+  // explicitly named below can reach this object. telemetry-fields-not-prose
+  // D10 adds a NINTH allowlisted v1 key, `harness` — DERIVED on this machine
+  // exactly like os_family/aai_pin/node_major, never copied from the input
+  // object (an input key named `harness` is silently dropped by construction,
+  // same as any other unlisted key).
   const persisted = {
     schema_version: fields.schemaVersion,
     os_family: deriveOsFamily(),
     aai_pin: deriveAaiPin(),
     node_major: deriveNodeMajor(),
+    harness: detectHarness(process.env),
     skill_id: fields.skillId,
     skill_phase: fields.skillPhase,
     failure_class: fields.failureClass,

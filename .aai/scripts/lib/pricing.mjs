@@ -20,11 +20,13 @@ function unq(s) {
   return s;
 }
 
-// parsePricing(raw) -> { aliases: {id: key}, models: {key: {input, output}} }
-// input/output are numbers or null (unpriced).
+// parsePricing(raw) -> { aliases: {id: key}, models: {key: {input, output}},
+// costBlend: {input_share} } — input/output are numbers or null (unpriced);
+// costBlend.input_share is a number or null (telemetry-fields-not-prose D5).
 export function parsePricing(raw) {
   const aliases = {};
   const models = {};
+  const costBlend = { input_share: null };
   let section = null;
   let current = null;
   for (const line of String(raw).split(/\r?\n/)) {
@@ -51,16 +53,22 @@ export function parsePricing(raw) {
       const v = unq(m[2].replace(/\s+#.*$/, ''));
       if (m[1] === 'input_usd_per_m') models[current].input = v === 'null' ? null : Number(v);
       if (m[1] === 'output_usd_per_m') models[current].output = v === 'null' ? null : Number(v);
+    } else if (section === 'cost_blend') {
+      const m = line.match(/^ {2}(\w+):\s*(.*)$/);
+      if (m && m[1] === 'input_share') {
+        const v = unq(m[2].replace(/\s+#.*$/, ''));
+        costBlend.input_share = v === 'null' || v === '' ? null : Number(v);
+      }
     }
   }
-  return { aliases, models };
+  return { aliases, models, costBlend };
 }
 
 export function loadPricing(pricingPath) {
   try {
     return parsePricing(fs.readFileSync(pricingPath, 'utf8'));
   } catch {
-    return { aliases: {}, models: {} };
+    return { aliases: {}, models: {}, costBlend: { input_share: null } };
   }
 }
 
@@ -88,4 +96,27 @@ export function runCostUsd(pricing, modelId, tokensIn, tokensOut) {
   if (!entry || entry.input === null || entry.output === null
     || !Number.isFinite(entry.input) || !Number.isFinite(entry.output)) return null;
   return (tokensIn * entry.input + tokensOut * entry.output) / 1_000_000;
+}
+
+// blendedCostUsd(pricing, modelId, total) -> {cost, bounds:[allInput, allOutput]}
+// | null (telemetry-fields-not-prose D5). Used ONLY when a run has no
+// tokens_in/tokens_out split but does carry a token TOTAL (from the
+// tokens_total field or, failing that, the usage_total_tokens= note marker —
+// the caller resolves which). `share` is READ from the pricing table's
+// cost_blend.input_share (never hardcoded here); its shipped value is a
+// documented CONVENTION (PRICING.yaml), not a measurement — the repository
+// has no recorded input/output ratio of its own. Falls back to the midpoint
+// 0.5 only when the config omits the key entirely (never a silent 0 or 1).
+// null (never NaN/0) whenever the resolved model carries no rates — an
+// unpriced model must never fabricate a number.
+export function blendedCostUsd(pricing, modelId, total) {
+  if (typeof total !== 'number' || !Number.isFinite(total)) return null;
+  const entry = pricing.models[resolveModelKey(pricing, modelId)];
+  if (!entry || entry.input === null || entry.output === null
+    || !Number.isFinite(entry.input) || !Number.isFinite(entry.output)) return null;
+  const share = (pricing.costBlend && typeof pricing.costBlend.input_share === 'number'
+    && Number.isFinite(pricing.costBlend.input_share)) ? pricing.costBlend.input_share : 0.5;
+  const cost = (total * (share * entry.input + (1 - share) * entry.output)) / 1_000_000;
+  const bounds = [(total * entry.input) / 1_000_000, (total * entry.output) / 1_000_000];
+  return { cost, bounds };
 }

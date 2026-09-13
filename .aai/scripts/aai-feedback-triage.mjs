@@ -17,6 +17,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { HARNESS_VALUES } from './lib/harness.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..');
@@ -37,12 +38,24 @@ const FAILURE_CLASSES = new Set([
 ]);
 // The persisted D6 allowlist (v1 eight + v2 extensions). Any key outside this set
 // means the line was not produced by the capture tool -> drop (sanitization gate).
+// telemetry-fields-not-prose D10: `harness` joins the persisted v1 allowlist at
+// the capture stage (aai-friction.mjs); the triage gate's allowlist must carry
+// it too, or every newly recorded observation is dropped whole as
+// 'unsanitized_key'. The KEY is allowed unconditionally here; the VALUE is
+// closed-set normalized by safeHarness() below (same closed-set semantics as
+// the sibling feedback-report script's own harness sanitizer) rather than
+// re-validated as a second rejection gate — an out-of-set value degrades to
+// 'unknown', it never drops the observation.
 const ALLOWED_KEYS = new Set([
-  'schema_version', 'os_family', 'aai_pin', 'node_major', 'skill_id', 'skill_phase',
+  'schema_version', 'os_family', 'aai_pin', 'node_major', 'harness', 'skill_id', 'skill_phase',
   'failure_class', 'fingerprint',
   'reproducible', 'impact', 'confidence', 'workaround', 'evidence_ref',
   'redaction_status', 'summary',
 ]);
+// Closed-set sanitizer, same shape as the sibling script's harness sanitizer:
+// an out-of-set (or absent) value normalizes to 'unknown', it is never a
+// rejection reason.
+function safeHarness(v) { return HARNESS_VALUES.includes(v) ? v : 'unknown'; }
 const IMPACT_SCORE = { low: 1, medium: 2, high: 3 };
 const CONFIDENCE_SCORE = { low: 1, medium: 2, high: 3 };
 const REPRODUCIBLE_BONUS = 2;
@@ -230,6 +243,7 @@ function triage(rows, config) {
     clusters.push({
       fingerprint: fp,
       failure_class: members[0].failure_class,
+      harness: safeHarness(members[0].harness),
       recurrence,
       score,
       decision,
