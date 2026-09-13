@@ -97,3 +97,10 @@ links:
   and not already in the test-framework bucket; the spec freezes the list.
 - Ceremony 2, TDD, mutation checks; runs in a sibling worktree because it
   edits the dispatcher the loop runs every tick.
+- Corrected at spec freeze (2026-09-13): the level is **3**, not 2. The scope
+  edits `.aai/scripts/state.mjs` and `.aai/scripts/lib/state-engine.mjs`, both
+  listed in `protected_paths_l3` in `docs/ai/docs-audit.yaml`, and RFC-0009
+  makes L3 mandatory on a protected surface. The declaration lives in
+  `docs/specs/SPEC-DRAFT-spec-dispatch-state-sweep.md` frontmatter
+  (`ceremony_level: 3`), which is authoritative; this line records the
+  correction rather than leaving the intake's estimate reading as the decision.

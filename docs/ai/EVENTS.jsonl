@@ -2274,3 +2274,4 @@
 {"v":1,"ts":"2026-09-13T13:29:36.666Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-telemetry-fields-not-prose","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-13T13:29:36.707Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-telemetry-fields-not-prose","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-13T13:29:36.745Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-telemetry-fields-not-prose","payload":{"commit":"6105b291"}}
+{"v":1,"ts":"2026-09-13T15:01:40.031Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-dispatch-state-sweep","payload":{"from":"draft","to":"implementing"}}
