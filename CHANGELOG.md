@@ -11,6 +11,48 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(telemetry): run telemetry is recorded as fields, so cost and reliability stop depending on prose
+
+- **`state.mjs append-run` takes fields** — `--harness`, `--tokens-total`,
+  `--verdict pass|fail|none`, `--requested-model`, `--actual-model` — written
+  on the `agent_runs` entry; `note` stays free text. `--harness` defaults to
+  the detected harness. **BREAKING for hand-written role prompts:** a
+  `Validation` or `Code Review` run appended without `--verdict` is refused
+  (exit 2, named reason, STATE byte-identical). Every caller in this
+  repository is wired (`SUBAGENT_PROTOCOL.md`, `ROLE_COMMON.md`); a downstream
+  project with its own prompts must add the flag.
+- **`metrics-flush` derives cost, model and reliability from fields first**,
+  and from the old note markers only as a labelled fallback (`basis: field` /
+  `basis: note`, one NOTE when they disagree). Cost is blended from the
+  harness total with a declared `cost_blend.input_share` in `PRICING.yaml`
+  and carries `cost_bounds_usd`. A downstream ledger's first flush after
+  `/aai-update` turns `cost_usd` from null into a number for legacy rides, so
+  pre- and post-update cost totals are not comparable (R8, disclosed).
+- **The flush window no longer strands rides.** A ref is flushed on the
+  latest of three sources — its per-ref verdict field, `last_validation`, or a
+  durable `validation_verdict` pass event — and a stale pass event is refused
+  whenever a newer fail exists anywhere for that ref (ts tie counts as
+  contradicting; missing ts is fail-closed). 29 refs were stranded; the fix
+  recovers 3 more than `--sweep` did, the other 24 carry no durable pass and
+  stay stranded, disclosed. Closes `fu-flush-window-closes-on-verdict-reset`,
+  `fu-reliability-marker-is-freetext`, `fu-flush-nulls-review-scope-before-pr`
+  (the partial reset keeps `code_review.scope` and stamps `scope_ref_id`).
+- **`harness` on friction observations** — derived from the environment,
+  never taken from the caller, allowlisted through record, triage and upsert
+  (nine persisted keys now; `FRICTION_PROTOCOL.md` D6 table derived-checked).
+- Factory and metrics reports show which basis each number came from.
+- Measured before: 135 of 138 ledger lines had null cost, 5 `VERDICT FAIL`
+  notes without the colon were invisible, `validation_fails` 2 against
+  `remediation_runs` 69.
+- **Post-review (PR #378 bots)**: a per-ref `pass` stamp is vetoed by a newer
+  same-ref global `fail`; `requested_model` / `actual_model` reach the ledger
+  run entry; the preserved review scope binds to the current-focus ref when
+  several refs flush together.
+- Spec: SPEC-0178 (telemetry-fields-not-prose), ceremony 3 (`state.mjs` is a
+  protected surface), TDD, 18 + 6 tests, 25 + 12 mutations, four validation
+  rounds, two review rounds. Wave 3 sweep 1 (CHANGE-0183). Merged by the
+  orchestrator under the wave-3 mandate of 2026-09-13.
+
 ## [unreleased] — chore(roadmap): wave 3 — subsystem sweeps under the owner's "resolve everything" mandate
 
 - **Roadmap re-cut as seven subsystem sweeps** (telemetry fields, test

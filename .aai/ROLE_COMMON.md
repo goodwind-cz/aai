@@ -15,7 +15,11 @@ immediately before this role's first step begins.
 PRIMARY PATH — after completing, append your agent run via the transactional CLI:
   node .aai/scripts/state.mjs append-run --ref <REF-ID> --role <ThisRole> \
     --model <your model identifier> --started <started_utc> \
+    --verdict <pass|fail|none> \
     [--note "<summary>"] [--tokens-in N --tokens-out N]
+`--verdict` is REQUIRED (exit 2 without it) when `<ThisRole>` is `Validation`
+or `"Code Review"`; every other role passes `none` unless it has an actual
+pass/fail verdict of its own.
 The CLI self-stamps `ended_utc` and computes `duration_seconds` from the system
 clock, keeps `cost_usd: null`, and auto-initializes a missing
 metrics.work_items entry — never a second top-level `metrics:` key.

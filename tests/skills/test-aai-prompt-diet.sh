@@ -781,9 +781,10 @@ test_012_growth_sum_matches_ledger() {
   # not to rescue TEST-010.
   # Then 25283 -> 26515: standing-merge-authorization-in-canon (+1232 B,
   # SKILL_PR step 6 + SKILL_SHIP step 6 standing-authorization clauses, PR #375).
-  # Then 26515 -> 26712: test-framework-sweep-select-suites-truing (+197 B,
+  # Then 26515 -> 26731: standing-merge / ROLE_COMMON --verdict (+216 B, SPEC-0178).
+  # Then 26731 -> 26928: test-framework-sweep-select-suites-truing (+197 B,
   # SKILL_TDD.prompt.md Phase 4 step 0 names select-suites.mjs, Spec-AC-16).
-  local want_growth=26712
+  local want_growth=26928
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

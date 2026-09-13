@@ -36,7 +36,16 @@ TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-learned-routing.XXXXXX")"
 trap 'rm -rf "$TEST_DIR"' EXIT
 
 mkrepo() { # $1 = dir
-  mkdir -p "$1" && git -C "$1" init -q . && git -C "$1" config user.email t@e.st && git -C "$1" config user.name t
+  # Round-7 (PR #378 Copilot, memory-class bare-origin-head-defaultbranch):
+  # TEST-007's write_scope_gate_repo fixture hard-codes `main` into STATE
+  # current_focus/code_review base_ref/head_ref, so the scratch repo's
+  # initial branch must actually BE main regardless of the host's
+  # `init.defaultBranch` — `-b main` on a git new enough to support it,
+  # falling back to a config override for older git (same portable pattern
+  # as test-aai-factory-report.sh / test-aai-live-status.sh).
+  mkdir -p "$1" \
+    && { git -C "$1" init -q -b main . 2>/dev/null || git -C "$1" -c init.defaultBranch=main init -q .; } \
+    && git -C "$1" config user.email t@e.st && git -C "$1" config user.name t
 }
 
 # --- TEST-001 (Spec-AC-01): the routing rule is canon, and vendored -----------
@@ -349,6 +358,186 @@ EOF
   log_pass "all $total entries triaged; guard pointers resolve; no pre-edit entry body was removed (TEST-006)"
 }
 
+# --- TEST-007 (Spec-AC-09): check-committed-scope uses a preserved scope only
+# when scope_ref_id agrees with current_focus.ref_id ------------------------
+#
+# write_scope_gate_repo <dir> <focus_ref> — a git repo + STATE.yaml driven
+# through a REAL metrics-flush.mjs partial reset (S4: never a synthesized
+# STATE), differing only in current_focus.ref_id (CHANGE-0001, the ref that
+# flushes, vs CHANGE-0002, the ref that stays active).
+write_scope_gate_repo() {
+  local d="$1" focus_ref="$2"
+  mkrepo "$d"
+  mkdir -p "$d/docs/ai"
+  printf 'x\n' > "$d/a.txt"
+  git -C "$d" add a.txt >/dev/null && git -C "$d" commit -qm base >/dev/null
+  cat > "$d/pricing.yaml" <<'YAML'
+schema_version: 2
+lookup_rules:
+  order:
+    - exact-match
+    - unknown-fallback
+models:
+  unknown:
+    input_usd_per_m: null
+    output_usd_per_m: null
+YAML
+  : > "$d/docs/ai/LOOP_TICKS.jsonl"
+  cat > "$d/docs/ai/STATE.yaml" <<STATE
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: $focus_ref
+  primary_path: null
+active_work_items:
+  - ref_id: CHANGE-0001
+    status: done
+    phase: validation
+    primary_path: null
+  - ref_id: CHANGE-0002
+    status: in_progress
+    phase: implementation
+    primary_path: null
+implementation_strategy:
+  selected: tdd
+  source: null
+  rationale: null
+worktree:
+  recommendation: not_needed
+  user_decision: undecided
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: true
+  status: pass
+  scope: >-
+    a.txt
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+last_validation:
+  status: pass
+  run_at_utc: 2026-07-15T10:00:00Z
+  ref_id: CHANGE-0001
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+  spec_path: null
+  test_path: null
+  evidence:
+    red: null
+    green: null
+    refactor: null
+metrics:
+  work_items:
+    CHANGE-0001:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Implementation
+          model_id: claude-test
+          started_utc: 2026-07-15T09:00:00Z
+          ended_utc: 2026-07-15T09:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+    CHANGE-0002:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Implementation
+          model_id: claude-test
+          started_utc: 2026-07-15T09:00:00Z
+          ended_utc: 2026-07-15T09:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+
+updated_at_utc: 2026-07-15T09:30:00Z
+STATE
+  ( cd "$d" && node "$PROJECT_ROOT/.aai/scripts/metrics-flush.mjs" \
+      --state docs/ai/STATE.yaml --metrics docs/ai/METRICS.jsonl \
+      --ticks docs/ai/LOOP_TICKS.jsonl --pricing pricing.yaml \
+      --events docs/ai/EVENTS.jsonl --now 2026-07-15T10:00:00Z \
+      > flush.out 2>&1 ) || log_fail "fixture flush must exit 0: $(cat "$d/flush.out")"
+}
+
+test_007_scope_ref_id_gate() {
+  log_info "Test: check-committed-scope --from-state uses a preserved scope only when scope_ref_id matches current_focus.ref_id, degrades naming both refs otherwise, and behaves as today when scope_ref_id is absent (TEST-007, seam S4)..."
+  local rc
+
+  # (a) matching: current_focus.ref_id equals the flushed ref -> scope USED.
+  local a="$TEST_DIR/t007a"
+  write_scope_gate_repo "$a" CHANGE-0001
+  grep -qE '^  scope_ref_id: CHANGE-0001$' "$a/docs/ai/STATE.yaml" \
+    || log_fail "(a) fixture setup: the real partial-flush reset must have stamped scope_ref_id CHANGE-0001: $(cat "$a/docs/ai/STATE.yaml")"
+  rc=0; ( cd "$a" && node "$CHECK" --from-state --json > "$TEST_DIR/a.out" 2>&1 ) || rc=$?
+  [ "$rc" = "0" ] || log_fail "(a) matching scope_ref_id must exit 0, got $rc: $(cat "$TEST_DIR/a.out")"
+  local n; n="$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(String(d.checked))' "$TEST_DIR/a.out")"
+  [ "$n" = "1" ] || log_fail "(a) the preserved scope must be USED (one path, a.txt), checked=$n: $(cat "$TEST_DIR/a.out")"
+  grep -qi 'scope_ref_id' "$TEST_DIR/a.out" && log_fail "(a) a matching scope_ref_id must never degrade: $(cat "$TEST_DIR/a.out")"
+
+  # (b) mismatching: current_focus.ref_id names the OTHER (still-active) ref
+  # -> the preserved scope is a DIFFERENT ride's and must NOT be reused.
+  local b="$TEST_DIR/t007b"
+  write_scope_gate_repo "$b" CHANGE-0002
+  rc=0; ( cd "$b" && node "$CHECK" --from-state --json > "$TEST_DIR/b.out" 2>&1 ) || rc=$?
+  [ "$rc" = "0" ] || log_fail "(b) a mismatched scope_ref_id must DEGRADE (exit 0, never a hard failure), got $rc: $(cat "$TEST_DIR/b.out")"
+  grep -qi 'scope_ref_id' "$TEST_DIR/b.out" || log_fail "(b) the degrade must name scope_ref_id: $(cat "$TEST_DIR/b.out")"
+  grep -qF 'CHANGE-0001' "$TEST_DIR/b.out" || log_fail "(b) the degrade must name the STATE's scope_ref_id (CHANGE-0001): $(cat "$TEST_DIR/b.out")"
+  grep -qF 'CHANGE-0002' "$TEST_DIR/b.out" || log_fail "(b) the degrade must name the current ride's ref (CHANGE-0002): $(cat "$TEST_DIR/b.out")"
+  local n2; n2="$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(String(d.checked))' "$TEST_DIR/b.out")"
+  [ "$n2" = "0" ] || log_fail "(b) a degraded (unused) scope must check nothing, checked=$n2: $(cat "$TEST_DIR/b.out")"
+
+  # (c) scope_ref_id ABSENT (legacy STATE, back-compat) -> behaves exactly as
+  # today: the scope is used with no mismatch degrade (already covered by
+  # TEST-004's own --from-state fixture, which never carries the field —
+  # asserted again here for this seam's own record).
+  local cdir="$TEST_DIR/t007c"; mkrepo "$cdir"; mkdir -p "$cdir/docs/ai"
+  printf 'one\n' > "$cdir/one.txt"
+  git -C "$cdir" add one.txt >/dev/null && git -C "$cdir" commit -qm base >/dev/null
+  printf 'code_review:\n  required: true\n  status: pass\n  scope: >-\n    one.txt\n  base_ref: main\n' > "$cdir/docs/ai/STATE.yaml"
+  rc=0; ( cd "$cdir" && node "$CHECK" --from-state --json > "$TEST_DIR/c.out" 2>&1 ) || rc=$?
+  [ "$rc" = "0" ] || log_fail "(c) an absent scope_ref_id must behave exactly as today, got $rc: $(cat "$TEST_DIR/c.out")"
+  grep -qi 'scope_ref_id' "$TEST_DIR/c.out" && log_fail "(c) an absent scope_ref_id must never trigger the degrade: $(cat "$TEST_DIR/c.out")"
+
+  # (d) NON-BLOCKING-A fix (review-telemetry-fields-not-prose-20260913T105322Z):
+  # a freshly-set scope from set-code-review REFRESHES scope_ref_id to the
+  # CURRENT current_focus.ref_id, so a scope set for THIS ride is USED even
+  # though an OLDER flush stamped a DIFFERENT ref's scope_ref_id.
+  local dd="$TEST_DIR/t007d"
+  write_scope_gate_repo "$dd" CHANGE-0002
+  grep -qE '^  scope_ref_id: CHANGE-0001$' "$dd/docs/ai/STATE.yaml" \
+    || log_fail "(d) fixture setup: the older flush must have stamped scope_ref_id CHANGE-0001: $(cat "$dd/docs/ai/STATE.yaml")"
+  ( cd "$dd" && node "$PROJECT_ROOT/.aai/scripts/state.mjs" set-code-review --scope a.txt --state docs/ai/STATE.yaml > "$TEST_DIR/d.setscope.out" 2>&1 ) \
+    || log_fail "(d) set-code-review --scope must exit 0: $(cat "$TEST_DIR/d.setscope.out")"
+  grep -qE '^  scope_ref_id: CHANGE-0002$' "$dd/docs/ai/STATE.yaml" \
+    || log_fail "(d) set-code-review --scope must REFRESH scope_ref_id to the current focus ref (CHANGE-0002), not leave the older stamp: $(cat "$dd/docs/ai/STATE.yaml")"
+  rc=0; ( cd "$dd" && node "$CHECK" --from-state --json > "$TEST_DIR/d.out" 2>&1 ) || rc=$?
+  [ "$rc" = "0" ] || log_fail "(d) a freshly-set scope must exit 0, got $rc: $(cat "$TEST_DIR/d.out")"
+  local nd; nd="$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(String(d.checked))' "$TEST_DIR/d.out")"
+  [ "$nd" = "1" ] || log_fail "(d) a freshly set scope must be USED even though an older flush stamped a different ref, checked=$nd: $(cat "$TEST_DIR/d.out")"
+  grep -qi 'scope_ref_id' "$TEST_DIR/d.out" && log_fail "(d) a freshly refreshed scope_ref_id must never degrade: $(cat "$TEST_DIR/d.out")"
+
+  log_pass "check-committed-scope uses a preserved scope only when scope_ref_id agrees, degrades naming both refs otherwise, unchanged when absent, and a fresh set-code-review scope refreshes the stamp (TEST-007)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$CHECK" ] || log_fail "engine missing: $CHECK"
@@ -359,6 +548,7 @@ main() {
   test_004_clean_and_degrades
   test_005_skill_pr_wiring
   test_006_learned_triaged
+  test_007_scope_ref_id_gate
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

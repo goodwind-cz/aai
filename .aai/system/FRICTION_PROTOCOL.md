@@ -104,7 +104,7 @@ the fingerprint section; they are NOT written to the Phase 0 spool.
 ## Observation schema v2 (RFC-0013)
 
 Schema v2 is backward compatible: a `schema_version: 1` record is accepted and
-persisted EXACTLY as before (the eight v1 keys, byte-identical). A
+persisted EXACTLY as before (the nine v1 keys, byte-identical). A
 `schema_version: 2` record additionally PERSISTS a small set of **structured
 signal fields** — leak-free by construction (bool / enum / shape-restricted
 pointer), so they carry triage signal without any free-text channel:
@@ -158,7 +158,7 @@ external write.
 
 Per RFC-0012 D6, the observation's persisted (and, in later phases,
 transmittable) surface is a MINIMAL allowlist. The spool line for any accepted
-`record` call contains EXACTLY these eight keys and NOTHING else:
+`record` call contains EXACTLY these nine keys and NOTHING else:
 
 | Persisted key    | Source                                                        |
 |------------------|---------------------------------------------------------------|
@@ -166,13 +166,14 @@ transmittable) surface is a MINIMAL allowlist. The spool line for any accepted
 | `os_family`      | derived locally — normalized enum `linux` / `macos` / `windows` / `unknown`. |
 | `aai_pin`        | derived locally from `.aai/system/AAI_PIN.md` (see below).    |
 | `node_major`     | derived locally — the running Node major version integer.     |
+| `harness`        | derived locally — closed-set enum (see `lib/harness.mjs` `HARNESS_VALUES`); NEVER taken from the caller, same as os_family/aai_pin/node_major. An out-of-set or absent value normalizes to `unknown`. |
 | `skill_id`       | from the validated input.                                     |
 | `skill_phase`    | from the validated input.                                     |
 | `failure_class`  | from the validated input.                                     |
 | `fingerprint`    | computed — see the fingerprint section.                       |
 
 **Deny-by-default (the privacy crux).** The persisted record is built by
-COPYING ONLY the eight allowlisted keys into a fresh object. It is NEVER built
+COPYING ONLY the nine allowlisted keys into a fresh object. It is NEVER built
 by copying the input and deleting a denylist. Consequently:
 
 - named forbidden identity fields — hostnames, absolute paths, repository

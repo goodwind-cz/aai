@@ -308,7 +308,9 @@ JSONL
   (cd "$PROJECT_ROOT" && node "$REPORT" --metrics "$d/docs/ai/METRICS.jsonl" --pricing "$d/PRICING.yaml") > "$rep_out" \
     || log_fail "report must exit 0: $(cat "$rep_out")"
   local report_total
-  report_total="$(grep -E '^\| CHG-T006 \|' "$rep_out" | awk -F'|' '{gsub(/ /,"",$7); print $7}')"
+  # telemetry-fields-not-prose Spec-AC-12: a "cost basis" column was inserted
+  # before the undecomposed-tokens column, shifting it from field 7 to 8.
+  report_total="$(grep -E '^\| CHG-T006 \|' "$rep_out" | awk -F'|' '{gsub(/ /,"",$8); print $8}')"
 
   [[ "$overview_total" == "1000" ]] || log_fail "overview token_total must be 777+223=1000, got $overview_total"
   [[ "$report_total" == "1000" ]] || log_fail "report undecomposed-token column must be 1000, got $report_total"

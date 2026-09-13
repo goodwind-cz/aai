@@ -559,7 +559,7 @@ test_006_flush_golden() {
   [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "exactly one ledger line must be appended"
   grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
   cat > "$d/want.jsonl" <<'GOLDEN'
-{"date_utc":"2026-07-15","ref_id":"CHANGE-0001","title":"Golden fixture item","human_time_minutes":{"intake":null,"reviews":2},"agent_runs":[{"role":"Planning","model_id":"claude-opus-4-8[1m]","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:02:00Z","duration_seconds":120,"tokens_in":1000000,"tokens_out":100000,"cost_usd":7.5},{"role":"Implementation","model_id":"sonnet-latest","started_utc":"2026-07-15T10:02:00Z","ended_utc":"2026-07-15T10:12:00Z","duration_seconds":600,"tokens_in":2000000,"tokens_out":200000,"cost_usd":9},{"role":"Validation","model_id":"claude-sonnet-5-20260101","started_utc":"2026-07-15T10:12:00Z","ended_utc":"2026-07-15T10:13:40Z","duration_seconds":100,"tokens_in":1000000,"tokens_out":1000000,"cost_usd":18},{"role":"Code Review","model_id":"mystery-9000","started_utc":"2026-07-15T10:13:40Z","ended_utc":"2026-07-15T10:14:40Z","duration_seconds":60,"tokens_in":10,"tokens_out":10,"cost_usd":null}],"totals":{"human_time_minutes":2,"agent_duration_seconds":880,"total_cost_usd":null},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
+{"date_utc":"2026-07-15","ref_id":"CHANGE-0001","title":"Golden fixture item","human_time_minutes":{"intake":null,"reviews":2},"agent_runs":[{"role":"Planning","model_id":"claude-opus-4-8[1m]","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:02:00Z","duration_seconds":120,"tokens_in":1000000,"tokens_out":100000,"cost_usd":7.5,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"},{"role":"Implementation","model_id":"sonnet-latest","started_utc":"2026-07-15T10:02:00Z","ended_utc":"2026-07-15T10:12:00Z","duration_seconds":600,"tokens_in":2000000,"tokens_out":200000,"cost_usd":9,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"},{"role":"Validation","model_id":"claude-sonnet-5-20260101","started_utc":"2026-07-15T10:12:00Z","ended_utc":"2026-07-15T10:13:40Z","duration_seconds":100,"tokens_in":1000000,"tokens_out":1000000,"cost_usd":18,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"note"},{"role":"Code Review","model_id":"mystery-9000","started_utc":"2026-07-15T10:13:40Z","ended_utc":"2026-07-15T10:14:40Z","duration_seconds":60,"tokens_in":10,"tokens_out":10,"cost_usd":null,"cost_basis":"none","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"note"}],"totals":{"human_time_minutes":2,"agent_duration_seconds":880,"total_cost_usd":null,"cost_basis":"mixed"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note"},"verdict_basis":"global-block","verdict":"PASS"}
 GOLDEN
   diff -u "$d/want.jsonl" "$d/got.jsonl" > "$d/golden.diff" 2>&1 \
     || log_fail "ledger line must byte-equal the golden (strip-[1m] 7.5, alias 9, longest-prefix 18, unknown null): $(cat "$d/golden.diff")"
@@ -776,9 +776,13 @@ test_011_partial_flush() {
   sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" > "$d/cr.block"
   grep -qE '^ {2}status: not_run$' "$d/cr.block" || log_fail "code_review must reset to not_run"
   grep -qE '^ {2}required: false$' "$d/cr.block" || log_fail "code_review.required must reset to false"
-  grep -qE '^ {2}scope: null$' "$d/cr.block" || log_fail "leaked code_review.scope must be nulled"
-  grep -qE '^ {2}base_ref: null$' "$d/cr.block" || log_fail "leaked code_review.base_ref must be nulled"
-  grep -qE '^ {2}head_ref: null$' "$d/cr.block" || log_fail "leaked code_review.head_ref must be nulled"
+  # telemetry-fields-not-prose D8: scope/base_ref/head_ref are an INPUT to a
+  # LATER step, not verdict state — a partial reset PRESERVES them and stamps
+  # scope_ref_id naming the flushed ref instead of nulling them out.
+  grep -qF "fixture review scope" "$d/cr.block" || log_fail "D8: code_review.scope must be PRESERVED (not nulled) on a partial reset"
+  grep -qE '^ {2}base_ref: main$' "$d/cr.block" || log_fail "D8: code_review.base_ref must be PRESERVED (not nulled) on a partial reset"
+  grep -qE '^ {2}head_ref: null$' "$d/cr.block" || log_fail "code_review.head_ref (already null in the fixture) stays null"
+  grep -qE '^ {2}scope_ref_id: CHANGE-0001$' "$d/cr.block" || log_fail "D8: code_review.scope_ref_id must name the flushed ref"
   grep -qE '^ {2}report_paths: \[\]$' "$d/cr.block" || log_fail "leaked report_paths must be emptied"
   # NOT a full reset: strategy untouched, ticks + old report survive.
   grep -qE '^ {2}selected: tdd$' "$st" || log_fail "implementation_strategy must stay untouched on partial flush"
@@ -819,6 +823,10 @@ test_012_full_reset_cleanup() {
   echo '{"d":1}' > "$d/docs/ai/decisions.jsonl"
   mkdir -p "$d/docs/ai/published"
   echo pub > "$d/docs/ai/published/page.html"
+  # NON-BLOCKING-A (review-telemetry-fields-not-prose-20260913T105322Z): a
+  # scope_ref_id stamped by an OLDER flush must not survive a FULL reset.
+  awk '/^code_review:/{print; print "  scope_ref_id: CHANGE-9999"; next} {print}' \
+    "$d/docs/ai/STATE.yaml" > "$d/docs/ai/STATE.yaml.tmp" && mv "$d/docs/ai/STATE.yaml.tmp" "$d/docs/ai/STATE.yaml"
   run_flush "$d"
   [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
   local st="$d/docs/ai/STATE.yaml"
@@ -830,6 +838,7 @@ test_012_full_reset_cleanup() {
   sed -n '/^worktree:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}recommendation: not_needed$' || log_fail "worktree.recommendation must reset"
   sed -n '/^worktree:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}user_decision: undecided$' || log_fail "worktree.user_decision must reset"
   sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}required: false$' || log_fail "code_review.required must reset"
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}scope_ref_id: null$' || log_fail "code_review.scope_ref_id (stamped by an older flush) must be cleared to null on a full reset (NON-BLOCKING-A)"
   sed -n '/^current_focus:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}type: none$' || log_fail "focus type must reset to none"
   sed -n '/^current_focus:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}ref_id: null$' || log_fail "focus ref must null"
   sed -n '/^locks:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}implementation: true$' || log_fail "locks.implementation must stay true"
@@ -941,10 +950,10 @@ JSONL
 ## AAI Metrics Summary
 
 ### Per Work Item
-| ref_id | title | human (min) | agent (sec) | cost USD | agent tokens (undecomposed) | leverage | verdict |
-|--------|-------|-------------|-------------|----------|------------------------------|----------|---------|
-| AAA-0001 | First | 10 | 600 | $7.50 | n/a | 1.0x | PASS |
-| AAA-0002 | Second | 0 | 600 | ~$9.00 | n/a | n/a | PASS |
+| ref_id | title | human (min) | agent (sec) | cost USD | cost basis | agent tokens (undecomposed) | leverage | verdict |
+|--------|-------|-------------|-------------|----------|------------|------------------------------|----------|---------|
+| AAA-0001 | First | 10 | 600 | $7.50 | n/a | n/a | 1.0x | PASS |
+| AAA-0002 | Second | 0 | 600 | ~$9.00 | n/a | n/a | n/a | PASS |
 
 Note: "~" prefix on cost means partial (some runs had null token data).
 
@@ -971,9 +980,9 @@ Note: "~" prefix on cost means partial (some runs had null token data).
 Note: undecomposed tokens are display-only — never converted to a USD figure (the marker carries no in/out split to price).
 
 ### Per-Strategy Reliability
-| strategy | items | first-pass clean | avg validation fails | avg review fails | avg remediations |
-|----------|-------|------------------|----------------------|------------------|------------------|
-| n/a | 2 | n/a | n/a | n/a | n/a |
+| strategy | items | first-pass clean | avg validation fails | avg review fails | avg remediations | basis |
+|----------|-------|------------------|----------------------|------------------|------------------|-------|
+| n/a | 2 | n/a | n/a | n/a | n/a | n/a |
 
 Note: reliability derives from runs recorded at flush; older ledger lines without it render n/a.
 GOLDEN
@@ -1131,7 +1140,7 @@ test_017_reliability_derivation() {
   run_flush "$d"
   [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
   grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
-  grep -qF '"strategy":"tdd","reliability":{"validation_fails":1,"review_fails":1,"remediation_runs":2,"first_pass_clean":false},"verdict":"PASS"' "$d/got.jsonl" \
+  grep -qF '"strategy":"tdd","reliability":{"validation_fails":1,"review_fails":1,"remediation_runs":2,"first_pass_clean":false,"basis":"note"},"verdict_basis":"global-block","verdict":"PASS"' "$d/got.jsonl" \
     || log_fail "(a) entry must carry strategy tdd + reliability {1,1,2,false} in order after totals (marker-noted fails only, suffixed remediation counted, PASS/null notes not): $(cat "$d/got.jsonl")"
 
   # (b) clean history + undecided strategy -> strategy null, counts 0, clean.
@@ -1146,7 +1155,7 @@ test_017_reliability_derivation() {
   run_flush "$d"
   [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
   grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
-  grep -qF '"strategy":null,"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"' "$d/got.jsonl" \
+  grep -qF '"strategy":null,"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note"},"verdict_basis":"global-block","verdict":"PASS"' "$d/got.jsonl" \
     || log_fail "(b) undecided strategy must record null; clean run must be first_pass_clean true: $(cat "$d/got.jsonl")"
   log_pass "Reliability derivation matrix per R1-R6: marker-gated fail counts, structural remediation count, honest strategy null (TEST-017)"
 }
@@ -1167,11 +1176,11 @@ test_018_report_strategy_golden() {
 JSONL
   cat > "$d/want-section.md" <<'GOLDEN'
 ### Per-Strategy Reliability
-| strategy | items | first-pass clean | avg validation fails | avg review fails | avg remediations |
-|----------|-------|------------------|----------------------|------------------|------------------|
-| loop | 2 | 0/2 (0%) | 0.5 | 0.5 | 1.5 |
-| n/a | 1 | n/a | n/a | n/a | n/a |
-| tdd | 1 | 1/1 (100%) | 0.0 | 0.0 | 0.0 |
+| strategy | items | first-pass clean | avg validation fails | avg review fails | avg remediations | basis |
+|----------|-------|------------------|----------------------|------------------|------------------|-------|
+| loop | 2 | 0/2 (0%) | 0.5 | 0.5 | 1.5 | n/a |
+| n/a | 1 | n/a | n/a | n/a | n/a | n/a |
+| tdd | 1 | 1/1 (100%) | 0.0 | 0.0 | 0.0 | n/a |
 
 Note: reliability derives from runs recorded at flush; older ledger lines without it render n/a.
 GOLDEN
@@ -1283,7 +1292,7 @@ test_023_ledger_shape_unchanged() {  # TEST-005 (Spec-AC-04, regression control)
   node -e '
     const fs = require("fs");
     const got = JSON.parse(fs.readFileSync(process.argv[1], "utf8").trim());
-    const wantKeys = ["date_utc","ref_id","title","human_time_minutes","agent_runs","totals","strategy","reliability","verdict"];
+    const wantKeys = ["date_utc","ref_id","title","human_time_minutes","agent_runs","totals","strategy","reliability","verdict_basis","verdict"];
     const gotKeys = Object.keys(got);
     if (JSON.stringify(gotKeys) !== JSON.stringify(wantKeys)) {
       console.error("ledger entry key set/order changed: got " + JSON.stringify(gotKeys) + " want " + JSON.stringify(wantKeys));
@@ -1389,7 +1398,7 @@ test_102_sweep_flushes_closed_ref() {
   node -e '
     const fs = require("fs");
     const o = JSON.parse(fs.readFileSync(process.argv[1], "utf8").trim());
-    const wantKeys = ["date_utc","ref_id","title","human_time_minutes","agent_runs","totals","strategy","reliability","verdict"];
+    const wantKeys = ["date_utc","ref_id","title","human_time_minutes","agent_runs","totals","strategy","reliability","verdict_basis","verdict"];
     if (JSON.stringify(Object.keys(o)) !== JSON.stringify(wantKeys)) { console.error("key set/order changed: " + JSON.stringify(Object.keys(o))); process.exit(1); }
     if (o.ref_id !== "ITEM-B") { console.error("ref_id must be ITEM-B, got " + o.ref_id); process.exit(1); }
     if (o.verdict !== "PASS") { console.error("verdict must be PASS, got " + o.verdict); process.exit(1); }
@@ -1468,7 +1477,7 @@ test_104_default_unchanged() {
   [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "only CHANGE-0001 may flush without --sweep"
   grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
   cat > "$d/want.jsonl" <<'GOLDEN'
-{"date_utc":"2026-07-15","ref_id":"CHANGE-0001","title":"Golden fixture item","human_time_minutes":{"intake":null,"reviews":2},"agent_runs":[{"role":"Planning","model_id":"claude-opus-4-8[1m]","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:02:00Z","duration_seconds":120,"tokens_in":1000000,"tokens_out":100000,"cost_usd":7.5},{"role":"Implementation","model_id":"sonnet-latest","started_utc":"2026-07-15T10:02:00Z","ended_utc":"2026-07-15T10:12:00Z","duration_seconds":600,"tokens_in":2000000,"tokens_out":200000,"cost_usd":9},{"role":"Validation","model_id":"claude-sonnet-5-20260101","started_utc":"2026-07-15T10:12:00Z","ended_utc":"2026-07-15T10:13:40Z","duration_seconds":100,"tokens_in":1000000,"tokens_out":1000000,"cost_usd":18},{"role":"Code Review","model_id":"mystery-9000","started_utc":"2026-07-15T10:13:40Z","ended_utc":"2026-07-15T10:14:40Z","duration_seconds":60,"tokens_in":10,"tokens_out":10,"cost_usd":null}],"totals":{"human_time_minutes":2,"agent_duration_seconds":880,"total_cost_usd":null},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
+{"date_utc":"2026-07-15","ref_id":"CHANGE-0001","title":"Golden fixture item","human_time_minutes":{"intake":null,"reviews":2},"agent_runs":[{"role":"Planning","model_id":"claude-opus-4-8[1m]","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:02:00Z","duration_seconds":120,"tokens_in":1000000,"tokens_out":100000,"cost_usd":7.5,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"},{"role":"Implementation","model_id":"sonnet-latest","started_utc":"2026-07-15T10:02:00Z","ended_utc":"2026-07-15T10:12:00Z","duration_seconds":600,"tokens_in":2000000,"tokens_out":200000,"cost_usd":9,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"},{"role":"Validation","model_id":"claude-sonnet-5-20260101","started_utc":"2026-07-15T10:12:00Z","ended_utc":"2026-07-15T10:13:40Z","duration_seconds":100,"tokens_in":1000000,"tokens_out":1000000,"cost_usd":18,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"note"},{"role":"Code Review","model_id":"mystery-9000","started_utc":"2026-07-15T10:13:40Z","ended_utc":"2026-07-15T10:14:40Z","duration_seconds":60,"tokens_in":10,"tokens_out":10,"cost_usd":null,"cost_basis":"none","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"note"}],"totals":{"human_time_minutes":2,"agent_duration_seconds":880,"total_cost_usd":null,"cost_basis":"mixed"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note"},"verdict_basis":"global-block","verdict":"PASS"}
 GOLDEN
   diff -u "$d/want.jsonl" "$d/got.jsonl" > "$d/golden.diff" 2>&1 \
     || log_fail "no-flag ledger line must byte-equal the TEST-006 golden: $(cat "$d/golden.diff")"
@@ -1823,8 +1832,14 @@ test_118_classify_undecomposed_note() {
   local n
   n="$(grep -cE '^INFO CHANGE-0001 run Implementation' "$OUT" || true)"
   [[ "$n" == 1 ]] || log_fail "exactly one INFO line expected for the undecomposed-note run (got $n): $(cat "$OUT")"
-  grep -qE '^INFO CHANGE-0001 run Implementation \(sonnet-latest\): undecomposed total 262134 observed; cost unattributable by design' "$OUT" \
-    || log_fail "INFO line must name ref/role and the observed total, worded per spec: $(cat "$OUT")"
+  # telemetry-fields-not-prose review NON-BLOCKING-5 (20260913T114019Z,
+  # finding 5): sonnet-latest resolves to a PRICED model, so D5 blends a real
+  # cost_usd for this run — the line must say so (basis total-blended), never
+  # the stale "unattributable by design" wording beside an attributed cost.
+  grep -qE '^INFO CHANGE-0001 run Implementation \(sonnet-latest\): undecomposed total 262134 observed; cost estimated from the total \(cost_basis total-blended\)' "$OUT" \
+    || log_fail "INFO line must name ref/role, the observed total, and the TRUE basis (blended, since sonnet-latest prices): $(cat "$OUT")"
+  grep -qF '"cost_usd":2.359206,"cost_basis":"total-blended"' "$d/docs/ai/METRICS.jsonl" \
+    || log_fail "the ledger must actually carry the blended cost the INFO line now describes: $(cat "$d/docs/ai/METRICS.jsonl")"
   grep -qE '^WARNING CHANGE-0001 run Implementation' "$OUT" \
     && log_fail "an undecomposed-note run must NOT also emit the generic capture-missing WARNING: $(cat "$OUT")"
   log_pass "Undecomposed-note run emits exactly one INFO line naming ref/role/N; no WARNING (spec TEST-002)"
@@ -2223,6 +2238,1027 @@ test_132_rguard_events_appendonly() {  # r-guard TEST-RG-FLUSH-07 / Spec-AC-07
   log_pass "R-GUARD Stage 3: EVENTS.jsonl shrink vs HEAD flagged; append-only + non-git silent (Spec-AC-07)"
 }
 
+# --- telemetry-fields-not-prose: TEST-135..143 --------------------------------
+#
+# write_gate_state <file> <ref> <vstatus> <vref> <agent_runs_yaml> [extra_ref_block]
+# — a LEAN gate-focused STATE fixture (modeled on write_retire_state/
+# write_sweep_state above): current_focus/active_work_items empty,
+# code_review.required false (so the review-required arm of the default gate
+# never fires here — isolates the verdict-admission gate this scope adds),
+# last_validation at $vstatus/$vref, and metrics.work_items.<ref>.agent_runs
+# set to the caller's own YAML block (each line already correctly indented).
+# $6, when given, is spliced in as a SIBLING of agent_runs (e.g. a `validation:`
+# per-ref block, D6/D7). $7, when given, overrides last_validation.run_at_utc
+# (default null) — needed to exercise BLOCKING-1's source (ii) corroboration
+# arm with a REAL timestamp (validation round-4 NON-BLOCKING-1: a hardcoded
+# null here routed source (ii) through the unconditional fail-closed branch
+# and masked the ts-comparison mutation for every prior TEST-144 fixture).
+write_gate_state() {
+  local f="$1" ref="$2" vstatus="$3" vref="$4" runs="$5" extra="${6:-}" vrunat="${7:-null}"
+  cat > "$f" <<YAML
+project_status: active
+current_focus:
+  type: none
+  ref_id: null
+  primary_path: null
+active_work_items: []
+implementation_strategy:
+  selected: tdd
+  source: null
+  rationale: null
+worktree:
+  recommendation: not_needed
+  user_decision: undecided
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: false
+  status: not_run
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+last_validation:
+  status: $vstatus
+  run_at_utc: $vrunat
+  ref_id: $vref
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+  spec_path: null
+  test_path: null
+  evidence:
+    red: null
+    green: null
+    refactor: null
+metrics:
+  work_items:
+    $ref:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+$runs
+$extra
+
+updated_at_utc: 2026-07-15T11:30:00Z
+YAML
+}
+
+test_135_field_basis_reliability() {  # TEST-135 / Spec-AC-04
+  log_info "Test: field-basis reliability — two Validation runs verdict fail (no note), one Code Review run verdict fail -> counted from the FIELD, basis field (TEST-135)..."
+  local d; d="$(mk_repo t135)"
+  local runs
+  runs='        - role: Validation
+          model_id: claude-v
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          verdict: fail
+        - role: Validation
+          model_id: claude-v
+          started_utc: 2026-07-15T10:01:00Z
+          ended_utc: 2026-07-15T10:02:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          verdict: fail
+        - role: Code Review
+          model_id: claude-c
+          started_utc: 2026-07-15T10:02:00Z
+          ended_utc: 2026-07-15T10:03:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          verdict: fail'
+  write_gate_state "$d/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-0001 "$runs"
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  grep -qF '"reliability":{"validation_fails":2,"review_fails":1,"remediation_runs":0,"first_pass_clean":false,"basis":"field"}' "$d/got.jsonl" \
+    || log_fail "field-basis fixture must record validation_fails 2, review_fails 1, first_pass_clean false, reliability.basis field: $(cat "$d/got.jsonl")"
+  log_pass "Field-basis reliability: verdict fields drive the counts, basis field (TEST-135)"
+}
+
+test_136_note_fallback_reliability() {  # TEST-136 / Spec-AC-04
+  log_info "Test: note fallback — same 3 runs with the verdict field removed and notes reading VERDICT FAIL (no colon) -> validation_fails 0, basis note, one NOTE line per affected run (TEST-136)..."
+  local d; d="$(mk_repo t136)"
+  local runs
+  runs='        - role: Validation
+          model_id: claude-v
+          note: "VERDICT FAIL first probe"
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+        - role: Validation
+          model_id: claude-v
+          note: "VERDICT FAIL second probe"
+          started_utc: 2026-07-15T10:01:00Z
+          ended_utc: 2026-07-15T10:02:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+        - role: Code Review
+          model_id: claude-c
+          note: "VERDICT FAIL review"
+          started_utc: 2026-07-15T10:02:00Z
+          ended_utc: 2026-07-15T10:03:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  write_gate_state "$d/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-0001 "$runs"
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  grep -qF '"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note"}' "$d/got.jsonl" \
+    || log_fail "note-fallback fixture must record validation_fails 0 (colon-less marker invisible), basis note: $(cat "$d/got.jsonl")"
+  local n; n="$(grep -c 'no verdict field recorded' "$OUT" || true)"
+  [[ "$n" == 3 ]] || log_fail "exactly one NOTE line per affected run (3 runs, no field) expected (got $n): $(cat "$OUT")"
+  log_pass "Note fallback: colon-less marker counts 0, basis note, one NOTE per fallback run (TEST-136)"
+}
+
+test_137_cost_basis_table() {  # TEST-137 / Spec-AC-05
+  log_info "Test: cost basis table — total-blended with bounds, decomposed, none+WARNING, unknown-model null (TEST-137)..."
+  local d; d="$(mk_repo t137)"
+  # A non-0.5 cost_blend.input_share so the blend value can only be right if
+  # the share is actually READ from PRICING (M11).
+  cat > "$d/PRICING.yaml" <<'YAML'
+schema_version: 2
+lookup_rules:
+  order:
+    - strip-bracket-suffix
+    - model-aliases
+    - exact-match
+    - longest-prefix
+    - unknown-fallback
+cost_blend:
+  input_share: 0.9
+model_aliases: {}
+models:
+  claude-opus-4-8:
+    input_usd_per_m: 5.00
+    output_usd_per_m: 25.00
+  claude-sonnet-5:
+    input_usd_per_m: 3.00
+    output_usd_per_m: 15.00
+  unknown:
+    input_usd_per_m: null
+    output_usd_per_m: null
+YAML
+  local runs
+  runs='        - role: Implementation
+          model_id: claude-opus-4-8
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          tokens_total: 1000000
+        - role: Implementation
+          model_id: claude-sonnet-5
+          started_utc: 2026-07-15T10:01:00Z
+          ended_utc: 2026-07-15T10:02:00Z
+          duration_seconds: 60
+          tokens_in: 1000000
+          tokens_out: 100000
+          cost_usd: null
+        - role: Implementation
+          model_id: claude-sonnet-5
+          started_utc: 2026-07-15T10:02:00Z
+          ended_utc: 2026-07-15T10:03:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+        - role: Implementation
+          model_id: totally-unpriced-model
+          started_utc: 2026-07-15T10:03:00Z
+          ended_utc: 2026-07-15T10:04:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          tokens_total: 500000
+        - role: Implementation
+          model_id: claude-sonnet-5
+          started_utc: 2026-07-15T10:04:00Z
+          ended_utc: 2026-07-15T10:05:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          note: "usage_total_tokens=200000 (harness total; in/out not exposed)"
+        - role: Implementation
+          model_id: totally-unpriced-model
+          started_utc: 2026-07-15T10:05:00Z
+          ended_utc: 2026-07-15T10:06:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          note: "usage_total_tokens=300000 (harness total; in/out not exposed)"'
+  write_gate_state "$d/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-0001 "$runs"
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  # (1) total-blended: 1000000 * (0.9*5 + 0.1*25)/1e6 = 7.0; bounds [5, 25].
+  grep -qF '"cost_usd":7,"cost_basis":"total-blended","cost_bounds_usd":[5,25]' "$d/got.jsonl" \
+    || log_fail "total-blended run must carry cost_usd 7 (0.9 share read from PRICING), cost_basis total-blended, bounds [5,25]: $(cat "$d/got.jsonl")"
+  # (2) decomposed: (1000000*3 + 100000*15)/1e6 = 4.5.
+  grep -qF '"cost_usd":4.5,"cost_basis":"decomposed"' "$d/got.jsonl" \
+    || log_fail "decomposed run must carry cost_usd 4.5, cost_basis decomposed: $(cat "$d/got.jsonl")"
+  # (3) neither -> null, none, existing WARNING. Anchored PER-RUN (not just
+  # role-scoped) by asserting BOTH the exact line for the (claude-sonnet-5)
+  # neither-run AND that it is the ONLY WARNING line printed — round-5
+  # remediation of review NON-BLOCKING-1 / finding 5 (20260913T114019Z): the
+  # old role-only regex `.*cost unattributable` was silently satisfied by
+  # run (1)'s FALSE WARNING (a field-only priced run misclassified as
+  # capture-missing), not by this run's honest one.
+  grep -qF '"cost_usd":null,"cost_basis":"none"' "$d/got.jsonl" \
+    || log_fail "a run with neither tokens nor total must carry cost_usd null, cost_basis none: $(cat "$d/got.jsonl")"
+  grep -qF 'WARNING CHANGE-0001 run Implementation (claude-sonnet-5): cost unattributable — tokens not recorded' "$OUT" \
+    || log_fail "the neither-tokens-nor-total run must still print the existing WARNING: $(cat "$OUT")"
+  [[ "$(grep -c '^WARNING .*cost unattributable' "$OUT")" == 1 ]] \
+    || log_fail "exactly ONE capture-missing WARNING line may print — a field-only or note-only run that priced must never fall to it: $(cat "$OUT")"
+  # (4) unknown-priced model with a token total -> STILL null, never fabricated.
+  grep -qF '"model_id":"totally-unpriced-model","started_utc":"2026-07-15T10:03:00Z","ended_utc":"2026-07-15T10:04:00Z","duration_seconds":60,"tokens_in":null,"tokens_out":null,"cost_usd":null,"cost_basis":"none"' "$d/got.jsonl" \
+    || log_fail "an unknown-priced model with a token total must still yield cost_usd null, cost_basis none (never fabricated): $(cat "$d/got.jsonl")"
+  grep -qF 'INFO CHANGE-0001 run Implementation (totally-unpriced-model): undecomposed total 500000 observed; cost unattributable by design' "$OUT" \
+    || log_fail "(4) a FIELD-only total on an unpriced model must print INFO 'unattributable by design', never the capture-missing WARNING: $(cat "$OUT")"
+
+  # (1b) round-5 remediation (review NON-BLOCKING-1 / finding 5,
+  # 20260913T114019Z): the FIELD-only priced run (1) must print the SAME
+  # blended INFO line a note-only priced run gets — the INFO/WARNING gate now
+  # reads the same resolved total (field first, note fallback) the cost
+  # derivation above already used. Before the fix this run fell to the
+  # capture-missing WARNING beside its own priced, total-blended ledger line.
+  grep -qF 'INFO CHANGE-0001 run Implementation (claude-opus-4-8): undecomposed total 1000000 observed; cost estimated from the total (cost_basis total-blended)' "$OUT" \
+    || log_fail "(1b) a FIELD-only priced run must print the blended INFO line, not the capture-missing WARNING: $(cat "$OUT")"
+  # (5)/(6) NON-BLOCKING-5 (review-telemetry-fields-not-prose-20260913T114019Z,
+  # finding 5): the INFO line printed beside a NOTE-derived total must say
+  # what actually happened to the cost, not an unconditional "unattributable
+  # by design" — (5) a PRICED model's note-derived total blends (cost_usd
+  # 0.84 = 200000*(0.9*3+0.1*15)/1e6, bounds [0.6,3.0]) and the line must name
+  # that basis; (6) an UNPRICED model's note-derived total genuinely cannot
+  # attribute a cost, and the line must still say so (true here, unlike (5)).
+  grep -qF '"cost_usd":0.8399999999999999,"cost_basis":"total-blended","cost_bounds_usd":[0.6,3]' "$d/got.jsonl" \
+    || log_fail "(5) a priced model's note-derived total must blend cost_usd ~0.84, bounds [0.6,3]: $(cat "$d/got.jsonl")"
+  grep -qE '^INFO CHANGE-0001 run Implementation \(claude-sonnet-5\): undecomposed total 200000 observed; cost estimated from the total \(cost_basis total-blended\)' "$OUT" \
+    || log_fail "(5) the INFO line must name the TRUE basis (blended) rather than claim unattributable beside an attributed cost: $(cat "$OUT")"
+  grep -qF '"model_id":"totally-unpriced-model","note":"usage_total_tokens=300000 (harness total; in/out not exposed)","started_utc":"2026-07-15T10:05:00Z","ended_utc":"2026-07-15T10:06:00Z","duration_seconds":60,"tokens_in":null,"tokens_out":null,"cost_usd":null,"cost_basis":"none"' "$d/got.jsonl" \
+    || log_fail "(6) an unpriced model's note-derived total must still yield cost_usd null, cost_basis none: $(cat "$d/got.jsonl")"
+  grep -qE '^INFO CHANGE-0001 run Implementation \(totally-unpriced-model\): undecomposed total 300000 observed; cost unattributable by design' "$OUT" \
+    || log_fail "(6) the INFO line must keep 'unattributable by design' ONLY where it is still true (unpriced model): $(cat "$OUT")"
+  log_pass "Cost basis table: total-blended+bounds (share read from PRICING), decomposed, none+WARNING, unknown-model null, and the INFO line's basis wording is TRUE in both directions (TEST-137)"
+}
+
+test_138_per_ref_field_basis() {  # TEST-138 / Spec-AC-06
+  log_info "Test: per-ref field basis — last_validation not_run/ref_id null but metrics entry carries validation status pass -> flushes, basis per-ref-field (TEST-138)..."
+  local d; d="$(mk_repo t138)"
+  local runs='        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  local extra='      validation:
+        status: pass
+        at: 2026-07-15T09:00:00Z'
+  write_gate_state "$d/docs/ai/STATE.yaml" CHANGE-0001 not_run null "$runs" "$extra"
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d" --dry-run
+  [[ "$EC" == 0 ]] || log_fail "dry-run flush must exit 0 (got $EC): $(cat "$OUT")"
+  node -e '
+    const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (!o.flush.includes("CHANGE-0001")) { console.error("CHANGE-0001 must be in the flush plan: " + JSON.stringify(o.flush)); process.exit(1); }
+    if (o.verdict_basis["CHANGE-0001"] !== "per-ref-field") { console.error("basis must be per-ref-field, got " + JSON.stringify(o.verdict_basis)); process.exit(1); }
+  ' "$OUT" || log_fail "dry-run plan must admit CHANGE-0001 naming basis per-ref-field"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF '"verdict_basis":"per-ref-field"' "$d/docs/ai/METRICS.jsonl" \
+    || log_fail "ledger entry must carry verdict_basis per-ref-field: $(cat "$d/docs/ai/METRICS.jsonl")"
+
+  # (b) PRIORITY: when BOTH the per-ref field AND the global block would
+  # independently admit the SAME ref, source 1 (per-ref-field) must win —
+  # the fixed order is 1, 2, 3, never re-derived from which one is "easier"
+  # (M14: reordering to consult the global block first still admits the ref
+  # but mislabels the basis, which a test asserting only "it flushed" cannot
+  # see).
+  local d2; d2="$(mk_repo t138b)"
+  write_gate_state "$d2/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-0001 "$runs" "$extra"
+  write_ticks "$d2/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d2"
+  [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF '"verdict_basis":"per-ref-field"' "$d2/docs/ai/METRICS.jsonl" \
+    || log_fail "(b) source 1 (per-ref-field) must win priority over source 2 (global-block) when both independently admit: $(cat "$d2/docs/ai/METRICS.jsonl")"
+
+  log_pass "Per-ref field basis admits a ref last_validation cannot see, naming per-ref-field, and wins priority when the global block would also admit (TEST-138)"
+}
+
+test_139_event_basis() {  # TEST-139 / Spec-AC-06
+  log_info "Test: event basis — a stranded ref recovered via the LATEST validation_verdict event; latest-fail skips; a malformed line never crashes (TEST-139)..."
+  local runs='        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+
+  # (a) last_validation names a DIFFERENT ref; EVENTS carries a pass event for
+  # CHANGE-0001 -> admitted, basis event.
+  local d; d="$(mk_repo t139a)"
+  write_gate_state "$d/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-9999 "$runs"
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  printf '{"v":1,"ts":"2026-07-15T08:00:00Z","actor":"dispatch","event":"validation_verdict","ref":"CHANGE-0001","payload":{"status":"pass","hash":"deadbeef"}}\n' > "$d/docs/ai/EVENTS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF '"verdict_basis":"event"' "$d/docs/ai/METRICS.jsonl" \
+    || log_fail "(a) a stranded ref recovered via a durable pass event must carry verdict_basis event: $(cat "$d/docs/ai/METRICS.jsonl")"
+
+  # (b) latest event for the ref is FAIL (an earlier pass exists) -> skipped.
+  local d2; d2="$(mk_repo t139b)"
+  write_gate_state "$d2/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-9999 "$runs"
+  write_ticks "$d2/docs/ai/LOOP_TICKS.jsonl"
+  {
+    printf '{"v":1,"ts":"2026-07-15T07:00:00Z","actor":"dispatch","event":"validation_verdict","ref":"CHANGE-0001","payload":{"status":"pass"}}\n'
+    printf '{"v":1,"ts":"2026-07-15T08:00:00Z","actor":"dispatch","event":"validation_verdict","ref":"CHANGE-0001","payload":{"status":"fail"}}\n'
+  } > "$d2/docs/ai/EVENTS.jsonl"
+  run_flush "$d2"
+  [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d2")" == 0 ]] || log_fail "(b) latest-is-fail must NOT flush the ref: $(cat "$d2/docs/ai/METRICS.jsonl")"
+  grep -qF "SKIP CHANGE-0001" "$OUT" || log_fail "(b) the skip must name CHANGE-0001: $(cat "$OUT")"
+
+  # (c) a malformed EVENTS line alongside a valid pass line -> no crash, admitted.
+  local d3; d3="$(mk_repo t139c)"
+  write_gate_state "$d3/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-9999 "$runs"
+  write_ticks "$d3/docs/ai/LOOP_TICKS.jsonl"
+  {
+    printf 'not-json-at-all\n'
+    printf '{"v":1,"ts":"2026-07-15T08:00:00Z","actor":"dispatch","event":"validation_verdict","ref":"CHANGE-0001","payload":{"status":"pass"}}\n'
+  } > "$d3/docs/ai/EVENTS.jsonl"
+  run_flush "$d3"
+  [[ "$EC" == 0 ]] || log_fail "(c) a malformed EVENTS line must never crash the flush (got $EC): $(cat "$OUT")"
+  grep -qF '"verdict_basis":"event"' "$d3/docs/ai/METRICS.jsonl" \
+    || log_fail "(c) the ref must still be admitted past the malformed line: $(cat "$d3/docs/ai/METRICS.jsonl")"
+  grep -qi 'malformed' "$OUT" || log_fail "(c) the malformed line must produce a NOTE: $(cat "$OUT")"
+
+  log_pass "Event basis: latest-pass recovers a stranded ref, latest-fail skips, a malformed line notes and never crashes (TEST-139)"
+}
+
+test_140_default_never_creates_events() {  # TEST-140 / Spec-AC-08
+  log_info "Test: a flush with no --sweep over a tree with no docs/ai/EVENTS.jsonl exits 0, flushes by the global block (basis global-block, a field the pre-scope ledger never carried), and the file still does not exist afterwards (TEST-140)..."
+  local d; d="$(mk_repo t140)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  [[ ! -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "fixture setup: EVENTS.jsonl must not pre-exist"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ ! -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "the default flush path must NEVER create docs/ai/EVENTS.jsonl"
+  grep -qF '"verdict_basis":"global-block"' "$d/docs/ai/METRICS.jsonl" \
+    || log_fail "the flushed ledger entry must name basis global-block: $(cat "$d/docs/ai/METRICS.jsonl")"
+
+  # (b) source 3 (the event read) IS actually consulted here (sources 1 and 2
+  # both fail) — the interesting case for the existence guard, since a flush
+  # whose gate resolves via source 1/2 never calls latestValidationVerdict at
+  # all (M17 targets exactly this arm: replacing the existence guard with an
+  # unconditional mkdirSync+appendFileSync open must still leave the file
+  # absent under the CORRECT implementation, and reddens this arm when it
+  # does not).
+  local d2; d2="$(mk_repo t140b)"
+  local runs='        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  write_gate_state "$d2/docs/ai/STATE.yaml" CHANGE-0001 not_run null "$runs"
+  write_ticks "$d2/docs/ai/LOOP_TICKS.jsonl"
+  [[ ! -f "$d2/docs/ai/EVENTS.jsonl" ]] || log_fail "(b) fixture setup: EVENTS.jsonl must not pre-exist"
+  run_flush "$d2"
+  [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 even with nothing flushable (got $EC): $(cat "$OUT")"
+  [[ ! -f "$d2/docs/ai/EVENTS.jsonl" ]] || log_fail "(b) source 3 being CONSULTED must still never create docs/ai/EVENTS.jsonl"
+  grep -qF "SKIP CHANGE-0001" "$OUT" || log_fail "(b) CHANGE-0001 must be named in the skip line: $(cat "$OUT")"
+
+  log_pass "Default path flushes by the global block naming its basis, and never creates EVENTS.jsonl even when source 3 is actually consulted (TEST-140)"
+}
+
+test_141_partial_reset_preserves_scope() {  # TEST-141 / Spec-AC-09
+  log_info "Test: a partial-flush reset preserves code_review scope/base_ref/head_ref and stamps scope_ref_id (TEST-141)..."
+  local d; d="$(mk_repo t141)"
+  write_flush_state "$d/docs/ai/STATE.yaml" two
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "only CHANGE-0001 may flush"
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$d/docs/ai/STATE.yaml" > "$d/cr.block"
+  grep -qE '^ {2}status: not_run$' "$d/cr.block" || log_fail "status must reset to not_run"
+  grep -qE '^ {2}report_paths: \[\]$' "$d/cr.block" || log_fail "report_paths must reset to []"
+  grep -qF "fixture review scope" "$d/cr.block" || log_fail "scope must be PRESERVED, not nulled"
+  grep -qE '^ {2}base_ref: main$' "$d/cr.block" || log_fail "base_ref must be PRESERVED, not nulled"
+  grep -qE '^ {2}scope_ref_id: CHANGE-0001$' "$d/cr.block" || log_fail "scope_ref_id must name the flushed ref"
+  log_pass "Partial reset preserves code_review scope/base_ref/head_ref and stamps scope_ref_id (TEST-141)"
+}
+
+test_142_metrics_report_basis_columns() {  # TEST-142 / Spec-AC-12
+  log_info "Test: metrics-report golden over a mixed field/marker/legacy ledger renders a cost-basis marker per ride and a basis column in reliability, byte-deterministically (TEST-142)..."
+  local d="$TEST_DIR/t142"
+  mkdir -p "$d"
+  write_pricing "$d/PRICING.yaml"
+  cat > "$d/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"FIELD-0001","title":"Field-derived","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Validation","model_id":"claude-sonnet-5","started_utc":"2026-07-01T10:00:00Z","ended_utc":"2026-07-01T10:01:00Z","duration_seconds":60,"tokens_in":null,"tokens_out":null,"cost_usd":null,"cost_basis":"none","verdict":"fail","verdict_basis":"field"}],"totals":{"human_time_minutes":0,"agent_duration_seconds":60,"total_cost_usd":null,"cost_basis":"none"},"strategy":"tdd","reliability":{"validation_fails":1,"review_fails":0,"remediation_runs":0,"first_pass_clean":false,"basis":"field"},"verdict_basis":"global-block","verdict":"PASS"}
+{"date_utc":"2026-07-02","ref_id":"MARKER-0001","title":"Marker-derived","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Validation","model_id":"claude-sonnet-5","started_utc":"2026-07-02T10:00:00Z","ended_utc":"2026-07-02T10:01:00Z","duration_seconds":60,"tokens_in":null,"tokens_out":null,"cost_usd":null,"cost_basis":"none","verdict":null,"verdict_basis":"note"}],"totals":{"human_time_minutes":0,"agent_duration_seconds":60,"total_cost_usd":null,"cost_basis":"none"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note"},"verdict_basis":"global-block","verdict":"PASS"}
+{"date_utc":"2026-07-03","ref_id":"LEGACY-0001","title":"Pre-scope legacy","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Implementation","model_id":"claude-sonnet-5","started_utc":"2026-07-03T10:00:00Z","ended_utc":"2026-07-03T10:01:00Z","duration_seconds":60,"tokens_in":null,"tokens_out":null,"cost_usd":null}],"totals":{"human_time_minutes":0,"agent_duration_seconds":60,"total_cost_usd":null},"strategy":"tdd","verdict":"PASS"}
+JSONL
+  runrep142() { (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-report.mjs --metrics "$d/METRICS.jsonl" --pricing "$d/PRICING.yaml"); }
+  runrep142 > "$d/run1.md" 2> "$d/run1.err" || log_fail "report must exit 0: $(cat "$d/run1.err")"
+  runrep142 > "$d/run2.md" 2>/dev/null || log_fail "second run must exit 0"
+  cmp -s "$d/run1.md" "$d/run2.md" || log_fail "identical input bytes must yield identical output bytes"
+  grep -qE '^\| FIELD-0001 \| Field-derived \| 0 \| 60 \| n/a \| none \| n/a \| n/a \| PASS \|$' "$d/run1.md" \
+    || log_fail "FIELD-0001 row must carry cost basis 'none' in its own column: $(cat "$d/run1.md")"
+  grep -qE '^\| tdd \| 3 \| 1/2 \(50%\) \| 0\.5 \| 0\.0 \| 0\.0 \| mixed \|$' "$d/run1.md" \
+    || log_fail "tdd strategy group must render basis mixed (field + note present, legacy excluded from the set) with 1/2 (50%) first-pass-clean over the two reliability-flagged entries: $(cat "$d/run1.md")"
+  log_pass "metrics-report basis columns: per-ride cost basis + per-strategy reliability basis, byte-deterministic (TEST-142)"
+}
+
+test_143_append_only_prefix() {  # TEST-143 / Spec-AC-14
+  log_info "Test: this ride's own flush appends only — the pre-flush ledger is a byte-exact prefix of the post-flush ledger, and the line count grows by exactly the flushed count (TEST-143)..."
+  local d; d="$(mk_repo t143)"
+  write_flush_state "$d/docs/ai/STATE.yaml" two
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  local pre_bytes pre_lines post_lines
+  cp "$d/docs/ai/METRICS.jsonl" "$d/pre-flush.jsonl"
+  pre_bytes="$(wc -c < "$d/pre-flush.jsonl" | tr -d ' ')"
+  pre_lines="$(ledger_lines "$d")"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  post_lines="$(ledger_lines "$d")"
+  local flushed; flushed=$((post_lines - pre_lines))
+  [[ "$flushed" -ge 1 ]] || log_fail "at least one ref must have flushed for this assertion to mean anything"
+  head -c "$pre_bytes" "$d/docs/ai/METRICS.jsonl" > "$d/prefix.bin"
+  cmp -s "$d/prefix.bin" "$d/pre-flush.jsonl" \
+    || log_fail "the pre-flush bytes must survive as an exact PREFIX of the post-flush file"
+  # This scope's own additive keys must actually be ON the newly appended
+  # line — proves the prefix check is exercising THIS scope's flush, not a
+  # byte-identity arm that would equally hold before it existed.
+  grep -qF '"verdict_basis":"global-block"' "$d/docs/ai/METRICS.jsonl" \
+    || log_fail "the newly appended line must carry this scope's verdict_basis field: $(cat "$d/docs/ai/METRICS.jsonl")"
+  log_pass "Append-only: pre-flush ledger bytes are an exact prefix of the post-flush ledger; line count grows by the flushed count (TEST-143)"
+}
+
+test_144_event_corroboration() {  # TEST-144 / Spec-AC-06 / BLOCKING-1 (review-telemetry-fields-not-prose-20260913T105322Z)
+  log_info "Test: a stale validation_verdict pass event must NOT flush a ref whose CURRENT verdict is fail — corroborated against the per-ref D7 field, last_validation, and the run's own verdict field (TEST-144)..."
+  local d; d="$(mk_repo t144)"
+  local runs='        - role: Validation
+          model_id: claude-v
+          verdict: fail
+          started_utc: 2026-07-20T09:59:00Z
+          ended_utc: 2026-07-20T10:00:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  local extra='      validation:
+        status: fail
+        at: 2026-07-20T10:00:00Z'
+  # Reviewer's exact fixture: STATE last_validation.status fail ref CHANGE-0001,
+  # per-ref field fail, one Validation run carrying verdict: fail, and an
+  # OLDER validation_verdict pass event for the same ref in EVENTS.jsonl.
+  write_gate_state "$d/docs/ai/STATE.yaml" CHANGE-0001 fail CHANGE-0001 "$runs" "$extra"
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  printf '{"v":1,"ts":"2026-07-01T10:00:00Z","actor":"dispatch","event":"validation_verdict","ref":"CHANGE-0001","payload":{"status":"pass","hash":"deadbeef"}}\n' > "$d/docs/ai/EVENTS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 even when the only candidate ref is skipped (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 0 ]] || log_fail "a stale pass event must NOT flush a ref whose current verdict is fail everywhere durable (per-ref field, last_validation, and the run's own verdict): $(cat "$d/docs/ai/METRICS.jsonl")"
+  grep -qF "SKIP CHANGE-0001" "$OUT" || log_fail "the skip must name CHANGE-0001: $(cat "$OUT")"
+  grep -qF "not admitted" "$OUT" || log_fail "the skip reason must name the corroboration refusal, not a generic message: $(cat "$OUT")"
+
+  # Positive control: a genuinely stranded ref (pass event, NO fail anywhere —
+  # no per-ref field, last_validation names a DIFFERENT ref, no Validation run
+  # at all) must still flush via source 3, basis event. Guards against
+  # eventContradictedByNewerFail over-blocking the exact recovery path D6
+  # exists for.
+  local d2; d2="$(mk_repo t144b)"
+  local runs2='        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  write_gate_state "$d2/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-9999 "$runs2"
+  write_ticks "$d2/docs/ai/LOOP_TICKS.jsonl"
+  printf '{"v":1,"ts":"2026-07-01T10:00:00Z","actor":"dispatch","event":"validation_verdict","ref":"CHANGE-0001","payload":{"status":"pass"}}\n' > "$d2/docs/ai/EVENTS.jsonl"
+  run_flush "$d2"
+  [[ "$EC" == 0 ]] || log_fail "(positive control) flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF '"verdict_basis":"event"' "$d2/docs/ai/METRICS.jsonl" \
+    || log_fail "(positive control) a genuinely stranded ref with no contradicting fail anywhere must still flush via event: $(cat "$d2/docs/ai/METRICS.jsonl")"
+
+  # ---------------------------------------------------------------------------
+  # Validation round-4 NON-BLOCKING-1 (20260913 validation-round4.txt): the
+  # fixture above carries all THREE fail signals at once (per-ref field,
+  # last_validation, AND a Validation run), so the disjunction masks each arm
+  # individually — dropping any one of the three, inverting the ts
+  # comparison, or breaking either fail-closed branch still leaves it (and
+  # the older-fail positive control) green. Arms (a)-(h) below isolate ONE
+  # signal each, so every one of the eight inner mutations reddens a NAMED
+  # fixture (matrix reported by the remediation role).
+  local impl_only='        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  local event_pass_line='{"v":1,"ts":"2026-07-01T10:00:00Z","actor":"dispatch","event":"validation_verdict","ref":"CHANGE-0001","payload":{"status":"pass"}}'
+
+  # (a) ONLY the D7 per-ref field is fail, with a REAL ts newer than the
+  # event -> must SKIP. Isolates source (i); vstatus/vref are set so neither
+  # source (ii) nor the global-block short-circuit can admit on their own.
+  local d_a; d_a="$(mk_repo t144c)"
+  write_gate_state "$d_a/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-9999 "$impl_only" \
+    '      validation:
+        status: fail
+        at: 2026-07-20T10:00:00Z'
+  write_ticks "$d_a/docs/ai/LOOP_TICKS.jsonl"
+  printf '%s\n' "$event_pass_line" > "$d_a/docs/ai/EVENTS.jsonl"
+  run_flush "$d_a"
+  [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d_a")" == 0 ]] || log_fail "(a) per-ref field alone (real newer ts) must block: $(cat "$d_a/docs/ai/METRICS.jsonl")"
+
+  # (b) ONLY last_validation names the ref as fail, with a REAL run_at_utc
+  # newer than the event -> must SKIP. Isolates source (ii); write_gate_state
+  # historically hardcoded run_at_utc null here, which masked this arm from
+  # the ts-inversion mutation (round-4 NON-BLOCKING-1) — now overridden ($7).
+  local d_b; d_b="$(mk_repo t144d)"
+  write_gate_state "$d_b/docs/ai/STATE.yaml" CHANGE-0001 fail CHANGE-0001 "$impl_only" "" 2026-07-20T10:00:00Z
+  write_ticks "$d_b/docs/ai/LOOP_TICKS.jsonl"
+  printf '%s\n' "$event_pass_line" > "$d_b/docs/ai/EVENTS.jsonl"
+  run_flush "$d_b"
+  [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d_b")" == 0 ]] || log_fail "(b) last_validation alone (real newer run_at_utc) must block: $(cat "$d_b/docs/ai/METRICS.jsonl")"
+
+  # (c) ONLY a Validation run's verdict FIELD is fail, with a REAL ended_utc
+  # newer than the event -> must SKIP. Isolates source (iii)'s field arm.
+  local d_c; d_c="$(mk_repo t144e)"
+  local runs_c='        - role: Validation
+          model_id: claude-v
+          verdict: fail
+          started_utc: 2026-07-20T09:59:00Z
+          ended_utc: 2026-07-20T10:00:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  write_gate_state "$d_c/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-9999 "$runs_c"
+  write_ticks "$d_c/docs/ai/LOOP_TICKS.jsonl"
+  printf '%s\n' "$event_pass_line" > "$d_c/docs/ai/EVENTS.jsonl"
+  run_flush "$d_c"
+  [[ "$EC" == 0 ]] || log_fail "(c) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d_c")" == 0 ]] || log_fail "(c) a Validation run's verdict field alone (real newer ts) must block: $(cat "$d_c/docs/ai/METRICS.jsonl")"
+
+  # (d) ONLY a Validation run's `verdict: none` field PLUS a VERDICT: FAIL
+  # note, with a REAL ended_utc newer than the event -> must SKIP. Review
+  # NON-BLOCKING-4 / finding 4 (20260913T114019Z): `none` is a legal enum
+  # value meaning "no decision" and must NOT mask the note fallback the way
+  # a field of `pass` legitimately does — before the fix this fixture
+  # FLUSHED (a false PASS).
+  local d_d; d_d="$(mk_repo t144f)"
+  local runs_d='        - role: Validation
+          model_id: claude-v
+          verdict: none
+          note: "VERDICT: FAIL corroboration probe (d)"
+          started_utc: 2026-07-20T09:59:00Z
+          ended_utc: 2026-07-20T10:00:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  write_gate_state "$d_d/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-9999 "$runs_d"
+  write_ticks "$d_d/docs/ai/LOOP_TICKS.jsonl"
+  printf '%s\n' "$event_pass_line" > "$d_d/docs/ai/EVENTS.jsonl"
+  run_flush "$d_d"
+  [[ "$EC" == 0 ]] || log_fail "(d) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d_d")" == 0 ]] || log_fail "(d) verdict: none must NOT mask a VERDICT: FAIL note (real newer ts) — the note fallback must still block: $(cat "$d_d/docs/ai/METRICS.jsonl")"
+
+  # (e) Older-fail-does-not-block control: the per-ref field is fail but its
+  # ts is OLDER than the event -> must still FLUSH via event. Confirms the
+  # baseline "latest wins" direction is correct, independent of (a).
+  local d_e; d_e="$(mk_repo t144g)"
+  write_gate_state "$d_e/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-9999 "$impl_only" \
+    '      validation:
+        status: fail
+        at: 2026-06-01T10:00:00Z'
+  write_ticks "$d_e/docs/ai/LOOP_TICKS.jsonl"
+  printf '%s\n' "$event_pass_line" > "$d_e/docs/ai/EVENTS.jsonl"
+  run_flush "$d_e"
+  [[ "$EC" == 0 ]] || log_fail "(e) flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF '"verdict_basis":"event"' "$d_e/docs/ai/METRICS.jsonl" \
+    || log_fail "(e) a fail OLDER than the event must NOT block recovery: $(cat "$d_e/docs/ai/METRICS.jsonl")"
+
+  # (f) Fail-closed on an unparseable FAIL ts: the per-ref field is fail but
+  # `at` is null (sub-case f1) or malformed (sub-case f2) -> must still SKIP
+  # (ambiguity never manufactures a PASS).
+  local d_f1; d_f1="$(mk_repo t144h1)"
+  write_gate_state "$d_f1/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-9999 "$impl_only" \
+    '      validation:
+        status: fail
+        at: null'
+  write_ticks "$d_f1/docs/ai/LOOP_TICKS.jsonl"
+  printf '%s\n' "$event_pass_line" > "$d_f1/docs/ai/EVENTS.jsonl"
+  run_flush "$d_f1"
+  [[ "$EC" == 0 ]] || log_fail "(f1) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d_f1")" == 0 ]] || log_fail "(f1) a null fail ts must be treated as newer (fail-closed): $(cat "$d_f1/docs/ai/METRICS.jsonl")"
+
+  local d_f2; d_f2="$(mk_repo t144h2)"
+  write_gate_state "$d_f2/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-9999 "$impl_only" \
+    '      validation:
+        status: fail
+        at: not-a-timestamp'
+  write_ticks "$d_f2/docs/ai/LOOP_TICKS.jsonl"
+  printf '%s\n' "$event_pass_line" > "$d_f2/docs/ai/EVENTS.jsonl"
+  run_flush "$d_f2"
+  [[ "$EC" == 0 ]] || log_fail "(f2) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d_f2")" == 0 ]] || log_fail "(f2) a malformed fail ts must be treated as newer (fail-closed): $(cat "$d_f2/docs/ai/METRICS.jsonl")"
+
+  # (g) Fail-closed on an unparseable EVENT ts: last_validation is fail with
+  # a real run_at_utc, but the EVENTS.jsonl line carries no `ts` at all ->
+  # must still SKIP (a fail signal is treated as newer than an event whose
+  # own ts cannot be read, regardless of the fail's own timestamp).
+  local d_g; d_g="$(mk_repo t144i)"
+  write_gate_state "$d_g/docs/ai/STATE.yaml" CHANGE-0001 fail CHANGE-0001 "$impl_only" "" 2026-01-01T00:00:00Z
+  write_ticks "$d_g/docs/ai/LOOP_TICKS.jsonl"
+  printf '{"v":1,"actor":"dispatch","event":"validation_verdict","ref":"CHANGE-0001","payload":{"status":"pass"}}\n' > "$d_g/docs/ai/EVENTS.jsonl"
+  run_flush "$d_g"
+  [[ "$EC" == 0 ]] || log_fail "(g) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d_g")" == 0 ]] || log_fail "(g) an event with no ts must be treated as contradicted (fail-closed): $(cat "$d_g/docs/ai/METRICS.jsonl")"
+
+  # (h) Second-precision tie (review NON-BLOCKING-3 / finding 3,
+  # 20260913T114019Z): state.mjs's nowIso() truncates to the second while
+  # append-event.mjs keeps milliseconds. last_validation's run_at_utc lands
+  # in the SAME second as the event but, at raw millisecond precision, is
+  # numerically "before" it (0ms < 750ms) purely because its sub-second part
+  # was truncated away. A tie must count as newer (fail-closed) -> must SKIP.
+  local d_h; d_h="$(mk_repo t144j)"
+  write_gate_state "$d_h/docs/ai/STATE.yaml" CHANGE-0001 fail CHANGE-0001 "$impl_only" "" 2026-07-01T10:00:00Z
+  write_ticks "$d_h/docs/ai/LOOP_TICKS.jsonl"
+  printf '{"v":1,"ts":"2026-07-01T10:00:00.750Z","actor":"dispatch","event":"validation_verdict","ref":"CHANGE-0001","payload":{"status":"pass"}}\n' > "$d_h/docs/ai/EVENTS.jsonl"
+  run_flush "$d_h"
+  [[ "$EC" == 0 ]] || log_fail "(h) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d_h")" == 0 ]] || log_fail "(h) a fail inside the event's own second (ms-truncated) must count as a tie and block: $(cat "$d_h/docs/ai/METRICS.jsonl")"
+
+  # (i) round-5 remediation (validation-round5.txt NON-BLOCKING-2): the note
+  # fallback's LEGACY sub-case — NO `verdict` field at ALL (not even
+  # `verdict: none`) PLUS a VERDICT: FAIL note, with a REAL ended_utc newer
+  # than the event -> must still SKIP. Arm (d) above already pins the
+  # explicit `verdict: none` case; this arm independently pins the ABSENT
+  # field case the reviewer named as the load-bearing production shape ("the
+  # ONLY signal that protects a LEGACY stranded ref").
+  local d_i; d_i="$(mk_repo t144k)"
+  local runs_i='        - role: Validation
+          model_id: claude-v
+          note: "VERDICT: FAIL corroboration probe (i)"
+          started_utc: 2026-07-20T09:59:00Z
+          ended_utc: 2026-07-20T10:00:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  write_gate_state "$d_i/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-9999 "$runs_i"
+  write_ticks "$d_i/docs/ai/LOOP_TICKS.jsonl"
+  printf '%s\n' "$event_pass_line" > "$d_i/docs/ai/EVENTS.jsonl"
+  run_flush "$d_i"
+  [[ "$EC" == 0 ]] || log_fail "(i) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d_i")" == 0 ]] || log_fail "(i) a LEGACY run with no verdict field at all, only a VERDICT: FAIL note (real newer ts), must still block: $(cat "$d_i/docs/ai/METRICS.jsonl")"
+
+  log_pass "Event corroboration: a stale pass event never overrides a newer fail (per-ref field, last_validation, or a Validation run's own verdict, note-fallback included), a genuinely stranded ref still recovers via event, an older fail never blocks, an unparseable ts on either side fails closed, and a same-second tie counts as newer (TEST-144)"
+}
+
+test_145_field_note_disagreement() {  # TEST-145 / Spec-AC-04 / NON-BLOCKING-B (review-telemetry-fields-not-prose-20260913T105322Z)
+  log_info "Test: a run whose verdict field and note marker DISAGREE resolves from the FIELD (never the note) and emits exactly one field/note disagreement NOTE per affected run (TEST-145)..."
+  local d; d="$(mk_repo t145)"
+  local runs
+  # (a) field pass, note carries the FAIL marker -> field wins (not counted
+  #     as a fail), disagreement reported.
+  # (b) field fail, note does NOT carry the marker -> field wins (IS counted
+  #     as a fail — the dangerous direction: a note-overrides-field mutant
+  #     would hide this exact failure), disagreement reported.
+  # (c) field fail, note ALSO carries the marker -> agreement, NO NOTE.
+  runs='        - role: Validation
+          model_id: claude-v
+          verdict: pass
+          note: "VERDICT: FAIL disagreement probe (a)"
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+        - role: Validation
+          model_id: claude-v
+          verdict: fail
+          note: "clean note, no marker (b)"
+          started_utc: 2026-07-15T10:01:00Z
+          ended_utc: 2026-07-15T10:02:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+        - role: Validation
+          model_id: claude-v
+          verdict: fail
+          note: "VERDICT: FAIL agreement (c)"
+          started_utc: 2026-07-15T10:02:00Z
+          ended_utc: 2026-07-15T10:03:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  write_gate_state "$d/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-0001 "$runs"
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  # FIELD resolution: (a) pass -> not a fail, (b) fail -> IS a fail, (c) fail
+  # -> IS a fail. validation_fails must be 2 (b, c), never 1 (note-overridden)
+  # or 3 (field ignored).
+  grep -qF '"reliability":{"validation_fails":2,"review_fails":0,"remediation_runs":0,"first_pass_clean":false,"basis":"field"}' "$d/got.jsonl" \
+    || log_fail "field must win in both directions (validation_fails 2, basis field): $(cat "$d/got.jsonl")"
+  local n; n="$(grep -c 'field/note disagreement' "$OUT" || true)"
+  [[ "$n" == 2 ]] || log_fail "exactly one disagreement NOTE per DISAGREEING run (a, b), none for the agreeing run (c) — expected 2, got $n: $(cat "$OUT")"
+  grep -qF 'verdict field is "pass"' "$OUT" || log_fail "the (a) disagreement NOTE must name the field value pass: $(cat "$OUT")"
+  grep -qF 'verdict field is "fail"' "$OUT" || log_fail "the (b) disagreement NOTE must name the field value fail: $(cat "$OUT")"
+  log_pass "Field/note disagreement: the FIELD always wins (both directions), and each disagreeing run prints exactly one NOTE (TEST-145)"
+}
+test_146_per_ref_pass_vetoed_by_newer_global_fail() {  # TEST-146 / Spec-AC-06 / Round-7 (PR #378 Codex P1)
+  log_info "Test: a per-ref validation pass stamp does not outrank a NEWER same-ref global last_validation fail (TEST-146)..."
+  local runs='        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+
+  # (a) reviewer's exact sequence: `set-validation --ref CHANGE-0001 --status
+  # pass` (per-ref stamp at 09:00:00Z) then a LATER LEGAL `set-validation
+  # --status fail` with NO `--ref` (global block: fail, ref_id STILL
+  # CHANGE-0001 from the earlier call, run_at_utc 10:00:00Z, newer) -> the
+  # newer global fail must VETO the stale per-ref pass: SKIP, zero ledger
+  # bytes, reason names the veto.
+  local extra='      validation:
+        status: pass
+        at: 2026-07-15T09:00:00Z'
+  local d; d="$(mk_repo t146a)"
+  write_gate_state "$d/docs/ai/STATE.yaml" CHANGE-0001 fail CHANGE-0001 "$runs" "$extra" 2026-07-15T10:00:00Z
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 0 ]] || log_fail "(a) the stale per-ref pass must NOT flush: $(cat "$d/docs/ai/METRICS.jsonl")"
+  grep -qF "SKIP CHANGE-0001" "$OUT" || log_fail "(a) the skip must name CHANGE-0001: $(cat "$OUT")"
+  grep -qi 'newer last_validation fail' "$OUT" || log_fail "(a) the skip reason must name the newer global fail: $(cat "$OUT")"
+
+  # (b) positive control: the per-ref pass is NEWER (10:00:00Z) than the
+  # global fail naming the same ref (09:00:00Z) -> the per-ref pass still
+  # wins, basis per-ref-field, exactly like TEST-138.
+  local extra2='      validation:
+        status: pass
+        at: 2026-07-15T10:00:00Z'
+  local d2; d2="$(mk_repo t146b)"
+  write_gate_state "$d2/docs/ai/STATE.yaml" CHANGE-0001 fail CHANGE-0001 "$runs" "$extra2" 2026-07-15T09:00:00Z
+  write_ticks "$d2/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d2"
+  [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF '"verdict_basis":"per-ref-field"' "$d2/docs/ai/METRICS.jsonl" \
+    || log_fail "(b) a per-ref pass NEWER than the global fail must still flush naming per-ref-field: $(cat "$d2/docs/ai/METRICS.jsonl")"
+
+  # (c) second-precision tie (same convention eventContradictedByNewerFail's
+  # Round-4 refinement uses): the per-ref stamp's own `at` carries no
+  # sub-second part (implicit .000) while the global fail's run_at_utc lands
+  # later in the SAME whole second -> counts as newer (fail-closed) -> vetoed.
+  local extra3='      validation:
+        status: pass
+        at: 2026-07-15T10:00:00Z'
+  local d3; d3="$(mk_repo t146c)"
+  write_gate_state "$d3/docs/ai/STATE.yaml" CHANGE-0001 fail CHANGE-0001 "$runs" "$extra3" 2026-07-15T10:00:00.750Z
+  write_ticks "$d3/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d3"
+  [[ "$EC" == 0 ]] || log_fail "(c) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d3")" == 0 ]] || log_fail "(c) a same-second tie must count as newer and veto: $(cat "$d3/docs/ai/METRICS.jsonl")"
+
+  log_pass "Per-ref pass veto: a newer same-ref global fail vetoes a stale per-ref pass, an older global fail never blocks a newer per-ref pass, and a same-second tie counts as newer (TEST-146)"
+}
+
+test_147_requested_actual_model_passthrough() {  # TEST-147 / Round-7 (PR #378 Codex P1)
+  log_info "Test: flush copies requested_model and actual_model into the ledger run entry; a sibling run recording neither carries neither key (TEST-147)..."
+  local runs='        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          requested_model: claude-sonnet-5
+          actual_model: claude-haiku-5
+        - role: Validation
+          model_id: claude-v
+          verdict: pass
+          started_utc: 2026-07-15T10:02:00Z
+          ended_utc: 2026-07-15T10:03:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  local d; d="$(mk_repo t147)"
+  write_gate_state "$d/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-0001 "$runs"
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  node -e '
+    const line = require("fs").readFileSync(process.argv[1], "utf8").trim();
+    const o = JSON.parse(line);
+    const runs = o.agent_runs;
+    const impl = runs.find(r => r.role === "Implementation");
+    const val = runs.find(r => r.role === "Validation");
+    if (impl.requested_model !== "claude-sonnet-5") { console.error("Implementation run must carry requested_model claude-sonnet-5, got " + JSON.stringify(impl.requested_model)); process.exit(1); }
+    if (impl.actual_model !== "claude-haiku-5") { console.error("Implementation run must carry actual_model claude-haiku-5, got " + JSON.stringify(impl.actual_model)); process.exit(1); }
+    if ("requested_model" in val || "actual_model" in val) { console.error("Validation run recorded neither flag and must carry NEITHER key, got " + JSON.stringify(val)); process.exit(1); }
+  ' "$d/got.jsonl" || log_fail "requested_model/actual_model must pass through to the ledger run entry, present only when recorded"
+  log_pass "Flush copies requested_model and actual_model into the ledger run entry; a sibling run without them carries neither key (TEST-147)"
+}
+
+test_148_scope_ref_id_binds_to_focus() {  # TEST-148 / Spec-AC-09 / Round-7 (PR #378 Codex P2)
+  log_info "Test: a partial flush completing multiple refs binds the preserved scope_ref_id to the CURRENT FOCUS ref, not to metrics.work_items array order (TEST-148)..."
+
+  # Shared shape: metrics.work_items lists CHANGE-0002 BEFORE CHANGE-0001 (so
+  # array order alone would pick CHANGE-0002); last_validation admits BOTH
+  # via a composite ref_id "CHANGE-0002/CHANGE-0001" (refMatches' documented
+  # "/"-joined form); a third active work item (CHANGE-0003, in_progress,
+  # absent from metrics) keeps the reset PARTIAL, never full.
+  write_scope148_state() {
+    local f="$1" focus_ref="$2" existing_scope_ref="$3"
+    cat > "$f" <<YAML
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: $focus_ref
+  primary_path: null
+active_work_items:
+  - ref_id: CHANGE-0001
+    status: done
+    phase: validation
+    primary_path: docs/issues/CHANGE-0001-a.md
+  - ref_id: CHANGE-0002
+    status: done
+    phase: validation
+    primary_path: docs/issues/CHANGE-0002-b.md
+  - ref_id: CHANGE-0003
+    status: in_progress
+    phase: implementation
+    primary_path: docs/issues/CHANGE-0003-c.md
+implementation_strategy:
+  selected: tdd
+  source: null
+  rationale: null
+worktree:
+  recommendation: not_needed
+  user_decision: undecided
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: false
+  status: not_run
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+  scope_ref_id: $existing_scope_ref
+last_validation:
+  status: pass
+  run_at_utc: 2026-07-15T11:00:00Z
+  ref_id: CHANGE-0002/CHANGE-0001
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+  spec_path: null
+  test_path: null
+  evidence:
+    red: null
+    green: null
+    refactor: null
+metrics:
+  work_items:
+    CHANGE-0002:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T09:00:00Z
+          ended_utc: 2026-07-15T09:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+    CHANGE-0001:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+
+updated_at_utc: 2026-07-15T11:30:00Z
+YAML
+  }
+
+  # (a) focus ref (CHANGE-0001) is AMONG the flushed refs but SECOND in
+  # metrics.work_items order (CHANGE-0002 is first) -> scope_ref_id must name
+  # CHANGE-0001, not the array-order CHANGE-0002 (M-scope: reverting to
+  # flushedRefs[0] reddens this arm).
+  local d; d="$(mk_repo t148a)"
+  write_scope148_state "$d/docs/ai/STATE.yaml" CHANGE-0001 null
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "(a) both CHANGE-0001 and CHANGE-0002 must flush: $(cat "$d/docs/ai/METRICS.jsonl")"
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$d/docs/ai/STATE.yaml" > "$d/cr.block"
+  grep -qE '^ {2}scope_ref_id: CHANGE-0001$' "$d/cr.block" \
+    || log_fail "(a) scope_ref_id must bind to the current-focus ref CHANGE-0001, not array order: $(cat "$d/cr.block")"
+
+  # (b) focus ref is NOT among the flushed refs (current_focus already moved
+  # on to CHANGE-9999), but the PRE-flush scope_ref_id already names
+  # CHANGE-0001 — one of the flushed refs, again second in array order — so
+  # that existing binding must be PRESERVED rather than overwritten by
+  # array-order CHANGE-0002.
+  local d2; d2="$(mk_repo t148b)"
+  write_scope148_state "$d2/docs/ai/STATE.yaml" CHANGE-9999 CHANGE-0001
+  write_ticks "$d2/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d2"
+  [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$d2/docs/ai/STATE.yaml" > "$d2/cr.block"
+  grep -qE '^ {2}scope_ref_id: CHANGE-0001$' "$d2/cr.block" \
+    || log_fail "(b) an existing scope_ref_id naming a flushed ref must be PRESERVED, not overwritten by array order: $(cat "$d2/cr.block")"
+
+  log_pass "scope_ref_id binds to the current-focus ref when it is among the flushed refs, else preserves an existing matching binding, never plain array order (TEST-148)"
+}
+
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
   check_deps
@@ -2276,6 +3312,20 @@ main() {
   test_131_rguard_flush_rigor_downgrade
   test_132_rguard_events_appendonly
   test_133_model_marker_grep_contract
+  test_135_field_basis_reliability
+  test_136_note_fallback_reliability
+  test_137_cost_basis_table
+  test_138_per_ref_field_basis
+  test_139_event_basis
+  test_140_default_never_creates_events
+  test_141_partial_reset_preserves_scope
+  test_142_metrics_report_basis_columns
+  test_143_append_only_prefix
+  test_144_event_corroboration
+  test_145_field_note_disagreement
+  test_146_per_ref_pass_vetoed_by_newer_global_fail
+  test_147_requested_actual_model_passthrough
+  test_148_scope_ref_id_binds_to_focus
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

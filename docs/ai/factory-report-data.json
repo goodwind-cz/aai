@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-09-13T01:29:59.070Z",
+  "generatedAt": "2026-09-13T13:29:49.921Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 135,
-    "delivered": 428,
+    "rides": 138,
+    "delivered": 430,
     "active_weeks": 11,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (428 closes vs 135 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 428,
-    "delivered_per_week_avg": 38.9,
+    "note": "\"delivered\" counts every work_item_closed event (430 closes vs 138 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 430,
+    "delivered_per_week_avg": 39.1,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -25,7 +25,7 @@
       "2026-W34": 33,
       "2026-W35": 20,
       "2026-W36": 31,
-      "2026-W37": 12
+      "2026-W37": 14
     },
     "delivered_groups": [
       {
@@ -436,7 +436,7 @@
         "key": "month:2026-09",
         "kind": "month",
         "label": "2026-09",
-        "count": 40,
+        "count": 42,
         "refs": [
           "intake-staleness-preflight-warning",
           "spec-intake-staleness-preflight-warning",
@@ -477,7 +477,9 @@
           "friction-publish-hides-required-followup",
           "spec-friction-publish-hides-required-followup",
           "harness-universal-routing",
-          "spec-harness-universal-routing"
+          "spec-harness-universal-routing",
+          "telemetry-fields-not-prose",
+          "spec-telemetry-fields-not-prose"
         ]
       }
     ],
@@ -2001,7 +2003,7 @@
         },
         {
           "ref": "agent-shell-can-write-the-shipping-repo",
-          "lead_time_seconds": null
+          "lead_time_seconds": 17904
         },
         {
           "ref": "spec-agent-shell-can-write-the-shipping-repo",
@@ -2173,7 +2175,7 @@
         },
         {
           "ref": "close-ceremony-fires-only-via-aai-pr",
-          "lead_time_seconds": null
+          "lead_time_seconds": 61316
         },
         {
           "ref": "spec-close-ceremony-fires-only-via-aai-pr",
@@ -2194,25 +2196,33 @@
         {
           "ref": "spec-harness-universal-routing",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "telemetry-fields-not-prose",
+          "lead_time_seconds": 23960
+        },
+        {
+          "ref": "spec-telemetry-fields-not-prose",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 3945,
-      "mean_seconds": 118522.6,
-      "measured": 131,
-      "unmeasurable": 297
+      "median_seconds": 4124,
+      "mean_seconds": 116639.1,
+      "measured": 134,
+      "unmeasurable": 296
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2330,
-      "mean": 4525.5,
-      "measured": 133
+      "median": 2347,
+      "mean": 4790.6,
+      "measured": 136
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 148155,
-        "tokens": 15567721
+        "duration_seconds": 160812,
+        "tokens": 16287082
       },
       {
         "role": "Implementation",
@@ -2221,23 +2231,23 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 63130,
-        "tokens": 10370122
+        "duration_seconds": 67700,
+        "tokens": 10861080
       },
       {
         "role": "Remediation",
-        "duration_seconds": 83832,
-        "tokens": 11402238
+        "duration_seconds": 98560,
+        "tokens": 12054297
       },
       {
         "role": "Validation",
-        "duration_seconds": 178927,
-        "tokens": 14071606
+        "duration_seconds": 194157,
+        "tokens": 14780110
       },
       {
         "role": "Planning",
-        "duration_seconds": 72199,
-        "tokens": 9278684
+        "duration_seconds": 74650,
+        "tokens": 9866716
       }
     ],
     "per_ride": [
@@ -2915,6 +2925,21 @@
         "ref": "harness-universal-routing",
         "busy_seconds": 12761,
         "remediation_runs": 2
+      },
+      {
+        "ref": "agent-shell-can-write-the-shipping-repo",
+        "busy_seconds": 8659,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "close-ceremony-fires-only-via-aai-pr",
+        "busy_seconds": 18185,
+        "remediation_runs": 3
+      },
+      {
+        "ref": "telemetry-fields-not-prose",
+        "busy_seconds": 22792,
+        "remediation_runs": 5
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -2924,15 +2949,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 509481,
-      "mean": 728657.7,
-      "measured": 87
+      "median": 515246,
+      "mean": 739468.1,
+      "measured": 90
     },
-    "tokens_total": 63393218,
+    "tokens_total": 66552132,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 15567721
+        "tokens": 16287082
       },
       {
         "role": "Implementation",
@@ -2940,25 +2965,25 @@
       },
       {
         "role": "Code Review",
-        "tokens": 10370122
+        "tokens": 10861080
       },
       {
         "role": "Remediation",
-        "tokens": 11402238
+        "tokens": 12054297
       },
       {
         "role": "Validation",
-        "tokens": 14071606
+        "tokens": 14780110
       },
       {
         "role": "Planning",
-        "tokens": 9278684
+        "tokens": 9866716
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 400,
-      "total_runs": 628,
-      "pct": 64,
+      "runs_with_marker": 415,
+      "total_runs": 657,
+      "pct": 63,
       "by_week": [
         {
           "week": "2026-W27",
@@ -3022,9 +3047,9 @@
         },
         {
           "week": "2026-W37",
-          "runs_with_marker": 17,
-          "total_runs": 17,
-          "pct": 100
+          "runs_with_marker": 32,
+          "total_runs": 46,
+          "pct": 70
         }
       ]
     },
@@ -3032,13 +3057,13 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 86,
-          "runs_marked": 65,
+          "runs_total": 89,
+          "runs_marked": 67,
           "runs_sentinel": 0,
-          "runs_unmarked": 21,
-          "tokens_total": 15567721,
-          "median_tokens_per_run": 239075,
-          "share_pct": 25
+          "runs_unmarked": 22,
+          "tokens_total": 16287082,
+          "median_tokens_per_run": 239954,
+          "share_pct": 24
         },
         {
           "role": "Implementation",
@@ -3052,42 +3077,42 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 143,
-          "runs_marked": 96,
+          "runs_total": 148,
+          "runs_marked": 99,
           "runs_sentinel": 0,
-          "runs_unmarked": 47,
-          "tokens_total": 10370122,
-          "median_tokens_per_run": 96308,
+          "runs_unmarked": 49,
+          "tokens_total": 10861080,
+          "median_tokens_per_run": 98503,
           "share_pct": 16
         },
         {
           "role": "Remediation",
-          "runs_total": 88,
-          "runs_marked": 60,
+          "runs_total": 96,
+          "runs_marked": 63,
           "runs_sentinel": 0,
-          "runs_unmarked": 28,
-          "tokens_total": 11402238,
-          "median_tokens_per_run": 174561,
+          "runs_unmarked": 33,
+          "tokens_total": 12054297,
+          "median_tokens_per_run": 174865,
           "share_pct": 18
         },
         {
           "role": "Validation",
-          "runs_total": 150,
-          "runs_marked": 103,
+          "runs_total": 160,
+          "runs_marked": 107,
           "runs_sentinel": 0,
-          "runs_unmarked": 47,
-          "tokens_total": 14071606,
-          "median_tokens_per_run": 127538,
+          "runs_unmarked": 53,
+          "tokens_total": 14780110,
+          "median_tokens_per_run": 130836,
           "share_pct": 22
         },
         {
           "role": "Planning",
-          "runs_total": 113,
-          "runs_marked": 66,
+          "runs_total": 116,
+          "runs_marked": 69,
           "runs_sentinel": 0,
           "runs_unmarked": 47,
-          "tokens_total": 9278684,
-          "median_tokens_per_run": 137799,
+          "tokens_total": 9866716,
+          "median_tokens_per_run": 138260,
           "share_pct": 15
         }
       ],
@@ -3447,7 +3472,7 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 2,
+              "runs_marked": 4,
               "median_tokens": 355231
             },
             {
@@ -3457,23 +3482,23 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 2,
-              "median_tokens": 176933
+              "runs_marked": 5,
+              "median_tokens": 171817
             },
             {
               "role": "Remediation",
-              "runs_marked": 4,
-              "median_tokens": 244031
+              "runs_marked": 7,
+              "median_tokens": 234516
             },
             {
               "role": "Validation",
-              "runs_marked": 6,
-              "median_tokens": 205606
+              "runs_marked": 10,
+              "median_tokens": 190790
             },
             {
               "role": "Planning",
-              "runs_marked": 3,
-              "median_tokens": 181295
+              "runs_marked": 6,
+              "median_tokens": 184193
             }
           ]
         }
@@ -3482,18 +3507,18 @@
   },
   "quality": {
     "first_pass_clean": {
-      "clean": 82,
-      "flagged": 109,
-      "rate_pct": 75
+      "clean": 83,
+      "flagged": 112,
+      "rate_pct": 74
     },
     "na_reliability": 26,
     "remediation_distribution": {
-      "0": 82,
+      "0": 83,
       "1": 10,
       "2": 7,
-      "3": 3,
+      "3": 4,
       "4": 3,
-      "5": 2,
+      "5": 3,
       "6": 1,
       "8": 1,
       "n/a": 26
@@ -3501,7 +3526,7 @@
     "avg_validation_fails": 0,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 122,
+      "PASS": 125,
       "null": 13
     },
     "review_events": 26,
@@ -3514,6 +3539,705 @@
     "rejected_records": 0,
     "rides": [],
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
+  },
+  "verdict_provenance": {
+    "field_derived": 1,
+    "marker_derived": 2,
+    "mixed": 0,
+    "no_basis": 135,
+    "rides": [
+      {
+        "ref": "DEBT-0001",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "ISSUE-0001",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "RFC-0006",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "ISSUE-0002",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "ISSUE-0003",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "ISSUE-0004",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "ISSUE-0005",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "CHANGE-0005",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "CHANGE-0006",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "CHANGE-0007",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "CHANGE-0008",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "RFC-0003",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "RFC-0004",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "RFC-0005",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "CHANGE-0004",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "RFC-0007",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "CHANGE-0012",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "CHANGE-0010",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "CHANGE-0011",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "CHANGE-0009",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "doctor-vendored-layer-drift",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "single-dual-verdict-review",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "ISSUE-0007",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "verification-before-completion",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "learned-to-layer-promotion",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "CHANGE-0014",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "CHANGE-0027",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "docs-audit-d2-evidence-hardening",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "loop-ceremony-aware-dispatch",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "dispatch-new-intake-after-completed-scope",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "loop-token-usage-capture",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "tdd-red-evidence-classification",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "intake-secrets-preflight",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "doc-number-origin-reservation",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "test-wrapper-windows-fallback",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "prompt-diet-byte-budget-true-up",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "secrets-preflight-env-multiline",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "dispatch-4a-fail-verdict-precedence",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "spec-lint-duplicate-ac-id",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "aai-update-temp-toctou",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "deterministic-close-ceremony",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "flush-close-event-alignment",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "worktree-telemetry-reconciliation",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "secrets-preflight-unterminated-quote-safe-direction",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "docs-audit-duplicate-doc-id",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "remediate-spec-id-collisions",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "spec-lint-enforce-spec-id-prefix",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "prompt-diet-itemized-growth-ledger",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "user-docs-workflow-hardening",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "prompt-diet-floor-credit-drift",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "test-infra-reds-and-ci-gate",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "skill-suite-linux-ci-portability",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "aai-release-skill",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "reaper-deterministic-age-guard",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "test-canon-stat-portability",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "hitl-decision-propagation",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "ps1-native-stderr-guard",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "metrics-flush-strands-completed-refs",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "test-018-workspace-isolation",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "branch-per-work-item-hygiene",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "planning-companion-obligations",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "reaper-epoch-survivor-robustness",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "false-open-metrics-and-supersession",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "branch-guard-no-work-item",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "retire-stranded-nonworkitem-metric",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "test-018-legacy-spare-attribution",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "test-canon-drift-detection",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "friction-capture-foundation",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "friction-shadow-capture-wiring",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "friction-schema-v2-capture",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "feedback-triage-offline",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "feedback-upsert-review",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "friction-feedback-discovery",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "token-capture-canary",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "prompt-dedup-canonical-includes",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "pr-post-open-review-sweep",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "subagent-protocol-slim",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "friction-capture-default-on",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "token-economics-end-to-end",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "allocator-rewrite-all-trees",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "cheap-model-in-practice",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "product-docs-enforced",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "dev-progress-hub",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "role-output-contracts",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "learned-append-gate",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "prompt-hash-telemetry",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "ci-test-impact-selection",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "prompt-hash-runtime-wiring",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "suite-map-factory-doc-paths",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "skill-sweep-quick-wins",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "state-bootstrap-template",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "decapod-prune",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "doctor-determinize",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "dashboard-refit",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "docs-hub-generator",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "rollup-exclusion-visibility",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "validate-report-contract",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "follow-ups-scripts",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "follow-ups-docs",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "platform-portable-pr",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "session-loose-ends",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "issues-skill",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "product-docs-capability-model",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "product-capability-refinements",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "CHANGE-0127",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "universal-routines",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "scryer-mcp-and-shallow",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "role-token-trend",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "evidence-path-gate",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "validation-cost-calibration",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "ps1-wrapper-path-dup",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "pester-on-windows-ci",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "doctor-win-selftest",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "ps1-ci-platform-coverage",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "update-doctor-field-report",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "doctor-honesty-batch",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "canonical-test-invocation",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "reporting-docs-true-up",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "changelog-payload-hardening",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "followup-registry",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "vagueness-gate",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "close-regenerate-order",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "deslop-scope-and-unrequested-engine",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "role-verification-guards",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "ride-cost-readout",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "followups-cli-hardening",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "single-writer-canon-contradiction",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "close-leaves-state-stale",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "harness-surfaces-drift-unguarded",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "isolation-shares-the-shipping-git",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "aai-update-gitignore-drift-reconcile",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "intake-staleness-preflight-warning",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "unattended-rides-human-gate-at-merge",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "friction-publish-hides-required-followup",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "harness-universal-routing",
+        "verdict_source": null,
+        "cost_basis": null
+      },
+      {
+        "ref": "agent-shell-can-write-the-shipping-repo",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "close-ceremony-fires-only-via-aai-pr",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "telemetry-fields-not-prose",
+        "verdict_source": "field",
+        "cost_basis": "total-blended"
+      }
+    ],
+    "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
   },
   "trend": [
     {
@@ -3583,7 +4307,7 @@
     {
       "week": "2026-W35",
       "delivered": 20,
-      "median_lead_time_seconds": 46121,
+      "median_lead_time_seconds": 20654,
       "busy_seconds": 74738,
       "tokens": 7136260,
       "first_pass_rate": 0
@@ -3598,16 +4322,16 @@
     },
     {
       "week": "2026-W37",
-      "delivered": 12,
+      "delivered": 14,
       "median_lead_time_seconds": 24337,
-      "busy_seconds": 23958,
-      "tokens": 3811993,
+      "busy_seconds": 73594,
+      "tokens": 6970907,
       "first_pass_rate": 33
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 170,
+    "open_count": 172,
     "oldest_age_days": 30,
     "items": [
       {
@@ -3630,7 +4354,7 @@
         "id": "fu-mask-duplicates-docs-audit-core",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 29,
+        "age_days": 30,
         "what": "the specimen masker in spec-lint.mjs duplicates docs-audit-core.mjs:782-875 more weakly, reintroducing both bugs that file fixed under SPEC-0013 W3",
         "status": "open"
       },
@@ -3638,7 +4362,7 @@
         "id": "fu-vague-term-line-attribution",
         "ref": "CHANGE-0144",
         "severity": "P3",
-        "age_days": 29,
+        "age_days": 30,
         "what": "ac-vague-term reports the Test Plan row's line number when the Test Plan section precedes the AC table (measured 19 vs 25)",
         "status": "open"
       },
@@ -3646,7 +4370,7 @@
         "id": "fu-rollup-creates-userguide",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 29,
+        "age_days": 30,
         "what": "the spec's edge case says the rollup generator no-ops when USER_GUIDE.md is absent; it CREATES the file",
         "status": "open"
       },
@@ -3654,7 +4378,7 @@
         "id": "fu-setfocus-keeps-stale-spec-path",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 29,
+        "age_days": 30,
         "what": "set-focus to a new ref leaves the previous scope's spec_path in current_focus, so the next dispatch hands the role a foreign spec as an input",
         "status": "open"
       },
@@ -3702,7 +4426,7 @@
         "id": "fu-validation-ignores-suite-selector",
         "ref": "ride-cost-readout",
         "severity": "P2",
-        "age_days": 25,
+        "age_days": 26,
         "what": "validation picks its suites from the declared review scope while CI picks them from select-suites, so a CORE suite can be skipped in validation and fail in CI",
         "status": "open"
       },
@@ -3710,7 +4434,7 @@
         "id": "fu-orchestrator-does-not-watch-ci",
         "ref": "ride-cost-readout",
         "severity": "P2",
-        "age_days": 25,
+        "age_days": 26,
         "what": "after pushing a PR the orchestrator stops instead of watching CI, so a failure sits undetected until the owner asks",
         "status": "open"
       },
@@ -3718,7 +4442,7 @@
         "id": "fu-openct-unrdbl-report",
         "ref": "followups-cli-hardening",
         "severity": "P2",
-        "age_days": 25,
+        "age_days": 26,
         "what": "generate-factory-report.mjs:616 publishes follow_ups.open_count: 0 for an UNREADABLE ledger (e.g. --decisions a directory), the same 'a bad input reads as good news' shape D2 refuses on the CLI; the file's own oldest_age_days convention two lines down already uses null, never 0, for exactly this degradation",
         "status": "open"
       },
@@ -3726,7 +4450,7 @@
         "id": "fu-sync-hash-compare-fails-open",
         "ref": "followups-cli-hardening",
         "severity": "P2",
-        "age_days": 25,
+        "age_days": 26,
         "what": "file_content_different in aai-sync.sh treats an unobtainable hash as different, so a transient sha256sum hiccup silently rewrites the target's copilot shim and plants a project-overrides file",
         "status": "open"
       },
@@ -3822,7 +4546,7 @@
         "id": "fu-main-push-conflicts-open-pr",
         "ref": "cli-output-survives-a-pipe",
         "severity": "P2",
-        "age_days": 22,
+        "age_days": 23,
         "what": "the orchestrator pushed a commit to main that regenerated docs/INDEX.md while a PR shipping the same generated file was open, turning that PR CONFLICTING",
         "status": "open"
       },
@@ -3830,7 +4554,7 @@
         "id": "fu-typemap-missing-research-hotfix",
         "ref": "spec-intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 22,
+        "age_days": 23,
         "what": "allocate-doc-number.mjs TYPE_MAP has no research and no hotfix row, so --type research and --type hotfix exit 2 as unknown types",
         "status": "open"
       },
@@ -3838,7 +4562,7 @@
         "id": "fu-ceremony-test016-blanket-byte-pin",
         "ref": "spec-intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 22,
+        "age_days": 23,
         "what": "test-aai-ceremony-levels.sh TEST-016 pins .aai/scripts/lib/docs-audit-core.mjs with a bare git diff --exit-code, so ANY later scope that touches that shared library fails a test written for SPEC-0041",
         "status": "open"
       },
@@ -3846,7 +4570,7 @@
         "id": "fu-intake-templates-lack-number-key",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P3",
-        "age_days": 22,
+        "age_days": 23,
         "what": "seven of the eight intake templates carry no number: key, so a verbatim copy now fails docs-audit --intake-file with number-absent",
         "status": "open"
       },
@@ -3854,7 +4578,7 @@
         "id": "fu-intake-dir-unanchored-research-hotfix",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 22,
+        "age_days": 23,
         "what": "for the two intake types TYPE_MAP does not know (research, hotfix) the .aai/INTAKE_COMMON.md table row and the per-type prompt can drift together to a wrong directory with the whole intake suite green",
         "status": "open"
       },
@@ -3862,7 +4586,7 @@
         "id": "fu-report-ids-exceed-registry-cap",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 22,
+        "age_days": 23,
         "what": "roles routinely write follow-up ids into their reports that the registry CLI refuses, because the ids exceed the hard 40-character cap, so a finding reported as filed can never have been filed under that name",
         "status": "open"
       },
@@ -3870,7 +4594,7 @@
         "id": "fu-posix-arm-reddens-on-prose-backslash",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 22,
+        "age_days": 23,
         "what": "index_posix_findings tests every line for a backslash, not only path tokens, so a Notes cell mentioning a regex reddens the arm with index path is not POSIX",
         "status": "open"
       },
@@ -3878,7 +4602,7 @@
         "id": "fu-staleness-source-line-self-certifies",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 22,
+        "age_days": 23,
         "what": "index_stale_findings derives its scanned dirs from the Source: line of the index under test, so an index stale because a family was added never checks that family",
         "status": "open"
       },
@@ -3886,7 +4610,7 @@
         "id": "fu-posix-predicate-exit-conflates-infra",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 22,
+        "age_days": 23,
         "what": "index_posix_findings exits 1 both for real path findings and for the predicate failing to run, and does not fold stderr into the captured output, so an infrastructure failure surfaces as a path defect with an empty message",
         "status": "open"
       },
@@ -3918,7 +4642,7 @@
         "id": "fu-seed-loss-turns-an-arm-into-a-skip",
         "ref": "a-half-seeded-checkout-says-it-is-isolated",
         "severity": "P2",
-        "age_days": 21,
+        "age_days": 22,
         "what": "a seed path present in the working tree but absent from the checkout leaves the run GREEN at exit 0 while a suite reads an empty file, so an assertion silently becomes a passing skip",
         "status": "open"
       },
@@ -4070,7 +4794,7 @@
         "id": "fu-usage-pin-misses-appended-flag",
         "ref": "a-branch-diff-pin-taxes-every-later-scope",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "TEST-011(clarify) pins spec-freeze's usage line with grep -qF, so a flag APPENDED after the pinned run does not trip it",
         "status": "open"
       },
@@ -4078,7 +4802,7 @@
         "id": "fu-lean-ac-heading-two-authorities",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "docs-audit --gate accepts a lean AC table under the heading Acceptance Criteria while generate-docs-index.mjs near-miss flags exactly that heading and demands Acceptance Criteria Status",
         "status": "open"
       },
@@ -4086,7 +4810,7 @@
         "id": "fu-pgq-grep-error-reopened",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "pgq_scan sends grep stderr to /dev/null and treats a per-file error as count 0, so an unreadable file is reported as an improvement (reopens fu-pgq-scan-silent-on-grep-error)",
         "status": "open"
       },
@@ -4094,7 +4818,7 @@
         "id": "fu-overview-project-from-dirname",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "generate-overview.mjs derives the project field from path.basename(ROOT) (line 343), so any non-canonically named checkout (worktree, CI dir) leaks its local directory name into the committed overview pages",
         "status": "open"
       },
@@ -4102,7 +4826,7 @@
         "id": "fu-exit-contract-pin-comment-dup",
         "ref": "a-branch-diff-pin-taxes-every-later-scope",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "TEST-011(clarify)'s spec-freeze exit-contract pins (grep -qF \"$p\" \"$f\") check the WHOLE FILE, not the emitted string; spec-freeze.mjs's header comment (lines 54-61) duplicates all four exit-contract phrases verbatim above the runtime strings (lines 101-106) that actually compose the CLI output",
         "status": "open"
       },
@@ -4110,7 +4834,7 @@
         "id": "fu-overview-links-gitignored-reports",
         "ref": "a-branch-diff-pin-taxes-every-later-scope",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "the committed overview embeds links to gitignored validation/review report paths, so every such link 404s from a fresh clone",
         "status": "open"
       },
@@ -4126,7 +4850,7 @@
         "id": "fu-closeworkitem-pin-tail-wording",
         "ref": "close-leaves-state-stale",
         "severity": "P3",
-        "age_days": 18,
+        "age_days": 19,
         "what": "close-work-item.mjs EXIT CONTRACT header for code 6 and the matching CLOSE_WORK_ITEM_ALLOWED_HASHES entry both say the STATE reconcile runs strictly AFTER the existing try/catch, which is literally true of the full write path only: on the D6.2 idempotency short-circuit the reconcile is reached BEFORE the try block, a tail that route never enters",
         "status": "open"
       },
@@ -4134,7 +4858,7 @@
         "id": "fu-amend-spec-close-leaves-state-stale",
         "ref": "close-leaves-state-stale",
         "severity": "P2",
-        "age_days": 18,
+        "age_days": 19,
         "what": "owner sign-off owed on 2 unsigned post-freeze amendments to SPEC-0153 (spec-close-leaves-state-stale): accept the amended spec, or reverse the amendments",
         "status": "open"
       },
@@ -4142,7 +4866,7 @@
         "id": "fu-reconcile-skip-drops-commands",
         "ref": "ISSUE-0035",
         "severity": "P2",
-        "age_days": 18,
+        "age_days": 19,
         "what": "planStateReconcile skip() rebuilds the result with an empty echo array, so a reason raised by the second arm discards a command the first arm already planned",
         "status": "open"
       },
@@ -4182,7 +4906,7 @@
         "id": "fu-metrics-verdict-has-no-staleness",
         "ref": "agent-shell-can-write-the-shipping-repo",
         "severity": "P2",
-        "age_days": 15,
+        "age_days": 16,
         "what": "the metrics ledger records verdict PASS with no notion of whether the verdict covers the final bytes, so a ride whose last work lands after its last review is counted as reviewed-and-passed",
         "status": "open"
       },
@@ -4190,7 +4914,7 @@
         "id": "fu-overview-bakes-untracked-state",
         "ref": "agent-shell-can-write-the-shipping-repo",
         "severity": "P2",
-        "age_days": 15,
+        "age_days": 16,
         "what": "docs/ai/overview.html and overview-data.json are tracked artefacts generated from docs/ai/STATE.yaml, which is untracked by design, so every commit of them bakes one machine's local state into the repository",
         "status": "open"
       },
@@ -4206,7 +4930,7 @@
         "id": "fu-registry-has-no-reopen",
         "ref": "operator-waiver-unblocks-pr",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "follow-ups.mjs close accepts only done|dropped, so an item closed on a mistaken premise cannot be reopened without hand-editing an append-only ledger",
         "status": "open"
       },
@@ -4286,7 +5010,7 @@
         "id": "fu-verify-closures-strict-value-off",
         "ref": "adhoc-probes-unisolated-report-only",
         "severity": "P2",
-        "age_days": 11,
+        "age_days": 12,
         "what": "verify-closures --strict=<value> is accepted by the --flag=value escape hatch and silently means report-only (the boolean check requires exact ===true)",
         "status": "open"
       },
@@ -4294,7 +5018,7 @@
         "id": "fu-verify-closures-claim-before-label",
         "ref": "adhoc-probes-unisolated-report-only",
         "severity": "P3",
-        "age_days": 11,
+        "age_days": 12,
         "what": "extractHeadingClaims only scans segments after each label match; a fu- id named in prose before the first CLOSED FULLY/QUALIFIEDLY/NOT CLOSED label is silently never checked",
         "status": "open"
       },
@@ -4358,7 +5082,7 @@
         "id": "fu-layer-profiles-fixture-build-race",
         "ref": "release-protected-branch-fallback",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "test-aai-layer-profiles flakes under parallel load because its own fixture-source build swallows 'WARN core-listed file missing in source (skipped)' instead of failing loudly",
         "status": "open"
       },
@@ -4366,7 +5090,7 @@
         "id": "fu-amend-release-protected-branch-105f7f",
         "ref": "release-protected-branch-fallback",
         "severity": "P2",
-        "age_days": 10,
+        "age_days": 11,
         "what": "owner sign-off owed on 1 unsigned post-freeze amendment to SPEC-0161 (spec-release-protected-branch-fallback): accept the amended spec, or reverse the amendment",
         "status": "open"
       },
@@ -4374,7 +5098,7 @@
         "id": "fu-release-ps1-rawexit-regex-unpinned",
         "ref": "release-protected-branch-fallback",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "aai-release.ps1's degrade-raw arm recovers git's exit code by regex over Invoke-NativeChecked's own thrown 'failed (exit N)' text, with no test pinning that message shape",
         "status": "open"
       },
@@ -4382,7 +5106,7 @@
         "id": "fu-test031-self-neutralizes-post-merge",
         "ref": "release-protected-branch-fallback",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "test-aai-release.sh TEST-031 reads its comparison engine from origin/main, so once this scope merges it compares the new engine against itself and the byte-identity pin stops guarding anything; it also degrades to a silent skip if neither ref carries the file",
         "status": "open"
       },
@@ -4390,7 +5114,7 @@
         "id": "fu-release-fallback-branch-unguarded",
         "ref": "release-protected-branch-fallback",
         "severity": "P2",
-        "age_days": 10,
+        "age_days": 11,
         "what": "the fallback's git branch and git reset --hard are unguarded beyond the exact-name pre-check, so a D/F-conflicting ref kills the engine at exit 128 bash or 1 ps1 with no FALLBACK INCOMPLETE report and the target branch left at the release commit",
         "status": "open"
       },
@@ -4398,7 +5122,7 @@
         "id": "fu-specs-embed-developer-local-paths",
         "ref": "release-protected-branch-fallback",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "24 merged specs under docs/specs embed a developer-local absolute path (/Users/ales/...), mostly in the Isolation-and-review worktree line that Planning writes; the path is useful provenance during a ride and dead weight plus an environment leak after merge",
         "status": "open"
       },
@@ -4406,7 +5130,7 @@
         "id": "fu-ac-flip-guard-lean-table-blind",
         "ref": "ac-table-premature-flip-recurs",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "docs-audit --ac-flip-check cannot see a premature AC flip on a lean ceremony_level 0/1 table, because the D2(c) arm it shares with falseOpenEvidence reads only the canonical parseAcTable table",
         "status": "open"
       },
@@ -4414,7 +5138,7 @@
         "id": "fu-suitemap-state-missing-role-common",
         "ref": "ac-table-premature-flip-recurs",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "tests/skills/suite-map.yaml's aai-state globs do not list .aai/ROLE_COMMON.md, so an edit touching only the shared PRE-HANDOFF block never selects the suite carrying test-aai-state.sh TEST-017, the test that pins the two implementer prompts against exactly that block",
         "status": "open"
       },
@@ -4486,7 +5210,7 @@
         "id": "fu-reaper-epoch-export-fails-test005",
         "ref": "role-progress-heartbeat",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "exporting AAI_REAP_STEP_START_EPOCH into the test command's environment, which is the literal shape VALIDATION step 5c's wording invites, makes tests/skills/test-aai-run-tests.sh TEST-005 fail DETERMINISTICALLY - that suite tests the reaper itself; validation reproduced 5/5 with the export and 0/2 without it, on base main and on HEAD alike",
         "status": "open"
       },
@@ -4494,7 +5218,7 @@
         "id": "fu-amend-spec-role-progress-heartbeat",
         "ref": "role-progress-heartbeat",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "owner sign-off owed on 3 unsigned post-freeze amendments to SPEC-0164 (spec-role-progress-heartbeat): accept the amended spec, or reverse the amendments",
         "status": "open"
       },
@@ -4502,7 +5226,7 @@
         "id": "fu-heartbeat-slot-name-not-injective",
         "ref": "role-progress-heartbeat",
         "severity": "P3",
-        "age_days": 9,
+        "age_days": 10,
         "what": "heartbeat slot names are not injective: two distinct --ref values that sanitize to the same token share one slot and the second write silently wins",
         "status": "open"
       },
@@ -4510,7 +5234,7 @@
         "id": "fu-layer-profiles-suite-load-fragile",
         "ref": "role-progress-heartbeat",
         "severity": "P3",
-        "age_days": 9,
+        "age_days": 10,
         "what": "tests/skills/test-aai-layer-profiles.sh fails nondeterministically under concurrency: TEST-003 reports arbitrary core-listed files missing after an aai-sync core run and TEST-004 reports the tree changed on the second sync; reproduced 3 of 8 at 8-way concurrency on BASE with no scope changes present, 1 of 8 on the change branch, standalone runs green and a manual two-sync digest probe byte-identical",
         "status": "open"
       },
@@ -4518,7 +5242,7 @@
         "id": "fu-amend-friction-upsert-channel-ba7701",
         "ref": "friction-upsert-channel-cannot-file",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-friction-upsert-channel-cannot-file (docs/specs/spec-friction-upsert-channel-cannot-file): renumbered the Test Plan ids to avoid collision with the suite's existing TEST-001..012, replaced the planned RED control with a stub-contract plus source-token pair, and pinned one-line-per-invocation recording in the gh stub",
         "status": "open"
       },
@@ -4534,7 +5258,7 @@
         "id": "fu-factory-report-stale-draft-path",
         "ref": "friction-upsert-channel-cannot-file",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "regenerating docs/ai/factory-report.html while fu-amend-friction-upsert-channel-ba7701 is open reintroduces a stale SPEC-DRAFT literal and fails the doc-numbering stale-draft-ref guard; PR 337 left the page at its origin/main version rather than regenerated, so the next person to regenerate and commit it meets a red CI they did not cause",
         "status": "open"
       },
@@ -4590,7 +5314,7 @@
         "id": "fu-live-page-blind-to-the-sweep",
         "ref": "decisions-as-menus-in-dashboard",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "the full test sweep is the longest-running thing in the factory (~30 min) and /aai-live cannot see it: the page lists hb-* heartbeat slots, aai-run-tests.sh writes none, so an operator asking 'is it running' has only pgrep. The signal already exists on disk — tests/skills/results/test-<stamp>/*.result grows one file per finished suite (64 of 88 while this was written) — so the page could show a progress bar without any new plumbing in the runner",
         "status": "open"
       },
@@ -4598,7 +5322,7 @@
         "id": "fu-learned-bash32-local-crossref",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "bash 3.2 forbids cross-referencing variables inside one local statement — the hygiene pack lints suite shell and could carry this as a rule",
         "status": "open"
       },
@@ -4606,7 +5330,7 @@
         "id": "fu-learned-external-runner-routing",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "the loop and test skills must never launch vitest/tsc/dev-servers directly — this is a rule about vendored prompts and belongs in a check over those prompts, not in a note",
         "status": "open"
       },
@@ -4614,7 +5338,7 @@
         "id": "fu-learned-framework-owns-how",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "the framework-owns-HOW invariant is an architectural rule of the layer, not a lesson: it belongs in canon (AGENTS/CONSTITUTION) where a downstream reader will find it",
         "status": "open"
       },
@@ -4622,7 +5346,7 @@
         "id": "fu-learned-ledger-merge-procedure",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "merging an append-only ledger (keep both sides, dedupe, sort, verify nothing lost from main) is a procedure written as prose; it should be a script so the steps cannot be half-remembered mid-conflict",
         "status": "open"
       },
@@ -4630,7 +5354,7 @@
         "id": "fu-learned-vitest-leak-is-a-guard",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "a runner that does not exit on its own is a test-leak bug — the reaper already enforces this at the harness level, so the LEARNED entry should point at that guard rather than ask the next author to recognise the shape",
         "status": "open"
       },
@@ -4638,7 +5362,7 @@
         "id": "fu-learned-worktree-seeded-copies",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "a feature worktree seeded with copies of not-yet-committed docs silently diverges — a worktree-hygiene check could detect the shape at creation",
         "status": "open"
       },
@@ -4646,7 +5370,7 @@
         "id": "fu-amend-lessons-that-must-hold-d-13bccc",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-lessons-that-must-hold-downstream-are-guards: a guard marker in LEARNED.md may point at an already-shipped script, not only at an open follow-up; the test asserts each kind against reality",
         "status": "open"
       },
@@ -4654,7 +5378,7 @@
         "id": "fu-sweep-dies-at-wrapper-default",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "The full sweep run the canonical way is killed by the wrapper's own default watchdog: AAI_TEST_TIMEOUT defaults to 300s, the sweep needs ~30 min, so it dies at suite 8 of 89 with exit 124 and no explanation",
         "status": "open"
       },
@@ -4662,7 +5386,7 @@
         "id": "fu-triage-undated-learned-log",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "The ~20 undated entries in the '## Session …' sections of docs/knowledge/LEARNED.md carry no [local] / [guard] marker and were never triaged; several are plainly the downstream class (BSD vs GNU tools on macOS versus Ubuntu CI, never git clean under docs/, a new audit gate must be validated against the whole corpus)",
         "status": "open"
       },
@@ -4670,7 +5394,7 @@
         "id": "fu-learned-deny-by-default-mocks",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "A guard that flags a test double which exits 0 on argv it does not recognise: a mock must pin the expected shape and deny everything else, and where it stands in for a mutating call it must pin the VALUES too",
         "status": "open"
       },
@@ -4678,7 +5402,7 @@
         "id": "fu-learned-immutable-pin-lint",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "A lint over tests/skills that flags any assertion whose comment claims a pin is immutable while the code resolves the base through a moving ref (origin/main, HEAD, a branch name)",
         "status": "open"
       },
@@ -4686,7 +5410,7 @@
         "id": "fu-learned-positive-control-for-absence",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "A suite asserting an ABSENCE (nothing leaked, no call made, no write happened) must carry a positive control proving the code under test actually ran; the framework should refuse or flag an absence-assertion arm that records zero invocations",
         "status": "open"
       },
@@ -4694,7 +5418,7 @@
         "id": "fu-blob-check-ledger-append-noise",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "The committed-blob check fires on the append-only ledgers (docs/ai/EVENTS.jsonl, decisions.jsonl) whenever tooling appends a line between staging and committing — on its first real run it named EVENTS.jsonl for one docs_audit telemetry line",
         "status": "open"
       },
@@ -4750,7 +5474,7 @@
         "id": "fu-registry-class-trusts-the-filer-id",
         "ref": "simple-and-friendly-to-use",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "class 4 now trusts the subject prefix the filer chose for the follow-up id, so a genuine ceremony-incomplete item filed under an unlisted subject is missed",
         "status": "open"
       },
@@ -4758,7 +5482,7 @@
         "id": "fu-close-evidence-paths-worktree-blind",
         "ref": "simple-and-friendly-to-use",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "close-work-item's evidence-path gate resolves cited paths against the MAIN checkout root, so a ride developed in a git worktree cannot close before its branch merges: every path added by the ride reads as unresolvable",
         "status": "open"
       },
@@ -4766,7 +5490,7 @@
         "id": "fu-overview-pages-bake-worktree-name",
         "ref": "simple-and-friendly-to-use",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "docs/ai/overview-data.json carries project: <directory basename>, so regenerating it from a git worktree bakes the worktree's name into a tracked file and any PR from a worktree ships non-reproducible data",
         "status": "open"
       },
@@ -4774,7 +5498,7 @@
         "id": "fu-golden-flow-questions-vs-failures",
         "ref": "simple-and-friendly-to-use",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "golden-flow questions_asked counts every failed step rather than only steps that actually asked a human, because the questions array is a problem log and questions_asked is its length",
         "status": "open"
       },
@@ -4782,7 +5506,7 @@
         "id": "fu-product-doc-id-collides-with-intake",
         "ref": "simple-and-friendly-to-use",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "a product doc keyed by the ride slug shares its frontmatter id with the ride's own intake doc, and close-work-item then rolls back forever: the post-close audit resolves that id to the product doc, whose steady state current docs-audit classifies as tracked-open",
         "status": "open"
       },
@@ -4790,7 +5514,7 @@
         "id": "fu-spec-evidence-cites-gitignored-path",
         "ref": "simple-and-friendly-to-use",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "a spec Evidence cell citing tests/skills/results/<RUN_ID> names a gitignored directory, so the close-time evidence-path gate refuses it; this spec was the only one in the repo doing it",
         "status": "open"
       },
@@ -4830,7 +5554,7 @@
         "id": "fu-close-reconcile-worktree-vs-range",
         "ref": "close-ceremony-fires-only-via-aai-pr",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "close-reconcile reads doc frontmatter from the WORKING TREE rather than from the range endpoint, so the same range that correctly reddens with HEAD pinned to the endpoint prints CLEAN rc=0 when HEAD sits on main",
         "status": "open"
       },
@@ -4838,7 +5562,7 @@
         "id": "fu-close-gate-unpaired-draft-intake",
         "ref": "close-ceremony-fires-only-via-aai-pr",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "three of the eight measured close-ceremony escapes (#262, #306, #317) are missed because the intake stayed draft with NO paired spec at all - a class neither the spec nor fu-close-gate-status-trigger-blind names; that follow-up describes only the already-done mechanism, which covers two of eight",
         "status": "open"
       },
@@ -4846,7 +5570,7 @@
         "id": "fu-check-committed-scope-folded",
         "ref": "close-ceremony-fires-only-via-aai-pr",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "check-committed-scope.mjs --from-state reads code_review.scope as ONE path when STATE stores it as a YAML folded block, so it reports the whole space-separated list as not on disk, prints NOTHING CHECKED, and still EXITS 0 under --strict",
         "status": "open"
       },
@@ -4854,7 +5578,7 @@
         "id": "fu-amend-close-ceremony-fires-onl-ac40ff",
         "ref": "close-ceremony-fires-only-via-aai-pr",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-close-ceremony-fires-only-via-aai-pr: Amendment item 2 — recall disclosure added to D2 and residual risk R7 (a doc already status done at the delivery sha is invisible to a status-keyed trigger)",
         "status": "open"
       },
@@ -4862,16 +5586,8 @@
         "id": "fu-closure-claim-extractor-greedy",
         "ref": "friction-publish-hides-required-followup",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the verify-closures inline claim extractor reads every fu- id after a Registry items closed by this scope sentence until the next bullet or blank line, so a spec that is HONEST in the same paragraph about which items deliberately stay OPEN turns those disclosures into false closure claims",
-        "status": "open"
-      },
-      {
-        "id": "fu-flush-window-closes-on-verdict-reset",
-        "ref": "friction-publish-hides-required-followup",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "metrics-flush can only flush the ref that the single global last_validation block currently NAMES, so resetting that verdict to re-validate a later scope permanently closes the flush window for an already-merged earlier one; close-ceremony-fires-only-via-aai-pr shipped in PR #372 and is absent from METRICS.jsonl while still present in active_work_items",
         "status": "open"
       },
       {
@@ -4923,22 +5639,6 @@
         "status": "open"
       },
       {
-        "id": "fu-reliability-marker-is-freetext",
-        "ref": "friction-publish-hides-required-followup",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "metrics-flush derives reliability.validation_fails by searching run notes for the exact substring VERDICT: FAIL, and nothing validates that a FAIL run carries a well-formed marker, so a note saying VERDICT FAIL without the colon silently yields validation_fails 0 on a ride that failed twice",
-        "status": "open"
-      },
-      {
-        "id": "fu-close-work-item-noops-under-role",
-        "ref": "harness-universal-routing",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "close-work-item.mjs silently no-ops its STATE write when AAI_ROLE=subagent is set, so test_047 of test-aai-orchestration-dispatch.sh fails under the marker while the script reports success - a fourth script in the class fu-role-guard-blocks-own-fixtures catalogs three of",
-        "status": "open"
-      },
-      {
         "id": "fu-amend-spec-harness-universal-routing",
         "ref": "harness-universal-routing",
         "severity": "P2",
@@ -4955,19 +5655,59 @@
         "status": "open"
       },
       {
-        "id": "fu-routing-malformed-suffix-silent",
-        "ref": "harness-universal-routing",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "a malformed harness suffix in MODEL_ROUTING.yaml (tiers@CLAUDE:, tiers@codx:, tiers@windsurf:, effort_tiers@claude:) flips the file to Mode B and matches nothing: suggested_model null, exit 0, zero bytes of stderr",
-        "status": "open"
-      },
-      {
         "id": "fu-test056-duplicates-routing-parser",
         "ref": "harness-universal-routing",
         "severity": "P3",
         "age_days": 0,
         "what": "TEST-056 (PRICING sweep of the shipped routing ids) carries its own second copy of the MODEL_ROUTING parser instead of calling the shared one, so the test and the engine can drift on what counts as a routed id",
+        "status": "open"
+      },
+      {
+        "id": "fu-role-guard-noops-close-work-item",
+        "ref": "harness-universal-routing",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "close-work-item.mjs silently no-ops its STATE write when AAI_ROLE=subagent is set, so test_047 of test-aai-orchestration-dispatch.sh fails under the marker while the script reports success; a fourth script in the class fu-role-guard-blocks-own-fixtures (state.mjs single-writer guard refusing a role own --state file)",
+        "status": "open"
+      },
+      {
+        "id": "fu-routing-effort-suffix-unnoted",
+        "ref": "harness-universal-routing",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "effort_tiers@<x>: and effort_roles@<x>: headers (any suffix, valid or not) are never matched by a header regex, so they fall through silently: exit 0, suggested_effort null, zero stderr bytes; the suffix-rejection NOTE added for tiers@ roles@ validation_alternate@ does not cover them",
+        "status": "open"
+      },
+      {
+        "id": "fu-nested-profiles-hides-missing-list",
+        "ref": "harness-universal-routing",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "test-aai-feedback-upsert.sh TEST-009 wraps the whole aai-layer-profiles suite and on failure prints only tail -3 of its output, so the one line that matters (the MISSING core-listed file list under TEST-003) is cut off; on CI run 34732891035 (PR #376, head 6106e463) the nested run failed in 9s with an empty-looking list while the standalone aai-layer-profiles suite passed in the same sweep, and the next run on the same code passed",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-spec-telemetry-fields-not-prose",
+        "ref": "telemetry-fields-not-prose",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-telemetry-fields-not-prose: post-freeze scope widening after validation round 1: seam S5 is record -> triage -> upsert, aai-feedback-triage.mjs and its suite join Scope, Affected Area and the review scope, harness enters the triage ALLOWED_KEYS with the closed-set sanitizer; Article-5 deviation text names both append-run callers (ROLE_COMMON.md gained --verdict, +216 corpus bytes ledgered); Spec-AC-13/TEST-030 rationale corrected; residual R8 added",
+        "status": "open"
+      },
+      {
+        "id": "fu-cost-blend-silent-default",
+        "ref": "telemetry-fields-not-prose",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "blendedCostUsd() in .aai/scripts/lib/pricing.mjs silently falls back to a hardcoded 0.5 input_share when PRICING.yaml carries no cost_blend.input_share, with no NOTE — emit one NOTE naming the missing key, or fail closed to cost_basis: none instead of a silent default.",
+        "status": "open"
+      },
+      {
+        "id": "fu-spec-0085-info-line-wording-drift",
+        "ref": "telemetry-fields-not-prose",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "SPEC-0085 (spec-token-capture-canary, status done/FROZEN) Spec-AC-01 pins the undecomposed-note INFO line's literal text as always 'cost unattributable by design'; this ride's remediation (review NON-BLOCKING-5) made that line state the TRUE basis instead, so it now reads 'cost estimated from the total (cost_basis total-blended)' whenever D5 blending succeeds for that run's model",
         "status": "open"
       }
     ]
@@ -5077,6 +5817,40 @@
         "remediation_share_pct": 24
       },
       {
+        "ref": "close-ceremony-fires-only-via-aai-pr",
+        "date_utc": "2026-09-13",
+        "runs_total": 10,
+        "elapsed_wall_seconds": 59962,
+        "agent_seconds": 18185,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 3
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 10,
+        "tokens_total": 1999935,
+        "remediation_runs": 3,
+        "remediation_tokens": 652059,
+        "remediation_share_pct": 33
+      },
+      {
         "ref": "role-verification-guards",
         "date_utc": "2026-08-17",
         "runs_total": 13,
@@ -5137,6 +5911,40 @@
         "runs_marked": 4,
         "tokens_total": 786644,
         "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "telemetry-fields-not-prose",
+        "date_utc": "2026-09-13",
+        "runs_total": 15,
+        "elapsed_wall_seconds": 22286,
+        "agent_seconds": 22792,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 5
+          },
+          {
+            "role": "Validation",
+            "runs": 6
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 1,
+        "tokens_total": 236190,
+        "remediation_runs": 5,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -5362,6 +6170,36 @@
         ],
         "runs_marked": 4,
         "tokens_total": 375192,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "agent-shell-can-write-the-shipping-repo",
+        "date_utc": "2026-09-13",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 14069,
+        "agent_seconds": 8659,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 922789,
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
@@ -8933,7 +9771,7 @@
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
     "NOTE 48 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
     "NOTE 4 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",
-    "NOTE 24 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
+    "NOTE 25 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
     "NOTE 1 id-less follow_up entry folded under a derived id (fu-<ref_id-slug>-<yyyymmddThhmm>) — the original line is never rewritten"
   ]
 }

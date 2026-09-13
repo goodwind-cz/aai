@@ -478,6 +478,13 @@ function buildModel(args) {
         reason: chosen.reason,
       });
     }
+    // telemetry-fields-not-prose Spec-AC-12: the per-ride verdict-source
+    // (which basis produced the reliability counts — field | note | mixed |
+    // none) and cost-basis (decomposed | total-blended | mixed | none),
+    // straight off the flush's own additive keys; a pre-scope ledger line
+    // that never carried them renders null, never a fabricated guess.
+    const reliabilityBasis = rel && typeof rel.basis === 'string' ? rel.basis : null;
+    const costBasis = m.totals && typeof m.totals.cost_basis === 'string' ? m.totals.cost_basis : null;
     perRide.push({
       ref: m.ref_id,
       date_utc: m.date_utc ?? null,
@@ -489,6 +496,8 @@ function buildModel(args) {
       validation_fails: rel && typeof rel.validation_fails === 'number' ? rel.validation_fails : null,
       review_fails: rel && typeof rel.review_fails === 'number' ? rel.review_fails : null,
       verdict: typeof m.verdict === 'string' ? m.verdict : null,
+      verdict_source: reliabilityBasis,
+      cost_basis: costBasis,
       elapsed_wall_seconds: elapsedWallSeconds,
       runs_total: scopeRunsTotal,
       runs_marked: scopeRunsMarked,
@@ -755,6 +764,19 @@ function buildModel(args) {
       rides: waiverRides,
       note: 'a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total',
     },
+    // telemetry-fields-not-prose Spec-AC-12: ADDITIVE, top-level, its own
+    // section (same excision discipline as validation_waivers/scope_cost
+    // above) — the per-ride verdict-source (which basis produced the
+    // reliability counts) and cost-basis, plus the field-derived-vs-
+    // marker-derived KPI the intake asks for by name.
+    verdict_provenance: {
+      field_derived: perRide.filter((r) => r.verdict_source === 'field').length,
+      marker_derived: perRide.filter((r) => r.verdict_source === 'note').length,
+      mixed: perRide.filter((r) => r.verdict_source === 'mixed').length,
+      no_basis: perRide.filter((r) => r.verdict_source === null || r.verdict_source === 'none').length,
+      rides: perRide.map((r) => ({ ref: r.ref, verdict_source: r.verdict_source, cost_basis: r.cost_basis })),
+      note: 'verdict_source names which basis (field|note|mixed) produced this ride\'s reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither.',
+    },
     trend,
     follow_ups: followUps,
     // D11: every ride in METRICS.jsonl gets a row; none are filtered by close
@@ -904,6 +926,10 @@ function renderHtml(m) {
   const followUpRows = m.follow_ups.items
     .map((f) => `<tr><td><code>${esc(f.id)}</code></td><td>${esc(f.severity ?? 'n/a')}</td><td>${esc(f.ref ?? 'n/a')}</td><td>${f.age_days === null ? 'n/a' : `${f.age_days}d`}</td><td>${esc(f.what)}</td></tr>`)
     .join('');
+  // telemetry-fields-not-prose Spec-AC-12: per-ride verdict-source / cost-basis.
+  const verdictProvenanceRows = m.verdict_provenance.rides
+    .map((r) => `<tr><td><code>${esc(r.ref)}</code></td><td>${esc(r.verdict_source ?? 'n/a')}</td><td>${esc(r.cost_basis ?? 'n/a')}</td></tr>`)
+    .join('');
 
   return `<!doctype html>
 <html lang="en">
@@ -1014,6 +1040,17 @@ function renderHtml(m) {
 </div>
 <p class="meta">${esc(m.validation_waivers.note)}. Read from the waiver records carried in ride run notes; a record whose grammar does not parse is counted as malformed, never as an absent waiver.</p>
 <div class="scroll"><table><thead><tr><th>Ref</th><th>Waived by</th><th>At</th><th>Reason</th></tr></thead><tbody>${waiverRows}</tbody></table></div>
+</section>
+
+<section id="verdict-provenance">
+<h2>Verdict provenance — field or note</h2>
+<div class="kpis">
+  <div class="kpi"><b>${m.verdict_provenance.field_derived}</b><span>field-derived rides</span></div>
+  <div class="kpi"><b>${m.verdict_provenance.marker_derived}</b><span>marker-derived rides</span></div>
+  <div class="kpi"><b>${m.verdict_provenance.mixed}</b><span>mixed-basis rides</span></div>
+</div>
+<p class="meta">${esc(m.verdict_provenance.note)}</p>
+<div class="scroll"><table><thead><tr><th>Ref</th><th>Verdict source</th><th>Cost basis</th></tr></thead><tbody>${verdictProvenanceRows}</tbody></table></div>
 </section>
 
 <section id="follow-ups">

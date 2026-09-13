@@ -94,10 +94,48 @@ function verifyExpectedBranch(expectBranch) {
 // STATE was fooled by a folded scalar, which is the argument this whole scope
 // makes: the fix belongs in the code, not in a note telling the next author to
 // remember.
+// telemetry-fields-not-prose D8: a scalar `key:` nested directly under a
+// top-level `parentName:` block (2-space indent) — same line-scan discipline
+// as the `code_review.scope` parent-tracking below (a same-named key under a
+// DIFFERENT top-level block must never shadow this one).
+function readNestedScalar(lines, parentName, key) {
+  let parent = null;
+  const re = new RegExp(`^ {2}${key}:\\s*(.*)$`);
+  for (let n = 0; n < lines.length; n += 1) {
+    const top = /^([A-Za-z_][\w-]*):/.exec(lines[n]);
+    if (top) { parent = top[1]; continue; }
+    if (parent !== parentName) continue;
+    const m = re.exec(lines[n]);
+    if (m) {
+      const v = m[1].trim().replace(/^["']|["']$/g, '');
+      return v === '' || v === 'null' ? null : v;
+    }
+  }
+  return null;
+}
+
 function scopeFromState(statePath) {
   let text;
   try { text = fs.readFileSync(statePath, 'utf8'); } catch { return { paths: [], degraded: [`STATE not readable: ${statePath}`] }; }
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  // D8/Spec-AC-09: the preserved `code_review.scope` is an input to a LATER
+  // step, not a verdict — but a scope preserved from an EARLIER ride's flush
+  // must never be silently reused against the WRONG ref's diff. `scope_ref_id`
+  // (D8 metrics-flush.mjs stamp) is used ONLY when it is absent (legacy STATE,
+  // back-compat — pre-scope STATE never wrote the field) or equals the
+  // CURRENT ride's `current_focus.ref_id`; otherwise this degrades naming
+  // both refs rather than comparing a stale scope (M20 removes this check).
+  const scopeRefId = readNestedScalar(lines, 'code_review', 'scope_ref_id');
+  if (scopeRefId !== null) {
+    const focusRefId = readNestedScalar(lines, 'current_focus', 'ref_id');
+    if (scopeRefId !== focusRefId) {
+      return {
+        paths: [],
+        degraded: [`code_review.scope_ref_id (${scopeRefId}) does not match current_focus.ref_id `
+          + `(${focusRefId ?? 'null'}) — a preserved scope from a different ride is never reused; nothing checked`],
+      };
+    }
+  }
   // The key must belong to `code_review:`, not merely be the first two-space
   // `scope:` in the file. STATE gains blocks over time and is hand-edited
   // downstream; review reproduced a `worktree.scope` shadowing the real one, so
