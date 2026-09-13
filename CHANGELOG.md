@@ -11,6 +11,47 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(routing): the dispatcher knows its harness, and MODEL_ROUTING binds tiers per harness
+
+- **Every dispatch verdict carries `harness`** (`claude` / `codex` / `gemini` /
+  `cursor` / `unknown`), detected once per process by a pure environment
+  ladder in `.aai/scripts/lib/harness.mjs`: `AAI_HARNESS` override first, then
+  the harness-specific markers, then `unknown`. The `--confirm` record-failure
+  fallback verdict carries the same value (round-1 blocker, fixed at cause,
+  revert reddens TEST-038).
+- **`MODEL_ROUTING.yaml` is now harness-scoped (Mode B).** `tiers@<harness>:`,
+  `roles@<harness>:` and `validation_alternate@<harness>:` bind each harness to
+  its own vendor's ids, so a Codex loop is no longer handed
+  `claude-opus-4-8` to ignore. Resolution order is documented (D4: the
+  independence alternate is taken at or above the routed tier). A file with no
+  `@<harness>` section (Mode A) is read exactly as before: byte-identical
+  verdicts proved against the pinned pre-change script across six environment
+  shapes, the additive `harness` key excepted (Spec-AC-06).
+- **Validator independence resolves within the harness.** The alternate model
+  is chosen from the same harness's map, never cross-vendor.
+- **Claude premium is `claude-opus-5`** (the Fable id is absent from PRICING;
+  longest-prefix would double recorded premium cost).
+- **`--human` says truthfully why a model is unbound**: file absent, or file
+  present with no section for the detected harness (review NB-4).
+- **A malformed `@suffix` degrades loudly, never crashes** (Codex review on
+  PR #376): the harness map is a null-prototype dictionary, so
+  `tiers@constructor:` no longer throws and blocks every tick, and a suffix
+  outside the closed set is ignored with one stderr NOTE, does not select
+  Mode B, and leaves stdout and the exit code unchanged. `effort_*@` headers
+  still fall through silently (`fu-routing-effort-suffix-unnoted`).
+- **`generate-overview.mjs` names the main worktree, not the cwd** (Copilot
+  review on PR #376): `project` in `overview-data.json` no longer churns to
+  the sibling-worktree name (it had, in #326 and #337). Companion fix outside
+  the frozen scope, disclosed in the spec's Amendment.
+- **Known limits, filed**: the
+  file is core-vendored, so `/aai-update` overwrites a consumer's copy — the
+  header now says so (`fu-routing-file-overwritten-on-update`). Cross-harness
+  behaviour is proved by environment simulation only; a live Codex/Gemini
+  proof is `cross-harness-universality-proof` on the wave-2 list.
+- Spec: SPEC-0177 (harness-universal-routing), ceremony 2, TDD; 13 tests
+  (TEST-048..060), 35+ mutations, three validation rounds, one review round.
+  Roadmap wave 2 pair 1, capability half (CHANGE-0182).
+
 ## [unreleased] — fix(friction): the publish flow says what it filed, and what still needs doing
 
 - **The confirmed-publish success line now names the issue URL** and states

@@ -357,6 +357,48 @@ test_007_release_grouping_and_close_month_fallback() {
   log_pass "Delivered grouping: release-member item groups under its release; unnamed items fall back to close-month groups (token-economics TEST-007)"
 }
 
+# --- TEST-008 (PR #376 Copilot finding): project name from the MAIN worktree -
+
+# A ride run in a linked worktree (e.g. aai-feat-<slug>) must still report
+# the MAIN checkout's directory name, not the worktree's own basename (the
+# same regression already shipped and got reverted in PR #326/#337). Builds
+# a REAL git repo + a REAL linked worktree, both throwaway fixtures under
+# TEST_DIR (a mktemp dir — never inside this repo), and runs the generator
+# from the linked worktree.
+test_008_project_name_from_main_worktree() {
+  log_info "Test: project name derives from the MAIN worktree's directory even when generate-overview.mjs runs inside a linked worktree (PR #376 Copilot finding)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  local main_repo="$TEST_DIR/proj-mainroot-t008"
+  rm -rf "$main_repo"
+  mkdir -p "$main_repo"
+  (
+    cd "$main_repo" \
+      && git init -q \
+      && git config user.email test@example.com \
+      && git config user.name "Test" \
+      && git commit -q --allow-empty -m init
+  ) >/dev/null 2>&1 || log_fail "TEST-008: could not init the main fixture repo"
+  mkdir -p "$main_repo/docs/issues" "$main_repo/docs/specs" "$main_repo/docs/releases" \
+    "$main_repo/docs/ai/reports" "$main_repo/docs/ai/reviews"
+  : > "$main_repo/docs/ai/EVENTS.jsonl"
+
+  local wt="$TEST_DIR/some-other-worktree-name-t008"
+  rm -rf "$wt"
+  (cd "$main_repo" && git worktree add -q -b t008-branch "$wt") >/dev/null 2>&1 \
+    || log_fail "TEST-008: could not add the linked worktree fixture"
+  mkdir -p "$wt/docs/issues" "$wt/docs/specs" "$wt/docs/releases" "$wt/docs/ai/reports" "$wt/docs/ai/reviews"
+  : > "$wt/docs/ai/EVENTS.jsonl"
+
+  run_overview "$wt"
+  [[ "$EC" == 0 ]] || log_fail "TEST-008: overview must exit 0 from a linked worktree: $(cat "$OUT")"
+  local pj
+  pj="$(node_get "$wt/docs/ai/overview-data.json" 'm.project')"
+  [[ "$pj" == "proj-mainroot-t008" ]] \
+    || log_fail "TEST-008: project must be the MAIN worktree's basename (proj-mainroot-t008), got '$pj' — a linked worktree's own directory name must never leak into the field"
+
+  log_pass "project name derives from the main worktree's directory, not a linked worktree's cwd (TEST-008)"
+}
+
 # --- TEST-001/002 (Spec-AC-01): In-flight section render + newest-first order ---
 
 test_dph01_in_flight_renders_focus_and_chips() {
@@ -543,6 +585,7 @@ main() {
   test_005b_no_marker_item_is_null
   test_006_seam_overview_report_agreement
   test_007_release_grouping_and_close_month_fallback
+  test_008_project_name_from_main_worktree
   test_dph01_in_flight_renders_focus_and_chips
   test_dph02_last_five_ticks_newest_first
   test_dph03_graceful_omission

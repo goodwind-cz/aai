@@ -133,6 +133,43 @@ pre_change_dispatch_tree() {
   echo "$_PRE_CHANGE_DISPATCH_TREE"
 }
 
+# PRE_HARNESS_ORCHESTRATION_DISPATCH_BLOB — the git blob sha of
+# .aai/scripts/orchestration-dispatch.mjs at harness-universal-routing's own
+# Base ref (main @ 181d67e0), i.e. immediately before ANY edit this scope
+# makes. Deliberately NOT the older PRE_G2_ORCHESTRATION_DISPATCH_BLOB above:
+# that blob predates role-verification-guards G2 and every additive key
+# landed since (tree_hash, last_validation_verdict,
+# close_event_superseded_by_reopen) -- comparing against it here would fail
+# TEST-055 on keys this scope never touches. `git rev-parse
+# 181d67e0:.aai/scripts/orchestration-dispatch.mjs`.
+PRE_HARNESS_ORCHESTRATION_DISPATCH_BLOB="0fb736ca831c9646d5b06d13fe5f62039cba02e7"
+
+# pre_harness_dispatch_tree -> like pre_change_dispatch_tree, but pins
+# orchestration-dispatch.mjs at PRE_HARNESS_ORCHESTRATION_DISPATCH_BLOB
+# (Spec-AC-06) instead of the older PRE_G2 blob; siblings (lib/harness.mjs
+# included) come from the CURRENT tree. Memoized per suite run.
+_PRE_HARNESS_DISPATCH_TREE=""
+pre_harness_dispatch_tree() {
+  if [[ -n "$_PRE_HARNESS_DISPATCH_TREE" && -f "$_PRE_HARNESS_DISPATCH_TREE/.aai/scripts/orchestration-dispatch.mjs" ]]; then
+    echo "$_PRE_HARNESS_DISPATCH_TREE"
+    return
+  fi
+  local root="$TEST_DIR/pre-harness-dispatch-tree"
+  mkdir -p "$root/.aai"
+  cp -r "$PROJECT_ROOT/.aai/scripts" "$root/.aai/scripts"
+  local content
+  content=$(cd "$PROJECT_ROOT" && git cat-file -p "$PRE_HARNESS_ORCHESTRATION_DISPATCH_BLOB") \
+    || log_fail "pre_harness_dispatch_tree: git cat-file of the pinned pre-harness blob failed"
+  case "$content" in
+    *detectHarness*)
+      log_fail "pre_harness_dispatch_tree: the pinned pre-harness blob unexpectedly already calls detectHarness -- PRE_HARNESS_ORCHESTRATION_DISPATCH_BLOB points at the wrong object"
+      ;;
+  esac
+  printf '%s\n' "$content" > "$root/.aai/scripts/orchestration-dispatch.mjs"
+  _PRE_HARNESS_DISPATCH_TREE="$root"
+  echo "$_PRE_HARNESS_DISPATCH_TREE"
+}
+
 # write_spec <path> <frontmatter-status> <frozen true|false>
 write_spec() {
   local p="$1" status="$2" frozen="$3"
@@ -266,6 +303,40 @@ run_dispatch() {
   EC=0
   (cd "$PROJECT_ROOT" && node .aai/scripts/orchestration-dispatch.mjs \
     --state "$d/docs/ai/STATE.yaml" --root "$d" "$@" > "$OUT" 2> "$ERR") || EC=$?
+}
+
+# run_dispatch_scrubbed <root> [<harness-value>] [extra CLI args...] — like
+# run_dispatch, but scrubs every D3 harness marker (plus the measured
+# GEMINI_CLI_IDE_* leak and CLAUDE_CONFIG_DIR) from the child's env first
+# (harness-universal-routing hazard: the suite itself runs INSIDE a harness --
+# CLAUDECODE is set locally and absent on CI, so an unscrubbed dispatch call
+# asserts different things in the two places). An empty/absent harness-value
+# additionally unsets AAI_HARNESS (detection then falls through the scrubbed
+# ladder to "unknown"); a non-empty value sets AAI_HARNESS to exactly that
+# value. Any further positional args (e.g. `--confirm`) are forwarded to the
+# CLI verbatim, after `--state`/`--root` (added for TEST-038's harness/Mode B
+# assertions on the --confirm fallback arm; every pre-existing 2-arg call site
+# is unaffected — "$@" is empty for them).
+run_dispatch_scrubbed() {
+  local d="$1" h="${2:-}"
+  shift; [[ $# -gt 0 ]] && shift
+  OUT="$d/out.json"
+  ERR="$d/err.log"
+  EC=0
+  if [[ -n "$h" ]]; then
+    (cd "$PROJECT_ROOT" && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CODEX_HOME -u CODEX_SANDBOX \
+        -u CURSOR_TRACE_ID -u CURSOR_AGENT -u GEMINI_HOME -u GEMINI_CLI_IDE_SERVER_PORT \
+        -u GEMINI_CLI_IDE_AUTH_TOKEN -u GEMINI_CLI_IDE_WORKSPACE_PATH -u CLAUDE_CONFIG_DIR \
+        AAI_HARNESS="$h" \
+        node .aai/scripts/orchestration-dispatch.mjs --state "$d/docs/ai/STATE.yaml" --root "$d" "$@" \
+        > "$OUT" 2> "$ERR") || EC=$?
+  else
+    (cd "$PROJECT_ROOT" && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CODEX_HOME -u CODEX_SANDBOX \
+        -u CURSOR_TRACE_ID -u CURSOR_AGENT -u GEMINI_HOME -u GEMINI_CLI_IDE_SERVER_PORT \
+        -u GEMINI_CLI_IDE_AUTH_TOKEN -u GEMINI_CLI_IDE_WORKSPACE_PATH -u CLAUDE_CONFIG_DIR -u AAI_HARNESS \
+        node .aai/scripts/orchestration-dispatch.mjs --state "$d/docs/ai/STATE.yaml" --root "$d" "$@" \
+        > "$OUT" 2> "$ERR") || EC=$?
+  fi
 }
 
 # jassert <json-file> <js-boolean-expr over `o`>
@@ -1683,21 +1754,27 @@ YAML
 # --- TEST-020 (Spec-AC-01): shipped Metrics Flush explicit role row ------------
 
 test_020_metrics_flush_explicit_row() {
-  log_info "Test: fixture-root Metrics Flush dispatch against the REAL committed MODEL_ROUTING.yaml resolves claude-haiku-4-5 via the explicit role row (not merely the mechanical tier default) (TEST-020)..."
+  log_info "Test: fixture-root Metrics Flush dispatch against the REAL committed MODEL_ROUTING.yaml resolves claude-haiku-4-5 via the explicit role row now nested under roles@claude: (harness-universal-routing moved it off the top level) (not merely the mechanical tier default) (TEST-020)..."
   local d
   d="$(mk_root t20)"
   write_dstate "$d/docs/ai/STATE.yaml" pass pass implementation in_progress
   mkdir -p "$d/.aai/system"
   cp "$PROJECT_ROOT/.aai/system/MODEL_ROUTING.yaml" "$d/.aai/system/MODEL_ROUTING.yaml"
-  run_dispatch "$d"
+  # The shipped file is Mode B (harness-universal-routing) -- pin the
+  # harness explicitly so this fixture resolves identically in a developer
+  # session (CLAUDECODE set) and on a CI runner (CLAUDECODE absent).
+  run_dispatch_scrubbed "$d" claude
   [[ "$EC" == 0 ]] || log_fail "TEST-020 fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
   jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "14" && o.role === "Metrics Flush"'
   jassert "$OUT" 'o.suggested_model === "claude-haiku-4-5"'
   # Prove it via the explicit row, not just the (coincidentally identical)
-  # mechanical tier default: the shipped file must literally carry the row.
+  # mechanical tier default: the shipped file must literally carry the row,
+  # nested under roles@claude: since Spec-AC-08.
+  grep -qE '^roles@claude:[[:space:]]*$' "$d/.aai/system/MODEL_ROUTING.yaml" \
+    || log_fail "TEST-020: shipped MODEL_ROUTING.yaml is missing the roles@claude: section header"
   grep -qE '^  Metrics Flush:[[:space:]]*claude-haiku-4-5[[:space:]]*$' "$d/.aai/system/MODEL_ROUTING.yaml" \
     || log_fail "TEST-020: shipped MODEL_ROUTING.yaml is missing the explicit 'Metrics Flush: claude-haiku-4-5' role row"
-  log_pass "Metrics Flush resolves haiku via the explicit shipped role row (TEST-020)"
+  log_pass "Metrics Flush resolves haiku via the explicit shipped roles@claude row (TEST-020)"
 }
 
 # --- TEST-021 (Spec-AC-02): pure suggestModel lane-key precedence --------------
@@ -2448,12 +2525,22 @@ test_038_confirm_record_failure_falls_back() {
   write_ac_spec "$d/docs/specs/SPEC-0001-fx.md" done
   write_dstate "$d/docs/ai/STATE.yaml" not_run not_run planning done tdd optional inline CHANGE-0001
   append_impl_run "$d/docs/ai/STATE.yaml" CHANGE-0001
+  # SHIPPED Mode B routing file, matching the independent validator's own
+  # reproduction (validation-20260912T222805Z-B1-confirm-fallback-loses-
+  # harness) -- a mk_root fixture carries no MODEL_ROUTING.yaml of its own,
+  # so without this copy suggested_model would be null on EVERY arm below
+  # regardless of the bug, proving nothing about the Mode B regression.
+  mkdir -p "$d/.aai/system"
+  cp "$PROJECT_ROOT/.aai/system/MODEL_ROUTING.yaml" "$d/.aai/system/MODEL_ROUTING.yaml"
 
   # Sabotage ONLY the append: the ledger stays readable (so the snapshot still
   # builds) but unwritable, so the append-event child fails.
   : > "$d/docs/ai/EVENTS.jsonl"
   chmod 0444 "$d/docs/ai/EVENTS.jsonl"
-  run_dispatch "$d" --confirm
+  # Explicit AAI_HARNESS=claude (scrubbed of every ambient marker) so the
+  # harness/Mode B assertions below are deterministic on both a local
+  # CLAUDECODE=1 shell and a CI runner with none of these markers set.
+  run_dispatch_scrubbed "$d" claude --confirm
   chmod 0644 "$d/docs/ai/EVENTS.jsonl"
 
   # FAIL CLOSED: no snapshot on the ledger -> no confirmation. Reporting a clean
@@ -2468,6 +2555,14 @@ test_038_confirm_record_failure_falls_back() {
   # any other, not left half-built by the arm it replaced.
   jassert "$OUT" 'typeof o.system_prompt === "string" && o.system_prompt.length > 0'
   jassert "$OUT" 'typeof o.prompt_hash === "string"'
+  # Remediation of BLOCKING-1 (validation-20260912T222805Z-B1-confirm-fallback-
+  # loses-harness): `out = fallback` used to replace the object the harness
+  # was stamped on WITHOUT re-stamping it, so this exact arm shipped with no
+  # `harness` key and, under the shipped Mode B routing file, a null
+  # `suggested_model` where a real dispatch needs a real one. Both are pinned
+  # here now.
+  jassert "$OUT" '"harness" in o && o.harness === "claude"'
+  jassert "$OUT" 'o.suggested_model === "claude-sonnet-5"'
   grep -qi "could not record" "$ERR" \
     || log_fail "the fallback must say WHY on stderr: $(cat "$ERR")"
   [[ ! -s "$d/docs/ai/EVENTS.jsonl" ]] \
@@ -2486,7 +2581,31 @@ test_038_confirm_record_failure_falls_back() {
   local n
   n="$(grep -c '"event":"phase_confirmed"' "$d/docs/ai/EVENTS.jsonl" || true)"
   [[ "$n" == 1 ]] || log_fail "exactly one confirmation must be on the ledger (got $n)"
-  log_pass "an unrecordable --confirm falls back to a real dispatch with a stderr note; a SKIPPED (idempotent) append does not (CHANGE-0120 TEST-038)"
+
+  # NB-1 (review-harness-universal-routing-20260913T002056Z): the assertions
+  # above pin the fallback arm's re-stamp at exactly ONE harness value
+  # (claude) — a hardcode (`fallback.harness = 'claude'`) would pass every
+  # jassert above unchanged. A SECOND, independent fixture under a DIFFERENT
+  # detected harness closes that gap: codex must re-stamp "codex", never the
+  # claude sentinel, and resolve the codex-map id, not the claude one.
+  local d2
+  d2="$(mk_root t38codex)"
+  write_ac_spec "$d2/docs/specs/SPEC-0001-fx.md" done
+  write_dstate "$d2/docs/ai/STATE.yaml" not_run not_run planning done tdd optional inline CHANGE-0001
+  append_impl_run "$d2/docs/ai/STATE.yaml" CHANGE-0001
+  mkdir -p "$d2/.aai/system"
+  cp "$PROJECT_ROOT/.aai/system/MODEL_ROUTING.yaml" "$d2/.aai/system/MODEL_ROUTING.yaml"
+  : > "$d2/docs/ai/EVENTS.jsonl"
+  chmod 0444 "$d2/docs/ai/EVENTS.jsonl"
+  run_dispatch_scrubbed "$d2" codex --confirm
+  chmod 0644 "$d2/docs/ai/EVENTS.jsonl"
+  [[ "$EC" == 0 ]] || log_fail "NB-1: an unrecordable codex confirm must fall back to a DISPATCH exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.reasons.indexOf("confirm_record_failed_fallback_dispatch") >= 0'
+  jassert "$OUT" '"harness" in o && o.harness === "codex"'
+  jassert "$OUT" 'o.suggested_model === "gpt-5"'
+  jassert "$OUT" '!/^claude-/.test(o.suggested_model)'
+
+  log_pass "an unrecordable --confirm falls back to a real dispatch with a stderr note, carrying harness + suggested_model like any other dispatch (claude AND codex, NB-1); a SKIPPED (idempotent) append does not (CHANGE-0120 TEST-038)"
 }
 
 # --- TEST-004 (Spec-AC-03, role-verification-guards G2): validation-verdict stamp
@@ -2797,13 +2916,17 @@ EOF
       delete post.state_summary.last_validation_verdict;
       delete post.state_summary.close_event_superseded_by_reopen;
     }
+    // harness-universal-routing: `harness` is a LATER, equally-additive
+    // top-level key this pinned pre-G2 blob predates (same rationale as the
+    // three state_summary keys above).
+    delete post.harness;
     const preStr = JSON.stringify(pre);
     const postStr = JSON.stringify(post);
     if (preStr !== postStr) {
-      throw new Error("stdout differs beyond the three known-additive state_summary keys:\npre=" + preStr + "\npost=" + postStr);
+      throw new Error("stdout differs beyond the four known-additive keys:\npre=" + preStr + "\npost=" + postStr);
     }
   ' "$pre_out" "$post_out" \
-    || log_fail "TEST-007: non-stale stdout must be byte-identical to the pre-G2 capture once tree_hash/last_validation_verdict/close_event_superseded_by_reopen are deleted from both sides"
+    || log_fail "TEST-007: non-stale stdout must be byte-identical to the pre-G2 capture once tree_hash/last_validation_verdict/close_event_superseded_by_reopen/harness are deleted"
 
   # SEAM-3: docs-audit stays CLEAN when EVENTS.jsonl carries the new
   # validation_verdict event type (every consumer filters by explicit ===
@@ -3282,8 +3405,837 @@ YAML
   log_pass "Seams S1/S2 (real close -> real dispatch, rule 4b never Planning) and the re-open ORDERING negative control (real EVENTS.jsonl) both hold (TEST-047 / spec TEST-006/007)"
 }
 
+## ==========================================================================
+## harness-universal-routing (SPEC-0177-spec-harness-universal-routing)
+## TEST-048..058, TEST-060 (TEST-059 lives in test-aai-layer-profiles.sh):
+## detectHarness(env) (D3), @<harness> Mode A/B routing (D1/D2), per-harness
+## validator independence (D4), harness on every verdict (D6), the shipped
+## Claude/Codex/Gemini maps (D5) and the header contract.
+## ==========================================================================
+
+# --- TEST-048 (Spec-AC-02): pure detectHarness(env) ladder table --------------
+
+test_048_pure_detect_harness_ladder() {
+  log_info "Test: pure detectHarness(env) D3 ladder -- five markers, AAI_HARNESS override (all five closed-set values + out-of-set + empty-string), and an empty env (TEST-048)..."
+  cat > "$TEST_DIR/t48.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { detectHarness, HARNESS_VALUES } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/lib/harness.mjs')).href);
+
+assert.deepStrictEqual(HARNESS_VALUES.slice().sort(), ['claude', 'codex', 'cursor', 'gemini', 'unknown'].sort(), 'closed set must be exactly these five values');
+
+// (1) empty env -> unknown.
+assert.strictEqual(detectHarness({}), 'unknown', 'empty env must resolve unknown');
+
+// (2) each of the five D3 markers, alone.
+assert.strictEqual(detectHarness({ CLAUDECODE: '1' }), 'claude', 'CLAUDECODE marker must resolve claude');
+assert.strictEqual(detectHarness({ CLAUDE_CODE_ENTRYPOINT: 'cli' }), 'claude', 'CLAUDE_CODE_ENTRYPOINT marker must resolve claude');
+assert.strictEqual(detectHarness({ CODEX_HOME: '/x' }), 'codex', 'CODEX_HOME marker must resolve codex');
+assert.strictEqual(detectHarness({ CODEX_SANDBOX: '1' }), 'codex', 'CODEX_SANDBOX marker must resolve codex');
+assert.strictEqual(detectHarness({ CURSOR_TRACE_ID: 'abc' }), 'cursor', 'CURSOR_TRACE_ID marker must resolve cursor');
+assert.strictEqual(detectHarness({ CURSOR_AGENT: '1' }), 'cursor', 'CURSOR_AGENT marker must resolve cursor');
+assert.strictEqual(detectHarness({ GEMINI_HOME: '/y' }), 'gemini', 'GEMINI_HOME marker must resolve gemini');
+
+// (3) AAI_HARNESS overrides every probe, for all five closed-set values.
+for (const h of ['claude', 'codex', 'gemini', 'cursor', 'unknown']) {
+  assert.strictEqual(detectHarness({ AAI_HARNESS: h, CODEX_HOME: '/x' }), h, `AAI_HARNESS=${h} must outrank every probe`);
+}
+
+// (4) out-of-set override value resolves unknown.
+assert.strictEqual(detectHarness({ AAI_HARNESS: 'windsurf' }), 'unknown', 'an out-of-set AAI_HARNESS value must resolve unknown');
+
+// (5) empty-string override is treated as unset -- falls through the ladder.
+assert.strictEqual(detectHarness({ AAI_HARNESS: '', CLAUDECODE: '1' }), 'claude', 'AAI_HARNESS="" must be treated as unset, not as a closed-set value');
+assert.strictEqual(detectHarness({ AAI_HARNESS: '' }), 'unknown', 'AAI_HARNESS="" with no other markers resolves unknown');
+
+// (6) ladder order: earlier markers outrank later ones when several are set.
+assert.strictEqual(detectHarness({ CLAUDECODE: '1', CODEX_HOME: '/x' }), 'claude', 'claude markers must outrank codex markers (D3 order)');
+assert.strictEqual(detectHarness({ CODEX_HOME: '/x', CURSOR_TRACE_ID: 'y' }), 'codex', 'codex markers must outrank cursor markers (D3 order)');
+assert.strictEqual(detectHarness({ CURSOR_TRACE_ID: 'y', GEMINI_HOME: '/z' }), 'cursor', 'cursor markers must outrank gemini markers (D3 order)');
+
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t48.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t48.log" 2>&1 \
+    || log_fail "TEST-048: pure detectHarness ladder failed: $(cat "$TEST_DIR/t48.log")"
+  log_pass "Pure detectHarness(env) D3 ladder table (TEST-048)"
+}
+
+# --- TEST-049 (Spec-AC-03): negative controls -- excluded evidence never decides -
+
+test_049_negative_controls_excluded_evidence() {
+  log_info "Test: detectHarness negative controls -- GEMINI_CLI_IDE_* leak, CLAUDE_CONFIG_DIR, and zero filesystem I/O over a root full of vendored mirror dirs (TEST-049)..."
+  cat > "$TEST_DIR/t49.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { detectHarness } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/lib/harness.mjs')).href);
+
+// (1) CLAUDECODE + the measured GEMINI_CLI_IDE_* leak together -> claude wins
+// (the leak must never be read as gemini evidence).
+assert.strictEqual(
+  detectHarness({ CLAUDECODE: '1', GEMINI_CLI_IDE_SERVER_PORT: '1234', GEMINI_CLI_IDE_AUTH_TOKEN: 'x', GEMINI_CLI_IDE_WORKSPACE_PATH: '/x' }),
+  'claude',
+  'CLAUDECODE plus the GEMINI_CLI_IDE_* leak must resolve claude'
+);
+
+// (2) GEMINI_CLI_IDE_SERVER_PORT ALONE must never resolve gemini.
+assert.strictEqual(detectHarness({ GEMINI_CLI_IDE_SERVER_PORT: '1234' }), 'unknown', 'GEMINI_CLI_IDE_SERVER_PORT alone must resolve unknown, never gemini');
+
+// (3) CLAUDE_CONFIG_DIR alone must never resolve claude (a path preference,
+// not process identity).
+assert.strictEqual(detectHarness({ CLAUDE_CONFIG_DIR: '/home/x/.claude' }), 'unknown', 'CLAUDE_CONFIG_DIR alone must resolve unknown, never claude');
+
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t49.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t49.log" 2>&1 \
+    || log_fail "TEST-049: negative-control excluded-evidence cases failed: $(cat "$TEST_DIR/t49.log")"
+
+  # (4) Zero filesystem I/O: a root littered with EVERY vendored mirror
+  # directory the spec names must not change the verdict -- proven end to
+  # end via the CLI under a fully scrubbed env (the detector never touches
+  # the filesystem, so a root full of .claude/.codex/.gemini/.cursor/.agents
+  # dirs is decided purely by env, same as any other root).
+  local d
+  d="$(mk_root t49fs)"
+  mkdir -p "$d/.claude" "$d/.codex" "$d/.gemini" "$d/.cursor" "$d/.agents"
+  write_dstate "$d/docs/ai/STATE.yaml"
+  run_dispatch_scrubbed "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-049: scrubbed-env dispatch fixture must exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.harness === "unknown"'
+
+  log_pass "Negative controls: GEMINI_CLI_IDE_* leak, CLAUDE_CONFIG_DIR, and zero-filesystem-I/O over mirror dirs (TEST-049)"
+}
+
+# --- TEST-050 (Spec-AC-01): harness on every verdict kind ---------------------
+
+test_050_harness_on_every_verdict() {
+  log_info "Test: out.harness present on dispatch/no_action/needs_llm verdicts alike; scrubbed env reads unknown; AAI_HARNESS=codex override wins; exit codes identical with and without the override (TEST-050)..."
+
+  # (a) dispatch verdict, exit 0.
+  local d
+  d="$(mk_root t50a)"
+  write_dstate "$d/docs/ai/STATE.yaml"
+  run_dispatch_scrubbed "$d"
+  local ec_a="$EC"
+  [[ "$ec_a" == 0 ]] || log_fail "TEST-050(a) dispatch fixture must exit 0 (got $ec_a): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "dispatch" && "harness" in o && o.harness === "unknown"'
+  run_dispatch_scrubbed "$d" codex
+  [[ "$EC" == "$ec_a" ]] || log_fail "TEST-050(a) AAI_HARNESS override must not change the exit code (got $EC, was $ec_a)"
+  jassert "$OUT" 'o.harness === "codex"'
+
+  # (b) paused no_action, exit 3.
+  local d3
+  d3="$(mk_root t50b)"
+  write_dstate "$d3/docs/ai/STATE.yaml"
+  sed -i.bak 's/^project_status: active$/project_status: paused/' "$d3/docs/ai/STATE.yaml" && rm -f "$d3/docs/ai/STATE.yaml.bak"
+  run_dispatch_scrubbed "$d3"
+  local ec_b="$EC"
+  [[ "$ec_b" == 3 ]] || log_fail "TEST-050(b) paused fixture must exit 3 (got $ec_b): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "no_action" && "harness" in o && o.harness === "unknown"'
+  run_dispatch_scrubbed "$d3" codex
+  [[ "$EC" == "$ec_b" ]] || log_fail "TEST-050(b) AAI_HARNESS override must not change the no_action exit code"
+  jassert "$OUT" 'o.harness === "codex"'
+
+  # (c) broken-state needs_llm, exit 4.
+  local d4
+  d4="$(mk_root t50c)"
+  rm -f "$d4/docs/ai/STATE.yaml"
+  run_dispatch_scrubbed "$d4"
+  local ec_c="$EC"
+  [[ "$ec_c" == 4 ]] || log_fail "TEST-050(c) broken-state fixture must exit 4 (got $ec_c): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "needs_llm" && "harness" in o && o.harness === "unknown"'
+  run_dispatch_scrubbed "$d4" codex
+  [[ "$EC" == "$ec_c" ]] || log_fail "TEST-050(c) AAI_HARNESS override must not change the needs_llm exit code"
+  jassert "$OUT" 'o.harness === "codex"'
+
+  # N8 (validation-20260912T222805Z-mutation-matrix.txt): D3 REQUIRES one
+  # stderr NOTE when AAI_HARNESS is set to a value outside the closed set.
+  # Nothing previously asserted the NOTE itself fires (only that the value
+  # resolves "unknown").
+  run_dispatch_scrubbed "$d" bogus
+  [[ "$EC" == "$ec_a" ]] || log_fail "TEST-050/N8 out-of-set AAI_HARNESS must not change the exit code (got $EC, was $ec_a)"
+  jassert "$OUT" 'o.harness === "unknown"'
+  grep -qF 'AAI_HARNESS="bogus"' "$ERR" \
+    || log_fail "TEST-050/N8: an out-of-set AAI_HARNESS value must emit the D3 stderr NOTE naming it: $(cat "$ERR")"
+
+  log_pass "harness present + correct on dispatch/no_action/needs_llm verdicts; exit codes unaffected; out-of-set AAI_HARNESS emits its stderr NOTE (N8) (TEST-050)"
+}
+
+# --- TEST-051 (Spec-AC-04): CLI Mode B per-harness resolution -----------------
+
+test_051_cli_mode_b_per_harness_resolution() {
+  log_info "Test: CLI over a Mode B fixture -- codex/claude resolve distinct harness sentinels, the codex arm never resolves an id matching ^claude-, cursor/unknown resolve null with suggested_tier unaffected (TEST-051)..."
+  local d
+  d="$(mk_root t51)"
+  write_dstate "$d/docs/ai/STATE.yaml"
+  mkdir -p "$d/.aai/system"
+  # A leftover unsuffixed tiers: row rides along -- Mode B must never fall
+  # through to it, so the cursor arm (no @cursor section) resolves null
+  # rather than leaking this value (the fallthrough this ride removes).
+  # gemini gets a map that EXISTS but carries no `standard` row (only
+  # `premium`) -- N3 (validation-20260912T222805Z-mutation-matrix.txt): the
+  # "harness has no map at all" case (cursor, below) and the "harness HAS a
+  # map but the routed tier's row is missing from it" case are different code
+  # paths (`!hmap` vs. an in-map lookup miss), and only the former had a test.
+  cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers@codex:
+  standard: codex-sentinel-051
+tiers@claude:
+  standard: claude-sentinel-051
+tiers@gemini:
+  premium: gemini-premium-only-051
+tiers:
+  standard: leftover-must-never-leak-051
+YAML
+
+  run_dispatch_scrubbed "$d" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-051 codex arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "codex-sentinel-051"'
+  jassert "$OUT" '!/^claude-/.test(o.suggested_model)'
+  local tier_ref
+  tier_ref="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).suggested_tier)' "$OUT")"
+
+  run_dispatch_scrubbed "$d" claude
+  [[ "$EC" == 0 ]] || log_fail "TEST-051 claude arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "claude-sentinel-051"'
+
+  run_dispatch_scrubbed "$d" cursor --human
+  [[ "$EC" == 0 ]] || log_fail "TEST-051 cursor arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === null'
+  jassert "$OUT" "o.suggested_tier === \"$tier_ref\""
+  # NB-4 (review-harness-universal-routing-20260913T002056Z): with a PRESENT
+  # Mode B file (this fixture), the --human "unbound" line must name the real
+  # reason -- no @cursor section for the detected harness -- never claim the
+  # file itself is absent (it plainly is not: three other harnesses resolve
+  # real sentinels from it above).
+  grep -qF 'Suggested model id: (unbound — MODEL_ROUTING.yaml has no @cursor section' "$ERR" \
+    || log_fail "TEST-051/NB-4: --human must name the real reason (file present, no @cursor section), not claim the file is absent: $(cat "$ERR")"
+  if grep -qF 'no .aai/system/MODEL_ROUTING.yaml' "$ERR"; then
+    log_fail "TEST-051/NB-4: --human must NOT claim MODEL_ROUTING.yaml is absent when it is present: $(cat "$ERR")"
+  fi
+
+  run_dispatch_scrubbed "$d" unknown
+  [[ "$EC" == 0 ]] || log_fail "TEST-051 unknown arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === null'
+
+  # N3 -- gemini's map EXISTS (tiers@gemini: premium only) but has no `standard`
+  # row, the routed tier here. Must resolve null, exactly like the no-map
+  # cursor arm above -- NEVER the leftover unsuffixed `leftover-must-never-
+  # leak-051`, which is the D2-forbidden fallthrough this ride removes.
+  run_dispatch_scrubbed "$d" gemini
+  [[ "$EC" == 0 ]] || log_fail "TEST-051/N3 gemini arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === null'
+  jassert "$OUT" "o.suggested_tier === \"$tier_ref\""
+
+  log_pass "CLI Mode B per-harness resolution: distinct sentinels, no cross-harness leak, cursor/unknown null, a map that exists but lacks the routed tier's row also null (N3) (TEST-051)"
+}
+
+# --- TEST-052 (Spec-AC-04): pure per-harness precedence -----------------------
+
+test_052_pure_per_harness_precedence() {
+  log_info "Test: pure suggestModel() per-harness precedence roles@H[role@lane] -> roles@H[role] -> tiers@H[tier] -> null, incl. an empty map, a map-less harness, and a control that an @codex row never satisfies a claude lookup (TEST-052)..."
+  cat > "$TEST_DIR/t52.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { suggestModel } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const dispatchOut = (harness, role, tier, laneSelected) => ({
+  verdict: 'dispatch',
+  harness,
+  role,
+  suggested_tier: tier,
+  lane: laneSelected == null ? null : { selected: laneSelected, ceremony_level: laneSelected === 'lightweight' ? 1 : 2, validation_depth: laneSelected === 'lightweight' ? 'declared_scope' : 'full' },
+  validator_independence: role === 'Validation' ? { implementer_model: null, must_differ: true } : null,
+});
+
+const modeBRouting = (harnesses) => ({
+  tiers: {}, roles: {}, validation_alternate: null, effort_tiers: {}, effort_roles: {},
+  mode: 'B',
+  harnesses,
+});
+
+// (1) tiers@H[tier] resolves when no role row exists.
+let routing = modeBRouting({ codex: { tiers: { standard: 'codex-tier-sentinel' }, roles: {}, validation_alternate: null } });
+assert.strictEqual(suggestModel(dispatchOut('codex', 'Validation', 'standard', 'full'), routing), 'codex-tier-sentinel', 'tier default must resolve inside the detected harness map');
+
+// (2) roles@H[role] beats tiers@H[tier].
+routing = modeBRouting({ codex: { tiers: { standard: 'codex-tier-sentinel' }, roles: { Validation: 'codex-role-sentinel' }, validation_alternate: null } });
+assert.strictEqual(suggestModel(dispatchOut('codex', 'Validation', 'standard', 'full'), routing), 'codex-role-sentinel', 'role row must beat the tier default inside the harness map');
+
+// (3) roles@H[role@lane] beats roles@H[role].
+routing = modeBRouting({ codex: { tiers: {}, roles: { Validation: 'codex-role-sentinel', 'Validation@lightweight': 'codex-lane-sentinel' }, validation_alternate: null } });
+assert.strictEqual(suggestModel(dispatchOut('codex', 'Validation', 'standard', 'lightweight'), routing), 'codex-lane-sentinel', 'lane-scoped role row must win inside the harness map');
+
+// (4) empty harness map (no rows at all) resolves null, not a throw.
+routing = modeBRouting({ codex: { tiers: {}, roles: {}, validation_alternate: null } });
+assert.strictEqual(suggestModel(dispatchOut('codex', 'Validation', 'standard', 'full'), routing), null, 'an empty per-harness map must resolve null');
+
+// (5) a harness with NO section at all (undefined map) resolves null.
+routing = modeBRouting({ claude: { tiers: { standard: 'claude-sentinel' }, roles: {}, validation_alternate: null } });
+assert.strictEqual(suggestModel(dispatchOut('cursor', 'Validation', 'standard', 'full'), routing), null, 'a harness with no shipped section must resolve null, never fall through to another harness');
+
+// (6) CONTROL: a @codex row must never satisfy a claude lookup, and vice versa.
+routing = modeBRouting({
+  codex: { tiers: {}, roles: { Validation: 'codex-only-sentinel' }, validation_alternate: null },
+  claude: { tiers: {}, roles: { Validation: 'claude-only-sentinel' }, validation_alternate: null },
+});
+assert.strictEqual(suggestModel(dispatchOut('codex', 'Validation', 'standard', 'full'), routing), 'codex-only-sentinel', 'codex must resolve its own row');
+assert.strictEqual(suggestModel(dispatchOut('claude', 'Validation', 'standard', 'full'), routing), 'claude-only-sentinel', 'claude must resolve its own row, never the codex row');
+
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t52.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t52.log" 2>&1 \
+    || log_fail "TEST-052: pure per-harness precedence failed: $(cat "$TEST_DIR/t52.log")"
+  log_pass "Pure suggestModel per-harness precedence, incl. cross-harness leak control (TEST-052)"
+}
+
+# --- TEST-053 (Spec-AC-05): pure validator independence within the harness ----
+
+test_053_pure_validator_independence_within_harness() {
+  log_info "Test: pure validator-independence D4 -- scan tiers@H at/above the routed tier, then validation_alternate@H, else keep the model and set residual=single_model_harness_reuse; never a foreign-harness id (TEST-053)..."
+  cat > "$TEST_DIR/t53.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { suggestModel } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const out = (harness, implModel, tier) => ({
+  verdict: 'dispatch',
+  harness,
+  role: 'Validation',
+  suggested_tier: tier,
+  lane: null,
+  validator_independence: { implementer_model: implModel, must_differ: true },
+});
+
+const modeBRouting = (harnesses) => ({
+  tiers: {}, roles: {}, validation_alternate: null, effort_tiers: {}, effort_roles: {},
+  mode: 'B',
+  harnesses,
+});
+
+// (1) standard id equals implementer_model -> the PREMIUM id (at/above the
+// routed tier) is chosen, never mechanical (below the routed tier).
+let o = out('codex', 'gpt-5', 'standard');
+let routing = modeBRouting({ codex: { tiers: { mechanical: 'gpt-5-mini', standard: 'gpt-5', premium: 'gpt-5.3-codex' }, roles: {}, validation_alternate: null } });
+assert.strictEqual(suggestModel(o, routing), 'gpt-5.3-codex', 'must resolve the codex PREMIUM id when standard collides with the implementer model');
+assert.ok(!o.validator_independence.residual, 'a successful in-map swap must not set a residual');
+
+// (2) collision, no tier alternate at/above, but validation_alternate@H differs.
+o = out('codex', 'gpt-5.3-codex', 'premium');
+routing = modeBRouting({ codex: { tiers: { mechanical: 'gpt-5-mini', standard: 'gpt-5', premium: 'gpt-5.3-codex' }, roles: {}, validation_alternate: 'gpt-5-alt' } });
+assert.strictEqual(suggestModel(o, routing), 'gpt-5-alt', 'must fall back to validation_alternate@H when no in-map tier differs');
+
+// (3) repeats one id everywhere, no alternate -> model unchanged, residual set.
+o = out('codex', 'gpt-5.3-codex', 'premium');
+routing = modeBRouting({ codex: { tiers: { mechanical: 'gpt-5.3-codex', standard: 'gpt-5.3-codex', premium: 'gpt-5.3-codex' }, roles: {}, validation_alternate: null } });
+assert.strictEqual(suggestModel(o, routing), 'gpt-5.3-codex', 'model must stay unchanged when the harness map cannot supply a different id');
+assert.strictEqual(o.validator_independence.residual, 'single_model_harness_reuse', 'residual must be the literal token single_model_harness_reuse');
+
+// (4) NEVER an id from another harness's map, even when it would differ.
+o = out('codex', 'gpt-5', 'standard');
+routing = modeBRouting({
+  codex: { tiers: { standard: 'gpt-5' }, roles: {}, validation_alternate: null },
+  claude: { tiers: { standard: 'gpt-5', premium: 'claude-opus-5' }, roles: {}, validation_alternate: 'claude-opus-5' },
+});
+const model = suggestModel(o, routing);
+assert.strictEqual(model, 'gpt-5', 'model must stay unchanged (no in-harness alternate) rather than reach into another harness map');
+assert.ok(!String(model).startsWith('claude-'), 'no arm may ever return an id from another harness map');
+assert.strictEqual(o.validator_independence.residual, 'single_model_harness_reuse');
+
+// (5) N5 (validation-20260912T222805Z-mutation-matrix.txt) -- D4 states the
+// ORDER: tiers@H at/above the routed tier BEFORE validation_alternate@H.
+// Cases (1) and (2) above cannot distinguish the order: (1) has no
+// validation_alternate at all, (2) has no differing in-map tier. Here BOTH a
+// differing tier candidate AND a differing validation_alternate exist, with
+// DIFFERENT ids, so the two orders produce DIFFERENT answers -- inverting
+// D4's order would return the alternate instead of the tier candidate.
+o = out('codex', 'gpt-5', 'standard');
+routing = modeBRouting({
+  codex: {
+    tiers: { mechanical: 'gpt-5-mini', standard: 'gpt-5', premium: 'gpt-5.3-codex' },
+    roles: {},
+    validation_alternate: 'gpt-5-alt-must-not-win-n5',
+  },
+});
+assert.strictEqual(suggestModel(o, routing), 'gpt-5.3-codex', 'D4 order: tiers@H at/above the routed tier must win over validation_alternate@H, not the reverse');
+
+// NB-2 (review-harness-universal-routing-20260913T002056Z) -- "at OR ABOVE
+// the routed tier" (D4) is pinned on cases (1)-(5) only at its LOWER bound:
+// every prior case has a differing candidate STRICTLY ABOVE the routed tier,
+// so an off-by-one that starts the scan at startIdx + 1 (skipping the routed
+// tier itself) still finds that higher candidate and passes unchanged
+// (measured in review). Here the routed tier is PREMIUM -- the top of
+// TIER_ORDER, nothing above it -- and its OWN tiers@H row is the only
+// differing candidate anywhere in the map. Exactly the review's own
+// failure_scenario: `roles@codex: { Validation: gpt-5-mini }` collides with
+// implementer_model at suggested_tier premium; the correct at-or-above scan
+// starts AT premium (i = startIdx) and finds tiers@codex.premium
+// immediately; startIdx + 1 walks off the end of TIER_ORDER (length 3,
+// index 3 out of range), the loop never executes, and the buggy code falls
+// through past a live in-map candidate straight to
+// single_model_harness_reuse.
+o = out('codex', 'gpt-5-mini', 'premium');
+routing = modeBRouting({
+  codex: {
+    tiers: { mechanical: 'gpt-5-mini', premium: 'gpt-5.3-codex-premium-nb2' },
+    roles: { Validation: 'gpt-5-mini' },
+    validation_alternate: null,
+  },
+});
+assert.strictEqual(suggestModel(o, routing), 'gpt-5.3-codex-premium-nb2', 'D4 "at OR ABOVE": the routed tier (premium) itself must be scanned, not skipped -- startIdx + 1 would miss the only differing candidate and reuse gpt-5-mini with a residual instead');
+assert.ok(!o.validator_independence.residual, 'a successful at-the-routed-tier swap must not set a residual');
+
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t53.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t53.log" 2>&1 \
+    || log_fail "TEST-053: pure validator-independence-within-harness failed: $(cat "$TEST_DIR/t53.log")"
+  log_pass "Pure validator independence resolves inside the detected harness map (D4 order: tiers@H before validation_alternate@H, N5; the routed tier itself is scanned, not skipped, NB-2), else residual=single_model_harness_reuse (TEST-053)"
+}
+
+# --- TEST-054 (Spec-AC-05): CLI end-to-end residual ---------------------------
+
+test_054_cli_residual_end_to_end() {
+  log_info "Test: CLI end-to-end -- validator_independence.residual=single_model_harness_reuse appears on a real Validation verdict and on the --human stderr line when the harness map cannot supply a different id; exit code unchanged (TEST-054)..."
+  local d
+  d="$(mk_root t54)"
+  write_dstate "$d/docs/ai/STATE.yaml" not_run not_run implementation in_progress
+  append_metrics_block "$d/docs/ai/STATE.yaml" CHANGE-0001 \
+    "        - role: Implementation" \
+    "          model_id: gpt-5-collide" \
+    "          started_utc: 2026-07-01T00:00:00Z" \
+    "          ended_utc: 2026-07-01T00:01:00Z" \
+    "          duration_seconds: 60" \
+    "          tokens_in: null" \
+    "          tokens_out: null" \
+    "          cost_usd: null"
+  mkdir -p "$d/.aai/system"
+  cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers@codex:
+  standard: gpt-5-collide
+YAML
+
+  local ec=0
+  (cd "$PROJECT_ROOT" && env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CODEX_HOME -u CODEX_SANDBOX \
+      -u CURSOR_TRACE_ID -u CURSOR_AGENT -u GEMINI_HOME -u GEMINI_CLI_IDE_SERVER_PORT \
+      -u GEMINI_CLI_IDE_AUTH_TOKEN -u GEMINI_CLI_IDE_WORKSPACE_PATH -u CLAUDE_CONFIG_DIR \
+      AAI_HARNESS=codex \
+      node .aai/scripts/orchestration-dispatch.mjs --state "$d/docs/ai/STATE.yaml" --root "$d" --human \
+      > "$TEST_DIR/t54.out" 2> "$TEST_DIR/t54.err") || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-054 must dispatch Validation (got $ec): $(cat "$TEST_DIR/t54.out" "$TEST_DIR/t54.err")"
+  jassert "$TEST_DIR/t54.out" 'o.rule === "11" && o.role === "Validation"'
+  jassert "$TEST_DIR/t54.out" 'o.suggested_model === "gpt-5-collide"'
+  jassert "$TEST_DIR/t54.out" 'o.validator_independence.residual === "single_model_harness_reuse"'
+  grep -qF 'single_model_harness_reuse' "$TEST_DIR/t54.err" \
+    || log_fail "TEST-054: --human stderr must name the residual token: $(cat "$TEST_DIR/t54.err")"
+
+  log_pass "CLI end-to-end residual token on the verdict and the --human line, exit code unaffected (TEST-054)"
+}
+
+# --- TEST-055 (Spec-AC-06): Mode A byte-identity across harnesses ------------
+
+# assert_mode_a_byte_identity <pre_tree> <fixture_root> <extra env argv...> —
+# compares pre-harness-ride vs current dispatch stdout/exit code on the SAME
+# STATE fixture, deleting the additive `harness` key from the post capture
+# first (Spec-AC-06). The extra argv is prefixed onto BOTH invocations (e.g.
+# `env -u ... AAI_HARNESS=codex`), following the TEST-042 precedent.
+assert_mode_a_byte_identity() {
+  local pre_tree="$1" d="$2"
+  shift 2
+  local pre_out="$TEST_DIR/t55-pre.out" pre_ec=0 post_out="$TEST_DIR/t55-post.out" post_ec=0
+  ( cd "$pre_tree" && "$@" node .aai/scripts/orchestration-dispatch.mjs \
+      --state "$d/docs/ai/STATE.yaml" --root "$d" > "$pre_out" 2>/dev/null ) || pre_ec=$?
+  ( cd "$PROJECT_ROOT" && "$@" node .aai/scripts/orchestration-dispatch.mjs \
+      --state "$d/docs/ai/STATE.yaml" --root "$d" > "$post_out" 2>/dev/null ) || post_ec=$?
+  [[ "$pre_ec" == "$post_ec" ]] \
+    || log_fail "TEST-055: pre-change and post-change exit codes must match (pre=$pre_ec post=$post_ec)"
+  node -e '
+    const fs = require("fs");
+    const [preFile, postFile] = process.argv.slice(1);
+    const pre = JSON.parse(fs.readFileSync(preFile, "utf8"));
+    const post = JSON.parse(fs.readFileSync(postFile, "utf8"));
+    delete post.harness;
+    const preStr = JSON.stringify(pre);
+    const postStr = JSON.stringify(post);
+    if (preStr !== postStr) {
+      throw new Error("Mode A stdout differs beyond the additive harness key:\npre=" + preStr + "\npost=" + postStr);
+    }
+  ' "$pre_out" "$post_out" \
+    || log_fail "TEST-055: Mode A stdout must be byte-identical to the pinned pre-change capture once the additive harness key is deleted"
+}
+
+test_055_mode_a_byte_identity_across_harnesses() {
+  log_info "Test: Mode A (zero @<harness> sections) stdout/exit code stay byte-identical to the pinned pre-harness-ride script on the same STATE fixture, additive harness key aside; repeated under AAI_HARNESS=codex to prove Mode A ignores the detected harness entirely (Spec-AC-06, TEST-055)..."
+  local d
+  d="$(mk_root t55)"
+  write_dstate "$d/docs/ai/STATE.yaml"
+  mkdir -p "$d/.aai/system"
+  cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers:
+  mechanical: claude-haiku-4-5
+  standard: claude-sonnet-5
+  premium: claude-opus-4-8
+roles:
+  Metrics Flush: claude-haiku-4-5
+validation_alternate: claude-opus-4-8
+YAML
+
+  local pre_tree
+  pre_tree="$(pre_harness_dispatch_tree)"
+
+  assert_mode_a_byte_identity "$pre_tree" "$d" \
+    env -u AAI_HARNESS -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CODEX_HOME -u CODEX_SANDBOX -u CURSOR_TRACE_ID -u CURSOR_AGENT -u GEMINI_HOME
+  assert_mode_a_byte_identity "$pre_tree" "$d" \
+    env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CODEX_HOME -u CODEX_SANDBOX -u CURSOR_TRACE_ID -u CURSOR_AGENT -u GEMINI_HOME AAI_HARNESS=codex
+
+  log_pass "Mode A byte-identity holds against the pinned pre-harness-ride script, on every harness (Spec-AC-06, TEST-055)"
+}
+
+# --- TEST-056 (Spec-AC-07): PRICING sweep over the shipped maps --------------
+
+test_056_pricing_sweep_shipped_maps() {
+  log_info "Test: every model id in every section of the SHIPPED MODEL_ROUTING.yaml resolves through the SHARED lib/pricing.mjs resolver against the SHIPPED PRICING.yaml; the sweep must examine at least one id per shipped harness map (TEST-056)..."
+  cat > "$TEST_DIR/t56.mjs" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert';
+import { pathToFileURL } from 'node:url';
+
+const root = process.argv[2];
+const { loadPricing, resolveModelKey } = await import(pathToFileURL(path.join(root, '.aai/scripts/lib/pricing.mjs')).href);
+
+const raw = fs.readFileSync(path.join(root, '.aai/system/MODEL_ROUTING.yaml'), 'utf8');
+const pricing = loadPricing(path.join(root, '.aai/system/PRICING.yaml'));
+
+const ids = [];
+// tiersIdsSeen: ids examined SPECIFICALLY from a tiers@<harness> section --
+// the primary "shipped harness map" (D5) -- so deleting that ONE section
+// for a harness (leaving its roles@/validation_alternate@ rows intact)
+// still reddens the "examined at least one id per shipped harness map"
+// assertion below, rather than passing vacuously via a sibling section.
+const tiersIdsSeen = new Set();
+let section = null;
+let sectionHarness = null;
+for (const line of raw.split(/\r?\n/)) {
+  if (line.trim() === '' || line.trim().startsWith('#')) continue;
+  let m;
+  if ((m = line.match(/^(tiers|roles)(?:@([A-Za-z0-9_-]+))?:\s*$/))) {
+    section = m[1];
+    sectionHarness = m[2] || null;
+    continue;
+  }
+  if ((m = line.match(/^validation_alternate(?:@([A-Za-z0-9_-]+))?:\s*(\S+)\s*$/))) {
+    if (m[2] !== 'null') ids.push(m[2]);
+    section = null; sectionHarness = null;
+    continue;
+  }
+  if (/^effort_tiers:\s*$|^effort_roles:\s*$/.test(line)) { section = null; sectionHarness = null; continue; }
+  if (/^\S/.test(line)) { section = null; sectionHarness = null; continue; }
+  const kv = line.match(/^ {2}(\S[^:#]*):\s*(\S+)\s*$/);
+  if (kv && section) {
+    ids.push(kv[2]);
+    if (section === 'tiers' && sectionHarness) tiersIdsSeen.add(sectionHarness);
+  }
+}
+
+assert.ok(ids.length > 0, 'the sweep must have examined at least one id');
+for (const h of ['claude', 'codex', 'gemini']) {
+  assert.ok(tiersIdsSeen.has(h), `the sweep must have examined at least one id from the shipped ${h} map`);
+}
+
+const unresolved = [];
+for (const id of ids) {
+  const key = resolveModelKey(pricing, id);
+  if (key === 'unknown') unresolved.push(id);
+}
+assert.deepStrictEqual(unresolved, [], `every shipped model id must resolve through resolveModelKey; unresolved: ${JSON.stringify(unresolved)}`);
+
+console.log('ok examined ' + ids.length + ' ids across harnesses: ' + [...tiersIdsSeen].sort().join(','));
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t56.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t56.log" 2>&1 \
+    || log_fail "TEST-056: PRICING sweep over the shipped MODEL_ROUTING.yaml failed: $(cat "$TEST_DIR/t56.log")"
+  log_pass "PRICING sweep: every shipped id resolves via the shared resolver, at least one id per shipped harness map (TEST-056)"
+}
+
+# --- TEST-057 (Spec-AC-08): shipped-file contract -----------------------------
+
+test_057_shipped_file_contract() {
+  log_info "Test: shipped MODEL_ROUTING.yaml carries zero claude-opus-4-8 occurrences, tiers@claude names exactly the three current ids, and the explicit Metrics Flush row survives under roles@claude (TEST-057)..."
+  local routing_file="$PROJECT_ROOT/.aai/system/MODEL_ROUTING.yaml"
+  local n
+  n=$(grep -c 'claude-opus-4-8' "$routing_file" || true)
+  [[ "${n:-0}" == 0 ]] || log_fail "TEST-057: shipped MODEL_ROUTING.yaml must contain ZERO occurrences of claude-opus-4-8 (found $n)"
+  grep -qE '^tiers@claude:[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-057: shipped file must carry a tiers@claude: section header"
+  grep -qE '^  mechanical:[[:space:]]*claude-haiku-4-5[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-057: tiers@claude must name claude-haiku-4-5 for mechanical"
+  grep -qE '^  standard:[[:space:]]*claude-sonnet-5[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-057: tiers@claude must name claude-sonnet-5 for standard"
+  grep -qE '^  premium:[[:space:]]*claude-opus-5[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-057: tiers@claude must name claude-opus-5 for premium"
+  grep -qE '^roles@claude:[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-057: shipped file must carry a roles@claude: section header"
+  local claude_roles_block="$TEST_DIR/t57-roles-claude.txt"
+  awk '/^roles@claude:/{f=1;next} /^\S/{f=0} f' "$routing_file" > "$claude_roles_block"
+  grep -qE '^  Metrics Flush:[[:space:]]*claude-haiku-4-5[[:space:]]*$' "$claude_roles_block" \
+    || log_fail "TEST-057: the explicit 'Metrics Flush: claude-haiku-4-5' row must survive under roles@claude"
+  log_pass "Shipped-file contract: zero claude-opus-4-8, tiers@claude exact triple, Metrics Flush row survives under roles@claude (TEST-057)"
+}
+
+# --- TEST-058 (Spec-AC-09): header contract + loud degrade -------------------
+
+test_058_header_contract_and_leftover_note() {
+  log_info "Test: shipped MODEL_ROUTING.yaml header states the @<harness> key form, the resolution order and the Mode A/B rule; a fixture mixing tiers@codex: with a leftover unsuffixed tiers: emits ONE stderr NOTE naming it while stdout stays valid JSON and the exit code is unchanged (TEST-058)..."
+  local routing_file="$PROJECT_ROOT/.aai/system/MODEL_ROUTING.yaml"
+  # Each grep pins a phrase that occurs EXACTLY ONCE in the shipped header
+  # (verified at authoring time) so deleting any ONE of these five sentences
+  # reddens exactly its own check, never masked by an incidental duplicate
+  # mention of "@<harness>"/"MODE A"/"MODE B" elsewhere in the file.
+  #
+  # Corrected at remediation (validation-20260912T222805Z-mutation-matrix.txt
+  # M13/M13b/M13c): this comment previously claimed "any ONE of the three
+  # sentences" while only 4 greps existed and the mutation that deletes the
+  # "MODE A vs MODE B (D2), decided by the FILE" LEAD-IN line (distinct from
+  # the "MODE A --"/"MODE B --" paragraph-opening lines below it) left every
+  # one of those 4 greps green — the claim was inaccurate for that sentence.
+  # The 5th grep below closes the gap the mutation matrix named.
+  grep -qF 'section suffix' "$routing_file" \
+    || log_fail "TEST-058: header must document the @<harness> key form (section suffix)"
+  grep -qE 'roles@<harness>\[role@lane\].*roles@<harness>\[role\].*tiers@<harness>\[tier\]' "$routing_file" \
+    || log_fail "TEST-058: header must state the per-harness resolution order"
+  grep -qF 'decided by the FILE' "$routing_file" \
+    || log_fail "TEST-058: header must state Mode A vs Mode B is decided by the FILE, never by the harness"
+  grep -qF 'MODE A --' "$routing_file" || log_fail "TEST-058: header must name Mode A"
+  grep -qF 'MODE B --' "$routing_file" || log_fail "TEST-058: header must name Mode B"
+
+  # Loud degrade: leftover unsuffixed rows alongside a real @<harness> section.
+  local d
+  d="$(mk_root t58)"
+  write_dstate "$d/docs/ai/STATE.yaml"
+  mkdir -p "$d/.aai/system"
+  cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers@codex:
+  standard: codex-sentinel-058
+tiers:
+  standard: leftover-sentinel-058
+YAML
+  run_dispatch_scrubbed "$d" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-058 leftover-row fixture must still dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "codex-sentinel-058"'
+  grep -qiE 'NOTE.*tiers' "$ERR" \
+    || log_fail "TEST-058: stderr must carry ONE NOTE naming the leftover unsuffixed section(s): $(cat "$ERR")"
+  local note_count
+  note_count=$(grep -c 'NOTE' "$ERR" || true)
+  [[ "${note_count:-0}" == 1 ]] || log_fail "TEST-058: exactly ONE NOTE line must be emitted (got ${note_count:-0}): $(cat "$ERR")"
+
+  # Negative control: a clean Mode B file (no leftover rows) emits NO NOTE.
+  local d2
+  d2="$(mk_root t58clean)"
+  write_dstate "$d2/docs/ai/STATE.yaml"
+  mkdir -p "$d2/.aai/system"
+  cat > "$d2/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers@codex:
+  standard: codex-sentinel-058b
+YAML
+  run_dispatch_scrubbed "$d2" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-058 clean Mode B fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  [[ ! -s "$ERR" ]] || log_fail "TEST-058: a clean Mode B file (no leftover unsuffixed rows) must emit NO stderr NOTE: $(cat "$ERR")"
+
+  # N6 (validation-20260912T222805Z-mutation-matrix.txt): a `roles@<harness>:`
+  # section ALONE -- no `tiers@<harness>:` alongside it -- must ALSO trip Mode
+  # B. Nothing previously asserted this; had the parser only flipped
+  # routing.mode on a `tiers@H` section, this file would stay Mode A, the
+  # leftover unsuffixed `tiers:` row would stay LIVE, and the claude arm
+  # (no roles@claude/tiers@claude at all) would leak it instead of resolving
+  # null -- exactly D2's forbidden fallthrough, reached through the other
+  # section keyword.
+  local d3
+  d3="$(mk_root t58roles)"
+  write_dstate "$d3/docs/ai/STATE.yaml"
+  mkdir -p "$d3/.aai/system"
+  cat > "$d3/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+roles@codex:
+  Validation: codex-role-only-sentinel-n6
+tiers:
+  standard: leftover-must-never-leak-n6
+YAML
+  run_dispatch_scrubbed "$d3" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/N6 codex arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "codex-role-only-sentinel-n6"'
+  grep -qiE 'NOTE.*tiers' "$ERR" \
+    || log_fail "TEST-058/N6: a roles@<harness>-only file with a leftover unsuffixed tiers: row must still emit the loud-degrade NOTE (Mode B was never entered): $(cat "$ERR")"
+  run_dispatch_scrubbed "$d3" claude
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/N6 claude arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === null'
+
+  # NB-3 (review-harness-universal-routing-20260913T002056Z), symmetric with
+  # N6: N6 proved a `roles@<harness>:` section ALONE trips Mode B; nothing
+  # proved `validation_alternate@<harness>:` ALONE (D1 names all THREE
+  # suffixable sections) does too. Here the ONLY harness-scoped line is
+  # `validation_alternate@codex:` -- no `tiers@codex:`/`roles@codex:`
+  # anywhere -- alongside the SAME leftover unsuffixed `tiers:` shape. If the
+  # parser only flipped `routing.mode` from the tiers@H/roles@H branches
+  # (dropping it from the validation_alternate@H branch alone), this file
+  # would stay Mode A, and BOTH codex and claude would leak
+  # `leftover-must-never-leak-nb3` (the routed tier here is "standard",
+  # matching the leftover row) instead of resolving null.
+  local d4
+  d4="$(mk_root t58valt)"
+  write_dstate "$d4/docs/ai/STATE.yaml"
+  mkdir -p "$d4/.aai/system"
+  cat > "$d4/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+validation_alternate@codex: codex-validation-alt-nb3
+tiers:
+  standard: leftover-must-never-leak-nb3
+YAML
+  run_dispatch_scrubbed "$d4" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/NB-3 codex arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === null'
+  grep -qiE 'NOTE.*tiers' "$ERR" \
+    || log_fail "TEST-058/NB-3: a validation_alternate@<harness>-only file with a leftover unsuffixed tiers: row must still emit the loud-degrade NOTE (Mode B was never entered): $(cat "$ERR")"
+  run_dispatch_scrubbed "$d4" claude
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/NB-3 claude arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === null'
+
+  # N7 (review-harness-universal-routing-20260913T002056Z / Codex P2 on PR
+  # #376, fu-routing-malformed-suffix-silent): a header suffix outside the
+  # closed HARNESS_VALUES set (claude/codex/gemini/cursor/unknown) — a typo
+  # like `tiers@constructor:`/`tiers@CLAUDE:`/`roles@windsurf:`, or one that
+  # happens to collide with an inherited Object.prototype member — must
+  # never (a) crash the dispatcher, (b) silently flip Mode B with a section
+  # nothing will ever match, or (c) go unreported.
+
+  # N7a: `tiers@constructor:` alone (no unsuffixed leftover at all) must not
+  # crash — the historical bug (`routing.harnesses = {}` + `if
+  # (!routing.harnesses[h])` reads the INHERITED Object.prototype.constructor
+  # function, and the row write then dereferences `.tiers` on that function)
+  # — and must behave exactly like an EMPTY routing file: NOTE present,
+  # suggested_model null, exit 0.
+  local d5
+  d5="$(mk_root t58n7a)"
+  write_dstate "$d5/docs/ai/STATE.yaml"
+  mkdir -p "$d5/.aai/system"
+  cat > "$d5/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers@constructor:
+  standard: constructor-should-be-rejected-n7a
+YAML
+  run_dispatch_scrubbed "$d5" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/N7a: tiers@constructor: must not crash the dispatcher (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === null'
+  grep -qiE 'NOTE.*"tiers@constructor:".*not a harness' "$ERR" \
+    || log_fail "TEST-058/N7a: stderr must carry the malformed-suffix NOTE naming tiers@constructor: $(cat "$ERR")"
+  local n7a_notes
+  n7a_notes=$(grep -c 'NOTE' "$ERR" || true)
+  [[ "${n7a_notes:-0}" == 1 ]] || log_fail "TEST-058/N7a: exactly ONE NOTE line (got ${n7a_notes:-0}): $(cat "$ERR")"
+
+  # N7b: `tiers@CLAUDE:` (mis-cased — HARNESS_VALUES is exact/case-sensitive)
+  # beside a plain unsuffixed `tiers:` proves the file never truly entered
+  # Mode B: the unsuffixed row must resolve (Mode A fallback), not the
+  # mis-cased section's value, and not null (which is what a wrongly-latched
+  # Mode B would give every harness, since no real harness ever matches
+  # "CLAUDE").
+  local d6
+  d6="$(mk_root t58n7b)"
+  write_dstate "$d6/docs/ai/STATE.yaml"
+  mkdir -p "$d6/.aai/system"
+  cat > "$d6/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers@CLAUDE:
+  standard: claude-mis-cased-sentinel-n7b
+tiers:
+  standard: modeA-should-still-resolve-n7b
+YAML
+  run_dispatch_scrubbed "$d6" claude
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/N7b claude arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "modeA-should-still-resolve-n7b"'
+  grep -qiE 'NOTE.*"tiers@CLAUDE:".*not a harness' "$ERR" \
+    || log_fail "TEST-058/N7b: stderr must carry the malformed-suffix NOTE naming tiers@CLAUDE: $(cat "$ERR")"
+  grep -qF 'claude-mis-cased-sentinel-n7b' "$OUT" \
+    && log_fail "TEST-058/N7b: the mis-cased section's sentinel must never resolve: $(cat "$OUT")"
+  run_dispatch_scrubbed "$d6" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/N7b codex arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "modeA-should-still-resolve-n7b"'
+
+  # N7c: symmetric with N7b using roles@<invalid>: instead of tiers@<invalid>:.
+  local d7
+  d7="$(mk_root t58n7c)"
+  write_dstate "$d7/docs/ai/STATE.yaml"
+  mkdir -p "$d7/.aai/system"
+  cat > "$d7/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+roles@windsurf:
+  Validation: windsurf-role-sentinel-n7c
+tiers:
+  standard: modeA-should-still-resolve-n7c
+YAML
+  run_dispatch_scrubbed "$d7" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/N7c codex arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "modeA-should-still-resolve-n7c"'
+  grep -qiE 'NOTE.*"roles@windsurf:".*not a harness' "$ERR" \
+    || log_fail "TEST-058/N7c: stderr must carry the malformed-suffix NOTE naming roles@windsurf: $(cat "$ERR")"
+
+  # N7d: a VALID `tiers@codex:` beside an INVALID `tiers@codx:` (adjacent
+  # typo) must still reach Mode B via the valid section, resolve codex
+  # normally, and emit exactly ONE NOTE — for codx only.
+  local d8
+  d8="$(mk_root t58n7d)"
+  write_dstate "$d8/docs/ai/STATE.yaml"
+  mkdir -p "$d8/.aai/system"
+  cat > "$d8/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers@codex:
+  standard: codex-sentinel-n7d
+tiers@codx:
+  standard: codx-should-be-rejected-n7d
+YAML
+  run_dispatch_scrubbed "$d8" codex
+  [[ "$EC" == 0 ]] || log_fail "TEST-058/N7d codex arm must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "codex-sentinel-n7d"'
+  grep -qiE 'NOTE.*"tiers@codx:".*not a harness' "$ERR" \
+    || log_fail "TEST-058/N7d: stderr must carry the malformed-suffix NOTE naming tiers@codx: $(cat "$ERR")"
+  local n7d_notes
+  n7d_notes=$(grep -c 'NOTE' "$ERR" || true)
+  [[ "${n7d_notes:-0}" == 1 ]] || log_fail "TEST-058/N7d: exactly ONE NOTE line — codx only, codex must stay silent (got ${n7d_notes:-0}): $(cat "$ERR")"
+
+  log_pass "Header contract (key form, resolution order, Mode A/B) + loud degrade for leftover unsuffixed rows, exactly once, incl. a roles@<harness>-only file (N6), a validation_alternate@<harness>-only file (NB-3), and a malformed/out-of-set @<suffix> rejected with one NOTE per offending header without crashing or false Mode B (N7a-d, fu-routing-malformed-suffix-silent) (TEST-058)"
+}
+
+# --- TEST-060 (Spec-AC-09): parser one-level nesting guard --------------------
+
+test_060_parser_one_level_nesting_guard() {
+  log_info "Test: a four-space-indented key under tiers@codex: is NOT read -- the one-level nesting contract is unchanged by the new @<harness> section form (TEST-060)..."
+  local d
+  d="$(mk_root t60)"
+  mkdir -p "$d/.aai/system"
+  cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers@codex:
+  premium: gpt-5.3-codex-sentinel
+    fallback: gpt-9-should-not-be-read
+YAML
+  cat > "$TEST_DIR/t60.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { loadModelRouting } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+const routing = loadModelRouting(process.argv[3]);
+
+assert.strictEqual(routing?.harnesses?.codex?.tiers?.premium, 'gpt-5.3-codex-sentinel', 'the properly two-space-indented row must still be read');
+assert.strictEqual(routing?.harnesses?.codex?.tiers?.fallback, undefined, 'a four-space-indented key must NOT be read (one-level nesting contract)');
+assert.ok(!JSON.stringify(routing).includes('gpt-9-should-not-be-read'), 'the deeper-nested value must not appear ANYWHERE in the parsed structure');
+
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t60.mjs" "$PROJECT_ROOT" "$d") > "$TEST_DIR/t60.log" 2>&1 \
+    || log_fail "TEST-060: parser one-level nesting guard failed: $(cat "$TEST_DIR/t60.log")"
+  log_pass "Four-space-indented key under tiers@codex: is not read; one-level nesting contract unchanged (TEST-060)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026; TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
+  echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026 + harness-universal-routing TEST-048..058/060 (TEST-059 lives in test-aai-layer-profiles.sh); TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
   setup_fixture
   test_001_decide_table
@@ -3332,6 +4284,18 @@ main() {
   test_045_g2_filterdiff_quoted_header_reset
   test_046_closed_focus_stale_state_pure
   test_047_close_dispatch_seam_and_reopen_ordering
+  test_048_pure_detect_harness_ladder
+  test_049_negative_controls_excluded_evidence
+  test_050_harness_on_every_verdict
+  test_051_cli_mode_b_per_harness_resolution
+  test_052_pure_per_harness_precedence
+  test_053_pure_validator_independence_within_harness
+  test_054_cli_residual_end_to_end
+  test_055_mode_a_byte_identity_across_harnesses
+  test_056_pricing_sweep_shipped_maps
+  test_057_shipped_file_contract
+  test_058_header_contract_and_leftover_note
+  test_060_parser_one_level_nesting_guard
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

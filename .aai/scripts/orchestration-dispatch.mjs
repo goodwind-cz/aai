@@ -61,6 +61,7 @@ import { splitLines, duplicateKeys, inlineChildConflicts } from './lib/state-cor
 import { findBlock, readScalar, indentOf, unquoteScalar, agentRunsFor, lastImplementerModel } from './lib/state-engine.mjs';
 import { computeEffectivePromptHash, componentHashes, shortHash } from './lib/prompt-hash.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
 
@@ -1111,11 +1112,54 @@ function printRules() {
 // Line-based parse mirroring the PROFILES.yaml discipline: two-space-indented
 // `  <key>: <value>` rows under `tiers:` / `roles:` (and the cache-friendly-
 // dispatch `effort_tiers:` / `effort_roles:`) sections only.
-function loadModelRouting(root) {
+//
+// harness-universal-routing (D1/D2): `tiers:` / `roles:` / `validation_alternate:`
+// may each carry an `@<harness>` suffix (`tiers@codex:`, `roles@claude:`,
+// `validation_alternate@gemini:`). A file with ZERO such sections is Mode A
+// (`routing.mode === 'A'`) and resolves exactly as before, ignoring the
+// detected harness entirely (Spec-AC-06 byte-identity). A file with ONE OR
+// MORE such sections is Mode B (`routing.mode === 'B'`); each harness's own
+// rows land under `routing.harnesses[<harness>]`, and — the bug this ride
+// exists to remove — the UNSUFFIXED `tiers:`/`roles:`/`validation_alternate:`
+// sections are no longer consulted for resolution once Mode B is active. A
+// Mode B file that still carries unsuffixed model rows is a half migration:
+// degrade and report (Constitution art. 4) rather than silently ignore or
+// fail — ONE stderr NOTE names the leftover section(s) and stdout stays
+// valid JSON. `effort_tiers:`/`effort_roles:` are NEVER harness-scoped (D2):
+// reasoning effort is a property of the role, not the vendor.
+//
+// Row regex requires exactly two leading spaces followed immediately by a
+// non-space character — NOT a general `\s+` — so a deeper (four-space)
+// nesting attempt under an `@<harness>` section is silently not read,
+// preserving the "one level of nesting" contract (TEST-060).
+export function loadModelRouting(root) {
   const p = path.resolve(root, '.aai/system/MODEL_ROUTING.yaml');
   if (!fs.existsSync(p)) return null;
-  const routing = { tiers: {}, roles: {}, effort_tiers: {}, effort_roles: {}, validation_alternate: null };
-  let section = null;
+  const routing = {
+    tiers: {}, roles: {}, effort_tiers: {}, effort_roles: {}, validation_alternate: null,
+    // Object.create(null): a header typo like `tiers@constructor:` or
+    // `tiers@toString:` must never resolve to an INHERITED Object.prototype
+    // member (a function) instead of a fresh per-harness map — that was the
+    // Codex P2 finding on PR #376 (review-harness-universal-routing-
+    // 20260913T002056Z): harnessMap('constructor') returned the inherited
+    // constructor function, and the next row's `.tiers[...] = ...` write
+    // dereferenced `.tiers` on that function and crashed the whole tick.
+    // A null-prototype dict has no such inherited members, so the plain
+    // `if (!routing.harnesses[h])` check below is now a true own-property
+    // check by construction — no separate hasOwnProperty needed.
+    harnesses: Object.create(null), mode: 'A',
+  };
+  const harnessMap = (h) => {
+    if (!routing.harnesses[h]) routing.harnesses[h] = { tiers: {}, roles: {}, validation_alternate: null };
+    return routing.harnesses[h];
+  };
+  let section = null;        // 'tiers' | 'roles' | 'effort_tiers' | 'effort_roles' | null
+  let sectionHarness = null; // non-null only while the active section is harness-scoped
+  // Every `@<suffix>` header seen during the parse, valid or not (harness-
+  // universal-routing follow-up fu-routing-malformed-suffix-silent): swept
+  // AFTER the loop below so a typo'd suffix is rejected with one NOTE per
+  // offending header, never silently accepted into Mode B.
+  const seenHeaders = [];
   let raw;
   try {
     raw = fs.readFileSync(p, 'utf8');
@@ -1124,18 +1168,83 @@ function loadModelRouting(root) {
   }
   for (const line of raw.split(/\r?\n/)) {
     if (line.trim() === '' || line.trim().startsWith('#')) continue;
-    if (/^tiers:\s*$/.test(line)) { section = 'tiers'; continue; }
-    if (/^roles:\s*$/.test(line)) { section = 'roles'; continue; }
+    let m;
+    if ((m = line.match(/^tiers(?:@([A-Za-z0-9_-]+))?:\s*$/))) {
+      section = 'tiers';
+      sectionHarness = m[1] || null;
+      if (sectionHarness) {
+        seenHeaders.push({ headerText: line.trim(), suffix: sectionHarness });
+        harnessMap(sectionHarness); routing.mode = 'B';
+      }
+      continue;
+    }
+    if ((m = line.match(/^roles(?:@([A-Za-z0-9_-]+))?:\s*$/))) {
+      section = 'roles';
+      sectionHarness = m[1] || null;
+      if (sectionHarness) {
+        seenHeaders.push({ headerText: line.trim(), suffix: sectionHarness });
+        harnessMap(sectionHarness); routing.mode = 'B';
+      }
+      continue;
+    }
     // cache-friendly-dispatch: advisory reasoning-effort routing sections,
     // parsed exactly like tiers:/roles: (absent sections stay empty maps -> a
-    // pre-effort MODEL_ROUTING.yaml resolves suggested_effort to null, back-compat).
-    if (/^effort_tiers:\s*$/.test(line)) { section = 'effort_tiers'; continue; }
-    if (/^effort_roles:\s*$/.test(line)) { section = 'effort_roles'; continue; }
-    const top = line.match(/^validation_alternate:\s*(\S+)\s*$/);
-    if (top) { routing.validation_alternate = top[1] === 'null' ? null : top[1]; section = null; continue; }
-    if (/^\S/.test(line)) { section = null; continue; }
-    const kv = line.match(/^ {2}([^:#]+):\s*(\S+)\s*$/);
-    if (kv && section) routing[section][kv[1].trim()] = kv[2];
+    // pre-effort MODEL_ROUTING.yaml resolves suggested_effort to null,
+    // back-compat). NEVER harness-scoped (D2).
+    if (/^effort_tiers:\s*$/.test(line)) { section = 'effort_tiers'; sectionHarness = null; continue; }
+    if (/^effort_roles:\s*$/.test(line)) { section = 'effort_roles'; sectionHarness = null; continue; }
+    if ((m = line.match(/^validation_alternate(?:@([A-Za-z0-9_-]+))?:\s*(\S+)\s*$/))) {
+      const val = m[2] === 'null' ? null : m[2];
+      if (m[1]) {
+        seenHeaders.push({ headerText: `validation_alternate@${m[1]}:`, suffix: m[1] });
+        harnessMap(m[1]).validation_alternate = val; routing.mode = 'B';
+      } else { routing.validation_alternate = val; }
+      section = null; sectionHarness = null;
+      continue;
+    }
+    if (/^\S/.test(line)) { section = null; sectionHarness = null; continue; }
+    const kv = line.match(/^ {2}(\S[^:#]*):\s*(\S+)\s*$/);
+    if (kv && section) {
+      if (sectionHarness) harnessMap(sectionHarness)[section][kv[1].trim()] = kv[2];
+      else routing[section][kv[1].trim()] = kv[2];
+    }
+  }
+  // fu-routing-malformed-suffix-silent (Codex review on PR #376): an
+  // `@<suffix>` outside HARNESS_VALUES (exact, case-sensitive) is a typo,
+  // not a new harness — `tiers@CLAUDE:`/`tiers@codx:`/`roles@windsurf:` must
+  // never silently resolve to a section nothing will ever match. Reject
+  // each offending HEADER with its own NOTE (a typo repeated under both
+  // tiers@ and roles@ is two mistakes, not one — hence the loop over
+  // seenHeaders rather than over the deduplicated harness keys), then purge
+  // every invalid harness key so it can never be looked up during
+  // resolution. A file whose ONLY @<harness> section(s) were all invalid
+  // never legitimately entered Mode B: revert to Mode A so any unsuffixed
+  // sections it also carries resolve exactly as they would in a file with
+  // zero @<harness> sections (Spec-AC-06 byte-identity), instead of being
+  // silently swallowed by the D2 leftover-rows check below.
+  for (const { headerText, suffix } of seenHeaders) {
+    if (!HARNESS_VALUES.includes(suffix)) {
+      console.error(`orchestration-dispatch: NOTE — MODEL_ROUTING.yaml section "${headerText}" ignored — "${suffix}" is not a harness (${HARNESS_VALUES.join(', ')})`);
+    }
+  }
+  for (const h of Object.keys(routing.harnesses)) {
+    if (!HARNESS_VALUES.includes(h)) delete routing.harnesses[h];
+  }
+  if (routing.mode === 'B' && Object.keys(routing.harnesses).length === 0) {
+    routing.mode = 'A';
+  }
+  // D2 loud degrade: a Mode B file that STILL carries unsuffixed
+  // tiers:/roles:/validation_alternate: rows is a half migration. Those rows
+  // are IGNORED for model resolution once any @<harness> section exists —
+  // silence here would be indistinguishable from a typo.
+  if (routing.mode === 'B') {
+    const leftover = [];
+    if (Object.keys(routing.tiers).length) leftover.push('tiers');
+    if (Object.keys(routing.roles).length) leftover.push('roles');
+    if (routing.validation_alternate !== null) leftover.push('validation_alternate');
+    if (leftover.length) {
+      console.error(`orchestration-dispatch: NOTE — MODEL_ROUTING.yaml declares @<harness> sections but still carries unsuffixed ${leftover.join(', ')} row(s), which are IGNORED for model resolution in Mode B (see the file header)`);
+    }
   }
   return routing;
 }
@@ -1151,10 +1260,67 @@ function loadModelRouting(root) {
 // backstop applied AFTER, unchanged: when the routed Validation model equals
 // the recorded implementer model, swap to validation_alternate (same
 // weights = same blind spots; SUBAGENT_PROTOCOL.md validator rule).
+// Per-map lookup shared by Mode A (routing itself) and Mode B (a single
+// harness's own sub-map) — both shapes carry { tiers, roles }.
+function resolveModelFromMap(map, role, laneKey, tier) {
+  return (laneKey && map.roles[laneKey])
+    ?? (role && map.roles[role])
+    ?? (tier ? map.tiers[tier] : null)
+    ?? null;
+}
+
+const TIER_ORDER = ['mechanical', 'standard', 'premium'];
+
+// INFO-1 (review-harness-universal-routing-20260913T002056Z): this function
+// both RETURNS the suggested model id and MUTATES out.validator_independence
+// in place (the residual-token arm below) — safe because it has exactly one
+// call site and the mutated object is the same one printed as the verdict,
+// but worth flagging since the signature alone does not say so.
 export function suggestModel(out, routing) {
   if (!routing || out.verdict !== 'dispatch') return null;
   const laneSelected = out.lane && out.lane.selected;
   const laneKey = out.role && laneSelected ? `${out.role}@${laneSelected}` : null;
+
+  // Mode B (harness-universal-routing D2): the file declares at least one
+  // @<harness> section. Resolution happens ENTIRELY inside the detected
+  // harness's own map; a harness with no shipped section (unknown included)
+  // resolves null, exactly like an absent routing file. Never a fallback to
+  // the unsuffixed tiers:/roles: -- that fallthrough is the bug this ride
+  // removes (a Codex loop handed a Claude id).
+  if (routing.mode === 'B') {
+    const harness = out.harness ?? 'unknown';
+    const hmap = routing.harnesses[harness];
+    if (!hmap) return null;
+    let model = resolveModelFromMap(hmap, out.role, laneKey, out.suggested_tier);
+    // D4 — validator independence resolves INSIDE the detected harness's own
+    // map: scan tiers@H at or above the routed tier, then
+    // validation_alternate@H, else keep the model and record the residual.
+    // Never an id from another harness's map.
+    if (model && out.role === 'Validation'
+        && out.validator_independence
+        && out.validator_independence.implementer_model === model) {
+      let replacement = null;
+      const startIdx = TIER_ORDER.indexOf(out.suggested_tier);
+      if (startIdx !== -1) {
+        for (let i = startIdx; i < TIER_ORDER.length; i++) {
+          const candidate = hmap.tiers[TIER_ORDER[i]];
+          if (candidate && candidate !== model) { replacement = candidate; break; }
+        }
+      }
+      if (!replacement && hmap.validation_alternate && hmap.validation_alternate !== model) {
+        replacement = hmap.validation_alternate;
+      }
+      if (replacement) {
+        model = replacement;
+      } else {
+        out.validator_independence = { ...out.validator_independence, residual: 'single_model_harness_reuse' };
+      }
+    }
+    return model;
+  }
+
+  // Mode A — byte-identical to the pre-harness-routing resolution
+  // (Spec-AC-06): the detected harness is never consulted.
   let model = (laneKey && routing.roles[laneKey])
     ?? (out.role && routing.roles[out.role])
     ?? (out.suggested_tier ? routing.tiers[out.suggested_tier] : null)
@@ -1272,22 +1438,44 @@ function recordValidationVerdict(root, ref, status, hash) {
   }
 }
 
-function humanBlock(out) {
+// NB-4 (review-harness-universal-routing-20260913T002056Z): the --human
+// "unbound" reason must not claim the routing file is ABSENT when it is
+// PRESENT — a cursor/unknown dispatch under the shipped Mode B file used to
+// print the file-absent string unconditionally. `routing` is null only when
+// the file is genuinely missing/unreadable (see loadModelRouting's early
+// return); when it is non-null but suggested_model is still null, name the
+// real reason (no @<harness> section for a Mode B dispatch's detected
+// harness, or -- Mode A, or a Mode B dispatch whose harness DOES have a
+// section but no matching tier/role row -- no matching tier/role).
+function suggestedModelUnboundReason(out, routing) {
+  if (!routing) return '(unbound — no .aai/system/MODEL_ROUTING.yaml)';
+  if (out.verdict === 'dispatch' && routing.mode === 'B' && !routing.harnesses[out.harness ?? 'unknown']) {
+    return `(unbound — MODEL_ROUTING.yaml has no @${out.harness ?? 'unknown'} section for this harness)`;
+  }
+  return '(unbound — no matching tier/role in MODEL_ROUTING.yaml)';
+}
+
+function humanBlock(out, routing) {
   const lines = [
     '=== ORCHESTRATION DISPATCH (deterministic tick) ===',
     `Current state summary: ${JSON.stringify(out.state_summary)}`,
     `Decision rationale: rule ${out.rule ?? '-'} (${out.verdict})${out.reasons.length ? ` — reasons: ${out.reasons.join(', ')}` : ''}`,
+    `Harness: ${out.harness ?? '(unknown)'}`,
     `Role: ${out.role ?? '(none)'}`,
     `Scope: ${out.ref_id ?? '(none)'}`,
     `Inputs: ${out.inputs.join(', ') || '(none)'}`,
     `Expected outputs: ${out.expected_outputs.join(', ') || '(none)'}`,
     `Stop condition: ${out.stop_condition}`,
     `Suggested model tier: ${out.suggested_tier ?? '(n/a)'}`,
-    `Suggested model id: ${out.suggested_model ?? '(unbound — no .aai/system/MODEL_ROUTING.yaml)'}`,
+    `Suggested model id: ${out.suggested_model ?? suggestedModelUnboundReason(out, routing)}`,
     `Suggested effort: ${out.suggested_effort ?? '(unset — no matching effort routing)'}`,
   ];
   if (out.validator_independence) {
-    lines.push(`Validator independence: implementer_model=${out.validator_independence.implementer_model ?? 'null'} (validator model must differ)`);
+    let vi = `Validator independence: implementer_model=${out.validator_independence.implementer_model ?? 'null'} (validator model must differ)`;
+    if (out.validator_independence.residual) {
+      vi += ` — residual: ${out.validator_independence.residual}`;
+    }
+    lines.push(vi);
   }
   if (typeof out.prompt_hash === 'string') {
     lines.push(`Prompt hash: ${shortHash(out.prompt_hash)} (informational — content-addressed identity of the effective instruction stack)`);
@@ -1307,6 +1495,7 @@ function main() {
   const statePath = path.resolve(process.cwd(), opts.state);
   const root = path.resolve(process.cwd(), opts.root);
   let out;
+  let routing = null;
   try {
     const { snapshot, problems, validationRunAtUtc } = buildSnapshot(statePath, root);
     if (problems.length > 0) {
@@ -1315,6 +1504,28 @@ function main() {
     } else {
       out = decide(snapshot);
       out.state_summary = snapshot;
+    }
+    // harness-universal-routing D6: detection runs ONCE per process, at this
+    // single resolution site, and is recorded with the verdict -- on
+    // dispatch, no_action AND needs_llm alike (unlike prompt_hash, which is
+    // dispatch-only because it hashes a role prompt a no-action tick does
+    // not have; harness is a property of the PROCESS, so every verdict can
+    // state it). This is what preserves the file's HARD no-mid-session-flip
+    // rule: nothing downstream re-detects.
+    //
+    // Corrected at remediation, BLOCKING-1 (validation-20260912T222805Z-
+    // B1-confirm-fallback-loses-harness): `detectHarness` is called exactly
+    // ONCE here into a local, but the stamp itself is APPLIED to whatever
+    // object ends up being the printed verdict -- including the --confirm
+    // record-failure fallback below, which builds a brand-new `decide()`
+    // result and used to replace `out` wholesale (`out = fallback`) without
+    // ever re-stamping it. `harness` (and the out-of-set NOTE) must be
+    // re-applied after every such replacement, never re-detected.
+    const harness = detectHarness(process.env);
+    out.harness = harness;
+    if (typeof process.env.AAI_HARNESS === 'string' && process.env.AAI_HARNESS !== ''
+        && !HARNESS_VALUES.includes(process.env.AAI_HARNESS)) {
+      console.error(`orchestration-dispatch: NOTE — AAI_HARNESS="${process.env.AAI_HARNESS}" is not one of ${HARNESS_VALUES.join('/')}; detectHarness() resolved "unknown"`);
     }
     // CHANGE-0120: --confirm records the rule-9x confirmation. Only that arm
     // ever sets confirm_event, so no other verdict can reach the writer.
@@ -1333,6 +1544,10 @@ function main() {
         fallback.state_summary = snapshot;
         fallback.confirm_recorded = false;
         fallback.reasons = [...fallback.reasons, 'confirm_record_failed_fallback_dispatch'];
+        // BLOCKING-1: re-stamp the SAME already-detected harness onto the
+        // replacement object -- `out` is about to point at `fallback`, not
+        // the object `out.harness` was set on a few lines above.
+        fallback.harness = harness;
         out = fallback;
       }
     }
@@ -1391,7 +1606,7 @@ function main() {
         + 'the recorded pass verdict\'s tree hash no longer matches the tracked tree'
       );
     }
-    const routing = loadModelRouting(root);
+    routing = loadModelRouting(root);
     out.suggested_model = suggestModel(out, routing);
     // Advisory reasoning-effort hint (cache-friendly-dispatch), resolved from
     // the SAME routing load; null when the file/field is absent (back-compat).
@@ -1410,7 +1625,7 @@ function main() {
     exit(1);
   }
   console.log(JSON.stringify(out));
-  if (opts.human) humanBlock(out);
+  if (opts.human) humanBlock(out, routing);
   exit(out.verdict === 'dispatch' ? 0 : out.verdict === 'no_action' ? 3 : 4);
 }
 

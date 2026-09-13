@@ -36,7 +36,7 @@ Each subagent call MUST specify all of the following:
 |---|---|
 | `ROLE` | Implementation \| Validation \| Planning \| Research |
 | `SCOPE` | Single file / module / requirement group — never overlapping with other subagents |
-| `MODEL` | REQUIRED (CHANGE-0010 D1) — an explicit model id (preferred, e.g. `claude-haiku-4-5`) or a tier (`mechanical \| standard \| premium`) when the platform maps tiers itself. Right-size per the MODEL SELECTION tiering in the orchestration prompts. For a Validation dispatch it MUST differ from the implementer's recorded model (see "Spawning a validator" below) |
+| `MODEL` | REQUIRED (CHANGE-0010 D1) — an explicit model id (preferred, e.g. `claude-haiku-4-5`) or a tier (`mechanical \| standard \| premium`) when the platform maps tiers itself. `.aai/system/MODEL_ROUTING.yaml` resolves the id inside the DETECTED harness's own map (harness-universal-routing; `.aai/scripts/lib/harness.mjs` `detectHarness()`) when the file is in Mode B — never a foreign harness's id. Right-size per the MODEL SELECTION tiering in the orchestration prompts. For a Validation dispatch it MUST differ from the implementer's recorded model (see "Spawning a validator" below) |
 | `INPUT` | All context the subagent needs — do NOT rely on inherited ambient state |
 | `EXPECTED_OUTPUT` | A result block (see `.aai/SUBAGENT_CONTRACT.md`) |
 | `SYSTEM_PROMPT` | The canonical role prompt from `ai/<ROLE>.prompt.md` |
@@ -123,6 +123,18 @@ model as its base id: same weights, same blind spots. Single-model environments
 record the reuse as a residual risk on the verdict. The mechanical backstop is
 `state.mjs set-validation --model <validator-model>` (warns by default; refuses
 the write under `independence: enforce` in docs/ai/docs-audit.yaml).
+
+Within-harness clause (harness-universal-routing D4): when `MODEL_ROUTING.yaml`
+is in Mode B (at least one `@<harness>` section), the replacement is resolved
+INSIDE the detected harness's own map only — first `tiers@<harness>` at or
+above the routed tier, then `validation_alternate@<harness>` — and NEVER an id
+from another harness's map (a Codex validator proposed a Claude id is worse
+than no swap, because the loop would act on it). When the detected harness's
+own map cannot supply a different id, the model is kept and the verdict's
+`validator_independence.residual` carries the literal token
+`single_model_harness_reuse` — the harness-scoped spelling of the single-model
+residual risk named above. Mode A (no `@<harness>` sections) keeps the
+single `validation_alternate` swap unchanged.
 
 Isolation tiers, resolved from the detected capabilities above, IN ORDER —
 attempt tier 1 first, fall through only when the tier's own precondition is
