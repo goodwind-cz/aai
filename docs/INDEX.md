@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-13T06:51:51.625Z
+Generated: 2026-09-13T07:04:28.424Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-telemetry-fields-not-prose | specs | implementing | 14 planned | docs/specs/SPEC-DRAFT-spec-telemetry-fields-not-prose.md |
 
 ## Canonical layer (0)
 
