@@ -2,13 +2,15 @@
 id: spec-harness-universal-routing
 type: spec
 number: 177
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0182-harness-universal-routing.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 08f3abc1
 ---
 
 # Spec — the dispatcher knows which harness it runs in, and routes models for that harness
