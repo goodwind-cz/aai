@@ -6,6 +6,7 @@
 # tests/skills/test-aai-prompt-diet.sh and tests/skills/test-aai-verify-gate.sh
 # can never drift from each other again (DEBT-0002 "two copies of one gate"
 # pattern; docs/knowledge/LEARNED.md 2026-07-17).
+#
 # This file is a PURE library: no `set -u`, no `cd`, no test execution. It is
 # only ever sourced, never run directly. bash-3.2 / Windows-Git-Bash safe: no
 # `bc`, no `mapfile`, no `declare -A`.
@@ -229,3 +230,4 @@ justified_growth_breach_suggestion() {
   local reduction=$1 required=$2
   local deficit=$(( required - reduction ))
   echo "JUSTIFIED_ADDITIONS+=( \"$deficit <REF-ID> <rationale>\" )"
+}
