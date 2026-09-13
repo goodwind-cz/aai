@@ -2265,3 +2265,4 @@
 {"v":1,"ts":"2026-09-13T01:29:41.887Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-harness-universal-routing","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-13T01:29:41.923Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-harness-universal-routing","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-13T01:29:41.956Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-harness-universal-routing","payload":{"commit":"08f3abc1"}}
+{"v":1,"ts":"2026-09-13T07:23:39.768Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-framework-sweep","payload":{"from":"draft","to":"implementing"}}
