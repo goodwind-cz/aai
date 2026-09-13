@@ -11,6 +11,24 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — chore(roadmap): wave 3 — subsystem sweeps under the owner's "resolve everything" mandate
+
+- **Roadmap re-cut as seven subsystem sweeps** (telemetry fields, test
+  framework, dispatch/state, close ceremony, ref-guard + sync, friction
+  channel, canon as artifact + mutation gate). One ride closes a whole
+  registry bucket instead of one item; every item ends fixed-with-a-test or
+  rejected-with-a-reason in the ledger. The 1:1 shape and `ride-select` are
+  unchanged; each sweep is the capability of a pair.
+- **Two `hitl_decision` records**: the one-off owner merge of PR #376
+  (capability ride, CI green on the final head), and the wave-3 mandate
+  ("bez ohledu na limity") extending the standing merge authorization to
+  internal sweep rides; `update-installs-ref-guard-undisclosed` stays
+  owner-merged.
+- **24 machine-clustered `P2 backlog cluster` ISSUE drafts superseded**: they
+  index the follow-up registry, they are not work; the items keep their own
+  records and are closed by the sweeps that own them.
+- Session record: `docs/project-sessions/2026-09-13-wave-3-subsystem-sweeps.md`.
+
 ## [unreleased] — feat(routing): the dispatcher knows its harness, and MODEL_ROUTING binds tiers per harness
 
 - **Every dispatch verdict carries `harness`** (`claude` / `codex` / `gemini` /
