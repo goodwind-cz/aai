@@ -1442,7 +1442,7 @@ test_063_large_stderr_does_not_lose_exit_status() {
 test_009_profiles() {
   log_info "Test: new .aai files classified; layer-profiles green (TEST-009)..."
   local out code; out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
-  [ "$code" = "0" ] || log_fail "TEST-009: layer-profiles must pass: $(printf '%s' "$out" | grep -n "FAIL\|MISSING\|Only in\|^[<>+-]" | head -40)"
+  [ "$code" = "0" ] || log_fail "TEST-009: layer-profiles must pass: $(printf '%s' "$out" | grep -n -A40 "FAIL" | head -60)"
   log_pass "new .aai files classified; layer-profiles green (TEST-009)"
 }
 
