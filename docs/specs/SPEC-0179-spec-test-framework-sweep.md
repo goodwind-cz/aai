@@ -1585,3 +1585,19 @@ there too, just with a different number).
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: test-framework-sweep`, `--signoff none`.
 
+### Round 10 addendum 3 — the probe input is a file, not an argument
+
+CI run 34816988475 on f3013dd8: the shell-pipe probe passed its ~140 KiB
+input as one `printf` argument and hit Linux's 128 KiB per-argument cap
+(`E2BIG`), so CAT-17 was again "could not be behaviourally verified". The
+probe now writes the input (main-ref line plus ~100 KiB of padding refs) to a
+temp file and hands that file to the hook as its stdin — no writer to break,
+no argument to cap, no race on any platform; the temp dir is removed on every
+path. One launcher list serves POSIX (exec the hook) and Windows (`sh`/`bash`
+interpreter). TEST-040 unchanged; the `input:`-write shape reddens fixtures 2
+and 4 three times out of three on macOS (observed). The real repository's
+armed hook still probes PASS.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: test-framework-sweep`, `--signoff none`.
+
