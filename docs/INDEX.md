@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-17T20:59:51.473Z
+Generated: 2026-09-18T12:02:27.483Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -485,7 +485,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (20)
+## Drafts (21)
 
 | ID | Type | Path |
 |---|---|---|
@@ -509,6 +509,7 @@ _None._
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0047 | issues | docs/issues/ISSUE-0047-agents-tree-not-synced.md |
 | ISSUE-0083 | issues | docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md |
+| polydao-graph-loop-ideas-for-aai (unnumbered draft) | specs | docs/specs/RES-DRAFT-polydao-graph-loop-ideas-for-aai.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -562,4 +563,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-17 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-18 — counts above use this date for overdue checks.
