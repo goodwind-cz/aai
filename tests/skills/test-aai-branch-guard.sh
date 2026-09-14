@@ -906,8 +906,17 @@ test_453() {
   # -A1 context: close-work-item.mjs's own invocation line-continues onto the
   # next line, so the flag is checked in a 2-line window rather than requiring
   # both on one grep line (portable across BSD/GNU grep, no -P/-z).
-  grep -A1 -- 'check-committed-scope.mjs --from-state --strict --rev HEAD' "$pr_doc" | grep -q -- '--expect-branch' \
-    || log_fail "SKILL_PR.prompt.md step 4a must pass --expect-branch to check-committed-scope.mjs"
+  #
+  # F-2 REMAINDER (validation round 5): 4a's command sits on ONE line, with
+  # `--expect-branch <branch>` at its end — the very next line is PROSE that
+  # explains the flag ("`--expect-branch` re-checks step 0's pin…") and also
+  # contains the literal substring "--expect-branch". An -A1 window here
+  # would still pass with the flag deleted from the command line, because the
+  # prose line satisfies the inner grep on its own — vacuous. Anchor on the
+  # COMMAND LINE ITSELF (one grep, no window) so only the actual invocation
+  # can satisfy it.
+  grep -qF -- 'check-committed-scope.mjs --from-state --strict --rev HEAD --expect-branch' "$pr_doc" \
+    || log_fail "SKILL_PR.prompt.md step 4a must pass --expect-branch to check-committed-scope.mjs (on the command line itself, not adjacent prose)"
   grep -A1 -- 'close-work-item.mjs --ref <slug> --pr' "$pr_doc" | grep -q -- '--expect-branch' \
     || log_fail "SKILL_PR.prompt.md step 4c must pass --expect-branch to close-work-item.mjs"
   grep -- 'close-before-push-guard.mjs --ref <slug> --expect-branch' "$pr_doc" >/dev/null \
@@ -1030,7 +1039,93 @@ EOF
   log_pass "pin -> the ceremony's own commit -> all three --expect-branch call sites pass; a genuine concurrent reset afterward still refuses at each, with its documented code"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 405 406 407 408 450 451 452 453 454"
+# --- TEST-455 — the NB-3 branch COMPARE itself is crossing-tested: a pin on
+#     branch A, staying on A, but naming a DIFFERENT --expect-branch must
+#     refuse (validation round 5 BLOCKING-1: `wantBranch = expectBranch ||
+#     pin.branch` reverted to `= pin.branch` left the WHOLE suite green,
+#     because every OTHER --expect-branch in this file names the SAME branch
+#     it pinned — TEST-451's `feat/ceremony` on a non-repo fixture never
+#     reaches the compare either, code 4 exits first) -----------------------
+test_455() {
+  log_info "TEST-455: --expect-branch naming a branch OTHER than the pin's own must refuse, not silently pass on pin.branch..."
+  local repo; repo="$(make_repo t455)"
+
+  # feat/a and feat/b are SIBLINGS off the same init commit — neither is an
+  # ancestor of the other, so the advance-only sha arm (TEST-454) cannot
+  # rescue a mismatch here; this arm is about the BRANCH compare itself.
+  ( cd "$repo" && git checkout -qb feat/a \
+      && echo a > a.txt && git add a.txt \
+      && git -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -q -m "on feat/a" ) \
+    || log_fail "fixture setup: could not create/commit feat/a"
+  ( cd "$repo" && git checkout -q main \
+      && git checkout -qb feat/b \
+      && echo b > b.txt && git add b.txt \
+      && git -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -q -m "on feat/b" \
+      && git checkout -q feat/a ) \
+    || log_fail "fixture setup: could not create/commit feat/b, or return to feat/a"
+
+  # step 0 — the pin is taken ON feat/a.
+  run_guard "$repo" --pin
+  [[ "$RC" -eq 0 ]] || log_fail "step 0 --pin on feat/a must exit 0 (got $RC; stderr: $ERR)"
+
+  # --- arm 1 (dispatch): STAY on feat/a (the pinned branch); name a
+  #     DIFFERENT, EXISTING branch as --expect-branch. Correct behaviour
+  #     refuses, naming feat/a as the ACTUAL branch. Under M-2
+  #     (`wantBranch = pin.branch`, ignoring the argument entirely),
+  #     `pin.branch` IS "feat/a" — the branch HEAD is genuinely still on — so
+  #     the check would wrongly report ok, at all three call sites.
+  local out rc
+  out="$(run_out "$repo" node "$CCS_SCRIPT" --from-state --strict --rev HEAD --expect-branch feat/b 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "check-committed-scope.mjs: staying on the pinned branch feat/a but naming --expect-branch feat/b must refuse (exit 3; got $rc; output: $out)"
+  assert_payload_contains "$out" 'actual branch "feat/a"' \
+    "check-committed-scope.mjs must name the ACTUAL branch (feat/a) in its refusal, not silently accept pin.branch"
+
+  out="$(run_out "$repo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch feat/b 2>&1)"; rc=$?
+  [[ "$rc" -eq 7 ]] || log_fail "close-work-item.mjs: staying on the pinned branch feat/a but naming --expect-branch feat/b must refuse (exit 7; got $rc; output: $out)"
+  assert_payload_contains "$out" 'actual branch "feat/a"' \
+    "close-work-item.mjs must name the ACTUAL branch (feat/a) in its refusal, not silently accept pin.branch"
+
+  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch feat/b 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "close-before-push-guard.mjs: staying on the pinned branch feat/a but naming --expect-branch feat/b must refuse (exit 3; got $rc; output: $out)"
+  assert_payload_contains "$out" 'actual branch "feat/a"' \
+    "close-before-push-guard.mjs must name the ACTUAL branch (feat/a) in its refusal, not silently accept pin.branch"
+
+  # A NONEXISTENT --expect-branch name must refuse too, with the code-6
+  # "renamed or removed" wording (the exit code stays each script's own
+  # documented 3/7/3 — only the message distinguishes cause 6 from cause 7).
+  out="$(run_out "$repo" node "$CCS_SCRIPT" --from-state --strict --rev HEAD --expect-branch zzz-does-not-exist 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "check-committed-scope.mjs: a nonexistent --expect-branch name must refuse (exit 3; got $rc; output: $out)"
+  assert_payload_contains "$out" 'was renamed or removed' \
+    "check-committed-scope.mjs must use the renamed/removed wording for a nonexistent --expect-branch name"
+
+  # --- arm 2 (dispatch): SWITCH to feat/b (a real, existing, DIVERGED
+  #     branch) and name --expect-branch feat/b — the branch NAME now
+  #     matches HEAD, but the pin was taken on feat/a at a DIFFERENT,
+  #     non-ancestor sha ("the pin says a"). Must still refuse: a matching
+  #     branch NAME is not enough, the pin's own sha still governs, and the
+  #     refusal must cite that pin sha — proving the compare is "does HEAD
+  #     still match what was PINNED", not merely "did HEAD reach
+  #     expectBranch".
+  ( cd "$repo" && git checkout -q feat/b ) \
+    || log_fail "fixture setup: could not switch to feat/b for arm 2"
+  local pin_sha
+  pin_sha="$(git -C "$repo" rev-parse feat/a)"
+
+  out="$(run_out "$repo" node "$CCS_SCRIPT" --from-state --strict --rev HEAD --expect-branch feat/b 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "check-committed-scope.mjs: pinned on feat/a but now on feat/b (even naming --expect-branch feat/b) must refuse — the pin says feat/a's sha (exit 3; got $rc; output: $out)"
+  assert_payload_contains "$out" "$pin_sha" \
+    "check-committed-scope.mjs's refusal must cite the PIN's own sha ($pin_sha), not just a branch-name match"
+
+  out="$(run_out "$repo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch feat/b 2>&1)"; rc=$?
+  [[ "$rc" -eq 7 ]] || log_fail "close-work-item.mjs: pinned on feat/a but now on feat/b must refuse (exit 7; got $rc; output: $out)"
+
+  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch feat/b 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "close-before-push-guard.mjs: pinned on feat/a but now on feat/b must refuse (exit 3; got $rc; output: $out)"
+
+  log_pass "a --expect-branch naming a DIFFERENT branch than the pin's own refuses at all three call sites, whether HEAD stayed on the pinned branch or moved to the named one — the NB-3 compare crossing is proven, not merely wired"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 405 406 407 408 450 451 452 453 454 455"
 
 main() {
   echo "Testing $TEST_NAME (deterministic branch-per-work-item hygiene guard)"

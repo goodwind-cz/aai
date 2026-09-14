@@ -206,6 +206,47 @@ ugrep in the authoring shell, and zsh rewrites `$r:tests/...`).
 
 - **2026-09-14, orchestrator ledger repair (after merging main at PR #379):** the AC-26 closure had dropped five owner sign-off trackers (`fu-amend-live-agent-dashboard-ser-e1ff12`, `fu-amend-roadmap-driven-ride-sele-1e2448`, `fu-amend-lessons-that-must-hold-d-13bccc`, `fu-amend-friction-publish-hides-r-b86049`, `fu-amend-spec-harness-universal-routing`) as "owner sign-off backlog". A sign-off item is not a test-framework item, and dropping its tracker left thirteen unsigned amendment records with no OPEN item, which the ledger-derived TEST-009 of `test-aai-spec-amend.sh` (merged in PR #379) reports. Repair, append-only: five re-track items (`fu-amend-live-agent-dashboard-retrack`, `fu-amend-roadmap-driven-ride-retrack`, `fu-amend-lessons-must-hold-retrack`, `fu-amend-friction-publish-hides-retrack`, `fu-amend-harness-universal-retrack`) and one `classify --signoff none --tracked-by` overlay per record. The five dropped ids stay terminal (TEST-443 and the row-count pin are unchanged); the rejected-items table row for each now says "re-tracked, not a framework item".
 
+- **2026-09-14, remediation round 4 correction of the above (validation round 5
+  BLOCKING-2):** the retrack repair did not do what it claimed. `spec-amend.mjs`'s
+  own documented precedence (`:336-339`, "the record's OWN tracked_by wins; an
+  overlay must not be able to re-point a live record's item") means an overlay
+  can NEVER re-point a record's inline `tracked_by` — and 12 of the 13 affected
+  records carried one, pointing straight at the now-dropped original id. Only
+  the one record with no inline `tracked_by` (`2026-09-12T12:50:00Z`,
+  `friction-publish-hides-required-followup`) actually picked up its overlay.
+  Measured: `spec-amend.mjs list --status unsigned --json` showed the retrack
+  ids' `-retrack` ids present in `follow-ups.mjs list --status open` (the
+  governance surface an owner actually reads), while 12 of 13 unsigned records
+  still resolved to a DROPPED tracker — the repair turned a red governance gate
+  green on a description substring TEST-009 matched, not on a genuinely open
+  item. The real fix, added this round: `follow-ups.mjs reopen` (new
+  subcommand, `test-aai-follow-ups.sh` TEST-456) appends a `status: open`
+  `follow_up_status` record — the counterpart `close` never had
+  (`fu-registry-has-no-reopen`, closed here: it is owned by another sweep's
+  bucket, but this ride happened to deliver the mechanism it asked for while
+  fixing its own mistake). The five ORIGINAL ids are reopened with that
+  command (reason: "dropped in error by test-framework-sweep AC-26: an owner
+  sign-off item is not a framework item"), the five `-retrack` items are
+  dropped as duplicates, and the one orphan record's overlay is re-pointed
+  (`spec-amend.mjs classify --tracked-by`) at the reopened original. The five
+  ids are REMOVED from `## Registry items rejected by this scope` entirely
+  (see that section) rather than re-added under any status: they were never
+  this scope's items to close. `spec-amend.mjs list --status unsigned --json`
+  now shows all 13 affected records' `tracked_by` resolving to an OPEN item
+  (13/13, measured), and `follow-ups.mjs list --status open` shows the five
+  ORIGINAL ids, not the retracks. Re-verifying with the corrected TEST-009
+  (id-token match, not a description substring) surfaced a SIXTH instance of
+  the identical mistake, outside the five the validator named:
+  `fu-amend-friction-upsert-channel-ba7701` (spec
+  `friction-upsert-channel-cannot-file`) was dropped by this scope's AC-26
+  closure with the same "owner sign-off backlog" rationale and had no
+  re-track attempt at all — its own six unsigned records were masked by the
+  same substring bug, this time via an UNRELATED open item
+  (`fu-factory-report-stale-draft-path`) that merely quotes the dropped id in
+  its own finding text. Fixed the same way (reopened, removed from the
+  rejected table) rather than left for a seventh round: the bucket total is
+  therefore 78 (48 + 30), not 79. See `## Amendment` for the full record.
+
 ## Decisions
 
 ### D1 — A sweep partitions its whole bucket; nothing is deferred
@@ -402,7 +443,7 @@ None.
 |------------|-------------|--------|----------|-----------|-------|
 | Spec-AC-01 | The layer-profiles fixture build SHALL check every `cp -R` it issues, SHALL compare the file set it produced against the file set it copied from, and SHALL exit non-zero naming every path that is missing, before any assertion runs. | planned | — | — | fu-layer-profiles-fixture-build-race |
 | Spec-AC-02 | WHEN the core sync emits a line matching `missing in source` the suite SHALL fail naming that line rather than discard it to `/dev/null`, and WHEN an assertion fires on a payload that renders as zero visible lines it SHALL dump that payload byte for byte instead of printing an empty list. | planned | — | — | fu-layer-profiles-suite-load-fragile; the CI failure of run 34737181188 printed an EMPTY missing-file list, which no incomplete copy can produce |
-| Spec-AC-03 | WHEN a ceremony has pinned its HEAD and the branch or the HEAD sha differs at a later write step, that step SHALL exit non-zero naming the expected and the actual value, and SHALL name detached HEAD, a renamed branch and a concurrent session as three distinct causes. | planned | — | — | CHANGE-0180 AC-001 to AC-003, fu-head-moved-between-commands |
+| Spec-AC-03 | WHEN a ceremony has pinned its HEAD and the branch or the HEAD sha differs at a later write step, that step SHALL exit non-zero naming the expected and the actual value, and SHALL name detached HEAD, a renamed branch and a concurrent session as three distinct causes. | planned | — | — | CHANGE-0180 AC-001 to AC-003, fu-head-moved-between-commands; residual R6 (validation round 5 F-A, see `## Amendment` and R6 above): the advance-only sha arm cannot tell the ceremony's own forward commit from a concurrent session's forward commit on the same branch — D5's session lock (Spec-AC-05) is the actual control for that case, not this check |
 | Spec-AC-04 | WHEN no pin file exists, `--verify-pin` and every re-check call site SHALL exit 0 without reading git, and the stdout and exit code of each ceremony script SHALL be byte-identical to the pre-change script on the same fixture. | planned | — | — | CHANGE-0180 AC-004; remediation (validation round 1 BLOCKING-1/2, see `## Amendment`): `pinDir()` forked `git rev-parse --git-dir` even on the no-pin path — measured with a git shim, one subprocess on a no-pin fixture, contradicting D4's "costs one stat". A `pinDirFast()` fs-stat-only resolver (handling a main checkout's `.git` directory and a linked worktree's `.git` file, falling back to the git subprocess for anything else) now makes the no-pin path genuinely zero-subprocess, re-verified with the same shim. TEST-408's baseline also moved from `git show HEAD:` (already the POST-change script, an identity check) to `git show origin/main:` (or `main`, fail-closed if neither resolves) — the genuine pre-change blob |
 | Spec-AC-05 | WHEN a second process acquires the per-worktree session lock while the holder pid is alive, the acquire SHALL exit 3 naming the holding pid and worktree, and WHEN the holder pid is gone the lock SHALL be reclaimed and the acquire SHALL exit 0. | planned | — | — | CHANGE-0180 scope half two, fu-learned-worktree-seeded-copies |
 | Spec-AC-06 | WHEN the sweep runs at a width above 1 a free slot SHALL start the next suite without waiting for its concurrently-running siblings, and the measured wall-clock of a full local sweep SHALL be at most 65 percent of the 1632 s recorded for run test-20260913-040817 at the same width, with a per-suite verdict set identical to a width-1 run. | planned | — | — | CHANGE-0166 AC-001 |
@@ -425,7 +466,7 @@ None.
 | Spec-AC-23 | WHEN `AAI_REAP_STEP_START_EPOCH` is exported into the test command's environment, `tests/skills/test-aai-run-tests.sh` SHALL pass, in 5 consecutive runs. | planned | — | — | fu-reaper-epoch-export-fails-test005 |
 | Spec-AC-24 | WHEN the working tree carries a document that `docs/INDEX.md` does not yet list, `tests/skills/test-aai-docs-audit.sh` and `tests/skills/test-aai-delta-stage3.sh` SHALL both pass. | planned | — | — | fu-docsaudit-t003-red-on-new-doc |
 | Spec-AC-25 | `tests/skills/test-aai-orchestration-dispatch.sh` TEST-056 SHALL resolve routed ids through the shipped routing parser rather than its own copy, and a change to that parser's row shape SHALL be visible to the test. | planned | — | — | fu-test056-duplicates-routing-parser |
-| Spec-AC-26 | Every one of the 84 bucket ids SHALL be terminal in the ledger, the 48 as `done` with `resolved_by` naming this ride and the 36 as `dropped`, each with the recorded reason present on its `follow_up_status` record, `follow-ups.mjs verify-closures --path <this spec> --strict` SHALL exit 0 over the 48 claims its parser reads from the closed-by-this-scope heading, and the prompt-diet ledger entry, the TEST-012 pin, the `PROFILES.yaml` classification of the new `.aai` file and the `suite-map.yaml` row plus row-count pin for the one new suite SHALL all be present. | planned | — | — | the partition itself plus the two companion obligations; the parser reads exactly 48 claims from that heading today, measured; CORRECTED at remediation (validation round 1 BLOCKING-12/13, see `## Amendment`) — the original text said the reason lives ON `resolved_by`, but `follow-ups.mjs`'s own established, repo-wide ledger grammar (every dropped record, not only this ride's) puts the RIDE REF in `resolved_by` and the reason in `source` (`close --resolved-by <ref> --source "<reason>" --status dropped`); rewriting 36 append-only records to match the ORIGINAL wording would be the more expensive, less truthful fix, so the wording here now matches the ledger's actual, established grammar instead. The row-count pin did not exist (`test-aai-hygiene-pack.sh` `test_090_suite_map_pin` was an existence check, not a count) and is now written: a top-level-row count over `suite-map.yaml`, pinned at 93 |
+| Spec-AC-26 | Every one of the 78 bucket ids SHALL be terminal in the ledger, the 48 as `done` with `resolved_by` naming this ride and the 30 as `dropped`, each with the recorded reason present on its `follow_up_status` record, `follow-ups.mjs verify-closures --path <this spec> --strict` SHALL exit 0 over the 48 claims its parser reads from the closed-by-this-scope heading, and the prompt-diet ledger entry, the TEST-012 pin, the `PROFILES.yaml` classification of the new `.aai` file and the `suite-map.yaml` row plus row-count pin for the one new suite SHALL all be present. | planned | — | — | the partition itself plus the two companion obligations; the parser reads exactly 48 claims from that heading today, measured; CORRECTED at remediation (validation round 1 BLOCKING-12/13, see `## Amendment`) — the original text said the reason lives ON `resolved_by`, but `follow-ups.mjs`'s own established, repo-wide ledger grammar (every dropped record, not only this ride's) puts the RIDE REF in `resolved_by` and the reason in `source` (`close --resolved-by <ref> --source "<reason>" --status dropped`); rewriting 36 append-only records to match the ORIGINAL wording would be the more expensive, less truthful fix, so the wording here now matches the ledger's actual, established grammar instead. The row-count pin did not exist (`test-aai-hygiene-pack.sh` `test_090_suite_map_pin` was an existence check, not a count) and is now written: a top-level-row count over `suite-map.yaml`, pinned at 93. CORRECTED AGAIN at remediation (validation round 5 BLOCKING-2, see `## Amendment`): the bucket was 84 (48 closed + 36 rejected) at freeze; SIX owner sign-off trackers for OTHER specs were mistakenly swept into the rejected 36 (five named by the validator, a sixth found while re-verifying the fix under the corrected TEST-009) and, after a failed re-track attempt for the first five (2026-09-14 orchestrator ledger repair, itself corrected here), are REMOVED from this scope's bucket entirely (reopened under their original ids instead) rather than closed under any status — the bucket this scope actually owns is 78 (48 + 30), and TEST-443 plus its frozen-id-list pin move with it |
 | Spec-AC-27 | `docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md` SHALL carry the measured before and after wall-clock, a terminal frontmatter status and its delivering PRs, and `docs-audit.mjs --check --strict` over it SHALL be CLEAN. | planned | — | — | the paired maintenance half; its work shipped in PR #307 and its doc is still a draft |
 | Spec-AC-28 | WHEN a suite that nests another suite fails, the nested output SHALL be written to a file that the failure message names together with its line count, so the framework's own whole-log failure-line extraction shows more than the first line of it. | planned | — | — | fu-nested-profiles-hides-missing-list; the `tail -3` half was already delivered by commit 02455b73 and the residual is the single-argument rendering |
 
@@ -497,7 +538,7 @@ Test ids are allocated from the TEST-4xx band, which is unused anywhere in `test
 | TEST-440 | Spec-AC-23 | integration | tests/skills/test-aai-run-tests.sh | With `AAI_REAP_STEP_START_EPOCH` exported into the test command's environment, the reaper arm passes. | green |
 | TEST-441 | Spec-AC-24 | integration | tests/skills/test-aai-docs-audit.sh | With a document present in the working tree and absent from the committed `docs/INDEX.md`, the arm passes, and it still fails when the generator's own output is inconsistent. | green |
 | TEST-442 | Spec-AC-25 | integration | tests/skills/test-aai-orchestration-dispatch.sh | The PRICING sweep resolves routed ids through the shipped parser, and a row-shape change made in a fixture routing file is seen identically by the test and the engine. | green |
-| TEST-443 | Spec-AC-26 | integration | tests/skills/test-aai-follow-ups.sh | `verify-closures --path <this spec> --strict` exits 0, every bucket id is terminal with `resolved_by` naming this ride, and the union of the closed and rejected tables is exactly the 84 frozen ids. | green |
+| TEST-443 | Spec-AC-26 | integration | tests/skills/test-aai-follow-ups.sh | `verify-closures --path <this spec> --strict` exits 0, every bucket id is terminal with `resolved_by` naming this ride, and the union of the closed and rejected tables is exactly the 78 frozen ids (84 at freeze, corrected at remediation — validation round 5 BLOCKING-2, see `## Amendment`). | green |
 | TEST-444 | Spec-AC-27 | integration | tests/skills/test-aai-docs-audit.sh | `docs-audit --check --strict` over CHANGE-0166 is CLEAN and its frontmatter status is terminal with a PR link. | green |
 
 Every Spec-AC has at least one TEST row and every TEST row names exactly one Spec-AC.
@@ -584,6 +625,7 @@ Residual risks, written down because no automated test crosses them:
 - **R3 — the after-numbers for the scheduler are modelled**, over the recorded per-suite durations of one run. They ignore disk contention from concurrent `git clone --local --no-hardlinks`, which is the stated reason the width is capped at 8. Spec-AC-06 is written against a MEASURED run, not against the model, and the model is only the reason to attempt it.
 - **R4 — the rolling attribution window is more code than the barrier it replaces.** Corrected at remediation (validation round 1 BLOCKING-4; see `## Amendment`): the per-completion check design structurally bounds the window at `PARALLEL_WIDTH`, not 2x — TEST-413's own 4-suite/writer-in-initial-batch fixture can never approach the 2x-width truncation, so the original claim that "its bound is asserted by TEST-413 at twice the width" was false as written; the truncation at `:1800-1802` was dead code on every real run. TEST-413 now carries a genuine negative control (a 10-suite/width-2/late-writer fixture, run against both the shipped framework and a scratch copy with the reset and the truncation both removed) that reddens exactly the mutation the validator demonstrated, proving the safety net is load-bearing as defense-in-depth even though normal operation never reaches it. A bug inside the rolling window would still degrade attribution, which is the property this scope claims to preserve — this is still the single largest implementation risk in the sweep and the one review should read first.
 - **R5 — 202 assertion rewrites is the largest mechanical surface here**, and 48 of them need judgement. The anchored-regex trap is named in the plan because a wrong rewrite is green.
+- **R6 — the advance-only sha arm (validation round 4 BLOCKING-1's fix, see `## Amendment`) cannot distinguish the ceremony's OWN forward commit from a CONCURRENT session's forward commit on the SAME branch.** Measured at remediation round 5: pin at a sha, then a DIFFERENT committer commits in the same checkout — the resulting HEAD is a git-ancestor descendant of the pin exactly the same way the ceremony's own next commit would be, so `check-committed-scope.mjs` and `close-before-push-guard.mjs` both read it as "the ceremony's own write" and exit 0; only bare `--verify-pin` (exact-sha, no advance-only tolerance) still refuses. That is the 2026-09-06 incident shape CHANGE-0180 exists to catch, reopened by the very fix that closed BLOCKING-1. This is a deliberate, defensible trade, not an oversight: the amendment's own wording ("is read as the ceremony's own commit, not a concurrent move") overstated what a sha-ancestry check alone can know, and D5's session lock (Spec-AC-05, `session-lock.mjs`) is the ACTUAL control for a shared checkout — it refuses a second live session in the same worktree before either one can commit, which is where this residual is actually closed, not in the branch-guard sha compare. Named in Spec-AC-03's Notes column.
 
 ## Verification
 
@@ -608,7 +650,7 @@ Strategy row (tdd): a stored RED artifact per AC-gating test plus the full verif
 
 ## Registry items closed by this scope
 
-48 of the 84 bucket ids, each mapped to the Spec-AC above that fixes it and to a TEST row with a named mutation. Closed with
+48 of the 78 bucket ids (84 at freeze, corrected at remediation — validation round 5 BLOCKING-2, see `## Amendment`), each mapped to the Spec-AC above that fixes it and to a TEST row with a named mutation. Closed with
 `node .aai/scripts/follow-ups.mjs close --id <id> --resolved-by test-framework-sweep --source <sha>`.
 
 - Spec-AC-01: fu-layer-profiles-fixture-build-race
@@ -636,7 +678,10 @@ Strategy row (tdd): a stored RED artifact per AC-gating test plus the full verif
 
 ## Registry items rejected by this scope
 
-36 of the 84 bucket ids, each closed with the same command plus `--status dropped
+30 of the 78 bucket ids (36 of 84 at freeze; six removed at remediation —
+validation round 5 BLOCKING-2, see `## Amendment` — rather than rejected,
+because they were owner sign-off items for OTHER specs that never belonged
+in this scope's bucket), each closed with the same command plus `--status dropped
 --resolved-by test-framework-sweep --source "<the reason below>"`. Corrected at
 remediation (validation round 1 BLOCKING-12, see `## Amendment`): the ORIGINAL text
 here claimed the reason goes into `--resolved-by`, citing the CLI's own header-comment
@@ -685,12 +730,30 @@ heading as a claim of `done`.
 | fu-friction-scoring-rewards-recurrence | wrong subsystem: friction triage scoring, sweep 6 |
 | fu-specs-embed-developer-local-paths | wrong subsystem: a docs hygiene sweep over merged specs, sweep 4; this spec avoids adding a twenty-fifth instance |
 | fu-spec-evidence-cites-gitignored-path | claim narrowed (code review NB-14, corrected via `follow-ups.mjs close --correct`): the original reason overclaimed ("no spec in the repository cites a gitignored evidence path today") — gitignored evidence citation is a common house style for AC evidence across many specs, not a residual (validation round 4 F-6: the exact count is extraction-method-sensitive — three independent measurements this ride produced three different pairs, from ~16% to ~82%, depending on which path forms and cells are scanned — so no specific digit is asserted here as fact; `docs/ai/decisions.jsonl:917`'s own "470 of 575 … 842 of 1193 … 120 specs" figures are unreproducible without the record naming its extraction, and the record cannot be edited — append-only). The narrower, true claim stands regardless of the exact count: the spec that prompted this item no longer cites its own evidence in the shape originally described |
-| fu-amend-friction-upsert-channel-ba7701 | owner sign-off backlog: only the owner can discharge an amendment sign-off |
-| fu-amend-live-agent-dashboard-ser-e1ff12 | re-tracked, not a framework item (see Amendment 2026-09-14) |
-| fu-amend-roadmap-driven-ride-sele-1e2448 | re-tracked, not a framework item (see Amendment 2026-09-14) |
-| fu-amend-lessons-that-must-hold-d-13bccc | re-tracked, not a framework item (see Amendment 2026-09-14) |
-| fu-amend-friction-publish-hides-r-b86049 | re-tracked, not a framework item (see Amendment 2026-09-14) |
-| fu-amend-spec-harness-universal-routing | re-tracked, not a framework item (see Amendment 2026-09-14) |
+REMOVED at remediation (validation round 5 BLOCKING-2, see `## Amendment`):
+`fu-amend-live-agent-dashboard-ser-e1ff12`, `fu-amend-roadmap-driven-ride-sele-1e2448`,
+`fu-amend-lessons-that-must-hold-d-13bccc`, `fu-amend-friction-publish-hides-r-b86049`,
+`fu-amend-spec-harness-universal-routing` and `fu-amend-friction-upsert-channel-ba7701`
+— the first five ids this table listed as "re-tracked, not a framework item"
+(Amendment 2026-09-14) after the 2026-09-14 orchestrator ledger repair, plus a
+SIXTH found while re-verifying the fix (same row, same rationale, listed just
+above this note in every version of this table before this edit: "owner
+sign-off backlog: only the owner can discharge an amendment sign-off"). That
+repair's mechanism did not do what it claimed
+(`spec-amend.mjs`'s own documented precedence, `:336-339`, means an overlay can
+never re-point a record's INLINE `tracked_by`, so 12 of the 13 affected records
+kept resolving to the dropped original regardless of the new retrack items).
+The actual fix is not a re-track at all: these six are owner sign-off items
+for OTHER specs that this scope's AC-26 closure should never have swept into
+its own bucket in the first place, so they are REOPENED under their ORIGINAL
+ids (`follow-ups.mjs reopen`, which this round adds) rather than closed here
+under any status, and the five interim `*-retrack` items (the sixth, ba7701,
+was never re-tracked — it was simply dropped and masked by TEST-009's
+substring bug) are dropped as duplicates. They therefore no longer belong in
+this table (or in the closed table): this scope's own bucket total drops from
+84 to 78 (48 closed + 30
+rejected), and TEST-443 (`test-aai-follow-ups.sh`) and its row-count pin are
+updated to match.
 
 ## GitHub issues
 
@@ -938,3 +1001,93 @@ amendment in this repository's history).
   concurrent reset to an older, non-descendant commit on the same branch
   still refuses at each, with its documented code. Exits 5/6/7 stay the
   three named causes AC-03 requires; exit 4 (no-work-tree) is unchanged.
+- **AC-03 / NB-3 crossing test (validation round 5 BLOCKING-1).** The
+  amendment above closed the NB-3 behaviour but shipped no test that could
+  tell `wantBranch = expectBranch || pin.branch` (`branch-guard.mjs:494`)
+  apart from a one-line revert to `wantBranch = pin.branch`: every
+  `--expect-branch` in the whole corpus named the SAME branch the fixture
+  pinned, so the argument's VALUE was never exercised, only its presence.
+  `test-aai-branch-guard.sh` TEST-455 crosses it: pin on branch A, stay on A,
+  call each of the three ceremony sites with `--expect-branch B` (a
+  different, existing, sibling branch — neither an ancestor of the other, so
+  the advance-only sha arm cannot rescue a mismatch here) — each refuses,
+  naming A as the actual branch, at its own documented code (3/7/3); the
+  same fixture with a NONEXISTENT `--expect-branch` name refuses with the
+  code-6 "renamed or removed" wording. A second arm switches to B and names
+  `--expect-branch B` — the branch NAME now matches HEAD, but the pin was
+  taken on A at a different, non-ancestor sha — and still refuses, citing
+  the pin's own sha. Verified reddening under the `wantBranch = pin.branch`
+  mutation (all three call sites in the first arm wrongly report ok).
+  Separately, F-2's remainder (validation round 4 partial close) is also
+  closed this round: `SKILL_PR.prompt.md` step 4a's per-step grep used an
+  `-A1` window whose second line is PROSE ("`--expect-branch` re-checks step
+  0's pin…") that itself contains the substring `--expect-branch`, so
+  deleting the flag from the command line alone left the assertion green.
+  TEST-453's 4a arm now anchors on the command line itself (`grep -qF` on
+  the full `check-committed-scope.mjs --from-state --strict --rev HEAD
+  --expect-branch` string, no window) and reddens correctly when only the
+  command-line flag is removed.
+- **AC-26 ledger repair, corrected (validation round 5 BLOCKING-2).** The
+  2026-09-14 orchestrator ledger repair recorded above did not achieve what
+  it claimed: `spec-amend.mjs`'s own documented precedence (a record's
+  inline `tracked_by` always wins over an overlay's) meant the five new
+  retrack items and their `classify --tracked-by` overlays were inert for 12
+  of the 13 affected unsigned amendment records, which kept resolving to the
+  now-dropped original tracker. The apparent fix (TEST-009 going green) was
+  a description-substring match, not a genuinely open item — measured via a
+  pre/post truncated-ledger probe by validation round 5. The real repair,
+  this round: `follow-ups.mjs reopen --id <id> --reason "<one line>"
+  [--source "<evidence>"]` (new subcommand, closing `fu-registry-has-no-reopen`
+  — owned by another sweep's bucket, closed here because this ride delivered
+  the mechanism it needed to fix its own mistake, `--resolved-by
+  test-framework-sweep --source` naming `test-aai-follow-ups.sh` TEST-456)
+  appends a `status: open` `follow_up_status` record, exactly the same
+  append-only shape `close`/`--correct` already use, so the fold's LATEST
+  record (which already tolerated an explicit `"open"` status value) projects
+  the item as open again without any change to the reader. The five original
+  ids (`fu-amend-live-agent-dashboard-ser-e1ff12`,
+  `fu-amend-roadmap-driven-ride-sele-1e2448`,
+  `fu-amend-lessons-that-must-hold-d-13bccc`,
+  `fu-amend-friction-publish-hides-r-b86049`,
+  `fu-amend-spec-harness-universal-routing`) are reopened with reason
+  "dropped in error by test-framework-sweep AC-26: an owner sign-off item is
+  not a framework item"; the five `-retrack` items are dropped as duplicates
+  (`--status dropped --resolved-by test-framework-sweep`); the one record
+  with no inline `tracked_by` (`2026-09-12T12:50:00Z`,
+  `friction-publish-hides-required-followup`) has its overlay re-pointed at
+  the reopened original via `spec-amend.mjs classify --tracked-by` (legal
+  now that the target is open again — `classify --tracked-by` refuses a
+  CLOSED target). A SIXTH instance of the same mistake surfaced while
+  re-verifying the fix under a corrected TEST-009 (see the F-A/BLOCKING-2
+  entry above and `test-aai-spec-amend.sh` TEST-009): `fu-amend-friction-
+  upsert-channel-ba7701` (spec `friction-upsert-channel-cannot-file`) was
+  dropped by this scope's AC-26 closure with the identical "owner sign-off
+  backlog" rationale, never re-tracked at all, and masked by the same
+  substring bug via an unrelated open item that merely quotes its id
+  (`fu-factory-report-stale-draft-path`). Reopened and removed the same way.
+  All six ids are REMOVED from `## Registry items rejected by this scope`
+  entirely (not re-added under any status): they are owner sign-off items
+  for OTHER specs that never belonged in this scope's bucket, a scoping
+  error the original AC-26 closure made and this ride's own retrack repair
+  compounded rather than corrected. This scope's bucket total moves from 84
+  (48 closed + 36 rejected) to 78 (48 + 30); Spec-AC-26, TEST-443 and the
+  local (gitignored) frozen-bucket corroboration file all move with it.
+  Measured post-repair: `spec-amend.mjs list --status unsigned --json` shows
+  all 13 affected records' `tracked_by` resolving to an OPEN item (13/13 —
+  the count the dispatch's own bounded scope names; the sixth item's own
+  unsigned records resolve to open too, verified separately);
+  `follow-ups.mjs list --status open` shows the six original ids and not
+  the five retracks (the sixth was never re-tracked to begin with).
+- **Spec-AC-03 residual R6 (validation round 5 F-A, non-blocking).** The
+  BLOCKING-1 amendment's wording ("a same-branch HEAD that is a git-ancestor
+  descendant of the pinned sha … is read as the ceremony's OWN commit, not a
+  concurrent move") overstates what a sha-ancestry check alone can know: it
+  cannot distinguish the ceremony's own forward commit from a DIFFERENT
+  committer's forward commit on the same branch in the same checkout, which
+  is exactly the 2026-09-06 incident CHANGE-0180 exists to catch. This is a
+  deliberate, defensible trade (not a defect to fix here) because D5's
+  session lock (Spec-AC-05, `session-lock.mjs`) is the actual control for a
+  shared checkout — it refuses a second live session before either commits
+  — but the residual was previously undisclosed. Added as R6 under
+  `## Implementation plan`'s residual-risks list and named in Spec-AC-03's
+  Notes column.

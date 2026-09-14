@@ -757,7 +757,25 @@ test_009_live_backfill_and_whole_ledger_readers() {
   # One OPEN tracked item per unsigned spec, named through the REAL reader.
   run_fu list --ledger "$LIVE_LEDGER" --status open
   [[ "$EC" == 0 ]] || log_fail "TEST-009: follow-ups.mjs list must exit 0 over the live ledger, got $EC (stderr: $ERR)"
-  local open_out="$OUT" sid missing="" unsigned_ids
+  local open_out="$OUT"
+  # validation round 5 BLOCKING-2: this arm used to derive its expected id
+  # and then `grep -qF "$expect" <<<"$open_out"` — a SUBSTRING match against
+  # the whole human-readable rendering, descriptions included. A retrack
+  # item's own description prose ("...the previous tracker fu-amend-x was
+  # dropped...") contains the OLD id as text, so that grep was satisfied by
+  # the id being QUOTED, never by an OPEN item actually carrying it. Anchor
+  # on the item ID TOKEN instead: pull `--json`'s `items[].id` (the field the
+  # fold actually keys items by) and exact-match (`grep -qxF`) against that
+  # list, never the free-text row.
+  run_fu list --ledger "$LIVE_LEDGER" --status open --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-009: follow-ups.mjs list --json must exit 0 over the live ledger, got $EC (stderr: $ERR)"
+  local open_ids sid missing="" unsigned_ids
+  open_ids="$(node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+      const j=JSON.parse(s);
+      process.stdout.write((j.items||[]).map((i)=>i.id).join("\n"));
+    });
+  ' <<<"$OUT")"
   unsigned_ids="$(unsigned_spec_ids)"
   [[ -n "$unsigned_ids" ]] || log_info "TEST-009: no unsigned amendment in the live ledger — the open-item arm has nothing to check (the signed-set control below still runs)"
   for sid in $unsigned_ids; do
@@ -771,10 +789,10 @@ test_009_live_backfill_and_whole_ledger_readers() {
       import(pathToFileURL(process.argv[2]).href)
         .then((m) => process.stdout.write(m.amendItemId(process.argv[1])));
     ' "$sid" "$SA")"
-    grep -qF "$expect" <<<"$open_out" || missing="$missing $sid($expect)"
+    grep -qxF "$expect" <<<"$open_ids" || missing="$missing $sid($expect)"
   done
   [[ -z "$missing" ]] \
-    || log_fail "TEST-009: no OPEN tracked item for:$missing — the standing amendments are not surfaced for an owner decision"
+    || log_fail "TEST-009: no OPEN tracked item for:$missing — the standing amendments are not surfaced for an owner decision (checked as an id TOKEN against --json items[].id, not a substring of the rendering)"
   # Negative control: a tracked item whose amendment records are ALL signed
   # carries no OPEN follow-up any more (the owner decision closed it) — so the
   # arm above discriminates signed from unsigned rather than demanding an item
@@ -785,7 +803,7 @@ test_009_live_backfill_and_whole_ledger_readers() {
   signed_items="$(fully_signed_tracked_ids)"
   for tid in $signed_items; do
     signed_checked=$((signed_checked+1))
-    grep -qF -- "$tid" <<<"$open_out" && still_open="$still_open $tid"
+    grep -qxF -- "$tid" <<<"$open_ids" && still_open="$still_open $tid"
   done
   [[ "$signed_checked" -ge 1 ]] \
     || log_fail "TEST-009: the signed-set control checked zero items — a control that checks nothing proves nothing"

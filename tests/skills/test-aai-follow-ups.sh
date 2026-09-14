@@ -2035,10 +2035,16 @@ test_031_both_registry_items_closed_for_real() {
 
 # ============================ TEST-443 (Spec-AC-26) ===========================
 # spec-test-framework-sweep's own registry closure claim, over the REAL ledger:
-# `verify-closures --strict` over the spec exits 0, every one of the 84 frozen
+# `verify-closures --strict` over the spec exits 0, every one of the 78 frozen
 # bucket ids is terminal (done or dropped) with resolved_by naming this ride,
-# and the union of the spec's own closed(48)+rejected(36) tables is EXACTLY
-# those 84 ids — no more, no fewer.
+# and the union of the spec's own closed(48)+rejected(30) tables is EXACTLY
+# those 78 ids — no more, no fewer. (84 = 48+36 at freeze; corrected to 78 =
+# 48+30 at remediation, validation round 5 BLOCKING-2, see the spec's own
+# `## Amendment`: SIX owner sign-off trackers for OTHER specs were mistakenly
+# swept into the rejected-36 (five named by the validator, a sixth found
+# while re-verifying the fix under a corrected TEST-009) and are now removed
+# from this scope's bucket entirely — reopened under their own ids via the
+# new `follow-ups.mjs reopen` rather than closed here under any status.)
 #
 # The frozen id list's canonical source is now the spec's OWN closed+rejected
 # tables (docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md, tracked and
@@ -2048,11 +2054,13 @@ test_031_both_registry_items_closed_for_real() {
 # `log_skip` on its absence — `log_skip` is `exit 42`, which VOIDS THE WHOLE
 # SUITE (see the warning at the top of this file). NEVER log_skip here for
 # that reason. The spec's two tables are proven byte-set-identical to the
-# frozen bucket file's 84 ids (diff empty both ways, checked when building
-# this fix); the bucket file, where present, is still cross-checked below as
+# frozen bucket file's 78 ids (diff empty both ways, checked when building
+# this fix — the local gitignored bucket file was itself trimmed from 84 to
+# 78 rows at the same remediation, since it is a cached query dump, not a
+# ledger); the bucket file, where present, is still cross-checked below as
 # a non-blocking corroboration — its absence no longer removes coverage.
 test_032_spec_test_framework_sweep_closure_is_real() {
-  log_info "Test: spec-test-framework-sweep's registry closure — verify-closures --strict exits 0, all 84 frozen bucket ids are terminal and resolved_by this ride, and the closed+rejected union is exactly the 84 ids (TEST-443)..."
+  log_info "Test: spec-test-framework-sweep's registry closure — verify-closures --strict exits 0, all 78 frozen bucket ids are terminal and resolved_by this ride, and the closed+rejected union is exactly the 78 ids (TEST-443)..."
   local spec_path="$PROJECT_ROOT/docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md"
   local bucket="$PROJECT_ROOT/docs/ai/tdd/spec-test-framework-sweep/bucket-open-2026-09-13.txt"
   [[ -f "$spec_path" ]] || log_skip "spec not found: $spec_path"
@@ -2074,8 +2082,15 @@ test_032_spec_test_framework_sweep_closure_is_real() {
   union_ids="$(printf '%s\n%s\n' "$closed_ids" "$rejected_ids" | sort -u)"
   local union_count
   union_count="$(printf '%s\n' "$union_ids" | grep -c .)"
-  [[ "$union_count" == 84 ]] \
-    || log_fail "TEST-443: the spec's closed+rejected union is $union_count ids, want 84"
+  # 84 at freeze; corrected to 78 at remediation (validation round 5
+  # BLOCKING-2, see the spec's own `## Amendment`): six owner sign-off
+  # trackers for OTHER specs were mistakenly swept into this scope's
+  # rejected-36 (five named by the validator, a sixth found while
+  # re-verifying the fix under a corrected TEST-009) and are now REMOVED
+  # from the bucket entirely (reopened under their own ids instead of closed
+  # under any status here) — 48 closed + 30 rejected = 78.
+  [[ "$union_count" == 78 ]] \
+    || log_fail "TEST-443: the spec's closed+rejected union is $union_count ids, want 78"
 
   local bucket_ids="$union_ids"
   if [[ -f "$bucket" ]]; then
@@ -2086,8 +2101,8 @@ test_032_spec_test_framework_sweep_closure_is_real() {
     local raw_bucket_ids raw_bucket_count diff1 diff2
     raw_bucket_ids="$(awk '{print $2}' "$bucket" | sort -u)"
     raw_bucket_count="$(printf '%s\n' "$raw_bucket_ids" | grep -c .)"
-    [[ "$raw_bucket_count" == 84 ]] \
-      || log_fail "TEST-443: the frozen bucket list itself no longer holds 84 ids (got $raw_bucket_count) — the FROZEN partition moved, which this test cannot reconcile"
+    [[ "$raw_bucket_count" == 78 ]] \
+      || log_fail "TEST-443: the frozen bucket list itself no longer holds 78 ids (got $raw_bucket_count) — the FROZEN partition moved, which this test cannot reconcile"
     diff1="$(comm -23 <(printf '%s\n' "$raw_bucket_ids") <(printf '%s\n' "$union_ids"))"
     diff2="$(comm -13 <(printf '%s\n' "$raw_bucket_ids") <(printf '%s\n' "$union_ids"))"
     [[ -z "$diff1" ]] \
@@ -2138,7 +2153,74 @@ test_032_spec_test_framework_sweep_closure_is_real() {
   [[ -z "$bad_attrib" ]] \
     || log_fail "TEST-443: id(s) not resolved_by test-framework-sweep: $bad_attrib"
 
-  log_pass "TEST-443: verify-closures --strict exits 0 over spec-test-framework-sweep, all 84 frozen bucket ids are terminal and resolved_by this ride, and the closed+rejected union is exactly those 84 ids"
+  log_pass "TEST-443: verify-closures --strict exits 0 over spec-test-framework-sweep, all 78 frozen bucket ids are terminal and resolved_by this ride, and the closed+rejected union is exactly those 78 ids"
+}
+
+# ======================== TEST-456 (BLOCKING-2, validation round 5) ==========
+# fu-registry-has-no-reopen (2026-08-29): `close` only ever appends
+# done/dropped, so an item closed on a mistaken premise had no way back into
+# the backlog short of hand-editing the append-only ledger. `reopen` is the
+# missing counterpart. This arm proves: a reopen on a closed id appends an
+# "open" follow_up_status record and the fold immediately projects the item
+# as open again (never rewriting the closing record — both survive on disk);
+# reopen refuses on an id that is ALREADY open (nothing to reopen); reopen
+# refuses on an unknown id; and --help documents the subcommand.
+test_033_reopen_appends_open_status() {
+  log_info "Test: follow-ups.mjs reopen appends a new open follow_up_status record, refuses on an already-open id and on an unknown id, and the fold reads the item as open again (TEST-456)..."
+  local led; led="$(mk_ledger t456)"
+  printf '%s\n' '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-reopen-me","ref_id":"CHANGE-0100","severity":"P2","finding":"closed too early","decision":"deferred","source":"s"}' >> "$led"
+
+  run_fu close --ledger "$led" --id fu-reopen-me --resolved-by CHANGE-0101 --status dropped --source "premature"
+  [[ "$EC" == 0 ]] || log_fail "TEST-456: setup close must exit 0, got $EC: $ERR"
+
+  # reopen refuses on an UNKNOWN id (exit 2, nothing appended).
+  local before_unknown; before_unknown="$(fsize "$led")"
+  run_fu reopen --ledger "$led" --id fu-never-existed --reason "typo'd id"
+  [[ "$EC" == 2 ]] || log_fail "TEST-456: reopen on an unknown id must exit 2, got $EC: $ERR"
+  grep -qE "unknown --id" <<<"$ERR" || log_fail "TEST-456: the unknown-id refusal must name the requirement: $ERR"
+  [[ "$(fsize "$led")" == "$before_unknown" ]] || log_fail "TEST-456: reopen on an unknown id must append nothing"
+
+  # reopen requires --reason.
+  run_fu reopen --ledger "$led" --id fu-reopen-me
+  [[ "$EC" == 2 ]] || log_fail "TEST-456: reopen with no --reason must exit 2, got $EC: $ERR"
+  grep -qE "requires --reason" <<<"$ERR" || log_fail "TEST-456: the missing-reason refusal must name the requirement: $ERR"
+
+  # The genuine reopen: succeeds, and the ledger GROWS (append-only — the
+  # dropped record from setup is never edited or removed).
+  local before; before="$(fsize "$led")"
+  run_fu reopen --ledger "$led" --id fu-reopen-me --reason "dropped in error, the defect survives" --source "bot review"
+  [[ "$EC" == 0 ]] || log_fail "TEST-456: a genuine reopen must exit 0, got $EC: $ERR"
+  [[ "$(fsize "$led")" -gt "$before" ]] || log_fail "TEST-456: a genuine reopen must append a new line"
+
+  run_fu list --ledger "$led" --status open --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-456: post-reopen list --status open must exit 0, got $EC: $ERR"
+  local reopened
+  reopened="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const it=j.items.find(i=>i.id==="fu-reopen-me");
+    if (!it) { console.log("MISSING"); process.exit(0); }
+    console.log(it.status==="open" && it.reopen_reason==="dropped in error, the defect survives" ? "OK" : JSON.stringify(it));
+  ' "$OUT")"
+  [[ "$reopened" == "OK" ]] || log_fail "TEST-456: the fold must project fu-reopen-me as open with the given reason: $reopened"
+
+  # Append-only: BOTH the original drop and the reopen survive on disk.
+  local dropped_count; dropped_count="$(grep -c "CHANGE-0101" "$led")"
+  [[ "$dropped_count" -ge 1 ]] || log_fail "TEST-456: the original dropped record must remain on disk (append-only, HAZ-LEDGER), found $dropped_count"
+
+  # reopen on an id that is ALREADY open must refuse — not a silent no-op,
+  # since there is no closed record for it to reopen.
+  local before_open; before_open="$(fsize "$led")"
+  run_fu reopen --ledger "$led" --id fu-reopen-me --reason "again"
+  [[ "$EC" == 2 ]] || log_fail "TEST-456: reopen on an already-open id must exit 2, got $EC: $ERR"
+  grep -qE "requires fu-reopen-me to be closed" <<<"$ERR" || log_fail "TEST-456: the already-open refusal must name the requirement: $ERR"
+  [[ "$(fsize "$led")" == "$before_open" ]] || log_fail "TEST-456: reopen on an already-open id must append nothing"
+
+  # --help documents it.
+  local help_out; help_out="$(node "$FU" --help 2>&1)"
+  grep -qF "follow-ups.mjs reopen" <<<"$help_out" \
+    || log_fail "TEST-456: --help must document the reopen subcommand: $help_out"
+
+  log_pass "follow-ups.mjs reopen appends a new open follow_up_status record (append-only), refuses on an unknown id / a missing --reason / an already-open id, the fold reads the item as open again, and --help documents it (TEST-456)"
 }
 
 main() {
@@ -2178,6 +2260,7 @@ main() {
   test_030_suite_map_glob_and_seam3_regression
   test_031_both_registry_items_closed_for_real
   test_032_spec_test_framework_sweep_closure_is_real
+  test_033_reopen_appends_open_status
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
