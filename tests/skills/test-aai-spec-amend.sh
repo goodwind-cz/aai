@@ -1528,15 +1528,19 @@ test_482_undisclosed_amendment_caught() {
   grep -qF 'spec-t482-fixture' <<<"$OUT" \
     || { log_fail "TEST-482: refusal must name the offending spec; stdout: $OUT"; ok=0; }
 
-  local suggested cmd
+  # NB2 (spec-mutation-gate-for-tests): the printed line carries REAL values
+  # (ref = the offending spec's own frontmatter id, --what/--why real default
+  # sentences) — never a `<placeholder>` token a shell would choke on — so
+  # Spec-AC-12's "run VERBATIM" is exercised literally here, no substitution.
+  local suggested
   suggested="$(sed -n 's/^ *node \.aai\/scripts\/spec-amend\.mjs \(add .*\)$/\1/p' <<<"$ERR" | qhead -1)"
   [[ -n "$suggested" ]] || { log_fail "TEST-482: no runnable \`add\` line printed on stderr; stderr: $ERR"; ok=0; }
-  cmd="${suggested//<ride-ref>/t482-ride}"
-  cmd="${cmd//<one line>/undisclosed edit}"
+  grep -qF '<' <<<"$suggested" \
+    && { log_fail "TEST-482: the printed remedy still carries a <placeholder> token, not runnable verbatim: $suggested"; ok=0; }
   EC=0
-  eval "node \"\$SA\" $cmd --ledger \"\$led\"" > "$TEST_DIR/.stdout" 2> "$TEST_DIR/.stderr" || EC=$?
+  eval "node \"\$SA\" $suggested --ledger \"\$led\"" > "$TEST_DIR/.stdout" 2> "$TEST_DIR/.stderr" || EC=$?
   OUT="$(cat "$TEST_DIR/.stdout")"; ERR="$(cat "$TEST_DIR/.stderr")"
-  [[ "$EC" == 0 ]] || { log_fail "TEST-482: the printed remedy, run verbatim (placeholders filled), must succeed, got $EC (stdout: $OUT) (stderr: $ERR)"; ok=0; }
+  [[ "$EC" == 0 ]] || { log_fail "TEST-482: the printed remedy, run VERBATIM (no substitution), must succeed, got $EC (stdout: $OUT) (stderr: $ERR)"; ok=0; }
 
   run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
   [[ "$EC" == 0 ]] || { log_fail "TEST-482: after running the printed remedy, strict must reach 0, got $EC (stdout: $OUT)"; ok=0; }
@@ -1636,6 +1640,14 @@ EOF
   run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
   local baseline_ec="$EC" baseline_out="$OUT" baseline_err="$ERR"
   [[ "$baseline_ec" == 0 ]] || { log_fail "TEST-483 arm C: baseline over frozen+unfrozen+nonspec must be clean, got $baseline_ec (stdout: $baseline_out)"; ok=0; }
+  # NB3 (spec-mutation-gate-for-tests): scanSpecAnchors's specFrozenInBody
+  # skip is what keeps the UNFROZEN spec above out of `degraded` (it has no
+  # frozen_sha256 either, so without the skip it would be miscounted as "a
+  # frozen spec missing its anchor"). Pin the COUNT, not just rc: a removed
+  # skip still exits 0 here (degraded is advisory, never a refusal) but
+  # moves spec_degraded from 0 to 1 — this line is what catches that.
+  grep -qF 'spec_degraded=0' <<<"$baseline_out" \
+    || { log_fail "TEST-483 arm C: baseline spec_degraded must be 0 (the unfrozen spec must never be counted as a frozen-but-anchorless spec); stdout: $baseline_out"; ok=0; }
 
   # (c1) editing the UNFROZEN spec — output unchanged.
   sed -i.bak 's/Strategy: direct/Strategy: direct (edited)/' "$TEST_DIR/t483c-specs/unfrozen.md"

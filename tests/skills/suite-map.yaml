@@ -583,6 +583,7 @@ suites:
       - .aai/scripts/mutation-run.mjs
       - .aai/scripts/mutation-gate.mjs
       - .aai/scripts/lib/mutation-record.mjs
+      - .aai/scripts/lib/tree-hash.mjs
       - .aai/scripts/lib/spec-contract-hash.mjs
       - .aai/scripts/spec-freeze.mjs
       - .aai/scripts/spec-amend.mjs

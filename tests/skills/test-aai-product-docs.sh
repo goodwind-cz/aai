@@ -611,6 +611,7 @@ main() {
   setup_fixture
 
   if [[ $# -gt 0 ]]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
     "$1"
     if [[ "$FAILED" == "1" ]]; then
       echo "=== $TEST_NAME: SELECTED TEST FAILED ($1) ==="

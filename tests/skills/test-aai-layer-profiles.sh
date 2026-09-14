@@ -803,6 +803,11 @@ main() {
   check_deps
   if [[ $# -gt 0 ]]; then
     build_fixture_sources
+    # NB6 (spec-mutation-gate-for-tests): an unknown selector used to fall
+    # through to bash's own "command not found" (rc 127) — non-zero by
+    # accident, not by a membership test naming the cause. A named refusal,
+    # matching every other selector-accepting suite in this corpus.
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
     "$1"
     echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="
     return

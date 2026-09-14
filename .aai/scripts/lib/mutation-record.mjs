@@ -127,3 +127,15 @@ export function isRotatedFileName(name, testId) {
   const esc = testId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`^mutation-${esc}\\.[^.]+\\.txt$`).test(name);
 }
+
+// patchFileName / rotatedPatchFileName — D14's "a record is self-contained":
+// a --patch mutation's own content lives beside the record under the SAME
+// evidence directory (never a path outside the repo, e.g. /tmp), rotated in
+// lockstep with the record it belongs to (D2).
+export function patchFileName(testId) {
+  return `mutation-${testId}.patch`;
+}
+
+export function rotatedPatchFileName(testId, runAtUtc) {
+  return `mutation-${testId}.${runAtUtc}.patch`;
+}

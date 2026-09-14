@@ -28,12 +28,36 @@
 //        step 4) — no record written, no clone left behind
 //     5  STAYED GREEN — the mutated run exited 0; recorded, non-zero exit
 //     6  INCONCLUSIVE — the mutated run exited non-zero but named no FAIL
-//        line for the selected test; recorded, non-zero exit
+//        line for the selected test, OR the run's own D7 tripwire fired
+//        (the mutated suite run wrote into the SOURCE tree outside
+//        docs/ai/tdd/ — the verdict it produced cannot be trusted, so it is
+//        downgraded to INCONCLUSIVE rather than recorded as-is); recorded,
+//        non-zero exit
 //   --replay:
 //     0  every live record for the spec still reddens
-//     1  one or more records failed to replay (STAYED GREEN, INCONCLUSIVE,
-//        malformed record, or the record's target no longer exists)
+//     1  one or more records replayed cleanly but no longer redden (STAYED
+//        GREEN, INCONCLUSIVE-suite-died-for-another-reason, a malformed
+//        record, the record's target no longer exists, or the D7 tripwire
+//        fired on the replay run itself) — a genuine regression signal
+//     4  no regression above, but one or more records could not even be
+//        REPLAYED (the stored mutation could not be applied — e.g. a v0
+//        record naming a patch file outside the evidence directory that no
+//        longer exists) — distinct from exit 1 on purpose (D14, SPEC-0180
+//        D8): "the replay ran and found a stale record" and "the replay
+//        itself could not reproduce the mutation" must never render as the
+//        same answer
 //     2  usage error
+//
+// LIMITS (named, not fixed — out of scope for this ride):
+//   - submodules are not reproduced by the isolated clone (D4's untracked-
+//     file copy and `git diff HEAD` do not carry submodule contents);
+//   - two concurrent runners recording the SAME Test Plan row race on the
+//     live record path — last writer wins (fu-tripwire-attributes-concurrent-
+//     writes, open, P3, is the tracked follow-up);
+//   - Windows / sh-less environments: `runSuite` spawns `bash` unconditionally
+//     and degrades by name (INCONCLUSIVE: bash not found) rather than
+//     crashing (see runSuite below), but Pester suites themselves are out of
+//     scope by D18 (fu-mutation-gate-skips-pester, filed).
 //
 // Node stdlib only (docs/TECHNOLOGY.md). Never invokes a shell: every
 // external command runs via execFileSync/spawnSync with an argv array, so a
@@ -44,9 +68,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { exit, runMain, ExitSignal } from './lib/cli-pipe-guard.mjs';
 import { parseFrontmatter } from './lib/docs-model.mjs';
+import { computeTreeHash } from './lib/tree-hash.mjs';
 import {
   formatRecord,
   parseRecord,
@@ -54,6 +78,8 @@ import {
   recordFileName,
   rotatedFileName,
   isRotatedFileName,
+  patchFileName,
+  rotatedPatchFileName,
 } from './lib/mutation-record.mjs';
 
 const ROOT = process.cwd();
@@ -139,44 +165,6 @@ function nowUtcSeconds() {
   return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-// git ls-files (tracked) + git ls-files --others --exclude-standard
-// (untracked, not ignored), EXCLUDING docs/ai/tdd/** on both sides (D4 step
-// 4, D7): the evidence this tool is about to write must never be able to
-// change the verdict it is about to record.
-function listTreeFiles(dir) {
-  const tracked = execFileSync('git', ['-C', dir, 'ls-files'], { encoding: 'utf8' });
-  const untracked = execFileSync('git', ['-C', dir, 'ls-files', '--others', '--exclude-standard'], { encoding: 'utf8' });
-  const all = new Set();
-  for (const raw of [tracked, untracked]) {
-    for (const line of raw.split('\n')) {
-      const p = line.trim();
-      if (!p) continue;
-      if (p === 'docs/ai/tdd' || p.startsWith('docs/ai/tdd/')) continue;
-      all.add(p);
-    }
-  }
-  return [...all].sort();
-}
-
-// A tree hash over PATH + CONTENT for every file listTreeFiles returns, so it
-// is comparable between two independent working trees (the source and the
-// clone) without either being a git object store of the other.
-function computeTreeHash(dir) {
-  const files = listTreeFiles(dir);
-  const h = createHash('sha256');
-  for (const rel of files) {
-    let bytes;
-    try {
-      bytes = fs.readFileSync(path.join(dir, rel));
-    } catch {
-      continue; // a symlink to nowhere, or a race — never fatal to the hash
-    }
-    const fileHash = createHash('sha256').update(bytes).digest('hex');
-    h.update(`${rel}\0${fileHash}\n`);
-  }
-  return h.digest('hex');
-}
-
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
   const d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
@@ -197,10 +185,42 @@ function nearestSelectors(name, candidates, n) {
     .slice(0, n);
 }
 
+// Strip heredoc bodies (<<'EOS' ... EOS, <<EOS, <<-EOS) before scanning for
+// selectors (NB5): a fixture suite that WRITES another suite's source as
+// heredoc text (this repo's own tests do this) must never have that quoted
+// text's function definitions leak into ITS OWN selector grammar — a suite
+// does not define a test merely by printing one.
+function stripHeredocs(content) {
+  const lines = content.split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const m = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/.exec(line);
+    if (m) {
+      out.push(line);
+      const dash = line.includes('<<-');
+      const marker = m[2];
+      i++;
+      while (i < lines.length) {
+        const candidate = dash ? lines[i].replace(/^\t+/, '') : lines[i];
+        if (candidate === marker) break;
+        i++;
+      }
+      if (i < lines.length) i++; // skip the terminator line itself
+      continue;
+    }
+    out.push(line);
+    i++;
+  }
+  return out.join('\n');
+}
+
 // The SAME grammar check-test-registration.mjs uses (D3): a suite's own
-// defined test_* functions, extracted without executing the suite.
+// defined test_* functions, extracted without executing the suite, and
+// without descending into any heredoc body it happens to write (NB5).
 function extractSelectors(suiteContent) {
-  return [...suiteContent.matchAll(/^(test_[A-Za-z0-9_]+)\(\)\s*\{/gm)].map((m) => m[1]);
+  return [...stripHeredocs(suiteContent).matchAll(/^(test_[A-Za-z0-9_]+)\(\)\s*\{/gm)].map((m) => m[1]);
 }
 
 // A minimal, dependency-free s/pattern/replacement/flags applier (single
@@ -249,45 +269,69 @@ function buildIsolatedClone() {
   const sourceTreeHash = computeTreeHash(ROOT);
 
   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'aai-mutation-'));
-  const cloneDir = path.join(tmpBase, 'clone');
-  execFileSync('git', ['clone', '--local', '--no-hardlinks', ROOT, cloneDir], { stdio: ['ignore', 'pipe', 'pipe'] });
-  execFileSync('git', ['-C', cloneDir, 'checkout', '--quiet', baseCommit], { stdio: ['ignore', 'pipe', 'pipe'] });
+  // Everything from here on is inside ONE try: any throw, of ANY shape
+  // (a copy of a dangling symlink included — NB1), removes tmpBase before
+  // propagating. The two explicit exit-3/generic-error paths below used to
+  // be the only cleaned-up failures; this makes cleanup unconditional.
+  try {
+    const cloneDir = path.join(tmpBase, 'clone');
+    execFileSync('git', ['clone', '--local', '--no-hardlinks', ROOT, cloneDir], { stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync('git', ['-C', cloneDir, 'checkout', '--quiet', baseCommit], { stdio: ['ignore', 'pipe', 'pipe'] });
 
-  // Reproduce tracked modifications.
-  const diff = execFileSync('git', ['-C', ROOT, 'diff', 'HEAD'], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-  if (diff.trim()) {
-    const res = spawnSync('git', ['-C', cloneDir, 'apply'], { input: diff, encoding: 'utf8' });
-    if (res.status !== 0) {
-      fs.rmSync(tmpBase, { recursive: true, force: true });
-      throw new Error(`mutation-run: failed to reproduce tracked modifications in the clone: ${res.stderr || res.stdout}`);
+    // Reproduce tracked modifications.
+    const diff = execFileSync('git', ['-C', ROOT, 'diff', 'HEAD'], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+    if (diff.trim()) {
+      const res = spawnSync('git', ['-C', cloneDir, 'apply'], { input: diff, encoding: 'utf8' });
+      if (res.status !== 0) {
+        throw new Error(`mutation-run: failed to reproduce tracked modifications in the clone: ${res.stderr || res.stdout}`);
+      }
     }
-  }
 
-  // Reproduce untracked-not-ignored files.
-  const untracked = execFileSync('git', ['-C', ROOT, 'ls-files', '--others', '--exclude-standard'], { encoding: 'utf8' });
-  for (const rel of untracked.split('\n')) {
-    const p = rel.trim();
-    if (!p) continue;
-    if (p === 'docs/ai/tdd' || p.startsWith('docs/ai/tdd/')) continue;
-    const src = path.join(ROOT, p);
-    const dst = path.join(cloneDir, p);
-    fs.mkdirSync(path.dirname(dst), { recursive: true });
-    fs.copyFileSync(src, dst);
-  }
+    // Reproduce untracked-not-ignored files. A symlink (including a DANGLING
+    // one, NB1) is reproduced AS a symlink — never followed/read — so a link
+    // to nowhere can never throw here; anything else that cannot be copied
+    // (a permission error, a race) is skipped BY NAME rather than aborting
+    // the whole clone build.
+    const untracked = execFileSync('git', ['-C', ROOT, 'ls-files', '--others', '--exclude-standard'], { encoding: 'utf8' });
+    for (const rel of untracked.split('\n')) {
+      const p = rel.trim();
+      if (!p) continue;
+      if (p === 'docs/ai/tdd' || p.startsWith('docs/ai/tdd/')) continue;
+      const src = path.join(ROOT, p);
+      const dst = path.join(cloneDir, p);
+      try {
+        const st = fs.lstatSync(src);
+        fs.mkdirSync(path.dirname(dst), { recursive: true });
+        if (st.isSymbolicLink()) {
+          fs.symlinkSync(fs.readlinkSync(src), dst);
+        } else {
+          fs.copyFileSync(src, dst);
+        }
+      } catch (err) {
+        process.stderr.write(`mutation-run: skipping untracked path that could not be reproduced in the clone: ${p} (${err.message})\n`);
+      }
+    }
 
-  const cloneTreeHash = computeTreeHash(cloneDir);
-  if (cloneTreeHash !== sourceTreeHash) {
+    const cloneTreeHash = computeTreeHash(cloneDir);
+    if (cloneTreeHash !== sourceTreeHash) {
+      throw new TreeMismatchError(
+        `mutation-run: clone tree hash (${cloneTreeHash}) does not match the source working tree's (${sourceTreeHash}) — the clone does not reproduce your tree`
+      );
+    }
+
+    return { tmpBase, cloneDir, baseCommit, sourceTreeHash };
+  } catch (err) {
     fs.rmSync(tmpBase, { recursive: true, force: true });
-    throw new TreeMismatchError(
-      `mutation-run: clone tree hash (${cloneTreeHash}) does not match the source working tree's (${sourceTreeHash}) — the clone does not reproduce your tree`
-    );
+    throw err;
   }
-
-  return { tmpBase, cloneDir, baseCommit, sourceTreeHash };
 }
 
 // Runs the suite exactly as a human would: through aai-run-tests.sh, inside
-// the clone (D1). Returns { rc, output }.
+// the clone (D1). Returns { rc, output } normally, or { rc: null, output,
+// spawnError } when the interpreter itself could not be spawned (HAZ10:
+// Windows / an sh-less host) — a distinct shape a caller degrades BY NAME
+// (INCONCLUSIVE: bash not found) rather than mis-reading as a run that
+// happened to exit 124 (the timeout convention, which this is NOT).
 function runSuite(cloneDir, suiteRel, selector) {
   const wrapper = path.join(cloneDir, '.aai/scripts/aai-run-tests.sh');
   const env = { ...process.env };
@@ -298,6 +342,9 @@ function runSuite(cloneDir, suiteRel, selector) {
     env,
     maxBuffer: 256 * 1024 * 1024,
   });
+  if (res.error) {
+    return { rc: null, output: '', spawnError: res.error };
+  }
   const output = `${res.stdout || ''}${res.stderr || ''}`;
   return { rc: res.status == null ? 124 : res.status, output };
 }
@@ -323,7 +370,10 @@ function evidenceDir(specId) {
 }
 
 // D2: never delete, never overwrite — rotate any existing live record aside
-// under its OWN run_at_utc before writing the new one.
+// under its OWN run_at_utc before writing the new one. Its accompanying
+// --patch copy (D14: "a record is self-contained"), if any, rotates in
+// lockstep under the SAME stamp, so a rotated record's mutation stays
+// reproducible too.
 function rotateExisting(dir, testId) {
   const live = path.join(dir, recordFileName(testId));
   if (!fs.existsSync(live)) return;
@@ -332,12 +382,37 @@ function rotateExisting(dir, testId) {
   const stamp = parsed.ok ? parsed.fields.run_at_utc : `unknown-${Date.now()}`;
   const rotated = path.join(dir, rotatedFileName(testId, stamp));
   fs.renameSync(live, rotated);
+
+  const livePatch = path.join(dir, patchFileName(testId));
+  if (fs.existsSync(livePatch)) {
+    fs.renameSync(livePatch, path.join(dir, rotatedPatchFileName(testId, stamp)));
+  }
 }
 
-function writeRecord(specId, testId, fields, tailText) {
+// D14: a --patch mutation's content is copied beside the record, under the
+// SAME evidence directory, so the record is reproducible without relying on
+// a path outside the repo (e.g. /tmp, which may be cleared, may not exist on
+// another machine, or may simply belong to a different run by the time
+// --replay reads it back). Returns the repo-relative stored path, or null
+// when the mutation was a --sed expression (nothing to store).
+function storePatchCopy(dir, testId, patchSourceAbs) {
+  const dest = path.join(dir, patchFileName(testId));
+  fs.copyFileSync(patchSourceAbs, dest);
+  return path.relative(ROOT, dest);
+}
+
+// `patchSourceAbs`, when given (a --patch run), is copied beside the record
+// and `fields.mutation` is rewritten to point at the STORED copy (repo-
+// relative, under the evidence dir) rather than the caller's original
+// --patch path, which may not outlive this run (D14).
+function writeRecord(specId, testId, fields, tailText, patchSourceAbs) {
   const dir = evidenceDir(specId);
   fs.mkdirSync(dir, { recursive: true });
   rotateExisting(dir, testId);
+  if (patchSourceAbs) {
+    const storedRel = storePatchCopy(dir, testId, patchSourceAbs);
+    fields = { ...fields, mutation: `patch:${storedRel}` };
+  }
   const text = formatRecord(fields, tailText);
   fs.writeFileSync(path.join(dir, recordFileName(testId)), text);
   return path.join(dir, recordFileName(testId));
@@ -399,8 +474,32 @@ function runOne(args) {
       exit(2);
     }
 
-    const { rc, output } = runSuite(clone.cloneDir, args.suite, args.selector);
-    const { verdict, firstFail } = classifyVerdict(rc, output, args.testId);
+    const ran = runSuite(clone.cloneDir, args.suite, args.selector);
+    let rc, output, verdict, firstFail;
+    if (ran.spawnError) {
+      // HAZ10: the interpreter itself could not be spawned (Windows / an
+      // sh-less host) — a distinct, NAMED degrade, never a crash and never
+      // confused with a real exit code.
+      rc = 0;
+      output = '';
+      verdict = 'INCONCLUSIVE';
+      firstFail = `INCONCLUSIVE: bash not found (${ran.spawnError.message})`;
+    } else {
+      ({ rc, output } = ran);
+      ({ verdict, firstFail } = classifyVerdict(rc, output, args.testId));
+    }
+
+    // D7 self-check: the run above must have touched ONLY the clone and
+    // docs/ai/tdd/ — never the shipping tree it was cloned from. A mismatch
+    // means the mutated run itself wrote outside its lane (B1: e.g. a
+    // mutated mutation-run.mjs appending to its own SOURCE copy of the
+    // target), so the verdict it produced cannot be trusted and is
+    // downgraded to INCONCLUSIVE rather than recorded as RED/STAYED GREEN.
+    const postRunSourceTreeHash = computeTreeHash(ROOT);
+    if (postRunSourceTreeHash !== clone.sourceTreeHash) {
+      verdict = 'INCONCLUSIVE';
+      firstFail = `INCONCLUSIVE: the run wrote into the source tree outside docs/ai/tdd/ (D7 tripwire: tree hash ${clone.sourceTreeHash} -> ${postRunSourceTreeHash}) — refusing to trust this result`;
+    }
 
     const fields = {
       spec_id: specId,
@@ -416,7 +515,8 @@ function runOne(args) {
       verdict,
       first_fail: firstFail,
     };
-    const recordPath = writeRecord(specId, args.testId, fields, lastLines(output, TAIL_LINES));
+    const patchSourceAbs = args.patch ? (path.isAbsolute(args.patch) ? args.patch : path.join(ROOT, args.patch)) : undefined;
+    const recordPath = writeRecord(specId, args.testId, fields, lastLines(output, TAIL_LINES), patchSourceAbs);
     process.stdout.write(`${verdict}: ${recordPath}\n`);
     process.stdout.write(`first_fail: ${firstFail}\n`);
 
@@ -456,7 +556,15 @@ function replay(args) {
     exit(0);
   }
 
+  // Two independent counters (B3 / D14): `failures` is a genuine regression
+  // signal (the record replayed cleanly but no longer reddens — the code
+  // under test changed); `inconclusive` is "this replay could not even be
+  // ATTEMPTED" (the stored mutation could not be applied — e.g. an older v0
+  // record naming a patch file outside the evidence directory that no
+  // longer exists). SPEC-0180 D8's rule applies here too: these must never
+  // render as the same exit code.
   let failures = 0;
+  let inconclusive = 0;
   for (const name of liveRecords) {
     const testId = /^mutation-(TEST-\d+)\.txt$/.exec(name)[1];
     const text = fs.readFileSync(path.join(dir, name), 'utf8');
@@ -482,17 +590,41 @@ function replay(args) {
       process.stdout.write(`FAIL ${testId}: could not build an isolated clone (${err.message})\n`);
       continue;
     }
+    // Everything from here on can throw for a REPRODUCIBILITY reason (a
+    // missing/stale --patch file, a `git apply` failure) rather than a
+    // regression one — caught here so it becomes a named INCONCLUSIVE row,
+    // never an uncaught stack trace with an exit code indistinguishable
+    // from "the mutation no longer reddens" (B3).
     try {
-      const mutationKind = fields.mutation.startsWith('sed:') ? 'sed' : 'patch';
-      const mutationValue = fields.mutation.slice(fields.mutation.indexOf(':') + 1);
-      const mutArgs = mutationKind === 'sed' ? { sed: mutationValue } : { patch: mutationValue };
-      const { before, after } = applyMutation(mutArgs, clone.cloneDir, fields.target);
+      let before, after;
+      try {
+        const mutationKind = fields.mutation.startsWith('sed:') ? 'sed' : 'patch';
+        const mutationValue = fields.mutation.slice(fields.mutation.indexOf(':') + 1);
+        const mutArgs = mutationKind === 'sed' ? { sed: mutationValue } : { patch: mutationValue };
+        ({ before, after } = applyMutation(mutArgs, clone.cloneDir, fields.target));
+      } catch (err) {
+        inconclusive++;
+        process.stdout.write(`INCONCLUSIVE ${testId}: could not apply the recorded mutation (${err.message})\n`);
+        continue;
+      }
       if (before === after) {
         failures++;
         process.stdout.write(`FAIL ${testId}: replayed mutation no longer changes ${fields.target}\n`);
         continue;
       }
-      const { rc, output } = runSuite(clone.cloneDir, fields.suite, fields.selector);
+      const ran = runSuite(clone.cloneDir, fields.suite, fields.selector);
+      if (ran.spawnError) {
+        inconclusive++;
+        process.stdout.write(`INCONCLUSIVE ${testId}: bash not found (${ran.spawnError.message})\n`);
+        continue;
+      }
+      const { rc, output } = ran;
+      const postRunSourceTreeHash = computeTreeHash(ROOT);
+      if (postRunSourceTreeHash !== clone.sourceTreeHash) {
+        failures++;
+        process.stdout.write(`INCONCLUSIVE ${testId}: own replay run wrote into the source tree outside docs/ai/tdd/ (D7 tripwire) — refusing to trust the result\n`);
+        continue;
+      }
       const { verdict } = classifyVerdict(rc, output, testId);
       if (verdict === 'RED') {
         process.stdout.write(`RED ${testId}: still reddens (${fields.suite} ${fields.selector})\n`);
@@ -505,8 +637,11 @@ function replay(args) {
     }
   }
 
-  process.stdout.write(`mutation-run --replay: ${liveRecords.length - failures}/${liveRecords.length} records still redden\n`);
-  exit(failures === 0 ? 0 : 1);
+  const attempted = liveRecords.length - inconclusive;
+  process.stdout.write(`mutation-run --replay: ${attempted - failures}/${attempted} attempted records still redden (${inconclusive} inconclusive of ${liveRecords.length} total)\n`);
+  if (failures > 0) exit(1);
+  if (inconclusive > 0) exit(4);
+  exit(0);
 }
 
 function main() {

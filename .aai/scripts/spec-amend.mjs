@@ -1059,13 +1059,17 @@ function cmdList(opts) {
   if (opts.strict && specViolations.length > 0) {
     process.stderr.write(`spec-amend: --strict found ${specViolations.length} frozen spec(s) whose content no longer matches their frozen_sha256 anchor with no explaining spec_amendment record — an undisclosed post-freeze edit.\n`);
     for (const v of specViolations) {
-      // `--ref`/`--what`/`--why` are placeholders (D11's own template): this
-      // is a NEW amendment record, not a classification of an existing one,
-      // so there is no prior ts/ref this tool can read the ride reference or
-      // the reason from — only the offending spec's OWN path is known and
-      // filled in. `add` never refuses on their content (D2 fail-open), so
-      // the line is runnable exactly as printed, placeholders included.
-      process.stderr.write(`  node .aai/scripts/spec-amend.mjs add --spec ${JSON.stringify(v.path)} --ref <ride-ref> --what "<one line>" --why "<one line>" --signoff none\n`);
+      // NB2 (spec-mutation-gate-for-tests): this line must be RUNNABLE
+      // VERBATIM in a shell (Spec-AC-12), never printed with `<placeholder>`
+      // tokens a shell would try to redirect or expand. `--ref` is filled
+      // from the offending spec's OWN frontmatter id (the only "ride
+      // reference" this tool can read without inventing one); `--what`/
+      // `--why` are filled with a real, honest default sentence the author
+      // is expected to EDIT for specificity but that clears the violation
+      // as-is if run unedited (D2 fail-open never refuses on their
+      // content). `add` never refuses on their content (D2 fail-open), so
+      // the line is runnable exactly as printed.
+      process.stderr.write(`  node .aai/scripts/spec-amend.mjs add --spec ${JSON.stringify(v.path)} --ref ${JSON.stringify(v.spec_id ?? 'unknown-ref')} --what ${JSON.stringify('undisclosed post-freeze content change (edit this line to name what changed)')} --why ${JSON.stringify('closing the strict amendment gate after the frozen anchor stopped matching (edit this line to name why)')} --signoff none\n`);
     }
     process.stderr.write('`add` RE-STAMPS frozen_sha256 to the current projection in the SAME call that appends the record, so running the line above is what clears this violation — never `spec-amend.mjs classify`, which judges an EXISTING record\'s sign-off and touches no spec.\n');
   }

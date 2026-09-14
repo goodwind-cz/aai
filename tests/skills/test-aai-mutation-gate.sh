@@ -43,6 +43,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# mg_tree_hash <dir> — the SAME tree hash mutation-run.mjs's own D7 tripwire
+# computes (.aai/scripts/lib/tree-hash.mjs), computed from OUTSIDE the tool
+# so this assertion can never inherit a bug in the tool's own self-check.
+mg_tree_hash() {
+  node --input-type=module -e "
+import { computeTreeHash } from '$PROJECT_ROOT/.aai/scripts/lib/tree-hash.mjs';
+process.stdout.write(computeTreeHash(process.argv[1]));
+" "$1"
+}
+
 check_deps() {
   command -v node >/dev/null 2>&1 || log_skip "node not found"
   command -v git >/dev/null 2>&1 || log_skip "git not found"
@@ -226,8 +236,9 @@ test_471_runner_isolation() {
   printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
   printf 'marker-present' > "$fx/lib/extra.txt"
 
-  local status_before status_after
+  local status_before status_after hash_before hash_after
   status_before="$(cd "$fx" && git status --porcelain)"
+  hash_before="$(mg_tree_hash "$fx")"
 
   local out rc
   out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
@@ -236,8 +247,16 @@ test_471_runner_isolation() {
   [[ "$rc" -eq 0 ]] || log_fail "TEST-471: mutation-run.mjs exited $rc on a normal RED run (dirty tree + untracked file): $out"
 
   status_after="$(cd "$fx" && git status --porcelain)"
+  hash_after="$(mg_tree_hash "$fx")"
   [[ "$status_before" == "$status_after" ]] \
     || log_fail "TEST-471: the fixture's git status changed across the run (before=[$status_before] after=[$status_after]) — the runner must write to docs/ai/tdd/ only"
+  # D7: git status ALONE is blind to a content change in an already-dirty
+  # TRACKED file (" M path" prints identically either way) — a tree hash
+  # excluding docs/ai/tdd/ over path+content is the other half of the
+  # tripwire, and it is what actually catches a runner that writes into the
+  # shipping tree.
+  [[ "$hash_before" == "$hash_after" ]] \
+    || log_fail "TEST-471: the fixture's tree hash (excluding docs/ai/tdd) changed across the run (before=$hash_before after=$hash_after) — the runner must write to docs/ai/tdd/ only"
 
   local rec; rec="$(mg_record_path "$fx" fixture-spec-471 TEST-9001)"
   [[ -f "$rec" ]] || log_fail "TEST-471: no record written at $rec"
@@ -275,11 +294,19 @@ test_472_runner_refusals() {
   printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
   ( cd "$fx" && git add -A && git commit -q -m base )
 
+  # A PRIVATE $TMPDIR for this test's own node invocations (NB4): counting
+  # aai-mutation-* dirs under the SHARED system tmp would be racy against any
+  # OTHER concurrent mutation-run.mjs (this ride's own workflow encourages
+  # exactly that concurrency) — a private os.tmpdir() makes the leftover-
+  # clone count observe only what THIS test's own runs produced.
+  local priv_tmp; priv_tmp="$(mktemp -d "${TMPDIR:-/tmp}/aai-mg-472-priv.XXXXXX")"
+  MG_FIXTURE_DIRS="$MG_FIXTURE_DIRS $priv_tmp"
+
   local tmp_before tmp_after
-  tmp_before="$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'aai-mutation-*' 2>/dev/null | wc -l | tr -d ' ')"
+  tmp_before="$(find "$priv_tmp" -maxdepth 1 -name 'aai-mutation-*' 2>/dev/null | wc -l | tr -d ' ')"
 
   local out rc
-  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+  out="$(cd "$fx" && TMPDIR="$priv_tmp" node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
     --suite tests/skills/fixture-suite.sh --selector test_9001_does_not_exist \
     --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 2 ]] || log_fail "TEST-472: unknown selector must exit 2, got $rc: $out"
@@ -288,7 +315,7 @@ test_472_runner_refusals() {
   [[ -e "$(mg_record_path "$fx" fixture-spec-472 TEST-9001)" ]] \
     && log_fail "TEST-472: unknown-selector refusal must write no record"
 
-  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+  out="$(cd "$fx" && TMPDIR="$priv_tmp" node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
     --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
     --target lib/greeting.mjs --sed 's/no_such_pattern_xyz/replacement/' 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 2 ]] || log_fail "TEST-472: a no-op mutation must exit 2, got $rc: $out"
@@ -299,7 +326,7 @@ test_472_runner_refusals() {
   [[ -e "$(mg_record_path "$fx" fixture-spec-472 TEST-9001)" ]] \
     && log_fail "TEST-472: no-op-mutation refusal must write no record"
 
-  tmp_after="$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'aai-mutation-*' 2>/dev/null | wc -l | tr -d ' ')"
+  tmp_after="$(find "$priv_tmp" -maxdepth 1 -name 'aai-mutation-*' 2>/dev/null | wc -l | tr -d ' ')"
   [[ "$tmp_before" == "$tmp_after" ]] \
     || log_fail "TEST-472: a refusal must leave no clone directory behind (before=$tmp_before after=$tmp_after)"
 
@@ -454,7 +481,46 @@ EOS
   assert_payload_line_matches "$out" 'INCONCLUSIVE TEST-9002:.*target no longer exists' \
     "TEST-481 arm3: replay must report TEST-9002 INCONCLUSIVE naming the missing target"
 
-  log_pass "TEST-481 replay exits 0 when every live record still reddens, names a record that no longer reddens once the code changes, and reports INCONCLUSIVE for a record whose target vanished"
+  # Arm 4 (B3 / D14): a record whose --patch mutation cannot be APPLIED at
+  # replay time (a stale/off-repo path — the exact shape of the pre-fix
+  # mutation-TEST-487.txt/mutation-TEST-488.txt defect) must never crash
+  # --replay with an uncaught stack trace, and must exit with a code
+  # DISTINCT from "a record replayed cleanly but no longer reddens" (arm 2's
+  # exit 1) — conflating the two is exactly the bug this arm closes.
+  local fx4; fx4="$(mg_new_fixture)"
+  mg_seed_repo "$fx4"
+  mg_write_fixture_suite "$fx4"
+  mg_write_spec "$fx4" "fixture-spec-481-arm4"
+  printf "console.log('hello');\n" > "$fx4/lib/greeting.mjs"
+  ( cd "$fx4" && git add -A && git commit -q -m base )
+  local head4; head4="$(cd "$fx4" && git rev-parse HEAD)"
+  mkdir -p "$fx4/docs/ai/tdd/fixture-spec-481-arm4"
+  cat > "$fx4/docs/ai/tdd/fixture-spec-481-arm4/mutation-TEST-9003.txt" <<EOF
+mutation_record: v1
+spec_id: fixture-spec-481-arm4
+test_id: TEST-9003
+suite: tests/skills/fixture-suite.sh
+selector: test_9001_greet_and_marker
+target: lib/greeting.mjs
+mutation: patch:does-not-exist-on-this-machine.patch
+base_commit: ${head4}
+tree_hash: $(printf '0%.0s' $(seq 1 64))
+run_at_utc: 2026-01-01T00:00:00Z
+rc: 1
+verdict: RED
+first_fail: FAIL fixture TEST-9003
+---
+fixture tail
+EOF
+
+  out="$(cd "$fx4" && node "$MUTATION_RUN" --replay --spec docs/specs/fixture-spec.md 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 4 ]] || log_fail "TEST-481 arm4: --replay of an unreplayable (missing patch) record must exit 4 (distinct from a genuine regression's exit 1), got $rc: $out"
+  assert_payload_line_matches "$out" 'INCONCLUSIVE TEST-9003:.*could not apply the recorded mutation' \
+    "TEST-481 arm4: replay must report TEST-9003 INCONCLUSIVE naming the apply failure: $out"
+  assert_payload_not_contains "$out" "at applyMutation" \
+    "TEST-481 arm4: replay must never leak a raw stack trace for an unreplayable record: $out"
+
+  log_pass "TEST-481 replay exits 0 when every live record still reddens, names a record that no longer reddens once the code changes (exit 1), reports INCONCLUSIVE for a record whose target vanished, and reports INCONCLUSIVE at a DISTINCT exit code (4) for a record whose mutation cannot be applied at all, never a crash"
 }
 
 # --- TEST-480 — Spec-AC-10: canon carries the rule --------------------------
@@ -824,6 +890,42 @@ EOF
   log_pass "TEST-486 a genuine mutation-run.mjs record passes while a hand-planted orphan-commit record is refused naming it (arm A); the live shipping evidence tree, when present, gates identically end to end (arms B/C)"
 }
 
+# --- NB1 — a dangling untracked symlink must never crash the clone builder
+# or leak a clone -----------------------------------------------------------
+test_nb1_dangling_symlink_no_leak() {
+  log_info "Test: a dangling untracked symlink in the working tree is reproduced AS a symlink (never followed), and the run completes with no leaked \$TMPDIR clone (NB1)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-nb1"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  printf 'marker-present' > "$fx/lib/extra.txt"
+  # A DANGLING untracked symlink: readable by lstat, unreadable by anything
+  # that follows it (fs.copyFileSync would throw ENOENT).
+  ( cd "$fx" && ln -s /nonexistent/nowhere dangling-link.md )
+
+  local priv_tmp; priv_tmp="$(mktemp -d "${TMPDIR:-/tmp}/aai-mg-nb1-priv.XXXXXX")"
+  MG_FIXTURE_DIRS="$MG_FIXTURE_DIRS $priv_tmp"
+
+  local out rc
+  out="$(cd "$fx" && TMPDIR="$priv_tmp" node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "NB1: a dangling untracked symlink must not crash a normal RED run, got $rc: $out"
+  assert_payload_not_contains "$out" "ENOENT" \
+    "NB1: the run must never surface a raw ENOENT from copying the dangling symlink: $out"
+
+  [[ -L "$fx/dangling-link.md" ]] \
+    || log_fail "NB1: the dangling symlink must still be present, untouched, in the source tree"
+
+  local leftover; leftover="$(find "$priv_tmp" -maxdepth 1 -name 'aai-mutation-*' 2>/dev/null | wc -l | tr -d ' ')"
+  [[ "$leftover" -eq 0 ]] \
+    || log_fail "NB1: a run with a dangling symlink in the tree must leave no clone directory behind, found $leftover under $priv_tmp"
+
+  log_pass "NB1 a dangling untracked symlink is reproduced as a symlink (never followed/read), the run completes normally, and no clone is leaked"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -835,6 +937,7 @@ main() {
   test_475_gate_refusals
   test_476_gate_degrade
   test_486_gate_reads_this_ride
+  test_nb1_dangling_symlink_no_leak
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -1701,23 +1701,107 @@ test_128_shipping_scripts_pipe_safe_at_zero() {  # TEST-470 / round 10
   log_pass "test_128: shipping-script pipe-safe arm is at zero on the live tree, and bites on a reintroduced pipe in a pipefail script while ignoring one with no pipefail (TEST-470)"
 }
 
+# hp_scan_selector_suites <dir> — every tests/skills/test-aai-*.sh under
+# <dir> whose main() dispatches a single test by a positional argument,
+# detected MECHANICALLY from the file's own text (spec-mutation-gate-for-
+# tests Spec-AC-03 / D3, B2): never a name literal — a hardcoded list is
+# exactly the defect this closes, since it stops being measured the moment
+# a new suite is added. The four command-position idioms this repository's
+# suites actually use for a positional-selector dispatch:
+#   R1/R2  a GUARDED dispatch:  declare -f/-F "$1"  or  "test_${var}"
+#   R3/R4  a BARE dispatch statement — "$1" or "test_${var}" alone on its
+#          own line. Deliberately UNGUARDED counts too: an unguarded bare
+#          invocation IS the exact fail-open shape
+#          fu-test-selector-unknown-id-passes describes, so it must be
+#          enumerated, never filtered out for being the broken case.
+#   R5     an ALL_TESTS[@] (or "$fn" result of) prefix-match loop that
+#          assigns the matched candidate to a variable and invokes it
+#          (issues/pr-platform/routine/pr-waiver's shared idiom)
+hp_scan_selector_suites() {
+  local dir="$1" f
+  for f in "$dir"/tests/skills/test-aai-*.sh; do
+    [[ -f "$f" ]] || continue
+    # R3/R4 match "$1"/"test_${var}" in COMMAND POSITION — the start of a
+    # statement (line start, or right after ; && || then do) — REGARDLESS
+    # of what follows on the same line (e.g. `"$1"; echo done; return`):
+    # anchoring to end-of-line as well would miss the invocation the moment
+    # a guard mutation removes the ONLY other match on a different line
+    # (observed: TEST-473's own recorded mutation neutralizes feedback-
+    # triage.sh's `declare -F "$1"` guard line, leaving the corpus scan
+    # blind to the suite entirely unless the invocation line alone still
+    # matches).
+    if grep -qE 'declare -[fF] "\$1"' "$f" \
+      || grep -qE 'declare -[fF] "test_\$\{[A-Za-z_]+\}"' "$f" \
+      || grep -qE '(^|;|&&|\|\||then|do)[[:space:]]*"\$1"([[:space:];]|$)' "$f" \
+      || grep -qE '(^|;|&&|\|\||then|do)[[:space:]]*"test_\$\{[A-Za-z_]+\}"' "$f" \
+      || grep -qE 'ALL_TESTS\[@\]' "$f" \
+      || grep -qE '"\$fn"[[:space:]]*$' "$f"; then
+      printf '%s\n' "$f"
+    fi
+  done
+  return 0
+}
+
 test_094_mutation_selector_fails_closed_corpus_wide() {  # spec-mutation-gate-for-tests TEST-473 / Spec-AC-03
-  log_info "test_094: every selector-accepting tests/skills/test-aai-*.sh suite refuses an unknown selector, corpus-wide (TEST-473)..."
-  # The measured population (spec-mutation-gate-for-tests measurement 11):
-  # every test-aai-*.sh that dispatches a single test by a positional
-  # argument, in either idiom this repository uses (the dynamic
-  # "test_${t}" idiom and the positional "$1" idiom). A suite added later
-  # that accepts a selector joins this list deliberately — the same
-  # discipline test_090's suite-map.yaml row check already holds every new
-  # suite to.
-  local corpus="branch-guard git-ref-guard issues pr-platform session-lock run-tests routine win-fallback pr-waiver test-canon feedback-triage feedback-status feedback-upsert learned-routing live-serve ride-select unattended layer-profiles"
-  local name f out rc bad=""
-  for name in $corpus; do
-    f="$PROJECT_ROOT/tests/skills/test-aai-${name}.sh"
-    [[ -f "$f" ]] || log_fail "TEST-473: expected corpus member missing: tests/skills/test-aai-${name}.sh"
-    out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=60 bash .aai/scripts/aai-run-tests.sh bash "tests/skills/test-aai-${name}.sh" no_such_test_xyz 2>&1)" && rc=0 || rc=$?
+  log_info "test_094: every tests/skills/test-aai-*.sh that accepts a positional selector, ENUMERATED FROM THE TREE, refuses an unknown selector corpus-wide (TEST-473)..."
+
+  # --- detection self-check: negative control + the fail-open shape ------
+  # A tiny ISOLATED fixture (never the real tree) proves the scan is a real
+  # mechanism, not a coincidence that happens to match 18 names: a suite
+  # using the EXACT idiom fu-test-selector-unknown-id-passes describes (a
+  # bare, unguarded "$1" invocation) is detected; a suite that never looks
+  # at $1 at all is not.
+  local dfx; dfx="$(mktemp -d "${TMPDIR:-/tmp}/aai-hp-corpus-check.XXXXXX")"
+  mkdir -p "$dfx/tests/skills"
+  cat > "$dfx/tests/skills/test-aai-control-ignores-args.sh" <<'EOS'
+#!/usr/bin/env bash
+main() { echo "always runs everything, $1 or not"; }
+main "$@"
+EOS
+  cat > "$dfx/tests/skills/test-aai-zzprobe.sh" <<'EOS'
+#!/usr/bin/env bash
+test_9001_greet() { echo "PASS: greet"; }
+main() {
+  if [[ -n "${1:-}" ]]; then
+    "$1"
+    echo "PASS: All selected zzprobe tests passed"
+    return
+  fi
+  test_9001_greet
+}
+main "$@"
+EOS
+  local scan_out
+  scan_out="$(hp_scan_selector_suites "$dfx")"
+  assert_payload_contains "$scan_out" "test-aai-zzprobe.sh" \
+    "test_094 self-check: the mechanical scan did not detect the fail-open idiom (test-aai-zzprobe.sh): $scan_out"
+  assert_payload_not_contains "$scan_out" "test-aai-control-ignores-args.sh" \
+    "test_094 self-check: the mechanical scan wrongly flagged a suite that never reads \$1 (negative control): $scan_out"
+
+  # And the probe itself (the SAME shape as the real corpus loop below),
+  # against JUST this isolated fixture, actually catches the planted
+  # fail-open suite — proving the guard's own mechanism works before it is
+  # trusted against the live tree.
+  local probe_out probe_rc
+  probe_out="$(bash "$dfx/tests/skills/test-aai-zzprobe.sh" no_such_test_xyz 2>&1)" && probe_rc=0 || probe_rc=$?
+  [[ "$probe_rc" -eq 0 ]] \
+    || log_fail "test_094 self-check: expected the PLANTED fail-open fixture to (wrongly) exit 0, confirming the defect shape is real, got $probe_rc: $probe_out"
+  rm -rf "$dfx"
+
+  # --- the real guard: enumerate the LIVE tree, then probe every member ---
+  local corpus_files=() f
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && corpus_files+=("$f")
+  done <<< "$(hp_scan_selector_suites "$PROJECT_ROOT")"
+  [[ "${#corpus_files[@]}" -ge 1 ]] || log_fail "TEST-473: the mechanical scan enumerated zero selector-accepting suites — the detector itself is broken"
+
+  local name rel out rc bad=""
+  for f in "${corpus_files[@]}"; do
+    rel="${f#"$PROJECT_ROOT"/}"
+    name="$(basename "$f" .sh)"; name="${name#test-aai-}"
+    out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=60 bash .aai/scripts/aai-run-tests.sh bash "$rel" no_such_test_xyz 2>&1)" && rc=0 || rc=$?
     if [[ "$rc" -eq 0 ]]; then
-      log_info "test_094: tests/skills/test-aai-${name}.sh exited 0 on an unknown selector (fail-open): $out"
+      log_info "test_094: ${rel} exited 0 on an unknown selector (fail-open): $out"
       bad="$bad ${name}"
     fi
   done
@@ -1726,7 +1810,8 @@ test_094_mutation_selector_fails_closed_corpus_wide() {  # spec-mutation-gate-fo
 
   # Three representative suites — one per idiom, plus the suite the
   # measurement found already fixed by accident (sweep 2) — must still
-  # resolve and run a REAL selector alone, exiting 0.
+  # resolve and run a REAL selector alone, exiting 0 (a mechanical scan that
+  # over-refuses, e.g. by breaking a suite's normal dispatch, is caught here).
   out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=60 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-branch-guard.sh 001 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-473: test-aai-branch-guard.sh 001 (a real selector, dynamic idiom) must still exit 0, got $rc: $out"
   assert_payload_contains "$out" "All selected" \
@@ -1742,7 +1827,7 @@ test_094_mutation_selector_fails_closed_corpus_wide() {  # spec-mutation-gate-fo
   assert_payload_contains "$out" "SELECTED PASSED (test_default_byte_identity)" \
     "TEST-473: test-aai-layer-profiles.sh did not report the selected test"
 
-  log_pass "test_094: every selector-accepting suite (18 measured) refuses an unknown selector corpus-wide, and a real selector in one suite per idiom plus the already-fixed suite still runs alone (TEST-473)"
+  log_pass "test_094: every selector-accepting suite (${#corpus_files[@]} measured, scanned from the tree) refuses an unknown selector corpus-wide, and a real selector in one suite per idiom plus the already-fixed suite still runs alone (TEST-473)"
 }
 
 test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TEST-487 / Spec-AC-18

@@ -3,7 +3,7 @@ id: spec-mutation-gate-for-tests
 type: spec
 number: null
 status: implementing
-frozen_sha256: 203ddb48f3b7400b3372d9d37763a855aa29492266099561483a9895644c8b22
+frozen_sha256: 121f5686779bd3163fbd179c13febb479eefeccea5872f2b4bb336fdfc7a9ca7
 ceremony_level: 2
 mutation_gate: v1
 links:
@@ -456,6 +456,12 @@ except `docs/ai/tdd/` are byte-identical. `fu-tripwire-attributes-concurrent-wri
 inferred from a live sweep's tripwire: a shipping-tree tripwire misattributes a
 concurrent writer, so it cannot be this claim's evidence.
 
+**Amendment (remediation round 1):** the same before/after tree hash is now
+ALSO the runner's OWN self-check, not only an assertion the fixture suite
+makes from outside. A mismatch downgrades the run's verdict to
+`INCONCLUSIVE` (D6) rather than recording it as RED or STAYED GREEN — see
+"Remediation round 1" below.
+
 ### D8 — The gate reads rows, and answers in three exit codes
 
 `node .aai/scripts/mutation-gate.mjs --spec <path> [--json] [--list-degraded]`.
@@ -667,6 +673,16 @@ report. A replay that cannot find the recorded target file (the code moved)
 reports `INCONCLUSIVE` per D6 and is non-zero — a moved target invalidates the
 evidence, and silence about it is the failure mode.
 
+**Amendment (remediation round 1):** a `--patch` record's mutation content is
+stored beside its `.txt` record under the evidence directory (never a `/tmp`
+path), so the record is self-contained. `--replay`'s exit contract gains a
+fourth path: `1` when at least one record replayed cleanly but is a genuine
+regression, `4` when the only problem is one or more records that could not
+even be APPLIED (a missing/stale patch, a `git apply` error — caught and
+printed as `INCONCLUSIVE <TEST-id>: could not apply the recorded mutation
+(...)`, never an uncaught stack trace), `0` only when every record was
+attempted and still reddens.
+
 ### D15 — The Test Plan gains a seventh column, and the reader accepts six
 
 `parseTestPlanTable` is positional today and reads only cells 0-3 (measurement
@@ -856,7 +872,7 @@ evidence, produced by `mutation-run.mjs` itself.
 
 | Test ID  | Spec-AC    | Type | File path (expected) | Description | Mutation | Status |
 |----------|------------|------|----------------------|-------------|----------|--------|
-| TEST-471 | Spec-AC-01 | integration | tests/skills/test-aai-mutation-gate.sh | Runner isolation and record shape — a fixture repository with a dirty tracked file and an untracked file is driven through a full RED run; the clone's tree hash equals the source's, every v1 header field is present and correct (spec_id, test_id, suite, selector, target, mutation, base_commit, tree_hash, run_at_utc, rc, verdict, first_fail), the record lands under docs/ai/tdd/<spec-id>/, and the fixture's git status plus a tree hash excluding docs/ai/tdd are byte-identical before and after. | Drop the untracked-file copy step (git ls-files --others) from the clone builder, so the clone no longer reproduces the working tree. | green |
+| TEST-471 | Spec-AC-01 | integration | tests/skills/test-aai-mutation-gate.sh | Runner isolation and record shape — a fixture repository with a dirty tracked file and an untracked file is driven through a full RED run; the clone's tree hash equals the source's, every v1 header field is present and correct (spec_id, test_id, suite, selector, target, mutation, base_commit, tree_hash, run_at_utc, rc, verdict, first_fail), the record lands under docs/ai/tdd/<spec-id>/, and the fixture's git status plus a tree hash excluding docs/ai/tdd are byte-identical before and after. | Append a byte to the SOURCE tree's copy of --target after the clone write (fs.appendFileSync(path.join(ROOT, targetRel), " ")) — a runner that writes into the shipping tree must redden both the runner's own D7 self-check and this row's tree-hash assertion. | green |
 | TEST-472 | Spec-AC-02 | integration | tests/skills/test-aai-mutation-gate.sh | Runner refusals — an unknown selector exits 2, names the suite and writes no file and leaves no clone directory; a sed expression matching nothing exits 2 naming the expression and the target; both refusal paths leave the fixture tree byte-identical. | Replace the selector existence check with a constant true, so an unknown selector proceeds to a run. | green |
 | TEST-473 | Spec-AC-03 | integration | tests/skills/test-aai-hygiene-pack.sh | Selector fails closed, corpus-wide — every tests/skills/test-aai-*.sh that accepts a positional selector is enumerated from the tree and invoked with the literal no_such_test_xyz; each must exit non-zero naming it; three of them (one per idiom plus the already-fixed one) are then invoked with a selector they really define and must exit 0 having run exactly that test. | Restore the bare positional dispatch (run the argument with no membership test) in one suite; the corpus arm must redden naming exactly that suite, proving the guard enumerates rather than sampling. | green |
 | TEST-474 | Spec-AC-04 | integration | tests/skills/test-aai-mutation-gate.sh | Three verdicts and no deletion — a mutation the test cannot see records STAYED GREEN and exits 5; a mutation that breaks the target's syntax records INCONCLUSIVE and exits 6; a second run over an existing record leaves the first file present under its run-stamped name with its original bytes. | Collapse the INCONCLUSIVE branch into RED (classify on rc alone), so a suite that died for another reason is recorded as proof. | green |
@@ -872,9 +888,9 @@ evidence, produced by `mutation-run.mjs` itself.
 | TEST-484 | Spec-AC-14 | integration | tests/skills/test-aai-spec-amend.sh | Legacy degrades by name — a fixture corpus of three frozen specs with no frozen_sha256 and one with a valid one, where the anchored one is edited without a record, exits non-zero for the anchored spec only and lists the three others as degraded by name; a run over the live repository exits 0 and names the degraded count. | Treat a missing frozen_sha256 as a mismatch; the three-legacy-specs arm must redden, which is the retroactive-red failure CHANGE-0181 AC-005 forbids. | green |
 | TEST-485 | Spec-AC-15 | integration | tests/skills/test-aai-spec-amend.sh | Tracker must be open — a record whose tracked_by item is open stays unsigned-tracked and passes strict; the same record with that item closed, and again with it dropped, is classified unsigned-untracked and refused; the refusal names the item and its status. | Restore the existence-only bucketing (trackedItem !== null); the closed-tracker and dropped-tracker arms must redden. | green |
 | TEST-486 | Spec-AC-16 | integration | tests/skills/test-aai-mutation-gate.sh | The gate reads this ride — a fixture copy of this spec together with the real records produced for every row of this Test Plan is gated and exits 0 with degraded=0; the same fixture with one record removed exits 5 naming that row. | Remove the base_commit ancestry check; the arm that plants a record from an orphan commit must redden, proving the ancestry rule is exercised by this spec's own evidence and not only by a synthetic fixture. | green |
-| TEST-487 | Spec-AC-18 | unit | tests/skills/test-aai-hygiene-pack.sh | Suite registration — the suite-map row-count pin reads 95 and matches the live row count, every test-aai-*.sh has a row, check-test-registration.mjs exits 0 over the live tree, and select-suites.mjs given .aai/scripts/mutation-gate.mjs returns the new suite. | Delete the new suite's suite-map.yaml row; the existence arm must redden naming the unregistered suite and the count arm must redden on 94 against a pin of 95. | green |
+| TEST-487 | Spec-AC-18 | unit | tests/skills/test-aai-hygiene-pack.sh | Suite registration — the suite-map row-count pin reads 95 and matches the live row count, every test-aai-*.sh has a row, check-test-registration.mjs exits 0 over the live tree, and select-suites.mjs given .aai/scripts/mutation-gate.mjs returns the new suite. | Delete the new suite's suite-map.yaml row via a unified diff whose content is copied into the evidence directory at mutation time (D14 — never a /tmp path), so the record is reproducible off this machine; the existence arm must redden naming the unregistered suite and the count arm must redden on 94 against a pin of 95. | green |
 | TEST-490 | Spec-AC-19 | unit | tests/skills/test-aai-follow-ups.sh | Pin re-cut — close_work_item_pin_assert over the live tree returns OK for the edited close-work-item.mjs, the allowlist carries a new entry whose prose re-affirms both frozen invariants, and a grep asserts no allowlist entry claims the reconcile runs strictly after the try or catch block. | Revert the new allowlist entry; the assert arm must redden with the MISMATCH message naming the recomputed hash. | green |
-| TEST-488 | Spec-AC-18 | unit | tests/skills/test-aai-layer-profiles.sh | Classification — the union check over the live .aai tree passes and each of mutation-run.mjs, mutation-gate.mjs, lib/mutation-record.mjs and lib/spec-contract-hash.mjs is asserted present in exactly one of the two lists. | Remove one of the four new files from PROFILES.yaml; the union check must redden naming that file. | green |
+| TEST-488 | Spec-AC-18 | unit | tests/skills/test-aai-layer-profiles.sh | Classification — the union check over the live .aai tree passes and each of mutation-run.mjs, mutation-gate.mjs, lib/mutation-record.mjs and lib/spec-contract-hash.mjs is asserted present in exactly one of the two lists. | Remove one of the four new files from PROFILES.yaml via a unified diff whose content is copied into the evidence directory at mutation time (D14 — never a /tmp path); the union check must redden naming that file. | green |
 | TEST-489 | Spec-AC-17 | integration | tests/skills/test-aai-spec-tools.sh | Freeze writes the anchors atomically — a fixture tdd spec with a Mutation column gains SPEC-FROZEN true, status implementing, frozen_sha256 and mutation_gate v1 in one write; a fixture whose strategy is direct gains the anchor but not the marker; and a fixture that fails an existing freeze precondition is left byte-identical with none of the four written. | Write frozen_sha256 in a second pass after the status write; the refusal arm must redden with a half-written file, which is the atomicity claim. | green |
 | TEST-012 | Spec-AC-10 | unit | tests/skills/test-aai-prompt-diet.sh | Corpus true-up — the existing checkpoint re-sums against the JUSTIFIED_ADDITIONS entry added for this ride's SKILL_TDD, VALIDATION and ROLE_COMMON bytes, so the measured growth equals the credited growth and headroom returns to 2046. | Add one uncredited byte to .aai/SKILL_TDD.prompt.md; TEST-010's headroom arm must redden and the TEST-012 re-sum must stay green, proving the two checks are independent. | green |
 
@@ -1152,6 +1168,105 @@ legitimately diverge, with the reason named for both. Every fact above was
 verified against the real record files and the real source lines before this
 Amendment was written (`docs/knowledge/LEARNED.md` "Amendment record from
 text, not report").
+
+### Remediation round 1 (2026-09-14 — validation round 1 FAIL, d4274359)
+
+Validation round 1 (claude-opus-5, `docs/ai/tdd/spec-mutation-gate-for-tests/validation-round1.txt`)
+found three BLOCKING gaps between a D-decision's wording and what the delivered
+code actually tests. All three are fixed at cause; this section discloses the
+wording each fix adds to its D-decision, and the two Test Plan Mutation cells
+whose text changes as a direct result (TEST-471, D2 rotation — the row was
+REPLACED, never deleted).
+
+- **D7 (Spec-AC-01, B1).** Added: the shipping-tree tripwire is now ALSO the
+  runner's OWN self-check, not only an assertion the fixture suite makes from
+  outside. `mutation-run.mjs` computes a tree hash of the source working tree
+  (excluding `docs/ai/tdd/`, the SAME `computeTreeHash` shape D4 step 4 already
+  used, now factored into `.aai/scripts/lib/tree-hash.mjs` so both checks read
+  one implementation) before building the clone, and again immediately after
+  the mutated suite run completes (both the normal-run path and `--replay`).
+  A mismatch means the run itself wrote outside its lane — the verdict it
+  produced cannot be trusted, so it is downgraded to `INCONCLUSIVE` (normal
+  run: recorded, exit 6; replay: counted as a genuine regression, exit 1)
+  rather than recorded as RED or STAYED GREEN. `tests/skills/test-aai-mutation-gate.sh`
+  TEST-471 asserts the SAME tree hash from outside the tool (`git status
+  --porcelain` alone is blind to a content change in an already-dirty tracked
+  file — D7's original gap). TEST-471's Mutation cell now names the mutation
+  that actually reddens this property: an append into the SOURCE tree's copy
+  of `--target` after the clone write, the exact defect a runner-internal
+  write into the shipping tree looks like.
+- **D14 (Spec-AC-11, B3).** Added two things. First, a self-contained record:
+  a `--patch` mutation's content is copied beside its `.txt` record, under the
+  SAME evidence directory (`docs/ai/tdd/<spec-id>/mutation-<TEST-id>.patch`,
+  rotated in lockstep with the record per D2), and the record's `mutation:`
+  field is rewritten to name the stored copy — never a path outside the repo
+  (e.g. `/tmp/*.patch`), which may not exist on another machine or even
+  survive to the next `--replay` on the SAME machine. Second, `--replay`'s exit
+  contract gains a fourth path: applying a record's stored mutation is now
+  wrapped so a failure to apply it (a missing/unreadable patch, a `git apply`
+  error) is caught and printed as `INCONCLUSIVE <TEST-id>: could not apply the
+  recorded mutation (...)` rather than an uncaught stack trace — and it is
+  counted separately from a record that replayed cleanly but no longer
+  reddens. `--replay` exits `1` when at least one record is a genuine
+  regression (STAYED GREEN / suite-died-for-another-reason / malformed /
+  target gone / the D7 tripwire fired), `4` when the only problem is one or
+  more records that could not be REPLAYED at all (an apply failure), and `0`
+  only when every record was attempted and still reddens — SPEC-0180 D8's
+  rule ("alive", "nothing alive", "I could not tell" must never render as the
+  same answer) applied a second time, to replay. TEST-487 and TEST-488's
+  Mutation cells now name that the patch is stored under the evidence
+  directory at mutation time, not a `/tmp` path.
+- **B2 (Spec-AC-03, no D-decision wording change).** D3's own words already
+  said "ONE corpus-level guard that drives EVERY `tests/skills/test-aai-*.sh`
+  accepting a selector" and "enumerated from the tree" (TEST-473's cell) — the
+  delivered `test_094` read an 18-name hardcoded literal instead. Fixed at
+  cause: `test_094` now scans the tree for the idioms this repository's
+  suites actually use (a helper `hp_scan_selector_suites`), proved against an
+  isolated positive/negative-control fixture before it is trusted against the
+  live tree. The mechanical scan is honest about what it found: FOUR MORE
+  live suites (`test-aai-doctor.sh`, `test-aai-friction-capture-points.sh`,
+  `test-aai-friction-wiring.sh`, `test-aai-product-docs.sh`) carried the exact
+  unguarded `"$1"`-with-a-trailing-success-message shape
+  `fu-test-selector-unknown-id-passes` describes — real, live fail-opens the
+  18-name literal had never covered — each now carries the same named
+  `declare -F "$1"` guard the other 18 already do; `test-aai-layer-profiles.sh`
+  (NB6, already in the old 18 by accident) gets the same named guard in place
+  of its accidental `command not found` (rc 127). No D-decision's wording
+  changes: D3 already required this outcome.
+
+Also fixed at cause, no D-decision wording change: NB1 (a dangling untracked
+symlink is reproduced as a symlink, never followed, and the clone build is
+wrapped so ANY failure removes the tmp clone — not only the two paths that
+used to call `rmSync` explicitly); NB3 (`test_483`'s arm C fixture, which
+already carries an unfrozen spec beside a frozen one, now pins
+`spec_degraded=0` at baseline — the count the `specFrozenInBody` skip exists
+to keep at zero); NB4 (TEST-472's leftover-clone count now runs under a
+PRIVATE `$TMPDIR`, immune to a concurrent runner elsewhere — the same
+`fu-tripwire-attributes-concurrent-writes` class D7 already names); NB5
+(`extractSelectors` strips heredoc bodies before matching, so a fixture suite
+that WRITES another suite's source as heredoc text no longer leaks that
+text's function names into its own selector grammar — closes the duplicate
+`test_9002_farewell` suggestion); the Windows/sh-less hazard named in round 1
+now degrades by name (`runSuite` reports a distinct `spawnError` shape,
+surfaced as `INCONCLUSIVE: bash not found (...)`) rather than being
+misread as exit 124; submodule non-reproduction and concurrent-runner
+last-writer-wins are named as LIMITS in the runner's own header comment,
+unchanged in behavior (round 1 accepted both as-is). NB2 (Spec-AC-12): the
+undisclosed-amendment refusal's printed `spec-amend.mjs add` remedy now
+carries the offending spec's own frontmatter id as `--ref` and a real default
+sentence for `--what`/`--why` — no `<placeholder>` token — so Spec-AC-12's
+"run VERBATIM" is exercised literally by TEST-482, which now runs the printed
+line with zero substitution. NB7 and NB8 needed no action (round 1 already
+recorded them as not-this-ride / expected in-flight state).
+
+`SPEC-FROZEN: true` is preserved; nothing above moves or deletes an existing
+AC's or Test Plan row's text outside the two named Mutation cells (TEST-471,
+487, 488), which are edited in place per D2's own rotation rule — the OLD
+record for each is rotated aside, never deleted, and this section is the
+disclosure of why the new one differs from what was frozen.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: mutation-gate-for-tests`, `--signoff none`.
 
 ### Cross-ride fixture reconciliation (full sweep on d4274359)
 
