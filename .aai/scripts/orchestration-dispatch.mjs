@@ -68,7 +68,10 @@ import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
 const PROJECT_STATUSES = ['active', 'paused'];
 const VALIDATION_STATUSES = ['pass', 'fail', 'not_run'];
 const REVIEW_STATUSES = ['not_run', 'pass', 'fail', 'waived'];
-const PHASES = ['planning', 'preparation', 'implementation', 'validation', 'code_review', 'remediation'];
+// spec-dispatch-state-sweep D3: `closed` is the seventh, TERMINAL phase (see
+// state.mjs's own PHASES). No rule arm below lists it, so a work item in
+// phase `closed` is never re-offered.
+const PHASES = ['planning', 'preparation', 'implementation', 'validation', 'code_review', 'remediation', 'closed'];
 const ITEM_STATUSES = ['planned', 'in_progress', 'blocked', 'done'];
 // implementation-mode-choice: `direct` and `untested` are cheap non-TDD lanes.
 // They are NOT undecided (so rule 7 never re-plans them) and NOT tdd/hybrid (so
@@ -113,6 +116,7 @@ const RULES = [
   { id: '10', when: 'last_validation.status == fail', then: 'dispatch Remediation (.aai/REMEDIATION.prompt.md); fail + last run already Remediation -> needs_llm possible_missing_remediation_reset' },
   { id: '11', when: 'last_validation.status == not_run AND phase in {implementation, validation, remediation, code_review}; ceremony L0/L1 (spec-loop-ceremony-aware-dispatch): lightweight lane adds reason lightweight_lane_declared_scope (lane.validation_depth == declared_scope)', then: 'dispatch Validation (.aai/VALIDATION.prompt.md) with validator_independence' },
   { id: '12', when: 'code_review.status == fail', then: 'dispatch Remediation (.aai/REMEDIATION.prompt.md)' },
+  { id: '11s', when: 'validation pass AND isVerdictStale(snapshot) — a standing focus-ref-scoped pass verdict whose stamped tree hash (the last validation_verdict EVENTS line) differs from the CURRENT tree hash; spec-dispatch-state-sweep D2 — placed before rule 13 (else a stale pass reaches Code Review) and before rule 14 (else it reaches the flush)', then: 'dispatch Validation (.aai/VALIDATION.prompt.md) with reason validation_verdict_stale; --confirm absent also adds restamp_requires_confirm (the stamp cannot refresh without it, so the rule keeps re-firing — named, not silent)' },
   { id: '13', when: 'validation pass AND code_review.required AND status not in {pass, waived}; ceremony L3 (RFC-0009): required coerced true, waived -> needs_llm l3_review_waived_requires_operator_checkpoint', then: 'dispatch Code Review (.aai/SKILL_CODE_REVIEW.prompt.md)' },
   { id: '14', when: 'validation pass AND focus ref absent from METRICS.jsonl', then: 'dispatch Metrics Flush (.aai/METRICS_FLUSH.prompt.md); ref present -> no action required' },
 ];
@@ -374,16 +378,24 @@ export function decide(snapshot, opts = {}) {
 // require `refMatches(validation.ref_id, focus.ref_id)`; this function now
 // applies the identical guard so a same-status, wrong-ref STATE verdict can
 // no longer be misread as corroborating the focus ref's stamped event.
-function withStaleAdvisory(out, snapshot) {
+// isVerdictStale(snapshot) — the pure predicate (spec-dispatch-state-sweep
+// D2), HOISTED out of withStaleAdvisory so decideRuleTable's rule 11s can
+// call the SAME function withStaleAdvisory keeps calling — one definition,
+// two consumers, byte-identical advisory line.
+export function isVerdictStale(snapshot) {
   const s = snapshot;
   const verdict = s && s.last_validation_verdict;
   const treeHash = s ? s.tree_hash : undefined;
   const focusRef = s && s.focus ? s.focus.ref_id : null;
   const currentlyPass = !!(s && s.validation && s.validation.status === 'pass'
     && refMatches(s.validation.ref_id, focusRef));
-  if (verdict && verdict.status === 'pass' && currentlyPass
+  return !!(verdict && verdict.status === 'pass' && currentlyPass
     && verdict.hash != null && treeHash != null
-    && verdict.hash !== treeHash) {
+    && verdict.hash !== treeHash);
+}
+
+function withStaleAdvisory(out, snapshot) {
+  if (isVerdictStale(snapshot)) {
     return { ...out, advisories: ['validation_verdict_stale'] };
   }
   return out;
@@ -550,6 +562,21 @@ function decideRuleTable(snapshot, opts = {}) {
   if (s.review && s.review.status === 'fail') {
     if (s.last_run_role === 'Remediation') return needsLlm(s, ['possible_missing_remediation_reset'], '12');
     return dispatchFor('Remediation', s, '12');
+  }
+  // Rule 11s (spec-dispatch-state-sweep D2) — a standing focus-ref-scoped
+  // pass verdict whose stamped tree hash no longer matches the tracked tree
+  // is MECHANICALLY provable stale (isVerdictStale reuses the exact same
+  // corroboration guards withStaleAdvisory already applied to the advisory),
+  // so it routes to a fresh Validation instead of falling through to Code
+  // Review (rule 13, the measured incident: a review of bytes a later
+  // remediation rewrote) or the flush (rule 14). Placed BEFORE both. Without
+  // --confirm the EVENTS stamp cannot refresh, so this re-fires every tick —
+  // fail-closed, same polarity as rule 10 — and the reason names why instead
+  // of looping silently.
+  if (vstatus === 'pass' && isVerdictStale(s)) {
+    const reasons = ['validation_verdict_stale'];
+    if (!opts.confirm) reasons.push('restamp_requires_confirm');
+    return dispatchFor('Validation', s, '11s', { reasons });
   }
   // Judgment residue — a `pass` that does not name the focus ref may be a
   // stale/leaked verdict; "not run recently" is not mechanically decidable.
@@ -1190,9 +1217,26 @@ export function loadModelRouting(root) {
     // cache-friendly-dispatch: advisory reasoning-effort routing sections,
     // parsed exactly like tiers:/roles: (absent sections stay empty maps -> a
     // pre-effort MODEL_ROUTING.yaml resolves suggested_effort to null,
-    // back-compat). NEVER harness-scoped (D2).
-    if (/^effort_tiers:\s*$/.test(line)) { section = 'effort_tiers'; sectionHarness = null; continue; }
-    if (/^effort_roles:\s*$/.test(line)) { section = 'effort_roles'; sectionHarness = null; continue; }
+    // back-compat). NEVER harness-scoped (D2; spec-dispatch-state-sweep D14
+    // extends the SAME never-scoped rule to a SUFFIXED effort header instead
+    // of silently discarding it at the `if (/^\S/.test(line))` reset below —
+    // the suffix is recognized, NOTEd, and ignored: section is still bound,
+    // sectionHarness stays null unconditionally).
+    if ((m = line.match(/^effort_(tiers|roles)(?:@([A-Za-z0-9_-]+))?:\s*$/))) {
+      if (m[2]) {
+        // Suffixed: NOTEd below via seenHeaders, and its rows are DISCARDED
+        // entirely (section left null so the generic kv-store step below is
+        // a no-op for them) — resolution reads the unsuffixed sections ONLY
+        // (Spec-AC-16), never a value that arrived under a harness-looking
+        // header this axis does not support.
+        seenHeaders.push({ headerText: line.trim(), suffix: m[2], effortSuffix: true });
+        section = null;
+      } else {
+        section = `effort_${m[1]}`;
+      }
+      sectionHarness = null;
+      continue;
+    }
     if ((m = line.match(/^validation_alternate(?:@([A-Za-z0-9_-]+))?:\s*(\S+)\s*$/))) {
       const val = m[2] === 'null' ? null : m[2];
       if (m[1]) {
@@ -1222,7 +1266,14 @@ export function loadModelRouting(root) {
   // sections it also carries resolve exactly as they would in a file with
   // zero @<harness> sections (Spec-AC-06 byte-identity), instead of being
   // silently swallowed by the D2 leftover-rows check below.
-  for (const { headerText, suffix } of seenHeaders) {
+  for (const { headerText, suffix, effortSuffix } of seenHeaders) {
+    if (effortSuffix) {
+      // spec-dispatch-state-sweep D14: an effort header's suffix is ALWAYS
+      // ignored, even when it names a real harness — effort sections are
+      // never harness-scoped (SPEC-0177 D2), unlike tiers:/roles:.
+      console.error(`orchestration-dispatch: NOTE — MODEL_ROUTING.yaml section "${headerText}" ignored — effort sections are never harness-scoped; suffix "${suffix}" has no effect`);
+      continue;
+    }
     if (!HARNESS_VALUES.includes(suffix)) {
       console.error(`orchestration-dispatch: NOTE — MODEL_ROUTING.yaml section "${headerText}" ignored — "${suffix}" is not a harness (${HARNESS_VALUES.join(', ')})`);
     }
@@ -1502,7 +1553,11 @@ function main() {
       out = needsLlm(snapshot, problems);
       out.state_summary = snapshot ?? {};
     } else {
-      out = decide(snapshot);
+      // spec-dispatch-state-sweep D2: rule 11s's `restamp_requires_confirm`
+      // reason depends on whether THIS tick opted into --confirm — thread it
+      // through (opts.skipConfirm stays the rule-9x-only knob below; this is
+      // additive, so decideRuleTable's other opts.confirm-blind rules are unaffected).
+      out = decide(snapshot, { confirm: opts.confirm });
       out.state_summary = snapshot;
     }
     // harness-universal-routing D6: detection runs ONCE per process, at this
@@ -1602,7 +1657,7 @@ function main() {
     // the snapshot.
     if (Array.isArray(out.advisories) && out.advisories.includes('validation_verdict_stale')) {
       console.error(
-        `orchestration-dispatch: WARN validation_verdict_stale - ref ${out.ref_id ?? '(unknown)'}: `
+        `orchestration-dispatch: WARN validation_verdict_stale (rule ${out.rule ?? '11s'}) - ref ${out.ref_id ?? '(unknown)'}: `
         + 'the recorded pass verdict\'s tree hash no longer matches the tracked tree'
       );
     }

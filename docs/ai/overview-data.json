@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-14T01:32:18.173Z",
+  "generatedAt": "2026-09-14T03:44:26.240Z",
   "project": "aai",
   "counts": {
-    "delivered": 243,
+    "delivered": 244,
     "in_progress": 21,
     "releases": 1,
     "tokens_total": 68899611
@@ -301,6 +301,19 @@
       "spec": "docs/specs/SPEC-0179-spec-test-framework-sweep.md",
       "validation": null,
       "review": "docs/ai/reviews/review-test-framework-sweep-20260913T210418Z.md"
+    },
+    {
+      "ref": "dispatch-state-sweep",
+      "title": "The dispatch loop and STATE say the truth about the ride they are running",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0186-dispatch-state-sweep.md",
+      "closed_on": "2026-09-14",
+      "agent_minutes": 583,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0180-spec-dispatch-state-sweep.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-dispatch-state-sweep-20260913T230013Z.md"
     },
     {
       "ref": "residuals-of-the-per-suite-clone-ride",
@@ -3467,6 +3480,19 @@
           "spec": "docs/specs/SPEC-0179-spec-test-framework-sweep.md",
           "validation": null,
           "review": "docs/ai/reviews/review-test-framework-sweep-20260913T210418Z.md"
+        },
+        {
+          "ref": "dispatch-state-sweep",
+          "title": "The dispatch loop and STATE say the truth about the ride they are running",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0186-dispatch-state-sweep.md",
+          "closed_on": "2026-09-14",
+          "agent_minutes": 583,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0180-spec-dispatch-state-sweep.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-dispatch-state-sweep-20260913T230013Z.md"
         },
         {
           "ref": "residuals-of-the-per-suite-clone-ride",

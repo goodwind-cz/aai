@@ -554,6 +554,43 @@ function trustedDuration(run, nowMs) {
 // dispatched after a recorded FAIL), so first_pass_clean requires ALL THREE
 // counts to be zero rather than trusting the marker-gated counts alone.
 const FAIL_MARKER_RE = /\bVERDICT:\s*FAIL\b/i;
+// dispatch-state-sweep D17 (Spec-AC-19): the roles counted as "implementer"
+// work for the verdict_after_last_implementer field — the roles that CHANGE
+// the tree, as distinct from Validation/Code Review, which JUDGE it.
+const IMPLEMENTER_ROLES = new Set(['Implementation', 'TDD Implementation', 'Remediation']);
+
+// dispatch-state-sweep D17: the instant of the LAST recorded verdict for
+// `ref` — the newest `validation_verdict` EVENTS line (any status; the
+// existing latestValidationEvent already resolves "last matching line in
+// file order = latest" for an append-only ledger), or `last_validation`'s
+// own `run_at_utc` when EVENTS carries no such event AND the global block
+// names this ref. Null when neither is available — never a guess.
+function lastVerdictInstant(ref, eventsPath, vRef, vRunAt, warnings) {
+  const ev = latestValidationEvent(eventsPath, ref, warnings);
+  if (ev && typeof ev.ts === 'string') return ev.ts;
+  if (refMatches(vRef, ref) && typeof vRunAt === 'string') return vRunAt;
+  return null;
+}
+
+// dispatch-state-sweep D17: true when the last recorded verdict for `ref`
+// is later than (or the same instant as) the started_utc of the LAST
+// agent_runs entry whose role is an implementer role (append order, so the
+// last matching entry is the most recent); false when that implementer run
+// started AFTER the verdict; null when there is no implementer run, or
+// either instant is missing/unparseable — ambiguity must never render as
+// `true` (fail-closed, M37).
+function verdictAfterLastImplementer(entry, ref, eventsPath, vRef, vRunAt, warnings) {
+  const verdictTs = lastVerdictInstant(ref, eventsPath, vRef, vRunAt, warnings);
+  const verdictMs = typeof verdictTs === 'string' && ISO_RE.test(verdictTs) ? Date.parse(verdictTs) : null;
+  if (verdictMs === null || Number.isNaN(verdictMs)) return null;
+  const implRuns = entry.runs.filter(r => IMPLEMENTER_ROLES.has(typeof r.role === 'string' ? r.role : ''));
+  if (implRuns.length === 0) return null;
+  const lastImpl = implRuns[implRuns.length - 1];
+  const startedTs = typeof lastImpl.started_utc === 'string' ? lastImpl.started_utc : null;
+  const startedMs = startedTs !== null && ISO_RE.test(startedTs) ? Date.parse(startedTs) : null;
+  if (startedMs === null || Number.isNaN(startedMs)) return null;
+  return verdictMs >= startedMs;
+}
 
 // telemetry-fields-not-prose D3/D4: FIELD-FIRST. A Validation/Code Review run
 // carrying the `verdict` field (D1) is counted from that field; the note
@@ -618,7 +655,10 @@ function reliabilityOf(runs, ref, warnings) {
 }
 
 function buildEntry(entry, ctx) {
-  const { pricing, nowMs, dateUtc, reviewsFromTicks, title, strategy, waiver = null, verdictBasis = null } = ctx;
+  const {
+    pricing, nowMs, dateUtc, reviewsFromTicks, title, strategy, waiver = null, verdictBasis = null,
+    eventsPath = null, vRef = null, vRunAt = null,
+  } = ctx;
   const warnings = [];
   const runs = entry.runs.map(r => {
     const tokensIn = typeof r.tokens_in === 'number' ? r.tokens_in : null;
@@ -728,6 +768,12 @@ function buildEntry(entry, ctx) {
   const costBasisSet = new Set(runs.map(r => r.cost_basis));
   const totalsCostBasis = costBasisSet.size === 0 ? 'none'
     : (costBasisSet.size > 1 ? 'mixed' : [...costBasisSet][0]);
+  // dispatch-state-sweep D17 (Spec-AC-19): additive to `reliability` — never
+  // read from the tree at flush time (the tree has moved on by then), only
+  // from data the flush already reads (EVENTS + STATE).
+  const reliability = reliabilityOf(entry.runs, entry.ref, warnings);
+  reliability.verdict_after_last_implementer =
+    verdictAfterLastImplementer(entry, entry.ref, eventsPath, vRef, vRunAt, warnings);
   const ledgerEntry = {
     date_utc: dateUtc,
     ref_id: entry.ref,
@@ -741,7 +787,7 @@ function buildEntry(entry, ctx) {
       cost_basis: totalsCostBasis,
     },
     strategy,
-    reliability: reliabilityOf(entry.runs, entry.ref, warnings),
+    reliability,
     // D6: which of the three default-gate sources admitted this ref — null
     // for a ref that flushed by a route other than the default gate (e.g.
     // --sweep) or that was never gated (a resumed/interrupted flush).
@@ -832,7 +878,14 @@ function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver, archiveRefs,
     return bl;
   });
   editBlock(lines, 'code_review', bl => {
-    setField(bl, 2, 'required', [scalarLine(2, 'required', 'false')]);
+    // spec-dispatch-state-sweep D4: `required` is INPUT recorded by Planning
+    // (`set-code-review --required`), never a verdict — a partial flush must
+    // not decide what the PR gate enforces. Pre-D4 this line wrote `false`
+    // here, which zeroed the SAME field `applyFullReset` legitimately zeroes
+    // (no scope in flight at all there); doing it on a PARTIAL reset let BOTH
+    // SKILL_PR preconditions read satisfied for a ride that satisfied
+    // neither (the file's own pre-existing hazard comment, now closed).
+    // `applyFullReset`'s own `required: false` write is UNCHANGED (D4).
     setField(bl, 2, 'status', [scalarLine(2, 'status', 'not_run')]);
     // D8: `scope`/`base_ref`/`head_ref` are an INPUT to a later step (SKILL_PR
     // step 4a), not verdict state — a partial reset leaves them UNCHANGED
@@ -1128,9 +1181,15 @@ function eventsAppendOnlyWarning(eventsPath) {
     const headLines = nlCount(head.stdout);
     const workLines = nlCount(fs.readFileSync(eventsPath, 'utf8'));
     if (workLines < headLines) {
+      // dispatch-state-sweep D18 (Spec-AC-20): EVENTS.jsonl is append-only
+      // (RFC-0001) — discarding the working tree back onto HEAD is exactly
+      // the operation the rule forbids, so the remedy for a detected shrink
+      // can never name that command. The honest remedy is to re-append the
+      // missing lines.
+      const missing = headLines - workLines;
       return `WARNING R-GUARD EVENTS append-only — docs/ai/EVENTS.jsonl has ${workLines} line(s) but HEAD has `
-        + `${headLines} (a shrink = truncation/rewrite; EVENTS is append-only per RFC-0001 — restore from git `
-        + 'before continuing; SPEC-0113 S3, forensic not proof)';
+        + `${headLines} (a shrink = truncation/rewrite; EVENTS is append-only per RFC-0001 — re-append the `
+        + `missing ${missing} line(s); SPEC-0113 S3, forensic not proof)`;
     }
     return null;
   } catch {
@@ -1374,6 +1433,9 @@ function main() {
     // Scope-bound exactly as the gate binds it: the record must NAME this ref.
     waiver: vWaiver !== null && refMatchesScope(vWaiver.ref, entry.ref) ? vWaiver : null,
     verdictBasis: verdictBasisByRef[entry.ref] ?? null,
+    // D17 (Spec-AC-19): read-only inputs for verdict_after_last_implementer —
+    // the same EVENTS path and last_validation fields the gate above reads.
+    eventsPath, vRef, vRunAt,
   }));
   // Malformed EVENTS.jsonl lines encountered while resolving source 3 (D6) —
   // surfaced exactly like every other degrade-and-report NOTE, never a crash.
@@ -1421,9 +1483,11 @@ function main() {
       // be a swept line, or a line from any earlier same-day flush. Both are
       // sound for RETIRING stranded metrics and neither is a basis for opening
       // the PR gate: minting a record there hands a ride that never validated
-      // an opening it never had, and since this same reset also zeroes
-      // `code_review.required`, BOTH SKILL_PR preconditions would then read
-      // satisfied for a ride that satisfied neither.
+      // an opening it never had. (Pre-spec-dispatch-state-sweep-D4, this same
+      // reset ALSO zeroed `code_review.required`, so a false archive plus that
+      // zeroing together made BOTH SKILL_PR preconditions read satisfied for a
+      // ride that satisfied neither — D4 closed the `required` half; the
+      // archive-eligibility allowlist below closes the other.)
       //
       // So eligibility is taken from the ALLOWLIST the gate loop built, never
       // by subtracting a lane. A subtraction has to enumerate the ways in

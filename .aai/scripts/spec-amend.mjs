@@ -159,6 +159,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { nowIso } from './lib/iso-time.mjs';
 
 const DEFAULT_LEDGER = 'docs/ai/decisions.jsonl';
 const ITEM_PREFIX = 'fu-amend-';
@@ -403,9 +404,11 @@ function loadLedger(absPath) {
 
 // --- writing ------------------------------------------------------------------
 
-function nowIso() {
-  return `${new Date().toISOString().slice(0, 19)}Z`;
-}
+// nowIso is imported from lib/iso-time.mjs (CHANGE-0184 / spec-dispatch-state-sweep
+// D7 / validation-round1 B5) — this file previously carried its own private,
+// non-exported `nowIso` function (second precision, same emitted bytes) that
+// was invisible to the "exactly one definition" guard (TEST-036), which is
+// exactly the failure mode D7 exists to remove.
 
 // pickAmendItemId — the ONE place that decides which item an unsigned
 // amendment attaches to, shared by `add` and `classify` so the two writers

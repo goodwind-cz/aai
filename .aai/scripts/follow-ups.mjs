@@ -128,6 +128,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { nowIso } from './lib/iso-time.mjs';
 
 const DEFAULT_LEDGER = 'docs/ai/decisions.jsonl';
 const FOLLOW_UP_ID_RE = /^fu-[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -340,9 +341,11 @@ function loadRegistry(absPath, opts = {}) {
 
 // --- writing ------------------------------------------------------------------
 
-function nowIso() {
-  return `${new Date().toISOString().slice(0, 19)}Z`;
-}
+// nowIso is imported from lib/iso-time.mjs (CHANGE-0184 / spec-dispatch-state-sweep
+// D7 / validation-round1 B5) — this file previously carried its own private,
+// non-exported `nowIso` function (second precision, same emitted bytes) that
+// was invisible to the "exactly one definition" guard (TEST-036), which is
+// exactly the failure mode D7 exists to remove.
 
 // One appendFileSync of one serialized line (D2). A ledger whose last line
 // lacks its terminating newline would otherwise get a GLUED record.

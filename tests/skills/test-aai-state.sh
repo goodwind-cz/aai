@@ -30,6 +30,8 @@ TEST_NAME="aai-state"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 STATE_SCRIPT="$PROJECT_ROOT/.aai/scripts/state.mjs"
 CORE_LIB="$PROJECT_ROOT/.aai/scripts/lib/state-core.mjs"
 CHECK_SCRIPT="$PROJECT_ROOT/.aai/scripts/check-state.mjs"
@@ -1420,6 +1422,7 @@ current_focus:
   type: intake_change
   ref_id: CHANGE-0010
   primary_path: docs/issues/CHANGE-0010.md
+  spec_path: docs/specs/SPEC-0010-fixture.md
 
 active_work_items:
   - ref_id: CHANGE-0010
@@ -1486,6 +1489,7 @@ current_focus:
   type: intake_change
   ref_id: CHANGE-0011
   primary_path: docs/issues/CHANGE-0011.md
+  spec_path: docs/specs/SPEC-0011-fixture.md
 
 active_work_items:
   - ref_id: CHANGE-0011
@@ -2539,10 +2543,22 @@ test_061_untested_requires_rationale() {  # impl-mode TEST-002 / Spec-AC-02
 # --- R-GUARD Stage 1: env-marker single-writer refusal (SPEC-0113) ------------
 
 test_062_rguard_subagent_refuses_mutators() {  # r-guard TEST-RG-STATE-01/03/04 / Spec-AC-01/03/04
-  log_info "Test: AAI_ROLE=subagent refuses every STATE mutator (exit 3, no write); log-tick + append-event stay allowed (r-guard Spec-AC-01/03/04)..."
+  log_info "Test: AAI_ROLE=subagent refuses every STATE mutator against a GUARDED path (exit 3, no write); log-tick + append-event stay allowed (r-guard Spec-AC-01/03/04, narrowed by spec-dispatch-state-sweep D12)..."
   local s="$TEST_DIR/t62-state.yaml"
   write_state_fixture "$s"
   cp "$s" "$TEST_DIR/t62-snapshot.yaml"
+
+  # spec-dispatch-state-sweep D12 (Spec-AC-12): the marker refusal is now
+  # scoped to a GUARDED --state path (this project's own shipping
+  # docs/ai/STATE.yaml, or another AAI project's) — a plain mktemp fixture
+  # like `$s` above is EXEMPT and now WRITES under the marker (test_071
+  # covers that half). AC-001/AC-004 below are re-pointed at the real
+  # (read-only-probed, never mutated — exit 3 opens nothing) shipping STATE
+  # to keep exercising "every mutator refuses" for the case the guard still
+  # covers.
+  local real="$PROJECT_ROOT/docs/ai/STATE.yaml"
+  [[ -f "$real" ]] || log_skip "no real docs/ai/STATE.yaml present in this worktree to probe"
+  cp "$real" "$TEST_DIR/t62-real-snapshot.yaml"
 
   # AC-001: all ten STATE-mutating subcommands refuse with exit 3 and write
   # NOTHING (byte-identical fixture). Minimal/no flags are enough — the guard
@@ -2551,9 +2567,9 @@ test_062_rguard_subagent_refuses_mutators() {  # r-guard TEST-RG-STATE-01/03/04 
   for cmd in set-focus set-phase set-validation set-code-review set-strategy \
              set-worktree set-tdd-cycle set-human-input append-run reset-block; do
     ec=0
-    st_sub "$s" "$TEST_DIR/t62-$cmd.log" "$cmd" || ec=$?
+    st_sub "$real" "$TEST_DIR/t62-$cmd.log" "$cmd" || ec=$?
     [[ "$ec" == 3 ]] || log_fail "AC-001: $cmd under AAI_ROLE=subagent must exit 3 (got $ec): $(cat "$TEST_DIR/t62-$cmd.log")"
-    cmp -s "$s" "$TEST_DIR/t62-snapshot.yaml" || log_fail "AC-001: $cmd refusal must leave STATE byte-identical (write count 0)"
+    cmp -s "$real" "$TEST_DIR/t62-real-snapshot.yaml" || log_fail "AC-001: $cmd refusal must leave the shipping STATE byte-identical (write count 0)"
   done
 
   # AC-004: the refusal message names the single-writer rule + SUBAGENT_CONTRACT.md
@@ -2565,9 +2581,9 @@ test_062_rguard_subagent_refuses_mutators() {  # r-guard TEST-RG-STATE-01/03/04 
   # AC-004 ordering: an unknown-flag typo still fails LOUD (exit 2) BEFORE the
   # marker check — even under the marker.
   ec=0
-  st_sub "$s" "$TEST_DIR/t62-typo.log" set-focus --typexxx foo || ec=$?
+  st_sub "$real" "$TEST_DIR/t62-typo.log" set-focus --typexxx foo || ec=$?
   [[ "$ec" == 2 ]] || log_fail "AC-004: a typo flag must exit 2 (before the marker check), got $ec: $(cat "$TEST_DIR/t62-typo.log")"
-  cmp -s "$s" "$TEST_DIR/t62-snapshot.yaml" || log_fail "AC-004: typo refusal must leave STATE byte-identical"
+  cmp -s "$real" "$TEST_DIR/t62-real-snapshot.yaml" || log_fail "AC-004: typo refusal must leave the shipping STATE byte-identical"
 
   # AC-003: log-tick (LOOP_TICKS, not STATE) STILL succeeds under the marker.
   capture_now
@@ -2850,6 +2866,556 @@ test_069_scope_ref_id_lifecycle() {  # TEST-031 / Spec-AC-09 (NON-BLOCKING-A, re
   log_pass "code_review.scope_ref_id: set-code-review --scope refreshes it, an unrelated set-code-review call leaves it alone, and reset-block code_review clears it without creating it on a legacy STATE (TEST-031)"
 }
 
+# --- dispatch-state-sweep: TEST-032..038 --------------------------------------
+
+test_070_one_clock_iso_time() {  # TEST-036 / Spec-AC-07
+  log_info "Test: one clock — single nowIso definition, second-precision EVENTS.ts + STATE.updated_at_utc, same-second verdict does not re-stamp (TEST-036)..."
+  local sec_re='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+
+  # (a) exactly one nowIso DEFINITION anywhere outside lib/iso-time.mjs —
+  # state-engine.mjs must re-export, never redefine. validation-round1 B5:
+  # the prior anchor ('^export function nowIso') could not see a PRIVATE,
+  # non-exported `function nowIso()` — exactly the shape follow-ups.mjs and
+  # spec-amend.mjs each carried, silently, until this remediation (a check
+  # that cannot fail is the exact failure mode D7 exists to remove). This
+  # pattern has no `^export` anchor, so it catches a definition regardless
+  # of export status.
+  local defs
+  defs="$(/usr/bin/grep -rn 'function nowIso(' "$PROJECT_ROOT/.aai/scripts" | /usr/bin/grep -v '/lib/iso-time.mjs:' || true)"
+  [[ -z "$defs" ]] || log_fail "exactly one nowIso definition allowed (in lib/iso-time.mjs); found elsewhere: $defs"
+  [[ -f "$PROJECT_ROOT/.aai/scripts/lib/iso-time.mjs" ]] || log_fail "lib/iso-time.mjs must exist"
+  /usr/bin/grep -qF 'export function nowIso' "$PROJECT_ROOT/.aai/scripts/lib/iso-time.mjs" \
+    || log_fail "lib/iso-time.mjs must define nowIso"
+  /usr/bin/grep -qE "^import \{ nowIso \} from '\./iso-time\.mjs';\$" "$PROJECT_ROOT/.aai/scripts/lib/state-engine.mjs" \
+    || log_fail "state-engine.mjs must import nowIso from ./iso-time.mjs (re-export, not redefine)"
+  /usr/bin/grep -qF 'export { nowIso };' "$PROJECT_ROOT/.aai/scripts/lib/state-engine.mjs" \
+    || log_fail "state-engine.mjs must re-export nowIso"
+
+  # (a2) named CONSUMERS actually IMPORT the shared definition — "no OTHER
+  # file DEFINES nowIso" (arm a above) does not by itself prove a given file
+  # USES the shared one: a call-site revert to a bespoke toISOString() (M16)
+  # leaves zero duplicate definitions but still breaks the single clock.
+  for consumer in append-event.mjs follow-ups.mjs spec-amend.mjs update-check.mjs; do
+    /usr/bin/grep -qF "from './lib/iso-time.mjs'" "$PROJECT_ROOT/.aai/scripts/$consumer" \
+      || log_fail "$consumer must import nowIso from lib/iso-time.mjs (single clock, not its own toISOString)"
+  done
+
+  # (b) a REAL append-event.mjs run's ts is second precision.
+  local d="$TEST_DIR/t70-events"
+  mkdir -p "$d/docs/ai"
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event doc_lifecycle --ref FIX-0001 --from draft --to implementing > "$TEST_DIR/t70b.log" 2>&1) \
+    || log_fail "append-event.mjs must exit 0: $(cat "$TEST_DIR/t70b.log")"
+  local ts
+  ts="$(node -e 'const fs=require("fs");const l=fs.readFileSync(process.argv[1],"utf8").trim().split("\n").pop();console.log(JSON.parse(l).ts)' "$d/docs/ai/EVENTS.jsonl")"
+  [[ "$ts" =~ $sec_re ]] || log_fail "append-event.mjs ts must be second-precision (got: $ts)"
+
+  # (c) a REAL state.mjs write's updated_at_utc is second precision.
+  local s="$TEST_DIR/t70-state.yaml"
+  write_state_fixture "$s"
+  st "$s" "$TEST_DIR/t70c.log" set-human-input --required false || log_fail "set-human-input must exit 0: $(cat "$TEST_DIR/t70c.log")"
+  local uts
+  uts="$(/usr/bin/grep '^updated_at_utc:' "$s" | sed 's/^updated_at_utc: //')"
+  [[ "$uts" =~ $sec_re ]] || log_fail "state.mjs updated_at_utc must be second-precision (got: $uts)"
+
+  # (d) same-second verdict-and-stamp fixture driven through the REAL dispatch
+  # CLI with --confirm: a validation recorded in the SAME wall-clock second as
+  # its own stamped EVENTS line must not append a second validation_verdict line.
+  local dr="$TEST_DIR/t70-dispatch"
+  rm -rf "$dr"
+  mkdir -p "$dr/docs/ai" "$dr/docs/specs" "$dr/docs/issues" "$dr/.aai/workflow"
+  echo "# Workflow fixture" > "$dr/.aai/workflow/WORKFLOW.md"
+  echo "# Technology fixture" > "$dr/docs/TECHNOLOGY.md"
+  cat > "$dr/docs/specs/SPEC-0001-fx.md" <<'MD'
+---
+id: SPEC-0001
+type: spec
+number: 1
+status: draft
+links:
+  pr: []
+---
+
+# Fixture spec
+
+SPEC-FROZEN: true
+
+## Test Plan
+MD
+  write_state_fixture "$dr/docs/ai/STATE.yaml" pass not_run
+  git -C "$dr" init -q -b main
+  git -C "$dr" config user.email test@example.com
+  git -C "$dr" config user.name test
+  git -C "$dr" add -A
+  git -C "$dr" commit -q -m init
+
+  (cd "$PROJECT_ROOT" && node .aai/scripts/orchestration-dispatch.mjs --state "$dr/docs/ai/STATE.yaml" --root "$dr" --confirm > "$TEST_DIR/t70d-1.json" 2> "$TEST_DIR/t70d-1.err") || true
+  local n1
+  n1="$(/usr/bin/grep -c '"event":"validation_verdict"' "$dr/docs/ai/EVENTS.jsonl" 2>/dev/null || true)"
+  [[ "$n1" == "1" ]] || log_fail "first --confirm must stamp exactly one validation_verdict event (got $n1): $(cat "$TEST_DIR/t70d-1.err")"
+
+  local stamp_ts
+  stamp_ts="$(node -e 'const fs=require("fs");const l=fs.readFileSync(process.argv[1],"utf8").trim().split("\n").pop();console.log(JSON.parse(l).ts)' "$dr/docs/ai/EVENTS.jsonl")"
+  [[ "$stamp_ts" =~ $sec_re ]] || log_fail "the stamped event's own ts must already be second-precision (got: $stamp_ts)"
+  sed -i.bak "s/^  run_at_utc: .*/  run_at_utc: $stamp_ts/" "$dr/docs/ai/STATE.yaml" && rm -f "$dr/docs/ai/STATE.yaml.bak"
+
+  (cd "$PROJECT_ROOT" && node .aai/scripts/orchestration-dispatch.mjs --state "$dr/docs/ai/STATE.yaml" --root "$dr" --confirm > "$TEST_DIR/t70d-2.json" 2> "$TEST_DIR/t70d-2.err") || true
+  local n2
+  n2="$(/usr/bin/grep -c '"event":"validation_verdict"' "$dr/docs/ai/EVENTS.jsonl" 2>/dev/null || true)"
+  # NOTE: this arm hand-copies stamp_ts into run_at_utc (sed, above) — it
+  # proves the two writers AGREE when given the identical string, not that
+  # SECOND-PRECISION TRUNCATION is what makes two INDEPENDENTLY-timed
+  # instants agree (validation-round1 B5/M17: this arm still passes if
+  # nowIso keeps milliseconds, because it never exercises two real, distinct
+  # nowIso() calls). Arm (e) below is the direction pin.
+  [[ "$n2" == "1" ]] || log_fail "a same-second verdict must NOT append a second validation_verdict line (got $n2): $(cat "$TEST_DIR/t70d-2.err")"
+
+  # (e) DIRECTION probe (validation-round1 B5/M17; validation-round2 B6;
+  # validation-round3 N23; review-dispatch-state-sweep-20260913T221903Z
+  # NB-7) — three REAL, INDEPENDENT nowIso() calls (a, b, c) each a real
+  # GAP_MS apart (never hand-copied) must land on the SAME wall-clock
+  # second for at least one ADJACENT pair. A fixed ~60ms gap crossed a
+  # second boundary often enough to be a measured 6.3% false red (19/300,
+  # validation-round2 B6). Round 2's fix aligned the pair to a wall-clock
+  # second BEFORE sampling, which removed the unconditional false-red rate
+  # but only guarded the ALIGNMENT: once `a` was sampled there was no
+  # re-sample and no tolerance, so an event-loop stall of more than
+  # MARGIN_MS between the two calls could still push the pair across a
+  # boundary and false-red (round 3 measured 12%/44%/76% at 100/500/930ms
+  # stalls). Sampling a THIRD point and requiring only one of the two
+  # ADJACENT pairs to agree tolerates a single stall landing in EITHER gap
+  # (the other gap's pair still agrees) without weakening what the arm
+  # catches: under a millisecond-precision nowIso (M17) every call differs
+  # by real elapsed time regardless of where in the second it lands, so
+  # NO pair — adjacent or otherwise — is ever equal, and the mutation still
+  # reddens deterministically.
+  cat > "$TEST_DIR/t70e-probe.mjs" <<MJS
+import { nowIso } from '$PROJECT_ROOT/.aai/scripts/lib/iso-time.mjs';
+const GAP_MS = 20;
+const MARGIN_MS = 50;
+for (let attempt = 0; attempt < 5; attempt++) {
+  const remaining = 1000 - (Date.now() % 1000);
+  if (remaining >= 2 * GAP_MS + MARGIN_MS) break;
+  await new Promise((r) => setTimeout(r, remaining));
+}
+const a = nowIso();
+await new Promise((r) => setTimeout(r, GAP_MS));
+const b = nowIso();
+await new Promise((r) => setTimeout(r, GAP_MS));
+const c = nowIso();
+const adjacentSame = (a === b) || (b === c);
+console.log(adjacentSame ? 'SAME' : \`DIFFERENT \${a} \${b} \${c}\`);
+MJS
+  local direction_out
+  direction_out="$(node "$TEST_DIR/t70e-probe.mjs")"
+  [[ "$direction_out" == "SAME" ]] || log_fail "(e) three real, second-aligned nowIso() calls 20ms apart must have at least one ADJACENT pair second-truncated to the SAME string (got: $direction_out)"
+
+  log_pass "one clock — single nowIso definition + real consumers, second-precision EVENTS.ts + STATE.updated_at_utc, same-second verdict does not re-stamp, direction pinned (TEST-036)"
+}
+
+test_071_rguard_predicate_which_file() {  # TEST-037 / Spec-AC-12
+  log_info "Test: R-GUARD asks WHICH file — a mktemp fixture writes under the marker, the shipping/another-project STATE refuses, CORE suite green with no scrub (TEST-037)..."
+
+  # (a) a mktemp fixture (outside every repo root) under AAI_ROLE=subagent
+  # must WRITE and exit 0.
+  local s="$TEST_DIR/t71-state.yaml"
+  write_state_fixture "$s"
+  cp "$s" "$TEST_DIR/t71-before.yaml"
+  st_sub "$s" "$TEST_DIR/t71a.log" set-human-input --required false \
+    || log_fail "(a) a mktemp fixture must WRITE under the marker (got refusal): $(cat "$TEST_DIR/t71a.log")"
+  cmp -s "$s" "$TEST_DIR/t71-before.yaml" && log_fail "(a) the mktemp fixture must actually CHANGE"
+
+  # (b) THIS repo's own shipping docs/ai/STATE.yaml (read-only probe — never
+  # mutated; exit 3 means nothing is even opened) must REFUSE exit 3,
+  # byte-identical.
+  local real="$PROJECT_ROOT/docs/ai/STATE.yaml"
+  [[ -f "$real" ]] || log_skip "(b) no real docs/ai/STATE.yaml present in this worktree to probe"
+  cp "$real" "$TEST_DIR/t71-real-before.yaml"
+  local ec=0
+  st_sub "$real" "$TEST_DIR/t71b.log" set-human-input --required false || ec=$?
+  [[ "$ec" == 3 ]] || log_fail "(b) the shipping STATE must refuse exit 3 under the marker (got $ec): $(cat "$TEST_DIR/t71b.log")"
+  cmp -s "$real" "$TEST_DIR/t71-real-before.yaml" || log_fail "(b) the shipping STATE must stay byte-identical after the refusal"
+
+  # (c) a SYNTHESIZED second AAI project (its own .aai/scripts/state.mjs
+  # sibling to a docs/ai/STATE.yaml) must ALSO refuse exit 3, even though it
+  # sits outside THIS repo's own root (arm B, independent of arm A).
+  local other="$TEST_DIR/t71-other-project"
+  mkdir -p "$other/.aai/scripts" "$other/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/state.mjs" "$other/.aai/scripts/state.mjs"
+  write_state_fixture "$other/docs/ai/STATE.yaml"
+  cp "$other/docs/ai/STATE.yaml" "$TEST_DIR/t71-other-before.yaml"
+  ec=0
+  st_sub "$other/docs/ai/STATE.yaml" "$TEST_DIR/t71c.log" set-human-input --required false || ec=$?
+  [[ "$ec" == 3 ]] || log_fail "(c) a synthesized second project's STATE must refuse exit 3 (got $ec): $(cat "$TEST_DIR/t71c.log")"
+  cmp -s "$other/docs/ai/STATE.yaml" "$TEST_DIR/t71-other-before.yaml" || log_fail "(c) the other project's STATE must stay byte-identical after the refusal"
+
+  # (d) the friction measurement itself: a REAL CORE suite, under the marker,
+  # with NO env scrub, must exit 0 (measurement 2's RED-today claim flips).
+  local d_out="$TEST_DIR/t71d.log"
+  local d_ec=0
+  (cd "$PROJECT_ROOT" && AAI_ROLE=subagent bash tests/skills/test-aai-check-state.sh > "$d_out" 2>&1) || d_ec=$?
+  [[ "$d_ec" == 0 ]] || log_fail "(d) test-aai-check-state.sh must exit 0 under AAI_ROLE=subagent with NO scrub (got $d_ec): $(tail -20 "$d_out")"
+  ! grep -q '^FAIL:' "$d_out" || log_fail "(d) test-aai-check-state.sh must carry zero FAIL: lines under the marker: $(grep '^FAIL:' "$d_out")"
+
+  log_pass "R-GUARD asks WHICH file — mktemp fixture writes, shipping/other-project STATE refuses exit 3 byte-identical, CORE suite green with no scrub (TEST-037)"
+}
+
+test_077_rguard_directory_symlink() {  # TEST-039 / Spec-AC-12 (validation-round1 B1)
+  log_info "Test: R-GUARD judges a --state path's REAL directory target, not its spelling — a directory symlink into the repo's docs/ai is refused byte-identically, a plain .. traversal into the repo still refuses, a symlink to a scratch dir is allowed, and a not-yet-existing scratch leaf is allowed through the guard (TEST-039)..."
+
+  # (a) a DIRECTORY symlink whose target is THIS repo's own docs/ai must be
+  # refused exit 3, with the real shipping STATE byte-identical before/after.
+  # Pre-B1-fix, isGuardedStatePath resolved with path.resolve() only (no
+  # fs.realpathSync), so this spelling read as an outside-root scratch path
+  # and the rename (state-engine.mjs writeState, same-dir tmp+rename) landed
+  # on the real file through the link.
+  local real="$PROJECT_ROOT/docs/ai/STATE.yaml"
+  if [[ -f "$real" ]]; then
+    cp "$real" "$TEST_DIR/t77-real-before.yaml"
+    mkdir -p "$TEST_DIR/t77-fake/docs"
+    ln -s "$PROJECT_ROOT/docs/ai" "$TEST_DIR/t77-fake/docs/ai"
+    local ec=0
+    st_sub "$TEST_DIR/t77-fake/docs/ai/STATE.yaml" "$TEST_DIR/t77a.log" set-human-input --required false || ec=$?
+    [[ "$ec" == 3 ]] || log_fail "(a) a directory symlink into the repo's docs/ai must refuse exit 3 (got $ec): $(cat "$TEST_DIR/t77a.log")"
+    grep -qi 'single-writer' "$TEST_DIR/t77a.log" || log_fail "(a) the refusal must name the single-writer rule: $(cat "$TEST_DIR/t77a.log")"
+    cmp -s "$real" "$TEST_DIR/t77-real-before.yaml" || log_fail "(a) the real shipping STATE must stay byte-identical after the symlink attempt"
+  else
+    log_info "(a) no real docs/ai/STATE.yaml present in this worktree to probe — skipping that arm"
+  fi
+
+  # (b) a plain relative path with a `..` segment that resolves (by spelling
+  # alone, no symlink involved) into the repo root must still refuse exit 3 —
+  # a regression control that Arm A's ordinary case survived the realpath fix.
+  local ec2=0
+  st_sub "tests/../docs/ai/STATE.yaml" "$TEST_DIR/t77b.log" set-human-input --required false || ec2=$?
+  [[ "$ec2" == 3 ]] || log_fail "(b) a .. traversal spelling into the repo root must refuse exit 3 (got $ec2): $(cat "$TEST_DIR/t77b.log")"
+
+  # (c) a directory symlink whose target is an ordinary SCRATCH dir (outside
+  # every project root, no sibling state.mjs) must still be ALLOWED — the fix
+  # judges the target, it does not refuse every symlink.
+  mkdir -p "$TEST_DIR/t77-real-scratch"
+  write_state_fixture "$TEST_DIR/t77-real-scratch/STATE.yaml"
+  cp "$TEST_DIR/t77-real-scratch/STATE.yaml" "$TEST_DIR/t77c-before.yaml"
+  ln -s "$TEST_DIR/t77-real-scratch" "$TEST_DIR/t77-scratch-link"
+  st_sub "$TEST_DIR/t77-scratch-link/STATE.yaml" "$TEST_DIR/t77c.log" set-human-input --required false \
+    || log_fail "(c) a symlink to a scratch dir must be ALLOWED under the marker (got refusal): $(cat "$TEST_DIR/t77c.log")"
+  cmp -s "$TEST_DIR/t77-real-scratch/STATE.yaml" "$TEST_DIR/t77c-before.yaml" && log_fail "(c) the scratch fixture (through the symlink) must actually CHANGE"
+
+  # (d) a scratch path whose LEAF does not exist yet (parent dir real, no
+  # symlink) must pass through the guard unrefused — it fails later with the
+  # ordinary "STATE file not found", never the single-writer message. Proves
+  # realpathDirTarget's ENOENT fallback does not crash or misfire on a
+  # not-yet-created fixture.
+  local ec3=0
+  st_sub "$TEST_DIR/t77-real-scratch/NEWFILE.yaml" "$TEST_DIR/t77d.log" set-human-input --required false || ec3=$?
+  [[ "$ec3" == 2 ]] || log_fail "(d) a nonexistent scratch leaf must fall through to the ordinary not-found refusal, exit 2 (got $ec3): $(cat "$TEST_DIR/t77d.log")"
+  grep -qi 'single-writer' "$TEST_DIR/t77d.log" && log_fail "(d) a nonexistent scratch leaf must NOT be caught by the single-writer guard: $(cat "$TEST_DIR/t77d.log")"
+
+  log_pass "R-GUARD follows a directory symlink to its real target — repo symlink refused byte-identical, .. traversal control refused, scratch symlink allowed, nonexistent scratch leaf unrefused (TEST-039)"
+}
+
+test_072_focus_retarget_no_residue() {  # TEST-032 / Spec-AC-01
+  log_info "Test: set-focus --type retarget rewrites ALL FOUR current_focus fields (spec_path included); set-phase --spec-path refreshes it for the focused ref (TEST-032)..."
+
+  # (a) a fixture carrying ref A + spec A, retargeted to a NEW ref B with NO
+  # --spec-path: all four fields name the new scope, spec_path is null — the
+  # previous scope's spec_path must NOT survive.
+  local s="$TEST_DIR/t72-state.yaml"
+  write_state_fixture "$s"   # current_focus: ref_id CHANGE-0001, spec_path SPEC-0001-fixture.md
+  grep -qE '^  spec_path: docs/specs/SPEC-0001-fixture.md$' "$s" \
+    || log_fail "fixture precondition: current_focus.spec_path must start non-null"
+  st "$s" "$TEST_DIR/t72a.log" set-focus --type intake_issue --ref ISSUE-0099 --path docs/issues/ISSUE-0099-fixture.md \
+    || log_fail "(a) retarget set-focus must exit 0: $(cat "$TEST_DIR/t72a.log")"
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" > "$TEST_DIR/t72a-block.txt"
+  grep -qE '^  type: intake_issue$' "$TEST_DIR/t72a-block.txt" || log_fail "(a) current_focus.type must be the new type"
+  grep -qE '^  ref_id: ISSUE-0099$' "$TEST_DIR/t72a-block.txt" || log_fail "(a) current_focus.ref_id must be the new ref"
+  grep -qE '^  primary_path: docs/issues/ISSUE-0099-fixture.md$' "$TEST_DIR/t72a-block.txt" \
+    || log_fail "(a) current_focus.primary_path must be the new path"
+  grep -qE '^  spec_path: null$' "$TEST_DIR/t72a-block.txt" \
+    || log_fail "(a) current_focus.spec_path must be null — the PREVIOUS scope's spec_path must not survive a retarget: $(cat "$TEST_DIR/t72a-block.txt")"
+  ck "$s" "$TEST_DIR/t72a-ck.log" || log_fail "(a) check-state after retarget: $(cat "$TEST_DIR/t72a-ck.log")"
+
+  # (b) a retarget WITH --spec-path names the new spec_path.
+  st "$s" "$TEST_DIR/t72b.log" set-focus --type intake_change --ref CHANGE-0050 --path docs/issues/CHANGE-0050-fixture.md \
+    --spec-path docs/specs/SPEC-0050-fixture.md \
+    || log_fail "(b) retarget with --spec-path must exit 0: $(cat "$TEST_DIR/t72b.log")"
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^  spec_path: docs/specs/SPEC-0050-fixture.md$' \
+    || log_fail "(b) current_focus.spec_path must be the newly-passed --spec-path"
+  ck "$s" "$TEST_DIR/t72b-ck.log" || log_fail "(b) check-state after retarget+spec-path: $(cat "$TEST_DIR/t72b-ck.log")"
+
+  # (c) set-phase --ref <focused-ref> --spec-path Q refreshes current_focus.spec_path
+  # to Q (the documented two-call Planning sequence: set-focus then set-phase --spec-path).
+  st "$s" "$TEST_DIR/t72c.log" set-phase --ref CHANGE-0050 --phase implementation --spec-path docs/specs/SPEC-0050-v2.md \
+    || log_fail "(c) set-phase --spec-path for the focused ref must exit 0: $(cat "$TEST_DIR/t72c.log")"
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^  spec_path: docs/specs/SPEC-0050-v2\.md$' \
+    || log_fail "(c) current_focus.spec_path must equal the set-phase --spec-path value for the focused ref: $(sed -n '/^current_focus:/,/^[a-z]/p' "$s")"
+  ck "$s" "$TEST_DIR/t72c-ck.log" || log_fail "(c) check-state after set-phase --spec-path: $(cat "$TEST_DIR/t72c-ck.log")"
+
+  # (c-control) set-phase --spec-path for a DIFFERENT (non-focused) ref must
+  # NOT touch current_focus.spec_path.
+  st "$s" "$TEST_DIR/t72d.log" set-phase --ref ISSUE-0099 --phase planning --status planned --spec-path docs/specs/SPEC-0099-other.md \
+    || log_fail "(c-control) set-phase for a non-focused ref must exit 0: $(cat "$TEST_DIR/t72d.log")"
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^  spec_path: docs/specs/SPEC-0050-v2\.md$' \
+    || log_fail "(c-control) current_focus.spec_path must be UNCHANGED by a set-phase call for a different ref: $(sed -n '/^current_focus:/,/^[a-z]/p' "$s")"
+
+  log_pass "set-focus retarget rewrites all four current_focus fields (spec_path nulled unless passed); set-phase --spec-path refreshes it ONLY for the focused ref (TEST-032)"
+}
+
+test_073_append_run_usage_basis() {  # TEST-034 / Spec-AC-05
+  log_info "Test: append-run derives usage_basis — field/note/absent, exactly one stderr line on absent, malformed marker falls to absent (TEST-034)..."
+  local s="$TEST_DIR/t73-state.yaml"
+  write_state_fixture "$s"
+  capture_now
+
+  # (a) --tokens-total given -> usage_basis: field.
+  st "$s" "$TEST_DIR/t73a.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" \
+    --tokens-in 10 --tokens-out 5 --tokens-total 4242 \
+    || log_fail "(a) append-run --tokens-total must exit 0: $(cat "$TEST_DIR/t73a.log")"
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {10}usage_basis: field$' \
+    || log_fail "(a) usage_basis must be field when --tokens-total is given: $(cat "$s")"
+
+  # (b) no --tokens-total, but --note carries a well-formed usage_total_tokens
+  # marker -> usage_basis: note.
+  st "$s" "$TEST_DIR/t73b.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" \
+    --tokens-in 10 --tokens-out 5 --note "usage_total_tokens=999 done" \
+    || log_fail "(b) append-run with a note marker must exit 0: $(cat "$TEST_DIR/t73b.log")"
+  tail -20 "$s" | grep -qE '^ {10}usage_basis: note$' \
+    || sed -n '/^    CHANGE-0001:$/,$p' "$s" | tail -20 | grep -qE '^ {10}usage_basis: note$' \
+    || log_fail "(b) usage_basis must be note when only the --note marker carries the total: $(cat "$s")"
+
+  # (c) neither --tokens-total nor a note marker -> usage_basis: absent, exit
+  # 0, EXACTLY ONE stderr line naming ref+role (isolated from the unrelated
+  # tokens_in/out warning by passing both here).
+  local c_ec=0
+  st "$s" "$TEST_DIR/t73c.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" \
+    --tokens-in 10 --tokens-out 5 --note "no marker here" || c_ec=$?
+  [[ "$c_ec" == 0 ]] || log_fail "(c) append-run with no usage source must still exit 0 (got $c_ec): $(cat "$TEST_DIR/t73c.log")"
+  tail -20 "$s" | grep -qE '^ {10}usage_basis: absent$' \
+    || log_fail "(c) usage_basis must be absent when neither source is present: $(cat "$s")"
+  local wlines
+  wlines="$(grep -c 'usage_basis absent' "$TEST_DIR/t73c.log" || true)"
+  [[ "$wlines" == "1" ]] || log_fail "(c) exactly one usage_basis-absent stderr line expected (got $wlines): $(cat "$TEST_DIR/t73c.log")"
+  grep -qF 'CHANGE-0001' "$TEST_DIR/t73c.log" || log_fail "(c) the warning must name the ref"
+  grep -qF 'role=Planning' "$TEST_DIR/t73c.log" || log_fail "(c) the warning must name the role"
+
+  # (d) a MALFORMED marker (bad value / wrong key) falls to absent, never note.
+  st "$s" "$TEST_DIR/t73d.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" \
+    --tokens-in 10 --tokens-out 5 --note "usage_total_tokens=notanumber" \
+    || log_fail "(d) append-run with a malformed marker must exit 0: $(cat "$TEST_DIR/t73d.log")"
+  tail -20 "$s" | grep -qE '^ {10}usage_basis: absent$' \
+    || log_fail "(d) a malformed usage_total_tokens marker must fall to absent, never note: $(cat "$s")"
+
+  ck "$s" "$TEST_DIR/t73-ck.log" || log_fail "check-state after all append-run arms: $(cat "$TEST_DIR/t73-ck.log")"
+  log_pass "append-run derives usage_basis field/note/absent, exactly one absent-stderr line naming ref+role, malformed marker falls to absent (TEST-034)"
+}
+
+test_074_amend_run() {  # TEST-035 / Spec-AC-06
+  log_info "Test: amend-run fills a usage_basis hole once, refuses on an already-numeric tokens_total, ambiguous match count, or zero matches (TEST-035)..."
+  local s="$TEST_DIR/t74-state.yaml"
+  write_state_fixture "$s"
+
+  # (a) one matching run with NO tokens_total (a hole) -> amended: writes the
+  # number, flips usage_basis to field, adds amended_at_utc.
+  local started_a="2026-08-01T10:00:00Z"
+  st "$s" "$TEST_DIR/t74a0.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$started_a" \
+    --tokens-in 1 --tokens-out 1 \
+    || log_fail "(a) fixture append-run must exit 0: $(cat "$TEST_DIR/t74a0.log")"
+  st "$s" "$TEST_DIR/t74a1.log" amend-run --ref CHANGE-0001 --role Planning --started "$started_a" --tokens-total 777 \
+    || log_fail "(a) amend-run on a matching hole must exit 0: $(cat "$TEST_DIR/t74a1.log")"
+  sed -n "/started_utc: $started_a/,/^ {8}- role:\|^ {6}[a-z]/p" "$s" > "$TEST_DIR/t74a-entry.txt"
+  grep -qE '^ {10}tokens_total: 777$' "$TEST_DIR/t74a-entry.txt" || log_fail "(a) tokens_total must be written as 777: $(cat "$TEST_DIR/t74a-entry.txt")"
+  grep -qE '^ {10}usage_basis: field$' "$TEST_DIR/t74a-entry.txt" || log_fail "(a) usage_basis must flip to field: $(cat "$TEST_DIR/t74a-entry.txt")"
+  grep -qE '^ {10}amended_at_utc: ' "$TEST_DIR/t74a-entry.txt" || log_fail "(a) amended_at_utc must be added: $(cat "$TEST_DIR/t74a-entry.txt")"
+  ck "$s" "$TEST_DIR/t74a-ck.log" || log_fail "(a) check-state after amend: $(cat "$TEST_DIR/t74a-ck.log")"
+
+  # (b) a SECOND amend-run against the now-numeric run must exit 2, STATE
+  # byte-identical, message naming the existing value.
+  cp "$s" "$TEST_DIR/t74b-snapshot.yaml"
+  local ec=0
+  st "$s" "$TEST_DIR/t74b.log" amend-run --ref CHANGE-0001 --role Planning --started "$started_a" --tokens-total 999 || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "(b) amend-run on an already-numeric run must exit 2 (got $ec): $(cat "$TEST_DIR/t74b.log")"
+  cmp -s "$s" "$TEST_DIR/t74b-snapshot.yaml" || log_fail "(b) STATE must stay byte-identical after the already-numeric refusal"
+  grep -qF '777' "$TEST_DIR/t74b.log" || log_fail "(b) the refusal must name the existing value 777: $(cat "$TEST_DIR/t74b.log")"
+
+  # (c) two runs sharing role+started -> ambiguous, exit 2 naming the count.
+  local s2="$TEST_DIR/t74c-state.yaml" started_c="2026-08-02T10:00:00Z"
+  write_state_fixture "$s2"
+  st "$s2" "$TEST_DIR/t74c0.log" append-run --ref CHANGE-0001 --role Remediation --model m --started "$started_c" --tokens-in 1 --tokens-out 1 \
+    || log_fail "(c) fixture append-run #1 must exit 0: $(cat "$TEST_DIR/t74c0.log")"
+  st "$s2" "$TEST_DIR/t74c1.log" append-run --ref CHANGE-0001 --role Remediation --model m2 --started "$started_c" --tokens-in 2 --tokens-out 2 \
+    || log_fail "(c) fixture append-run #2 must exit 0: $(cat "$TEST_DIR/t74c1.log")"
+  cp "$s2" "$TEST_DIR/t74c-snapshot.yaml"
+  ec=0
+  st "$s2" "$TEST_DIR/t74c2.log" amend-run --ref CHANGE-0001 --role Remediation --started "$started_c" --tokens-total 5 || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "(c) amend-run against 2 matches must exit 2 (got $ec): $(cat "$TEST_DIR/t74c2.log")"
+  cmp -s "$s2" "$TEST_DIR/t74c-snapshot.yaml" || log_fail "(c) STATE must stay byte-identical after the ambiguous-match refusal"
+  grep -qF '2' "$TEST_DIR/t74c2.log" || log_fail "(c) the refusal must name the match count (2): $(cat "$TEST_DIR/t74c2.log")"
+
+  # (d) zero matches -> exit 2 naming zero, STATE byte-identical.
+  local s3="$TEST_DIR/t74d-state.yaml"
+  write_state_fixture "$s3"
+  cp "$s3" "$TEST_DIR/t74d-snapshot.yaml"
+  ec=0
+  st "$s3" "$TEST_DIR/t74d.log" amend-run --ref CHANGE-0001 --role Planning --started "2030-01-01T00:00:00Z" --tokens-total 5 || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "(d) amend-run against zero matches must exit 2 (got $ec): $(cat "$TEST_DIR/t74d.log")"
+  cmp -s "$s3" "$TEST_DIR/t74d-snapshot.yaml" || log_fail "(d) STATE must stay byte-identical after the zero-match refusal"
+  grep -qF '0' "$TEST_DIR/t74d.log" || log_fail "(d) the refusal must name zero matches: $(cat "$TEST_DIR/t74d.log")"
+
+  # (e) Round 6 (Codex P2, fu-amend-run-overwrite-note-basis-number): a run
+  # whose usage already came from a --note marker (usage_basis: note,
+  # tokens_total ABSENT — D5's own emission rule) must be refused exactly
+  # like an already-numeric tokens_total is in (b) — filling is for an
+  # absent hole only, not for overriding a note-derived number. STATE must
+  # stay byte-identical, and the note text (999) must survive untouched.
+  local s4="$TEST_DIR/t74e-state.yaml" started_e="2026-08-03T10:00:00Z"
+  write_state_fixture "$s4"
+  st "$s4" "$TEST_DIR/t74e0.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$started_e" \
+    --tokens-in 1 --tokens-out 1 --note "usage_total_tokens=999 done" \
+    || log_fail "(e) fixture append-run with a note marker must exit 0: $(cat "$TEST_DIR/t74e0.log")"
+  sed -n "/started_utc: $started_e/,/^ {8}- role:\|^ {6}[a-z]/p" "$s4" > "$TEST_DIR/t74e-entry-before.txt"
+  grep -qE '^ {10}usage_basis: note$' "$TEST_DIR/t74e-entry-before.txt" \
+    || log_fail "(e) fixture run must carry usage_basis: note before the amend attempt: $(cat "$TEST_DIR/t74e-entry-before.txt")"
+  cp "$s4" "$TEST_DIR/t74e-snapshot.yaml"
+  ec=0
+  st "$s4" "$TEST_DIR/t74e1.log" amend-run --ref CHANGE-0001 --role Planning --started "$started_e" --tokens-total 4321 || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "(e) amend-run against a note-basis run must exit 2 (got $ec): $(cat "$TEST_DIR/t74e1.log")"
+  cmp -s "$s4" "$TEST_DIR/t74e-snapshot.yaml" || log_fail "(e) STATE must stay byte-identical after the note-basis refusal"
+  grep -qi 'usage_basis' "$TEST_DIR/t74e1.log" || log_fail "(e) the refusal must name usage_basis/note: $(cat "$TEST_DIR/t74e1.log")"
+  grep -qi 'note' "$TEST_DIR/t74e1.log" || log_fail "(e) the refusal must name the note basis: $(cat "$TEST_DIR/t74e1.log")"
+
+  log_pass "amend-run fills a hole once (usage_basis->field, amended_at_utc added); refuses already-numeric/ambiguous/zero-match/note-basis, byte-identical (TEST-035)"
+}
+
+test_075_clear_focus() {  # TEST-033 / Spec-AC-03
+  log_info "Test: clear-focus nulls current_focus and closes the ref's work item; refuses on a --ref mismatch; phase closed survives check-state (TEST-033)..."
+  local s="$TEST_DIR/t75-state.yaml"
+  write_state_fixture "$s"   # current_focus.ref_id CHANGE-0001, work item status in_progress
+  st "$s" "$TEST_DIR/t75a-stamp.log" set-code-review --required true --status not_run --scope "a.mjs b.mjs" --base-ref main \
+    || log_fail "(fixture) set-code-review must stamp scope_ref_id: $(cat "$TEST_DIR/t75a-stamp.log")"
+  grep -qE '^  scope_ref_id: CHANGE-0001$' "$s" || log_fail "(fixture) scope_ref_id must read CHANGE-0001 before clear-focus"
+
+  # (a) clear-focus --ref CHANGE-0001 (matches current_focus.ref_id).
+  st "$s" "$TEST_DIR/t75a.log" clear-focus --ref CHANGE-0001 \
+    || log_fail "(a) clear-focus on the matching ref must exit 0: $(cat "$TEST_DIR/t75a.log")"
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" > "$TEST_DIR/t75a-focus.txt"
+  grep -qE '^  type: none$' "$TEST_DIR/t75a-focus.txt" || log_fail "(a) current_focus.type must be none: $(cat "$TEST_DIR/t75a-focus.txt")"
+  grep -qE '^  ref_id: null$' "$TEST_DIR/t75a-focus.txt" || log_fail "(a) current_focus.ref_id must be null: $(cat "$TEST_DIR/t75a-focus.txt")"
+  # (a2) validation round 6 NB-5 (PR #382): the retired scope's provenance
+  # stamp code_review.scope_ref_id must not outlive the focus it names.
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" > "$TEST_DIR/t75a-review.txt"
+  grep -qE '^  scope_ref_id: null$' "$TEST_DIR/t75a-review.txt" || log_fail "(a2) code_review.scope_ref_id must be null after clear-focus: $(cat "$TEST_DIR/t75a-review.txt")"
+  grep -qE '^  primary_path: null$' "$TEST_DIR/t75a-focus.txt" || log_fail "(a) current_focus.primary_path must be null: $(cat "$TEST_DIR/t75a-focus.txt")"
+  grep -qE '^  spec_path: null$' "$TEST_DIR/t75a-focus.txt" || log_fail "(a) current_focus.spec_path must be null: $(cat "$TEST_DIR/t75a-focus.txt")"
+  sed -n '/^active_work_items:/,/^implementation_strategy:/p' "$s" > "$TEST_DIR/t75a-item.txt"
+  grep -qE '^    status: done$' "$TEST_DIR/t75a-item.txt" || log_fail "(a) the ref's work item status must be done: $(cat "$TEST_DIR/t75a-item.txt")"
+  grep -qE '^    phase: closed$' "$TEST_DIR/t75a-item.txt" || log_fail "(a) the ref's work item phase must be closed: $(cat "$TEST_DIR/t75a-item.txt")"
+  ck "$s" "$TEST_DIR/t75a-ck.log" || log_fail "(a) check-state after clear-focus (phase closed must survive validation): $(cat "$TEST_DIR/t75a-ck.log")"
+
+  # (b) a --ref MISMATCH must refuse exit 2, STATE byte-identical — even when
+  # that other ref names a real work item.
+  local s2="$TEST_DIR/t75b-state.yaml"
+  write_state_fixture "$s2"   # current_focus.ref_id CHANGE-0001 again
+  cp "$s2" "$TEST_DIR/t75b-snapshot.yaml"
+  local ec=0
+  st "$s2" "$TEST_DIR/t75b.log" clear-focus --ref ISSUE-9999 || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "(b) clear-focus --ref ISSUE-9999 (mismatch) must exit 2 (got $ec): $(cat "$TEST_DIR/t75b.log")"
+  cmp -s "$s2" "$TEST_DIR/t75b-snapshot.yaml" || log_fail "(b) STATE must stay byte-identical after the --ref mismatch refusal"
+
+  log_pass "clear-focus nulls current_focus + closes the work item (phase=closed status=done, survives check-state); a --ref mismatch refuses byte-identical (TEST-033)"
+}
+
+test_076_help_and_usage_grammar() {  # TEST-038 / Spec-AC-18
+  log_info "Test: every CMD_FLAGS subcommand's --help exits 0 and names every flag of that subcommand; set-validation/set-phase/reset-block name their exact enum values and positional; every refusal for that subcommand carries the same usage line (TEST-038)..."
+  local s="$TEST_DIR/t76-state.yaml"
+  write_state_fixture "$s"
+
+  local cmds="set-focus set-phase set-validation set-code-review set-strategy set-worktree set-tdd-cycle set-human-input append-run amend-run clear-focus log-tick reset-block"
+  local cmd flags_line f help_out help_rc bad_rc
+  for cmd in $cmds; do
+    help_rc=0
+    help_out="$(node "$STATE_SCRIPT" "$cmd" --help 2>&1)" || help_rc=$?
+    [[ "$help_rc" -eq 0 ]] || log_fail "TEST-038: '$cmd --help' must exit 0, got $help_rc: $help_out"
+    [[ -n "$help_out" ]] || log_fail "TEST-038: '$cmd --help' must print a usage line"
+    flags_line="$(t76_flags_for "$cmd")"
+    for f in $flags_line; do
+      assert_payload_contains "$help_out" "$f" "TEST-038: '$cmd --help' output must name $f"
+    done
+
+    # A deliberate bad call (no flags at all, against a REAL fixture, so the
+    # refusal comes from flag-grammar validation, not a missing-STATE degrade)
+    # must carry the SAME usage line on stderr.
+    bad_rc=0
+    st "$s" "$TEST_DIR/t76-bad-$cmd.log" "$cmd" || bad_rc=$?
+    [[ "$bad_rc" -ne 0 ]] || log_fail "TEST-038: '$cmd' with no flags must be refused, got exit 0: $(cat "$TEST_DIR/t76-bad-$cmd.log")"
+    grep -qF "usage: $help_out" "$TEST_DIR/t76-bad-$cmd.log" \
+      || log_fail "TEST-038: '$cmd' refusal must carry the SAME usage line '--help' prints: $(cat "$TEST_DIR/t76-bad-$cmd.log")"
+  done
+
+  # set-validation lists EXACTLY pass, fail, not_run — and therefore NOT pending.
+  help_rc=0
+  help_out="$(node "$STATE_SCRIPT" set-validation --help 2>&1)" || help_rc=$?
+  assert_payload_contains "$help_out" '<pass|fail|not_run>' \
+    "TEST-038: set-validation --help must list exactly pass|fail|not_run"
+  assert_payload_not_contains "$help_out" 'pending' \
+    "TEST-038: set-validation --help must never list pending (not a real status)"
+
+  # set-phase lists the seven phases.
+  help_rc=0
+  help_out="$(node "$STATE_SCRIPT" set-phase --help 2>&1)" || help_rc=$?
+  assert_payload_contains "$help_out" '<planning|preparation|implementation|validation|code_review|remediation|closed>' \
+    "TEST-038: set-phase --help must list all seven phases in order"
+
+  # reset-block names its positional block argument.
+  help_rc=0
+  help_out="$(node "$STATE_SCRIPT" reset-block --help 2>&1)" || help_rc=$?
+  assert_payload_contains "$help_out" 'reset-block <block>' \
+    "TEST-038: reset-block --help must name its positional <block> argument"
+
+  # Round 6 (Codex P2, state.mjs:273): set-focus's grammar is CONDITIONAL —
+  # cmdSetFocus accepts a bare --clear, OR --type none with --ref/--path
+  # OPTIONAL, OR a real retarget where --type/--ref/--path are ALL required
+  # together. A flat "every flag is required" rendering (the defect this
+  # closes) would still name every flag, which is all the generic loop above
+  # checks — so this asserts the THREE alternatives by their exact bracket
+  # structure, the part that was false before this fix.
+  help_rc=0
+  help_out="$(node "$STATE_SCRIPT" set-focus --help 2>&1)" || help_rc=$?
+  assert_payload_contains "$help_out" 'state.mjs set-focus --clear <spec_path>' \
+    "TEST-038: set-focus --help must show a bare --clear alternative naming its one clearable field"
+  assert_payload_contains "$help_out" '--type none [--ref <value>] [--path <value>]' \
+    "TEST-038: set-focus --help must show --type none with --ref/--path OPTIONAL (bracketed)"
+  assert_payload_contains "$help_out" '--type <intake_change|' \
+    "TEST-038: set-focus --help must show the full retarget alternative with the real --type enum"
+  assert_payload_contains "$help_out" '--ref <value> --path <value> [--spec-path <value>]' \
+    "TEST-038: set-focus --help must show --ref/--path REQUIRED (unbracketed) in the full retarget alternative"
+  # The bare --clear alternative must not ALSO require --type — that is
+  # exactly the false grammar this fix replaces.
+  assert_payload_not_contains "$help_out" '--clear <spec_path> --type' \
+    "TEST-038: the bare --clear alternative must not require --type"
+
+  log_pass "every CMD_FLAGS subcommand's --help exits 0, names every flag and (where applicable) the exact enum values and positional; every refusal carries the identical usage line; set-focus's conditional grammar shows its three real alternatives, not one falsely-flat required set (TEST-038)"
+}
+
+# t76_flags_for <cmd> — the flag names (hyphenated CLI spelling) that subcommand's
+# --help output must name. bash-3.2 safe (no associative arrays).
+t76_flags_for() {
+  case "$1" in
+    set-focus) echo "--type --ref --path --spec-path --clear" ;;
+    set-phase) echo "--ref --phase --status --path --spec-path" ;;
+    set-validation) echo "--status --ref --model --evidence --notes --clear" ;;
+    set-code-review) echo "--status --required --scope --base-ref --head-ref --report --notes --clear" ;;
+    set-strategy) echo "--selected --source --rationale" ;;
+    set-worktree) echo "--recommendation --user-decision --base-ref --branch --path --inline-scope --rationale --clear" ;;
+    set-tdd-cycle) echo "--status --test-id --spec-path --test-path --red --green --refactor" ;;
+    set-human-input) echo "--required --question --reason" ;;
+    append-run) echo "--ref --role --model --started --note --tokens-in --tokens-out --tdd-tests --prompt-hash --harness --tokens-total --verdict --requested-model --actual-model" ;;
+    amend-run) echo "--ref --role --started --tokens-total" ;;
+    clear-focus) echo "--ref" ;;
+    log-tick) echo "--tick --role --scope --started --type --exit-code --mode --k --harness --tokens-in --tokens-out --cache-read --cost --lingering-procs --free-memory --focus-before --validation-before" ;;
+    reset-block) echo "--force" ;;
+    *) echo "" ;;
+  esac
+}
+
 main() {
   echo "Testing $TEST_NAME (transactional STATE CLI — SPEC-0012 TEST-001..025 + SPEC-0014 additions)"
   check_deps
@@ -2923,6 +3489,14 @@ main() {
   test_067_set_validation_per_ref_stamp
   test_068_subagent_protocol_names_flags
   test_069_scope_ref_id_lifecycle
+  test_070_one_clock_iso_time
+  test_071_rguard_predicate_which_file
+  test_077_rguard_directory_symlink
+  test_072_focus_retarget_no_residue
+  test_073_append_run_usage_basis
+  test_074_amend_run
+  test_075_clear_focus
+  test_076_help_and_usage_grammar
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

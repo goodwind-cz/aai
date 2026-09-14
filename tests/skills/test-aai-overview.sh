@@ -579,6 +579,64 @@ test_dph05_data_json_mirrors_render() {
   log_pass "SEAM: overview-data.json in_flight block matches the same run's rendered HTML (dev-progress-hub TEST-005)"
 }
 
+test_dph06_closed_ride_not_in_flight() {  # TEST-009 / Spec-AC-03 (spec-dispatch-state-sweep D3)
+  log_info "Test: a closed ride (via a REAL clear-focus, or a phase-closed work item alone) is never rendered/JSON'd in-flight; a live-focus control still is (TEST-009)..."
+
+  # (a) a fixture STATE whose current_focus is put through a REAL
+  # `state.mjs clear-focus` call renders 'Nothing in flight.' and
+  # overview-data.json carries in_flight: null. Neither current_focus.ref_id
+  # (null) nor phase (closed) would let it through.
+  local d
+  d="$(mk_repo dph06a)"
+  write_state_yaml "$d/docs/ai/STATE.yaml" "FIX-0061" "intake_change" "implementation" "tdd" "optional" "inline" "pass" "not_run"
+  local i
+  for i in 1 2 3 4 5 6; do
+    write_tick "$d/docs/ai/LOOP_TICKS.jsonl" "$i" "Role$i" "scope-$i" "$((i * 10))" "h$i.0"
+  done
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$d/docs/ai/STATE.yaml" clear-focus --ref FIX-0061 > "$d/clear-focus.log" 2>&1) \
+    || log_fail "(a) clear-focus must exit 0: $(cat "$d/clear-focus.log")"
+  run_overview "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) overview must exit 0: $(cat "$OUT")"
+  grep -qF "In flight now" "$d/docs/ai/overview.html" && log_fail "(a) a REAL-clear-focus'd ride must omit the In-flight section"
+  grep -qF "Nothing in flight." "$d/docs/ai/overview.html" || log_fail "(a) the In-progress section must read 'Nothing in flight.'"
+  local jinflight
+  jinflight="$(node_get "$d/docs/ai/overview-data.json" 'm.in_flight')"
+  [[ "$jinflight" == "null" ]] || log_fail "(a) overview-data.json in_flight must be null, got: $jinflight"
+
+  # (b) SECOND, INDEPENDENT input: current_focus.ref_id left POPULATED but the
+  # focus work item's phase is `closed` (never went through clear-focus) —
+  # still must render/JSON as not-in-flight, proving phase alone is
+  # load-bearing and not decorative (M9's arm).
+  local d2
+  d2="$(mk_repo dph06b)"
+  write_state_yaml "$d2/docs/ai/STATE.yaml" "FIX-0062" "intake_change" "closed" "tdd" "optional" "inline" "pass" "not_run"
+  for i in 1 2 3 4 5 6; do
+    write_tick "$d2/docs/ai/LOOP_TICKS.jsonl" "$i" "Role$i" "scope-$i" "$((i * 10))" "h$i.0"
+  done
+  run_overview "$d2"
+  [[ "$EC" == 0 ]] || log_fail "(b) overview must exit 0: $(cat "$OUT")"
+  grep -qF "In flight now" "$d2/docs/ai/overview.html" && log_fail "(b) a phase-closed work item (focus_ref still set) must omit the In-flight section"
+  local jinflight2
+  jinflight2="$(node_get "$d2/docs/ai/overview-data.json" 'm.in_flight')"
+  [[ "$jinflight2" == "null" ]] || log_fail "(b) overview-data.json in_flight must be null when phase is closed, got: $jinflight2"
+
+  # (c) live-focus control: an ordinary in-progress ride still renders.
+  local d3
+  d3="$(mk_repo dph06c)"
+  write_state_yaml "$d3/docs/ai/STATE.yaml" "FIX-0063" "intake_change" "implementation" "tdd" "optional" "inline" "pass" "not_run"
+  for i in 1 2 3 4 5 6; do
+    write_tick "$d3/docs/ai/LOOP_TICKS.jsonl" "$i" "Role$i" "scope-$i" "$((i * 10))" "h$i.0"
+  done
+  run_overview "$d3"
+  [[ "$EC" == 0 ]] || log_fail "(c) overview must exit 0: $(cat "$OUT")"
+  grep -qF "In flight now" "$d3/docs/ai/overview.html" || log_fail "(c) live-focus control must still render the In-flight section"
+  local jinflight3
+  jinflight3="$(node_get "$d3/docs/ai/overview-data.json" 'm.in_flight')"
+  [[ "$jinflight3" != "null" ]] || log_fail "(c) live-focus control must carry a non-null in_flight"
+
+  log_pass "closed ride (real clear-focus, or phase-closed alone) never renders/JSONs in-flight; live-focus control still does (TEST-009)"
+}
+
 main() {
   echo "Testing $TEST_NAME (token-economics-end-to-end TEST-005..007 + dev-progress-hub TEST-001..006)"
   check_deps
@@ -593,6 +651,7 @@ main() {
   test_dph03_graceful_omission
   test_dph04_malformed_line_no_slot_consumed
   test_dph05_data_json_mirrors_render
+  test_dph06_closed_ride_not_in_flight
   echo ""
   log_pass "All $TEST_NAME tests passed (dev-progress-hub TEST-006: full-suite regression check)"
 }

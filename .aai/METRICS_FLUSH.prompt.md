@@ -42,4 +42,4 @@ layer): report DEGRADED and surface human input instead of hand-flushing:
   node .aai/scripts/state.mjs set-human-input --required true \
     --question "metrics-flush.mjs absent (vendored layer outdated) — run /aai-update" \
     --reason "hand-flushing is the documented failure mode CHANGE-0009 removed"
-FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.
+Run it only under the D1 sole-agent carve (AAI_ROLE unset); else return it under `state_update_commands:`. FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.

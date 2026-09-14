@@ -124,6 +124,12 @@ core:
   # the same precedent as ride-select.mjs immediately above.
   - .aai/scripts/unattended-gate.mjs
   - .aai/scripts/check-committed-scope.mjs
+  # core: the PR ceremony's post-push step (SKILL_PR.prompt.md, core) calls
+  # this directly.
+  - .aai/scripts/watch-ci.mjs
+  # core: a dispatch-text gate named by SUBAGENT_PROTOCOL.md (core), same
+  # precedent as the other gates in this list.
+  - .aai/scripts/check-dispatch-text.mjs
   - .aai/scripts/hitl-channel.mjs
   - .aai/scripts/lane-gate.mjs
   - .aai/scripts/install-pre-commit-hook.ps1
@@ -140,6 +146,7 @@ core:
   - .aai/scripts/lib/gitignore-block.sh
   - .aai/scripts/lib/guard-config.mjs
   - .aai/scripts/lib/harness.mjs
+  - .aai/scripts/lib/iso-time.mjs
   - .aai/scripts/lib/pricing.mjs
   - .aai/scripts/lib/product-doc.mjs
   - .aai/scripts/lib/prompt-hash.mjs

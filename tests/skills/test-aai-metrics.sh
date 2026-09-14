@@ -559,7 +559,7 @@ test_006_flush_golden() {
   [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "exactly one ledger line must be appended"
   grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
   cat > "$d/want.jsonl" <<'GOLDEN'
-{"date_utc":"2026-07-15","ref_id":"CHANGE-0001","title":"Golden fixture item","human_time_minutes":{"intake":null,"reviews":2},"agent_runs":[{"role":"Planning","model_id":"claude-opus-4-8[1m]","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:02:00Z","duration_seconds":120,"tokens_in":1000000,"tokens_out":100000,"cost_usd":7.5,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"},{"role":"Implementation","model_id":"sonnet-latest","started_utc":"2026-07-15T10:02:00Z","ended_utc":"2026-07-15T10:12:00Z","duration_seconds":600,"tokens_in":2000000,"tokens_out":200000,"cost_usd":9,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"},{"role":"Validation","model_id":"claude-sonnet-5-20260101","started_utc":"2026-07-15T10:12:00Z","ended_utc":"2026-07-15T10:13:40Z","duration_seconds":100,"tokens_in":1000000,"tokens_out":1000000,"cost_usd":18,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"note"},{"role":"Code Review","model_id":"mystery-9000","started_utc":"2026-07-15T10:13:40Z","ended_utc":"2026-07-15T10:14:40Z","duration_seconds":60,"tokens_in":10,"tokens_out":10,"cost_usd":null,"cost_basis":"none","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"note"}],"totals":{"human_time_minutes":2,"agent_duration_seconds":880,"total_cost_usd":null,"cost_basis":"mixed"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note"},"verdict_basis":"global-block","verdict":"PASS"}
+{"date_utc":"2026-07-15","ref_id":"CHANGE-0001","title":"Golden fixture item","human_time_minutes":{"intake":null,"reviews":2},"agent_runs":[{"role":"Planning","model_id":"claude-opus-4-8[1m]","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:02:00Z","duration_seconds":120,"tokens_in":1000000,"tokens_out":100000,"cost_usd":7.5,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"},{"role":"Implementation","model_id":"sonnet-latest","started_utc":"2026-07-15T10:02:00Z","ended_utc":"2026-07-15T10:12:00Z","duration_seconds":600,"tokens_in":2000000,"tokens_out":200000,"cost_usd":9,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"},{"role":"Validation","model_id":"claude-sonnet-5-20260101","started_utc":"2026-07-15T10:12:00Z","ended_utc":"2026-07-15T10:13:40Z","duration_seconds":100,"tokens_in":1000000,"tokens_out":1000000,"cost_usd":18,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"note"},{"role":"Code Review","model_id":"mystery-9000","started_utc":"2026-07-15T10:13:40Z","ended_utc":"2026-07-15T10:14:40Z","duration_seconds":60,"tokens_in":10,"tokens_out":10,"cost_usd":null,"cost_basis":"none","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"note"}],"totals":{"human_time_minutes":2,"agent_duration_seconds":880,"total_cost_usd":null,"cost_basis":"mixed"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note","verdict_after_last_implementer":true},"verdict_basis":"global-block","verdict":"PASS"}
 GOLDEN
   diff -u "$d/want.jsonl" "$d/got.jsonl" > "$d/golden.diff" 2>&1 \
     || log_fail "ledger line must byte-equal the golden (strip-[1m] 7.5, alias 9, longest-prefix 18, unknown null): $(cat "$d/golden.diff")"
@@ -775,7 +775,11 @@ test_011_partial_flush() {
   grep -qE '^ {2}evidence_paths: \[\]$' "$d/lv.block" || log_fail "leaked evidence_paths must be emptied"
   sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" > "$d/cr.block"
   grep -qE '^ {2}status: not_run$' "$d/cr.block" || log_fail "code_review must reset to not_run"
-  grep -qE '^ {2}required: false$' "$d/cr.block" || log_fail "code_review.required must reset to false"
+  # spec-dispatch-state-sweep D4: `required` is Planning-set POLICY, not
+  # verdict state — a PARTIAL reset holds its pre-flush value (the fixture's
+  # `true`) instead of zeroing it (only a FULL reset, TEST-012, still zeroes
+  # it: no scope is in flight at all there).
+  grep -qE '^ {2}required: true$' "$d/cr.block" || log_fail "D4: code_review.required must HOLD its pre-flush value (true) on a partial reset, never reset to false: $(cat "$d/cr.block")"
   # telemetry-fields-not-prose D8: scope/base_ref/head_ref are an INPUT to a
   # LATER step, not verdict state — a partial reset PRESERVES them and stamps
   # scope_ref_id naming the flushed ref instead of nulling them out.
@@ -1140,7 +1144,7 @@ test_017_reliability_derivation() {
   run_flush "$d"
   [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
   grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
-  grep -qF '"strategy":"tdd","reliability":{"validation_fails":1,"review_fails":1,"remediation_runs":2,"first_pass_clean":false,"basis":"note"},"verdict_basis":"global-block","verdict":"PASS"' "$d/got.jsonl" \
+  grep -qF '"strategy":"tdd","reliability":{"validation_fails":1,"review_fails":1,"remediation_runs":2,"first_pass_clean":false,"basis":"note","verdict_after_last_implementer":true},"verdict_basis":"global-block","verdict":"PASS"' "$d/got.jsonl" \
     || log_fail "(a) entry must carry strategy tdd + reliability {1,1,2,false} in order after totals (marker-noted fails only, suffixed remediation counted, PASS/null notes not): $(cat "$d/got.jsonl")"
 
   # (b) clean history + undecided strategy -> strategy null, counts 0, clean.
@@ -1155,7 +1159,7 @@ test_017_reliability_derivation() {
   run_flush "$d"
   [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
   grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
-  grep -qF '"strategy":null,"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note"},"verdict_basis":"global-block","verdict":"PASS"' "$d/got.jsonl" \
+  grep -qF '"strategy":null,"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note","verdict_after_last_implementer":true},"verdict_basis":"global-block","verdict":"PASS"' "$d/got.jsonl" \
     || log_fail "(b) undecided strategy must record null; clean run must be first_pass_clean true: $(cat "$d/got.jsonl")"
   log_pass "Reliability derivation matrix per R1-R6: marker-gated fail counts, structural remediation count, honest strategy null (TEST-017)"
 }
@@ -1477,7 +1481,7 @@ test_104_default_unchanged() {
   [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "only CHANGE-0001 may flush without --sweep"
   grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
   cat > "$d/want.jsonl" <<'GOLDEN'
-{"date_utc":"2026-07-15","ref_id":"CHANGE-0001","title":"Golden fixture item","human_time_minutes":{"intake":null,"reviews":2},"agent_runs":[{"role":"Planning","model_id":"claude-opus-4-8[1m]","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:02:00Z","duration_seconds":120,"tokens_in":1000000,"tokens_out":100000,"cost_usd":7.5,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"},{"role":"Implementation","model_id":"sonnet-latest","started_utc":"2026-07-15T10:02:00Z","ended_utc":"2026-07-15T10:12:00Z","duration_seconds":600,"tokens_in":2000000,"tokens_out":200000,"cost_usd":9,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"},{"role":"Validation","model_id":"claude-sonnet-5-20260101","started_utc":"2026-07-15T10:12:00Z","ended_utc":"2026-07-15T10:13:40Z","duration_seconds":100,"tokens_in":1000000,"tokens_out":1000000,"cost_usd":18,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"note"},{"role":"Code Review","model_id":"mystery-9000","started_utc":"2026-07-15T10:13:40Z","ended_utc":"2026-07-15T10:14:40Z","duration_seconds":60,"tokens_in":10,"tokens_out":10,"cost_usd":null,"cost_basis":"none","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"note"}],"totals":{"human_time_minutes":2,"agent_duration_seconds":880,"total_cost_usd":null,"cost_basis":"mixed"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note"},"verdict_basis":"global-block","verdict":"PASS"}
+{"date_utc":"2026-07-15","ref_id":"CHANGE-0001","title":"Golden fixture item","human_time_minutes":{"intake":null,"reviews":2},"agent_runs":[{"role":"Planning","model_id":"claude-opus-4-8[1m]","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:02:00Z","duration_seconds":120,"tokens_in":1000000,"tokens_out":100000,"cost_usd":7.5,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"},{"role":"Implementation","model_id":"sonnet-latest","started_utc":"2026-07-15T10:02:00Z","ended_utc":"2026-07-15T10:12:00Z","duration_seconds":600,"tokens_in":2000000,"tokens_out":200000,"cost_usd":9,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"},{"role":"Validation","model_id":"claude-sonnet-5-20260101","started_utc":"2026-07-15T10:12:00Z","ended_utc":"2026-07-15T10:13:40Z","duration_seconds":100,"tokens_in":1000000,"tokens_out":1000000,"cost_usd":18,"cost_basis":"decomposed","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"note"},{"role":"Code Review","model_id":"mystery-9000","started_utc":"2026-07-15T10:13:40Z","ended_utc":"2026-07-15T10:14:40Z","duration_seconds":60,"tokens_in":10,"tokens_out":10,"cost_usd":null,"cost_basis":"none","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"note"}],"totals":{"human_time_minutes":2,"agent_duration_seconds":880,"total_cost_usd":null,"cost_basis":"mixed"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note","verdict_after_last_implementer":true},"verdict_basis":"global-block","verdict":"PASS"}
 GOLDEN
   diff -u "$d/want.jsonl" "$d/got.jsonl" > "$d/golden.diff" 2>&1 \
     || log_fail "no-flag ledger line must byte-equal the TEST-006 golden: $(cat "$d/golden.diff")"
@@ -2353,7 +2357,7 @@ test_135_field_basis_reliability() {  # TEST-135 / Spec-AC-04
   run_flush "$d"
   [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
   grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
-  grep -qF '"reliability":{"validation_fails":2,"review_fails":1,"remediation_runs":0,"first_pass_clean":false,"basis":"field"}' "$d/got.jsonl" \
+  grep -qF '"reliability":{"validation_fails":2,"review_fails":1,"remediation_runs":0,"first_pass_clean":false,"basis":"field","verdict_after_last_implementer":null}' "$d/got.jsonl" \
     || log_fail "field-basis fixture must record validation_fails 2, review_fails 1, first_pass_clean false, reliability.basis field: $(cat "$d/got.jsonl")"
   log_pass "Field-basis reliability: verdict fields drive the counts, basis field (TEST-135)"
 }
@@ -2394,7 +2398,7 @@ test_136_note_fallback_reliability() {  # TEST-136 / Spec-AC-04
   run_flush "$d"
   [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
   grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
-  grep -qF '"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note"}' "$d/got.jsonl" \
+  grep -qF '"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note","verdict_after_last_implementer":null}' "$d/got.jsonl" \
     || log_fail "note-fallback fixture must record validation_fails 0 (colon-less marker invisible), basis note: $(cat "$d/got.jsonl")"
   local n; n="$(grep -c 'no verdict field recorded' "$OUT" || true)"
   [[ "$n" == 3 ]] || log_fail "exactly one NOTE line per affected run (3 runs, no field) expected (got $n): $(cat "$OUT")"
@@ -3015,7 +3019,7 @@ test_145_field_note_disagreement() {  # TEST-145 / Spec-AC-04 / NON-BLOCKING-B (
   # FIELD resolution: (a) pass -> not a fail, (b) fail -> IS a fail, (c) fail
   # -> IS a fail. validation_fails must be 2 (b, c), never 1 (note-overridden)
   # or 3 (field ignored).
-  grep -qF '"reliability":{"validation_fails":2,"review_fails":0,"remediation_runs":0,"first_pass_clean":false,"basis":"field"}' "$d/got.jsonl" \
+  grep -qF '"reliability":{"validation_fails":2,"review_fails":0,"remediation_runs":0,"first_pass_clean":false,"basis":"field","verdict_after_last_implementer":null}' "$d/got.jsonl" \
     || log_fail "field must win in both directions (validation_fails 2, basis field): $(cat "$d/got.jsonl")"
   local n; n="$(grep -c 'field/note disagreement' "$OUT" || true)"
   [[ "$n" == 2 ]] || log_fail "exactly one disagreement NOTE per DISAGREEING run (a, b), none for the agreeing run (c) — expected 2, got $n: $(cat "$OUT")"
@@ -3259,6 +3263,170 @@ YAML
 }
 
 
+test_149_partial_reset_keeps_review_gate() {  # TEST-149 / Spec-AC-04
+  log_info "Test: a partial-flush reset holds code_review.required at its pre-flush value (never zeroes it); a FULL reset still zeroes it; the real dispatch CLI over the post-partial-reset STATE never dispatches Code Review (TEST-149)..."
+  local d
+  d="$(mk_repo t149)"
+  write_flush_state "$d/docs/ai/STATE.yaml" two   # code_review.required: true (fixture default)
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "partial flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "only CHANGE-0001 (done) may flush; CHANGE-0002 stays in_progress"
+  local st="$d/docs/ai/STATE.yaml"
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" > "$d/cr.block"
+  grep -qE '^ {2}required: true$' "$d/cr.block" \
+    || log_fail "code_review.required must HOLD true (the fixture's pre-flush value) after a PARTIAL reset: $(cat "$d/cr.block")"
+  grep -qE '^ {2}status: not_run$' "$d/cr.block" || log_fail "code_review.status must still reset to not_run"
+  sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}status: not_run$' \
+    || log_fail "last_validation.status must still reset to not_run"
+
+  # FULL reset (single item, everything done) still zeroes required — D4
+  # scopes the change to the PARTIAL path only.
+  local d2
+  d2="$(mk_repo t149-full)"
+  write_flush_state "$d2/docs/ai/STATE.yaml" single
+  write_ticks "$d2/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d2"
+  [[ "$EC" == 0 ]] || log_fail "full flush must exit 0 (got $EC): $(cat "$OUT")"
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$d2/docs/ai/STATE.yaml" | grep -qE '^ {2}required: false$' \
+    || log_fail "a FULL reset must still zero code_review.required (D4 does not touch applyFullReset)"
+
+  # The real orchestration CLI, over the post-PARTIAL-reset STATE with the
+  # SURVIVING ref (CHANGE-0002, still in_progress) as focus, must never
+  # dispatch Code Review off the held `required: true` — the reset also
+  # zeroed last_validation.status to not_run (global block, same reset),
+  # which rule 13 requires to be 'pass'. Retarget focus to CHANGE-0002 (the
+  # realistic next-ride shape: rule 4a/4b already own retargeting off the
+  # flushed ref) and add the fixture files the dispatch CLI needs to reach
+  # a real rule instead of failing closed on missing prerequisites.
+  sed -i.bak 's/^  ref_id: CHANGE-0001$/  ref_id: CHANGE-0002/' "$st" && rm -f "$st.bak"
+  mkdir -p "$d/.aai/workflow"
+  echo "# Workflow fixture" > "$d/.aai/workflow/WORKFLOW.md"
+  echo "# Technology fixture" > "$d/docs/TECHNOLOGY.md"
+  cat > "$d/docs/specs/SPEC-0001-fx.md" <<'MD'
+---
+id: SPEC-0001
+type: spec
+number: 1
+status: draft
+links:
+  pr: []
+---
+
+# Fixture spec
+
+SPEC-FROZEN: true
+
+## Test Plan
+MD
+  (cd "$PROJECT_ROOT" && node .aai/scripts/orchestration-dispatch.mjs --state "$st" --root "$d" > "$d/dispatch-out.json" 2> "$d/dispatch-err.log")
+  node -e '
+    const fs = require("fs");
+    const o = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    if (o.rule === "13" || o.role === "Code Review") { console.error("unexpected Code Review dispatch: " + JSON.stringify(o)); process.exit(1); }
+  ' "$d/dispatch-out.json" \
+    || log_fail "the real dispatch CLI must NOT dispatch Code Review over the post-partial-reset STATE: $(cat "$d/dispatch-out.json")"
+
+  log_pass "partial reset holds code_review.required (full reset still zeroes it); the real dispatch CLI never opens Code Review off the held policy (TEST-149)"
+}
+
+test_150_verdict_after_last_implementer() {  # TEST-150 / Spec-AC-19
+  log_info "Test: reliability.verdict_after_last_implementer — true when the last recorded verdict postdates the last implementer run, false when an implementer run started after it, null with no implementer run or an unparseable instant, and null on a legacy line missing the field (TEST-150)..."
+  local runs_impl_only='        - role: Implementation
+          model_id: claude-i
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+
+  # (a) implementer run started BEFORE the verdict (11:00) -> true.
+  local d; d="$(mk_repo t150a)"
+  write_gate_state "$d/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-0001 "$runs_impl_only" "" "2026-07-15T11:00:00Z"
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF '"verdict_after_last_implementer":true' "$d/docs/ai/METRICS.jsonl" \
+    || log_fail "(a) an implementer run started before the verdict must flush verdict_after_last_implementer true: $(cat "$d/docs/ai/METRICS.jsonl")"
+
+  # (b) same fixture PLUS a Remediation run started AFTER the verdict -> false.
+  local runs_with_remediation="$runs_impl_only"'
+        - role: Remediation
+          model_id: claude-r
+          started_utc: 2026-07-15T11:30:00Z
+          ended_utc: 2026-07-15T11:31:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  local d2; d2="$(mk_repo t150b)"
+  write_gate_state "$d2/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-0001 "$runs_with_remediation" "" "2026-07-15T11:00:00Z"
+  write_ticks "$d2/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d2"
+  [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF '"verdict_after_last_implementer":false' "$d2/docs/ai/METRICS.jsonl" \
+    || log_fail "(b) a Remediation run started after the verdict must flush verdict_after_last_implementer false: $(cat "$d2/docs/ai/METRICS.jsonl")"
+
+  # (c) no implementer run at all (Planning only) -> null.
+  local runs_no_impl='        - role: Planning
+          model_id: claude-p
+          started_utc: 2026-07-15T09:00:00Z
+          ended_utc: 2026-07-15T09:01:00Z
+          duration_seconds: 60
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null'
+  local d3; d3="$(mk_repo t150c)"
+  write_gate_state "$d3/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-0001 "$runs_no_impl" "" "2026-07-15T11:00:00Z"
+  write_ticks "$d3/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d3"
+  [[ "$EC" == 0 ]] || log_fail "(c) flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF '"verdict_after_last_implementer":null' "$d3/docs/ai/METRICS.jsonl" \
+    || log_fail "(c) no implementer run must flush verdict_after_last_implementer null: $(cat "$d3/docs/ai/METRICS.jsonl")"
+
+  # (d) verdict instant unparseable -> null, never true (fail-closed, M37).
+  local d4; d4="$(mk_repo t150d)"
+  write_gate_state "$d4/docs/ai/STATE.yaml" CHANGE-0001 pass CHANGE-0001 "$runs_impl_only" "" "not-a-timestamp"
+  write_ticks "$d4/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d4"
+  [[ "$EC" == 0 ]] || log_fail "(d) flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF '"verdict_after_last_implementer":null' "$d4/docs/ai/METRICS.jsonl" \
+    || log_fail "(d) an unparseable verdict instant must flush verdict_after_last_implementer null, never true: $(cat "$d4/docs/ai/METRICS.jsonl")"
+
+  # (e) a legacy ledger line predating this field reads null in a consumer,
+  # never crashes and never fabricates true.
+  local legacy='{"date_utc":"2026-06-01","ref_id":"CHANGE-LEGACY","title":"t","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":null,"cost_basis":"none"},"strategy":null,"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"none"},"verdict_basis":null,"verdict":"PASS"}'
+  node -e '
+    const o = JSON.parse(process.argv[1]);
+    const v = (o.reliability.verdict_after_last_implementer ?? null);
+    if (v !== null) { console.error("legacy line must read null, got " + JSON.stringify(v)); process.exit(1); }
+  ' "$legacy" || log_fail "(e) a legacy ledger line missing the field must read null in a consumer"
+
+  log_pass "verdict_after_last_implementer: true before, false after an implementer run, null with no implementer run, null on an unparseable instant, and null on a legacy line (TEST-150)"
+}
+
+test_151_shrink_advice_is_reappend() {  # TEST-151 / Spec-AC-20
+  log_info "Test: the EVENTS shrink WARNING instructs re-appending the missing lines (naming the count) and the script emits no git restore/checkout/reset instruction anywhere (TEST-151)..."
+  local d; d="$(mk_seam_repo t151)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_golden_doc "$d"
+  printf 'line one\nline two\nline three\n' > "$d/docs/ai/EVENTS.jsonl"
+  git -C "$d" add -A
+  git -C "$d" commit -q -m fixture
+  printf 'line one\n' > "$d/docs/ai/EVENTS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 even with a shrunk EVENTS.jsonl (got $EC): $(cat "$OUT")"
+  grep -qi 're-append' "$OUT" || log_fail "the shrink warning must instruct re-appending the missing lines: $(cat "$OUT")"
+  grep -qF '2 line' "$OUT" || log_fail "the shrink warning must name the missing line count (2): $(cat "$OUT")"
+  grep -qi 'restore from git' "$OUT" && log_fail "the shrink warning must no longer say restore from git: $(cat "$OUT")"
+  grep -qiE 'git (restore|checkout|reset)' "$OUT" && log_fail "no emitted string may instruct git restore/checkout/reset: $(cat "$OUT")"
+  grep -qiE 'git (restore|checkout|reset)' "$PROJECT_ROOT/.aai/scripts/metrics-flush.mjs" \
+    && log_fail "metrics-flush.mjs must contain no emitted git restore/checkout/reset instruction"
+  log_pass "Shrink advice names the re-append remedy and the missing count; no git restore/checkout/reset instruction anywhere (TEST-151)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
   check_deps
@@ -3326,6 +3494,9 @@ main() {
   test_146_per_ref_pass_vetoed_by_newer_global_fail
   test_147_requested_actual_model_passthrough
   test_148_scope_ref_id_binds_to_focus
+  test_149_partial_reset_keeps_review_gate
+  test_150_verdict_after_last_implementer
+  test_151_shrink_advice_is_reappend
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

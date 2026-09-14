@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-09-14T01:32:18.289Z",
+  "generatedAt": "2026-09-14T03:44:26.300Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 139,
-    "delivered": 433,
+    "rides": 140,
+    "delivered": 435,
     "active_weeks": 12,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (433 closes vs 139 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 433,
-    "delivered_per_week_avg": 36.1,
+    "note": "\"delivered\" counts every work_item_closed event (435 closes vs 140 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 435,
+    "delivered_per_week_avg": 36.3,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -26,7 +26,7 @@
       "2026-W35": 20,
       "2026-W36": 31,
       "2026-W37": 15,
-      "2026-W38": 2
+      "2026-W38": 4
     },
     "delivered_groups": [
       {
@@ -437,7 +437,7 @@
         "key": "month:2026-09",
         "kind": "month",
         "label": "2026-09",
-        "count": 45,
+        "count": 47,
         "refs": [
           "intake-staleness-preflight-warning",
           "spec-intake-staleness-preflight-warning",
@@ -481,6 +481,8 @@
           "spec-harness-universal-routing",
           "telemetry-fields-not-prose",
           "spec-telemetry-fields-not-prose",
+          "dispatch-state-sweep",
+          "spec-dispatch-state-sweep",
           "residuals-of-the-per-suite-clone-ride",
           "test-framework-sweep",
           "spec-test-framework-sweep"
@@ -2210,6 +2212,14 @@
           "lead_time_seconds": null
         },
         {
+          "ref": "dispatch-state-sweep",
+          "lead_time_seconds": 39140
+        },
+        {
+          "ref": "spec-dispatch-state-sweep",
+          "lead_time_seconds": null
+        },
+        {
           "ref": "residuals-of-the-per-suite-clone-ride",
           "lead_time_seconds": null
         },
@@ -2222,22 +2232,22 @@
           "lead_time_seconds": null
         }
       ],
-      "median_seconds": 4144,
-      "mean_seconds": 116270.2,
-      "measured": 135,
-      "unmeasurable": 298
+      "median_seconds": 4148,
+      "mean_seconds": 115703,
+      "measured": 136,
+      "unmeasurable": 299
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2355,
-      "mean": 5230.6,
-      "measured": 137
+      "median": 2357,
+      "mean": 5446.2,
+      "measured": 138
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 191607,
+        "duration_seconds": 200140,
         "tokens": 19960138
       },
       {
@@ -2247,22 +2257,22 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 69850,
+        "duration_seconds": 72212,
         "tokens": 10861080
       },
       {
         "role": "Remediation",
-        "duration_seconds": 112301,
+        "duration_seconds": 117796,
         "tokens": 12722278
       },
       {
         "role": "Validation",
-        "duration_seconds": 210842,
+        "duration_seconds": 228263,
         "tokens": 14780110
       },
       {
         "role": "Planning",
-        "duration_seconds": 76348,
+        "duration_seconds": 77513,
         "tokens": 10204831
       }
     ],
@@ -2958,6 +2968,11 @@
         "remediation_runs": 5
       },
       {
+        "ref": "dispatch-state-sweep",
+        "busy_seconds": 34976,
+        "remediation_runs": 4
+      },
+      {
         "ref": "test-framework-sweep",
         "busy_seconds": 65069,
         "remediation_runs": 5
@@ -3003,8 +3018,8 @@
     ],
     "capture_coverage": {
       "runs_with_marker": 427,
-      "total_runs": 680,
-      "pct": 63,
+      "total_runs": 694,
+      "pct": 62,
       "by_week": [
         {
           "week": "2026-W27",
@@ -3075,8 +3090,8 @@
         {
           "week": "2026-W38",
           "runs_with_marker": 12,
-          "total_runs": 23,
-          "pct": 52
+          "total_runs": 37,
+          "pct": 32
         }
       ]
     },
@@ -3084,10 +3099,10 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 99,
+          "runs_total": 101,
           "runs_marked": 77,
           "runs_sentinel": 0,
-          "runs_unmarked": 22,
+          "runs_unmarked": 24,
           "tokens_total": 19960138,
           "median_tokens_per_run": 251458,
           "share_pct": 28
@@ -3104,40 +3119,40 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 149,
+          "runs_total": 151,
           "runs_marked": 99,
           "runs_sentinel": 0,
-          "runs_unmarked": 50,
+          "runs_unmarked": 52,
           "tokens_total": 10861080,
           "median_tokens_per_run": 98503,
           "share_pct": 15
         },
         {
           "role": "Remediation",
-          "runs_total": 101,
+          "runs_total": 105,
           "runs_marked": 64,
           "runs_sentinel": 0,
-          "runs_unmarked": 37,
+          "runs_unmarked": 41,
           "tokens_total": 12722278,
           "median_tokens_per_run": 175818,
           "share_pct": 18
         },
         {
           "role": "Validation",
-          "runs_total": 166,
+          "runs_total": 171,
           "runs_marked": 107,
           "runs_sentinel": 0,
-          "runs_unmarked": 59,
+          "runs_unmarked": 64,
           "tokens_total": 14780110,
           "median_tokens_per_run": 130836,
           "share_pct": 21
         },
         {
           "role": "Planning",
-          "runs_total": 117,
+          "runs_total": 118,
           "runs_marked": 70,
           "runs_sentinel": 0,
-          "runs_unmarked": 47,
+          "runs_unmarked": 48,
           "tokens_total": 10204831,
           "median_tokens_per_run": 140551,
           "share_pct": 14
@@ -3570,7 +3585,7 @@
   "quality": {
     "first_pass_clean": {
       "clean": 83,
-      "flagged": 113,
+      "flagged": 114,
       "rate_pct": 73
     },
     "na_reliability": 26,
@@ -3579,7 +3594,7 @@
       "1": 10,
       "2": 7,
       "3": 4,
-      "4": 3,
+      "4": 4,
       "5": 4,
       "6": 1,
       "8": 1,
@@ -3588,7 +3603,7 @@
     "avg_validation_fails": 0.1,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 126,
+      "PASS": 127,
       "null": 13
     },
     "review_events": 26,
@@ -3603,7 +3618,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 2,
+    "field_derived": 3,
     "marker_derived": 2,
     "mixed": 0,
     "no_basis": 135,
@@ -4299,6 +4314,11 @@
         "cost_basis": "total-blended"
       },
       {
+        "ref": "dispatch-state-sweep",
+        "verdict_source": "field",
+        "cost_basis": "total-blended"
+      },
+      {
         "ref": "test-framework-sweep",
         "verdict_source": "field",
         "cost_basis": "total-blended"
@@ -4397,16 +4417,16 @@
     },
     {
       "week": "2026-W38",
-      "delivered": 2,
-      "median_lead_time_seconds": 66834,
-      "busy_seconds": 65069,
+      "delivered": 4,
+      "median_lead_time_seconds": 52987,
+      "busy_seconds": 100045,
       "tokens": 4679152,
       "first_pass_rate": 0
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 100,
+    "open_count": 88,
     "oldest_age_days": 31,
     "items": [
       {
@@ -4421,7 +4441,7 @@
         "id": "fu-mask-duplicates-docs-audit-core",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 30,
+        "age_days": 31,
         "what": "the specimen masker in spec-lint.mjs duplicates docs-audit-core.mjs:782-875 more weakly, reintroducing both bugs that file fixed under SPEC-0013 W3",
         "status": "open"
       },
@@ -4434,51 +4454,11 @@
         "status": "open"
       },
       {
-        "id": "fu-setfocus-keeps-stale-spec-path",
-        "ref": "deslop-scope-and-unrequested-engine",
-        "severity": "P2",
-        "age_days": 30,
-        "what": "set-focus to a new ref leaves the previous scope's spec_path in current_focus, so the next dispatch hands the role a foreign spec as an input",
-        "status": "open"
-      },
-      {
-        "id": "fu-validation-staleness-undetected",
-        "ref": "deslop-scope-and-unrequested-engine",
-        "severity": "P2",
-        "age_days": 30,
-        "what": "a validation pass survives a later remediation that rewrites the validated code, and the default routing skips re-validation",
-        "status": "open"
-      },
-      {
-        "id": "fu-dispatch-prompt-coaching-bias",
-        "ref": "role-verification-guards",
-        "severity": "P2",
-        "age_days": 28,
-        "what": "my role dispatches pre-rank findings and name the pattern to look for, which frames the answer before the role forms one",
-        "status": "open"
-      },
-      {
-        "id": "fu-ts-precision-unify-source",
-        "ref": "role-verification-guards",
-        "severity": "P2",
-        "age_days": 28,
-        "what": "state-engine.mjs nowIso() truncates ISO timestamps to the second while append-event.mjs keeps milliseconds; orchestration-dispatch.mjs now defends against this at the comparison site (Date.parse + Number.isFinite instants), but the two producers still disagree at the source",
-        "status": "open"
-      },
-      {
         "id": "fu-no-nul-guard",
         "ref": "docs-model-nul-escape",
         "severity": "P2",
         "age_days": 27,
         "what": "nothing checks tracked text files for NUL bytes, so a control character can silently turn a source file binary to POSIX grep",
-        "status": "open"
-      },
-      {
-        "id": "fu-orchestrator-does-not-watch-ci",
-        "ref": "ride-cost-readout",
-        "severity": "P2",
-        "age_days": 26,
-        "what": "after pushing a PR the orchestrator stops instead of watching CI, so a failure sits undetected until the owner asks",
         "status": "open"
       },
       {
@@ -4495,14 +4475,6 @@
         "severity": "P2",
         "age_days": 26,
         "what": "file_content_different in aai-sync.sh treats an unobtainable hash as different, so a transient sha256sum hiccup silently rewrites the target's copilot shim and plants a project-overrides file",
-        "status": "open"
-      },
-      {
-        "id": "fu-orchestrator-monitor-uses-gnu-find",
-        "ref": "suites-run-in-a-disposable-worktree",
-        "severity": "P2",
-        "age_days": 24,
-        "what": "the orchestrator's liveness check for running agents used GNU find syntax (-newermt '-N minutes') with stderr sent to /dev/null; on this host find rejects it, so the check reported zero writes as a RESULT when it was a silent command failure",
         "status": "open"
       },
       {
@@ -4562,14 +4534,6 @@
         "status": "open"
       },
       {
-        "id": "fu-metrics-flush-advises-git-restore",
-        "ref": "the-subagent-contract-omits-the-hazards",
-        "severity": "P3",
-        "age_days": 21,
-        "what": ".aai/scripts/metrics-flush.mjs:801-803 emits 'EVENTS is append-only per RFC-0001 - restore from git before continuing' to whatever agent runs the flush, telling it to run a restoring git command on a tracked append-only ledger in the same sentence that cites the append-only rule",
-        "status": "open"
-      },
-      {
         "id": "fu-contract-ledger-rule-stated-twice",
         "ref": "the-subagent-contract-omits-the-hazards",
         "severity": "P3",
@@ -4578,27 +4542,11 @@
         "status": "open"
       },
       {
-        "id": "fu-usage-marker-omission-unfixable",
-        "ref": "the-subagent-contract-omits-the-hazards",
-        "severity": "P2",
-        "age_days": 21,
-        "what": "a run appended without a usage marker cannot be corrected: append-run only appends, STATE hand-edits are forbidden, and the only recovery is toggling usage_capture_gate off and back",
-        "status": "open"
-      },
-      {
         "id": "fu-spec-d6-enumeration-stale",
         "ref": "the-tripwire-is-permanent-not-transitional",
         "severity": "P3",
         "age_days": 21,
         "what": "the correcting spec's own enumerations (D6, the implementation plan, the AC-004 Notes cell) undercount what it corrected, and three documents still call one registry closure moot",
-        "status": "open"
-      },
-      {
-        "id": "fu-overview-shows-closed-ride-inflight",
-        "ref": "the-tripwire-is-permanent-not-transitional",
-        "severity": "P2",
-        "age_days": 21,
-        "what": "STATE has no terminal phase and no clear-focus, so after close-work-item the generated overview keeps publishing the finished ride as the current in-flight scope until the NEXT ride calls set-focus",
         "status": "open"
       },
       {
@@ -4618,18 +4566,10 @@
         "status": "open"
       },
       {
-        "id": "fu-uncarved-dispatch-lanes",
-        "ref": "CHANGE-0165",
-        "severity": "P2",
-        "age_days": 20,
-        "what": "three dispatchable prompts still direct a subagent to run a STATE mutator without the dispatched-subagent carve, and STATE_FALLBACK's hand-edit path is un-reconciled",
-        "status": "open"
-      },
-      {
         "id": "fu-closeworkitem-pin-tail-wording",
         "ref": "close-leaves-state-stale",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "close-work-item.mjs EXIT CONTRACT header for code 6 and the matching CLOSE_WORK_ITEM_ALLOWED_HASHES entry both say the STATE reconcile runs strictly AFTER the existing try/catch, which is literally true of the full write path only: on the D6.2 idempotency short-circuit the reconcile is reached BEFORE the try block, a tail that route never enters",
         "status": "open"
       },
@@ -4647,14 +4587,6 @@
         "severity": "P2",
         "age_days": 19,
         "what": ".agents/skills/ is a tracked shipped skill tree that neither aai-sync.sh nor aai-sync.ps1 copies",
-        "status": "open"
-      },
-      {
-        "id": "fu-metrics-verdict-has-no-staleness",
-        "ref": "agent-shell-can-write-the-shipping-repo",
-        "severity": "P2",
-        "age_days": 16,
-        "what": "the metrics ledger records verdict PASS with no notion of whether the verdict covers the final bytes, so a ride whose last work lands after its last review is counted as reviewed-and-passed",
         "status": "open"
       },
       {
@@ -4794,14 +4726,6 @@
         "status": "open"
       },
       {
-        "id": "fu-flush-vacates-code-review-gate",
-        "ref": "metrics-flush-invalidates-pr-precondition",
-        "severity": "P2",
-        "age_days": 11,
-        "what": "metrics-flush's partial reset sets code_review.required false, so SKILL_PR's review precondition and close-work-item --review stop enforcing rather than blocking after a flush",
-        "status": "open"
-      },
-      {
         "id": "fu-rolecommon-ac-row-canon-conflict",
         "ref": "metrics-flush-invalidates-pr-precondition",
         "severity": "P2",
@@ -4815,14 +4739,6 @@
         "severity": "P3",
         "age_days": 11,
         "what": "CHANGELOG.md carries a bare unreleased scaffold followed by per-change unreleased headings, which the aai-release rollup requires, but nothing in the file says so and an external reviewer has flagged it as a structural defect on two consecutive PRs",
-        "status": "open"
-      },
-      {
-        "id": "fu-heartbeat-slot-name-not-injective",
-        "ref": "role-progress-heartbeat",
-        "severity": "P3",
-        "age_days": 10,
-        "what": "heartbeat slot names are not injective: two distinct --ref values that sanitize to the same token share one slot and the second write silently wins",
         "status": "open"
       },
       {
@@ -4895,30 +4811,6 @@
         "severity": "P3",
         "age_days": 7,
         "what": "The ~20 undated entries in the '## Session …' sections of docs/knowledge/LEARNED.md carry no [local] / [guard] marker and were never triaged; several are plainly the downstream class (BSD vs GNU tools on macOS versus Ubuntu CI, never git clean under docs/, a new audit gate must be validated against the whole corpus)",
-        "status": "open"
-      },
-      {
-        "id": "fu-blob-check-ledger-append-noise",
-        "ref": "lessons-that-must-hold-downstream-are-guards",
-        "severity": "P3",
-        "age_days": 7,
-        "what": "The committed-blob check fires on the append-only ledgers (docs/ai/EVENTS.jsonl, decisions.jsonl) whenever tooling appends a line between staging and committing — on its first real run it named EVENTS.jsonl for one docs_audit telemetry line",
-        "status": "open"
-      },
-      {
-        "id": "fu-heartbeat-gc-only-runs-on-write",
-        "ref": "live-page-shows-dead-heartbeats-not-live-work",
-        "severity": "P3",
-        "age_days": 7,
-        "what": "The heartbeat slot GC runs only on the write path, so in a repository where no role writes a heartbeat for days nothing is ever reaped; three slots from 2026-09-03/04 were still on disk on 2026-09-06",
-        "status": "open"
-      },
-      {
-        "id": "fu-heartbeat-pid-field-is-decorative",
-        "ref": "live-page-shows-dead-heartbeats-not-live-work",
-        "severity": "P3",
-        "age_days": 7,
-        "what": "heartbeat.mjs write stores pid: process.pid — the pid of the short-lived writer that exits immediately, not of the agent. The field reads as a liveness handle and is not one; it should be documented as such or removed",
         "status": "open"
       },
       {
@@ -5066,14 +4958,6 @@
         "status": "open"
       },
       {
-        "id": "fu-routing-effort-suffix-unnoted",
-        "ref": "harness-universal-routing",
-        "severity": "P3",
-        "age_days": 0,
-        "what": "effort_tiers@<x>: and effort_roles@<x>: headers (any suffix, valid or not) are never matched by a header regex, so they fall through silently: exit 0, suggested_effort null, zero stderr bytes; the suffix-rejection NOTE added for tiers@ roles@ validation_alternate@ does not cover them",
-        "status": "open"
-      },
-      {
         "id": "fu-amend-spec-telemetry-fields-not-prose",
         "ref": "telemetry-fields-not-prose",
         "severity": "P2",
@@ -5111,6 +4995,14 @@
         "severity": "P2",
         "age_days": 0,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-test-framework-sweep: remediation after validation round 1 FAIL: fixed all 12 numbered findings at cause (AC-04/06/07/08/12/14/19/22/26 corrections, RED_CLASS evidence, mutation-only carve-outs, TEST-443 CI-skip) and disclosed each in the spec's own ## Amendment section",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-spec-dispatch-state-sweep",
+        "ref": "dispatch-state-sweep",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-dispatch-state-sweep: Remediation round 1: fixed B1 (directory-symlink R-GUARD bypass), B2 (SKILL_PR clear-focus wiring + TEST-062), B3 (t054a cross-sweep merge-reconcile note), B4 (evidence-contract RED_CLASS/Spec-AC/measurements gaps), B5 (nowIso unification across follow-ups.mjs/spec-amend.mjs/update-check.mjs + TEST-036 strengthening)",
         "status": "open"
       },
       {
@@ -5175,6 +5067,38 @@
         "severity": "P3",
         "age_days": 0,
         "what": ".github/workflows/skill-suite.yml:161 -- raising the wrapper's default AAI_TEST_TIMEOUT from 300s to 3000s puts the inner watchdog ABOVE both CI job ceilings (skills-selected timeout-minutes: 15 = 900s at :123, skills-full timeout-minutes: 30 = 1800s at :161). 24 suites invoke aai-run-tests.sh inside their own fixtures.",
+        "status": "open"
+      },
+      {
+        "id": "fu-clearfocus-announces-unwritten-phase",
+        "ref": "dispatch-state-sweep",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "clear-focus REPLACES an existing phase:/status: line on the focused work item but never INSERTS a missing one, and prints 'work item phase=closed status=done' unconditionally even when the item carries no phase key at all (or there is no focused item).",
+        "status": "open"
+      },
+      {
+        "id": "fu-dispatch-text-detector-self-ref-fp",
+        "ref": "dispatch-state-sweep",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "check-dispatch-text.mjs's PRE_RATING_PHRASE_RE is a bare substring match with no exclusion for quoting, negation, or work-ordering prose, so it fires on the very D11 rule it enforces and on legitimate orchestration text.",
+        "status": "open"
+      },
+      {
+        "id": "fu-verdict-coverage-same-second-true",
+        "ref": "dispatch-state-sweep",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "metrics-flush.mjs's verdictAfterLastImplementer uses >= where Spec-AC-19 says 'later than', and no test pins the boundary; D7's second-precision coarsening widens the same-second window this decides wrongly.",
+        "status": "open"
+      },
+      {
+        "id": "fu-ledger-shrink-arm-unpinned",
+        "ref": "dispatch-state-sweep",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "tests/skills/test-aai-learned-routing.sh's TEST-008 does not pin the SHRINK arm of D15 — a ledger whose worktree content is SHORTER than the committed blob.",
         "status": "open"
       },
       {
@@ -5416,6 +5340,40 @@
         "remediation_runs": 4,
         "remediation_tokens": 1146088,
         "remediation_share_pct": 35
+      },
+      {
+        "ref": "dispatch-state-sweep",
+        "date_utc": "2026-09-14",
+        "runs_total": 14,
+        "elapsed_wall_seconds": 35579,
+        "agent_seconds": 34976,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 2
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 4
+          },
+          {
+            "role": "Validation",
+            "runs": 5
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 4,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
       },
       {
         "ref": "close-regenerate-order",
@@ -9302,7 +9260,7 @@
   "notes": [
     "NOTE 7 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
-    "NOTE 48 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
+    "NOTE 49 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
     "NOTE 4 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",
     "NOTE 25 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
     "NOTE 1 id-less follow_up entry folded under a derived id (fu-<ref_id-slug>-<yyyymmddThhmm>) — the original line is never rewritten"

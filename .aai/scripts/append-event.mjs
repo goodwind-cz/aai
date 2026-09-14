@@ -23,6 +23,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { nowIso } from './lib/iso-time.mjs';
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
 const SCHEMA_VERSION = 1;
@@ -62,7 +63,7 @@ function main() {
 
   const entry = {
     v: SCHEMA_VERSION,
-    ts: new Date().toISOString(),
+    ts: nowIso(),
     actor: actorSlug(),
     event: args.event,
     ref: args.ref,
