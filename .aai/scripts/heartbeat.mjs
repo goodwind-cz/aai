@@ -440,6 +440,12 @@ function cmdRead(opts) {
     // Sanitize the filter the same way the writer sanitized what it stored, so
     // `read --ref X` finds the slot `write --ref X` created for every X.
     if (opts.ref !== undefined && d.ref_id !== sanitizeComponent(opts.ref)) continue;
+    // Round 6 (Codex P2): the raw millisecond age is the MEASUREMENT;
+    // age_seconds below is a DISPLAY rounding of it. A slot 0.6s old rounds
+    // to 1s, which would already equal (or exceed) a `--max-age-seconds 1`
+    // threshold before any comparison runs — so the liveness probe below
+    // compares this raw value, never the rounded display field.
+    const ageMs = now - Date.parse(d.updated_at);
     slots.push({
       slot: name,
       ref_id: d.ref_id,
@@ -447,7 +453,8 @@ function cmdRead(opts) {
       message: d.message,
       updated_at: d.updated_at,
       // A FACT, not a verdict. No threshold is defined anywhere here.
-      age_seconds: Math.round((now - Date.parse(d.updated_at)) / 1000),
+      age_seconds: Math.round(ageMs / 1000),
+      age_ms: ageMs,
       writer_pid: d.writer_pid,
       worktree: d.worktree,
     });
@@ -467,7 +474,7 @@ function cmdRead(opts) {
     if (probeDegradeReason !== null) {
       readExitCode = 3;
       process.stderr.write(`heartbeat: liveness probe degraded — ${probeDegradeReason}\n`);
-    } else if (slots.some((s) => s.age_seconds < maxAge)) {
+    } else if (slots.some((s) => s.age_ms < maxAge * 1000)) {
       readExitCode = 0;
       process.stderr.write(`heartbeat: liveness — at least one slot is fresher than ${maxAge}s\n`);
     } else {

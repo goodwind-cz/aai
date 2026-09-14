@@ -1160,6 +1160,36 @@ test_028_writer_pid_rename() {
   log_pass "TEST-028 a real write carries writer_pid (never bare pid); a slot missing writer_pid or carrying only legacy pid is CORRUPT; the header documents the field's honest meaning"
 }
 
+# --- TEST-029 / Round 6 (Codex P2) ---------------------------------------------
+# age_seconds is a DISPLAY rounding; the liveness comparison must use the raw
+# millisecond age. A slot 0.6s old rounds to 1s, which would already equal a
+# `--max-age-seconds 1` threshold if the ROUNDED value were compared — a false
+# "no slot is fresher" (exit 4) for a slot that is, in fact, fresher.
+test_029_liveness_subsecond_boundary() {
+  local dir="$TEST_DIR/subsecond/heartbeat"; rm -rf "$TEST_DIR/subsecond"; mkdir -p "$dir"
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" write --ref subsec --role Validation --message "boundary"
+  if [[ "$RC" -ne 0 ]]; then
+    log_fail "TEST-029: setup write exited $RC"
+    return
+  fi
+  local slot="$dir/hb-subsec__Validation.json"
+  # Back-date the slot to exactly 600ms old — rounds to 1s (age_seconds: 1)
+  # but is well under a 1000ms (--max-age-seconds 1) raw threshold.
+  node -e '
+    const fs = require("fs");
+    const p = process.argv[1];
+    const o = JSON.parse(fs.readFileSync(p, "utf8"));
+    o.updated_at = new Date(Date.now() - 600).toISOString();
+    fs.writeFileSync(p, JSON.stringify(o, null, 2) + "\n");
+  ' "$slot"
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" read --max-age-seconds 1
+  if [[ "$RC" -ne 0 ]]; then
+    log_fail "TEST-029: a slot 0.6s old under --max-age-seconds 1 must exit 0 (fresh), got $RC (stderr: $(payload_preview "$ERR")) — the comparison must use the raw millisecond age, not the rounded age_seconds"
+    return
+  fi
+  log_pass "TEST-029 a sub-second-boundary slot (0.6s old, --max-age-seconds 1) reads fresh (exit 0) — the liveness comparison uses the raw millisecond age, not the rounded display value"
+}
+
 # --- run ----------------------------------------------------------------------
 check_deps
 test_001_worktree_to_main_checkout
@@ -1184,9 +1214,10 @@ test_025_liveness_exit_codes
 test_026_slot_collision_named
 test_027_gc_on_read
 test_028_writer_pid_rename
+test_029_liveness_subsecond_boundary
 
 if [[ "$FAILED" == 0 ]]; then
-  echo "PASS: all $TEST_NAME tests (TEST-001..014, TEST-018, TEST-022..028)"
+  echo "PASS: all $TEST_NAME tests (TEST-001..014, TEST-018, TEST-022..029)"
   exit 0
 else
   echo "FAIL: $TEST_NAME suite had failures" >&2

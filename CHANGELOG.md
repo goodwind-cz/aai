@@ -42,8 +42,9 @@ RFC-0001).
   recorded reason (seven are owner sign-offs on old amendments); ISSUE-0040
   resolved except its third item, rejected.
 - Spec: SPEC-0180 (dispatch-state-sweep), ceremony 3 (`state.mjs` is a
-  protected surface), TDD, 23 tests, 40 mutations, three validation rounds.
-  Wave 3 sweep 3. Merged by the orchestrator under the wave-3 mandate.
+  protected surface), TDD, 23 tests, 40 mutations, five validation rounds
+  (rounds 4–5 as `--force` re-validations). Wave 3 sweep 3. Merged by the
+  orchestrator under the wave-3 mandate.
 - Merge condition met in the same merge: sweep 2's `close-work-item` fixture
   gains a sibling `state.mjs` so its guard arm still fires (see the spec's
   Amendment "cross-sweep reconciliation").

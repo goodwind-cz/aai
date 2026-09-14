@@ -588,6 +588,59 @@ test_008_ledger_append_vs_divergence() {
   log_pass "a ledger growing at its own end reports an append (never a failure); a rewritten middle line reports a divergence (a real failure); a non-ledger path is unchanged; an empty committed blob is an append (TEST-008)"
 }
 
+# --- TEST-010 (Round 6, Codex P1): --strict --rev HEAD rejects an uncommitted
+# ledger append instead of waving it through as benign ---
+test_010_strict_rejects_pending_append() {
+  log_info "Test: --strict --rev HEAD reports an unstaged HAZ-LEDGER append as a MISMATCH named 'pending append not committed' and exits non-zero; the SAME append under non-strict stays a clean advisory append (TEST-010)..."
+  local d="$TEST_DIR/pending-append"; mkrepo "$d"
+  mkdir -p "$d/docs/ai"
+  printf '{"n":1}\n{"n":2}\n' > "$d/docs/ai/EVENTS.jsonl"
+  git -C "$d" add -A >/dev/null && git -C "$d" commit -qm base
+  # A ledger record left OUT of the commit — the exact shape the PR finding
+  # named: docs/ai/decisions.jsonl or test-runs.jsonl growing on disk with
+  # HEAD not yet carrying it.
+  printf '{"n":3}\n' >> "$d/docs/ai/EVENTS.jsonl"
+
+  # (a) non-strict --rev HEAD: unchanged — advisory append, exit 0, never a
+  # mismatch. Strict is the only mode this fix changes.
+  local rc=0
+  ( cd "$d" && node "$CHECK" docs/ai/EVENTS.jsonl --rev HEAD --json > "$TEST_DIR/pa-nonstrict.out" 2>&1 ) || rc=$?
+  [ "$rc" = "0" ] || log_fail "TEST-010: (a) non-strict --rev HEAD must still exit 0 on an append, got $rc: $(cat "$TEST_DIR/pa-nonstrict.out")"
+  node -e '
+    const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (o.mismatches.length !== 0) { console.error("non-strict must never fail an append: " + JSON.stringify(o.mismatches)); process.exit(1); }
+    if (o.appends.length !== 1) { console.error("expected one append entry: " + JSON.stringify(o.appends)); process.exit(1); }
+    if ((o.pending_appends || []).length !== 0) { console.error("non-strict must not name a pending_append: " + JSON.stringify(o.pending_appends)); process.exit(1); }
+  ' "$TEST_DIR/pa-nonstrict.out" || log_fail "TEST-010: (a) non-strict output shape wrong"
+
+  # (b) --strict --rev HEAD: the SAME append is now a named MISMATCH, exit 1.
+  rc=0
+  ( cd "$d" && node "$CHECK" docs/ai/EVENTS.jsonl --strict --rev HEAD --json > "$TEST_DIR/pa-strict.out" 2>&1 ) || rc=$?
+  [ "$rc" = "1" ] || log_fail "TEST-010: (b) --strict --rev HEAD must exit non-zero on an uncommitted append, got $rc: $(cat "$TEST_DIR/pa-strict.out")"
+  node -e '
+    const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (o.status !== "mismatch") { console.error("expected status mismatch, got " + o.status); process.exit(1); }
+    if (o.mismatches.indexOf("docs/ai/EVENTS.jsonl") === -1) { console.error("the pending append must land in mismatches: " + JSON.stringify(o.mismatches)); process.exit(1); }
+    if ((o.pending_appends || []).indexOf("docs/ai/EVENTS.jsonl") === -1) { console.error("pending_appends must name the path: " + JSON.stringify(o.pending_appends)); process.exit(1); }
+  ' "$TEST_DIR/pa-strict.out" || log_fail "TEST-010: (b) strict output shape wrong"
+  ( cd "$d" && node "$CHECK" docs/ai/EVENTS.jsonl --strict --rev HEAD > "$TEST_DIR/pa-strict-plain.out" 2>&1 ) || true
+  grep -q 'pending append not committed' "$TEST_DIR/pa-strict-plain.out" \
+    || log_fail "TEST-010: (b) plain-text output must name it 'pending append not committed': $(cat "$TEST_DIR/pa-strict-plain.out")"
+  # It must NOT be mislabeled as a divergence — that name is reserved for a
+  # rewritten middle line (TEST-008 (b)), a different cause.
+  grep -q 'divergence' "$TEST_DIR/pa-strict-plain.out" \
+    && log_fail "TEST-010: (b) a pending append is not a divergence — do not conflate the two labels: $(cat "$TEST_DIR/pa-strict-plain.out")"
+
+  # (c) a real divergence (rewritten middle line) under --strict --rev HEAD
+  # keeps its own "divergence" label — this fix must not blur the two.
+  printf '{"n":1}\n{"n":2, "rewritten": true}\n' > "$d/docs/ai/EVENTS.jsonl"
+  ( cd "$d" && node "$CHECK" docs/ai/EVENTS.jsonl --strict --rev HEAD > "$TEST_DIR/pa-diverge-plain.out" 2>&1 ) || true
+  grep -q 'divergence — not an append' "$TEST_DIR/pa-diverge-plain.out" \
+    || log_fail "TEST-010: (c) a real divergence under --strict must still say 'divergence — not an append': $(cat "$TEST_DIR/pa-diverge-plain.out")"
+
+  log_pass "--strict --rev HEAD rejects an uncommitted HAZ-LEDGER append as a named 'pending append not committed' mismatch (exit non-zero); non-strict keeps it a clean advisory; a real divergence keeps its own label (TEST-010)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$CHECK" ] || log_fail "engine missing: $CHECK"
@@ -600,6 +653,7 @@ main() {
   test_006_learned_triaged
   test_007_scope_ref_id_gate
   test_008_ledger_append_vs_divergence
+  test_010_strict_rejects_pending_append
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

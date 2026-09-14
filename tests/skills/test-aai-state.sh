@@ -3260,13 +3260,38 @@ test_074_amend_run() {  # TEST-035 / Spec-AC-06
   cmp -s "$s3" "$TEST_DIR/t74d-snapshot.yaml" || log_fail "(d) STATE must stay byte-identical after the zero-match refusal"
   grep -qF '0' "$TEST_DIR/t74d.log" || log_fail "(d) the refusal must name zero matches: $(cat "$TEST_DIR/t74d.log")"
 
-  log_pass "amend-run fills a hole once (usage_basis->field, amended_at_utc added); refuses already-numeric/ambiguous/zero-match, byte-identical (TEST-035)"
+  # (e) Round 6 (Codex P2, fu-amend-run-overwrite-note-basis-number): a run
+  # whose usage already came from a --note marker (usage_basis: note,
+  # tokens_total ABSENT — D5's own emission rule) must be refused exactly
+  # like an already-numeric tokens_total is in (b) — filling is for an
+  # absent hole only, not for overriding a note-derived number. STATE must
+  # stay byte-identical, and the note text (999) must survive untouched.
+  local s4="$TEST_DIR/t74e-state.yaml" started_e="2026-08-03T10:00:00Z"
+  write_state_fixture "$s4"
+  st "$s4" "$TEST_DIR/t74e0.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$started_e" \
+    --tokens-in 1 --tokens-out 1 --note "usage_total_tokens=999 done" \
+    || log_fail "(e) fixture append-run with a note marker must exit 0: $(cat "$TEST_DIR/t74e0.log")"
+  sed -n "/started_utc: $started_e/,/^ {8}- role:\|^ {6}[a-z]/p" "$s4" > "$TEST_DIR/t74e-entry-before.txt"
+  grep -qE '^ {10}usage_basis: note$' "$TEST_DIR/t74e-entry-before.txt" \
+    || log_fail "(e) fixture run must carry usage_basis: note before the amend attempt: $(cat "$TEST_DIR/t74e-entry-before.txt")"
+  cp "$s4" "$TEST_DIR/t74e-snapshot.yaml"
+  ec=0
+  st "$s4" "$TEST_DIR/t74e1.log" amend-run --ref CHANGE-0001 --role Planning --started "$started_e" --tokens-total 4321 || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "(e) amend-run against a note-basis run must exit 2 (got $ec): $(cat "$TEST_DIR/t74e1.log")"
+  cmp -s "$s4" "$TEST_DIR/t74e-snapshot.yaml" || log_fail "(e) STATE must stay byte-identical after the note-basis refusal"
+  grep -qi 'usage_basis' "$TEST_DIR/t74e1.log" || log_fail "(e) the refusal must name usage_basis/note: $(cat "$TEST_DIR/t74e1.log")"
+  grep -qi 'note' "$TEST_DIR/t74e1.log" || log_fail "(e) the refusal must name the note basis: $(cat "$TEST_DIR/t74e1.log")"
+
+  log_pass "amend-run fills a hole once (usage_basis->field, amended_at_utc added); refuses already-numeric/ambiguous/zero-match/note-basis, byte-identical (TEST-035)"
 }
 
 test_075_clear_focus() {  # TEST-033 / Spec-AC-03
   log_info "Test: clear-focus nulls current_focus and closes the ref's work item; refuses on a --ref mismatch; phase closed survives check-state (TEST-033)..."
   local s="$TEST_DIR/t75-state.yaml"
   write_state_fixture "$s"   # current_focus.ref_id CHANGE-0001, work item status in_progress
+  st "$s" "$TEST_DIR/t75a-stamp.log" set-code-review --required true --status not_run --scope "a.mjs b.mjs" --base-ref main \
+    || log_fail "(fixture) set-code-review must stamp scope_ref_id: $(cat "$TEST_DIR/t75a-stamp.log")"
+  grep -qE '^  scope_ref_id: CHANGE-0001$' "$s" || log_fail "(fixture) scope_ref_id must read CHANGE-0001 before clear-focus"
 
   # (a) clear-focus --ref CHANGE-0001 (matches current_focus.ref_id).
   st "$s" "$TEST_DIR/t75a.log" clear-focus --ref CHANGE-0001 \
@@ -3274,6 +3299,10 @@ test_075_clear_focus() {  # TEST-033 / Spec-AC-03
   sed -n '/^current_focus:/,/^[a-z]/p' "$s" > "$TEST_DIR/t75a-focus.txt"
   grep -qE '^  type: none$' "$TEST_DIR/t75a-focus.txt" || log_fail "(a) current_focus.type must be none: $(cat "$TEST_DIR/t75a-focus.txt")"
   grep -qE '^  ref_id: null$' "$TEST_DIR/t75a-focus.txt" || log_fail "(a) current_focus.ref_id must be null: $(cat "$TEST_DIR/t75a-focus.txt")"
+  # (a2) validation round 6 NB-5 (PR #382): the retired scope's provenance
+  # stamp code_review.scope_ref_id must not outlive the focus it names.
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" > "$TEST_DIR/t75a-review.txt"
+  grep -qE '^  scope_ref_id: null$' "$TEST_DIR/t75a-review.txt" || log_fail "(a2) code_review.scope_ref_id must be null after clear-focus: $(cat "$TEST_DIR/t75a-review.txt")"
   grep -qE '^  primary_path: null$' "$TEST_DIR/t75a-focus.txt" || log_fail "(a) current_focus.primary_path must be null: $(cat "$TEST_DIR/t75a-focus.txt")"
   grep -qE '^  spec_path: null$' "$TEST_DIR/t75a-focus.txt" || log_fail "(a) current_focus.spec_path must be null: $(cat "$TEST_DIR/t75a-focus.txt")"
   sed -n '/^active_work_items:/,/^implementation_strategy:/p' "$s" > "$TEST_DIR/t75a-item.txt"
@@ -3341,7 +3370,29 @@ test_076_help_and_usage_grammar() {  # TEST-038 / Spec-AC-18
   assert_payload_contains "$help_out" 'reset-block <block>' \
     "TEST-038: reset-block --help must name its positional <block> argument"
 
-  log_pass "every CMD_FLAGS subcommand's --help exits 0, names every flag and (where applicable) the exact enum values and positional; every refusal carries the identical usage line (TEST-038)"
+  # Round 6 (Codex P2, state.mjs:273): set-focus's grammar is CONDITIONAL —
+  # cmdSetFocus accepts a bare --clear, OR --type none with --ref/--path
+  # OPTIONAL, OR a real retarget where --type/--ref/--path are ALL required
+  # together. A flat "every flag is required" rendering (the defect this
+  # closes) would still name every flag, which is all the generic loop above
+  # checks — so this asserts the THREE alternatives by their exact bracket
+  # structure, the part that was false before this fix.
+  help_rc=0
+  help_out="$(node "$STATE_SCRIPT" set-focus --help 2>&1)" || help_rc=$?
+  assert_payload_contains "$help_out" 'state.mjs set-focus --clear <spec_path>' \
+    "TEST-038: set-focus --help must show a bare --clear alternative naming its one clearable field"
+  assert_payload_contains "$help_out" '--type none [--ref <value>] [--path <value>]' \
+    "TEST-038: set-focus --help must show --type none with --ref/--path OPTIONAL (bracketed)"
+  assert_payload_contains "$help_out" '--type <intake_change|' \
+    "TEST-038: set-focus --help must show the full retarget alternative with the real --type enum"
+  assert_payload_contains "$help_out" '--ref <value> --path <value> [--spec-path <value>]' \
+    "TEST-038: set-focus --help must show --ref/--path REQUIRED (unbracketed) in the full retarget alternative"
+  # The bare --clear alternative must not ALSO require --type — that is
+  # exactly the false grammar this fix replaces.
+  assert_payload_not_contains "$help_out" '--clear <spec_path> --type' \
+    "TEST-038: the bare --clear alternative must not require --type"
+
+  log_pass "every CMD_FLAGS subcommand's --help exits 0, names every flag and (where applicable) the exact enum values and positional; every refusal carries the identical usage line; set-focus's conditional grammar shows its three real alternatives, not one falsely-flat required set (TEST-038)"
 }
 
 # t76_flags_for <cmd> — the flag names (hyphenated CLI spelling) that subcommand's

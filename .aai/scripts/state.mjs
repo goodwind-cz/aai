@@ -377,23 +377,60 @@ const CMD_FLAG_META = {
   },
 };
 
+// One flag rendered from CMD_FLAG_META — `required` overrides the flag's own
+// meta.required (needed below, where the SAME flag is required in one
+// set-focus alternative and optional in another); `literal` overrides the
+// value placeholder entirely (needed for `--type none`, one specific enum
+// member rather than the whole closed set).
+function renderFlag(cmd, name, { required, literal } = {}) {
+  const meta = (CMD_FLAG_META[cmd] ?? {})[name] ?? {};
+  const flagName = `--${name.replace(/_/g, '-')}`;
+  const rendered = literal !== undefined ? `${flagName} ${literal}`
+    : meta.bool ? flagName
+      : meta.enum ? `${flagName} <${meta.enum.join('|')}>`
+        : `${flagName} <value>`;
+  const req = required !== undefined ? required : meta.required;
+  return req ? rendered : `[${rendered}]`;
+}
+
 // dispatch-state-sweep D16: ONE usage line per subcommand, DERIVED from
 // CMD_FLAGS/CMD_FLAG_META/CMD_POSITIONALS — never hand-typed separately, so
 // it cannot drift from what parseArgs/rejectUnknownFlags actually accept
 // (M21/M22 pin this: dropping a subcommand from the loop, or hardcoding one
 // enum's rendering, must redden independently of the others).
 function renderUsage(cmd) {
+  if (cmd === 'set-focus') return renderSetFocusUsage();
   const parts = [`state.mjs ${cmd}`, ...(CMD_POSITIONALS[cmd] ?? [])];
-  for (const name of CMD_FLAGS[cmd] ?? []) {
-    const meta = (CMD_FLAG_META[cmd] ?? {})[name] ?? {};
-    const flagName = `--${name.replace(/_/g, '-')}`;
-    const rendered = meta.bool ? flagName
-      : meta.enum ? `${flagName} <${meta.enum.join('|')}>`
-        : `${flagName} <value>`;
-    parts.push(meta.required ? rendered : `[${rendered}]`);
-  }
+  for (const name of CMD_FLAGS[cmd] ?? []) parts.push(renderFlag(cmd, name));
   parts.push('[--state <path>] [--ticks <path>]');
   return parts.join(' ');
+}
+
+// Round 6 (Codex P2, state.mjs:273): cmdSetFocus (above) does not treat
+// --type/--ref/--path as independently required or optional — it accepts
+// exactly THREE shapes: a bare `--clear <field>` with none of the other
+// three; `--type none` with --ref/--path OPTIONAL; or a real retarget where
+// --type, --ref AND --path are ALL required together. The generic single-
+// line renderUsage shape above cannot say that truthfully (one fixed
+// required/optional marking per flag, chosen for every call regardless of
+// which shape is in play), so set-focus gets its own three-alternative
+// rendering — every flag still DERIVED via renderFlag from CMD_FLAG_META,
+// never a hand-typed enum or value placeholder.
+function renderSetFocusUsage() {
+  const cmd = 'set-focus';
+  const tail = '[--state <path>] [--ticks <path>]';
+  // set-focus's only clearable field is spec_path (CLEAR_FIELDS['set-focus'],
+  // declared later in this file for reasons unrelated to usage rendering);
+  // named directly here rather than forward-referencing a const that is not
+  // yet initialized when CMD_USAGE below builds every subcommand's line.
+  const clearAlt = `state.mjs ${cmd} --clear <spec_path> ${tail}`;
+  const noneAlt = `state.mjs ${cmd} ${renderFlag(cmd, 'type', { required: true, literal: 'none' })} `
+    + `${renderFlag(cmd, 'ref', { required: false })} ${renderFlag(cmd, 'path', { required: false })} `
+    + `${renderFlag(cmd, 'spec_path', { required: false })} ${tail}`;
+  const fullAlt = `state.mjs ${cmd} ${renderFlag(cmd, 'type', { required: true })} `
+    + `${renderFlag(cmd, 'ref', { required: true })} ${renderFlag(cmd, 'path', { required: true })} `
+    + `${renderFlag(cmd, 'spec_path', { required: false })} ${tail}`;
+  return [clearAlt, noneAlt, fullAlt].join('\n  or: ');
 }
 const CMD_USAGE = Object.fromEntries(Object.keys(CMD_FLAGS).map(cmd => [cmd, renderUsage(cmd)]));
 
@@ -835,7 +872,11 @@ function cmdClearFocus(state, flags) {
     }
     return bl;
   }, [], { allowInline: /^\[\]$/ });
-  return `clear-focus: ${ref} cleared (current_focus nulled; work item phase=closed status=done)`;
+    // validation round 6 NB-5 (PR #382): the retired scope's provenance stamp
+  // must not outlive the focus it names, or check-committed-scope
+  // --from-state degrades on the next ride (S4 shape, fails closed).
+  editBlock(state.lines, 'code_review', bl => { nullFieldIfPresent(bl, 2, 'scope_ref_id'); return bl; });
+return `clear-focus: ${ref} cleared (current_focus nulled; work item phase=closed status=done)`;
 }
 
 // telemetry-fields-not-prose D7: stamp `validation: {status, at}` onto an
@@ -1362,6 +1403,22 @@ function amendAgentRun(bl, ref, role, started, tokensTotal) {
     if (/^-?\d+$/.test(val)) {
       fail(`amend-run: refused — the matched run's tokens_total is already ${val} (a NUMBER); `
         + 'a recorded number is history, only a null/absent hole is amendable — nothing written');
+    }
+  }
+  // Round 6 (Codex P2, fu-amend-run-overwrite-note-basis-number): a NUMBER
+  // already recorded is not only the tokens_total FIELD — a run appended
+  // with a well-formed `usage_total_tokens=<N>` --note marker carries its
+  // number as usage_basis: note with tokens_total absent (D5's own emission
+  // rule), and the check above never sees it. "fills a hole once, never
+  // rewrites a number" must cover that shape too, or amend-run silently
+  // overrides the note's number, flips usage_basis to field, and leaves the
+  // now-contradicting note text standing on the same record.
+  if (match.usageBasisLine !== -1) {
+    const basisVal = bl[match.usageBasisLine].slice(bl[match.usageBasisLine].indexOf(':') + 1).trim();
+    if (basisVal === 'note') {
+      fail('amend-run: refused — the matched run\'s usage_basis is already "note" (usage came from the '
+        + '--note marker); filling is for an absent usage hole only, not for overriding a note-derived '
+        + 'number — nothing written');
     }
   }
 

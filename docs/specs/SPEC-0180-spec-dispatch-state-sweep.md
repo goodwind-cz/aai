@@ -807,6 +807,8 @@ carries the suite path, which is what makes each row unique.
 | TEST-008 | Spec-AC-17 | integration | tests/skills/test-aai-learned-routing.sh | Append versus divergence — a git fixture where the staged EVENTS.jsonl blob is a byte-exact prefix of the worktree file reports an append with the line count and does not fail; the same fixture with a middle line rewritten reports a divergence and fails; a non-ledger file behaves identically to today in both shapes; an empty committed blob is treated as an append. | green |
 | TEST-009L | Spec-AC-21 | unit | tests/skills/test-aai-layer-profiles.sh | Classification — the union check over the live .aai tree passes with the three new files classified, and each of lib/iso-time.mjs, watch-ci.mjs and check-dispatch-text.mjs is asserted present in exactly one of the two lists. | green |
 | TEST-012 | Spec-AC-21 | unit | tests/skills/test-aai-prompt-diet.sh | Corpus true-up — the existing checkpoint re-sums against the JUSTIFIED_ADDITIONS entry added for this ride's SKILL_PR.prompt.md, STATE_FALLBACK.md and the three carve prompts, so the measured growth equals the credited growth. | green |
+| TEST-029 | Spec-AC-08 | unit | tests/skills/test-aai-heartbeat.sh | Liveness compares the raw millisecond age against max-age (600 ms fresh, 1400 ms stale); age_seconds is display-only. Added by Amendment B8 (PR #382 Codex). | green |
+| TEST-010 | Spec-AC-17 | integration | tests/skills/test-aai-learned-routing.sh | check-committed-scope --strict names an uncommitted ledger append as a pending-append mismatch; non-strict keeps the advisory; a divergence keeps its own label. Added by Amendment B8 (PR #382 Codex P1). | green |
 
 Every Spec-AC has at least one TEST row and every TEST row names exactly one
 Spec-AC.
@@ -860,6 +862,10 @@ shipping file) and its failing output recorded as `mutation-<Mnn>.txt`.
 | M38 | TEST-151 | Restore the `restore from git` string. The grep arm must go red. |
 | M39 | TEST-009L | Remove one new file from `PROFILES.yaml`. The union check must go red naming that file. |
 | M40 | TEST-012 | Bump the corpus by one byte without crediting it. The checkpoint re-sum must go red. |
+| M41 | TEST-010 | treat a strict-mode ledger append as benign (continue) | TEST-010 arm b reddens: exit 0, status clean |
+| M42 | TEST-035 (e) | drop the usage_basis note check in amend-run | arm e reddens: number silently overwritten |
+| M43 | TEST-029 | compare the rounded age_seconds instead of age_ms | TEST-029 reddens: exit 4 no slot fresher than 1s |
+| M44 | TEST-038 | drop the set-focus alternative renderer | the bare --clear alternative assertion reddens |
 
 ## Seams
 
@@ -1235,6 +1241,98 @@ is preserved; nothing below moves or deletes an existing AC's text.
     `fu-dispatch-text-detector-self-ref-fp`,
     `fu-verdict-coverage-same-second-true`) are reported to the orchestrator
     in this round's result for STATE's own correction.
+
+- **B8 (Round 6 — external bot findings on PR #382) — one Codex P1, three
+  Codex P2 and two Copilot findings on the open PR, each fixed at cause with
+  a test a mutation reddens (the two Copilot findings are prose-only; no
+  behaviour to mutate).**
+  - **Codex P1, `check-committed-scope.mjs:317`** — `--strict --rev HEAD`
+    classified an UNSTAGED append to a HAZ-LEDGER path as benign, the same
+    as non-strict, so the PR ceremony gate could exit 0 while a required
+    ledger record (a decision, a test-run) sat uncommitted. Fixed: under
+    `--strict` only, a detected append now ALSO lands in `mismatches`
+    (tracked in a new `pending_appends` array, both JSON and plain-text
+    output), named "pending append not committed" — distinct from a real
+    divergence (a rewrite), which keeps its own "(divergence — not an
+    append)" label. Non-strict is unchanged (append stays advisory, exit 0).
+    `tests/skills/test-aai-learned-routing.sh` gains
+    `test_010_strict_rejects_pending_append` (TEST-009): (a) non-strict
+    `--rev HEAD` on the append stays exit 0 with an empty `pending_appends`;
+    (b) `--strict --rev HEAD` on the SAME append exits 1, `status: mismatch`,
+    the path named in both `mismatches` and `pending_appends`, plain text
+    naming "pending append not committed"; (c) a real divergence under
+    `--strict --rev HEAD` still says "divergence — not an append", proving
+    the two causes are not conflated. Mutation-verified: reverting the
+    `if (a.strict) { mismatches.push(rel); pendingAppends.push(rel); }` arm
+    to a bare `continue` reddens (b) alone (`got 0`, `status: clean`), file
+    restored byte-identical after.
+  - **Codex P2, `state.mjs:1365` (the guard now spans 1359-1420, the new check
+    at 1412-1419), `fu-amend-run-overwrite-note-basis-number`** —
+    `amend-run`'s "never rewrites a number" guard checked only the
+    `tokens_total` FIELD; a run whose usage came from a `--note` marker
+    (`usage_basis: note`, `tokens_total` absent per D5's own emission rule)
+    was still amendable, silently overriding the note-derived number and
+    flipping `usage_basis` to `field` while the contradicting note text
+    stood. Fixed: `amendAgentRun` now also refuses when the matched run's
+    `usage_basis` line already reads `note`, naming the refusal explicitly
+    ("usage_basis is already \"note\""). `tests/skills/test-aai-state.sh`
+    `test_074_amend_run` (TEST-035) gains arm (e): a fixture run appended
+    with a `usage_total_tokens=999` note marker, then `amend-run
+    --tokens-total 4321` against it must exit 2, STATE byte-identical.
+    Mutation-verified: removing the new `usageBasisLine`/`basisVal === 'note'`
+    check reddens (e) alone (`got 0`, the number silently overwritten), file
+    restored byte-identical after. Follow-up
+    `fu-amend-run-overwrite-note-basis-number` closed:
+    `node .aai/scripts/follow-ups.mjs close --id
+    fu-amend-run-overwrite-note-basis-number --resolved-by
+    dispatch-state-sweep --source "TEST-035(e), tests/skills/test-aai-state.sh"`
+    (`docs/ai/decisions.jsonl`, ts `2026-09-14T01:57:13Z`).
+  - **Codex P2, `heartbeat.mjs:470`** — the liveness probe compared
+    `age_seconds` (a ROUNDED display value) against `--max-age-seconds`, so a
+    slot 0.5-1.0s old rounded up to 1s and could read as no-fresher-than-1s
+    when it was, in raw terms, well under the threshold. Fixed: each slot now
+    also carries a raw `age_ms`, and the liveness comparison uses
+    `s.age_ms < maxAge * 1000`; `age_seconds` (`Math.round(ageMs / 1000)`)
+    stays display-only. `tests/skills/test-aai-heartbeat.sh` gains
+    `test_029_liveness_subsecond_boundary` (TEST-029): a slot back-dated to
+    exactly 600ms old, read with `--max-age-seconds 1`, must exit 0 (fresh).
+    Mutation-verified: reverting the comparison to `s.age_seconds < maxAge`
+    reddens TEST-029 alone (exit 4, "no slot is fresher than 1s"), file
+    restored byte-identical after; TEST-025's existing fresh/stale/degraded
+    boundaries (300s window, not sub-second) are unaffected.
+  - **Codex P2, `state.mjs:273` (`renderUsage`/`CMD_FLAG_META['set-focus']`)** —
+    the generated `set-focus --help` line marked `--type`/`--ref`/`--path`
+    unconditionally required, but `cmdSetFocus` accepts three shapes: a bare
+    `--clear <field>` (none of the three); `--type none` with `--ref`/`--path`
+    OPTIONAL; or a real retarget where all three are required together. Fixed:
+    `set-focus` now renders three alternative usage lines (`renderSetFocusUsage`,
+    still derived per-flag via a new `renderFlag(cmd, name, {required,
+    literal})` helper, never hand-typed), joined with `\n  or: `, shown by
+    both `--help` and every refusal's usage line (`fail()`'s existing
+    `CMD_USAGE[currentCmd]` wiring, unchanged). `tests/skills/test-aai-state.sh`
+    `test_076_help_and_usage_grammar` (TEST-038) gains five new assertions:
+    the bare `--clear <spec_path>` alternative; `--type none [--ref <value>]
+    [--path <value>]` (optional, bracketed); the full retarget alternative's
+    `--type <intake_change|...>` enum; `--ref <value> --path <value>
+    [--spec-path <value>]` (required, unbracketed) in that same alternative;
+    and that the bare `--clear` alternative does NOT also demand `--type`.
+    Mutation-verified: removing the `if (cmd === 'set-focus') return
+    renderSetFocusUsage();` early-return (falling back to the old flat
+    per-flag rendering) reddens the "bare --clear" assertion alone, file
+    restored byte-identical after; the full `test-aai-state.sh` suite (all
+    prior TEST-001..039 arms) stays green after the `renderFlag` refactor.
+  - **Copilot, `CHANGELOG.md:45`** — the wave-3-sweep-3 entry said "three
+    validation rounds"; PR #382's own description (and this spec's B1-B7
+    above) name five, rounds 4-5 as `--force` re-validations. Corrected to
+    "five validation rounds (rounds 4–5 as `--force` re-validations)".
+  - **Copilot, `docs/issues/CHANGE-0186-dispatch-state-sweep.md:97`** —
+    "orchestrat" in the frozen bucket-grep keyword list read as a typo for a
+    human reader. It is not one: the bucket grep used the STEM `orchestrat`
+    deliberately, to match both `orchestration` and `orchestrator` entries in
+    one term. Corrected to name that explicitly: "orchestration (the bucket
+    grep used the stem orchestrat, matching both orchestration and
+    orchestrator)" — the keyword list's actual matching behavior is
+    unchanged, only its prose is now honest about it.
 
 Every claim above was grepped or run TRUE against the shipped tree before
 this Amendment was written.

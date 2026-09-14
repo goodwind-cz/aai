@@ -272,7 +272,7 @@ function main() {
     if (rr.status !== 0) usage(`--rev ${a.rev} does not resolve to a commit`);
   }
 
-  const mismatches = []; const appends = []; let checked = 0;
+  const mismatches = []; const appends = []; const pendingAppends = []; let checked = 0;
   for (const rel of [...new Set(a.paths)]) {
     const abs = path.resolve(root, rel);
     let st = null;
@@ -314,7 +314,19 @@ function main() {
       let worktree = null;
       try { worktree = fs.readFileSync(abs); } catch { worktree = null; }
       const addedLines = appendedLineCount(committed, worktree);
-      if (addedLines !== null) { appends.push({ path: rel, added_lines: addedLines }); continue; }
+      if (addedLines !== null) {
+        appends.push({ path: rel, added_lines: addedLines });
+        // Round 6 (Codex P1): --strict means "the working tree equals the
+        // commit for every in-scope path" — an append the commit does not
+        // yet carry is real content still missing from HEAD, not a benign
+        // shape. Non-strict keeps this purely advisory (append recorded,
+        // never a mismatch); --strict promotes it to a named MISMATCH so
+        // `--strict --rev HEAD` cannot exit 0 while a required ledger
+        // record (e.g. the run evidence a spec amendment depends on) sits
+        // uncommitted in the worktree.
+        if (a.strict) { mismatches.push(rel); pendingAppends.push(rel); }
+        continue;
+      }
     }
     mismatches.push(rel);
   }
@@ -325,20 +337,28 @@ function main() {
   const failed = mismatches.length > 0 || (a.strict && (degraded.length > 0 || checked === 0));
   const out = {
     status: mismatches.length ? 'mismatch' : (degraded.length ? 'degraded' : (checked === 0 ? 'nothing-checked' : 'clean')),
-    strict: a.strict, failed, checked, mismatches, degraded, appends,
+    strict: a.strict, failed, checked, mismatches, degraded, appends, pending_appends: pendingAppends,
   };
   if (a.json) process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
   else {
     for (const d of degraded) process.stdout.write(`check-committed-scope: degraded — ${d}\n`);
-    for (const ap of appends) process.stdout.write(`check-committed-scope: append — ${ap.path} (+${ap.added_lines} line(s), append-only per HAZ-LEDGER — not a failure)\n`);
+    for (const ap of appends) {
+      const suffix = pendingAppends.includes(ap.path)
+        ? '— --strict requires it committed, not just on disk'
+        : '— not a failure';
+      process.stdout.write(`check-committed-scope: append — ${ap.path} (+${ap.added_lines} line(s), append-only per HAZ-LEDGER ${suffix})\n`);
+    }
     if (mismatches.length) {
       process.stderr.write(`check-committed-scope: ${mismatches.length} in-scope path(s) differ between ${a.rev ? a.rev : 'the index'} and the worktree:\n`);
       for (const m of mismatches) {
-        // D15: a ledger path that failed the byte-exact-prefix test is a
-        // DIVERGENCE — named as such, distinct from a plain mismatch, so a
-        // reader (or a grep) can tell "this ledger was rewritten" from "this
-        // path merely differs".
-        process.stderr.write(LEDGER_PATHS.has(m) ? `  - ${m} (divergence — not an append)\n` : `  - ${m}\n`);
+        // D15/Round 6: a ledger path that failed the byte-exact-prefix test
+        // is a DIVERGENCE (a rewrite); a ledger path that PASSED it but is
+        // still uncommitted under --strict is a PENDING APPEND (real content
+        // the commit does not carry yet) — two different causes, named
+        // differently, so a reader (or a grep) knows which one it is.
+        const label = pendingAppends.includes(m) ? ' (pending append not committed)'
+          : LEDGER_PATHS.has(m) ? ' (divergence — not an append)' : '';
+        process.stderr.write(`  - ${m}${label}\n`);
       }
       process.stderr.write('The commit does NOT carry what the worktree holds. The usual cause is a\n`git add` given a path something already renamed: the whole add aborts, and the\ncommit still looks plausible because other steps stage files of their own.\nRe-stage these paths and amend, or commit them, before pushing.\n');
     } else if (checked === 0) {

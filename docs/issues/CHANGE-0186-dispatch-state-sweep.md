@@ -94,9 +94,11 @@ links:
 
 ## Notes
 - Bucket on 2026-09-13: 27 open follow-ups matching dispatch, state.mjs,
-  append-run, flush, metrics, telemetry, routing, tick, orchestrat, focus,
-  verdict, role-guard, heartbeat, unattended, ride-select, roadmap, lane
-  and not already in the test-framework bucket; the spec freezes the list.
+  append-run, flush, metrics, telemetry, routing, tick, orchestration (the
+  bucket grep used the stem orchestrat, matching both orchestration and
+  orchestrator), focus, verdict, role-guard, heartbeat, unattended,
+  ride-select, roadmap, lane and not already in the test-framework bucket;
+  the spec freezes the list.
 - Ceremony 2, TDD, mutation checks; runs in a sibling worktree because it
   edits the dispatcher the loop runs every tick.
 - Corrected at spec freeze (2026-09-13): the level is **3**, not 2. The scope
