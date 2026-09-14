@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "uncommitted worktree delta on feat/dispatch-state-sweep over main 082ad4aa (HEAD 2fb2f4cd) — 39 dirty paths; STATE code_review.scope (32 paths) + the spec's Review scope (35)"
-  spec: docs/specs/SPEC-DRAFT-spec-dispatch-state-sweep.md
+  spec: docs/specs/SPEC-0180-spec-dispatch-state-sweep.md
   reviewer: claude-opus-5[1m] (independent of the implementer claude-sonnet-5 and of all three validation rounds)
   spec_compliance:
     verdict: pass
@@ -56,7 +56,7 @@ review:
       - { rank: NON-BLOCKING, file: tests/skills/test-aai-state.sh, line: 2991,
           issue: "TEST-036 arm (e) still false-reds under an event-loop stall > MARGIN_MS (50 ms): the bounded retry guards the ALIGNMENT, not the COMPARISON (validator N23, re-read here and confirmed by construction)",
           failure_scenario: "Once `a` is sampled there is no re-sample and no tolerance; the validator measured 6/50 false reds at a 100 ms injected stall, 22/50 at 500 ms. This repo's CI already flakes under load (the Windows Pester leg, the reaper cases), and this arm is on the CORE state suite. Recommended disposition: (a) remediate-in-tree BEFORE merge with the two-line fix the validator wrote out (capture Date.now() around the pair, retry only when the wall-clock second actually moved) — it is a test-only file, no protected surface, and M17 still reddens because under a millisecond nowIso `a !== b` holds with the seconds EQUAL." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-dispatch-state-sweep.md, line: 858,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0180-spec-dispatch-state-sweep.md, line: 858,
           issue: "six stale-prose defects in the frozen spec and its evidence, all carried un-fixed (validator N18, N19, N20, N21, N22, N24, N26) — including an Amendment whose closing sentence, 'Every claim above was grepped or run TRUE against the shipped tree', is false of three clauses",
           failure_scenario: "Re-verified here: :875 Seam S8 still names metrics-flush.mjs and orchestration-dispatch.mjs as lib/iso-time.mjs consumers (neither imports it — metrics-flush computes its own nowIsoStr at :1251, the very line R4 names as a DELIBERATE remaining copy); :858 M40 claims a mutation that does not redden; :1095 describes arm (e) as 'two independent processes ~60ms apart' when it is one process 20 ms apart. A future reader re-deriving the ride from the spec is misled at exactly the places this ride exists to make falsifiable. Recommended disposition: ONE amendment paragraph covering N18/N19/N20/N21/N22/N24/N26 plus a decisions.jsonl spec_amendment record — the validator's own recommendation, and it restores the round-1 disclosure pattern the round-2 remediation dropped." }
       - { rank: NON-BLOCKING, file: docs/ai/decisions.jsonl, line: 1,
@@ -90,7 +90,7 @@ review:
 
 Reviewed the whole uncommitted delta on `feat/dispatch-state-sweep` (39 dirty
 paths; `git diff` + `git status`), against the FROZEN spec
-`docs/specs/SPEC-DRAFT-spec-dispatch-state-sweep.md` (21 AC, 23 TEST, D1-D18,
+`docs/specs/SPEC-0180-spec-dispatch-state-sweep.md` (21 AC, 23 TEST, D1-D18,
 two post-freeze amendments), ISSUE-0040, and the three validation rounds.
 
 Nothing was run against the shipping worktree that writes. Every probe,

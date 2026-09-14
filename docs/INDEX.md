@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-14T00:22:38.583Z
+Generated: 2026-09-14T01:36:43.265Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-dispatch-state-sweep | specs | implementing | 21 planned | docs/specs/SPEC-DRAFT-spec-dispatch-state-sweep.md |
+| SPEC-0180 | specs | implementing | 21 planned | docs/specs/SPEC-0180-spec-dispatch-state-sweep.md |
 
 ## Canonical layer (0)
 
@@ -491,7 +491,7 @@ _None._
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0181 | issues | docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md |
 | CHANGE-0184 | issues | docs/issues/CHANGE-0184-roadmap-gate-admits-only-the-next-pair.md |
-| dispatch-state-sweep (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-dispatch-state-sweep.md |
+| CHANGE-0186 | issues | docs/issues/CHANGE-0186-dispatch-state-sweep.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

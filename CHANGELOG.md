@@ -11,6 +11,43 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(dispatch): the dispatch loop and STATE say the truth about the ride they are running
+
+- **A stale pass routes to Validation by rule** (rule 11s): a verdict whose tree
+  hash moved is no longer an advisory the LLM may ignore; the tick names the
+  rule and carries `restamp_requires_confirm` without `--confirm`.
+- **`set-focus` leaves nothing of the previous scope**; **`clear-focus`** plus a
+  terminal phase `closed`, run by the close ceremony (SKILL_PR step 4c), so a
+  closed ride never publishes as in flight on the overview.
+- **The single-writer guard asks WHICH file**: a role's own scratch `--state`
+  is writable under `AAI_ROLE=subagent`, the shipping STATE (by real path, so
+  a directory symlink into `docs/ai` is refused) and any other project's STATE
+  are not. The three CORE suites pass under the marker with no scrub.
+- **`append-run` derives `usage_basis` (field / note / absent)** and prints one
+  line on absent, never silently costless; **`amend-run`** fills a missing
+  token total once and refuses to change a recorded one.
+- **One clock**: `lib/iso-time.mjs` at second precision for STATE, EVENTS,
+  follow-ups, spec-amend and update-check (the validation-waiver round trip
+  forces seconds).
+- **Heartbeat**: liveness probe by `--max-age-seconds`, slot collisions named,
+  GC on read, `writer_pid`; the orchestrator's liveness check no longer uses
+  GNU `find` syntax.
+- **`watch-ci.mjs`** watches a PR's checks after push with a deadline and an
+  honest empty-checks state; **`check-dispatch-text.mjs`** refuses a dispatch
+  that pre-rates findings; every `state.mjs` subcommand prints its own usage
+  grammar on a bad call; the partial flush keeps the review gate; the
+  committed-blob check distinguishes an append from a divergence on ledgers;
+  `effort_*@` headers get a NOTE.
+- **Registry**: 18 follow-ups closed with a test each, 13 rejected with a
+  recorded reason (seven are owner sign-offs on old amendments); ISSUE-0040
+  resolved except its third item, rejected.
+- Spec: SPEC-0180 (dispatch-state-sweep), ceremony 3 (`state.mjs` is a
+  protected surface), TDD, 23 tests, 40 mutations, three validation rounds.
+  Wave 3 sweep 3. Merged by the orchestrator under the wave-3 mandate.
+- Merge condition met in the same merge: sweep 2's `close-work-item` fixture
+  gains a sibling `state.mjs` so its guard arm still fires (see the spec's
+  Amendment "cross-sweep reconciliation").
+
 ## [unreleased] — chore(roadmap): the mutation gate rides before the remaining wave-3 sweeps
 
 - Owner decision (menu answer A, 2026-09-14): sweeps 1 to 3 each needed three

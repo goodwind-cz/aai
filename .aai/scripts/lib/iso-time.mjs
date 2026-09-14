@@ -12,7 +12,7 @@
 // to milliseconds would break that round-trip, while moving EVENTS down to
 // seconds breaks nothing — every EVENTS consumer parses with `Date.parse` and
 // ordering inside a second is already given by append order in an
-// append-only ledger. See SPEC-DRAFT-spec-dispatch-state-sweep D7 for the
+// append-only ledger. See SPEC-0180-spec-dispatch-state-sweep D7 for the
 // full argument and R4 for the five other private truncation copies this
 // file deliberately does NOT touch (no defect behind them).
 //

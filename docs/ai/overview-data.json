@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-13T18:41:49.514Z",
+  "generatedAt": "2026-09-14T01:36:49.908Z",
   "project": "aai",
   "counts": {
     "delivered": 241,
@@ -123,13 +123,13 @@
       "title": "The dispatch loop and STATE say the truth about the ride they are running",
       "type": "change",
       "status": "draft",
-      "path": "docs/issues/CHANGE-DRAFT-dispatch-state-sweep.md",
+      "path": "docs/issues/CHANGE-0186-dispatch-state-sweep.md",
       "closed_on": null,
-      "agent_minutes": null,
+      "agent_minutes": 583,
       "token_total": null,
-      "spec": "docs/specs/SPEC-DRAFT-spec-dispatch-state-sweep.md",
+      "spec": "docs/specs/SPEC-0180-spec-dispatch-state-sweep.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-dispatch-state-sweep-20260913T230013Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",

@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "uncommitted worktree delta on feat/dispatch-state-sweep over main 082ad4aa (HEAD 2fb2f4cd) — 40 dirty paths; STATE code_review.scope (32 paths) + the spec's Review scope (35). Round 2 re-reviews the FULL scope, with a targeted re-derivation of the post-round-1 delta (watch-ci.mjs, test-aai-orchestration-dispatch.sh, test-aai-state.sh, the spec, decisions.jsonl, docs/INDEX.md)"
-  spec: docs/specs/SPEC-DRAFT-spec-dispatch-state-sweep.md
+  spec: docs/specs/SPEC-0180-spec-dispatch-state-sweep.md
   round: 2
   prior_report: docs/ai/reviews/review-dispatch-state-sweep-20260913T221903Z.md
   reviewer: claude-opus-5[1m] (independent of the implementer claude-sonnet-5 and of all validation rounds)
@@ -43,10 +43,10 @@ review:
       - { rank: NON-BLOCKING, file: .aai/scripts/orchestration-dispatch.mjs, line: 1619,
           issue: "B6/N19 corrects this comment BY DISCLOSURE in the spec, but the false comment itself stays in the shipped code of an in-scope file",
           failure_scenario: "`orchestration-dispatch.mjs:1619-1620` still reads 'Both timestamps are ISO 8601 UTC strings, but at DIFFERENT precision BY DESIGN ... append-event.mjs's auto-filled `ts` keeps milliseconds while state-engine.mjs's nowIso() truncates to the second.' D7 removed that asymmetry in THIS ride: append-event.mjs now imports lib/iso-time.mjs and the live EVENTS tail is second-precision. A maintainer reading the file (not the spec Amendment) is told the opposite of the shipped tree, in the very comment that justifies the comparison logic. The spec Amendment is the right place to DISCLOSE a stale frozen row; it is not a fix for a lying comment in a file this ride already edits. Recommended disposition: remediate-in-tree, two lines (correct the comment; the comparison logic is unaffected and correct under either precision) — or typed follow-up (P3) fu-dispatch-comment-claims-ms-asymmetry." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-dispatch-state-sweep.md, line: 45,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0180-spec-dispatch-state-sweep.md, line: 45,
           issue: "the new 'Expected companions' paragraph — added this round to close round-1 NB-10 — itself carries a false count, and B6's closing sentence is in tension with the additive convention B6 states",
           failure_scenario: "The paragraph says `docs/ai/decisions.jsonl` 'carries BOTH of this spec's post-freeze spec_amendment records'. There are THREE (ts 2026-09-13T18:37:32Z, 21:16:41Z, 22:41:17Z), the third being B6's own record, appended in the same minute the sentence was written. Separately, the Amendment's closing line 'Every claim above was grepped or run TRUE against the shipped tree' still stands above B5 text that B6 itself declares stale (the '~60ms / two independent processes' arm-(e) description and Seam S8's consumer list, both corrected by disclosure rather than in place) — the sentence and the convention cannot both be read literally. Same class as the seven findings B6 exists to correct. Recommended disposition: (d) accepted residual, or fold into the close-ceremony pass — P3 prose, no behavioural claim depends on either." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-dispatch-state-sweep.md, line: 837,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0180-spec-dispatch-state-sweep.md, line: 837,
           issue: "M17's claim that the mutation reddens arm (e) is true of the ARM but not observable from a suite run — arm (b) fires first and short-circuits the test",
           failure_scenario: "I applied M17 (drop the `.replace(/\\.\\d+Z$/, 'Z')` from lib/iso-time.mjs) and ran `bash tests/skills/test-aai-state.sh test_070_one_clock_iso_time`: it reddens at `FAIL: append-event.mjs ts must be second-precision (got: 2026-09-13T22:57:33.572Z)` — arm (b), never reaching arm (e). Arm (e) IS a genuine direction pin (isolated: 30/30 DIFFERENT under a millisecond nowIso, 0/30 under the shipped one), but the mutation-table row credits an arm the mutation never reaches in situ. Recommended disposition: (d) accepted residual — the direction property holds and I measured it directly; only the row's attribution is imprecise. P3." }
       - { rank: NON-BLOCKING, file: .aai/scripts/state.mjs, line: 1360,
@@ -201,7 +201,7 @@ Amendment's own wording:
 | **N20** the dispatch comment describes a removed asymmetry | **TRUE** | `orchestration-dispatch.mjs:1619-1620` still reads "at DIFFERENT precision BY DESIGN … append-event.mjs's auto-filled `ts` keeps milliseconds". It does not. *But see NON-BLOCKING-3: disclosed in the spec, still false in the code.* |
 | **N21** measurements.txt pins the stale 27957 | **TRUE** | `measurements.txt:43` says 27957; `test-aai-prompt-diet.sh:800` is `local want_growth=28140`. |
 | **N22** `diff_range:` holds prose | **TRUE** | e.g. `diff_range: heartbeat.mjs D13 (writer_pid replaces pid; …)` — a description, not a range. |
-| **N24** the two scope lists are a strict superset, not identical | **TRUE**, and the delta is exactly the three named paths | Computed: spec 35 entries, STATE 32; `spec \ STATE` = the spec's own file, `CHANGE-DRAFT-dispatch-state-sweep.md`, `ISSUE-0040-…md`; `STATE \ spec` = **empty**. |
+| **N24** the two scope lists are a strict superset, not identical | **TRUE**, and the delta is exactly the three named paths | Computed: spec 35 entries, STATE 32; `spec \ STATE` = the spec's own file, `CHANGE-0186-dispatch-state-sweep.md`, `ISSUE-0040-…md`; `STATE \ spec` = **empty**. |
 | **N26** M17/B5 describe arm (e) as two processes ~60 ms apart | **TRUE** | `:837` still says "two REAL, independently-timed `nowIso()` calls ~60ms apart"; the shipped arm is one process, `GAP_MS = 20`, three calls. B6's own parenthetical ("three calls 20ms apart, not two") is accurate. |
 
 **Round-1 NB-10 is properly closed.** The new "Expected companions"
