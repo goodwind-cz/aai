@@ -1601,3 +1601,31 @@ armed hook still probes PASS.
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: test-framework-sweep`, `--signoff none`.
 
+### Round 10 addendum 4 — validation round 11 corrections
+
+- The ratchet's deferral note said the deferred sites "stay visible in the
+  superset count"; no arm counts them (the superset arm scans `tests/skills`).
+  The sentence now says so (BLOCKING-1 of round 11; the fix meant for
+  e837a893 had not reached the file).
+- Figures in addenda 2 and 3, corrected: the pre-fix probe input was 98
+  bytes, not 82; the shell-argument probe of f3013dd8 carried ~138.5 KiB,
+  not ~120 KiB, which is why Linux's 128 KiB per-argument cap bit; the file
+  probe now carries ~100 KiB. Doctor TEST-040 was red on five of six CI runs
+  since round 8, not on every one (run 34814860953 passed) — a race, as
+  stated, not a determinism.
+- The padding is load-bearing for the MUTATION, not the product: with a file
+  as stdin the probe is deterministic at any size; the padding is what makes
+  the `input:`-write shape fail on macOS too, so the control reddens on every
+  platform. Stated here so nobody removes it as vestigial.
+- TEST-040's EPIPE fixture is "Fixture 5" (a control fixture already held the
+  name 4), and its give-up check refuses ANY "could not be behaviourally
+  verified" verdict, not only the EPIPE spelling that E2BIG walked past.
+- `probeRefGuardHook` guards its own file writes and opens (a failure is a
+  named unverifiable verdict, not a node stack trace).
+- The ledger record for this addendum (2026-09-14, "Round 10 addendum 4")
+  was appended one commit before this text landed (fbbbb94a carried only the
+  ratchet sentence); this commit makes the record true.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: test-framework-sweep`, `--signoff none`.
+

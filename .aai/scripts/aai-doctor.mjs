@@ -508,9 +508,18 @@ function probeRefGuardHook(hookPath, root) {
   }
   const inputFile = path.join(dir, 'reftx-input');
   try {
-    fs.writeFileSync(inputFile, PROBE_INPUT);
+    try {
+      fs.writeFileSync(inputFile, PROBE_INPUT);
+    } catch (e) {
+      return { verified: false, errorCode: e && e.code ? e.code : 'EWRITE' };
+    }
     const runHook = (cmd, args, env) => {
-      const fd = fs.openSync(inputFile, 'r');
+      let fd;
+      try {
+        fd = fs.openSync(inputFile, 'r');
+      } catch (e) {
+        return { error: { code: e && e.code ? e.code : 'EOPEN' } };
+      }
       try {
         return spawnSync(cmd, args, { cwd: root, env, encoding: 'utf8', timeout: 5000, stdio: [fd, 'pipe', 'pipe'] });
       } finally {

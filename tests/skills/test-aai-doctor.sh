@@ -1802,29 +1802,29 @@ exit 1
     ok=0
   fi
 
-  # --- Fixture 4: decorative hook that closes its stdin at once, so the
+  # --- Fixture 5: decorative hook that closes its stdin at once, so the
   # probe's input write gets EPIPE deterministically (a fast `exit 0` hook
   # did this on the Linux CI runner, PR #381 run 34815192336). The verdict
   # must still be the behavioural one, never "could not be verified (EPIPE)".
-  local d4="$TMP_ROOT/t040-epipe"
-  rm -rf "$d4"; mkdir -p "$d4/.git/hooks"
-  git -C "$d4" init -q -b main >/dev/null
-  git -C "$d4" config user.email "test@example.invalid"; git -C "$d4" config user.name "AAI Test"
-  git -C "$d4" commit -q --allow-empty -m init
-  printf '#!/bin/sh\n# AAI:REF-GUARD\nexec 0<&-\nsleep 0.3\nexit 0\n' > "$d4/.git/hooks/reference-transaction"
-  chmod +x "$d4/.git/hooks/reference-transaction"
-  local out4
-  out4="$(node "$DOCTOR" --root "$d4" 2>&1 | grep '^CAT-17')"
-  if [[ "$out4" == *' PASS '* ]]; then
-    log_info "TEST-040 epipe: got PASS on a hook that never refuses: $out4"
+  local d5="$TMP_ROOT/t040-epipe"
+  rm -rf "$d5"; mkdir -p "$d5/.git/hooks"
+  git -C "$d5" init -q -b main >/dev/null
+  git -C "$d5" config user.email "test@example.invalid"; git -C "$d5" config user.name "AAI Test"
+  git -C "$d5" commit -q --allow-empty -m init
+  printf '#!/bin/sh\n# AAI:REF-GUARD\nexec 0<&-\nsleep 0.3\nexit 0\n' > "$d5/.git/hooks/reference-transaction"
+  chmod +x "$d5/.git/hooks/reference-transaction"
+  local out5
+  out5="$(node "$DOCTOR" --root "$d5" 2>&1 | grep '^CAT-17')"
+  if [[ "$out5" == *' PASS '* ]]; then
+    log_info "TEST-040 epipe: got PASS on a hook that never refuses: $out5"
     ok=0
   fi
-  if [[ "$out4" == *'(EPIPE)'* ]]; then
-    log_info "TEST-040 epipe: the probe gave up on EPIPE instead of judging the hook by its exit status: $out4"
+  if [[ "$(printf '%s' "$out5" | tr 'A-Z' 'a-z')" == *'could not be behaviourally verified'* ]]; then
+    log_info "TEST-040 epipe: the probe gave up (any error code) instead of judging the hook by its exit status: $out5"
     ok=0
   fi
-  if [[ "$(printf '%s' "$out4" | tr 'A-Z' 'a-z')" != *'does not behave as a guard'* ]]; then
-    log_info "TEST-040 epipe: WARN reason does not name the behavioural mismatch: $out4"
+  if [[ "$(printf '%s' "$out5" | tr 'A-Z' 'a-z')" != *'does not behave as a guard'* ]]; then
+    log_info "TEST-040 epipe: WARN reason does not name the behavioural mismatch: $out5"
     ok=0
   fi
 
