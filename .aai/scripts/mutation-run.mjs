@@ -860,6 +860,9 @@ function main() {
 // without also running the CLI against the test's own process.argv — a pure
 // safety addition, zero behavior change for every existing `node
 // mutation-run.mjs ...` invocation (argv[1] IS this file in that case).
-if (path.resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
+// Both sides through realpath (sweep-2 Spec-AC-22, doctor TEST-439): a
+// symlinked invocation (`node /usr/local/bin/mutation-run`) must still run.
+const __argvReal = (() => { try { return fs.realpathSync(path.resolve(process.argv[1] ?? '')); } catch { return ''; } })();
+if (__argvReal !== '' && __argvReal === fs.realpathSync(fileURLToPath(import.meta.url))) {
   runMain(() => main());
 }
