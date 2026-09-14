@@ -147,6 +147,7 @@ core:
   - .aai/scripts/lib/guard-config.mjs
   - .aai/scripts/lib/harness.mjs
   - .aai/scripts/lib/iso-time.mjs
+  - .aai/scripts/lib/mutation-record.mjs
   - .aai/scripts/lib/pricing.mjs
   - .aai/scripts/lib/product-doc.mjs
   - .aai/scripts/lib/prompt-hash.mjs
@@ -158,6 +159,8 @@ core:
   - .aai/scripts/lib/usage-note.mjs
   - .aai/scripts/loop-digest.mjs
   - .aai/scripts/metrics-flush.mjs
+  - .aai/scripts/mutation-gate.mjs
+  - .aai/scripts/mutation-run.mjs
   - .aai/scripts/orphan-sweep.mjs
   - .aai/scripts/migrate-state-to-local.ps1
   - .aai/scripts/migrate-state-to-local.sh

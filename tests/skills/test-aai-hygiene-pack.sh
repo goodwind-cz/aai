@@ -1745,6 +1745,39 @@ test_094_mutation_selector_fails_closed_corpus_wide() {  # spec-mutation-gate-fo
   log_pass "test_094: every selector-accepting suite (18 measured) refuses an unknown selector corpus-wide, and a real selector in one suite per idiom plus the already-fixed suite still runs alone (TEST-473)"
 }
 
+test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TEST-487 / Spec-AC-18
+  log_info "test_129: tests/skills/test-aai-mutation-gate.sh is registered — a suite-map.yaml row at the pinned row count, check-test-registration.mjs clean, select-suites.mjs routing to it (TEST-487)..."
+  local map="$PROJECT_ROOT/tests/skills/suite-map.yaml"
+  [[ -f "$map" ]] || log_fail "TEST-487: missing tests/skills/suite-map.yaml"
+
+  # Existence arm: aai-mutation-gate has its own top-level row.
+  grep -qE '^  aai-mutation-gate:$' "$map" \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has no 'aai-mutation-gate:' row"
+
+  # Count arm: the pin (test_090's own number) holds at 95 and matches the
+  # LIVE row count — a row deleted without moving the pin reddens BOTH arms
+  # together, which is the two-way check the Mutation column drives.
+  local row_count
+  row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
+  [[ "$row_count" -eq 95 ]] \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 95"
+
+  # check-test-registration.mjs exits 0 over the live tree (no orphan test_*
+  # function anywhere under tests/skills, this suite's new ones included).
+  local out rc
+  out="$(node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-487: check-test-registration.mjs exited $rc over the live tree: $out"
+
+  # select-suites.mjs, given the new gate script as the only changed file,
+  # routes to aai-mutation-gate.
+  out="$(printf '%s\n' '.aai/scripts/mutation-gate.mjs' | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - 2>&1)"
+  assert_payload_contains "$out" "SELECTED aai-mutation-gate" \
+    "TEST-487: select-suites.mjs did not route .aai/scripts/mutation-gate.mjs to aai-mutation-gate: $out"
+
+  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (95), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
+}
+
 # --- TEST-418 (Spec-AC-11) — the drain reached zero, and the scanner still
 # scans. Mutation-only per the spec's own Mutation checks (no red-418.txt):
 # on the pre-drain tree this assertion goes red for the ordinary reason
@@ -4073,6 +4106,7 @@ main() {
   test_127_withdrawn_phrases_drained
   test_128_shipping_scripts_pipe_safe_at_zero
   test_094_mutation_selector_fails_closed_corpus_wide
+  test_129_mutation_gate_suite_registration
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

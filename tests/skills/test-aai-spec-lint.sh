@@ -1793,6 +1793,152 @@ test_clarify_012_red_class_stamped() {
     || log_fail "TEST-012(clarify) RED_CLASS stamping"
 }
 
+# === SPEC-DRAFT-spec-mutation-gate-for-tests D15 — the Mutation column ========
+# TEST-478 (Spec-AC-08): spec-lint's two new findings, `mutation-cell-missing`
+# and `mutation-cell-malformed`, raised ONLY for an applicable spec (D9: a
+# frozen spec's own `mutation_gate: v1` marker, or — for a not-yet-frozen spec,
+# which has no marker to read yet — its recorded strategy alone), never for a
+# terminal spec or a frozen pre-change spec carrying no marker.
+
+# mg_frontmatter <id> <status> <marker_line> -> frontmatter block through the
+# closing `---`. marker_line is either "mutation_gate: v1" or "" (grandfather
+# arm: a frozen spec with no marker at all).
+mg_frontmatter() {
+  local id="$1" status="$2" marker="$3"
+  printf -- '---\nid: %s\ntype: spec\nnumber: null\nstatus: %s\n' "$id" "$status"
+  [[ -n "$marker" ]] && printf '%s\n' "$marker"
+  printf 'links:\n  pr: []\n---\n\n# Fixture — mutation-cell lint (%s)\n\nSPEC-FROZEN: true\n\n## Implementation strategy\n- Strategy: tdd\n- Rationale: fixture\n\n## Acceptance Criteria Status\n\n| Spec-AC    | Description | Status | Evidence | Review-By | Notes |\n|------------|-------------|--------|----------|-----------|-------|\n| Spec-AC-01 | first       | done   | run-1    | —         | —     |\n\n' "$id"
+}
+
+test_478_mutation_cell_lint() {
+  local out rc ok=1
+
+  # (A) applicable, six-column table -> no Mutation column at all: every row
+  # is `mutation-cell-missing`.
+  new_fixture_root
+  { mg_frontmatter "spec-fixture-mg-nocolumn" "implementing" "mutation_gate: v1"
+    printf '## Test Plan\n\n| Test ID   | Spec-AC    | Type | File path (expected) | Description | Status  |\n|-----------|------------|------|-----------------------|--------------|---------|\n| TEST-9001 | Spec-AC-01 | unit | tests/x.sh            | a            | pending |\n'
+  } > "$FIX/docs/specs/SPEC-DRAFT-mg-nocolumn.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-478(A) no Mutation column" || ok=0
+  assert_payload_line_matches "$out" 'mutation-cell-missing.*TEST-9001' \
+    "TEST-478(A): no-column arm did not report mutation-cell-missing for TEST-9001: $out" || ok=0
+
+  # (B) applicable, seven-column table -> TEST-9001 has a real mutation,
+  # TEST-9002's Mutation cell is EMPTY: only TEST-9002 is mutation-cell-missing.
+  new_fixture_root
+  { mg_frontmatter "spec-fixture-mg-emptycell" "implementing" "mutation_gate: v1"
+    printf '## Test Plan\n\n| Test ID   | Spec-AC    | Type | File path (expected) | Description | Mutation        | Status  |\n|-----------|------------|------|-----------------------|--------------|------------------|---------|\n| TEST-9001 | Spec-AC-01 | unit | tests/x.sh            | a            | sed:s/OLD/NEW/   | pending |\n| TEST-9002 | Spec-AC-01 | unit | tests/x.sh            | b            |                  | pending |\n'
+  } > "$FIX/docs/specs/SPEC-DRAFT-mg-emptycell.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-478(B) empty Mutation cell" || ok=0
+  assert_payload_line_matches "$out" 'mutation-cell-missing.*TEST-9002' \
+    "TEST-478(B): empty-cell arm did not report mutation-cell-missing for TEST-9002: $out" || ok=0
+  assert_payload_not_contains "$out" 'TEST-9001.*mutation-cell' \
+    "TEST-478(B): TEST-9001 (a real mutation cell) was wrongly flagged: $out" || ok=0
+
+  # (C) applicable, seven-column table -> TEST-9001's Mutation cell is the
+  # placeholder "-": mutation-cell-malformed, naming it.
+  new_fixture_root
+  { mg_frontmatter "spec-fixture-mg-placeholder" "implementing" "mutation_gate: v1"
+    printf '## Test Plan\n\n| Test ID   | Spec-AC    | Type | File path (expected) | Description | Mutation | Status  |\n|-----------|------------|------|-----------------------|--------------|----------|---------|\n| TEST-9001 | Spec-AC-01 | unit | tests/x.sh            | a            | -        | pending |\n'
+  } > "$FIX/docs/specs/SPEC-DRAFT-mg-placeholder.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-478(C) placeholder Mutation cell" || ok=0
+  assert_payload_line_matches "$out" 'mutation-cell-malformed.*TEST-9001' \
+    "TEST-478(C): placeholder arm did not report mutation-cell-malformed for TEST-9001: $out" || ok=0
+
+  # (D) TERMINAL spec (status: done) — exempt regardless of the marker; the
+  # applied exemption is named in --path --json output, and no mutation-cell
+  # finding fires despite an empty Mutation cell.
+  new_fixture_root
+  { mg_frontmatter "spec-fixture-mg-terminal" "done" "mutation_gate: v1"
+    printf '## Test Plan\n\n| Test ID   | Spec-AC    | Type | File path (expected) | Description | Mutation | Status  |\n|-----------|------------|------|-----------------------|--------------|----------|---------|\n| TEST-9001 | Spec-AC-01 | unit | tests/x.sh            | a            |          | green   |\n'
+  } > "$FIX/docs/specs/SPEC-DRAFT-mg-terminal.md"
+  out="$(runlint "$FIX" --path docs/specs/SPEC-DRAFT-mg-terminal.md --json 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-478(D) terminal spec" || ok=0
+  assert_payload_not_contains "$out" "mutation-cell-" "TEST-478(D): a terminal spec was linted for the Mutation column: $out" || ok=0
+  assert_payload_contains "$out" '"applicable": false' "TEST-478(D): mutation_gate.applicable was not reported false: $out" || ok=0
+  assert_payload_contains "$out" 'terminal spec' "TEST-478(D): the applied exemption was not named in the output: $out" || ok=0
+
+  # (E) FROZEN, status implementing, strategy tdd, but NO mutation_gate
+  # marker at all (the grandfather/pre-change shape, measurement 5) — exempt,
+  # and the exemption is named as "no mutation_gate marker".
+  new_fixture_root
+  { mg_frontmatter "spec-fixture-mg-nomarker" "implementing" ""
+    printf '## Test Plan\n\n| Test ID   | Spec-AC    | Type | File path (expected) | Description | Status  |\n|-----------|------------|------|-----------------------|--------------|---------|\n| TEST-9001 | Spec-AC-01 | unit | tests/x.sh            | a            | green   |\n'
+  } > "$FIX/docs/specs/SPEC-DRAFT-mg-nomarker.md"
+  out="$(runlint "$FIX" --path docs/specs/SPEC-DRAFT-mg-nomarker.md --json 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-478(E) frozen, no marker" || ok=0
+  assert_payload_not_contains "$out" "mutation-cell-" "TEST-478(E): a marker-less frozen spec was linted for the Mutation column: $out" || ok=0
+  assert_payload_contains "$out" 'no mutation_gate marker' "TEST-478(E): the applied exemption was not named in the output: $out" || ok=0
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-478 mutation-cell-missing/malformed fire for an applicable spec's offending rows only; a terminal spec and a marker-less frozen spec are exempt, naming the exemption" \
+    || log_fail "TEST-478 mutation-cell lint"
+}
+
+# --- TEST-479 (Spec-AC-09) — Test Plan reader resolves columns by NAME --------
+test_479_column_by_name() {
+  local ok=1
+
+  # (1) Node-level proof against the REAL reader (lib/docs-model.mjs
+  # parseTestPlanTable) — never a reimplementation. Three tables: the
+  # canonical six-column shape, a six-column table with its columns
+  # REORDERED, and a seven-column table with Mutation inserted BEFORE File
+  # path (not appended at the end) — the positions the old positional reader
+  # (indices 0-3) would misread. All three must resolve the SAME testId /
+  # acCell / fileCell for their one row.
+  local script="$TMP_ROOT/t479-reader.mjs"
+  cat > "$script" <<'EOF'
+import { pathToFileURL } from 'node:url';
+const { parseTestPlanTable } = await import(
+  pathToFileURL(`${process.env.MG_PROJECT_ROOT}/.aai/scripts/lib/docs-model.mjs`).href
+);
+const canonical = `## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
+|----------|------------|------|-----------------------|--------------|--------|
+| TEST-9001 | Spec-AC-01 | unit | tests/real.sh | a | pending |
+`;
+const reorderedSix = `## Test Plan
+
+| Spec-AC    | Test ID   | File path (expected) | Type | Description | Status |
+|------------|-----------|-----------------------|------|--------------|--------|
+| Spec-AC-01 | TEST-9001 | tests/real.sh | unit | a | pending |
+`;
+const mutationBeforeFilePath = `## Test Plan
+
+| Test ID   | Spec-AC    | Type | Mutation | File path (expected) | Description | Status |
+|-----------|------------|------|----------|-----------------------|--------------|--------|
+| TEST-9001 | Spec-AC-01 | unit | sed:s/OLD/NEW/ | tests/real.sh | a | pending |
+`;
+const c = parseTestPlanTable(canonical).rows[0];
+const r = parseTestPlanTable(reorderedSix).rows[0];
+const m = parseTestPlanTable(mutationBeforeFilePath).rows[0];
+const bad = [];
+for (const [label, row] of [['reordered-six', r], ['mutation-before-filepath', m]]) {
+  if (!row) { bad.push(`${label}: parseTestPlanTable produced NO row at all (positional testId check dropped this table)`); continue; }
+  if (row.testId !== c.testId) bad.push(`${label}: testId ${row.testId} != ${c.testId}`);
+  if (row.acCell !== c.acCell) bad.push(`${label}: acCell ${row.acCell} != ${c.acCell}`);
+  if (row.typeCell !== c.typeCell) bad.push(`${label}: typeCell ${row.typeCell} != ${c.typeCell}`);
+  if (row.fileCell !== c.fileCell) bad.push(`${label}: fileCell "${row.fileCell}" != "${c.fileCell}"`);
+}
+if (!m || m.mutationCell !== 'sed:s/OLD/NEW/') bad.push(`mutation-before-filepath: mutationCell "${m ? m.mutationCell : '(no row)'}" != "sed:s/OLD/NEW/"`);
+if (bad.length) { console.error(bad.join('\n')); process.exit(1); }
+console.log('OK: canonical, reordered-six and mutation-before-filepath all resolve the same testId/acCell/typeCell/fileCell by header name');
+EOF
+  local out rc
+  out="$(MG_PROJECT_ROOT="$PROJECT_ROOT" node "$script" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-479(1): $out"; ok=0; }
+
+  # (2) The real corpus reports zero findings attributable to the new column.
+  out="$(cd "$PROJECT_ROOT" && node "$LINT" 2>&1)"
+  assert_payload_not_contains "$out" "mutation-cell-" "TEST-479(2): real corpus produced a mutation-cell finding: $out" || ok=0
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-479 Test Plan reader resolves testId/acCell/typeCell/fileCell/mutationCell by header name for six-column, reordered-six-column and Mutation-before-File-path tables; real corpus stays clean of mutation-cell findings" \
+    || log_fail "TEST-479 column back-compat"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1844,6 +1990,8 @@ main() {
   test_clarify_010_prompt_and_guide
   test_clarify_011_no_new_ceremony
   test_clarify_012_red_class_stamped
+  test_478_mutation_cell_lint
+  test_479_column_by_name
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

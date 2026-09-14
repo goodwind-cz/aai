@@ -84,7 +84,8 @@ import path from 'node:path';
 import {
   normalizeNewlines, parseFrontmatter, parseAcTable, normalizeAcStatus,
   specFrozenInBody, walk, toPosix, parseLeanAcTable, parseDeltasSection,
-  parseTestPlanTable, splitTableCells,
+  parseTestPlanTable, splitTableCells, STRATEGY_ENUM, resolveStrategy,
+  isMutationCellPlaceholder, TERMINAL_DOC_STATUS,
 } from './lib/docs-model.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
@@ -92,7 +93,6 @@ const ROOT = process.cwd();
 const CEREMONY_ENUM = ['0', '1', '2', '3'];
 const AC_ID_RE = /^Spec-AC-(\d{2})$/;
 const AC_RANGE_RE = /^Spec-AC-(\d{2})\.\.(\d{2})$/;
-const STRATEGY_ENUM = ['loop', 'tdd', 'hybrid', 'direct', 'untested', 'undecided'];
 // Statuses at which `ac-without-test` (below) applies — the same set
 // spec-freeze.mjs accepts as freezable, plus nothing else. See the rule.
 const IN_FLIGHT_STATUSES = ['draft', 'proposed', 'accepted', 'implementing'];
@@ -232,6 +232,39 @@ const rowHasEvidence = (row) => {
 // grammar.
 const splitCells = splitTableCells;
 const parseTestPlan = parseTestPlanTable;
+
+// mutationGateApplicability(content, opts) -> { applicable, exemption }.
+// SPEC-DRAFT spec-mutation-gate-for-tests D9's applicability rule, exposed
+// standalone (Spec-AC-08's "applied exemption SHALL be named in the output"
+// needs it outside lintContent's flat findings array — spec-freeze.mjs's
+// `PRECONDITION_RULES` filter depends on that array staying a plain list of
+// findings, so the exemption is never itself pushed as a finding). `opts` may
+// carry already-parsed `fm`/`fmStatus`/`frozenMarker`/`strategy`
+// (lintContent's own call, avoiding recompute) or just `callerStrategy` (an
+// external caller's --strategy override, e.g. main()); anything missing is
+// derived from `content` fresh, so the function is also usable standalone.
+//   - a TERMINAL spec (done/deferred/rejected/superseded/...) is exempt
+//     regardless of the marker: its Test Plan is history;
+//   - a FROZEN spec (SPEC-FROZEN marker) carrying no `mutation_gate: v1` is a
+//     pre-change/grandfathered spec (every spec frozen before this ride
+//     shipped) and is exempt too;
+//   - anything else — in-flight (not yet frozen, so no marker to read yet) or
+//     frozen WITH the marker — is applicable exactly when its recorded
+//     strategy is tdd/hybrid, mirroring spec-freeze.mjs's own precondition
+//     read (D9 "read differently on the two sides of the freeze").
+export function mutationGateApplicability(content, opts = {}) {
+  const norm = normalizeNewlines(content);
+  const fm = opts.fm ?? (parseFrontmatter(norm) ?? {});
+  const fmStatus = opts.fmStatus ?? String(fm.status ?? '').trim().toLowerCase();
+  const frozenMarker = opts.frozenMarker ?? specFrozenInBody(norm);
+  const strategy = 'strategy' in opts ? opts.strategy : resolveStrategy(norm, opts.callerStrategy ?? null);
+  if (TERMINAL_DOC_STATUS.has(fmStatus)) return { applicable: false, exemption: 'terminal spec' };
+  if (frozenMarker && fm.mutation_gate !== 'v1') return { applicable: false, exemption: 'no mutation_gate marker' };
+  if (strategy !== 'tdd' && strategy !== 'hybrid') {
+    return { applicable: false, exemption: strategy ? `strategy "${strategy}" is not tdd/hybrid` : 'strategy not tdd/hybrid' };
+  }
+  return { applicable: true, exemption: null };
+}
 
 // Expand a Test Plan Spec-AC cell into { ids, malformed } token lists.
 // Grammar: comma/space-separated tokens, each `Spec-AC-NN` or `Spec-AC-NN..MM`.
@@ -429,6 +462,13 @@ export function lintContent(content, opts = {}) {
   const fm = parseFrontmatter(norm) ?? {};
   const ac = parseAcTable(norm);
   const fmStatus = String(fm.status ?? '').trim().toLowerCase();
+  // Frozen-ness and recorded strategy, read ONCE up front (moved up from the
+  // SPEC-FROZEN consistency section below) — the mutation-gate applicability
+  // check (D9) needs both ahead of the Test Plan walk, and the frozen check
+  // further down reuses these same values rather than re-deriving them.
+  const frozenMarker = specFrozenInBody(norm);
+  const bodyStrategy = norm.match(/^-\s*Strategy:\s*(\S+)/m);
+  const strategy = resolveStrategy(norm, opts.strategy ?? null);
 
   // spec-id-shape (SPEC-0058): a type: spec doc whose frontmatter id is a
   // collision-prone bare slug (neither the legacy numbered SPEC-NNNN form nor
@@ -547,6 +587,15 @@ export function lintContent(content, opts = {}) {
   // --- Test Plan -> Spec-AC mapping -----------------------------------------
   const tp = parseTestPlan(norm);
   const coveredAcIds = new Set();
+  // Mutation column applicability (D9, reused by D15 below) — see
+  // mutationGateApplicability() for the rule. Computed once here so the
+  // per-row findings loop and the exemption exposed to the caller (Spec-AC-08
+  // "the applied exemption SHALL be named in the output") read the SAME
+  // verdict; lintContent's own return stays a flat findings array
+  // (spec-freeze.mjs's PRECONDITION_RULES filter depends on that shape), so
+  // the exemption is not itself pushed as a finding — callers read it via
+  // mutationGateApplicability() / lintFileAt()'s `mutationGate` field.
+  const mutationGate = mutationGateApplicability(norm, { fm, fmStatus, frozenMarker, strategy });
   for (const row of tp.rows) {
     const { ids, malformed } = expandAcRefs(row.acCell);
     for (const tok of malformed) {
@@ -556,6 +605,14 @@ export function lintContent(content, opts = {}) {
       coveredAcIds.add(id);
       if (!knownIds.has(id)) {
         add('test-ac-unknown', `${row.testId} references ${id}, which is not in the AC Status table`, row.line);
+      }
+    }
+    if (mutationGate.applicable) {
+      const mCell = (row.mutationCell ?? '').trim();
+      if (!mCell) {
+        add('mutation-cell-missing', `${row.testId} has no Mutation column, or an empty Mutation cell — every row of a gated (mutation_gate) tdd/hybrid spec needs the mutation that must redden it`, row.line);
+      } else if (isMutationCellPlaceholder(mCell)) {
+        add('mutation-cell-malformed', `${row.testId}'s Mutation cell "${mCell}" is a placeholder, not a named mutation — state the actual mutation (e.g. "sed:s/OLD/NEW/") that must redden this test`, row.line);
       }
     }
   }
@@ -656,16 +713,11 @@ export function lintContent(content, opts = {}) {
   // (CHANGE l1-close-gate); L2+ require the canonical gate table. Reporting a
   // frozen-without-ac-table on an L1 lean spec that the gate passes CLEAN was
   // a real tool-disagreement (validation F1).
-  // The recorded strategy, caller-supplied value first (header precedence
-  // note). Read once: the frozen check below uses the DOCUMENT's own line
-  // (a caller's flag cannot make a spec self-consistent), the CHANGE-0122
-  // evidence rule uses the resolved value, and unknown/`undecided` stays null
-  // so the evidence rule fails open.
-  const bodyStrategy = norm.match(/^-\s*Strategy:\s*(\S+)/m);
-  const fmStrategy = fm.strategy === undefined || fm.strategy === null ? null : String(fm.strategy);
-  const declared = (opts.strategy ?? fmStrategy ?? (bodyStrategy ? bodyStrategy[1] : null));
-  const declaredLc = declared ? String(declared).toLowerCase() : null;
-  const strategy = STRATEGY_ENUM.includes(declaredLc) && declaredLc !== 'undecided' ? declaredLc : null;
+  // `frozenMarker`, `bodyStrategy` and `strategy` are read once, near the top
+  // of this function (see the comment there) — the frozen check below uses
+  // the DOCUMENT's own line (a caller's flag cannot make a spec self-
+  // consistent), the CHANGE-0122 evidence rule uses the resolved value, and
+  // unknown/`undecided` stays null so the evidence rule fails open.
 
   // half-frozen (CHANGE-0120) — freeze is a TWO-PART state: the
   // `SPEC-FROZEN: true` body marker AND frontmatter `status: implementing`.
@@ -680,7 +732,6 @@ export function lintContent(content, opts = {}) {
   // `done` is deliberately OUTSIDE the status arm: a completed spec is past
   // the freeze gate, and the pre-marker-convention specs still in the corpus
   // are history, not half-freezes.
-  const frozenMarker = specFrozenInBody(norm);
   if (frozenMarker &&['draft', 'proposed', 'accepted'].includes(fmStatus)) {
     add('half-frozen', `SPEC-FROZEN is true but frontmatter status is "${fmStatus}" — freeze is atomic (marker + status: implementing); run node .aai/scripts/spec-freeze.mjs --path <spec> instead of writing either half by hand`);
   } else if (!frozenMarker && fmStatus === 'implementing') {
@@ -733,7 +784,13 @@ function lintFileAt(absPath, rel, opts = {}) {
   }
   const fm = parseFrontmatter(normalizeNewlines(content));
   const id = fm?.id ?? null;
-  return { id, findings: lintContent(content, opts).map((f) => ({ rel, id, ...f })) };
+  return {
+    id,
+    findings: lintContent(content, opts).map((f) => ({ rel, id, ...f })),
+    // Spec-AC-08: named separately from findings so an exempt spec's exit
+    // code stays 0 (see mutationGateApplicability()'s own header comment).
+    mutationGate: mutationGateApplicability(content, { callerStrategy: opts.strategy ?? null }),
+  };
 }
 
 function main() {
@@ -762,6 +819,7 @@ function main() {
   const findings = [];
   let scanned = 0;
   let skipped = 0;
+  let mutationGate = null;
 
   if (args.path) {
     const abs = path.isAbsolute(args.path) ? args.path : path.join(ROOT, args.path);
@@ -770,6 +828,7 @@ function main() {
     if (!res) fail(`file not found or unreadable: "${args.path}"`);
     scanned = 1;
     findings.push(...res.findings);
+    mutationGate = res.mutationGate;
   } else {
     for (const abs of walk(path.join(ROOT, 'docs/specs'))) {
       const rel = toPosix(path.relative(ROOT, abs));
@@ -791,11 +850,14 @@ function main() {
 
   const clean = findings.length === 0;
   if (args.json) {
-    console.log(JSON.stringify({ scanned, skipped, findings, clean }, null, 2));
+    console.log(JSON.stringify({ scanned, skipped, findings, clean, mutation_gate: mutationGate }, null, 2));
   } else {
     console.log(`## Spec Lint — ${new Date().toISOString().slice(0, 10)}`);
     console.log('');
     console.log(`- Scanned: ${scanned} spec doc(s) | Skipped: ${skipped} non-spec | Findings: ${findings.length}${args.path ? ` | Scope: ${args.path}` : ''}`);
+    if (mutationGate && !mutationGate.applicable) {
+      console.log(`- Mutation gate: exempt (${mutationGate.exemption})`);
+    }
     console.log('');
     if (clean) {
       console.log('LINT PASS: no structural findings.');

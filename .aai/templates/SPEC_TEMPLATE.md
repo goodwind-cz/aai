@@ -172,11 +172,13 @@ Legacy specs without the Review-By column are skipped by the gate.
 - Edge cases
 
 ## Test Plan
-For each Spec-AC, enumerate concrete tests:
+For each Spec-AC, enumerate concrete tests. The `Mutation` column is
+resolved BY NAME (column order/position does not matter) — see
+`lib/docs-model.mjs` `parseTestPlanTable`.
 
-| Test ID  | Spec-AC    | Type       | File path (expected)       | Description                  | Status  |
-|----------|------------|------------|----------------------------|------------------------------|---------|
-| TEST-001 | Spec-AC-xx | unit/int/e2e | <expected test file path> | <what the test verifies>     | pending |
+| Test ID  | Spec-AC    | Type       | File path (expected)       | Description                  | Mutation                                                  | Status  |
+|----------|------------|------------|----------------------------|------------------------------|------------------------------------------------------------|---------|
+| TEST-001 | Spec-AC-xx | unit/int/e2e | <expected test file path> | <what the test verifies>     | <the mutation that MUST redden it, e.g. `sed:s/OLD/NEW/`> | pending |
 
 Test status values: pending → red → green
 - pending: test not yet written
@@ -187,6 +189,11 @@ Notes:
 - Every Spec-AC must have at least one TEST-xxx entry.
 - Test IDs are stable — do not renumber after freeze.
 - Test file paths are suggestions; implementation may adjust with justification.
+- Mutation: the specific mutation (e.g. `sed:s/OLD/NEW/`, produced and
+  verified by `mutation-run.mjs`) that MUST turn this test RED — required,
+  non-empty and non-placeholder, for every row once the spec is frozen with
+  strategy `tdd`/`hybrid` (spec-freeze.mjs then stamps frontmatter
+  `mutation_gate: v1`, and `mutation-gate.mjs` reads this column at close).
 
 ## Verification
 - Commands to run (derived from Test Plan above)

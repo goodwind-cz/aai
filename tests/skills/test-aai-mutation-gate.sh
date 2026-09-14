@@ -24,6 +24,7 @@ TEST_NAME="aai-mutation-gate"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MUTATION_RUN="${AAI_MUTATION_RUN:-$PROJECT_ROOT/.aai/scripts/mutation-run.mjs}"
+MUTATION_GATE="${AAI_MUTATION_GATE:-$PROJECT_ROOT/.aai/scripts/mutation-gate.mjs}"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
@@ -46,6 +47,7 @@ check_deps() {
   command -v node >/dev/null 2>&1 || log_skip "node not found"
   command -v git >/dev/null 2>&1 || log_skip "git not found"
   [[ -f "$MUTATION_RUN" ]] || log_fail "mutation-run.mjs not found at $MUTATION_RUN"
+  [[ -f "$MUTATION_GATE" ]] || log_fail "mutation-gate.mjs not found at $MUTATION_GATE"
 }
 
 # --- fixture helpers --------------------------------------------------------
@@ -137,6 +139,77 @@ EOF
 # mg_record_path <dir> <spec_id> <test_id>
 mg_record_path() {
   printf '%s\n' "$1/docs/ai/tdd/$2/mutation-$3.txt"
+}
+
+# === mutation-gate.mjs fixture helpers (D8, D9; TEST-475, TEST-476, TEST-486) ==
+# mutation-gate.mjs resolves BOTH the --spec file and the evidence directory
+# against `process.cwd()` (never a repo it is pointed at some other way), so
+# every gate fixture below runs with cwd=$PROJECT_ROOT (the real repo, so
+# `git merge-base --is-ancestor` has real history to judge) and writes its
+# throwaway evidence under $PROJECT_ROOT/docs/ai/tdd/<fixture-id>/ — gitignored
+# runtime space (measurement 4), registered in MG_FIXTURE_DIRS for cleanup.
+
+# mg_gate_id <label> -> a unique fixture spec id (never collides with a real
+# spec, never reused across two arms of the same test).
+MG_GATE_ID_SEQ=0
+mg_gate_id() {
+  MG_GATE_ID_SEQ=$((MG_GATE_ID_SEQ + 1))
+  printf 'mg-test-fixture-%s-%s-%s\n' "$1" "$$" "$MG_GATE_ID_SEQ"
+}
+
+# mg_gate_evidence_dir <spec_id> -> the real repo's throwaway evidence dir for
+# that fixture id; registers it for cleanup.
+mg_gate_evidence_dir() {
+  local d="$PROJECT_ROOT/docs/ai/tdd/$1"
+  MG_FIXTURE_DIRS="$MG_FIXTURE_DIRS $d"
+  printf '%s\n' "$d"
+}
+
+# mg_write_gate_spec <path> <spec_id> <strategy> <mutation_gate_line> — writes
+# frontmatter + a `## Test Plan` header; the caller appends data rows via
+# stdin. `mutation_gate_line` is either "mutation_gate: v1" or "" (an
+# in-flight, not-yet-frozen spec: D9 reads applicability off strategy alone).
+mg_write_gate_spec() {
+  local path="$1" spec_id="$2" strategy="$3" marker="$4"
+  {
+    printf -- '---\nid: %s\ntype: spec\nstatus: implementing\n' "$spec_id"
+    [[ -n "$marker" ]] && printf '%s\n' "$marker"
+    printf -- '---\n\n# Fixture — mutation gate (%s)\n\n## Implementation strategy\n- Strategy: %s\n\n## Test Plan\n\n| Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |\n|---------|---------|------|-----------------------|--------------|----------|--------|\n' "$spec_id" "$strategy"
+    cat
+  } > "$path"
+}
+
+# mg_write_gate_record <evidence_dir> <file_test_id> <record_test_id> <suite>
+# <verdict> <base_commit> — writes a hand-built v1 record at
+# mutation-<file_test_id>.txt whose OWN test_id field is <record_test_id>
+# (deliberately different for the "record names another row" fixture).
+mg_write_gate_record() {
+  local dir="$1" file_test_id="$2" record_test_id="$3" suite="$4" verdict="$5" base_commit="$6"
+  mkdir -p "$dir"
+  cat > "$dir/mutation-${file_test_id}.txt" <<EOF
+mutation_record: v1
+spec_id: fixture
+test_id: ${record_test_id}
+suite: ${suite}
+selector: test_fixture
+target: lib/fixture.mjs
+mutation: sed:s/OLD/NEW/
+base_commit: ${base_commit}
+tree_hash: $(printf '0%.0s' $(seq 1 64))
+run_at_utc: 2026-01-01T00:00:00Z
+rc: 1
+verdict: ${verdict}
+first_fail: FAIL fixture TEST-9001
+---
+fixture tail
+EOF
+}
+
+# mg_gate <spec_path> [extra args...] — runs the real CLI from $PROJECT_ROOT
+# (so git ancestry is real) against an absolute --spec path.
+mg_gate() {
+  local spec_path="$1"; shift
+  ( cd "$PROJECT_ROOT" && node "$MUTATION_GATE" --spec "$spec_path" "$@" )
 }
 
 # --- TEST-471 — Spec-AC-01: runner isolation and record shape --------------
@@ -384,6 +457,277 @@ EOS
   log_pass "TEST-481 replay exits 0 when every live record still reddens, names a record that no longer reddens once the code changes, and reports INCONCLUSIVE for a record whose target vanished"
 }
 
+# --- TEST-475 — Spec-AC-05: gate refusals, every offending row named -------
+test_475_gate_refusals() {
+  log_info "Test: mutation-gate.mjs collects EVERY offending Test Plan row, never just the first (TEST-475)..."
+  local head_commit; head_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+  local orphan_commit; orphan_commit="$(printf 'f%.0s' $(seq 1 40))"
+  local suite="tests/skills/fixture-suite.sh"
+
+  # (A) empty Mutation cell — no record needed, but the evidence DIRECTORY
+  # must still exist (an absent directory degrades the WHOLE spec per D9,
+  # which is a different arm — TEST-476(C) — from a per-row defect).
+  local id_a; id_a="$(mg_gate_id empty-cell)"
+  local spec_a; spec_a="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_a" "$id_a" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a |  | pending |
+EOF
+  mkdir -p "$(mg_gate_evidence_dir "$id_a")"
+  local out rc
+  out="$(mg_gate "$spec_a" 2>&1)"; rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-475(A) empty cell: want exit 5, got $rc: $out"
+  assert_payload_line_matches "$out" 'OFFENDING TEST-9001:.*empty' "TEST-475(A): empty-cell row not named: $out"
+
+  # (B) valid Mutation cell, evidence directory exists, but no record file.
+  local id_b; id_b="$(mg_gate_id absent-record)"
+  local spec_b; spec_b="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_b" "$id_b" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/OLD/NEW/ | pending |
+EOF
+  mkdir -p "$(mg_gate_evidence_dir "$id_b")"
+  out="$(mg_gate "$spec_b" 2>&1)"; rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-475(B) absent record: want exit 5, got $rc: $out"
+  assert_payload_line_matches "$out" 'OFFENDING TEST-9001:.*missing record' "TEST-475(B): absent-record row not named: $out"
+
+  # (C) record exists, verdict STAYED GREEN.
+  local id_c; id_c="$(mg_gate_id stayed-green)"
+  local spec_c; spec_c="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_c" "$id_c" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/OLD/NEW/ | pending |
+EOF
+  mg_write_gate_record "$(mg_gate_evidence_dir "$id_c")" TEST-9001 TEST-9001 "$suite" "STAYED GREEN" "$head_commit"
+  out="$(mg_gate "$spec_c" 2>&1)"; rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-475(C) STAYED GREEN: want exit 5, got $rc: $out"
+  assert_payload_line_matches "$out" 'OFFENDING TEST-9001:.*not RED' "TEST-475(C): STAYED GREEN row not named: $out"
+
+  # (D) record exists, verdict RED, but its own test_id names ANOTHER row.
+  local id_d; id_d="$(mg_gate_id wrong-testid)"
+  local spec_d; spec_d="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_d" "$id_d" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/OLD/NEW/ | pending |
+EOF
+  mg_write_gate_record "$(mg_gate_evidence_dir "$id_d")" TEST-9001 TEST-9099 "$suite" RED "$head_commit"
+  out="$(mg_gate "$spec_d" 2>&1)"; rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-475(D) test_id mismatch: want exit 5, got $rc: $out"
+  assert_payload_line_matches "$out" 'OFFENDING TEST-9001:.*test_id.*does not match' "TEST-475(D): test_id-mismatch row not named: $out"
+
+  # (E) record exists, verdict RED, test_id/suite correct, base_commit is an
+  # orphan (not an ancestor of HEAD).
+  local id_e; id_e="$(mg_gate_id orphan-commit)"
+  local spec_e; spec_e="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_e" "$id_e" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/OLD/NEW/ | pending |
+EOF
+  mg_write_gate_record "$(mg_gate_evidence_dir "$id_e")" TEST-9001 TEST-9001 "$suite" RED "$orphan_commit"
+  out="$(mg_gate "$spec_e" 2>&1)"; rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-475(E) orphan base_commit: want exit 5, got $rc: $out"
+  assert_payload_line_matches "$out" 'OFFENDING TEST-9001:.*not an ancestor' "TEST-475(E): orphan-commit row not named: $out"
+
+  # (F) TWO defective rows in ONE spec — BOTH must be named (proves the gate
+  # collects every offending row rather than returning after the first).
+  local id_f; id_f="$(mg_gate_id two-defects)"
+  local spec_f; spec_f="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_f" "$id_f" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a |  | pending |
+| TEST-9002 | Spec-AC-01 | unit | ${suite} | b | sed:s/OLD/NEW/ | pending |
+EOF
+  mg_write_gate_record "$(mg_gate_evidence_dir "$id_f")" TEST-9002 TEST-9002 "$suite" RED "$orphan_commit"
+  out="$(mg_gate "$spec_f" 2>&1)"; rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-475(F) two defects: want exit 5, got $rc: $out"
+  assert_payload_line_matches "$out" 'OFFENDING TEST-9001:' "TEST-475(F): first defective row (TEST-9001) not named: $out"
+  assert_payload_line_matches "$out" 'OFFENDING TEST-9002:' "TEST-475(F): second defective row (TEST-9002) not named: $out"
+
+  # (G) all-satisfied — exit 0. base_commit is real HEAD (an ancestor of
+  # itself).
+  local id_g; id_g="$(mg_gate_id all-satisfied)"
+  local spec_g; spec_g="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_g" "$id_g" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/OLD/NEW/ | pending |
+EOF
+  mg_write_gate_record "$(mg_gate_evidence_dir "$id_g")" TEST-9001 TEST-9001 "$suite" RED "$head_commit"
+  out="$(mg_gate "$spec_g" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-475(G) all-satisfied: want exit 0, got $rc: $out"
+  assert_payload_contains "$out" 'degraded=0' "TEST-475(G): all-satisfied summary did not carry degraded=0: $out"
+
+  log_pass "TEST-475 the gate refuses each of five single-defect fixtures naming that row, both rows of a two-defect fixture, and passes an all-satisfied fixture at exit 0"
+}
+
+# --- TEST-476 — Spec-AC-06: degrade, always named, never a silent 0 --------
+test_476_gate_degrade() {
+  log_info "Test: mutation-gate.mjs degrades BY NAME for a pre-change spec and an absent evidence tree, and refuses at exit 3 when it cannot run (TEST-476)..."
+  local suite="tests/skills/fixture-suite.sh"
+
+  # (A) no mutation_gate marker at all — a pre-change/unmarked spec.
+  local id_a; id_a="$(mg_gate_id no-marker)"
+  local spec_a; spec_a="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_a" "$id_a" tdd "" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/OLD/NEW/ | pending |
+EOF
+  local out rc
+  out="$(mg_gate "$spec_a" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-476(A) no marker: want exit 0, got $rc: $out"
+  assert_payload_contains "$out" 'DEGRADED: pre-change spec' "TEST-476(A): no-marker degrade not named: $out"
+  assert_payload_contains "$out" 'degraded=1' "TEST-476(A): degrade count wrong: $out"
+
+  # (B) strategy is direct (not tdd/hybrid), even with the marker present.
+  local id_b; id_b="$(mg_gate_id direct-strategy)"
+  local spec_b; spec_b="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_b" "$id_b" direct "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/OLD/NEW/ | pending |
+EOF
+  out="$(mg_gate "$spec_b" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-476(B) direct strategy: want exit 0, got $rc: $out"
+  assert_payload_contains "$out" 'DEGRADED: pre-change spec' "TEST-476(B): direct-strategy degrade not named: $out"
+
+  # (C) applicable (marker + tdd) but the evidence DIRECTORY does not exist —
+  # the exact silent-pass shape this ride exists to refuse: must still name
+  # the class and carry degraded=<n>, never a bare 0 with no explanation.
+  local id_c; id_c="$(mg_gate_id no-evidence-dir)"
+  local spec_c; spec_c="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_c" "$id_c" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/OLD/NEW/ | pending |
+| TEST-9002 | Spec-AC-01 | unit | ${suite} | b | sed:s/A/B/       | pending |
+EOF
+  [[ ! -e "$(mg_gate_evidence_dir "$id_c")" ]] || log_fail "TEST-476(C) setup: evidence dir must not pre-exist"
+  out="$(mg_gate "$spec_c" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-476(C) no evidence dir: want exit 0, got $rc: $out"
+  assert_payload_contains "$out" 'DEGRADED: evidence tree absent' "TEST-476(C): absent-evidence-dir degrade not named: $out"
+  assert_payload_contains "$out" 'degraded=2' "TEST-476(C): degrade count wrong (want 2 rows): $out"
+  local list_out; list_out="$(mg_gate "$spec_c" --list-degraded 2>&1)"
+  assert_payload_line_matches "$list_out" 'DEGRADED TEST-9001:' "TEST-476(C): --list-degraded did not name TEST-9001: $list_out"
+  assert_payload_line_matches "$list_out" 'DEGRADED TEST-9002:' "TEST-476(C): --list-degraded did not name TEST-9002: $list_out"
+  assert_payload_not_contains "$out" 'DEGRADED TEST-' "TEST-476(C): the DEFAULT run (no --list-degraded) printed per-row detail: $out"
+
+  # (D) the gate itself cannot run: an unreadable --spec path -> exit 3.
+  out="$(mg_gate "$(mg_new_fixture)/does-not-exist.md" 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "TEST-476(D) unreadable spec: want exit 3, got $rc: $out"
+
+  # (E) a tree with no git: exit 3, never 0 and never 5. mutation-gate.mjs
+  # resolves ROOT from process.cwd(), so cwd is pointed at a non-repo dir with
+  # its OWN copy of an applicable spec (git -C <non-repo> rev-parse HEAD
+  # fails cleanly there without touching the real repo).
+  local nogit; nogit="$(mg_new_fixture)"
+  mkdir -p "$nogit/docs/specs"
+  local spec_e="$nogit/docs/specs/spec.md"
+  mg_write_gate_spec "$spec_e" "$(mg_gate_id no-git)" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/OLD/NEW/ | pending |
+EOF
+  out="$(cd "$nogit" && node "$MUTATION_GATE" --spec "$spec_e" 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "TEST-476(E) no-git tree: want exit 3, got $rc: $out"
+
+  log_pass "TEST-476 a pre-change (no-marker) spec and a non-tdd/hybrid spec both degrade named 'pre-change spec'; an absent evidence directory degrades named 'evidence tree absent' with the row count, --list-degraded prints per-row detail the default run withholds; an unreadable spec and a git-less tree both refuse at exit 3"
+}
+
+# --- TEST-486 — Spec-AC-16: the gate reads THIS ride's own real records ----
+test_486_gate_reads_this_ride() {
+  log_info "Test: mutation-gate.mjs against a fixture copy of THIS spec, gated with the REAL records this ride has produced so far, exits 0 degraded=0; removing one record exits 5 naming it (TEST-486)..."
+
+  # Arm A — self-contained and clone-safe (runs correctly even INSIDE a
+  # mutation-run.mjs isolated clone, where $PROJECT_ROOT/docs/ai/tdd/** is
+  # unconditionally excluded from cloning by D4/D7 — so arms B/C below,
+  # which read that live directory, always SKIP there). A genuinely
+  # tool-produced record — the REAL mutation-run.mjs, run here, not a
+  # hand-written stand-in (Seam S1: "not only a synthetic fixture") — is
+  # gated alongside a hand-planted record on an ORPHAN base_commit, so the
+  # ancestry rule (D8) is exercised by an ACTUAL mutation-run.mjs output
+  # sitting next to the defective row, not only by TEST-475(E)'s fully
+  # synthetic fixture.
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  local gate_id; gate_id="$(mg_gate_id this-ride-real)"
+  local gate_spec="$fx/docs/specs/fixture-spec.md"
+  mg_write_gate_spec "$gate_spec" "$gate_id" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | tests/skills/fixture-suite.sh | a | sed:s/hello/goodbye/ | pending |
+| TEST-9002 | Spec-AC-01 | unit | tests/skills/fixture-suite.sh | b | sed:s/A/B/           | pending |
+EOF
+  printf "console.log('base');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  printf 'marker-present' > "$fx/lib/extra.txt"
+
+  local run_out run_rc
+  run_out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && run_rc=0 || run_rc=$?
+  [[ "$run_rc" -eq 0 ]] || log_fail "TEST-486 arm A setup: mutation-run.mjs must produce a RED record for TEST-9001, got exit $run_rc: $run_out"
+
+  local head_commit; head_commit="$(cd "$fx" && git rev-parse HEAD)"
+  local orphan_commit; orphan_commit="$(printf 'e%.0s' $(seq 1 40))"
+  mg_write_gate_record "$fx/docs/ai/tdd/$gate_id" TEST-9002 TEST-9002 "tests/skills/fixture-suite.sh" RED "$orphan_commit"
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_GATE" --spec docs/specs/fixture-spec.md 2>&1)"; rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-486 arm A: gate over a real record + an orphan-commit record must exit 5, got $rc: $out"
+  assert_payload_not_contains "$out" 'OFFENDING TEST-9001' "TEST-486 arm A: the GENUINE mutation-run.mjs record (TEST-9001) was wrongly flagged: $out"
+  assert_payload_line_matches "$out" 'OFFENDING TEST-9002:.*not an ancestor' "TEST-486 arm A: the orphan-base_commit record (TEST-9002) was not named: $out"
+  log_info "TEST-486 arm A: base_commit sanity — $head_commit is HEAD, $orphan_commit is the planted orphan"
+
+  # Arms B/C — the live shipping evidence tree (self-scaling, degrades to
+  # SKIP rather than a false pass/fail when absent — always true inside a
+  # mutation-run.mjs clone, per the comment above; meaningful in a normal,
+  # non-clone run).
+  local real_spec="$PROJECT_ROOT/docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md"
+  local real_evidence_dir="$PROJECT_ROOT/docs/ai/tdd/spec-mutation-gate-for-tests"
+  [[ -f "$real_spec" ]] || log_skip "TEST-486: this ride's own spec is not present in this checkout"
+  [[ -d "$real_evidence_dir" ]] || log_skip "TEST-486: no real evidence directory yet — nothing this ride has produced to gate"
+
+  # Enumerate the LIVE (non-rotated) real records this ride has produced SO
+  # FAR — self-scaling across runs: whichever Test Plan rows already carry a
+  # real RED record are the ones this test proves the gate reads correctly,
+  # never a fixed/hand-maintained list.
+  local live_ids=() f base
+  for f in "$real_evidence_dir"/mutation-TEST-*.txt; do
+    [[ -e "$f" ]] || continue
+    base="$(basename "$f")"
+    [[ "$base" =~ ^mutation-(TEST-[0-9]+)\.txt$ ]] || continue
+    live_ids+=("${BASH_REMATCH[1]}")
+  done
+  [[ "${#live_ids[@]}" -ge 1 ]] || log_skip "TEST-486: no live (non-rotated) real mutation records found under $real_evidence_dir"
+
+  local id; id="$(mg_gate_id this-ride)"
+  local spec_path; spec_path="$(mg_new_fixture)/spec.md"
+  local evidence_dir; evidence_dir="$(mg_gate_evidence_dir "$id")"
+  mkdir -p "$evidence_dir"
+
+  # Build the fixture spec: same applicability shape (marker + tdd) as the
+  # real spec, its Test Plan trimmed to exactly the rows with a live record —
+  # the File path cell for each row is read from that row's OWN real record's
+  # `suite:` field, so it matches by construction (mutation-gate.mjs checks
+  # record.suite === row.fileCell).
+  {
+    printf -- '---\nid: %s\ntype: spec\nstatus: implementing\nmutation_gate: v1\n---\n\n' "$id"
+    printf '# Fixture — this ride'"'"'s own records (TEST-486)\n\n## Implementation strategy\n- Strategy: tdd\n\n## Test Plan\n\n'
+    printf '| Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |\n|---------|---------|------|-----------------------|--------------|----------|--------|\n'
+    local tid suite_lines suite_field
+    for tid in "${live_ids[@]}"; do
+      cp "$real_evidence_dir/mutation-${tid}.txt" "$evidence_dir/mutation-${tid}.txt"
+      # No pipe into head/grep -q (hygiene-pack test_102 pipe-safe ratchet):
+      # capture every matching line from the FILE directly, then take the
+      # first via parameter expansion.
+      suite_lines="$(grep '^suite: ' "$evidence_dir/mutation-${tid}.txt")"
+      suite_field="${suite_lines%%$'\n'*}"
+      suite_field="${suite_field#suite: }"
+      printf '| %s | Spec-AC-01 | integration | %s | real record | see mutation-gate evidence | pending |\n' "$tid" "$suite_field"
+    done
+  } > "$spec_path"
+
+  local out rc
+  out="$(mg_gate "$spec_path" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-486 arm1: gate over this ride's own real records must exit 0, got $rc: $out"
+  assert_payload_contains "$out" 'degraded=0' "TEST-486 arm1: summary did not carry degraded=0: $out"
+
+  # Remove ONE record from the fixture copy (never from the real evidence
+  # tree) -> exit 5, naming exactly that row.
+  local removed="${live_ids[0]}"
+  rm -f "$evidence_dir/mutation-${removed}.txt"
+  out="$(mg_gate "$spec_path" 2>&1)"; rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-486 arm2: gate after removing $removed's record must exit 5, got $rc: $out"
+  assert_payload_line_matches "$out" "OFFENDING ${removed}:" "TEST-486 arm2: removed record's row ($removed) not named: $out"
+
+  log_pass "TEST-486 a genuine mutation-run.mjs record passes while a hand-planted orphan-commit record is refused naming it (arm A); the live shipping evidence tree, when present, gates identically end to end (arms B/C)"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -391,6 +735,9 @@ main() {
   test_472_runner_refusals
   test_474_three_verdicts_and_rotation
   test_481_replay
+  test_475_gate_refusals
+  test_476_gate_degrade
+  test_486_gate_reads_this_ride
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -79,7 +79,7 @@
 3	tests/skills/test-aai-live-serve.sh
 5	tests/skills/test-aai-live-status.sh
 7	tests/skills/test-aai-metrics.sh
-20	tests/skills/test-aai-mutation-gate.sh
+25	tests/skills/test-aai-mutation-gate.sh
 4	tests/skills/test-aai-orchestration-dispatch.sh
 2	tests/skills/test-aai-orchestration-mode.sh
 3	tests/skills/test-aai-orphan-sweep.sh
@@ -106,7 +106,7 @@
 2	tests/skills/test-aai-secrets-preflight.sh
 8	tests/skills/test-aai-session-lock.sh
 3	tests/skills/test-aai-spec-amend.sh
-8	tests/skills/test-aai-spec-lint.sh
+9	tests/skills/test-aai-spec-lint.sh
 10	tests/skills/test-aai-spec-tools.sh
 3	tests/skills/test-aai-state.sh
 26	tests/skills/test-aai-suite-isolation.sh
