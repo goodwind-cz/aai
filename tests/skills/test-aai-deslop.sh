@@ -2226,7 +2226,7 @@ test_028_published_surfaces_state_the_new_rule() {
 # TEST-028's released-CHANGELOG comparison.
 #
 # Validation round 1 (BLOCKING-5): TEST-447 was named in
-# docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md's Test Plan and Mutation
+# docs/specs/SPEC-0179-spec-test-framework-sweep.md's Test Plan and Mutation
 # checks ("A one-byte edit inside the released CHANGELOG section of a scratch
 # copy reddens the released-section comparison") but did not exist anywhere —
 # the string occurred only in the spec's prose. TEST-028 proves the LIVE

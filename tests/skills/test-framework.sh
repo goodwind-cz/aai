@@ -1699,7 +1699,7 @@ report_wave_child() {
 # saturated until the corpus runs out. No duration-ordering hint file is
 # shipped — refilling alone is 89.8 percent of the achievable gain on the
 # measured corpus, and a duration table goes stale and is absent from a fresh
-# CI clone (SPEC-DRAFT-spec-test-framework-sweep.md D-decisions).
+# CI clone (SPEC-0179-spec-test-framework-sweep.md D-decisions).
 #
 # Bash 3.2.57 is a supported host and has no `wait -n`, so a freed slot is
 # noticed by POLLING each active child's pid with `kill -0`, not by a bash

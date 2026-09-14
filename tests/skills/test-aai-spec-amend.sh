@@ -1279,7 +1279,7 @@ test_018_item_names_spec_by_id_not_path() {
 # TEST-003/008/009 ------------------------------------------------------------
 #
 # Validation round 1 (BLOCKING-5): TEST-445 was named in
-# docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md's Test Plan and Mutation
+# docs/specs/SPEC-0179-spec-test-framework-sweep.md's Test Plan and Mutation
 # checks as the control covering TEST-003 (the format trap), TEST-008
 # (append-only) and TEST-009 (post-backfill classification), but no such test
 # existed anywhere — the strings occurred only in the spec's prose. This is

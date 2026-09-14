@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-14T00:50:06.100Z
+Generated: 2026-09-14T01:31:14.173Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-test-framework-sweep | specs | implementing | 28 planned | docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md |
+| SPEC-0179 | specs | implementing | 28 planned | docs/specs/SPEC-0179-spec-test-framework-sweep.md |
 
 ## Canonical layer (0)
 
@@ -491,7 +491,7 @@ _None._
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0181 | issues | docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md |
 | CHANGE-0184 | issues | docs/issues/CHANGE-0184-roadmap-gate-admits-only-the-next-pair.md |
-| test-framework-sweep (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-test-framework-sweep.md |
+| CHANGE-0185 | issues | docs/issues/CHANGE-0185-test-framework-sweep.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // session-lock.mjs — per-worktree session lock (CHANGE-0180 D5,
-// fu-learned-worktree-seeded-copies / docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md).
+// fu-learned-worktree-seeded-copies / docs/specs/SPEC-0179-spec-test-framework-sweep.md).
 //
 // WHY THIS EXISTS. A shared checkout can host two live agent sessions at
 // once, and the second `git checkout` moves HEAD out from under the first

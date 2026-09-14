@@ -8,7 +8,7 @@ re-derived from the tree, the diff, or a mutation I ran myself.
 ```yaml
 review:
   scope: "origin/main...HEAD (d184ec04) plus the uncommitted working tree (19 tracked files) — 91 files, +7632/-932"
-  spec: docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md (FROZEN, 28 AC, 49 TEST, 2 Amendment rounds)
+  spec: docs/specs/SPEC-0179-spec-test-framework-sweep.md (FROZEN, 28 AC, 49 TEST, 2 Amendment rounds)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -82,7 +82,7 @@ review:
       - { rank: NON-BLOCKING, file: docs/ai/tdd/spec-test-framework-sweep/sweep-after.txt, line: 130,
           issue: "the 93/93 UPDATE block was inserted ABOVE the pre-existing section headed 'THE FOUR FAILURES IN THIS RUN, individually explained', which describes run test-20260913-180339 (89/93).",
           failure_scenario: "A reader of the evidence file reads 'THIS RUN' as the zero-failure run it now directly follows and concludes the 93/93 sweep had four explained failures. Content correct, placement misleading. (= validator R3-NB-5, confirmed by reading the file.)" }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md, line: 685,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0179-spec-test-framework-sweep.md, line: 685,
           issue: "the drop reason for fu-spec-evidence-cites-gitignored-path over-claims: 'no spec in the repository cites a gitignored evidence path today'. Measured twice, independently, over every docs/specs/*.md AC Status table with git check-ignore: 470 of 575 unique cited paths are gitignored, 842 of 1,193 individual AC-row citations, across 120 spec documents — root cause .gitignore:35 `docs/ai/tdd/**`, which is the HOUSE STYLE for AC evidence. It is not a residue, it is the dominant convention, and the two most recently merged specs do it (SPEC-0177:528 `docs/ai/tdd/spec-harness-universal-routing/red-050.txt`; SPEC-0178 Spec-AC-01) — as does THIS ride's own Evidence contract. The narrower half ('the one spec doing it is no longer the shape described') is defensible.",
           failure_scenario: "The item is closed `dropped` on a claim that is measurably false, so the append-only ledger records a withdrawal that a later reader cannot reproduce. Nothing in the tree breaks; the record does." }
       - { rank: NON-BLOCKING, file: tests/skills/test-framework.sh, line: 948,

@@ -11,6 +11,45 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(tests): the test framework is fast, hermetic and honest about what it ran
+
+- **Refilling queue instead of wave barriers** in `tests/skills/test-framework.sh`
+  with a rolling attribution window: a suite that writes the shipping repository
+  is still caught, re-run serially and named, siblings are never blamed. Full
+  sweep 1632 s → 897 s (93/93, width 8, 55 %). CHANGE-0166 closed; intake CHANGE-0185.
+- **CHANGE-0180 (P1)**: `branch-guard.mjs --pin` / `--verify-pin` (detached /
+  renamed / concurrent = exit 5 / 6 / 7), re-checked by `check-committed-scope`,
+  `close-before-push-guard` and `close-work-item --expect-branch`; a per-worktree
+  session lock keyed on pid liveness (`lib/session-lock.mjs`). Armed in the
+  ceremony: SKILL_PR pins at step 0 and passes `--expect-branch` at 4a/4c/5,
+  SKILL_WORKTREE acquires and releases the lock. A project that never pinned
+  sees a NOTE, never a refusal.
+- **The nested layer-profiles CI-only failure** (three of six CI runs on PR #376):
+  the fixture build now fails loudly on any copy or sync warning, an empty
+  MISSING list is byte-dumped, and the two nesting wrappers write the nested
+  output to a file. Not claimed fixed at cause (R1): the missing list was empty
+  and never reproduced in 28 isolated runs.
+- **Honest gates**: pipe-into-`grep -q` drained 202 → 0 (DEBT-0006, ratchet at
+  zero); nine self-comparing guards got negative controls and fail closed
+  (DEBT-0004); six brittle pins assert the property; a degenerate-pass ratchet
+  (26) and six LEARNED-guard lints (bash-3.2 local, cd-to-underived, immutable
+  pin, deny-by-default mocks, absence without control, external runner) at
+  zero on the live corpus; 22 of 23 CLI `main()` guards resolve via realpath
+  (`allocate-doc-number.mjs` is L3, filed).
+- **Isolation, seeding, tripwire**: bases forgotten per entry, INT reaps the
+  group before cleanup, partial seeding reported, hidden suite runs noted,
+  tripwire pre-dirty accounting and degrade-on-suite-line, fixture dirs
+  registered in a file; four withdrawn claims corrected in place.
+- **Wrapper default timeout 300 → 3000 s** on `.sh` and both `.ps1` paths, with
+  a named watchdog line; TDD and VALIDATION prompts select suites the way CI
+  does; validation and TDD suite selection wired to `select-suites.mjs`.
+- **Registry**: 48 follow-ups closed with a test each, 36 dropped with a
+  recorded reason; ISSUE-0039/0041/0043/0044 and DEBT-0004/0006 resolved;
+  GitHub #368 rejected (prose-free friction issue, CHANGE-0179 owns the class).
+- Spec: SPEC-0179 (test-framework-sweep), ceremony 2, TDD, 49 + 4 tests, one
+  mutation per test, four validation rounds, one review round. Wave 3 sweep 2.
+  Merged by the orchestrator under the wave-3 mandate of 2026-09-13.
+
 ## [unreleased] — chore(roadmap): the mutation gate rides before the remaining wave-3 sweeps
 
 - Owner decision (menu answer A, 2026-09-14): sweeps 1 to 3 each needed three

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: per-worktree session lock (CHANGE-0180 D5 /
-# docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md Spec-AC-05).
+# docs/specs/SPEC-0179-spec-test-framework-sweep.md Spec-AC-05).
 # Verifies .aai/scripts/lib/session-lock.mjs — an O_EXCL CAS lock keyed on
 # PID LIVENESS rather than a TTL: a live holder refuses the acquire (exit 3,
 # naming the holder pid + worktree); a holder whose pid is gone is reclaimed

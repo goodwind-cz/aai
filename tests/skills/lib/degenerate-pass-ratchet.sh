@@ -18,7 +18,7 @@
 #   and are converted to a failing UNCOVERED report by this same scope
 #   (Spec-AC-14); five of those nine happened to also carry this file's own
 #   log_pass+skipped/not-applicable shape, so the SHIPPED baseline is 26 (31
-#   minus those five — see docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md
+#   minus those five — see docs/specs/SPEC-0179-spec-test-framework-sweep.md
 #   `## Amendment`, which corrects Established fact 18 to these measured
 #   numbers). The rest are legitimate platform/environment skips (a missing
 #   binary, an OS this suite does not run on) that stay `log_pass`-shaped on

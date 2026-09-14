@@ -2047,7 +2047,7 @@ test_031_both_registry_items_closed_for_real() {
 # new `follow-ups.mjs reopen` rather than closed here under any status.)
 #
 # The frozen id list's canonical source is now the spec's OWN closed+rejected
-# tables (docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md, tracked and
+# tables (docs/specs/SPEC-0179-spec-test-framework-sweep.md, tracked and
 # committed), not docs/ai/tdd/spec-test-framework-sweep/bucket-open-2026-09-13.txt
 # (.gitignore:35 `docs/ai/tdd/**` — untracked). BLOCKING-16 (validation round
 # 1): that file does not exist in a fresh clone, and this test used to
@@ -2061,7 +2061,7 @@ test_031_both_registry_items_closed_for_real() {
 # a non-blocking corroboration — its absence no longer removes coverage.
 test_032_spec_test_framework_sweep_closure_is_real() {
   log_info "Test: spec-test-framework-sweep's registry closure — verify-closures --strict exits 0, all 78 frozen bucket ids are terminal and resolved_by this ride, and the closed+rejected union is exactly the 78 ids (TEST-443)..."
-  local spec_path="$PROJECT_ROOT/docs/specs/SPEC-DRAFT-spec-test-framework-sweep.md"
+  local spec_path="$PROJECT_ROOT/docs/specs/SPEC-0179-spec-test-framework-sweep.md"
   local bucket="$PROJECT_ROOT/docs/ai/tdd/spec-test-framework-sweep/bucket-open-2026-09-13.txt"
   [[ -f "$spec_path" ]] || log_skip "spec not found: $spec_path"
 
