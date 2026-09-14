@@ -765,6 +765,28 @@ const TEST_PLAN_HEADER_MAP = {
   'status': 'statusCell',
 };
 
+// resolveTestPlanHeaderKey(headerText) -> canonical row key, or null.
+// Remediation round 3 NB-1 (SPEC-DRAFT spec-mutation-gate-for-tests): the map
+// above is a CLOSED exact-match table, so a header spelled differently than
+// the template's own (e.g. SPEC-0062's "File path (existing suite)") yields
+// '' for that whole cell — silently, for every row. Prefix-matched for the
+// columns measured to vary with a parenthetical suffix or vendor wording
+// (`test id*`, `spec-ac*`, `file path*`, `mutation*`, `status*`); `type` and
+// `description` stay exact — neither varies in the corpus, and a prefix match
+// on `type` would swallow an unrelated future column ("type of change", say).
+export function resolveTestPlanHeaderKey(headerText) {
+  const h = String(headerText ?? '').trim().toLowerCase();
+  if (!h) return null;
+  if (h.startsWith('test id')) return 'testId';
+  if (h.startsWith('spec-ac')) return 'acCell';
+  if (h === 'type') return 'typeCell';
+  if (h.startsWith('file path')) return 'fileCell';
+  if (h === 'description') return 'descriptionCell';
+  if (h.startsWith('mutation')) return 'mutationCell';
+  if (h.startsWith('status')) return 'statusCell';
+  return null;
+}
+
 // Parse the `## Test Plan` table: rows whose first cell is TEST-xxx.
 // Returns { present, rows: [{ testId, acCell, typeCell, fileCell,
 // descriptionCell, mutationCell, statusCell, header, line }] }. `line` is
@@ -787,21 +809,44 @@ export function parseTestPlanTable(content) {
   const lines = m[1].split('\n');
 
   let headerCells = null;
+  let headerLineNo = null;
+  let offsetToHeader = 0;
   for (const line of lines) {
-    if (!line.trim().startsWith('|')) continue;
+    if (!line.trim().startsWith('|')) { offsetToHeader += line.length + 1; continue; }
     const cells = splitTableCells(line);
-    if (cells.some((c) => c.trim().toLowerCase() === 'test id')) {
+    if (cells.some((c) => resolveTestPlanHeaderKey(c) === 'testId')) {
       headerCells = cells;
+      headerLineNo = lineNumberAt(norm, sectionStart + offsetToHeader);
       break;
     }
+    offsetToHeader += line.length + 1;
   }
 
   const colIndex = {};
+  // NB-1: a header cell this reader does not recognize is collected here
+  // (never silently dropped) so a caller (spec-lint's `test-plan-header-
+  // unmapped` finding) can name it — the old exact-match map just returned
+  // '' for that whole column with nothing to grep.
+  const unrecognizedHeaderCells = [];
   if (headerCells) {
     headerCells.forEach((h, i) => {
-      const key = TEST_PLAN_HEADER_MAP[h.trim().toLowerCase()];
-      if (key && !(key in colIndex)) colIndex[key] = i;
+      const key = resolveTestPlanHeaderKey(h);
+      if (key) {
+        if (!(key in colIndex)) colIndex[key] = i;
+      } else if (h.trim()) {
+        unrecognizedHeaderCells.push(h.trim());
+      }
     });
+    // Positional fallback (NB-1): an unrecognized header cell must not
+    // silently drop one of the four byte-identical CHANGE-0120 columns —
+    // fall back to the original fixed position for exactly those four keys,
+    // and only when the header row is actually wide enough to carry it.
+    const FIXED_POSITIONS = { testId: 0, acCell: 1, typeCell: 2, fileCell: 3 };
+    for (const key of Object.keys(FIXED_POSITIONS)) {
+      if (!(key in colIndex) && headerCells.length > FIXED_POSITIONS[key]) {
+        colIndex[key] = FIXED_POSITIONS[key];
+      }
+    }
   } else {
     // No header row located: fall back to the original fixed positions so a
     // malformed table still yields the four fields every existing consumer
@@ -837,7 +882,7 @@ export function parseTestPlanTable(content) {
       line: lineNo,
     });
   }
-  return { present: true, rows };
+  return { present: true, rows, unrecognizedHeaderCells, headerLine: headerLineNo };
 }
 
 // The closed placeholder vocabulary a Mutation cell must not merely echo

@@ -126,27 +126,32 @@ export function recordFileName(testId) {
   return `mutation-${testId}.txt`;
 }
 
-export function rotatedFileName(testId, runAtUtc) {
-  return `mutation-${testId}.${runAtUtc}.txt`;
+// `suffix` (NB2-r3, remediation round 3): an optional monotonic integer
+// (1, 2, ...) the caller appends when the plain `<testId>.<runAtUtc>` name is
+// already taken — two rotations sharing one second (`run_at_utc` is ISO to
+// the SECOND) would otherwise silently overwrite the earlier archive, the
+// one case D2's "never delete, never overwrite" rule did not itself cover.
+export function rotatedFileName(testId, runAtUtc, suffix) {
+  return `mutation-${testId}.${runAtUtc}${suffix ? `.${suffix}` : ''}.txt`;
 }
 
 // isRotatedFileName(name, testId) -> true for a rotated sibling of testId's
-// record (mutation-<testId>.<timestamp>.txt), false for the live record name
-// itself or for an unrelated file. Used by callers (mutation-run.mjs
+// record (mutation-<testId>.<timestamp>[.<suffix>].txt), false for the live
+// record name itself or for an unrelated file. Used by callers (mutation-run.mjs
 // --replay) that must enumerate only LIVE records in an evidence directory.
 export function isRotatedFileName(name, testId) {
   const esc = testId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`^mutation-${esc}\\.[^.]+\\.txt$`).test(name);
+  return new RegExp(`^mutation-${esc}\\.[^.]+(?:\\.\\d+)?\\.txt$`).test(name);
 }
 
 // patchFileName / rotatedPatchFileName — D14's "a record is self-contained":
 // a --patch mutation's own content lives beside the record under the SAME
 // evidence directory (never a path outside the repo, e.g. /tmp), rotated in
-// lockstep with the record it belongs to (D2).
+// lockstep with the record it belongs to (D2). `suffix`: see rotatedFileName.
 export function patchFileName(testId) {
   return `mutation-${testId}.patch`;
 }
 
-export function rotatedPatchFileName(testId, runAtUtc) {
-  return `mutation-${testId}.${runAtUtc}.patch`;
+export function rotatedPatchFileName(testId, runAtUtc, suffix) {
+  return `mutation-${testId}.${runAtUtc}${suffix ? `.${suffix}` : ''}.patch`;
 }

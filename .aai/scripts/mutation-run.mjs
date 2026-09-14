@@ -67,7 +67,15 @@
 //     and the message names the changed path(s) so an operator can tell a
 //     concurrent writer from a real self-inflicted bug. --replay counts this
 //     as `inconclusive` (exit 4), never a genuine regression (exit 1) — "I
-//     could not tell" must never render as "regression" (D6/D8).
+//     could not tell" must never render as "regression" (D6/D8);
+//   - D7 (NB-5): the tree hash it compares covers tracked files plus
+//     untracked-not-ignored files, so it is BLIND to every OTHER gitignored
+//     path outside docs/ai/tdd — a mutated run writing into the source
+//     tree's docs/ai/STATE.yaml would leave the hash unchanged were it not
+//     for lib/tree-hash.mjs's own named RUNTIME_ALLOWLIST (docs/ai/STATE.yaml,
+//     docs/ai/LOOP_TICKS.jsonl — hashed when present, closed list, never a
+//     blanket "every gitignored path"); an unlisted runtime sidecar is still
+//     invisible to this tripwire.
 //
 // Node stdlib only (docs/TECHNOLOGY.md). Never invokes a shell: every
 // external command runs via execFileSync/spawnSync with an argv array, so a
@@ -77,6 +85,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { exit, runMain, ExitSignal } from './lib/cli-pipe-guard.mjs';
 import { parseFrontmatter } from './lib/docs-model.mjs';
@@ -85,6 +94,7 @@ import {
   hashFromFileHashes,
   diffTreeFileHashes,
   describeTreeDiff,
+  RUNTIME_ALLOWLIST,
 } from './lib/tree-hash.mjs';
 import {
   formatRecord,
@@ -220,7 +230,15 @@ function stripHeredocs(content) {
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
-    const m = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/.exec(line);
+    // NB6-r3: a heredoc opener written inside a full-line COMMENT (this
+    // repo's own house style: `# example: cat <<EOS`) must never open a REAL
+    // heredoc — when another, legitimate `<<EOS ... EOS` heredoc later in the
+    // same file shares that marker, the commented mention would consume
+    // everything up to that later heredoc's OWN terminator, silently
+    // swallowing every selector defined in between. Only recognise `<<`
+    // outside a comment line.
+    const isCommentLine = /^\s*#/.test(line);
+    const m = isCommentLine ? null : /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/.exec(line);
     if (m) {
       const dash = line.includes('<<-');
       const marker = m[2];
@@ -258,19 +276,27 @@ function stripHeredocs(content) {
 // here (rather than shelling out to a bash lib) keeps this check in the same
 // process and language as the rest of the tool. Keep both lists in sync by
 // hand; hygiene-pack's test_094 is the corpus authority for the real tree.
+// Whitespace class NB4-r3 (remediation round 3): the bash twin
+// (hp_scan_selector_suites, tests/skills/test-aai-hygiene-pack.sh) matches
+// POSIX `[[:space:]]`, which includes vertical tab and form feed; the prior
+// `[ \t]` here did not, a divergence measured to be unreachable on the LIVE
+// corpus today (a sweep of both scanners over every tests/skills/*.sh agrees
+// byte-for-byte) but real on a synthetic file. Widened so the two copies stay
+// aligned on the same whitespace grammar, not merely the same corpus.
+const WS = ' \\t\\v\\f';
 const POSITIONAL_DISPATCH_PATTERNS = [
   /declare -[fF] "\$1"/,
   /declare -[fF] "test_\$\{[A-Za-z_]+\}"/,
-  /(^|;|&&|\|\||then|do)[ \t]*"\$1"([ \t;]|$)/m,
-  /(^|;|&&|\|\||then|do)[ \t]*"test_\$\{[A-Za-z_]+\}"/m,
+  new RegExp(`(^|;|&&|\\|\\||then|do)[${WS}]*"\\$1"([${WS};]|$)`, 'm'),
+  new RegExp(`(^|;|&&|\\|\\||then|do)[${WS}]*"test_\\$\\{[A-Za-z_]+\\}"`, 'm'),
   /ALL_TESTS\[@\]/,
-  /"\$fn"[ \t]*$/m,
+  new RegExp(`"\\$fn"[${WS}]*$`, 'm'),
 ];
 
 // isPositionalDispatchSuite(content) -> true when the suite's own text
 // matches at least one of the idioms above — i.e. it actually dispatches on
 // a positional selector rather than ignoring $1 and running every test.
-function isPositionalDispatchSuite(content) {
+export function isPositionalDispatchSuite(content) {
   return POSITIONAL_DISPATCH_PATTERNS.some((re) => re.test(content));
 }
 
@@ -374,10 +400,36 @@ function buildIsolatedClone() {
       }
     }
 
-    const cloneTreeHash = hashFromFileHashes(computeTreeFileHashes(cloneDir));
+    // NB-5: RUNTIME_ALLOWLIST paths are now part of the tree hash (tree-hash.mjs
+    // listTreeFiles), so they must ALSO be reproduced in the clone — the same
+    // way an ordinary untracked-not-ignored file is above — or every run would
+    // spuriously refuse (source hash includes the path, clone hash does not,
+    // since `git ls-files --others --exclude-standard` never lists a
+    // gitignored path). Copied only when present, same skip-by-name
+    // discipline as the untracked-file loop above.
+    for (const rel of RUNTIME_ALLOWLIST) {
+      const src = path.join(ROOT, rel);
+      if (!fs.existsSync(src)) continue;
+      const dst = path.join(cloneDir, rel);
+      try {
+        fs.mkdirSync(path.dirname(dst), { recursive: true });
+        fs.copyFileSync(src, dst);
+      } catch (err) {
+        process.stderr.write(`mutation-run: skipping runtime-allowlist path that could not be reproduced in the clone: ${rel} (${err.message})\n`);
+      }
+    }
+
+    const cloneTreeFiles = computeTreeFileHashes(cloneDir);
+    const cloneTreeHash = hashFromFileHashes(cloneTreeFiles);
     if (cloneTreeHash !== sourceTreeHash) {
+      // Remediation round 3 NB-3: name the changed path(s), the same way the
+      // D7 in-run tripwire does — this mismatch is most often a CONCURRENT
+      // WRITER touching the source tree between the hash captured above and
+      // the diff/untracked-copy steps just run against ROOT again, not a bug
+      // in the clone builder itself.
+      const treeDiff = diffTreeFileHashes(sourceTreeFiles, cloneTreeFiles);
       throw new TreeMismatchError(
-        `mutation-run: clone tree hash (${cloneTreeHash}) does not match the source working tree's (${sourceTreeHash}) — the clone does not reproduce your tree`
+        `mutation-run: clone tree hash (${cloneTreeHash}) does not match the source working tree's (${sourceTreeHash}) — ${describeTreeDiff(treeDiff)} — the clone does not reproduce your tree`
       );
     }
 
@@ -442,11 +494,24 @@ function rotateExisting(dir, testId) {
   const prevText = fs.readFileSync(live, 'utf8');
   const parsed = parseRecord(prevText);
   const stamp = parsed.ok ? parsed.fields.run_at_utc : `unknown-${Date.now()}`;
-  const rotated = path.join(dir, rotatedFileName(testId, stamp));
+
+  // NB2-r3: `run_at_utc` is ISO to the SECOND, so two rotations landing in
+  // the same second would otherwise target the identical archive name and
+  // the later write would silently clobber the earlier one — the one case
+  // D2's "never delete, never overwrite" did not itself cover. Probe for the
+  // first name (bare, then .1, .2, ...) not already on disk, for BOTH the
+  // record and its patch sibling together, so the two stay paired under the
+  // same suffix.
+  let suffix; // undefined = the bare (unsuffixed) name
+  let rotated = path.join(dir, rotatedFileName(testId, stamp));
+  while (fs.existsSync(rotated)) {
+    suffix = (suffix ?? 0) + 1;
+    rotated = path.join(dir, rotatedFileName(testId, stamp, suffix));
+  }
 
   const livePatch = path.join(dir, patchFileName(testId));
   const hasPatch = fs.existsSync(livePatch);
-  const rotatedPatchAbs = path.join(dir, rotatedPatchFileName(testId, stamp));
+  const rotatedPatchAbs = path.join(dir, rotatedPatchFileName(testId, stamp, suffix));
 
   // NB7-r2: rotation moves the record AND its --patch copy in lockstep
   // (below), so the rotated RECORD's own `mutation:` field must be rewritten
@@ -460,9 +525,30 @@ function rotateExisting(dir, testId) {
   let rotatedText = prevText;
   if (hasPatch && parsed.ok && parsed.fields.mutation.startsWith('patch:')) {
     const rotatedPatchRel = path.relative(ROOT, rotatedPatchAbs);
-    rotatedText = prevText.replace(/^mutation: patch:.*$/m, `mutation: patch:${rotatedPatchRel}`);
+    // NB3-r3: the replacement MUST be a function, never a string. this
+    // repo's own LEARNED rule (js-replace-dollar-quote-corrupts) names the
+    // trap directly: `String.replace`'s STRING form re-interprets `$&`,
+    // `` $` `` and `$'` inside the replacement text as special patterns —
+    // `rotatedPatchRel` is built from the spec's frontmatter `id` (read with
+    // no validation, readSpecId) and a stamp taken verbatim from a prior
+    // record's `run_at_utc` header value (parseRecord accepts arbitrary
+    // single-line text there), so a hand-edited record or a `$`-bearing spec
+    // id reaches this unguarded. A function replacement passes the text
+    // through literally, with no pattern re-interpretation.
+    rotatedText = prevText.replace(/^mutation: patch:.*$/m, () => `mutation: patch:${rotatedPatchRel}`);
   }
-  fs.writeFileSync(rotated, rotatedText);
+  // NB7-r3: write the rotated copy via tmp + renameSync (atomic on the same
+  // filesystem — the same discipline spec-freeze.mjs's own atomic write
+  // uses), and remove the LIVE record only after the rotated copy is safely
+  // in place. The prior `writeFileSync(rotated, ...)` could leave a
+  // TRUNCATED file at the final rotated name if interrupted mid-write; this
+  // ordering never does — the worst case after an interruption between the
+  // rename and the rm is BOTH the live and the rotated record surviving
+  // (a harmless duplicate), never a half-written archive and never the live
+  // record vanishing before its replacement exists.
+  const rotatedTmp = `${rotated}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(rotatedTmp, rotatedText);
+  fs.renameSync(rotatedTmp, rotated);
   fs.rmSync(live);
 
   if (hasPatch) {
@@ -686,8 +772,16 @@ function replay(args) {
     try {
       clone = buildIsolatedClone();
     } catch (err) {
-      failures++;
-      process.stdout.write(`FAIL ${testId}: could not build an isolated clone (${err.message})\n`);
+      // NB-3 (remediation round 3): a buildIsolatedClone() failure — a
+      // TreeMismatchError (a concurrent writer touching the source tree
+      // between the hash and the clone build, this ride's own documented
+      // operating mode) included — means "this replay could not even be
+      // ATTEMPTED", the exact exit-4 class D14 already carves out for a
+      // stale/unapplyable --patch, never a genuine regression (exit 1).
+      // Counting it as failures++ (the pre-fix behavior) manufactured a
+      // false BLOCKING verdict out of an ordinary concurrent full sweep.
+      inconclusive++;
+      process.stdout.write(`INCONCLUSIVE ${testId}: could not build an isolated clone (${err.message})\n`);
       continue;
     }
     // Everything from here on can throw for a REPRODUCIBILITY reason (a
@@ -761,4 +855,11 @@ function main() {
   else runOne(args);
 }
 
-runMain(() => main());
+// NB4-r3 (remediation round 3): standard ESM entry-point guard, so a TEST can
+// `import` this module for its exported helpers (isPositionalDispatchSuite)
+// without also running the CLI against the test's own process.argv — a pure
+// safety addition, zero behavior change for every existing `node
+// mutation-run.mjs ...` invocation (argv[1] IS this file in that case).
+if (path.resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
+  runMain(() => main());
+}

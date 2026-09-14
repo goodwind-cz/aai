@@ -1939,6 +1939,83 @@ EOF
     || log_fail "TEST-479 column back-compat"
 }
 
+# --- TEST-494 (NB-1, remediation round 3): Test Plan header resolution is
+# PREFIX-matched, not a closed exact map, and an unrecognized header cell is
+# named rather than silently dropping a column --------------------------------
+test_494_header_prefix_match_and_unmapped_finding() {
+  local ok=1
+
+  # (1) Node-level proof against the REAL reader: a SPEC-0062-shaped header
+  # ("File path (existing suite)", never the template's own "(expected)"
+  # suffix) still resolves the file cell -- the exact live-corpus shape NB-1
+  # measured losing its fileCell under the old closed exact-match map.
+  local script="$TMP_ROOT/t494-reader.mjs"
+  cat > "$script" <<'EOF'
+import { pathToFileURL } from 'node:url';
+const { parseTestPlanTable } = await import(
+  pathToFileURL(`${process.env.MG_PROJECT_ROOT}/.aai/scripts/lib/docs-model.mjs`).href
+);
+// File path is deliberately at column index 2 here (NOT the CHANGE-0120
+// fixed position 3, which is Type in this table) -- a fallback to the old
+// fixed positions would silently resolve fileCell to "unit" (Type's cell)
+// instead, so this table only passes when the header is ACTUALLY resolved
+// by NAME/prefix, never by a position that happens to line up.
+const spec0062ish = `## Test Plan
+
+| Test ID  | Spec-AC    | File path (existing suite) | Type | Description |
+|----------|------------|-----------------------------|------|--------------|
+| TEST-9001 | Spec-AC-01 | tests/skills/test-aai-real.sh | unit | a |
+`;
+const row = parseTestPlanTable(spec0062ish).rows[0];
+if (!row) { console.error('no row parsed at all'); process.exit(1); }
+if (row.fileCell !== 'tests/skills/test-aai-real.sh') {
+  console.error(`fileCell "${row.fileCell}" != "tests/skills/test-aai-real.sh"`);
+  process.exit(1);
+}
+if (row.typeCell !== 'unit') {
+  console.error(`typeCell "${row.typeCell}" != "unit" (a positional-fallback bug would swap this with fileCell)`);
+  process.exit(1);
+}
+console.log('OK: "File path (existing suite)" resolves fileCell by prefix match, at a NON-canonical column position');
+EOF
+  local out rc
+  out="$(MG_PROJECT_ROOT="$PROJECT_ROOT" node "$script" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-494(1): $out"; ok=0; }
+
+  # (2) An in-flight spec whose Test Plan header carries a column this reader
+  # does NOT recognize by name (never seen in the corpus, never a prefix
+  # match) -> a new `test-plan-header-unmapped` finding names it.
+  new_fixture_root
+  { mg_frontmatter "spec-fixture-header-unmapped" "implementing" "mutation_gate: v1"
+    printf '## Test Plan\n\n| Test ID   | Spec-AC    | Type | File path (expected) | Description | Mutation | Flavor  |\n|-----------|------------|------|-----------------------|--------------|----------|---------|\n| TEST-9001 | Spec-AC-01 | unit | tests/x.sh            | a            | sed:s/OLD/NEW/ | pending |\n'
+  } > "$FIX/docs/specs/SPEC-DRAFT-mg-headerunmapped.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-494(2) unmapped header column" || ok=0
+  assert_payload_line_matches "$out" 'test-plan-header-unmapped.*"Flavor"' \
+    "TEST-494(2): an unrecognized header cell (\"Flavor\", standing in for the Status column) must be named: $out" || ok=0
+
+  # (3) A WELL-KNOWN-but-differently-worded header (SPEC-0062's own shape)
+  # must NOT trip this finding -- prefix matching resolved it in (1).
+  new_fixture_root
+  { mg_frontmatter "spec-fixture-header-0062ish" "implementing" "mutation_gate: v1"
+    printf '## Test Plan\n\n| Test ID   | Spec-AC    | Type | File path (existing suite) | Description | Mutation | Status  |\n|-----------|------------|------|-----------------------------|--------------|----------|---------|\n| TEST-9001 | Spec-AC-01 | unit | tests/x.sh                  | a            | sed:s/OLD/NEW/ | pending |\n'
+  } > "$FIX/docs/specs/SPEC-DRAFT-mg-header0062ish.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-494(3) SPEC-0062-shaped header, no false alarm" || ok=0
+  assert_payload_not_contains "$out" "test-plan-header-unmapped" \
+    "TEST-494(3): a recognized-by-prefix header variant must not trip the unmapped-header finding: $out" || ok=0
+
+  # (4) The real corpus, old-vs-new: no spurious test-plan-header-unmapped
+  # finding fires over 180+ frozen specs (the finding only applies to
+  # IN-FLIGHT specs, and none carry an actually unmapped column today).
+  out="$(cd "$PROJECT_ROOT" && node "$LINT" 2>&1)"
+  assert_payload_not_contains "$out" "test-plan-header-unmapped" \
+    "TEST-494(4): the real corpus produced a test-plan-header-unmapped finding: $out" || ok=0
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-494 the Test Plan header reader resolves known columns by prefix (SPEC-0062's own 'File path (existing suite)' included), never silently drops a cell, and names a genuinely unrecognized header column on an in-flight spec" \
+    || log_fail "TEST-494 header prefix match and unmapped finding"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1992,6 +2069,7 @@ main() {
   test_clarify_012_red_class_stamped
   test_478_mutation_cell_lint
   test_479_column_by_name
+  test_494_header_prefix_match_and_unmapped_finding
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

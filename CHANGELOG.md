@@ -38,7 +38,7 @@ RFC-0001).
   (P3) filed for the Pester/PowerShell gap this ride explicitly leaves open (D18).
 - This spec's own Test Plan is now gated by the tool it delivers: `mutation-gate.mjs`
   against `SPEC-DRAFT-spec-mutation-gate-for-tests.md` exits 0, `degraded=0`,
-  all 21 rows RED-recorded (Spec-AC-16).
+  all 35 rows RED-recorded (Spec-AC-16).
 
 ## [unreleased] — feat(tests): the test framework is fast, hermetic and honest about what it ran
 

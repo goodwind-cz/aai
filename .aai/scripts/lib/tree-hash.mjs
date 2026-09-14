@@ -6,6 +6,19 @@
 // and by any fixture test that needs to assert the SAME property from
 // outside the tool (never a re-implementation of the hash shape).
 //
+// NAMED NARROWING (NB-5, remediation round 3): `listTreeFiles` covers
+// tracked files plus untracked-not-ignored files — it is BLIND to every
+// OTHER gitignored path, i.e. what D7's prose ("the source repository SHALL
+// be byte-identical outside docs/ai/tdd afterwards") actually proves is
+// narrower than it reads: identical across tracked + untracked-not-ignored
+// files outside docs/ai/tdd, not literally every byte on disk. RUNTIME_
+// ALLOWLIST below closes the one class that matters for this tool's own
+// claim — the gitignored runtime paths THIS REPOSITORY's own ceremony
+// writes while a suite runs (docs/ai/STATE.yaml, docs/ai/LOOP_TICKS.jsonl) —
+// added to the hash by name, only when they exist, never a blanket "hash
+// every gitignored path" (which would also catch arbitrary developer
+// scratch files with no bearing on the tripwire's claim).
+//
 // Node stdlib only (docs/TECHNOLOGY.md).
 
 import fs from 'node:fs';
@@ -15,14 +28,21 @@ import { createHash } from 'node:crypto';
 
 const EXCLUDED_PREFIX = 'docs/ai/tdd';
 
+// NB-5: gitignored runtime paths hashed BY NAME, in addition to tracked +
+// untracked-not-ignored, when they exist under the directory being scanned —
+// see the module header. Closed list, not a glob: widening it is a decision,
+// not a side effect of some other change.
+export const RUNTIME_ALLOWLIST = ['docs/ai/STATE.yaml', 'docs/ai/LOOP_TICKS.jsonl'];
+
 function isExcluded(rel) {
   return rel === EXCLUDED_PREFIX || rel.startsWith(`${EXCLUDED_PREFIX}/`);
 }
 
 // git ls-files (tracked) + git ls-files --others --exclude-standard
-// (untracked, not ignored), EXCLUDING docs/ai/tdd/** on both sides: the
-// evidence this tool writes must never be able to change the verdict it is
-// about to record, or the shipping-tree tripwire it computes after the fact.
+// (untracked, not ignored) + RUNTIME_ALLOWLIST's named gitignored paths (NB-5)
+// when present, EXCLUDING docs/ai/tdd/** throughout: the evidence this tool
+// writes must never be able to change the verdict it is about to record, or
+// the shipping-tree tripwire it computes after the fact.
 export function listTreeFiles(dir) {
   const tracked = execFileSync('git', ['-C', dir, 'ls-files'], { encoding: 'utf8' });
   const untracked = execFileSync('git', ['-C', dir, 'ls-files', '--others', '--exclude-standard'], { encoding: 'utf8' });
@@ -34,6 +54,10 @@ export function listTreeFiles(dir) {
       if (isExcluded(p)) continue;
       all.add(p);
     }
+  }
+  for (const rel of RUNTIME_ALLOWLIST) {
+    if (isExcluded(rel)) continue;
+    if (fs.existsSync(path.join(dir, rel))) all.add(rel);
   }
   return [...all].sort();
 }

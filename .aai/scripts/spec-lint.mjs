@@ -601,6 +601,19 @@ export function lintContent(content, opts = {}) {
   // --- Test Plan -> Spec-AC mapping -----------------------------------------
   const tp = parseTestPlan(norm);
   const coveredAcIds = new Set();
+  // NB-1 (remediation round 3): a Test Plan header cell this reader does not
+  // recognize is now caught rather than silently dropping the whole column
+  // (docs-model.mjs `resolveTestPlanHeaderKey` / positional fallback). Named
+  // only for an IN-FLIGHT spec — the 183-document corpus's own frozen specs
+  // are pre-change history this rule has no business relitigating; an
+  // in-flight author can still fix the header before freeze.
+  if (IN_FLIGHT_STATUSES.includes(fmStatus) && tp.unrecognizedHeaderCells?.length) {
+    add(
+      'test-plan-header-unmapped',
+      `Test Plan header cell(s) not recognized by name: ${tp.unrecognizedHeaderCells.map((c) => `"${c}"`).join(', ')} — the reader falls back to position for Test ID/Spec-AC/Type/File path, but Description/Mutation/Status stay unresolved for that column`,
+      tp.headerLine,
+    );
+  }
   // Mutation column applicability (D9, reused by D15 below) — see
   // mutationGateApplicability() for the rule. Computed once here so the
   // per-row findings loop and the exemption exposed to the caller (Spec-AC-08

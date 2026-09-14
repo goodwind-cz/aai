@@ -32,6 +32,15 @@
 //      Test Plan unparseable, git unavailable)
 //   2  usage error
 //
+// NB-7 (remediation round 3): a Test Plan row whose Status cell is a
+// TERMINAL-NOT-GREEN value (deferred/dropped/rejected — the vocabulary the
+// live corpus's own Test Plan Status columns already use, distinct from the
+// AC Status table's done/deferred/blocked/rejected) is EXEMPT: a ride that
+// truthfully defers or drops a row, disclosed in an amendment, must still be
+// able to close — fabricating a RED record or deleting the row were the only
+// two ways to satisfy the gate before this fix. Exempt rows are named in the
+// output (`EXEMPT <TEST-id>: status <value>`), never silently skipped.
+//
 // NB8-r2 (disclosed design, D8): the gate reads ROWS, not the suite's own
 // text — renaming a selector out from under an otherwise-satisfied record
 // clears this gate at PASS (it never re-derives whether the record's
@@ -51,6 +60,12 @@ import { parseFrontmatter, parseTestPlanTable, resolveStrategy, isMutationCellPl
 import { parseRecord, recordFileName } from './lib/mutation-record.mjs';
 
 const ROOT = process.cwd();
+
+// NB-7: the closed set of Test Plan Status values that exempt a row from the
+// RED-record requirement — a terminal disposition the ride disclosed, not a
+// green pass. `pending` and `green` (and `red`, mid-flight) are NOT terminal
+// here: only these three take a row out of the gate's judgement entirely.
+const EXEMPT_STATUSES = new Set(['deferred', 'dropped', 'rejected']);
 
 function usageError(msg) {
   process.stderr.write(`mutation-gate: ${msg}\n`);
@@ -167,6 +182,7 @@ function main() {
       if (args.listDegraded) {
         for (const d of payload.degraded_rows ?? []) console.log(`DEGRADED ${d.testId}: ${d.reason}`);
       }
+      for (const e of payload.exempt_rows ?? []) console.log(`EXEMPT ${e.testId}: status ${e.status}`);
       for (const o of payload.offending_rows ?? []) console.log(`OFFENDING ${o.testId}: ${o.reason}`);
     }
   };
@@ -207,7 +223,13 @@ function main() {
   }
 
   const offending = [];
+  const exempt = [];
   for (const row of tp.rows) {
+    const statusNorm = (row.statusCell ?? '').trim().toLowerCase();
+    if (EXEMPT_STATUSES.has(statusNorm)) {
+      exempt.push({ testId: row.testId, status: statusNorm });
+      continue;
+    }
     const mCell = (row.mutationCell ?? '').trim();
     if (!mCell) {
       offending.push({ testId: row.testId, reason: 'Mutation cell is empty' });
@@ -256,19 +278,22 @@ function main() {
       degraded: 0,
       offending_rows: offending,
       degraded_rows: [],
-      summary_line: `GATE FAIL: ${offending.length} offending row(s) degraded=0`,
+      exempt_rows: exempt,
+      summary_line: `GATE FAIL: ${offending.length} offending row(s) degraded=0${exempt.length ? ` exempt=${exempt.length}` : ''}`,
     };
     summary(payload);
     exit(5);
   }
 
+  const satisfied = tp.rows.length - exempt.length;
   const payload = {
     spec_id: specId,
     applicable: true,
     degraded: 0,
     offending_rows: [],
     degraded_rows: [],
-    summary_line: `GATE PASS: ${tp.rows.length} row(s) satisfied degraded=0`,
+    exempt_rows: exempt,
+    summary_line: `GATE PASS: ${satisfied} row(s) satisfied degraded=0${exempt.length ? ` exempt=${exempt.length}` : ''}`,
   };
   summary(payload);
   exit(0);

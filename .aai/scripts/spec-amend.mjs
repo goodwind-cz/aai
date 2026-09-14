@@ -975,6 +975,7 @@ const DEFAULT_SPECS_DIR = 'docs/specs';
 function scanSpecAnchors(specsDirAbs) {
   const violations = [];
   const degraded = [];
+  let scanned = 0;
   for (const abs of walk(specsDirAbs).sort()) {
     let content;
     try {
@@ -985,6 +986,7 @@ function scanSpecAnchors(specsDirAbs) {
     const fm = parseFrontmatter(content);
     if (!fm || String(fm.type ?? '').trim().toLowerCase() !== 'spec') continue;
     if (!specFrozenInBody(content)) continue;
+    scanned += 1; // NB-2: a frozen spec this scan actually looked at
     const specId = str(fm.id) ?? path.basename(abs);
     const rel = path.relative(process.cwd(), abs) || abs;
     const anchor = str(fm.frozen_sha256);
@@ -996,7 +998,7 @@ function scanSpecAnchors(specsDirAbs) {
       violations.push({ spec_id: specId, path: rel });
     }
   }
-  return { violations, degraded };
+  return { violations, degraded, scanned };
 }
 
 function cmdList(opts) {
@@ -1017,7 +1019,19 @@ function cmdList(opts) {
   // stays byte-identical to before this scope, and the (small but real) cost
   // of walking docs/specs is paid only by the gate that needs the answer.
   const specsDirAbs = path.resolve(process.cwd(), str(opts.specs_dir) ?? DEFAULT_SPECS_DIR);
-  const specReg = opts.strict ? scanSpecAnchors(specsDirAbs) : { violations: [], degraded: [] };
+  // NB-2 (remediation round 3): scanSpecAnchors' own walk() returns [] for a
+  // missing directory (shared behavior with every other walk() caller in
+  // docs-model.mjs, so walk() itself is not the thing to change) — that made
+  // `list --strict` from the wrong cwd, or with a typo'd --specs-dir, scan
+  // NOTHING and still print `spec_degraded=0` and exit 0: indistinguishable
+  // from a clean corpus, exactly the failure the spec's own Isolation section
+  // names ("a gate that finds nothing is indistinguishable from a gate that
+  // found compliance"). Refuse instead of scanning nothing.
+  if (opts.strict && !fs.existsSync(specsDirAbs)) {
+    process.stderr.write(`spec-amend: --strict specs_dir does not exist: ${specsDirAbs} — refusing rather than silently scanning nothing\n`);
+    exit(2);
+  }
+  const specReg = opts.strict ? scanSpecAnchors(specsDirAbs) : { violations: [], degraded: [], scanned: 0 };
   const specViolations = specReg.violations;
 
   if (opts.json) {
@@ -1029,6 +1043,7 @@ function cmdList(opts) {
       items: shown,
       violations: violations.map((v) => ({ ts: v.ts, ref_id: v.ref_id, bucket: v.bucket })),
       spec_violations: specViolations,
+      spec_scanned: specReg.scanned,
       spec_degraded: specReg.degraded,
       notes: reg.notes,
     }, null, 2));
@@ -1043,7 +1058,7 @@ function cmdList(opts) {
       // anchor must not produce 174 lines on every run. `--list-degraded`
       // prints the per-spec detail (small fixture corpora in tests want it
       // by name).
-      console.log(`spec-amend: spec_degraded=${specReg.degraded.length} (no freeze anchor) specs_dir=${specsDirAbs}`);
+      console.log(`spec-amend: spec_scanned=${specReg.scanned} spec_degraded=${specReg.degraded.length} (no freeze anchor) specs_dir=${specsDirAbs}`);
       if (opts.list_degraded) {
         for (const d of specReg.degraded) console.log(`DEGRADED no freeze anchor spec=${d.spec_id} path=${d.path}`);
       }

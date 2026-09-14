@@ -1178,6 +1178,412 @@ EOS
   log_pass "TEST-493 mutation-run.mjs records whether the row's own suite actually honours the positional selector, both directions, and NOTEs the non-dispatching case"
 }
 
+# --- TEST-496 — Spec-AC-11/D14 (NB-3, remediation round 3): a
+# buildIsolatedClone() failure during --replay is INCONCLUSIVE, never a
+# genuine regression -----------------------------------------------------
+test_496_replay_clone_build_failure_inconclusive() {
+  log_info "Test: --replay classifies a buildIsolatedClone() failure as INCONCLUSIVE (exit 4), never failures (exit 1) (TEST-496, closes NB-3)..."
+  if [[ "$(id -u)" == "0" ]]; then
+    log_info "TEST-496: running as root ignores file permission bits — the chmod 000 probe below cannot force a deterministic clone-build failure this way; this arm is inapplicable on this host"
+    return
+  fi
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-496"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  printf 'marker-present' > "$fx/lib/extra.txt"
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-496 setup: expected a RED record, got exit $rc: $out"
+
+  # Force EVERY future buildIsolatedClone() call to fail deterministically:
+  # `git -C ROOT rev-parse HEAD` is its very first command, so an unreadable
+  # .git directory refuses immediately and reliably — no timing race needed
+  # (unlike arm5's concurrent-editor race, this is the OTHER buildIsolatedClone
+  # failure shape: not a tree mismatch, just "could not build a clone at all").
+  chmod 000 "$fx/.git"
+  out="$(cd "$fx" && node "$MUTATION_RUN" --replay --spec docs/specs/fixture-spec.md 2>&1)" && rc=0 || rc=$?
+  chmod 755 "$fx/.git"
+  [[ "$rc" -eq 4 ]] || log_fail "TEST-496: --replay must exit 4 (inconclusive) when buildIsolatedClone() itself fails, never exit 1 (a genuine regression), got $rc: $out"
+  assert_payload_line_matches "$out" 'INCONCLUSIVE TEST-9001:.*could not build an isolated clone' \
+    "TEST-496: replay must report TEST-9001 INCONCLUSIVE naming the clone-build failure: $out"
+  assert_payload_not_contains "$out" "FAIL TEST-9001" \
+    "TEST-496: a clone-build failure must never be reported as FAIL (a regression signal): $out"
+
+  log_pass "TEST-496 --replay classifies a buildIsolatedClone() failure (this ride's own documented concurrent-operating-mode shape) as inconclusive, exit 4, never a genuine regression"
+}
+
+# --- TEST-497 — Spec-AC-01/D7 (NB-5, remediation round 3): the D7 tripwire
+# also catches a write into a NAMED gitignored runtime path -----------------
+test_497_d7_catches_runtime_allowlist_path() {
+  log_info "Test: the D7 tripwire catches a write into the source tree's docs/ai/STATE.yaml (gitignored, not tracked) via lib/tree-hash.mjs's RUNTIME_ALLOWLIST (TEST-497, closes NB-5)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_spec "$fx" "fixture-spec-497"
+  printf 'docs/ai/tdd/\ndocs/ai/STATE.yaml\n' > "$fx/.gitignore"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+
+  # A slow selector, so a background writer has a real window against the
+  # SOURCE tree while the clone's suite runs (the same shape TEST-481 arm 5
+  # uses for a TRACKED file — here the write lands on an UNTRACKED, ignored
+  # runtime path instead).
+  cat > "$fx/tests/skills/fixture-suite.sh" <<'EOS'
+#!/usr/bin/env bash
+set -uo pipefail
+FSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FROOT="$(cd "$FSCRIPT_DIR/../.." && pwd)"
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+test_9001_slow_greet() {
+  sleep 3
+  local out; out="$(node "$FROOT/lib/greeting.mjs" 2>&1)"
+  [[ "$out" == "hello" ]] || log_fail "TEST-9001 greeting mismatch: got '$out'"
+  log_pass "TEST-9001 greeting ok"
+}
+main() {
+  if [[ -n "${1:-}" ]]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"; return
+  fi
+  test_9001_slow_greet
+}
+main "$@"
+EOS
+  ( cd "$fx" && git add -A && git commit -q -m base )
+
+  ( sleep 1; mkdir -p "$fx/docs/ai" && printf 'current_focus: intruder\n' >> "$fx/docs/ai/STATE.yaml" ) &
+  local bgpid=$!
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_slow_greet \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  wait "$bgpid" 2>/dev/null || true
+  [[ "$rc" -eq 6 ]] || log_fail "TEST-497: a concurrent write to docs/ai/STATE.yaml (gitignored, RUNTIME_ALLOWLIST) during the run must be caught by the D7 tripwire (exit 6, INCONCLUSIVE), got $rc: $out"
+  assert_payload_contains "$out" "docs/ai/STATE.yaml" \
+    "TEST-497: the D7 message must name docs/ai/STATE.yaml as the changed path: $out"
+  assert_payload_contains "$out" "D7 tripwire" \
+    "TEST-497: the D7 message must identify itself as the D7 tripwire: $out"
+
+  local rec; rec="$(mg_record_path "$fx" fixture-spec-497 TEST-9001)"
+  grep -qF 'verdict: INCONCLUSIVE' "$rec" || log_fail "TEST-497: record's verdict is not INCONCLUSIVE: $(cat "$rec")"
+
+  log_pass "TEST-497 the D7 tripwire's tree hash now covers docs/ai/STATE.yaml by name (lib/tree-hash.mjs RUNTIME_ALLOWLIST), catching a concurrent write to a gitignored runtime path that tracked+untracked-not-ignored alone would miss"
+}
+
+# --- TEST-498 — Spec-AC-05/D8 (NB-7, remediation round 3): a terminal-not-
+# green Status cell exempts a row from the RED-record requirement -----------
+test_498_gate_status_exemption() {
+  log_info "Test: mutation-gate.mjs exempts a Test Plan row whose Status cell is deferred/dropped/rejected, naming it EXEMPT rather than demanding a RED record (TEST-498, closes NB-7)..."
+  local suite="tests/skills/fixture-suite.sh"
+
+  # (A) a single deferred row with NO record at all, and an empty Mutation
+  # cell — the exact shape that used to be unsatisfiable without fabricating
+  # a record or deleting the row.
+  local id_a; id_a="$(mg_gate_id exempt-deferred)"
+  local spec_a; spec_a="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_a" "$id_a" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a |  | deferred |
+EOF
+  mkdir -p "$(mg_gate_evidence_dir "$id_a")"
+  local out rc
+  out="$(mg_gate "$spec_a" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-498(A) deferred: want exit 0, got $rc: $out"
+  assert_payload_line_matches "$out" 'EXEMPT TEST-9001: status deferred' \
+    "TEST-498(A): deferred row not named EXEMPT: $out"
+  assert_payload_contains "$out" 'satisfied degraded=0' "TEST-498(A): summary line missing: $out"
+
+  # (B) dropped and rejected, same shape, both exempt in one spec, alongside
+  # ONE genuinely satisfied row — proves exemption is per-row, not
+  # all-or-nothing, and the satisfied count excludes the exempt rows.
+  local head_commit; head_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+  local id_b; id_b="$(mg_gate_id exempt-mixed)"
+  local spec_b; spec_b="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_b" "$id_b" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a |  | dropped |
+| TEST-9002 | Spec-AC-01 | unit | ${suite} | b |  | rejected |
+| TEST-9003 | Spec-AC-01 | unit | ${suite} | c | sed:s/OLD/NEW/ | pending |
+EOF
+  mg_write_gate_record "$(mg_gate_evidence_dir "$id_b")" TEST-9003 TEST-9003 "$suite" RED "$head_commit"
+  out="$(mg_gate "$spec_b" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-498(B) mixed: want exit 0, got $rc: $out"
+  assert_payload_line_matches "$out" 'EXEMPT TEST-9001: status dropped' "TEST-498(B): TEST-9001 not EXEMPT: $out"
+  assert_payload_line_matches "$out" 'EXEMPT TEST-9002: status rejected' "TEST-498(B): TEST-9002 not EXEMPT: $out"
+  assert_payload_contains "$out" '1 row(s) satisfied' "TEST-498(B): satisfied count must exclude the two exempt rows: $out"
+
+  # (C) a deferred row whose Status the gate reads case-insensitively / with
+  # surrounding whitespace, still exempt.
+  local id_c; id_c="$(mg_gate_id exempt-case)"
+  local spec_c; spec_c="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_c" "$id_c" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a |  | Deferred |
+EOF
+  mkdir -p "$(mg_gate_evidence_dir "$id_c")"
+  out="$(mg_gate "$spec_c" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-498(C) case-insensitive deferred: want exit 0, got $rc: $out"
+  assert_payload_line_matches "$out" 'EXEMPT TEST-9001: status deferred' "TEST-498(C): mixed-case Deferred not exempted: $out"
+
+  log_pass "TEST-498 mutation-gate.mjs exempts a Test Plan row whose Status is deferred/dropped/rejected, naming it EXEMPT, and excludes exempt rows from the satisfied count"
+}
+
+# --- TEST-499 — Spec-AC-01/D7 (NB1-r3, remediation round 3): the NORMAL-run
+# D7 self-check also names the changed path, not only --replay's -----------
+test_499_d7_normal_run_names_path() {
+  log_info "Test: a concurrent editor of a TRACKED file during a normal (non-replay) run is caught by the D7 tripwire and the message names the changed path, exactly like --replay's own message (TEST-499, closes the NB1-r3 mutation-free survivor)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_spec "$fx" "fixture-spec-499"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  printf 'marker\n' > "$fx/CONCURRENT_MARKER.txt"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+
+  cat > "$fx/tests/skills/fixture-suite.sh" <<'EOS'
+#!/usr/bin/env bash
+set -uo pipefail
+FSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FROOT="$(cd "$FSCRIPT_DIR/../.." && pwd)"
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+test_9001_slow_greet() {
+  sleep 3
+  local out; out="$(node "$FROOT/lib/greeting.mjs" 2>&1)"
+  [[ "$out" == "hello" ]] || log_fail "TEST-9001 greeting mismatch: got '$out'"
+  log_pass "TEST-9001 greeting ok"
+}
+main() {
+  if [[ -n "${1:-}" ]]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"; return
+  fi
+  test_9001_slow_greet
+}
+main "$@"
+EOS
+  ( cd "$fx" && git add -A && git commit -q -m 'slow selector' )
+
+  ( sleep 1; printf 'edited-by-concurrent-writer\n' >> "$fx/CONCURRENT_MARKER.txt" ) &
+  local bgpid=$!
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_slow_greet \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  wait "$bgpid" 2>/dev/null || true
+  [[ "$rc" -eq 6 ]] || log_fail "TEST-499: a normal run must exit 6 (INCONCLUSIVE) when the source tree changes concurrently, got $rc: $out"
+  assert_payload_line_matches "$out" 'INCONCLUSIVE:.*CONCURRENT_MARKER\.txt' \
+    "TEST-499: the normal-run D7 message must name the changed path CONCURRENT_MARKER.txt: $out"
+  assert_payload_contains "$out" "this run, or another writer" \
+    "TEST-499: the normal-run D7 message must own that it cannot tell a concurrent writer from its own run: $out"
+
+  local rec; rec="$(mg_record_path "$fx" fixture-spec-499 TEST-9001)"
+  grep -qF 'verdict: INCONCLUSIVE' "$rec" || log_fail "TEST-499: record's verdict is not INCONCLUSIVE: $(cat "$rec")"
+  grep -qF 'CONCURRENT_MARKER.txt' "$rec" || log_fail "TEST-499: record's first_fail does not name the changed path: $(cat "$rec")"
+
+  log_pass "TEST-499 the normal-run D7 self-check names the changed path exactly like --replay's own message, closing the NB1-r3 mutation-free survivor"
+}
+
+# --- TEST-500 — D2 (NB2-r3, remediation round 3): a rotated-name collision
+# gets a monotonic suffix, never a silent overwrite --------------------------
+test_500_rotation_same_second_suffix() {
+  log_info "Test: a rotated record name collision (two rotations sharing one run_at_utc stamp) gets a monotonic .1/.2 suffix rather than silently overwriting the earlier archive (TEST-500, closes NB2-r3)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-500"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  printf 'marker-present' > "$fx/lib/extra.txt"
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-500 setup: expected a RED record, got exit $rc: $out"
+
+  local rec; rec="$(mg_record_path "$fx" fixture-spec-500 TEST-9001)"
+  local stamp; stamp="$(grep '^run_at_utc: ' "$rec" | sed 's/^run_at_utc: //')"
+  local dir; dir="$(dirname "$rec")"
+
+  # Pre-occupy the bare rotated name the NEXT run would try first, with a
+  # marker the real tool must never touch — this deterministically forces the
+  # same-second collision D2's rotation naming did not itself cover, without
+  # relying on two real runs landing in the same wall-clock second.
+  printf 'PRE-EXISTING ARCHIVE — must never be overwritten\n' > "$dir/mutation-TEST-9001.${stamp}.txt"
+
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed "s/'\\);/')/" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-500: second run (STAYED GREEN) exit wrong, got $rc: $out"
+
+  [[ "$(cat "$dir/mutation-TEST-9001.${stamp}.txt")" == 'PRE-EXISTING ARCHIVE — must never be overwritten' ]] \
+    || log_fail "TEST-500: the pre-existing archive at the bare stamp name was overwritten"
+
+  [[ -f "$dir/mutation-TEST-9001.${stamp}.1.txt" ]] \
+    || log_fail "TEST-500: the real first record must be archived at the .1 suffix once the bare name is taken, found: $(ls "$dir")"
+  grep -qF 'test_id: TEST-9001' "$dir/mutation-TEST-9001.${stamp}.1.txt" \
+    || log_fail "TEST-500: the .1-suffixed archive does not carry the rotated record's own content: $(cat "$dir/mutation-TEST-9001.${stamp}.1.txt")"
+
+  log_pass "TEST-500 a rotated-name collision (same run_at_utc second) is resolved with a monotonic .1 suffix — the pre-existing archive survives untouched, and the real record still gets archived"
+}
+
+# --- TEST-501 — D2/D14 (NB3-r3, remediation round 3): rotateExisting's
+# pointer rewrite is not corrupted by $-patterns in the rotated path --------
+test_501_rotation_dollar_pattern_safe() {
+  log_info "Test: a rotated record's mutation: pointer rewrite survives a spec id containing \$-patterns (\$& etc.) without duplicating or truncating the record (TEST-501, closes NB3-r3)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  # A spec id containing a literal '$&' — the exact String.replace trap this
+  # repo's own LEARNED rule names (js-replace-dollar-quote-corrupts):
+  # rotatedPatchRel is built from this id, unvalidated (readSpecId), and
+  # reaches rotateExisting's pointer rewrite.
+  mg_write_spec "$fx" 'fixture-spec-501-a$&b'
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  printf 'marker-present' > "$fx/lib/extra.txt"
+
+  local patch1; patch1="$(mg_new_fixture)/first.patch"
+  cat > "$patch1" <<'EOF'
+--- a/lib/greeting.mjs
++++ b/lib/greeting.mjs
+@@ -1 +1 @@
+-console.log('hello');
++console.log('goodbye');
+EOF
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --patch "$patch1" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-501 setup 1: expected a RED record, got exit $rc: $out"
+
+  local rec; rec="$(mg_record_path "$fx" 'fixture-spec-501-a$&b' TEST-9001)"
+  local run_at1; run_at1="$(grep '^run_at_utc: ' "$rec" | sed 's/^run_at_utc: //')"
+
+  local patch2; patch2="$(mg_new_fixture)/second.patch"
+  cat > "$patch2" <<'EOF'
+--- a/lib/greeting.mjs
++++ b/lib/greeting.mjs
+@@ -1 +1 @@
+-console.log('hello');
++console.log('farewell');
+EOF
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --patch "$patch2" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-501 setup 2: expected a second RED record (rotating the first), got exit $rc: $out"
+
+  local rotated_txt; rotated_txt="$(dirname "$rec")/mutation-TEST-9001.${run_at1}.txt"
+  [[ -f "$rotated_txt" ]] || log_fail "TEST-501: rotated record not found at $rotated_txt"
+
+  # The parser is the authority on whether the record is intact — a
+  # corrupted rewrite duplicates the tail or truncates the mutation: line,
+  # and either shape breaks parseRecord (never re-implemented here).
+  local parse_out
+  parse_out="$(node --input-type=module -e "
+import { parseRecord } from '$PROJECT_ROOT/.aai/scripts/lib/mutation-record.mjs';
+import fs from 'node:fs';
+const text = fs.readFileSync(process.argv[1], 'utf8');
+const parsed = parseRecord(text);
+if (!parsed.ok) { console.log('PARSE_FAIL: ' + parsed.error); process.exit(0); }
+console.log('PARSE_OK mutation=' + parsed.fields.mutation);
+" "$rotated_txt")"
+  assert_payload_contains "$parse_out" "PARSE_OK" \
+    "TEST-501: the rotated record must still parse as a valid v1 record after the pointer rewrite: $parse_out"
+  assert_payload_contains "$parse_out" 'mutation=patch:docs/ai/tdd/fixture-spec-501-a$&b/mutation-TEST-9001' \
+    "TEST-501: the rotated record's mutation: field must resolve to its OWN rotated patch path, literally (no \$-pattern reinterpretation): $parse_out"
+
+  log_pass "TEST-501 rotateExisting's pointer rewrite passes a function (never a string) to String.replace, so a \$-bearing spec id in the rotated path is inserted literally rather than corrupting the record"
+}
+
+# --- TEST-502 — D2 (NB5-r3, remediation round 3): parseRecord tolerates an
+# unrecognized header key -- this IS the v1 back-compat contract ------------
+test_502_parse_record_tolerates_extra_field() {
+  log_info "Test: a mutation record carrying an extra, unrecognized header key still parses as v1 and still satisfies the gate -- the exact tolerance the selector_honoured field (NB6-r2) depends on (TEST-502, closes NB5-r3)..."
+  local suite="tests/skills/fixture-suite.sh"
+  local head_commit; head_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+
+  local id; id="$(mg_gate_id extra-field-tolerance)"
+  local spec; spec="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec" "$id" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/OLD/NEW/ | pending |
+EOF
+  local dir; dir="$(mg_gate_evidence_dir "$id")"
+  mkdir -p "$dir"
+  cat > "$dir/mutation-TEST-9001.txt" <<EOF
+mutation_record: v1
+spec_id: fixture
+test_id: TEST-9001
+suite: ${suite}
+selector: test_fixture
+target: lib/fixture.mjs
+mutation: sed:s/OLD/NEW/
+base_commit: ${head_commit}
+tree_hash: $(printf '0%.0s' $(seq 1 64))
+run_at_utc: 2026-01-01T00:00:00Z
+rc: 1
+verdict: RED
+first_fail: FAIL fixture TEST-9001
+some_future_field_nobody_has_written_yet: whatever
+---
+fixture tail
+EOF
+
+  local out rc
+  out="$(mg_gate "$spec" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-502: a record with an unrecognized extra header key must still satisfy the gate, got $rc: $out"
+  assert_payload_contains "$out" 'GATE PASS' "TEST-502: expected GATE PASS: $out"
+  assert_payload_contains "$out" 'satisfied degraded=0' "TEST-502: expected a clean satisfied summary: $out"
+
+  log_pass "TEST-502 parseRecord's tolerance of an unrecognized header key is proved by a test, not merely asserted in prose -- the gate still passes a record carrying one"
+}
+
+# --- TEST-503 — Spec-AC-03 (NB6-r3, remediation round 3): a heredoc opener
+# inside a COMMENT line must never open a real heredoc -----------------------
+test_503_heredoc_in_comment_ignored() {
+  log_info "Test: a heredoc marker mentioned inside a full-line comment does not consume a LATER, legitimate heredoc sharing the same marker -- a real selector between them is not swallowed (TEST-503, closes NB6-r3)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_spec "$fx" "fixture-spec-503"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+
+  cat > "$fx/tests/skills/fixture-suite.sh" <<'FIXTURE_EOS'
+#!/usr/bin/env bash
+set -uo pipefail
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+# example: cat <<EOS
+test_swallowed() {
+  :
+}
+write_stuff() {
+  cat <<EOS
+some real heredoc body sharing the SAME marker as the comment above
+EOS
+}
+test_after() {
+  :
+}
+main() { "$1"; }
+main "$@"
+FIXTURE_EOS
+  ( cd "$fx" && git add -A && git commit -q -m 'commented heredoc marker fixture' )
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_nonexistent_selector_xyz \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-503: unknown selector must exit 2, got $rc: $out"
+  assert_payload_contains "$out" "test_swallowed" \
+    "TEST-503: a real selector defined right after a COMMENTED heredoc opener must still be found, never swallowed up to the next real heredoc's terminator: $out"
+  assert_payload_contains "$out" "test_after" \
+    "TEST-503: a real selector defined after the legitimate heredoc must still be found: $out"
+
+  log_pass "TEST-503 a heredoc marker mentioned inside a comment line never opens a real heredoc, so it cannot consume a later, legitimate heredoc's body and swallow the selectors in between"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -1193,6 +1599,14 @@ main() {
   test_491_heredoc_selector_extraction
   test_492_rotated_patch_pointer
   test_493_selector_honoured_field
+  test_496_replay_clone_build_failure_inconclusive
+  test_497_d7_catches_runtime_allowlist_path
+  test_498_gate_status_exemption
+  test_499_d7_normal_run_names_path
+  test_500_rotation_same_second_suffix
+  test_501_rotation_dollar_pattern_safe
+  test_502_parse_record_tolerates_extra_field
+  test_503_heredoc_in_comment_ignored
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -1863,6 +1863,60 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (95), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
 }
 
+# --- TEST-504 (NB4-r3, remediation round 3, Spec-AC-03): the Node copy of the
+# positional-dispatch idioms (mutation-run.mjs POSITIONAL_DISPATCH_PATTERNS)
+# stays aligned with hp_scan_selector_suites' own POSIX [[:space:]] grammar --
+test_130_node_bash_selector_scanner_whitespace_parity() {  # spec-mutation-gate-for-tests TEST-504 / Spec-AC-03
+  log_info "test_130: the Node and bash positional-dispatch scanners agree over the live corpus, and BOTH now recognize a vertical-tab whitespace dispatch line hp_scan_selector_suites' [[:space:]] already covered (TEST-504)..."
+  TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
+
+  # (1) Corpus-wide agreement — the regression guard NB4-r3 asks for: a
+  # future divergence between the two copies must be caught here, not
+  # discovered by hand months later.
+  local node_out bash_out
+  node_out="$(node --input-type=module -e "
+import { isPositionalDispatchSuite } from '$PROJECT_ROOT/.aai/scripts/mutation-run.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+const dir = path.join('$PROJECT_ROOT', 'tests', 'skills');
+const out = [];
+for (const name of fs.readdirSync(dir)) {
+  if (!/^test-aai-.*\.sh\$/.test(name)) continue;
+  const content = fs.readFileSync(path.join(dir, name), 'utf8');
+  if (isPositionalDispatchSuite(content)) out.push(name);
+}
+out.sort();
+process.stdout.write(out.join('\n') + '\n');
+")"
+  bash_out="$(hp_scan_selector_suites "$PROJECT_ROOT" | xargs -n1 basename | sort)"
+  [[ "$node_out" == "$bash_out" ]] \
+    || log_fail "TEST-504: the Node and bash selector scanners disagree over the live corpus — Node: [$node_out] bash: [$bash_out]"
+
+  # (2) A synthetic vertical-tab whitespace dispatch line: the bash scanner's
+  # [[:space:]] already matches it; the Node copy's OLD [ \t]-only class did
+  # not. The fix widens it to [ \t\v\f] — closing the exact gap NB4-r3
+  # measured (reachable only on synthetic input, never on the live corpus).
+  local vtdir="$TEST_DIR/t130-vt"
+  mkdir -p "$vtdir/tests/skills"
+  printf '#!/usr/bin/env bash\nthen\v"$1"\n' > "$vtdir/tests/skills/test-aai-vt-fixture.sh"
+
+  local bash_vt node_vt
+  bash_vt="$(hp_scan_selector_suites "$vtdir" | wc -l | tr -d ' ')"
+  [[ "$bash_vt" == "1" ]] \
+    || log_fail "test_130 setup: the bash scanner (POSIX [[:space:]]) must detect the vertical-tab fixture as a positive control, got $bash_vt"
+
+  node_vt="$(node --input-type=module -e "
+import { isPositionalDispatchSuite } from '$PROJECT_ROOT/.aai/scripts/mutation-run.mjs';
+import fs from 'node:fs';
+const content = fs.readFileSync('$vtdir/tests/skills/test-aai-vt-fixture.sh', 'utf8');
+process.stdout.write(isPositionalDispatchSuite(content) ? 'yes' : 'no');
+")"
+  [[ "$node_vt" == "yes" ]] \
+    || log_fail "TEST-504: the Node scanner must now also recognize a vertical-tab whitespace dispatch line the bash [[:space:]] copy already matched, got '$node_vt' (NB4-r3 whitespace-class alignment)"
+
+  log_pass "test_130 the Node and bash positional-dispatch scanners agree on every real suite in tests/skills, and the widened Node whitespace class ([ \\t\\v\\f]) now also matches a vertical-tab dispatch line the bash [[:space:]] copy already covered (TEST-504)"
+}
+
 # --- TEST-418 (Spec-AC-11) — the drain reached zero, and the scanner still
 # scans. Mutation-only per the spec's own Mutation checks (no red-418.txt):
 # on the pre-drain tree this assertion goes red for the ordinary reason
@@ -4192,6 +4246,7 @@ main() {
   test_128_shipping_scripts_pipe_safe_at_zero
   test_094_mutation_selector_fails_closed_corpus_wide
   test_129_mutation_gate_suite_registration
+  test_130_node_bash_selector_scanner_whitespace_parity
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

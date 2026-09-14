@@ -106,7 +106,7 @@
 2	tests/skills/test-aai-secrets-preflight.sh
 8	tests/skills/test-aai-session-lock.sh
 3	tests/skills/test-aai-spec-amend.sh
-9	tests/skills/test-aai-spec-lint.sh
+10	tests/skills/test-aai-spec-lint.sh
 10	tests/skills/test-aai-spec-tools.sh
 3	tests/skills/test-aai-state.sh
 26	tests/skills/test-aai-suite-isolation.sh

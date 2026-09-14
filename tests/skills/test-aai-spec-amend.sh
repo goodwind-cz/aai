@@ -1776,6 +1776,47 @@ test_485_tracker_must_be_open() {
     || log_fail "TEST-485 tracker must be open"
 }
 
+# --- TEST-495 (NB-2, remediation round 3): a missing --specs-dir refuses,
+# never silently scans nothing; spec_scanned is printed beside spec_degraded -
+test_495_missing_specs_dir_refuses() {
+  log_info "Test: list --strict refuses (exit 2) when --specs-dir does not exist, rather than scanning nothing and printing a clean-looking spec_degraded=0; a real scan names spec_scanned=<n> (TEST-495)..."
+  local led ok=1
+  led="$(mk_ledger t495)"
+
+  # (a) missing dir -> refuse, name the path, write nothing.
+  run_sa list --ledger "$led" --specs-dir "$TEST_DIR/t495-does-not-exist" --strict
+  [[ "$EC" == 2 ]] \
+    || { log_fail "TEST-495 arm a: a missing --specs-dir under --strict must exit 2, got $EC (stdout: $OUT stderr: $ERR)"; ok=0; }
+  grep -qF 't495-does-not-exist' <<<"$ERR" \
+    || { log_fail "TEST-495 arm a: the refusal must name the missing path; stderr: $ERR"; ok=0; }
+
+  # (b) a plain `list` (no --strict) never triggers the check at all — the
+  # scan only runs under --strict (unchanged cost for the plain path).
+  run_sa list --ledger "$led" --specs-dir "$TEST_DIR/t495-does-not-exist"
+  [[ "$EC" == 0 ]] \
+    || { log_fail "TEST-495 arm b: a plain list (no --strict) must not refuse on a missing --specs-dir, got $EC"; ok=0; }
+
+  # (c) a REAL, existing (empty) specs dir under --strict: scans it, prints
+  # spec_scanned=0, never refuses.
+  local emptydir="$TEST_DIR/t495-empty-specs"
+  mkdir -p "$emptydir"
+  run_sa list --ledger "$led" --specs-dir "$emptydir" --strict
+  [[ "$EC" == 0 ]] || { log_fail "TEST-495 arm c: an EMPTY but existing --specs-dir must not refuse, got $EC (stdout: $OUT)"; ok=0; }
+  grep -qF 'spec_scanned=0' <<<"$OUT" \
+    || { log_fail "TEST-495 arm c: spec_scanned=0 must be printed for an empty dir; stdout: $OUT"; ok=0; }
+
+  # (d) the LIVE repository: spec_scanned names a real, non-zero count of
+  # frozen specs actually looked at (never silently 0 from the wrong cwd).
+  run_sa list --ledger "$LIVE_LEDGER" --specs-dir "$PROJECT_ROOT/docs/specs" --strict
+  [[ "$EC" == 0 || "$EC" == 1 ]] \
+    || { log_fail "TEST-495 arm d: the live repository's strict gate exited unexpectedly: $EC (stdout: $OUT)"; ok=0; }
+  grep -qE 'spec_scanned=[1-9][0-9]*' <<<"$OUT" \
+    || { log_fail "TEST-495 arm d: the live run must name a non-zero spec_scanned count; stdout: $OUT"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-495 list --strict refuses a missing --specs-dir (exit 2, naming the path) rather than silently scanning nothing; an existing (even empty) dir is scanned and spec_scanned is always printed beside spec_degraded" \
+    || log_fail "TEST-495 missing specs dir refuses"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -1801,6 +1842,7 @@ main() {
   test_483_honest_edits_and_non_targets
   test_484_legacy_degrades_by_name
   test_485_tracker_must_be_open
+  test_495_missing_specs_dir_refuses
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
