@@ -1633,7 +1633,7 @@ test_104_pgq_shrink_never_lowers_the_bar() {  # TEST-005 / Spec-AC-03
 # — the SECOND ratchet arm: shipping scripts (.aai/scripts/*.sh and
 # .aai/scripts/lib/*.sh) that set pipefail must carry zero occurrences of the
 # early-closing-reader shape too. CI on 1aab60bb reddened from suites, not
-# shipping scripts, but the same class was live in 11 shipping scripts
+# shipping scripts, but the same class was live in 9 shipping scripts
 # (aai-bootstrap.sh, aai-update.sh, autonomous-loop.sh, cloudflare-share.sh,
 # expert-fetch.sh, install-pre-commit-hook.sh, migrate-state-to-local.sh,
 # pre-commit-checks.sh, triage.sh) before this ride rewrote them to

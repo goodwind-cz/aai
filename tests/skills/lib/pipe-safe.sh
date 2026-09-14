@@ -37,10 +37,10 @@
 # Usage: producer | qgrep -qF needle   (same argv shape as `grep`, no FILE arg)
 qgrep() {
   local _qg_tmp _qg_rc
-  _qg_tmp="$(mktemp "${TMPDIR:-/tmp}/aai-qgrep.XXXXXX")" || return 1
+  _qg_tmp="$(mktemp "${TMPDIR:-/tmp}/aai-qgrep.XXXXXX" 2>/dev/null || mktemp /tmp/aai-qgrep.XXXXXX)" || return 1
   cat > "$_qg_tmp"
-  command grep "$@" "$_qg_tmp"
-  _qg_rc=$?
+  _qg_rc=0
+  command grep "$@" "$_qg_tmp" || _qg_rc=$?
   rm -f "$_qg_tmp"
   return "$_qg_rc"
 }
@@ -49,10 +49,10 @@ qgrep() {
 # Usage: producer | qhead -n1
 qhead() {
   local _qh_tmp _qh_rc
-  _qh_tmp="$(mktemp "${TMPDIR:-/tmp}/aai-qhead.XXXXXX")" || return 1
+  _qh_tmp="$(mktemp "${TMPDIR:-/tmp}/aai-qhead.XXXXXX" 2>/dev/null || mktemp /tmp/aai-qhead.XXXXXX)" || return 1
   cat > "$_qh_tmp"
-  command head "$@" "$_qh_tmp"
-  _qh_rc=$?
+  _qh_rc=0
+  command head "$@" "$_qh_tmp" || _qh_rc=$?
   rm -f "$_qh_tmp"
   return "$_qh_rc"
 }

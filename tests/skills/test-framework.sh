@@ -22,8 +22,18 @@
 set -euo pipefail
 
 # Script directory
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# qgrep / qhead: readers that consume stdin to EOF before grep/head sees it,
+# so a producer is never SIGPIPE'd under `pipefail` (round 10). The runner is
+# copied standalone into fixture trees by three suites, so it must not depend
+# on its sibling lib being copied too: source it when present, else define
+# the same two functions inline.
+if [[ -f "$SCRIPT_DIR/lib/pipe-safe.sh" ]]; then
+  . "$SCRIPT_DIR/lib/pipe-safe.sh"
+else
+  qgrep() { local _t _rc; _t="$(mktemp "${TMPDIR:-/tmp}/aai-qgrep.XXXXXX" 2>/dev/null || mktemp /tmp/aai-qgrep.XXXXXX)" || return 1; cat > "$_t"; _rc=0; command grep "$@" "$_t" || _rc=$?; rm -f "$_t"; return "$_rc"; }
+  qhead() { local _t _rc; _t="$(mktemp "${TMPDIR:-/tmp}/aai-qhead.XXXXXX" 2>/dev/null || mktemp /tmp/aai-qhead.XXXXXX)" || return 1; cat > "$_t"; _rc=0; command head "$@" "$_t" || _rc=$?; rm -f "$_t"; return "$_rc"; }
+fi
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Shipping-repository write tripwire (spec-suites-must-not-touch-the-shipping-repo).

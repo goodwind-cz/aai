@@ -39,14 +39,13 @@ if [ -f "$STATE_FILE" ]; then
   STATE_DATA=$(grep -v '^[[:space:]]*#' "$STATE_FILE" 2>/dev/null || true)
   # Check if there's an active work item in implementation phase
   # Simple heuristic: look for phase: implementation without corresponding validation pass
-  # Here-strings, never echo piped into "grep -q" (round 10, PR #381).
-  if grep -q "phase:.*implementation" <<<"$STATE_DATA"; then
+  if echo "$STATE_DATA" | grep -q "phase:.*implementation"; then
     LAST_VALIDATION_BLOCK=$(echo "$STATE_DATA" | awk '
       /^last_validation:/ { flag=1; next }
       /^[^[:space:]]/ { flag=0 }
       flag { print }
     ')
-    if ! grep -q "status: *pass" <<<"$LAST_VALIDATION_BLOCK"; then
+    if ! echo "$LAST_VALIDATION_BLOCK" | grep -q "status: *pass"; then
       warn "TDD cycle may be incomplete — active implementation without validation pass"
     else
       pass "TDD evidence appears complete"
@@ -103,8 +102,7 @@ if [ -n "$STAGED_FILES" ]; then
     matches=$(grep -n 'console\.log\|debugger\|pdb\.set_trace\|binding\.pry\|var_dump' "$filepath" 2>/dev/null || true)
     if [ -n "$matches" ]; then
       warn "Debug statements in $file:"
-      # Here-string into head, never a live pipe (round 10, PR #381).
-      head -3 <<<"$matches" | sed 's/^/    /'
+      echo "$matches" | head -3 | sed 's/^/    /'
       DEBUG_FOUND=1
     fi
   done <<< "$STAGED_FILES"
@@ -145,9 +143,8 @@ if [ -f "$STATE_FILE" ]; then
     /^[^[:space:]]/ { flag=0 }
     flag { print }
   ')
-  # Here-strings, never echo piped into "grep -q" (round 10, PR #381).
-  if grep -q "phase:.*validation" <<<"$STATE_DATA" ||
-     grep -q "status: *pass" <<<"$LAST_VALIDATION_BLOCK"; then
+  if echo "$STATE_DATA" | grep -q "phase:.*validation" ||
+     echo "$LAST_VALIDATION_BLOCK" | grep -q "status: *pass"; then
     REPORTS_DIR="$PROJECT_ROOT/docs/ai/reports"
     if [ -d "$REPORTS_DIR" ] && {
       ls "$REPORTS_DIR"/validation-*.md 1>/dev/null 2>&1 ||
@@ -168,9 +165,8 @@ if [ -f "$STATE_FILE" ]; then
     /^[^[:space:]]/ { flag=0 }
     flag { print }
   ' "$STATE_FILE")
-  # Here-strings, never echo piped into "grep -q" (round 10, PR #381).
-  if grep -q "required: *true" <<<"$CODE_REVIEW_BLOCK"; then
-    if grep -qE "status: *(pass|waived)" <<<"$CODE_REVIEW_BLOCK"; then
+  if echo "$CODE_REVIEW_BLOCK" | grep -q "required: *true"; then
+    if echo "$CODE_REVIEW_BLOCK" | grep -qE "status: *(pass|waived)"; then
       pass "Code review gate satisfied"
     else
       warn "Code review required but not pass/waived"

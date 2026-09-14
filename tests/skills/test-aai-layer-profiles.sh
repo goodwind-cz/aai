@@ -749,7 +749,7 @@ test_466_no_pipe_into_early_closing_reader() {
   # never a pipe — and is not part of this bug class).
   # Any spelling of the two early-closing readers (validation round 8 NB-1:
   # `grep --quiet`, `grep -xq`, `head -1` escaped the first regex).
-  hits="$(/usr/bin/grep -cE '[^|]\|[[:space:]]*(grep[[:space:]]+(-[A-Za-z]*q|--quiet|--silent)|head[[:space:]]+(-n[[:space:]]*1|-1)([^0-9]|$))' "$SYNC_SH" || true)"
+  hits="$(/usr/bin/grep -cE '[^|]\|[[:space:]]*((command[[:space:]]+)?\\?(/usr/bin/)?grep([[:space:]]+-[A-Za-z]+|[[:space:]]+--[a-z-]+)*[[:space:]]+(-[A-Za-z]*q|--quiet|--silent|-m[[:space:]]*[0-9]+)|(command[[:space:]]+)?\\?(/usr/bin/)?head([[:space:]]|$))' "$SYNC_SH" || true)"
   [[ "$hits" -eq 0 ]] || log_fail "TEST-466: aai-sync.sh still pipes into grep -q / head -n1 ($hits occurrence(s)) — pipefail + an early-closing reader can SIGPIPE the writer and flip a real match/line into a false negative or abort the sync"
   log_pass "TEST-466 aai-sync.sh: zero pipe-into-(grep -q|qhead -n1) sites"
 }

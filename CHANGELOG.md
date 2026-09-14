@@ -39,7 +39,7 @@ RFC-0001).
   any producer) still live in the suites (CI reds on 1aab60bb) and drained
   it too, behind new `qgrep`/`qhead` drop-ins (`tests/skills/lib/pipe-
   safe.sh`) with the ratchet's gated pattern widened to match (superset, not
-  just the narrow idiom, now at zero); 11 shipping scripts (26 sites) fixed
+  just the narrow idiom, now at zero); 8 shipping scripts (19 sites) fixed, `pre-commit-checks.sh` (7 sites, an L3 surface) deferred by name under `fu-pre-commit-checks-pipe-grep-q`
   the same way `aai-sync.sh` was in round 9 (here-strings, no suite library
   sourced); nine self-comparing guards got negative controls and fail closed
   (DEBT-0004); six brittle pins assert the property; a degenerate-pass ratchet

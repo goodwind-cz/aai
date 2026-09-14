@@ -42,7 +42,7 @@
 
 # The shape, as an ERE. Kept in one place so the scan and the record mode can
 # never disagree about what is being counted.
-PGQ_PATTERN='[^|]\|[[:space:]]*((/usr/bin/grep|grep|ugrep|egrep|fgrep)[[:space:]]+(-[A-Za-z]*q|--quiet|--silent|-m[0-9]*)|head[[:space:]])'
+PGQ_PATTERN='[^|]\|[[:space:]]*((command[[:space:]]+)?\\?(/usr/bin/|/bin/)?(grep|ugrep|egrep|fgrep)([[:space:]]+-[A-Za-z]+|[[:space:]]+--[a-z-]+)*[[:space:]]+(-[A-Za-z]*q|--quiet|--silent|-m[[:space:]]*[0-9]+|--max-count)|(command[[:space:]]+)?\\?(/usr/bin/|/bin/)?head([[:space:]]|$))'
 # A still-wider, purely informational surface: ANY pipe into ANY spelling of
 # grep, regardless of flags (so it also counts readers that consume to EOF
 # and are not part of this bug class, e.g. `producer | grep -c pattern`).
@@ -75,7 +75,7 @@ pgq_scan() {
   local _pgq_dir="$1" _pgq_f _pgq_n
   for _pgq_f in "$_pgq_dir"/*.sh; do
     [ -f "$_pgq_f" ] || continue
-    _pgq_n="$("$PGQ_GREP" -Eo "$PGQ_PATTERN" "$_pgq_f" 2>/dev/null | "$PGQ_GREP" -c '' 2>/dev/null)" || _pgq_n=0
+    _pgq_n="$("$PGQ_GREP" -vE '^[[:space:]]*#' "$_pgq_f" 2>/dev/null | "$PGQ_GREP" -Eo "$PGQ_PATTERN" 2>/dev/null | "$PGQ_GREP" -c '' 2>/dev/null)" || _pgq_n=0
     [ -n "$_pgq_n" ] || _pgq_n=0
     [ "$_pgq_n" -gt 0 ] || continue
     printf '%s\t%s\n' "$_pgq_n" "${_pgq_f##*/}"
@@ -91,12 +91,20 @@ pgq_scan() {
 # it (same rationale as the tests/skills gate leaving structurally-small
 # producers uncounted). One `<count>\t<relative-path>` line per matching
 # file, sorted by path; a clean file is omitted.
+# Deferred, by name and with a tracker: `.aai/scripts/pre-commit-checks.sh`
+# is a protected_paths_l3 surface; this ride is ceremony 2 and may not edit
+# it (test-aai-hitl-propagation TEST-014). Its 7 sites are tracked by
+# fu-pre-commit-checks-pipe-grep-q and stay visible in the superset count.
+PGQ_SHIPPING_DEFERRED_L3='.aai/scripts/pre-commit-checks.sh'
+# Comment lines are dropped before counting in every arm: a `| head` quoted
+# in prose is not a pipe (validation round 9 follow-through).
 pgq_scan_shipping() {
   local _pgqs_root="$1" _pgqs_f _pgqs_n
   for _pgqs_f in "$_pgqs_root"/.aai/scripts/*.sh "$_pgqs_root"/.aai/scripts/lib/*.sh; do
     [ -f "$_pgqs_f" ] || continue
+    [ "${_pgqs_f#"$_pgqs_root"/}" != "$PGQ_SHIPPING_DEFERRED_L3" ] || continue
     "$PGQ_GREP" -q 'pipefail' "$_pgqs_f" 2>/dev/null || continue
-    _pgqs_n="$("$PGQ_GREP" -Eo "$PGQ_PATTERN" "$_pgqs_f" 2>/dev/null | "$PGQ_GREP" -c '' 2>/dev/null)" || _pgqs_n=0
+    _pgqs_n="$("$PGQ_GREP" -vE '^[[:space:]]*#' "$_pgqs_f" 2>/dev/null | "$PGQ_GREP" -Eo "$PGQ_PATTERN" 2>/dev/null | "$PGQ_GREP" -c '' 2>/dev/null)" || _pgqs_n=0
     [ -n "$_pgqs_n" ] || _pgqs_n=0
     [ "$_pgqs_n" -gt 0 ] || continue
     printf '%s\t%s\n' "$_pgqs_n" "${_pgqs_f#"$_pgqs_root"/}"
@@ -108,7 +116,7 @@ pgq_superset_count() {
   local _pgq_dir="$1" _pgq_f _pgq_t=0 _pgq_n
   for _pgq_f in "$_pgq_dir"/*.sh; do
     [ -f "$_pgq_f" ] || continue
-    _pgq_n="$("$PGQ_GREP" -Eo "$PGQ_SUPERSET_PATTERN" "$_pgq_f" 2>/dev/null | "$PGQ_GREP" -c '' 2>/dev/null)" || _pgq_n=0
+    _pgq_n="$("$PGQ_GREP" -vE '^[[:space:]]*#' "$_pgq_f" 2>/dev/null | "$PGQ_GREP" -Eo "$PGQ_SUPERSET_PATTERN" 2>/dev/null | "$PGQ_GREP" -c '' 2>/dev/null)" || _pgq_n=0
     [ -n "$_pgq_n" ] || _pgq_n=0
     _pgq_t=$(( _pgq_t + _pgq_n ))
   done

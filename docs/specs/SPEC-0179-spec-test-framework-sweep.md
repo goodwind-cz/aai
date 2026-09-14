@@ -1525,3 +1525,34 @@ cascading into every wrapper that nests layer-profiles:
 
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: test-framework-sweep`, `--signoff none`.
+
+### Round 10 addendum — validation round 9 (FAIL) and the full sweep on e2f6563c
+
+- BLOCKING-1: `tests/skills/test-framework.sh` sourced `lib/pipe-safe.sh`
+  unconditionally; three suites copy the runner alone into a fixture tree
+  (repo-tripwire, suite-isolation, sweep-parallel) and died at that line. The
+  runner now sources the lib when present and otherwise defines the same two
+  readers inline; the three suites are green again.
+- `qgrep`/`qhead` fall back to `/tmp` when `TMPDIR` is unusable (suite-isolation
+  TEST-103 points `TMPDIR` at a regular file on purpose) and remove their temp
+  file on every path (`|| _rc=$?`, so `set -e` cannot skip the `rm`).
+- Ratchet: every spelling of the reader is counted (`command grep`, `\grep`,
+  `/usr/bin/grep`, flags in any position, `-m N`, `--max-count`, `head` in any
+  spelling), and comment lines never count.
+- `.aai/scripts/pre-commit-checks.sh` is a `protected_paths_l3` surface and this
+  ride is ceremony 2 (test-aai-hitl-propagation TEST-014 refuses the edit): its
+  seven round-10 here-strings are reverted, the file is deferred BY NAME in the
+  shipping ratchet arm (`PGQ_SHIPPING_DEFERRED_L3`) and tracked by
+  `fu-pre-commit-checks-pipe-grep-q` (P2). Corrected counts: 8 shipping
+  scripts, 19 sites rewritten (not 9 / 26 as the Round 10 text and its ledger
+  record say); of the 18 `pipefail`-bearing scripts, 8 rewritten, 1 deferred,
+  9 carried none of the shape.
+- Validation round 9 NB-1: "11 shipping scripts" in the round-10 texts is 9
+  (the enumeration that follows it was right); NB-5: the cd-subshell-leak
+  baseline delta is +51 net (50 files +1, the new suite +2, layer-profiles
+  5→4 stale slack).
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: test-framework-sweep`, `--signoff none` (record of 2026-09-14, the
+last spec_amendment for this ref).
+
