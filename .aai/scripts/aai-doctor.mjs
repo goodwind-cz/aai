@@ -493,7 +493,7 @@ function probeRefGuardHook(hookPath, root) {
   // a hook that never reads it simply exits, and the verdict is its own
   // exit status — on every platform, with no race and no size cap.
   const REFUSE_INPUT = `${'0'.repeat(40)} ${'1'.repeat(40)} refs/heads/main\n`;
-  const PAD_LINES = 1000; // ~100 KiB of refs/heads/aai-doctor-probe-pad-<i> lines
+  const PAD_LINES = 1000; // ~115 KiB (117,988 B) of refs/heads/aai-doctor-probe-pad-<i> lines
   const padding = Array.from({ length: PAD_LINES }, (_, i) => `${'0'.repeat(40)} ${'2'.repeat(40)} refs/heads/aai-doctor-probe-pad-${i}\n`).join('');
   const PROBE_INPUT = REFUSE_INPUT + padding;
   const baseEnv = { ...process.env };

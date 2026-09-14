@@ -1610,7 +1610,7 @@ Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 - Figures in addenda 2 and 3, corrected: the pre-fix probe input was 98
   bytes, not 82; the shell-argument probe of f3013dd8 carried ~138.5 KiB,
   not ~120 KiB, which is why Linux's 128 KiB per-argument cap bit; the file
-  probe now carries ~100 KiB. Doctor TEST-040 was red on five of six CI runs
+  probe now carries ~115 KiB (117,988 B; round 12 measured). Doctor TEST-040 was red on five of six CI runs
   since round 8, not on every one (run 34814860953 passed) — a race, as
   stated, not a determinism.
 - The padding is load-bearing for the MUTATION, not the product: with a file
