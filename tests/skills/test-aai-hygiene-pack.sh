@@ -1633,11 +1633,14 @@ test_104_pgq_shrink_never_lowers_the_bar() {  # TEST-005 / Spec-AC-03
 # — the SECOND ratchet arm: shipping scripts (.aai/scripts/*.sh and
 # .aai/scripts/lib/*.sh) that set pipefail must carry zero occurrences of the
 # early-closing-reader shape too. CI on 1aab60bb reddened from suites, not
-# shipping scripts, but the same class was live in 9 shipping scripts
-# (aai-bootstrap.sh, aai-update.sh, autonomous-loop.sh, cloudflare-share.sh,
-# expert-fetch.sh, install-pre-commit-hook.sh, migrate-state-to-local.sh,
-# pre-commit-checks.sh, triage.sh) before this ride rewrote them to
-# here-strings (aai-sync.sh was already fixed round 9). A script that never
+# shipping scripts, but the same class was live in 9 shipping scripts.
+# Eight were rewritten to here-strings by this ride (aai-bootstrap.sh,
+# aai-update.sh, autonomous-loop.sh, cloudflare-share.sh, expert-fetch.sh,
+# install-pre-commit-hook.sh, migrate-state-to-local.sh, triage.sh;
+# aai-sync.sh was already fixed round 9); the ninth, pre-commit-checks.sh,
+# is a protected_paths_l3 surface a ceremony-2 ride may not edit, so it is
+# deferred by name (PGQ_SHIPPING_DEFERRED_L3) under
+# fu-pre-commit-checks-pipe-grep-q and its 7 sites are still live. A script that never
 # sets pipefail is excluded by construction (pgq_scan_shipping) — the class
 # is inert there, so gating it would buy friction with no defect behind it.
 test_128_shipping_scripts_pipe_safe_at_zero() {  # TEST-470 / round 10
