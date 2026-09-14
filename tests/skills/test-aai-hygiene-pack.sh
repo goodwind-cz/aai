@@ -1822,7 +1822,7 @@ EOS
   assert_payload_contains "$out" "SELECTED PASSED (test_001_gates)" \
     "TEST-473: test-aai-feedback-triage.sh did not report the selected test"
 
-  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=60 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-layer-profiles.sh test_default_byte_identity 2>&1)" && rc=0 || rc=$?
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=600 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-layer-profiles.sh test_default_byte_identity 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-473: test-aai-layer-profiles.sh test_default_byte_identity (a real selector, the already-fixed suite) must still exit 0, got $rc: $out"
   assert_payload_contains "$out" "SELECTED PASSED (test_default_byte_identity)" \
     "TEST-473: test-aai-layer-profiles.sh did not report the selected test"

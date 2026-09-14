@@ -590,7 +590,7 @@ function runOne(args) {
 
     // NB6-r2: whether the row's own suite actually dispatches on `selector`,
     // or ignores $1 and runs every test (spec-lint, spec-tools, prompt-diet,
-    // heartbeat all do this today) — the record is still honest either way
+    // the liveness suite all do this today) — the record is still honest either way
     // (the suite reddened), but this says whether --selector's isolation
     // claim actually held for THIS run.
     const selectorHonoured = isPositionalDispatchSuite(suiteContent);
