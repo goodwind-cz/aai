@@ -312,6 +312,7 @@ main() {
   local t
   for t in $selected; do
     t="${t#TEST-}"
+    declare -F "test_${t}" >/dev/null || { echo "Unknown test: $t" >&2; exit 2; }
     "test_${t}"
   done
   echo ""

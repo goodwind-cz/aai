@@ -578,6 +578,20 @@ suites:
       - .aai/system/PRICING.yaml
       - docs/ai/METRICS.jsonl
 
+  aai-mutation-gate:
+    globs:
+      - .aai/scripts/mutation-run.mjs
+      - .aai/scripts/mutation-gate.mjs
+      - .aai/scripts/lib/mutation-record.mjs
+      - .aai/scripts/lib/spec-contract-hash.mjs
+      - .aai/scripts/spec-freeze.mjs
+      - .aai/scripts/spec-amend.mjs
+      - .aai/scripts/close-work-item.mjs
+      - .aai/SKILL_TDD.prompt.md
+      - .aai/VALIDATION.prompt.md
+      - .aai/ROLE_COMMON.md
+      - docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md
+
   aai-orchestration-dispatch:
     globs:
       - .aai/scripts/orchestration-dispatch.mjs

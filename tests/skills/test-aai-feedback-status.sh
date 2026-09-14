@@ -97,7 +97,10 @@ test_004_empty() {
 main() {
   echo "=== $TEST_NAME ==="
   setup
-  if [ $# -gt 0 ]; then "$1"; echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="; return; fi
+  if [ $# -gt 0 ]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"; echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="; return
+  fi
   test_001_counts
   test_002_gh_state
   test_003_no_mutation

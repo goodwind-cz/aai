@@ -17,6 +17,9 @@ TEST_NAME="aai-hygiene-pack"
 TEST_DIR=""
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Set by test_113 while a disposable detached worktree is live, so the EXIT
@@ -1095,8 +1098,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 94 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 94 (pin last moved for aai-pipe-safe, round 10, PR #381) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 95 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 95 (pin moved for aai-mutation-gate, spec-mutation-gate-for-tests continuation 1) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -1696,6 +1699,50 @@ test_128_shipping_scripts_pipe_safe_at_zero() {  # TEST-470 / round 10
     || log_fail "test_128: .aai/scripts/lib/*.sh must be scanned too, got $(pgq_total "$fscan"): $fscan"
 
   log_pass "test_128: shipping-script pipe-safe arm is at zero on the live tree, and bites on a reintroduced pipe in a pipefail script while ignoring one with no pipefail (TEST-470)"
+}
+
+test_094_mutation_selector_fails_closed_corpus_wide() {  # spec-mutation-gate-for-tests TEST-473 / Spec-AC-03
+  log_info "test_094: every selector-accepting tests/skills/test-aai-*.sh suite refuses an unknown selector, corpus-wide (TEST-473)..."
+  # The measured population (spec-mutation-gate-for-tests measurement 11):
+  # every test-aai-*.sh that dispatches a single test by a positional
+  # argument, in either idiom this repository uses (the dynamic
+  # "test_${t}" idiom and the positional "$1" idiom). A suite added later
+  # that accepts a selector joins this list deliberately — the same
+  # discipline test_090's suite-map.yaml row check already holds every new
+  # suite to.
+  local corpus="branch-guard git-ref-guard issues pr-platform session-lock run-tests routine win-fallback pr-waiver test-canon feedback-triage feedback-status feedback-upsert learned-routing live-serve ride-select unattended layer-profiles"
+  local name f out rc bad=""
+  for name in $corpus; do
+    f="$PROJECT_ROOT/tests/skills/test-aai-${name}.sh"
+    [[ -f "$f" ]] || log_fail "TEST-473: expected corpus member missing: tests/skills/test-aai-${name}.sh"
+    out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=60 bash .aai/scripts/aai-run-tests.sh bash "tests/skills/test-aai-${name}.sh" no_such_test_xyz 2>&1)" && rc=0 || rc=$?
+    if [[ "$rc" -eq 0 ]]; then
+      log_info "test_094: tests/skills/test-aai-${name}.sh exited 0 on an unknown selector (fail-open): $out"
+      bad="$bad ${name}"
+    fi
+  done
+  [[ -z "$bad" ]] \
+    || log_fail "TEST-473: fail-open on an unknown selector in:$bad — every selector-accepting suite must refuse a name it does not define"
+
+  # Three representative suites — one per idiom, plus the suite the
+  # measurement found already fixed by accident (sweep 2) — must still
+  # resolve and run a REAL selector alone, exiting 0.
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=60 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-branch-guard.sh 001 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-473: test-aai-branch-guard.sh 001 (a real selector, dynamic idiom) must still exit 0, got $rc: $out"
+  assert_payload_contains "$out" "All selected" \
+    "TEST-473: test-aai-branch-guard.sh 001 did not report running the selected test"
+
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=60 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-feedback-triage.sh test_001_gates 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-473: test-aai-feedback-triage.sh test_001_gates (a real selector, positional idiom) must still exit 0, got $rc: $out"
+  assert_payload_contains "$out" "SELECTED PASSED (test_001_gates)" \
+    "TEST-473: test-aai-feedback-triage.sh did not report the selected test"
+
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=60 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-layer-profiles.sh test_default_byte_identity 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-473: test-aai-layer-profiles.sh test_default_byte_identity (a real selector, the already-fixed suite) must still exit 0, got $rc: $out"
+  assert_payload_contains "$out" "SELECTED PASSED (test_default_byte_identity)" \
+    "TEST-473: test-aai-layer-profiles.sh did not report the selected test"
+
+  log_pass "test_094: every selector-accepting suite (18 measured) refuses an unknown selector corpus-wide, and a real selector in one suite per idiom plus the already-fixed suite still runs alone (TEST-473)"
 }
 
 # --- TEST-418 (Spec-AC-11) — the drain reached zero, and the scanner still
@@ -4025,6 +4072,7 @@ main() {
   test_119_generator_idempotence_preserves_seeded_state
   test_127_withdrawn_phrases_drained
   test_128_shipping_scripts_pipe_safe_at_zero
+  test_094_mutation_selector_fails_closed_corpus_wide
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
