@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-14T01:36:49.908Z",
+  "generatedAt": "2026-09-14T01:37:33.431Z",
   "project": "aai",
   "counts": {
-    "delivered": 241,
-    "in_progress": 23,
+    "delivered": 242,
+    "in_progress": 22,
     "releases": 1,
     "tokens_total": 64220459
   },
@@ -117,19 +117,6 @@
       "spec": null,
       "validation": null,
       "review": null
-    },
-    {
-      "ref": "dispatch-state-sweep",
-      "title": "The dispatch loop and STATE say the truth about the ride they are running",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0186-dispatch-state-sweep.md",
-      "closed_on": null,
-      "agent_minutes": 583,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0180-spec-dispatch-state-sweep.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-dispatch-state-sweep-20260913T230013Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -315,6 +302,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "dispatch-state-sweep",
+      "title": "The dispatch loop and STATE say the truth about the ride they are running",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0186-dispatch-state-sweep.md",
+      "closed_on": "2026-09-14",
+      "agent_minutes": 583,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0180-spec-dispatch-state-sweep.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-dispatch-state-sweep-20260913T230013Z.md"
+    },
     {
       "ref": "harness-universal-routing",
       "title": "The dispatcher knows which harness it is running in, and routes models for that harness",
@@ -3455,6 +3455,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "dispatch-state-sweep",
+          "title": "The dispatch loop and STATE say the truth about the ride they are running",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0186-dispatch-state-sweep.md",
+          "closed_on": "2026-09-14",
+          "agent_minutes": 583,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0180-spec-dispatch-state-sweep.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-dispatch-state-sweep-20260913T230013Z.md"
+        },
         {
           "ref": "harness-universal-routing",
           "title": "The dispatcher knows which harness it is running in, and routes models for that harness",

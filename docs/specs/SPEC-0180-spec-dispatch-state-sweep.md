@@ -2,13 +2,15 @@
 id: spec-dispatch-state-sweep
 type: spec
 number: 180
-status: implementing
+status: done
 ceremony_level: 3
 links:
   requirement: docs/issues/CHANGE-0186-dispatch-state-sweep.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 0ecf727e
 ---
 
 # Spec — the dispatch loop and STATE say the truth about the ride they are running

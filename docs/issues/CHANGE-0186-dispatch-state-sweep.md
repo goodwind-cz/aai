@@ -2,11 +2,13 @@
 id: dispatch-state-sweep
 type: change
 number: 186
-status: draft
+status: done
 capability: dispatch-state-sweep
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 0ecf727e
 ---
 
 # The dispatch loop and STATE say the truth about the ride they are running
