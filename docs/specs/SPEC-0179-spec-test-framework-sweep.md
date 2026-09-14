@@ -1233,36 +1233,106 @@ additive-with-disclosure convention as every round above.
   same `-c` flags as every sibling commit in the file. No new TEST — an
   existing one (TEST-405) already covers the behavior; the defect was
   purely in how its own fixture was built.
-- **CI-only red #2 (operator-surfaced, green locally): `aai-sync.sh`'s
-  `copy_replace` trusts `cp -a`'s exit code alone
-  (`.aai/scripts/aai-sync.sh:142-182`).** The operator's own hypothesis
-  (TEST-439's new symlink probe, added this sweep) was investigated and
-  ruled out — TEST-439 PASSED on both CI runs examined. The actual failure,
-  read from the raw job logs
-  (`gh api repos/goodwind-cz/aai/actions/jobs/103829938428/logs`): `aai-
-  doctor` suite's TEST-031 (hygiene set) nests `test-aai-layer-profiles.sh`,
-  whose TEST-003 failed with `core sync MISSING core-listed files:
-  .aai/AGENTS.md` — but the SAME suite, run independently minutes later in
-  the same CI job (three other nesting call sites), showed TEST-003
-  PASSING each time: an intermittent flake, not a deterministic logic bug,
-  consistent with resource contention under this job's ~90-suite
-  parallelism (never reproduced locally, including on this exact CI commit
-  sha `9ed8b63e`). `copy_replace` never checked whether its `cp -a` actually
-  landed the destination — a `cp -a` that returns 0 but leaves the
-  destination absent (observed only under CI load) was invisible until a
-  step downstream reported an unattributed "MISSING" file with no
-  attributable cause. `copy_replace` now verifies the destination exists
-  after the copy and retries ONCE before failing loudly by name
-  (`AAI_SYNC_TEST_FORCE_MISSING_ONCE`/`AAI_SYNC_TEST_FORCE_MISSING_ALWAYS`
-  are test-only fault-injection hooks, unset on every real run). TEST:
-  `test-aai-layer-profiles.sh` TEST-463 — arm (a) sabotages the destination
-  after exactly the first copy and proves the retry lands it (sync still
-  exits 0, file present); arm (b) sabotages it after EVERY attempt against
-  that path and proves the retry-exhausted refusal fires (non-zero exit,
-  message names the destination path and says "retried once"). MUTATION:
-  reverting `copy_replace` to the pre-fix bare `cp -a` (no verify, no
-  retry, no fault-injection hooks) reddens TEST-463 arm (b) (verified — the
-  sync silently exits 0 with the sabotaged file never landed).
+- **CI-only red #2 (operator-surfaced, green locally): withdrawn, wrong
+  cause.** This entry originally blamed `aai-sync.sh`'s `copy_replace` for
+  trusting `cp -a`'s exit code alone, and shipped a verify+retry plus
+  `AAI_SYNC_TEST_FORCE_MISSING_ONCE`/`_ALWAYS` fault-injection hooks and
+  `test-aai-layer-profiles.sh` TEST-463 against that theory. The `cp -a`
+  never failed; round 9 (below) found the real cause and this entry, its
+  fix and TEST-463 are REMOVED rather than amended on top, per this spec's
+  own D2/honest-gates convention — a control whose comment claims a cause
+  that is false is exactly the class this document exists to keep out. See
+  `### Round 9` for the true cause, the fix and the replacement tests.
+
+Authority for this round: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: test-framework-sweep`, `--signoff none` (owner sign-off owed, a
+follow-up filed for it — same convention as every prior round).
+
+### Round 9 — the layer-profiles CI flake's true cause (correcting round 8's CI-only red #2)
+
+CI run 34799612612 on 3448b3a6 (PR #381) reproduced the same shape round 8
+misdiagnosed: 7 reds, all `test-aai-layer-profiles.sh` (direct or nested via
+`test-aai-feedback-upsert.sh` TEST-009, `test-aai-friction-wiring.sh`
+TEST-006, `test-aai-friction.sh` TEST-014, `test-aai-doctor.sh` TEST-031,
+`test-aai-release.sh`, `test-aai-delta-stage3.sh`) — "core sync MISSING
+core-listed files: `.aai/AGENTS.md` / `.aai/scripts/pre-commit-checks.ps1`"
+and "core sync not idempotent (tree changed on second run)".
+
+- **Root cause: `set -euo pipefail` plus a `grep -q`/`head -n1` reader that
+  closes its pipe before the writer finishes.** `.aai/scripts/aai-sync.sh`'s
+  core-prune membership test read `printf '%s\n' "$CORE_FILES" | grep -qxF
+  "$rel"`. `grep -q` exits the instant it finds a match, closing its end of
+  the pipe; if `printf` is still mid-write when that happens (guaranteed once
+  the unwritten remainder exceeds the pipe buffer, and `CORE_FILES` — 180
+  real entries — sits well under that today, which is why this was a
+  CI-load-only flake rather than a deterministic local failure), `printf`
+  takes SIGPIPE, `set -o pipefail` reports the PIPELINE's exit as 141 even
+  though `grep` itself matched, and `if ! ...; then rm -f "$tgt"` reads that
+  141 as "not core" — pruning a core-listed file the copy loop had just
+  landed. Deterministic reproduction (verified): a `CORE_FILES` padded past
+  the pipe buffer with `.aai/AGENTS.md` listed first turns this into a 100%
+  reproducible `rc=141`, versus `rc=0` for the same membership test run as a
+  here-string (`grep -qxF ... <<< "$CORE_FILES"`) instead of a pipe — a
+  here-string has no writer process, so no SIGPIPE is possible. Same
+  mechanism, three more sites: the two `.gitignore` membership loops
+  (`tr -d '\r' < .gitignore | grep -qxF "$pattern"` — a pattern near the top
+  of a large `.gitignore` re-appends itself every sync, non-idempotent) and
+  the `AAI_PIN.md`/`AAI_VERSION.md` first-line reads (`... | head -n1 |
+  ...` — `head -n1` closing early can abort the `$(...)` assignment under
+  `set -e`, not just misreport a boolean).
+- **Fix.** Core-prune membership: here-string, not a pipe (`grep -qxF --
+  "$rel" <<< "$CORE_FILES"`). Both `.gitignore` membership loops: read the
+  file once into a variable (`gi="$(tr -d '\r' < "$DST_ROOT/.gitignore"
+  2>/dev/null || true)"`), then here-string `grep -qxF -- "$pattern" <<<
+  "$gi"`. `PIN_PROFILE`/`TEMPLATE_VERSION`: drop the trailing `head -n1`
+  pipe stage and take the first line in bash instead
+  (`v="${v%%$'\n'*}"`). `.aai/scripts/aai-sync.ps1` is untouched —
+  PowerShell pipelines have no SIGPIPE, so this class does not apply there.
+  `copy_replace` is REVERTED to its pre-round-8 body (`rm -rf "$dst"
+  2>/dev/null || true; cp -a "$src" "$dst"`, verified byte-identical to
+  `git show 9ed8b63e:.aai/scripts/aai-sync.sh` lines 142-148); the
+  `AAI_SYNC_TEST_FORCE_MISSING_ONCE`/`_ALWAYS` fault-injection hooks are
+  removed with it.
+- **TEST.** `test-aai-layer-profiles.sh` TEST-464 (replacing withdrawn
+  TEST-463): pads a private clone of the fixture's `PROFILES.yaml` `core:`
+  list with the real 172 core entries first, then ~20000 nonexistent
+  padding paths (the sync WARNs "missing in source" and skips them,
+  captured to a log file, not asserted against), runs `--profile core`
+  twice against a fresh target, and asserts every real core file is present
+  after each run and the target's content manifest (`tree_manifest`) is
+  identical between the two runs. TEST-465: a target `.gitignore` over 200
+  KB whose FIRST line is already one `AGENT_SKILL_PATTERNS` entry
+  (`.agents/skills/`) stays at exactly one occurrence after two syncs —
+  and, because `aai-sync.sh`'s own end-of-run `.gitignore` de-dup self-heal
+  would silently erase a duplicate the membership bug created before a
+  final-count check could see it, the test also asserts neither sync's own
+  output ever says "stale AAI-managed line" (the self-heal firing at all
+  means the membership check wrongly re-appended a pattern that was already
+  present). TEST-466: a static ratchet — `/usr/bin/grep -cE '[^|]\|
+  [[:space:]]*(grep -q|head -n *1)' .aai/scripts/aai-sync.sh` (a single `|`
+  not preceded by another `|`, so the pre-existing, unrelated `[[ ! -f x ]]
+  || grep -q ... x` docs/knowledge sentinel check — which reads its file
+  argument directly, never a pipe — is correctly excluded) must be 0.
+- **MUTATION.** TEST-464: restoring the core-prune line to `printf '%s\n'
+  "$CORE_FILES" | grep -qxF "$rel"` reddens it (verified — every real core
+  file is reported missing after run 1: `rc=141` on the very first
+  membership check, since the just-copied core files sit early in
+  `CORE_FILES` with ~20000 padding entries still unwritten). TEST-465:
+  restoring the agent-skill-pattern loop to `tr -d '\r' < "$DST_ROOT/
+  .gitignore" 2>/dev/null | grep -qxF "$pattern"` reddens it (verified —
+  sync 1's own output contains "De-duplicated 1 stale AAI-managed line(s)",
+  the self-heal catching a duplicate the membership bug had just created).
+  TEST-466: restoring any one of the four fixed call sites (verified with
+  the `PIN_PROFILE` site) reddens it (verified — `1 occurrence(s)`
+  reported, exit 1).
+- **Follow-ups.** `fu-sync-copy-silently-missing` never existed in
+  `docs/ai/decisions.jsonl` despite being cited in code/tests/this spec —
+  those citations are removed with the false-cause fix, so nothing needed
+  filing or closing for it. `fu-session-lock-oneshot-pid` (round 8, Codex
+  P1) was cited in seven shipped places but likewise never existed in the
+  ledger; filed and closed this round under the round-8 fix already in
+  `lib/session-lock.mjs` (`--pid "$PPID"`, `owner_kind: 'harness-parent'`),
+  so the citations now resolve to a real ledger entry.
 
 Authority for this round: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: test-framework-sweep`, `--signoff none` (owner sign-off owed, a

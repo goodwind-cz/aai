@@ -587,7 +587,13 @@ function checkBranchPin(cwd, expectBranch = null) {
 function doVerifyPin(cwd) {
   const result = checkBranchPin(cwd);
   if (result.ok) exit(0);
-  console.error(`branch-guard: HEAD moved — ${result.message}`);
+  // round 9 (F-5): every refusal used to say "HEAD moved", even a malformed/
+  // unreadable pin file (cause 'malformed-pin', code 8) — a file that was
+  // never successfully written cannot itself have "moved". Only that cause
+  // gets its own label; every other cause (renamed, concurrent, no-work-tree)
+  // keeps the existing "HEAD moved" wording.
+  const label = result.cause === 'malformed-pin' ? 'malformed pin' : 'HEAD moved';
+  console.error(`branch-guard: ${label} — ${result.message}`);
   exit(result.code);
 }
 

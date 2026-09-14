@@ -166,12 +166,17 @@ test_004_fail_open_shape() {
     log_fail "TEST-004 expected 4 command strings in template, got $n"
     return
   fi
-  # round 8 / Copilot: a `case`/glob match on a variable-supplied needle risks
-  # treating glob metacharacters in the needle (e.g. the literal `[` in the
-  # 'if [ -f ' needle below) as pattern syntax rather than literal text.
-  # `grep -qF` on a here-string is a literal, non-glob substring test —
-  # structurally immune to this class of bug regardless of what the needle
-  # contains, so a future edit cannot silently regress it back into a glob.
+  # round 8 / Copilot: an UNQUOTED `case $cmd in *$1*)` glob match on a
+  # variable-supplied needle would treat glob metacharacters in the needle
+  # (e.g. the literal `[` in the 'if [ -f ' needle below) as pattern syntax
+  # rather than literal text. The shipped needle was already double-quoted
+  # (`*"$1"*`), which bash treats as a literal match — that quoted form was
+  # never actually at risk (round 8's finding did not reproduce against the
+  # code as shipped) — but quoting discipline surviving every future edit is
+  # not something to rely on, so `_cmd_has` below removes the risk class
+  # entirely: `grep -qF` on a here-string is a literal, non-glob substring
+  # test, structurally immune to this class of bug regardless of what the
+  # needle contains or whether a future edit drops the quotes around `$1`.
   _cmd_has() { grep -qF -- "$1" <<<"$cmd"; }
   # Positive control (round 8): prove _cmd_has treats a `[...]`-shaped needle
   # as LITERAL text, not a glob bracket-expression — a cmd string that

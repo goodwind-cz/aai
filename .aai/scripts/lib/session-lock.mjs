@@ -233,7 +233,10 @@ export function status(cwd) {
   const p = lockPath(cwd);
   const lk = readLock(p);
   if (!lk) return { held: false };
-  return { held: true, pid: lk.pid, worktree: lk.worktree, ref_id: lk.ref_id ?? null, acquired_utc: lk.acquired_utc, alive: isPidAlive(lk.pid) };
+  // round 9 (F-6): owner_kind was stamped by acquire() and read by nothing —
+  // surface it here so the CLI's `status` JSON line (main() below) actually
+  // shows the informational stamp acquire() writes, rather than a dead field.
+  return { held: true, pid: lk.pid, worktree: lk.worktree, ref_id: lk.ref_id ?? null, acquired_utc: lk.acquired_utc, owner_kind: lk.owner_kind ?? null, alive: isPidAlive(lk.pid) };
 }
 
 // ---- CLI ----

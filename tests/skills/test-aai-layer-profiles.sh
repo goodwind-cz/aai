@@ -591,48 +591,134 @@ test_403_payload_dump_on_invisible_nonempty() {
   log_pass "TEST-403 invisible-but-nonempty payload triggers byte dump (Spec-AC-02)"
 }
 
-# --- TEST-463 (round 8, fu-sync-copy-silently-missing) — copy_replace
-#     retries and lands the file even when the FIRST `cp -a` silently didn't
-#     stick, and refuses loudly (never a quiet downstream "MISSING" surprise)
-#     if the retry also fails -----------------------------------------------
-test_463_copy_replace_retries_missing_copy() {
-  log_info "TEST-463: copy_replace retries a copy that silently didn't land, and fails loudly if the retry also can't land it..."
-  local t rc out dst
+# True cause replacing the withdrawn TEST-463 (round 8 blamed `cp -a`
+# silently leaving $dst absent; never reproduced, and the false-cause control
+# is removed — see round 9). The real cause: `.aai/scripts/aai-sync.sh` runs
+# under `set -euo pipefail`, and the core-prune / .gitignore-membership /
+# first-line checks piped a writer into a reader that can close early
+# (`grep -q`, `head -n1`). When the reader's first match/line happens before
+# the writer finishes, the writer takes SIGPIPE, pipefail reports the
+# pipeline as failed even though the reader DID match, and `!`/assignment
+# logic reads that failure as "not found" — silently pruning a core-listed
+# file or duplicating a re-checked .gitignore pattern. Deterministic with a
+# writer payload bigger than the pipe buffer (real repro: CI run 34799612612).
 
-  # (a) the sabotaged file is missing after the FIRST copy attempt (the
-  # observed CI shape: cp -a returns 0, dst is absent) — copy_replace's own
-  # retry must land it anyway, and the overall sync must still exit 0.
-  t="$TMP_ROOT/t-463-retry"
+# assert_core_files_present <target-root> <newline-separated relpaths> <label>
+# — pure bash membership loop (no pipe: a large payload piped into grep -q
+# is exactly the bug class TEST-464/465 exist to catch, so the assertion
+# helper itself must not use one).
+assert_core_files_present() {
+  local root="$1" list="$2" label="$3" rel missing=""
+  while IFS= read -r rel; do
+    [[ -n "$rel" ]] || continue
+    [[ -f "$root/$rel" ]] || missing="${missing}${rel}"$'\n'
+  done <<< "$list"
+  [[ -z "$missing" ]] || log_fail "$label: real core file(s) missing after sync:"$'\n'"$missing"
+}
+
+# --- TEST-464 — core prune survives a core: list larger than the pipe
+#     buffer (Spec-AC-04, deterministic form of the CI-load-only flake) -----
+test_464_core_prune_survives_large_core_list() {
+  log_info "TEST-464: core prune keeps every real core file when PROFILES.yaml's core: list is padded past the pipe buffer..."
+  local src t out1 out2 rc real_core pad_count=20000
+
+  # Private source clone: PROFILES.yaml is mutated below and must never
+  # touch the shared $FIX_SRC other tests read.
+  src="$TMP_ROOT/t-464-src"
+  cp -a "$FIX_SRC" "$src"
+  real_core="$(profile_list "$FIX_SRC/.aai/system/PROFILES.yaml" core)"
+  [[ -n "$real_core" ]] || log_fail "TEST-464: fixture core: list is empty (precondition broken)"
+
+  # Real core entries stay FIRST and untouched; append ~20000 nonexistent
+  # padding paths inside the SAME core: block (before the next top-level
+  # key) so CORE_FILES exceeds the pipe buffer. Padding paths don't exist in
+  # $src, so the sync just WARNs "missing in source" and skips them.
+  awk -v n="$pad_count" '
+    $0 == "core:" { print; in_core = 1; next }
+    in_core && /^[^ ]/ {
+      for (i = 1; i <= n; i++) print "  - .aai/pad/f-" i
+      in_core = 0
+    }
+    { print }
+  ' "$FIX_SRC/.aai/system/PROFILES.yaml" > "$src/.aai/system/PROFILES.yaml"
+
+  t="$TMP_ROOT/t-464-tgt"
   new_target "$t"
-  # Normalize exactly like aai-sync.sh's own `DST_ROOT="$(cd "$DST_ROOT" &&
-  # pwd)"` (F1 lesson relearned here): $TMPDIR on macOS often carries a
-  # trailing slash, so a raw $TMP_ROOT-built path can carry a double slash a
-  # plain `cd && pwd` collapses away — comparing the UNNORMALIZED path
-  # against aai-sync.sh's NORMALIZED $dst would silently never match and the
-  # fault injection below would never fire (a vacuous pass, not a real one).
-  t="$(cd "$t" && pwd)"
-  dst="$t/.aai/AGENTS.md"
-  rc=0
-  out="$(AAI_SYNC_TEST_FORCE_MISSING_ONCE="$dst" bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile core 2>&1)" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "TEST-463: sync must still exit 0 when the sabotaged copy is recoverable by retry (got $rc): $out"
-  [[ -f "$dst" ]] || log_fail "TEST-463: .aai/AGENTS.md must be present after copy_replace's retry landed it"
 
-  # (b) a copy that stays missing on the RETRY too (AAI_SYNC_TEST_FORCE_MISSING_ALWAYS
-  # sabotages the destination after EVERY copy_replace attempt against it,
-  # so both the first `cp -a` and the retry's `cp -a` genuinely leave $dst
-  # absent) must fail LOUDLY and NAME the path — never a silent gap two
-  # steps downstream, and never mistaken for the recoverable case in (a).
-  t="$TMP_ROOT/t-463-permanent"
+  out1="$TMP_ROOT/t-464-out1.log"
+  rc=0
+  bash "$src/.aai/scripts/aai-sync.sh" "$t" --profile core > "$out1" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-464: first core sync against the padded list must exit 0 (got $rc); see $out1"
+  assert_core_files_present "$t" "$real_core" "TEST-464 run 1"
+
+  local snap1; snap1="$(tree_manifest "$t")"
+
+  out2="$TMP_ROOT/t-464-out2.log"
+  rc=0
+  bash "$src/.aai/scripts/aai-sync.sh" "$t" --profile core > "$out2" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-464: second core sync against the padded list must exit 0 (got $rc); see $out2"
+  assert_core_files_present "$t" "$real_core" "TEST-464 run 2"
+
+  local snap2; snap2="$(tree_manifest "$t")"
+  [[ "$snap1" == "$snap2" ]] || log_fail "TEST-464: core sync not idempotent under a padded core list (tree changed on second run):"$'\n'"$(diff -u <(printf '%s\n' "$snap1") <(printf '%s\n' "$snap2") || true)"
+
+  log_pass "TEST-464 core prune keeps every real core file when CORE_FILES exceeds the pipe buffer, both runs"
+}
+
+# --- TEST-465 — .gitignore agent-skill pattern membership survives a
+#     .gitignore larger than the pipe buffer (idempotence) -----------------
+test_465_gitignore_membership_survives_large_gitignore() {
+  log_info "TEST-465: .gitignore membership for agent-skill patterns survives a >200KB target .gitignore whose first line is already the pattern..."
+  local t pattern=".agents/skills/" rc out1 out2 count1 count2
+
+  t="$TMP_ROOT/t-465-tgt"
   new_target "$t"
-  t="$(cd "$t" && pwd)"  # normalize — see arm (a)'s comment above
-  dst="$t/.aai/AGENTS.md"
-  rc=0
-  out="$(AAI_SYNC_TEST_FORCE_MISSING_ALWAYS="$dst" bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile core 2>&1)" || rc=$?
-  [[ "$rc" -ne 0 ]] || log_fail "TEST-463: sync must NOT exit 0 when copy_replace's retry also cannot land the file (got 0): $out"
-  assert_payload_contains "$out" "$dst" "TEST-463: the refusal must name the destination path that never landed"
-  assert_payload_contains "$out" "retried once" "TEST-463: the refusal must say the retry was already attempted"
+  {
+    printf '%s\n' "$pattern"
+    awk 'BEGIN { for (i = 1; i <= 15000; i++) print "# aai-test-465-pad-" i }'
+  } > "$t/.gitignore"
+  [[ "$(wc -c < "$t/.gitignore" | tr -d ' ')" -gt 204800 ]] \
+    || log_fail "TEST-465: fixture .gitignore must exceed 200 KB (precondition broken)"
 
-  log_pass "TEST-463 copy_replace retries a silently-missing copy and lands it; a permanently unrecoverable copy refuses loudly, naming the path"
+  # NOTE: aai-sync.sh's own end-of-run .gitignore de-dup self-heal (below the
+  # membership loops) would silently erase a duplicate this membership check
+  # wrongly created, masking the bug from a final-count-only assertion. Read
+  # $out1/$out2 back, not just the resulting file: the membership check must
+  # never have needed that self-heal in the first place.
+  local out1_text out2_text
+  out1="$TMP_ROOT/t-465-out1.log"
+  rc=0
+  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile core > "$out1" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-465: first sync must exit 0 (got $rc); see $out1"
+  out1_text="$(cat "$out1")"
+  assert_payload_not_contains "$out1_text" "stale AAI-managed line" "TEST-465: sync 1 needed the .gitignore de-dup self-heal -- the membership check wrongly re-appended a pattern that was already present"
+  count1="$(grep -cxF -- "$pattern" "$t/.gitignore")"
+  [[ "$count1" -eq 1 ]] || log_fail "TEST-465: pattern '$pattern' must occur exactly once after sync 1, got $count1"
+
+  out2="$TMP_ROOT/t-465-out2.log"
+  rc=0
+  bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile core > "$out2" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-465: second sync must exit 0 (got $rc); see $out2"
+  out2_text="$(cat "$out2")"
+  assert_payload_not_contains "$out2_text" "stale AAI-managed line" "TEST-465: sync 2 needed the .gitignore de-dup self-heal -- the membership check wrongly re-appended a pattern that was already present"
+  count2="$(grep -cxF -- "$pattern" "$t/.gitignore")"
+  [[ "$count2" -eq 1 ]] || log_fail "TEST-465: pattern '$pattern' must still occur exactly once after sync 2 (non-idempotent membership check), got $count2"
+
+  log_pass "TEST-465 .gitignore membership stays exact-once across two syncs against a >200KB file"
+}
+
+# --- TEST-466 — static ratchet: aai-sync.sh pipes nothing into grep -q or
+#     head -n1 (both are early-closing readers under pipefail) -------------
+test_466_no_pipe_into_early_closing_reader() {
+  log_info "TEST-466: aai-sync.sh has zero real pipelines into grep -q / head -n1..."
+  local hits
+  # A single `|` not immediately preceded by another `|` (excludes the
+  # pre-existing, unrelated `[[ ! -f x ]] || grep -q ... x` at the
+  # docs/knowledge sentinel check, which reads its file argument directly —
+  # never a pipe — and is not part of this bug class).
+  hits="$(/usr/bin/grep -cE '[^|]\|[[:space:]]*(grep -q|head -n *1)' "$SYNC_SH" || true)"
+  [[ "$hits" -eq 0 ]] || log_fail "TEST-466: aai-sync.sh still pipes into grep -q / head -n1 ($hits occurrence(s)) — pipefail + an early-closing reader can SIGPIPE the writer and flip a real match/line into a false negative or abort the sync"
+  log_pass "TEST-466 aai-sync.sh: zero pipe-into-(grep -q|head -n1) sites"
 }
 
 # --- Spec-AC self-check — no real network schemes in this suite ---------------
@@ -673,7 +759,9 @@ main() {
   test_401_fixture_build_completeness
   test_402_core_sync_warn_captured
   test_403_payload_dump_on_invisible_nonempty
-  test_463_copy_replace_retries_missing_copy
+  test_464_core_prune_survives_large_core_list
+  test_465_gitignore_membership_survives_large_gitignore
+  test_466_no_pipe_into_early_closing_reader
   test_no_real_network
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }

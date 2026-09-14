@@ -70,7 +70,11 @@ DST_ROOT="$(cd "$DST_ROOT" && pwd)"
 # Resolve the effective profile: explicit flag > sticky target pin > extended.
 PROFILE="$PROFILE_ARG"
 if [[ -z "$PROFILE" && -f "$DST_ROOT/.aai/system/AAI_PIN.md" ]]; then
-  PIN_PROFILE="$(tr -d '\r' < "$DST_ROOT/.aai/system/AAI_PIN.md" | sed -n 's/^- Profile: //p' | head -n1 | sed 's/[[:space:]]*$//')"
+  # No trailing "head -n1" pipe stage: a reader that closes after the first
+  # line can SIGPIPE an upstream stage under pipefail (same class as the
+  # core-prune fix above). Take the first line in bash instead.
+  PIN_PROFILE="$(tr -d '\r' < "$DST_ROOT/.aai/system/AAI_PIN.md" | sed -n 's/^- Profile: //p' | sed 's/[[:space:]]*$//')"
+  PIN_PROFILE="${PIN_PROFILE%%$'\n'*}"
   case "$PIN_PROFILE" in
     core|extended) PROFILE="$PIN_PROFILE" ;;
   esac
@@ -145,38 +149,6 @@ copy_replace() {
   # Git is the backup — no .bak files needed.
   rm -rf "$dst" 2>/dev/null || true
   cp -a "$src" "$dst"
-  # round 8 (fu-sync-copy-silently-missing, CI runs 34796276501/34796261955):
-  # a `cp -a` that returns 0 has been observed, under heavy parallel CI load
-  # only (never reproduced locally), to leave `$dst` absent — a core-listed
-  # file quietly failing to land with no non-zero exit anywhere to catch it,
-  # surfacing two steps downstream as an unattributed "MISSING core-listed
-  # files" report. Verify the copy actually landed and retry ONCE before
-  # failing loudly and by name, rather than trusting `cp -a`'s exit code
-  # alone. Test-only fault injection (both unset in every real run):
-  # AAI_SYNC_TEST_FORCE_MISSING_ONCE names one destination path to sabotage
-  # ONCE (delete right after the first copy, then stop sabotaging) so the
-  # RECOVERABLE retry path is exercised for real. AAI_SYNC_TEST_FORCE_MISSING_ALWAYS
-  # names one destination path to sabotage on EVERY copy attempt against it,
-  # so the PERMANENT-failure refusal below is exercised for real too — a
-  # `cp -a` that keeps "succeeding" while the file never lands must never be
-  # mistaken for progress.
-  if [[ -n "${AAI_SYNC_TEST_FORCE_MISSING_ONCE:-}" && "$dst" == "${AAI_SYNC_TEST_FORCE_MISSING_ONCE}" ]]; then
-    rm -rf "$dst"
-    unset AAI_SYNC_TEST_FORCE_MISSING_ONCE
-  fi
-  if [[ -n "${AAI_SYNC_TEST_FORCE_MISSING_ALWAYS:-}" && "$dst" == "${AAI_SYNC_TEST_FORCE_MISSING_ALWAYS}" ]]; then
-    rm -rf "$dst"
-  fi
-  if [[ ! -e "$dst" ]]; then
-    cp -a "$src" "$dst"
-    if [[ -n "${AAI_SYNC_TEST_FORCE_MISSING_ALWAYS:-}" && "$dst" == "${AAI_SYNC_TEST_FORCE_MISSING_ALWAYS}" ]]; then
-      rm -rf "$dst"
-    fi
-    if [[ ! -e "$dst" ]]; then
-      echo "ERROR: copy_replace: '$dst' still missing after cp -a from '$src' (retried once)" >&2
-      exit 1
-    fi
-  fi
 }
 
 # Byte compare, never a hash pipeline. Under `set -o pipefail` a transient
@@ -340,7 +312,14 @@ if [[ "$PROFILE" == "core" ]]; then
     [[ -n "$tgt" ]] || continue
     rel="${tgt#"$DST_ROOT"/}"  # F1: quote — an unquoted $DST_ROOT is glob-interpreted; a [ ] * ? in the path would leave rel absolute and every rel-keyed guard would miss (mass-delete)
     case "$rel" in .aai/cache/*) continue ;; esac
-    if ! printf '%s\n' "$CORE_FILES" | grep -qxF "$rel"; then
+    # here-string, never printf piped into "grep -q": under pipefail a
+    # "grep -q" match closes the pipe before a large CORE_FILES finishes
+    # writing, SIGPIPEs the writer, and pipefail reports the pipeline 141
+    # (failure) even though grep DID match -- `!` then reads that as "not
+    # core" and prunes a core-listed file (round-9 true cause of the
+    # CI-load-only layer-profiles flake; a here-string has no writer
+    # process, so no SIGPIPE is possible).
+    if ! grep -qxF -- "$rel" <<< "$CORE_FILES"; then
       case "$rel" in
         .aai/scripts/*)
           if [[ ! -e "$SRC_ROOT/$rel" ]]; then
@@ -651,8 +630,15 @@ AGENT_SKILL_PATTERNS=(
   '.gemini/skills.local/'
 )
 missing_agent_skill_patterns=()
+# Read once into a variable, then here-string grep (never tr piped into
+# "grep -q"): on a large .gitignore whose match is near the top, "grep -q"
+# closes the pipe before "tr" finishes writing, SIGPIPEs it, and pipefail
+# turns a real match into a false "missing" -> the pattern gets re-appended
+# every sync (non-idempotent; same pipefail/early-closing-reader class as the
+# core-prune fix above). A here-string has no writer process, so no SIGPIPE.
+gi="$(tr -d '\r' < "$DST_ROOT/.gitignore" 2>/dev/null || true)"
 for pattern in "${AGENT_SKILL_PATTERNS[@]}"; do
-  if ! tr -d '\r' < "$DST_ROOT/.gitignore" 2>/dev/null | grep -qxF "$pattern"; then
+  if ! grep -qxF -- "$pattern" <<< "$gi"; then
     missing_agent_skill_patterns+=("$pattern")
   fi
 done
@@ -672,8 +658,12 @@ RUNTIME_STATE_PATTERNS=(
   'docs/ai/LOOP_TICKS.jsonl'
 )
 missing_runtime_state_patterns=()
+# Re-read (the loop above may have just appended to this file) into a
+# variable, then here-string grep -- same rationale as the agent-skill loop
+# above.
+gi="$(tr -d '\r' < "$DST_ROOT/.gitignore" 2>/dev/null || true)"
 for pattern in "${RUNTIME_STATE_PATTERNS[@]}"; do
-  if ! tr -d '\r' < "$DST_ROOT/.gitignore" 2>/dev/null | grep -qxF "$pattern"; then
+  if ! grep -qxF -- "$pattern" <<< "$gi"; then
     missing_runtime_state_patterns+=("$pattern")
   fi
 done
@@ -791,7 +781,10 @@ if command -v git >/dev/null 2>&1; then
   [[ -z "$CANONICAL_URL" ]] && CANONICAL_URL="UNKNOWN"
 fi
 if [[ -f "$SRC_ROOT/docs/ai/AAI_VERSION.md" ]]; then
-  TEMPLATE_VERSION="$(grep -E '^-? *Version:' "$SRC_ROOT/docs/ai/AAI_VERSION.md" 2>/dev/null | head -n1 | sed -E 's/.*Version:\s*//')"
+  # No trailing "head -n1" pipe stage (same pipefail/SIGPIPE class as the
+  # core-prune fix above): take the first line in bash instead.
+  TEMPLATE_VERSION="$(grep -E '^-? *Version:' "$SRC_ROOT/docs/ai/AAI_VERSION.md" 2>/dev/null | sed -E 's/.*Version:\s*//')"
+  TEMPLATE_VERSION="${TEMPLATE_VERSION%%$'\n'*}"
   [[ -z "$TEMPLATE_VERSION" ]] && TEMPLATE_VERSION="UNKNOWN"
 fi
 # Fallback (aai-version-file): sources synced from a git checkout that predates

@@ -1178,6 +1178,11 @@ test_460() {
   [[ "$RC" -eq 8 ]] || log_fail "bare --verify-pin against a malformed pin must exit 8 (got $RC; stderr: $ERR)"
   assert_payload_not_contains "$ERR" "    at " "branch-guard.mjs must not print a raw Node stack trace on a malformed pin (got: $ERR)"
   assert_payload_contains "$ERR" "not valid JSON" "the refusal must name the pin as malformed/corrupted, not merely 'HEAD moved' (got: $ERR)"
+  # round 9 (F-5): a malformed pin never actually "moved" -- doVerifyPin's
+  # own refusal prefix must say so, not the generic "HEAD moved" label every
+  # other cause (renamed/concurrent) legitimately uses.
+  assert_payload_contains "$ERR" "malformed pin" "branch-guard.mjs --verify-pin refusal must label a malformed pin as 'malformed pin', not just cite the JSON error (got: $ERR)"
+  assert_payload_not_contains "$ERR" "HEAD moved" "branch-guard.mjs --verify-pin refusal for a malformed pin must NOT say 'HEAD moved' -- a pin file that was never successfully written did not move (got: $ERR)"
 
   local out rc
   out="$(run_out "$repo" node "$CCS_SCRIPT" --from-state --strict --rev HEAD --expect-branch feat/malformed 2>&1)"; rc=$?
@@ -1192,6 +1197,30 @@ test_460() {
   [[ "$rc" -eq 3 ]] || log_fail "close-before-push-guard.mjs must refuse (exit 3) against a malformed pin, never silently pass (got $rc; output: $out)"
   assert_payload_contains "$out" "not valid JSON" "close-before-push-guard.mjs's refusal must cite the malformed/corrupted pin (got: $out)"
 
+  # round 9 (NB-4): the missing-fields arm — valid JSON, but without the
+  # required `branch`/`sha` keys (e.g. a pin written by an older/foreign
+  # format). checkBranchPin's THIRD malformed-pin branch, previously only
+  # driven by hand, not regression-protected.
+  printf '{"note":"not a real pin"}' > "$pin_path"
+  run_guard "$repo" --verify-pin
+  [[ "$RC" -eq 8 ]] || log_fail "bare --verify-pin against a pin missing branch/sha must exit 8 (got $RC; stderr: $ERR)"
+  assert_payload_not_contains "$ERR" "    at " "branch-guard.mjs must not print a raw Node stack trace on a fields-missing pin (got: $ERR)"
+  assert_payload_contains "$ERR" "missing required fields" "the refusal must name the pin as missing required fields, not merely 'HEAD moved' (got: $ERR)"
+  assert_payload_contains "$ERR" "malformed pin" "branch-guard.mjs --verify-pin refusal for a fields-missing pin must also use the 'malformed pin' label (got: $ERR)"
+  assert_payload_not_contains "$ERR" "HEAD moved" "branch-guard.mjs --verify-pin refusal for a fields-missing pin must NOT say 'HEAD moved' (got: $ERR)"
+
+  out="$(run_out "$repo" node "$CCS_SCRIPT" --from-state --strict --rev HEAD --expect-branch feat/malformed 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "check-committed-scope.mjs must refuse (exit 3) against a fields-missing pin, never silently pass (got $rc; output: $out)"
+  assert_payload_contains "$out" "missing required fields" "check-committed-scope.mjs's refusal must cite the fields-missing pin (got: $out)"
+
+  out="$(run_out "$repo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch feat/malformed 2>&1)"; rc=$?
+  [[ "$rc" -eq 7 ]] || log_fail "close-work-item.mjs must refuse (exit 7) against a fields-missing pin, never silently pass (got $rc; output: $out)"
+  assert_payload_contains "$out" "missing required fields" "close-work-item.mjs's refusal must cite the fields-missing pin (got: $out)"
+
+  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch feat/malformed 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "close-before-push-guard.mjs must refuse (exit 3) against a fields-missing pin, never silently pass (got $rc; output: $out)"
+  assert_payload_contains "$out" "missing required fields" "close-before-push-guard.mjs's refusal must cite the fields-missing pin (got: $out)"
+
   # ENOENT contrast: removing the pin entirely reverts to the documented
   # Spec-AC-04 no-op (exit 0) — proving code 8 is genuinely conditioned on
   # the file's PRESENCE-but-unreadable, not on --expect-branch/--verify-pin
@@ -1200,7 +1229,7 @@ test_460() {
   run_guard "$repo" --verify-pin
   [[ "$RC" -eq 0 ]] || log_fail "--verify-pin with NO pin file at all must stay a no-op (exit 0), got $RC; stderr: $ERR"
 
-  log_pass "a malformed/unreadable pin refuses (code 8) at branch-guard.mjs and at all three ceremony call sites; a genuinely absent pin (ENOENT) stays the Spec-AC-04 no-op"
+  log_pass "a malformed/unreadable pin (invalid JSON, and valid JSON missing branch/sha) refuses (code 8) at branch-guard.mjs and at all three ceremony call sites; a genuinely absent pin (ENOENT) stays the Spec-AC-04 no-op"
 }
 
 # --- TEST-461 (round 8, Copilot) — an EXPLICIT empty --expect-branch value
@@ -1212,16 +1241,64 @@ test_461() {
   ( cd "$repo" && git checkout -qb feat/empty-expect ) \
     || log_fail "fixture setup: could not create feat/empty-expect"
 
+  # round 9 (NB-3): a throwaway --ref that resolves to NO doc already exits
+  # non-zero (rc=2, "no scanned doc resolves") for BOTH scripts with or
+  # without --expect-branch, so a bare `rc -ne 0` check on that fixture is
+  # vacuous — it would pass even if the val==='' usage check were deleted.
+  # Resolve to a REAL, already-closed ("status: done") doc instead: with the
+  # fix, `--expect-branch ''` is refused at ARG-PARSE time (exit 2) before
+  # the doc is ever read; WITHOUT the fix, `verifyExpectedBranch('')` no-ops
+  # (falsy) and the run reaches the real ref/status check and genuinely
+  # SUCCEEDS (exit 0) — the fixture proves that difference, not just "some
+  # nonzero code from an unrelated bad-ref path".
+  mkdir -p "$repo/docs/ai" "$repo/docs/issues"
+  : > "$repo/docs/ai/EVENTS.jsonl"
+  cat > "$repo/docs/ai/docs-audit.yaml" <<'YAML'
+legacy_until_date: 2020-01-01
+stale_after_days: 90
+scan_exclude: []
+backlog_globs: []
+close_gate: report-only
+doc_number_guard: report-only
+protected_paths_l3: []
+YAML
+  cat > "$repo/docs/issues/CHANGE-0001-t461.md" <<'EOF'
+---
+id: t461-slug
+type: change
+status: done
+links:
+  pr: []
+  commits: []
+---
+
+# Change — Fixture t461-slug
+EOF
+  ( cd "$repo" && git add -A && git -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -q -m "fixture scaffolding" ) \
+    || log_fail "fixture setup: could not commit scaffolding"
+
   local out rc
-  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch '' 2>&1)"; rc=$?
-  [[ "$rc" -ne 0 ]] || log_fail "close-before-push-guard.mjs: --expect-branch '' must not silently pass (got exit 0; output: $out)"
+
+  # Baseline (no --expect-branch at all): proves the fixture itself would
+  # otherwise succeed — the rc discriminator below is real, not an artifact
+  # of a bad ref.
+  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref t461-slug 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "fixture precondition broken: close-before-push-guard.mjs --ref t461-slug (no --expect-branch) must exit 0 (got $rc; output: $out)"
+
+  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref t461-slug --expect-branch '' 2>&1)"; rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "close-before-push-guard.mjs: --expect-branch '' must refuse at usage-parse time (exit 2), never silently pass through to the real (otherwise-succeeding) ref check (got $rc; output: $out)"
   assert_payload_contains "$out" "requires a value" "close-before-push-guard.mjs must name the missing-value usage error for an empty --expect-branch (got: $out)"
 
-  out="$(run_out "$repo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch '' 2>&1)"; rc=$?
-  [[ "$rc" -ne 0 ]] || log_fail "close-work-item.mjs: --expect-branch '' must not silently pass (got exit 0; output: $out)"
+  # Same baseline proof for close-work-item.mjs, via --dry-run (resolves and
+  # validates the doc exactly like a real close, writes nothing).
+  out="$(run_out "$repo" node "$CWI_SCRIPT" --ref t461-slug --pr TBD --commit deadbeef --dry-run 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "fixture precondition broken: close-work-item.mjs --ref t461-slug --dry-run (no --expect-branch) must exit 0 (got $rc; output: $out)"
+
+  out="$(run_out "$repo" node "$CWI_SCRIPT" --ref t461-slug --pr TBD --commit deadbeef --dry-run --expect-branch '' 2>&1)"; rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "close-work-item.mjs: --expect-branch '' must refuse at usage-parse time (exit 2), never silently pass through to the real (otherwise-succeeding) ref check (got $rc; output: $out)"
   assert_payload_contains "$out" "requires a value" "close-work-item.mjs must name the missing-value usage error for an empty --expect-branch (got: $out)"
 
-  log_pass "an explicit empty --expect-branch value is a named usage refusal in both scripts, never a silent fail-open"
+  log_pass "an explicit empty --expect-branch value is a named usage refusal in both scripts, never a silent fail-open — proven against a ref that would otherwise genuinely succeed"
 }
 
 ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 405 406 407 408 450 451 452 453 454 455 459 460 461"

@@ -274,6 +274,14 @@ test_458() {
   out2="$(bash -c 'cd "$1" && node "$2" acquire --pid 909090 --ref t458a-second' _ "$repo" "$LOCK_LIB" 2>&1)"; rc2=$?
   [[ "$rc2" -eq 3 ]] || log_fail "a second session must be REFUSED (exit 3) after the acquiring one-shot shell exited, if the lock is keyed on a session-lived \$PPID (got $rc2: $out2)"
   assert_payload_contains "$out2" "$$" "the still-held lock must name THIS test script's own pid ($$) as the live holder"
+
+  # round 9 (F-6): owner_kind was stamped by acquire() and read by nothing —
+  # status() now surfaces it; assert the CLI's `status` JSON line actually
+  # carries it rather than leaving the field write-only.
+  run_lock "$repo" status
+  [[ "$RC" -eq 0 ]] || log_fail "status must exit 0 while the lock is held (got $RC; stderr: $ERR)"
+  assert_payload_contains "$OUT" '"owner_kind":"harness-parent"' "status must surface the owner_kind stamp acquire() wrote (got: $OUT)"
+
   run_lock "$repo" release --pid "$$"
   [[ "$RC" -eq 0 ]] || log_fail "cleanup: release of the PPID-held lock (arm a) must exit 0 (got $RC; stderr: $ERR)"
 
