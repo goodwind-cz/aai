@@ -433,21 +433,35 @@ EOF
   ' "$spec" 2>&1 | qgrep -q . \
     && { log_info "TEST-009(freeze): post-freeze shape wrong: $(node -e 'const fs=require("fs");process.stdout.write(fs.readFileSync(process.argv[1],"utf8").slice(0,400))' "$spec")"; ok=0; }
   # BYTE-CORRECT: exactly two changes vs the original — the status line and the
-  # inserted marker (plus its blank line). Nothing else moved.
+  # inserted marker (plus its blank line), plus ONE new `frozen_sha256: <hex>`
+  # line (SPEC-DRAFT spec-mutation-gate-for-tests D17/Spec-AC-17 — the anchor
+  # is UNCONDITIONAL, written for every strategy, this `direct` fixture
+  # included; only `mutation_gate: v1` is strategy-gated and absent here).
   local dl
   dl="$(diff "$spec.orig" "$spec" | grep -c '^[<>]' || true)"
-  [[ "$dl" == 4 ]] \
-    || { log_info "TEST-009(freeze): expected exactly 4 diff lines (status flip + marker + blank), got $dl: $(diff "$spec.orig" "$spec")"; ok=0; }
+  [[ "$dl" == 5 ]] \
+    || { log_info "TEST-009(freeze): expected exactly 5 diff lines (status flip + marker + blank + frozen_sha256), got $dl: $(diff "$spec.orig" "$spec")"; ok=0; }
+  grep -Eq '^frozen_sha256: [0-9a-f]{64}$' "$spec" \
+    || { log_info "TEST-009(freeze): no well-formed frozen_sha256 line: $(sed -n '1,10p' "$spec")"; ok=0; }
+  grep -q '^mutation_gate:' "$spec" \
+    && { log_info "TEST-009(freeze): a direct-strategy spec must not gain mutation_gate"; ok=0; }
 
   # (b) the MINIMAL shape that produced `status: implement` + `trueing`.
   printf -- '---\nid: x\ntype: spec\nstatus: draft\n---\n\n## Summary\nbody text\n\n## Implementation strategy\n- Strategy: direct\n' \
     > "$REPO/docs/specs/SPEC-0101-min.md"
   out="$(runfreeze --path docs/specs/SPEC-0101-min.md --no-event 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-009(freeze) minimal no-H1" || ok=0
-  local want
-  want="$(printf -- '---\nid: x\ntype: spec\nstatus: implementing\n---\n\nSPEC-FROZEN: true\n\n## Summary\nbody text\n\n## Implementation strategy\n- Strategy: direct\n')"
-  [[ "$(cat "$REPO/docs/specs/SPEC-0101-min.md")" == "$want" ]] \
-    || { log_info "TEST-009(freeze): minimal output not byte-correct: $(cat "$REPO/docs/specs/SPEC-0101-min.md")"; ok=0; }
+  # The anchor's VALUE is content-derived (not literal), so the byte-correct
+  # check below is a template with `<HASH>` substituted for the real,
+  # independently-recomputed frozen_sha256 — never a hardcoded digest.
+  local min_content min_hash want
+  min_content="$(cat "$REPO/docs/specs/SPEC-0101-min.md")"
+  min_hash="$(printf '%s\n' "$min_content" | grep -E '^frozen_sha256: ' | sed 's/^frozen_sha256: //')"
+  want="$(printf -- '---\nid: x\ntype: spec\nstatus: implementing\nfrozen_sha256: %s\n---\n\nSPEC-FROZEN: true\n\n## Summary\nbody text\n\n## Implementation strategy\n- Strategy: direct\n' "$min_hash")"
+  [[ "$min_content" == "$want" ]] \
+    || { log_info "TEST-009(freeze): minimal output not byte-correct: $min_content"; ok=0; }
+  [[ "$min_hash" =~ ^[0-9a-f]{64}$ ]] \
+    || { log_info "TEST-009(freeze): frozen_sha256 not well-formed: $min_hash"; ok=0; }
   # idempotent on the no-H1 shape too
   local before
   before="$(cksum "$REPO/docs/specs/SPEC-0101-min.md")"
@@ -830,6 +844,123 @@ SPEC
   log_pass "TEST-024(freeze): unparsed AC row refuses, nothing written"
 }
 
+# --- TEST-489 (SPEC-DRAFT spec-mutation-gate-for-tests Spec-AC-17, D9/D10/D17) -
+# spec-freeze.mjs writes SPEC-FROZEN, status, frozen_sha256 and (when
+# applicable) mutation_gate in ONE atomic write; a refused precondition writes
+# NONE of the four.
+test_489_freeze_writes_anchors_atomically() {
+  log_info "TEST-489: freeze writes SPEC-FROZEN + status + frozen_sha256 + mutation_gate atomically; direct gets the anchor but not the marker; a refused precondition writes nothing (Spec-AC-17)..."
+  local d ok=1
+  d="$(mktemp -d "${TMPDIR:-/tmp}/sf489.XXXXXX")"
+
+  # (a) tdd strategy WITH a Mutation column — all four written together.
+  cat > "$d/tdd.md" <<'SPEC'
+---
+id: spec-489-tdd
+type: spec
+number: null
+status: draft
+---
+# S
+
+## Implementation strategy
+- Strategy: tdd
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | thing | planned | — | — | |
+
+## Test Plan
+
+| Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
+|---------|---------|------|-----------------------|--------------|----------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/x.sh | does thing | sed:s/A/B/ | pending |
+SPEC
+  local out rc=0
+  out="$(node "$FREEZE" --path "$d/tdd.md" --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_fail "TEST-489a: the tdd fixture must freeze, got $rc: $out"; ok=0; }
+  grep -q '^SPEC-FROZEN: true$' "$d/tdd.md" || { log_fail "TEST-489a: no SPEC-FROZEN marker written"; ok=0; }
+  grep -q '^status: implementing$' "$d/tdd.md" || { log_fail "TEST-489a: status not flipped"; ok=0; }
+  grep -Eq '^frozen_sha256: [0-9a-f]{64}$' "$d/tdd.md" || { log_fail "TEST-489a: no well-formed frozen_sha256"; ok=0; }
+  grep -q '^mutation_gate: v1$' "$d/tdd.md" || { log_fail "TEST-489a: no mutation_gate marker for a tdd spec with a Mutation column"; ok=0; }
+  # the anchor is genuinely the contract projection, not a stray literal
+  local stored current
+  stored="$(sed -n 's/^frozen_sha256: //p' "$d/tdd.md")"
+  current="$(node --input-type=module -e "
+    import { contractHash } from '$PROJECT_ROOT/.aai/scripts/lib/spec-contract-hash.mjs';
+    import fs from 'node:fs';
+    process.stdout.write(contractHash(fs.readFileSync(process.argv[1], 'utf8')));
+  " "$d/tdd.md")"
+  [[ "$stored" == "$current" ]] || { log_fail "TEST-489a: frozen_sha256 ($stored) does not match the recomputed projection ($current)"; ok=0; }
+
+  # (b) direct strategy — the anchor is UNCONDITIONAL, the marker is NOT.
+  cat > "$d/direct.md" <<'SPEC'
+---
+id: spec-489-direct
+type: spec
+number: null
+status: draft
+---
+# S
+
+## Implementation strategy
+- Strategy: direct
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | thing | planned | — | — | |
+
+## Test Plan
+
+| Test ID | Spec-AC | Type | File path (expected) | Description | Status |
+|---------|---------|------|-----------------------|--------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/x.sh | does thing | pending |
+SPEC
+  rc=0
+  out="$(node "$FREEZE" --path "$d/direct.md" --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_fail "TEST-489b: the direct fixture must freeze, got $rc: $out"; ok=0; }
+  grep -Eq '^frozen_sha256: [0-9a-f]{64}$' "$d/direct.md" || { log_fail "TEST-489b: a direct-strategy spec must still gain the anchor"; ok=0; }
+  grep -q '^mutation_gate:' "$d/direct.md" && { log_fail "TEST-489b: a direct-strategy spec must NOT gain mutation_gate"; ok=0; }
+
+  # (c) a fixture that fails an EXISTING precondition (ac-without-test: no
+  # Test Plan row claims Spec-AC-01) — nothing written, byte-identical.
+  cat > "$d/refused.md" <<'SPEC'
+---
+id: spec-489-refused
+type: spec
+number: null
+status: draft
+---
+# S
+
+## Implementation strategy
+- Strategy: tdd
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | thing | planned | — | — | |
+SPEC
+  local before after
+  before="$(cksum "$d/refused.md")"
+  rc=0
+  out="$(node "$FREEZE" --path "$d/refused.md" --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 3 ]] || { log_fail "TEST-489c: an existing precondition (ac-without-test) must still refuse exit 3, got $rc: $out"; ok=0; }
+  after="$(cksum "$d/refused.md")"
+  [[ "$before" == "$after" ]] || { log_fail "TEST-489c: a refused precondition must leave the file byte-identical (none of the four fields written)"; ok=0; }
+  grep -q 'frozen_sha256' "$d/refused.md" && { log_fail "TEST-489c: frozen_sha256 must not appear on a refused freeze"; ok=0; }
+  grep -q 'SPEC-FROZEN' "$d/refused.md" && { log_fail "TEST-489c: SPEC-FROZEN must not appear on a refused freeze"; ok=0; }
+
+  rm -rf "$d"
+  [[ $ok -eq 1 ]] && log_pass "TEST-489 SPEC-FROZEN + status + frozen_sha256 + mutation_gate land in one atomic write for an applicable tdd spec; a direct spec gains only the unconditional anchor; a refused precondition writes none of the four" \
+    || log_fail "TEST-489 freeze writes anchors atomically"
+}
+
 # === SPEC spec-vagueness-gate (clarify) — the marker is a freeze precondition ==
 # spec-lint DETECTS `[NEEDS-CLARIFICATION: <question>]` in an in-flight doc;
 # spec-freeze INHERITS the block by carrying `unresolved-clarification` in its
@@ -963,6 +1094,7 @@ main() {
   test_freeze_022_precondition_controls
   test_freeze_023_help_documents_preconditions
   test_024_freeze_unparsed_ac_row
+  test_489_freeze_writes_anchors_atomically
   test_freeze_clarify_002_marker_refuses
   test_freeze_clarify_005_cap_not_a_precondition
   test_freeze_clarify_007_vague_still_freezes

@@ -154,6 +154,7 @@ core:
   - .aai/scripts/lib/repo-tripwire.sh
   - .aai/scripts/lib/runtime-file.mjs
   - .aai/scripts/lib/session-lock.mjs
+  - .aai/scripts/lib/spec-contract-hash.mjs
   - .aai/scripts/lib/state-core.mjs
   - .aai/scripts/lib/state-engine.mjs
   - .aai/scripts/lib/usage-note.mjs

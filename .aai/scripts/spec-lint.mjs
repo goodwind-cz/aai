@@ -466,7 +466,21 @@ export function lintContent(content, opts = {}) {
   // SPEC-FROZEN consistency section below) — the mutation-gate applicability
   // check (D9) needs both ahead of the Test Plan walk, and the frozen check
   // further down reuses these same values rather than re-deriving them.
+  //
+  // `opts.frozenMarker`, when explicitly passed (boolean), OVERRIDES the
+  // body read for the mutation-gate applicability check ONLY — never for the
+  // SPEC-FROZEN consistency section below, which must always judge the
+  // document's ACTUAL marker byte. This is spec-freeze.mjs's own seam (D9
+  // "read differently on the two sides of the freeze"): its freeze
+  // preconditions lint the TRANSFORM'S RESULT, which already carries the
+  // body marker Half 2 just wrote — read literally, that makes an in-flight
+  // spec indistinguishable from an already-frozen legacy one missing the
+  // gate marker (mutationGateApplicability's OWN grandfather exemption for
+  // the latter), so the one precondition caller that must judge "would this
+  // freeze be missing its Mutation column" passes `frozenMarker: false`
+  // explicitly to ask the pre-freeze question.
   const frozenMarker = specFrozenInBody(norm);
+  const mutationGateFrozenMarker = typeof opts.frozenMarker === 'boolean' ? opts.frozenMarker : frozenMarker;
   const bodyStrategy = norm.match(/^-\s*Strategy:\s*(\S+)/m);
   const strategy = resolveStrategy(norm, opts.strategy ?? null);
 
@@ -595,7 +609,7 @@ export function lintContent(content, opts = {}) {
   // (spec-freeze.mjs's PRECONDITION_RULES filter depends on that shape), so
   // the exemption is not itself pushed as a finding — callers read it via
   // mutationGateApplicability() / lintFileAt()'s `mutationGate` field.
-  const mutationGate = mutationGateApplicability(norm, { fm, fmStatus, frozenMarker, strategy });
+  const mutationGate = mutationGateApplicability(norm, { fm, fmStatus, frozenMarker: mutationGateFrozenMarker, strategy });
   for (const row of tp.rows) {
     const { ids, malformed } = expandAcRefs(row.acCell);
     for (const tok of malformed) {

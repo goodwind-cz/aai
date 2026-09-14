@@ -312,17 +312,16 @@ test_new_files_classified() {
 # scripts existing so far are each classified exactly once. TEST-001 above
 # already proves the whole-tree union (these files are part of "actual");
 # this narrows to the files THIS scope adds, named individually (same
-# precedent as TEST-009L above). lib/spec-contract-hash.mjs is a LATER run's
-# file (not yet on disk) and is deliberately absent from this list — see the
-# spec's own D17.
+# precedent as TEST-009L above). lib/spec-contract-hash.mjs (D10/D17,
+# mutation-gate-for-tests run 3) joins the list now that it is on disk.
 test_488_mutation_gate_files_classified() {
-  log_info "TEST-488: mutation-run.mjs, mutation-gate.mjs and lib/mutation-record.mjs are each classified in exactly one profile list..."
+  log_info "TEST-488: mutation-run.mjs, mutation-gate.mjs, lib/mutation-record.mjs and lib/spec-contract-hash.mjs are each classified in exactly one profile list..."
   [[ -f "$MANIFEST" ]] || log_fail "TEST-488: manifest not found: $MANIFEST"
   local core extended
   core="$(profile_list "$MANIFEST" core)"
   extended="$(profile_list "$MANIFEST" extended)"
   local f n_core n_ext
-  for f in .aai/scripts/mutation-run.mjs .aai/scripts/mutation-gate.mjs .aai/scripts/lib/mutation-record.mjs; do
+  for f in .aai/scripts/mutation-run.mjs .aai/scripts/mutation-gate.mjs .aai/scripts/lib/mutation-record.mjs .aai/scripts/lib/spec-contract-hash.mjs; do
     [[ -f "$PROJECT_ROOT/$f" ]] || log_fail "TEST-488: $f does not exist on disk"
     n_core="$(printf '%s\n' "$core" | grep -cFx "$f")" || true
     n_ext="$(printf '%s\n' "$extended" | grep -cFx "$f")" || true
@@ -331,7 +330,7 @@ test_488_mutation_gate_files_classified() {
     [[ "$n_core" -eq 1 ]] \
       || log_fail "TEST-488: $f must be classified as CORE (a gate, per the classification rule) — found core=$n_core extended=$n_ext"
   done
-  log_pass "TEST-488: mutation-run.mjs, mutation-gate.mjs and lib/mutation-record.mjs each classified exactly once, as core"
+  log_pass "TEST-488: mutation-run.mjs, mutation-gate.mjs, lib/mutation-record.mjs and lib/spec-contract-hash.mjs each classified exactly once, as core"
 }
 
 # --- TEST-002 — default run byte-identical to the pre-change sync (Spec-AC-02) -
