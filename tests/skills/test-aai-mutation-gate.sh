@@ -1397,10 +1397,21 @@ test_500_rotation_same_second_suffix() {
   ( cd "$fx" && git add -A && git commit -q -m base )
   printf 'marker-present' > "$fx/lib/extra.txt"
 
+  # The first run is a --patch mutation, so a LIVE .patch sibling exists and
+  # rotation has two files to move in lockstep (NB5-r4: the collision probe
+  # must consider the patch name too, not only the record name).
+  local patch1; patch1="$(mg_new_fixture)/first.patch"
+  cat > "$patch1" <<'EOF'
+--- a/lib/greeting.mjs
++++ b/lib/greeting.mjs
+@@ -1 +1 @@
+-console.log('hello');
++console.log('goodbye');
+EOF
   local out rc
   out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
     --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
-    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+    --target lib/greeting.mjs --patch "$patch1" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-500 setup: expected a RED record, got exit $rc: $out"
 
   local rec; rec="$(mg_record_path "$fx" fixture-spec-500 TEST-9001)"
@@ -1412,6 +1423,11 @@ test_500_rotation_same_second_suffix() {
   # same-second collision D2's rotation naming did not itself cover, without
   # relying on two real runs landing in the same wall-clock second.
   printf 'PRE-EXISTING ARCHIVE — must never be overwritten\n' > "$dir/mutation-TEST-9001.${stamp}.txt"
+  # NB5-r4 arm: ALSO plant a decoy at the bare rotated PATCH name for the NEXT
+  # stamp-free slot the record would otherwise take (.1) — a rotated .patch
+  # sitting alone (its .txt gone, or planted by hand) must never be clobbered,
+  # so both files must skip to .2 together.
+  printf 'DECOY-ARCHIVE-DO-NOT-OVERWRITE\n' > "$dir/mutation-TEST-9001.${stamp}.1.patch"
 
   out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
     --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
@@ -1421,12 +1437,20 @@ test_500_rotation_same_second_suffix() {
   [[ "$(cat "$dir/mutation-TEST-9001.${stamp}.txt")" == 'PRE-EXISTING ARCHIVE — must never be overwritten' ]] \
     || log_fail "TEST-500: the pre-existing archive at the bare stamp name was overwritten"
 
-  [[ -f "$dir/mutation-TEST-9001.${stamp}.1.txt" ]] \
-    || log_fail "TEST-500: the real first record must be archived at the .1 suffix once the bare name is taken, found: $(ls "$dir")"
-  grep -qF 'test_id: TEST-9001' "$dir/mutation-TEST-9001.${stamp}.1.txt" \
-    || log_fail "TEST-500: the .1-suffixed archive does not carry the rotated record's own content: $(cat "$dir/mutation-TEST-9001.${stamp}.1.txt")"
+  [[ "$(cat "$dir/mutation-TEST-9001.${stamp}.1.patch")" == 'DECOY-ARCHIVE-DO-NOT-OVERWRITE' ]] \
+    || log_fail "TEST-500 (NB5-r4): the decoy at the .1 rotated PATCH name was overwritten — the collision probe ignored the patch sibling"
+  [[ ! -f "$dir/mutation-TEST-9001.${stamp}.1.txt" ]] \
+    || log_fail "TEST-500 (NB5-r4): the record took the .1 slot while its patch sibling's .1 name was taken — the pair split"
+  [[ -f "$dir/mutation-TEST-9001.${stamp}.2.txt" && -f "$dir/mutation-TEST-9001.${stamp}.2.patch" ]] \
+    || log_fail "TEST-500: the real first record and its patch must be archived together at the .2 suffix once bare and .1 are taken, found: $(ls "$dir")"
+  grep -qF 'test_id: TEST-9001' "$dir/mutation-TEST-9001.${stamp}.2.txt" \
+    || log_fail "TEST-500: the .2-suffixed archive does not carry the rotated record's own content: $(cat "$dir/mutation-TEST-9001.${stamp}.2.txt")"
+  grep -qF "mutation: patch:" "$dir/mutation-TEST-9001.${stamp}.2.txt" \
+    || log_fail "TEST-500: the rotated record must still name a patch: $(grep '^mutation:' "$dir/mutation-TEST-9001.${stamp}.2.txt")"
+  grep -F "${stamp}.2.patch" "$dir/mutation-TEST-9001.${stamp}.2.txt" >/dev/null \
+    || log_fail "TEST-500: the rotated record's mutation: must point at its own .2 patch sibling: $(grep '^mutation:' "$dir/mutation-TEST-9001.${stamp}.2.txt")"
 
-  log_pass "TEST-500 a rotated-name collision (same run_at_utc second) is resolved with a monotonic .1 suffix — the pre-existing archive survives untouched, and the real record still gets archived"
+  log_pass "TEST-500 a rotated-name collision (same run_at_utc second) is resolved with a monotonic suffix shared by the record and its patch sibling — the pre-existing archive survives untouched, and the real record still gets archived"
 }
 
 # --- TEST-501 — D2/D14 (NB3-r3, remediation round 3): rotateExisting's

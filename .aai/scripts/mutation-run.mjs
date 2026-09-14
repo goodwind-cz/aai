@@ -504,7 +504,12 @@ function rotateExisting(dir, testId) {
   // same suffix.
   let suffix; // undefined = the bare (unsuffixed) name
   let rotated = path.join(dir, rotatedFileName(testId, stamp));
-  while (fs.existsSync(rotated)) {
+  // NB5-r4: the probe must consider the PATCH sibling's name as well — a
+  // rotated .patch left on disk without its paired .txt (or planted by hand)
+  // was silently overwritten when only the record name was checked.
+  const taken = (sfx) => fs.existsSync(path.join(dir, rotatedFileName(testId, stamp, sfx)))
+    || fs.existsSync(path.join(dir, rotatedPatchFileName(testId, stamp, sfx)));
+  while (taken(suffix)) {
     suffix = (suffix ?? 0) + 1;
     rotated = path.join(dir, rotatedFileName(testId, stamp, suffix));
   }

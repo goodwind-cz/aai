@@ -3,7 +3,7 @@ id: spec-mutation-gate-for-tests
 type: spec
 number: null
 status: implementing
-frozen_sha256: 15b46a328a312382195bebe7ceee1b5491b1f459c0b11474b8a5cbe8efd4bb63
+frozen_sha256: 8e01eabf9164b73fb2fb97f4ff278ff3dd9457e7045e65c0168e2317e56e7abc
 ceremony_level: 2
 mutation_gate: v1
 links:
@@ -1633,6 +1633,24 @@ AC's or Test Plan row's text — eleven new rows (TEST-494 through TEST-504)
 are added for properties this round newly covers, and D7/D8 each gain one
 inline amendment paragraph disclosing the narrowing/exemption their own
 prose did not yet state.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: mutation-gate-for-tests`, `--signoff none`.
+
+### Validation round 4 — rotation collision probe covers the patch sibling
+
+- NB5-r4: `rotateExisting`'s free-name probe looked only at the rotated
+  RECORD name; a rotated `.patch` sitting alone at the next slot (its `.txt`
+  gone, or planted by hand) was silently overwritten. The probe now considers
+  both names for every suffix and the pair moves together. TEST-500 gained
+  the arm (a decoy at the `.1` patch name survives; record and patch land at
+  `.2` together; the rotated record's `mutation:` names its own `.2` patch);
+  a record-only probe reddens it (observed). TEST-500's recorded mutation is
+  unchanged.
+- NB1/NB2/NB3/NB4-r4 filed as `fu-testplan-fallback-wrong-cell`,
+  `fu-deferred-row-empty-mutation-cell`, `fu-test439-single-line-guard-grep`,
+  `fu-runmain-runs-main-on-import` (P3). NB6-r4: the 95/95 sweep on 4c766047
+  is committed with this change.
 
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: mutation-gate-for-tests`, `--signoff none`.
