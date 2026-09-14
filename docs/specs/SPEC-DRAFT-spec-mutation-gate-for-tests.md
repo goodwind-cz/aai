@@ -3,7 +3,7 @@ id: spec-mutation-gate-for-tests
 type: spec
 number: null
 status: implementing
-frozen_sha256: ad0484223b9d99346e5f48dca04cecc97b08e228f3d0d1697b06d4ae9ea1e19d
+frozen_sha256: 331ec0e372894ca95e2ad6425b7b09ef9a74f19dbc87e2aff7e21e4a07004dec
 ceremony_level: 2
 mutation_gate: v1
 links:
@@ -882,7 +882,7 @@ evidence, produced by `mutation-run.mjs` itself.
 | TEST-478 | Spec-AC-08 | integration | tests/skills/test-aai-spec-lint.sh | Mutation cell lint — an applicable fixture spec with a missing column, an empty cell and a placeholder cell each produce the named finding and exit 1; a terminal fixture spec and an unmarked fixture spec each exit 0 with the applied exemption named in the output. | Drop the terminal-status exemption, so a done spec is linted; the exemption arms must redden while the finding arms stay green. | green |
 | TEST-479 | Spec-AC-09 | integration | tests/skills/test-aai-spec-lint.sh | Column back-compat — a six-column and a seven-column fixture table parse into the same row shape with the same Spec-AC and file-path values; a table whose columns are reordered still resolves by header name; and a spec-lint run over the live docs/specs corpus reports zero findings mentioning the Mutation column. | Restore positional column indexing in the Test Plan reader; the reordered-header arm and the six-column arm must redden. | green |
 | TEST-480 | Spec-AC-10 | unit | tests/skills/test-aai-mutation-gate.sh | Canon carries the rule — .aai/SKILL_TDD.prompt.md GREEN, .aai/VALIDATION.prompt.md step 5g and .aai/ROLE_COMMON.md each contain the mutation obligation AND a runnable mutation-run.mjs command line; the command lines named there are asserted to parse as valid invocations of the delivered CLI rather than merely to exist as text. | Change the command line in one prompt to a flag the CLI does not accept; the parse arm must redden while the presence arm stays green. | green |
-| TEST-481 | Spec-AC-11 | integration | tests/skills/test-aai-mutation-gate.sh | Replay — a spec with two RED records replays to exit 0; with the code under test fixed so one mutation no longer reddens, replay exits non-zero naming that record; with a record whose target file has been deleted, replay reports INCONCLUSIVE for it and exits non-zero. | Make --replay skip a record whose target is missing instead of reporting it; the deleted-target arm must redden. | green |
+| TEST-481 | Spec-AC-11 | integration | tests/skills/test-aai-mutation-gate.sh | Replay — a spec with two RED records replays to exit 0; with the code under test fixed so one mutation no longer reddens, replay exits non-zero naming that record; with a record whose target file has been deleted, replay reports INCONCLUSIVE for it and exits non-zero. Amendment (remediation round 2, NB2-r2): a fifth arm simulates a CONCURRENT EDITOR of the source tree (a background write to a tracked file while replay runs a deliberately slow selector) — replay must report it INCONCLUSIVE (exit 4), naming the changed path, never as a genuine regression (exit 1). | Make --replay skip a record whose target is missing instead of reporting it; the deleted-target arm must redden. Round-2 mutation: in the D7-trip branch of replay(), route the concurrent-editor case back into the `failures` counter instead of `inconclusive` (`inconclusive++; // NB2-r2 D7 trip during replay is inconclusive, not a regression` -> `failures++; // NB2-r2 ...`); arm 5 must redden (exit 1 instead of the expected 4). | green |
 | TEST-482 | Spec-AC-12 | integration | tests/skills/test-aai-spec-amend.sh | Undisclosed amendment is caught — a fixture spec is frozen by the real spec-freeze.mjs, a Spec-AC Description cell is then edited with no record, and list --strict exits non-zero naming the spec and printing the add line; that line is captured from the output and run verbatim, after which strict exits 0 and frozen_sha256 matches the edited projection. | Compare the stored hash against the WHOLE file instead of the contract projection; the status-flip arm of TEST-483 must redden and this test must stay green, proving the two tests separate the projection from the file. | green |
 | TEST-483 | Spec-AC-13 | integration | tests/skills/test-aai-spec-amend.sh | Honest edits and non-targets — a frozen fixture spec edited WITH a record passes whether the record is signed or unsigned-tracked; an unfrozen spec, a non-spec document and a frozen spec whose only edits are Status, Evidence, Review-By and Notes cells plus a Test Plan Status cell each leave the gate's output byte-identical to the unedited run. | Include the AC-table Status and Evidence cells in the projection; the bookkeeping-edit arm must redden, which is the arm that keeps the gate from firing on every TDD cycle. | green |
 | TEST-484 | Spec-AC-14 | integration | tests/skills/test-aai-spec-amend.sh | Legacy degrades by name — a fixture corpus of three frozen specs with no frozen_sha256 and one with a valid one, where the anchored one is edited without a record, exits non-zero for the anchored spec only and lists the three others as degraded by name; a run over the live repository exits 0 and names the degraded count. | Treat a missing frozen_sha256 as a mismatch; the three-legacy-specs arm must redden, which is the retroactive-red failure CHANGE-0181 AC-005 forbids. | green |
@@ -893,6 +893,9 @@ evidence, produced by `mutation-run.mjs` itself.
 | TEST-488 | Spec-AC-18 | unit | tests/skills/test-aai-layer-profiles.sh | Classification — the union check over the live .aai tree passes and each of mutation-run.mjs, mutation-gate.mjs, lib/mutation-record.mjs and lib/spec-contract-hash.mjs is asserted present in exactly one of the two lists. | Remove one of the four new files from PROFILES.yaml via a unified diff whose content is copied into the evidence directory at mutation time (D14 — never a /tmp path); the union check must redden naming that file. | green |
 | TEST-489 | Spec-AC-17 | integration | tests/skills/test-aai-spec-tools.sh | Freeze writes the anchors atomically — a fixture tdd spec with a Mutation column gains SPEC-FROZEN true, status implementing, frozen_sha256 and mutation_gate v1 in one write; a fixture whose strategy is direct gains the anchor but not the marker; and a fixture that fails an existing freeze precondition is left byte-identical with none of the four written. | Write frozen_sha256 in a second pass after the status write; the refusal arm must redden with a half-written file, which is the atomicity claim. | green |
 | TEST-012 | Spec-AC-10 | unit | tests/skills/test-aai-prompt-diet.sh | Corpus true-up — the existing checkpoint re-sums against the JUSTIFIED_ADDITIONS entry added for this ride's SKILL_TDD, VALIDATION and ROLE_COMMON bytes, so the measured growth equals the credited growth and headroom returns to 2046. | Add one uncredited byte to .aai/SKILL_TDD.prompt.md; TEST-010's headroom arm must redden and the TEST-012 re-sum must stay green, proving the two checks are independent. | green |
+| TEST-491 | Spec-AC-03 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 2, NB3-r2/NB4-r2) — heredoc-aware selector extraction: (A) a fixture suite whose heredoc BODY contains `test_9002_farewell() {` text (round 1's NB5 regression shape) must never appear in an unknown-selector refusal's nearest-selector suggestions; (B) a fixture suite with an UNTERMINATED heredoc (no line before EOF equals the marker) must not swallow the rest of the file — a real selector defined after it (`test_bbb`, `test_ccc`) is still found. | Disable stripHeredocs (`return [...stripHeredocs(suiteContent).matchAll(` -> `return [...(suiteContent).matchAll(`); arm A must redden, naming `test_9002_farewell` in the suggestions it must never appear in. | green |
+| TEST-492 | Spec-AC-11 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 2, NB7-r2) — a rotated record's `mutation:` field follows its own rotated patch copy: two `--patch` runs on the same test id rotate the first record aside; the rotated record's `mutation:` field must resolve to a file whose bytes equal the FIRST patch, never the live patch name (whose bytes now belong to the second run). | In rotateExisting, skip the pointer rewrite (`if (hasPatch && parsed.ok && parsed.fields.mutation.startsWith('patch:')) {` -> `if (false) {`); the rotated record keeps the live patch name and the test must redden. | green |
+| TEST-493 | Spec-AC-03 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 2, NB6-r2) — a record names whether its own row's suite actually honours the positional `selector` it names: a fixture suite whose main() ignores $1 and runs every test produces a record carrying `selector_honoured: no (suite runs every test)` plus a printed NOTE; a fixture suite that dispatches on `$1` (`declare -F "$1"`) produces `selector_honoured: yes`. | Drop the false branch (`selector_honoured: selectorHonoured ? 'yes' : 'no (suite runs every test)'` -> `selector_honoured: 'yes'`); the non-dispatching arm's record no longer carries the honest "no" value and the test must redden. | green |
 
 Every Spec-AC has at least one TEST row and every TEST row names exactly one
 Spec-AC. Every row carries a Mutation cell — the column this ride introduces,
@@ -1298,6 +1301,138 @@ Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
   name (`DEGRADED (named): evidence tree absent …`) and arm A, which produces
   its own records with the runner, carries the ancestry proof. Sweep: 94/95
   with the skip; the suite passes in the isolated clone after the change.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: mutation-gate-for-tests`, `--signoff none`.
+
+### Remediation round 2 (2026-09-14 — validation round 2 PASS, non-blocking findings folded in)
+
+Validation round 2 (`docs/ai/tdd/spec-mutation-gate-for-tests/validation-round2.txt`)
+PASSED with ten named NON-BLOCKING observations (NB1-r2..NB10-r2). Five are
+fixed at cause in this round, each with a test a mutation reddens; the
+remaining five needed no action, as the validator itself already recorded
+(NB1-r2 defence-in-depth with no test of its own, NB5-r2/NB9-r2/NB10-r2
+disclosed-and-clean, NB8-r2 disclosed design — see below).
+
+- **NB2-r2 (D7, Spec-AC-01/Spec-AC-11).** The D7 tripwire (before/after tree
+  hash of the source tree) cannot distinguish the run's OWN write from a
+  CONCURRENT EDITOR's — another process touching the source tree while a run
+  is in flight (AAI's own full-sweep workflow does exactly this). It already
+  failed closed (INCONCLUSIVE, never a false RED); the gap was that
+  `--replay` counted a D7 trip into `failures` (a genuine-regression signal,
+  exit 1), directly against the ride's own D6/D8 rule ("I could not tell"
+  must never render as "regression"). Fixed at cause: `mutation-run.mjs`
+  `buildIsolatedClone()` now keeps the per-file hash map
+  (`tree-hash.mjs` `computeTreeFileHashes`/`hashFromFileHashes`, new exports
+  alongside the existing `computeTreeHash`/`listTreeFiles`) it derives the
+  summary hash from, not only the summary hash itself; both the normal-run
+  D7 self-check and `--replay`'s own D7 self-check now diff the before/after
+  maps (`diffTreeFileHashes`/`describeTreeDiff`, also new in
+  `tree-hash.mjs`) and name the changed path(s) in the INCONCLUSIVE message
+  ("the source tree changed during this run (this run, or another writer) —
+  changed: \<path\>"). `--replay`'s D7-trip branch now increments
+  `inconclusive` (exit 4) instead of `failures` (exit 1) — SPEC-0180 D8's
+  three-way rule applied to replay a second time, this time correctly. The
+  runner's own LIMITS header gains the disclosure this fix makes true: "the
+  tripwire cannot distinguish the runner's own write from a concurrent one;
+  it fails closed and names the changed path(s)." TEST-481 gains a fifth arm
+  (a background writer touching a tracked marker file while replay runs a
+  deliberately slow selector) — see the Test Plan row for the exact mutation
+  that reddens it.
+- **NB3-r2 / NB4-r2 (Spec-AC-03, `stripHeredocs`).** `stripHeredocs`
+  (extractSelectors' own heredoc-body filter, added in remediation round 1
+  for NB5) had no test of its own — disabling it regressed the
+  unknown-selector suggestion list back to round 1's exact NB5 shape with no
+  suite turning red. Separately, an UNTERMINATED heredoc (no line before EOF
+  equals the marker) swallowed every line after its opener to EOF, silently:
+  a real selector defined after a stray `<<MARKER` would be refused as
+  unknown with no trace of why. Fixed at cause (the two share one function,
+  so one test arm each): `stripHeredocs` now looks ahead for the terminator
+  BEFORE consuming any lines; when none is found before EOF, the heredoc is
+  treated as NO heredoc at all — the opener line and everything after it is
+  left for the normal per-line scan, so a real trailing selector is still
+  found (the alternative, closing at EOF, would make one stray `<<MARKER`
+  anywhere in a suite blind this tool to every real test defined after it —
+  a worse failure mode than occasionally scanning a few lines of undelimited
+  heredoc text). New TEST-491 covers both: arm A plants
+  `test_9002_farewell() {` inside a heredoc body and asserts it never
+  appears in the nearest-selector suggestions; arm B plants an unterminated
+  heredoc with real selectors (`test_bbb`, `test_ccc`) after it and asserts
+  they are still found.
+- **NB6-r2 (Spec-AC-03).** Four of this ride's own 21 records
+  (TEST-478/TEST-479 -> `test-aai-spec-lint.sh`, TEST-489 ->
+  `test-aai-spec-tools.sh`, TEST-012 -> `test-aai-prompt-diet.sh`) name a
+  `selector:` for a suite whose `main()` ignores `$1` and runs every test —
+  the verdicts stay honest (the suite genuinely reddened) but the record's
+  `selector` field does not isolate what it appears to. Fixed at cause:
+  `mutation-run.mjs` re-implements, BY HAND, the same six command-position
+  idioms `tests/skills/test-aai-hygiene-pack.sh` `hp_scan_selector_suites`
+  (B2's own corpus scanner, TEST-473) detects — re-implemented rather than
+  called via a shared bash lib, because `hp_scan_selector_suites` is bash
+  and this check runs from `mutation-run.mjs`'s own Node process at
+  record-write time, against the suite text `extractSelectors` already read;
+  the two lists are kept in sync by hand, with `hp_scan_selector_suites`'s
+  own corpus test (`test_094`) as the authority for the live tree. Every new
+  record now carries an OPTIONAL `selector_honoured: yes` /
+  `selector_honoured: no (suite runs every test)` header field
+  (`lib/mutation-record.mjs` `formatRecord` writes it only when the caller
+  supplies it; `parseRecord` needed no change — it already keys header
+  fields by name and accepts any line's key, so an older record without the
+  field still parses as v1) and prints a one-line `NOTE:` to stdout on the
+  "no" branch. The field is deliberately NOT added to `HEADER_FIELDS`
+  (mutation-gate.mjs's D8 satisfaction criteria stay unchanged — this is
+  observability, not a new gate requirement), so the other 17 live records
+  need no regeneration; TEST-478, TEST-479, TEST-489 and TEST-012 ARE
+  regenerated with the identical mutation, suite, selector and target
+  already frozen in their Mutation cells (D2 rotation — same verdict, same
+  evidence, now carrying the field) so the record shape catches up honestly
+  with what validation already observed. New TEST-493 covers both directions
+  (a non-dispatching fixture suite -> "no" + NOTE; a `declare -F "$1"`
+  fixture suite -> "yes").
+- **NB7-r2 (D2, D14, Spec-AC-11).** A rotated record's `mutation:` field kept
+  naming the LIVE patch file, not its own rotated copy — `rotateExisting`
+  renamed the `.txt` and `.patch` files in lockstep but never rewrote the
+  text inside the rotated `.txt`, so the comment at `mutation-run.mjs`
+  (rotateExisting, "a rotated record's mutation stays reproducible too") was
+  false the moment a SECOND `--patch` run landed on the same test id: the
+  rotated record's `mutation:` line still pointed at the live `.patch` name,
+  whose bytes now belonged to the NEXT run. No live path was affected
+  (`--replay` reads only the live `.txt`), but a hand-replay of an archived
+  rotated record would silently apply the wrong patch. Fixed at cause:
+  `rotateExisting` now rewrites the rotated text's `mutation: patch:...` line
+  to name the rotated patch's own repo-relative path (single
+  `String.replace` against the exact frozen line shape, everything else
+  byte-identical) before writing the rotated `.txt` and renaming the
+  `.patch` alongside it — the comment's claim is now true. New TEST-492
+  produces two `--patch` records for the same test id and asserts the
+  rotated record's `mutation:` field resolves to a file whose bytes equal
+  the FIRST patch, never the live name.
+- **NB8-r2 (D8, disclosed design — no test, per the finding's own
+  disposition).** `mutation-gate.mjs` gains one paragraph in its own header
+  naming the limit directly: the gate reads Test Plan ROWS, not the suite's
+  own text, so a renamed selector clears a satisfied record's gate at PASS
+  (only `--replay` re-runs the recorded mutation and can catch that
+  staleness); `close-work-item.mjs` runs the gate, not `--replay`, so a
+  "GATE PASS" is proof a record satisfying the row's shape was once
+  produced, never proof the evidence is fresh.
+- **Not actioned, per validation round 2's own disposition (no D-decision
+  wording change, no test needed):** NB1-r2 (the runner's D7 self-check is
+  defence-in-depth; TEST-471's own tree-hash assertion already covers the
+  property from outside the tool); NB5-r2 (the shell-side corpus scanner's
+  false-positive idioms are fail-CLOSED and no live suite trips them today —
+  candidate follow-up territory, not a defect this ride's own Test Plan
+  claims to cover); NB9-r2 (docs-audit `--gate`'s nineteen Rule-1
+  non-terminal rows are the expected shape of an in-flight `implementing`
+  spec, deferred to the close ceremony per `VALIDATION.prompt.md`'s own AC
+  STATUS GATE carve-out); NB10-r2 (round 1's NB7 — branch-guard red in a
+  clone — is confirmed gone, nothing to re-fix).
+
+`SPEC-FROZEN: true` is preserved; nothing above moves or deletes an existing
+AC's or Test Plan row's text — TEST-481's Mutation cell gains a sentence
+disclosing its new fifth arm and mutation (D2: the row's evidence is
+regenerated for the SAME test id, rotating the prior record aside, never
+deleted), and three new rows (TEST-491, TEST-492, TEST-493) are added for
+properties this round newly covers.
 
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: mutation-gate-for-tests`, `--signoff none`.

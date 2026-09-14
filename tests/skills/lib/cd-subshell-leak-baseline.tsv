@@ -79,7 +79,7 @@
 3	tests/skills/test-aai-live-serve.sh
 5	tests/skills/test-aai-live-status.sh
 7	tests/skills/test-aai-metrics.sh
-25	tests/skills/test-aai-mutation-gate.sh
+26	tests/skills/test-aai-mutation-gate.sh
 4	tests/skills/test-aai-orchestration-dispatch.sh
 2	tests/skills/test-aai-orchestration-mode.sh
 3	tests/skills/test-aai-orphan-sweep.sh

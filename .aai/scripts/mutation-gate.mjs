@@ -32,6 +32,15 @@
 //      Test Plan unparseable, git unavailable)
 //   2  usage error
 //
+// NB8-r2 (disclosed design, D8): the gate reads ROWS, not the suite's own
+// text — renaming a selector out from under an otherwise-satisfied record
+// clears this gate at PASS (it never re-derives whether the record's
+// selector still exists in the suite), because only `mutation-run.mjs
+// --replay` re-runs the recorded mutation and can catch that staleness.
+// `close-work-item.mjs` runs THIS gate, not `--replay` — a "GATE PASS" here
+// is never proof the evidence is fresh, only that a record satisfying the
+// row's shape was once produced.
+//
 // Node stdlib only (docs/TECHNOLOGY.md).
 
 import fs from 'node:fs';

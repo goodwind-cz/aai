@@ -57,7 +57,17 @@
 //   - Windows / sh-less environments: `runSuite` spawns `bash` unconditionally
 //     and degrades by name (INCONCLUSIVE: bash not found) rather than
 //     crashing (see runSuite below), but Pester suites themselves are out of
-//     scope by D18 (fu-mutation-gate-skips-pester, filed).
+//     scope by D18 (fu-mutation-gate-skips-pester, filed);
+//   - D7 (NB2-r2): the shipping-tree tripwire compares a tree hash before and
+//     after the run — it CANNOT distinguish the run's own write from a
+//     CONCURRENT editor's (another process touching the source tree while
+//     this run is in flight, e.g. a full sweep appending to
+//     docs/ai/tests/test-runs.jsonl). Either way it fails CLOSED: the verdict
+//     is downgraded to INCONCLUSIVE, never recorded as RED or STAYED GREEN,
+//     and the message names the changed path(s) so an operator can tell a
+//     concurrent writer from a real self-inflicted bug. --replay counts this
+//     as `inconclusive` (exit 4), never a genuine regression (exit 1) — "I
+//     could not tell" must never render as "regression" (D6/D8).
 //
 // Node stdlib only (docs/TECHNOLOGY.md). Never invokes a shell: every
 // external command runs via execFileSync/spawnSync with an argv array, so a
@@ -70,7 +80,12 @@ import os from 'node:os';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { exit, runMain, ExitSignal } from './lib/cli-pipe-guard.mjs';
 import { parseFrontmatter } from './lib/docs-model.mjs';
-import { computeTreeHash } from './lib/tree-hash.mjs';
+import {
+  computeTreeFileHashes,
+  hashFromFileHashes,
+  diffTreeFileHashes,
+  describeTreeDiff,
+} from './lib/tree-hash.mjs';
 import {
   formatRecord,
   parseRecord,
@@ -190,6 +205,15 @@ function nearestSelectors(name, candidates, n) {
 // heredoc text (this repo's own tests do this) must never have that quoted
 // text's function definitions leak into ITS OWN selector grammar — a suite
 // does not define a test merely by printing one.
+//
+// NB4-r2: an UNTERMINATED heredoc (no line before EOF equals the marker) is
+// treated as NO heredoc at all, deliberately — the opener line and every
+// line after it up to EOF are left for the normal per-line scan below, so a
+// REAL selector defined after a malformed/never-closed heredoc opener is
+// still found rather than silently swallowed to EOF. The alternative (close
+// it at EOF) would make a single stray `<<MARKER` anywhere in the file blind
+// this tool to every real test defined after it — a worse failure mode than
+// occasionally scanning a few lines of undelimited heredoc body text.
 function stripHeredocs(content) {
   const lines = content.split('\n');
   const out = [];
@@ -198,22 +222,56 @@ function stripHeredocs(content) {
     const line = lines[i];
     const m = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/.exec(line);
     if (m) {
-      out.push(line);
       const dash = line.includes('<<-');
       const marker = m[2];
-      i++;
-      while (i < lines.length) {
-        const candidate = dash ? lines[i].replace(/^\t+/, '') : lines[i];
-        if (candidate === marker) break;
-        i++;
+      let j = i + 1;
+      let terminatorIdx = -1;
+      while (j < lines.length) {
+        const candidate = dash ? lines[j].replace(/^\t+/, '') : lines[j];
+        if (candidate === marker) {
+          terminatorIdx = j;
+          break;
+        }
+        j++;
       }
-      if (i < lines.length) i++; // skip the terminator line itself
+      if (terminatorIdx === -1) {
+        // NB4-r2: unterminated — do not consume anything beyond this line.
+        out.push(line);
+        i++;
+        continue;
+      }
+      out.push(line);
+      i = terminatorIdx + 1; // skip the terminator line itself
       continue;
     }
     out.push(line);
     i++;
   }
   return out.join('\n');
+}
+
+// NB6-r2: re-implements, by hand, the SAME six command-position idioms
+// tests/skills/test-aai-hygiene-pack.sh `hp_scan_selector_suites` detects —
+// that scanner is bash (grep -E over a file), this tool is Node, and this
+// check runs at record-write time against the suite text mutation-run.mjs
+// already read (extractSelectors' own input), so re-implementing the regexes
+// here (rather than shelling out to a bash lib) keeps this check in the same
+// process and language as the rest of the tool. Keep both lists in sync by
+// hand; hygiene-pack's test_094 is the corpus authority for the real tree.
+const POSITIONAL_DISPATCH_PATTERNS = [
+  /declare -[fF] "\$1"/,
+  /declare -[fF] "test_\$\{[A-Za-z_]+\}"/,
+  /(^|;|&&|\|\||then|do)[ \t]*"\$1"([ \t;]|$)/m,
+  /(^|;|&&|\|\||then|do)[ \t]*"test_\$\{[A-Za-z_]+\}"/m,
+  /ALL_TESTS\[@\]/,
+  /"\$fn"[ \t]*$/m,
+];
+
+// isPositionalDispatchSuite(content) -> true when the suite's own text
+// matches at least one of the idioms above — i.e. it actually dispatches on
+// a positional selector rather than ignoring $1 and running every test.
+function isPositionalDispatchSuite(content) {
+  return POSITIONAL_DISPATCH_PATTERNS.some((re) => re.test(content));
 }
 
 // The SAME grammar check-test-registration.mjs uses (D3): a suite's own
@@ -260,13 +318,17 @@ function mutationDescription({ sed, patch }) {
 
 // Builds an isolated clone of the CURRENT working tree (committed history +
 // tracked modifications + untracked-not-ignored files), proved by a tree
-// hash (D4). Returns { cloneDir, baseCommit, sourceTreeHash } or throws a
-// TreeMismatch marker error the caller turns into the exit-3 refusal.
+// hash (D4). Returns { cloneDir, baseCommit, sourceTreeHash, sourceTreeFiles }
+// or throws a TreeMismatch marker error the caller turns into the exit-3
+// refusal. `sourceTreeFiles` (NB2-r2) is the per-file hash map the summary
+// hash was derived from — kept so a caller can later NAME which path moved,
+// not only that the summary hash did.
 class TreeMismatchError extends Error {}
 
 function buildIsolatedClone() {
   const baseCommit = execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-  const sourceTreeHash = computeTreeHash(ROOT);
+  const sourceTreeFiles = computeTreeFileHashes(ROOT);
+  const sourceTreeHash = hashFromFileHashes(sourceTreeFiles);
 
   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'aai-mutation-'));
   // Everything from here on is inside ONE try: any throw, of ANY shape
@@ -312,14 +374,14 @@ function buildIsolatedClone() {
       }
     }
 
-    const cloneTreeHash = computeTreeHash(cloneDir);
+    const cloneTreeHash = hashFromFileHashes(computeTreeFileHashes(cloneDir));
     if (cloneTreeHash !== sourceTreeHash) {
       throw new TreeMismatchError(
         `mutation-run: clone tree hash (${cloneTreeHash}) does not match the source working tree's (${sourceTreeHash}) — the clone does not reproduce your tree`
       );
     }
 
-    return { tmpBase, cloneDir, baseCommit, sourceTreeHash };
+    return { tmpBase, cloneDir, baseCommit, sourceTreeHash, sourceTreeFiles };
   } catch (err) {
     fs.rmSync(tmpBase, { recursive: true, force: true });
     throw err;
@@ -381,11 +443,30 @@ function rotateExisting(dir, testId) {
   const parsed = parseRecord(prevText);
   const stamp = parsed.ok ? parsed.fields.run_at_utc : `unknown-${Date.now()}`;
   const rotated = path.join(dir, rotatedFileName(testId, stamp));
-  fs.renameSync(live, rotated);
 
   const livePatch = path.join(dir, patchFileName(testId));
-  if (fs.existsSync(livePatch)) {
-    fs.renameSync(livePatch, path.join(dir, rotatedPatchFileName(testId, stamp)));
+  const hasPatch = fs.existsSync(livePatch);
+  const rotatedPatchAbs = path.join(dir, rotatedPatchFileName(testId, stamp));
+
+  // NB7-r2: rotation moves the record AND its --patch copy in lockstep
+  // (below), so the rotated RECORD's own `mutation:` field must be rewritten
+  // to name the rotated patch it now sits beside — not the LIVE patch name,
+  // whose bytes belong to the NEXT run the instant this function returns.
+  // Leaving the field unrewritten was a false sentence in this comment's own
+  // prior claim ("a rotated record's mutation stays reproducible too") and an
+  // archival footgun: a hand-replay of the rotated .txt would apply the
+  // WRONG (next run's) patch. Everything else about the rotated text is
+  // byte-identical to what was live.
+  let rotatedText = prevText;
+  if (hasPatch && parsed.ok && parsed.fields.mutation.startsWith('patch:')) {
+    const rotatedPatchRel = path.relative(ROOT, rotatedPatchAbs);
+    rotatedText = prevText.replace(/^mutation: patch:.*$/m, `mutation: patch:${rotatedPatchRel}`);
+  }
+  fs.writeFileSync(rotated, rotatedText);
+  fs.rmSync(live);
+
+  if (hasPatch) {
+    fs.renameSync(livePatch, rotatedPatchAbs);
   }
 }
 
@@ -491,14 +572,32 @@ function runOne(args) {
 
     // D7 self-check: the run above must have touched ONLY the clone and
     // docs/ai/tdd/ — never the shipping tree it was cloned from. A mismatch
-    // means the mutated run itself wrote outside its lane (B1: e.g. a
+    // means EITHER the mutated run itself wrote outside its lane (B1: e.g. a
     // mutated mutation-run.mjs appending to its own SOURCE copy of the
-    // target), so the verdict it produced cannot be trusted and is
-    // downgraded to INCONCLUSIVE rather than recorded as RED/STAYED GREEN.
-    const postRunSourceTreeHash = computeTreeHash(ROOT);
+    // target) OR a concurrent editor touched the source tree while this run
+    // was in flight (NB2-r2) — this tripwire cannot tell the two apart, so
+    // either way the verdict it produced cannot be trusted and is downgraded
+    // to INCONCLUSIVE rather than recorded as RED/STAYED GREEN, and the
+    // message names the changed path(s) rather than asserting which cause it
+    // was.
+    const postRunSourceTreeFiles = computeTreeFileHashes(ROOT);
+    const postRunSourceTreeHash = hashFromFileHashes(postRunSourceTreeFiles);
     if (postRunSourceTreeHash !== clone.sourceTreeHash) {
+      const treeDiff = diffTreeFileHashes(clone.sourceTreeFiles, postRunSourceTreeFiles);
       verdict = 'INCONCLUSIVE';
-      firstFail = `INCONCLUSIVE: the run wrote into the source tree outside docs/ai/tdd/ (D7 tripwire: tree hash ${clone.sourceTreeHash} -> ${postRunSourceTreeHash}) — refusing to trust this result`;
+      firstFail = `INCONCLUSIVE: the source tree changed during this run (this run, or another writer) — ${describeTreeDiff(treeDiff)} (D7 tripwire: tree hash ${clone.sourceTreeHash} -> ${postRunSourceTreeHash}) — refusing to trust this result`;
+    }
+
+    // NB6-r2: whether the row's own suite actually dispatches on `selector`,
+    // or ignores $1 and runs every test (spec-lint, spec-tools, prompt-diet,
+    // heartbeat all do this today) — the record is still honest either way
+    // (the suite reddened), but this says whether --selector's isolation
+    // claim actually held for THIS run.
+    const selectorHonoured = isPositionalDispatchSuite(suiteContent);
+    if (!selectorHonoured) {
+      process.stdout.write(
+        `NOTE: ${args.suite} does not appear to dispatch on a positional selector — this record's verdict is honest (the suite reddened), but --selector did not isolate it; the whole suite ran.\n`
+      );
     }
 
     const fields = {
@@ -514,6 +613,7 @@ function runOne(args) {
       rc: String(rc),
       verdict,
       first_fail: firstFail,
+      selector_honoured: selectorHonoured ? 'yes' : 'no (suite runs every test)',
     };
     const patchSourceAbs = args.patch ? (path.isAbsolute(args.patch) ? args.patch : path.join(ROOT, args.patch)) : undefined;
     const recordPath = writeRecord(specId, args.testId, fields, lastLines(output, TAIL_LINES), patchSourceAbs);
@@ -619,10 +719,20 @@ function replay(args) {
         continue;
       }
       const { rc, output } = ran;
-      const postRunSourceTreeHash = computeTreeHash(ROOT);
+      const postRunSourceTreeFiles = computeTreeFileHashes(ROOT);
+      const postRunSourceTreeHash = hashFromFileHashes(postRunSourceTreeFiles);
       if (postRunSourceTreeHash !== clone.sourceTreeHash) {
-        failures++;
-        process.stdout.write(`INCONCLUSIVE ${testId}: own replay run wrote into the source tree outside docs/ai/tdd/ (D7 tripwire) — refusing to trust the result\n`);
+        // NB2-r2: a D7 trip during --replay cannot tell "this run wrote
+        // outside its lane" from "a concurrent editor touched the source
+        // tree while this run was in flight" (e.g. a full sweep appending to
+        // docs/ai/tests/test-runs.jsonl) — it is "I could not tell", never a
+        // genuine regression signal, so it counts as inconclusive++ (exit 4)
+        // rather than failures++ (exit 1: SPEC-0180 D8's rule applied to
+        // replay). The message names the changed path(s) instead of naming a
+        // cause it cannot actually distinguish.
+        inconclusive++; // NB2-r2 D7 trip during replay is inconclusive, not a regression
+        const treeDiff = diffTreeFileHashes(clone.sourceTreeFiles, postRunSourceTreeFiles);
+        process.stdout.write(`INCONCLUSIVE ${testId}: the source tree changed during this run (this run, or another writer) — ${describeTreeDiff(treeDiff)} (D7 tripwire) — refusing to trust the result\n`);
         continue;
       }
       const { verdict } = classifyVerdict(rc, output, testId);

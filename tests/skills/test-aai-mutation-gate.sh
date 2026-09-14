@@ -520,7 +520,60 @@ EOF
   assert_payload_not_contains "$out" "at applyMutation" \
     "TEST-481 arm4: replay must never leak a raw stack trace for an unreplayable record: $out"
 
-  log_pass "TEST-481 replay exits 0 when every live record still reddens, names a record that no longer reddens once the code changes (exit 1), reports INCONCLUSIVE for a record whose target vanished, and reports INCONCLUSIVE at a DISTINCT exit code (4) for a record whose mutation cannot be applied at all, never a crash"
+  # Arm 5 (NB2-r2): a CONCURRENT EDITOR of the source tree — a separate
+  # writer touching a tracked file while --replay is running its own slow
+  # suite — must be reported as inconclusive (exit 4), never as a genuine
+  # regression (exit 1); the message must name the changed path rather than
+  # asserting a cause the D7 tripwire cannot actually tell apart.
+  local fx5; fx5="$(mg_new_fixture)"
+  mg_seed_repo "$fx5"
+  mg_write_spec "$fx5" "fixture-spec-481-arm5"
+  printf "console.log('hello');\n" > "$fx5/lib/greeting.mjs"
+  printf 'marker\n' > "$fx5/CONCURRENT_MARKER.txt"
+  ( cd "$fx5" && git add -A && git commit -q -m base )
+
+  # A selector slow enough to give a background writer a real window against
+  # the SOURCE tree while the suite runs inside the clone.
+  cat > "$fx5/tests/skills/fixture-suite.sh" <<'EOS'
+#!/usr/bin/env bash
+set -uo pipefail
+FSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FROOT="$(cd "$FSCRIPT_DIR/../.." && pwd)"
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+test_9001_slow_greet() {
+  sleep 3
+  local out; out="$(node "$FROOT/lib/greeting.mjs" 2>&1)"
+  [[ "$out" == "hello" ]] || log_fail "TEST-9001 greeting mismatch: got '$out'"
+  log_pass "TEST-9001 greeting ok"
+}
+main() {
+  if [[ -n "${1:-}" ]]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"; return
+  fi
+  test_9001_slow_greet
+}
+main "$@"
+EOS
+  ( cd "$fx5" && git add -A && git commit -q -m 'slow selector' )
+
+  out="$(cd "$fx5" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_slow_greet \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-481 arm5 setup: expected a RED record, got exit $rc: $out"
+
+  ( sleep 1; printf 'edited-by-concurrent-writer\n' >> "$fx5/CONCURRENT_MARKER.txt" ) &
+  local bgpid=$!
+  out="$(cd "$fx5" && node "$MUTATION_RUN" --replay --spec docs/specs/fixture-spec.md 2>&1)" && rc=0 || rc=$?
+  wait "$bgpid" 2>/dev/null || true
+  [[ "$rc" -eq 4 ]] || log_fail "TEST-481 arm5: --replay must exit 4 (inconclusive) when the source tree changes concurrently during the run, never exit 1 (a genuine regression), got $rc: $out"
+  assert_payload_line_matches "$out" 'INCONCLUSIVE TEST-9001:.*CONCURRENT_MARKER\.txt' \
+    "TEST-481 arm5: replay must name the changed path CONCURRENT_MARKER.txt: $out"
+  assert_payload_contains "$out" "this run, or another writer" \
+    "TEST-481 arm5: replay's D7 message must own that it cannot tell a concurrent writer from its own run: $out"
+
+  log_pass "TEST-481 replay exits 0 when every live record still reddens, names a record that no longer reddens once the code changes (exit 1), reports INCONCLUSIVE for a record whose target vanished, reports INCONCLUSIVE at a DISTINCT exit code (4) for a record whose mutation cannot be applied at all, and reports a concurrent editor's write during the run as inconclusive (exit 4, path named) rather than a genuine regression"
 }
 
 # --- TEST-480 — Spec-AC-10: canon carries the rule --------------------------
@@ -943,6 +996,188 @@ test_nb1_dangling_symlink_no_leak() {
   log_pass "NB1 a dangling untracked symlink is reproduced as a symlink (never followed/read), the run completes normally, and no clone is leaked"
 }
 
+# --- TEST-491 — Spec-AC-03 (NB3-r2/NB4-r2): heredoc-aware selector extraction
+test_491_heredoc_selector_extraction() {
+  log_info "Test: heredoc-only names never leak into unknown-selector suggestions (NB3-r2), and an UNTERMINATED heredoc never swallows a real trailing selector (NB4-r2) (TEST-491)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_spec "$fx" "fixture-spec-491"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+
+  # Arm A (NB3-r2): a heredoc BODY that happens to contain another suite's
+  # function-definition TEXT must never leak into THIS suite's own selector
+  # grammar — a suite does not define a test merely by printing one.
+  cat > "$fx/tests/skills/fixture-suite.sh" <<'FIXTURE_EOS_A'
+#!/usr/bin/env bash
+set -uo pipefail
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+write_other_suite() {
+  cat <<'INNER'
+test_9002_farewell() {
+  :
+}
+INNER
+}
+main() { "$1"; }
+main "$@"
+FIXTURE_EOS_A
+  ( cd "$fx" && git add -A && git commit -q -m 'heredoc-body fixture' )
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_nonexistent_selector_xyz \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-491 arm A: unknown selector must exit 2, got $rc: $out"
+  assert_payload_not_contains "$out" "test_9002_farewell" \
+    "TEST-491 arm A: a heredoc-only name must never appear in the unknown-selector suggestions: $out"
+
+  # Arm B (NB4-r2): an UNTERMINATED heredoc must not swallow the rest of the
+  # file — a REAL selector defined after it must still be found.
+  cat > "$fx/tests/skills/fixture-suite.sh" <<'FIXTURE_EOS_B'
+#!/usr/bin/env bash
+set -uo pipefail
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+test_aaa() {
+  cat <<'EOS2'
+this heredoc is never terminated in this fixture file on purpose
+test_bbb() { :; }
+test_ccc() { :; }
+FIXTURE_EOS_B
+  ( cd "$fx" && git add -A && git commit -q -m 'unterminated heredoc fixture' )
+
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_nonexistent_selector_xyz \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-491 arm B: unknown selector must exit 2, got $rc: $out"
+  assert_payload_contains "$out" "test_aaa" \
+    "TEST-491 arm B: the heredoc's OWN opener function must still be found (it is a real, if oddly-shaped, selector): $out"
+  assert_payload_contains "$out" "test_bbb" \
+    "TEST-491 arm B: a real selector defined AFTER an unterminated heredoc must still be found, never silently swallowed: $out"
+  assert_payload_contains "$out" "test_ccc" \
+    "TEST-491 arm B: a real selector defined AFTER an unterminated heredoc must still be found, never silently swallowed: $out"
+
+  log_pass "TEST-491 heredoc-only names never leak into selector suggestions, and an unterminated heredoc never swallows a real trailing selector"
+}
+
+# --- TEST-492 — Spec-AC-11/D14 (NB7-r2): rotated record's patch pointer ----
+test_492_rotated_patch_pointer() {
+  log_info "Test: a rotated record's mutation: field follows its own rotated patch copy, not the live name whose bytes belong to the next run (NB7-r2) (TEST-492)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-492"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  printf 'marker-present' > "$fx/lib/extra.txt"
+
+  local patch1; patch1="$(mg_new_fixture)/first.patch"
+  cat > "$patch1" <<'EOF'
+--- a/lib/greeting.mjs
++++ b/lib/greeting.mjs
+@@ -1 +1 @@
+-console.log('hello');
++console.log('goodbye');
+EOF
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --patch "$patch1" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-492 setup 1: expected a RED record, got exit $rc: $out"
+
+  local rec; rec="$(mg_record_path "$fx" fixture-spec-492 TEST-9001)"
+  local run_at1; run_at1="$(grep '^run_at_utc: ' "$rec" | sed 's/^run_at_utc: //')"
+  local first_patch_bytes; first_patch_bytes="$(cat "$(dirname "$rec")/mutation-TEST-9001.patch")"
+
+  local patch2; patch2="$(mg_new_fixture)/second.patch"
+  cat > "$patch2" <<'EOF'
+--- a/lib/greeting.mjs
++++ b/lib/greeting.mjs
+@@ -1 +1 @@
+-console.log('hello');
++console.log('farewell');
+EOF
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --patch "$patch2" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-492 setup 2: expected a second RED record (rotating the first), got exit $rc: $out"
+
+  local rotated_txt; rotated_txt="$(dirname "$rec")/mutation-TEST-9001.${run_at1}.txt"
+  [[ -f "$rotated_txt" ]] || log_fail "TEST-492: rotated record not found at $rotated_txt"
+  local rotated_patch_rel; rotated_patch_rel="$(grep '^mutation: patch:' "$rotated_txt" | sed 's/^mutation: patch://')"
+  [[ -n "$rotated_patch_rel" ]] || log_fail "TEST-492: rotated record's mutation field is not a patch: pointer: $(cat "$rotated_txt")"
+  local rotated_patch_abs="$fx/$rotated_patch_rel"
+  [[ -f "$rotated_patch_abs" ]] || log_fail "TEST-492: rotated record's mutation field names a file that does not exist: $rotated_patch_rel"
+  local rotated_patch_bytes; rotated_patch_bytes="$(cat "$rotated_patch_abs")"
+  [[ "$rotated_patch_bytes" == "$first_patch_bytes" ]] \
+    || log_fail "TEST-492: the rotated record's mutation: field does not resolve to the FIRST patch's content"
+  [[ "$rotated_patch_rel" != "docs/ai/tdd/fixture-spec-492/mutation-TEST-9001.patch" ]] \
+    || log_fail "TEST-492: rotated record still points at the LIVE patch name, whose bytes now belong to the NEXT run"
+
+  log_pass "TEST-492 a rotated record's mutation: field follows its own rotated patch copy, byte-identical to the first patch, never the live name"
+}
+
+# --- TEST-493 — Spec-AC-03 (NB6-r2): selector_honoured field --------------
+test_493_selector_honoured_field() {
+  log_info "Test: a record for a suite that ignores \$1 and runs every test carries selector_honoured: no, and one that dispatches carries yes (NB6-r2) (TEST-493)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_spec "$fx" "fixture-spec-493"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+
+  # A suite whose main() runs EVERYTHING regardless of $1 — no positional
+  # dispatch idiom at all (the live spec-lint/spec-tools/prompt-diet/heartbeat
+  # shape NB6-r2 names).
+  cat > "$fx/tests/skills/fixture-suite.sh" <<'EOS'
+#!/usr/bin/env bash
+set -uo pipefail
+FSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FROOT="$(cd "$FSCRIPT_DIR/../.." && pwd)"
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+test_9001_greet() {
+  local out; out="$(node "$FROOT/lib/greeting.mjs" 2>&1)"
+  [[ "$out" == "hello" ]] || log_fail "TEST-9001 greeting mismatch: got '$out'"
+  log_pass "TEST-9001 greeting ok"
+}
+main() {
+  test_9001_greet
+}
+main "$@"
+EOS
+  ( cd "$fx" && git add -A && git commit -q -m base )
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-493: expected a RED record, got exit $rc: $out"
+  assert_payload_contains "$out" "NOTE:" "TEST-493: a non-dispatching suite must print a NOTE: $out"
+
+  local rec; rec="$(mg_record_path "$fx" fixture-spec-493 TEST-9001)"
+  grep -qF 'selector_honoured: no (suite runs every test)' "$rec" \
+    || log_fail "TEST-493: record must carry selector_honoured: no (suite runs every test): $(cat "$rec")"
+
+  # A fixture suite that DOES dispatch on $1 (declare -F "$1") must carry yes.
+  local fx2; fx2="$(mg_new_fixture)"
+  mg_seed_repo "$fx2"
+  mg_write_fixture_suite "$fx2"
+  mg_write_spec "$fx2" "fixture-spec-493-honoured"
+  printf "console.log('hello');\n" > "$fx2/lib/greeting.mjs"
+  printf 'marker-present' > "$fx2/lib/extra.txt"
+  ( cd "$fx2" && git add -A && git commit -q -m base )
+  out="$(cd "$fx2" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-493 (honoured arm): expected a RED record, got exit $rc: $out"
+  local rec2; rec2="$(mg_record_path "$fx2" fixture-spec-493-honoured TEST-9001)"
+  grep -qF 'selector_honoured: yes' "$rec2" \
+    || log_fail "TEST-493: a dispatching suite's record must carry selector_honoured: yes: $(cat "$rec2")"
+
+  log_pass "TEST-493 mutation-run.mjs records whether the row's own suite actually honours the positional selector, both directions, and NOTEs the non-dispatching case"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -955,6 +1190,9 @@ main() {
   test_476_gate_degrade
   test_486_gate_reads_this_ride
   test_nb1_dangling_symlink_no_leak
+  test_491_heredoc_selector_extraction
+  test_492_rotated_patch_pointer
+  test_493_selector_honoured_field
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

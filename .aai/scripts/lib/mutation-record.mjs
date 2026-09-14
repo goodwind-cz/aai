@@ -67,6 +67,17 @@ export function formatRecord(fields, tailText) {
     }
     lines.push(`${key}: ${v}`);
   }
+  // selector_honoured (NB6-r2, OPTIONAL — not in HEADER_FIELDS, so an older
+  // record without it still parses): whether the row's own suite actually
+  // dispatches on the record's `selector` field, or ignores $1 and runs
+  // every test. Written only when the caller supplies it.
+  if (fields.selector_honoured !== undefined) {
+    const v = fields.selector_honoured;
+    if (v === null || String(v).includes('\n')) {
+      throw new Error(`mutation-record: field "selector_honoured" must be a single-line value (got ${JSON.stringify(v)})`);
+    }
+    lines.push(`selector_honoured: ${v}`);
+  }
   const tail = tailText == null ? '' : String(tailText);
   const body = tail.endsWith('\n') ? tail.slice(0, -1) : tail;
   return `${lines.join('\n')}${SEPARATOR}${body}\n`;
