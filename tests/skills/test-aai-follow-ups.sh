@@ -2143,6 +2143,15 @@ test_032_spec_test_framework_sweep_closure_is_real() {
     # same-ride-prefixed variant is how a WITHIN-RIDE reason correction is
     # expressed at all; review NB-14). Still ties every id to THIS ride —
     # an unrelated resolved_by fails exactly as before.
+    # Cross-sweep reconciliation (merge of main e6aae10b, sweep 3): this ride
+    # DROPPED fu-role-guard-blocks-own-fixtures ("the fix is in state.mjs, an
+    # L3 surface"); dispatch-state-sweep then fixed it at cause in state.mjs
+    # and closed it done. The later, truer record wins in the fold; the id
+    # stays in this spec's rejected table as history. Only this one id, only
+    # that one ride — any other foreign resolved_by still fails.
+    if [[ "$id" == "fu-role-guard-blocks-own-fixtures" && "$resolved_by" == "dispatch-state-sweep" ]]; then
+      continue
+    fi
     case "$resolved_by" in
       test-framework-sweep|test-framework-sweep-*) ;;
       *) bad_attrib="${bad_attrib:+$bad_attrib }$id($resolved_by)" ;;

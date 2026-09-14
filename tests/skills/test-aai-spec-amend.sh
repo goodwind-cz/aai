@@ -1323,7 +1323,13 @@ test_445_ac12_negative_controls_test003_008_009() {
   # directory, so the scratch copy needs that sibling too.
   local saDirA="$TEST_DIR/sa-mut-a"
   mkdir -p "$saDirA/lib"
-  cp "$(dirname "$SA")/lib/cli-pipe-guard.mjs" "$saDirA/lib/cli-pipe-guard.mjs"
+  # every ./lib sibling the engine imports (cli-pipe-guard, iso-time since
+  # dispatch-state-sweep, and whatever comes next) — read from the engine
+  # itself so a new import does not turn this mutation into a module error
+  local _lib
+  for _lib in $(/usr/bin/grep -aoE "from '\./lib/[a-z0-9-]+\.mjs'" "$SA" | /usr/bin/grep -oE "[a-z0-9-]+\.mjs"); do
+    cp "$(dirname "$SA")/lib/$_lib" "$saDirA/lib/$_lib"
+  done
   local saMut="$saDirA/spec-amend.mjs"
   cp "$SA" "$saMut"
   # Portable sed insertion keyed on readDecisionsLedger's unique skip-blank/
@@ -1371,7 +1377,13 @@ test_445_ac12_negative_controls_test003_008_009() {
 
   local saDirB="$TEST_DIR/sa-mut-b"
   mkdir -p "$saDirB/lib"
-  cp "$(dirname "$SA")/lib/cli-pipe-guard.mjs" "$saDirB/lib/cli-pipe-guard.mjs"
+  # every ./lib sibling the engine imports (cli-pipe-guard, iso-time since
+  # dispatch-state-sweep, and whatever comes next) — read from the engine
+  # itself so a new import does not turn this mutation into a module error
+  local _lib
+  for _lib in $(/usr/bin/grep -aoE "from '\./lib/[a-z0-9-]+\.mjs'" "$SA" | /usr/bin/grep -oE "[a-z0-9-]+\.mjs"); do
+    cp "$(dirname "$SA")/lib/$_lib" "$saDirB/lib/$_lib"
+  done
   local saMutB="$saDirB/spec-amend.mjs"
   cp "$SA" "$saMutB"
   sed -i.bak "s/fs\.appendFileSync(absPath, \`\${prefix}\${JSON\.stringify(entry)}\\\\n\`);/fs.writeFileSync(absPath, \`\${JSON.stringify(entry)}\\\\n\`);/" "$saMutB" && rm -f "$saMutB.bak"

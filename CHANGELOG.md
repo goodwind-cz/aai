@@ -24,11 +24,14 @@ RFC-0001).
   ceremony: SKILL_PR pins at step 0 and passes `--expect-branch` at 4a/4c/5,
   SKILL_WORKTREE acquires and releases the lock. A project that never pinned
   sees a NOTE, never a refusal.
-- **The nested layer-profiles CI-only failure** (three of six CI runs on PR #376):
-  the fixture build now fails loudly on any copy or sync warning, an empty
-  MISSING list is byte-dumped, and the two nesting wrappers write the nested
-  output to a file. Not claimed fixed at cause (R1): the missing list was empty
-  and never reproduced in 28 isolated runs.
+- **The "CI-load-only" layer-profiles failure has a cause and a fix**: under
+  `pipefail`, `aai-sync.sh` tested core membership with `printf | grep -q`;
+  `grep -q` closes the pipe on the first match, printf dies with SIGPIPE, and
+  a core-listed file is pruned as "not core" (the MISSING / non-idempotent
+  reds on PR #376 and this PR). Membership tests are here-strings now, no
+  `| head -n1` decisions remain, and three tests (a core list larger than the
+  pipe buffer, a 200 KB `.gitignore`, a static ratchet) redden on any restored
+  pipe. Round 8's `cp -a` retry was a false cause and is withdrawn.
 - **Honest gates**: pipe-into-`grep -q` drained 202 → 0 (DEBT-0006, ratchet at
   zero); nine self-comparing guards got negative controls and fail closed
   (DEBT-0004); six brittle pins assert the property; a degenerate-pass ratchet
@@ -46,8 +49,10 @@ RFC-0001).
 - **Registry**: 48 follow-ups closed with a test each, 36 dropped with a
   recorded reason; ISSUE-0039/0041/0043/0044 and DEBT-0004/0006 resolved;
   GitHub #368 rejected (prose-free friction issue, CHANGE-0179 owns the class).
-- Spec: SPEC-0179 (test-framework-sweep), ceremony 2, TDD, 49 + 4 tests, one
-  mutation per test, four validation rounds, one review round. Wave 3 sweep 2.
+- Spec: SPEC-0179 (test-framework-sweep), ceremony 2, TDD, 60 numbered tests
+  (401–466), one mutation per test, seven validation rounds (rounds 6–7 as
+  `--force` re-validations), two review rounds, nine remediation rounds.
+  Wave 3 sweep 2.
   Merged by the orchestrator under the wave-3 mandate of 2026-09-13.
 ## [unreleased] — fix(dispatch): the dispatch loop and STATE say the truth about the ride they are running
 

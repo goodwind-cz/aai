@@ -1337,3 +1337,23 @@ and "core sync not idempotent (tree changed on second run)".
 Authority for this round: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: test-framework-sweep`, `--signoff none` (owner sign-off owed, a
 follow-up filed for it — same convention as every prior round).
+
+### Cross-sweep reconciliation — merge of main e6aae10b (dispatch-state-sweep)
+
+- `fu-role-guard-blocks-own-fixtures` was REJECTED by this scope (the fix is in
+  `state.mjs`, a protected_paths_l3 surface) and then FIXED at cause and closed
+  `done` by dispatch-state-sweep (sweep 3) on main. In the merged ledger the
+  later record wins the fold. The id stays in this spec's rejected table as
+  history; TEST-443 accepts `resolved_by: dispatch-state-sweep` for that one id
+  only (any other foreign attribution still fails). The frozen bucket is still
+  78 ids.
+- `test-aai-spec-amend.sh` TEST-445 builds throwaway mutated copies of
+  `spec-amend.mjs`; sweep 3 added a second sibling import (`lib/iso-time.mjs`),
+  so the copies failed as a module error and the mutation could not bite. The
+  copies now carry every `./lib/*.mjs` the engine imports, read from the engine
+  itself.
+- CHANGELOG entry counts and the "not claimed fixed at cause" bullet on the
+  layer-profiles failure updated to the round-9 state.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: test-framework-sweep`, `--signoff none`.
