@@ -3,7 +3,7 @@ id: spec-mutation-gate-for-tests
 type: spec
 number: null
 status: implementing
-frozen_sha256: 63992ddf9da340a8a9f3f9b5eda6964b98cd1b00a22ed2137416b8183c818483
+frozen_sha256: 203ddb48f3b7400b3372d9d37763a855aa29492266099561483a9895644c8b22
 ceremony_level: 2
 mutation_gate: v1
 links:
@@ -1152,3 +1152,25 @@ legitimately diverge, with the reason named for both. Every fact above was
 verified against the real record files and the real source lines before this
 Amendment was written (`docs/knowledge/LEARNED.md` "Amendment record from
 text, not report").
+
+### Cross-ride fixture reconciliation (full sweep on d4274359)
+
+- `tests/skills/test-aai-branch-guard.sh` TEST-408 pinned ONE pre-change file
+  (`branch-guard.mjs`, a blob) and extracted its importers from the moving
+  `origin/main`; once CHANGE-0180 merged (PR #381) main's
+  `check-committed-scope.mjs` imported `checkBranchPin`, which the pinned
+  blob does not export, and the arm died on a module error ("exit code changed
+  with no pin (old 1, new 0)") in every isolated clone — a latent red on main
+  itself. The pre-change side is now one consistent tree
+  (`PRE_CHANGE_0180_COMMIT`, the last main commit before PR #381), every
+  ceremony script and lib extracted from it, the blob pin cross-checked
+  against it, and a lib absent at that commit is absent rather than an empty
+  file. Reddens when the new script prints one extra line with no pin
+  (observed).
+- `lib/mutation-record.mjs` named the heartbeat in a comment; the heartbeat
+  corpus guard (`test-aai-heartbeat.sh` TEST-012) counts mentions, not seams.
+  The comment says "liveness slot" now; no seam was ever there.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: mutation-gate-for-tests`, `--signoff none`.
+

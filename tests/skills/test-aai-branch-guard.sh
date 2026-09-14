@@ -52,17 +52,22 @@ AGENTS_DOC="$PROJECT_ROOT/.aai/AGENTS.md"
 # NON-BLOCKING (validation round 2): TEST-408's pre-change branch-guard.mjs
 # used to be extracted from the MOVING ref origin/main — the same
 # fu-test031-self-neutralizes-post-merge shape test-aai-release.sh:74 fixed
-# for TEST-031 by pinning a fixed blob sha. The moment this branch merges,
-# `origin/main:.aai/scripts/branch-guard.mjs` becomes the POST-change engine
-# and this arm degrades to an identity check. Pinned instead, the same way:
-# the blob sha of origin/main's branch-guard.mjs as measured when this pin
-# was recorded (`git rev-parse origin/main:.aai/scripts/branch-guard.mjs`),
-# genuinely pre-change (`git diff BRANCH_GUARD_PIN_SHA HEAD:.aai/scripts/branch-guard.mjs`
-# is non-empty: 166 insertions, the pinDirFast fast-path this ride added).
-# Only branch-guard.mjs itself is pinned — the other three ceremony scripts
-# and lib/*.mjs are untouched by this ride's diff, so extracting them from
-# the still-moving $base_ref stays correct without a pin of their own.
-BRANCH_GUARD_PIN_SHA="3ea27c8e75f4c6d3cd13c3e504202fe3c782e318"
+# for TEST-031 by pinning a fixed blob sha. Pinned instead: the blob sha of
+# origin/main's branch-guard.mjs as measured when this pin was recorded,
+# genuinely pre-change (166 insertions in the ride's diff).
+#
+# mutation-gate-for-tests (2026-09-14): pinning ONE file and extracting its
+# importers from the moving $base_ref is the same class inverted — once
+# CHANGE-0180 merged (PR #381), origin/main's check-committed-scope.mjs
+# imported `checkBranchPin`, which the pinned pre-change branch-guard.mjs
+# does not export, and this arm died on a module error instead of comparing
+# anything. The pre-change TREE is pinned now: the last main commit before
+# PR #381 merged. Every one of the four ceremony scripts and every lib they
+# import is extracted from that commit, so the "pre-change" side is one
+# consistent tree, and the arm keeps proving that a fixture with no pin file
+# behaves exactly as it did before the pin existed.
+PRE_CHANGE_0180_COMMIT="e6aae10b18aad49eeb2ceb1f3e1de6c4bd1b215f"
+BRANCH_GUARD_PIN_SHA="3ea27c8e75f4c6d3cd13c3e504202fe3c782e318"  # == $PRE_CHANGE_0180_COMMIT:.aai/scripts/branch-guard.mjs
 
 TMP_ROOT=""
 
@@ -705,35 +710,36 @@ test_408() {
   # four has relative `./lib/...` imports, so the extracted copies must sit
   # BESIDE an extracted lib/ directory, not as flat mktemp files, or node's
   # module resolution fails before the script's own logic ever runs.
-  local base_ref=""
-  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
-    base_ref="origin/main"
-  elif git -C "$PROJECT_ROOT" rev-parse --verify --quiet main >/dev/null 2>&1; then
-    base_ref="main"
-  else
-    log_fail "TEST-408 UNCOVERED — neither 'origin/main' nor 'main' ref reachable, so the pre-change baseline cannot be extracted"
-    return
-  fi
-  local oldroot oldccs oldcbpg oldcwi oldguard libfile
+  # The pre-change side is ONE consistent tree: see PRE_CHANGE_0180_COMMIT
+  # above (no moving ref is consulted).
+  local oldroot oldccs oldcbpg oldcwi oldguard libfile libname pre_ref
+  pre_ref="$PRE_CHANGE_0180_COMMIT"
+  git -C "$PROJECT_ROOT" cat-file -e "$pre_ref^{commit}" 2>/dev/null \
+    || log_fail "TEST-408 UNCOVERED — the pinned pre-change commit $pre_ref is not present in this clone (shallow?)"
   oldroot="$(mktemp -d "$TMP_ROOT/old-scripts.XXXXXX")"
   mkdir -p "$oldroot/lib"
   for libfile in "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs; do
-    ( cd "$PROJECT_ROOT" && git show "$base_ref:.aai/scripts/lib/$(basename "$libfile")" ) \
-      > "$oldroot/lib/$(basename "$libfile")" 2>/dev/null
+    libname="$(basename "$libfile")"
+    # A lib that did not exist at the pinned commit is simply absent on the
+    # pre-change side (never an empty file that would shadow a module error).
+    if git -C "$PROJECT_ROOT" cat-file -e "$pre_ref:.aai/scripts/lib/$libname" 2>/dev/null; then
+      ( cd "$PROJECT_ROOT" && git show "$pre_ref:.aai/scripts/lib/$libname" ) > "$oldroot/lib/$libname"
+    fi
   done
   oldccs="$oldroot/check-committed-scope.mjs"
   oldcbpg="$oldroot/close-before-push-guard.mjs"
   oldcwi="$oldroot/close-work-item.mjs"
   oldguard="$oldroot/branch-guard.mjs"
-  ( cd "$PROJECT_ROOT" && git show "$base_ref:.aai/scripts/check-committed-scope.mjs" ) > "$oldccs" \
-    || log_fail "could not extract pre-change check-committed-scope.mjs from $base_ref"
-  ( cd "$PROJECT_ROOT" && git show "$base_ref:.aai/scripts/close-before-push-guard.mjs" ) > "$oldcbpg" \
-    || log_fail "could not extract pre-change close-before-push-guard.mjs from $base_ref"
-  ( cd "$PROJECT_ROOT" && git show "$base_ref:.aai/scripts/close-work-item.mjs" ) > "$oldcwi" \
-    || log_fail "could not extract pre-change close-work-item.mjs from $base_ref"
-  # Pinned blob, not $base_ref: see BRANCH_GUARD_PIN_SHA above.
-  ( cd "$PROJECT_ROOT" && git show "$BRANCH_GUARD_PIN_SHA" ) > "$oldguard" \
-    || log_fail "could not extract pre-change branch-guard.mjs from pinned blob $BRANCH_GUARD_PIN_SHA"
+  ( cd "$PROJECT_ROOT" && git show "$pre_ref:.aai/scripts/check-committed-scope.mjs" ) > "$oldccs" \
+    || log_fail "could not extract pre-change check-committed-scope.mjs from $pre_ref"
+  ( cd "$PROJECT_ROOT" && git show "$pre_ref:.aai/scripts/close-before-push-guard.mjs" ) > "$oldcbpg" \
+    || log_fail "could not extract pre-change close-before-push-guard.mjs from $pre_ref"
+  ( cd "$PROJECT_ROOT" && git show "$pre_ref:.aai/scripts/close-work-item.mjs" ) > "$oldcwi" \
+    || log_fail "could not extract pre-change close-work-item.mjs from $pre_ref"
+  ( cd "$PROJECT_ROOT" && git show "$pre_ref:.aai/scripts/branch-guard.mjs" ) > "$oldguard" \
+    || log_fail "could not extract pre-change branch-guard.mjs from $pre_ref"
+  [[ "$(git -C "$PROJECT_ROOT" rev-parse "$pre_ref:.aai/scripts/branch-guard.mjs")" == "$BRANCH_GUARD_PIN_SHA" ]] \
+    || log_fail "TEST-408: the pinned pre-change commit's branch-guard.mjs is not the pinned blob $BRANCH_GUARD_PIN_SHA — one of the two pins moved"
 
   local repo; repo="$(make_repo t408)"
   # No --pin was ever run in this fixture — Spec-AC-04's absence branch.

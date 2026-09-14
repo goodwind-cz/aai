@@ -4,7 +4,7 @@
 // mutation-run.mjs --replay reads back its own prior writes) so the record
 // shape can never drift between a producer and a consumer that each hand-
 // rolled their own idea of the header (the exact defect SPEC-0180 D13/S5
-// closed for the heartbeat slot).
+// closed for the liveness slot).
 //
 // SHAPE (D2): a fixed `key: value` header, one field per line, then a `---`
 // separator line, then the captured tail of the run:
