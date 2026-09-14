@@ -74,7 +74,7 @@ test_467_qgrep_survives_early_close() {  # TEST-467
   # argument instead.
   local rc_bare
   bash -c '
-    set -o pipefail
+    set -eo pipefail
     . "$1"
     p="$2"
     pipe_safe_producer() {
@@ -88,15 +88,25 @@ test_467_qgrep_survives_early_close() {  # TEST-467
     eval "pipe_safe_producer ${p} grep -q first-line"
   ' _ "$PIPE_SAFE_LIB" "|" >/dev/null 2>&1
   rc_bare=$?
-  [[ "$rc_bare" -eq 141 ]] \
-    || log_fail "TEST-467: the baseline (producer piped into grep -q first-line) under pipefail must reproduce rc 141 (got $rc_bare) — the reproduction fixture itself is not exercising the SIGPIPE class, so the qgrep proof below would be vacuous"
+  # Two honest outcomes, one per SIGPIPE disposition of the environment:
+  # 141 where SIGPIPE is at its default (the producer is killed), 1 where the
+  # runner ignores SIGPIPE (GitHub Actions does — observed on PR #381 run
+  # 34815192336, where this arm saw 0 before `set -e` propagated the
+  # producer's EPIPE write error). Under `set -e` the EPIPE'd printf aborts
+  # the producer with 1, so either way the pipeline is non-zero — which is
+  # the class. Anything else (0 above all) means the fixture proved nothing.
+  case "$rc_bare" in
+    141) log_info "TEST-467: baseline reproduced SIGPIPE (rc 141; SIGPIPE at default here)" ;;
+    1)   log_info "TEST-467: baseline reproduced EPIPE (rc 1; this environment ignores SIGPIPE, the producer's write failed instead)" ;;
+    *)   log_fail "TEST-467: the baseline (producer piped into grep -q first-line) under pipefail must fail with 141 (SIGPIPE) or 1 (EPIPE under an ignored SIGPIPE), got $rc_bare — the reproduction fixture itself is not exercising the early-closing-reader class, so the qgrep proof below would be vacuous" ;;
+  esac
 
   # ---- FIX: the same producer into `qgrep -q` must return 0 (match found),
   # never 141 — qgrep drains the pipe to EOF before grep ever sees it, so the
   # producer's writes never hit a closed reader.
   local rc_safe
   bash -c '
-    set -o pipefail
+    set -eo pipefail
     . "$1"
     pipe_safe_producer() {
       echo "first-line"
@@ -112,7 +122,7 @@ test_467_qgrep_survives_early_close() {  # TEST-467
   [[ "$rc_safe" -eq 0 ]] \
     || log_fail "TEST-467: \`producer | qgrep -q first-line\` under pipefail must return 0 (match found, no SIGPIPE), got $rc_safe — qgrep did not survive the early-closing-reader class it exists to fix"
 
-  log_pass "TEST-467: bare grep -q reproduces 141 on a >1MB early-match payload under pipefail; qgrep returns 0 with identical match semantics"
+  log_pass "TEST-467: bare grep -q makes the producer fail (141, or 1 under an ignored SIGPIPE) on a >1MB early-match payload under pipefail; qgrep returns 0 with identical match semantics"
 }
 
 test_468_qhead_reads_same_bytes() {  # TEST-468
@@ -147,7 +157,7 @@ test_469_qgrep_preserves_exit_codes() {  # TEST-469
   # `grep -q` on the same (small, no-SIGPIPE-risk) payload would.
   local rc_nomatch
   bash -c '
-    set -o pipefail
+    set -eo pipefail
     . "$1"
     printf "needle-not-present\n" | qgrep -q "this-pattern-does-not-occur-anywhere-xyz"
   ' _ "$PIPE_SAFE_LIB" >/dev/null 2>&1
@@ -161,7 +171,7 @@ test_469_qgrep_preserves_exit_codes() {  # TEST-469
   # swallow it.
   local rc_producer_fail
   bash -c '
-    set -o pipefail
+    set -eo pipefail
     . "$1"
     producer_fail() { echo "first-line"; exit 7; }
     producer_fail | qgrep -q first-line

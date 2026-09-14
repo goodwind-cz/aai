@@ -31,7 +31,10 @@ RFC-0001).
   reds on PR #376 and this PR). Membership tests are here-strings now, no
   `| head -n1` decisions remain, and three tests (a core list larger than the
   pipe buffer, a 200 KB `.gitignore`, a static ratchet) redden on any restored
-  pipe. Round 8's `cp -a` retry was a false cause and is withdrawn.
+  pipe. Round 8's `cp -a` retry was a false cause and is withdrawn. The CI runner ignores SIGPIPE, so there the same class shows as EPIPE; the
+  doctor's CAT-17 probe now feeds a hook through a shell pipe and judges it by
+  its exit status (a hook that never reads its input was reported
+  "unverifiable (EPIPE)" instead of "not a guard").
 - **Honest gates**: pipe-into-early-closing-reader (`grep -q`/`-m`/`--quiet`/
   `--silent`, any spelling, or `head`) drained to zero — the narrow copied
   echo/printf idiom (202 → 0, DEBT-0006) was drained in the original ride;

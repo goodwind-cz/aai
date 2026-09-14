@@ -1556,3 +1556,32 @@ Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: test-framework-sweep`, `--signoff none` (record of 2026-09-14, the
 last spec_amendment for this ref).
 
+### Round 10 addendum 2 — the CI runner ignores SIGPIPE
+
+CI run 34815192336 on e837a893 showed the class from the other side: on the
+GitHub Actions runner SIGPIPE is ignored, so an early-closing reader does not
+kill the producer with 141 — the producer's write fails with EPIPE instead
+(and under `set -e` that is still a non-zero pipeline, so the class bites
+there too, just with a different number).
+
+- `test-aai-pipe-safe.sh` TEST-467: the baseline arm accepts the two honest
+  outcomes, 141 (SIGPIPE at default) or 1 (EPIPE under an ignored SIGPIPE,
+  propagated by `set -e` in the child), names which one it saw, and still
+  fails on anything else (0 above all). Proved both ways locally: 141 as is,
+  1 under `trap '' PIPE`.
+- `aai-doctor.mjs` CAT-17 (this ride's own behavioural probe, sweep-2 F-A):
+  the probe wrote its 82-byte input from the node process into the hook's
+  stdin; a decorative `exit 0` hook that never reads stdin exited first on
+  the Linux runner and the probe reported "could not be behaviourally
+  verified (EPIPE)" instead of "does NOT behave as a guard" (doctor TEST-040
+  red on every CI run since round 8, green on macOS by winning the race).
+  The probe now feeds the main-ref line plus ~120 KiB of padding refs through
+  a shell pipe (`printf … | hook prepared`), so a hook that never reads its
+  input hits EPIPE on printf deterministically on every platform and is
+  judged by its own exit status. TEST-040 gains fixture 4 (a hook that closes
+  its stdin at once); restoring the direct `spawnSync … input` shape reddens
+  fixtures 2 and 4 on macOS as well (observed).
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: test-framework-sweep`, `--signoff none`.
+
