@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-13T23:32:59.490Z
+Generated: 2026-09-14T02:26:06.818Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -50,7 +50,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (423)
+## Done (425)
 
 | ID | Type | Path |
 |---|---|---|
@@ -229,6 +229,7 @@ _None._
 | CHANGE-0178 | issues | docs/issues/CHANGE-0178-live-page-shows-dead-heartbeats-not-live-work.md |
 | CHANGE-0182 | issues | docs/issues/CHANGE-0182-harness-universal-routing.md |
 | CHANGE-0183 | issues | docs/issues/CHANGE-0183-telemetry-fields-not-prose.md |
+| CHANGE-0186 | issues | docs/issues/CHANGE-0186-dispatch-state-sweep.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -475,6 +476,7 @@ _None._
 | SPEC-0176 | specs | docs/specs/SPEC-0176-spec-friction-publish-hides-required-followup.md |
 | SPEC-0177 | specs | docs/specs/SPEC-0177-spec-harness-universal-routing.md |
 | SPEC-0178 | specs | docs/specs/SPEC-0178-spec-telemetry-fields-not-prose.md |
+| SPEC-0180 | specs | docs/specs/SPEC-0180-spec-dispatch-state-sweep.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -556,4 +558,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-13 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-14 — counts above use this date for overdue checks.

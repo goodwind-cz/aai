@@ -201,6 +201,9 @@ PROCESS
    exact false-open shape this ordering exists to prevent, and the script's
    own rollback cannot see edits made before it ran. Exit 6 means the close
    STOOD: keep the flip; run the echoed remaining state.mjs command(s).
+   - Then run `node .aai/scripts/state.mjs clear-focus --ref <slug>` — a
+     closed ride must stop publishing as the in-flight scope
+     (fu-overview-shows-closed-ride-inflight).
    - Stage the mutated doc(s) + docs/ai/EVENTS.jsonl and commit as a SECOND
      local commit, `chore(close): <ref> close ceremony (PR pending)` — do NOT
      push yet, there is no PR to update. This commit rides out together with
@@ -257,7 +260,10 @@ PROCESS
    - `github`/`azure`/`unknown` with a remote: `git push -u origin <branch>`.
      `none`: skip the push entirely and go straight to GENERIC MODE below.
    - Branch on the value the step-5 probe printed — NEVER guess:
-     - `github` -> `gh pr create --title "<conventional title>" --body <body>`.
+     - `github` -> `gh pr create --title "<conventional title>" --body <body>`,
+       then `node .aai/scripts/watch-ci.mjs --pr <n>` to poll CI to
+       settlement before step 5d (exit 0 pass, 5 fail, 3 degraded — a
+       degrade is never a pass).
      - `azure` -> `az repos pr create --title "<title>" --description <body>
        --source-branch <branch> --target-branch <base>`; add reviewers with
        `az repos pr reviewer add --id <pr-id> --reviewers <email>`; step 5d's

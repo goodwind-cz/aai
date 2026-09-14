@@ -111,6 +111,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { BLOCK_SCALAR_REST_RE, splitLines } from './lib/state-core.mjs';
 // The block/line engine lives in lib/state-engine.mjs (CHANGE-0009 D5) so
 // metrics-flush.mjs / orchestration-dispatch.mjs share ONE implementation;
@@ -130,6 +131,9 @@ import { readGuardConfig } from './lib/guard-config.mjs';
 // shipped — never re-derived here. state.mjs runs as a child of the
 // orchestrating session, so it inherits that session's harness environment.
 import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
+// spec-dispatch-state-sweep D5: the SAME usage_total_tokens=<N> marker parser
+// sweep 1 already shipped — never a private copy (S3 seam).
+import { extractUsageTotal } from './lib/usage-note.mjs';
 
 setEngineFailPrefix('state');
 
@@ -137,7 +141,10 @@ setEngineFailPrefix('state');
 
 const FOCUS_TYPES = ['intake_change', 'intake_issue', 'intake_prd', 'intake_hotfix',
   'intake_research', 'intake_rfc', 'intake_release', 'technology_extraction', 'maintenance', 'none'];
-const PHASES = ['planning', 'preparation', 'implementation', 'validation', 'code_review', 'remediation'];
+// spec-dispatch-state-sweep D3: `closed` is the seventh, TERMINAL phase — no
+// dispatch rule arm in orchestration-dispatch.mjs lists it, so a work item in
+// phase `closed` is never re-offered to any role.
+const PHASES = ['planning', 'preparation', 'implementation', 'validation', 'code_review', 'remediation', 'closed'];
 const ITEM_STATUSES = ['planned', 'in_progress', 'blocked', 'done'];
 const VALIDATION_STATUSES = ['pass', 'fail', 'not_run'];
 const REVIEW_STATUSES = ['not_run', 'pass', 'fail', 'waived'];
@@ -174,8 +181,17 @@ const YAML_KEYWORD_SLUGS = new Set(['null', 'true', 'false', 'yes', 'off']);
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const FUTURE_SLACK_MS = 300 * 1000;
 
+// dispatch-state-sweep D16 (Spec-AC-18): the subcommand main() is currently
+// dispatching, so fail() can append that subcommand's usage line to EVERY
+// refusal it raises without touching any of the many individual call sites.
+// Null before a subcommand is known (e.g. "missing subcommand" itself), and
+// for a subcommand outside CMD_USAGE (there is none — every CMD_FLAGS key has
+// an entry), in which case fail() falls back to its pre-D16 shape unchanged.
+let currentCmd = null;
+
 function fail(msg, code = 2) {
-  engineFail(msg, code);   // prints `state: <msg>` (prefix set above)
+  const usage = currentCmd !== null ? CMD_USAGE[currentCmd] : undefined;
+  engineFail(usage ? `${msg}\nusage: ${usage}` : msg, code);   // prints `state: <msg>` (prefix set above)
 }
 
 // --- argv --------------------------------------------------------------------
@@ -210,7 +226,10 @@ function parseArgs(argv) {
 // Strict per-subcommand flag sets (review-20260704T093742Z W5): a typoed flag
 // (`--evidnce`) is the most likely LLM mistake — it must fail LOUD (exit 2)
 // instead of silently dropping the data. Keys are underscore-normalized.
-const GLOBAL_FLAGS = ['state', 'ticks'];
+// dispatch-state-sweep D16 (Spec-AC-18): `help` joins the global flags so
+// `<cmd> --help` is never rejected as an unknown flag by rejectUnknownFlags
+// below — it is accepted for every subcommand without a per-subcommand entry.
+const GLOBAL_FLAGS = ['state', 'ticks', 'help'];
 const CMD_FLAGS = {
   'set-focus': ['type', 'ref', 'path', 'spec_path', 'clear'],
   'set-phase': ['ref', 'phase', 'status', 'path', 'spec_path'],
@@ -222,11 +241,198 @@ const CMD_FLAGS = {
   'set-human-input': ['required', 'question', 'reason'],
   'append-run': ['ref', 'role', 'model', 'started', 'note', 'tokens_in', 'tokens_out', 'tdd_tests', 'prompt_hash',
     'harness', 'tokens_total', 'verdict', 'requested_model', 'actual_model'],
+  'amend-run': ['ref', 'role', 'started', 'tokens_total'],
+  'clear-focus': ['ref'],
   'log-tick': ['tick', 'role', 'scope', 'started', 'type', 'exit_code', 'mode', 'k', 'harness',
     'tokens_in', 'tokens_out', 'cache_read', 'cost', 'lingering_procs', 'free_memory',
     'focus_before', 'validation_before'],
   'reset-block': ['force'],
 };
+
+// dispatch-state-sweep D16 (Spec-AC-18): the positional arguments a
+// subcommand takes, named — `reset-block <block> --force` is the exact
+// refusal-omits-this shape measured (three flag-grammar misses in one tick,
+// 2026-09-13). `reset-block` is the only subcommand with one; everything
+// else operates purely on flags.
+const CMD_POSITIONALS = {
+  'reset-block': ['<block>'],
+};
+
+// dispatch-state-sweep D16: per-flag rendering metadata — `required` (a bare,
+// non---clear invocation cannot succeed without it), `enum` (the EXACT
+// constant array the parser validates against, referenced directly so a
+// change to that array changes this line with it — never a hand-copied list
+// of values), and `bool` (a bare flag carrying no value, e.g. --force).
+// Every flag named in CMD_FLAGS above must have an entry here; a subcommand
+// missing from CMD_FLAGS cannot reach this table (rejectUnknownFlags gates on
+// CMD_FLAGS first), which is what keeps the two from drifting apart.
+const CMD_FLAG_META = {
+  'set-focus': {
+    type: { required: true, enum: FOCUS_TYPES },
+    ref: { required: true },
+    path: { required: true },
+    spec_path: {},
+    clear: {},
+  },
+  'set-phase': {
+    ref: { required: true },
+    phase: { required: true, enum: PHASES },
+    status: { enum: ITEM_STATUSES },
+    path: {},
+    spec_path: {},
+  },
+  'set-validation': {
+    status: { required: true, enum: VALIDATION_STATUSES },
+    ref: {},
+    model: {},
+    evidence: {},
+    notes: {},
+    clear: {},
+  },
+  'set-code-review': {
+    status: { enum: REVIEW_STATUSES },
+    required: { enum: BOOLS },
+    scope: {},
+    base_ref: {},
+    head_ref: {},
+    report: {},
+    notes: {},
+    clear: {},
+  },
+  'set-strategy': {
+    selected: { required: true, enum: STRATEGIES },
+    source: {},
+    rationale: {},
+  },
+  'set-worktree': {
+    recommendation: { enum: RECOMMENDATIONS },
+    user_decision: { enum: USER_DECISIONS },
+    base_ref: {},
+    branch: {},
+    path: {},
+    inline_scope: {},
+    rationale: {},
+    clear: {},
+  },
+  'set-tdd-cycle': {
+    status: { required: true, enum: TDD_STATUSES },
+    test_id: {},
+    spec_path: {},
+    test_path: {},
+    red: {},
+    green: {},
+    refactor: {},
+  },
+  'set-human-input': {
+    required: { required: true, enum: BOOLS },
+    question: {},
+    reason: {},
+  },
+  'append-run': {
+    ref: { required: true },
+    role: { required: true, enum: ROLES },
+    model: { required: true },
+    started: { required: true },
+    note: {},
+    tokens_in: {},
+    tokens_out: {},
+    tdd_tests: {},
+    prompt_hash: {},
+    harness: { enum: HARNESS_VALUES },
+    tokens_total: {},
+    verdict: { enum: VERDICT_VALUES },
+    requested_model: {},
+    actual_model: {},
+  },
+  'amend-run': {
+    ref: { required: true },
+    role: { required: true, enum: ROLES },
+    started: { required: true },
+    tokens_total: { required: true },
+  },
+  'clear-focus': {
+    ref: { required: true },
+  },
+  'log-tick': {
+    tick: { required: true },
+    role: { required: true },
+    scope: { required: true },
+    started: { required: true },
+    type: { enum: TICK_TYPES },
+    exit_code: {},
+    mode: { enum: MODES },
+    k: {},
+    harness: {},
+    tokens_in: {},
+    tokens_out: {},
+    cache_read: {},
+    cost: {},
+    lingering_procs: {},
+    free_memory: {},
+    focus_before: {},
+    validation_before: {},
+  },
+  'reset-block': {
+    force: { bool: true },
+  },
+};
+
+// One flag rendered from CMD_FLAG_META — `required` overrides the flag's own
+// meta.required (needed below, where the SAME flag is required in one
+// set-focus alternative and optional in another); `literal` overrides the
+// value placeholder entirely (needed for `--type none`, one specific enum
+// member rather than the whole closed set).
+function renderFlag(cmd, name, { required, literal } = {}) {
+  const meta = (CMD_FLAG_META[cmd] ?? {})[name] ?? {};
+  const flagName = `--${name.replace(/_/g, '-')}`;
+  const rendered = literal !== undefined ? `${flagName} ${literal}`
+    : meta.bool ? flagName
+      : meta.enum ? `${flagName} <${meta.enum.join('|')}>`
+        : `${flagName} <value>`;
+  const req = required !== undefined ? required : meta.required;
+  return req ? rendered : `[${rendered}]`;
+}
+
+// dispatch-state-sweep D16: ONE usage line per subcommand, DERIVED from
+// CMD_FLAGS/CMD_FLAG_META/CMD_POSITIONALS — never hand-typed separately, so
+// it cannot drift from what parseArgs/rejectUnknownFlags actually accept
+// (M21/M22 pin this: dropping a subcommand from the loop, or hardcoding one
+// enum's rendering, must redden independently of the others).
+function renderUsage(cmd) {
+  if (cmd === 'set-focus') return renderSetFocusUsage();
+  const parts = [`state.mjs ${cmd}`, ...(CMD_POSITIONALS[cmd] ?? [])];
+  for (const name of CMD_FLAGS[cmd] ?? []) parts.push(renderFlag(cmd, name));
+  parts.push('[--state <path>] [--ticks <path>]');
+  return parts.join(' ');
+}
+
+// Round 6 (Codex P2, state.mjs:273): cmdSetFocus (above) does not treat
+// --type/--ref/--path as independently required or optional — it accepts
+// exactly THREE shapes: a bare `--clear <field>` with none of the other
+// three; `--type none` with --ref/--path OPTIONAL; or a real retarget where
+// --type, --ref AND --path are ALL required together. The generic single-
+// line renderUsage shape above cannot say that truthfully (one fixed
+// required/optional marking per flag, chosen for every call regardless of
+// which shape is in play), so set-focus gets its own three-alternative
+// rendering — every flag still DERIVED via renderFlag from CMD_FLAG_META,
+// never a hand-typed enum or value placeholder.
+function renderSetFocusUsage() {
+  const cmd = 'set-focus';
+  const tail = '[--state <path>] [--ticks <path>]';
+  // set-focus's only clearable field is spec_path (CLEAR_FIELDS['set-focus'],
+  // declared later in this file for reasons unrelated to usage rendering);
+  // named directly here rather than forward-referencing a const that is not
+  // yet initialized when CMD_USAGE below builds every subcommand's line.
+  const clearAlt = `state.mjs ${cmd} --clear <spec_path> ${tail}`;
+  const noneAlt = `state.mjs ${cmd} ${renderFlag(cmd, 'type', { required: true, literal: 'none' })} `
+    + `${renderFlag(cmd, 'ref', { required: false })} ${renderFlag(cmd, 'path', { required: false })} `
+    + `${renderFlag(cmd, 'spec_path', { required: false })} ${tail}`;
+  const fullAlt = `state.mjs ${cmd} ${renderFlag(cmd, 'type', { required: true })} `
+    + `${renderFlag(cmd, 'ref', { required: true })} ${renderFlag(cmd, 'path', { required: true })} `
+    + `${renderFlag(cmd, 'spec_path', { required: false })} ${tail}`;
+  return [clearAlt, noneAlt, fullAlt].join('\n  or: ');
+}
+const CMD_USAGE = Object.fromEntries(Object.keys(CMD_FLAGS).map(cmd => [cmd, renderUsage(cmd)]));
 
 function rejectUnknownFlags(cmd, flags) {
   const allowed = CMD_FLAGS[cmd];
@@ -303,6 +509,71 @@ function hexFlag(flags, name, cmd, { required = false } = {}) {
     fail(`${cmd}: --${name} "${v}" must be 12-64 lowercase hex characters`);
   }
   return v;
+}
+
+// --- R-GUARD S1 predicate (spec-dispatch-state-sweep D12) --------------------
+//
+// The guard's stated purpose is the honest/accidental subagent write to the
+// SHIPPING STATE. Pre-D12 it refused on the marker ALONE, with no reference to
+// WHICH file --state names — so every CORE suite fixture (built by mktemp
+// OUTSIDE the repository; measured true for test-aai-check-state.sh,
+// test-aai-docs-audit.sh, test-aai-hygiene-pack.sh) tripped it too, and 44
+// call sites across two suites carry `env -u AAI_ROLE` purely to route around
+// that over-broad refusal. D12 narrows the refusal to a decidable two-armed
+// predicate over the RESOLVED --state path:
+//
+//   Arm A (own repo) — the resolved path is INSIDE the repository root of the
+//   RUNNING script itself (this file's own `../..`). Every mktemp fixture
+//   lives under $TMPDIR, always outside any repository root, so this arm
+//   never fires on a fixture and always fires on the real
+//   docs/ai/STATE.yaml — in the main checkout AND in every worktree, since
+//   each has its own .aai/scripts/state.mjs and hence its own "own repo root".
+//
+//   Arm B (someone else's project) — the resolved path's final three path
+//   segments are exactly docs/ai/STATE.yaml AND a sibling
+//   <that other root>/.aai/scripts/state.mjs exists — i.e. it names some
+//   OTHER AAI project's canonical STATE, not merely a fixture that happens to
+//   sit under a docs/ai-shaped directory.
+//
+// Honesty, unchanged from the pre-D12 guard: this remains a guardrail against
+// HABIT, not a security boundary (SPEC-0113). An agent that unsets or never
+// inherits AAI_ROLE still defeats the whole guard. Arm B narrows the obvious
+// bypass (pointing a copied script at a real project's STATE); it does not
+// close it for a project that vendors .aai without state.mjs (R3).
+//
+// realpathDirTarget — resolve a path's CONTAINING DIRECTORY to its real
+// (symlink-free) target before judging it (validation-round1 B1): a directory
+// symlink defeats a spelling-only predicate (`ln -s <repo>/docs/ai
+// <scratch>/fake/docs/ai` reads as an outside-root scratch path but the
+// rename lands on the real file through the link). The LEAF need not exist
+// (the create path for a fresh scratch fixture) — only its parent directory
+// is realpath'd; a parent that does not exist yet cannot itself be a symlink
+// into the repo, so it falls back to the plain resolved spelling.
+function realpathDirTarget(resolved) {
+  const dir = path.dirname(resolved);
+  let realDir;
+  try {
+    realDir = fs.realpathSync(dir);
+  } catch {
+    return resolved;   // parent directory does not exist (yet) — nothing to resolve
+  }
+  return path.join(realDir, path.basename(resolved));
+}
+
+function isGuardedStatePath(statePath) {
+  const resolved = realpathDirTarget(path.resolve(statePath));
+  const ownRoot = fs.realpathSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..'));
+  const rel = path.relative(ownRoot, resolved);
+  if (rel === '' || (!rel.startsWith(`..${path.sep}`) && rel !== '..' && !path.isAbsolute(rel))) {
+    return true;   // Arm A
+  }
+  const segs = resolved.split(path.sep);
+  if (segs.length >= 3 && segs.slice(-3).join('/') === 'docs/ai/STATE.yaml') {
+    const otherRoot = path.dirname(path.dirname(path.dirname(resolved)));
+    const otherScript = path.join(otherRoot, '.aai', 'scripts', 'state.mjs');
+    if (otherRoot !== ownRoot && fs.existsSync(otherScript)) return true;   // Arm B
+  }
+  return false;
 }
 
 function isoFlag(flags, name, cmd, { required = false } = {}) {
@@ -445,12 +716,17 @@ function cmdSetFocus(state, flags) {
       setField(bl, 2, 'type', [scalarLine(2, 'type', type)]);
       setField(bl, 2, 'ref_id', [scalarLine(2, 'ref_id', ref ?? 'null')]);
       setField(bl, 2, 'primary_path', [scalarLine(2, 'primary_path', p === null ? 'null' : yq(p))]);
+      // spec-dispatch-state-sweep D1: a `--type` call rewrites the WHOLE
+      // current_focus block, spec_path included — `--spec-path` when
+      // supplied, `null` otherwise. Previously spec_path was left UNTOUCHED
+      // for a non-`none` retarget unless `--spec-path` was also passed, so a
+      // retarget to a NEW ref/scope could leave the PREVIOUS scope's
+      // spec_path standing — the defect this closes. `--type none` keeps its
+      // own normalization (now just the general case: no --spec-path given).
       if (flags.spec_path !== undefined) {
         setField(bl, 2, 'spec_path', [scalarLine(2, 'spec_path', yq(strFlag(flags, 'spec-path', 'set-focus')))]);
-      } else if (type === 'none') {
-        // SPEC-0014 D2 bonus normalization: `--type none` nulls spec_path when
-        // present, exactly as it already nulls ref_id/primary_path.
-        nullFieldIfPresent(bl, 2, 'spec_path');
+      } else {
+        setField(bl, 2, 'spec_path', [scalarLine(2, 'spec_path', 'null')]);
       }
     }
     return bl;
@@ -536,7 +812,71 @@ function cmdSetPhase(state, flags) {
     }
     return bl;
   }, [], { allowInline: /^\[\]$/ });
+  // spec-dispatch-state-sweep D1: `set-phase --spec-path` for the CURRENTLY
+  // focused ref also refreshes current_focus.spec_path — the documented
+  // two-call sequence (.aai/PLANNING.prompt.md step 12: set-focus then
+  // set-phase --spec-path) ends in the same place set-focus alone would have,
+  // now that set-focus itself nulls spec_path on every retarget (D1 above).
+  // Never for a DIFFERENT ref (only "the focused ref"): a set-phase call for
+  // some other in-flight item must not overwrite the current scope's own
+  // spec_path.
+  if (sp !== undefined && readScalar(state.lines, 'current_focus', 'ref_id') === ref) {
+    editBlock(state.lines, 'current_focus', bl => {
+      setField(bl, 2, 'spec_path', [scalarLine(2, 'spec_path', yq(sp))]);
+      return bl;
+    });
+  }
   return `set-phase: ${ref} phase=${phase}${status ? ` status=${status}` : ''}`;
+}
+
+// spec-dispatch-state-sweep D3: `clear-focus --ref <REF>` — ONE atomic write
+// (one writeState transaction; main() bumps updated_at_utc + writes once
+// after this function returns) that nulls the WHOLE current_focus block and
+// marks the named ref's own work item `phase: closed status: done`. REFUSES
+// (exit 2, nothing written) when --ref does not equal the CURRENT
+// current_focus.ref_id — this can never clear a focus the caller is not in
+// (the shared-worktree hazard, P1 2026-09-06).
+function cmdClearFocus(state, flags) {
+  const ref = refFlag(flags, 'ref', 'clear-focus', { required: true });
+  const current = readScalar(state.lines, 'current_focus', 'ref_id');
+  if (current !== ref) {
+    fail(`clear-focus: --ref "${ref}" does not match current_focus.ref_id `
+      + `(${current === null ? 'null' : `"${current}"`}) — refusing to clear a focus this call is not in; nothing written`, 2);
+  }
+  editBlock(state.lines, 'current_focus', bl => {
+    setField(bl, 2, 'type', [scalarLine(2, 'type', 'none')]);
+    setField(bl, 2, 'ref_id', [scalarLine(2, 'ref_id', 'null')]);
+    setField(bl, 2, 'primary_path', [scalarLine(2, 'primary_path', 'null')]);
+    setField(bl, 2, 'spec_path', [scalarLine(2, 'spec_path', 'null')]);
+    return bl;
+  });
+  editBlock(state.lines, 'active_work_items', bl => {
+    if (/^active_work_items:\s*\[\]\s*$/.test(bl[0])) return bl;   // nothing to close
+    for (let i = 1; i < bl.length; i += 1) {
+      if (/^ {2}- /.test(bl[i])) {
+        let end = bl.length;
+        for (let j = i + 1; j < bl.length; j += 1) {
+          if (/^ {2}- /.test(bl[j]) || (bl[j].trim() !== '' && indentOf(bl[j]) < 4)) { end = j; break; }
+        }
+        const item = bl.slice(i, end);
+        if (item.some(l => new RegExp(`^( {2}- | {4})ref_id: ${ref}$`).test(l))) {
+          for (let k = i; k < end; k += 1) {
+            const prefix = bl[k].startsWith('  - ') ? '  - ' : '    ';
+            if (new RegExp(`^( {4}|  - )status:(\\s|$)`).test(bl[k])) bl[k] = `${prefix}status: done`;
+            else if (new RegExp(`^( {4}|  - )phase:(\\s|$)`).test(bl[k])) bl[k] = `${prefix}phase: closed`;
+          }
+          break;
+        }
+        i = end - 1;
+      }
+    }
+    return bl;
+  }, [], { allowInline: /^\[\]$/ });
+    // validation round 6 NB-5 (PR #382): the retired scope's provenance stamp
+  // must not outlive the focus it names, or check-committed-scope
+  // --from-state degrades on the next ride (S4 shape, fails closed).
+  editBlock(state.lines, 'code_review', bl => { nullFieldIfPresent(bl, 2, 'scope_ref_id'); return bl; });
+return `clear-focus: ${ref} cleared (current_focus nulled; work item phase=closed status=done)`;
 }
 
 // telemetry-fields-not-prose D7: stamp `validation: {status, at}` onto an
@@ -853,6 +1193,20 @@ function cmdAppendRun(state, flags) {
   const harnessValue = harnessFlag !== undefined ? harnessFlag : detectHarness(process.env);
   const verdictValue = verdictFlag !== undefined ? verdictFlag : 'none';
 
+  // spec-dispatch-state-sweep D5: a costless run is FLAGGED at append time,
+  // never silently free. `usage_basis` is derived — never a caller-supplied
+  // value — so it cannot drift from the actual source of the number: `field`
+  // when --tokens-total was given, `note` when a well-formed
+  // usage_total_tokens=<N> marker was found in --note (parsed by the SAME
+  // lib/usage-note.mjs sweep 1 shipped, never a private copy), `absent`
+  // otherwise. On `absent` this still WRITES (exit stays 0 — the record of a
+  // run that happened is worth more than refusing it, D5) and prints exactly
+  // ONE stderr line naming the ref, the role, and the two ways to supply the
+  // number, AFTER the successful write (main() drains state.postWriteWarnings).
+  const usageBasis = tokensTotal !== undefined
+    ? 'field'
+    : (extractUsageTotal(note) !== null ? 'note' : 'absent');
+
   const ended = nowIso();   // SELF-STAMPED from the system clock
   const duration = Math.max(0, Math.round((Date.parse(ended) - Date.parse(started)) / 1000));
 
@@ -879,6 +1233,7 @@ function cmdAppendRun(state, flags) {
   runLines.push(`          verdict: ${verdictValue}`);
   if (requestedModel !== undefined) runLines.push(`          requested_model: ${yq(requestedModel)}`);
   if (actualModel !== undefined) runLines.push(`          actual_model: ${yq(actualModel)}`);
+  runLines.push(`          usage_basis: ${usageBasis}`);   // D5: always emitted, derived, never hardcoded
 
   editBlock(state.lines, 'metrics', bl => {
     // Ensure `  work_items:` exists directly under metrics.
@@ -949,13 +1304,157 @@ function cmdAppendRun(state, flags) {
   }, ['  work_items:']);
   // Token-capture teeth (CHANGE-0010 D5): warn — never block — when usage was
   // not recorded. Printed by main() AFTER the successful atomic write.
+  state.postWriteWarnings = state.postWriteWarnings ?? [];
   if (tokensIn === undefined || tokensOut === undefined) {
-    state.postWriteWarnings = [
+    state.postWriteWarnings.push(
       `state: append-run: WARNING tokens_in/tokens_out null for ${ref} role=${role} — cost_usd cannot `
       + 'be computed at flush; pass --tokens-in/--tokens-out when the platform exposes usage',
-    ];
+    );
+  }
+  // spec-dispatch-state-sweep D5: exactly ONE stderr line on the `absent`
+  // basis, naming the ref, the role, and the two ways to supply the number.
+  if (usageBasis === 'absent') {
+    state.postWriteWarnings.push(
+      `state: append-run: WARNING usage_basis absent for ${ref} role=${role} — pass --tokens-total, `
+      + 'or embed a usage_total_tokens=<N> marker in --note, so the run is not counted as costless',
+    );
   }
   return `append-run: ${ref} role=${role} duration_seconds=${duration} (ended_utc self-stamped ${ended})`;
+}
+
+// spec-dispatch-state-sweep D6: `amend-run` fills a usage_basis hole ONCE and
+// never rewrites a recorded number. `bl` is the full `metrics:` block's
+// lines. Every arm is fail-closed: on ANY ambiguity (zero matches, more than
+// one match, an already-numeric tokens_total) this calls fail() DIRECTLY,
+// which exits the process before editBlock's splice ever runs and before
+// main() reaches writeState — so "exit 2, nothing written" holds by
+// construction, not by a separate byte-identity check.
+function amendAgentRun(bl, ref, role, started, tokensTotal) {
+  let wiIdx = -1;
+  for (let i = 1; i < bl.length; i += 1) {
+    if (/^ {2}work_items:\s*$/.test(bl[i])) { wiIdx = i; break; }
+  }
+  const blockEnd = () => {
+    let at = bl.length;
+    while (at > 1 && (bl[at - 1].trim() === '' || bl[at - 1].startsWith('#'))) at -= 1;
+    return at;
+  };
+
+  let e0 = -1;
+  let e1 = -1;
+  if (wiIdx !== -1) {
+    for (let i = wiIdx + 1; i < bl.length; i += 1) {
+      if (new RegExp(`^ {4}${ref}:\\s*$`).test(bl[i])) {
+        e0 = i;
+        e1 = blockEnd();
+        for (let j = i + 1; j < bl.length; j += 1) {
+          if (/^ {4}[\w-]+:\s*$/.test(bl[j]) || (bl[j].trim() !== '' && indentOf(bl[j]) < 4)) { e1 = Math.min(e1, j); break; }
+        }
+        break;
+      }
+    }
+  }
+
+  let arIdx = -1;
+  if (e0 !== -1) {
+    for (let i = e0 + 1; i < e1; i += 1) {
+      if (/^ {6}agent_runs:\s*$/.test(bl[i])) { arIdx = i; break; }
+    }
+  }
+
+  // Walk every run item (`        - role:` at 8-space indent) inside
+  // agent_runs, collecting every one whose role AND started_utc both match.
+  const matches = [];
+  if (arIdx !== -1) {
+    let arEnd = e1;
+    for (let i = arIdx + 1; i < e1; i += 1) {
+      if (/^ {6}[\w-]+:\s*$/.test(bl[i]) || (bl[i].trim() !== '' && indentOf(bl[i]) < 8)) { arEnd = i; break; }
+    }
+    for (let i = arIdx + 1; i < arEnd; i += 1) {
+      const m = /^ {8}- role: (.+)$/.exec(bl[i]);
+      if (!m) continue;
+      let itemEnd = arEnd;
+      for (let j = i + 1; j < arEnd; j += 1) {
+        if (/^ {8}- /.test(bl[j])) { itemEnd = j; break; }
+      }
+      let itemStarted = null;
+      let tokensLine = -1;
+      let usageBasisLine = -1;
+      for (let j = i; j < itemEnd; j += 1) {
+        const sm = /^ {10}started_utc: (.+)$/.exec(bl[j]);
+        if (sm) itemStarted = unquoteScalar(sm[1]);
+        if (/^ {10}tokens_total:\s*.+$/.test(bl[j])) tokensLine = j;
+        if (/^ {10}usage_basis:\s*.+$/.test(bl[j])) usageBasisLine = j;
+      }
+      if (unquoteScalar(m[1]) === role && itemStarted === started) {
+        matches.push({ start: i, end: itemEnd, tokensLine, usageBasisLine });
+      }
+      i = itemEnd - 1;
+    }
+  }
+
+  if (matches.length !== 1) {
+    fail(`amend-run: expected exactly 1 matching agent_runs entry for ref=${ref} role="${role}" `
+      + `started=${started}, found ${matches.length} — nothing written`);
+  }
+  const match = matches[0];
+  if (match.tokensLine !== -1) {
+    const val = bl[match.tokensLine].slice(bl[match.tokensLine].indexOf(':') + 1).trim();
+    if (/^-?\d+$/.test(val)) {
+      fail(`amend-run: refused — the matched run's tokens_total is already ${val} (a NUMBER); `
+        + 'a recorded number is history, only a null/absent hole is amendable — nothing written');
+    }
+  }
+  // Round 6 (Codex P2, fu-amend-run-overwrite-note-basis-number): a NUMBER
+  // already recorded is not only the tokens_total FIELD — a run appended
+  // with a well-formed `usage_total_tokens=<N>` --note marker carries its
+  // number as usage_basis: note with tokens_total absent (D5's own emission
+  // rule), and the check above never sees it. "fills a hole once, never
+  // rewrites a number" must cover that shape too, or amend-run silently
+  // overrides the note's number, flips usage_basis to field, and leaves the
+  // now-contradicting note text standing on the same record.
+  if (match.usageBasisLine !== -1) {
+    const basisVal = bl[match.usageBasisLine].slice(bl[match.usageBasisLine].indexOf(':') + 1).trim();
+    if (basisVal === 'note') {
+      fail('amend-run: refused — the matched run\'s usage_basis is already "note" (usage came from the '
+        + '--note marker); filling is for an absent usage hole only, not for overriding a note-derived '
+        + 'number — nothing written');
+    }
+  }
+
+  // Mutate in place, END of item first, so earlier indices stay valid.
+  let end = match.end;
+  const stampLine = `          amended_at_utc: ${nowIso()}`;
+  if (match.usageBasisLine !== -1) {
+    bl[match.usageBasisLine] = '          usage_basis: field';
+  } else {
+    bl.splice(end, 0, '          usage_basis: field');
+    end += 1;
+  }
+  if (match.tokensLine !== -1) {
+    bl[match.tokensLine] = `          tokens_total: ${tokensTotal}`;
+  } else {
+    bl.splice(end, 0, `          tokens_total: ${tokensTotal}`);
+    end += 1;
+  }
+  bl.splice(end, 0, stampLine);
+}
+
+function cmdAmendRun(state, flags) {
+  const ref = refFlag(flags, 'ref', 'amend-run', { required: true });
+  const role = enumFlag(flags, 'role', ROLES, 'amend-run', { required: true });
+  const started = isoFlag(flags, 'started', 'amend-run', { required: true });
+  const tokensTotal = intFlag(flags, 'tokens-total', 'amend-run', { required: true });
+
+  if (!findBlock(state.lines, 'metrics')) {
+    fail(`amend-run: STATE has no top-level "metrics" block — 0 matching agent_runs entries for ref=${ref} `
+      + `role="${role}" started=${started} — nothing written`);
+  }
+  editBlock(state.lines, 'metrics', bl => {
+    amendAgentRun(bl, ref, role, started, tokensTotal);
+    return bl;
+  });
+  return `amend-run: ${ref} role=${role} started=${started} tokens_total=${tokensTotal} (usage_basis -> field)`;
 }
 
 function cmdResetBlock(state, pos, flags, statePath) {
@@ -1099,7 +1598,19 @@ function main() {
   const statePath = path.resolve(process.cwd(), typeof flags.state === 'string' ? flags.state : 'docs/ai/STATE.yaml');
   const ticksPath = path.resolve(process.cwd(), typeof flags.ticks === 'string' ? flags.ticks : 'docs/ai/LOOP_TICKS.jsonl');
   const cmd = pos[0];
-  if (!cmd) fail('missing subcommand (set-focus | set-phase | set-validation | set-code-review | set-strategy | set-worktree | set-tdd-cycle | set-human-input | append-run | log-tick | reset-block)');
+  if (!cmd) fail('missing subcommand (set-focus | set-phase | set-validation | set-code-review | set-strategy | set-worktree | set-tdd-cycle | set-human-input | append-run | amend-run | clear-focus | log-tick | reset-block)');
+  // dispatch-state-sweep D16 (Spec-AC-18): set BEFORE rejectUnknownFlags, so a
+  // typo'd flag for a KNOWN subcommand also carries the usage line — only an
+  // UNKNOWN subcommand (CMD_USAGE has no entry) leaves fail() at its pre-D16
+  // shape.
+  currentCmd = cmd;
+  // `<cmd> --help` exits 0 and prints the derived usage line, for every
+  // subcommand CMD_FLAGS knows — checked before rejectUnknownFlags so `--help`
+  // alone (no other flags) never needs a real STATE file to answer.
+  if (flags.help !== undefined && CMD_USAGE[cmd]) {
+    console.log(CMD_USAGE[cmd]);
+    return;
+  }
   rejectUnknownFlags(cmd, flags);   // typo-class flags fail LOUD before any read/write (W5)
 
   const MUTATORS = {
@@ -1112,6 +1623,8 @@ function main() {
     'set-tdd-cycle': cmdSetTddCycle,
     'set-human-input': cmdSetHumanInput,
     'append-run': cmdAppendRun,
+    'amend-run': cmdAmendRun,
+    'clear-focus': cmdClearFocus,
   };
 
   // --- R-GUARD S1: env-marker single-writer refusal (SPEC-0113) ----------
@@ -1136,11 +1649,13 @@ function main() {
   // posture in SKILL_PR.prompt.md ("a guardrail against habit, not a security
   // boundary"). It does NOT make a rogue subagent STATE write impossible.
   const STATE_MUTATORS = new Set([...Object.keys(MUTATORS), 'reset-block']);
-  if (STATE_MUTATORS.has(cmd) && process.env.AAI_ROLE === 'subagent') {
+  if (STATE_MUTATORS.has(cmd) && process.env.AAI_ROLE === 'subagent' && isGuardedStatePath(statePath)) {
     fail('single-writer rule refusal (AAI_ROLE=subagent): the orchestrator is the SOLE writer of '
-      + 'docs/ai/STATE.yaml (.aai/SUBAGENT_CONTRACT.md; Constitution Art. 6). A dispatched subagent '
-      + 'MUST return a result block, never mutate STATE. Sanctioned subagent append paths stay open: '
-      + 'append-event.mjs (docs/ai/EVENTS.jsonl) and state.mjs log-tick (LOOP_TICKS). Nothing was written.',
+      + 'docs/ai/STATE.yaml (.aai/SUBAGENT_CONTRACT.md; Constitution Art. 6) — and --state '
+      + `"${statePath}" resolves to a SHIPPING STATE (this project's own, or another AAI project's). `
+      + 'A dispatched subagent MUST return a result block, never mutate STATE. Sanctioned subagent append '
+      + 'paths stay open: append-event.mjs (docs/ai/EVENTS.jsonl) and state.mjs log-tick (LOOP_TICKS). '
+      + 'A scratch/mktemp --state fixture outside every AAI project root is unaffected. Nothing was written.',
     3);
   }
 

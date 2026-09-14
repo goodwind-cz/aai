@@ -781,7 +781,23 @@ test_012_growth_sum_matches_ledger() {
   # not to rescue TEST-010.
   # Then 25283 -> 26515: standing-merge-authorization-in-canon (+1232 B,
   # SKILL_PR step 6 + SKILL_SHIP step 6 standing-authorization clauses, PR #375).
-  local want_growth=26731
+  # Then 26515 -> 26731: telemetry-fields-not-prose-botfix (+216 B,
+  # ROLE_COMMON.md's shared append-run example gains --verdict).
+  # Then 26731 -> 27957: dispatch-state-sweep D9/D10 (+1226 B) -- SKILL_PR
+  # step 5 post-push watch-ci.mjs pointer (+173), the three uncarved-lane
+  # files reconciled to the D1 sole-agent carve (SKILL_CODE_REVIEW +145,
+  # SKILL_WORKTREE +480, METRICS_FLUSH +107 net after folding onto the
+  # FALLBACK line to hold TEST-011's 45-line wrapper ceiling without losing
+  # TEST-013's "state.mjs is absent" pin), and STATE_FALLBACK.md's hand-edit
+  # path reconciled as never a subagent's second door (+321, one of the
+  # three extras). check-dispatch-text.mjs, watch-ci.mjs and the
+  # SUBAGENT_PROTOCOL.md rule additions sit outside the live glob and its
+  # extras, no ledger cost.
+  # Then 27957 -> 28140: dispatch-state-sweep validation-round1 B2 remediation
+  # (+183 B) -- SKILL_PR step 4c actually gains the clear-focus --ref <slug>
+  # line after close-work-item.mjs (D3's own non-inertness clause, missing
+  # in round 1), credited 1:1, headroom unchanged at 2046/2048.
+  local want_growth=28140
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

@@ -98,7 +98,30 @@ test_pin_orchestration_parallel() {
 # exit 3, nothing written; then the SAME command with the marker unset succeeds.
 
 test_seam_marker_refuses() {
-  log_info "Test [SEAM]: the wired AAI_ROLE=subagent marker makes a real state.mjs mutation refuse (exit 3); unset succeeds (TEST-RG-PIN-03)..."
+  log_info "Test [SEAM]: the wired AAI_ROLE=subagent marker makes a real state.mjs mutation refuse against a GUARDED path (exit 3); unset succeeds; a scratch fixture is EXEMPT (spec-dispatch-state-sweep D12) (TEST-RG-PIN-03)..."
+  # spec-dispatch-state-sweep D12 (Spec-AC-12): the marker refusal is scoped to
+  # a GUARDED --state path (this project's own shipping docs/ai/STATE.yaml, or
+  # another AAI project's) — a plain mktemp fixture is now EXEMPT and WRITES
+  # under the marker (this is the friction-removal claim; asserted below as its
+  # own arm). The refusal half of this SEAM is re-pointed at the real shipping
+  # STATE (read-only probed here — exit 3 opens nothing, so it is never
+  # mutated) to keep proving the marker really reaches state.mjs's real guard.
+  local real="$PROJECT_ROOT/docs/ai/STATE.yaml"
+  if [[ ! -f "$real" ]]; then
+    log_info "no real docs/ai/STATE.yaml present in this worktree — skipping the guarded-path arm"
+  else
+    cp "$real" "$TEST_DIR/seam-real-snapshot.yaml"
+    local ec=0
+    ( cd "$PROJECT_ROOT" && AAI_ROLE=subagent node .aai/scripts/state.mjs --state "$real" \
+        set-strategy --selected tdd > "$TEST_DIR/seam-refuse.log" 2>&1 ) || ec=$?
+    [[ "$ec" == 3 ]] || { log_fail "TEST-RG-PIN-03: marker set against the shipping STATE must refuse with exit 3 (got $ec): $(cat "$TEST_DIR/seam-refuse.log")"; return; }
+    cmp -s "$real" "$TEST_DIR/seam-real-snapshot.yaml" || { log_fail "TEST-RG-PIN-03: refusal must leave the shipping STATE byte-identical"; return; }
+    grep -qi 'single-writer' "$TEST_DIR/seam-refuse.log" \
+      || { log_fail "TEST-RG-PIN-03: refusal message must name the single-writer rule"; return; }
+  fi
+
+  # A scratch/mktemp fixture (outside every AAI project root) is EXEMPT: the
+  # marker set still WRITES (D12's own friction-removal claim).
   local s="$TEST_DIR/seam-state.yaml"
   cat > "$s" <<'YAML'
 project_status: active
@@ -113,21 +136,18 @@ implementation_strategy:
 updated_at_utc: 2026-07-01T00:00:00Z
 YAML
   cp "$s" "$TEST_DIR/seam-snapshot.yaml"
+  local ec2=0
+  ( cd "$PROJECT_ROOT" && AAI_ROLE=subagent node .aai/scripts/state.mjs --state "$s" \
+      set-strategy --selected tdd > "$TEST_DIR/seam-exempt.log" 2>&1 ) || ec2=$?
+  [[ "$ec2" == 0 ]] || { log_fail "TEST-RG-PIN-03: a scratch fixture under the marker must WRITE (D12), got exit $ec2: $(cat "$TEST_DIR/seam-exempt.log")"; return; }
+  cmp -s "$s" "$TEST_DIR/seam-snapshot.yaml" && { log_fail "TEST-RG-PIN-03: the scratch fixture must actually CHANGE under the marker"; return; }
 
   local ec=0
-  ( cd "$PROJECT_ROOT" && AAI_ROLE=subagent node .aai/scripts/state.mjs --state "$s" \
-      set-strategy --selected tdd > "$TEST_DIR/seam-refuse.log" 2>&1 ) || ec=$?
-  [[ "$ec" == 3 ]] || { log_fail "TEST-RG-PIN-03: marker set must refuse with exit 3 (got $ec): $(cat "$TEST_DIR/seam-refuse.log")"; return; }
-  cmp -s "$s" "$TEST_DIR/seam-snapshot.yaml" || { log_fail "TEST-RG-PIN-03: refusal must leave STATE byte-identical"; return; }
-  grep -qi 'single-writer' "$TEST_DIR/seam-refuse.log" \
-    || { log_fail "TEST-RG-PIN-03: refusal message must name the single-writer rule"; return; }
-
-  ec=0
   ( cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" \
       set-strategy --selected tdd > "$TEST_DIR/seam-ok.log" 2>&1 ) || ec=$?
   [[ "$ec" == 0 ]] || { log_fail "TEST-RG-PIN-03: marker unset must succeed (got $ec): $(cat "$TEST_DIR/seam-ok.log")"; return; }
   grep -qE '^  selected: tdd$' "$s" || { log_fail "TEST-RG-PIN-03: unset write must actually apply"; return; }
-  log_pass "SEAM: wired marker -> state.mjs refuses (exit 3, no write); unset -> writes (TEST-RG-PIN-03)"
+  log_pass "SEAM: wired marker -> state.mjs refuses against the shipping STATE (exit 3, no write) but WRITES a scratch fixture (D12); unset -> writes (TEST-RG-PIN-03)"
 }
 
 # --- TEST-RG-PIN-04: serial ORCHESTRATION relays the ENV row -------------------

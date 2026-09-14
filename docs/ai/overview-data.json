@@ -1,16 +1,16 @@
 {
-  "generatedAt": "2026-09-13T13:29:49.808Z",
+  "generatedAt": "2026-09-14T02:01:22.574Z",
   "project": "aai",
   "counts": {
-    "delivered": 241,
+    "delivered": 242,
     "in_progress": 22,
     "releases": 1,
     "tokens_total": 64220459
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "telemetry-fields-not-prose",
-    "type": "intake_change"
+    "ref": null,
+    "type": "none"
   },
   "in_flight": null,
   "in_progress": [
@@ -302,6 +302,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "dispatch-state-sweep",
+      "title": "The dispatch loop and STATE say the truth about the ride they are running",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0186-dispatch-state-sweep.md",
+      "closed_on": "2026-09-14",
+      "agent_minutes": 583,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0180-spec-dispatch-state-sweep.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-dispatch-state-sweep-20260913T230013Z.md"
+    },
     {
       "ref": "harness-universal-routing",
       "title": "The dispatcher knows which harness it is running in, and routes models for that harness",
@@ -3442,6 +3455,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "dispatch-state-sweep",
+          "title": "The dispatch loop and STATE say the truth about the ride they are running",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0186-dispatch-state-sweep.md",
+          "closed_on": "2026-09-14",
+          "agent_minutes": 583,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0180-spec-dispatch-state-sweep.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-dispatch-state-sweep-20260913T230013Z.md"
+        },
         {
           "ref": "harness-universal-routing",
           "title": "The dispatcher knows which harness it is running in, and routes models for that harness",

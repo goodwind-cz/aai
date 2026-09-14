@@ -519,6 +519,7 @@ test_hook_detached_auto_sync() {
   cp "$CHECK_SCRIPT" "$fx/.aai/scripts/update-check.mjs"   # REAL update-check
   cp "$DRIFT_SCRIPT" "$fx/.aai/scripts/layer-drift.mjs"    # REAL detection
   cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$fx/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/iso-time.mjs" "$fx/.aai/scripts/lib/iso-time.mjs"   # validation-round1 B5: update-check.mjs's real now-import dependency
   printf 'META_SKILL_SENTINEL_CONTENT\n' > "$fx/.aai/SKILL_META.prompt.md"
   # SLOW STUB aai-update: proves the hook returns BEFORE the sync completes.
   cat > "$fx/.aai/scripts/aai-update.sh" <<'STUB'
@@ -651,6 +652,7 @@ test_source_agreement() {
   cp "$CHECK_SCRIPT" "$dir/.aai/scripts/update-check.mjs"
   cp "$DRIFT_SCRIPT" "$dir/.aai/scripts/layer-drift.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$dir/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/iso-time.mjs" "$dir/.aai/scripts/lib/iso-time.mjs"   # validation-round1 B5: update-check.mjs's real now-import dependency
   recorded="$dir/.aai/recorded-source.txt"
   cat > "$dir/.aai/scripts/aai-update.sh" <<STUB
 #!/usr/bin/env bash

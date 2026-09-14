@@ -262,8 +262,13 @@ function buildModel() {
   // by both renderHtml() and the overview-data.json write below — a single
   // model field feeding two renderers, so they cannot drift out of sync
   // (Spec-AC-04 SEAM). null (graceful omission) unless there is a real
-  // current focus AND at least one parseable recent tick.
-  const inFlight = (state && state.focus_ref && ticks.length > 0) ? {
+  // current focus AND at least one parseable recent tick. spec-dispatch-
+  // state-sweep D3: a SECOND, independent input — a closed ride (the focus
+  // work item's own phase is `closed`, per state.mjs clear-focus) reads as
+  // null too, even if some OTHER field of current_focus were somehow still
+  // populated — two inputs rather than one, because the symptom the owner
+  // reads (a closed ride shown in-flight) is worth a belt and braces.
+  const inFlight = (state && state.focus_ref && state.focus_phase !== 'closed' && ticks.length > 0) ? {
     focus: { ref: state.focus_ref, type: state.focus_type, phase: state.focus_phase },
     strategy: state.strategy,
     worktree: { recommendation: state.worktree_recommendation, user_decision: state.worktree_user_decision },

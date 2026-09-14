@@ -24,6 +24,8 @@ TEST_NAME="aai-orchestration-dispatch"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 DISPATCH="$PROJECT_ROOT/.aai/scripts/orchestration-dispatch.mjs"
 
 cleanup() {
@@ -2743,9 +2745,14 @@ test_040_g2_stale_advisory_integration() {
   [[ "$n" == 1 ]] || log_fail "TEST-005: expected exactly one validation_verdict_stale stderr line (got $n): $(cat "$ERR")"
   grep -qF "CHANGE-0001" "$ERR" || log_fail "TEST-005: stale advisory must name the focus ref"
 
+  # spec-dispatch-state-sweep D2: --human now ALSO prints a decision-rationale
+  # line naming the dispatch's own `reasons` (rule 11s carries
+  # validation_verdict_stale as a REASON, not just an advisory) — so the bare
+  # substring can legitimately appear on TWO lines now; the WARN-prefixed
+  # advisory line itself must still appear exactly once.
   run_dispatch "$d" --human
-  n="$(grep -c validation_verdict_stale "$ERR" || true)"
-  [[ "$n" == 1 ]] || log_fail "TEST-005: --human must still print exactly one stale line (got $n): $(cat "$ERR")"
+  n="$(grep -cF "WARN validation_verdict_stale" "$ERR" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-005: --human must still print exactly one WARN validation_verdict_stale line (got $n): $(cat "$ERR")"
 
   log_pass "G2 stale-verdict advisory fires after a tracked mutation, with and without --human, no agent input (TEST-005)"
 }
@@ -2838,7 +2845,7 @@ EOF
 # --- TEST-007 (Spec-AC-05, role-verification-guards G2): report-only proof ----
 
 test_042_g2_report_only_proof() {
-  log_info "Test: G2 is report-only -- stale vs non-stale decide() differ ONLY by advisories; docs-audit tolerates the new event type (SEAM-3) (TEST-007)..."
+  log_info "Test: stale vs non-stale decide() -- the advisory key stays additive-only, but rule 11s (spec-dispatch-state-sweep D2) now ALSO routes a stale pass to a fresh Validation instead of whatever rule the fresh tree matches; docs-audit tolerates the new event type (SEAM-3) (TEST-007)..."
 
   cat > "$TEST_DIR/t42.mjs" <<'EOF'
 import assert from 'node:assert';
@@ -2869,11 +2876,21 @@ const preChangeShape = decide({ ...base }); // no tree_hash/last_validation_verd
 assert.ok(!('advisories' in nonStale), 'non-stale must carry no advisories key');
 assert.deepStrictEqual(nonStale, preChangeShape, "non-stale decide() output must be byte-identical to the fields-absent (pre-G2) shape -- decide()'s own contribution, D2");
 
+// spec-dispatch-state-sweep D2: staleness is NO LONGER advisory-only -- rule
+// 11s now ROUTES a stale pass to a fresh Validation, ahead of whatever rule
+// the non-stale snapshot matches (here rule 14, Metrics Flush, since review
+// is already pass and the ref is not yet flushed). The advisory key stays
+// additive; the DISPATCH PACKAGE itself now differs by design -- this is the
+// whole point of D2, not a regression of G2's own additive contract.
 assert.deepStrictEqual(stale.advisories, ['validation_verdict_stale'], 'stale must carry the additive advisories key');
-const { advisories, ...staleRest } = stale;
-assert.deepStrictEqual(staleRest, nonStale, 'stale output must differ from non-stale ONLY by the advisories key');
-for (const k of ['rule', 'verdict', 'role', 'reasons']) {
-  assert.deepStrictEqual(stale[k], nonStale[k], `${k} must be identical stale vs non-stale`);
+assert.strictEqual(nonStale.rule, '14', 'sanity: the non-stale control must resolve to rule 14 (review already pass, not yet flushed)');
+assert.strictEqual(nonStale.role, 'Metrics Flush');
+assert.strictEqual(stale.rule, '11s', 'a stale pass must route to rule 11s, not whatever rule the fresh tree would have matched');
+assert.strictEqual(stale.role, 'Validation');
+assert.deepStrictEqual(stale.reasons, ['validation_verdict_stale', 'restamp_requires_confirm'],
+  'a plain decide() call (opts.confirm falsy) must name why the rule will keep re-firing');
+for (const k of ['verdict', 'ref_id']) {
+  assert.deepStrictEqual(stale[k], nonStale[k], `${k} must still be identical stale vs non-stale (both a dispatch for the same ref)`);
 }
 
 console.log('ok');
@@ -2943,7 +2960,7 @@ EOF
     || log_fail "TEST-007: docs-audit must still report CLEAN with a validation_verdict event on the ledger: $(cat "$audit_out")"
   [[ "$audit_ec" == 0 ]] || log_fail "TEST-007: docs-audit exit code must be unaffected by the new event type (got $audit_ec)"
 
-  log_pass "G2 report-only proof: stale/non-stale decide() differ only by advisories, docs-audit stays CLEAN with the new event type (TEST-007)"
+  log_pass "advisory stays additive-only; rule 11s now also routes a stale pass to Validation; docs-audit stays CLEAN with the new event type (TEST-007)"
 }
 
 # --- TEST-011 (Spec-AC-04, role-verification-guards G2 B1 fix): the confirm
@@ -4234,6 +4251,347 @@ EOF
   log_pass "Four-space-indented key under tiers@codex: is not read; one-level nesting contract unchanged (TEST-060)"
 }
 
+test_061_rule11s_stale_verdict_routing() {  # TEST-061 / Spec-AC-02
+  log_info "Test: rule 11s routes a stale pass to Validation BEFORE rule 13 and rule 14, names itself on --rules and the WARN line, and adds restamp_requires_confirm without --confirm (TEST-061)..."
+
+  # --- (a) review required+unrun (rule 13's own precondition): a stale pass
+  # must dispatch rule 11s / Validation, NEVER reach rule 13 / Code Review.
+  local d
+  d="$(mk_root t61a)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass   # rstatus not_run, rrequired true (defaults)
+  git_init_fixture "$d"
+
+  # Control FIRST, on the fresh (non-stale) tree right after the stamp: must
+  # dispatch exactly as today (rule 13), proving the ordering arm below is
+  # actually about staleness, not a blanket routing change.
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 0 ]] || log_fail "(a-control) baseline --confirm tick must exit 0: $(cat "$ERR")"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a-control) fresh-hash tick must exit 0: $(cat "$ERR")"
+  jassert "$OUT" 'o.rule === "13" && o.role === "Code Review"'
+
+  # Mutate ONE tracked file -> tree_hash moves -> the stamped verdict is stale.
+  echo "mutated-for-t61a" >> "$d/docs/TECHNOLOGY.md"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) stale tick must still exit 0 (a dispatch verdict): $(cat "$ERR")"
+  jassert "$OUT" 'o.rule === "11s" && o.role === "Validation" && o.verdict === "dispatch"'
+  jassert "$OUT" 'o.reasons.includes("validation_verdict_stale")'
+  jassert "$OUT" 'o.reasons.includes("restamp_requires_confirm")'   # no --confirm on this tick
+  grep -qF "rule 11s" "$ERR" || log_fail "(a) the WARN line must name rule 11s: $(cat "$ERR")"
+
+  # Same stale tree, but WITH --confirm: restamp_requires_confirm must be
+  # ABSENT (the loop DID opt into the re-stamp this tick).
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 0 ]] || log_fail "(a-confirm) stale tick with --confirm must exit 0: $(cat "$ERR")"
+  jassert "$OUT" 'o.rule === "11s" && !o.reasons.includes("restamp_requires_confirm")'
+
+  # --- (b) review already satisfied + ref absent from METRICS.jsonl (rule
+  # 14's own precondition): a stale pass must dispatch rule 11s, NEVER reach
+  # rule 14 / Metrics Flush.
+  local d2
+  d2="$(mk_root t61b)"
+  write_dstate "$d2/docs/ai/STATE.yaml" pass pass   # rstatus pass this time
+  git_init_fixture "$d2"
+  run_dispatch "$d2" --confirm
+  [[ "$EC" == 0 ]] || log_fail "(b-control) baseline --confirm tick must exit 0: $(cat "$ERR")"
+  run_dispatch "$d2"
+  [[ "$EC" == 0 ]] || log_fail "(b-control) fresh-hash tick must exit 0: $(cat "$ERR")"
+  jassert "$OUT" 'o.rule === "14" && o.role === "Metrics Flush"'
+
+  echo "mutated-for-t61b" >> "$d2/docs/TECHNOLOGY.md"
+  run_dispatch "$d2"
+  [[ "$EC" == 0 ]] || log_fail "(b) stale tick must still exit 0: $(cat "$ERR")"
+  jassert "$OUT" 'o.rule === "11s" && o.role === "Validation"'
+
+  # --- (c) --rules lists 11s.
+  local rules_out="$TEST_DIR/t61-rules.log"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/orchestration-dispatch.mjs --rules) > "$rules_out" 2>&1 \
+    || log_fail "(c) --rules must exit 0: $(cat "$rules_out")"
+  grep -qF "11s" "$rules_out" || log_fail "(c) --rules output must list rule 11s: $(cat "$rules_out")"
+
+  log_pass "rule 11s: stale pass routes to Validation before rules 13/14, fresh-hash control unaffected, --rules + WARN line name it, restamp_requires_confirm gated on --confirm (TEST-061)"
+}
+
+test_065_effort_suffix_note() {  # TEST-065 / Spec-AC-16
+  log_info "Test: a suffixed effort_tiers/effort_roles header gets the same NOTE tiers/roles get, resolves suggested_effort from the UNSUFFIXED sections only, keeps the exit code, and an unsuffixed pair emits none (TEST-065)..."
+
+  # (a) effort_tiers@claude AND effort_roles@codex present alongside real
+  # (unsuffixed) effort_tiers/effort_roles sections that carry the REAL
+  # values; the suffixed rows carry deliberately WRONG values so a leak into
+  # resolution would be caught by the value, not just the NOTE count. An
+  # invalid-harness suffix (effort_tiers@bogusharness) gets the SAME NOTE.
+  local d
+  d="$(mk_root t65a)"
+  write_dstate "$d/docs/ai/STATE.yaml"   # not_run + implementation -> rule 11 Validation
+  mkdir -p "$d/.aai/system"
+  cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers:
+  mechanical: claude-haiku-4-5
+  standard: claude-sonnet-5
+  premium: claude-opus-4-8
+effort_tiers@claude:
+  mechanical: LEAK-IF-USED
+  standard: LEAK-IF-USED
+  premium: LEAK-IF-USED
+effort_tiers@bogusharness:
+  mechanical: LEAK-IF-USED
+effort_tiers:
+  mechanical: low
+  standard: default
+  premium: default
+effort_roles@codex:
+  Validation: LEAK-IF-USED
+effort_roles:
+  Validation: high
+  Code Review: high
+YAML
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "11" && o.role === "Validation"'
+  jassert "$OUT" 'o.suggested_effort === "high"'   # from the UNSUFFIXED effort_roles only
+  grep -qF 'LEAK-IF-USED' "$OUT" && log_fail "(a) a suffixed effort row must never reach resolution: $(cat "$OUT")"
+  grep -qE 'NOTE.*effort_tiers@claude.*ignored' "$ERR" \
+    || log_fail "(a) effort_tiers@claude must get a NOTE naming the suffix: $(cat "$ERR")"
+  grep -qE 'NOTE.*effort_roles@codex.*ignored' "$ERR" \
+    || log_fail "(a) effort_roles@codex must get a NOTE naming the suffix: $(cat "$ERR")"
+  grep -qE 'NOTE.*effort_tiers@bogusharness.*ignored' "$ERR" \
+    || log_fail "(a) an invalid-harness suffix (effort_tiers@bogusharness) must get the SAME NOTE shape: $(cat "$ERR")"
+
+  # (a-control) the equivalent UNSUFFIXED fixture (same real values, no
+  # suffixed noise) must dispatch with the SAME exit code and effort value.
+  local d2
+  d2="$(mk_root t65a-control)"
+  write_dstate "$d2/docs/ai/STATE.yaml"
+  mkdir -p "$d2/.aai/system"
+  cat > "$d2/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers:
+  mechanical: claude-haiku-4-5
+  standard: claude-sonnet-5
+  premium: claude-opus-4-8
+effort_tiers:
+  mechanical: low
+  standard: default
+  premium: default
+effort_roles:
+  Validation: high
+  Code Review: high
+YAML
+  local ec_control="$EC"
+  run_dispatch "$d2"
+  [[ "$EC" == "$ec_control" ]] || log_fail "(a-control) the suffixed and unsuffixed fixtures must exit with the SAME code (suffixed=$ec_control unsuffixed=$EC)"
+  jassert "$OUT" 'o.suggested_effort === "high"'
+  local n
+  n="$(grep -c 'NOTE.*effort_.*ignored' "$ERR" || true)"
+  [[ "$n" == 0 ]] || log_fail "(b) an unsuffixed effort_tiers/effort_roles pair must emit ZERO effort NOTE lines (got $n): $(cat "$ERR")"
+
+  log_pass "suffixed effort_tiers/effort_roles get the NOTE (valid or invalid harness alike), resolve from unsuffixed sections only, exit code unchanged; unsuffixed pair emits none (TEST-065)"
+}
+
+test_062_watch_ci_liveness_probe() {  # TEST-062 / Spec-AC-09
+  log_info "Test: watch-ci.mjs exits 0 on all-pass, 5 naming the failing check on a failure, and 3 naming the degrade with gh absent; SKILL_PR.prompt.md names the command after its push step (TEST-062)..."
+  local WATCHCI="$PROJECT_ROOT/.aai/scripts/watch-ci.mjs"
+  [[ -f "$WATCHCI" ]] || log_fail "TEST-062: watch-ci.mjs not found: $WATCHCI"
+  local NODE_BIN; NODE_BIN="$(command -v node)"
+
+  local d="$TEST_DIR/watch-ci-repo"
+  mkdir -p "$d" "$TEST_DIR/bin"
+  ( cd "$d" && git init -q . && git remote add origin https://github.com/example-org/example-repo.git )
+
+  cat > "$TEST_DIR/bin/gh" <<'SH'
+#!/usr/bin/env bash
+if [[ "$1" == "--version" ]]; then
+  echo "gh version 2.40.0 (stub)"
+  exit 0
+fi
+if [[ "$1" == "pr" && "$2" == "checks" ]]; then
+  printf '%s\n' "$GH_STUB_CHECKS_JSON"
+  exit 0
+fi
+echo "gh-stub: unexpected args: $*" >&2
+exit 1
+SH
+  chmod +x "$TEST_DIR/bin/gh"
+
+  # (a) a stub gh reporting all checks passed -> exit 0, a settlement line.
+  local rc=0
+  ( cd "$d" && GH_STUB_CHECKS_JSON='[{"name":"build","bucket":"pass","link":"x"},{"name":"test","bucket":"pass","link":"y"}]' \
+      PATH="$TEST_DIR/bin:$PATH" "$NODE_BIN" "$WATCHCI" > "$TEST_DIR/a.out" 2> "$TEST_DIR/a.err" ) || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-062: (a) all-pass must exit 0, got $rc: $(cat "$TEST_DIR/a.out" "$TEST_DIR/a.err")"
+  grep -qi 'settled' "$TEST_DIR/a.out" || log_fail "TEST-062: (a) a settlement line must be printed: $(cat "$TEST_DIR/a.out")"
+
+  # (b) a stub gh reporting a failed check -> exit 5, naming the failing check.
+  rc=0
+  ( cd "$d" && GH_STUB_CHECKS_JSON='[{"name":"build","bucket":"pass","link":"x"},{"name":"lint","bucket":"fail","link":"y"}]' \
+      PATH="$TEST_DIR/bin:$PATH" "$NODE_BIN" "$WATCHCI" > "$TEST_DIR/b.out" 2> "$TEST_DIR/b.err" ) || rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-062: (b) a failed check must exit 5, got $rc: $(cat "$TEST_DIR/b.out" "$TEST_DIR/b.err")"
+  grep -qF 'lint' "$TEST_DIR/b.err" || log_fail "TEST-062: (b) the failure must NAME the failing check (lint): $(cat "$TEST_DIR/b.err")"
+
+  # (c) gh absent from PATH entirely -> exit 3, naming the degrade. node is
+  # invoked by its OWN absolute path (no PATH lookup needed for that exec).
+  rc=0
+  ( cd "$d" && PATH="" "$NODE_BIN" "$WATCHCI" > "$TEST_DIR/c.out" 2> "$TEST_DIR/c.err" ) || rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "TEST-062: (c) gh absent must exit 3, got $rc: $(cat "$TEST_DIR/c.out" "$TEST_DIR/c.err")"
+  grep -qi 'degraded' "$TEST_DIR/c.err" || log_fail "TEST-062: (c) the degrade must be named on stderr: $(cat "$TEST_DIR/c.err")"
+  grep -qi 'gh not found' "$TEST_DIR/c.err" || log_fail "TEST-062: (c) the degrade must name gh as the missing piece: $(cat "$TEST_DIR/c.err")"
+
+  # (d) a repo whose origin is NOT GitHub -> exit 3, naming the degrade (gh
+  # present and working, so this arm proves the platform check independently
+  # of the gh-absent arm).
+  local d2="$TEST_DIR/watch-ci-repo-nongithub"
+  mkdir -p "$d2"
+  ( cd "$d2" && git init -q . && git remote add origin https://gitlab.example.com/example-org/example-repo.git )
+  rc=0
+  ( cd "$d2" && PATH="$TEST_DIR/bin:$PATH" "$NODE_BIN" "$WATCHCI" > "$TEST_DIR/d.out" 2> "$TEST_DIR/d.err" ) || rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "TEST-062: (d) a non-GitHub origin must exit 3, got $rc: $(cat "$TEST_DIR/d.out" "$TEST_DIR/d.err")"
+  grep -qi 'github' "$TEST_DIR/d.err" || log_fail "TEST-062: (d) the degrade must name the platform mismatch: $(cat "$TEST_DIR/d.err")"
+
+  # (e) BLOCKING-1 (review-dispatch-state-sweep-20260913T221903Z): a stub gh
+  # reporting one `pass` and one TERMINAL `skipping` check must settle exit
+  # 0 within a single poll — `skipping` is a settled bucket, not pending, so
+  # this PR must never wait out the deadline. (Mutation check performed by
+  # hand during remediation: reverting `pending` to `bucket === 'pending' ||
+  # bucket === 'skipping'` reddens this arm — exit 3 "degraded — checks
+  # still pending" after `--max-wait-seconds 2`, confirming the fix is what
+  # this arm actually pins.)
+  rc=0
+  ( cd "$d" && GH_STUB_CHECKS_JSON='[{"name":"build","bucket":"pass","link":"x"},{"name":"skill suite (selected, via test-framework.sh --skill)","bucket":"skipping","link":"y"}]' \
+      PATH="$TEST_DIR/bin:$PATH" "$NODE_BIN" "$WATCHCI" --max-wait-seconds 2 > "$TEST_DIR/e.out" 2> "$TEST_DIR/e.err" ) || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-062: (e) pass+skipping must settle exit 0 within one poll, got $rc: $(cat "$TEST_DIR/e.out" "$TEST_DIR/e.err")"
+  grep -qi 'settled' "$TEST_DIR/e.out" || log_fail "TEST-062: (e) a settlement line must be printed: $(cat "$TEST_DIR/e.out")"
+
+  # (f) a stub gh reporting a `cancel` bucket (no `fail` bucket at all) must
+  # exit 5 naming the cancelled check — `cancel` is terminal-failed, same as
+  # `fail`, never counted as pending.
+  rc=0
+  ( cd "$d" && GH_STUB_CHECKS_JSON='[{"name":"build","bucket":"pass","link":"x"},{"name":"deploy","bucket":"cancel","link":"y"}]' \
+      PATH="$TEST_DIR/bin:$PATH" "$NODE_BIN" "$WATCHCI" --max-wait-seconds 2 > "$TEST_DIR/f.out" 2> "$TEST_DIR/f.err" ) || rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-062: (f) a cancelled check must exit 5, got $rc: $(cat "$TEST_DIR/f.out" "$TEST_DIR/f.err")"
+  grep -qF 'deploy' "$TEST_DIR/f.err" || log_fail "TEST-062: (f) the failure must NAME the cancelled check (deploy): $(cat "$TEST_DIR/f.err")"
+
+  # (g) validation-round4 N29: EVERY check settling `skipping` (nothing ran
+  # at all) must exit 3 (degrade), never exit 0 — an all-skipping PR is the
+  # same D9-forbidden "array of nothing meaningful rendered as a pass" shape
+  # as an empty checks array. (Mutation check performed by hand during
+  # remediation: dropping watch-ci.mjs's `passed.length === 0` gate reddens
+  # this arm — exit 0 "settled — all 2 check(s) passed (0 pass, 2 skipped)".)
+  rc=0
+  ( cd "$d" && GH_STUB_CHECKS_JSON='[{"name":"build","bucket":"skipping","link":"x"},{"name":"test","bucket":"skipping","link":"y"}]' \
+      PATH="$TEST_DIR/bin:$PATH" "$NODE_BIN" "$WATCHCI" --max-wait-seconds 2 > "$TEST_DIR/g.out" 2> "$TEST_DIR/g.err" ) || rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "TEST-062: (g) all-skipping must exit 3 (degrade), got $rc: $(cat "$TEST_DIR/g.out" "$TEST_DIR/g.err")"
+  grep -qi 'degraded' "$TEST_DIR/g.err" || log_fail "TEST-062: (g) the degrade must be named on stderr: $(cat "$TEST_DIR/g.err")"
+
+  # (h) validation-round4 N33 / code review round 2 NON-BLOCKING-1: a check
+  # reporting a bucket outside gh's documented five (here "mystery") must
+  # never be silently absorbed into settled-pass — fail CLOSED, naming it.
+  # (Mutation check performed by hand during remediation: removing the
+  # unknown-bucket guard restores the fall-through and reddens this arm —
+  # exit 0 "settled — all 2 check(s) passed (1 pass, 0 skipped)".)
+  rc=0
+  ( cd "$d" && GH_STUB_CHECKS_JSON='[{"name":"build","bucket":"pass","link":"x"},{"name":"weird","bucket":"mystery","link":"y"}]' \
+      PATH="$TEST_DIR/bin:$PATH" "$NODE_BIN" "$WATCHCI" --max-wait-seconds 2 > "$TEST_DIR/h.out" 2> "$TEST_DIR/h.err" ) || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-062: (h) an unrecognized bucket must NOT settle exit 0: $(cat "$TEST_DIR/h.out" "$TEST_DIR/h.err")"
+  grep -qF 'weird' "$TEST_DIR/h.err" || log_fail "TEST-062: (h) the refusal must NAME the unrecognized check (weird): $(cat "$TEST_DIR/h.err")"
+
+  # SKILL_PR.prompt.md names the command in its post-push step.
+  local skillpr="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  grep -qF 'watch-ci.mjs' "$skillpr" || log_fail "TEST-062: SKILL_PR.prompt.md must name watch-ci.mjs after the push step"
+
+  # D3's OWN interim wiring (Spec-AC-03/D3, validation-round1 B2): step 4c
+  # must actually invoke clear-focus after close-work-item.mjs, not merely
+  # claim to in prose the spec never delivered — this line's whole purpose
+  # is to catch that gap, so it greps the CLI invocation itself, not a
+  # passing mention.
+  grep -qF 'state.mjs clear-focus' "$skillpr" || log_fail "TEST-062: SKILL_PR.prompt.md step 4c must run state.mjs clear-focus after close-work-item.mjs (D3 non-inertness clause)"
+
+  log_pass "watch-ci.mjs: all-pass exits 0 with a settlement line, a failure exits 5 naming the check, gh-absent and a non-GitHub origin each exit 3 naming the degrade, a terminal skipping check settles exit 0 within one poll and a cancel check exits 5 naming it, an all-skipping PR exits 3 and an unrecognized bucket value exits non-zero naming the check; SKILL_PR.prompt.md names both watch-ci.mjs and clear-focus after the push/close steps (TEST-062)"
+}
+
+test_063_carve_reconciliation() {  # TEST-063 / Spec-AC-10
+  log_info "Test: SKILL_CODE_REVIEW/SKILL_WORKTREE/METRICS_FLUSH/STATE_FALLBACK each carry the D1 sole-agent carve predicate; the three prompts carry the state_update_commands return shape; the corpus carries zero occurrences of the explicit-instruction grant (TEST-063)..."
+  local scr="$PROJECT_ROOT/.aai/SKILL_CODE_REVIEW.prompt.md"
+  local swt="$PROJECT_ROOT/.aai/SKILL_WORKTREE.prompt.md"
+  local mf="$PROJECT_ROOT/.aai/METRICS_FLUSH.prompt.md"
+  local sfb="$PROJECT_ROOT/.aai/STATE_FALLBACK.md"
+  local f
+  for f in "$scr" "$swt" "$mf" "$sfb"; do
+    [[ -f "$f" ]] || log_fail "TEST-063: missing corpus file $f"
+    grep -qi 'sole-agent carve\|sole agent for the ride' "$f" \
+      || log_fail "TEST-063: $f must carry the D1 sole-agent carve predicate"
+    grep -qF 'AAI_ROLE' "$f" \
+      || log_fail "TEST-063: $f must name the AAI_ROLE unset predicate"
+  done
+  for f in "$scr" "$swt" "$mf"; do
+    grep -qF 'state_update_commands' "$f" \
+      || log_fail "TEST-063: $f (a .prompt.md) must carry the state_update_commands return shape"
+  done
+
+  # Corpus-wide: zero occurrences of the phrase this scope removes.
+  local hits
+  hits="$(/usr/bin/grep -rl 'explicit instruction' "$PROJECT_ROOT/.aai" 2>/dev/null | wc -l | tr -d ' ')" || true
+  [[ "$hits" == "0" ]] || log_fail "TEST-063: the explicit-instruction grant must be absent from the whole .aai corpus, found in $hits file(s)"
+
+  log_pass "the four uncarved-lane files each carry the D1 carve predicate, the three prompts carry state_update_commands, and the corpus carries zero explicit-instruction grants (TEST-063)"
+}
+
+test_064_dispatch_text_coaching_guard() {  # TEST-064 / Spec-AC-11
+  log_info "Test: check-dispatch-text.mjs exits 6 under --strict for each detector in the closed set, naming the line and detector; exits 0 with a NOTE without --strict; three negative controls exit 0 under --strict; --path and stdin agree byte for byte; SUBAGENT_PROTOCOL.md carries the rule (TEST-064)..."
+  local CDT="$PROJECT_ROOT/.aai/scripts/check-dispatch-text.mjs"
+  [[ -f "$CDT" ]] || log_fail "TEST-064: check-dispatch-text.mjs not found: $CDT"
+  local d="$TEST_DIR/dispatch-text"
+  mkdir -p "$d"
+
+  # One fixture per detector in the closed set.
+  printf 'Findings:\n1. auth bug found at file.js line 12\n2. timeout bug found at other.js line 5\n' > "$d/f-ordered-list.txt"
+  printf 'Please review these in priority order.\n' > "$d/f-priority-order.txt"
+  printf 'The most likely cause is a race condition.\n' > "$d/f-most-likely.txt"
+  printf 'Focus on the top 3 issues.\n' > "$d/f-the-top-n.txt"
+  printf 'Findings are ranked below in this report.\n' > "$d/f-ranked.txt"
+  printf 'This dispatch is not an answer key for the reviewer.\n' > "$d/f-answer-key.txt"
+  printf 'Start with the auth module.\n' > "$d/f-start-with-the.txt"
+  printf 'We expect a P1 finding in the payment flow.\n' > "$d/f-predicted-severity.txt"
+
+  local fixtures="f-ordered-list f-priority-order f-most-likely f-the-top-n f-ranked f-answer-key f-start-with-the f-predicted-severity"
+  local fx rc out
+  for fx in $fixtures; do
+    rc=0
+    out="$(node "$CDT" --path "$d/$fx.txt" --strict 2>&1)" || rc=$?
+    [[ "$rc" -eq 6 ]] || log_fail "TEST-064: $fx under --strict must exit 6, got $rc: $out"
+    assert_payload_contains "$out" "NOTE line " "TEST-064: $fx must name the line and the detector"
+
+    rc=0
+    out="$(node "$CDT" --path "$d/$fx.txt" 2>&1)" || rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "TEST-064: $fx WITHOUT --strict must exit 0 (advisory), got $rc: $out"
+    assert_payload_contains "$out" "NOTE line " "TEST-064: $fx without --strict must still print the NOTE"
+  done
+
+  # Three negative controls: a reproduction command, a measured number, a
+  # bare file path list — none may trip any detector, even under --strict.
+  printf 'Reproduction: run node .aai/scripts/foo.mjs --check and observe exit 2.\n' > "$d/n-repro.txt"
+  printf '62 of 89 tests failed after the change.\n' > "$d/n-measured.txt"
+  printf '.aai/scripts/foo.mjs\ndocs/specs/SPEC-0001-fixture.md\n' > "$d/n-paths.txt"
+  local neg
+  for neg in n-repro n-measured n-paths; do
+    rc=0
+    out="$(node "$CDT" --path "$d/$neg.txt" --strict 2>&1)" || rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "TEST-064: negative control $neg must exit 0 under --strict, got $rc: $out"
+  done
+
+  # stdin and --path inputs agree byte for byte.
+  local out_path out_stdin
+  out_path="$(node "$CDT" --path "$d/f-ordered-list.txt" --strict 2>&1)" || true
+  out_stdin="$(node "$CDT" --strict < "$d/f-ordered-list.txt" 2>&1)" || true
+  [[ "$out_path" == "$out_stdin" ]] \
+    || log_fail "TEST-064: --path and stdin output must agree byte for byte: path=[$out_path] stdin=[$out_stdin]"
+
+  # SUBAGENT_PROTOCOL.md carries the rule.
+  grep -qF 'check-dispatch-text.mjs' "$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md" \
+    || log_fail "TEST-064: SUBAGENT_PROTOCOL.md must name check-dispatch-text.mjs"
+  grep -qi 'ranked answer key' "$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md" \
+    || log_fail "TEST-064: SUBAGENT_PROTOCOL.md must carry the no-ranked-answer-key rule"
+
+  log_pass "check-dispatch-text.mjs: one fixture per detector exits 6/named under --strict and 0/NOTE without; three negative controls stay clean under --strict; --path and stdin agree byte for byte; SUBAGENT_PROTOCOL.md carries the rule (TEST-064)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026 + harness-universal-routing TEST-048..058/060 (TEST-059 lives in test-aai-layer-profiles.sh); TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
@@ -4296,6 +4654,11 @@ main() {
   test_057_shipped_file_contract
   test_058_header_contract_and_leftover_note
   test_060_parser_one_level_nesting_guard
+  test_061_rule11s_stale_verdict_routing
+  test_062_watch_ci_liveness_probe
+  test_063_carve_reconciliation
+  test_064_dispatch_text_coaching_guard
+  test_065_effort_suffix_note
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

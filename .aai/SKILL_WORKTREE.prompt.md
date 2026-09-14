@@ -162,6 +162,13 @@ Create a new worktree for a feature/task.
    # fresh STATE from .aai/templates/STATE_TEMPLATE.yaml with a REAL timestamp:
    [ -f docs/ai/STATE.yaml ] && mv docs/ai/STATE.yaml docs/ai/STATE.yaml.pre-worktree
    node .aai/scripts/check-state.mjs --repair   # prints CREATED: ... stamped
+   # These writes target the NEW worktree's OWN docs/ai/STATE.yaml (the `cd`
+   # above), never the originating tree's — a distinct file, so this is not
+   # the D1 sole-agent carve (no dispatch, AAI_ROLE unset). Running this
+   # whole skill INLINE, in the ORIGINATING tree, still needs D1
+   # (.aai/SUBAGENT_CONTRACT.md) for any `docs/ai/STATE.yaml` write elsewhere
+   # in this file; a dispatched subagent returns such a command under
+   # `state_update_commands:` instead.
    # Worktree-specific fields via the canonical mutators (single-writer path):
    node .aai/scripts/state.mjs set-focus --type <type> --ref "$ref_id" --path "docs/issues/<intake>.md"
    node .aai/scripts/state.mjs set-worktree --user-decision worktree \

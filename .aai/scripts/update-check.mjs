@@ -60,6 +60,13 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+// Aliased (not `nowIso`): the local `nowIso` CONST below shadows any
+// same-named binding in its own initializer's scope — importing under this
+// name and using it only as the FALLBACK when --now is absent keeps --now's
+// full test-injected precision untouched while the real-clock default now
+// matches the rest of the system's second precision (CHANGE-0184 /
+// spec-dispatch-state-sweep D7 / validation-round1 B5).
+import { nowIso as sharedNowIso } from './lib/iso-time.mjs';
 
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -743,7 +750,7 @@ export function surfaceOutcome(outcomePath, emit, result,
 function main() {
   const args = parseArgs(process.argv);
   if (args.runSync) return runSyncMode(args); // detached background-sync child
-  const nowIso = args.now || new Date().toISOString();
+  const nowIso = args.now || sharedNowIso();
   const nowMs = Date.parse(nowIso);
   if (Number.isNaN(nowMs)) fail(`--now is not a valid ISO 8601 timestamp: ${args.now}`);
 
