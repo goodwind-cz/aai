@@ -75,3 +75,15 @@ not work; they are closed as superseded by the sweeps that own their items
 One PR per sweep, each carrying the list of items it fixed and the list it
 rejected with reasons. Owner attention is needed for the merge of sweep 5 and
 for any HITL menu a sweep raises. Estimate: about one factory-day per sweep.
+
+## Re-order of 2026-09-14 (owner decision)
+
+Sweeps 1, 2 and 3 each needed three to five validation rounds, and most
+BLOCKING findings were one class: a control that claimed a property it did not
+test. The owner chose (menu answer A) to ride the mutation gate next, before
+the close-ceremony, ref-guard and friction sweeps, so those run under a
+structural guard instead of under the validator alone. New order after sweep
+3: mutation-gate-for-tests (paired with CHANGE-0181), close-ceremony-sweep,
+update-installs-ref-guard-undisclosed (owner merges), friction-channel-sweep,
+canon-is-a-build-artifact last. Ledger: `hitl_decision` of 2026-09-14,
+`ref_id: wave-3-subsystem-sweeps`.
