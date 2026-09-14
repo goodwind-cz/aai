@@ -2,13 +2,15 @@
 id: spec-test-framework-sweep
 type: spec
 number: 179
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0185-test-framework-sweep.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - c92c51de
 ---
 
 # Spec — the test framework fails loudly, finishes sooner, and says what it ran

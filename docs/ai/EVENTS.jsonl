@@ -2280,3 +2280,9 @@
 {"v":1,"ts":"2026-09-13T15:09:31.516Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"residuals-of-the-per-suite-clone-ride","payload":{"commit":"12112e4f"}}
 {"v":1,"ts":"2026-09-13T20:35:09.288Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"test-framework-sweep","payload":{"status":"pass","hash":"30fe457890234046c4636f2b8b070c0c6a69a8bf9b847ae5b7d30878ec152ce9"}}
 {"v":1,"ts":"2026-09-14T01:30:52.289Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"test-framework-sweep","payload":{"status":"pass","hash":"de1c2739af98f414de069209fe159948ed366ecbafd9fdca21d4c34f789cc6bb"}}
+{"v":1,"ts":"2026-09-14T01:32:02.928Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"test-framework-sweep","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-14T01:32:02.965Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"test-framework-sweep","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-14T01:32:03.002Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"test-framework-sweep","payload":{"commit":"c92c51de"}}
+{"v":1,"ts":"2026-09-14T01:32:03.040Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-framework-sweep","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-14T01:32:03.079Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-framework-sweep","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-14T01:32:03.115Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-test-framework-sweep","payload":{"commit":"c92c51de"}}

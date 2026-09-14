@@ -2,11 +2,13 @@
 id: test-framework-sweep
 type: change
 number: 185
-status: draft
+status: done
 capability: test-framework-sweep
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - c92c51de
 ---
 
 # The test framework is fast, hermetic and honest about what it ran
