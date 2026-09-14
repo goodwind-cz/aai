@@ -1379,3 +1379,149 @@ Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: test-framework-sweep`, `--signoff none`.
+
+### Round 10 — the early-closing-reader class lived in the suites themselves, not only aai-sync.sh
+
+CI runs 34799612612 and 34806302893 on 1aab60bb (PR #381) reddened 5 suites,
+all "Broken pipe" under each suite's own `set -euo pipefail`:
+`test-aai-docs-audit.sh` TEST-003 (`sed -n '/^AC STATUS GATE/,/^PROCESS$/p'
+"$v" | grep -qE ...` — `sed: couldn't flush stdout: Broken pipe`, rc 141,
+`log_fail`) and `test-aai-layer-profiles.sh` TEST-402 (`profile_list ... |
+grep -m1 '^\.aai/'` inside a `$(...)` assignment — `grep: write error: Broken
+pipe`, the assignment fails, `set -e` aborts the whole suite with exit 2,
+cascading into every wrapper that nests layer-profiles:
+`test-aai-feedback-upsert.sh` TEST-015, `test-aai-release.sh` TEST-020,
+`test-aai-doctor.sh` TEST-031/TEST-040).
+
+- **Root cause: the same mechanism round 9 fixed in `aai-sync.sh`, still
+  live in the suites.** `grep -q`/`grep -m N`/`head` closes its pipe as soon
+  as it has what it needs; the producer, still writing, takes SIGPIPE; `set
+  -o pipefail` promotes that 141 to the pipeline's status even though the
+  reader found its match. Load-dependent: it bites when the reader is
+  scheduled before the producer finishes, which is why the refill queue
+  (sweep 2, four suites kept continuously busy on the CI runner) reddened
+  this branch and not others running the identical code.
+- **The round-9/round-1..8 ratchet undercounted the class.**
+  `tests/skills/lib/pipe-grep-q-ratchet.sh`'s `PGQ_PATTERN` gated only the
+  COPIED IDIOM (`(printf|echo)[^|]*| grep -q`) at zero — the CHANGELOG's
+  "pipe-into-`grep -q` drained 202 → 0 (DEBT-0006, ratchet at zero)" claim is
+  about that narrow shape only. The wider surface (any producer, any
+  `grep`/`head` spelling, `-m` included) was COUNTED (`PGQ_SUPERSET_PATTERN`)
+  and reported as a non-gating INFO line, never gated — which is exactly
+  where both CI reds lived (`sed |` and `profile_list |`, neither an
+  echo/printf producer). Measured on 1aab60bb (this tree, `/usr/bin/grep
+  -cE`, bash, never zsh's aliased `grep`): 273 lines under
+  `tests/skills/*.sh` matching `[^|]\|[[:space:]]*(/usr/bin/grep|grep|ugrep|
+  egrep|fgrep)[[:space:]]+(-[A-Za-z]*q|--quiet|--silent)`, 4 more matching
+  `\|[[:space:]]*grep[[:space:]]+-m`, and 116 matching `[^|]\|[[:space:]]*
+  head[[:space:]]` — 393 raw regex hits, 392 of them real (one excluded: a
+  quoted heredoc in `test-aai-feedback-upsert.sh` that writes a standalone
+  mock `gh` stub script, a separate process with no access to anything this
+  suite sources).
+- **Fix — one mechanism, applied mechanically, gated at zero.**
+  `tests/skills/lib/pipe-safe.sh` (new): `qgrep`/`qhead`, two drop-in readers
+  that `cat` stdin to a temp file (byte-exact, unlike `$(cat)` which strips
+  trailing newlines) BEFORE handing it to `command grep`/`command head` (the
+  `command` prefix so an aliased/shell-function `grep` — this repo's `ugrep`
+  wrapper in some interactive-adjacent environments — never substitutes
+  silently), so the producer never sees a reader that can close early. Exit
+  code is preserved exactly (grep's own no-match 1; a producer's own failure
+  still visible through the pipeline under pipefail, verified in
+  `test-aai-pipe-safe.sh` TEST-469). A Python script
+  (`drain-pipes.py`, run and kept in the remediation scratchpad, not
+  committed) mechanically rewrote the 392 real sites across 51
+  `tests/skills/*.sh` files: `| grep`/`| /usr/bin/grep`/`| ugrep`/`|
+  egrep`/`| fgrep` carrying `-q*`/`--quiet`/`--silent`/`-m` → `| qgrep`
+  (same flags); `| head` → `| qhead`. It skipped comment-only lines and
+  heredoc bodies (the mock-`gh` exclusion above), left `||` alone, and left
+  a `grep` reader with no `-q`/`-m` alone (it already reads to EOF). Every
+  touched file gained `. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/
+  lib/pipe-safe.sh"` right after its `set -*pipefail` line (or, absent one,
+  before its `SCRIPT_DIR=` line). Six sites the rewrite correctly left alone
+  because they are PROSE, not code — comments in `test-aai-feedback-
+  upsert.sh`, `test-aai-golden-flow.sh`, `test-aai-intake.sh`,
+  `test-aai-release.sh`, `test-aai-validator-isolation.sh`,
+  `test-aai-worktree.sh` describing this very bug class in words that
+  happened to contain the literal shape — reworded by hand so the ratchet
+  (which scans raw text, comments included; the codebase already carries
+  this caveat, see `test-aai-hygiene-pack.sh`'s own pgq-fixture note) no
+  longer flags prose as a live offender. One further hand fix: the mock
+  `gh` stub's `grep -qF` (inert, no pipefail in that child process, but
+  still a live pipe) converted to a plain capture + here-string, the same
+  idiom shipping scripts use, rather than teaching a throwaway fixture
+  process to source a suite-only library.
+- **Ratchet, widened and re-based (Spec-AC-03/04/11).**
+  `tests/skills/lib/pipe-grep-q-ratchet.sh`'s `PGQ_PATTERN` — the sole gated
+  arm now — is the WIDENED shape: reader = `(/usr/bin/grep|grep|ugrep|
+  egrep|fgrep)` carrying `-[A-Za-z]*q`/`--quiet`/`--silent`/`-m[0-9]*`, OR
+  `head`; any producer. `| qgrep`/`| qhead` are excluded BY CONSTRUCTION —
+  the pattern requires the reader word to start immediately after the
+  pipe's optional whitespace, and both sanctioned names have a
+  non-whitespace `q` there instead, so the anchored match never lands on
+  them (no lookahead needed; `grep -E` has none). The pre-round-10 narrow
+  idiom is a strict subset of the new pattern, so it stays covered under
+  the same gate. `PGQ_SUPERSET_PATTERN` is kept as a still-wider,
+  purely-informational count (any pipe into any `grep`, any flags — reported
+  in `test_102`'s INFO line, never gated). `pipe-grep-q-baseline.tsv`
+  re-recorded via `--record`: zero data rows (the drain reached the whole
+  widened class, not only the narrow one). A second ratchet arm,
+  `pgq_scan_shipping`, covers `.aai/scripts/*.sh` and
+  `.aai/scripts/lib/*.sh` FILTERED to files that set `pipefail` (a script
+  without it cannot suffer this class — no pipe status is promoted past the
+  reader's own exit code — so gating it would buy friction with no defect
+  behind it); also at zero, also gated by
+  `test-aai-hygiene-pack.sh test_128_shipping_scripts_pipe_safe_at_zero`
+  (TEST-470).
+- **Shipping scripts (step 4, the class independent of any suite).** Of
+  18 `.aai/scripts/*.sh`/`.aai/scripts/lib/*.sh` files that set `pipefail`,
+  11 carried the shape (`aai-sync.sh` was already fixed round 9): 26 sites
+  across `aai-bootstrap.sh` (1), `aai-update.sh` (1), `autonomous-loop.sh`
+  (2), `cloudflare-share.sh` (1), `expert-fetch.sh` (6), `install-pre-
+  commit-hook.sh` (5), `migrate-state-to-local.sh` (1), `pre-commit-
+  checks.sh` (7), `triage.sh` (2) — each rewritten by hand to the same
+  here-string idiom `aai-sync.sh` used in round 9 (`grep -q… -- pat <<<
+  "$X"` directly when the producer was already `printf`/`echo "$var"`;
+  otherwise the producer captured into a variable first, then a
+  here-string). No suite library is sourced from a shipping script. The 7
+  remaining `pipefail`-bearing scripts (`aai-canonicalize.sh`,
+  `aai-live.sh`, `aai-release.sh`, `aai-sync.sh`, `autonomous-loop.sh`'s
+  sibling files, `live-spool.sh`, `migrate-yaml-to-jsonl.sh`,
+  `pre-compact-save.sh`, `validate-skills.sh`, `.aai/scripts/lib/repo-
+  tripwire.sh`) already carried none of the shape and are unchanged.
+- **Proof test.** `tests/skills/test-aai-pipe-safe.sh` (new, registered:
+  `tests/skills/suite-map.yaml` `aai-pipe-safe` row, `suite-map.yaml`
+  row-count pin 93 → 94 in `test-aai-hygiene-pack.sh test_090_suite_map_pin`,
+  `check-test-registration.mjs` clean). TEST-467: under `set -o pipefail`, a
+  >1 MB producer whose first line matches into `grep -q first-line` returns
+  141 (100% reproducible — the match is on the very first line, so `grep`
+  closes almost immediately while the producer is still writing megabytes
+  behind it), and the same producer into `qgrep -q first-line` returns 0.
+  TEST-468: `qhead -n1` on the same payload returns the first line, rc 0.
+  TEST-469: `qgrep` preserves grep's own no-match exit code (1) and a
+  producer's own failure (unrelated to SIGPIPE) still propagates through the
+  pipeline under pipefail. TEST-467's baseline reproduction pipes the pipe
+  character in as an argument, joined via `eval` inside the child `bash -c`
+  (the same indirection `test-aai-hygiene-pack.sh`'s `PGQ_BAR` uses) — the
+  shape has to be real to prove the reproduction, and writing it literally
+  would make this new file the ratchet's own newest offender.
+- **MUTATION.** TEST-467: reimplementing `qgrep` as a plain pass-through
+  (`command grep "$@"`, dropping the `cat`-to-tempfile drain) reddens the
+  `producer | qgrep -q first-line` arm at rc 141 (verified — restored
+  byte-identical after). Hygiene-pack `test_128`: one `| grep -q` planted in
+  a `.aai/scripts/*.sh` fixture carrying `set -euo pipefail` reddens the
+  shipping-script ratchet arm (verified, restored). `test_102`
+  (tests/skills arm): one `| grep -q` planted in a `tests/skills/*.sh`
+  fixture reddens the live gate (pre-existing mutation, re-verified: still
+  bites after the widened pattern).
+- **CHANGELOG.** The `## [unreleased] — feat(tests): the test framework is
+  fast, hermetic and honest…` entry's "**Honest gates**" bullet corrected:
+  "pipe-into-`grep -q` drained 202 → 0 (DEBT-0006, ratchet at zero)" named
+  only the narrow copied-idiom shape; the truth is that shape was drained in
+  the original ride, and the FULL class (273 `grep -q`/`-m` sites + 116
+  `head` sites across every reader spelling, plus 26 more in shipping
+  scripts) is behind `qgrep`/`qhead` (or a here-string, in shipping code) as
+  of round 10, with the superset ratchet — not just the narrow one — now
+  the gate at zero.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: test-framework-sweep`, `--signoff none`.

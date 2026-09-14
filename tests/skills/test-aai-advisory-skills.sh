@@ -17,6 +17,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-advisory-skills"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -68,7 +69,7 @@ test_002_scout_mechanism() {
   grep -qE "0(–|-)100" "$SCOUT" || { log_info "TEST-002: 0-100 scale missing"; ok=0; }
   grep -qE "GO" "$SCOUT" && grep -qE "HOLD" "$SCOUT" \
     || { log_info "TEST-002: GO/HOLD verdicts missing"; ok=0; }
-  grep -E "GO|HOLD" "$SCOUT" | grep -q "70" \
+  grep -E "GO|HOLD" "$SCOUT" | qgrep -q "70" \
     || { log_info "TEST-002: threshold 70 not on a GO/HOLD line"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-002 scout 5 dimensions + 0-100 + GO/HOLD@70" \
     || log_fail "TEST-002 scout core mechanism"

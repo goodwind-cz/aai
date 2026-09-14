@@ -17,6 +17,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-implementation-mode"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -71,8 +72,8 @@ test_002_skill_intake_wiring() {
   # output (asking after reads as done and gets skipped) — pin the step comes
   # before the confirm block in file order.
   local choice_ln confirm_ln
-  choice_ln=$(grep -n "IMPLEMENTATION MODE CHOICE" "$SKILL_INTAKE" | head -1 | cut -d: -f1)
-  confirm_ln=$(grep -n "INTAKE COMPLETE" "$SKILL_INTAKE" | head -1 | cut -d: -f1)
+  choice_ln=$(grep -n "IMPLEMENTATION MODE CHOICE" "$SKILL_INTAKE" | qhead -1 | cut -d: -f1)
+  confirm_ln=$(grep -n "INTAKE COMPLETE" "$SKILL_INTAKE" | qhead -1 | cut -d: -f1)
   { [[ -n "$choice_ln" && -n "$confirm_ln" && "$choice_ln" -lt "$confirm_ln" ]]; } \
     || { log_info "TEST-002: choice step must precede the INTAKE COMPLETE output (choice=$choice_ln confirm=$confirm_ln)"; ok=0; }
   grep -qF "six blocks" "$SKILL_INTAKE" || { log_info "TEST-002: SHARED POLICY must name six blocks"; ok=0; }

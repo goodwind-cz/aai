@@ -22,6 +22,7 @@
 set -euo pipefail
 
 # Script directory
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
@@ -959,7 +960,7 @@ check_dependencies() {
   for cmd in git bash; do
     if command -v "$cmd" &> /dev/null; then
       local version
-      version=$("$cmd" --version 2>&1 | head -n1 || echo "unknown")
+      version=$("$cmd" --version 2>&1 | qhead -n1 || echo "unknown")
       log_verbose "$cmd: $version"
     else
       log_fail "Required dependency not found: $cmd"
@@ -971,7 +972,7 @@ check_dependencies() {
   for cmd in npm wrangler pandoc pytest cargo; do
     if command -v "$cmd" &> /dev/null; then
       local version
-      version=$("$cmd" --version 2>&1 | head -n1 || echo "unknown")
+      version=$("$cmd" --version 2>&1 | qhead -n1 || echo "unknown")
       log_verbose "$cmd: $version"
     else
       log_verbose "$cmd: not found (optional)"
@@ -1442,7 +1443,7 @@ suite_report() {
       if [[ $exit_code -ne 0 && $exit_code -ne 42 ]]; then
         echo "--- Error Details ($skill_name) ---"
         echo "--- failure lines (whole log) ---"
-        grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$log_file" 2>/dev/null | head -n 25 \
+        grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$log_file" 2>/dev/null | qhead -n 25 \
           || echo "(no explicit failure marker matched — see tail below)"
         echo "--- tail (last 30 lines) ---"
         tail -n 30 "$log_file"
@@ -1465,7 +1466,7 @@ suite_report() {
       # failure line from the WHOLE log first, then the tail for surrounding
       # context. Portable: grep -E only (no -P), non-match tolerated.
       echo "--- failure lines (whole log) ---"
-      grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$log_file" 2>/dev/null | head -n 25 \
+      grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$log_file" 2>/dev/null | qhead -n 25 \
         || echo "(no explicit failure marker matched — see tail below)"
       echo "--- tail (last 30 lines) ---"
       tail -n 30 "$log_file"
@@ -1637,7 +1638,7 @@ suite_child() {
 # written by this file for this file, but it is still parsed as data: an `eval`
 # here would execute whatever a suite managed to write into a reason string.
 child_field() {
-  sed -n "s/^$2=//p" "$1" 2>/dev/null | head -n 1
+  sed -n "s/^$2=//p" "$1" 2>/dev/null | qhead -n 1
 }
 
 # report_wave_child <file> <wb> <wa> <whb> <wha> — the verdict for ONE suite

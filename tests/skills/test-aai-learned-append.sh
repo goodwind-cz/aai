@@ -71,6 +71,7 @@ set -euo pipefail
 
 TEST_NAME="aai-learned-append"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -353,8 +354,8 @@ test_011_sequential_appends() {
   grep -qF "first rule (source: writer A)" "$f" || log_fail "TEST-011: first append missing after the second call"
   grep -qF "second rule (source: writer B)" "$f" || log_fail "TEST-011: second append missing"
   local first_line_no second_line_no
-  first_line_no="$(grep -n "first rule (source: writer A)" "$f" | head -1 | cut -d: -f1)"
-  second_line_no="$(grep -n "second rule (source: writer B)" "$f" | head -1 | cut -d: -f1)"
+  first_line_no="$(grep -n "first rule (source: writer A)" "$f" | qhead -1 | cut -d: -f1)"
+  second_line_no="$(grep -n "second rule (source: writer B)" "$f" | qhead -1 | cut -d: -f1)"
   [ "$first_line_no" -lt "$second_line_no" ] || log_fail "TEST-011: appends must land in call order"
   log_pass "Two sequential real appends both persist, in order (TEST-011)"
 }
@@ -391,8 +392,8 @@ test_013_wrapup_step3_wired() {
   # Ordering pin (review 20260727T111121Z NB-1): critic must PRECEDE the gate
   # invocation — gate-then-critic would be post-hoc critique of a done append.
   local crit_ln gate_ln
-  crit_ln=$(printf '%s\n' "$step3" | grep -ni critic | head -1 | cut -d: -f1)
-  gate_ln=$(printf '%s\n' "$step3" | grep -nF learned-append.mjs | head -1 | cut -d: -f1)
+  crit_ln=$(printf '%s\n' "$step3" | grep -ni critic | qhead -1 | cut -d: -f1)
+  gate_ln=$(printf '%s\n' "$step3" | grep -nF learned-append.mjs | qhead -1 | cut -d: -f1)
   { [ -n "$crit_ln" ] && [ -n "$gate_ln" ] && [ "$crit_ln" -lt "$gate_ln" ]; } \
     || log_fail "TEST-013: critic mention must precede the gate invocation (crit=$crit_ln gate=$gate_ln)"
 

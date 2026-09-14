@@ -69,7 +69,12 @@ create_state_file() {
 }
 
 read_project_status() {
-  grep -E '^[[:space:]]*project_status:[[:space:]]*' "$STATE_PATH" | head -n1 | sed -E 's/^[^:]+:[[:space:]]*//'
+  # Capture, then here-string into head — never grep piped directly into
+  # head: under pipefail an early-closing head can SIGPIPE grep (round 10,
+  # PR #381).
+  local _status_lines
+  _status_lines="$(grep -E '^[[:space:]]*project_status:[[:space:]]*' "$STATE_PATH")"
+  head -n1 <<<"$_status_lines" | sed -E 's/^[^:]+:[[:space:]]*//'
 }
 
 read_human_required() {
@@ -263,7 +268,10 @@ fi
 # Capture harness/runtime version ONCE so a behavior regression can be correlated
 # with a runtime upgrade (version drift). Prefer the Claude CLI; fall back to the
 # configured agent command identifier, then "unknown". Sanitize for JSON.
-harness_version="$(claude --version 2>/dev/null | head -n1 || true)"
+# Capture, then here-string into head — never a live pipe into head under
+# pipefail (round 10, PR #381).
+_claude_version_out="$(claude --version 2>/dev/null || true)"
+harness_version="$(head -n1 <<<"$_claude_version_out")"
 [[ -z "$harness_version" ]] && harness_version="${AGENT_COMMAND:-}"
 [[ -z "$harness_version" ]] && harness_version="unknown"
 harness_version="${harness_version//\"/}"

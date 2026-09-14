@@ -33,6 +33,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-git-ref-guard"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 INSTALLER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
@@ -421,7 +422,7 @@ MD
     log_fail "TEST-306 allocator seam: expected exit 0, got $rc: $out"
     return
   fi
-  if ! git -C "$bare" for-each-ref refs/aai/docnums 2>/dev/null | grep -q "RFC-0001"; then
+  if ! git -C "$bare" for-each-ref refs/aai/docnums 2>/dev/null | qgrep -q "RFC-0001"; then
     log_fail "TEST-306 allocator seam: refs/aai/docnums/RFC-0001 not found in bare origin"
     return
   fi
@@ -468,7 +469,15 @@ test_307_clone_seam() {
 # installer, still committed history at RED-authoring time) run through the
 # same fixture technique used below. Pinned as a literal so the check stays
 # meaningful after this scope's own commit rewrites HEAD.
-PRECOMMIT_SHA256_BASELINE="9a3d1e5a50250572b07ccf35793f7fe22afcc929bd56d56984a423b8fcfdcea2"
+#
+# Re-pinned round 10 (PR #381 remediation): install-pre-commit-hook.sh's
+# AAI:INDEX-AUTOGEN section itself carried five pipe-into-`grep -q` sites
+# (the early-closing-reader SIGPIPE class) rewritten to here-strings —
+# an intentional, in-scope byte change to the exact bytes this pin covers,
+# not drift. New hash measured with this file's own `sha_cmd`/`new_repo`/
+# `install_guard` fixture (bash -c reproduction, verified byte-for-byte
+# against the installed hook).
+PRECOMMIT_SHA256_BASELINE="c9679a03e24189a4a777a6d6146ed82f40d9ab7126536ca45aa754f27c8ec4cf"
 
 test_308_installer_contract() {
   local ok=1
@@ -781,11 +790,11 @@ test_310_doctor_category() {
 
   local out
   out="$(node "$DOCTOR" --root "$d" 2>&1)"
-  if ! echo "$out" | grep "^CAT-17" | grep -q "install-pre-commit-hook"; then
+  if ! echo "$out" | grep "^CAT-17" | qgrep -q "install-pre-commit-hook"; then
     log_fail "TEST-310: not-armed CAT-17 line missing the literal install-pre-commit-hook: $(echo "$out" | grep '^CAT-17')"
     ok=0
   fi
-  if echo "$out" | grep "^CAT-17" | grep -qi "PASS"; then
+  if echo "$out" | grep "^CAT-17" | qgrep -qi "PASS"; then
     log_fail "TEST-310: hookless fixture unexpectedly reports CAT-17 as armed/PASS"
     ok=0
   fi
@@ -793,7 +802,7 @@ test_310_doctor_category() {
   install_guard "$d" >/dev/null 2>&1
   local out2
   out2="$(node "$DOCTOR" --root "$d" 2>&1)"
-  if ! echo "$out2" | grep "^CAT-17" | grep -qi "PASS"; then
+  if ! echo "$out2" | grep "^CAT-17" | qgrep -qi "PASS"; then
     log_fail "TEST-310: guarded fixture does not report CAT-17 armed/PASS: $(echo "$out2" | grep '^CAT-17')"
     ok=0
   fi
@@ -855,9 +864,9 @@ test_312_contract_and_diet() {
     # the real one and this arm would then be pinning its own bug.
     base_pin="$(bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s" "$JUSTIFIED_GROWTH_BYTES"' _ "$base_ledger" 2>/dev/null)"
   fi
-  live_pin="$(printf '%s\n' "$diet_out" | sed -n 's/.*JUSTIFIED_GROWTH_BYTES == \([-0-9][0-9]*\).*/\1/p' | head -1)"
+  live_pin="$(printf '%s\n' "$diet_out" | sed -n 's/.*JUSTIFIED_GROWTH_BYTES == \([-0-9][0-9]*\).*/\1/p' | qhead -1)"
   if [[ -z "$live_pin" ]]; then
-    log_fail "TEST-312: prompt-diet output does not report JUSTIFIED_GROWTH_BYTES at all: $(printf '%s\n' "$diet_out" | grep -i justified | head -1)"
+    log_fail "TEST-312: prompt-diet output does not report JUSTIFIED_GROWTH_BYTES at all: $(printf '%s\n' "$diet_out" | grep -i justified | qhead -1)"
     ok=0
   elif [[ -z "${base_pin:-}" ]]; then
     # Spec-AC-12 (TEST-446): an unreadable base used to soft-skip this arm
@@ -884,7 +893,7 @@ test_312_contract_and_diet() {
     live_entries="$TMP_ROOT/t312-live-entries.txt"
     bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s\n" "${JUSTIFIED_ADDITIONS[@]}"' _ "$base_ledger" 2>/dev/null | LC_ALL=C sort > "$base_entries"
     bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s\n" "${JUSTIFIED_ADDITIONS[@]}"' _ "$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh" 2>/dev/null | LC_ALL=C sort > "$live_entries"
-    missing="$(comm -23 "$base_entries" "$live_entries" | head -3)"
+    missing="$(comm -23 "$base_entries" "$live_entries" | qhead -3)"
     if [[ -n "$missing" ]]; then
       log_fail "TEST-312: the corpus credit moved ($base_pin -> $live_pin) AND a ledger entry that origin/main carries is gone or rewritten here — credit must be paid by ADDING an entry, never by editing history: $missing"
       ok=0

@@ -23,6 +23,7 @@
 set -euo pipefail
 
 TEST_NAME="aai-layer-profiles"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -65,7 +66,7 @@ assert_list_empty() {
   local val="$1" msg="$2"
   [[ -z "$val" ]] && return 0
   if [[ -z "$(printf '%s' "$val" | tr -d '[:space:]')" ]]; then
-    log_fail "$msg (payload is non-empty but renders as zero visible lines — byte dump follows):"$'\n'"$(printf '%s' "$val" | od -c | head -20)"
+    log_fail "$msg (payload is non-empty but renders as zero visible lines — byte dump follows):"$'\n'"$(printf '%s' "$val" | od -c | qhead -20)"
   fi
   log_fail "$msg:"$'\n'"$val"
 }
@@ -238,7 +239,7 @@ build_fixture_sources() {
   cp -R "$FIX_SRC" "$FIX_SRC_OLD"
   rm -rf "$FIX_SRC_OLD/.git"
   local profile_intro
-  profile_intro="$(git -C "$PROJECT_ROOT" log --reverse --format='%H' -S 'PROFILES.yaml' -- .aai/scripts/aai-sync.sh | head -1)"
+  profile_intro="$(git -C "$PROJECT_ROOT" log --reverse --format='%H' -S 'PROFILES.yaml' -- .aai/scripts/aai-sync.sh | qhead -1)"
   [[ -n "$profile_intro" ]] || log_fail "cannot locate the commit that introduced profile support in aai-sync.sh"
   git -C "$PROJECT_ROOT" show "${profile_intro}^:.aai/scripts/aai-sync.sh" > "$FIX_SRC_OLD/.aai/scripts/aai-sync.sh" \
     || log_fail "cannot extract pre-profile aai-sync.sh at ${profile_intro}^ (shallow clone missing history?)"
@@ -476,7 +477,7 @@ test_doctor_display() {
   grep -qi 'extended (implicit)' "$DOCTOR_SCRIPT" || log_fail "aai-doctor.mjs lacks the absent->extended (implicit) rule"
   # Behavioral pin only — never grep the JS source for a template literal
   # (a behavior-preserving refactor must not break this test; review PR #178).
-  node "$DOCTOR_SCRIPT" 2>&1 | grep '^CAT-13' | grep -q 'profile:' \
+  node "$DOCTOR_SCRIPT" 2>&1 | grep '^CAT-13' | qgrep -q 'profile:' \
     || log_fail "live CAT-13 output line does not contain 'profile:'"
   log_pass "TEST-007 doctor CAT-13 profile display"
 }
@@ -553,7 +554,7 @@ test_401_fixture_build_completeness() {
 test_402_core_sync_warn_captured() {
   log_info "TEST-402: sync_output_ok catches a real 'missing in source' WARN..."
   local victim backup out rc
-  victim="$(profile_list "$FIX_SRC/.aai/system/PROFILES.yaml" core | grep -m1 '^\.aai/')"
+  victim="$(profile_list "$FIX_SRC/.aai/system/PROFILES.yaml" core | qgrep -m1 '^\.aai/')"
   [[ -n "$victim" ]] || log_fail "TEST-402: could not pick a core-listed victim file from the fixture"
   backup="$TMP_ROOT/402-backup-$(basename "$victim")"
   cp "$FIX_SRC/$victim" "$backup"
@@ -578,7 +579,7 @@ test_402_core_sync_warn_captured() {
   # check two tests later. Exercised against a FRESH victim (the first was
   # already restored above) so the fixture is left clean either way.
   local victim2 backup2
-  victim2="$(profile_list "$FIX_SRC/.aai/system/PROFILES.yaml" core | grep -v -F "$victim" | grep -m1 '^\.aai/')"
+  victim2="$(profile_list "$FIX_SRC/.aai/system/PROFILES.yaml" core | grep -v -F "$victim" | qgrep -m1 '^\.aai/')"
   [[ -n "$victim2" ]] || log_fail "TEST-402: could not pick a second core-listed victim file"
   backup2="$TMP_ROOT/402-backup2-$(basename "$victim2")"
   cp "$FIX_SRC/$victim2" "$backup2"
@@ -750,13 +751,13 @@ test_466_no_pipe_into_early_closing_reader() {
   # `grep --quiet`, `grep -xq`, `head -1` escaped the first regex).
   hits="$(/usr/bin/grep -cE '[^|]\|[[:space:]]*(grep[[:space:]]+(-[A-Za-z]*q|--quiet|--silent)|head[[:space:]]+(-n[[:space:]]*1|-1)([^0-9]|$))' "$SYNC_SH" || true)"
   [[ "$hits" -eq 0 ]] || log_fail "TEST-466: aai-sync.sh still pipes into grep -q / head -n1 ($hits occurrence(s)) — pipefail + an early-closing reader can SIGPIPE the writer and flip a real match/line into a false negative or abort the sync"
-  log_pass "TEST-466 aai-sync.sh: zero pipe-into-(grep -q|head -n1) sites"
+  log_pass "TEST-466 aai-sync.sh: zero pipe-into-(grep -q|qhead -n1) sites"
 }
 
 # --- Spec-AC self-check — no real network schemes in this suite ---------------
 test_no_real_network() {
   log_info "Self-check: suite uses no real-network URL schemes..."
-  if grep -nE "https?://" "${BASH_SOURCE[0]}" | grep -v "example.invalid" | grep -qv "^ *#"; then
+  if grep -nE "https?://" "${BASH_SOURCE[0]}" | grep -v "example.invalid" | qgrep -qv "^ *#"; then
     log_fail "suite references a routable http(s) URL"
   fi
   log_pass "Self-check: fixtures only (non-routable placeholders)"

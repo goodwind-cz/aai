@@ -20,6 +20,7 @@
 set -euo pipefail
 
 TEST_NAME="aai-layer-drift"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -357,7 +358,7 @@ test_no_real_network() {
   log_info "Self-check: suite uses no real-network URL schemes..."
   # Allowed: file:// URLs and the non-routable example.invalid remote string
   # (never contacted — it is only stamped into pins/fixture git config).
-  if grep -nE "https?://" "${BASH_SOURCE[0]}" | grep -v "example.invalid" | grep -qv "^ *#"; then
+  if grep -nE "https?://" "${BASH_SOURCE[0]}" | grep -v "example.invalid" | qgrep -qv "^ *#"; then
     log_fail "suite references a routable http(s) URL"
   fi
   log_pass "Self-check: fixtures only (file:// + non-routable placeholders)"

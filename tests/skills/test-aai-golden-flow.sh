@@ -53,6 +53,7 @@
 set -euo pipefail
 
 TEST_NAME="aai-golden-flow"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FLOW="$PROJECT_ROOT/.aai/scripts/golden-flow.mjs"
@@ -597,7 +598,7 @@ test_006_record_reads_gate_and_skill_pr_wiring() {
   [[ "$rec_triple" == "1,0,0" ]] || log_fail "TEST-006: the planted file must move files_left to 1 in both: $rec_triple"
   # Grep contract on SKILL_PR: the gate line sits after the close ceremony and
   # before the push line, and the surrounding text says STOP.
-  # Pipe-free line lookups: `grep | head | cut` dies silently under pipefail
+  # Pipe-free line lookups: `grep`, piped into `head`, piped into `cut`, dies silently under pipefail
   # when a needle is absent (the RED shape of this very arm).
   first_line_of() {  # <fixed needle> <file> -> line number or empty
     local hit; hit="$(grep -n -m1 -F -- "$1" "$2" || true)"
@@ -632,7 +633,7 @@ test_007_record_append_only_and_diff() {
   [[ "$(json_field "$record" 'r.v')" == "1" ]] || log_fail "TEST-007: v must be 1"
   [[ "$(json_field "$record" 'r.tokens_ceiling')" == "1640003" ]] || log_fail "TEST-007: tokens_ceiling must be 1640003"
   [[ "$(json_field "$record" 'r.tokens_median_last10')" == "null" ]] || log_fail "TEST-007: tokens_median_last10 must be null without --metrics"
-  [[ "$(json_field "$record" 'r.aai_version')" == "$(sed -n 's/^- Version: //p' "$PROJECT_ROOT/docs/ai/AAI_VERSION.md" | head -1)" ]] \
+  [[ "$(json_field "$record" 'r.aai_version')" == "$(sed -n 's/^- Version: //p' "$PROJECT_ROOT/docs/ai/AAI_VERSION.md" | qhead -1)" ]] \
     || log_fail "TEST-007: aai_version must be read from docs/ai/AAI_VERSION.md"
   [[ "$(json_field "$record" 'typeof r.ci_docs_only_full_run')" == "boolean" ]] || log_fail "TEST-007: ci_docs_only_full_run must be a boolean"
   # --diff with one line: nothing to compare, exit 0 and say so.

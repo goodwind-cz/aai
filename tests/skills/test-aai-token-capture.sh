@@ -58,6 +58,7 @@ set -euo pipefail
 
 TEST_NAME="aai-token-capture"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -185,8 +186,8 @@ test_003_role_carveout_canon() {
     # elsewhere in the prompt must not satisfy this check (PR #159 bot review).
     # Both unquoted and quoted forms are canonical: ROLE_COMMON.md itself
     # mandates quoting when the role value contains a space (TDD Implementation).
-    { grep -F "ROLE_COMMON.md" "$f" | grep -qF "(role: $r)"; } \
-      || { grep -F "ROLE_COMMON.md" "$f" | grep -qF "(role: \"$r\")"; } \
+    { grep -F "ROLE_COMMON.md" "$f" | qgrep -qF "(role: $r)"; } \
+      || { grep -F "ROLE_COMMON.md" "$f" | qgrep -qF "(role: \"$r\")"; } \
       || log_fail "TEST-003: $n.prompt.md pointer line must name its own --role value as '(role: $r)'"
     grep -qF 'Subagent-mode carve-out' "$f" \
       && log_fail "TEST-003: $n.prompt.md must NOT re-inline the 'Subagent-mode carve-out' body (it must live only in ROLE_COMMON.md)"
@@ -344,9 +345,9 @@ test_005_seam_total_note_roundtrip() {
 
   grep -qF "usage_total_tokens=262134" "$s" \
     || log_fail "TEST-005: STATE agent_runs note must carry usage_total_tokens=262134 verbatim"
-  sed -n '/^    CHANGE-9001:$/,$p' "$s" | grep -qE '^ {10}tokens_in: null$' \
+  sed -n '/^    CHANGE-9001:$/,$p' "$s" | qgrep -qE '^ {10}tokens_in: null$' \
     || log_fail "TEST-005: tokens_in must stay null for an undecomposed-total run (never split)"
-  sed -n '/^    CHANGE-9001:$/,$p' "$s" | grep -qE '^ {10}tokens_out: null$' \
+  sed -n '/^    CHANGE-9001:$/,$p' "$s" | qgrep -qE '^ {10}tokens_out: null$' \
     || log_fail "TEST-005: tokens_out must stay null for an undecomposed-total run (never split)"
 
   local flush_log="$d/flush.log"
@@ -438,10 +439,10 @@ test_008_log_tick_negative_control() {
 test_009_mandatory_usage_note_wording() {
   log_info "Test: SUBAGENT_PROTOCOL Merge protocol + SKILL_LOOP step 4 carry MANDATORY usage_total_tokens=<N> wording (spec TEST-008)..."
 
-  sed -n '/^## Merge protocol/,/^## /p' "$PROTOCOL" | grep -qE 'usage_total_tokens=<N>.*MANDATORY|MANDATORY.*usage_total_tokens=<N>' \
+  sed -n '/^## Merge protocol/,/^## /p' "$PROTOCOL" | qgrep -qE 'usage_total_tokens=<N>.*MANDATORY|MANDATORY.*usage_total_tokens=<N>' \
     || log_fail "TEST-009 (spec TEST-008): SUBAGENT_PROTOCOL.md 'Merge protocol' section must make usage_total_tokens=<N> MANDATORY, not optional"
 
-  sed -n '/^  4\. RUN DISPATCHED ROLE/,/^  5\. /p' "$LOOP" | grep -qE 'usage_total_tokens=<N>.*MANDATORY|MANDATORY.*usage_total_tokens=<N>' \
+  sed -n '/^  4\. RUN DISPATCHED ROLE/,/^  5\. /p' "$LOOP" | qgrep -qE 'usage_total_tokens=<N>.*MANDATORY|MANDATORY.*usage_total_tokens=<N>' \
     || log_fail "TEST-009 (spec TEST-008): SKILL_LOOP.prompt.md step 4 must make usage_total_tokens=<N> MANDATORY, not optional"
 
   log_pass "MANDATORY usage_total_tokens=<N> wording present in Merge protocol + SKILL_LOOP step 4 (spec TEST-008)"

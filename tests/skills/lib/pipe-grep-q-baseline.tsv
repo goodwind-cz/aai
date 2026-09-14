@@ -4,12 +4,15 @@
 #   bash tests/skills/lib/pipe-grep-q-ratchet.sh --record
 #
 # One `<occurrences>\t<suite file>` row per tests/skills/*.sh file that still
-# pipes an echo/printf of a variable into `grep -q`. The count may FALL, never
-# RISE: a rise fails tests/skills/test-aai-hygiene-pack.sh and names the file.
-# A file that SHRINKS keeps its recorded number until someone re-records on
-# purpose — the bar is lowered by hand, so that the lowering is visible.
+# pipes into an early-closing reader (`grep -q`/`-m`/`--quiet`/`--silent`, any
+# spelling, or `head`). The count may FALL, never RISE: a rise fails
+# tests/skills/test-aai-hygiene-pack.sh and names the file. A file that SHRINKS
+# keeps its recorded number until someone re-records on purpose — the bar is
+# lowered by hand, so that the lowering is visible.
 #
-# Every row is a latent CI red waiting for its fixture to pass 64 KiB. The
-# fix is tests/skills/lib/assert-payload.sh. This list only shrinks.
+# Every row is a latent CI red waiting for the producer to outrun the reader
+# under `set -o pipefail`. The fix is tests/skills/lib/pipe-safe.sh (`qgrep`/
+# `qhead`) for a real pipe, or tests/skills/lib/assert-payload.sh for the
+# echo/printf-of-a-variable idiom specifically. This list only shrinks.
 #
 

@@ -51,6 +51,7 @@ set -euo pipefail
 
 TEST_NAME="aai-userguide-rollup"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -290,9 +291,9 @@ test_009_sorted_updated_desc() {
 
   local guide="$dir/docs/USER_GUIDE.md"
   local pos_new pos_mid pos_old
-  pos_new=$(grep -n 'Feature New' "$guide" | head -1 | cut -d: -f1)
-  pos_mid=$(grep -n 'Feature Mid' "$guide" | head -1 | cut -d: -f1)
-  pos_old=$(grep -n 'Feature Old' "$guide" | head -1 | cut -d: -f1)
+  pos_new=$(grep -n 'Feature New' "$guide" | qhead -1 | cut -d: -f1)
+  pos_mid=$(grep -n 'Feature Mid' "$guide" | qhead -1 | cut -d: -f1)
+  pos_old=$(grep -n 'Feature Old' "$guide" | qhead -1 | cut -d: -f1)
   [[ -n "$pos_new" && -n "$pos_mid" && -n "$pos_old" ]] \
     || log_fail "t009: not all three feature titles were rendered"
   [[ "$pos_new" -lt "$pos_mid" ]] || log_fail "t009: Feature New (2026-03-01) must render before Feature Mid (2026-02-01)"

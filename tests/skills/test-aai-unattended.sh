@@ -11,6 +11,7 @@
 
 set -u
 TEST_NAME="test-aai-unattended"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ENGINE="$PROJECT_ROOT/.aai/scripts/unattended-gate.mjs"
@@ -140,7 +141,7 @@ test_003_waived_unreachable() {
   # Strip comments before scanning: the file's own doc-comments legitimately
   # NAME the word "waived" to document its absence (this assertion). What must
   # never exist is a quoted STRING LITERAL 'waived'/"waived" in live code.
-  sed -E 's#//.*$##' "$ENGINE" | grep -Eq "'waived'|\"waived\"" && log_fail "TEST-003: the engine's live code must not contain a quoted 'waived' string literal (no reachable code path)"
+  sed -E 's#//.*$##' "$ENGINE" | qgrep -Eq "'waived'|\"waived\"" && log_fail "TEST-003: the engine's live code must not contain a quoted 'waived' string literal (no reachable code path)"
   log_pass "HITL-9 resolves fail under flag/env fuzz; 'waived' is unreachable in output, ledger and source (TEST-003)"
 }
 
@@ -348,9 +349,9 @@ test_013_loop_default_and_hitl_block() {
 test_014_target_command_seam() {
   log_info "Test: target_command is byte-equal to the SKILL_HITL STEP 4c declared command for each auto trigger, empty for every park (TEST-014)..."
   local hitl_file="$PROJECT_ROOT/.aai/SKILL_HITL.prompt.md"
-  local wt_prefix; wt_prefix="$(/usr/bin/grep -o 'node \.aai/scripts/state\.mjs set-worktree --user-decision ' "$hitl_file" | head -1)"
+  local wt_prefix; wt_prefix="$(/usr/bin/grep -o 'node \.aai/scripts/state\.mjs set-worktree --user-decision ' "$hitl_file" | qhead -1)"
   [ -n "$wt_prefix" ] || log_fail "TEST-014: could not extract the set-worktree command prefix from SKILL_HITL"
-  local cr_fail; cr_fail="$(/usr/bin/grep -o 'fix: `[^`]*`' "$hitl_file" | head -1 | sed -e 's/^fix: `//' -e 's/`$//')"
+  local cr_fail; cr_fail="$(/usr/bin/grep -o 'fix: `[^`]*`' "$hitl_file" | qhead -1 | sed -e 's/^fix: `//' -e 's/`$//')"
   [ -n "$cr_fail" ] || log_fail "TEST-014: could not extract the HITL-9 fix command from SKILL_HITL"
 
   fresh_ledger

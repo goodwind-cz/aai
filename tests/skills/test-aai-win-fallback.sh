@@ -28,6 +28,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-win-fallback"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -265,8 +266,8 @@ test_017() {
       || log_fail "$f must dot-source lib/pester-host-skip.ps1 exactly once (got $dotsource_count)"
 
     local before_line dotsource_line
-    before_line="$(grep -n '^BeforeAll' "$f" | head -n1 | cut -d: -f1)"
-    dotsource_line="$(grep -nE "^[[:space:]]*\.[[:space:]].*lib/pester-host-skip\.ps1" "$f" | head -n1 | cut -d: -f1)"
+    before_line="$(grep -n '^BeforeAll' "$f" | qhead -n1 | cut -d: -f1)"
+    dotsource_line="$(grep -nE "^[[:space:]]*\.[[:space:]].*lib/pester-host-skip\.ps1" "$f" | qhead -n1 | cut -d: -f1)"
     if [[ -n "$before_line" && -n "$dotsource_line" ]]; then
       [[ "$dotsource_line" -lt "$before_line" ]] \
         || log_fail "$f: the pester-host-skip.ps1 dot-source (line $dotsource_line) must precede the first BeforeAll block (line $before_line) -- file/discovery scope, never inside BeforeAll"
@@ -461,8 +462,8 @@ test_020() {
   # SEAM-3: the single declaration now feeds TWO consumer jobs, so it must sit
   # at WORKFLOW level — i.e. BEFORE the jobs: key.
   local decl_line jobs_line
-  decl_line="$(grep -nF 'AAI_EXPECTED_WIN_SKIP_COUNT:' "$CI_WORKFLOW" | head -n1 | cut -d: -f1)"
-  jobs_line="$(grep -nE '^jobs:' "$CI_WORKFLOW" | head -n1 | cut -d: -f1)"
+  decl_line="$(grep -nF 'AAI_EXPECTED_WIN_SKIP_COUNT:' "$CI_WORKFLOW" | qhead -n1 | cut -d: -f1)"
+  jobs_line="$(grep -nE '^jobs:' "$CI_WORKFLOW" | qhead -n1 | cut -d: -f1)"
   [[ -n "$decl_line" ]] || log_fail "$CI_WORKFLOW must declare AAI_EXPECTED_WIN_SKIP_COUNT"
   [[ -n "$jobs_line" ]] || log_fail "$CI_WORKFLOW must carry a top-level jobs: key"
   [[ "$decl_line" -lt "$jobs_line" ]] \

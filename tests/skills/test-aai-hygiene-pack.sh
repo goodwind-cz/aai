@@ -15,6 +15,7 @@ set -euo pipefail
 
 TEST_NAME="aai-hygiene-pack"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
@@ -218,9 +219,9 @@ YAML
     || log_fail "D6 set-validation command must run clean: $(cat "$TEST_DIR/t13a.log")"
   (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" set-code-review --required false --status not_run --notes "reset after flush of CHANGE-0001" > "$TEST_DIR/t13b.log" 2>&1) \
     || log_fail "D6 set-code-review command must run clean: $(cat "$TEST_DIR/t13b.log")"
-  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}status: not_run$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}status: not_run$' \
     || log_fail "walk-through: last_validation.status must be not_run after the partial-flush reset"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}status: not_run$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}status: not_run$' \
     || log_fail "walk-through: code_review.status must be not_run after the partial-flush reset"
   (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$s" > "$TEST_DIR/t13c.log" 2>&1) \
     || log_fail "walk-through: check-state must pass after the resets: $(cat "$TEST_DIR/t13c.log")"
@@ -365,7 +366,7 @@ test_030_auto_trigger_deprecation() {  # SPEC-0014 TEST-008 / Spec-AC-06 (CHANGE
   # (c) USER_GUIDE: section-7 entry + quick-list line relabeled deprecated;
   # the working-mechanism claims are gone.
   local ug="$PROJECT_ROOT/docs/USER_GUIDE.md"
-  grep -A3 '#### `/aai-auto-trigger`' "$ug" | grep -qi "deprecated" \
+  grep -A3 '#### `/aai-auto-trigger`' "$ug" | qgrep -qi "deprecated" \
     || log_fail "USER_GUIDE Automation & Integration entry must be relabeled deprecated"
   grep -qE '^\- `/aai-auto-trigger` - Deprecated' "$ug" \
     || log_fail "USER_GUIDE quick skills list must relabel /aai-auto-trigger as Deprecated"
@@ -377,7 +378,7 @@ test_030_auto_trigger_deprecation() {  # SPEC-0014 TEST-008 / Spec-AC-06 (CHANGE
     && log_fail "USER_GUIDE must no longer instruct setting up auto-triggers as a working workflow"
 
   # (d) AGENTS.md skill-index line relabeled.
-  grep -E 'SKILL_AUTO_TRIGGER' "$PROJECT_ROOT/.aai/AGENTS.md" | grep -qi "deprecated" \
+  grep -E 'SKILL_AUTO_TRIGGER' "$PROJECT_ROOT/.aai/AGENTS.md" | qgrep -qi "deprecated" \
     || log_fail ".aai/AGENTS.md SKILL_AUTO_TRIGGER line must be relabeled deprecated"
 
   # (e) generated catalog entry updated (CHANGE-0078: docs/SKILL_CATALOG.html
@@ -385,7 +386,7 @@ test_030_auto_trigger_deprecation() {  # SPEC-0014 TEST-008 / Spec-AC-06 (CHANGE
   # followed by a `<p class="desc">` carrying the SKILL.md description
   # verbatim, not the old hand-authored `name: "aai-auto-trigger"` JS
   # literal shape).
-  grep -A2 '<h3>aai-auto-trigger</h3>' "$PROJECT_ROOT/docs/SKILL_CATALOG.html" | grep -qi "deprecated" \
+  grep -A2 '<h3>aai-auto-trigger</h3>' "$PROJECT_ROOT/docs/SKILL_CATALOG.html" | qgrep -qi "deprecated" \
     || log_fail "docs/SKILL_CATALOG.html aai-auto-trigger description must say deprecated"
 
   # (f) discriminating repo grep: every non-historical file that mentions
@@ -654,9 +655,9 @@ test_052_loop_drift_preflight() {  # spec-learned-to-layer-promotion TEST-004 / 
   grep -qF "layer-drift.mjs" "$f" \
     || log_fail "SKILL_LOOP must run layer-drift.mjs at loop start (drift preflight)"
   # degrade + informational clauses must be co-located with the drift line
-  grep -B3 -A5 "layer-drift.mjs" "$f" | grep -qiE "skip silently|silently skip" \
+  grep -B3 -A5 "layer-drift.mjs" "$f" | qgrep -qiE "skip silently|silently skip" \
     || log_fail "SKILL_LOOP drift preflight must degrade silently when layer-drift.mjs is absent (older vendored layers)"
-  grep -B3 -A5 "layer-drift.mjs" "$f" | grep -qi "informational" \
+  grep -B3 -A5 "layer-drift.mjs" "$f" | qgrep -qi "informational" \
     || log_fail "SKILL_LOOP drift preflight must be informational (never block or branch on exit code)"
   log_pass "SKILL_LOOP drift preflight named with silent degrade (spec-learned-to-layer-promotion TEST-004)"
 }
@@ -704,9 +705,9 @@ test_060_work_item_brief() {  # spec-work-item-brief TEST-001..006 / Spec-AC-01.
   grep -qiF "SPEC-FROZEN is false" "$pl" || log_fail "PLANNING emit step must skip while SPEC-FROZEN is false"
   grep -qiF "gitignored runtime artifact" "$pl" || log_fail "PLANNING emit step must state briefs are gitignored runtime artifacts"
   local l_freeze l_emit l_state
-  l_freeze="$(grep -n "Set SPEC-FROZEN: true" "$pl" | head -1 | cut -d: -f1)"
-  l_emit="$(grep -n "docs/ai/briefs/" "$pl" | head -1 | cut -d: -f1)"
-  l_state="$(grep -n "Update docs/ai/STATE.yaml — PRIMARY PATH" "$pl" | head -1 | cut -d: -f1)"
+  l_freeze="$(grep -n "Set SPEC-FROZEN: true" "$pl" | qhead -1 | cut -d: -f1)"
+  l_emit="$(grep -n "docs/ai/briefs/" "$pl" | qhead -1 | cut -d: -f1)"
+  l_state="$(grep -n "Update docs/ai/STATE.yaml — PRIMARY PATH" "$pl" | qhead -1 | cut -d: -f1)"
   [[ -n "$l_freeze" && -n "$l_emit" && -n "$l_state" ]] \
     || log_fail "PLANNING must keep the freeze step, the emit step, and the STATE-update step greppable"
   [[ "$l_emit" -gt "$l_freeze" && "$l_emit" -lt "$l_state" ]] \
@@ -1017,7 +1018,7 @@ test_093_test_registration() {  # CHANGE test-registration-guard
   local out rc=0
   out="$(node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc=$?
   if [[ "$rc" -ne 0 ]]; then
-    printf '%s\n' "$out" | head -10
+    printf '%s\n' "$out" | qhead -10
     log_fail "test_093: orphan (defined-but-unreferenced) test function(s) — a green suite with an unwired pin is not coverage (the #229 class)"
     return 1
   fi
@@ -1044,7 +1045,7 @@ test_092_no_phantom_node_apis() {  # CHANGE phantom-api-pin: APIs that LOOK real
   fi
   if [[ "$rc" -eq 0 && -n "$hits" ]]; then
     log_info "test_092: phantom/deprecated API call site(s):"
-    printf '%s\n' "$hits" | head -5
+    printf '%s\n' "$hits" | qhead -5
     log_fail "test_092: phantom Node API in .aai/scripts (verify against the runtime: node -e 'console.log(typeof <api>)')"
     return 1
   fi
@@ -1084,7 +1085,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # Row-count pin (Spec-AC-26, spec-test-framework-sweep, validation round 1
   # BLOCKING-13): the AC's own text promises a suite-map.yaml row PLUS a
   # row-count pin for the one new suite this ride adds
-  # (test-aai-session-lock.sh, 92 rows -> 93), and no numeric pin existed
+  # (test-aai-session-lock.sh, 92 rows -> 93; remediation round 10, PR #381
+  # added test-aai-pipe-safe.sh, 93 -> 94), and no numeric pin existed
   # anywhere in tests/ or .aai/ — the existence check above would silently
   # tolerate a row SWAPPED for a different suite name at the same count, or
   # simply never notice the count moving at all. A plain top-level-key count
@@ -1093,8 +1095,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 93 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 93 (pin last moved for aai-session-lock, spec-test-framework-sweep) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 94 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 94 (pin last moved for aai-pipe-safe, round 10, PR #381) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -1110,8 +1112,8 @@ test_070_companion_obligations() {  # spec-planning-companion-obligations TEST-0
 
   # TEST-001 — positioned BEFORE the existing '4) Create or update docs/specs' step.
   local l_check l_spec
-  l_check="$(grep -n "COMPANION OBLIGATIONS" "$pl" | head -1 | cut -d: -f1)"
-  l_spec="$(grep -n "Create or update docs/specs" "$pl" | head -1 | cut -d: -f1)"
+  l_check="$(grep -n "COMPANION OBLIGATIONS" "$pl" | qhead -1 | cut -d: -f1)"
+  l_spec="$(grep -n "Create or update docs/specs" "$pl" | qhead -1 | cut -d: -f1)"
   [[ -n "$l_check" && -n "$l_spec" ]] \
     || log_fail "PLANNING must keep both the COMPANION OBLIGATIONS step and the 'Create or update docs/specs' step greppable"
   [[ "$l_check" -lt "$l_spec" ]] \
@@ -1625,6 +1627,72 @@ test_104_pgq_shrink_never_lowers_the_bar() {  # TEST-005 / Spec-AC-03
     || log_fail "test_104: running the live gate rewrote $PGQ_BASELINE_REL"
 
   log_pass "test_104: SHRINK and GONE are NOTEs, never a rise, and the recorded number is never rewritten by a comparison (TEST-005)"
+}
+
+# --- TEST-470 (round 10, PR #381 remediation, SPEC-0179 Amendment Round 10)
+# — the SECOND ratchet arm: shipping scripts (.aai/scripts/*.sh and
+# .aai/scripts/lib/*.sh) that set pipefail must carry zero occurrences of the
+# early-closing-reader shape too. CI on 1aab60bb reddened from suites, not
+# shipping scripts, but the same class was live in 11 shipping scripts
+# (aai-bootstrap.sh, aai-update.sh, autonomous-loop.sh, cloudflare-share.sh,
+# expert-fetch.sh, install-pre-commit-hook.sh, migrate-state-to-local.sh,
+# pre-commit-checks.sh, triage.sh) before this ride rewrote them to
+# here-strings (aai-sync.sh was already fixed round 9). A script that never
+# sets pipefail is excluded by construction (pgq_scan_shipping) — the class
+# is inert there, so gating it would buy friction with no defect behind it.
+test_128_shipping_scripts_pipe_safe_at_zero() {  # TEST-470 / round 10
+  log_info "test_128: the shipping-script (.aai/scripts) pipefail arm of the pipe-safe ratchet is at zero, and bites on a reintroduced pipe (TEST-470)..."
+  local ratchet="$PROJECT_ROOT/$PGQ_LIB_REL"
+  [[ -f "$ratchet" ]] || log_fail "test_128: missing $PGQ_LIB_REL"
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$ratchet"
+
+  # ---- LIVE GATE: zero over the real shipping tree.
+  local scan total
+  scan="$(pgq_scan_shipping "$PROJECT_ROOT")"
+  total="$(pgq_total "$scan")"
+  [[ "$total" -eq 0 ]] \
+    || log_fail "test_128: the shipping-script pipe-safe scan is $total, not 0: $scan"
+
+  # Vacuity guard: the scanner actually looked at a nonzero number of
+  # pipefail-bearing shipping scripts, so a 0 total means "scanned and found
+  # nothing", not "scanned nothing".
+  local pipefail_scripts
+  pipefail_scripts="$("$PGQ_GREP" -l 'pipefail' "$PROJECT_ROOT"/.aai/scripts/*.sh "$PROJECT_ROOT"/.aai/scripts/lib/*.sh 2>/dev/null | "$PGQ_GREP" -c '')" || pipefail_scripts=0
+  [[ "$pipefail_scripts" -gt 5 ]] \
+    || log_fail "test_128: only $pipefail_scripts pipefail-bearing shipping script(s) found — the scanner's target set looks broken, not necessarily the corpus"
+
+  # ---- BITE PROOF, on a fixture tree mirroring the shipping layout.
+  local d fx
+  d="$(ap_tmpdir)"
+  fx="$d/pgq-shipping-fixture"
+  rm -rf "$fx"; mkdir -p "$fx/.aai/scripts/lib"
+  printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'x="$(echo "$y"' "$PGQ_BAR" ' grep -q needle)"' > "$fx/.aai/scripts/clean.sh"
+  local fscan
+  fscan="$(pgq_scan_shipping "$fx")"
+  [[ "$(pgq_total "$fscan")" -eq 0 ]] \
+    || log_fail "test_128: an UNMUTATED shipping fixture must scan to 0, got $(pgq_total "$fscan"): $fscan"
+
+  # Reintroduce the unsafe shape in a pipefail-bearing script — must bite.
+  printf '%s\n' "echo \"\$out\" ${PGQ_BAR} grep -q needle" >> "$fx/.aai/scripts/clean.sh"
+  fscan="$(pgq_scan_shipping "$fx")"
+  [[ "$(pgq_total "$fscan")" -eq 1 ]] \
+    || log_fail "test_128 BITE: reintroducing one occurrence in a pipefail script must scan to 1, got $(pgq_total "$fscan"): $fscan"
+
+  # A script with NO pipefail carrying the same shape must NOT be counted —
+  # the class is inert there (Spec rationale above).
+  printf '%s\n' '#!/usr/bin/env bash' "echo \"\$out\" ${PGQ_BAR} grep -q needle" > "$fx/.aai/scripts/no-pipefail.sh"
+  fscan="$(pgq_scan_shipping "$fx")"
+  [[ "$(pgq_total "$fscan")" -eq 1 ]] \
+    || log_fail "test_128: a script with no pipefail must not be counted even with the shape present, got $(pgq_total "$fscan"): $fscan"
+
+  # lib/ subdirectory is scanned too.
+  printf '%s\n' '#!/usr/bin/env bash' 'set -o pipefail' "echo \"\$out\" ${PGQ_BAR} grep -q needle" > "$fx/.aai/scripts/lib/helper.sh"
+  fscan="$(pgq_scan_shipping "$fx")"
+  [[ "$(pgq_total "$fscan")" -eq 2 ]] \
+    || log_fail "test_128: .aai/scripts/lib/*.sh must be scanned too, got $(pgq_total "$fscan"): $fscan"
+
+  log_pass "test_128: shipping-script pipe-safe arm is at zero on the live tree, and bites on a reintroduced pipe in a pipefail script while ignoring one with no pipefail (TEST-470)"
 }
 
 # --- TEST-418 (Spec-AC-11) — the drain reached zero, and the scanner still
@@ -3534,6 +3602,12 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
   # so the seed_patch above cannot include it — copy it directly instead.
   mkdir -p "$wt/.aai/scripts/lib"
   cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$wt/.aai/scripts/lib/cli-pipe-guard.mjs"
+  # Same reason, for this suite's own new dependency (round 10, PR #381):
+  # tests/skills/lib/pipe-safe.sh is sourced by test-aai-hygiene-pack.sh
+  # itself but is an uncommitted new file, so it never reaches a plain `git
+  # diff HEAD` either.
+  mkdir -p "$wt/tests/skills/lib"
+  cp "$PROJECT_ROOT/tests/skills/lib/pipe-safe.sh" "$wt/tests/skills/lib/pipe-safe.sh"
 
   cmp -s "$PROJECT_ROOT/$HSK_GENERATOR_REL" "$wt/$HSK_GENERATOR_REL" \
     || log_fail "test_113: nested worktree did not inherit the current seeded generator bytes"
@@ -3637,6 +3711,12 @@ test_118_bite_proofs_preserve_seeded_state() {  # PR review / seeded-wrapper reg
   # new lib file never reaches the clone — seed it explicitly too.
   mkdir -p "$seeded_root/.aai/scripts/lib"
   cp "$shipping_root/.aai/scripts/lib/cli-pipe-guard.mjs" "$seeded_root/.aai/scripts/lib/cli-pipe-guard.mjs"
+  # Same reason, for this suite's own new dependency (round 10, PR #381):
+  # test_113 (called below) sources tests/skills/lib/pipe-safe.sh from
+  # whatever PROJECT_ROOT it runs against, which is about to become this
+  # clone.
+  mkdir -p "$seeded_root/tests/skills/lib"
+  cp "$shipping_root/tests/skills/lib/pipe-safe.sh" "$seeded_root/tests/skills/lib/pipe-safe.sh"
 
   local source_skill="$seeded_root/.claude/skills/aai-wrap-up/SKILL.md"
   local changed_skill="$TEST_DIR/t118-changed-wrap-up.md"
@@ -3941,6 +4021,7 @@ main() {
   test_118_bite_proofs_preserve_seeded_state
   test_119_generator_idempotence_preserves_seeded_state
   test_127_withdrawn_phrases_drained
+  test_128_shipping_scripts_pipe_safe_at_zero
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

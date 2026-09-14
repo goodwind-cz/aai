@@ -28,7 +28,9 @@ echo
 
 # 1) Runtime state presence
 if [ -f "$STATE" ] && grep -q '^project_status:' "$STATE" 2>/dev/null; then
-  ps="$(grep '^project_status:' "$STATE" | head -1 | awk '{print $2}')"
+  # Capture, then here-string into head (round 10, PR #381).
+  _ps_lines="$(grep '^project_status:' "$STATE")"
+  ps="$(head -1 <<<"$_ps_lines" | awk '{print $2}')"
   echo "- State: present (project_status=${ps:-unknown})"
 else
   # Benign before the first run — the orchestrator auto-creates state. Informational only.
@@ -55,7 +57,8 @@ echo
 if command -v node >/dev/null 2>&1 && [ -f .aai/scripts/docs-audit.mjs ]; then
   audit="$(node .aai/scripts/docs-audit.mjs --quick 2>/dev/null || true)"
   echo "$audit" | grep -E '^- (Mode|Scanned|Tracked):|^### Verdict:' || echo "- Docs audit: (no output)"
-  if echo "$audit" | grep -q 'NEEDS-TRIAGE'; then issues=$((issues + 1)); fi
+  # Here-string, never echo piped into "grep -q" (round 10, PR #381).
+  if grep -q 'NEEDS-TRIAGE' <<<"$audit"; then issues=$((issues + 1)); fi
 else
   echo "- Docs audit: skipped (node or docs-audit.mjs unavailable)"
 fi

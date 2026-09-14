@@ -107,7 +107,7 @@ test_003_four_tiers_in_order() {
   block="$(awk '/^## Spawning a validator/{f=1} /^## Harness-reported usage capture/{f=0} f' "$PROTOCOL")"
   [[ -n "$block" ]] || log_fail "TEST-003: 'Spawning a validator' section body not found (must end before Harness-reported usage capture)"
 
-  # awk first-match (NOT `grep -n ... | head -1 | cut -d: -f1`): under this
+  # awk first-match (NOT `grep -n ...`, piped into `head -1`, piped into `cut -d: -f1`): under this
   # file's `set -euo pipefail`, a grep with ZERO matches exits 1, and that
   # exit status survives through `head`/`cut` under pipefail, aborting the
   # whole script at the assignment -- BEFORE the `[[ -n ... ]] || log_fail`

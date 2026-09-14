@@ -149,7 +149,11 @@ if [[ -f "$TARGET/.aai/system/AAI_PIN.md" ]]; then
   grep -iE 'source|version|commit|canonical|ref' "$TARGET/.aai/system/AAI_PIN.md" | sed 's/^/  /' || true
 fi
 
-latest_conflict="$(ls -t "$TARGET"/docs/ai/reports/sync-conflicts-*.md 2>/dev/null | head -1 || true)"
+# Capture the listing first, then here-string into head — never ls piped
+# directly into head: under pipefail an early-closing head can SIGPIPE ls
+# (round 10, PR #381).
+_conflict_reports="$(ls -t "$TARGET"/docs/ai/reports/sync-conflicts-*.md 2>/dev/null || true)"
+latest_conflict="$(head -1 <<<"$_conflict_reports")"
 if [[ -n "$latest_conflict" ]]; then
   echo "- ⚠ Conflict advisory: ${latest_conflict#$TARGET/} — review before committing."
 fi

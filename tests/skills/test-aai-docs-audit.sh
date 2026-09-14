@@ -13,6 +13,7 @@ set -euo pipefail
 
 TEST_NAME="aai-docs-audit"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 AUDIT_SCRIPT="$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"
@@ -254,9 +255,9 @@ test_orphan_split() {
   fi
   assert_contains "$TEST_DIR/enforced.log" "Mode: enforced"
   assert_contains "$TEST_DIR/enforced.log" "CHECK FAILED: 1 new orphan(s)"
-  grep -F "ISSUE-101-orphan-new.md" "$TEST_DIR/enforced.log" | grep -qF "new (hard)" \
+  grep -F "ISSUE-101-orphan-new.md" "$TEST_DIR/enforced.log" | qgrep -qF "new (hard)" \
     || log_fail "ISSUE-101 must classify as new (hard)"
-  grep -F "ISSUE-001-orphan-legacy.md" "$TEST_DIR/enforced.log" | grep -qF "legacy (soft)" \
+  grep -F "ISSUE-001-orphan-legacy.md" "$TEST_DIR/enforced.log" | qgrep -qF "legacy (soft)" \
     || log_fail "ISSUE-001 must classify as legacy (soft)"
   log_pass "Legacy/new orphan split works"
 }
@@ -264,11 +265,11 @@ test_orphan_split() {
 test_drift_verdicts() {
   log_info "Test: drift verdicts per class (TEST-002)..."
   local log="$TEST_DIR/enforced.log"
-  grep -F "SPEC-201" "$log" | grep -qF "probable-false-done" \
+  grep -F "SPEC-201" "$log" | qgrep -qF "probable-false-done" \
     || log_fail "SPEC-201 must be probable-false-done"
-  grep -F "SPEC-202" "$log" | grep -qF "probable-partial" \
+  grep -F "SPEC-202" "$log" | qgrep -qF "probable-partial" \
     || log_fail "SPEC-202 must be probable-partial"
-  grep -F "ISSUE-203" "$log" | grep -qF "probable-stale-open" \
+  grep -F "ISSUE-203" "$log" | qgrep -qF "probable-stale-open" \
     || log_fail "ISSUE-203 must be probable-stale-open"
   # The aligned doc must stay out of the DRIFT report. (SPEC-0011 adds report-only
   # sections — e.g. Missing close telemetry — that legitimately list every done
@@ -284,9 +285,9 @@ test_events_emission() {
   log_info "Test: full run appends a docs_audit event (TEST-004)..."
   run_audit > "$TEST_DIR/event-run.log" || true
   assert_file "$TEST_DIR/docs/ai/EVENTS.jsonl"
-  tail -1 "$TEST_DIR/docs/ai/EVENTS.jsonl" | grep -qF '"event":"docs_audit"' \
+  tail -1 "$TEST_DIR/docs/ai/EVENTS.jsonl" | qgrep -qF '"event":"docs_audit"' \
     || log_fail "Last EVENTS line must be a docs_audit event"
-  tail -1 "$TEST_DIR/docs/ai/EVENTS.jsonl" | grep -qF '"orphans":2' \
+  tail -1 "$TEST_DIR/docs/ai/EVENTS.jsonl" | qgrep -qF '"orphans":2' \
     || log_fail "docs_audit payload must carry orphan count"
   log_pass "docs_audit event emitted with counts"
 }
@@ -489,7 +490,7 @@ MD
   run_audit --check --no-event --path docs/issues/ISSUE-302-bad-type.md \
     > "$TEST_DIR/type-soft.log" \
     || log_fail "Unknown type must stay a soft warning by default"
-  grep -F "ISSUE-302" "$TEST_DIR/type-soft.log" | grep -qF 'unknown type "spc"' \
+  grep -F "ISSUE-302" "$TEST_DIR/type-soft.log" | qgrep -qF 'unknown type "spc"' \
     || log_fail "Digest must warn about the unknown type"
   if run_audit --check --strict-types --no-event --path docs/issues/ISSUE-302-bad-type.md \
       > /dev/null; then
@@ -503,7 +504,7 @@ test_orphan_suggested_id() {
   log_info "Test: orphan table shows the filename-inferred ID (D8)..."
   run_audit --no-event > "$TEST_DIR/suggested-id.log"
   assert_contains "$TEST_DIR/suggested-id.log" "Suggested ID"
-  grep -F "ISSUE-101-orphan-new.md" "$TEST_DIR/suggested-id.log" | grep -qF "ISSUE-101" \
+  grep -F "ISSUE-101-orphan-new.md" "$TEST_DIR/suggested-id.log" | qgrep -qF "ISSUE-101" \
     || log_fail "Orphan row must carry the inferred ID ISSUE-101"
   log_pass "Suggested ID column present"
 }
@@ -512,13 +513,13 @@ test_classification_listing() {
   log_info "Test: --list prints the per-doc classification table..."
   run_audit --list --no-event > "$TEST_DIR/list.log"
   assert_contains "$TEST_DIR/list.log" "### Classification:"
-  grep -F "SPEC-204" "$TEST_DIR/list.log" | grep -qF "tracked-done" \
+  grep -F "SPEC-204" "$TEST_DIR/list.log" | qgrep -qF "tracked-done" \
     || log_fail "SPEC-204 must list as tracked-done"
-  grep -F "SPEC-201" "$TEST_DIR/list.log" | grep -qF "drifted" \
+  grep -F "SPEC-201" "$TEST_DIR/list.log" | qgrep -qF "drifted" \
     || log_fail "SPEC-201 must list as drifted"
-  grep -F "SPEC-CHANGE-027" "$TEST_DIR/list.log" | grep -qF "frozen" \
+  grep -F "SPEC-CHANGE-027" "$TEST_DIR/list.log" | qgrep -qF "frozen" \
     || log_fail "SPEC-CHANGE-027 must show effective status frozen"
-  grep -F "ISSUE-101" "$TEST_DIR/list.log" | grep -qF "orphan" \
+  grep -F "ISSUE-101" "$TEST_DIR/list.log" | qgrep -qF "orphan" \
     || log_fail "ISSUE-101 must list as orphan"
   log_pass "Per-doc classification table works"
 }
@@ -598,7 +599,7 @@ MD
     --ref CHANGE-0045/other-doc --evidence "unrelated" > /dev/null)
   run_audit --no-event --path docs/issues/CHANGE-004-parent.md \
     > "$TEST_DIR/subref-neg.log"
-  grep -F "CHANGE-004" "$TEST_DIR/subref-neg.log" | grep -qF "probable-false-done" \
+  grep -F "CHANGE-004" "$TEST_DIR/subref-neg.log" | qgrep -qF "probable-false-done" \
     || log_fail "CHANGE-0045 evidence must not satisfy CHANGE-004"
 
   # a true sub-item ref under the parent does count
@@ -665,7 +666,7 @@ MD
   run_audit --list --no-event > "$TEST_DIR/phase.log"
   assert_contains "$TEST_DIR/phase.log" "DECISION-PHASE-0-scope"
   assert_contains "$TEST_DIR/phase.log" "DECISION-PHASE-0-continue-session"
-  grep -F "DECISION-PHASE-0-scope" "$TEST_DIR/phase.log" | grep -qF "PHASE-0" \
+  grep -F "DECISION-PHASE-0-scope" "$TEST_DIR/phase.log" | qgrep -qF "PHASE-0" \
     || log_fail "--list must surface the PHASE-0 scope"
   rm "$TEST_DIR/docs/decisions/DECISION-PHASE-0-scope.md" \
      "$TEST_DIR/docs/decisions/DECISION-PHASE-0-continue-session.md"
@@ -831,7 +832,7 @@ MD
   # (a) docs-audit still reports the drift verdict + Orphans section (unchanged).
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
   assert_contains "$d/audit.log" "Drift report"
-  grep -F "CHANGE-5003" "$d/audit.log" | grep -qF "probable-false-done" \
+  grep -F "CHANGE-5003" "$d/audit.log" | qgrep -qF "probable-false-done" \
     || log_fail "docs-audit must still report CHANGE-5003 as probable-false-done"
   # (b) the generator wrote the git-ignored companion carrying the relocated sections.
   assert_file "$d/docs/INDEX.audit.md"
@@ -872,12 +873,12 @@ MD
     || log_fail "default generator run must exit 0 (degrade-and-report): $(cat "$d/gen.log")"
   local index="$d/docs/INDEX.md"
   # Row-level, not whole-doc: the doc stays in its correct (Done) placement section.
-  extract_section "$index" "## Done" | grep -qF "SPEC-6007" \
+  extract_section "$index" "## Done" | qgrep -qF "SPEC-6007" \
     || log_fail "SPEC-6007 must remain in the Done section (row-level skip, not whole-doc)"
   # The offending row is surfaced in a row-level AC-status violations report.
   assert_file "$d/docs/INDEX.violations.md"
   assert_contains "$d/docs/INDEX.violations.md" "AC status violations"
-  grep -F "SPEC-6007" "$d/docs/INDEX.violations.md" | grep -qF "Spec-AC-02" \
+  grep -F "SPEC-6007" "$d/docs/INDEX.violations.md" | qgrep -qF "Spec-AC-02" \
     || log_fail "the bogus row (SPEC-6007 / Spec-AC-02) must be listed as a row-level AC-status violation"
   # NOT whole-doc-skipped from the index.
   extract_section "$index" "## Skipped (schema violations)" > "$d/skipped.txt" 2>/dev/null || true
@@ -911,7 +912,7 @@ MD
   (cd "$d" && node .aai/scripts/generate-docs-index.mjs --strict > gen-strict.log 2>&1) \
     || log_fail "generate-docs-index --strict must exit 0 on a qualified AC status: $(cat "$d/gen-strict.log")"
   local index="$d/docs/INDEX.md"
-  extract_section "$index" "## Done" | grep -qF "SPEC-6008" \
+  extract_section "$index" "## Done" | qgrep -qF "SPEC-6008" \
     || log_fail "SPEC-6008 must be indexed normally in the Done section"
   # No AC-status violation recorded for the qualified row.
   if [[ -f "$d/docs/INDEX.violations.md" ]] && grep -qF "SPEC-6008" "$d/docs/INDEX.violations.md"; then
@@ -967,7 +968,7 @@ MD
     || log_fail "generator --strict failure must name the invalid status (finished)"
   # docs-audit: reports `finished`, accepts the qualified `done (pre-existing)`.
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-6009-both.md > audit.log 2>&1) || true
-  grep -F "SPEC-6009" "$d/audit.log" | grep -qF 'finished' \
+  grep -F "SPEC-6009" "$d/audit.log" | qgrep -qF 'finished' \
     || log_fail "docs-audit must flag the genuine-invalid status (finished)"
   # Positive control (self-eval trap): the qualified row is NOT reported as a violation.
   if grep -qF 'unknown AC status "done (pre-existing)"' "$d/audit.log"; then
@@ -1347,7 +1348,7 @@ test_closeout_candidate_flagged() {
   run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
   assert_contains "$TEST_DIR/closeout.log" "Closeout candidates"
   assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"
-  grep -F "RFC-0010" "$TEST_DIR/closeout.log" | grep -qF "SPEC-0010" \
+  grep -F "RFC-0010" "$TEST_DIR/closeout.log" | qgrep -qF "SPEC-0010" \
     || log_fail "Closeout row must name both parent RFC-0010 and done SPEC-0010"
   log_pass "Closeout candidate flagged with parent + satisfying spec id"
 }
@@ -1410,7 +1411,7 @@ test_closeout_reverse_only() {
   assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"   # positive control
   # the parent is reachable ONLY through the spec's reverse links.rfc
   assert_contains "$TEST_DIR/closeout.log" "advance RFC-0060 to"
-  grep -F "RFC-0060" "$TEST_DIR/closeout.log" | grep -qF "SPEC-0060" \
+  grep -F "RFC-0060" "$TEST_DIR/closeout.log" | qgrep -qF "SPEC-0060" \
     || log_fail "Reverse-only closeout row must name parent RFC-0060 and done SPEC-0060"
   log_pass "Reverse-only (links.rfc) association independently flagged"
 }
@@ -2441,7 +2442,7 @@ MD
     || log_fail "on the earlier day the fixture must NOT be overdue, got: $h_earlier"
   [[ "$h_fresh" == "## Overdue reviews (1)" ]] \
     || log_fail "today the fixture MUST be overdue — the boundary did not move, got: $h_fresh"
-  extract_section "$snap_fresh" "## Overdue reviews" | grep -qF 'SPEC-8801' \
+  extract_section "$snap_fresh" "## Overdue reviews" | qgrep -qF 'SPEC-8801' \
     || log_fail "today's Overdue reviews section must carry the fixture row"
 
   local raw_lines masked_lines
@@ -2505,11 +2506,11 @@ MD
   (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
     || log_fail "generator failed on CRLF corpus: $(cat "$d/gen.log")"
   local index="$d/docs/INDEX.md"
-  extract_section "$index" "## Done" | grep -qF "SPEC-7001" \
+  extract_section "$index" "## Done" | qgrep -qF "SPEC-7001" \
     || log_fail "SPEC-7001 must land in Done (CRLF parsed), not Legacy"
-  extract_section "$index" "## Drafts" | grep -qF "SPEC-7002" \
+  extract_section "$index" "## Drafts" | qgrep -qF "SPEC-7002" \
     || log_fail "SPEC-7002 must land in Drafts"
-  extract_section "$index" "## Active (implementing)" | grep -qF "SPEC-7003" \
+  extract_section "$index" "## Active (implementing)" | qgrep -qF "SPEC-7003" \
     || log_fail "SPEC-7003 must land in Active (implementing)"
   assert_contains "$index" "## Legacy (no frontmatter) (0)"
   if grep -q '\\' "$index"; then log_fail "CRLF-corpus INDEX must have forward-slash paths only"; fi
@@ -2873,7 +2874,7 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-1150-claim.md > g3.log 2>&1) || true
   grep -qF "review-claim-unbacked" "$d/g3.log" \
     || log_fail "unbacked code-review claim must yield review-claim-unbacked: $(cat "$d/g3.log")"
-  grep -F "SPEC-1150" "$d/g3.log" | grep -qF "review-claim-unbacked" \
+  grep -F "SPEC-1150" "$d/g3.log" | qgrep -qF "review-claim-unbacked" \
     || log_fail "review-claim-unbacked verdict must name SPEC-1150"
   rm -rf "$d"
   log_pass "Unbacked code-review Review-By claim flagged review-claim-unbacked"
@@ -2918,15 +2919,15 @@ test_spec0011_event_types() {  # TEST-008 / Spec-AC-07
   local d; d="$(setup_iso_repo s11-events)"
   (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed --ref SPEC-1160 --validation pass --code-review pass > /dev/null) \
     || log_fail "append-event work_item_closed must exit 0"
-  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"event":"work_item_closed"' \
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | qgrep -qF '"event":"work_item_closed"' \
     || log_fail "work_item_closed must be appended as a JSONL event"
-  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"code_review":"pass"' \
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | qgrep -qF '"code_review":"pass"' \
     || log_fail "work_item_closed payload must carry code_review"
   (cd "$d" && node .aai/scripts/append-event.mjs --event code_review_completed --ref SPEC-1160 --verdict pass > /dev/null) \
     || log_fail "append-event code_review_completed must exit 0"
-  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"event":"code_review_completed"' \
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | qgrep -qF '"event":"code_review_completed"' \
     || log_fail "code_review_completed must be appended as a JSONL event"
-  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"verdict":"pass"' \
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | qgrep -qF '"verdict":"pass"' \
     || log_fail "code_review_completed payload must carry verdict"
   local ec=0
   (cd "$d" && node .aai/scripts/append-event.mjs --event bogus --ref SPEC-1160 > /dev/null 2>&1) || ec=$?
@@ -2959,7 +2960,7 @@ MD
     || log_fail "missing-close-telemetry must be report-only (--check --strict exit 0)"
   grep -qF "missing-close-telemetry" "$d/t1.log" \
     || log_fail "a done spec with no work_item_closed event must be reported missing-close-telemetry"
-  grep -F "SPEC-1170" "$d/t1.log" | grep -qF "missing-close-telemetry" \
+  grep -F "SPEC-1170" "$d/t1.log" | qgrep -qF "missing-close-telemetry" \
     || log_fail "missing-close-telemetry must name SPEC-1170"
   # (b) sibling id must NOT satisfy the parent.
   (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed --ref SPEC-11700 --validation pass --code-review pass > /dev/null)
@@ -3070,7 +3071,7 @@ MD
   grep -qF "SPEC-1181" "$d/enforce.out" || log_fail "enforce abort must name the failing spec SPEC-1181"
   # the failing spec must NOT have been committed
   if (cd "$d" && git cat-file -e "HEAD:docs/specs/SPEC-1181-flip.md" 2>/dev/null) && \
-     (cd "$d" && git show HEAD:docs/specs/SPEC-1181-flip.md | grep -qF 'status: done'); then
+     (cd "$d" && git show HEAD:docs/specs/SPEC-1181-flip.md | qgrep -qF 'status: done'); then
     log_fail "the aborted done-flip must not have been committed"
   fi
   # Unstage/revert the aborted flip so its staged 'status: done' does not pollute
@@ -3275,7 +3276,7 @@ MD
   grep -qiF "evidence" "$d/staged.out" || log_fail "abort reason must name the empty-evidence row (staged content)"
   # the failing spec must NOT have been committed
   if (cd "$d" && git cat-file -e "HEAD:docs/specs/SPEC-1210-flip.md" 2>/dev/null) && \
-     (cd "$d" && git show HEAD:docs/specs/SPEC-1210-flip.md | grep -qF 'status: done'); then
+     (cd "$d" && git show HEAD:docs/specs/SPEC-1210-flip.md | qgrep -qF 'status: done'); then
     log_fail "the aborted staged-unreconciled done-flip must not have been committed"
   fi
   rm -rf "$d"
@@ -3304,11 +3305,11 @@ test_spec0011_work_item_closed_requires_fields() {  # TEST-018 / Spec-AC-07 (F3 
   # (d) both fields -> exit 0 and a well-formed event is appended
   (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed --ref SPEC-1220 --validation pass --code-review pass > /dev/null) \
     || log_fail "work_item_closed with both fields must exit 0"
-  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"event":"work_item_closed"' \
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | qgrep -qF '"event":"work_item_closed"' \
     || log_fail "a valid work_item_closed must append a JSONL event"
-  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"validation":"pass"' \
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | qgrep -qF '"validation":"pass"' \
     || log_fail "the valid event payload must carry validation"
-  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"code_review":"pass"' \
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | qgrep -qF '"code_review":"pass"' \
     || log_fail "the valid event payload must carry code_review"
   rm -rf "$d"
   log_pass "work_item_closed rejects an empty/partial payload (exit 2); a complete payload exits 0"
@@ -3337,7 +3338,7 @@ links:
 | Spec-AC-01 | first       | done   | a1b2c3d  | code-review | —     |
 MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-001-claim.md > before.log 2>&1) || true
-  grep -F "SPEC-001" "$d/before.log" | grep -qF "review-claim-unbacked" \
+  grep -F "SPEC-001" "$d/before.log" | qgrep -qF "review-claim-unbacked" \
     || log_fail "a SPEC-0011 artifact must NOT corroborate SPEC-001 (substring false-match): $(cat "$d/before.log")"
   # Positive control: the exact-id artifact DOES corroborate and clears the verdict.
   : > "$d/docs/ai/reviews/review-SPEC-001-bar.md"
@@ -4703,9 +4704,9 @@ MD
     || log_fail "TEST-004: an empty Provenance must surface untraced-canonical-requirement"
   grep -qF "broken-canonical-provenance" "$d/prov-sec.txt" \
     || log_fail "TEST-004: a Provenance naming a missing spec must surface broken-canonical-provenance"
-  grep -F "REQ-OAUTH2_LOGIN-001" "$d/prov-sec.txt" | grep -qF "untraced-canonical-requirement" \
+  grep -F "REQ-OAUTH2_LOGIN-001" "$d/prov-sec.txt" | qgrep -qF "untraced-canonical-requirement" \
     || log_fail "TEST-004: REQ-001 (empty Provenance) must be the untraced finding"
-  grep -F "REQ-OAUTH2_LOGIN-002" "$d/prov-sec.txt" | grep -qF "broken-canonical-provenance" \
+  grep -F "REQ-OAUTH2_LOGIN-002" "$d/prov-sec.txt" | qgrep -qF "broken-canonical-provenance" \
     || log_fail "TEST-004: REQ-002 (SPEC-9999) must be the broken finding"
   # Positive control: the traced requirement is NOT flagged (proves not accept-all).
   if grep -qF "REQ-OAUTH2_LOGIN-003" "$d/prov-sec.txt"; then
@@ -4734,7 +4735,7 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > clean.log 2>&1) \
     || log_fail "TEST-004: a fully-traced canonical doc must exit 0 (CLEAN): $(cat "$d/clean.log")"
   assert_contains "$d/clean.log" "Canonical provenance drift: 0"
-  extract_section_h3 "$d/clean.log" "### Verdict" | grep -qF "CLEAN" \
+  extract_section_h3 "$d/clean.log" "### Verdict" | qgrep -qF "CLEAN" \
     || log_fail "TEST-004: a fully-traced repo must report the CLEAN verdict"
   rm -rf "$d"
   log_pass "Provenance drift flags untraced/broken, leaves resolvable requirements CLEAN (TEST-004)"
@@ -4761,7 +4762,7 @@ MD
     || log_fail "TEST-005: empty-canonical repo must exit 0 (no false positive): $(cat "$d/empty.log")"
   assert_not_contains "$d/empty.log" "untraced-canonical-requirement"
   assert_not_contains "$d/empty.log" "broken-canonical-provenance"
-  extract_section_h3 "$d/empty.log" "### Verdict" | grep -qF "CLEAN" \
+  extract_section_h3 "$d/empty.log" "### Verdict" | qgrep -qF "CLEAN" \
     || log_fail "TEST-005: empty-canonical repo must report CLEAN"
   rm -rf "$d"
   log_pass "Empty/absent docs/canonical/ contributes no provenance finding; repo stays CLEAN (TEST-005)"
@@ -4801,7 +4802,7 @@ MD
 }
 
 assert_fo_control_flagged() {  # $1 = audit log path
-  grep -F "CHANGE-9001" "$1" | grep -qF "probable-false-open" \
+  grep -F "CHANGE-9001" "$1" | qgrep -qF "probable-false-open" \
     || log_fail "RED-proof: positive control CHANGE-9001 must be flagged probable-false-open"
 }
 
@@ -4847,10 +4848,10 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
   extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
   for id in CHANGE-5801 CHANGE-5802 CHANGE-5803; do
-    grep -F "$id" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    grep -F "$id" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
       || log_fail "TEST-001: $id must be flagged probable-false-open"
   done
-  local row; row="$(grep -F "CHANGE-5801" "$d/drift-sec.txt" | head -1)"
+  local row; row="$(grep -F "CHANGE-5801" "$d/drift-sec.txt" | qhead -1)"
   assert_payload_contains "$row" "delivery commit(s)" "TEST-001: reasons must name the delivery-commit signal"
   assert_payload_line_matches "$row" '[0-9a-f]{7}' "TEST-001: drift row Evidence cell must carry a short commit hash"
   rm -rf "$d"
@@ -4987,9 +4988,9 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
   assert_fo_control_flagged "$d/audit.log"
   extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
-  grep -F "CHANGE-5812" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "CHANGE-5812" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-006: CHANGE-5812 must be flagged via the ac_evidence signal"
-  grep -F "CHANGE-5812" "$d/drift-sec.txt" | grep -qF "ac_evidence event" \
+  grep -F "CHANGE-5812" "$d/drift-sec.txt" | qgrep -qF "ac_evidence event" \
     || log_fail "TEST-006: reasons must name the ac_evidence event signal"
   rm -rf "$d"
   log_pass "ac_evidence event (rolled-up ref) flags the doc; event named in reasons (TEST-006)"
@@ -5036,9 +5037,9 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
   assert_fo_control_flagged "$d/audit.log"
   extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
-  grep -F "SPEC-5820" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "SPEC-5820" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-007: fully terminal evidenced AC table must flag SPEC-5820"
-  grep -F "SPEC-5820" "$d/drift-sec.txt" | grep -qF "AC Status table fully terminal with evidence" \
+  grep -F "SPEC-5820" "$d/drift-sec.txt" | qgrep -qF "AC Status table fully terminal with evidence" \
     || log_fail "TEST-007: reasons must name the AC-table signal"
   if grep -qF "SPEC-5821" "$d/drift-sec.txt"; then
     log_fail "TEST-007: a non-terminal AC table must NOT trigger the false-open AC-table signal"
@@ -5053,11 +5054,11 @@ test_change0027_digest_and_event() {  # TEST-008 / Spec-AC-06 (SEAM-2)
   (cd "$d" && node .aai/scripts/docs-audit.mjs > audit.log 2>&1) || true
   assert_fo_control_flagged "$d/audit.log"
   assert_contains "$d/audit.log" "False-open: 1"
-  extract_section_h3 "$d/audit.log" "### Verdict" | grep -qF "NEEDS-TRIAGE" \
+  extract_section_h3 "$d/audit.log" "### Verdict" | qgrep -qF "NEEDS-TRIAGE" \
     || log_fail "TEST-008: any false-open doc must flip the overall verdict to NEEDS-TRIAGE"
-  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"event":"docs_audit"' \
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | qgrep -qF '"event":"docs_audit"' \
     || log_fail "TEST-008: last EVENTS line must be a docs_audit event"
-  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"false_open":1' \
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | qgrep -qF '"false_open":1' \
     || log_fail "TEST-008: docs_audit payload must carry the false-open count"
   rm -rf "$d"
   log_pass "Digest carries the false-open row + summary + NEEDS-TRIAGE; event payload carries the count (TEST-008)"
@@ -5100,12 +5101,12 @@ MD
        git commit -qm "feat: deliver CHANGE-5830 to production")
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
   extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
-  grep -F "CHANGE-5830" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "CHANGE-5830" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-009: stale-AND-delivered doc must upgrade to probable-false-open"
-  if grep -F "CHANGE-5830" "$d/drift-sec.txt" | grep -qF "probable-stale-open"; then
+  if grep -F "CHANGE-5830" "$d/drift-sec.txt" | qgrep -qF "probable-stale-open"; then
     log_fail "TEST-009: stale-AND-delivered doc must NOT stay probable-stale-open"
   fi
-  grep -F "CHANGE-5831" "$d/drift-sec.txt" | grep -qF "probable-stale-open" \
+  grep -F "CHANGE-5831" "$d/drift-sec.txt" | qgrep -qF "probable-stale-open" \
     || log_fail "TEST-009: stale-only doc (no delivery evidence) must keep probable-stale-open exactly as today"
   rm -rf "$d"
   log_pass "False-open takes precedence over stale-open; undelivered stale docs unchanged (TEST-009)"
@@ -5145,12 +5146,12 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --list --no-event > audit.log 2>&1) || true
   assert_fo_control_flagged "$d/audit.log"
   extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
-  grep -F "SPEC-5840" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "SPEC-5840" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-011: a delivery-evidenced frozen-in-body draft must be flagged (D6)"
   if grep -qF "SPEC-5841" "$d/drift-sec.txt"; then
     log_fail "TEST-011: an unevidenced frozen-in-body draft must NOT be flagged"
   fi
-  grep -F "SPEC-5841" "$d/audit.log" | grep -qF "frozen" \
+  grep -F "SPEC-5841" "$d/audit.log" | qgrep -qF "frozen" \
     || log_fail "TEST-011: unevidenced frozen-in-body draft must keep its byte-identical frozen classification"
   rm -rf "$d"
   log_pass "Frozen-in-body drafts checked: delivered flags, unevidenced stays aligned/tracked-open (TEST-011)"
@@ -5186,7 +5187,7 @@ MD
   if grep -qF "SPEC-5850" "$d/drift-sec.txt"; then
     log_fail "TEST-015: an in-flight spec whose AC table is evidenced only by same-session TDD proof logs must NOT be flagged probable-false-open without a corroborating delivery commit or ac_evidence event"
   fi
-  grep -F "SPEC-5850" "$d/audit.log" | grep -qF "frozen" \
+  grep -F "SPEC-5850" "$d/audit.log" | qgrep -qF "frozen" \
     || log_fail "TEST-015: in-flight frozen-in-body draft must keep its byte-identical frozen classification"
   rm -rf "$d"
   log_pass "In-flight spec with TDD-log-only AC evidence stays aligned, not false-open — no regression on the audit's own repo (TEST-015)"
@@ -5200,7 +5201,7 @@ test_change0027_index_seam() {  # TEST-012 / Spec-AC-09 (SEAM-1)
   local audit="$d/docs/INDEX.audit.md"
   assert_file "$audit"
   assert_contains "$audit" "probable-false-open"
-  grep -F "CHANGE-9001" "$audit" | grep -qF "probable-false-open" \
+  grep -F "CHANGE-9001" "$audit" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-012: INDEX.audit.md must carry the false-open row for CHANGE-9001"
   assert_contains "$audit" "confirm delivery, then run close ceremony"
   rm -rf "$d"
@@ -5267,9 +5268,9 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
   assert_fo_control_flagged "$d/audit.log"
   extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
-  grep -F "SPEC-5860" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "SPEC-5860" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-001: mixed TDD-log + git-verified hash Evidence cell must flag via AC-table signal"
-  grep -F "SPEC-5860" "$d/drift-sec.txt" | grep -qF "AC Status table fully terminal with evidence" \
+  grep -F "SPEC-5860" "$d/drift-sec.txt" | qgrep -qF "AC Status table fully terminal with evidence" \
     || log_fail "TEST-001: reasons must name the AC-table signal"
   rm -rf "$d"
   log_pass "Mixed TDD-log + git-verified commit hash Evidence cell flags via AC-table signal (TEST-001)"
@@ -5299,7 +5300,7 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
   assert_fo_control_flagged "$d/audit.log"
   extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
-  grep -F "SPEC-5861" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "SPEC-5861" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-002: mixed TDD-log + PR-reference Evidence cell must flag via AC-table signal"
   rm -rf "$d"
   log_pass "Mixed TDD-log + PR reference Evidence cells flag via AC-table signal (TEST-002)"
@@ -5415,9 +5416,9 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
   assert_fo_control_flagged "$d/audit.log"
   extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
-  grep -F "armb-legacy-slug" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "armb-legacy-slug" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-006: Arm B (fileId-ref ac_evidence with hash payload) must flag the doc (armb-legacy-slug)"
-  grep -F "armb-legacy-slug" "$d/drift-sec.txt" | grep -qF "ac_evidence event" \
+  grep -F "armb-legacy-slug" "$d/drift-sec.txt" | qgrep -qF "ac_evidence event" \
     || log_fail "TEST-006: reasons must name the ac_evidence event signal"
   rm -rf "$d"
   log_pass "Arm B: fileId-ref ac_evidence event with hash-shaped payload.commit fires (TEST-006)"
@@ -5484,13 +5485,13 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
   assert_fo_control_flagged "$d/audit.log"
   extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
-  grep -F "armc-fileid-slug" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "armc-fileid-slug" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-008: work_item_closed fileId-ref must flag the doc (armc-fileid-slug)"
-  grep -F "armc-fileid-slug" "$d/drift-sec.txt" | grep -qF "work_item_closed event" \
+  grep -F "armc-fileid-slug" "$d/drift-sec.txt" | qgrep -qF "work_item_closed event" \
     || log_fail "TEST-008: reasons must name the work_item_closed event signal (fileId ref)"
-  grep -F "armc-slugid-slug" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "armc-slugid-slug" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-008: work_item_closed slug-id-ref must flag the doc (armc-slugid-slug)"
-  grep -F "armc-slugid-slug" "$d/drift-sec.txt" | grep -qF "work_item_closed event" \
+  grep -F "armc-slugid-slug" "$d/drift-sec.txt" | qgrep -qF "work_item_closed event" \
     || log_fail "TEST-008: reasons must name the work_item_closed event signal (slug-id ref)"
   rm -rf "$d"
   log_pass "work_item_closed event fires unconditionally for both fileId-ref and slug-id-ref forms (TEST-008)"
@@ -5594,9 +5595,9 @@ JSONL
   assert_fo_control_flagged "$d/audit.log"
   extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
   # (a) id match -> flagged, with a reason naming the flush/METRICS signal
-  grep -F "CHANGE-5830" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "CHANGE-5830" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-001(a): CHANGE-5830 must be flagged via the METRICS flush record"
-  grep -F "CHANGE-5830" "$d/drift-sec.txt" | grep -qF "flush record" \
+  grep -F "CHANGE-5830" "$d/drift-sec.txt" | qgrep -qF "flush record" \
     || log_fail "TEST-001(a): reasons must name the flush-record (METRICS) signal, distinct from the four existing reasons"
   # (c) fileId-ONLY match (slug id differs) -> must NOT flag (key on slug id,
   # never the numbered filename; SPEC-0054 Problem #2 / metrics TEST-020)
@@ -5718,16 +5719,16 @@ MD
     log_fail "TEST-002(e): a NEWER doc_lifecycle reopen must supersede delivery evidence (SPEC-5840 must NOT be flagged)"
   fi
   # (f) reopen older than delivery evidence -> STILL flagged
-  grep -F "SPEC-5841" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "SPEC-5841" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-002(f): a reopen OLDER than the delivery evidence must NOT suppress (SPEC-5841 must STILL flag)"
   # (g) no reopen event at all -> STILL flagged (supersession never blinds a genuine false-open)
-  grep -F "SPEC-5842" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "SPEC-5842" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-002(g): a delivered doc left open with NO reopen event must STILL flag (SPEC-5842)"
   # (h) METRICS-only delivery + reopen OLDER than the flush -> STILL flagged
-  grep -F "CHANGE-5850" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "CHANGE-5850" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-002(h): METRICS-only evidence with a reopen OLDER than the flush must STILL flag (CHANGE-5850)"
   # (h-boundary) same-day flush + reopen -> STILL flagged (day-granular flush not beaten by a same-day ts)
-  grep -F "CHANGE-5851" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "CHANGE-5851" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-002(h-boundary): a same-day flush+reopen must STILL flag (CHANGE-5851)"
   rm -rf "$d"
   log_pass "Newer reopen supersedes (e); older (f), no-reopen (g), METRICS-only older reopen (h) + same-day boundary still flag (TEST-002)"
@@ -5803,14 +5804,14 @@ MD
   assert_fo_control_flagged "$d/audit.log"
   extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
   # (i) commit newer than reopen -> STILL flagged
-  grep -F "SPEC-5860" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "SPEC-5860" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-002(i): reopen THEN newer commit-delivery must STILL flag (SPEC-5860 — commit date must feed deliveryTs)"
   # (j) reopen strictly newer than commit -> NOT flagged (proves commit dates are used)
   if grep -qF "SPEC-5861" "$d/drift-sec.txt"; then
     log_fail "TEST-002(j): a reopen strictly newer than the delivery commit must supersede (SPEC-5861 must NOT be flagged)"
   fi
   # (k) un-timestampable AC-table evidence + reopen -> STILL flagged (fail-closed)
-  grep -F "SPEC-5862" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+  grep -F "SPEC-5862" "$d/drift-sec.txt" | qgrep -qF "probable-false-open" \
     || log_fail "TEST-002(k): un-timestampable AC-table evidence must STILL flag on any reopen (SPEC-5862)"
   rm -rf "$d"
   log_pass "Supersession deliveryTs covers commit dates (i, j) and fail-closes on un-timestampable AC-table evidence (k) (TEST-002 i-k)"
@@ -5936,12 +5937,12 @@ test_spec0057_duplicate_id_flagged() {  # TEST-101 / Spec-AC-01
   log_info "Test: two docs sharing one frontmatter id are flagged, naming id + both paths; verdict NEEDS-TRIAGE (TEST-101)..."
   run_audit --no-event --path docs/dupid > "$TEST_DIR/dupid.log"
   assert_contains "$TEST_DIR/dupid.log" "### Duplicate doc ids"
-  grep -F "dupid-collision-x" "$TEST_DIR/dupid.log" | grep -qF "SPEC-9401-collision.md" \
+  grep -F "dupid-collision-x" "$TEST_DIR/dupid.log" | qgrep -qF "SPEC-9401-collision.md" \
     || log_fail "TEST-101: duplicate-doc-id row must name id dupid-collision-x + SPEC-9401 path"
-  grep -F "dupid-collision-x" "$TEST_DIR/dupid.log" | grep -qF "ISSUE-9401-collision.md" \
+  grep -F "dupid-collision-x" "$TEST_DIR/dupid.log" | qgrep -qF "ISSUE-9401-collision.md" \
     || log_fail "TEST-101: duplicate-doc-id row must name id dupid-collision-x + ISSUE-9401 path"
   # multi-writer (3 carriers): the Count column reflects 3, not hardcoded to 2
-  grep -F "dupid-collision-triple" "$TEST_DIR/dupid.log" | grep -qF "| 3 |" \
+  grep -F "dupid-collision-triple" "$TEST_DIR/dupid.log" | qgrep -qF "| 3 |" \
     || log_fail "TEST-101: a 3-carrier group must report Count 3"
   assert_contains "$TEST_DIR/dupid.log" "Verdict: NEEDS-TRIAGE"
   log_pass "Duplicate frontmatter id flagged with id + all carrying paths (TEST-101)"
@@ -6015,7 +6016,7 @@ test_pdci_validation_gate_delegation() {  # prompt-dedup-canonical-includes spec
     || log_fail "TEST-003: VALIDATION AC gate must carry a MECHANICAL CHECKS block delegating Rules 1/2/4-format to the script"
   grep -qF "no LLM re-derivation" "$v" \
     || log_fail "TEST-003: MECHANICAL CHECKS block must state the script is authoritative (no LLM re-derivation)"
-  sed -n '/^AC STATUS GATE/,/^PROCESS$/p' "$v" | grep -qE 'docs-audit\.mjs --gate' \
+  sed -n '/^AC STATUS GATE/,/^PROCESS$/p' "$v" | qgrep -qE 'docs-audit\.mjs --gate' \
     || log_fail "TEST-003: VALIDATION AC gate must name a mandatory docs-audit.mjs --gate <ref> invocation ahead of PASS"
   # the old per-rule restatement of the Rule 1/2 block-PASS message templates
   # must be GONE (the script now owns the mechanical derivation).
@@ -6090,11 +6091,11 @@ MD
   (cd "$d" && git add PHASE1.md && git commit -qm "feat: deliver RFC-9002 phase 1")
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > umb.log 2>&1) || true
   # umbrella parent NOT flagged
-  if grep -F "RFC-9002" "$d/umb.log" | grep -qF "probable-false-open"; then
+  if grep -F "RFC-9002" "$d/umb.log" | qgrep -qF "probable-false-open"; then
     log_fail "TEST-U01: umbrella-marked parent must not be flagged probable-false-open"
   fi
   # suppression is VISIBLE and NAMES the doc, not just a count
-  grep -F "Umbrella (deliberately open" "$d/umb.log" | grep -qF "RFC-9002" \
+  grep -F "Umbrella (deliberately open" "$d/umb.log" | qgrep -qF "RFC-9002" \
     || log_fail "TEST-U01: summary must NAME the suppressed umbrella (visible suppression)"
   # unmarked control in the SAME repo stays flagged (heuristic untouched)
   assert_fo_control_flagged "$d/umb.log"
@@ -6881,7 +6882,7 @@ test_acflip_predicate_agrees_with_check() {  # TEST-004 / Spec-AC-04
             SPEC-7107 SPEC-7108 SPEC-7109 CHANGE-9001; do
     ec="$(acflip_check_rc "$d" "$id")"
     armed=0
-    if grep -F "$id" "$d/drift-sec.txt" | grep -qF "AC Status table fully terminal with evidence"; then
+    if grep -F "$id" "$d/drift-sec.txt" | qgrep -qF "AC Status table fully terminal with evidence"; then
       armed=1
     fi
     if [[ "$ec" == 1 && "$armed" != 1 ]]; then

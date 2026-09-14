@@ -27,6 +27,7 @@ set -euo pipefail
 
 TEST_NAME="aai-ceremony-levels"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -647,7 +648,7 @@ test_007_spec_template() {
   log_info "Test: SPEC_TEMPLATE carries ceremony_level: 2 + guidance (TEST-007)..."
   local t="$PROJECT_ROOT/.aai/templates/SPEC_TEMPLATE.md"
   # frontmatter field with default 2, inside the frontmatter block
-  awk '/^---$/{n++} n==1' "$t" | grep -q "^ceremony_level: 2$" \
+  awk '/^---$/{n++} n==1' "$t" | qgrep -q "^ceremony_level: 2$" \
     || log_fail "SPEC_TEMPLATE frontmatter must declare ceremony_level: 2"
   grep -q "Ceremony justification:" "$t" \
     || log_fail "SPEC_TEMPLATE must name the justification-line requirement"
@@ -679,8 +680,8 @@ test_009_workflow_and_config() {
   local w="$PROJECT_ROOT/.aai/workflow/WORKFLOW.md" y="$PROJECT_ROOT/docs/ai/docs-audit.yaml"
   grep -qi "^## Ceremony levels" "$w" || log_fail "WORKFLOW.md must carry a Ceremony levels section"
   # the per-level gate table: a markdown table header row naming all four levels
-  grep -E '^\|' "$w" | grep -q "L0" || log_fail "gate table must carry an L0 column"
-  grep -E '^\|' "$w" | grep "L0" | grep "L1" | grep "L2" | grep -q "L3" \
+  grep -E '^\|' "$w" | qgrep -q "L0" || log_fail "gate table must carry an L0 column"
+  grep -E '^\|' "$w" | grep "L0" | grep "L1" | grep "L2" | qgrep -q "L3" \
     || log_fail "gate table header must name L0, L1, L2, L3"
   grep -q "protected_paths_l3" "$w" || log_fail "WORKFLOW.md must point at protected_paths_l3"
   # canonical default surfaces named in the canon

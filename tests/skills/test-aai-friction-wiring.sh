@@ -59,6 +59,7 @@
 set -u
 
 TEST_NAME="test-aai-friction-wiring"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -149,7 +150,7 @@ nested_suite_fail() {
   printf '%s\n' "$out" > "$nfile"
   local n; n="$(wc -l < "$nfile" | tr -d ' ')"
   local ctx
-  ctx="$(grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$nfile" 2>/dev/null | head -n 25 | sed 's/^/FAIL-CTX: /' || true)"
+  ctx="$(grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$nfile" 2>/dev/null | qhead -n 25 | sed 's/^/FAIL-CTX: /' || true)"
   log_fail "$label failed (exit $code); nested output: $nfile ($n lines)"$'\n'"$ctx"
 }
 
@@ -310,13 +311,13 @@ test_449_nested_failure_names_file_with_linecount() {
   [ "$rc" -ne 0 ] || log_fail "TEST-449: nested_suite_fail must exit non-zero"
 
   local nfile
-  nfile="$(printf '%s\n' "$msg" | grep -oE "$TEST_DIR/nested-[^ ]*\.log" | head -1)"
+  nfile="$(printf '%s\n' "$msg" | grep -oE "$TEST_DIR/nested-[^ ]*\.log" | qhead -1)"
   [ -n "$nfile" ] || log_fail "TEST-449: message must name the nested-output file, got: $msg"
   [ -f "$nfile" ] || log_fail "TEST-449: named file must actually exist: $nfile"
 
   local file_lines stated_n
   file_lines="$(wc -l < "$nfile" | tr -d ' ')"
-  stated_n="$(printf '%s\n' "$msg" | grep -oE '\([0-9]+ lines\)' | grep -oE '[0-9]+' | head -1)"
+  stated_n="$(printf '%s\n' "$msg" | grep -oE '\([0-9]+ lines\)' | grep -oE '[0-9]+' | qhead -1)"
   [ -n "$stated_n" ] || log_fail "TEST-449: message must state the file's line count, got: $msg"
   [ "$stated_n" = "$file_lines" ] || log_fail "TEST-449: stated line count ($stated_n) must match the file's actual line count ($file_lines)"
 

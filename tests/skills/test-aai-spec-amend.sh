@@ -48,6 +48,7 @@ set -euo pipefail
 
 TEST_NAME="aai-spec-amend"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SA="$PROJECT_ROOT/.aai/scripts/spec-amend.mjs"
@@ -1013,7 +1014,7 @@ test_013_refusal_names_a_reachable_fixed_point() {
   # ARM 1 — the refusal's OWN suggested command, read off its stderr, run
   # verbatim, and the gate must then reach 0. Placeholders are filled and the
   # fixture ledger is pointed at; nothing else about the line is rewritten.
-  suggested="$(sed -n 's/^ *node \.aai\/scripts\/spec-amend\.mjs \(classify .*\)$/\1/p' <<<"$ERR" | head -1)"
+  suggested="$(sed -n 's/^ *node \.aai\/scripts\/spec-amend\.mjs \(classify .*\)$/\1/p' <<<"$ERR" | qhead -1)"
   [[ -n "$suggested" ]] \
     || log_fail "TEST-013 arm 1: the --strict refusal must PRINT a runnable remedy naming the offending record; stderr was: $ERR"
   grep -qF 't013-ride' <<<"$suggested" \
@@ -1267,7 +1268,7 @@ test_018_item_names_spec_by_id_not_path() {
   # path on purpose — it states which file was amended at that moment, a
   # historical fact, and nothing renders it into a generated page. The follow-up
   # IS rendered (factory-report lists open items), so a path there is the trap.
-  local fu; fu="$(grep -F '"follow_up"' "$d/ledger.jsonl" | head -1)"
+  local fu; fu="$(grep -F '"follow_up"' "$d/ledger.jsonl" | qhead -1)"
   [ -n "$fu" ] || log_fail "TEST-018: add must manufacture a follow_up record"
   case "$fu" in *SPEC-DRAFT-*) log_fail "TEST-018: the follow-up must not embed a DRAFT path — it dies at allocation and this ledger is append-only: $fu";; esac
   case "$fu" in *spec-a-topic*) ;; *) log_fail "TEST-018: the follow-up must still name the spec by its frontmatter id: $fu";; esac

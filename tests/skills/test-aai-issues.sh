@@ -27,6 +27,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-issues"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
@@ -238,11 +239,11 @@ test_007_help_exit_zero() {
   local ok=1
   run_issues -h
   if [[ "$RC" -ne 0 || "$OUT" != "Usage:"* ]]; then
-    log_info "TEST-007: -h rc=$RC out-head='$(printf '%s' "$OUT" | head -1)'"; ok=0
+    log_info "TEST-007: -h rc=$RC out-head='$(printf '%s' "$OUT" | qhead -1)'"; ok=0
   fi
   run_issues --help
   if [[ "$RC" -ne 0 || "$OUT" != "Usage:"* ]]; then
-    log_info "TEST-007: --help rc=$RC out-head='$(printf '%s' "$OUT" | head -1)'"; ok=0
+    log_info "TEST-007: --help rc=$RC out-head='$(printf '%s' "$OUT" | qhead -1)'"; ok=0
   fi
   [[ $ok -eq 1 ]] && log_pass "TEST-007 -h/--help exit 0" || log_fail "TEST-007 -h/--help exit 0"
 }

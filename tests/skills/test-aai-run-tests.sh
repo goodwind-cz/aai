@@ -29,6 +29,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-run-tests"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -461,7 +462,7 @@ test_013() {
   [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
   # Static guard: a #!/bin/sh script must not use bash-only [[ ]] in CODE
   # (comments are stripped so a mention of the construct doesn't false-positive).
-  ! sed 's/#.*$//' "$REAP_SCRIPT" | grep -qE '\[\[' || log_fail "reaper (#!/bin/sh) must not use bash-only [[ ]] in code (W1)"
+  ! sed 's/#.*$//' "$REAP_SCRIPT" | qgrep -qE '\[\[' || log_fail "reaper (#!/bin/sh) must not use bash-only [[ ]] in code (W1)"
   # Dynamic guard: under a strict POSIX shell (dash) the reaper must (a) run with
   # NO shell errors on stderr and (b) actually reap an in-workspace match whose age
   # exceeds the threshold. bash-only constructs no-op or error under dash: [[ ]] →
@@ -577,12 +578,12 @@ test_015() {
   # DO NOT NARROW: re-derive from GRACE first. The deterministic spare/reap
   # boundary itself is pinned by TEST-021, not by this margin.
   sleep 8   # let the forked child come up AND clear the epoch boundary band
-  p_child="$(pgrep -P "$p_pid" | head -1)"
-  o_child="$(pgrep -P "$o_pid" | head -1)"
+  p_child="$(pgrep -P "$p_pid" | qhead -1)"
+  o_child="$(pgrep -P "$o_pid" | qhead -1)"
   [[ -n "$p_child" ]] || log_fail "fixture: matched launcher $p_pid has no live child"
   track "$p_child"; [[ -n "$o_child" ]] && track "$o_child"
   # The descendant must NOT carry the token — that is the whole point of P2.
-  if ps -o args= -p "$p_child" 2>/dev/null | grep -q "vitest"; then
+  if ps -o args= -p "$p_child" 2>/dev/null | qgrep -q "vitest"; then
     log_fail "fixture invalid: the descendant argv still carries the vitest token"
   fi
   # Step boundary captured HERE — both matched trees predate it; the fresh

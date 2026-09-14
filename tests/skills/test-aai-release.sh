@@ -37,6 +37,7 @@
 set -euo pipefail
 
 TEST_NAME="aai-release"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -214,7 +215,7 @@ build_isolated_path() {
 #
 # D1 tag resolution: candidates from `git tag --list 'v[0-9]*'
 # --sort=-v:refname` captured into a variable (NEVER a pipeline — this suite
-# runs `set -euo pipefail`; `… | head -1` dies of SIGPIPE on CI), iterated via
+# runs `set -euo pipefail`; a pipe into `head -1` dies of SIGPIPE on CI), iterated via
 # here-string; the FIRST candidate that is an ancestor of HEAD wins.
 # D3 region: from the first `^## [v` line through EOF, byte-compared (cmp).
 # A live CHANGELOG with no released heading while the tag's region is
@@ -436,8 +437,8 @@ test_004_commit_message_and_staged_path() {
   # CHANGELOG and the version stamp aai-sync reads (nothing else may ride in).
   stat_lines="$(git -C "$repo" show --stat --format= HEAD | grep -c '|' || true)"
   [[ "$stat_lines" == "2" ]] || log_fail "TEST-004: commit touches $stat_lines files, expected exactly 2 (CHANGELOG.md + AAI_VERSION.md)"
-  git -C "$repo" show --stat --format= HEAD | grep -q 'CHANGELOG.md' || log_fail "TEST-004: CHANGELOG.md missing from the cut commit"
-  git -C "$repo" show --stat --format= HEAD | grep -q 'AAI_VERSION.md' || log_fail "TEST-004: AAI_VERSION.md missing from the cut commit"
+  git -C "$repo" show --stat --format= HEAD | qgrep -q 'CHANGELOG.md' || log_fail "TEST-004: CHANGELOG.md missing from the cut commit"
+  git -C "$repo" show --stat --format= HEAD | qgrep -q 'AAI_VERSION.md' || log_fail "TEST-004: AAI_VERSION.md missing from the cut commit"
   log_pass "TEST-004 commit message + exact two-path staging correct"
 }
 
@@ -509,8 +510,8 @@ test_007_remote_seam() {
   local rc=0
   ( cd "$repo" && PATH="$stub_bin:$PATH" bash "$RELEASE_SH" --version v9.2.0 --confirm ) >"$TMP_ROOT/t007a.out" 2>&1 || rc=$?
   [[ "$rc" == "0" ]] || log_fail "TEST-007a: cut failed: $(cat "$TMP_ROOT/t007a.out")"
-  git -C "$bare" show-ref --tags | grep -q "refs/tags/v9.2.0" || log_fail "TEST-007a: tag v9.2.0 was not pushed to the remote"
-  git -C "$bare" show-ref --heads | grep -q "refs/heads/main" || log_fail "TEST-007a: branch main was not pushed to the remote"
+  git -C "$bare" show-ref --tags | qgrep -q "refs/tags/v9.2.0" || log_fail "TEST-007a: tag v9.2.0 was not pushed to the remote"
+  git -C "$bare" show-ref --heads | qgrep -q "refs/heads/main" || log_fail "TEST-007a: branch main was not pushed to the remote"
   [[ -f "$log_file" ]] || log_fail "TEST-007a: gh was never invoked"
   grep -q "release create v9.2.0" "$log_file" || log_fail "TEST-007a: gh release create v9.2.0 was not attempted"
 
@@ -728,8 +729,8 @@ test_016_portability_static() {
 
   if grep -n 'stat -f' "$RELEASE_SH" >/dev/null 2>&1; then
     local stat_f_line stat_c_line
-    stat_f_line="$(grep -n 'stat -f' "$RELEASE_SH" | head -1 | cut -d: -f1)"
-    stat_c_line="$(grep -n 'stat -c' "$RELEASE_SH" | head -1 | cut -d: -f1 || true)"
+    stat_f_line="$(grep -n 'stat -f' "$RELEASE_SH" | qhead -1 | cut -d: -f1)"
+    stat_c_line="$(grep -n 'stat -c' "$RELEASE_SH" | qhead -1 | cut -d: -f1 || true)"
     [[ -n "$stat_c_line" && "$stat_c_line" -lt "$stat_f_line" ]] \
       || log_fail "TEST-016: 'stat -f' appears without a preceding 'stat -c' (GNU-first) fallback"
   fi

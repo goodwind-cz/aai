@@ -602,6 +602,12 @@ suites:
       - docs/ai/overview-data.json
       - docs/ai/reviews/**
 
+  aai-pipe-safe:
+    globs:
+      - tests/skills/lib/pipe-safe.sh
+      - tests/skills/lib/pipe-grep-q-ratchet.sh
+      - tests/skills/lib/pipe-grep-q-baseline.tsv
+
   aai-planning-probes:
     globs:
       - .aai/scripts/check-role-output.mjs

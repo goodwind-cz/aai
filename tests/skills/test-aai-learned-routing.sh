@@ -17,6 +17,7 @@
 
 set -u
 TEST_NAME="test-aai-learned-routing"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CHECK="$PROJECT_ROOT/.aai/scripts/check-committed-scope.mjs"
@@ -242,9 +243,9 @@ test_005_skill_pr_wiring() {
   # version compared against the LAST push mention in the file and was therefore
   # true for any placement in the first 236 lines (code review, 2026-09-06).
   local ci pi mi
-  ci="$(grep -n 'check-committed-scope.mjs' "$f" | head -1 | cut -d: -f1)"
-  mi="$(grep -nE '^4\. COMMIT' "$f" | head -1 | cut -d: -f1)"
-  pi="$(grep -nE '^5\. PLATFORM GATE \+ PUSH' "$f" | head -1 | cut -d: -f1)"
+  ci="$(grep -n 'check-committed-scope.mjs' "$f" | qhead -1 | cut -d: -f1)"
+  mi="$(grep -nE '^4\. COMMIT' "$f" | qhead -1 | cut -d: -f1)"
+  pi="$(grep -nE '^5\. PLATFORM GATE \+ PUSH' "$f" | qhead -1 | cut -d: -f1)"
   [ -n "$ci" ] && [ -n "$mi" ] && [ -n "$pi" ] \
     || log_fail "TEST-005: could not locate the check ($ci), the COMMIT step ($mi) and the PUSH step ($pi)"
   [ "$mi" -lt "$ci" ] \
@@ -288,7 +289,7 @@ test_006_learned_triaged() {
   while IFS= read -r id; do
     [ -n "$id" ] || continue
     grep -qF -- "$id" "$TEST_DIR/open.txt" && continue
-    grep -F -- "[guard → $id]" "$TEST_DIR/guard-id-lines.txt" | grep -qE "guard shipped:|routed to canon" && continue
+    grep -F -- "[guard → $id]" "$TEST_DIR/guard-id-lines.txt" | qgrep -qE "guard shipped:|routed to canon" && continue
     missing="$missing $id"
   done <<EOF
 $(grep -oE 'guard → fu-[a-z0-9-]+' "$LEARNED" | sed 's/^guard → //' | sort -u)

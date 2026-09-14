@@ -11,6 +11,7 @@
 
 set -u
 TEST_NAME="test-aai-live-serve"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ENGINE="$PROJECT_ROOT/.aai/scripts/aai-live-serve.mjs"
@@ -179,11 +180,11 @@ test_003_waiting_first() {
   curl -s --max-time 2 -o "$TEST_DIR/index.html" "http://127.0.0.1:$PORT/"
   local q; q="$(json_get "$TEST_DIR/data.json" 'd.waiting && d.waiting.question')"
   [ "$q" = '"Merge PR 999 or hold?"' ] || log_fail "TEST-003: waiting.question must carry the STATE question, got $q"
-  json_get "$TEST_DIR/data.json" 'typeof d.waiting.since' | grep -q '"string"' || log_fail "TEST-003: waiting.since must be present"
+  json_get "$TEST_DIR/data.json" 'typeof d.waiting.since' | qgrep -q '"string"' || log_fail "TEST-003: waiting.since must be present"
   # in the HTML the waiting block precedes the roles block
   local wpos rpos
-  wpos="$(grep -n 'id="waiting"' "$TEST_DIR/index.html" | head -1 | cut -d: -f1)"
-  rpos="$(grep -n 'id="roles"' "$TEST_DIR/index.html" | head -1 | cut -d: -f1)"
+  wpos="$(grep -n 'id="waiting"' "$TEST_DIR/index.html" | qhead -1 | cut -d: -f1)"
+  rpos="$(grep -n 'id="roles"' "$TEST_DIR/index.html" | qhead -1 | cut -d: -f1)"
   [ -n "$wpos" ] && [ -n "$rpos" ] || log_fail "TEST-003: HTML must have #waiting and #roles sections"
   [ "$wpos" -lt "$rpos" ] || log_fail "TEST-003: #waiting must precede #roles (waiting at $wpos, roles at $rpos)"
   stop_server
@@ -208,7 +209,7 @@ YAML
   start_server
   curl -s --max-time 2 -o "$TEST_DIR/data2.json" "http://127.0.0.1:$PORT/data.json"
   [ "$(json_get "$TEST_DIR/data2.json" 'd.waiting')" = "null" ] || log_fail "TEST-003: with required:false, waiting must be null"
-  curl -s --max-time 2 "http://127.0.0.1:$PORT/" | grep -qi "nothing waits on you" || log_fail "TEST-003: the no-wait one-liner must be in the page"
+  curl -s --max-time 2 "http://127.0.0.1:$PORT/" | qgrep -qi "nothing waits on you" || log_fail "TEST-003: the no-wait one-liner must be in the page"
   stop_server
   log_pass "waiting-on-you first; absent -> null and the one-liner (TEST-003)"
 }

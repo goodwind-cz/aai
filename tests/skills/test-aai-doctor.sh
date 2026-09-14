@@ -26,6 +26,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-doctor"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DOCTOR="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
@@ -273,7 +274,7 @@ test_002_cat02_fail_named() {
   add_core_and_role_files "$fixture"
   rm -f "$fixture/.aai/VALIDATION.prompt.md"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-02" | grep -q "FAIL" && echo "$out" | grep "^CAT-02" | grep -q "VALIDATION.prompt.md"; then
+  if echo "$out" | grep "^CAT-02" | qgrep -q "FAIL" && echo "$out" | grep "^CAT-02" | qgrep -q "VALIDATION.prompt.md"; then
     log_pass "TEST-002 CAT-02 FAIL names the missing role prompt"
   else
     log_info "TEST-002: got: $(echo "$out" | grep '^CAT-02')"
@@ -289,7 +290,7 @@ test_003_cat03_orphan_warn() {
   mkdir -p "$fixture/.claude/skills/aai-orphan"
   echo 'Read the file `.aai/SKILL_NOPE.prompt.md`' > "$fixture/.claude/skills/aai-orphan/SKILL.md"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-03" | grep -q "WARN" && echo "$out" | grep "^CAT-03" | grep -q "aai-orphan"; then
+  if echo "$out" | grep "^CAT-03" | qgrep -q "WARN" && echo "$out" | grep "^CAT-03" | qgrep -q "aai-orphan"; then
     log_pass "TEST-003 CAT-03 WARN names the orphaned skill"
   else
     log_info "TEST-003: got: $(echo "$out" | grep '^CAT-03')"
@@ -303,7 +304,7 @@ test_004_cat04_dynamic_skills() {
   fixture="$(new_bare_fixture t004a)"
   add_core_and_role_files "$fixture"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! echo "$out" | grep "^CAT-04" | grep -q "WARN"; then
+  if ! echo "$out" | grep "^CAT-04" | qgrep -q "WARN"; then
     log_info "TEST-004a: got: $(echo "$out" | grep '^CAT-04')"
     log_fail "TEST-004a CAT-04 none-found WARN"
     return
@@ -314,7 +315,7 @@ test_004_cat04_dynamic_skills() {
   mkdir -p "$fixture2/.claude/skills/aai-build"
   echo "x" > "$fixture2/.claude/skills/aai-build/SKILL.md"
   out="$(node "$DOCTOR" --root "$fixture2" 2>&1)"
-  if echo "$out" | grep "^CAT-04" | grep -q "PASS"; then
+  if echo "$out" | grep "^CAT-04" | qgrep -q "PASS"; then
     log_pass "TEST-004 CAT-04 none->WARN, some->PASS"
   else
     log_info "TEST-004b: got: $(echo "$out" | grep '^CAT-04')"
@@ -331,9 +332,9 @@ test_005_cat05_knowledge() {
   : > "$fixture/docs/knowledge/FACTS.md"   # empty
   # PATTERNS.md deliberately missing entirely
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-05" | grep -q "WARN" \
-    && echo "$out" | grep "^CAT-05" | grep -q "FACTS.md empty" \
-    && echo "$out" | grep "^CAT-05" | grep -q "PATTERNS.md missing"; then
+  if echo "$out" | grep "^CAT-05" | qgrep -q "WARN" \
+    && echo "$out" | grep "^CAT-05" | qgrep -q "FACTS.md empty" \
+    && echo "$out" | grep "^CAT-05" | qgrep -q "PATTERNS.md missing"; then
     log_pass "TEST-005 CAT-05 empty+missing knowledge files WARN"
   else
     log_info "TEST-005: got: $(echo "$out" | grep '^CAT-05')"
@@ -358,7 +359,7 @@ metrics:
 EOF
   local out
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-06" | grep -q "FAIL"; then
+  if echo "$out" | grep "^CAT-06" | qgrep -q "FAIL"; then
     log_pass "TEST-006 CAT-06 duplicate top-level key -> FAIL (real check-state.mjs)"
   else
     log_info "TEST-006: got: $(echo "$out" | grep '^CAT-06')"
@@ -374,7 +375,7 @@ EOF
   add_core_and_role_files "$fixture2"
   rm -f "$fixture2/docs/ai/STATE.yaml"
   out2="$(node "$DOCTOR" --root "$fixture2" 2>&1)" || rc2=$?
-  if echo "$out2" | grep "^CAT-01" | grep -vq FAIL && echo "$out2" | grep "^CAT-06" | grep -q "WARN" && [[ "$rc2" -eq 0 ]]; then
+  if echo "$out2" | grep "^CAT-01" | qgrep -vq FAIL && echo "$out2" | grep "^CAT-06" | qgrep -q "WARN" && [[ "$rc2" -eq 0 ]]; then
     log_pass "TEST-006b missing STATE.yaml -> CAT-06 WARN, CAT-01 unaffected, exit 0 (CI-checkout parity)"
   else
     log_info "TEST-006b: rc=$rc2 CAT-01=$(echo "$out2" | grep '^CAT-01') CAT-06=$(echo "$out2" | grep '^CAT-06')"
@@ -391,8 +392,8 @@ test_007_cat07_telemetry() {
   printf '{"b":1}\n' > "$fixture/docs/ai/decisions.jsonl"
   : > "$fixture/docs/ai/LOOP_TICKS.jsonl"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-07" | grep -q "METRICS.jsonl: 3 entries" \
-    && echo "$out" | grep "^CAT-07" | grep -q "decisions.jsonl: 1 entries"; then
+  if echo "$out" | grep "^CAT-07" | qgrep -q "METRICS.jsonl: 3 entries" \
+    && echo "$out" | grep "^CAT-07" | qgrep -q "decisions.jsonl: 1 entries"; then
     log_pass "TEST-007 CAT-07 telemetry line counts"
   else
     log_info "TEST-007: got: $(echo "$out" | grep '^CAT-07')"
@@ -412,7 +413,7 @@ test_008_cat08_git_status() {
   git -C "$fixture" commit -qm "init"
   echo "dirty" >> "$fixture/CLAUDE.md"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! (echo "$out" | grep "^CAT-08" | grep -q "WARN" && echo "$out" | grep "^CAT-08" | grep -q "changed file"); then
+  if ! (echo "$out" | grep "^CAT-08" | qgrep -q "WARN" && echo "$out" | grep "^CAT-08" | qgrep -q "changed file"); then
     log_info "TEST-008a: got: $(echo "$out" | grep '^CAT-08')"
     log_fail "TEST-008a CAT-08 dirty tree WARN"
     return
@@ -422,7 +423,7 @@ test_008_cat08_git_status() {
   fixture2="$(new_bare_fixture t008-nongit)"
   add_core_and_role_files "$fixture2"
   out2="$(node "$DOCTOR" --root "$fixture2" 2>&1)"
-  if echo "$out2" | grep "^CAT-08" | grep -q "SKIP"; then
+  if echo "$out2" | grep "^CAT-08" | qgrep -q "SKIP"; then
     log_pass "TEST-008 CAT-08 dirty->WARN, non-git->SKIP"
   else
     log_info "TEST-008b: got: $(echo "$out2" | grep '^CAT-08')"
@@ -436,7 +437,7 @@ test_009_cat09_precompact() {
   fixture="$(new_bare_fixture t009)"
   add_core_and_role_files "$fixture"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! echo "$out" | grep "^CAT-09" | grep -q "WARN"; then
+  if ! echo "$out" | grep "^CAT-09" | qgrep -q "WARN"; then
     log_info "TEST-009a: got: $(echo "$out" | grep '^CAT-09')"
     log_fail "TEST-009a CAT-09 missing hook WARN"
     return
@@ -445,7 +446,7 @@ test_009_cat09_precompact() {
   : > "$fixture/.aai/scripts/pre-compact-save.sh"
   : > "$fixture/.aai/scripts/pre-compact-save.ps1"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-09" | grep -q "PASS"; then
+  if echo "$out" | grep "^CAT-09" | qgrep -q "PASS"; then
     log_pass "TEST-009 CAT-09 missing->WARN, both present->PASS"
   else
     log_info "TEST-009b: got: $(echo "$out" | grep '^CAT-09')"
@@ -465,7 +466,7 @@ test_010_cat10_migration_matrix() {
   git -C "$fixture" add -A
   git -C "$fixture" commit -qm "init (STATE.yaml tracked, not gitignored)"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! (echo "$out" | grep "^CAT-10" | grep -q "LEGACY"); then
+  if ! (echo "$out" | grep "^CAT-10" | qgrep -q "LEGACY"); then
     log_info "TEST-010a: got: $(echo "$out" | grep '^CAT-10')"
     log_fail "TEST-010a CAT-10 LEGACY case"
     return
@@ -475,7 +476,7 @@ test_010_cat10_migration_matrix() {
   git -C "$fixture" add .gitignore
   git -C "$fixture" commit -qm "add gitignore (STATE.yaml stays tracked)"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-10" | grep -q "INCONSISTENT"; then
+  if echo "$out" | grep "^CAT-10" | qgrep -q "INCONSISTENT"; then
     log_pass "TEST-010 CAT-10 LEGACY + INCONSISTENT cases"
   else
     log_info "TEST-010b: got: $(echo "$out" | grep '^CAT-10')"
@@ -493,7 +494,7 @@ test_011_cat11_docs_hygiene() {
   # aai-doctor.mjs (no docs-audit.mjs sibling yet) and invoke THAT directly.
   install_doctor_copy "$fixture"
   out="$(node "$fixture/.aai/scripts/aai-doctor.mjs" 2>&1)"
-  if ! (echo "$out" | grep "^CAT-11" | grep -q "WARN" && echo "$out" | grep "^CAT-11" | grep -qi "not installed"); then
+  if ! (echo "$out" | grep "^CAT-11" | qgrep -q "WARN" && echo "$out" | grep "^CAT-11" | qgrep -qi "not installed"); then
     log_info "TEST-011a: got: $(echo "$out" | grep '^CAT-11')"
     log_fail "TEST-011a CAT-11 missing-script WARN"
     return
@@ -504,7 +505,7 @@ console.log("### Verdict: CLEAN");
 process.exit(0);
 EOF
   out="$(node "$fixture/.aai/scripts/aai-doctor.mjs" 2>&1)"
-  if echo "$out" | grep "^CAT-11" | grep -q "PASS"; then
+  if echo "$out" | grep "^CAT-11" | qgrep -q "PASS"; then
     log_pass "TEST-011 CAT-11 missing->WARN, stubbed CLEAN->PASS"
   else
     log_info "TEST-011b: got: $(echo "$out" | grep '^CAT-11')"
@@ -518,7 +519,7 @@ test_012_cat12_index_hook() {
   fixture="$(new_bare_fixture t012)"
   add_core_and_role_files "$fixture"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! echo "$out" | grep "^CAT-12" | grep -q "WARN"; then
+  if ! echo "$out" | grep "^CAT-12" | qgrep -q "WARN"; then
     log_info "TEST-012a: got: $(echo "$out" | grep '^CAT-12')"
     log_fail "TEST-012a CAT-12 not-installed WARN"
     return
@@ -526,14 +527,14 @@ test_012_cat12_index_hook() {
   mkdir -p "$fixture/.git/hooks"
   printf '#!/bin/sh\nsome-foreign-hook\n' > "$fixture/.git/hooks/pre-commit"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! (echo "$out" | grep "^CAT-12" | grep -q "WARN" && echo "$out" | grep "^CAT-12" | grep -q "NOT AAI-managed"); then
+  if ! (echo "$out" | grep "^CAT-12" | qgrep -q "WARN" && echo "$out" | grep "^CAT-12" | qgrep -q "NOT AAI-managed"); then
     log_info "TEST-012b: got: $(echo "$out" | grep '^CAT-12')"
     log_fail "TEST-012b CAT-12 foreign-hook WARN"
     return
   fi
   printf '#!/bin/sh\n# AAI:INDEX-AUTOGEN\n' > "$fixture/.git/hooks/pre-commit"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-12" | grep -q "PASS"; then
+  if echo "$out" | grep "^CAT-12" | qgrep -q "PASS"; then
     log_pass "TEST-012 CAT-12 not-installed / foreign / AAI-managed states"
   else
     log_info "TEST-012c: got: $(echo "$out" | grep '^CAT-12')"
@@ -550,8 +551,8 @@ test_013_cat13_exit4_tolerated() {
   cp "$PROJECT_ROOT/.aai/scripts/layer-drift.mjs" "$fixture/.aai/scripts/layer-drift.mjs"
   # No .aai/system/AAI_PIN.md -> real layer-drift.mjs exits 4 (unverifiable).
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"; rc=$?
-  if echo "$out" | grep "^CAT-13" | grep -q "WARN" \
-    && echo "$out" | grep "^CAT-13" | grep -qi "unverifiable" \
+  if echo "$out" | grep "^CAT-13" | qgrep -q "WARN" \
+    && echo "$out" | grep "^CAT-13" | qgrep -qi "unverifiable" \
     && [[ "$rc" -eq 0 ]]; then
     log_pass "TEST-013 CAT-13 layer-drift exit 4 -> WARN (never FAIL), doctor exit 0"
   else

@@ -27,6 +27,7 @@
 set -euo pipefail
 
 TEST_NAME="aai-suite-select"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -246,7 +247,7 @@ test_010_auditable_output_shape() {  # Spec-AC-05
   local selected_lines dropped_lines
   selected_lines="$(echo "$OUT" | grep -c '^SELECTED ' || true)"
   [[ "$selected_lines" -ge 1 ]] || log_fail "expected at least one SELECTED line: $OUT"
-  echo "$OUT" | grep '^SELECTED ' | grep -qv 'reason=' && log_fail "every SELECTED line must carry reason=: $OUT"
+  echo "$OUT" | grep '^SELECTED ' | qgrep -qv 'reason=' && log_fail "every SELECTED line must carry reason=: $OUT"
   dropped_lines="$(echo "$OUT" | grep -cE '^DROPPED [0-9]+$' || true)"
   [[ "$dropped_lines" -eq 1 ]] || log_fail "expected exactly ONE DROPPED count line, got $dropped_lines: $OUT"
   # Arithmetic: total non-core suites (2: alpha, beta) - selected(1: beta) = 1.

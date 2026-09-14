@@ -31,6 +31,7 @@ set -euo pipefail
 
 TEST_NAME="aai-metrics"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -764,7 +765,7 @@ test_011_partial_flush() {
   grep -qE '^ {4}CHANGE-0002:' "$st" || log_fail "other metrics entries must stay"
   grep -qF "claude-other" "$st" || log_fail "other item's agent_runs must stay byte-present"
   grep -qF "ref_id: CHANGE-0002" "$st" || log_fail "other active_work_items entry must stay"
-  sed -n '/^active_work_items:/,/^[a-z_]*:/p' "$st" | grep -qF "ref_id: CHANGE-0001" \
+  sed -n '/^active_work_items:/,/^[a-z_]*:/p' "$st" | qgrep -qF "ref_id: CHANGE-0001" \
     && log_fail "flushed done item must leave active_work_items"
   # Verdict blocks reset with FLUSH provenance (never the remediation marker).
   sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" > "$d/lv.block"
@@ -835,17 +836,17 @@ test_012_full_reset_cleanup() {
   [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
   local st="$d/docs/ai/STATE.yaml"
   # Full reset defaults (STATE_FALLBACK.md flush-reset list).
-  sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}status: not_run$' || log_fail "last_validation.status must reset"
-  sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}run_at_utc: null$' || log_fail "run_at_utc must null on full reset"
-  sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}ref_id: null$' || log_fail "last_validation.ref_id must null on full reset (STATE_FALLBACK parity)"
-  sed -n '/^implementation_strategy:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}selected: undecided$' || log_fail "strategy must reset to undecided"
-  sed -n '/^worktree:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}recommendation: not_needed$' || log_fail "worktree.recommendation must reset"
-  sed -n '/^worktree:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}user_decision: undecided$' || log_fail "worktree.user_decision must reset"
-  sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}required: false$' || log_fail "code_review.required must reset"
-  sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}scope_ref_id: null$' || log_fail "code_review.scope_ref_id (stamped by an older flush) must be cleared to null on a full reset (NON-BLOCKING-A)"
-  sed -n '/^current_focus:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}type: none$' || log_fail "focus type must reset to none"
-  sed -n '/^current_focus:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}ref_id: null$' || log_fail "focus ref must null"
-  sed -n '/^locks:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}implementation: true$' || log_fail "locks.implementation must stay true"
+  sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}status: not_run$' || log_fail "last_validation.status must reset"
+  sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}run_at_utc: null$' || log_fail "run_at_utc must null on full reset"
+  sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}ref_id: null$' || log_fail "last_validation.ref_id must null on full reset (STATE_FALLBACK parity)"
+  sed -n '/^implementation_strategy:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}selected: undecided$' || log_fail "strategy must reset to undecided"
+  sed -n '/^worktree:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}recommendation: not_needed$' || log_fail "worktree.recommendation must reset"
+  sed -n '/^worktree:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}user_decision: undecided$' || log_fail "worktree.user_decision must reset"
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}required: false$' || log_fail "code_review.required must reset"
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}scope_ref_id: null$' || log_fail "code_review.scope_ref_id (stamped by an older flush) must be cleared to null on a full reset (NON-BLOCKING-A)"
+  sed -n '/^current_focus:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}type: none$' || log_fail "focus type must reset to none"
+  sed -n '/^current_focus:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}ref_id: null$' || log_fail "focus ref must null"
+  sed -n '/^locks:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}implementation: true$' || log_fail "locks.implementation must stay true"
   grep -qE '^metrics:' "$st" && log_fail "emptied metrics block must be removed entirely"
   grep -qE '^active_work_items: \[\]$' "$st" || log_fail "emptied active_work_items must become []"
   # Ephemeral cleanup.
@@ -1018,7 +1019,7 @@ test_015_fallback_ref_id_parity() {  # ISSUE-0007 TEST-005 / Spec-AC-05 (SPEC-00
   # The hand-edit full-reset list must name every field the primary path nulls:
   # applyFullReset writes last_validation.ref_id: null, so the fallback line
   # must include it (a hand flush that skips it leaves a stale ref_id).
-  grep -E '^\s*- last_validation' "$fb" | grep -qF 'ref_id: null' \
+  grep -E '^\s*- last_validation' "$fb" | qgrep -qF 'ref_id: null' \
     || log_fail "STATE_FALLBACK.md last_validation flush-reset line must include 'ref_id: null': $(grep -E '^\s*- last_validation' "$fb")"
   # And the primary path really nulls it (the parity being documented).
   grep -qF "'ref_id', 'null'" "$FLUSH" \
@@ -1053,8 +1054,8 @@ test_016_zero_relative_full_reset() {  # ISSUE-0007 TEST-009 / Spec-AC-06 (remed
     && log_fail "report_paths item orphaned below 'report_paths: []' (fieldSpan excluded the 0-relative span): $(sed -n '/^code_review:/,/^[a-z_]/p' "$st")"
   grep -qF -- "- docs/ai/reports/validation-fixture.md" "$st" \
     && log_fail "evidence_paths item orphaned below 'evidence_paths: []': $(sed -n '/^last_validation:/,/^[a-z_]/p' "$st")"
-  sed -n '/^code_review:/,/^[a-z_]/p' "$st" | grep -qE '^ {2}report_paths: \[\]$' || log_fail "report_paths must reset to []"
-  sed -n '/^last_validation:/,/^[a-z_]/p' "$st" | grep -qE '^ {2}evidence_paths: \[\]$' || log_fail "evidence_paths must reset to []"
+  sed -n '/^code_review:/,/^[a-z_]/p' "$st" | qgrep -qE '^ {2}report_paths: \[\]$' || log_fail "report_paths must reset to []"
+  sed -n '/^last_validation:/,/^[a-z_]/p' "$st" | qgrep -qE '^ {2}evidence_paths: \[\]$' || log_fail "evidence_paths must reset to []"
   # The flushed file must be VALID YAML end-to-end (the reader that rejected
   # the corrupted probe output), and check-state must agree.
   if command -v python3 >/dev/null 2>&1 && python3 -c "import yaml" >/dev/null 2>&1; then
@@ -1516,9 +1517,9 @@ test_105_sweep_state_hygiene() {
   grep -qF "ref_id: ITEM-B" "$st" && log_fail "ITEM-B active_work_items entry must be removed"
   grep -qF "ref_id: ITEM-D" "$st" && log_fail "ITEM-D active_work_items entry must be removed"
   grep -qF "ref_id: ITEM-C" "$st" || log_fail "ITEM-C active_work_items entry must remain byte-present"
-  sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}required: true$' \
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}required: true$' \
     || log_fail "swept non-focus refs must NOT trigger a spurious code_review reset (D5)"
-  sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}status: pass$' \
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}status: pass$' \
     || log_fail "swept non-focus refs must NOT reset code_review.status"
   grep -qE '^ {2}selected: tdd$' "$st" || log_fail "partial (non-full) reset must NOT touch implementation_strategy"
   (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$st" > "$d/ck.log" 2>&1) \
@@ -1989,7 +1990,7 @@ JSONL
     || log_fail "Implementation role must sum 700+300=1000 across items: $(cat "$out")"
   grep -qE '^\| Validation \| n/a \|' "$out" \
     || log_fail "Validation role (malformed-only marker) must render n/a: $(cat "$out")"
-  awk '/^### Per-Role Token Rollup/,/^### Per-Strategy Reliability/' "$out" | grep -qE '\$[0-9]' \
+  awk '/^### Per-Role Token Rollup/,/^### Per-Strategy Reliability/' "$out" | qgrep -qE '\$[0-9]' \
     && log_fail "the per-role token rollup section must NEVER render a USD figure from undecomposed totals: $(cat "$out")"
   log_pass "Per-role token rollup sums valid markers by role, tokens only, never fabricates USD (token-economics TEST-002)"
 }
@@ -2078,7 +2079,7 @@ JSONL
     || log_fail "Implementation/aaaaaaaaaaaa must count 2 runs: $(cat "$out")"
   grep -qE '^\| Implementation \| bbbbbbbbbbbb \| 1 \|' "$out" \
     || log_fail "Implementation/bbbbbbbbbbbb must count 1 run: $(cat "$out")"
-  awk '/^### Prompt versions/,0' "$out" | grep -qE '^\| Validation ' \
+  awk '/^### Prompt versions/,0' "$out" | qgrep -qE '^\| Validation ' \
     && log_fail "Validation has only ONE distinct hash — it must NOT appear in the Prompt versions grouping: $(cat "$out")"
   log_pass "SEAM-2: multi-hash ledger -> Prompt versions section groups run counts by hash per role (prompt-hash-telemetry TEST-008)"
 }
@@ -3277,7 +3278,7 @@ test_149_partial_reset_keeps_review_gate() {  # TEST-149 / Spec-AC-04
   grep -qE '^ {2}required: true$' "$d/cr.block" \
     || log_fail "code_review.required must HOLD true (the fixture's pre-flush value) after a PARTIAL reset: $(cat "$d/cr.block")"
   grep -qE '^ {2}status: not_run$' "$d/cr.block" || log_fail "code_review.status must still reset to not_run"
-  sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}status: not_run$' \
+  sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" | qgrep -qE '^ {2}status: not_run$' \
     || log_fail "last_validation.status must still reset to not_run"
 
   # FULL reset (single item, everything done) still zeroes required — D4
@@ -3288,7 +3289,7 @@ test_149_partial_reset_keeps_review_gate() {  # TEST-149 / Spec-AC-04
   write_ticks "$d2/docs/ai/LOOP_TICKS.jsonl"
   run_flush "$d2"
   [[ "$EC" == 0 ]] || log_fail "full flush must exit 0 (got $EC): $(cat "$OUT")"
-  sed -n '/^code_review:/,/^[a-z_]*:/p' "$d2/docs/ai/STATE.yaml" | grep -qE '^ {2}required: false$' \
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$d2/docs/ai/STATE.yaml" | qgrep -qE '^ {2}required: false$' \
     || log_fail "a FULL reset must still zero code_review.required (D4 does not touch applyFullReset)"
 
   # The real orchestration CLI, over the post-PARTIAL-reset STATE with the

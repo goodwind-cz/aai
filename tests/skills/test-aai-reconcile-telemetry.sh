@@ -77,6 +77,7 @@ set -euo pipefail
 
 TEST_NAME="aai-reconcile-telemetry"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -220,7 +221,7 @@ test_001_metrics_carry_created_fresh() {
   [[ -f "$wt/docs/ai/METRICS.jsonl" ]] || log_fail "t001: destination METRICS.jsonl not created"
   grep -qF "$line" "$wt/docs/ai/METRICS.jsonl" \
     || log_fail "t001: carried record not present in destination METRICS.jsonl"
-  staged_names "$wt" | grep -qF "docs/ai/METRICS.jsonl" \
+  staged_names "$wt" | qgrep -qF "docs/ai/METRICS.jsonl" \
     || log_fail "t001: docs/ai/METRICS.jsonl not staged"
 
   log_pass "Stranded METRICS record carried onto fresh destination + staged (TEST-001)"
@@ -242,7 +243,7 @@ test_002_events_carry_union_staged() {
 
   grep -qF "$eline" "$wt/docs/ai/EVENTS.jsonl" \
     || log_fail "t002: carried EVENTS line not present in destination"
-  staged_names "$wt" | grep -qF "docs/ai/EVENTS.jsonl" \
+  staged_names "$wt" | qgrep -qF "docs/ai/EVENTS.jsonl" \
     || log_fail "t002: docs/ai/EVENTS.jsonl not staged"
 
   log_pass "Stranded EVENTS line carried (union) + staged (TEST-002)"
@@ -297,10 +298,10 @@ test_004_idempotent_rerun() {
   staged_before=$(staged_names "$wt")
 
   # Source no longer strands the carried lines after the first (default) run.
-  if git -C "$main" diff -- docs/ai/METRICS.jsonl | grep -qF "$line"; then
+  if git -C "$main" diff -- docs/ai/METRICS.jsonl | qgrep -qF "$line"; then
     log_fail "t004: source still strands the METRICS line after default cleanup"
   fi
-  if git -C "$main" diff -- docs/ai/EVENTS.jsonl | grep -qF "$eline"; then
+  if git -C "$main" diff -- docs/ai/EVENTS.jsonl | qgrep -qF "$eline"; then
     log_fail "t004: source still strands the EVENTS line after default cleanup"
   fi
 
@@ -360,7 +361,7 @@ test_005_ref_isolation_and_garbage_skip() {
     || log_fail "t005: scopeB EVENTS line removed from source (must stay untouched)"
 
   # scopeA lines are gone from source (default cleanup).
-  if git -C "$main" diff -- docs/ai/METRICS.jsonl | grep -qF "$lineA"; then
+  if git -C "$main" diff -- docs/ai/METRICS.jsonl | qgrep -qF "$lineA"; then
     log_fail "t005: scopeA METRICS line still stranded in source after cleanup"
   fi
 
@@ -390,7 +391,7 @@ test_006_seam1_real_audit_and_cleanup_toggle() {
   grep -qF "$eline" "$wt/docs/ai/EVENTS.jsonl" || log_fail "t006: carried ac_evidence line missing from destination"
 
   # Default cleanup: source no longer strands it.
-  if git -C "$main" diff -- docs/ai/EVENTS.jsonl | grep -qF "$eline"; then
+  if git -C "$main" diff -- docs/ai/EVENTS.jsonl | qgrep -qF "$eline"; then
     log_fail "t006: source still strands the carried line after default cleanup"
   fi
 
@@ -412,7 +413,7 @@ test_006_seam1_real_audit_and_cleanup_toggle() {
   code2=$(run_reconcile "$wt2" "$out2" "$err2" --ref scope-t006b --no-source-cleanup)
   assert_exit "t006b reconcile --no-source-cleanup" 0 "$code2"
   grep -qF "$eline2" "$wt2/docs/ai/EVENTS.jsonl" || log_fail "t006b: line not carried with --no-source-cleanup"
-  git -C "$main2" diff -- docs/ai/EVENTS.jsonl | grep -qF "$eline2" \
+  git -C "$main2" diff -- docs/ai/EVENTS.jsonl | qgrep -qF "$eline2" \
     || log_fail "t006b: --no-source-cleanup should leave the source edit in place"
 
   log_pass "SEAM-1 real docs-audit clean + carry-before-clean toggle verified (TEST-006)"
@@ -504,7 +505,7 @@ test_009_bonus_write_failure_fails_closed() {
     log_fail "t009: failure is a module-resolution crash, not a diagnosed write failure: $(cat "$err")"
   fi
 
-  git -C "$main" diff -- docs/ai/METRICS.jsonl | grep -qF "$line" \
+  git -C "$main" diff -- docs/ai/METRICS.jsonl | qgrep -qF "$line" \
     || log_fail "t009: source line was removed despite the destination write failure (must fail closed)"
 
   log_pass "Mid-operation write failure fails closed; source untouched (BONUS)"

@@ -23,6 +23,7 @@ set -euo pipefail
 
 TEST_NAME="aai-test-canon"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -64,7 +65,7 @@ assert_file() { [[ -f "$1" ]] || log_fail "Missing file: $1"; }
 assert_not_file() { if [[ -f "$1" ]]; then log_fail "Unexpected file: $1"; fi; }
 assert_dir_empty_or_absent() {
   if [[ -d "$1" ]]; then
-    if find "$1" -name '*.sh' -o -name '*.ps1' -o -name '*.py' -o -name '*.mjs' -type f 2>/dev/null | grep -q .; then
+    if find "$1" -name '*.sh' -o -name '*.ps1' -o -name '*.py' -o -name '*.mjs' -type f 2>/dev/null | qgrep -q .; then
       log_fail "Expected no test files under $1"
     fi
   fi
@@ -370,7 +371,7 @@ EOF
   assert_file "tests/canonical/"*".stub"* 2>/dev/null || \
     ls tests/canonical/ 2>/dev/null || true
   # Check for any stub files
-  if find tests/canonical/ -name "*uncovered*" -o -name "*.stub*" 2>/dev/null | grep -q .; then
+  if find tests/canonical/ -name "*uncovered*" -o -name "*.stub*" 2>/dev/null | qgrep -q .; then
     log_pass "RED stubs found"
   else
     log_info "No stub files found — checking for RED stubs in canonical test"
@@ -378,8 +379,8 @@ EOF
   fi
 
   # Assert git tracked the moves (git log shows the move)
-  git log --oneline --follow -- "tests/_archive/skills/test-canon-1.sh" 2>/dev/null | head -5 || true
-  git log --oneline -- "tests/_archive/" 2>/dev/null | grep -q . || \
+  git log --oneline --follow -- "tests/_archive/skills/test-canon-1.sh" 2>/dev/null | qhead -5 || true
+  git log --oneline -- "tests/_archive/" 2>/dev/null | qgrep -q . || \
     log_info "Note: git history may show move if git mv was used"
 
   log_pass "TEST-003 passed"
@@ -626,7 +627,7 @@ test_007() {
     if [[ -f "$f" ]]; then
       local ts_after
       ts_after=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)
-      if [[ "$ts_after" != "$(echo "$timestamps_before" | grep -o "$f" | head -1 || true)" ]]; then
+      if [[ "$ts_after" != "$(echo "$timestamps_before" | grep -o "$f" | qhead -1 || true)" ]]; then
         log_info "File $f — checking timestamp stability"
       fi
     fi

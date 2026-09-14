@@ -32,8 +32,16 @@ RFC-0001).
   `| head -n1` decisions remain, and three tests (a core list larger than the
   pipe buffer, a 200 KB `.gitignore`, a static ratchet) redden on any restored
   pipe. Round 8's `cp -a` retry was a false cause and is withdrawn.
-- **Honest gates**: pipe-into-`grep -q` drained 202 → 0 (DEBT-0006, ratchet at
-  zero); nine self-comparing guards got negative controls and fail closed
+- **Honest gates**: pipe-into-early-closing-reader (`grep -q`/`-m`/`--quiet`/
+  `--silent`, any spelling, or `head`) drained to zero — the narrow copied
+  echo/printf idiom (202 → 0, DEBT-0006) was drained in the original ride;
+  round 10 found the FULL class (273 `grep -q`/`-m` sites + 116 `head` sites,
+  any producer) still live in the suites (CI reds on 1aab60bb) and drained
+  it too, behind new `qgrep`/`qhead` drop-ins (`tests/skills/lib/pipe-
+  safe.sh`) with the ratchet's gated pattern widened to match (superset, not
+  just the narrow idiom, now at zero); 11 shipping scripts (26 sites) fixed
+  the same way `aai-sync.sh` was in round 9 (here-strings, no suite library
+  sourced); nine self-comparing guards got negative controls and fail closed
   (DEBT-0004); six brittle pins assert the property; a degenerate-pass ratchet
   (26) and six LEARNED-guard lints (bash-3.2 local, cd-to-underived, immutable
   pin, deny-by-default mocks, absence without control, external runner) at

@@ -34,6 +34,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-repo-tripwire"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -1171,7 +1172,7 @@ exit 0'
   grep -qE 'b-second .*PASS.*DEGRADED — no content hasher' <<<"$outb" \
     || { log_info "TEST-436(b): the masked suite's own PASS line did not carry the hasher-degrade note: $outb"; ok=0; }
   local metricsb
-  metricsb="$(find "$db/tests/skills/results" -name metrics.jsonl 2>/dev/null | head -n1)"
+  metricsb="$(find "$db/tests/skills/results" -name metrics.jsonl 2>/dev/null | qhead -n1)"
   [[ -n "$metricsb" ]] || { log_info "TEST-436(b): no metrics.jsonl produced"; ok=0; }
   if [[ -n "$metricsb" ]]; then
     grep -qF '"skill":"aai-b-second"' "$metricsb" 2>/dev/null && grep -qF '"tripwire_hasher_degraded":true' <<<"$(grep 'aai-b-second' "$metricsb")" \

@@ -17,6 +17,7 @@ TEST_DIR=""
 # Repository root, captured BEFORE setup_test_env cds into the scratch dir.
 # TEST-012..TEST-015 (spec-intake-numbers-some-doc-types-immediately) read the
 # real prompt corpus and the real scripts from here; they never write to it.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 INTAKE_FIXTURE_DIR=""
@@ -922,7 +923,7 @@ EOF
   # form of this assertion accepted, so a deleted invocation stayed green).
   if ! awk '/^## POST-SAVE CHECK/{f=1;next} /^## /{f=0} f' \
         "$PROJECT_ROOT/.aai/INTAKE_COMMON.md" \
-        | grep -qF -- 'node .aai/scripts/docs-audit.mjs --intake-file <saved-file>'; then
+        | qgrep -qF -- 'node .aai/scripts/docs-audit.mjs --intake-file <saved-file>'; then
     log_info "TEST-014: the POST-SAVE CHECK block does not invoke docs-audit.mjs --intake-file on the saved file"
     ok=0
   else
@@ -1585,10 +1586,10 @@ test_026_staleness_preflight_block_and_wiring() {
 # ordering helper for TEST-027: echoes 1 when the FIRST match of $2 precedes
 # the FIRST match of $3 in file $1 (both required to exist), else 0.
 stale_ordering_ok() {
-  # `-m1` stops grep itself after the first match, so there is no `| head`
-  # for grep to SIGPIPE against under the suite's own `set -o pipefail` on a
-  # file with more than one match (the same class of bug this file's TEST-012
-  # comment already documents for `awk | grep -q`).
+  # `-m1` stops grep itself after the first match, so there is no pipe into
+  # `head` for grep to SIGPIPE against under the suite's own `set -o pipefail`
+  # on a file with more than one match (the same class of bug this file's
+  # TEST-012 comment already documents for `awk` piped into `grep -q`).
   local f="$1" first="$2" second="$3" l1 l2
   l1=$(grep -inm1 -- "$first" "$f" | cut -d: -f1)
   l2=$(grep -inm1 -- "$second" "$f" | cut -d: -f1)

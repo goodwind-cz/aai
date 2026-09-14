@@ -24,6 +24,7 @@
 set -euo pipefail
 
 TEST_NAME="ps1-quality"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
@@ -63,7 +64,7 @@ log_info() { echo "INFO: $*"; }
 RUN_PS1="$PROJECT_ROOT/.aai/scripts/aai-run-tests.ps1"
 RUN_SH="$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh"
 log_info "Checking aai-run-tests.ps1's Get-EffectiveTimeout default against the .sh wrapper..."
-sh_default="$(grep -oE 'AAI_TEST_TIMEOUT:-[0-9]+' "$RUN_SH" | head -1 | grep -oE '[0-9]+$')"
+sh_default="$(grep -oE 'AAI_TEST_TIMEOUT:-[0-9]+' "$RUN_SH" | qhead -1 | grep -oE '[0-9]+$')"
 [[ -n "$sh_default" ]] || log_fail "could not find the .sh wrapper's AAI_TEST_TIMEOUT default (aai-run-tests.sh)"
 ps1_default="$(awk '/^function Get-EffectiveTimeout {/,/^}/' "$RUN_PS1" | grep -oE 'return [0-9]+' | tail -1 | grep -oE '[0-9]+')"
 [[ -n "$ps1_default" ]] || log_fail "could not find Get-EffectiveTimeout's fallback return value in $RUN_PS1"

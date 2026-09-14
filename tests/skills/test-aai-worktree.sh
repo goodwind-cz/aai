@@ -10,6 +10,7 @@
 
 set -euo pipefail
 
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -61,7 +62,7 @@ check_deps() {
 
   # Check git version supports worktrees (2.5+)
   local git_version
-  git_version=$(git --version | grep -oE '[0-9]+\.[0-9]+' | head -n1)
+  git_version=$(git --version | grep -oE '[0-9]+\.[0-9]+' | qhead -n1)
   local major minor
   major=$(echo "$git_version" | cut -d. -f1)
   minor=$(echo "$git_version" | cut -d. -f2)
@@ -126,16 +127,16 @@ test_create_worktree() {
   fi
 
   # Verify branch was created
-  if ! git branch | grep -q "$branch_name"; then
+  if ! git branch | qgrep -q "$branch_name"; then
     log_fail "Branch not created: $branch_name"
   fi
 
   # Verify worktree is listed (use realpath to handle symlinks/relative paths)
   local worktree_realpath
   worktree_realpath=$(realpath "$WORKTREE_DIR" 2>/dev/null || readlink -f "$WORKTREE_DIR")
-  if ! git worktree list | grep -qF "$worktree_realpath"; then
+  if ! git worktree list | qgrep -qF "$worktree_realpath"; then
     # Fallback: check if branch is in list
-    if ! git worktree list | grep -q "$branch_name"; then
+    if ! git worktree list | qgrep -q "$branch_name"; then
       log_fail "Worktree not listed"
     fi
   fi
@@ -233,7 +234,7 @@ test_worktree_isolation() {
 
   # Verify commit is in feature branch
   # Capture output first, then grep the variable — grepping a live
-  # `git log --oneline | grep -q ...` pipe under `set -o pipefail` lets grep's
+  # `git log --oneline` piped into `grep -q ...` under `set -o pipefail` lets grep's
   # early exit (on first match) send SIGPIPE to git log, which pipefail then
   # propagates as a false failure. Capturing avoids any producer ever
   # receiving SIGPIPE from this grep.
@@ -318,7 +319,7 @@ test_cleanup_worktree() {
   fi
 
   # Verify worktree is not listed (check by branch name)
-  if git worktree list | grep -q "feature/login"; then
+  if git worktree list | qgrep -q "feature/login"; then
     log_fail "Worktree still listed after removal"
   fi
 

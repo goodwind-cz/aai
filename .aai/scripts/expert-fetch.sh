@@ -91,8 +91,10 @@ if [ "${1:-}" = "--detect" ]; then
         ;;
     esac
   done
-  # Deduplicate and print (max 2)
-  echo "$MATCHES" | tr ' ' '\n' | grep . | sort -u | head -2
+  # Deduplicate and print (max 2). Capture, then here-string into head —
+  # never a live pipe into head under pipefail (round 10, PR #381).
+  _matches_sorted="$(echo "$MATCHES" | tr ' ' '\n' | grep . | sort -u)"
+  head -2 <<<"$_matches_sorted"
   exit $?
 fi
 
@@ -108,7 +110,8 @@ if [ "${1:-}" = "--check" ]; then
   if [ -z "$USE_IN" ]; then
     echo "not-found" && exit 2
   fi
-  if echo "$USE_IN" | grep -q "$PHASE"; then
+  # Here-string, never echo piped into "grep -q" (round 10, PR #381).
+  if grep -q "$PHASE" <<<"$USE_IN"; then
     echo "eligible"
     exit 0
   else
@@ -143,11 +146,16 @@ if [ -z "$EXPERT_KEY" ]; then
   exit 1
 fi
 
-# Parse registry values
-PINNED_SHA=$(grep 'pinned_sha:' "$REGISTRY" | head -1 | sed 's/.*"\(.*\)".*/\1/')
-MAX_BYTES=$(grep 'max_prompt_bytes:' "$REGISTRY" | head -1 | awk '{print $2}')
-REPO_NAME=$(grep 'repo:' "$REGISTRY" | head -1 | awk '{print $2}')
-BASE_PATH=$(grep 'base_path:' "$REGISTRY" | head -1 | awk '{print $2}')
+# Parse registry values. Capture each grep first, then here-string into
+# head — never a live pipe into head under pipefail (round 10, PR #381).
+_pinned_sha_lines="$(grep 'pinned_sha:' "$REGISTRY")"
+PINNED_SHA=$(head -1 <<<"$_pinned_sha_lines" | sed 's/.*"\(.*\)".*/\1/')
+_max_bytes_lines="$(grep 'max_prompt_bytes:' "$REGISTRY")"
+MAX_BYTES=$(head -1 <<<"$_max_bytes_lines" | awk '{print $2}')
+_repo_lines="$(grep 'repo:' "$REGISTRY")"
+REPO_NAME=$(head -1 <<<"$_repo_lines" | awk '{print $2}')
+_base_path_lines="$(grep 'base_path:' "$REGISTRY")"
+BASE_PATH=$(head -1 <<<"$_base_path_lines" | awk '{print $2}')
 
 if [ -z "$PINNED_SHA" ] || [ -z "$REPO_NAME" ]; then
   echo "ERROR: Invalid registry — missing pinned_sha or repo" >&2

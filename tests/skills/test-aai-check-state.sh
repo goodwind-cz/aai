@@ -14,6 +14,7 @@ set -euo pipefail
 
 TEST_NAME="aai-check-state"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -473,7 +474,7 @@ test_repair_creates_missing_state_from_template() {  # TEST-001 / Spec-AC-01 (sp
     || log_fail "first append-run on the created STATE must succeed"
   [[ "$(grep -c '^  work_items:' "$missing")" -eq 1 ]] \
     || log_fail "first append-run must not duplicate the work_items key: $(grep -n 'work_items' "$missing")"
-  grep -v '^\s*#' "$missing" | grep -q '{}' && log_fail "no orphaned {} may remain after the first append-run: $(grep -n '{}' "$missing" | grep -v '#')"
+  grep -v '^\s*#' "$missing" | qgrep -q '{}' && log_fail "no orphaned {} may remain after the first append-run: $(grep -n '{}' "$missing" | grep -v '#')"
   (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$missing" > /dev/null 2>&1) \
     || log_fail "created STATE must still validate after the first append-run"
   log_pass "--repair on a missing target creates the STATE file from the template (stamped, template-parity), dispatch yields no_focus_ref, and the first append-run extends metrics cleanly"
@@ -497,7 +498,7 @@ test_template_header_matches_live_state() {  # TEST-002 / Spec-AC-02 (spec-state
   head -n "$header_lines" "$template" > "$tmpl_header"
   head -n "$header_lines" "$live" > "$live_header"
   diff -q "$tmpl_header" "$live_header" >/dev/null \
-    || log_fail "template header (first $header_lines lines) must byte-equal the live STATE.yaml header: $(diff "$tmpl_header" "$live_header" | head -20)"
+    || log_fail "template header (first $header_lines lines) must byte-equal the live STATE.yaml header: $(diff "$tmpl_header" "$live_header" | qhead -20)"
   log_pass "Template schema header byte-equals the live docs/ai/STATE.yaml header ($header_lines lines)"
 }
 

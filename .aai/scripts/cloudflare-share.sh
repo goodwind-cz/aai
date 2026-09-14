@@ -47,8 +47,10 @@ DEPLOY_OUTPUT=$(wrangler pages deploy "$PUBLISH_DIR" \
   --project-name="$PROJECT_NAME" \
   --branch="$BRANCH_NAME" 2>&1 || true)
 
-# Extract URL
-PUBLISHED_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'https://[^\s]+\.pages\.dev' | head -1)
+# Extract URL. Here-strings throughout, never a live pipe into head: under
+# pipefail an early-closing head can SIGPIPE its producer (round 10, PR #381).
+_url_matches="$(grep -oP 'https://[^\s]+\.pages\.dev' <<<"$DEPLOY_OUTPUT")"
+PUBLISHED_URL=$(head -1 <<<"$_url_matches")
 
 if [[ -z "$PUBLISHED_URL" ]]; then
   echo "Deployment failed or URL not found"

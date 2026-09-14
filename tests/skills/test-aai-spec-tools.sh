@@ -23,6 +23,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-spec-tools"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -233,7 +234,7 @@ test_scope_004_idempotent() {
   # include round-trip: re-adding the untouched path restores it.
   runscope --spec docs/specs/SPEC-0001-fx.md --include requirements.txt --base-ref main >/dev/null 2>&1; rc=$?
   expect_exit 0 "$rc" "TEST-004(scope) include" || ok=0
-  scope_list | grep -q "requirements.txt" \
+  scope_list | qgrep -q "requirements.txt" \
     || { log_info "TEST-004(scope): include did not restore the path: $(scope_list)"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-004(scope) idempotent (byte-identical, no duplicate audit line); include round-trips" \
     || log_fail "TEST-004(scope) idempotence"
@@ -429,7 +430,7 @@ EOF
     const n = (body.match(/^SPEC-FROZEN:[ \t]*\S*[ \t]*$/gm) || []);
     if (n.length !== 1) throw new Error("body markers: " + n.length);
     if (n[0].trim() !== "SPEC-FROZEN: true") throw new Error("marker value: " + n[0]);
-  ' "$spec" 2>&1 | grep -q . \
+  ' "$spec" 2>&1 | qgrep -q . \
     && { log_info "TEST-009(freeze): post-freeze shape wrong: $(node -e 'const fs=require("fs");process.stdout.write(fs.readFileSync(process.argv[1],"utf8").slice(0,400))' "$spec")"; ok=0; }
   # BYTE-CORRECT: exactly two changes vs the original — the status line and the
   # inserted marker (plus its blank line). Nothing else moved.
@@ -499,7 +500,7 @@ test_scope_006_path_normalization() {
   # resolves to the same entry (no duplicate, no './' prefix in the file).
   out="$(runscope --spec docs/specs/SPEC-0001-fx.md --exclude './requirements.txt' --base-ref main 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-010(scope) untouched laundered spelling applies" || ok=0
-  scope_list | grep -q "requirements.txt" \
+  scope_list | qgrep -q "requirements.txt" \
     && { log_info "TEST-010(scope): './requirements.txt' did not match 'requirements.txt': $(scope_list)"; ok=0; }
   grep -q '\./' "$SPEC" \
     && { log_info "TEST-010(scope): a laundered spelling leaked into the spec: $(scope_list)"; ok=0; }

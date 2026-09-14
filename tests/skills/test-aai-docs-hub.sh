@@ -44,6 +44,7 @@ set -euo pipefail
 
 TEST_NAME="aai-docs-hub"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -189,11 +190,11 @@ test_001_all_skills_present_count_pin() {
 
   local s
   for s in aai-alpha aai-beta aai-gamma; do
-    node_get "$dj" "m.skills.some(x=>x.dir===\"$s\")" | grep -qF "true" \
+    node_get "$dj" "m.skills.some(x=>x.dir===\"$s\")" | qgrep -qF "true" \
       || log_fail "skill $s missing from skill-catalog-data.json"
     grep -qF "$s" "$html" || log_fail "skill $s missing from rendered HTML"
   done
-  node_get "$dj" 'm.skills.find(x=>x.dir==="aai-beta").model' | grep -qF "haiku" \
+  node_get "$dj" 'm.skills.find(x=>x.dir==="aai-beta").model' | qgrep -qF "haiku" \
     || log_fail "aai-beta model field must be extracted from frontmatter (haiku)"
 
   log_pass "All 3 fixture skills present; reported count equals the live listing (docs-hub-generator TEST-001)"

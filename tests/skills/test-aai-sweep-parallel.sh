@@ -24,6 +24,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-sweep-parallel"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -122,8 +123,8 @@ build_framework_repo() {
 # anchor cannot be found, rather than silently mutating nothing.
 apply_unbounded_window_mutation() {
   local fw="$1" reset_line if_line
-  reset_line="$(/usr/bin/grep -nF 'window=("${active_files[@]+"${active_files[@]}"}")' "$fw" | head -n1 | cut -d: -f1)"
-  if_line="$(/usr/bin/grep -nF 'if [[ $clen -gt $max ]]; then' "$fw" | head -n1 | cut -d: -f1)"
+  reset_line="$(/usr/bin/grep -nF 'window=("${active_files[@]+"${active_files[@]}"}")' "$fw" | qhead -n1 | cut -d: -f1)"
+  if_line="$(/usr/bin/grep -nF 'if [[ $clen -gt $max ]]; then' "$fw" | qhead -n1 | cut -d: -f1)"
   [[ -n "$reset_line" && -n "$if_line" ]] || {
     log_fail "apply_unbounded_window_mutation: could not locate the reset or truncation anchor in $fw — the mutation was NOT applied"
     return 1
@@ -859,7 +860,7 @@ exit 0"
   # The bound itself: parse "N suite(s) total" out of the concurrency line and
   # check it against 2x the width, rather than trusting a comment to be true.
   local suite_count
-  suite_count="$(printf '%s\n' "$out" | sed -E -n 's/.*wave\(s\) re-run serially \(([0-9]+) suite\(s\) total\).*/\1/p' | head -n1)"
+  suite_count="$(printf '%s\n' "$out" | sed -E -n 's/.*wave\(s\) re-run serially \(([0-9]+) suite\(s\) total\).*/\1/p' | qhead -n1)"
   [[ -n "$suite_count" ]] || { log_info "TEST-413: could not find the re-run suite count in the summary"; ok=0; }
   [[ -n "$suite_count" && "$suite_count" -ge 1 ]] \
     || { log_info "TEST-413: the re-run suite count was $suite_count (want >= 1 — the writer itself must be in it)"; ok=0; }
@@ -913,8 +914,8 @@ exit 0"
   out2="$(captured_run "$d2s" "$width")" || rc2=$?
   out2m="$(captured_run "$d2m" "$width")" || rc2m=$?
 
-  suite_count2="$(printf '%s\n' "$out2" | sed -E -n 's/.*wave\(s\) re-run serially \(([0-9]+) suite\(s\) total\).*/\1/p' | head -n1)"
-  suite_count2m="$(printf '%s\n' "$out2m" | sed -E -n 's/.*wave\(s\) re-run serially \(([0-9]+) suite\(s\) total\).*/\1/p' | head -n1)"
+  suite_count2="$(printf '%s\n' "$out2" | sed -E -n 's/.*wave\(s\) re-run serially \(([0-9]+) suite\(s\) total\).*/\1/p' | qhead -n1)"
+  suite_count2m="$(printf '%s\n' "$out2m" | sed -E -n 's/.*wave\(s\) re-run serially \(([0-9]+) suite\(s\) total\).*/\1/p' | qhead -n1)"
 
   [[ "$rc2" -eq 1 ]] || { log_info "TEST-413 (unbounded-window control, shipped): exited $rc2 (want 1)"; ok=0; }
   [[ -n "$suite_count2" && "$suite_count2" -le "$max" ]] \
@@ -978,7 +979,7 @@ exit 0"
   # still active when its completion tripped the check (q4 had ALREADY
   # cleanly resolved by then and left the window), never the whole corpus.
   local suite_count
-  suite_count="$(printf '%s\n' "$out" | sed -E -n 's/.*wave\(s\) re-run serially \(([0-9]+) suite\(s\) total\).*/\1/p' | head -n1)"
+  suite_count="$(printf '%s\n' "$out" | sed -E -n 's/.*wave\(s\) re-run serially \(([0-9]+) suite\(s\) total\).*/\1/p' | qhead -n1)"
   [[ -n "$suite_count" ]] || { log_info "TEST-414: could not find the re-run suite count in the summary"; ok=0; }
   [[ -n "$suite_count" && "$suite_count" -ge 1 && "$suite_count" -le "$max" ]] \
     || { log_info "TEST-414: the re-run suite count was $suite_count (want between 1 and $max = 2x width $width)"; ok=0; }
@@ -1026,7 +1027,7 @@ test_416_heartbeat_pulses_while_the_sweep_runs() {
   local seen_ns="" msg n before_end_updated
   while kill -0 "$bg_pid" 2>/dev/null; do
     if [[ -f "$slot" ]]; then
-      msg="$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$slot" 2>/dev/null | head -n1)"
+      msg="$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$slot" 2>/dev/null | qhead -n1)"
       n="${msg%%/*}"
       if [[ "$n" =~ ^[0-9]+$ ]]; then
         case " $seen_ns " in *" $n "*) ;; *) seen_ns="$seen_ns $n" ;; esac
@@ -1040,7 +1041,7 @@ test_416_heartbeat_pulses_while_the_sweep_runs() {
   # write can land in the gap between this loop's final `kill -0` and the
   # process actually exiting.
   if [[ -f "$slot" ]]; then
-    msg="$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$slot" 2>/dev/null | head -n1)"
+    msg="$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$slot" 2>/dev/null | qhead -n1)"
     n="${msg%%/*}"
     if [[ "$n" =~ ^[0-9]+$ ]]; then
       case " $seen_ns " in *" $n "*) ;; *) seen_ns="$seen_ns $n" ;; esac
@@ -1062,10 +1063,10 @@ test_416_heartbeat_pulses_while_the_sweep_runs() {
   if [[ -f "$slot" ]]; then
     assert_payload_contains "$(cat "$slot")" "\"message\": \"4/4 suites finished\"" \
       "TEST-416: the settled slot must read the discovered total (4) as its finished count" || ok=0
-    before_end_updated="$(sed -n 's/.*"updated_at": *"\([^"]*\)".*/\1/p' "$slot" | head -n1)"
+    before_end_updated="$(sed -n 's/.*"updated_at": *"\([^"]*\)".*/\1/p' "$slot" | qhead -n1)"
     sleep 1
     local after_end_updated
-    after_end_updated="$(sed -n 's/.*"updated_at": *"\([^"]*\)".*/\1/p' "$slot" | head -n1)"
+    after_end_updated="$(sed -n 's/.*"updated_at": *"\([^"]*\)".*/\1/p' "$slot" | qhead -n1)"
     [[ "$before_end_updated" == "$after_end_updated" ]] \
       || { log_info "TEST-416: the slot's updated_at moved after the run ended ($before_end_updated -> $after_end_updated) — it must stop being refreshed"; ok=0; }
   fi

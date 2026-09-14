@@ -28,6 +28,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-branch-guard"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -322,8 +323,8 @@ test_007() {
   # Ordering: the BRANCH HYGIENE line must appear BEFORE the '5. PUSH + PR' step
   # so it gates staging and push alike.
   local hy_line push_line
-  hy_line="$(grep -nF "BRANCH HYGIENE" "$SKILL_PR_DOC" | head -1 | cut -d: -f1)"
-  push_line="$(grep -nE "PUSH \+ PR|Push the branch" "$SKILL_PR_DOC" | head -1 | cut -d: -f1)"
+  hy_line="$(grep -nF "BRANCH HYGIENE" "$SKILL_PR_DOC" | qhead -1 | cut -d: -f1)"
+  push_line="$(grep -nE "PUSH \+ PR|Push the branch" "$SKILL_PR_DOC" | qhead -1 | cut -d: -f1)"
   [[ -n "$hy_line" && -n "$push_line" ]] \
     || log_fail "could not locate both the BRANCH HYGIENE line ($hy_line) and the PUSH line ($push_line)"
   [[ "$hy_line" -lt "$push_line" ]] \
@@ -448,7 +449,7 @@ test_013() {
   # Precondition: git really refuses this fixture, and says something. Take
   # git's FIRST line as the thing that must survive to the operator.
   local git_said
-  git_said="$( cd "$repo" && git rev-parse --is-inside-work-tree 2>&1 >/dev/null | head -1 )"
+  git_said="$( cd "$repo" && git rev-parse --is-inside-work-tree 2>&1 >/dev/null | qhead -1 )"
   [[ -n "$git_said" ]] \
     || log_fail "fixture is not exercising a git refusal (git printed nothing)"
   [[ "$git_said" == fatal:* ]] \
@@ -917,7 +918,7 @@ test_453() {
   # can satisfy it.
   grep -qF -- 'check-committed-scope.mjs --from-state --strict --rev HEAD --expect-branch' "$pr_doc" \
     || log_fail "SKILL_PR.prompt.md step 4a must pass --expect-branch to check-committed-scope.mjs (on the command line itself, not adjacent prose)"
-  grep -A1 -- 'close-work-item.mjs --ref <slug> --pr' "$pr_doc" | grep -q -- '--expect-branch' \
+  grep -A1 -- 'close-work-item.mjs --ref <slug> --pr' "$pr_doc" | qgrep -q -- '--expect-branch' \
     || log_fail "SKILL_PR.prompt.md step 4c must pass --expect-branch to close-work-item.mjs"
   grep -- 'close-before-push-guard.mjs --ref <slug> --expect-branch' "$pr_doc" >/dev/null \
     || log_fail "SKILL_PR.prompt.md step 5 must pass --expect-branch to close-before-push-guard.mjs"
@@ -1150,7 +1151,7 @@ test_459() {
   # line is the exact regression this round fixed (prose ABOUT the old flag,
   # e.g. "replaces the earlier `--pid \"\$\$\"`", is fine and expected; only
   # an actual `session-lock.mjs ... --pid "$$"` invocation line is checked).
-  if grep -nF -- 'session-lock.mjs' "$wt_doc" "$pr_doc" | grep -qF -- '--pid "$$"'; then
+  if grep -nF -- 'session-lock.mjs' "$wt_doc" "$pr_doc" | qgrep -qF -- '--pid "$$"'; then
     log_fail "a session-lock.mjs command line still keys the lock on the acquiring one-shot shell's own \$\$ (SKILL_WORKTREE.prompt.md / SKILL_PR.prompt.md)"
   fi
 

@@ -65,6 +65,7 @@
 set -euo pipefail
 
 TEST_NAME="aai-update"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -170,7 +171,7 @@ test_004_dry_run_happy_path() {
 
   # negative control: dry-run must never create an aai-src.* temp dir
   local stray
-  stray="$(find "$fixture_tmpdir" -maxdepth 1 -name 'aai-src.*' 2>/dev/null | head -1 || true)"
+  stray="$(find "$fixture_tmpdir" -maxdepth 1 -name 'aai-src.*' 2>/dev/null | qhead -1 || true)"
   [[ -z "$stray" ]] \
     || log_fail "TEST-004: dry-run must not create any \$TMP (found stray: $stray)"
 
@@ -236,7 +237,7 @@ test_005_integration_file_fixture_clone() {
     || log_fail "TEST-005a: expected exit 0, got $code (stderr: $(cat "$err"))"
 
   local found_tmp
-  found_tmp="$(find "$fixture_tmpdir" -maxdepth 1 -name 'aai-src.*' -type d 2>/dev/null | head -1 || true)"
+  found_tmp="$(find "$fixture_tmpdir" -maxdepth 1 -name 'aai-src.*' -type d 2>/dev/null | qhead -1 || true)"
   [[ -n "$found_tmp" && -d "$found_tmp" ]] \
     || log_fail "TEST-005a: expected a retained aai-src.* \$TMP dir under $fixture_tmpdir, found none"
   [[ -d "$found_tmp/src/.git" ]] \
@@ -273,7 +274,7 @@ test_005_integration_file_fixture_clone() {
   [[ "$code" == "3" ]] \
     || log_fail "TEST-005b: expected exit 3 (fetch failure) for an invalid source, got $code (stderr: $(cat "$err"))"
 
-  found_tmp="$(find "$fixture_tmpdir" -maxdepth 1 -name 'aai-src.*' -type d 2>/dev/null | head -1 || true)"
+  found_tmp="$(find "$fixture_tmpdir" -maxdepth 1 -name 'aai-src.*' -type d 2>/dev/null | qhead -1 || true)"
   [[ -n "$found_tmp" && -d "$found_tmp" ]] \
     || log_fail "TEST-005b: retained \$TMP parent should still exist (--keep-temp) after a failed run"
   [[ ! -e "$found_tmp/src" || -z "$(find "$found_tmp/src" -mindepth 1 2>/dev/null)" ]] \
@@ -444,9 +445,9 @@ test_006_0137_update_writes_field_report() {
   n=$(grep -c '^DOCTOR CLEAN - full report: docs/ai/reports/doctor-' "$out" || true)
   [[ "$n" == "1" ]] \
     || log_fail "0137-TEST-001: expected exactly 1 DOCTOR CLEAN line naming the report path, got $n (out: $(cat "$out"))"
-  report="$(find "$target/docs/ai/reports" -maxdepth 1 -name 'doctor-*.md' | head -1 || true)"
+  report="$(find "$target/docs/ai/reports" -maxdepth 1 -name 'doctor-*.md' | qhead -1 || true)"
   [[ -n "$report" ]] || log_fail "0137-TEST-001: no report file written under docs/ai/reports"
-  basename "$report" | grep -qE '^doctor-[0-9]{8}T[0-9]{6}Z-[a-z0-9-]+\.md$' \
+  basename "$report" | qgrep -qE '^doctor-[0-9]{8}T[0-9]{6}Z-[a-z0-9-]+\.md$' \
     || log_fail "0137-TEST-001: report name '$(basename "$report")' does not match doctor-UTCSTAMP-tag.md"
   # SEAM-4: the vendored .gitignore keeps the report out of git status.
   local porcelain="$work/porcelain.txt"
@@ -671,9 +672,9 @@ test_010_0137_timeout_and_zero_network() {
   # node built-ins.
   local netre="Invoke-WebRequest|Invoke-RestMethod|curl |wget |git fetch|git ls-remote|git clone|fetch\(|node:https?\b|from ['\"]https?['\"]"
   if grep -qE "$netre" "$HELPER_MJS"; then
-    log_fail "0137-TEST-005: helper references a network primitive: $(grep -nE "$netre" "$HELPER_MJS" | head -3)"
+    log_fail "0137-TEST-005: helper references a network primitive: $(grep -nE "$netre" "$HELPER_MJS" | qhead -3)"
   fi
-  if grep -E "^import .* from" "$HELPER_MJS" | grep -vq "from 'node:"; then
+  if grep -E "^import .* from" "$HELPER_MJS" | qgrep -vq "from 'node:"; then
     log_fail "0137-TEST-005: helper imports a non-builtin module: $(grep -E '^import ' "$HELPER_MJS")"
   fi
   local sh_post ps1_post
@@ -683,7 +684,7 @@ test_010_0137_timeout_and_zero_network() {
   [[ -s "$sh_post" ]] || log_fail "0137-TEST-005: sh postamble section not found in aai-update.sh"
   [[ -s "$ps1_post" ]] || log_fail "0137-TEST-005: ps1 postamble section not found in aai-update.ps1"
   if grep -qE "$netre" "$sh_post" "$ps1_post"; then
-    log_fail "0137-TEST-005: a postamble references a network primitive: $(grep -nE "$netre" "$sh_post" "$ps1_post" | head -3)"
+    log_fail "0137-TEST-005: a postamble references a network primitive: $(grep -nE "$netre" "$sh_post" "$ps1_post" | qhead -3)"
   fi
 
   rm -rf "$work"
@@ -721,12 +722,12 @@ test_011_0137_skip_passthrough_verbatim() {
 
   run_helper "$work" "$out" "$err" --root "$root" --doctor "$stub"
   [[ "$HELPER_RC" == "0" ]] || log_fail "0137-TEST-006: expected exit 0, got $HELPER_RC ($(cat "$err"))"
-  report="$(find "$root/docs/ai/reports" -maxdepth 1 -name 'doctor-*.md' | head -1 || true)"
+  report="$(find "$root/docs/ai/reports" -maxdepth 1 -name 'doctor-*.md' | qhead -1 || true)"
   [[ -n "$report" ]] || log_fail "0137-TEST-006: no report written"
   extracted="$work/extracted.json"
   awk '/^```json$/{f=1;next} /^```$/{f=0} f' "$report" > "$extracted"
   cmp -s "$doc" "$extracted" \
-    || log_fail "0137-TEST-006: fenced JSON block is not byte-identical to the doctor stdout (diff: $(diff "$doc" "$extracted" | head -5))"
+    || log_fail "0137-TEST-006: fenced JSON block is not byte-identical to the doctor stdout (diff: $(diff "$doc" "$extracted" | qhead -5))"
   grep -qF '"status": "SKIP"' "$extracted" || log_fail "0137-TEST-006: SKIP categories missing from the embedded JSON"
 
   rm -rf "$work"
@@ -758,7 +759,7 @@ test_012_0137_provenance_matrix() {
 PIN
   run_helper "$work" "$out" "$err" --root "$root" --doctor "$stub"
   [[ "$HELPER_RC" == "0" ]] || log_fail "0137-TEST-007: pin arm expected exit 0, got $HELPER_RC"
-  report="$(find "$root/docs/ai/reports" -maxdepth 1 -name 'doctor-*.md' | head -1 || true)"
+  report="$(find "$root/docs/ai/reports" -maxdepth 1 -name 'doctor-*.md' | qhead -1 || true)"
   [[ -n "$report" ]] || log_fail "0137-TEST-007: pin arm wrote no report"
   grep -qF -- '- AAI version: v9.9.9-test' "$report" \
     || log_fail "0137-TEST-007: pin arm must carry the pin's Template version (got: $(grep -F 'AAI version' "$report" || true))"
@@ -769,7 +770,7 @@ PIN
   root="$work/root-fallback"; make_helper_root "$root"
   printf '# AAI Version\n\n- Version: v8.8.8-fallback\n' > "$root/docs/ai/AAI_VERSION.md"
   run_helper "$work" "$out" "$err" --root "$root" --doctor "$stub"
-  report="$(find "$root/docs/ai/reports" -maxdepth 1 -name 'doctor-*.md' | head -1 || true)"
+  report="$(find "$root/docs/ai/reports" -maxdepth 1 -name 'doctor-*.md' | qhead -1 || true)"
   [[ -n "$report" ]] || log_fail "0137-TEST-007: fallback arm wrote no report"
   grep -qF -- '- AAI version: v8.8.8-fallback' "$report" \
     || log_fail "0137-TEST-007: fallback arm must carry AAI_VERSION.md's Version value"
@@ -779,7 +780,7 @@ PIN
   # Arm 3: neither — the literal UNKNOWN, never invented.
   root="$work/root-unknown"; make_helper_root "$root"
   run_helper "$work" "$out" "$err" --root "$root" --doctor "$stub"
-  report="$(find "$root/docs/ai/reports" -maxdepth 1 -name 'doctor-*.md' | head -1 || true)"
+  report="$(find "$root/docs/ai/reports" -maxdepth 1 -name 'doctor-*.md' | qhead -1 || true)"
   [[ -n "$report" ]] || log_fail "0137-TEST-007: unknown arm wrote no report"
   grep -qF -- '- AAI version: UNKNOWN' "$report" \
     || log_fail "0137-TEST-007: unknown arm must say the literal UNKNOWN"
@@ -930,7 +931,7 @@ test_016_0137_governance_set() {
 
   # suite-map: the aai-update row names the helper (selection stays truthful).
   awk '/^  aai-update:$/{f=1;next} /^  [a-z]/{f=0} f' "$PROJECT_ROOT/tests/skills/suite-map.yaml" \
-    | grep -qF '.aai/scripts/update-doctor-report.mjs' \
+    | qgrep -qF '.aai/scripts/update-doctor-report.mjs' \
     || log_fail "0137-TEST-011: suite-map.yaml aai-update row does not name update-doctor-report.mjs"
 
   # PROFILES: the helper classified exactly once, under core.
@@ -972,7 +973,7 @@ test_017_0137_real_engine_crossing() {
 
   run_helper "$work" "$out" "$err" --root "$root" --doctor "$DOCTOR_MJS"
   [[ "$HELPER_RC" == "0" ]] || log_fail "0137-TEST-012: expected helper exit 0, got $HELPER_RC ($(cat "$err"))"
-  report="$(find "$root/docs/ai/reports" -maxdepth 1 -name 'doctor-*.md' | head -1 || true)"
+  report="$(find "$root/docs/ai/reports" -maxdepth 1 -name 'doctor-*.md' | qhead -1 || true)"
   [[ -n "$report" ]] || log_fail "0137-TEST-012: no report written from the real engine"
   extracted="$work/extracted.json"
   awk '/^```json$/{f=1;next} /^```$/{f=0} f' "$report" > "$extracted"

@@ -20,6 +20,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-spec-lint"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -417,9 +418,9 @@ test_010_advisory_wiring() {
       log_info "TEST-010: $f carries $n spec-lint lines (max 2)"; ok=0
     fi
     grep -q "spec-lint" "$PROJECT_ROOT/$f" && \
-      grep -A1 -B1 "spec-lint" "$PROJECT_ROOT/$f" | grep -qi "absent" \
+      grep -A1 -B1 "spec-lint" "$PROJECT_ROOT/$f" | qgrep -qi "absent" \
       || { log_info "TEST-010: $f advisory lacks a degrade clause"; ok=0; }
-    grep -A1 -B1 "spec-lint" "$PROJECT_ROOT/$f" | grep -qi "advisor" \
+    grep -A1 -B1 "spec-lint" "$PROJECT_ROOT/$f" | qgrep -qi "advisor" \
       || { log_info "TEST-010: $f advisory not marked advisory/report-only"; ok=0; }
   done
   # no step renumbering: PLANNING steps 11/12 and VALIDATION step 2 intact
@@ -1539,7 +1540,7 @@ EOF
   # Control derived from the REAL SPEC-0112 (four `fast` AC/Test-Plan rows),
   # status flipped to implementing so the in-flight rules actually run.
   local real
-  real="$(ls "$PROJECT_ROOT"/docs/specs/SPEC-0112-*.md 2>/dev/null | head -1)"
+  real="$(ls "$PROJECT_ROOT"/docs/specs/SPEC-0112-*.md 2>/dev/null | qhead -1)"
   if [[ -n "$real" && -f "$real" ]]; then
     new_fixture_root
     sed 's/^status: done$/status: implementing/' "$real" > "$FIX/docs/specs/SPEC-0112-control.md"

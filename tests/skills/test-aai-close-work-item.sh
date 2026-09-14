@@ -81,6 +81,7 @@ set -euo pipefail
 
 TEST_NAME="aai-close-work-item"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -966,7 +967,7 @@ test_002_implementing_close() {
   ( cd "$dir" && node "$DOCS_AUDIT" --list --no-event ) > "$audit_out" 2>&1 || true
   grep -qF "| t002-slug | tracked-done |" "$audit_out" \
     || log_fail "t002: real audit does not classify t002-slug tracked-done: $(cat "$audit_out")"
-  if grep -F "t002-slug" "$audit_out" | grep -q "probable-false-open"; then
+  if grep -F "t002-slug" "$audit_out" | qgrep -q "probable-false-open"; then
     log_fail "t002: real audit flags probable-false-open (the exact SPEC-0046 incident class)"
   fi
 
@@ -1033,7 +1034,7 @@ test_004_ref_form_and_audit_clean() {
   ( cd "$dir" && node "$DOCS_AUDIT" --list --no-event ) > "$audit_out" 2>&1 || true
   grep -qF "| t004-slug | tracked-done | done | aligned |" "$audit_out" \
     || log_fail "t004: real audit does not classify t004-slug tracked-done/aligned: $(cat "$audit_out")"
-  if grep -F "t004-slug" "$audit_out" | grep -qE "probable-false-done|probable-false-open|missing-close-telemetry"; then
+  if grep -F "t004-slug" "$audit_out" | qgrep -qE "probable-false-done|probable-false-open|missing-close-telemetry"; then
     log_fail "t004: real audit flags false-done/false-open/missing-close-telemetry for t004-slug"
   fi
 

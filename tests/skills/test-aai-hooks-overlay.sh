@@ -22,6 +22,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-hooks-overlay"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -337,7 +338,7 @@ test_009_stop_nudge() {
   out=$(printf '{}' | (cd "$d" && CLAUDE_PROJECT_DIR="$d" bash "$PROJECT_ROOT/$ADAPTER" stop-nudge 2>/dev/null)); rc=$?
   [[ "$rc" -eq 0 && -z "$out" ]] || { log_info "TEST-009: done-only case rc=$rc out='$out' (want 0, silent)"; ok=0; }
   # The adapter's stop-nudge branch must have no exit-2 path at all.
-  if awk '/^  stop-nudge\)/,/^  ;;/' "$PROJECT_ROOT/$ADAPTER" | grep -q "exit 2"; then
+  if awk '/^  stop-nudge\)/,/^  ;;/' "$PROJECT_ROOT/$ADAPTER" | qgrep -q "exit 2"; then
     log_info "TEST-009: stop-nudge branch contains an exit 2 path"
     ok=0
   fi
@@ -353,7 +354,7 @@ test_010_bootstrap_wiring() {
   grep -qF ".aai/templates/hooks/settings-hooks.json" "$BOOTSTRAP" \
     || { log_info "TEST-010: bootstrap does not reference the hooks template path"; ok=0; }
   # The flag must be documented in the header usage() prints.
-  sed -n '1,25p' "$BOOTSTRAP" | grep -q -- '--with-claude-hooks' \
+  sed -n '1,25p' "$BOOTSTRAP" | qgrep -q -- '--with-claude-hooks' \
     || { log_info "TEST-010: --with-claude-hooks missing from the usage header"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-010 bootstrap --with-claude-hooks wired and documented" \
                   || log_fail "TEST-010 bootstrap wiring"

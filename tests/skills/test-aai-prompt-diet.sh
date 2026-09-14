@@ -18,6 +18,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-prompt-diet"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -265,7 +266,7 @@ test_007_pointer_form() {
 test_008_loop_caching_and_payload() {
   local ok=1 f=.aai/SKILL_LOOP.prompt.md
   # (a) the stable-prefix sentence must not place STATE.yaml in the prefix
-  if grep -i "stable prefix" "$f" | grep -q "STATE.yaml"; then
+  if grep -i "stable prefix" "$f" | qgrep -q "STATE.yaml"; then
     log_info "TEST-008: a 'stable prefix' line still names STATE.yaml"
     ok=0
   fi
@@ -274,7 +275,7 @@ test_008_loop_caching_and_payload() {
     ok=0
   fi
   # (b) a volatile-last sentence must place STATE.yaml last
-  if ! grep -i "volatile" "$f" | grep -q "STATE.yaml"; then
+  if ! grep -i "volatile" "$f" | qgrep -q "STATE.yaml"; then
     log_info "TEST-008: no volatile-last sentence naming STATE.yaml"
     ok=0
   fi
@@ -1418,7 +1419,7 @@ test_023_ac_flip_growth_credited() {
   lead="${entry%% *}"
   # The entry states its own measurement as "<before> -> <after>"; a credit
   # whose arithmetic is only in the prose is a credit nobody can re-check.
-  after="$(printf '%s' "$entry" | sed -n "s/.*${AC_FLIP_ROLE_COMMON_BEFORE} -> \([0-9][0-9]*\).*/\1/p" | head -1)"
+  after="$(printf '%s' "$entry" | sed -n "s/.*${AC_FLIP_ROLE_COMMON_BEFORE} -> \([0-9][0-9]*\).*/\1/p" | qhead -1)"
   if [[ -z "$after" ]]; then
     log_info "TEST-023: the ledger entry does not record its measurement as '$AC_FLIP_ROLE_COMMON_BEFORE -> <after>'"
     ok=0
