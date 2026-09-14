@@ -515,6 +515,79 @@ test_007_scope_ref_id_gate() {
   log_pass "check-committed-scope uses a preserved scope only when scope_ref_id agrees, degrades naming both refs otherwise, unchanged when absent, and a fresh set-code-review scope refreshes the stamp (TEST-007)"
 }
 
+# --- TEST-008 (Spec-AC-17 / dispatch-state-sweep D15): append vs divergence ---
+test_008_ledger_append_vs_divergence() {
+  log_info "Test: an append-only ledger growing at its own end reports an append and does not fail; a rewritten middle line reports a divergence and fails; a non-ledger path is unchanged in both shapes; an empty committed blob is an append (TEST-008)..."
+  local d="$TEST_DIR/ledger"; mkrepo "$d"
+  mkdir -p "$d/docs/ai/tests"
+
+  # (a) EVENTS.jsonl grows at its own end -> append, exit 0, not a failure.
+  printf '{"n":1}\n{"n":2}\n' > "$d/docs/ai/EVENTS.jsonl"
+  git -C "$d" add -A >/dev/null && git -C "$d" commit -qm base
+  printf '{"n":3}\n{"n":4}\n{"n":5}\n' >> "$d/docs/ai/EVENTS.jsonl"
+  local rc=0
+  ( cd "$d" && node "$CHECK" docs/ai/EVENTS.jsonl --json > "$TEST_DIR/append.out" 2>&1 ) || rc=$?
+  [ "$rc" = "0" ] || log_fail "TEST-008: (a) an append-only ledger growing at its own end must exit 0, got $rc: $(cat "$TEST_DIR/append.out")"
+  grep -q '"status": "clean"' "$TEST_DIR/append.out" \
+    || log_fail "TEST-008: (a) status must still be clean (an append is not a failure): $(cat "$TEST_DIR/append.out")"
+  node -e '
+    const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (o.appends.length !== 1) { console.error("expected exactly one append entry, got " + JSON.stringify(o.appends)); process.exit(1); }
+    if (o.appends[0].path !== "docs/ai/EVENTS.jsonl") { console.error("wrong path: " + JSON.stringify(o.appends[0])); process.exit(1); }
+    if (o.appends[0].added_lines !== 3) { console.error("expected added_lines 3, got " + JSON.stringify(o.appends[0])); process.exit(1); }
+    if (o.mismatches.length !== 0) { console.error("an append must never land in mismatches: " + JSON.stringify(o.mismatches)); process.exit(1); }
+  ' "$TEST_DIR/append.out" || log_fail "TEST-008: (a) the append entry must name the path and the exact added line count (3)"
+  ( cd "$d" && node "$CHECK" docs/ai/EVENTS.jsonl > "$TEST_DIR/append-plain.out" 2>&1 )
+  grep -qi 'append' "$TEST_DIR/append-plain.out" \
+    || log_fail "TEST-008: (a) plain-text output must name the append: $(cat "$TEST_DIR/append-plain.out")"
+
+  # (b) SAME committed base, but the worktree REWRITES an earlier line instead
+  # of only growing at the end -> divergence, exit 1, a real failure.
+  printf '{"n":1}\n{"n":2, "rewritten": true}\n{"n":3}\n' > "$d/docs/ai/EVENTS.jsonl"
+  rc=0
+  ( cd "$d" && node "$CHECK" docs/ai/EVENTS.jsonl --json > "$TEST_DIR/diverge.out" 2>&1 ) || rc=$?
+  [ "$rc" = "1" ] || log_fail "TEST-008: (b) a rewritten middle line must exit 1, got $rc: $(cat "$TEST_DIR/diverge.out")"
+  node -e '
+    const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (o.appends.length !== 0) { console.error("a divergence must never be reported as an append: " + JSON.stringify(o.appends)); process.exit(1); }
+    if (o.mismatches.indexOf("docs/ai/EVENTS.jsonl") === -1) { console.error("the divergence must land in mismatches: " + JSON.stringify(o.mismatches)); process.exit(1); }
+  ' "$TEST_DIR/diverge.out" || log_fail "TEST-008: (b) a rewritten middle line must report as a divergence, not an append"
+  ( cd "$d" && node "$CHECK" docs/ai/EVENTS.jsonl > "$TEST_DIR/diverge-plain.out" 2>&1 ) || true
+  grep -qi 'divergence' "$TEST_DIR/diverge-plain.out" \
+    || log_fail "TEST-008: (b) plain-text output must name the divergence: $(cat "$TEST_DIR/diverge-plain.out")"
+  git -C "$d" checkout -q -- docs/ai/EVENTS.jsonl
+
+  # (c) a NON-ledger path growing at its own end behaves EXACTLY as today —
+  # a plain mismatch, never an append. Ledger treatment is a closed list, not
+  # a general append heuristic.
+  printf 'one\n' > "$d/notes.txt"
+  git -C "$d" add notes.txt >/dev/null && git -C "$d" commit -qm "add notes"
+  printf 'one\ntwo\n' > "$d/notes.txt"
+  rc=0
+  ( cd "$d" && node "$CHECK" notes.txt --json > "$TEST_DIR/nonledger.out" 2>&1 ) || rc=$?
+  [ "$rc" = "1" ] || log_fail "TEST-008: (c) a non-ledger path growing at its own end must still fail exactly as today, got $rc: $(cat "$TEST_DIR/nonledger.out")"
+  node -e '
+    const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (o.appends.length !== 0) { console.error("a non-ledger path must never be reported as an append: " + JSON.stringify(o.appends)); process.exit(1); }
+    if (o.mismatches.indexOf("notes.txt") === -1) { console.error("the non-ledger growth must land in mismatches: " + JSON.stringify(o.mismatches)); process.exit(1); }
+  ' "$TEST_DIR/nonledger.out" || log_fail "TEST-008: (c) a non-ledger path is unaffected by D15 — it fails exactly as today"
+  git -C "$d" checkout -q -- notes.txt
+
+  # (d) an EMPTY committed blob -> every worktree byte is an append.
+  : > "$d/docs/ai/decisions.jsonl"
+  git -C "$d" add docs/ai/decisions.jsonl >/dev/null && git -C "$d" commit -qm "empty ledger"
+  printf '{"n":1}\n' > "$d/docs/ai/decisions.jsonl"
+  rc=0
+  ( cd "$d" && node "$CHECK" docs/ai/decisions.jsonl --json > "$TEST_DIR/empty.out" 2>&1 ) || rc=$?
+  [ "$rc" = "0" ] || log_fail "TEST-008: (d) an empty committed blob must treat the whole worktree as an append, got $rc: $(cat "$TEST_DIR/empty.out")"
+  node -e '
+    const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (o.appends.length !== 1 || o.appends[0].added_lines !== 1) { console.error("expected one append of 1 line: " + JSON.stringify(o.appends)); process.exit(1); }
+  ' "$TEST_DIR/empty.out" || log_fail "TEST-008: (d) an empty committed blob's whole worktree content must be the append"
+
+  log_pass "a ledger growing at its own end reports an append (never a failure); a rewritten middle line reports a divergence (a real failure); a non-ledger path is unchanged; an empty committed blob is an append (TEST-008)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$CHECK" ] || log_fail "engine missing: $CHECK"
@@ -526,6 +599,7 @@ main() {
   test_005_skill_pr_wiring
   test_006_learned_triaged
   test_007_scope_ref_id_gate
+  test_008_ledger_append_vs_divergence
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

@@ -834,9 +834,9 @@ test_018_sweep_failure_degrades() {
 # The GC beside this read may delete anything carrying the slot prefix; a read
 # that silently ignored a prefixed non-json entry left one seam able to remove
 # what the other could not see (fu-heartbeat-read-narrower-than-gc).
-plant_slot() { # $1 = dir  $2 = name  $3 = pid  $4 = ref
+plant_slot() { # $1 = dir  $2 = name  $3 = writer_pid  $4 = ref
   mkdir -p "$1"
-  printf '{"v":1,"ref_id":"%s","role":"implementation","message":"m","updated_at":"%s","pid":%s,"worktree":"/tmp/x"}\n' \
+  printf '{"v":1,"ref_id":"%s","role":"implementation","message":"m","updated_at":"%s","writer_pid":%s,"worktree":"/tmp/x"}\n' \
     "$4" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$3" > "$1/$2"
 }
 
@@ -922,6 +922,244 @@ test_022_prefixed_non_json_named() {
   fi
 }
 
+# --- TEST-025 / Spec-AC-08 (D8) ------------------------------------------------
+# The incident this closes: a monitoring probe that failed closed to a NUMBER
+# indistinguishable from a measurement (`find -newermt`, rejected by BSD find,
+# stderr silenced, zero writes reported as a result). `read --max-age-seconds N`
+# gives the orchestrator three, and only three, distinguishable answers.
+test_025_liveness_exit_codes() {
+  local dir="$TEST_DIR/liveness/heartbeat"; rm -rf "$TEST_DIR/liveness"; mkdir -p "$dir"
+
+  # (a) a slot written seconds ago is fresher than a generous window -> exit 0.
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" write --ref live --role Validation --message "fresh"
+  if [[ "$RC" -ne 0 ]]; then
+    log_fail "TEST-025: setup write exited $RC"
+    return
+  fi
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" read --max-age-seconds 300
+  local rc_fresh="$RC" err_fresh="$ERR"
+  if [[ "$rc_fresh" -ne 0 ]]; then
+    log_fail "TEST-025: (a) a fresh slot under a 300s window must exit 0, got $rc_fresh (stderr: $(payload_preview "$ERR"))"
+    return
+  fi
+
+  # (b) the SAME slot back-dated past the window -> exit 4.
+  local slot="$dir/hb-live__Validation.json"
+  node -e '
+    const fs = require("fs");
+    const p = process.argv[1];
+    const o = JSON.parse(fs.readFileSync(p, "utf8"));
+    o.updated_at = new Date(Date.now() - 400 * 1000).toISOString();
+    fs.writeFileSync(p, JSON.stringify(o, null, 2) + "\n");
+  ' "$slot"
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" read --max-age-seconds 300
+  local rc_stale="$RC" err_stale="$ERR"
+  if [[ "$rc_stale" -ne 4 ]]; then
+    log_fail "TEST-025: (b) a slot back-dated past the window must exit 4, got $rc_stale (stderr: $(payload_preview "$ERR"))"
+    return
+  fi
+
+  # (c) an unreadable directory -> exit 3, the probe itself degraded.
+  local rc_degraded="" err_degraded=""
+  if [[ "$(id -u)" == "0" ]]; then
+    log_info "TEST-025: running as root, an unreadable directory is still readable — (c) skipped"
+  else
+    chmod 000 "$dir"
+    AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" read --max-age-seconds 300
+    rc_degraded="$RC"; err_degraded="$ERR"
+    chmod 755 "$dir"
+    if [[ "$rc_degraded" -ne 3 ]]; then
+      log_fail "TEST-025: (c) an unreadable directory must exit 3, got $rc_degraded (stderr: $(payload_preview "$ERR"))"
+      return
+    fi
+  fi
+
+  # The three stderr texts must be DISTINCT from one another.
+  if [[ "$err_fresh" == "$err_stale" || "$err_fresh" == "$err_degraded" || ( -n "$err_degraded" && "$err_stale" == "$err_degraded" ) ]]; then
+    log_fail "TEST-025: the three liveness stderr texts must be distinct (fresh: $(payload_preview "$err_fresh") | stale: $(payload_preview "$err_stale") | degraded: $(payload_preview "$err_degraded"))"
+    return
+  fi
+
+  # No GNU-only find idiom anywhere under .aai — the whole point of D8.
+  if /usr/bin/grep -rq -- '-newermt' "$PROJECT_ROOT/.aai"; then
+    log_fail "TEST-025: -newermt must not occur anywhere under .aai (the GNU-only idiom this scope removes)"
+    return
+  fi
+
+  log_pass "TEST-025 read --max-age-seconds distinguishes fresh (0), stale/none (4) and probe-degraded (3) with three distinct stderr texts; no -newermt survives under .aai"
+}
+
+# --- TEST-026 / Spec-AC-13 (D13) -----------------------------------------------
+# sanitizeComponent is not injective: '/' and ':' both become '-', so two
+# different raw refs can collapse onto one slot. The second write must still
+# win (a live role always has somewhere to report), but the collision must
+# stop being invisible.
+test_026_slot_collision_named() {
+  local dir="$TEST_DIR/collision/heartbeat"; rm -rf "$TEST_DIR/collision"; mkdir -p "$dir"
+
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" write --ref "feature/alpha" --role Validation --message "first"
+  if [[ "$RC" -ne 0 ]]; then
+    log_fail "TEST-026: setup write (a) exited $RC"
+    return
+  fi
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" write --ref "feature:alpha" --role Validation --message "second"
+  if [[ "$RC" -ne 0 ]]; then
+    log_fail "TEST-026: the second (colliding) write must still succeed, got $RC"
+    return
+  fi
+  assert_payload_contains "$ERR" "feature/alpha" \
+    "TEST-026: the collision note must name the FIRST raw ref" || return
+  assert_payload_contains "$ERR" "feature:alpha" \
+    "TEST-026: the collision note must name the SECOND raw ref" || return
+  assert_payload_contains "$ERR" "hb-feature-alpha__Validation" \
+    "TEST-026: the collision note must name the shared slot" || return
+  local n; n="$(printf '%s' "$ERR" | grep -c 'slot collision' || true)"
+  if [[ "$n" != 1 ]]; then
+    log_fail "TEST-026: exactly one collision line expected, got $n (stderr: $(payload_preview "$ERR"))"
+    return
+  fi
+  local slot="$dir/hb-feature-alpha__Validation.json"
+  local raw; raw="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).ref_id_raw)' "$slot")"
+  if [[ "$raw" != "feature:alpha" ]]; then
+    log_fail "TEST-026: the slot must carry ref_id_raw for the SECOND (winning) writer, got '$raw'"
+    return
+  fi
+
+  # A repeat write with the SAME raw ref must emit no collision line.
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" write --ref "feature:alpha" --role Validation --message "third"
+  if [[ "$RC" -ne 0 ]]; then
+    log_fail "TEST-026: the same-raw-ref repeat write exited $RC"
+    return
+  fi
+  if [[ -n "$ERR" ]]; then
+    log_fail "TEST-026: a repeat write with the SAME raw ref must emit no collision line, got: $(payload_preview "$ERR")"
+    return
+  fi
+
+  # A 64-char truncation collision takes the same path: two raw refs that
+  # differ only past COMPONENT_MAX (64) sanitize to the identical slot.
+  local ref_a ref_b
+  ref_a="$(node -e 'process.stdout.write("x".repeat(64) + "AAAA")')"
+  ref_b="$(node -e 'process.stdout.write("x".repeat(64) + "BBBB")')"
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" write --ref "$ref_a" --role Remediation --message "trunc a"
+  if [[ "$RC" -ne 0 ]]; then
+    log_fail "TEST-026: the 64-char setup write exited $RC"
+    return
+  fi
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" write --ref "$ref_b" --role Remediation --message "trunc b"
+  if [[ "$RC" -ne 0 ]]; then
+    log_fail "TEST-026: the 64-char colliding write must still succeed, got $RC"
+    return
+  fi
+  assert_payload_contains "$ERR" "slot collision" \
+    "TEST-026: a 64-char truncation collision must take the same named-collision path" || return
+
+  log_pass "TEST-026 a sanitization collision (separator or 64-char truncation) still writes, names both raw refs and the shared slot exactly once, and a same-raw-ref repeat is silent"
+}
+
+# --- TEST-027 / Spec-AC-14 (D13) -----------------------------------------------
+# The GC used to run only on write, so a quiet repository (no role writing a
+# fresh heartbeat) never reaped a stale one.
+test_027_gc_on_read() {
+  local dir="$TEST_DIR/gcread/heartbeat"; rm -rf "$TEST_DIR/gcread"; mkdir -p "$dir"
+  AAI_HEARTBEAT_DIR="$dir" node "$HB" write --ref stale --role Validation --message "old" >/dev/null 2>&1
+  AAI_HEARTBEAT_DIR="$dir" node "$HB" write --ref fresh --role Validation --message "new" >/dev/null 2>&1
+  local stale_slot="$dir/hb-stale__Validation.json"
+  local fresh_slot="$dir/hb-fresh__Validation.json"
+  if [[ ! -f "$stale_slot" || ! -f "$fresh_slot" ]]; then
+    log_fail "TEST-027: setup must produce both slots"
+    return
+  fi
+  node -e '
+    const fs = require("fs");
+    const t = new Date(Date.now() - 25 * 3600 * 1000);
+    fs.utimesSync(process.argv[1], t, t);
+  ' "$stale_slot"
+
+  # A plain read — NOT a write — must reap the stale slot.
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" read
+  if [[ "$RC" -ne 0 ]]; then
+    log_fail "TEST-027: read exited $RC"
+    return
+  fi
+  if [[ -f "$stale_slot" ]]; then
+    log_fail "TEST-027: a read must reap a 25-hour-old slot exactly as a write does, but $stale_slot survived"
+    return
+  fi
+  if [[ ! -f "$fresh_slot" ]]; then
+    log_fail "TEST-027: a read must never reap a fresh slot"
+    return
+  fi
+  assert_payload_contains "$OUT" "fresh" \
+    "TEST-027: the read must still list the fresh slot after reaping" || return
+
+  # A read of a directory with only fresh slots removes nothing.
+  local dir2="$TEST_DIR/gcread2/heartbeat"; rm -rf "$TEST_DIR/gcread2"; mkdir -p "$dir2"
+  AAI_HEARTBEAT_DIR="$dir2" node "$HB" write --ref onlyfresh --role Validation --message "new" >/dev/null 2>&1
+  local only_slot="$dir2/hb-onlyfresh__Validation.json"
+  AAI_HEARTBEAT_DIR="$dir2" run_hb "$HB" read
+  if [[ "$RC" -ne 0 || ! -f "$only_slot" ]]; then
+    log_fail "TEST-027: a read over only-fresh slots must remove nothing"
+    return
+  fi
+
+  log_pass "TEST-027 read reaps a stale slot exactly as write does, keeps a fresh one, still lists it, and touches nothing when everything is already fresh"
+}
+
+# --- TEST-028 / Spec-AC-15 (D13) -----------------------------------------------
+# The field is renamed to what it actually holds: the short-lived WRITER's
+# pid, never a liveness handle for the ride. `pid` alone is a prior shape and
+# must no longer be accepted.
+test_028_writer_pid_rename() {
+  local dir="$TEST_DIR/writerpid/heartbeat"; rm -rf "$TEST_DIR/writerpid"; mkdir -p "$dir"
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" write --ref refP --role Validation --message "hi"
+  if [[ "$RC" -ne 0 ]]; then
+    log_fail "TEST-028: setup write exited $RC"
+    return
+  fi
+  local slot="$dir/hb-refP__Validation.json"
+  if ! grep -qF '"writer_pid"' "$slot"; then
+    log_fail "TEST-028: a real write must carry writer_pid: $(cat "$slot")"
+    return
+  fi
+  if grep -qE '"pid"[[:space:]]*:' "$slot"; then
+    log_fail "TEST-028: a real write must NOT carry a bare pid key: $(cat "$slot")"
+    return
+  fi
+
+  # A hand-written slot missing writer_pid entirely -> CORRUPT.
+  printf '{"ref_id":"refBad1","role":"Validation","message":"m","updated_at":"%s","worktree":"/tmp/x"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$dir/hb-refBad1__Validation.json"
+  # A hand-written slot carrying only the LEGACY pid key -> CORRUPT, not
+  # silently accepted as if it were writer_pid.
+  printf '{"ref_id":"refBad2","role":"Validation","message":"m","updated_at":"%s","pid":123,"worktree":"/tmp/x"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$dir/hb-refBad2__Validation.json"
+
+  AAI_HEARTBEAT_DIR="$dir" run_hb "$HB" read --json
+  local check
+  check="$(node -e '
+    const fs = require("fs");
+    const o = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const okSlot = o.slots.find((s) => s.ref_id === "refP");
+    const bad1 = o.degraded.some((d) => String(d.source||"").indexOf("refBad1") >= 0);
+    const bad2 = o.degraded.some((d) => String(d.source||"").indexOf("refBad2") >= 0);
+    const ok = okSlot && okSlot.writer_pid === process.ppid ? true : !!okSlot;
+    process.stdout.write((okSlot && bad1 && bad2) ? "ok" : "bad:" + JSON.stringify(o));
+  ' "$TEST_DIR/hb.out" 2>&1)"
+  if [[ "$check" != "ok" ]]; then
+    log_fail "TEST-028: real slot must be readable and both legacy shapes (missing writer_pid; bare pid only) must be CORRUPT, got $check"
+    return
+  fi
+
+  # The file header must state the field is the writer's pid, not a liveness handle.
+  if ! /usr/bin/grep -q 'liveness handle' "$HB"; then
+    log_fail "TEST-028: the file header must state writer_pid is not a liveness handle"
+    return
+  fi
+
+  log_pass "TEST-028 a real write carries writer_pid (never bare pid); a slot missing writer_pid or carrying only legacy pid is CORRUPT; the header documents the field's honest meaning"
+}
+
 # --- run ----------------------------------------------------------------------
 check_deps
 test_001_worktree_to_main_checkout
@@ -942,9 +1180,13 @@ test_018_sweep_failure_degrades
 test_022_prefixed_non_json_named
 test_023_inflight_temp_not_a_degrade
 test_024_stray_report_capped
+test_025_liveness_exit_codes
+test_026_slot_collision_named
+test_027_gc_on_read
+test_028_writer_pid_rename
 
 if [[ "$FAILED" == 0 ]]; then
-  echo "PASS: all $TEST_NAME tests (TEST-001..014, TEST-018, TEST-022..024)"
+  echo "PASS: all $TEST_NAME tests (TEST-001..014, TEST-018, TEST-022..028)"
   exit 0
 else
   echo "FAIL: $TEST_NAME suite had failures" >&2

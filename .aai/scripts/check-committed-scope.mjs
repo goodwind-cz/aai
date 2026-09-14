@@ -201,6 +201,46 @@ function gitDiffers(rev, rel, cwd) {
   return `error:${msg}`;
 }
 
+// dispatch-state-sweep D15 (Spec-AC-17): the closed list of append-only
+// ledgers, taken from HAZ-LEDGER in .aai/SUBAGENT_CONTRACT.md — not invented
+// here. A path on this list growing at its own end is the benign shape most
+// rides produce; a path NOT on this list, or one on this list whose
+// committed blob is NOT a byte-exact prefix of the worktree, is a divergence
+// exactly as today.
+const LEDGER_PATHS = new Set([
+  'docs/ai/EVENTS.jsonl',
+  'docs/ai/decisions.jsonl',
+  'docs/ai/tests/test-runs.jsonl',
+]);
+
+// The raw committed blob bytes for `rel` at `rev` (or the index when `rev` is
+// null) — `git show`, never a hand-rolled read, for the same reason gitDiffers
+// above delegates to git: filters, modes and link semantics are git's to get
+// right. Returns null on any failure (missing blob, git error) — the caller
+// treats null as "cannot establish a prefix", never as an empty file.
+function committedBytes(rev, rel, cwd) {
+  const spec = rev ? `${rev}:${rel}` : `:${rel}`;
+  const r = spawnSync('git', ['show', spec], { cwd, encoding: 'buffer', maxBuffer: 256 * 1024 * 1024 });
+  if (r.error || r.status !== 0) return null;
+  return r.stdout;
+}
+
+// Byte-exact prefix test plus the added line count (newlines in the added
+// tail — a JSONL ledger's own unit). Returns null when `committed` is not a
+// byte-exact prefix of `worktree` (including a worktree SHORTER than the
+// committed blob, which is a shrink, never an append) or either buffer is
+// unavailable, else the number of appended lines (>= 0; an empty committed
+// blob makes every worktree byte an append, per the spec's own edge case).
+function appendedLineCount(committed, worktree) {
+  if (committed === null || worktree === null) return null;
+  if (worktree.length < committed.length) return null;
+  if (!worktree.subarray(0, committed.length).equals(committed)) return null;
+  const added = worktree.subarray(committed.length);
+  let lines = 0;
+  for (let i = 0; i < added.length; i += 1) if (added[i] === 0x0a) lines += 1;
+  return lines;
+}
+
 function main() {
   const a = parseArgs(process.argv.slice(2));
   if (a.fromStdin) {
@@ -232,7 +272,7 @@ function main() {
     if (rr.status !== 0) usage(`--rev ${a.rev} does not resolve to a commit`);
   }
 
-  const mismatches = []; let checked = 0;
+  const mismatches = []; const appends = []; let checked = 0;
   for (const rel of [...new Set(a.paths)]) {
     const abs = path.resolve(root, rel);
     let st = null;
@@ -262,7 +302,21 @@ function main() {
     const verdict = gitDiffers(a.rev, rel, root);
     if (verdict.startsWith('error:')) { degraded.push(`${rel}: git could not compare it (${verdict.slice(6)})`); continue; }
     checked += 1;
-    if (verdict === 'differs') mismatches.push(rel);
+    if (verdict !== 'differs') continue;
+    // D15/Spec-AC-17: a ledger path that differs is not automatically a
+    // divergence — the committed blob growing at its own end (an append) is
+    // the benign shape most rides produce, and a gate that cannot tell it
+    // from a rewrite is one people learn to wave through. Only a path ON
+    // the closed list gets this treatment; everything else fails exactly
+    // as today.
+    if (LEDGER_PATHS.has(rel) && !st.isDirectory()) {
+      const committed = committedBytes(a.rev, rel, root);
+      let worktree = null;
+      try { worktree = fs.readFileSync(abs); } catch { worktree = null; }
+      const addedLines = appendedLineCount(committed, worktree);
+      if (addedLines !== null) { appends.push({ path: rel, added_lines: addedLines }); continue; }
+    }
+    mismatches.push(rel);
   }
 
   // A degrade is a failure under --strict, and "clean" is never printed for a
@@ -271,14 +325,21 @@ function main() {
   const failed = mismatches.length > 0 || (a.strict && (degraded.length > 0 || checked === 0));
   const out = {
     status: mismatches.length ? 'mismatch' : (degraded.length ? 'degraded' : (checked === 0 ? 'nothing-checked' : 'clean')),
-    strict: a.strict, failed, checked, mismatches, degraded,
+    strict: a.strict, failed, checked, mismatches, degraded, appends,
   };
   if (a.json) process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
   else {
     for (const d of degraded) process.stdout.write(`check-committed-scope: degraded — ${d}\n`);
+    for (const ap of appends) process.stdout.write(`check-committed-scope: append — ${ap.path} (+${ap.added_lines} line(s), append-only per HAZ-LEDGER — not a failure)\n`);
     if (mismatches.length) {
       process.stderr.write(`check-committed-scope: ${mismatches.length} in-scope path(s) differ between ${a.rev ? a.rev : 'the index'} and the worktree:\n`);
-      for (const m of mismatches) process.stderr.write(`  - ${m}\n`);
+      for (const m of mismatches) {
+        // D15: a ledger path that failed the byte-exact-prefix test is a
+        // DIVERGENCE — named as such, distinct from a plain mismatch, so a
+        // reader (or a grep) can tell "this ledger was rewritten" from "this
+        // path merely differs".
+        process.stderr.write(LEDGER_PATHS.has(m) ? `  - ${m} (divergence — not an append)\n` : `  - ${m}\n`);
+      }
       process.stderr.write('The commit does NOT carry what the worktree holds. The usual cause is a\n`git add` given a path something already renamed: the whole add aborts, and the\ncommit still looks plausible because other steps stage files of their own.\nRe-stage these paths and amend, or commit them, before pushing.\n');
     } else if (checked === 0) {
       process.stdout.write(`check-committed-scope: NOTHING CHECKED — no in-scope path could be compared against ${a.rev ? a.rev : 'the index'}\n`);

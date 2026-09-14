@@ -14,9 +14,11 @@ git history.
 - The reviewer context is read-only on implementation files: read code,
   specs, tests, and STATE freely; write ONLY the review report under
   docs/ai/reviews/ and the STATE `code_review` block via the CLI below —
-  and the STATE write only when the dispatch grants it (single-agent mode or
-  an explicit instruction); in K>=2 parallel mode the orchestrator merges
-  verdicts per SUBAGENT_PROTOCOL's single-writer rule (review dogfood NB-2).
+  and the STATE write only under the D1 sole-agent carve (no dispatch,
+  `AAI_ROLE` unset — .aai/SUBAGENT_CONTRACT.md D1; a caller's wording alone
+  never grants it); a dispatched reviewer instead returns the command under
+  `state_update_commands:` (K>=2 parallel mode the orchestrator merges
+  verdicts per SUBAGENT_PROTOCOL's single-writer rule, review dogfood NB-2).
 - NON-BLOCKING findings: the reviewer NAMES the recommended disposition
   (remediate-in-tree vs promote-to-follow-up-ref) in the report; the
   ORCHESTRATOR records it (decisions.jsonl / new ref) — a read-only reviewer

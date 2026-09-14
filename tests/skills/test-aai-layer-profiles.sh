@@ -192,6 +192,28 @@ test_manifest_conformance() {
   log_pass "TEST-001 manifest conformance: core=$n_core extended=$n_ext total=$n_all (100%)"
 }
 
+# --- TEST-009L (spec TEST-009L, Spec-AC-21) — the three dispatch-state-sweep
+# .aai files are classified, each in exactly one list. TEST-001 above already
+# proves the whole-tree union (these three files are part of "actual"), so
+# this narrows to the three files this scope adds, named individually so a
+# regression on any ONE of them is legible on its own (M39).
+test_new_files_classified() {
+  log_info "TEST-009L: lib/iso-time.mjs, watch-ci.mjs and check-dispatch-text.mjs are each classified in exactly one profile list..."
+  [[ -f "$MANIFEST" ]] || log_fail "TEST-009L: manifest not found: $MANIFEST"
+  local core extended
+  core="$(profile_list "$MANIFEST" core)"
+  extended="$(profile_list "$MANIFEST" extended)"
+  local f n_core n_ext
+  for f in .aai/scripts/lib/iso-time.mjs .aai/scripts/watch-ci.mjs .aai/scripts/check-dispatch-text.mjs; do
+    [[ -f "$PROJECT_ROOT/$f" ]] || log_fail "TEST-009L: $f does not exist on disk"
+    n_core="$(printf '%s\n' "$core" | grep -cFx "$f")" || true
+    n_ext="$(printf '%s\n' "$extended" | grep -cFx "$f")" || true
+    [[ $((n_core + n_ext)) -eq 1 ]] \
+      || log_fail "TEST-009L: $f must be classified in EXACTLY ONE of core/extended, found core=$n_core extended=$n_ext"
+  done
+  log_pass "TEST-009L: iso-time.mjs, watch-ci.mjs and check-dispatch-text.mjs each classified exactly once"
+}
+
 # --- TEST-002 — default run byte-identical to the pre-change sync (Spec-AC-02) -
 test_default_byte_identity() {
   log_info "TEST-002: flag-less run byte-identical to HEAD engine; --profile extended == default..."
@@ -430,6 +452,7 @@ main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
   test_manifest_conformance
+  test_new_files_classified
   build_fixture_sources
   test_default_byte_identity
   test_core_exact_set

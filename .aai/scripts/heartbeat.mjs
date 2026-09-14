@@ -12,10 +12,17 @@
 //   PROVES, machine-written: SOME process existed, ran in worktree <w> at pid
 //     <p>, and wrote at time <t>. That POSITIVE half is the whole of what this
 //     mechanism surfaces.
-//   DOES NOT PROVE which process. `pid` and `worktree` identify a writer, not
-//     the DISPATCHED writer: nothing stops the orchestrator writing a slot
-//     itself, so a PRESENT slot is corroboration, never proof of a dispatch.
-//     Calling this signal un-narratable over-reads it.
+//   DOES NOT PROVE which process. `writer_pid` and `worktree` identify a
+//     writer, not the DISPATCHED writer: nothing stops the orchestrator
+//     writing a slot itself, so a PRESENT slot is corroboration, never proof
+//     of a dispatch. Calling this signal un-narratable over-reads it.
+//   `writer_pid` (dispatch-state-sweep D13/Spec-AC-15; the field was named
+//     `pid` before this) is the pid of the SHORT-LIVED WRITER PROCESS, which
+//     exits immediately once the write returns — it is NOT a liveness handle
+//     for the ride. Probing it (is that pid still running?) answers a
+//     question about a process that was never meant to still be running; the
+//     one honest liveness question this file answers is `read
+//     --max-age-seconds N` (D8), never a pid check.
 //   PROVES NOTHING BY ITS ABSENCE, and that is BY CONSTRUCTION. A missing slot
 //     is produced identically by an announced-but-never-made dispatch, by a
 //     role that has not reached a round boundary yet, by a role running in a
@@ -86,20 +93,32 @@
 //     directory, failed sweep. The role's own outcome must NEVER move because
 //     of a heartbeat, so every runtime condition exits 0 and writes nothing.
 //     Absence degrades to today's silence, never to a new failure mode.
-//   `read` is exit 0 in every case including a corrupt slot: per Constitution
-//   article 4 a damaged slot is NAMED in the output, never dropped silently and
-//   never read as "nothing there" (runtime-file.mjs class B).
+//   `read` is exit 0 in every case including a corrupt slot, WITH ONE NAMED
+//   EXCEPTION below (`--max-age-seconds`): per Constitution article 4 a
+//   damaged slot is NAMED in the output, never dropped silently and never
+//   read as "nothing there" (runtime-file.mjs class B).
 //
-// WHAT IS DELIBERATELY ABSENT — there is no `clear`, no lease, and NO
-// STALE/STUCK VERDICT. `read` prints `age_seconds`, a fact; it defines no
-// threshold. The intake explicitly defers stuck-detection, and inventing a
-// threshold here would be the first step toward something a gate could learn to
-// read. Which is also why NO GATE MAY EVER READ THIS FILE: an advisory signal a
-// gate learned to read became a blocker nobody intended (SPEC-0163 / PR #334).
-// test-aai-heartbeat.sh TEST-012 makes that a mechanical, failable check —
-// deny-by-default over the WHOLE .aai/scripts corpus with THIS FILE as the only
-// allowlisted one, not an enumerated list of gates whose forgotten member is
-// the hole.
+// WHAT IS DELIBERATELY ABSENT — there is no `clear`, no lease, and this file
+// still computes NO STALE/STUCK VERDICT of its own. Plain `read` prints
+// `age_seconds`, a fact; it defines no threshold, and the intake still defers
+// stuck-detection.
+//   dispatch-state-sweep D8 (Spec-AC-08) is a NARROW, NAMED exception, not a
+//   reopening of that decision: `read --max-age-seconds <N>` lets the CALLER
+//   supply its own threshold for exactly one honest question — "is at least
+//   one slot fresher than N seconds" — exiting 0/4/3 (fresh / none-fresher /
+//   probe-degraded). It exists because the alternative was worse: the
+//   orchestrator inventing its OWN liveness probe (a GNU-only find mtime flag, rejected
+//   by BSD find, stderr silenced, zero writes reported as a real answer —
+//   the incident this closes). The file still never decides "stuck" on its
+//   own; N is the caller's number, not this file's.
+//   NO GATE MAY EVER READ THIS FILE FOR A DISPATCH/VALIDATION DECISION: an
+//   advisory signal a gate learned to read became a blocker nobody intended
+//   (SPEC-0163 / PR #334). `--max-age-seconds` answers a LIVENESS question
+//   (is something running), never a CORRECTNESS one (should this pass) — the
+//   line SPEC-0163 exists to hold. test-aai-heartbeat.sh TEST-012 makes the
+//   correctness half a mechanical, failable check — deny-by-default over the
+//   WHOLE .aai/scripts corpus with THIS FILE as the only allowlisted one, not
+//   an enumerated list of gates whose forgotten member is the hole.
 //
 // POSITIONING: this lives BESIDE .aai/scripts/generate-live-status.mjs, not
 // inside it. That generator observes the HARNESS from the outside and answers
@@ -110,9 +129,12 @@
 // CLI
 //   node heartbeat.mjs write --ref <R> --role <Role> --message <text>
 //        [--slot <token>] [--dir <path>]
-//   node heartbeat.mjs read [--json] [--ref <R>] [--dir <path>]
+//   node heartbeat.mjs read [--json] [--ref <R>] [--dir <path>] [--max-age-seconds <N>]
 //
 // Exit codes: 0 for every write/read OUTCOME including degrades; 2 usage error.
+//   `read --max-age-seconds <N>` (D8) is the one exception: 0 fresh, 4 no
+//   slot fresher than N (including none at all), 3 the probe itself degraded
+//   (directory unreadable, git dir not resolvable) — see the header note.
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -225,7 +247,7 @@ function isSlotShape(o) {
     && typeof o.message === 'string'
     && typeof o.updated_at === 'string'
     && !Number.isNaN(Date.parse(o.updated_at))
-    && typeof o.pid === 'number'
+    && typeof o.writer_pid === 'number'
     && typeof o.worktree === 'string';
 }
 
@@ -268,20 +290,51 @@ function cmdWrite(opts) {
   const swept = reapAsides(dir, SLOT_PREFIX, Date.now(), GC_WINDOW_MS);
   if (swept.error) degrade(`orphan sweep failed (${swept.error})`);
 
-  // The SANITIZED components, not the raw ones. Two reasons: the payload is
-  // printed straight to an operator's terminal, so leaving control or bidi
-  // bytes in ref_id/role would defeat the message sanitization beside it; and
-  // it keeps `ref_id` consistent with the `slot` filename built from the same
-  // value, so a reader can map one to the other.
+  const file = path.join(dir, `${slotName}.json`);
+  // dispatch-state-sweep D13 (Spec-AC-13): sanitizeComponent is NOT injective
+  // — two different raw refs can collapse onto the same slot (different
+  // separator characters both becoming '-', or a shared 64-char prefix past
+  // COMPONENT_MAX). That collision used to be silent: the second write simply
+  // won, and nothing said a first writer's progress was ever sharing a slot.
+  // Read (best-effort — a read failure here must never block the write) the
+  // EXISTING slot's raw ref before overwriting it; when it names a DIFFERENT
+  // raw ref than this call's, name both raw refs and the shared slot on
+  // stderr. The write still wins either way — the alternative is a live role
+  // with nowhere to report — this only stops the collision being invisible.
+  const rawRef = String(opts.ref);
+  try {
+    const existing = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (existing && typeof existing.ref_id_raw === 'string' && existing.ref_id_raw !== rawRef) {
+      process.stderr.write(
+        `heartbeat: slot collision — "${existing.ref_id_raw}" and "${rawRef}" both sanitize to `
+        + `${slotName}; the newer write wins\n`,
+      );
+    }
+  } catch {
+    // absent, corrupt, or unreadable — no prior writer to name a collision
+    // against; proceed exactly as a fresh slot would.
+  }
+
+  // The SANITIZED components, not the raw ones, for ref_id/role/message. Two
+  // reasons: the payload is printed straight to an operator's terminal, so
+  // leaving control or bidi bytes in ref_id/role would defeat the message
+  // sanitization beside it; and it keeps `ref_id` consistent with the `slot`
+  // filename built from the same value, so a reader can map one to the other.
+  // `ref_id_raw` (D13) is the one field that deliberately keeps the caller's
+  // UNSANITIZED --ref, so a later write can detect the collision above.
   const payload = {
     ref_id: ref,
+    ref_id_raw: rawRef,
     role,
     message,
     updated_at: new Date().toISOString(),
-    pid: process.pid,
+    // D13/Spec-AC-15: the SHORT-LIVED WRITER's pid, not a liveness handle —
+    // see the header note. `pid` (unqualified) is a prior name this field
+    // must never carry again (a hand-written or legacy slot with only `pid`
+    // is CORRUPT, not accepted — isSlotShape above requires writer_pid).
+    writer_pid: process.pid,
     worktree: REPO_ROOT,
   };
-  const file = path.join(dir, `${slotName}.json`);
   try {
     atomicWrite(file, `${JSON.stringify(payload, null, 2)}\n`);
   } catch (e) {
@@ -303,6 +356,12 @@ function cmdRead(opts) {
   const degraded = [];
   const slotDegraded = [];
   let names = [];
+  // D8/Spec-AC-08: distinguishes "the probe itself could not run" (exit 3,
+  // below) from "it ran and found nothing/nothing fresh" (exit 4). Only a
+  // git-probe failure or an unreadable directory sets this — a cold-start
+  // ENOENT and a corrupt/stray slot are both legitimate "ran fine, nothing
+  // here" answers, never a probe failure.
+  let probeDegradeReason = null;
 
   if (resolved.reason) {
     // Report the degrade on stderr (article 4: degrade AND report) while stdout
@@ -311,7 +370,14 @@ function cmdRead(opts) {
     // implies the directory was actually read.
     degraded.push({ source: 'git', reason: resolved.reason });
     process.stderr.write(`heartbeat: degraded — ${resolved.reason}\n`);
+    probeDegradeReason = resolved.reason;
   } else {
+    // dispatch-state-sweep D13 (Spec-AC-14): the same GC the write path runs,
+    // now ALSO on read, so a quiet repository (no write ever running the
+    // sweep) still reaps. Best-effort — a read must never fail because a
+    // sweep could not run; the subsequent readdir below still degrades
+    // normally if the directory itself is unreadable.
+    reapAsides(resolved.dir, SLOT_PREFIX, now, GC_WINDOW_MS);
     try {
       // The GC beside this is free to delete anything matching the prefix, so a
       // prefixed entry this read silently ignored was a file one seam could
@@ -351,9 +417,11 @@ function cmdRead(opts) {
       }
     } catch (e) {
       if (!e || e.code !== 'ENOENT') {
-        const entry = { source: resolved.dir, reason: `directory unreadable (${(e && e.code) || 'unknown'})` };
+        const reason = `directory unreadable (${(e && e.code) || 'unknown'})`;
+        const entry = { source: resolved.dir, reason };
         degraded.push(entry);
         slotDegraded.push(entry);
+        probeDegradeReason = reason;
       }
     }
   }
@@ -380,19 +448,42 @@ function cmdRead(opts) {
       updated_at: d.updated_at,
       // A FACT, not a verdict. No threshold is defined anywhere here.
       age_seconds: Math.round((now - Date.parse(d.updated_at)) / 1000),
-      pid: d.pid,
+      writer_pid: d.writer_pid,
       worktree: d.worktree,
     });
   }
 
+  // dispatch-state-sweep D8 (Spec-AC-08): --max-age-seconds turns this read
+  // into a liveness PROBE with three, and only three, exit codes — the
+  // incident this closes was a probe that failed closed to a NUMBER
+  // indistinguishable from a measurement (a GNU-only find mtime flag rejected by BSD
+  // find, stderr silenced, zero writes reported as a real answer). Computed
+  // once, applied to every output branch below (json / cold-start / lines),
+  // so the exit code is the same regardless of --json.
+  let readExitCode = 0;
+  if (opts['max-age-seconds'] !== undefined) {
+    const maxAge = Number(opts['max-age-seconds']);
+    if (!Number.isFinite(maxAge) || maxAge < 0) usage('--max-age-seconds must be a non-negative number');
+    if (probeDegradeReason !== null) {
+      readExitCode = 3;
+      process.stderr.write(`heartbeat: liveness probe degraded — ${probeDegradeReason}\n`);
+    } else if (slots.some((s) => s.age_seconds < maxAge)) {
+      readExitCode = 0;
+      process.stderr.write(`heartbeat: liveness — at least one slot is fresher than ${maxAge}s\n`);
+    } else {
+      readExitCode = 4;
+      process.stderr.write(`heartbeat: liveness — no slot is fresher than ${maxAge}s\n`);
+    }
+  }
+
   if (opts.json) {
     process.stdout.write(`${JSON.stringify({ slots, degraded })}\n`);
-    exit(0);
+    exit(readExitCode);
   }
 
   if (slots.length === 0 && slotDegraded.length === 0) {
     process.stdout.write('heartbeat: none recorded\n');
-    exit(0);
+    exit(readExitCode);
   }
 
   const lines = [`heartbeat: ${slots.length} slot(s)`];
@@ -400,14 +491,14 @@ function cmdRead(opts) {
     lines.push(`  ${s.ref_id} / ${s.role}`);
     lines.push(`    message:    ${s.message}`);
     lines.push(`    updated_at: ${s.updated_at} (age_seconds ${s.age_seconds})`);
-    lines.push(`    pid:        ${s.pid}`);
+    lines.push(`    writer_pid: ${s.writer_pid}`);
     lines.push(`    worktree:   ${s.worktree}`);
   }
   for (const d of slotDegraded) {
     lines.push(`heartbeat: degraded — ${d.source}: ${d.reason}`);
   }
   process.stdout.write(`${lines.join('\n')}\n`);
-  exit(0);
+  exit(readExitCode);
 }
 
 function main(argv) {
@@ -423,7 +514,7 @@ function main(argv) {
   if (sub === '--help' || !sub) {
     process.stdout.write(
       'Usage: node heartbeat.mjs write --ref <R> --role <Role> --message <text> [--slot <t>] [--dir <path>]\n'
-      + '       node heartbeat.mjs read [--json] [--ref <R>] [--dir <path>]\n',
+      + '       node heartbeat.mjs read [--json] [--ref <R>] [--dir <path>] [--max-age-seconds <N>]\n',
     );
     exit(sub ? 0 : 2);
   }

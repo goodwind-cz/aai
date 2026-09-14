@@ -83,6 +83,25 @@ under review — cannot steer the verdicts it is buying.
    reviewer runs the git/gh commands itself. Pasting diff hunks into the
    dispatch prompt invites pre-filtering (the orchestrator choosing what the
    reviewer gets to see) and bloats the expensive context.
+4. **No ranked answer key, ANY dispatch (dispatch-state-sweep D11).** Rule 1
+   binds Code Review specifically; this binds every dispatch. A dispatch
+   text carries evidence and reproductions, never a priority-ordered list of
+   expected findings, a "most likely"/"start with the" steer, or a severity
+   token (P1/P2/P3/BLOCKING) applied to something predicted rather than
+   found. `node .aai/scripts/check-dispatch-text.mjs [--path <file>]
+   [--strict]` reads a dispatch text (file or stdin) and names the offending
+   line; advisory by default, exit 6 under `--strict`.
+
+## Liveness probe (dispatch-state-sweep D8)
+
+THE liveness check — "is any dispatched role still running" — is
+`node .aai/scripts/heartbeat.mjs read --max-age-seconds <N>`: exit 0 at
+least one slot fresher than N, exit 4 none is, exit 3 the probe itself
+degraded (directory unreadable, git dir unresolvable). Never hand-roll a
+`find`-based probe (a GNU-only mtime flag rejected by BSD find was the
+incident this closes, failing closed to a bare zero indistinguishable from a
+real measurement) — the three exit codes are the whole point: "alive",
+"nothing alive" and "I could not tell" must never render as the same answer.
 
 ## Capability detection (runtime, never a harness table)
 

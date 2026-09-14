@@ -7,6 +7,11 @@ check-state WRITER RULE) — follow those references regardless of CLI presence.
 On the primary path every other STATE write goes through the
 transactional CLI (`node .aai/scripts/state.mjs <command>`), which validates
 enums, writes atomically, self-stamps timestamps, and bumps `updated_at_utc`.
+This is the fallback for an ABSENT `state.mjs` only — never a second door for
+a dispatched subagent to reach for when the CLI is present but the D1
+sole-agent carve (no dispatch, AAI_ROLE unset — .aai/SUBAGENT_CONTRACT.md D1)
+does not apply; such a subagent still returns `state_update_commands:`, CLI
+absent or not.
 When the CLI is absent, edit docs/ai/STATE.yaml by hand per the field lists
 below, then ALWAYS validate:
 

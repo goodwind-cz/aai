@@ -20,6 +20,7 @@
 
 import fs from 'node:fs';
 import { BLOCK_SCALAR_REST_RE, TOP_KEY_RE, duplicateKeys, inlineChildConflicts, joinLines, splitLines } from './state-core.mjs';
+import { nowIso } from './iso-time.mjs';
 
 // --- failure channel ----------------------------------------------------------
 
@@ -36,9 +37,10 @@ export function engineFail(msg, code = 2) {
 
 const fail = (msg, code = 2) => engineFail(msg, code);
 
-export function nowIso() {
-  return new Date().toISOString().replace(/\.\d+Z$/, 'Z');
-}
+// Re-exported so the 6 existing importers of `nowIso` from this module stay
+// untouched (CHANGE-0184 / spec-dispatch-state-sweep D7). The definition
+// lives in ./iso-time.mjs — never redefine it here.
+export { nowIso };
 
 // --- load / atomic write (SPEC-0012 D3) ----------------------------------------
 

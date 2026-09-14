@@ -40,7 +40,9 @@ SPEC-FROZEN: true
 
 Review scope (exact paths, the list `set-code-review --scope` records):
 
-`.aai/scripts/state.mjs .aai/scripts/lib/state-engine.mjs .aai/scripts/lib/iso-time.mjs .aai/scripts/append-event.mjs .aai/scripts/orchestration-dispatch.mjs .aai/scripts/heartbeat.mjs .aai/scripts/metrics-flush.mjs .aai/scripts/check-committed-scope.mjs .aai/scripts/generate-overview.mjs .aai/scripts/watch-ci.mjs .aai/scripts/check-dispatch-text.mjs .aai/SUBAGENT_PROTOCOL.md .aai/SKILL_PR.prompt.md .aai/SKILL_CODE_REVIEW.prompt.md .aai/SKILL_WORKTREE.prompt.md .aai/METRICS_FLUSH.prompt.md .aai/STATE_FALLBACK.md .aai/system/PROFILES.yaml tests/skills/test-aai-state.sh tests/skills/test-aai-orchestration-dispatch.sh tests/skills/test-aai-heartbeat.sh tests/skills/test-aai-metrics.sh tests/skills/test-aai-overview.sh tests/skills/test-aai-learned-routing.sh tests/skills/test-aai-layer-profiles.sh tests/skills/lib/prompt-diet-ledger.sh docs/specs/SPEC-DRAFT-spec-dispatch-state-sweep.md docs/issues/CHANGE-DRAFT-dispatch-state-sweep.md docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md`
+`.aai/scripts/state.mjs .aai/scripts/lib/state-engine.mjs .aai/scripts/lib/iso-time.mjs .aai/scripts/append-event.mjs .aai/scripts/orchestration-dispatch.mjs .aai/scripts/heartbeat.mjs .aai/scripts/metrics-flush.mjs .aai/scripts/check-committed-scope.mjs .aai/scripts/generate-overview.mjs .aai/scripts/watch-ci.mjs .aai/scripts/check-dispatch-text.mjs .aai/SUBAGENT_PROTOCOL.md .aai/SKILL_PR.prompt.md .aai/SKILL_CODE_REVIEW.prompt.md .aai/SKILL_WORKTREE.prompt.md .aai/METRICS_FLUSH.prompt.md .aai/STATE_FALLBACK.md .aai/system/PROFILES.yaml tests/skills/test-aai-state.sh tests/skills/test-aai-orchestration-dispatch.sh tests/skills/test-aai-heartbeat.sh tests/skills/test-aai-metrics.sh tests/skills/test-aai-overview.sh tests/skills/test-aai-learned-routing.sh tests/skills/test-aai-layer-profiles.sh tests/skills/lib/prompt-diet-ledger.sh .aai/scripts/follow-ups.mjs .aai/scripts/spec-amend.mjs .aai/scripts/update-check.mjs tests/skills/test-aai-update-check.sh tests/skills/test-aai-prompt-diet.sh tests/skills/test-aai-r-guard.sh docs/specs/SPEC-DRAFT-spec-dispatch-state-sweep.md docs/issues/CHANGE-DRAFT-dispatch-state-sweep.md docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md`
+
+Expected companions (not part of the scope list above, but MUST be staged alongside it — review-dispatch-state-sweep-20260913T221903Z NB-10 / validation-round3 N25): `docs/ai/decisions.jsonl` carries both of this spec's post-freeze `spec_amendment` records and the `fu-amend-spec-dispatch-state-sweep` owner-signoff tracker, and is otherwise silently droppable at staging with every gate still green (`spec-amend list --strict` and `docs-audit --check --strict --no-event` both go clean on its absence, since a gate that finds nothing is indistinguishable from a gate that found compliance). `docs/ai/tests/test-runs.jsonl` carries this ride's run ledger (the `amend-run`/`append-run` records Spec-AC-05/06 depend on) and must be staged for the same reason — an unstaged run ledger leaves the delivered tree's own evidence unreproducible for the next reader.
 
 ## Registry items closed by this scope
 
@@ -276,8 +278,19 @@ Two additions, both in `state.mjs` (this scope's file), neither in
 `close-work-item.mjs` (sweep 2's file):
 
 1. `PHASES` gains a seventh value, `closed`, in `state.mjs` and in
-   `orchestration-dispatch.mjs`. It is terminal: no rule arm lists it, so a
-   work item in phase `closed` is never re-offered to any role.
+   `orchestration-dispatch.mjs`. **Amended (validation-round1 N3):** no rule
+   arm in `decideRuleTable` NAMES phase `closed` — but no rule arm CONSULTS
+   it either, so this is not by itself what keeps a closed item from being
+   re-offered. Terminality is actually enforced by `close_event_present` (an
+   EVENTS scan the closed-focus guard already runs): the delivered path
+   (`clear-focus`, item 2 below) ALSO nulls `current_focus`, so the practical
+   exposure is narrow, but phase `closed` with focus still set and no
+   matching `work_item_closed` event is reachable (e.g. a hand-run
+   `set-phase --phase closed` without `clear-focus`) and rule 5 dispatches
+   Planning to it exactly as it would any other phase — reproduced. The
+   phase value is real signal for a human or a script reading STATE
+   (`generate-overview.mjs`, item 3 below), not an independent dispatch
+   guard.
    `close-work-item.mjs`'s `RECONCILE_PHASES` deliberately does NOT gain it —
    an item already closed needs no reconcile — so that file needs no edit for
    this half.
@@ -404,10 +417,28 @@ EQUAL within the same second, so the comparison is still NOT newer. Same
 polarity, no behaviour change — which is exactly why this is a source
 unification and not a routing change.
 
-Out of scope deliberately: the five other private truncation copies. They are
-correct today and converting them is a mechanical sweep with no defect behind
-it; the trap the follow-up names is the DISAGREEMENT between the two ledger
-writers, and that is what this closes. Recorded as R4.
+Out of scope deliberately: the five OTHER private truncation copies named at
+measurement 11 (`check-state.mjs`, `golden-flow.mjs`, `hitl-channel.mjs`,
+`metrics-flush.mjs`, `share-convert.mjs`). They are correct today and
+converting them is a mechanical sweep with no defect behind it; the trap the
+follow-up names is the DISAGREEMENT between the two ledger writers, and that
+is what this closes. Recorded as R4.
+
+**Amended (validation-round1 B5):** measurement 11 enumerated only the
+`.replace(/\.\d+Z$/, 'Z')` idiom and missed a SECOND private idiom,
+`` `${new Date().toISOString().slice(0, 19)}Z` ``, carried identically by
+`follow-ups.mjs:335` and `spec-amend.mjs:406` — round-1 validation caught
+this (both define their own `nowIso`, invisible to a guard anchored on
+`^export function nowIso`) and it made Spec-AC-07's "exactly one definition"
+clause literally false. Both are now converted to import the shared
+`lib/iso-time.mjs` `nowIso` (this remediation), so they are consumers, not
+copies — the five files named above are the complete, accurate list of
+remaining out-of-scope private copies. `update-check.mjs:746` (measurement-time citation; now line 753 after the
+added import) also routes
+its `--now`-less fallback through the shared `nowIso` (aliased `sharedNowIso`
+to avoid shadowing its own local `nowIso` constant), so it too is a real
+consumer, not merely a named one — see the Amendment section for the full
+account.
 
 ### D8 — Liveness is asked of the heartbeat, not of `find`
 
@@ -642,6 +673,20 @@ In scope (files edited):
   `.aai/METRICS_FLUSH.prompt.md`, `.aai/STATE_FALLBACK.md` — D10.
 - `.aai/system/PROFILES.yaml` — the three new `.aai/**` files.
 - `tests/skills/lib/prompt-diet-ledger.sh` — the corpus true-up.
+- `.aai/scripts/follow-ups.mjs` — B5 nowIso consumer: its private `nowIso` is
+  removed and it now imports the shared one from `lib/iso-time.mjs`.
+- `.aai/scripts/spec-amend.mjs` — B5 nowIso consumer: same fix, same reason.
+- `.aai/scripts/update-check.mjs` — B5 nowIso consumer: imports the shared
+  definition as `sharedNowIso`.
+- `tests/skills/test-aai-update-check.sh` — the update-check fixture
+  dependency: its two isolated-directory fixtures now `cp` `lib/iso-time.mjs`
+  alongside `update-check.mjs` so the B5 import resolves inside the fixture.
+- `tests/skills/test-aai-prompt-diet.sh` — the ledger true-up: TEST-012's
+  corpus-growth pin moves 27957 -> 28140 to match the B2 SKILL_PR.prompt.md
+  credit recorded in `prompt-diet-ledger.sh`.
+- `tests/skills/test-aai-r-guard.sh` — the R-GUARD pin re-pointed: D12's
+  narrower guard predicate moves TEST-RG-PIN-03's fixture off a path the
+  narrowed guard no longer refuses.
 - The seven owning suites named in the Test Plan.
 
 Out of scope, named so nothing is silently dropped:
@@ -679,7 +724,7 @@ None.
 | Spec-AC-05 | WHEN append-run is called with --tokens-total the run SHALL carry usage_basis field; WHEN it is absent but the note carries a well-formed usage_total_tokens marker the run SHALL carry usage_basis note; WHEN neither is present the run SHALL carry usage_basis absent, exactly one stderr line SHALL name the ref and role, and the exit code SHALL be 0. | planned | — | — | TEST-034 |
 | Spec-AC-06 | WHEN amend-run names exactly one agent_runs entry whose tokens_total is null it SHALL write the number, set usage_basis to field and add amended_at_utc; WHEN zero or more than one entry matches, or the matched run already carries a numeric tokens_total, it SHALL exit 2 with STATE byte-identical and the message naming the match count or the existing value. | planned | — | — | TEST-035 |
 | Spec-AC-07 | The repository SHALL contain exactly one definition of nowIso outside lib/iso-time.mjs re-export, state-engine.mjs and append-event.mjs SHALL both resolve to it, a freshly appended EVENTS line's ts SHALL match the second-precision pattern, and recordValidationVerdict's freshness comparison over a same-second verdict and stamp SHALL still decline to re-stamp. | planned | — | — | TEST-036 |
-| Spec-AC-08 | WHEN heartbeat.mjs read --max-age-seconds N runs it SHALL exit 0 with at least one slot fresher than N, exit 4 when none is, and exit 3 when the probe degraded, with the three cases distinguishable on stderr; and a grep for -newermt over .aai SHALL return zero occurrences. | planned | — | — | TEST-025 |
+| Spec-AC-08 | WHEN heartbeat.mjs read --max-age-seconds N runs it SHALL exit 0 with at least one slot fresher than N, exit 4 when none is (a merely-absent slot directory, ENOENT, is a cold start and counts as "none is" — exit 4, NOT a degrade), and exit 3 only when the probe ITSELF could not run (e.g. a genuinely unreadable directory, EACCES, or a git-probe failure), with the three cases distinguishable on stderr; and a grep for -newermt over .aai SHALL return zero occurrences. | planned | — | — | TEST-025 |
 | Spec-AC-09 | WHEN watch-ci.mjs runs against a stubbed gh reporting all checks passed it SHALL exit 0, against one reporting a failure it SHALL exit 5, and with gh absent or the platform not github it SHALL exit 3 naming the degrade; and .aai/SKILL_PR.prompt.md SHALL name the command in its post-push step. | planned | — | — | TEST-062 |
 | Spec-AC-10 | Each of .aai/SKILL_CODE_REVIEW.prompt.md, .aai/SKILL_WORKTREE.prompt.md, .aai/METRICS_FLUSH.prompt.md and .aai/STATE_FALLBACK.md SHALL carry the D1 dispatched-subagent carve predicate, and the phrase granting a STATE write on an explicit instruction SHALL be absent from the corpus. | planned | — | — | TEST-063 |
 | Spec-AC-11 | WHEN check-dispatch-text.mjs --strict reads a dispatch text containing any detector in the closed set it SHALL exit 6 naming the offending line and the detector; WHEN it reads a dispatch carrying only a reproduction, a measured number and a file path it SHALL exit 0; without --strict a detected shape SHALL exit 0 with a NOTE; and .aai/SUBAGENT_PROTOCOL.md SHALL carry the no-ranked-answer-key rule. | planned | — | — | TEST-064 |
@@ -737,29 +782,29 @@ carries the suite path, which is what makes each row unique.
 
 | Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
 |----------|------------|------|----------------------|-------------|--------|
-| TEST-032 | Spec-AC-01 | integration | tests/skills/test-aai-state.sh | Retarget leaves nothing behind — a fixture STATE carrying ref A and spec A is retargeted with set-focus --type intake_change --ref B --path P; all four current_focus fields are asserted by name and spec_path is null; a second arm passes --spec-path and asserts it; a third arm runs set-phase --ref B --spec-path Q and asserts current_focus.spec_path is Q; check-state exits 0 after each. | pending |
-| TEST-033 | Spec-AC-03 | integration | tests/skills/test-aai-state.sh | clear-focus — a fixture whose focus is R and whose work item is in_progress gets clear-focus --ref R; the four focus fields and the work item's phase and status are asserted; a second arm passes --ref S and asserts exit 2 with cmp of STATE identical; a third arm asserts phase closed survives check-state. | pending |
-| TEST-034 | Spec-AC-05 | integration | tests/skills/test-aai-state.sh | usage_basis three ways — append-run with --tokens-total writes field; with only a usage_total_tokens note marker writes note; with neither writes absent, exits 0, and emits exactly one stderr line naming ref and role; a malformed marker falls to absent, never note. | pending |
-| TEST-035 | Spec-AC-06 | integration | tests/skills/test-aai-state.sh | amend-run — one matching run with null tokens_total is amended and gains usage_basis field and amended_at_utc; a second call against the now-numeric run exits 2 with STATE identical; a fixture with two runs sharing role and started exits 2 naming the count; a fixture with none exits 2 naming zero. | pending |
-| TEST-036 | Spec-AC-07 | integration | tests/skills/test-aai-state.sh | One clock — a real append-event.mjs run's ts matches the second-precision pattern, a real state.mjs write's updated_at_utc matches the same pattern, a grep over .aai/scripts finds exactly one nowIso definition outside the re-export, and a same-second verdict-and-stamp fixture driven through the dispatch CLI with --confirm appends no second validation_verdict line. | pending |
-| TEST-037 | Spec-AC-12 | integration | tests/skills/test-aai-state.sh | Guard predicate — under AAI_ROLE=subagent, set-focus against a mktemp fixture exits 0 and the fixture changes; against the repo's own docs/ai/STATE.yaml exits 3 with the file byte-identical; against a synthesized second project whose root carries .aai/scripts/state.mjs exits 3; and tests/skills/test-aai-check-state.sh is invoked under the marker with no env scrub and must exit 0. | pending |
-| TEST-038 | Spec-AC-18 | integration | tests/skills/test-aai-state.sh | Flag grammar — a loop over every CMD_FLAGS subcommand asserts <cmd> --help exits 0 and its output names every flag of that subcommand; the enum arms assert set-validation lists exactly pass, fail and not_run (and therefore not pending), set-phase lists the seven phases, and reset-block names its positional block argument; and one deliberate bad call per subcommand carries the same usage line on stderr. | pending |
-| TEST-061 | Spec-AC-02 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Rule 11s — a fixture tree with a committed validation_verdict pass event for the focus ref, a standing STATE pass naming the same ref, and a dirty tracked file so the tree hash differs, dispatches Validation with rule 11s and the reason; ordering arms add a required-and-unrun code_review (must still be 11s, never 13) and an absent ledger entry (must still be 11s, never 14); a fresh-hash control dispatches as today; --rules lists 11s; the WARN line names the rule; a run without --confirm adds restamp_requires_confirm. | pending |
-| TEST-062 | Spec-AC-09 | integration | tests/skills/test-aai-orchestration-dispatch.sh | watch-ci — a stub gh on PATH reporting all checks passed yields exit 0 and a settlement line; one reporting a failed check yields exit 5 naming the check; an empty PATH (no gh) yields exit 3 naming the degrade; and a grep asserts .aai/SKILL_PR.prompt.md names the command after its push step. | pending |
-| TEST-063 | Spec-AC-10 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Carve reconciliation — each of the four files is asserted to carry the D1 carve predicate (sole agent, AAI_ROLE unset) and the three prompts to carry the state_update_commands return shape; a corpus-wide grep asserts zero occurrences of the explicit-instruction grant. | pending |
-| TEST-064 | Spec-AC-11 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Coaching-bias guard — one fixture per detector in the closed set exits 6 under --strict naming the line and the detector; the same fixtures exit 0 with a NOTE without --strict; three negative controls (a reproduction command, a measured number, a bare file path list) exit 0 under --strict; stdin and --path inputs agree byte for byte; and SUBAGENT_PROTOCOL.md is asserted to carry the rule. | pending |
-| TEST-065 | Spec-AC-16 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Effort suffix — a routing fixture with effort_tiers@claude and effort_roles@codex emits one NOTE per header naming the suffix, resolves suggested_effort from the unsuffixed sections only, and keeps the exit code of the equivalent unsuffixed fixture; an invalid suffix emits the same NOTE; an unsuffixed pair emits none. | pending |
-| TEST-025 | Spec-AC-08 | integration | tests/skills/test-aai-heartbeat.sh | Liveness exit codes — a directory with one slot written seconds ago yields exit 0 under --max-age-seconds 300; the same directory with the slot back-dated past the window yields exit 4; an unreadable directory yields exit 3 with the degrade on stderr; the three stderr texts are asserted distinct; and a grep for -newermt over .aai returns zero. | pending |
-| TEST-026 | Spec-AC-13 | integration | tests/skills/test-aai-heartbeat.sh | Slot collision — writes for feature/alpha and feature:alpha land in one slot; the second write succeeds, the slot carries ref_id_raw for the second writer, and exactly one stderr line names both raw refs and the slot; two writes with an identical raw ref emit no such line; a 64-char truncation collision takes the same path. | pending |
-| TEST-027 | Spec-AC-14 | integration | tests/skills/test-aai-heartbeat.sh | GC on read — a directory seeded with one slot back-dated past the window and one fresh slot is read; afterwards the stale file is gone, the fresh file exists, and the read listed the fresh slot; a read of a directory with only fresh slots removes nothing. | pending |
-| TEST-028 | Spec-AC-15 | integration | tests/skills/test-aai-heartbeat.sh | writer_pid — a real write produces a slot carrying writer_pid and no pid key; a hand-written slot missing writer_pid is reported CORRUPT by read; a hand-written slot carrying the legacy pid key only is reported CORRUPT and not silently accepted; the file header is asserted to carry the not-a-liveness-handle sentence. | pending |
-| TEST-149 | Spec-AC-04 | integration | tests/skills/test-aai-metrics.sh | Partial reset keeps the gate — a fixture with code_review required true and status pass is partially flushed; required is still true, status is not_run, report_paths and notes are reset, and scope, base_ref, head_ref and scope_ref_id match SPEC-0178 D8; the full-reset arm still writes required false; and the real orchestration CLI over the post-reset STATE does not dispatch Code Review. | pending |
-| TEST-150 | Spec-AC-19 | integration | tests/skills/test-aai-metrics.sh | Verdict coverage — a fixture whose last implementer run started BEFORE the newest validation_verdict event flushes verdict_after_last_implementer true; the same fixture with a Remediation run started after it flushes false; a fixture with no implementer run, and one with an unparseable instant, each flush null; a legacy ledger line without the field reads null in the consumers. | pending |
-| TEST-151 | Spec-AC-20 | unit | tests/skills/test-aai-metrics.sh | Shrink advice — a fixture that triggers the ledger-shrink warning emits a message naming the missing line count and the re-append remedy; a grep over metrics-flush.mjs emitted strings returns zero occurrences of git restore, git checkout and git reset. | pending |
-| TEST-009 | Spec-AC-03 | integration | tests/skills/test-aai-overview.sh | Closed ride is not in flight — a fixture tree whose STATE has been through a real clear-focus is rendered by the real generate-overview.mjs; the HTML carries Nothing in flight and overview-data.json carries in_flight null; a second arm leaves focus set but phase closed and asserts the same, proving the second input is load-bearing; a live-focus control still renders the in-flight section. | pending |
-| TEST-008 | Spec-AC-17 | integration | tests/skills/test-aai-learned-routing.sh | Append versus divergence — a git fixture where the staged EVENTS.jsonl blob is a byte-exact prefix of the worktree file reports an append with the line count and does not fail; the same fixture with a middle line rewritten reports a divergence and fails; a non-ledger file behaves identically to today in both shapes; an empty committed blob is treated as an append. | pending |
-| TEST-009L | Spec-AC-21 | unit | tests/skills/test-aai-layer-profiles.sh | Classification — the union check over the live .aai tree passes with the three new files classified, and each of lib/iso-time.mjs, watch-ci.mjs and check-dispatch-text.mjs is asserted present in exactly one of the two lists. | pending |
-| TEST-012 | Spec-AC-21 | unit | tests/skills/test-aai-prompt-diet.sh | Corpus true-up — the existing checkpoint re-sums against the JUSTIFIED_ADDITIONS entry added for this ride's SKILL_PR.prompt.md, STATE_FALLBACK.md and the three carve prompts, so the measured growth equals the credited growth. | pending |
+| TEST-032 | Spec-AC-01 | integration | tests/skills/test-aai-state.sh | Retarget leaves nothing behind — a fixture STATE carrying ref A and spec A is retargeted with set-focus --type intake_change --ref B --path P; all four current_focus fields are asserted by name and spec_path is null; a second arm passes --spec-path and asserts it; a third arm runs set-phase --ref B --spec-path Q and asserts current_focus.spec_path is Q; check-state exits 0 after each. | green |
+| TEST-033 | Spec-AC-03 | integration | tests/skills/test-aai-state.sh | clear-focus — a fixture whose focus is R and whose work item is in_progress gets clear-focus --ref R; the four focus fields and the work item's phase and status are asserted; a second arm passes --ref S and asserts exit 2 with cmp of STATE identical; a third arm asserts phase closed survives check-state. | green |
+| TEST-034 | Spec-AC-05 | integration | tests/skills/test-aai-state.sh | usage_basis three ways — append-run with --tokens-total writes field; with only a usage_total_tokens note marker writes note; with neither writes absent, exits 0, and emits exactly one stderr line naming ref and role; a malformed marker falls to absent, never note. | green |
+| TEST-035 | Spec-AC-06 | integration | tests/skills/test-aai-state.sh | amend-run — one matching run with null tokens_total is amended and gains usage_basis field and amended_at_utc; a second call against the now-numeric run exits 2 with STATE identical; a fixture with two runs sharing role and started exits 2 naming the count; a fixture with none exits 2 naming zero. | green |
+| TEST-036 | Spec-AC-07 | integration | tests/skills/test-aai-state.sh | One clock — a real append-event.mjs run's ts matches the second-precision pattern, a real state.mjs write's updated_at_utc matches the same pattern, a grep over .aai/scripts finds exactly one nowIso definition outside the re-export, and a same-second verdict-and-stamp fixture driven through the dispatch CLI with --confirm appends no second validation_verdict line. | green |
+| TEST-037 | Spec-AC-12 | integration | tests/skills/test-aai-state.sh | Guard predicate — under AAI_ROLE=subagent, set-focus against a mktemp fixture exits 0 and the fixture changes; against the repo's own docs/ai/STATE.yaml exits 3 with the file byte-identical; against a synthesized second project whose root carries .aai/scripts/state.mjs exits 3; and tests/skills/test-aai-check-state.sh is invoked under the marker with no env scrub and must exit 0. | green |
+| TEST-038 | Spec-AC-18 | integration | tests/skills/test-aai-state.sh | Flag grammar — a loop over every CMD_FLAGS subcommand asserts <cmd> --help exits 0 and its output names every flag of that subcommand; the enum arms assert set-validation lists exactly pass, fail and not_run (and therefore not pending), set-phase lists the seven phases, and reset-block names its positional block argument; and one deliberate bad call per subcommand carries the same usage line on stderr. | green |
+| TEST-061 | Spec-AC-02 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Rule 11s — a fixture tree with a committed validation_verdict pass event for the focus ref, a standing STATE pass naming the same ref, and a dirty tracked file so the tree hash differs, dispatches Validation with rule 11s and the reason; ordering arms add a required-and-unrun code_review (must still be 11s, never 13) and an absent ledger entry (must still be 11s, never 14); a fresh-hash control dispatches as today; --rules lists 11s; the WARN line names the rule; a run without --confirm adds restamp_requires_confirm. | green |
+| TEST-062 | Spec-AC-09 | integration | tests/skills/test-aai-orchestration-dispatch.sh | watch-ci — a stub gh on PATH reporting all checks passed yields exit 0 and a settlement line; one reporting a failed check yields exit 5 naming the check; an empty PATH (no gh) yields exit 3 naming the degrade; and a grep asserts .aai/SKILL_PR.prompt.md names the command after its push step. | green |
+| TEST-063 | Spec-AC-10 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Carve reconciliation — each of the four files is asserted to carry the D1 carve predicate (sole agent, AAI_ROLE unset) and the three prompts to carry the state_update_commands return shape; a corpus-wide grep asserts zero occurrences of the explicit-instruction grant. | green |
+| TEST-064 | Spec-AC-11 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Coaching-bias guard — one fixture per detector in the closed set exits 6 under --strict naming the line and the detector; the same fixtures exit 0 with a NOTE without --strict; three negative controls (a reproduction command, a measured number, a bare file path list) exit 0 under --strict; stdin and --path inputs agree byte for byte; and SUBAGENT_PROTOCOL.md is asserted to carry the rule. | green |
+| TEST-065 | Spec-AC-16 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Effort suffix — a routing fixture with effort_tiers@claude and effort_roles@codex emits one NOTE per header naming the suffix, resolves suggested_effort from the unsuffixed sections only, and keeps the exit code of the equivalent unsuffixed fixture; an invalid suffix emits the same NOTE; an unsuffixed pair emits none. | green |
+| TEST-025 | Spec-AC-08 | integration | tests/skills/test-aai-heartbeat.sh | Liveness exit codes — a directory with one slot written seconds ago yields exit 0 under --max-age-seconds 300; the same directory with the slot back-dated past the window yields exit 4; an unreadable directory yields exit 3 with the degrade on stderr; the three stderr texts are asserted distinct; and a grep for -newermt over .aai returns zero. | green |
+| TEST-026 | Spec-AC-13 | integration | tests/skills/test-aai-heartbeat.sh | Slot collision — writes for feature/alpha and feature:alpha land in one slot; the second write succeeds, the slot carries ref_id_raw for the second writer, and exactly one stderr line names both raw refs and the slot; two writes with an identical raw ref emit no such line; a 64-char truncation collision takes the same path. | green |
+| TEST-027 | Spec-AC-14 | integration | tests/skills/test-aai-heartbeat.sh | GC on read — a directory seeded with one slot back-dated past the window and one fresh slot is read; afterwards the stale file is gone, the fresh file exists, and the read listed the fresh slot; a read of a directory with only fresh slots removes nothing. | green |
+| TEST-028 | Spec-AC-15 | integration | tests/skills/test-aai-heartbeat.sh | writer_pid — a real write produces a slot carrying writer_pid and no pid key; a hand-written slot missing writer_pid is reported CORRUPT by read; a hand-written slot carrying the legacy pid key only is reported CORRUPT and not silently accepted; the file header is asserted to carry the not-a-liveness-handle sentence. | green |
+| TEST-149 | Spec-AC-04 | integration | tests/skills/test-aai-metrics.sh | Partial reset keeps the gate — a fixture with code_review required true and status pass is partially flushed; required is still true, status is not_run, report_paths and notes are reset, and scope, base_ref, head_ref and scope_ref_id match SPEC-0178 D8; the full-reset arm still writes required false; and the real orchestration CLI over the post-reset STATE does not dispatch Code Review. | green |
+| TEST-150 | Spec-AC-19 | integration | tests/skills/test-aai-metrics.sh | Verdict coverage — a fixture whose last implementer run started BEFORE the newest validation_verdict event flushes verdict_after_last_implementer true; the same fixture with a Remediation run started after it flushes false; a fixture with no implementer run, and one with an unparseable instant, each flush null; a legacy ledger line without the field reads null in the consumers. | green |
+| TEST-151 | Spec-AC-20 | unit | tests/skills/test-aai-metrics.sh | Shrink advice — a fixture that triggers the ledger-shrink warning emits a message naming the missing line count and the re-append remedy; a grep over metrics-flush.mjs emitted strings returns zero occurrences of git restore, git checkout and git reset. | green |
+| TEST-009 | Spec-AC-03 | integration | tests/skills/test-aai-overview.sh | Closed ride is not in flight — a fixture tree whose STATE has been through a real clear-focus is rendered by the real generate-overview.mjs; the HTML carries Nothing in flight and overview-data.json carries in_flight null; a second arm leaves focus set but phase closed and asserts the same, proving the second input is load-bearing; a live-focus control still renders the in-flight section. | green |
+| TEST-008 | Spec-AC-17 | integration | tests/skills/test-aai-learned-routing.sh | Append versus divergence — a git fixture where the staged EVENTS.jsonl blob is a byte-exact prefix of the worktree file reports an append with the line count and does not fail; the same fixture with a middle line rewritten reports a divergence and fails; a non-ledger file behaves identically to today in both shapes; an empty committed blob is treated as an append. | green |
+| TEST-009L | Spec-AC-21 | unit | tests/skills/test-aai-layer-profiles.sh | Classification — the union check over the live .aai tree passes with the three new files classified, and each of lib/iso-time.mjs, watch-ci.mjs and check-dispatch-text.mjs is asserted present in exactly one of the two lists. | green |
+| TEST-012 | Spec-AC-21 | unit | tests/skills/test-aai-prompt-diet.sh | Corpus true-up — the existing checkpoint re-sums against the JUSTIFIED_ADDITIONS entry added for this ride's SKILL_PR.prompt.md, STATE_FALLBACK.md and the three carve prompts, so the measured growth equals the credited growth. | green |
 
 Every Spec-AC has at least one TEST row and every TEST row names exactly one
 Spec-AC.
@@ -788,8 +833,8 @@ shipping file) and its failing output recorded as `mutation-<Mnn>.txt`.
 | M13 | TEST-034 | Delete the stderr line on the absent branch. The one-line arm must go red while the field value stays correct. |
 | M14 | TEST-035 | Remove the already-numeric refusal from `amend-run`. The second-call arm must go red; overwriting a recorded number must never be silent. |
 | M15 | TEST-035 | Change the match from role-and-started to role only. The two-runs arm must go red on ambiguity. |
-| M16 | TEST-036 | Give `append-event.mjs` back its own `new Date().toISOString()`. The ts-pattern arm and the single-definition grep must both go red. |
-| M17 | TEST-036 | Change `nowIso` to keep milliseconds. The same-second no-restamp arm must go red, proving the direction of the unification is tested and not merely the uniformity. |
+| M16 | TEST-036 | Give `append-event.mjs` back its own `new Date().toISOString()` (drop its `lib/iso-time.mjs` import). Amended (validation-round1 B5): the ts-pattern arm (b) AND the new named-consumer-import arm (a2) must both go red — the single-definition grep (a) is a DIFFERENT check (no OTHER file defines `nowIso`) and is not expected to move by this mutation. |
+| M17 | TEST-036 | Change `nowIso` to keep milliseconds. Amended (validation-round1 B5): arm (e) — two REAL, independently-timed `nowIso()` calls ~60ms apart — must go red (DIFFERENT instead of SAME); arm (d)'s hand-copied same-second control is NOT expected to move (it compares a string to itself, so it cannot pin precision) and is documented as such in its own comment, not claimed as proof. |
 | M18 | TEST-037 | Remove arm A from the guard predicate (repo-root containment). The shipping-STATE arm must go red while the fixture arm stays green. |
 | M19 | TEST-037 | Remove arm B (the other-project probe). The synthesized-second-project arm must go red independently of arm A. |
 | M20 | TEST-037 | Remove the predicate entirely and refuse on the marker alone. The mktemp-fixture arm and the CORE-suite arm must both go red — this is the mutation that proves the friction claim. |
@@ -847,9 +892,15 @@ mock the boundary would test the mock.
   repository.** A project that vendors `.aai` without `state.mjs` would not be
   protected by it. Arm A covers every real case in this repository; arm B is a
   narrowing of a documented bypass, not a boundary.
-- **R4 — five private second-truncation copies survive.** D7 unifies the two
-  LEDGER writers, which is the disagreement the follow-up names. The others are
-  internally consistent and converting them has no defect behind it.
+- **R4 — five private second-truncation copies survive** (`check-state.mjs`,
+  `golden-flow.mjs`, `hitl-channel.mjs`, `metrics-flush.mjs`,
+  `share-convert.mjs`). D7 unifies the two LEDGER writers, which is the
+  disagreement the follow-up names. The others are internally consistent and
+  converting them has no defect behind it. **Amended (validation-round1 B5,
+  N9):** the count of five is now accurate — measurement 11 originally missed
+  two MORE private copies (`follow-ups.mjs`, `spec-amend.mjs`, a different
+  truncation spelling), which this remediation converted to real consumers of
+  `lib/iso-time.mjs` rather than leaving as an inaccurate "five."
 - **R5 — the coaching-bias detectors are a closed set derived from one
   incident.** They will miss shapes nobody has written yet. Advisory by default
   is the mitigation; `--strict` is opt-in.
@@ -909,3 +960,231 @@ produced against.
 Strategy `tdd`: a stored RED artifact per AC-gating test, a stored mutation
 artifact per entry in `## Mutation checks`, and the full verification matrix.
 That is what the contract above demands.
+
+## Amendment (post-freeze, 2026-09-13 — remediation of validation round 1 FAIL)
+
+Round-1 independent validation (`docs/ai/STATE.yaml` `last_validation`, run
+2026-09-13T18:08:54Z; evidence at
+`docs/ai/tdd/spec-dispatch-state-sweep/validation-round1.txt`) returned `fail`
+on five BLOCKING findings (B1-B5) plus sixteen non-blocking. This amendment
+records the remediation, following the same additive-with-disclosure
+convention already established (`docs/specs/SPEC-0132-...md`,
+`docs/specs/SPEC-0153-...md`, `docs/specs/SPEC-0177-...md`). `SPEC-FROZEN: true`
+is preserved; nothing below moves or deletes an existing AC's text.
+
+- **B1 (Spec-AC-12) — a directory symlink defeated the R-GUARD predicate and
+  overwrote the shipping STATE.** `isGuardedStatePath` (`state.mjs`) resolved
+  `--state` with `path.resolve()` only, never `fs.realpathSync`, so a path
+  whose CONTAINING DIRECTORY was a symlink into the repo's own `docs/ai` read
+  as an outside-root scratch path while the write landed, through the link,
+  on the real file. Fixed at cause: a new `realpathDirTarget()` helper
+  realpaths a path's containing directory (falling back to the resolved
+  spelling only when that directory does not exist yet, so a fresh scratch
+  create is unaffected) before either the Arm A repo-containment check or the
+  Arm B sibling-script check runs; `ownRoot` is realpath'd the same way.
+  `tests/skills/test-aai-state.sh` gains `test_077_rguard_directory_symlink`
+  (TEST-039 / Spec-AC-12): (a) the validator's own repro — a directory
+  symlink from a scratch tree onto this repo's real `docs/ai` — now refuses
+  exit 3 with the real STATE byte-identical before/after; (b) a plain `..`
+  traversal control (no symlink) still refuses, unmoved by the fix; (c) a
+  symlink onto an ordinary scratch directory is still ALLOWED (the fix judges
+  the target, not "every symlink"); (d) a not-yet-existing scratch leaf falls
+  through the guard unrefused (ordinary "not found", not the single-writer
+  refusal), proving the realpath fallback does not misfire. Mutation-verified:
+  reverting `isGuardedStatePath` to its pre-fix `path.resolve()`-only form
+  reddens exactly arm (a) (`FAIL: (a) a directory symlink into the repo's
+  docs/ai must refuse exit 3 (got 0)`), independently reproduced twice.
+  `lib/state-engine.mjs`'s `writeState` (tmp+rename inside the resolved
+  directory) was audited for the same class: it is only ever reached AFTER
+  the guard's now-realpath'd decision, so no separate change is needed there;
+  the residual TOCTOU between check and write is accepted under the guard's
+  existing "habit, not a security boundary" posture (SPEC-0113).
+
+- **B2 (Spec-AC-03/D3) — the interim `SKILL_PR.prompt.md` wiring the frozen
+  spec already claimed to ship was never actually written, and the test named
+  as covering it tested something else.** `.aai/SKILL_PR.prompt.md` step 4c
+  now runs `node .aai/scripts/state.mjs clear-focus --ref <slug>` immediately
+  after `close-work-item.mjs` returns (exit 0 or exit 6), before the close
+  commit is staged — the D3/S7/R2 claims this spec already made are now true
+  in the shipped tree, not merely in prose. `tests/skills/
+  test-aai-orchestration-dispatch.sh` TEST-062's grep arm gains a second
+  assertion (`grep -qF 'state.mjs clear-focus' "$skillpr"`) alongside its
+  existing `watch-ci.mjs` assertion, so it can no longer pass on a file that
+  names the wrong command; mutation-verified by removing the new line and
+  observing TEST-062 redden on exactly the new assertion, twice, independently
+  reproduced. Corpus cost measured under plain bash with `/usr/bin/wc -c`:
+  `SKILL_PR.prompt.md` 30288 -> 30471 B (+183), credited 1:1 in
+  `tests/skills/lib/prompt-diet-ledger.sh` (new entry, this round), moving
+  `tests/skills/test-aai-prompt-diet.sh` TEST-012's pin 27957 -> 28140;
+  headroom unchanged at 2046/2048.
+
+- **B3 (Spec-AC-12 / t054a) — D12's narrower R-GUARD predicate and sweep 2's
+  `test_054_state_reconcile_warn_and_partial` (t054a) disagree over the same
+  fixture shape, and t054a is sweep 2's own uncommitted file.** Not edited
+  from this context (editing a concurrent sweep's file blind risks reverting
+  its own in-flight changes). Instead:
+  `docs/ai/tdd/spec-dispatch-state-sweep/merge-reconcile-t054a.md` records the
+  exact conflict and the diff the merge must apply — give
+  `new_fixture_repo()` a sibling `.aai/scripts/state.mjs` (any file at that
+  path) so Arm B fires for t054a's `AAI_ROLE=subagent` arm, the same way it
+  already does for `test-aai-state.sh`'s own `t71-other-project` fixture.
+  Verified end-to-end against a scratch copy of `test-aai-close-work-item.sh`
+  with that one-line fixture change applied: `test_054_state_reconcile_warn_and_partial`
+  passes cleanly under the shipped D12 guard; the SAME test against the
+  unmodified tracked file still reproduces the validator's exact failure. This
+  is recorded as a cross-sweep reconciliation, not a defect in either sweep
+  alone: sweep 2's fixture was indistinguishable from "outside every project"
+  under the OLD unconditional marker refusal; D12 correctly narrows that
+  refusal to ask WHICH file, and correctly reclassifies that same fixture as
+  an ordinary unguarded scratch fixture.
+
+- **B4 (Evidence contract) — 12 of 22 red artifacts carried no `RED_CLASS`
+  line, a superseded run-1 artifact was filed under the wrong TEST id, 8
+  heartbeat artifacts omitted `Spec-AC`/diff-range fields, and
+  `measurements.txt` labeled only 3 of 15 probes.** All four fixed: `RED_CLASS:
+  product_red` added to `red-TEST-008/009L/025/026/027/028/038/062/063/064/150/151.txt`
+  (each independently checked against the D5 rule — the test's own `FAIL:`
+  assertion line is present and reached in every one — before the class was
+  assigned); `node .aai/scripts/tdd-evidence-check.mjs --red` now exits 0 on
+  all 22 red artifacts under this scope. `green-TEST-149.txt` re-recorded from
+  a real re-run of `test_149_partial_reset_keeps_review_gate`, replacing the
+  superseded run-1 body (which carried PASS lines for TEST-150/151 but none
+  for TEST-149, the AC it was filed under). The 8 heartbeat artifacts
+  (`red`/`green-TEST-025/026/027/028.txt`) each gained a `Spec-AC` field
+  (08/13/14/15 respectively, per the Test Plan table) and a `diff_range`
+  field naming the D8/D13 change. `measurements.txt` gained labeled,
+  independently re-measured entries for probes 3-13 and 15 (1, 2, 14 were
+  already present), each re-verified here against `git show HEAD:<path>`
+  (HEAD 2fb2f4cd, the spec-freeze commit) — all 15 underlying facts hold,
+  with two harmless off-by-one line references corrected in the evidence file
+  (measurement 6: `withStaleAdvisory` is at line 377 not 378, and its sole
+  console.error call is at line 1604 not 1603; measurement 11:
+  `append-event.mjs`'s `toISOString()` call is at line 65 not 64) — the
+  numbers were never wrong, only two citations were off by one.
+
+- **B5 (Spec-AC-07) — the "exactly one definition of nowIso" clause was false,
+  and both mutation guards claiming to prove it were unfalsifiable.**
+  `.aai/scripts/follow-ups.mjs:335` and `.aai/scripts/spec-amend.mjs:406` each
+  carried their own private, non-exported `nowIso` function (identical
+  second-precision output, `.slice(0, 19)` spelling — a DIFFERENT idiom from
+  the five files D7 already named as deliberately out of scope), invisible to
+  a guard anchored on `^export function nowIso`. Fixed mechanically, the
+  preferred remedy the dispatch named: both files now `import { nowIso } from
+  './lib/iso-time.mjs'` and their local definitions are removed entirely, so
+  the AC's clause is now literally true and Seam S8's consumer list
+  (`state.mjs`, `metrics-flush.mjs`, `follow-ups.mjs`, `spec-amend.mjs`,
+  `update-check.mjs`, `orchestration-dispatch.mjs`, `append-event.mjs`) is
+  accurate. `.aai/scripts/update-check.mjs`'s `--now`-less fallback (originally cited
+  at line 746, now line 753 after the added import) now
+  also routes through the shared definition (imported under the alias
+  `sharedNowIso` to avoid shadowing the file's own local `nowIso` constant,
+  which still carries `--now`'s full test-injected precision unchanged) —
+  fixing this surfaced a real, independently-confirmed regression: the two
+  fixtures in `tests/skills/test-aai-update-check.sh` that copy
+  `update-check.mjs` into an isolated directory (`test_hook_detached_auto_sync`
+  / TEST-014, and `test_source_agreement` / TEST-018) did not also copy the
+  new `lib/iso-time.mjs` dependency, so the real script failed to import and
+  the detached sync never wrote an outcome; both fixtures now also copy
+  `lib/iso-time.mjs`, and the full 32-test suite is green again (reproduced
+  failing before this fix, three consecutive runs, and green after).
+  `tests/skills/test-aai-state.sh` TEST-036 is strengthened three ways: arm
+  (a)'s grep drops the `^export` anchor (`function nowIso(` anywhere outside
+  `lib/iso-time.mjs`), a new arm (a2) asserts each of `append-event.mjs`,
+  `follow-ups.mjs`, `spec-amend.mjs` and `update-check.mjs` actually IMPORTS
+  the shared definition (not merely "no other file defines one" — a call-site
+  revert to a bespoke `toISOString()` leaves zero duplicate definitions but
+  still breaks the single clock), and a new arm (e) calls the real `nowIso()`
+  twice from two independent processes ~60ms apart and asserts they are
+  byte-identical — the actual direction pin M17 always claimed to be but
+  wasn't (arm (d)'s pre-existing same-second control hand-copies one string
+  into two fields, so it cannot distinguish second- from millisecond-precision
+  by construction; kept as a behavioural check, no longer claimed as a
+  direction proof). Both M16 and M17 mutation-table rows are corrected to
+  name the arms that actually redden (M16: the ts-pattern arm (b) AND the new
+  named-consumer arm (a2), not the single-definition grep; M17: the new
+  direction arm (e), not the hand-copied same-second control (d)) —
+  independently reproduced for both mutations. D7's "five other private
+  truncation copies" text and R4's residual-risk entry are corrected: the
+  five (`check-state.mjs`, `golden-flow.mjs`, `hitl-channel.mjs`,
+  `metrics-flush.mjs`, `share-convert.mjs`) are the complete, accurate
+  remaining list now that `follow-ups.mjs` and `spec-amend.mjs` are real
+  consumers rather than the two additional private copies measurement 11
+  originally missed (N9).
+
+- **B6 (round-3 stale-prose findings N18/N19/N20/N21/N22/N24/N26 — no
+  behavioural change, spec/evidence text only).** Round 2's own remediation
+  (B6/B7 in `validation-round2.txt`, not separately amended here — that fix
+  was applied directly to frozen test/spec text with only a
+  `decisions.jsonl` record and no prose disclosure, which is itself what
+  N26 flagged) left seven descriptive claims stale against the tree they
+  describe. None bears on running behaviour; all seven are corrected here,
+  by disclosure, rather than by editing the frozen rows/lists in place.
+  - **N18** — the mutation table's M40 row ("Bump the corpus by one byte
+    without crediting it. The checkpoint re-sum must go red.") does not
+    describe the mutation actually recorded. `mutation-M40.txt` shows the
+    mutation that reddens TEST-012 is bumping the dispatch-state-sweep
+    LEDGER ENTRY's claimed byte count by 1 (1226 -> 1227) without moving
+    `want_growth`'s pin — TEST-012's independent re-sum of the ledger array
+    catches that mismatch; a raw corpus-byte bump is invisible to it and
+    only trips TEST-010's headroom cap once large enough to matter on its
+    own.
+  - **N19** — Seam S8's consumer list wrongly names `metrics-flush.mjs` and
+    `orchestration-dispatch.mjs` as `lib/iso-time.mjs` consumers. Neither
+    is: `metrics-flush.mjs` computes its own `nowIsoStr` at line 1251 (a
+    deliberate remaining copy, D7/R4), and `orchestration-dispatch.mjs` has
+    no `nowIso` of its own — it stamps timestamps by calling
+    `append-event.mjs`. The four real DIRECT importers are
+    `append-event.mjs`, `follow-ups.mjs`, `spec-amend.mjs` and
+    `update-check.mjs` (aliased `sharedNowIso`); `state.mjs` remains a
+    genuine consumer, but indirectly, through `lib/state-engine.mjs`'s own
+    import of `lib/iso-time.mjs` (unchanged since D7).
+  - **N20** — `orchestration-dispatch.mjs`'s rationale comment at lines
+    1618-1622 still describes the millisecond/second precision asymmetry
+    ("Both timestamps are ISO 8601 UTC strings, but at DIFFERENT precision
+    BY DESIGN") that this ride's own D7 removed: `append-event.mjs` and
+    `state.mjs` now both stamp through the one shared `lib/iso-time.mjs`
+    clock at second precision, so the asymmetry the comment warns about no
+    longer exists in the shipped tree (the comparison logic the comment
+    justifies is unaffected and remains correct under either precision).
+  - **N21** — `docs/ai/tdd/spec-dispatch-state-sweep/measurements.txt`'s
+    "Measurement 14 (final)" section still pins TEST-012's `want_growth` at
+    27957; the shipped, correct value is 28140
+    (`tests/skills/test-aai-prompt-diet.sh:800`), credited by the B2
+    remediation's own +183 B `SKILL_PR.prompt.md` clear-focus line (the
+    second `JUSTIFIED_ADDITIONS` entry in
+    `tests/skills/lib/prompt-diet-ledger.sh`) after that measurement
+    section was written. The evidence file was never revisited; the ledger
+    and the shipped test pin are the correct 28140 throughout.
+  - **N22** — the eight heartbeat TDD artifacts
+    (`{red,green}-TEST-0{25,26,27,28}.txt`) carry a `diff_range:` field
+    holding a one-line PROSE description of the change (e.g. "heartbeat.mjs
+    D13 (writer_pid replaces pid; corrupt-slot validator requires
+    writer_pid)") rather than a file:line or commit range; harmless — every
+    claim in the description was independently re-derived by validation
+    round 3 — but the field name promises a range, so a future reader
+    searching for one will not find it there.
+  - **N24** — the spec's own Review-scope list (35 entries) is a strict
+    SUPERSET of STATE's `code_review.scope` (32 entries) by exactly the
+    three doc paths STATE never carries (this spec's own file,
+    `docs/issues/CHANGE-DRAFT-dispatch-state-sweep.md`,
+    `docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md`);
+    harmless because `SKILL_PR.prompt.md` step 1 unions both sources when
+    deriving the in-scope staging list, but the two lists are not literally
+    identical, and no earlier text should be read as claiming they are.
+  - **N26** — the mutation table's M17 row and this Amendment's own B5
+    bullet (above) both describe TEST-036 arm (e) as calling `nowIso()`
+    "from two independent processes ~60ms apart". The shipped arm is ONE
+    process, and the gap is 20ms, aligned to a wall-clock second boundary
+    before sampling (both the alignment and the 20ms gap are visible in
+    `tests/skills/test-aai-state.sh`'s arm (e) probe). The mutation claim
+    itself still holds (M17 reddens arm (e), re-verified 20/20 by
+    validation round 3 and again in this remediation round); only the two
+    descriptions of the arm's mechanics were stale. (This same remediation
+    round also strengthened arm (e) itself — NON-BLOCKING-7 /
+    review-dispatch-state-sweep-20260913T221903Z — to sample a third point
+    and require only one adjacent pair to agree, closing the residual
+    event-loop-stall false-red validation round 3 measured; arm (e) is now
+    three calls 20ms apart, not two.)
+
+Every claim above was grepped or run TRUE against the shipped tree before
+this Amendment was written.
