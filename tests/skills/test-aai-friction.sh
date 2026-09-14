@@ -76,6 +76,7 @@ set -euo pipefail
 
 TEST_NAME="aai-friction"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -193,7 +194,7 @@ assert_key_present() {
 # placeholder -> the literal `unknown`.
 compute_expected_pin() {
   local raw
-  raw="$(sed -n 's/^- Template version:[[:space:]]*//p' "$AAI_PIN" | head -1)"
+  raw="$(sed -n 's/^- Template version:[[:space:]]*//p' "$AAI_PIN" | qhead -1)"
   raw="$(printf '%s' "$raw" | sed 's/[[:space:]]*$//')"
   case "$raw" in
     ""|"<"*) printf 'unknown' ;;
@@ -910,7 +911,7 @@ test_108_redactor_no_network_static() {
   grep -qE "^\s*(import |const .*=\s*require\()" "$redact" \
     && log_fail "TEST-108: redactor must import nothing (pure module)" || true
   if grep -qE "fetch\(|child_process|\bnet\.|\bhttps?\.|\.request\(|process\.env|\bexec" "$redact"; then
-    log_fail "TEST-108: redactor must call no network/process primitive: $(grep -nE 'fetch\(|child_process|https?\.|process\.env|exec' "$redact" | head -1)"
+    log_fail "TEST-108: redactor must call no network/process primitive: $(grep -nE 'fetch\(|child_process|https?\.|process\.env|exec' "$redact" | qhead -1)"
   fi
   log_pass "redactor module is pure (imports nothing; no network/process surface) (TEST-108)"
 }

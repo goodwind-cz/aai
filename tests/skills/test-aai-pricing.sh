@@ -24,6 +24,8 @@ set -euo pipefail
 
 TEST_NAME="aai-pricing"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PRICING_FILE="$PROJECT_ROOT/.aai/system/PRICING.yaml"
 METRICS_FILE="$PROJECT_ROOT/docs/ai/METRICS.jsonl"
@@ -184,7 +186,7 @@ test_pricing_contract() {
   out="$(run_contract 2>&1)" || ec=$?
   echo "$out"
   [[ "$ec" == 0 ]] || log_fail "pricing contract violated (exit $ec)"
-  echo "$out" | grep -q '^RESOLVED: ' || log_fail "resolver produced no RESOLVED lines (vacuous run)"
+  assert_payload_line_matches "$out" '^RESOLVED: ' "resolver produced no RESOLVED lines (vacuous run)"
   log_pass "All historical model ids resolve non-unknown; D4 prices, stamps, alias and prune rule hold (CHANGE-0010 TEST-006)"
 }
 

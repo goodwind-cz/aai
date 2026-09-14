@@ -70,6 +70,8 @@
 //   node .aai/scripts/follow-ups.mjs close --id <id> --resolved-by <ref>
 //        [--source <sha|url|path>] [--status done|dropped] [--ledger <path>]
 //        [--actor <slug>] [--correct]
+//   node .aai/scripts/follow-ups.mjs reopen --id <id> --reason "<one line>"
+//        [--source "<evidence>"] [--ledger <path>] [--actor <slug>]
 //   node .aai/scripts/follow-ups.mjs verify-closures [--path <doc>]
 //        [--ledger <path>] [--strict] [--json]
 //   node .aai/scripts/follow-ups.mjs --help
@@ -280,6 +282,12 @@ function foldFollowUps(records, opts = {}) {
       id_malformed: idMalformed,
       resolved_by: latest && typeof latest.resolved_by === 'string' ? latest.resolved_by : null,
       resolved_ts: latest && typeof latest.ts === 'string' ? latest.ts : null,
+      // `reopen` (BLOCKING-2 remediation) appends a `status: open` record
+      // carrying a `reason`, never a `resolved_by` — the item is not being
+      // resolved, it is being put back in the backlog. Projected the same
+      // way resolved_by/resolved_ts are: from whichever record the fold
+      // decided is LATEST, regardless of its type.
+      reopen_reason: latest && typeof latest.reason === 'string' ? latest.reason : null,
     });
   }
 
@@ -390,6 +398,21 @@ record — what list/report actually project — reflects a fixed attribution.
 the new --resolved-by/--status would be identical to the current one (a
 correction that changes nothing is not a correction). The original,
 misattributed record is never edited — HAZ-LEDGER: this file is append-only.
+  node .aai/scripts/follow-ups.mjs reopen --id <id> --reason "<one line>"
+       [--source "<evidence>"] [--ledger <path>] [--actor <slug>]
+
+reopen is the counterpart close never had (fu-registry-has-no-reopen,
+2026-08-29: a closed-on-a-mistaken-premise item had no way back into the
+backlog short of hand-editing an append-only ledger). It appends a NEW
+follow_up_status record — status "open", carrying --reason — the same
+append-only shape close/--correct use, so the original close record is never
+edited or removed; the fold's LATEST record wins, so list (and --json)
+project the item as open again the moment this returns. Refuses (exit 2) on
+an id that is not currently closed (there is nothing to reopen — use add
+for a brand-new item) and on an unknown --id. Not idempotent: reopening an
+already-open id is exactly that refusal, not a silent no-op, because the
+condition it guards against (there is no closed record to reopen) is real
+either way.
   node .aai/scripts/follow-ups.mjs --help
 
 Ids match ^fu-[a-z0-9]+(-[a-z0-9]+)*$ (max ${ID_MAX_LEN} chars) and are never
@@ -433,6 +456,7 @@ const FLAG_SPECS = {
   list: ['--ledger', '--ref', '--status', '--age-days'],
   add: ['--ledger', '--id', '--ref', '--severity', '--what', '--why', '--source', '--actor', '--origin', '--source-ts'],
   close: ['--ledger', '--id', '--resolved-by', '--source', '--status', '--actor', '--origin', '--source-ts', '--correct'],
+  reopen: ['--ledger', '--id', '--reason', '--source', '--actor'],
   'verify-closures': ['--ledger', '--path', '--strict'],
 };
 
@@ -452,7 +476,7 @@ function parseArgs(argv) {
     exit(0);
   }
   if (!Object.prototype.hasOwnProperty.call(FLAG_SPECS, sub)) {
-    usageError(`unknown subcommand "${sub}" (expected list, add, close or verify-closures)`);
+    usageError(`unknown subcommand "${sub}" (expected list, add, close, reopen or verify-closures)`);
   }
   const valueFlags = FLAG_SPECS[sub];
   // Lookahead-ambiguous tokens (D1 rule 2): a value-taking flag's NEXT token
@@ -709,6 +733,60 @@ function cmdClose(opts) {
   exit(0);
 }
 
+// fu-registry-has-no-reopen (2026-08-29) — `close` only ever appends
+// done/dropped, so an item closed on a mistaken premise had no way back into
+// the backlog short of hand-editing the append-only ledger (which breaks the
+// merge-safety prefix property `close --correct`'s own header already
+// relies on). `reopen` is the missing counterpart: it appends ANOTHER
+// follow_up_status record, status "open", carrying a --reason — never a
+// rewrite of the record that closed it. The fold already treats the LATEST
+// follow_up_status record as authoritative regardless of its status value
+// (foldFollowUps's `latestUsable`), so this needed no change to the reader —
+// only a writer that could emit the shape the reader already understood.
+function cmdReopen(opts) {
+  const abs = ledgerPath(opts);
+  if (opts.id === undefined || String(opts.id).trim() === '') usageError('`reopen` requires --id');
+  if (opts.reason === undefined || String(opts.reason).trim() === '') usageError('`reopen` requires --reason');
+  const id = String(opts.id).trim();
+
+  requireReadableLedger(abs);
+  const before = loadRegistry(abs);
+  if (before.unreadable) usageError(`ledger not readable: ${abs} (${before.unreadable.code}: ${before.unreadable.message})`);
+  const current = before.items.find((i) => i.id === id);
+  if (!current) usageError(`unknown --id "${id}" — no follow_up with that id in ${abs}`);
+  // Deliberately NOT idempotent the way a plain re-close is: an already-open
+  // id has no closed record for this to reopen, and that is a genuine usage
+  // mistake (the wrong id, or a stale assumption about the item's state),
+  // not a repeat of a change already applied — there is no "already applied"
+  // reading of "reopen something that was never shut".
+  if (!current.closed) {
+    usageError(`\`reopen\` requires ${id} to be closed (it is currently ${current.status}) — nothing to reopen`);
+  }
+
+  const entry = {
+    v: 1,
+    ts: nowIso(),
+    actor: opts.actor ?? 'orchestrator',
+    type: 'follow_up_status',
+    id,
+    status: 'open',
+    reason: opts.reason,
+    source: opts.source ?? '',
+  };
+  appendLine(abs, entry);
+
+  // PROVE THE FLIP, exactly as `close` does: re-read from disk, re-fold, and
+  // only then claim success.
+  const after = loadRegistry(abs);
+  const item = after.items.find((i) => i.id === id);
+  if (!item || item.status !== 'open') {
+    process.stderr.write(`follow-ups: appended the open status for ${id}, but the re-read of ${abs} shows status "${item ? item.status : 'MISSING'}" — the reopen is NOT proven (a later-dated status record for this id may shadow it)\n`);
+    exit(1);
+  }
+  console.log(`follow-ups: ${id} -> open (reason: ${item.reopen_reason}), proven by re-reading ${abs} — open backlog is now ${after.counts.open}`);
+  exit(0);
+}
+
 // --- verify-closures: claim parsing (D9) ---------------------------------
 //
 // The parser is derived from the corpus, not invented (D9): measured over
@@ -960,6 +1038,7 @@ function main() {
   const opts = parseArgs(process.argv);
   if (opts._sub === 'add') return cmdAdd(opts);
   if (opts._sub === 'close') return cmdClose(opts);
+  if (opts._sub === 'reopen') return cmdReopen(opts);
   if (opts._sub === 'verify-closures') return cmdVerifyClosures(opts);
   return cmdList(opts);
 }

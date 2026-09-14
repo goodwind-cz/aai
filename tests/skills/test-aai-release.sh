@@ -37,12 +37,42 @@
 set -euo pipefail
 
 TEST_NAME="aai-release"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 RELEASE_SH="$PROJECT_ROOT/.aai/scripts/aai-release.sh"
 RELEASE_PS1="$PROJECT_ROOT/.aai/scripts/aai-release.ps1"
+
+# Spec-AC-13 (fu-test031-self-neutralizes-post-merge): TEST-031's byte-
+# identity comparison used to resolve its "pre-change engine" from
+# origin/main at RUN TIME, so once this scope's own PR merges, origin/main
+# IS the new engine and the pin compares the working tree to itself forever
+# after — a guard that stopped guarding without ever going red. A fixed blob
+# sha does not move when history moves, addressed by content hash rather than
+# by ref, so it keeps meaning "the pre-change engine" regardless of what
+# merges later. The legal one-line repair for a deliberate stdout-shape
+# change is to re-pin this constant.
+#
+# Validation round 1 (BLOCKING-6): this scope never touched
+# .aai/scripts/aai-release.sh at all (`git log origin/main..HEAD -- <it>` is
+# empty), so the FIRST pin — the file's content as of commit 230921a8, "the
+# engine this scope inherited" — was ALSO the file's live content: 230921a8
+# is still the last commit to touch this file, so that pin compared the
+# working tree to itself byte for byte (both sides f5e5305a...), which is
+# exactly the self-comparison DEBT-0004/Spec-AC-12 exist to catch. There is
+# no "pre-this-scope" content that differs from today's, because this scope
+# made no edit — so the pin instead goes one commit further back, to ffe3f320
+# (the commit immediately BEFORE 230921a8 to touch this file), a genuinely
+# DIFFERENT blob (`git diff ffe3f320 230921a8 -- .aai/scripts/aai-release.sh`
+# is non-empty: it added a NAMED, non-blocking golden-flow-record-gap notice
+# to the `--confirm`-less PREVIEW path only). TEST-031 always runs with
+# `--confirm`, which that added block never touches, so the comparison below
+# stays a genuine, non-vacuous regression check on the path this arm
+# exercises: a real historical engine, run for real, producing byte-identical
+# `--confirm` stdout to today's — not two copies of the same content.
+RELEASE_ENGINE_PIN_SHA="6adfe840956f9c52ab645a6db5c479120310d907"
 
 TMP_ROOT=""
 
@@ -185,7 +215,7 @@ build_isolated_path() {
 #
 # D1 tag resolution: candidates from `git tag --list 'v[0-9]*'
 # --sort=-v:refname` captured into a variable (NEVER a pipeline — this suite
-# runs `set -euo pipefail`; `… | head -1` dies of SIGPIPE on CI), iterated via
+# runs `set -euo pipefail`; a pipe into `head -1` dies of SIGPIPE on CI), iterated via
 # here-string; the FIRST candidate that is an ancestor of HEAD wins.
 # D3 region: from the first `^## [v` line through EOF, byte-compared (cmp).
 # A live CHANGELOG with no released heading while the tag's region is
@@ -407,8 +437,8 @@ test_004_commit_message_and_staged_path() {
   # CHANGELOG and the version stamp aai-sync reads (nothing else may ride in).
   stat_lines="$(git -C "$repo" show --stat --format= HEAD | grep -c '|' || true)"
   [[ "$stat_lines" == "2" ]] || log_fail "TEST-004: commit touches $stat_lines files, expected exactly 2 (CHANGELOG.md + AAI_VERSION.md)"
-  git -C "$repo" show --stat --format= HEAD | grep -q 'CHANGELOG.md' || log_fail "TEST-004: CHANGELOG.md missing from the cut commit"
-  git -C "$repo" show --stat --format= HEAD | grep -q 'AAI_VERSION.md' || log_fail "TEST-004: AAI_VERSION.md missing from the cut commit"
+  git -C "$repo" show --stat --format= HEAD | qgrep -q 'CHANGELOG.md' || log_fail "TEST-004: CHANGELOG.md missing from the cut commit"
+  git -C "$repo" show --stat --format= HEAD | qgrep -q 'AAI_VERSION.md' || log_fail "TEST-004: AAI_VERSION.md missing from the cut commit"
   log_pass "TEST-004 commit message + exact two-path staging correct"
 }
 
@@ -480,8 +510,8 @@ test_007_remote_seam() {
   local rc=0
   ( cd "$repo" && PATH="$stub_bin:$PATH" bash "$RELEASE_SH" --version v9.2.0 --confirm ) >"$TMP_ROOT/t007a.out" 2>&1 || rc=$?
   [[ "$rc" == "0" ]] || log_fail "TEST-007a: cut failed: $(cat "$TMP_ROOT/t007a.out")"
-  git -C "$bare" show-ref --tags | grep -q "refs/tags/v9.2.0" || log_fail "TEST-007a: tag v9.2.0 was not pushed to the remote"
-  git -C "$bare" show-ref --heads | grep -q "refs/heads/main" || log_fail "TEST-007a: branch main was not pushed to the remote"
+  git -C "$bare" show-ref --tags | qgrep -q "refs/tags/v9.2.0" || log_fail "TEST-007a: tag v9.2.0 was not pushed to the remote"
+  git -C "$bare" show-ref --heads | qgrep -q "refs/heads/main" || log_fail "TEST-007a: branch main was not pushed to the remote"
   [[ -f "$log_file" ]] || log_fail "TEST-007a: gh was never invoked"
   grep -q "release create v9.2.0" "$log_file" || log_fail "TEST-007a: gh release create v9.2.0 was not attempted"
 
@@ -699,8 +729,8 @@ test_016_portability_static() {
 
   if grep -n 'stat -f' "$RELEASE_SH" >/dev/null 2>&1; then
     local stat_f_line stat_c_line
-    stat_f_line="$(grep -n 'stat -f' "$RELEASE_SH" | head -1 | cut -d: -f1)"
-    stat_c_line="$(grep -n 'stat -c' "$RELEASE_SH" | head -1 | cut -d: -f1 || true)"
+    stat_f_line="$(grep -n 'stat -f' "$RELEASE_SH" | qhead -1 | cut -d: -f1)"
+    stat_c_line="$(grep -n 'stat -c' "$RELEASE_SH" | qhead -1 | cut -d: -f1 || true)"
     [[ -n "$stat_c_line" && "$stat_c_line" -lt "$stat_f_line" ]] \
       || log_fail "TEST-016: 'stat -f' appears without a preceding 'stat -c' (GNU-first) fallback"
   fi
@@ -834,6 +864,24 @@ test_023_cut_consumes_existing_scaffold() {
   log_pass "TEST-023 cut consumes the pre-existing scaffold (exactly one remains)"
 }
 
+# A merge-base unreleased heading may legitimately disappear in exactly ONE
+# way: a release roll renames `## [unreleased] — <title>` to
+# `## [vX] — <title>`. The title (everything after the first " — ") is the
+# identity that must survive; only the version marker may change. Factored
+# out of test_024 (Spec-AC-12/TEST-421) so the SAME comparison the real
+# check runs can also be driven, in-suite, against a scratch pair that
+# proves it detects a genuine deletion — not only that it stays quiet on an
+# honest repo.
+unreleased_heading_diff() {
+  local base_file="$1" live_file="$2"
+  awk '
+    function title(line) { sub(/^## \[[^]]*\] — /, "", line); return line }
+    NR==FNR { if ($0 ~ /^## \[unreleased\] — /) base[title($0)]=$0; next }
+    $0 ~ /^## \[[^]]*\] — / { live[title($0)]=1 }
+    END { for (t in base) if (!(t in live)) print base[t] }
+  ' "$base_file" "$live_file"
+}
+
 test_024_no_deleted_unreleased_heading_vs_main() {
   # CLASS guard (code review, CHANGE-0135): the second heading-deletion
   # incident in one week (CHANGE-0128, then cf6f037 on this branch) — a docs
@@ -861,18 +909,23 @@ test_024_no_deleted_unreleased_heading_vs_main() {
   elif git -C "$PROJECT_ROOT" rev-parse --verify --quiet main >/dev/null 2>&1; then
     base_ref="main"
   else
-    log_pass "TEST-024 skipped: neither 'origin/main' nor 'main' ref reachable"
+    # Spec-AC-14 (DEBT-0004 Target State item b): this branch used to report
+    # PASS on a check it never ran — a fresh clone with neither ref would
+    # look identical to a clean repo with nothing deleted. UNCOVERED, reported
+    # as a failure: the claim "no heading was deleted" cannot be made at all
+    # without a base to diff against.
+    log_fail "TEST-024 UNCOVERED — neither 'origin/main' nor 'main' ref reachable, so the merge-base deletion check cannot run"
     return
   fi
   local base
   base="$(git -C "$PROJECT_ROOT" merge-base HEAD "$base_ref" 2>/dev/null)" || base=""
   if [[ -z "$base" ]]; then
-    log_pass "TEST-024 skipped: no merge-base with main"
+    log_fail "TEST-024 UNCOVERED — no merge-base with $base_ref, so the merge-base deletion check cannot run"
     return
   fi
   local base_file="$TMP_ROOT/t024-base-changelog.md"
   if ! git -C "$PROJECT_ROOT" show "$base:CHANGELOG.md" >"$base_file" 2>/dev/null; then
-    log_pass "TEST-024 skipped: CHANGELOG.md not present at merge-base $base"
+    log_fail "TEST-024 UNCOVERED — CHANGELOG.md not present at merge-base $base, so the merge-base deletion check cannot run"
     return
   fi
   local missing
@@ -887,17 +940,44 @@ test_024_no_deleted_unreleased_heading_vs_main() {
   # first " — ") is the identity that must survive; only the version marker may
   # change, and a title vanishing from BOTH forms is still the deletion this
   # guard was built to catch.
-  missing="$(awk '
-    function title(line) { sub(/^## \[[^]]*\] — /, "", line); return line }
-    NR==FNR { if ($0 ~ /^## \[unreleased\] — /) base[title($0)]=$0; next }
-    $0 ~ /^## \[[^]]*\] — / { live[title($0)]=1 }
-    END { for (t in base) if (!(t in live)) print base[t] }
-  ' "$base_file" "$PROJECT_ROOT/CHANGELOG.md")"
+  missing="$(unreleased_heading_diff "$base_file" "$PROJECT_ROOT/CHANGELOG.md")"
   if [[ -n "$missing" ]]; then
     log_fail "TEST-024: unreleased heading(s) present at merge-base ($base) are missing from the live CHANGELOG — deleted rather than added above: $missing"
     return
   fi
-  log_pass "TEST-024 every merge-base unreleased heading is still present verbatim in the live CHANGELOG"
+
+  # Negative control (Spec-AC-12/DEBT-0004, TEST-421): the real check above
+  # only ever exercises the honest-repo path (nothing was deleted); it has
+  # never been OBSERVED failing on a deletion. A scratch pair through the
+  # same comparison function proves the guard actually detects one, and that
+  # the one legal repair (a release roll renaming the heading, title
+  # preserved) does not false-flag.
+  local nc_base="$TMP_ROOT/t024-nc-base.md" nc_live_del="$TMP_ROOT/t024-nc-live-del.md" nc_live_ok="$TMP_ROOT/t024-nc-live-ok.md" nc_missing
+  cat >"$nc_base" <<'FIXTURE'
+## [unreleased] — feat: alpha (REF-A)
+- alpha bullet
+## [unreleased] — feat: beta (REF-B)
+- beta bullet
+FIXTURE
+  cat >"$nc_live_del" <<'FIXTURE'
+## [unreleased] — feat: beta (REF-B)
+- beta bullet
+FIXTURE
+  nc_missing="$(unreleased_heading_diff "$nc_base" "$nc_live_del")"
+  case "$nc_missing" in
+    *"feat: alpha (REF-A)"*) ;;
+    *) log_fail "TEST-024 negative control: a deleted merge-base heading was NOT detected by unreleased_heading_diff — the guard would stay silent on the exact incident it exists to catch" ;;
+  esac
+  cat >"$nc_live_ok" <<'FIXTURE'
+## [v9.9.9] — feat: alpha (REF-A)
+- alpha bullet
+## [unreleased] — feat: beta (REF-B)
+- beta bullet
+FIXTURE
+  nc_missing="$(unreleased_heading_diff "$nc_base" "$nc_live_ok")"
+  [[ -z "$nc_missing" ]] \
+    || log_fail "TEST-024 negative control: a release-rolled heading (title preserved, version marker changed) was wrongly reported missing: $nc_missing"
+  log_pass "TEST-024 every merge-base unreleased heading is still present verbatim in the live CHANGELOG, and the negative control proves a deletion is caught while a legal rename is not (TEST-421/Spec-AC-12)"
 }
 
 test_025_released_region_pin_vs_tag() {
@@ -919,7 +999,11 @@ test_025_released_region_pin_vs_tag() {
       log_pass "TEST-025 released region byte-identical vs ${verdict#PASS } (latest ancestor release tag)"
       ;;
     SKIP\ *)
-      log_pass "TEST-025 skipped: ${verdict#SKIP }"
+      # Spec-AC-14 (DEBT-0004 Target State item b): TEST-026's scratch matrix
+      # already proves this exact SKIP verdict is named correctly (the
+      # tagless arm) — this own arm's job is only the LIVE repo, and a SKIP
+      # here means the live check could not run, not that it passed.
+      log_fail "TEST-025 UNCOVERED — ${verdict#SKIP }, so the released-region comparison could not run on the live repo (TEST-026 covers this verdict's own correctness separately)"
       ;;
     FAIL\ *)
       log_fail "TEST-025: ${verdict#FAIL }"
@@ -1149,14 +1233,15 @@ test_030_followtags_cannot_orphan_the_tag() {
 # --- TEST-031 (Spec-AC-05): unprotected path unchanged ----------------------
 
 test_031_unprotected_path_byte_identical() {
-  log_info "TEST-031: on an UNPROTECTED remote the cut's SHA-masked stdout matches the pre-change engine byte for byte..."
-  local old_engine="$TMP_ROOT/t031-old-release.sh" ref base_ref=""
-  for ref in origin/main main; do
-    if git -C "$PROJECT_ROOT" show "$ref:.aai/scripts/aai-release.sh" > "$old_engine" 2>/dev/null; then
-      base_ref="$ref"
-      break
-    fi
-  done
+  log_info "TEST-031: on an UNPROTECTED remote the cut's SHA-masked stdout matches the pre-change engine byte for byte (pinned blob, TEST-421/Spec-AC-12+13)..."
+  local old_engine="$TMP_ROOT/t031-old-release.sh" base_ref="$RELEASE_ENGINE_PIN_SHA"
+  # Fixed-blob pin (Spec-AC-13): NOT resolved from origin/main or main, which
+  # both drift forward to equal the working engine once this scope's own PR
+  # merges. A blob is a git object, reachable forever once it is part of any
+  # commit's tree — no ref, moving or otherwise, is consulted here.
+  if ! git -C "$PROJECT_ROOT" cat-file blob "$RELEASE_ENGINE_PIN_SHA" > "$old_engine" 2>/dev/null; then
+    log_fail "TEST-031: pinned engine blob $RELEASE_ENGINE_PIN_SHA is unreadable (shallow clone missing objects, or a corrupt checkout) -- this must FAIL, not soft-skip, because a fixed sha is expected to always resolve in a full checkout (Spec-AC-13, fu-test031-self-neutralizes-post-merge)"
+  fi
 
   # Arm A — the working-tree engine over an unprotected bare.
   local repoA="$TMP_ROOT/t031a" bareA="$TMP_ROOT/t031a-bare.git" stubA="$TMP_ROOT/t031a-stub" rcA=0
@@ -1176,12 +1261,6 @@ test_031_unprotected_path_byte_identical() {
   [[ "$rcA" == "0" ]] || log_fail "TEST-031: unprotected cut exited $rcA, expected 0:"$'\n'"$(cat "$TMP_ROOT/t031a.out" "$TMP_ROOT/t031a.err")"
   git -C "$bareA" show-ref --verify --quiet refs/heads/main || log_fail "TEST-031: refs/heads/main missing on the unprotected remote"
   git -C "$bareA" show-ref --verify --quiet refs/tags/v9.5.5 || log_fail "TEST-031: refs/tags/v9.5.5 missing on the unprotected remote"
-
-  if [[ -z "$base_ref" ]]; then
-    log_info "TEST-031: neither origin/main nor main carries .aai/scripts/aai-release.sh here — stdout byte-comparison arm skipped (degrade and report)"
-    log_pass "TEST-031 unprotected path: exit 0 and both refs pushed (byte-comparison arm skipped, no base engine)"
-    return 0
-  fi
 
   # Arm B — the pre-change engine over an identically seeded fixture.
   local repoB="$TMP_ROOT/t031b" bareB="$TMP_ROOT/t031b-bare.git" stubB="$TMP_ROOT/t031b-stub" rcB=0
@@ -1206,7 +1285,33 @@ test_031_unprotected_path_byte_identical() {
   diff -u "$TMP_ROOT/t031b.masked" "$TMP_ROOT/t031a.masked" > "$TMP_ROOT/t031.diff" 2>&1 || dcmp=$?
   [[ "$dcmp" == "0" ]] \
     || log_fail "TEST-031: unprotected-path stdout diverged from the $base_ref engine:"$'\n'"$(cat "$TMP_ROOT/t031.diff")"
-  log_pass "TEST-031 unprotected path byte-identical to the $base_ref engine (masked commit line), exit 0, both refs pushed"
+
+  # Negative control (Spec-AC-12/DEBT-0004, TEST-421 — validation round 1
+  # BLOCKING-5, "release TEST-031 -> pin only, NO mutation control"): the
+  # byte-identity comparison above has only ever been OBSERVED passing; a
+  # mutated copy of the SAME pinned blob, with one --confirm stdout line
+  # changed, proves the same comparison actually catches a real divergence.
+  local mut_engine="$TMP_ROOT/t031-mut-release.sh"
+  cp "$old_engine" "$mut_engine"
+  sed -i.bak 's/echo "- Version: \$VERSION"/echo "- version: $VERSION"/' "$mut_engine" && rm -f "$mut_engine.bak"
+  grep -qF 'echo "- version: $VERSION"' "$mut_engine" \
+    || log_fail "TEST-031 negative control: could not apply the stdout-line mutation to the scratch engine copy — the anchor line was not found"
+
+  local repoC="$TMP_ROOT/t031c" bareC="$TMP_ROOT/t031c-bare.git" stubC="$TMP_ROOT/t031c-stub" rcC=0
+  build_repo "$repoC" two_entries
+  git init -q --bare "$bareC"
+  git -C "$bareC" symbolic-ref HEAD refs/heads/main
+  git -C "$repoC" remote add origin "file://$bareC"
+  build_stub_gh "$stubC" "$TMP_ROOT/t031c-ghlog" 0
+  ( cd "$repoC" && PATH="$stubC:$PATH" bash "$mut_engine" --version v9.5.5 --confirm ) \
+    >"$TMP_ROOT/t031c.out" 2>"$TMP_ROOT/t031c.err" || rcC=$?
+  sed 's/^- Commit:.*$/- Commit:  <masked>/' "$TMP_ROOT/t031c.out" > "$TMP_ROOT/t031c.masked"
+  local dcmpC=0
+  diff -u "$TMP_ROOT/t031c.masked" "$TMP_ROOT/t031a.masked" > "$TMP_ROOT/t031c.diff" 2>&1 || dcmpC=$?
+  [[ "$dcmpC" != "0" ]] \
+    || log_fail "TEST-031 negative control: a mutated engine (one stdout line changed) was reported byte-identical — the comparison has no bite"
+
+  log_pass "TEST-031 unprotected path byte-identical to the $base_ref engine (masked commit line), exit 0, both refs pushed, and a mutated copy of that same engine is caught diverging"
 }
 
 # --- TEST-032 (Spec-AC-06): any OTHER push failure degrades raw -------------

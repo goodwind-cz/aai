@@ -3917,18 +3917,27 @@ YAML
 # --- TEST-056 (Spec-AC-07): PRICING sweep over the shipped maps --------------
 
 test_056_pricing_sweep_shipped_maps() {
-  log_info "Test: every model id in every section of the SHIPPED MODEL_ROUTING.yaml resolves through the SHARED lib/pricing.mjs resolver against the SHIPPED PRICING.yaml; the sweep must examine at least one id per shipped harness map (TEST-056)..."
+  log_info "Test: every model id in every section of the SHIPPED MODEL_ROUTING.yaml resolves through the SHARED lib/pricing.mjs resolver against the SHIPPED PRICING.yaml; the sweep must examine at least one id per shipped harness map, through the SHIPPED loadModelRouting parser rather than a private copy (TEST-056 / Spec-AC-25, test-framework-sweep)..."
   cat > "$TEST_DIR/t56.mjs" <<'EOF'
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert';
 import { pathToFileURL } from 'node:url';
 
 const root = process.argv[2];
 const { loadPricing, resolveModelKey } = await import(pathToFileURL(path.join(root, '.aai/scripts/lib/pricing.mjs')).href);
+// fu-test056-duplicates-routing-parser: this sweep used to hand-roll its own
+// copy of the tiers@/roles@/validation_alternate@ line parser, so a row-shape
+// change to the SHIPPED parser was invisible here until someone remembered to
+// update the copy by hand. It now imports and calls the shipped
+// loadModelRouting straight from the engine — there is no second copy left
+// to fall out of sync.
+const { loadModelRouting } = await import(pathToFileURL(path.join(root, '.aai/scripts/orchestration-dispatch.mjs')).href);
 
-const raw = fs.readFileSync(path.join(root, '.aai/system/MODEL_ROUTING.yaml'), 'utf8');
 const pricing = loadPricing(path.join(root, '.aai/system/PRICING.yaml'));
+const routing = loadModelRouting(root);
+assert.ok(routing, 'the shipped .aai/system/MODEL_ROUTING.yaml must load through loadModelRouting');
 
 const ids = [];
 // tiersIdsSeen: ids examined SPECIFICALLY from a tiers@<harness> section --
@@ -3937,28 +3946,18 @@ const ids = [];
 // still reddens the "examined at least one id per shipped harness map"
 // assertion below, rather than passing vacuously via a sibling section.
 const tiersIdsSeen = new Set();
-let section = null;
-let sectionHarness = null;
-for (const line of raw.split(/\r?\n/)) {
-  if (line.trim() === '' || line.trim().startsWith('#')) continue;
-  let m;
-  if ((m = line.match(/^(tiers|roles)(?:@([A-Za-z0-9_-]+))?:\s*$/))) {
-    section = m[1];
-    sectionHarness = m[2] || null;
-    continue;
-  }
-  if ((m = line.match(/^validation_alternate(?:@([A-Za-z0-9_-]+))?:\s*(\S+)\s*$/))) {
-    if (m[2] !== 'null') ids.push(m[2]);
-    section = null; sectionHarness = null;
-    continue;
-  }
-  if (/^effort_tiers:\s*$|^effort_roles:\s*$/.test(line)) { section = null; sectionHarness = null; continue; }
-  if (/^\S/.test(line)) { section = null; sectionHarness = null; continue; }
-  const kv = line.match(/^ {2}(\S[^:#]*):\s*(\S+)\s*$/);
-  if (kv && section) {
-    ids.push(kv[2]);
-    if (section === 'tiers' && sectionHarness) tiersIdsSeen.add(sectionHarness);
-  }
+for (const h of Object.keys(routing.harnesses)) {
+  const hm = routing.harnesses[h];
+  for (const v of Object.values(hm.tiers)) { ids.push(v); tiersIdsSeen.add(h); }
+  for (const v of Object.values(hm.roles)) ids.push(v);
+  if (hm.validation_alternate) ids.push(hm.validation_alternate);
+}
+// Mode A (no @<harness> sections) fallback, so the sweep still examines the
+// unsuffixed rows on a pre-migration file rather than silently finding none.
+if (routing.mode === 'A') {
+  for (const v of Object.values(routing.tiers)) ids.push(v);
+  for (const v of Object.values(routing.roles)) ids.push(v);
+  if (routing.validation_alternate) ids.push(routing.validation_alternate);
 }
 
 assert.ok(ids.length > 0, 'the sweep must have examined at least one id');
@@ -3973,11 +3972,48 @@ for (const id of ids) {
 }
 assert.deepStrictEqual(unresolved, [], `every shipped model id must resolve through resolveModelKey; unresolved: ${JSON.stringify(unresolved)}`);
 
-console.log('ok examined ' + ids.length + ' ids across harnesses: ' + [...tiersIdsSeen].sort().join(','));
+// Spec-AC-25 second half: "a row-shape change made in a fixture routing file
+// is seen identically by the test and the engine". loadModelRouting only
+// needs a `.aai/system/MODEL_ROUTING.yaml` under the root it is given — a
+// scratch root suffices, no copy of the engine's other dependencies needed.
+// The probed row (`t56-shape-probe`) is a name this script never hand-encodes
+// anywhere else, so its presence in the parsed result can only come from the
+// SAME shipped parser reading the SAME file shape, never from a private copy
+// that would need its own update to notice a new field name.
+const scratchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aai-t56-shape-'));
+try {
+  fs.mkdirSync(path.join(scratchRoot, '.aai/system'), { recursive: true });
+  fs.writeFileSync(path.join(scratchRoot, '.aai/system/MODEL_ROUTING.yaml'), [
+    'tiers@claude:',
+    '  mechanical: claude-haiku-4-5',
+    '  t56-shape-probe: t56-probe-model-id',
+    'roles@claude:',
+    '  Planning: claude-opus-5',
+    '',
+  ].join('\n'));
+  const scratchRouting = loadModelRouting(scratchRoot);
+  assert.ok(scratchRouting, 'the scratch fixture must load through loadModelRouting');
+  assert.strictEqual(scratchRouting.harnesses.claude.tiers['t56-shape-probe'], 't56-probe-model-id',
+    'a row this test never hand-encodes must still be visible through the shared parser');
+} finally {
+  fs.rmSync(scratchRoot, { recursive: true, force: true });
+}
+
+console.log('ok examined ' + ids.length + ' ids across harnesses: ' + [...tiersIdsSeen].sort().join(',') + '; shared-parser row-shape probe visible');
 EOF
+  # Structural pin (Spec-AC-25 first half): the fixture script above must call
+  # the SHIPPED parser and must not reintroduce a private line-based copy of
+  # it. `raw.split` was the tell of the old hand-rolled loop (it read the raw
+  # YAML text itself); its presence here would mean a private copy came back.
+  if ! grep -q 'loadModelRouting(' "$TEST_DIR/t56.mjs"; then
+    log_fail "TEST-056: the fixture script must call the shipped loadModelRouting, not a private copy"
+  fi
+  if grep -q 'raw\.split' "$TEST_DIR/t56.mjs"; then
+    log_fail "TEST-056: the fixture script must not hand-roll its own MODEL_ROUTING.yaml line parser"
+  fi
   (cd "$PROJECT_ROOT" && node "$TEST_DIR/t56.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t56.log" 2>&1 \
     || log_fail "TEST-056: PRICING sweep over the shipped MODEL_ROUTING.yaml failed: $(cat "$TEST_DIR/t56.log")"
-  log_pass "PRICING sweep: every shipped id resolves via the shared resolver, at least one id per shipped harness map (TEST-056)"
+  log_pass "PRICING sweep: every shipped id resolves via the shared resolver through the shipped loadModelRouting parser, at least one id per shipped harness map, row-shape probe visible (TEST-056)"
 }
 
 # --- TEST-057 (Spec-AC-08): shipped-file contract -----------------------------

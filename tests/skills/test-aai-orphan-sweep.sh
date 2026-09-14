@@ -5,6 +5,7 @@
 # lowered to zero (no dependence on CPU load or wall-clock age).
 set -uo pipefail
 
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SWEEP="$REPO_ROOT/.aai/scripts/orphan-sweep.mjs"
@@ -174,7 +175,7 @@ test_006_real_kill() {
   sleep 1
   # a SIGKILLed orphan may linger as a zombie where PID 1 reaps lazily
   # (containers) — state Z counts as killed (bot review).
-  local ostate; ostate="$(ps -o state= -p "$opid" 2>/dev/null | tr -d ' ' | head -c1)"
+  local ostate; ostate="$(ps -o state= -p "$opid" 2>/dev/null | tr -d ' ' | qhead -c1)"
   if kill -0 "$opid" 2>/dev/null && [[ "$ostate" != "Z" ]]; then
     log_fail "TEST-006: orphan $opid survived the sweep (state=$ostate)"
     kill -9 "$opid" 2>/dev/null

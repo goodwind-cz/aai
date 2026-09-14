@@ -20,10 +20,11 @@
 // uses, via the shared docs-audit-core / docs-model libraries. Never writes
 // anything.
 //
-// CLI: node close-before-push-guard.mjs --ref <slug> [--root <dir>]
+// CLI: node close-before-push-guard.mjs --ref <slug> [--root <dir>] [--expect-branch <branch>]
 //   --ref <slug>   the primary work-item doc's frontmatter slug `id`
 //                  (the same --ref close-work-item.mjs was/will be given).
 //   --root <dir>   repo root to scan; default process.cwd().
+//   --expect-branch <branch>  CHANGE-0180 D4 HEAD-pin re-check; see below.
 //
 // Exit codes:
 //   0 — the doc resolves and its frontmatter status is `done` (step 4c's
@@ -34,6 +35,10 @@
 //       one scanned doc — unresolvable / ambiguous), OR a scanned file could
 //       not be read (permissions/I-O/transient) — fail-closed either way,
 //       never a silent pass and never an unhandled crash.
+//   3 — HEAD PIN REFUSED (CHANGE-0180 D4, --expect-branch given): the pinned
+//       branch/sha no longer matches at the time this guard runs. ADDITIVE:
+//       no --expect-branch given, or no pin file at all, and this check is a
+//       complete no-op (Spec-AC-04) — every path above is unaffected.
 //
 // Node stdlib + the shared docs-audit-core/docs-model libraries only
 // (docs/TECHNOLOGY.md). No forked scanning/parsing logic.
@@ -42,6 +47,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { scanAuditDocs, loadConfig } from './lib/docs-audit-core.mjs';
 import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES, slugFamilyForPath } from './lib/docs-model.mjs';
+import { checkBranchPin } from './branch-guard.mjs';
 
 // fail(msg) — exit 2, fail-closed, no "usage:" line: for a runtime failure
 // (Copilot F-3's unreadable-file case) rather than a flag-parsing mistake.
@@ -52,20 +58,50 @@ function fail(msg) {
 
 function usageError(msg) {
   process.stderr.write(`close-before-push-guard: ${msg}\n`);
-  process.stderr.write('usage: node .aai/scripts/close-before-push-guard.mjs --ref <slug> [--root <dir>]\n');
+  process.stderr.write('usage: node .aai/scripts/close-before-push-guard.mjs --ref <slug> [--root <dir>] [--expect-branch <branch>]\n');
   process.exit(2);
 }
 
 function parseArgs(argv) {
-  const args = { root: process.cwd() };
+  const args = { root: process.cwd(), expectBranch: null };
   for (let i = 0; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--ref') args.ref = argv[++i];
     else if (tok === '--root') args.root = argv[++i];
+    else if (tok === '--expect-branch') {
+      // review NB-1: a missing value (the flag as the last token, or an
+      // unset shell variable handed straight through) used to set
+      // expectBranch to undefined/'' — verifyExpectedBranch's `if
+      // (!expectBranch) return` then silently disabled the whole re-check
+      // instead of refusing. A missing value is a usage error, not a
+      // fail-open no-op — the sibling check-committed-scope.mjs's `need()`
+      // already gets this right.
+      // round 8 / Copilot: an EXPLICIT empty string (`--expect-branch ""`, or
+      // an unset shell variable handed through unquoted-safe as `""`) is
+      // ALSO a missing value, not a legitimate branch name — without this,
+      // it slipped past the undefined/`--` checks above, into
+      // verifyExpectedBranch's `if (!expectBranch) return`, and silently
+      // disabled the whole re-check exactly like the bug this same guard
+      // already closes for a bare trailing flag.
+      const val = argv[++i];
+      if (val === undefined || val === '' || val.startsWith('--')) usageError('--expect-branch requires a value');
+      args.expectBranch = val;
+    }
     else usageError(`unrecognized flag: ${tok}`);
   }
   if (!args.ref) usageError('missing --ref');
   return args;
+}
+
+// CHANGE-0180 D4 — see check-committed-scope.mjs's twin for the full
+// rationale. ADDITIVE (Spec-AC-04): no --expect-branch, no pin file -> both
+// leave this script's pre-change behaviour byte-identical.
+function verifyExpectedBranch(expectBranch, cwd) {
+  if (!expectBranch) return;
+  const result = checkBranchPin(cwd, expectBranch);
+  if (result.ok) return;
+  process.stderr.write(`close-before-push-guard: REFUSED (HEAD moved) — ${result.message}\n`);
+  process.exit(3);
 }
 
 // Same two-pass resolution close-work-item.mjs's resolveDoc uses (frontmatter
@@ -109,6 +145,7 @@ function resolveDocStatus(root, slug) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
+  verifyExpectedBranch(args.expectBranch, args.root);
   const result = resolveDocStatus(args.root, args.ref);
   if (!result.found) {
     process.stderr.write(`close-before-push-guard: ${result.reason}\n`);

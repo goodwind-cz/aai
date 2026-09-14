@@ -20,6 +20,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-spec-lint"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -417,9 +418,9 @@ test_010_advisory_wiring() {
       log_info "TEST-010: $f carries $n spec-lint lines (max 2)"; ok=0
     fi
     grep -q "spec-lint" "$PROJECT_ROOT/$f" && \
-      grep -A1 -B1 "spec-lint" "$PROJECT_ROOT/$f" | grep -qi "absent" \
+      grep -A1 -B1 "spec-lint" "$PROJECT_ROOT/$f" | qgrep -qi "absent" \
       || { log_info "TEST-010: $f advisory lacks a degrade clause"; ok=0; }
-    grep -A1 -B1 "spec-lint" "$PROJECT_ROOT/$f" | grep -qi "advisor" \
+    grep -A1 -B1 "spec-lint" "$PROJECT_ROOT/$f" | qgrep -qi "advisor" \
       || { log_info "TEST-010: $f advisory not marked advisory/report-only"; ok=0; }
   done
   # no step renumbering: PLANNING steps 11/12 and VALIDATION step 2 intact
@@ -626,8 +627,8 @@ EOF
   assert_payload_contains "$out" "duplicate-ac-id" "TEST-001(dupac): no duplicate-ac-id finding" || ok=0
   assert_payload_contains "$out" "Spec-AC-02" "TEST-001(dupac): repeated id not named" || ok=0
   # Spec-AC-02: detail reports the raw-vs-parsed delta (2 raw rows, 1 survived).
-  echo "$out" | grep -qE "Spec-AC-02 appears in 2 raw AC-table rows but only 1 survived" \
-    || { log_info "TEST-001(dupac): raw-vs-parsed delta (2 raw / 1 parsed) not reported: $out"; ok=0; }
+  assert_payload_contains "$out" "Spec-AC-02 appears in 2 raw AC-table rows but only 1 survived" \
+    "TEST-001(dupac): raw-vs-parsed delta (2 raw / 1 parsed) not reported: $out" || ok=0
   [[ $ok -eq 1 ]] && log_pass "TEST-001(dupac) dropped-duplicate names id + raw-vs-parsed delta" || log_fail "TEST-001(dupac) dropped-duplicate reconciliation"
 }
 
@@ -1161,8 +1162,13 @@ test_actest_001_untested_ac() {
   expect_exit 1 "$rc" "TEST-001(actest)" || ok=0
   assert_payload_contains "$out" "ac-without-test" "TEST-001(actest): no ac-without-test finding: $out" || ok=0
   assert_payload_contains "$out" "Spec-AC-02" "TEST-001(actest): untested id not named: $out" || ok=0
-  echo "$out" | grep -q "ac-without-test.*Spec-AC-01" \
-    && { log_info "TEST-001(actest): the COVERED AC was flagged too: $out"; ok=0; }
+  local actest_covered_flagged=0 actest_line
+  while IFS= read -r actest_line; do
+    [[ "$actest_line" =~ ac-without-test.*Spec-AC-01 ]] && actest_covered_flagged=1
+  done <<<"$out"
+  if [[ "$actest_covered_flagged" -eq 1 ]]; then
+    log_info "TEST-001(actest): the COVERED AC was flagged too: $out"; ok=0
+  fi
   [[ $ok -eq 1 ]] && log_pass "TEST-001(actest) untested Spec-AC flagged, covered one is not" \
     || log_fail "TEST-001(actest) untested Spec-AC"
 }
@@ -1534,7 +1540,7 @@ EOF
   # Control derived from the REAL SPEC-0112 (four `fast` AC/Test-Plan rows),
   # status flipped to implementing so the in-flight rules actually run.
   local real
-  real="$(ls "$PROJECT_ROOT"/docs/specs/SPEC-0112-*.md 2>/dev/null | head -1)"
+  real="$(ls "$PROJECT_ROOT"/docs/specs/SPEC-0112-*.md 2>/dev/null | qhead -1)"
   if [[ -n "$real" && -f "$real" ]]; then
     new_fixture_root
     sed 's/^status: done$/status: implementing/' "$real" > "$FIX/docs/specs/SPEC-0112-control.md"
@@ -1627,16 +1633,37 @@ test_clarify_010_prompt_and_guide() {
 # --- TEST-011(clarify) — zero added ceremony (contract pins) ------------------
 test_clarify_011_no_new_ceremony() {
   local ok=1 f p
-  grep -qF "Usage: spec-lint [--path <file>] [--json] [--slug-handles] [--strategy <v>]" "$LINT" \
+  # Spec-AC-13 (fu-usage-pin-misses-appended-flag): `grep -qF` is a SUBSTRING
+  # match, so a flag APPENDED after the pinned text (the new flag landing
+  # before the source string's own closing quote) leaves the OLD pinned
+  # string still present as a prefix of the new line, and the pin never
+  # trips. Each pin below is extended to the string's own closing boundary in
+  # the source (the literal `\n'` escape-then-quote a template-literal line
+  # ends on, or `.',` for the Exit line, which is the template's last
+  # segment) so nothing can be inserted before that boundary undetected.
+  grep -qF "Usage: spec-lint [--path <file>] [--json] [--slug-handles] [--strategy <v>]\\n'" "$LINT" \
     || { log_info "TEST-011(clarify): spec-lint's usage line changed (a new flag?)"; ok=0; }
-  grep -qF "Exit: 0 clean | 1 findings | 2 usage error / unreadable --path." "$LINT" \
+  grep -qF "Exit: 0 clean | 1 findings | 2 usage error / unreadable --path.'," "$LINT" \
     || { log_info "TEST-011(clarify): spec-lint's exit contract line changed"; ok=0; }
   f="$PROJECT_ROOT/.aai/scripts/spec-freeze.mjs"
-  grep -qF "Usage: spec-freeze --path <spec> [--json] [--dry-run] [--no-event]" "$f" \
+  grep -qF "Usage: spec-freeze --path <spec> [--json] [--dry-run] [--no-event]\\n'" "$f" \
     || { log_info "TEST-011(clarify): spec-freeze's usage line changed (a new flag?)"; ok=0; }
+  # Spec-AC-12 (fu-exit-contract-pin-comment-dup, TEST-422): these four
+  # phrases occur TWICE in spec-freeze.mjs — once in the header comment
+  # (prose, never executed) and once inside the RUNTIME `usage()` function
+  # that is actually printed on a usage error. A whole-file `grep -qF`
+  # passes as long as EITHER copy survives, so mutating only the runtime
+  # copy (the one a caller actually sees) leaves the header's copy to keep
+  # this pin green on a broken CLI. Scoped to the `usage()` function body
+  # only, dynamically sliced rather than by a hardcoded line range so a
+  # harmless reflow of the function does not itself redden this pin.
+  local usage_body
+  usage_body="$(sed -n '/^function usage()/,/^}/p' "$f")"
+  [[ -n "$usage_body" ]] \
+    || { log_info "TEST-011(clarify): could not locate spec-freeze.mjs's usage() function body"; ok=0; }
   for p in "0 frozen, or already frozen (idempotent no-op)" "2 usage error" "3 REFUSED" "1 internal error"; do
-    grep -qF "$p" "$f" \
-      || { log_info "TEST-011(clarify): spec-freeze's exit contract lost \"$p\""; ok=0; }
+    grep -qF "$p" <<<"$usage_body" \
+      || { log_info "TEST-011(clarify): spec-freeze's RUNTIME exit contract (usage()) lost \"$p\""; ok=0; }
   done
   # --- containment, measured against the LIVE tree ----------------------------
   # The clarify scope touched a fixed set of .aai/ paths — the manifest below.
@@ -1676,22 +1703,93 @@ test_clarify_011_no_new_ceremony() {
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"
 }
 
-# --- TEST-012(clarify) — every stored RED log is classified at capture --------
-test_clarify_012_red_class_stamped() {
-  local ok=1 f first n=0
-  for f in "$PROJECT_ROOT"/docs/ai/tdd/red-*vagueness-gate*.log; do
+# t012_scan_red_logs <dir> — scans <dir>/red-*vagueness-gate*.log, the SAME
+# glob and the SAME regex the primary claim and the positive control both
+# rely on (one copy, not two — R2-2, validation round 2: a duplicated regex
+# in the control proved only that the DUPLICATE discriminates, never that
+# this loop does). Prints one "FILE:<name> STAMPED" or
+# "FILE:<name> UNSTAMPED:<first line>" per log found, then a final
+# "TOTAL n=<count> bad=<count>" line.
+t012_scan_red_logs() {
+  local dir="$1" f first n=0 bad=0
+  for f in "$dir"/red-*vagueness-gate*.log; do
     [[ -f "$f" ]] || continue
     n=$((n + 1))
     first="$(head -1 "$f")"
-    grep -qE '^RED_CLASS: (product_red|infra_fail)$' <<<"$first" \
-      || { log_info "TEST-012(clarify): $(basename "$f") line 1 is not a RED_CLASS line: $first"; ok=0; }
+    if grep -qE '^RED_CLASS: (product_red|infra_fail)$' <<<"$first"; then
+      printf 'FILE:%s STAMPED\n' "$(basename "$f")"
+    else
+      bad=$((bad + 1))
+      printf 'FILE:%s UNSTAMPED:%s\n' "$(basename "$f")" "$first"
+    fi
   done
+  printf 'TOTAL n=%s bad=%s\n' "$n" "$bad"
+}
+
+# --- TEST-012(clarify) — every stored RED log is classified at capture --------
+test_clarify_012_red_class_stamped() {
+  local ok=1 scan_root result line n bad
+  # R2-2 (validation round 2): the scan root is now a variable, defaulting to
+  # the real evidence directory, so the positive control below can point the
+  # SAME loop at a scratch copy instead of scanning it in place.
+  scan_root="${AAI_T012_SCAN_ROOT:-$PROJECT_ROOT/docs/ai/tdd}"
+  result="$(t012_scan_red_logs "$scan_root")"
+  n=0; bad=0
+  while IFS= read -r line; do
+    case "$line" in
+      FILE:*UNSTAMPED:*)
+        log_info "TEST-012(clarify): ${line#FILE:} is not a RED_CLASS line"
+        ;;
+      TOTAL\ n=*)
+        n="${line#TOTAL n=}"; n="${n%% bad=*}"
+        bad="${line##* bad=}"
+        ;;
+    esac
+  done <<<"$result"
+  [[ "$bad" -eq 0 ]] || ok=0
   # docs/ai/tdd/** is gitignored per-dev runtime evidence (pruned by
   # METRICS_FLUSH after 7 days), so a fresh clone / CI runner legitimately has
   # none. Degrade with a NOTE rather than failing on someone else's machine —
   # the assertion is "every log that EXISTS was classified at capture".
-  [[ "$n" -ge 1 ]] || log_info "TEST-012(clarify): NOTE — no stored RED log for this scope under docs/ai/tdd/ (gitignored per-dev runtime evidence); nothing to classify"
-  [[ $ok -eq 1 ]] && log_pass "TEST-012(clarify) all $n stored RED log(s) carry RED_CLASS as line 1" \
+  [[ "$n" -ge 1 ]] || log_info "TEST-012(clarify): NOTE — no stored RED log for this scope under $scan_root (gitignored per-dev runtime evidence); nothing to classify"
+
+  # POSITIVE CONTROL (validation round 1 BLOCKING-17 finding 4; validation
+  # round 2 R2-2: the control used to plant into $TMP_ROOT, outside the loop's
+  # own scan root, and re-applied a COPY of the regex — the loop above was
+  # never entered and its n stayed 0 regardless of what this control proved).
+  # A scratch COPY of the real scan root is built, the fixture pair is
+  # planted INSIDE it, and the SAME t012_scan_red_logs function — not a
+  # duplicate — is re-run against that copy: the loop's OWN reported n must
+  # rise by exactly the two planted files, and it must classify one STAMPED
+  # and the other UNSTAMPED.
+  local pc_root pc_result pc_line pc_n pc_bad pc_stamped=0 pc_unstamped=0
+  pc_root="$(mktemp -d "$TMP_ROOT/t012-positive-control.XXXXXX")"
+  cp "$scan_root"/red-*vagueness-gate*.log "$pc_root"/ 2>/dev/null || true
+  { echo "RED_CLASS: product_red"; echo "FAIL: fixture"; } > "$pc_root/red-001-t012-positive-control-vagueness-gate.log"
+  { echo "FAIL: fixture with no classification line"; } > "$pc_root/red-002-t012-positive-control-vagueness-gate.log"
+  pc_result="$(t012_scan_red_logs "$pc_root")"
+  pc_n=0; pc_bad=0
+  while IFS= read -r pc_line; do
+    case "$pc_line" in
+      FILE:red-001-t012-positive-control-vagueness-gate.log\ STAMPED) pc_stamped=1 ;;
+      FILE:red-002-t012-positive-control-vagueness-gate.log\ UNSTAMPED:*) pc_unstamped=1 ;;
+      TOTAL\ n=*)
+        pc_n="${pc_line#TOTAL n=}"; pc_n="${pc_n%% bad=*}"
+        pc_bad="${pc_line##* bad=}"
+        ;;
+    esac
+  done <<<"$pc_result"
+  local pc_ok=1
+  [[ "$pc_n" -ge "$((n + 2))" ]] \
+    || { log_info "TEST-012(clarify) positive control: the loop's own n over the scratch copy was $pc_n (want >= $((n + 2)), the real $n plus the two planted files) — the loop was not actually entered"; pc_ok=0; }
+  [[ "$pc_stamped" -eq 1 ]] \
+    || { log_info "TEST-012(clarify) positive control: the loop did not report the WELL-FORMED planted fixture as STAMPED"; pc_ok=0; }
+  [[ "$pc_unstamped" -eq 1 ]] \
+    || { log_info "TEST-012(clarify) positive control: the loop did not report the MALFORMED planted fixture as UNSTAMPED"; pc_ok=0; }
+  [[ $pc_ok -eq 1 ]] \
+    || { log_fail "TEST-012(clarify) positive control: the loop over a scratch copy of $scan_root does not discriminate a well-formed log from a malformed one"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-012(clarify) all $n stored RED log(s) under $scan_root carry RED_CLASS as line 1, and the SAME scan loop — re-run over a scratch copy carrying a planted fixture pair — is proven to discriminate well-formed from malformed rather than passing vacuously" \
     || log_fail "TEST-012(clarify) RED_CLASS stamping"
 }
 

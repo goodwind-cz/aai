@@ -26,9 +26,32 @@
 set -uo pipefail
 
 TEST_NAME="aai-doctor"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DOCTOR="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
+
+# dr_line_hit <payload> <ere> — true (rc 0) iff some LINE of <payload> matches
+# <ere>, tested one line at a time so `.` can never span a newline the way it
+# would under a single whole-string `[[ =~ ]]` (Spec-AC-11 anchor/multiline
+# trap). Unlike assert_payload_line_matches this NEVER calls log_fail — some
+# call sites below accumulate several independent checks into one `ok` flag
+# and report ONE verdict at the end, so an escalating helper would be wrong
+# here (it would abort the whole suite on the FIRST failing sub-check instead
+# of collecting all of them).
+dr_line_hit() {
+  local _dr_payload="$1" _dr_ere="$2" _dr_line
+  while IFS= read -r _dr_line; do
+    if [[ "$_dr_line" =~ $_dr_ere ]]; then
+      return 0
+    fi
+  done <<EOF
+$_dr_payload
+EOF
+  return 1
+}
 
 TMP_ROOT=""
 FAILED=0
@@ -236,7 +259,7 @@ test_001_cat01_fail_named() {
   : > "$fixture/CLAUDE.md"
   # .aai/AGENTS.md deliberately missing.
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep -q "^CAT-01 FAIL" && echo "$out" | grep "^CAT-01" | grep -q "AGENTS.md"; then
+  if dr_line_hit "$out" '^CAT-01 FAIL' && [[ "$(echo "$out" | grep '^CAT-01')" == *"AGENTS.md"* ]]; then
     log_pass "TEST-001 CAT-01 FAIL names the missing required file"
   else
     log_info "TEST-001: got: $(echo "$out" | grep '^CAT-01')"
@@ -251,7 +274,7 @@ test_002_cat02_fail_named() {
   add_core_and_role_files "$fixture"
   rm -f "$fixture/.aai/VALIDATION.prompt.md"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-02" | grep -q "FAIL" && echo "$out" | grep "^CAT-02" | grep -q "VALIDATION.prompt.md"; then
+  if echo "$out" | grep "^CAT-02" | qgrep -q "FAIL" && echo "$out" | grep "^CAT-02" | qgrep -q "VALIDATION.prompt.md"; then
     log_pass "TEST-002 CAT-02 FAIL names the missing role prompt"
   else
     log_info "TEST-002: got: $(echo "$out" | grep '^CAT-02')"
@@ -267,7 +290,7 @@ test_003_cat03_orphan_warn() {
   mkdir -p "$fixture/.claude/skills/aai-orphan"
   echo 'Read the file `.aai/SKILL_NOPE.prompt.md`' > "$fixture/.claude/skills/aai-orphan/SKILL.md"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-03" | grep -q "WARN" && echo "$out" | grep "^CAT-03" | grep -q "aai-orphan"; then
+  if echo "$out" | grep "^CAT-03" | qgrep -q "WARN" && echo "$out" | grep "^CAT-03" | qgrep -q "aai-orphan"; then
     log_pass "TEST-003 CAT-03 WARN names the orphaned skill"
   else
     log_info "TEST-003: got: $(echo "$out" | grep '^CAT-03')"
@@ -281,7 +304,7 @@ test_004_cat04_dynamic_skills() {
   fixture="$(new_bare_fixture t004a)"
   add_core_and_role_files "$fixture"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! echo "$out" | grep "^CAT-04" | grep -q "WARN"; then
+  if ! echo "$out" | grep "^CAT-04" | qgrep -q "WARN"; then
     log_info "TEST-004a: got: $(echo "$out" | grep '^CAT-04')"
     log_fail "TEST-004a CAT-04 none-found WARN"
     return
@@ -292,7 +315,7 @@ test_004_cat04_dynamic_skills() {
   mkdir -p "$fixture2/.claude/skills/aai-build"
   echo "x" > "$fixture2/.claude/skills/aai-build/SKILL.md"
   out="$(node "$DOCTOR" --root "$fixture2" 2>&1)"
-  if echo "$out" | grep "^CAT-04" | grep -q "PASS"; then
+  if echo "$out" | grep "^CAT-04" | qgrep -q "PASS"; then
     log_pass "TEST-004 CAT-04 none->WARN, some->PASS"
   else
     log_info "TEST-004b: got: $(echo "$out" | grep '^CAT-04')"
@@ -309,9 +332,9 @@ test_005_cat05_knowledge() {
   : > "$fixture/docs/knowledge/FACTS.md"   # empty
   # PATTERNS.md deliberately missing entirely
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-05" | grep -q "WARN" \
-    && echo "$out" | grep "^CAT-05" | grep -q "FACTS.md empty" \
-    && echo "$out" | grep "^CAT-05" | grep -q "PATTERNS.md missing"; then
+  if echo "$out" | grep "^CAT-05" | qgrep -q "WARN" \
+    && echo "$out" | grep "^CAT-05" | qgrep -q "FACTS.md empty" \
+    && echo "$out" | grep "^CAT-05" | qgrep -q "PATTERNS.md missing"; then
     log_pass "TEST-005 CAT-05 empty+missing knowledge files WARN"
   else
     log_info "TEST-005: got: $(echo "$out" | grep '^CAT-05')"
@@ -336,7 +359,7 @@ metrics:
 EOF
   local out
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-06" | grep -q "FAIL"; then
+  if echo "$out" | grep "^CAT-06" | qgrep -q "FAIL"; then
     log_pass "TEST-006 CAT-06 duplicate top-level key -> FAIL (real check-state.mjs)"
   else
     log_info "TEST-006: got: $(echo "$out" | grep '^CAT-06')"
@@ -352,7 +375,7 @@ EOF
   add_core_and_role_files "$fixture2"
   rm -f "$fixture2/docs/ai/STATE.yaml"
   out2="$(node "$DOCTOR" --root "$fixture2" 2>&1)" || rc2=$?
-  if echo "$out2" | grep "^CAT-01" | grep -vq FAIL && echo "$out2" | grep "^CAT-06" | grep -q "WARN" && [[ "$rc2" -eq 0 ]]; then
+  if echo "$out2" | grep "^CAT-01" | qgrep -vq FAIL && echo "$out2" | grep "^CAT-06" | qgrep -q "WARN" && [[ "$rc2" -eq 0 ]]; then
     log_pass "TEST-006b missing STATE.yaml -> CAT-06 WARN, CAT-01 unaffected, exit 0 (CI-checkout parity)"
   else
     log_info "TEST-006b: rc=$rc2 CAT-01=$(echo "$out2" | grep '^CAT-01') CAT-06=$(echo "$out2" | grep '^CAT-06')"
@@ -369,8 +392,8 @@ test_007_cat07_telemetry() {
   printf '{"b":1}\n' > "$fixture/docs/ai/decisions.jsonl"
   : > "$fixture/docs/ai/LOOP_TICKS.jsonl"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-07" | grep -q "METRICS.jsonl: 3 entries" \
-    && echo "$out" | grep "^CAT-07" | grep -q "decisions.jsonl: 1 entries"; then
+  if echo "$out" | grep "^CAT-07" | qgrep -q "METRICS.jsonl: 3 entries" \
+    && echo "$out" | grep "^CAT-07" | qgrep -q "decisions.jsonl: 1 entries"; then
     log_pass "TEST-007 CAT-07 telemetry line counts"
   else
     log_info "TEST-007: got: $(echo "$out" | grep '^CAT-07')"
@@ -390,7 +413,7 @@ test_008_cat08_git_status() {
   git -C "$fixture" commit -qm "init"
   echo "dirty" >> "$fixture/CLAUDE.md"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! (echo "$out" | grep "^CAT-08" | grep -q "WARN" && echo "$out" | grep "^CAT-08" | grep -q "changed file"); then
+  if ! (echo "$out" | grep "^CAT-08" | qgrep -q "WARN" && echo "$out" | grep "^CAT-08" | qgrep -q "changed file"); then
     log_info "TEST-008a: got: $(echo "$out" | grep '^CAT-08')"
     log_fail "TEST-008a CAT-08 dirty tree WARN"
     return
@@ -400,7 +423,7 @@ test_008_cat08_git_status() {
   fixture2="$(new_bare_fixture t008-nongit)"
   add_core_and_role_files "$fixture2"
   out2="$(node "$DOCTOR" --root "$fixture2" 2>&1)"
-  if echo "$out2" | grep "^CAT-08" | grep -q "SKIP"; then
+  if echo "$out2" | grep "^CAT-08" | qgrep -q "SKIP"; then
     log_pass "TEST-008 CAT-08 dirty->WARN, non-git->SKIP"
   else
     log_info "TEST-008b: got: $(echo "$out2" | grep '^CAT-08')"
@@ -414,7 +437,7 @@ test_009_cat09_precompact() {
   fixture="$(new_bare_fixture t009)"
   add_core_and_role_files "$fixture"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! echo "$out" | grep "^CAT-09" | grep -q "WARN"; then
+  if ! echo "$out" | grep "^CAT-09" | qgrep -q "WARN"; then
     log_info "TEST-009a: got: $(echo "$out" | grep '^CAT-09')"
     log_fail "TEST-009a CAT-09 missing hook WARN"
     return
@@ -423,7 +446,7 @@ test_009_cat09_precompact() {
   : > "$fixture/.aai/scripts/pre-compact-save.sh"
   : > "$fixture/.aai/scripts/pre-compact-save.ps1"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-09" | grep -q "PASS"; then
+  if echo "$out" | grep "^CAT-09" | qgrep -q "PASS"; then
     log_pass "TEST-009 CAT-09 missing->WARN, both present->PASS"
   else
     log_info "TEST-009b: got: $(echo "$out" | grep '^CAT-09')"
@@ -443,7 +466,7 @@ test_010_cat10_migration_matrix() {
   git -C "$fixture" add -A
   git -C "$fixture" commit -qm "init (STATE.yaml tracked, not gitignored)"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! (echo "$out" | grep "^CAT-10" | grep -q "LEGACY"); then
+  if ! (echo "$out" | grep "^CAT-10" | qgrep -q "LEGACY"); then
     log_info "TEST-010a: got: $(echo "$out" | grep '^CAT-10')"
     log_fail "TEST-010a CAT-10 LEGACY case"
     return
@@ -453,7 +476,7 @@ test_010_cat10_migration_matrix() {
   git -C "$fixture" add .gitignore
   git -C "$fixture" commit -qm "add gitignore (STATE.yaml stays tracked)"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-10" | grep -q "INCONSISTENT"; then
+  if echo "$out" | grep "^CAT-10" | qgrep -q "INCONSISTENT"; then
     log_pass "TEST-010 CAT-10 LEGACY + INCONSISTENT cases"
   else
     log_info "TEST-010b: got: $(echo "$out" | grep '^CAT-10')"
@@ -471,7 +494,7 @@ test_011_cat11_docs_hygiene() {
   # aai-doctor.mjs (no docs-audit.mjs sibling yet) and invoke THAT directly.
   install_doctor_copy "$fixture"
   out="$(node "$fixture/.aai/scripts/aai-doctor.mjs" 2>&1)"
-  if ! (echo "$out" | grep "^CAT-11" | grep -q "WARN" && echo "$out" | grep "^CAT-11" | grep -qi "not installed"); then
+  if ! (echo "$out" | grep "^CAT-11" | qgrep -q "WARN" && echo "$out" | grep "^CAT-11" | qgrep -qi "not installed"); then
     log_info "TEST-011a: got: $(echo "$out" | grep '^CAT-11')"
     log_fail "TEST-011a CAT-11 missing-script WARN"
     return
@@ -482,7 +505,7 @@ console.log("### Verdict: CLEAN");
 process.exit(0);
 EOF
   out="$(node "$fixture/.aai/scripts/aai-doctor.mjs" 2>&1)"
-  if echo "$out" | grep "^CAT-11" | grep -q "PASS"; then
+  if echo "$out" | grep "^CAT-11" | qgrep -q "PASS"; then
     log_pass "TEST-011 CAT-11 missing->WARN, stubbed CLEAN->PASS"
   else
     log_info "TEST-011b: got: $(echo "$out" | grep '^CAT-11')"
@@ -496,7 +519,7 @@ test_012_cat12_index_hook() {
   fixture="$(new_bare_fixture t012)"
   add_core_and_role_files "$fixture"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! echo "$out" | grep "^CAT-12" | grep -q "WARN"; then
+  if ! echo "$out" | grep "^CAT-12" | qgrep -q "WARN"; then
     log_info "TEST-012a: got: $(echo "$out" | grep '^CAT-12')"
     log_fail "TEST-012a CAT-12 not-installed WARN"
     return
@@ -504,14 +527,14 @@ test_012_cat12_index_hook() {
   mkdir -p "$fixture/.git/hooks"
   printf '#!/bin/sh\nsome-foreign-hook\n' > "$fixture/.git/hooks/pre-commit"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! (echo "$out" | grep "^CAT-12" | grep -q "WARN" && echo "$out" | grep "^CAT-12" | grep -q "NOT AAI-managed"); then
+  if ! (echo "$out" | grep "^CAT-12" | qgrep -q "WARN" && echo "$out" | grep "^CAT-12" | qgrep -q "NOT AAI-managed"); then
     log_info "TEST-012b: got: $(echo "$out" | grep '^CAT-12')"
     log_fail "TEST-012b CAT-12 foreign-hook WARN"
     return
   fi
   printf '#!/bin/sh\n# AAI:INDEX-AUTOGEN\n' > "$fixture/.git/hooks/pre-commit"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if echo "$out" | grep "^CAT-12" | grep -q "PASS"; then
+  if echo "$out" | grep "^CAT-12" | qgrep -q "PASS"; then
     log_pass "TEST-012 CAT-12 not-installed / foreign / AAI-managed states"
   else
     log_info "TEST-012c: got: $(echo "$out" | grep '^CAT-12')"
@@ -528,8 +551,8 @@ test_013_cat13_exit4_tolerated() {
   cp "$PROJECT_ROOT/.aai/scripts/layer-drift.mjs" "$fixture/.aai/scripts/layer-drift.mjs"
   # No .aai/system/AAI_PIN.md -> real layer-drift.mjs exits 4 (unverifiable).
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"; rc=$?
-  if echo "$out" | grep "^CAT-13" | grep -q "WARN" \
-    && echo "$out" | grep "^CAT-13" | grep -qi "unverifiable" \
+  if echo "$out" | grep "^CAT-13" | qgrep -q "WARN" \
+    && echo "$out" | grep "^CAT-13" | qgrep -qi "unverifiable" \
     && [[ "$rc" -eq 0 ]]; then
     log_pass "TEST-013 CAT-13 layer-drift exit 4 -> WARN (never FAIL), doctor exit 0"
   else
@@ -564,11 +587,11 @@ test_014_clean_fixture_doctor_clean() {
     log_fail "TEST-014 clean fixture verdict"
     return
   fi
-  if echo "$out" | grep -q "^DOCTOR CLEAN$"; then
+  if dr_line_hit "$out" '^DOCTOR CLEAN$'; then
     log_pass "TEST-014 fully-clean fixture -> DOCTOR CLEAN, exit 0"
-  elif echo "$out" | grep -q "^DOCTOR ISSUES(2)$" \
-    && echo "$out" | grep "^CAT-14" | grep -q "SKIP" \
-    && echo "$out" | grep "^CAT-15" | grep -q "SKIP"; then
+  elif dr_line_hit "$out" '^DOCTOR ISSUES(2)$' \
+    && [[ "$(echo "$out" | grep '^CAT-14')" == *SKIP* ]] \
+    && [[ "$(echo "$out" | grep '^CAT-15')" == *SKIP* ]]; then
     log_pass "TEST-014 fully-clean fixture -> DOCTOR ISSUES(2) (CAT-14/CAT-15 SKIP off Windows), exit 0"
   else
     log_info "TEST-014: got: $out"
@@ -662,7 +685,7 @@ test_018_script_location_default_root() {
   add_core_and_role_files "$fixture"
   install_doctor_copy "$fixture"
   out="$(cd "$TMP_ROOT" && node "$fixture/.aai/scripts/aai-doctor.mjs" 2>&1)"
-  if echo "$out" | grep -q "^CAT-01 PASS"; then
+  if dr_line_hit "$out" '^CAT-01 PASS'; then
     log_pass "TEST-018 default root resolves from the invoked script's own location, no --root needed"
   else
     log_info "TEST-018: got: $(echo "$out" | grep '^CAT-01')"
@@ -679,7 +702,7 @@ test_019_real_repo_smoke() {
     log_fail "TEST-019 real-repo smoke exit code"
     return
   fi
-  if ! echo "$out" | grep -q "^DOCTOR "; then
+  if ! dr_line_hit "$out" '^DOCTOR '; then
     log_info "TEST-019: no DOCTOR verdict line in output: $out"
     log_fail "TEST-019 real-repo smoke verdict line"
     return
@@ -812,9 +835,9 @@ test_024_selftest_structural_arm_pins() {
   # the guarantee (a full-line '#' comment never counts as a violation).
   local code_only
   code_only="$(grep -vE '^\s*#' "$f")"
-  printf '%s\n' "$code_only" | grep -qE 'Move-Item|Rename-Item' \
+  dr_line_hit "$code_only" 'Move-Item|Rename-Item' \
     && { log_info "TEST-024: Move-Item/Rename-Item present in code"; ok=0; }
-  printf '%s\n' "$code_only" | grep -qE 'Remove-Item.*[Dd]ecoy[Bb]ash' \
+  dr_line_hit "$code_only" 'Remove-Item.*[Dd]ecoy[Bb]ash' \
     && { log_info "TEST-024: Remove-Item applied to the decoy bash path"; ok=0; }
 
   [[ $ok -eq 1 ]] && log_pass "TEST-024 structural arm pins (redirect + Handle + env-in-child-text + no mutate)" \
@@ -1779,6 +1802,32 @@ exit 1
     ok=0
   fi
 
+  # --- Fixture 5: decorative hook that closes its stdin at once, so the
+  # probe's input write gets EPIPE deterministically (a fast `exit 0` hook
+  # did this on the Linux CI runner, PR #381 run 34815192336). The verdict
+  # must still be the behavioural one, never "could not be verified (EPIPE)".
+  local d5="$TMP_ROOT/t040-epipe"
+  rm -rf "$d5"; mkdir -p "$d5/.git/hooks"
+  git -C "$d5" init -q -b main >/dev/null
+  git -C "$d5" config user.email "test@example.invalid"; git -C "$d5" config user.name "AAI Test"
+  git -C "$d5" commit -q --allow-empty -m init
+  printf '#!/bin/sh\n# AAI:REF-GUARD\nexec 0<&-\nsleep 0.3\nexit 0\n' > "$d5/.git/hooks/reference-transaction"
+  chmod +x "$d5/.git/hooks/reference-transaction"
+  local out5
+  out5="$(node "$DOCTOR" --root "$d5" 2>&1 | grep '^CAT-17')"
+  if [[ "$out5" == *' PASS '* ]]; then
+    log_info "TEST-040 epipe: got PASS on a hook that never refuses: $out5"
+    ok=0
+  fi
+  if [[ "$(printf '%s' "$out5" | tr 'A-Z' 'a-z')" == *'could not be behaviourally verified'* ]]; then
+    log_info "TEST-040 epipe: the probe gave up (any error code) instead of judging the hook by its exit status: $out5"
+    ok=0
+  fi
+  if [[ "$(printf '%s' "$out5" | tr 'A-Z' 'a-z')" != *'does not behave as a guard'* ]]; then
+    log_info "TEST-040 epipe: WARN reason does not name the behavioural mismatch: $out5"
+    ok=0
+  fi
+
   # --- Fixture 3: non-executable hook (POSIX only) ----------------------
   case "$(uname -s)" in
     MINGW*|CYGWIN*|MSYS*) : ;; # git hooks run through an interpreter there regardless of mode bits
@@ -1820,6 +1869,56 @@ exit 1
 
   [[ $ok -eq 1 ]] && log_pass "TEST-040 CAT-17 resolves the EFFECTIVE hooks path (core.hooksPath override -> NOT armed; pre-fix marker-only resolution DOES wrongly say PASS on the same fixture) and behaviourally probes the hook (decorative/non-executable -> NOT armed; a real guard -> PASS)" \
     || log_fail "TEST-040 CAT-17 effective-path + behavioural-probe"
+}
+
+# --- TEST-439 (spec-test-framework-sweep Spec-AC-22) — every CLI main()
+# guard resolves both sides through realpath, so invoking the script through
+# a SYMLINKED checkout still runs main() instead of silently no-op'ing.
+# `path.resolve`/`pathToFileURL`/`.endsWith` shapes do not follow a symlink
+# component the way `fs.realpathSync` does, and Node's ESM loader can settle
+# `import.meta.url` and a raw `process.argv[1]` on different sides of that
+# symlink — the guard then never fires and the CLI exits 0 having done
+# nothing, no error, no output.
+test_439_argv1_guard_resolves_symlinks() {
+  local ok=1 unresolved
+
+  # Part A: no main-guard call site compares process.argv[1] without going
+  # through a real*Resolve helper. Comments (heartbeat.mjs, this file's own
+  # history) are excluded by requiring an actual comparison operator.
+  # allocate-doc-number.mjs is EXCLUDED on purpose: it is one of the eight
+  # docs/ai/docs-audit.yaml protected_paths_l3 surfaces, touching it requires
+  # a FROZEN ceremony_level:3 spec (test-aai-hitl-propagation.sh TEST-014
+  # enforces this repo-wide), and this ride is ceremony 2 (established fact
+  # 9 / the spec's own D-decisions never claim an L3 escalation). Its guard
+  # keeps the pre-existing unresolved shape as a named residual, not a fix.
+  unresolved="$(grep -rn 'process\.argv\[1\]' "$PROJECT_ROOT/.aai/scripts" --include='*.mjs' \
+    | grep -v -E '^[^:]+:[0-9]+:[[:space:]]*//' \
+    | grep -v 'allocate-doc-number\.mjs' \
+    | grep -E '===|\.endsWith\(' \
+    | grep -v -iE 'realorresolve|realpathorresolve')"
+  if [[ -n "$unresolved" ]]; then
+    log_info "TEST-439: unresolved main-guard shape(s) found:"
+    log_info "$unresolved"
+    ok=0
+  fi
+
+  # Part B: three named CLIs, invoked through a symlinked checkout, produce
+  # the same stdout and exit code as invoking the real path directly.
+  local symdir cli d_out d_rc s_out s_rc
+  symdir="$(mktemp -d "${TMPDIR:-/tmp}/aai-doctor-argv1-symlink.XXXXXX")"
+  ln -s "$PROJECT_ROOT" "$symdir/repo"
+  for cli in orchestration-mode.mjs pr-platform.mjs validation-waiver.mjs; do
+    d_out="$(node "$PROJECT_ROOT/.aai/scripts/$cli" --help 2>&1)"; d_rc=$?
+    s_out="$(node "$symdir/repo/.aai/scripts/$cli" --help 2>&1)"; s_rc=$?
+    if [[ "$d_out" != "$s_out" || "$d_rc" -ne "$s_rc" ]]; then
+      log_info "TEST-439: $cli differs through a symlinked checkout (direct rc=$d_rc, symlink rc=$s_rc)"
+      ok=0
+    fi
+  done
+  rm -rf "$symdir"
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-439 every main() guard resolves via realpath; symlinked-checkout invocation matches direct invocation" \
+    || log_fail "TEST-439 argv[1] main-guard symlink resolution"
 }
 
 main() {
@@ -1879,6 +1978,7 @@ main() {
   test_038_0139_canonical_invocation_fixtures
   test_039_0139_canonical_invocation_shape
   test_040_cat17_effective_path_and_probe
+  test_439_argv1_guard_resolves_symlinks
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

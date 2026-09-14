@@ -58,6 +58,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
@@ -477,37 +478,74 @@ function catGitRefGuard(root) {
 // reference-transaction hook: argv[1] is the transaction state ("prepared"),
 // stdin carries "<old-oid> <new-oid> <refname>" lines.
 function probeRefGuardHook(hookPath, root) {
+  // The probe feeds what git feeds a reference-transaction hook: one
+  // "<old-oid> <new-oid> <refname>" line per ref in the transaction. The
+  // refs/heads/main line is the one a guard must refuse; the padding lines
+  // that follow name refs no guard cares about and make the input larger
+  // than any pipe buffer, so the shape this replaced (writing the input from
+  // this process into the hook's stdin pipe) fails deterministically against
+  // a hook that never READS its stdin — a decorative `exit 0`. On a fast
+  // Linux runner it failed by race even with 82 bytes: the hook exited
+  // first and the probe reported "EPIPE" instead of a verdict (PR #381, CI
+  // run 34815192336). Passing it through a shell argument hit E2BIG on
+  // Linux (128 KiB per-argument cap, run 34816988475). So: the input is a
+  // FILE handed to the hook as its stdin. A file has no writer to break,
+  // a hook that never reads it simply exits, and the verdict is its own
+  // exit status — on every platform, with no race and no size cap.
   const REFUSE_INPUT = `${'0'.repeat(40)} ${'1'.repeat(40)} refs/heads/main\n`;
+  const PAD_LINES = 1000; // ~115 KiB (117,988 B) of refs/heads/aai-doctor-probe-pad-<i> lines
+  const padding = Array.from({ length: PAD_LINES }, (_, i) => `${'0'.repeat(40)} ${'2'.repeat(40)} refs/heads/aai-doctor-probe-pad-${i}\n`).join('');
+  const PROBE_INPUT = REFUSE_INPUT + padding;
   const baseEnv = { ...process.env };
   delete baseEnv.AAI_GIT_WRITE;
   const writeEnv = { ...baseEnv, AAI_GIT_WRITE: '1' };
-  const opts = (env) => ({ cwd: root, input: REFUSE_INPUT, env, encoding: 'utf8', timeout: 5000 });
 
-  // POSIX: exec the file directly — the OS loader honors the shebang, and
-  // (having already confirmed the executable bit above) this is exactly how
-  // git itself would run it. Windows has no OS-level shebang support, so
-  // fall back to an explicit interpreter — the same one Git for Windows
-  // uses to run this exact hook.
-  if (process.platform !== 'win32') {
-    const refuses = spawnSync(hookPath, ['prepared'], opts(baseEnv));
-    if (refuses.error) {
-      return { verified: false, errorCode: refuses.error.code };
-    }
-    const permits = spawnSync(hookPath, ['prepared'], opts(writeEnv));
-    if (permits.error) {
-      return { verified: false, errorCode: permits.error.code };
-    }
-    return { verified: true, refuses: refuses.status !== 0, permits: permits.status === 0 };
+  let dir;
+  try {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aai-doctor-probe-'));
+  } catch (e) {
+    return { verified: false, errorCode: e && e.code ? e.code : 'ETMPDIR' };
   }
-
-  for (const shell of ['sh', 'bash']) {
-    const refuses = spawnSync(shell, [hookPath, 'prepared'], opts(baseEnv));
-    if (refuses.error) continue;
-    const permits = spawnSync(shell, [hookPath, 'prepared'], opts(writeEnv));
-    if (permits.error) continue;
-    return { verified: true, refuses: refuses.status !== 0, permits: permits.status === 0 };
+  const inputFile = path.join(dir, 'reftx-input');
+  try {
+    try {
+      fs.writeFileSync(inputFile, PROBE_INPUT);
+    } catch (e) {
+      return { verified: false, errorCode: e && e.code ? e.code : 'EWRITE' };
+    }
+    const runHook = (cmd, args, env) => {
+      let fd;
+      try {
+        fd = fs.openSync(inputFile, 'r');
+      } catch (e) {
+        return { error: { code: e && e.code ? e.code : 'EOPEN' } };
+      }
+      try {
+        return spawnSync(cmd, args, { cwd: root, env, encoding: 'utf8', timeout: 5000, stdio: [fd, 'pipe', 'pipe'] });
+      } finally {
+        fs.closeSync(fd);
+      }
+    };
+    // POSIX: exec the file directly — the OS loader honors the shebang, and
+    // (having already confirmed the executable bit above) this is exactly
+    // how git itself would run it. Windows has no OS-level shebang support,
+    // so fall back to an explicit interpreter — the same one Git for Windows
+    // uses to run this exact hook.
+    const launchers = process.platform !== 'win32'
+      ? [[hookPath, ['prepared']]]
+      : [['sh', [hookPath, 'prepared']], ['bash', [hookPath, 'prepared']]];
+    let lastError = 'ENOINTERPRETER';
+    for (const [cmd, args] of launchers) {
+      const refuses = runHook(cmd, args, baseEnv);
+      if (refuses.error) { lastError = refuses.error.code; continue; }
+      const permits = runHook(cmd, args, writeEnv);
+      if (permits.error) { lastError = permits.error.code; continue; }
+      return { verified: true, refuses: refuses.status !== 0, permits: permits.status === 0 };
+    }
+    return { verified: false, errorCode: lastError };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
-  return { verified: false, errorCode: 'ENOINTERPRETER' };
 }
 
 // --- CAT-13 Vendored Layer Drift (subprocess to layer-drift.mjs) -------------

@@ -19,6 +19,7 @@
 
 set -u
 TEST_NAME="test-aai-feedback-upsert"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -35,6 +36,27 @@ log_pass() { echo "PASS: $*"; }
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
 log_info() { echo "INFO: $*"; }
 log_skip() { echo "SKIP: $*"; exit 42; }
+
+# Spec-AC-28 / D3: a nested suite's failure used to be rendered into ONE
+# log_fail argument via `grep -n -A40 "FAIL"` piped into `head -60`. Since the nested
+# suite's own `log_fail` exits immediately, its FAIL line is almost always
+# the LAST line of its output, so `-A40` (context AFTER the match) captures
+# nothing beyond that single line — the framework's own whole-log
+# failure-line extraction (test-framework.sh) then shows only that first
+# line, and every line of real diagnostic context (the nested suite's own
+# INFO/PASS progress up to the failure) is lost. This writes the complete
+# nested output to a file, names that file and its line count, and surfaces
+# the actual matched failure lines (prefixed so the outer FAIL/ERROR
+# extraction keeps more than one of them) instead of a single truncated line.
+nested_suite_fail() {
+  local label="$1" out="$2" code="$3"
+  local nfile="$TEST_DIR/nested-${label// /_}.log"
+  printf '%s\n' "$out" > "$nfile"
+  local n; n="$(wc -l < "$nfile" | tr -d ' ')"
+  local ctx
+  ctx="$(grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$nfile" 2>/dev/null | qhead -n 25 | sed 's/^/FAIL-CTX: /' || true)"
+  log_fail "$label failed (exit $code); nested output: $nfile ($n lines)"$'\n'"$ctx"
+}
 command -v node >/dev/null 2>&1 || log_skip "node not found"
 
 # Mock gh: $1 records calls; SEARCH_RESULT controls the search response.
@@ -129,7 +151,8 @@ case "$1 $2" in
       [ "$1" = "--label" ] || gh_reject "only --label may follow --body, got: $1"
       [ "$#" -ge 2 ] || gh_reject "--label needs an argument"
       lc="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
-      tr '[:upper:]' '[:lower:]' < "${LABEL_RESULT:-/dev/null}" 2>/dev/null | grep -qF "\"$lc\"" \
+      lc_labels="$(tr '[:upper:]' '[:lower:]' < "${LABEL_RESULT:-/dev/null}" 2>/dev/null)"
+      grep -qF "\"$lc\"" <<<"$lc_labels" \
         || { echo "could not add label: '$2' not found" >&2; exit 1; }
       shift 2
     done
@@ -259,7 +282,7 @@ test_005_budget() {
   for i in 1 2 3; do echo "{\"event\":\"issue_created\",\"fingerprint\":\"v1:old$i\",\"ts_ms\":999999999999}" >> "$led"; done
   reset_calls; local out; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null; out="$(cat "$TEST_DIR/out")"
   [ "$(creates)" = "0" ] || log_fail "TEST-005: over-budget publish must NOT create an issue"
-  echo "$out" | grep -qi "budget" || log_fail "TEST-005: must report the budget deferral"
+  assert_payload_contains_i "$out" "budget" "TEST-005: must report the budget deferral"
   log_pass "budget met -> deferred, no create (TEST-005)"
 }
 
@@ -377,7 +400,7 @@ JSON
   reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
   # only the valid fingerprint gets a draft; the poisoned one is skipped (never a file / never a gh call carrying it)
   [ -f "$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md" ] || log_fail "TEST-012: valid fingerprint must be prepared"
-  ls "$TEST_DIR/friction/pending-issues/" | grep -qi "POISON\|ssh\|Users" && log_fail "TEST-012: an off-shape fingerprint must be skipped (no draft)"
+  ls "$TEST_DIR/friction/pending-issues/" | qgrep -qi "POISON\|ssh\|Users" && log_fail "TEST-012: an off-shape fingerprint must be skipped (no draft)"
   grep -qi "POISON\|/Users/\|\.ssh" "$GH_CALLS" && log_fail "TEST-012: an off-shape fingerprint must never reach a gh call" || true
   # poisoned fingerprint publish is rejected (RUN echoes the node exit code)
   local pc; pc="$(RUN "$TEST_DIR/fblab.yaml" --publish "v1:POISON_/Users/x/.ssh" --confirm)"
@@ -396,7 +419,7 @@ JSON
 test_013_search_argv() {
   log_info "Test: dedup search argv carries no --state and matches the gh contract (TEST-013)..."
   reset_calls; RUN >/dev/null
-  local line; line="$(grep '^search issues' "$GH_CALLS" | head -1)"
+  local line; line="$(grep '^search issues' "$GH_CALLS" | qhead -1)"
   [ -n "$line" ] || log_fail "TEST-013: no 'search issues' call was recorded"
   case "$line" in *--state*) log_fail "TEST-013: argv must NOT carry --state (gh accepts only open|closed): $line";; esac
   case "$line" in *"--repo goodwind-cz/aai"*) ;; *) log_fail "TEST-013: argv must pin --repo: $line";; esac
@@ -577,7 +600,7 @@ test_021_shipped_config_is_review() {
   local cfg="$PROJECT_ROOT/.aai/feedback.yaml"
   [ -f "$cfg" ] || log_fail "TEST-021: shipped config missing: $cfg"
   grep -qE '^[[:space:]]+mode:[[:space:]]*review[[:space:]]*$' "$cfg" \
-    || log_fail "TEST-021: the shipped config must set triage.mode: review (got: $(grep -E '^[[:space:]]+mode:' "$cfg" | head -1))"
+    || log_fail "TEST-021: the shipped config must set triage.mode: review (got: $(grep -E '^[[:space:]]+mode:' "$cfg" | qhead -1))"
   log_pass "shipped config enables review mode (TEST-021)"
 }
 
@@ -685,7 +708,7 @@ test_028_shipped_destination_is_pinned() {
   log_info "Test: the shipped .aai/feedback.yaml pins the destination (TEST-028)..."
   local cfg="$PROJECT_ROOT/.aai/feedback.yaml"
   grep -qE '^[[:space:]]+destination:[[:space:]]*goodwind-cz/aai([[:space:]]|#|$)' "$cfg" \
-    || log_fail "TEST-028: the shipped destination must be goodwind-cz/aai (got: $(grep -E '^[[:space:]]+destination:' "$cfg" | head -1))"
+    || log_fail "TEST-028: the shipped destination must be goodwind-cz/aai (got: $(grep -E '^[[:space:]]+destination:' "$cfg" | qhead -1))"
   log_pass "shipped destination is pinned (TEST-028)"
 }
 
@@ -763,7 +786,7 @@ test_032_create_argv_destination_and_content() {
 JSONL
   reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
   [ "$(creates)" = "1" ] || log_fail "TEST-032: the create must happen (made $(creates), err=$(cat "$TEST_DIR/err"))"
-  local line; line="$(grep '^issue create' "$GH_CALLS" | head -1)"
+  local line; line="$(grep '^issue create' "$GH_CALLS" | qhead -1)"
   case "$line" in *"--repo goodwind-cz/aai"*) ;; *) log_fail "TEST-032: the create must target the CONFIGURED destination: $line";; esac
   case "$line" in *"[contract_violation] SKILL_TDD/impl (high impact)"*) ;; *) log_fail "TEST-032: the title must be templated from structured fields: $line";; esac
   case "$line" in *"aai-friction:v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*) ;; *) log_fail "TEST-032: the FILED body must carry the dedup marker, or the remote dedup can never match: $line";; esac
@@ -903,7 +926,7 @@ test_039_skeleton_never_reaches_filed_body() {
   seed_single_candidate
   reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
   RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
-  local line; line="$(grep '^issue create' "$GH_CALLS" | head -1)"
+  local line; line="$(grep '^issue create' "$GH_CALLS" | qhead -1)"
   [ -n "$line" ] || log_fail "TEST-039: no issue create call was recorded"
   assert_payload_not_contains "$line" "Analysis (reporter follow-up)" "TEST-039: the filed argv must not carry the draft skeleton heading"
   assert_payload_contains "$line" "aai-friction:v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "TEST-039: the filed argv must still carry the dedup marker"
@@ -918,7 +941,7 @@ test_040_poisoned_draft_does_not_change_filed_argv() {
   seed_single_candidate
   reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
   RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
-  local clean; clean="$(grep '^issue create' "$GH_CALLS" | head -1)"
+  local clean; clean="$(grep '^issue create' "$GH_CALLS" | qhead -1)"
   # a second, matched fixture: same candidate, draft overwritten with prose plus
   # a token-shaped string before the publish
   seed_single_candidate
@@ -927,7 +950,7 @@ test_040_poisoned_draft_does_not_change_filed_argv() {
   local GHTOK="gh""p_POISONEDTOKEN1234567890"
   printf 'unredacted prose at /Users/ales/.ssh/id_rsa and a token %s\n' "$GHTOK" > "$draft"
   reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
-  local poisoned; poisoned="$(grep '^issue create' "$GH_CALLS" | head -1)"
+  local poisoned; poisoned="$(grep '^issue create' "$GH_CALLS" | qhead -1)"
   [ "$clean" = "$poisoned" ] || log_fail "TEST-040: the filed argv must be byte-identical whether or not the on-disk draft was poisoned (clean=[$clean] poisoned=[$poisoned])"
   log_pass "a poisoned on-disk draft cannot change the filed argv (TEST-040)"
 }
@@ -1504,8 +1527,50 @@ JSONL
 test_009_profiles() {
   log_info "Test: new .aai files classified; layer-profiles green (TEST-009)..."
   local out code; out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
-  [ "$code" = "0" ] || log_fail "TEST-009: layer-profiles must pass: $(printf '%s' "$out" | grep -n -A40 "FAIL" | head -60)"
+  [ "$code" = "0" ] || nested_suite_fail "TEST-009: layer-profiles" "$out" "$code"
   log_pass "new .aai files classified; layer-profiles green (TEST-009)"
+}
+
+# --- TEST-404 (Spec-AC-28): nesting wrapper names a file + line count, and
+# preserves more than the nested failure's first line -----------------------
+test_404_nested_failure_names_file_with_linecount() {
+  log_info "Test: nested_suite_fail writes the full nested output to a named file with its line count (TEST-404)..."
+  # A synthetic nested failure whose FAIL line is the LAST line of the
+  # output (the real shape: the nested suite's own log_fail exits
+  # immediately) — this is exactly the case where the OLD `grep -A40 "FAIL"`
+  # rendering degenerated to one line, since there is nothing AFTER it.
+  local payload
+  payload="$(printf 'INFO: step one\nPASS: step one ok\nINFO: step two\nPASS: step two ok\nINFO: step three\nFAIL: the real cause of the failure')"
+  local msg rc
+  set +e
+  msg="$(nested_suite_fail "probe label" "$payload" "1" 2>&1)"; rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || log_fail "TEST-404: nested_suite_fail must exit non-zero"
+
+  local nfile
+  nfile="$(printf '%s\n' "$msg" | grep -oE "$TEST_DIR/nested-[^ ]*\.log" | qhead -1)"
+  [ -n "$nfile" ] || log_fail "TEST-404: message must name the nested-output file, got: $msg"
+  [ -f "$nfile" ] || log_fail "TEST-404: named file must actually exist: $nfile"
+
+  local file_lines stated_n
+  file_lines="$(wc -l < "$nfile" | tr -d ' ')"
+  stated_n="$(printf '%s\n' "$msg" | grep -oE '\([0-9]+ lines\)' | grep -oE '[0-9]+' | qhead -1)"
+  [ -n "$stated_n" ] || log_fail "TEST-404: message must state the file's line count, got: $msg"
+  [ "$stated_n" = "$file_lines" ] || log_fail "TEST-404: stated line count ($stated_n) must match the file's actual line count ($file_lines)"
+
+  # The file preserves the WHOLE nested payload, not just its first line.
+  grep -qF "step one ok" "$nfile" || log_fail "TEST-404: nested file lost early context lines: $(cat "$nfile")"
+  grep -qF "the real cause of the failure" "$nfile" || log_fail "TEST-404: nested file lost the actual FAIL line"
+
+  # The framework's own whole-log FAIL/ERROR/not-ok/✗ extraction, applied to
+  # the wrapper's OWN message (what actually lands in the outer suite's
+  # log_file), must now see MORE than one matching line — the residual this
+  # AC exists to close.
+  local matched
+  matched="$(printf '%s\n' "$msg" | grep -cE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' || true)"
+  [ "$matched" -gt 1 ] || log_fail "TEST-404: framework-style extraction over the wrapper's message must show more than one line, got $matched: $msg"
+
+  log_pass "nesting wrapper names a file + line count and survives whole-log extraction (TEST-404, Spec-AC-28)"
 }
 
 main() {
@@ -1575,6 +1640,7 @@ main() {
   test_063_large_stderr_does_not_lose_exit_status
   test_064_harness_in_payload
   test_009_profiles
+  test_404_nested_failure_names_file_with_linecount
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

@@ -21,6 +21,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-debug-gate"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -117,8 +118,8 @@ test_005_remediation_wiring() {
     log_info "TEST-005: $REMEDIATION_FILE has $n SKILL_DEBUG lines (want 1-2)"
     ok=0
   fi
-  wire_line=$(grep -n "SKILL_DEBUG" "$REMEDIATION_FILE" | head -1 | cut -d: -f1)
-  fix_line=$(grep -nF "Apply fixes in order" "$REMEDIATION_FILE" | head -1 | cut -d: -f1)
+  wire_line=$(grep -n "SKILL_DEBUG" "$REMEDIATION_FILE" | qhead -1 | cut -d: -f1)
+  fix_line=$(grep -nF "Apply fixes in order" "$REMEDIATION_FILE" | qhead -1 | cut -d: -f1)
   if [[ -z "$fix_line" ]]; then
     log_info "TEST-005: fix-step marker 'Apply fixes in order' missing (obligation lost?)"
     ok=0

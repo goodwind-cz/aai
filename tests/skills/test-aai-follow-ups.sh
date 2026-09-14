@@ -33,6 +33,8 @@ set -euo pipefail
 TEST_NAME="aai-follow-ups"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FU="$PROJECT_ROOT/.aai/scripts/follow-ups.mjs"
 ROUTINE_EMIT="$PROJECT_ROOT/.aai/scripts/routine-emit.mjs"
@@ -1201,10 +1203,10 @@ test_017_grammar_and_product_doc_pins() {
 
   local frontmatter
   frontmatter="$(awk '/^---$/{n++; next} n==1' "$pdoc")"
-  echo "$frontmatter" | grep -qE '^[[:space:]]*-[[:space:]]*followups-cli-hardening[[:space:]]*$' \
-    || log_fail "product doc frontmatter delivered_by must include followups-cli-hardening"
-  echo "$frontmatter" | grep -qE '^updated: [0-9]{4}-[0-9]{2}-[0-9]{2}$' \
-    || log_fail "product doc frontmatter updated must be a well-formed ISO date"
+  assert_payload_line_matches "$frontmatter" '^[[:space:]]*-[[:space:]]*followups-cli-hardening[[:space:]]*$' \
+    "product doc frontmatter delivered_by must include followups-cli-hardening"
+  assert_payload_line_matches "$frontmatter" '^updated: [0-9]{4}-[0-9]{2}-[0-9]{2}$' \
+    "product doc frontmatter updated must be a well-formed ISO date"
 
   # NOTE (review NB-6): `--check` exits 0 on NEEDS-TRIAGE too (it only exits
   # non-zero on result.hardFail) — this is a smoke assertion that the audit
@@ -1573,6 +1575,23 @@ misses_subset_of_allowlist() {
   return 0
 }
 
+# allowlist_entries_outside <space-separated delivery set> <space-separated
+# members> -> prints every member NOT in the delivery set (Spec-AC-13,
+# fu-closure-allowlist-pin-blocks-draining / fu-test029-count-not-subset):
+# the delivery set is a CEILING on what the allowlist may ever carry, never
+# a floor, so this only ever flags growth past it, never a drain below it.
+allowlist_entries_outside() {
+  local delivery_set=" $1 " members="$2" m
+  local out=""
+  for m in $members; do
+    case "$delivery_set" in
+      *" $m "*) ;;
+      *) out="$out $m" ;;
+    esac
+  done
+  printf '%s' "${out# }"
+}
+
 # ============================ TEST-024 (Spec-AC-06) ==========================
 test_024_verify_closures_reads_both_claim_shapes() {
   log_info "Test: verify-closures --path --json parses BOTH recognized claim shapes (a labelled ## heading section, and the inline 'Registry items closed by this scope:' label) and reports every claimed fu- id with its folded ledger status (TEST-006)..."
@@ -1814,12 +1833,45 @@ test_029_real_corpus_ratchet_is_a_subset() {
   misses_subset_of_allowlist "$misses" \
     || log_fail "TEST-029: the real corpus reported a MISS outside the declared allowlist — either a real closure claim broke, or the allowlist needs a deliberate, reviewed update. misses=[$misses] allowlist=[${KNOWN_UNVERIFIED_CLOSURE_CLAIMS[*]}]"
 
-  [[ "${#KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}" -eq 3 ]] \
-    || log_fail "TEST-029: the allowlist must hold exactly the three measured entries at delivery, got ${#KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}"
-  local expected="fu-empty-path-cd-stays-in-shipping-repo fu-tdd-skips-full-sweep fu-validation-staleness-undetected"
-  local sorted; sorted="$(printf '%s\n' "${KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}" | sort | tr '\n' ' ')"
-  sorted="${sorted% }"
-  [[ "$sorted" == "$expected" ]] || log_fail "TEST-029: allowlist contents drifted from the three measured entries: [$sorted]"
+  # Spec-AC-13 (fu-closure-allowlist-pin-blocks-draining,
+  # fu-test029-count-not-subset): the property this pin MEANS is "no entry
+  # outside the allowlist", which is a SUBSET claim about the allowlist's
+  # relationship to the three entries measured at delivery — not a COUNT or
+  # a byte-identity claim about the allowlist itself. `-eq 3` plus an exact
+  # sorted-contents match reddened the suite the moment any ONE of the three
+  # was legitimately closed and drained (the allowlist's whole reason to
+  # exist), which is D7's exact shape: the cheapest legal repair (closing one
+  # entry) broke a test written for a different claim. The delivery-time set
+  # is now the CEILING, never the floor: the allowlist may shrink to zero as
+  # entries close, but every entry it still carries must come from that set.
+  local delivery_set="fu-empty-path-cd-stays-in-shipping-repo fu-tdd-skips-full-sweep fu-validation-staleness-undetected"
+  [[ "${#KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}" -le 3 ]] \
+    || log_fail "TEST-029: the allowlist may only DRAIN from the three entries measured at delivery, never grow past them, got ${#KNOWN_UNVERIFIED_CLOSURE_CLAIMS[@]}: [${KNOWN_UNVERIFIED_CLOSURE_CLAIMS[*]}]"
+  local outside; outside="$(allowlist_entries_outside "$delivery_set" "${KNOWN_UNVERIFIED_CLOSURE_CLAIMS[*]}")"
+  [[ -z "$outside" ]] \
+    || log_fail "TEST-029: allowlist entry outside the three entries measured at delivery ($delivery_set) — draining a listed entry is fine, adding one that was never in it is not: $outside"
+
+  # Negative control (Spec-AC-12/DEBT-0004, TEST-424): the real check above
+  # only ever runs over the shipped (currently-legal) array, so it has never
+  # been OBSERVED failing on a growth outside the delivery set, nor
+  # OBSERVED passing on a legal drain. Two local scratch arrays, never the
+  # global one, prove both.
+  # (Two members assigned to plain variables FIRST, not inlined as string
+  # literals inside a command substitution: one of the real fu- ids below
+  # spells "-cd-", and the hygiene pack's cd-subshell-leak scanner matches a
+  # bare `cd` token anywhere inside a `$( ... )` payload — a false positive
+  # on this literal DATA, not a real leak, that a variable reference does
+  # not trigger.)
+  local drained_members="fu-empty-path-cd-stays-in-shipping-repo fu-tdd-skips-full-sweep"
+  local drained_outside; drained_outside="$(allowlist_entries_outside "$delivery_set" "$drained_members")"
+  [[ -z "$drained_outside" ]] \
+    || log_fail "TEST-029 negative control: draining the allowlist to two of the three delivery entries was wrongly flagged: $drained_outside"
+  local grown_members="fu-empty-path-cd-stays-in-shipping-repo fu-tdd-skips-full-sweep fu-validation-staleness-undetected fu-never-in-the-delivery-set"
+  local grown_outside; grown_outside="$(allowlist_entries_outside "$delivery_set" "$grown_members")"
+  case "$grown_outside" in
+    *fu-never-in-the-delivery-set*) ;;
+    *) log_fail "TEST-029 negative control: an allowlist entry outside the delivery set was NOT detected by allowlist_entries_outside() — the guard would stay silent on the exact growth it exists to catch" ;;
+  esac
 
   # A fixture claim to an id that is definitely never in the ledger, and
   # definitely not in the allowlist, must FAIL the subset check — proving the
@@ -1861,6 +1913,19 @@ test_030_suite_map_glob_and_seam3_regression() {
   log_pass "select-suites.mjs maps a changed docs/specs or docs/issues path to aai-follow-ups; the pre-existing list --json assertions still hold unchanged (SEAM-3, TEST-012)"
 }
 
+# other_frozen_specs_touched(diff_text, own_spec_filename) — given the
+# newline-separated `docs/specs/*.md` paths a diff touched, and the filename
+# of the spec whose OWN delivery the diff is expected to be, returns every
+# OTHER spec path present. Factored out of test_031 (Spec-AC-12/TEST-448) so
+# the SAME comparison the real check runs can also be driven, in-suite,
+# against a fixture diff that proves it actually flags a second frozen spec
+# — not only that it stays quiet on the (now permanent) case where the
+# diff never touches SPEC-0159 at all.
+other_frozen_specs_touched() {
+  local diff_text="$1" own="$2"
+  printf '%s\n' "$diff_text" | grep -v -F "$own" | grep -v '^$' || true
+}
+
 # ============================ TEST-031 (Spec-AC-13) ==========================
 # Direct lane (spec's own strategy split): a ledger close transaction has no
 # meaningful RED phase. This arm verifies the CLOSURE STEP actually landed —
@@ -1870,6 +1935,7 @@ test_030_suite_map_glob_and_seam3_regression() {
 test_031_both_registry_items_closed_for_real() {
   log_info "Test: both fu-adhoc-probes-unisolated-report-only and fu-spec-closes-claim-unverified are closed for real in the live ledger, resolved_by naming this scope; no other frozen spec document is amended by this scope's diff (TEST-013)..."
   local out ec=0
+  local uncovered_note=""
   out="$(cd "$PROJECT_ROOT" && node "$FU" list --ref registry-audit-20260820 --status all --json 2>&1)" || ec=$?
   [[ "$ec" == 0 ]] || log_fail "TEST-031: list must exit 0, got $ec: $out"
   local check
@@ -1908,18 +1974,262 @@ test_031_both_registry_items_closed_for_real() {
     spec_diff="$(git -C "$PROJECT_ROOT" diff --name-only "$BASE_REF"...HEAD -- 'docs/specs/*.md' 2>/dev/null)"
     own_spec_touched="$(printf '%s\n' "$spec_diff" | grep -F 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md' || true)"
     if [[ -n "$own_spec_touched" ]]; then
-      other_specs="$(printf '%s\n' "$spec_diff" \
-        | grep -v 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md' || true)"
+      other_specs="$(other_frozen_specs_touched "$spec_diff" 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md')"
       [[ -z "$other_specs" ]] \
         || log_fail "TEST-031: this scope's diff touches another frozen spec document, which Spec-AC-13 forbids: $other_specs"
     else
-      log_info "TEST-031: this scope's own spec document is not part of the live $BASE_REF...HEAD diff — not this scope's delivery branch, delivery-diff guard not applicable here"
+      # Spec-AC-13 (fu-test031-guard-dies-at-rename), corrected at
+      # remediation (validation round 1 BLOCKING-9): SPEC-0159 is this
+      # guard's OWN scope, now merged history — it will never again be part
+      # of a live $BASE_REF...HEAD diff, so this branch is not an
+      # occasional degrade, it is this guard's PERMANENT resting state on
+      # every branch from here on. Reporting UNCOVERED and then still
+      # falling through to a log_pass that claimed "no other frozen spec
+      # document is touched" was exactly the shape Spec-AC-14 exists to
+      # refuse: UNCOVERED is not a synonym for verified, so the marker below
+      # is threaded into this function's OWN final verdict message instead
+      # of being silently absorbed into an unqualified PASS claim. A hard
+      # `log_fail` here — this suite runs `set -euo pipefail` with a
+      # fatal-on-first-failure log_fail, unlike the soft per-arm registries
+      # some sibling suites use — would abort the WHOLE suite immediately
+      # and void every test after this one (TEST-443, TEST-032 and more),
+      # exactly the BLOCKING-16 log_skip trap this same ride fixed
+      # elsewhere; this permanent condition would then fail every run
+      # forever with no way to observe anything past it. The negative
+      # control immediately below is this guard's real, ongoing protection
+      # (it exercises the SAME comparison function on a live fixture on
+      # every run) and is what actually gates this function's PASS/FAIL.
+      uncovered_note="TEST-031's delivery-diff guard: PERMANENTLY UNCOVERED on its primary path (SPEC-0159 is merged history and can never again appear in a live $BASE_REF...HEAD diff) — only the fixture negative control below still exercises it"
+      log_info "TEST-031: UNCOVERED — this scope's own spec document (SPEC-0159, now merged history) is not part of the live $BASE_REF...HEAD diff, so the delivery-diff guard's PRIMARY path has nothing of its own delivery left to check, on this branch or any future one"
     fi
   else
-    log_info "TEST-031: base ref $BASE_REF not resolvable here — skipping the delivery-diff guard (degrade, not a failure)"
+    uncovered_note="TEST-031's delivery-diff guard: UNCOVERED — base ref $BASE_REF not resolvable here — only the fixture negative control below still exercises it"
+    log_info "TEST-031: UNCOVERED — base ref $BASE_REF not resolvable here, so the delivery-diff guard cannot compute a diff at all (degrade, not a failure)"
   fi
 
-  log_pass "both registry items named by ISSUE-0046 are closed for real, resolved_by naming this scope; no other frozen spec document is touched (TEST-013)"
+  # Negative control (Spec-AC-12/DEBT-0004, TEST-448): the real arm above can
+  # only ever run on SPEC-0159's own now-merged delivery branch, which no
+  # longer exists — it has never been OBSERVED failing on a real violation.
+  # A fixture diff naming two frozen specs, ONE of them "own", proves the
+  # SAME comparison the real check uses actually flags the other one.
+  local fx_diff fx_violation
+  fx_diff="$(printf '%s\n' \
+    'docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md' \
+    'docs/specs/SPEC-0042-spec-some-other-frozen-scope.md')"
+  fx_violation="$(other_frozen_specs_touched "$fx_diff" 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md')"
+  case "$fx_violation" in
+    *SPEC-0042-spec-some-other-frozen-scope.md*) ;;
+    *) log_fail "TEST-031 negative control: a fixture diff touching a second frozen spec was NOT flagged by other_frozen_specs_touched() — the delivery-diff guard would stay silent on the exact violation it exists to catch" ;;
+  esac
+  fx_diff="$(printf '%s\n' 'docs/specs/SPEC-0159-spec-adhoc-probes-unisolated-report-only.md')"
+  fx_violation="$(other_frozen_specs_touched "$fx_diff" 'SPEC-0159-spec-adhoc-probes-unisolated-report-only.md')"
+  [[ -z "$fx_violation" ]] \
+    || log_fail "TEST-031 negative control: a diff touching ONLY this scope's own spec was wrongly flagged: $fx_violation"
+
+  if [[ -n "$uncovered_note" ]]; then
+    log_pass "both registry items named by ISSUE-0046 are closed for real, resolved_by naming this scope; the delivery-diff guard's PRIMARY path is UNCOVERED ($uncovered_note), so this verdict rests on its fixture negative control alone, which proves it still has teeth (TEST-013/TEST-448/Spec-AC-12+13)"
+  else
+    log_pass "both registry items named by ISSUE-0046 are closed for real, resolved_by naming this scope; no other frozen spec document is touched, and the delivery-diff guard's fixture negative control proves it still has teeth (TEST-013/TEST-448/Spec-AC-12+13)"
+  fi
+}
+
+# ============================ TEST-443 (Spec-AC-26) ===========================
+# spec-test-framework-sweep's own registry closure claim, over the REAL ledger:
+# `verify-closures --strict` over the spec exits 0, every one of the 78 frozen
+# bucket ids is terminal (done or dropped) with resolved_by naming this ride,
+# and the union of the spec's own closed(48)+rejected(30) tables is EXACTLY
+# those 78 ids — no more, no fewer. (84 = 48+36 at freeze; corrected to 78 =
+# 48+30 at remediation, validation round 5 BLOCKING-2, see the spec's own
+# `## Amendment`: SIX owner sign-off trackers for OTHER specs were mistakenly
+# swept into the rejected-36 (five named by the validator, a sixth found
+# while re-verifying the fix under a corrected TEST-009) and are now removed
+# from this scope's bucket entirely — reopened under their own ids via the
+# new `follow-ups.mjs reopen` rather than closed here under any status.)
+#
+# The frozen id list's canonical source is now the spec's OWN closed+rejected
+# tables (docs/specs/SPEC-0179-spec-test-framework-sweep.md, tracked and
+# committed), not docs/ai/tdd/spec-test-framework-sweep/bucket-open-2026-09-13.txt
+# (.gitignore:35 `docs/ai/tdd/**` — untracked). BLOCKING-16 (validation round
+# 1): that file does not exist in a fresh clone, and this test used to
+# `log_skip` on its absence — `log_skip` is `exit 42`, which VOIDS THE WHOLE
+# SUITE (see the warning at the top of this file). NEVER log_skip here for
+# that reason. The spec's two tables are proven byte-set-identical to the
+# frozen bucket file's 78 ids (diff empty both ways, checked when building
+# this fix — the local gitignored bucket file was itself trimmed from 84 to
+# 78 rows at the same remediation, since it is a cached query dump, not a
+# ledger); the bucket file, where present, is still cross-checked below as
+# a non-blocking corroboration — its absence no longer removes coverage.
+test_032_spec_test_framework_sweep_closure_is_real() {
+  log_info "Test: spec-test-framework-sweep's registry closure — verify-closures --strict exits 0, all 78 frozen bucket ids are terminal and resolved_by this ride, and the closed+rejected union is exactly the 78 ids (TEST-443)..."
+  local spec_path="$PROJECT_ROOT/docs/specs/SPEC-0179-spec-test-framework-sweep.md"
+  local bucket="$PROJECT_ROOT/docs/ai/tdd/spec-test-framework-sweep/bucket-open-2026-09-13.txt"
+  [[ -f "$spec_path" ]] || log_skip "spec not found: $spec_path"
+
+  local vc_out vc_rc=0
+  vc_out="$(node "$FU" verify-closures --path "$spec_path" --strict 2>&1)" || vc_rc=$?
+  [[ "$vc_rc" == 0 ]] || log_fail "TEST-443: verify-closures --strict must exit 0 over this spec, got $vc_rc: $vc_out"
+  grep -qE 'miss=0' <<<"$vc_out" \
+    || log_fail "TEST-443: verify-closures reported a nonzero miss count: $vc_out"
+
+  # Union of the spec's OWN closed+rejected tables, read straight from its
+  # prose (the same two headings verify-closures itself parses for `claims`).
+  # This union IS the frozen bucket — the canonical, tracked source.
+  local closed_ids rejected_ids union_ids
+  closed_ids="$(awk '/^## Registry items closed by this scope/{f=1;next} /^## Registry items rejected by this scope/{f=0} f' "$spec_path" \
+    | grep -oE 'fu-[a-z0-9-]+' | sort -u)"
+  rejected_ids="$(awk '/^## Registry items rejected by this scope/{f=1;next} /^## GitHub issues/{f=0} f' "$spec_path" \
+    | grep -oE '^\| fu-[a-z0-9-]+' | grep -oE 'fu-[a-z0-9-]+' | sort -u)"
+  union_ids="$(printf '%s\n%s\n' "$closed_ids" "$rejected_ids" | sort -u)"
+  local union_count
+  union_count="$(printf '%s\n' "$union_ids" | grep -c .)"
+  # 84 at freeze; corrected to 78 at remediation (validation round 5
+  # BLOCKING-2, see the spec's own `## Amendment`): six owner sign-off
+  # trackers for OTHER specs were mistakenly swept into this scope's
+  # rejected-36 (five named by the validator, a sixth found while
+  # re-verifying the fix under a corrected TEST-009) and are now REMOVED
+  # from the bucket entirely (reopened under their own ids instead of closed
+  # under any status here) — 48 closed + 30 rejected = 78.
+  [[ "$union_count" == 78 ]] \
+    || log_fail "TEST-443: the spec's closed+rejected union is $union_count ids, want 78"
+
+  local bucket_ids="$union_ids"
+  if [[ -f "$bucket" ]]; then
+    # Non-blocking corroboration only: a mismatch here is real evidence
+    # (recorded via log_fail), but the file's ABSENCE (the CI/fresh-clone
+    # case, since it is gitignored) must never remove coverage — only a
+    # `log_fail` below can do that, never a `log_skip`.
+    local raw_bucket_ids raw_bucket_count diff1 diff2
+    raw_bucket_ids="$(awk '{print $2}' "$bucket" | sort -u)"
+    raw_bucket_count="$(printf '%s\n' "$raw_bucket_ids" | grep -c .)"
+    [[ "$raw_bucket_count" == 78 ]] \
+      || log_fail "TEST-443: the frozen bucket list itself no longer holds 78 ids (got $raw_bucket_count) — the FROZEN partition moved, which this test cannot reconcile"
+    diff1="$(comm -23 <(printf '%s\n' "$raw_bucket_ids") <(printf '%s\n' "$union_ids"))"
+    diff2="$(comm -13 <(printf '%s\n' "$raw_bucket_ids") <(printf '%s\n' "$union_ids"))"
+    [[ -z "$diff1" ]] \
+      || log_fail "TEST-443: frozen bucket id(s) missing from the spec's closed+rejected union: $diff1"
+    [[ -z "$diff2" ]] \
+      || log_fail "TEST-443: the spec's closed+rejected union names id(s) outside the frozen bucket: $diff2"
+  else
+    log_info "TEST-443: the untracked bucket file is absent here (expected in a fresh clone/CI — it is gitignored); the frozen id list is read from the spec's own tracked closed+rejected tables instead, which is now the canonical source"
+  fi
+
+  # Every one of the 84 ids is terminal in the REAL ledger, resolved_by this
+  # ride — not merely claimed in the spec's own prose.
+  local id status resolved_by bad_status="" bad_attrib=""
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    local row
+    row="$(node "$FU" list --status all --json 2>/dev/null | node -e '
+      const fs=require("fs");
+      let d="";process.stdin.on("data",c=>d+=c);
+      process.stdin.on("end",()=>{
+        const j=JSON.parse(d);
+        const items=Array.isArray(j)?j:(j.items||j.followUps||[]);
+        const it=items.find(x=>x.id===process.argv[1]);
+        console.log(it?JSON.stringify(it):"MISSING");
+      });' "$id")"
+    [[ "$row" != "MISSING" ]] || { bad_status="${bad_status:+$bad_status }$id(missing)"; continue; }
+    status="$(node -e "console.log(JSON.parse(process.argv[1]).status)" "$row" 2>/dev/null)"
+    resolved_by="$(node -e "console.log(JSON.parse(process.argv[1]).resolved_by||'')" "$row" 2>/dev/null)"
+    case "$status" in
+      done|dropped) ;;
+      *) bad_status="${bad_status:+$bad_status }$id($status)" ;;
+    esac
+    # "test-framework-sweep" exactly, OR "test-framework-sweep-<suffix>" --
+    # the one disclosed carve-out this ride's own remediation used
+    # (fu-spec-evidence-cites-gitignored-path, --correct'd to
+    # "test-framework-sweep-remediation": the tool's own close --correct
+    # requires a DIFFERENT resolved_by than the record being corrected, so a
+    # same-ride-prefixed variant is how a WITHIN-RIDE reason correction is
+    # expressed at all; review NB-14). Still ties every id to THIS ride —
+    # an unrelated resolved_by fails exactly as before.
+    # Cross-sweep reconciliation (merge of main e6aae10b, sweep 3): this ride
+    # DROPPED fu-role-guard-blocks-own-fixtures ("the fix is in state.mjs, an
+    # L3 surface"); dispatch-state-sweep then fixed it at cause in state.mjs
+    # and closed it done. The later, truer record wins in the fold; the id
+    # stays in this spec's rejected table as history. Only this one id, only
+    # that one ride — any other foreign resolved_by still fails.
+    if [[ "$id" == "fu-role-guard-blocks-own-fixtures" && "$resolved_by" == "dispatch-state-sweep" ]]; then
+      continue
+    fi
+    case "$resolved_by" in
+      test-framework-sweep|test-framework-sweep-*) ;;
+      *) bad_attrib="${bad_attrib:+$bad_attrib }$id($resolved_by)" ;;
+    esac
+  done <<< "$bucket_ids"
+  [[ -z "$bad_status" ]] \
+    || log_fail "TEST-443: id(s) not terminal in the real ledger: $bad_status"
+  [[ -z "$bad_attrib" ]] \
+    || log_fail "TEST-443: id(s) not resolved_by test-framework-sweep: $bad_attrib"
+
+  log_pass "TEST-443: verify-closures --strict exits 0 over spec-test-framework-sweep, all 78 frozen bucket ids are terminal and resolved_by this ride, and the closed+rejected union is exactly those 78 ids"
+}
+
+# ======================== TEST-456 (BLOCKING-2, validation round 5) ==========
+# fu-registry-has-no-reopen (2026-08-29): `close` only ever appends
+# done/dropped, so an item closed on a mistaken premise had no way back into
+# the backlog short of hand-editing the append-only ledger. `reopen` is the
+# missing counterpart. This arm proves: a reopen on a closed id appends an
+# "open" follow_up_status record and the fold immediately projects the item
+# as open again (never rewriting the closing record — both survive on disk);
+# reopen refuses on an id that is ALREADY open (nothing to reopen); reopen
+# refuses on an unknown id; and --help documents the subcommand.
+test_033_reopen_appends_open_status() {
+  log_info "Test: follow-ups.mjs reopen appends a new open follow_up_status record, refuses on an already-open id and on an unknown id, and the fold reads the item as open again (TEST-456)..."
+  local led; led="$(mk_ledger t456)"
+  printf '%s\n' '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-reopen-me","ref_id":"CHANGE-0100","severity":"P2","finding":"closed too early","decision":"deferred","source":"s"}' >> "$led"
+
+  run_fu close --ledger "$led" --id fu-reopen-me --resolved-by CHANGE-0101 --status dropped --source "premature"
+  [[ "$EC" == 0 ]] || log_fail "TEST-456: setup close must exit 0, got $EC: $ERR"
+
+  # reopen refuses on an UNKNOWN id (exit 2, nothing appended).
+  local before_unknown; before_unknown="$(fsize "$led")"
+  run_fu reopen --ledger "$led" --id fu-never-existed --reason "typo'd id"
+  [[ "$EC" == 2 ]] || log_fail "TEST-456: reopen on an unknown id must exit 2, got $EC: $ERR"
+  grep -qE "unknown --id" <<<"$ERR" || log_fail "TEST-456: the unknown-id refusal must name the requirement: $ERR"
+  [[ "$(fsize "$led")" == "$before_unknown" ]] || log_fail "TEST-456: reopen on an unknown id must append nothing"
+
+  # reopen requires --reason.
+  run_fu reopen --ledger "$led" --id fu-reopen-me
+  [[ "$EC" == 2 ]] || log_fail "TEST-456: reopen with no --reason must exit 2, got $EC: $ERR"
+  grep -qE "requires --reason" <<<"$ERR" || log_fail "TEST-456: the missing-reason refusal must name the requirement: $ERR"
+
+  # The genuine reopen: succeeds, and the ledger GROWS (append-only — the
+  # dropped record from setup is never edited or removed).
+  local before; before="$(fsize "$led")"
+  run_fu reopen --ledger "$led" --id fu-reopen-me --reason "dropped in error, the defect survives" --source "bot review"
+  [[ "$EC" == 0 ]] || log_fail "TEST-456: a genuine reopen must exit 0, got $EC: $ERR"
+  [[ "$(fsize "$led")" -gt "$before" ]] || log_fail "TEST-456: a genuine reopen must append a new line"
+
+  run_fu list --ledger "$led" --status open --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-456: post-reopen list --status open must exit 0, got $EC: $ERR"
+  local reopened
+  reopened="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const it=j.items.find(i=>i.id==="fu-reopen-me");
+    if (!it) { console.log("MISSING"); process.exit(0); }
+    console.log(it.status==="open" && it.reopen_reason==="dropped in error, the defect survives" ? "OK" : JSON.stringify(it));
+  ' "$OUT")"
+  [[ "$reopened" == "OK" ]] || log_fail "TEST-456: the fold must project fu-reopen-me as open with the given reason: $reopened"
+
+  # Append-only: BOTH the original drop and the reopen survive on disk.
+  local dropped_count; dropped_count="$(grep -c "CHANGE-0101" "$led")"
+  [[ "$dropped_count" -ge 1 ]] || log_fail "TEST-456: the original dropped record must remain on disk (append-only, HAZ-LEDGER), found $dropped_count"
+
+  # reopen on an id that is ALREADY open must refuse — not a silent no-op,
+  # since there is no closed record for it to reopen.
+  local before_open; before_open="$(fsize "$led")"
+  run_fu reopen --ledger "$led" --id fu-reopen-me --reason "again"
+  [[ "$EC" == 2 ]] || log_fail "TEST-456: reopen on an already-open id must exit 2, got $EC: $ERR"
+  grep -qE "requires fu-reopen-me to be closed" <<<"$ERR" || log_fail "TEST-456: the already-open refusal must name the requirement: $ERR"
+  [[ "$(fsize "$led")" == "$before_open" ]] || log_fail "TEST-456: reopen on an already-open id must append nothing"
+
+  # --help documents it.
+  local help_out; help_out="$(node "$FU" --help 2>&1)"
+  grep -qF "follow-ups.mjs reopen" <<<"$help_out" \
+    || log_fail "TEST-456: --help must document the reopen subcommand: $help_out"
+
+  log_pass "follow-ups.mjs reopen appends a new open follow_up_status record (append-only), refuses on an unknown id / a missing --reason / an already-open id, the fold reads the item as open again, and --help documents it (TEST-456)"
 }
 
 main() {
@@ -1958,6 +2268,8 @@ main() {
   test_029_real_corpus_ratchet_is_a_subset
   test_030_suite_map_glob_and_seam3_regression
   test_031_both_registry_items_closed_for_real
+  test_032_spec_test_framework_sweep_closure_is_real
+  test_033_reopen_appends_open_status
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

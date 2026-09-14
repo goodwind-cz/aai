@@ -28,6 +28,7 @@ set -euo pipefail
 
 TEST_NAME="aai-state"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # shellcheck source=lib/assert-payload.sh
@@ -308,7 +309,7 @@ test_001_happy_focus_phase() {  # TEST-001 / Spec-AC-01
   # The REAL top-level field was bumped (no longer the fixture timestamp).
   grep -qE '^updated_at_utc: 2026-07-01T00:00:00Z$' "$s" \
     && log_fail "real top-level updated_at_utc must be bumped by the mutation"
-  grep -cE '^updated_at_utc: ' "$s" | grep -qx '1' || log_fail "exactly one real updated_at_utc line"
+  grep -cE '^updated_at_utc: ' "$s" | qgrep -qx '1' || log_fail "exactly one real updated_at_utc line"
   log_pass "set-focus/set-phase mutate cleanly; header intact; real updated_at_utc bumped (TEST-001)"
 }
 
@@ -554,22 +555,22 @@ test_010_append_run_autoinit() {  # TEST-010 / Spec-AC-11
   [[ "$mcount" == "1" ]] || log_fail "exactly ONE top-level metrics key (got $mcount)"
   grep -qE '^ {4}ISSUE-0007:$' "$s" || log_fail "missing auto-initialized work_items entry for ISSUE-0007"
   # human_time_minutes nulls scaffolded for the new entry.
-  sed -n '/^    ISSUE-0007:$/,/^    [A-Za-z]/p' "$s" | grep -qE '^ {8}intake: null$' \
+  sed -n '/^    ISSUE-0007:$/,/^    [A-Za-z]/p' "$s" | qgrep -qE '^ {8}intake: null$' \
     || log_fail "auto-init must scaffold human_time_minutes.intake: null"
-  sed -n '/^    ISSUE-0007:$/,/^    [A-Za-z]/p' "$s" | grep -qE '^ {8}reviews: null$' \
+  sed -n '/^    ISSUE-0007:$/,/^    [A-Za-z]/p' "$s" | qgrep -qE '^ {8}reviews: null$' \
     || log_fail "auto-init must scaffold human_time_minutes.reviews: null"
 
   # Self-stamped ended_utc >= started; computed integer duration; cost null; tdd_tests carried.
   local started ended
-  started="$(sed -n '/^    ISSUE-0007:$/,$p' "$s" | grep -m1 'started_utc:' | awk '{print $2}')"
-  ended="$(sed -n '/^    ISSUE-0007:$/,$p' "$s" | grep -m1 'ended_utc:' | awk '{print $2}')"
+  started="$(sed -n '/^    ISSUE-0007:$/,$p' "$s" | qgrep -m1 'started_utc:' | awk '{print $2}')"
+  ended="$(sed -n '/^    ISSUE-0007:$/,$p' "$s" | qgrep -m1 'ended_utc:' | awk '{print $2}')"
   [[ "$started" == "$NOW_UTC" ]] || log_fail "started_utc must be the supplied value (got $started)"
   [[ ! "$ended" < "$started" ]] || log_fail "self-stamped ended_utc ($ended) must be >= started_utc ($started)"
-  sed -n '/^    ISSUE-0007:$/,$p' "$s" | grep -qE '^ {10}duration_seconds: [0-9]+$' \
+  sed -n '/^    ISSUE-0007:$/,$p' "$s" | qgrep -qE '^ {10}duration_seconds: [0-9]+$' \
     || log_fail "duration_seconds must be a computed integer"
-  sed -n '/^    ISSUE-0007:$/,$p' "$s" | grep -qE '^ {10}cost_usd: null$' \
+  sed -n '/^    ISSUE-0007:$/,$p' "$s" | qgrep -qE '^ {10}cost_usd: null$' \
     || log_fail "cost_usd must be null (auto-capture out of scope)"
-  sed -n '/^    ISSUE-0007:$/,$p' "$s" | grep -qE '^ {10}tdd_tests: 3$' \
+  sed -n '/^    ISSUE-0007:$/,$p' "$s" | qgrep -qE '^ {10}tdd_tests: 3$' \
     || log_fail "tdd_tests must be carried when supplied"
   # Pre-existing entry untouched.
   grep -qF "fixture-run-1" "$s" || log_fail "pre-existing CHANGE-0001 run must survive"
@@ -585,7 +586,7 @@ test_011_reset_block_guards() {  # TEST-011 / Spec-AC-08
   write_state_fixture "$s" fail pass
   st "$s" "$TEST_DIR/t11-1.log" reset-block last_validation \
     || log_fail "reset-block on a fail block must exit 0: $(cat "$TEST_DIR/t11-1.log")"
-  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}status: not_run$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}status: not_run$' \
     || log_fail "last_validation.status must be not_run after reset"
   grep -qF "reset by remediation" "$s" || log_fail "reset marker must be appended to notes"
   grep -qF "pending independent re-validation" "$s" || log_fail "reset marker must name the pending independent re-validation"
@@ -609,15 +610,15 @@ test_011_reset_block_guards() {  # TEST-011 / Spec-AC-08
   cmp -s "$p" "$TEST_DIR/t11-pass-snap.yaml" || log_fail "refused reset must not write"
   st "$p" "$TEST_DIR/t11-4.log" reset-block last_validation --force \
     || log_fail "reset-block --force on a pass block must exit 0: $(cat "$TEST_DIR/t11-4.log")"
-  sed -n '/^last_validation:/,/^[a-z]/p' "$p" | grep -qE '^ {2}status: not_run$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$p" | qgrep -qE '^ {2}status: not_run$' \
     || log_fail "--force must reset the pass block"
 
   # code_review fail -> not_run; required + report_paths untouched.
   st "$p" "$TEST_DIR/t11-5.log" reset-block code_review \
     || log_fail "reset-block code_review on fail must exit 0: $(cat "$TEST_DIR/t11-5.log")"
-  sed -n '/^code_review:/,/^[a-z]/p' "$p" | grep -qE '^ {2}status: not_run$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$p" | qgrep -qE '^ {2}status: not_run$' \
     || log_fail "code_review.status must be not_run after reset"
-  sed -n '/^code_review:/,/^[a-z]/p' "$p" | grep -qE '^ {2}required: true$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$p" | qgrep -qE '^ {2}required: true$' \
     || log_fail "code_review.required must be left untouched by the reset"
   ck "$p" "$TEST_DIR/t11-5c.log" || log_fail "check-state after code_review reset: $(cat "$TEST_DIR/t11-5c.log")"
 
@@ -747,12 +748,12 @@ test_016_reset_routes_to_rule11() {  # TEST-016 / Spec-AC-07
   st "$s" "$TEST_DIR/t16.log" reset-block last_validation \
     || log_fail "reset-block on the fail fixture must exit 0: $(cat "$TEST_DIR/t16.log")"
   # Rule-10 input cleared, rule-11 inputs satisfied: validation not_run + implementation present.
-  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}status: not_run$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}status: not_run$' \
     || log_fail "last_validation.status must be not_run (rule-11 decision input)"
-  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}status: fail$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}status: fail$' \
     && log_fail "rule-10 input (fail) must be cleared"
   # code_review untouched by the validation reset.
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}status: pass$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}status: pass$' \
     || log_fail "code_review must be untouched by reset-block last_validation"
   ck "$s" "$TEST_DIR/t16-ck.log" || log_fail "check-state after reset: $(cat "$TEST_DIR/t16-ck.log")"
 
@@ -866,7 +867,7 @@ test_020_diff_locality() {  # TEST-020 / Spec-AC-01
   strip_block "$before" last_validation > "$TEST_DIR/t20-a-before.txt"
   strip_block "$s" last_validation > "$TEST_DIR/t20-a-after.txt"
   cmp -s "$TEST_DIR/t20-a-before.txt" "$TEST_DIR/t20-a-after.txt" \
-    || log_fail "set-validation leaked outside last_validation + updated_at_utc: $(diff "$TEST_DIR/t20-a-before.txt" "$TEST_DIR/t20-a-after.txt" | head -5)"
+    || log_fail "set-validation leaked outside last_validation + updated_at_utc: $(diff "$TEST_DIR/t20-a-before.txt" "$TEST_DIR/t20-a-after.txt" | qhead -5)"
 
   # (b) set-worktree → only worktree + updated_at_utc.
   write_state_fixture "$s"
@@ -955,7 +956,7 @@ test_021_reset_block_literal_notes() {  # TEST-021 / review W1
     # The marker must live INSIDE the scalar (indented deeper than the field).
     grep -qE '^    reset by remediation ' "$s" \
       || log_fail "reset marker must be appended as block-scalar content (4-space indent)"
-    sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^  status: not_run$' \
+    sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^  status: not_run$' \
       || log_fail "status must still be reset to not_run for 'notes: $hdr'"
     ck "$s" "$TEST_DIR/t21-ck.log" || log_fail "check-state after 'notes: $hdr' reset: $(cat "$TEST_DIR/t21-ck.log")"
   done
@@ -1029,7 +1030,7 @@ test_023_scalar_quoting() {  # TEST-023 / review W3
   st "$s" "$TEST_DIR/t23-1.log" set-validation --status pass --ref "CHANGE-1: bad" \
     || log_fail "set-validation with a colon-bearing --ref must exit 0: $(cat "$TEST_DIR/t23-1.log")"
   grep -qF "  ref_id: 'CHANGE-1: bad'" "$s" \
-    || log_fail "colon-bearing ref must be written single-quoted (got: $(grep '  ref_id:' "$s" | head -1))"
+    || log_fail "colon-bearing ref must be written single-quoted (got: $(grep '  ref_id:' "$s" | qhead -1))"
   ck "$s" "$TEST_DIR/t23-1c.log" || log_fail "check-state after quoted ref: $(cat "$TEST_DIR/t23-1c.log")"
 
   # (b) branch with `: ` + leading-quote model value.
@@ -1072,7 +1073,7 @@ test_024_concurrent_guard() {  # TEST-024 / review W4
   # The OTHER writer's line survives (never clobbered by our stale copy)...
   grep -qF "# concurrent-writer" "$s" || log_fail "the concurrent writer's committed line must survive"
   # ...and OUR stale mutation was NOT committed.
-  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^  status: not_run$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^  status: not_run$' \
     || log_fail "the losing mutation must NOT be committed over the concurrent write"
   # No stale tmp file left behind by the refusal.
   ls "$TEST_DIR"/t24-state.yaml.tmp-* 2>/dev/null && log_fail "refusal must clean up its tmp file"
@@ -1080,7 +1081,7 @@ test_024_concurrent_guard() {  # TEST-024 / review W4
   # Retry without contention succeeds.
   st "$s" "$TEST_DIR/t24b.log" set-validation --status pass \
     || log_fail "retry without contention must exit 0: $(cat "$TEST_DIR/t24b.log")"
-  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^  status: pass$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^  status: pass$' \
     || log_fail "retry must apply the mutation"
   ck "$s" "$TEST_DIR/t24-ck.log" || log_fail "check-state after retry: $(cat "$TEST_DIR/t24-ck.log")"
 
@@ -1193,17 +1194,17 @@ test_026_clear_worktree_stale() {  # SPEC-0014 TEST-001 / Spec-AC-01
 
   st "$s" "$TEST_DIR/t26.log" set-worktree --clear branch,path \
     || log_fail "set-worktree --clear branch,path must exit 0: $(cat "$TEST_DIR/t26.log")"
-  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}branch: null$' \
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}branch: null$' \
     || log_fail "worktree.branch must be cleared to null"
-  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}path: null$' \
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}path: null$' \
     || log_fail "worktree.path must be cleared to null"
   # Locality: ONLY worktree + updated_at_utc changed.
   strip_block "$before" worktree > "$TEST_DIR/t26-b.txt"
   strip_block "$s" worktree > "$TEST_DIR/t26-a.txt"
   cmp -s "$TEST_DIR/t26-b.txt" "$TEST_DIR/t26-a.txt" \
-    || log_fail "--clear leaked outside worktree + updated_at_utc: $(diff "$TEST_DIR/t26-b.txt" "$TEST_DIR/t26-a.txt" | head -5)"
+    || log_fail "--clear leaked outside worktree + updated_at_utc: $(diff "$TEST_DIR/t26-b.txt" "$TEST_DIR/t26-a.txt" | qhead -5)"
   # Untouched siblings survive inside the block.
-  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}recommendation: recommended$' \
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}recommendation: recommended$' \
     || log_fail "unnamed worktree fields must survive the clear"
   ck "$s" "$TEST_DIR/t26-ck.log" || log_fail "check-state after --clear: $(cat "$TEST_DIR/t26-ck.log")"
   log_pass "Stale worktree.branch/path cleared to null, diff block-local, validator clean (SPEC-0014 TEST-001)"
@@ -1221,11 +1222,11 @@ test_027_clear_across_subcommands() {  # SPEC-0014 TEST-002 / Spec-AC-01
   # set-code-review: scalar -> null, list -> [], free-text -> null.
   st "$s" "$TEST_DIR/t27-1.log" set-code-review --clear head_ref,report_paths,notes \
     || log_fail "set-code-review --clear must exit 0: $(cat "$TEST_DIR/t27-1.log")"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}head_ref: null$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}head_ref: null$' \
     || log_fail "code_review.head_ref must be null after clear"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}report_paths: \[\]$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}report_paths: \[\]$' \
     || log_fail "code_review.report_paths must be [] after clear (list semantics)"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}notes: null$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}notes: null$' \
     || log_fail "code_review.notes must be null after clear"
   grep -qF "docs/ai/reviews/stale.md" "$s" && log_fail "stale report path must be gone after the list clear"
   ck "$s" "$TEST_DIR/t27-1c.log" || log_fail "check-state after review clear: $(cat "$TEST_DIR/t27-1c.log")"
@@ -1238,35 +1239,35 @@ test_027_clear_across_subcommands() {  # SPEC-0014 TEST-002 / Spec-AC-01
   # set-validation clear-only: no --status needed; run_at_utc NOT re-stamped.
   st "$s" "$TEST_DIR/t27-3.log" set-validation --clear evidence_paths,ref_id,notes \
     || log_fail "set-validation --clear (no --status) must exit 0: $(cat "$TEST_DIR/t27-3.log")"
-  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}evidence_paths: \[\]$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}evidence_paths: \[\]$' \
     || log_fail "last_validation.evidence_paths must be [] after clear"
-  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}ref_id: null$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}ref_id: null$' \
     || log_fail "last_validation.ref_id must be null after clear"
-  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}notes: null$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}notes: null$' \
     || log_fail "last_validation.notes must be null after clear"
-  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}run_at_utc: 2026-07-01T00:00:00Z$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}run_at_utc: 2026-07-01T00:00:00Z$' \
     || log_fail "clear-only set-validation must NOT re-stamp run_at_utc (no validation ran)"
-  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}status: not_run$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}status: not_run$' \
     || log_fail "clear-only set-validation must leave status untouched"
   ck "$s" "$TEST_DIR/t27-3c.log" || log_fail "check-state after validation clear: $(cat "$TEST_DIR/t27-3c.log")"
 
   # set-focus --clear spec_path (clear-only, no --type).
   st "$s" "$TEST_DIR/t27-4.log" set-focus --clear spec_path \
     || log_fail "set-focus --clear spec_path must exit 0: $(cat "$TEST_DIR/t27-4.log")"
-  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^ {2}spec_path: null$' \
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}spec_path: null$' \
     || log_fail "current_focus.spec_path must be null after clear"
-  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^ {2}type: intake_change$' \
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}type: intake_change$' \
     || log_fail "clear-only set-focus must not touch type"
-  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^ {2}ref_id: CHANGE-0001$' \
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}ref_id: CHANGE-0001$' \
     || log_fail "clear-only set-focus must not touch ref_id"
   ck "$s" "$TEST_DIR/t27-4c.log" || log_fail "check-state after focus clear: $(cat "$TEST_DIR/t27-4c.log")"
 
   # --clear combined with a DISJOINT set flag: both apply in one invocation.
   st "$s" "$TEST_DIR/t27-5.log" set-worktree --clear branch --base-ref develop \
     || log_fail "--clear combined with a disjoint set flag must exit 0: $(cat "$TEST_DIR/t27-5.log")"
-  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}branch: null$' \
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}branch: null$' \
     || log_fail "combined invocation must apply the clear"
-  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}base_ref: develop$' \
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}base_ref: develop$' \
     || log_fail "combined invocation must apply the disjoint set flag"
   ck "$s" "$TEST_DIR/t27-5c.log" || log_fail "check-state after combined clear+set: $(cat "$TEST_DIR/t27-5c.log")"
 
@@ -1275,9 +1276,9 @@ test_027_clear_across_subcommands() {  # SPEC-0014 TEST-002 / Spec-AC-01
     || log_fail "re-setting spec_path must exit 0: $(cat "$TEST_DIR/t27-6.log")"
   st "$s" "$TEST_DIR/t27-7.log" set-focus --type none \
     || log_fail "set-focus --type none must exit 0: $(cat "$TEST_DIR/t27-7.log")"
-  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^ {2}spec_path: null$' \
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}spec_path: null$' \
     || log_fail "set-focus --type none must null spec_path exactly as it nulls ref_id/primary_path"
-  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^ {2}ref_id: null$' \
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}ref_id: null$' \
     || log_fail "set-focus --type none must still null ref_id"
   ck "$s" "$TEST_DIR/t27-7c.log" || log_fail "check-state after --type none: $(cat "$TEST_DIR/t27-7c.log")"
   log_pass "--clear semantics correct across subcommands; combo works; --type none nulls spec_path (SPEC-0014 TEST-002)"
@@ -1366,7 +1367,7 @@ test_030_clear_idempotent_and_missing() {  # SPEC-0014 TEST-005 / Spec-AC-04
   [[ "$n" == "1" ]] || log_fail "exactly one head_ref line after idempotent clear (got $n)"
   n="$(sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -cE '^ {2}report_paths:' || true)"
   [[ "$n" == "1" ]] || log_fail "exactly one report_paths line after idempotent clear (got $n)"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}report_paths: \[\]$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}report_paths: \[\]$' \
     || log_fail "already-[] list must stay a single [] line"
 
   # Second run: still exit 0, still single lines (stable under repetition).
@@ -1383,7 +1384,7 @@ test_030_clear_idempotent_and_missing() {  # SPEC-0014 TEST-005 / Spec-AC-04
   # Already-null free-text field (`>-` in the fixture becomes null, then stays).
   st "$s" "$TEST_DIR/t30-4.log" set-worktree --clear rationale \
     || log_fail "clearing the >- rationale must exit 0: $(cat "$TEST_DIR/t30-4.log")"
-  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}rationale: null$' \
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}rationale: null$' \
     || log_fail "worktree.rationale (>- scalar) must clear to a single null line"
   grep -qF "Fixture worktree rationale." "$s" && log_fail "the >- continuation lines must be removed by the clear"
   st "$s" "$TEST_DIR/t30-5.log" set-worktree --clear rationale \
@@ -1395,9 +1396,9 @@ test_030_clear_idempotent_and_missing() {  # SPEC-0014 TEST-005 / Spec-AC-04
   grep -qE '^ {2}head_ref:' "$m" && log_fail "sparse fixture must not carry head_ref (fixture guard)"
   st "$m" "$TEST_DIR/t30-6.log" set-code-review --clear head_ref,notes \
     || log_fail "clearing missing fields must exit 0 (create-as-null): $(cat "$TEST_DIR/t30-6.log")"
-  sed -n '/^code_review:/,/^[a-z]/p' "$m" | grep -qE '^ {2}head_ref: null$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$m" | qgrep -qE '^ {2}head_ref: null$' \
     || log_fail "missing head_ref must be created as null"
-  sed -n '/^code_review:/,/^[a-z]/p' "$m" | grep -qE '^ {2}notes: null$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$m" | qgrep -qE '^ {2}notes: null$' \
     || log_fail "missing notes must be created as null"
   ck "$m" "$TEST_DIR/t30-6c.log" || log_fail "check-state after create-as-null: $(cat "$TEST_DIR/t30-6c.log")"
   log_pass "Idempotent clears exit 0 with single field lines; missing fields created as null (SPEC-0014 TEST-005)"
@@ -1439,7 +1440,7 @@ last_validation:
 
 YAML
   cmp -s "$TEST_DIR/t31-actual.txt" "$TEST_DIR/t31-expected.txt" \
-    || log_fail "spec_path placement wrong (must sit directly after primary_path inside the item): $(diff "$TEST_DIR/t31-expected.txt" "$TEST_DIR/t31-actual.txt" | head -8)"
+    || log_fail "spec_path placement wrong (must sit directly after primary_path inside the item): $(diff "$TEST_DIR/t31-expected.txt" "$TEST_DIR/t31-actual.txt" | qhead -8)"
   ck "$s" "$TEST_DIR/t31-ck.log" || log_fail "check-state after placement: $(cat "$TEST_DIR/t31-ck.log")"
 
   # Double-run idempotence: byte-identical modulo updated_at_utc.
@@ -1447,7 +1448,7 @@ YAML
     || log_fail "second identical set-phase must exit 0: $(cat "$TEST_DIR/t31-2.log")"
   grep -v '^updated_at_utc:' "$s" > "$TEST_DIR/t31-actual2.txt"
   cmp -s "$TEST_DIR/t31-actual.txt" "$TEST_DIR/t31-actual2.txt" \
-    || log_fail "double-run must be byte-identical modulo updated_at_utc: $(diff "$TEST_DIR/t31-actual.txt" "$TEST_DIR/t31-actual2.txt" | head -5)"
+    || log_fail "double-run must be byte-identical modulo updated_at_utc: $(diff "$TEST_DIR/t31-actual.txt" "$TEST_DIR/t31-actual2.txt" | qhead -5)"
   ck "$s" "$TEST_DIR/t31-2c.log" || log_fail "check-state after double run: $(cat "$TEST_DIR/t31-2c.log")"
   log_pass "spec_path placed inside the item directly after primary_path; double-run stable (SPEC-0014 TEST-006)"
 }
@@ -1505,7 +1506,7 @@ last_validation:
 
 YAML
   cmp -s "$TEST_DIR/t32-actual.txt" "$TEST_DIR/t32-expected.txt" \
-    || log_fail "fallback placement wrong (end of contiguous item lines): $(diff "$TEST_DIR/t32-expected.txt" "$TEST_DIR/t32-actual.txt" | head -8)"
+    || log_fail "fallback placement wrong (end of contiguous item lines): $(diff "$TEST_DIR/t32-expected.txt" "$TEST_DIR/t32-actual.txt" | qhead -8)"
   ck "$s" "$TEST_DIR/t32-1c.log" || log_fail "check-state after fallback placement: $(cat "$TEST_DIR/t32-1c.log")"
 
   # (b) creating primary_path later also lands INSIDE the item; spec_path then
@@ -1572,7 +1573,7 @@ test_034_clear_prototype_names_refused() {  # SPEC-0014 TEST-010 / Spec-AC-03 (r
   [[ "$ec" == 2 ]] || log_fail "set-worktree --clear branch,toString must exit 2 (got $ec): $(cat "$TEST_DIR/t34-m.log")"
 
   cmp -s "$s" "$TEST_DIR/t34-snap.yaml" \
-    || log_fail "refused prototype-name clears must leave the file byte-identical: $(diff "$TEST_DIR/t34-snap.yaml" "$s" | head -5)"
+    || log_fail "refused prototype-name clears must leave the file byte-identical: $(diff "$TEST_DIR/t34-snap.yaml" "$s" | qhead -5)"
   grep -qE '^ {2}(toString|__proto__|constructor|valueOf|hasOwnProperty|isPrototypeOf):' "$s" \
     && log_fail "no prototype-named junk key may be written into STATE"
   log_pass "Prototype-chain clear names refused exit 2 on all four subcommands, zero writes (SPEC-0014 TEST-010)"
@@ -1586,22 +1587,22 @@ test_035_clear_repeated_flag_accumulates() {  # SPEC-0014 TEST-011 / review-2026
   # Two occurrences: BOTH instructions must apply (pre-fix: first silently dropped).
   st "$s" "$TEST_DIR/t35-1.log" set-worktree --clear branch --clear path \
     || log_fail "set-worktree --clear branch --clear path must exit 0: $(cat "$TEST_DIR/t35-1.log")"
-  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}branch: null$' \
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}branch: null$' \
     || log_fail "first --clear occurrence (branch) must not be dropped"
-  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}path: null$' \
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}path: null$' \
     || log_fail "second --clear occurrence (path) must apply"
-  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}recommendation: recommended$' \
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}recommendation: recommended$' \
     || log_fail "unnamed worktree fields must survive the accumulated clear"
   ck "$s" "$TEST_DIR/t35-1c.log" || log_fail "check-state after accumulated clear: $(cat "$TEST_DIR/t35-1c.log")"
 
   # Repeat mixed with a comma-list: union of all occurrences.
   st "$s" "$TEST_DIR/t35-2.log" set-code-review --clear head_ref --clear report_paths,notes \
     || log_fail "mixed repeat + comma-list --clear must exit 0: $(cat "$TEST_DIR/t35-2.log")"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}head_ref: null$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}head_ref: null$' \
     || log_fail "head_ref from the first occurrence must be cleared"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}report_paths: \[\]$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}report_paths: \[\]$' \
     || log_fail "report_paths from the second occurrence must be cleared"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}notes: null$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}notes: null$' \
     || log_fail "notes from the second occurrence must be cleared"
 
   # Same field twice across occurrences: dedupe, exactly one field line.
@@ -1644,7 +1645,7 @@ test_036_clear_blankline_folded_scalar() {  # SPEC-0014 TEST-012 / review-202607
   # --clear must remove the WHOLE scalar span including the post-blank paragraph.
   st "$s" "$TEST_DIR/t36-1.log" set-code-review --clear notes \
     || log_fail "set-code-review --clear notes must exit 0: $(cat "$TEST_DIR/t36-1.log")"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}notes: null$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}notes: null$' \
     || log_fail "code_review.notes must be a single null line after clear"
   grep -qF "para one line" "$s" && log_fail "pre-blank continuation must be removed by the clear"
   grep -qF "para two line" "$s" && log_fail "post-blank continuation must NOT be orphaned by the clear"
@@ -1677,7 +1678,7 @@ assert v is None, "expected notes == null, got %r" % (v,)
   st "$o" "$TEST_DIR/t36-2.log" set-code-review --notes "fresh notes" \
     || log_fail "set-code-review --notes over a blank-line scalar must exit 0: $(cat "$TEST_DIR/t36-2.log")"
   grep -qF "para two line" "$o" && log_fail "overwrite must not orphan the post-blank continuation"
-  sed -n '/^code_review:/,/^[a-z]/p' "$o" | grep -qE '^ {4}fresh notes$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$o" | qgrep -qE '^ {4}fresh notes$' \
     || log_fail "overwrite must install the fresh >- content"
   n="$(sed -n '/^code_review:/,/^[a-z]/p' "$o" | grep -cE '^ {2}notes:' || true)"
   [[ "$n" == "1" ]] || log_fail "exactly one notes line after overwrite (got $n)"
@@ -2062,7 +2063,7 @@ test_049_wrapper_model_frontmatter() {  # CHANGE-0010 TEST-009 / Spec-AC-05
   count="$( (grep -l '^model:' "$PROJECT_ROOT"/.claude/skills/*/SKILL.md 2>/dev/null || true) | wc -l | tr -d ' ')"
   [[ "$count" -ge 3 ]] || log_fail "expected >=3 wrappers with model: frontmatter (got $count)"
   for w in aai-intake aai-check-state aai-flush aai-validate-report; do
-    sed -n '1,/^---$/p' "$PROJECT_ROOT/.claude/skills/$w/SKILL.md" | tail -n +2 | grep -q '^model: haiku$' \
+    sed -n '1,/^---$/p' "$PROJECT_ROOT/.claude/skills/$w/SKILL.md" | tail -n +2 | qgrep -q '^model: haiku$' \
       || log_fail "$w/SKILL.md must carry model: haiku in its YAML frontmatter"
   done
   log_pass "Wrapper model: frontmatter present ($count wrappers; 4 D6 wrappers pinned haiku) (CHANGE-0010 TEST-009)"
@@ -2389,7 +2390,7 @@ test_057_prompt_hash_valid() {  # prompt-hash-telemetry TEST-002 / Spec-AC-02
   st "$s" "$TEST_DIR/t57a.log" append-run --ref CHANGE-0001 --role Implementation --model claude-test \
       --started "$NOW_UTC" --prompt-hash "$h64" \
     || log_fail "append-run with a valid 64-hex --prompt-hash must exit 0: $(cat "$TEST_DIR/t57a.log")"
-  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE "^ {10}prompt_hash: ${h64}\$" \
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | qgrep -qE "^ {10}prompt_hash: ${h64}\$" \
     || log_fail "prompt_hash must be stored as a scalar on the run entry (64-hex case)"
 
   # Boundary: minimum 12-hex length also accepted.
@@ -2397,7 +2398,7 @@ test_057_prompt_hash_valid() {  # prompt-hash-telemetry TEST-002 / Spec-AC-02
   st "$s" "$TEST_DIR/t57b.log" append-run --ref CHANGE-0001 --role Validation --model claude-test \
       --started "$NOW_UTC" --prompt-hash "$h12" --verdict none \
     || log_fail "append-run with a valid 12-hex --prompt-hash must exit 0: $(cat "$TEST_DIR/t57b.log")"
-  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE "^ {10}prompt_hash: ${h12}\$" \
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | qgrep -qE "^ {10}prompt_hash: ${h12}\$" \
     || log_fail "prompt_hash must be stored as a scalar on the run entry (12-hex boundary case)"
 
   ck "$s" "$TEST_DIR/t57-ck.log" || log_fail "check-state after --prompt-hash runs: $(cat "$TEST_DIR/t57-ck.log")"
@@ -2440,7 +2441,7 @@ test_059_prompt_hash_absent_goldens() {  # prompt-hash-telemetry TEST-004 / Spec
     || log_fail "append-run without --prompt-hash must exit 0: $(cat "$TEST_DIR/t59a.log")"
   ! grep -q 'prompt_hash:' "$s" || log_fail "prompt_hash key must be entirely omitted when the flag is absent"
   # Golden shape: exactly the known 8 fields, in order, nothing appended after cost_usd.
-  sed -n '/^        - role: Implementation$/,$p' "$s" | head -8 | sed \
+  sed -n '/^        - role: Implementation$/,$p' "$s" | qhead -8 | sed \
     -e 's/^\( *ended_utc: \).*/\1<NORM>/' -e 's/^\( *duration_seconds: \).*/\1<NORM>/' \
     > "$TEST_DIR/t59a-got.txt"
   cat > "$TEST_DIR/t59a-want.txt" <<EOF
@@ -2464,7 +2465,7 @@ EOF
       --started "$NOW_UTC" --tdd-tests 4 \
     || log_fail "append-run with --tdd-tests (no --prompt-hash) must exit 0: $(cat "$TEST_DIR/t59b.log")"
   ! grep -q 'prompt_hash:' "$s2" || log_fail "prompt_hash key must be omitted even when --tdd-tests is present"
-  sed -n '/^        - role: TDD Implementation$/,$p' "$s2" | head -9 | sed \
+  sed -n '/^        - role: TDD Implementation$/,$p' "$s2" | qhead -9 | sed \
     -e 's/^\( *ended_utc: \).*/\1<NORM>/' -e 's/^\( *duration_seconds: \).*/\1<NORM>/' \
     > "$TEST_DIR/t59b-got.txt"
   cat > "$TEST_DIR/t59b-want.txt" <<EOF
@@ -2640,13 +2641,13 @@ test_063_rguard_marker_absent_bytewise() {  # r-guard TEST-RG-STATE-02 / Spec-AC
   sed -E "s/$stamp_re/\\1<STAMP>/" "$base" > "$TEST_DIR/t63-base-norm.yaml"
   sed -E "s/$stamp_re/\\1<STAMP>/" "$other" > "$TEST_DIR/t63-other-norm.yaml"
   cmp -s "$TEST_DIR/t63-base-norm.yaml" "$TEST_DIR/t63-other-norm.yaml" \
-    || log_fail "Spec-AC-02: AAI_ROLE!=subagent must produce a byte-identical write to the no-marker baseline (modulo the self-stamped updated_at_utc): $(diff "$TEST_DIR/t63-base-norm.yaml" "$TEST_DIR/t63-other-norm.yaml" | head -5 || true)"
+    || log_fail "Spec-AC-02: AAI_ROLE!=subagent must produce a byte-identical write to the no-marker baseline (modulo the self-stamped updated_at_utc): $(diff "$TEST_DIR/t63-base-norm.yaml" "$TEST_DIR/t63-other-norm.yaml" | qhead -5 || true)"
 
   # Both writes must carry exactly ONE real stamp and must have bumped it off
   # the frozen fixture value — the marker may not suppress the bump either.
   local f
   for f in "$base" "$other"; do
-    grep -cE '^updated_at_utc: ' "$f" | grep -qx '1' \
+    grep -cE '^updated_at_utc: ' "$f" | qgrep -qx '1' \
       || log_fail "Spec-AC-02: exactly one real updated_at_utc line expected in $f"
     grep -qE '^updated_at_utc: 2026-07-01T00:00:00Z$' "$f" \
       && log_fail "Spec-AC-02: both writes must bump updated_at_utc off the fixture value ($f)"
@@ -2694,7 +2695,7 @@ test_065_append_run_defaults_and_enum_refusal() {  # TEST-027 / Spec-AC-02
   ( export AAI_HARNESS=codex
     st "$s" "$TEST_DIR/t65a.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" ) \
     || log_fail "(a) append-run must exit 0: $(cat "$TEST_DIR/t65a.log")"
-  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {10}harness: codex$' \
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | qgrep -qE '^ {10}harness: codex$' \
     || log_fail "(a) --harness omitted must default to detectHarness(process.env) (AAI_HARNESS=codex)"
 
   # (b) fully scrubbed env, no --harness -> harness unknown.
@@ -2703,7 +2704,7 @@ test_065_append_run_defaults_and_enum_refusal() {  # TEST-027 / Spec-AC-02
   ( unset $HARNESS_ENV_VARS
     st "$s2" "$TEST_DIR/t65b.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" ) \
     || log_fail "(b) append-run must exit 0: $(cat "$TEST_DIR/t65b.log")"
-  sed -n '/^    CHANGE-0001:$/,$p' "$s2" | grep -qE '^ {10}harness: unknown$' \
+  sed -n '/^    CHANGE-0001:$/,$p' "$s2" | qgrep -qE '^ {10}harness: unknown$' \
     || log_fail "(b) a fully scrubbed environment must default to harness unknown"
 
   # (c) --harness bogus -> exit 2, STATE byte-identical.
@@ -2715,7 +2716,7 @@ test_065_append_run_defaults_and_enum_refusal() {  # TEST-027 / Spec-AC-02
   cmp -s "$s3" "$TEST_DIR/t65c-snapshot.yaml" || log_fail "(c) STATE must stay byte-identical after the --harness refusal"
 
   # (d) --verdict omitted for a non-gated role (Planning) -> verdict none.
-  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {10}verdict: none$' \
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | qgrep -qE '^ {10}verdict: none$' \
     || log_fail "(d) --verdict omitted for Planning must default to none"
 
   log_pass "--harness default (AAI_HARNESS)/scrub-to-unknown/bogus-refusal + --verdict default none all hold (TEST-027)"
@@ -2742,7 +2743,7 @@ test_066_append_run_verdict_refusal() {  # TEST-028 / Spec-AC-03
 
   st "$s" "$TEST_DIR/t66c.log" append-run --ref CHANGE-0001 --role Validation --model m --started "$NOW_UTC" --verdict fail \
     || log_fail "(c) Validation WITH --verdict fail must exit 0: $(cat "$TEST_DIR/t66c.log")"
-  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {10}verdict: fail$' \
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | qgrep -qE '^ {10}verdict: fail$' \
     || log_fail "(c) the run must carry verdict fail"
 
   log_pass "Validation/Code Review refuse a missing --verdict exit 2 byte-identical; --verdict fail writes through (TEST-028)"
@@ -2757,11 +2758,11 @@ test_067_set_validation_per_ref_stamp() {  # TEST-029 / Spec-AC-07
   # (a) CHANGE-0001 already has a metrics.work_items entry (fixture) -> stamped.
   st "$s" "$TEST_DIR/t67a.log" set-validation --status pass --ref CHANGE-0001 \
     || log_fail "(a) set-validation must exit 0: $(cat "$TEST_DIR/t67a.log")"
-  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {6}validation:$' \
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | qgrep -qE '^ {6}validation:$' \
     || log_fail "(a) an EXISTING metrics.work_items entry must gain a validation: block"
-  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {8}status: pass$' \
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | qgrep -qE '^ {8}status: pass$' \
     || log_fail "(a) validation.status must be pass"
-  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {8}at: ' \
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | qgrep -qE '^ {8}at: ' \
     || log_fail "(a) validation.at must be stamped"
   grep -qE '^  status: pass$' "$s" || log_fail "(a) the global last_validation block must still be written"
   ck "$s" "$TEST_DIR/t67a-ck.log" || log_fail "(a) check-state must exit 0: $(cat "$TEST_DIR/t67a-ck.log")"
@@ -2779,9 +2780,9 @@ test_067_set_validation_per_ref_stamp() {  # TEST-029 / Spec-AC-07
   # (MX6 in the spec's own Mutation checks survived TEST-029 before this arm).
   st "$s" "$TEST_DIR/t67c.log" set-validation --status fail --ref CHANGE-0001 \
     || log_fail "(c) set-validation --status fail must exit 0: $(cat "$TEST_DIR/t67c.log")"
-  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {8}status: fail$' \
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | qgrep -qE '^ {8}status: fail$' \
     || log_fail "(c) validation.status must track --status fail, not stay/hardcode pass: $(cat "$s")"
-  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {8}status: pass$' \
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | qgrep -qE '^ {8}status: pass$' \
     && log_fail "(c) validation.status must NOT still read pass after --status fail: $(cat "$s")"
   ck "$s" "$TEST_DIR/t67c-ck.log" || log_fail "(c) check-state must exit 0: $(cat "$TEST_DIR/t67c-ck.log")"
 
@@ -2835,14 +2836,14 @@ test_069_scope_ref_id_lifecycle() {  # TEST-031 / Spec-AC-09 (NON-BLOCKING-A, re
   # (CHANGE-0001 in the fixture), never leaving a prior/absent stamp behind.
   st "$s" "$TEST_DIR/t69-1.log" set-code-review --scope "fresh scope text" \
     || log_fail "set-code-review --scope must exit 0: $(cat "$TEST_DIR/t69-1.log")"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}scope_ref_id: CHANGE-0001$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}scope_ref_id: CHANGE-0001$' \
     || log_fail "set-code-review --scope must stamp scope_ref_id to current_focus.ref_id (CHANGE-0001): $(cat "$s")"
   ck "$s" "$TEST_DIR/t69-1c.log" || log_fail "check-state after set-code-review --scope: $(cat "$TEST_DIR/t69-1c.log")"
 
   # (b) a NON-scope set-code-review call must NOT touch scope_ref_id.
   st "$s" "$TEST_DIR/t69-2.log" set-code-review --notes "unrelated note" \
     || log_fail "set-code-review --notes must exit 0: $(cat "$TEST_DIR/t69-2.log")"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}scope_ref_id: CHANGE-0001$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}scope_ref_id: CHANGE-0001$' \
     || log_fail "a set-code-review call that does not set --scope must leave scope_ref_id untouched: $(cat "$s")"
 
   # (c) reset-block code_review CLEARS the stamp (fail -> not_run) — a stale
@@ -2850,7 +2851,7 @@ test_069_scope_ref_id_lifecycle() {  # TEST-031 / Spec-AC-09 (NON-BLOCKING-A, re
   # ride's scope.
   st "$s" "$TEST_DIR/t69-3.log" reset-block code_review \
     || log_fail "reset-block code_review must exit 0: $(cat "$TEST_DIR/t69-3.log")"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}scope_ref_id: null$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}scope_ref_id: null$' \
     || log_fail "reset-block code_review must clear scope_ref_id to null: $(cat "$s")"
   ck "$s" "$TEST_DIR/t69-3c.log" || log_fail "check-state after reset-block code_review: $(cat "$TEST_DIR/t69-3c.log")"
 
@@ -3138,7 +3139,7 @@ test_072_focus_retarget_no_residue() {  # TEST-032 / Spec-AC-01
   st "$s" "$TEST_DIR/t72b.log" set-focus --type intake_change --ref CHANGE-0050 --path docs/issues/CHANGE-0050-fixture.md \
     --spec-path docs/specs/SPEC-0050-fixture.md \
     || log_fail "(b) retarget with --spec-path must exit 0: $(cat "$TEST_DIR/t72b.log")"
-  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^  spec_path: docs/specs/SPEC-0050-fixture.md$' \
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | qgrep -qE '^  spec_path: docs/specs/SPEC-0050-fixture.md$' \
     || log_fail "(b) current_focus.spec_path must be the newly-passed --spec-path"
   ck "$s" "$TEST_DIR/t72b-ck.log" || log_fail "(b) check-state after retarget+spec-path: $(cat "$TEST_DIR/t72b-ck.log")"
 
@@ -3146,7 +3147,7 @@ test_072_focus_retarget_no_residue() {  # TEST-032 / Spec-AC-01
   # to Q (the documented two-call Planning sequence: set-focus then set-phase --spec-path).
   st "$s" "$TEST_DIR/t72c.log" set-phase --ref CHANGE-0050 --phase implementation --spec-path docs/specs/SPEC-0050-v2.md \
     || log_fail "(c) set-phase --spec-path for the focused ref must exit 0: $(cat "$TEST_DIR/t72c.log")"
-  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^  spec_path: docs/specs/SPEC-0050-v2\.md$' \
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | qgrep -qE '^  spec_path: docs/specs/SPEC-0050-v2\.md$' \
     || log_fail "(c) current_focus.spec_path must equal the set-phase --spec-path value for the focused ref: $(sed -n '/^current_focus:/,/^[a-z]/p' "$s")"
   ck "$s" "$TEST_DIR/t72c-ck.log" || log_fail "(c) check-state after set-phase --spec-path: $(cat "$TEST_DIR/t72c-ck.log")"
 
@@ -3154,7 +3155,7 @@ test_072_focus_retarget_no_residue() {  # TEST-032 / Spec-AC-01
   # NOT touch current_focus.spec_path.
   st "$s" "$TEST_DIR/t72d.log" set-phase --ref ISSUE-0099 --phase planning --status planned --spec-path docs/specs/SPEC-0099-other.md \
     || log_fail "(c-control) set-phase for a non-focused ref must exit 0: $(cat "$TEST_DIR/t72d.log")"
-  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^  spec_path: docs/specs/SPEC-0050-v2\.md$' \
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | qgrep -qE '^  spec_path: docs/specs/SPEC-0050-v2\.md$' \
     || log_fail "(c-control) current_focus.spec_path must be UNCHANGED by a set-phase call for a different ref: $(sed -n '/^current_focus:/,/^[a-z]/p' "$s")"
 
   log_pass "set-focus retarget rewrites all four current_focus fields (spec_path nulled unless passed); set-phase --spec-path refreshes it ONLY for the focused ref (TEST-032)"
@@ -3170,7 +3171,7 @@ test_073_append_run_usage_basis() {  # TEST-034 / Spec-AC-05
   st "$s" "$TEST_DIR/t73a.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" \
     --tokens-in 10 --tokens-out 5 --tokens-total 4242 \
     || log_fail "(a) append-run --tokens-total must exit 0: $(cat "$TEST_DIR/t73a.log")"
-  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE '^ {10}usage_basis: field$' \
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | qgrep -qE '^ {10}usage_basis: field$' \
     || log_fail "(a) usage_basis must be field when --tokens-total is given: $(cat "$s")"
 
   # (b) no --tokens-total, but --note carries a well-formed usage_total_tokens
@@ -3178,8 +3179,8 @@ test_073_append_run_usage_basis() {  # TEST-034 / Spec-AC-05
   st "$s" "$TEST_DIR/t73b.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" \
     --tokens-in 10 --tokens-out 5 --note "usage_total_tokens=999 done" \
     || log_fail "(b) append-run with a note marker must exit 0: $(cat "$TEST_DIR/t73b.log")"
-  tail -20 "$s" | grep -qE '^ {10}usage_basis: note$' \
-    || sed -n '/^    CHANGE-0001:$/,$p' "$s" | tail -20 | grep -qE '^ {10}usage_basis: note$' \
+  tail -20 "$s" | qgrep -qE '^ {10}usage_basis: note$' \
+    || sed -n '/^    CHANGE-0001:$/,$p' "$s" | tail -20 | qgrep -qE '^ {10}usage_basis: note$' \
     || log_fail "(b) usage_basis must be note when only the --note marker carries the total: $(cat "$s")"
 
   # (c) neither --tokens-total nor a note marker -> usage_basis: absent, exit
@@ -3189,7 +3190,7 @@ test_073_append_run_usage_basis() {  # TEST-034 / Spec-AC-05
   st "$s" "$TEST_DIR/t73c.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" \
     --tokens-in 10 --tokens-out 5 --note "no marker here" || c_ec=$?
   [[ "$c_ec" == 0 ]] || log_fail "(c) append-run with no usage source must still exit 0 (got $c_ec): $(cat "$TEST_DIR/t73c.log")"
-  tail -20 "$s" | grep -qE '^ {10}usage_basis: absent$' \
+  tail -20 "$s" | qgrep -qE '^ {10}usage_basis: absent$' \
     || log_fail "(c) usage_basis must be absent when neither source is present: $(cat "$s")"
   local wlines
   wlines="$(grep -c 'usage_basis absent' "$TEST_DIR/t73c.log" || true)"
@@ -3201,7 +3202,7 @@ test_073_append_run_usage_basis() {  # TEST-034 / Spec-AC-05
   st "$s" "$TEST_DIR/t73d.log" append-run --ref CHANGE-0001 --role Planning --model m --started "$NOW_UTC" \
     --tokens-in 10 --tokens-out 5 --note "usage_total_tokens=notanumber" \
     || log_fail "(d) append-run with a malformed marker must exit 0: $(cat "$TEST_DIR/t73d.log")"
-  tail -20 "$s" | grep -qE '^ {10}usage_basis: absent$' \
+  tail -20 "$s" | qgrep -qE '^ {10}usage_basis: absent$' \
     || log_fail "(d) a malformed usage_total_tokens marker must fall to absent, never note: $(cat "$s")"
 
   ck "$s" "$TEST_DIR/t73-ck.log" || log_fail "check-state after all append-run arms: $(cat "$TEST_DIR/t73-ck.log")"

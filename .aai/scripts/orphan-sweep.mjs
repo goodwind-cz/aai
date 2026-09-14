@@ -38,7 +38,9 @@
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
 const DEFAULT_PATTERN = 'shell-snapshots/snapshot-zsh-';
 const DEFAULT_MIN_AGE_S = 7200;
@@ -202,6 +204,8 @@ function main() {
   process.exit(0);
 }
 
-const isMain = process.argv[1] && import.meta.url.endsWith(
-  process.argv[1].split('/').pop());
+function realOrResolve(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
+const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 if (isMain) main();

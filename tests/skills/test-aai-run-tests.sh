@@ -29,7 +29,9 @@
 set -uo pipefail
 
 TEST_NAME="aai-run-tests"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 RUN_TESTS_SCRIPT="${AAI_RUN_TESTS_SCRIPT:-$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh}"
@@ -58,6 +60,49 @@ log_pass() { echo "PASS: $*"; }
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
 log_skip() { echo "SKIP: $*"; exit 42; }
 log_info() { echo "INFO: $*"; }
+
+# _payload_line_matches_i <payload> <ere> — pure boolean predicate (no
+# log_fail side effect): per-line, case-INSENSITIVE ERE match, for call sites
+# that branch on the result instead of asserting it (DEBT-0006 drain; see
+# tests/skills/lib/assert-payload.sh). nocasematch is saved/restored so it
+# never leaks into the caller's shell.
+_payload_line_matches_i() {
+  local _p="$1" _e="$2" _l _rc=1 _nc
+  _nc="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+  shopt -s nocasematch
+  while IFS= read -r _l; do
+    if [[ "$_l" =~ $_e ]]; then _rc=0; break; fi
+  done <<EOF
+$_p
+EOF
+  eval "$_nc"
+  return $_rc
+}
+
+# assert_payload_line_matches_i <payload> <ere> [message] — assertion wrapper
+# around _payload_line_matches_i, same contract as assert_payload_line_matches
+# (tests/skills/lib/assert-payload.sh) but case-INSENSITIVE (the `grep -qiE`
+# sites carrying a genuine regex metacharacter; not one of the library's five
+# helpers, which stop at case-insensitive SUBSTRING).
+assert_payload_line_matches_i() {
+  local _p="$1" _e="$2" _m="${3:-}"
+  _payload_line_matches_i "$_p" "$_e" && return 0
+  _assert_payload_report "${_m:-no line of the payload matches the pattern (case-insensitive)} (pattern: '$_e'), got: $(payload_preview "$_p")"
+}
+
+# assert_payload_line_not_matches <payload> <ere> [message] — negative
+# counterpart to assert_payload_line_matches: fails if ANY line matches.
+# Prescribed verbatim by the DEBT-0006 drain plan for a NEGATIVE, genuine-regex
+# (no -i) `grep -qE ... && log_fail` site.
+assert_payload_line_not_matches() {
+  local _p="$1" _e="$2" _m="$3" _l
+  while IFS= read -r _l; do
+    if [[ "$_l" =~ $_e ]]; then log_fail "$_m"; return; fi
+  done <<EOF
+$_p
+EOF
+  return 0
+}
 
 # Appends to a FILE, not a shell variable: most callers invoke the spawn_*
 # helpers via command substitution ($(...)), which runs in a SUBSHELL — a
@@ -227,11 +272,11 @@ test_005() {
   sleep 1
   alive "$match_pid" || log_fail "fixture setup: matching proc $match_pid not alive"
   alive "$other_pid" || log_fail "fixture setup: non-matching proc $other_pid not alive"
-  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS=0 sh "$REAP_SCRIPT" 2>&1)"
+  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH= AAI_REAP_MIN_AGE_SECS=0 sh "$REAP_SCRIPT" 2>&1)"  # legacy mode: strip any ambient AAI_REAP_STEP_START_EPOCH (fu-reaper-epoch-export-fails-test005)
   sleep 1
   alive "$match_pid" && log_fail "reaper failed to kill the in-workspace vitest proc $match_pid"
   alive "$other_pid" || log_fail "reaper over-reached: killed a NON-matching (other-workspace) sibling $other_pid — never-global invariant violated"
-  echo "$out" | grep -qiE "reaped: *[1-9]" || log_fail "reaper must report a non-zero reaped count (got: $out)"
+  assert_payload_line_matches_i "$out" "reaped: *[1-9]" "reaper must report a non-zero reaped count (got: $out)"
   log_pass "reaper kills only the in-workspace match; the other-workspace sibling survives"
 }
 
@@ -403,12 +448,12 @@ test_012() {
   sleep 1
   alive "$match_pid" || log_fail "fixture setup: match proc $match_pid not alive"
   alive "$prefix_pid" || log_fail "fixture setup: prefix-sibling proc $prefix_pid not alive"
-  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS=0 sh "$REAP_SCRIPT" 2>&1)"
+  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH= AAI_REAP_MIN_AGE_SECS=0 sh "$REAP_SCRIPT" 2>&1)"  # legacy mode: strip any ambient AAI_REAP_STEP_START_EPOCH (fu-reaper-epoch-export-fails-test005)
   sleep 1
   alive "$match_pid" && log_fail "reaper failed to kill the in-workspace vitest proc $match_pid"
   alive "$prefix_pid" \
     || log_fail "reaper over-killed: killed prefix-sibling proc $prefix_pid in ${ws_fork} — pre-fix substring match (E1)"
-  echo "$out" | grep -qiE "reaped: *[1-9]" || log_fail "reaper must report a non-zero reaped count (got: $out)"
+  assert_payload_line_matches_i "$out" "reaped: *[1-9]" "reaper must report a non-zero reaped count (got: $out)"
   log_pass "prefix-sibling workspace process survives; in-workspace process reaped (E1 fixed)"
 }
 
@@ -417,7 +462,7 @@ test_013() {
   [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
   # Static guard: a #!/bin/sh script must not use bash-only [[ ]] in CODE
   # (comments are stripped so a mention of the construct doesn't false-positive).
-  ! sed 's/#.*$//' "$REAP_SCRIPT" | grep -qE '\[\[' || log_fail "reaper (#!/bin/sh) must not use bash-only [[ ]] in code (W1)"
+  ! sed 's/#.*$//' "$REAP_SCRIPT" | qgrep -qE '\[\[' || log_fail "reaper (#!/bin/sh) must not use bash-only [[ ]] in code (W1)"
   # Dynamic guard: under a strict POSIX shell (dash) the reaper must (a) run with
   # NO shell errors on stderr and (b) actually reap an in-workspace match whose age
   # exceeds the threshold. bash-only constructs no-op or error under dash: [[ ]] →
@@ -431,13 +476,13 @@ test_013() {
     sleep 2   # let the match age past the 1s threshold below (exercises etime parsing)
     alive "$match_pid" || log_fail "fixture setup: match proc $match_pid not alive"
     err="$TMP_ROOT/dash-stderr.$$"
-    out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS=1 dash "$REAP_SCRIPT" 2>"$err")"
+    out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH= AAI_REAP_MIN_AGE_SECS=1 dash "$REAP_SCRIPT" 2>"$err")"  # legacy mode: strip any ambient AAI_REAP_STEP_START_EPOCH
     sleep 1
     if grep -qiE 'not found|expecting EOF|arithmetic|[Ss]yntax error|unexpected' "$err"; then
       log_fail "reaper emitted shell errors under dash (bashism) — $(tr '\n' ';' < "$err")"
     fi
     alive "$match_pid" && log_fail "reaper under dash did not reap the aged in-workspace proc $match_pid — bashism no-op/under-reap under POSIX sh (W1)"
-    echo "$out" | grep -qiE "reaped: *[1-9]" || log_fail "reaper under dash must report a non-zero reaped count (got: $out)"
+    assert_payload_line_matches_i "$out" "reaped: *[1-9]" "reaper under dash must report a non-zero reaped count (got: $out)"
 
     # Extend W1 to the EPOCH path (Spec-AC-04): the STEP-START-relative
     # decision must also be bashism-free under dash — spare a post-step
@@ -465,7 +510,7 @@ test_013() {
     fi
     alive "$old_pid" && log_fail "epoch mode under dash failed to reap the pre-step survivor $old_pid"
     alive "$fresh_pid" || log_fail "epoch mode under dash killed the post-step-boundary sibling $fresh_pid"
-    echo "$out2" | grep -qiE "reaped: *[1-9]" || log_fail "epoch mode under dash must report a non-zero reaped count (got: $out2)"
+    assert_payload_line_matches_i "$out2" "reaped: *[1-9]" "epoch mode under dash must report a non-zero reaped count (got: $out2)"
 
     log_pass "reaper runs clean under POSIX sh (dash): no bashisms in legacy OR epoch path (W1 fixed + extended)"
   else
@@ -533,12 +578,12 @@ test_015() {
   # DO NOT NARROW: re-derive from GRACE first. The deterministic spare/reap
   # boundary itself is pinned by TEST-021, not by this margin.
   sleep 8   # let the forked child come up AND clear the epoch boundary band
-  p_child="$(pgrep -P "$p_pid" | head -1)"
-  o_child="$(pgrep -P "$o_pid" | head -1)"
+  p_child="$(pgrep -P "$p_pid" | qhead -1)"
+  o_child="$(pgrep -P "$o_pid" | qhead -1)"
   [[ -n "$p_child" ]] || log_fail "fixture: matched launcher $p_pid has no live child"
   track "$p_child"; [[ -n "$o_child" ]] && track "$o_child"
   # The descendant must NOT carry the token — that is the whole point of P2.
-  if ps -o args= -p "$p_child" 2>/dev/null | grep -q "vitest"; then
+  if ps -o args= -p "$p_child" 2>/dev/null | qgrep -q "vitest"; then
     log_fail "fixture invalid: the descendant argv still carries the vitest token"
   fi
   # Step boundary captured HERE — both matched trees predate it; the fresh
@@ -558,7 +603,7 @@ test_015() {
     alive "$o_child" || log_fail "reaper over-reached: killed the DIFFERENT-workspace child $o_child — E1 workspace scope broadened"
   fi
   alive "$fresh_pid" || log_fail "reaper over-reached: killed a FRESH sibling $fresh_pid spawned at/after the step boundary — epoch guard broadened"
-  echo "$out" | grep -qiE "reaped: *[1-9]" || log_fail "reaper must report a non-zero reaped count (got: $out)"
+  assert_payload_line_matches_i "$out" "reaped: *[1-9]" "reaper must report a non-zero reaped count (got: $out)"
   log_pass "reaper reaps the matched launcher + its token-less descendant; other-ws tree and post-step-boundary sibling survive (P2 fixed; E1+epoch intact)"
 }
 
@@ -621,7 +666,7 @@ test_017() {
   out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" AAI_REAP_MIN_AGE_SECS=999 sh "$REAP_SCRIPT" 2>&1)"
   sleep 1
   alive "$survivor_pid" && log_fail "epoch mode failed to reap a genuine pre-step survivor $survivor_pid (reaper output: $out)"
-  echo "$out" | grep -qiE "reaped: *[1-9]" || log_fail "reaper must report a non-zero reaped count (got: $out)"
+  assert_payload_line_matches_i "$out" "reaped: *[1-9]" "reaper must report a non-zero reaped count (got: $out)"
   log_pass "epoch mode reaps a genuine pre-step survivor regardless of a high legacy MIN_AGE"
 }
 
@@ -643,7 +688,7 @@ test_018() {
   # Both directions still prove the LEGACY path was taken (invalid STEP_START).
   reap_run() {  # reap_run <invalid-case> <min-age>
     case "$1" in
-      UNSET) AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS="$2" sh "$REAP_SCRIPT" 2>&1 ;;
+      UNSET) AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS="$2" env -u AAI_REAP_STEP_START_EPOCH sh "$REAP_SCRIPT" 2>&1 ;;  # truly absent, immune to an ambient export
       EMPTY) AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="" AAI_REAP_MIN_AGE_SECS="$2" sh "$REAP_SCRIPT" 2>&1 ;;
       *)     AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$1" AAI_REAP_MIN_AGE_SECS="$2" sh "$REAP_SCRIPT" 2>&1 ;;
     esac
@@ -682,7 +727,7 @@ test_018() {
     # workspace-scoped `ps` snapshot + each reported pid's parsed etime — so a
     # Linux `ps etime` read-race that recurs in CI is captured with the data
     # needed to root-cause it. Silent on the normal `reaped: 0` path (no noise).
-    if echo "$out" | grep -qiE "reaped: *[1-9]"; then
+    if _payload_line_matches_i "$out" "reaped: *[1-9]"; then
       {
         echo "DIAG(test_018 spare-fresh case='$invalid'): reaper reported reaped>0 — evidence follows"
         echo "DIAG reaper output: $out"
@@ -716,10 +761,8 @@ test_019() {
   # technique TEST-013 uses for the [[ ]] guard).
   local code
   code="$(sed 's/#.*$//' "$REAP_SCRIPT")"
-  echo "$code" | grep -qE 'lstart' \
-    && log_fail "reaper must not parse ps -o lstart (BSD/GNU epoch-parsing minefield, LEARNED 2026-07-19)"
-  echo "$code" | grep -qE 'date -d|date -j' \
-    && log_fail "reaper must not use date -d/-j string parsing (BSD/GNU minefield, LEARNED 2026-07-19)"
+  assert_payload_not_contains "$code" 'lstart' "reaper must not parse ps -o lstart (BSD/GNU epoch-parsing minefield, LEARNED 2026-07-19)"
+  assert_payload_line_not_matches "$code" 'date -d|date -j' "reaper must not use date -d/-j string parsing (BSD/GNU minefield, LEARNED 2026-07-19)"
   grep -qF 'AAI_REAP_STEP_START_EPOCH' "$REAP_SCRIPT" \
     || log_fail "reaper must support AAI_REAP_STEP_START_EPOCH (epoch mode not implemented)"
   grep -qE 'date \+%s' "$REAP_SCRIPT" \
@@ -792,14 +835,14 @@ test_021() {
   out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" sh "$REAP_SCRIPT" 2>&1)"
   sleep 1
   alive "$survivor_pid" || log_fail "Case A: reaper killed the survivor $survivor_pid AT the boundary (ref_epoch=$ref_epoch step_start=$step_start threshold=$(( step_start - grace )); reaper output: $out)"
-  echo "$out" | grep -qxE "reaped: *0" || log_fail "Case A: reaper must report 'reaped: 0' at the boundary (got: $out)"
+  assert_payload_line_matches "$out" '^reaped: *0$' "Case A: reaper must report 'reaped: 0' at the boundary (got: $out)"
 
   # Case B — 2s PAST the boundary: threshold == ref_epoch+2 => must REAP.
   step_start=$(( ref_epoch + grace + 2 ))
   out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" sh "$REAP_SCRIPT" 2>&1)"
   sleep 1
   alive "$survivor_pid" && log_fail "Case B: reaper failed to reap the survivor $survivor_pid past the boundary (ref_epoch=$ref_epoch step_start=$step_start threshold=$(( step_start - grace )); reaper output: $out)"
-  echo "$out" | grep -qiE "reaped: *[1-9]" || log_fail "Case B: reaper must report a non-zero reaped count past the boundary (got: $out)"
+  assert_payload_line_matches_i "$out" "reaped: *[1-9]" "Case B: reaper must report a non-zero reaped count past the boundary (got: $out)"
   log_pass "epoch boundary pinned by arithmetic: SPARE at ref+GRACE, REAP at ref+GRACE+2 (no wall-clock race)"
 }
 
@@ -873,8 +916,8 @@ test_023() {
   local ws out
   ws="$(mktemp -d "$TMP_ROOT/aai-reap-raw.XXXXXX")"
   out="$(AAI_REAP_WORKSPACE="$ws" sh "$REAP_SCRIPT" 2>&1)" || log_fail "TEST-023: reaper exited non-zero on a no-match run: $out"
-  printf '%s\n' "$out" | grep -q '^reaped: 0' || log_fail "TEST-023: expected 'reaped: 0' on an empty workspace: $out"
-  printf '%s\n' "$out" | grep -q '^reaped raw:' || log_fail "TEST-023: the 'reaped raw:' diagnostic header must be present on EVERY exit path (stable shape): $out"
+  assert_payload_line_matches "$out" '^reaped: 0' "TEST-023: expected 'reaped: 0' on an empty workspace: $out"
+  assert_payload_line_matches "$out" '^reaped raw:' "TEST-023: the 'reaped raw:' diagnostic header must be present on EVERY exit path (stable shape): $out"
   log_pass "reaper 'reaped raw:' diagnostic header stable on the no-op path (TEST-023)"
 }
 
@@ -942,7 +985,154 @@ STUB
   log_pass "real wrapper: no failure-masquerade class (127/126/124 all correct); guard mutation-proofed against an always-124 stub"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024"
+# --- TEST-025 (Spec-AC-08 / global TEST-415) — wrapper default timeout raised
+#     above 300s (fu-sweep-dies-at-wrapper-default); a real timeout names the
+#     elapsed limit and the override in exactly one line -----------------------
+test_025() {
+  log_info "TEST-025: no AAI_TEST_TIMEOUT set -> the wrapper's default ceiling is no longer 300s and a short command still succeeds; a real timeout prints ONE line naming the elapsed limit and the override (TEST-415/Spec-AC-08)..."
+
+  # Read the default straight off the line the RUNNING script resolves
+  # TIMEOUT from (not a second, independently-typed pin) -- reverting the
+  # default back to 300 reddens this directly, matching this scope's own
+  # prescribed mutation ("Restoring the 300 s wrapper default must redden
+  # TEST-415").
+  local default_line default_val
+  default_line="$(grep -E '^TIMEOUT="\$\{AAI_TEST_TIMEOUT:-[0-9]+\}"' "$RUN_TESTS_SCRIPT")"
+  [[ -n "$default_line" ]] || log_fail "TEST-025: could not find the TIMEOUT default-resolution line in $RUN_TESTS_SCRIPT"
+  default_val="$(printf '%s' "$default_line" | grep -oE ':-[0-9]+' | tr -d ':-')"
+  [[ -n "$default_val" ]] || log_fail "TEST-025: could not parse a numeric default out of: $default_line"
+  [[ "$default_val" -gt 300 ]] \
+    || log_fail "TEST-025: the wrapper's no-override default is still <= 300s (got ${default_val}s) -- a full sweep will exit 124 again (fu-sweep-dies-at-wrapper-default)"
+
+  # Sanity: a short command with NO override still succeeds through the REAL
+  # wrapper -- the raised default has not broken the ordinary path.
+  local rc
+  ( unset AAI_TEST_TIMEOUT; sh "$RUN_TESTS_SCRIPT" sh -c 'exit 0' >/dev/null 2>&1 ); rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-025: a short command with no AAI_TEST_TIMEOUT set must still exit 0 (got $rc)"
+
+  # A real timeout (AAI_TEST_TIMEOUT=2, a genuinely hung command) must print
+  # exactly one line naming the elapsed limit (2) and the override
+  # (AAI_TEST_TIMEOUT) -- Spec-AC-08's second clause, exercised through the
+  # real wrapper end to end, kept fast via the same AAI_TEST_TIMEOUT=2 idiom
+  # TEST-003/004 already use.
+  local marker="aai_test025_${$}_${RANDOM}_vitest" err match_count
+  err="$(AAI_TEST_TIMEOUT=2 sh "$RUN_TESTS_SCRIPT" bash -c "exec -a $marker sleep 600" 2>&1 >/dev/null)"
+  # A pipe-free boundary check on the already-captured variable: character
+  # classes match a newline like any other non-digit, so this needs none of
+  # assert_payload_line_matches' per-line care (Spec-AC-11) -- there is no `^`
+  # or `$` here for bash's whole-string `[[ =~ ]]` to bind wrong.
+  [[ "$err" =~ (^|[^0-9])2([^0-9]|$) ]] \
+    || log_fail "TEST-025: a timed-out run must print a line naming the elapsed limit (2) -- got: [$err]"
+  match_count="$(printf '%s\n' "$err" | grep -c 'AAI_TEST_TIMEOUT')"
+  [[ "$match_count" -eq 1 ]] \
+    || log_fail "TEST-025: exactly ONE line must name the override AAI_TEST_TIMEOUT, got $match_count occurrence(s) -- [$err]"
+  pkill -f "$marker" >/dev/null 2>&1 || true
+
+  log_pass "TEST-025: no-override default raised to ${default_val}s (> 300), a short command is unaffected, and a real timeout names the limit and AAI_TEST_TIMEOUT in exactly one line"
+}
+
+# --- TEST-026 (global TEST-432 / Spec-AC-17) — fu-iso-wrapper-traps-dont-reap-
+# group: the wrapper's INT/TERM/HUP traps used to call aai_iso_cleanup and exit
+# WITHOUT reaping the wrapped command's process group first, so a Ctrl-C
+# deleted the disposable checkout out from under a suite that was still
+# running in it. Driven through the REAL wrapper, isolating a real suite
+# (checkout genuinely made): the wrapper is launched as its OWN session
+# leader (perl setsid, same technique test-aai-suite-isolation.sh's TEST-004(d)
+# uses) so an INT delivered to ITS group does not also reach the wrapped
+# command, which gets its own separate session a moment later inside the
+# wrapper -- exactly the shape a real Ctrl-C produces once a command has
+# detached. Fixed wrapper: the command is confirmed dead before the trap
+# returns. Buggy wrapper (this test's own mutation control): nothing ever
+# signals the group, so the command is still alive after the wrapper exits.
+test_026() {
+  log_info "TEST-026: an INT delivered to the wrapper reaps the wrapped command's process group before the trap returns (TEST-432/Spec-AC-17)..."
+  if ! command -v perl >/dev/null 2>&1; then
+    log_info "TEST-026: perl not found -- needed to put the wrapper in its own process group for a clean INT delivery; SKIPPING"
+    return 0
+  fi
+  local fx evid
+  fx="$(mktemp -d "$TMP_ROOT/iso-int.XXXXXX")"
+  mkdir -p "$fx/.aai/scripts" "$fx/tests/skills"
+  cp "$RUN_TESTS_SCRIPT" "$fx/.aai/scripts/aai-run-tests.sh"
+  cat > "$fx/tests/skills/test-aai-sleepy.sh" <<'SUITE'
+#!/usr/bin/env bash
+echo $$ > "$1/cmdpid"
+: > "$1/started"
+sleep 30
+: > "$1/finished"
+SUITE
+  chmod +x "$fx/tests/skills/test-aai-sleepy.sh"
+  git -C "$fx" init -q -b main >/dev/null && git -C "$fx" config user.email t@example.com \
+      && git -C "$fx" config user.name t && git -C "$fx" add -A && git -C "$fx" commit -q -m base >/dev/null \
+    || log_fail "TEST-026: fixture repo init failed"
+
+  evid="$(mktemp -d "$TMP_ROOT/iso-int-evid.XXXXXX")"
+
+  TMPDIR="$TMP_ROOT" AAI_FRICTION_CAPTURE=0 perl -e '$SIG{INT} = "DEFAULT"; use POSIX qw(setsid); setsid(); exec @ARGV' \
+    -- bash "$fx/.aai/scripts/aai-run-tests.sh" bash "$fx/tests/skills/test-aai-sleepy.sh" "$evid" >/dev/null 2>&1 &
+  local wpid=$!
+
+  local i
+  for i in $(seq 1 100); do
+    [[ -f "$evid/started" ]] && break
+    sleep 0.1
+  done
+  [[ -f "$evid/started" ]] || log_fail "TEST-026: the wrapped suite never started (mark absent) -- the arm proves nothing"
+
+  local cmd_pid
+  cmd_pid="$(cat "$evid/cmdpid" 2>/dev/null)"
+  [[ -n "$cmd_pid" ]] || log_fail "TEST-026: never captured the wrapped command's own pid"
+
+  kill -INT -"$wpid" >/dev/null 2>&1
+  wait "$wpid" >/dev/null 2>&1
+  local wrc=$?
+
+  [[ "$wrc" -eq 130 ]] || log_fail "TEST-026: the wrapper's own exit code was $wrc (want 130 -- INT must still be distinguishable)"
+  if kill -0 "$cmd_pid" 2>/dev/null; then
+    kill -9 "$cmd_pid" 2>/dev/null || true
+    log_fail "TEST-026: the wrapped command (pid $cmd_pid) was still alive after the wrapper's own INT trap returned -- its process group was never reaped before the checkout was removed"
+  fi
+  [[ ! -f "$evid/finished" ]] \
+    || log_fail "TEST-026: the wrapped suite ran to completion -- it was not actually interrupted mid-run, so the arm proves nothing"
+
+  log_pass "TEST-026: an INT delivered to the wrapper reaps the wrapped command's process group (confirmed dead) before the trap returns, and the wrapper's own exit code (130) still distinguishes the signal"
+}
+
+# --- TEST-027 (global TEST-435 / Spec-AC-19) — fu-wrapper-hidden-suite-run-
+# unreported: `sh -c "bash tests/skills/test-x.sh"` buries the real suite path
+# inside ONE opaque argv element, so `aai_iso_is_suite_run` never sees it, the
+# run falls through to `ad-hoc`, and AAI_ISO_STATUS stays `not-applicable` --
+# which used to print NOTHING, indistinguishable from an ordinary build.
+test_027() {
+  log_info "TEST-027: a suite run whose command shape hides its suite path gets one AAI-ISOLATION NOTE, not silence (TEST-435/Spec-AC-19)..."
+  local fx
+  fx="$(mktemp -d "$TMP_ROOT/iso-hidden.XXXXXX")"
+  mkdir -p "$fx/.aai/scripts" "$fx/tests/skills"
+  cp "$RUN_TESTS_SCRIPT" "$fx/.aai/scripts/aai-run-tests.sh"
+  cat > "$fx/tests/skills/test-aai-quick.sh" <<'SUITE'
+#!/usr/bin/env bash
+echo quick
+exit 0
+SUITE
+  chmod +x "$fx/tests/skills/test-aai-quick.sh"
+  git -C "$fx" init -q -b main >/dev/null && git -C "$fx" config user.email t@example.com \
+      && git -C "$fx" config user.name t && git -C "$fx" add -A && git -C "$fx" commit -q -m base >/dev/null \
+    || log_fail "TEST-027: fixture repo init failed"
+
+  local out rc=0
+  out="$(AAI_FRICTION_CAPTURE=0 bash "$fx/.aai/scripts/aai-run-tests.sh" sh -c "bash '$fx/tests/skills/test-aai-quick.sh'" 2>&1 >/dev/null)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-027: exit=$rc (want the command's own 0)"
+  grep -qF 'AAI-ISOLATION:' <<<"$out" \
+    || log_fail "TEST-027: the wrapper was silent -- the suite path was hidden inside sh -c and nothing said so: [$out]"
+  grep -qF 'NOTE' <<<"$out" \
+    || log_fail "TEST-027: an AAI-ISOLATION line printed but was not the NOTE this hidden shape must produce: [$out]"
+  grep -qF 'isolated -' <<<"$out" \
+    && log_fail "TEST-027: the hidden-shape run was reported as genuinely isolated, which it was not -- it ran unisolated against the real fixture tree: [$out]"
+
+  log_pass "TEST-027: a suite run wrapped in sh -c (its path hidden from the classifier) gets one AAI-ISOLATION NOTE line naming what could not be classified, instead of complete silence"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027"
 
 main() {
   echo "Testing $TEST_NAME (process-group wrapper + workspace/etime-scoped reaper + wiring)"

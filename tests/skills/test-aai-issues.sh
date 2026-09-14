@@ -27,7 +27,10 @@
 set -uo pipefail
 
 TEST_NAME="aai-issues"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 SCRIPT="${AAI_ISSUES_SCRIPT:-$PROJECT_ROOT/.aai/scripts/aai-issues.mjs}"
@@ -236,11 +239,11 @@ test_007_help_exit_zero() {
   local ok=1
   run_issues -h
   if [[ "$RC" -ne 0 || "$OUT" != "Usage:"* ]]; then
-    log_info "TEST-007: -h rc=$RC out-head='$(printf '%s' "$OUT" | head -1)'"; ok=0
+    log_info "TEST-007: -h rc=$RC out-head='$(printf '%s' "$OUT" | qhead -1)'"; ok=0
   fi
   run_issues --help
   if [[ "$RC" -ne 0 || "$OUT" != "Usage:"* ]]; then
-    log_info "TEST-007: --help rc=$RC out-head='$(printf '%s' "$OUT" | head -1)'"; ok=0
+    log_info "TEST-007: --help rc=$RC out-head='$(printf '%s' "$OUT" | qhead -1)'"; ok=0
   fi
   [[ $ok -eq 1 ]] && log_pass "TEST-007 -h/--help exit 0" || log_fail "TEST-007 -h/--help exit 0"
 }
@@ -486,13 +489,17 @@ test_020_untrusted_input_sanitized() {  # issues-skill review (BLOCKING fix): ti
   local ic; ic="$(printf '%s\n' "$OUT" | grep -cE '^ISSUE #')"
   [[ "$ic" -eq 2 ]] || { log_info "TEST-020: got $ic ISSUE rows (want 2 — forged row leaked?): $OUT"; ok=0; }
   # no line may START with the forged issue id
-  if printf '%s\n' "$OUT" | grep -qE '^ISSUE #999'; then
+  local t020_forged_line=0 t020_line
+  while IFS= read -r t020_line; do
+    [[ "$t020_line" =~ ^ISSUE\ #999 ]] && t020_forged_line=1
+  done <<<"$OUT"
+  if [[ "$t020_forged_line" -eq 1 ]]; then
     log_info "TEST-020: a forged 'ISSUE #999' row leaked as its own line"; ok=0
   fi
   # exactly one real summary line, and it is the genuine one
   local sc; sc="$(printf '%s\n' "$OUT" | grep -cE '^ISSUES [0-9]+ platform=')"
   [[ "$sc" -eq 1 ]] || { log_info "TEST-020: $sc summary lines (want 1 — forged 'ISSUES 42' leaked?)"; ok=0; }
-  printf '%s\n' "$OUT" | grep -qE '^ISSUES 2 platform=github$' || { log_info "TEST-020: genuine summary missing/altered"; ok=0; }
+  assert_payload_has_line "$OUT" "ISSUES 2 platform=github" "TEST-020: genuine summary missing/altered" || ok=0
   # no C0/ESC control chars anywhere in stdout (aside from the line feeds grep -c counts)
   # portable (no grep -P): strip printable bytes + LF; any residue = a control char
   local residue; residue="$(printf '%s' "$OUT" | LC_ALL=C tr -d '\011\012\040-\176')"

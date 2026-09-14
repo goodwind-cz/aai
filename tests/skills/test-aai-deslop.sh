@@ -2222,6 +2222,94 @@ test_028_published_surfaces_state_the_new_rule() {
 }
 
 # ---------------------------------------------------------------------------
+# TEST-447 (Spec-AC-12, spec-test-framework-sweep) — negative control for
+# TEST-028's released-CHANGELOG comparison.
+#
+# Validation round 1 (BLOCKING-5): TEST-447 was named in
+# docs/specs/SPEC-0179-spec-test-framework-sweep.md's Test Plan and Mutation
+# checks ("A one-byte edit inside the released CHANGELOG section of a scratch
+# copy reddens the released-section comparison") but did not exist anywhere —
+# the string occurred only in the spec's prose. TEST-028 proves the LIVE
+# CHANGELOG.md's v2026.08.16 section is unchanged against a real base ref;
+# this test proves the COMPARISON ITSELF has teeth, on two scratch copies,
+# independent of whether the live repo happens to hold a difference today.
+# The extraction algorithm (find "## [v2026.08.16]", slice to the next
+# "\n## [") is reproduced faithfully rather than shared with TEST-028's
+# inline script, so a bug in TEST-028's own copy cannot silently launder this
+# control too — the two are independent witnesses of the same released text.
+# ---------------------------------------------------------------------------
+changelog_released_section_diff() {
+  # $1 base file, $2 head file -> prints DIFFERS or SAME, exit 1 on differs.
+  node -e '
+    const fs = require("fs");
+    function section(text) {
+      const start = text.indexOf("## [v2026.08.16]");
+      if (start === -1) return null;
+      const rest = text.slice(start);
+      const nextIdx = rest.indexOf("\n## [", 1);
+      return nextIdx === -1 ? rest : rest.slice(0, nextIdx);
+    }
+    const a = section(fs.readFileSync(process.argv[1], "utf8"));
+    const b = section(fs.readFileSync(process.argv[2], "utf8"));
+    if (a === null || b === null) { console.log("NO-SECTION"); process.exit(2); }
+    if (a !== b) { console.log("DIFFERS"); process.exit(1); }
+    console.log("SAME");
+  ' "$1" "$2"
+}
+
+test_447_released_changelog_comparison_negative_control() {
+  local ok=1 d
+  log_info "Test: the released-CHANGELOG section comparison (TEST-028) reddens on a one-byte edit inside the released section of a SCRATCH copy, and stays clean on an untouched copy (TEST-447)..."
+  d="$(new_fixture)" || return
+
+  local base="$d/t447-base-CHANGELOG.md" head_clean="$d/t447-head-clean-CHANGELOG.md" head_mut="$d/t447-head-mut-CHANGELOG.md"
+  {
+    echo "# Changelog"
+    echo ""
+    echo "## [unreleased]"
+    echo ""
+    echo "- something not yet released"
+    echo ""
+    echo "## [v2026.08.16]"
+    echo ""
+    echo "- fixture released line one"
+    echo "- fixture released line two"
+    echo ""
+    echo "## [v2026.08.01]"
+    echo ""
+    echo "- an older release"
+  } > "$base"
+
+  cp "$base" "$head_clean"
+  cp "$base" "$head_mut"
+  # One-byte edit INSIDE the released v2026.08.16 section only.
+  sed -i.bak 's/fixture released line one/fixture released Line one/' "$head_mut" && rm -f "$head_mut.bak"
+
+  local cleanOut cleanRc=0 mutOut mutRc=0
+  cleanOut="$(changelog_released_section_diff "$base" "$head_clean")" || cleanRc=$?
+  mutOut="$(changelog_released_section_diff "$base" "$head_mut")" || mutRc=$?
+
+  [[ "$cleanRc" == 0 && "$cleanOut" == "SAME" ]] \
+    || { log_info "TEST-447: an untouched copy must compare SAME (rc 0), got rc=$cleanRc out=$cleanOut"; ok=0; }
+  [[ "$mutRc" == 1 && "$mutOut" == "DIFFERS" ]] \
+    || { log_info "TEST-447: a one-byte edit inside the released section must compare DIFFERS (rc 1), got rc=$mutRc out=$mutOut — the comparison has no bite"; ok=0; }
+
+  # Negative-negative: an edit OUTSIDE the released section (the unreleased
+  # block) must NOT trip this comparison, proving it is scoped to the one
+  # section and not a whole-file diff in disguise.
+  local head_outside="$d/t447-head-outside-CHANGELOG.md"
+  cp "$base" "$head_outside"
+  sed -i.bak 's/something not yet released/something totally different, not yet released/' "$head_outside" && rm -f "$head_outside.bak"
+  local outsideOut outsideRc=0
+  outsideOut="$(changelog_released_section_diff "$base" "$head_outside")" || outsideRc=$?
+  [[ "$outsideRc" == 0 && "$outsideOut" == "SAME" ]] \
+    || { log_info "TEST-447: an edit OUTSIDE the released section must still compare SAME, got rc=$outsideRc out=$outsideOut — the comparison is not scoped to the released section"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-447 the released-CHANGELOG section comparison reddens on a one-byte edit inside the released section, stays clean on an untouched copy, and ignores an edit outside the section" \
+    || log_fail "TEST-447 released-CHANGELOG comparison negative control"
+}
+
+# ---------------------------------------------------------------------------
 # TEST-030 (Spec-AC-08) — all four deslop-corpus-honesty registry follow-ups
 # are closed: none appears under --status open, and each appears done with
 # resolved_by naming this scope under --status all.
@@ -2464,6 +2552,7 @@ main() {
     test_025_unreadable_corpus_document_named
     test_026_document_accounting_balances
     test_028_published_surfaces_state_the_new_rule
+    test_447_released_changelog_comparison_negative_control
     test_030_registry_items_closed
     test_031_unreadable_corpus_directory_named
   fi

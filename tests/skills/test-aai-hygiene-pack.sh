@@ -15,6 +15,7 @@ set -euo pipefail
 
 TEST_NAME="aai-hygiene-pack"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
@@ -218,9 +219,9 @@ YAML
     || log_fail "D6 set-validation command must run clean: $(cat "$TEST_DIR/t13a.log")"
   (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" set-code-review --required false --status not_run --notes "reset after flush of CHANGE-0001" > "$TEST_DIR/t13b.log" 2>&1) \
     || log_fail "D6 set-code-review command must run clean: $(cat "$TEST_DIR/t13b.log")"
-  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}status: not_run$' \
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}status: not_run$' \
     || log_fail "walk-through: last_validation.status must be not_run after the partial-flush reset"
-  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}status: not_run$' \
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | qgrep -qE '^ {2}status: not_run$' \
     || log_fail "walk-through: code_review.status must be not_run after the partial-flush reset"
   (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$s" > "$TEST_DIR/t13c.log" 2>&1) \
     || log_fail "walk-through: check-state must pass after the resets: $(cat "$TEST_DIR/t13c.log")"
@@ -365,7 +366,7 @@ test_030_auto_trigger_deprecation() {  # SPEC-0014 TEST-008 / Spec-AC-06 (CHANGE
   # (c) USER_GUIDE: section-7 entry + quick-list line relabeled deprecated;
   # the working-mechanism claims are gone.
   local ug="$PROJECT_ROOT/docs/USER_GUIDE.md"
-  grep -A3 '#### `/aai-auto-trigger`' "$ug" | grep -qi "deprecated" \
+  grep -A3 '#### `/aai-auto-trigger`' "$ug" | qgrep -qi "deprecated" \
     || log_fail "USER_GUIDE Automation & Integration entry must be relabeled deprecated"
   grep -qE '^\- `/aai-auto-trigger` - Deprecated' "$ug" \
     || log_fail "USER_GUIDE quick skills list must relabel /aai-auto-trigger as Deprecated"
@@ -377,7 +378,7 @@ test_030_auto_trigger_deprecation() {  # SPEC-0014 TEST-008 / Spec-AC-06 (CHANGE
     && log_fail "USER_GUIDE must no longer instruct setting up auto-triggers as a working workflow"
 
   # (d) AGENTS.md skill-index line relabeled.
-  grep -E 'SKILL_AUTO_TRIGGER' "$PROJECT_ROOT/.aai/AGENTS.md" | grep -qi "deprecated" \
+  grep -E 'SKILL_AUTO_TRIGGER' "$PROJECT_ROOT/.aai/AGENTS.md" | qgrep -qi "deprecated" \
     || log_fail ".aai/AGENTS.md SKILL_AUTO_TRIGGER line must be relabeled deprecated"
 
   # (e) generated catalog entry updated (CHANGE-0078: docs/SKILL_CATALOG.html
@@ -385,7 +386,7 @@ test_030_auto_trigger_deprecation() {  # SPEC-0014 TEST-008 / Spec-AC-06 (CHANGE
   # followed by a `<p class="desc">` carrying the SKILL.md description
   # verbatim, not the old hand-authored `name: "aai-auto-trigger"` JS
   # literal shape).
-  grep -A2 '<h3>aai-auto-trigger</h3>' "$PROJECT_ROOT/docs/SKILL_CATALOG.html" | grep -qi "deprecated" \
+  grep -A2 '<h3>aai-auto-trigger</h3>' "$PROJECT_ROOT/docs/SKILL_CATALOG.html" | qgrep -qi "deprecated" \
     || log_fail "docs/SKILL_CATALOG.html aai-auto-trigger description must say deprecated"
 
   # (f) discriminating repo grep: every non-historical file that mentions
@@ -654,9 +655,9 @@ test_052_loop_drift_preflight() {  # spec-learned-to-layer-promotion TEST-004 / 
   grep -qF "layer-drift.mjs" "$f" \
     || log_fail "SKILL_LOOP must run layer-drift.mjs at loop start (drift preflight)"
   # degrade + informational clauses must be co-located with the drift line
-  grep -B3 -A5 "layer-drift.mjs" "$f" | grep -qiE "skip silently|silently skip" \
+  grep -B3 -A5 "layer-drift.mjs" "$f" | qgrep -qiE "skip silently|silently skip" \
     || log_fail "SKILL_LOOP drift preflight must degrade silently when layer-drift.mjs is absent (older vendored layers)"
-  grep -B3 -A5 "layer-drift.mjs" "$f" | grep -qi "informational" \
+  grep -B3 -A5 "layer-drift.mjs" "$f" | qgrep -qi "informational" \
     || log_fail "SKILL_LOOP drift preflight must be informational (never block or branch on exit code)"
   log_pass "SKILL_LOOP drift preflight named with silent degrade (spec-learned-to-layer-promotion TEST-004)"
 }
@@ -704,9 +705,9 @@ test_060_work_item_brief() {  # spec-work-item-brief TEST-001..006 / Spec-AC-01.
   grep -qiF "SPEC-FROZEN is false" "$pl" || log_fail "PLANNING emit step must skip while SPEC-FROZEN is false"
   grep -qiF "gitignored runtime artifact" "$pl" || log_fail "PLANNING emit step must state briefs are gitignored runtime artifacts"
   local l_freeze l_emit l_state
-  l_freeze="$(grep -n "Set SPEC-FROZEN: true" "$pl" | head -1 | cut -d: -f1)"
-  l_emit="$(grep -n "docs/ai/briefs/" "$pl" | head -1 | cut -d: -f1)"
-  l_state="$(grep -n "Update docs/ai/STATE.yaml — PRIMARY PATH" "$pl" | head -1 | cut -d: -f1)"
+  l_freeze="$(grep -n "Set SPEC-FROZEN: true" "$pl" | qhead -1 | cut -d: -f1)"
+  l_emit="$(grep -n "docs/ai/briefs/" "$pl" | qhead -1 | cut -d: -f1)"
+  l_state="$(grep -n "Update docs/ai/STATE.yaml — PRIMARY PATH" "$pl" | qhead -1 | cut -d: -f1)"
   [[ -n "$l_freeze" && -n "$l_emit" && -n "$l_state" ]] \
     || log_fail "PLANNING must keep the freeze step, the emit step, and the STATE-update step greppable"
   [[ "$l_emit" -gt "$l_freeze" && "$l_emit" -lt "$l_state" ]] \
@@ -1017,7 +1018,7 @@ test_093_test_registration() {  # CHANGE test-registration-guard
   local out rc=0
   out="$(node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc=$?
   if [[ "$rc" -ne 0 ]]; then
-    printf '%s\n' "$out" | head -10
+    printf '%s\n' "$out" | qhead -10
     log_fail "test_093: orphan (defined-but-unreferenced) test function(s) — a green suite with an unwired pin is not coverage (the #229 class)"
     return 1
   fi
@@ -1044,7 +1045,7 @@ test_092_no_phantom_node_apis() {  # CHANGE phantom-api-pin: APIs that LOOK real
   fi
   if [[ "$rc" -eq 0 && -n "$hits" ]]; then
     log_info "test_092: phantom/deprecated API call site(s):"
-    printf '%s\n' "$hits" | head -5
+    printf '%s\n' "$hits" | qhead -5
     log_fail "test_092: phantom Node API in .aai/scripts (verify against the runtime: node -e 'console.log(typeof <api>)')"
     return 1
   fi
@@ -1080,7 +1081,24 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   done
   [[ "$missing" -eq 0 ]] \
     || log_fail "one or more test-aai-*.sh suites have no tests/skills/suite-map.yaml row (see MISSING lines above) — a new suite must be mapped or it silently escapes selection accounting"
-  log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003)"
+
+  # Row-count pin (Spec-AC-26, spec-test-framework-sweep, validation round 1
+  # BLOCKING-13): the AC's own text promises a suite-map.yaml row PLUS a
+  # row-count pin for the one new suite this ride adds
+  # (test-aai-session-lock.sh, 92 rows -> 93; remediation round 10, PR #381
+  # added test-aai-pipe-safe.sh, 93 -> 94), and no numeric pin existed
+  # anywhere in tests/ or .aai/ — the existence check above would silently
+  # tolerate a row SWAPPED for a different suite name at the same count, or
+  # simply never notice the count moving at all. A plain top-level-key count
+  # over the mapping (one 2-space-indented "<name>:" line per suite), pinned
+  # to the measured total, so any future suite addition or removal must
+  # touch this number deliberately.
+  local row_count
+  row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
+  [[ "$row_count" -eq 94 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 94 (pin last moved for aai-pipe-safe, round 10, PR #381) — a suite was added or removed without updating this pin"
+
+  log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
 
 test_070_companion_obligations() {  # spec-planning-companion-obligations TEST-001..003 / Spec-AC-01..03
@@ -1094,8 +1112,8 @@ test_070_companion_obligations() {  # spec-planning-companion-obligations TEST-0
 
   # TEST-001 — positioned BEFORE the existing '4) Create or update docs/specs' step.
   local l_check l_spec
-  l_check="$(grep -n "COMPANION OBLIGATIONS" "$pl" | head -1 | cut -d: -f1)"
-  l_spec="$(grep -n "Create or update docs/specs" "$pl" | head -1 | cut -d: -f1)"
+  l_check="$(grep -n "COMPANION OBLIGATIONS" "$pl" | qhead -1 | cut -d: -f1)"
+  l_spec="$(grep -n "Create or update docs/specs" "$pl" | qhead -1 | cut -d: -f1)"
   [[ -n "$l_check" && -n "$l_spec" ]] \
     || log_fail "PLANNING must keep both the COMPANION OBLIGATIONS step and the 'Create or update docs/specs' step greppable"
   [[ "$l_check" -lt "$l_spec" ]] \
@@ -1144,6 +1162,28 @@ test_070_companion_obligations() {  # spec-planning-companion-obligations TEST-0
 AP_LIB_REL="tests/skills/lib/assert-payload.sh"
 PGQ_LIB_REL="tests/skills/lib/pipe-grep-q-ratchet.sh"
 PGQ_BASELINE_REL="tests/skills/lib/pipe-grep-q-baseline.tsv"
+
+# Spec-AC-14 / DEBT-0004 Target State item b: the degenerate-pass ratchet (a
+# pass-reporting call on a branch its own message names as unreachable or
+# out of bounds for this run). Structurally identical to the pipe-grep-q
+# ratchet above. Worded so this comment itself never matches the shape it
+# describes (see the fixture note near test_124, below).
+DPR_LIB_REL="tests/skills/lib/degenerate-pass-ratchet.sh"
+DPR_BASELINE_REL="tests/skills/lib/degenerate-pass-baseline.tsv"
+# The nine guards named in the Spec-AC-12 implementation plan whose
+# degenerate branch must now report UNCOVERED (log_fail) rather than PASS.
+# One test id per carrier file, `file:TEST-id`.
+DPR_NINE_GUARDS=(
+  "test-aai-release.sh:TEST-024"
+  "test-aai-release.sh:TEST-025"
+  "test-aai-git-ref-guard.sh:TEST-312"
+  "test-aai-deslop.sh:TEST-028"
+  "test-aai-spec-amend.sh:TEST-003"
+  "test-aai-spec-amend.sh:TEST-008"
+  "test-aai-spec-amend.sh:TEST-009"
+  "test-aai-follow-ups.sh:TEST-031"
+  "test-aai-spec-lint.sh:TEST-011"
+)
 
 # THE PIPE CHARACTER IS PARAMETERISED THROUGHOUT THESE ARMS, ON PURPOSE.
 # The ratchet scans tests/skills/*.sh — including THIS FILE — for the literal
@@ -1400,14 +1440,23 @@ test_102_pgq_ratchet_gate_and_bite() {  # TEST-003 / Spec-AC-03
   total="$(pgq_total "$scan")"
   files="$(printf '%s\n' "$scan" | "$PGQ_GREP_BIN" -c '[^[:space:]]')" || files=0
 
-  # VACUITY GUARD. A broken pattern scans to nothing, and an empty scan
-  # contradicts no baseline: the gate would pass by measuring the empty set.
-  # The corpus is known to carry hundreds of occurrences, so a zero here is a
-  # broken scanner, never a clean corpus.
-  [[ "$total" -gt 0 && "$files" -gt 0 ]] \
-    || log_fail "test_102: the live scan found $total occurrence(s) in $files file(s) — the scanner is broken, not the corpus (an empty scan can never contradict a baseline)"
-  [[ -n "$base" ]] \
-    || log_fail "test_102: $PGQ_BASELINE_REL has no data rows — re-record it: bash $PGQ_LIB_REL --record"
+  # VACUITY GUARD. Spec-AC-11 drained the corpus to ZERO, which is now the
+  # intended steady state — so "the scan found nothing" can no longer be read
+  # as "the scanner is broken" (that WAS true when the corpus was known
+  # nonzero; it stopped being true the day the drain landed). What still
+  # proves the scanner is alive is that it actually LOOKED: tests/skills
+  # holds well over 50 *.sh suite files today, so an empty FILE LISTING (not
+  # an empty match set) is what a genuinely broken target directory looks
+  # like — pgq_scan itself only emits a row per file that has a hit, so the
+  # match count alone can never distinguish "scanned everything, found
+  # nothing" from "scanned nothing".
+  local scanned_files
+  scanned_files="$(find "$PROJECT_ROOT/tests/skills" -maxdepth 1 -name '*.sh' | "$PGQ_GREP_BIN" -c '')" || scanned_files=0
+  [[ "$scanned_files" -gt 50 ]] \
+    || log_fail "test_102: only $scanned_files *.sh file(s) found under tests/skills — the scanner's target directory looks broken, not necessarily the corpus"
+  # A DRAINED baseline legitimately has zero data rows (pgq_render_baseline
+  # only ever emits one per file WITH a hit), so an empty $base is no longer
+  # itself a failure — only a MISSING baseline file (checked above) is.
 
   local verdicts risen shrunk
   verdicts="$(pgq_compare "$base" "$scan")"
@@ -1515,8 +1564,14 @@ test_103_pgq_baseline_is_measured_not_typed() {  # TEST-004 / Spec-AC-04
   done <<< "$(pgq_read_baseline "$baseline")"
   [[ "$missing" -eq 0 ]] \
     || log_fail "test_103: the committed baseline carries rows that no scan could have produced (see above)"
-  [[ "$(pgq_total "$live")" -gt 0 ]] \
-    || log_fail "test_103: the live scan is empty — a zero-total scan must never validate a baseline"
+  # Spec-AC-11 drained the live corpus to zero, which is the correct steady
+  # state now — a zero TOTAL no longer distinguishes "scanned and found
+  # nothing" from "never scanned", so the liveness proof is the same
+  # file-count floor test_102 uses, not the match count.
+  local live_scanned_files
+  live_scanned_files="$(find "$PROJECT_ROOT/tests/skills" -maxdepth 1 -name '*.sh' | "$PGQ_GREP_BIN" -c '')" || live_scanned_files=0
+  [[ "$live_scanned_files" -gt 50 ]] \
+    || log_fail "test_103: only $live_scanned_files *.sh file(s) found under tests/skills — the live scan's target directory looks broken"
 
   log_pass "test_103: --record tracks a planted tree (5/2 then 8), header names the generator, every committed row is real (TEST-004)"
 }
@@ -1572,6 +1627,593 @@ test_104_pgq_shrink_never_lowers_the_bar() {  # TEST-005 / Spec-AC-03
     || log_fail "test_104: running the live gate rewrote $PGQ_BASELINE_REL"
 
   log_pass "test_104: SHRINK and GONE are NOTEs, never a rise, and the recorded number is never rewritten by a comparison (TEST-005)"
+}
+
+# --- TEST-470 (round 10, PR #381 remediation, SPEC-0179 Amendment Round 10)
+# — the SECOND ratchet arm: shipping scripts (.aai/scripts/*.sh and
+# .aai/scripts/lib/*.sh) that set pipefail must carry zero occurrences of the
+# early-closing-reader shape too. CI on 1aab60bb reddened from suites, not
+# shipping scripts, but the same class was live in 9 shipping scripts.
+# Eight were rewritten to here-strings by this ride (aai-bootstrap.sh,
+# aai-update.sh, autonomous-loop.sh, cloudflare-share.sh, expert-fetch.sh,
+# install-pre-commit-hook.sh, migrate-state-to-local.sh, triage.sh;
+# aai-sync.sh was already fixed round 9); the ninth, pre-commit-checks.sh,
+# is a protected_paths_l3 surface a ceremony-2 ride may not edit, so it is
+# deferred by name (PGQ_SHIPPING_DEFERRED_L3) under
+# fu-pre-commit-checks-pipe-grep-q and its 7 sites are still live. A script that never
+# sets pipefail is excluded by construction (pgq_scan_shipping) — the class
+# is inert there, so gating it would buy friction with no defect behind it.
+test_128_shipping_scripts_pipe_safe_at_zero() {  # TEST-470 / round 10
+  log_info "test_128: the shipping-script (.aai/scripts) pipefail arm of the pipe-safe ratchet is at zero, and bites on a reintroduced pipe (TEST-470)..."
+  local ratchet="$PROJECT_ROOT/$PGQ_LIB_REL"
+  [[ -f "$ratchet" ]] || log_fail "test_128: missing $PGQ_LIB_REL"
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$ratchet"
+
+  # ---- LIVE GATE: zero over the real shipping tree.
+  local scan total
+  scan="$(pgq_scan_shipping "$PROJECT_ROOT")"
+  total="$(pgq_total "$scan")"
+  [[ "$total" -eq 0 ]] \
+    || log_fail "test_128: the shipping-script pipe-safe scan is $total, not 0: $scan"
+
+  # Vacuity guard: the scanner actually looked at a nonzero number of
+  # pipefail-bearing shipping scripts, so a 0 total means "scanned and found
+  # nothing", not "scanned nothing".
+  local pipefail_scripts
+  pipefail_scripts="$("$PGQ_GREP" -l 'pipefail' "$PROJECT_ROOT"/.aai/scripts/*.sh "$PROJECT_ROOT"/.aai/scripts/lib/*.sh 2>/dev/null | "$PGQ_GREP" -c '')" || pipefail_scripts=0
+  [[ "$pipefail_scripts" -gt 5 ]] \
+    || log_fail "test_128: only $pipefail_scripts pipefail-bearing shipping script(s) found — the scanner's target set looks broken, not necessarily the corpus"
+
+  # ---- BITE PROOF, on a fixture tree mirroring the shipping layout.
+  local d fx
+  d="$(ap_tmpdir)"
+  fx="$d/pgq-shipping-fixture"
+  rm -rf "$fx"; mkdir -p "$fx/.aai/scripts/lib"
+  printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'x="$(echo "$y"' "$PGQ_BAR" ' grep -q needle)"' > "$fx/.aai/scripts/clean.sh"
+  local fscan
+  fscan="$(pgq_scan_shipping "$fx")"
+  [[ "$(pgq_total "$fscan")" -eq 0 ]] \
+    || log_fail "test_128: an UNMUTATED shipping fixture must scan to 0, got $(pgq_total "$fscan"): $fscan"
+
+  # Reintroduce the unsafe shape in a pipefail-bearing script — must bite.
+  printf '%s\n' "echo \"\$out\" ${PGQ_BAR} grep -q needle" >> "$fx/.aai/scripts/clean.sh"
+  fscan="$(pgq_scan_shipping "$fx")"
+  [[ "$(pgq_total "$fscan")" -eq 1 ]] \
+    || log_fail "test_128 BITE: reintroducing one occurrence in a pipefail script must scan to 1, got $(pgq_total "$fscan"): $fscan"
+
+  # A script with NO pipefail carrying the same shape must NOT be counted —
+  # the class is inert there (Spec rationale above).
+  printf '%s\n' '#!/usr/bin/env bash' "echo \"\$out\" ${PGQ_BAR} grep -q needle" > "$fx/.aai/scripts/no-pipefail.sh"
+  fscan="$(pgq_scan_shipping "$fx")"
+  [[ "$(pgq_total "$fscan")" -eq 1 ]] \
+    || log_fail "test_128: a script with no pipefail must not be counted even with the shape present, got $(pgq_total "$fscan"): $fscan"
+
+  # lib/ subdirectory is scanned too.
+  printf '%s\n' '#!/usr/bin/env bash' 'set -o pipefail' "echo \"\$out\" ${PGQ_BAR} grep -q needle" > "$fx/.aai/scripts/lib/helper.sh"
+  fscan="$(pgq_scan_shipping "$fx")"
+  [[ "$(pgq_total "$fscan")" -eq 2 ]] \
+    || log_fail "test_128: .aai/scripts/lib/*.sh must be scanned too, got $(pgq_total "$fscan"): $fscan"
+
+  log_pass "test_128: shipping-script pipe-safe arm is at zero on the live tree, and bites on a reintroduced pipe in a pipefail script while ignoring one with no pipefail (TEST-470)"
+}
+
+# --- TEST-418 (Spec-AC-11) — the drain reached zero, and the scanner still
+# scans. Mutation-only per the spec's own Mutation checks (no red-418.txt):
+# on the pre-drain tree this assertion goes red for the ordinary reason
+# (202 occurrences, not 0), which proves nothing about whether the scanner
+# still WORKS once it is pointed at a real zero — only a planted occurrence
+# does that (mutation-418.txt, recorded separately on a scratch copy).
+test_122_pgq_corpus_drained_to_zero() {  # TEST-418 / Spec-AC-11
+  log_info "test_122: the live pipe-grep-q scan over tests/skills is 0, and every baseline row is 0 (TEST-418)..."
+  local ratchet="$PROJECT_ROOT/$PGQ_LIB_REL" baseline="$PROJECT_ROOT/$PGQ_BASELINE_REL"
+  [[ -f "$ratchet" ]] || log_fail "test_122: missing $PGQ_LIB_REL"
+  [[ -f "$baseline" ]] || log_fail "test_122: missing $PGQ_BASELINE_REL"
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$ratchet"
+
+  local scan total
+  scan="$(pgq_scan "$PROJECT_ROOT/tests/skills")"
+  total="$(pgq_total "$scan")"
+  [[ "$total" -eq 0 ]] \
+    || log_fail "test_122: the live pipe-grep-q scan is $total, not 0 — Spec-AC-11 requires the drain to be complete: $scan"
+
+  # "every row is 0": pgq_render_baseline only ever emits a row for a file
+  # WITH a hit (Spec-AC-04's own scanner), so a fully-drained tree's baseline
+  # has NO data rows at all — the claim holds vacuously over an empty set,
+  # which this asserts directly rather than assuming.
+  local rows
+  rows="$(pgq_read_baseline "$baseline")"
+  [[ -z "$rows" ]] \
+    || log_fail "test_122: $PGQ_BASELINE_REL still carries data row(s) after the drain: $rows"
+
+  log_pass "test_122: live pipe-grep-q scan over tests/skills is 0, and $PGQ_BASELINE_REL carries zero data rows (TEST-418)"
+}
+
+# --- TEST-419 (Spec-AC-11) — a planted occurrence still fails the ratchet at
+# zero, and a baseline that under-claims what a tree actually holds (the
+# shape a hand-typed, never-recorded baseline would take) is still caught by
+# the live comparison rather than silently trusted.
+test_123_pgq_bite_at_zero_and_handtyped_baseline_rejected() {  # TEST-419 / Spec-AC-11
+  log_info "test_123: a planted occurrence still reddens the ratchet, and a hand-typed baseline that under-claims a tree is still caught (TEST-419)..."
+  local ratchet="$PROJECT_ROOT/$PGQ_LIB_REL" d
+  d="$(ap_tmpdir)"
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$ratchet"
+
+  # Half 1: an EMPTY (zero-row) baseline, exactly the drained shape, still
+  # reddens the moment one occurrence is planted.
+  local fx="$d/pgq-419-plant"
+  rm -rf "$fx"; mkdir -p "$fx"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-z1.sh"
+  local empty_base="" fscan fv
+  fscan="$(pgq_scan "$fx")"
+  [[ -z "$(pgq_compare "$empty_base" "$fscan")" ]] \
+    || log_fail "test_123: an untouched fixture against an empty baseline must produce no verdict"
+  ap_grep_lines 1 "$fx/test-aai-z1.sh"
+  fv="$(pgq_compare "$empty_base" "$(pgq_scan "$fx")")"
+  [[ "$fv" == *"NEW test-aai-z1.sh 0 1"* ]] \
+    || log_fail "test_123: one planted occurrence against a zero-row baseline must report NEW, got: $fv"
+
+  # Half 2: a HAND-TYPED baseline (never produced by --record) that
+  # UNDER-CLAIMS a tree's real count. This is the shape a manually-authored
+  # or stale-by-hand baseline takes; the live comparison must not trust it —
+  # it must report the true, larger count as a RISE against the claimed one.
+  local fx2="$d/pgq-419-handtyped"
+  rm -rf "$fx2"; mkdir -p "$fx2"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx2/test-aai-h1.sh"; ap_grep_lines 3 "$fx2/test-aai-h1.sh"
+  local handtyped=$'1\ttest-aai-h1.sh'
+  fv="$(pgq_compare "$handtyped" "$(pgq_scan "$fx2")")"
+  [[ "$fv" == *"RISE test-aai-h1.sh 1 3"* ]] \
+    || log_fail "test_123: a hand-typed baseline claiming 1 against a real 3 must report RISE 1 -> 3, got: $fv"
+
+  log_pass "test_123: a planted occurrence reddens the ratchet from an empty (drained) baseline, and a hand-typed under-claiming baseline is still caught as a RISE (TEST-419)"
+}
+
+# --- TEST-426 (Spec-AC-14) — the nine guards report UNCOVERED, and the
+# remainder is ratcheted, not banned. Established fact 18 of the frozen spec
+# measured 35 pass-reporting sites, worded as unreachable or out of bounds,
+# over tests/skills before this ride; nine of them are the guards named in
+# the Spec-AC-12 implementation plan and are DEBT-0004's vacuous-pass shape
+# (a guard that cannot reach its own branch reporting PASS anyway). The
+# other 26 are legitimate platform/environment degrades and are held at
+# their measured count instead — the same "ratchet what is legitimate, fix
+# what is not" split established fact 18 states directly. (This paragraph is
+# deliberately worded so it never itself matches DPR_PATTERN + DPR_QUALIFIER
+# — see the fixture note in Half 3 below for why that matters.)
+test_124_degenerate_pass_guards_uncovered_and_ratcheted() {  # TEST-426 / Spec-AC-14
+  log_info "test_124: the nine named guards no longer log_pass on their degenerate branch, and the per-file ratchet over the remainder matches its recorded baseline (TEST-426)..."
+  local ratchet="$PROJECT_ROOT/$DPR_LIB_REL" baseline="$PROJECT_ROOT/$DPR_BASELINE_REL"
+  [[ -f "$ratchet" ]] || log_fail "test_124: missing $DPR_LIB_REL"
+  [[ -f "$baseline" ]] || log_fail "test_124: missing $DPR_BASELINE_REL"
+  # shellcheck source=lib/degenerate-pass-ratchet.sh
+  . "$ratchet"
+
+  # Half 1 — the nine guards, BY BEHAVIOUR. Validation round 2 (R2-1): the
+  # previous Half 1 only proved a log_pass LINE lost two words
+  # ("skipped"/"not applicable") next to the guard's TEST id — satisfied by
+  # rewording alone, and blind to spec-amend TEST-003/008/009, whose
+  # degenerate branch used neither word. This half instead DRIVES each
+  # guard down its own degenerate branch (its base ref or pin commit
+  # broken, via a `git` PATH shim or the guard's own override env var — the
+  # real-world shape of a shallow clone / fetch-less CI checkout) and
+  # requires a NON-ZERO exit, except the one guard with a disclosed,
+  # permanent carve-out (below).
+  local entry f tid
+  for entry in "${DPR_NINE_GUARDS[@]}"; do
+    f="${entry%%:*}"
+    tid="${entry#*:}"
+    [[ -f "$PROJECT_ROOT/tests/skills/$f" ]] \
+      || log_fail "test_124: guard carrier missing: $f"
+  done
+
+  local d shimdir real_git spec_amend_pin
+  d="$(ap_tmpdir)"
+  shimdir="$d/dpr-426-git-shim"
+  mkdir -p "$shimdir"
+  real_git="$(command -v git)"
+  # test-aai-spec-amend.sh's own BASE_AMENDMENT_PIN_COMMIT (TEST-003's pin,
+  # read here rather than retyped, so this arm cannot drift from the real
+  # constant): the base-vs-live format trap it guards.
+  spec_amend_pin="$("$DPR_GREP" -oE '^BASE_AMENDMENT_PIN_COMMIT=[0-9a-f]+' \
+    "$PROJECT_ROOT/tests/skills/test-aai-spec-amend.sh" | cut -d= -f2)"
+  [[ -n "$spec_amend_pin" ]] \
+    || log_fail "test_124: could not read BASE_AMENDMENT_PIN_COMMIT from test-aai-spec-amend.sh"
+  # Blocks ONLY the exact base-ref / pin-commit lookups these guards use to
+  # resolve their comparison point (`origin/main`/`main` reachability, an
+  # `origin/main:<path>` read, the tag listing release's TEST-025 walks, and
+  # spec-amend TEST-003's pinned commit). Every other git invocation made by
+  # check_deps or the rest of each test function — there IS no other git
+  # invocation in these nine functions — passes through to the real binary.
+  cat > "$shimdir/git" <<SHIMEOF
+#!/bin/sh
+REAL_GIT="$real_git"
+ARGS="\$*"
+case "\$ARGS" in
+  *"rev-parse --verify --quiet origin/main"|*"rev-parse --verify -q origin/main"|*"rev-parse --verify --quiet main"|*"rev-parse --verify -q main")
+    exit 1 ;;
+  *"show origin/main:"*)
+    echo "fatal: dpr-426 shim: origin/main blocked" >&2
+    exit 128 ;;
+  *"tag --list v[0-9]*"*)
+    exit 0 ;;
+  *"show $spec_amend_pin:"*)
+    echo "fatal: dpr-426 shim: pin commit blocked" >&2
+    exit 128 ;;
+  *)
+    exec "\$REAL_GIT" "\$@" ;;
+esac
+SHIMEOF
+  chmod +x "$shimdir/git"
+
+  local rc out failures=""
+  out="$(PATH="$shimdir:$PATH" env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-release.sh" test_024_no_deleted_unreleased_heading_vs_main 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures release.sh:TEST-024(rc=0)"
+  out="$(PATH="$shimdir:$PATH" env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-release.sh" test_025_released_region_pin_vs_tag 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures release.sh:TEST-025(rc=0)"
+  out="$(PATH="$shimdir:$PATH" env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-git-ref-guard.sh" 312_contract_and_diet 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures git-ref-guard.sh:TEST-312(rc=0)"
+  out="$(PATH="$shimdir:$PATH" env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-deslop.sh" test_028_published_surfaces_state_the_new_rule 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures deslop.sh:TEST-028(rc=0)"
+  out="$(PATH="$shimdir:$PATH" env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-spec-amend.sh" test_003_live_ledger_format_trap 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures spec-amend.sh:TEST-003(rc=0)"
+  out="$(AAI_SPEC_AMEND_BASE_REF=refs/heads/dpr-426-no-such-base-ref env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-spec-amend.sh" test_008_append_only 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures spec-amend.sh:TEST-008(rc=0)"
+  out="$(AAI_SPEC_AMEND_BASE_REF=refs/heads/dpr-426-no-such-base-ref env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-spec-amend.sh" test_009_live_backfill_and_whole_ledger_readers 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || failures="$failures spec-amend.sh:TEST-009(rc=0)"
+  rm -rf "$shimdir"
+
+  [[ -z "$failures" ]] \
+    || log_fail "test_124 Half 1: guard(s) did NOT fail closed with their base ref/pin commit broken (want a non-zero exit):$failures"
+
+  # follow-ups TEST-031 is the one DISCLOSED, PERMANENT carve-out (AC-14
+  # Notes): its primary path can never again run (SPEC-0159 is merged
+  # history — no future diff can reintroduce it), so a literal log_fail
+  # there would void TEST-443/TEST-032 on every future run. It keeps
+  # log_pass, but ONLY as long as that pass line still says UNCOVERED — its
+  # degenerate branch is already permanently live, so this is checked on
+  # the ordinary run, not a broken one.
+  out="$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-follow-ups.sh" test_031_both_registry_items_closed_for_real 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_124: follow-ups.sh TEST-031's disclosed carve-out must still exit 0 on its own fixture negative control, got rc=$rc: $out"
+  "$DPR_GREP" -qF "UNCOVERED" <<<"$out" \
+    || log_fail "test_124: follow-ups.sh TEST-031 no longer discloses UNCOVERED on its permanent degenerate branch — this is the one carved-out guard and it must keep saying so: $out"
+
+  # spec-lint TEST-011 has no base-ref-dependent branch to drive at all (read
+  # from the source: every clause in test_011_seam_survival() reports through
+  # the same local `ok` registry and log_fails for real on any failure —
+  # there is no origin/main lookup and no "not applicable" soft-skip).
+  # Structural check that this stays true, so a future edit that grows a
+  # soft-skip there is still caught by this arm.
+  local t011_body
+  t011_body="$(awk '/^test_011_seam_survival\(\)/,/^}/' "$PROJECT_ROOT/tests/skills/test-aai-spec-lint.sh")"
+  [[ -n "$t011_body" ]] \
+    || log_fail "test_124: test_011_seam_survival() not found in test-aai-spec-lint.sh"
+  "$DPR_GREP" -qiE 'origin/main|not applicable|unreachable' <<<"$t011_body" \
+    && log_fail "test_124: test-aai-spec-lint.sh TEST-011 grew a base-ref-shaped degenerate branch this arm does not yet drive — extend the coverage above rather than trusting the structural check alone"
+
+  # Half 2 — the ratchet: the live scan over the real tree must match the
+  # recorded baseline exactly (no RISE, no NEW — a SHRINK/GONE would also be
+  # a divergence here, since the baseline was recorded from this same scan
+  # and nothing between recording and this run should have moved it).
+  local scan cmp
+  scan="$(dpr_scan "$PROJECT_ROOT/tests/skills")"
+  cmp="$(dpr_compare "$(dpr_read_baseline "$baseline")" "$scan")"
+  [[ -z "$cmp" ]] \
+    || log_fail "test_124: the degenerate-pass ratchet diverges from $DPR_BASELINE_REL: $cmp"
+
+  # Half 3 — mutation control: a planted extra degenerate-pass site in a
+  # fixture tree must still be caught as NEW, proving the scanner scans
+  # rather than trivially passing over an unreachable pattern.
+  #
+  # The planted call and its qualifying word are assembled from two pieces at
+  # write time, never typed literally together on one line of this file's own
+  # source: writing the shape whole HERE would make this suite the ratchet's
+  # own newest offender — the exact self-match trap
+  # tests/skills/lib/pipe-grep-q-ratchet.sh's PGQ_BAR documents for the
+  # sibling ratchet above.
+  local d fx dpr_fn dpr_word
+  d="$(ap_tmpdir)"
+  fx="$d/dpr-426-plant"
+  rm -rf "$fx"; mkdir -p "$fx"
+  dpr_fn="log_pass"
+  dpr_word="skipped"
+  printf '%s\n' '#!/usr/bin/env bash' "${dpr_fn} \"TEST-999 ${dpr_word}: fixture-planted degenerate pass\"" \
+    > "$fx/test-aai-z2.sh"
+  local fv
+  fv="$(dpr_compare "" "$(dpr_scan "$fx")")"
+  [[ "$fv" == *"NEW test-aai-z2.sh 0 1"* ]] \
+    || log_fail "test_124: a planted degenerate-pass site was not reported NEW by the ratchet, got: $fv"
+
+  log_pass "test_124: the nine named guards no longer PASS on their degenerate branch, the per-file ratchet over the remaining $(dpr_total "$scan") site(s) matches $DPR_BASELINE_REL, and a planted site still reddens it (TEST-426)"
+}
+
+# --- TEST-427/428 (Spec-AC-15) — hygiene-pack lints for the six LEARNED ----
+# guard markers. D10: six `[guard -> fu-learned-*]` entries in
+# docs/knowledge/LEARNED.md name enforcement that belonged in this layer and
+# never got built. tests/skills/lib/learned-guard-lints.mjs is that layer;
+# these two arms are its LIVE GATE (TEST-428, over the real corpus) and its
+# BITE PROOFS (TEST-427, one planted instance per rule, on a scratch fixture
+# — never against the real tests/skills or .aai trees).
+LGL_SCRIPT_REL="tests/skills/lib/learned-guard-lints.mjs"
+LGL_SH_RULES=(local-crossref cd-underived immutable-pin deny-default-mock absence-no-control)
+
+# lgl_run <rule> <root...> — sets LGL_OUT / LGL_TOTAL. Not a command
+# substitution at the call site for the same reason brp_run is not (a subshell
+# assignment would leave a guard reading nothing and reporting on it).
+LGL_OUT=""
+LGL_TOTAL=""
+lgl_run() {
+  local rule="$1"; shift
+  LGL_OUT="$(node "$PROJECT_ROOT/$LGL_SCRIPT_REL" "$rule" "$@" 2>&1)"
+  LGL_TOTAL="${LGL_OUT##*$'\n'TOTAL: }"
+  if [[ "$LGL_TOTAL" == "$LGL_OUT" ]]; then
+    LGL_TOTAL="${LGL_OUT#TOTAL: }"
+  fi
+}
+
+# lgl_plant <file> — writes stdin to <file> with placeholders substituted to
+# the literal shapes the six rules key on. THIS SUITE IS ITSELF IN THE
+# SCANNED CORPUS (test_126 runs the tests/skills rules over tests/skills,
+# which contains this very file): spelling `local name="$1" d="$ROOT/$name"`,
+# an "immutable"/"cannot rot" pair next to `origin/main`, a `*) exit 0 ;;`
+# arm, or a `&&`-guarded absence check against a `*CALLS` variable literally
+# in THIS function's source would plant a real (and correctly reported)
+# finding in the live gate — the same trap tests/skills/test-aai-*.sh's other
+# corpus-wide guards already solve with a placeholder token (see brp_plant).
+# The placeholder keeps the fixture honest — the file the scanner reads
+# carries the real shape — without putting one in the shipping suite.
+lgl_plant() {
+  local f="$1"
+  sed -e 's/@LCL@/local/g' \
+      -e 's/@MAIN@/origin\/main/g' \
+      -e 's/@IMM@/immutable/g' \
+      -e 's/@ROT@/cannot rot/g' \
+      -e 's/@EXIT0@/exit 0/g' \
+      -e 's/@AND@/\&\&/g' \
+      > "$f"
+}
+
+test_125_learned_guard_lints_bite() {  # TEST-427 / Spec-AC-15
+  log_info "test_125: each new LEARNED-guard lint flags a planted instance of its shape on a scratch fixture (TEST-427)..."
+  local script="$PROJECT_ROOT/$LGL_SCRIPT_REL" d
+  [[ -f "$script" ]] || log_fail "test_125: missing $LGL_SCRIPT_REL"
+  d="$(ap_tmpdir)"
+  local fx="$d/lgl-fixture"
+
+  # ---- 1. local-crossref ---------------------------------------------------
+  rm -rf "$fx"; mkdir -p "$fx"
+  lgl_plant "$fx/bad.sh" <<'SH'
+#!/usr/bin/env bash
+f() {
+  @LCL@ name="$1" d="$ROOT/$name"
+  echo "$d"
+}
+SH
+  lgl_run local-crossref "$fx"
+  [[ "$LGL_TOTAL" -ge 1 ]] \
+    || log_fail "test_125(local-crossref): a planted local a=1 b=\$a crossref must be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+  [[ "$LGL_OUT" == *"bad.sh:3:"* ]] \
+    || log_fail "test_125(local-crossref): the finding must name the local statement's line, got: $LGL_OUT"
+  cat > "$fx/ok.sh" <<'SH'
+#!/usr/bin/env bash
+f() {
+  local name="$1"
+  local d="$ROOT/$name"
+  echo "$d"
+}
+SH
+  rm -f "$fx/bad.sh"
+  lgl_run local-crossref "$fx"
+  [[ "$LGL_TOTAL" == "0" ]] \
+    || log_fail "test_125(local-crossref) CONTROL: two separate local lines must not be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+
+  # ---- 2. cd-underived ------------------------------------------------------
+  rm -rf "$fx"; mkdir -p "$fx"
+  lgl_plant "$fx/bad.sh" <<'SH'
+#!/usr/bin/env bash
+f() {
+  @LCL@ name="$1" d="$ROOT/$name"
+  cd "$d"
+  git commit -am "oops"
+}
+SH
+  lgl_run cd-underived "$fx"
+  [[ "$LGL_TOTAL" -ge 1 ]] \
+    || log_fail "test_125(cd-underived): a cd to a proven-empty local-crossref victim must be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+  [[ "$LGL_OUT" == *"bad.sh:4:"* ]] \
+    || log_fail "test_125(cd-underived): the finding must name the cd line, got: $LGL_OUT"
+  cat > "$fx/ok.sh" <<'SH'
+#!/usr/bin/env bash
+f() {
+  local name="$1"
+  local d="$ROOT/$name"
+  cd "$d"
+}
+SH
+  rm -f "$fx/bad.sh"
+  lgl_run cd-underived "$fx"
+  [[ "$LGL_TOTAL" == "0" ]] \
+    || log_fail "test_125(cd-underived) CONTROL: cd to a properly-derived variable must not be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+
+  # ---- 3. immutable-pin -----------------------------------------------------
+  rm -rf "$fx"; mkdir -p "$fx"
+  lgl_plant "$fx/bad.sh" <<'SH'
+#!/usr/bin/env bash
+# The pin below is @IMM@ and @ROT@ as later rides append entries.
+BASE_LEARNED_PIN=@MAIN@
+SH
+  lgl_run immutable-pin "$fx"
+  [[ "$LGL_TOTAL" -ge 1 ]] \
+    || log_fail "test_125(immutable-pin): a pin claimed immutable but resolved via origin/main must be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+  [[ "$LGL_OUT" == *"bad.sh:3:"* ]] \
+    || log_fail "test_125(immutable-pin): the finding must name the moving-ref assignment line, got: $LGL_OUT"
+  lgl_plant "$fx/ok.sh" <<'SH'
+#!/usr/bin/env bash
+# The pin below is @IMM@ and @ROT@ as later rides append entries.
+BASE_LEARNED_PIN=9296160c5e89900fd2f754daf80c660c2521ec75
+SH
+  rm -f "$fx/bad.sh"
+  lgl_run immutable-pin "$fx"
+  [[ "$LGL_TOTAL" == "0" ]] \
+    || log_fail "test_125(immutable-pin) CONTROL: a pin resolved to a fixed SHA must not be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+
+  # ---- 4. deny-default-mock --------------------------------------------------
+  rm -rf "$fx"; mkdir -p "$fx"
+  lgl_plant "$fx/bad.sh" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+  "auth status") exit 0 ;;
+  *) @EXIT0@ ;;
+esac
+SH
+  lgl_run deny-default-mock "$fx"
+  [[ "$LGL_TOTAL" -ge 1 ]] \
+    || log_fail "test_125(deny-default-mock): a stub's '*)' arm exiting 0 on unrecognised argv must be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+  cat > "$fx/ok.sh" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+  "auth status") exit 0 ;;
+  *) echo "unpinned command: $*" >&2; exit 2 ;;
+esac
+SH
+  rm -f "$fx/bad.sh"
+  lgl_run deny-default-mock "$fx"
+  [[ "$LGL_TOTAL" == "0" ]] \
+    || log_fail "test_125(deny-default-mock) CONTROL: a '*)' arm that refuses must not be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+
+  # ---- 5. absence-no-control -------------------------------------------------
+  rm -rf "$fx"; mkdir -p "$fx"
+  lgl_plant "$fx/bad.sh" <<'SH'
+#!/usr/bin/env bash
+arm_absence_check() {
+  FOO_CALLS="$TD/foo_calls"
+  run_thing
+  grep -qi "secret" "$FOO_CALLS" @AND@ log_fail "a secret leaked"
+  log_pass "no secret leaked"
+}
+SH
+  lgl_run absence-no-control "$fx"
+  [[ "$LGL_TOTAL" -ge 1 ]] \
+    || log_fail "test_125(absence-no-control): an absence check with no positive control must be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+  lgl_plant "$fx/ok.sh" <<'SH'
+#!/usr/bin/env bash
+arm_absence_check() {
+  FOO_CALLS="$TD/foo_calls"
+  run_thing
+  grep -qi "secret" "$FOO_CALLS" @AND@ log_fail "a secret leaked"
+  grep -qF "issue create" "$FOO_CALLS" || log_fail "the call must actually have happened"
+  log_pass "no secret leaked, and the call ran"
+}
+SH
+  rm -f "$fx/bad.sh"
+  lgl_run absence-no-control "$fx"
+  [[ "$LGL_TOTAL" == "0" ]] \
+    || log_fail "test_125(absence-no-control) CONTROL: an absence check backed by a same-window MUST-match must not be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+
+  # ---- 6. external-runner -----------------------------------------------------
+  # Safe unplaceholder'd: this fixture is written under the scratch dir $fx,
+  # never under .aai, and external-runner only ever walks the root it is
+  # given (.aai in test_126) — this file's own tests/skills location is
+  # never in that walk regardless of what its heredoc text contains.
+  rm -rf "$fx"; mkdir -p "$fx"
+  cat > "$fx/BAD.prompt.md" <<'MD'
+# Run the tests
+
+vitest run --coverage
+MD
+  lgl_run external-runner "$fx"
+  [[ "$LGL_TOTAL" -ge 1 ]] \
+    || log_fail "test_125(external-runner): a prompt instructing a direct vitest invocation must be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+  cat > "$fx/OK.prompt.md" <<'MD'
+# Run the tests
+
+Never invoke `vitest`/`tsc`/dev-servers directly — route through
+.aai/scripts/aai-run-tests.sh.
+MD
+  rm -f "$fx/BAD.prompt.md"
+  lgl_run external-runner "$fx"
+  [[ "$LGL_TOTAL" == "0" ]] \
+    || log_fail "test_125(external-runner) CONTROL: prose naming the runners must not be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+
+  log_pass "test_125: all six lints bite on a planted instance of their shape and are silent on a clean control (TEST-427)"
+}
+
+test_126_learned_guard_lints_live_and_markers() {  # TEST-428 / Spec-AC-15
+  log_info "test_126: every new lint reports zero over the live corpus, and every LEARNED guard marker resolves (TEST-428)..."
+  local script="$PROJECT_ROOT/$LGL_SCRIPT_REL" learned="$PROJECT_ROOT/docs/knowledge/LEARNED.md"
+  [[ -f "$script" ]] || log_fail "test_126: missing $LGL_SCRIPT_REL"
+  [[ -f "$learned" ]] || log_fail "test_126: missing docs/knowledge/LEARNED.md"
+
+  local rule
+  for rule in "${LGL_SH_RULES[@]}"; do
+    lgl_run "$rule" "$PROJECT_ROOT/tests/skills"
+    [[ "$LGL_TOTAL" == "0" ]] \
+      || log_fail "test_126: live rule '$rule' over tests/skills must report 0, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+  done
+  lgl_run external-runner "$PROJECT_ROOT/.aai"
+  [[ "$LGL_TOTAL" == "0" ]] \
+    || log_fail "test_126: live rule 'external-runner' over .aai must report 0, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+
+  # Every `[guard -> fu-xxx]` marker in LEARNED.md named by this Spec-AC-15
+  # bucket must cite its shipped guard, on the SAME entry, in its own text.
+  # A single node pass (not a bash loop re-invoking node per line): the
+  # marker arrow is a Unicode "->" (U+2192) in this file, not ASCII "->",
+  # measured — a regex written for the ASCII form alone matches nothing and
+  # this arm would then pass VACUOUSLY, the exact shape
+  # fu-learned-positive-control-for-absence exists to refuse. The explicit
+  # found-count check below is this arm's own positive control.
+  local marker_check_out marker_check_rc=0
+  marker_check_out="$(node - "$learned" <<'NODE' 2>&1
+const fs = require("fs");
+const text = fs.readFileSync(process.argv[2], "utf8");
+// fu-empty-path-cd-stays-in-shipping-repo is deliberately NOT a target here:
+// it carries no `[guard -> ...]` marker in LEARNED.md at all (measured) — its
+// origin is the SUBAGENT_CONTRACT.md Standing hazards section, a different
+// lineage than the six LEARNED entries D10 names. cd-underived is its
+// enforcement; there is no marker line for this check to cite.
+const targets = [
+  "fu-learned-bash32-local-crossref",
+  "fu-learned-immutable-pin-lint",
+  "fu-learned-deny-by-default-mocks",
+  "fu-learned-positive-control-for-absence",
+  "fu-learned-external-runner-routing",
+  "fu-learned-vitest-leak-is-a-guard",
+];
+const lineRe = /\[guard\s*(?:->|→)\s*(fu-[A-Za-z0-9-]+)\][^\n]*/g;
+const found = new Map();
+let m;
+while ((m = lineRe.exec(text))) {
+  if (!found.has(m[1])) found.set(m[1], []);
+  found.get(m[1]).push(m[0]);
+}
+let missing = [];
+let uncited = [];
+for (const t of targets) {
+  const entries = found.get(t);
+  if (!entries || entries.length === 0) {
+    missing.push(t);
+    continue;
+  }
+  if (!entries.some((e) => e.includes("guard shipped:"))) {
+    uncited.push(t);
+  }
+}
+if (missing.length || uncited.length) {
+  if (missing.length) console.log("MISSING: " + missing.join(", "));
+  if (uncited.length) console.log("UNCITED: " + uncited.join(", "));
+  process.exit(1);
+}
+console.log("OK: " + targets.length + " marker(s) all cite a shipped guard");
+process.exit(0);
+NODE
+)" || marker_check_rc=$?
+  [[ "$marker_check_rc" -eq 0 ]] \
+    || log_fail "test_126: LEARNED.md marker check failed: $marker_check_out"
+  [[ "$marker_check_out" == "OK: 6 "* ]] \
+    || log_fail "test_126: expected exactly 6 Spec-AC-15 LEARNED markers checked, got: $marker_check_out"
+
+  log_pass "test_126: all five tests/skills lints and the external-runner lint are 0 over the live corpus, and every Spec-AC-15 LEARNED marker cites its shipped guard (TEST-428)"
 }
 
 # Converted sites, as `<suite file>|<needle it must still assert>`. The needle
@@ -1644,6 +2286,97 @@ test_105_converted_sites_keep_their_needles() {  # TEST-006 / Spec-AC-01, Spec-A
   done
 
   log_pass "test_105: $seen pinned needle(s) of 4 converted sites intact (the 4th asserts a run-time variable and cannot be pinned), helper sourced, no unbounded payload dump (TEST-006)"
+}
+
+# --- TEST-420 (Spec-AC-11): the three new assert-payload helpers -----------
+# Shipped BEFORE any of the 202-site drain (Spec-AC-11's own precondition):
+# case-insensitive substring, exact whole-line, and a per-line ERE where an
+# anchored `^...$` pattern must match a MIDDLE line and must NOT match across
+# the newline into a neighbour — the exact trap the helper's own header names
+# (bash's `[[ =~ ]]` has no REG_NEWLINE, so a naive whole-string application
+# of an anchored pattern silently stops matching a middle line).
+test_121_new_assert_payload_helpers() {  # TEST-420 / Spec-AC-11
+  log_info "test_121: the three new helpers — case-insensitive substring, exact whole-line, per-line ERE with real per-line anchors (TEST-420)..."
+  local lib="$PROJECT_ROOT/$AP_LIB_REL" d
+  [[ -f "$lib" ]] || log_fail "test_121: missing $AP_LIB_REL"
+  d="$(ap_tmpdir)"
+  # shellcheck source=lib/assert-payload.sh
+  . "$lib"
+  declare -F assert_payload_contains_i >/dev/null 2>&1 || log_fail "test_121: assert_payload_contains_i is not defined"
+  declare -F assert_payload_has_line >/dev/null 2>&1 || log_fail "test_121: assert_payload_has_line is not defined"
+  declare -F assert_payload_line_matches >/dev/null 2>&1 || log_fail "test_121: assert_payload_line_matches is not defined"
+
+  # Same discipline as test_100's probe: every call runs in a CHILD bash that
+  # sources the library WITHOUT this suite's own exiting log_fail, so a
+  # deliberate MISS (proving the helper correctly refuses) cannot take this
+  # suite down with it — assert_payload_contains_i's own failure path calls
+  # `log_fail` when one is declared, and this suite's own log_fail is `exit 1`.
+  local probe="$d/ap121-probe.sh"
+  cat > "$probe" <<PROBE
+. '$lib'
+fn="\$1"; shift
+"\$fn" "\$@"
+PROBE
+
+  local out rc
+
+  # --- assert_payload_contains_i --------------------------------------------
+  local payload="Total: 3 Passed, 0 FAILED"
+  out="$(bash "$probe" assert_payload_contains_i "$payload" "failed" "m" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 && -z "$out" ]] || log_fail "test_121: case-insensitive match must find 'failed' in '$payload', got exit $rc: $out"
+  out="$(bash "$probe" assert_payload_contains_i "$payload" "FaIlEd" "m" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_121: a mixed-case needle must also match, got exit $rc: $out"
+  out="$(bash "$probe" assert_payload_contains_i "$payload" "nonexistent-needle-xyz" "m" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_121: assert_payload_contains_i matched a needle that is not present"
+
+  # The shopt must not leak into the CALLING shell — probed IN-PROCESS (this
+  # call is on the MATCHING/positive path, so the helper's own exiting
+  # log_fail is never reached, and the library is already sourced above):
+  # call the helper once, then confirm a plain `case` right after stays
+  # case-SENSITIVE.
+  assert_payload_contains_i "$payload" "failed" "test_121: in-process positive call"
+  # The pattern's case must DIFFER from the payload's own literal spelling
+  # ("FAILED" in $payload) — matching an already-identical-case substring
+  # would prove nothing about nocasematch either way.
+  case "$payload" in
+    *failed*) log_fail "test_121: nocasematch leaked into the caller's shell — a lowercase case-pattern now matches the payload's uppercase FAILED" ;;
+  esac
+
+  # --- assert_payload_has_line ----------------------------------------------
+  local lines_payload
+  lines_payload="$(printf 'ok 1\nnot ok 2 - something\nok 3\n')"
+  out="$(bash "$probe" assert_payload_has_line "$lines_payload" "ok 1" "m" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_121: exact first-line match must pass, got exit $rc: $out"
+  out="$(bash "$probe" assert_payload_has_line "$lines_payload" "ok 3" "m" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_121: exact last-line match must pass, got exit $rc: $out"
+  # THE WHOLE POINT: a SUBSTRING that is not a whole line must NOT match.
+  out="$(bash "$probe" assert_payload_has_line "$lines_payload" "ok" "m" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_121: assert_payload_has_line matched 'ok' as a substring of 'not ok 2 - something' / 'ok 1' — it must require a WHOLE line"
+  out="$(bash "$probe" assert_payload_has_line "$lines_payload" "not ok" "m" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_121: assert_payload_has_line matched a partial line"
+
+  # --- assert_payload_line_matches ------------------------------------------
+  # THE ANCHOR TRAP ITSELF: ^ok$ must match the MIDDLE line "ok" and must NOT
+  # match "not ok" or "ok too" — proving this helper applies the anchor PER
+  # LINE, not to the whole multi-line string (where bash's own `[[ =~ ]]`
+  # would bind ^ to the very first character and $ to the very last).
+  local ere_payload
+  ere_payload="$(printf 'not ok\nok\nok too\n')"
+  out="$(bash "$probe" assert_payload_line_matches "$ere_payload" '^ok$' "m" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_121: ^ok\$ must match the middle line 'ok', got exit $rc: $out"
+  out="$(bash "$probe" assert_payload_line_matches "$ere_payload" '^only-first-and-last$' "m" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_121: assert_payload_line_matches matched a pattern present in no single line"
+  # A payload where ^ok$ would ONLY match across a whole-string application
+  # (first char 'n' from "not ok", last char 'o' from "ok too") must still be
+  # refused, proving no whole-string fallback is hiding behind the per-line loop.
+  local no_line_payload
+  no_line_payload="$(printf 'not ok\nok too\n')"
+  out="$(bash "$probe" assert_payload_line_matches "$no_line_payload" '^ok$' "m" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_121: assert_payload_line_matches matched ^ok\$ with no line reading exactly 'ok' — the whole-string anchor trap is not closed"
+  out="$(bash "$probe" assert_payload_line_matches "$ere_payload" 'ok[[:space:]]too' "m" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_121: an unanchored ERE with a metacharacter must still match, got exit $rc: $out"
+
+  log_pass "test_121: assert_payload_contains_i (case-fold, no leak), assert_payload_has_line (whole line only), assert_payload_line_matches (real per-line anchors, no whole-string fallback) — TEST-420"
 }
 
 # --- bare-`main` base-ref guard (test_106..107) ------------------------------
@@ -2872,6 +3605,12 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
   # so the seed_patch above cannot include it — copy it directly instead.
   mkdir -p "$wt/.aai/scripts/lib"
   cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$wt/.aai/scripts/lib/cli-pipe-guard.mjs"
+  # Same reason, for this suite's own new dependency (round 10, PR #381):
+  # tests/skills/lib/pipe-safe.sh is sourced by test-aai-hygiene-pack.sh
+  # itself but is an uncommitted new file, so it never reaches a plain `git
+  # diff HEAD` either.
+  mkdir -p "$wt/tests/skills/lib"
+  cp "$PROJECT_ROOT/tests/skills/lib/pipe-safe.sh" "$wt/tests/skills/lib/pipe-safe.sh"
 
   cmp -s "$PROJECT_ROOT/$HSK_GENERATOR_REL" "$wt/$HSK_GENERATOR_REL" \
     || log_fail "test_113: nested worktree did not inherit the current seeded generator bytes"
@@ -2975,6 +3714,12 @@ test_118_bite_proofs_preserve_seeded_state() {  # PR review / seeded-wrapper reg
   # new lib file never reaches the clone — seed it explicitly too.
   mkdir -p "$seeded_root/.aai/scripts/lib"
   cp "$shipping_root/.aai/scripts/lib/cli-pipe-guard.mjs" "$seeded_root/.aai/scripts/lib/cli-pipe-guard.mjs"
+  # Same reason, for this suite's own new dependency (round 10, PR #381):
+  # test_113 (called below) sources tests/skills/lib/pipe-safe.sh from
+  # whatever PROJECT_ROOT it runs against, which is about to become this
+  # clone.
+  mkdir -p "$seeded_root/tests/skills/lib"
+  cp "$shipping_root/tests/skills/lib/pipe-safe.sh" "$seeded_root/tests/skills/lib/pipe-safe.sh"
 
   local source_skill="$seeded_root/.claude/skills/aai-wrap-up/SKILL.md"
   local changed_skill="$TEST_DIR/t118-changed-wrap-up.md"
@@ -3180,6 +3925,45 @@ test_120_userguide_catalog_covers_every_skill() {  # userguide-catalog-parity
   log_pass "USER_GUIDE Skills Catalog and Quick Reference both cover every skill in .claude/skills, and the catalog invents none"
 }
 
+# --- TEST-438 (Spec-AC-21, spec-test-framework-sweep) — four withdrawn -----
+# claims (the tripwire ratchet as transitional, isolation arms as a
+# precondition for deleting the tripwire, a mislabeled D5 attribution, and a
+# spec's "filed, not fixed" D7 reopening) are corrected in the tree this
+# scope shipped; this pins the drain so a future edit cannot silently
+# reintroduce any one of them.
+WITHDRAWN_PHRASES_438=(
+  'deleted once suites run in a disposable worktree'
+  'the hard precondition for deleting the tripwire'
+  "D5's framework opt-out"
+  'out of scope to fix: the D7 status-class'
+)
+
+test_127_withdrawn_phrases_drained() {  # TEST-438 / Spec-AC-21
+  log_info "test_127: a grep for each of the four withdrawn phrases over tests/skills, .aai/ and docs/specs returns 0, and a planted phrase is reported (TEST-438)..."
+  local phrase hits self="$PROJECT_ROOT/tests/skills/test-aai-hygiene-pack.sh"
+  for phrase in "${WITHDRAWN_PHRASES_438[@]}"; do
+    # This test's OWN array literal necessarily carries these four strings as
+    # DATA to scan for — excluded by name, not by weakening the scan itself.
+    hits="$(grep -rlF -- "$phrase" "$PROJECT_ROOT/tests/skills" "$PROJECT_ROOT/.aai" "$PROJECT_ROOT/docs/specs" 2>/dev/null | grep -vxF "$self")" || true
+    [[ -z "$hits" ]] \
+      || log_fail "test_127: withdrawn phrase still present in: $hits (phrase: $phrase)"
+  done
+
+  # Bite proof: a planted phrase in a scratch fixture tree IS reported by the
+  # same grep shape, so the four zeros above are a scan that still scans,
+  # not one pointed at nothing.
+  local fx
+  fx="$(mktemp -d "${TMPDIR:-/tmp}/aai-withdrawn-phrase-fixture.XXXXXX")"
+  mkdir -p "$fx/tests/skills"
+  printf '# %s\n' "${WITHDRAWN_PHRASES_438[0]}" > "$fx/tests/skills/planted.sh"
+  hits="$(grep -rlF -- "${WITHDRAWN_PHRASES_438[0]}" "$fx" 2>/dev/null)" || true
+  rm -rf "$fx"
+  [[ -n "$hits" ]] \
+    || log_fail "test_127: a planted withdrawn phrase in a scratch fixture tree was NOT found by the same scan — it proves nothing"
+
+  log_pass "test_127: all four withdrawn phrases are drained from tests/skills, .aai/ and docs/specs, and a planted instance is still caught (TEST-438)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -3217,7 +4001,13 @@ main() {
   test_102_pgq_ratchet_gate_and_bite
   test_103_pgq_baseline_is_measured_not_typed
   test_104_pgq_shrink_never_lowers_the_bar
+  test_122_pgq_corpus_drained_to_zero
+  test_123_pgq_bite_at_zero_and_handtyped_baseline_rejected
+  test_124_degenerate_pass_guards_uncovered_and_ratcheted
+  test_125_learned_guard_lints_bite
+  test_126_learned_guard_lints_live_and_markers
   test_105_converted_sites_keep_their_needles
+  test_121_new_assert_payload_helpers
   test_106_base_ref_pin_gate_and_bite
   test_107_base_ref_baseline_is_measured_not_typed
   test_108_cd_subshell_leak_gate_and_bite
@@ -3233,6 +4023,8 @@ main() {
   test_117_source_skills_are_lf_pinned
   test_118_bite_proofs_preserve_seeded_state
   test_119_generator_idempotence_preserves_seeded_state
+  test_127_withdrawn_phrases_drained
+  test_128_shipping_scripts_pipe_safe_at_zero
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

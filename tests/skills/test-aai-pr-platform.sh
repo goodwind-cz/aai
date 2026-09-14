@@ -25,6 +25,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-pr-platform"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
@@ -151,7 +152,7 @@ test_011_json_shape() {
     ok=0
   fi
   # credential masking in --json (PR #185 review): raw token must never appear
-  if node "$PROBE" --remote-url "https://ghost:hunter2@github.com/o/r.git" --json 2>/dev/null | grep -q "hunter2"; then
+  if node "$PROBE" --remote-url "https://ghost:hunter2@github.com/o/r.git" --json 2>/dev/null | qgrep -q "hunter2"; then
     log_info "TEST-011: --json leaked embedded credentials"
     ok=0
   fi

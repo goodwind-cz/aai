@@ -188,7 +188,10 @@ if ! command -v node >/dev/null 2>&1; then
   exit 0
 fi
 
-if ! git diff --cached --name-only | grep -qE '^docs/'; then
+# Capture, then here-string into grep -q — never a live pipe into an
+# early-closing reader under pipefail (round 10, PR #381).
+_staged_names="$(git diff --cached --name-only)"
+if ! grep -qE '^docs/' <<<"$_staged_names"; then
   exit 0
 fi
 
@@ -229,7 +232,8 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
     || cat docs/ai/docs-audit.yaml 2>/dev/null \
     || true)"
   CLOSE_GATE_MODE="report-only"
-  if printf '%s\n' "$GATE_CFG" | grep -Eq '^close_gate:[[:space:]]*enforce([[:space:]]|$)'; then
+  # Here-string, never printf piped into "grep -q" (round 10, PR #381).
+  if grep -Eq '^close_gate:[[:space:]]*enforce([[:space:]]|$)' <<<"$GATE_CFG"; then
     CLOSE_GATE_MODE="enforce"
   fi
   CLOSE_GATE_FAILED=0
@@ -240,7 +244,9 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
   while IFS= read -r f; do
     [[ -n "$f" ]] || continue
     # only when the STAGED diff ADDS a 'status: done' line (not an already-done spec)
-    if git diff --cached -U0 -- "$f" | grep -Eq '^\+status:[[:space:]]*done([[:space:]]|$)'; then
+    # Capture, then here-string into grep -q (round 10, PR #381).
+    _staged_hunk="$(git diff --cached -U0 -- "$f")"
+    if grep -Eq '^\+status:[[:space:]]*done([[:space:]]|$)' <<<"$_staged_hunk"; then
       # Gate the STAGED content, not the worktree: materialize the staged blob so a
       # staged-but-unreconciled done cannot pass merely because the worktree carries
       # unstaged Evidence (SPEC-0011 G5). Read the id from the staged blob too.
@@ -249,7 +255,9 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
         rm -f "$STAGED_TMP"
         continue
       fi
-      gid="$(sed -n 's/^id:[[:space:]]*//p' "$STAGED_TMP" | head -1)"
+      # Capture, then here-string into head (round 10, PR #381).
+      _staged_id_lines="$(sed -n 's/^id:[[:space:]]*//p' "$STAGED_TMP")"
+      gid="$(head -1 <<<"$_staged_id_lines")"
       if [[ -z "$gid" ]]; then
         gid="$(basename "$f" .md | grep -oE '^[A-Z]+(-[A-Z]+)*-[0-9]+' || true)"
       fi
@@ -290,7 +298,8 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
     || cat docs/ai/docs-audit.yaml 2>/dev/null \
     || true)"
   BODY_LINT_MODE="report-only"
-  if printf '%s\n' "$GATE_CFG" | grep -Eq '^body_lint:[[:space:]]*enforce([[:space:]]|$)'; then
+  # Here-string, never printf piped into "grep -q" (round 10, PR #381).
+  if grep -Eq '^body_lint:[[:space:]]*enforce([[:space:]]|$)' <<<"$GATE_CFG"; then
     BODY_LINT_MODE="enforce"
   fi
   BODY_LINT_FAILED=0

@@ -20,8 +20,18 @@
 //   [--rev <ref>]   compare against that commit instead of the index (default: the index)
 //   [--strict]      a degrade is a FAILURE too (see below)
 //   [--json]
+//   [--expect-branch <branch>]  CHANGE-0180 D4 HEAD-pin re-check; see below.
 //
-// Exit: 0 clean (or a NAMED degrade) · 1 at least one path differs · 2 usage.
+// Exit: 0 clean (or a NAMED degrade) · 1 at least one path differs · 2 usage
+// · 3 HEAD PIN REFUSED (CHANGE-0180 D4, --expect-branch given): EITHER cwd is
+//   not inside a git work tree at all (checkBranchPin's 'no-work-tree' cause,
+//   review NB-2), OR the pinned branch/sha no longer matches the given
+//   --expect-branch (F-3: both causes map to this one exit here — the
+//   distinct no-work-tree/detached/renamed/concurrent taxonomy is
+//   checkBranchPin's own `cause` field, not surfaced as a separate exit code
+//   by this script). ADDITIVE: no --expect-branch given, or no pin file at
+//   all, and this check is a complete no-op (Spec-AC-04) — every other exit
+//   above is unaffected.
 // A degrade is exit 0 and SAYS SO: an untracked path or an unreadable repo is
 // not a mismatch, but it is also not a verified match, and silence would be the
 // same failure this script exists to catch.
@@ -46,11 +56,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { checkBranchPin } from './branch-guard.mjs';
 
 function usage(msg) { process.stderr.write(`check-committed-scope: ${msg}\n`); process.exit(2); }
 
 function parseArgs(argv) {
-  const a = { paths: [], fromState: false, fromStdin: false, state: 'docs/ai/STATE.yaml', rev: null, json: false, strict: false };
+  const a = { paths: [], fromState: false, fromStdin: false, state: 'docs/ai/STATE.yaml', rev: null, json: false, strict: false, expectBranch: null };
   for (let i = 0; i < argv.length; i += 1) {
     const k = argv[i]; const v = argv[i + 1];
     const need = () => { if (v === undefined || v.startsWith('--')) usage(`${k} requires a value`); i += 1; return v; };
@@ -60,11 +71,30 @@ function parseArgs(argv) {
     else if (k === '--rev') a.rev = need();
     else if (k === '--json') a.json = true;
     else if (k === '--strict') a.strict = true;
-    else if (k === '--help' || k === '-h') { process.stdout.write('usage: check-committed-scope.mjs <path>... | --from-state | --from-stdin [--state <p>] [--rev <ref>] [--strict] [--json]\n'); process.exit(0); }
+    else if (k === '--expect-branch') a.expectBranch = need();
+    else if (k === '--help' || k === '-h') { process.stdout.write('usage: check-committed-scope.mjs <path>... | --from-state | --from-stdin [--state <p>] [--rev <ref>] [--strict] [--json] [--expect-branch <branch>]\n'); process.exit(0); }
     else if (k.startsWith('--')) usage(`unknown argument ${k}`);
     else a.paths.push(k);
   }
   return a;
+}
+
+// CHANGE-0180 D4 — re-check the HEAD pin, when the caller opted in with
+// --expect-branch. ADDITIVE: a caller that never passes the flag sees
+// byte-identical behaviour (Spec-AC-04), and the check itself is a single
+// early exit when no pin file exists at all (one `stat`, via branch-guard's
+// own pinDirOrNull — F-4: NOT the `readPin` this comment used to cite, which
+// no longer exists). Fails CLOSED before this script's real work (the git
+// diff comparisons) so a HEAD moved out from under the ceremony refuses
+// before comparing against the wrong commit. `expectBranch` is passed
+// THROUGH to checkBranchPin (review NB-3) so a wrong/typo'd branch name is
+// itself the thing compared, not merely a boolean opt-in for the pin file.
+function verifyExpectedBranch(expectBranch) {
+  if (!expectBranch) return;
+  const result = checkBranchPin(process.cwd(), expectBranch);
+  if (result.ok) return;
+  process.stderr.write(`check-committed-scope: REFUSED (HEAD moved) — ${result.message}\n`);
+  process.exit(3);
 }
 
 // STATE's code_review.scope is the list SKILL_PR already derives; reading it
@@ -243,6 +273,7 @@ function appendedLineCount(committed, worktree) {
 
 function main() {
   const a = parseArgs(process.argv.slice(2));
+  verifyExpectedBranch(a.expectBranch);
   if (a.fromStdin) {
     let raw = '';
     try { raw = fs.readFileSync(0, 'utf8'); } catch { raw = ''; }

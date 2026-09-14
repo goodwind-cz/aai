@@ -1025,7 +1025,9 @@ if (added > 0) fs.writeFileSync(dstPath, JSON.stringify(dst, null, 2) + "\n");
 console.log("hooks overlay: " + added + " hook(s) added, " + skipped + " already present -> " + dstPath);
 ' "$tpl" "$dst" 2>&1)"; then
     echo "  $merge_out"
-    if printf '%s' "$merge_out" | grep -q "0 hook(s) added"; then
+    # here-string, never printf piped into "grep -q": under pipefail a
+    # quiet grep that matches early can SIGPIPE the writer (round 10, PR #381).
+    if grep -q "0 hook(s) added" <<<"$merge_out"; then
       UNCHANGED+=("$dst (AAI hooks overlay already present)")
     else
       WRITTEN+=("$dst (AAI hooks overlay merged)")

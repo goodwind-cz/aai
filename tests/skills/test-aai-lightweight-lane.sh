@@ -31,6 +31,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
+
+# assert_payload_line_not_matches <payload> <ere> [message] — the NEGATIVE
+# twin assert_payload_line_matches has no ready-made counterpart for (Spec-
+# AC-11's "seven negated control-flow sites are restructured, not
+# substituted"): fails if ANY line matches <ere>, per-line so `^`/`$` and `.`
+# behave exactly as grep's own per-line anchors do (not the whole-string
+# `[[ =~ ]]` trap the sibling helper's own header names).
+assert_payload_line_not_matches() {
+  local _apn_payload="$1" _apn_ere="$2" _apn_msg="${3:-}" _apn_line
+  while IFS= read -r _apn_line; do
+    if [[ "$_apn_line" =~ $_apn_ere ]]; then
+      _assert_payload_report "${_apn_msg:-a line of the payload unexpectedly matches the pattern} (pattern: '$_apn_ere'), got: $(payload_preview "$_apn_payload")"
+      return 1
+    fi
+  done <<EOF
+$_apn_payload
+EOF
+  return 0
+}
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 GATE="${LANE_GATE_SCRIPT:-$PROJECT_ROOT/.aai/scripts/lane-gate.mjs}"
 
@@ -135,7 +154,7 @@ test_001_all_true_fast() {  # Spec-AC-01
   mk; fixture "$TEST_DIR" 1 direct
   run_gate "$TEST_DIR" "docs/x.md" "tests/skills/test-x.sh"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE fast$' || log_fail "expected LANE fast: $OUT"
+  assert_payload_has_line "$OUT" "LANE fast" "expected LANE fast"
   log_pass "All predicates true -> fast lane (TEST-001)"
 }
 
@@ -144,7 +163,7 @@ test_002_ceremony_l2_heavy() {  # Spec-AC-02
   mk; fixture "$TEST_DIR" 2 direct
   run_gate "$TEST_DIR" "docs/x.md"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level' || log_fail "expected heavy reason=ceremony_level: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=ceremony_level' "expected heavy reason=ceremony_level"
   log_pass "L2 -> heavy (TEST-002)"
 }
 
@@ -156,7 +175,7 @@ test_003_ceremony_absent_heavy() {  # Spec-AC-02 (fail-closed / degenerate)
     > "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md"
   run_gate "$TEST_DIR" "docs/x.md"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level' || log_fail "garbage ceremony must be heavy: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=ceremony_level' "garbage ceremony must be heavy"
   log_pass "Garbage ceremony_level -> heavy (TEST-003)"
 }
 
@@ -165,7 +184,7 @@ test_004_strategy_tdd_heavy() {  # Spec-AC-02
   mk; fixture "$TEST_DIR" 1 tdd
   run_gate "$TEST_DIR" "docs/x.md"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy reason=strategy' || log_fail "expected heavy reason=strategy: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=strategy' "expected heavy reason=strategy"
   log_pass "strategy tdd -> heavy (TEST-004)"
 }
 
@@ -174,7 +193,7 @@ test_005_strategy_absent_heavy() {  # Spec-AC-02 (fail-closed)
   mk; fixture "$TEST_DIR" 1 -
   run_gate "$TEST_DIR" "docs/x.md"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy reason=strategy' || log_fail "missing strategy must be heavy: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=strategy' "missing strategy must be heavy"
   log_pass "absent strategy -> heavy (TEST-005)"
 }
 
@@ -183,7 +202,7 @@ test_006_protected_l3_heavy() {  # Spec-AC-02 (reuses select-suites FULL_RUN tri
   mk; fixture "$TEST_DIR" 1 direct
   run_gate "$TEST_DIR" "docs/CONSTITUTION.md"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy reason=full_run' || log_fail "protected-l3 must be heavy full_run: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=full_run' "protected-l3 must be heavy full_run"
   log_pass "protected-l3 -> heavy full_run (TEST-006)"
 }
 
@@ -192,7 +211,7 @@ test_007_unmapped_heavy() {  # Spec-AC-02
   mk; fixture "$TEST_DIR" 1 direct
   run_gate "$TEST_DIR" "totally/unmapped/file.txt"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy reason=full_run' || log_fail "unmapped must be heavy full_run: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=full_run' "unmapped must be heavy full_run"
   log_pass "unmapped -> heavy full_run (TEST-007)"
 }
 
@@ -201,7 +220,7 @@ test_008_too_many_files_heavy() {  # Spec-AC-02
   mk; fixture "$TEST_DIR" 1 direct
   run_gate "$TEST_DIR" "docs/a.md" "docs/b.md" "docs/c.md" "docs/d.md" "docs/e.md"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy reason=diff_surface' || log_fail "over-count must be heavy diff_surface: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=diff_surface' "over-count must be heavy diff_surface"
   log_pass "count >= N -> heavy (TEST-008)"
 }
 
@@ -210,7 +229,7 @@ test_009_two_test_files_heavy() {  # Spec-AC-02
   mk; fixture "$TEST_DIR" 1 direct
   run_gate "$TEST_DIR" "tests/skills/test-a.sh" "tests/skills/test-b.sh"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy reason=diff_surface' || log_fail "two tests must be heavy: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=diff_surface' "two tests must be heavy"
   log_pass "two test files -> heavy (TEST-009)"
 }
 
@@ -219,7 +238,7 @@ test_010_two_scripts_heavy() {  # Spec-AC-02
   mk; fixture "$TEST_DIR" 1 direct
   run_gate "$TEST_DIR" ".aai/scripts/a.mjs" ".aai/scripts/b.mjs"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy reason=diff_surface' || log_fail "two scripts must be heavy: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=diff_surface' "two scripts must be heavy"
   log_pass "two script files -> heavy (TEST-010)"
 }
 
@@ -229,8 +248,8 @@ test_011_mapped_but_unclassified_heavy() {  # Spec-AC-02 (predicate 4 stricter t
   # config/app.yml is mapped (no FULL_RUN) yet is neither docs/prose/test/script.
   run_gate "$TEST_DIR" "config/app.yml"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy reason=diff_surface' \
-    || log_fail "mapped-but-unclassified must be heavy diff_surface (not fast): $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=diff_surface' \
+    "mapped-but-unclassified must be heavy diff_surface (not fast)"
   log_pass "mapped-but-unclassified -> heavy (TEST-011)"
 }
 
@@ -240,7 +259,7 @@ test_012_missing_spec_heavy() {  # Spec-AC-02 (fail-closed)
   OUT="$(node "$GATE" --repo-root "$TEST_DIR" --spec "$TEST_DIR/docs/specs/does-not-exist.md" \
     --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from <(echo "docs/x.md") --max-files 5 2>&1)"; CODE=$?
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level' || log_fail "missing spec must be heavy: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=ceremony_level' "missing spec must be heavy"
   log_pass "missing spec -> heavy (TEST-012)"
 }
 
@@ -249,12 +268,12 @@ test_013_auditable_predicate_lines() {  # Spec-AC-07
   mk; fixture "$TEST_DIR" 0 loop
   run_gate "$TEST_DIR" "docs/x.md" ".aai/scripts/one.mjs"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE fast$' || log_fail "expected fast: $OUT"
-  echo "$OUT" | grep -qE '^ceremony_level=0' || log_fail "must emit ceremony_level value: $OUT"
-  echo "$OUT" | grep -qE '^strategy=loop' || log_fail "must emit strategy value: $OUT"
-  echo "$OUT" | grep -qE '^changed_files=2' || log_fail "must emit changed_files value: $OUT"
-  echo "$OUT" | grep -qE '^suite_selection=' || log_fail "must emit suite_selection value: $OUT"
-  echo "$OUT" | grep -qE '^diff_classes=' || log_fail "must emit diff_classes value: $OUT"
+  assert_payload_has_line "$OUT" "LANE fast" "expected fast"
+  assert_payload_line_matches "$OUT" '^ceremony_level=0' "must emit ceremony_level value"
+  assert_payload_line_matches "$OUT" '^strategy=loop' "must emit strategy value"
+  assert_payload_line_matches "$OUT" '^changed_files=2' "must emit changed_files value"
+  assert_payload_line_matches "$OUT" '^suite_selection=' "must emit suite_selection value"
+  assert_payload_line_matches "$OUT" '^diff_classes=' "must emit diff_classes value"
   log_pass "predicate values are auditable (TEST-013)"
 }
 
@@ -264,7 +283,7 @@ test_014_always_exit_zero() {  # Spec-AC-01 (never fails the ceremony)
   # no --spec, no --state, no --files-from: everything missing -> heavy, exit 0
   OUT="$(node "$GATE" --repo-root "$TEST_DIR" 2>&1)"; CODE=$?
   [[ "$CODE" -eq 0 ]] || log_fail "missing-everything must still exit 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy' || log_fail "missing-everything must be heavy: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy' "missing-everything must be heavy"
   log_pass "always exit 0, degenerate -> heavy (TEST-014)"
 }
 
@@ -273,7 +292,7 @@ test_015_ceremony_l0_fast() {  # Spec-AC-01 (boundary: L0 also fast)
   mk; fixture "$TEST_DIR" 0 untested
   run_gate "$TEST_DIR" "docs/x.md"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE fast$' || log_fail "L0 + untested must be fast: $OUT"
+  assert_payload_has_line "$OUT" "LANE fast" "L0 + untested must be fast"
   log_pass "L0 boundary -> fast (TEST-015)"
 }
 
@@ -282,8 +301,8 @@ test_016_empty_diff_fast() {  # Spec-AC-01 (degenerate empty diff, gate-metadata
   mk; fixture "$TEST_DIR" 1 direct
   run_gate_empty "$TEST_DIR"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE fast$' || log_fail "empty diff must be fast: $OUT"
-  echo "$OUT" | grep -qE '^changed_files=0' || log_fail "empty diff must report changed_files=0: $OUT"
+  assert_payload_has_line "$OUT" "LANE fast" "empty diff must be fast"
+  assert_payload_line_matches "$OUT" '^changed_files=0' "empty diff must report changed_files=0"
   log_pass "empty diff -> fast (TEST-016)"
 }
 
@@ -300,9 +319,9 @@ docs/ai/EVENTS.jsonl
 docs/INDEX.md"
   local out
   out="$(printf '%s\n' "$diff" | node "$selector" --repo-root "$PROJECT_ROOT" --files-from - 2>&1)"
-  echo "$out" | grep -qE '^FULL_RUN' && log_fail "docs-only close diff must NOT trigger FULL_RUN: $out"
-  echo "$out" | grep -qE '^CORE aai-docs-audit reason=core$' \
-    || log_fail "docs-only close diff must route to the CORE aai-docs-audit suite: $out"
+  assert_payload_line_not_matches "$out" '^FULL_RUN' "docs-only close diff must NOT trigger FULL_RUN: $out"
+  assert_payload_has_line "$out" "CORE aai-docs-audit reason=core" \
+    "docs-only close diff must route to the CORE aai-docs-audit suite"
   log_pass "docs-only close-commit diff stays CORE-only, never FULL_RUN (TEST-017)"
 }
 
@@ -332,7 +351,7 @@ test_019_rename_blindness() {
   mk; fixture "$TEST_DIR" 1 direct
   run_gate "$TEST_DIR" ".aai/scripts/state.mjs" "docs/renamed-state.md"
   [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE heavy' || log_fail "TEST-019: protected rename slipped through: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy' "TEST-019: protected rename slipped through"
   # both diff readers must pass --no-renames so the source path stays visible
   grep -qF -- "--no-renames" "$GATE" || log_fail "TEST-019: lane-gate diff reader missing --no-renames"
   grep -qF -- "--no-renames" "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" \
@@ -346,10 +365,10 @@ test_020_prose_cap() {
   log_info "Test: 2 prompt-corpus files -> heavy (prose max 1); 1 -> fast (TEST-020)..."
   mk; fixture "$TEST_DIR" 1 direct
   run_gate "$TEST_DIR" ".aai/SKILL_DEBUG.prompt.md" ".aai/SKILL_SCOUT.prompt.md"
-  echo "$OUT" | grep -qE '^LANE heavy reason=diff_surface' || log_fail "TEST-020: 2 prompts must be heavy: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=diff_surface' "TEST-020: 2 prompts must be heavy"
   mk; fixture "$TEST_DIR" 1 direct
   run_gate "$TEST_DIR" ".aai/SKILL_DEBUG.prompt.md"
-  echo "$OUT" | grep -qE '^LANE fast$' || log_fail "TEST-020: single prompt unexpectedly heavy: $OUT"
+  assert_payload_has_line "$OUT" "LANE fast" "TEST-020: single prompt unexpectedly heavy"
   log_pass "Prose cap: 2 prompts heavy, 1 prompt fast (TEST-020)"
 }
 
@@ -358,11 +377,11 @@ test_021_core_script_heavy() {
   log_info "Test: PROFILES-core workflow script (close-work-item.mjs) -> heavy (TEST-021)..."
   mk; fixture "$TEST_DIR" 1 direct
   run_gate "$TEST_DIR" ".aai/scripts/close-work-item.mjs"
-  echo "$OUT" | grep -qE '^LANE heavy' || log_fail "TEST-021: core engine slipped into fast lane: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy' "TEST-021: core engine slipped into fast lane"
   # a genuinely non-core script stays fast-eligible (negative control)
   mk; fixture "$TEST_DIR" 1 direct
   run_gate "$TEST_DIR" "docs/x.md"
-  echo "$OUT" | grep -qE '^LANE fast$' || log_fail "TEST-021: docs-only control unexpectedly heavy: $OUT"
+  assert_payload_has_line "$OUT" "LANE fast" "TEST-021: docs-only control unexpectedly heavy"
   log_pass "Core workflow engine -> heavy; control fast (TEST-021)"
 }
 
@@ -372,8 +391,8 @@ test_022_missing_protected_config_heavy() {
   mk; fixture "$TEST_DIR" 1 direct
   rm -f "$TEST_DIR/docs/ai/docs-audit.yaml"
   run_gate "$TEST_DIR" "docs/x.md"
-  echo "$OUT" | grep -qE '^LANE heavy reason=protected_config_missing' \
-    || log_fail "TEST-022: missing protected config must fail closed: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy reason=protected_config_missing' \
+    "TEST-022: missing protected config must fail closed"
   log_pass "Missing protected-path config -> heavy fail-closed (TEST-022)"
 }
 
@@ -390,29 +409,29 @@ test_023_intake_ceremony_fallback() {  # CHANGE lane-intake-ceremony
     --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
     --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"; CODE=$?
   [[ "$CODE" -eq 0 ]] || log_fail "TEST-023: exit must be 0, got $CODE: $OUT"
-  echo "$OUT" | grep -qE '^LANE fast$' || log_fail "TEST-023: spec-less + intake L1 must be fast: $OUT"
+  assert_payload_has_line "$OUT" "LANE fast" "TEST-023: spec-less + intake L1 must be fast"
   assert_payload_contains "$OUT" "source=intake" "TEST-023: predicate line must label source=intake: $OUT"
   # garbage intake level -> heavy (fail-closed unchanged)
   printf -- '---\nid: fx\nceremony_level: banana\n---\n' > "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md"
   OUT="$(node "$GATE" --repo-root "$TEST_DIR" --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
     --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"
-  echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level$' \
-    || log_fail "TEST-023: garbage intake level must stay fail-closed heavy: $OUT"
+  assert_payload_has_line "$OUT" "LANE heavy reason=ceremony_level" \
+    "TEST-023: garbage intake level must stay fail-closed heavy"
   # EXPLICIT --spec pointing at a missing file -> heavy, NO intake fallback
   # (bot P2: a stale/misspelled spec path must not silently downgrade)
   printf -- '---\nid: fx\nceremony_level: 1\n---\n' > "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md"
   OUT="$(node "$GATE" --repo-root "$TEST_DIR" --spec "$TEST_DIR/docs/specs/NO-SUCH-SPEC.md" \
     --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
     --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"
-  echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level$' \
-    || log_fail "TEST-023: explicit missing --spec must fail closed, not fall back to intake: $OUT"
+  assert_payload_has_line "$OUT" "LANE heavy reason=ceremony_level" \
+    "TEST-023: explicit missing --spec must fail closed, not fall back to intake"
   assert_payload_contains "$OUT" "source=spec-missing" "TEST-023: predicate line must label source=spec-missing: $OUT"
   # both absent -> heavy (today's default preserved)
   rm -f "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md"
   OUT="$(node "$GATE" --repo-root "$TEST_DIR" --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
     --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"
-  echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level$' \
-    || log_fail "TEST-023: no spec + no intake must stay heavy: $OUT"
+  assert_payload_has_line "$OUT" "LANE heavy reason=ceremony_level" \
+    "TEST-023: no spec + no intake must stay heavy"
   log_pass "Intake-frontmatter ceremony fallback: fast when L0/1, fail-closed otherwise (TEST-023)"
 }
 
@@ -425,8 +444,8 @@ test_024_spec_wins_over_intake() {  # CHANGE lane-intake-ceremony (anti-downgrad
   OUT="$(node "$GATE" --repo-root "$TEST_DIR" --spec "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md" \
     --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
     --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"
-  echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level$' \
-    || log_fail "TEST-024: spec L2 must beat intake L1 (no downgrade shopping): $OUT"
+  assert_payload_has_line "$OUT" "LANE heavy reason=ceremony_level" \
+    "TEST-024: spec L2 must beat intake L1 (no downgrade shopping)"
   assert_payload_contains "$OUT" "source=spec" "TEST-024: source must be spec: $OUT"
   log_pass "Spec precedence pinned — intake can never downgrade (TEST-024)"
 }

@@ -602,6 +602,12 @@ suites:
       - docs/ai/overview-data.json
       - docs/ai/reviews/**
 
+  aai-pipe-safe:
+    globs:
+      - tests/skills/lib/pipe-safe.sh
+      - tests/skills/lib/pipe-grep-q-ratchet.sh
+      - tests/skills/lib/pipe-grep-q-baseline.tsv
+
   aai-planning-probes:
     globs:
       - .aai/scripts/check-role-output.mjs
@@ -784,6 +790,14 @@ suites:
       - .aai/templates/CHANGE_TEMPLATE.md
       - .aai/templates/ISSUE_TEMPLATE.md
 
+  aai-session-lock:
+    globs:
+      - .aai/scripts/lib/session-lock.mjs
+      - .aai/scripts/branch-guard.mjs
+      - .aai/scripts/check-committed-scope.mjs
+      - .aai/scripts/close-before-push-guard.mjs
+      - .aai/scripts/close-work-item.mjs
+
   aai-share:
     globs:
       - .aai/scripts/cloudflare-share.sh
@@ -840,6 +854,10 @@ suites:
       - .aai/REMEDIATION.prompt.md
       - .aai/SKILL_TDD.prompt.md
       - .aai/SUBAGENT_PROTOCOL.md
+      # ROLE_COMMON.md carries the PRE-HANDOFF AC-TABLE RECONCILIATION block
+      # every state-writing role inherits (Spec-AC-16, test-framework-sweep):
+      # a change there must select the suite that pins its STATE writes.
+      - .aai/ROLE_COMMON.md
 
   aai-tdd-evidence:
     globs:

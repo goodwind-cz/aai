@@ -15,6 +15,7 @@
 // (single writer is state.mjs) is preserved.
 //
 // CLI: node branch-guard.mjs [--base <branch>] [--suggest] [--state <path>]
+//                             [--pin] [--verify-pin]
 //   --base <branch>  base branch to compare against; default `main`.
 //   --state <path>   override the STATE.yaml path; default
 //                    <git-toplevel>/docs/ai/STATE.yaml (works from any subdir).
@@ -22,6 +23,44 @@
 //                    exit; performs NO git-branch check (meant to run before the
 //                    branch exists). Still reads STATE — a broken/empty ref_id
 //                    exits 4, never a silent pass.
+//   --pin            record the current branch + HEAD sha + pid + worktree at
+//                    `$(git rev-parse --git-dir)/aai/branch-pin.json`
+//                    (CHANGE-0180 D4). Per-worktree by construction — never
+//                    shared across a linked worktree — and structurally
+//                    uncommittable, so it owes no `.gitignore` entry. Exit 0
+//                    on success.
+//   --verify-pin     re-read the pin and compare it to the CURRENT branch +
+//                    HEAD sha. No pin file at all -> exit 0 (a ceremony that
+//                    never pinned is unaffected — CHANGE-0180 AC-004 — and
+//                    this costs exactly one `stat`). A pin that still matches
+//                    -> exit 0. A mismatch names the expected and the actual
+//                    value and distinguishes THREE causes rather than
+//                    collapsing them (CHANGE-0180 AC-003):
+//                      exit 5 — HEAD is now detached.
+//                      exit 6 — the pinned branch no longer exists as a ref
+//                               (renamed or removed under this session).
+//                      exit 7 — the pinned branch still exists, but HEAD now
+//                               points elsewhere (a concurrent session moved
+//                               HEAD in this same worktree, or reset/rebased
+//                               this same branch name to a different sha).
+//   `checkBranchPin(cwd, expectBranch)` (exported, not a CLI flag) is the
+//   same check as `--verify-pin` (which calls it with no `expectBranch`),
+//   returned as a plain result object rather than an exit, so the three
+//   ceremony scripts that still stand between the agent and a git write
+//   (check-committed-scope.mjs, close-before-push-guard.mjs,
+//   close-work-item.mjs) can reuse ONE implementation behind their own
+//   `--expect-branch` re-check rather than each re-deriving the pin logic
+//   (Article 2 — one new lib module in this scope is the session lock, not a
+//   second copy of this). Passing `expectBranch` does TWO things a bare
+//   `--verify-pin` call does not (remediation round 4, validation-round4.txt
+//   BLOCKING-1 + review NB-3): the branch itself is compared against the
+//   ARGUMENT, not silently `pin.branch` (closing NB-3 — a wrong/typo'd
+//   `--expect-branch` used to be indistinguishable from the correct one);
+//   and a same-branch HEAD sha that is a git-ancestor DESCENDANT of the
+//   pinned sha is read as the ceremony's own commit, not a concurrent move,
+//   and passes — bare `--verify-pin` keeps the original exact-sha-match
+//   reading (see `checkBranchPin`'s own header comment below for why this is
+//   scoped to `expectBranch` callers only).
 //
 // A branch may also legitimately have NO work item — a chore, a release cut, or
 // a docs-only edit. Such branches carry a recognized non-work-item PREFIX
@@ -54,6 +93,14 @@
 //   3 — current branch name does not contain the ref_id slug.
 //   4 — config/usage error (not a git repo, STATE unreadable, ref_id empty/null
 //       on a non-allowlisted branch, bad flag).
+//
+// --verify-pin's own exit codes (guard-mode 0-4 above do not apply to it):
+//   0 — no pin file (nothing to verify), or the pin still matches.
+//   5 — HEAD is detached under a pin.
+//   6 — the pinned branch was renamed/removed under the session.
+//   7 — a concurrent session moved HEAD (the pinned branch still exists).
+//   8 — the pin file exists but is unreadable/malformed (a partial or
+//       corrupted write) — NEVER treated as "no pin" (round 8 / Codex P1).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -209,7 +256,7 @@ function readFocus(statePath) {
 }
 
 function parseArgs(argv) {
-  const opts = { base: 'main', suggest: false, state: null };
+  const opts = { base: 'main', suggest: false, state: null, pin: false, verifyPin: false };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--base' || tok === '--state') {
@@ -222,8 +269,12 @@ function parseArgs(argv) {
       i += 1;
     } else if (tok === '--suggest') {
       opts.suggest = true;
+    } else if (tok === '--pin') {
+      opts.pin = true;
+    } else if (tok === '--verify-pin') {
+      opts.verifyPin = true;
     } else if (tok === '-h' || tok === '--help') {
-      console.error('Usage: node branch-guard.mjs [--base <branch>] [--suggest] [--state <path>]');
+      console.error('Usage: node branch-guard.mjs [--base <branch>] [--suggest] [--state <path>] [--pin] [--verify-pin]');
       exit(4);
     } else {
       console.error(`branch-guard: unknown flag "${tok}"`);
@@ -244,9 +295,344 @@ function resolveStatePath(opts, cwd) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// HEAD pin (CHANGE-0180 D4). Per-worktree by construction: `git rev-parse
+// --git-dir` resolves to a DISTINCT path for the main checkout and for every
+// linked worktree (never one shared path), so the pin lives at
+// `<that>/aai/branch-pin.json` — the same directory session-lock.mjs uses for
+// its own lock (D5), structurally uncommittable, owing no `.gitignore` entry.
+// ---------------------------------------------------------------------------
+
+const PIN_FILENAME = 'branch-pin.json';
+
+// pinDirFast — resolves the git-dir via fs stats only (no `git` subprocess),
+// so the no-pin path genuinely costs one stat as D4 and the header comment
+// above claim (validation round 1 BLOCKING-1: the ORIGINAL pinDir always
+// forked `git rev-parse --git-dir` first, even when no pin file existed —
+// measured with a git shim, one subprocess on a no-pin fixture). Handles
+// the two shapes `git rev-parse --git-dir` resolves for a normal
+// repo-root invocation: a main checkout's `.git` DIRECTORY, and a linked
+// worktree's `.git` FILE (`gitdir: <path>`, always written absolute by
+// git itself). Returns null — never guesses, never walks up parent
+// directories — for anything else (bare repo, GIT_DIR override, cwd not at
+// the repo root, an unreadable/malformed `.git` file), so the caller can
+// fall back to the authoritative `git rev-parse --git-dir` and correctness
+// never trades against the stat-only promise.
+function pinDirFast(cwd) {
+  // NON-BLOCKING (validation round 2): a GIT_DIR override used to be
+  // silently ignored here when cwd also happened to hold its own `.git`
+  // directory — this function resolved against the LOCAL `.git` and never
+  // fell back to the authoritative `git rev-parse`, contradicting the
+  // "never guesses ... GIT_DIR override" comment below and changing the
+  // pre-change pinDir's behaviour, which always went through git and
+  // therefore honoured GIT_DIR. Deferring to the git fallback whenever
+  // GIT_DIR is set keeps the fast path's promise scoped to the one case it
+  // can resolve correctly without a subprocess.
+  if (process.env.GIT_DIR) return null;
+  const dotGit = path.join(cwd, '.git');
+  let st;
+  try {
+    st = fs.lstatSync(dotGit);
+  } catch {
+    return null;
+  }
+  if (st.isDirectory()) {
+    return path.join(dotGit, 'aai');
+  }
+  if (st.isFile()) {
+    let content;
+    try {
+      content = fs.readFileSync(dotGit, 'utf8');
+    } catch {
+      return null;
+    }
+    const m = /^gitdir:\s*(.+?)\s*$/m.exec(content);
+    if (!m) return null;
+    const gd = path.isAbsolute(m[1]) ? m[1] : path.resolve(cwd, m[1]);
+    return path.join(gd, 'aai');
+  }
+  return null;
+}
+
+// pinDirOrNull — like pinDir, but returns null instead of throwing when the
+// git fallback itself fails (cwd is not inside a git work tree at all: no
+// repo, or a repo git declines to read). NON-BLOCKING (review NB-2): the
+// original pinDir's git() fallback had no try/catch, so any caller that
+// reached it outside a work tree — checkBranchPin included — crashed with a
+// raw uncaught exception instead of a named refusal in the documented exit
+// set. checkBranchPin uses this form so it can report the condition rather
+// than crash; pinDir (below) keeps the throwing contract for its own callers,
+// which are only reached once main() has already confirmed a work tree.
+function pinDirOrNull(cwd) {
+  const fast = pinDirFast(cwd);
+  if (fast !== null) return fast;
+  try {
+    return path.join(path.resolve(cwd, git(['rev-parse', '--git-dir'], cwd)), 'aai');
+  } catch {
+    return null;
+  }
+}
+
+function pinDir(cwd) {
+  const dir = pinDirOrNull(cwd);
+  if (dir === null) {
+    throw new Error('branch-guard: pinDir: not inside a git work tree');
+  }
+  return dir;
+}
+
+function pinFilePath(cwd) {
+  return path.join(pinDir(cwd), PIN_FILENAME);
+}
+
+function refExists(cwd, branch) {
+  try {
+    execFileSync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], { cwd, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function doPin(cwd) {
+  const branch = currentBranch(cwd);
+  if (branch === 'HEAD') {
+    console.error('branch-guard: cannot --pin a detached HEAD (check out a branch first).');
+    exit(4);
+  }
+  const sha = git(['rev-parse', 'HEAD'], cwd);
+  const dir = pinDir(cwd);
+  fs.mkdirSync(dir, { recursive: true });
+  const payload = {
+    branch,
+    sha,
+    pid: process.pid,
+    worktree: topLevel(cwd),
+    pinned_utc: new Date().toISOString(),
+  };
+  // Atomic write (Codex P1 finding, round 8): a plain writeFileSync interrupted
+  // mid-write (crash, kill -9) leaves a TRUNCATED/partial file on disk, which
+  // checkBranchPin below must refuse rather than silently read as "no pin"
+  // (Spec-AC-04 is about a pin that was never taken, not one that was taken
+  // and then torn). tmp-write + rename is atomic on the same filesystem (both
+  // live under the same git-dir-derived pin directory), so a reader never
+  // observes a partial file at the real path.
+  const finalPath = pinFilePath(cwd);
+  const tmpPath = `${finalPath}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(tmpPath, JSON.stringify(payload));
+  fs.renameSync(tmpPath, finalPath);
+  console.log(`branch-guard: pinned branch "${branch}" at ${sha}`);
+  exit(0);
+}
+
+// isAncestor(cwd, ancestorSha, descendantSha) -> true when ancestorSha is
+// reachable from descendantSha (a commit counts as its own ancestor). Used
+// ONLY by the advance-only sha arm below. Fails CLOSED: any git error (an
+// unresolvable/pruned sha included) reads as "not an ancestor", never a
+// silent pass.
+function isAncestor(cwd, ancestorSha, descendantSha) {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', ancestorSha, descendantSha], { cwd, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// checkBranchPin(cwd, expectBranch) -> {ok:true} | {ok:false, code, cause, message}
+// PURE — never calls exit() — so both `--verify-pin` (below) and the three
+// ceremony scripts' `--expect-branch` re-check can share this ONE
+// implementation and map the result to their own exit codes. `expectBranch`
+// is OPTIONAL and OMITTED by `--verify-pin` (which has no argument to
+// compare); passed by the three ceremony scripts' own `--expect-branch
+// <branch>` flag.
+//   code 0 / ok:true  — no pin, or the pin still matches current HEAD.
+//   code 4, cause 'no-work-tree' — cwd is not inside a git work tree at all
+//                               (review NB-2): a NAMED refusal instead of the
+//                               uncaught exception pinDir's git() fallback
+//                               used to throw here. Every caller of this
+//                               function already has a !ok branch that
+//                               prints result.message and exits with its own
+//                               code, so this reuses that path rather than
+//                               adding a new one.
+//   code 5, cause 'detached'  — HEAD is now detached.
+//   code 6, cause 'renamed'   — the expected branch no longer exists as a ref.
+//   code 7, cause 'concurrent'— the expected branch still exists; HEAD moved
+//                               elsewhere (another session, this same branch
+//                               name reset/rebased off the pinned sha, or —
+//                               with no pin at all — `expectBranch` itself
+//                               naming a branch HEAD is not currently on).
+//   code 8, cause 'malformed-pin' — the pin file EXISTS but could not be
+//                               read/parsed/validated (round 8 / Codex P1):
+//                               distinct from "no pin" (ENOENT, which stays
+//                               ok:true above) precisely because a torn
+//                               write is MOST likely mid-ceremony, exactly
+//                               when this gate matters most — guessing "no
+//                               pin" here would silently disable it.
+//
+// review NB-3: the branch this check holds the ceremony to is `expectBranch`
+// itself when given, never silently `pin.branch` — closing the gap where the
+// flag was accepted but never actually compared (a typo'd or plain wrong
+// --expect-branch used to produce byte-identical output to the correct one,
+// because only its presence, not its value, mattered).
+//
+// remediation round 4 BLOCKING-1: with a pin AND `expectBranch` both present
+// (i.e. only at the three ceremony call sites, never bare `--verify-pin`),
+// a HEAD sha that has moved FORWARD on the expected branch — a DESCENDANT of
+// the pinned sha — is the ceremony's OWN commit (steps 4/4c/5c), not a
+// concurrent session, and is tolerated. This is deliberately scoped to
+// `expectBranch` callers only: bare `--verify-pin` (no expectBranch) keeps
+// the exact-sha-match reading Spec-AC-03 originally specified and TEST-405
+// still exercises (a same-branch new commit, from ANY source, still refuses
+// under `--verify-pin`) — advance-only tolerance is granted only to a caller
+// that identifies itself as the pinning ceremony re-checking its own work.
+function checkBranchPin(cwd, expectBranch = null) {
+  const dir = pinDirOrNull(cwd);
+  if (dir === null) {
+    return {
+      ok: false,
+      code: 4,
+      cause: 'no-work-tree',
+      message: 'not inside a git work tree (cannot verify the HEAD pin).',
+    };
+  }
+  // Codex P1 finding (round 8): ENOENT ("no pin was ever taken") and a
+  // present-but-unreadable/malformed file (an interrupted --pin write, or
+  // any other corruption) used to collapse to the SAME `pin = null` and the
+  // SAME Spec-AC-04 "no pin, complete no-op" exit 0 — silently disabling
+  // every `--expect-branch` ceremony gate exactly when a concurrent HEAD
+  // move is most likely (mid-write). Distinguish them: ENOENT is the ONLY
+  // case that reads as "no pin"; anything else refuses (code 8) instead of
+  // guessing. readFileSync (not existsSync + a separate read) closes the
+  // TOCTOU gap between the two.
+  const pinPath = path.join(dir, PIN_FILENAME);
+  let raw;
+  try {
+    raw = fs.readFileSync(pinPath, 'utf8');
+  } catch (e) {
+    if (e && e.code === 'ENOENT') {
+      // Spec-AC-04: no pin file at all -> exit 0 without reading git, a
+      // complete no-op regardless of `expectBranch` — a caller cannot
+      // compare its argument against a pin that was never taken.
+      return { ok: true, code: 0, cause: null };
+    }
+    return {
+      ok: false,
+      code: 8,
+      cause: 'malformed-pin',
+      message: `the HEAD pin at ${pinPath} could not be read (${e && e.code ? e.code : e.message}) — refusing rather than treating this as "no pin".`,
+    };
+  }
+  let pin;
+  try {
+    pin = JSON.parse(raw);
+  } catch {
+    return {
+      ok: false,
+      code: 8,
+      cause: 'malformed-pin',
+      message: `the HEAD pin at ${pinPath} exists but is not valid JSON (a partial or corrupted write) — refusing rather than treating this as "no pin"; remove it and re-run --pin once it is safe to discard.`,
+    };
+  }
+  if (!pin || typeof pin !== 'object' || typeof pin.branch !== 'string' || typeof pin.sha !== 'string') {
+    return {
+      ok: false,
+      code: 8,
+      cause: 'malformed-pin',
+      message: `the HEAD pin at ${pinPath} is missing required fields (branch/sha) — refusing rather than treating this as "no pin".`,
+    };
+  }
+
+  const wantBranch = expectBranch || pin.branch;
+  const branch = currentBranch(cwd);
+  if (branch === 'HEAD') {
+    return {
+      ok: false,
+      code: 5,
+      cause: 'detached',
+      message: `HEAD is detached (expected branch "${wantBranch}" at ${pin.sha}); check out a branch before continuing.`,
+    };
+  }
+
+  if (branch !== wantBranch) {
+    const sha = git(['rev-parse', 'HEAD'], cwd);
+    if (!refExists(cwd, wantBranch)) {
+      return {
+        ok: false,
+        code: 6,
+        cause: 'renamed',
+        message: `branch "${wantBranch}" was renamed or removed under this session (now on "${branch}" at ${sha}; expected "${wantBranch}" at ${pin.sha}).`,
+      };
+    }
+    return {
+      ok: false,
+      code: 7,
+      cause: 'concurrent',
+      message: `a concurrent session changed HEAD (expected branch "${wantBranch}" at ${pin.sha}; actual branch "${branch}" at ${sha}).`,
+    };
+  }
+
+  const sha = git(['rev-parse', 'HEAD'], cwd);
+  if (sha === pin.sha) return { ok: true, code: 0, cause: null };
+  if (expectBranch && isAncestor(cwd, pin.sha, sha)) return { ok: true, code: 0, cause: null };
+
+  return {
+    ok: false,
+    code: 7,
+    cause: 'concurrent',
+    message: `a concurrent session changed HEAD (expected branch "${wantBranch}" at ${pin.sha}; actual branch "${branch}" at ${sha}).`,
+  };
+}
+
+function doVerifyPin(cwd) {
+  const result = checkBranchPin(cwd);
+  if (result.ok) exit(0);
+  // round 9 (F-5): every refusal used to say "HEAD moved", even a malformed/
+  // unreadable pin file (cause 'malformed-pin', code 8) — a file that was
+  // never successfully written cannot itself have "moved". Only that cause
+  // gets its own label; every other cause (renamed, concurrent, no-work-tree)
+  // keeps the existing "HEAD moved" wording.
+  const label = result.cause === 'malformed-pin' ? 'malformed pin' : 'HEAD moved';
+  console.error(`branch-guard: ${label} — ${result.message}`);
+  exit(result.code);
+}
+
+// reportNotInWorkTree(probe) — the two-shaped message workTreeProbe's result
+// maps to (git declined to read vs. genuinely no repository here). Shared by
+// every dispatch point that needs it so the wording stays in one place.
+function reportNotInWorkTree(probe) {
+  if (probe.refused) {
+    console.error('branch-guard: git refused to read this repository, so the current branch cannot be determined.');
+    if (probe.gitSaid) {
+      console.error('  git said:');
+      for (const line of probe.gitSaid.split('\n')) console.error(`    ${line}`);
+    }
+  } else {
+    console.error('branch-guard: not inside a git work tree (cannot determine the current branch)');
+  }
+}
+
 function main() {
   const opts = parseArgs(process.argv);
   const cwd = process.cwd();
+
+  // --pin / --verify-pin are their own modes, dispatched before every other
+  // check below (guard-mode, --suggest): neither reads STATE or the ref_id at
+  // all, and Spec-AC-04's own control is that NEITHER flag given leaves every
+  // byte of the rest of this function's behaviour unchanged. NON-BLOCKING
+  // (review NB-2): both still need a git work tree to do anything at all
+  // (doPin/doVerifyPin/checkBranchPin all eventually shell out to git), so
+  // this checks that FIRST and exits with the same named exit-4 refusal
+  // guard mode uses below, instead of letting an uncaught exception through.
+  if (opts.pin || opts.verifyPin) {
+    const pinProbe = workTreeProbe(cwd);
+    if (!pinProbe.inside) {
+      reportNotInWorkTree(pinProbe);
+      exit(4);
+    }
+  }
+  if (opts.pin) doPin(cwd);
+  if (opts.verifyPin) doVerifyPin(cwd);
 
   // --suggest — no git-branch check; still reads STATE (fail-closed on ref_id).
   if (opts.suggest) {
@@ -270,15 +656,7 @@ function main() {
   // and no repository at all (the plain sentence, which is then true).
   const probe = workTreeProbe(cwd);
   if (!probe.inside) {
-    if (probe.refused) {
-      console.error('branch-guard: git refused to read this repository, so the current branch cannot be determined.');
-      if (probe.gitSaid) {
-        console.error('  git said:');
-        for (const line of probe.gitSaid.split('\n')) console.error(`    ${line}`);
-      }
-    } else {
-      console.error('branch-guard: not inside a git work tree (cannot determine the current branch)');
-    }
+    reportNotInWorkTree(probe);
     exit(4);
   }
 
@@ -369,7 +747,10 @@ function main() {
 }
 
 // Run as CLI only when invoked directly; importable for unit tests.
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+function realOrResolve(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
+const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 if (isMain) runMain(() => main());
 
-export { TYPE_TOKENS, typeToken, remediation };
+export { TYPE_TOKENS, typeToken, remediation, checkBranchPin, pinFilePath };

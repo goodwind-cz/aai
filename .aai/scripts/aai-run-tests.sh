@@ -18,7 +18,7 @@
 #     share one killable process-group id (pgid == the command's pid).
 #   - Runs the command as that group leader in the background.
 #   - Arms an inline watchdog (macOS has no GNU `timeout`): after
-#     AAI_TEST_TIMEOUT seconds (default 300) it TERMs the whole group.
+#     AAI_TEST_TIMEOUT seconds (default 3000) it TERMs the whole group.
 #   - Waits for the command and records its REAL exit status.
 #   - On EVERY exit path (success / failure / timeout) it ALWAYS sends TERM then,
 #     after a short grace, KILL to the whole group — reaping hung descendants
@@ -26,10 +26,19 @@
 #     exits 0 still leaves NO survivor.
 #   - Exits with the command's real exit code on normal completion, or 124
 #     (GNU-timeout convention) when the watchdog fired — so the loop can tell a
-#     hung run from an ordinary test failure.
+#     hung run from an ordinary test failure. A fired watchdog also prints ONE
+#     line to stderr naming the elapsed limit and the AAI_TEST_TIMEOUT override
+#     (Spec-AC-08) — 124 alone never said what ceiling was hit or how to raise
+#     it.
 #
 # Environment:
-#   AAI_TEST_TIMEOUT  timeout in seconds (default 300; non-integer or <=0 -> 300)
+#   AAI_TEST_TIMEOUT  timeout in seconds (default 3000; non-integer or <=0 ->
+#                     3000). Raised from the old 300s default
+#                     (fu-sweep-dies-at-wrapper-default, Spec-AC-08): a real
+#                     93-suite sweep at width 8 measures ~835s-1632s end to
+#                     end, well past the old ceiling, and used to need this
+#                     override set by hand on every invocation just to
+#                     complete instead of exiting 124.
 #   AAI_UNAME         test-only override for the `uname -s` probe below
 #                      (SPEC-0046 Spec-AC-05); unset on macOS/Linux in normal
 #                      use — this file's behavior there is UNCHANGED.
@@ -75,13 +84,13 @@
 
 set -u
 
-TIMEOUT="${AAI_TEST_TIMEOUT:-300}"
+TIMEOUT="${AAI_TEST_TIMEOUT:-3000}"
 # Coerce a non-integer / empty / non-positive timeout to the safe default rather
 # than never-timing-out or timing-out instantly.
 case "$TIMEOUT" in
-  '' | *[!0-9]*) TIMEOUT=300 ;;
+  '' | *[!0-9]*) TIMEOUT=3000 ;;
 esac
-[ "$TIMEOUT" -gt 0 ] 2>/dev/null || TIMEOUT=300
+[ "$TIMEOUT" -gt 0 ] 2>/dev/null || TIMEOUT=3000
 
 # MSYS/MINGW detection (Spec-AC-05): running directly INSIDE Git Bash (no WSL,
 # no real POSIX session support) needs a documented degraded launch/cleanup
@@ -326,10 +335,15 @@ aai_iso_exec_script() {
 # aai_iso_is_framework_script - true when the script "$@" actually EXECUTES
 # (per aai_iso_exec_script) resolves, by RESOLVED PATH and never by suffix, to
 # this repository's own tests/skills/test-framework.sh. The single predicate
-# behind D5's framework opt-out; shared by aai_iso_is_suite_run below and by
-# the AAI_INVOCATION_KIND 'framework' classification further down (N3,
-# spec-adhoc-probes-unisolated-report-only) so a future bypass fix only has to
-# land in one place, never two.
+# behind the framework opt-out — pre-existing, and unrelated to this file's
+# own D5 (AAI_SHIPPING_WRITE_FATAL, see the header comment above); fu-
+# framework-comment-mislabels-d5 named a copy of this same text that
+# attributed this pre-existing opt-out to that OTHER decision letter, making a
+# future reader hunt spec-adhoc-probes-unisolated-report-only's D5 for a
+# decision it does not contain. Shared by
+# aai_iso_is_suite_run below and by the AAI_INVOCATION_KIND 'framework'
+# classification further down (N3, spec-adhoc-probes-unisolated-report-only)
+# so a future bypass fix only has to land in one place, never two.
 aai_iso_is_framework_script() {
   ai_fs_exec=$(aai_iso_exec_script "$@")
   if [ -n "$ai_fs_exec" ] && [ "${ai_fs_exec##*/}" = "test-framework.sh" ] && [ -f "$ai_fs_exec" ]; then
@@ -344,7 +358,7 @@ aai_iso_is_framework_script() {
 # aai_iso_is_suite_run - true when an argument names an existing test suite file
 # inside this repository's tests/ tree. The framework is never a suite run.
 #
-# The framework opt-out (D5) is matched by RESOLVED PATH, never by suffix, and
+# The framework opt-out is matched by RESOLVED PATH, never by suffix, and
 # against the EXECUTED SCRIPT ONLY. Two bypasses, one class, both closed here:
 # it used to be the glob `*test-framework.sh` (so the bare word
 # `my-test-framework.sh` disarmed isolation), and the exact match that replaced
@@ -367,6 +381,28 @@ aai_iso_is_suite_run() {
     ai_d=$(cd "$(dirname "$ai_a")" 2>/dev/null && pwd) || continue
     case "$ai_d/$(basename "$ai_a")" in
       "$AAI_REPO_ROOT"/tests/*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# aai_iso_hidden_suite_shape "$@" - true when some argument's TEXT carries the
+# SHAPE of a suite path (tests/.../test-*.sh) without that argument itself
+# being a file `aai_iso_is_suite_run` could resolve.
+# fu-wrapper-hidden-suite-run-unreported: `sh -c "bash tests/skills/test-x.sh"`
+# puts the real suite path inside ONE opaque argv element rather than its own,
+# so the classifier above never sees it, the run falls through to `ad-hoc`,
+# and AAI_ISO_STATUS stays `not-applicable` - which prints NOTHING below,
+# indistinguishable from an ordinary build. This predicate does not change
+# which invocations get isolated (SEAM-1 still holds: only used to decide
+# whether to print a NOTE, never fed back into `aai_iso_is_suite_run`) - it
+# only lets that silence be named instead of assumed.
+aai_iso_hidden_suite_shape() {
+  for ai_hs in "$@"; do
+    case "$ai_hs" in
+      *tests/*test-*.sh*)
+        [ -f "$ai_hs" ] || return 0
+        ;;
     esac
   done
   return 1
@@ -516,22 +552,46 @@ if aai_iso_is_suite_run "$@"; then
     # boundary tests/skills/test-aai-suite-isolation.sh documents for its own
     # registries. The markers live in the checkout's BASE directory, beside the
     # patch, never inside the checkout itself.
-    git --no-optional-locks -C "$AAI_REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null |
+    # fu-seed-step2-enumeration-silent: ls-files stderr used to be discarded
+    # outright, so an unreadable directory made the listing silently PARTIAL
+    # (git still exits 0, with only a warning) and nothing below ever learned
+    # a directory's worth of untracked content was skipped. Captured to a
+    # file beside the other step-2 markers and checked once the pipeline
+    # finishes.
+    #
+    # fu-marker-append-failure-discarded: each `>>` marker append below is now
+    # followed by its own `||` fallback to a zero-byte, differently-named
+    # marker (`*-append-broken`) written with `:` — the shell no-op builtin,
+    # about as close to unfailable as a write gets. On a filesystem so full
+    # that even THAT redirection cannot be created, nothing further can be
+    # done and the run is degraded by other means first; short of that, the
+    # `-s`/`-e` checks below can no longer read a lost `cp` failure as
+    # "nothing to report" just because the marker that was meant to say so
+    # failed to write.
+    git --no-optional-locks -C "$AAI_REPO_ROOT" ls-files --others --exclude-standard 2>"$AAI_ISO_BASE/seedfail-lsfiles-stderr" |
       while IFS= read -r ai_f; do
         case "$ai_f" in
-          \"*) printf '%s\n' "$ai_f" >> "$AAI_ISO_BASE/seedfail-quoted"; continue ;;
+          \"*)
+            printf '%s\n' "$ai_f" >> "$AAI_ISO_BASE/seedfail-quoted" 2>/dev/null ||
+              : > "$AAI_ISO_BASE/seedfail-quoted-append-broken" 2>/dev/null
+            continue ;;
         esac
         mkdir -p "$AAI_ISO_WT/$(dirname "$ai_f")" 2>/dev/null
         cp -p "$AAI_REPO_ROOT/$ai_f" "$AAI_ISO_WT/$ai_f" 2>/dev/null ||
-          printf '%s\n' "$ai_f" >> "$AAI_ISO_BASE/seedfail-untracked"
+          printf '%s\n' "$ai_f" >> "$AAI_ISO_BASE/seedfail-untracked" 2>/dev/null ||
+          : > "$AAI_ISO_BASE/seedfail-untracked-append-broken" 2>/dev/null
       done
-    if [ -s "$AAI_ISO_BASE/seedfail-quoted" ]; then
-      echo "AAI-SEEDING: NOTE - $(wc -l < "$AAI_ISO_BASE/seedfail-quoted" | tr -d ' ') untracked path(s) carry a character git quotes and were NOT seeded into the disposable checkout (first: $(head -n 1 "$AAI_ISO_BASE/seedfail-quoted"))." >&2
+    if [ -s "$AAI_ISO_BASE/seedfail-quoted" ] || [ -e "$AAI_ISO_BASE/seedfail-quoted-append-broken" ]; then
+      echo "AAI-SEEDING: NOTE - $(wc -l < "$AAI_ISO_BASE/seedfail-quoted" 2>/dev/null | tr -d ' ') untracked path(s) carry a character git quotes and were NOT seeded into the disposable checkout (first: $(head -n 1 "$AAI_ISO_BASE/seedfail-quoted" 2>/dev/null))." >&2
       aai_seed_fail 'an untracked path git quotes was not seeded into the disposable checkout'
     fi
-    if [ -s "$AAI_ISO_BASE/seedfail-untracked" ]; then
-      echo "AAI-SEEDING: NOTE - $(wc -l < "$AAI_ISO_BASE/seedfail-untracked" | tr -d ' ') untracked file(s) could not be copied into the disposable checkout (first: $(head -n 1 "$AAI_ISO_BASE/seedfail-untracked")); a brand-new suite lost here is missing from the copy the command runs in." >&2
+    if [ -s "$AAI_ISO_BASE/seedfail-untracked" ] || [ -e "$AAI_ISO_BASE/seedfail-untracked-append-broken" ]; then
+      echo "AAI-SEEDING: NOTE - $(wc -l < "$AAI_ISO_BASE/seedfail-untracked" 2>/dev/null | tr -d ' ') untracked file(s) could not be copied into the disposable checkout (first: $(head -n 1 "$AAI_ISO_BASE/seedfail-untracked" 2>/dev/null)); a brand-new suite lost here is missing from the copy the command runs in." >&2
       aai_seed_fail 'an untracked file could not be copied into the disposable checkout'
+    fi
+    if [ -s "$AAI_ISO_BASE/seedfail-lsfiles-stderr" ]; then
+      echo "AAI-SEEDING: NOTE - the untracked-file enumeration could not read part of the working tree ($(head -n 1 "$AAI_ISO_BASE/seedfail-lsfiles-stderr")), so untracked content under it may be silently missing from the disposable checkout." >&2
+      aai_seed_fail 'the untracked-file enumeration could not read part of the working tree'
     fi
     # (3) the gitignored per-dev files suites READ. Without these, four
     # assertion groups turn into PASSING SKIPS - a greener run that tests less.
@@ -607,6 +667,11 @@ case "$AAI_ISO_STATUS" in
   degraded)
     echo "AAI-ISOLATION: degraded - $AAI_ISO_WHY; this suite run uses the shipping repository as its working tree." >&2
     ;;
+  *)
+    if [ "$AAI_INVOCATION_KIND" = 'ad-hoc' ] && aai_iso_hidden_suite_shape "$@"; then
+      echo "AAI-ISOLATION: NOTE - an argument's TEXT names a tests/.../test-*.sh path that is not itself a file this run could classify (its command shape hides the suite path, e.g. inside 'sh -c'); it was NOT isolated. Name the suite as its own argument if this is meant to be a suite run." >&2
+    fi
+    ;;
 esac
 # The seeding line prints on EVERY suite run, including the all-clear and
 # including the run that made no checkout at all. A line that appears only on
@@ -639,12 +704,47 @@ if [ "$AAI_ISO_STATUS" != 'not-applicable' ]; then
   esac
 fi
 
+# aai_reap_group - TERM then, after a short grace, KILL the wrapped command's
+# whole process group (or, degraded, the lone pid). Defined once and called
+# from both the signal traps below and the always-reap step further down, so
+# the two paths cannot drift apart. A no-op before CMD_PID exists (a signal
+# delivered before the command is even launched has nothing to reap).
+#
+# fu-iso-wrapper-traps-dont-reap-group: the traps used to call aai_iso_cleanup
+# directly and skip this step entirely, so Ctrl-C removed the disposable
+# checkout out from under a suite that was still running in it - the group
+# was never signalled, the suite kept executing with its cwd unlinked. Order
+# now matches the always-reap path exactly: kill the group, wait out the
+# grace, THEN let the caller clean up.
+aai_reap_group() {
+  [ -n "${CMD_PID:-}" ] || return 0
+  if [ "$DEGRADED_MSYS" -eq 1 ]; then
+    if command -v taskkill >/dev/null 2>&1; then
+      taskkill //PID "$CMD_PID" //T >/dev/null 2>&1 || kill -TERM "$CMD_PID" 2>/dev/null
+      sleep 1
+      taskkill //PID "$CMD_PID" //T //F >/dev/null 2>&1 || kill -KILL "$CMD_PID" 2>/dev/null
+    else
+      kill -TERM "$CMD_PID" 2>/dev/null
+      sleep 1
+      kill -KILL "$CMD_PID" 2>/dev/null
+    fi
+  else
+    kill -TERM -"${PGID:-$CMD_PID}" 2>/dev/null
+    sleep 1
+    kill -KILL -"${PGID:-$CMD_PID}" 2>/dev/null
+  fi
+  return 0
+}
+
 # A pass and a failure both reach the removal after the group reap below; a
-# hangup and a Ctrl-C do not, so they are trapped. No EXIT trap: dash runs one
-# inside a subshell, and this script forks the watchdog as a subshell.
-trap 'aai_iso_cleanup; exit 130' INT
-trap 'aai_iso_cleanup; exit 143' TERM
-trap 'aai_iso_cleanup; exit 129' HUP
+# hangup and a Ctrl-C do not, so they are trapped - and now reap the group
+# FIRST, same as the always-reap step, before aai_iso_cleanup can pull the
+# checkout out from under a command that is still alive. No EXIT trap: dash
+# runs one inside a subshell, and this script forks the watchdog as a
+# subshell.
+trap 'aai_reap_group; aai_iso_cleanup; exit 130' INT
+trap 'aai_reap_group; aai_iso_cleanup; exit 143' TERM
+trap 'aai_reap_group; aai_iso_cleanup; exit 129' HUP
 
 # Launch the command as the leader of a NEW session / process group so that even
 # descendants it REPARENTS away (double-fork, `( ... ) & exit 0`) stay inside one
@@ -733,22 +833,9 @@ rm -f "$TIMED_OUT_FILE"
 
 # ALWAYS reap the whole group on every exit path (success / failure / timeout),
 # so a descendant that outlived the group leader (the classic hung-vitest leak)
-# is TERM'd, then KILL'd after a short grace.
-if [ "$DEGRADED_MSYS" -eq 1 ]; then
-  if command -v taskkill >/dev/null 2>&1; then
-    taskkill //PID "$CMD_PID" //T >/dev/null 2>&1 || kill -TERM "$CMD_PID" 2>/dev/null
-    sleep 1
-    taskkill //PID "$CMD_PID" //T //F >/dev/null 2>&1 || kill -KILL "$CMD_PID" 2>/dev/null
-  else
-    kill -TERM "$CMD_PID" 2>/dev/null
-    sleep 1
-    kill -KILL "$CMD_PID" 2>/dev/null
-  fi
-else
-  kill -TERM -"$PGID" 2>/dev/null
-  sleep 1
-  kill -KILL -"$PGID" 2>/dev/null
-fi
+# is TERM'd, then KILL'd after a short grace - the same aai_reap_group the
+# signal traps above now call, so this path and a Ctrl-C cannot disagree.
+aai_reap_group
 
 # The disposable checkout goes BEFORE the after-snapshot, so its removal falls
 # inside the tripwire's window instead of after it. This is the removal that
@@ -813,6 +900,7 @@ if [ "$AAI_TW_ARMED" -eq 1 ]; then
 fi
 
 if [ "$TIMED_OUT" -eq 1 ]; then
+  echo "aai-run-tests: TIMED OUT after ${TIMEOUT}s with no progress -- raise the ceiling with AAI_TEST_TIMEOUT=<seconds>" >&2
   aai_capture_friction 124 stalled_progress
   exit 124
 fi

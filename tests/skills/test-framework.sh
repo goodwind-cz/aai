@@ -23,6 +23,17 @@ set -euo pipefail
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# qgrep / qhead: readers that consume stdin to EOF before grep/head sees it,
+# so a producer is never SIGPIPE'd under `pipefail` (round 10). The runner is
+# copied standalone into fixture trees by three suites, so it must not depend
+# on its sibling lib being copied too: source it when present, else define
+# the same two functions inline.
+if [[ -f "$SCRIPT_DIR/lib/pipe-safe.sh" ]]; then
+  . "$SCRIPT_DIR/lib/pipe-safe.sh"
+else
+  qgrep() { local _t _rc; _t="$(mktemp "${TMPDIR:-/tmp}/aai-qgrep.XXXXXX" 2>/dev/null || mktemp /tmp/aai-qgrep.XXXXXX)" || return 1; cat > "$_t"; _rc=0; command grep "$@" "$_t" || _rc=$?; rm -f "$_t"; return "$_rc"; }
+  qhead() { local _t _rc; _t="$(mktemp "${TMPDIR:-/tmp}/aai-qhead.XXXXXX" 2>/dev/null || mktemp /tmp/aai-qhead.XXXXXX)" || return 1; cat > "$_t"; _rc=0; command head "$@" "$_t" || _rc=$?; rm -f "$_t"; return "$_rc"; }
+fi
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Shipping-repository write tripwire (spec-suites-must-not-touch-the-shipping-repo).
@@ -52,6 +63,14 @@ if [[ ! -f "$APPEND_LOCK_LIB" ]]; then
 fi
 # shellcheck source=../../.aai/scripts/lib/append-lock.sh
 source "$APPEND_LOCK_LIB"
+
+# Advisory progress heartbeat (Spec-AC-09, role-progress-heartbeat / seam 5).
+# Deliberately NOT fatal when absent, unlike the two libraries above: a
+# heartbeat's whole contract (heartbeat.mjs header) is that a role's — or
+# here, a SWEEP's — own outcome must never move because of it. A missing
+# script, a missing `node`, or a failing write must degrade to silence, never
+# to a framework error.
+HEARTBEAT_SCRIPT="$PROJECT_ROOT/.aai/scripts/heartbeat.mjs"
 
 # Known-offender ratchet (D8). The tripwire landed on a tree that ALREADY had
 # four suites writing to the shipping repository, so failing every one of them
@@ -524,6 +543,15 @@ iso_create() {
   # own checkout. ONE note per suite naming the count and the first offender,
   # never one per file: 83 suites times N files is a flood, and a flood is the
   # other way to be unreadable.
+  # fu-seed-step2-enumeration-silent: `ls-files` stderr used to be discarded
+  # outright, so an unreadable directory (permission denied, mid-enumeration)
+  # made the listing silently PARTIAL — git still exits 0 with only a
+  # warning, so nothing below ever learned a directory's worth of untracked
+  # content was skipped. That stderr is now captured to a file beside the
+  # patch (same subshell boundary as the loop below: `cmd | <(...)` and the
+  # loop itself both run detached from this function's own variables) and
+  # checked once the enumeration finishes.
+  ls_err="$base/ls-files-stderr"
   while IFS= read -r -d '' f; do
     n_untracked=$((n_untracked + 1))
     d="$(dirname "$f")"
@@ -532,11 +560,16 @@ iso_create() {
       n_untracked_fail=$((n_untracked_fail + 1))
       [[ -n "$first_untracked_fail" ]] || first_untracked_fail="$f"
     fi
-  done < <(iso_git ls-files --others --exclude-standard -z 2>/dev/null)
+  done < <(iso_git ls-files --others --exclude-standard -z 2>"$ls_err")
   if [[ "$n_untracked_fail" -gt 0 ]]; then
     iso_seed_fail "an untracked file could not be copied into the disposable checkout"
     log_warn "Seeding: '$skill' — $n_untracked_fail of $n_untracked untracked file(s) could not be copied into its disposable checkout (first: $first_untracked_fail); a brand-new suite lost here is missing from its own checkout"
   fi
+  if [[ -s "$ls_err" ]]; then
+    iso_seed_fail "the untracked-file enumeration could not read part of the working tree"
+    log_warn "Seeding: '$skill' — the untracked-file enumeration could not read part of the working tree ($(head -n 1 "$ls_err")), so untracked content under it may be silently missing from its own checkout"
+  fi
+  rm -f "$ls_err" 2>/dev/null || true
 
   # STEP 3 — the gitignored per-dev files suites READ. A loss here is the
   # quietest failure of the three: the suite still runs, finds the file absent,
@@ -576,9 +609,12 @@ iso_destroy() {
 
 # iso_bases_forget <base> — drop exactly the ONE entry naming `base` from
 # ISOLATION_BASES, never a wholesale `ISOLATION_BASES=()` reset.
-# `fu-iso-bases-reset-discards-entries` stays open for the two pre-existing
-# reset sites (D5: left byte-identical, unmoved); this helper exists so the
-# D3 gate branch does not add a THIRD instance of that same known defect.
+# spec-test-framework-sweep Spec-AC-17 / fu-iso-bases-reset-discards-entries:
+# this helper originally existed only so the D3 gate branch did not add a
+# THIRD instance of the two pre-existing wholesale-reset sites; both of those
+# (suite_prepare's seed-missed branch, suite_run's post-run destroy) now call
+# this helper too, so every mid-run retirement of a base — not only the D3
+# gate's — drops just its own entry.
 iso_bases_forget() {
   local target="$1" b kept=()
   for b in "${ISOLATION_BASES[@]:-}"; do
@@ -692,10 +728,15 @@ PARALLEL_WIDTH=1
 PARALLEL_WHY=""
 WAVE_INDEX=0
 TOTAL_DISCOVERED=0
-# Set for the whole run when at least one wave had to be re-run serially to
-# attribute a shipping-repository change (see run_wave). Reported in the
-# summary so a reader is never left to infer it from scrollback.
+# Set for the whole run when at least one attribution window had to be
+# re-run serially to attribute a shipping-repository change (see run_queue).
+# Reported in the summary so a reader is never left to infer it from
+# scrollback.
 WAVES_REATTRIBUTED=0
+# Sibling of WAVES_REATTRIBUTED counting SUITES rather than windows: a rolling
+# window's candidate count varies event to event (Spec-AC-07), so "N window(s)
+# re-run" alone no longer says how much work that was.
+WAVES_REATTRIBUTED_SUITES=0
 # A wave whose change NO suite reproduced when re-run alone. Detection held;
 # attribution did not. It is its own counter rather than a fake suite failure,
 # because there is no suite to fail — and it gates the exit code beside
@@ -708,7 +749,7 @@ parallel_probe() {
   # of what concurrency can be made safe, and it is worth stating plainly.
   # With isolation ON, a suite runs in its own clone and CANNOT reach the
   # shipping tree by ordinary means; the tripwire is a backstop for the
-  # extraordinary case, and run_wave's re-attribution handles it. With
+  # extraordinary case, and run_queue's re-attribution handles it. With
   # isolation OFF, every suite runs directly against the shipping tree, and
   # per-suite attribution of a write is then the ONLY thing standing between
   # those suites and it — a guarantee that a shared window cannot give at any
@@ -929,7 +970,7 @@ check_dependencies() {
   for cmd in git bash; do
     if command -v "$cmd" &> /dev/null; then
       local version
-      version=$("$cmd" --version 2>&1 | head -n1 || echo "unknown")
+      version=$("$cmd" --version 2>&1 | qhead -n1 || echo "unknown")
       log_verbose "$cmd: $version"
     else
       log_fail "Required dependency not found: $cmd"
@@ -941,7 +982,7 @@ check_dependencies() {
   for cmd in npm wrangler pandoc pytest cargo; do
     if command -v "$cmd" &> /dev/null; then
       local version
-      version=$("$cmd" --version 2>&1 | head -n1 || echo "unknown")
+      version=$("$cmd" --version 2>&1 | qhead -n1 || echo "unknown")
       log_verbose "$cmd: $version"
     else
       log_verbose "$cmd: not found (optional)"
@@ -977,7 +1018,7 @@ suite_progress_line() {
 # inside a background child where a subshell's writes are already invisible
 # enough. It counts NOTHING — the counters are bumped once, in suite_report, so
 # that a suite prepared in a wave that is later discarded and re-run serially
-# (see run_wave) is counted exactly once, for the run that is actually reported.
+# (see run_queue) is counted exactly once, for the run that is actually reported.
 SP_ISO_BASE=""
 SP_ISO_ROOT=""
 SP_ISO_TARGET=""
@@ -1060,7 +1101,12 @@ suite_prepare() {
           iso_status_why="a suite was not in the disposable checkout"
           log_warn "Isolation: '$skill_name' ($iso_rel) runs degraded — it is not in the disposable checkout, so it runs against the shipping repository instead"
           iso_destroy "$iso_base"
-          ISOLATION_BASES=()
+          # fu-iso-bases-reset-discards-entries: this used to be a wholesale
+          # `ISOLATION_BASES=()`, which discards every OTHER entry the array
+          # holds along with this one. `iso_bases_forget` drops only this
+          # base, so a base registered elsewhere still reaches the final EXIT
+          # trap instead of leaking past this suite's own cleanup.
+          iso_bases_forget "$iso_base"
           iso_base=""
         fi
       fi
@@ -1125,13 +1171,36 @@ suite_execute() {
   return "$rc"
 }
 
+# heartbeat_pulse — the ADVISORY progress signal Spec-AC-09 adds, called from
+# the one place (suite_report, below) both execution paths end at, so it fires
+# once per FINISHED suite whether the run is serial or concurrent — never
+# once at the end, which is exactly the mutation the spec's Mutation checks
+# names for TEST-416. TOTAL_TESTS is already this suite's finished count by
+# the time suite_report runs it (both callers increment it immediately before
+# calling suite_report, once the suite has actually completed), so the
+# message needs no separate counter of its own.
+#   Best-effort by construction: no script, no `node`, or a write that fails
+# for any reason must never touch FAILED_TESTS or the run's exit code — the
+# same discipline heartbeat.mjs's own header states for every one of its
+# callers. AAI_TEST_REF_ID lets a dispatching role stamp the ride's own ref-id
+# on the slot; an ad hoc or CI invocation with nothing to stamp still gets a
+# slot, under the generic ref "sweep".
+heartbeat_pulse() {
+  [[ -f "$HEARTBEAT_SCRIPT" ]] || return 0
+  command -v node >/dev/null 2>&1 || return 0
+  node "$HEARTBEAT_SCRIPT" write \
+    --ref "${AAI_TEST_REF_ID:-sweep}" --role Sweep \
+    --message "$TOTAL_TESTS/$TOTAL_DISCOVERED suites finished" \
+    >/dev/null 2>&1 || true
+}
+
 # suite_report <skill> <exit code> <duration> <tw before> <tw after>
 #              <hash before> <hash after> <iso status> <iso why> <seed status>
 # The ONE place a suite becomes a verdict, a counter and a ledger line. Both
 # execution paths end here, so a concurrent run cannot report a suite by
 # different rules than a serial one. The tripwire snapshot pair is a PARAMETER
 # rather than a per-suite constant, because a wave's members are judged against
-# the wave's own window (see run_wave) and a serially-run suite against its own.
+# the window's own snapshot (see run_queue) and a serially-run suite against its own.
 suite_report() {
   local skill_name="$1" exit_code="$2" duration="$3"
   local tw_before="$4" tw_after="$5" tw_hash_before="$6" tw_hash_after="$7"
@@ -1166,6 +1235,18 @@ suite_report() {
   tw_state="$(aai_tripwire_state "$tw_before" "$tw_after")"
   tw_hash_paths="$(aai_tripwire_hash_changed "$tw_hash_before" "$tw_hash_after")"
 
+  # fu-tripwire-degrade-not-on-suite-line: under the no-hasher degrade a
+  # masked writer's own progress line used to be a bare PASS and
+  # metrics.jsonl recorded tripwire_attested:true — only the two AGGREGATE
+  # WARN lines (the startup probe, the run-end summary) said the ratchet
+  # paths were class-only for this run. A reader of one suite's own line or
+  # its own telemetry record had no way to tell a genuinely-clean attestation
+  # from one the hasher could not have contradicted.
+  local tw_hasher_degraded=false
+  if [[ ${#TRIPWIRE_WATCH_PATHS[@]} -gt 0 ]] && ! aai_tripwire_hash_usable "$tw_hash_before"; then
+    tw_hasher_degraded=true
+  fi
+
   # A ratchet path whose CONTENT moved is a write, whatever `git status` says
   # about its class. This is the branch that stops the ratchet from masking its
   # own paths: the second and every later writer of docs/INDEX.md in one run is
@@ -1197,6 +1278,32 @@ suite_report() {
           tw_unlisted="${tw_unlisted:+$tw_unlisted }$tw_path"
         fi
       done <<< "$tw_dirty_paths"
+      # fu-tripwire-allowed-ignores-pre-dirty: the path-subset test above only
+      # sees paths that MOVED between this suite's own before/after snapshot
+      # (aai_tripwire_changed_paths reports a CLASS change) — a path already
+      # dirty when this suite STARTED stays byte-identical on both sides and
+      # is invisible to it. An allowlisted suite writing its own listed path
+      # plus an already-dirty non-ratchet path therefore used to read ALLOWED
+      # with the out-of-entry write landed (repo-tripwire.sh's own documented
+      # bound: "a caller that needs the bound closed must diff against its
+      # own before-snapshot, which it holds"). $tw_before is exactly that
+      # snapshot — already held, no extra git call — so every path it shows
+      # dirty, outside this entry's own list, is folded into tw_unlisted the
+      # same as a newly-moved one.
+      local tw_pre_line tw_pre_path
+      while IFS= read -r tw_pre_line; do
+        case "$tw_pre_line" in
+          'HEAD '*|'') continue ;;
+        esac
+        tw_pre_path="${tw_pre_line#???}"
+        [[ -n "$tw_pre_path" ]] || continue
+        if ! tripwire_path_listed "$tw_pre_path" "$tw_allow_paths"; then
+          case " $tw_unlisted " in
+            *" $tw_pre_path "*) ;;
+            *) tw_unlisted="${tw_unlisted:+$tw_unlisted }$tw_pre_path" ;;
+          esac
+        fi
+      done < <(tail -n +2 "$tw_before" 2>/dev/null)
       # A commit is never ratcheted, whoever the suite is: it moves HEAD, which
       # no path list can name. An empty path list on a dirty verdict is itself
       # a commit-shaped change, so both halves are required.
@@ -1271,7 +1378,11 @@ suite_report() {
       # allowlisted tripwire is exactly the reading Spec-AC-04 forbids
       # (`fu-tripwire-unarmed-pass-line-unlabelled`).
       if [[ "$tw_attested" == "true" ]]; then
-        printf "${GREEN}PASS${NC} (%.1fs)\n" "$duration"
+        if [[ "$tw_hasher_degraded" == "true" ]]; then
+          printf "${GREEN}PASS${NC} (%.1fs) [tripwire DEGRADED — no content hasher; a second write to a ratchet path in this run would be invisible]\n" "$duration"
+        else
+          printf "${GREEN}PASS${NC} (%.1fs)\n" "$duration"
+        fi
       else
         printf "${GREEN}PASS${NC} (%.1fs) [%s]\n" "$duration" "$tw_note"
       fi
@@ -1342,7 +1453,7 @@ suite_report() {
       if [[ $exit_code -ne 0 && $exit_code -ne 42 ]]; then
         echo "--- Error Details ($skill_name) ---"
         echo "--- failure lines (whole log) ---"
-        grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$log_file" 2>/dev/null | head -n 25 \
+        grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$log_file" 2>/dev/null | qhead -n 25 \
           || echo "(no explicit failure marker matched — see tail below)"
         echo "--- tail (last 30 lines) ---"
         tail -n 30 "$log_file"
@@ -1365,7 +1476,7 @@ suite_report() {
       # failure line from the WHOLE log first, then the tail for surrounding
       # context. Portable: grep -E only (no -P), non-match tolerated.
       echo "--- failure lines (whole log) ---"
-      grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$log_file" 2>/dev/null | head -n 25 \
+      grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$log_file" 2>/dev/null | qhead -n 25 \
         || echo "(no explicit failure marker matched — see tail below)"
       echo "--- tail (last 30 lines) ---"
       tail -n 30 "$log_file"
@@ -1404,7 +1515,13 @@ suite_report() {
   fi
 
   # Record metrics
-  echo "{\"skill\":\"$skill_name\",\"status\":\"$(cat "$RUN_DIR/${skill_name}.result")\",\"duration_seconds\":$duration,\"exit_code\":$exit_code,\"tripwire\":\"$tw_state\",\"tripwire_attested\":$tw_attested,\"tripwire_allowed\":$tw_allowed}" >> "$RUN_DIR/metrics.jsonl"
+  echo "{\"skill\":\"$skill_name\",\"status\":\"$(cat "$RUN_DIR/${skill_name}.result")\",\"duration_seconds\":$duration,\"exit_code\":$exit_code,\"tripwire\":\"$tw_state\",\"tripwire_attested\":$tw_attested,\"tripwire_allowed\":$tw_allowed,\"tripwire_hasher_degraded\":$tw_hasher_degraded}" >> "$RUN_DIR/metrics.jsonl"
+
+  # Spec-AC-09: pulse AFTER this suite is fully counted, so the slot's
+  # finished count and TOTAL_TESTS never disagree. Never called anywhere
+  # else — the LAST pulse is naturally this call for the last suite, which is
+  # the whole mechanism behind "stops being refreshed when the run ends".
+  heartbeat_pulse
 }
 
 # Run a single test file, SERIALLY: one suite in flight, one exact tripwire
@@ -1443,7 +1560,10 @@ run_test() {
   # tripwire's window rather than after it.
   if [[ -n "$SP_ISO_BASE" ]]; then
     iso_destroy "$SP_ISO_BASE"
-    ISOLATION_BASES=()
+    # fu-iso-bases-reset-discards-entries: named removal, not a wholesale
+    # reset — see the identical comment on suite_prepare's own retirement of
+    # its base, a few hundred lines up.
+    iso_bases_forget "$SP_ISO_BASE"
   fi
 
   # TRIPWIRE, half two.
@@ -1528,161 +1648,235 @@ suite_child() {
 # written by this file for this file, but it is still parsed as data: an `eval`
 # here would execute whatever a suite managed to write into a reason string.
 child_field() {
-  sed -n "s/^$2=//p" "$1" 2>/dev/null | head -n 1
+  sed -n "s/^$2=//p" "$1" 2>/dev/null | qhead -n 1
 }
 
-# run_wave <test file>... — run 2..PARALLEL_WIDTH suites CONCURRENTLY.
-#
-# THE ATTRIBUTION PROBLEM, and why it is not solved by widening anything.
-# The tripwire answers "did the shipping repository move between these two
-# instants". Serially that is a per-suite answer because exactly one suite ran
-# between them. Concurrently it is not: if the tree moves while N suites are in
-# flight, the snapshot pair cannot say which of the N did it, and a HEAD move
-# caused by one suite would be reported against all of them. That was observed
-# once, and naming an innocent sibling is worse than saying nothing.
-#
-# So a wave is judged as ONE window, and the window is only ever allowed to
-# produce the answer it can actually justify:
-#   - window CLEAN — no suite in this wave moved the shipping repository,
-#     because nothing moved it. Every member is judged against that window,
-#     which is exactly the answer each would have got serially.
-#   - window NOT CLEAN — something moved, and this window cannot say what. The
-#     wave's results are DISCARDED and its suites are re-run one at a time,
-#     each with its own exact window, and those verdicts are the ones the run
-#     reports. Detection is not weakened by an inch: the concurrent window is
-#     what NOTICES, the serial re-run is what ATTRIBUTES.
-# The re-run costs the wave's runtime again, and only on a dirty tree — which,
-# on this corpus today, is never. A tripwire that stops detecting would be
-# worse than a slow one; this one detects the same events and refuses only to
-# guess at the culprit.
-run_wave() {
-  local files=("$@")
-  local n=${#files[@]} f skill i
-  local pids=()
-  local wb="$RUN_DIR/wave-${WAVE_INDEX}.tripwire-before"
-  local wa="$RUN_DIR/wave-${WAVE_INDEX}.tripwire-after"
-  local whb="$RUN_DIR/wave-${WAVE_INDEX}.tripwire-hash-before"
-  local wha="$RUN_DIR/wave-${WAVE_INDEX}.tripwire-hash-after"
-
-  aai_tripwire_snapshot "$PROJECT_ROOT" "$wb"
-  aai_tripwire_hash_snapshot "$PROJECT_ROOT" "$whb" "${TRIPWIRE_WATCH_PATHS[@]:-}"
-
-  for f in "${files[@]}"; do
-    suite_child "$f" &
-    pids+=("$!")
-  done
-  for i in "${pids[@]}"; do
-    wait "$i" || true
-  done
-
-  aai_tripwire_snapshot "$PROJECT_ROOT" "$wa"
-  aai_tripwire_hash_snapshot "$PROJECT_ROOT" "$wha" "${TRIPWIRE_WATCH_PATHS[@]:-}"
-
-  local wave_state wave_hash
-  wave_state="$(aai_tripwire_state "$wb" "$wa")"
-  wave_hash="$(aai_tripwire_hash_changed "$whb" "$wha")"
-  if [[ -n "$wave_hash" && "$wave_state" == "clean" ]]; then
-    wave_state="dirty"
+# report_wave_child <file> <wb> <wa> <whb> <wha> — the verdict for ONE suite
+# whose concurrent window (wb/wa, whb/wha) is already known CLEAN. Extracted
+# from the old fixed-wave reporting loop so the refilling queue can call it
+# the instant one suite's window closes clean, instead of batching a whole
+# wave's worth of suites before reporting any of them.
+report_wave_child() {
+  local f="$1" wb="$2" wa="$3" whb="$4" wha="$5" skill
+  skill="$(skill_of "$f")"
+  local kv="$RUN_DIR/${skill}.child"
+  local c_rc c_dur c_iso c_seed c_why c_seed_why="" c_seed_one
+  if [[ -s "$kv" ]] && [[ -n "$(child_field "$kv" end)" ]]; then
+    c_rc="$(child_field "$kv" exit_code)"
+    c_dur="$(child_field "$kv" duration)"
+    c_iso="$(child_field "$kv" iso_status)"
+    c_seed="$(child_field "$kv" seed_status)"
+    c_why="$(child_field "$kv" iso_why)"
+    c_seed_why="$(child_field "$kv" seed_why)"
+  else
+    # A child that died before writing its record left no evidence that its
+    # suite ran at all. Fail CLOSED (exit 2 is this framework's own
+    # "framework error"), never as a pass.
+    c_rc=2; c_dur=0; c_iso="degraded"; c_seed="skipped"
+    c_why="a concurrent queue child left no result record"
+    log_warn "Concurrency: '$skill' left no result record — its queue child died before it could write one. Counted as a framework failure (exit 2), never as a pass."
   fi
+  # Replay the child's seeding reasons into the run-level DISTINCT set. The
+  # child joined them with '; ', which is the set's own separator, so they are
+  # split back out one at a time rather than noted as one long string.
+  if [[ -n "$c_seed_why" ]]; then
+    local c_seed_rest="$c_seed_why"
+    while [[ -n "$c_seed_rest" ]]; do
+      c_seed_one="${c_seed_rest%%; *}"
+      if [[ "$c_seed_one" == "$c_seed_rest" ]]; then
+        c_seed_rest=""
+      else
+        c_seed_rest="${c_seed_rest#*; }"
+      fi
+      seed_note_reason "$c_seed_one"
+    done
+  fi
+  TOTAL_TESTS=$((TOTAL_TESTS + 1))
+  if [[ -s "$RUN_DIR/${skill}.notes" ]]; then
+    cat "$RUN_DIR/${skill}.notes"
+  fi
+  if [[ "$VERBOSE" == "true" && -s "$RUN_DIR/${skill}.log" ]]; then
+    cat "$RUN_DIR/${skill}.log"
+  fi
+  suite_progress_line "$skill"
+  suite_report "$skill" "$c_rc" "$c_dur" "$wb" "$wa" "$whb" "$wha" \
+    "$c_iso" "$c_why" "$c_seed"
+}
 
-  if [[ "$wave_state" != "clean" ]]; then
-    WAVES_REATTRIBUTED=$((WAVES_REATTRIBUTED + 1))
-    log_warn "Tripwire: the shipping repository moved ($wave_state) while $n suite(s) ran CONCURRENTLY. One window shared by $n suites cannot say which of them did it, and naming a sibling would be a false accusation — so this wave's results are DISCARDED and its suites are re-run SERIALLY, each with its own exact window. The serial verdicts below are the ones this run reports."
+# run_queue <test file>... — THE REFILLING QUEUE (Spec-AC-06), replacing the
+# fixed-wave barrier. A fixed wave of W leaves a slot idle for the rest of the
+# wave whenever one suite finishes early; this queue starts the next suite
+# from the discovery order the INSTANT a slot frees, so the width stays
+# saturated until the corpus runs out. No duration-ordering hint file is
+# shipped — refilling alone is 89.8 percent of the achievable gain on the
+# measured corpus, and a duration table goes stale and is absent from a fresh
+# CI clone (SPEC-0179-spec-test-framework-sweep.md D-decisions).
+#
+# Bash 3.2.57 is a supported host and has no `wait -n`, so a freed slot is
+# noticed by POLLING each active child's pid with `kill -0`, not by a bash
+# built-in that does not exist there.
+#
+# THE ATTRIBUTION WINDOW IS NOW ROLLING (Spec-AC-07), not one barrier per
+# wave. A snapshot pair is taken at EVERY completion, under the same append
+# lock the ledger itself uses, and compared against the last point the tree
+# was known CLEAN. A dirty pair's candidate set is exactly the suites that
+# overlapped that interval — whatever is still active plus the suite that
+# just finished — never the whole corpus, and bounded at 2x PARALLEL_WIDTH:
+# at most WIDTH suites can be "still active" at one completion, and this
+# design checks at EVERY completion, so at most WIDTH more can have joined
+# the window since the last check.
+run_queue() {
+  local files=("$@")
+  local total=${#files[@]}
+  local next=0
+  local active_pids=() active_files=() window=()
+  local clean_before clean_hash_before f
 
-    # THE RE-RUN MUST NOT BE ABLE TO LOSE THE DETECTION, and without the next
-    # few lines it CAN — measured, on the framework's own tripwire fixture.
-    # `git status --porcelain=v1` reports a path's change CLASS. The wave has
-    # already dirtied whatever it dirtied, so a suite that appends to the same
-    # file a second time leaves the status output byte-identical and its own
-    # serial window reads CLEAN: the wave notices, the re-run un-notices, and
-    # the run goes green with the write landed. That is strictly worse than the
-    # sequential sweep it replaced.
-    #
-    # The fix is the mechanism the framework already owns: the paths the wave
-    # moved are added to the CONTENT-hashed set for the duration of the re-run,
-    # so a second write to one of them is seen as content even when its class
-    # cannot move again. The set is restored afterwards, because it is a
-    # per-contention widening, not a permanent one.
-    local tw_restore=("${TRIPWIRE_WATCH_PATHS[@]:-}")
-    local wave_paths wp
-    wave_paths="$(tripwire_union_paths "$(aai_tripwire_changed_paths "$wb" "$wa")" "$wave_hash")"
-    while IFS= read -r wp; do
-      [[ -n "$wp" ]] || continue
-      tripwire_path_listed "$wp" "${TRIPWIRE_WATCH_PATHS[*]:-}" || TRIPWIRE_WATCH_PATHS+=("$wp")
-    done <<< "$wave_paths"
+  WAVE_INDEX=$((WAVE_INDEX + 1))
+  clean_before="$RUN_DIR/wave-${WAVE_INDEX}.tripwire-before"
+  clean_hash_before="$RUN_DIR/wave-${WAVE_INDEX}.tripwire-hash-before"
+  aai_tripwire_snapshot "$PROJECT_ROOT" "$clean_before"
+  aai_tripwire_hash_snapshot "$PROJECT_ROOT" "$clean_hash_before" "${TRIPWIRE_WATCH_PATHS[@]:-}"
 
-    local tw_failed_before=$TRIPWIRE_FAILED
-    for f in "${files[@]}"; do
-      rm -f "$RUN_DIR/$(skill_of "$f").child"
-      run_test "$f"
+  while [[ $next -lt $total && ${#active_pids[@]} -lt $PARALLEL_WIDTH ]]; do
+    f="${files[$next]}"
+    suite_child "$f" &
+    active_pids+=("$!")
+    active_files+=("$f")
+    window+=("$f")
+    next=$((next + 1))
+  done
+
+  while [[ ${#active_pids[@]} -gt 0 ]]; do
+    local done_idx=-1 i pid
+    while [[ $done_idx -lt 0 ]]; do
+      for i in "${!active_pids[@]}"; do
+        pid="${active_pids[$i]}"
+        if ! kill -0 "$pid" 2>/dev/null; then
+          done_idx=$i
+          break
+        fi
+      done
+      [[ $done_idx -ge 0 ]] || sleep 0.2
     done
 
-    TRIPWIRE_WATCH_PATHS=("${tw_restore[@]:-}")
+    local finished_file="${active_files[$done_idx]}"
+    wait "${active_pids[$done_idx]}" 2>/dev/null || true
 
-    # ATTRIBUTION MAY FAIL; DETECTION MAY NOT. If no suite's own window
-    # reproduced the change — an external actor moved the tree, or the change
-    # was one no re-run repeats — the run must still be RED, and must say that
-    # it could not name a culprit rather than inventing one. Silence here would
-    # turn "the tripwire noticed" into "the tripwire said nothing", which is the
-    # one outcome this whole mechanism exists to prevent.
-    if [[ "$TRIPWIRE_FAILED" -eq "$tw_failed_before" ]]; then
-      TRIPWIRE_WAVE_UNATTRIBUTED=$((TRIPWIRE_WAVE_UNATTRIBUTED + 1))
-      echo "--- TRIPWIRE VIOLATION (unattributed concurrent wave) ---"
-      echo "AAI-TRIPWIRE FAIL: the shipping repository changed while these $n suite(s) ran concurrently, and no suite reproduced the change when re-run alone:"
-      for f in "${files[@]}"; do
-        echo "AAI-TRIPWIRE   candidate: $(skill_of "$f")"
-      done
-      aai_tripwire_report "$wb" "$wa" "a concurrent wave of $n suite(s)" "AAI-TRIPWIRE"
-      echo "AAI-TRIPWIRE   The run fails. Re-run with AAI_TEST_PARALLEL=1 to get one exact window per suite."
-      echo "--- end tripwire (unattributed concurrent wave) ---"
+    local new_pids=() new_files=()
+    for i in "${!active_pids[@]}"; do
+      [[ $i -eq $done_idx ]] && continue
+      new_pids+=("${active_pids[$i]}")
+      new_files+=("${active_files[$i]}")
+    done
+    # Bash 3.2.57 treats a genuinely EMPTY array as unset for `[@]`
+    # expansion under `set -u` (fixed upstream only in 4.4) — plain
+    # `"${new_pids[@]}"` would abort the run the moment the last active
+    # slot drains. The `+` form expands to nothing at all when the array
+    # is empty, instead of `:-`'s one-word "" default, which would leave a
+    # phantom empty-string element behind.
+    active_pids=("${new_pids[@]+"${new_pids[@]}"}")
+    active_files=("${new_files[@]+"${new_files[@]}"}")
+
+    WAVE_INDEX=$((WAVE_INDEX + 1))
+    local ca="$RUN_DIR/wave-${WAVE_INDEX}.tripwire-after"
+    local cha="$RUN_DIR/wave-${WAVE_INDEX}.tripwire-hash-after"
+    aai_tripwire_snapshot "$PROJECT_ROOT" "$ca"
+    aai_tripwire_hash_snapshot "$PROJECT_ROOT" "$cha" "${TRIPWIRE_WATCH_PATHS[@]:-}"
+
+    local win_state win_hash
+    win_state="$(aai_tripwire_state "$clean_before" "$ca")"
+    win_hash="$(aai_tripwire_hash_changed "$clean_hash_before" "$cha")"
+    if [[ -n "$win_hash" && "$win_state" == "clean" ]]; then
+      win_state="dirty"
     fi
-    return 0
-  fi
 
-  for f in "${files[@]}"; do
-    skill="$(skill_of "$f")"
-    local kv="$RUN_DIR/${skill}.child"
-    local c_rc c_dur c_iso c_seed c_why c_seed_why="" c_seed_one
-    if [[ -s "$kv" ]] && [[ -n "$(child_field "$kv" end)" ]]; then
-      c_rc="$(child_field "$kv" exit_code)"
-      c_dur="$(child_field "$kv" duration)"
-      c_iso="$(child_field "$kv" iso_status)"
-      c_seed="$(child_field "$kv" seed_status)"
-      c_why="$(child_field "$kv" iso_why)"
-      c_seed_why="$(child_field "$kv" seed_why)"
+    if [[ "$win_state" != "clean" ]]; then
+      # Drain: whatever is still active right now overlapped the same dirty
+      # interval and joins the candidate set too, rather than being judged
+      # against a window a sibling has already moved. It is already IN
+      # `window` — added the instant it was launched, initially or by a
+      # refill — so this only waits for it to actually finish; appending it
+      # again here would report it twice.
+      local j
+      for j in "${!active_pids[@]}"; do
+        wait "${active_pids[$j]}" 2>/dev/null || true
+      done
+      active_pids=()
+      active_files=()
+
+      local cand=("${window[@]}")
+      local max=$(( PARALLEL_WIDTH * 2 ))
+      local clen=${#cand[@]}
+      if [[ $clen -gt $max ]]; then
+        cand=("${cand[@]:$((clen - max))}")
+      fi
+      local ncand=${#cand[@]}
+
+      WAVES_REATTRIBUTED=$((WAVES_REATTRIBUTED + 1))
+      WAVES_REATTRIBUTED_SUITES=$((WAVES_REATTRIBUTED_SUITES + ncand))
+      log_warn "Tripwire: the shipping repository moved ($win_state) while $ncand suite(s) overlapped the concurrent window. One window shared by $ncand suites cannot say which of them did it, and naming a sibling would be a false accusation — so this window's results are DISCARDED and its suites are re-run SERIALLY, each with its own exact window. The serial verdicts below are the ones this run reports."
+
+      # THE RE-RUN MUST NOT BE ABLE TO LOSE THE DETECTION, and without the
+      # next few lines it CAN — measured, on the framework's own tripwire
+      # fixture. `git status --porcelain=v1` reports a path's change CLASS.
+      # The window has already dirtied whatever it dirtied, so a suite that
+      # appends to the same file a second time leaves the status output
+      # byte-identical and its own serial window reads CLEAN. The fix is the
+      # mechanism the framework already owns: the paths the window moved are
+      # added to the CONTENT-hashed set for the duration of the re-run, then
+      # restored, because it is a per-contention widening, not a permanent
+      # one.
+      local tw_restore=("${TRIPWIRE_WATCH_PATHS[@]:-}")
+      local win_paths wp
+      win_paths="$(tripwire_union_paths "$(aai_tripwire_changed_paths "$clean_before" "$ca")" "$win_hash")"
+      while IFS= read -r wp; do
+        [[ -n "$wp" ]] || continue
+        tripwire_path_listed "$wp" "${TRIPWIRE_WATCH_PATHS[*]:-}" || TRIPWIRE_WATCH_PATHS+=("$wp")
+      done <<< "$win_paths"
+
+      local tw_failed_before=$TRIPWIRE_FAILED
+      for f in "${cand[@]}"; do
+        rm -f "$RUN_DIR/$(skill_of "$f").child"
+        run_test "$f"
+      done
+
+      TRIPWIRE_WATCH_PATHS=("${tw_restore[@]:-}")
+
+      # ATTRIBUTION MAY FAIL; DETECTION MAY NOT.
+      if [[ "$TRIPWIRE_FAILED" -eq "$tw_failed_before" ]]; then
+        TRIPWIRE_WAVE_UNATTRIBUTED=$((TRIPWIRE_WAVE_UNATTRIBUTED + 1))
+        echo "--- TRIPWIRE VIOLATION (unattributed concurrent wave) ---"
+        echo "AAI-TRIPWIRE FAIL: the shipping repository changed while these $ncand suite(s) overlapped the concurrent window, and no suite reproduced the change when re-run alone:"
+        for f in "${cand[@]}"; do
+          echo "AAI-TRIPWIRE   candidate: $(skill_of "$f")"
+        done
+        aai_tripwire_report "$clean_before" "$ca" "a concurrent window of $ncand suite(s)" "AAI-TRIPWIRE"
+        echo "AAI-TRIPWIRE   The run fails. Re-run with AAI_TEST_PARALLEL=1 to get one exact window per suite."
+        echo "--- end tripwire (unattributed concurrent wave) ---"
+      fi
+
+      window=()
+      WAVE_INDEX=$((WAVE_INDEX + 1))
+      clean_before="$RUN_DIR/wave-${WAVE_INDEX}.tripwire-before"
+      clean_hash_before="$RUN_DIR/wave-${WAVE_INDEX}.tripwire-hash-before"
+      aai_tripwire_snapshot "$PROJECT_ROOT" "$clean_before"
+      aai_tripwire_hash_snapshot "$PROJECT_ROOT" "$clean_hash_before" "${TRIPWIRE_WATCH_PATHS[@]:-}"
     else
-      # A child that died before writing its record left no evidence that its
-      # suite ran at all. Fail CLOSED (exit 2 is this framework's own
-      # "framework error"), never as a pass.
-      c_rc=2; c_dur=0; c_iso="degraded"; c_seed="skipped"
-      c_why="a concurrent wave child left no result record"
-      log_warn "Concurrency: '$skill' left no result record — its wave child died before it could write one. Counted as a framework failure (exit 2), never as a pass."
+      report_wave_child "$finished_file" "$clean_before" "$ca" "$clean_hash_before" "$cha"
+      clean_before="$ca"
+      clean_hash_before="$cha"
+      window=("${active_files[@]+"${active_files[@]}"}")
     fi
-    # Replay the child's seeding reasons into the run-level DISTINCT set. The
-    # child joined them with '; ', which is the set's own separator, so they are
-    # split back out one at a time rather than noted as one long string.
-    if [[ -n "$c_seed_why" ]]; then
-      local c_seed_rest="$c_seed_why"
-      while [[ -n "$c_seed_rest" ]]; do
-        c_seed_one="${c_seed_rest%%; *}"
-        if [[ "$c_seed_one" == "$c_seed_rest" ]]; then
-          c_seed_rest=""
-        else
-          c_seed_rest="${c_seed_rest#*; }"
-        fi
-        seed_note_reason "$c_seed_one"
-      done
-    fi
-    TOTAL_TESTS=$((TOTAL_TESTS + 1))
-    if [[ -s "$RUN_DIR/${skill}.notes" ]]; then
-      cat "$RUN_DIR/${skill}.notes"
-    fi
-    if [[ "$VERBOSE" == "true" && -s "$RUN_DIR/${skill}.log" ]]; then
-      cat "$RUN_DIR/${skill}.log"
-    fi
-    suite_progress_line "$skill"
-    suite_report "$skill" "$c_rc" "$c_dur" "$wb" "$wa" "$whb" "$wha" \
-      "$c_iso" "$c_why" "$c_seed"
+
+    while [[ $next -lt $total && ${#active_pids[@]} -lt $PARALLEL_WIDTH ]]; do
+      f="${files[$next]}"
+      suite_child "$f" &
+      active_pids+=("$!")
+      active_files+=("$f")
+      window+=("$f")
+      next=$((next + 1))
+    done
   done
 }
 
@@ -1770,7 +1964,7 @@ generate_summary() {
   if [[ $WAVES_REATTRIBUTED -gt 0 ]]; then
     log_warn "Concurrency: $WAVES_REATTRIBUTED concurrent wave(s) moved the shipping repository and were DISCARDED and re-run serially to attribute the change. The verdicts above are the serial ones; the suites in those waves ran twice."
   fi
-  log "Concurrency: width $PARALLEL_WIDTH; $WAVES_REATTRIBUTED wave(s) re-run serially to attribute a shipping-repository change"
+  log "Concurrency: width $PARALLEL_WIDTH; $WAVES_REATTRIBUTED wave(s) re-run serially ($WAVES_REATTRIBUTED_SUITES suite(s) total) to attribute a shipping-repository change"
   if [[ $TRIPWIRE_WAVE_UNATTRIBUTED -gt 0 ]]; then
     log_fail "Tripwire: $TRIPWIRE_WAVE_UNATTRIBUTED concurrent wave(s) changed the shipping repository and NO suite reproduced it alone. The change is real and unattributed; this run fails on it (see the violation block(s) above)."
   fi
@@ -1890,28 +2084,17 @@ main() {
   log "Running tests..."
   log ""
 
-  # A wave of ONE is routed to run_test, not to run_wave: with a single suite
-  # in flight the wave window IS the suite window, so the concurrent machinery
-  # would only add a fork and a file round-trip to buy the identical answer.
-  # That also keeps `--skill <name>`, and every fixture that ships one suite,
-  # on byte-for-byte the pre-existing path.
-  local wave=()
-  for test_file in "${test_files[@]}"; do
-    if [[ "$PARALLEL_WIDTH" -le 1 ]]; then
+  # A corpus of ONE is routed to run_test, not to run_queue: with a single
+  # suite in flight the queue's window IS the suite window, so the concurrent
+  # machinery would only add a fork and a file round-trip to buy the identical
+  # answer. That also keeps `--skill <name>`, and every fixture that ships one
+  # suite, on byte-for-byte the pre-existing path.
+  if [[ "$PARALLEL_WIDTH" -le 1 || ${#test_files[@]} -eq 1 ]]; then
+    for test_file in "${test_files[@]}"; do
       run_test "$test_file"
-      continue
-    fi
-    wave+=("$test_file")
-    if [[ ${#wave[@]} -ge "$PARALLEL_WIDTH" ]]; then
-      WAVE_INDEX=$((WAVE_INDEX + 1))
-      if [[ ${#wave[@]} -eq 1 ]]; then run_test "${wave[0]}"; else run_wave "${wave[@]}"; fi
-      wave=()
-    fi
-  done
-  if [[ ${#wave[@]} -gt 0 ]]; then
-    WAVE_INDEX=$((WAVE_INDEX + 1))
-    if [[ ${#wave[@]} -eq 1 ]]; then run_test "${wave[0]}"; else run_wave "${wave[@]}"; fi
-    wave=()
+    done
+  else
+    run_queue "${test_files[@]}"
   fi
 
   # Generate summary

@@ -71,6 +71,7 @@ set -euo pipefail
 
 TEST_NAME="aai-learned-append"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -353,8 +354,8 @@ test_011_sequential_appends() {
   grep -qF "first rule (source: writer A)" "$f" || log_fail "TEST-011: first append missing after the second call"
   grep -qF "second rule (source: writer B)" "$f" || log_fail "TEST-011: second append missing"
   local first_line_no second_line_no
-  first_line_no="$(grep -n "first rule (source: writer A)" "$f" | head -1 | cut -d: -f1)"
-  second_line_no="$(grep -n "second rule (source: writer B)" "$f" | head -1 | cut -d: -f1)"
+  first_line_no="$(grep -n "first rule (source: writer A)" "$f" | qhead -1 | cut -d: -f1)"
+  second_line_no="$(grep -n "second rule (source: writer B)" "$f" | qhead -1 | cut -d: -f1)"
   [ "$first_line_no" -lt "$second_line_no" ] || log_fail "TEST-011: appends must land in call order"
   log_pass "Two sequential real appends both persist, in order (TEST-011)"
 }
@@ -386,15 +387,13 @@ test_013_wrapup_step3_wired() {
   [ -n "$step3" ] || log_fail "TEST-013: step 3 (PROPOSE NEW LEARNED RULES) section not found"
   assert_payload_contains "$step3" "learned-append.mjs" "TEST-013: step 3 must name the gate script learned-append.mjs"
   assert_payload_contains "$step3" "--source" "TEST-013: step 3 must show the --source flag in the invocation"
-  printf '%s' "$step3" | grep -qi "critic" \
-    || log_fail "TEST-013: step 3 must route the proposal through a critic pass"
-  printf '%s' "$step3" | grep -qi "never a direct edit" \
-    || log_fail "TEST-013: step 3 must state that direct edits are no longer sanctioned"
+  assert_payload_contains_i "$step3" "critic" "TEST-013: step 3 must route the proposal through a critic pass"
+  assert_payload_contains_i "$step3" "never a direct edit" "TEST-013: step 3 must state that direct edits are no longer sanctioned"
   # Ordering pin (review 20260727T111121Z NB-1): critic must PRECEDE the gate
   # invocation — gate-then-critic would be post-hoc critique of a done append.
   local crit_ln gate_ln
-  crit_ln=$(printf '%s\n' "$step3" | grep -ni critic | head -1 | cut -d: -f1)
-  gate_ln=$(printf '%s\n' "$step3" | grep -nF learned-append.mjs | head -1 | cut -d: -f1)
+  crit_ln=$(printf '%s\n' "$step3" | grep -ni critic | qhead -1 | cut -d: -f1)
+  gate_ln=$(printf '%s\n' "$step3" | grep -nF learned-append.mjs | qhead -1 | cut -d: -f1)
   { [ -n "$crit_ln" ] && [ -n "$gate_ln" ] && [ "$crit_ln" -lt "$gate_ln" ]; } \
     || log_fail "TEST-013: critic mention must precede the gate invocation (crit=$crit_ln gate=$gate_ln)"
 
@@ -405,12 +404,10 @@ test_013_wrapup_step3_wired() {
     cap { print }
   ' "$WRAP_UP_PROMPT")"
   [ -n "$step6" ] || log_fail "TEST-013: step 6 (FRICTION FEEDBACK NUDGE) section not found"
-  printf '%s' "$step6" | grep -qi "step 3" \
-    || log_fail "TEST-013: step 6 must cross-reference the step 3 critic-then-gate flow"
+  assert_payload_contains_i "$step6" "step 3" "TEST-013: step 6 must cross-reference the step 3 critic-then-gate flow"
   # Pinned contracts from test-aai-friction-wiring.sh TEST-015 must survive untouched.
   assert_payload_contains "$step6" "aai-feedback-triage.mjs" "TEST-013: step 6 must still name the triage engine (pinned contract)"
-  printf '%s' "$step6" | grep -qi "SILENT" \
-    || log_fail "TEST-013: step 6 must still document the empty-spool SILENT contract (pinned contract)"
+  assert_payload_contains_i "$step6" "SILENT" "TEST-013: step 6 must still document the empty-spool SILENT contract (pinned contract)"
   log_pass "SKILL_WRAP_UP step 3 critic-then-gate wired; step 6 cross-references it (TEST-013)"
 }
 

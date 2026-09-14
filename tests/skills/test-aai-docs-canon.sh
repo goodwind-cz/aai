@@ -19,6 +19,7 @@ set -euo pipefail
 
 TEST_NAME="aai-docs-canon"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CANON_SCRIPT="$PROJECT_ROOT/.aai/scripts/docs-canon.mjs"
@@ -43,7 +44,7 @@ assert_file() { [[ -f "$1" ]] || log_fail "Missing file: $1"; }
 assert_dir_empty_or_absent() {
   # passes if dir does not exist or contains no .md files
   if [[ -d "$1" ]]; then
-    if find "$1" -name '*.md' -type f | grep -q .; then
+    if find "$1" -name '*.md' -type f | qgrep -q .; then
       log_fail "Expected no .md files under $1"
     fi
   fi

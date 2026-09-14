@@ -551,7 +551,10 @@ function main() {
   return usage(`unknown subcommand "${sub}" (expected post | poll | resolve)`);
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+function realOrResolve(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
+const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 if (isMain) runMain(() => main());
 
 export { sanitizeBody, detectPlatform, loadSidecar, authorPermission, afterPosted };

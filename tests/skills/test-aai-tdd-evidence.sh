@@ -52,6 +52,7 @@ set -euo pipefail
 
 TEST_NAME="aai-tdd-evidence"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CHECK_SCRIPT="$PROJECT_ROOT/.aai/scripts/tdd-evidence-check.mjs"
@@ -147,7 +148,7 @@ run_check_noflag() {
 assert_exit() {
   local desc="$1" expected="$2" actual="$3"
   [[ "$actual" == "$expected" ]] \
-    || log_fail "$desc: expected exit $expected, got $actual ($(cat "$TEST_DIR/check-out.log" 2>/dev/null | head -3))"
+    || log_fail "$desc: expected exit $expected, got $actual ($(cat "$TEST_DIR/check-out.log" 2>/dev/null | qhead -3))"
 }
 
 # --- TEST-001 (Spec-AC-01): check-script contract matrix ---------------------

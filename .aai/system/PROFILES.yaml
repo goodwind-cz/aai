@@ -137,6 +137,7 @@ core:
   - .aai/scripts/intake-staleness-check.mjs
   - .aai/scripts/layer-drift.mjs
   - .aai/scripts/learned-append.mjs
+  - .aai/scripts/lib/append-lock.mjs
   - .aai/scripts/lib/append-lock.sh
   - .aai/scripts/lib/cli-pipe-guard.mjs
   - .aai/scripts/lib/docs-audit-core.mjs
@@ -151,6 +152,7 @@ core:
   - .aai/scripts/lib/prompt-hash.mjs
   - .aai/scripts/lib/repo-tripwire.sh
   - .aai/scripts/lib/runtime-file.mjs
+  - .aai/scripts/lib/session-lock.mjs
   - .aai/scripts/lib/state-core.mjs
   - .aai/scripts/lib/state-engine.mjs
   - .aai/scripts/lib/usage-note.mjs

@@ -11,6 +11,60 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(tests): the test framework is fast, hermetic and honest about what it ran
+
+- **Refilling queue instead of wave barriers** in `tests/skills/test-framework.sh`
+  with a rolling attribution window: a suite that writes the shipping repository
+  is still caught, re-run serially and named, siblings are never blamed. Full
+  sweep 1632 s → 897 s (93/93, width 8, 55 %). CHANGE-0166 closed; intake CHANGE-0185.
+- **CHANGE-0180 (P1)**: `branch-guard.mjs --pin` / `--verify-pin` (detached /
+  renamed / concurrent = exit 5 / 6 / 7), re-checked by `check-committed-scope`,
+  `close-before-push-guard` and `close-work-item --expect-branch`; a per-worktree
+  session lock keyed on pid liveness (`lib/session-lock.mjs`). Armed in the
+  ceremony: SKILL_PR pins at step 0 and passes `--expect-branch` at 4a/4c/5,
+  SKILL_WORKTREE acquires and releases the lock. A project that never pinned
+  sees a NOTE, never a refusal.
+- **The "CI-load-only" layer-profiles failure has a cause and a fix**: under
+  `pipefail`, `aai-sync.sh` tested core membership with `printf | grep -q`;
+  `grep -q` closes the pipe on the first match, printf dies with SIGPIPE, and
+  a core-listed file is pruned as "not core" (the MISSING / non-idempotent
+  reds on PR #376 and this PR). Membership tests are here-strings now, no
+  `| head -n1` decisions remain, and three tests (a core list larger than the
+  pipe buffer, a 200 KB `.gitignore`, a static ratchet) redden on any restored
+  pipe. Round 8's `cp -a` retry was a false cause and is withdrawn. The CI runner ignores SIGPIPE, so there the same class shows as EPIPE; the
+  doctor's CAT-17 probe now hands a hook its input as a file and judges it by
+  its exit status (a hook that never reads its input was reported
+  "unverifiable (EPIPE)" instead of "not a guard").
+- **Honest gates**: pipe-into-early-closing-reader (`grep -q`/`-m`/`--quiet`/
+  `--silent`, any spelling, or `head`) drained to zero — the narrow copied
+  echo/printf idiom (202 → 0, DEBT-0006) was drained in the original ride;
+  round 10 found the FULL class (273 `grep -q`/`-m` sites + 116 `head` sites,
+  any producer) still live in the suites (CI reds on 1aab60bb) and drained
+  it too, behind new `qgrep`/`qhead` drop-ins (`tests/skills/lib/pipe-
+  safe.sh`) with the ratchet's gated pattern widened to match (superset, not
+  just the narrow idiom, now at zero); 8 shipping scripts (19 sites) fixed, `pre-commit-checks.sh` (7 sites, an L3 surface) deferred by name under `fu-pre-commit-checks-pipe-grep-q`
+  the same way `aai-sync.sh` was in round 9 (here-strings, no suite library
+  sourced); nine self-comparing guards got negative controls and fail closed
+  (DEBT-0004); six brittle pins assert the property; a degenerate-pass ratchet
+  (26) and six LEARNED-guard lints (bash-3.2 local, cd-to-underived, immutable
+  pin, deny-by-default mocks, absence without control, external runner) at
+  zero on the live corpus; 22 of 23 CLI `main()` guards resolve via realpath
+  (`allocate-doc-number.mjs` is L3, filed).
+- **Isolation, seeding, tripwire**: bases forgotten per entry, INT reaps the
+  group before cleanup, partial seeding reported, hidden suite runs noted,
+  tripwire pre-dirty accounting and degrade-on-suite-line, fixture dirs
+  registered in a file; four withdrawn claims corrected in place.
+- **Wrapper default timeout 300 → 3000 s** on `.sh` and both `.ps1` paths, with
+  a named watchdog line; TDD and VALIDATION prompts select suites the way CI
+  does; validation and TDD suite selection wired to `select-suites.mjs`.
+- **Registry**: 48 follow-ups closed with a test each, 36 dropped with a
+  recorded reason; ISSUE-0039/0041/0043/0044 and DEBT-0004/0006 resolved;
+  GitHub #368 rejected (prose-free friction issue, CHANGE-0179 owns the class).
+- Spec: SPEC-0179 (test-framework-sweep), ceremony 2, TDD, 60 numbered tests
+  (401–466), one mutation per test, seven validation rounds (rounds 6–7 as
+  `--force` re-validations), two review rounds, nine remediation rounds.
+  Wave 3 sweep 2.
+  Merged by the orchestrator under the wave-3 mandate of 2026-09-13.
 ## [unreleased] — fix(dispatch): the dispatch loop and STATE say the truth about the ride they are running
 
 - **A stale pass routes to Validation by rule** (rule 11s): a verdict whose tree

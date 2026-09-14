@@ -18,6 +18,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-prompt-diet"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -265,7 +266,7 @@ test_007_pointer_form() {
 test_008_loop_caching_and_payload() {
   local ok=1 f=.aai/SKILL_LOOP.prompt.md
   # (a) the stable-prefix sentence must not place STATE.yaml in the prefix
-  if grep -i "stable prefix" "$f" | grep -q "STATE.yaml"; then
+  if grep -i "stable prefix" "$f" | qgrep -q "STATE.yaml"; then
     log_info "TEST-008: a 'stable prefix' line still names STATE.yaml"
     ok=0
   fi
@@ -274,7 +275,7 @@ test_008_loop_caching_and_payload() {
     ok=0
   fi
   # (b) a volatile-last sentence must place STATE.yaml last
-  if ! grep -i "volatile" "$f" | grep -q "STATE.yaml"; then
+  if ! grep -i "volatile" "$f" | qgrep -q "STATE.yaml"; then
     log_info "TEST-008: no volatile-last sentence naming STATE.yaml"
     ok=0
   fi
@@ -781,9 +782,20 @@ test_012_growth_sum_matches_ledger() {
   # not to rescue TEST-010.
   # Then 25283 -> 26515: standing-merge-authorization-in-canon (+1232 B,
   # SKILL_PR step 6 + SKILL_SHIP step 6 standing-authorization clauses, PR #375).
-  # Then 26515 -> 26731: telemetry-fields-not-prose-botfix (+216 B,
-  # ROLE_COMMON.md's shared append-run example gains --verdict).
-  # Then 26731 -> 27957: dispatch-state-sweep D9/D10 (+1226 B) -- SKILL_PR
+  # Then 26515 -> 26731: standing-merge / ROLE_COMMON --verdict (+216 B, SPEC-0178).
+  # Then 26731 -> 26928: test-framework-sweep-select-suites-truing (+197 B,
+  # SKILL_TDD.prompt.md Phase 4 step 0 names select-suites.mjs, Spec-AC-16).
+  # Then 26928 -> 29362: change-0180-mechanism-armed (+2434 B, review NB-10 --
+  # SKILL_PR.prompt.md --pin/--expect-branch wiring + SKILL_WORKTREE.prompt.md
+  # session-lock acquire/release; validation round 4 F-7 folded in: SKILL_PR
+  # step 0 also claims the session lock for a shared-EXISTING checkout and
+  # step 5's true end releases it, +789 B over the round-3 measurement).
+  # Then 29362 -> 30394: round-8-session-lock-ppid-owner (+1032 B, PR #381
+  # Codex P1 fu-session-lock-oneshot-pid -- every session-lock.mjs
+  # acquire/release in SKILL_WORKTREE.prompt.md and SKILL_PR.prompt.md
+  # rekeyed from --pid "$$" to --pid "$PPID", plus the honest degrade-to-
+  # advisory limit explained at each site).
+  # Then 30394 -> 31620: dispatch-state-sweep D9/D10 (+1226 B, merged from main) -- SKILL_PR
   # step 5 post-push watch-ci.mjs pointer (+173), the three uncarved-lane
   # files reconciled to the D1 sole-agent carve (SKILL_CODE_REVIEW +145,
   # SKILL_WORKTREE +480, METRICS_FLUSH +107 net after folding onto the
@@ -793,11 +805,11 @@ test_012_growth_sum_matches_ledger() {
   # three extras). check-dispatch-text.mjs, watch-ci.mjs and the
   # SUBAGENT_PROTOCOL.md rule additions sit outside the live glob and its
   # extras, no ledger cost.
-  # Then 27957 -> 28140: dispatch-state-sweep validation-round1 B2 remediation
+  # Then 31620 -> 31803: dispatch-state-sweep validation-round1 B2 remediation
   # (+183 B) -- SKILL_PR step 4c actually gains the clear-focus --ref <slug>
   # line after close-work-item.mjs (D3's own non-inertness clause, missing
   # in round 1), credited 1:1, headroom unchanged at 2046/2048.
-  local want_growth=28140
+  local want_growth=31803
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1407,7 +1419,7 @@ test_023_ac_flip_growth_credited() {
   lead="${entry%% *}"
   # The entry states its own measurement as "<before> -> <after>"; a credit
   # whose arithmetic is only in the prose is a credit nobody can re-check.
-  after="$(printf '%s' "$entry" | sed -n "s/.*${AC_FLIP_ROLE_COMMON_BEFORE} -> \([0-9][0-9]*\).*/\1/p" | head -1)"
+  after="$(printf '%s' "$entry" | sed -n "s/.*${AC_FLIP_ROLE_COMMON_BEFORE} -> \([0-9][0-9]*\).*/\1/p" | qhead -1)"
   if [[ -z "$after" ]]; then
     log_info "TEST-023: the ledger entry does not record its measurement as '$AC_FLIP_ROLE_COMMON_BEFORE -> <after>'"
     ok=0
@@ -1449,6 +1461,38 @@ test_023_ac_flip_growth_credited() {
 }
 
 
+# TEST-429 (spec-test-framework-sweep Spec-AC-16) — both implementer-facing
+# prompts name the selector for an intermediate round, and the ledger carries
+# a dedicated entry for this ride's SKILL_TDD.prompt.md growth (not folded
+# into an unrelated one, which would leave the true cause unauditable).
+test_429_select_suites_named_in_both_prompts() {
+  local ok=1
+  if ! grep -qF 'select-suites.mjs' "$PROJECT_ROOT/.aai/SKILL_TDD.prompt.md"; then
+    log_info "TEST-429: .aai/SKILL_TDD.prompt.md does not name select-suites.mjs"
+    ok=0
+  fi
+  if ! grep -qF 'select-suites.mjs' "$PROJECT_ROOT/.aai/VALIDATION.prompt.md"; then
+    log_info "TEST-429: .aai/VALIDATION.prompt.md does not name select-suites.mjs"
+    ok=0
+  fi
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-429 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local n=0 _e
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    case "$_e" in
+      *"test-framework-sweep-select-suites-truing"*) n=$((n + 1)) ;;
+    esac
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_info "TEST-429: ledger carries $n entries naming test-framework-sweep-select-suites-truing (want exactly 1)"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-429 both prompts name select-suites.mjs, ledger entry present" \
+    || log_fail "TEST-429 select-suites.mjs prompt-corpus truing"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1478,6 +1522,7 @@ main() {
   test_021_ledger_has_no_unescaped_backtick
   test_022_ac_flip_guard_canon_wiring
   test_023_ac_flip_growth_credited
+  test_429_select_suites_named_in_both_prompts
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

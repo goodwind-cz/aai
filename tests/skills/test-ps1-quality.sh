@@ -24,7 +24,10 @@
 set -euo pipefail
 
 TEST_NAME="ps1-quality"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PS_DIR="$PROJECT_ROOT/.aai/scripts"
 SETTINGS="$PS_DIR/PSScriptAnalyzerSettings.psd1"
@@ -46,7 +49,30 @@ log_fail() { echo "FAIL: $*" >&2; exit 1; }
 log_skip() { echo "SKIP: $*"; exit 42; }
 log_info() { echo "INFO: $*"; }
 
-command -v pwsh >/dev/null 2>&1 || log_skip "pwsh not installed — install with 'brew install powershell' (macOS) to run this gate"
+# --- 0. Timeout default parity (Spec-AC-08, validation round 1 BLOCKING-22) --
+# Grep-based, not pwsh-based, so it runs on every host regardless of whether
+# PowerShell is installed — unlike the Pester leg below (step 3), which is
+# CI-only on the Windows-5.1 dimension specifically; pwsh 7 + Pester 5 (when
+# present, e.g. via 'brew install powershell') DO exercise it locally too
+# (review NB-16 / validator R3-NB-6: this comment used to claim the leg
+# "cannot be exercised on this machine at all", which is false wherever pwsh
+# is installed).
+# Get-EffectiveTimeout's fallback must match aai-run-tests.sh's own
+# `${AAI_TEST_TIMEOUT:-3000}` default; the two drifted once already
+# (BLOCKING-22: the .ps1 stayed at 300 after the .sh wrapper's raise to
+# 3000, silently overriding it back down on every Windows run).
+RUN_PS1="$PROJECT_ROOT/.aai/scripts/aai-run-tests.ps1"
+RUN_SH="$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh"
+log_info "Checking aai-run-tests.ps1's Get-EffectiveTimeout default against the .sh wrapper..."
+sh_default="$(grep -oE 'AAI_TEST_TIMEOUT:-[0-9]+' "$RUN_SH" | qhead -1 | grep -oE '[0-9]+$')"
+[[ -n "$sh_default" ]] || log_fail "could not find the .sh wrapper's AAI_TEST_TIMEOUT default (aai-run-tests.sh)"
+ps1_default="$(awk '/^function Get-EffectiveTimeout {/,/^}/' "$RUN_PS1" | grep -oE 'return [0-9]+' | tail -1 | grep -oE '[0-9]+')"
+[[ -n "$ps1_default" ]] || log_fail "could not find Get-EffectiveTimeout's fallback return value in $RUN_PS1"
+[[ "$ps1_default" == "$sh_default" ]] \
+  || log_fail "aai-run-tests.ps1's Get-EffectiveTimeout falls back to ${ps1_default}s but aai-run-tests.sh defaults to ${sh_default}s — Windows would silently run at a different timeout than every other platform"
+log_pass "aai-run-tests.ps1 Get-EffectiveTimeout defaults to ${ps1_default}s, matching the .sh wrapper's ${sh_default}s"
+
+command -v pwsh >/dev/null 2>&1 || log_skip "pwsh not installed — install with 'brew install powershell' (macOS) to run this gate; the parity check above already ran without it, but PARSE-checking, PSScriptAnalyzer and the Pester leg below (Windows-PowerShell-5.1-only, CI-only) cannot run on this machine"
 
 # --- 1. Parse-check every .ps1 ------------------------------------------------
 log_info "Parse-checking every .aai/scripts/*.ps1 ..."
@@ -64,9 +90,7 @@ parse_out="$(PS_DIR="$PS_DIR" pwsh -NoProfile -Command '
   Write-Output ("PARSEBAD=" + $bad)
 ' 2>&1)"
 echo "$parse_out" | grep -v '^PARSEBAD=' || true
-if ! echo "$parse_out" | grep -q '^PARSEBAD=0$'; then
-  log_fail "one or more .ps1 scripts have parse errors (see above)"
-fi
+assert_payload_has_line "$parse_out" "PARSEBAD=0" "one or more .ps1 scripts have parse errors (see above)"
 log_pass "all .ps1 scripts parse cleanly"
 
 # --- 2. PSScriptAnalyzer -------------------------------------------------------
@@ -93,9 +117,7 @@ if [[ "$has_pssa" == "yes" ]]; then
     Write-Output ("COMPATBAD=" + $all.Count)
   ' 2>&1)"
   echo "$compat_out" | grep -v '^COMPATBAD=' || true
-  if ! echo "$compat_out" | grep -q '^COMPATBAD=0$'; then
-    log_fail "PSScriptAnalyzer found cross-version syntax incompatibilities or parse Errors (see above)"
-  fi
+  assert_payload_has_line "$compat_out" "COMPATBAD=0" "PSScriptAnalyzer found cross-version syntax incompatibilities or parse Errors (see above)"
   log_pass "PSScriptAnalyzer: .aai/scripts + tests/skills are 5.1 + 7.0 syntax compatible, 0 parse Errors"
 
   # 2b. INFORMATIONAL: quality warnings (non-blocking; CLI scripts intentionally

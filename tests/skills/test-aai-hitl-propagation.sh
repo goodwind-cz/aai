@@ -38,6 +38,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-hitl-propagation"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DISPATCH="$PROJECT_ROOT/.aai/scripts/orchestration-dispatch.mjs"
@@ -414,7 +415,7 @@ test_014_no_protected_path_touched() {
   log_info "Test: a touched protected_paths_l3 path is authorized by a frozen ceremony_level:3 spec in the same diff/tree (TEST-014)..."
   [[ -f "$DOCS_AUDIT" ]] || { log_fail "TEST-014: $DOCS_AUDIT not found"; return; }
   local protected changed hit
-  protected="$(sed -n 's/^  - //p' "$DOCS_AUDIT" | head -8)"
+  protected="$(sed -n 's/^  - //p' "$DOCS_AUDIT" | qhead -8)"
   [[ -n "$protected" ]] || { log_fail "TEST-014: no protected_paths_l3 entries extracted from $DOCS_AUDIT"; return; }
 
   # Covers BOTH shapes: committed history AND the still-uncommitted working

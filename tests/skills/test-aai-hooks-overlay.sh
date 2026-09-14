@@ -22,6 +22,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-hooks-overlay"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -166,14 +167,36 @@ test_004_fail_open_shape() {
     log_fail "TEST-004 expected 4 command strings in template, got $n"
     return
   fi
+  # round 8 / Copilot: an UNQUOTED `case $cmd in *$1*)` glob match on a
+  # variable-supplied needle would treat glob metacharacters in the needle
+  # (e.g. the literal `[` in the 'if [ -f ' needle below) as pattern syntax
+  # rather than literal text. The shipped needle was already double-quoted
+  # (`*"$1"*`), which bash treats as a literal match — that quoted form was
+  # never actually at risk (round 8's finding did not reproduce against the
+  # code as shipped) — but quoting discipline surviving every future edit is
+  # not something to rely on, so `_cmd_has` below removes the risk class
+  # entirely: `grep -qF` on a here-string is a literal, non-glob substring
+  # test, structurally immune to this class of bug regardless of what the
+  # needle contains or whether a future edit drops the quotes around `$1`.
+  _cmd_has() { grep -qF -- "$1" <<<"$cmd"; }
+  # Positive control (round 8): prove _cmd_has treats a `[...]`-shaped needle
+  # as LITERAL text, not a glob bracket-expression — a cmd string that
+  # contains none of the individual bracketed characters, only text a GLOB
+  # bracket-expression would wrongly match, must NOT match.
+  if (cmd='axc' _cmd_has 'a[xy]c'); then
+    log_fail "TEST-004: _cmd_has treats '[...]' as a glob bracket-expression (matched 'axc' against needle 'a[xy]c' with no literal substring present)"
+  fi
+  if ! (cmd='a[xy]c' _cmd_has 'a[xy]c'); then
+    log_fail "TEST-004: _cmd_has must still match when the literal bracketed substring IS present"
+  fi
   i=0
   while IFS= read -r cmd; do
     [[ -z "$cmd" ]] && continue
     i=$((i+1))
     # Guard shape: the adapter path is named, and its existence is tested
     # with `if [ -f ... ]` before any invocation (absence degrades to exit 0).
-    if ! printf '%s' "$cmd" | grep -qF 'claude-hook-gate.sh' \
-       || ! printf '%s' "$cmd" | grep -qE 'if \[ -f '; then
+    if ! _cmd_has 'claude-hook-gate.sh' \
+       || ! _cmd_has 'if [ -f '; then
       log_info "TEST-004: command $i lacks the adapter-absence guard: $cmd"
       ok=0
     fi
@@ -225,8 +248,12 @@ test_006_merge_gate() {
   err=$(payload_for "git merge feature-x" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" env -u AAI_OPERATOR_MERGE bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
   [[ "$rc" -eq 2 ]] || { log_info "TEST-006: git merge exited $rc (want 2)"; ok=0; }
   assert_payload_contains "$err" "AAI_OPERATOR_MERGE" "TEST-006: deny message does not name the AAI_OPERATOR_MERGE escape" || ok=0
-  printf '%s' "$err" | grep -qi "article 7\|operator-only" \
-    || { log_info "TEST-006: deny message does not cite article 7 / operator-only"; ok=0; }
+  local _nc_save; _nc_save="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+  shopt -s nocasematch
+  case "$err" in
+    *"article 7"*|*"operator-only"*) eval "$_nc_save" ;;
+    *) eval "$_nc_save"; log_info "TEST-006: deny message does not cite article 7 / operator-only"; ok=0 ;;
+  esac
   payload_for "gh pr merge 42 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" env -u AAI_OPERATOR_MERGE bash "$PROJECT_ROOT/$ADAPTER" merge >/dev/null 2>&1); rc=$?
   [[ "$rc" -eq 2 ]] || { log_info "TEST-006: gh pr merge exited $rc (want 2)"; ok=0; }
   payload_for "git merge feature-x" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge >/dev/null 2>&1); rc=$?
@@ -311,7 +338,7 @@ test_009_stop_nudge() {
   out=$(printf '{}' | (cd "$d" && CLAUDE_PROJECT_DIR="$d" bash "$PROJECT_ROOT/$ADAPTER" stop-nudge 2>/dev/null)); rc=$?
   [[ "$rc" -eq 0 && -z "$out" ]] || { log_info "TEST-009: done-only case rc=$rc out='$out' (want 0, silent)"; ok=0; }
   # The adapter's stop-nudge branch must have no exit-2 path at all.
-  if awk '/^  stop-nudge\)/,/^  ;;/' "$PROJECT_ROOT/$ADAPTER" | grep -q "exit 2"; then
+  if awk '/^  stop-nudge\)/,/^  ;;/' "$PROJECT_ROOT/$ADAPTER" | qgrep -q "exit 2"; then
     log_info "TEST-009: stop-nudge branch contains an exit 2 path"
     ok=0
   fi
@@ -327,7 +354,7 @@ test_010_bootstrap_wiring() {
   grep -qF ".aai/templates/hooks/settings-hooks.json" "$BOOTSTRAP" \
     || { log_info "TEST-010: bootstrap does not reference the hooks template path"; ok=0; }
   # The flag must be documented in the header usage() prints.
-  sed -n '1,25p' "$BOOTSTRAP" | grep -q -- '--with-claude-hooks' \
+  sed -n '1,25p' "$BOOTSTRAP" | qgrep -q -- '--with-claude-hooks' \
     || { log_info "TEST-010: --with-claude-hooks missing from the usage header"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-010 bootstrap --with-claude-hooks wired and documented" \
                   || log_fail "TEST-010 bootstrap wiring"
@@ -405,8 +432,16 @@ test_011_bootstrap_behavior() {
   out3=$( (cd "$d3" && bash "$PROJECT_ROOT/$BOOTSTRAP" --with-claude-hooks 2>&1) ) || true
   [[ "$(cat "$d3/.claude/settings.json")" == "NOT JSON {" ]] \
     || { log_info "TEST-011: invalid settings.json was modified (silent overwrite)"; ok=0; }
-  printf '%s' "$out3" | grep -qi "merge.*manually\|manual" \
-    || { log_info "TEST-011: refusal did not instruct a manual merge"; ok=0; }
+  local _nc_save3; _nc_save3="$(shopt -p nocasematch 2>/dev/null || printf 'shopt -u nocasematch')"
+  shopt -s nocasematch
+  local _manual_found=0 _ml
+  while IFS= read -r _ml; do
+    if [[ "$_ml" =~ merge.*manually|manual ]]; then _manual_found=1; break; fi
+  done <<EOF
+$out3
+EOF
+  eval "$_nc_save3"
+  [[ "$_manual_found" -eq 1 ]] || { log_info "TEST-011: refusal did not instruct a manual merge"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-011 bootstrap opt-in: default-off, 4-hook merge, idempotent, foreign content preserved, invalid JSON refused" \
                   || log_fail "TEST-011 bootstrap behavior"
 }

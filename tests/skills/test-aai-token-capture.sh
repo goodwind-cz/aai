@@ -58,6 +58,7 @@ set -euo pipefail
 
 TEST_NAME="aai-token-capture"
 TEST_DIR=""
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
@@ -185,8 +186,8 @@ test_003_role_carveout_canon() {
     # elsewhere in the prompt must not satisfy this check (PR #159 bot review).
     # Both unquoted and quoted forms are canonical: ROLE_COMMON.md itself
     # mandates quoting when the role value contains a space (TDD Implementation).
-    { grep -F "ROLE_COMMON.md" "$f" | grep -qF "(role: $r)"; } \
-      || { grep -F "ROLE_COMMON.md" "$f" | grep -qF "(role: \"$r\")"; } \
+    { grep -F "ROLE_COMMON.md" "$f" | qgrep -qF "(role: $r)"; } \
+      || { grep -F "ROLE_COMMON.md" "$f" | qgrep -qF "(role: \"$r\")"; } \
       || log_fail "TEST-003: $n.prompt.md pointer line must name its own --role value as '(role: $r)'"
     grep -qF 'Subagent-mode carve-out' "$f" \
       && log_fail "TEST-003: $n.prompt.md must NOT re-inline the 'Subagent-mode carve-out' body (it must live only in ROLE_COMMON.md)"
@@ -344,9 +345,9 @@ test_005_seam_total_note_roundtrip() {
 
   grep -qF "usage_total_tokens=262134" "$s" \
     || log_fail "TEST-005: STATE agent_runs note must carry usage_total_tokens=262134 verbatim"
-  sed -n '/^    CHANGE-9001:$/,$p' "$s" | grep -qE '^ {10}tokens_in: null$' \
+  sed -n '/^    CHANGE-9001:$/,$p' "$s" | qgrep -qE '^ {10}tokens_in: null$' \
     || log_fail "TEST-005: tokens_in must stay null for an undecomposed-total run (never split)"
-  sed -n '/^    CHANGE-9001:$/,$p' "$s" | grep -qE '^ {10}tokens_out: null$' \
+  sed -n '/^    CHANGE-9001:$/,$p' "$s" | qgrep -qE '^ {10}tokens_out: null$' \
     || log_fail "TEST-005: tokens_out must stay null for an undecomposed-total run (never split)"
 
   local flush_log="$d/flush.log"
@@ -438,10 +439,10 @@ test_008_log_tick_negative_control() {
 test_009_mandatory_usage_note_wording() {
   log_info "Test: SUBAGENT_PROTOCOL Merge protocol + SKILL_LOOP step 4 carry MANDATORY usage_total_tokens=<N> wording (spec TEST-008)..."
 
-  sed -n '/^## Merge protocol/,/^## /p' "$PROTOCOL" | grep -qE 'usage_total_tokens=<N>.*MANDATORY|MANDATORY.*usage_total_tokens=<N>' \
+  sed -n '/^## Merge protocol/,/^## /p' "$PROTOCOL" | qgrep -qE 'usage_total_tokens=<N>.*MANDATORY|MANDATORY.*usage_total_tokens=<N>' \
     || log_fail "TEST-009 (spec TEST-008): SUBAGENT_PROTOCOL.md 'Merge protocol' section must make usage_total_tokens=<N> MANDATORY, not optional"
 
-  sed -n '/^  4\. RUN DISPATCHED ROLE/,/^  5\. /p' "$LOOP" | grep -qE 'usage_total_tokens=<N>.*MANDATORY|MANDATORY.*usage_total_tokens=<N>' \
+  sed -n '/^  4\. RUN DISPATCHED ROLE/,/^  5\. /p' "$LOOP" | qgrep -qE 'usage_total_tokens=<N>.*MANDATORY|MANDATORY.*usage_total_tokens=<N>' \
     || log_fail "TEST-009 (spec TEST-008): SKILL_LOOP.prompt.md step 4 must make usage_total_tokens=<N> MANDATORY, not optional"
 
   log_pass "MANDATORY usage_total_tokens=<N> wording present in Merge protocol + SKILL_LOOP step 4 (spec TEST-008)"
@@ -644,10 +645,8 @@ test_013_subagent_protocol_model_marker_prose() {
 
   assert_payload_contains "$block" "requested_model=" "TEST-013 (spec TEST-010): usage-capture section must name the requested_model= marker"
   assert_payload_contains "$block" "actual_model=" "TEST-013 (spec TEST-010): usage-capture section must name the actual_model= marker"
-  echo "$block" | grep -qiF 'GRANTED model' \
-    || log_fail "TEST-013 (spec TEST-010): usage-capture section must state model_id records the GRANTED model"
-  echo "$block" | grep -qiF 'both markers' \
-    || log_fail "TEST-013 (spec TEST-010): usage-capture section must state both markers are recorded whenever an override was requested"
+  assert_payload_contains_i "$block" "GRANTED model" "TEST-013 (spec TEST-010): usage-capture section must state model_id records the GRANTED model"
+  assert_payload_contains_i "$block" "both markers" "TEST-013 (spec TEST-010): usage-capture section must state both markers are recorded whenever an override was requested"
   # Sharper than a bare 'actual_model' grep (subsumed by the earlier
   # 'actual_model=' pin, review-20260812T083704Z CQ-2, mutation-proved: the
   # old pin stayed GREEN after deleting the whole "Any claim of validator
@@ -655,10 +654,8 @@ test_013_subagent_protocol_model_marker_prose() {
   # that sentence -- "must cite" and "claim of validator independence" (the
   # word "independence" alone recurs elsewhere in the block, e.g.
   # "independence that never happened", so it cannot anchor alone).
-  echo "$block" | grep -qiF 'must cite' \
-    || log_fail "TEST-013 (spec TEST-010): usage-capture section must state validator-independence claims MUST cite actual_model"
-  echo "$block" | grep -qiF 'claim of validator independence' \
-    || log_fail "TEST-013 (spec TEST-010): usage-capture section must name the validator-independence claim actual_model must be cited for"
+  assert_payload_contains_i "$block" "must cite" "TEST-013 (spec TEST-010): usage-capture section must state validator-independence claims MUST cite actual_model"
+  assert_payload_contains_i "$block" "claim of validator independence" "TEST-013 (spec TEST-010): usage-capture section must name the validator-independence claim actual_model must be cited for"
 
   log_pass "SUBAGENT_PROTOCOL usage-capture prose: model_id==granted, both-markers-together, independence-cites-actual_model (TEST-013/spec TEST-010)"
 }

@@ -1685,7 +1685,10 @@ function main() {
 }
 
 // Run as CLI only when invoked directly; importable for unit tests.
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+function realOrResolve(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
+const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 if (isMain) runMain(() => main());
 
 export { RULES };

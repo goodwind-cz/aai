@@ -32,6 +32,7 @@
 set -uo pipefail
 
 TEST_NAME="aai-routine"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
@@ -165,7 +166,7 @@ test_003_golden_diff() {
     log_pass "TEST-003 render equals golden byte-for-byte"
   else
     log_info "TEST-003: diff:"
-    diff "$rendered" "$GOLDEN" | head -20 | while IFS= read -r line; do log_info "  $line"; done
+    diff "$rendered" "$GOLDEN" | qhead -20 | while IFS= read -r line; do log_info "  $line"; done
     log_fail "TEST-003 render != golden"
   fi
 }

@@ -694,6 +694,12 @@ test_011_reap_stale_keep_fresh() {
 # green. Pre-authorising an unbuilt seam buys nothing that adding one allowlist
 # line the day it is built would not buy, and costs the only coverage that would
 # have caught it. If that panel is ever built, add it back HERE with the reason.
+#
+# lib/session-lock.mjs (test-framework-sweep, D5) is a SECOND allowlisted file:
+# it names "heartbeat" only inside a comment DISCLAIMING any use — the module's
+# own liveness check is a `process.kill(pid, 0)` probe on its own lock file, not
+# a heartbeat read. Deny-by-default correctly flags the bare textual mention;
+# the allowlist records that this one is prose, not a read.
 test_012_no_gate_reads_the_heartbeat() {
   # Allowlist on the REPO-RELATIVE PATH, never the basename: code review round 2
   # planted .aai/scripts/lib/heartbeat.mjs with a gate-shaped read and this arm
@@ -702,7 +708,7 @@ test_012_no_gate_reads_the_heartbeat() {
   # aai-live-serve.mjs READS slots (heartbeat.mjs read --json) to display them on
   # the /aai-live page; it gates nothing and changes no verdict — a consumer, not
   # a gate (SPEC live-agent-dashboard-served-locally D2).
-  local allow=" .aai/scripts/heartbeat.mjs .aai/scripts/aai-live-serve.mjs "
+  local allow=" .aai/scripts/heartbeat.mjs .aai/scripts/aai-live-serve.mjs .aai/scripts/lib/session-lock.mjs "
   local f rel hits offenders="" checked=0
   # A `while read` over find, not a glob: the corpus is recursive (lib/,
   # live-parsers/) and bash-3.2 has no globstar.

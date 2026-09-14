@@ -390,6 +390,9 @@ function main() {
 // script exits 0 having done nothing. A guard against silent no-ops that is
 // itself a silent no-op is the exact defect this file exists to catch
 // (reproduced: `/tmp/aai probe dir` -> exit 0, no output, no check run).
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+function realOrResolve(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
+if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
   main();
 }

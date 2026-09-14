@@ -2,14 +2,62 @@
 id: residuals-of-the-per-suite-clone-ride
 type: change
 number: 166
-status: draft
+status: done
 ceremony_level: 2
 links:
-  pr: []
-  commits: []
+  pr:
+    - 307
+  commits:
+    - 12112e4f
 ---
 
 # What the per-suite-clone ride leaves behind: a 32-minute sequential sweep it no longer has to be
+
+## Closeout (spec-test-framework-sweep, 2026-09-13)
+
+This intake sat `status: draft` with no PR link for two weeks after its work actually
+shipped. **The work is not a build; it was a verification, a measurement and a close** —
+established directly against the tree, not asserted.
+
+- **What PR #307** ("perf(harness): run the sweep concurrently at a bounded width
+  (CHANGE-0166) [L2] (#307)", commit `12112e4f`) **already shipped**, closing AC-001
+  through AC-004 below: `tests/skills/test-framework.sh` gained a bounded-width wave
+  scheduler (`PARALLEL_WIDTH`, `parallel_probe`, `run_wave`), default
+  `min(8, cpus - 2)`, an `AAI_TEST_PARALLEL` override with `1` as a first-class serial
+  value, isolation-off forcing serial execution, a tripwire window scoped to the WAVE
+  (a dirty wave is discarded and re-run one suite at a time, widening
+  `TRIPWIRE_WATCH_PATHS` with the wave's changed paths), `docs/ai/tests/test-runs.jsonl`
+  appends serialised through `.aai/scripts/lib/append-lock.sh` (a `mkdir` mutex), and
+  `RUN_ID` collisions resolved through an atomic `mkdir` without `-p`. The registry
+  entries `fu-sweep-is-strictly-sequential`, `fu-dispatch-demands-full-sweep` and
+  `fu-framework-rundir-same-second` were all already `done`, resolved by PR #307,
+  before this closeout ride started.
+- **What this ride added:** the fixed-wave BARRIER cost (`run_wave` waits for every wave
+  member before the next wave starts) was replaced by a refilling work-queue scheduler
+  (`run_queue`) — a freed slot takes the next suite immediately — and the wave-scoped
+  tripwire attribution window became a rolling window over the whole concurrent phase, a
+  dirty phase re-running EVERY suite serially with the same widened watch set (Spec-AC-06
+  / Spec-AC-07 of `spec-test-framework-sweep`, with TEST-411 through TEST-414 as the
+  mutation-tested evidence). `.aai/VALIDATION.prompt.md` already named the SELECTED-plus-
+  CORE selector (AC-004, landed with #307); this ride wired `.aai/SKILL_TDD.prompt.md`'s
+  own Phase-4 step 0 to the same selector, which it had not been (Spec-AC-16).
+- **Measured wall-clock, before and after** (both at width 8, 93 suites, `/usr/bin/time
+  -p`; full detail in `docs/ai/tdd/spec-test-framework-sweep/sweep-before.txt` and
+  `sweep-after.txt`):
+  - Canonical BEFORE (pre-this-ride scheduler, run `test-20260913-040817`, the live
+    worktree): **1632 s (27.2 min)**.
+  - AFTER (this ride's refilling-queue scheduler, run `test-20260913-094504`, the live
+    worktree): **835.29 s (13.9 min)** — 51.2% of the canonical baseline, comfortably
+    inside the Spec-AC-06 gate of `<= 65%` (threshold 1060.8 s).
+  - A same-day scratch reproduction of the PRE-this-ride scheduler (`sweep-before.txt`,
+    run `test-20260913-094459`, a throwaway one-commit clone) measured 1053.53 s; the
+    canonical 1632 s figure — not this reproduction — is what Spec-AC-06 is written
+    against, and is the number carried here.
+- **The Motivation section's "1914 s" and "32 minutes" figures below are the pre-#307
+  baseline**, measured before ANY parallel scheduler existed (run `test-20260827-154347`,
+  fully sequential). They are left as originally written, as the historical record of why
+  this intake was filed; the canonical before/after pair for what actually shipped is the
+  1632 s / 835.29 s pair above.
 
 ## Summary
 - The ride `isolation-shares-the-shipping-git` (branch `fix/suite-isolation-owns-its-git`)
@@ -54,14 +102,20 @@ links:
   full sweep runs before the close ceremony as the evidence the TEST rows cite.
 
 ## Acceptance Criteria
-- AC-001: a full sweep of all 81 suites completes in materially less wall-clock time than
-  the sequential baseline of 1914 s, with the same pass/fail set.
-- AC-002: concurrent tripwire snapshots do not interfere; no run reports a HEAD-moved
-  detection caused by a sibling suite.
-- AC-003: appends to `docs/ai/tests/test-runs.jsonl` are serialised, and the file's
-  append-only byte-prefix property holds after a concurrent run.
-- AC-004: `.aai/VALIDATION.prompt.md` states which suites a round runs, and an intermediate
-  round does not require a full sweep.
+- AC-001: SATISFIED. A full sweep now completes in materially less wall-clock time than
+  the sequential baseline, with the same pass/fail set — 835.29 s vs. the 1632 s canonical
+  baseline (51.2%), TEST-412 (spec-test-framework-sweep) proving verdict-set identity at
+  width 1 vs. width N on a fixture carrying one of each outcome.
+- AC-002: SATISFIED. Concurrent tripwire snapshots do not interfere: the wave/window
+  attribution mechanism (PR #307, refined by spec-test-framework-sweep TEST-413/TEST-414)
+  names the actual writer and blames no sibling; `waves_reattributed: 0` on every
+  full-sweep record inspected (this corpus never writes the shipping repository today).
+- AC-003: SATISFIED. `docs/ai/tests/test-runs.jsonl` appends are serialised through
+  `.aai/scripts/lib/append-lock.sh` (PR #307); the append-only byte-prefix property is
+  covered by TEST-005/TEST-006 of `tests/skills/test-aai-sweep-parallel.sh`.
+- AC-004: SATISFIED. `.aai/VALIDATION.prompt.md` already named the SELECTED-plus-CORE
+  selector (PR #307); `spec-test-framework-sweep` Spec-AC-16 closed the other half —
+  `.aai/SKILL_TDD.prompt.md`'s own Phase-4 step 0 now names it too (TEST-429).
 
 ## Verification
 - Time a full sweep before and after; compare the per-suite verdict set byte for byte.
