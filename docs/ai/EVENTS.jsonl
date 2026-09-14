@@ -2296,3 +2296,4 @@
 {"v":1,"ts":"2026-09-14T01:32:03.040Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-framework-sweep","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-14T01:32:03.079Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-framework-sweep","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-14T01:32:03.115Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-test-framework-sweep","payload":{"commit":"c92c51de"}}
+{"v":1,"ts":"2026-09-14T09:23:10Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-mutation-gate-for-tests","payload":{"from":"draft","to":"implementing"}}
