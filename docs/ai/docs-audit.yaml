@@ -65,6 +65,16 @@ usage_capture_gate: enforce
 # this repo). Close-only dial (NOT a pre-commit-hook concern) — the shell
 # greps deliberately do not mirror it.
 evidence_path_gate: report-only
+# spec-mutation-gate-for-tests D12 — close-time mutation gate (opt-in via a
+# resolved doc's frontmatter `mutation_gate: v1`; a doc without the marker is
+# untouched). Consulted ONLY by close-work-item.mjs to choose warn-vs-refuse
+# when a closing ride's spec is applicable (D9: marker + tdd/hybrid strategy)
+# and `mutation-gate.mjs --spec <path>` exits non-zero for it. Values:
+# enforce | report-only. Default (key or file absent, or an invalid value) is
+# report-only, fail-open, mirroring the five dials above. AAI core ships this
+# key ENFORCE — unlike its five siblings — because this repository is the one
+# making the per-test mutation-evidence claim the gate exists to prove.
+mutation_gate: enforce
 # RFC-0009 / spec-scale-adaptive-ceremony — L3 protected surfaces (project-owned
 # config; the POLICY and these canonical defaults live in
 # .aai/workflow/WORKFLOW.md "Ceremony levels"). A spec whose scope touches any

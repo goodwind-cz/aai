@@ -1148,6 +1148,45 @@ function evaluateEvidencePathGate(docs, evidenceRoot) {
   return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, unresolved, reason, resolutionRoot: evidenceRoot };
 }
 
+// evaluateMutationGate(resolved) -> { severity, dial?, offending?, reason? }.
+// spec-mutation-gate-for-tests D12 — close-time mutation gate, the sixth
+// dialed gate of this shape. severity is 'none' (no resolved doc is itself
+// type: spec, or the real mutation-gate.mjs exited 0 for every resolved spec
+// doc — INCLUDING every degrade case, since mutation-gate.mjs already
+// resolves applicability itself per D9 and exits 0 for a pre-change/non-tdd
+// spec or a spec whose evidence tree is absent; this function never
+// re-derives that judgement), 'warn' (report-only dial, or an absent key —
+// the shared fail-open default) or 'refuse' (enforce dial; AAI core ships
+// this ONE dial enforce, per docs/ai/docs-audit.yaml's own comment). Runs
+// the REAL .aai/scripts/mutation-gate.mjs (never a reimplementation of its
+// row-reading logic) against every resolved doc whose frontmatter `type` is
+// "spec" — normally just the --spec doc (D5), but a ride that closes a spec
+// AS ITS PRIMARY --ref is covered too, since resolved[0] is scanned the same
+// way.
+function evaluateMutationGate(resolved) {
+  const specDocs = resolved.filter((d) => String(d.fm?.type ?? '').toLowerCase() === 'spec');
+  if (specDocs.length === 0) return { severity: 'none' };
+  const gateScript = path.join(ROOT, '.aai/scripts/mutation-gate.mjs');
+  const offending = [];
+  for (const doc of specDocs) {
+    let out = '';
+    let status = 0;
+    try {
+      out = execFileSync('node', [gateScript, '--spec', doc.abs], { encoding: 'utf8', cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (err) {
+      status = typeof err.status === 'number' ? err.status : 1;
+      out = `${err.stdout ?? ''}${err.stderr ?? ''}`;
+    }
+    if (status === 0) continue;
+    const rows = out.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('OFFENDING '));
+    offending.push({ spec: doc.rel, exitCode: status, rows: rows.length ? rows : [`mutation-gate.mjs exited ${status}: ${out.trim()}`] });
+  }
+  if (offending.length === 0) return { severity: 'none' };
+  const dial = readGuardConfig(path.join(ROOT, 'docs/ai')).mutation_gate;
+  const reason = offending.map((o) => `${o.spec}: ${o.rows.join('; ')}`).join(' | ');
+  return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, offending, reason };
+}
+
 // Best-effort remediation-friction capture. Fires ONLY on a real close (called
 // once from the main() success path). Isolation mirrors the wrapper's capture
 // point: honors the AAI_FRICTION_CAPTURE off-switch, and writes only when the
@@ -1733,6 +1772,22 @@ function main() {
     process.stderr.write(`close-work-item: WARNING (evidence-path gate) — ${evidenceGate.reason}\n`);
   }
 
+  // spec-mutation-gate-for-tests D12 — close-time mutation gate for every
+  // resolved doc that is itself a spec. Same pre-write discipline as the
+  // three gates above: evaluated BEFORE anything that could write (including
+  // the idempotency short-circuit's own INDEX regen below); --dry-run
+  // reports the verdict in its JSON below and never acts on it. New exit 8
+  // (3, 4, 5 are the three gates above, 6 is the STATE-reconcile PARTIAL, 7
+  // is the HEAD pin).
+  const mutationGate = evaluateMutationGate(resolved);
+  if (!args.dryRun && mutationGate.severity === 'refuse') {
+    process.stderr.write(`close-work-item: REFUSED (mutation gate) — ${mutationGate.reason}\n`);
+    exit(8);
+  }
+  if (!args.dryRun && mutationGate.severity === 'warn') {
+    process.stderr.write(`close-work-item: WARNING (mutation gate) — ${mutationGate.reason}\n`);
+  }
+
   // spec-close-leaves-state-stale D1 — plan the STATE reconcile pre-write,
   // alongside the three gates above. PURE: computes what WOULD run; nothing
   // is written or executed here (that happens strictly after self-verify,
@@ -1781,6 +1836,7 @@ function main() {
         productDocGate,
         usageCaptureGate: usageGate,
         evidencePathGate: evidenceGate,
+        mutationGate,
         stateReconcile: { severity: statePlan.severity, reason: statePlan.reason ?? null, statePath: statePlan.statePath, commands: statePlan.echo },
         productDocUpdate: productDocPlan
           ? { path: productDocGate.productDocPath, needsUpdate: productDocPlan.needsUpdate }

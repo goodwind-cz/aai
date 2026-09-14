@@ -457,6 +457,102 @@ EOS
   log_pass "TEST-481 replay exits 0 when every live record still reddens, names a record that no longer reddens once the code changes, and reports INCONCLUSIVE for a record whose target vanished"
 }
 
+# --- TEST-480 — Spec-AC-10: canon carries the rule --------------------------
+# .aai/SKILL_TDD.prompt.md GREEN, .aai/VALIDATION.prompt.md step 5g and
+# .aai/ROLE_COMMON.md each name the mutation obligation AND a runnable
+# mutation-run.mjs command line -- asserted by actually feeding the EXTRACTED
+# command line's flags to the REAL delivered CLI (never a re-implementation
+# of its arg grammar), so a prompt that names a flag the tool does not accept
+# fails this test rather than merely "looking right" to a human reader.
+test_480_canon_prose_carries_rule() {
+  log_info "Test: canon prose (SKILL_TDD GREEN, VALIDATION 5g, ROLE_COMMON) names the mutation obligation with a command line that parses against the real mutation-run.mjs CLI (TEST-480)..."
+  local skill_tdd="$PROJECT_ROOT/.aai/SKILL_TDD.prompt.md"
+  local validation="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
+  local role_common="$PROJECT_ROOT/.aai/ROLE_COMMON.md"
+  local f
+  for f in "$skill_tdd" "$validation" "$role_common"; do
+    [[ -f "$f" ]] || log_fail "TEST-480: $f not found"
+    grep -qi 'mutation' "$f" || log_fail "TEST-480: $f never mentions mutation at all"
+    grep -qF 'mutation-run.mjs' "$f" || log_fail "TEST-480: $f never names mutation-run.mjs"
+  done
+
+  local fx; fx="$(mg_new_fixture)"
+  cat > "$fx/t480_check.mjs" <<'NODE'
+import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
+
+const [, , mutationRun, ...files] = process.argv;
+
+// The CLI's OWN recognized flag set (mirrors mutation-run.mjs parseArgs --
+// this list is never itself trusted as proof; every span below is also
+// actually RUN against the real CLI below, which is the load-bearing check).
+const RECOGNIZED = new Set([
+  '--spec', '--test-id', '--suite', '--selector', '--target',
+  '--sed', '--patch', '--replay', '--help', '-h',
+]);
+
+const SUBS = {
+  '<spec-path>': 'docs/specs/mg-t480-does-not-exist.md',
+  '<path>': 'docs/specs/mg-t480-does-not-exist.md',
+  'TEST-xxx': 'TEST-9001',
+  '<suite>': 'tests/skills/mg-t480-does-not-exist.sh',
+  '<test_fn>': 'test_dummy',
+  "'<expr>'": "s/a/b/",
+};
+
+const failures = [];
+for (const file of files) {
+  const content = fs.readFileSync(file, 'utf8');
+  // Only a backtick span that is itself a RUNNABLE invocation (starts with
+  // "node") counts as "the runnable command line" — a bare `mutation-run.mjs`
+  // filename mention elsewhere in the same file is real prose but not a
+  // command, so it must never be silently swept into the same span by a
+  // later, unrelated pair of backticks.
+  const spans = [...content.matchAll(/`(node[^`]*mutation-run\.mjs[^`]*)`/gs)].map((m) => m[1]);
+  if (spans.length === 0) {
+    failures.push(`${file}: no backtick-quoted "node .../mutation-run.mjs ..." command line found`);
+    continue;
+  }
+  for (const raw of spans) {
+    const normalized = raw.replace(/\s+/g, ' ').trim();
+    const tokens = normalized.split(' ');
+    const idx = tokens.findIndex((t) => t.endsWith('mutation-run.mjs'));
+    if (idx === -1) {
+      failures.push(`${file}: span "${normalized}" has no mutation-run.mjs token`);
+      continue;
+    }
+    const args = tokens.slice(idx + 1).map((t) => (t in SUBS ? SUBS[t] : t));
+    for (const t of args) {
+      if (t.startsWith('--') && !RECOGNIZED.has(t)) {
+        failures.push(`${file}: span "${normalized}" uses an unrecognized flag ${t}`);
+      }
+    }
+    let out = '';
+    try {
+      out = execFileSync(process.execPath, [mutationRun, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (err) {
+      out = `${err.stdout ?? ''}${err.stderr ?? ''}`;
+    }
+    if (/unrecognized argument/.test(out)) {
+      failures.push(`${file}: span "${normalized}" was refused by the REAL CLI's own arg parser: ${out.trim()}`);
+    }
+  }
+}
+if (failures.length) {
+  console.error(failures.join('\n'));
+  process.exit(1);
+}
+console.log('ok');
+NODE
+
+  local out
+  out="$(cd "$PROJECT_ROOT" && node "$fx/t480_check.mjs" "$MUTATION_RUN" "$skill_tdd" "$validation" "$role_common" 2>&1)" \
+    || log_fail "TEST-480: canon command-line parse check failed against the real CLI: $out"
+  assert_payload_contains "$out" 'ok' "TEST-480: parse-check script did not report ok: $out"
+
+  log_pass "TEST-480 SKILL_TDD GREEN, VALIDATION step 5g and ROLE_COMMON each name the mutation obligation with a command line that parses cleanly against the real mutation-run.mjs CLI"
+}
+
 # --- TEST-475 — Spec-AC-05: gate refusals, every offending row named -------
 test_475_gate_refusals() {
   log_info "Test: mutation-gate.mjs collects EVERY offending Test Plan row, never just the first (TEST-475)..."
@@ -735,6 +831,7 @@ main() {
   test_472_runner_refusals
   test_474_three_verdicts_and_rotation
   test_481_replay
+  test_480_canon_prose_carries_rule
   test_475_gate_refusals
   test_476_gate_degrade
   test_486_gate_reads_this_ride

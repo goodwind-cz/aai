@@ -809,7 +809,14 @@ test_012_growth_sum_matches_ledger() {
   # (+183 B) -- SKILL_PR step 4c actually gains the clear-focus --ref <slug>
   # line after close-work-item.mjs (D3's own non-inertness clause, missing
   # in round 1), credited 1:1, headroom unchanged at 2046/2048.
-  local want_growth=31803
+  # Then 31803 -> 32826: mutation-gate-for-tests D13 (+1023 B) -- SKILL_TDD
+  # GREEN step 3 + BLOCK line name the mutation-run.mjs RED obligation,
+  # VALIDATION step 5g gains the --replay re-run sentence, ROLE_COMMON's
+  # evidence rule names the record path shape plus its own runnable
+  # mutation-run.mjs --replay command, SKILL_PR's AMENDMENT GATE bullet is
+  # corrected for D11's second violation class, credited 1:1, headroom
+  # returns to 2046/2048.
+  local want_growth=32826
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

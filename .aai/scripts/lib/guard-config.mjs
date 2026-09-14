@@ -37,7 +37,16 @@ export const GUARD_CONFIG_BASENAME = 'docs-audit.yaml';
 // choose warn-vs-refuse when a closing doc's AC Status Evidence cells cite a
 // path-shaped token that does not resolve from the repo root. Close-only —
 // the shell greps deliberately do not cover it either.
-export const GUARD_DIALS = ['independence', 'close_gate', 'doc_number_guard', 'product_doc_gate', 'usage_capture_gate', 'evidence_path_gate'];
+// `mutation_gate` (spec-mutation-gate-for-tests D12) is the sixth dial of the
+// same shape: consulted by close-work-item.mjs to choose warn-vs-refuse when
+// a closing ride's spec is applicable (mutation_gate: v1 marker + tdd/hybrid
+// strategy) and mutation-gate.mjs exits non-zero for it. Unlike the other
+// five, AAI core SHIPS this one `enforce` (this repository is the one making
+// the mutation-evidence claim) rather than report-only — readGuardConfig's
+// own fail-open DEFAULT below stays report-only regardless (an absent key in
+// a vendored project must still fail open), only the shipped
+// docs/ai/docs-audit.yaml line differs.
+export const GUARD_DIALS = ['independence', 'close_gate', 'doc_number_guard', 'product_doc_gate', 'usage_capture_gate', 'evidence_path_gate', 'mutation_gate'];
 
 // Presence probe shared with docs-audit.mjs mode detection (enforced vs
 // report-only hangs off this file's existence — documented coupling, D8).
@@ -66,6 +75,7 @@ export function readGuardConfig(dir, opts = {}) {
     product_doc_gate: 'report-only',
     usage_capture_gate: 'report-only',
     evidence_path_gate: 'report-only',
+    mutation_gate: 'report-only',
   };
   let raw;
   try {
@@ -81,7 +91,7 @@ export function readGuardConfig(dir, opts = {}) {
     // comment ("enforce# note") therefore yields the token "enforce#", which
     // fails the closed-set check below and falls open WITH a warning — the
     // same verdict the hooks' grep boundary (enforce([[:space:]]|$)) reaches.
-    const m = line.match(/^(independence|close_gate|doc_number_guard|product_doc_gate|usage_capture_gate|evidence_path_gate):\s*(\S+)/);
+    const m = line.match(/^(independence|close_gate|doc_number_guard|product_doc_gate|usage_capture_gate|evidence_path_gate|mutation_gate):\s*(\S+)/);
     if (!m || seen.has(m[1])) continue;   // column-0 only; first occurrence wins
     seen.add(m[1]);
     if (m[2] !== 'enforce' && m[2] !== 'report-only') {

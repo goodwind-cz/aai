@@ -11,6 +11,35 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(gate): the close ceremony refuses a TDD ride whose Test Plan has a row with no RED mutation
+
+- **Canon carries the mutation obligation** (D13, Spec-AC-10): `SKILL_TDD.prompt.md`
+  GREEN and its BLOCK line, `VALIDATION.prompt.md` step 5g, and `ROLE_COMMON.md`'s
+  evidence rule each name `mutation-run.mjs` with a runnable command line —
+  asserted by actually feeding the extracted command to the real CLI, never by a
+  human eyeballing the text. `SKILL_PR.prompt.md`'s AMENDMENT GATE bullet is
+  corrected in place for D11's second violation class (`classify` for a record,
+  `add` for an undisclosed spec amendment). Prompt-diet ledger trued up +1023 B,
+  headroom back at 2046/2048.
+- **`close-work-item.mjs` gains the sixth dialed close-time gate** (D12,
+  Spec-AC-07): a closing ride whose spec is applicable and whose
+  `mutation-gate.mjs` run exits non-zero is refused (new exit 8) under
+  `mutation_gate: enforce`, naming the offending rows; `report-only` or an
+  absent key warns and continues. AAI core ships this one dial `enforce` — the
+  new sixth entry in `lib/guard-config.mjs`'s `GUARD_DIALS`.
+- **The pin is re-cut in the same commit** (Spec-AC-19): `close-work-item-pin.sh`
+  gains a new itemized allowlist entry for the mutation-gate wiring, and its
+  own prose is corrected — the STATE reconcile is invoked from BOTH success
+  tails (the D6.2 idempotency short-circuit never enters the try/catch at
+  all), never "strictly after" it as an older entry wrongly claimed
+  (`fu-closeworkitem-pin-tail-wording`).
+- **Registry**: `fu-test-selector-unknown-id-passes`, `fu-spec-amend-terminal-tracker-counts`
+  and `fu-closeworkitem-pin-tail-wording` closed for real; `fu-mutation-gate-skips-pester`
+  (P3) filed for the Pester/PowerShell gap this ride explicitly leaves open (D18).
+- This spec's own Test Plan is now gated by the tool it delivers: `mutation-gate.mjs`
+  against `SPEC-DRAFT-spec-mutation-gate-for-tests.md` exits 0, `degraded=0`,
+  all 21 rows RED-recorded (Spec-AC-16).
+
 ## [unreleased] — feat(tests): the test framework is fast, hermetic and honest about what it ran
 
 - **Refilling queue instead of wave barriers** in `tests/skills/test-framework.sh`

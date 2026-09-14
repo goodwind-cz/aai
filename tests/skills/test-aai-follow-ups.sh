@@ -2232,6 +2232,68 @@ test_033_reopen_appends_open_status() {
   log_pass "follow-ups.mjs reopen appends a new open follow_up_status record (append-only), refuses on an unknown id / a missing --reason / an already-open id, the fold reads the item as open again, and --help documents it (TEST-456)"
 }
 
+# TEST-490 (Spec-AC-19, spec-mutation-gate-for-tests D12/implementation plan
+# step 11) — the close-work-item.mjs pin re-cut for the mutation-gate close
+# wiring. close_work_item_pin_assert over the LIVE tree returns OK for the
+# edited file (the new itemized allowlist entry covers its current bytes);
+# the allowlist's prose no longer claims the STATE reconcile runs strictly
+# after the try or catch block (false on the D6.2 idempotency short-circuit,
+# fu-closeworkitem-pin-tail-wording); and reverting the new allowlist entry
+# reproduces the MISMATCH message naming the recomputed hash.
+test_034_mutation_gate_pin_recut() {
+  log_info "Test: close-work-item.mjs pin re-cut for the mutation-gate close wiring — live tree asserts OK, the tail-wording defect is gone, and dropping the new entry reproduces MISMATCH naming the recomputed hash (Spec-AC-19, TEST-490)..."
+
+  # (1) The live, edited close-work-item.mjs must be on the allowlist.
+  local result
+  result="$(close_work_item_pin_assert "$PROJECT_ROOT")" \
+    || log_fail "TEST-490: close_work_item_pin_assert must accept the live, edited close-work-item.mjs: $result"
+  assert_payload_line_matches "$result" '^OK [0-9a-f]{64}$' \
+    "TEST-490: close_work_item_pin_assert did not report OK <hash>: $result"
+
+  # (2) No allowlist entry may claim the reconcile runs STRICTLY AFTER the
+  # try or catch block -- that is false on the D6.2 idempotency short-circuit
+  # path, which never enters the try/catch at all.
+  if grep -qE 'strictly after the (existing )?try[/ ]?(or )?catch' "$SCRIPT_DIR/lib/close-work-item-pin.sh"; then
+    log_fail "TEST-490: an allowlist entry still claims the STATE reconcile runs strictly after the try/catch block (false on the D6.2 short-circuit path)"
+  fi
+
+  # (3) Mutation proof, over a SCRATCH copy of the pin library (never the
+  # live one this suite sources): reverting the allowlist entry covering the
+  # CURRENT close-work-item.mjs bytes must turn the assert MISMATCH, naming
+  # the recomputed (i.e. the same, still-live) hash.
+  local scratch_pin; scratch_pin="$(mktemp "${TMPDIR:-/tmp}/aai-fu-t490-pin.XXXXXX")"
+  cp "$SCRIPT_DIR/lib/close-work-item-pin.sh" "$scratch_pin"
+  local real_hash; real_hash="$(close_work_item_pin_check "$PROJECT_ROOT")"; real_hash="${real_hash#OK }"
+  node -e '
+    const fs = require("fs");
+    const [file, hash] = process.argv.slice(1);
+    let src = fs.readFileSync(file, "utf8");
+    const needle = "  \"" + hash + " ";
+    const lineStart = src.indexOf(needle);
+    if (lineStart === -1) {
+      console.error("the current hash has no allowlist entry to remove");
+      process.exit(1);
+    }
+    const lineEnd = src.indexOf("\n", lineStart) + 1;
+    src = src.slice(0, lineStart) + src.slice(lineEnd);
+    fs.writeFileSync(file, src);
+  ' "$scratch_pin" "$real_hash" \
+    || log_fail "TEST-490: could not remove the current allowlist entry from the scratch pin copy"
+
+  local mutated_result
+  mutated_result="$(
+    unset -f close_work_item_pin_check close_work_item_pin_assert 2>/dev/null || true
+    # shellcheck source=lib/close-work-item-pin.sh
+    . "$scratch_pin"
+    close_work_item_pin_check "$PROJECT_ROOT"
+  )"
+  assert_payload_contains "$mutated_result" "MISMATCH $real_hash" \
+    "TEST-490: reverting the newest allowlist entry did not reproduce MISMATCH naming the recomputed hash ($real_hash): $mutated_result"
+  rm -f "$scratch_pin"
+
+  log_pass "close-work-item.mjs pin re-cut: live tree asserts OK, the tail-wording defect is corrected, and dropping the newest entry reproduces MISMATCH naming the recomputed hash (Spec-AC-19, TEST-490)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-followup-registry TEST-001..005, 008, 009; role-verification-guards TEST-010/Spec-AC-09 N1)"
   echo "  + followups-cli-hardening TEST-011..015,017"
@@ -2270,6 +2332,7 @@ main() {
   test_031_both_registry_items_closed_for_real
   test_032_spec_test_framework_sweep_closure_is_real
   test_033_reopen_appends_open_status
+  test_034_mutation_gate_pin_recut
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

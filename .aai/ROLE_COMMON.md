@@ -64,7 +64,10 @@ completed work:
   citation under a still-open `status` is the exact shape
   `docs-audit --check` reads as probable-false-open. The delivery citation is
   written by the close flip (`.aai/SKILL_PR.prompt.md` step 4c), in the same
-  transaction as the frontmatter `status`.
+  transaction as the frontmatter `status`. A TDD row's mutation evidence
+  lives ONLY at `docs/ai/tdd/<spec-id>/mutation-<TEST-id>.txt`, confirmed via
+  `node .aai/scripts/mutation-run.mjs --replay --spec <spec-path>` — a role
+  that stores it elsewhere is wrong by canon.
 - A row you truthfully cannot finish gets `deferred`/`blocked` with a FUTURE
   Review-By date plus Notes — never a fabricated `done`.
 - Emit `ac_status` events (best-effort):

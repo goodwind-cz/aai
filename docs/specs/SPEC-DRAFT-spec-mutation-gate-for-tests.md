@@ -3,7 +3,7 @@ id: spec-mutation-gate-for-tests
 type: spec
 number: null
 status: implementing
-frozen_sha256: 780e0ae4acd0a63b76bb27af0ddddbf752c7b2e3471b7a6d770ef2de88c8329a
+frozen_sha256: 63992ddf9da340a8a9f3f9b5eda6964b98cd1b00a22ed2137416b8183c818483
 ceremony_level: 2
 mutation_gate: v1
 links:
@@ -862,10 +862,10 @@ evidence, produced by `mutation-run.mjs` itself.
 | TEST-474 | Spec-AC-04 | integration | tests/skills/test-aai-mutation-gate.sh | Three verdicts and no deletion — a mutation the test cannot see records STAYED GREEN and exits 5; a mutation that breaks the target's syntax records INCONCLUSIVE and exits 6; a second run over an existing record leaves the first file present under its run-stamped name with its original bytes. | Collapse the INCONCLUSIVE branch into RED (classify on rc alone), so a suite that died for another reason is recorded as proof. | green |
 | TEST-475 | Spec-AC-05 | integration | tests/skills/test-aai-mutation-gate.sh | Gate refusals — five fixture specs, each with one defective row (empty Mutation cell, absent record, verdict STAYED GREEN, record whose test_id names another row, base_commit on an orphan commit), each exit 5 with that row named; a fixture with two defective rows names BOTH; an all-satisfied fixture exits 0. | Make the gate return after the first offending row instead of collecting them all; the two-defective-rows arm must redden while the single-row arms stay green. | green |
 | TEST-476 | Spec-AC-06 | integration | tests/skills/test-aai-mutation-gate.sh | Degrade and could-not-run — a spec without the marker, a spec whose strategy is direct, and an applicable spec whose evidence directory does not exist each exit 0 with a summary line carrying degraded and the class; --list-degraded prints per-row detail and the default run does not; an unreadable spec exits 3 and a tree with no git exits 3. | Make the absent-evidence-directory case exit 0 with degraded=0 and no class named, the silent-pass shape the whole ride exists to refuse. | green |
-| TEST-477 | Spec-AC-07 | integration | tests/skills/test-aai-close-work-item.sh | Close wiring — a fixture ride whose spec is applicable and whose gate exits 5 is refused by close-work-item.mjs under mutation_gate enforce, naming the rows, with the doc statuses unflipped; the same fixture under report-only warns on stderr and closes; a fixture whose spec has no marker closes identically under both settings; an absent key behaves as report-only. | Invert the dial default so an absent mutation_gate key means enforce; the absent-key arm must redden, proving the fail-open default is asserted rather than assumed. | pending |
+| TEST-477 | Spec-AC-07 | integration | tests/skills/test-aai-close-work-item.sh | Close wiring — a fixture ride whose spec is applicable and whose gate exits 5 is refused by close-work-item.mjs under mutation_gate enforce, naming the rows, with the doc statuses unflipped; the same fixture under report-only warns on stderr and closes; a fixture whose spec has no marker closes identically under both settings; an absent key behaves as report-only. | Invert the dial default so an absent mutation_gate key means enforce; the absent-key arm must redden, proving the fail-open default is asserted rather than assumed. | green |
 | TEST-478 | Spec-AC-08 | integration | tests/skills/test-aai-spec-lint.sh | Mutation cell lint — an applicable fixture spec with a missing column, an empty cell and a placeholder cell each produce the named finding and exit 1; a terminal fixture spec and an unmarked fixture spec each exit 0 with the applied exemption named in the output. | Drop the terminal-status exemption, so a done spec is linted; the exemption arms must redden while the finding arms stay green. | green |
 | TEST-479 | Spec-AC-09 | integration | tests/skills/test-aai-spec-lint.sh | Column back-compat — a six-column and a seven-column fixture table parse into the same row shape with the same Spec-AC and file-path values; a table whose columns are reordered still resolves by header name; and a spec-lint run over the live docs/specs corpus reports zero findings mentioning the Mutation column. | Restore positional column indexing in the Test Plan reader; the reordered-header arm and the six-column arm must redden. | green |
-| TEST-480 | Spec-AC-10 | unit | tests/skills/test-aai-mutation-gate.sh | Canon carries the rule — .aai/SKILL_TDD.prompt.md GREEN, .aai/VALIDATION.prompt.md step 5g and .aai/ROLE_COMMON.md each contain the mutation obligation AND a runnable mutation-run.mjs command line; the command lines named there are asserted to parse as valid invocations of the delivered CLI rather than merely to exist as text. | Change the command line in one prompt to a flag the CLI does not accept; the parse arm must redden while the presence arm stays green. | pending |
+| TEST-480 | Spec-AC-10 | unit | tests/skills/test-aai-mutation-gate.sh | Canon carries the rule — .aai/SKILL_TDD.prompt.md GREEN, .aai/VALIDATION.prompt.md step 5g and .aai/ROLE_COMMON.md each contain the mutation obligation AND a runnable mutation-run.mjs command line; the command lines named there are asserted to parse as valid invocations of the delivered CLI rather than merely to exist as text. | Change the command line in one prompt to a flag the CLI does not accept; the parse arm must redden while the presence arm stays green. | green |
 | TEST-481 | Spec-AC-11 | integration | tests/skills/test-aai-mutation-gate.sh | Replay — a spec with two RED records replays to exit 0; with the code under test fixed so one mutation no longer reddens, replay exits non-zero naming that record; with a record whose target file has been deleted, replay reports INCONCLUSIVE for it and exits non-zero. | Make --replay skip a record whose target is missing instead of reporting it; the deleted-target arm must redden. | green |
 | TEST-482 | Spec-AC-12 | integration | tests/skills/test-aai-spec-amend.sh | Undisclosed amendment is caught — a fixture spec is frozen by the real spec-freeze.mjs, a Spec-AC Description cell is then edited with no record, and list --strict exits non-zero naming the spec and printing the add line; that line is captured from the output and run verbatim, after which strict exits 0 and frozen_sha256 matches the edited projection. | Compare the stored hash against the WHOLE file instead of the contract projection; the status-flip arm of TEST-483 must redden and this test must stay green, proving the two tests separate the projection from the file. | green |
 | TEST-483 | Spec-AC-13 | integration | tests/skills/test-aai-spec-amend.sh | Honest edits and non-targets — a frozen fixture spec edited WITH a record passes whether the record is signed or unsigned-tracked; an unfrozen spec, a non-spec document and a frozen spec whose only edits are Status, Evidence, Review-By and Notes cells plus a Test Plan Status cell each leave the gate's output byte-identical to the unedited run. | Include the AC-table Status and Evidence cells in the projection; the bookkeeping-edit arm must redden, which is the arm that keeps the gate from firing on every TDD cycle. | green |
@@ -873,10 +873,10 @@ evidence, produced by `mutation-run.mjs` itself.
 | TEST-485 | Spec-AC-15 | integration | tests/skills/test-aai-spec-amend.sh | Tracker must be open — a record whose tracked_by item is open stays unsigned-tracked and passes strict; the same record with that item closed, and again with it dropped, is classified unsigned-untracked and refused; the refusal names the item and its status. | Restore the existence-only bucketing (trackedItem !== null); the closed-tracker and dropped-tracker arms must redden. | green |
 | TEST-486 | Spec-AC-16 | integration | tests/skills/test-aai-mutation-gate.sh | The gate reads this ride — a fixture copy of this spec together with the real records produced for every row of this Test Plan is gated and exits 0 with degraded=0; the same fixture with one record removed exits 5 naming that row. | Remove the base_commit ancestry check; the arm that plants a record from an orphan commit must redden, proving the ancestry rule is exercised by this spec's own evidence and not only by a synthetic fixture. | green |
 | TEST-487 | Spec-AC-18 | unit | tests/skills/test-aai-hygiene-pack.sh | Suite registration — the suite-map row-count pin reads 95 and matches the live row count, every test-aai-*.sh has a row, check-test-registration.mjs exits 0 over the live tree, and select-suites.mjs given .aai/scripts/mutation-gate.mjs returns the new suite. | Delete the new suite's suite-map.yaml row; the existence arm must redden naming the unregistered suite and the count arm must redden on 94 against a pin of 95. | green |
-| TEST-490 | Spec-AC-19 | unit | tests/skills/test-aai-follow-ups.sh | Pin re-cut — close_work_item_pin_assert over the live tree returns OK for the edited close-work-item.mjs, the allowlist carries a new entry whose prose re-affirms both frozen invariants, and a grep asserts no allowlist entry claims the reconcile runs strictly after the try or catch block. | Revert the new allowlist entry; the assert arm must redden with the MISMATCH message naming the recomputed hash. | pending |
+| TEST-490 | Spec-AC-19 | unit | tests/skills/test-aai-follow-ups.sh | Pin re-cut — close_work_item_pin_assert over the live tree returns OK for the edited close-work-item.mjs, the allowlist carries a new entry whose prose re-affirms both frozen invariants, and a grep asserts no allowlist entry claims the reconcile runs strictly after the try or catch block. | Revert the new allowlist entry; the assert arm must redden with the MISMATCH message naming the recomputed hash. | green |
 | TEST-488 | Spec-AC-18 | unit | tests/skills/test-aai-layer-profiles.sh | Classification — the union check over the live .aai tree passes and each of mutation-run.mjs, mutation-gate.mjs, lib/mutation-record.mjs and lib/spec-contract-hash.mjs is asserted present in exactly one of the two lists. | Remove one of the four new files from PROFILES.yaml; the union check must redden naming that file. | green |
 | TEST-489 | Spec-AC-17 | integration | tests/skills/test-aai-spec-tools.sh | Freeze writes the anchors atomically — a fixture tdd spec with a Mutation column gains SPEC-FROZEN true, status implementing, frozen_sha256 and mutation_gate v1 in one write; a fixture whose strategy is direct gains the anchor but not the marker; and a fixture that fails an existing freeze precondition is left byte-identical with none of the four written. | Write frozen_sha256 in a second pass after the status write; the refusal arm must redden with a half-written file, which is the atomicity claim. | green |
-| TEST-012 | Spec-AC-10 | unit | tests/skills/test-aai-prompt-diet.sh | Corpus true-up — the existing checkpoint re-sums against the JUSTIFIED_ADDITIONS entry added for this ride's SKILL_TDD, VALIDATION and ROLE_COMMON bytes, so the measured growth equals the credited growth and headroom returns to 2046. | Add one uncredited byte to .aai/SKILL_TDD.prompt.md; TEST-010's headroom arm must redden and the TEST-012 re-sum must stay green, proving the two checks are independent. | pending |
+| TEST-012 | Spec-AC-10 | unit | tests/skills/test-aai-prompt-diet.sh | Corpus true-up — the existing checkpoint re-sums against the JUSTIFIED_ADDITIONS entry added for this ride's SKILL_TDD, VALIDATION and ROLE_COMMON bytes, so the measured growth equals the credited growth and headroom returns to 2046. | Add one uncredited byte to .aai/SKILL_TDD.prompt.md; TEST-010's headroom arm must redden and the TEST-012 re-sum must stay green, proving the two checks are independent. | green |
 
 Every Spec-AC has at least one TEST row and every TEST row names exactly one
 Spec-AC. Every row carries a Mutation cell — the column this ride introduces,
@@ -1102,3 +1102,53 @@ NOT CLOSED, with the reason:
 
 None filed by this scope. `fu-mutation-gate-skips-pester` (P3) is filed in the
 registry at implementation time, per D18.
+
+## Amendment (post-freeze, 2026-09-14 — TDD run 3's two Mutation-cell deviations)
+
+Two Test Plan rows record a mutation that differs from the one their own
+Mutation cell names (the cells are left VERBATIM — an amendment discloses,
+never silently edits, the frozen contract projection). Both were found while
+producing this spec's own mutation records (implementation step 7, run 3);
+this section is the disclosure the D11 mechanism exists to require, dogfooded
+on this spec itself the moment `spec-freeze.mjs` first stamps its
+`frozen_sha256` (Seam S8).
+
+- **TEST-482 (Spec-AC-12).** The cell reads: "Compare the stored hash against
+  the WHOLE file instead of the contract projection; the status-flip arm of
+  TEST-483 must redden and this test must stay green, proving the two tests
+  separate the projection from the file." A literal whole-file hash cannot be
+  built: `frozen_sha256` is a field INSIDE the file being hashed, so hashing
+  "the whole file" is self-referential the moment the field is written — there
+  is no well-defined "before" state to compare against. The actually recorded
+  mutation (`docs/ai/tdd/spec-mutation-gate-for-tests/mutation-TEST-482.txt`)
+  instead disables `lib/spec-contract-hash.mjs`'s frontmatter-stripping line
+  (`if (fm) norm = norm.slice(fm[0].length);` -> `if (false) ...`), which
+  folds the frontmatter block — `frozen_sha256` included — into the hashed
+  projection, the closest coherent approximation of "hash more than the
+  projection" available. It reddens TEST-482 itself directly (the baseline
+  strict run, re-hashed with the frontmatter included, is no longer clean),
+  which is a STRONGER proof than the cell's original two-test-separation
+  design: it demonstrates the projection/frontmatter split is load-bearing
+  for THIS test's own record, not only inferred from a sibling's behavior.
+- **TEST-489 (Spec-AC-17).** The cell reads: "Write `frozen_sha256` in a
+  second pass after the status write; the refusal arm must redden with a
+  half-written file, which is the atomicity claim." `spec-freeze.mjs` writes
+  its whole output as ONE in-memory transform followed by ONE
+  `writeFileSync` (measurement 17) — there is no second write pass to move
+  code into, so a "second-pass write" mutation cannot be expressed against
+  the delivered structure. The actually recorded mutation
+  (`docs/ai/tdd/spec-mutation-gate-for-tests/mutation-TEST-489.txt`) instead
+  disables the change-detection guard around the write
+  (`if (changed) {` -> `if (false) {`), which reddens the row's own
+  "freeze writes anchors atomically" assertion directly — the one-write
+  structure has no seam a second-pass mutation could target, so the guard
+  immediately around the single write is the nearest real fault injection
+  the atomicity claim admits.
+
+`SPEC-FROZEN: true` is preserved; nothing above moves or deletes an existing
+AC's or Test Plan row's text — the Mutation cells stay exactly as frozen, and
+this section is the disclosure that their prose and their evidence
+legitimately diverge, with the reason named for both. Every fact above was
+verified against the real record files and the real source lines before this
+Amendment was written (`docs/knowledge/LEARNED.md` "Amendment record from
+text, not report").

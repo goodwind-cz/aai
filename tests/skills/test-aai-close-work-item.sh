@@ -466,6 +466,117 @@ set_product_doc_gate_dial() {
   printf 'product_doc_gate: %s\n' "$value" >> "$dir/docs/ai/docs-audit.yaml"
 }
 
+# --- mutation-gate fixture builders (spec-mutation-gate-for-tests D12) ------
+
+# set_mutation_gate_dial <fixture_dir> <enforce|report-only|bogus> — appends
+# the dial to the fixture's docs-audit.yaml (first occurrence wins in
+# guard-config.mjs's column-0 scan; the base fixture has no such line).
+set_mutation_gate_dial() {
+  local dir="$1" value="$2"
+  printf 'mutation_gate: %s\n' "$value" >> "$dir/docs/ai/docs-audit.yaml"
+}
+
+# seed_mutation_gate_engine <fixture_dir> — close-work-item.mjs's mutation
+# gate SHELLS OUT to the real .aai/scripts/mutation-gate.mjs (D1's own
+# "one definition" rule — never a reimplementation of its row-reading
+# logic), so a throwaway fixture repo (which otherwise carries only a stub
+# state.mjs, per new_fixture_repo) must vendor that script plus its three
+# sibling lib modules (stdlib-only, no further deps) for the real CLI to
+# resolve when close-work-item.mjs spawns it against the fixture's own cwd.
+seed_mutation_gate_engine() {
+  local dir="$1"
+  mkdir -p "$dir/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/mutation-gate.mjs" "$dir/.aai/scripts/mutation-gate.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$dir/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/docs-model.mjs" "$dir/.aai/scripts/lib/docs-model.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/mutation-record.mjs" "$dir/.aai/scripts/lib/mutation-record.mjs"
+}
+
+# write_mutation_gate_applicable_spec_doc <path> <id> <status> — an
+# applicable (marker + tdd strategy) spec fixture with ONE Test Plan row
+# whose Mutation cell is valid but has NO record on disk. The caller must
+# ALSO create the evidence DIRECTORY (mkdir -p
+# "$dir/docs/ai/tdd/<id>") — with the directory present but empty, the real
+# mutation-gate.mjs exits 5 naming the row as a missing record (never the
+# whole-spec DEGRADED shape, which needs the directory itself absent).
+write_mutation_gate_applicable_spec_doc() {
+  local path="$1" id="$2" status="$3"
+  cat > "$path" <<EOF
+---
+id: $id
+type: spec
+number: null
+status: $status
+ceremony_level: 2
+mutation_gate: v1
+links:
+  requirement: null
+  rfc: null
+  pr: []
+  commits: []
+---
+
+# SPEC — Fixture $id
+
+SPEC-FROZEN: true
+
+## Implementation strategy
+- Strategy: tdd
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence   | Review-By | Notes |
+|------------|--------------|--------|------------|-----------|-------|
+| Spec-AC-01 | fixture      | done   | commit-abc | —         | —     |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected)          | Description | Mutation       | Status |
+|----------|------------|------|--------------------------------|--------------|-----------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/skills/fixture-suite.sh | fixture      | sed:s/OLD/NEW/  | green  |
+EOF
+}
+
+# write_mutation_gate_unmarked_spec_doc <path> <id> <status> — same shape but
+# with NO mutation_gate marker: D9's degrade (pre-change spec), so the real
+# gate always exits 0 regardless of the close-time dial.
+write_mutation_gate_unmarked_spec_doc() {
+  local path="$1" id="$2" status="$3"
+  cat > "$path" <<EOF
+---
+id: $id
+type: spec
+number: null
+status: $status
+ceremony_level: 2
+links:
+  requirement: null
+  rfc: null
+  pr: []
+  commits: []
+---
+
+# SPEC — Fixture $id
+
+SPEC-FROZEN: true
+
+## Implementation strategy
+- Strategy: tdd
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence   | Review-By | Notes |
+|------------|--------------|--------|------------|-----------|-------|
+| Spec-AC-01 | fixture      | done   | commit-abc | —         | —     |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected)          | Description | Mutation       | Status |
+|----------|------------|------|--------------------------------|--------------|-----------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/skills/fixture-suite.sh | fixture      | sed:s/OLD/NEW/  | green  |
+EOF
+}
+
 # --- usage-capture-gate fixture builders (spec-telemetry-completeness) -------
 
 # set_usage_capture_gate_dial <fixture_dir> <enforce|report-only|bogus> —
@@ -3286,6 +3397,107 @@ test_066_stamp_pr_rejects_review_flag() {
   log_pass "--stamp-pr rejects a --review flag outside its grammar with a named usage error; PRE-fix script proven to silently accept and ignore it (TEST-066)"
 }
 
+# TEST-067 (Spec-AC-07, spec-mutation-gate-for-tests D12) — close-work-item.mjs
+# wires the REAL mutation-gate.mjs: enforce refuses (new exit 8) naming the
+# offending row with docs unflipped, report-only warns and closes, an
+# unmarked (pre-change) spec closes identically under both settings because
+# the gate itself degrades to exit 0, and an absent dial key behaves as
+# report-only (the shared fail-open default).
+test_067_mutation_gate_close_wiring() {
+  log_info "Test: close-work-item.mjs wires mutation-gate.mjs — enforce refuses naming the offending row, report-only warns and closes, an unmarked spec closes identically under both, an absent dial key behaves as report-only (Spec-AC-07, TEST-477)..."
+
+  # Arm A — applicable spec, gate exits 5 (missing record), mutation_gate:
+  # enforce -> refuse (exit 8), naming the row, BOTH docs left unflipped.
+  local dir_a; dir_a=$(new_fixture_repo "t067a")
+  seed_mutation_gate_engine "$dir_a"
+  set_mutation_gate_dial "$dir_a" "enforce"
+  write_change_doc "$dir_a/docs/issues/CHANGE-0001-t067a.md" "t067a-change" "implementing"
+  write_mutation_gate_applicable_spec_doc "$dir_a/docs/specs/SPEC-0001-t067a.md" "t067a-spec" "implementing"
+  mkdir -p "$dir_a/docs/ai/tdd/t067a-spec"
+  commit_fixture_docs "$dir_a"
+
+  local out="$TEST_DIR/t067a.out" err="$TEST_DIR/t067a.err" code
+  code=$(run_close "$dir_a" "$out" "$err" --ref t067a-change --spec t067a-spec --pr 67 --commit a067a067)
+  assert_exit "TEST-477 arm A: enforce refuses on a gate exit-5 spec" 8 "$code"
+  grep -qi 'REFUSED (mutation gate)' "$err" \
+    || log_fail "TEST-477 t067 arm A: expected a mutation-gate REFUSED line, got: $(cat "$err")"
+  grep -qF 'TEST-001' "$err" \
+    || log_fail "TEST-477 t067 arm A: REFUSED reason must name the offending row, got: $(cat "$err")"
+  grep -q '^status: done$' "$dir_a/docs/specs/SPEC-0001-t067a.md" \
+    && log_fail "TEST-477 t067 arm A: spec doc flipped to done despite an enforce refusal"
+  grep -q '^status: done$' "$dir_a/docs/issues/CHANGE-0001-t067a.md" \
+    && log_fail "TEST-477 t067 arm A: change doc flipped to done despite an enforce refusal"
+
+  # Arm B — SAME shape, mutation_gate: report-only -> warns on stderr, close
+  # proceeds to done.
+  local dir_b; dir_b=$(new_fixture_repo "t067b")
+  seed_mutation_gate_engine "$dir_b"
+  set_mutation_gate_dial "$dir_b" "report-only"
+  write_change_doc "$dir_b/docs/issues/CHANGE-0001-t067b.md" "t067b-change" "implementing"
+  write_mutation_gate_applicable_spec_doc "$dir_b/docs/specs/SPEC-0001-t067b.md" "t067b-spec" "implementing"
+  mkdir -p "$dir_b/docs/ai/tdd/t067b-spec"
+  commit_fixture_docs "$dir_b"
+
+  out="$TEST_DIR/t067b.out"; err="$TEST_DIR/t067b.err"
+  code=$(run_close "$dir_b" "$out" "$err" --ref t067b-change --spec t067b-spec --pr 67 --commit b067b067)
+  assert_exit "TEST-477 arm B: report-only warns and closes" 0 "$code"
+  grep -qi 'WARNING (mutation gate)' "$err" \
+    || log_fail "TEST-477 t067 arm B: expected a mutation-gate WARNING line, got: $(cat "$err")"
+  grep -q '^status: done$' "$dir_b/docs/specs/SPEC-0001-t067b.md" \
+    || log_fail "TEST-477 t067 arm B: report-only close must still proceed to done"
+
+  # Arm C — an UNMARKED (pre-change) spec closes identically under BOTH
+  # settings: the gate itself degrades to exit 0 (D9), so close-work-item.mjs
+  # never sees anything to warn/refuse about either way.
+  local dir_c1; dir_c1=$(new_fixture_repo "t067c1")
+  seed_mutation_gate_engine "$dir_c1"
+  set_mutation_gate_dial "$dir_c1" "enforce"
+  write_change_doc "$dir_c1/docs/issues/CHANGE-0001-t067c1.md" "t067c1-change" "implementing"
+  write_mutation_gate_unmarked_spec_doc "$dir_c1/docs/specs/SPEC-0001-t067c1.md" "t067c1-spec" "implementing"
+  commit_fixture_docs "$dir_c1"
+  out="$TEST_DIR/t067c1.out"; err="$TEST_DIR/t067c1.err"
+  code=$(run_close "$dir_c1" "$out" "$err" --ref t067c1-change --spec t067c1-spec --pr 67 --commit c167c167)
+  assert_exit "TEST-477 arm C (enforce): unmarked spec closes cleanly" 0 "$code"
+  if grep -qi 'mutation gate' "$err"; then
+    log_fail "TEST-477 t067 arm C (enforce): unmarked spec must never mention the mutation gate, got: $(cat "$err")"
+  fi
+  grep -q '^status: done$' "$dir_c1/docs/specs/SPEC-0001-t067c1.md" \
+    || log_fail "TEST-477 t067 arm C (enforce): unmarked spec did not close"
+
+  local dir_c2; dir_c2=$(new_fixture_repo "t067c2")
+  seed_mutation_gate_engine "$dir_c2"
+  set_mutation_gate_dial "$dir_c2" "report-only"
+  write_change_doc "$dir_c2/docs/issues/CHANGE-0001-t067c2.md" "t067c2-change" "implementing"
+  write_mutation_gate_unmarked_spec_doc "$dir_c2/docs/specs/SPEC-0001-t067c2.md" "t067c2-spec" "implementing"
+  commit_fixture_docs "$dir_c2"
+  out="$TEST_DIR/t067c2.out"; err="$TEST_DIR/t067c2.err"
+  code=$(run_close "$dir_c2" "$out" "$err" --ref t067c2-change --spec t067c2-spec --pr 67 --commit c267c267)
+  assert_exit "TEST-477 arm C (report-only): unmarked spec closes cleanly" 0 "$code"
+  if grep -qi 'mutation gate' "$err"; then
+    log_fail "TEST-477 t067 arm C (report-only): unmarked spec must never mention the mutation gate, got: $(cat "$err")"
+  fi
+  grep -q '^status: done$' "$dir_c2/docs/specs/SPEC-0001-t067c2.md" \
+    || log_fail "TEST-477 t067 arm C (report-only): unmarked spec did not close"
+
+  # Arm D — an ABSENT mutation_gate key behaves as report-only: same
+  # applicable/exit-5 fixture as arm A, but NO dial line at all.
+  local dir_d; dir_d=$(new_fixture_repo "t067d")
+  seed_mutation_gate_engine "$dir_d"
+  write_change_doc "$dir_d/docs/issues/CHANGE-0001-t067d.md" "t067d-change" "implementing"
+  write_mutation_gate_applicable_spec_doc "$dir_d/docs/specs/SPEC-0001-t067d.md" "t067d-spec" "implementing"
+  mkdir -p "$dir_d/docs/ai/tdd/t067d-spec"
+  commit_fixture_docs "$dir_d"
+  out="$TEST_DIR/t067d.out"; err="$TEST_DIR/t067d.err"
+  code=$(run_close "$dir_d" "$out" "$err" --ref t067d-change --spec t067d-spec --pr 67 --commit d067d067)
+  assert_exit "TEST-477 arm D: absent dial key behaves as report-only" 0 "$code"
+  grep -qi 'WARNING (mutation gate)' "$err" \
+    || log_fail "TEST-477 t067 arm D: expected a mutation-gate WARNING line (absent key = report-only), got: $(cat "$err")"
+  grep -q '^status: done$' "$dir_d/docs/specs/SPEC-0001-t067d.md" \
+    || log_fail "TEST-477 t067 arm D: absent-dial close must still proceed to done"
+
+  log_pass "Mutation gate wiring: enforce refuses (exit 8) naming the offending row with docs unflipped, report-only warns and closes, an unmarked spec closes identically under both settings, and an absent dial key behaves as report-only (Spec-AC-07, TEST-477)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -3361,6 +3573,7 @@ main() {
   test_064_stale_scan_read_error_named_warning
   test_065_guard_unreadable_file_fails_closed
   test_066_stamp_pr_rejects_review_flag
+  test_067_mutation_gate_close_wiring
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
