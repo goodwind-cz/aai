@@ -94,7 +94,8 @@ pgq_scan() {
 # Deferred, by name and with a tracker: `.aai/scripts/pre-commit-checks.sh`
 # is a protected_paths_l3 surface; this ride is ceremony 2 and may not edit
 # it (test-aai-hitl-propagation TEST-014). Its 7 sites are tracked by
-# fu-pre-commit-checks-pipe-grep-q and stay visible in the superset count.
+# fu-pre-commit-checks-pipe-grep-q only; no ratchet arm counts them (the
+# superset arm scans tests/skills, not shipping scripts).
 PGQ_SHIPPING_DEFERRED_L3='.aai/scripts/pre-commit-checks.sh'
 # Comment lines are dropped before counting in every arm: a `| head` quoted
 # in prose is not a pipe (validation round 9 follow-through).
