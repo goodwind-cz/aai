@@ -3,7 +3,7 @@ id: spec-mutation-gate-for-tests
 type: spec
 number: null
 status: implementing
-frozen_sha256: 121f5686779bd3163fbd179c13febb479eefeccea5872f2b4bb336fdfc7a9ca7
+frozen_sha256: ad0484223b9d99346e5f48dca04cecc97b08e228f3d0d1697b06d4ae9ea1e19d
 ceremony_level: 2
 mutation_gate: v1
 links:
@@ -1285,6 +1285,19 @@ Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 - `lib/mutation-record.mjs` named the heartbeat in a comment; the heartbeat
   corpus guard (`test-aai-heartbeat.sh` TEST-012) counts mentions, not seams.
   The comment says "liveness slot" now; no seam was ever there.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: mutation-gate-for-tests`, `--signoff none`.
+
+### Full sweep on dedaf385 — the suite must not skip itself
+
+- `test-aai-mutation-gate.sh` TEST-486 arms B/C read the live, gitignored
+  evidence tree and used `log_skip` when it was absent; `log_skip` is exit 42
+  and voids the whole suite, so in the sweep's isolated clone (and in CI) the
+  gate's own suite reported SKIP and proved nothing. The arms now degrade by
+  name (`DEGRADED (named): evidence tree absent …`) and arm A, which produces
+  its own records with the runner, carries the ancestry proof. Sweep: 94/95
+  with the skip; the suite passes in the isolated clone after the change.
 
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: mutation-gate-for-tests`, `--signoff none`.
