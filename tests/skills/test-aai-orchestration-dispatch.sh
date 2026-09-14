@@ -4468,6 +4468,30 @@ SH
   [[ "$rc" -eq 5 ]] || log_fail "TEST-062: (f) a cancelled check must exit 5, got $rc: $(cat "$TEST_DIR/f.out" "$TEST_DIR/f.err")"
   grep -qF 'deploy' "$TEST_DIR/f.err" || log_fail "TEST-062: (f) the failure must NAME the cancelled check (deploy): $(cat "$TEST_DIR/f.err")"
 
+  # (g) validation-round4 N29: EVERY check settling `skipping` (nothing ran
+  # at all) must exit 3 (degrade), never exit 0 — an all-skipping PR is the
+  # same D9-forbidden "array of nothing meaningful rendered as a pass" shape
+  # as an empty checks array. (Mutation check performed by hand during
+  # remediation: dropping watch-ci.mjs's `passed.length === 0` gate reddens
+  # this arm — exit 0 "settled — all 2 check(s) passed (0 pass, 2 skipped)".)
+  rc=0
+  ( cd "$d" && GH_STUB_CHECKS_JSON='[{"name":"build","bucket":"skipping","link":"x"},{"name":"test","bucket":"skipping","link":"y"}]' \
+      PATH="$TEST_DIR/bin:$PATH" "$NODE_BIN" "$WATCHCI" --max-wait-seconds 2 > "$TEST_DIR/g.out" 2> "$TEST_DIR/g.err" ) || rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "TEST-062: (g) all-skipping must exit 3 (degrade), got $rc: $(cat "$TEST_DIR/g.out" "$TEST_DIR/g.err")"
+  grep -qi 'degraded' "$TEST_DIR/g.err" || log_fail "TEST-062: (g) the degrade must be named on stderr: $(cat "$TEST_DIR/g.err")"
+
+  # (h) validation-round4 N33 / code review round 2 NON-BLOCKING-1: a check
+  # reporting a bucket outside gh's documented five (here "mystery") must
+  # never be silently absorbed into settled-pass — fail CLOSED, naming it.
+  # (Mutation check performed by hand during remediation: removing the
+  # unknown-bucket guard restores the fall-through and reddens this arm —
+  # exit 0 "settled — all 2 check(s) passed (1 pass, 0 skipped)".)
+  rc=0
+  ( cd "$d" && GH_STUB_CHECKS_JSON='[{"name":"build","bucket":"pass","link":"x"},{"name":"weird","bucket":"mystery","link":"y"}]' \
+      PATH="$TEST_DIR/bin:$PATH" "$NODE_BIN" "$WATCHCI" --max-wait-seconds 2 > "$TEST_DIR/h.out" 2> "$TEST_DIR/h.err" ) || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-062: (h) an unrecognized bucket must NOT settle exit 0: $(cat "$TEST_DIR/h.out" "$TEST_DIR/h.err")"
+  grep -qF 'weird' "$TEST_DIR/h.err" || log_fail "TEST-062: (h) the refusal must NAME the unrecognized check (weird): $(cat "$TEST_DIR/h.err")"
+
   # SKILL_PR.prompt.md names the command in its post-push step.
   local skillpr="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
   grep -qF 'watch-ci.mjs' "$skillpr" || log_fail "TEST-062: SKILL_PR.prompt.md must name watch-ci.mjs after the push step"
@@ -4479,7 +4503,7 @@ SH
   # passing mention.
   grep -qF 'state.mjs clear-focus' "$skillpr" || log_fail "TEST-062: SKILL_PR.prompt.md step 4c must run state.mjs clear-focus after close-work-item.mjs (D3 non-inertness clause)"
 
-  log_pass "watch-ci.mjs: all-pass exits 0 with a settlement line, a failure exits 5 naming the check, gh-absent and a non-GitHub origin each exit 3 naming the degrade, a terminal skipping check settles exit 0 within one poll and a cancel check exits 5 naming it; SKILL_PR.prompt.md names both watch-ci.mjs and clear-focus after the push/close steps (TEST-062)"
+  log_pass "watch-ci.mjs: all-pass exits 0 with a settlement line, a failure exits 5 naming the check, gh-absent and a non-GitHub origin each exit 3 naming the degrade, a terminal skipping check settles exit 0 within one poll and a cancel check exits 5 naming it, an all-skipping PR exits 3 and an unrecognized bucket value exits non-zero naming the check; SKILL_PR.prompt.md names both watch-ci.mjs and clear-focus after the push/close steps (TEST-062)"
 }
 
 test_063_carve_reconciliation() {  # TEST-063 / Spec-AC-10

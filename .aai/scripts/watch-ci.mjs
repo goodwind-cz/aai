@@ -169,6 +169,20 @@ function main(argv) {
     const failed = checks.filter((c) => c.bucket === 'fail' || c.bucket === 'cancel');
     const passed = checks.filter((c) => c.bucket === 'pass');
     const skipped = checks.filter((c) => c.bucket === 'skipping');
+    // validation-round4 N33 / code review round 2 NON-BLOCKING-1: the bucket
+    // model above is a CLOSED set with no else — a check reporting a bucket
+    // outside gh's own five (a future gh value, or a `bucket` key missing
+    // entirely) belongs to none of pending/failed/passed/skipped and was
+    // silently absorbed into the settled-pass path. That is the exact
+    // polarity this file's own header forbids ("alive, failed and I could
+    // not tell must never render as the same answer") — fail CLOSED with a
+    // named refusal instead.
+    const unknown = checks.filter(
+      (c) => !['pass', 'fail', 'pending', 'skipping', 'cancel'].includes(c.bucket),
+    );
+    if (unknown.length > 0) {
+      degrade(`unrecognized check bucket value(s) — ${unknown.map((c) => `${c.name}:${c.bucket ?? '(missing)'}`).join(', ')}`);
+    }
     const summary = checks.map((c) => `${c.name}:${c.bucket}`).sort().join(',');
     if (summary !== lastSummary) {
       console.log(`watch-ci: ${checks.length} check(s) — ${pending.length} pending, ${failed.length} failed`);

@@ -786,11 +786,11 @@ carries the suite path, which is what makes each row unique.
 | TEST-033 | Spec-AC-03 | integration | tests/skills/test-aai-state.sh | clear-focus — a fixture whose focus is R and whose work item is in_progress gets clear-focus --ref R; the four focus fields and the work item's phase and status are asserted; a second arm passes --ref S and asserts exit 2 with cmp of STATE identical; a third arm asserts phase closed survives check-state. | green |
 | TEST-034 | Spec-AC-05 | integration | tests/skills/test-aai-state.sh | usage_basis three ways — append-run with --tokens-total writes field; with only a usage_total_tokens note marker writes note; with neither writes absent, exits 0, and emits exactly one stderr line naming ref and role; a malformed marker falls to absent, never note. | green |
 | TEST-035 | Spec-AC-06 | integration | tests/skills/test-aai-state.sh | amend-run — one matching run with null tokens_total is amended and gains usage_basis field and amended_at_utc; a second call against the now-numeric run exits 2 with STATE identical; a fixture with two runs sharing role and started exits 2 naming the count; a fixture with none exits 2 naming zero. | green |
-| TEST-036 | Spec-AC-07 | integration | tests/skills/test-aai-state.sh | One clock — a real append-event.mjs run's ts matches the second-precision pattern, a real state.mjs write's updated_at_utc matches the same pattern, a grep over .aai/scripts finds exactly one nowIso definition outside the re-export, and a same-second verdict-and-stamp fixture driven through the dispatch CLI with --confirm appends no second validation_verdict line. | green |
+| TEST-036 | Spec-AC-07 | integration | tests/skills/test-aai-state.sh | One clock — a real append-event.mjs run's ts matches the second-precision pattern, a real state.mjs write's updated_at_utc matches the same pattern, a grep over .aai/scripts finds exactly one nowIso definition outside the re-export, a same-second verdict-and-stamp fixture driven through the dispatch CLI with --confirm appends no second validation_verdict line; and arm (e) takes three real, independent nowIso() calls 20ms apart, boundary-aligned to a wall-clock second with a 90ms margin, and asserts at least one adjacent pair second-truncates to the same string — the direction pin against a millisecond-precision nowIso. | green |
 | TEST-037 | Spec-AC-12 | integration | tests/skills/test-aai-state.sh | Guard predicate — under AAI_ROLE=subagent, set-focus against a mktemp fixture exits 0 and the fixture changes; against the repo's own docs/ai/STATE.yaml exits 3 with the file byte-identical; against a synthesized second project whose root carries .aai/scripts/state.mjs exits 3; and tests/skills/test-aai-check-state.sh is invoked under the marker with no env scrub and must exit 0. | green |
 | TEST-038 | Spec-AC-18 | integration | tests/skills/test-aai-state.sh | Flag grammar — a loop over every CMD_FLAGS subcommand asserts <cmd> --help exits 0 and its output names every flag of that subcommand; the enum arms assert set-validation lists exactly pass, fail and not_run (and therefore not pending), set-phase lists the seven phases, and reset-block names its positional block argument; and one deliberate bad call per subcommand carries the same usage line on stderr. | green |
 | TEST-061 | Spec-AC-02 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Rule 11s — a fixture tree with a committed validation_verdict pass event for the focus ref, a standing STATE pass naming the same ref, and a dirty tracked file so the tree hash differs, dispatches Validation with rule 11s and the reason; ordering arms add a required-and-unrun code_review (must still be 11s, never 13) and an absent ledger entry (must still be 11s, never 14); a fresh-hash control dispatches as today; --rules lists 11s; the WARN line names the rule; a run without --confirm adds restamp_requires_confirm. | green |
-| TEST-062 | Spec-AC-09 | integration | tests/skills/test-aai-orchestration-dispatch.sh | watch-ci — a stub gh on PATH reporting all checks passed yields exit 0 and a settlement line; one reporting a failed check yields exit 5 naming the check; an empty PATH (no gh) yields exit 3 naming the degrade; and a grep asserts .aai/SKILL_PR.prompt.md names the command after its push step. | green |
+| TEST-062 | Spec-AC-09 | integration | tests/skills/test-aai-orchestration-dispatch.sh | watch-ci — arm (a) a stub gh on PATH reporting all checks passed yields exit 0 and a settlement line; (b) one reporting a failed check yields exit 5 naming the check; (c) an empty PATH (no gh) yields exit 3 naming the degrade; (d) a non-GitHub origin yields exit 3 naming the platform mismatch; (e) a pass+terminal-skipping pair settles exit 0 within one poll; (f) a cancel bucket (no fail bucket) yields exit 5 naming the cancelled check; (g) an all-skipping PR yields exit 3, never a settled pass; (h) a check reporting a bucket outside gh's five yields a non-zero, named refusal, never a silent settled-pass; and a grep asserts .aai/SKILL_PR.prompt.md names both watch-ci.mjs after the push step and state.mjs clear-focus after close-work-item.mjs. | green |
 | TEST-063 | Spec-AC-10 | unit | tests/skills/test-aai-orchestration-dispatch.sh | Carve reconciliation — each of the four files is asserted to carry the D1 carve predicate (sole agent, AAI_ROLE unset) and the three prompts to carry the state_update_commands return shape; a corpus-wide grep asserts zero occurrences of the explicit-instruction grant. | green |
 | TEST-064 | Spec-AC-11 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Coaching-bias guard — one fixture per detector in the closed set exits 6 under --strict naming the line and the detector; the same fixtures exit 0 with a NOTE without --strict; three negative controls (a reproduction command, a measured number, a bare file path list) exit 0 under --strict; stdin and --path inputs agree byte for byte; and SUBAGENT_PROTOCOL.md is asserted to carry the rule. | green |
 | TEST-065 | Spec-AC-16 | integration | tests/skills/test-aai-orchestration-dispatch.sh | Effort suffix — a routing fixture with effort_tiers@claude and effort_roles@codex emits one NOTE per header naming the suffix, resolves suggested_effort from the unsuffixed sections only, and keeps the exit code of the equivalent unsuffixed fixture; an invalid suffix emits the same NOTE; an unsuffixed pair emits none. | green |
@@ -1185,6 +1185,54 @@ is preserved; nothing below moves or deletes an existing AC's text.
     and require only one adjacent pair to agree, closing the residual
     event-loop-stall false-red validation round 3 measured; arm (e) is now
     three calls 20ms apart, not two.)
+
+- **B7 (validation round 4 N29/N32/N33, merge-reconcile-t054a.md Remedy 1) —
+  the cross-sweep t054a reconciliation landed, two guards this ride shipped
+  gained the tests that pin them, and two Test Plan rows describing
+  pre-existing tests were understated.**
+  - t054a: `docs/ai/tdd/spec-dispatch-state-sweep/merge-reconcile-t054a.md`'s
+    Remedy 1 diff was applied verbatim to
+    `tests/skills/test-aai-close-work-item.sh`'s `new_fixture_repo()` (a
+    sibling `.aai/scripts/state.mjs`, content irrelevant, so Arm B fires
+    under `AAI_ROLE=subagent`); `close-work-item.mjs` itself was not
+    touched (no re-pin). `env -u AAI_ROLE bash
+    tests/skills/test-aai-close-work-item.sh` -> rc 0, 65 PASS (was exactly
+    one FAIL, t054a, per validation round 4's own `cannot_verify` entry).
+  - N29 — TEST-062 gains arm (g): a stub gh reporting every check
+    `skipping` must exit 3 (degrade), never 0 — the same D9 "array of
+    nothing meaningful" shape as an empty checks array. Verified: the
+    shipped tree passes arm (g); deleting `.aai/scripts/watch-ci.mjs`'s
+    "at least one pass" gate reddens arm (g) alone (exit 0, "settled — all
+    2 check(s) passed (0 pass, 2 skipped)"), file restored byte-identical
+    after.
+  - N33 / code review round 2 NON-BLOCKING-1 — `watch-ci.mjs`'s bucket
+    model was a closed set with no `else`: a check reporting a bucket
+    outside gh's documented five (a future value, or a missing `bucket`
+    key) fell through into the settled-pass path, unclassified and
+    unaccounted. Fixed at cause: an `unknown` filter over the same
+    five-bucket vocabulary now degrades with a named refusal the instant it
+    is non-empty, before the settlement check runs — fail-CLOSED, never
+    rendered as settled-pass. TEST-062 gains arm (h): one `pass` beside one
+    `mystery`-bucket check must exit non-zero, naming the unrecognized
+    check. Verified: the shipped tree passes arm (h); reverting to the
+    pre-fix fall-through (removing the `unknown` guard) reddens arm (h)
+    alone (exit 0, "settled — all 2 check(s) passed (1 pass, 0 skipped)"),
+    file restored byte-identical after.
+  - N32 — the Test Plan rows for TEST-036 (line 789) and TEST-062 (line
+    793) understated their own shipped tests: TEST-036's row now names arm
+    (e)'s three-point, boundary-aligned, adjacent-pair form; TEST-062's row
+    now names all eight arms (a)-(h), including this round's (g) and (h).
+    `spec-lint --path` re-run against this file after the edit: 0 findings.
+  - N31 (STATE.yaml prose, not this spec) is not amended here — STATE.yaml
+    is the orchestrator's own file and this dispatch is barred from editing
+    it. The three review-suggested follow-up ids that do not exist as filed
+    (`fu-amend-run-overwrites-note-basis-number`,
+    `fu-dispatch-text-detector-self-referential-fp`,
+    `fu-verdict-coverage-same-second-reads-true`) and their engine-capped,
+    actually-filed replacements (`fu-amend-run-overwrite-note-basis-number`,
+    `fu-dispatch-text-detector-self-ref-fp`,
+    `fu-verdict-coverage-same-second-true`) are reported to the orchestrator
+    in this round's result for STATE's own correction.
 
 Every claim above was grepped or run TRUE against the shipped tree before
 this Amendment was written.

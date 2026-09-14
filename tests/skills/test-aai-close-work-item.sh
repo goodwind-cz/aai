@@ -138,6 +138,13 @@ new_fixture_repo() {
   local dir="$TEST_DIR/$name"
   mkdir -p "$dir/docs/issues" "$dir/docs/specs" "$dir/docs/ai"
   : > "$dir/docs/ai/EVENTS.jsonl"
+  # spec-dispatch-state-sweep D12 (validation-round1 B3): give every fixture
+  # a sibling .aai/scripts/state.mjs so the narrowed R-GUARD Arm B (SOME
+  # OTHER real AAI project's canonical STATE) still fires for t054a's
+  # AAI_ROLE=subagent arm — content is irrelevant, only existence is
+  # checked (isGuardedStatePath, state.mjs:533-538).
+  mkdir -p "$dir/.aai/scripts"
+  : > "$dir/.aai/scripts/state.mjs"
   cat > "$dir/docs/ai/docs-audit.yaml" <<'YAML'
 legacy_until_date: 2020-01-01
 stale_after_days: 90
