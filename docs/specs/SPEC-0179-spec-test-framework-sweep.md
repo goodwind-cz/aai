@@ -1263,7 +1263,7 @@ and "core sync not idempotent (tree changed on second run)".
   core-prune membership test read `printf '%s\n' "$CORE_FILES" | grep -qxF
   "$rel"`. `grep -q` exits the instant it finds a match, closing its end of
   the pipe; if `printf` is still mid-write when that happens (guaranteed once
-  the unwritten remainder exceeds the pipe buffer, and `CORE_FILES` — 180
+  the unwritten remainder exceeds the pipe buffer, and `CORE_FILES` — 175
   real entries — sits well under that today, which is why this was a
   CI-load-only flake rather than a deterministic local failure), `printf`
   takes SIGPIPE, `set -o pipefail` reports the PIPELINE's exit as 141 even
@@ -1295,7 +1295,7 @@ and "core sync not idempotent (tree changed on second run)".
   removed with it.
 - **TEST.** `test-aai-layer-profiles.sh` TEST-464 (replacing withdrawn
   TEST-463): pads a private clone of the fixture's `PROFILES.yaml` `core:`
-  list with the real 172 core entries first, then ~20000 nonexistent
+  list with the real 175 core entries first, then ~20000 nonexistent
   padding paths (the sync WARNs "missing in source" and skips them,
   captured to a log file, not asserted against), runs `--profile core`
   twice against a fresh target, and asserts every real core file is present
@@ -1354,6 +1354,28 @@ follow-up filed for it — same convention as every prior round).
   itself.
 - CHANGELOG entry counts and the "not claimed fixed at cause" bullet on the
   layer-profiles failure updated to the round-9 state.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: test-framework-sweep`, `--signoff none`.
+
+### Validation round 8 — non-blocking findings folded in
+
+- TEST-466's ratchet now catches every spelling of the two early-closing
+  readers (`grep --quiet`, `grep -xq`, `head -1`, not only `grep -q` and
+  `head -n1`); reddened by a `| grep --quiet -xF` and by a `| head -1` planted
+  in `aai-sync.sh` (NB-1).
+- TEST-465 seeds one AGENT_SKILL pattern and one RUNTIME_STATE pattern at the
+  top of the 200 KB `.gitignore` and counts both, so the runtime-state
+  membership loop has a behavioural test; restoring that loop's pipe reddens
+  it (NB-2).
+- The core-entry figure in Round 9 is 175 in both places (NB-4; measured from
+  `PROFILES.yaml`).
+- `fu-test-selector-unknown-id-passes` filed (P2): a suite's positional test
+  selector runs `$1` as a function name and passes on an unknown one (NB-7,
+  out of this ride's scope).
+- Not corrected: two of the seven citations in the `fu-session-lock-oneshot-pid`
+  filing record point at lines that no longer carry the id (NB-3); the ledger
+  is append-only and the id itself is correctly filed and closed.
 
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: test-framework-sweep`, `--signoff none`.

@@ -691,12 +691,16 @@ test_464_core_prune_survives_large_core_list() {
 #     .gitignore larger than the pipe buffer (idempotence) -----------------
 test_465_gitignore_membership_survives_large_gitignore() {
   log_info "TEST-465: .gitignore membership for agent-skill patterns survives a >200KB target .gitignore whose first line is already the pattern..."
-  local t pattern=".agents/skills/" rc out1 out2 count1 count2
+  local t pattern=".agents/skills/" pattern2="docs/ai/STATE.yaml" rc out1 out2 count1 count2 count1b count2b
 
+  # Both membership loops in aai-sync.sh (AGENT_SKILL_PATTERNS and
+  # RUNTIME_STATE_PATTERNS) are exercised: one pattern of each class sits at
+  # the top of the file, where an early-closing reader would bite first
+  # (validation round 8 NB-2: the runtime-state loop had no behavioural test).
   t="$TMP_ROOT/t-465-tgt"
   new_target "$t"
   {
-    printf '%s\n' "$pattern"
+    printf '%s\n' "$pattern" "$pattern2"
     awk 'BEGIN { for (i = 1; i <= 15000; i++) print "# aai-test-465-pad-" i }'
   } > "$t/.gitignore"
   [[ "$(wc -c < "$t/.gitignore" | tr -d ' ')" -gt 204800 ]] \
@@ -716,6 +720,8 @@ test_465_gitignore_membership_survives_large_gitignore() {
   assert_payload_not_contains "$out1_text" "stale AAI-managed line" "TEST-465: sync 1 needed the .gitignore de-dup self-heal -- the membership check wrongly re-appended a pattern that was already present"
   count1="$(grep -cxF -- "$pattern" "$t/.gitignore")"
   [[ "$count1" -eq 1 ]] || log_fail "TEST-465: pattern '$pattern' must occur exactly once after sync 1, got $count1"
+  count1b="$(grep -cxF -- "$pattern2" "$t/.gitignore")"
+  [[ "$count1b" -eq 1 ]] || log_fail "TEST-465: runtime-state pattern '$pattern2' must occur exactly once after sync 1, got $count1b"
 
   out2="$TMP_ROOT/t-465-out2.log"
   rc=0
@@ -725,6 +731,8 @@ test_465_gitignore_membership_survives_large_gitignore() {
   assert_payload_not_contains "$out2_text" "stale AAI-managed line" "TEST-465: sync 2 needed the .gitignore de-dup self-heal -- the membership check wrongly re-appended a pattern that was already present"
   count2="$(grep -cxF -- "$pattern" "$t/.gitignore")"
   [[ "$count2" -eq 1 ]] || log_fail "TEST-465: pattern '$pattern' must still occur exactly once after sync 2 (non-idempotent membership check), got $count2"
+  count2b="$(grep -cxF -- "$pattern2" "$t/.gitignore")"
+  [[ "$count2b" -eq 1 ]] || log_fail "TEST-465: runtime-state pattern '$pattern2' must still occur exactly once after sync 2, got $count2b"
 
   log_pass "TEST-465 .gitignore membership stays exact-once across two syncs against a >200KB file"
 }
@@ -732,13 +740,15 @@ test_465_gitignore_membership_survives_large_gitignore() {
 # --- TEST-466 — static ratchet: aai-sync.sh pipes nothing into grep -q or
 #     head -n1 (both are early-closing readers under pipefail) -------------
 test_466_no_pipe_into_early_closing_reader() {
-  log_info "TEST-466: aai-sync.sh has zero real pipelines into grep -q / head -n1..."
+  log_info "TEST-466: aai-sync.sh has zero real pipelines into grep -q (any spelling) / head -n1 (any spelling)..."
   local hits
   # A single `|` not immediately preceded by another `|` (excludes the
   # pre-existing, unrelated `[[ ! -f x ]] || grep -q ... x` at the
   # docs/knowledge sentinel check, which reads its file argument directly —
   # never a pipe — and is not part of this bug class).
-  hits="$(/usr/bin/grep -cE '[^|]\|[[:space:]]*(grep -q|head -n *1)' "$SYNC_SH" || true)"
+  # Any spelling of the two early-closing readers (validation round 8 NB-1:
+  # `grep --quiet`, `grep -xq`, `head -1` escaped the first regex).
+  hits="$(/usr/bin/grep -cE '[^|]\|[[:space:]]*(grep[[:space:]]+(-[A-Za-z]*q|--quiet|--silent)|head[[:space:]]+(-n[[:space:]]*1|-1)([^0-9]|$))' "$SYNC_SH" || true)"
   [[ "$hits" -eq 0 ]] || log_fail "TEST-466: aai-sync.sh still pipes into grep -q / head -n1 ($hits occurrence(s)) — pipefail + an early-closing reader can SIGPIPE the writer and flip a real match/line into a false negative or abort the sync"
   log_pass "TEST-466 aai-sync.sh: zero pipe-into-(grep -q|head -n1) sites"
 }
