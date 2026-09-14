@@ -13,6 +13,7 @@
 //     --spec <path> --test-id <TEST-nnn> --suite <repo-relative path> \
 //     --selector <test_* function name> --target <repo-relative path> \
 //     (--sed '<s/pat/repl/[flags]>' | --patch <unified-diff file>)
+//     --sed's pat is a JavaScript RegExp (not sed BRE/ERE): `(` groups, `\(` is literal.
 //
 //   node .aai/scripts/mutation-run.mjs --replay --spec <path>
 //
@@ -166,7 +167,9 @@ function printHelp() {
       'usage:\n' +
       '  node .aai/scripts/mutation-run.mjs --spec <path> --test-id <TEST-nnn> \\\n' +
       '    --suite <repo-relative path> --selector <test_* fn> --target <repo-relative path> \\\n' +
-      '    (--sed \'<s/pat/repl/[flags]>\' | --patch <unified-diff file>)\n\n' +
+      '    (--sed \'<s/pat/repl/[flags]>\' | --patch <unified-diff file>)\n' +
+      '    --sed: pat is a JavaScript RegExp, NOT sed BRE/ERE — `(` groups, `\\(` is a\n' +
+      '          literal paren; repl is literal except JS $-patterns; a no-op is refused.\n\n' +
       '  node .aai/scripts/mutation-run.mjs --replay --spec <path>\n'
   );
   exit(0);
