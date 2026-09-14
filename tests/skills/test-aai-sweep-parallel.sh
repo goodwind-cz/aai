@@ -736,14 +736,32 @@ exit 0"
   done
   commit_fixture_repo "$d" || { log_fail "TEST-411 fixture repo init failed"; return; }
 
+  # Calibrate the isolation overhead IN THIS FIXTURE, ON THIS HOST, NOW: the
+  # same eight suites with their sleeps removed, at the same width. Whatever
+  # that costs (eight git clone --local isolations, seeding, tripwire
+  # snapshots) is paid by the barrier and the queue alike, so the assertion
+  # is on the modelled gap (13 s barrier vs ~10 s queue) plus that measured
+  # overhead, never on a constant that a loaded host (load average 86 on
+  # 2026-09-14, validation round 6 F-G) turns into a false red.
+  local d0 t0 rc0=0 overhead
+  d0="$(new_fixture)" || return
+  build_framework_repo "$d0"
+  write_fixture_suite "$d0" w-1-long "exit 0"
+  for i in 2 3 4 5 6 7 8; do write_fixture_suite "$d0" "w-$i-short" "exit 0"; done
+  commit_fixture_repo "$d0" || { log_fail "TEST-411 calibration fixture repo init failed"; return; }
+  read -r t0 rc0 <<< "$(timed_run "$d0" 2)"
+  [[ "$rc0" -eq 0 ]] || { log_info "TEST-411: the calibration run exited $rc0 (want 0)"; ok=0; }
+  overhead="$t0"
+  local threshold=$(( barrier_would_take + overhead ))
+
   read -r t2 rc <<< "$(timed_run "$d" 2)"
 
   [[ "$rc" -eq 0 ]] || { log_info "TEST-411: the width-2 run exited $rc (want 0)"; ok=0; }
   [[ "$t2" -ge 10 ]] || { log_info "TEST-411: width-2 run took ${t2}s (want >= 10 — the longest suite alone is 10s, so anything faster proves nothing)"; ok=0; }
-  [[ "$t2" -lt "$barrier_would_take" ]] \
-    || { log_info "TEST-411: width-2 run took ${t2}s (want < ${barrier_would_take}s — the fixed-wave barrier's own total for this fixture) — a freed slot was left idle instead of refilled"; ok=0; }
+  [[ "$t2" -lt "$threshold" ]] \
+    || { log_info "TEST-411: width-2 run took ${t2}s (want < ${threshold}s = the fixed-wave barrier's ${barrier_would_take}s for this fixture plus the ${overhead}s of isolation overhead measured just now with the sleeps removed) — a freed slot was left idle instead of refilled"; ok=0; }
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-411 (Spec-AC-06) a freed slot is refilled immediately: a 10s suite plus seven 1s suites at width 2 took ${t2}s, under the ${barrier_would_take}s a fixed-wave barrier would have taken" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-411 (Spec-AC-06) a freed slot is refilled immediately: a 10s suite plus seven 1s suites at width 2 took ${t2}s, under the ${threshold}s (${barrier_would_take}s barrier + ${overhead}s measured overhead) a fixed-wave barrier would have taken" \
     || log_fail "TEST-411 (Spec-AC-06) a freed slot is refilled, not left idle"
 }
 

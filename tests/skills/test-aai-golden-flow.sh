@@ -744,7 +744,11 @@ withAppendLock(record, () => {
   }
 });
 HOLDER
-  local hold_ms=15000
+  # Hold "forever" (the holder is killed the instant the contender returns,
+  # line below): a fixed 15 s window lost the race to the contender's own
+  # fixture build under load (validation round 6 F-I), which then acquired a
+  # released lock and read as "written around".
+  local hold_ms=600000
   node "$TEST_DIR/lock-holder.mjs" "file://$APPEND_LOCK_MJS" "$record" "$hold_ms" &
   local holder_pid=$!
   sleep 0.3   # let the holder win the mkdir race before the contender starts
