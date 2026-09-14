@@ -204,7 +204,97 @@ test_410() {
   log_pass "lock path is per-worktree (git-dir derived); main checkout and linked worktree never share a lock"
 }
 
-ALL_TESTS="409 410"
+# --- TEST-457 (round 8, Codex P2) — a corrupt/unparseable lock file is
+#     reclaimed (dead-OR-corrupt), never a permanent wedge ------------------
+test_457() {
+  log_info "TEST-457: a corrupt/unparseable lock file is reclaimed on acquire, never a permanent wedge..."
+  local repo; repo="$(make_repo t457)"
+  local lock_file; lock_file="$(lock_path_for "$repo")"
+  mkdir -p "$(dirname "$lock_file")"
+  # A half-written lock: valid start, no closing brace — exactly the shape a
+  # holder that died mid-write (after `openSync(..., 'wx')`, before
+  # `writeSync(payload)` completed) leaves behind. `readLock` parses this as
+  # null (JSON.parse throws, caught) — the SAME null a truly-gone holder's
+  # absent file produces — so the reclaim path must treat them alike.
+  printf '{"pid": 12345, "worktree": "/tmp/x", "ref_id":' > "$lock_file"
+
+  run_lock "$repo" acquire --pid 555555 --ref t457
+  [[ "$RC" -eq 0 ]] || log_fail "acquire against a corrupt lock file must reclaim it (exit 0), got $RC; stderr: $ERR"
+  local status
+  status="$( cd "$repo" && node --input-type=module -e "
+    import { status } from '$LOCK_LIB';
+    process.stdout.write(JSON.stringify(status(process.cwd())));
+  " )"
+  assert_payload_contains "$status" "\"pid\":555555" "reclaimed lock must record the NEW holder pid, not the corrupt bytes it replaced"
+
+  # Not a one-shot fluke: corrupt it again (different garbage — not even
+  # JSON-shaped) and reclaim again. Bug shape (P2 finding): the old code only
+  # ran `fs.rmSync(p, ...)` when `readLock(p)` returned a TRUTHY value, so a
+  # corrupt file (readLock -> null) was NEVER removed — the reclaim's own
+  # `openSync(p, 'wx')` then hit the SAME EEXIST forever, and every
+  # subsequent acquire repeated exit 3 with holderPid/holderWorktree both
+  # null (a permanent, self-inflicted wedge visible only as "held by pid
+  # null" — the file on disk never changes again without manual deletion).
+  printf 'not even close to json' > "$lock_file"
+  run_lock "$repo" acquire --pid 555556 --ref t457
+  [[ "$RC" -eq 0 ]] || log_fail "a SECOND corrupt lock must ALSO reclaim (exit 0) — not a one-shot fluke (got $RC; stderr: $ERR)"
+  assert_payload_not_contains "$ERR" "pid null" "a reclaimed acquire must never still be reporting the P2 'held by pid null' wedge"
+
+  log_pass "a corrupt/unparseable lock file is reclaimed on acquire (twice, independently), never a permanent wedge"
+}
+
+# --- TEST-458 (round 8, Codex P1) — the SESSION-LIVED-owner fix itself:
+#     a lock keyed on the PARENT pid ($PPID) survives the acquiring
+#     one-shot shell's own exit; a lock keyed on that shell's OWN pid ($$)
+#     is immediately reclaimable once it exits — the exact bug an agent's
+#     per-command one-shot shell execution model triggers in the field
+#     (Spec-AC-05 amendment) ----------------------------------------------
+test_458() {
+  log_info "TEST-458: a lock keyed on \$PPID survives its acquiring shell's exit; keyed on \$\$ it is reclaimable immediately..."
+  local repo; repo="$(make_repo t458)"
+
+  # (a) $PPID case — the REAL calling shape the prompts now use. Deliberately
+  # NOT wrapped in an extra `( cd ... && bash -c ... )` subshell — THAT
+  # subshell would itself be a one-shot process and die the instant the
+  # compound command finishes, making its OWN pid the thing $PPID resolves
+  # to inside the nested bash -c (silently reproducing the very bug this
+  # test exists to rule out, one level removed). Running `bash -c` directly
+  # from this function's own shell makes $PPID resolve to THIS TEST SCRIPT's
+  # pid ($$) — alive for the whole suite run, same as an agent's one-shot
+  # command shell's parent (the harness) is alive for its whole session.
+  bash -c 'cd "$1" && node "$2" acquire --pid "$PPID" --ref t458a' _ "$repo" "$LOCK_LIB" \
+    >/dev/null 2>"$TMP_ROOT/458a.err"
+  [[ $? -eq 0 ]] || log_fail "PPID acquire (arm a) must exit 0: $(cat "$TMP_ROOT/458a.err")"
+  # The acquiring one-shot shell has already exited (the `bash -c` above
+  # returned) — a SECOND, independent one-shot shell probing the SAME
+  # worktree must see the lock STILL held and STILL live, because the
+  # recorded pid ($PPID = this test script's own pid) never exited. Run the
+  # SAME way: directly from this shell, no extra subshell layer.
+  local out2 rc2
+  out2="$(bash -c 'cd "$1" && node "$2" acquire --pid 909090 --ref t458a-second' _ "$repo" "$LOCK_LIB" 2>&1)"; rc2=$?
+  [[ "$rc2" -eq 3 ]] || log_fail "a second session must be REFUSED (exit 3) after the acquiring one-shot shell exited, if the lock is keyed on a session-lived \$PPID (got $rc2: $out2)"
+  assert_payload_contains "$out2" "$$" "the still-held lock must name THIS test script's own pid ($$) as the live holder"
+  run_lock "$repo" release --pid "$$"
+  [[ "$RC" -eq 0 ]] || log_fail "cleanup: release of the PPID-held lock (arm a) must exit 0 (got $RC; stderr: $ERR)"
+
+  # (b) $$ case — the OLD, now-wrong calling shape (a fresh worktree, so it
+  # cannot collide with arm (a)'s already-released lock). The acquiring
+  # `bash -c` subshell's OWN $$ dies the instant that subshell exits — by
+  # the time this `bash -c` above returns, the recorded holder pid is
+  # ALREADY DEAD. A second acquire must therefore reclaim it immediately
+  # (exit 0), never refuse — this IS the bug the prompts used to have.
+  local repo2; repo2="$(make_repo t458b)"
+  bash -c 'cd "$1" && node "$2" acquire --pid "$$" --ref t458b' _ "$repo2" "$LOCK_LIB" \
+    >/dev/null 2>"$TMP_ROOT/458b.err"
+  [[ $? -eq 0 ]] || log_fail "\$\$ acquire (arm b, first) must exit 0: $(cat "$TMP_ROOT/458b.err")"
+  local out3 rc3
+  out3="$(bash -c 'cd "$1" && node "$2" acquire --pid 909091 --ref t458b-second' _ "$repo2" "$LOCK_LIB" 2>&1)"; rc3=$?
+  [[ "$rc3" -eq 0 ]] || log_fail "a second session must RECLAIM (exit 0) when the first was keyed on \$\$ (its shell already exited) — got $rc3: $out3 (if this refuses, \$\$ is somehow still alive, which would invalidate this arm's fixture rather than prove the fix)"
+
+  log_pass "a \$PPID-keyed lock survives its acquiring one-shot shell's exit (refused, live); a \$\$-keyed lock does not (reclaimed immediately) — the exact real-execution-model bug and its fix"
+}
+
+ALL_TESTS="409 410 457 458"
 
 main() {
   echo "Testing $TEST_NAME (per-worktree session lock, pid-liveness CAS)"

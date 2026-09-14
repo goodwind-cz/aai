@@ -591,6 +591,50 @@ test_403_payload_dump_on_invisible_nonempty() {
   log_pass "TEST-403 invisible-but-nonempty payload triggers byte dump (Spec-AC-02)"
 }
 
+# --- TEST-463 (round 8, fu-sync-copy-silently-missing) — copy_replace
+#     retries and lands the file even when the FIRST `cp -a` silently didn't
+#     stick, and refuses loudly (never a quiet downstream "MISSING" surprise)
+#     if the retry also fails -----------------------------------------------
+test_463_copy_replace_retries_missing_copy() {
+  log_info "TEST-463: copy_replace retries a copy that silently didn't land, and fails loudly if the retry also can't land it..."
+  local t rc out dst
+
+  # (a) the sabotaged file is missing after the FIRST copy attempt (the
+  # observed CI shape: cp -a returns 0, dst is absent) — copy_replace's own
+  # retry must land it anyway, and the overall sync must still exit 0.
+  t="$TMP_ROOT/t-463-retry"
+  new_target "$t"
+  # Normalize exactly like aai-sync.sh's own `DST_ROOT="$(cd "$DST_ROOT" &&
+  # pwd)"` (F1 lesson relearned here): $TMPDIR on macOS often carries a
+  # trailing slash, so a raw $TMP_ROOT-built path can carry a double slash a
+  # plain `cd && pwd` collapses away — comparing the UNNORMALIZED path
+  # against aai-sync.sh's NORMALIZED $dst would silently never match and the
+  # fault injection below would never fire (a vacuous pass, not a real one).
+  t="$(cd "$t" && pwd)"
+  dst="$t/.aai/AGENTS.md"
+  rc=0
+  out="$(AAI_SYNC_TEST_FORCE_MISSING_ONCE="$dst" bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile core 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-463: sync must still exit 0 when the sabotaged copy is recoverable by retry (got $rc): $out"
+  [[ -f "$dst" ]] || log_fail "TEST-463: .aai/AGENTS.md must be present after copy_replace's retry landed it"
+
+  # (b) a copy that stays missing on the RETRY too (AAI_SYNC_TEST_FORCE_MISSING_ALWAYS
+  # sabotages the destination after EVERY copy_replace attempt against it,
+  # so both the first `cp -a` and the retry's `cp -a` genuinely leave $dst
+  # absent) must fail LOUDLY and NAME the path — never a silent gap two
+  # steps downstream, and never mistaken for the recoverable case in (a).
+  t="$TMP_ROOT/t-463-permanent"
+  new_target "$t"
+  t="$(cd "$t" && pwd)"  # normalize — see arm (a)'s comment above
+  dst="$t/.aai/AGENTS.md"
+  rc=0
+  out="$(AAI_SYNC_TEST_FORCE_MISSING_ALWAYS="$dst" bash "$FIX_SRC/.aai/scripts/aai-sync.sh" "$t" --profile core 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-463: sync must NOT exit 0 when copy_replace's retry also cannot land the file (got 0): $out"
+  assert_payload_contains "$out" "$dst" "TEST-463: the refusal must name the destination path that never landed"
+  assert_payload_contains "$out" "retried once" "TEST-463: the refusal must say the retry was already attempted"
+
+  log_pass "TEST-463 copy_replace retries a silently-missing copy and lands it; a permanently unrecoverable copy refuses loudly, naming the path"
+}
+
 # --- Spec-AC self-check — no real network schemes in this suite ---------------
 test_no_real_network() {
   log_info "Self-check: suite uses no real-network URL schemes..."
@@ -629,6 +673,7 @@ main() {
   test_401_fixture_build_completeness
   test_402_core_sync_warn_captured
   test_403_payload_dump_on_invisible_nonempty
+  test_463_copy_replace_retries_missing_copy
   test_no_real_network
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }

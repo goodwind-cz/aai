@@ -166,7 +166,23 @@ test_004_fail_open_shape() {
     log_fail "TEST-004 expected 4 command strings in template, got $n"
     return
   fi
-  _cmd_has() { case "$cmd" in *"$1"*) return 0 ;; *) return 1 ;; esac; }
+  # round 8 / Copilot: a `case`/glob match on a variable-supplied needle risks
+  # treating glob metacharacters in the needle (e.g. the literal `[` in the
+  # 'if [ -f ' needle below) as pattern syntax rather than literal text.
+  # `grep -qF` on a here-string is a literal, non-glob substring test —
+  # structurally immune to this class of bug regardless of what the needle
+  # contains, so a future edit cannot silently regress it back into a glob.
+  _cmd_has() { grep -qF -- "$1" <<<"$cmd"; }
+  # Positive control (round 8): prove _cmd_has treats a `[...]`-shaped needle
+  # as LITERAL text, not a glob bracket-expression — a cmd string that
+  # contains none of the individual bracketed characters, only text a GLOB
+  # bracket-expression would wrongly match, must NOT match.
+  if (cmd='axc' _cmd_has 'a[xy]c'); then
+    log_fail "TEST-004: _cmd_has treats '[...]' as a glob bracket-expression (matched 'axc' against needle 'a[xy]c' with no literal substring present)"
+  fi
+  if ! (cmd='a[xy]c' _cmd_has 'a[xy]c'); then
+    log_fail "TEST-004: _cmd_has must still match when the literal bracketed substring IS present"
+  fi
   i=0
   while IFS= read -r cmd; do
     [[ -z "$cmd" ]] && continue

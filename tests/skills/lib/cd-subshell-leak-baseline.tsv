@@ -72,7 +72,7 @@
 14	tests/skills/test-aai-intake.sh
 2	tests/skills/test-aai-issues.sh
 2	tests/skills/test-aai-layer-drift.sh
-3	tests/skills/test-aai-layer-profiles.sh
+5	tests/skills/test-aai-layer-profiles.sh
 2	tests/skills/test-aai-learned-append.sh
 5	tests/skills/test-aai-learned-routing.sh
 2	tests/skills/test-aai-lightweight-lane.sh
@@ -102,7 +102,7 @@
 2	tests/skills/test-aai-run-tests.sh
 2	tests/skills/test-aai-runtime-file.sh
 2	tests/skills/test-aai-secrets-preflight.sh
-7	tests/skills/test-aai-session-lock.sh
+8	tests/skills/test-aai-session-lock.sh
 2	tests/skills/test-aai-spec-amend.sh
 7	tests/skills/test-aai-spec-lint.sh
 9	tests/skills/test-aai-spec-tools.sh

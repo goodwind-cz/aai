@@ -145,6 +145,38 @@ copy_replace() {
   # Git is the backup — no .bak files needed.
   rm -rf "$dst" 2>/dev/null || true
   cp -a "$src" "$dst"
+  # round 8 (fu-sync-copy-silently-missing, CI runs 34796276501/34796261955):
+  # a `cp -a` that returns 0 has been observed, under heavy parallel CI load
+  # only (never reproduced locally), to leave `$dst` absent — a core-listed
+  # file quietly failing to land with no non-zero exit anywhere to catch it,
+  # surfacing two steps downstream as an unattributed "MISSING core-listed
+  # files" report. Verify the copy actually landed and retry ONCE before
+  # failing loudly and by name, rather than trusting `cp -a`'s exit code
+  # alone. Test-only fault injection (both unset in every real run):
+  # AAI_SYNC_TEST_FORCE_MISSING_ONCE names one destination path to sabotage
+  # ONCE (delete right after the first copy, then stop sabotaging) so the
+  # RECOVERABLE retry path is exercised for real. AAI_SYNC_TEST_FORCE_MISSING_ALWAYS
+  # names one destination path to sabotage on EVERY copy attempt against it,
+  # so the PERMANENT-failure refusal below is exercised for real too — a
+  # `cp -a` that keeps "succeeding" while the file never lands must never be
+  # mistaken for progress.
+  if [[ -n "${AAI_SYNC_TEST_FORCE_MISSING_ONCE:-}" && "$dst" == "${AAI_SYNC_TEST_FORCE_MISSING_ONCE}" ]]; then
+    rm -rf "$dst"
+    unset AAI_SYNC_TEST_FORCE_MISSING_ONCE
+  fi
+  if [[ -n "${AAI_SYNC_TEST_FORCE_MISSING_ALWAYS:-}" && "$dst" == "${AAI_SYNC_TEST_FORCE_MISSING_ALWAYS}" ]]; then
+    rm -rf "$dst"
+  fi
+  if [[ ! -e "$dst" ]]; then
+    cp -a "$src" "$dst"
+    if [[ -n "${AAI_SYNC_TEST_FORCE_MISSING_ALWAYS:-}" && "$dst" == "${AAI_SYNC_TEST_FORCE_MISSING_ALWAYS}" ]]; then
+      rm -rf "$dst"
+    fi
+    if [[ ! -e "$dst" ]]; then
+      echo "ERROR: copy_replace: '$dst' still missing after cp -a from '$src' (retried once)" >&2
+      exit 1
+    fi
+  fi
 }
 
 # Byte compare, never a hash pipeline. Under `set -o pipefail` a transient

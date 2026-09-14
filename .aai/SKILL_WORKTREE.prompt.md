@@ -167,16 +167,25 @@ Create a new worktree for a feature/task.
    node .aai/scripts/state.mjs set-worktree --user-decision worktree \
      --base-ref "$base_branch" --branch "$task_name" --path "$worktree_path"
    node .aai/scripts/check-state.mjs        # MUST pass before first dispatch
-   node .aai/scripts/lib/session-lock.mjs acquire --pid "$$" --ref "$ref_id"  # CHANGE-0180 D5
+   node .aai/scripts/lib/session-lock.mjs acquire --pid "$PPID" --ref "$ref_id"  # CHANGE-0180 D5, round 8
    ```
    The final `check-state` is the gate: an incomplete init fails LOUDLY here,
    not silently at dispatch time. Set any field it still reports via the
    matching `state.mjs` mutator — never by hand-editing the file.
-   `--pid "$$"` is this SHELL's pid, stable across every later one-shot node
-   call in this session (a bare default would re-pid per invocation and
-   never match at release). `acquire` claims this worktree for THIS session;
-   exit 3 means a live session already holds it (named pid) — do not proceed
-   in the same worktree. Released by Cleanup Worktree step 3 below.
+   `--pid "$PPID"` (round 8 / Codex P1, replaces the earlier `--pid "$$"`):
+   an agent runs each of these commands as a SEPARATE one-shot shell, so
+   `$$` inside that shell is a NEW pid that exits the instant the command
+   returns — a lock keyed on it is already reclaimable by the time the next
+   command runs, making the control inert in the real execution model.
+   `$PPID` is that one-shot shell's PARENT — the harness process itself
+   (Claude Code / Codex / Gemini CLI) — which lives for the WHOLE session,
+   across every later one-shot `node` call, so the lock stays held until
+   this session actually ends. HONEST LIMIT: on a harness whose one-shot
+   command shell has no stable session-lived parent, this degrades to the
+   same advisory-only liveness `$$` had. `acquire` claims this worktree for
+   THIS session; exit 3 means a live session already holds it (named pid) —
+   do not proceed in the same worktree. Released by Cleanup Worktree step 3
+   below.
 
 5. **Update Worktree Registry**
    - Create/update `.git/worktrees-registry.jsonl` in main repo
@@ -234,9 +243,10 @@ Remove a completed or abandoned worktree.
    ```bash
    # Release the session lock BEFORE removal (CHANGE-0180 D5) — the lock
    # file lives under the worktree's own .git dir, so it must go first.
-   # --pid must match the acquiring shell's $$ (Setup Worktree step 4); a
-   # cleanup run from a DIFFERENT shell passes that recorded pid instead.
-   ( cd [worktree-path] && node .aai/scripts/lib/session-lock.mjs release --pid "$$" )
+   # --pid must match the acquiring session's $PPID (Setup Worktree step 4,
+   # round 8); a cleanup run from a DIFFERENT session passes that recorded
+   # pid instead (see `session-lock.mjs status` for the currently-held pid).
+   ( cd [worktree-path] && node .aai/scripts/lib/session-lock.mjs release --pid "$PPID" )
 
    git worktree remove [worktree-path]
 

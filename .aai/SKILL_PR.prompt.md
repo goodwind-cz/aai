@@ -26,10 +26,15 @@ PRECONDITIONS (all must hold before any git write)
   session lock (D5's other half — the shared-EXISTING-checkout case the
   2026-09-06 incident actually was, which Setup Worktree's own acquire never
   covers): `node .aai/scripts/lib/session-lock.mjs status`; a `pid` already
-  `$$` means this session holds it, skip. Otherwise
-  `node .aai/scripts/lib/session-lock.mjs acquire --pid "$$" --ref <ref-id>`;
+  `$PPID` means this session holds it, skip. Otherwise
+  `node .aai/scripts/lib/session-lock.mjs acquire --pid "$PPID" --ref <ref-id>`
+  (round 8 / Codex P1: `$PPID`, not `$$` — each of these commands runs as a
+  separate one-shot shell, so `$$` dies the instant that command returns and
+  the lock it took is immediately reclaimable by the next session; `$PPID`
+  is that shell's parent, the harness process itself, alive for the whole
+  session);
   exit 3 names a live session already in this checkout — STOP. Release at the
-  end of step 5: `node .aai/scripts/lib/session-lock.mjs release --pid "$$"`.
+  end of step 5: `node .aai/scripts/lib/session-lock.mjs release --pid "$PPID"`.
 - Validation gate open — `node .aai/scripts/validation-waiver.mjs --state docs/ai/STATE.yaml`
   exits 0. Open on `last_validation.status: pass`, OR on `not_run` plus a
   well-formed waiver record in its `notes`, OR on `not_run` plus an archive
@@ -434,7 +439,7 @@ PROCESS
      points" (schema v2); swallow any capture failure, never block the sweep.
    - Release the step-0 session lock now, at the true end of step 5 (5b/5c/5d
      included — every git write this ceremony makes is done): `node
-     .aai/scripts/lib/session-lock.mjs release --pid "$$"` — a no-op if
+     .aai/scripts/lib/session-lock.mjs release --pid "$PPID"` — a no-op if
      nothing is held under this pid.
    - Merge boundary unchanged: this step never merges.
 

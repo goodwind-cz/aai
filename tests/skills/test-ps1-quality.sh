@@ -57,7 +57,7 @@ log_info() { echo "INFO: $*"; }
 # "cannot be exercised on this machine at all", which is false wherever pwsh
 # is installed).
 # Get-EffectiveTimeout's fallback must match aai-run-tests.sh's own
-# `AAI_TEST_TIMEOUT:-3000}` default; the two drifted once already
+# `${AAI_TEST_TIMEOUT:-3000}` default; the two drifted once already
 # (BLOCKING-22: the .ps1 stayed at 300 after the .sh wrapper's raise to
 # 3000, silently overriding it back down on every Windows run).
 RUN_PS1="$PROJECT_ROOT/.aai/scripts/aai-run-tests.ps1"

@@ -29,9 +29,35 @@
 // forbidden by a tested rule of this repository (D5); this lock is its own,
 // independent, deliberately narrow signal.
 //
-// Payload: {pid, worktree, ref_id, acquired_utc}. No `owner`/`ttl_seconds`
-// fields — this lock's whole claim is "this pid, in this worktree, is alive
-// right now", not an identity or a lease.
+// Payload: {pid, worktree, ref_id, acquired_utc, owner_kind}. No `ttl_seconds`
+// field — this lock's whole claim is "this pid, in this worktree, is alive
+// right now", not a lease. `owner_kind` is a fixed, informational
+// 'harness-parent' stamp (round 8 / Codex P1 fu-session-lock-oneshot-pid):
+// documents the INTENDED calling convention below, never verified or
+// enforced by this module itself (it cannot know whether a given pid is
+// really a session-lived harness process or something else — that discipline
+// lives entirely in the caller).
+//
+// PID CHOICE — SESSION-LIVED, NOT THE COMMAND SHELL (round 8). An agent
+// (Claude Code / Codex / Gemini CLI) runs each ceremony command in its OWN
+// one-shot subshell: `$$` inside that subshell is a NEW pid that exits the
+// instant the command returns, so a lock acquired with `--pid "$$"` is
+// already reclaimable by the time the VERY NEXT command runs — the control
+// was inert in the real multi-command-call execution model (every prior
+// SKILL_WORKTREE/SKILL_PR example of `--pid "$$"` predates this fix and was
+// wrong for the same reason). The fix: key the lock on `$PPID` — the PARENT
+// of that one-shot shell, which IS the harness process itself and lives for
+// the whole session, across every later one-shot command. Callers pass
+// `--pid "$PPID"` (see SKILL_WORKTREE.prompt.md / SKILL_PR.prompt.md).
+// HONEST LIMIT: this only holds while the harness's own parent-of-each-
+// command process is itself session-lived. On a harness whose command shell
+// has NO stable session-lived parent (an unusual embedding, not any of the
+// three named above today), `$PPID` degrades to the exact same one-shot
+// liveness `$$` had — the lock is then advisory only (it still refuses a
+// SECOND live-and-checked session, but a crash between commands is
+// indistinguishable from a normal exit). This module cannot detect that
+// case; it is a property of the calling harness, documented here so it is
+// never rediscovered as a surprise.
 //
 // CLI (used by tests and, eventually, the ceremony scripts):
 //   node session-lock.mjs acquire [--pid <n>] [--ref <ref_id>]
@@ -114,7 +140,7 @@ export function acquire({ cwd, pid, refId }) {
   const p = path.join(dir, 'session.lock');
   const sentinelPath = `${p}.reclaim`;
   const worktree = topLevel(cwd);
-  const payload = JSON.stringify({ pid, worktree, ref_id: refId ?? null, acquired_utc: new Date().toISOString() });
+  const payload = JSON.stringify({ pid, worktree, ref_id: refId ?? null, acquired_utc: new Date().toISOString(), owner_kind: 'harness-parent' });
 
   for (let attempt = 0; attempt < MAX_RECLAIM_ATTEMPTS; attempt += 1) {
     let fd;
@@ -149,7 +175,14 @@ export function acquire({ cwd, pid, refId }) {
         if (cur && isPidAlive(cur.pid)) {
           outcome = { held: cur }; // a peer reclaimed first and is alive
         } else {
-          if (cur) { try { fs.rmSync(p, { force: true }); } catch { /* gone */ } }
+          // Dead OR corrupt/unreadable (cur is null when the file exists but
+          // failed to parse) — either way it must be removed before the
+          // reclaim create below, or that create hits the SAME EEXIST forever
+          // (Codex P2 finding: this used to skip the rm whenever `cur` was
+          // falsy, permanently wedging on a half-written lock file — every
+          // later acquire kept re-reading the same corrupt bytes and
+          // returning code 3 with holderPid/holderWorktree both null).
+          try { fs.rmSync(p, { force: true }); } catch { /* gone */ }
           try {
             const nfd = fs.openSync(p, 'wx');
             fs.writeSync(nfd, payload);

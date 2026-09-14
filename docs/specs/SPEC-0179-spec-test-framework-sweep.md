@@ -1093,3 +1093,177 @@ amendment in this repository's history).
   — but the residual was previously undisclosed. Added as R6 under
   `## Implementation plan`'s residual-risks list and named in Spec-AC-03's
   Notes column.
+
+### Round 8 — external bot findings on PR #381
+
+Seven Codex/Copilot findings from PR #381's bot review, plus two CI-only reds
+(green locally) the operator surfaced from the same run. Each is fixed at
+cause with a TEST a mutation reddens, disclosed here per the same
+additive-with-disclosure convention as every round above.
+
+- **Codex P1, session-lock owner is a one-shot pid
+  (`fu-session-lock-oneshot-pid`, `.aai/SKILL_WORKTREE.prompt.md`,
+  `.aai/SKILL_PR.prompt.md`, `.aai/scripts/lib/session-lock.mjs`).** An agent
+  runs every ceremony command in a SEPARATE one-shot shell, so a lock keyed
+  on `--pid "$$"` dies (and is immediately reclaimable) the instant the
+  acquiring command returns — inert against the real execution model, and
+  worse, silently permits the exact concurrent-session collision D5 exists
+  to refuse. Every `session-lock.mjs acquire`/`release` in both prompts now
+  keys on `--pid "$PPID"` — the one-shot shell's PARENT, i.e. the harness
+  process itself, alive for the whole session — and `session-lock.mjs`'s
+  `acquire()` payload now stamps `owner_kind: 'harness-parent'`
+  (informational; the module cannot itself verify a caller's pid is really
+  session-lived). The header doc states the honest limit: on a harness whose
+  command shell has no stable session-lived parent, this degrades to the
+  same one-shot advisory-only liveness `$$` had. TEST: `test-aai-session-
+  lock.sh` TEST-458 proves the mechanism itself with a real two-process
+  fixture — (a) a lock acquired with `--pid "$PPID"` from inside a `bash -c`
+  survives that `bash -c`'s own exit (a second independent acquire is
+  refused, exit 3, live); (b) the same shape keyed on `--pid "$$"` is
+  reclaimable immediately (exit 0) once its acquiring shell exits.
+  `test-aai-branch-guard.sh` TEST-459 proves the PROMPTS actually call it
+  that way (both prompts' acquire/release lines pass `--pid "$PPID"`; no
+  live `session-lock.mjs` command line anywhere still passes `--pid "$$"`).
+  MUTATION: reverting either prompt's acquire line back to `--pid "$$"`
+  reddens TEST-459 (verified). Prompt-diet: measured under plain bash with
+  `/usr/bin/wc -c`: `SKILL_WORKTREE.prompt.md` 10457 -> 11162 (+705 B),
+  `SKILL_PR.prompt.md` 31698 -> 32025 (+327 B), sum +1032 B; ledger entry
+  `round-8-session-lock-ppid-owner` added, ceremony-numbered TEST-012 pin
+  moves 29362 -> 30394 (`tests/skills/lib/prompt-diet-ledger.sh`,
+  `tests/skills/test-aai-prompt-diet.sh`).
+- **Codex P1, unreadable branch pin read as "no pin"
+  (`.aai/scripts/branch-guard.mjs` `checkBranchPin`/`doPin`).** A pin file
+  present but unparseable (an interrupted, non-atomic `writeFileSync`, or
+  any other corruption) used to collapse to the same `pin = null` ENOENT
+  takes, silently disabling every `--expect-branch` ceremony gate at exactly
+  the moment — mid-write — a concurrent session is most likely to be racing
+  it. `checkBranchPin` now reads the file once (`fs.readFileSync`, closing
+  the prior `existsSync`-then-read TOCTOU gap), distinguishes ENOENT (stays
+  the documented Spec-AC-04 no-op, exit 0) from anything else — invalid
+  JSON, or valid JSON missing the required `branch`/`sha` string fields —
+  which now refuses with a new exit code 8, cause `'malformed-pin'`, never
+  silently read as absent. `doPin` now writes the pin atomically (a
+  `.tmp-<pid>-<ts>` file, then `fs.renameSync` to the real path) so a future
+  interrupted write can no longer land a partial file at all. TEST:
+  `test-aai-branch-guard.sh` TEST-460 corrupts a real pin file (truncated
+  JSON) after a genuine `--pin`, then proves bare `--verify-pin` refuses
+  (exit 8, no raw stack trace, message names it malformed) AND all three
+  `--expect-branch` ceremony call sites (`check-committed-scope.mjs` exit 3,
+  `close-work-item.mjs` exit 7, `close-before-push-guard.mjs` exit 3) refuse
+  too rather than silently passing; then removes the pin entirely and
+  reconfirms `--verify-pin` returns to the Spec-AC-04 no-op (exit 0),
+  proving code 8 is conditioned on presence-but-unreadable, not a
+  general tightening. MUTATION: reverting `checkBranchPin`'s read block to
+  the old `existsSync` + swallow-to-null shape reddens TEST-460 (verified —
+  `--verify-pin` returns to exit 0 against the same corrupt file).
+- **Codex P2, corrupt session lock wedges forever
+  (`.aai/scripts/lib/session-lock.mjs` `acquire`).** A lock file present but
+  unparseable (a holder that died between `openSync(..., 'wx')` and
+  completing its `writeSync`) was reclaimed only when `readLock(p)` returned
+  a TRUTHY value — a corrupt file makes `readLock` return `null`, so the old
+  code's `if (cur) { rm }` guard skipped the removal entirely, and the
+  reclaim's own `openSync(p, 'wx')` then hit the SAME EEXIST forever: every
+  later `acquire` repeated exit 3 with `holderPid`/`holderWorktree` both
+  `null`, a permanent wedge indistinguishable from a stuck reclaim except by
+  manually deleting the file. The `rm` now runs unconditionally whenever the
+  existing holder is not both readable AND alive — dead and corrupt take the
+  identical path. TEST: `test-aai-session-lock.sh` TEST-457 writes a
+  half-written (truncated) lock file directly, then proves a fresh
+  `acquire` reclaims it (exit 0, new pid recorded) — twice independently,
+  with a second, differently-malformed payload, to rule out a one-shot
+  fluke. MUTATION: restoring the old `if (cur) { rm } ` guard reddens
+  TEST-457 (verified — the second acquire returns exit 3, "held by pid null
+  in worktree null").
+- **Copilot, empty `--expect-branch ''` silently disables the re-check
+  (`.aai/scripts/close-before-push-guard.mjs:87`,
+  `.aai/scripts/close-work-item.mjs:267`).** An explicit empty string
+  (`--expect-branch ''`, or an unset shell variable interpolated unquoted-
+  safe as `""`) is neither `undefined` nor `--`-prefixed, so it slipped past
+  the existing missing-value usage check, into `verifyExpectedBranch`'s
+  `if (!expectBranch) return`, and silently disabled the whole CHANGE-0180
+  D4 re-check — a fail-open bypass shaped exactly like the already-fixed
+  bare-trailing-flag case. Both parse sites now also refuse `val === ''` as
+  a usage error (same exit 2, same message: "--expect-branch requires a
+  value"). TEST: `test-aai-branch-guard.sh` TEST-461 calls both scripts with
+  a literal `--expect-branch ''` and asserts the named usage refusal at
+  each. MUTATION: reverting either site's condition to drop the
+  `val === ''` disjunct reddens TEST-461 (verified — the empty value is
+  silently accepted and the ceremony proceeds). `close-work-item.mjs` is
+  hash-pinned (`tests/skills/lib/close-work-item-pin.sh`); this edit is the
+  sole change to that file this round, re-pinned as a new last entry
+  (`578c3f2c612df0a0e0cd700a97585c4b239c42e90ef6805742068bdf93dd7ed4`).
+- **Copilot, `_cmd_has` glob risk (`tests/skills/test-aai-hooks-overlay.sh`
+  TEST-004).** The finding: a `case "$cmd" in *"$1"*)` match treats its
+  needle as a glob pattern, and a needle containing metacharacters (`[` in
+  particular — one of the two existing needles, `'if [ -f '`, already
+  contains one) could in principle match a literal substring that is not
+  actually present. Disclosed honestly: the shipped needle was already
+  double-quoted (`*"$1"*`), which bash DOES treat as a literal match
+  (verified empirically — a hostile `a[xy]c`-vs-`axc` fixture shows the
+  quoted form never false-matches); the finding's literal reproduction case
+  did not reproduce against the actual code. The fix removes the risk class
+  entirely rather than relying on quoting discipline surviving every future
+  edit: `_cmd_has` now uses `grep -qF -- "$1" <<<"$cmd"`, a structurally
+  literal substring test immune to glob metacharacters regardless of
+  quoting. TEST: two new positive-control assertions inside TEST-004 —
+  `cmd='axc' _cmd_has 'a[xy]c'` must NOT match (no false positive), and
+  `cmd='a[xy]c' _cmd_has 'a[xy]c'` must match (the literal case still
+  works). MUTATION: reverting `_cmd_has` to an UNQUOTED `case "$cmd" in
+  *$1*)` (the genuinely unsafe shape a future "simplification" could
+  plausibly reintroduce, dropping the quotes around `$1`) reddens the new
+  control (verified — `axc` false-matches `a[xy]c` under that shape); the
+  shipped-but-quoted PRE-fix shape does not redden it, which is why this
+  entry states plainly that the fix is defense-in-depth against a
+  regression class, not a correction of an exploitable bug in the code as
+  shipped.
+- **Copilot, ps1-quality comment typo (`tests/skills/test-ps1-quality.sh`,
+  near line 61).** A comment read `` `AAI_TEST_TIMEOUT:-3000}` `` (missing
+  the opening `${`), easy to copy/paste wrong when debugging timeout drift.
+  Corrected to `` `${AAI_TEST_TIMEOUT:-3000}` ``. Prose-only; no TEST/
+  mutation (nothing behavioral changed).
+- **CI-only red #1 (operator-surfaced, green locally): missing git identity
+  in a TEST-405 fixture commit (`tests/skills/test-aai-branch-guard.sh`,
+  the `git commit --allow-empty -qm "concurrent commit on the same
+  branch"` line inside `test_405`).** Every OTHER fixture commit in this
+  file passes `-c user.email=... -c user.name=... -c commit.gpgsign=false`;
+  this one bare `git commit` relied on the invoking machine's global git
+  config, present on every developer machine and absent on the CI runner —
+  "Author identity unknown", failing the whole suite before TEST-405 could
+  even assert anything (CI run 34796276501/34796261955). Now passes the
+  same `-c` flags as every sibling commit in the file. No new TEST — an
+  existing one (TEST-405) already covers the behavior; the defect was
+  purely in how its own fixture was built.
+- **CI-only red #2 (operator-surfaced, green locally): `aai-sync.sh`'s
+  `copy_replace` trusts `cp -a`'s exit code alone
+  (`.aai/scripts/aai-sync.sh:142-182`).** The operator's own hypothesis
+  (TEST-439's new symlink probe, added this sweep) was investigated and
+  ruled out — TEST-439 PASSED on both CI runs examined. The actual failure,
+  read from the raw job logs
+  (`gh api repos/goodwind-cz/aai/actions/jobs/103829938428/logs`): `aai-
+  doctor` suite's TEST-031 (hygiene set) nests `test-aai-layer-profiles.sh`,
+  whose TEST-003 failed with `core sync MISSING core-listed files:
+  .aai/AGENTS.md` — but the SAME suite, run independently minutes later in
+  the same CI job (three other nesting call sites), showed TEST-003
+  PASSING each time: an intermittent flake, not a deterministic logic bug,
+  consistent with resource contention under this job's ~90-suite
+  parallelism (never reproduced locally, including on this exact CI commit
+  sha `9ed8b63e`). `copy_replace` never checked whether its `cp -a` actually
+  landed the destination — a `cp -a` that returns 0 but leaves the
+  destination absent (observed only under CI load) was invisible until a
+  step downstream reported an unattributed "MISSING" file with no
+  attributable cause. `copy_replace` now verifies the destination exists
+  after the copy and retries ONCE before failing loudly by name
+  (`AAI_SYNC_TEST_FORCE_MISSING_ONCE`/`AAI_SYNC_TEST_FORCE_MISSING_ALWAYS`
+  are test-only fault-injection hooks, unset on every real run). TEST:
+  `test-aai-layer-profiles.sh` TEST-463 — arm (a) sabotages the destination
+  after exactly the first copy and proves the retry lands it (sync still
+  exits 0, file present); arm (b) sabotages it after EVERY attempt against
+  that path and proves the retry-exhausted refusal fires (non-zero exit,
+  message names the destination path and says "retried once"). MUTATION:
+  reverting `copy_replace` to the pre-fix bare `cp -a` (no verify, no
+  retry, no fault-injection hooks) reddens TEST-463 arm (b) (verified — the
+  sync silently exits 0 with the sabotaged file never landed).
+
+Authority for this round: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: test-framework-sweep`, `--signoff none` (owner sign-off owed, a
+follow-up filed for it — same convention as every prior round).

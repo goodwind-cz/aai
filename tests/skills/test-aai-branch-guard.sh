@@ -593,7 +593,7 @@ test_405() {
     || log_fail "fixture setup: could not return to feat/pinned for the same-branch/new-sha case"
   run_guard "$repo" --pin
   [[ "$RC" -eq 0 ]] || log_fail "--pin (second round) must exit 0 (got $RC; stderr: $ERR)"
-  ( cd "$repo" && git commit --allow-empty -qm "concurrent commit on the same branch" ) \
+  ( cd "$repo" && git -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit --allow-empty -qm "concurrent commit on the same branch" ) \
     || log_fail "fixture setup: could not add a new commit on feat/pinned"
   run_guard "$repo" --verify-pin
   [[ "$RC" -ne 0 ]] || log_fail "--verify-pin must refuse a SAME-branch, DIFFERENT-sha move (got exit 0) — the sha half of the comparison is not being checked"
@@ -1125,7 +1125,106 @@ test_455() {
   log_pass "a --expect-branch naming a DIFFERENT branch than the pin's own refuses at all three call sites, whether HEAD stayed on the pinned branch or moved to the named one — the NB-3 compare crossing is proven, not merely wired"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 405 406 407 408 450 451 452 453 454 455"
+# --- TEST-459 (round 8, Codex P1) — SKILL_WORKTREE/SKILL_PR wire the
+#     session-lock owner on $PPID, never the acquiring one-shot shell's own
+#     $$ (fu-session-lock-oneshot-pid; test-aai-session-lock.sh TEST-458
+#     proves the underlying $PPID-vs-$$ liveness difference for real; this
+#     test proves the PROMPTS actually call it that way) --------------------
+test_459() {
+  log_info "TEST-459: SKILL_WORKTREE/SKILL_PR key the session lock on \$PPID, never the acquiring shell's own \$\$..."
+  local pr_doc="$SKILL_PR_DOC" wt_doc="$PROJECT_ROOT/.aai/SKILL_WORKTREE.prompt.md"
+  [[ -f "$pr_doc" ]] || log_fail "missing $pr_doc"
+  [[ -f "$wt_doc" ]] || log_fail "missing $wt_doc"
+
+  grep -qF -- 'session-lock.mjs acquire --pid "$PPID"' "$wt_doc" \
+    || log_fail "SKILL_WORKTREE.prompt.md's acquire must pass --pid \"\$PPID\" (got no match)"
+  grep -qF -- 'session-lock.mjs release --pid "$PPID"' "$wt_doc" \
+    || log_fail "SKILL_WORKTREE.prompt.md's cleanup release must pass --pid \"\$PPID\" (got no match)"
+  grep -qF -- 'session-lock.mjs acquire --pid "$PPID"' "$pr_doc" \
+    || log_fail "SKILL_PR.prompt.md's step-0 acquire must pass --pid \"\$PPID\" (got no match)"
+  grep -qF -- 'session-lock.mjs release --pid "$PPID"' "$pr_doc" \
+    || log_fail "SKILL_PR.prompt.md's step-5 release must pass --pid \"\$PPID\" (got no match)"
+
+  # Negative half: no LIVE command-line invocation of session-lock.mjs may
+  # still key on the bare one-shot-shell $$ — a literal `--pid "$$"` command
+  # line is the exact regression this round fixed (prose ABOUT the old flag,
+  # e.g. "replaces the earlier `--pid \"\$\$\"`", is fine and expected; only
+  # an actual `session-lock.mjs ... --pid "$$"` invocation line is checked).
+  if grep -nF -- 'session-lock.mjs' "$wt_doc" "$pr_doc" | grep -qF -- '--pid "$$"'; then
+    log_fail "a session-lock.mjs command line still keys the lock on the acquiring one-shot shell's own \$\$ (SKILL_WORKTREE.prompt.md / SKILL_PR.prompt.md)"
+  fi
+
+  log_pass "SKILL_WORKTREE.prompt.md and SKILL_PR.prompt.md key every session-lock.mjs acquire/release on \$PPID, never the acquiring shell's own \$\$"
+}
+
+# --- TEST-460 (round 8, Codex P1) — a present-but-unreadable/malformed HEAD
+#     pin REFUSES (never silently reads as "no pin"); ENOENT (no pin file at
+#     all) stays the documented Spec-AC-04 no-op ---------------------------
+test_460() {
+  log_info "TEST-460: a malformed/unreadable HEAD pin refuses (code 8) at branch-guard.mjs and at all three --expect-branch ceremony call sites; ENOENT stays a no-op..."
+  local repo; repo="$(make_repo t460)"
+  ( cd "$repo" && git checkout -qb feat/malformed ) \
+    || log_fail "fixture setup: could not create feat/malformed"
+
+  run_guard "$repo" --pin
+  [[ "$RC" -eq 0 ]] || log_fail "--pin must exit 0 before corrupting it (got $RC; stderr: $ERR)"
+  local pin_path="$repo/.git/aai/branch-pin.json"
+  [[ -f "$pin_path" ]] || log_fail "pin file not found at the expected location: $pin_path"
+  # Half-written: valid JSON opening, no closing brace — the exact shape an
+  # interrupted (non-atomic, pre-fix) writeFileSync could leave behind.
+  printf '{"branch":"feat/malformed","sha":"' > "$pin_path"
+
+  run_guard "$repo" --verify-pin
+  [[ "$RC" -eq 8 ]] || log_fail "bare --verify-pin against a malformed pin must exit 8 (got $RC; stderr: $ERR)"
+  assert_payload_not_contains "$ERR" "    at " "branch-guard.mjs must not print a raw Node stack trace on a malformed pin (got: $ERR)"
+  assert_payload_contains "$ERR" "not valid JSON" "the refusal must name the pin as malformed/corrupted, not merely 'HEAD moved' (got: $ERR)"
+
+  local out rc
+  out="$(run_out "$repo" node "$CCS_SCRIPT" --from-state --strict --rev HEAD --expect-branch feat/malformed 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "check-committed-scope.mjs must refuse (exit 3) against a malformed pin, never silently pass (got $rc; output: $out)"
+  assert_payload_contains "$out" "not valid JSON" "check-committed-scope.mjs's refusal must cite the malformed/corrupted pin (got: $out)"
+
+  out="$(run_out "$repo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch feat/malformed 2>&1)"; rc=$?
+  [[ "$rc" -eq 7 ]] || log_fail "close-work-item.mjs must refuse (exit 7) against a malformed pin, never silently pass (got $rc; output: $out)"
+  assert_payload_contains "$out" "not valid JSON" "close-work-item.mjs's refusal must cite the malformed/corrupted pin (got: $out)"
+
+  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch feat/malformed 2>&1)"; rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "close-before-push-guard.mjs must refuse (exit 3) against a malformed pin, never silently pass (got $rc; output: $out)"
+  assert_payload_contains "$out" "not valid JSON" "close-before-push-guard.mjs's refusal must cite the malformed/corrupted pin (got: $out)"
+
+  # ENOENT contrast: removing the pin entirely reverts to the documented
+  # Spec-AC-04 no-op (exit 0) — proving code 8 is genuinely conditioned on
+  # the file's PRESENCE-but-unreadable, not on --expect-branch/--verify-pin
+  # refusing unconditionally now.
+  rm -f "$pin_path"
+  run_guard "$repo" --verify-pin
+  [[ "$RC" -eq 0 ]] || log_fail "--verify-pin with NO pin file at all must stay a no-op (exit 0), got $RC; stderr: $ERR"
+
+  log_pass "a malformed/unreadable pin refuses (code 8) at branch-guard.mjs and at all three ceremony call sites; a genuinely absent pin (ENOENT) stays the Spec-AC-04 no-op"
+}
+
+# --- TEST-461 (round 8, Copilot) — an EXPLICIT empty --expect-branch value
+#     ('') is a missing value (usage error), never a silent fail-open no-op,
+#     at both close-before-push-guard.mjs and close-work-item.mjs ---------
+test_461() {
+  log_info "TEST-461: --expect-branch '' (explicit empty string) is a usage error, not a silent disable, at both ceremony call sites..."
+  local repo; repo="$(make_repo t461)"
+  ( cd "$repo" && git checkout -qb feat/empty-expect ) \
+    || log_fail "fixture setup: could not create feat/empty-expect"
+
+  local out rc
+  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch '' 2>&1)"; rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "close-before-push-guard.mjs: --expect-branch '' must not silently pass (got exit 0; output: $out)"
+  assert_payload_contains "$out" "requires a value" "close-before-push-guard.mjs must name the missing-value usage error for an empty --expect-branch (got: $out)"
+
+  out="$(run_out "$repo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch '' 2>&1)"; rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "close-work-item.mjs: --expect-branch '' must not silently pass (got exit 0; output: $out)"
+  assert_payload_contains "$out" "requires a value" "close-work-item.mjs must name the missing-value usage error for an empty --expect-branch (got: $out)"
+
+  log_pass "an explicit empty --expect-branch value is a named usage refusal in both scripts, never a silent fail-open"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 405 406 407 408 450 451 452 453 454 455 459 460 461"
 
 main() {
   echo "Testing $TEST_NAME (deterministic branch-per-work-item hygiene guard)"

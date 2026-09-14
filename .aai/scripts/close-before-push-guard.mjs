@@ -76,8 +76,15 @@ function parseArgs(argv) {
       // instead of refusing. A missing value is a usage error, not a
       // fail-open no-op — the sibling check-committed-scope.mjs's `need()`
       // already gets this right.
+      // round 8 / Copilot: an EXPLICIT empty string (`--expect-branch ""`, or
+      // an unset shell variable handed through unquoted-safe as `""`) is
+      // ALSO a missing value, not a legitimate branch name — without this,
+      // it slipped past the undefined/`--` checks above, into
+      // verifyExpectedBranch's `if (!expectBranch) return`, and silently
+      // disabled the whole re-check exactly like the bug this same guard
+      // already closes for a bare trailing flag.
       const val = argv[++i];
-      if (val === undefined || val.startsWith('--')) usageError('--expect-branch requires a value');
+      if (val === undefined || val === '' || val.startsWith('--')) usageError('--expect-branch requires a value');
       args.expectBranch = val;
     }
     else usageError(`unrecognized flag: ${tok}`);

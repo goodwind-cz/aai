@@ -99,6 +99,8 @@
 //   5 — HEAD is detached under a pin.
 //   6 — the pinned branch was renamed/removed under the session.
 //   7 — a concurrent session moved HEAD (the pinned branch still exists).
+//   8 — the pin file exists but is unreadable/malformed (a partial or
+//       corrupted write) — NEVER treated as "no pin" (round 8 / Codex P1).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -408,7 +410,17 @@ function doPin(cwd) {
     worktree: topLevel(cwd),
     pinned_utc: new Date().toISOString(),
   };
-  fs.writeFileSync(pinFilePath(cwd), JSON.stringify(payload));
+  // Atomic write (Codex P1 finding, round 8): a plain writeFileSync interrupted
+  // mid-write (crash, kill -9) leaves a TRUNCATED/partial file on disk, which
+  // checkBranchPin below must refuse rather than silently read as "no pin"
+  // (Spec-AC-04 is about a pin that was never taken, not one that was taken
+  // and then torn). tmp-write + rename is atomic on the same filesystem (both
+  // live under the same git-dir-derived pin directory), so a reader never
+  // observes a partial file at the real path.
+  const finalPath = pinFilePath(cwd);
+  const tmpPath = `${finalPath}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(tmpPath, JSON.stringify(payload));
+  fs.renameSync(tmpPath, finalPath);
   console.log(`branch-guard: pinned branch "${branch}" at ${sha}`);
   exit(0);
 }
@@ -450,6 +462,13 @@ function isAncestor(cwd, ancestorSha, descendantSha) {
 //                               name reset/rebased off the pinned sha, or —
 //                               with no pin at all — `expectBranch` itself
 //                               naming a branch HEAD is not currently on).
+//   code 8, cause 'malformed-pin' — the pin file EXISTS but could not be
+//                               read/parsed/validated (round 8 / Codex P1):
+//                               distinct from "no pin" (ENOENT, which stays
+//                               ok:true above) precisely because a torn
+//                               write is MOST likely mid-ceremony, exactly
+//                               when this gate matters most — guessing "no
+//                               pin" here would silently disable it.
 //
 // review NB-3: the branch this check holds the ceremony to is `expectBranch`
 // itself when given, never silently `pin.branch` — closing the gap where the
@@ -477,19 +496,52 @@ function checkBranchPin(cwd, expectBranch = null) {
       message: 'not inside a git work tree (cannot verify the HEAD pin).',
     };
   }
+  // Codex P1 finding (round 8): ENOENT ("no pin was ever taken") and a
+  // present-but-unreadable/malformed file (an interrupted --pin write, or
+  // any other corruption) used to collapse to the SAME `pin = null` and the
+  // SAME Spec-AC-04 "no pin, complete no-op" exit 0 — silently disabling
+  // every `--expect-branch` ceremony gate exactly when a concurrent HEAD
+  // move is most likely (mid-write). Distinguish them: ENOENT is the ONLY
+  // case that reads as "no pin"; anything else refuses (code 8) instead of
+  // guessing. readFileSync (not existsSync + a separate read) closes the
+  // TOCTOU gap between the two.
   const pinPath = path.join(dir, PIN_FILENAME);
-  let pin = null;
-  if (fs.existsSync(pinPath)) {
-    try {
-      pin = JSON.parse(fs.readFileSync(pinPath, 'utf8'));
-    } catch {
-      pin = null;
+  let raw;
+  try {
+    raw = fs.readFileSync(pinPath, 'utf8');
+  } catch (e) {
+    if (e && e.code === 'ENOENT') {
+      // Spec-AC-04: no pin file at all -> exit 0 without reading git, a
+      // complete no-op regardless of `expectBranch` — a caller cannot
+      // compare its argument against a pin that was never taken.
+      return { ok: true, code: 0, cause: null };
     }
+    return {
+      ok: false,
+      code: 8,
+      cause: 'malformed-pin',
+      message: `the HEAD pin at ${pinPath} could not be read (${e && e.code ? e.code : e.message}) — refusing rather than treating this as "no pin".`,
+    };
   }
-  // Spec-AC-04: no pin file at all -> exit 0 without reading git, a complete
-  // no-op regardless of `expectBranch` — a caller cannot compare its argument
-  // against a pin that was never taken.
-  if (!pin) return { ok: true, code: 0, cause: null };
+  let pin;
+  try {
+    pin = JSON.parse(raw);
+  } catch {
+    return {
+      ok: false,
+      code: 8,
+      cause: 'malformed-pin',
+      message: `the HEAD pin at ${pinPath} exists but is not valid JSON (a partial or corrupted write) — refusing rather than treating this as "no pin"; remove it and re-run --pin once it is safe to discard.`,
+    };
+  }
+  if (!pin || typeof pin !== 'object' || typeof pin.branch !== 'string' || typeof pin.sha !== 'string') {
+    return {
+      ok: false,
+      code: 8,
+      cause: 'malformed-pin',
+      message: `the HEAD pin at ${pinPath} is missing required fields (branch/sha) — refusing rather than treating this as "no pin".`,
+    };
+  }
 
   const wantBranch = expectBranch || pin.branch;
   const branch = currentBranch(cwd);

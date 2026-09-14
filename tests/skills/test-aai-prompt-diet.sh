@@ -789,7 +789,12 @@ test_012_growth_sum_matches_ledger() {
   # session-lock acquire/release; validation round 4 F-7 folded in: SKILL_PR
   # step 0 also claims the session lock for a shared-EXISTING checkout and
   # step 5's true end releases it, +789 B over the round-3 measurement).
-  local want_growth=29362
+  # Then 29362 -> 30394: round-8-session-lock-ppid-owner (+1032 B, PR #381
+  # Codex P1 fu-session-lock-oneshot-pid -- every session-lock.mjs
+  # acquire/release in SKILL_WORKTREE.prompt.md and SKILL_PR.prompt.md
+  # rekeyed from --pid "$$" to --pid "$PPID", plus the honest degrade-to-
+  # advisory limit explained at each site).
+  local want_growth=30394
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

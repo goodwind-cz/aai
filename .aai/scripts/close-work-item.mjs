@@ -258,8 +258,13 @@ function parseArgs(argv) {
       // fail-open — see close-before-push-guard.mjs's twin for the full
       // rationale (the sibling check-committed-scope.mjs's `need()` already
       // gets this right).
+      // round 8 / Copilot: an EXPLICIT empty string is ALSO a missing value,
+      // not a legitimate branch name — see close-before-push-guard.mjs's
+      // twin for the full rationale (it slipped past the undefined/`--`
+      // checks above, into verifyExpectedBranch's `if (!expectBranch)
+      // return`, and silently disabled the whole re-check).
       const val = argv[++i];
-      if (val === undefined || val.startsWith('--')) usageError('--expect-branch requires a value');
+      if (val === undefined || val === '' || val.startsWith('--')) usageError('--expect-branch requires a value');
       args.expectBranch = val;
     }
     else usageError(`unrecognized flag: ${tok}`);
