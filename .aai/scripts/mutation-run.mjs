@@ -77,6 +77,16 @@
 //     docs/ai/LOOP_TICKS.jsonl — hashed when present, closed list, never a
 //     blanket "every gitignored path"); an unlisted runtime sidecar is still
 //     invisible to this tripwire.
+//   - D7 (remediation round 4, NB-1): the allowlist above is reproduced into
+//     the clone (D4, buildIsolatedClone) so the D4 clone-fidelity comparison
+//     still covers it, but it is EXCLUDED from THIS before/after comparison —
+//     a canon-permitted concurrent ceremony write (log-tick, state.mjs) to
+//     docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl during a run must never
+//     downgrade a genuine RED to INCONCLUSIVE (TEST-497). The mirror-image
+//     limit this buys: a MUTATED run that itself writes the source copy of
+//     an allowlist path from inside the suite is now invisible to D7 too —
+//     the allowlist is reproduced into the clone, never tripwired in the
+//     source, and this tool makes no wider claim than that.
 //
 // Node stdlib only (docs/TECHNOLOGY.md). Never invokes a shell: every
 // external command runs via execFileSync/spawnSync with an argv array, so a
@@ -88,6 +98,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { exit, runMain, ExitSignal } from './lib/cli-pipe-guard.mjs';
 import { parseFrontmatter } from './lib/docs-model.mjs';
 import {
@@ -354,10 +365,35 @@ function mutationDescription({ sed, patch }) {
 // not only that the summary hash did.
 class TreeMismatchError extends Error {}
 
+// Remediation round 4 (NB-1): D4 (buildIsolatedClone, above) and D7 (the two
+// before/after tripwire call sites below) share tree-hash.mjs's primitives,
+// but they now WANT different comparisons over the same RUNTIME_ALLOWLIST
+// paths — D4 must still prove the clone reproduces them (a copy failure is a
+// real fidelity gap), D7 must NOT trip on a canon-permitted concurrent
+// ceremony write to them (log-tick, state.mjs) that never touches the clone
+// at all. withoutRuntimeAllowlist() is the ONE place that difference is
+// expressed: it strips the allowlist paths out of a computeTreeFileHashes()
+// map before D7 hashes/diffs it, so a caller cannot accidentally compare the
+// two tripwires with different filtering logic.
+function withoutRuntimeAllowlist(fileHashMap) {
+  if (!RUNTIME_ALLOWLIST.length) return fileHashMap;
+  const filtered = new Map(fileHashMap);
+  for (const rel of RUNTIME_ALLOWLIST) filtered.delete(rel);
+  return filtered;
+}
+
 function buildIsolatedClone() {
   const baseCommit = execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const sourceTreeFiles = computeTreeFileHashes(ROOT);
-  const sourceTreeHash = hashFromFileHashes(sourceTreeFiles);
+  // sourceTreeHash is NOT derived here (remediation round 4, NB-1 second
+  // window): RUNTIME_ALLOWLIST entries in sourceTreeFiles above were read at
+  // THIS instant, but the allowlist copy loop below reads them again, later,
+  // when it writes them into the clone — a concurrent ceremony write landing
+  // between the two reads would make sourceTreeFiles' allowlist entries
+  // describe bytes the clone never actually received, tripping the D4
+  // comparison over a race rather than a real fidelity gap. Deferred to
+  // after that loop, once sourceTreeFiles has been corrected to the bytes
+  // ACTUALLY copied.
 
   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'aai-mutation-'));
   // Everything from here on is inside ONE try: any throw, of ANY shape
@@ -410,17 +446,37 @@ function buildIsolatedClone() {
     // since `git ls-files --others --exclude-standard` never lists a
     // gitignored path). Copied only when present, same skip-by-name
     // discipline as the untracked-file loop above.
+    //
+    // Remediation round 4 (NB-1, second window): the bytes are read HERE,
+    // ONCE, and that same buffer is both written to the clone AND hashed to
+    // correct sourceTreeFiles' entry for this path — never a second
+    // `fs.readFileSync(ROOT/...)` and never trusting the earlier
+    // computeTreeFileHashes(ROOT) snapshot for these paths. This makes the
+    // D4 comparison below compare the clone against what was ACTUALLY
+    // copied, not against a possibly-stale earlier read, closing the race
+    // where a concurrent ceremony write between the two reads would show up
+    // as a spurious TreeMismatchError. A path that vanished between the
+    // early scan and this loop is removed from sourceTreeFiles too (it will
+    // not be in the clone either — nothing to compare).
     for (const rel of RUNTIME_ALLOWLIST) {
       const src = path.join(ROOT, rel);
-      if (!fs.existsSync(src)) continue;
+      let bytes;
+      try {
+        bytes = fs.readFileSync(src);
+      } catch {
+        sourceTreeFiles.delete(rel); // vanished since the early scan — not reproduced, not compared
+        continue;
+      }
       const dst = path.join(cloneDir, rel);
       try {
         fs.mkdirSync(path.dirname(dst), { recursive: true });
-        fs.copyFileSync(src, dst);
+        fs.writeFileSync(dst, bytes);
+        sourceTreeFiles.set(rel, createHash('sha256').update(bytes).digest('hex'));
       } catch (err) {
         process.stderr.write(`mutation-run: skipping runtime-allowlist path that could not be reproduced in the clone: ${rel} (${err.message})\n`);
       }
     }
+    const sourceTreeHash = hashFromFileHashes(sourceTreeFiles);
 
     const cloneTreeFiles = computeTreeFileHashes(cloneDir);
     const cloneTreeHash = hashFromFileHashes(cloneTreeFiles);
@@ -554,14 +610,25 @@ function rotateExisting(dir, testId) {
   // rename and the rm is BOTH the live and the rotated record surviving
   // (a harmless duplicate), never a half-written archive and never the live
   // record vanishing before its replacement exists.
+  //
+  // Remediation round 4 (NB-3): the patch sibling moves to its rotated
+  // location FIRST — before the record is rotated and before the live
+  // record is removed. The prior order (record rotated, live record
+  // removed, THEN the patch renamed last) left a window where a process
+  // death between "live record removed" and "patch renamed" left the
+  // rotated record on disk naming a rotated patch path that did not exist
+  // yet, and an orphan live patch the NEXT run's storePatchCopy would then
+  // silently overwrite — the rotated archive permanently unreproducible.
+  // With the patch moved first, by the time any rotated record can exist on
+  // disk, its named rotated patch already does too; only then is the live
+  // record removed, last.
+  if (hasPatch) {
+    fs.renameSync(livePatch, rotatedPatchAbs);
+  }
   const rotatedTmp = `${rotated}.tmp-${process.pid}-${Date.now()}`;
   fs.writeFileSync(rotatedTmp, rotatedText);
   fs.renameSync(rotatedTmp, rotated);
   fs.rmSync(live);
-
-  if (hasPatch) {
-    fs.renameSync(livePatch, rotatedPatchAbs);
-  }
 }
 
 // D14: a --patch mutation's content is copied beside the record, under the
@@ -674,12 +741,23 @@ function runOne(args) {
     // to INCONCLUSIVE rather than recorded as RED/STAYED GREEN, and the
     // message names the changed path(s) rather than asserting which cause it
     // was.
+    //
+    // Remediation round 4 (NB-1): RUNTIME_ALLOWLIST paths are excluded from
+    // THIS comparison (withoutRuntimeAllowlist) — they are reproduced into
+    // the clone at D4 build time, never tripwired here, so a canon-permitted
+    // concurrent ceremony write to docs/ai/STATE.yaml or
+    // docs/ai/LOOP_TICKS.jsonl during the run cannot downgrade a genuine
+    // verdict (TEST-497). A change to any OTHER path still trips this exactly
+    // as before.
     const postRunSourceTreeFiles = computeTreeFileHashes(ROOT);
-    const postRunSourceTreeHash = hashFromFileHashes(postRunSourceTreeFiles);
-    if (postRunSourceTreeHash !== clone.sourceTreeHash) {
-      const treeDiff = diffTreeFileHashes(clone.sourceTreeFiles, postRunSourceTreeFiles);
+    const beforeD7 = withoutRuntimeAllowlist(clone.sourceTreeFiles);
+    const afterD7 = withoutRuntimeAllowlist(postRunSourceTreeFiles);
+    const beforeD7Hash = hashFromFileHashes(beforeD7);
+    const afterD7Hash = hashFromFileHashes(afterD7);
+    if (afterD7Hash !== beforeD7Hash) {
+      const treeDiff = diffTreeFileHashes(beforeD7, afterD7);
       verdict = 'INCONCLUSIVE';
-      firstFail = `INCONCLUSIVE: the source tree changed during this run (this run, or another writer) — ${describeTreeDiff(treeDiff)} (D7 tripwire: tree hash ${clone.sourceTreeHash} -> ${postRunSourceTreeHash}) — refusing to trust this result`;
+      firstFail = `INCONCLUSIVE: the source tree changed during this run (this run, or another writer) — ${describeTreeDiff(treeDiff)} (D7 tripwire: tree hash ${beforeD7Hash} -> ${afterD7Hash}) — refusing to trust this result`;
     }
 
     // NB6-r2: whether the row's own suite actually dispatches on `selector`,
@@ -821,9 +899,17 @@ function replay(args) {
         continue;
       }
       const { rc, output } = ran;
+      // Remediation round 4 (NB-1): same exclusion as the normal-run D7
+      // self-check above — RUNTIME_ALLOWLIST paths are reproduced into the
+      // clone at D4 build time, never tripwired here, so a concurrent
+      // ceremony write to them during a --replay run cannot manufacture a
+      // false inconclusive either.
       const postRunSourceTreeFiles = computeTreeFileHashes(ROOT);
-      const postRunSourceTreeHash = hashFromFileHashes(postRunSourceTreeFiles);
-      if (postRunSourceTreeHash !== clone.sourceTreeHash) {
+      const beforeD7 = withoutRuntimeAllowlist(clone.sourceTreeFiles);
+      const afterD7 = withoutRuntimeAllowlist(postRunSourceTreeFiles);
+      const beforeD7Hash = hashFromFileHashes(beforeD7);
+      const afterD7Hash = hashFromFileHashes(afterD7);
+      if (afterD7Hash !== beforeD7Hash) {
         // NB2-r2: a D7 trip during --replay cannot tell "this run wrote
         // outside its lane" from "a concurrent editor touched the source
         // tree while this run was in flight" (e.g. a full sweep appending to
@@ -833,7 +919,7 @@ function replay(args) {
         // replay). The message names the changed path(s) instead of naming a
         // cause it cannot actually distinguish.
         inconclusive++; // NB2-r2 D7 trip during replay is inconclusive, not a regression
-        const treeDiff = diffTreeFileHashes(clone.sourceTreeFiles, postRunSourceTreeFiles);
+        const treeDiff = diffTreeFileHashes(beforeD7, afterD7);
         process.stdout.write(`INCONCLUSIVE ${testId}: the source tree changed during this run (this run, or another writer) — ${describeTreeDiff(treeDiff)} (D7 tripwire) — refusing to trust the result\n`);
         continue;
       }

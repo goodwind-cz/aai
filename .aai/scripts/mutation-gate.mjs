@@ -41,6 +41,18 @@
 // two ways to satisfy the gate before this fix. Exempt rows are named in the
 // output (`EXEMPT <TEST-id>: status <value>`), never silently skipped.
 //
+// NB-2 (remediation round 4): a Test Plan whose EVERY row is exempt (NB-7
+// above) passes vacuously — the satisfied count is 0, indistinguishable at a
+// glance from "GATE PASS: 0 row(s) satisfied" for an empty spec. This is now
+// its own DEGRADE class (`DEGRADED: every row exempt (n) degraded=n
+// exempt=n`, exit 0 unchanged — the trailing `exempt=n` keeps this class
+// parseable by the SAME regex close-work-item.mjs already uses on an
+// ordinary PASS line's `exempt=n`), never silently folded into an ordinary
+// PASS line — see
+// close-work-item.mjs `evaluateMutationGate`, which surfaces this (and any
+// partial exempt/degraded count) as a WARNING at close, even on the gate's
+// exit-0 path.
+//
 // NB8-r2 (disclosed design, D8): the gate reads ROWS, not the suite's own
 // text — renaming a selector out from under an otherwise-satisfied record
 // clears this gate at PASS (it never re-derives whether the record's
@@ -286,6 +298,28 @@ function main() {
   }
 
   const satisfied = tp.rows.length - exempt.length;
+
+  // Remediation round 4 (NB-2): a Test Plan whose rows are ALL exempt passes
+  // vacuously — zero rows were ever judged against the RED-record
+  // requirement, which reads identically to a spec with no rows at all. That
+  // is an applicability degrade (D9's own class), not a satisfied-rows PASS,
+  // so it gets its own named class here rather than a "GATE PASS: 0 row(s)
+  // satisfied" line an operator would read as "nothing to report".
+  if (exempt.length > 0 && satisfied === 0) {
+    const payload = {
+      spec_id: specId,
+      applicable: true,
+      degraded: exempt.length,
+      degraded_class: 'every row exempt',
+      summary_line: `DEGRADED: every row exempt (${exempt.length}) degraded=${exempt.length} exempt=${exempt.length}`,
+      offending_rows: [],
+      degraded_rows: [],
+      exempt_rows: exempt,
+    };
+    summary(payload);
+    exit(0);
+  }
+
   const payload = {
     spec_id: specId,
     applicable: true,

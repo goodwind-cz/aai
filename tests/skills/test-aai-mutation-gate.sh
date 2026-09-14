@@ -1115,7 +1115,23 @@ EOF
   [[ "$rotated_patch_rel" != "docs/ai/tdd/fixture-spec-492/mutation-TEST-9001.patch" ]] \
     || log_fail "TEST-492: rotated record still points at the LIVE patch name, whose bytes now belong to the NEXT run"
 
-  log_pass "TEST-492 a rotated record's mutation: field follows its own rotated patch copy, byte-identical to the first patch, never the live name"
+  # NB-3 (remediation round 4, fault-injection-free): the pair's FINAL
+  # on-disk state, checked by the NAMING CONVENTION alone (never trusting the
+  # rotated record's own mutation: pointer, which is what the assertions
+  # above already do) — the rotated .patch sibling
+  # (mutation-TEST-9001.<stamp>.patch) exists whenever the rotated .txt does.
+  # rotateExisting now moves the patch to its rotated location BEFORE the
+  # record is rotated and the live record removed (was: record rotated, live
+  # record removed, patch renamed LAST — a process death between the last
+  # two steps could leave a rotated record with no rotated patch yet). This
+  # is a documented invariant checked via final state, not process-kill
+  # timing injection (too flake-prone to simulate reliably, per this ride's
+  # own NB7-r3 disposition for a sibling ordering claim).
+  local rotated_patch_by_name; rotated_patch_by_name="$(dirname "$rec")/mutation-TEST-9001.${run_at1}.patch"
+  [[ -f "$rotated_patch_by_name" ]] \
+    || log_fail "TEST-492 (NB-3): the rotated .patch sibling (by naming convention, $(basename "$rotated_patch_by_name")) must exist whenever the rotated .txt does — a rotated record must never be able to name a patch that was not yet moved"
+
+  log_pass "TEST-492 a rotated record's mutation: field follows its own rotated patch copy, byte-identical to the first patch, never the live name, and the rotated patch sibling exists (by naming convention) whenever the rotated record does"
 }
 
 # --- TEST-493 — Spec-AC-03 (NB6-r2): selector_honoured field --------------
@@ -1218,20 +1234,21 @@ test_496_replay_clone_build_failure_inconclusive() {
   log_pass "TEST-496 --replay classifies a buildIsolatedClone() failure (this ride's own documented concurrent-operating-mode shape) as inconclusive, exit 4, never a genuine regression"
 }
 
-# --- TEST-497 — Spec-AC-01/D7 (NB-5, remediation round 3): the D7 tripwire
-# also catches a write into a NAMED gitignored runtime path -----------------
-test_497_d7_catches_runtime_allowlist_path() {
-  log_info "Test: the D7 tripwire catches a write into the source tree's docs/ai/STATE.yaml (gitignored, not tracked) via lib/tree-hash.mjs's RUNTIME_ALLOWLIST (TEST-497, closes NB-5)..."
+# --- TEST-497 — Spec-AC-01/D7 (NB-1, remediation round 4; supersedes the
+# round-3 NB-5 shape): a concurrent write to a RUNTIME_ALLOWLIST path during
+# the run must NOT downgrade a genuine verdict --------------------------
+test_497_d7_ignores_runtime_allowlist_concurrent_write() {
+  log_info "Test: a concurrent write to docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl (gitignored, RUNTIME_ALLOWLIST) during the run is reproduced into the clone (D4) but excluded from the D7 before/after comparison, so the run's own RED verdict survives instead of being downgraded (TEST-497, closes NB-1)..."
   local fx; fx="$(mg_new_fixture)"
   mg_seed_repo "$fx"
   mg_write_spec "$fx" "fixture-spec-497"
-  printf 'docs/ai/tdd/\ndocs/ai/STATE.yaml\n' > "$fx/.gitignore"
+  printf 'docs/ai/tdd/\ndocs/ai/STATE.yaml\ndocs/ai/LOOP_TICKS.jsonl\n' > "$fx/.gitignore"
   printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
 
   # A slow selector, so a background writer has a real window against the
   # SOURCE tree while the clone's suite runs (the same shape TEST-481 arm 5
   # uses for a TRACKED file — here the write lands on an UNTRACKED, ignored
-  # runtime path instead).
+  # runtime path instead, which is now REPRODUCED but not TRIPWIRED).
   cat > "$fx/tests/skills/fixture-suite.sh" <<'EOS'
 #!/usr/bin/env bash
 set -uo pipefail
@@ -1245,6 +1262,12 @@ test_9001_slow_greet() {
   [[ "$out" == "hello" ]] || log_fail "TEST-9001 greeting mismatch: got '$out'"
   log_pass "TEST-9001 greeting ok"
 }
+test_9002_slow_greet() {
+  sleep 3
+  local out; out="$(node "$FROOT/lib/greeting.mjs" 2>&1)"
+  [[ "$out" == "hello" ]] || log_fail "TEST-9002 greeting mismatch: got '$out'"
+  log_pass "TEST-9002 greeting ok"
+}
 main() {
   if [[ -n "${1:-}" ]]; then
     declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
@@ -1256,6 +1279,9 @@ main "$@"
 EOS
   ( cd "$fx" && git add -A && git commit -q -m base )
 
+  # Arm 1 (TEST-9001): a concurrent write to docs/ai/STATE.yaml during the
+  # run must leave the verdict RED (exit 0), never downgraded to
+  # INCONCLUSIVE — the exact opposite of this test's pre-round-4 shape.
   ( sleep 1; mkdir -p "$fx/docs/ai" && printf 'current_focus: intruder\n' >> "$fx/docs/ai/STATE.yaml" ) &
   local bgpid=$!
   local out rc
@@ -1263,16 +1289,30 @@ EOS
     --suite tests/skills/fixture-suite.sh --selector test_9001_slow_greet \
     --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
   wait "$bgpid" 2>/dev/null || true
-  [[ "$rc" -eq 6 ]] || log_fail "TEST-497: a concurrent write to docs/ai/STATE.yaml (gitignored, RUNTIME_ALLOWLIST) during the run must be caught by the D7 tripwire (exit 6, INCONCLUSIVE), got $rc: $out"
-  assert_payload_contains "$out" "docs/ai/STATE.yaml" \
-    "TEST-497: the D7 message must name docs/ai/STATE.yaml as the changed path: $out"
-  assert_payload_contains "$out" "D7 tripwire" \
-    "TEST-497: the D7 message must identify itself as the D7 tripwire: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-497 arm1: a concurrent write to docs/ai/STATE.yaml (RUNTIME_ALLOWLIST) must NOT downgrade the verdict (want exit 0 RED), got $rc: $out"
+  assert_payload_not_contains "$out" "D7 tripwire" \
+    "TEST-497 arm1: the allowlist write must never trip the D7 message: $out"
+  local rec1; rec1="$(mg_record_path "$fx" fixture-spec-497 TEST-9001)"
+  grep -qF 'verdict: RED' "$rec1" || log_fail "TEST-497 arm1: record's verdict is not RED: $(cat "$rec1")"
 
-  local rec; rec="$(mg_record_path "$fx" fixture-spec-497 TEST-9001)"
-  grep -qF 'verdict: INCONCLUSIVE' "$rec" || log_fail "TEST-497: record's verdict is not INCONCLUSIVE: $(cat "$rec")"
+  # Arm 2 (TEST-9002): the same property for docs/ai/LOOP_TICKS.jsonl (a
+  # log-tick-shaped append, the OTHER RUNTIME_ALLOWLIST path) — a distinct
+  # test id AND its own selector (its FAIL line must name TEST-9002 for
+  # classifyVerdict to read it as RED, not INCONCLUSIVE) so arm 1's record
+  # is not rotated out from under this assertion either.
+  ( sleep 1; mkdir -p "$fx/docs/ai" && printf '{"v":1,"ts":"2026-01-01T00:00:00Z","role":"orchestrator","event":"tick"}\n' >> "$fx/docs/ai/LOOP_TICKS.jsonl" ) &
+  bgpid=$!
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9002 \
+    --suite tests/skills/fixture-suite.sh --selector test_9002_slow_greet \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  wait "$bgpid" 2>/dev/null || true
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-497 arm2: a concurrent log-tick-shaped append to docs/ai/LOOP_TICKS.jsonl (RUNTIME_ALLOWLIST) must NOT downgrade the verdict (want exit 0 RED), got $rc: $out"
+  assert_payload_not_contains "$out" "D7 tripwire" \
+    "TEST-497 arm2: the allowlist write must never trip the D7 message: $out"
+  local rec2; rec2="$(mg_record_path "$fx" fixture-spec-497 TEST-9002)"
+  grep -qF 'verdict: RED' "$rec2" || log_fail "TEST-497 arm2: record's verdict is not RED: $(cat "$rec2")"
 
-  log_pass "TEST-497 the D7 tripwire's tree hash now covers docs/ai/STATE.yaml by name (lib/tree-hash.mjs RUNTIME_ALLOWLIST), catching a concurrent write to a gitignored runtime path that tracked+untracked-not-ignored alone would miss"
+  log_pass "TEST-497 the D7 tripwire reproduces RUNTIME_ALLOWLIST paths into the clone (D4) but excludes them from its own before/after comparison, so a canon-permitted concurrent ceremony write to docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl never downgrades a genuine RED verdict"
 }
 
 # --- TEST-498 — Spec-AC-05/D8 (NB-7, remediation round 3): a terminal-not-
@@ -1292,10 +1332,17 @@ EOF
   mkdir -p "$(mg_gate_evidence_dir "$id_a")"
   local out rc
   out="$(mg_gate "$spec_a" 2>&1)"; rc=$?
+  # Remediation round 4 (NB-2): a Test Plan whose ONLY row is exempt is the
+  # vacuous-pass shape — zero rows ever judged against the RED-record
+  # requirement — so it is now its own named DEGRADE class, never printed as
+  # an ordinary "GATE PASS: 0 row(s) satisfied" line an operator would read
+  # as nothing-to-see-here.
   [[ "$rc" -eq 0 ]] || log_fail "TEST-498(A) deferred: want exit 0, got $rc: $out"
   assert_payload_line_matches "$out" 'EXEMPT TEST-9001: status deferred' \
     "TEST-498(A): deferred row not named EXEMPT: $out"
-  assert_payload_contains "$out" 'satisfied degraded=0' "TEST-498(A): summary line missing: $out"
+  assert_payload_contains "$out" 'DEGRADED: every row exempt (1)' \
+    "TEST-498(A): the all-exempt vacuous pass must be a named DEGRADE class: $out"
+  assert_payload_contains "$out" 'degraded=1' "TEST-498(A): degrade count wrong: $out"
 
   # (B) dropped and rejected, same shape, both exempt in one spec, alongside
   # ONE genuinely satisfied row — proves exemption is per-row, not
@@ -1327,7 +1374,27 @@ EOF
   [[ "$rc" -eq 0 ]] || log_fail "TEST-498(C) case-insensitive deferred: want exit 0, got $rc: $out"
   assert_payload_line_matches "$out" 'EXEMPT TEST-9001: status deferred' "TEST-498(C): mixed-case Deferred not exempted: $out"
 
-  log_pass "TEST-498 mutation-gate.mjs exempts a Test Plan row whose Status is deferred/dropped/rejected, naming it EXEMPT, and excludes exempt rows from the satisfied count"
+  # (D) Remediation round 4 (NB-2): MULTIPLE exempt rows, none satisfied — the
+  # DEGRADE class' count must reflect the real row count, not a hardcoded 1
+  # (arm A only ever proved n=1); EXEMPT lines still print per row.
+  local id_d; id_d="$(mg_gate_id exempt-all-multi)"
+  local spec_d; spec_d="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_d" "$id_d" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a |  | deferred |
+| TEST-9002 | Spec-AC-01 | unit | ${suite} | b |  | dropped |
+| TEST-9003 | Spec-AC-01 | unit | ${suite} | c |  | rejected |
+EOF
+  mkdir -p "$(mg_gate_evidence_dir "$id_d")"
+  out="$(mg_gate "$spec_d" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-498(D) all-exempt (n=3): want exit 0, got $rc: $out"
+  assert_payload_contains "$out" 'DEGRADED: every row exempt (3)' \
+    "TEST-498(D): the all-exempt count must reflect all 3 rows, not a hardcoded 1: $out"
+  assert_payload_contains "$out" 'degraded=3' "TEST-498(D): degrade count wrong: $out"
+  assert_payload_line_matches "$out" 'EXEMPT TEST-9001: status deferred' "TEST-498(D): TEST-9001 not EXEMPT: $out"
+  assert_payload_line_matches "$out" 'EXEMPT TEST-9002: status dropped' "TEST-498(D): TEST-9002 not EXEMPT: $out"
+  assert_payload_line_matches "$out" 'EXEMPT TEST-9003: status rejected' "TEST-498(D): TEST-9003 not EXEMPT: $out"
+
+  log_pass "TEST-498 mutation-gate.mjs exempts a Test Plan row whose Status is deferred/dropped/rejected, naming it EXEMPT, excludes exempt rows from the satisfied count, and names an all-exempt Test Plan as its own DEGRADE class rather than a vacuous PASS"
 }
 
 # --- TEST-499 — Spec-AC-01/D7 (NB1-r3, remediation round 3): the NORMAL-run
@@ -1624,7 +1691,7 @@ main() {
   test_492_rotated_patch_pointer
   test_493_selector_honoured_field
   test_496_replay_clone_build_failure_inconclusive
-  test_497_d7_catches_runtime_allowlist_path
+  test_497_d7_ignores_runtime_allowlist_concurrent_write
   test_498_gate_status_exemption
   test_499_d7_normal_run_names_path
   test_500_rotation_same_second_suffix

@@ -577,6 +577,53 @@ SPEC-FROZEN: true
 EOF
 }
 
+# write_mutation_gate_exempt_spec_doc <path> <id> <status> — Remediation
+# round 4 (NB-2): an applicable spec (marker + tdd) whose ONE Test Plan row's
+# Status cell is a terminal-not-green value (deferred) — the real gate
+# exempts it and, since it is the ONLY row, passes vacuously (exit 0,
+# `DEGRADED: every row exempt (1) degraded=1`), never `GATE FAIL`. No
+# evidence record is needed (an exempt row is never checked for one); the
+# caller must still create the evidence DIRECTORY (same discipline as
+# write_mutation_gate_applicable_spec_doc) so the gate reaches the per-row
+# exemption logic instead of degrading on an absent evidence tree first.
+write_mutation_gate_exempt_spec_doc() {
+  local path="$1" id="$2" status="$3"
+  cat > "$path" <<EOF
+---
+id: $id
+type: spec
+number: null
+status: $status
+ceremony_level: 2
+mutation_gate: v1
+links:
+  requirement: null
+  rfc: null
+  pr: []
+  commits: []
+---
+
+# SPEC — Fixture $id
+
+SPEC-FROZEN: true
+
+## Implementation strategy
+- Strategy: tdd
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence   | Review-By | Notes |
+|------------|--------------|--------|------------|-----------|-------|
+| Spec-AC-01 | fixture      | done   | commit-abc | —         | —     |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected)          | Description | Mutation | Status   |
+|----------|------------|------|--------------------------------|--------------|----------|----------|
+| TEST-001 | Spec-AC-01 | unit | tests/skills/fixture-suite.sh | fixture      |          | deferred |
+EOF
+}
+
 # --- usage-capture-gate fixture builders (spec-telemetry-completeness) -------
 
 # set_usage_capture_gate_dial <fixture_dir> <enforce|report-only|bogus> —
@@ -3495,7 +3542,36 @@ test_067_mutation_gate_close_wiring() {
   grep -q '^status: done$' "$dir_d/docs/specs/SPEC-0001-t067d.md" \
     || log_fail "TEST-477 t067 arm D: absent-dial close must still proceed to done"
 
-  log_pass "Mutation gate wiring: enforce refuses (exit 8) naming the offending row with docs unflipped, report-only warns and closes, an unmarked spec closes identically under both settings, and an absent dial key behaves as report-only (Spec-AC-07, TEST-477)"
+  # Arm E — Remediation round 4 (NB-2, recorded as its OWN Test Plan row,
+  # TEST-505 — a distinct mutation from TEST-477's dial-default property,
+  # sharing this same selector): an ALL-EXEMPT Test Plan (a single deferred
+  # row) passes the real gate vacuously (exit 0, `DEGRADED: every row
+  # exempt`), even under mutation_gate: enforce — this is never a refusal
+  # (the gate did not fail), but close-work-item.mjs must still surface the
+  # exempt/degraded counts as a WARNING rather than silently `continue`ing on
+  # the exit-0 path the way it did before this fix. Failure messages below
+  # name TEST-505 literally so mutation-run.mjs's classifyVerdict attributes
+  # a reddened arm E to the right record.
+  local dir_e; dir_e=$(new_fixture_repo "t067e")
+  seed_mutation_gate_engine "$dir_e"
+  set_mutation_gate_dial "$dir_e" "enforce"
+  write_change_doc "$dir_e/docs/issues/CHANGE-0001-t067e.md" "t067e-change" "implementing"
+  write_mutation_gate_exempt_spec_doc "$dir_e/docs/specs/SPEC-0001-t067e.md" "t067e-spec" "implementing"
+  mkdir -p "$dir_e/docs/ai/tdd/t067e-spec"
+  commit_fixture_docs "$dir_e"
+  out="$TEST_DIR/t067e.out"; err="$TEST_DIR/t067e.err"
+  code=$(run_close "$dir_e" "$out" "$err" --ref t067e-change --spec t067e-spec --pr 67 --commit e067e067)
+  assert_exit "TEST-477 arm E: an all-exempt spec passes the gate (exit 0) even under enforce — never a refusal" 0 "$code"
+  grep -qi 'WARNING (mutation gate)' "$err" \
+    || log_fail "TEST-505 (t067 arm E): the all-exempt vacuous pass must still print a mutation-gate WARNING, got: $(cat "$err")"
+  grep -qF 'exempt=1' "$err" \
+    || log_fail "TEST-505 (t067 arm E): the WARNING must name the exempt count, got: $(cat "$err")"
+  grep -qF 'degraded=1' "$err" \
+    || log_fail "TEST-505 (t067 arm E): the WARNING must name the degraded count, got: $(cat "$err")"
+  grep -q '^status: done$' "$dir_e/docs/specs/SPEC-0001-t067e.md" \
+    || log_fail "TEST-505 (t067 arm E): an all-exempt (non-offending) gate result must not block the close"
+
+  log_pass "Mutation gate wiring: enforce refuses (exit 8) naming the offending row with docs unflipped, report-only warns and closes, an unmarked spec closes identically under both settings, an absent dial key behaves as report-only, and an all-exempt vacuous pass still surfaces its exempt/degraded counts as a WARNING even under enforce (Spec-AC-07, TEST-477)"
 }
 
 main() {

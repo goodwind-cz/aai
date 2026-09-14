@@ -1168,6 +1168,11 @@ function evaluateMutationGate(resolved) {
   if (specDocs.length === 0) return { severity: 'none' };
   const gateScript = path.join(ROOT, '.aai/scripts/mutation-gate.mjs');
   const offending = [];
+  // Remediation round 4 (NB-2): exempt/degraded counts from the gate's OWN
+  // summary line, captured on EVERY resolved spec doc regardless of exit
+  // status — an all-exempt vacuous pass (exit 0) must not be silent at the
+  // close the same way a partial exempt count on an ordinary PASS must not.
+  const notices = [];
   for (const doc of specDocs) {
     let out = '';
     let status = 0;
@@ -1177,14 +1182,40 @@ function evaluateMutationGate(resolved) {
       status = typeof err.status === 'number' ? err.status : 1;
       out = `${err.stdout ?? ''}${err.stderr ?? ''}`;
     }
+    const summaryLine = out.split('\n').map((l) => l.trim()).find((l) => l.startsWith('GATE PASS:') || l.startsWith('GATE FAIL:') || l.startsWith('DEGRADED:'));
+    if (summaryLine) {
+      const exemptN = Number(/exempt=(\d+)/.exec(summaryLine)?.[1] ?? 0);
+      const degradedN = Number(/degraded=(\d+)/.exec(summaryLine)?.[1] ?? 0);
+      // Gated on exemptN, not degradedN: D9's OWN degrade classes
+      // (pre-change spec, evidence tree absent — no Status column was ever
+      // read, so nothing was ever exempted) are unrelated to NB-2 and stay
+      // exactly as silent at the close as before this fix (an existing,
+      // intentional close-work-item.mjs contract). Only a summary line that
+      // itself carries exempt=N — an ordinary PASS with some exempt rows, or
+      // the new "every row exempt" DEGRADED class, both of which are
+      // D8/NB-7's own applicability-vs-disposition distinction — is a notice
+      // here.
+      if (exemptN > 0) {
+        notices.push({ spec: doc.rel, exempt: exemptN, degraded: degradedN, summary: summaryLine });
+      }
+    }
     if (status === 0) continue;
     const rows = out.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('OFFENDING '));
     offending.push({ spec: doc.rel, exitCode: status, rows: rows.length ? rows : [`mutation-gate.mjs exited ${status}: ${out.trim()}`] });
   }
-  if (offending.length === 0) return { severity: 'none' };
+  if (offending.length === 0) {
+    if (notices.length === 0) return { severity: 'none' };
+    // A WARNING regardless of the `mutation_gate` dial (enforce or
+    // report-only alike, per the finding's own disposition): the gate did
+    // NOT fail, so this is never a refusal — only a count that must not be
+    // discarded the way a bare `if (status === 0) continue;` discarded it
+    // before this fix.
+    const reason = notices.map((n) => `${n.spec}: ${n.summary}`).join(' | ');
+    return { severity: 'warn', notices, reason };
+  }
   const dial = readGuardConfig(path.join(ROOT, 'docs/ai')).mutation_gate;
   const reason = offending.map((o) => `${o.spec}: ${o.rows.join('; ')}`).join(' | ');
-  return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, offending, reason };
+  return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, offending, notices, reason };
 }
 
 // Best-effort remediation-friction capture. Fires ONLY on a real close (called
