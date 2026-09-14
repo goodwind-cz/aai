@@ -1214,7 +1214,19 @@ function evaluateMutationGate(resolved) {
     return { severity: 'warn', notices, reason };
   }
   const dial = readGuardConfig(path.join(ROOT, 'docs/ai')).mutation_gate;
-  const reason = offending.map((o) => `${o.spec}: ${o.rows.join('; ')}`).join(' | ');
+  // NB3-r6 (remediation round 5, validation round 6): the OFFENDING path
+  // previously built `reason` from `offending` alone, dropping `notices`
+  // (the exempt/degraded counts) even though they are returned alongside it
+  // — a spec with BOTH offending rows and a non-zero exempt count printed
+  // only the offending rows and silently lost the exempt=n the D8 amendment
+  // (spec:548-553) says the close prints "whenever exempt is non-zero". The
+  // exit-0 path above already appends notices to its own reason; this
+  // mirrors that so the mixed-arm case is not a silent divergence from the
+  // documented behavior.
+  const offendingReason = offending.map((o) => `${o.spec}: ${o.rows.join('; ')}`).join(' | ');
+  const reason = notices.length
+    ? `${offendingReason} | ${notices.map((n) => `${n.spec}: ${n.summary}`).join(' | ')}`
+    : offendingReason;
   return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, offending, notices, reason };
 }
 

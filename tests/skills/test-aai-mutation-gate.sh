@@ -1268,6 +1268,12 @@ test_9002_slow_greet() {
   [[ "$out" == "hello" ]] || log_fail "TEST-9002 greeting mismatch: got '$out'"
   log_pass "TEST-9002 greeting ok"
 }
+test_9003_slow_greet() {
+  sleep 3
+  local out; out="$(node "$FROOT/lib/greeting.mjs" 2>&1)"
+  [[ "$out" == "hello" ]] || log_fail "TEST-9003 greeting mismatch: got '$out'"
+  log_pass "TEST-9003 greeting ok"
+}
 main() {
   if [[ -n "${1:-}" ]]; then
     declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
@@ -1312,7 +1318,34 @@ EOS
   local rec2; rec2="$(mg_record_path "$fx" fixture-spec-497 TEST-9002)"
   grep -qF 'verdict: RED' "$rec2" || log_fail "TEST-497 arm2: record's verdict is not RED: $(cat "$rec2")"
 
-  log_pass "TEST-497 the D7 tripwire reproduces RUNTIME_ALLOWLIST paths into the clone (D4) but excludes them from its own before/after comparison, so a canon-permitted concurrent ceremony write to docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl never downgrades a genuine RED verdict"
+  # Arm 3 (TEST-9003, remediation round 5, NB1-r6, closes the round-4
+  # mutation-free survivor): a RAPID appender (~50ms interval) writes to the
+  # SOURCE docs/ai/STATE.yaml for the WHOLE run — clone build through suite
+  # exit, not one well-timed write — proving buildIsolatedClone's D4 second
+  # window (hashing the bytes it ACTUALLY copies into the clone, rather than
+  # trusting the earlier computeTreeFileHashes(ROOT) snapshot) genuinely
+  # closes under load. Started BEFORE the run and killed only after it
+  # returns, so it is live across clone-build AND the (slow) suite run.
+  local appender_stop; appender_stop="$fx/.appender-stop"
+  rm -f "$appender_stop"
+  ( while [[ ! -e "$appender_stop" ]]; do
+      mkdir -p "$fx/docs/ai" 2>/dev/null
+      printf 'current_focus: intruder\n' >> "$fx/docs/ai/STATE.yaml" 2>/dev/null
+      sleep 0.05
+    done ) &
+  local apid=$!
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9003 \
+    --suite tests/skills/fixture-suite.sh --selector test_9003_slow_greet \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  touch "$appender_stop"
+  wait "$apid" 2>/dev/null || true
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-497 arm3 (NB1-r6): a RAPID (~50ms) whole-run concurrent appender to docs/ai/STATE.yaml (RUNTIME_ALLOWLIST) must NOT downgrade the verdict (want exit 0 RED), got $rc: $out"
+  assert_payload_not_contains "$out" "D7 tripwire" \
+    "TEST-497 arm3: the allowlist write must never trip the D7 message: $out"
+  local rec3; rec3="$(mg_record_path "$fx" fixture-spec-497 TEST-9003)"
+  grep -qF 'verdict: RED' "$rec3" || log_fail "TEST-497 arm3: record's verdict is not RED: $(cat "$rec3")"
+
+  log_pass "TEST-497 the D7 tripwire reproduces RUNTIME_ALLOWLIST paths into the clone (D4) but excludes them from its own before/after comparison, so a canon-permitted concurrent ceremony write to docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl never downgrades a genuine RED verdict, even under a rapid whole-run writer (NB1-r6)"
 }
 
 # --- TEST-498 — Spec-AC-05/D8 (NB-7, remediation round 3): a terminal-not-
@@ -1675,6 +1708,87 @@ FIXTURE_EOS
   log_pass "TEST-503 a heredoc marker mentioned inside a comment line never opens a real heredoc, so it cannot consume a later, legitimate heredoc's body and swallow the selectors in between"
 }
 
+# --- TEST-506 — D8 amendment (remediation round 5, BLOCKING-1, validation
+# round 6): a record's own target_sha256 lets the gate see a STALE row —----
+test_506_gate_detects_stale_target() {
+  log_info "Test: a record whose target_sha256 no longer matches the LIVE target's bytes is OFFENDING (STALE), naming the row and the target; regenerating target_sha256 restores GATE PASS; a legacy record with no target_sha256 at all is counted unstamped= rather than treated as stale (TEST-506, closes BLOCKING-1)..."
+
+  local id; id="$(mg_gate_id stale-target)"
+  local spec; spec="$(mg_new_fixture)/spec.md"
+  local dir; dir="$(mg_gate_evidence_dir "$id")"
+  mkdir -p "$dir"
+  local target_rel="docs/ai/tdd/$id/fixture-target.mjs"
+  printf "console.log('v1');\n" > "$PROJECT_ROOT/$target_rel"
+
+  local head_commit; head_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+  local sha1; sha1="$(cd "$PROJECT_ROOT" && shasum -a 256 "$target_rel" | awk '{print $1}')"
+
+  mg_write_gate_spec "$spec" "$id" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | tests/skills/fixture-suite.sh | a | sed:s/OLD/NEW/ | pending |
+EOF
+  cat > "$dir/mutation-TEST-9001.txt" <<EOF
+mutation_record: v1
+spec_id: fixture
+test_id: TEST-9001
+suite: tests/skills/fixture-suite.sh
+selector: test_fixture
+target: ${target_rel}
+mutation: sed:s/OLD/NEW/
+base_commit: ${head_commit}
+tree_hash: $(printf '0%.0s' $(seq 1 64))
+run_at_utc: 2026-01-01T00:00:00Z
+rc: 1
+verdict: RED
+first_fail: FAIL fixture TEST-9001
+target_sha256: ${sha1}
+---
+fixture tail
+EOF
+
+  local out rc
+  out="$(mg_gate "$spec" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-506 setup: an unchanged target's record must satisfy the gate, got $rc: $out"
+  assert_payload_contains "$out" 'unstamped=0' "TEST-506 setup: a stamped, unchanged record must not count as unstamped: $out"
+
+  # The target changes AFTER the record was produced -- the record is now
+  # STALE, even though it still parses, still names verdict RED, and its
+  # base_commit is still an ancestor of HEAD.
+  printf "console.log('v2');\n" > "$PROJECT_ROOT/$target_rel"
+  out="$(mg_gate "$spec" 2>&1)"; rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-506: a changed target must turn the row OFFENDING, got $rc: $out"
+  assert_payload_contains "$out" "STALE TEST-9001" "TEST-506: the offending reason must name the STALE class: $out"
+  assert_payload_contains "$out" "${target_rel} changed since the record" "TEST-506: the offending reason must name the changed target: $out"
+  assert_payload_contains "$out" "re-run mutation-run.mjs" "TEST-506: the offending reason must name the remedy: $out"
+
+  # Regenerating the record's target_sha256 (mutation-run.mjs's own job,
+  # simulated here by hand for a hand-built fixture record) restores PASS.
+  local sha2; sha2="$(cd "$PROJECT_ROOT" && shasum -a 256 "$target_rel" | awk '{print $1}')"
+  local tmp_rec; tmp_rec="$(mktemp "${TMPDIR:-/tmp}/aai-mg-t506.XXXXXX")"
+  sed "s/^target_sha256: .*/target_sha256: ${sha2}/" "$dir/mutation-TEST-9001.txt" > "$tmp_rec"
+  mv "$tmp_rec" "$dir/mutation-TEST-9001.txt"
+  out="$(mg_gate "$spec" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-506: regenerating target_sha256 must restore GATE PASS, got $rc: $out"
+  assert_payload_contains "$out" 'unstamped=0' "TEST-506: a freshly re-stamped record must not count as unstamped: $out"
+  rm -f "$PROJECT_ROOT/$target_rel"
+
+  # A LEGACY record with no target_sha256 field at all (mg_write_gate_record
+  # never writes one) predates the D8 amendment -- it must NOT be treated as
+  # stale (nothing to compare against), only counted in a named unstamped=
+  # degrade, and the gate stays exit 0.
+  local id2; id2="$(mg_gate_id stale-target-legacy)"
+  local spec2; spec2="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec2" "$id2" tdd "mutation_gate: v1" <<EOF
+| TEST-9002 | Spec-AC-01 | unit | tests/skills/fixture-suite.sh | a | sed:s/OLD/NEW/ | pending |
+EOF
+  local dir2; dir2="$(mg_gate_evidence_dir "$id2")"
+  mg_write_gate_record "$dir2" TEST-9002 TEST-9002 "tests/skills/fixture-suite.sh" RED "$head_commit"
+  out="$(mg_gate "$spec2" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-506: a legacy record with no target_sha256 must still satisfy the gate, got $rc: $out"
+  assert_payload_contains "$out" 'unstamped=1' "TEST-506: a legacy record with no target_sha256 must be counted unstamped, got: $out"
+
+  log_pass "TEST-506 a record's target_sha256 lets the gate catch a STALE row (target changed since the record) as OFFENDING, re-stamping restores PASS, and a legacy record with no target_sha256 is a named unstamped degrade, never mistaken for stale (closes BLOCKING-1)"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -1698,6 +1812,7 @@ main() {
   test_501_rotation_dollar_pattern_safe
   test_502_parse_record_tolerates_extra_field
   test_503_heredoc_in_comment_ignored
+  test_506_gate_detects_stale_target
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

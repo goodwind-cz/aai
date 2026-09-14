@@ -67,6 +67,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { parseFrontmatter, parseTestPlanTable, resolveStrategy, isMutationCellPlaceholder } from './lib/docs-model.mjs';
 import { parseRecord, recordFileName } from './lib/mutation-record.mjs';
@@ -191,6 +192,9 @@ function main() {
       console.log(`## Mutation Gate — ${specId}`);
       console.log('');
       console.log(payload.summary_line);
+      if (payload.unstamped) {
+        console.log(`NOTE: unstamped=${payload.unstamped} record(s) lack target_sha256 (predate the D8 stale-record check) — regenerate via mutation-run.mjs to close the gap`);
+      }
       if (args.listDegraded) {
         for (const d of payload.degraded_rows ?? []) console.log(`DEGRADED ${d.testId}: ${d.reason}`);
       }
@@ -236,6 +240,16 @@ function main() {
 
   const offending = [];
   const exempt = [];
+  // Remediation round 5 (D8 amendment, BLOCKING-1 validation round 6): a
+  // record's own `target_sha256` (optional — see lib/mutation-record.mjs)
+  // lets this gate tell that a SATISFIED-shaped record has gone STALE — its
+  // target file changed since the record was produced, so a RED verdict it
+  // still carries is no longer evidence that the mutation still reddens
+  // (only `--replay` re-runs it; this gate only re-READS it, D8's own
+  // NB8-r2 limit). `unstamped` counts records that predate this field — a
+  // NAMED degrade (NOTE), never blocking, so an old record does not start
+  // failing the moment this field ships.
+  let unstamped = 0;
   for (const row of tp.rows) {
     const statusNorm = (row.statusCell ?? '').trim().toLowerCase();
     if (EXEMPT_STATUSES.has(statusNorm)) {
@@ -281,6 +295,28 @@ function main() {
       offending.push({ testId: row.testId, reason: `record's base_commit "${f.base_commit}" is not an ancestor of HEAD` });
       continue;
     }
+    if (!f.target_sha256) {
+      unstamped++;
+      continue;
+    }
+    const targetAbs = path.join(ROOT, f.target);
+    let liveSha256;
+    try {
+      liveSha256 = createHash('sha256').update(fs.readFileSync(targetAbs)).digest('hex');
+    } catch {
+      offending.push({
+        testId: row.testId,
+        reason: `STALE ${row.testId}: target ${f.target} changed since the record — re-run mutation-run.mjs (or --replay) for this row`,
+      });
+      continue;
+    }
+    if (liveSha256 !== f.target_sha256) {
+      offending.push({
+        testId: row.testId,
+        reason: `STALE ${row.testId}: target ${f.target} changed since the record — re-run mutation-run.mjs (or --replay) for this row`,
+      });
+      continue;
+    }
   }
 
   if (offending.length) {
@@ -288,10 +324,11 @@ function main() {
       spec_id: specId,
       applicable: true,
       degraded: 0,
+      unstamped,
       offending_rows: offending,
       degraded_rows: [],
       exempt_rows: exempt,
-      summary_line: `GATE FAIL: ${offending.length} offending row(s) degraded=0${exempt.length ? ` exempt=${exempt.length}` : ''}`,
+      summary_line: `GATE FAIL: ${offending.length} offending row(s) degraded=0 unstamped=${unstamped}${exempt.length ? ` exempt=${exempt.length}` : ''}`,
     };
     summary(payload);
     exit(5);
@@ -324,10 +361,11 @@ function main() {
     spec_id: specId,
     applicable: true,
     degraded: 0,
+    unstamped,
     offending_rows: [],
     degraded_rows: [],
     exempt_rows: exempt,
-    summary_line: `GATE PASS: ${satisfied} row(s) satisfied degraded=0${exempt.length ? ` exempt=${exempt.length}` : ''}`,
+    summary_line: `GATE PASS: ${satisfied} row(s) satisfied degraded=0 unstamped=${unstamped}${exempt.length ? ` exempt=${exempt.length}` : ''}`,
   };
   summary(payload);
   exit(0);

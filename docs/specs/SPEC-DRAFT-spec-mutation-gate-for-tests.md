@@ -3,7 +3,7 @@ id: spec-mutation-gate-for-tests
 type: spec
 number: null
 status: implementing
-frozen_sha256: cf5dcfa2c884754f5a8f06ca2a6098e24133a263d3bc1074b0311ff0da0ca397
+frozen_sha256: 2de0b761ece49bd719bd5df3ca6504f06328536b94cc25fc8a7c17f887cd0ac7
 ceremony_level: 2
 mutation_gate: v1
 links:
@@ -502,6 +502,20 @@ comparison itself throw a spurious `TreeMismatchError` over a race, not a
 real reproduction gap. See "Remediation round 4" below and TEST-497 (both
 arms: `docs/ai/STATE.yaml` and `docs/ai/LOOP_TICKS.jsonl`).
 
+**Amendment (remediation round 5, NB1-r6, validation round 6):** the SECOND
+window named directly above ("hashes the bytes it actually copies … rather
+than trusting the earlier snapshot") was, at round 4, a mutation-free
+survivor — TEST-497's own two arms proved only the D7 exclusion, never the D4
+second-window fix, and reverting the fix alone (deleting the
+`sourceTreeFiles.set(rel, createHash('sha256').update(bytes).digest('hex'))`
+line in `buildIsolatedClone`) left TEST-497 fully GREEN. Closed with a THIRD
+arm: a rapid appender (~50ms interval) writes to the SOURCE
+`docs/ai/STATE.yaml` for the WHOLE run (clone build through suite exit), not
+only a single well-timed write — under the shipped code this still records
+RED (exit 0), five times out of five; reverting the fix throws
+`TreeMismatchError … changed: docs/ai/STATE.yaml` (exit 3) every time. See
+"Remediation round 5" below and TEST-497 arm 3.
+
 ### D8 — The gate reads rows, and answers in three exit codes
 
 `node .aai/scripts/mutation-gate.mjs --spec <path> [--json] [--list-degraded]`.
@@ -963,7 +977,7 @@ evidence, produced by `mutation-run.mjs` itself.
 | TEST-485 | Spec-AC-15 | integration | tests/skills/test-aai-spec-amend.sh | Tracker must be open — a record whose tracked_by item is open stays unsigned-tracked and passes strict; the same record with that item closed, and again with it dropped, is classified unsigned-untracked and refused; the refusal names the item and its status. | Restore the existence-only bucketing (trackedItem !== null); the closed-tracker and dropped-tracker arms must redden. | green |
 | TEST-486 | Spec-AC-16 | integration | tests/skills/test-aai-mutation-gate.sh | The gate reads this ride — a fixture copy of this spec together with the real records produced for every row of this Test Plan is gated and exits 0 with degraded=0; the same fixture with one record removed exits 5 naming that row. | Remove the base_commit ancestry check; the arm that plants a record from an orphan commit must redden, proving the ancestry rule is exercised by this spec's own evidence and not only by a synthetic fixture. | green |
 | TEST-487 | Spec-AC-18 | unit | tests/skills/test-aai-hygiene-pack.sh | Suite registration — the suite-map row-count pin reads 95 and matches the live row count, every test-aai-*.sh has a row, check-test-registration.mjs exits 0 over the live tree, and select-suites.mjs given .aai/scripts/mutation-gate.mjs returns the new suite. | Delete the new suite's suite-map.yaml row via a unified diff whose content is copied into the evidence directory at mutation time (D14 — never a /tmp path), so the record is reproducible off this machine; the existence arm must redden naming the unregistered suite and the count arm must redden on 94 against a pin of 95. | green |
-| TEST-490 | Spec-AC-19 | unit | tests/skills/test-aai-follow-ups.sh | Pin re-cut — close_work_item_pin_assert over the live tree returns OK for the edited close-work-item.mjs, the allowlist carries a new entry whose prose re-affirms both frozen invariants, and a grep asserts no allowlist entry claims the reconcile runs strictly after the try or catch block. | Revert the new allowlist entry; the assert arm must redden with the MISMATCH message naming the recomputed hash. | green |
+| TEST-490 | Spec-AC-19 | unit | tests/skills/test-aai-follow-ups.sh | Pin re-cut — close_work_item_pin_assert over the live tree returns OK for the edited close-work-item.mjs, the allowlist carries a new entry whose prose re-affirms both frozen invariants, and a grep asserts no allowlist entry claims the reconcile runs strictly after the try or catch block. | Amendment (remediation round 5, BLOCKING-1, validation round 6): the RECORDED mutation is now RE-PIN-PROOF — a static sed nulling one hard-coded historical allowlist entry (17f97f15…) went stale the moment a LATER remediation round re-pinned the file (the entry it targeted stopped being the live one), so the record stayed a false RED forever. The mutation disables close_work_item_pin_assert itself instead of any one hash line: `sed:s/close_work_item_pin_assert() {/close_work_item_pin_assert() { return 1;/` on tests/skills/lib/close-work-item-pin.sh (the runner's own single-line sed emulator has no multiline flag, so the replacement stays on the SAME source line as the opening brace — the unchanged body below is dead code, still syntactically valid bash) — verified by hand (bash -n on the mutated file, and sourcing it directly): close_work_item_pin_assert now returns 1 with empty stdout before it ever reads a hash, so the assert arm must redden (empty $result, no `OK <hash>` line) regardless of which entry is currently live. | green |
 | TEST-488 | Spec-AC-18 | unit | tests/skills/test-aai-layer-profiles.sh | Classification — the union check over the live .aai tree passes and each of mutation-run.mjs, mutation-gate.mjs, lib/mutation-record.mjs and lib/spec-contract-hash.mjs is asserted present in exactly one of the two lists. | Remove one of the four new files from PROFILES.yaml via a unified diff whose content is copied into the evidence directory at mutation time (D14 — never a /tmp path); the union check must redden naming that file. | green |
 | TEST-489 | Spec-AC-17 | integration | tests/skills/test-aai-spec-tools.sh | Freeze writes the anchors atomically — a fixture tdd spec with a Mutation column gains SPEC-FROZEN true, status implementing, frozen_sha256 and mutation_gate v1 in one write; a fixture whose strategy is direct gains the anchor but not the marker; and a fixture that fails an existing freeze precondition is left byte-identical with none of the four written. | Write frozen_sha256 in a second pass after the status write; the refusal arm must redden with a half-written file, which is the atomicity claim. | green |
 | TEST-012 | Spec-AC-10 | unit | tests/skills/test-aai-prompt-diet.sh | Corpus true-up — the existing checkpoint re-sums against the JUSTIFIED_ADDITIONS entry added for this ride's SKILL_TDD, VALIDATION and ROLE_COMMON bytes, so the measured growth equals the credited growth and headroom returns to 2046. | Add one uncredited byte to .aai/SKILL_TDD.prompt.md; TEST-010's headroom arm must redden and the TEST-012 re-sum must stay green, proving the two checks are independent. | green |
@@ -973,7 +987,7 @@ evidence, produced by `mutation-run.mjs` itself.
 | TEST-494 | Spec-AC-09 | integration | tests/skills/test-aai-spec-lint.sh | Amendment (remediation round 3, NB-1) — Test Plan header cells resolve by PREFIX, not a closed exact map: a SPEC-0062-shaped header ("File path (existing suite)") at a NON-canonical column position resolves fileCell correctly (never masked by a positional fallback that happens to line up); an in-flight spec with a genuinely unrecognized header cell ("Flavor") gets a new `test-plan-header-unmapped` finding naming it; the same well-known variant produces no false alarm; the live corpus produces zero such findings. | In `resolveTestPlanHeaderKey` (lib/docs-model.mjs), narrow the file-path resolver from a prefix match back to an exact-match closed set (`if (h.startsWith('file path')) return 'fileCell';` becomes an exact-match test against only `'file path (expected)'` and `'file path'`); the SPEC-0062-shaped-header arm must redden. | green |
 | TEST-495 | Spec-AC-14 | integration | tests/skills/test-aai-spec-amend.sh | Amendment (remediation round 3, NB-2) — `list --strict` refuses (exit 2, naming the path) when `--specs-dir` does not exist, rather than silently scanning nothing and printing a clean-looking `spec_degraded=0`; a plain `list` (no `--strict`) is unaffected; an existing (even empty) dir is scanned and `spec_scanned=<n>` is always printed beside `spec_degraded`, including a non-zero count over the live repository. | Disable the existence refusal (`if (opts.strict && !fs.existsSync(specsDirAbs)) {` -> `if (false) {`); the missing-dir arm must redden (no refusal, exit 0 over an empty scan instead of the required exit 2). | green |
 | TEST-496 | Spec-AC-11 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 3, NB-3) — a `buildIsolatedClone()` failure during `--replay` (a `.git` directory made unreadable, forcing the very first git command to refuse) is classified `inconclusive` (exit 4), never `failures` (exit 1): the exact conflation the round-2 D7-trip fix left unaddressed 45 lines below its own branch. | In `replay()`'s clone-build catch block, route the failure back into `failures` instead of `inconclusive` (`inconclusive++;` -> `failures++;`, the line immediately preceding the `could not build an isolated clone` message); the test must redden, reporting exit 1 (FAIL) instead of the required exit 4 (INCONCLUSIVE). | green |
-| TEST-497 | Spec-AC-01 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 4, NB-1; supersedes the round-3 NB-5 shape) — a concurrent write to a RUNTIME_ALLOWLIST path (`docs/ai/STATE.yaml`, arm 1; `docs/ai/LOOP_TICKS.jsonl`, arm 2) during a normal (non-replay) run must NOT downgrade the run's own verdict: the allowlist is reproduced into the clone (D4) but excluded from the D7 before/after comparison, so the RED verdict survives (exit 0), never INCONCLUSIVE. | In `withoutRuntimeAllowlist` (mutation-run.mjs), put the allowlist back into the D7 comparison (`for (const rel of RUNTIME_ALLOWLIST) filtered.delete(rel);` -> `for (const rel of []) filtered.delete(rel);`); both arms must redden, the concurrent allowlist write downgrading the verdict to INCONCLUSIVE (exit 6) instead of the required RED (exit 0). | green |
+| TEST-497 | Spec-AC-01 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 4, NB-1; supersedes the round-3 NB-5 shape) — a concurrent write to a RUNTIME_ALLOWLIST path (`docs/ai/STATE.yaml`, arm 1; `docs/ai/LOOP_TICKS.jsonl`, arm 2) during a normal (non-replay) run must NOT downgrade the run's own verdict: the allowlist is reproduced into the clone (D4) but excluded from the D7 before/after comparison, so the RED verdict survives (exit 0), never INCONCLUSIVE. Amendment (remediation round 5, NB1-r6) — arm 3 (new): a RAPID (~50ms interval) appender writes to `docs/ai/STATE.yaml` for the WHOLE run (clone build through suite exit, not one well-timed write), proving the D4 second window (buildIsolatedClone hashing the bytes it actually copies into the clone rather than the earlier snapshot) closes under load, not only under a single-write mutation. | In `withoutRuntimeAllowlist` (mutation-run.mjs), put the allowlist back into the D7 comparison (`for (const rel of RUNTIME_ALLOWLIST) filtered.delete(rel);` -> `for (const rel of []) filtered.delete(rel);`); both arms must redden, the concurrent allowlist write downgrading the verdict to INCONCLUSIVE (exit 6) instead of the required RED (exit 0). Round-5 mutation (NB1-r6, the LIVE recorded mutation — the round-4 mutation above is preserved as a rotated record, D2): delete `sourceTreeFiles.set(rel, createHash('sha256').update(bytes).digest('hex'));` in `buildIsolatedClone` (mutation-run.mjs); arm 3 must redden, throwing `TreeMismatchError … changed: docs/ai/STATE.yaml` (exit 3) under the rapid appender instead of the required RED (exit 0) — arms 1-2 are unaffected by this mutation (a different property) and stay green. | green |
 | TEST-498 | Spec-AC-05 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 3 NB-7, round 4 NB-2) — a Test Plan row whose Status cell is a terminal-not-green value (deferred/dropped/rejected) is EXEMPT from the RED-record requirement, named `EXEMPT <TEST-id>: status <value>` in the gate's output; exemption is per-row (a mixed spec's satisfied count excludes the exempt rows) and case-insensitive; an ALL-exempt Test Plan (arms A and D) is its own named DEGRADE class (`DEGRADED: every row exempt (n)`), never a vacuous `GATE PASS: 0 row(s) satisfied`. | Disable the round-4 DEGRADE branch (`if (exempt.length > 0 && satisfied === 0) {` -> `if (false) {`); arms A and D must redden, the all-exempt fixtures reporting `GATE FAIL` (an empty Mutation cell is no longer exempted from the RED-record requirement it was just exempted from) instead of the required `DEGRADED: every row exempt`. The round-3 mutation this cell previously named (emptying `EXEMPT_STATUSES`) is preserved as a rotated record (D2) and remains provable — arms A-C still require the exemption to hold. | green |
 | TEST-499 | Spec-AC-01 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 3, NB1-r3) — the NORMAL-run (non-replay) D7 self-check also names the changed path, exactly like `--replay`'s own message: a concurrent editor of a tracked file during a slow selector's run is caught (exit 6, INCONCLUSIVE) and the record's `first_fail` names the changed path. Closes the round-2 amendment's own mutation-free survivor (M9): the normal-run half of the D7 path-naming fix had no test of its own. | Drop `${describeTreeDiff(treeDiff)}` from the NORMAL-run D7 message (reverting it to the round-2 wording, which named no path), keeping the INCONCLUSIVE downgrade itself intact; the test must redden, the message no longer naming CONCURRENT_MARKER.txt. | green |
 | TEST-500 | Spec-AC-04 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 3, NB2-r3) — a rotated-name collision (two rotations sharing one `run_at_utc` second) gets a monotonic `.1`/`.2` suffix rather than silently overwriting the earlier archive: a pre-occupied bare-stamp name survives untouched, and the real record is archived at the next free suffix. | Disable the collision probe (`while \(taken\(suffix\)\) {` -> `while (false) {`); the test must redden: the pre-existing archives (bare record name, `.1` patch name) are overwritten instead of the real record and its patch landing together at `.2` landing at the `.1` suffix. | green |
@@ -981,7 +995,8 @@ evidence, produced by `mutation-run.mjs` itself.
 | TEST-502 | Spec-AC-04 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 3, NB5-r3) — `parseRecord`'s tolerance of an unrecognized header key is proved by a test, not merely asserted in prose (the exact back-compat property `selector_honoured`, NB6-r2, depends on): a hand-built record carrying an extra header key still parses as v1 and still satisfies the gate. | Extend the `mutation_record` version guard (`if (fields.mutation_record !== MUTATION_RECORD_VERSION) {`) with an additional OR-condition rejecting any header key outside `HEADER_FIELDS` and `selector_honoured`; the test must redden, the gate refusing a record it must tolerate (GATE FAIL instead of the required GATE PASS). | green |
 | TEST-503 | Spec-AC-03 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 3, NB6-r3) — a heredoc opener mentioned inside a full-line COMMENT (`# example: cat <<EOS`) never opens a real heredoc, so it cannot consume a LATER, legitimate heredoc sharing the same marker and swallow the selectors defined in between; a real selector defined right after the comment is still found. | Restore unconditional heredoc-opener recognition, dropping the comment-line guard (`const m = isCommentLine ? null : /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/.exec(line);` -> `const m = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/.exec(line);`); the test must redden, `test_swallowed` disappearing from the unknown-selector suggestions. | green |
 | TEST-504 | Spec-AC-03 | integration | tests/skills/test-aai-hygiene-pack.sh | Amendment (remediation round 3, NB4-r3) — the Node copy of the six positional-dispatch idioms (`mutation-run.mjs` `POSITIONAL_DISPATCH_PATTERNS`) stays aligned with `hp_scan_selector_suites`' own POSIX `[[:space:]]` whitespace grammar: the two scanners agree on every real suite in `tests/skills`, and BOTH now recognize a synthetic vertical-tab dispatch line the bash copy already matched. | Narrow the Node whitespace class back to `[ \t]` (`const WS = ' \\t\\v\\f';` -> `const WS = ' \\t';`); the vertical-tab arm must redden, the Node scanner missing a dispatch line the bash scanner still finds. | green |
-| TEST-505 | Spec-AC-07 | integration | tests/skills/test-aai-close-work-item.sh | Amendment (remediation round 4, NB-2) — arm E of TEST-477's own test function: an applicable spec whose ONLY Test Plan row is exempt passes the real gate vacuously (exit 0, `DEGRADED: every row exempt`), even under `mutation_gate: enforce` (never a refusal — the gate did not fail); `evaluateMutationGate` still surfaces the exempt/degraded counts as a WARNING at close rather than silently `continue`ing past them, and the close proceeds to `done`. | Disable the exit-0 notices surfacing (`if (notices.length === 0) return { severity: 'none' };` -> `if (true) return { severity: 'none' };`); arm E must redden, the all-exempt close going silent (no WARNING, no exempt/degraded count) instead of the required surfaced counts. | green |
+| TEST-505 | Spec-AC-07 | integration | tests/skills/test-aai-close-work-item.sh | Amendment (remediation round 4, NB-2; round 5, NB6-r6/NB3-r6) — its OWN test function and selector, `test_068_mutation_gate_all_exempt_notice` (round 4 recorded this as arm E of TEST-477's own `test_067_mutation_gate_close_wiring`, sharing that selector — a drift risk NB6-r6 named: a future edit to one function's FAIL text mentioning the other's id could silently swap record attribution). Arm A: an applicable spec whose ONLY Test Plan row is exempt passes the real gate vacuously (exit 0, `DEGRADED: every row exempt`), even under `mutation_gate: enforce` (never a refusal); `evaluateMutationGate` surfaces the exempt/degraded counts as a WARNING rather than silently `continue`ing past them, and the close proceeds to `done`. Arm B (new, NB3-r6): a MIXED spec (one offending row, one exempt row) refuses under enforce, and the REFUSED reason names BOTH the offending row AND the exempt count — `reason` previously dropped `notices` entirely on the offending path. | Disable the exit-0 notices surfacing (`if (notices.length === 0) return { severity: 'none' };` -> `if (true) return { severity: 'none' };`); arm A must redden, the all-exempt close going silent (no WARNING, no exempt/degraded count) instead of the required surfaced counts. | green |
+| TEST-506 | Spec-AC-05 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 5, D8 amendment, BLOCKING-1, validation round 6) — a record's own `target_sha256` lets the gate see that its target changed SINCE the record was produced: an unchanged target's record satisfies the gate (`unstamped=0`); editing the target afterward turns the row OFFENDING, named `STALE TEST-9001: target … changed since the record — re-run mutation-run.mjs (or --replay) for this row`, exit 5; re-stamping `target_sha256` to the new bytes restores `GATE PASS`; a LEGACY record with no `target_sha256` field at all is counted in a named `unstamped=1` degrade, never mistaken for stale, and the gate stays exit 0. | Drop the STALE comparison (`if (liveSha256 !== f.target_sha256) {` -> `if (false) {`); the changed-target arm must redden, the STALE row going unnoticed (`GATE PASS`) instead of the required `OFFENDING`/exit 5. | green |
 
 Every Spec-AC has at least one TEST row and every TEST row names exactly one
 Spec-AC. Every row carries a Mutation cell — the column this ride introduces,
@@ -1845,6 +1860,130 @@ AC's or Test Plan row's text outside the disclosed in-place edits to
 TEST-497, TEST-498 and TEST-477's Description cells (naming the changed
 behavior/new sibling row, never changing what property each row tests at
 its core) — ONE new row, TEST-505, is added.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: mutation-gate-for-tests`, `--signoff none`.
+
+### Remediation round 5 (2026-09-15 — validation round 6 FAIL, BLOCKING-1 + NB1-r6..NB6-r6)
+
+Validation round 6 (`docs/ai/tdd/spec-mutation-gate-for-tests/validation-round6.txt`)
+FAILED: BLOCKING-1 — TEST-490's recorded mutation went stale the moment the
+round-4 re-pin (`17f97f15… -> e5c3fd39…`) added a NEW live allowlist entry;
+the record's sed still nulled the now-HISTORICAL `17f97f15…` line, so the
+LIVE entry stayed unaffected and the mutated tree kept asserting OK —
+`--replay` was 35/36 rc 1 while `mutation-gate.mjs --spec` still read `GATE
+PASS 36/36`, because the gate re-READS records and never re-RUNS them
+(NB8-r2's own disclosed limit, now a live escape rather than a theoretical
+one). Six findings, fixed at cause, each with a TEST a mutation reddens:
+
+- **D8 amendment — stale records are visible to the gate.** Every NEW
+  mutation record now carries an OPTIONAL `target_sha256: <sha256 of the
+  target file at record time>` header field (`lib/mutation-record.mjs`,
+  the same optional-field precedent `selector_honoured` set — an older
+  record without it still parses as v1). `mutation-gate.mjs`: when the field
+  is present and the LIVE target's sha256 differs from it, the row is
+  OFFENDING with the class `STALE <id>: target <path> changed since the
+  record — re-run mutation-run.mjs (or --replay) for this row`; when the
+  field is absent, the record is counted in a named `unstamped=n` degrade
+  (a `NOTE:` line, never blocking, exit 0 unchanged) — both `GATE PASS` and
+  `GATE FAIL` summary lines now always carry `unstamped=<n>` alongside
+  `degraded=<n>`. `close-work-item.mjs`'s `evaluateMutationGate` needs no
+  change for this half: an OFFENDING STALE row is exactly the same shape as
+  any other offending row, so it already refuses under `mutation_gate:
+  enforce` through the existing offending-path logic. `mutation-run.mjs
+  --replay` also names `(target changed since the record)` beside a STAYED
+  GREEN result whenever the record's `target_sha256` no longer matches the
+  live target, so the stale-vs-genuinely-fixed distinction is visible there
+  too, not only at the gate. New row TEST-506
+  (`tests/skills/test-aai-mutation-gate.sh`): an unchanged target's record
+  satisfies the gate (`unstamped=0`); editing the target turns the row
+  OFFENDING (exit 5, STALE, naming the path and the remedy); re-stamping
+  `target_sha256` restores `GATE PASS`; a legacy record with no
+  `target_sha256` field is `unstamped=1`, never mistaken for stale, exit 0.
+  Mutation: drop the comparison (`if (liveSha256 !== f.target_sha256) {` ->
+  `if (false) {`) — the changed-target arm must redden. Record:
+  `docs/ai/tdd/spec-mutation-gate-for-tests/mutation-TEST-506.txt`, verdict
+  RED. Every record of this spec is then REGENERATED with the runner so all
+  37 rows (the 36 existing plus TEST-506 itself) carry the field: final
+  state is `mutation-gate.mjs --spec` `GATE PASS`, `unstamped=0`,
+  `--replay` 37/37 RED, rc 0.
+
+- **BLOCKING-1 — TEST-490's mutation is re-pin-proof.** The recorded
+  mutation no longer nulls one hard-coded historical allowlist hash (which
+  the NEXT re-pin can silently strand, exactly as happened here); it instead
+  disables `close_work_item_pin_assert` itself, regardless of which entry is
+  currently live: `sed:s/close_work_item_pin_assert() {/close_work_item_pin_assert()
+  { return 1;/` on `tests/skills/lib/close-work-item-pin.sh` (no `^` anchor —
+  the runner's single-line sed emulator has no multiline flag, and the
+  substring is unique in the file; the replacement stays on the SAME source
+  line as the opening brace, so the unchanged body below is unreachable but
+  still syntactically valid bash — confirmed with `bash -n` on the mutated
+  file). Verified by hand (sourcing the mutated file directly and calling the
+  function) that TEST-490 reds under it: `close_work_item_pin_assert` returns
+  1 with empty stdout before it ever reads a hash, so
+  `test_034_mutation_gate_pin_recut`'s own assertion
+  (`result="$(close_work_item_pin_assert "$PROJECT_ROOT")" || log_fail ...`)
+  fails on the non-zero exit and the empty `$result`. The Test Plan's
+  TEST-490 Mutation cell is updated
+  in-place (additively disclosed, the row's own core property —
+  `close_work_item_pin_assert` must accept the live, edited
+  `close-work-item.mjs` — unchanged); the record is regenerated.
+
+- **NB3-r6 — the OFFENDING path's reason silently dropped notices.**
+  `close-work-item.mjs` ~`:1216`: `evaluateMutationGate`'s refuse/warn
+  `reason` on the offending path was built from `offending` alone, so a
+  spec carrying BOTH offending rows and a non-zero `exempt` count printed
+  only the offending rows and lost the `exempt=n` the D8 amendment
+  (`:548-553`) says the close prints "whenever exempt is non-zero" — the
+  exit-0 (no offending) path already appended `notices` to its own reason;
+  only the offending path diverged. Fixed by appending the SAME
+  notices-derived text to the offending-path reason when `notices.length`
+  is non-zero. TEST-505 (see below) gains arm B: a MIXED offending+exempt
+  spec refuses under `enforce`, and the REFUSED reason names both the
+  offending row and `exempt=1`. Mutation: drop `notices` from the reason
+  (reverting the `notices.length ? … : offendingReason` join back to
+  `offendingReason` alone) — arm B must redden, the mixed-spec refusal
+  losing its `exempt=1` mention. `close-work-item.mjs` is then RE-PINNED
+  LAST, after this edit, in `tests/skills/lib/close-work-item-pin.sh` — a
+  new itemized entry re-affirming both frozen invariants (the exit contract
+  0-8 unchanged; the D6 snapshot/rollback transaction and its four
+  best-effort regen calls untouched).
+
+- **NB1-r6 — the D4 second window is now load-tested, not only
+  mutation-tested.** `docs/specs/…md:493-497`'s own citation of TEST-497 for
+  the D4 second-window fix (`buildIsolatedClone` hashing the bytes it
+  ACTUALLY copies into the clone rather than trusting the earlier
+  `computeTreeFileHashes(ROOT)` snapshot) was accurate about what the code
+  does but not about what the test covers — round 4's own mutation (deleting
+  the `sourceTreeFiles.set(rel, createHash…)` line) left TEST-497 fully
+  GREEN, a mutation-free survivor exactly like NB-3's disclosed rotation
+  ordering. Closed with a THIRD arm on TEST-497: a rapid (~50ms interval)
+  appender writes to the SOURCE `docs/ai/STATE.yaml` for the WHOLE run
+  (clone build through suite exit), not one well-timed write. Verified by
+  hand, run 5 times: shipped code records RED (exit 0) five times out of
+  five; the mutant (reverting the D4 fix) throws `TreeMismatchError …
+  changed: docs/ai/STATE.yaml` (exit 3) five times out of five — not flaky
+  at this density, so the interval was left at 50ms. The D7 section above
+  (`:493-497` citation) is corrected in place to name arm 3 and the
+  "Remediation round 5" section.
+
+- **NB6-r6 — TEST-505 gets its own selector.** Round 4 recorded TEST-505 as
+  arm E of TEST-477's own `test_067_mutation_gate_close_wiring`, sharing
+  that function's selector — a drift risk: a future edit to arm A-D's FAIL
+  text that happened to mention "TEST-505" (or vice versa) could silently
+  swap which record a red run is attributed to. TEST-505 now has its own
+  test function, `test_068_mutation_gate_all_exempt_notice`
+  (`tests/skills/test-aai-close-work-item.sh`), covering the all-exempt
+  vacuous-pass WARNING (arm A, unchanged property) and the new mixed-arm
+  refusal reason (arm B, NB3-r6 above). TEST-477's own function keeps only
+  arms A-D. Record regenerated against the new selector.
+
+`SPEC-FROZEN: true` is preserved; nothing above moves or deletes an existing
+AC's or Test Plan row's core property outside the disclosed in-place edits
+to TEST-490's and TEST-505's Description/Mutation cells (naming the changed
+mutation/selector, never changing what property each row tests at its
+core), the D7/D8 sections' evidence citations, and TEST-497's own
+Description cell (naming the new arm 3) — ONE new row, TEST-506, is added.
 
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: mutation-gate-for-tests`, `--signoff none`.

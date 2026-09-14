@@ -78,6 +78,21 @@ export function formatRecord(fields, tailText) {
     }
     lines.push(`selector_honoured: ${v}`);
   }
+  // target_sha256 (remediation round 5, D8 amendment, OPTIONAL — not in
+  // HEADER_FIELDS, so a record written before this field existed still
+  // parses): sha256 of the SOURCE target file's bytes at record time. Lets a
+  // reader (mutation-gate.mjs) detect that the target has changed SINCE the
+  // record was produced — a record can go stale the moment its own target is
+  // re-pinned/edited, even though the record itself still parses and still
+  // names a RED verdict (BLOCKING-1, validation round 6). Written only when
+  // the caller supplies it.
+  if (fields.target_sha256 !== undefined) {
+    const v = fields.target_sha256;
+    if (v === null || String(v).includes('\n')) {
+      throw new Error(`mutation-record: field "target_sha256" must be a single-line value (got ${JSON.stringify(v)})`);
+    }
+    lines.push(`target_sha256: ${v}`);
+  }
   const tail = tailText == null ? '' : String(tailText);
   const body = tail.endsWith('\n') ? tail.slice(0, -1) : tail;
   return `${lines.join('\n')}${SEPARATOR}${body}\n`;

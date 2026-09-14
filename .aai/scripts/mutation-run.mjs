@@ -688,6 +688,11 @@ function runOne(args) {
 
   const targetAbs = path.join(ROOT, args.target);
   if (!fs.existsSync(targetAbs)) usageError(`--target not found: ${args.target}`);
+  // Remediation round 5 (D8 amendment): the SOURCE target's bytes at record
+  // time, hashed BEFORE the mutation is applied (to the CLONE, never to this
+  // source path) — this is what mutation-gate.mjs later compares against the
+  // live target to detect a STALE record (BLOCKING-1, validation round 6).
+  const targetSha256 = createHash('sha256').update(fs.readFileSync(targetAbs)).digest('hex');
 
   let clone;
   try {
@@ -786,6 +791,7 @@ function runOne(args) {
       verdict,
       first_fail: firstFail,
       selector_honoured: selectorHonoured ? 'yes' : 'no (suite runs every test)',
+      target_sha256: targetSha256,
     };
     const patchSourceAbs = args.patch ? (path.isAbsolute(args.patch) ? args.patch : path.join(ROOT, args.patch)) : undefined;
     const recordPath = writeRecord(specId, args.testId, fields, lastLines(output, TAIL_LINES), patchSourceAbs);
@@ -928,7 +934,23 @@ function replay(args) {
         process.stdout.write(`RED ${testId}: still reddens (${fields.suite} ${fields.selector})\n`);
       } else {
         failures++;
-        process.stdout.write(`${verdict} ${testId}: no longer reddens (${fields.suite} ${fields.selector})\n`);
+        // Remediation round 5 (D8 amendment): when the record carries a
+        // target_sha256 and the target's LIVE bytes no longer match it, name
+        // that alongside a STAYED GREEN — the exact BLOCKING-1 shape
+        // (validation round 6): the record's own mutation went stale because
+        // its target was edited/re-pinned after the record was produced, not
+        // because the property it tests stopped holding. An older record
+        // with no target_sha256 (nothing to compare) prints nothing extra.
+        let staleNote = '';
+        if (fields.target_sha256) {
+          try {
+            const liveSha256 = createHash('sha256').update(fs.readFileSync(targetAbs)).digest('hex');
+            if (liveSha256 !== fields.target_sha256) staleNote = ' (target changed since the record)';
+          } catch {
+            // target already reported missing above; nothing to add here.
+          }
+        }
+        process.stdout.write(`${verdict} ${testId}: no longer reddens (${fields.suite} ${fields.selector})${staleNote}\n`);
       }
     } finally {
       fs.rmSync(clone.tmpBase, { recursive: true, force: true });
