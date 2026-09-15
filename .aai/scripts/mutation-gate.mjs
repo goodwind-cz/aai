@@ -304,9 +304,13 @@ function main() {
     try {
       liveSha256 = createHash('sha256').update(fs.readFileSync(targetAbs)).digest('hex');
     } catch {
+      // NB3-r7 (validation round 7): a DELETED (or renamed) target is a
+      // different cause from an EDITED one — say so, rather than reusing the
+      // "changed since the record" wording the comparison below uses for a
+      // genuine hash mismatch.
       offending.push({
         testId: row.testId,
-        reason: `STALE ${row.testId}: target ${f.target} changed since the record — re-run mutation-run.mjs (or --replay) for this row`,
+        reason: `STALE ${row.testId}: target ${f.target} missing — re-run mutation-run.mjs (or --replay) for this row`,
       });
       continue;
     }

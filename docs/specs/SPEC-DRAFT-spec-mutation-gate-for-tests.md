@@ -3,7 +3,7 @@ id: spec-mutation-gate-for-tests
 type: spec
 number: null
 status: implementing
-frozen_sha256: 2de0b761ece49bd719bd5df3ca6504f06328536b94cc25fc8a7c17f887cd0ac7
+frozen_sha256: 153a7073ed2dce4c2b9050eeb22b8355ceb94752800d9edda312c8ca977a8e80
 ceremony_level: 2
 mutation_gate: v1
 links:
@@ -530,13 +530,23 @@ For each `## Test Plan` row of an applicable spec (D9) it requires ALL of:
 - `verdict: RED`;
 - `base_commit` is an ancestor of HEAD (`git merge-base --is-ancestor`), so a
   record produced on an abandoned or rebased history is not evidence for the
-  tree being closed.
+  tree being closed;
+- **(remediation round 5, D8 amendment, BLOCKING-1)** when the record carries
+  an OPTIONAL `target_sha256`, the LIVE target's `sha256` still equals it —
+  a record whose target changed (`STALE <id>: target <path> changed since
+  the record — re-run mutation-run.mjs (or --replay) for this row`) or
+  vanished (`STALE <id>: target <path> missing — …`, remediation round 6,
+  NB3-r7) is OFFENDING even though the record itself still parses and still
+  names `verdict: RED`; a record carrying no `target_sha256` at all
+  (predating this field) is exempt from this ONE condition and counted
+  instead in a named `unstamped=<n>` degrade (never blocking).
 
 Exit codes: `0` every applicable row satisfied (degraded rows named, see D9);
 `5` at least one row unsatisfied — EVERY offending row is printed with the
-reason, never just the first; `3` the gate itself could not run (spec unreadable,
-Test Plan unparseable, `git` unavailable); `2` usage. The three-way split is the
-same rule as D6.
+reason, including a STALE row (a record whose own target changed or vanished
+since it was produced, remediation round 5/6), never just the first; `3` the
+gate itself could not run (spec unreadable, Test Plan unparseable, `git`
+unavailable); `2` usage. The three-way split is the same rule as D6.
 
 **Amendment (remediation round 3, NB-7):** a row whose Status cell is a
 TERMINAL-NOT-GREEN value (`deferred`, `dropped`, `rejected` — the vocabulary
@@ -603,7 +613,11 @@ reported as `DEGRADED: evidence tree absent` for every row at once, in ONE line
 carrying the count, and exits 0. `--list-degraded` prints the per-row detail —
 174 frozen specs must not produce 174 lines on every run, or the output becomes
 something people learn to scroll past. A degrade is never printed in the same
-shape as a pass: the summary line always carries `degraded=<n>`.
+shape as a pass: the summary line always carries `degraded=<n>`. **Amendment
+(remediation round 5/6, D8 amendment):** a `GATE PASS` or `GATE FAIL` summary
+line (never a `DEGRADED` one — that class was never about per-record
+staleness) also always carries `unstamped=<n>`, the count of records
+predating the `target_sha256` field (D8's own sixth condition above).
 
 ### D10 — The amendment anchor is a frontmatter hash over a CONTRACT PROJECTION
 
@@ -997,6 +1011,11 @@ evidence, produced by `mutation-run.mjs` itself.
 | TEST-504 | Spec-AC-03 | integration | tests/skills/test-aai-hygiene-pack.sh | Amendment (remediation round 3, NB4-r3) — the Node copy of the six positional-dispatch idioms (`mutation-run.mjs` `POSITIONAL_DISPATCH_PATTERNS`) stays aligned with `hp_scan_selector_suites`' own POSIX `[[:space:]]` whitespace grammar: the two scanners agree on every real suite in `tests/skills`, and BOTH now recognize a synthetic vertical-tab dispatch line the bash copy already matched. | Narrow the Node whitespace class back to `[ \t]` (`const WS = ' \\t\\v\\f';` -> `const WS = ' \\t';`); the vertical-tab arm must redden, the Node scanner missing a dispatch line the bash scanner still finds. | green |
 | TEST-505 | Spec-AC-07 | integration | tests/skills/test-aai-close-work-item.sh | Amendment (remediation round 4, NB-2; round 5, NB6-r6/NB3-r6) — its OWN test function and selector, `test_068_mutation_gate_all_exempt_notice` (round 4 recorded this as arm E of TEST-477's own `test_067_mutation_gate_close_wiring`, sharing that selector — a drift risk NB6-r6 named: a future edit to one function's FAIL text mentioning the other's id could silently swap record attribution). Arm A: an applicable spec whose ONLY Test Plan row is exempt passes the real gate vacuously (exit 0, `DEGRADED: every row exempt`), even under `mutation_gate: enforce` (never a refusal); `evaluateMutationGate` surfaces the exempt/degraded counts as a WARNING rather than silently `continue`ing past them, and the close proceeds to `done`. Arm B (new, NB3-r6): a MIXED spec (one offending row, one exempt row) refuses under enforce, and the REFUSED reason names BOTH the offending row AND the exempt count — `reason` previously dropped `notices` entirely on the offending path. | Disable the exit-0 notices surfacing (`if (notices.length === 0) return { severity: 'none' };` -> `if (true) return { severity: 'none' };`); arm A must redden, the all-exempt close going silent (no WARNING, no exempt/degraded count) instead of the required surfaced counts. | green |
 | TEST-506 | Spec-AC-05 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 5, D8 amendment, BLOCKING-1, validation round 6) — a record's own `target_sha256` lets the gate see that its target changed SINCE the record was produced: an unchanged target's record satisfies the gate (`unstamped=0`); editing the target afterward turns the row OFFENDING, named `STALE TEST-9001: target … changed since the record — re-run mutation-run.mjs (or --replay) for this row`, exit 5; re-stamping `target_sha256` to the new bytes restores `GATE PASS`; a LEGACY record with no `target_sha256` field at all is counted in a named `unstamped=1` degrade, never mistaken for stale, and the gate stays exit 0. | Drop the STALE comparison (`if (liveSha256 !== f.target_sha256) {` -> `if (false) {`); the changed-target arm must redden, the STALE row going unnoticed (`GATE PASS`) instead of the required `OFFENDING`/exit 5. | green |
+| TEST-507 | Spec-AC-05 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 6, NB1-r7, validation round 7) — the PRODUCER half of the D8 amendment (`mutation-run.mjs` stamping `target_sha256` into every new record) had no test of its own; only a hand-built record's consumer side was covered by TEST-506. This arm drives the REAL runner against an isolated git fixture: a freshly produced record's `target_sha256` equals `shasum -a 256` of the fixture's own target at record time, and editing that target afterward turns the row OFFENDING/STALE at the gate — reached through the producer, never a hand-built record. | Delete the stamping line from the producer's record fields (`target_sha256: targetSha256,` -> removed); the arm must redden, a freshly produced record carrying no `target_sha256` line at all. | green |
+| TEST-508 | Spec-AC-11 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 6, NB2-r7, validation round 7) — `--replay`'s OTHER stale-target symptom: when the recorded mutation no longer CHANGES the target (`before === after`, the likelier way a record goes stale, since a re-pinned/edited target commonly breaks its own recorded pattern before it stops reddening), the `FAIL … replayed mutation no longer changes <target>` line now also carries `(target changed since the record)` whenever the record's `target_sha256` no longer matches the live target — the same note the "no longer reddens" branch already carried. | Disable the new comparison (`if (liveSha256 !== fields.target_sha256) beforeAfterStaleNote` -> `if (false) beforeAfterStaleNote`); the arm must redden, the FAIL line losing its stale-target note. | green |
+| TEST-509 | Spec-AC-05 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 6, NB3-r7, validation round 7) — a DELETED (or renamed) target is a DIFFERENT cause from an EDITED one: the gate now reports it `target <path> missing`, never borrowing the hash-mismatch comparison's `changed since the record` wording for a target that simply vanished. | Revert the missing-target wording to the changed-target one (`target ${f.target} missing` -> `target ${f.target} changed since the record`); the arm must redden, a deleted target once again reported as merely changed. | green |
+| TEST-510 | Spec-AC-05 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 6, NB6-r7, validation round 7) — the `NOTE: unstamped=<n> …` line's own wording was a mutation-free survivor: the summary line's shared `unstamped=<n>` substring let a mutation renaming the NOTE's own token alone (`NOTE: unstamped=` -> `NOTE: skipped=`) go unnoticed. The NOTE line's full text is now asserted directly, not only the substring it shares with the summary line. | Rename the NOTE line's own token (`NOTE: unstamped=` -> `NOTE: skipped=`); the arm must redden, the NOTE line's wording changing while the summary line's `unstamped=1` (asserted separately) stays intact. | green |
+| TEST-511 | Spec-AC-07 | integration | tests/skills/test-aai-close-work-item.sh | Amendment (remediation round 6, NB4-r7, validation round 7) — `unstamped=<n>` reaches the close now too, the identical "a named degrade the close silently discarded" shape round 4's NB-2 fixed for `exempt=<n>`: a spec whose only record is a LEGACY one (no `target_sha256`) still passes the gate (`unstamped=1`, never a refusal), and `evaluateMutationGate` now surfaces that count as a WARNING exactly as it already does for `exempt`. | Drop the new OR-condition (`if (exemptN > 0 \|\| unstampedN > 0) {` -> `if (exemptN > 0) {`); arm C must redden, a satisfied-but-unstamped spec's close going silent again (no WARNING, no `unstamped=1`). | green |
 
 Every Spec-AC has at least one TEST row and every TEST row names exactly one
 Spec-AC. Every row carries a Mutation cell — the column this ride introduces,
@@ -1984,6 +2003,114 @@ to TEST-490's and TEST-505's Description/Mutation cells (naming the changed
 mutation/selector, never changing what property each row tests at its
 core), the D7/D8 sections' evidence citations, and TEST-497's own
 Description cell (naming the new arm 3) — ONE new row, TEST-506, is added.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: mutation-gate-for-tests`, `--signoff none`.
+
+### Remediation round 6 (2026-09-15 — validation round 7 PASS, NB1-r7..NB6-r7)
+
+Validation round 7
+(`docs/ai/tdd/spec-mutation-gate-for-tests/validation-round7.txt`) PASSED —
+0 BLOCKING — with six non-blocking findings, all "future-regression coverage
+/ diagnostic wording" class. Each is fixed at cause, each with a TEST a
+mutation reddens:
+
+- **NB1-r7 — the PRODUCER half of the D8 amendment had no test.** Only
+  TEST-506's hand-built record exercised the CONSUMER side (`mutation-gate.mjs`
+  reading `target_sha256`); nothing anywhere asserted that a record PRODUCED
+  by `mutation-run.mjs` (`:691,794`) actually carries the field, so a producer
+  regression (e.g. deleting the stamping line) restored the exact round-6
+  blind spot with no red anywhere — a mutation confirmed this (M7,
+  validation round 7). New row TEST-507
+  (`tests/skills/test-aai-mutation-gate.sh`, `test_506_gate_detects_stale_target`):
+  drives the REAL runner against an isolated git fixture and asserts a
+  freshly produced record's `target_sha256` equals `shasum -a 256` of its own
+  target at record time, and that editing the target afterward turns the row
+  OFFENDING/STALE at the gate — reached through the producer, never a
+  hand-built record. Mutation: delete `target_sha256: targetSha256,` from the
+  producer's record fields.
+
+- **NB2-r7 — `--replay`'s OTHER stale symptom printed no note.**
+  `mutation-run.mjs:896-900`: when the recorded mutation no longer CHANGES
+  the target (`before === after`) replay prints `FAIL … replayed mutation no
+  longer changes <target>` and `continue`s — before ever reaching the
+  `target_sha256` comparison the D8 amendment added only to the "no longer
+  reddens" branch. A target edited after the record was produced is the more
+  common way a recorded sed pattern stops matching, so the branch that most
+  often means "stale record" carried no hint. Fixed by adding the identical
+  `target_sha256` comparison to this branch, appending
+  `(target changed since the record)` when it fires. New row TEST-508
+  (`tests/skills/test-aai-mutation-gate.sh`, `test_481_replay` arm 6):
+  a record whose target is edited so the recorded sed no longer matches
+  must carry the note on replay. Mutation: disable the new comparison
+  (`if (liveSha256 !== fields.target_sha256) beforeAfterStaleNote` ->
+  `if (false) beforeAfterStaleNote`).
+
+- **NB3-r7 — a MISSING target was reported with the CHANGED wording.**
+  `mutation-gate.mjs:302-312`: the `try { readFileSync(targetAbs) } catch`
+  branch (a DELETED or renamed target) pushed the identical `STALE <id>:
+  target <path> changed since the record …` reason used for a genuine hash
+  mismatch — naming a cause the gate did not observe. Fixed by giving the
+  catch branch its own wording, `target <path> missing`. New row TEST-509
+  (`tests/skills/test-aai-mutation-gate.sh`, `test_506_gate_detects_stale_target`):
+  a deleted target's record is OFFENDING, named `missing`, never `changed
+  since the record`. Mutation: revert the wording back to `changed since the
+  record`.
+
+- **NB4-r7 — `unstamped=<n>` never reached the close.** The identical shape
+  round 4's NB-2 fixed for `exempt=<n>`:
+  `close-work-item.mjs:1186-1203`'s `evaluateMutationGate` captured ONLY
+  `exempt=`/`degraded=` from the gate's summary line and pushed a WARNING
+  notice only when `exempt` was non-zero — a spec closing with, say, `GATE
+  PASS: … unstamped=37` closed with complete silence about it. Fixed by also
+  parsing `unstamped=(\d+)` and triggering the same WARNING notice whenever
+  either count is non-zero. New row TEST-511
+  (`tests/skills/test-aai-close-work-item.sh`,
+  `test_068_mutation_gate_all_exempt_notice` arm C): a spec whose only
+  record is a LEGACY one (no `target_sha256`) still passes the gate
+  (`unstamped=1`, never a refusal), and the close now surfaces that count
+  as a WARNING. Mutation: drop the new OR-condition (`if (exemptN > 0 ||
+  unstampedN > 0) {` -> `if (exemptN > 0) {`).
+
+- **NB5-r7 — D8's own section text was not amended in place.** Rounds 3 and
+  4 each added an inline amendment paragraph inside `### D8`; round 5 added
+  none, leaving the "it requires ALL of" list at five conditions, the Exit
+  codes paragraph silent about the STALE class, and D9's closing sentence
+  silent about `unstamped=<n>`. Fixed in place above (D8 gains a sixth
+  bulleted condition and an Exit-codes clause naming STALE; D9 gains a
+  closing-sentence amendment naming `unstamped=<n>`) — placement only, the
+  property was already specified (via the round-5 section), tested and
+  mutation-proven.
+
+- **NB6-r7 — the `NOTE: unstamped=` line's own wording was a mutation-free
+  survivor.** `mutation-gate.mjs:195-197`'s NOTE line was never observed by
+  any test — only the summary line's shared `unstamped=<n>` substring was
+  asserted, so a mutation renaming the NOTE's own token
+  (`NOTE: unstamped=` -> `NOTE: skipped=`) stayed GREEN. New row TEST-510
+  (`tests/skills/test-aai-mutation-gate.sh`, `test_506_gate_detects_stale_target`):
+  asserts the NOTE line's full text, not only the shared substring.
+  Mutation: rename the token as above. The three DEGRADE summary lines'
+  `unstamped=` omission is left as-is (disclosed, not fixed): the spec
+  scopes the token to `GATE PASS`/`GATE FAIL` only (D9's closing-sentence
+  amendment above), and every DEGRADE class exits before any row is ever
+  read as unstamped, so the count is genuinely, not merely apparently, zero
+  there.
+
+All five new rows (TEST-507..TEST-511) are added to the Test Plan, each
+mapped to the Spec-AC its property already belongs to (Spec-AC-05 for the
+gate-side findings, Spec-AC-11 for the replay-side one, Spec-AC-07 for the
+close-side one) — no existing row's core property changes. Every record of
+this spec whose target is `mutation-run.mjs`, `mutation-gate.mjs` or
+`close-work-item.mjs` (20 of the prior 37, per the D8 amendment's own
+`target_sha256` mechanism) is REGENERATED with the runner alongside the five
+new ones: final state is `mutation-gate.mjs --spec` `GATE PASS`,
+`unstamped=0`, `--replay` 42/42 RED, rc 0.
+
+`SPEC-FROZEN: true` is preserved; nothing above moves or deletes an existing
+AC's or Test Plan row's core property outside the disclosed in-place
+amendments to D8/D9 (naming the new sixth condition and `unstamped=<n>`,
+never changing what any existing row tests at its core) — five new rows,
+TEST-507 through TEST-511, are added.
 
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: mutation-gate-for-tests`, `--signoff none`.

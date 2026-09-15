@@ -1186,17 +1186,22 @@ function evaluateMutationGate(resolved) {
     if (summaryLine) {
       const exemptN = Number(/exempt=(\d+)/.exec(summaryLine)?.[1] ?? 0);
       const degradedN = Number(/degraded=(\d+)/.exec(summaryLine)?.[1] ?? 0);
-      // Gated on exemptN, not degradedN: D9's OWN degrade classes
+      // NB4-r7 (validation round 7): the D8 amendment's own `unstamped=<n>`
+      // token (a legacy record predating target_sha256) is the identical
+      // "a named degrade the close must not discard" shape NB-2 fixed for
+      // exempt counts — captured here the same way, never hand-parsed
+      // elsewhere.
+      const unstampedN = Number(/unstamped=(\d+)/.exec(summaryLine)?.[1] ?? 0);
+      // Gated on exemptN/unstampedN, not degradedN: D9's OWN degrade classes
       // (pre-change spec, evidence tree absent — no Status column was ever
-      // read, so nothing was ever exempted) are unrelated to NB-2 and stay
-      // exactly as silent at the close as before this fix (an existing,
+      // read, so nothing was ever exempted) are unrelated to NB-2/NB4-r7 and
+      // stay exactly as silent at the close as before this fix (an existing,
       // intentional close-work-item.mjs contract). Only a summary line that
-      // itself carries exempt=N — an ordinary PASS with some exempt rows, or
-      // the new "every row exempt" DEGRADED class, both of which are
-      // D8/NB-7's own applicability-vs-disposition distinction — is a notice
-      // here.
-      if (exemptN > 0) {
-        notices.push({ spec: doc.rel, exempt: exemptN, degraded: degradedN, summary: summaryLine });
+      // itself carries exempt=N and/or unstamped=N — an ordinary PASS with
+      // some exempt rows, the "every row exempt" DEGRADED class, or a PASS/
+      // FAIL carrying a legacy unstamped record — is a notice here.
+      if (exemptN > 0 || unstampedN > 0) {
+        notices.push({ spec: doc.rel, exempt: exemptN, degraded: degradedN, unstamped: unstampedN, summary: summaryLine });
       }
     }
     if (status === 0) continue;

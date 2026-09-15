@@ -895,7 +895,23 @@ function replay(args) {
       }
       if (before === after) {
         failures++;
-        process.stdout.write(`FAIL ${testId}: replayed mutation no longer changes ${fields.target}\n`);
+        // NB2-r7 (validation round 7): the OTHER stale-target symptom — a
+        // record's own sed pattern can stop matching because the target
+        // itself was edited/re-pinned after the record was produced (the
+        // LIKELIER of the two ways a record goes stale here, D8's own
+        // amendment). Same target_sha256 comparison as the "no longer
+        // reddens" branch below, so this diagnostic is no longer missing on
+        // the branch that fires more often for a genuinely stale record.
+        let beforeAfterStaleNote = '';
+        if (fields.target_sha256) {
+          try {
+            const liveSha256 = createHash('sha256').update(fs.readFileSync(targetAbs)).digest('hex');
+            if (liveSha256 !== fields.target_sha256) beforeAfterStaleNote = ' (target changed since the record)';
+          } catch {
+            // target already reported missing above; nothing to add here.
+          }
+        }
+        process.stdout.write(`FAIL ${testId}: replayed mutation no longer changes ${fields.target}${beforeAfterStaleNote}\n`);
         continue;
       }
       const ran = runSuite(clone.cloneDir, fields.suite, fields.selector);

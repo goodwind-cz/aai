@@ -3654,7 +3654,49 @@ test_068_mutation_gate_all_exempt_notice() {
   grep -q '^status: done$' "$dir_f/docs/specs/SPEC-0001-t068b.md" \
     && log_fail "TEST-505 arm B: spec doc flipped to done despite an enforce refusal"
 
-  log_pass "TEST-505: an all-exempt vacuous pass surfaces its exempt/degraded counts as a WARNING even under enforce, and a mixed offending+exempt spec's REFUSED reason names the exempt count too (Spec-AC-07)"
+  # Arm C — NB4-r7 (validation round 7): a spec whose ONE Test Plan row has
+  # a LEGACY record (no target_sha256, predates the D8 stale-record check)
+  # passes the real gate vacuously-satisfied (exit 0, `unstamped=1`, never a
+  # refusal — the row IS satisfied), but that count must still reach the
+  # close as a WARNING: the identical "a named degrade the close silently
+  # discarded" shape round 4's NB-2 fixed for `exempt=n` — `unstamped=n` was
+  # parsed by nobody until this fix.
+  local dir_g; dir_g=$(new_fixture_repo "t068c")
+  seed_mutation_gate_engine "$dir_g"
+  set_mutation_gate_dial "$dir_g" "enforce"
+  write_change_doc "$dir_g/docs/issues/CHANGE-0001-t068c.md" "t068c-change" "implementing"
+  write_mutation_gate_applicable_spec_doc "$dir_g/docs/specs/SPEC-0001-t068c.md" "t068c-spec" "implementing"
+  mkdir -p "$dir_g/docs/ai/tdd/t068c-spec"
+  commit_fixture_docs "$dir_g"
+  local head_g; head_g="$(git -C "$dir_g" rev-parse HEAD)"
+  cat > "$dir_g/docs/ai/tdd/t068c-spec/mutation-TEST-001.txt" <<EOF
+mutation_record: v1
+spec_id: t068c-spec
+test_id: TEST-001
+suite: tests/skills/fixture-suite.sh
+selector: test_fixture
+target: lib/fixture.mjs
+mutation: sed:s/OLD/NEW/
+base_commit: ${head_g}
+tree_hash: $(printf '0%.0s' $(seq 1 64))
+run_at_utc: 2026-01-01T00:00:00Z
+rc: 1
+verdict: RED
+first_fail: FAIL fixture TEST-001
+---
+fixture tail
+EOF
+  out="$TEST_DIR/t068c.out"; err="$TEST_DIR/t068c.err"
+  code=$(run_close "$dir_g" "$out" "$err" --ref t068c-change --spec t068c-spec --pr 67 --commit c068c068)
+  assert_exit "TEST-511 / TEST-505 arm C (NB4-r7): a spec with only a legacy unstamped record passes the gate (exit 0) even under enforce — never a refusal" 0 "$code"
+  grep -qi 'WARNING (mutation gate)' "$err" \
+    || log_fail "TEST-511 / TEST-505 arm C (NB4-r7): the WARNING must fire for a legacy unstamped record, got: $(cat "$err")"
+  grep -qF 'unstamped=1' "$err" \
+    || log_fail "TEST-511 / TEST-505 arm C (NB4-r7): the WARNING must name the unstamped count, got: $(cat "$err")"
+  grep -q '^status: done$' "$dir_g/docs/specs/SPEC-0001-t068c.md" \
+    || log_fail "TEST-511 / TEST-505 arm C (NB4-r7): a satisfied-but-unstamped gate result must not block the close"
+
+  log_pass "TEST-505: an all-exempt vacuous pass surfaces its exempt/degraded counts as a WARNING even under enforce, a mixed offending+exempt spec's REFUSED reason names the exempt count too, and a satisfied-but-unstamped (legacy record) spec surfaces its unstamped count as a WARNING too (Spec-AC-07, NB4-r7)"
 }
 
 main() {

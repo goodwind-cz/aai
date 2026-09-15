@@ -573,7 +573,38 @@ EOS
   assert_payload_contains "$out" "this run, or another writer" \
     "TEST-481 arm5: replay's D7 message must own that it cannot tell a concurrent writer from its own run: $out"
 
-  log_pass "TEST-481 replay exits 0 when every live record still reddens, names a record that no longer reddens once the code changes (exit 1), reports INCONCLUSIVE for a record whose target vanished, reports INCONCLUSIVE at a DISTINCT exit code (4) for a record whose mutation cannot be applied at all, and reports a concurrent editor's write during the run as inconclusive (exit 4, path named) rather than a genuine regression"
+  # Arm 6 (NB2-r7, validation round 7): a record whose target was EDITED
+  # after it was produced, in a way that makes the RECORDED sed pattern no
+  # longer match (before === after at replay time) -- the "replayed
+  # mutation no longer changes <target>" branch must ALSO carry the "(target
+  # changed since the record)" note when target_sha256 no longer matches the
+  # live target, the same note the "no longer reddens" branch (arm 2 above)
+  # already carries — this is the LIKELIER of the two stale-replay symptoms,
+  # since a re-pinned/edited target commonly makes its own recorded pattern
+  # stop matching before it makes the suite stop reddening.
+  local fx6; fx6="$(mg_new_fixture)"
+  mg_seed_repo "$fx6"
+  mg_write_fixture_suite "$fx6"
+  mg_write_spec "$fx6" "fixture-spec-481-arm6"
+  printf "console.log('hello');\n" > "$fx6/lib/greeting.mjs"
+  ( cd "$fx6" && git add -A && git commit -q -m base )
+
+  out="$(cd "$fx6" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-508 / TEST-481 arm6 (NB2-r7) setup: expected a RED record, got exit $rc: $out"
+
+  # Edit the target AFTER the record was produced, so the recorded
+  # 's/hello/goodbye/' pattern no longer matches at replay time.
+  printf "console.log('changed');\n" > "$fx6/lib/greeting.mjs"
+  ( cd "$fx6" && git add -A && git commit -q -m 'edit target so the recorded sed misses' )
+
+  out="$(cd "$fx6" && node "$MUTATION_RUN" --replay --spec docs/specs/fixture-spec.md 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-508 / TEST-481 arm6 (NB2-r7): --replay must exit non-zero once the recorded mutation no longer changes the target: $out"
+  assert_payload_contains "$out" 'FAIL TEST-9001: replayed mutation no longer changes lib/greeting.mjs (target changed since the record)' \
+    "TEST-508 / TEST-481 arm6 (NB2-r7): the 'no longer changes' FAIL line must also carry the stale-target note when target_sha256 no longer matches the live target, got: $out"
+
+  log_pass "TEST-481 replay exits 0 when every live record still reddens, names a record that no longer reddens once the code changes (exit 1), reports INCONCLUSIVE for a record whose target vanished, reports INCONCLUSIVE at a DISTINCT exit code (4) for a record whose mutation cannot be applied at all, reports a concurrent editor's write during the run as inconclusive (exit 4, path named) rather than a genuine regression, and names the stale-target note on the 'no longer changes' branch too, not only the 'no longer reddens' one (NB2-r7)"
 }
 
 # --- TEST-480 — Spec-AC-10: canon carries the rule --------------------------
@@ -1786,7 +1817,92 @@ EOF
   [[ "$rc" -eq 0 ]] || log_fail "TEST-506: a legacy record with no target_sha256 must still satisfy the gate, got $rc: $out"
   assert_payload_contains "$out" 'unstamped=1' "TEST-506: a legacy record with no target_sha256 must be counted unstamped, got: $out"
 
-  log_pass "TEST-506 a record's target_sha256 lets the gate catch a STALE row (target changed since the record) as OFFENDING, re-stamping restores PASS, and a legacy record with no target_sha256 is a named unstamped degrade, never mistaken for stale (closes BLOCKING-1)"
+  # NB6-r7 (validation round 7): the summary line's own 'unstamped=1' text is
+  # not proof the NOTE line's WORDING is intact -- both lines carry that
+  # substring, so a mutation renaming the NOTE token alone (M4:
+  # 'NOTE: unstamped=' -> 'NOTE: skipped=') survived the assertion above.
+  # Assert the NOTE line's full text, not only the shared substring.
+  assert_payload_contains "$out" 'NOTE: unstamped=1 record(s) lack target_sha256 (predate the D8 stale-record check) — regenerate via mutation-run.mjs to close the gap' \
+    "TEST-510 / TEST-506 (NB6-r7): the NOTE line's own wording must be observed, not only the summary line's shared unstamped= substring, got: $out"
+
+  # NB3-r7 (validation round 7): a DELETED target is a DIFFERENT cause from
+  # an EDITED one -- the gate must say so ('missing'), not reuse the
+  # comparison branch's 'changed since the record' wording for a target that
+  # simply vanished.
+  local id3; id3="$(mg_gate_id stale-target-missing)"
+  local spec3; spec3="$(mg_new_fixture)/spec.md"
+  local dir3; dir3="$(mg_gate_evidence_dir "$id3")"
+  mkdir -p "$dir3"
+  local target3_rel="docs/ai/tdd/$id3/fixture-target.mjs"
+  printf "console.log('v1');\n" > "$PROJECT_ROOT/$target3_rel"
+  local sha3; sha3="$(cd "$PROJECT_ROOT" && shasum -a 256 "$target3_rel" | awk '{print $1}')"
+  mg_write_gate_spec "$spec3" "$id3" tdd "mutation_gate: v1" <<EOF
+| TEST-9003 | Spec-AC-01 | unit | tests/skills/fixture-suite.sh | a | sed:s/OLD/NEW/ | pending |
+EOF
+  cat > "$dir3/mutation-TEST-9003.txt" <<EOF
+mutation_record: v1
+spec_id: fixture
+test_id: TEST-9003
+suite: tests/skills/fixture-suite.sh
+selector: test_fixture
+target: ${target3_rel}
+mutation: sed:s/OLD/NEW/
+base_commit: ${head_commit}
+tree_hash: $(printf '0%.0s' $(seq 1 64))
+run_at_utc: 2026-01-01T00:00:00Z
+rc: 1
+verdict: RED
+first_fail: FAIL fixture TEST-9003
+target_sha256: ${sha3}
+---
+fixture tail
+EOF
+  rm -f "$PROJECT_ROOT/$target3_rel"
+  out="$(mg_gate "$spec3" 2>&1)"; rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-509 / TEST-506 (NB3-r7): a deleted target must turn the row OFFENDING, got $rc: $out"
+  assert_payload_contains "$out" "STALE TEST-9003" "TEST-509 / TEST-506 (NB3-r7): the offending reason must name the STALE class: $out"
+  assert_payload_contains "$out" "${target3_rel} missing" "TEST-509 / TEST-506 (NB3-r7): a deleted target must be reported MISSING: $out"
+  assert_payload_not_contains "$out" "${target3_rel} changed since the record" "TEST-509 / TEST-506 (NB3-r7): a deleted target must not borrow the CHANGED wording: $out"
+
+  # NB1-r7 (validation round 7): the PRODUCER half of the D8 amendment (the
+  # REAL mutation-run.mjs stamping target_sha256 into every new record) had
+  # no test of its own -- every arm above hand-builds its record. This arm
+  # drives the real runner against an isolated git fixture and checks both
+  # ends: a freshly PRODUCED record's target_sha256 equals shasum -a 256 of
+  # the fixture's own target at record time, and editing that target AFTER
+  # the record was produced turns the row OFFENDING/STALE at the gate --
+  # reached through the producer, never a hand-built record.
+  local fx3; fx3="$(mg_new_fixture)"
+  mg_seed_repo "$fx3"
+  mg_write_fixture_suite "$fx3"
+  printf "console.log('hello');\n" > "$fx3/lib/greeting.mjs"
+  mg_write_gate_spec "$fx3/docs/specs/fixture-spec.md" "fixture-spec-506c" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | tests/skills/fixture-suite.sh | a | sed:s/hello/goodbye/ | pending |
+EOF
+  ( cd "$fx3" && git add -A && git commit -q -m base )
+
+  local out3 rc3
+  out3="$(cd "$fx3" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc3=0 || rc3=$?
+  [[ "$rc3" -eq 0 ]] || log_fail "TEST-507 / TEST-506 (NB1-r7) setup: mutation-run.mjs producer exited $rc3: $out3"
+
+  local rec3="$fx3/docs/ai/tdd/fixture-spec-506c/mutation-TEST-9001.txt"
+  [[ -f "$rec3" ]] || log_fail "TEST-507 / TEST-506 (NB1-r7): no record written at $rec3"
+
+  local target_sha3; target_sha3="$(shasum -a 256 "$fx3/lib/greeting.mjs" | awk '{print $1}')"
+  assert_payload_contains "$(cat "$rec3")" "target_sha256: ${target_sha3}" \
+    "TEST-507 / TEST-506 (NB1-r7): a record PRODUCED by the real runner must stamp target_sha256 equal to shasum -a 256 of its own target at record time, got: $(cat "$rec3")"
+
+  # Edit the fixture's target AFTER the producer-made record above.
+  printf "console.log('hello v2');\n" > "$fx3/lib/greeting.mjs"
+  local gate_out3 gate_rc3
+  gate_out3="$(cd "$fx3" && node "$MUTATION_GATE" --spec docs/specs/fixture-spec.md 2>&1)"; gate_rc3=$?
+  [[ "$gate_rc3" -eq 5 ]] || log_fail "TEST-507 / TEST-506 (NB1-r7): editing the target after a producer-made record must turn the gate OFFENDING, got $gate_rc3: $gate_out3"
+  assert_payload_contains "$gate_out3" "STALE TEST-9001" \
+    "TEST-507 / TEST-506 (NB1-r7): the offending reason must name the STALE class, got: $gate_out3"
+
+  log_pass "TEST-506 a record's target_sha256 lets the gate catch a STALE row (target changed since the record) as OFFENDING, re-stamping restores PASS, a legacy record with no target_sha256 is a named unstamped degrade never mistaken for stale, the NOTE line's own wording is observed, a DELETED target is reported missing rather than changed, and the REAL producer's own stamping is asserted end-to-end (closes BLOCKING-1, NB1-r7, NB3-r7, NB6-r7)"
 }
 
 main() {
