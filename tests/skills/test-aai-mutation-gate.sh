@@ -1920,7 +1920,12 @@ test_513_patch_scope_refusal() {
   mg_write_spec "$fx" "fixture-spec-513"
   printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
   printf 'marker-present' > "$fx/lib/extra.txt"
+  printf 'other-file\n' > "$fx/lib/other.txt"
   ( cd "$fx" && git add -A && git commit -q -m base )
+  # A PRIVATE TMPDIR for every run of this test: the leftover-clone count
+  # below must never see a concurrent runner's clone (validation round 1 NB4
+  # fixed the same race in TEST-472; round 10 found it copied here).
+  local priv_tmp; priv_tmp="$(mktemp -d "${TMPDIR:-/tmp}/aai-mg-513-priv.XXXXXX")"
 
   # Arm A: a two-file patch — one hunk for --target, one for the fixture
   # SUITE itself (the exact attack this finding names: an extra hunk edits
@@ -1941,7 +1946,7 @@ test_513_patch_scope_refusal() {
 EOF
 
   local out rc
-  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+  out="$(cd "$fx" && TMPDIR="$priv_tmp" node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
     --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
     --target lib/greeting.mjs --patch "$patch_two" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 2 ]] || log_fail "TEST-513 arm A: a two-file patch must be refused with exit 2, got $rc: $out"
@@ -1949,8 +1954,53 @@ EOF
     "TEST-513 arm A: the refusal must name the offending path (the suite, not --target): $out"
   local rec; rec="$(mg_record_path "$fx" fixture-spec-513 TEST-9001)"
   [[ ! -f "$rec" ]] || log_fail "TEST-513 arm A: no record must be written when the patch is refused: $rec"
-  [[ -z "$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'aai-mutation-*' 2>/dev/null)" ]] \
+  [[ -z "$(find "$priv_tmp" -maxdepth 1 -name 'aai-mutation-*' 2>/dev/null)" ]] \
     || log_fail "TEST-513 arm A: no clone directory may be left behind after the refusal"
+
+  # Arms C/D/E (validation round 10 BLOCKING-1): the three spellings that
+  # walked past a hand-written `a/`-`b/` header parser. Each carries a
+  # harmless hunk for --target plus a foreign hunk; each must be refused with
+  # exit 2 naming the foreign path, and leave no record.
+  local forged name foreign
+  # C — another prefix: `git apply` strips ANY first path component, so
+  # `z/tests/...` edits the SUITE (the forged-RED attack, verbatim).
+  forged="$(mg_new_fixture)/prefix-z.patch"
+  cat > "$forged" <<'EOF'
+--- a/lib/greeting.mjs
++++ b/lib/greeting.mjs
+@@ -1 +1,2 @@
+ console.log('hello');
++// harmless comment
+--- z/tests/skills/fixture-suite.sh
++++ z/tests/skills/fixture-suite.sh
+@@ -1,2 +1,3 @@
+ #!/usr/bin/env bash
++echo "FAIL: TEST-9001 forged failure from an extra hunk" >&2; exit 1
+ set -uo pipefail
+EOF
+  # D — a C-quoted header creating a file whose name holds a TAB.
+  local quoted; quoted="$(mg_new_fixture)/c-quoted.patch"
+  printf '%s\n' '--- a/lib/greeting.mjs' '+++ b/lib/greeting.mjs' '@@ -1 +1,2 @@' " console.log('hello');" '+// harmless comment' \
+    '--- /dev/null' '+++ "b/lib/ev\til.txt"' '@@ -0,0 +1 @@' '+planted' > "$quoted"
+  # E — CRLF header lines on the foreign file.
+  local crlf; crlf="$(mg_new_fixture)/crlf.patch"
+  printf '%s\n' '--- a/lib/greeting.mjs' '+++ b/lib/greeting.mjs' '@@ -1 +1,2 @@' " console.log('hello');" '+// harmless comment' > "$crlf"
+  printf '%s\r\n' '--- a/lib/other.txt' '+++ b/lib/other.txt' >> "$crlf"
+  printf '%s\n' '@@ -1 +1 @@' '-other-file' '+rewritten' >> "$crlf"
+  for name in "C:$forged:fixture-suite.sh" "D:$quoted:il.txt" "E:$crlf:other.txt"; do
+    local arm="${name%%:*}" rest="${name#*:}"; local pf="${rest%%:*}"; foreign="${rest#*:}"
+    out="$(cd "$fx" && TMPDIR="$priv_tmp" node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+      --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+      --target lib/greeting.mjs --patch "$pf" 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 2 ]] || log_fail "TEST-513 arm $arm: a patch touching a foreign path ($foreign) must be refused with exit 2, got $rc: $out"
+    assert_payload_contains "$out" "$foreign" \
+      "TEST-513 arm $arm: the refusal must name the foreign path ($foreign): $out"
+    [[ ! -f "$rec" ]] || log_fail "TEST-513 arm $arm: no record must be written when the patch is refused: $rec"
+    [[ -z "$(find "$priv_tmp" -maxdepth 1 -name 'aai-mutation-*' 2>/dev/null)" ]] \
+      || log_fail "TEST-513 arm $arm: no clone directory may be left behind after the refusal"
+    ( cd "$fx" && [[ -z "$(git status --porcelain -- lib tests)" ]] ) \
+      || log_fail "TEST-513 arm $arm: the refused patch must not have touched the source fixture tree"
+  done
 
   # Arm B: the SAME target, a patch naming only --target, must still apply
   # cleanly and produce a RED record exactly as before this fix.
@@ -1962,14 +2012,14 @@ EOF
 -console.log('hello');
 +console.log('goodbye');
 EOF
-  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+  out="$(cd "$fx" && TMPDIR="$priv_tmp" node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
     --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
     --target lib/greeting.mjs --patch "$patch_one" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-513 arm B: a single-file patch must still be recorded RED, got $rc: $out"
   [[ -f "$rec" ]] || log_fail "TEST-513 arm B: expected a record at $rec"
   grep -qF 'verdict: RED' "$rec" || log_fail "TEST-513 arm B: expected verdict RED: $(cat "$rec")"
 
-  log_pass "TEST-513 a --patch touching a path other than --target is refused (exit 2, naming the offending path, no record, no clone left); a single-file patch still applies cleanly"
+  log_pass "TEST-513 a --patch touching a path other than --target is refused however the foreign header is spelled (a/-b/, another prefix, C-quoted, CRLF): exit 2, path named, no record, no clone left; a single-file patch still applies cleanly"
 }
 
 # --- TEST-517 — Spec-AC-05/Spec-AC-02 (remediation round 7, PR #384 bot

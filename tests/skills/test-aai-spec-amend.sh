@@ -1918,7 +1918,12 @@ EOF
 # STRICT violation bucket naming the file, never silently skipped.
 test_516_unreadable_spec_refuses() {
   if [[ "$(id -u)" == "0" ]]; then
-    log_skip "TEST-516: running as root — chmod 000 is not enforced, skipping this arm"
+    # A named degrade, never log_skip: log_skip is exit 42 and VOIDS THE WHOLE
+    # SUITE (validation round 10 NB1; the same lesson TEST-443 and TEST-486
+    # recorded). root ignores chmod 000, so this one arm cannot run there.
+    log_info "TEST-516 DEGRADED (named): running as root — chmod 000 is not enforced, this arm cannot prove the refusal here"
+    log_pass "TEST-516: degraded by name under root (the refusal is exercised on every non-root run)"
+    return 0
   fi
   log_info "Test: an unreadable (chmod 000) spec under --specs-dir refuses list --strict, naming the file, rather than being silently omitted from the scan (TEST-516)..."
   local specsdir led spec ok=1

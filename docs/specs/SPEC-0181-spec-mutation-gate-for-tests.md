@@ -3,7 +3,7 @@ id: spec-mutation-gate-for-tests
 type: spec
 number: 181
 status: done
-frozen_sha256: 70d35a610f41be354007726036ca6c60ece7cba98aba1609b0e1e9cc3937f47e
+frozen_sha256: 0d05048abdfebf6c27380dedbb85a1a35116d98f56224ff742842ab30d6bd38b
 ceremony_level: 2
 mutation_gate: v1
 links:
@@ -1019,7 +1019,7 @@ evidence, produced by `mutation-run.mjs` itself.
 | TEST-510 | Spec-AC-05 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 6, NB6-r7, validation round 7) — the `NOTE: unstamped=<n> …` line's own wording was a mutation-free survivor: the summary line's shared `unstamped=<n>` substring let a mutation renaming the NOTE's own token alone (`NOTE: unstamped=` -> `NOTE: skipped=`) go unnoticed. The NOTE line's full text is now asserted directly, not only the substring it shares with the summary line. | Rename the NOTE line's own token (`NOTE: unstamped=` -> `NOTE: skipped=`); the arm must redden, the NOTE line's wording changing while the summary line's `unstamped=1` (asserted separately) stays intact. | green |
 | TEST-511 | Spec-AC-07 | integration | tests/skills/test-aai-close-work-item.sh | Amendment (remediation round 6, NB4-r7, validation round 7) — `unstamped=<n>` reaches the close now too, the identical "a named degrade the close silently discarded" shape round 4's NB-2 fixed for `exempt=<n>`: a spec whose only record is a LEGACY one (no `target_sha256`) still passes the gate (`unstamped=1`, never a refusal), and `evaluateMutationGate` now surfaces that count as a WARNING exactly as it already does for `exempt`. | Drop the new OR-condition (`if (exemptN > 0 \|\| unstampedN > 0) {` -> `if (exemptN > 0) {`); arm C must redden, a satisfied-but-unstamped spec's close going silent again (no WARNING, no `unstamped=1`). | green |
 | TEST-512 | Spec-AC-07 | integration | tests/skills/test-aai-close-work-item.sh | Amendment (PR ceremony 2026-09-17, cross-ride reconciliation with SPEC-0178) — the close-time usage-capture gate accepts the `tokens_total` FIELD that `state.mjs append-run --tokens-total` records as usage capture under enforce; a null total is still refused | `if (run.tokensTotal !== null && run.tokensTotal !== undefined && run.tokensTotal >= 0) return true;` -> `if (false) return true;` in `close-work-item.mjs`; the test must redden, the field-only run being refused under enforce | green |
-| TEST-513 | Spec-AC-02 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 7, Codex P1, PR #384) — a `--patch` with hunks for files besides `--target` was applied WHOLE, so an extra hunk could edit the suite (or a dependency) to print a matching FAIL line and fake a RED. `mutation-run.mjs` now parses the patch's own file headers (`diff --git`, `--- a/…`/`--- /dev/null`, `+++ b/…`/`+++ /dev/null`, renames) and refuses (exit 2, naming the offending path, no record, no clone left) any patch touching a path other than `--target`; `--replay` applies the SAME check (a stored patch touching another file is INCONCLUSIVE, named); a single-file patch still applies cleanly. | `assertPatchTouchesOnlyTarget(patchText, targetRel);` -> `void 0;` in `mutation-run.mjs`; the test must redden, the two-file-patch arm applying whole instead of refusing at exit 2. | green |
+| TEST-513 | Spec-AC-02 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 7, Codex P1, PR #384) — a `--patch` with hunks for files besides `--target` was applied WHOLE, so an extra hunk could edit the suite (or a dependency) to print a matching FAIL line and fake a RED. `mutation-run.mjs` now parses the patch's own file headers (`diff --git`, `--- a/…`/`--- /dev/null`, `+++ b/…`/`+++ /dev/null`, renames) and refuses (exit 2, naming the offending path, no record, no clone left) any patch touching a path other than `--target`; `--replay` applies the SAME check (a stored patch touching another file is INCONCLUSIVE, named); a single-file patch still applies cleanly. Validation round 10 (BLOCKING-1): the refusal holds however the foreign header is spelled — `a/`-`b/`, another prefix (the forged-RED attack through the suite), a C-quoted name, CRLF headers — because the touched paths come from `git apply --numstat -z`, git’s own parse, not from a hand-written header parser. | `if (offending.length) {` -> `if (false) {` in `refuseForeignPaths` of `mutation-run.mjs` (as the runner applies it: `s/if \(offending\.length\) \{/if (false) {/`); the test must redden at arm A, the two-file patch being recorded RED instead of refused | green |
 | TEST-514 | Spec-AC-13 | integration | tests/skills/test-aai-spec-amend.sh | Amendment (remediation round 7, Codex P1, PR #384) — an anchored spec (`frozen_sha256` present) that lost its `SPEC-FROZEN` body marker was skipped BEFORE `scanSpecAnchors` even compared the anchor, silently bypassing the whole undisclosed-amendment gate. A spec carrying `frozen_sha256` is now ALWAYS scanned; an anchor with no marker is its own STRICT violation (`anchor-without-freeze-marker`), named with a runnable remedy (restore the marker line). Proved against a REAL `spec-freeze.mjs` anchor whose marker is then deleted alongside a body edit. | `if (!frozenMarker \&\& anchor === null) continue;` -> `if (!frozenMarker) continue;` in `spec-amend.mjs`; the test must redden, the anchored-but-unmarked spec going silently unscanned again. | green |
 | TEST-515 | Spec-AC-12 | integration | tests/skills/test-aai-spec-amend.sh | Amendment (remediation round 7, Codex P1, PR #384) — `lib/spec-contract-hash.mjs` split Test Plan/AC table rows on a plain `split('\|')`, so an escaped `\|` inside a Mutation cell (this spec's OWN TEST-511 row has one) shifted the columns, and a routine Status flip on that row changed the contract hash (a false undisclosed-amendment). `blankTableSection` now reuses `lib/docs-model.mjs`'s `splitRawTableCells` — the SAME escaping rule `splitTableCells` (the Test Plan reader) already builds on — instead of a second hand-rolled splitter. | `splitRawTableCells(line)` -> `line.split('\|')` (both call sites) in `lib/spec-contract-hash.mjs`; the test must redden, a Status-only flip on a row carrying an escaped pipe in its Mutation cell changing the contract hash. | green |
 | TEST-516 | Spec-AC-13 | integration | tests/skills/test-aai-spec-amend.sh | Amendment (remediation round 7, Codex P2, PR #384) — an unreadable spec file was silently OMITTED from the strict scan (a bare `catch { continue; }`). `scanSpecAnchors` now fails CLOSED: reported as its own STRICT violation bucket (`unreadable-spec`) naming the file, never silently skipped. | `violations.push({ spec_id: path.basename(abs), path: rel, bucket: 'unreadable-spec', error: err.message });` -> `void err;` in `spec-amend.mjs`; the test must redden, an unreadable spec passing strict silently instead of refusing. | green |
@@ -2263,6 +2263,31 @@ mutation — a flake, not a regression, left as-is.
 `node .aai/scripts/mutation-gate.mjs --spec
 docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md` now reads `GATE PASS:
 50 row(s) satisfied degraded=0 unstamped=0`.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: mutation-gate-for-tests`, `--signoff none`.
+
+### Validation round 10 (FAIL) — the patch-scope guard asks git, not a parser
+
+- BLOCKING-1: round 7's `patchTouchedPaths` read only `a/`-`b/` headers.
+  `git apply` strips ANY first path component, accepts C-quoted names and CRLF
+  header lines, so a second hunk spelled any of those ways was applied unseen
+  — the validator forged a RED end to end through the fixture suite, and
+  `--replay` re-affirmed it. The hand parser is gone: the touched paths now
+  come from `git apply --numstat -z` in the clone (the parser that then
+  applies the patch), and any path other than `--target` is refused (exit 2,
+  named, no record, no clone left; a named INCONCLUSIVE under `--replay`).
+  TEST-513 gained arms C (another prefix, the forged-suite attack verbatim),
+  D (C-quoted, TAB in the name) and E (CRLF headers) and a private `TMPDIR`
+  for its leftover-clone count. A before/after tree hash of the clone was
+  tried as a second guard and dropped: it never fired where numstat had not,
+  and it does not see a path git quotes (`fu-tree-hash-blind-to-quoted-paths`).
+- NB1: TEST-516's root guard degrades by name instead of `log_skip` (exit 42
+  voided the whole spec-amend suite on a root host). NB2: CHANGELOG names the
+  re-filed follow-up id. NB3 (TEST-497 arm 3 reddens deterministically when
+  unloaded and can stay green under heavy load — fail-closed for the gate,
+  noisy for `--replay`), NB4–NB7: recorded in validation-round10.txt, no
+  change in this ride.
 
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: mutation-gate-for-tests`, `--signoff none`.

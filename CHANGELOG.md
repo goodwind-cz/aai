@@ -51,7 +51,7 @@ RFC-0001).
   validation rounds (1 and 6 FAIL), two review rounds, seven remediation
   rounds (round 7: six external PR-bot findings, Codex four / Copilot two).
   Registry: 3 closed, 16 filed (incl. `fu-mutation-gate-skips-pester`,
-  `fu-writerecord-rotates-before-patch-copy`, `fu-allocator-rewrites-frozen-spec-body`);
+  `fu-writerecord-rotates-before-patch-copy`, `fu-numbering-rewrites-frozen-spec-body`);
   12 candidates weighed in the spec and left open with a reason each.
   Wave 3 ride 4, paired with CHANGE-0181.
 

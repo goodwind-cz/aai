@@ -354,48 +354,41 @@ function applySedExpr(expr, content) {
   return content.replace(re, replacement);
 }
 
-// Remediation round 7 (Codex P1, PR #384): parses a unified diff's OWN file
-// headers — `diff --git a/X b/Y`, `--- a/X` / `--- /dev/null`, `+++ b/Y` /
-// `+++ /dev/null`, and the two `rename from`/`rename to` lines — to name
-// every path the patch touches. This is header-only parsing (the same
-// selection `git apply` itself makes), never a hunk-content scan, so it
-// cannot be fooled by a path-looking string inside a hunk body.
-export function patchTouchedPaths(patchText) {
+// Remediation round 7 (Codex P1, PR #384) + validation round 10 BLOCKING-1:
+// a --patch with hunks for files besides --target was applied WHOLE, so an
+// extra hunk could edit the suite (or a dependency) to print a matching FAIL
+// line and fake a RED. Round 7 refused by parsing `a/`-`b/` headers by hand;
+// round 10 forged a RED through it three ways (another prefix — `git apply`
+// strips ANY first component, a C-quoted header, CRLF headers), because a
+// hand parser reads a different language than the tool that applies the
+// patch. So the guard asks git itself: `git apply --numstat -z` is git's OWN
+// parse of which paths the patch will touch (prefix stripping, quoting,
+// renames, /dev/null, binary) — the same parser that then applies it, so the
+// two cannot disagree. (A before/after tree hash of the clone was tried as a
+// second guard and dropped: it never fired where numstat had not, and
+// lib/tree-hash.mjs does not see a path git quotes, e.g. a TAB in a name —
+// fu-tree-hash-blind-to-quoted-paths.) A path other than targetRel is a
+// refusal (throws; the
+// normal-run caller turns it into exit 2 naming the path with no record and
+// no clone left, the --replay caller into a named INCONCLUSIVE row).
+function patchPathsPerGit(cloneDir, patchAbs) {
+  const out = execFileSync('git', ['-C', cloneDir, 'apply', '--numstat', '-z', patchAbs],
+    { stdio: ['ignore', 'pipe', 'pipe'] }).toString('utf8');
   const paths = new Set();
-  for (const line of patchText.split('\n')) {
-    let m;
-    if ((m = /^diff --git a\/(.+) b\/(.+)$/.exec(line))) {
-      paths.add(m[1]);
-      paths.add(m[2]);
-    } else if ((m = /^--- a\/(.+)$/.exec(line))) {
-      paths.add(m[1]);
-    } else if ((m = /^\+\+\+ b\/(.+)$/.exec(line))) {
-      paths.add(m[1]);
-    } else if ((m = /^rename from (.+)$/.exec(line))) {
-      paths.add(m[1]);
-    } else if ((m = /^rename to (.+)$/.exec(line))) {
-      paths.add(m[1]);
-    }
-    // `--- /dev/null` / `+++ /dev/null` (pure creation/deletion) name no
-    // path on that side — the OTHER header line of the same pair carries it.
+  // -z records: "<added>\t<deleted>\t<path>\0", or for a rename
+  // "<added>\t<deleted>\t\0<src>\0<dst>\0". Every NUL-separated token that
+  // is not the numeric prefix is a path.
+  for (const tok of out.split('\0')) {
+    if (tok === '') continue;
+    const m = /^(?:\d+|-)\t(?:\d+|-)\t(.*)$/s.exec(tok);
+    if (m) { if (m[1] !== '') paths.add(m[1]); } else paths.add(tok);
   }
   return paths;
 }
 
-// Remediation round 7 (Codex P1, PR #384): a --patch with hunks for files
-// besides --target was previously applied WHOLE, so an extra hunk could edit
-// the suite (or a dependency) to print a matching FAIL line and fake a RED —
-// the strongest possible evidence for a mutation that never actually
-// challenged --target. Refuses (throws, never exits directly — see call
-// sites: the normal-run caller turns this into exit 2 naming the path with
-// no record and no clone left behind; the --replay caller turns the SAME
-// throw into a named INCONCLUSIVE row) when the patch's own headers name any
-// path other than targetRel.
-export function assertPatchTouchesOnlyTarget(patchText, targetRel) {
-  const touched = [...patchTouchedPaths(patchText)].filter((p) => p !== '/dev/null');
-  const offending = [...new Set(touched.filter((p) => p !== targetRel))];
+function refuseForeignPaths(kind, offending, targetRel) {
   if (offending.length) {
-    throw new Error(`--patch touches path(s) other than --target ${targetRel}: ${offending.join(', ')}`);
+    throw new Error(`--patch touches path(s) other than --target ${targetRel} (${kind}): ${[...new Set(offending)].sort().join(', ')}`);
   }
 }
 
@@ -409,8 +402,8 @@ function applyMutation({ sed, patch }, cloneDir, targetRel) {
     // --patch <file>: applied via `git apply` inside the clone (the clone is
     // its own git checkout), argv-only, no shell.
     const patchAbs = path.isAbsolute(patch) ? patch : path.join(ROOT, patch);
-    const patchText = fs.readFileSync(patchAbs, 'utf8');
-    assertPatchTouchesOnlyTarget(patchText, targetRel);
+    refuseForeignPaths('per git apply --numstat',
+      [...patchPathsPerGit(cloneDir, patchAbs)].filter((rel) => rel !== targetRel), targetRel);
     execFileSync('git', ['-C', cloneDir, 'apply', patchAbs], { stdio: ['ignore', 'pipe', 'pipe'] });
     after = fs.readFileSync(targetAbs, 'utf8');
   }
