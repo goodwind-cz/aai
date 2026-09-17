@@ -149,11 +149,42 @@
 // UNCHANGED and stays correct: a document deleted by the range genuinely
 // has nothing to close. New Spec-AC-12 / TEST-015.
 
+// close-ceremony-sweep (Spec-AC-04 / Spec-AC-05) — two escapes M2 measured on
+// this repository's own history (docs-audit --check CLEAN over two delivered
+// maintenance halves left at `status: draft` with empty `links`): D2's ONE
+// named arm only ever looked at a doc the range itself TOUCHED, and
+// pairItems() only ever matched the literal `spec-<primary id>` convention.
+//
+// Spec-AC-04(a) TERMINAL-WITHOUT-TELEMETRY — a doc can be flipped to a
+// terminal status BY the range (its own frontmatter edited alongside the
+// delivery) while the close ceremony's telemetry step never ran: no
+// `links.commits` entry, no `work_item_closed` event. `--check` was silently
+// CLEAN over this shape (the D2 loop `continue`d past every terminal doc).
+// `missingTerminalTelemetry` names it; `--apply` REFUSES it (there is no
+// commit/PR to guess — the doc is already terminal), never guesses.
+//
+// Spec-AC-04(b) ID-MENTION-UNPAIRED — the corpus-real shape (M2): a
+// maintenance half's OWN path is never touched by the ride that delivers it
+// — only the ride's OWN intake/spec are, and THEY name the maintenance
+// half's id in prose (the "Paired maintenance half: `<id>`" convention).
+// `missingPairedSpecMention` scans every doc the range DID touch for a
+// mention of any OTHER non-terminal corpus doc's id, and fires only when
+// that id has NO paired spec anywhere in the corpus (a real pairing, even a
+// terminal one, means closing it is somebody else's job, not this range's).
+// Deliberately corpus-wide (not range-scoped): the mentioned doc's OWN path
+// was never touched, so `--apply` refuses it by name (`attribution-
+// unresolvable` — never a guessed commit/PR); it is NAMED, not closed.
+//
+// Spec-AC-05 LINKS.REQUIREMENT PAIRING FALLBACK — pairItems() gains a second
+// lookup, `specByRequirement`, keyed off each spec item's OWN
+// `links.requirement` value (read verbatim, never re-derived), consulted
+// only when the literal `spec-<primary id>` convention misses.
+
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { scanAuditDocs, loadConfig } from './lib/docs-audit-core.mjs';
+import { scanAuditDocs, loadConfig, readEvents } from './lib/docs-audit-core.mjs';
 import { parseFrontmatter, TERMINAL_DOC_STATUS } from './lib/docs-model.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
@@ -275,6 +306,13 @@ function isUmbrellaDoc(fm) {
   return String(fm?.umbrella ?? '').toLowerCase() === 'true';
 }
 
+// hasWorkItemClosedEvent(events, id) -> bool. The SAME predicate
+// close-work-item.mjs's own hasWorkItemClosed applies (read here, never
+// re-derived — this file owns no EVENTS.jsonl write of its own, D3/TEST-005).
+function hasWorkItemClosedEvent(events, id) {
+  return events.some((e) => e && e.event === 'work_item_closed' && e.ref === id);
+}
+
 // computeItems(root, a, b) -> { items, unreadable }
 // items: [{ rel, fmId, status, arm, reason, isSpec, deliverySha, prNumber }].
 // `reason` (fail-closed: still reported, never silently skipped, always
@@ -297,8 +335,10 @@ function isUmbrellaDoc(fm) {
 function computeItems(root, a, b) {
   const changed = changedPaths(root, a, b);
   const config = loadConfig(root);
-  const docSet = new Set(scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] }).map((d) => d.rel));
+  const corpusDocs = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] });
+  const docSet = new Set(corpusDocs.map((d) => d.rel));
   const docPaths = changed.filter((rel) => docSet.has(rel));
+  const events = readEvents(root);
 
   // attributionFor(rel) -> { ok, deliverySha, prNumber }. REMEDIATION
   // ROUND 4 (P1) — resolved from ONLY the commits in this range that
@@ -333,6 +373,7 @@ function computeItems(root, a, b) {
     const fm = parseFrontmatter(content);
     if (isUmbrellaDoc(fm)) continue; // BLOCKING-2 — exempt, full stop, either role
     const status = String(fm?.status ?? '').toLowerCase();
+    const linksCommits = Array.isArray(fm?.links?.commits) ? fm.links.commits : [];
     touched.push({
       rel,
       // TERMINAL_DOC_STATUS is the shared partition (docs-model.mjs);
@@ -345,35 +386,118 @@ function computeItems(root, a, b) {
       isFrozen: FROZEN_MARKER_RE.test(bodyOf(content)),
       isSpec: rel.startsWith('docs/specs/'),
       attribution: attributionFor(rel),
+      content, // Spec-AC-04(b) — the range's OWN delivered text, scanned below
+               // for a mention of some OTHER, untouched doc's id.
+      linksCommitsEmpty: linksCommits.length === 0, // Spec-AC-04(a)
+      hasCloseEvent: fm?.id ? hasWorkItemClosedEvent(events, fm.id) : false, // Spec-AC-04(a)
+      linksRequirement: fm?.links?.requirement ?? null, // Spec-AC-05 — read verbatim
     });
+  }
+
+  // Spec-AC-04(b) candidate index — every OTHER corpus doc (i.e. NOT touched
+  // by this range), read best-effort. An unreadable doc here is silently
+  // skipped: it never widens TEST-015/P2's unreadable-scan-incomplete
+  // contract above, which stays deliberately scoped to docs the range itself
+  // touched. `specIdsInCorpus` collects every spec id in the WHOLE corpus
+  // (terminal or not — a real pairing, even an already-closed one, still
+  // means this range does not own the close) plus every spec already in
+  // `touched`.
+  const specIdsInCorpus = new Set();
+  for (const d of touched) {
+    if (d.isSpec && d.fmId) specIdsInCorpus.add(d.fmId);
+  }
+  const touchedRelSet = new Set(touched.map((d) => d.rel));
+  const nonTerminalCandidates = [];
+  for (const { rel } of corpusDocs) {
+    if (touchedRelSet.has(rel)) continue;
+    const abs = path.join(root, rel);
+    let content;
+    try {
+      content = fs.readFileSync(abs, 'utf8');
+    } catch {
+      continue; // best-effort; see the file-header note above
+    }
+    const fm = parseFrontmatter(content);
+    if (!fm?.id) continue;
+    const isSpec = rel.startsWith('docs/specs/');
+    if (isSpec) specIdsInCorpus.add(fm.id);
+    if (isUmbrellaDoc(fm)) continue;
+    const status = String(fm?.status ?? '').toLowerCase();
+    if (TERMINAL_DOC_STATUS.has(status)) continue;
+    nonTerminalCandidates.push({ rel, fmId: fm.id, status, isSpec, terminal: false });
+  }
+
+  // rangeBodies — the content of every doc the range ITSELF touched, scanned
+  // for a literal mention of a candidate's frontmatter id (the "Paired
+  // maintenance half: `<id>`" convention this corpus's own intake/spec docs
+  // already use — see docs/issues/CHANGE-0186-dispatch-state-sweep.md and
+  // docs/specs/SPEC-0180-spec-dispatch-state-sweep.md for the real shape).
+  const rangeBodies = touched.map((d) => d.content);
+  function mentionedByRange(id) {
+    return rangeBodies.some((body) => body.includes(id));
+  }
+  // missingTerminalTelemetry(doc) -> bool. Spec-AC-04(a). (Named with a
+  // `doc` parameter, not `d` — the two call sites below pass the loop's own
+  // `d` variable, so their exact call spelling is unique to those two sites
+  // and never collides with a declaration above them.)
+  function missingTerminalTelemetry(doc) {
+    return doc.linksCommitsEmpty && !doc.hasCloseEvent;
+  }
+  // missingPairedSpecMention(doc) -> bool. Spec-AC-04(b).
+  function missingPairedSpecMention(doc) {
+    if (doc.fmId == null) return false;
+    if (!mentionedByRange(doc.fmId)) return false;
+    return !specIdsInCorpus.has(`spec-${doc.fmId}`);
+  }
+  // Dispatches to whichever of the two Spec-AC-04 escapes applies to the
+  // candidate's own terminal/non-terminal shape.
+  function missingCloseEvidence(doc) {
+    return doc.terminal ? missingTerminalTelemetry(doc) : missingPairedSpecMention(doc);
   }
 
   const byId = new Map(touched.filter((d) => d.fmId).map((d) => [d.fmId, d]));
   const items = [];
   const pushed = new Set();
-  const pushItem = (d) => {
+  const pushItem = (d, forcedReason) => {
     if (pushed.has(d.rel)) return; // already an item via the other pass
     pushed.add(d.rel);
-    let reason = null;
-    if (!d.fmId) reason = 'slug-unresolvable';
-    else if (!d.attribution.ok) reason = 'attribution-unresolvable';
-    else if (d.attribution.prNumber === null) reason = 'pr-number-unknown';
+    const attribution = d.attribution ?? attributionFor(d.rel);
+    let reason = forcedReason ?? null;
+    if (!reason) {
+      if (!d.fmId) reason = 'slug-unresolvable';
+      else if (!attribution.ok) reason = 'attribution-unresolvable';
+      else if (attribution.prNumber === null) reason = 'pr-number-unknown';
+    }
     items.push({
       rel: d.rel,
       fmId: d.fmId,
       status: d.status,
-      arm: 'frozen_work_merged',
+      arm: forcedReason === 'terminal-without-telemetry' ? 'terminal_without_telemetry'
+        : forcedReason === 'id-mention-unpaired' ? 'id_mention_unpaired'
+          : 'frozen_work_merged',
       reason,
       isSpec: d.isSpec,
-      deliverySha: d.attribution.ok ? d.attribution.deliverySha : null,
-      prNumber: d.attribution.ok ? d.attribution.prNumber : null,
+      deliverySha: attribution.ok ? attribution.deliverySha : null,
+      prNumber: attribution.ok ? attribution.prNumber : null,
+      linksRequirement: d.linksRequirement ?? null,
     });
   };
 
-  // D2 (amended) — a doc's OWN state fires the one named arm.
+  // D2 (amended) — a doc's OWN state fires the one named arm; Spec-AC-04(a)
+  // adds a SECOND, terminal-side arm for a doc already terminal at b whose
+  // close telemetry never landed.
   for (const d of touched) {
-    if (d.terminal) continue;
+    if (d.terminal) {
+      if (missingCloseEvidence(d)) pushItem(d, 'terminal-without-telemetry');
+      continue;
+    }
     if (d.status === 'implementing' || d.isFrozen) pushItem(d);
+  }
+
+  // Spec-AC-04(b) — a candidate the range never touched, but whose id a doc
+  // the range DID touch names, with no paired spec anywhere in the corpus.
+  for (const d of nonTerminalCandidates) {
+    if (missingCloseEvidence(d)) pushItem(d, 'id-mention-unpaired');
   }
 
   // BLOCKING-1 remediation — pair resolution. In this factory's own
@@ -423,6 +547,18 @@ function runCheck(root, a, b) {
       );
       continue;
     }
+    if (it.reason === 'terminal-without-telemetry') {
+      console.log(
+        `close-reconcile: OPEN ${it.rel} id=${it.fmId} reason=terminal-without-telemetry — status "${it.status}" is already terminal but links.commits is empty and no work_item_closed event names this id; the close ceremony's telemetry step ran incompletely`
+      );
+      continue;
+    }
+    if (it.reason === 'id-mention-unpaired') {
+      console.log(
+        `close-reconcile: OPEN ${it.rel} id=${it.fmId} reason=id-mention-unpaired — a document this range delivered names this id, and it has no paired spec anywhere in the corpus`
+      );
+      continue;
+    }
     console.log(`close-reconcile: OPEN ${it.rel} id=${it.fmId} arm=${it.arm} sha=${it.deliverySha}`);
     if (it.reason === 'pr-number-unknown') {
       console.log(
@@ -450,14 +586,22 @@ function runCheck(root, a, b) {
 // close-work-item.mjs invocation as its primary doc (--spec), never as a
 // second standalone invocation. An unpaired spec item still closes on its
 // own.
+//
+// Spec-AC-05 — WHEN the literal `spec-<primary id>` convention misses (an
+// off-convention id pair), a spec item's OWN `links.requirement` — the path
+// it already declares as its primary, read verbatim — is the fallback pair
+// key: `specByRequirement`, matched against the primary item's own `rel`.
 function pairItems(items) {
   const specs = items.filter((i) => i.isSpec);
   const primaries = items.filter((i) => !i.isSpec);
   const specById = new Map(specs.map((s) => [s.fmId, s]));
+  const specByRequirement = new Map(
+    specs.filter((s) => s.linksRequirement).map((s) => [s.linksRequirement, s])
+  );
   const paired = new Set();
   const plan = [];
   for (const p of primaries) {
-    const spec = p.fmId ? specById.get(`spec-${p.fmId}`) ?? null : null;
+    const spec = (p.fmId ? specById.get(`spec-${p.fmId}`) : undefined) ?? specByRequirement.get(p.rel) ?? null;
     if (spec) paired.add(spec);
     plan.push({ primary: p, spec });
   }
@@ -511,6 +655,27 @@ function runApply(root, a, b) {
     failed = true;
     process.stderr.write(
       `close-reconcile: REFUSED ${it.rel} id=${it.fmId} reason=pr-number-unknown — no commit subject touching ${it.rel} carries a trailing "(#N)", nothing written\n`
+    );
+  }
+
+  // Spec-AC-04(a) — already terminal; there is no commit/PR to close it
+  // WITH, only telemetry to backfill by hand. Never guessed by --apply.
+  const terminalNoTelemetry = items.filter((i) => i.reason === 'terminal-without-telemetry');
+  for (const it of terminalNoTelemetry) {
+    failed = true;
+    process.stderr.write(
+      `close-reconcile: REFUSED ${it.rel} id=${it.fmId} reason=terminal-without-telemetry — already terminal with empty links.commits and no work_item_closed event; fix this doc's telemetry directly, nothing written by --apply\n`
+    );
+  }
+
+  // Spec-AC-04(b) — the mentioned doc's own path was never touched by this
+  // range, so it carries no delivery commit to close WITH either; close it
+  // as data (M2's own remedy), never through --apply.
+  const idMentionUnpaired = items.filter((i) => i.reason === 'id-mention-unpaired');
+  for (const it of idMentionUnpaired) {
+    failed = true;
+    process.stderr.write(
+      `close-reconcile: REFUSED ${it.rel} id=${it.fmId} reason=id-mention-unpaired — a delivered document names this id but it has no paired spec anywhere in the corpus; close it manually, nothing written by --apply\n`
     );
   }
 
