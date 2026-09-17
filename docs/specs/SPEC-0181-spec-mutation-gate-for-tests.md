@@ -2,15 +2,17 @@
 id: spec-mutation-gate-for-tests
 type: spec
 number: 181
-status: implementing
+status: done
 frozen_sha256: 0c7beb9b0ad21a07a62334bb4b3034c4b1d3c4139d5f7d5ac360fbca6779295b
 ceremony_level: 2
 mutation_gate: v1
 links:
   requirement: docs/issues/CHANGE-0187-mutation-gate-for-tests.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 86c6db598c185302dc598f2bc32f51df9fc4691f
 ---
 
 # Spec — a test is admitted only with the mutation that reddens it

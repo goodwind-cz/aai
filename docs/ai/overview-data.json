@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-17T17:32:48.346Z",
+  "generatedAt": "2026-09-17T17:49:23.734Z",
   "project": "aai",
   "counts": {
-    "delivered": 244,
-    "in_progress": 22,
+    "delivered": 245,
+    "in_progress": 21,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -104,19 +104,6 @@
       "spec": null,
       "validation": null,
       "review": null
-    },
-    {
-      "ref": "mutation-gate-for-tests",
-      "title": "A test is admitted only with the mutation that reddens it",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0187-mutation-gate-for-tests.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-mutation-gate-for-tests-20260914T213131Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -302,6 +289,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "mutation-gate-for-tests",
+      "title": "A test is admitted only with the mutation that reddens it",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0187-mutation-gate-for-tests.md",
+      "closed_on": "2026-09-17",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-mutation-gate-for-tests-20260914T213131Z.md"
+    },
     {
       "ref": "test-framework-sweep",
       "title": "The test framework is fast, hermetic and honest about what it ran",
@@ -3481,6 +3481,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "mutation-gate-for-tests",
+          "title": "A test is admitted only with the mutation that reddens it",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0187-mutation-gate-for-tests.md",
+          "closed_on": "2026-09-17",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-mutation-gate-for-tests-20260914T213131Z.md"
+        },
         {
           "ref": "test-framework-sweep",
           "title": "The test framework is fast, hermetic and honest about what it ran",
