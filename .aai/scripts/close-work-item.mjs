@@ -17,9 +17,9 @@
 //
 // GRAMMAR (D1, closed; extended fu-close-requires-pr-before-it-exists /
 // fu-close-before-push-ordering F-1 remediation — see the PR-NUMBER SPLIT
-// note below)
+// note below; --paired added by spec-close-ceremony-sweep D4)
 //   node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N|TBD|NONE> --commit <sha>
-//     [--spec <spec-slug>] [--review <pass|waived|none>] [--dry-run]
+//     [--spec <spec-slug>] [--paired <slug>] [--review <pass|waived|none>] [--dry-run]
 //   node .aai/scripts/close-work-item.mjs --ref <slug> --stamp-pr <N> [--spec <spec-slug>]
 //   --ref <slug>       the primary work-item doc's frontmatter slug `id`
 //                       (change/issue/debt/spec). Required.
@@ -35,6 +35,11 @@
 //                       as the ac_evidence commit (required).
 //   --spec <slug>      optional second doc (the spec) closed in the SAME
 //                       transaction as the primary doc.
+//   --paired <slug>    optional THIRD doc — the roadmap-paired maintenance
+//                       half (spec-close-ceremony-sweep D4) — closed in the
+//                       SAME snapshot/rollback transaction as --ref and
+//                       --spec, never a second invocation (which could
+//                       half-close the pair). Not valid with --stamp-pr.
 //   --review <t>       the code_review token for work_item_closed; optional,
 //                       default "none" (validation is always "pass" — this
 //                       ceremony only runs after a PASS).
@@ -224,7 +229,7 @@ function usageError(msg) {
   process.stderr.write(`close-work-item: ${msg}\n`);
   process.stderr.write(
     'usage: node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N|TBD|NONE> --commit <sha> ' +
-      '[--spec <spec-slug>] [--review <pass|waived|none>] [--dry-run] [--expect-branch <branch>]\n' +
+      '[--spec <spec-slug>] [--paired <slug>] [--review <pass|waived|none>] [--dry-run] [--expect-branch <branch>]\n' +
       '   or: node .aai/scripts/close-work-item.mjs --ref <slug> --stamp-pr <N> [--spec <spec-slug>] [--expect-branch <branch>]\n'
   );
   exit(2);
@@ -240,14 +245,23 @@ const TBD_SENTINEL = 'TBD';
 const NONE_SENTINEL = 'NONE';
 
 function parseArgs(argv) {
-  const args = { spec: null, review: 'none', dryRun: false, stampPr: null, expectBranch: null };
+  const args = { spec: null, paired: null, review: 'none', dryRun: false, stampPr: null, expectBranch: null };
   let reviewProvided = false;
+  let pairedProvided = false;
   for (let i = 0; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--ref') args.ref = argv[++i];
     else if (tok === '--pr') args.pr = argv[++i];
     else if (tok === '--commit') args.commit = argv[++i];
     else if (tok === '--spec') args.spec = argv[++i];
+    else if (tok === '--paired') {
+      // D4 (spec-close-ceremony-sweep) — the roadmap-paired maintenance
+      // half's slug. Resolved and closed in the SAME snapshot/rollback
+      // transaction as --ref and --spec (never a second invocation, which
+      // could half-close the pair): see main()'s `slugs` build below.
+      args.paired = argv[++i];
+      pairedProvided = true;
+    }
     else if (tok === '--review') {
       args.review = argv[++i];
       reviewProvided = true;
@@ -281,6 +295,7 @@ function parseArgs(argv) {
     if (args.commit !== undefined) usageError('--stamp-pr cannot be combined with --commit (they are separate modes)');
     if (args.dryRun) usageError('--stamp-pr cannot be combined with --dry-run');
     if (reviewProvided) usageError('--stamp-pr cannot be combined with --review (--stamp-pr only accepts --ref, --stamp-pr and --spec)');
+    if (pairedProvided) usageError('--stamp-pr cannot be combined with --paired (--stamp-pr only accepts --ref, --stamp-pr and --spec)');
     if (!/^\d+$/.test(String(args.stampPr))) usageError('--stamp-pr requires an integer PR number');
     return args;
   }
@@ -1159,6 +1174,22 @@ function evaluateEvidencePathGate(docs, evidenceRoot) {
   return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, unresolved, reason, resolutionRoot: evidenceRoot };
 }
 
+// formatMutationNotice(n) -> a stable, self-contained notice line for ONE
+// spec's collected mutation-gate counts (spec-close-ceremony-sweep Spec-AC-07,
+// fu-gate-notice-field-unread). Before this fix, `evaluateMutationGate` built
+// its `notices` array with `exempt`/`degraded`/`unstamped` FIELDS but the
+// printed WARNING/REFUSED text only ever forwarded the raw upstream
+// `summary` string — the three collected fields were computed and stored,
+// never actually READ by anything downstream. Building the notice text
+// directly from the fields (instead of relying on mutation-gate.mjs's own
+// prose happening to mention the same numbers) means the WARNING keeps
+// naming exempt/degraded/unstamped even if that upstream prose ever changes
+// shape, and a regression that stops collecting one of the three counts
+// reddens visibly here rather than silently disappearing into an unread field.
+function formatMutationNotice(n) {
+  return `${n.spec}: exempt=${n.exempt} degraded=${n.degraded} unstamped=${n.unstamped}`;
+}
+
 // evaluateMutationGate(resolved) -> { severity, dial?, offending?, reason? }.
 // spec-mutation-gate-for-tests D12 — close-time mutation gate, the sixth
 // dialed gate of this shape. severity is 'none' (no resolved doc is itself
@@ -1226,7 +1257,7 @@ function evaluateMutationGate(resolved) {
     // NOT fail, so this is never a refusal — only a count that must not be
     // discarded the way a bare `if (status === 0) continue;` discarded it
     // before this fix.
-    const reason = notices.map((n) => `${n.spec}: ${n.summary}`).join(' | ');
+    const reason = notices.map(formatMutationNotice).join(' | ');
     return { severity: 'warn', notices, reason };
   }
   const dial = readGuardConfig(path.join(ROOT, 'docs/ai')).mutation_gate;
@@ -1241,7 +1272,7 @@ function evaluateMutationGate(resolved) {
   // documented behavior.
   const offendingReason = offending.map((o) => `${o.spec}: ${o.rows.join('; ')}`).join(' | ');
   const reason = notices.length
-    ? `${offendingReason} | ${notices.map((n) => `${n.spec}: ${n.summary}`).join(' | ')}`
+    ? `${offendingReason} | ${notices.map(formatMutationNotice).join(' | ')}`
     : offendingReason;
   return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, offending, notices, reason };
 }
@@ -1290,21 +1321,32 @@ function captureRemediationFriction(ref) {
   }
 }
 
-// For each closed ref, assert the REAL audit classifies it tracked-done /
+// For each closed doc, assert the REAL audit classifies it tracked-done /
 // aligned with no missing-close-telemetry entry (Spec-AC-02). The audit
 // engine is the oracle — no heuristic is re-implemented here.
+//
+// `refs` is [{ ref, rel }] (spec-close-ceremony-sweep Spec-AC-08): the
+// audited doc is resolved by its REL PATH, never by frontmatter `id` alone.
+// A docs/product/<slug>.md capability doc can legitimately share an id with
+// the work-item doc that owns it (spec-product-docs-capability-model's own
+// 1:1 migration case, fu-product-doc-id-collides-with-intake) — matching on
+// id picked whichever of the two `audit.docs` scan order happened to list
+// first, which could be the WRONG doc's cls/verdict and roll back a
+// genuinely clean close FOREVER (the id collision never goes away on a
+// re-run). `rel` is the exact path close-work-item.mjs itself resolved and
+// wrote, so this can never be ambiguous the way an id lookup is.
 function findProblems(audit, refs) {
   const problems = [];
-  for (const ref of refs) {
-    const doc = audit.docs.find((d) => d.id === ref);
+  for (const { ref, rel } of refs) {
+    const doc = audit.docs.find((d) => d.rel === rel);
     if (!doc) {
-      problems.push(`${ref}: not found in the docs-audit scan`);
+      problems.push(`${ref}: not found in the docs-audit scan (${rel})`);
       continue;
     }
     if (doc.cls !== 'tracked-done' || doc.verdict !== 'aligned') {
       problems.push(`${ref}: cls=${doc.cls} verdict=${doc.verdict ?? '—'} reasons=${(doc.reasons || []).join('; ') || '—'}`);
     }
-    if (audit.missingCloseTelemetry.some((m) => m.id === ref)) {
+    if (audit.missingCloseTelemetry.some((m) => m.rel === rel)) {
       problems.push(`${ref}: missing-close-telemetry`);
     }
   }
@@ -1312,8 +1354,9 @@ function findProblems(audit, refs) {
 }
 
 // D6.4 — regenerate the INDEX, run the REAL audit, and report every problem
-// for `refs`. Shared by both self-verify call sites (the idempotency
-// short-circuit and the post-apply verify) so the two paths can never drift.
+// for `refs` ([{ ref, rel }]). Shared by both self-verify call sites (the
+// idempotency short-circuit and the post-apply verify) so the two paths can
+// never drift.
 function selfVerify(refs) {
   regenerateIndex();
   return findProblems(runAudit(ROOT, {}), refs);
@@ -1410,7 +1453,7 @@ function runStampPr(args) {
       replaceLinkValue(lines, 'pr', TBD_SENTINEL, n);
       fs.writeFileSync(p.abs, lines.join(split.eol) + split.rest);
     }
-    const refs = resolved.map((d) => d.fmId);
+    const refs = resolved.map((d) => ({ ref: d.fmId, rel: d.rel }));
     const problems = selfVerify(refs);
     if (problems.length > 0) {
       rollback(snapshot, fs.existsSync(EVENTS_PATH) ? fs.statSync(EVENTS_PATH).size : 0);
@@ -1624,7 +1667,16 @@ function planStateReconcile(root, resolved, args) {
     }
   }
 
-  if (reason !== null) return skip(reason);
+  // spec-close-ceremony-sweep Spec-AC-07 (fu-reconcile-skip-drops-commands):
+  // the FOCUS arm below can trip a skip AFTER the WORK-ITEM arm above already
+  // planned a real `set-phase` command — the shared `skip()` helper always
+  // rebuilds an EMPTY commands/echo pair, so a caller reading the returned
+  // plan's `echo` never saw the command the run already had. Preserve the
+  // already-collected `commands`/`echo` on this path instead of discarding
+  // them: `skip()` above is still used by the two early degrade returns
+  // (STATE unreadable / duplicate keys), where nothing has been collected yet
+  // and an empty pair is the honest answer.
+  if (reason !== null) return { severity: 'skip', reason, statePath, commands, echo };
   if (commands.length === 0) return none();
   return { severity: 'apply', statePath, commands, echo };
 }
@@ -1734,7 +1786,13 @@ function main() {
     return;
   }
 
-  const slugs = [args.ref, ...(args.spec ? [args.spec] : [])];
+  // spec-close-ceremony-sweep D4/Spec-AC-06 — --paired joins the SAME
+  // resolve/plan/snapshot/rollback pipeline as --ref and --spec below (never
+  // a second invocation, which could half-close the pair): resolution,
+  // status validation, the doc/event mutation plan, the snapshot map, and
+  // the post-close self-verify all iterate `resolved`/`plan` uniformly, so a
+  // failure on any one of the three rolls back all three together.
+  const slugs = [args.ref, ...(args.spec ? [args.spec] : []), ...(args.paired ? [args.paired] : [])];
 
   // role-verification-guards G1 — post-merge-close advisory, evaluated ONCE
   // per invocation before any resolution or write (report-only; --dry-run
@@ -1919,12 +1977,15 @@ function main() {
   }
 
   const refs = plan.map((p) => p.fmId);
+  // Spec-AC-08 — selfVerify resolves each closed doc by PATH, not by the
+  // display-only `refs` id list above (see findProblems).
+  const refPairs = plan.map((p) => ({ ref: p.fmId, rel: p.rel }));
 
   if (!anyMutationTotal) {
     // D6.2 — idempotency short-circuit: nothing to write, but still
     // self-verify (nothing to roll back if this somehow fails — no write
     // happened this run).
-    const problems = selfVerify(refs);
+    const problems = selfVerify(refPairs);
     if (problems.length > 0) {
       process.stderr.write('close-work-item: already-closed state failed self-verify (no write made this run):\n');
       for (const p of problems) process.stderr.write(`  - ${p}\n`);
@@ -1968,7 +2029,7 @@ function main() {
     }
 
     // D6.4 — SELF-VERIFY against the REAL audit engine (the oracle).
-    const problems = selfVerify(refs);
+    const problems = selfVerify(refPairs);
     if (problems.length > 0) {
       rollback(snapshot, eventsSnapshotLen);
       try {

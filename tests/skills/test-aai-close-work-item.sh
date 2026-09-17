@@ -3736,6 +3736,206 @@ EOF
   log_pass "TEST-505: an all-exempt vacuous pass surfaces its exempt/degraded counts as a WARNING even under enforce, a mixed offending+exempt spec's REFUSED reason names the exempt count too, and a satisfied-but-unstamped (legacy record) spec surfaces its unstamped count as a WARNING too (Spec-AC-07, NB4-r7)"
 }
 
+# ===== spec-close-ceremony-sweep (Spec-AC-06/07/08, TEST-528..531) ===========
+#
+# TDD run 3/11 of docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md:
+# --paired joins the existing snapshot/rollback transaction (Spec-AC-06), the
+# STATE-reconcile skip keeps its already-planned echo and the mutation-gate
+# notice names its collected counts from the fields it collected them into,
+# not merely by forwarding mutation-gate.mjs's own prose (Spec-AC-07), and
+# the post-close self-verify resolves the audited doc by PATH so an id
+# collision with a docs/product/<slug>.md doc cannot roll back a genuinely
+# clean close forever (Spec-AC-08).
+
+# --- TEST-528 (Spec-AC-06): --paired shares the transaction -----------------
+
+test_528_paired_close_one_transaction() {
+  log_info "Test: --paired closes the roadmap-paired maintenance half inside the SAME snapshot/rollback transaction as --ref and --spec; forcing the paired half to fail the post-close audit leaves all three docs and the EVENTS byte length byte-identical to the pre-run snapshot (Spec-AC-06, TEST-528)..."
+  local dir; dir=$(new_fixture_repo "t528")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t528.md" "t528-change" "implementing"
+  write_spec_doc "$dir/docs/specs/SPEC-0001-t528.md" "t528-spec" "implementing" "done" "commit-abc"
+  # The rigged doc: a non-terminal (still "planned") AC row — same trick
+  # TEST-008 uses to force the post-close self-verify to find a
+  # probable-false-open / non-terminal row and refuse to leave the doc closed.
+  write_spec_doc "$dir/docs/specs/SPEC-0002-t528p.md" "t528p-paired" "implementing" "planned" "-"
+  commit_fixture_docs "$dir"
+  cp "$dir/docs/issues/CHANGE-0001-t528.md" "$TEST_DIR/t528-change-before.md"
+  cp "$dir/docs/specs/SPEC-0001-t528.md" "$TEST_DIR/t528-spec-before.md"
+  cp "$dir/docs/specs/SPEC-0002-t528p.md" "$TEST_DIR/t528-paired-before.md"
+  local events_before; events_before=$(file_size "$dir/docs/ai/EVENTS.jsonl")
+
+  local out="$TEST_DIR/t528.out" err="$TEST_DIR/t528.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t528-change --spec t528-spec --paired t528p-paired --pr 528 --commit 5285285a)
+  [[ "$code" != "0" ]] || log_fail "TEST-528: expected a non-zero exit (the rigged --paired doc's non-terminal AC row must fail self-verify), got 0"
+  grep -qiE "not clean|rolled back|probable-false-done|non-terminal" "$err" \
+    || log_fail "TEST-528: expected a named self-verify finding in stderr, got: $(cat "$err")"
+
+  diff -q "$TEST_DIR/t528-change-before.md" "$dir/docs/issues/CHANGE-0001-t528.md" >/dev/null \
+    || log_fail "TEST-528: the --ref doc was not restored to its pre-run snapshot"
+  diff -q "$TEST_DIR/t528-spec-before.md" "$dir/docs/specs/SPEC-0001-t528.md" >/dev/null \
+    || log_fail "TEST-528: the --spec doc was not restored to its pre-run snapshot"
+  diff -q "$TEST_DIR/t528-paired-before.md" "$dir/docs/specs/SPEC-0002-t528p.md" >/dev/null \
+    || log_fail "TEST-528: the --paired doc was not restored to its pre-run snapshot"
+  [[ "$(file_size "$dir/docs/ai/EVENTS.jsonl")" == "$events_before" ]] \
+    || log_fail "TEST-528: EVENTS.jsonl was not truncated back to its pre-run byte length"
+
+  log_pass "--paired joins the SAME snapshot/rollback transaction: a rigged post-close audit failure on the paired half rolls back all three docs + EVENTS byte-length (Spec-AC-06, TEST-528)"
+}
+
+# --- TEST-529 (Spec-AC-06): --paired idempotency + unknown-slug usage error -
+
+test_529_paired_close_idempotent() {
+  log_info "Test: a --paired slug that is already fully terminal (same pr/commit, events already recorded) is written NOTHING while the real --ref still closes in the SAME invocation; an unknown --paired slug is a pre-write usage error, exit 2, with nothing written (Spec-AC-06, TEST-529)..."
+
+  # Arm A — the paired half is ALREADY closed (same pr/commit, events already
+  # recorded) before this run: it must contribute zero writes/events while
+  # --ref still closes for real in the SAME invocation.
+  local dirA; dirA=$(new_fixture_repo "t529a")
+  write_change_doc "$dirA/docs/issues/CHANGE-0001-t529ap.md" "t529a-paired" "implementing"
+  commit_fixture_docs "$dirA"
+  local outP="$TEST_DIR/t529a-pre.out" errP="$TEST_DIR/t529a-pre.err" codeP
+  codeP=$(run_close "$dirA" "$outP" "$errP" --ref t529a-paired --pr 529 --commit 5295295a)
+  assert_exit "TEST-529: pre-close of the paired half" 0 "$codeP"
+
+  write_change_doc "$dirA/docs/issues/CHANGE-0002-t529a.md" "t529a-change" "draft"
+  git -C "$dirA" add -A
+  git -C "$dirA" commit -q -m "add the real ref"
+
+  local pairedBefore; pairedBefore=$(cat "$dirA/docs/issues/CHANGE-0001-t529ap.md")
+  local out="$TEST_DIR/t529a.out" err="$TEST_DIR/t529a.err" code
+  code=$(run_close "$dirA" "$out" "$err" --ref t529a-change --paired t529a-paired --pr 529 --commit 5295295a)
+  assert_exit "TEST-529: closing the real ref alongside an already-terminal paired half" 0 "$code"
+  grep -q '^status: done$' "$dirA/docs/issues/CHANGE-0002-t529a.md" \
+    || log_fail "TEST-529: the real --ref doc must still close"
+  local pairedAfter; pairedAfter=$(cat "$dirA/docs/issues/CHANGE-0001-t529ap.md")
+  [[ "$pairedBefore" == "$pairedAfter" ]] \
+    || log_fail "TEST-529: an already-terminal --paired doc (same pr/commit, events already recorded) must be written NOTHING"
+
+  # Arm B — an unknown --paired slug is a pre-write usage error: exit 2,
+  # nothing written (same D7 pre-write-abort shape as an unresolvable --spec,
+  # TEST-006).
+  local dirB; dirB=$(new_fixture_repo "t529b")
+  write_change_doc "$dirB/docs/issues/CHANGE-0001-t529b.md" "t529b-change" "draft"
+  commit_fixture_docs "$dirB"
+  local before; before=$(cat "$dirB/docs/issues/CHANGE-0001-t529b.md")
+  local events_before; events_before=$(file_size "$dirB/docs/ai/EVENTS.jsonl")
+  local outB="$TEST_DIR/t529b.out" errB="$TEST_DIR/t529b.err" codeB
+  codeB=$(run_close "$dirB" "$outB" "$errB" --ref t529b-change --paired does-not-exist-t529b --pr 529 --commit 5295295b)
+  assert_exit "TEST-529: an unknown --paired slug is a usage error" 2 "$codeB"
+  local after; after=$(cat "$dirB/docs/issues/CHANGE-0001-t529b.md")
+  [[ "$before" == "$after" ]] \
+    || log_fail "TEST-529: the --ref doc was mutated despite the unresolvable --paired slug"
+  [[ "$(file_size "$dirB/docs/ai/EVENTS.jsonl")" == "$events_before" ]] \
+    || log_fail "TEST-529: EVENTS.jsonl grew despite the unresolvable --paired slug"
+
+  log_pass "--paired idempotency: an already-terminal paired half is written nothing while the real ref still closes; an unknown --paired slug is a pre-write usage error (Spec-AC-06, TEST-529)"
+}
+
+# --- TEST-530 (Spec-AC-07): the state-reconcile skip keeps its planned echo -
+
+test_530_skip_keeps_planned_echo() {
+  log_info "Test: when the FOCUS arm trips a STATE-reconcile skip AFTER the WORK-ITEM arm already planned a set-phase, the WARN must still echo that already-planned command, not an empty rebuilt one (Spec-AC-07, TEST-530)..."
+  local dir; dir=$(new_fixture_repo "t530")
+  write_change_doc "$dir/docs/issues/CHANGE-0100-t530.md" "t530-change" "implementing"
+  commit_fixture_docs "$dir"
+  # The work-item arm (ref_id = the doc's slug identity) needs a real
+  # set-phase (status in_progress -> done): it plans the command FIRST. The
+  # focus arm (ref_id = the SAME doc's OTHER identity member, its display
+  # id) then trips on an out-of-enum type and skips — the property under
+  # test is that the skip's WARN still echoes the work-item arm's command.
+  write_reconcile_state "$dir" "t530-change" "in_progress" "implementation" \
+    "docs/issues/CHANGE-DRAFT-t530.md" "-" \
+    "CHANGE-0100" "bogus_focus_type" "docs/issues/CHANGE-DRAFT-t530.md" "-"
+
+  local out="$TEST_DIR/t530.out" err="$TEST_DIR/t530.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t530-change --pr 530 --commit 5305305a)
+  assert_exit "TEST-530: close" 0 "$code"
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0100-t530.md" \
+    || log_fail "TEST-530: the doc itself must still close normally despite the STATE-reconcile skip"
+  [[ "$(grep -c 'close-work-item: WARN (state-reconcile)' "$err")" == "1" ]] \
+    || log_fail "TEST-530: expected exactly one state-reconcile WARN line, got: $(cat "$err")"
+  grep -q "outside the CLI's type enum" "$err" \
+    || log_fail "TEST-530: WARN must name the focus-arm's skip reason, got: $(cat "$err")"
+  grep -q 'set-phase --ref t530-change' "$err" \
+    || log_fail "TEST-530: the WARN must still echo the WORK-ITEM arm's already-planned set-phase command, got: $(cat "$err")"
+
+  log_pass "state-reconcile skip preserves the already-planned command echo instead of rebuilding an empty one (Spec-AC-07, TEST-530)"
+}
+
+# --- TEST-531 (Spec-AC-07): the mutation-gate notice names both counts ------
+
+test_531_mutation_notice_names_counts() {
+  log_info "Test: a closing spec with one satisfied-but-unstamped row (a legacy record with no target_sha256) and one exempt (deferred) row shows BOTH counts in the SAME mutation-gate notice, built from the collected exempt/degraded/unstamped fields rather than merely forwarding mutation-gate.mjs's own prose (Spec-AC-07, TEST-531)..."
+  local dir; dir=$(new_fixture_repo "t531")
+  seed_mutation_gate_engine "$dir"
+  set_mutation_gate_dial "$dir" "enforce"
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t531.md" "t531-change" "implementing"
+  # write_mutation_gate_mixed_spec_doc gives TEST-001 (a valid Mutation cell,
+  # normally offending with no record) + TEST-002 (deferred, exempt). Writing
+  # a LEGACY (no target_sha256) record for TEST-001 below turns it from
+  # offending into satisfied-but-unstamped, so the whole gate PASSES with
+  # BOTH an exempt row (TEST-002) and an unstamped row (TEST-001) at once.
+  write_mutation_gate_mixed_spec_doc "$dir/docs/specs/SPEC-0001-t531.md" "t531-spec" "implementing"
+  mkdir -p "$dir/docs/ai/tdd/t531-spec"
+  commit_fixture_docs "$dir"
+  local head; head="$(git -C "$dir" rev-parse HEAD)"
+  cat > "$dir/docs/ai/tdd/t531-spec/mutation-TEST-001.txt" <<EOF
+mutation_record: v1
+spec_id: t531-spec
+test_id: TEST-001
+suite: tests/skills/fixture-suite.sh
+selector: test_fixture
+target: lib/fixture.mjs
+mutation: sed:s/OLD/NEW/
+base_commit: ${head}
+tree_hash: $(printf '0%.0s' $(seq 1 64))
+run_at_utc: 2026-01-01T00:00:00Z
+rc: 1
+verdict: RED
+first_fail: FAIL fixture TEST-001
+---
+fixture tail
+EOF
+
+  local out="$TEST_DIR/t531.out" err="$TEST_DIR/t531.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t531-change --spec t531-spec --pr 531 --commit 5310531a)
+  assert_exit "TEST-531: a satisfied-but-unstamped row plus one exempt row must never refuse (exit 0), even under enforce" 0 "$code"
+  grep -qi 'WARNING (mutation gate)' "$err" \
+    || log_fail "TEST-531: expected a mutation-gate WARNING naming the collected counts, got: $(cat "$err")"
+  grep -qF 'exempt=1' "$err" \
+    || log_fail "TEST-531: the notice must name the exempt count, got: $(cat "$err")"
+  grep -qF 'unstamped=1' "$err" \
+    || log_fail "TEST-531: the notice must name the unstamped count, got: $(cat "$err")"
+  grep -q '^status: done$' "$dir/docs/specs/SPEC-0001-t531.md" \
+    || log_fail "TEST-531: a satisfied-but-unstamped/exempt-mixed gate result must not block the close"
+
+  log_pass "TEST-531: a satisfied-but-unstamped row and an exempt row both surface in the SAME mutation-gate notice, built from the collected exempt/degraded/unstamped fields (Spec-AC-07)"
+}
+
+# --- TEST-532 (Spec-AC-08): self-verify resolves the audited doc by PATH ----
+
+test_532_product_doc_shares_an_id() {
+  log_info "Test: WHEN a docs/product/<slug>.md product doc shares its frontmatter id with the doc being closed, and the product doc's own path sorts BEFORE the closing doc's in the docs-audit scan (the adverse order an id-keyed lookup would pick first), the post-close self-verify still resolves the closing doc by PATH and exits 0 with statuses flipped instead of rolling back forever (Spec-AC-08, TEST-532)..."
+  local dir; dir=$(new_fixture_repo "t532")
+  # Placed under docs/specs/ so its rel path ("docs/specs/CHANGE-...") sorts
+  # AFTER the product doc's rel path ("docs/product/...") in the audit's own
+  # sorted scan (scanAuditDocs sorts by rel — 'docs/p' < 'docs/s') — the
+  # adverse order fu-product-doc-id-collides-with-intake needs to reproduce:
+  # an id-keyed `audit.docs.find` would pick the PRODUCT doc first.
+  write_change_doc "$dir/docs/specs/CHANGE-0001-t532.md" "t532-slug" "implementing"
+  write_real_product_doc "$dir" "t532-slug"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t532.out" err="$TEST_DIR/t532.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t532-slug --pr 532 --commit 5320532a)
+  [[ "$code" == "0" ]] \
+    || log_fail "TEST-532: expected exit 0 (self-verify must resolve the closing doc by PATH, not by the shared id), got $code: $(cat "$err")"
+  grep -q '^status: done$' "$dir/docs/specs/CHANGE-0001-t532.md" \
+    || log_fail "TEST-532: the closing doc's status must be flipped to done, not rolled back"
+
+  log_pass "self-verify resolves the audited doc by PATH: an id collision with a docs/product/ doc no longer rolls back a genuinely clean close (Spec-AC-08, TEST-532)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -3814,6 +4014,11 @@ main() {
   test_067_mutation_gate_close_wiring
   test_068_mutation_gate_all_exempt_notice
   test_069_usage_gate_tokens_total_field_passes
+  test_528_paired_close_one_transaction
+  test_529_paired_close_idempotent
+  test_530_skip_keeps_planned_echo
+  test_531_mutation_notice_names_counts
+  test_532_product_doc_shares_an_id
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
