@@ -2106,6 +2106,43 @@ test_032_usage_gate_sentinel_passes_enforce() {
   log_pass "Sentinel usage_capture=none passes even under enforce (escape hatch)"
 }
 
+# TEST-512 (mutation-gate-for-tests, PR ceremony) — a run whose usage is recorded
+# the canonical way since SPEC-0178 (`tokens_total:` FIELD, no note marker, no
+# decomposed pair) is CAPTURED: it must pass under enforce. A negative total and
+# a null total are still gaps.
+test_069_usage_gate_tokens_total_field_passes() {
+  log_info "Test: a tokens_total FIELD counts as usage capture under enforce; null/negative totals do not (TEST-512)..."
+  local dir; dir=$(new_fixture_repo "t069")
+  set_usage_capture_gate_dial "$dir" "enforce"
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t069.md" "t069-slug" "draft"
+  commit_fixture_docs "$dir"
+  state_begin "$dir" "t069-slug"
+  state_add_run "$dir" "Planning" "planning, unattended; tool_uses=73; duration_ms=1325011"
+  printf '          tokens_total: 288885\n          usage_basis: field\n' >> "$dir/docs/ai/STATE.yaml"
+
+  local out="$TEST_DIR/t069.out" err="$TEST_DIR/t069.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t069-slug --pr 69 --commit c069c069)
+  assert_exit "TEST-512: a tokens_total field passes under enforce" 0 "$code"
+  if grep -qi 'usage-capture gate' "$err"; then
+    log_fail "TEST-512: a run carrying tokens_total: 288885 must not warn/refuse, got: $(cat "$err")"
+  fi
+
+  # Negative control: a NULL total is still a gap (refused under enforce).
+  local dir2; dir2=$(new_fixture_repo "t069b")
+  set_usage_capture_gate_dial "$dir2" "enforce"
+  write_change_doc "$dir2/docs/issues/CHANGE-0001-t069b.md" "t069b-slug" "draft"
+  commit_fixture_docs "$dir2"
+  state_begin "$dir2" "t069b-slug"
+  state_add_run "$dir2" "Planning" "planning, unattended; tool_uses=73"
+  printf '          tokens_total: null\n' >> "$dir2/docs/ai/STATE.yaml"
+  local out2="$TEST_DIR/t069b.out" err2="$TEST_DIR/t069b.err" code2
+  code2=$(run_close "$dir2" "$out2" "$err2" --ref t069b-slug --pr 69 --commit c069c069)
+  [[ "$code2" -ne 0 ]] || log_fail "TEST-512: a null tokens_total must still be refused under enforce (got exit 0)"
+  grep -qi 'REFUSED (usage-capture gate)' "$err2" \
+    || log_fail "TEST-512: expected a usage-capture-gate REFUSED line for a null total, got: $(cat "$err2")"
+  log_pass "TEST-512 a tokens_total field is usage capture; a null total is still refused"
+}
+
 # TEST-033 (AC-002) — negative control: a valid marker, decomposed tokens, and a
 # meta-role (Orchestration) unmarked run all pass clean under enforce.
 test_033_usage_gate_captured_and_metarole_pass() {
@@ -3776,6 +3813,7 @@ main() {
   test_066_stamp_pr_rejects_review_flag
   test_067_mutation_gate_close_wiring
   test_068_mutation_gate_all_exempt_notice
+  test_069_usage_gate_tokens_total_field_passes
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

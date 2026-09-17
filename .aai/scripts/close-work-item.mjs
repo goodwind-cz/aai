@@ -1010,7 +1010,7 @@ function scanAgentRuns(ref) {
     const roleM = indent === 8 ? body.match(/^-\s*role:\s*(.+?)\s*$/) : null;
     if (roleM) {
       if (cur) runs.push(cur);
-      cur = { role: stripQuotes(roleM[1].trim()), noteParts: [], tokensIn: null, tokensOut: null };
+      cur = { role: stripQuotes(roleM[1].trim()), noteParts: [], tokensIn: null, tokensOut: null, tokensTotal: null };
       inNote = false;
       continue;
     }
@@ -1029,6 +1029,13 @@ function scanAgentRuns(ref) {
       if (tiM) { inNote = false; cur.tokensIn = parseTok(tiM[1]); continue; }
       const toM = body.match(/^tokens_out:\s*(.+?)\s*$/);
       if (toM) { inNote = false; cur.tokensOut = parseTok(toM[1]); continue; }
+      // telemetry-fields-not-prose (SPEC-0178): `state.mjs append-run
+      // --tokens-total N` records the harness total as a FIELD
+      // (`usage_basis: field`), not as a note marker. A gate that reads only
+      // the prose marker refuses every run recorded the canonical way
+      // (mutation-gate-for-tests, PR ceremony 2026-09-17: 21 runs refused).
+      const ttM = body.match(/^tokens_total:\s*(.+?)\s*$/);
+      if (ttM) { inNote = false; cur.tokensTotal = parseTok(ttM[1]); continue; }
       inNote = false; // any other indent-10 field ends the note block
       continue;
     }
@@ -1040,12 +1047,14 @@ function scanAgentRuns(ref) {
     note: r.noteParts.join(' '),
     tokensIn: r.tokensIn,
     tokensOut: r.tokensOut,
+    tokensTotal: r.tokensTotal,
   }));
 }
 
 // usageCaptured(run) -> true when the run carries ANY honest usage signal:
-// decomposed tokens (both in AND out present), a valid usage_total_tokens
-// marker, or the usage_capture=none sentinel (the honest-gap escape hatch).
+// decomposed tokens (both in AND out present), the `tokens_total:` FIELD,
+// a valid usage_total_tokens marker, or the usage_capture=none sentinel
+// (the honest-gap escape hatch).
 // Mirrors the metrics-flush 3-way classifier (decomposed | undecomposed-note |
 // capture-missing) plus the sentinel — never a re-declared regex.
 function usageCaptured(run) {
@@ -1053,6 +1062,8 @@ function usageCaptured(run) {
   // currently accepts negative ints; a -1/-1 pair is not honest capture).
   if (run.tokensIn !== null && run.tokensOut !== null
     && run.tokensIn >= 0 && run.tokensOut >= 0) return true;
+  // field arm: the harness total recorded as `tokens_total:` (non-negative).
+  if (run.tokensTotal !== null && run.tokensTotal !== undefined && run.tokensTotal >= 0) return true;
   if (extractUsageTotal(run.note) !== null) return true;
   if (hasUsageSentinel(run.note)) return true;
   return false;

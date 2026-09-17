@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-17T17:38:53.142Z
+Generated: 2026-09-17T17:49:05.454Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0181 | specs | implementing | 19 planned | docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md |
+| SPEC-0181 | specs | implementing | 19 done | docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md |
 
 ## Canonical layer (0)
 
