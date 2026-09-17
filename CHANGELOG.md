@@ -11,34 +11,44 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(gate): the close ceremony refuses a TDD ride whose Test Plan has a row with no RED mutation
+## [unreleased] — feat(gate): a test is admitted only with the mutation that reddens it (CHANGE-0187 / SPEC-0181)
 
-- **Canon carries the mutation obligation** (D13, Spec-AC-10): `SKILL_TDD.prompt.md`
-  GREEN and its BLOCK line, `VALIDATION.prompt.md` step 5g, and `ROLE_COMMON.md`'s
-  evidence rule each name `mutation-run.mjs` with a runnable command line —
-  asserted by actually feeding the extracted command to the real CLI, never by a
-  human eyeballing the text. `SKILL_PR.prompt.md`'s AMENDMENT GATE bullet is
-  corrected in place for D11's second violation class (`classify` for a record,
-  `add` for an undisclosed spec amendment). Prompt-diet ledger trued up +1023 B,
-  headroom back at 2046/2048.
-- **`close-work-item.mjs` gains the sixth dialed close-time gate** (D12,
-  Spec-AC-07): a closing ride whose spec is applicable and whose
-  `mutation-gate.mjs` run exits non-zero is refused (new exit 8) under
-  `mutation_gate: enforce`, naming the offending rows; `report-only` or an
-  absent key warns and continues. AAI core ships this one dial `enforce` — the
-  new sixth entry in `lib/guard-config.mjs`'s `GUARD_DIALS`.
-- **The pin is re-cut in the same commit** (Spec-AC-19): `close-work-item-pin.sh`
-  gains a new itemized allowlist entry for the mutation-gate wiring, and its
-  own prose is corrected — the STATE reconcile is invoked from BOTH success
-  tails (the D6.2 idempotency short-circuit never enters the try/catch at
-  all), never "strictly after" it as an older entry wrongly claimed
-  (`fu-closeworkitem-pin-tail-wording`).
-- **Registry**: `fu-test-selector-unknown-id-passes`, `fu-spec-amend-terminal-tracker-counts`
-  and `fu-closeworkitem-pin-tail-wording` closed for real; `fu-mutation-gate-skips-pester`
-  (P3) filed for the Pester/PowerShell gap this ride explicitly leaves open (D18).
-- This spec's own Test Plan is now gated by the tool it delivers: `mutation-gate.mjs`
-  against `SPEC-DRAFT-spec-mutation-gate-for-tests.md` exits 0, `degraded=0`,
-  all 35 rows RED-recorded (Spec-AC-16).
+- **`mutation-run.mjs`** applies a named mutation (`--sed`, a JavaScript RegExp,
+  or `--patch`) in an isolated clone of the dirty working tree, runs ONE selected
+  test, and writes `docs/ai/tdd/<spec-id>/mutation-<TEST-id>.txt` with a fixed
+  header and one of three verdicts: `RED`, `STAYED GREEN`, `INCONCLUSIVE`. It
+  refuses an unknown selector and a no-op mutation, proves the shipping tree
+  untouched with a tree hash, stores patches beside their records, rotates and
+  never deletes, and `--replay` re-runs every record (exit 4 = inconclusive,
+  never conflated with a regression).
+- **`mutation-gate.mjs`** refuses a TDD spec (marker `mutation_gate: v1`) whose
+  Test Plan has a row without a `RED` record whose commit is an ancestor of
+  HEAD and whose `target_sha256` still matches the live target (`STALE`
+  otherwise); it names every offending row, exempts deferred rows by name,
+  and degrades by name where evidence cannot exist (CI, pre-marker specs).
+- **The close ceremony runs the gate** (`close-work-item.mjs`, new exit 8, dial
+  `mutation_gate`: core ships `enforce`, an absent key is `report-only`);
+  spec-lint checks the new Test Plan `Mutation` column (columns resolved by
+  name); SKILL_TDD, VALIDATION and ROLE_COMMON name the runner and the replay
+  (+1023 B, ledger trued up).
+- **CHANGE-0181 closed in the same ride**: a frozen spec carries
+  `frozen_sha256` over its contract projection, and `spec-amend list --strict`
+  refuses an undisclosed post-freeze edit with the runnable `add` line that
+  clears it; legacy specs degrade by name (174 today), a missing specs dir is
+  refused. It bit on its first ride: the PR-ceremony allocator rewrote this
+  spec's own paths and the gate made us disclose it.
+- **Every suite refuses an unknown test name**: a corpus guard scans the tree
+  for the positional-dispatch idiom (50 suites), 15 fail-open suites fixed.
+- **Found on the way**: branch-guard TEST-408 pinned one pre-change blob and a
+  moving ref (red in every isolated clone since PR #381) — now one pinned
+  tree; the gate's own suite skipped itself in clones; a rotated patch archive
+  could be overwritten.
+- Spec: SPEC-0181 (spec-mutation-gate-for-tests), ceremony 2, TDD, 42 Test
+  Plan rows each RED-recorded by the runner and replayed 42/42, eight
+  validation rounds (1 and 6 FAIL), two review rounds, six remediation rounds.
+  Registry: 3 closed, 12 rejected, 15 filed (incl. `fu-mutation-gate-skips-pester`,
+  `fu-writerecord-rotates-before-patch-copy`, `fu-allocator-rewrites-frozen-spec-body`).
+  Wave 3 ride 4, paired with CHANGE-0181.
 
 ## [unreleased] — feat(tests): the test framework is fast, hermetic and honest about what it ran
 

@@ -1793,7 +1793,7 @@ test_clarify_012_red_class_stamped() {
     || log_fail "TEST-012(clarify) RED_CLASS stamping"
 }
 
-# === SPEC-DRAFT-spec-mutation-gate-for-tests D15 — the Mutation column ========
+# === SPEC-0181 (spec-mutation-gate-for-tests) D15 — the Mutation column ========
 # TEST-478 (Spec-AC-08): spec-lint's two new findings, `mutation-cell-missing`
 # and `mutation-cell-malformed`, raised ONLY for an applicable spec (D9: a
 # frozen spec's own `mutation_gate: v1` marker, or — for a not-yet-frozen spec,

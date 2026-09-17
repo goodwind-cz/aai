@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: main(94a983ec)...212f0156 — every file in the diff (54 files), plus the explicit path list in the spec's "Isolation and review" section and STATE code_review.scope
-  spec: docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md (FROZEN, frozen_sha256 anchored, mutation_gate: v1)
+  spec: docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md (FROZEN, frozen_sha256 anchored, mutation_gate: v1)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -71,7 +71,7 @@ review:
           failure_scenario: "A ride defers TEST-xxx (Status `deferred`, disclosed in an amendment). The gate still requires mutation-TEST-xxx.txt with verdict RED, so close-work-item.mjs exits 8 under `enforce` and the only way to close is to fabricate a record or delete the row. Fix: exempt rows whose Status cell is terminal-not-green, and say so in D8" }
       - { rank: NON-BLOCKING, file: CHANGELOG.md, line: 41,
           issue: "The shipped claim says 'all 21 rows RED-recorded (Spec-AC-16)'; the delivered gate reports 24 rows",
-          failure_scenario: "`node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md` prints `GATE PASS: 24 row(s) satisfied degraded=0` — the Test Plan grew by TEST-491/492/493 in remediation round 2. A release note that undercounts its own evidence is the class of claim this ride exists to make checkable" }
+          failure_scenario: "`node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md` prints `GATE PASS: 24 row(s) satisfied degraded=0` — the Test Plan grew by TEST-491/492/493 in remediation round 2. A release note that undercounts its own evidence is the class of claim this ride exists to make checkable" }
       - { rank: NON-BLOCKING, file: .aai/SKILL_TDD.prompt.md, line: 183,
           issue: "The new BLOCK line is unconditional ('Cannot proceed to REFACTOR until … the mutation-run.mjs RED record exists'), but RED is only reachable when the suite prints a `FAIL … <TEST-id>` line (mutation-run.mjs:419-428) — an AAI-suite output convention, not a property of test runners in general",
           failure_scenario: "A vendored downstream project whose suite is jest/pytest/Pester: the mutated run exits non-zero with no line naming TEST-xxx, so every record is INCONCLUSIVE (exit 6) and canon's BLOCK can never be satisfied. The close gate itself degrades safely there (report-only default, and the marker only lands via spec-freeze), but the prompt rule does not. Fix: condition the BLOCK on `mutation_gate: v1`, or name the FAIL-line grammar requirement in the prompt" }
@@ -138,7 +138,7 @@ registry item, outside this scope.
 
 Direct CLI runs (isolated clone):
 
-- `node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md` -> exit 0, `GATE PASS: 24 row(s) satisfied degraded=0`
+- `node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md` -> exit 0, `GATE PASS: 24 row(s) satisfied degraded=0`
 - `env -u AAI_ROLE node .aai/scripts/spec-amend.mjs list --strict` -> exit 0, `spec_degraded=174 (no freeze anchor)`, 18 unsigned-tracked records all with `tracked_status=open`
 - `env -u AAI_ROLE node .aai/scripts/spec-lint.mjs` -> exit 0, 181 scanned, 0 findings
 - prompt-diet arithmetic re-measured by hand: +360/+212/+232/+219 B = +1023 B, exactly the one ledger credit and the TEST-012 pin move

@@ -1,13 +1,13 @@
 ---
 id: spec-mutation-gate-for-tests
 type: spec
-number: null
+number: 181
 status: implementing
-frozen_sha256: 153a7073ed2dce4c2b9050eeb22b8355ceb94752800d9edda312c8ca977a8e80
+frozen_sha256: bef4a0023204b329685d5dedfd2d4acd91a435e81f87e63d51bf160d35c5ab78
 ceremony_level: 2
 mutation_gate: v1
 links:
-  requirement: docs/issues/CHANGE-DRAFT-mutation-gate-for-tests.md
+  requirement: docs/issues/CHANGE-0187-mutation-gate-for-tests.md
   rfc: null
   pr: []
   commits: []
@@ -21,7 +21,7 @@ SPEC-FROZEN: true
 - Requirement (primary path, unnumbered by design — `allocate-doc-number.mjs`
   assigns the number at the PR and renames the file, so every in-branch
   reference below uses the DRAFT path):
-  docs/issues/CHANGE-DRAFT-mutation-gate-for-tests.md
+  docs/issues/CHANGE-0187-mutation-gate-for-tests.md
 - Paired maintenance half: docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md
 - Mandate: docs/project-sessions/2026-09-13-wave-3-subsystem-sweeps.md
   ("Re-order of 2026-09-14 (owner decision)", lines 79-89 — menu answer A, ledger
@@ -67,7 +67,7 @@ SPEC-FROZEN: true
 
 Review scope (exact paths, the list `set-code-review --scope` records):
 
-`.aai/scripts/mutation-run.mjs .aai/scripts/mutation-gate.mjs .aai/scripts/lib/mutation-record.mjs .aai/scripts/lib/spec-contract-hash.mjs .aai/scripts/lib/docs-model.mjs .aai/scripts/lib/guard-config.mjs .aai/scripts/spec-lint.mjs .aai/scripts/spec-freeze.mjs .aai/scripts/spec-amend.mjs .aai/scripts/close-work-item.mjs .aai/SKILL_TDD.prompt.md .aai/VALIDATION.prompt.md .aai/ROLE_COMMON.md .aai/SKILL_PR.prompt.md .aai/templates/SPEC_TEMPLATE.md .aai/system/PROFILES.yaml docs/ai/docs-audit.yaml tests/skills/suite-map.yaml tests/skills/lib/close-work-item-pin.sh tests/skills/lib/prompt-diet-ledger.sh tests/skills/test-aai-mutation-gate.sh tests/skills/test-aai-spec-lint.sh tests/skills/test-aai-spec-amend.sh tests/skills/test-aai-spec-tools.sh tests/skills/test-aai-close-work-item.sh tests/skills/test-aai-close-reconcile.sh tests/skills/test-aai-prompt-diet.sh tests/skills/test-aai-layer-profiles.sh tests/skills/test-aai-hygiene-pack.sh tests/skills/test-aai-follow-ups.sh tests/skills/test-aai-doc-numbering.sh tests/skills/test-aai-suite-select.sh tests/skills/test-aai-run-tests.sh tests/skills/test-aai-branch-guard.sh tests/skills/test-aai-session-lock.sh tests/skills/test-aai-git-ref-guard.sh tests/skills/test-aai-issues.sh tests/skills/test-aai-pr-platform.sh tests/skills/test-aai-routine.sh tests/skills/test-aai-win-fallback.sh tests/skills/test-aai-feedback-triage.sh tests/skills/test-aai-feedback-status.sh tests/skills/test-aai-feedback-upsert.sh tests/skills/test-aai-learned-routing.sh tests/skills/test-aai-live-serve.sh tests/skills/test-aai-ride-select.sh tests/skills/test-aai-unattended.sh docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md docs/issues/CHANGE-DRAFT-mutation-gate-for-tests.md docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md docs/ai/decisions.jsonl docs/ai/tests/test-runs.jsonl CHANGELOG.md`
+`.aai/scripts/mutation-run.mjs .aai/scripts/mutation-gate.mjs .aai/scripts/lib/mutation-record.mjs .aai/scripts/lib/spec-contract-hash.mjs .aai/scripts/lib/docs-model.mjs .aai/scripts/lib/guard-config.mjs .aai/scripts/spec-lint.mjs .aai/scripts/spec-freeze.mjs .aai/scripts/spec-amend.mjs .aai/scripts/close-work-item.mjs .aai/SKILL_TDD.prompt.md .aai/VALIDATION.prompt.md .aai/ROLE_COMMON.md .aai/SKILL_PR.prompt.md .aai/templates/SPEC_TEMPLATE.md .aai/system/PROFILES.yaml docs/ai/docs-audit.yaml tests/skills/suite-map.yaml tests/skills/lib/close-work-item-pin.sh tests/skills/lib/prompt-diet-ledger.sh tests/skills/test-aai-mutation-gate.sh tests/skills/test-aai-spec-lint.sh tests/skills/test-aai-spec-amend.sh tests/skills/test-aai-spec-tools.sh tests/skills/test-aai-close-work-item.sh tests/skills/test-aai-close-reconcile.sh tests/skills/test-aai-prompt-diet.sh tests/skills/test-aai-layer-profiles.sh tests/skills/test-aai-hygiene-pack.sh tests/skills/test-aai-follow-ups.sh tests/skills/test-aai-doc-numbering.sh tests/skills/test-aai-suite-select.sh tests/skills/test-aai-run-tests.sh tests/skills/test-aai-branch-guard.sh tests/skills/test-aai-session-lock.sh tests/skills/test-aai-git-ref-guard.sh tests/skills/test-aai-issues.sh tests/skills/test-aai-pr-platform.sh tests/skills/test-aai-routine.sh tests/skills/test-aai-win-fallback.sh tests/skills/test-aai-feedback-triage.sh tests/skills/test-aai-feedback-status.sh tests/skills/test-aai-feedback-upsert.sh tests/skills/test-aai-learned-routing.sh tests/skills/test-aai-live-serve.sh tests/skills/test-aai-ride-select.sh tests/skills/test-aai-unattended.sh docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md docs/issues/CHANGE-0187-mutation-gate-for-tests.md docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md docs/ai/decisions.jsonl docs/ai/tests/test-runs.jsonl CHANGELOG.md`
 
 Expected companions (not part of the scope list above but MUST be staged with
 it, for the reason SPEC-0180 recorded): `docs/ai/decisions.jsonl` carries this
@@ -927,7 +927,7 @@ Components, in the order the seams make safest:
 6. `lib/spec-contract-hash.mjs`, then `spec-freeze.mjs`, then `spec-amend.mjs` —
    D10, D11, D16. The hash module lands before either writer.
 7. THIS spec is stamped: once step 6 exists, `spec-freeze.mjs` re-stamps
-   `frozen_sha256` for `SPEC-DRAFT-spec-mutation-gate-for-tests.md`, which is
+   `frozen_sha256` for `SPEC-0181-spec-mutation-gate-for-tests.md`, which is
    the moment CHANGE-0181's gate starts watching this ride's own spec. Every
    later edit to this document's contract projection needs a `spec-amend add`
    record, by the mechanism this ride is delivering.
@@ -1113,13 +1113,13 @@ Commands, in the order the evidence is produced:
   `tests/skills/test-aai-docs-audit.sh`, `tests/skills/test-aai-ceremony-levels.sh`,
   `tests/skills/test-aai-branch-guard.sh`, `tests/skills/test-aai-session-lock.sh`,
   plus the remaining selector suites named in measurement 11
-- `node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md`
+- `node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md`
   exits 0 with `degraded=0` (Spec-AC-16)
-- `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md`
+- `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md`
   exits 0 (the validator's own command, D14)
 - `env -u AAI_ROLE node .aai/scripts/spec-amend.mjs list --strict` exits 0
 - one full sweep before close, `AAI_TEST_TIMEOUT=3000`
-- `env -u AAI_ROLE node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md`
+- `env -u AAI_ROLE node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md`
 - `env -u AAI_ROLE node .aai/scripts/docs-audit.mjs --check --strict --no-event`
 
 PASS criteria: every TEST-xxx green, every Spec-AC in a terminal status, and
@@ -2111,6 +2111,22 @@ AC's or Test Plan row's core property outside the disclosed in-place
 amendments to D8/D9 (naming the new sixth condition and `unstamped=<n>`,
 never changing what any existing row tests at its core) — five new rows,
 TEST-507 through TEST-511, are added.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: mutation-gate-for-tests`, `--signoff none`.
+
+### Numbering at the PR — the allocator rewrote this spec's own references
+
+- `allocate-doc-number.mjs` numbered the intake (CHANGE-0187) and this spec
+  (SPEC-0181) at the PR ceremony and rewrote the draft paths inside this
+  frozen body (the `requirement:` link, the Links list, the Isolation file
+  list, one sentence naming the spec file). That is a post-freeze body edit by
+  a tool, and the strict amendment gate this ride delivered (D11) refused it as
+  `undisclosed-amendment` — correctly. This record discloses it; the anchor is
+  re-stamped by the `add`. `fu-allocator-rewrites-frozen-spec-body` (P2) tracks
+  the structural fix (the allocator is an L3 surface: it should record or
+  re-stamp itself, or the contract projection should be invariant to a
+  DRAFT → number path rewrite).
 
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: mutation-gate-for-tests`, `--signoff none`.

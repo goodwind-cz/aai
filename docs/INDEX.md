@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-17T17:32:10.866Z
+Generated: 2026-09-17T17:38:53.142Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-mutation-gate-for-tests | specs | implementing | 19 planned | docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md |
+| SPEC-0181 | specs | implementing | 19 planned | docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md |
 
 ## Canonical layer (0)
 
@@ -495,7 +495,7 @@ _None._
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0181 | issues | docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md |
 | CHANGE-0184 | issues | docs/issues/CHANGE-0184-roadmap-gate-admits-only-the-next-pair.md |
-| mutation-gate-for-tests (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-mutation-gate-for-tests.md |
+| CHANGE-0187 | issues | docs/issues/CHANGE-0187-mutation-gate-for-tests.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

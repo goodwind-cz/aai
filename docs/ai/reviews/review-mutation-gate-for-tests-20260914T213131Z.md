@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 212f0156..225a1284 (18 files, +1364/-43) — the delta since the round-1 review PASS"
-  spec: docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md (FROZEN, frozen_sha256 fb8b4bc1…, mutation_gate: v1)
+  spec: docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md (FROZEN, frozen_sha256 fb8b4bc1…, mutation_gate: v1)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -30,7 +30,7 @@ review:
           citation: "TEST-495 PASS; spec-amend.mjs:1022-1034 missing-dir refusal (exit 2), :989/:1046/:1061 spec_scanned. Reviewer re-ran `list --strict` in the isolated clone: exit 0, `spec_scanned=175 spec_degraded=174`" }
       - { ac: Spec-AC-15, call: compliant, citation: "aai-spec-amend rc=0; spec-amend.mjs:351 trackerOpen untouched by the delta" }
       - { ac: Spec-AC-16, call: compliant,
-          citation: "Reviewer re-ran `node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md` in the isolated clone at 225a1284: `GATE PASS: 35 row(s) satisfied degraded=0`, exit 0; CHANGELOG.md:41 now says 35 (round-1 NB-8 closed)" }
+          citation: "Reviewer re-ran `node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md` in the isolated clone at 225a1284: `GATE PASS: 35 row(s) satisfied degraded=0`, exit 0; CHANGELOG.md:41 now says 35 (round-1 NB-8 closed)" }
       - { ac: Spec-AC-17, call: compliant, citation: "untouched by the delta; spec-freeze.mjs unchanged 212f0156..225a1284" }
       - { ac: Spec-AC-18, call: compliant, citation: "aai-hygiene-pack rc=0 (test_129 pin 95); suite-map.yaml unchanged by the delta" }
       - { ac: Spec-AC-19, call: compliant, citation: "close-work-item.mjs unchanged by the delta, so the pinned sha256 is still current; aai-close-work-item rc=0" }
@@ -58,10 +58,10 @@ review:
       - { rank: NON-BLOCKING, file: .aai/scripts/mutation-run.mjs, line: 106,
           issue: "isRotatedFileName is imported and never used — replay filters live records with its own inline `^mutation-(TEST-\\d+)\\.txt$` at :743 and :763",
           failure_scenario: "The NB2-r3 widening of that helper's regex (lib/mutation-record.mjs:142, `(?:\\.\\d+)?`) therefore has NO production consumer: a future change to the rotated-name grammar will be 'covered' by a helper nothing calls, while the two inline regexes that actually decide live-vs-rotated drift silently. Fix: drop the import, or route replay's filter through the helper so one grammar governs both" }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md, line: 816,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md, line: 816,
           issue: "All 19 Spec-AC rows are still `planned` with `—` evidence at 225a1284, and close-work-item.mjs does not flip them",
           failure_scenario: "`node .aai/scripts/docs-audit.mjs --gate spec-mutation-gate-for-tests` exits 1 today with 19 Rule-1 reasons (reproduced in the isolated clone). VALIDATION.prompt.md's AC-FLIP DEFERRAL carve makes this the EXPECTED in-flight state and `--ac-flip-check` PASSES, so it blocks no verdict — but .aai/ROLE_COMMON.md's PRE-HANDOFF AC-TABLE RECONCILIATION says the rows should already be terminal with a `docs/ai/tdd/*.log` evidence path, and nothing in the close ceremony sets them. Unless a role reconciles the table before the close, the close gate stays red and the docs audit reads the spec as a probable false-open" }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md, line: 1649,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md, line: 1649,
           issue: "The round-4 amendment calls the --sed dialect 'the runner's ERE sed'; the round-5 amendment (:1663) and the tool itself (mutation-run.mjs:16, :171) say it is a JavaScript RegExp, NOT sed BRE/ERE",
           failure_scenario: "The same document gives an operator two answers about the one thing round 5 existed to disambiguate. An author who believes the round-4 sentence writes a POSIX ERE mutation cell (`\\+`, `\\?`, `[[:space:]]`), the runner applies it as a JS RegExp, the result is a no-op, and mutation-run refuses to record — the exact confusion NB2-r5 was filed to end. Fix: correct the round-4 sentence to name the JS RegExp dialect (the escaped `\\(` form it quotes is correct either way, which is why the cell still works)" }
   cannot_verify:

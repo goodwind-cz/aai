@@ -913,7 +913,7 @@ EOF
   # always true inside a mutation-run.mjs clone, in CI and in the sweep's
   # isolated clones — they degrade BY NAME below and arm A carries the proof;
   # meaningful in a normal, non-clone run).
-  local real_spec="$PROJECT_ROOT/docs/specs/SPEC-DRAFT-spec-mutation-gate-for-tests.md"
+  local real_spec="$PROJECT_ROOT/docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md"
   local real_evidence_dir="$PROJECT_ROOT/docs/ai/tdd/spec-mutation-gate-for-tests"
   # Arms B/C read the LIVE evidence tree (gitignored). In CI and in every
   # isolated clone it is absent BY DESIGN; arm A above already proved the
