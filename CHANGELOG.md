@@ -43,11 +43,15 @@ RFC-0001).
   moving ref (red in every isolated clone since PR #381) — now one pinned
   tree; the gate's own suite skipped itself in clones; a rotated patch archive
   could be overwritten.
-- Spec: SPEC-0181 (spec-mutation-gate-for-tests), ceremony 2, TDD, 42 Test
-  Plan rows each RED-recorded by the runner and replayed 42/42, eight
+- **The close-time usage-capture gate knows the field its canon writes**:
+  `tokens_total` (SPEC-0178) counts as usage capture; the gate had refused all
+  21 runs of this ride.
+- Spec: SPEC-0181 (spec-mutation-gate-for-tests), ceremony 2, TDD, 43 Test
+  Plan rows each RED-recorded by the runner and replayed 43/43, nine
   validation rounds (1 and 6 FAIL), two review rounds, six remediation rounds.
-  Registry: 3 closed, 12 rejected, 15 filed (incl. `fu-mutation-gate-skips-pester`,
-  `fu-writerecord-rotates-before-patch-copy`, `fu-allocator-rewrites-frozen-spec-body`).
+  Registry: 3 closed, 16 filed (incl. `fu-mutation-gate-skips-pester`,
+  `fu-writerecord-rotates-before-patch-copy`, `fu-allocator-rewrites-frozen-spec-body`);
+  12 candidates weighed in the spec and left open with a reason each.
   Wave 3 ride 4, paired with CHANGE-0181.
 
 ## [unreleased] — feat(tests): the test framework is fast, hermetic and honest about what it ran
