@@ -132,6 +132,18 @@ function usageError(msg) {
   exit(2);
 }
 
+// Remediation round 7 (Copilot, PR #384): a missing value OR a value that
+// itself looks like another flag (starts with "--") is a usage error, never
+// silently accepted as the flag's value — see the same fix and rationale in
+// mutation-gate.mjs (`requireValue`).
+function requireValue(argv, i, flagName) {
+  const v = argv[i + 1];
+  if (v === undefined || v.startsWith('--')) {
+    usageError(`${flagName} requires a value${v === undefined ? '' : ` (got "${v}", which looks like another flag)`}`);
+  }
+  return v;
+}
+
 function parseArgs(argv) {
   const out = { replay: false, help: false };
   for (let i = 0; i < argv.length; i++) {
@@ -145,25 +157,32 @@ function parseArgs(argv) {
         out.replay = true;
         break;
       case '--spec':
-        out.spec = argv[++i];
+        out.spec = requireValue(argv, i, '--spec');
+        i += 1;
         break;
       case '--test-id':
-        out.testId = argv[++i];
+        out.testId = requireValue(argv, i, '--test-id');
+        i += 1;
         break;
       case '--suite':
-        out.suite = argv[++i];
+        out.suite = requireValue(argv, i, '--suite');
+        i += 1;
         break;
       case '--selector':
-        out.selector = argv[++i];
+        out.selector = requireValue(argv, i, '--selector');
+        i += 1;
         break;
       case '--target':
-        out.target = argv[++i];
+        out.target = requireValue(argv, i, '--target');
+        i += 1;
         break;
       case '--sed':
-        out.sed = argv[++i];
+        out.sed = requireValue(argv, i, '--sed');
+        i += 1;
         break;
       case '--patch':
-        out.patch = argv[++i];
+        out.patch = requireValue(argv, i, '--patch');
+        i += 1;
         break;
       default:
         usageError(`unrecognized argument: ${a}`);
@@ -335,6 +354,51 @@ function applySedExpr(expr, content) {
   return content.replace(re, replacement);
 }
 
+// Remediation round 7 (Codex P1, PR #384): parses a unified diff's OWN file
+// headers — `diff --git a/X b/Y`, `--- a/X` / `--- /dev/null`, `+++ b/Y` /
+// `+++ /dev/null`, and the two `rename from`/`rename to` lines — to name
+// every path the patch touches. This is header-only parsing (the same
+// selection `git apply` itself makes), never a hunk-content scan, so it
+// cannot be fooled by a path-looking string inside a hunk body.
+export function patchTouchedPaths(patchText) {
+  const paths = new Set();
+  for (const line of patchText.split('\n')) {
+    let m;
+    if ((m = /^diff --git a\/(.+) b\/(.+)$/.exec(line))) {
+      paths.add(m[1]);
+      paths.add(m[2]);
+    } else if ((m = /^--- a\/(.+)$/.exec(line))) {
+      paths.add(m[1]);
+    } else if ((m = /^\+\+\+ b\/(.+)$/.exec(line))) {
+      paths.add(m[1]);
+    } else if ((m = /^rename from (.+)$/.exec(line))) {
+      paths.add(m[1]);
+    } else if ((m = /^rename to (.+)$/.exec(line))) {
+      paths.add(m[1]);
+    }
+    // `--- /dev/null` / `+++ /dev/null` (pure creation/deletion) name no
+    // path on that side — the OTHER header line of the same pair carries it.
+  }
+  return paths;
+}
+
+// Remediation round 7 (Codex P1, PR #384): a --patch with hunks for files
+// besides --target was previously applied WHOLE, so an extra hunk could edit
+// the suite (or a dependency) to print a matching FAIL line and fake a RED —
+// the strongest possible evidence for a mutation that never actually
+// challenged --target. Refuses (throws, never exits directly — see call
+// sites: the normal-run caller turns this into exit 2 naming the path with
+// no record and no clone left behind; the --replay caller turns the SAME
+// throw into a named INCONCLUSIVE row) when the patch's own headers name any
+// path other than targetRel.
+export function assertPatchTouchesOnlyTarget(patchText, targetRel) {
+  const touched = [...patchTouchedPaths(patchText)].filter((p) => p !== '/dev/null');
+  const offending = [...new Set(touched.filter((p) => p !== targetRel))];
+  if (offending.length) {
+    throw new Error(`--patch touches path(s) other than --target ${targetRel}: ${offending.join(', ')}`);
+  }
+}
+
 function applyMutation({ sed, patch }, cloneDir, targetRel) {
   const targetAbs = path.join(cloneDir, targetRel);
   const before = fs.readFileSync(targetAbs, 'utf8');
@@ -345,6 +409,8 @@ function applyMutation({ sed, patch }, cloneDir, targetRel) {
     // --patch <file>: applied via `git apply` inside the clone (the clone is
     // its own git checkout), argv-only, no shell.
     const patchAbs = path.isAbsolute(patch) ? patch : path.join(ROOT, patch);
+    const patchText = fs.readFileSync(patchAbs, 'utf8');
+    assertPatchTouchesOnlyTarget(patchText, targetRel);
     execFileSync('git', ['-C', cloneDir, 'apply', patchAbs], { stdio: ['ignore', 'pipe', 'pipe'] });
     after = fs.readFileSync(targetAbs, 'utf8');
   }

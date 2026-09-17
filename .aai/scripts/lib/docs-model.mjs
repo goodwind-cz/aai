@@ -735,12 +735,28 @@ export function parseLeanAcTable(content) {
 
 // --- Test Plan table + spec content identity (CHANGE-0120) --------------------
 
-// Split a markdown table line into cells, honoring escaped pipes (`\|`).
-// Owned here because BOTH spec-lint's Test Plan reader and the content-hash
-// below must agree on what a cell IS (a divergence would make the dispatcher's
-// no-delta verdict disagree with the lint the same table just passed).
+// Split a markdown table line into RAW cells (untrimmed, still carrying the
+// leading/trailing empty elements a `|`-bounded row produces — the same
+// shape a plain `line.split('|')` would return), honoring an escaped `\|`
+// inside a cell as literal text rather than a column boundary. The ONE
+// escaping rule every table-cell splitter in this repo shares (D1's rule
+// applied to table parsing): splitTableCells below builds on it, and
+// spec-contract-hash.mjs's blankTableSection (remediation round 7, Codex
+// P1, PR #384) reuses this SAME function directly, rather than a second
+// hand-rolled splitter, so an escaped pipe inside a Test Plan/AC cell (e.g.
+// a sed mutation expression containing `\|\|`) can never desynchronize the
+// two readers of the same table.
+export function splitRawTableCells(line) {
+  return String(line).split(/(?<!\\)\|/);
+}
+
+// Split a markdown table line into TRIMMED cells, honoring escaped pipes
+// (`\|`). Owned here because BOTH spec-lint's Test Plan reader and the
+// content-hash below must agree on what a cell IS (a divergence would make
+// the dispatcher's no-delta verdict disagree with the lint the same table
+// just passed).
 export function splitTableCells(line) {
-  const parts = String(line).split(/(?<!\\)\|/).map((c) => c.trim());
+  const parts = splitRawTableCells(line).map((c) => c.trim());
   return parts.slice(1, parts.length - 1);
 }
 

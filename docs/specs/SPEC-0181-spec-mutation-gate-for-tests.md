@@ -3,7 +3,7 @@ id: spec-mutation-gate-for-tests
 type: spec
 number: 181
 status: done
-frozen_sha256: 49f5bdcbba970d3ed423174553916387fc400b221c8c73430183ea5c7b9f3417
+frozen_sha256: 70d35a610f41be354007726036ca6c60ece7cba98aba1609b0e1e9cc3937f47e
 ceremony_level: 2
 mutation_gate: v1
 links:
@@ -1019,6 +1019,13 @@ evidence, produced by `mutation-run.mjs` itself.
 | TEST-510 | Spec-AC-05 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 6, NB6-r7, validation round 7) — the `NOTE: unstamped=<n> …` line's own wording was a mutation-free survivor: the summary line's shared `unstamped=<n>` substring let a mutation renaming the NOTE's own token alone (`NOTE: unstamped=` -> `NOTE: skipped=`) go unnoticed. The NOTE line's full text is now asserted directly, not only the substring it shares with the summary line. | Rename the NOTE line's own token (`NOTE: unstamped=` -> `NOTE: skipped=`); the arm must redden, the NOTE line's wording changing while the summary line's `unstamped=1` (asserted separately) stays intact. | green |
 | TEST-511 | Spec-AC-07 | integration | tests/skills/test-aai-close-work-item.sh | Amendment (remediation round 6, NB4-r7, validation round 7) — `unstamped=<n>` reaches the close now too, the identical "a named degrade the close silently discarded" shape round 4's NB-2 fixed for `exempt=<n>`: a spec whose only record is a LEGACY one (no `target_sha256`) still passes the gate (`unstamped=1`, never a refusal), and `evaluateMutationGate` now surfaces that count as a WARNING exactly as it already does for `exempt`. | Drop the new OR-condition (`if (exemptN > 0 \|\| unstampedN > 0) {` -> `if (exemptN > 0) {`); arm C must redden, a satisfied-but-unstamped spec's close going silent again (no WARNING, no `unstamped=1`). | green |
 | TEST-512 | Spec-AC-07 | integration | tests/skills/test-aai-close-work-item.sh | Amendment (PR ceremony 2026-09-17, cross-ride reconciliation with SPEC-0178) — the close-time usage-capture gate accepts the `tokens_total` FIELD that `state.mjs append-run --tokens-total` records as usage capture under enforce; a null total is still refused | `if (run.tokensTotal !== null && run.tokensTotal !== undefined && run.tokensTotal >= 0) return true;` -> `if (false) return true;` in `close-work-item.mjs`; the test must redden, the field-only run being refused under enforce | green |
+| TEST-513 | Spec-AC-02 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 7, Codex P1, PR #384) — a `--patch` with hunks for files besides `--target` was applied WHOLE, so an extra hunk could edit the suite (or a dependency) to print a matching FAIL line and fake a RED. `mutation-run.mjs` now parses the patch's own file headers (`diff --git`, `--- a/…`/`--- /dev/null`, `+++ b/…`/`+++ /dev/null`, renames) and refuses (exit 2, naming the offending path, no record, no clone left) any patch touching a path other than `--target`; `--replay` applies the SAME check (a stored patch touching another file is INCONCLUSIVE, named); a single-file patch still applies cleanly. | `assertPatchTouchesOnlyTarget(patchText, targetRel);` -> `void 0;` in `mutation-run.mjs`; the test must redden, the two-file-patch arm applying whole instead of refusing at exit 2. | green |
+| TEST-514 | Spec-AC-13 | integration | tests/skills/test-aai-spec-amend.sh | Amendment (remediation round 7, Codex P1, PR #384) — an anchored spec (`frozen_sha256` present) that lost its `SPEC-FROZEN` body marker was skipped BEFORE `scanSpecAnchors` even compared the anchor, silently bypassing the whole undisclosed-amendment gate. A spec carrying `frozen_sha256` is now ALWAYS scanned; an anchor with no marker is its own STRICT violation (`anchor-without-freeze-marker`), named with a runnable remedy (restore the marker line). Proved against a REAL `spec-freeze.mjs` anchor whose marker is then deleted alongside a body edit. | `if (!frozenMarker \&\& anchor === null) continue;` -> `if (!frozenMarker) continue;` in `spec-amend.mjs`; the test must redden, the anchored-but-unmarked spec going silently unscanned again. | green |
+| TEST-515 | Spec-AC-12 | integration | tests/skills/test-aai-spec-amend.sh | Amendment (remediation round 7, Codex P1, PR #384) — `lib/spec-contract-hash.mjs` split Test Plan/AC table rows on a plain `split('\|')`, so an escaped `\|` inside a Mutation cell (this spec's OWN TEST-511 row has one) shifted the columns, and a routine Status flip on that row changed the contract hash (a false undisclosed-amendment). `blankTableSection` now reuses `lib/docs-model.mjs`'s `splitRawTableCells` — the SAME escaping rule `splitTableCells` (the Test Plan reader) already builds on — instead of a second hand-rolled splitter. | `splitRawTableCells(line)` -> `line.split('\|')` (both call sites) in `lib/spec-contract-hash.mjs`; the test must redden, a Status-only flip on a row carrying an escaped pipe in its Mutation cell changing the contract hash. | green |
+| TEST-516 | Spec-AC-13 | integration | tests/skills/test-aai-spec-amend.sh | Amendment (remediation round 7, Codex P2, PR #384) — an unreadable spec file was silently OMITTED from the strict scan (a bare `catch { continue; }`). `scanSpecAnchors` now fails CLOSED: reported as its own STRICT violation bucket (`unreadable-spec`) naming the file, never silently skipped. | `violations.push({ spec_id: path.basename(abs), path: rel, bucket: 'unreadable-spec', error: err.message });` -> `void err;` in `spec-amend.mjs`; the test must redden, an unreadable spec passing strict silently instead of refusing. | green |
+| TEST-517 | Spec-AC-06 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 7, Copilot, PR #384) — `mutation-gate.mjs`'s `--spec` accepted a FOLLOWING FLAG as its own value (`--spec --json` exited 3 "cannot read --json" instead of a usage error). A missing value, or a value starting with `--`, is now exit 2 usage. | `if (v === undefined \|\| v.startsWith('--')) {` -> `if (false) {` in `mutation-gate.mjs`'s `requireValue`; the test must redden, `--spec --json` swallowing `--json` as the spec path instead of exiting 2. | green |
+| TEST-518 | Spec-AC-17 | integration | tests/skills/test-aai-spec-tools.sh | Amendment (remediation round 7, Copilot, PR #384) — the byte-correctness check for `spec-freeze.mjs`'s minimal no-H1 fixture was SELF-REFERENTIAL: it read `frozen_sha256` back out of the file under test and built the expected output FROM that same value, so a WRONG hash would still "pass". The check now recomputes the contract-projection hash independently via `lib/spec-contract-hash.mjs`'s `contractHash()` on the frozen file's own bytes and asserts the stored anchor equals it. | `const hash = contractHash(out);` -> `const hash = contractHash('');` in `spec-freeze.mjs`; the test must redden, a freeze that writes the hash of the empty string as `frozen_sha256` going uncaught. | green |
+| TEST-519 | Spec-AC-02 | integration | tests/skills/test-aai-mutation-gate.sh | Amendment (remediation round 7, Copilot, PR #384) — `mutation-run.mjs`'s OTHER value-taking flags (`--spec`, `--test-id`, `--suite`, `--selector`, `--target`, `--sed`, `--patch`) shared TEST-517's shape: a following flag was silently accepted as the value. Every one now refuses (exit 2) a missing value or one that looks like another flag. | `if (v === undefined \|\| v.startsWith('--')) {` -> `if (false) {` in `mutation-run.mjs`'s `requireValue`; the test must redden, every value-taking flag accepting a following flag as its own value instead of exiting 2. | green |
 
 Every Spec-AC has at least one TEST row and every TEST row names exactly one
 Spec-AC. Every row carries a Mutation cell — the column this ride introduces,
@@ -2162,6 +2169,100 @@ Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
   reports (`docs/ai/reviews/review-mutation-gate-for-tests-*.md`), so one
   quoted command now names SPEC-0181 though the reviewer ran it against the
   draft (NB8). Tracked by `fu-allocator-rewrites-history-docs` (P3).
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: mutation-gate-for-tests`, `--signoff none`.
+
+### PR #384 bot findings — remediation round 7
+
+Six external bot findings on PR #384 (Codex four, Copilot two), each fixed AT
+CAUSE with its own new Test Plan row (TEST-513..TEST-519, one finding —
+value-taking-flag usage errors — split across two rows because it touches
+two different target files) and a RED mutation record produced by the real
+`mutation-run.mjs`:
+
+1. **Codex P1 — a `--patch` could edit files besides `--target`.**
+   `mutation-run.mjs`'s `applyMutation` applied a `--patch` file WHOLE, so an
+   extra hunk touching the SUITE (or a dependency) could fake a matching FAIL
+   line and produce a false RED — the strongest possible evidence for a
+   mutation that never actually challenged `--target`. Fixed by parsing the
+   patch's own file headers (`diff --git`, `--- a/…`/`--- /dev/null`,
+   `+++ b/…`/`+++ /dev/null`, renames) and refusing (exit 2, naming the
+   offending path, no record, no clone left) any patch touching a path other
+   than `--target`; `--replay` applies the identical check on a stored patch
+   (INCONCLUSIVE, named, never silently re-applied). TEST-513.
+2. **Codex P1 — an anchor could outlive its own freeze marker.**
+   `spec-amend.mjs`'s `scanSpecAnchors` skipped a spec entirely before ever
+   comparing its `frozen_sha256` anchor when the body's `SPEC-FROZEN: true`
+   marker was absent — so deleting that ONE line silently disabled the
+   undisclosed-amendment gate for that spec, forever, with the anchor still
+   sitting unread in its frontmatter. A spec carrying `frozen_sha256` is now
+   ALWAYS scanned; a carried anchor with no marker is itself a STRICT
+   violation (`anchor-without-freeze-marker`), printed with a runnable remedy
+   (restore the marker line). TEST-514.
+3. **Codex P1 — an escaped pipe inside a Mutation cell shifted table
+   columns.** `lib/spec-contract-hash.mjs`'s `blankTableSection` split Test
+   Plan/AC rows on a plain `split('|')`; SPEC-0181's OWN TEST-511 row carries
+   an escaped `\|` inside its Mutation cell (`if (exemptN > 0 \|\|
+   unstampedN > 0) {`), which the plain split miscounted as two extra column
+   boundaries — a routine Status flip on that row then changed the CONTRACT
+   hash, a false `undisclosed-amendment`. Fixed by reusing
+   `lib/docs-model.mjs`'s `splitRawTableCells` — the SAME escaping primitive
+   `splitTableCells` (the Test Plan reader) already builds on — rather than a
+   second hand-rolled splitter. TEST-515. **This fix changes THIS spec's own
+   contract projection** (TEST-511's row is exactly the row it fixes), so
+   `frozen_sha256` no longer matches after this round; disclosed by the
+   `spec-amend.mjs add` at the foot of this section, which re-stamps it.
+4. **Codex P2 — an unreadable spec was silently omitted from the strict
+   scan.** A bare `catch { continue; }` in `scanSpecAnchors` meant a spec
+   this scanner could not read (a permission change, a race) contributed
+   NOTHING to the scan — indistinguishable from a spec that was never there.
+   Fixed to fail CLOSED: reported as its own STRICT violation bucket
+   (`unreadable-spec`) naming the file, never silently skipped. TEST-516.
+5. **Copilot — `--spec` (and siblings) accepted a following flag as their
+   own value.** `mutation-gate.mjs --spec --json` swallowed `--json` as the
+   (nonexistent) spec path and fell through to a confusing exit 3 "cannot
+   read" instead of naming the real defect: the invocation itself. A missing
+   value, or a value starting with `--`, is now a usage error (exit 2) in
+   BOTH `mutation-gate.mjs` (TEST-517) and every value-taking flag of
+   `mutation-run.mjs` — `--spec`, `--test-id`, `--suite`, `--selector`,
+   `--target`, `--sed`, `--patch` (TEST-519, same shape, different target
+   file, so its own row).
+6. **Copilot — a byte-correctness check that could not catch a wrong
+   hash.** `tests/skills/test-aai-spec-tools.sh`'s `test_freeze_004_no_h1`
+   (the TEST-009(freeze) minimal-fixture arm) read `frozen_sha256` back OUT
+   of the file `spec-freeze.mjs` had just written, then built its OWN
+   expected output FROM that same value — tautological about the hash's
+   VALUE, provably only its byte POSITION. A `spec-freeze.mjs` that wrote the
+   hash of the empty string would still have "passed". Fixed by recomputing
+   the contract-projection hash INDEPENDENTLY, via `lib/spec-contract-hash.mjs`'s
+   own `contractHash()` on the frozen file's bytes, and asserting the stored
+   anchor equals it — proved by mutating `spec-freeze.mjs` to write
+   `contractHash('')` instead of `contractHash(out)`. TEST-518 (shares
+   `test_freeze_004_no_h1`'s own selector; its FAIL line is now dual-labeled
+   `TEST-009(freeze) / TEST-518` so `mutation-run.mjs`'s FAIL-line grammar
+   can attribute a redden to it).
+
+**Regeneration.** Every current record whose `target` is one of the five
+edited files (`mutation-run.mjs`, `spec-amend.mjs`, `mutation-gate.mjs`,
+`lib/spec-contract-hash.mjs`, `lib/docs-model.mjs`) went STALE the moment
+this round's edits landed and was regenerated by the real runner, re-running
+each row's OWN previously-recorded mutation (never re-authored) — 29 rows
+across those five targets, plus the 7 new rows above, for 36 fresh RED
+records in this round. `spec-freeze.mjs`, `close-work-item.mjs` and the pin
+file were NOT edited, so TEST-489 and every `close-work-item.mjs`-targeted
+row (TEST-477, TEST-505, TEST-511, TEST-512) needed no regeneration. Two
+transient non-RED results surfaced mid-batch and were root-caused, not
+papered over: TEST-494's first regeneration attempt tripped its OWN D7
+tripwire on a concurrent edit to THIS spec file (made by this same round,
+mid-batch) and was re-run clean; TEST-497 (the round-5 "rapid ~50ms
+appender" arm, already documented as timing-sensitive) landed STAYED GREEN
+once under load and RED on an immediate re-run with the byte-identical
+mutation — a flake, not a regression, left as-is.
+
+`node .aai/scripts/mutation-gate.mjs --spec
+docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md` now reads `GATE PASS:
+50 row(s) satisfied degraded=0 unstamped=0`.
 
 Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
 `ref_id: mutation-gate-for-tests`, `--signoff none`.

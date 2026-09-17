@@ -980,22 +980,45 @@ function scanSpecAnchors(specsDirAbs) {
     let content;
     try {
       content = fs.readFileSync(abs, 'utf8');
-    } catch {
-      continue; // an unreadable file is not this check's job to report
+    } catch (err) {
+      // Remediation round 7 (Codex P2, PR #384): an unreadable spec must
+      // fail CLOSED rather than being silently omitted from the strict
+      // scan — a file this scanner cannot read is exactly the file an
+      // undisclosed amendment could hide behind. Reported as its own
+      // STRICT violation bucket (never a hard exit(2) here) so the scan
+      // still names every OTHER offending spec in the same run.
+      const rel = path.relative(process.cwd(), abs) || abs;
+      violations.push({ spec_id: path.basename(abs), path: rel, bucket: 'unreadable-spec', error: err.message });
+      continue;
     }
     const fm = parseFrontmatter(content);
     if (!fm || String(fm.type ?? '').trim().toLowerCase() !== 'spec') continue;
-    if (!specFrozenInBody(content)) continue;
-    scanned += 1; // NB-2: a frozen spec this scan actually looked at
+    const anchor = str(fm.frozen_sha256);
+    const frozenMarker = specFrozenInBody(content);
+    // Never frozen AND never anchored: not this scan's business, unchanged
+    // from before this round ("a non-frozen spec ... change the gate's
+    // output not at all", Spec-AC-13).
+    if (!frozenMarker && anchor === null) continue;
+    scanned += 1; // NB-2: a frozen-or-anchored spec this scan actually looked at
     const specId = str(fm.id) ?? path.basename(abs);
     const rel = path.relative(process.cwd(), abs) || abs;
-    const anchor = str(fm.frozen_sha256);
+    if (!frozenMarker) {
+      // Remediation round 7 (Codex P1, PR #384): an anchored spec (carries
+      // frozen_sha256) that LOST its SPEC-FROZEN body marker must never be
+      // skipped before its own anchor is even compared — deleting one line
+      // would otherwise bypass the whole undisclosed-amendment gate, since
+      // nothing would ever read frozen_sha256 again. A different cause from
+      // a content mismatch, so it is its own STRICT violation bucket rather
+      // than folded into 'undisclosed-amendment'.
+      violations.push({ spec_id: specId, path: rel, bucket: 'anchor-without-freeze-marker' });
+      continue;
+    }
     if (anchor === null) {
       degraded.push({ spec_id: specId, path: rel });
       continue;
     }
     if (contractHash(content) !== anchor) {
-      violations.push({ spec_id: specId, path: rel });
+      violations.push({ spec_id: specId, path: rel, bucket: 'undisclosed-amendment' });
     }
   }
   return { violations, degraded, scanned };
@@ -1067,13 +1090,23 @@ function cmdList(opts) {
       console.log(`STRICT-VIOLATION ${v.bucket} ts=${v.ts ?? '-'} ref=${v.ref_id ?? '-'} spec=${v.spec_id ?? '-'}`);
     }
     for (const v of specViolations) {
-      console.log(`STRICT-VIOLATION undisclosed-amendment spec=${v.spec_id ?? '-'} path=${v.path ?? '-'}`);
+      console.log(`STRICT-VIOLATION ${v.bucket ?? 'undisclosed-amendment'} spec=${v.spec_id ?? '-'} path=${v.path ?? '-'}`);
     }
   }
 
-  if (opts.strict && specViolations.length > 0) {
-    process.stderr.write(`spec-amend: --strict found ${specViolations.length} frozen spec(s) whose content no longer matches their frozen_sha256 anchor with no explaining spec_amendment record — an undisclosed post-freeze edit.\n`);
-    for (const v of specViolations) {
+  // Remediation round 7 (PR #384): three DIFFERENT causes now share
+  // specViolations, each with its own remedy — an anchor mismatch is
+  // cleared by `add` (it re-stamps), a missing freeze marker is cleared by
+  // restoring the body line (no ledger record fixes that), and an
+  // unreadable file is cleared by fixing its permissions/existence. Bucket
+  // them so each prints only the remedy that actually applies.
+  const undisclosedViolations = specViolations.filter((v) => (v.bucket ?? 'undisclosed-amendment') === 'undisclosed-amendment');
+  const markerViolations = specViolations.filter((v) => v.bucket === 'anchor-without-freeze-marker');
+  const unreadableViolations = specViolations.filter((v) => v.bucket === 'unreadable-spec');
+
+  if (opts.strict && undisclosedViolations.length > 0) {
+    process.stderr.write(`spec-amend: --strict found ${undisclosedViolations.length} frozen spec(s) whose content no longer matches their frozen_sha256 anchor with no explaining spec_amendment record — an undisclosed post-freeze edit.\n`);
+    for (const v of undisclosedViolations) {
       // NB2 (spec-mutation-gate-for-tests): this line must be RUNNABLE
       // VERBATIM in a shell (Spec-AC-12), never printed with `<placeholder>`
       // tokens a shell would try to redirect or expand. `--ref` is filled
@@ -1087,6 +1120,20 @@ function cmdList(opts) {
       process.stderr.write(`  node .aai/scripts/spec-amend.mjs add --spec ${JSON.stringify(v.path)} --ref ${JSON.stringify(v.spec_id ?? 'unknown-ref')} --what ${JSON.stringify('undisclosed post-freeze content change (edit this line to name what changed)')} --why ${JSON.stringify('closing the strict amendment gate after the frozen anchor stopped matching (edit this line to name why)')} --signoff none\n`);
     }
     process.stderr.write('`add` RE-STAMPS frozen_sha256 to the current projection in the SAME call that appends the record, so running the line above is what clears this violation — never `spec-amend.mjs classify`, which judges an EXISTING record\'s sign-off and touches no spec.\n');
+  }
+
+  if (opts.strict && markerViolations.length > 0) {
+    process.stderr.write(`spec-amend: --strict found ${markerViolations.length} anchored spec(s) (frozen_sha256 present) whose SPEC-FROZEN body marker is missing — an anchor with nothing left to compare it against would otherwise bypass this gate entirely.\n`);
+    for (const v of markerViolations) {
+      process.stderr.write(`  restore "SPEC-FROZEN: true" in the body of ${v.path} (spec=${v.spec_id}) — an anchored spec must carry the freeze marker; if the freeze is being deliberately undone, remove frozen_sha256 too, as a reviewed edit, never a silent deletion of the marker alone\n`);
+    }
+  }
+
+  if (opts.strict && unreadableViolations.length > 0) {
+    process.stderr.write(`spec-amend: --strict could not read ${unreadableViolations.length} spec(s) under ${specsDirAbs} — an unreadable file is refused rather than silently omitted from the scan.\n`);
+    for (const v of unreadableViolations) {
+      process.stderr.write(`  restore read access to ${v.path} (spec=${v.spec_id}) so it can be scanned: ${v.error ?? 'unreadable'}\n`);
+    }
   }
 
   if (opts.strict && violations.length > 0) {

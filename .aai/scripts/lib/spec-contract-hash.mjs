@@ -27,7 +27,7 @@
 // Node stdlib only (docs/TECHNOLOGY.md).
 
 import crypto from 'node:crypto';
-import { normalizeNewlines } from './docs-model.mjs';
+import { normalizeNewlines, splitRawTableCells } from './docs-model.mjs';
 
 export const CONTRACT_HASH_VERSION = 'v1';
 export const FROZEN_HASH_FIELD = 'frozen_sha256';
@@ -56,11 +56,17 @@ const SEPARATOR_ROW_RE = /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 // kept VERBATIM (its text is structural — column identity — not per-ride
 // bookkeeping); only rows AFTER the header/separator are blanked.
 //
-// House convention (docs/knowledge/LEARNED.md "Spec-table pipes break
-// parser"): a literal `|` never appears inside an AC or Test Plan cell in
-// this repository, so a plain `split('|')` is the same contract every other
-// AC-table reader in lib/docs-model.mjs already relies on (parseAcTable,
-// parseLeanAcTable). No escaping to honor here.
+// Remediation round 7 (Codex P1, PR #384): a literal `|` DOES appear inside
+// a Test Plan Mutation cell in this repository — an escaped `\|` in a sed
+// mutation expression like `s/if \(exemptN > 0 \|\| unstampedN > 0\) \{/…`
+// (SPEC-0181's own TEST-511 row) — so a plain `split('|')` shifted that
+// row's columns, and a routine Status flip on it changed the CONTRACT hash
+// (an undisclosed-amendment false positive, since Status is supposed to be
+// blanked bookkeeping). Cell boundaries are now split on UNESCAPED pipes
+// only, via `splitRawTableCells` (lib/docs-model.mjs) — the SAME function
+// `splitTableCells` (the Test Plan reader) builds on, reused directly here
+// rather than a second hand-rolled splitter, so this module and the reader
+// can never disagree about where a cell ends.
 function blankTableSection(sectionBody, blankNames) {
   const lines = sectionBody.split('\n');
   let headerCols = null; // trimmed lower-case header cell names, in order
@@ -68,12 +74,12 @@ function blankTableSection(sectionBody, blankNames) {
     if (!line.trim().startsWith('|')) return line;
     if (headerCols === null) {
       // First table line is the header.
-      const cells = line.split('|');
+      const cells = splitRawTableCells(line);
       headerCols = cells.slice(1, cells.length - 1).map((c) => c.trim().toLowerCase());
       return line;
     }
     if (SEPARATOR_ROW_RE.test(line.trim())) return line;
-    const cells = line.split('|');
+    const cells = splitRawTableCells(line);
     const idxs = [];
     headerCols.forEach((h, i) => { if (blankNames.has(h)) idxs.push(i + 1); });
     if (idxs.length === 0) return line;

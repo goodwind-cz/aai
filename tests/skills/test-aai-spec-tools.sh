@@ -452,9 +452,17 @@ EOF
   out="$(runfreeze --path docs/specs/SPEC-0101-min.md --no-event 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-009(freeze) minimal no-H1" || ok=0
   # The anchor's VALUE is content-derived (not literal), so the byte-correct
-  # check below is a template with `<HASH>` substituted for the real,
-  # independently-recomputed frozen_sha256 — never a hardcoded digest.
-  local min_content min_hash want
+  # check below is a template with `<HASH>` substituted for whatever
+  # frozen_sha256 the tool actually wrote — never a hardcoded digest. That
+  # substitution alone only proves the SURROUNDING bytes/position are
+  # correct; it is tautological about the hash's own VALUE (a `min_hash`
+  # read from the file under test, fed straight back into `want`, would
+  # "pass" even if spec-freeze.mjs wrote the hash of the empty string — the
+  # remediation-round-7 finding this block used to be silent about, PR
+  # #384). The recomputed_hash check below closes that: it is derived
+  # INDEPENDENTLY, via the real contractHash() on the frozen file's own
+  # bytes, never by reading the value back out of the file it is checking.
+  local min_content min_hash want recomputed_hash
   min_content="$(cat "$REPO/docs/specs/SPEC-0101-min.md")"
   min_hash="$(printf '%s\n' "$min_content" | grep -E '^frozen_sha256: ' | sed 's/^frozen_sha256: //')"
   want="$(printf -- '---\nid: x\ntype: spec\nstatus: implementing\nfrozen_sha256: %s\n---\n\nSPEC-FROZEN: true\n\n## Summary\nbody text\n\n## Implementation strategy\n- Strategy: direct\n' "$min_hash")"
@@ -462,6 +470,18 @@ EOF
     || { log_info "TEST-009(freeze): minimal output not byte-correct: $min_content"; ok=0; }
   [[ "$min_hash" =~ ^[0-9a-f]{64}$ ]] \
     || { log_info "TEST-009(freeze): frozen_sha256 not well-formed: $min_hash"; ok=0; }
+  # TEST-518 (remediation round 7, Copilot, PR #384): the INDEPENDENT
+  # correctness check — recompute the contract-projection hash directly via
+  # lib/spec-contract-hash.mjs's own contractHash(), never by reading
+  # min_hash back out of the file under test, and assert the stored anchor
+  # equals it.
+  recomputed_hash="$(node --input-type=module -e "
+    import { contractHash } from '$PROJECT_ROOT/.aai/scripts/lib/spec-contract-hash.mjs';
+    import fs from 'node:fs';
+    process.stdout.write(contractHash(fs.readFileSync(process.argv[1], 'utf8')));
+  " "$REPO/docs/specs/SPEC-0101-min.md")"
+  [[ "$min_hash" == "$recomputed_hash" ]] \
+    || { log_info "TEST-518: frozen_sha256 ($min_hash) does not match the INDEPENDENTLY recomputed contract-projection hash ($recomputed_hash) — the stored anchor is byte-wrong, not merely mis-positioned"; ok=0; }
   # idempotent on the no-H1 shape too
   local before
   before="$(cksum "$REPO/docs/specs/SPEC-0101-min.md")"
@@ -481,8 +501,8 @@ EOF
   [[ "$before" == "$(cksum "$REPO/docs/specs/SPEC-0102-dual.md")" ]] \
     || { log_info "TEST-009(freeze): a failed assertion still wrote the file"; ok=0; }
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-009(freeze) no-H1 specs freeze byte-correctly (no truncation, marker outside frontmatter); a failed post-transform assertion exits 1 writing nothing" \
-    || log_fail "TEST-009(freeze) no-H1 freeze"
+  [[ $ok -eq 1 ]] && log_pass "TEST-009(freeze) / TEST-518 no-H1 specs freeze byte-correctly (no truncation, marker outside frontmatter); frozen_sha256 matches the INDEPENDENTLY recomputed contract hash; a failed post-transform assertion exits 1 writing nothing" \
+    || log_fail "TEST-009(freeze) / TEST-518 no-H1 freeze"
 }
 
 # --- AC-002 TEST-010 — path SPELLING cannot launder a ride-touched path -------

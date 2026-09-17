@@ -96,6 +96,19 @@ function printHelp() {
   exit(0);
 }
 
+// Remediation round 7 (Copilot, PR #384): a missing value OR a value that
+// itself looks like another flag (starts with "--") is a usage error, never
+// silently accepted as the flag's value — `--spec --json` used to swallow
+// `--json` as the (nonexistent) spec path and report a confusing exit 3
+// "cannot read" instead of naming the real defect: the invocation itself.
+function requireValue(argv, i, flagName) {
+  const v = argv[i + 1];
+  if (v === undefined || v.startsWith('--')) {
+    usageError(`${flagName} requires a value${v === undefined ? '' : ` (got "${v}", which looks like another flag)`}`);
+  }
+  return v;
+}
+
 function parseArgs(argv) {
   const out = { spec: null, json: false, listDegraded: false, help: false };
   for (let i = 0; i < argv.length; i++) {
@@ -106,7 +119,8 @@ function parseArgs(argv) {
         out.help = true;
         break;
       case '--spec':
-        out.spec = argv[++i];
+        out.spec = requireValue(argv, i, '--spec');
+        i += 1;
         break;
       case '--json':
         out.json = true;

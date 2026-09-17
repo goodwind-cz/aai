@@ -1905,6 +1905,125 @@ EOF
   log_pass "TEST-506 a record's target_sha256 lets the gate catch a STALE row (target changed since the record) as OFFENDING, re-stamping restores PASS, a legacy record with no target_sha256 is a named unstamped degrade never mistaken for stale, the NOTE line's own wording is observed, a DELETED target is reported missing rather than changed, and the REAL producer's own stamping is asserted end-to-end (closes BLOCKING-1, NB1-r7, NB3-r7, NB6-r7)"
 }
 
+# --- TEST-513 — Spec-AC-02 (remediation round 7, PR #384 bot findings) -----
+# Codex P1: a --patch with hunks for files besides --target was previously
+# applied WHOLE, so an extra hunk could edit the SUITE (or a dependency) to
+# print a matching FAIL line and fake a RED. mutation-run.mjs must now REFUSE
+# (exit 2, naming the offending path, no record, no clone left) any patch
+# whose own headers touch a path other than --target; a single-file patch
+# must still work exactly as before.
+test_513_patch_scope_refusal() {
+  log_info "Test: a --patch touching a path other than --target is refused (exit 2, naming the path, no record left); a single-file patch still applies cleanly (TEST-513)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-513"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  printf 'marker-present' > "$fx/lib/extra.txt"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+
+  # Arm A: a two-file patch — one hunk for --target, one for the fixture
+  # SUITE itself (the exact attack this finding names: an extra hunk edits
+  # the test to fake a matching FAIL line).
+  local patch_two; patch_two="$(mg_new_fixture)/two-file.patch"
+  cat > "$patch_two" <<'EOF'
+--- a/lib/greeting.mjs
++++ b/lib/greeting.mjs
+@@ -1 +1 @@
+-console.log('hello');
++console.log('goodbye');
+--- a/tests/skills/fixture-suite.sh
++++ b/tests/skills/fixture-suite.sh
+@@ -1,2 +1,2 @@
+-#!/usr/bin/env bash
++#!/usr/bin/env bash EXTRA-HUNK
+ set -uo pipefail
+EOF
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --patch "$patch_two" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-513 arm A: a two-file patch must be refused with exit 2, got $rc: $out"
+  assert_payload_contains "$out" "tests/skills/fixture-suite.sh" \
+    "TEST-513 arm A: the refusal must name the offending path (the suite, not --target): $out"
+  local rec; rec="$(mg_record_path "$fx" fixture-spec-513 TEST-9001)"
+  [[ ! -f "$rec" ]] || log_fail "TEST-513 arm A: no record must be written when the patch is refused: $rec"
+  [[ -z "$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'aai-mutation-*' 2>/dev/null)" ]] \
+    || log_fail "TEST-513 arm A: no clone directory may be left behind after the refusal"
+
+  # Arm B: the SAME target, a patch naming only --target, must still apply
+  # cleanly and produce a RED record exactly as before this fix.
+  local patch_one; patch_one="$(mg_new_fixture)/one-file.patch"
+  cat > "$patch_one" <<'EOF'
+--- a/lib/greeting.mjs
++++ b/lib/greeting.mjs
+@@ -1 +1 @@
+-console.log('hello');
++console.log('goodbye');
+EOF
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --patch "$patch_one" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-513 arm B: a single-file patch must still be recorded RED, got $rc: $out"
+  [[ -f "$rec" ]] || log_fail "TEST-513 arm B: expected a record at $rec"
+  grep -qF 'verdict: RED' "$rec" || log_fail "TEST-513 arm B: expected verdict RED: $(cat "$rec")"
+
+  log_pass "TEST-513 a --patch touching a path other than --target is refused (exit 2, naming the offending path, no record, no clone left); a single-file patch still applies cleanly"
+}
+
+# --- TEST-517 — Spec-AC-05/Spec-AC-02 (remediation round 7, PR #384 bot
+# findings) — Copilot: --spec (and mutation-run.mjs's other value-taking
+# flags) accepted a following flag as its own value (`--spec --json` used to
+# exit 3 "cannot read --json" instead of a usage error). A missing value or a
+# value starting with "--" must now exit 2 with a usage message.
+test_517_flag_value_usage_errors() {
+  log_info "Test: mutation-gate.mjs --spec (and mutation-run.mjs's value-taking flags) refuse a following flag or a missing value as a usage error, exit 2, rather than silently swallowing it (TEST-517)..."
+  local out rc
+
+  # mutation-gate.mjs: --spec swallowing --json.
+  out="$(node "$MUTATION_GATE" --spec --json 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-517 arm A: mutation-gate.mjs --spec --json must exit 2 (usage), got $rc: $out"
+  assert_payload_contains "$out" "usage:" "TEST-517 arm A: expected a usage message: $out"
+  assert_payload_not_contains "$out" "cannot read" "TEST-517 arm A: must not fall through to a file-read error: $out"
+
+  # mutation-gate.mjs: --spec with nothing after it.
+  out="$(node "$MUTATION_GATE" --spec 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-517 arm B: mutation-gate.mjs --spec with a missing value must exit 2, got $rc: $out"
+
+  # mutation-run.mjs: every value-taking flag, one at a time, followed by
+  # another flag instead of a value. The message must name THIS flag as
+  # wanting a value — asserting only rc=2 would still pass under a mutation
+  # that disables the check entirely, since the swallowed flag then leaves
+  # some OTHER required field missing (or an unrecognized trailing token),
+  # which mutation-run.mjs's own pre-existing checks also refuse at exit 2,
+  # masking the defect this row exists to catch (TEST-519's own mutation,
+  # observed STAYED GREEN before this assertion was added).
+  local flag
+  for flag in --spec --test-id --suite --selector --target --sed --patch; do
+    out="$(node "$MUTATION_RUN" "$flag" --replay 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 2 ]] || log_fail "TEST-519 arm C ($flag): mutation-run.mjs $flag --replay must exit 2 (usage), got $rc: $out"
+    assert_payload_contains "$out" "usage:" "TEST-519 arm C ($flag): expected a usage message: $out"
+    assert_payload_contains "$out" "$flag requires a value" \
+      "TEST-519 arm C ($flag): the refusal must name THIS flag as wanting a value (not a downstream missing-field/unrecognized-argument refusal): $out"
+  done
+
+  # A genuine, well-formed invocation is unaffected by the new check.
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-517"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  printf 'marker-present' > "$fx/lib/extra.txt"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-517 arm D: a well-formed invocation must still succeed, got $rc: $out"
+
+  log_pass "TEST-517 a missing or flag-shaped value for --spec (mutation-gate.mjs) and every value-taking flag of mutation-run.mjs is a usage error (exit 2), and a well-formed invocation is unaffected"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -1929,6 +2048,8 @@ main() {
   test_502_parse_record_tolerates_extra_field
   test_503_heredoc_in_comment_ignored
   test_506_gate_detects_stale_target
+  test_513_patch_scope_refusal
+  test_517_flag_value_usage_errors
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

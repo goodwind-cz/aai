@@ -1817,6 +1817,144 @@ test_495_missing_specs_dir_refuses() {
     || log_fail "TEST-495 missing specs dir refuses"
 }
 
+# --- TEST-514 (remediation round 7, PR #384 bot findings) --------------------
+# Codex P1: an anchored spec (carries frozen_sha256) that LOSES its
+# SPEC-FROZEN body marker was skipped before scanSpecAnchors even compared
+# the anchor — deleting one line bypassed the whole undisclosed-amendment
+# gate. Now: a spec carrying frozen_sha256 is ALWAYS scanned, and an anchor
+# with no marker is itself a STRICT violation naming the spec, with its own
+# runnable remedy.
+test_514_anchor_without_marker_caught() {
+  log_info "Test: a REAL spec-freeze.mjs anchor whose SPEC-FROZEN marker is then deleted, alongside a body edit, refuses list --strict naming the spec (never silently skipped) (TEST-514)..."
+  local specsdir led spec ok=1
+  specsdir="$TEST_DIR/t514-specs"
+  led="$(mk_ledger t514)"
+  spec="$(mk_freezable_spec t514-specs/fixture.md spec-t514-fixture direct)"
+  freeze_spec "$spec" || { log_fail "TEST-514 setup: real spec-freeze.mjs refused the fixture"; return; }
+  [[ -n "$(frozen_sha256_of "$spec")" ]] || { log_fail "TEST-514 setup: no frozen_sha256 written by the real tool"; return; }
+  grep -qF 'SPEC-FROZEN: true' "$spec" || { log_fail "TEST-514 setup: no SPEC-FROZEN marker written by the real tool"; return; }
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 0 ]] || { log_fail "TEST-514: baseline (unedited, anchored+marked) strict must be clean, got $EC (stdout: $OUT) (stderr: $ERR)"; return; }
+
+  # The attack this finding names: delete the ONE marker line, and (as an
+  # undisclosed amendment would) edit the body too.
+  sed -i.bak '/^SPEC-FROZEN: true$/d' "$spec"
+  sed -i.bak 's/original description text/EDITED description text/' "$spec"
+  grep -qF 'SPEC-FROZEN: true' "$spec" && { log_fail "TEST-514 setup: the marker line must actually be gone: $(cat "$spec")"; return; }
+  [[ -n "$(frozen_sha256_of "$spec")" ]] || { log_fail "TEST-514 setup: frozen_sha256 must still be present in frontmatter (untouched)"; return; }
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" != 0 ]] \
+    || { log_fail "TEST-514: an anchored spec with its freeze marker deleted must NOT pass strict silently, got $EC (stdout: $OUT)"; ok=0; }
+  grep -qF 'STRICT-VIOLATION anchor-without-freeze-marker' <<<"$OUT" \
+    || { log_fail "TEST-514: the refusal must print STRICT-VIOLATION anchor-without-freeze-marker; stdout: $OUT"; ok=0; }
+  grep -qF 'spec-t514-fixture' <<<"$OUT" \
+    || { log_fail "TEST-514: the refusal must name the offending spec; stdout: $OUT"; ok=0; }
+  grep -qF 'spec-t514-fixture' <<<"$ERR" \
+    || { log_fail "TEST-514: stderr must print a runnable remedy naming the spec; stderr: $ERR"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-514 an anchored spec whose SPEC-FROZEN marker was deleted is ALWAYS scanned and refuses strict as its own violation class, never silently bypassed before the anchor is even compared" \
+    || log_fail "TEST-514 anchor without marker"
+}
+
+# --- TEST-515 (remediation round 7, PR #384 bot findings) --------------------
+# Codex P1: lib/spec-contract-hash.mjs split Test Plan/AC table rows on a
+# plain `split('|')`, so an escaped `\|` inside a Mutation cell (SPEC-0181's
+# own TEST-511 row has one) shifted the columns — a routine Status flip on
+# that row then changed the contract hash (a false undisclosed-amendment).
+# Reuses lib/docs-model.mjs's splitTableCells escaping rule instead of a
+# second hand-rolled splitter (see spec-contract-hash.mjs blankTableSection).
+test_515_contract_hash_escaped_pipe() {
+  log_info "Test: a Test Plan row carrying an escaped pipe (\\|) in its Mutation cell — flipping ONLY that row's Status leaves the contract hash unchanged; editing its Description changes it (TEST-515)..."
+  local specA="$TEST_DIR/t515-a.md" specB="$TEST_DIR/t515-b.md" specC="$TEST_DIR/t515-c.md"
+  cat > "$specA" <<'EOF'
+---
+id: spec-t515-fixture
+type: spec
+number: null
+status: implementing
+---
+
+# fixture t515
+
+## Implementation strategy
+- Strategy: tdd
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | original description text | planned | — | — | |
+
+## Test Plan
+
+| Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
+|---------|---------|------|-----------------------|--------------|----------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/x.sh | does the thing | sed:s/if \(a \|\| b\) \{/if (false) {/ | pending |
+EOF
+  sed 's/| pending |$/| green |/' "$specA" > "$specB"
+  sed 's/does the thing/does a DIFFERENT thing/' "$specA" > "$specC"
+  # Setup sanity: the Mutation cell's escaped pipes made it into all three
+  # fixtures byte-identical outside the cells this test itself edits.
+  grep -qF '\|\|' "$specA" || { log_fail "TEST-515 setup: fixture must carry an escaped pipe in its Mutation cell: $(cat "$specA")"; return; }
+
+  local hashA hashB hashC
+  hashA="$(contract_hash_of "$specA")"
+  hashB="$(contract_hash_of "$specB")"
+  hashC="$(contract_hash_of "$specC")"
+
+  [[ "$hashA" == "$hashB" ]] \
+    || log_fail "TEST-515: flipping ONLY the Status cell of a row whose Mutation cell carries an escaped pipe must not change the contract hash (Status is bookkeeping), A=$hashA B=$hashB"
+  [[ "$hashA" != "$hashC" ]] \
+    || log_fail "TEST-515: editing the Description cell of that same row MUST change the contract hash, A=$hashA C=$hashC"
+
+  log_pass "TEST-515 an escaped pipe inside a Mutation cell no longer shifts table columns: a Status-only flip leaves the contract hash unchanged and a real content edit still moves it"
+}
+
+# --- TEST-516 (remediation round 7, PR #384 bot findings) --------------------
+# Codex P2: an unreadable spec file was silently OMITTED from the strict
+# scan (a bare `catch { continue; }`). Now fails CLOSED: reported as its own
+# STRICT violation bucket naming the file, never silently skipped.
+test_516_unreadable_spec_refuses() {
+  if [[ "$(id -u)" == "0" ]]; then
+    log_skip "TEST-516: running as root — chmod 000 is not enforced, skipping this arm"
+  fi
+  log_info "Test: an unreadable (chmod 000) spec under --specs-dir refuses list --strict, naming the file, rather than being silently omitted from the scan (TEST-516)..."
+  local specsdir led spec ok=1
+  specsdir="$TEST_DIR/t516-specs"
+  led="$(mk_ledger t516)"
+  mkdir -p "$specsdir"
+  spec="$specsdir/unreadable.md"
+  cat > "$spec" <<'EOF'
+---
+id: spec-t516-fixture
+type: spec
+number: null
+status: implementing
+---
+
+# fixture t516
+
+SPEC-FROZEN: true
+frozen_sha256: 0000000000000000000000000000000000000000000000000000000000000
+EOF
+  chmod 000 "$spec"
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  chmod 644 "$spec" # restore before any assertion can early-return and leak an unreadable fixture
+
+  [[ "$EC" != 0 ]] \
+    || { log_fail "TEST-516: an unreadable spec must not let strict pass silently, got $EC (stdout: $OUT)"; ok=0; }
+  grep -qF 'STRICT-VIOLATION unreadable-spec' <<<"$OUT" \
+    || { log_fail "TEST-516: the refusal must print STRICT-VIOLATION unreadable-spec; stdout: $OUT"; ok=0; }
+  grep -qF 'unreadable.md' <<<"$OUT" \
+    || { log_fail "TEST-516: the refusal must name the unreadable file; stdout: $OUT"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-516 an unreadable spec fails the strict scan CLOSED (its own STRICT violation bucket, naming the file) rather than being silently omitted" \
+    || log_fail "TEST-516 unreadable spec"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -1843,6 +1981,9 @@ main() {
   test_484_legacy_degrades_by_name
   test_485_tracker_must_be_open
   test_495_missing_specs_dir_refuses
+  test_514_anchor_without_marker_caught
+  test_515_contract_hash_escaped_pipe
+  test_516_unreadable_spec_refuses
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

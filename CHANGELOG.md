@@ -46,9 +46,10 @@ RFC-0001).
 - **The close-time usage-capture gate knows the field its canon writes**:
   `tokens_total` (SPEC-0178) counts as usage capture; the gate had refused all
   21 runs of this ride.
-- Spec: SPEC-0181 (spec-mutation-gate-for-tests), ceremony 2, TDD, 43 Test
-  Plan rows each RED-recorded by the runner and replayed 43/43, nine
-  validation rounds (1 and 6 FAIL), two review rounds, six remediation rounds.
+- Spec: SPEC-0181 (spec-mutation-gate-for-tests), ceremony 2, TDD, 50 Test
+  Plan rows each RED-recorded by the runner and replayed 50/50, nine
+  validation rounds (1 and 6 FAIL), two review rounds, seven remediation
+  rounds (round 7: six external PR-bot findings, Codex four / Copilot two).
   Registry: 3 closed, 16 filed (incl. `fu-mutation-gate-skips-pester`,
   `fu-writerecord-rotates-before-patch-copy`, `fu-allocator-rewrites-frozen-spec-body`);
   12 candidates weighed in the spec and left open with a reason each.
