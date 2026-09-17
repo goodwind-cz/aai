@@ -44,12 +44,16 @@ function isExcluded(rel) {
 // writes must never be able to change the verdict it is about to record, or
 // the shipping-tree tripwire it computes after the fact.
 export function listTreeFiles(dir) {
-  const tracked = execFileSync('git', ['-C', dir, 'ls-files'], { encoding: 'utf8' });
-  const untracked = execFileSync('git', ['-C', dir, 'ls-files', '--others', '--exclude-standard'], { encoding: 'utf8' });
+  // `-z`: NUL-separated, never C-quoted. Without it git quotes a name holding
+  // a TAB, a quote or a non-ASCII byte ("lib/ev\til.txt"), the quoted string
+  // names no file, and the path drops out of the hash — the tree tripwire was
+  // blind to exactly the files a hostile patch would choose (validation
+  // rounds 10-11, fu-tree-hash-blind-to-quoted-paths).
+  const tracked = execFileSync('git', ['-C', dir, 'ls-files', '-z'], { encoding: 'utf8' });
+  const untracked = execFileSync('git', ['-C', dir, 'ls-files', '-z', '--others', '--exclude-standard'], { encoding: 'utf8' });
   const all = new Set();
   for (const raw of [tracked, untracked]) {
-    for (const line of raw.split('\n')) {
-      const p = line.trim();
+    for (const p of raw.split('\0')) {
       if (!p) continue;
       if (isExcluded(p)) continue;
       all.add(p);

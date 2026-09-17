@@ -1921,6 +1921,7 @@ test_513_patch_scope_refusal() {
   printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
   printf 'marker-present' > "$fx/lib/extra.txt"
   printf 'other-file\n' > "$fx/lib/other.txt"
+  printf 'ignored/\n' >> "$fx/.gitignore"
   ( cd "$fx" && git add -A && git commit -q -m base )
   # A PRIVATE TMPDIR for every run of this test: the leftover-clone count
   # below must never see a concurrent runner's clone (validation round 1 NB4
@@ -2002,6 +2003,63 @@ EOF
       || log_fail "TEST-513 arm $arm: the refused patch must not have touched the source fixture tree"
   done
 
+  # Arm F (validation round 11 BLOCKING-1): a RENAME whose destination is
+  # --target. `git apply --numstat` prints only the post-image path, so every
+  # item of this patch reads "lib/greeting.mjs" — and lib/extra.txt, the file
+  # the fixture suite checks for, is deleted unseen (a forged RED, end to end,
+  # at a61f573e). Only the clone's before/after tree diff names the source.
+  local renamed; renamed="$(mg_new_fixture)/rename-onto-target.patch"
+  cat > "$renamed" <<'EOF'
+diff --git a/lib/greeting.mjs b/lib/greeting.mjs
+deleted file mode 100644
+--- a/lib/greeting.mjs
++++ /dev/null
+@@ -1 +0,0 @@
+-console.log('hello');
+diff --git a/lib/extra.txt b/lib/greeting.mjs
+similarity index 100%
+rename from lib/extra.txt
+rename to lib/greeting.mjs
+EOF
+  # Vacuity guard: git itself must ACCEPT this patch against the fixture, or
+  # the refusal below would be git's, not the guard's.
+  ( cd "$fx" && git apply --check "$renamed" ) \
+    || log_fail "TEST-513 arm F setup: git apply --check rejects the rename-onto-target patch, so this arm would prove nothing"
+  out="$(cd "$fx" && TMPDIR="$priv_tmp" node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --patch "$renamed" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-513 arm F: a rename whose SOURCE is a foreign file must be refused with exit 2, got $rc: $out"
+  assert_payload_contains "$out" "lib/extra.txt" \
+    "TEST-513 arm F: the refusal must name the rename SOURCE (lib/extra.txt): $out"
+  [[ ! -f "$rec" ]] || log_fail "TEST-513 arm F: no record must be written when the patch is refused: $rec"
+  [[ -z "$(find "$priv_tmp" -maxdepth 1 -name 'aai-mutation-*' 2>/dev/null)" ]] \
+    || log_fail "TEST-513 arm F: no clone directory may be left behind after the refusal"
+
+  # Arm G: the mirror image — a creation under a GITIGNORED path. The clone's
+  # tree hash lists tracked + untracked-not-ignored files only, so the
+  # before/after diff cannot see it; `git apply --numstat` names it. (Arm F is
+  # seen only by the tree diff, arm G only by numstat: both guards are
+  # load-bearing, neither is decoration.)
+  local ignoredp; ignoredp="$(mg_new_fixture)/creates-ignored.patch"
+  cat > "$ignoredp" <<'EOF'
+--- a/lib/greeting.mjs
++++ b/lib/greeting.mjs
+@@ -1 +1,2 @@
+ console.log('hello');
++// harmless comment
+--- /dev/null
++++ b/ignored/flag.txt
+@@ -0,0 +1 @@
++planted where the tree hash does not look
+EOF
+  out="$(cd "$fx" && TMPDIR="$priv_tmp" node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --patch "$ignoredp" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-513 arm G: a patch creating a gitignored foreign file must be refused with exit 2, got $rc: $out"
+  assert_payload_contains "$out" "ignored/flag.txt" \
+    "TEST-513 arm G: the refusal must name the gitignored foreign path: $out"
+  [[ ! -f "$rec" ]] || log_fail "TEST-513 arm G: no record must be written when the patch is refused: $rec"
+
   # Arm B: the SAME target, a patch naming only --target, must still apply
   # cleanly and produce a RED record exactly as before this fix.
   local patch_one; patch_one="$(mg_new_fixture)/one-file.patch"
@@ -2019,7 +2077,7 @@ EOF
   [[ -f "$rec" ]] || log_fail "TEST-513 arm B: expected a record at $rec"
   grep -qF 'verdict: RED' "$rec" || log_fail "TEST-513 arm B: expected verdict RED: $(cat "$rec")"
 
-  log_pass "TEST-513 a --patch touching a path other than --target is refused however the foreign header is spelled (a/-b/, another prefix, C-quoted, CRLF): exit 2, path named, no record, no clone left; a single-file patch still applies cleanly"
+  log_pass "TEST-513 a --patch touching a path other than --target is refused however the foreign path is reached (a/-b/, another prefix, C-quoted, CRLF, a rename source, a gitignored creation): exit 2, path named, no record, no clone left; a single-file patch still applies cleanly"
 }
 
 # --- TEST-517 — Spec-AC-05/Spec-AC-02 (remediation round 7, PR #384 bot

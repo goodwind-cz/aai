@@ -354,30 +354,35 @@ function applySedExpr(expr, content) {
   return content.replace(re, replacement);
 }
 
-// Remediation round 7 (Codex P1, PR #384) + validation round 10 BLOCKING-1:
+// Remediation round 7 (Codex P1, PR #384) + validation rounds 10 and 11:
 // a --patch with hunks for files besides --target was applied WHOLE, so an
 // extra hunk could edit the suite (or a dependency) to print a matching FAIL
 // line and fake a RED. Round 7 refused by parsing `a/`-`b/` headers by hand;
 // round 10 forged a RED through it three ways (another prefix — `git apply`
-// strips ANY first component, a C-quoted header, CRLF headers), because a
-// hand parser reads a different language than the tool that applies the
-// patch. So the guard asks git itself: `git apply --numstat -z` is git's OWN
-// parse of which paths the patch will touch (prefix stripping, quoting,
-// renames, /dev/null, binary) — the same parser that then applies it, so the
-// two cannot disagree. (A before/after tree hash of the clone was tried as a
-// second guard and dropped: it never fired where numstat had not, and
-// lib/tree-hash.mjs does not see a path git quotes, e.g. a TAB in a name —
-// fu-tree-hash-blind-to-quoted-paths.) A path other than targetRel is a
-// refusal (throws; the
+// strips ANY first component, a C-quoted header, CRLF headers). Round 10's
+// fix asked git (`git apply --numstat -z`), and round 11 forged a RED through
+// THAT: numstat prints only the POST-image path of each item, so a rename
+// whose destination is --target deletes a foreign file unseen. Two guards,
+// because each sees what the other cannot:
+//   1. `git apply --numstat -z` BEFORE the apply — git's own parse of the
+//      post-image paths (prefix stripping, quoting, creations, binary); a
+//      hostile patch is refused without being applied.
+//   2. the clone's tree, hashed before and after the apply — what actually
+//      changed on disk, whatever the patch said: a rename SOURCE, a deletion,
+//      anything. lib/tree-hash.mjs lists with `ls-files -z`, so a git-quoted
+//      name is seen too.
+// Either naming a path other than targetRel is a refusal (throws; the
 // normal-run caller turns it into exit 2 naming the path with no record and
 // no clone left, the --replay caller into a named INCONCLUSIVE row).
 function patchPathsPerGit(cloneDir, patchAbs) {
   const out = execFileSync('git', ['-C', cloneDir, 'apply', '--numstat', '-z', patchAbs],
     { stdio: ['ignore', 'pipe', 'pipe'] }).toString('utf8');
   const paths = new Set();
-  // -z records: "<added>\t<deleted>\t<path>\0", or for a rename
-  // "<added>\t<deleted>\t\0<src>\0<dst>\0". Every NUL-separated token that
-  // is not the numeric prefix is a path.
+  // `git apply --numstat -z` emits ONE record per item,
+  // "<added>\t<deleted>\t<post-image path>\0" ("-\t-\t" for binary). It
+  // never prints a rename's source (that is `git diff --numstat -z`'s format,
+  // not this command's — measured on git 2.54, validation round 11); the
+  // tree-diff guard below is what sees a source.
   for (const tok of out.split('\0')) {
     if (tok === '') continue;
     const m = /^(?:\d+|-)\t(?:\d+|-)\t(.*)$/s.exec(tok);
@@ -404,7 +409,11 @@ function applyMutation({ sed, patch }, cloneDir, targetRel) {
     const patchAbs = path.isAbsolute(patch) ? patch : path.join(ROOT, patch);
     refuseForeignPaths('per git apply --numstat',
       [...patchPathsPerGit(cloneDir, patchAbs)].filter((rel) => rel !== targetRel), targetRel);
+    const treeBeforeApply = computeTreeFileHashes(cloneDir);
     execFileSync('git', ['-C', cloneDir, 'apply', patchAbs], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const applied = diffTreeFileHashes(treeBeforeApply, computeTreeFileHashes(cloneDir));
+    refuseForeignPaths('changed on disk by the apply',
+      [...applied.added, ...applied.removed, ...applied.changed].filter((rel) => rel !== targetRel), targetRel);
     after = fs.readFileSync(targetAbs, 'utf8');
   }
   fs.writeFileSync(targetAbs, after);
