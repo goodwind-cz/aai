@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 76c268194f03ac3e346438306381a09db78fd4be0631ce81fe8f6234a15426b2
+frozen_sha256: 9e671edca64e24e941d71c71adc2aeabac134b50526691eb7618e9ce8d2c3c02
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -956,6 +956,34 @@ left verbatim, and this section is its disclosure. Two reasons, both measured:
   replaces the guard at the `id-mention-unpaired` call site with `false`: the
   same property (an unpaired draft intake named in a touched doc body is itemed)
   is what reddens.
+
+No Spec-AC, test id, selector or file path changed. Sign-off: none (tracked).
+
+## Amendment 2 (post-freeze, 2026-09-18 — three Mutation-cell deviations, TDD run 3)
+
+Three Test Plan rows record a mutation other than the one their cell names. The
+cells are left VERBATIM; the recorded expressions live in
+`docs/ai/tdd/spec-close-ceremony-sweep/mutation-TEST-<id>.txt`, all verdict RED.
+
+- **TEST-528 (Spec-AC-06).** The cell edits `snapshotDocs.push(pairedDoc)`. Run 3
+  joined `--paired` into the EXISTING unified `plan` and `snapshot`, so there is
+  no separate paired-doc bookkeeping to delete. The recorded mutation filters the
+  paired slug out of the `refPairs` list that self-verify reads; the same property
+  reddens (a paired doc that failed to close is neither caught nor rolled back).
+- **TEST-529 (Spec-AC-06).** The cell flips a dedicated `if (pairedTerminal)`
+  branch. No such branch exists: idempotency falls out of the plan diff. The first
+  record run 3 produced dropped `--paired` from the `slugs` list and reddened only
+  the unknown-slug arm (exit 2), leaving the already-terminal arm unproven. The
+  orchestrator sent it back; the arm turned out to be tautological against one
+  class of defect (a byte-identical doc rewrite hides a duplicate
+  `work_item_closed` and `ac_evidence` append). Commit bf0b3548 strengthened the
+  arm to count the paired ref's own events before and after, and the record now
+  forces `needsClosedEvent` to `true`; the arm reddens on "work_item_closed count
+  grew from 1 to 2". The unknown-slug expression stays RED as well and is still
+  asserted by the test, it is just not the recorded one.
+- **TEST-532 (Spec-AC-08).** The cell names a variable `resolvedRel`; the
+  implementation's variable is `rel`. Same expression otherwise
+  (`d.rel === rel` to `d.id === ref`), same property.
 
 No Spec-AC, test id, selector or file path changed. Sign-off: none (tracked).
 
