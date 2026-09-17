@@ -47,11 +47,13 @@ RFC-0001).
   `tokens_total` (SPEC-0178) counts as usage capture; the gate had refused all
   21 runs of this ride.
 - Spec: SPEC-0181 (spec-mutation-gate-for-tests), ceremony 2, TDD, 50 Test
-  Plan rows each RED-recorded by the runner and replayed 50/50, nine
-  validation rounds (1 and 6 FAIL), two review rounds, seven remediation
-  rounds (round 7: six external PR-bot findings, Codex four / Copilot two).
-  Registry: 3 closed, 16 filed (incl. `fu-mutation-gate-skips-pester`,
-  `fu-writerecord-rotates-before-patch-copy`, `fu-numbering-rewrites-frozen-spec-body`);
+  Plan rows each RED-recorded by the runner and replayed 50/50, twelve
+  validation rounds (1, 6, 10 and 11 FAIL — the last two forged a RED through
+  the `--patch` seam, which now has two guards and seven test arms), two
+  review rounds, seven remediation rounds (the seventh for six PR-bot
+  findings, Codex four / Copilot two). Registry: 4 closed, 19 left open under
+  this ref (P2: `fu-writerecord-rotates-before-patch-copy`,
+  `fu-numbering-rewrites-frozen-spec-body`, `fu-mutation-target-symlink-unchecked`);
   12 candidates weighed in the spec and left open with a reason each.
   Wave 3 ride 4, paired with CHANGE-0181.
 
