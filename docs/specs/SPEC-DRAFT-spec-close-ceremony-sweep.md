@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: c073d18a7debae3cf8deb435302af67a33d889fbee8bc13873c3cfe2aa06afc3
+frozen_sha256: 76c268194f03ac3e346438306381a09db78fd4be0631ce81fe8f6234a15426b2
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -593,7 +593,7 @@ its own mutation; the evidence for each is
 | TEST-522 | Spec-AC-02 | integration | tests/skills/test-aai-golden-flow.sh | test_522_registry_class_identity — an open item filed with ref_id CHANGE-0178 for a ride whose slug differs is matched by class 4, and a ceremony item filed under an unlisted subject prefix is matched by the content arm. | Narrow the identity set back to the bare slug with sed:s/!refIdentity.has(String(it.ref_id ?? ''))/String(it.ref_id ?? '') !== slug/. | pending |
 | TEST-523 | Spec-AC-03 | integration | tests/skills/test-aai-golden-flow.sh | test_523_paired_half_blocks_push — with a roadmap fixture pairing the ride to a draft maintenance doc, docs_open names that half; with the half terminal the same fixture is CLEAN; with no roadmap file the class is silent and the run does not crash. | Drop the paired-half lookup with sed:s/const pairedOpen = roadmapPairedOpen/const pairedOpen = () => []; const _p = roadmapPairedOpen/. | pending |
 | TEST-524 | Spec-AC-04 | integration | tests/skills/test-aai-close-reconcile.sh | test_524_terminal_without_telemetry — a doc terminal at the delivery sha with empty links.commits and no work_item_closed event is itemed by --check. | Remove the new arm's guard with sed:s/missingCloseEvidence(d)/false/ so a terminal doc is skipped as before. | pending |
-| TEST-525 | Spec-AC-04 | integration | tests/skills/test-aai-close-reconcile.sh | test_525_unpaired_draft_intake — a draft intake with NO paired spec whose frontmatter id a range commit subject names is itemed; a draft intake no commit names is not. | Restrict the id-mention arm to paired docs with sed:s/if (!primary) continue;/if (!primary || !primary.spec) continue;/. | pending |
+| TEST-525 | Spec-AC-04 | integration | tests/skills/test-aai-close-reconcile.sh | test_525_unpaired_draft_intake — a draft intake with NO paired spec whose frontmatter id a range commit subject names is itemed; a draft intake no commit names is not. | Disable the id-mention-unpaired arm at its call site so a draft intake named only in a touched doc body is no longer itemed; the recorded expression is in mutation-TEST-525.txt (cell rewritten by Amendment 1). | pending |
 | TEST-526 | Spec-AC-04 | integration | tests/skills/test-aai-close-reconcile.sh | test_526_replays_the_two_real_ranges — replaying the merge ranges of PR 382 and PR 384 names focus-and-validation-state-go-stale-silently and unrecorded-spec-amendment-is-invisible; a fully closed pair in the same range stays CLEAN. | Drop the third disjunct from the detection arm so only the implementing-or-frozen condition survives, expressed as a mutation-run --sed expression that replaces the call to missingCloseEvidence with the literal false. | pending |
 | TEST-527 | Spec-AC-05 | integration | tests/skills/test-aai-close-reconcile.sh | test_527_pairs_by_links_requirement — an off-convention pair is paired through the spec's links.requirement, --apply closes both halves, and the follow-up --check is CLEAN because the candidate set was non-empty. | Remove the fallback with sed:s/ \?\? specByRequirement.get(p.rel)// so only the literal spec-<id> lookup remains. | pending |
 | TEST-528 | Spec-AC-06 | integration | tests/skills/test-aai-close-work-item.sh | test_528_paired_close_one_transaction — --paired closes the maintenance half with the ref and the spec; forcing the paired half to fail the post-close audit leaves all three docs and the EVENTS byte length byte-identical to the pre-run snapshot. | Move the paired doc out of the snapshot set with sed:s/snapshotDocs.push(pairedDoc)/void pairedDoc/ so a rollback no longer restores it. | pending |
@@ -934,6 +934,30 @@ NOT CLOSED, owned elsewhere, named so they are not lost:
   a new capability rather than a defect fix. The issue is closed with a comment
   stating exactly that, and the mechanization is filed as
   `fu-post-open-sweep-has-no-mechanism`, a new registry item the owner can rank.
+
+## Amendment 1 (post-freeze, 2026-09-18 — TEST-525 Mutation cell, TDD run 2)
+
+The TEST-525 Mutation cell is the one cell of this spec that was REWRITTEN, not
+left verbatim, and this section is its disclosure. Two reasons, both measured:
+
+- **The frozen cell broke the table.** It carried the JavaScript OR operator,
+  i.e. two literal pipe characters, inside a Markdown table cell. The row split
+  into 11 raw cells instead of 9, so the parsed Mutation cell was truncated and
+  the parsed Status cell was wrong. `spec-lint` passed it (the gap Spec-AC-12
+  of this very spec closes). The frozen text read: "Restrict the id-mention arm
+  to paired docs with sed:s/if (!primary) continue;/if (!primary OR
+  !primary.spec) continue;/." (OR written out here so this section cannot break
+  a parser either).
+- **The named expression has no target.** Run 2 built the arm as a
+  `missingPairedSpecMention` helper behind the shared `missingCloseEvidence`
+  dispatcher instead of restricting the BLOCKING-1 pairing loop, so the line the
+  frozen cell edits does not exist. The recorded mutation
+  (`docs/ai/tdd/spec-close-ceremony-sweep/mutation-TEST-525.txt`, verdict RED)
+  replaces the guard at the `id-mention-unpaired` call site with `false`: the
+  same property (an unpaired draft intake named in a touched doc body is itemed)
+  is what reddens.
+
+No Spec-AC, test id, selector or file path changed. Sign-off: none (tracked).
 
 ## Notes
 
