@@ -57,6 +57,11 @@ import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { parseFrontmatter, toPosix, TERMINAL_DOC_STATUS } from './lib/docs-model.mjs';
 import { scanAuditDocs } from './lib/docs-audit-core.mjs';
+// Read-only imports of the protected_paths_l3 STATE engine (D5, Spec-AC-02):
+// this gate consults docs/ai/STATE.yaml current_focus.ref_id but never writes
+// it — the SAME line-engine state.mjs itself uses, not a second reader.
+import { readScalar } from './lib/state-engine.mjs';
+import { splitLines } from './lib/state-core.mjs';
 
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DOCS_AUDIT = path.join(SELF_DIR, 'docs-audit.mjs');
@@ -113,6 +118,110 @@ export function isCeremonyFollowUpId(id) {
 // line used to hold dropped `legacy` AND `current`, so a retired doc or a
 // steady-state product doc read as "still open" on every run with no way to
 // clear the item — the gate STOPPED a push over a doc nobody could close.
+
+// ---- D5 (Spec-AC-02): the gate may not decide on --ref alone -----------------
+// `--ref` is trusted input; this cross-checks it against docs/ai/STATE.yaml
+// current_focus.ref_id and reports a mismatch as an item rather than printing
+// CLEAN for a ref nobody is shipping. Read-only: never writes STATE (article 6).
+// Absent STATE degrades to null (no mismatch) — the same "nothing to compare"
+// posture check-committed-scope.mjs takes for a field it cannot read.
+function checkFocusRef(root, ref) {
+  const statePath = path.join(root, 'docs', 'ai', 'STATE.yaml');
+  let text;
+  try { text = fs.readFileSync(statePath, 'utf8'); } catch { return null; }
+  const focusRef = readScalar(splitLines(text).lines, 'current_focus', 'ref_id');
+  if (focusRef === null || focusRef === ref) return null;
+  return `docs/ai/STATE.yaml current_focus.ref_id (${focusRef}) does not match --ref (${ref})`;
+}
+
+// ---- D6/Spec-AC-02: registry identity is the slug OR the doc's display id ---
+// A follow-up may legitimately be filed with `--ref` set to the display id
+// (CHANGE-0178) rather than the slug this gate is invoked with — both name
+// the SAME ride. The display id is derived from the ride's own intake doc
+// frontmatter (`type` + `number`), never re-typed from the filename.
+const DISPLAY_ID_PREFIX = {
+  change: 'CHANGE', issue: 'ISSUE', spec: 'SPEC', rfc: 'RFC',
+  prd: 'PRD', hotfix: 'HOTFIX', techdebt: 'DEBT', research: 'RES',
+};
+
+function frontmatterDisplayId(fm) {
+  const num = fm.number;
+  if (num == null) return null;
+  const n = String(num).trim();
+  if (!/^\d+$/.test(n)) return null;
+  const prefix = DISPLAY_ID_PREFIX[String(fm.type ?? '').trim().toLowerCase()];
+  if (!prefix) return null;
+  return `${prefix}-${n.padStart(4, '0')}`;
+}
+
+function refIdentitySet(docs, slug) {
+  const ids = new Set([slug]);
+  for (const d of docs) {
+    if (String(d.fm.id ?? '') !== slug) continue;
+    const disp = frontmatterDisplayId(d.fm);
+    if (disp) ids.add(disp);
+  }
+  return ids;
+}
+
+// D6: a ceremony item filed under an id prefix outside
+// CEREMONY_FOLLOW_UP_ID_PREFIXES is still caught when its OWN finding text
+// discloses, in the same narrow self-referential terms the code above already
+// uses to describe the shape ("this ride left its own ceremony incomplete"),
+// that it is about the ride's own ceremony. DELIBERATELY narrower than the
+// six-word finding-text regex this file's own history records removing
+// (TEST-005 pins it gone): "ceremony" alone is not enough — TEST-005's own
+// fu-gate-*/fu-amend-* negative controls use that word without tripping this
+// arm, because neither carries the phrase "own ceremony".
+const CEREMONY_CONTENT_RE = /\bown ceremony\b/i;
+
+function isCeremonyContentMatch(finding) {
+  return CEREMONY_CONTENT_RE.test(String(finding ?? ''));
+}
+
+// ---- D4/Spec-AC-03: the roadmap-paired maintenance half -----------------
+// docs/ai/roadmap.yaml's shape is closed (see its own header comment): a
+// `pairs:` list of { capability, maintenance, status } maps. No YAML library
+// (Node stdlib only, docs/TECHNOLOGY.md) — a small line-scan mirrors the
+// engine's own block/line discipline rather than re-parsing arbitrary YAML.
+// Absent file degrades to [] SILENTLY (D5 edge case: "a roadmap that is
+// absent — the paired-half class must stay silent, not crash").
+function readRoadmapPairs(root) {
+  let text;
+  try { text = fs.readFileSync(path.join(root, 'docs', 'ai', 'roadmap.yaml'), 'utf8'); } catch { return []; }
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  const pairs = [];
+  let inPairs = false;
+  let cur = null;
+  for (const line of lines) {
+    if (/^pairs:\s*$/.test(line)) { inPairs = true; continue; }
+    if (/^[A-Za-z_][\w-]*:/.test(line) && !/^\s/.test(line)) { inPairs = false; }
+    if (!inPairs) continue;
+    const cap = line.match(/^\s*-\s*capability:\s*(.+)$/);
+    if (cap) { if (cur) pairs.push(cur); cur = { capability: cap[1].trim(), maintenance: null, status: null }; continue; }
+    const m = line.match(/^\s*maintenance:\s*(.+)$/);
+    if (m && cur) { cur.maintenance = m[1].trim(); continue; }
+    const s = line.match(/^\s*status:\s*(.+)$/);
+    if (s && cur) { cur.status = s[1].trim(); continue; }
+  }
+  if (cur) pairs.push(cur);
+  return pairs;
+}
+
+// Returns a docs_open-shaped item array (0 or 1 entries): the ride's own
+// roadmap-paired maintenance half, when it is not yet terminal. `docs` is the
+// SAME scanAuditDocs()-derived corpus docsOpen() already built, imported
+// rather than re-walked.
+function roadmapPairedOpen(root, slug, docs) {
+  const pairs = readRoadmapPairs(root);
+  const pair = pairs.find((p) => p.capability === slug);
+  if (!pair || !pair.maintenance) return [];
+  const doc = docs.find((d) => String(d.fm.id ?? '') === pair.maintenance);
+  if (!doc) return [];
+  const status = String(doc.fm.status ?? '').trim().toLowerCase();
+  if (TERMINAL_DOC_STATUS.has(status)) return [];
+  return [`${doc.rel} (paired maintenance half of ${slug}) status: ${status || 'missing'}`];
+}
 
 function usage(msg) {
   process.stderr.write(`nothing-left-behind: ${msg}\n`);
@@ -199,8 +308,7 @@ function listDocs(root) {
   return out;
 }
 
-function docsOpen(root, slug) {
-  const docs = listDocs(root);
+function docsOpen(docs, slug) {
   const items = [];
   const intake = docs.filter(d => String(d.fm.id ?? '') === slug);
   if (intake.length === 0) {
@@ -227,7 +335,9 @@ function docsOpen(root, slug) {
 }
 
 // ---- class 4: the registry -------------------------------------------------
-function registrySelfItems(root, slug) {
+// `refIdentity` (Spec-AC-02/D6): the slug plus every display id derivable
+// from the ride's own intake doc(s) — a follow-up filed with either counts.
+function registrySelfItems(root, refIdentity) {
   const ledger = path.join(root, 'docs', 'ai', 'decisions.jsonl');
   if (!fs.existsSync(ledger)) return { items: [], note: 'no docs/ai/decisions.jsonl (registry empty)' };
   const r = run(process.execPath, [FOLLOW_UPS, 'list', '--json', '--status', 'open', '--ledger', ledger], root);
@@ -240,9 +350,9 @@ function registrySelfItems(root, slug) {
   }
   const items = [];
   for (const it of parsed.items ?? []) {
-    if (String(it.ref_id ?? '') !== slug) continue;
+    if (!refIdentity.has(String(it.ref_id ?? ''))) continue;
     if (it.closed) continue;
-    if (!isCeremonyFollowUpId(it.id)) continue;
+    if (!isCeremonyFollowUpId(it.id) && !isCeremonyContentMatch(it.finding)) continue;
     items.push(`${it.id} (${it.severity}): ${it.finding}`);
   }
   return { items, note: null };
@@ -252,18 +362,28 @@ function registrySelfItems(root, slug) {
 export function runGate(root, slug) {
   const files = filesLeft(root);
   const audit = auditFindings(root);
-  const docs = docsOpen(root, slug);
-  const registry = registrySelfItems(root, slug);
+  const docs = listDocs(root);
+  const docsOpenItems = docsOpen(docs, slug);
+  const pairedOpen = roadmapPairedOpen(root, slug, docs);
+  const docsOpenAll = [...docsOpenItems, ...pairedOpen];
+  const refIdentity = refIdentitySet(docs, slug);
+  const registry = registrySelfItems(root, refIdentity);
+  const focusMismatch = checkFocusRef(root, slug);
+  const refMismatchItems = focusMismatch ? [focusMismatch] : [];
   return {
     ref: slug,
     root,
     files_left: files.length,
-    docs_open: docs.length,
+    docs_open: docsOpenAll.length,
     audit_findings: audit.count,
     registry_self_items: registry.items.length,
-    clean: files.length + docs.length + audit.count + registry.items.length === 0,
+    ref_mismatch: refMismatchItems.length,
+    clean: files.length + docsOpenAll.length + audit.count + registry.items.length + refMismatchItems.length === 0,
     audit_verdict: audit.verdict,
-    items: { files_left: files, docs_open: docs, audit_findings: audit.items, registry_self_items: registry.items },
+    items: {
+      files_left: files, docs_open: docsOpenAll, audit_findings: audit.items,
+      registry_self_items: registry.items, ref_mismatch: refMismatchItems,
+    },
     notes: [registry.note].filter(Boolean),
   };
 }
@@ -277,12 +397,12 @@ function main() {
     process.stdout.write(JSON.stringify(result) + '\n');
   } else {
     const lines = [`nothing-left-behind: ref=${result.ref} root=${result.root}`];
-    for (const cls of ['files_left', 'docs_open', 'audit_findings', 'registry_self_items']) {
+    for (const cls of ['files_left', 'docs_open', 'audit_findings', 'registry_self_items', 'ref_mismatch']) {
       lines.push(`## ${cls}: ${result[cls]}`);
       for (const it of result.items[cls]) lines.push(`- ${it}`);
     }
     for (const n of result.notes) lines.push(`note: ${n}`);
-    const total = result.files_left + result.docs_open + result.audit_findings + result.registry_self_items;
+    const total = result.files_left + result.docs_open + result.audit_findings + result.registry_self_items + result.ref_mismatch;
     lines.push(result.clean ? 'CLEAN' : `LEFT BEHIND: ${total} item(s) — see the classes above`);
     process.stdout.write(lines.join('\n') + '\n');
   }

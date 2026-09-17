@@ -127,6 +127,15 @@ function readNestedScalar(lines, parentName, key) {
   return null;
 }
 
+// Spec-AC-01 (close-ceremony-sweep): PLANNING.prompt.md documents the scope as
+// "explicit paths or diff range", plural, and state.mjs folds a long scalar
+// across indented lines — but neither promises COMMAS between paths. A folded
+// block whose author separated paths with spaces alone (the natural way to
+// type a path list) used to collapse into ONE unresolvable token under a
+// comma-only split, silently checking nothing. Splitting on whitespace too is
+// additive: every existing comma-separated scope still splits identically.
+const REGEXP_WS_OR_COMMA = /[\s,]+/;
+
 function scopeFromState(statePath) {
   let text;
   try { text = fs.readFileSync(statePath, 'utf8'); } catch { return { paths: [], degraded: [`STATE not readable: ${statePath}`] }; }
@@ -171,7 +180,7 @@ function scopeFromState(statePath) {
     raw = raw.startsWith('>') ? parts.join(' ').replace(/ {2,}/g, ' ').trim() : parts.join('\n').trim();
   }
   raw = raw.replace(/^["']|["']$/g, '');
-  const tokens = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const tokens = raw.split(REGEXP_WS_OR_COMMA).map((s) => s.trim()).filter(Boolean);
   if (tokens.length === 0) return { paths: [], degraded: ['code_review.scope is empty — nothing to check'] };
 
   // A DIFF RANGE is a documented scope form, not a path. PLANNING.prompt.md
@@ -280,8 +289,16 @@ function main() {
     a.paths.push(...raw.split(/\0|\n/).map((s) => s.trim()).filter(Boolean));
   }
   const degraded = [];
+  // Spec-AC-01: a --from-state scope that NAMED real path candidates, all of
+  // which then failed to resolve (untracked, missing, unreadable), is a
+  // NOTHING CHECKED result — distinct from scopeFromState degrading before it
+  // ever produced a candidate (empty scope, stale scope_ref_id: those have
+  // their own honest "nothing to compare yet" reason and stay exit-0 unless
+  // --strict). Tracked separately so only the former is forced to fail.
+  let fromStateCandidates = 0;
   if (a.fromState) {
     const r = scopeFromState(a.state);
+    fromStateCandidates = r.paths.length;
     a.paths.push(...r.paths); degraded.push(...r.degraded);
   }
   if (a.paths.length === 0 && degraded.length === 0) usage('no paths given (pass paths, --from-state or --from-stdin)');
@@ -365,7 +382,12 @@ function main() {
   // A degrade is a failure under --strict, and "clean" is never printed for a
   // run that verified nothing: the last line of the output is what a human or a
   // grep reads, and `clean — 0 path(s)` after a list of degrades is a lie.
-  const failed = mismatches.length > 0 || (a.strict && (degraded.length > 0 || checked === 0));
+  // Spec-AC-01: a --from-state scope that named real candidates which ALL
+  // failed to resolve is NOTHING CHECKED and fails WITH OR WITHOUT --strict —
+  // that is the exact "aborted `git add`" shape this script exists to catch,
+  // and a gate that waves it through by default is the gap this AC closes.
+  const fromStateNothingChecked = fromStateCandidates > 0 && checked === 0;
+  const failed = mismatches.length > 0 || fromStateNothingChecked || (a.strict && (degraded.length > 0 || checked === 0));
   const out = {
     status: mismatches.length ? 'mismatch' : (degraded.length ? 'degraded' : (checked === 0 ? 'nothing-checked' : 'clean')),
     strict: a.strict, failed, checked, mismatches, degraded, appends, pending_appends: pendingAppends,
@@ -399,8 +421,10 @@ function main() {
     } else {
       process.stdout.write(`check-committed-scope: clean — ${checked} path(s) match ${a.rev ? a.rev : 'the index'}\n`);
     }
-    if (failed && !mismatches.length) {
+    if (failed && !mismatches.length && a.strict) {
       process.stderr.write('--strict: a path that could not be compared is not a path that matches.\nThe aborted `git add` this guard exists to catch drops EVERY path in that\ncommand, and an untracked one lands here rather than in the mismatch list.\n');
+    } else if (fromStateNothingChecked && !mismatches.length) {
+      process.stderr.write('check-committed-scope: --from-state named path(s) to check and NONE of them\ncould be compared — that is the aborted `git add` shape this guard exists to\ncatch, and it fails with or without --strict.\n');
     }
   }
   process.exit(failed ? 1 : 0);

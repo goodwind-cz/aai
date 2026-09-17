@@ -240,6 +240,21 @@ SPEC-FROZEN: true
 EOF
 }
 
+# write_gate_state_focus <repo> <ref_id> — a minimal docs/ai/STATE.yaml
+# carrying only current_focus.ref_id, the field close-ceremony-sweep
+# Spec-AC-02's cross-check reads (D5: read-only, never written by the gate).
+write_gate_state_focus() {
+  local repo="$1" ref_id="$2"
+  mkdir -p "$repo/docs/ai"
+  cat > "$repo/docs/ai/STATE.yaml" <<YAML
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: $ref_id
+  primary_path: null
+YAML
+}
+
 # run_gate <repo> <slug> [extra flags...] — runs the gate with cwd=repo;
 # captures stdout+stderr to $OUT and the exit code to $CODE.
 run_gate() {
@@ -469,6 +484,144 @@ test_008_no_forked_canon() {
   case "$hits" in */.aai/scripts/nothing-left-behind.mjs) ;; *) log_fail "TEST-008: the ceremony-subject prefix literal must live in nothing-left-behind.mjs, found: $hits" ;; esac
 
   log_pass "TEST-008 no forked canon: terminal-status, EXCLUDE_DIRS and ceremony-prefix literals each in one file; the gate imports/obeys them"
+}
+
+# --- TEST-521 (Spec-AC-02, close-ceremony-sweep): the gate cross-checks --ref
+# against docs/ai/STATE.yaml current_focus.ref_id --------------------------
+
+test_521_gate_refuses_foreign_ref() {
+  log_info "TEST-521: a STATE current_focus.ref_id that disagrees with --ref makes the gate name both refs and exit LEFT BEHIND, not CLEAN; a matching ref stays CLEAN..."
+  local repo slug="gate-ride" other="some-other-ride"
+
+  # Arm A: mismatch -> LEFT BEHIND, both refs named.
+  repo="$(new_gate_repo t521-mismatch "$slug" done done)"
+  write_gate_state_focus "$repo" "$other"
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "add STATE with a foreign focus ref"
+  run_gate "$repo" "$slug"
+  [[ "$CODE" -eq 1 ]] || log_fail "TEST-521: a foreign current_focus.ref_id must exit 1 (LEFT BEHIND), got $CODE: $OUT"
+  case "$OUT" in *"$slug"*"$other"*) ;; *) log_fail "TEST-521: the refusal must name both the requested ref ($slug) and STATE's ref ($other): $OUT" ;; esac
+  case "$OUT" in *CLEAN*) log_fail "TEST-521: a foreign focus ref must never print CLEAN: $OUT" ;; esac
+
+  # Arm B: matching ref -> unaffected, CLEAN.
+  repo="$(new_gate_repo t521-match "$slug" done done)"
+  write_gate_state_focus "$repo" "$slug"
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "add STATE with the matching focus ref"
+  run_gate "$repo" "$slug"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-521: a matching current_focus.ref_id must stay CLEAN, got $CODE: $OUT"
+  case "$OUT" in *CLEAN*) ;; *) log_fail "TEST-521: expected CLEAN when the focus ref matches: $OUT" ;; esac
+
+  log_pass "TEST-521: a foreign STATE current_focus.ref_id makes the gate refuse naming both refs (LEFT BEHIND); a matching ref stays CLEAN"
+}
+
+# --- TEST-522 (Spec-AC-02): registry class 4 matches on the doc's display id
+# too, and a content arm catches a ceremony item under an unlisted subject --
+
+test_522_registry_class_identity() {
+  log_info "TEST-522: an item filed with ref_id = the intake doc's DISPLAY id (CHANGE-0178) is matched by class 4; a ceremony item filed under an unlisted subject prefix is matched by the content arm..."
+  local repo slug="gate-ride-522"
+
+  repo="$(new_gate_repo t522 "$slug" done done)"
+  # Stamp the intake doc with a real number so its display id is CHANGE-0178.
+  cat > "$repo/docs/issues/CHANGE-DRAFT-$slug.md" <<EOF
+---
+id: $slug
+type: change
+number: 178
+status: done
+links:
+  pr: []
+  commits: []
+---
+
+# Change — Fixture $slug
+
+## Summary
+- gate fixture doc.
+EOF
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "stamp the intake doc's display id (CHANGE-0178)"
+
+  node "$FOLLOW_UPS" add --id fu-close-ride-522-display-id --ref CHANGE-0178 --severity P2 \
+    --what "the close ceremony did not stamp links.pr" --why "fixture" --source "fixture" \
+    --ledger "$repo/docs/ai/decisions.jsonl" >/dev/null
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "record a follow-up filed under the display id"
+  run_gate "$repo" "$slug" --json
+  printf '%s\n' "$OUT" > "$TEST_DIR/t522-a.json"
+  [[ "$(json_field "$TEST_DIR/t522-a.json" 'r.registry_self_items')" == "1" ]] \
+    || log_fail "TEST-522: a follow-up filed with ref_id CHANGE-0178 (the doc's display id, not its slug) must still be matched: $OUT"
+  run_gate "$repo" "$slug"
+  case "$OUT" in *"fu-close-ride-522-display-id"*) ;; *) log_fail "TEST-522: the display-id-filed follow-up must be named: $OUT" ;; esac
+
+  # A ceremony item filed under an UNLISTED subject prefix (fu-orphan-, not in
+  # CEREMONY_FOLLOW_UP_ID_PREFIXES) whose finding says the ride left its OWN
+  # ceremony incomplete — a prefix-only reading misses it; the content arm
+  # must not.
+  node "$FOLLOW_UPS" add --id fu-orphan-ride-522-own-ceremony --ref "$slug" --severity P2 \
+    --what "this ride left its own ceremony incomplete: a page was never regenerated" --why "fixture" \
+    --source "fixture" --ledger "$repo/docs/ai/decisions.jsonl" >/dev/null
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "record a ceremony item filed under an unlisted subject"
+  run_gate "$repo" "$slug" --json
+  printf '%s\n' "$OUT" > "$TEST_DIR/t522-b.json"
+  [[ "$(json_field "$TEST_DIR/t522-b.json" 'r.registry_self_items')" == "2" ]] \
+    || log_fail "TEST-522: the content arm must also catch the unlisted-subject ceremony item (expected 2): $OUT"
+  run_gate "$repo" "$slug"
+  case "$OUT" in *"fu-orphan-ride-522-own-ceremony"*) ;; *) log_fail "TEST-522: the content-arm-matched item must be named: $OUT" ;; esac
+
+  # Negative control: an unlisted-subject item with NO self-referential
+  # ceremony phrase in its finding must still be excluded — the content arm
+  # is narrow, not a return to the six-word finding-text regex TEST-005 pins
+  # gone.
+  node "$FOLLOW_UPS" add --id fu-orphan-ride-522-unrelated --ref "$slug" --severity P3 \
+    --what "an unrelated defect this ride also noticed" --why "fixture: no ceremony phrase here" \
+    --source "fixture" --ledger "$repo/docs/ai/decisions.jsonl" >/dev/null
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "record an unrelated item under an unlisted subject"
+  run_gate "$repo" "$slug" --json
+  printf '%s\n' "$OUT" > "$TEST_DIR/t522-c.json"
+  [[ "$(json_field "$TEST_DIR/t522-c.json" 'r.registry_self_items')" == "2" ]] \
+    || log_fail "TEST-522: an unlisted-subject item with no ceremony phrase must stay excluded (still 2): $OUT"
+
+  log_pass "TEST-522: registry class 4 matches the doc's display id as well as its slug, and a content arm catches (only) a ceremony item filed under an unlisted subject"
+}
+
+# --- TEST-523 (Spec-AC-03): a roadmap-paired open maintenance half blocks push
+
+test_523_paired_half_blocks_push() {
+  log_info "TEST-523: a roadmap pair whose maintenance half is still open is named under docs_open and the gate exits LEFT BEHIND; terminal is CLEAN; no roadmap.yaml is silent and does not crash..."
+  local repo slug="gate-ride" maint="gate-ride-maintenance-half"
+
+  # Arm A: the paired maintenance half is still draft -> docs_open names it.
+  repo="$(new_gate_repo t523-open "$slug" done done)"
+  cat > "$repo/docs/ai/roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: $slug
+    maintenance: $maint
+    status: planned
+YAML
+  write_gate_change_doc "$repo/docs/issues/CHANGE-DRAFT-$maint.md" "$maint" draft
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "add roadmap pair and an open maintenance half ($maint)"
+  run_gate "$repo" "$slug"
+  [[ "$CODE" -eq 1 ]] || log_fail "TEST-523: an open paired maintenance half must exit 1, got $CODE: $OUT"
+  case "$OUT" in *"docs_open"*"$maint"*) ;; *) log_fail "TEST-523: the open half must be named under docs_open: $OUT" ;; esac
+  run_gate "$repo" "$slug" --json
+  printf '%s\n' "$OUT" > "$TEST_DIR/t523-open.json"
+  [[ "$(json_field "$TEST_DIR/t523-open.json" 'r.docs_open')" == "1" ]] \
+    || log_fail "TEST-523: docs_open must count the open paired half: $OUT"
+
+  # Arm B: same fixture, half now terminal -> CLEAN.
+  write_gate_change_doc "$repo/docs/issues/CHANGE-DRAFT-$maint.md" "$maint" done
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "close the paired maintenance half ($maint)"
+  run_gate "$repo" "$slug"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-523: a terminal paired half must be CLEAN, got $CODE: $OUT"
+  case "$OUT" in *CLEAN*) ;; *) log_fail "TEST-523: expected CLEAN output: $OUT" ;; esac
+
+  # Arm C: no roadmap.yaml at all -> the class is silent, the run does not crash.
+  repo="$(new_gate_repo t523-noroadmap "$slug" done done)"
+  run_gate "$repo" "$slug"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-523: a repo with no roadmap.yaml must not crash and must stay CLEAN, got $CODE: $OUT"
+  case "$OUT" in *CLEAN*) ;; *) log_fail "TEST-523: expected CLEAN with no roadmap.yaml: $OUT" ;; esac
+
+  log_pass "TEST-523: an open roadmap-paired maintenance half is named under docs_open and blocks the push; terminal is CLEAN; no roadmap.yaml is silent and does not crash"
 }
 
 # --- flow helpers -------------------------------------------------------------
@@ -782,6 +935,9 @@ main() {
   test_004_gate_five_arms
   test_005_registry_id_prefix_closed_list
   test_008_no_forked_canon
+  test_521_gate_refuses_foreign_ref
+  test_522_registry_class_identity
+  test_523_paired_half_blocks_push
   test_001_full_run_clean
   test_002_seam_fixture_layer
   test_003_steps_from_questions

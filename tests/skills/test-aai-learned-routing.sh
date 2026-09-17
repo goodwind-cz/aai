@@ -665,6 +665,38 @@ test_010_strict_rejects_pending_append() {
   log_pass "--strict --rev HEAD rejects an uncommitted HAZ-LEDGER append as a named 'pending append not committed' mismatch (exit non-zero); non-strict keeps it a clean advisory; a real divergence keeps its own label (TEST-010)"
 }
 
+# --- TEST-520 (Spec-AC-01, close-ceremony-sweep): a folded scope split on
+# whitespace too, and NOTHING CHECKED fails with or without --strict ----------
+test_520_scope_folded_block_split() {
+  log_info "Test: --from-state reads a folded block of SPACE-separated paths (not just comma-separated); a fixture whose paths all resolve to nothing exits non-zero WITHOUT --strict (TEST-520)..."
+  # (a) three space-separated paths in a >- folded scalar, all real and clean.
+  local d="$TEST_DIR/fold-ws"; mkrepo "$d"; mkdir -p "$d/docs/ai"
+  printf 'one\n' > "$d/one.txt"; printf 'two\n' > "$d/two.txt"; printf 'three\n' > "$d/three.txt"
+  git -C "$d" add one.txt two.txt three.txt >/dev/null && git -C "$d" commit -qm base
+  printf 'code_review:\n  required: true\n  status: pass\n  scope: >-\n    one.txt two.txt three.txt\n  base_ref: main\n' > "$d/docs/ai/STATE.yaml"
+  local rc=0
+  ( cd "$d" && node "$CHECK" --from-state --json > "$TEST_DIR/ws.out" 2>&1 ) || rc=$?
+  [ "$rc" = "0" ] || log_fail "TEST-520: (a) a clean tree with three space-separated paths must exit 0, got $rc: $(cat "$TEST_DIR/ws.out")"
+  local n; n="$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(String(d.checked))' "$TEST_DIR/ws.out")"
+  [ "$n" = "3" ] || log_fail "TEST-520: (a) all three space-separated paths must be checked, checked=$n: $(cat "$TEST_DIR/ws.out")"
+
+  # (b) three space-separated paths that resolve to NOTHING (never on disk,
+  # never tracked): NOTHING CHECKED, and it fails WITHOUT --strict.
+  local nd="$TEST_DIR/fold-nothing"; mkrepo "$nd"; mkdir -p "$nd/docs/ai"
+  printf 'x\n' > "$nd/x.txt"; git -C "$nd" add x.txt >/dev/null && git -C "$nd" commit -qm base
+  printf 'code_review:\n  required: true\n  status: pass\n  scope: >-\n    ghost1.txt ghost2.txt ghost3.txt\n  base_ref: main\n' > "$nd/docs/ai/STATE.yaml"
+  rc=0
+  ( cd "$nd" && node "$CHECK" --from-state > "$TEST_DIR/nothing.out" 2>&1 ) || rc=$?
+  [ "$rc" != "0" ] || log_fail "TEST-520: (b) a fixture whose paths all resolve to nothing must exit non-zero WITHOUT --strict, got $rc: $(cat "$TEST_DIR/nothing.out")"
+  grep -qi 'NOTHING CHECKED' "$TEST_DIR/nothing.out" || log_fail "TEST-520: (b) the refusal must say NOTHING CHECKED: $(cat "$TEST_DIR/nothing.out")"
+  # and --strict agrees (the AC covers both)
+  rc=0
+  ( cd "$nd" && node "$CHECK" --from-state --strict > "$TEST_DIR/nothing-strict.out" 2>&1 ) || rc=$?
+  [ "$rc" != "0" ] || log_fail "TEST-520: (b) --strict must also refuse a nothing-resolves scope, got $rc: $(cat "$TEST_DIR/nothing-strict.out")"
+
+  log_pass "a space-separated folded scope is split and every path checked; a NOTHING CHECKED --from-state result exits non-zero with or without --strict (TEST-520)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$CHECK" ] || log_fail "engine missing: $CHECK"
@@ -681,6 +713,7 @@ main() {
   test_007_scope_ref_id_gate
   test_008_ledger_append_vs_divergence
   test_010_strict_rejects_pending_append
+  test_520_scope_folded_block_split
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"
