@@ -762,7 +762,10 @@ main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
   [ -f "$HEARTBEAT" ] || log_fail "heartbeat.mjs missing: $HEARTBEAT"
-  if [ $# -gt 0 ]; then "$1"; echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="; return; fi
+  if [ $# -gt 0 ]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"; echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="; return
+  fi
   test_001_loopback_and_routes
   test_002_roles_and_stale
   test_003_waiting_first

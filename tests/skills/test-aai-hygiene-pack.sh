@@ -17,6 +17,9 @@ TEST_NAME="aai-hygiene-pack"
 TEST_DIR=""
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Set by test_113 while a disposable detached worktree is live, so the EXIT
@@ -1095,8 +1098,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 94 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 94 (pin last moved for aai-pipe-safe, round 10, PR #381) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 95 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 95 (pin moved for aai-mutation-gate, spec-mutation-gate-for-tests continuation 1) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -1696,6 +1699,222 @@ test_128_shipping_scripts_pipe_safe_at_zero() {  # TEST-470 / round 10
     || log_fail "test_128: .aai/scripts/lib/*.sh must be scanned too, got $(pgq_total "$fscan"): $fscan"
 
   log_pass "test_128: shipping-script pipe-safe arm is at zero on the live tree, and bites on a reintroduced pipe in a pipefail script while ignoring one with no pipefail (TEST-470)"
+}
+
+# hp_scan_selector_suites <dir> — every tests/skills/test-aai-*.sh under
+# <dir> whose main() dispatches a single test by a positional argument,
+# detected MECHANICALLY from the file's own text (spec-mutation-gate-for-
+# tests Spec-AC-03 / D3, B2): never a name literal — a hardcoded list is
+# exactly the defect this closes, since it stops being measured the moment
+# a new suite is added. The four command-position idioms this repository's
+# suites actually use for a positional-selector dispatch:
+#   R1/R2  a GUARDED dispatch:  declare -f/-F "$1"  or  "test_${var}"
+#   R3/R4  a BARE dispatch statement — "$1" or "test_${var}" alone on its
+#          own line. Deliberately UNGUARDED counts too: an unguarded bare
+#          invocation IS the exact fail-open shape
+#          fu-test-selector-unknown-id-passes describes, so it must be
+#          enumerated, never filtered out for being the broken case.
+#   R5     an ALL_TESTS[@] (or "$fn" result of) prefix-match loop that
+#          assigns the matched candidate to a variable and invokes it
+#          (issues/pr-platform/routine/pr-waiver's shared idiom)
+hp_scan_selector_suites() {
+  local dir="$1" f
+  for f in "$dir"/tests/skills/test-aai-*.sh; do
+    [[ -f "$f" ]] || continue
+    # R3/R4 match "$1"/"test_${var}" in COMMAND POSITION — the start of a
+    # statement (line start, or right after ; && || then do) — REGARDLESS
+    # of what follows on the same line (e.g. `"$1"; echo done; return`):
+    # anchoring to end-of-line as well would miss the invocation the moment
+    # a guard mutation removes the ONLY other match on a different line
+    # (observed: TEST-473's own recorded mutation neutralizes feedback-
+    # triage.sh's `declare -F "$1"` guard line, leaving the corpus scan
+    # blind to the suite entirely unless the invocation line alone still
+    # matches).
+    if grep -qE 'declare -[fF] "\$1"' "$f" \
+      || grep -qE 'declare -[fF] "test_\$\{[A-Za-z_]+\}"' "$f" \
+      || grep -qE '(^|;|&&|\|\||then|do)[[:space:]]*"\$1"([[:space:];]|$)' "$f" \
+      || grep -qE '(^|;|&&|\|\||then|do)[[:space:]]*"test_\$\{[A-Za-z_]+\}"' "$f" \
+      || grep -qE 'ALL_TESTS\[@\]' "$f" \
+      || grep -qE '"\$fn"[[:space:]]*$' "$f"; then
+      printf '%s\n' "$f"
+    fi
+  done
+  return 0
+}
+
+test_094_mutation_selector_fails_closed_corpus_wide() {  # spec-mutation-gate-for-tests TEST-473 / Spec-AC-03
+  log_info "test_094: every tests/skills/test-aai-*.sh that accepts a positional selector, ENUMERATED FROM THE TREE, refuses an unknown selector corpus-wide (TEST-473)..."
+
+  # --- detection self-check: negative control + the fail-open shape ------
+  # A tiny ISOLATED fixture (never the real tree) proves the scan is a real
+  # mechanism, not a coincidence that happens to match 18 names: a suite
+  # using the EXACT idiom fu-test-selector-unknown-id-passes describes (a
+  # bare, unguarded "$1" invocation) is detected; a suite that never looks
+  # at $1 at all is not.
+  local dfx; dfx="$(mktemp -d "${TMPDIR:-/tmp}/aai-hp-corpus-check.XXXXXX")"
+  mkdir -p "$dfx/tests/skills"
+  cat > "$dfx/tests/skills/test-aai-control-ignores-args.sh" <<'EOS'
+#!/usr/bin/env bash
+main() { echo "always runs everything, $1 or not"; }
+main "$@"
+EOS
+  cat > "$dfx/tests/skills/test-aai-zzprobe.sh" <<'EOS'
+#!/usr/bin/env bash
+test_9001_greet() { echo "PASS: greet"; }
+main() {
+  if [[ -n "${1:-}" ]]; then
+    "$1"
+    echo "PASS: All selected zzprobe tests passed"
+    return
+  fi
+  test_9001_greet
+}
+main "$@"
+EOS
+  local scan_out
+  scan_out="$(hp_scan_selector_suites "$dfx")"
+  assert_payload_contains "$scan_out" "test-aai-zzprobe.sh" \
+    "test_094 self-check: the mechanical scan did not detect the fail-open idiom (test-aai-zzprobe.sh): $scan_out"
+  assert_payload_not_contains "$scan_out" "test-aai-control-ignores-args.sh" \
+    "test_094 self-check: the mechanical scan wrongly flagged a suite that never reads \$1 (negative control): $scan_out"
+
+  # And the probe itself (the SAME shape as the real corpus loop below),
+  # against JUST this isolated fixture, actually catches the planted
+  # fail-open suite — proving the guard's own mechanism works before it is
+  # trusted against the live tree.
+  local probe_out probe_rc
+  probe_out="$(bash "$dfx/tests/skills/test-aai-zzprobe.sh" no_such_test_xyz 2>&1)" && probe_rc=0 || probe_rc=$?
+  [[ "$probe_rc" -eq 0 ]] \
+    || log_fail "test_094 self-check: expected the PLANTED fail-open fixture to (wrongly) exit 0, confirming the defect shape is real, got $probe_rc: $probe_out"
+  rm -rf "$dfx"
+
+  # --- the real guard: enumerate the LIVE tree, then probe every member ---
+  local corpus_files=() f
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && corpus_files+=("$f")
+  done <<< "$(hp_scan_selector_suites "$PROJECT_ROOT")"
+  [[ "${#corpus_files[@]}" -ge 1 ]] || log_fail "TEST-473: the mechanical scan enumerated zero selector-accepting suites — the detector itself is broken"
+
+  local name rel out rc bad=""
+  for f in "${corpus_files[@]}"; do
+    rel="${f#"$PROJECT_ROOT"/}"
+    name="$(basename "$f" .sh)"; name="${name#test-aai-}"
+    out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=60 bash .aai/scripts/aai-run-tests.sh bash "$rel" no_such_test_xyz 2>&1)" && rc=0 || rc=$?
+    if [[ "$rc" -eq 0 ]]; then
+      log_info "test_094: ${rel} exited 0 on an unknown selector (fail-open): $out"
+      bad="$bad ${name}"
+    fi
+  done
+  [[ -z "$bad" ]] \
+    || log_fail "TEST-473: fail-open on an unknown selector in:$bad — every selector-accepting suite must refuse a name it does not define"
+
+  # Three representative suites — one per idiom, plus the suite the
+  # measurement found already fixed by accident (sweep 2) — must still
+  # resolve and run a REAL selector alone, exiting 0 (a mechanical scan that
+  # over-refuses, e.g. by breaking a suite's normal dispatch, is caught here).
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=60 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-branch-guard.sh 001 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-473: test-aai-branch-guard.sh 001 (a real selector, dynamic idiom) must still exit 0, got $rc: $out"
+  assert_payload_contains "$out" "All selected" \
+    "TEST-473: test-aai-branch-guard.sh 001 did not report running the selected test"
+
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=60 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-feedback-triage.sh test_001_gates 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-473: test-aai-feedback-triage.sh test_001_gates (a real selector, positional idiom) must still exit 0, got $rc: $out"
+  assert_payload_contains "$out" "SELECTED PASSED (test_001_gates)" \
+    "TEST-473: test-aai-feedback-triage.sh did not report the selected test"
+
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=600 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-layer-profiles.sh test_default_byte_identity 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-473: test-aai-layer-profiles.sh test_default_byte_identity (a real selector, the already-fixed suite) must still exit 0, got $rc: $out"
+  assert_payload_contains "$out" "SELECTED PASSED (test_default_byte_identity)" \
+    "TEST-473: test-aai-layer-profiles.sh did not report the selected test"
+
+  log_pass "test_094: every selector-accepting suite (${#corpus_files[@]} measured, scanned from the tree) refuses an unknown selector corpus-wide, and a real selector in one suite per idiom plus the already-fixed suite still runs alone (TEST-473)"
+}
+
+test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TEST-487 / Spec-AC-18
+  log_info "test_129: tests/skills/test-aai-mutation-gate.sh is registered — a suite-map.yaml row at the pinned row count, check-test-registration.mjs clean, select-suites.mjs routing to it (TEST-487)..."
+  local map="$PROJECT_ROOT/tests/skills/suite-map.yaml"
+  [[ -f "$map" ]] || log_fail "TEST-487: missing tests/skills/suite-map.yaml"
+
+  # Existence arm: aai-mutation-gate has its own top-level row.
+  grep -qE '^  aai-mutation-gate:$' "$map" \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has no 'aai-mutation-gate:' row"
+
+  # Count arm: the pin (test_090's own number) holds at 95 and matches the
+  # LIVE row count — a row deleted without moving the pin reddens BOTH arms
+  # together, which is the two-way check the Mutation column drives.
+  local row_count
+  row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
+  [[ "$row_count" -eq 95 ]] \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 95"
+
+  # check-test-registration.mjs exits 0 over the live tree (no orphan test_*
+  # function anywhere under tests/skills, this suite's new ones included).
+  local out rc
+  out="$(node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-487: check-test-registration.mjs exited $rc over the live tree: $out"
+
+  # select-suites.mjs, given the new gate script as the only changed file,
+  # routes to aai-mutation-gate.
+  out="$(printf '%s\n' '.aai/scripts/mutation-gate.mjs' | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - 2>&1)"
+  assert_payload_contains "$out" "SELECTED aai-mutation-gate" \
+    "TEST-487: select-suites.mjs did not route .aai/scripts/mutation-gate.mjs to aai-mutation-gate: $out"
+
+  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (95), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
+}
+
+# --- TEST-504 (NB4-r3, remediation round 3, Spec-AC-03): the Node copy of the
+# positional-dispatch idioms (mutation-run.mjs POSITIONAL_DISPATCH_PATTERNS)
+# stays aligned with hp_scan_selector_suites' own POSIX [[:space:]] grammar --
+test_130_node_bash_selector_scanner_whitespace_parity() {  # spec-mutation-gate-for-tests TEST-504 / Spec-AC-03
+  log_info "test_130: the Node and bash positional-dispatch scanners agree over the live corpus, and BOTH now recognize a vertical-tab whitespace dispatch line hp_scan_selector_suites' [[:space:]] already covered (TEST-504)..."
+  TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
+
+  # (1) Corpus-wide agreement — the regression guard NB4-r3 asks for: a
+  # future divergence between the two copies must be caught here, not
+  # discovered by hand months later.
+  local node_out bash_out
+  node_out="$(node --input-type=module -e "
+import { isPositionalDispatchSuite } from '$PROJECT_ROOT/.aai/scripts/mutation-run.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+const dir = path.join('$PROJECT_ROOT', 'tests', 'skills');
+const out = [];
+for (const name of fs.readdirSync(dir)) {
+  if (!/^test-aai-.*\.sh\$/.test(name)) continue;
+  const content = fs.readFileSync(path.join(dir, name), 'utf8');
+  if (isPositionalDispatchSuite(content)) out.push(name);
+}
+out.sort();
+process.stdout.write(out.join('\n') + '\n');
+")"
+  bash_out="$(hp_scan_selector_suites "$PROJECT_ROOT" | xargs -n1 basename | sort)"
+  [[ "$node_out" == "$bash_out" ]] \
+    || log_fail "TEST-504: the Node and bash selector scanners disagree over the live corpus — Node: [$node_out] bash: [$bash_out]"
+
+  # (2) A synthetic vertical-tab whitespace dispatch line: the bash scanner's
+  # [[:space:]] already matches it; the Node copy's OLD [ \t]-only class did
+  # not. The fix widens it to [ \t\v\f] — closing the exact gap NB4-r3
+  # measured (reachable only on synthetic input, never on the live corpus).
+  local vtdir="$TEST_DIR/t130-vt"
+  mkdir -p "$vtdir/tests/skills"
+  printf '#!/usr/bin/env bash\nthen\v"$1"\n' > "$vtdir/tests/skills/test-aai-vt-fixture.sh"
+
+  local bash_vt node_vt
+  bash_vt="$(hp_scan_selector_suites "$vtdir" | wc -l | tr -d ' ')"
+  [[ "$bash_vt" == "1" ]] \
+    || log_fail "test_130 setup: the bash scanner (POSIX [[:space:]]) must detect the vertical-tab fixture as a positive control, got $bash_vt"
+
+  node_vt="$(node --input-type=module -e "
+import { isPositionalDispatchSuite } from '$PROJECT_ROOT/.aai/scripts/mutation-run.mjs';
+import fs from 'node:fs';
+const content = fs.readFileSync('$vtdir/tests/skills/test-aai-vt-fixture.sh', 'utf8');
+process.stdout.write(isPositionalDispatchSuite(content) ? 'yes' : 'no');
+")"
+  [[ "$node_vt" == "yes" ]] \
+    || log_fail "TEST-504: the Node scanner must now also recognize a vertical-tab whitespace dispatch line the bash [[:space:]] copy already matched, got '$node_vt' (NB4-r3 whitespace-class alignment)"
+
+  log_pass "test_130 the Node and bash positional-dispatch scanners agree on every real suite in tests/skills, and the widened Node whitespace class ([ \\t\\v\\f]) now also matches a vertical-tab dispatch line the bash [[:space:]] copy already covered (TEST-504)"
 }
 
 # --- TEST-418 (Spec-AC-11) — the drain reached zero, and the scanner still
@@ -4025,6 +4244,9 @@ main() {
   test_119_generator_idempotence_preserves_seeded_state
   test_127_withdrawn_phrases_drained
   test_128_shipping_scripts_pipe_safe_at_zero
+  test_094_mutation_selector_fails_closed_corpus_wide
+  test_129_mutation_gate_suite_registration
+  test_130_node_bash_selector_scanner_whitespace_parity
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

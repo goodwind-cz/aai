@@ -735,12 +735,28 @@ export function parseLeanAcTable(content) {
 
 // --- Test Plan table + spec content identity (CHANGE-0120) --------------------
 
-// Split a markdown table line into cells, honoring escaped pipes (`\|`).
-// Owned here because BOTH spec-lint's Test Plan reader and the content-hash
-// below must agree on what a cell IS (a divergence would make the dispatcher's
-// no-delta verdict disagree with the lint the same table just passed).
+// Split a markdown table line into RAW cells (untrimmed, still carrying the
+// leading/trailing empty elements a `|`-bounded row produces — the same
+// shape a plain `line.split('|')` would return), honoring an escaped `\|`
+// inside a cell as literal text rather than a column boundary. The ONE
+// escaping rule every table-cell splitter in this repo shares (D1's rule
+// applied to table parsing): splitTableCells below builds on it, and
+// spec-contract-hash.mjs's blankTableSection (remediation round 7, Codex
+// P1, PR #384) reuses this SAME function directly, rather than a second
+// hand-rolled splitter, so an escaped pipe inside a Test Plan/AC cell (e.g.
+// a sed mutation expression containing `\|\|`) can never desynchronize the
+// two readers of the same table.
+export function splitRawTableCells(line) {
+  return String(line).split(/(?<!\\)\|/);
+}
+
+// Split a markdown table line into TRIMMED cells, honoring escaped pipes
+// (`\|`). Owned here because BOTH spec-lint's Test Plan reader and the
+// content-hash below must agree on what a cell IS (a divergence would make
+// the dispatcher's no-delta verdict disagree with the lint the same table
+// just passed).
 export function splitTableCells(line) {
-  const parts = String(line).split(/(?<!\\)\|/).map((c) => c.trim());
+  const parts = splitRawTableCells(line).map((c) => c.trim());
   return parts.slice(1, parts.length - 1);
 }
 
@@ -749,28 +765,179 @@ function lineNumberAt(norm, offset) {
   return norm.slice(0, offset).split('\n').length;
 }
 
+// Header cell text (lower-cased, trimmed) -> row key. Resolving BY NAME
+// (SPEC-DRAFT spec-mutation-gate-for-tests D15) is what lets a column be
+// INSERTED anywhere (a Mutation column between Description and Status, e.g.)
+// without silently shifting every cell after it — the exact defect measured
+// against the old positional reader (measurement 14 in that spec).
+const TEST_PLAN_HEADER_MAP = {
+  'test id': 'testId',
+  'spec-ac': 'acCell',
+  'type': 'typeCell',
+  'file path (expected)': 'fileCell',
+  'file path': 'fileCell', // tolerate a header without the "(expected)" suffix
+  'description': 'descriptionCell',
+  'mutation': 'mutationCell',
+  'status': 'statusCell',
+};
+
+// resolveTestPlanHeaderKey(headerText) -> canonical row key, or null.
+// Remediation round 3 NB-1 (SPEC-DRAFT spec-mutation-gate-for-tests): the map
+// above is a CLOSED exact-match table, so a header spelled differently than
+// the template's own (e.g. SPEC-0062's "File path (existing suite)") yields
+// '' for that whole cell — silently, for every row. Prefix-matched for the
+// columns measured to vary with a parenthetical suffix or vendor wording
+// (`test id*`, `spec-ac*`, `file path*`, `mutation*`, `status*`); `type` and
+// `description` stay exact — neither varies in the corpus, and a prefix match
+// on `type` would swallow an unrelated future column ("type of change", say).
+export function resolveTestPlanHeaderKey(headerText) {
+  const h = String(headerText ?? '').trim().toLowerCase();
+  if (!h) return null;
+  if (h.startsWith('test id')) return 'testId';
+  if (h.startsWith('spec-ac')) return 'acCell';
+  if (h === 'type') return 'typeCell';
+  if (h.startsWith('file path')) return 'fileCell';
+  if (h === 'description') return 'descriptionCell';
+  if (h.startsWith('mutation')) return 'mutationCell';
+  if (h.startsWith('status')) return 'statusCell';
+  return null;
+}
+
 // Parse the `## Test Plan` table: rows whose first cell is TEST-xxx.
-// Returns { present, rows: [{ testId, acCell, line }] }. `line` is 1-based in
-// the NORMALIZED content, matching every other parser in this module.
+// Returns { present, rows: [{ testId, acCell, typeCell, fileCell,
+// descriptionCell, mutationCell, statusCell, header, line }] }. `line` is
+// 1-based in the NORMALIZED content, matching every other parser in this
+// module.
+//
+// Columns are resolved BY NAME from the table's own header row (the first
+// table line whose cells include "Test ID", case-insensitively) — never by
+// position. `testId`/`acCell`/`typeCell`/`fileCell` are kept byte-identical
+// for every existing six-column table (the CHANGE-0120 shape `specContentHash`
+// below and spec-lint's Test Plan walk both already consume); a seventh
+// `Mutation` column, in any position, is additive. A table with no locatable
+// header row (hand-edited/malformed) degrades to the original fixed CHANGE-
+// 0120 positions 0-3 rather than dropping every row.
 export function parseTestPlanTable(content) {
   const norm = normalizeNewlines(content);
   const m = norm.match(/(?:^|\n)##\s+Test Plan\b[^\n]*\n([\s\S]+?)(?=\n##\s|\n*$)/i);
   if (!m) return { present: false, rows: [] };
   const sectionStart = m.index + m[0].indexOf(m[1]);
+  const lines = m[1].split('\n');
+
+  let headerCells = null;
+  let headerLineNo = null;
+  let offsetToHeader = 0;
+  for (const line of lines) {
+    if (!line.trim().startsWith('|')) { offsetToHeader += line.length + 1; continue; }
+    const cells = splitTableCells(line);
+    if (cells.some((c) => resolveTestPlanHeaderKey(c) === 'testId')) {
+      headerCells = cells;
+      headerLineNo = lineNumberAt(norm, sectionStart + offsetToHeader);
+      break;
+    }
+    offsetToHeader += line.length + 1;
+  }
+
+  const colIndex = {};
+  // NB-1: a header cell this reader does not recognize is collected here
+  // (never silently dropped) so a caller (spec-lint's `test-plan-header-
+  // unmapped` finding) can name it — the old exact-match map just returned
+  // '' for that whole column with nothing to grep.
+  const unrecognizedHeaderCells = [];
+  if (headerCells) {
+    headerCells.forEach((h, i) => {
+      const key = resolveTestPlanHeaderKey(h);
+      if (key) {
+        if (!(key in colIndex)) colIndex[key] = i;
+      } else if (h.trim()) {
+        unrecognizedHeaderCells.push(h.trim());
+      }
+    });
+    // Positional fallback (NB-1): an unrecognized header cell must not
+    // silently drop one of the four byte-identical CHANGE-0120 columns —
+    // fall back to the original fixed position for exactly those four keys,
+    // and only when the header row is actually wide enough to carry it.
+    const FIXED_POSITIONS = { testId: 0, acCell: 1, typeCell: 2, fileCell: 3 };
+    for (const key of Object.keys(FIXED_POSITIONS)) {
+      if (!(key in colIndex) && headerCells.length > FIXED_POSITIONS[key]) {
+        colIndex[key] = FIXED_POSITIONS[key];
+      }
+    }
+  } else {
+    // No header row located: fall back to the original fixed positions so a
+    // malformed table still yields the four fields every existing consumer
+    // has always gotten, rather than nothing.
+    colIndex.testId = 0; colIndex.acCell = 1; colIndex.typeCell = 2; colIndex.fileCell = 3;
+  }
+  const cellAt = (cells, key) => {
+    const idx = colIndex[key];
+    return idx === undefined ? '' : (cells[idx] ?? '');
+  };
+
   const rows = [];
   let offset = 0;
-  for (const line of m[1].split('\n')) {
+  for (const line of lines) {
     const lineNo = lineNumberAt(norm, sectionStart + offset);
     offset += line.length + 1;
     if (!line.trim().startsWith('|')) continue;
     const cells = splitTableCells(line);
-    if (!cells.length || !/^TEST-\d+$/.test(cells[0])) continue;
-    // typeCell/fileCell: template columns 3-4 (Type, File path). Captured for
-    // the confirm hash (re-validation R3: a re-plan retargeting a test's file
-    // or type must count as a delta); absent columns hash as ''.
-    rows.push({ testId: cells[0], acCell: cells[1] ?? '', typeCell: cells[2] ?? '', fileCell: cells[3] ?? '', line: lineNo });
+    const testId = cellAt(cells, 'testId');
+    if (!/^TEST-\d+$/.test(testId)) continue;
+    // typeCell/fileCell: captured for the confirm hash (re-validation R3: a
+    // re-plan retargeting a test's file or type must count as a delta);
+    // absent columns hash as ''.
+    rows.push({
+      testId,
+      acCell: cellAt(cells, 'acCell'),
+      typeCell: cellAt(cells, 'typeCell'),
+      fileCell: cellAt(cells, 'fileCell'),
+      descriptionCell: cellAt(cells, 'descriptionCell'),
+      mutationCell: cellAt(cells, 'mutationCell'),
+      statusCell: cellAt(cells, 'statusCell'),
+      header: headerCells ?? [],
+      line: lineNo,
+    });
   }
-  return { present: true, rows };
+  return { present: true, rows, unrecognizedHeaderCells, headerLine: headerLineNo };
+}
+
+// The closed placeholder vocabulary a Mutation cell must not merely echo
+// (SPEC-DRAFT spec-mutation-gate-for-tests D8): a cell holding one of these
+// names no real mutation. Case-insensitive, trimmed. Empty is NOT a
+// placeholder here — it is "missing", a distinct class callers report
+// separately (D15 `mutation-cell-missing` vs `mutation-cell-malformed`).
+const MUTATION_CELL_PLACEHOLDERS = new Set(['-', '—', 'tbd', 'pending']);
+
+// isMutationCellPlaceholder(cell) -> true for a non-empty cell whose trimmed,
+// lower-cased text is one of the placeholder tokens above. ONE definition
+// shared by mutation-gate.mjs (D8's "non-empty and not a placeholder"
+// precondition) and spec-lint.mjs's `mutation-cell-malformed` finding (D15),
+// so the two tools can never disagree about what a placeholder IS.
+export function isMutationCellPlaceholder(cell) {
+  const c = String(cell ?? '').trim();
+  if (!c) return false;
+  return MUTATION_CELL_PLACEHOLDERS.has(c.toLowerCase());
+}
+
+export const STRATEGY_ENUM = ['loop', 'tdd', 'hybrid', 'direct', 'untested', 'undecided'];
+
+// resolveStrategy(content, callerStrategy) -> the normalized strategy token
+// (one of STRATEGY_ENUM minus 'undecided') or null. Precedence, spec-lint's
+// own, reused VERBATIM (SPEC-DRAFT spec-mutation-gate-for-tests D9: applicability
+// is "read with spec-lint.mjs's own precedence, never a private parser"): an
+// explicit caller-supplied value (already validated by the caller, e.g.
+// spec-lint's --strategy) first, then frontmatter `strategy:`, then the
+// `- Strategy: <v>` body line SPEC_TEMPLATE writes under `## Implementation
+// strategy`. Absent/unrecognized/`undecided` -> null; callers fail open on
+// null rather than guess.
+export function resolveStrategy(content, callerStrategy = null) {
+  const norm = normalizeNewlines(content);
+  const fm = parseFrontmatter(norm) ?? {};
+  const bodyStrategy = norm.match(/^-\s*Strategy:\s*(\S+)/m);
+  const fmStrategy = fm.strategy === undefined || fm.strategy === null ? null : String(fm.strategy);
+  const declared = callerStrategy ?? fmStrategy ?? (bodyStrategy ? bodyStrategy[1] : null);
+  const declaredLc = declared ? String(declared).toLowerCase() : null;
+  return STRATEGY_ENUM.includes(declaredLc) && declaredLc !== 'undecided' ? declaredLc : null;
 }
 
 // specContentHash(content) -> a content-addressed identity of what a spec

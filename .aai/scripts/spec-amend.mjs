@@ -160,6 +160,8 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { nowIso } from './lib/iso-time.mjs';
+import { walk, parseFrontmatter, specFrozenInBody } from './lib/docs-model.mjs';
+import { contractHash } from './lib/spec-contract-hash.mjs';
 
 const DEFAULT_LEDGER = 'docs/ai/decisions.jsonl';
 const ITEM_PREFIX = 'fu-amend-';
@@ -340,9 +342,16 @@ function foldAmendments(records) {
       ?? (history.map((h) => str(h.tracked_by)).filter((v) => v !== null).pop() ?? null);
     const trackedItem = trackedBy === null ? null : followUps.get(trackedBy) ?? null;
 
+    // D16 (SPEC-DRAFT spec-mutation-gate-for-tests, fu-spec-amend-terminal-
+    // tracker-counts): existence is not enough — a DROPPED or DONE tracker
+    // satisfies `trackedItem !== null` forever, so the unsigned-tracked
+    // bucket (the one `--strict` treats as SATISFIED) requires the tracker
+    // to still be OPEN. A closed tracker is exactly as untracked as no
+    // tracker at all: the obligation it was supposed to drain is gone.
+    const trackerOpen = trackedItem !== null && trackedItem.closed !== true;
     let bucket;
     if (signoff === true) bucket = 'signed';
-    else if (signoff === false) bucket = trackedItem !== null ? 'unsigned-tracked' : 'unsigned-untracked';
+    else if (signoff === false) bucket = trackerOpen ? 'unsigned-tracked' : 'unsigned-untracked';
     else bucket = 'unclassified';
 
     const item = {
@@ -554,7 +563,12 @@ function usageError(msg) {
 const FLAG_SPECS = {
   add: ['--ledger', '--spec', '--ref', '--what', '--why', '--signoff', '--authority', '--actor'],
   classify: ['--ledger', '--ts', '--ref', '--signoff', '--why', '--source', '--origin', '--tracked-by', '--actor'],
-  list: ['--ledger', '--status'],
+  // --specs-dir (D11): where `list --strict` scans for frozen specs to
+  // re-hash against their own `frozen_sha256` anchor. Defaults to
+  // docs/specs — overridable so a fixture test can point at a scratch
+  // corpus without touching the live tree, the same seam `--ledger` already
+  // is for the amendment-record half of this gate.
+  list: ['--ledger', '--status', '--specs-dir'],
 };
 
 // A value is a value unless it is EXACTLY a token this CLI knows — never a
@@ -575,8 +589,8 @@ function parseArgs(argv) {
     usageError(`unknown subcommand "${sub}" (expected add, classify or list)`);
   }
   const valueFlags = FLAG_SPECS[sub];
-  const knownTokens = new Set([...Object.values(FLAG_SPECS).flat(), '--json', '--strict', '--help', '-h']);
-  const opts = { json: false, strict: false };
+  const knownTokens = new Set([...Object.values(FLAG_SPECS).flat(), '--json', '--strict', '--list-degraded', '--help', '-h']);
+  const opts = { json: false, strict: false, list_degraded: false };
   for (let i = 0; i < rest.length; i += 1) {
     const tok = rest[i];
     if (tok === '-h' || tok === '--help') {
@@ -591,6 +605,11 @@ function parseArgs(argv) {
     if (tok === '--strict') {
       if (sub !== 'list') usageError('--strict is only valid on `list`');
       opts.strict = true;
+      continue;
+    }
+    if (tok === '--list-degraded') {
+      if (sub !== 'list') usageError('--list-degraded is only valid on `list`');
+      opts.list_degraded = true;
       continue;
     }
     if (tok.startsWith('--') && tok.includes('=')) {
@@ -746,6 +765,15 @@ function cmdAdd(opts) {
     exit(1);
   }
 
+  // D11 — the OTHER half of the printed remedy's promise: `add` re-stamps
+  // `frozen_sha256` to the CURRENT contract projection in this same call, so
+  // the record that just landed is what makes the next `list --strict` exit
+  // 0. Only re-stamps a spec that ALREADY carries an anchor (never manufactures
+  // one — that is spec-freeze.mjs's job); a spec with no anchor, or none
+  // findable, is silently left alone.
+  const newAnchor = restampSpecAnchor(absSpec);
+  if (newAnchor) console.log(`NOTE re-stamped frozen_sha256 on ${specRel} to the current contract projection (${newAnchor})`);
+
   if (signed) {
     console.log(`spec-amend: recorded a SIGNED amendment on ${specId} (ref ${opts.ref}, authority on the record) — no tracked item is owed`);
   } else {
@@ -754,6 +782,32 @@ function cmdAdd(opts) {
     console.log(`NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open`);
   }
   exit(0);
+}
+
+// restampSpecAnchor(absSpec) -> the new hex digest written, or null when the
+// file could not be read, has no frontmatter, or carries no existing
+// `frozen_sha256` key (nothing to re-stamp — never MANUFACTURES an anchor;
+// that is spec-freeze.mjs's job, D9/D17). Preserves the file's original line
+// endings, mirroring spec-freeze.mjs's own CRLF discipline.
+function restampSpecAnchor(absSpec) {
+  let raw;
+  try {
+    raw = fs.readFileSync(absSpec, 'utf8');
+  } catch {
+    return null;
+  }
+  const crlf = raw.includes('\r\n');
+  const norm = raw.replace(/\r\n/g, '\n');
+  const fm = norm.match(/^---\n([\s\S]*?)\n---/);
+  if (!fm) return null;
+  if (!/^frozen_sha256:[ \t]*\S+[ \t]*$/m.test(fm[1])) return null;
+  const hash = contractHash(norm);
+  const newFmBody = fm[1].replace(/^frozen_sha256:[ \t]*\S*[ \t]*$/m, `frozen_sha256: ${hash}`);
+  const fmStart = fm.index + 4;
+  let out = `${norm.slice(0, fmStart)}${newFmBody}${norm.slice(fmStart + fm[1].length)}`;
+  if (crlf) out = out.replace(/\n/g, '\r\n');
+  fs.writeFileSync(absSpec, out);
+  return hash;
 }
 
 function cmdClassify(opts) {
@@ -876,6 +930,11 @@ function formatRow(item) {
     item.ref_id ?? '-',
     `spec=${item.spec_id ?? '-'}`,
     `tracked_by=${item.tracked_by ?? '-'}`,
+    // D16: the tracker's own status is what turns `unsigned-tracked` into
+    // `unsigned-untracked` the moment it closes — name it beside the id, not
+    // only the boolean bucket, so `list --strict`'s refusal is readable
+    // without a second lookup into follow-ups.mjs.
+    `tracked_status=${item.tracked_status ?? '-'}`,
     `signoff=${item.owner_signoff === null ? 'absent' : String(item.owner_signoff)}`,
   ].join('  ');
 }
@@ -892,6 +951,79 @@ const STATUS_FILTERS = {
 // amendment nobody can drain, and a record whose sign-off state is unknown.
 const STRICT_VIOLATION_BUCKETS = ['unsigned-untracked', 'unclassified'];
 
+const DEFAULT_SPECS_DIR = 'docs/specs';
+
+// scanSpecAnchors(specsDirAbs) -> { violations: [{spec_id, path}], degraded:
+// [{spec_id, path}] } — SPEC-DRAFT spec-mutation-gate-for-tests D11/D9. Walks
+// every frozen spec under specsDirAbs and recomputes its contract-projection
+// hash against the frontmatter's own `frozen_sha256` anchor.
+//   - not a `type: spec` document, or never frozen (no SPEC-FROZEN body
+//     marker) -> skipped entirely, not even counted: Spec-AC-13's "editing a
+//     non-frozen spec [or] a non-spec document ... change the gate's output
+//     not at all".
+//   - frozen but carrying no `frozen_sha256` -> DEGRADED (D9's degrade-by-
+//     name discipline, reused here: every spec frozen before this ride
+//     shipped, 174 measured, must never turn the gate red for an anchor
+//     nobody stamped).
+//   - frozen, anchored, current projection hash still matches -> silent,
+//     satisfied. `add` re-stamps this anchor in the SAME call that appends
+//     the disclosure record (D11), so a mismatch can only mean the content
+//     changed with no `add` call since the last stamp — never that a record
+//     merely exists somewhere for this spec (D11: "what keeps the gate live
+//     for the SECOND undisclosed edit").
+//   - frozen, anchored, mismatch -> an `undisclosed-amendment` violation.
+function scanSpecAnchors(specsDirAbs) {
+  const violations = [];
+  const degraded = [];
+  let scanned = 0;
+  for (const abs of walk(specsDirAbs).sort()) {
+    let content;
+    try {
+      content = fs.readFileSync(abs, 'utf8');
+    } catch (err) {
+      // Remediation round 7 (Codex P2, PR #384): an unreadable spec must
+      // fail CLOSED rather than being silently omitted from the strict
+      // scan — a file this scanner cannot read is exactly the file an
+      // undisclosed amendment could hide behind. Reported as its own
+      // STRICT violation bucket (never a hard exit(2) here) so the scan
+      // still names every OTHER offending spec in the same run.
+      const rel = path.relative(process.cwd(), abs) || abs;
+      violations.push({ spec_id: path.basename(abs), path: rel, bucket: 'unreadable-spec', error: err.message });
+      continue;
+    }
+    const fm = parseFrontmatter(content);
+    if (!fm || String(fm.type ?? '').trim().toLowerCase() !== 'spec') continue;
+    const anchor = str(fm.frozen_sha256);
+    const frozenMarker = specFrozenInBody(content);
+    // Never frozen AND never anchored: not this scan's business, unchanged
+    // from before this round ("a non-frozen spec ... change the gate's
+    // output not at all", Spec-AC-13).
+    if (!frozenMarker && anchor === null) continue;
+    scanned += 1; // NB-2: a frozen-or-anchored spec this scan actually looked at
+    const specId = str(fm.id) ?? path.basename(abs);
+    const rel = path.relative(process.cwd(), abs) || abs;
+    if (!frozenMarker) {
+      // Remediation round 7 (Codex P1, PR #384): an anchored spec (carries
+      // frozen_sha256) that LOST its SPEC-FROZEN body marker must never be
+      // skipped before its own anchor is even compared — deleting one line
+      // would otherwise bypass the whole undisclosed-amendment gate, since
+      // nothing would ever read frozen_sha256 again. A different cause from
+      // a content mismatch, so it is its own STRICT violation bucket rather
+      // than folded into 'undisclosed-amendment'.
+      violations.push({ spec_id: specId, path: rel, bucket: 'anchor-without-freeze-marker' });
+      continue;
+    }
+    if (anchor === null) {
+      degraded.push({ spec_id: specId, path: rel });
+      continue;
+    }
+    if (contractHash(content) !== anchor) {
+      violations.push({ spec_id: specId, path: rel, bucket: 'undisclosed-amendment' });
+    }
+  }
+  return { violations, degraded, scanned };
+}
+
 function cmdList(opts) {
   const abs = ledgerPath(opts);
   const reg = loadLedgerOrRefuse(abs);
@@ -906,13 +1038,36 @@ function cmdList(opts) {
   const violations = reg.items.filter((i) => STRICT_VIOLATION_BUCKETS.includes(i.bucket));
   const counts = { shown: shown.length, ...reg.counts };
 
+  // The spec-anchor scan (D11) runs ONLY under --strict — a plain `list`
+  // stays byte-identical to before this scope, and the (small but real) cost
+  // of walking docs/specs is paid only by the gate that needs the answer.
+  const specsDirAbs = path.resolve(process.cwd(), str(opts.specs_dir) ?? DEFAULT_SPECS_DIR);
+  // NB-2 (remediation round 3): scanSpecAnchors' own walk() returns [] for a
+  // missing directory (shared behavior with every other walk() caller in
+  // docs-model.mjs, so walk() itself is not the thing to change) — that made
+  // `list --strict` from the wrong cwd, or with a typo'd --specs-dir, scan
+  // NOTHING and still print `spec_degraded=0` and exit 0: indistinguishable
+  // from a clean corpus, exactly the failure the spec's own Isolation section
+  // names ("a gate that finds nothing is indistinguishable from a gate that
+  // found compliance"). Refuse instead of scanning nothing.
+  if (opts.strict && !fs.existsSync(specsDirAbs)) {
+    process.stderr.write(`spec-amend: --strict specs_dir does not exist: ${specsDirAbs} — refusing rather than silently scanning nothing\n`);
+    exit(2);
+  }
+  const specReg = opts.strict ? scanSpecAnchors(specsDirAbs) : { violations: [], degraded: [], scanned: 0 };
+  const specViolations = specReg.violations;
+
   if (opts.json) {
     console.log(JSON.stringify({
       ledger: abs,
+      specs_dir: specsDirAbs,
       strict: opts.strict,
       counts,
       items: shown,
       violations: violations.map((v) => ({ ts: v.ts, ref_id: v.ref_id, bucket: v.bucket })),
+      spec_violations: specViolations,
+      spec_scanned: specReg.scanned,
+      spec_degraded: specReg.degraded,
       notes: reg.notes,
     }, null, 2));
   } else {
@@ -920,8 +1075,64 @@ function cmdList(opts) {
     for (const item of shown) console.log(formatRow(item));
     if (shown.length === 0) console.log('(no spec_amendment records match this view)');
     for (const n of reg.notes) console.log(n);
+    if (opts.strict) {
+      // Degrade summary — ONE line carrying the count, mirroring
+      // mutation-gate.mjs's own D9 discipline: 174 legacy specs with no
+      // anchor must not produce 174 lines on every run. `--list-degraded`
+      // prints the per-spec detail (small fixture corpora in tests want it
+      // by name).
+      console.log(`spec-amend: spec_scanned=${specReg.scanned} spec_degraded=${specReg.degraded.length} (no freeze anchor) specs_dir=${specsDirAbs}`);
+      if (opts.list_degraded) {
+        for (const d of specReg.degraded) console.log(`DEGRADED no freeze anchor spec=${d.spec_id} path=${d.path}`);
+      }
+    }
     for (const v of violations) {
       console.log(`STRICT-VIOLATION ${v.bucket} ts=${v.ts ?? '-'} ref=${v.ref_id ?? '-'} spec=${v.spec_id ?? '-'}`);
+    }
+    for (const v of specViolations) {
+      console.log(`STRICT-VIOLATION ${v.bucket ?? 'undisclosed-amendment'} spec=${v.spec_id ?? '-'} path=${v.path ?? '-'}`);
+    }
+  }
+
+  // Remediation round 7 (PR #384): three DIFFERENT causes now share
+  // specViolations, each with its own remedy — an anchor mismatch is
+  // cleared by `add` (it re-stamps), a missing freeze marker is cleared by
+  // restoring the body line (no ledger record fixes that), and an
+  // unreadable file is cleared by fixing its permissions/existence. Bucket
+  // them so each prints only the remedy that actually applies.
+  const undisclosedViolations = specViolations.filter((v) => (v.bucket ?? 'undisclosed-amendment') === 'undisclosed-amendment');
+  const markerViolations = specViolations.filter((v) => v.bucket === 'anchor-without-freeze-marker');
+  const unreadableViolations = specViolations.filter((v) => v.bucket === 'unreadable-spec');
+
+  if (opts.strict && undisclosedViolations.length > 0) {
+    process.stderr.write(`spec-amend: --strict found ${undisclosedViolations.length} frozen spec(s) whose content no longer matches their frozen_sha256 anchor with no explaining spec_amendment record — an undisclosed post-freeze edit.\n`);
+    for (const v of undisclosedViolations) {
+      // NB2 (spec-mutation-gate-for-tests): this line must be RUNNABLE
+      // VERBATIM in a shell (Spec-AC-12), never printed with `<placeholder>`
+      // tokens a shell would try to redirect or expand. `--ref` is filled
+      // from the offending spec's OWN frontmatter id (the only "ride
+      // reference" this tool can read without inventing one); `--what`/
+      // `--why` are filled with a real, honest default sentence the author
+      // is expected to EDIT for specificity but that clears the violation
+      // as-is if run unedited (D2 fail-open never refuses on their
+      // content). `add` never refuses on their content (D2 fail-open), so
+      // the line is runnable exactly as printed.
+      process.stderr.write(`  node .aai/scripts/spec-amend.mjs add --spec ${JSON.stringify(v.path)} --ref ${JSON.stringify(v.spec_id ?? 'unknown-ref')} --what ${JSON.stringify('undisclosed post-freeze content change (edit this line to name what changed)')} --why ${JSON.stringify('closing the strict amendment gate after the frozen anchor stopped matching (edit this line to name why)')} --signoff none\n`);
+    }
+    process.stderr.write('`add` RE-STAMPS frozen_sha256 to the current projection in the SAME call that appends the record, so running the line above is what clears this violation — never `spec-amend.mjs classify`, which judges an EXISTING record\'s sign-off and touches no spec.\n');
+  }
+
+  if (opts.strict && markerViolations.length > 0) {
+    process.stderr.write(`spec-amend: --strict found ${markerViolations.length} anchored spec(s) (frozen_sha256 present) whose SPEC-FROZEN body marker is missing — an anchor with nothing left to compare it against would otherwise bypass this gate entirely.\n`);
+    for (const v of markerViolations) {
+      process.stderr.write(`  restore "SPEC-FROZEN: true" in the body of ${v.path} (spec=${v.spec_id}) — an anchored spec must carry the freeze marker; if the freeze is being deliberately undone, remove frozen_sha256 too, as a reviewed edit, never a silent deletion of the marker alone\n`);
+    }
+  }
+
+  if (opts.strict && unreadableViolations.length > 0) {
+    process.stderr.write(`spec-amend: --strict could not read ${unreadableViolations.length} spec(s) under ${specsDirAbs} — an unreadable file is refused rather than silently omitted from the scan.\n`);
+    for (const v of unreadableViolations) {
+      process.stderr.write(`  restore read access to ${v.path} (spec=${v.spec_id}) so it can be scanned: ${v.error ?? 'unreadable'}\n`);
     }
   }
 
@@ -956,8 +1167,8 @@ function cmdList(opts) {
     }
     process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to name the item it attaches to (a new id is filed for you; a discharged one is refused).\n');
     process.stderr.write('NOT remedies: `spec-amend.mjs add` records a NEW amendment and leaves the record named above untracked; `follow-ups.mjs add` files an item but attaches it to nothing. Never edit the ledger in place (HAZ-LEDGER).\n');
-    exit(1);
   }
+  if (opts.strict && (violations.length > 0 || specViolations.length > 0)) exit(1);
   exit(0);
 }
 

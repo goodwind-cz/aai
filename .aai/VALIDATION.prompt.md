@@ -205,7 +205,10 @@ PROCESS
       Additionally (SPEC-0044): run `node .aai/scripts/tdd-evidence-check.mjs
       --red <log>` on the scope's recorded RED log(s); infra_fail or
       unclassified NEW evidence is not RED-proof. Legacy logs (pre-change, no
-      RED_CLASS line) keep today's by-eye spot-check.
+      RED_CLASS line) keep today's by-eye spot-check. For a scope whose spec
+      carries `mutation_gate: v1`, re-run every recorded mutation with
+      `node .aai/scripts/mutation-run.mjs --replay --spec <path>`; a record
+      that no longer reddens is BLOCKING.
    h) FRICTION HOOK — best-effort record per `.aai/system/FRICTION_PROTOCOL.md`
       (see .aai/ROLE_COMMON.md FRICTION HOOK for the full capture contract).
       Trigger: a gate, lint, or CI check fails on an AAI-owned canon file

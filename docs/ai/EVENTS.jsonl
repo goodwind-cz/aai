@@ -2296,3 +2296,10 @@
 {"v":1,"ts":"2026-09-14T01:32:03.040Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-framework-sweep","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-14T01:32:03.079Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-framework-sweep","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-14T01:32:03.115Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-test-framework-sweep","payload":{"commit":"c92c51de"}}
+{"v":1,"ts":"2026-09-14T09:23:10Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-mutation-gate-for-tests","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-17T17:49:11Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"mutation-gate-for-tests","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-17T17:49:11Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"mutation-gate-for-tests","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-17T17:49:11Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"mutation-gate-for-tests","payload":{"commit":"86c6db598c185302dc598f2bc32f51df9fc4691f"}}
+{"v":1,"ts":"2026-09-17T17:49:11Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-mutation-gate-for-tests","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-17T17:49:11Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-mutation-gate-for-tests","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-17T17:49:11Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-mutation-gate-for-tests","payload":{"commit":"86c6db598c185302dc598f2bc32f51df9fc4691f"}}

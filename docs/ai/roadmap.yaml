@@ -20,16 +20,16 @@ pairs:
     status: done
   - capability: harness-universal-routing
     maintenance: telemetry-fields-not-prose
-    status: active
+    status: done
   - capability: test-framework-sweep
     maintenance: residuals-of-the-per-suite-clone-ride
-    status: planned
+    status: done
   - capability: dispatch-state-sweep
     maintenance: focus-and-validation-state-go-stale-silently
-    status: planned
+    status: done
   - capability: mutation-gate-for-tests
     maintenance: unrecorded-spec-amendment-is-invisible
-    status: planned
+    status: active
   - capability: close-ceremony-sweep
     maintenance: roadmap-gate-admits-only-the-next-pair
     status: planned

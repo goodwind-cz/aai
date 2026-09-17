@@ -72,7 +72,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { normalizeNewlines, parseFrontmatter, parseAcTable, parseLeanAcTable } from './lib/docs-model.mjs';
+import {
+  normalizeNewlines, parseFrontmatter, parseAcTable, parseLeanAcTable,
+  resolveStrategy, parseTestPlanTable,
+} from './lib/docs-model.mjs';
+import { contractHash } from './lib/spec-contract-hash.mjs';
 import { lintContent } from './spec-lint.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
@@ -80,7 +84,13 @@ const ROOT = process.cwd();
 const FROZEN_STATUS = 'implementing';
 // spec-lint rules that are FREEZE PRECONDITIONS, not merely advisories (see
 // the header). Everything else spec-lint reports stays report-only.
-const PRECONDITION_RULES = ['ac-without-test', 'frozen-without-strategy', 'unresolved-clarification'];
+// `mutation-cell-missing` (SPEC-DRAFT spec-mutation-gate-for-tests D9/D15) is
+// the fourth: mutationGateApplicability() already treats an IN-FLIGHT tdd/
+// hybrid spec as applicable (no marker to read yet, so it falls through to
+// the strategy check), so this refuses a tdd/hybrid spec at freeze time when
+// its Test Plan has no Mutation column — never a document this tool would
+// otherwise stamp `mutation_gate: v1` on with nothing to gate.
+const PRECONDITION_RULES = ['ac-without-test', 'frozen-without-strategy', 'unresolved-clarification', 'mutation-cell-missing'];
 // Statuses a spec may be frozen FROM. Anything else (done, superseded,
 // rejected, deferred, legacy, an unknown token) is refused rather than
 // silently reopened.
@@ -189,6 +199,28 @@ export function freezeContent(norm) {
     }
   }
 
+  // Half 3 — the amendment anchor and the mutation-gate marker (SPEC-DRAFT
+  // spec-mutation-gate-for-tests D9/D10/D17, Spec-AC-17). ONE atomic write
+  // with halves 1 and 2, never a second pass — the whole reason D17 names
+  // "in ONE atomic write" is that a half-written anchor after a status write
+  // is exactly the half-frozen defect this file exists to remove, one level
+  // up.
+  //   - `frozen_sha256` is UNCONDITIONAL and, once present, is NEVER
+  //     overwritten by this tool: repairing a MISSING anchor (a legacy spec
+  //     gaining one for the first time, or re-running this tool on a spec
+  //     this ride is stamping — implementation plan step 7) is safe; silently
+  //     RE-stamping an anchor that already exists is not — that would erase
+  //     the evidence an undisclosed edit ever happened, which is the one job
+  //     `spec-amend.mjs add` owns (D11). So: absent -> write it now; present
+  //     -> leave it byte-identical, whatever the current content hashes to.
+  //   - `mutation_gate: v1` is written ONLY for a tdd/hybrid spec whose Test
+  //     Plan carries a Mutation column header (D9) — read from THIS
+  //     transform's own output, never a stale pre-freeze read, so a doc whose
+  //     strategy or Test Plan changed during the same edit is judged on what
+  //     is actually about to be written. An existing correct value is left
+  //     alone; this tool never REMOVES a marker once set.
+  out = stampAnchorAndMarker(out);
+
   // POST-TRANSFORM ASSERTION — the last line of defense, and the reason an
   // offset bug can never again reach the disk. The RESULT is re-parsed from
   // scratch (not trusted from the transform's own bookkeeping) and must satisfy
@@ -198,6 +230,50 @@ export function freezeContent(norm) {
   if (bad) throw new Error(`post-transform assertion failed: ${bad} — refusing to write a corrupted spec`);
 
   return { content: out, from };
+}
+
+// setFrontmatterScalar(fmBody, key, value) -> fmBody with a top-level
+// `key: value` line set. An existing line is replaced in place (preserving
+// its position); otherwise the line is inserted right after `status:` (every
+// frontmatter block reaching here has one — freezeContent refused already if
+// not), so a diff of the freeze reads as one small hunk rather than a
+// reordering of the whole block.
+function setFrontmatterScalar(fmBody, key, value) {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`^${escaped}:[ \\t]*.*$`, 'm');
+  if (re.test(fmBody)) return fmBody.replace(re, `${key}: ${value}`);
+  return fmBody.replace(/^status:[ \t]*\S*[ \t]*$/m, (m) => `${m}\n${key}: ${value}`);
+}
+
+// stampAnchorAndMarker(out) -> `out` with `frozen_sha256` (unconditional,
+// write-once) and `mutation_gate: v1` (conditional, write-once) set in the
+// frontmatter block. Re-derives the frontmatter offsets from `out` itself
+// (the same discipline the marker-placement branch above uses) rather than
+// reusing any earlier match — `out`'s length already moved once.
+function stampAnchorAndMarker(out) {
+  const fm = out.match(/^---\n([\s\S]*?)\n---/);
+  if (!fm) throw new Error('post-transform: the rewritten frontmatter no longer parses — refusing to write');
+  const fm2 = parseFrontmatter(out) ?? {};
+  const strategy = resolveStrategy(out, null);
+  const tp = parseTestPlanTable(out);
+  const hasMutationColumn = tp.present && tp.rows.length > 0
+    && (tp.rows[0].header ?? []).some((h) => String(h).trim().toLowerCase() === 'mutation');
+  const wantMutationGate = (strategy === 'tdd' || strategy === 'hybrid') && hasMutationColumn;
+  const hasHash = typeof fm2.frozen_sha256 === 'string' && fm2.frozen_sha256.trim() !== '';
+  const hasMarker = fm2.mutation_gate === 'v1';
+
+  if (hasHash && (!wantMutationGate || hasMarker)) return out; // nothing to add
+
+  let fmBody = fm[1];
+  if (!hasHash) {
+    const hash = contractHash(out);
+    fmBody = setFrontmatterScalar(fmBody, 'frozen_sha256', hash);
+  }
+  if (wantMutationGate && !hasMarker) {
+    fmBody = setFrontmatterScalar(fmBody, 'mutation_gate', 'v1');
+  }
+  const fmStart = fm.index + 4; // past the opening "---\n"
+  return out.slice(0, fmStart) + fmBody + out.slice(fmStart + fm[1].length);
 }
 
 // assertFrozen(out) -> null when the transformed document satisfies the frozen
@@ -230,7 +306,12 @@ export function assertFrozen(out) {
 // this gate asks exactly one question — "would the document I am about to
 // write be a lint violation?" — with spec-lint as the only judge.
 export function freezePreconditions(frozenContent) {
-  const hits = lintContent(frozenContent).filter((f) => PRECONDITION_RULES.includes(f.rule));
+  // frozenMarker: false — this content already carries the body marker Half
+  // 2 of freezeContent just wrote, so a literal read would exempt every
+  // freeze as "already-frozen, grandfathered" (spec-lint.mjs's own comment on
+  // this override). Preconditions ask the PRE-freeze question: would this
+  // tdd/hybrid spec's Test Plan lack a Mutation column once frozen.
+  const hits = lintContent(frozenContent, { frozenMarker: false }).filter((f) => PRECONDITION_RULES.includes(f.rule));
   // PARSER-DROPPED ROWS (bot P2): a malformed AC row the shared parser skips
   // is INVISIBLE to ac-without-test — the spec would freeze with an AC no
   // rule ever saw. Any line that LOOKS like an AC row but did not parse is a

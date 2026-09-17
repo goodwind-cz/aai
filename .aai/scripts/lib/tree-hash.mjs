@@ -1,0 +1,142 @@
+// tree-hash.mjs — a content+path hash over a git working tree, excluding
+// docs/ai/tdd/** on both listing and hashing (SPEC-DRAFT
+// spec-mutation-gate-for-tests D4 step 4, D7). ONE module, imported by BOTH
+// the clone-vs-source comparison (D4) and the runner's OWN before/after
+// shipping-tree tripwire (D7), so the two checks can never drift apart —
+// and by any fixture test that needs to assert the SAME property from
+// outside the tool (never a re-implementation of the hash shape).
+//
+// NAMED NARROWING (NB-5, remediation round 3): `listTreeFiles` covers
+// tracked files plus untracked-not-ignored files — it is BLIND to every
+// OTHER gitignored path, i.e. what D7's prose ("the source repository SHALL
+// be byte-identical outside docs/ai/tdd afterwards") actually proves is
+// narrower than it reads: identical across tracked + untracked-not-ignored
+// files outside docs/ai/tdd, not literally every byte on disk. RUNTIME_
+// ALLOWLIST below closes the one class that matters for this tool's own
+// claim — the gitignored runtime paths THIS REPOSITORY's own ceremony
+// writes while a suite runs (docs/ai/STATE.yaml, docs/ai/LOOP_TICKS.jsonl) —
+// added to the hash by name, only when they exist, never a blanket "hash
+// every gitignored path" (which would also catch arbitrary developer
+// scratch files with no bearing on the tripwire's claim).
+//
+// Node stdlib only (docs/TECHNOLOGY.md).
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+
+const EXCLUDED_PREFIX = 'docs/ai/tdd';
+
+// NB-5: gitignored runtime paths hashed BY NAME, in addition to tracked +
+// untracked-not-ignored, when they exist under the directory being scanned —
+// see the module header. Closed list, not a glob: widening it is a decision,
+// not a side effect of some other change.
+export const RUNTIME_ALLOWLIST = ['docs/ai/STATE.yaml', 'docs/ai/LOOP_TICKS.jsonl'];
+
+function isExcluded(rel) {
+  return rel === EXCLUDED_PREFIX || rel.startsWith(`${EXCLUDED_PREFIX}/`);
+}
+
+// git ls-files (tracked) + git ls-files --others --exclude-standard
+// (untracked, not ignored) + RUNTIME_ALLOWLIST's named gitignored paths (NB-5)
+// when present, EXCLUDING docs/ai/tdd/** throughout: the evidence this tool
+// writes must never be able to change the verdict it is about to record, or
+// the shipping-tree tripwire it computes after the fact.
+export function listTreeFiles(dir) {
+  // `-z`: NUL-separated, never C-quoted. Without it git quotes a name holding
+  // a TAB, a quote or a non-ASCII byte ("lib/ev\til.txt"), the quoted string
+  // names no file, and the path drops out of the hash — the tree tripwire was
+  // blind to exactly the files a hostile patch would choose (validation
+  // rounds 10-11, fu-tree-hash-blind-to-quoted-paths).
+  const tracked = execFileSync('git', ['-C', dir, 'ls-files', '-z'], { encoding: 'utf8' });
+  const untracked = execFileSync('git', ['-C', dir, 'ls-files', '-z', '--others', '--exclude-standard'], { encoding: 'utf8' });
+  const all = new Set();
+  for (const raw of [tracked, untracked]) {
+    for (const p of raw.split('\0')) {
+      if (!p) continue;
+      if (isExcluded(p)) continue;
+      all.add(p);
+    }
+  }
+  for (const rel of RUNTIME_ALLOWLIST) {
+    if (isExcluded(rel)) continue;
+    if (fs.existsSync(path.join(dir, rel))) all.add(rel);
+  }
+  return [...all].sort();
+}
+
+// computeTreeFileHashes(dir) -> Map<relPath, sha256Hex> for every file
+// listTreeFiles returns. The per-file breakdown a caller needs to name WHICH
+// path changed (NB2-r2) — computeTreeHash below collapses this into one
+// digest, which is enough to DETECT a change but not to name it.
+export function computeTreeFileHashes(dir) {
+  const files = listTreeFiles(dir);
+  const map = new Map();
+  for (const rel of files) {
+    let bytes;
+    try {
+      bytes = fs.readFileSync(path.join(dir, rel));
+    } catch {
+      continue; // a symlink to nowhere, or a race — never fatal to the hash
+    }
+    map.set(rel, createHash('sha256').update(bytes).digest('hex'));
+  }
+  return map;
+}
+
+// hashFromFileHashes(map) -> the same digest computeTreeHash produces, built
+// from an already-collected computeTreeFileHashes() map — so a caller that
+// needs BOTH the summary hash and the ability to name a changed path computes
+// the map once and derives both from it, rather than walking the tree twice.
+export function hashFromFileHashes(map) {
+  const h = createHash('sha256');
+  for (const rel of [...map.keys()].sort()) {
+    h.update(`${rel}\0${map.get(rel)}\n`);
+  }
+  return h.digest('hex');
+}
+
+// A tree hash over PATH + CONTENT for every file listTreeFiles returns, so it
+// is comparable between two independent working trees (the source and the
+// clone) without either being a git object store of the other, AND
+// comparable against ITSELF at two points in time (the D7 tripwire).
+export function computeTreeHash(dir) {
+  return hashFromFileHashes(computeTreeFileHashes(dir));
+}
+
+// diffTreeFileHashes(before, after) -> { added, removed, changed } (each a
+// sorted array of repo-relative paths), comparing two computeTreeFileHashes()
+// maps taken at two points in time over the SAME directory. NB2-r2: when the
+// D7 tripwire fires, this is what turns "the tree hash moved" into "THIS path
+// moved" — the runner's own write and a concurrent editor's write both trip
+// the summary hash identically, but only naming the path lets an operator
+// tell them apart.
+export function diffTreeFileHashes(before, after) {
+  const added = [];
+  const removed = [];
+  const changed = [];
+  for (const [rel, hash] of after) {
+    if (!before.has(rel)) added.push(rel);
+    else if (before.get(rel) !== hash) changed.push(rel);
+  }
+  for (const rel of before.keys()) {
+    if (!after.has(rel)) removed.push(rel);
+  }
+  added.sort();
+  removed.sort();
+  changed.sort();
+  return { added, removed, changed };
+}
+
+// describeTreeDiff(diff) -> one-line human-readable summary of a
+// diffTreeFileHashes() result, e.g. "changed: a.txt, b.txt; added: c.txt".
+// Empty when nothing is named (should not happen when the caller only calls
+// this after confirming the hashes actually differ).
+export function describeTreeDiff({ added, removed, changed }) {
+  const parts = [];
+  if (changed.length) parts.push(`changed: ${changed.join(', ')}`);
+  if (added.length) parts.push(`added: ${added.join(', ')}`);
+  if (removed.length) parts.push(`removed: ${removed.join(', ')}`);
+  return parts.join('; ') || '(no path named — the hash differs but no per-file diff found one; a race in the diff itself)';
+}

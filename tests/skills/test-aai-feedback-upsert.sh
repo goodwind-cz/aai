@@ -1577,7 +1577,10 @@ main() {
   echo "=== $TEST_NAME ==="
   [ -f "$SCRIPT" ] || log_fail "engine missing: $SCRIPT"
   setup
-  if [ $# -gt 0 ]; then "$1"; echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="; return; fi
+  if [ $# -gt 0 ]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"; echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="; return
+  fi
   test_001_prepare_no_write
   test_002_template_and_redaction
   test_004_dedup

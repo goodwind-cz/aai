@@ -53,6 +53,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SA="$PROJECT_ROOT/.aai/scripts/spec-amend.mjs"
 FU="$PROJECT_ROOT/.aai/scripts/follow-ups.mjs"
+SF="$PROJECT_ROOT/.aai/scripts/spec-freeze.mjs"
 ROUTINE_EMIT="$PROJECT_ROOT/.aai/scripts/routine-emit.mjs"
 LIVE_LEDGER="$PROJECT_ROOT/docs/ai/decisions.jsonl"
 CANON="$PROJECT_ROOT/.aai/system/AUTONOMOUS_LOOP.md"
@@ -175,6 +176,73 @@ mk_spec() {
     echo "SPEC-FROZEN: true"
   } > "$f"
   printf '%s' "$f"
+}
+
+# --- D11 helpers (SPEC-DRAFT spec-mutation-gate-for-tests TEST-482..485) -----
+
+# mk_freezable_spec <relpath-under-TEST_DIR> <id> [strategy] -> path to a NEW,
+# not-yet-frozen fixture spec carrying a minimal AC table + Test Plan, so the
+# REAL spec-freeze.mjs (not a hand-written marker) can stamp `frozen_sha256`
+# on it — TEST-482/483/484 all need a GENUINE anchor, produced by the tool
+# that owns writing one, never faked.
+mk_freezable_spec() {
+  local f="$TEST_DIR/$1" id="$2" strategy="${3:-direct}"
+  mkdir -p "$(dirname "$f")"
+  {
+    echo "---"
+    echo "id: $id"
+    echo "type: spec"
+    echo "number: null"
+    echo "status: draft"
+    echo "---"
+    echo ""
+    echo "# fixture $id"
+    echo ""
+    echo "## Implementation strategy"
+    echo "- Strategy: $strategy"
+    echo ""
+    echo "## Acceptance Criteria Status"
+    echo ""
+    echo "| Spec-AC    | Description | Status | Evidence | Review-By | Notes |"
+    echo "|------------|-------------|--------|----------|-----------|-------|"
+    echo "| Spec-AC-01 | original description text | planned | — | — | |"
+    echo ""
+    echo "## Test Plan"
+    echo ""
+    echo "| Test ID | Spec-AC | Type | File path (expected) | Description | Status |"
+    echo "|---------|---------|------|-----------------------|--------------|--------|"
+    echo "| TEST-001 | Spec-AC-01 | unit | tests/x.sh | does the thing | pending |"
+  } > "$f"
+  printf '%s' "$f"
+}
+
+# freeze_spec <path> -> runs the REAL spec-freeze.mjs against it (no ledger
+# event, this is a scratch fixture). Returns non-zero and logs the refusal
+# reason on failure, so a caller's own setup assertion names the real cause.
+freeze_spec() {
+  local out rc=0
+  out="$(node "$SF" --path "$1" --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_info "freeze_spec: spec-freeze.mjs refused $1 (rc=$rc): $out"
+  return "$rc"
+}
+
+# contract_hash_of <path> -> the CURRENT contract-projection hash of a spec
+# file, computed by importing lib/spec-contract-hash.mjs directly — never by
+# re-deriving the projection by hand, which would let this suite and the
+# module under test silently drift apart.
+contract_hash_of() {
+  node --input-type=module -e "
+    import { contractHash } from '$PROJECT_ROOT/.aai/scripts/lib/spec-contract-hash.mjs';
+    import fs from 'node:fs';
+    process.stdout.write(contractHash(fs.readFileSync(process.argv[1], 'utf8')));
+  " "$1"
+}
+
+# frozen_sha256_of <path> -> the STORED anchor (frontmatter field), by a plain
+# sed read (never through the tool under test, for the same independence
+# reason contract_hash_of exists).
+frozen_sha256_of() {
+  sed -n 's/^frozen_sha256:[ \t]*//p' "$1" | qhead -1
 }
 
 # count_amendments <ledger> -> spec_amendment records counted by PARSING each
@@ -1435,6 +1503,463 @@ test_445_ac12_negative_controls_test003_008_009() {
   log_pass "TEST-445 all three arms (format trap, append-only, classification) are proven on fixtures that take the branch they were written for, and each reddens on its own deliberate mutation (arm A: 6 real vs $mutTotalA mutated; arm B: $prefixVerdictB real vs $prefixVerdictB2 mutated; arm C: unclassified refused, classified accepted)"
 }
 
+# --- TEST-482 (Spec-AC-12, spec-mutation-gate-for-tests D11) -----------------
+# Undisclosed amendment is caught, and the refusal's OWN printed remedy —
+# run verbatim, placeholders filled — clears it in one call.
+test_482_undisclosed_amendment_caught() {
+  log_info "Test: a frozen spec edited inside the contract projection with no record refuses list --strict, and its own printed remedy clears it (TEST-482)..."
+  local specsdir led spec ok=1
+  specsdir="$TEST_DIR/t482-specs"
+  led="$(mk_ledger t482)"
+  spec="$(mk_freezable_spec t482-specs/fixture.md spec-t482-fixture direct)"
+  freeze_spec "$spec" || { log_fail "TEST-482 setup: real spec-freeze.mjs refused the fixture"; return; }
+  [[ -n "$(frozen_sha256_of "$spec")" ]] || { log_fail "TEST-482 setup: no frozen_sha256 written by the real tool"; return; }
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 0 ]] || { log_fail "TEST-482: baseline (unedited) strict must be clean, got $EC (stdout: $OUT) (stderr: $ERR)"; return; }
+
+  # A Spec-AC Description cell — squarely inside the contract projection.
+  sed -i.bak 's/original description text/EDITED description text/' "$spec"
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 1 ]] || { log_fail "TEST-482: an undisclosed edit must refuse strict, got $EC (stdout: $OUT)"; ok=0; }
+  grep -qF 'STRICT-VIOLATION undisclosed-amendment' <<<"$OUT" \
+    || { log_fail "TEST-482: refusal must print STRICT-VIOLATION undisclosed-amendment; stdout: $OUT"; ok=0; }
+  grep -qF 'spec-t482-fixture' <<<"$OUT" \
+    || { log_fail "TEST-482: refusal must name the offending spec; stdout: $OUT"; ok=0; }
+
+  # NB2 (spec-mutation-gate-for-tests): the printed line carries REAL values
+  # (ref = the offending spec's own frontmatter id, --what/--why real default
+  # sentences) — never a `<placeholder>` token a shell would choke on — so
+  # Spec-AC-12's "run VERBATIM" is exercised literally here, no substitution.
+  local suggested
+  suggested="$(sed -n 's/^ *node \.aai\/scripts\/spec-amend\.mjs \(add .*\)$/\1/p' <<<"$ERR" | qhead -1)"
+  [[ -n "$suggested" ]] || { log_fail "TEST-482: no runnable \`add\` line printed on stderr; stderr: $ERR"; ok=0; }
+  grep -qF '<' <<<"$suggested" \
+    && { log_fail "TEST-482: the printed remedy still carries a <placeholder> token, not runnable verbatim: $suggested"; ok=0; }
+  EC=0
+  eval "node \"\$SA\" $suggested --ledger \"\$led\"" > "$TEST_DIR/.stdout" 2> "$TEST_DIR/.stderr" || EC=$?
+  OUT="$(cat "$TEST_DIR/.stdout")"; ERR="$(cat "$TEST_DIR/.stderr")"
+  [[ "$EC" == 0 ]] || { log_fail "TEST-482: the printed remedy, run VERBATIM (no substitution), must succeed, got $EC (stdout: $OUT) (stderr: $ERR)"; ok=0; }
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 0 ]] || { log_fail "TEST-482: after running the printed remedy, strict must reach 0, got $EC (stdout: $OUT)"; ok=0; }
+
+  local stored current
+  stored="$(frozen_sha256_of "$spec")"
+  current="$(contract_hash_of "$spec")"
+  [[ -n "$stored" && "$stored" == "$current" ]] \
+    || { log_fail "TEST-482: frozen_sha256 must match the edited projection after the remedy, stored=$stored current=$current"; ok=0; }
+
+  # D10's own claim, exercised directly: the frontmatter block is removed
+  # ENTIRELY from the projection, so a harmless frontmatter-only edit (a new
+  # top-level key nothing else touches) must never move the anchor. This is
+  # exactly the property this row's own Mutation cell ("compare the stored
+  # hash against the WHOLE file instead of the contract projection") breaks —
+  # under that mutation the two hashes below diverge, which is what makes
+  # this exact named mutation redden TEST-482 (not only TEST-483's
+  # bookkeeping-cell arm).
+  local fm_only_copy fm_only_hash
+  fm_only_copy="$TEST_DIR/t482-fm-only.md"
+  node -e '
+    const fs = require("fs");
+    const c = fs.readFileSync(process.argv[1], "utf8")
+      .replace(/^type: spec$/m, "type: spec\nx-noop: frontmatter-only-edit");
+    fs.writeFileSync(process.argv[2], c);
+  ' "$spec" "$fm_only_copy"
+  fm_only_hash="$(contract_hash_of "$fm_only_copy")"
+  [[ "$current" == "$fm_only_hash" ]] \
+    || { log_fail "TEST-482: a frontmatter-only edit must not change the contract-projection hash (D10 — frontmatter is stripped entirely); unedited=$current with-noop-key=$fm_only_hash"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-482 an undisclosed edit is caught, named, and cleared by its own printed \`add\` remedy in one call; frozen_sha256 is re-stamped to the edited projection; frontmatter never enters the hash" \
+    || log_fail "TEST-482 undisclosed amendment"
+}
+
+# --- TEST-483 (Spec-AC-13) ----------------------------------------------------
+# Honest edits (disclosed, either signoff) pass; non-targets leave the gate's
+# output byte-identical to the unedited run.
+test_483_honest_edits_and_non_targets() {
+  log_info "Test: a disclosed amendment passes signed or unsigned-tracked; an unfrozen spec, a non-spec doc and a bookkeeping-only edit change nothing (TEST-483)..."
+  local specsdir led ok=1
+
+  # Arm A — signed disclosure.
+  specsdir="$TEST_DIR/t483a-specs"; led="$(mk_ledger t483a)"
+  local specA; specA="$(mk_freezable_spec t483a-specs/a.md spec-t483-signed direct)"
+  freeze_spec "$specA" || { log_fail "TEST-483 arm A setup: freeze refused"; return; }
+  sed -i.bak 's/original description text/A EDITED/' "$specA"
+  run_sa add --ledger "$led" --spec "$specA" --ref t483a-ride --what "w" --why "y" \
+    --signoff owner --authority "owner said so"
+  [[ "$EC" == 0 ]] || { log_fail "TEST-483 arm A: add --signoff owner must succeed, got $EC (stderr: $ERR)"; ok=0; }
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 0 ]] || { log_fail "TEST-483 arm A: strict must pass after a SIGNED disclosed amendment, got $EC (stdout: $OUT)"; ok=0; }
+
+  # Arm B — unsigned-tracked disclosure.
+  specsdir="$TEST_DIR/t483b-specs"; led="$(mk_ledger t483b)"
+  local specB; specB="$(mk_freezable_spec t483b-specs/b.md spec-t483-unsigned direct)"
+  freeze_spec "$specB" || { log_fail "TEST-483 arm B setup: freeze refused"; return; }
+  sed -i.bak 's/original description text/B EDITED/' "$specB"
+  run_sa add --ledger "$led" --spec "$specB" --ref t483b-ride --what "w" --why "y" --signoff none
+  [[ "$EC" == 0 ]] || { log_fail "TEST-483 arm B: add --signoff none must succeed, got $EC (stderr: $ERR)"; ok=0; }
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 0 ]] || { log_fail "TEST-483 arm B: strict must pass after an UNSIGNED-TRACKED disclosed amendment, got $EC (stdout: $OUT)"; ok=0; }
+
+  # Arm C — three non-targets, sharing one specs dir + one baseline snapshot.
+  specsdir="$TEST_DIR/t483c-specs"; led="$(mk_ledger t483c)"
+  local specC; specC="$(mk_freezable_spec t483c-specs/frozen.md spec-t483-bookkeeping direct)"
+  freeze_spec "$specC" || { log_fail "TEST-483 arm C setup: freeze refused"; return; }
+  # an UNFROZEN spec (never touched by spec-freeze.mjs)
+  cat > "$TEST_DIR/t483c-specs/unfrozen.md" <<'EOF'
+---
+id: spec-t483-unfrozen
+type: spec
+number: null
+status: draft
+---
+
+# fixture unfrozen
+
+## Implementation strategy
+- Strategy: direct
+EOF
+  # a NON-SPEC document — even carrying marker-shaped text in its body, it
+  # must never be scanned (type gate, not a body-text sniff).
+  cat > "$TEST_DIR/t483c-specs/nonspec.md" <<'EOF'
+---
+id: note-t483
+type: note
+number: null
+status: draft
+---
+
+# a note, not a spec
+
+SPEC-FROZEN: true
+frozen_sha256: 0000000000000000000000000000000000000000000000000000000000000
+EOF
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  local baseline_ec="$EC" baseline_out="$OUT" baseline_err="$ERR"
+  [[ "$baseline_ec" == 0 ]] || { log_fail "TEST-483 arm C: baseline over frozen+unfrozen+nonspec must be clean, got $baseline_ec (stdout: $baseline_out)"; ok=0; }
+  # NB3 (spec-mutation-gate-for-tests): scanSpecAnchors's specFrozenInBody
+  # skip is what keeps the UNFROZEN spec above out of `degraded` (it has no
+  # frozen_sha256 either, so without the skip it would be miscounted as "a
+  # frozen spec missing its anchor"). Pin the COUNT, not just rc: a removed
+  # skip still exits 0 here (degraded is advisory, never a refusal) but
+  # moves spec_degraded from 0 to 1 — this line is what catches that.
+  grep -qF 'spec_degraded=0' <<<"$baseline_out" \
+    || { log_fail "TEST-483 arm C: baseline spec_degraded must be 0 (the unfrozen spec must never be counted as a frozen-but-anchorless spec); stdout: $baseline_out"; ok=0; }
+
+  # (c1) editing the UNFROZEN spec — output unchanged.
+  sed -i.bak 's/Strategy: direct/Strategy: direct (edited)/' "$TEST_DIR/t483c-specs/unfrozen.md"
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == "$baseline_ec" && "$OUT" == "$baseline_out" ]] \
+    || { log_fail "TEST-483 arm C1: editing an unfrozen spec must leave the gate's output byte-identical; before=[$baseline_out] after=[$OUT]"; ok=0; }
+
+  # (c2) editing the NON-SPEC doc — output unchanged.
+  sed -i.bak 's/a note, not a spec/an edited note/' "$TEST_DIR/t483c-specs/nonspec.md"
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == "$baseline_ec" && "$OUT" == "$baseline_out" ]] \
+    || { log_fail "TEST-483 arm C2: editing a non-spec document must leave the gate's output byte-identical; before=[$baseline_out] after=[$OUT]"; ok=0; }
+
+  # (c3) editing ONLY bookkeeping cells (AC Status/Evidence/Review-By/Notes,
+  # Test Plan Status) of the frozen spec — output unchanged.
+  sed -i.bak \
+    -e 's/| Spec-AC-01 | original description text | planned | — | — | |/| Spec-AC-01 | original description text | done | some evidence | 2026-12-31 | reviewed |/' \
+    -e 's/| TEST-001 | Spec-AC-01 | unit | tests\/x.sh | does the thing | pending |/| TEST-001 | Spec-AC-01 | unit | tests\/x.sh | does the thing | green |/' \
+    "$specC"
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == "$baseline_ec" && "$OUT" == "$baseline_out" ]] \
+    || { log_fail "TEST-483 arm C3: a bookkeeping-only edit (Status/Evidence/Review-By/Notes/Test-Plan-Status) must leave the gate's output byte-identical; before=[$baseline_out] after=[$OUT]"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-483 a disclosed amendment passes under either signoff; an unfrozen spec, a non-spec document and bookkeeping-only edits change the gate's output not at all" \
+    || log_fail "TEST-483 honest edits and non-targets"
+}
+
+# --- TEST-484 (Spec-AC-14) ----------------------------------------------------
+# Legacy specs (no frozen_sha256) degrade by name, never turn the gate red.
+test_484_legacy_degrades_by_name() {
+  log_info "Test: three unanchored frozen specs degrade by name and never redden; an anchored spec edited without a record still refuses; the live repo exits 0 naming the degraded count (TEST-484)..."
+  local specsdir led ok=1
+  specsdir="$TEST_DIR/t484-specs"; led="$(mk_ledger t484)"
+  mkdir -p "$specsdir"
+  local i
+  for i in 1 2 3; do
+    cat > "$specsdir/legacy$i.md" <<EOF
+---
+id: spec-t484-legacy-$i
+type: spec
+number: null
+status: implementing
+---
+
+# fixture legacy $i
+
+SPEC-FROZEN: true
+
+## Implementation strategy
+- Strategy: direct
+EOF
+  done
+  local anchored; anchored="$(mk_freezable_spec t484-specs/anchored.md spec-t484-anchored direct)"
+  freeze_spec "$anchored" || { log_fail "TEST-484 setup: freeze refused"; return; }
+  sed -i.bak 's/original description text/ANCHORED EDITED/' "$anchored"
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict --list-degraded
+  [[ "$EC" == 1 ]] || { log_fail "TEST-484: the anchored spec's undisclosed edit must still refuse, got $EC (stdout: $OUT)"; ok=0; }
+  grep -qF 'STRICT-VIOLATION undisclosed-amendment spec=spec-t484-anchored' <<<"$OUT" \
+    || { log_fail "TEST-484: the refusal must name ONLY the anchored spec; stdout: $OUT"; ok=0; }
+  for i in 1 2 3; do
+    grep -qF "STRICT-VIOLATION undisclosed-amendment spec=spec-t484-legacy-$i" <<<"$OUT" \
+      && { log_fail "TEST-484: an unanchored legacy spec must never turn the gate red (legacy-$i wrongly listed as a violation); stdout: $OUT"; ok=0; }
+    grep -qF "DEGRADED no freeze anchor spec=spec-t484-legacy-$i" <<<"$OUT" \
+      || { log_fail "TEST-484: legacy-$i must be listed as degraded BY NAME under --list-degraded; stdout: $OUT"; ok=0; }
+  done
+  grep -qF 'spec_degraded=3' <<<"$OUT" \
+    || { log_fail "TEST-484: the summary line must carry the degraded COUNT (3); stdout: $OUT"; ok=0; }
+
+  # Live repository: exits 0, names the degraded count, never retroactively red.
+  run_sa list --ledger "$LIVE_LEDGER" --specs-dir "$PROJECT_ROOT/docs/specs" --strict
+  [[ "$EC" == 0 ]] \
+    || { log_fail "TEST-484: the LIVE repository's strict gate must exit 0 (no legacy spec may turn it red), got $EC (stdout: $OUT)"; ok=0; }
+  grep -qE 'spec_degraded=[0-9]+' <<<"$OUT" \
+    || { log_fail "TEST-484: the live run must name a degraded count; stdout: $OUT"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-484 unanchored legacy specs degrade by name and never redden; an anchored spec's undisclosed edit still refuses; the live repository is clean and names its degraded count" \
+    || log_fail "TEST-484 legacy degrades by name"
+}
+
+# --- TEST-485 (Spec-AC-15, D16 / fu-spec-amend-terminal-tracker-counts) -----
+# The unsigned-tracked bucket requires an OPEN tracker; a closed or dropped
+# one is unsigned-untracked and refused, naming the item and its status.
+test_485_tracker_must_be_open() {
+  log_info "Test: a record whose tracked_by item is open passes strict; closed or dropped, it is unsigned-untracked and refused, naming the item and its status (TEST-485)..."
+  local led ok=1
+  led="$(mk_ledger t485)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T00:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t485-ride","spec":"docs/specs/x.md","spec_id":"spec-t485-fixture","owner_signoff":false,"tracked_by":"fu-amend-t485-fixture","what":"w","why":"y"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-amend-t485-fixture","ref_id":"t485-ride","severity":"P2","finding":"f","decision":"d","source":"s"}' >> "$led"
+
+  # (a) OPEN tracker: unsigned-tracked, strict passes.
+  run_sa list --ledger "$led"
+  grep -qF 'unsigned-tracked' <<<"$OUT" \
+    || { log_fail "TEST-485 arm a: an open tracker must bucket as unsigned-tracked; stdout: $OUT"; ok=0; }
+  grep -qF 'tracked_status=open' <<<"$OUT" \
+    || { log_fail "TEST-485 arm a: the row must name the tracker's OWN status; stdout: $OUT"; ok=0; }
+  run_sa list --ledger "$led" --strict
+  [[ "$EC" == 0 ]] || { log_fail "TEST-485 arm a: strict must pass while the tracker is open, got $EC (stdout: $OUT)"; ok=0; }
+
+  # (b) CLOSED (done) tracker: unsigned-untracked, strict refuses, names item+status.
+  printf '%s\n' '{"v":1,"ts":"2026-09-02T00:00:00Z","actor":"a","type":"follow_up_status","id":"fu-amend-t485-fixture","status":"done"}' >> "$led"
+  run_sa list --ledger "$led"
+  grep -qF 'unsigned-untracked' <<<"$OUT" \
+    || { log_fail "TEST-485 arm b: a CLOSED (done) tracker must bucket as unsigned-untracked; stdout: $OUT"; ok=0; }
+  grep -qF 'tracked_status=done' <<<"$OUT" \
+    || { log_fail "TEST-485 arm b: the row must name the item and its status (done); stdout: $OUT"; ok=0; }
+  run_sa list --ledger "$led" --strict
+  [[ "$EC" == 1 ]] || { log_fail "TEST-485 arm b: strict must refuse once the tracker is closed, got $EC (stdout: $OUT)"; ok=0; }
+  grep -qF 'STRICT-VIOLATION unsigned-untracked' <<<"$OUT" \
+    || { log_fail "TEST-485 arm b: the refusal must name the unsigned-untracked violation; stdout: $OUT"; ok=0; }
+
+  # (c) DROPPED tracker: same bucket, same refusal.
+  local led2; led2="$(mk_ledger t485c)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T00:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t485c-ride","spec":"docs/specs/x.md","spec_id":"spec-t485c-fixture","owner_signoff":false,"tracked_by":"fu-amend-t485c-fixture","what":"w","why":"y"}' >> "$led2"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-amend-t485c-fixture","ref_id":"t485c-ride","severity":"P2","finding":"f","decision":"d","source":"s"}' >> "$led2"
+  printf '%s\n' '{"v":1,"ts":"2026-09-02T00:00:00Z","actor":"a","type":"follow_up_status","id":"fu-amend-t485c-fixture","status":"dropped"}' >> "$led2"
+  run_sa list --ledger "$led2"
+  grep -qF 'unsigned-untracked' <<<"$OUT" \
+    || { log_fail "TEST-485 arm c: a DROPPED tracker must bucket as unsigned-untracked; stdout: $OUT"; ok=0; }
+  grep -qF 'tracked_status=dropped' <<<"$OUT" \
+    || { log_fail "TEST-485 arm c: the row must name the item and its status (dropped); stdout: $OUT"; ok=0; }
+  run_sa list --ledger "$led2" --strict
+  [[ "$EC" == 1 ]] || { log_fail "TEST-485 arm c: strict must refuse a dropped tracker exactly as a closed one, got $EC (stdout: $OUT)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-485 the unsigned-tracked bucket requires an OPEN tracker; a closed or dropped one is unsigned-untracked and refused, naming the item and its status" \
+    || log_fail "TEST-485 tracker must be open"
+}
+
+# --- TEST-495 (NB-2, remediation round 3): a missing --specs-dir refuses,
+# never silently scans nothing; spec_scanned is printed beside spec_degraded -
+test_495_missing_specs_dir_refuses() {
+  log_info "Test: list --strict refuses (exit 2) when --specs-dir does not exist, rather than scanning nothing and printing a clean-looking spec_degraded=0; a real scan names spec_scanned=<n> (TEST-495)..."
+  local led ok=1
+  led="$(mk_ledger t495)"
+
+  # (a) missing dir -> refuse, name the path, write nothing.
+  run_sa list --ledger "$led" --specs-dir "$TEST_DIR/t495-does-not-exist" --strict
+  [[ "$EC" == 2 ]] \
+    || { log_fail "TEST-495 arm a: a missing --specs-dir under --strict must exit 2, got $EC (stdout: $OUT stderr: $ERR)"; ok=0; }
+  grep -qF 't495-does-not-exist' <<<"$ERR" \
+    || { log_fail "TEST-495 arm a: the refusal must name the missing path; stderr: $ERR"; ok=0; }
+
+  # (b) a plain `list` (no --strict) never triggers the check at all — the
+  # scan only runs under --strict (unchanged cost for the plain path).
+  run_sa list --ledger "$led" --specs-dir "$TEST_DIR/t495-does-not-exist"
+  [[ "$EC" == 0 ]] \
+    || { log_fail "TEST-495 arm b: a plain list (no --strict) must not refuse on a missing --specs-dir, got $EC"; ok=0; }
+
+  # (c) a REAL, existing (empty) specs dir under --strict: scans it, prints
+  # spec_scanned=0, never refuses.
+  local emptydir="$TEST_DIR/t495-empty-specs"
+  mkdir -p "$emptydir"
+  run_sa list --ledger "$led" --specs-dir "$emptydir" --strict
+  [[ "$EC" == 0 ]] || { log_fail "TEST-495 arm c: an EMPTY but existing --specs-dir must not refuse, got $EC (stdout: $OUT)"; ok=0; }
+  grep -qF 'spec_scanned=0' <<<"$OUT" \
+    || { log_fail "TEST-495 arm c: spec_scanned=0 must be printed for an empty dir; stdout: $OUT"; ok=0; }
+
+  # (d) the LIVE repository: spec_scanned names a real, non-zero count of
+  # frozen specs actually looked at (never silently 0 from the wrong cwd).
+  run_sa list --ledger "$LIVE_LEDGER" --specs-dir "$PROJECT_ROOT/docs/specs" --strict
+  [[ "$EC" == 0 || "$EC" == 1 ]] \
+    || { log_fail "TEST-495 arm d: the live repository's strict gate exited unexpectedly: $EC (stdout: $OUT)"; ok=0; }
+  grep -qE 'spec_scanned=[1-9][0-9]*' <<<"$OUT" \
+    || { log_fail "TEST-495 arm d: the live run must name a non-zero spec_scanned count; stdout: $OUT"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-495 list --strict refuses a missing --specs-dir (exit 2, naming the path) rather than silently scanning nothing; an existing (even empty) dir is scanned and spec_scanned is always printed beside spec_degraded" \
+    || log_fail "TEST-495 missing specs dir refuses"
+}
+
+# --- TEST-514 (remediation round 7, PR #384 bot findings) --------------------
+# Codex P1: an anchored spec (carries frozen_sha256) that LOSES its
+# SPEC-FROZEN body marker was skipped before scanSpecAnchors even compared
+# the anchor — deleting one line bypassed the whole undisclosed-amendment
+# gate. Now: a spec carrying frozen_sha256 is ALWAYS scanned, and an anchor
+# with no marker is itself a STRICT violation naming the spec, with its own
+# runnable remedy.
+test_514_anchor_without_marker_caught() {
+  log_info "Test: a REAL spec-freeze.mjs anchor whose SPEC-FROZEN marker is then deleted, alongside a body edit, refuses list --strict naming the spec (never silently skipped) (TEST-514)..."
+  local specsdir led spec ok=1
+  specsdir="$TEST_DIR/t514-specs"
+  led="$(mk_ledger t514)"
+  spec="$(mk_freezable_spec t514-specs/fixture.md spec-t514-fixture direct)"
+  freeze_spec "$spec" || { log_fail "TEST-514 setup: real spec-freeze.mjs refused the fixture"; return; }
+  [[ -n "$(frozen_sha256_of "$spec")" ]] || { log_fail "TEST-514 setup: no frozen_sha256 written by the real tool"; return; }
+  grep -qF 'SPEC-FROZEN: true' "$spec" || { log_fail "TEST-514 setup: no SPEC-FROZEN marker written by the real tool"; return; }
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 0 ]] || { log_fail "TEST-514: baseline (unedited, anchored+marked) strict must be clean, got $EC (stdout: $OUT) (stderr: $ERR)"; return; }
+
+  # The attack this finding names: delete the ONE marker line, and (as an
+  # undisclosed amendment would) edit the body too.
+  sed -i.bak '/^SPEC-FROZEN: true$/d' "$spec"
+  sed -i.bak 's/original description text/EDITED description text/' "$spec"
+  grep -qF 'SPEC-FROZEN: true' "$spec" && { log_fail "TEST-514 setup: the marker line must actually be gone: $(cat "$spec")"; return; }
+  [[ -n "$(frozen_sha256_of "$spec")" ]] || { log_fail "TEST-514 setup: frozen_sha256 must still be present in frontmatter (untouched)"; return; }
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" != 0 ]] \
+    || { log_fail "TEST-514: an anchored spec with its freeze marker deleted must NOT pass strict silently, got $EC (stdout: $OUT)"; ok=0; }
+  grep -qF 'STRICT-VIOLATION anchor-without-freeze-marker' <<<"$OUT" \
+    || { log_fail "TEST-514: the refusal must print STRICT-VIOLATION anchor-without-freeze-marker; stdout: $OUT"; ok=0; }
+  grep -qF 'spec-t514-fixture' <<<"$OUT" \
+    || { log_fail "TEST-514: the refusal must name the offending spec; stdout: $OUT"; ok=0; }
+  grep -qF 'spec-t514-fixture' <<<"$ERR" \
+    || { log_fail "TEST-514: stderr must print a runnable remedy naming the spec; stderr: $ERR"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-514 an anchored spec whose SPEC-FROZEN marker was deleted is ALWAYS scanned and refuses strict as its own violation class, never silently bypassed before the anchor is even compared" \
+    || log_fail "TEST-514 anchor without marker"
+}
+
+# --- TEST-515 (remediation round 7, PR #384 bot findings) --------------------
+# Codex P1: lib/spec-contract-hash.mjs split Test Plan/AC table rows on a
+# plain `split('|')`, so an escaped `\|` inside a Mutation cell (SPEC-0181's
+# own TEST-511 row has one) shifted the columns — a routine Status flip on
+# that row then changed the contract hash (a false undisclosed-amendment).
+# Reuses lib/docs-model.mjs's splitTableCells escaping rule instead of a
+# second hand-rolled splitter (see spec-contract-hash.mjs blankTableSection).
+test_515_contract_hash_escaped_pipe() {
+  log_info "Test: a Test Plan row carrying an escaped pipe (\\|) in its Mutation cell — flipping ONLY that row's Status leaves the contract hash unchanged; editing its Description changes it (TEST-515)..."
+  local specA="$TEST_DIR/t515-a.md" specB="$TEST_DIR/t515-b.md" specC="$TEST_DIR/t515-c.md"
+  cat > "$specA" <<'EOF'
+---
+id: spec-t515-fixture
+type: spec
+number: null
+status: implementing
+---
+
+# fixture t515
+
+## Implementation strategy
+- Strategy: tdd
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | original description text | planned | — | — | |
+
+## Test Plan
+
+| Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
+|---------|---------|------|-----------------------|--------------|----------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/x.sh | does the thing | sed:s/if \(a \|\| b\) \{/if (false) {/ | pending |
+EOF
+  sed 's/| pending |$/| green |/' "$specA" > "$specB"
+  sed 's/does the thing/does a DIFFERENT thing/' "$specA" > "$specC"
+  # Setup sanity: the Mutation cell's escaped pipes made it into all three
+  # fixtures byte-identical outside the cells this test itself edits.
+  grep -qF '\|\|' "$specA" || { log_fail "TEST-515 setup: fixture must carry an escaped pipe in its Mutation cell: $(cat "$specA")"; return; }
+
+  local hashA hashB hashC
+  hashA="$(contract_hash_of "$specA")"
+  hashB="$(contract_hash_of "$specB")"
+  hashC="$(contract_hash_of "$specC")"
+
+  [[ "$hashA" == "$hashB" ]] \
+    || log_fail "TEST-515: flipping ONLY the Status cell of a row whose Mutation cell carries an escaped pipe must not change the contract hash (Status is bookkeeping), A=$hashA B=$hashB"
+  [[ "$hashA" != "$hashC" ]] \
+    || log_fail "TEST-515: editing the Description cell of that same row MUST change the contract hash, A=$hashA C=$hashC"
+
+  log_pass "TEST-515 an escaped pipe inside a Mutation cell no longer shifts table columns: a Status-only flip leaves the contract hash unchanged and a real content edit still moves it"
+}
+
+# --- TEST-516 (remediation round 7, PR #384 bot findings) --------------------
+# Codex P2: an unreadable spec file was silently OMITTED from the strict
+# scan (a bare `catch { continue; }`). Now fails CLOSED: reported as its own
+# STRICT violation bucket naming the file, never silently skipped.
+test_516_unreadable_spec_refuses() {
+  if [[ "$(id -u)" == "0" ]]; then
+    # A named degrade, never log_skip: log_skip is exit 42 and VOIDS THE WHOLE
+    # SUITE (validation round 10 NB1; the same lesson TEST-443 and TEST-486
+    # recorded). root ignores chmod 000, so this one arm cannot run there.
+    log_info "TEST-516 DEGRADED (named): running as root — chmod 000 is not enforced, this arm cannot prove the refusal here"
+    log_pass "TEST-516: degraded by name under root (the refusal is exercised on every non-root run)"
+    return 0
+  fi
+  log_info "Test: an unreadable (chmod 000) spec under --specs-dir refuses list --strict, naming the file, rather than being silently omitted from the scan (TEST-516)..."
+  local specsdir led spec ok=1
+  specsdir="$TEST_DIR/t516-specs"
+  led="$(mk_ledger t516)"
+  mkdir -p "$specsdir"
+  spec="$specsdir/unreadable.md"
+  cat > "$spec" <<'EOF'
+---
+id: spec-t516-fixture
+type: spec
+number: null
+status: implementing
+---
+
+# fixture t516
+
+SPEC-FROZEN: true
+frozen_sha256: 0000000000000000000000000000000000000000000000000000000000000
+EOF
+  chmod 000 "$spec"
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  chmod 644 "$spec" # restore before any assertion can early-return and leak an unreadable fixture
+
+  [[ "$EC" != 0 ]] \
+    || { log_fail "TEST-516: an unreadable spec must not let strict pass silently, got $EC (stdout: $OUT)"; ok=0; }
+  grep -qF 'STRICT-VIOLATION unreadable-spec' <<<"$OUT" \
+    || { log_fail "TEST-516: the refusal must print STRICT-VIOLATION unreadable-spec; stdout: $OUT"; ok=0; }
+  grep -qF 'unreadable.md' <<<"$OUT" \
+    || { log_fail "TEST-516: the refusal must name the unreadable file; stdout: $OUT"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-516 an unreadable spec fails the strict scan CLOSED (its own STRICT violation bucket, naming the file) rather than being silently omitted" \
+    || log_fail "TEST-516 unreadable spec"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -1456,6 +1981,14 @@ main() {
   test_017_reopen_never_lands_on_a_discharged_item
   test_018_item_names_spec_by_id_not_path
   test_445_ac12_negative_controls_test003_008_009
+  test_482_undisclosed_amendment_caught
+  test_483_honest_edits_and_non_targets
+  test_484_legacy_degrades_by_name
+  test_485_tracker_must_be_open
+  test_495_missing_specs_dir_refuses
+  test_514_anchor_without_marker_caught
+  test_515_contract_hash_escaped_pipe
+  test_516_unreadable_spec_refuses
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -656,6 +656,7 @@ main() {
   setup_fixture
 
   if [ $# -gt 0 ]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
     "$1"
     echo "=== $TEST_NAME: SELECTED TEST PASSED ($1) ==="
     return

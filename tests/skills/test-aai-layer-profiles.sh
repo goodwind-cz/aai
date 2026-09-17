@@ -308,6 +308,31 @@ test_new_files_classified() {
   log_pass "TEST-009L: iso-time.mjs, watch-ci.mjs and check-dispatch-text.mjs each classified exactly once"
 }
 
+# --- TEST-488 (spec-mutation-gate-for-tests Spec-AC-18) — the mutation-gate
+# scripts existing so far are each classified exactly once. TEST-001 above
+# already proves the whole-tree union (these files are part of "actual");
+# this narrows to the files THIS scope adds, named individually (same
+# precedent as TEST-009L above). lib/spec-contract-hash.mjs (D10/D17,
+# mutation-gate-for-tests run 3) joins the list now that it is on disk.
+test_488_mutation_gate_files_classified() {
+  log_info "TEST-488: mutation-run.mjs, mutation-gate.mjs, lib/mutation-record.mjs and lib/spec-contract-hash.mjs are each classified in exactly one profile list..."
+  [[ -f "$MANIFEST" ]] || log_fail "TEST-488: manifest not found: $MANIFEST"
+  local core extended
+  core="$(profile_list "$MANIFEST" core)"
+  extended="$(profile_list "$MANIFEST" extended)"
+  local f n_core n_ext
+  for f in .aai/scripts/mutation-run.mjs .aai/scripts/mutation-gate.mjs .aai/scripts/lib/mutation-record.mjs .aai/scripts/lib/spec-contract-hash.mjs; do
+    [[ -f "$PROJECT_ROOT/$f" ]] || log_fail "TEST-488: $f does not exist on disk"
+    n_core="$(printf '%s\n' "$core" | grep -cFx "$f")" || true
+    n_ext="$(printf '%s\n' "$extended" | grep -cFx "$f")" || true
+    [[ $((n_core + n_ext)) -eq 1 ]] \
+      || log_fail "TEST-488: $f must be classified in EXACTLY ONE of core/extended, found core=$n_core extended=$n_ext"
+    [[ "$n_core" -eq 1 ]] \
+      || log_fail "TEST-488: $f must be classified as CORE (a gate, per the classification rule) — found core=$n_core extended=$n_ext"
+  done
+  log_pass "TEST-488: mutation-run.mjs, mutation-gate.mjs, lib/mutation-record.mjs and lib/spec-contract-hash.mjs each classified exactly once, as core"
+}
+
 # --- TEST-002 — default run byte-identical to the pre-change sync (Spec-AC-02) -
 test_default_byte_identity() {
   log_info "TEST-002: flag-less run byte-identical to HEAD engine; --profile extended == default..."
@@ -778,12 +803,18 @@ main() {
   check_deps
   if [[ $# -gt 0 ]]; then
     build_fixture_sources
+    # NB6 (spec-mutation-gate-for-tests): an unknown selector used to fall
+    # through to bash's own "command not found" (rc 127) — non-zero by
+    # accident, not by a membership test naming the cause. A named refusal,
+    # matching every other selector-accepting suite in this corpus.
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
     "$1"
     echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="
     return
   fi
   test_manifest_conformance
   test_new_files_classified
+  test_488_mutation_gate_files_classified
   build_fixture_sources
   test_default_byte_identity
   test_core_exact_set

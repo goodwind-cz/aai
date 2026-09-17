@@ -668,7 +668,10 @@ test_010_strict_rejects_pending_append() {
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$CHECK" ] || log_fail "engine missing: $CHECK"
-  if [ $# -gt 0 ]; then "$1"; echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="; return; fi
+  if [ $# -gt 0 ]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"; echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="; return
+  fi
   test_001_agents_rule
   test_002_release_names_unlogged_pr
   test_003_stale_add_shape

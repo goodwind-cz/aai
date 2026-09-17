@@ -163,6 +163,10 @@ product_red-classified.
    - Save test output to `docs/ai/tdd/green-[timestamp].log`
    - Verify test PASSES
    - Verify ALL previously passing tests still pass
+   - GREEN is not complete until the test has been reddened by its Mutation
+     cell's named mutation, via `node .aai/scripts/mutation-run.mjs --spec
+     <spec-path> --test-id TEST-xxx --suite <suite> --selector <test_fn>
+     --target <path> --sed '<expr>'` (or `--patch <file>`), verdict RED.
 
 4. **Update Spec Test Plan**
    - Set the TEST-xxx status to `green` in the spec's `## Test Plan` table
@@ -176,7 +180,8 @@ product_red-classified.
    FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md
    and follow its TDD-cycle hand-edit rule (status GREEN + green evidence path).
 
-**BLOCK:** Cannot proceed to REFACTOR until GREEN evidence exists.
+**BLOCK:** Cannot proceed to REFACTOR until GREEN evidence exists and the
+`mutation-run.mjs` RED record exists for this TEST-xxx.
 
 ### Phase 3: REFACTOR (Improve Code Quality)
 

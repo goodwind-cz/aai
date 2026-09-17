@@ -147,17 +147,22 @@ core:
   - .aai/scripts/lib/guard-config.mjs
   - .aai/scripts/lib/harness.mjs
   - .aai/scripts/lib/iso-time.mjs
+  - .aai/scripts/lib/mutation-record.mjs
+  - .aai/scripts/lib/tree-hash.mjs
   - .aai/scripts/lib/pricing.mjs
   - .aai/scripts/lib/product-doc.mjs
   - .aai/scripts/lib/prompt-hash.mjs
   - .aai/scripts/lib/repo-tripwire.sh
   - .aai/scripts/lib/runtime-file.mjs
   - .aai/scripts/lib/session-lock.mjs
+  - .aai/scripts/lib/spec-contract-hash.mjs
   - .aai/scripts/lib/state-core.mjs
   - .aai/scripts/lib/state-engine.mjs
   - .aai/scripts/lib/usage-note.mjs
   - .aai/scripts/loop-digest.mjs
   - .aai/scripts/metrics-flush.mjs
+  - .aai/scripts/mutation-gate.mjs
+  - .aai/scripts/mutation-run.mjs
   - .aai/scripts/orphan-sweep.mjs
   - .aai/scripts/migrate-state-to-local.ps1
   - .aai/scripts/migrate-state-to-local.sh

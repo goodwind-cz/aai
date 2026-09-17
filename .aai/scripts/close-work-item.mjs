@@ -1010,7 +1010,7 @@ function scanAgentRuns(ref) {
     const roleM = indent === 8 ? body.match(/^-\s*role:\s*(.+?)\s*$/) : null;
     if (roleM) {
       if (cur) runs.push(cur);
-      cur = { role: stripQuotes(roleM[1].trim()), noteParts: [], tokensIn: null, tokensOut: null };
+      cur = { role: stripQuotes(roleM[1].trim()), noteParts: [], tokensIn: null, tokensOut: null, tokensTotal: null };
       inNote = false;
       continue;
     }
@@ -1029,6 +1029,13 @@ function scanAgentRuns(ref) {
       if (tiM) { inNote = false; cur.tokensIn = parseTok(tiM[1]); continue; }
       const toM = body.match(/^tokens_out:\s*(.+?)\s*$/);
       if (toM) { inNote = false; cur.tokensOut = parseTok(toM[1]); continue; }
+      // telemetry-fields-not-prose (SPEC-0178): `state.mjs append-run
+      // --tokens-total N` records the harness total as a FIELD
+      // (`usage_basis: field`), not as a note marker. A gate that reads only
+      // the prose marker refuses every run recorded the canonical way
+      // (mutation-gate-for-tests, PR ceremony 2026-09-17: 21 runs refused).
+      const ttM = body.match(/^tokens_total:\s*(.+?)\s*$/);
+      if (ttM) { inNote = false; cur.tokensTotal = parseTok(ttM[1]); continue; }
       inNote = false; // any other indent-10 field ends the note block
       continue;
     }
@@ -1040,12 +1047,14 @@ function scanAgentRuns(ref) {
     note: r.noteParts.join(' '),
     tokensIn: r.tokensIn,
     tokensOut: r.tokensOut,
+    tokensTotal: r.tokensTotal,
   }));
 }
 
 // usageCaptured(run) -> true when the run carries ANY honest usage signal:
-// decomposed tokens (both in AND out present), a valid usage_total_tokens
-// marker, or the usage_capture=none sentinel (the honest-gap escape hatch).
+// decomposed tokens (both in AND out present), the `tokens_total:` FIELD,
+// a valid usage_total_tokens marker, or the usage_capture=none sentinel
+// (the honest-gap escape hatch).
 // Mirrors the metrics-flush 3-way classifier (decomposed | undecomposed-note |
 // capture-missing) plus the sentinel — never a re-declared regex.
 function usageCaptured(run) {
@@ -1053,6 +1062,8 @@ function usageCaptured(run) {
   // currently accepts negative ints; a -1/-1 pair is not honest capture).
   if (run.tokensIn !== null && run.tokensOut !== null
     && run.tokensIn >= 0 && run.tokensOut >= 0) return true;
+  // field arm: the harness total recorded as `tokens_total:` (non-negative).
+  if (run.tokensTotal !== null && run.tokensTotal !== undefined && run.tokensTotal >= 0) return true;
   if (extractUsageTotal(run.note) !== null) return true;
   if (hasUsageSentinel(run.note)) return true;
   return false;
@@ -1146,6 +1157,93 @@ function evaluateEvidencePathGate(docs, evidenceRoot) {
     .map((u) => `${u.doc} ${u.acId ?? '(unknown AC)'} cites "${u.token}" which does not resolve from the main checkout root`)
     .join('; ');
   return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, unresolved, reason, resolutionRoot: evidenceRoot };
+}
+
+// evaluateMutationGate(resolved) -> { severity, dial?, offending?, reason? }.
+// spec-mutation-gate-for-tests D12 — close-time mutation gate, the sixth
+// dialed gate of this shape. severity is 'none' (no resolved doc is itself
+// type: spec, or the real mutation-gate.mjs exited 0 for every resolved spec
+// doc — INCLUDING every degrade case, since mutation-gate.mjs already
+// resolves applicability itself per D9 and exits 0 for a pre-change/non-tdd
+// spec or a spec whose evidence tree is absent; this function never
+// re-derives that judgement), 'warn' (report-only dial, or an absent key —
+// the shared fail-open default) or 'refuse' (enforce dial; AAI core ships
+// this ONE dial enforce, per docs/ai/docs-audit.yaml's own comment). Runs
+// the REAL .aai/scripts/mutation-gate.mjs (never a reimplementation of its
+// row-reading logic) against every resolved doc whose frontmatter `type` is
+// "spec" — normally just the --spec doc (D5), but a ride that closes a spec
+// AS ITS PRIMARY --ref is covered too, since resolved[0] is scanned the same
+// way.
+function evaluateMutationGate(resolved) {
+  const specDocs = resolved.filter((d) => String(d.fm?.type ?? '').toLowerCase() === 'spec');
+  if (specDocs.length === 0) return { severity: 'none' };
+  const gateScript = path.join(ROOT, '.aai/scripts/mutation-gate.mjs');
+  const offending = [];
+  // Remediation round 4 (NB-2): exempt/degraded counts from the gate's OWN
+  // summary line, captured on EVERY resolved spec doc regardless of exit
+  // status — an all-exempt vacuous pass (exit 0) must not be silent at the
+  // close the same way a partial exempt count on an ordinary PASS must not.
+  const notices = [];
+  for (const doc of specDocs) {
+    let out = '';
+    let status = 0;
+    try {
+      out = execFileSync('node', [gateScript, '--spec', doc.abs], { encoding: 'utf8', cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (err) {
+      status = typeof err.status === 'number' ? err.status : 1;
+      out = `${err.stdout ?? ''}${err.stderr ?? ''}`;
+    }
+    const summaryLine = out.split('\n').map((l) => l.trim()).find((l) => l.startsWith('GATE PASS:') || l.startsWith('GATE FAIL:') || l.startsWith('DEGRADED:'));
+    if (summaryLine) {
+      const exemptN = Number(/exempt=(\d+)/.exec(summaryLine)?.[1] ?? 0);
+      const degradedN = Number(/degraded=(\d+)/.exec(summaryLine)?.[1] ?? 0);
+      // NB4-r7 (validation round 7): the D8 amendment's own `unstamped=<n>`
+      // token (a legacy record predating target_sha256) is the identical
+      // "a named degrade the close must not discard" shape NB-2 fixed for
+      // exempt counts — captured here the same way, never hand-parsed
+      // elsewhere.
+      const unstampedN = Number(/unstamped=(\d+)/.exec(summaryLine)?.[1] ?? 0);
+      // Gated on exemptN/unstampedN, not degradedN: D9's OWN degrade classes
+      // (pre-change spec, evidence tree absent — no Status column was ever
+      // read, so nothing was ever exempted) are unrelated to NB-2/NB4-r7 and
+      // stay exactly as silent at the close as before this fix (an existing,
+      // intentional close-work-item.mjs contract). Only a summary line that
+      // itself carries exempt=N and/or unstamped=N — an ordinary PASS with
+      // some exempt rows, the "every row exempt" DEGRADED class, or a PASS/
+      // FAIL carrying a legacy unstamped record — is a notice here.
+      if (exemptN > 0 || unstampedN > 0) {
+        notices.push({ spec: doc.rel, exempt: exemptN, degraded: degradedN, unstamped: unstampedN, summary: summaryLine });
+      }
+    }
+    if (status === 0) continue;
+    const rows = out.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('OFFENDING '));
+    offending.push({ spec: doc.rel, exitCode: status, rows: rows.length ? rows : [`mutation-gate.mjs exited ${status}: ${out.trim()}`] });
+  }
+  if (offending.length === 0) {
+    if (notices.length === 0) return { severity: 'none' };
+    // A WARNING regardless of the `mutation_gate` dial (enforce or
+    // report-only alike, per the finding's own disposition): the gate did
+    // NOT fail, so this is never a refusal — only a count that must not be
+    // discarded the way a bare `if (status === 0) continue;` discarded it
+    // before this fix.
+    const reason = notices.map((n) => `${n.spec}: ${n.summary}`).join(' | ');
+    return { severity: 'warn', notices, reason };
+  }
+  const dial = readGuardConfig(path.join(ROOT, 'docs/ai')).mutation_gate;
+  // NB3-r6 (remediation round 5, validation round 6): the OFFENDING path
+  // previously built `reason` from `offending` alone, dropping `notices`
+  // (the exempt/degraded counts) even though they are returned alongside it
+  // — a spec with BOTH offending rows and a non-zero exempt count printed
+  // only the offending rows and silently lost the exempt=n the D8 amendment
+  // (spec:548-553) says the close prints "whenever exempt is non-zero". The
+  // exit-0 path above already appends notices to its own reason; this
+  // mirrors that so the mixed-arm case is not a silent divergence from the
+  // documented behavior.
+  const offendingReason = offending.map((o) => `${o.spec}: ${o.rows.join('; ')}`).join(' | ');
+  const reason = notices.length
+    ? `${offendingReason} | ${notices.map((n) => `${n.spec}: ${n.summary}`).join(' | ')}`
+    : offendingReason;
+  return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, offending, notices, reason };
 }
 
 // Best-effort remediation-friction capture. Fires ONLY on a real close (called
@@ -1733,6 +1831,22 @@ function main() {
     process.stderr.write(`close-work-item: WARNING (evidence-path gate) — ${evidenceGate.reason}\n`);
   }
 
+  // spec-mutation-gate-for-tests D12 — close-time mutation gate for every
+  // resolved doc that is itself a spec. Same pre-write discipline as the
+  // three gates above: evaluated BEFORE anything that could write (including
+  // the idempotency short-circuit's own INDEX regen below); --dry-run
+  // reports the verdict in its JSON below and never acts on it. New exit 8
+  // (3, 4, 5 are the three gates above, 6 is the STATE-reconcile PARTIAL, 7
+  // is the HEAD pin).
+  const mutationGate = evaluateMutationGate(resolved);
+  if (!args.dryRun && mutationGate.severity === 'refuse') {
+    process.stderr.write(`close-work-item: REFUSED (mutation gate) — ${mutationGate.reason}\n`);
+    exit(8);
+  }
+  if (!args.dryRun && mutationGate.severity === 'warn') {
+    process.stderr.write(`close-work-item: WARNING (mutation gate) — ${mutationGate.reason}\n`);
+  }
+
   // spec-close-leaves-state-stale D1 — plan the STATE reconcile pre-write,
   // alongside the three gates above. PURE: computes what WOULD run; nothing
   // is written or executed here (that happens strictly after self-verify,
@@ -1781,6 +1895,7 @@ function main() {
         productDocGate,
         usageCaptureGate: usageGate,
         evidencePathGate: evidenceGate,
+        mutationGate,
         stateReconcile: { severity: statePlan.severity, reason: statePlan.reason ?? null, statePath: statePlan.statePath, commands: statePlan.echo },
         productDocUpdate: productDocPlan
           ? { path: productDocGate.productDocPath, needsUpdate: productDocPlan.needsUpdate }

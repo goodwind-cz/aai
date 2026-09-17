@@ -1928,6 +1928,7 @@ main() {
   if [[ $# -gt 0 ]]; then
     # Single-test mode (mirrors test-aai-update.sh): used by the TDD lane to
     # capture per-test RED/GREEN evidence without running the whole suite.
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
     "$1"
     echo ""
     if [[ $FAILED -eq 0 ]]; then
