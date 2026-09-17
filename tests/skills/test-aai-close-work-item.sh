@@ -3802,6 +3802,17 @@ test_529_paired_close_idempotent() {
   git -C "$dirA" commit -q -m "add the real ref"
 
   local pairedBefore; pairedBefore=$(cat "$dirA/docs/issues/CHANGE-0001-t529ap.md")
+  # "written NOTHING" covers EVENTS too, not only the doc's own bytes:
+  # capture the paired ref's OWN per-event-type counts before run 2 (the real
+  # --ref's own closure legitimately appends NEW events this run, so the
+  # suite cannot just diff EVENTS.jsonl's total byte length/prefix the way
+  # TEST-008/TEST-528 do — it must isolate the paired ref's own lines).
+  local closedBefore acBefore
+  closedBefore=$(events_count "$dirA/docs/ai/EVENTS.jsonl" "work_item_closed" "t529a-paired")
+  acBefore=$(events_count "$dirA/docs/ai/EVENTS.jsonl" "ac_evidence" "t529a-paired")
+  [[ "$closedBefore" == "1" && "$acBefore" == "1" ]] \
+    || log_fail "TEST-529: fixture setup drifted — expected exactly one work_item_closed and one ac_evidence event for t529a-paired from the pre-close, got closed=$closedBefore ac=$acBefore"
+
   local out="$TEST_DIR/t529a.out" err="$TEST_DIR/t529a.err" code
   code=$(run_close "$dirA" "$out" "$err" --ref t529a-change --paired t529a-paired --pr 529 --commit 5295295a)
   assert_exit "TEST-529: closing the real ref alongside an already-terminal paired half" 0 "$code"
@@ -3810,6 +3821,13 @@ test_529_paired_close_idempotent() {
   local pairedAfter; pairedAfter=$(cat "$dirA/docs/issues/CHANGE-0001-t529ap.md")
   [[ "$pairedBefore" == "$pairedAfter" ]] \
     || log_fail "TEST-529: an already-terminal --paired doc (same pr/commit, events already recorded) must be written NOTHING"
+  local closedAfter acAfter
+  closedAfter=$(events_count "$dirA/docs/ai/EVENTS.jsonl" "work_item_closed" "t529a-paired")
+  acAfter=$(events_count "$dirA/docs/ai/EVENTS.jsonl" "ac_evidence" "t529a-paired")
+  [[ "$closedAfter" == "$closedBefore" ]] \
+    || log_fail "TEST-529: an already-terminal --paired doc must be written NOTHING — work_item_closed count for t529a-paired grew from $closedBefore to $closedAfter"
+  [[ "$acAfter" == "$acBefore" ]] \
+    || log_fail "TEST-529: an already-terminal --paired doc must be written NOTHING — ac_evidence count for t529a-paired grew from $acBefore to $acAfter"
 
   # Arm B — an unknown --paired slug is a pre-write usage error: exit 2,
   # nothing written (same D7 pre-write-abort shape as an unresolvable --spec,
