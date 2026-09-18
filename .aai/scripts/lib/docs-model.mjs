@@ -998,15 +998,37 @@ export function acTableGreen(content) {
   return { green: rows.length > 0 && open.length === 0, total: rows.length, open };
 }
 
-// SPEC-0011 G4 — near-miss AC-table detection. Returns { warnings: [{kind, detail}] }.
-// Fires when a doc carries a table that LOOKS like an Acceptance Criteria Status
-// table (a markdown table whose header has a `Spec-AC` column AND a Review-By-like
-// or Evidence-like column) but is NOT the exact canonical shape parseAcTable
-// recognizes — so the drift engine would silently mis-report or skip it. Narrow by
-// construction: the canonical `## Acceptance Criteria Status` heading with exact
-// `Review-By` + `Evidence` columns trips nothing. Tables that merely share the
-// `Spec-AC` key (Test Plan, Acceptance Criteria Mapping) are NOT AC-status-like
-// (they carry neither a Review-By nor an Evidence column) and never warn.
+// SPEC-0011 G4 / spec-close-ceremony-sweep Spec-AC-11 (issue 370) — near-miss
+// AC-table detection. Returns { warnings: [{kind, detail}] }. Fires when a doc
+// carries a table that LOOKS like an Acceptance Criteria Status table (a
+// markdown table whose header has a `Spec-AC` OR bare `AC` id column AND a
+// Review-By-like, Evidence-like, or Status column) but is NOT the exact
+// canonical or lean shape parseAcTable/parseLeanAcTable recognizes — so the
+// drift engine would silently mis-report or skip it. Narrow by construction:
+// the canonical `## Acceptance Criteria Status` heading with exact
+// `Review-By` + `Evidence` columns trips nothing, and neither does a
+// gate-accepted lean table (Spec-AC-13's `leanAccepted` suppression below).
+// Tables that merely share the `Spec-AC` key (Test Plan, Acceptance Criteria
+// Mapping) are NOT AC-status-like (they carry neither a Review-By, Evidence,
+// nor bare-AC-id shape) and never warn.
+//
+// Five independent `kind`s, each on its own trigger:
+//  1. `heading` — a heading that MATCHES /acceptance criteria/i but is NOT the
+//     canonical `## Acceptance Criteria Status`, UNLESS the table is a
+//     gate-accepted lean table (Spec-AC-13 D7 "one authority": the shape check
+//     must not warn about a table `--gate` simultaneously accepts).
+//  2. `evidence-column` — a malformed Evidence column (`Evidence (TEST)`).
+//  3. `review-by-column` — a malformed Review-By-like column (`Review By`, ...).
+//  4. `column-set` (Spec-AC-11 / issue 370) — the id column reads bare `AC`
+//     instead of `Spec-AC` and NEITHER parseAcTable NOR parseLeanAcTable
+//     recognizes any row in the WHOLE document (M9's live-corpus shape:
+//     `AC | Status | Evidence`). A doc whose `AC`-headed table nonetheless has
+//     a literal `Review-By` column IS seen by parseAcTable (hasGate: true,
+//     merely zero rows) and is deliberately NOT column-set (that gap is a
+//     separate, unmeasured concern this AC does not claim).
+//  5. `status-vocabulary` (Spec-AC-11) — a data row's Status cell, once
+//     normalized, is outside `planned/implementing/done/deferred/blocked/
+//     rejected`.
 export function detectNearMissAcTable(content) {
   content = normalizeNewlines(content);
   const lines = content.split('\n');
@@ -1014,6 +1036,14 @@ export function detectNearMissAcTable(content) {
   let heading = null;            // most-recent heading line (trimmed)
   let headingCanonical = false;  // exactly the canonical `## Acceptance Criteria Status`
   let headingAcLike = false;     // matches /acceptance criteria/i (any level)
+  // Computed ONCE per doc (single-AC-table assumption shared with the rest of
+  // this module): whether ANY table in the doc parses as canonical/lean, and
+  // whether a lean table with real rows exists (the "gate accepts it" fact
+  // Spec-AC-13 needs the heading warning to defer to).
+  const acGate = parseAcTable(content);
+  const acLean = parseLeanAcTable(content);
+  const neitherParses = !acGate.hasGate && !acLean.hasLean;
+  const leanAccepted = acLean.hasLean && acLean.rows.length > 0;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (/^#{1,6}\s+/.test(line)) {
@@ -1027,20 +1057,29 @@ export function detectNearMissAcTable(content) {
     const next = lines[i + 1] ?? '';
     if (!/^\s*\|\s*[-:|\s]+\|/.test(next)) continue;
     const cells = line.split('|').map(c => c.trim()).filter(Boolean);
-    if (!cells.includes('Spec-AC')) continue;
+    if (!cells.includes('Spec-AC') && !cells.includes('AC')) continue;
+    const hasSpecAcCol = cells.includes('Spec-AC');
+    const hasBareAcCol = cells.includes('AC');
     const hasReviewByCol = cells.some(c => /^review[\s_-]?by\b/i.test(c));
     const hasEvidenceCol = cells.some(c => /^evidence\b/i.test(c));
-    if (!hasReviewByCol && !hasEvidenceCol) continue;   // Test Plan / Mapping tables: not AC-status-like
+    const hasStatusCol = cells.includes('Status');
+    // The M9 "AC | Status | Evidence" shape (bare AC id, no Review-By) is
+    // AC-status-like even without Evidence: it is a candidate for `column-set`
+    // precisely because neither parser recognizes it anywhere in the doc.
+    const acLikeUnparsed = hasBareAcCol && !hasSpecAcCol && hasStatusCol && neitherParses;
+    if (!hasReviewByCol && !hasEvidenceCol && !acLikeUnparsed) continue;   // Test Plan / Mapping tables: not AC-status-like
     const reviewByMalformed = cells.find(c => /^review[\s_-]?by\b/i.test(c) && c !== 'Review-By');
     const evidenceMalformed = cells.find(c => /^evidence\b.+/i.test(c));   // trailing text, e.g. "Evidence (TEST)"
     // Narrow triggers (each independent, per Spec-AC-04 wording):
     //  1. a heading that MATCHES /acceptance criteria/i but is NOT the canonical
     //     `## Acceptance Criteria Status` — an AC section that parseAcTable will miss.
     //     (A well-formed EXAMPLE table under an ordinary prose heading — e.g. an RFC
-    //     documenting the AC-table format — does NOT match and never trips.)
+    //     documenting the AC-table format — does NOT match and never trips.) A
+    //     gate-accepted lean table is the one shape this deliberately EXCLUDES
+    //     (Spec-AC-13 D7): the near-miss report and `--gate` must agree.
     //  2. a malformed Evidence column (`Evidence (TEST)`), even under the canonical heading.
     //  3. a malformed Review-By-like column (`Review By`, `ReviewBy`, ...).
-    if (headingAcLike && !headingCanonical) {
+    if (headingAcLike && !headingCanonical && !leanAccepted) {
       warnings.push({ kind: 'heading', detail: `malformed AC table — AC-like table under non-canonical heading ${heading ? `"${heading}"` : '(none)'}, expected "## Acceptance Criteria Status"; treated as missing, verdict may be inaccurate` });
     }
     if (evidenceMalformed) {
@@ -1048,6 +1087,42 @@ export function detectNearMissAcTable(content) {
     }
     if (reviewByMalformed) {
       warnings.push({ kind: 'review-by-column', detail: `malformed AC table — Review-By column is "${reviewByMalformed}", not "Review-By"; gate table not recognized, verdict may be inaccurate` });
+    }
+    // 4. column-set (Spec-AC-11 / issue 370): the id column is bare "AC", and
+    //    neither parser sees any row of it anywhere in the doc.
+    if (acLikeUnparsed) {
+      warnings.push({ kind: 'column-set', detail: `malformed AC table — id column is "AC", not "Spec-AC" (header: ${cells.join(' | ')}); neither the canonical nor the lean parser recognizes any row, so the table reads as absent, verdict may be inaccurate` });
+    }
+    // 5. status-vocabulary (Spec-AC-11): walk this table's DATA rows (from the
+    //    separator we already matched to the first non-`|` line) and flag any
+    //    Status cell that does not normalize to a canonical AC_STATUS_ENUM
+    //    member. Positional, via splitTableCells, so an empty interior cell
+    //    never desyncs the column index (unlike the filter(Boolean) `cells`
+    //    above, which is header-only and never mis-indexes a row). Scoped to
+    //    `hasSpecAcCol` ONLY: a bare-"AC"-id table (the column-set shape) is a
+    //    different, informal vocabulary (e.g. these live docs' own "pending")
+    //    never governed by AC_STATUS_ENUM in the first place — M9 measured
+    //    this arm at 0 live hits, which requires excluding that shape, not
+    //    just the real corpus happening to avoid it.
+    if (hasStatusCol && hasSpecAcCol) {
+      const headerPositional = splitTableCells(line);
+      const statusIdx = headerPositional.indexOf('Status');
+      const idIdx = headerPositional.indexOf('Spec-AC');
+      if (statusIdx >= 0) {
+        for (let j = i + 2; j < lines.length; j += 1) {
+          const rowLine = lines[j];
+          if (!rowLine.trim().startsWith('|')) break;
+          const rowCells = splitTableCells(rowLine);
+          if (rowCells.length !== headerPositional.length) continue;   // pipe-broken row: Spec-AC-12's concern, not this one
+          const idVal = idIdx >= 0 ? (rowCells[idIdx] ?? '') : '';
+          if (!idVal || idVal.startsWith('Spec-AC-xx') || idVal.startsWith('<')) continue;   // placeholder row
+          const rawStatus = rowCells[statusIdx] ?? '';
+          if (rawStatus === '' || rawStatus === '—' || rawStatus === '-') continue;   // empty is a separate, existing signal
+          if (!normalizeAcStatus(rawStatus).canonical) {
+            warnings.push({ kind: 'status-vocabulary', detail: `malformed AC table — status "${rawStatus}" for ${idVal} is outside planned/implementing/done/deferred/blocked/rejected; treated as open, verdict may be inaccurate` });
+          }
+        }
+      }
     }
   }
   return { warnings };

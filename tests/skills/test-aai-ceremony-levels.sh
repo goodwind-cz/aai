@@ -1190,6 +1190,87 @@ test_018_step10_workflow_pointer() {
   log_pass "PLANNING step 10 trimmed to a WORKFLOW.md pointer; residue retained; no table-row leak (TEST-018/spec TEST-001)"
 }
 
+# --- spec-close-ceremony-sweep Spec-AC-13 (TEST-539/540) ---------------------
+
+# write_lean_flip_spec <path> <evidence-cell>
+# A frozen ceremony-1 spec (DRAFT-named so scanAuditDocs admits it) whose lone
+# Spec-AC-01 row is done, with the caller-supplied Evidence cell -- the axis
+# TEST-539/540 probe (a delivery-shaped citation vs a TDD-log-only one). The
+# real script is invoked by absolute path against this fixture's cwd, so no
+# .aai/scripts vendoring is needed (its own lib/ imports resolve relative to
+# the script's own location, not cwd).
+write_lean_flip_spec() {
+  local p="$1" evidence="$2"
+  mkdir -p "$(dirname "$p")"
+  cat > "$p" <<MD
+---
+id: spec-fixture-lean-flip
+type: spec
+number: null
+status: implementing
+ceremony_level: 1
+links:
+  pr: []
+---
+
+# Lean flip fixture spec
+
+Ceremony justification: fixture lean scope, no engine/test surface.
+
+SPEC-FROZEN: true
+
+## Acceptance Criteria
+
+| Spec-AC    | Description | Status | Evidence |
+|------------|-------------|--------|----------|
+| Spec-AC-01 | fixture     | done   | ${evidence} |
+MD
+}
+
+test_539_ac_flip_sees_a_lean_table() {  # TEST-539 / Spec-AC-13
+  log_info "Test: --ac-flip-check sees a premature flip in a LEAN ceremony-1 AC table; the same table without the flip is silent (TEST-539)..."
+  local d="$TEST_DIR/t539"
+  rm -rf "$d"
+  mkdir -p "$d/docs/specs"
+  write_lean_flip_spec "$d/docs/specs/SPEC-DRAFT-fixture-lean-flip.md" "PR #91 merge commit deadbeef1234"
+  local out ec=0
+  out="$(cd "$d" && node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --ac-flip-check spec-fixture-lean-flip 2>&1)" || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "TEST-539: a lean table with delivery-shaped Evidence on an open doc must exit 1 (got $ec): $out"
+  printf '%s' "$out" | grep -qF "delivery-grade token" \
+    || log_fail "TEST-539: failure must name the delivery-grade token: $out"
+
+  # Same fixture, TDD-log-only Evidence: no premature flip, silent.
+  write_lean_flip_spec "$d/docs/specs/SPEC-DRAFT-fixture-lean-flip.md" "docs/ai/tdd/spec-fixture/TEST-001.log"
+  ec=0
+  out="$(cd "$d" && node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --ac-flip-check spec-fixture-lean-flip 2>&1)" || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-539: a lean table without a delivery flip must exit 0 (got $ec): $out"
+  printf '%s' "$out" | grep -qF "AC-FLIP PASS" \
+    || log_fail "TEST-539: no-flip run must report AC-FLIP PASS: $out"
+
+  rm -rf "$d"
+  log_pass "TEST-539 --ac-flip-check sees a lean-table premature flip and stays silent without one"
+}
+
+test_540_lean_heading_one_authority() {  # TEST-540 / Spec-AC-13
+  log_info "Test: a lean table with an optional Evidence column under the heading Acceptance Criteria is accepted by --gate and produces no near-miss heading warning (TEST-540)..."
+  local d="$TEST_DIR/t540"
+  rm -rf "$d"
+  mkdir -p "$d/docs/specs"
+  write_lean_flip_spec "$d/docs/specs/SPEC-DRAFT-fixture-lean-flip.md" "docs/ai/tdd/spec-fixture/TEST-001.log"
+
+  local out ec=0
+  out="$(cd "$d" && node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --gate spec-fixture-lean-flip 2>&1)" || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-540: --gate must accept the lean table (got $ec): $out"
+  printf '%s' "$out" | grep -qF "GATE PASS" || log_fail "TEST-540: --gate must report GATE PASS: $out"
+
+  out="$(cd "$d" && node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --check --no-event 2>&1)"
+  printf '%s' "$out" | grep -qF "### Near-miss AC tables: 0" \
+    || log_fail "TEST-540: a --gate-accepted lean table must not be reported as a near-miss: $out"
+
+  rm -rf "$d"
+  log_pass "TEST-540 lean table accepted by --gate produces no near-miss heading warning (one authority)"
+}
+
 main() {
   echo "Testing $TEST_NAME (spec-scale-adaptive-ceremony TEST-001..010 + spec-loop-ceremony-aware-dispatch TEST-011..017)"
   check_deps
@@ -1221,6 +1302,8 @@ main() {
   test_010_seam_survival
   test_018_step10_workflow_pointer
   test_019_kpi_pin_survives_rename
+  test_539_ac_flip_sees_a_lean_table
+  test_540_lean_heading_one_authority
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

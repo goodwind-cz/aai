@@ -702,8 +702,12 @@ function main() {
   if (result.hardFail) {
     lines.push('');
     const bodyLintPart = args.strict ? `, ${counts.bodyLint} body lint finding(s)` : '';
+    // spec-close-ceremony-sweep Spec-AC-11 (amended D7): name the BLOCKING
+    // (non-terminal) subset here, not the raw total — a terminal doc's
+    // finding is still listed under Near-miss AC tables but never promotes.
+    const nearMissPart = args.strict ? `, ${counts.nearMissBlocking} near-miss AC table finding(s)` : '';
     const provPart = counts.provenanceDrift ? `, ${counts.provenanceDrift} canonical provenance drift finding(s)` : '';
-    lines.push(`CHECK FAILED: ${counts.orphansNew} new orphan(s), ${counts.violations} schema violation(s)${bodyLintPart}${provPart}.`);
+    lines.push(`CHECK FAILED: ${counts.orphansNew} new orphan(s), ${counts.violations} schema violation(s)${bodyLintPart}${nearMissPart}${provPart}.`);
   }
 
   console.log(lines.join('\n'));

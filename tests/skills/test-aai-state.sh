@@ -38,7 +38,28 @@ CORE_LIB="$PROJECT_ROOT/.aai/scripts/lib/state-core.mjs"
 CHECK_SCRIPT="$PROJECT_ROOT/.aai/scripts/check-state.mjs"
 AUDIT_SCRIPT="$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"
 
+# spec-close-ceremony-sweep Spec-AC-11: generate-docs-index.mjs now writes
+# docs/INDEX.violations.md (an untracked companion) whenever the near-miss
+# shape check has a live finding, which it now legitimately does (M9's 8
+# column-set docs) -- test_019_regression_anchor regenerates the REAL index
+# against PROJECT_ROOT, so without this floor it would leave that new file
+# behind. Armed by test_019 itself (before either generate-docs-index call);
+# empty means "did not exist before" (remove it), non-empty means "restore
+# this backup".
+INDEX_VIOLATIONS_REAL_BACKUP=""
+INDEX_VIOLATIONS_REAL_ARMED=""
+INDEX_VIOLATIONS_REAL_EXISTED=0
+
 cleanup() {
+  if [[ -n "$INDEX_VIOLATIONS_REAL_ARMED" ]]; then
+    local viol="$PROJECT_ROOT/docs/INDEX.violations.md"
+    if [[ "$INDEX_VIOLATIONS_REAL_EXISTED" == "1" && -n "$INDEX_VIOLATIONS_REAL_BACKUP" && -f "$INDEX_VIOLATIONS_REAL_BACKUP" ]]; then
+      cp "$INDEX_VIOLATIONS_REAL_BACKUP" "$viol" \
+        || echo "NOTE: could not restore docs/INDEX.violations.md — the untracked companion may be left dirty" >&2
+    elif [[ "$INDEX_VIOLATIONS_REAL_EXISTED" == "0" && -f "$viol" ]]; then
+      rm -f "$viol"
+    fi
+  fi
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
     echo "INFO: keeping fixture at $TEST_DIR"
     return 0
@@ -839,6 +860,16 @@ MD
 
 test_019_regression_anchor() {  # TEST-019 / Spec-AC-12
   log_info "Test: real-repo docs-audit CLEAN + generate-docs-index idempotent (TEST-019)..."
+  # Arm the docs/INDEX.violations.md floor (see cleanup()) BEFORE either
+  # generate-docs-index call below.
+  INDEX_VIOLATIONS_REAL_ARMED=1
+  if [[ -f "$PROJECT_ROOT/docs/INDEX.violations.md" ]]; then
+    INDEX_VIOLATIONS_REAL_EXISTED=1
+    INDEX_VIOLATIONS_REAL_BACKUP="$(mktemp "${TMPDIR:-/tmp}/aai-state-t019-violations.XXXXXX")"
+    cp "$PROJECT_ROOT/docs/INDEX.violations.md" "$INDEX_VIOLATIONS_REAL_BACKUP"
+  else
+    INDEX_VIOLATIONS_REAL_EXISTED=0
+  fi
   local ec=0
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/t19-audit.log" 2>&1) || ec=$?
   [[ "$ec" == 0 ]] || log_fail "real-repo docs-audit --check --strict --no-event must exit 0 (got $ec): $(tail -10 "$TEST_DIR/t19-audit.log")"

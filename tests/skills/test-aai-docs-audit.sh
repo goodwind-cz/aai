@@ -32,6 +32,17 @@ SUITE_FILE="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 # this spec found test_spec0006_no_regression_real_repo regenerating the real
 # index twice while this was still empty. Empty only before that call.
 INDEX_REAL_BACKUP=""
+# Companion floor for docs/INDEX.violations.md (spec-close-ceremony-sweep
+# Spec-AC-11): generate-docs-index.mjs writes this UNTRACKED companion
+# whenever there is at least one skipped/near-miss finding, and the live
+# corpus now legitimately carries 8 near-miss column-set docs (M9) — so a
+# real-INDEX regeneration during this suite creates a file that did not
+# exist before it, and neither this floor's predecessor nor any individual
+# arm's own restore logic ever cleaned it up. Same shape as INDEX_REAL_BACKUP:
+# empty path = "did not exist before this run" (remove it at cleanup rather
+# than restore).
+INDEX_VIOLATIONS_REAL_BACKUP=""
+INDEX_VIOLATIONS_REAL_EXISTED=0
 
 # Take the backup BEFORE publishing the pointer. Assigning the path first and
 # copying second means an interrupted or short cp leaves cleanup() pointing at
@@ -43,6 +54,14 @@ index_arm_restore_floor() {
   cmp -s "$idx" "$staged" \
     || log_fail "restore floor: backup of docs/INDEX.md is not byte-identical to the original"
   INDEX_REAL_BACKUP="$staged"
+  local viol="$PROJECT_ROOT/docs/INDEX.violations.md"
+  if [[ -f "$viol" ]]; then
+    INDEX_VIOLATIONS_REAL_EXISTED=1
+    cp "$viol" "${staged}.violations"
+    INDEX_VIOLATIONS_REAL_BACKUP="${staged}.violations"
+  else
+    INDEX_VIOLATIONS_REAL_EXISTED=0
+  fi
 }
 
 cleanup() {
@@ -58,6 +77,15 @@ cleanup() {
     # means a tracked file is being left dirty. Degrade loudly, never silently.
     cp "$INDEX_REAL_BACKUP" "$PROJECT_ROOT/docs/INDEX.md" \
       || echo "NOTE: restore floor could not rewrite docs/INDEX.md from $INDEX_REAL_BACKUP — the tracked file may be left dirty" >&2
+  fi
+  if [[ -n "$INDEX_REAL_BACKUP" ]]; then
+    local viol="$PROJECT_ROOT/docs/INDEX.violations.md"
+    if [[ "$INDEX_VIOLATIONS_REAL_EXISTED" == "1" && -n "$INDEX_VIOLATIONS_REAL_BACKUP" && -f "$INDEX_VIOLATIONS_REAL_BACKUP" ]]; then
+      cp "$INDEX_VIOLATIONS_REAL_BACKUP" "$viol" \
+        || echo "NOTE: restore floor could not rewrite docs/INDEX.violations.md — the untracked companion may be left dirty" >&2
+    elif [[ -f "$viol" ]]; then
+      rm -f "$viol"
+    fi
   fi
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
     echo "INFO: keeping fixture at $TEST_DIR"
@@ -3351,7 +3379,7 @@ MD
 }
 
 test_spec0011_regression() {  # TEST-015 / Spec-AC-12
-  log_info "Test: real-repo docs-audit CLEAN, no false near-miss, INDEX idempotent (TEST-015)..."
+  log_info "Test: real-repo docs-audit CLEAN, INDEX idempotent (TEST-015)..."
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/s11-audit.log" 2>&1) \
     || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/s11-audit.log")"
   # SPEC-0057: see test_spec0006_no_regression_real_repo's comment — the
@@ -3359,11 +3387,16 @@ test_spec0011_regression() {  # TEST-015 / Spec-AC-12
   # tracked, verdict-only duplicate-doc-id collisions); assert the hard-gate
   # signal this stanza actually guards instead.
   assert_contains "$TEST_DIR/s11-audit.log" "Orphans (need triage): 0"
+  # spec-close-ceremony-sweep Spec-AC-11 (D7 as amended): --strict now
+  # promotes the near-miss AC-table shape check ONLY for a NON-terminal
+  # document; the M9 live-corpus yield (8 documents) is all `status: done`
+  # (terminal), so --strict still exits 0 and CHECK FAILED still never
+  # appears here -- the assertion above stands unchanged. The near-miss
+  # section itself is report-only and unconditional, so it STILL lists the 8
+  # documents regardless of --strict; that is no longer this stanza's
+  # concern (test_537_shape_check_live_yield owns the exact count and the
+  # terminal/non-terminal --strict split).
   assert_not_contains "$TEST_DIR/s11-audit.log" "CHECK FAILED"
-  # No false near-miss on the real corpus (narrow-by-construction detector).
-  extract_section_h3 "$TEST_DIR/s11-audit.log" "### Near-miss AC tables" > "$TEST_DIR/s11-nm.txt" 2>/dev/null || true
-  grep -qF "_None._" "$TEST_DIR/s11-nm.txt" \
-    || log_fail "real-repo near-miss section must be empty (no canonical shape may trip it): $(cat "$TEST_DIR/s11-nm.txt")"
   # INDEX idempotent (backup/restore the real committed index).
   local idx_backup="$TEST_DIR/INDEX.s11.orig"
   cp "$PROJECT_ROOT/docs/INDEX.md" "$idx_backup"
@@ -3376,7 +3409,201 @@ test_spec0011_regression() {  # TEST-015 / Spec-AC-12
   cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"
   diff -q "$TEST_DIR/s11-idx1.snap" "$TEST_DIR/s11-idx2.snap" >/dev/null \
     || log_fail "real-repo INDEX must be idempotent modulo the Generated line"
-  log_pass "Real-repo audit CLEAN, no false near-miss, INDEX idempotent"
+  log_pass "Real-repo audit CLEAN, INDEX idempotent"
+}
+
+# --- spec-close-ceremony-sweep Spec-AC-11/12 (TEST-536..538) -----------------
+# Amendment (owner correction): --strict promotes the two new near-miss
+# kinds (column-set, status-vocabulary) ONLY for a NON-terminal document
+# (TERMINAL_DOC_STATUS: done/deferred/rejected/superseded/legacy/current).
+# A terminal doc's finding stays report-only even under --strict, still
+# listed unconditionally. This keeps every PRE-EXISTING `--check --strict`
+# seam over the live corpus CLEAN (M9's 8 documents are all `status: done`)
+# instead of weakening those sixteen seams to make room for one new check.
+
+# Self-sufficient: works whether or not the shared setup_fixture ran first
+# (single-test sourced RED/GREEN evidence capture never runs it).
+setup_near_miss_fixture() {
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  local d="$TEST_DIR/iso-nearmiss-$1"
+  rm -rf "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/issues" "$d/docs/specs" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  # column-set shape (issue 370 / M9), NON-terminal (status: implementing):
+  # id column reads "AC", not "Spec-AC", under a non-canonical "## Acceptance
+  # Criteria" heading — neither parseAcTable nor parseLeanAcTable recognizes
+  # it, and the doc is still OPEN.
+  cat > "$d/docs/issues/ISSUE-9001-colset-open.md" <<'MD'
+---
+id: ISSUE-9001
+type: issue
+status: implementing
+links:
+  pr: []
+---
+# Column-set fixture, open (issue 370 shape)
+
+## Acceptance Criteria
+
+| AC | Requirement | Status |
+|----|-------------|--------|
+| AC-001 | first table entry | planned |
+| AC-002 | second table entry | planned |
+MD
+  # The IDENTICAL shape, but TERMINAL (status: done). `type: issue` (not
+  # `spec`) so the unrelated lean-ceremony done-doc branch never applies, and
+  # the bare "AC" id column keeps ac.hasGate false so the unrelated
+  # nonTerminal-AC-row false-done heuristic never applies either — the ONLY
+  # thing this pair differs on is frontmatter status.
+  cat > "$d/docs/issues/ISSUE-9003-colset-done.md" <<'MD'
+---
+id: ISSUE-9003
+type: issue
+status: done
+links:
+  pr: []
+---
+# Column-set fixture, done (issue 370 shape)
+
+## Acceptance Criteria
+
+| AC | Requirement | Status |
+|----|-------------|--------|
+| AC-001 | first table entry | planned |
+| AC-002 | second table entry | planned |
+MD
+  # status-vocabulary shape: a genuine canonical Spec-AC table (id column
+  # correct, Review-By/Evidence present) whose Status word is out of
+  # vocabulary, on an OPEN doc.
+  cat > "$d/docs/specs/SPEC-DRAFT-statusvocab.md" <<'MD'
+---
+id: spec-9002-statusvocab
+type: spec
+number: null
+status: implementing
+links:
+  pr: []
+---
+# Status-vocabulary fixture
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | green  | a1b2c3d  | —         | —     |
+MD
+  (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test" \
+    && git add -A && git commit -qm "chore: seed near-miss fixtures")
+  printf '%s' "$d"
+}
+
+test_536_unparseable_ac_table_shape() {  # TEST-536 / Spec-AC-11
+  log_info "Test: the issue-370 column-set shape hard-fails --check --strict on a NON-terminal doc and passes without --strict; the SAME shape on a done doc is listed but --check --strict exits 0; an out-of-vocabulary status word reports status-vocabulary (TEST-536)..."
+  local d rc out
+  d="$(setup_near_miss_fixture t536)"
+
+  # Report-only by default: EVERY near-miss doc is named, terminal or not.
+  rc=0
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-536: --check without --strict must exit 0 (got $rc): $(printf '%s' "$out" | tail -20)"
+  printf '%s' "$out" > "$d/plain.log"
+  grep -qF "column-set" "$d/plain.log" || log_fail "TEST-536: column-set kind must be reported: $out"
+  grep -qF "ISSUE-9001" "$d/plain.log" || log_fail "TEST-536: the OPEN column-set doc must be named: $out"
+  grep -qF "ISSUE-9003" "$d/plain.log" || log_fail "TEST-536: the DONE column-set doc must ALSO be named (report-only is unconditional): $out"
+  grep -qF "status-vocabulary" "$d/plain.log" || log_fail "TEST-536: status-vocabulary kind must be reported: $out"
+  grep -qF "spec-9002-statusvocab" "$d/plain.log" || log_fail "TEST-536: status-vocabulary finding must name spec-9002-statusvocab: $out"
+
+  # Arm 1 — NON-terminal doc present: --strict hard-fails.
+  rc=0
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-536 arm 1: --check --strict must exit non-zero while the OPEN doc's near-miss is present: $out"
+  printf '%s' "$out" | grep -qF "CHECK FAILED" || log_fail "TEST-536 arm 1: --strict output must carry CHECK FAILED: $out"
+  printf '%s' "$out" | grep -qF "near-miss" || log_fail "TEST-536 arm 1: CHECK FAILED must name near-miss: $out"
+
+  # Arm 2 — drop the OPEN fixtures; only the DONE doc's IDENTICAL shape
+  # remains. --strict must now exit 0 (terminal exemption: the table only
+  # gates open work, so a done doc cannot newly reach done with a broken one).
+  rm -f "$d/docs/issues/ISSUE-9001-colset-open.md" "$d/docs/specs/SPEC-DRAFT-statusvocab.md"
+  (cd "$d" && git add -A && git commit -qm "chore: drop the open fixtures" >/dev/null)
+  rc=0
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-536 arm 2: --check --strict must exit 0 once only the DONE doc's near-miss remains (terminal exemption), got $rc: $out"
+  printf '%s' "$out" | grep -qF "CHECK FAILED" \
+    && log_fail "TEST-536 arm 2: a done doc's near-miss must never print CHECK FAILED: $out"
+  printf '%s' "$out" | grep -qF "column-set" \
+    || log_fail "TEST-536 arm 2: the done doc's column-set finding must still be listed (report-only, unconditional): $out"
+
+  rm -rf "$d"
+  log_pass "TEST-536 near-miss kinds are always report-only-listed; --strict hard-fails a NON-terminal doc and stays CLEAN for a done doc with the identical shape"
+}
+
+test_537_shape_check_live_yield() {  # TEST-537 / Spec-AC-11
+  log_info "Test: over the live corpus the near-miss column-set kind names exactly the 8 M9 documents (all status: done), the status-vocabulary arm is empty, --check exits 0 without --strict, and --check --strict ALSO stays CLEAN (every M9 doc is terminal) (TEST-537)..."
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  local rc=0 out
+  out="$(cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-537: live corpus --check without --strict must exit 0 (got $rc): $(printf '%s' "$out" | tail -20)"
+  printf '%s' "$out" > "$TEST_DIR/s537-plain.log"
+  extract_section_h3 "$TEST_DIR/s537-plain.log" "### Near-miss AC tables" > "$TEST_DIR/s537-nm.txt" 2>/dev/null || true
+  local nm_docs
+  nm_docs="$(/usr/bin/grep -c '| column-set |' "$TEST_DIR/s537-nm.txt" 2>/dev/null || true)"
+  [[ "${nm_docs:-0}" -eq 8 ]] \
+    || log_fail "TEST-537: live corpus near-miss column-set kind must name exactly 8 documents (M9), got ${nm_docs:-0}: $(cat "$TEST_DIR/s537-nm.txt")"
+  if /usr/bin/grep -qF '| status-vocabulary |' "$TEST_DIR/s537-nm.txt"; then
+    log_fail "TEST-537: live corpus status-vocabulary arm must be empty (M9): $(cat "$TEST_DIR/s537-nm.txt")"
+  fi
+  # spec-close-ceremony-sweep Spec-AC-11 (amended D7): all 8 M9 documents are
+  # status: done (terminal) — --strict must stay CLEAN, so this pre-existing
+  # seam (and the other ~15 like it across the suite corpus) keeps its teeth.
+  rc=0
+  out="$(cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-537: live corpus --check --strict must stay exit 0 — every M9 near-miss document is terminal (status: done): $(printf '%s' "$out" | tail -20)"
+  printf '%s' "$out" | grep -qF "CHECK FAILED" \
+    && log_fail "TEST-537: live corpus --strict must not print CHECK FAILED (all 8 M9 docs are terminal): $out"
+  log_pass "TEST-537 live corpus near-miss yield matches M9 (8 documents), report-only always, --strict stays CLEAN (all terminal)"
+}
+
+test_538_duplicate_ac_id_multiplicity() {  # TEST-538 / Spec-AC-12
+  log_info "Test: a spec declaring Spec-AC-01 twice, one copy pipe-broken and planned, fails --gate naming the id and is not CLEAN under --check (TEST-538)..."
+  local d rc out
+  d="$(setup_ac24_fixture t538)"
+  mkdir -p "$d/docs/specs"
+  cat > "$d/docs/specs/SPEC-DRAFT-dup-id.md" <<'MD'
+---
+id: spec-dup-id
+type: spec
+number: null
+status: implementing
+links:
+  pr: []
+---
+# Dup id spec
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first, terminal | done | a1b2c3d | — | — |
+| Spec-AC-01 | second, X|Y broken | planned | — | — | — |
+MD
+  rc=0
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --gate spec-dup-id 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-538: --gate must exit non-zero on the duplicate declared id: $out"
+  printf '%s' "$out" | grep -qF "Spec-AC-01" || log_fail "TEST-538: --gate failure must name Spec-AC-01: $out"
+  printf '%s' "$out" | grep -qF "did not parse" || log_fail "TEST-538: --gate failure must say the row did not parse: $out"
+
+  rc=0
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event 2>&1)" || rc=$?
+  printf '%s' "$out" | grep -qF "Verdict: CLEAN" \
+    && log_fail "TEST-538: --check must NOT read CLEAN with the duplicate id unreconciled: $out"
+
+  rm -rf "$d"
+  log_pass "TEST-538 duplicate declared Spec-AC id reconciled by multiplicity: --gate fails naming it, --check is not CLEAN"
 }
 
 # --- CHANGE-0007 / SPEC-0013 H1 — body lint (TEST-001..009) ------------------
@@ -7198,6 +7425,9 @@ main() {
   test_spec0011_work_item_closed_requires_fields
   test_spec0011_review_artifact_boundary
   test_spec0011_regression
+  test_536_unparseable_ac_table_shape
+  test_537_shape_check_live_yield
+  test_538_duplicate_ac_id_multiplicity
   test_change0007_lint_stray_markup
   test_change0007_lint_unbalanced_fence
   test_change0007_lint_placeholder
