@@ -35,7 +35,7 @@
 3	tests/skills/test-aai-advisory-skills.sh
 2	tests/skills/test-aai-bootstrap.sh
 5	tests/skills/test-aai-branch-guard.sh
-3	tests/skills/test-aai-ceremony-levels.sh
+7	tests/skills/test-aai-ceremony-levels.sh
 3	tests/skills/test-aai-check-state.sh
 2	tests/skills/test-aai-close-reconcile.sh
 7	tests/skills/test-aai-close-work-item.sh
@@ -48,7 +48,7 @@
 12	tests/skills/test-aai-deslop.sh
 2	tests/skills/test-aai-doc-number-reservation.sh
 11	tests/skills/test-aai-doc-numbering.sh
-17	tests/skills/test-aai-docs-audit.sh
+25	tests/skills/test-aai-docs-audit.sh
 3	tests/skills/test-aai-docs-canon.sh
 3	tests/skills/test-aai-docs-hub.sh
 3	tests/skills/test-aai-docs-lock.sh

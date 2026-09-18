@@ -88,6 +88,12 @@ import {
   isMutationCellPlaceholder, TERMINAL_DOC_STATUS,
 } from './lib/docs-model.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+// spec-close-ceremony-sweep Spec-AC-14 (fu-mask-duplicates-docs-audit-core) —
+// the fenced/inline code-specimen masker used by the clarification-marker and
+// ac-vague-term rules below is lib/docs-audit-core.mjs's own maskSpecimens;
+// this file keeps no second copy (imported under a local alias so this file
+// never carries the old function's name at all).
+import { maskSpecimens as maskCode } from './lib/docs-audit-core.mjs';
 
 const ROOT = process.cwd();
 const CEREMONY_ENUM = ['0', '1', '2', '3'];
@@ -421,36 +427,6 @@ const CLARIFICATION_PRIORITY = 'scope > security/privacy > UX > technical detail
 // word must clear the same measurement.
 const VAGUE_TERMS = ['scalable', 'secure', 'robust', 'quickly'];
 
-// Mask fenced code blocks and inline code spans so a documented SPECIMEN never
-// reads as a live marker. Masked characters become spaces, but NEWLINES and
-// `|` are PRESERVED, so every line number stays exact and no table row's cell
-// count can shift. Used by the two clarification rules and by ac-vague-term
-// ONLY — no pre-existing rule's input changes.
-//   An unterminated fence masks everything after it: the document is malformed
-//   markdown (docs-audit's boundary), and failing toward silence there is safe.
-export function maskCodeSpecimens(norm) {
-  const blank = (s) => s.replace(/[^\n|]/g, ' ');
-  let fence = null;
-  const out = [];
-  for (const line of norm.split('\n')) {
-    const open = line.match(/^\s*(`{3,}|~{3,})/);
-    if (fence === null) {
-      if (open) {
-        fence = open[1][0];
-        out.push(blank(line));
-      } else {
-        // Inline spans: a run of N backticks closed by a run of N backticks on
-        // the same line. An unpaired backtick masks nothing.
-        out.push(line.replace(/(`+)[^\n]*?\1/g, blank));
-      }
-      continue;
-    }
-    if (open && open[1][0] === fence) fence = null;
-    out.push(blank(line));
-  }
-  return out.join('\n');
-}
-
 // Lint one document's content. Pure: no filesystem, no git. Returns findings
 // [{ rule, detail, line }] — rel/id are attached by the caller.
 // opts.strategy: STATE's recorded implementation strategy when the CALLER knows
@@ -686,7 +662,7 @@ export function lintContent(content, opts = {}) {
   // reason: a terminal doc is history, and re-litigating it yields noise, not
   // action. The three rules and their honest limits are in the file header.
   if (IN_FLIGHT_STATUSES.includes(fmStatus)) {
-    const masked = maskCodeSpecimens(norm);
+    const masked = maskCode(norm);
     const marks = [];
     for (let at = masked.indexOf(CLARIFICATION_TOKEN); at !== -1;
       at = masked.indexOf(CLARIFICATION_TOKEN, at + CLARIFICATION_TOKEN.length)) {

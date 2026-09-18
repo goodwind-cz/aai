@@ -390,8 +390,68 @@ function lastEditDate(root, rel) {
   return git(root, `log -1 --format=%cs -- "${rel}"`) || null;
 }
 
-function lastIdMentionDate(root, id) {
-  return git(root, `log -1 --grep="${id}" --format=%cs`) || null;
+// spec-close-ceremony-sweep Spec-AC-15 (fu-docsaudit-idmention-probe-per-doc)
+// — the sibling of buildFirstCommitDateMap/SPEC docs-history-is-one-git-call-
+// per-doc, applied to MENTION dates instead of ADD dates: the shipped
+// per-document call (`git log -1 --grep="<id>" --format=%cs`, preserved below
+// only as the historical comment) cost one subprocess per scanned doc and
+// searched the FULL commit message (subject + body) — git's own --grep scope,
+// no boundary anchoring, whatever `lastIdMentionDate` used to hand it.
+// buildCommitMessageLog walks the WHOLE history ONCE — no --grep, no per-id
+// filter at the git level — and every id's mention date is then resolved by a
+// plain substring search of the SAME cached full message against every id
+// (this project's ids carry no BRE metacharacters, so a substring test is
+// git-grep-equivalent here). Records are NUL-delimited (`%x00` before each,
+// mirroring buildFirstCommitDateMap's D5) because `%B` (the raw body) can
+// itself contain newlines a `\n`-split would misparse as new records.
+// Newest-first (git log's default order) is exactly what "last mention"
+// needs: the FIRST match in this order is the most recent one.
+function buildCommitMessageLog(root) {
+  let raw;
+  try {
+    raw = execFileSync('git', ['log', '--format=%x00%cs%x1f%B'], {
+      cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 28,
+    });
+  } catch {
+    return null;   // no git, or no commits: caller degrades to "no mention found"
+  }
+  const entries = [];
+  for (const rec of raw.split('\0')) {
+    if (!rec) continue;
+    const sep = rec.indexOf('\x1f');
+    if (sep < 0) continue;
+    entries.push({ date: rec.slice(0, sep), message: rec.slice(sep + 1) });
+  }
+  return entries;
+}
+
+// One-call-per-audit id-mention map: EVERY scanned doc's id resolved against
+// the SAME cached commit list (one buildCommitMessageLog walk), never a
+// second subprocess per id. A repository with no history (or no git at all)
+// yields an EMPTY map — every lookup then falls back to `?? null` below,
+// matching what the per-file call would have returned for the same repo.
+export function buildIdMentionDateMap(root, files, categoryPrefixes) {
+  const map = new Map();
+  const commitLog = buildCommitMessageLog(root);
+  if (!commitLog) return map;
+  for (const f of files) {
+    let content;
+    try {
+      content = fs.readFileSync(path.join(root, f.rel), 'utf8');
+    } catch {
+      continue;
+    }
+    const fm = parseFrontmatter(content);
+    const ids = extractDocIds(path.basename(f.rel), categoryPrefixes) ?? { primary: f.fileId };
+    const id = fm?.id ?? ids.primary;
+    if (!id || map.has(id)) continue;
+    let found = null;
+    for (const c of commitLog) {
+      if (c.message.includes(id)) { found = c.date; break; }
+    }
+    map.set(id, found);
+  }
+  return map;
 }
 
 // CHANGE-0027 / SPEC-0039 D4 — mention boundary (CHANGE-0002 D11 extended to
@@ -958,6 +1018,93 @@ function maskInlineCode(line) {
   return chars.join('');
 }
 
+// spec-close-ceremony-sweep Spec-AC-14 (fu-mask-duplicates-docs-audit-core) —
+// THE canonical fenced/inline code-specimen masker. lintBody below and
+// spec-lint.mjs's clarification-marker / ac-vague-term rules both call
+// maskSpecimens; there is no second copy. Masked characters become spaces,
+// but NEWLINES and `|` are PRESERVED, so line numbers stay exact and no table
+// row's cell count can shift (spec-lint relies on this for its AC-table
+// findings; lintBody does not care either way, so sharing costs it nothing).
+//
+// Fence tracking: an opening run of >= 3 backticks or tildes closes ONLY at a
+// later line consisting solely of the SAME character, in a run at least as
+// long as the opener — a shorter or differently-charactered run never closes
+// it (previously: any same-character run closed it regardless of length, so a
+// short stray run inside a longer specimen leaked the remainder as live).
+// SPEC-0013 W3b (CommonMark): a backtick fence's info string may not contain
+// a backtick, so a line-initial backtick run that closes on the SAME line
+// (e.g. ``` x ``` as a 3-run inline code span) is not a fence open at all —
+// it falls through to ordinary inline masking instead of opening a phantom
+// fence that swallows everything after it, including a live marker several
+// lines later (previously: any line-initial backtick run of >= 3 opened a
+// fence unconditionally).
+// Inline spans: a run of N backticks is closed by the NEXT run of exactly N
+// backticks, on the same line or (conservatively, SPEC-0013 W3a) later in the
+// same paragraph — a span never crosses a blank line or a fence-shaped line.
+function maskSpecimensState(content) {
+  const blank = (s) => s.replace(/[^\n|]/g, ' ');
+  // maskInlineCode blanks a matched span with plain spaces (no pipe carve-out
+  // — lintBody's own findings never needed one); restorePipes reinstates any
+  // `|` the raw line actually carried, positions unchanged, so both consumers
+  // share ONE masking pass regardless of which one needs the pipe contract.
+  const restorePipes = (raw, maskedStr) => {
+    let out = '';
+    for (let k = 0; k < maskedStr.length; k += 1) out += raw[k] === '|' ? '|' : maskedStr[k];
+    return out;
+  };
+  const maskLine = (raw) => restorePipes(raw, maskInlineCode(raw));
+  const lines = String(content ?? '').split(/\r\n|\r|\n/);
+  const out = new Array(lines.length);
+  let fence = null;   // { ch, len, line }
+  for (let i = 0; i < lines.length; i += 1) {
+    const raw = lines[i];
+    const f = raw.match(/^\s*(`{3,}|~{3,})/);
+    const isInlineSpanNotFence = f && !fence && f[1][0] === '`' && raw.slice(f[0].length).includes('`');
+    if (f && !isInlineSpanNotFence) {
+      const ch = f[1][0];
+      const len = f[1].length;
+      out[i] = blank(raw);
+      if (!fence) {
+        fence = { ch, len, line: i + 1 };
+      } else {
+        const closing = raw.trim();
+        const fenceCharsOnly = closing.length > 0 && closing.split('').every((c) => c === ch);
+        if (ch === fence.ch && len >= fence.len && fenceCharsOnly) fence = null;
+      }
+      continue;
+    }
+    if (fence) { out[i] = blank(raw); continue; }
+    const masked = maskLine(raw);
+    const leftover = backtickRuns(masked);
+    if (leftover.length > 0) {
+      const open = leftover[leftover.length - 1];
+      let closeAt = -1;
+      let closeRun = null;
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const look = lines[j];
+        if (look.trim() === '') break;               // spans cannot cross blank lines
+        if (/^\s*(`{3,}|~{3,})/.test(look)) break;   // fence-shaped boundary — stay conservative
+        const r = backtickRuns(look).find((x) => x.len === open.len);
+        if (r) { closeAt = j; closeRun = r; break; }
+      }
+      if (closeAt !== -1) {
+        out[i] = masked.slice(0, open.start) + blank(masked.slice(open.start));
+        for (let j = i + 1; j < closeAt; j += 1) out[j] = blank(lines[j]);
+        const closeLine = lines[closeAt];
+        out[closeAt] = blank(closeLine.slice(0, closeRun.end)) + maskLine(closeLine.slice(closeRun.end));
+        i = closeAt;   // interior lines are span content — skipped entirely
+        continue;
+      }
+    }
+    out[i] = masked;
+  }
+  return { masked: out.join('\n'), unclosedFence: fence };
+}
+
+export function maskSpecimens(content) {
+  return maskSpecimensState(content).masked;
+}
+
 // Lint one doc's content. Returns [{ rule, line, detail }] with 1-based line
 // numbers over the ORIGINAL file (frontmatter included in the numbering, never
 // in the linted range). Pure function — no filesystem, no git.
@@ -980,68 +1127,12 @@ export function lintBody(content) {
     const phAngle = masked.match(PLACEHOLDER_ANGLE_RE);
     if (phAngle) findings.push({ rule: 'template-placeholder', line: idx + 1, detail: `template placeholder token "${phAngle[0]}"` });
   };
-  let fence = null;   // { ch, len, line }
-  for (let i = start; i < lines.length; i += 1) {
-    const raw = lines[i];
-    const f = raw.match(/^\s*(`{3,}|~{3,})/);
-    // SPEC-0013 W3b (CommonMark): a backtick fence's info string may not
-    // contain backticks, so a line-initial backtick run followed by ANOTHER
-    // backtick on the SAME line (e.g. ``` x ``` as a 3-run code span) is
-    // inline code, not a fence open — fall through to ordinary masking
-    // instead of opening a phantom fence that swallows the rest of the doc.
-    // Only an OPENING candidate gets this treatment; inside an open fence
-    // every line is content. Tilde fences are unaffected (their info strings
-    // may contain backticks and they never close on the opening line).
-    const isInlineSpanNotFence = f && !fence && f[1][0] === '`' && raw.slice(f[0].length).includes('`');
-    if (f && !isInlineSpanNotFence) {
-      const ch = f[1][0];
-      const len = f[1].length;
-      if (!fence) {
-        fence = { ch, len, line: i + 1 };
-        continue;   // opening fence line (incl. info string) is never linted
-      }
-      // closes only at a fence-chars-only line of >= N of the SAME character
-      const closing = raw.trim();
-      const fenceCharsOnly = closing.split('').every(c => c === ch);
-      if (ch === fence.ch && len >= fence.len && fenceCharsOnly) {
-        fence = null;
-      }
-      continue;   // any fence-looking line inside a fence is content
-    }
-    if (fence) continue;
-    const masked = maskInlineCode(raw);
-    // SPEC-0013 W3a: minimal multi-line inline-span pairing. CommonMark code
-    // spans may cross line breaks within a paragraph; per-line masking cannot
-    // see them. If an UNPAIRED run survives single-line masking, look ahead
-    // for a run of exactly the same length later in the SAME paragraph (no
-    // blank line, no fence-shaped line in between). When found, everything
-    // from the opener to that closer is span content: lint only the text
-    // before the opener and after the closer (D1 conservative posture — the
-    // interior is NEVER flagged).
-    const leftover = backtickRuns(masked);
-    if (leftover.length > 0) {
-      const open = leftover[leftover.length - 1];
-      let closeAt = -1;
-      let closeRun = null;
-      for (let j = i + 1; j < lines.length; j += 1) {
-        const look = lines[j];
-        if (look.trim() === '') break;               // spans cannot cross blank lines
-        if (/^\s*(`{3,}|~{3,})/.test(look)) break;   // fence-shaped boundary — stay conservative
-        const r = backtickRuns(look).find((x) => x.len === open.len);
-        if (r) { closeAt = j; closeRun = r; break; }
-      }
-      if (closeAt !== -1) {
-        lintMaskedLine(masked.slice(0, open.start), i);
-        const rest = ' '.repeat(closeRun.end) + lines[closeAt].slice(closeRun.end);
-        lintMaskedLine(maskInlineCode(rest), closeAt);
-        i = closeAt;   // interior lines are span content — skipped entirely
-        continue;
-      }
-    }
-    lintMaskedLine(masked, i);
-  }
-  if (fence) {
-    findings.push({ rule: 'unbalanced-fence', line: fence.line, detail: `fence opened here (${fence.ch.repeat(fence.len)}) is still open at EOF` });
+  const body = lines.slice(start).join('\n');
+  const { masked, unclosedFence } = maskSpecimensState(body);
+  const maskedLines = masked.split('\n');
+  for (let i = 0; i < maskedLines.length; i += 1) lintMaskedLine(maskedLines[i], start + i);
+  if (unclosedFence) {
+    findings.push({ rule: 'unbalanced-fence', line: start + unclosedFence.line, detail: `fence opened here (${unclosedFence.ch.repeat(unclosedFence.len)}) is still open at EOF` });
   }
   return findings;
 }
@@ -1068,6 +1159,10 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   const firstCommitMap = (!quick && legacyUntil && files.length > 1) ? buildFirstCommitDateMap(root) : null;
   const events = quick ? [] : readEvents(root);
   const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
+  // Spec-AC-15 — ONE git log walk resolves every scanned doc's id-mention
+  // date; --quick skips it (no git probes at all, same gate every other
+  // git-backed signal in this function already honors).
+  const idMentionMap = quick ? new Map() : buildIdMentionDateMap(root, files, categoryPrefixes);
   const extraMethods = config?.review_by_methods ?? [];
   const planMode = config?.plan_scan_mode ?? 'lenient';
   const docs = [];
@@ -1362,7 +1457,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
           // all lean rows terminal, parseable + justified: aligned (tracked-done below)
         }
       } else if (!ac.hasGate && !quick) {
-        const hasCommit = lastIdMentionDate(root, id) != null;
+        const hasCommit = (idMentionMap.get(id) ?? null) != null;
         // PARENT-ID/sub-item refs roll up to the parent, but sibling IDs
         // (CHANGE-0045 vs CHANGE-004) must not cross-match (CHANGE-0002 D11)
         const hasEvidence = events.some(e => e.event === 'ac_evidence'
@@ -1374,7 +1469,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
       }
     } else if (OPEN_STATUSES.has(status) && !quick) {
       const lastEdit = lastEditDate(root, f.rel);
-      const lastMention = lastIdMentionDate(root, id);
+      const lastMention = idMentionMap.get(id) ?? null;
       const editAge = lastEdit ? daysBetween(lastEdit, todayUTC) : null;
       const mentionAge = lastMention ? daysBetween(lastMention, todayUTC) : null;
       if (editAge != null && editAge > staleDays && (mentionAge == null || mentionAge > staleDays)) {

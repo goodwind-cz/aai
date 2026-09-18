@@ -153,7 +153,7 @@ or bookkeeping ACs. Never use pipe characters inside cells.
 Status values: planned | implementing | done | deferred | blocked | rejected
 - planned: AC defined, no implementation started
 - implementing: work in flight; not allowed at PASS claim time
-- done: implementation complete; requires non-empty Evidence (commit SHA or RUN_ID)
+- done: implementation complete; requires non-empty Evidence naming a docs/ai/tdd artifact at hand-off (a RUN_ID or suite output path may accompany it, never replace it) — never a commit SHA or PR reference here; the delivery citation is written by the close flip, not at hand-off (see .aai/ROLE_COMMON.md PRE-HANDOFF AC-TABLE RECONCILIATION)
 - deferred: explicitly postponed; requires Review-By in the future (minimum +14 days) + Notes naming target doc or reason
 - blocked: implementation cannot proceed; requires Review-By + Notes naming blocker
 - rejected: AC will not be implemented; requires Notes with rationale; no Review-By needed (terminal)

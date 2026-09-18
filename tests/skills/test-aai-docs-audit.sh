@@ -2826,15 +2826,21 @@ test_spec0011_nearmiss_both_surfaces() {  # TEST-005 / Spec-AC-04
   log_info "Test: non-canonical heading / Review-By-like column near-miss in BOTH docs-audit + INDEX.violations; canonical warns in neither (TEST-005)..."
   local d; d="$(setup_iso_repo s11-nearmiss-both)"
   # Near-miss: AC-looking table under a non-canonical heading, with a 'Review By' column.
+  # spec-close-ceremony-sweep hazard fix (fu-index-violations-mirrors-terminal-
+  # docs): status is `implementing` here, deliberately NON-terminal — a
+  # TERMINAL near-miss doc is now EXEMPT from the INDEX.violations.md mirror
+  # (same partition as docs-audit.mjs's --strict promotion, Amendment 3); the
+  # terminal-exemption side of that same behavior is its own dedicated arm,
+  # test_idxviolations_terminal_exemption, immediately below.
   cat > "$d/docs/specs/SPEC-1140-noncanon.md" <<'MD'
 ---
 id: SPEC-1140
 type: spec
-status: done
+status: implementing
 links:
   pr: []
 ---
-# Done spec with an AC-looking table under a non-canonical heading
+# Open spec with an AC-looking table under a non-canonical heading
 
 ## Acceptance Criteria
 
@@ -2878,6 +2884,91 @@ MD
   fi
   rm -rf "$d"
   log_pass "Near-miss surfaces in BOTH docs-audit and INDEX.violations; canonical shape in neither"
+}
+
+# spec-close-ceremony-sweep run-4-introduced hazard (fu-index-violations-
+# mirrors-terminal-docs, no spec Test Plan row yet -- reported for an
+# amendment): every generate-docs-index.mjs regeneration mirrored EVERY
+# near-miss finding into the UNTRACKED docs/INDEX.violations.md, including
+# findings on documents that are already TERMINAL (done/deferred/rejected/
+# superseded/legacy/current) and can never newly reach that status with a
+# broken table (docs-audit.mjs's own --strict gate already refuses that while
+# the doc is open, Amendment 3). Since the pre-commit hook regenerates the
+# index on every commit, this left an untracked file behind in every clone
+# with at least one terminal near-miss doc -- the live corpus carries 8 of
+# them (M9), so it fired on this repository's own commits. Fix mirrors
+# Amendment 3's partition exactly: only a NON-terminal doc's near-miss is
+# mirrored; a terminal doc's near-miss stays visible ONLY in docs-audit.mjs's
+# own report (never lost, never mirrored).
+test_idxviolations_terminal_exemption() {
+  log_info "Test: a near-miss finding on a TERMINAL doc is never mirrored into docs/INDEX.violations.md; the identical shape on a NON-terminal doc still is, and both stay visible in docs-audit's own report..."
+  local d; d="$(setup_iso_repo idxviol-terminal-exemption)"
+  # Same near-miss shape (AC-looking table under a non-canonical heading) on
+  # two docs that differ ONLY in frontmatter status.
+  cat > "$d/docs/specs/SPEC-1160-open.md" <<'MD'
+---
+id: SPEC-1160
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Open spec with an AC-looking table under a non-canonical heading
+
+## Acceptance Criteria
+
+| Spec-AC    | Description | Status | Evidence | Review By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+  cat > "$d/docs/specs/SPEC-1161-done.md" <<'MD'
+---
+id: SPEC-1161
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec with the IDENTICAL near-miss table shape
+
+## Acceptance Criteria
+
+| Spec-AC    | Description | Status | Evidence | Review By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+
+  # Surface 1: docs-audit.mjs lists BOTH regardless of terminal status.
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs > nm.log 2>&1) || true
+  extract_section_h3 "$d/nm.log" "### Near-miss AC tables" > "$d/nm-sec.txt" 2>/dev/null || true
+  grep -qF "SPEC-1160" "$d/nm-sec.txt" \
+    || log_fail "docs-audit near-miss section must flag the open doc SPEC-1160: $(cat "$d/nm.log")"
+  grep -qF "SPEC-1161" "$d/nm-sec.txt" \
+    || log_fail "docs-audit near-miss section must ALSO flag the terminal doc SPEC-1161 (never lost, just not mirrored): $(cat "$d/nm.log")"
+
+  # Surface 2: generate-docs-index.mjs -> docs/INDEX.violations.md mirrors
+  # ONLY the non-terminal doc's finding.
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
+    || log_fail "generate-docs-index must exit 0 (degrade-and-report): $(cat "$d/gen.log")"
+  assert_file "$d/docs/INDEX.violations.md"
+  grep -qF "SPEC-1160" "$d/docs/INDEX.violations.md" \
+    || log_fail "INDEX.violations.md must still mirror the OPEN doc's near-miss (SPEC-1160)"
+  if grep -qF "SPEC-1161" "$d/docs/INDEX.violations.md"; then
+    log_fail "INDEX.violations.md must NOT mirror a TERMINAL doc's near-miss (SPEC-1161, status done)"
+  fi
+
+  # Second fixture: an ALL-terminal near-miss corpus must leave NO untracked
+  # companion file at all -- the exact "untracked file reaches a committed
+  # page" shape this sweep exists to remove.
+  rm -f "$d/docs/specs/SPEC-1160-open.md" "$d/docs/INDEX.violations.md"
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen2.log 2>&1) \
+    || log_fail "generate-docs-index must exit 0 on an all-terminal near-miss corpus: $(cat "$d/gen2.log")"
+  if [[ -f "$d/docs/INDEX.violations.md" ]]; then
+    log_fail "an all-terminal near-miss corpus must leave NO docs/INDEX.violations.md at all, found: $(cat "$d/docs/INDEX.violations.md")"
+  fi
+
+  rm -rf "$d"
+  log_pass "A terminal doc's near-miss stays in docs-audit's report only; an all-terminal corpus leaves no untracked INDEX.violations.md"
 }
 
 test_spec0011_review_claim_unbacked() {  # TEST-006 / Spec-AC-05
@@ -3510,11 +3601,11 @@ test_536_unparseable_ac_table_shape() {  # TEST-536 / Spec-AC-11
   out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-536: --check without --strict must exit 0 (got $rc): $(printf '%s' "$out" | tail -20)"
   printf '%s' "$out" > "$d/plain.log"
-  grep -qF "column-set" "$d/plain.log" || log_fail "TEST-536: column-set kind must be reported: $out"
-  grep -qF "ISSUE-9001" "$d/plain.log" || log_fail "TEST-536: the OPEN column-set doc must be named: $out"
-  grep -qF "ISSUE-9003" "$d/plain.log" || log_fail "TEST-536: the DONE column-set doc must ALSO be named (report-only is unconditional): $out"
-  grep -qF "status-vocabulary" "$d/plain.log" || log_fail "TEST-536: status-vocabulary kind must be reported: $out"
-  grep -qF "spec-9002-statusvocab" "$d/plain.log" || log_fail "TEST-536: status-vocabulary finding must name spec-9002-statusvocab: $out"
+  grep -qF "column-set" "$d/plain.log" || log_fail "TEST-536: column-set kind must be reported: $(payload_preview "$out")"
+  grep -qF "ISSUE-9001" "$d/plain.log" || log_fail "TEST-536: the OPEN column-set doc must be named: $(payload_preview "$out")"
+  grep -qF "ISSUE-9003" "$d/plain.log" || log_fail "TEST-536: the DONE column-set doc must ALSO be named (report-only is unconditional): $(payload_preview "$out")"
+  grep -qF "status-vocabulary" "$d/plain.log" || log_fail "TEST-536: status-vocabulary kind must be reported: $(payload_preview "$out")"
+  grep -qF "spec-9002-statusvocab" "$d/plain.log" || log_fail "TEST-536: status-vocabulary finding must name spec-9002-statusvocab: $(payload_preview "$out")"
 
   # Drop the status-vocabulary doc before the strict-mode arms below: an
   # out-of-vocabulary Status word on a CANONICAL (Spec-AC-headed) table also
@@ -3528,10 +3619,10 @@ test_536_unparseable_ac_table_shape() {  # TEST-536 / Spec-AC-11
   # Arm 1 — NON-terminal column-set doc present: --strict hard-fails.
   rc=0
   out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
-  [[ "$rc" -ne 0 ]] || log_fail "TEST-536 arm 1: --check --strict must exit non-zero while the OPEN doc's near-miss is present: $out"
-  printf '%s' "$out" | grep -qF "CHECK FAILED" || log_fail "TEST-536 arm 1: --strict output must carry CHECK FAILED: $out"
-  printf '%s' "$out" | grep -qF "near-miss" || log_fail "TEST-536 arm 1: CHECK FAILED must name near-miss: $out"
-  printf '%s' "$out" | grep -qF "0 schema violation(s)" || log_fail "TEST-536 arm 1: the failure must be near-miss-driven, not an unrelated schema violation: $out"
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-536 arm 1: --check --strict must exit non-zero while the OPEN doc's near-miss is present: $(payload_preview "$out")"
+  grep -qF "CHECK FAILED" <<<"$out" || log_fail "TEST-536 arm 1: --strict output must carry CHECK FAILED: $(payload_preview "$out")"
+  grep -qF "near-miss" <<<"$out" || log_fail "TEST-536 arm 1: CHECK FAILED must name near-miss: $(payload_preview "$out")"
+  grep -qF "0 schema violation(s)" <<<"$out" || log_fail "TEST-536 arm 1: the failure must be near-miss-driven, not an unrelated schema violation: $(payload_preview "$out")"
 
   # Arm 2 — drop the OPEN column-set doc too; only the DONE doc's IDENTICAL
   # shape remains. --strict must now exit 0 (terminal exemption: the table
@@ -3542,11 +3633,11 @@ test_536_unparseable_ac_table_shape() {  # TEST-536 / Spec-AC-11
   rc=0
   out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] \
-    || log_fail "TEST-536 arm 2: --check --strict must exit 0 once only the DONE doc's near-miss remains (terminal exemption), got $rc: $out"
-  printf '%s' "$out" | grep -qF "CHECK FAILED" \
-    && log_fail "TEST-536 arm 2: a done doc's near-miss must never print CHECK FAILED: $out"
-  printf '%s' "$out" | grep -qF "column-set" \
-    || log_fail "TEST-536 arm 2: the done doc's column-set finding must still be listed (report-only, unconditional): $out"
+    || log_fail "TEST-536 arm 2: --check --strict must exit 0 once only the DONE doc's near-miss remains (terminal exemption), got $rc: $(payload_preview "$out")"
+  grep -qF "CHECK FAILED" <<<"$out" \
+    && log_fail "TEST-536 arm 2: a done doc's near-miss must never print CHECK FAILED: $(payload_preview "$out")"
+  grep -qF "column-set" <<<"$out" \
+    || log_fail "TEST-536 arm 2: the done doc's column-set finding must still be listed (report-only, unconditional): $(payload_preview "$out")"
 
   rm -rf "$d"
   log_pass "TEST-536 near-miss kinds are always report-only-listed; --strict hard-fails a NON-terminal doc and stays CLEAN for a done doc with the identical shape"
@@ -3574,8 +3665,8 @@ test_537_shape_check_live_yield() {  # TEST-537 / Spec-AC-11
   out="$(cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] \
     || log_fail "TEST-537: live corpus --check --strict must stay exit 0 — every M9 near-miss document is terminal (status: done): $(printf '%s' "$out" | tail -20)"
-  printf '%s' "$out" | grep -qF "CHECK FAILED" \
-    && log_fail "TEST-537: live corpus --strict must not print CHECK FAILED (all 8 M9 docs are terminal): $out"
+  grep -qF "CHECK FAILED" <<<"$out" \
+    && log_fail "TEST-537: live corpus --strict must not print CHECK FAILED (all 8 M9 docs are terminal): $(payload_preview "$out")"
   log_pass "TEST-537 live corpus near-miss yield matches M9 (8 documents), report-only always, --strict stays CLEAN (all terminal)"
 }
 
@@ -3604,14 +3695,14 @@ links:
 MD
   rc=0
   out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --gate spec-dup-id 2>&1)" || rc=$?
-  [[ "$rc" -ne 0 ]] || log_fail "TEST-538: --gate must exit non-zero on the duplicate declared id: $out"
-  printf '%s' "$out" | grep -qF "Spec-AC-01" || log_fail "TEST-538: --gate failure must name Spec-AC-01: $out"
-  printf '%s' "$out" | grep -qF "did not parse" || log_fail "TEST-538: --gate failure must say the row did not parse: $out"
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-538: --gate must exit non-zero on the duplicate declared id: $(payload_preview "$out")"
+  grep -qF "Spec-AC-01" <<<"$out" || log_fail "TEST-538: --gate failure must name Spec-AC-01: $(payload_preview "$out")"
+  grep -qF "did not parse" <<<"$out" || log_fail "TEST-538: --gate failure must say the row did not parse: $(payload_preview "$out")"
 
   rc=0
   out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event 2>&1)" || rc=$?
-  printf '%s' "$out" | grep -qF "Verdict: CLEAN" \
-    && log_fail "TEST-538: --check must NOT read CLEAN with the duplicate id unreconciled: $out"
+  grep -qF "Verdict: CLEAN" <<<"$out" \
+    && log_fail "TEST-538: --check must NOT read CLEAN with the duplicate id unreconciled: $(payload_preview "$out")"
 
   rm -rf "$d"
   log_pass "TEST-538 duplicate declared Spec-AC id reconciled by multiplicity: --gate fails naming it, --check is not CLEAN"
@@ -6777,6 +6868,117 @@ EOF
   log_pass "firstCommitDate still exported, still answers for one document, still null for a ghost path"
 }
 
+# --- spec-close-ceremony-sweep Spec-AC-15 (fu-docsaudit-idmention-probe-per-
+# doc) — buildIdMentionDateMap resolves the id-mention date for the WHOLE
+# corpus with ONE git log call, no --grep, instead of one `git log -1
+# --grep=<id>` subprocess per document (TEST-542). --------------------------
+
+setup_idmention_repo() {
+  local d="$TEST_DIR/iso-idmention-$1"
+  rm -rf "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/issues" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  # Deliberately NO legacy_until_date: that key alone gates a SEPARATE
+  # add-history git log call (buildFirstCommitDateMap) this arm is not about.
+  cat > "$d/docs/ai/docs-audit.yaml" <<'YAML'
+stale_after_days: 90
+scan_exclude: []
+YAML
+  (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test")
+  printf '%s' "$d"
+}
+
+test_idmention_542_one_call_and_correct_dates() {  # TEST-542 / Spec-AC-15
+  log_info "Test: the id-mention date for a whole corpus is resolved with ONE git log call carrying no --grep, and the resolved dates match the per-doc ground truth (TEST-542)..."
+  local d; d="$(setup_idmention_repo onecall)"
+  # Three `done`, non-spec, AC-table-less documents (the branch that used to
+  # spend one `git log -1 --grep=<id>` subprocess PER document).
+  local i
+  for i in 801 802 803; do
+    cat > "$d/docs/issues/CHANGE-$i-idmention-fixture.md" <<MD
+---
+id: CHANGE-$i
+type: change
+status: done
+links:
+  pr: []
+---
+# Id-mention fixture document $i (no canonical AC Status table)
+MD
+  done
+  (cd "$d" && git add -A \
+    && GIT_COMMITTER_DATE="2026-01-01T10:00:00Z" GIT_AUTHOR_DATE="2026-01-01T10:00:00Z" \
+       git commit -qm "docs: add idmention fixtures" >/dev/null)
+  # CHANGE-801: mentioned in a commit SUBJECT, then again LATER in a commit
+  # BODY only — the last-mention date must be the LATER one, proving the
+  # batched walk searches the full message (subject + body), not the subject
+  # alone. CHANGE-802: mentioned once, in a subject. CHANGE-803: never
+  # mentioned — must resolve to null, not to some other document's date.
+  (cd "$d" && GIT_COMMITTER_DATE="2026-02-01T10:00:00Z" GIT_AUTHOR_DATE="2026-02-01T10:00:00Z" \
+     git commit -q --allow-empty -m "chore: CHANGE-801 initial note" >/dev/null)
+  (cd "$d" && GIT_COMMITTER_DATE="2026-03-01T10:00:00Z" GIT_AUTHOR_DATE="2026-03-01T10:00:00Z" \
+     git commit -q --allow-empty -m "chore: follow-up" -m "See CHANGE-801 for context" >/dev/null)
+  (cd "$d" && GIT_COMMITTER_DATE="2026-04-01T10:00:00Z" GIT_AUTHOR_DATE="2026-04-01T10:00:00Z" \
+     git commit -q --allow-empty -m "chore: CHANGE-802 note" >/dev/null)
+
+  # (a) correctness: the batched map agrees with the per-id git-grep ground
+  # truth (the shape the removed per-document lastIdMentionDate used).
+  cat > "$TEST_DIR/idmention-correctness.mjs" <<'EOF'
+import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+const [corePath, modelPath, root] = process.argv.slice(2);
+const { buildIdMentionDateMap, scanAuditDocs } = await import(pathToFileURL(corePath).href);
+const { DEFAULT_CATEGORY_PREFIXES } = await import(pathToFileURL(modelPath).href);
+let bad = false;
+const say = (m) => { console.log(`FINDING: ${m}`); bad = true; };
+const files = scanAuditDocs(root, {});
+if (files.length < 3) say(`only ${files.length} scanned document(s) — the comparison would be vacuous`);
+const map = buildIdMentionDateMap(root, files, DEFAULT_CATEGORY_PREFIXES);
+const expect = { 'CHANGE-801': '2026-03-01', 'CHANGE-802': '2026-04-01', 'CHANGE-803': null };
+for (const [id, want] of Object.entries(expect)) {
+  const got = map.has(id) ? map.get(id) : null;
+  console.log(`${id}: got=${got} want=${want}`);
+  if (got !== want) say(`${id}: batched map returned ${got}, want ${want}`);
+  const ground = execFileSync('git', ['log', '-1', `--grep=${id}`, '--format=%cs'],
+    { cwd: root, encoding: 'utf8' }).trim() || null;
+  if (ground !== got) say(`${id}: batched map (${got}) disagrees with the per-id git log --grep ground truth (${ground})`);
+}
+process.exit(bad ? 1 : 0);
+EOF
+  local out rc=0
+  out="$(node "$TEST_DIR/idmention-correctness.mjs" \
+    "$d/.aai/scripts/lib/docs-audit-core.mjs" "$d/.aai/scripts/lib/docs-model.mjs" "$d" 2>&1)" || rc=$?
+  log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-542: the batched id-mention map is not correct: $(payload_preview "$out")"
+
+  # (b) call count: a counting git shim, same convention as TEST-002 above.
+  local realgit gitlog="$d/git-calls.log"
+  realgit="$(command -v git)"
+  mkdir -p "$d/shim"
+  cat > "$d/shim/git" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$gitlog"
+exec "$realgit" "\$@"
+EOF
+  chmod +x "$d/shim/git"
+  : > "$gitlog"
+  (cd "$d" && PATH="$d/shim:$PATH" node .aai/scripts/docs-audit.mjs --check --no-event > "$d/full.log" 2>&1) || true
+  local logcalls grepcalls
+  logcalls="$(grep -cE '^log ' "$gitlog" || true)"
+  grepcalls="$(grep -cF -e '--grep' "$gitlog" || true)"
+  grep -qF -e "Scanned: 3 docs" "$d/full.log" \
+    || log_fail "TEST-542: the fixture audit must have scanned 3 documents, or 'one call' is not distinguishable from 'one per document': $(tail -5 "$d/full.log")"
+  [[ "$logcalls" -eq 1 ]] \
+    || log_fail "TEST-542: id-mention resolution must spend exactly ONE git log call for 3 documents, got $logcalls: $(cat "$gitlog")"
+  [[ "$grepcalls" -eq 0 ]] \
+    || log_fail "TEST-542: the one git log call must carry no --grep, got $grepcalls call(s) with --grep: $(cat "$gitlog")"
+
+  rm -rf "$d"
+  log_pass "TEST-542 one git log call (no --grep) resolves the whole corpus' id-mention dates, matching per-id git-grep ground truth"
+}
+
 # --- spec-ac-table-premature-flip-recurs — `--ac-flip-check`, the pre-handoff
 # guard against a premature AC flip (TEST-001..005) ---------------------------
 # AC-FLIP GUARD STANZAS (begin)
@@ -7422,6 +7624,7 @@ main() {
   test_spec0011_gate_pass_and_unknown
   test_spec0011_nearmiss_evidence_column
   test_spec0011_nearmiss_both_surfaces
+  test_idxviolations_terminal_exemption
   test_spec0011_review_claim_unbacked
   test_spec0011_review_claim_backed
   test_spec0011_event_types
@@ -7515,6 +7718,7 @@ main() {
   test_histmap_rename_needs_no_renames
   test_histmap_no_history_yields_null
   test_histmap_first_commit_date_still_exported
+  test_idmention_542_one_call_and_correct_dates
   test_acflip_delivery_citation_flags
   test_acflip_deferred_table_clean
   test_acflip_close_end_state_clean
