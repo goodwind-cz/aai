@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-18T18:28:27.382Z
+Generated: 2026-09-18T18:29:55.537Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-close-ceremony-sweep | specs | implementing | 32 planned, 3 done | docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md |
+| SPEC-0182 | specs | implementing | 32 planned, 3 done | docs/specs/SPEC-0182-spec-close-ceremony-sweep.md |
 
 ## Canonical layer (0)
 
@@ -498,7 +498,7 @@ _None._
 | CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0184 | issues | docs/issues/CHANGE-0184-roadmap-gate-admits-only-the-next-pair.md |
-| close-ceremony-sweep (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md |
+| CHANGE-0188 | issues | docs/issues/CHANGE-0188-close-ceremony-sweep.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

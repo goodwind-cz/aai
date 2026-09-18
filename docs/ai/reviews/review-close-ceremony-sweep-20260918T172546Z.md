@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff main..HEAD (feat/close-ceremony-sweep @ e53f2848, base main 7270a29c) — 85 files, +9359/-444, 49 commits
-  spec: docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md (35 Spec-AC, 72 Test Plan rows, 22 Amendments)
+  spec: docs/specs/SPEC-0182-spec-close-ceremony-sweep.md (35 Spec-AC, 72 Test Plan rows, 22 Amendments)
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -75,11 +75,11 @@ review:
       - { rank: NON-BLOCKING, file: .aai/scripts/check-vendored-script-deps.mjs, line: 414,
           issue: "The v1/v2/v3 design rationale is written out twice, near-verbatim, inside one file (:52-81 in the header docstring and :414-458 as an inline comment), and a third time in the spec's Amendment 21. The file is 640 lines of which 314 (49%) are comment; across the whole diff, 1230 of 2651 added .aai/scripts lines (46%) are comment-ish, much of it round-by-round archaeology ('validation-round5 B2-R5', 'NB-2 (validation-round2)', 'v3 (this version, as first shipped)').",
           failure_scenario: "A maintainer fixing the call-graph design updates one copy. The other keeps asserting the superseded rationale, and the next reviewer cannot tell which is current — the same failure the ride's own amendment convention exists to prevent, reproduced inside a source file. Keep ONE statement of 'why not the simpler design' (it is load-bearing); move the round narration to the amendments, where it already lives." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md, line: 554,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0182-spec-close-ceremony-sweep.md, line: 554,
           issue: "The AC Status table is internally inconsistent about which canon rule it follows. Spec-AC-29/30/31 were flipped to `done` with tdd-log Evidence at commit 0ecb03db while the doc's frontmatter is `status: implementing` (the ROLE_COMMON G4 pre-handoff shape); the other 32 rows stay `planned` with empty Evidence (the VALIDATION 8a AC-FLIP DEFERRAL shape). Nothing in the spec says why three rows are different.",
           failure_scenario: "Measured: `docs-audit.mjs --gate spec-close-ceremony-sweep` exits 1 naming all 32 planned rows; `--ac-flip-check` exits 0. A reader of the table cannot tell `planned` = 'not built' from `planned` = 'built, flip deferred', and the close ceremony's flip will have to distinguish them by hand. Pick one rule for the table and say which in the Verification section." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md, line: 1005,
-          issue: "Three commits carry another ride's document ids: 1d2f95b9, 15a178fc and 838869fe are subtitled `(CHANGE-0186 / SPEC-0180, Amendment 19/20/21)`. CHANGE-0186 / SPEC-0180 is the dispatch-state-sweep ride, already merged to main as #382; this ride's own docs are CHANGE-DRAFT-close-ceremony-sweep / SPEC-DRAFT-spec-close-ceremony-sweep, both `number: null`.",
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0182-spec-close-ceremony-sweep.md, line: 1005,
+          issue: "Three commits carry another ride's document ids: 1d2f95b9, 15a178fc and 838869fe are subtitled `(CHANGE-0186 / SPEC-0180, Amendment 19/20/21)`. CHANGE-0186 / SPEC-0180 is the dispatch-state-sweep ride, already merged to main as #382; this ride's own docs are CHANGE-0188-close-ceremony-sweep / SPEC-0182-spec-close-ceremony-sweep, both `number: null`.",
           failure_scenario: "After merge, `git log --grep=SPEC-0180` attributes three close-ceremony commits to a spec that never asked for them, and any provenance walk from SPEC-0180's links.commits forward finds work it does not own. Still cheap to fix by reword before the PR; unfixable in shared history afterwards." }
       - { rank: NON-BLOCKING, file: .aai/scripts/lib/docs-model.mjs, line: 1187,
           issue: "`leanAccepted` and `neitherParses` are document-level facts computed once (:1182-1187) but consumed inside the per-table loop. For `neitherParses` that is the documented intent; for `leanAccepted` it is not — it suppresses the `heading` warning for EVERY table in the document.",
@@ -291,7 +291,7 @@ review_round2:
     verdict: pass
     changed_rows:
       - { ac: Spec-AC-30, call: compliant, was: non-compliant,
-          citation: "CHANGELOG.md now carries `## [unreleased] — feat(ceremony): ... (CHANGE-DRAFT-close-ceremony-sweep / SPEC-DRAFT-spec-close-ceremony-sweep)` with 9 bullets. `bash .aai/scripts/aai-release.sh --dry-run` (re-run here) rolls it up as the first entry, rc=0, and the notes preview renders it. The second clause (commit-vs-staged verification) was already delivered." }
+          citation: "CHANGELOG.md now carries `## [unreleased] — feat(ceremony): ... (CHANGE-0188-close-ceremony-sweep / SPEC-0182-spec-close-ceremony-sweep)` with 9 bullets. `bash .aai/scripts/aai-release.sh --dry-run` (re-run here) rolls it up as the first entry, rc=0, and the notes preview renders it. The second clause (commit-vs-staged verification) was already delivered." }
       - { ac: Spec-AC-31, call: compliant, was: non-compliant,
           citation: "SKILL_PR.prompt.md:145-149 no longer restates the shape; it cross-references \"CHANGELOG.md's own preamble\" by name. The preamble now separates what aai-release.sh's awk classifier actually matches (`^## \\[unreleased\\] — `) from the `<type>: <title>` house convention, which is exactly true against aai-release.sh:261. TEST-570 now COUNTS (measured below). Residual, filed: two statements of the shape predate this ride on main (aai-release.sh:383 prints `'## [unreleased] — <title>'`, a DIFFERENT shape; SPEC-0063:75 states a third variant with `(<refs>)`), and TEST-570's count is scoped to two named files, so neither is seen." }
       - { ac: Spec-AC-33, call: compliant, unchanged_call_stronger_evidence:
@@ -309,7 +309,7 @@ review_round2:
       - { rank: NON-BLOCKING, id: R2-NB-2, file: CHANGELOG.md, line: 42,
           issue: "The pr_sweep bullet tells an operator that \"`claude-hook-gate.sh`'s `merge` gate denies ... a merge with no matching, consistent record for that PR and lane\" with no mention that the PreToolUse overlay carrying that hook is opt-in and installed nowhere by default.",
           failure_scenario: "This is the ride's own cannot_verify #1 restated as an operator-facing fact. A vendoring project reads the changelog, believes merges are gated, and never runs `aai-bootstrap.sh --with-claude-hooks`; nothing denies anything. One clause ('when the hooks overlay is installed') fixes it." }
-      - { rank: NON-BLOCKING, id: R2-NB-3, file: docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md, line: 2019,
+      - { rank: NON-BLOCKING, id: R2-NB-3, file: docs/specs/SPEC-0182-spec-close-ceremony-sweep.md, line: 2019,
           issue: "Amendment 23's Verification paragraph names EIGHT staled rows (TEST-585; 538/539/541/542; 552/568; 570) and then says 'All seven were re-run LAST'. The work was done — all eight records carry mtimes 19:46:30–19:51:08 — only the count is wrong.",
           failure_scenario: "Not a defect in the work; a defect in the record, in the same paragraph class round 6 had just corrected two arithmetic errors in (62->58, 62+13=75!=71). Cheap to fix while the spec is still editable." }
       - { rank: NON-BLOCKING, id: R2-NB-4, file: CHANGELOG.md, line: 15,

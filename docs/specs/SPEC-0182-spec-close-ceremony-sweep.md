@@ -1,13 +1,13 @@
 ---
 id: spec-close-ceremony-sweep
 type: spec
-number: null
+number: 182
 status: implementing
 mutation_gate: v1
-frozen_sha256: 2a163530222e08b749dd0d2e77c9a6054a034852a10d6d18c2c7954c0e8d9b0b
+frozen_sha256: 8b235ca80305defdd49c88fa22c67ee86af0792e20a926d69d065c6b991f47da
 ceremony_level: 2
 links:
-  requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
+  requirement: docs/issues/CHANGE-0188-close-ceremony-sweep.md
   rfc: null
   pr: []
   commits: []
@@ -21,7 +21,7 @@ SPEC-FROZEN: true
 - Requirement (primary path, unnumbered by design — `allocate-doc-number.mjs`
   assigns the number at the PR and renames the file, so every in-branch
   reference below uses the DRAFT path):
-  docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
+  docs/issues/CHANGE-0188-close-ceremony-sweep.md
 - Paired maintenance half: docs/issues/CHANGE-0184-roadmap-gate-admits-only-the-next-pair.md
 - Also carried in full: docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md
 - Mandate: docs/project-sessions/2026-09-13-wave-3-subsystem-sweeps.md (sweep 4)
@@ -805,7 +805,7 @@ full `bash tests/skills/test-framework.sh` runs before the close ceremony, with
   then the close-work-item re-pin and the four suites that source it
 
 Corpus-level checks before the close: `node .aai/scripts/spec-lint.mjs --path
-docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md`,
+docs/specs/SPEC-0182-spec-close-ceremony-sweep.md`,
 `node .aai/scripts/mutation-gate.mjs --spec <this spec>`,
 `node .aai/scripts/mutation-run.mjs --replay --spec <this spec>`,
 `node .aai/scripts/spec-amend.mjs list --strict`,
@@ -1712,7 +1712,7 @@ Validation round 2 (`docs/ai/tdd/spec-close-ceremony-sweep/validation-round2.txt
 
 **7. Amendment 16 contains a false sentence about `tests/skills/lib/base-ref-pin-baseline.tsv` — corrected here, not edited in place (NB-4).** Amendment 16 states the pre-existing GONE row for `test-aai-branch-guard.sh` "was left unrecorded, out of scope." Its own diff (`git diff 94a983ec..da54fb71 -- tests/skills/lib/base-ref-pin-baseline.tsv`) contradicts this: `--record` rewrites the WHOLE baseline in one pass, and the single line the diff touches replaces `1	test-aai-branch-guard.sh` with `1	test-aai-close-work-item.sh` — the branch-guard row IS gone from the baseline at HEAD; it was not "left unrecorded", it was recorded (removed) as an incidental side effect of the same `--record` run that added the close-work-item row. The direction is a TIGHTENING (expected count 1 -> 0, never a weakened guard), so nothing here changes shipped behaviour — only Amendment 16's sentence was wrong about what its own diff did. Per this ride's own rule, Amendment 16 is not edited; this paragraph is the correction, named.
 
-**Verification.** `mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md`: GATE PASS, 70 row(s), degraded=0 unstamped=0 (65 prior + TEST-584/585/586/587/588). Editing `append-event.mjs`, `claude-hook-gate.sh` and `ride-select.mjs` staled the earlier records whose target is one of those three files (TEST-573, TEST-565, TEST-566, TEST-574, TEST-583); each was re-run LAST with its OWN already-recorded mutation expression (unchanged) against the final edited target, and reddened again. `node .aai/scripts/mutation-run.mjs --replay --spec <this spec>` confirmed every live record for the spec still reddens. `tests/skills/test-aai-golden-flow.sh`, `test-aai-hooks-overlay.sh`, `test-aai-pr-platform.sh` and `test-aai-ride-select.sh` were each run in full and pass; `test-aai-docs-audit.sh` was run in full unchanged and passes. `docs-audit.mjs --check --strict`, `spec-amend.mjs list --strict`, `follow-ups.mjs verify-closures --strict` and `spec-lint.mjs --path <this spec>` are all clean; `ride-select.mjs gate --ref close-ceremony-sweep` and `validate` are unchanged against the LIVE roadmap (measured before and after this ride's edits to `ride-select.mjs`, byte-identical to Amendment 17's own measurement).
+**Verification.** `mutation-gate.mjs --spec docs/specs/SPEC-0182-spec-close-ceremony-sweep.md`: GATE PASS, 70 row(s), degraded=0 unstamped=0 (65 prior + TEST-584/585/586/587/588). Editing `append-event.mjs`, `claude-hook-gate.sh` and `ride-select.mjs` staled the earlier records whose target is one of those three files (TEST-573, TEST-565, TEST-566, TEST-574, TEST-583); each was re-run LAST with its OWN already-recorded mutation expression (unchanged) against the final edited target, and reddened again. `node .aai/scripts/mutation-run.mjs --replay --spec <this spec>` confirmed every live record for the spec still reddens. `tests/skills/test-aai-golden-flow.sh`, `test-aai-hooks-overlay.sh`, `test-aai-pr-platform.sh` and `test-aai-ride-select.sh` were each run in full and pass; `test-aai-docs-audit.sh` was run in full unchanged and passes. `docs-audit.mjs --check --strict`, `spec-amend.mjs list --strict`, `follow-ups.mjs verify-closures --strict` and `spec-lint.mjs --path <this spec>` are all clean; `ride-select.mjs gate --ref close-ceremony-sweep` and `validate` are unchanged against the LIVE roadmap (measured before and after this ride's edits to `ride-select.mjs`, byte-identical to Amendment 17's own measurement).
 
 Sign-off: none (tracked).
 
@@ -1732,7 +1732,7 @@ Validation round 3 (`docs/ai/tdd/spec-close-ceremony-sweep/validation-round3.txt
 
 **Record-keeping note 2 — the quote strip's NB-1 targeting regression is a known, named limit, not a new hole.** Amendment 18's quote-stripping fix for the merge gate moved exactly one contrived case from right to wrong: `gh pr merge --subject "123" --squash 385` judged PR 385 before the fix and judges PR 123 after it (validation round 3, NB-1). This matches what the UNQUOTED form (`--subject 123 --squash 385`) already did both before and after — the fix made the quoted form consistent with the long-standing unquoted one, not a new class of hole. It can only produce a wrong ALLOW when a merge subject is nothing but digits AND that number happens to carry its own consistent sweep record — contrived, and the file's own honesty note ("a guardrail against habit, not a security boundary") already covers this class. Disclosed by name here rather than left implicit.
 
-**Verification.** `mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md`: GATE PASS, 70 row(s), degraded=0 unstamped=0. Editing `lib/docs-model.mjs` staled every record targeting it (TEST-536, TEST-537, TEST-540, TEST-554, TEST-576, TEST-580, TEST-581, TEST-582); editing `append-event.mjs` staled TEST-573, TEST-584, TEST-586; every one of these 11 rows was re-run LAST with its OWN already-recorded mutation expression (unchanged) against the final edited target, and reddened again. `tests/skills/test-aai-golden-flow.sh`, `test-aai-hooks-overlay.sh`, `test-aai-pr-platform.sh`, `test-aai-ride-select.sh` and `test-aai-docs-audit.sh` were each run in full and pass, plus `test-aai-close-work-item.sh` (touching what its regen tail writes, though its own source is unedited). `docs-audit.mjs --check --strict`, `spec-amend.mjs list --strict`, `follow-ups.mjs verify-closures --strict` and `spec-lint.mjs --path <this spec>` are all clean; `ride-select.mjs validate` and `gate --ref close-ceremony-sweep` are byte-identical against the LIVE roadmap, measured before and after this amendment's edits (none of which touch `ride-select.mjs` or `roadmap.yaml`).
+**Verification.** `mutation-gate.mjs --spec docs/specs/SPEC-0182-spec-close-ceremony-sweep.md`: GATE PASS, 70 row(s), degraded=0 unstamped=0. Editing `lib/docs-model.mjs` staled every record targeting it (TEST-536, TEST-537, TEST-540, TEST-554, TEST-576, TEST-580, TEST-581, TEST-582); editing `append-event.mjs` staled TEST-573, TEST-584, TEST-586; every one of these 11 rows was re-run LAST with its OWN already-recorded mutation expression (unchanged) against the final edited target, and reddened again. `tests/skills/test-aai-golden-flow.sh`, `test-aai-hooks-overlay.sh`, `test-aai-pr-platform.sh`, `test-aai-ride-select.sh` and `test-aai-docs-audit.sh` were each run in full and pass, plus `test-aai-close-work-item.sh` (touching what its regen tail writes, though its own source is unedited). `docs-audit.mjs --check --strict`, `spec-amend.mjs list --strict`, `follow-ups.mjs verify-closures --strict` and `spec-lint.mjs --path <this spec>` are all clean; `ride-select.mjs validate` and `gate --ref close-ceremony-sweep` are byte-identical against the LIVE roadmap, measured before and after this amendment's edits (none of which touch `ride-select.mjs` or `roadmap.yaml`).
 
 Sign-off: none (tracked).
 
@@ -1757,7 +1757,7 @@ Verified (both directions, mirroring validation round 4's own E1-E5 battery): dr
 2. **The NB cross-reference was double-wrong.** Amendment 19's opening paragraph says "NB-3 and NB-7's ref_id note are addressed below" and that "NB-1, NB-2, NB-4, NB-5, NB-6 are pre-existing/bounded/expected, not touched". Validation round 3's ref_id note is **NB-2**, not NB-7 (NB-7 in round 3 is the "shipping worktree only gained the evidence file" note) — and Amendment 19's own two record-keeping notes address exactly **NB-1** and **NB-2**, the opposite of "not touched". Both mistakes are named here; nothing about the fixes themselves was wrong, only this one cross-reference sentence.
 3. **The ref_id note's arithmetic was self-contradictory and did not match the ledger.** Amendment 19 wrote "a reader ... will see 6 + 1 (now 7 + 1 with this one)" — "this one" is already inside the stated 6, and neither number matches `decisions.jsonl`: `grep '"spec_id":"spec-close-ceremony-sweep"' docs/ai/decisions.jsonl | grep -o '"ref_id":"[^"]*"' | sort | uniq -c` reads **19** records under `ref_id: close-ceremony-sweep` and **1** stray under `ref_id: spec-close-ceremony-sweep` (Amendment 18's own record) as of this amendment's own drafting — **19 + 1**, becoming 20 + 1 once this amendment's own record is appended below with the correct sibling `--ref close-ceremony-sweep` (per the dispatch's own instruction: Amendment 18's record used the wrong ref id; this one uses the sibling).
 
-**Verification.** `mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md`: GATE PASS, 71 row(s), degraded=0 unstamped=0 (70 prior + TEST-589). Editing `lib/docs-model.mjs` staled every record targeting it (TEST-536, TEST-537, TEST-540, TEST-554, TEST-576, TEST-580, TEST-581, TEST-582); editing `orchestration-dispatch.mjs` staled TEST-567; each was re-run LAST with its OWN already-recorded mutation expression (unchanged, except TEST-580 whose canonical mutation is now the B1-R4 omission itself) against the final edited target, and reddened again. `node .aai/scripts/mutation-run.mjs --replay --spec <this spec>` confirmed every live record for the spec still reddens. `tests/skills/test-aai-golden-flow.sh`, `test-aai-hooks-overlay.sh`, `test-aai-pr-platform.sh`, `test-aai-ride-select.sh`, `test-aai-docs-audit.sh` and `test-aai-close-work-item.sh` were each run in full and pass; `test-aai-doc-numbering.sh` (STALE_SCAN_PAGES, TEST-031, new TEST-589) was run in full and passes, 33/33 arms. `test-aai-orchestration-dispatch.sh` was run in full: 87 of 88 arms pass; the one failure, `test_567_rule_4a_single_retarget`, reproduces byte-for-byte identically on unmodified HEAD in this same session (`roadmap_gate_refused:...:node:internal/modules/esm/resolve:275`, a module-resolution error inside `ride-select.mjs` visible only when the suite runs directly against this worktree, never inside `mutation-run.mjs`'s own isolated clone, where the SAME test's control passes and its recorded mutation reddens normally) — an environment artifact of this session, not a regression this diff introduces; disclosed rather than hidden, not chased further per this ride's own scope. `docs-audit.mjs --check --strict`, `spec-amend.mjs list --strict`, `follow-ups.mjs verify-closures --strict` and `spec-lint.mjs --path <this spec>` are all clean; `ride-select.mjs validate` and `gate --ref close-ceremony-sweep` are byte-identical against the LIVE roadmap (none of this amendment's edits touch `ride-select.mjs` or `roadmap.yaml`). The working tree is left clean: every generator run happened inside a scratch clone or `mutation-run.mjs`'s own throwaway clone, never against the shipping tree.
+**Verification.** `mutation-gate.mjs --spec docs/specs/SPEC-0182-spec-close-ceremony-sweep.md`: GATE PASS, 71 row(s), degraded=0 unstamped=0 (70 prior + TEST-589). Editing `lib/docs-model.mjs` staled every record targeting it (TEST-536, TEST-537, TEST-540, TEST-554, TEST-576, TEST-580, TEST-581, TEST-582); editing `orchestration-dispatch.mjs` staled TEST-567; each was re-run LAST with its OWN already-recorded mutation expression (unchanged, except TEST-580 whose canonical mutation is now the B1-R4 omission itself) against the final edited target, and reddened again. `node .aai/scripts/mutation-run.mjs --replay --spec <this spec>` confirmed every live record for the spec still reddens. `tests/skills/test-aai-golden-flow.sh`, `test-aai-hooks-overlay.sh`, `test-aai-pr-platform.sh`, `test-aai-ride-select.sh`, `test-aai-docs-audit.sh` and `test-aai-close-work-item.sh` were each run in full and pass; `test-aai-doc-numbering.sh` (STALE_SCAN_PAGES, TEST-031, new TEST-589) was run in full and passes, 33/33 arms. `test-aai-orchestration-dispatch.sh` was run in full: 87 of 88 arms pass; the one failure, `test_567_rule_4a_single_retarget`, reproduces byte-for-byte identically on unmodified HEAD in this same session (`roadmap_gate_refused:...:node:internal/modules/esm/resolve:275`, a module-resolution error inside `ride-select.mjs` visible only when the suite runs directly against this worktree, never inside `mutation-run.mjs`'s own isolated clone, where the SAME test's control passes and its recorded mutation reddens normally) — an environment artifact of this session, not a regression this diff introduces; disclosed rather than hidden, not chased further per this ride's own scope. `docs-audit.mjs --check --strict`, `spec-amend.mjs list --strict`, `follow-ups.mjs verify-closures --strict` and `spec-lint.mjs --path <this spec>` are all clean; `ride-select.mjs validate` and `gate --ref close-ceremony-sweep` are byte-identical against the LIVE roadmap (none of this amendment's edits touch `ride-select.mjs` or `roadmap.yaml`). The working tree is left clean: every generator run happened inside a scratch clone or `mutation-run.mjs`'s own throwaway clone, never against the shipping tree.
 
 Sign-off: none (tracked).
 
@@ -1885,7 +1885,7 @@ Two halves, both in Spec-AC-30/31's scope.
 (a) This branch carried no `## [unreleased] — ` entry of its own for ~30
 commits and a dozen user-visible changes, only the six-line preamble
 paragraph Spec-AC-31 added. A new entry now leads `CHANGELOG.md`
-(`CHANGE-DRAFT-close-ceremony-sweep / SPEC-DRAFT-spec-close-ceremony-sweep`),
+(`CHANGE-0188-close-ceremony-sweep / SPEC-0182-spec-close-ceremony-sweep`),
 naming the changes an operator or a vendoring project will notice, including
 by name the two the dispatch called out: `ride-select.mjs`'s roadmap gate now
 admits only the first unfinished capability pair (previously any capability
@@ -2010,7 +2010,7 @@ by name here, this ride's own established convention).**
    here. Amendment 22's "nothing was shipping broken" sentence is corrected
    by name, not edited.
 
-**Verification.** `mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md`:
+**Verification.** `mutation-gate.mjs --spec docs/specs/SPEC-0182-spec-close-ceremony-sweep.md`:
 GATE PASS, 72 row(s), degraded=0, unstamped=0 — no new Test Plan rows (TEST-574
 gained four arms and TEST-570 gained a count assertion, both under their
 existing ids). Editing `lib/pr-sweep.mjs` staled TEST-585's record;
@@ -2094,7 +2094,7 @@ the same mutation the row already pins, not merely present. GREEN restored;
 **Verification.** This amendment touches `.aai/scripts/lib/pr-sweep.mjs` (the
 `REVIEWER_BOTS_VALUES` check) and `tests/skills/test-aai-hooks-overlay.sh`
 (TEST-574's two new arms); no other file changed.
-`mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md`:
+`mutation-gate.mjs --spec docs/specs/SPEC-0182-spec-close-ceremony-sweep.md`:
 first run reported `GATE FAIL: 1 offending row(s)` — TEST-585's record staled
 by the `lib/pr-sweep.mjs` edit (target_sha256 mismatch), exactly the row
 Amendment 23 itself re-recorded last time the same file changed. Re-run with

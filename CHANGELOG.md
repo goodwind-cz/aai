@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — feat(ceremony): the close ceremony, docs audit and generated pages agree with git (CHANGE-DRAFT-close-ceremony-sweep / SPEC-DRAFT-spec-close-ceremony-sweep)
+## [unreleased] — feat(ceremony): the close ceremony, docs audit and generated pages agree with git (CHANGE-0188-close-ceremony-sweep / SPEC-0182-spec-close-ceremony-sweep)
 
 - **`ride-select.mjs`'s roadmap gate now admits only the FIRST unfinished
   capability pair** (previously any capability anywhere on the roadmap

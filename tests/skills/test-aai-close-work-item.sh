@@ -3777,7 +3777,7 @@ EOF
 
 # ===== spec-close-ceremony-sweep (Spec-AC-06/07/08, TEST-528..531) ===========
 #
-# TDD run 3/11 of docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md:
+# TDD run 3/11 of docs/specs/SPEC-0182-spec-close-ceremony-sweep.md:
 # --paired joins the existing snapshot/rollback transaction (Spec-AC-06), the
 # STATE-reconcile skip keeps its already-planned echo and the mutation-gate
 # notice names its collected counts from the fields it collected them into,

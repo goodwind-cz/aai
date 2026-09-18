@@ -1,7 +1,7 @@
 ---
 id: close-ceremony-sweep
 type: change
-number: null
+number: 188
 status: draft
 capability: close-ceremony-sweep
 links:
