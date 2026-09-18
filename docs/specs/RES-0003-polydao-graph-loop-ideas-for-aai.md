@@ -1,7 +1,7 @@
 ---
 id: polydao-graph-loop-ideas-for-aai
 type: research
-number: null
+number: 3
 status: draft
 links:
   pr: []
