@@ -2342,3 +2342,6 @@
 {"v":1,"ts":"2026-09-18T22:41:28Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"intake-doc-identity-table-and-its-pins","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-09-18T22:41:28Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"intake-doc-identity-table-and-its-pins","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-18T22:41:28Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"intake-doc-identity-table-and-its-pins","payload":{"commit":"b477fb3b"}}
+{"v":1,"ts":"2026-09-18T22:47:57Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"unrecorded-spec-amendment-is-invisible","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-18T22:47:57Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"focus-and-validation-state-go-stale-silently","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-18T22:48:05Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"focus-and-validation-state-go-stale-silently","payload":{"commit":"e6aae10b","evidence":"delivered by PR #382 (CHANGE-0186 / SPEC-0180, dispatch-state-sweep); closed as data by SPEC-0182 Spec-AC-10 with this commit"}}
