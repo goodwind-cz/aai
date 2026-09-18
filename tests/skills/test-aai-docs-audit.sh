@@ -2942,19 +2942,19 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs > nm.log 2>&1) || true
   extract_section_h3 "$d/nm.log" "### Near-miss AC tables" > "$d/nm-sec.txt" 2>/dev/null || true
   grep -qF "SPEC-1160" "$d/nm-sec.txt" \
-    || log_fail "docs-audit near-miss section must flag the open doc SPEC-1160: $(cat "$d/nm.log")"
+    || log_fail "TEST-575: docs-audit near-miss section must flag the open doc SPEC-1160: $(cat "$d/nm.log")"
   grep -qF "SPEC-1161" "$d/nm-sec.txt" \
-    || log_fail "docs-audit near-miss section must ALSO flag the terminal doc SPEC-1161 (never lost, just not mirrored): $(cat "$d/nm.log")"
+    || log_fail "TEST-575: docs-audit near-miss section must ALSO flag the terminal doc SPEC-1161 (never lost, just not mirrored): $(cat "$d/nm.log")"
 
   # Surface 2: generate-docs-index.mjs -> docs/INDEX.violations.md mirrors
   # ONLY the non-terminal doc's finding.
   (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
-    || log_fail "generate-docs-index must exit 0 (degrade-and-report): $(cat "$d/gen.log")"
+    || log_fail "TEST-575: generate-docs-index must exit 0 (degrade-and-report): $(cat "$d/gen.log")"
   assert_file "$d/docs/INDEX.violations.md"
   grep -qF "SPEC-1160" "$d/docs/INDEX.violations.md" \
-    || log_fail "INDEX.violations.md must still mirror the OPEN doc's near-miss (SPEC-1160)"
+    || log_fail "TEST-575: INDEX.violations.md must still mirror the OPEN doc's near-miss (SPEC-1160)"
   if grep -qF "SPEC-1161" "$d/docs/INDEX.violations.md"; then
-    log_fail "INDEX.violations.md must NOT mirror a TERMINAL doc's near-miss (SPEC-1161, status done)"
+    log_fail "TEST-575: INDEX.violations.md must NOT mirror a TERMINAL doc's near-miss (SPEC-1161, status done)"
   fi
 
   # Second fixture: an ALL-terminal near-miss corpus must leave NO untracked
@@ -2962,9 +2962,9 @@ MD
   # page" shape this sweep exists to remove.
   rm -f "$d/docs/specs/SPEC-1160-open.md" "$d/docs/INDEX.violations.md"
   (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen2.log 2>&1) \
-    || log_fail "generate-docs-index must exit 0 on an all-terminal near-miss corpus: $(cat "$d/gen2.log")"
+    || log_fail "TEST-575: generate-docs-index must exit 0 on an all-terminal near-miss corpus: $(cat "$d/gen2.log")"
   if [[ -f "$d/docs/INDEX.violations.md" ]]; then
-    log_fail "an all-terminal near-miss corpus must leave NO docs/INDEX.violations.md at all, found: $(cat "$d/docs/INDEX.violations.md")"
+    log_fail "TEST-575: an all-terminal near-miss corpus must leave NO docs/INDEX.violations.md at all, found: $(cat "$d/docs/INDEX.violations.md")"
   fi
 
   rm -rf "$d"
