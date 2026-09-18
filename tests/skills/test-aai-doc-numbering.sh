@@ -472,6 +472,9 @@ links:
 MD
   # a number:null DRAFT whose slug does NOT contain the word "unnumbered"
   write_draft "$d" rfc RFC gadget-flow
+  # Spec-AC-22: the tracked-only walk reads `git ls-files`, so both fixture
+  # docs must be STAGED before the generator runs (no commit needed).
+  (cd "$d" && git add -A docs)
   (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen1.log 2>&1) \
     || log_fail "index gen failed: $(cat "$d/gen1.log")"
   local index="$d/docs/INDEX.md"
@@ -1187,6 +1190,13 @@ None.
 None.
 MD
   printf '# User Guide\n\nHand-written prose that must survive verbatim.\n' > "$d/docs/USER_GUIDE.md"
+  # Spec-AC-22 (spec-close-ceremony-sweep): the generators now enumerate
+  # through `git ls-files` (D3's tracked-only walk), so an UNSTAGED fixture
+  # document is invisible to them — stage before generating, the way a real
+  # intake would (no commit required here; the tracked walk reads staged
+  # adds, and the commit below still lands for the allocator step that
+  # follows).
+  (cd "$d" && git add -A docs)
   (cd "$d" && node .aai/scripts/generate-overview.mjs >/dev/null 2>&1) \
     || log_fail "fixture seed: generate-overview.mjs failed"
   (cd "$d" && node .aai/scripts/generate-userguide-rollup.mjs >/dev/null 2>&1) \
