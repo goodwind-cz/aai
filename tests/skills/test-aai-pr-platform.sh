@@ -674,6 +674,39 @@ test_580_shared_page_set_covers_every_generated_page() {
     || log_fail "TEST-580 shared-page set coverage"
 }
 
+# --- TEST-590 (Spec-AC-30, validation-round5 B3-R5) --------------------------
+# TEST-580 above RUNS the five REGEN_TAIL_GENERATORS, but nothing made
+# `tests/skills/suite-map.yaml`'s `aai-pr-platform` row NAME them — so
+# `select-suites.mjs --files-from` on a diff touching only one of the five
+# generators selected zero pr-platform, and the suite that measures "does
+# this generator's page belong to the shared set" never re-ran on the very
+# diff that could change the answer (measured live, validation round 5:
+# DROPPED 89 for every one of the five). Pinned from the SAME literal array
+# TEST-580 already runs, so the two rows can never drift apart the way three
+# earlier hand-written page lists did (Amendments 19/20).
+test_590_suite_map_names_the_regen_tail_generators() {
+  log_info "TEST-590: the aai-pr-platform suite-map row names every REGEN_TAIL_GENERATORS script (Spec-AC-30)..."
+  local map="$PROJECT_ROOT/tests/skills/suite-map.yaml"
+  [[ -f "$map" ]] || { log_fail "TEST-590: $map missing"; return; }
+  local row; row="$(awk '/^  aai-pr-platform:/{on=1;next} on&&/^  [a-z]/{on=0} on' "$map")"
+  [[ -n "$row" ]] || log_fail "TEST-590: no aai-pr-platform row in $map"
+  local -a REGEN_TAIL_GENERATORS=(
+    "generate-docs-index.mjs"
+    "generate-overview.mjs"
+    "generate-userguide-rollup.mjs"
+    "generate-docs-hub.mjs"
+    "generate-factory-report.mjs"
+  )
+  local gen
+  for gen in "${REGEN_TAIL_GENERATORS[@]}"; do
+    grep -qF ".aai/scripts/$gen" <<< "$row" \
+      || log_fail "TEST-590: suite-map aai-pr-platform row must list .aai/scripts/$gen so a diff touching it re-selects the suite that runs TEST-580 over it"
+  done
+  grep -qF "lib/docs-model.mjs" <<< "$row" \
+    || log_fail "TEST-590: suite-map aai-pr-platform row must list .aai/scripts/lib/docs-model.mjs, the SHARED_GENERATED_PAGES authority TEST-580 asserts equality against"
+  log_pass "TEST-590: aai-pr-platform suite-map row names every regen-tail generator plus the shared-set authority"
+}
+
 ALL_TESTS=(
   test_001_github_https
   test_002_github_ssh_scp
@@ -699,6 +732,7 @@ ALL_TESTS=(
   test_022_skill_pr_no_bots_hardening
   test_569_shared_page_push_names_open_prs
   test_580_shared_page_set_covers_every_generated_page
+  test_590_suite_map_names_the_regen_tail_generators
 )
 
 main() {

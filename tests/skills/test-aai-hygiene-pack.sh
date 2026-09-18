@@ -4301,16 +4301,20 @@ test_127_withdrawn_phrases_drained() {  # TEST-438 / Spec-AC-21
   log_pass "test_127: all four withdrawn phrases are drained from tests/skills, .aai/ and docs/specs, and a planted instance is still caught (TEST-438)"
 }
 
-# --- test_131 (Amendment 21, validation-round4 follow-up) -------------------
+# --- test_131 (Amendment 21, validation-round4 follow-up; BITE 4 added --------
+# validation-round5 B1-R5) --------------------------------------------------
 # check-vendored-script-deps.mjs's own gate-and-bite: a LIVE GATE over this
-# repository, plus fixture proofs pinning the two design properties measured
-# by hand while building it (see the checker's own docstring for the two
+# repository, plus fixture proofs pinning the three design properties
+# measured by hand while building it (see the checker's own docstring for the
 # rejected simpler designs and why): call-graph INHERITANCE (a helper
-# function's lib copy covers a caller that vendors and runs the engine) and
+# function's lib copy covers a caller that vendors and runs the engine),
 # NO FALSE-NEGATIVE MASKING (an unrelated function's whole-tree copy must
-# never cover a violation in a function that never calls it).
+# never cover a violation in a function that never calls it), and NO PROSE-
+# MENTION INHERITANCE (a helper merely NAMED in a log string — never called —
+# must never be read as a call edge; the first shipped CALL_RE failed this
+# one live, in this same corpus — see BITE 4).
 test_131_vendored_script_deps_gate_and_bite() {
-  log_info "test_131: check-vendored-script-deps.mjs — live gate over this repo, plus call-graph-inheritance and no-false-masking bite proofs..."
+  log_info "test_131: check-vendored-script-deps.mjs — live gate over this repo, plus call-graph-inheritance, no-false-masking and no-prose-mention bite proofs..."
   local checker="$PROJECT_ROOT/.aai/scripts/check-vendored-script-deps.mjs"
   [[ -f "$checker" ]] || log_fail "test_131: missing .aai/scripts/check-vendored-script-deps.mjs"
 
@@ -4411,8 +4415,36 @@ EOS
     || log_fail "test_131 BITE 3: the violation must be attributed to the actually-offending function, not the decoy: $out"
   rm -f "$fx/tests/skills/test-fake-bite3.sh"
 
+  # BITE 4 — A PROSE MENTION IS NOT A CALL (validation-round5 B1-R5, the
+  # property v3's first shipped CALL_RE lacked, measured live: a
+  # `log_info`/`log_fail` message parenthetical NAMING a helper function
+  # — never calling it — let that name's whole coverage leak in as if it had
+  # been called, because the old regex matched any name after `(` anywhere
+  # on the line, including inside a double-quoted string. BITE 3's own decoy
+  # is never MENTIONED by name in the offending function's body, so it could
+  # not catch this — this decoy IS mentioned, in a log string, and must
+  # still be a VIOLATION.
+  cat > "$fx/tests/skills/test-fake-bite4.sh" <<'EOS'
+decoy_mentioned_in_prose_only() {
+  local hd="$TEST_DIR/decoy4"
+  mkdir -p "$hd/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/dep-lib.mjs" "$hd/.aai/scripts/lib/dep-lib.mjs"
+}
+vendor_bad_with_prose_mention() {
+  log_info "must fire (decoy_mentioned_in_prose_only reference only)..."
+  mkdir -p "$d/.aai/scripts"
+  cp "$PROJECT_ROOT/.aai/scripts/target-engine.mjs" "$d/.aai/scripts/target-engine.mjs"
+}
+EOS
+  rc=0; out="$(node "$checker" --root "$fx" 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_131 BITE 4: a helper NAMED ONLY IN A LOG STRING (never called) must not be read as a call edge, got rc=0: $out"
+  [[ "$out" == *"vendor_bad_with_prose_mention"* ]] \
+    || log_fail "test_131 BITE 4: the violation must be attributed to the actually-offending function, not the prose-mentioned decoy: $out"
+  rm -f "$fx/tests/skills/test-fake-bite4.sh"
+
   rm -rf "$fx"
-  log_pass "test_131: live gate CLEAN over this repo; call-graph inheritance covers a helper-built fixture, an unrelated decoy copy never masks a real violation"
+  log_pass "test_131: live gate CLEAN over this repo; call-graph inheritance covers a helper-built fixture, an unrelated decoy copy never masks a real violation, and a decoy merely NAMED in prose is never read as a call"
 }
 
 main() {

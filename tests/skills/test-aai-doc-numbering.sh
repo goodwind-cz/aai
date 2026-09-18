@@ -1691,8 +1691,29 @@ test_552_skill_pr_runs_the_restamp() {
 # SPEC_PAGE_GENERATORS's own literal `pages: [...]` arrays straight out of
 # allocate-doc-number.mjs's source text (never edits or imports that L3 file)
 # and asserts every page it names is a member of SHARED_GENERATED_PAGES.
+#
+# validation-round5 NB-1 (non-blocking, fixed): the extraction regex only
+# matched a SINGLE-quoted `'docs/...'` string, so a page string written with
+# double quotes was silently not extracted — the NO-PAGES-EXTRACTED guard
+# only fires at ZERO extractions, so the run still passed on the OTHER pages.
+# Fixed: the extraction now matches either quote style.
+#
+# S1 (non-blocking, fixed): subset containment alone lets a DROPPED page pass
+# silently — shrinking `pages: [...]` (even to empty) still satisfies "every
+# extracted page is a member", so nothing reddened. `EXPECTED_ALLOCATOR_PAGES`
+# below is the test-side pin of the allocator's CURRENT three pages (the only
+# way to catch a drop without importing the protected_paths_l3 file itself,
+# D1); extraction must equal it EXACTLY, in addition to the pre-existing
+# subset-of-SHARED_GENERATED_PAGES check (that direction still catches an
+# ADDED page the shared set does not recognize, membership or not).
 test_589_allocator_pages_agree_with_shared_set() {
-  log_info "TEST-589: allocate-doc-number.mjs's SPEC_PAGE_GENERATORS pages are all members of lib/docs-model.mjs's SHARED_GENERATED_PAGES..."
+  log_info "TEST-589: allocate-doc-number.mjs's SPEC_PAGE_GENERATORS pages are all members of lib/docs-model.mjs's SHARED_GENERATED_PAGES, and match the pinned expected set exactly..."
+  local -a EXPECTED_ALLOCATOR_PAGES=(
+    "docs/ai/overview.html"
+    "docs/ai/overview-data.json"
+    "docs/USER_GUIDE.md"
+  )
+  local expected_sorted; expected_sorted="$(printf '%s\n' "${EXPECTED_ALLOCATOR_PAGES[@]}" | sort)"
   local out rc
   out="$(node -e '
     import("node:fs").then(async (fsMod) => {
@@ -1701,7 +1722,7 @@ test_589_allocator_pages_agree_with_shared_set() {
       const src = fs.readFileSync("'"$PROJECT_ROOT"'/.aai/scripts/allocate-doc-number.mjs", "utf8");
       const m = src.match(/const SPEC_PAGE_GENERATORS = \[([\s\S]*?)\n\];/);
       if (!m) { console.log("BLOCK-NOT-FOUND"); process.exit(2); }
-      const pages = [...m[1].matchAll(/'"'"'((?:docs)\/[^'"'"']+)'"'"'/g)].map((x) => x[1]);
+      const pages = [...m[1].matchAll(/[\x27"]((?:docs)\/[^\x27"]+)[\x27"]/g)].map((x) => x[1]);
       if (pages.length === 0) { console.log("NO-PAGES-EXTRACTED"); process.exit(2); }
       const bad = pages.filter((p) => !SHARED_GENERATED_PAGES.has(p));
       console.log(`PAGES:${pages.join(",")}`);
@@ -1722,7 +1743,11 @@ test_589_allocator_pages_agree_with_shared_set() {
     log_fail "TEST-589: allocate-doc-number.mjs's SPEC_PAGE_GENERATORS names a page SHARED_GENERATED_PAGES does not (both lists have drifted apart): $out"
     return
   fi
-  log_pass "TEST-589: every SPEC_PAGE_GENERATORS page agrees with SHARED_GENERATED_PAGES ($out)"
+  local pages_line; pages_line="$(grep -oE '^PAGES:.*' <<<"$out" | cut -d: -f2-)"
+  local extracted_sorted; extracted_sorted="$(tr ',' '\n' <<<"$pages_line" | sort)"
+  [[ "$extracted_sorted" == "$expected_sorted" ]] \
+    || log_fail "TEST-589: SPEC_PAGE_GENERATORS must extract EXACTLY the pinned expected set (extracted: $(tr '\n' ' ' <<<"$extracted_sorted") | expected: $(tr '\n' ' ' <<<"$expected_sorted")) — a page was dropped, added or renamed"
+  log_pass "TEST-589: every SPEC_PAGE_GENERATORS page agrees with SHARED_GENERATED_PAGES and matches the pinned expected set exactly ($out)"
 }
 
 main() {

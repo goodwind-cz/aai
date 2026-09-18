@@ -36,8 +36,16 @@
  * calls, resolved recursively over the file's own call graph — see below)
  * carries every file in that closure, by one of:
  *   - a specific `cp .../<path>` naming that exact file, or
- *   - a `.aai/scripts/lib/*` glob (covers everything under lib/), or
+ *   - a `.aai/scripts/<dir>/*` glob or `.aai/scripts/<dir>/$VAR`-shaped
+ *     dynamic copy (covers everything under that subdirectory — `lib/` is
+ *     the common case, but not the only one; see DIR_GLOB_RE below), or
  *   - a recursive `.aai/scripts` (or `.aai/scripts/lib`) directory copy.
+ * The vendored engine's own SOURCE is identified by the `cp` line's SOURCE
+ * argument's own SHAPE — `.../.aai/scripts/<name>.mjs`, whichever
+ * variable(s) spell the prefix — or, when the source is a bare variable
+ * reference, by a same-file assignment of that shape (see
+ * `vendoredSourceScriptName`/`ASSIGN_*` below); it is never restricted to a
+ * specific variable name.
  * A required file not covered by any of these is a VIOLATION, naming the
  * vendored engine, the missing dependency, and the function.
  *
@@ -75,7 +83,40 @@
  * SCOPE / WHAT THIS DELIBERATELY DOES NOT CATCH
  *   - Only relative (`./` or `../`) imports ending in `.mjs` are followed;
  *     `node:` built-ins and bare package specifiers are not dependencies a
- *     fixture must vendor.
+ *     fixture must vendor. Dynamic `await import(...)`, `export ... from`
+ *     and side-effect `import './x.mjs'` are not followed either — measured
+ *     directly (grep over every `.aai/scripts` engine and lib file): none
+ *     of the three shapes occurs anywhere in the engine corpus today, so
+ *     this is a scope limit with no live false negative behind it, not a
+ *     gap disclosed only in theory.
+ *   - SOURCE-line coverage (validation-round5 B2-R5, re-measured at the
+ *     ride's own base commit 2762264e, before this round's fixes): a blind
+ *     text grep for `cp .*\.aai/scripts/[A-Za-z0-9_.-]+\.mjs` across
+ *     `tests/skills/*.sh` finds 77 lines. Of those, 6 are NOT real vendoring
+ *     sites and this checker correctly does not count them: 4 are
+ *     `test_131`'s own BITE fixtures (`tests/skills/test-aai-hygiene-pack.sh`)
+ *     vendoring a `target-engine.mjs` that does not exist under the real
+ *     `.aai/scripts/` — `fs.existsSync` already excludes those, independent
+ *     of heredoc handling — and 2 (`test-aai-update.sh`'s
+ *     `build_fixture_doctor_source_repo`) are `<<'STUB'`/`<<'FIXTURE'`
+ *     HEREDOC BODY TEXT — a nested, self-contained STUB `aai-doctor.mjs` and
+ *     a synthetic `aai-sync.sh` written out for a DIFFERENT fixture process
+ *     to run, never code this file itself executes — excluded by
+ *     `computeHeredocMask` (below). The remaining 71 grep-matched lines are
+ *     all real, and all now correctly recognized (0 were before this round's
+ *     fix, for the 15 whose source used a variable other than
+ *     `$PROJECT_ROOT`/`$SRC_ROOT`; 62 already were). SIX further genuine
+ *     vendoring sites — `test-aai-delta-stage3.sh:77`/`:335`,
+ *     `test-aai-live-status.sh:611`, `test-aai-spec-amend.sh:1422`/`:1476`,
+ *     `test-aai-test-canon.sh:122` — are OUTSIDE that same blind grep
+ *     entirely (their destination is a bare directory or a
+ *     `.aai/scripts/`-free flat path, so the text `.aai/scripts/<name>.mjs`
+ *     never appears anywhere on the line) and are still found, because
+ *     detection is keyed on the SOURCE argument's shape or variable, never
+ *     on the destination's path or on that substring's presence anywhere on
+ *     the line. Net: 71 + 6 = 77 vendored-engine sites recognized today
+ *     (`--json`'s `vendoredSites`, and the human summary's own count), and 0
+ *     violations remain against them.
  *   - A script copied into a fixture but never actually EXECUTED from that
  *     copy (read only for its bytes, or resolved by the invoking tool from
  *     its own real, un-vendored location — e.g. aai-doctor.mjs resolves its
@@ -174,17 +215,201 @@ function transitiveDeps(scriptRel, scriptsRootAbs) {
 
 // --- fixture-function scan over one tests/skills/*.sh file -----------------
 //
-// SOURCE_RE: a `cp` line's SOURCE naming a single TOP-LEVEL
-// `.aai/scripts/<name>.mjs` file (never `.../lib/<name>.mjs` — the
-// character class excludes `/`, so a `lib/...` path can never satisfy the
-// final `\.mjs` requirement at this position).
-const SOURCE_RE = /\$(?:PROJECT_ROOT|SRC_ROOT)"?\/?\.aai\/scripts\/([A-Za-z0-9_.-]+)\.mjs/g;
+// vendoredSourceScriptName() / ASSIGN_RE (validation-round5 B2-R5): a `cp`
+// line's SOURCE naming a single TOP-LEVEL `.aai/scripts/<name>.mjs` file
+// (never `.../lib/<name>.mjs` — the character class excludes `/`, so a
+// `lib/...` path can never satisfy the final `\.mjs` requirement at this
+// position), resolved by the SHAPE of the path, never by which variable
+// spells its prefix. The prior version required the literal prefix
+// `$PROJECT_ROOT` or `$SRC_ROOT` immediately before the path, which is only
+// one of two shapes the live corpus actually uses (measured: 15 of 77
+// vendoring `cp` lines used a different spelling and were invisible to it —
+// see the checker's own docstring above). Two forms are now resolved:
+//   (a) the source argument's own text already has the shape
+//       `.../.aai/scripts/<name>.mjs`, whatever identifier(s) precede it
+//       ($PROJECT_ROOT, $SRC_ROOT, a fixture-local $src, or even a
+//       fixture-rooted $d re-copying an already-vendored file); or
+//   (b) the source argument is a bare variable reference (`$VAR` or
+//       `${VAR}`) that this SAME FILE assigns, on some other line, from a
+//       `$PROJECT_ROOT`- or `$SRC_ROOT`-rooted path of shape (a) — the
+//       `$HB` / `$DOCTOR` / `$CHECK_SCRIPT` idiom.
 // Any specific file this function ALSO copies, lib or sibling alike.
 const COPY_RE = /\.aai\/scripts\/((?:lib\/)?[A-Za-z0-9_.-]+\.mjs)/g;
-// A glob or recursive directory copy that covers a whole subtree.
-const LIB_GLOB_RE = /\.aai\/scripts\/lib\/\*/;
+// A glob or recursive directory copy that covers a whole subtree — ANY
+// `.aai/scripts/<dir>/...` subdirectory, not only `lib/` (validation-round5
+// B2-R5's own follow-on: fixing SOURCE detection made three previously-
+// invisible vendoring sites visible for the first time, and one real shape
+// among them — `cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs
+// "$dest/live-parsers/"` — copies a whole SIBLING subdirectory the same way
+// the old lib-only glob did). Matches either a literal `*` glob (optionally
+// right after a closing quote, the corpus's own
+// `"$ROOT/.../live-parsers/"*.mjs` idiom) or a bare `$VAR`/`${VAR}`
+// reference in the file-name position (the `for f in a.mjs b.mjs; do cp
+// ".../lib/$f" ...; done` idiom, e.g. test-aai-sweep-parallel.sh's own
+// per-engine lib-copy helper) — either shape means "whatever this
+// subdirectory needs, by name, is copied", which is what a fixed
+// member-list glob means too.
+const DIR_GLOB_RE = /\.aai\/scripts\/([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*)\/(?:"?\*|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)/g;
 const SCRIPTS_DIR_COPY_RE = /cp\s+(?:-\w+\s+)*"?\$(?:PROJECT_ROOT|SRC_ROOT)"?\/?\.aai\/scripts"?\s/;
 const LIB_DIR_COPY_RE = /cp\s+(?:-\w+\s+)*"?\$(?:PROJECT_ROOT|SRC_ROOT)"?\/?\.aai\/scripts\/lib"?\s/;
+// A narrow special case DIR_GLOB_RE cannot reach: the source path's
+// `.aai/scripts` prefix is itself hidden behind a command substitution
+// (`$(dirname "$SA")/lib/$_lib`, test-aai-spec-amend.sh's
+// `test_445_ac12_negative_controls_test003_008_009` — a loop that `grep`s
+// the REAL engine's own `from './lib/...'` import lines and copies every
+// match by name, so it can never go stale the way a fixed list could).
+// Measured: exactly 2 lines in the whole corpus match this shape (both in
+// the same function, both this same loop) — narrow enough that a false
+// negative from over-matching is not a live risk today.
+const LIB_VAR_COPY_RE = /(?:^|\/)lib\/\$\{?[A-Za-z_][A-Za-z0-9_]*\}?(?:["\s]|$)/;
+// A same-file `VAR="...$PROJECT_ROOT|$SRC_ROOT.../.aai/scripts/<name>.mjs..."`
+// (or `VAR="${OTHER:-$PROJECT_ROOT/.../<name>.mjs}"`) assignment — resolves
+// form (b) above. Deliberately whole-file, not per-function: the assignment
+// and the `cp` that dereferences it are routinely in different functions
+// (`HB=...` at file scope, `cp "$HB" ...` inside a test function). Scoped
+// PER `NAME=VALUE` TOKEN (never the rest of the line): a single `local a=...
+// b=...` line assigns several variables at once, and an earlier version of
+// this regex let a later variable's shaped value get attributed to an
+// earlier variable's name on the same line (test-aai-intake.sh's
+// `local src="${1:-...INTAKE_COMMON.md}" script="${2:-.../docs-audit.mjs}"`
+// falsely mapped `src` to `docs-audit`).
+const ASSIGN_TOKEN_RE = /([A-Za-z_][A-Za-z0-9_]*)=("(?:[^"\\]|\\.)*"|'[^']*'|\S*)/g;
+const ASSIGN_SHAPE_RE = /\$(?:PROJECT_ROOT|SRC_ROOT)"?\/?\.aai\/scripts\/([A-Za-z0-9_.-]+)\.mjs/;
+
+// Extracts, from a `cp` line, the top-level `.aai/scripts/<name>.mjs` script
+// name its SOURCE (first non-flag argument) names — by the path's own SHAPE
+// when the argument spells it directly, or via `varToScript` when the
+// argument is a bare reference to a same-file assignment of that shape.
+// Never matches a `.../lib/<name>.mjs` dependency (the shape regex's
+// character class excludes `/`, so a `lib/...` segment can never reach the
+// trailing `\.mjs` it requires).
+function vendoredSourceScriptName(line, varToScript) {
+  const tokens = line.match(/"[^"]*"|'[^']*'|\S+/g) || [];
+  const args = tokens.slice(1).filter((t) => !/^-/.test(t));
+  if (args.length === 0) return null;
+  const src = args[0].replace(/^["']|["']$/g, '');
+  const direct = /\.aai\/scripts\/([A-Za-z0-9_.-]+)\.mjs$/.exec(src);
+  if (direct) return direct[1];
+  const varMatch = /^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$/.exec(src);
+  if (varMatch && varToScript.has(varMatch[1])) return varToScript.get(varMatch[1]);
+  return null;
+}
+
+// scanAssignments(lines) -> Map<VAR, scriptName> for every same-file
+// assignment matching ASSIGN_SHAPE_RE — built once per file (see
+// vendoredSourceScriptName). Tokenized per `NAME=VALUE` so a multi-variable
+// `local a=... b=...` line cannot cross-attribute (see ASSIGN_TOKEN_RE above).
+function scanAssignments(lines) {
+  const map = new Map();
+  for (const line of lines) {
+    ASSIGN_TOKEN_RE.lastIndex = 0;
+    let m;
+    while ((m = ASSIGN_TOKEN_RE.exec(line))) {
+      const shape = ASSIGN_SHAPE_RE.exec(m[2]);
+      if (shape) map.set(m[1], shape[1]);
+    }
+  }
+  return map;
+}
+
+// computeHeredocMask(lines) -> boolean[] marking every line that is BODY
+// TEXT of a `<<WORD` / `<<'WORD'` / `<<-WORD` heredoc, never executed shell
+// code — e.g. test-aai-update.sh's `build_fixture_doctor_source_repo` writes
+// a whole nested `aai-sync.sh` fixture as heredoc TEXT, and that text
+// happens to contain a `cp .../.aai/scripts/aai-doctor.mjs ...` line that
+// reads exactly like a real vendoring `cp` to a line-based scanner. Does not
+// attempt to also fix function-range attribution across a heredoc containing
+// a column-0 `}` (a DIFFERENT, measured non-blocking gap: 91 such ranges
+// corpus-wide, none of which change the live verdict) — only excludes
+// heredoc BODY lines from `cp`/call-graph scanning, since B2-R5's own fix is
+// what first turned this heredoc's text into a false vendoring match.
+function computeHeredocMask(lines) {
+  const mask = new Array(lines.length).fill(false);
+  const startRe = /<<(-?)\s*(?:(['"])([A-Za-z_][A-Za-z0-9_]*)\2|([A-Za-z_][A-Za-z0-9_]*))/g;
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    startRe.lastIndex = 0;
+    let m;
+    let terminator = null;
+    let stripTabs = false;
+    while ((m = startRe.exec(line))) {
+      if (line[m.index - 1] === '<') continue; // part of a `<<<` here-string, not a heredoc
+      terminator = m[3] || m[4];
+      stripTabs = m[1] === '-';
+      break;
+    }
+    i += 1;
+    if (!terminator) continue;
+    while (i < lines.length) {
+      mask[i] = true;
+      const body = stripTabs ? lines[i].replace(/^\t+/, '') : lines[i];
+      const isEnd = body === terminator;
+      i += 1;
+      if (isEnd) break;
+    }
+  }
+  return mask;
+}
+
+// maskQuotedRegions(line) -> the line with every character that sits inside
+// a single- or double-quoted STRING LITERAL replaced by a space, so a name
+// that merely appears in prose (e.g. a log_info/log_fail message) can never
+// satisfy CALL_RE below (validation-round5 B1-R5: `log_info "... (main-guard
+// ...)"` let `(main-guard` be read as a call to `main`, inheriting that
+// function's whole-file coverage — v2's rejected whole-file masking, revived
+// through a string). A `$(...)` command-substitution span is CODE regardless
+// of whether it sits inside a double-quoted string (`x="$(helper ...)"` is
+// the corpus's own idiom for a call-and-capture) and is left unmasked;
+// single-quoted text is never re-entered as code (bash gives it none).
+function maskQuotedRegions(line) {
+  const chars = line.split('');
+  const out = new Array(chars.length);
+  const stack = ['code']; // 'code' | 'squote' | 'dquote'
+  let i = 0;
+  while (i < chars.length) {
+    const c = chars[i];
+    const top = stack[stack.length - 1];
+    if (top === 'squote') {
+      out[i] = ' ';
+      if (c === "'") stack.pop();
+      i += 1;
+      continue;
+    }
+    if (c === '\\' && top === 'dquote') {
+      out[i] = ' ';
+      if (i + 1 < chars.length) { out[i + 1] = ' '; i += 2; } else { i += 1; }
+      continue;
+    }
+    if (c === "'" && top !== 'dquote') {
+      out[i] = ' ';
+      stack.push('squote');
+      i += 1;
+      continue;
+    }
+    if (c === '"') {
+      out[i] = ' ';
+      if (top === 'dquote') stack.pop(); else stack.push('dquote');
+      i += 1;
+      continue;
+    }
+    if (c === '$' && chars[i + 1] === '(') {
+      out[i] = c; out[i + 1] = chars[i + 1];
+      stack.push('code');
+      i += 2;
+      continue;
+    }
+    if (c === ')' && top === 'code' && stack.length > 1) {
+      out[i] = c;
+      stack.pop();
+      i += 1;
+      continue;
+    }
+    out[i] = top === 'dquote' ? ' ' : c;
+    i += 1;
+  }
+  return out.join('');
+}
 
 // Scope is PER-FUNCTION, with EXPLICIT CALL-GRAPH INHERITANCE — neither of
 // the two simpler designs tried first survives this corpus:
@@ -218,9 +443,22 @@ const LIB_DIR_COPY_RE = /cp\s+(?:-\w+\s+)*"?\$(?:PROJECT_ROOT|SRC_ROOT)"?\/?\.aa
 // memoized DFS over the file's own call graph, so it extends coverage only
 // along an actual call edge, never to an unrelated function that merely
 // lives in the same file.
+//
+// v3 (this version, as first shipped) matched a bare name after `(`, `=`,
+// `&&`, `;` or line start ANYWHERE on the line, including inside a
+// double-quoted string — so a name that merely appears in PROSE (a
+// `log_info`/`log_fail` message parenthetical naming a function, e.g.
+// `log_info "... (main-guard URL-decode bug)..."`) was read as a call to
+// that name, re-creating v2's whole-file masking through a single string
+// (validation-round5 B1-R5, measured live: `test-aai-layer-drift.sh`'s
+// `test_space_in_path` inherited `main()`'s whole-file coverage this way).
+// v3.1 runs CALL_RE only against `maskQuotedRegions(line)` (above), so a
+// name is a call edge only when it sits in COMMAND POSITION — never inside
+// a quoted string literal, `$(...)` command substitution excepted (that is
+// still a real call, wherever it is quoted).
 const CALL_RE = /(?:^|[=(]\s*|&&\s*|;\s*)"?\$?\(?\s*([A-Za-z_][A-Za-z0-9_]*)\b/g;
 
-function scanFile(relFile, absFile, scriptsRootAbs, violations) {
+function scanFile(relFile, absFile, scriptsRootAbs, violations, vendoredSites) {
   const lines = fs.readFileSync(absFile, 'utf8').split('\n');
   // A function's opening brace often carries a trailing `# comment` on the
   // SAME line (e.g. `test_567_rule_4a_single_retarget() {  # TEST-567 /
@@ -260,38 +498,45 @@ function scanFile(relFile, absFile, scriptsRootAbs, violations) {
   fnRanges.push({ name: curName, start: curStart, end: lines.length });
 
   const definedNames = new Set(fnRanges.map((r) => r.name).filter((n) => n !== '<top-level>'));
+  const varToScript = scanAssignments(lines);
+  const heredocMask = computeHeredocMask(lines);
 
   // Pass 2: per range, local facts (own cp evidence + own vendored-script
   // list) and the set of in-file functions it calls.
-  const facts = new Map(); // name -> { copiedFiles, hasLibGlob, hasScriptsDirCopy, calls: Set, vendored: [{name,line}] }
+  const facts = new Map(); // name -> { copiedFiles, globDirs, hasScriptsDirCopy, calls: Set, vendored: [{name,line}] }
   for (const { name, start, end } of fnRanges) {
     const f = facts.get(name) ?? {
-      copiedFiles: new Set(), hasLibGlob: false, hasScriptsDirCopy: false, calls: new Set(), vendored: [],
+      copiedFiles: new Set(), globDirs: new Set(), hasScriptsDirCopy: false, calls: new Set(), vendored: [],
     };
     for (let i = start; i < end; i += 1) {
+      if (heredocMask[i]) continue; // heredoc BODY text, not executed shell code
       const line = lines[i];
       const lineNo = i + 1;
+      const codeLine = maskQuotedRegions(line);
 
       CALL_RE.lastIndex = 0;
       let callMatch;
-      while ((callMatch = CALL_RE.exec(line))) {
+      while ((callMatch = CALL_RE.exec(codeLine))) {
         const callee = callMatch[1];
         if (callee !== name && definedNames.has(callee)) f.calls.add(callee);
       }
 
       if (!/^\s*cp\s/.test(line)) continue;
 
-      if (LIB_DIR_COPY_RE.test(line)) f.hasLibGlob = true;
+      if (LIB_DIR_COPY_RE.test(line)) f.globDirs.add('lib');
       if (SCRIPTS_DIR_COPY_RE.test(line)) f.hasScriptsDirCopy = true;
-      if (LIB_GLOB_RE.test(line)) f.hasLibGlob = true;
+      if (LIB_VAR_COPY_RE.test(line)) f.globDirs.add('lib');
+
+      DIR_GLOB_RE.lastIndex = 0;
+      let gm;
+      while ((gm = DIR_GLOB_RE.exec(line))) f.globDirs.add(gm[1]);
 
       let cm;
       COPY_RE.lastIndex = 0;
       while ((cm = COPY_RE.exec(line))) f.copiedFiles.add(cm[1]);
 
-      SOURCE_RE.lastIndex = 0;
-      let sm;
-      while ((sm = SOURCE_RE.exec(line))) f.vendored.push({ name: sm[1], line: lineNo });
+      const vendoredName = vendoredSourceScriptName(line, varToScript);
+      if (vendoredName) f.vendored.push({ name: vendoredName, line: lineNo });
     }
     facts.set(name, f);
   }
@@ -305,17 +550,17 @@ function scanFile(relFile, absFile, scriptsRootAbs, violations) {
   function effectiveOf(name) {
     if (effective.has(name)) return effective.get(name);
     const f = facts.get(name);
-    const result = { copiedFiles: new Set(), hasLibGlob: false, hasScriptsDirCopy: false };
+    const result = { copiedFiles: new Set(), globDirs: new Set(), hasScriptsDirCopy: false };
     if (!f) { effective.set(name, result); return result; }
     if (visiting.has(name)) return result; // cycle guard: contribute nothing further
     visiting.add(name);
     for (const c of f.copiedFiles) result.copiedFiles.add(c);
-    result.hasLibGlob = f.hasLibGlob;
+    for (const d of f.globDirs) result.globDirs.add(d);
     result.hasScriptsDirCopy = f.hasScriptsDirCopy;
     for (const callee of f.calls) {
       const e = effectiveOf(callee);
       for (const c of e.copiedFiles) result.copiedFiles.add(c);
-      if (e.hasLibGlob) result.hasLibGlob = true;
+      for (const d of e.globDirs) result.globDirs.add(d);
       if (e.hasScriptsDirCopy) result.hasScriptsDirCopy = true;
     }
     visiting.delete(name);
@@ -331,10 +576,12 @@ function scanFile(relFile, absFile, scriptsRootAbs, violations) {
       const scriptRel = `${scriptName}.mjs`;
       const scriptAbs = path.join(scriptsRootAbs, scriptRel);
       if (!fs.existsSync(scriptAbs)) continue; // not a real .aai/scripts file — nothing to check
+      if (vendoredSites) vendoredSites.push({ file: relFile, line, fn: name, script: scriptRel });
       const deps = transitiveDeps(scriptRel, scriptsRootAbs);
       for (const dep of deps) {
-        const isLibDep = dep.startsWith('lib/');
-        const covered = cov.hasScriptsDirCopy || cov.copiedFiles.has(dep) || (isLibDep && cov.hasLibGlob);
+        const depDir = dep.includes('/') ? dep.slice(0, dep.lastIndexOf('/')) : '';
+        const globCovered = depDir !== '' && cov.globDirs.has(depDir);
+        const covered = cov.hasScriptsDirCopy || cov.copiedFiles.has(dep) || globCovered;
         if (!covered) {
           violations.push({ file: relFile, line, fn: name, script: scriptRel, missing: dep });
         }
@@ -353,17 +600,21 @@ function main() {
 
   const files = fs.readdirSync(testsDir).filter((f) => f.endsWith('.sh')).sort();
   const violations = [];
+  const vendoredSites = [];
   for (const f of files) {
     const abs = path.join(testsDir, f);
-    scanFile(path.join('tests', 'skills', f), abs, scriptsRootAbs, violations);
+    scanFile(path.join('tests', 'skills', f), abs, scriptsRootAbs, violations, vendoredSites);
   }
 
   if (args.json) {
-    process.stdout.write(`${JSON.stringify({ violations }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ violations, vendoredSites }, null, 2)}\n`);
   } else if (violations.length === 0) {
-    process.stdout.write('check-vendored-script-deps: CLEAN — 0 violation(s)\n');
+    // The site count is the checker's own coverage disclosure (validation-
+    // round5 B2-R5): a CLEAN verdict is only as meaningful as the number of
+    // vendoring `cp` lines it actually recognized as vendoring sites.
+    process.stdout.write(`check-vendored-script-deps: CLEAN — 0 violation(s) (${vendoredSites.length} vendored engine site(s) checked)\n`);
   } else {
-    process.stdout.write(`check-vendored-script-deps: ${violations.length} violation(s)\n`);
+    process.stdout.write(`check-vendored-script-deps: ${violations.length} violation(s) (${vendoredSites.length} vendored engine site(s) checked)\n`);
     for (const v of violations) {
       process.stdout.write(
         `VIOLATION ${v.file}:${v.line} (${v.fn}) vendors ${v.script} but never copies its dependency ${v.missing}\n`
