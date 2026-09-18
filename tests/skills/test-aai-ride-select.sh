@@ -256,8 +256,12 @@ test_565_gate_admits_only_the_next_pair() {
   grep -q "cap-a" "$TEST_DIR/err" || log_fail "TEST-565: pair 3's refusal must name pair 1's capability cap-a: $(err)"
 
   # pair 1 capability implementing: its maintenance is admitted, the capability
-  # itself stays admitted (in flight), pair 2 stays refused
+  # itself stays admitted (in flight), pair 2 stays refused. maint-a's own
+  # document must exist too (Amendment 17: gate requires the REF IT ADMITS
+  # to resolve to a document, capability or maintenance alike — the same
+  # authority validate uses, never a second copy of that resolution).
   write_doc cap-a change implementing
+  write_doc maint-a change draft
   [ "$(run gate --ref maint-a --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
     || log_fail "TEST-565: pair 1's maintenance must be admitted once its capability is implementing: $(err)"
   [ "$(run gate --ref cap-a --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
@@ -366,6 +370,46 @@ test_535_roadmap_pair_seven_done() {
   log_pass "TEST-535: roadmap pair 7 reads done, live roadmap validates"
 }
 
+# --- TEST-583 (Spec-AC-29, Amendment 17, R6 closed) — gate refuses a ref
+# that matches no document, on the SAME authority validate uses -----------
+test_583_gate_refuses_undocumented_ref() {
+  log_info "Test: gate refuses a first-unfinished roadmap ref (capability OR maintenance) that matches no document, naming the ref and the missing doc; admits once the document exists (TEST-583)..."
+  # Dedicated slugs (cap-t583/maint-t583), never used by an earlier test in
+  # this suite's SHARED $TEST_DIR — reusing write_roadmap's cap-one/maint-one
+  # would collide with docs those earlier tests already wrote there.
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-t583\n    maintenance: maint-t583\n    status: planned\n' > "$TEST_DIR/roadmap583.yaml"
+  # Arm A: the CAPABILITY ref has no document at all (typo'd-but-internally-
+  # consistent slug) — gate must refuse, not admit "a roadmap capability".
+  [ "$(run gate --ref cap-t583 --roadmap "$TEST_DIR/roadmap583.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-583: an undocumented capability ref must NOT be admitted: $(out)"
+  grep -qF "cap-t583" "$TEST_DIR/err" || log_fail "TEST-583: the refusal must name the ref cap-t583: $(err)"
+  grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-583: the refusal must name the missing document: $(err)"
+  # Arm B: same fixture, the capability's document now exists — gate admits.
+  write_doc cap-t583 change draft
+  [ "$(run gate --ref cap-t583 --roadmap "$TEST_DIR/roadmap583.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-583: a documented capability ref must be admitted once its doc exists: $(err)"
+  grep -qF "a roadmap capability" "$TEST_DIR/out" || log_fail "TEST-583: the admission must read 'a roadmap capability': $(out)"
+  # Arm C: the capability has STARTED (implementing) but the MAINTENANCE
+  # ref itself has no document — gate must refuse the maintenance ref too,
+  # not just check the capability's own status.
+  write_doc cap-t583 change implementing
+  [ "$(run gate --ref maint-t583 --roadmap "$TEST_DIR/roadmap583.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-583: an undocumented maintenance ref must NOT be admitted even though its capability started: $(out)"
+  grep -qF "maint-t583" "$TEST_DIR/err" || log_fail "TEST-583: the refusal must name the ref maint-t583: $(err)"
+  grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-583: the refusal must name the missing document: $(err)"
+  # Arm D: same fixture, the maintenance document now exists — gate admits.
+  write_doc maint-t583 change draft
+  [ "$(run gate --ref maint-t583 --roadmap "$TEST_DIR/roadmap583.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-583: a documented maintenance ref must be admitted once its doc exists: $(err)"
+  grep -qF "the maintenance half of a pair" "$TEST_DIR/out" || log_fail "TEST-583: the admission must read the maintenance-half reason: $(out)"
+  # Control: the live roadmap is unaffected by this check (every ref gate
+  # can currently reach is either the live pair 8 capability, which HAS a
+  # document, or refused earlier for ranking — B5/R6's own measurement).
+  [ "$(run gate --ref close-ceremony-sweep --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
+    || log_fail "TEST-583: the live roadmap's own admissible ref must still be admitted: $(err)"
+  log_pass "TEST-583: gate refuses an undocumented roadmap ref (capability or maintenance), naming the ref and the missing document, and admits once the document exists; live roadmap unaffected"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -384,6 +428,7 @@ main() {
   test_565_gate_admits_only_the_next_pair
   test_566_validate_refuses_unknown_refs
   test_535_roadmap_pair_seven_done
+  test_583_gate_refuses_undocumented_ref
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

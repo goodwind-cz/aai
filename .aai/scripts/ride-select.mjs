@@ -242,6 +242,20 @@ function main() {
       const ahead = rm.pairs.find((p) => p.status !== 'done');
       return deny(`pair ahead — ${a.ref} is not the first unfinished pair; ${ahead.capability} (and its maintenance ${ahead.maintenance}) must be done first (ranked roadmap order, 1:1 budget); override with --override "<reason>" if the owner really wants it out of order`);
     }
+    // Spec-AC-29's own text: "on refs that exist" — the SAME authority
+    // `validate` uses (`intake`, resolved above via `findDoc`/`readIntake`,
+    // never a second copy of that resolution), applied here too. `validate`
+    // exempts a still-`planned` pair (B5, Amendment 16, R6) because a
+    // roadmap may legitimately name future work before its own intake
+    // exists; `gate` does NOT carry that exemption, planned or not — gate is
+    // the moment a ref is about to be WORKED ON (every real call site names
+    // `--intake <primary_path>` for a document that was just created), so a
+    // missing document here is exactly the defect this check exists to
+    // catch, not a legitimate ahead-of-intake naming. This closes Amendment
+    // 16's R6 residual (validation-round1 B5/R6): a typo'd-but-internally-
+    // consistent roadmap slug — capability OR maintenance half — no longer
+    // reaches an ADMIT.
+    if (!intake) return deny(`${a.ref} matches roadmap pair "${pair.capability}"/"${pair.maintenance}" but no document resolves for "${a.ref}" under ${a.docs} — file its intake before gating this ref (Spec-AC-29: gate admits only refs that exist)`);
     if (pair.capability === a.ref) return admit('a roadmap capability');
     const cs = statusOf(a.docs, pair.capability);
     if (!STARTED.has(cs || '')) return deny(`pair first — ${a.ref} is the maintenance half of a pair whose capability ${pair.capability} is ${cs || 'not filed'}; start ${pair.capability} before it (1:1 budget)`);
