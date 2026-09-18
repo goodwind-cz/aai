@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 29999c5bb3ea1ec363d887dde87adff9070f1f37c38d7c0e10f368f2a49dc476
+frozen_sha256: e566ae733705d31ef22332a196bc63cdb45b3b6a69698b91154c299bc82b5586
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -683,6 +683,8 @@ its own mutation; the evidence for each is
 | TEST-573 | Spec-AC-33 | integration | tests/skills/test-aai-golden-flow.sh | test_573_pr_sweep_record_refuses_contradiction — each of the four contradictory pr_sweep payloads exits non-zero and appends no line to EVENTS.jsonl; one consistent record of each of the three outcomes appends exactly one line. | Accept any payload by returning early from the consistency check with sed:s/const bad = sweepContradictions\(payload\);/const bad = [];/ so the four contradictions are written. | pending |
 | TEST-574 | Spec-AC-34 | integration | tests/skills/test-aai-hooks-overlay.sh | test_574_merge_gate_needs_sweep_record — a gh pr merge command is denied with exit 2 naming the absent pr_sweep record, allowed once a consistent record for that PR exists, denied again for a fast-lane record on a heavy-lane branch, and ALLOWED when the events file is unreadable (fail-open). | Drop the sweep-check call from the merge gate with sed:s/sweep_check_verdict/true/ so a merge with no record is allowed. | pending |
 | TEST-575 | Spec-AC-35 | integration | tests/skills/test-aai-docs-audit.sh | test_idxviolations_terminal_exemption — a regeneration whose only near-miss documents are terminal writes no docs/INDEX.violations.md and leaves the tree clean; a non-terminal near-miss still writes the companion naming it. | Drop the terminal filter from the mirror with sed:s/&& !TERMINAL_DOC_STATUS\.has\(status\)// so a terminal document is mirrored again. | pending |
+| TEST-578 | Spec-AC-17 | integration | tests/skills/test-aai-follow-ups.sh | test_578_claim_is_the_bullet_head_not_a_mention — a claim is the id (or comma-run of ids) that opens a bullet, optionally after one Label: token; an id mentioned later in that bullet's own prose is never a claim. | Use the whole bullet text instead of just its head with sed:s/extractIds\(hm\[1\]\)/extractIds(bulletText)/ in follow-ups.mjs. | green |
+| TEST-579 | Spec-AC-17 | integration | tests/skills/test-aai-follow-ups.sh | test_579_dropped_label_requires_dropped_status — a claim under a DROPPED label is satisfied by status dropped, one under CLOSED FULLY only by done, and a mismatch either way is a MISS naming which way round it is. | Restore the hardcoded done check with sed:s/item.status !== requiredStatus/item.status !== 'done'/ in follow-ups.mjs. | green |
 
 Test status values: pending to red to green. Every Spec-AC above has at least one
 row; every row names exactly one Spec-AC. Mutation cells are written as
@@ -1402,6 +1404,83 @@ stands between this ride and its own merge, which is the point of it. Before
 and the outcome that matches what step 5d actually did — and only then merges.
 A record that does not match what happened is refused by Spec-AC-33, and an
 absent one by Spec-AC-34.
+
+Sign-off: none (tracked).
+
+## Amendment 14 (post-freeze, 2026-09-18 — verify-closures's own claim-reading defects, TEST-578/TEST-579, post-close correction)
+
+Run 11 closed this ride's own `fu-*` claims (45 by the named Spec-AC each, 3
+already-fixed-on-main, 1 dropped) via `follow-ups.mjs close`/`follow-ups.mjs
+verify-closures` reading the "## Registry items closed by this scope"
+section this spec's own body carries — the registry moved from 111 open to
+62. `node .aai/scripts/follow-ups.mjs verify-closures --strict` over the
+live corpus then reported exactly two MISSes, both the checker misreading
+its own input rather than a false closure:
+
+**Bug 1 — a mention read as a claim (TEST-578).** `extractHeadingClaims`
+scanned every fu- id anywhere inside a label segment
+(`extractIds(seg.text)`), with no notion of individual bullets. The
+"CLOSED WITHOUT CODE" bullet for `fu-factory-report-stale-draft-path` names
+`fu-amend-friction-upsert-channel-ba7701` in its own prose, honestly, as
+still open ("...so the stale-draft-ref guard cannot fire even with
+`fu-amend-friction-upsert-channel-ba7701` still open"); the old scan read
+that mention as a second claim, and the registry's own history shows this id
+genuinely IS open (dropped-then-reopened 2026-09-13/14, "an owner sign-off
+item is not a framework item"). Fixed by `extractSegmentClaimIds`, a new
+per-bullet reader: prose outside any bullet keeps the old full-text scan
+unchanged (the PREFIX-before-the-first-label carve this spec already states
+is untouched), but WITHIN a bullet only the id(s) that OPEN it are claims —
+`BULLET_HEAD_RE` captures a leading backtick-/comma-/space-separated run of
+`fu-` ids and stops at the first non-id token (an em dash, a parenthesis),
+so a later mention past that point is never captured.
+
+**A literal "only the very first token" reading of that rule was measured
+and rejected before landing.** `docs/specs/SPEC-0179-spec-test-framework-sweep.md`'s
+own "## Registry items closed by this scope" list uses a DIFFERENT,
+already-established, already-passing shape throughout — 48 of its bullets
+read `- Spec-AC-NN: fu-<id>` (the Spec-AC label opens the bullet, not the
+id). A pure "the id must be the first thing in the bullet" implementation
+was built, run against the live corpus, and found to silently drop all 48
+of those real claims from `verify-closures`'s accounting (measured: claims
+159 -> 110, with 48 of the 49 losses landing on that one file, none of them
+this ride's own defect). `BULLET_STRUCTURAL_LABEL_RE` now tolerates exactly
+ONE short "Word-with-dashes:" token between the bullet marker and the id
+run before the head is read — a real sentence never matches it (the colon
+must land immediately after the first word, which "Not a real claim:" does
+not) — restoring SPEC-0179's 48 claims while still excluding the one
+genuine mention-in-prose bug (measured again after the fix: claims 159 ->
+158, the ONE intended loss and nothing else, gained: 0).
+
+**Bug 2 — a dropped item read as unclosed (TEST-579).** `cmdVerifyClosures`
+required every claim to be satisfied by `item.status !== 'done'`, so
+`fu-stale-check-events-false-ac-status` — claimed under this spec's own
+"DROPPED, with the measured reason:" label, and genuinely `dropped` in the
+ledger with a measured reason (the premise is gone; SPEC-0158 already
+carries a `work_item_closed` event) — read `MISS status=dropped`. Fixed
+by keying the required status off `splitByLabels`'s own label per segment
+(`requiredStatusForLabel`, the ONE label authority this file already
+names as shared — no second one invented): a segment labelled `DROPPED`
+(added to `LABEL_RE`, verified corpus-wide to appear inside NO other
+document's "## Registry items closed by this scope" body, so this is not a
+retroactive change anywhere else) requires `dropped`; every other label
+(`CLOSED FULLY`, `CLOSED QUALIFIEDLY`, and the unlabelled PREFIX/whole-body
+segment) keeps the historical `done`. A mismatch is still a MISS either
+way; the message format is byte-identical to the historical one when the
+claim required `done` (so the READING PART of Spec-AC-17's PASS criteria is
+undisturbed for the overwhelmingly common case), and gains a `(claimed
+dropped)` suffix only for the new direction — a `DROPPED`-labelled claim
+whose item reads `done` — since that direction had no prior convention to
+preserve and the row must say which way round the mismatch runs.
+
+**Both belong to Spec-AC-17** ("verify-closures reads claims honestly and
+refuses a blind run"), which is exactly the property they violate.
+TEST-578 and TEST-579 (`tests/skills/test-aai-follow-ups.sh`) are added to
+the Test Plan under it. `verify-closures --strict` over the live corpus now
+reports `miss=0`; `test-aai-follow-ups.sh` TEST-029 (the corpus-wide
+subset-of-allowlist ratchet Amendment 13's run left red, since this ride's
+own claims were not yet true) is now green BY THE FIX, not by growing
+`KNOWN_UNVERIFIED_CLOSURE_CLAIMS` — the allowlist is unchanged at its
+three pre-existing entries.
 
 Sign-off: none (tracked).
 

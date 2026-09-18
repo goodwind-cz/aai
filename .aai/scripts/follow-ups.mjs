@@ -817,28 +817,42 @@ function opensWithNoneSentinel(text) {
   return /^none\b/i.test(String(text ?? '').trim().replace(/^`+/, ''));
 }
 
-// extractHeadingClaims(text) -> Set<id> — the "## Registry items closed by
-// this scope" heading shape. Three sub-shapes inside its body (D9):
+// extractHeadingClaims(text) -> Map<id, requiredStatus> — the "## Registry
+// items closed by this scope" heading shape. Three sub-shapes inside its
+// body (D9):
 //   - labelled: CLOSED FULLY / CLOSED QUALIFIEDLY ids are claims, NOT CLOSED
-//     ids are disclaimed:
+//     ids are disclaimed; DROPPED ids are claims too, but satisfied by
+//     status `dropped` rather than `done` (Spec-AC-17, TEST-579).
 //   - unlabelled, opening with the `none` sentinel (backticks tolerated):
 //     zero claims — every id in it is a neighbour, not a claim.
-//   - any other unlabelled body: every fu- id in it is a claim.
+//   - any other unlabelled body: every fu- id in it is a claim (requiring
+//     `done`, the historical default).
 // A labelled body ALSO has a fourth segment: the PREFIX before the first
 // label. It is scanned like any other unlabelled segment (Spec-AC-17) — a
 // claim named in prose ahead of the first "CLOSED FULLY:" is still a claim —
 // unless that prefix itself opens with the `none` sentinel, in which case it
 // is exempted the same way an unlabelled body is.
 const HEADING_RE = /^##[ \t]+Registry items closed by this scope[ \t]*$/m;
-const LABEL_RE = /\b(CLOSED FULLY|CLOSED QUALIFIEDLY|NOT CLOSED)\b/g;
+const LABEL_RE = /\b(CLOSED FULLY|CLOSED QUALIFIEDLY|NOT CLOSED|DROPPED)\b/g;
+
+// requiredStatusForLabel(label) -> 'done' | 'dropped' (Spec-AC-17,
+// TEST-579): which registry status satisfies a claim extracted from a
+// segment carrying this label. Every label except DROPPED requires the
+// historical `done` (CLOSED FULLY, CLOSED QUALIFIEDLY, and the unlabelled
+// PREFIX/whole-body segment, `label: null`, all keep the old default).
+function requiredStatusForLabel(label) {
+  return label === 'DROPPED' ? 'dropped' : 'done';
+}
 
 // splitByLabels(text) -> [{label, text}] — one segment per CLOSED FULLY /
-// CLOSED QUALIFIEDLY / NOT CLOSED label found in `text`, each segment
-// carrying the text that runs from just after its OWN label to the start of
-// the next one (or the end of `text` for the last one). A segment ahead of
-// the first label (or the whole text, when no label appears at all) carries
-// `label: null`. Shared by both claim-shape scanners so PREFIX and
-// no-label-at-all bodies are read by ONE rule instead of two.
+// CLOSED QUALIFIEDLY / NOT CLOSED / DROPPED label found in `text`, each
+// segment carrying the text that runs from just after its OWN label to the
+// start of the next one (or the end of `text` for the last one). A segment
+// ahead of the first label (or the whole text, when no label appears at
+// all) carries `label: null`. Shared by both claim-shape scanners so PREFIX
+// and no-label-at-all bodies are read by ONE rule instead of two — this is
+// the ONE label authority (D9/Spec-AC-17); nothing else re-derives label
+// boundaries.
 function splitByLabels(text) {
   const labels = [];
   const labelRe = new RegExp(LABEL_RE);
@@ -855,8 +869,82 @@ function splitByLabels(text) {
   return segments;
 }
 
-function extractHeadingClaims(text) {
+// BULLET_LINE_RE — a top-level markdown bullet: "-" then a space/tab, at the
+// very start of the line (never "--flag", which has no space after the
+// second dash).
+const BULLET_LINE_RE = /^-[ \t]+/;
+// BULLET_STRUCTURAL_LABEL_RE — a SINGLE short structural label token that
+// may sit between the bullet marker and the id-run without disqualifying
+// it as the head, e.g. "- Spec-AC-01: fu-layer-profiles-fixture-build-race"
+// (the established shape of docs/specs/SPEC-0179-spec-test-framework-sweep.md's
+// own "## Registry items closed by this scope" list, measured 2026-09-18:
+// 48 real claims use exactly this shape). A label is one word (letters,
+// digits, internal dashes) immediately followed by ":" and whitespace —
+// prose never matches (a sentence has a space before its colon, if any),
+// so "Not a real claim: fu-b is mentioned" still reads zero ids: the
+// pattern requires the colon to land right after the FIRST word, and "Not"
+// is followed by a space, not ":".
+const BULLET_STRUCTURAL_LABEL_RE = /^[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*:[ \t]+/;
+// BULLET_HEAD_RE — the leading run of fu- id(s) that OPEN a bullet (after
+// any single BULLET_STRUCTURAL_LABEL_RE prefix is stripped): zero or more
+// backticks/whitespace, then one or more fu- ids each optionally followed
+// by backticks/whitespace/commas (so "`fu-a`, `fu-b` — ..." reads both
+// ids, but "`fu-a` — mentions fu-b later" reads only fu-a, since the em
+// dash breaks the run before fu-b is ever reached).
+const BULLET_HEAD_RE = /^[`\s]*((?:fu-[a-z0-9]+(?:-[a-z0-9]+)*[`\s,]*)+)/;
+
+// extractSegmentClaimIds(text) -> Set<id> — WITHIN one label segment, only
+// the id(s) that OPEN a bullet are claims (Spec-AC-17, TEST-578): the
+// leading id (optionally after one short structural label like
+// "Spec-AC-01:"), or a comma-/space-separated run of ids at the very head
+// of the bullet — never an id mentioned later in that bullet's own prose
+// (the exact shape that turned an honest "still open" aside inside a
+// DIFFERENT bullet's prose into a false claim). A segment with no bullet
+// lines at all — pure prose, e.g. the PREFIX ahead of the first label, or a
+// paragraph BETWEEN two bulleted sub-lists under the same label — keeps the
+// pre-existing full-text scan: this narrows which ids in a BULLET count, it
+// does not change which TEXT is scanned or which shapes are scanned. A
+// bullet that wraps onto indented continuation lines (no leading "- ") is
+// folded into that SAME bullet's body before the head is read, so a
+// multi-line bullet's head is still just its own opening run.
+function extractSegmentClaimIds(text) {
   const claims = new Set();
+  const lines = text.split('\n');
+  let i = 0;
+  let proseBuf = [];
+  const flushProse = () => {
+    if (proseBuf.length) {
+      for (const id of extractIds(proseBuf.join('\n'))) claims.add(id);
+      proseBuf = [];
+    }
+  };
+  while (i < lines.length) {
+    const line = lines[i];
+    if (BULLET_LINE_RE.test(line)) {
+      flushProse();
+      let bulletText = line.replace(BULLET_LINE_RE, '');
+      i += 1;
+      while (i < lines.length && /^[ \t]+\S/.test(lines[i]) && !BULLET_LINE_RE.test(lines[i])) {
+        bulletText += ` ${lines[i].trim()}`;
+        i += 1;
+      }
+      const labelMatch = BULLET_STRUCTURAL_LABEL_RE.exec(bulletText);
+      const headSource = labelMatch ? bulletText.slice(labelMatch[0].length) : bulletText;
+      const hm = BULLET_HEAD_RE.exec(headSource);
+      if (hm) {
+        for (const id of extractIds(hm[1])) claims.add(id);
+      }
+      continue;
+    }
+    proseBuf.push(line);
+    i += 1;
+  }
+  flushProse();
+  return claims;
+}
+
+function extractHeadingClaims(text) {
+  const claims = new Map();
   // No `g` flag on HEADING_RE, so `.exec` always starts at index 0 and
   // `.lastIndex` is never consulted — safe to reuse across documents as-is.
   const hm = HEADING_RE.exec(text);
@@ -868,7 +956,8 @@ function extractHeadingClaims(text) {
   for (const seg of splitByLabels(body)) {
     if (seg.label === 'NOT CLOSED') continue; // disclaimed, never a claim
     if (seg.label === null && opensWithNoneSentinel(seg.text)) continue; // the none sentinel: zero claims
-    for (const id of extractIds(seg.text)) claims.add(id);
+    const required = requiredStatusForLabel(seg.label);
+    for (const id of extractSegmentClaimIds(seg.text)) claims.set(id, required);
   }
   return claims;
 }
@@ -933,8 +1022,18 @@ function extractInlineClaims(text) {
   return claims;
 }
 
+// extractClaims(text) -> Map<id, requiredStatus>. The inline shape carries
+// no label authority of its own (Spec-AC-17 D9), so every inline claim
+// requires the historical `done`; where the same id is ALSO a heading claim
+// (which does carry a label), the heading's requiredStatus wins — one label
+// authority, per splitByLabels, never a second one invented for the inline
+// shape.
 function extractClaims(text) {
-  return new Set([...extractHeadingClaims(text), ...extractInlineClaims(text)]);
+  const claims = new Map(extractHeadingClaims(text));
+  for (const id of extractInlineClaims(text)) {
+    if (!claims.has(id)) claims.set(id, 'done');
+  }
+  return claims;
 }
 
 // --- verify-closures: attribution heuristic (D8, report-only, never fatal) --
@@ -1038,10 +1137,10 @@ function cmdVerifyClosures(opts) {
     } catch {
       continue; // unreadable individual doc in corpus mode: contributes zero claims, never an error
     }
-    const ids = extractClaims(text);
-    if (ids.size === 0) continue;
+    const claimsMap = extractClaims(text);
+    if (claimsMap.size === 0) continue;
     const seen = seenPerDoc.get(docAbs) ?? new Set();
-    for (const id of ids) {
+    for (const [id, requiredStatus] of claimsMap) {
       if (seen.has(id)) continue;
       seen.add(id);
       const item = byId.get(id);
@@ -1054,9 +1153,17 @@ function cmdVerifyClosures(opts) {
         // read as the same kind of gap.
         verdict = 'MISS';
         status = id.length > ID_MAX_LEN ? `unfilable (${id.length} chars, max ${ID_MAX_LEN})` : 'absent';
-      } else if (item.status !== 'done') {
+      } else if (item.status !== requiredStatus) {
+        // Spec-AC-17 (TEST-579): a claim under a DROPPED label is satisfied
+        // only by status `dropped`, one under CLOSED only by `done` — a
+        // mismatch either way is still a MISS. The historical message
+        // (bare `status=<actual>`) is kept byte-for-byte when the claim
+        // required the historical default (`done`); only the new DROPPED
+        // direction gains the "(claimed dropped)" suffix naming which way
+        // round the mismatch runs, since that direction has no prior
+        // convention to preserve.
         verdict = 'MISS';
-        status = item.status;
+        status = requiredStatus === 'done' ? item.status : `${item.status} (claimed ${requiredStatus})`;
       } else if (!isAttributionRelated(item.resolved_by, docAbs, text)) {
         verdict = 'ATTRIBUTION';
         status = item.status;
