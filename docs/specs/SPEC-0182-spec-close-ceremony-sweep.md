@@ -2,15 +2,17 @@
 id: spec-close-ceremony-sweep
 type: spec
 number: 182
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 8b235ca80305defdd49c88fa22c67ee86af0792e20a926d69d065c6b991f47da
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0188-close-ceremony-sweep.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 4aca0a50e66a8e3ee2f837bce04ba4676805346c
 ---
 
 # Spec — the close ceremony, the docs audit and the generated pages agree with git

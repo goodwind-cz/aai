@@ -2,11 +2,13 @@
 id: close-ceremony-sweep
 type: change
 number: 188
-status: draft
+status: done
 capability: close-ceremony-sweep
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 4aca0a50e66a8e3ee2f837bce04ba4676805346c
 ---
 
 # The close ceremony, the docs audit and the generated pages agree with git
