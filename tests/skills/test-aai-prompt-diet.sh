@@ -816,7 +816,16 @@ test_012_growth_sum_matches_ledger() {
   # mutation-run.mjs --replay command, SKILL_PR's AMENDMENT GATE bullet is
   # corrected for D11's second violation class, credited 1:1, headroom
   # returns to 2046/2048.
-  local want_growth=32826
+  # Then 32826 -> 35185: close-ceremony-sweep Spec-AC-32 ride-wide true-up
+  # (+2359 B, ONE entry for the whole 12-run ride) -- VALIDATION.prompt.md
+  # +277 B (run 5, Spec-AC-16 Evidence-shape wording), SKILL_PR.prompt.md
+  # +1962 B net across three runs (run 7 +836 Spec-AC-20 restamp invocation,
+  # run 10 +717 Spec-AC-30 commit verification + shared-page push check, run
+  # 12 +409 Spec-AC-33/34 step 5d sweep-record commands), SKILL_INTAKE.prompt.md
+  # +120 B net (run 9, Spec-AC-25 -- a duplicate invocation line removed but
+  # replaced by a longer non-repeating sentence). Credited 1:1, headroom
+  # returns to 2046/2048.
+  local want_growth=35185
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
