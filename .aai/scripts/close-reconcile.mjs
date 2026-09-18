@@ -395,16 +395,38 @@ function computeItems(root, a, b) {
   }
 
   // Spec-AC-04(b) candidate index — every OTHER corpus doc (i.e. NOT touched
-  // by this range), read best-effort. An unreadable doc here is silently
-  // skipped: it never widens TEST-015/P2's unreadable-scan-incomplete
-  // contract above, which stays deliberately scoped to docs the range itself
-  // touched. `specIdsInCorpus` collects every spec id in the WHOLE corpus
-  // (terminal or not — a real pairing, even an already-closed one, still
-  // means this range does not own the close) plus every spec already in
-  // `touched`.
+  // by this range), read best-effort.
+  //
+  // REMEDIATION ROUND 5 (P1, Codex / PR #385 bot review, Amendment 27) — an
+  // unreadable doc here used to be SILENTLY skipped (`catch { continue; }`,
+  // no record kept): the file-header note this replaced argued it "never
+  // widens TEST-015/P2's unreadable-scan-incomplete contract... deliberately
+  // scoped to docs the range itself touched" — but that scoping is exactly
+  // the hole. A range that MENTIONS an untouched doc's id (the
+  // `id-mention-unpaired` arm below) can only flag it by finding it in THIS
+  // candidate scan; an unreadable candidate never reaches that check and the
+  // scan reports CLEAN precisely because it could not look, not because
+  // there was nothing to find — the Spec-AC-24/28 property ("could not look
+  // is not the same as nothing to find") this ride exists to enforce,
+  // reproduced in its own gate. Fixed by folding an unreadable CANDIDATE
+  // into the SAME `unreadable` list a touched doc's read failure already
+  // populates: `runCheck`/`runApply` already fail closed unconditionally on
+  // a non-empty `unreadable`, so no caller-side wiring changes.
+  //
+  // `specIdsInCorpus` collects every spec id in the WHOLE corpus (terminal or
+  // not — a real pairing, even an already-closed one, still means this range
+  // does not own the close) plus every spec already in `touched`.
+  // `specRequirementsInCorpus` is the SAME idea for Spec-AC-05's fallback
+  // pairing key (P2, Codex): a spec's OWN `links.requirement` path, read
+  // verbatim, so an off-convention spec id (one that does not spell
+  // `spec-<primary id>`) still counts as a real pairing for a CANDIDATE the
+  // range never touched, the same way pairItems() already honours it for
+  // docs already in `items`.
   const specIdsInCorpus = new Set();
+  const specRequirementsInCorpus = new Set();
   for (const d of touched) {
     if (d.isSpec && d.fmId) specIdsInCorpus.add(d.fmId);
+    if (d.isSpec && d.linksRequirement) specRequirementsInCorpus.add(d.linksRequirement);
   }
   const touchedRelSet = new Set(touched.map((d) => d.rel));
   const nonTerminalCandidates = [];
@@ -414,13 +436,17 @@ function computeItems(root, a, b) {
     let content;
     try {
       content = fs.readFileSync(abs, 'utf8');
-    } catch {
-      continue; // best-effort; see the file-header note above
+    } catch (err) {
+      unreadable.push({ rel, error: String(err?.message || err).trim() });
+      continue;
     }
     const fm = parseFrontmatter(content);
     if (!fm?.id) continue;
     const isSpec = rel.startsWith('docs/specs/');
-    if (isSpec) specIdsInCorpus.add(fm.id);
+    if (isSpec) {
+      specIdsInCorpus.add(fm.id);
+      if (fm?.links?.requirement) specRequirementsInCorpus.add(fm.links.requirement);
+    }
     if (isUmbrellaDoc(fm)) continue;
     const status = String(fm?.status ?? '').toLowerCase();
     if (TERMINAL_DOC_STATUS.has(status)) continue;
@@ -443,11 +469,17 @@ function computeItems(root, a, b) {
   function missingTerminalTelemetry(doc) {
     return doc.linksCommitsEmpty && !doc.hasCloseEvent;
   }
-  // missingPairedSpecMention(doc) -> bool. Spec-AC-04(b).
+  // missingPairedSpecMention(doc) -> bool. Spec-AC-04(b). P2 (Codex, Amendment
+  // 27): the literal `spec-<primaryId>` convention is the FAST path, but an
+  // off-convention spec that names `doc.rel` in its OWN `links.requirement`
+  // is a real pairing too — the same fallback pairItems() already applies to
+  // docs already flagged as items, now also applied here so a candidate is
+  // never flagged unpaired for a spec that already, verbatim, claims it.
   function missingPairedSpecMention(doc) {
     if (doc.fmId == null) return false;
     if (!mentionedByRange(doc.fmId)) return false;
-    return !specIdsInCorpus.has(`spec-${doc.fmId}`);
+    if (specIdsInCorpus.has(`spec-${doc.fmId}`)) return false;
+    return !specRequirementsInCorpus.has(doc.rel);
   }
   // Dispatches to whichever of the two Spec-AC-04 escapes applies to the
   // candidate's own terminal/non-terminal shape.

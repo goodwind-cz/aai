@@ -869,6 +869,76 @@ GHSTUB
                   || log_fail "TEST-592 merge gate tooling-present-unresolvable"
 }
 
+# TEST-597 (P1, Codex / PR #385 bot review, Amendment 27): `gh pr merge`
+# accepts [<number> | <url> | <branch>] positionally, but the parser used to
+# recognise only a bare digit -- a branch name or a PR URL fell through to
+# the SAME path as a targetless `gh pr merge` and was judged against
+# whatever PR `gh pr view` (no arg) resolves for the CURRENT branch, not the
+# one actually named on the command line.
+test_020_merge_gate_branch_and_url_targets() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-597 $ADAPTER does not exist"; return; }
+  local ok=1 d rc err
+
+  d="$(new_fixture)"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai" "$d/bin"
+  cp "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" "$d/.aai/scripts/lane-gate.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
+  : > "$d/docs/ai/EVENTS.jsonl"
+
+  # A consistent record exists ONLY for PR 61 (the branch target) and PR 62
+  # (the URL target) -- never for PR 999, which is what a targetless
+  # `gh pr view` (current-branch resolution) would wrongly return below if
+  # the branch/URL positional were silently dropped.
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t597-ride \
+     --pr 61 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t597-ride \
+     --pr 62 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+
+  cat > "$d/bin/gh" <<'GHSTUB'
+#!/usr/bin/env bash
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  if [ -z "${3:-}" ]; then
+    echo "999"
+    exit 0
+  fi
+  case "$3" in
+    feature-branch) echo "61"; exit 0 ;;
+    https://github.com/o/r/pull/62) echo "62"; exit 0 ;;
+    *) exit 1 ;;
+  esac
+fi
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+
+  # (a) a BRANCH name target: judged against PR 61's own record, never the
+  # current-branch-implicit PR 999.
+  err=$(payload_for "gh pr merge feature-branch --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-597: 'gh pr merge feature-branch' with a consistent PR-61 record exited $rc (want 0): $err"; ok=0; }
+
+  # (b) a URL target: judged against PR 62's own record.
+  err=$(payload_for "gh pr merge https://github.com/o/r/pull/62 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-597: 'gh pr merge <url>' with a consistent PR-62 record exited $rc (want 0): $err"; ok=0; }
+
+  # (c) an UNRECORDED branch target: denied naming PR 61 (still resolved to
+  # itself), never silently allowed via PR 999's (nonexistent) record.
+  d2="$(new_fixture)"
+  mkdir -p "$d2/bin"
+  cp "$d/bin/gh" "$d2/bin/gh"
+  err=$(payload_for "gh pr merge feature-branch" | (cd "$d2" && CLAUDE_PROJECT_DIR="$d2" PATH="$d2/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  # $d2 has no .aai layer at all (capability absent for the sweep-check step)
+  # -- PR resolution itself still must have judged "feature-branch" (proven
+  # by (a)/(b) above sharing the SAME gh stub). This arm only guards that a
+  # resolved-but-uncheckable target still falls open, not a false deny.
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-597: 'gh pr merge feature-branch' with no .aai layer must fall open (capability absent), got $rc: $err"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-597 (P1, Codex PR #385) merge gate resolves a branch-name or URL positional target via 'gh pr view <target>', never the current-branch-implicit PR" \
+                  || log_fail "TEST-597 merge gate branch/URL target resolution"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -894,6 +964,7 @@ main() {
   test_017_merge_gate_quoted_pr_number
   test_018_merge_gate_capability_absent_allows
   test_019_merge_gate_tooling_present_unresolvable_denies
+  test_020_merge_gate_branch_and_url_targets
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

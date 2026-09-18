@@ -22,7 +22,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { extractUsageTotal } from './lib/usage-note.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
-import { walkTracked, isTrackedFile } from './lib/docs-model.mjs';
+import { walkTracked, isTrackedFile, toPosix } from './lib/docs-model.mjs';
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ['docs/issues', 'docs/rfc', 'docs/requirements', 'docs/releases'];
@@ -97,7 +97,18 @@ function scanDocs() {
       let body;
       try { body = fs.readFileSync(filePath, 'utf8'); } catch { continue; }
       const fm = readFrontmatter(body);
-      docs.push({ ...fm, path: `${dir}/${fname}`, dir, file: fname });
+      // Codex P1 (PR #385 bot review, close-ceremony-sweep Amendment 27):
+      // walkTracked() returns paths RECURSIVELY (a tracked doc may sit under
+      // a subdirectory of `dir`, e.g. docs/issues/team/foo.md), but
+      // `${dir}/${fname}` rebuilds the path from the SCAN ROOT plus only the
+      // basename, dropping any subdirectory — the same defect
+      // generate-docs-index.mjs already avoids (toPosix(path.relative(ROOT,
+      // filePath)), :185). Derive it the SAME way here so a nested tracked
+      // doc's `path` field (read again below for release-membership bodies,
+      // and rendered as every generated link/request field) resolves to a
+      // real file instead of a flattened, nonexistent one.
+      const rel = toPosix(path.relative(ROOT, filePath));
+      docs.push({ ...fm, path: rel, dir, file: fname });
     }
   }
   return docs;

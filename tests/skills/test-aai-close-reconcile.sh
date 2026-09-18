@@ -1054,6 +1054,129 @@ EOF
   log_pass "TEST-527: an off-convention pair is paired via links.requirement, closed in ONE invocation, and a re-check is genuinely CLEAN"
 }
 
+# --- TEST-594 (Spec-AC-04(b), P1 Codex / PR #385 bot review, Amendment 27) ---
+test_594_unreadable_untouched_candidate_never_reads_clean() {
+  log_info "TEST-594 (Spec-AC-04(b)): an unreadable UNTOUCHED corpus document must never let --check print CLEAN, even when the range names its id..."
+  local dir base head out rc target
+
+  dir=$(init_range_repo "t594")
+  target="$dir/docs/issues/ISSUE-0594-t594.md"
+  write_issue_doc "$target" "t594-ref" "draft"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "seed the untouched maintenance half"
+  base=$(git -C "$dir" rev-parse HEAD)
+  cat > "$dir/docs/issues/ISSUE-0594-carrier.md" <<'EOF'
+---
+id: t594-carrier-ref
+type: change
+status: implementing
+links:
+  pr: []
+  commits: []
+---
+
+# Change — Fixture t594-carrier-ref
+
+## Summary
+- Paired maintenance half: `t594-ref`.
+EOF
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver the carrier that names t594-ref (#594)"
+  head=$(git -C "$dir" rev-parse HEAD)
+
+  if ! seed_make_unreadable "$target"; then
+    log_info "TEST-594: chmod 000 denies this uid nothing (root/CI perm bypass) — the unreadable-candidate defect cannot be exercised on this machine, skipping this test's assertions"
+    chmod 644 "$target" 2>/dev/null || true
+    return 0
+  fi
+
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  chmod 644 "$target" 2>/dev/null || true
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-594: an unreadable untouched candidate must not let --check exit 0, got rc=0. Output:\n$out"
+  assert_payload_not_contains "$out" "close-reconcile: CLEAN" \
+    "TEST-594: --check reported CLEAN despite an untouched candidate document it could not read — id-mention-unpaired printed CLEAN precisely because a document could not be inspected"
+  assert_payload_contains "$out" "docs/issues/ISSUE-0594-t594.md" \
+    "TEST-594: output does not name the unreadable untouched candidate path"
+  assert_payload_contains "$out" "doc-unreadable" \
+    "TEST-594: output does not name the doc-unreadable reason"
+
+  log_pass "TEST-594: an unreadable untouched corpus document refuses the gate closed instead of letting id-mention-unpaired read CLEAN"
+}
+
+# --- TEST-595 (Spec-AC-04(b)/Spec-AC-05, P2 Codex / PR #385 bot review, Amendment 27) ---
+test_595_candidate_pairs_by_links_requirement() {
+  log_info "TEST-595 (Spec-AC-04(b)): an untouched candidate mentioned by the range is not id-mention-unpaired when an off-convention spec elsewhere in the corpus pairs it via links.requirement..."
+  local dir base head out rc
+
+  dir=$(init_range_repo "t595")
+  write_issue_doc "$dir/docs/issues/ISSUE-0595-t595.md" "t595-ref" "draft"
+  # Off-convention spec id (does NOT read "spec-t595-ref") whose OWN
+  # links.requirement names the primary's path verbatim -- the SAME fallback
+  # pairItems() already honours for docs already in `items`, now also
+  # honoured at the candidate-detection stage (missingPairedSpecMention).
+  cat > "$dir/docs/specs/SPEC-0595-t595.md" <<'EOF'
+---
+id: spec-t595-alt
+type: spec
+number: null
+status: implementing
+ceremony_level: 2
+links:
+  requirement: docs/issues/ISSUE-0595-t595.md
+  rfc: null
+  pr: []
+  commits: []
+---
+
+# SPEC — Fixture spec-t595-alt
+
+SPEC-FROZEN: true
+
+## Acceptance Criteria Status
+
+| Spec-AC | Description | Status | Evidence | Review-By | Notes |
+|---------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | fixture | done | commit-abc | — | — |
+
+## Test Plan
+
+| Test ID | Spec-AC | Type | File path | Description | Status |
+|---------|---------|------|-----------|--------------|--------|
+| TEST-001 | Spec-AC-01 | unit | n/a | fixture | green |
+EOF
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "seed the untouched primary and its off-convention spec"
+  base=$(git -C "$dir" rev-parse HEAD)
+  cat > "$dir/docs/issues/ISSUE-0595-carrier.md" <<'EOF'
+---
+id: t595-carrier-ref
+type: change
+status: implementing
+links:
+  pr: []
+  commits: []
+---
+
+# Change — Fixture t595-carrier-ref
+
+## Summary
+- Paired maintenance half: `t595-ref`.
+EOF
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver the carrier that names t595-ref (#595)"
+  head=$(git -C "$dir" rev-parse HEAD)
+
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  assert_payload_not_contains "$out" "reason=id-mention-unpaired" \
+    "TEST-595: an off-convention spec paired via links.requirement must not be reported id-mention-unpaired: $out"
+  assert_payload_not_contains "$out" "docs/issues/ISSUE-0595-t595.md" \
+    "TEST-595: the paired primary must not be named as an item at all: $out"
+  assert_payload_contains "$out" "id=t595-carrier-ref" "TEST-595: carrier doc (status implementing) should still be reported"
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-595: expected exit 1 (carrier still open on its own account), got $rc. Output:\n$out"
+
+  log_pass "TEST-595: an untouched candidate paired via an off-convention spec's links.requirement is not flagged id-mention-unpaired"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1084,6 +1207,8 @@ main() {
   test_525_unpaired_draft_intake
   test_526_replays_the_two_real_ranges
   test_527_pairs_by_links_requirement
+  test_594_unreadable_untouched_candidate_never_reads_clean
+  test_595_candidate_pairs_by_links_requirement
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

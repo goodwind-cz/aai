@@ -450,6 +450,88 @@ test_024_spec_wins_over_intake() {  # CHANGE lane-intake-ceremony (anti-downgrad
   log_pass "Spec precedence pinned — intake can never downgrade (TEST-024)"
 }
 
+# mk_git_lane_fixture <dir> <level> <strategy> -> prints the base commit sha.
+# Builds the SAME fixture() layout, then git-inits it and fakes a
+# refs/remotes/origin/main pointer at the base commit -- resolveUpstreamDefaultRef
+# (lane-gate.mjs --sweep-check's new auto-base-ref recovery, Amendment 27)
+# only needs that REF to resolve; no reachable network remote is required.
+mk_git_lane_fixture() {
+  local dir="$1" level="$2" strategy="$3"
+  fixture "$dir" "$level" "$strategy"
+  (
+    cd "$dir" \
+      && git init -q \
+      && git config user.email test@example.com \
+      && git config user.name "AAI Test" \
+      && git symbolic-ref HEAD refs/heads/main \
+      && git add -A \
+      && git commit -q -m base
+  ) >/dev/null 2>&1
+  local base
+  base="$(cd "$dir" && git rev-parse HEAD)"
+  git -C "$dir" update-ref refs/remotes/origin/main "$base" >/dev/null 2>&1
+  printf '%s' "$base"
+}
+
+# --- TEST-598 (Spec-AC-34, P1 Codex / PR #385 bot review, Amendment 27) -----
+test_598_sweep_check_recovers_diff_without_flags() {
+  log_info "Test: --sweep-check with NO --base-ref/--files-from recovers the diff from the upstream default branch, so a real fast-lane record actually passes its own gate (TEST-598)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  mk
+  mk_git_lane_fixture "$TEST_DIR" 1 direct >/dev/null
+
+  # One more commit on top of base -- a single docs-only file, fast-eligible
+  # under every OTHER predicate (level 1, strategy direct) -- simulating the
+  # ride's own delivered diff, the shape .aai/SKILL_PR.prompt.md step 6 and
+  # claude-hook-gate.sh's merge gate actually invoke --sweep-check against.
+  echo "docs change" > "$TEST_DIR/docs/x.md"
+  (cd "$TEST_DIR" && git add -A && git commit -q -m "deliver docs change (#601)") >/dev/null 2>&1
+
+  (cd "$TEST_DIR" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t598-ride \
+     --pr 601 --lane fast --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome skipped_fast_lane >/dev/null 2>&1)
+
+  OUT="$(node "$GATE" --sweep-check --pr 601 --repo-root "$TEST_DIR" \
+    --spec "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md" --state "$TEST_DIR/docs/ai/STATE.yaml" 2>&1)" && CODE=0 || CODE=$?
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-598: --sweep-check with no explicit diff flags must ALLOW a real, consistent fast-lane record, got $CODE: $OUT"
+  assert_payload_contains "$OUT" "allowed" "TEST-598: expected an 'allowed' verdict line: $OUT"
+  assert_payload_contains "$OUT" "lane=fast" "TEST-598: expected the recomputed lane to be fast (diff recovered), not heavy: $OUT"
+
+  log_pass "TEST-598: --sweep-check auto-recovers the diff from the upstream default branch, so a legitimate fast-lane record passes its own gate"
+}
+
+# --- TEST-599 (Spec-AC-34, P1 Codex / PR #385 bot review, Amendment 27) -----
+test_599_sweep_check_denies_stale_head() {
+  log_info "Test: --sweep-check DENIES reason=stale-head when the recorded pr_sweep no longer names the current HEAD -- a later push after the sweep was recorded (TEST-599)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  mk
+  mk_git_lane_fixture "$TEST_DIR" 1 direct >/dev/null
+  echo "docs change" > "$TEST_DIR/docs/x.md"
+  (cd "$TEST_DIR" && git add -A && git commit -q -m "deliver docs change (#602)") >/dev/null 2>&1
+  local head_a
+  head_a="$(cd "$TEST_DIR" && git rev-parse HEAD)"
+
+  (cd "$TEST_DIR" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t599-ride \
+     --pr 602 --lane fast --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome skipped_fast_lane >/dev/null 2>&1)
+  grep -qF "\"head_sha\":\"$head_a\"" "$TEST_DIR/docs/ai/EVENTS.jsonl" \
+    || log_fail "TEST-599: append-event.mjs did not stamp head_sha=$head_a on the pr_sweep record: $(cat "$TEST_DIR/docs/ai/EVENTS.jsonl")"
+
+  # A later push: one more commit AFTER the sweep was recorded, moving HEAD.
+  echo "one more line" >> "$TEST_DIR/docs/x.md"
+  (cd "$TEST_DIR" && git add -A && git commit -q -m "a later push after the sweep") >/dev/null 2>&1
+  local head_b
+  head_b="$(cd "$TEST_DIR" && git rev-parse HEAD)"
+
+  OUT="$(node "$GATE" --sweep-check --pr 602 --repo-root "$TEST_DIR" \
+    --spec "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md" --state "$TEST_DIR/docs/ai/STATE.yaml" 2>&1)" && CODE=0 || CODE=$?
+  [[ "$CODE" -eq 5 ]] || log_fail "TEST-599: a stale-head record must DENY (exit 5), got $CODE: $OUT"
+  assert_payload_has_line "$OUT" "SWEEP-CHECK denied reason=stale-head pr=602 record_head=$head_a current_head=$head_b" \
+    "TEST-599: missing/incorrect stale-head deny line: $OUT"
+
+  log_pass "TEST-599: --sweep-check denies reason=stale-head when the record's head no longer matches the current HEAD"
+}
+
 main() {
   echo "Testing $TEST_NAME (lightweight-e2e-lane / spec-lightweight-e2e-lane)"
   check_deps
@@ -477,6 +559,8 @@ main() {
   test_022_missing_protected_config_heavy
   test_023_intake_ceremony_fallback
   test_024_spec_wins_over_intake
+  test_598_sweep_check_recovers_diff_without_flags
+  test_599_sweep_check_denies_stale_head
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

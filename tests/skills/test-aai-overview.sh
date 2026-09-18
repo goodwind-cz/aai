@@ -722,6 +722,27 @@ test_556_no_untracked_state_in_tracked_pages() {  # TEST-556 / Spec-AC-23
   log_pass "TEST-556: an untracked STATE.yaml never reaches overview-data.json/overview.html; a tracked STATE.yaml control still renders"
 }
 
+# --- TEST-596 (Spec-AC-22, P1 Codex / PR #385 bot review, Amendment 27) -----
+test_596_nested_tracked_doc_keeps_its_real_path() {
+  log_info "Test: a tracked doc under a SUBDIRECTORY of a scan dir keeps its real (nested) path, not a flattened scan-root+basename one (TEST-596)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  local d; d="$(mk_git_repo t596)"
+  mkdir -p "$d/docs/issues/team"
+  write_change_doc "$d/docs/issues/team/CHANGE-9003-nested.md" "CHG-T596" "draft"
+  (cd "$d" && git add docs/issues/team/CHANGE-9003-nested.md && git commit -qm "nested tracked fixture")
+
+  run_overview "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-596: overview must exit 0: $(cat "$OUT")"
+  grep -qF "CHG-T596" "$d/docs/ai/overview-data.json" \
+    || log_fail "TEST-596: the nested tracked document must still appear in overview-data.json: $(cat "$d/docs/ai/overview-data.json")"
+  grep -qF "docs/issues/team/CHANGE-9003-nested.md" "$d/docs/ai/overview-data.json" \
+    || log_fail "TEST-596: overview-data.json must carry the REAL nested path docs/issues/team/CHANGE-9003-nested.md: $(cat "$d/docs/ai/overview-data.json")"
+  grep -qF '"docs/issues/CHANGE-9003-nested.md"' "$d/docs/ai/overview-data.json" \
+    && log_fail "TEST-596: overview-data.json must NOT carry the flattened, nonexistent path docs/issues/CHANGE-9003-nested.md: $(cat "$d/docs/ai/overview-data.json")"
+
+  log_pass "TEST-596: a nested tracked document's path field survives walkTracked() intact, not rebuilt from scan-root+basename"
+}
+
 main() {
   echo "Testing $TEST_NAME (token-economics-end-to-end TEST-005..007 + dev-progress-hub TEST-001..006)"
   check_deps
@@ -739,6 +760,7 @@ main() {
   test_dph06_closed_ride_not_in_flight
   test_555_overview_tracked_only
   test_556_no_untracked_state_in_tracked_pages
+  test_596_nested_tracked_doc_keeps_its_real_path
   echo ""
   log_pass "All $TEST_NAME tests passed (dev-progress-hub TEST-006: full-suite regression check)"
 }

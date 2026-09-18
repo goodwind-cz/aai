@@ -127,9 +127,9 @@ case "$GATE" in
     # header promises for every OTHER adapter-trouble path. Denying is
     # reserved for when the tooling to look IS present and what it finds is
     # genuinely absent or contradictory:
-    #   - no positional PR number AND no `gh` on PATH: nothing can resolve
+    #   - no positional target AND no `gh` on PATH: nothing can resolve
     #     the PR at all -- capability absent -> fall through, allow.
-    #   - no positional PR number, `gh` present, but `gh pr view` itself
+    #   - no positional target, `gh` present, but `gh pr view` itself
     #     can't name one (no PR on this branch, network/auth failure, ...):
     #     the tool to look existed and looked -- genuinely unresolvable ->
     #     deny (UNLIKE every other adapter-trouble path in this file: an
@@ -140,18 +140,72 @@ case "$GATE" in
     #     -- capability absent -> fall through, allow.
     #   - a PR number is known AND node+lane-gate.mjs are present AND the
     #     sweep-check itself denies (rc 5): a genuine verdict -> deny.
+    #
+    # P1 (Codex, PR #385 bot review, Amendment 27): `gh pr merge --help`
+    # documents THREE positional target forms — [<number> | <url> | <branch>]
+    # — but this parser recognised only a bare digit token; a URL or a branch
+    # name (`gh pr merge feature-branch`, or a PR URL) fell through to the
+    # SAME "no positional target" path as a genuinely bare `gh pr merge`, and
+    # was judged against whatever PR `gh pr view` (no arg) resolves for the
+    # CURRENT branch instead — a different PR than the one actually named on
+    # the command line. Fixed: after stripping every value-taking flag (now
+    # -R/--repo, -b/--body, -F/--body-file, -t/--subject,
+    # --match-head-commit — gh's full value-flag set for this subcommand, not
+    # just -R/--repo) and every remaining boolean flag, the first surviving
+    # bare token is the TARGET, in whichever of the three forms it takes.
     MERGE_SEG="$(printf '%s' "$CMD" | grep -oE 'gh[[:space:]]+pr[[:space:]]+merge([[:space:]][^;&|]*)?' | head -1)"
     if [ -n "$MERGE_SEG" ]; then
-      PR_SEARCH="$(printf '%s' "$MERGE_SEG" | sed -E 's/(^|[[:space:]])(-R|--repo)[[:space:]]+[^[:space:]]+//g')"
+      # Strip a value-taking flag's value WHOLE, including a quoted phrase
+      # carrying embedded spaces (`--subject "fix 123"`) -- the single
+      # bare-token pattern alone (third -e below) only ever consumed up to
+      # the first space inside the quotes, leaving a stray `123"` behind
+      # that then read as a (wrong) positional target. Quoted forms first
+      # (double, then single), bare token last, so an already-stripped
+      # quoted value is never re-matched by the bare-token pass.
+      PR_SEARCH="$(printf '%s' "$MERGE_SEG" | sed -E \
+        -e 's/(^|[[:space:]])(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)[[:space:]]+"[^"]*"//g' \
+        -e "s/(^|[[:space:]])(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)[[:space:]]+'[^']*'//g" \
+        -e 's/(^|[[:space:]])(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)[[:space:]]+[^[:space:]]+//g')"
       # NB-2 (validation-round2): a quoted bare number (`gh pr merge "385"`)
       # is not a bare token under the digit scan below, so it fell through to
       # branch resolution and was judged against a DIFFERENT PR's record.
       # Strip quotes ONLY around a token that is nothing but digits -- never a
-      # quoted PHRASE that happens to contain one (`--subject "fix 123"` must
-      # keep failing to yield 123; validation-round1 B2's own control).
+      # quoted PHRASE that happens to contain one (`--subject "fix 123"` is
+      # already gone whole, above; this rule still protects any OTHER quoted
+      # phrase — validation-round1 B2's own control, still armed).
       PR_SEARCH="$(printf '%s' "$PR_SEARCH" | sed -E "s/\"([0-9]+)\"/ \1 /g; s/'([0-9]+)'/ \1 /g")"
-      PR="$(printf '%s' "$PR_SEARCH" | grep -oE '(^|[[:space:]])[0-9]+([[:space:]]|$)' | grep -oE '[0-9]+' | head -1)"
-      if [ -z "$PR" ] && command -v gh >/dev/null 2>&1; then
+      # Drop the "gh pr merge" prefix, then every remaining boolean flag
+      # (-A/--auto, --admin, -d/--delete-branch, --disable-auto, -m/--merge,
+      # -r/--rebase, -s/--squash, or any future one), leaving only bare
+      # positional tokens. The first one, if any, is the target.
+      TARGET_SEARCH="$(printf '%s' "$PR_SEARCH" | sed -E 's/^[[:space:]]*gh[[:space:]]+pr[[:space:]]+merge//')"
+      TARGET_SEARCH="$(printf '%s' "$TARGET_SEARCH" | sed -E 's/(^|[[:space:]])-[A-Za-z0-9-]+//g')"
+      TARGET="$(printf '%s' "$TARGET_SEARCH" | tr -s '[:space:]' '\n' | grep -v '^$' | head -1)"
+      PR=""
+      if printf '%s' "$TARGET" | grep -Eq '^[0-9]+$'; then
+        PR="$TARGET"
+      elif [ -n "$TARGET" ]; then
+        # A non-numeric target (<url> | <branch>) needs `gh pr view <target>`
+        # to resolve — same capability-before-deny split as the bare-command
+        # case below: no `gh` at all means nothing can resolve it (fall
+        # through, allow); `gh` present but unable to name a PR for THIS
+        # target means the tool looked and genuinely could not (deny).
+        if command -v gh >/dev/null 2>&1; then
+          PR="$(cd "$ROOT" 2>/dev/null && gh pr view "$TARGET" --json number -q .number 2>/dev/null || true)"
+          printf '%s' "$PR" | grep -Eq '^[0-9]+$' || PR=""
+          if [ -z "$PR" ]; then
+            {
+              echo "Merge denied: could not resolve a PR for target \"$TARGET\"."
+              echo "Command: $CMD"
+              echo "'gh pr view $TARGET --json number' did not resolve one (Spec-AC-34, issue"
+              echo "338) -- this gate refuses to guess rather than allow a merge it cannot check"
+              echo "a sweep record for."
+            } >&2
+            exit 2
+          fi
+        fi
+      fi
+      if [ -z "$PR" ] && [ -z "$TARGET" ] && command -v gh >/dev/null 2>&1; then
         PR="$(cd "$ROOT" 2>/dev/null && gh pr view --json number -q .number 2>/dev/null || true)"
         printf '%s' "$PR" | grep -Eq '^[0-9]+$' || PR=""
         if [ -z "$PR" ]; then
@@ -167,9 +221,9 @@ case "$GATE" in
           exit 2
         fi
       fi
-      # PR is still empty here only when there was no positional number AND
-      # no `gh` on PATH to try resolving one -- capability absent, not a
-      # verdict; fall through to the unconditional exit 0 below.
+      # PR is still empty here only when there was no resolvable positional
+      # target AND no `gh` on PATH to try resolving one -- capability absent,
+      # not a verdict; fall through to the unconditional exit 0 below.
       if [ -n "$PR" ]; then
         if command -v node >/dev/null 2>&1 && [ -f "$ROOT/.aai/scripts/lane-gate.mjs" ]; then
           SWEEP_ARGS=(--sweep-check --pr "$PR" --repo-root "$ROOT")

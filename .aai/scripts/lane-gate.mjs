@@ -72,6 +72,16 @@ import { sweepContradictions } from './lib/pr-sweep.mjs';
 //   Exit 0 — a consistent pr_sweep record for --pr exists; ALLOW.
 //   Exit 5 — no record, or a mismatched/illegal one; DENY (stdout names what
 //            is missing or mismatched).
+// P1 (Codex, PR #385 bot review, Amendment 27): with no explicit --base-ref/
+// --files-from, the diff surface used for the lane recomputation is now
+// recovered from the upstream default branch (resolveUpstreamDefaultRef
+// below) instead of silently falling to "no diff source" -> always heavy —
+// the shape the merge-time hook and .aai/SKILL_PR.prompt.md step 6 actually
+// invoke, which previously denied every legitimate fast-lane record. The
+// record's own `head_sha` (append-event.mjs) is also checked against the
+// CURRENT head (git rev-parse HEAD in --repo-root) when both resolve —
+// reason=stale-head — so a sweep recorded before a later push is never
+// mistaken for one that reviewed it.
 // Any OTHER outcome (an uncaught throw — e.g. an existing-but-unreadable
 // docs/ai/EVENTS.jsonl) is NOT a verdict: it reaches runMain's onError below
 // and is reported as exit 0 (fail-open), the same contract this file's own
@@ -382,6 +392,57 @@ function readPrSweepRecords(eventsPath, pr) {
   return out;
 }
 
+// resolveUpstreamDefaultRef(root) -> "origin/<branch>" | null. P1 (Codex, PR
+// #385 bot review, Amendment 27) — --sweep-check is documented and invoked
+// (claude-hook-gate.sh, .aai/SKILL_PR.prompt.md step 6) with NO --base-ref/
+// --files-from of its own, so getChangedFiles() always returned null and
+// computeLaneVerdict() always recomputed `heavy` (no diff source -> suite
+// stays 'full' -> reason=full_run) -- denying EVERY legitimate fast-lane
+// pr_sweep record at merge time, regardless of what the ride actually
+// shipped. The real invocation runs from the ride's own checkout, where
+// local HEAD genuinely IS the reviewed commit (that is the whole point of
+// running it right before `gh pr merge`) -- so recovering the diff inputs
+// needs only the BASE side, resolved the same way close-work-item.mjs's
+// resolveUpstreamDefaultRef already does for its own post-merge-close
+// advisory: `origin/HEAD` symbolic ref first, then the literal
+// `origin/main`/`origin/master`. A small local copy (not an import) --
+// close-work-item.mjs is content-hash pinned and out of scope for this ride
+// to touch or gain a new caller of. Returns null on any failure (no git, no
+// origin remote -- e.g. every existing sweep-check test fixture, which is
+// not a git repo at all): the caller's existing "no diff source" fallback is
+// unchanged, so no fixture without a real origin remote is affected.
+function resolveUpstreamDefaultRef(root) {
+  try {
+    const out = execFileSync('git', ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'], {
+      cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (out) return out.replace(/^refs\/remotes\//, '');
+  } catch { /* fall through to the literal candidates */ }
+  for (const ref of ['origin/main', 'origin/master']) {
+    try {
+      execFileSync('git', ['rev-parse', '--verify', '--quiet', ref], {
+        cwd: root, stdio: ['ignore', 'ignore', 'ignore'],
+      });
+      return ref;
+    } catch { /* try the next candidate */ }
+  }
+  return null;
+}
+
+// currentHeadSha(root) -> the local checkout's HEAD commit, or null when it
+// cannot be resolved (no git, not a repository, no commits yet). Best-effort,
+// same fail-open direction as resolveUpstreamDefaultRef above.
+function currentHeadSha(root) {
+  try {
+    const out = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    return out || null;
+  } catch {
+    return null;
+  }
+}
+
 // Resolve a default --spec when the caller supplies none: the SAME
 // docs/ai/STATE.yaml current_focus.spec_path SKILL_PR step 5 already reads
 // by hand, so claude-hook-gate.sh's merge gate can call --sweep-check with
@@ -428,7 +489,19 @@ function runSweepCheck(opts) {
     if (derived) specPath = resolve(opts.repoRoot, derived);
   }
 
-  const verdict = computeLaneVerdict({ ...opts, spec: specPath, intake: intakePath, state: statePath });
+  // P1 (Codex, PR #385 bot review, Amendment 27): recover the diff inputs
+  // when the caller supplied neither --base-ref nor --files-from (the
+  // documented, real invocation shape) by resolving the upstream default
+  // branch, so computeLaneVerdict can actually recompute fast vs. heavy
+  // instead of forcing 'full'/heavy on every call for lack of a diff source.
+  // An explicit --base-ref/--files-from always wins (unchanged).
+  let sweepOpts = opts;
+  if (!opts.baseRef && !opts.filesFrom) {
+    const derivedBaseRef = resolveUpstreamDefaultRef(opts.repoRoot);
+    if (derivedBaseRef) sweepOpts = { ...opts, baseRef: derivedBaseRef };
+  }
+
+  const verdict = computeLaneVerdict({ ...sweepOpts, spec: specPath, intake: intakePath, state: statePath });
 
   const eventsPath = resolve(opts.repoRoot, 'docs/ai/EVENTS.jsonl');
   const records = readPrSweepRecords(eventsPath, pr);
@@ -441,6 +514,21 @@ function runSweepCheck(opts) {
   const record = records[records.length - 1];
   const recLane = record.payload && record.payload.lane;
   const recOutcome = record.payload && record.payload.outcome;
+  // P1 (Codex, PR #385 bot review, Amendment 27): the record's own head_sha
+  // (append-event.mjs now stamps it, best-effort) must still name the
+  // CURRENT head, or a later push moved the code out from under an already-
+  // recorded sweep. Compared only when BOTH sides resolve to a real sha —
+  // an old-format record (predates this fix) or a non-git / no-commits
+  // repoRoot (every pre-existing sweep-check fixture) degrades to "cannot
+  // verify", never a new false deny, matching this file's existing
+  // capability-absent-falls-open convention.
+  const recHeadSha = record.payload && record.payload.head_sha;
+  const headSha = currentHeadSha(opts.repoRoot);
+  if (recHeadSha && headSha && recHeadSha !== headSha) {
+    console.log(`SWEEP-CHECK denied reason=stale-head pr=${pr} record_head=${recHeadSha} current_head=${headSha}`);
+    console.log('the recorded sweep names a different commit than the one about to merge -- re-sweep and re-record before merging');
+    exit(5);
+  }
   if (recLane !== verdict.lane) {
     console.log(`SWEEP-CHECK denied reason=lane-mismatch pr=${pr} record_lane=${recLane} computed_lane=${verdict.lane}`);
     exit(5);

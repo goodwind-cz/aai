@@ -215,6 +215,25 @@ function main() {
       };
       const bad = sweepContradictions(payload);
       if (bad.length) fail(`pr_sweep record contradicts itself: ${bad.join('; ')}`);
+      // P1 (Codex, PR #385 bot review, Amendment 27): bind the record to the
+      // REVIEWED head. Before this, a pr_sweep payload named only the PR and
+      // lane, so once recorded, ANY later push to that PR (a remediation
+      // commit, or an entirely new one) still satisfied --sweep-check without
+      // the new diff ever being reviewed. `head_sha` is derived HERE, from
+      // this process's own `git rev-parse HEAD` — never accepted as a caller
+      // flag, which a stale/copy-pasted value could spoof — so it can only
+      // ever name the commit the sweep was ACTUALLY run against. Best-effort:
+      // a non-git cwd or a repo with no commits yet cannot name a head at
+      // all, and null is written rather than failing the whole write (this
+      // event predates the invariant in every corpus that already has
+      // pr_sweep records; lane-gate.mjs --sweep-check degrades the same way
+      // — see its own header note — when either side of the comparison is
+      // unknown).
+      let headSha = null;
+      try {
+        headSha = execSync('git rev-parse HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+      } catch { /* non-git cwd / no commits yet -- head_sha stays null */ }
+      payload.head_sha = headSha;
       entry.payload = payload;
       break;
     }

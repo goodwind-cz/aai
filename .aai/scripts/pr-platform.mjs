@@ -71,6 +71,7 @@ function fail(msg) {
 function parseArgs(argv) {
   const opts = {
     remoteUrl: null, prConfig: null, json: false, checkSharedPageConflicts: false, ghBin: null,
+    baseRef: null, filesFrom: null,
   };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
@@ -93,9 +94,20 @@ function parseArgs(argv) {
       if (v === undefined) fail('--gh-bin requires a value');
       opts.ghBin = v;
       i += 1;
+    } else if (tok === '--base-ref') {
+      const v = argv[i + 1];
+      if (v === undefined) fail('--base-ref requires a value');
+      opts.baseRef = v;
+      i += 1;
+    } else if (tok === '--files-from') {
+      const v = argv[i + 1];
+      if (v === undefined) fail('--files-from requires a value');
+      opts.filesFrom = v;
+      i += 1;
     } else if (tok === '-h' || tok === '--help') {
       console.log('Usage: node pr-platform.mjs [--remote-url <url>] [--pr-config <path>] [--json]\n'
-        + '       node pr-platform.mjs --check-shared-page-conflicts [--gh-bin <path>]');
+        + '       node pr-platform.mjs --check-shared-page-conflicts [--gh-bin <path>]\n'
+        + '         [--base-ref <ref> | --files-from <path|->]');
       exit(0);
     } else {
       fail(`unknown flag "${tok}"`);
@@ -131,17 +143,79 @@ function listOpenPrFiles(ghBin) {
   }
 }
 
-// sharedPageConflicts(prs) — every open PR whose file list overlaps
-// SHARED_GENERATED_PAGES, each with the overlapping paths named.
-function sharedPageConflicts(prs) {
+// sharedPageConflicts(prs, changedFiles) — every open PR whose file list
+// overlaps SHARED_GENERATED_PAGES, each with the overlapping paths named.
+//
+// P2 (Codex, PR #385 bot review, Amendment 27): an overlap with SOME open
+// PR's touched files is not, by itself, a conflict THIS push can create —
+// only a shared page BOTH sides touch can turn one CONFLICTING. Before this
+// fix, `changedFiles` did not exist: any open PR touching a generated page
+// refused the push, even a code-only branch that never comes near it, the
+// moment ANY unrelated open PR happened to carry docs/INDEX.md. `changedFiles`
+// (null when it could not be determined — see getOwnChangedFiles below) now
+// narrows the overlap to paths THIS branch itself changed; a null set falls
+// back to the pre-fix, conservative "report every overlap" behaviour rather
+// than silently going quiet when the branch's own diff is unknown.
+function sharedPageConflicts(prs, changedFiles) {
   if (!Array.isArray(prs)) return [];
   const hits = [];
   for (const pr of prs) {
     const files = Array.isArray(pr.files) ? pr.files.map((f) => f && f.path).filter(Boolean) : [];
-    const overlap = files.filter((f) => SHARED_GENERATED_PAGES.has(f));
+    let overlap = files.filter((f) => SHARED_GENERATED_PAGES.has(f));
+    if (changedFiles) overlap = overlap.filter((f) => changedFiles.has(f));
     if (overlap.length) hits.push({ number: pr.number, files: overlap });
   }
   return hits;
+}
+
+// resolveUpstreamDefaultRef() -> "origin/<branch>" | null. cwd-based, the
+// SAME resolution order (and the SAME small local copy, never an import of a
+// content-hash-pinned file) lane-gate.mjs's --sweep-check auto-base-ref fix
+// uses (Amendment 27): `origin/HEAD` symbolic ref first, then the literal
+// `origin/main`/`origin/master`.
+function resolveUpstreamDefaultRef() {
+  try {
+    const out = execFileSync('git', ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (out) return out.replace(/^refs\/remotes\//, '');
+  } catch { /* fall through to the literal candidates */ }
+  for (const ref of ['origin/main', 'origin/master']) {
+    try {
+      execFileSync('git', ['rev-parse', '--verify', '--quiet', ref], { stdio: ['ignore', 'ignore', 'ignore'] });
+      return ref;
+    } catch { /* try the next candidate */ }
+  }
+  return null;
+}
+
+// getOwnChangedFiles(opts) -> Set<string> | null. `--files-from` (test/
+// dry-run determinism, mirroring lane-gate.mjs's own flag) always wins; with
+// neither flag, the base ref is auto-resolved the same way lane-gate.mjs's
+// --sweep-check now does, and the branch's own diff against it is read. null
+// means "could not determine" (no git, no resolvable base, an unreadable
+// --files-from path) — the caller's conservative fallback, never a silent
+// narrowing of what gets reported.
+function getOwnChangedFiles(opts) {
+  if (opts.filesFrom) {
+    let text;
+    try {
+      text = opts.filesFrom === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(opts.filesFrom, 'utf8');
+    } catch {
+      return null;
+    }
+    return new Set(text.split('\n').map((s) => s.trim()).filter(Boolean));
+  }
+  const baseRef = opts.baseRef || resolveUpstreamDefaultRef();
+  if (!baseRef) return null;
+  try {
+    const out = execFileSync('git', ['diff', '--name-only', '--no-renames', `${baseRef}...HEAD`], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return new Set(out.split('\n').map((s) => s.trim()).filter(Boolean));
+  } catch {
+    return null;
+  }
 }
 
 function runSharedPageCheck(opts) {
@@ -157,7 +231,11 @@ function runSharedPageCheck(opts) {
     console.log('SHARED-PAGE-PUSH SKIP — gh pr list unavailable (absent/unauthenticated) — never blocks on a probe failure');
     exit(0);
   }
-  const hits = sharedPageConflicts(prs);
+  const changed = getOwnChangedFiles(opts);
+  if (changed === null) {
+    console.error('pr-platform: NOTE could not determine this branch\'s own changed files — reporting every open PR that touches a shared generated page (conservative fallback)');
+  }
+  const hits = sharedPageConflicts(prs, changed);
   if (hits.length === 0) {
     console.log('SHARED-PAGE-PUSH CLEAR');
     exit(0);

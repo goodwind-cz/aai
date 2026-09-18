@@ -433,9 +433,16 @@ STUBEOF
 test_569_shared_page_push_names_open_prs() {
   log_info "TEST-569: an open PR touching docs/INDEX.md makes the pre-push check name it and refuse; no overlap is silent (Spec-AC-30)..."
   local bin="$TMP_ROOT/gh-t569"
+  # P2 fix (Amendment 27): the check now intersects with THIS branch's own
+  # changed files. --files-from names docs/INDEX.md as changed here, so
+  # every arm below still tests exactly what it tested before that fix
+  # narrowed the check — TEST-593 (below) is the new arm proving the
+  # narrowing itself.
+  local changed="$TMP_ROOT/t569-changed.txt"
+  printf 'docs/INDEX.md\n' > "$changed"
   build_gh_stub_pr_list "$bin" '[{"number":42,"files":[{"path":"docs/INDEX.md"},{"path":"src/foo.js"}]}]'
   local out rc
-  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" 2>&1)"; rc=$?
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" --files-from "$changed" 2>&1)"; rc=$?
   if [[ "$rc" -eq 0 ]]; then
     log_fail "TEST-569: an overlapping open PR must refuse (exit non-zero), got 0: $out"
   elif [[ "$out" != *"42"* || "$out" != *"docs/INDEX.md"* ]]; then
@@ -445,7 +452,7 @@ test_569_shared_page_push_names_open_prs() {
   fi
 
   build_gh_stub_pr_list "$bin" '[{"number":7,"files":[{"path":"src/bar.js"}]}]'
-  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" 2>&1)"; rc=$?
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" --files-from "$changed" 2>&1)"; rc=$?
   if [[ "$rc" -ne 0 ]]; then
     log_fail "TEST-569: a non-overlapping open PR must exit 0, got $rc: $out"
   elif [[ "$out" == *"CONFLICT"* ]]; then
@@ -455,13 +462,55 @@ test_569_shared_page_push_names_open_prs() {
   fi
 
   # non-github platform: never blocks, names the reason (degrade-with-NOTE)
-  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://gitlab.com/o/r.git" --gh-bin "$bin" 2>&1)"; rc=$?
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://gitlab.com/o/r.git" --gh-bin "$bin" --files-from "$changed" 2>&1)"; rc=$?
   if [[ "$rc" -ne 0 ]]; then
     log_fail "TEST-569: a non-github platform must never block, got rc=$rc: $out"
   elif [[ "$out" != *"SKIP"* ]]; then
     log_fail "TEST-569: a non-github platform must name the skip: $out"
   else
     log_pass "TEST-569: non-github platform skips, never blocks"
+  fi
+}
+
+# --- TEST-593 (Spec-AC-30, P2 Codex / PR #385 bot review, Amendment 27) -----
+test_593_shared_page_push_scoped_to_own_diff() {
+  log_info "TEST-593: an open PR touching docs/INDEX.md is SILENT when THIS branch's own diff never touches it; loud once it does (Spec-AC-30)..."
+  local bin="$TMP_ROOT/gh-t593"
+  build_gh_stub_pr_list "$bin" '[{"number":99,"files":[{"path":"docs/INDEX.md"}]}]'
+
+  # This branch changed only an unrelated file -- an overlap with SOME open
+  # PR is not, by itself, a conflict THIS push can create.
+  local unrelated="$TMP_ROOT/t593-unrelated.txt"
+  printf 'src/unrelated.js\n' > "$unrelated"
+  local out rc
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" --files-from "$unrelated" 2>&1)"; rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    log_fail "TEST-593: a shared-page PR overlap must be SILENT when this branch never touches that page, got rc=$rc: $out"
+  elif [[ "$out" == *"CONFLICT"* ]]; then
+    log_fail "TEST-593: reported a conflict for a page this branch's own diff never touches: $out"
+  else
+    log_pass "TEST-593: an unrelated open PR's shared-page overlap is silent when this branch does not touch that page"
+  fi
+
+  # Same open PR, but this branch DOES touch docs/INDEX.md too -- real conflict.
+  local overlapping="$TMP_ROOT/t593-overlap.txt"
+  printf 'docs/INDEX.md\n' > "$overlapping"
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" --files-from "$overlapping" 2>&1)"; rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    log_fail "TEST-593: a real overlap (both sides touch docs/INDEX.md) must refuse, got rc=0: $out"
+  elif [[ "$out" != *"99"* || "$out" != *"docs/INDEX.md"* ]]; then
+    log_fail "TEST-593: the refusal must still name the PR and the overlapping path: $out"
+  else
+    log_pass "TEST-593: a real overlap (this branch also touches the shared page) still refuses"
+  fi
+
+  # An unreadable --files-from degrades to the conservative pre-fix
+  # behaviour (report every overlap) rather than silently going quiet.
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" --files-from "$TMP_ROOT/t593-does-not-exist.txt" 2>&1)"; rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    log_fail "TEST-593: an unreadable --files-from must fall back to the conservative report-every-overlap behaviour, got rc=0: $out"
+  else
+    log_pass "TEST-593: an unreadable --files-from degrades to the conservative fallback (reports the overlap) instead of silently narrowing"
   fi
 }
 
@@ -658,9 +707,14 @@ test_580_shared_page_set_covers_every_generated_page() {
   # the measured list, not the set under test, so a page dropped FROM the
   # set still gets its own arm and reddens as "not individually caught",
   # rather than simply producing one arm fewer.
+  # P2 fix (Amendment 27): --files-from names THIS page as this branch's own
+  # changed file, so each arm still proves "a real overlap refuses" — the
+  # scoping the fix added is TEST-593's job, not this coverage sweep's.
+  local page_changed="$TMP_ROOT/t580-changed.txt"
   for page in "${derived[@]:-}"; do
     build_gh_stub_pr_list "$bin" "[{\"number\":580,\"files\":[{\"path\":\"$page\"}]}]"
-    out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" 2>&1)"; rc=$?
+    printf '%s\n' "$page" > "$page_changed"
+    out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" --files-from "$page_changed" 2>&1)"; rc=$?
     if [[ "$rc" -eq 0 ]]; then
       log_info "TEST-580: a PR touching '$page' must refuse (exit non-zero), got 0: $out"; ok=0
     elif [[ "$out" != *"$page"* ]]; then
@@ -731,6 +785,7 @@ ALL_TESTS=(
   test_021_reviewer_bots_json
   test_022_skill_pr_no_bots_hardening
   test_569_shared_page_push_names_open_prs
+  test_593_shared_page_push_scoped_to_own_diff
   test_580_shared_page_set_covers_every_generated_page
   test_590_suite_map_names_the_regen_tail_generators
 )

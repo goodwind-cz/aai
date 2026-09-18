@@ -4,7 +4,7 @@ type: spec
 number: 182
 status: done
 mutation_gate: v1
-frozen_sha256: 9f296bca67ea781e937d3b5b935f1fb81015975ea20f3e70d74e3a078a3856e1
+frozen_sha256: 3d1ecb2334fe26a587ab3fb188d01131007996662652157c77a0bb7e2e2102d3
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0188-close-ceremony-sweep.md
@@ -698,6 +698,13 @@ its own mutation; the evidence for each is
 | TEST-586 | Spec-AC-33 | integration | tests/skills/test-aai-golden-flow.sh | test_586_pr_sweep_pr_field_rejects_garbage (Amendment 18, NB-5; Amendment 19 D1 and the --pr 0 fix) — --pr is validated by the same parseSweepCount rule as the count fields: abc, 0x181 and a fractional 385.0 are all refused naming --pr, never silently coerced to null, to a PR number nobody typed, or truncated to its integer part; --pr 0 is refused by its own positive-integer floor (parseSweepCount's shared count rule alone accepts 0, but no PR is numbered 0); a real integer PR is still accepted. | sed:s/pr = parseSweepCount\(args\.pr, 'pr'\);/pr = Number(args.pr);/ in append-event.mjs — reverts to the bare Number() coercion NB-5 reported (also defeats the 385.0 arm, since bare Number('385.0') is 385); the --pr 0 guard is a separate line, independently verified RED under its own mutation and archived alongside this record. | green |
 | TEST-587 | Spec-AC-34 | integration | tests/skills/test-aai-hooks-overlay.sh | test_017_merge_gate_quoted_pr_number (Amendment 18, NB-2) — gh pr merge "385" and gh pr merge '385' are judged against PR 385's own record, never falling through to branch resolution and a different PR's record; a digit inside a quoted PHRASE (--subject "fix 123") is still not taken; the unquoted control is unaffected. | patch:docs/ai/tdd/spec-close-ceremony-sweep/mutation-TEST-587.patch in claude-hook-gate.sh — replaces the quote-stripping line with a no-op ($PR_SEARCH unchanged), so a quoted "385" falls back to branch resolution again. | green |
 | TEST-588 | Spec-AC-29 | integration | tests/skills/test-aai-ride-select.sh | test_588_gate_intake_requires_a_real_document (Amendment 18, NB-3; Amendment 19 D2) — gate --intake refuses a readable file with no frontmatter, frontmatter with no id, an id whose type is outside DOC_TYPE_ENUM, or bare id: and type: lines carrying a real id and a known type but no opening --- fence at all, naming "no document resolves" in every case; a real intake document is still admitted. | patch:docs/ai/tdd/spec-close-ceremony-sweep/mutation-TEST-588.patch in ride-select.mjs — reverts readIntake to its pre-fix ad hoc line scan, which returns an object for any readable file regardless of frontmatter (also defeats the no-fence arm, since the ad hoc scan never required one). | green |
+| TEST-593 | Spec-AC-30 | integration | tests/skills/test-aai-pr-platform.sh | test_593_shared_page_push_scoped_to_own_diff (P2, Codex, PR #385 bot review, Amendment 27) — the pre-push shared-page check is silent when an open PR's shared-page overlap is not among THIS branch's own changed files (--files-from), loud once it is; an unreadable --files-from degrades to the pre-fix conservative report-every-overlap behaviour. | sed:s/if \(changedFiles\) overlap = overlap\.filter\(\(f\) => changedFiles\.has\(f\)\);// in pr-platform.mjs — drops the intersection with the branch's own changed files, reddening the silent-when-unrelated arm. | green |
+| TEST-594 | Spec-AC-04 | integration | tests/skills/test-aai-close-reconcile.sh | test_594_unreadable_untouched_candidate_never_reads_clean (P1, Codex, PR #385 bot review, Amendment 27 — this ride's own subject, found in its own code by an external reviewer) — an unreadable UNTOUCHED corpus document now folds into the SAME unreadable list a touched doc's read failure already populates, so --check never prints CLEAN and --apply refuses, naming the unreadable candidate path, instead of the id-mention-unpaired arm silently excluding it from the scan. | patch:docs/ai/tdd/spec-close-ceremony-sweep/mutation-TEST-594.patch in close-reconcile.mjs — reverts the corpusDocs loop's catch to a silent continue (the pre-fix shape), reddening the never-CLEAN assertion. | green |
+| TEST-595 | Spec-AC-04 | integration | tests/skills/test-aai-close-reconcile.sh | test_595_candidate_pairs_by_links_requirement (P2, Codex, PR #385 bot review, Amendment 27) — an untouched candidate mentioned by the range is not id-mention-unpaired when an off-convention spec elsewhere in the corpus pairs it through its OWN links.requirement, read verbatim — the same fallback pairItems() already applies to touched items, now also applied at the candidate-detection stage. | sed:s/return !specRequirementsInCorpus\.has\(doc\.rel\);/return true;/ in close-reconcile.mjs — always reports unpaired regardless of the links.requirement fallback, reddening the off-convention-pairing arm. | green |
+| TEST-596 | Spec-AC-22 | integration | tests/skills/test-aai-overview.sh | test_596_nested_tracked_doc_keeps_its_real_path (P1, Codex, PR #385 bot review, Amendment 27) — a tracked document under a subdirectory of a scan dir keeps its REAL path (derived from walkTracked()'s own filePath via path.relative), not one rebuilt from the scan root plus basename that drops the subdirectory and points at a nonexistent file. | sed:s/docs\.push\(\{ \.\.\.fm, path: rel, dir, file: fname \}\);/docs.push({ ...fm, path: `${dir}\/${fname}`, dir, file: fname });/ in generate-overview.mjs — restores the flattened scan-root+basename path, reddening the nested-path assertion. | green |
+| TEST-597 | Spec-AC-34 | integration | tests/skills/test-aai-hooks-overlay.sh | test_020_merge_gate_branch_and_url_targets (P1, Codex, PR #385 bot review, Amendment 27) — gh pr merge <branch> and gh pr merge <url> are resolved via gh pr view <target>, judged against THAT PR's own sweep record, never the current-branch-implicit one a targetless resolution would return. | patch:docs/ai/tdd/spec-close-ceremony-sweep/mutation-TEST-597.patch in claude-hook-gate.sh — forces TARGET empty regardless of the command line, reddening both the branch and the URL arm. | green |
+| TEST-598 | Spec-AC-34 | integration | tests/skills/test-aai-lightweight-lane.sh | test_598_sweep_check_recovers_diff_without_flags (P1, Codex, PR #385 bot review, Amendment 27) — --sweep-check with no --base-ref/--files-from of its own (the documented, real invocation shape) auto-resolves the upstream default branch and recomputes the REAL diff surface, so a genuine fast-lane pr_sweep record actually passes its own gate instead of always recomputing heavy for lack of a diff source. | sed:s/const derivedBaseRef = resolveUpstreamDefaultRef\(opts\.repoRoot\);/const derivedBaseRef = null;/ in lane-gate.mjs — disables the auto-base-ref recovery, reddening the fast-lane-passes assertion (lane-mismatch: record_lane=fast computed_lane=heavy). | green |
+| TEST-599 | Spec-AC-34 | integration | tests/skills/test-aai-lightweight-lane.sh | test_599_sweep_check_denies_stale_head (P1, Codex, PR #385 bot review, Amendment 27) — a pr_sweep record whose stamped head_sha no longer matches the current HEAD (a later push after the sweep was recorded) is denied reason=stale-head naming both shas, when both resolve; degrades to no-check (never a new false deny) when either side is unresolvable. | sed:s/if \(recHeadSha && headSha && recHeadSha !== headSha\) \{/if (false) {/ in lane-gate.mjs — disables the stale-head comparison, reddening the deny-on-later-push assertion. | green |
 
 Test status values: pending to red to green. Every Spec-AC above has at least one
 row; every row names exactly one Spec-AC. Mutation cells are written as
@@ -2255,6 +2262,213 @@ This is the second time this ride met the class "a step that reads a tree
 another process is writing" (the first was `git status` undercounting a
 byte-identical regeneration, Amendment 20). No Spec-AC, test id, selector or
 Mutation cell changed. Sign-off: none (tracked).
+
+## Amendment 27 (post-freeze, 2026-09-18 — PR #385 external bot review: eight findings triaged, all real, all fixed)
+
+**Triage.** GitHub's Copilot and Codex review bots posted eight findings on
+PR #385 (`gh api repos/goodwind-cz/aai/pulls/385/comments`, comment ids
+4049629648, 4049644412/417/423/426/430/435/446). Every thread was read in
+full, not summarized. All eight are REAL — none stale, duplicate or
+disputed — and are fixed below, each with a regression test and a RED
+mutation record. None required a code fix outside the eight files this
+paragraph names.
+
+**1 (P1, close-reconcile.mjs:~418 — this ride's own subject, found in its
+own code).** `computeItems`'s Spec-AC-04(b) candidate scan read every OTHER
+corpus doc best-effort and SILENTLY skipped one it could not read
+(`catch { continue; }`), with a file-header note arguing the scope was
+deliberately narrower than the touched-doc unreadable contract TEST-015
+already enforces. That argument is exactly wrong: a range that MENTIONS an
+untouched doc's id can only flag it unpaired by finding it in this same
+candidate scan, so an unreadable candidate let `id-mention-unpaired` print
+CLEAN precisely because a document could not be inspected — Spec-AC-24/28's
+"could not look is not the same as nothing to find" property, reproduced in
+this sweep's own gate, after six validation rounds and two review rounds
+that never caught it. Fixed by folding an unreadable candidate into the SAME
+`unreadable` list a touched doc's read failure already populates (D3-style
+reuse — `runCheck`/`runApply` already fail closed unconditionally on a
+non-empty `unreadable`, no caller-side wiring changes needed). New
+**TEST-594**.
+
+**2 (P1, generate-overview.mjs:~100).** `walkTracked()` returns absolute
+paths recursively, but `scanDocs()` rebuilt each doc's `path` field from the
+scan root plus the file's OWN basename (`` `${dir}/${fname}` ``), dropping
+any subdirectory — a tracked `docs/issues/team/foo.md` was recorded as
+`docs/issues/foo.md`, a path that does not exist, breaking every later read
+and generated link. `generate-docs-index.mjs`'s own caller of the same
+`walkTracked()` already derives the path correctly
+(`toPosix(path.relative(ROOT, filePath))`, its own `:185`); `generate-
+overview.mjs` was the one caller that did not. MEASURED: no other caller of
+`walkTracked` exists (`grep -rl walkTracked --include=*.mjs .` names only
+these two generators plus one comment-only mention in
+`lib/docs-canon-core.mjs`), and the LIVE corpus has zero nested documents
+today under any of the five scanned directories (`docs/issues`, `docs/rfc`,
+`docs/requirements`, `docs/releases`, `docs/specs`) — `git ls-files -- <dir>
+| awk -F/ '{print NF}' | sort | uniq -c` reads a uniform 3 fields for every
+one of the 482 tracked docs, meaning none sits below the directory's own top
+level. The bug is real and latent, not presently tripped by this repo's own
+tree; a future nested doc (the reviewer's own `docs/issues/team/foo.md`
+example) would have hit it silently. Fixed to derive the same
+`toPosix(path.relative(ROOT, filePath))` the other caller already uses. New
+**TEST-596**.
+
+**3+4 (P1, append-event.mjs:~215 and lane-gate.mjs:~431 — bound together, one
+fix).** Two Codex findings on the SAME merge-readiness claim, fixed as one
+mechanism. (a) A `pr_sweep` record named only the PR and lane, so once
+recorded, ANY later push to that PR — a remediation commit, or an entirely
+new one — still satisfied `--sweep-check` without the new diff ever being
+reviewed. (b) `--sweep-check --pr <n>` is documented and invoked (`.aai/
+SKILL_PR.prompt.md` step 6, `claude-hook-gate.sh`'s merge gate) with NEITHER
+`--base-ref` NOR `--files-from`, so `getChangedFiles()` always returned
+`null`, `computeLaneVerdict()` always recomputed `heavy` (no diff source ->
+`suite.mode` stays `'full'` -> `reason=full_run`), and every legitimate
+fast-lane `pr_sweep` record was denied `reason=lane-mismatch` at merge time —
+the fast lane could record itself but could never pass its own gate.
+
+Fix for (a): `append-event.mjs`'s `pr_sweep` case now derives `head_sha` from
+THIS process's own `git rev-parse HEAD` — never a caller-supplied flag, which
+a stale or copy-pasted value could spoof — and stamps it on the payload,
+`null` when unresolvable (non-git cwd, no commits yet). `lane-gate.mjs
+--sweep-check` compares the record's `head_sha` against the CURRENT head
+(`git rev-parse HEAD` in `--repo-root`) and denies `reason=stale-head`,
+naming both shas, but ONLY when both sides resolve — an old-format record or
+a non-git `--repo-root` (every pre-existing sweep-check test fixture)
+degrades to "cannot verify" rather than a new false deny, the same
+capability-absent-falls-open convention `claude-hook-gate.sh` already uses
+for PR resolution.
+
+**What "current head" means, chosen deliberately:** `git rev-parse HEAD` in
+`--repo-root`, both locally and in CI. Locally, the merge gate runs from the
+ride's own checkout right before `gh pr merge` (`.aai/SKILL_PR.prompt.md`
+step 6) — local HEAD genuinely IS the commit about to be merged, which is
+the whole point of running the check there. In CI, the report-only
+`sweep-check` job SPEC-0182 already specifies (`.github/workflows/
+docs-numbering.yml`) runs inside its OWN checkout of the same ref, so `git
+rev-parse HEAD` names the identical commit there too — no `gh` dependency
+was added to keep `lane-gate.mjs`'s zero-network posture (its own header:
+"Zero dependencies... Node stdlib only") for a predicate that a plain git
+command already answers correctly in both contexts.
+
+Fix for (b): `--sweep-check`, when the caller supplies neither `--base-ref`
+nor `--files-from`, now auto-resolves the upstream default branch
+(`resolveUpstreamDefaultRef`, a small local copy of the SAME resolution order
+`close-work-item.mjs`'s own post-merge-close advisory already uses —
+`origin/HEAD` symbolic ref, then the literal `origin/main`/`origin/master` —
+never an import, since `close-work-item.mjs` is content-hash pinned and out
+of this ride's scope to touch or gain a new caller of) and uses it as
+`--base-ref`, recovering a real diff surface instead of silently forcing
+`heavy`. Fixtures with no `.git` at all (every existing sweep-check test)
+are unaffected: `resolveUpstreamDefaultRef` fails closed to `null` there,
+preserving every prior assertion byte-for-byte. New **TEST-598** (a real git
+fixture with a faked `origin/main` ref proves a genuine fast-lane record now
+passes) and **TEST-599** (the stale-head denial, both sides resolvable).
+
+**5 (P1, claude-hook-gate.sh:~156).** `gh pr merge` accepts `[<number> |
+<url> | <branch>]` positionally, but the parser recognised only a bare digit
+token; a branch name (`gh pr merge feature-branch`) or a PR URL fell through
+to the SAME path as a targetless `gh pr merge` and was judged against
+whatever PR a bare `gh pr view` resolves for the CURRENT branch — a
+different PR than the one actually named on the command line. Also widened
+in the same pass, matching the reviewer's own example: value-taking flags
+were previously stripped for `-R`/`--repo` only; `-b`/`--body`,
+`-F`/`--body-file`, `-t`/`--subject` and `--match-head-commit` are now
+stripped too, INCLUDING a quoted phrase carrying embedded spaces
+(`--subject "fix 123"`), which the prior single-token pattern only ever
+consumed up to the first internal space, leaving a stray `123"` behind that
+misread as a (wrong) positional target — reproduced and fixed as part of
+re-recording TEST-587 below. Fixed: after stripping every value-taking flag
+and every remaining boolean flag, the first surviving bare token is the
+TARGET, in whichever of the three forms it takes; a numeric target is used
+directly (unchanged fast path), a non-numeric one is resolved via `gh pr
+view <target> --json number -q .number`, under the SAME capability-before-
+deny split `fu-hookgate-capability-before-deny` already established (no `gh`
+at all -> capability absent, fall through, allow; `gh` present but the
+target genuinely does not resolve -> deny). New **TEST-597**.
+
+**6 (P2, close-reconcile.mjs:~450).** `missingPairedSpecMention` (Spec-
+AC-04(b)'s candidate-detection stage) matched a paired spec only by the
+literal `spec-<primaryId>` convention, ignoring a spec's own
+`links.requirement` — the SAME off-convention fallback `pairItems()` already
+honours for docs already flagged as items (Spec-AC-05, TEST-527), but never
+applied at the earlier candidate-detection stage. An off-convention spec
+elsewhere in the untouched corpus, pointing back at the primary through
+`links.requirement`, was mis-reported `id-mention-unpaired` even though the
+range's own delivered text supports the pairing. Fixed by indexing every
+corpus spec's `links.requirement` (touched and untouched, mirroring how
+`specIdsInCorpus` already indexes ids from both) and consulting it as a
+second, fallback pairing key. New **TEST-595**.
+
+**7 (P2, pr-platform.mjs:~160).** The pre-push shared-page check
+(`--check-shared-page-conflicts`) listed every open PR touching a
+`SHARED_GENERATED_PAGES` member without first checking whether the branch
+being pushed changes that page at all — once any unrelated open PR touched
+`docs/INDEX.md`, every other branch was stopped with a conflict it could not
+possibly create. Fixed: the overlap is now intersected with this branch's
+own changed files, recovered the SAME way `lane-gate.mjs --sweep-check` now
+recovers its own diff surface (a `resolveUpstreamDefaultRef`-based
+`git diff` against the upstream default branch, or an explicit `--base-ref`/
+`--files-from` override for test determinism — mirroring `lane-gate.mjs`'s
+own flag names, not a new convention). When the branch's own changed set
+cannot be determined at all (no git, no resolvable base, an unreadable
+`--files-from`), the check falls back to the PRE-FIX conservative
+report-every-overlap behaviour rather than silently narrowing to nothing —
+the same "unknown never reads as clean" direction finding 1 above restates
+for a different gate. No prompt-byte cost: the documented invocation
+(`.aai/SKILL_PR.prompt.md:302-304`) is unchanged text; only the CLI's default
+behaviour got smarter. New **TEST-593**.
+
+**8 (Copilot, tests/skills/test-aai-state.sh:~58 — test-file only, no
+Spec-AC, not a spec Test Plan row, same class as TEST-591/592).**
+`cleanup()`'s `docs/INDEX.violations.md` restore path (armed by
+`test_019_regression_anchor`) copied its `mktemp` backup back over the real
+file but never removed the backup itself, leaking one file into `/tmp` per
+run this arm ever actually exercised. Fixed with an unconditional `rm -f`
+right after the restore. New **TEST-078**, RED/GREEN confirmed by hand (the
+`rm -f` line removed then restored, matching Amendment 25's TEST-591/592
+proof-arm convention) rather than through `mutation-run.mjs`, since this
+fixes test-harness housekeeping, not a Spec-AC-governed behaviour.
+
+**Verification.** This amendment touches `.aai/scripts/close-reconcile.mjs`,
+`.aai/scripts/generate-overview.mjs`, `.aai/scripts/append-event.mjs`,
+`.aai/scripts/lane-gate.mjs`, `.aai/scripts/claude-hook-gate.sh`,
+`.aai/scripts/pr-platform.mjs`, `tests/skills/test-aai-close-reconcile.sh`,
+`tests/skills/test-aai-overview.sh`, `tests/skills/test-aai-hooks-overlay.sh`,
+`tests/skills/test-aai-pr-platform.sh`,
+`tests/skills/test-aai-lightweight-lane.sh` and
+`tests/skills/test-aai-state.sh`. `mutation-gate.mjs --spec <this spec>`
+first reported `GATE FAIL: 12 offending row(s)` — every prior Test Plan row
+whose target is one of the six edited product files (TEST-524/525/526/527,
+TEST-555/556, TEST-569, TEST-573/584/586, TEST-574/587) staled by this
+amendment's own edits to their targets; each was re-run against its own
+already-recorded `mutation:` expression (byte-identical text, still present
+after this amendment's edits, except TEST-587 whose patch no longer applied
+after the claude-hook-gate.sh restructuring and was regenerated against the
+same line, same semantic mutation, new line numbers) and reddened again,
+matching its prior first-fail shape. Second gate run:
+`GATE PASS: 79 row(s) satisfied degraded=0 unstamped=0` (72 prior + 7 new:
+TEST-593 through TEST-599). `node .aai/scripts/mutation-run.mjs --replay
+--spec <this spec>` independently confirmed 77/77 attempted records still
+redden (2 inconclusive: TEST-537 by this session's own concurrent
+`docs-audit.mjs --check` write to `docs/ai/EVENTS.jsonl` racing the D7
+tripwire — the exact benign class Amendment 22 already documented, not a
+regression; TEST-587's stale-patch failure, resolved by the re-record
+above). `tests/skills/test-aai-close-reconcile.sh` (22 PASS lines, 0 FAIL),
+`tests/skills/test-aai-overview.sh` (17 PASS lines), `tests/skills/
+test-aai-golden-flow.sh` (19 PASS lines), `tests/skills/
+test-aai-hooks-overlay.sh` (20 PASS lines), `tests/skills/
+test-aai-pr-platform.sh` (31 PASS lines), `tests/skills/
+test-aai-lightweight-lane.sh` (28 PASS lines) and `tests/skills/
+test-aai-state.sh` (80 PASS lines) were each run in full, rc=0, zero FAIL
+lines. `docs-audit.mjs --check --strict`, `spec-amend.mjs list --strict`,
+`follow-ups.mjs verify-closures --strict` and `spec-lint.mjs --path <this
+spec>` are all clean. The working tree is left clean of this session's own
+diagnostic byproducts (a stray `docs/INDEX.md` timestamp bump and a stray
+`docs_audit` EVENTS.jsonl line from an interim `--check` run, both reverted
+before this amendment's own commit). This amendment's own `spec-amend.mjs
+add` record uses `--ref close-ceremony-sweep`, per Amendment 20's correction
+of Amendment 18's mistake.
+
+Sign-off: none (tracked).
 
 ## Notes
 

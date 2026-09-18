@@ -56,6 +56,12 @@ cleanup() {
     if [[ "$INDEX_VIOLATIONS_REAL_EXISTED" == "1" && -n "$INDEX_VIOLATIONS_REAL_BACKUP" && -f "$INDEX_VIOLATIONS_REAL_BACKUP" ]]; then
       cp "$INDEX_VIOLATIONS_REAL_BACKUP" "$viol" \
         || echo "NOTE: could not restore docs/INDEX.violations.md — the untracked companion may be left dirty" >&2
+      # Copilot (PR #385 bot review, Amendment 27): the mktemp backup itself
+      # was never removed after restoring from it, leaking one file into
+      # /tmp per run (or per CI job) forever. Removed unconditionally once
+      # its job (the restore above) is done, whether the restore succeeded
+      # or not — nothing else in this suite reads it afterward.
+      rm -f "$INDEX_VIOLATIONS_REAL_BACKUP"
     elif [[ "$INDEX_VIOLATIONS_REAL_EXISTED" == "0" && -f "$viol" ]]; then
       rm -f "$viol"
     fi
@@ -3097,6 +3103,38 @@ test_071_rguard_predicate_which_file() {  # TEST-037 / Spec-AC-12
   log_pass "R-GUARD asks WHICH file — mktemp fixture writes, shipping/other-project STATE refuses exit 3 byte-identical, CORE suite green with no scrub (TEST-037)"
 }
 
+test_078_index_violations_backup_removed_after_cleanup() {  # Copilot, PR #385 bot review, Amendment 27
+  log_info "Test: cleanup()'s docs/INDEX.violations.md restore removes its OWN mktemp backup afterward, leaking no stray /tmp file (Copilot PR #385 bot review)..."
+  local scratch_root backup_file
+  scratch_root="$(mktemp -d "${TMPDIR:-/tmp}/aai-state-t078-root.XXXXXX")"
+  mkdir -p "$scratch_root/docs"
+  echo "pre-existing violations (must be restored)" > "$scratch_root/docs/INDEX.violations.md"
+  backup_file="$(mktemp "${TMPDIR:-/tmp}/aai-state-t078-backup.XXXXXX")"
+  echo "backed-up content" > "$backup_file"
+
+  # Run cleanup() in a SUBSHELL with PROJECT_ROOT/TEST_DIR/KEEP_TEST_DIR and
+  # the INDEX_VIOLATIONS_REAL_* globals overridden locally, so this never
+  # touches the real repo's own docs/INDEX.violations.md or TEST_DIR — the
+  # same "existed=1, a real backup file present" branch test_019 arms.
+  (
+    PROJECT_ROOT="$scratch_root"
+    TEST_DIR=""
+    KEEP_TEST_DIR=""
+    INDEX_VIOLATIONS_REAL_ARMED=1
+    INDEX_VIOLATIONS_REAL_EXISTED=1
+    INDEX_VIOLATIONS_REAL_BACKUP="$backup_file"
+    cleanup
+  )
+
+  [[ ! -f "$backup_file" ]] \
+    || { rm -rf "$scratch_root" "$backup_file"; log_fail "TEST-078: cleanup() left its mktemp backup behind: $backup_file"; }
+  grep -q "backed-up content" "$scratch_root/docs/INDEX.violations.md" \
+    || { rm -rf "$scratch_root"; log_fail "TEST-078: cleanup() did not restore the backup's content before removing it"; }
+
+  rm -rf "$scratch_root"
+  log_pass "TEST-078: cleanup() restores docs/INDEX.violations.md then removes its own mktemp backup, no stray /tmp file left"
+}
+
 test_077_rguard_directory_symlink() {  # TEST-039 / Spec-AC-12 (validation-round1 B1)
   log_info "Test: R-GUARD judges a --state path's REAL directory target, not its spelling — a directory symlink into the repo's docs/ai is refused byte-identically, a plain .. traversal into the repo still refuses, a symlink to a scratch dir is allowed, and a not-yet-existing scratch leaf is allowed through the guard (TEST-039)..."
 
@@ -3535,6 +3573,7 @@ main() {
   test_074_amend_run
   test_075_clear_focus
   test_076_help_and_usage_grammar
+  test_078_index_violations_backup_removed_after_cleanup
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
