@@ -606,15 +606,40 @@ export function isGitWorkTree(root) {
   }
 }
 
+// existsOnDisk(p) -> true/false for "the path is there to read", but ONLY
+// for the ordinary-dirty-tree shape (ENOENT): a tracked path git's INDEX
+// still names after the file was moved, renamed or deleted on disk without
+// staging either side of the move — exactly what `docs-canon.mjs` phase 2
+// (and a plain `mv`/`rm`) produce, in every dirty tree, all the time. Any
+// OTHER stat failure (EACCES, ELOOP, ENOTDIR, ...) is NOT that shape and is
+// rethrown rather than swallowed — "could not look" must never read as
+// "nothing to find" (spec-close-ceremony-sweep D9's own class, applied here
+// to the walk itself, not only to the AC-table shape check it was written
+// for).
+function existsOnDisk(p) {
+  try {
+    fs.statSync(p);
+    return true;
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return false;
+    throw e;
+  }
+}
+
 // walkTracked(root, dir) -> absolute paths of every git-TRACKED .md file
-// under root/dir (recursive; excludes INDEX.md and .gitkeep, the same filter
-// walk() applies), replacing a working-tree readdir/walk with `git ls-files`
-// (spec-close-ceremony-sweep D3, M8: a generated page must be built from
-// what git tracks, never from an untracked draft or one machine's scratch
-// file sitting in the working tree). Outside a git work tree, degrades to
-// walk() with a NOTE on stderr naming the fallback (degrade-with-NOTE
-// convention, .aai/AGENTS.md) — a non-git consumer of the generator still
-// gets a best-effort index rather than an empty one.
+// under root/dir that ALSO exists on disk right now (recursive; excludes
+// INDEX.md and .gitkeep, the same filter walk() applies), replacing a
+// working-tree readdir/walk with `git ls-files` (spec-close-ceremony-sweep
+// D3, M8: a generated page must be built from what git tracks, never from an
+// untracked draft or one machine's scratch file sitting in the working
+// tree). The tracked set and the on-disk set differ in every dirty tree —
+// this is the ONE place that reconciles them (Spec-AC-22 robustness
+// contract, spec-close-ceremony-sweep TEST-576): a tracked-but-vanished path
+// is SKIPPED, never handed to a caller's `readFileSync` to crash on: the
+// walk enumerates what git tracks and reads what exists. Outside a git work
+// tree, degrades to walk() with a NOTE on stderr naming the fallback
+// (degrade-with-NOTE convention, .aai/AGENTS.md) — a non-git consumer of the
+// generator still gets a best-effort index rather than an empty one.
 export function walkTracked(root, dir) {
   if (!isGitWorkTree(root)) {
     console.error(`NOTE: ${root} is not a git work tree — ${dir} falls back to a working-tree walk (untracked files may be included).`);
@@ -632,7 +657,9 @@ export function walkTracked(root, dir) {
     if (!rel || !rel.endsWith('.md')) continue;
     const base = path.basename(rel);
     if (base === 'INDEX.md' || base === '.gitkeep') continue;
-    out.push(path.join(root, rel));
+    const abs = path.join(root, rel);
+    if (!existsOnDisk(abs)) continue;
+    out.push(abs);
   }
   return out.sort();
 }

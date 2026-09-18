@@ -3792,6 +3792,54 @@ MD
   log_pass "TEST-554: INDEX enumerates tracked documents only; a non-git tree degrades with a named NOTE"
 }
 
+test_576_tracked_but_vanished_is_skipped_not_crashed() {  # TEST-576 / Spec-AC-22
+  log_info "Test: a committed doc deleted or moved on disk without staging is skipped, not crashed on; the index regenerates clean and never names it (TEST-576)..."
+  local d; d="$(setup_iso_repo t576)"
+  mkdir -p "$d/docs/specs"
+  cat > "$d/docs/specs/SPEC-9001-present.md" <<'MD'
+---
+id: SPEC-9001
+type: spec
+number: 9001
+status: done
+links:
+  pr: []
+---
+# Present doc
+MD
+  cat > "$d/docs/specs/SPEC-9002-vanishing.md" <<'MD'
+---
+id: SPEC-9002
+type: spec
+number: 9002
+status: done
+links:
+  pr: []
+---
+# Vanishing doc
+MD
+  (cd "$d" && git add docs/specs && git commit -qm "docs: two tracked specs")
+  # Move it OFF disk without staging either side — the ordinary shape a
+  # `mv`/`rm`, or docs-canon.mjs phase 2, produces in a dirty tree: git's
+  # index still names docs/specs/SPEC-9002-vanishing.md, nothing on disk
+  # answers to that path any more.
+  mv "$d/docs/specs/SPEC-9002-vanishing.md" "$d/SPEC-9002-vanishing.md.elsewhere"
+
+  local rc=0
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-576: generate-docs-index.mjs must exit 0 over a tracked-but-vanished path, not crash: $(cat "$d/gen.log")"
+  grep -qi "ENOENT" "$d/gen.log" \
+    && log_fail "TEST-576: no ENOENT stack trace may reach stdout/stderr: $(cat "$d/gen.log")"
+  grep -qF "SPEC-9001" "$d/docs/INDEX.md" \
+    || log_fail "TEST-576: the still-present tracked doc must still be indexed: $(cat "$d/docs/INDEX.md")"
+  grep -qF "SPEC-9002" "$d/docs/INDEX.md" \
+    && log_fail "TEST-576: the vanished doc must NOT be named in the regenerated INDEX"
+
+  rm -rf "$d"
+  log_pass "TEST-576: a tracked-but-vanished doc is skipped, never crashed on; the index still regenerates over what is left"
+}
+
 test_559_posix_predicate_infra_exit() {  # TEST-559 / Spec-AC-24
   log_info "Test: the index POSIX predicate distinguishes an infra throw (exit 2, message captured) from a genuine finding (exit 1) (TEST-559)..."
   # Self-sufficient: works whether or not setup_indexarm_snapshots ran first.
@@ -7759,6 +7807,7 @@ main() {
   test_537_shape_check_live_yield
   test_538_duplicate_ac_id_multiplicity
   test_554_index_tracked_only
+  test_576_tracked_but_vanished_is_skipped_not_crashed
   test_559_posix_predicate_infra_exit
   test_change0007_lint_stray_markup
   test_change0007_lint_unbalanced_fence
