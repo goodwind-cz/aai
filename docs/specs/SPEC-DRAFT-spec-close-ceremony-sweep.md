@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: dbb80df8fc94f10dc80f0566e893308806b19414e6c6dd2effccc0542c689c9c
+frozen_sha256: 2a163530222e08b749dd0d2e77c9a6054a034852a10d6d18c2c7954c0e8d9b0b
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -2039,6 +2039,76 @@ list --strict`, `follow-ups.mjs verify-closures --strict` and `spec-lint.mjs
 --path <this spec>` are all clean. The working tree is left clean; this
 amendment's own record uses `--ref close-ceremony-sweep` (the sibling ref id,
 per Amendment 20's own correction of Amendment 18's mistake).
+
+Sign-off: none (tracked).
+
+## Amendment 24 (post-freeze, 2026-09-18 — code review 20260918T172546Z round 2, R2-NB-1 closed; two corrections to Amendment 23, TDD run 20)
+
+**R2-NB-1 closed: `reviewer_bots` is now judged inside `sweepContradictions`,
+the sixth and last field.** Amendment 23 left it alone, citing round 1's NB-3
+(an open vocabulary) as pre-existing and unrelated. Round 2 measured a wider
+gap than the typo: the writer (`append-event.mjs:179`) refuses a MISSING
+`--reviewer-bots` outright, but the reader accepted a hand-appended record
+with no `reviewer_bots` key at all — `SWEEP-CHECK allowed`, rc=0 — because
+nothing on the read side re-checked presence, let alone value. `lib/pr-sweep.mjs`
+now exports `REVIEWER_BOTS_VALUES` (`:20`), the closed tri-state
+`expected|none|unknown` `pr-platform.mjs` already classifies and
+`.aai/SKILL_PR.prompt.md:468`'s own `--reviewer-bots <expected|none|unknown>`
+already documents for this exact flag — read, not invented, per dispatch.
+`sweepContradictions` (`:62-64`) now refuses a `reviewer_bots` that is absent
+or outside this set, the same way it already refuses an out-of-vocabulary
+`outcome`.
+
+Two new arms in `TEST-574` (`tests/skills/test-aai-hooks-overlay.sh`, PR 53
+and PR 54): a record with the key entirely absent, and one carrying the exact
+typo round-1 NB-3 named (`reviewer_bots: "expectd"`); both denied, rc=2,
+deny message naming the PR. RED verified by re-running the row's own already
+-recorded mutation (`.aai/scripts/claude-hook-gate.sh`,
+`sed:s/if \[ "\$SWEEP_RC" -eq 5 \]; then/if false; then/`) against the
+current suite: the fresh record's FAIL list now names PR 53 and PR 54
+alongside the six pre-existing arms, confirming the new arms are exercised by
+the same mutation the row already pins, not merely present. GREEN restored;
+`tests/skills/test-aai-hooks-overlay.sh` passes in full (17/17).
+
+**Correcting Amendment 23 (not edited in place).**
+
+1. Amendment 23's BLOCKING-1 section says: "`sweepContradictions` now judges
+   every field `append-event.mjs` validates before it will write" and then,
+   two sentences later, carves `reviewer_bots` out of that claim by name. The
+   module header comment beside the predicate (`lib/pr-sweep.mjs:37-40`) made
+   the identical claim. Both were false by exactly one field from the moment
+   Amendment 23 was written until this commit — code review round 2's R2-NB-1
+   measured it directly (a hand-appended record with no `reviewer_bots` key
+   read `SWEEP-CHECK allowed`, rc=0). It is true as of this amendment: the
+   fix above closes the one field both sentences already claimed was closed.
+
+2. Amendment 23's Verification paragraph names the four staled targets and
+   their rows — `lib/pr-sweep.mjs` (TEST-585), `docs-audit-core.mjs`
+   (TEST-538/539/541/542), `SKILL_PR.prompt.md` (TEST-552/568),
+   `CHANGELOG.md` (TEST-570) — eight rows by that paragraph's own list
+   (1 + 4 + 2 + 1), then says "All seven were re-run LAST." Code review round
+   2 checked the file mtimes and confirmed all eight were in fact
+   re-recorded; only the count sentence was wrong. Corrected here: all
+   eight were re-run.
+
+**Verification.** This amendment touches `.aai/scripts/lib/pr-sweep.mjs` (the
+`REVIEWER_BOTS_VALUES` check) and `tests/skills/test-aai-hooks-overlay.sh`
+(TEST-574's two new arms); no other file changed.
+`mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md`:
+first run reported `GATE FAIL: 1 offending row(s)` — TEST-585's record staled
+by the `lib/pr-sweep.mjs` edit (target_sha256 mismatch), exactly the row
+Amendment 23 itself re-recorded last time the same file changed. Re-run with
+TEST-585's own already-recorded mutation expression
+(`sed:s/!\/\^\[0-9\]\+\$\/\.test\(raw\)/!\/^[0-9]+(\.[0-9]+)?$$\/.test(raw)/`)
+against the final edited target: RED confirmed, re-recorded. Second gate run:
+`GATE PASS: 72 row(s) satisfied degraded=0 unstamped=0`, zero offending.
+`tests/skills/test-aai-hooks-overlay.sh`, `tests/skills/test-aai-golden-flow.sh`
+and `tests/skills/test-aai-lightweight-lane.sh` were each run in full and
+pass. `docs-audit.mjs --check --strict`, `spec-amend.mjs list --strict`,
+`follow-ups.mjs verify-closures --strict` and `spec-lint.mjs --path <this
+spec>` are all clean (rc=0). The working tree is left clean; this amendment's
+own record uses `--ref close-ceremony-sweep`, per Amendment 20's correction
+of Amendment 18's mistake.
 
 Sign-off: none (tracked).
 

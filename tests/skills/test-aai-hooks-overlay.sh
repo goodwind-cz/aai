@@ -644,6 +644,27 @@ GHSTUB
   [[ "$rc" -eq 2 ]] || { log_info "TEST-574: string-typed pr field record (PR 52) exited $rc (want 2)"; ok=0; }
   assert_payload_contains "$err" "52" "TEST-574: string-pr deny message does not name PR 52: $err" || ok=0
 
+  # R2-NB-1 (code review 20260918T172546Z round 2): reviewer_bots was the
+  # SIXTH field append-event.mjs validates that sweepContradictions did not
+  # judge -- the writer refuses a missing --reviewer-bots (append-event.mjs
+  # "pr_sweep requires --reviewer-bots"), but a hand-appended record with NO
+  # reviewer_bots key at all used to read SWEEP-CHECK allowed, rc=0. Denied
+  # now that the shared predicate judges the field against the SAME closed
+  # tri-state SKILL_PR.prompt.md:468 documents (expected|none|unknown).
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":53,"lane":"heavy","threads_seen":3,"threads_unresolved":0,"outcome":"internal_substituted"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 53 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: absent-reviewer_bots record (PR 53) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "53" "TEST-574: absent-reviewer_bots deny message does not name PR 53: $err" || ok=0
+
+  # Same field, an out-of-vocabulary VALUE rather than an absent key (round-1
+  # NB-3's typo shape, now closed by the same rule) -- "expectd" is not one
+  # of expected|none|unknown and must be denied like any other malformed
+  # field, not read as truthy-and-therefore-fine.
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":54,"lane":"heavy","reviewer_bots":"expectd","threads_seen":3,"threads_unresolved":0,"outcome":"internal_substituted"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 54 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: unknown-value reviewer_bots record (PR 54) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "54" "TEST-574: unknown-value reviewer_bots deny message does not name PR 54: $err" || ok=0
+
   # `lane` cannot be reached with an illegal value through this hook path at
   # all (the lane-mismatch check ahead of sweepContradictions already denies
   # anything other than the two values computeLaneVerdict can itself

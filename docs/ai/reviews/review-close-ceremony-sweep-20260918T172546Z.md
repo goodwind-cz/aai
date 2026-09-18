@@ -279,3 +279,204 @@ Recommended disposition per NON-BLOCKING finding — the orchestrator records th
 **code_quality: fail** — two BLOCKING findings.
 
 Both are cheap: one line plus an import in `lane-gate.mjs`, and a decision about which of two files states the CHANGELOG convention. Nothing in this review asks for a redesign, and the three areas I attacked hardest (the `--paired` transaction, the shared-page derivation, the amendment discipline) are the strongest work I have reviewed in this repository.
+
+---
+
+# Round 2 — remediation review
+
+```yaml
+review_round2:
+  scope: git diff e53f2848..d4be7112 (12 files, +722/-30, 1 commit) + one confirmation pass over round 1's NON-BLOCKING list
+  spec_compliance:
+    verdict: pass
+    changed_rows:
+      - { ac: Spec-AC-30, call: compliant, was: non-compliant,
+          citation: "CHANGELOG.md now carries `## [unreleased] — feat(ceremony): ... (CHANGE-DRAFT-close-ceremony-sweep / SPEC-DRAFT-spec-close-ceremony-sweep)` with 9 bullets. `bash .aai/scripts/aai-release.sh --dry-run` (re-run here) rolls it up as the first entry, rc=0, and the notes preview renders it. The second clause (commit-vs-staged verification) was already delivered." }
+      - { ac: Spec-AC-31, call: compliant, was: non-compliant,
+          citation: "SKILL_PR.prompt.md:145-149 no longer restates the shape; it cross-references \"CHANGELOG.md's own preamble\" by name. The preamble now separates what aai-release.sh's awk classifier actually matches (`^## \\[unreleased\\] — `) from the `<type>: <title>` house convention, which is exactly true against aai-release.sh:261. TEST-570 now COUNTS (measured below). Residual, filed: two statements of the shape predate this ride on main (aai-release.sh:383 prints `'## [unreleased] — <title>'`, a DIFFERENT shape; SPEC-0063:75 states a third variant with `(<refs>)`), and TEST-570's count is scoped to two named files, so neither is seen." }
+      - { ac: Spec-AC-33, call: compliant, unchanged_call_stronger_evidence:
+          "sweepContradictions now validates outcome/lane/pr/threads_seen/threads_unresolved inside the one predicate. Round-1 NB-3 (reviewer_bots) is unchanged and widens — see R2-NB-1." }
+      - { ac: Spec-AC-34, call: cannot-verify, was: cannot-verify,
+          citation: "Limb (b) — the read side accepting a record the writer would refuse — is CLOSED (my repro is now denied; full matrix below). Limb (a) is unchanged: `.aai/templates/hooks/settings-hooks.json:2` says of itself 'OPT-IN: nothing installs this automatically', and this worktree has no `.claude/settings.json` at all, so the merge gate is still not in force on this ride's own merge. The AC's text discloses this; I keep the row at cannot-verify rather than downgrading it." }
+  code_quality:
+    verdict: pass
+    blocking_1: closed
+    blocking_2: closed
+    findings:
+      - { rank: NON-BLOCKING, id: R2-NB-1, file: .aai/scripts/lib/pr-sweep.mjs, line: 30,
+          issue: "The new header comment says sweepContradictions is judged so that 'every field append-event.mjs validates before it will write a record must be judged here too', and Amendment 23 repeats it ('judges every field append-event.mjs validates'). Measured false for one field: the writer refuses a missing --reviewer-bots (`append-event.mjs:179`, verified: rc=2 'pr_sweep requires --reviewer-bots'), the reader does not.",
+          failure_scenario: "Measured: a hand-appended record with NO reviewer_bots key at all, lane heavy, counts 0, outcome internal_substituted reads `SWEEP-CHECK allowed pr=999 lane=heavy outcome=internal_substituted`, rc=0. It reaches nothing round-1 NB-3's one-character typo did not already reach, so the RANK is unchanged — but the parity CLAIM is now stated twice and is measurably not true. Three lines (`if (!p.reviewer_bots) bad.push(...)`) make the sentence true and close NB-3's presence half at the same time." }
+      - { rank: NON-BLOCKING, id: R2-NB-2, file: CHANGELOG.md, line: 42,
+          issue: "The pr_sweep bullet tells an operator that \"`claude-hook-gate.sh`'s `merge` gate denies ... a merge with no matching, consistent record for that PR and lane\" with no mention that the PreToolUse overlay carrying that hook is opt-in and installed nowhere by default.",
+          failure_scenario: "This is the ride's own cannot_verify #1 restated as an operator-facing fact. A vendoring project reads the changelog, believes merges are gated, and never runs `aai-bootstrap.sh --with-claude-hooks`; nothing denies anything. One clause ('when the hooks overlay is installed') fixes it." }
+      - { rank: NON-BLOCKING, id: R2-NB-3, file: docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md, line: 2019,
+          issue: "Amendment 23's Verification paragraph names EIGHT staled rows (TEST-585; 538/539/541/542; 552/568; 570) and then says 'All seven were re-run LAST'. The work was done — all eight records carry mtimes 19:46:30–19:51:08 — only the count is wrong.",
+          failure_scenario: "Not a defect in the work; a defect in the record, in the same paragraph class round 6 had just corrected two arithmetic errors in (62->58, 62+13=75!=71). Cheap to fix while the spec is still editable." }
+      - { rank: NON-BLOCKING, id: R2-NB-4, file: CHANGELOG.md, line: 15,
+          issue: "The rewritten preamble describes ONE of exit 12's two arms. aai-release.sh's awk marks MALFORMED both for a bare `## [unreleased]` with non-blank body (named) AND for any `## [unreleased]` heading carrying trailing text that is not the `— ` form (`:264-269`, the else branch) — which the shell's own refusal message at :326 does name ('unexpected trailing text or a stray heading-only body').",
+          failure_scenario: "Conservative direction (the preamble under-claims rather than over-claims, which is the opposite of round 1's complaint), but an author who writes `## [unreleased] v2` gets exit 12 with nothing in the preamble having warned them." }
+  cannot_verify:
+    - { claim: "The full 95-suite framework sweep is green at d4be7112.",
+        closes_with: "One `env -u AAI_ROLE AAI_TEST_TIMEOUT=3000 bash tests/skills/test-framework.sh`. I ran six suites' worth of targeted evidence (test-aai-release.sh full, plus the mutation gate, the vendored-deps checker, cd-subshell-leak and aai-release --dry-run); the sweep itself is Validation's, not mine." }
+    - { claim: "Spec-AC-34's merge gate stands between this ride and its own merge.",
+        closes_with: "Unchanged from round 1 and now measured at the source: the overlay template's own `_comment` declares it opt-in, and `.claude/` here holds only `skills/`." }
+  overall: pass
+```
+
+## BLOCKING-1 — closed, and the vocabulary probed past the repro
+
+My round-1 repro, re-run verbatim against a scratch fixture carrying `lane-gate.mjs` + `lib/` at d4be7112 (the worktree itself was never written; `docs/ai/EVENTS.jsonl` is 2324 lines before and after, `git status` clean):
+
+```
+round1-repro-unknown-outcome  rc=5  SWEEP-CHECK denied reason=contradictory-record ... outcome must be one of swept|skipped_fast_lane|internal_substituted, got "totally_fine"
+```
+
+The fix is in the right place. Putting the vocabulary check inside `sweepContradictions` rather than adding a second import to `lane-gate.mjs` means the two sides cannot diverge by import list again — which is what the module header promised and did not deliver. Full matrix I ran (18 records, one per line, `--sweep-check --pr 999`):
+
+| record | verdict | denied by |
+|---|---|---|
+| `outcome: "totally_fine"` | DENIED rc=5 | the new vocabulary rule |
+| unknown lane `"orbit"` | DENIED rc=5 | the **lane-mismatch** check, which fires first — the new `lane` rule is unreachable through the CLI, and TEST-574's fourth arm correctly pins it at the predicate level instead, disclosing exactly that |
+| `threads_seen: -1` | DENIED rc=5 | new integer rule |
+| `pr: 999.5` | DENIED rc=5 | `readPrSweepRecords`' `Number(...) === pr` filter never matches it -> missing-record |
+| `threads_seen` key absent | DENIED rc=5 | new integer rule (`got undefined`) |
+| **`reviewer_bots` key absent** | **ALLOWED rc=0** | nothing — see R2-NB-1 |
+| extra field `merge_me: true` | ALLOWED rc=0 | nothing; the writer builds the payload from six fixed keys, so no consumer reads it — harmless, worth knowing |
+| duplicate `outcome` keys, bad then good | ALLOWED rc=0 | JSON last-wins: a line a human reads as `totally_fine` is judged as `swept` |
+| duplicate `outcome` keys, good then bad | DENIED rc=5 | same last-wins rule, other direction |
+| record `pr` != `--pr` | DENIED rc=5 | filtered out -> missing-record |
+| `pr: "999"` (string) | DENIED rc=5 | new type rule — and this one matters, because `Number("999") === 999` means the filter DID find it |
+| `pr: "0x3e7"` | DENIED rc=5 | same |
+| `threads_seen: "3"`, `threads_unresolved: "0"` | DENIED rc=5 | new type rule |
+| `reviewer_bots: "expectd"` (round-1 NB-3) | ALLOWED rc=0 | unchanged, disclosed |
+| `reviewer_bots: {}` | ALLOWED rc=0 | unchanged |
+| `payload: null` | DENIED rc=5 | missing-record |
+| `threads_unresolved: true` | DENIED rc=5 | new integer rule |
+
+**Answer to the question as asked: identically-ish, not identically.** Five of the six payload fields are now judged by the same rule on both sides, verified in both directions. `reviewer_bots` is the sixth, and the divergence there is not only the open vocabulary round 1 filed — the writer refuses the field's *absence* and the reader does not. The remediation's own comment and Amendment 23 both assert full parity; that sentence is false by one field. I am not blocking on it, because it reaches nothing the already-NON-BLOCKING typo does not, but it is three lines from being true.
+
+I also verified the RED side of the amendment's claim rather than taking it: with `lib/pr-sweep.mjs` reverted to e53f2848 in the fixture, all three hook-level arms return `rc=0 SWEEP-CHECK allowed` and the direct predicate call returns `CLEAN`. The four new TEST-574 arms are real RED-verified arms, not assertions written green.
+
+One side effect worth recording: `append-event.mjs` now refuses a bad count twice (`parseSweepCount` at parse, `sweepContradictions` after). TEST-585's re-recorded mutation shows it — under mutation the writer still refuses, and the row reddens only because the message no longer names `--threads-seen`. The row still reddens, but it now pins a message string rather than the refusal itself. Disclosed in the record; no action asked.
+
+## BLOCKING-2 — closed, judged as an operator
+
+**Does the entry name what a consumer will notice?** Yes, and it leads with the right one. Bullet 1 is `ride-select.mjs`'s gate, stated as a behaviour change with the before-state named and an action for the reader ("re-run against your own `docs/ai/roadmap.yaml`"). Bullet 2 is the `--strict` near-miss hard-fail, and it names the partition precisely — `draft/proposed/accepted/implementing/frozen` hard-fail, the six terminal statuses report-only — which is more useful than the AC's own wording. Ten of the twelve items my round-1 list said the entry would have to cover are there; the two absent are the intake-staleness STEP 0 move and SKILL_INTAKE's block count, both AAI-internal and fairly dropped. `aai-release.sh --dry-run` rolls it up correctly (rc=0, rendered above the nine prior entries, scaffold preserved on top).
+
+**Is the convention stated once, where its tool reads it?** The inversion my round-1 finding named is gone: the ride no longer *creates* a duplicate, SKILL_PR cross-references instead of restating, and the preamble now says precisely what the parser matches versus what is house style. That is the AC's property, delivered by the AC's own cross-reference pattern.
+
+It is still not literally once in the corpus, and both extra statements predate this ride on main (`git show main:` confirms both):
+
+- `.aai/scripts/aai-release.sh:383` prints, to the operator, `Add a '## [unreleased] — <title>' section for each` — a **different shape**, missing `<type>:`, inside the tool itself.
+- `docs/specs/SPEC-0063-spec-aai-release-skill.md:75` states a third variant, `## [unreleased] — <type>: <title> (<refs>)`.
+
+Not this ride's regression, so not a blocker on this ride — but the ride now ships a counting test, and the count does not see either. Filed.
+
+**Does TEST-570 really count?** Yes. The suite passes at HEAD (`test-aai-release.sh`: ALL TESTS PASSED, TEST-570 green). I ran the new count block verbatim against mutated copies:
+
+| mutation | TEST-570 |
+|---|---|
+| baseline | PASS |
+| a third statement added inside `CHANGELOG.md` | **FAIL** `changelog_hits=2 (want 1)` |
+| the SKILL_PR restatement re-added | **FAIL** `skill_pr_hits=1 (want 0)` |
+| the cross-reference phrase removed from SKILL_PR | **FAIL** `missing cross-reference` |
+| a statement added to a **third file** (`.aai/SKILL_RELEASE.prompt.md`) | PASS — invisible |
+
+So the answer is: it counts, in the two files the finding named, in all three directions. It is a two-file count, not a corpus count, and `aai-release.sh:383` is live proof that a third file is where the next one actually lives. Widening the count to a corpus grep is the same three lines.
+
+## The three truth-fixes
+
+**1. `docs-audit-core.mjs` — the terminal partition.** Correct, and it now says what I asked and a little more: it names `TERMINAL_DOC_STATUS` a PROXY, states the counterexample (a doc created `draft` with a broken table and flipped to `done` in one PR reaches main exempt), names why the proxy holds today (all eight measured documents are and always were `done`), and names the baseline alternative with the three baseline files this same diff already uses. The diff is comment-only; behaviour is untouched. This is the fix, not a hedge.
+
+**2. `#`-comment masking — verified by measurement, not by reading.** I instrumented the shipped checker and a variant with the four-line `#` branch removed, dumped every call edge from both, and diffed the sets:
+
+```
+edges v3.2 (shipped) = 6622    edges v3.1 (no # masking) = 6643
+removed by # masking = 21      added by # masking = 0
+```
+
+The 21 removed are exactly the comment-derived edges I measured in round 1, including all three `test_fn -> main` cases (`test-aai-branch-guard.sh test_006`, `test-aai-deslop.sh test_002_...`, `test-aai-git-ref-guard.sh test_301_...`). Nothing was over-masked. Both variants report `CLEAN — 0 violation(s) (77 vendored engine site(s) checked)`, so the corpus verdict and the site count are unchanged, as claimed.
+
+The word-boundary rule holds. Unit-probing `maskQuotedRegions` directly:
+
+```
+"n=${#arr[@]}; helper_a"        -> unchanged; names: n, helper_a
+"base=${var#pattern}; helper_b" -> unchanged; names: base, helper_b
+"v=${var##*/}; helper_c"        -> unchanged; names: v, helper_c
+"if [ $# -gt 0 ]; ..."          -> unchanged
+"echo \"count=${#list[@]}\"; helper_e" -> dquote-masked only; names: echo, helper_e
+"helper_f # built on top of setup_iso_repo" -> names: helper_f  (setup_iso_repo gone)
+"x=\"$(helper_g --flag)\"  # note helper_h" -> names: x, helper_g  (helper_h gone)
+```
+
+`${#...}` and `${var#...}` are preceded by `{` and `r`, never whitespace, so the branch cannot fire on them — bash's own rule, implemented as bash implements it. I also verified the round-6 correction behind the SCOPE rewrite independently: instrumenting the pre-round checker (`838869fe`) at its `existsSync` push point prints `SITES 58`, so `58 + 13 + 6 = 77` closes and the old "62" did not.
+
+**3. The superseded/corrections index.** Present at lines 1005-1013, immediately before Amendment 1, four entries, each pointing at the correcting amendment's own text rather than restating the correction. It is the shape I proposed and it does the job: a reader opening Amendment 16 now has a signal three sections earlier that one of its sentences is superseded. The one thing it does not do is annotate at the point of the wrong sentence — deliberately, since no amendment is edited in place. Accepted as-is.
+
+## Amendment 23, sentence by sentence
+
+Checked every factual claim I could measure. **Amendments 1-22 are byte-unchanged**: `git diff e53f2848..d4be7112` on the spec removes exactly one line in the whole file (`frozen_sha256`, the restamp) and inserts at exactly two places — line 1002 (the index, before Amendment 1) and line 1814 (after Amendment 22's last line). No hunk touches an existing amendment.
+
+True and verified: the BLOCKING-1 diagnosis and repro quotation; "fixed inside `sweepContradictions` itself, not by adding a second import"; the four TEST-574 arms and their RED-against-pre-fix claim (I reproduced all four); the `readPrSweepRecords` `Number(payload.pr) === pr` reasoning behind the string-`pr` arm; the lane arm being unreachable through the hook path; the BLOCKING-2(b) awk citation (`hline ~ /^## \[unreleased\] — /` and nothing more); the TEST-570 count and its three directions; all three truth-fix descriptions; the `SITES 58` arithmetic; `mutation-gate.mjs` GATE PASS 72/degraded 0/unstamped 0 (I re-ran it); `check-vendored-script-deps` CLEAN at 77 (re-run); `aai-release.sh --dry-run` rolling up the new entry (re-run); `check-cd-subshell-leak.mjs` UNSAFE 0 (re-run, 596 occurrences) and the baseline widening 28 -> 32 for `test-aai-hooks-overlay.sh` alone; the working tree clean.
+
+Two sentences I would change:
+
+- **"`sweepContradictions` now judges every field `append-event.mjs` validates before it will write"** — false for `reviewer_bots`' presence, measured above. The next sentence disclaims the *vocabulary* half of `reviewer_bots` but not the *presence* half, so the disclosure does not reach the overclaim. (R2-NB-1.)
+- **"All seven were re-run LAST"** — the same sentence names eight rows (TEST-585; 538/539/541/542; 552/568; 570), and all eight records were in fact re-recorded (mtimes 19:46:30 through 19:51:08, checked individually). The work is right; the count is off by one. (R2-NB-3.)
+
+**The disclosed replay.** "A full `mutation-run.mjs --replay --spec <this spec>` (all 72 rows) was started as a further check but did not finish in reasonable time and was killed unconfirmed — disclosed rather than claimed: the PASS this verification relies on is `mutation-gate.mjs`'s own target_sha256 match over all 72 rows plus the seven rows individually re-run and reddened above, not a full replay." This is the sentence I most wanted to find, and it is the right one: it names what was attempted, that it failed, that it was killed, and — critically — it restates what the remaining evidence actually is instead of letting the reader assume the replay stood in for it. Coming from a ride that has had to correct four claims-written-before-they-were-true, writing this paragraph is worth more than the replay would have been. (The "seven" is the count error above; the rows themselves are right.)
+
+## Round 1's NON-BLOCKING list — disposition
+
+For the record, the list is **thirteen**, not fourteen (the round-1 `findings` block holds 2 BLOCKING + 13 NON-BLOCKING; the Warning-dispositions table has the matching 13 rows). Amendment 23 counts them the same way.
+
+**Closed by this remediation (2):**
+
+- `check-vendored-script-deps.mjs:455` comment-derived call edges — closed by class (21 edges gone, 0 added, verdict unchanged), not by disclosure. This was the one I said I would not let pass unnamed; it is the one they fixed hardest.
+- `docs-audit-core.mjs:1205` comment asserting a mechanism that does not exist — closed; the comment now states the proxy honestly and names the baseline alternative.
+
+**Aggravated (1):** `check-vendored-script-deps.mjs:414` duplicated rationale — the file went 639 -> 667 lines, comment lines 314 -> 337, comment ratio 49% -> 50%. The v3.1/v3.2 narration is now written out in both the header docstring and the inline comment, one round deeper. Still NON-BLOCKING, still the same fix (keep one statement of "why not the simpler design", move the round archaeology to the amendments where it already lives).
+
+**Widened (1):** `lib/pr-sweep.mjs` `reviewer_bots` — round 1 filed the open vocabulary; round 2 measures that the field's *absence* is also accepted by the reader and refused by the writer.
+
+**Unchanged, still open (10):** the remaining round-1 rows are untouched by this diff, which is correct — the dispatch bounded the round and Amendment 23 says so explicitly.
+
+## Registry items handed back
+
+Fourteen, verbatim-filable. None carries a `fu-close-` / `fu-index-` / `fu-stamp-` / `fu-allocator-` prefix; all ids are <= 40 characters.
+
+| id | severity | what | why |
+|---|---|---|---|
+| `fu-sweep-reviewer-bots-unvalidated` | medium | Give `reviewer_bots` a closed enum (or at minimum a presence check) inside `sweepContradictions`, beside `PR_SWEEP_OUTCOMES`. | The writer refuses a missing/empty `--reviewer-bots` and the reader accepts a record without the key at all (measured `rc=0 allowed`); a one-character typo (`expectd`) likewise converts "bots were expected" into a legal "I reviewed it myself". Three lines also make the module's own stated parity claim true. |
+| `fu-changelog-merge-gate-optin` | low | Add the opt-in qualifier to the `pr_sweep` bullet in CHANGELOG.md's new entry. | It tells operators the merge gate denies, while the overlay carrying that hook declares itself "OPT-IN: nothing installs this automatically" and is installed nowhere in this repo. |
+| `fu-amend23-staled-row-count` | low | Amendment 23's Verification says "All seven were re-run" while naming eight rows; all eight were in fact re-recorded. | A count error in a paragraph whose whole purpose is that the evidence is exactly what it says; still cheaply fixable while the spec is editable. |
+| `fu-changelog-shape-third-statement` | low | Widen TEST-570's statement count to the corpus and reconcile `aai-release.sh:383`, which prints a divergent `'## [unreleased] — <title>'` hint. | Spec-AC-31's "stated once" is satisfied for the two files the test counts; two further statements (one of them a different shape, inside the tool itself) live on main and the new count cannot see them. |
+| `fu-changelog-exit12-second-arm` | low | Name exit 12's second arm in the CHANGELOG preamble (a `## [unreleased]` heading with trailing text that is not the `— ` form). | `aai-release.sh`'s own refusal message names both arms; the preamble names one, so `## [unreleased] v2` fails closed with nothing having warned the author. |
+| `fu-lanegate-readstate-duplicate` | low | Collapse `lane-gate.mjs:391 resolveDefaultSpecFromState` and `:168 readStrategy` into one `readStateScalar(path, block, key)`. | Near-verbatim twins in one file; a STATE.yaml shape change fixed in one leaves the other returning null, which for `--sweep-check` means heavy lane and a spurious lane-mismatch DENY on a fast-lane ride. |
+| `fu-hookgate-capability-before-deny` | low | Hoist `claude-hook-gate.sh`'s two capability tests (`command -v node`, `-f lane-gate.mjs`) above the PR resolution at :116-141. | An operator-directed merge on a machine with no node, or offline so `gh pr view` fails, is denied with a message about a check that could never have run. Also restores the file's own ":4 ZERO gate logic of its own" claim. |
+| `fu-docsmodel-split-generated-pages` | medium | Move `SHARED_GENERATED_PAGES` out of `lib/docs-model.mjs` into `lib/generated-pages.mjs`. | Measured payoff: `docs-model.mjs` is the one path that escalates suite selection to `FULL_RUN reason=shared-lib`; the page list changed three times inside this ride, and each change currently buys a full 95-suite sweep instead of two suites. |
+| `fu-cwi-skip-shape-unify` | low | Give `close-work-item.mjs planStateReconcile` one `skip(reason, { commands, echo })` shape. | Two different constructions now produce `severity: 'skip'` — one always empties commands, one preserves them — and nothing says which a new skip path should use; reaching for the obvious helper re-introduces the exact bug Spec-AC-07 fixed. |
+| `fu-vendordeps-rationale-stated-twice` | low | Keep one statement of the v1/v2/v3 design rationale in `check-vendored-script-deps.mjs`; move the round-by-round narration to the amendments. | Written out twice near-verbatim in one file (header docstring + inline comment) and a third time in the spec; now 337 of 667 lines (50%) are comment, up from 49% this round. A maintainer updating one copy leaves the other asserting the superseded rationale. |
+| `fu-spec-ac-table-two-rules` | low | Pick one rule for the spec's AC Status table and state it in Verification. | Spec-AC-29/30/31 are `done` with Evidence (ROLE_COMMON G4 shape) while the other 32 rows are `planned` with empty Evidence (VALIDATION 8a deferral shape); a reader cannot tell `planned` = not built from `planned` = built, flip deferred, and the close flip has to distinguish them by hand. |
+| `fu-commits-cite-wrong-doc-ids` | medium | Reword `1d2f95b9`, `15a178fc`, `838869fe`, whose subjects cite `CHANGE-0186 / SPEC-0180` — the dispatch-state-sweep ride merged as #382. | **Do this before the PR or never**: after merge it is a permanent false record, and any provenance walk from SPEC-0180's `links.commits` finds three commits it does not own. Verified still present at HEAD. |
+| `fu-leanaccepted-doc-level-scope` | low | Make `docs-model.mjs:1182-1187`'s `leanAccepted` a per-table fact, as `neitherParses` is documented to be. | A document-level fact consumed inside the per-table loop suppresses the `heading` warning for EVERY table, so a spec with one gate-accepted lean table plus one malformed table reports nothing about the malformed one. |
+| `fu-cwi-slug-distinctness` | low | `new Set(slugs)` (or an explicit usage error) across `--ref` / `--spec` / `--paired` in `close-work-item.mjs:1795`. | `--spec X --paired X` resolves one document twice, mutates an already-mutated file and emits two `work_item_closed` events into an append-only ledger; no Test Plan row covers it. |
+| `fu-parsesweepcount-name-mismatch` | low | Rename `parseSweepCount` to `parseNonNegativeInt` (or give it `{ min }`) and fix its doc comment, which still says "a pr_sweep count field (--threads-seen / --threads-unresolved)" though `--pr` now uses it. | Relaxing the count rule silently relaxes PR-number parsing; the `pr === 0` guard three lines away is the only thing left holding the PR floor. |
+
+## The replay
+
+**The gate's per-row evidence is enough. Do not spend the full replay before the PR.** Three reasons, in order of weight:
+
+1. I re-ran `mutation-gate.mjs --spec <this spec>` myself: `GATE PASS: 72 row(s) satisfied degraded=0 unstamped=0`. That is a measurement, not a claim relayed from the amendment, and it means every row's recorded mutation is anchored to a `target_sha256` that matches the file as it stands at d4be7112.
+2. Every row this round could have staled did stale and was re-recorded. I checked the eight records individually: mtimes 19:46:30 (TEST-585), 19:46:59 (570), 19:48:05/19:48:07/19:48:42/19:50:17 (538/539/541/542), 19:51:06/19:51:08 (552/568) — after the edits, before the commit.
+3. The one structural gap the gate cannot see is a *test* edited without its *mutation target* being edited, since the record is keyed on the target's hash. This round has exactly one such row — TEST-574, whose recorded target is `.aai/scripts/claude-hook-gate.sh` (untouched) while the test gained four new arms. **I closed that gap by hand rather than asking for the replay**: I reverted `lib/pr-sweep.mjs` to e53f2848 in a scratch fixture and confirmed all three new hook-level arms return `rc=0 SWEEP-CHECK allowed` and the direct predicate call returns `CLEAN`, then GREEN at HEAD. The row a replay would have added evidence for now has independent evidence in this report.
+
+A full replay would buy re-execution of 71 other rows whose targets are byte-identical to when they were recorded and whose tests this round did not touch. That is the definition of evidence the gate already carries. Against a ride eight remediation rounds deep and a replay that has already once failed to terminate, the cost is not justified.
+
+## Verdict
+
+**spec_compliance: pass.** Spec-AC-30 and Spec-AC-31 move from non-compliant to compliant on the evidence above. Spec-AC-34 stays cannot-verify for the one reason the AC's own text already discloses (the hooks overlay is opt-in and not installed here); its read-side limb is closed. The other 32 rows keep round 1's calls.
+
+**code_quality: pass.** Both BLOCKING findings are closed, each verified by re-running my own round-1 reproduction rather than by reading the fix. Four NON-BLOCKING findings are added (three of them sentences, not code) and thirteen round-1 rows are dispositioned above.
+
+**Would I merge this now?** Yes — with one thing done first that cannot be done after: reword the three commit subjects citing `CHANGE-0186 / SPEC-0180`. Everything else on the list survives the merge and can be filed.

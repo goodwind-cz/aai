@@ -11,6 +11,14 @@
 // Closed set of legal pr_sweep outcomes (Spec-AC-33).
 export const PR_SWEEP_OUTCOMES = new Set(['swept', 'skipped_fast_lane', 'internal_substituted']);
 
+// Closed set of legal reviewer_bots values — the SAME tri-state
+// pr-platform.mjs classifies and SKILL_PR.prompt.md:468 documents on the
+// `append-event.mjs --reviewer-bots <expected|none|unknown>` call
+// (code review 20260918T172546Z round 2, R2-NB-1 / Amendment 24): a missing
+// key or a value outside this set (a typo, an empty object, ...) is a
+// contradiction like any other field, not an open string.
+export const REVIEWER_BOTS_VALUES = new Set(['expected', 'none', 'unknown']);
+
 // A pr_sweep count/pr field is well-formed the same way parseSweepCount
 // requires at write time: a genuine (already-parsed) JS integer, never a
 // string, float, or negative number. A hand-appended EVENTS.jsonl line can
@@ -50,6 +58,9 @@ export function sweepContradictions(p) {
   }
   if (!isNonNegativeInt(p.threads_unresolved)) {
     bad.push(`threads_unresolved must be a non-negative integer, got ${JSON.stringify(p.threads_unresolved)}`);
+  }
+  if (!REVIEWER_BOTS_VALUES.has(p.reviewer_bots)) {
+    bad.push(`reviewer_bots must be one of ${[...REVIEWER_BOTS_VALUES].join('|')}, got ${JSON.stringify(p.reviewer_bots)}`);
   }
   if (p.outcome === 'swept' && (p.threads_seen <= 0 || p.reviewer_bots !== 'expected')) {
     bad.push('swept requires threads_seen > 0 and reviewer_bots=expected');
