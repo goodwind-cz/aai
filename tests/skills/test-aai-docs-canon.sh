@@ -610,6 +610,44 @@ test_seam1_index_includes_canonical() {
   log_pass "TEST-301: canonical doc surfaces in INDEX Canonical layer"
 }
 
+test_577_canon_stages_its_writes() {  # TEST-577 / Spec-AC-22
+  log_info "Test: docs-canon.mjs stages what it writes and moves — both sides of the move, and every file it creates — so the same-breath index regeneration already sees the canonical doc, not the archived original (TEST-577)..."
+  reset_fixture_seams
+
+  # Both sides of the move are STAGED: the new canonical doc and at least one
+  # archived original appear in `git status --porcelain` (staged column,
+  # column 1), and NOTHING under docs/ is left with an unstaged (column 2)
+  # marker — docs-canon's own writes must not leave a half-staged tree.
+  local st="$TEST_DIR/git-status-577.txt"
+  (cd "$TEST_DIR" && git status --porcelain) > "$st"
+  # A staged (non-"??") line naming the path — `git status --porcelain` is
+  # `XY path` (or `XY old -> new` for a detected rename): either shape
+  # contains the path as a trailing substring, so a plain non-"??" match is
+  # exact enough without re-deriving the column layout.
+  awk '/docs\/canonical\/spec-x\.md/ && $0 !~ /^\?\?/ { found=1 } END { exit found?0:1 }' "$st" \
+    || log_fail "TEST-577: the new canonical doc must be staged, got: $(cat "$st")"
+  awk '/docs\/_archive\/specs\/SPEC-X-[ab]\.md/ && $0 !~ /^\?\?/ { found=1 } END { exit found?0:1 }' "$st" \
+    || log_fail "TEST-577: at least one archived original must be staged, got: $(cat "$st")"
+  # column 2 (working-tree state) must be blank for every docs/ line —
+  # nothing left unstaged by the writes docs-canon just made.
+  if awk '$0 ~ /docs\// && substr($0,2,1) != " " { found=1 } END { exit found?0:1 }' "$st"; then
+    log_fail "TEST-577: docs-canon left an unstaged (working-tree) change under docs/: $(cat "$st")"
+  fi
+
+  # the real property: the SAME-BREATH regeneration sees the move, not a
+  # stale or crashed one.
+  run_index > "$TEST_DIR/index-577.log" 2>&1 \
+    || log_fail "TEST-577: index gen must exit 0 right after docs-canon's own writes: $(cat "$TEST_DIR/index-577.log")"
+  grep -qF "CANON-spec-x" "$TEST_DIR/docs/INDEX.md" \
+    || log_fail "TEST-577: the regenerated index must name the canonical doc: $(cat "$TEST_DIR/docs/INDEX.md")"
+  grep -qF "_archive/specs/SPEC-X-a.md" "$TEST_DIR/docs/INDEX.md" \
+    && log_fail "TEST-577: the regenerated index must NOT name the archived original SPEC-X-a"
+  grep -qF "_archive/specs/SPEC-X-b.md" "$TEST_DIR/docs/INDEX.md" \
+    && log_fail "TEST-577: the regenerated index must NOT name the archived original SPEC-X-b"
+
+  log_pass "TEST-577: docs-canon stages both sides of every move and every file it creates; the same-breath index sees the canonical doc, never the archived path"
+}
+
 test_seam5_302_archived_not_active_idempotent() {
   log_info "TEST-302/306: archived NOT in Active/Drafts; INDEX idempotent; Phase 2 output in INDEX (int)..."
   # archived originals must not appear in Active/Drafts/Done
@@ -800,6 +838,13 @@ main() {
   test_phase2_plan_guard         # TEST-119
 
   # Seams (AC-08, AC-09, AC-03/SEAM-4) — fresh fixture
+  # TEST-577 runs BEFORE TEST-301: both exercise the exact same
+  # reset_fixture_seams -> phase2 -> index flow, and TEST-301's own FAIL
+  # lines carry no TEST-301 tag (pre-existing, not this ride's row to
+  # retag) — ordering TEST-577 first keeps its own tagged assertion the
+  # one a shared-cause mutation reddens first (mutation-run.mjs attributes
+  # a redden by finding the target TEST id in the FAIL output).
+  test_577_canon_stages_its_writes          # TEST-577
   test_seam1_index_includes_canonical       # TEST-301
   test_seam5_302_archived_not_active_idempotent # TEST-302 / TEST-306
   test_seam2_303_audit_clean                # TEST-303

@@ -1632,6 +1632,124 @@ test_104_pgq_shrink_never_lowers_the_bar() {  # TEST-005 / Spec-AC-03
   log_pass "test_104: SHRINK and GONE are NOTEs, never a rise, and the recorded number is never rewritten by a comparison (TEST-005)"
 }
 
+# --- TEST-562 (spec-close-ceremony-sweep Spec-AC-27) — no tracked text file
+# may carry a literal NUL byte; a guard proves it -----------------------------
+NONUL_LIB_REL="tests/skills/lib/no-nul-guard.sh"
+
+test_562_no_nul_in_tracked_text() {  # TEST-562 / Spec-AC-27
+  log_info "TEST-562: the no-NUL guard names a planted NUL fixture and exits non-zero; over the live tree it exits 0 (requires spec-amend.mjs's NUL to be an escape)..."
+  local guard="$PROJECT_ROOT/$NONUL_LIB_REL" d
+  [[ -f "$guard" ]] || log_fail "TEST-562: missing $NONUL_LIB_REL"
+  d="$(ap_tmpdir)"
+  # shellcheck source=lib/no-nul-guard.sh
+  . "$guard"
+
+  # ---- fixture: a real git repo, one clean tracked file, one NUL-carrying one
+  local fx="$d/nonul-fixture"
+  rm -rf "$fx"; mkdir -p "$fx"
+  git init -q "$fx"
+  git -C "$fx" config user.email t@t.example
+  git -C "$fx" config user.name t
+  printf 'clean text\n' > "$fx/clean.txt"
+  # Plant a literal NUL byte via printf's raw byte output -- never through a
+  # bash string variable, which truncates at the first NUL (the same shape
+  # M7 measured: `.aai/scripts/spec-amend.mjs` line 253).
+  printf 'before\000after\n' > "$fx/planted.bin"
+  git -C "$fx" add -A
+  git -C "$fx" commit -qm "fixture: one clean tracked file, one NUL-carrying tracked file"
+
+  local out rc
+  out=$(bash "$guard" --check "$fx" 2>&1) && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-562: the guard must exit non-zero over a tree that plants a NUL-carrying tracked file, got 0: $out"
+  case "$out" in
+    *"planted.bin"*) : ;;
+    *) log_fail "TEST-562: the guard must name the planted NUL fixture, got: $out" ;;
+  esac
+  case "$out" in
+    *"clean.txt"*) log_fail "TEST-562: a genuinely clean tracked file must never be named, got: $out" ;;
+    *) : ;;
+  esac
+
+  # ---- live tree: exits clean -- REQUIRES spec-amend.mjs's NUL to be gone
+  local live_out live_rc
+  live_out=$(bash "$guard" --check "$PROJECT_ROOT" 2>&1) && live_rc=0 || live_rc=$?
+  [[ "$live_rc" -eq 0 ]] \
+    || log_fail "TEST-562: the live tree must carry zero tracked files with a NUL byte, guard exited $live_rc naming: $live_out"
+  [[ -z "$live_out" ]] \
+    || log_fail "TEST-562: a clean live-tree run must print nothing, got: $live_out"
+
+  # BITE: the probe itself is genuinely exercised, not vacuously true --
+  # direct unit-level check against nonul_file_has_nul.
+  nonul_file_has_nul "$fx/planted.bin" \
+    || log_fail "TEST-562: nonul_file_has_nul must detect the planted byte directly"
+  if nonul_file_has_nul "$fx/clean.txt"; then
+    log_fail "TEST-562: nonul_file_has_nul must not false-positive on a genuinely clean file"
+  fi
+
+  log_pass "TEST-562 the no-NUL guard names a planted fixture and exits non-zero; the live tree exits 0 clean (spec-amend.mjs's NUL is now an escape); bite proven"
+}
+
+# --- TEST-563 (spec-close-ceremony-sweep Spec-AC-28) — a grep ERROR is not
+# an improvement: pgq_scan must distinguish "could not read the file" from
+# "read it, found nothing" ----------------------------------------------------
+
+test_563_pgq_scan_reports_read_errors() {  # TEST-563 / Spec-AC-28
+  log_info "TEST-563: an unreadable file makes pgq_scan report an ERROR row naming it, not a count of 0 that reads as an improvement..."
+  local ratchet="$PROJECT_ROOT/$PGQ_LIB_REL" d
+  d="$(ap_tmpdir)"
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$ratchet"
+
+  local fx="$d/pgq-error-fixture"
+  rm -rf "$fx"; mkdir -p "$fx"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-clean.sh"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-locked.sh"
+
+  chmod 000 "$fx/test-aai-locked.sh" 2>/dev/null
+  if cat "$fx/test-aai-locked.sh" >/dev/null 2>&1; then
+    chmod 644 "$fx/test-aai-locked.sh" 2>/dev/null
+    log_info "TEST-563: chmod 000 denies this uid nothing (root/CI perm bypass) -- the unreadable-file defect cannot be exercised on this machine, skipping this test's assertions"
+    return 0
+  fi
+
+  local scan
+  scan="$(pgq_scan "$fx")"
+  chmod 644 "$fx/test-aai-locked.sh" 2>/dev/null
+
+  case $'\n'"$scan" in
+    *$'\n'"ERROR"$'\t'"test-aai-locked.sh"*) : ;;
+    *) log_fail "TEST-563: an unreadable file must be reported as an ERROR row naming it, got: $scan" ;;
+  esac
+  case "$scan" in
+    *"test-aai-clean.sh"*) log_fail "TEST-563: a genuinely clean, readable file must not appear at all, got: $scan" ;;
+    *) : ;;
+  esac
+
+  # BITE: without the readability check, the unreadable file's grep pipeline
+  # fails and falls back to the pre-existing swallow (`_pgq_n=0`), so it
+  # silently VANISHES from the scan -- indistinguishable from a clean file
+  # with no matches, exactly the "improvement" this row must not tolerate.
+  # The named mutation `sed:s/_pgq_rc=\$\?/_pgq_n=0/` has no target against
+  # this implementation (there is no `_pgq_rc=$?` assignment to revert): the
+  # equivalent expression below disables the readability branch this fix
+  # actually added, restoring the exact pre-fix silent-vanish behavior.
+  local mutant mscan mrc
+  mutant="$d/pgq-error-mutant.sh"
+  sed 's/if \[ ! -r "\$_pgq_f" \]; then/if false; then/' "$ratchet" > "$mutant"
+  cmp -s "$mutant" "$ratchet" \
+    && log_fail "TEST-563: the bite mutation changed nothing in $PGQ_LIB_REL -- the assertion cannot bite (test bug, not a real finding)"
+
+  chmod 000 "$fx/test-aai-locked.sh" 2>/dev/null
+  mscan=$(bash -c '. "$1"; pgq_scan "$2"' _ "$mutant" "$fx") && mrc=0 || mrc=$?
+  chmod 644 "$fx/test-aai-locked.sh" 2>/dev/null
+  case "$mscan" in
+    *"ERROR"*) log_fail "TEST-563: the bite mutation must make the unreadable file vanish (no ERROR row), got: $mscan" ;;
+    *) log_info "  bite proven: without the readability check the unreadable file silently vanishes (reads as 0, an 'improvement')" ;;
+  esac
+
+  log_pass "TEST-563 pgq_scan reports an unreadable file as an ERROR row, never as a silent 0; bite proven"
+}
+
 # --- TEST-470 (round 10, PR #381 remediation, SPEC-0179 Amendment Round 10)
 # — the SECOND ratchet arm: shipping scripts (.aai/scripts/*.sh and
 # .aai/scripts/lib/*.sh) that set pipefail must carry zero occurrences of the
@@ -4183,6 +4301,152 @@ test_127_withdrawn_phrases_drained() {  # TEST-438 / Spec-AC-21
   log_pass "test_127: all four withdrawn phrases are drained from tests/skills, .aai/ and docs/specs, and a planted instance is still caught (TEST-438)"
 }
 
+# --- test_131 (Amendment 21, validation-round4 follow-up; BITE 4 added --------
+# validation-round5 B1-R5) --------------------------------------------------
+# check-vendored-script-deps.mjs's own gate-and-bite: a LIVE GATE over this
+# repository, plus fixture proofs pinning the three design properties
+# measured by hand while building it (see the checker's own docstring for the
+# rejected simpler designs and why): call-graph INHERITANCE (a helper
+# function's lib copy covers a caller that vendors and runs the engine),
+# NO FALSE-NEGATIVE MASKING (an unrelated function's whole-tree copy must
+# never cover a violation in a function that never calls it), and NO PROSE-
+# MENTION INHERITANCE (a helper merely NAMED in a log string — never called —
+# must never be read as a call edge; the first shipped CALL_RE failed this
+# one live, in this same corpus — see BITE 4).
+test_131_vendored_script_deps_gate_and_bite() {
+  log_info "test_131: check-vendored-script-deps.mjs — live gate over this repo, plus call-graph-inheritance, no-false-masking and no-prose-mention bite proofs..."
+  local checker="$PROJECT_ROOT/.aai/scripts/check-vendored-script-deps.mjs"
+  [[ -f "$checker" ]] || log_fail "test_131: missing .aai/scripts/check-vendored-script-deps.mjs"
+
+  # ---- LIVE GATE -----------------------------------------------------------
+  local live_out live_rc=0
+  live_out="$(node "$checker" --root "$PROJECT_ROOT" 2>&1)" || live_rc=$?
+  [[ "$live_rc" -eq 0 ]] \
+    || log_fail "test_131: the live gate FAILED on this repository — a vendored engine's own dependency is missing from its fixture (see above):\n$live_out"
+  [[ "$live_out" == *"CLEAN"* ]] \
+    || log_fail "test_131: the live gate printed no CLEAN summary: $live_out"
+
+  # ---- fixture scaffold ------------------------------------------------
+  local fx
+  fx="$(mktemp -d "${TMPDIR:-/tmp}/aai-vendored-deps-fixture.XXXXXX")"
+  mkdir -p "$fx/.aai/scripts/lib" "$fx/tests/skills"
+  # A trivial engine with ONE real lib dependency, mirroring ride-select.mjs's
+  # own shape (a script that imports something from ./lib/).
+  printf 'export const DEP_MARK = 1;\n' > "$fx/.aai/scripts/lib/dep-lib.mjs"
+  printf "import { DEP_MARK } from './lib/dep-lib.mjs';\nconsole.log(DEP_MARK);\n" \
+    > "$fx/.aai/scripts/target-engine.mjs"
+
+  # BITE 1 — the base case: a fixture function vendors target-engine.mjs and
+  # copies NOTHING from lib/. Must be a VIOLATION naming both the engine and
+  # the missing dependency.
+  cat > "$fx/tests/skills/test-fake-bite1.sh" <<'EOS'
+vendor_bad() {
+  mkdir -p "$d/.aai/scripts"
+  cp "$PROJECT_ROOT/.aai/scripts/target-engine.mjs" "$d/.aai/scripts/target-engine.mjs"
+}
+EOS
+  local out rc
+  rc=0; out="$(node "$checker" --root "$fx" 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_131 BITE 1: vendoring target-engine.mjs with zero lib/ coverage must be a VIOLATION, got rc=0: $out"
+  [[ "$out" == *"target-engine.mjs"* && "$out" == *"lib/dep-lib.mjs"* ]] \
+    || log_fail "test_131 BITE 1: the violation must name both the engine and the missing dependency: $out"
+  rm -f "$fx/tests/skills/test-fake-bite1.sh"
+
+  # CONTROL — the same shape, but the vendoring function ALSO copies the
+  # dependency directly. Must be CLEAN, or the two checks above prove nothing
+  # (a checker that always reddens is as useless as one that never does).
+  cat > "$fx/tests/skills/test-fake-control.sh" <<'EOS'
+vendor_ok() {
+  mkdir -p "$d/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/target-engine.mjs" "$d/.aai/scripts/target-engine.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/dep-lib.mjs" "$d/.aai/scripts/lib/dep-lib.mjs"
+}
+EOS
+  rc=0; out="$(node "$checker" --root "$fx" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 && "$out" == *"CLEAN"* ]] \
+    || log_fail "test_131 CONTROL: a function that copies its own dependency directly must be CLEAN, got rc=$rc: $out"
+  rm -f "$fx/tests/skills/test-fake-control.sh"
+
+  # BITE 2 — CALL-GRAPH INHERITANCE (the property v1 of this checker lacked,
+  # measured as 19 false positives before this design existed). A shared
+  # helper copies the dependency; a DIFFERENT function that CALLS the helper
+  # (bash command substitution capture, the real corpus's own idiom —
+  # `d="$(setup_iso_repo ...)"`) vendors and runs the engine. Must be CLEAN.
+  cat > "$fx/tests/skills/test-fake-bite2.sh" <<'EOS'
+helper_builds_fixture() {
+  local hd="$TEST_DIR/hb"
+  mkdir -p "$hd/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/dep-lib.mjs" "$hd/.aai/scripts/lib/dep-lib.mjs"
+  printf '%s' "$hd"
+}
+vendor_via_helper() {
+  local d
+  d="$(helper_builds_fixture)"
+  cp "$PROJECT_ROOT/.aai/scripts/target-engine.mjs" "$d/.aai/scripts/target-engine.mjs"
+}
+EOS
+  rc=0; out="$(node "$checker" --root "$fx" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 && "$out" == *"CLEAN"* ]] \
+    || log_fail "test_131 BITE 2: a caller that vendors the engine on top of a HELPER function's lib copy (call-graph inheritance) must be CLEAN, got rc=$rc: $out"
+  rm -f "$fx/tests/skills/test-fake-bite2.sh"
+
+  # BITE 3 — NO FALSE-NEGATIVE MASKING (the property v2 of this checker had,
+  # measured directly: it stayed CLEAN when Amendment 21's own real fix was
+  # reverted, because an UNRELATED function elsewhere in the same file did a
+  # whole-tree copy). An unrelated, never-called function copies everything;
+  # the actual vendoring function copies nothing and calls nothing. Must
+  # STILL be a VIOLATION — the unrelated copy must never mask it.
+  cat > "$fx/tests/skills/test-fake-bite3.sh" <<'EOS'
+decoy_unrelated_helper() {
+  local hd="$TEST_DIR/decoy"
+  mkdir -p "$hd/.aai"
+  cp -r "$PROJECT_ROOT/.aai/scripts" "$hd/.aai/scripts"
+}
+vendor_bad_beside_a_decoy() {
+  mkdir -p "$d/.aai/scripts"
+  cp "$PROJECT_ROOT/.aai/scripts/target-engine.mjs" "$d/.aai/scripts/target-engine.mjs"
+}
+EOS
+  rc=0; out="$(node "$checker" --root "$fx" 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_131 BITE 3: an unrelated, never-called whole-tree copy elsewhere in the file must NOT mask a real violation, got rc=0: $out"
+  [[ "$out" == *"vendor_bad_beside_a_decoy"* ]] \
+    || log_fail "test_131 BITE 3: the violation must be attributed to the actually-offending function, not the decoy: $out"
+  rm -f "$fx/tests/skills/test-fake-bite3.sh"
+
+  # BITE 4 — A PROSE MENTION IS NOT A CALL (validation-round5 B1-R5, the
+  # property v3's first shipped CALL_RE lacked, measured live: a
+  # `log_info`/`log_fail` message parenthetical NAMING a helper function
+  # — never calling it — let that name's whole coverage leak in as if it had
+  # been called, because the old regex matched any name after `(` anywhere
+  # on the line, including inside a double-quoted string. BITE 3's own decoy
+  # is never MENTIONED by name in the offending function's body, so it could
+  # not catch this — this decoy IS mentioned, in a log string, and must
+  # still be a VIOLATION.
+  cat > "$fx/tests/skills/test-fake-bite4.sh" <<'EOS'
+decoy_mentioned_in_prose_only() {
+  local hd="$TEST_DIR/decoy4"
+  mkdir -p "$hd/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/dep-lib.mjs" "$hd/.aai/scripts/lib/dep-lib.mjs"
+}
+vendor_bad_with_prose_mention() {
+  log_info "must fire (decoy_mentioned_in_prose_only reference only)..."
+  mkdir -p "$d/.aai/scripts"
+  cp "$PROJECT_ROOT/.aai/scripts/target-engine.mjs" "$d/.aai/scripts/target-engine.mjs"
+}
+EOS
+  rc=0; out="$(node "$checker" --root "$fx" 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_131 BITE 4: a helper NAMED ONLY IN A LOG STRING (never called) must not be read as a call edge, got rc=0: $out"
+  [[ "$out" == *"vendor_bad_with_prose_mention"* ]] \
+    || log_fail "test_131 BITE 4: the violation must be attributed to the actually-offending function, not the prose-mentioned decoy: $out"
+  rm -f "$fx/tests/skills/test-fake-bite4.sh"
+
+  rm -rf "$fx"
+  log_pass "test_131: live gate CLEAN over this repo; call-graph inheritance covers a helper-built fixture, an unrelated decoy copy never masks a real violation, and a decoy merely NAMED in prose is never read as a call"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -4220,6 +4484,8 @@ main() {
   test_102_pgq_ratchet_gate_and_bite
   test_103_pgq_baseline_is_measured_not_typed
   test_104_pgq_shrink_never_lowers_the_bar
+  test_562_no_nul_in_tracked_text
+  test_563_pgq_scan_reports_read_errors
   test_122_pgq_corpus_drained_to_zero
   test_123_pgq_bite_at_zero_and_handtyped_baseline_rejected
   test_124_degenerate_pass_guards_uncovered_and_ratcheted
@@ -4247,6 +4513,7 @@ main() {
   test_094_mutation_selector_fails_closed_corpus_wide
   test_129_mutation_gate_suite_registration
   test_130_node_bash_selector_scanner_whitespace_parity
+  test_131_vendored_script_deps_gate_and_bite
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

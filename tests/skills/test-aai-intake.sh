@@ -1248,6 +1248,14 @@ EOF
   broken_dir=$(intake_scratch)
   broken="$broken_dir/docs-audit.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$broken"
+  # docs-audit.mjs's real ./lib/*.mjs imports (check-vendored-script-deps.mjs,
+  # Amendment 21) — irrelevant to THIS arm (the syntax error appended below
+  # makes node fail to PARSE the file, before it ever reaches import
+  # resolution), but copied to the same sibling `lib/` shape docs-audit.mjs's
+  # own relative imports expect, so this fixture stays correct if a future
+  # edit here ever runs an UNCORRUPTED copy of the script.
+  mkdir -p "$broken_dir/lib"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$broken_dir/lib/"
   printf '
 syntax error {{{
 ' >> "$broken"
@@ -1692,6 +1700,261 @@ test_031_select_suites_maps_the_new_script_to_aai_intake() {
     || log_fail "TEST-031 select-suites.mjs mapping (Spec-AC-09)"
 }
 
+# TEST-553 (spec-close-ceremony-sweep Spec-AC-21) — every intake template,
+# copied VERBATIM (no hand edit) to its DRAFT path, passes the real
+# docs-audit.mjs --intake-file gate; every template carries exactly one
+# `number:` key (fu-intake-templates-lack-number-key).
+test_553_templates_pass_intake_file() {
+  log_info "TEST-553 (Spec-AC-21): each of the eight templates, copied verbatim to its DRAFT path, passes docs-audit --intake-file; every template names exactly one number: key..."
+  local ok=1 root
+  root="$(intake_fixture_root)"
+
+  # intake-type:template-file:dir:prefix — dir/prefix mirror
+  # .aai/INTAKE_COMMON.md's own table; hotfix deliberately reuses
+  # ISSUE_TEMPLATE.md, the SAME pairing the real router uses.
+  local pairs=(
+    "prd:REQUIREMENT_TEMPLATE.md:requirements:PRD"
+    "change:CHANGE_TEMPLATE.md:issues:CHANGE"
+    "issue:ISSUE_TEMPLATE.md:issues:ISSUE"
+    "hotfix:ISSUE_TEMPLATE.md:issues:ISSUE"
+    "techdebt:TECHDEBT_TEMPLATE.md:issues:DEBT"
+    "research:RESEARCH_TEMPLATE.md:specs:RES"
+    "rfc:RFC_TEMPLATE.md:rfc:RFC"
+    "release:RELEASE_TEMPLATE.md:releases:REL"
+  )
+  local line it tpl dir pfx n=0
+  for line in "${pairs[@]}"; do
+    n=$((n + 1))
+    IFS=':' read -r it tpl dir pfx <<< "$line"
+    local rel="docs/$dir/$pfx-DRAFT-t553-$it.md"
+    local dest="$root/$rel"
+    mkdir -p "$(dirname "$dest")"
+    cp "$PROJECT_ROOT/.aai/templates/$tpl" "$dest"
+
+    local res rc
+    res="$(intake_guard "$root" "$rel")"
+    rc="${res%%|*}"
+    [[ "$rc" == 0 ]] \
+      || { log_fail "FAIL TEST-553: intake type '$it' ($tpl, verbatim, saved as $rel) must pass --intake-file, got: $res"; ok=0; }
+  done
+  [[ "$n" -eq 8 ]] \
+    || { log_fail "FAIL TEST-553: expected 8 intake-type/template pairs, iterated $n"; ok=0; }
+
+  # Every DISTINCT template file (issue/hotfix share one) carries exactly one
+  # `number:` key — the shape --intake-file's number-absent finding requires.
+  local f
+  for f in REQUIREMENT_TEMPLATE.md CHANGE_TEMPLATE.md ISSUE_TEMPLATE.md TECHDEBT_TEMPLATE.md RESEARCH_TEMPLATE.md RFC_TEMPLATE.md RELEASE_TEMPLATE.md; do
+    local c; c="$(/usr/bin/grep -c '^number:' "$PROJECT_ROOT/.aai/templates/$f")"
+    [[ "$c" == 1 ]] \
+      || { log_fail "FAIL TEST-553: $f must carry exactly one ^number: line, counted $c"; ok=0; }
+  done
+
+  # NOTE: this suite's own log_fail prints "✗ $*" (no "FAIL" prefix, unlike
+  # the other three suites this ride touches) — every message above spells
+  # "FAIL TEST-553" itself, FAIL before the id in the same line, because
+  # mutation-run.mjs's redden-attribution regex requires that order.
+  [[ $ok -eq 1 ]] && log_pass "TEST-553 all eight intake type/template pairs pass --intake-file verbatim (no hand edit), and every template carries exactly one number: key" \
+    || log_fail "FAIL TEST-553 templates pass intake file"
+}
+
+# stale_slow_git_bin <dir> <sleep-seconds> — writes a `git` wrapper under
+# <dir>/slowbin that sleeps <sleep-seconds> before delegating to the real git
+# binary (resolved once, before PATH is ever modified, so the wrapper never
+# recurses into itself). Prints the bin dir. Prepending it to PATH gives
+# every git invocation the staleness script makes a FIXED per-call delay —
+# deterministic and portable, unlike a real unreachable-network timeout,
+# which only proves the ALREADY-clamped fetch call stays bounded (TEST-024).
+# A fixed per-call delay is what distinguishes a clamped-every-call
+# implementation (Spec-AC-25) from one that clamps fetches alone: enough
+# LOCAL non-fetch calls at a fixed delay blow well past budget*1.5 without it.
+stale_slow_git_bin() {
+  local d="$1" delay="$2" realgit slowbin
+  realgit="$(command -v git)"
+  slowbin="$d/slowbin"
+  mkdir -p "$slowbin"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf 'sleep %s\n' "$delay"
+    printf 'exec "%s" "$@"\n' "$realgit"
+  } > "$slowbin/git"
+  chmod +x "$slowbin/git"
+  printf '%s\n' "$slowbin"
+}
+
+# stale_fixture_with_n_submodules <n> — a superproject with <n> initialized
+# submodules, all local and reachable (staleness is proven by real commits,
+# never by network unreachability). Echoes the scratch dir; "sub-w2/super-w2"
+# is the inspected clone (super-w2), "subK-w1" each submodule's authoring
+# clone (push new commits there to make it stale).
+stale_fixture_with_n_submodules() {
+  local n="$1" d i
+  d=$(intake_scratch)
+  git init -q --bare "$d/super-origin.git"
+  git -C "$d/super-origin.git" symbolic-ref HEAD refs/heads/main
+  git -c protocol.file.allow=always clone -q "$d/super-origin.git" "$d/super-w1" 2>/dev/null
+  stale_force_branch "$d/super-w1" main
+  ( cd "$d/super-w1" && git config user.email t@t.example && git config user.name t \
+      && echo x > x.txt && git add x.txt && git commit -qm init ) >/dev/null 2>&1
+  for i in $(seq 1 "$n"); do
+    git init -q --bare "$d/sub$i-origin.git"
+    git -C "$d/sub$i-origin.git" symbolic-ref HEAD refs/heads/main
+    git clone -q "$d/sub$i-origin.git" "$d/sub$i-w1" 2>/dev/null
+    stale_force_branch "$d/sub$i-w1" main
+    ( cd "$d/sub$i-w1" && git config user.email t@t.example && git config user.name t \
+        && echo "s$i" > "s$i.txt" && git add "s$i.txt" && git commit -qm init \
+        && git push -q origin HEAD:main -u ) >/dev/null 2>&1
+    ( cd "$d/super-w1" && git -c protocol.file.allow=always submodule add -q "$d/sub$i-origin.git" "sub$i" ) >/dev/null 2>&1
+  done
+  ( cd "$d/super-w1" && git commit -qam "add $n submodules" && git push -q origin HEAD:main -u ) >/dev/null 2>&1
+  git -c protocol.file.allow=always clone -q --recurse-submodules "$d/super-origin.git" "$d/super-w2" 2>/dev/null
+  ( cd "$d/super-w2" && git config user.email t@t.example && git config user.name t ) >/dev/null 2>&1
+  printf '%s\n' "$d"
+}
+
+# TEST-560 (Spec-AC-25) — at most one staleness-preflight invocation
+# instruction in the router; a forced unexpected (non-ExitSignal) throw still
+# exits 0 with no stack trace; every git call, not only fetches, is clamped
+# to the remaining --budget-ms.
+test_560_preflight_once_and_never_throws() {
+  log_info "TEST-560 (Spec-AC-25): SKILL_INTAKE.prompt.md names the staleness preflight once outside its STEP 0 heading; a forced unexpected throw exits 0 with no stack trace; a 3-submodule fixture under a 500ms budget completes within 1.5x it..."
+  local ok=1
+
+  # Part A: single-source instruction. Before the fix, SKILL_INTAKE.prompt.md
+  # named "staleness preflight" TWICE outside its own STEP 0 heading: once in
+  # STEP 0's own body sentence, and again in the generic bottom SHARED POLICY
+  # block-list line -- a second, redundant invocation instruction the router
+  # would apply again after already having applied it at STEP 0.
+  local skill_intake="$PROJECT_ROOT/.aai/SKILL_INTAKE.prompt.md" n_outside_heading
+  n_outside_heading=$(/usr/bin/grep -vi '^STEP 0 — STALENESS PREFLIGHT$' "$skill_intake" | /usr/bin/grep -ci 'staleness preflight' || true)
+  [[ "$n_outside_heading" -eq 1 ]] \
+    || { log_info "FAIL TEST-560: SKILL_INTAKE.prompt.md names staleness preflight $n_outside_heading time(s) outside its STEP 0 heading (want exactly 1 -- the STEP 0 body sentence, single-source)"; ok=0; }
+
+  # Part B: a forced unexpected throw (not a usage-error ExitSignal) must
+  # still exit 0 with no stack trace on stderr -- this preflight's OWN
+  # contract ("exit is ALWAYS 0 at runtime") applies to a genuine bug too,
+  # not only to a degraded git call.
+  local mutant out2 rc2
+  if mutant=$(stale_mutant_script 's/^function main() {$/function main() { throw new Error("TEST-560 forced throw"); }\nfunction _unreachable_main_560() {/'); then
+    out2=$(node "$mutant" --repo "$PROJECT_ROOT" 2>&1) && rc2=0 || rc2=$?
+    [[ "$rc2" -eq 0 ]] || { log_info "FAIL TEST-560: a forced non-ExitSignal throw must still exit 0, got $rc2: $out2"; ok=0; }
+    case "$out2" in
+      *"at "*".mjs"*) log_info "FAIL TEST-560: a forced throw must not leak a stack trace: $out2"; ok=0 ;;
+      *"TEST-560 forced throw"*"    at"*) log_info "FAIL TEST-560: a forced throw must not leak a stack trace: $out2"; ok=0 ;;
+    esac
+    log_info "  forced throw: exit $rc2, stderr='$out2'"
+  else
+    log_info "FAIL TEST-560: forced-throw mutation matched nothing in the script (test bug, not a real finding)"
+    ok=0
+  fi
+
+  # BITE: without the onError handler, the SAME forced throw must crash with
+  # a non-zero exit and a visible stack trace -- proves part B actually
+  # exercises the onError path rather than the throw never firing.
+  local bmutant bout brc
+  if bmutant=$(stale_mutant_script 's/^function main() {$/function main() { throw new Error("TEST-560 forced throw"); }\nfunction _unreachable_main_560() {/; s/runMain(() => main(), { onError() { process.exitCode = 0; } });/runMain(() => main());/'); then
+    bout=$(node "$bmutant" --repo "$PROJECT_ROOT" 2>&1) && brc=0 || brc=$?
+    if [[ "$brc" -eq 0 ]]; then
+      log_info "FAIL TEST-560: bite mutation (onError removed) must NOT exit 0, got 0 -- the forced-throw assertion cannot bite: $bout"
+      ok=0
+    else
+      log_info "  bite proven: removing onError makes the same forced throw crash non-zero (got $brc)"
+    fi
+  else
+    log_info "FAIL TEST-560: onError-removal bite mutation matched nothing in the script (test bug, not a real finding)"
+    ok=0
+  fi
+
+  # Part C: budget clamp across EVERY git call, not only fetches. Three
+  # local (reachable, not network-unreachable) submodules under a slow-git
+  # PATH shim (a fixed per-call delay, deterministic unlike a real timeout);
+  # a 500ms budget must still complete within 1.5x it (750ms).
+  local d3 slowbin t0 t1 elapsed_ms out3 rc3
+  d3=$(stale_fixture_with_n_submodules 3)
+  slowbin=$(stale_slow_git_bin "$d3" 0.25)
+  t0=$(date +%s%N)
+  out3=$(PATH="$slowbin:$PATH" node "$STALENESS_SCRIPT" --repo "$d3/super-w2" --budget-ms 500 2>&1 < /dev/null) && rc3=0 || rc3=$?
+  t1=$(date +%s%N)
+  elapsed_ms=$(( (t1 - t0) / 1000000 ))
+  [[ "$rc3" -eq 0 ]] || { log_info "FAIL TEST-560: the 3-submodule timing run must exit 0, got $rc3: $out3"; ok=0; }
+  if [[ "$elapsed_ms" -gt 750 ]]; then
+    log_info "FAIL TEST-560: elapsed ${elapsed_ms}ms exceeds 1.5x the 500ms budget (750ms) -- a git call was not clamped to the remaining budget: $out3"
+    ok=0
+  else
+    log_info "  elapsed ${elapsed_ms}ms within 1.5x the 500ms budget (750ms), 3 submodules under a fixed-delay git shim"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-560: the router names the staleness preflight exactly once outside its STEP 0 heading; a forced unexpected throw exits 0 with no stack trace (bite proven); a 3-submodule fixture completes within 1.5x a 500ms budget" \
+    || log_fail "FAIL TEST-560 preflight once, never throws, budget clamps every call (Spec-AC-25)"
+}
+
+# TEST-561 (Spec-AC-26) — `branch = .` in .gitmodules is git's own
+# track-superproject-branch SENTINEL, never a literal refspec; a submodule
+# path containing whitespace must resolve to the right directory.
+test_561_sentinel_branch_and_odd_paths() {
+  log_info "TEST-561 (Spec-AC-26): a .gitmodules 'branch = .' sentinel resolves through origin/HEAD to a real behind-count (bite proven); a submodule path with a space resolves to the right directory..."
+  local ok=1
+
+  # Arm A: branch = . sentinel.
+  local d out rc
+  d=$(stale_fixture_with_submodule)
+  ( cd "$d/super-w2" && git config -f .gitmodules submodule.sub.branch . \
+      && git config submodule.sub.branch . ) >/dev/null 2>&1
+  ( cd "$d/sub-w1" && echo s2 >> s.txt && git commit -qam c1 && git push -q origin HEAD ) >/dev/null 2>&1
+  out=$(node "$STALENESS_SCRIPT" --repo "$d/super-w2" 2>&1) && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "FAIL TEST-561: sentinel-branch run must exit 0, got $rc: $out"; ok=0; }
+  [[ "$out" == "AAI-STALE: submodule sub is 1 commit(s) behind origin/main" ]] \
+    || { log_info "FAIL TEST-561: 'branch = .' must resolve through origin/HEAD to a real behind-count (origin/main), got: $out"; ok=0; }
+
+  # BITE: a mutant reading '.' as a literal branch name/refspec (origin/.)
+  # must go silent -- proves the assertion above is not vacuously true.
+  local mutant bite_out bite_rc
+  if mutant=$(stale_mutant_script "s/if (b && b !== '.') return b;/if (b) return b;/"); then
+    bite_out=$(node "$mutant" --repo "$d/super-w2" 2>&1) && bite_rc=0 || bite_rc=$?
+    if [[ -n "$bite_out" ]]; then
+      log_info "FAIL TEST-561: the sentinel bite mutation must go silent (origin/. resolves to nothing), got exit $bite_rc: $bite_out"
+      ok=0
+    else
+      log_info "  bite proven: reading '.' as a literal branch name goes silent (origin/. resolves to nothing)"
+    fi
+  else
+    log_info "FAIL TEST-561: sentinel bite mutation matched nothing in the script (test bug, not a real finding)"
+    ok=0
+  fi
+
+  # Arm B: a submodule path containing whitespace ("sub two").
+  local d2
+  d2=$(intake_scratch)
+  git init -q --bare "$d2/sub-origin.git"
+  git -C "$d2/sub-origin.git" symbolic-ref HEAD refs/heads/main
+  git clone -q "$d2/sub-origin.git" "$d2/sub-w1" 2>/dev/null
+  stale_force_branch "$d2/sub-w1" main
+  ( cd "$d2/sub-w1" && git config user.email t@t.example && git config user.name t \
+      && echo s1 > s.txt && git add s.txt && git commit -qm init \
+      && git push -q origin HEAD:main -u ) >/dev/null 2>&1
+
+  git init -q --bare "$d2/super-origin.git"
+  git -C "$d2/super-origin.git" symbolic-ref HEAD refs/heads/main
+  git -c protocol.file.allow=always clone -q "$d2/super-origin.git" "$d2/super-w1" 2>/dev/null
+  stale_force_branch "$d2/super-w1" main
+  ( cd "$d2/super-w1" && git config user.email t@t.example && git config user.name t \
+      && echo x > x.txt && git add x.txt && git commit -qm init \
+      && git -c protocol.file.allow=always submodule add -q "$d2/sub-origin.git" "sub two" \
+      && git commit -qam "add submodule at a spaced path" \
+      && git push -q origin HEAD:main -u ) >/dev/null 2>&1
+
+  git -c protocol.file.allow=always clone -q --recurse-submodules "$d2/super-origin.git" "$d2/super-w2" 2>/dev/null
+  ( cd "$d2/super-w2" && git config user.email t@t.example && git config user.name t ) >/dev/null 2>&1
+  ( cd "$d2/sub-w1" && echo s2 >> s.txt && git commit -qam c1 && git push -q origin HEAD ) >/dev/null 2>&1
+
+  out=$(node "$STALENESS_SCRIPT" --repo "$d2/super-w2" 2>&1) && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "FAIL TEST-561: spaced-path run must exit 0, got $rc: $out"; ok=0; }
+  [[ "$out" == "AAI-STALE: submodule sub two is 1 commit(s) behind origin/main" ]] \
+    || { log_info "FAIL TEST-561: a submodule path with a space must resolve to the right directory and report staleness, got: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-561: 'branch = .' resolves through origin/HEAD to a real behind-count (bite proven); a submodule path with a space resolves and reports staleness" \
+    || log_fail "FAIL TEST-561 sentinel branch and odd paths (Spec-AC-26)"
+}
+
 # Main test execution
 main() {
   echo "Testing: $TEST_NAME"
@@ -1730,6 +1993,9 @@ main() {
   test_027_staleness_preflight_precedes_first_question
   test_028_profiles_yaml_classifies_new_script_in_core
   test_031_select_suites_maps_the_new_script_to_aai_intake
+  test_553_templates_pass_intake_file
+  test_560_preflight_once_and_never_throws
+  test_561_sentinel_branch_and_odd_paths
 
   echo ""
   echo "All tests passed!"

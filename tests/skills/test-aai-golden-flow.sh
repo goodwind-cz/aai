@@ -240,6 +240,21 @@ SPEC-FROZEN: true
 EOF
 }
 
+# write_gate_state_focus <repo> <ref_id> — a minimal docs/ai/STATE.yaml
+# carrying only current_focus.ref_id, the field close-ceremony-sweep
+# Spec-AC-02's cross-check reads (D5: read-only, never written by the gate).
+write_gate_state_focus() {
+  local repo="$1" ref_id="$2"
+  mkdir -p "$repo/docs/ai"
+  cat > "$repo/docs/ai/STATE.yaml" <<YAML
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: $ref_id
+  primary_path: null
+YAML
+}
+
 # run_gate <repo> <slug> [extra flags...] — runs the gate with cwd=repo;
 # captures stdout+stderr to $OUT and the exit code to $CODE.
 run_gate() {
@@ -471,6 +486,144 @@ test_008_no_forked_canon() {
   log_pass "TEST-008 no forked canon: terminal-status, EXCLUDE_DIRS and ceremony-prefix literals each in one file; the gate imports/obeys them"
 }
 
+# --- TEST-521 (Spec-AC-02, close-ceremony-sweep): the gate cross-checks --ref
+# against docs/ai/STATE.yaml current_focus.ref_id --------------------------
+
+test_521_gate_refuses_foreign_ref() {
+  log_info "TEST-521: a STATE current_focus.ref_id that disagrees with --ref makes the gate name both refs and exit LEFT BEHIND, not CLEAN; a matching ref stays CLEAN..."
+  local repo slug="gate-ride" other="some-other-ride"
+
+  # Arm A: mismatch -> LEFT BEHIND, both refs named.
+  repo="$(new_gate_repo t521-mismatch "$slug" done done)"
+  write_gate_state_focus "$repo" "$other"
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "add STATE with a foreign focus ref"
+  run_gate "$repo" "$slug"
+  [[ "$CODE" -eq 1 ]] || log_fail "TEST-521: a foreign current_focus.ref_id must exit 1 (LEFT BEHIND), got $CODE: $OUT"
+  case "$OUT" in *"$slug"*"$other"*) ;; *) log_fail "TEST-521: the refusal must name both the requested ref ($slug) and STATE's ref ($other): $OUT" ;; esac
+  case "$OUT" in *CLEAN*) log_fail "TEST-521: a foreign focus ref must never print CLEAN: $OUT" ;; esac
+
+  # Arm B: matching ref -> unaffected, CLEAN.
+  repo="$(new_gate_repo t521-match "$slug" done done)"
+  write_gate_state_focus "$repo" "$slug"
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "add STATE with the matching focus ref"
+  run_gate "$repo" "$slug"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-521: a matching current_focus.ref_id must stay CLEAN, got $CODE: $OUT"
+  case "$OUT" in *CLEAN*) ;; *) log_fail "TEST-521: expected CLEAN when the focus ref matches: $OUT" ;; esac
+
+  log_pass "TEST-521: a foreign STATE current_focus.ref_id makes the gate refuse naming both refs (LEFT BEHIND); a matching ref stays CLEAN"
+}
+
+# --- TEST-522 (Spec-AC-02): registry class 4 matches on the doc's display id
+# too, and a content arm catches a ceremony item under an unlisted subject --
+
+test_522_registry_class_identity() {
+  log_info "TEST-522: an item filed with ref_id = the intake doc's DISPLAY id (CHANGE-0178) is matched by class 4; a ceremony item filed under an unlisted subject prefix is matched by the content arm..."
+  local repo slug="gate-ride-522"
+
+  repo="$(new_gate_repo t522 "$slug" done done)"
+  # Stamp the intake doc with a real number so its display id is CHANGE-0178.
+  cat > "$repo/docs/issues/CHANGE-DRAFT-$slug.md" <<EOF
+---
+id: $slug
+type: change
+number: 178
+status: done
+links:
+  pr: []
+  commits: []
+---
+
+# Change — Fixture $slug
+
+## Summary
+- gate fixture doc.
+EOF
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "stamp the intake doc's display id (CHANGE-0178)"
+
+  node "$FOLLOW_UPS" add --id fu-close-ride-522-display-id --ref CHANGE-0178 --severity P2 \
+    --what "the close ceremony did not stamp links.pr" --why "fixture" --source "fixture" \
+    --ledger "$repo/docs/ai/decisions.jsonl" >/dev/null
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "record a follow-up filed under the display id"
+  run_gate "$repo" "$slug" --json
+  printf '%s\n' "$OUT" > "$TEST_DIR/t522-a.json"
+  [[ "$(json_field "$TEST_DIR/t522-a.json" 'r.registry_self_items')" == "1" ]] \
+    || log_fail "TEST-522: a follow-up filed with ref_id CHANGE-0178 (the doc's display id, not its slug) must still be matched: $OUT"
+  run_gate "$repo" "$slug"
+  case "$OUT" in *"fu-close-ride-522-display-id"*) ;; *) log_fail "TEST-522: the display-id-filed follow-up must be named: $OUT" ;; esac
+
+  # A ceremony item filed under an UNLISTED subject prefix (fu-orphan-, not in
+  # CEREMONY_FOLLOW_UP_ID_PREFIXES) whose finding says the ride left its OWN
+  # ceremony incomplete — a prefix-only reading misses it; the content arm
+  # must not.
+  node "$FOLLOW_UPS" add --id fu-orphan-ride-522-own-ceremony --ref "$slug" --severity P2 \
+    --what "this ride left its own ceremony incomplete: a page was never regenerated" --why "fixture" \
+    --source "fixture" --ledger "$repo/docs/ai/decisions.jsonl" >/dev/null
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "record a ceremony item filed under an unlisted subject"
+  run_gate "$repo" "$slug" --json
+  printf '%s\n' "$OUT" > "$TEST_DIR/t522-b.json"
+  [[ "$(json_field "$TEST_DIR/t522-b.json" 'r.registry_self_items')" == "2" ]] \
+    || log_fail "TEST-522: the content arm must also catch the unlisted-subject ceremony item (expected 2): $OUT"
+  run_gate "$repo" "$slug"
+  case "$OUT" in *"fu-orphan-ride-522-own-ceremony"*) ;; *) log_fail "TEST-522: the content-arm-matched item must be named: $OUT" ;; esac
+
+  # Negative control: an unlisted-subject item with NO self-referential
+  # ceremony phrase in its finding must still be excluded — the content arm
+  # is narrow, not a return to the six-word finding-text regex TEST-005 pins
+  # gone.
+  node "$FOLLOW_UPS" add --id fu-orphan-ride-522-unrelated --ref "$slug" --severity P3 \
+    --what "an unrelated defect this ride also noticed" --why "fixture: no ceremony phrase here" \
+    --source "fixture" --ledger "$repo/docs/ai/decisions.jsonl" >/dev/null
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "record an unrelated item under an unlisted subject"
+  run_gate "$repo" "$slug" --json
+  printf '%s\n' "$OUT" > "$TEST_DIR/t522-c.json"
+  [[ "$(json_field "$TEST_DIR/t522-c.json" 'r.registry_self_items')" == "2" ]] \
+    || log_fail "TEST-522: an unlisted-subject item with no ceremony phrase must stay excluded (still 2): $OUT"
+
+  log_pass "TEST-522: registry class 4 matches the doc's display id as well as its slug, and a content arm catches (only) a ceremony item filed under an unlisted subject"
+}
+
+# --- TEST-523 (Spec-AC-03): a roadmap-paired open maintenance half blocks push
+
+test_523_paired_half_blocks_push() {
+  log_info "TEST-523: a roadmap pair whose maintenance half is still open is named under docs_open and the gate exits LEFT BEHIND; terminal is CLEAN; no roadmap.yaml is silent and does not crash..."
+  local repo slug="gate-ride" maint="gate-ride-maintenance-half"
+
+  # Arm A: the paired maintenance half is still draft -> docs_open names it.
+  repo="$(new_gate_repo t523-open "$slug" done done)"
+  cat > "$repo/docs/ai/roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: $slug
+    maintenance: $maint
+    status: planned
+YAML
+  write_gate_change_doc "$repo/docs/issues/CHANGE-DRAFT-$maint.md" "$maint" draft
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "add roadmap pair and an open maintenance half ($maint)"
+  run_gate "$repo" "$slug"
+  [[ "$CODE" -eq 1 ]] || log_fail "TEST-523: an open paired maintenance half must exit 1, got $CODE: $OUT"
+  case "$OUT" in *"docs_open"*"$maint"*) ;; *) log_fail "TEST-523: the open half must be named under docs_open: $OUT" ;; esac
+  run_gate "$repo" "$slug" --json
+  printf '%s\n' "$OUT" > "$TEST_DIR/t523-open.json"
+  [[ "$(json_field "$TEST_DIR/t523-open.json" 'r.docs_open')" == "1" ]] \
+    || log_fail "TEST-523: docs_open must count the open paired half: $OUT"
+
+  # Arm B: same fixture, half now terminal -> CLEAN.
+  write_gate_change_doc "$repo/docs/issues/CHANGE-DRAFT-$maint.md" "$maint" done
+  git -C "$repo" add -A && git -C "$repo" commit -q -m "close the paired maintenance half ($maint)"
+  run_gate "$repo" "$slug"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-523: a terminal paired half must be CLEAN, got $CODE: $OUT"
+  case "$OUT" in *CLEAN*) ;; *) log_fail "TEST-523: expected CLEAN output: $OUT" ;; esac
+
+  # Arm C: no roadmap.yaml at all -> the class is silent, the run does not crash.
+  repo="$(new_gate_repo t523-noroadmap "$slug" done done)"
+  run_gate "$repo" "$slug"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-523: a repo with no roadmap.yaml must not crash and must stay CLEAN, got $CODE: $OUT"
+  case "$OUT" in *CLEAN*) ;; *) log_fail "TEST-523: expected CLEAN with no roadmap.yaml: $OUT" ;; esac
+
+  log_pass "TEST-523: an open roadmap-paired maintenance half is named under docs_open and blocks the push; terminal is CLEAN; no roadmap.yaml is silent and does not crash"
+}
+
 # --- flow helpers -------------------------------------------------------------
 
 # flow_env_run <out-dir> <record> [flow args...] — runs the flow under a
@@ -561,7 +714,13 @@ test_003_steps_from_questions() {
   [[ -f "$record" ]] || log_fail "TEST-003: record not written"
   [[ "$(json_field "$record" 'r.steps_total')" == "4" ]] || log_fail "TEST-003: steps_total must be 4: $(cat "$record")"
   [[ "$(json_field "$record" 'r.steps_failed')" == "3" ]] || log_fail "TEST-003: steps_failed must be 3: $(cat "$record")"
-  [[ "$(json_field "$record" 'r.questions_asked')" == "3" ]] || log_fail "TEST-003: questions_asked must be 3: $(cat "$record")"
+  # Spec-AC-28 (TDD run 9): none of these three fixture steps ever touches the
+  # real HITL channel (docs/ai/hitl-channel.json) -- a bash `read` on closed
+  # stdin, a plain `exit 3`, and a timeout are ordinary step FAILURES, not an
+  # asked question. questions_asked now counts only entries whose
+  # hitl_entries > 0, so it is 0 here even though all three are failures; the
+  # problem log (questions.length) still lists all three unchanged.
+  [[ "$(json_field "$record" 'r.questions_asked')" == "0" ]] || log_fail "TEST-003: questions_asked must be 0 -- none of these three failures touched the HITL channel: $(cat "$record")"
   [[ "$(json_field "$record" 'r.questions.length')" == "3" ]] || log_fail "TEST-003: questions must list 3 entries"
   [[ "$(json_field "$record" 'r.questions[0].step')" == "ask-operator" ]] || log_fail "TEST-003: first question must be the stdin step"
   [[ "$(json_field "$record" 'r.questions[0].exit_code')" != "0" ]] || log_fail "TEST-003: the stdin-reading step must not exit 0 with stdin closed"
@@ -571,6 +730,259 @@ test_003_steps_from_questions() {
   case "$(json_field "$record" 'r.questions[1].output')" in *"refused: fixture step"*) ;; *) log_fail "TEST-003: exit-three output missing" ;; esac
   [[ "$(json_field "$record" 'r.questions[2].timed_out')" == "true" ]] || log_fail "TEST-003: the sleeping step must be recorded as timed out: $(cat "$record")"
   log_pass "TEST-003 questions recorded with command, exit code, output; timeout observed, not hung"
+}
+
+# --- TEST-564 (Spec-AC-28): questions_asked counts only steps that actually
+# asked a human, never a step that merely failed ----------------------------
+
+test_564_questions_are_not_failures() {
+  log_info "TEST-564: two failed steps, zero HITL entries -> questions_asked 0 while steps_failed and the questions problem log still hold both..."
+  local out="$TEST_DIR/t564-out" record="$TEST_DIR/t564-record.jsonl" steps="$TEST_DIR/t564-steps.jsonl"
+  {
+    printf '%s\n' '{"name":"boom-one","run":["bash","-c","echo boom-one; exit 2"]}'
+    printf '%s\n' '{"name":"boom-two","run":["bash","-c","echo boom-two; exit 5"]}'
+  } > "$steps"
+  flow_env_run "$out" "$record" --steps-from "$steps"
+  [[ "$CODE" -eq 1 ]] || log_fail "TEST-564: expected exit 1, got $CODE: $OUT"
+  [[ "$(json_field "$record" 'r.steps_total')" == "2" ]] || log_fail "TEST-564: steps_total must be 2: $(cat "$record")"
+  [[ "$(json_field "$record" 'r.steps_failed')" == "2" ]] || log_fail "TEST-564: steps_failed must be 2: $(cat "$record")"
+  [[ "$(json_field "$record" 'r.questions.length')" == "2" ]] \
+    || log_fail "TEST-564: the questions problem log must still hold both entries: $(cat "$record")"
+  [[ "$(json_field "$record" 'r.questions_asked')" == "0" ]] \
+    || log_fail "TEST-564: questions_asked must be 0 -- neither failure touched the HITL channel, so a failed step must not be counted as an asked question: $(cat "$record")"
+  log_pass "TEST-564 two failed steps, zero HITL entries -> questions_asked 0, steps_failed 2, questions log holds both"
+}
+
+# --- TEST-573 (Spec-AC-33): append-event.mjs learns pr_sweep and refuses a
+# self-contradictory record whole, nothing written -------------------------
+
+test_573_pr_sweep_record_refuses_contradiction() {
+  log_info "TEST-573: four contradictory pr_sweep payloads are refused with nothing appended; one consistent record per outcome appends exactly one line..."
+  local d out events
+  d="$TEST_DIR/t573"
+  out="$TEST_DIR/t573-out"
+  events="$d/docs/ai/EVENTS.jsonl"
+  mkdir -p "$d/docs/ai"
+  : > "$events"
+
+  append_sweep() {
+    (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t573-ride "$@") >"$out" 2>&1
+  }
+  line_count() { wc -l < "$events" | tr -d ' '; }
+
+  local before after code
+
+  # Contradiction 1: swept with no thread seen (reviewer_bots=expected).
+  before="$(line_count)"
+  code=0; append_sweep --pr 901 --lane heavy --reviewer-bots expected --threads-seen 0 --threads-unresolved 0 --outcome swept || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-573: swept with threads_seen=0 must be refused, got exit 0: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused swept/no-thread record must append nothing (before=$before after=$after)"
+
+  # Contradiction 2: skipped_fast_lane on the heavy lane.
+  before="$after"
+  code=0; append_sweep --pr 901 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 --outcome skipped_fast_lane || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-573: skipped_fast_lane on the heavy lane must be refused, got exit 0: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused skipped_fast_lane/heavy record must append nothing"
+
+  # Contradiction 3: internal_substituted while reviewer_bots=expected.
+  before="$after"
+  code=0; append_sweep --pr 901 --lane heavy --reviewer-bots expected --threads-seen 0 --threads-unresolved 0 --outcome internal_substituted || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-573: internal_substituted while reviewer_bots=expected must be refused, got exit 0: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused internal_substituted/expected record must append nothing"
+
+  # Contradiction 4: threads_unresolved above zero, otherwise an outcome-valid swept record.
+  before="$after"
+  code=0; append_sweep --pr 901 --lane heavy --reviewer-bots expected --threads-seen 2 --threads-unresolved 1 --outcome swept || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-573: threads_unresolved=1 must be refused, got exit 0: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused threads_unresolved record must append nothing"
+
+  # Contradiction 5 (T1, validation-round1): swept with threads_seen > 0 but
+  # reviewer_bots != expected must ALSO be refused -- the reviewer_bots half
+  # of contradiction 1's OR is a separate, independently-pinned property from
+  # the threads_seen half contradiction 1 above already covers.
+  before="$after"
+  code=0; append_sweep --pr 901 --lane heavy --reviewer-bots none --threads-seen 2 --threads-unresolved 0 --outcome swept || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-573: swept with reviewer_bots=none (threads_seen>0) must be refused, got exit 0: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused swept/reviewer_bots-none record must append nothing"
+
+  # Contradiction 6 (B3, validation-round1): a non-numeric count is a usage
+  # error, refused whole with the offending field named -- not silently
+  # coerced to NaN and written as a null count.
+  before="$after"
+  code=0; append_sweep --pr 901 --lane heavy --reviewer-bots expected --threads-seen abc --threads-unresolved xyz --outcome swept || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-573: a non-numeric --threads-seen must be refused, got exit 0: $(cat "$out")"
+  grep -qF "threads-seen" "$out" || log_fail "TEST-573: the non-numeric-count refusal does not name --threads-seen: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused non-numeric-count record must append nothing"
+
+  # One consistent record per outcome: each appends exactly one line.
+  before="$after"
+  code=0; append_sweep --pr 902 --lane heavy --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept || code=$?
+  [[ "$code" -eq 0 ]] || log_fail "TEST-573: a consistent swept record must be accepted, exit $code: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$((before + 1))" ]] || log_fail "TEST-573: the consistent swept record must append exactly one line (before=$before after=$after)"
+
+  before="$after"
+  code=0; append_sweep --pr 903 --lane fast --reviewer-bots none --threads-seen 0 --threads-unresolved 0 --outcome skipped_fast_lane || code=$?
+  [[ "$code" -eq 0 ]] || log_fail "TEST-573: a consistent skipped_fast_lane record must be accepted, exit $code: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$((before + 1))" ]] || log_fail "TEST-573: the consistent skipped_fast_lane record must append exactly one line"
+
+  before="$after"
+  code=0; append_sweep --pr 904 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 --outcome internal_substituted || code=$?
+  [[ "$code" -eq 0 ]] || log_fail "TEST-573: a consistent internal_substituted record must be accepted, exit $code: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$((before + 1))" ]] || log_fail "TEST-573: the consistent internal_substituted record must append exactly one line"
+
+  local cnt; cnt="$(grep -cF '"event":"pr_sweep"' "$events" || true)"
+  [[ "$cnt" == "3" ]] || log_fail "TEST-573: expected exactly 3 pr_sweep lines in EVENTS.jsonl, got $cnt"
+
+  log_pass "TEST-573 (Spec-AC-33) the four contradictions are refused with nothing appended; a consistent record per outcome appends exactly one line"
+}
+
+# --- TEST-584 (Spec-AC-33, validation-round2 T-NEW-2): threads_unresolved --
+# owns its OWN refusal arm, independent of threads_seen ---------------------
+#
+# T-NEW-2: TEST-573's contradiction-6 arm passes BOTH --threads-seen abc AND
+# --threads-unresolved xyz, and the refusal fires on threads_seen (the field
+# checked first) — so append-event.mjs's parsing of threads_unresolved could
+# be reverted to the exact NaN-coercing `Number(args.threads_unresolved ?? 0)`
+# expression B3 reported and no test would notice. Pinned here directly: a
+# VALID --threads-seen with an INVALID --threads-unresolved must be refused
+# naming --threads-unresolved specifically, and append nothing.
+test_584_pr_sweep_threads_unresolved_owns_its_arm() {
+  log_info "TEST-584: a non-numeric --threads-unresolved is refused naming itself, independent of a VALID --threads-seen (Spec-AC-33)..."
+  local d out events before after code
+  d="$TEST_DIR/t584"
+  out="$TEST_DIR/t584-out"
+  events="$d/docs/ai/EVENTS.jsonl"
+  mkdir -p "$d/docs/ai"
+  : > "$events"
+
+  before="$(wc -l < "$events" | tr -d ' ')"
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t584-ride --pr 950 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved xyz --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-584: a non-numeric --threads-unresolved (with a valid --threads-seen) must be refused, got exit 0: $(cat "$out")"
+  grep -qF "threads-unresolved" "$out" || log_fail "TEST-584: the refusal does not name --threads-unresolved: $(cat "$out")"
+  after="$(wc -l < "$events" | tr -d ' ')"
+  [[ "$after" == "$before" ]] || log_fail "TEST-584: a refused non-numeric threads_unresolved record must append nothing (before=$before after=$after)"
+
+  # Control: the SAME payload with threads_unresolved valid (0) is accepted.
+  before="$after"
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t584-ride --pr 951 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -eq 0 ]] || log_fail "TEST-584: control (valid threads_unresolved) must be accepted, got exit $code: $(cat "$out")"
+  after="$(wc -l < "$events" | tr -d ' ')"
+  [[ "$after" == "$((before + 1))" ]] || log_fail "TEST-584: the control record must append exactly one line"
+
+  log_pass "TEST-584 (Spec-AC-33) --threads-unresolved is refused on its own bad value, naming itself, independent of --threads-seen"
+}
+
+# --- TEST-585 (Spec-AC-33, validation-round2 T-NEW-3): a count is a --------
+# non-negative INTEGER — a float is refused, pinned directly -----------------
+#
+# T-NEW-3: the alphabetic case ("abc") is the only shape TEST-573 exercises;
+# "2.5" being refused was true of the shipped code but held by no test, so
+# widening the digit regex to accept floats stayed green. Pinned here for
+# both count fields.
+test_585_pr_sweep_count_rejects_float() {
+  log_info "TEST-585: a fractional --threads-seen / --threads-unresolved is refused as a non-integer count (Spec-AC-33)..."
+  local d out events code
+  d="$TEST_DIR/t585"
+  out="$TEST_DIR/t585-out"
+  events="$d/docs/ai/EVENTS.jsonl"
+  mkdir -p "$d/docs/ai"
+  : > "$events"
+
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t585-ride --pr 960 --lane heavy \
+    --reviewer-bots expected --threads-seen 1.5 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-585: --threads-seen 1.5 must be refused, got exit 0: $(cat "$out")"
+  grep -qF "threads-seen" "$out" || log_fail "TEST-585: the refusal does not name --threads-seen: $(cat "$out")"
+  [[ -s "$events" ]] && log_fail "TEST-585: a refused fractional threads_seen record must append nothing: $(cat "$events")"
+
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t585-ride --pr 961 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 2.5 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-585: --threads-unresolved 2.5 must be refused, got exit 0: $(cat "$out")"
+  grep -qF "threads-unresolved" "$out" || log_fail "TEST-585: the refusal does not name --threads-unresolved: $(cat "$out")"
+  [[ -s "$events" ]] && log_fail "TEST-585: a refused fractional threads_unresolved record must append nothing: $(cat "$events")"
+
+  log_pass "TEST-585 (Spec-AC-33) a fractional count is refused, not silently truncated or accepted"
+}
+
+# --- TEST-586 (Spec-AC-33, validation-round2 NB-5): --pr is a count field --
+# too — the SAME parseSweepCount helper covers it, pinned directly ----------
+#
+# NB-5: `pr: Number(args.pr)` was the sibling of B3, three lines from its
+# fix: "abc" silently minted "pr":null and "0x181" minted "pr":385 for a PR
+# number nobody typed. A null-PR record is unfindable (fails closed), but a
+# hex/typo'd PR number mints a merge-readiness record for the WRONG PR.
+#
+# validation-round3 D1 / Amendment 19: two more shapes pinned directly. A
+# fractional --pr (385.0) must be refused whole, never truncated to an
+# integer PR nobody typed (the shipped /^[0-9]+$/ rule already refuses it;
+# this arm was simply unpinned). And --pr 0 must be refused: parseSweepCount
+# legitimately accepts 0 for a COUNT field, but a pull request is never
+# numbered 0, so append-event.mjs refuses it with its own explicit check.
+test_586_pr_sweep_pr_field_rejects_garbage() {
+  log_info "TEST-586: a non-integer --pr (alphabetic, hex-looking, or fractional) or --pr 0 is refused, never silently coerced (Spec-AC-33)..."
+  local d out events code
+  d="$TEST_DIR/t586"
+  out="$TEST_DIR/t586-out"
+  events="$d/docs/ai/EVENTS.jsonl"
+  mkdir -p "$d/docs/ai"
+  : > "$events"
+
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t586-ride --pr abc --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-586: --pr abc must be refused, got exit 0: $(cat "$out")"
+  grep -qF -- "--pr" "$out" || log_fail "TEST-586: the refusal does not name --pr: $(cat "$out")"
+  [[ -s "$events" ]] && log_fail "TEST-586: a refused --pr abc record must append nothing: $(cat "$events")"
+
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t586-ride --pr 0x181 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-586: --pr 0x181 must be refused (never silently reinterpreted as PR 385), got exit 0: $(cat "$out")"
+  grep -qF -- "--pr" "$out" || log_fail "TEST-586: the 0x181 refusal does not name --pr: $(cat "$out")"
+  [[ -s "$events" ]] && log_fail "TEST-586: a refused --pr 0x181 record must append nothing: $(cat "$events")"
+
+  # validation-round3 D1: a fractional PR number must be refused whole, never
+  # silently truncated to the integer part (--threads-seen/--threads-unresolved
+  # already pin the float boundary for the count fields; --pr owns its own arm).
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t586-ride --pr 385.0 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-586: --pr 385.0 must be refused (never silently truncated to PR 385), got exit 0: $(cat "$out")"
+  grep -qF -- "--pr" "$out" || log_fail "TEST-586: the 385.0 refusal does not name --pr: $(cat "$out")"
+  [[ -s "$events" ]] && log_fail "TEST-586: a refused --pr 385.0 record must append nothing: $(cat "$events")"
+
+  # validation-round3 (Amendment 19): --pr 0 is a non-negative integer, so
+  # parseSweepCount's shared count rule alone accepts it -- but a pull request
+  # is never numbered 0. Must be refused, naming --pr.
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t586-ride --pr 0 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-586: --pr 0 must be refused (there is no PR 0), got exit 0: $(cat "$out")"
+  grep -qF -- "--pr" "$out" || log_fail "TEST-586: the --pr 0 refusal does not name --pr: $(cat "$out")"
+  [[ -s "$events" ]] && log_fail "TEST-586: a refused --pr 0 record must append nothing: $(cat "$events")"
+
+  # Control: a real integer PR is accepted.
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t586-ride --pr 385 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -eq 0 ]] || log_fail "TEST-586: control --pr 385 must be accepted, got exit $code: $(cat "$out")"
+  grep -qF '"pr":385' "$events" || log_fail "TEST-586: the accepted record must carry pr:385: $(cat "$events")"
+
+  log_pass "TEST-586 (Spec-AC-33) --pr is validated by the same non-negative-integer rule as the count fields (plus its own positive-integer floor), never silently coerced or truncated"
 }
 
 # --- TEST-006 (Spec-AC-04): the record reads the gate, never recomputes ----
@@ -782,9 +1194,17 @@ main() {
   test_004_gate_five_arms
   test_005_registry_id_prefix_closed_list
   test_008_no_forked_canon
+  test_521_gate_refuses_foreign_ref
+  test_522_registry_class_identity
+  test_523_paired_half_blocks_push
+  test_573_pr_sweep_record_refuses_contradiction
+  test_584_pr_sweep_threads_unresolved_owns_its_arm
+  test_585_pr_sweep_count_rejects_float
+  test_586_pr_sweep_pr_field_rejects_garbage
   test_001_full_run_clean
   test_002_seam_fixture_layer
   test_003_steps_from_questions
+  test_564_questions_are_not_failures
   test_006_record_reads_gate_and_skill_pr_wiring
   test_007_record_append_only_and_diff
   test_417_locked_concurrent_appends

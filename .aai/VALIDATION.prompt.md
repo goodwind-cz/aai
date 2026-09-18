@@ -66,16 +66,20 @@ and honor its exit code: exit 0 clears the three rules below; a non-zero
 exit blocks PASS with the script's printed reasons as the primary failure
 reason — with ONE mechanical carve, from step 8a's AC-FLIP DEFERRAL: when the
 gated doc's frontmatter status is still open (draft/implementing) and every
-printed reason is a Rule-1 non-terminal row, that exit is the EXPECTED state
-of an in-flight spec and does not block PASS; the rows reconcile at the close
-step, where the gate re-runs against the flipped table. Any other printed
+printed reason is a Rule-1 non-terminal row, that exit does not block PASS —
+a mid-ride spec legitimately carries rows a later TDD/Implementation run has
+not reached yet; the rows reconcile at the close step, where the gate re-runs
+against the flipped table. Any other printed
 reason (Rule 2, Rule 4, or a Rule-1 finding on an already-done doc) blocks
 PASS exactly as stated. The script computes, deterministically:
 - Rule 1 — No silent partials: every Spec-AC row in the AC Status table has
   a terminal status (done | deferred | blocked | rejected); a planned or
   implementing row blocks PASS.
 - Rule 2 — No unsubstantiated done: every done row's Evidence column is
-  non-empty (commit SHA, RUN_ID, or other concrete artifact reference).
+  non-empty. Per .aai/ROLE_COMMON.md PRE-HANDOFF AC-TABLE RECONCILIATION, the
+  cell names a docs/ai/tdd artifact at hand-off (a RUN_ID or suite output path
+  may accompany it, never replace it) — never a commit SHA or PR reference;
+  the delivery citation is written by the close flip, not here.
 - Rule 4 (format clause) — every Review-By value parses as a valid ISO date
   or a recognized label; a schema-invalid Review-By blocks PASS.
 

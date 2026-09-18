@@ -81,6 +81,24 @@ run_gate() {
   printf '%s\n' "$rc"
 }
 
+# Build a directory containing ONLY the named tools (symlinked from their
+# real location), then print its path. Setting PATH to exactly this
+# directory is the only reliable way to make `command -v <tool>` genuinely
+# fail for one specific tool without guessing what else on the real PATH
+# might otherwise resolve it first (TEST-591/592, fu-hookgate-capability-
+# before-deny). A tool not found on the host is silently omitted, matching
+# "genuinely absent" for that tool too.
+minimal_path() {
+  local dir="$1" t p
+  shift
+  mkdir -p "$dir"
+  for t in "$@"; do
+    p="$(command -v "$t" 2>/dev/null)" || continue
+    ln -sf "$p" "$dir/$t"
+  done
+  printf '%s' "$dir"
+}
+
 # TEST-001 — template exists and parses as JSON
 test_001_template_valid_json() {
   if [[ ! -f "$TEMPLATE" ]]; then
@@ -189,6 +207,18 @@ test_004_fail_open_shape() {
   if ! (cmd='a[xy]c' _cmd_has 'a[xy]c'); then
     log_fail "TEST-004: _cmd_has must still match when the literal bracketed substring IS present"
   fi
+  # CI-only flake (found live on PR #385, never reproduced locally): with the
+  # adapter absent, `if [ -f "$G" ]; then ...; fi` never touches stdin at all
+  # -- the command exits with nothing having read the pipe. Piping into that
+  # under `set -o pipefail` races the reader's exit against the writer's
+  # `write()`: on a loaded CI runner the reader can close its end first,
+  # handing `printf` an EPIPE ("printf: write error: Broken pipe") that
+  # pipefail then reports as the WHOLE pipeline's exit code -- reading back
+  # as "command exits 1, not 0" even though the command itself never ran.
+  # Fixed the way TEST-008 already does it below: write the payload to a real
+  # file once and redirect it in, which never races because there is no live
+  # pipe for either side to close early.
+  printf '{}' > "$d/test004-payload.json"
   i=0
   while IFS= read -r cmd; do
     [[ -z "$cmd" ]] && continue
@@ -201,7 +231,7 @@ test_004_fail_open_shape() {
       ok=0
     fi
     rc=0
-    printf '{}' | (cd "$d" && CLAUDE_PROJECT_DIR="$d" sh -c "$cmd" >/dev/null 2>&1) || rc=$?
+    (cd "$d" && CLAUDE_PROJECT_DIR="$d" sh -c "$cmd" < "$d/test004-payload.json" >/dev/null 2>&1) || rc=$?
     if [[ "$rc" -ne 0 ]]; then
       log_info "TEST-004: command $i exits $rc (not 0) with the adapter absent"
       ok=0
@@ -494,6 +524,421 @@ test_015_strict_audit() {
   fi
 }
 
+# TEST-574 (Spec-AC-34, close-ceremony-sweep): the merge gate CALLS
+# lane-gate.mjs --sweep-check --pr <N> rather than restating its predicate
+# (issue 338 mechanization).
+test_016_merge_gate_sweep_check() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-574 $ADAPTER does not exist"; return; }
+  local ok=1 d rc err
+
+  d="$(new_fixture)"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai" "$d/bin"
+  cp "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" "$d/.aai/scripts/lane-gate.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
+  : > "$d/docs/ai/EVENTS.jsonl"
+
+  # No pr_sweep record at all for PR 42: denied, naming the absent record.
+  err=$(payload_for "gh pr merge 42 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: no-record merge exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "pr_sweep" "TEST-574: deny message does not name the absent pr_sweep record: $err" || ok=0
+  assert_payload_contains "$err" "42" "TEST-574: deny message does not name PR 42: $err" || ok=0
+
+  # A consistent record for PR 42 (heavy lane, internal_substituted outcome —
+  # this fixture carries no spec/STATE, so lane-gate computes heavy by
+  # default): merge is allowed.
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t574-ride \
+     --pr 42 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+  err=$(payload_for "gh pr merge 42 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-574: consistent-record merge exited $rc (want 0): $err"; ok=0; }
+
+  # A fast-lane record against the (computed-heavy) branch: denied again.
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t574-ride \
+     --pr 43 --lane fast --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome skipped_fast_lane >/dev/null)
+  err=$(payload_for "gh pr merge 43 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: fast-lane-record-on-heavy-branch merge exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "43" "TEST-574: lane-mismatch deny message does not name PR 43: $err" || ok=0
+
+  # An unreadable EVENTS.jsonl (a directory in its place, permission-
+  # independent) must fail OPEN — never a false deny.
+  rm -f "$d/docs/ai/EVENTS.jsonl"
+  mkdir -p "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 44 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-574: unreadable EVENTS.jsonl must fail OPEN (allow), got $rc: $err"; ok=0; }
+  rmdir "$d/docs/ai/EVENTS.jsonl" 2>/dev/null || true
+
+  # B2 (validation-round1): the PR number is NOT always positional right
+  # after `merge` -- prove the three other forms the old positional-only
+  # regex missed each still get judged against the real record (not allowed
+  # by a parse miss). No record for PR 45/46: denied naming it.
+  err=$(payload_for "gh pr merge --squash 45" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: 'gh pr merge --squash 45' (number after flags) exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "45" "TEST-574: 'gh pr merge --squash 45' deny message does not name PR 45: $err" || ok=0
+
+  err=$(payload_for "gh pr merge --squash --delete-branch 46" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: 'gh pr merge --squash --delete-branch 46' exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "46" "TEST-574: 'gh pr merge --squash --delete-branch 46' deny message does not name PR 46: $err" || ok=0
+
+  # A consistent record for PR 45 (the positional-after-flags form): allowed.
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t574-ride \
+     --pr 45 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+  err=$(payload_for "gh pr merge --squash 45" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-574: 'gh pr merge --squash 45' with a consistent record exited $rc (want 0): $err"; ok=0; }
+
+  # Bare `gh pr merge` (no positional PR number at all -- the numberless form
+  # .aai/SKILL_PR.prompt.md:488 itself documents) resolves the PR from the
+  # branch via `gh pr view`. Fake `gh` on PATH so the test never touches the
+  # network: pr view -> "47".
+  cat > "$d/bin/gh" <<'GHSTUB'
+#!/usr/bin/env bash
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  echo "47"
+  exit 0
+fi
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+  err=$(payload_for "gh pr merge" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: bare 'gh pr merge' (resolved to 47, no record) exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "47" "TEST-574: bare 'gh pr merge' deny message does not name the resolved PR 47: $err" || ok=0
+
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t574-ride \
+     --pr 47 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+  err=$(payload_for "gh pr merge" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-574: bare 'gh pr merge' resolved to 47 with a consistent record exited $rc (want 0): $err"; ok=0; }
+
+  # Bare `gh pr merge` when resolution ITSELF fails (fake gh returns nothing
+  # usable): denied, naming that neither a positional number nor `gh pr view`
+  # identified a PR -- never allowed by default on an unresolvable target.
+  cat > "$d/bin/gh" <<'GHSTUB'
+#!/usr/bin/env bash
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+  err=$(payload_for "gh pr merge" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: bare 'gh pr merge' with unresolvable PR exited $rc (want 2, never allow-by-default)"; ok=0; }
+  assert_payload_contains "$err" "could not determine" "TEST-574: unresolvable-PR deny message does not explain why: $err" || ok=0
+  rm -f "$d/bin/gh"
+
+  # T3 (validation-round1): a hand-appended record whose OWN lane already
+  # matches the branch's computed lane (so the lane-mismatch check above
+  # never fires) but whose outcome is illegal for that lane must still be
+  # denied -- this is the one property the old outcomeLegalOnLane guarded and
+  # no test ever reached (every prior arm was caught one check earlier).
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":48,"lane":"heavy","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"skipped_fast_lane"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 48 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: lane-matched but outcome-illegal record (PR 48) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "48" "TEST-574: outcome-illegal deny message does not name PR 48: $err" || ok=0
+
+  # NB-2 (validation-round1): the read side must re-validate the WHOLE
+  # record, not just the lane -- a hand-appended line whose lane matches but
+  # carries threads_unresolved > 0 alongside outcome: swept must be denied
+  # too (before this fix, --sweep-check only ever looked at lane + the one
+  # skipped_fast_lane/lane pairing).
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":49,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":7,"outcome":"swept"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 49 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: lane-matched but self-contradictory record (PR 49, threads_unresolved=7 + swept) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "49" "TEST-574: self-contradictory-record deny message does not name PR 49: $err" || ok=0
+
+  # BLOCKING-1 (code review 20260918T172546Z): a hand-appended record whose
+  # outcome is OUTSIDE PR_SWEEP_OUTCOMES must be denied exactly like the
+  # writer would refuse it -- reproduces the reviewer's own repro verbatim
+  # (a record append-event.mjs would never write used to read SWEEP-CHECK
+  # allowed, rc=0, because sweepContradictions had no rule for an unknown
+  # outcome and every per-outcome branch fell through as "consistent").
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":50,"lane":"heavy","reviewer_bots":"expected","threads_seen":3,"threads_unresolved":0,"outcome":"totally_fine"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 50 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: unknown-outcome record (PR 50, outcome=totally_fine) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "50" "TEST-574: unknown-outcome deny message does not name PR 50: $err" || ok=0
+
+  # Same divergence class, the COUNT fields: a hand-appended threads_seen
+  # that is not the integer parseSweepCount would ever have written (here a
+  # bare string) makes every sweepContradictions numeric comparison coerce
+  # to false, the identical NaN-shaped gap B3/validation-round1 closed on
+  # the WRITE side -- the read side must refuse it the same way.
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":51,"lane":"heavy","reviewer_bots":"expected","threads_seen":"abc","threads_unresolved":0,"outcome":"swept"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 51 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: non-integer threads_seen record (PR 51) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "51" "TEST-574: non-integer-threads_seen deny message does not name PR 51: $err" || ok=0
+
+  # And the `pr` field ITSELF: readPrSweepRecords matches records by
+  # `Number(payload.pr) === pr`, so a STRING "52" still finds the record
+  # (Number("52") === 52) -- sweepContradictions must judge the field's
+  # TYPE, not just the numeric value the filter already matched on.
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":"52","lane":"heavy","reviewer_bots":"expected","threads_seen":3,"threads_unresolved":0,"outcome":"swept"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 52 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: string-typed pr field record (PR 52) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "52" "TEST-574: string-pr deny message does not name PR 52: $err" || ok=0
+
+  # R2-NB-1 (code review 20260918T172546Z round 2): reviewer_bots was the
+  # SIXTH field append-event.mjs validates that sweepContradictions did not
+  # judge -- the writer refuses a missing --reviewer-bots (append-event.mjs
+  # "pr_sweep requires --reviewer-bots"), but a hand-appended record with NO
+  # reviewer_bots key at all used to read SWEEP-CHECK allowed, rc=0. Denied
+  # now that the shared predicate judges the field against the SAME closed
+  # tri-state SKILL_PR.prompt.md:468 documents (expected|none|unknown).
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":53,"lane":"heavy","threads_seen":3,"threads_unresolved":0,"outcome":"internal_substituted"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 53 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: absent-reviewer_bots record (PR 53) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "53" "TEST-574: absent-reviewer_bots deny message does not name PR 53: $err" || ok=0
+
+  # Same field, an out-of-vocabulary VALUE rather than an absent key (round-1
+  # NB-3's typo shape, now closed by the same rule) -- "expectd" is not one
+  # of expected|none|unknown and must be denied like any other malformed
+  # field, not read as truthy-and-therefore-fine.
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":54,"lane":"heavy","reviewer_bots":"expectd","threads_seen":3,"threads_unresolved":0,"outcome":"internal_substituted"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 54 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: unknown-value reviewer_bots record (PR 54) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "54" "TEST-574: unknown-value reviewer_bots deny message does not name PR 54: $err" || ok=0
+
+  # `lane` cannot be reached with an illegal value through this hook path at
+  # all (the lane-mismatch check ahead of sweepContradictions already denies
+  # anything other than the two values computeLaneVerdict can itself
+  # produce) -- but lane-gate.mjs's own header promises ONE predicate for
+  # both read and write, so sweepContradictions must judge it directly too,
+  # for any future caller that invokes the predicate without that earlier
+  # gate. Pinned at the predicate level, not through the hook.
+  lane_check=$(cd "$d" && node --input-type=module -e '
+    import { sweepContradictions } from "./.aai/scripts/lib/pr-sweep.mjs";
+    const bad = sweepContradictions({ pr: 1, lane: "orbit", reviewer_bots: "expected", threads_seen: 1, threads_unresolved: 0, outcome: "swept" });
+    process.stdout.write(bad.length > 0 ? "BAD" : "CLEAN");
+  ' 2>&1)
+  [[ "$lane_check" == "BAD" ]] || { log_info "TEST-574: sweepContradictions does not reject an illegal lane value directly, got: $lane_check"; ok=0; }
+
+  # The hook must call lane-gate.mjs's --sweep-check mode, never restate its
+  # predicate (this file's own "never reimplement a predicate here" rule).
+  grep -qF "lane-gate.mjs" "$ADAPTER" || { log_info "TEST-574: merge gate does not call lane-gate.mjs"; ok=0; }
+  grep -qF -- "--sweep-check" "$ADAPTER" || { log_info "TEST-574: merge gate does not invoke --sweep-check"; ok=0; }
+  grep -qE 'ceremony_level|implementation_strategy' "$ADAPTER" \
+    && { log_info "TEST-574: the hook appears to restate a lane-gate predicate"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-574 merge gate calls lane-gate.mjs --sweep-check: denies absent/mismatched records, allows a consistent one, fails open on an unreadable EVENTS.jsonl; the PR number is taken from any positional argument or resolved from the branch, never allowed by default when unresolvable; the read side re-validates the whole record" \
+                  || log_fail "TEST-574 merge gate sweep-check"
+}
+
+# TEST-587 (Spec-AC-34, validation-round2 NB-2): a QUOTED positional PR
+# number must be judged against ITSELF, never fall through to branch
+# resolution and get judged against a different PR's record.
+test_017_merge_gate_quoted_pr_number() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-587 $ADAPTER does not exist"; return; }
+  local ok=1 d rc err
+
+  d="$(new_fixture)"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai" "$d/bin"
+  cp "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" "$d/.aai/scripts/lane-gate.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
+  : > "$d/docs/ai/EVENTS.jsonl"
+
+  # A consistent record exists ONLY for PR 777 (standing in for "whatever PR
+  # the current branch would resolve to"), never for PR 385.
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t587-ride \
+     --pr 777 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+  cat > "$d/bin/gh" <<'GHSTUB'
+#!/usr/bin/env bash
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  echo "777"
+  exit 0
+fi
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+
+  # NB-2: a double-quoted bare PR number must be parsed as PR 385, not fall
+  # through to branch resolution (which would find 777's consistent record
+  # and wrongly ALLOW a merge of PR 385).
+  err=$(payload_for 'gh pr merge "385" --squash' | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-587: quoted 'gh pr merge \"385\"' exited $rc (want 2, denied against PR 385's own absent record): $err"; ok=0; }
+  assert_payload_contains "$err" "385" "TEST-587: the quoted-PR deny message does not name PR 385: $err" || ok=0
+
+  # Same for a single-quoted number.
+  err=$(payload_for "gh pr merge '385' --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-587: single-quoted 'gh pr merge '\''385'\''' exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "385" "TEST-587: the single-quoted-PR deny message does not name PR 385: $err" || ok=0
+
+  # Control: the UNQUOTED form still works (regression guard for the fix).
+  err=$(payload_for "gh pr merge 385 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-587: control unquoted 'gh pr merge 385' exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "385" "TEST-587: the unquoted-PR control deny message does not name PR 385: $err" || ok=0
+
+  # A quoted PHRASE containing a digit must NOT be taken as the PR number
+  # (validation-round1 B2's own control, must survive this fix): quoting
+  # digits-only must not widen into quoting-any-token.
+  err=$(payload_for 'gh pr merge --subject "fix 123" --squash 385' | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-587: '--subject \"fix 123\" --squash 385' exited $rc (want 2, judged against 385 not 123): $err"; ok=0; }
+  assert_payload_contains "$err" "385" "TEST-587: a digit inside a quoted PHRASE was taken instead of the real PR 385: $err" || ok=0
+
+  # Now record a consistent record for PR 385: the quoted form allows.
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t587-ride \
+     --pr 385 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+  err=$(payload_for 'gh pr merge "385" --squash' | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-587: quoted 'gh pr merge \"385\"' with a consistent PR-385 record exited $rc (want 0): $err"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-587 (Spec-AC-34, NB-2) a quoted positional PR number is judged against ITSELF, never a different PR resolved from the branch" \
+                  || log_fail "TEST-587 merge gate quoted PR number"
+}
+
+# TEST-591 (fu-hookgate-capability-before-deny, code review round 1/2 of
+# close-ceremony-sweep): when the TOOLING to resolve or check a PR is
+# genuinely absent -- no `gh` to resolve a branch-implicit PR, no `node`, no
+# .aai layer (lane-gate.mjs) to run a check against -- that is a capability
+# gap, not a verdict, and the merge gate must ALLOW exactly like every other
+# adapter-trouble path this file documents. Before the fix, "cannot resolve"
+# was treated as a verdict regardless of WHY it couldn't resolve, so any of
+# these three absences read identically to a genuinely unresolvable/missing
+# record and denied.
+test_018_merge_gate_capability_absent_allows() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-591 $ADAPTER does not exist"; return; }
+  local ok=1 d rc err minp
+
+  # (a) no positional PR number AND no `gh` on PATH at all: nothing can even
+  # attempt to resolve which PR this is -- capability absent -> ALLOW.
+  d="$(new_fixture)"
+  minp="$(minimal_path "$d/nogh-bin" cat grep sed bash node)"
+  err=$(payload_for "gh pr merge --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$minp" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-591: bare 'gh pr merge' with no gh on PATH exited $rc (want 0, capability absent): $err"; ok=0; }
+
+  # (b) a positional PR number IS given (so resolution needs no gh at all),
+  # but `node` is absent: nothing can run the sweep-check -- ALLOW.
+  d="$(new_fixture)"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" "$d/.aai/scripts/lane-gate.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  minp="$(minimal_path "$d/nonode-bin" cat grep sed bash gh)"
+  err=$(payload_for "gh pr merge 42 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$minp" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-591: 'gh pr merge 42' with no node on PATH exited $rc (want 0, capability absent): $err"; ok=0; }
+
+  # (c) a positional PR number IS given, node IS present (ambient PATH), but
+  # the .aai layer itself (lane-gate.mjs) is absent -- the TEST-004 shape,
+  # exercised here through the real adapter rather than the template guard:
+  # nothing to check the PR against -- ALLOW.
+  d="$(new_fixture)"
+  err=$(payload_for "gh pr merge 42 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-591: 'gh pr merge 42' with no .aai layer exited $rc (want 0, capability absent): $err"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-591 (fu-hookgate-capability-before-deny) merge gate ALLOWS when the tooling to resolve or check a PR is absent (no gh, no node, no .aai layer) -- capability absence is never read as an unresolvable/missing verdict" \
+                  || log_fail "TEST-591 merge gate capability-absent"
+}
+
+# TEST-592 (fu-hookgate-capability-before-deny): the companion half -- when
+# the SAME tooling IS present and it genuinely cannot resolve or verify the
+# PR, that IS a verdict and the gate must still deny (this is the behavior
+# B2/validation-round1 introduced; the capability-order fix must not weaken
+# it for the case the tooling actually ran and came back empty/denied).
+test_019_merge_gate_tooling_present_unresolvable_denies() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-592 $ADAPTER does not exist"; return; }
+  local ok=1 d rc err
+
+  # (a) `gh` IS on PATH (capability present) but resolution itself fails (no
+  # PR on this branch / gh error) and no positional number was given: denied,
+  # naming that neither path identified a PR.
+  d="$(new_fixture)"
+  mkdir -p "$d/bin"
+  cat > "$d/bin/gh" <<'GHSTUB'
+#!/usr/bin/env bash
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+  err=$(payload_for "gh pr merge" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-592: bare 'gh pr merge' with gh present but unresolvable exited $rc (want 2, tooling present): $err"; ok=0; }
+  assert_payload_contains "$err" "could not determine" "TEST-592: tooling-present-unresolvable deny message does not explain why: $err" || ok=0
+
+  # (b) node + lane-gate.mjs ARE present (capability present), the PR IS
+  # known, but there is no valid sweep record for it: denied (unchanged
+  # behavior, still exercised here to pin it alongside the capability-order
+  # fix, not just via TEST-574).
+  d="$(new_fixture)"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" "$d/.aai/scripts/lane-gate.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 99 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-592: 'gh pr merge 99' with capability present but no sweep record exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "99" "TEST-592: capability-present-no-record deny message does not name PR 99: $err" || ok=0
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-592 (fu-hookgate-capability-before-deny) merge gate still DENIES when the tooling to resolve or check a PR is present and what it finds is genuinely unresolvable or missing" \
+                  || log_fail "TEST-592 merge gate tooling-present-unresolvable"
+}
+
+# TEST-597 (P1, Codex / PR #385 bot review, Amendment 27): `gh pr merge`
+# accepts [<number> | <url> | <branch>] positionally, but the parser used to
+# recognise only a bare digit -- a branch name or a PR URL fell through to
+# the SAME path as a targetless `gh pr merge` and was judged against
+# whatever PR `gh pr view` (no arg) resolves for the CURRENT branch, not the
+# one actually named on the command line.
+test_020_merge_gate_branch_and_url_targets() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-597 $ADAPTER does not exist"; return; }
+  local ok=1 d rc err
+
+  d="$(new_fixture)"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai" "$d/bin"
+  cp "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" "$d/.aai/scripts/lane-gate.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
+  : > "$d/docs/ai/EVENTS.jsonl"
+
+  # A consistent record exists ONLY for PR 61 (the branch target) and PR 62
+  # (the URL target) -- never for PR 999, which is what a targetless
+  # `gh pr view` (current-branch resolution) would wrongly return below if
+  # the branch/URL positional were silently dropped.
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t597-ride \
+     --pr 61 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t597-ride \
+     --pr 62 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+
+  cat > "$d/bin/gh" <<'GHSTUB'
+#!/usr/bin/env bash
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  if [ -z "${3:-}" ]; then
+    echo "999"
+    exit 0
+  fi
+  case "$3" in
+    feature-branch) echo "61"; exit 0 ;;
+    https://github.com/o/r/pull/62) echo "62"; exit 0 ;;
+    *) exit 1 ;;
+  esac
+fi
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+
+  # (a) a BRANCH name target: judged against PR 61's own record, never the
+  # current-branch-implicit PR 999.
+  err=$(payload_for "gh pr merge feature-branch --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-597: 'gh pr merge feature-branch' with a consistent PR-61 record exited $rc (want 0): $err"; ok=0; }
+
+  # (b) a URL target: judged against PR 62's own record.
+  err=$(payload_for "gh pr merge https://github.com/o/r/pull/62 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-597: 'gh pr merge <url>' with a consistent PR-62 record exited $rc (want 0): $err"; ok=0; }
+
+  # (c) an UNRECORDED branch target: denied naming PR 61 (still resolved to
+  # itself), never silently allowed via PR 999's (nonexistent) record.
+  d2="$(new_fixture)"
+  mkdir -p "$d2/bin"
+  cp "$d/bin/gh" "$d2/bin/gh"
+  err=$(payload_for "gh pr merge feature-branch" | (cd "$d2" && CLAUDE_PROJECT_DIR="$d2" PATH="$d2/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  # $d2 has no .aai layer at all (capability absent for the sweep-check step)
+  # -- PR resolution itself still must have judged "feature-branch" (proven
+  # by (a)/(b) above sharing the SAME gh stub). This arm only guards that a
+  # resolved-but-uncheckable target still falls open, not a false deny.
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-597: 'gh pr merge feature-branch' with no .aai layer must fall open (capability absent), got $rc: $err"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-597 (P1, Codex PR #385) merge gate resolves a branch-name or URL positional target via 'gh pr view <target>', never the current-branch-implicit PR" \
+                  || log_fail "TEST-597 merge gate branch/URL target resolution"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -515,6 +960,11 @@ main() {
   test_013_repo_uninstalled
   test_014_prompt_diet_floor
   test_015_strict_audit
+  test_016_merge_gate_sweep_check
+  test_017_merge_gate_quoted_pr_number
+  test_018_merge_gate_capability_absent_allows
+  test_019_merge_gate_tooling_present_unresolvable_denies
+  test_020_merge_gate_branch_and_url_targets
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

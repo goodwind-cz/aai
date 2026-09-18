@@ -73,6 +73,17 @@ PROCESS
    - Update the in-scope list: DROP the `*-DRAFT-*` path, ADD the
      `<TYPE>-000N-<slug>.md` path + every page the allocator just printed
      (INDEX, overview x2, USER_GUIDE) — unstaged means a dead link ships.
+   - RESTAMP A RENUMBERED FROZEN SPEC (Spec-AC-20 / D2): the allocator's own
+     `allocated <old> -> <new> ...` completion line above is what this step
+     keys on — immediately after it, for the doc it just renamed, run:
+       node .aai/scripts/spec-amend.mjs restamp --spec <TYPE-000N-slug.md path> --ref <ref-id>
+     A spec carrying `frozen_sha256` whose own SPEC-DRAFT- self-references the
+     rewrite pass just touched drifted from its frozen anchor for a purely
+     mechanical reason; restamp re-anchors it and appends the disclosing
+     ledger record, so it reads as a DISCLOSED restamp at the PR/close gate
+     instead of reddening `list --strict` as an undisclosed-amendment. A doc
+     with no `frozen_sha256`, or whose content already matches its anchor
+     (nothing drifted), is a no-op: exit 0, nothing written.
    - Exit codes: 0 success/nothing; 3 base ref unreachable — STOP (never commit an
      unnumbered draft); 4 guard failure (malformed / collision) — STOP and fix.
    - FALLBACK: if the allocator is absent (older layer), NOTE it and proceed — the
@@ -132,9 +143,11 @@ PROCESS
 
 3b. CHANGELOG — keep the human-readable history fed (root `CHANGELOG.md`):
    - For every feature/fix scope (feat/fix; pure chore/docs noise may skip),
-     add a `## [unreleased] — <type>: <title>` entry at the top of the entry
-     list, Keep-a-Changelog style, 3–10 hyphen bullets: what changed, why it
-     matters, and the ref ids (CHANGE-xxxx / SPEC-xxxx; PR number once known).
+     add a per-entry heading at the top of the entry list in the shape
+     CHANGELOG.md's own preamble names (Spec-AC-31: stated once, where its
+     tool reads it — do not restate the shape here), followed by 3–10
+     hyphen bullets: what changed, why it matters, and the ref ids
+     (CHANGE-xxxx / SPEC-xxxx; PR number once known).
    - Stage `CHANGELOG.md` together with the scope.
    - Rationale: the changelog is the aggregated view operators read; it once
      silently drifted 10 PRs behind.
@@ -232,6 +245,10 @@ PROCESS
      push yet, there is no PR to update. This commit rides out together with
      the FIRST push in step 5, so the very first CI run already sees a
      closed doc.
+   - VERIFY THE CLOSE COMMIT (Spec-AC-30): `node .aai/scripts/check-committed-scope.mjs
+     <closed-doc-path(s)> docs/ai/EVENTS.jsonl --strict --rev HEAD --expect-branch <branch>`
+     (never `--from-state` — wrong scope here). Non-zero: STOP, re-stage,
+     `git commit --amend`. FALLBACK: `git show --stat HEAD`.
    - Merge boundary unchanged: this step never merges, and never pushes.
 
 5. PLATFORM GATE + PUSH + PR:
@@ -282,6 +299,9 @@ PROCESS
      registry_self_items) and clear each item before pushing — an untracked
      file, a doc still `draft`, an audit finding or a follow-up this ride
      filed about its own ceremony is what a merged ride leaves behind.
+   - SHARED-PAGE PUSH CHECK (Spec-AC-30): `node .aai/scripts/pr-platform.mjs
+     --check-shared-page-conflicts` (github only, else SKIP, never blocks).
+     Non-zero: STOP, coordinate with the named open PR(s) before pushing.
    - `github`/`azure`/`unknown` with a remote: `git push -u origin <branch>`.
      `none`: skip the push entirely and go straight to GENERIC MODE below.
    - Branch on the value the step-5 probe printed — NEVER guess:
@@ -368,9 +388,11 @@ PROCESS
      `TBD` placeholder was found, meaning step 4c did not run with `--pr TBD`
      before this push (the ordering was violated somewhere): fix the
      ordering and re-run 4c, never hand-edit `links.pr`.
-   - Stage and push the mutated doc(s) as a follow-up `chore(close): <ref>
-     stamp PR #<N>` commit on the SAME branch (same scope-only staging
-     discipline as steps 2-4), updating the open PR.
+   - Stage, COMMIT (`chore(close): <ref> stamp PR #<N>`, same discipline as
+     steps 2-4), and VERIFY it (Spec-AC-30) with `node .aai/scripts/check-committed-scope.mjs
+     <closed-doc-path(s)> --strict --rev HEAD --expect-branch <branch>`
+     (non-zero STOPs; FALLBACK `git show --stat HEAD`) before pushing this
+     commit on the SAME branch, updating the open PR.
    - FAST LANE (lightweight-e2e-lane): on `LANE fast`, this stamp-pr commit's
      diff is a single frontmatter line (`links.pr`) — even lighter than
      before this change, because the close ceremony's real diff (status flip
@@ -442,6 +464,12 @@ PROCESS
      "internal review substituted for absent bot layer" in the PR description.
    - Wait for the CI re-run and repeat this sweep ONCE for NEW comments
      before declaring merge-ready.
+   - RECORD IT (Spec-AC-33/34, issue 338): `append-event.mjs --event pr_sweep
+     --pr <N> --lane <fast|heavy> --reviewer-bots <expected|none|unknown>
+     --threads-seen <n> --threads-unresolved 0 --outcome
+     <swept|skipped_fast_lane|internal_substituted>` before any merge — the
+     hook-overlay merge gate calls `lane-gate.mjs --sweep-check` and denies a
+     `gh pr merge` with no matching record.
    - FRICTION HOOK (canon-file gate/lint/CI failure handled, default-on): when
      a CI check or bot finding here surfaces an AAI-owned defect, best-effort
      record it per .aai/system/FRICTION_PROTOCOL.md "Deterministic hook
@@ -468,6 +496,9 @@ PROCESS
      capability ride, any public or external side effect, or ceremony 3 is
      NEVER covered. Cite the record in the merge report. Absent such a record,
      or on any unmet condition, the hard rule above stands unchanged.
+   - SWEEP CHECK (Spec-AC-34), runs even without the hook overlay: before
+     `gh pr merge`, `node .aai/scripts/lane-gate.mjs --sweep-check --pr <n>`
+     must exit 0, or step 5d's `pr_sweep` record is missing/wrong -- fix, retry.
    - Hook marker (RFC-0010, opt-in overlay): projects with the Claude hooks
      overlay installed deny `git merge` / `gh pr merge` mechanically unless
      `AAI_OPERATOR_MERGE=1` is set on that command. The agent NEVER sets this

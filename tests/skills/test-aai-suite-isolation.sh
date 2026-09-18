@@ -2365,6 +2365,11 @@ exit "${1:-0}"'
   mkdir -p "$d/.aai/scripts/lib"
   cp "$FRICTION_CLI" "$d/.aai/scripts/aai-friction.mjs"
   cp "$AAI_REDACT_LIB" "$d/.aai/scripts/lib/aai-redact.mjs"
+  # aai-friction.mjs also imports detectHarness from ./lib/harness.mjs — a
+  # second real dependency this fixture never carried (validation-round5
+  # B2-R5: only visible once check-vendored-script-deps.mjs could see this
+  # $FRICTION_CLI-spelled vendoring line at all).
+  cp "$PROJECT_ROOT/.aai/scripts/lib/harness.mjs" "$d/.aai/scripts/lib/harness.mjs"
   local spool
   spool="$(new_fixture)" || return
   rc=0

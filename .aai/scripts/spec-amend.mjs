@@ -250,7 +250,7 @@ function overlayKey(ts, ref) {
   const t = str(ts);
   const r = str(ref);
   if (t === null || r === null) return null;
-  return `${t} ${r}`;
+  return `${t}\u0000${r}`;
 }
 
 // Codepoint ordering, never localeCompare: "latest wins" must not depend on
@@ -516,7 +516,25 @@ const USAGE = `Usage:
   node .aai/scripts/spec-amend.mjs list [--status unsigned|signed|unclassified|all]
        [--json] [--strict] [--ledger <path>]
 
+  node .aai/scripts/spec-amend.mjs restamp --spec <path> [--ref <ref_id>]
+       [--actor <slug>] [--ledger <path>]
+
   node .aai/scripts/spec-amend.mjs --help
+
+\`restamp\` (D2 / Spec-AC-20) is for the ONE case \`add\` does not cover: a frozen
+spec whose content drifted from its OWN \`frozen_sha256\` anchor for a purely
+MECHANICAL reason — allocate-doc-number.mjs rewriting this very spec's
+SPEC-DRAFT- self-references at merge — with nothing else having disclosed it.
+It re-anchors the spec to its current contract-projection hash and appends a
+\`spec_amendment\` record carrying \`from_frozen_sha256\`/\`to_frozen_sha256\`
+(Spec-AC-19), co-creating the same \`fu-amend-<spec id>\` tracked item \`add\`
+does, so \`list --strict\` reads a DISCLOSED restamp rather than an
+undisclosed-amendment. A spec with no \`frozen_sha256\`, or whose content
+already matches its stored anchor, is a no-op: exit 0, nothing written. The
+ledger record lands BEFORE the spec file is ever touched, and the file write
+itself is temp-file-plus-rename in the spec's own directory, so a process
+killed at any point through the write leaves the spec byte-identical to its
+pre-restamp state with the ledger already telling the truth.
 
 \`add\` NEVER refuses an unsigned amendment for want of a tracked item: it
 appends the amendment AND manufactures the follow-up naming the spec and the
@@ -569,6 +587,11 @@ const FLAG_SPECS = {
   // corpus without touching the live tree, the same seam `--ledger` already
   // is for the amendment-record half of this gate.
   list: ['--ledger', '--status', '--specs-dir'],
+  // restamp (D2 / Spec-AC-20): --ref is OPTIONAL, unlike add/classify — a
+  // mechanical allocator-rewrite restamp has no ride to blame if the caller
+  // omits it, so it falls back to the spec's own frontmatter id (readSpecId),
+  // never an invented placeholder.
+  restamp: ['--ledger', '--spec', '--ref', '--actor'],
 };
 
 // A value is a value unless it is EXACTLY a token this CLI knows — never a
@@ -784,12 +807,26 @@ function cmdAdd(opts) {
   exit(0);
 }
 
-// restampSpecAnchor(absSpec) -> the new hex digest written, or null when the
-// file could not be read, has no frontmatter, or carries no existing
-// `frozen_sha256` key (nothing to re-stamp — never MANUFACTURES an anchor;
-// that is spec-freeze.mjs's job, D9/D17). Preserves the file's original line
-// endings, mirroring spec-freeze.mjs's own CRLF discipline.
-function restampSpecAnchor(absSpec) {
+// setFrontmatterScalar(fmBody, key, value) -> fmBody with an EXISTING
+// `key: <old>` line rewritten to `key: <value>`, or fmBody UNCHANGED when the
+// key is absent (never manufactures a key that was not already there — the
+// same "never invent an anchor" discipline restampSpecAnchor's header
+// documents, now shared by both restamp paths below).
+function setFrontmatterScalar(fmBody, key, value) {
+  const re = new RegExp(`^${key}:[ \\t]*\\S*[ \\t]*$`, 'm');
+  return re.test(fmBody) ? fmBody.replace(re, `${key}: ${value}`) : fmBody;
+}
+
+// computeSpecRestamp(absSpec) -> { fromHash, nextHash, out } | null. Reads
+// absSpec and returns the WOULD-BE re-anchored bytes without writing
+// anything — null when the file could not be read, has no frontmatter,
+// carries no existing `frozen_sha256` key (nothing to re-stamp; never
+// MANUFACTURES an anchor, that is spec-freeze.mjs's job, D9/D17), or the
+// current contract-projection hash already matches the stored anchor
+// (nothing drifted, so restamp is an idempotent no-op). Splitting "compute"
+// from "commit" (below) is what lets a caller record the LEDGER disclosure
+// BEFORE the file is ever touched (Spec-AC-19).
+function computeSpecRestamp(absSpec) {
   let raw;
   try {
     raw = fs.readFileSync(absSpec, 'utf8');
@@ -800,14 +837,56 @@ function restampSpecAnchor(absSpec) {
   const norm = raw.replace(/\r\n/g, '\n');
   const fm = norm.match(/^---\n([\s\S]*?)\n---/);
   if (!fm) return null;
-  if (!/^frozen_sha256:[ \t]*\S+[ \t]*$/m.test(fm[1])) return null;
-  const hash = contractHash(norm);
-  const newFmBody = fm[1].replace(/^frozen_sha256:[ \t]*\S*[ \t]*$/m, `frozen_sha256: ${hash}`);
+  const anchorMatch = fm[1].match(/^frozen_sha256:[ \t]*(\S+)[ \t]*$/m);
+  if (!anchorMatch) return null;
+  const fromHash = anchorMatch[1];
+  const nextHash = contractHash(norm);
+  if (nextHash === fromHash) return null;
+  let fmBody = fm[1];
+  fmBody = setFrontmatterScalar(fmBody, 'frozen_sha256', nextHash);
   const fmStart = fm.index + 4;
-  let out = `${norm.slice(0, fmStart)}${newFmBody}${norm.slice(fmStart + fm[1].length)}`;
+  let out = `${norm.slice(0, fmStart)}${fmBody}${norm.slice(fmStart + fm[1].length)}`;
   if (crlf) out = out.replace(/\n/g, '\r\n');
-  fs.writeFileSync(absSpec, out);
-  return hash;
+  return { fromHash, nextHash, out };
+}
+
+// injectCrash(point) — test-only fault hook, inert unless
+// AAI_SPEC_AMEND_INJECT_CRASH is set to exactly this point. SIGKILL (not
+// process.exit) so no cleanup code in THIS process can run afterward,
+// mirroring lib/state-engine.mjs's own AAI_STATE_INJECT_CRASH convention —
+// the same technique, not a second one, for the same "prove atomicity by
+// actually dying mid-write" property.
+function injectCrash(point) {
+  if (process.env.AAI_SPEC_AMEND_INJECT_CRASH === point) {
+    process.kill(process.pid, 'SIGKILL');
+  }
+}
+
+// commitSpecRestamp(absSpec, out) — the ONE write, always temp file + rename
+// in the SAME directory (Spec-AC-19): a process killed at any point up to and
+// including the tmp write leaves absSpec byte-identical to what it held
+// before this call; fs.renameSync is the sole commit point and also cleans up
+// the tmp file (a non-atomic direct write would leave it stranded).
+function commitSpecRestamp(absSpec, out) {
+  const dir = path.dirname(absSpec);
+  const tmpSpec = path.join(dir, `.${path.basename(absSpec)}.restamp-${process.pid}.tmp`);
+  fs.writeFileSync(tmpSpec, out);
+  injectCrash('before-rename');
+  fs.renameSync(tmpSpec, absSpec);
+}
+
+// restampSpecAnchor(absSpec) -> the new hex digest written, or null when
+// there was nothing to re-stamp (see computeSpecRestamp). Used by `add`
+// ONLY: the amendment record `add` just appended in the SAME invocation is
+// already this edit's disclosure, so the restamp here carries no ledger
+// record of its own — never a second, undisclosed re-anchor mechanism. The
+// standalone `restamp` subcommand below is for the OTHER case, where nothing
+// has disclosed the drift yet, and it manufactures its own record.
+function restampSpecAnchor(absSpec) {
+  const computed = computeSpecRestamp(absSpec);
+  if (computed === null) return null;
+  commitSpecRestamp(absSpec, computed.out);
+  return computed.nextHash;
 }
 
 function cmdClassify(opts) {
@@ -920,6 +999,77 @@ function cmdClassify(opts) {
     console.log(`spec-amend: tracked by ${landed.tracked_by} — drain it with: node .aai/scripts/follow-ups.mjs list --status open`);
     if (reusedNote) console.log(`NOTE ${reusedNote}`);
   }
+  exit(0);
+}
+
+// cmdRestamp (D2 / Spec-AC-19, Spec-AC-20) — the disclosed-restamp writer.
+// Order matters and is the WHOLE point: the ledger record is appended FIRST,
+// then (and only then) the spec file is committed atomically. A process
+// killed anywhere from the ledger append through the tmp write
+// (AAI_SPEC_AMEND_INJECT_CRASH=before-rename) leaves the spec
+// byte-identical to its pre-restamp state while the ledger already carries
+// the from/to disclosure — never the reverse, which could re-anchor a spec
+// with no record explaining why.
+function cmdRestamp(opts) {
+  if (str(opts.spec) === null) usageError('`restamp` requires --spec');
+  const abs = ledgerPath(opts);
+  const absSpec = path.resolve(process.cwd(), opts.spec);
+  requireReadableFile(absSpec, '--spec');
+  const specRel = path.relative(process.cwd(), absSpec) || opts.spec;
+
+  const computed = computeSpecRestamp(absSpec);
+  if (computed === null) {
+    console.log(`spec-amend: restamp: ${specRel} carries no frozen_sha256, or its content already matches the stored anchor — nothing to restamp`);
+    exit(0);
+    return;
+  }
+
+  const specId = readSpecId(absSpec);
+  const reg = loadLedgerOrRefuse(abs);
+  const actor = str(opts.actor) ?? 'orchestrator';
+  const ref = str(opts.ref) ?? specId;
+  const ts = nowIso();
+  const what = 'mechanical restamp: the allocator rewrote this frozen spec’s own SPEC-DRAFT- path(s) at merge';
+  const why = 'discloses the frozen_sha256 drift the allocator’s DRAFT-to-numbered rewrite caused, so list --strict reads a disclosed restamp rather than an undisclosed-amendment';
+  const entry = {
+    v: 1,
+    ts,
+    actor,
+    type: 'spec_amendment',
+    ref_id: ref,
+    spec: specRel,
+    spec_id: specId,
+    owner_signoff: false,
+    what,
+    why,
+    from_frozen_sha256: computed.fromHash,
+    to_frozen_sha256: computed.nextHash,
+  };
+
+  const picked = pickAmendItemId(reg, specId, ts);
+  entry.tracked_by = picked.itemId;
+
+  // THE LEDGER LANDS BEFORE THE FILE IS TOUCHED (Spec-AC-19) — appendLine and
+  // the co-created tracked item both happen here, then commitSpecRestamp does
+  // the ONE atomic write.
+  appendLine(abs, entry);
+  if (!reg.followUps.has(picked.itemId)) {
+    appendAmendItem(abs, { actor, itemId: picked.itemId, ref, specId, specRel, what, why, sourceTs: ts });
+  }
+
+  commitSpecRestamp(absSpec, computed.out);
+
+  // Prove the write by re-reading, the same discipline `add`/`classify` use.
+  const after = loadLedger(abs);
+  const landed = after.byKey.get(overlayKey(entry.ts, entry.ref_id)) ?? null;
+  if (landed === null || landed.tracked_by !== picked.itemId || !after.followUps.has(picked.itemId)) {
+    process.stderr.write(`spec-amend: restamp: appended the amendment for ${specRel} but the re-read of ${abs} does not show the tracked item ${picked.itemId}\n`);
+    exit(1);
+  }
+
+  console.log(`spec-amend: restamp: re-anchored ${specRel} from ${computed.fromHash} to ${computed.nextHash} (ref ${ref}) — bucket ${landed.bucket}, tracked by ${picked.itemId}`);
+  if (picked.note) console.log(`NOTE ${picked.note}`);
+  console.log('NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open');
   exit(0);
 }
 
@@ -1176,6 +1326,7 @@ function main() {
   const opts = parseArgs(process.argv);
   if (opts._sub === 'add') return cmdAdd(opts);
   if (opts._sub === 'classify') return cmdClassify(opts);
+  if (opts._sub === 'restamp') return cmdRestamp(opts);
   return cmdList(opts);
 }
 

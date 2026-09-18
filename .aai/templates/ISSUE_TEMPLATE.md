@@ -1,6 +1,7 @@
 ---
 id: ISSUE-XXXX
 type: issue
+number: null
 status: draft
 links:
   pr: []

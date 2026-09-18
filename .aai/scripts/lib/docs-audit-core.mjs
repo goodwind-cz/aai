@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, execSync } from 'node:child_process';
 import {
-  DOC_STATUS_ENUM, TERMINAL_AC, DOC_TYPE_ENUM, DOC_ID_RE,
+  DOC_STATUS_ENUM, TERMINAL_AC, TERMINAL_DOC_STATUS, DOC_TYPE_ENUM, DOC_ID_RE,
   DEFAULT_CATEGORY_PREFIXES, extractDocIds, normalizeAcStatus,
   parseFrontmatter, parseAcTable, parseLeanAcTable, parseISODate, parseReviewBy,
   specFrozenInBody, validateCanonicalFrontmatter, validateProductFrontmatter,
@@ -78,11 +78,31 @@ const unparseableAcIds = (table) => {
   // declaredIds is extracted (`^\s*\|\s*(Spec-AC-\d+)\b`). A well-formed but
   // suffixed id cell (e.g. "Spec-AC-02 (note)") parses cleanly and must NOT be
   // misreported as an unparseable pipe-drop — it declared and it parsed.
-  const parsed = new Set(table.rows.map(r => {
+  //
+  // spec-close-ceremony-sweep Spec-AC-12 — reconciled by MULTIPLICITY, not
+  // presence. A plain Set membership check (the pre-fix shape) collapses a
+  // DUPLICATE id: if "Spec-AC-01" is declared twice — once as a row that
+  // parses cleanly, once as a pipe-broken row the header-length check drops —
+  // `parsed.has('Spec-AC-01')` is true from the good copy alone, so the
+  // second, unparseable copy silently disappears. Counting BOTH sides and
+  // requiring declaredCount > parsedCount catches the id even when one of its
+  // copies parsed fine.
+  const parsedCounts = new Map();
+  for (const r of table.rows) {
     const m = String(r['Spec-AC'] ?? '').match(/^(Spec-AC-\d+)\b/);
-    return m ? m[1] : r['Spec-AC'];
-  }));
-  return (table.declaredIds ?? []).filter(id => !parsed.has(id));
+    const id = m ? m[1] : r['Spec-AC'];
+    parsedCounts.set(id, (parsedCounts.get(id) ?? 0) + 1);
+  }
+  const declaredCounts = new Map();
+  for (const id of (table.declaredIds ?? [])) {
+    declaredCounts.set(id, (declaredCounts.get(id) ?? 0) + 1);
+  }
+  const out = [];
+  for (const [id, declaredCount] of declaredCounts) {
+    const parsedCount = parsedCounts.get(id) ?? 0;
+    if (declaredCount > parsedCount) out.push(id);
+  }
+  return out;
 };
 const DEFAULT_STALE_DAYS = 90;
 // closeout-candidate detection (SPEC-0003 / CHANGE-0004): parents are scoped to
@@ -370,8 +390,68 @@ function lastEditDate(root, rel) {
   return git(root, `log -1 --format=%cs -- "${rel}"`) || null;
 }
 
-function lastIdMentionDate(root, id) {
-  return git(root, `log -1 --grep="${id}" --format=%cs`) || null;
+// spec-close-ceremony-sweep Spec-AC-15 (fu-docsaudit-idmention-probe-per-doc)
+// — the sibling of buildFirstCommitDateMap/SPEC docs-history-is-one-git-call-
+// per-doc, applied to MENTION dates instead of ADD dates: the shipped
+// per-document call (`git log -1 --grep="<id>" --format=%cs`, preserved below
+// only as the historical comment) cost one subprocess per scanned doc and
+// searched the FULL commit message (subject + body) — git's own --grep scope,
+// no boundary anchoring, whatever `lastIdMentionDate` used to hand it.
+// buildCommitMessageLog walks the WHOLE history ONCE — no --grep, no per-id
+// filter at the git level — and every id's mention date is then resolved by a
+// plain substring search of the SAME cached full message against every id
+// (this project's ids carry no BRE metacharacters, so a substring test is
+// git-grep-equivalent here). Records are NUL-delimited (`%x00` before each,
+// mirroring buildFirstCommitDateMap's D5) because `%B` (the raw body) can
+// itself contain newlines a `\n`-split would misparse as new records.
+// Newest-first (git log's default order) is exactly what "last mention"
+// needs: the FIRST match in this order is the most recent one.
+function buildCommitMessageLog(root) {
+  let raw;
+  try {
+    raw = execFileSync('git', ['log', '--format=%x00%cs%x1f%B'], {
+      cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 28,
+    });
+  } catch {
+    return null;   // no git, or no commits: caller degrades to "no mention found"
+  }
+  const entries = [];
+  for (const rec of raw.split('\0')) {
+    if (!rec) continue;
+    const sep = rec.indexOf('\x1f');
+    if (sep < 0) continue;
+    entries.push({ date: rec.slice(0, sep), message: rec.slice(sep + 1) });
+  }
+  return entries;
+}
+
+// One-call-per-audit id-mention map: EVERY scanned doc's id resolved against
+// the SAME cached commit list (one buildCommitMessageLog walk), never a
+// second subprocess per id. A repository with no history (or no git at all)
+// yields an EMPTY map — every lookup then falls back to `?? null` below,
+// matching what the per-file call would have returned for the same repo.
+export function buildIdMentionDateMap(root, files, categoryPrefixes) {
+  const map = new Map();
+  const commitLog = buildCommitMessageLog(root);
+  if (!commitLog) return map;
+  for (const f of files) {
+    let content;
+    try {
+      content = fs.readFileSync(path.join(root, f.rel), 'utf8');
+    } catch {
+      continue;
+    }
+    const fm = parseFrontmatter(content);
+    const ids = extractDocIds(path.basename(f.rel), categoryPrefixes) ?? { primary: f.fileId };
+    const id = fm?.id ?? ids.primary;
+    if (!id || map.has(id)) continue;
+    let found = null;
+    for (const c of commitLog) {
+      if (c.message.includes(id)) { found = c.date; break; }
+    }
+    map.set(id, found);
+  }
+  return map;
 }
 
 // CHANGE-0027 / SPEC-0039 D4 — mention boundary (CHANGE-0002 D11 extended to
@@ -499,11 +579,28 @@ const flushDateToTs = (d) => (typeof d === 'string' && FLUSH_DATE_ONLY_RE.test(d
 // the TDD-log discriminator exists — it is the distinction between "the tests
 // passed here" and "this shipped", and it is what keeps a mid-flight terminal
 // table legitimate.
-export function acTableDeliverySignal(root, ac) {
-  if (!ac?.hasGate || ac.rows.length === 0) return { fires: false, deliveryRows: [] };
-  const statuses = ac.rows.map(r => normalizeAcStatus(r['Status'] ?? '').status);
+//
+// spec-close-ceremony-sweep Spec-AC-13 — LEAN fallback. `ac` is always the
+// CANONICAL parseAcTable result; a ceremony 0/1 doc's `## Acceptance
+// Criteria` table never sets `ac.hasGate` (parseAcTable only recognizes the
+// `## Acceptance Criteria Status` heading), so before this fallback the
+// premature-flip guard was structurally blind to every lean doc — the exact
+// gap TEST-539 closes. `content`, when given, is parsed with
+// parseLeanAcTable and used ONLY when the canonical table did not already
+// fire; a doc that volunteers the full canonical table keeps reading through
+// the canonical path unchanged (mirrors gateContent's own precedence).
+export function acTableDeliverySignal(root, ac, content = null) {
+  let table = ac;
+  if (!table?.hasGate && content != null) {
+    const lean = parseLeanAcTable(content);
+    if (lean.hasLean) table = lean;
+  }
+  if (!table || (!table.hasGate && !table.hasLean) || table.rows.length === 0) {
+    return { fires: false, deliveryRows: [] };
+  }
+  const statuses = table.rows.map(r => normalizeAcStatus(r['Status'] ?? '').status);
   const allTerminal = statuses.every(s => TERMINAL_AC.has(s));
-  const doneRows = ac.rows.filter((r, i) => statuses[i] === 'done');
+  const doneRows = table.rows.filter((r, i) => statuses[i] === 'done');
   const allDoneEvidenced = doneRows.every(r => rowHasEvidence(r));
   const deliveryRows = doneRows.filter(r => {
     if (!rowHasEvidence(r)) return false;
@@ -921,6 +1018,93 @@ function maskInlineCode(line) {
   return chars.join('');
 }
 
+// spec-close-ceremony-sweep Spec-AC-14 (fu-mask-duplicates-docs-audit-core) —
+// THE canonical fenced/inline code-specimen masker. lintBody below and
+// spec-lint.mjs's clarification-marker / ac-vague-term rules both call
+// maskSpecimens; there is no second copy. Masked characters become spaces,
+// but NEWLINES and `|` are PRESERVED, so line numbers stay exact and no table
+// row's cell count can shift (spec-lint relies on this for its AC-table
+// findings; lintBody does not care either way, so sharing costs it nothing).
+//
+// Fence tracking: an opening run of >= 3 backticks or tildes closes ONLY at a
+// later line consisting solely of the SAME character, in a run at least as
+// long as the opener — a shorter or differently-charactered run never closes
+// it (previously: any same-character run closed it regardless of length, so a
+// short stray run inside a longer specimen leaked the remainder as live).
+// SPEC-0013 W3b (CommonMark): a backtick fence's info string may not contain
+// a backtick, so a line-initial backtick run that closes on the SAME line
+// (e.g. ``` x ``` as a 3-run inline code span) is not a fence open at all —
+// it falls through to ordinary inline masking instead of opening a phantom
+// fence that swallows everything after it, including a live marker several
+// lines later (previously: any line-initial backtick run of >= 3 opened a
+// fence unconditionally).
+// Inline spans: a run of N backticks is closed by the NEXT run of exactly N
+// backticks, on the same line or (conservatively, SPEC-0013 W3a) later in the
+// same paragraph — a span never crosses a blank line or a fence-shaped line.
+function maskSpecimensState(content) {
+  const blank = (s) => s.replace(/[^\n|]/g, ' ');
+  // maskInlineCode blanks a matched span with plain spaces (no pipe carve-out
+  // — lintBody's own findings never needed one); restorePipes reinstates any
+  // `|` the raw line actually carried, positions unchanged, so both consumers
+  // share ONE masking pass regardless of which one needs the pipe contract.
+  const restorePipes = (raw, maskedStr) => {
+    let out = '';
+    for (let k = 0; k < maskedStr.length; k += 1) out += raw[k] === '|' ? '|' : maskedStr[k];
+    return out;
+  };
+  const maskLine = (raw) => restorePipes(raw, maskInlineCode(raw));
+  const lines = String(content ?? '').split(/\r\n|\r|\n/);
+  const out = new Array(lines.length);
+  let fence = null;   // { ch, len, line }
+  for (let i = 0; i < lines.length; i += 1) {
+    const raw = lines[i];
+    const f = raw.match(/^\s*(`{3,}|~{3,})/);
+    const isInlineSpanNotFence = f && !fence && f[1][0] === '`' && raw.slice(f[0].length).includes('`');
+    if (f && !isInlineSpanNotFence) {
+      const ch = f[1][0];
+      const len = f[1].length;
+      out[i] = blank(raw);
+      if (!fence) {
+        fence = { ch, len, line: i + 1 };
+      } else {
+        const closing = raw.trim();
+        const fenceCharsOnly = closing.length > 0 && closing.split('').every((c) => c === ch);
+        if (ch === fence.ch && len >= fence.len && fenceCharsOnly) fence = null;
+      }
+      continue;
+    }
+    if (fence) { out[i] = blank(raw); continue; }
+    const masked = maskLine(raw);
+    const leftover = backtickRuns(masked);
+    if (leftover.length > 0) {
+      const open = leftover[leftover.length - 1];
+      let closeAt = -1;
+      let closeRun = null;
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const look = lines[j];
+        if (look.trim() === '') break;               // spans cannot cross blank lines
+        if (/^\s*(`{3,}|~{3,})/.test(look)) break;   // fence-shaped boundary — stay conservative
+        const r = backtickRuns(look).find((x) => x.len === open.len);
+        if (r) { closeAt = j; closeRun = r; break; }
+      }
+      if (closeAt !== -1) {
+        out[i] = masked.slice(0, open.start) + blank(masked.slice(open.start));
+        for (let j = i + 1; j < closeAt; j += 1) out[j] = blank(lines[j]);
+        const closeLine = lines[closeAt];
+        out[closeAt] = blank(closeLine.slice(0, closeRun.end)) + maskLine(closeLine.slice(closeRun.end));
+        i = closeAt;   // interior lines are span content — skipped entirely
+        continue;
+      }
+    }
+    out[i] = masked;
+  }
+  return { masked: out.join('\n'), unclosedFence: fence };
+}
+
+export function maskSpecimens(content) {
+  return maskSpecimensState(content).masked;
+}
+
 // Lint one doc's content. Returns [{ rule, line, detail }] with 1-based line
 // numbers over the ORIGINAL file (frontmatter included in the numbering, never
 // in the linted range). Pure function — no filesystem, no git.
@@ -943,68 +1127,12 @@ export function lintBody(content) {
     const phAngle = masked.match(PLACEHOLDER_ANGLE_RE);
     if (phAngle) findings.push({ rule: 'template-placeholder', line: idx + 1, detail: `template placeholder token "${phAngle[0]}"` });
   };
-  let fence = null;   // { ch, len, line }
-  for (let i = start; i < lines.length; i += 1) {
-    const raw = lines[i];
-    const f = raw.match(/^\s*(`{3,}|~{3,})/);
-    // SPEC-0013 W3b (CommonMark): a backtick fence's info string may not
-    // contain backticks, so a line-initial backtick run followed by ANOTHER
-    // backtick on the SAME line (e.g. ``` x ``` as a 3-run code span) is
-    // inline code, not a fence open — fall through to ordinary masking
-    // instead of opening a phantom fence that swallows the rest of the doc.
-    // Only an OPENING candidate gets this treatment; inside an open fence
-    // every line is content. Tilde fences are unaffected (their info strings
-    // may contain backticks and they never close on the opening line).
-    const isInlineSpanNotFence = f && !fence && f[1][0] === '`' && raw.slice(f[0].length).includes('`');
-    if (f && !isInlineSpanNotFence) {
-      const ch = f[1][0];
-      const len = f[1].length;
-      if (!fence) {
-        fence = { ch, len, line: i + 1 };
-        continue;   // opening fence line (incl. info string) is never linted
-      }
-      // closes only at a fence-chars-only line of >= N of the SAME character
-      const closing = raw.trim();
-      const fenceCharsOnly = closing.split('').every(c => c === ch);
-      if (ch === fence.ch && len >= fence.len && fenceCharsOnly) {
-        fence = null;
-      }
-      continue;   // any fence-looking line inside a fence is content
-    }
-    if (fence) continue;
-    const masked = maskInlineCode(raw);
-    // SPEC-0013 W3a: minimal multi-line inline-span pairing. CommonMark code
-    // spans may cross line breaks within a paragraph; per-line masking cannot
-    // see them. If an UNPAIRED run survives single-line masking, look ahead
-    // for a run of exactly the same length later in the SAME paragraph (no
-    // blank line, no fence-shaped line in between). When found, everything
-    // from the opener to that closer is span content: lint only the text
-    // before the opener and after the closer (D1 conservative posture — the
-    // interior is NEVER flagged).
-    const leftover = backtickRuns(masked);
-    if (leftover.length > 0) {
-      const open = leftover[leftover.length - 1];
-      let closeAt = -1;
-      let closeRun = null;
-      for (let j = i + 1; j < lines.length; j += 1) {
-        const look = lines[j];
-        if (look.trim() === '') break;               // spans cannot cross blank lines
-        if (/^\s*(`{3,}|~{3,})/.test(look)) break;   // fence-shaped boundary — stay conservative
-        const r = backtickRuns(look).find((x) => x.len === open.len);
-        if (r) { closeAt = j; closeRun = r; break; }
-      }
-      if (closeAt !== -1) {
-        lintMaskedLine(masked.slice(0, open.start), i);
-        const rest = ' '.repeat(closeRun.end) + lines[closeAt].slice(closeRun.end);
-        lintMaskedLine(maskInlineCode(rest), closeAt);
-        i = closeAt;   // interior lines are span content — skipped entirely
-        continue;
-      }
-    }
-    lintMaskedLine(masked, i);
-  }
-  if (fence) {
-    findings.push({ rule: 'unbalanced-fence', line: fence.line, detail: `fence opened here (${fence.ch.repeat(fence.len)}) is still open at EOF` });
+  const body = lines.slice(start).join('\n');
+  const { masked, unclosedFence } = maskSpecimensState(body);
+  const maskedLines = masked.split('\n');
+  for (let i = 0; i < maskedLines.length; i += 1) lintMaskedLine(maskedLines[i], start + i);
+  if (unclosedFence) {
+    findings.push({ rule: 'unbalanced-fence', line: start + unclosedFence.line, detail: `fence opened here (${unclosedFence.ch.repeat(unclosedFence.len)}) is still open at EOF` });
   }
   return findings;
 }
@@ -1031,6 +1159,10 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   const firstCommitMap = (!quick && legacyUntil && files.length > 1) ? buildFirstCommitDateMap(root) : null;
   const events = quick ? [] : readEvents(root);
   const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
+  // Spec-AC-15 — ONE git log walk resolves every scanned doc's id-mention
+  // date; --quick skips it (no git probes at all, same gate every other
+  // git-backed signal in this function already honors).
+  const idMentionMap = quick ? new Map() : buildIdMentionDateMap(root, files, categoryPrefixes);
   const extraMethods = config?.review_by_methods ?? [];
   const planMode = config?.plan_scan_mode ?? 'lenient';
   const docs = [];
@@ -1068,7 +1200,29 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
       rolloutUnfinished: hasUnfinishedRolloutPhases(content),
     };
     docs.push(doc);
-    if (nearMiss.length) nearMissWarnings.push({ id, rel: f.rel, warnings: nearMiss });
+    // spec-close-ceremony-sweep Spec-AC-11 (amended D7): --strict hard-fails
+    // the near-miss shape check ONLY for a doc whose frontmatter status is
+    // NON-terminal. TERMINAL_DOC_STATUS (done/deferred/rejected/superseded/
+    // legacy/current — the SAME partition IN_FLIGHT_DOC_STATUS/TERMINAL_
+    // DOC_STATUS already uses elsewhere in this module for "settled vs in
+    // flight") is a PROXY for "pre-existing, not newly introduced", not a
+    // mechanism that enforces it: nothing requires a --strict run while a
+    // document is open, so a doc created draft with a broken table and
+    // flipped to done inside one PR reaches main permanently exempt too
+    // (validation-round1 NB-7; code review 20260918T172546Z NON-BLOCKING,
+    // both left unremediated by owner decision — the eight live near-miss
+    // documents this exemption was measured against are, and were always,
+    // all `done`, which is what makes the proxy hold today). A baseline-
+    // recorded exemption (the pattern this same diff already uses elsewhere:
+    // cd-subshell-leak-baseline.tsv, base-ref-pin-baseline.tsv,
+    // degenerate-pass-baseline.tsv) would pin the eight NAMED documents
+    // instead of the whole terminal-status class; filed as a follow-up, not
+    // shipped here. Report-only even under --strict for a terminal doc,
+    // still listed here unconditionally either way.
+    if (nearMiss.length) {
+      const terminal = TERMINAL_DOC_STATUS.has(String(fm?.status ?? '').toLowerCase());
+      nearMissWarnings.push({ id, rel: f.rel, warnings: nearMiss, terminal });
+    }
 
     // SPEC-0013 H1 — body lint over the governed scan set, further excluding
     // docs/plans/ under plan_scan_mode: lenient (operator notes, not authored
@@ -1314,7 +1468,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
           // all lean rows terminal, parseable + justified: aligned (tracked-done below)
         }
       } else if (!ac.hasGate && !quick) {
-        const hasCommit = lastIdMentionDate(root, id) != null;
+        const hasCommit = (idMentionMap.get(id) ?? null) != null;
         // PARENT-ID/sub-item refs roll up to the parent, but sibling IDs
         // (CHANGE-0045 vs CHANGE-004) must not cross-match (CHANGE-0002 D11)
         const hasEvidence = events.some(e => e.event === 'ac_evidence'
@@ -1326,7 +1480,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
       }
     } else if (OPEN_STATUSES.has(status) && !quick) {
       const lastEdit = lastEditDate(root, f.rel);
-      const lastMention = lastIdMentionDate(root, id);
+      const lastMention = idMentionMap.get(id) ?? null;
       const editAge = lastEdit ? daysBetween(lastEdit, todayUTC) : null;
       const mentionAge = lastMention ? daysBetween(lastMention, todayUTC) : null;
       if (editAge != null && editAge > staleDays && (mentionAge == null || mentionAge > staleDays)) {
@@ -1462,6 +1616,12 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     duplicateDocId: duplicateDocIds.length,
     openDecisionDone: openDecisionDoneDocs.length,
     nearMiss: nearMissWarnings.length,
+    // spec-close-ceremony-sweep Spec-AC-11 (amended D7): the subset of
+    // nearMiss that is NON-terminal, i.e. the count --strict actually acts
+    // on — named separately from the total so the CHECK FAILED line never
+    // overstates what promoted it (a terminal doc's finding stays listed but
+    // never counted here).
+    nearMissBlocking: nearMissWarnings.filter(w => !w.terminal).length,
     reviewClaimUnbacked: reviewClaimUnbacked.length,
     missingCloseTelemetry: missingCloseTelemetry.length,
     bodyLint: bodyLint.length,
@@ -1469,19 +1629,28 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     docsAiNonCanon: docsAiNonCanon.length,
     docsAiNonCanonNames: docsAiNonCanon.map(e => e.name),
   };
-  // SPEC-0011 G2/G3/G4 signals (nearMissWarnings, reviewClaimUnbacked,
-  // missingCloseTelemetry) are deliberately ABSENT from hardFail AND from the
-  // NEEDS-TRIAGE tally — report-only, preserving the RFC-0002 report-not-block
-  // posture (the audit REPORTS; the operator DECIDES).
+  // SPEC-0011 G2/G3 signals (reviewClaimUnbacked, missingCloseTelemetry) are
+  // deliberately ABSENT from hardFail AND from the NEEDS-TRIAGE tally —
+  // report-only, preserving the RFC-0002 report-not-block posture (the audit
+  // REPORTS; the operator DECIDES).
   // SPEC-0013 H1 (D2): body lint promotes to hardFail ONLY under the explicit
   // --strict flag (the intake POST-SAVE path) — never in config-enforced mode
   // alone, so mid-migration repos with legacy bodies keep a passing --check.
+  // spec-close-ceremony-sweep Spec-AC-11 (amended D7): the near-miss AC-table
+  // shape check (SPEC-0011 G4) is report-only by default, and under --strict
+  // promotes ONLY for a NON-terminal doc (the `terminal` flag set above,
+  // TERMINAL_DOC_STATUS) — never in config-enforced mode alone, and never for
+  // a terminal doc even under --strict: the table only gates OPEN work, so a
+  // terminal doc (M9's 8 live documents are all `done`) cannot newly reach
+  // done with a broken table and stays report-only, keeping every existing
+  // `--check --strict` seam over this repository's live corpus CLEAN.
   // RFC-0011 D3 — canonical-provenance drift is a hard governance gate: it
   // fails --check in enforced OR --strict mode (mirroring the violations gate),
   // and stays a report-only digest signal otherwise. Empty canonical => zero
   // findings => no effect (this repo stays CLEAN).
   const hardFail = (mode === 'enforced' && (orphansNew.length > 0 || violations.length > 0))
     || (strict && bodyLint.length > 0)
+    || (strict && counts.nearMissBlocking > 0)
     || ((mode === 'enforced' || strict) && provenanceDrift.length > 0);
 
   return {
@@ -1828,7 +1997,11 @@ export function acFlipCheckDoc(root, docId) {
   const clean = { found: true, ok: true, rel, status, rows: [], reasons: [] };
   if (!FALSE_OPEN_STATUSES.has(status)) return clean;
   if (String(fm?.umbrella ?? '').toLowerCase() === 'true') return clean;
-  const signal = acTableDeliverySignal(root, parseAcTable(content));
+  // Spec-AC-13: pass `content` so a LEAN ceremony 0/1 table (no `## Acceptance
+  // Criteria Status` heading, so parseAcTable never sets hasGate) still gets
+  // seen by the fallback inside acTableDeliverySignal — the PRE-HANDOFF guard
+  // this predicate backs is exactly where a lean premature flip must be caught.
+  const signal = acTableDeliverySignal(root, parseAcTable(content), content);
   if (!signal.fires) return clean;
   const rows = signal.deliveryRows.map(r => {
     const cell = String(r['Evidence'] ?? '');

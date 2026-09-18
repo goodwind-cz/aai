@@ -32,6 +32,17 @@ SUITE_FILE="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 # this spec found test_spec0006_no_regression_real_repo regenerating the real
 # index twice while this was still empty. Empty only before that call.
 INDEX_REAL_BACKUP=""
+# Companion floor for docs/INDEX.violations.md (spec-close-ceremony-sweep
+# Spec-AC-11): generate-docs-index.mjs writes this UNTRACKED companion
+# whenever there is at least one skipped/near-miss finding, and the live
+# corpus now legitimately carries 8 near-miss column-set docs (M9) — so a
+# real-INDEX regeneration during this suite creates a file that did not
+# exist before it, and neither this floor's predecessor nor any individual
+# arm's own restore logic ever cleaned it up. Same shape as INDEX_REAL_BACKUP:
+# empty path = "did not exist before this run" (remove it at cleanup rather
+# than restore).
+INDEX_VIOLATIONS_REAL_BACKUP=""
+INDEX_VIOLATIONS_REAL_EXISTED=0
 
 # Take the backup BEFORE publishing the pointer. Assigning the path first and
 # copying second means an interrupted or short cp leaves cleanup() pointing at
@@ -43,6 +54,14 @@ index_arm_restore_floor() {
   cmp -s "$idx" "$staged" \
     || log_fail "restore floor: backup of docs/INDEX.md is not byte-identical to the original"
   INDEX_REAL_BACKUP="$staged"
+  local viol="$PROJECT_ROOT/docs/INDEX.violations.md"
+  if [[ -f "$viol" ]]; then
+    INDEX_VIOLATIONS_REAL_EXISTED=1
+    cp "$viol" "${staged}.violations"
+    INDEX_VIOLATIONS_REAL_BACKUP="${staged}.violations"
+  else
+    INDEX_VIOLATIONS_REAL_EXISTED=0
+  fi
 }
 
 cleanup() {
@@ -58,6 +77,15 @@ cleanup() {
     # means a tracked file is being left dirty. Degrade loudly, never silently.
     cp "$INDEX_REAL_BACKUP" "$PROJECT_ROOT/docs/INDEX.md" \
       || echo "NOTE: restore floor could not rewrite docs/INDEX.md from $INDEX_REAL_BACKUP — the tracked file may be left dirty" >&2
+  fi
+  if [[ -n "$INDEX_REAL_BACKUP" ]]; then
+    local viol="$PROJECT_ROOT/docs/INDEX.violations.md"
+    if [[ "$INDEX_VIOLATIONS_REAL_EXISTED" == "1" && -n "$INDEX_VIOLATIONS_REAL_BACKUP" && -f "$INDEX_VIOLATIONS_REAL_BACKUP" ]]; then
+      cp "$INDEX_VIOLATIONS_REAL_BACKUP" "$viol" \
+        || echo "NOTE: restore floor could not rewrite docs/INDEX.violations.md — the untracked companion may be left dirty" >&2
+    elif [[ -f "$viol" ]]; then
+      rm -f "$viol"
+    fi
   fi
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
     echo "INFO: keeping fixture at $TEST_DIR"
@@ -118,6 +146,14 @@ run_audit() {
   (cd "$TEST_DIR" && node .aai/scripts/docs-audit.mjs "$@")
 }
 
+# spec-close-ceremony-sweep Spec-AC-22 (D3): generate-docs-index.mjs now
+# enumerates git-TRACKED documents only (git ls-files, which reads staged-
+# but-uncommitted adds too — the real intake workflow always stages a new
+# doc before the pre-commit hook regenerates the index). Every fixture repo
+# call site below that writes a doc and immediately regenerates the index
+# without an intervening `git commit` now also runs `git add -A -- docs`
+# first, so it keeps testing its own claim instead of the tracked-only
+# enumeration TEST-554 owns. The one deliberate exception is TEST-554 itself.
 setup_fixture() {
   log_info "Setting up fixture repo..."
   TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
@@ -306,7 +342,7 @@ test_quick_mode() {
 
 test_index_sections_and_idempotence() {
   log_info "Test: INDEX gains audit sections and is idempotent (TEST-005, TEST-007)..."
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > index-run1.log 2>&1) \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > index-run1.log 2>&1) \
     || log_fail "generate-docs-index.mjs failed: $(cat "$TEST_DIR/index-run1.log")"
   local index="$TEST_DIR/docs/INDEX.md"
   assert_file "$index"
@@ -325,7 +361,7 @@ test_index_sections_and_idempotence() {
   assert_contains "$audit" "probable-false-done"
 
   grep -v '^Generated:' "$index" > "$TEST_DIR/index-run1.snapshot"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > index-run2.log 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > index-run2.log 2>&1)
   grep -v '^Generated:' "$index" > "$TEST_DIR/index-run2.snapshot"
   diff -q "$TEST_DIR/index-run1.snapshot" "$TEST_DIR/index-run2.snapshot" >/dev/null \
     || log_fail "INDEX must be idempotent modulo the Generated timestamp"
@@ -443,7 +479,7 @@ MD
   run_audit --check --no-event --path docs/specs/SPEC-301-reviewby-literals.md \
     > "$TEST_DIR/reviewby.log" \
     || log_fail "Review-By skill literals must not be schema violations"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > reviewby-index.log 2>&1) \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > reviewby-index.log 2>&1) \
     || log_fail "generate-docs-index must accept Review-By literals: $(cat "$TEST_DIR/reviewby-index.log")"
   log_pass "Review-By literals and combos accepted"
 }
@@ -692,7 +728,7 @@ MD
   (cd "$TEST_DIR" && git add docs/specs/SPEC-100-legacy-bad.md \
     && GIT_COMMITTER_DATE="2026-01-15T10:00:00Z" GIT_AUTHOR_DATE="2026-01-15T10:00:00Z" \
        git commit -qm "docs: legacy spec fixture")
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > legacy-skip.log 2>&1) \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > legacy-skip.log 2>&1) \
     || log_fail "Legacy-doc violations must auto-skip, not hard-fail: $(cat "$TEST_DIR/legacy-skip.log")"
   # SPEC-0010 (ISSUE-0003) WARNING-1: the committed INDEX lists the skipped doc
   # PLAINLY (git-invariant) — the git-history-dependent "[legacy — auto-skipped]"
@@ -703,7 +739,7 @@ MD
   assert_contains "$TEST_DIR/docs/INDEX.audit.md" "SPEC-100"
   (cd "$TEST_DIR" && git rm -q docs/specs/SPEC-100-legacy-bad.md \
     && git commit -qm "docs: drop legacy fixture")
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   log_pass "Legacy violations demote to the Skipped section automatically"
 }
 
@@ -770,7 +806,7 @@ MD
     || log_fail "docs/INDEX.md was not committed by the hook"
   grep -v '^Generated:' "$TEST_DIR/hook-committed.raw" > "$TEST_DIR/hook-committed.snap"
   # A fresh regen AFTER the commit object exists.
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
     || log_fail "post-commit regen failed"
   grep -v '^Generated:' "$d/docs/INDEX.md" > "$TEST_DIR/post-commit.snap"
   diff -q "$TEST_DIR/hook-committed.snap" "$TEST_DIR/post-commit.snap" >/dev/null \
@@ -794,14 +830,14 @@ links:
 # Done doc with no AC gate and (initially) no commit referencing its ID
 MD
   (cd "$d" && git add -A && git commit -qm "docs: add fixture without mentioning the id" >/dev/null)
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
     || log_fail "index gen (run 1) failed"
   local index="$d/docs/INDEX.md"
   grep -v '^Generated:' "$index" > "$TEST_DIR/gi-run1.snap"
   # Mutate git history ONLY (docs on disk unchanged): a commit that now references
   # the doc ID. Pre-fix this clears the baked drift row -> INDEX changes.
   (cd "$d" && git commit --allow-empty -qm "chore: reference CHANGE-5002 now done" >/dev/null)
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
     || log_fail "index gen (run 2) failed"
   grep -v '^Generated:' "$index" > "$TEST_DIR/gi-run2.snap"
   diff -q "$TEST_DIR/gi-run1.snap" "$TEST_DIR/gi-run2.snap" >/dev/null \
@@ -869,7 +905,7 @@ links:
 | Spec-AC-01 | first       | done         | a1b2c3d  | TDD       | —     |
 | Spec-AC-02 | second      | bogus-status | —        | —         | —     |
 MD
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
     || log_fail "default generator run must exit 0 (degrade-and-report): $(cat "$d/gen.log")"
   local index="$d/docs/INDEX.md"
   # Row-level, not whole-doc: the doc stays in its correct (Done) placement section.
@@ -909,7 +945,7 @@ links:
 | Spec-AC-01 | first       | done (pre-existing) | a1b2c3d  | TDD       | inherited from prior |
 MD
   # --strict must exit 0 (the qualified status is NOT a violation).
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs --strict > gen-strict.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs --strict > gen-strict.log 2>&1) \
     || log_fail "generate-docs-index --strict must exit 0 on a qualified AC status: $(cat "$d/gen-strict.log")"
   local index="$d/docs/INDEX.md"
   extract_section "$index" "## Done" | qgrep -qF "SPEC-6008" \
@@ -961,7 +997,7 @@ links:
 MD
   (cd "$d" && git add -A && git commit -qm "docs: SPEC-6009 fixture" >/dev/null 2>&1) || true
   # Generator --strict: genuine garbage (finished) is still fatal.
-  if (cd "$d" && node .aai/scripts/generate-docs-index.mjs --strict > gen-strict.log 2>&1); then
+  if (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs --strict > gen-strict.log 2>&1); then
     log_fail "generate-docs-index --strict must exit 1 when a genuinely-invalid AC status is present"
   fi
   grep -qF "finished" "$d/gen-strict.log" \
@@ -993,21 +1029,21 @@ MD
   # Default (and the retained --continue-on-error no-op alias) is degrade-and-report:
   # a schema violation never blocks the index — it exits 0 and writes a best-effort
   # index with a "Skipped (schema violations)" section listing the bad doc.
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs \
     > index-partial.log 2>&1) \
     || log_fail "Default run must degrade-and-report (exit 0): $(cat "$TEST_DIR/index-partial.log")"
   assert_contains "$TEST_DIR/docs/INDEX.md" "Skipped (schema violations)"
   assert_contains "$TEST_DIR/docs/INDEX.md" "SPEC-998"
   # --continue-on-error is a retained no-op alias — same degrade-and-report behavior.
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs --continue-on-error \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs --continue-on-error \
     > index-alias.log 2>&1) \
     || log_fail "--continue-on-error (no-op alias) must exit 0: $(cat "$TEST_DIR/index-alias.log")"
   # --strict is the CI/pre-commit gate: it MUST hard-fail (non-zero) on the violation.
-  if (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs --strict > index-strict.log 2>&1); then
+  if (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs --strict > index-strict.log 2>&1); then
     log_fail "--strict must hard-fail (non-zero) on a schema violation"
   fi
   rm "$TEST_DIR/docs/specs/SPEC-998-bad-status.md"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   log_pass "Default degrade-and-report + --strict gate both correct"
 }
 
@@ -1709,7 +1745,7 @@ links:
 | Spec-AC-01 | first       | implementing | —        | —          | —              |
 | Spec-AC-02 | second      | deferred     | —        | 2099-01-01 | needs upstream |
 MD
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > index-defer.log 2>&1) \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > index-defer.log 2>&1) \
     || log_fail "generate-docs-index (default) must succeed: $(cat "$TEST_DIR/index-defer.log")"
   local index="$TEST_DIR/docs/INDEX.md"
   assert_contains "$index" "## Deferred (whole-doc)"
@@ -1719,7 +1755,7 @@ MD
   # the per-AC deferred section is a different, still-present section
   assert_contains "$index" "## Deferred items (per-AC"
   rm "$TEST_DIR/docs/specs/SPEC-9001-whole-deferred.md" "$TEST_DIR/docs/specs/SPEC-9002-perac-deferred.md"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   log_pass "Whole-doc deferred section present and distinct from per-AC deferred items"
 }
 
@@ -1738,14 +1774,14 @@ links:
 ---
 # Frontmatter status with no doc-level placement section
 MD
-  if (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs --strict > zero-strict.log 2>&1); then
+  if (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs --strict > zero-strict.log 2>&1); then
     log_fail "generate-docs-index --strict must exit non-zero on a zero-section doc"
   fi
   assert_contains "$TEST_DIR/zero-strict.log" "SPEC-9003"
   grep -qiE "zero|coverage" "$TEST_DIR/zero-strict.log" \
     || log_fail "strict coverage failure must mention coverage / zero-section"
   rm "$TEST_DIR/docs/specs/SPEC-9003-zero-section.md"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   log_pass "Zero-section coverage invariant is fatal under --strict"
 }
 
@@ -1761,13 +1797,13 @@ links:
 ---
 # Frontmatter status with no doc-level placement section
 MD
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > zero-soft.log 2>&1) \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > zero-soft.log 2>&1) \
     || log_fail "default (non-strict) run must exit 0 with a zero-section doc: $(cat "$TEST_DIR/zero-soft.log")"
   assert_file "$TEST_DIR/docs/INDEX.md"
   assert_contains "$TEST_DIR/docs/INDEX.md" "SPEC-9003"
   assert_contains "$TEST_DIR/docs/INDEX.md" "Coverage gaps"
   rm "$TEST_DIR/docs/specs/SPEC-9003-zero-section.md"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   log_pass "Degrade-and-report: best-effort INDEX written, gap surfaced, exit 0"
 }
 
@@ -1800,7 +1836,7 @@ links:
 | Spec-AC-01 | first       | implementing | —        | —          | —              |
 | Spec-AC-02 | second      | deferred     | —        | 2099-01-01 | needs upstream |
 MD
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > dbl-run1.log 2>&1) \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > dbl-run1.log 2>&1) \
     || log_fail "index gen failed: $(cat "$TEST_DIR/dbl-run1.log")"
   local index="$TEST_DIR/docs/INDEX.md"
   extract_section "$index" "## Deferred (whole-doc)" > "$TEST_DIR/whole.txt"
@@ -1816,12 +1852,12 @@ MD
     log_fail "SPEC-9002 (non-deferred doc) must NOT appear in the whole-doc deferred section"
   fi
   grep -v '^Generated:' "$index" > "$TEST_DIR/dbl1.snap"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   grep -v '^Generated:' "$index" > "$TEST_DIR/dbl2.snap"
   diff -q "$TEST_DIR/dbl1.snap" "$TEST_DIR/dbl2.snap" >/dev/null \
     || log_fail "INDEX must be idempotent modulo the Generated line"
   rm "$TEST_DIR/docs/specs/SPEC-9001-whole-deferred.md" "$TEST_DIR/docs/specs/SPEC-9002-perac-deferred.md"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   log_pass "No double-listing across whole-doc vs per-AC deferred; INDEX idempotent"
 }
 
@@ -1922,6 +1958,63 @@ test_change0166_closeout_is_clean_and_terminal() {
   log_pass "TEST-444: CHANGE-0166's frontmatter status ($status) is terminal with $pr_count delivering PR(s) named, and docs-audit --check --strict over it is CLEAN"
 }
 
+# --- TEST-534 (spec-close-ceremony-sweep Spec-AC-10) — the two M2 stale
+# halves (CHANGE-0181 and ISSUE-0040 -- delivered by PR 384/merge 7270a29c
+# and PR 382/merge e6aae10b respectively, but left status: draft with empty
+# links on main) read terminal with their REAL pr/commit, and docs-audit's
+# CLEAN verdict for each is BY EVIDENCE, not by blindness: a status: draft
+# doc sits outside the false-open heuristic's eligible-status set
+# (docs-audit-core.mjs D1, "draft excluded -- not yet ready"), so the
+# PRE-FIX draft already read CLEAN / "False-open: 0" / "1 open, 0 done" --
+# even though commit 7270a29c's own message names both
+# "unrecorded-spec-amendment-is-invisible" and "CHANGE-0181" (confirmed via
+# `git log --grep`). A CLEAN verdict over a doc the heuristic never looked
+# at proves nothing; the post-fix "0 open, 1 done" bucket proves the audit
+# now reads it as the terminal, evidenced doc it is. Mirrors
+# test_change0166_closeout_is_clean_and_terminal's shape, doubled and
+# pinned to the exact pr/commit this ride verified against `git log`.
+test_534_two_stale_halves_are_closed() {
+  log_info "TEST-534: CHANGE-0181 and ISSUE-0040 read status done with their real PR/commit; CLEAN because docs-audit evaluated a done doc, not because it skipped a draft one..."
+  local entry rel pr sha doc status pr_hit commit_hit logf
+  local -a docs=(
+    "docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md 384 7270a29cdbeb3ae9ad93b9ec3776465d094b5ce5"
+    "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md 382 e6aae10b18aad49eeb2ceb1f3e1de6c4bd1b215f"
+  )
+  for entry in "${docs[@]}"; do
+    read -r rel pr sha <<<"$entry"
+    doc="$PROJECT_ROOT/$rel"
+    [[ -f "$doc" ]] || log_fail "TEST-534: $rel not found: $doc"
+
+    status="$(awk -F': ' '/^status:/{print $2; exit}' "$doc" | tr -d '\r')"
+    [[ "$status" == "done" ]] \
+      || log_fail "TEST-534: $rel frontmatter status must be done, got '$status'"
+
+    pr_hit="$(awk '/^  pr:/{p=1;next} p && /^    - /{print; next} {p=0}' "$doc" | grep -c "$pr\$")" || true
+    [[ "$pr_hit" -ge 1 ]] \
+      || log_fail "TEST-534: $rel links.pr must contain $pr, found none"
+
+    commit_hit="$(awk '/^  commits:/{p=1;next} p && /^    - /{print; next} {p=0}' "$doc" | grep -Fc "$sha")" || true
+    [[ "$commit_hit" -ge 1 ]] \
+      || log_fail "TEST-534: $rel links.commits must contain $sha, found none"
+
+    logf="$TEST_DIR/534-$(basename "$rel").log"
+    (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event --path "$rel" > "$logf" 2>&1) \
+      || log_fail "TEST-534: docs-audit --check --strict over $rel must exit 0: $(tail -10 "$logf")"
+    grep -qF "Verdict: CLEAN" "$logf" \
+      || log_fail "TEST-534: $rel expected 'Verdict: CLEAN':"$'\n'"$(cat "$logf")"
+    if grep -qF "CHECK FAILED" "$logf"; then
+      log_fail "TEST-534: $rel must not report CHECK FAILED:"$'\n'"$(cat "$logf")"
+    fi
+    # by evidence, not blindness (see header comment): the scan bucket must
+    # read the doc as terminal, not the pre-fix "1 open, 0 done" shape a
+    # still-draft doc (never evaluated by the false-open heuristic) reads as
+    # CLEAN under.
+    grep -qF "0 open, 1 done" "$logf" \
+      || log_fail "TEST-534: $rel expected the audit's Tracked bucket to read '0 open, 1 done' (terminal, evaluated), not a draft-shaped bucket:"$'\n'"$(cat "$logf")"
+  done
+  log_pass "TEST-534: CHANGE-0181 and ISSUE-0040 both terminal with their real PR/commit, CLEAN because docs-audit evaluated a done doc"
+}
+
 # --- SPEC-0007 fixtures (ISSUE-0001): CRLF/lone-CR-tolerant parsers + POSIX paths ---
 
 # Build an isolated mini-repo under $TEST_DIR with the vendored scripts, so a
@@ -2014,8 +2107,11 @@ EOF
 # claim stated directly instead of through a whole-file diff. A file yielding
 # zero path tokens FAILS rather than passing vacuously.
 index_posix_findings() {  # $1 = index file
+  # spec-close-ceremony-sweep Spec-AC-24 (TEST-559): fold stderr into the
+  # captured output too, so an infra failure's message is never lost to a
+  # caller that captures only stdout via command substitution.
   node "$TEST_DIR/index-posix-check.mjs" \
-    "$PROJECT_ROOT/.aai/scripts/lib/docs-model.mjs" "$1"
+    "$PROJECT_ROOT/.aai/scripts/lib/docs-model.mjs" "$1" 2>&1
 }
 
 # Write the Node predicate index_posix_findings runs. Called once from setup.
@@ -2024,32 +2120,43 @@ index_write_posix_check() {
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 const [libPath, indexPath] = process.argv.slice(2);
-const { toPosix } = await import(pathToFileURL(libPath).href);
-if (typeof toPosix !== 'function') {
-  console.log(`toPosix is not exported by ${libPath} — the POSIX check cannot run`);
-  process.exit(1);
-}
-const findings = [];
-let tokens = 0;
-fs.readFileSync(indexPath, 'utf8').split('\n').forEach((line, i) => {
-  const n = i + 1;
-  if (line.includes('\\')) {
-    findings.push(`line ${n}: index path is not POSIX — a backslash separator is present: ${line.trim()}`);
+// spec-close-ceremony-sweep Spec-AC-24 (TEST-559): an INFRASTRUCTURE failure
+// (the index path is unreadable, the lib fails to import, ...) must exit
+// with a code DISTINCT from a genuine POSIX finding (1) and must fold its
+// message into the captured output — a bare uncaught throw sends its stack
+// only to stderr, which a caller capturing stdout alone (command
+// substitution with no 2>&1) reads as exit 1 with an EMPTY payload.
+try {
+  const { toPosix } = await import(pathToFileURL(libPath).href);
+  if (typeof toPosix !== 'function') {
+    console.log(`toPosix is not exported by ${libPath} — the POSIX check cannot run`);
+    process.exit(1);
   }
-  for (const m of line.matchAll(/docs[\\/][A-Za-z0-9._\\/-]*\.md/g)) {
-    tokens += 1;
-    const tok = m[0];
-    if (toPosix(tok) !== tok) {
-      findings.push(`line ${n}: index path is not POSIX — toPosix is not a no-op here: ${tok} -> ${toPosix(tok)}`);
+  const findings = [];
+  let tokens = 0;
+  fs.readFileSync(indexPath, 'utf8').split('\n').forEach((line, i) => {
+    const n = i + 1;
+    if (line.includes('\\')) {
+      findings.push(`line ${n}: index path is not POSIX — a backslash separator is present: ${line.trim()}`);
     }
+    for (const m of line.matchAll(/docs[\\/][A-Za-z0-9._\\/-]*\.md/g)) {
+      tokens += 1;
+      const tok = m[0];
+      if (toPosix(tok) !== tok) {
+        findings.push(`line ${n}: index path is not POSIX — toPosix is not a no-op here: ${tok} -> ${toPosix(tok)}`);
+      }
+    }
+  });
+  if (tokens === 0) {
+    findings.push(`no docs/*.md path token found in ${indexPath} — the POSIX check would be vacuous`);
   }
-});
-if (tokens === 0) {
-  findings.push(`no docs/*.md path token found in ${indexPath} — the POSIX check would be vacuous`);
+  console.log(`tokens_checked=${tokens}`);
+  for (const f of findings) console.log(f);
+  process.exit(findings.length ? 1 : 0);
+} catch (e) {
+  console.log(`INFRA-ERROR: ${e.message}`);
+  process.exit(2);
 }
-console.log(`tokens_checked=${tokens}`);
-for (const f of findings) console.log(f);
-process.exit(findings.length ? 1 : 0);
 EOF
 }
 
@@ -2427,7 +2534,7 @@ MD
     || log_fail "pinned-clock generation failed: $(cat "$d/gen-earlier.log")"
   local snap_earlier="$TEST_DIR/t-indexarm-overdue-earlier.snap"
   cp "$d/docs/INDEX.md" "$snap_earlier"
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen-fresh.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen-fresh.log 2>&1) \
     || log_fail "fresh generation failed: $(cat "$d/gen-fresh.log")"
   local snap_fresh="$TEST_DIR/t-indexarm-overdue-fresh.snap"
   cp "$d/docs/INDEX.md" "$snap_fresh"
@@ -2503,7 +2610,7 @@ links:
 # Implementing spec
 MD
   (cd "$d" && git add -A && git commit -qm "crlf corpus")
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
     || log_fail "generator failed on CRLF corpus: $(cat "$d/gen.log")"
   local index="$d/docs/INDEX.md"
   extract_section "$index" "## Done" | qgrep -qF "SPEC-7001" \
@@ -2549,7 +2656,7 @@ links:
 MD
   (cd "$d" && git add -A && git commit -qm "high-legacy corpus")
   local ec=0
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.out 2> gen.err) || ec=$?
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen.out 2> gen.err) || ec=$?
   [[ "$ec" == 0 ]] || log_fail "legacy-ratio guard must NOT change the exit code (got $ec)"
   grep -qiF "legacy-ratio guard" "$d/gen.err" \
     || log_fail "high-legacy corpus must emit the legacy-ratio warning on stderr"
@@ -2558,7 +2665,7 @@ MD
   # Negative control: drop to 1 legacy of 2 (ratio 50%, count 1) — must stay silent.
   rm "$d/docs/specs/LEG-2.md" "$d/docs/specs/LEG-3.md"
   local ec2=0
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen2.out 2> gen2.err) || ec2=$?
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen2.out 2> gen2.err) || ec2=$?
   [[ "$ec2" == 0 ]] || log_fail "negative-control run must still exit 0 (got $ec2)"
   if grep -qiF "legacy-ratio guard" "$d/gen2.err"; then
     log_fail "a normal corpus (<=1 legacy / <=50%) must NOT emit the legacy-ratio warning"
@@ -2798,15 +2905,21 @@ test_spec0011_nearmiss_both_surfaces() {  # TEST-005 / Spec-AC-04
   log_info "Test: non-canonical heading / Review-By-like column near-miss in BOTH docs-audit + INDEX.violations; canonical warns in neither (TEST-005)..."
   local d; d="$(setup_iso_repo s11-nearmiss-both)"
   # Near-miss: AC-looking table under a non-canonical heading, with a 'Review By' column.
+  # spec-close-ceremony-sweep hazard fix (fu-index-violations-mirrors-terminal-
+  # docs): status is `implementing` here, deliberately NON-terminal — a
+  # TERMINAL near-miss doc is now EXEMPT from the INDEX.violations.md mirror
+  # (same partition as docs-audit.mjs's --strict promotion, Amendment 3); the
+  # terminal-exemption side of that same behavior is its own dedicated arm,
+  # test_idxviolations_terminal_exemption, immediately below.
   cat > "$d/docs/specs/SPEC-1140-noncanon.md" <<'MD'
 ---
 id: SPEC-1140
 type: spec
-status: done
+status: implementing
 links:
   pr: []
 ---
-# Done spec with an AC-looking table under a non-canonical heading
+# Open spec with an AC-looking table under a non-canonical heading
 
 ## Acceptance Criteria
 
@@ -2840,7 +2953,7 @@ MD
     log_fail "canonical SPEC-1141 must NOT be flagged as a near-miss (negative control)"
   fi
   # Surface 2: generate-docs-index.mjs -> docs/INDEX.violations.md
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
     || log_fail "generate-docs-index must exit 0 (degrade-and-report): $(cat "$d/gen.log")"
   assert_file "$d/docs/INDEX.violations.md"
   grep -qF "SPEC-1140" "$d/docs/INDEX.violations.md" \
@@ -2850,6 +2963,91 @@ MD
   fi
   rm -rf "$d"
   log_pass "Near-miss surfaces in BOTH docs-audit and INDEX.violations; canonical shape in neither"
+}
+
+# spec-close-ceremony-sweep run-4-introduced hazard (fu-index-violations-
+# mirrors-terminal-docs, no spec Test Plan row yet -- reported for an
+# amendment): every generate-docs-index.mjs regeneration mirrored EVERY
+# near-miss finding into the UNTRACKED docs/INDEX.violations.md, including
+# findings on documents that are already TERMINAL (done/deferred/rejected/
+# superseded/legacy/current) and can never newly reach that status with a
+# broken table (docs-audit.mjs's own --strict gate already refuses that while
+# the doc is open, Amendment 3). Since the pre-commit hook regenerates the
+# index on every commit, this left an untracked file behind in every clone
+# with at least one terminal near-miss doc -- the live corpus carries 8 of
+# them (M9), so it fired on this repository's own commits. Fix mirrors
+# Amendment 3's partition exactly: only a NON-terminal doc's near-miss is
+# mirrored; a terminal doc's near-miss stays visible ONLY in docs-audit.mjs's
+# own report (never lost, never mirrored).
+test_idxviolations_terminal_exemption() {
+  log_info "Test: a near-miss finding on a TERMINAL doc is never mirrored into docs/INDEX.violations.md; the identical shape on a NON-terminal doc still is, and both stay visible in docs-audit's own report..."
+  local d; d="$(setup_iso_repo idxviol-terminal-exemption)"
+  # Same near-miss shape (AC-looking table under a non-canonical heading) on
+  # two docs that differ ONLY in frontmatter status.
+  cat > "$d/docs/specs/SPEC-1160-open.md" <<'MD'
+---
+id: SPEC-1160
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Open spec with an AC-looking table under a non-canonical heading
+
+## Acceptance Criteria
+
+| Spec-AC    | Description | Status | Evidence | Review By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+  cat > "$d/docs/specs/SPEC-1161-done.md" <<'MD'
+---
+id: SPEC-1161
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec with the IDENTICAL near-miss table shape
+
+## Acceptance Criteria
+
+| Spec-AC    | Description | Status | Evidence | Review By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+
+  # Surface 1: docs-audit.mjs lists BOTH regardless of terminal status.
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs > nm.log 2>&1) || true
+  extract_section_h3 "$d/nm.log" "### Near-miss AC tables" > "$d/nm-sec.txt" 2>/dev/null || true
+  grep -qF "SPEC-1160" "$d/nm-sec.txt" \
+    || log_fail "TEST-575: docs-audit near-miss section must flag the open doc SPEC-1160: $(cat "$d/nm.log")"
+  grep -qF "SPEC-1161" "$d/nm-sec.txt" \
+    || log_fail "TEST-575: docs-audit near-miss section must ALSO flag the terminal doc SPEC-1161 (never lost, just not mirrored): $(cat "$d/nm.log")"
+
+  # Surface 2: generate-docs-index.mjs -> docs/INDEX.violations.md mirrors
+  # ONLY the non-terminal doc's finding.
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
+    || log_fail "TEST-575: generate-docs-index must exit 0 (degrade-and-report): $(cat "$d/gen.log")"
+  assert_file "$d/docs/INDEX.violations.md"
+  grep -qF "SPEC-1160" "$d/docs/INDEX.violations.md" \
+    || log_fail "TEST-575: INDEX.violations.md must still mirror the OPEN doc's near-miss (SPEC-1160)"
+  if grep -qF "SPEC-1161" "$d/docs/INDEX.violations.md"; then
+    log_fail "TEST-575: INDEX.violations.md must NOT mirror a TERMINAL doc's near-miss (SPEC-1161, status done)"
+  fi
+
+  # Second fixture: an ALL-terminal near-miss corpus must leave NO untracked
+  # companion file at all -- the exact "untracked file reaches a committed
+  # page" shape this sweep exists to remove.
+  rm -f "$d/docs/specs/SPEC-1160-open.md" "$d/docs/INDEX.violations.md"
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen2.log 2>&1) \
+    || log_fail "TEST-575: generate-docs-index must exit 0 on an all-terminal near-miss corpus: $(cat "$d/gen2.log")"
+  if [[ -f "$d/docs/INDEX.violations.md" ]]; then
+    log_fail "TEST-575: an all-terminal near-miss corpus must leave NO docs/INDEX.violations.md at all, found: $(cat "$d/docs/INDEX.violations.md")"
+  fi
+
+  rm -rf "$d"
+  log_pass "A terminal doc's near-miss stays in docs-audit's report only; an all-terminal corpus leaves no untracked INDEX.violations.md"
 }
 
 test_spec0011_review_claim_unbacked() {  # TEST-006 / Spec-AC-05
@@ -3351,7 +3549,7 @@ MD
 }
 
 test_spec0011_regression() {  # TEST-015 / Spec-AC-12
-  log_info "Test: real-repo docs-audit CLEAN, no false near-miss, INDEX idempotent (TEST-015)..."
+  log_info "Test: real-repo docs-audit CLEAN, INDEX idempotent (TEST-015)..."
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/s11-audit.log" 2>&1) \
     || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/s11-audit.log")"
   # SPEC-0057: see test_spec0006_no_regression_real_repo's comment — the
@@ -3359,11 +3557,16 @@ test_spec0011_regression() {  # TEST-015 / Spec-AC-12
   # tracked, verdict-only duplicate-doc-id collisions); assert the hard-gate
   # signal this stanza actually guards instead.
   assert_contains "$TEST_DIR/s11-audit.log" "Orphans (need triage): 0"
+  # spec-close-ceremony-sweep Spec-AC-11 (D7 as amended): --strict now
+  # promotes the near-miss AC-table shape check ONLY for a NON-terminal
+  # document; the M9 live-corpus yield (8 documents) is all `status: done`
+  # (terminal), so --strict still exits 0 and CHECK FAILED still never
+  # appears here -- the assertion above stands unchanged. The near-miss
+  # section itself is report-only and unconditional, so it STILL lists the 8
+  # documents regardless of --strict; that is no longer this stanza's
+  # concern (test_537_shape_check_live_yield owns the exact count and the
+  # terminal/non-terminal --strict split).
   assert_not_contains "$TEST_DIR/s11-audit.log" "CHECK FAILED"
-  # No false near-miss on the real corpus (narrow-by-construction detector).
-  extract_section_h3 "$TEST_DIR/s11-audit.log" "### Near-miss AC tables" > "$TEST_DIR/s11-nm.txt" 2>/dev/null || true
-  grep -qF "_None._" "$TEST_DIR/s11-nm.txt" \
-    || log_fail "real-repo near-miss section must be empty (no canonical shape may trip it): $(cat "$TEST_DIR/s11-nm.txt")"
   # INDEX idempotent (backup/restore the real committed index).
   local idx_backup="$TEST_DIR/INDEX.s11.orig"
   cp "$PROJECT_ROOT/docs/INDEX.md" "$idx_backup"
@@ -3376,7 +3579,469 @@ test_spec0011_regression() {  # TEST-015 / Spec-AC-12
   cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"
   diff -q "$TEST_DIR/s11-idx1.snap" "$TEST_DIR/s11-idx2.snap" >/dev/null \
     || log_fail "real-repo INDEX must be idempotent modulo the Generated line"
-  log_pass "Real-repo audit CLEAN, no false near-miss, INDEX idempotent"
+  log_pass "Real-repo audit CLEAN, INDEX idempotent"
+}
+
+# --- spec-close-ceremony-sweep Spec-AC-11/12 (TEST-536..538) -----------------
+# Amendment (owner correction): --strict promotes the two new near-miss
+# kinds (column-set, status-vocabulary) ONLY for a NON-terminal document
+# (TERMINAL_DOC_STATUS: done/deferred/rejected/superseded/legacy/current).
+# A terminal doc's finding stays report-only even under --strict, still
+# listed unconditionally. This keeps every PRE-EXISTING `--check --strict`
+# seam over the live corpus CLEAN (M9's 8 documents are all `status: done`)
+# instead of weakening those sixteen seams to make room for one new check.
+
+# Self-sufficient: works whether or not the shared setup_fixture ran first
+# (single-test sourced RED/GREEN evidence capture never runs it).
+setup_near_miss_fixture() {
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  local d="$TEST_DIR/iso-nearmiss-$1"
+  rm -rf "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/issues" "$d/docs/specs" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  # column-set shape (issue 370 / M9), NON-terminal (status: implementing):
+  # id column reads "AC", not "Spec-AC", under a non-canonical "## Acceptance
+  # Criteria" heading — neither parseAcTable nor parseLeanAcTable recognizes
+  # it, and the doc is still OPEN.
+  cat > "$d/docs/issues/ISSUE-9001-colset-open.md" <<'MD'
+---
+id: ISSUE-9001
+type: issue
+status: implementing
+links:
+  pr: []
+---
+# Column-set fixture, open (issue 370 shape)
+
+## Acceptance Criteria
+
+| AC | Requirement | Status |
+|----|-------------|--------|
+| AC-001 | first table entry | planned |
+| AC-002 | second table entry | planned |
+MD
+  # The IDENTICAL shape, but TERMINAL (status: done). `type: issue` (not
+  # `spec`) so the unrelated lean-ceremony done-doc branch never applies, and
+  # the bare "AC" id column keeps ac.hasGate false so the unrelated
+  # nonTerminal-AC-row false-done heuristic never applies either — the ONLY
+  # thing this pair differs on is frontmatter status.
+  cat > "$d/docs/issues/ISSUE-9003-colset-done.md" <<'MD'
+---
+id: ISSUE-9003
+type: issue
+status: done
+links:
+  pr: []
+---
+# Column-set fixture, done (issue 370 shape)
+
+## Acceptance Criteria
+
+| AC | Requirement | Status |
+|----|-------------|--------|
+| AC-001 | first table entry | planned |
+| AC-002 | second table entry | planned |
+MD
+  # status-vocabulary shape: a genuine canonical Spec-AC table (id column
+  # correct, Review-By/Evidence present) whose Status word is out of
+  # vocabulary, on an OPEN doc.
+  cat > "$d/docs/specs/SPEC-DRAFT-statusvocab.md" <<'MD'
+---
+id: spec-9002-statusvocab
+type: spec
+number: null
+status: implementing
+links:
+  pr: []
+---
+# Status-vocabulary fixture
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | green  | a1b2c3d  | —         | —     |
+MD
+  (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test" \
+    && git add -A && git commit -qm "chore: seed near-miss fixtures")
+  printf '%s' "$d"
+}
+
+test_536_unparseable_ac_table_shape() {  # TEST-536 / Spec-AC-11
+  log_info "Test: the issue-370 column-set shape hard-fails --check --strict on a NON-terminal doc and passes without --strict; the SAME shape on a done doc is listed but --check --strict exits 0; an out-of-vocabulary status word reports status-vocabulary (TEST-536)..."
+  local d rc out
+  d="$(setup_near_miss_fixture t536)"
+
+  # Report-only by default: EVERY near-miss doc is named, terminal or not.
+  rc=0
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-536: --check without --strict must exit 0 (got $rc): $(printf '%s' "$out" | tail -20)"
+  printf '%s' "$out" > "$d/plain.log"
+  grep -qF "column-set" "$d/plain.log" || log_fail "TEST-536: column-set kind must be reported: $(payload_preview "$out")"
+  grep -qF "ISSUE-9001" "$d/plain.log" || log_fail "TEST-536: the OPEN column-set doc must be named: $(payload_preview "$out")"
+  grep -qF "ISSUE-9003" "$d/plain.log" || log_fail "TEST-536: the DONE column-set doc must ALSO be named (report-only is unconditional): $(payload_preview "$out")"
+  grep -qF "status-vocabulary" "$d/plain.log" || log_fail "TEST-536: status-vocabulary kind must be reported: $(payload_preview "$out")"
+  grep -qF "spec-9002-statusvocab" "$d/plain.log" || log_fail "TEST-536: status-vocabulary finding must name spec-9002-statusvocab: $(payload_preview "$out")"
+
+  # Drop the status-vocabulary doc before the strict-mode arms below: an
+  # out-of-vocabulary Status word on a CANONICAL (Spec-AC-headed) table also
+  # trips the PRE-EXISTING, independent "unknown AC status" schema violation
+  # (docs-audit-core.mjs `violations.push`, unrelated to near-miss and never
+  # exempt by terminal status) -- leaving it in would confound arms 1/2,
+  # which exist to isolate the near-miss terminal-exemption specifically.
+  rm -f "$d/docs/specs/SPEC-DRAFT-statusvocab.md"
+  (cd "$d" && git add -A && git commit -qm "chore: drop the status-vocabulary doc before the strict-mode arms" >/dev/null)
+
+  # Arm 1 — NON-terminal column-set doc present: --strict hard-fails.
+  rc=0
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-536 arm 1: --check --strict must exit non-zero while the OPEN doc's near-miss is present: $(payload_preview "$out")"
+  grep -qF "CHECK FAILED" <<<"$out" || log_fail "TEST-536 arm 1: --strict output must carry CHECK FAILED: $(payload_preview "$out")"
+  grep -qF "near-miss" <<<"$out" || log_fail "TEST-536 arm 1: CHECK FAILED must name near-miss: $(payload_preview "$out")"
+  grep -qF "0 schema violation(s)" <<<"$out" || log_fail "TEST-536 arm 1: the failure must be near-miss-driven, not an unrelated schema violation: $(payload_preview "$out")"
+
+  # Arm 2 — drop the OPEN column-set doc too; only the DONE doc's IDENTICAL
+  # shape remains. --strict must now exit 0 (terminal exemption: the table
+  # only gates open work, so a done doc cannot newly reach done with a
+  # broken one).
+  rm -f "$d/docs/issues/ISSUE-9001-colset-open.md"
+  (cd "$d" && git add -A && git commit -qm "chore: drop the open column-set doc" >/dev/null)
+  rc=0
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-536 arm 2: --check --strict must exit 0 once only the DONE doc's near-miss remains (terminal exemption), got $rc: $(payload_preview "$out")"
+  grep -qF "CHECK FAILED" <<<"$out" \
+    && log_fail "TEST-536 arm 2: a done doc's near-miss must never print CHECK FAILED: $(payload_preview "$out")"
+  grep -qF "column-set" <<<"$out" \
+    || log_fail "TEST-536 arm 2: the done doc's column-set finding must still be listed (report-only, unconditional): $(payload_preview "$out")"
+
+  rm -rf "$d"
+  log_pass "TEST-536 near-miss kinds are always report-only-listed; --strict hard-fails a NON-terminal doc and stays CLEAN for a done doc with the identical shape"
+}
+
+test_537_shape_check_live_yield() {  # TEST-537 / Spec-AC-11
+  log_info "Test: over the live corpus the near-miss column-set kind names exactly the 8 M9 documents (all status: done), the status-vocabulary arm is empty, --check exits 0 without --strict, and --check --strict ALSO stays CLEAN (every M9 doc is terminal) (TEST-537)..."
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  local rc=0 out
+  out="$(cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-537: live corpus --check without --strict must exit 0 (got $rc): $(printf '%s' "$out" | tail -20)"
+  printf '%s' "$out" > "$TEST_DIR/s537-plain.log"
+  extract_section_h3 "$TEST_DIR/s537-plain.log" "### Near-miss AC tables" > "$TEST_DIR/s537-nm.txt" 2>/dev/null || true
+  local nm_docs
+  nm_docs="$(/usr/bin/grep -c '| column-set |' "$TEST_DIR/s537-nm.txt" 2>/dev/null || true)"
+  [[ "${nm_docs:-0}" -eq 8 ]] \
+    || log_fail "TEST-537: live corpus near-miss column-set kind must name exactly 8 documents (M9), got ${nm_docs:-0}: $(cat "$TEST_DIR/s537-nm.txt")"
+  if /usr/bin/grep -qF '| status-vocabulary |' "$TEST_DIR/s537-nm.txt"; then
+    log_fail "TEST-537: live corpus status-vocabulary arm must be empty (M9): $(cat "$TEST_DIR/s537-nm.txt")"
+  fi
+  # spec-close-ceremony-sweep Spec-AC-11 (amended D7): all 8 M9 documents are
+  # status: done (terminal) — --strict must stay CLEAN, so this pre-existing
+  # seam (and the other ~15 like it across the suite corpus) keeps its teeth.
+  rc=0
+  out="$(cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-537: live corpus --check --strict must stay exit 0 — every M9 near-miss document is terminal (status: done): $(printf '%s' "$out" | tail -20)"
+  grep -qF "CHECK FAILED" <<<"$out" \
+    && log_fail "TEST-537: live corpus --strict must not print CHECK FAILED (all 8 M9 docs are terminal): $(payload_preview "$out")"
+  log_pass "TEST-537 live corpus near-miss yield matches M9 (8 documents), report-only always, --strict stays CLEAN (all terminal)"
+}
+
+test_582_status_vocabulary_scoped_to_spec_ac_col() {  # TEST-582 / Spec-AC-11 (Amendment 16, T5)
+  log_info "Test: a bare-'AC'-id table's informal status word is reported ONLY as column-set, never ALSO as status-vocabulary — the hasSpecAcCol scoping is load-bearing, pinned directly rather than only claimed in a comment (TEST-582)..."
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  local d="$TEST_DIR/iso-t582"
+  rm -rf "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/issues" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  # A bare "AC"-id column-set table (M9's own shape) whose Status word
+  # ("green") is genuinely OUT of AC_STATUS_ENUM — unlike ISSUE-9001/9003 in
+  # setup_near_miss_fixture (TEST-536), which both happen to use "planned"
+  # (already canonical), so neither of THOSE two exercises this arm at all.
+  cat > "$d/docs/issues/ISSUE-9004-colset-informal-status.md" <<'MD'
+---
+id: ISSUE-9004
+type: issue
+status: implementing
+links:
+  pr: []
+---
+# Column-set fixture, informal out-of-vocabulary status word
+
+## Acceptance Criteria
+
+| AC | Requirement | Status |
+|----|-------------|--------|
+| AC-001 | first table entry | green |
+MD
+  (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test" \
+    && git add -A && git commit -qm "chore: seed T5 status-vocabulary-scoping fixture")
+
+  local rc=0 out
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-582: --check without --strict must exit 0 (got $rc): $(printf '%s' "$out" | tail -20)"
+  grep -qF "column-set" <<<"$out" \
+    || log_fail "TEST-582: the bare-AC informal-status doc must still be reported column-set: $(payload_preview "$out")"
+  grep -qF "status-vocabulary" <<<"$out" \
+    && log_fail "TEST-582: a bare-AC table's informal status word must NOT ALSO be reported status-vocabulary (hasSpecAcCol scoping): $(payload_preview "$out")"
+
+  rm -rf "$d"
+  log_pass "TEST-582: a bare-AC table's out-of-vocabulary status word is reported once, as column-set, never doubled as status-vocabulary"
+}
+
+test_538_duplicate_ac_id_multiplicity() {  # TEST-538 / Spec-AC-12
+  log_info "Test: a spec declaring Spec-AC-01 twice, one copy pipe-broken and planned, fails --gate naming the id and is not CLEAN under --check (TEST-538)..."
+  local d rc out
+  d="$(setup_ac24_fixture t538)"
+  mkdir -p "$d/docs/specs"
+  cat > "$d/docs/specs/SPEC-DRAFT-dup-id.md" <<'MD'
+---
+id: spec-dup-id
+type: spec
+number: null
+status: implementing
+links:
+  pr: []
+---
+# Dup id spec
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first, terminal | done | a1b2c3d | — | — |
+| Spec-AC-01 | second, X|Y broken | planned | — | — | — |
+MD
+  rc=0
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --gate spec-dup-id 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-538: --gate must exit non-zero on the duplicate declared id: $(payload_preview "$out")"
+  grep -qF "Spec-AC-01" <<<"$out" || log_fail "TEST-538: --gate failure must name Spec-AC-01: $(payload_preview "$out")"
+  grep -qF "did not parse" <<<"$out" || log_fail "TEST-538: --gate failure must say the row did not parse: $(payload_preview "$out")"
+
+  rc=0
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event 2>&1)" || rc=$?
+  grep -qF "Verdict: CLEAN" <<<"$out" \
+    && log_fail "TEST-538: --check must NOT read CLEAN with the duplicate id unreconciled: $(payload_preview "$out")"
+
+  rm -rf "$d"
+  log_pass "TEST-538 duplicate declared Spec-AC id reconciled by multiplicity: --gate fails naming it, --check is not CLEAN"
+}
+
+# --- close-ceremony-sweep Spec-AC-22/24 (TEST-554, TEST-559) -----------------
+
+test_554_index_tracked_only() {  # TEST-554 / Spec-AC-22
+  log_info "Test: generate-docs-index.mjs enumerates tracked documents only; outside a git work tree it prints a NOTE naming the fallback (TEST-554)..."
+  local d; d="$(setup_iso_repo t554)"
+  mkdir -p "$d/docs/issues"
+  cat > "$d/docs/issues/ISSUE-9001-tracked.md" <<'MD'
+---
+id: ISSUE-9001
+type: issue
+status: draft
+links:
+  pr: []
+---
+# Tracked doc
+MD
+  (cd "$d" && git add docs/issues/ISSUE-9001-tracked.md && git commit -qm "docs: tracked fixture")
+  cat > "$d/docs/issues/ISSUE-9002-untracked.md" <<'MD'
+---
+id: ISSUE-9002
+type: issue
+status: draft
+links:
+  pr: []
+---
+# Untracked doc
+MD
+  # deliberately never git add'd
+
+  local rc=0
+  # NOT staged here (deliberately, unlike every other call site in this
+  # suite) — this row's whole claim is that an UNTRACKED file (ISSUE-9002,
+  # never git add'd above) must be excluded from the regenerated INDEX.
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-554: generate-docs-index.mjs must exit 0 in a git work tree: $(cat "$d/gen.log")"
+  grep -qF "ISSUE-9001" "$d/docs/INDEX.md" \
+    || log_fail "TEST-554: the tracked document must be listed in the regenerated INDEX: $(cat "$d/docs/INDEX.md")"
+  grep -qF "ISSUE-9002" "$d/docs/INDEX.md" \
+    && log_fail "TEST-554: the UNTRACKED document must NOT be listed in the regenerated INDEX"
+
+  # Outside a git work tree: fs-walk degrade, named by a NOTE (D3). A path
+  # under $TEST_DIR would still be INSIDE the git repo setup_fixture already
+  # initialized there — a fresh, sibling mktemp dir is genuinely git-free.
+  local nogit; nogit="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-t554-nogit.XXXXXX")"
+  mkdir -p "$nogit/.aai/scripts/lib" "$nogit/docs/issues" "$nogit/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$nogit/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$nogit/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$nogit/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$nogit/.aai/scripts/lib/"
+  cp "$d/docs/issues/ISSUE-9001-tracked.md" "$nogit/docs/issues/"
+  rc=0
+  (cd "$nogit" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-554: outside a git work tree the generator must still exit 0 (degrade-and-report): $(cat "$nogit/gen.log")"
+  grep -qF "NOTE" "$nogit/gen.log" \
+    || log_fail "TEST-554: outside a git work tree the generator must print a NOTE naming the fallback: $(cat "$nogit/gen.log")"
+  grep -qF "ISSUE-9001" "$nogit/docs/INDEX.md" \
+    || log_fail "TEST-554: outside a git work tree the fs-walk fallback must still index the doc on disk: $(cat "$nogit/docs/INDEX.md")"
+
+  rm -rf "$d" "$nogit"
+  log_pass "TEST-554: INDEX enumerates tracked documents only; a non-git tree degrades with a named NOTE"
+}
+
+test_576_tracked_but_vanished_is_skipped_not_crashed() {  # TEST-576 / Spec-AC-22
+  log_info "Test: a committed doc deleted or moved on disk without staging is skipped, not crashed on; the index regenerates clean and never names it (TEST-576)..."
+  local d; d="$(setup_iso_repo t576)"
+  mkdir -p "$d/docs/specs"
+  cat > "$d/docs/specs/SPEC-9001-present.md" <<'MD'
+---
+id: SPEC-9001
+type: spec
+number: 9001
+status: done
+links:
+  pr: []
+---
+# Present doc
+MD
+  cat > "$d/docs/specs/SPEC-9002-vanishing.md" <<'MD'
+---
+id: SPEC-9002
+type: spec
+number: 9002
+status: done
+links:
+  pr: []
+---
+# Vanishing doc
+MD
+  (cd "$d" && git add docs/specs && git commit -qm "docs: two tracked specs")
+  # Move it OFF disk without staging either side — the ordinary shape a
+  # `mv`/`rm`, or docs-canon.mjs phase 2, produces in a dirty tree: git's
+  # index still names docs/specs/SPEC-9002-vanishing.md, nothing on disk
+  # answers to that path any more.
+  mv "$d/docs/specs/SPEC-9002-vanishing.md" "$d/SPEC-9002-vanishing.md.elsewhere"
+
+  local rc=0
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-576: generate-docs-index.mjs must exit 0 over a tracked-but-vanished path, not crash: $(cat "$d/gen.log")"
+  grep -qi "ENOENT" "$d/gen.log" \
+    && log_fail "TEST-576: no ENOENT stack trace may reach stdout/stderr: $(cat "$d/gen.log")"
+  grep -qF "SPEC-9001" "$d/docs/INDEX.md" \
+    || log_fail "TEST-576: the still-present tracked doc must still be indexed: $(cat "$d/docs/INDEX.md")"
+  grep -qF "SPEC-9002" "$d/docs/INDEX.md" \
+    && log_fail "TEST-576: the vanished doc must NOT be named in the regenerated INDEX"
+
+  rm -rf "$d"
+  log_pass "TEST-576: a tracked-but-vanished doc is excluded from the regenerated INDEX and never crashes the generator; the index still regenerates over what is left"
+}
+
+test_581_stat_error_other_than_enoent_is_never_swallowed() {  # TEST-581 / Spec-AC-22 (Amendment 16, T4)
+  log_info "Test: existsOnDisk() distinguishes ENOENT (skip, TEST-576) from every OTHER fs.statSync failure, which must surface, never read as 'nothing to find' (TEST-581)..."
+  local d; d="$(setup_iso_repo t581)"
+  mkdir -p "$d/docs/specs/blocked"
+  cat > "$d/docs/specs/SPEC-9003-present.md" <<'MD'
+---
+id: SPEC-9003
+type: spec
+number: 9003
+status: done
+links:
+  pr: []
+---
+# Present doc
+MD
+  cat > "$d/docs/specs/blocked/SPEC-9004-unreachable.md" <<'MD'
+---
+id: SPEC-9004
+type: spec
+number: 9004
+status: done
+links:
+  pr: []
+---
+# Unreachable doc
+MD
+  (cd "$d" && git add docs/specs && git commit -qm "docs: two tracked specs, one under a directory")
+  # Replace the PARENT DIRECTORY with a plain file, without staging either
+  # side. git's index still names docs/specs/blocked/SPEC-9004-unreachable.md,
+  # but docs/specs/blocked is now a FILE, not a directory — stat()ing the
+  # child path fails ENOTDIR, never ENOENT. This is deliberately NOT the
+  # permission-bit route (EACCES): a root-running CI user bypasses file-mode
+  # checks entirely, so a chmod-000 fixture would silently pass on such a
+  # runner and prove nothing. ENOTDIR fails the same way regardless of the
+  # running user, so this arm is portable to any POSIX CI identity.
+  rm -rf "$d/docs/specs/blocked"
+  printf 'not a directory any more\n' > "$d/docs/specs/blocked"
+
+  local rc=0
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "TEST-581: a non-ENOENT stat failure (ENOTDIR) must NOT exit 0 — 'could not look' must never read as 'nothing to find': $(cat "$d/gen.log")"
+  grep -qi "ENOTDIR" "$d/gen.log" \
+    || log_fail "TEST-581: the surfaced failure must name the real error (ENOTDIR), not a swallowed/generic one: $(cat "$d/gen.log")"
+  # A run over the untouched fixture (both docs genuinely readable) still
+  # succeeds, so this arm is pinning the ENOTDIR path specifically, not a
+  # generally-broken generator.
+  local d2; d2="$(setup_iso_repo t581ctrl)"
+  mkdir -p "$d2/docs/specs"
+  cat > "$d2/docs/specs/SPEC-9005-present.md" <<'MD'
+---
+id: SPEC-9005
+type: spec
+number: 9005
+status: done
+links:
+  pr: []
+---
+# Present doc
+MD
+  (cd "$d2" && git add docs/specs && git commit -qm "docs: one tracked spec")
+  local rc2=0
+  (cd "$d2" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) || rc2=$?
+  [[ "$rc2" -eq 0 ]] \
+    || log_fail "TEST-581: control (no stat failure at all) must exit 0: $(cat "$d2/gen.log")"
+
+  rm -rf "$d" "$d2"
+  log_pass "TEST-581: a genuine non-ENOENT stat failure (ENOTDIR) crashes the generator naming the real error, instead of silently vanishing the doc from INDEX.md like the ENOENT case does"
+}
+
+test_559_posix_predicate_infra_exit() {  # TEST-559 / Spec-AC-24
+  log_info "Test: the index POSIX predicate distinguishes an infra throw (exit 2, message captured) from a genuine finding (exit 1) (TEST-559)..."
+  # Self-sufficient: works whether or not setup_indexarm_snapshots ran first.
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  index_write_posix_check
+
+  local rc out
+  rc=0
+  out="$(index_posix_findings "$TEST_DIR/no-such-index-559.md")" || rc=$?
+  [[ "$rc" -eq 2 ]] \
+    || log_fail "TEST-559: an unreadable index path must exit 2 (infra failure), distinct from a genuine finding's exit 1, got $rc: $(payload_preview "$out")"
+  [[ -n "$out" ]] \
+    || log_fail "TEST-559: the infra failure's message must be captured in the output, not empty"
+  grep -qF "INFRA-ERROR" <<<"$out" \
+    || log_fail "TEST-559: the captured output must fold the thrown error's message, not just a bare exit code: $(payload_preview "$out")"
+
+  local base="$TEST_DIR/t559-base.md" genuine="$TEST_DIR/t559-genuine.md"
+  {
+    echo "Source: docs/{issues}"
+    echo "- docs/issues/FOO-001.md"
+  } > "$base"
+  sed 's#docs/issues/#docs\\issues\\#' "$base" > "$genuine"
+  rc=0
+  out="$(index_posix_findings "$genuine")" || rc=$?
+  [[ "$rc" -eq 1 ]] \
+    || log_fail "TEST-559: a genuine POSIX-path finding must still exit 1, distinct from the infra code 2, got $rc: $(payload_preview "$out")"
+  grep -qF "index path is not POSIX" <<<"$out" \
+    || log_fail "TEST-559: the genuine finding must still name the path problem: $(payload_preview "$out")"
+
+  log_pass "TEST-559: infra throw exits 2 with a captured message; a genuine finding still exits 1"
 }
 
 # --- CHANGE-0007 / SPEC-0013 H1 — body lint (TEST-001..009) ------------------
@@ -5196,7 +5861,7 @@ MD
 test_change0027_index_seam() {  # TEST-012 / Spec-AC-09 (SEAM-1)
   log_info "Test: generate-docs-index.mjs renders the false-open row + D9 suggested step (TEST-012)..."
   local d; d="$(setup_fo_repo fo-index-seam)"
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > index.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > index.log 2>&1) \
     || log_fail "TEST-012: generate-docs-index.mjs failed: $(cat "$d/index.log")"
   local audit="$d/docs/INDEX.audit.md"
   assert_file "$audit"
@@ -6539,6 +7204,117 @@ EOF
   log_pass "firstCommitDate still exported, still answers for one document, still null for a ghost path"
 }
 
+# --- spec-close-ceremony-sweep Spec-AC-15 (fu-docsaudit-idmention-probe-per-
+# doc) — buildIdMentionDateMap resolves the id-mention date for the WHOLE
+# corpus with ONE git log call, no --grep, instead of one `git log -1
+# --grep=<id>` subprocess per document (TEST-542). --------------------------
+
+setup_idmention_repo() {
+  local d="$TEST_DIR/iso-idmention-$1"
+  rm -rf "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/issues" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  # Deliberately NO legacy_until_date: that key alone gates a SEPARATE
+  # add-history git log call (buildFirstCommitDateMap) this arm is not about.
+  cat > "$d/docs/ai/docs-audit.yaml" <<'YAML'
+stale_after_days: 90
+scan_exclude: []
+YAML
+  (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test")
+  printf '%s' "$d"
+}
+
+test_idmention_542_one_call_and_correct_dates() {  # TEST-542 / Spec-AC-15
+  log_info "Test: the id-mention date for a whole corpus is resolved with ONE git log call carrying no --grep, and the resolved dates match the per-doc ground truth (TEST-542)..."
+  local d; d="$(setup_idmention_repo onecall)"
+  # Three `done`, non-spec, AC-table-less documents (the branch that used to
+  # spend one `git log -1 --grep=<id>` subprocess PER document).
+  local i
+  for i in 801 802 803; do
+    cat > "$d/docs/issues/CHANGE-$i-idmention-fixture.md" <<MD
+---
+id: CHANGE-$i
+type: change
+status: done
+links:
+  pr: []
+---
+# Id-mention fixture document $i (no canonical AC Status table)
+MD
+  done
+  (cd "$d" && git add -A \
+    && GIT_COMMITTER_DATE="2026-01-01T10:00:00Z" GIT_AUTHOR_DATE="2026-01-01T10:00:00Z" \
+       git commit -qm "docs: add idmention fixtures" >/dev/null)
+  # CHANGE-801: mentioned in a commit SUBJECT, then again LATER in a commit
+  # BODY only — the last-mention date must be the LATER one, proving the
+  # batched walk searches the full message (subject + body), not the subject
+  # alone. CHANGE-802: mentioned once, in a subject. CHANGE-803: never
+  # mentioned — must resolve to null, not to some other document's date.
+  (cd "$d" && GIT_COMMITTER_DATE="2026-02-01T10:00:00Z" GIT_AUTHOR_DATE="2026-02-01T10:00:00Z" \
+     git commit -q --allow-empty -m "chore: CHANGE-801 initial note" >/dev/null)
+  (cd "$d" && GIT_COMMITTER_DATE="2026-03-01T10:00:00Z" GIT_AUTHOR_DATE="2026-03-01T10:00:00Z" \
+     git commit -q --allow-empty -m "chore: follow-up" -m "See CHANGE-801 for context" >/dev/null)
+  (cd "$d" && GIT_COMMITTER_DATE="2026-04-01T10:00:00Z" GIT_AUTHOR_DATE="2026-04-01T10:00:00Z" \
+     git commit -q --allow-empty -m "chore: CHANGE-802 note" >/dev/null)
+
+  # (a) correctness: the batched map agrees with the per-id git-grep ground
+  # truth (the shape the removed per-document lastIdMentionDate used).
+  cat > "$TEST_DIR/idmention-correctness.mjs" <<'EOF'
+import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+const [corePath, modelPath, root] = process.argv.slice(2);
+const { buildIdMentionDateMap, scanAuditDocs } = await import(pathToFileURL(corePath).href);
+const { DEFAULT_CATEGORY_PREFIXES } = await import(pathToFileURL(modelPath).href);
+let bad = false;
+const say = (m) => { console.log(`FINDING: ${m}`); bad = true; };
+const files = scanAuditDocs(root, {});
+if (files.length < 3) say(`only ${files.length} scanned document(s) — the comparison would be vacuous`);
+const map = buildIdMentionDateMap(root, files, DEFAULT_CATEGORY_PREFIXES);
+const expect = { 'CHANGE-801': '2026-03-01', 'CHANGE-802': '2026-04-01', 'CHANGE-803': null };
+for (const [id, want] of Object.entries(expect)) {
+  const got = map.has(id) ? map.get(id) : null;
+  console.log(`${id}: got=${got} want=${want}`);
+  if (got !== want) say(`${id}: batched map returned ${got}, want ${want}`);
+  const ground = execFileSync('git', ['log', '-1', `--grep=${id}`, '--format=%cs'],
+    { cwd: root, encoding: 'utf8' }).trim() || null;
+  if (ground !== got) say(`${id}: batched map (${got}) disagrees with the per-id git log --grep ground truth (${ground})`);
+}
+process.exit(bad ? 1 : 0);
+EOF
+  local out rc=0
+  out="$(node "$TEST_DIR/idmention-correctness.mjs" \
+    "$d/.aai/scripts/lib/docs-audit-core.mjs" "$d/.aai/scripts/lib/docs-model.mjs" "$d" 2>&1)" || rc=$?
+  log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-542: the batched id-mention map is not correct: $(payload_preview "$out")"
+
+  # (b) call count: a counting git shim, same convention as TEST-002 above.
+  local realgit gitlog="$d/git-calls.log"
+  realgit="$(command -v git)"
+  mkdir -p "$d/shim"
+  cat > "$d/shim/git" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$gitlog"
+exec "$realgit" "\$@"
+EOF
+  chmod +x "$d/shim/git"
+  : > "$gitlog"
+  (cd "$d" && PATH="$d/shim:$PATH" node .aai/scripts/docs-audit.mjs --check --no-event > "$d/full.log" 2>&1) || true
+  local logcalls grepcalls
+  logcalls="$(grep -cE '^log ' "$gitlog" || true)"
+  grepcalls="$(grep -cF -e '--grep' "$gitlog" || true)"
+  grep -qF -e "Scanned: 3 docs" "$d/full.log" \
+    || log_fail "TEST-542: the fixture audit must have scanned 3 documents, or 'one call' is not distinguishable from 'one per document': $(tail -5 "$d/full.log")"
+  [[ "$logcalls" -eq 1 ]] \
+    || log_fail "TEST-542: id-mention resolution must spend exactly ONE git log call for 3 documents, got $logcalls: $(cat "$gitlog")"
+  [[ "$grepcalls" -eq 0 ]] \
+    || log_fail "TEST-542: the one git log call must carry no --grep, got $grepcalls call(s) with --grep: $(cat "$gitlog")"
+
+  rm -rf "$d"
+  log_pass "TEST-542 one git log call (no --grep) resolves the whole corpus' id-mention dates, matching per-id git-grep ground truth"
+}
+
 # --- spec-ac-table-premature-flip-recurs — `--ac-flip-check`, the pre-handoff
 # guard against a premature AC flip (TEST-001..005) ---------------------------
 # AC-FLIP GUARD STANZAS (begin)
@@ -7052,7 +7828,7 @@ MD
   (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test" \
     && git add -A && git commit -qm "chore: seed")
   # Committed docs/INDEX.md, generated for real, listing the one seed doc.
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1)
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1)
   (cd "$d" && git add docs/INDEX.md && git commit -qm "chore: index")
   printf '%s' "$d"
 }
@@ -7161,6 +7937,7 @@ main() {
   test_spec0006_open_decision_guard
   test_spec0006_no_regression_real_repo
   test_change0166_closeout_is_clean_and_terminal
+  test_534_two_stale_halves_are_closed
   test_issue0001_frontmatter_crlf_tolerance
   test_issue0001_actable_crlf_tolerance
   setup_indexarm_snapshots
@@ -7184,6 +7961,7 @@ main() {
   test_spec0011_gate_pass_and_unknown
   test_spec0011_nearmiss_evidence_column
   test_spec0011_nearmiss_both_surfaces
+  test_idxviolations_terminal_exemption
   test_spec0011_review_claim_unbacked
   test_spec0011_review_claim_backed
   test_spec0011_event_types
@@ -7198,6 +7976,14 @@ main() {
   test_spec0011_work_item_closed_requires_fields
   test_spec0011_review_artifact_boundary
   test_spec0011_regression
+  test_536_unparseable_ac_table_shape
+  test_582_status_vocabulary_scoped_to_spec_ac_col
+  test_537_shape_check_live_yield
+  test_538_duplicate_ac_id_multiplicity
+  test_554_index_tracked_only
+  test_576_tracked_but_vanished_is_skipped_not_crashed
+  test_581_stat_error_other_than_enoent_is_never_swallowed
+  test_559_posix_predicate_infra_exit
   test_change0007_lint_stray_markup
   test_change0007_lint_unbalanced_fence
   test_change0007_lint_placeholder
@@ -7274,6 +8060,7 @@ main() {
   test_histmap_rename_needs_no_renames
   test_histmap_no_history_yields_null
   test_histmap_first_commit_date_still_exported
+  test_idmention_542_one_call_and_correct_dates
   test_acflip_delivery_citation_flags
   test_acflip_deferred_table_clean
   test_acflip_close_end_state_clean

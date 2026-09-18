@@ -76,7 +76,12 @@ test_002_skill_intake_wiring() {
   confirm_ln=$(grep -n "INTAKE COMPLETE" "$SKILL_INTAKE" | qhead -1 | cut -d: -f1)
   { [[ -n "$choice_ln" && -n "$confirm_ln" && "$choice_ln" -lt "$confirm_ln" ]]; } \
     || { log_info "TEST-002: choice step must precede the INTAKE COMPLETE output (choice=$choice_ln confirm=$confirm_ln)"; ok=0; }
-  grep -qF "six blocks" "$SKILL_INTAKE" || { log_info "TEST-002: SHARED POLICY must name six blocks"; ok=0; }
+  # Spec-AC-25 moved STALENESS PREFLIGHT to STEP 0 (run once, not repeated by
+  # SHARED POLICY), so SHARED POLICY now applies the remaining five of
+  # INTAKE_COMMON.md's six blocks (staleness preflight, language policy,
+  # durable doc identity, post-save check, metrics question, implementation
+  # mode choice) — five is the correct count, not a regression.
+  grep -qF "five blocks" "$SKILL_INTAKE" || { log_info "TEST-002: SHARED POLICY must name five blocks (STEP 0 already applies staleness preflight)"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-002 SKILL_INTAKE surfaces the choice before the completion output" || log_fail "TEST-002 SKILL_INTAKE wiring"
 }
 

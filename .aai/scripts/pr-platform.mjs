@@ -61,6 +61,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { SHARED_GENERATED_PAGES } from './lib/docs-model.mjs';
 
 function fail(msg) {
   console.error(`pr-platform: ${msg}`);
@@ -68,7 +69,10 @@ function fail(msg) {
 }
 
 function parseArgs(argv) {
-  const opts = { remoteUrl: null, prConfig: null, json: false };
+  const opts = {
+    remoteUrl: null, prConfig: null, json: false, checkSharedPageConflicts: false, ghBin: null,
+    baseRef: null, filesFrom: null,
+  };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--remote-url') {
@@ -83,14 +87,163 @@ function parseArgs(argv) {
       i += 1;
     } else if (tok === '--json') {
       opts.json = true;
+    } else if (tok === '--check-shared-page-conflicts') {
+      opts.checkSharedPageConflicts = true;
+    } else if (tok === '--gh-bin') {
+      const v = argv[i + 1];
+      if (v === undefined) fail('--gh-bin requires a value');
+      opts.ghBin = v;
+      i += 1;
+    } else if (tok === '--base-ref') {
+      const v = argv[i + 1];
+      if (v === undefined) fail('--base-ref requires a value');
+      opts.baseRef = v;
+      i += 1;
+    } else if (tok === '--files-from') {
+      const v = argv[i + 1];
+      if (v === undefined) fail('--files-from requires a value');
+      opts.filesFrom = v;
+      i += 1;
     } else if (tok === '-h' || tok === '--help') {
-      console.log('Usage: node pr-platform.mjs [--remote-url <url>] [--pr-config <path>] [--json]');
+      console.log('Usage: node pr-platform.mjs [--remote-url <url>] [--pr-config <path>] [--json]\n'
+        + '       node pr-platform.mjs --check-shared-page-conflicts [--gh-bin <path>]\n'
+        + '         [--base-ref <ref> | --files-from <path|->]');
       exit(0);
     } else {
       fail(`unknown flag "${tok}"`);
     }
   }
   return opts;
+}
+
+// SHARED-PAGE PUSH CHECK (Spec-AC-30 / fu-main-push-conflicts-open-pr). Every
+// ride's numbering step regenerates these committed, generated pages; a push
+// to the base branch that changes one of them can turn ANY OTHER open PR
+// that also touches it into a merge conflict the moment this branch lands.
+// Deliberately NOT the same list as SPEC-0181's tree-hash exclusions — these
+// pages ARE reviewed content, just machine-written. SHARED_GENERATED_PAGES
+// itself lives in lib/docs-model.mjs (Amendment 16): a hand-maintained local
+// copy here previously named 'docs/overview.html', which does not exist —
+// the real page is 'docs/ai/overview.html' — so this check silently never
+// matched it (TEST-569's fixture only ever exercised docs/INDEX.md).
+
+// listOpenPrFiles(ghBin) — the open PR set with their touched files, or null
+// on ANY probe failure (no `gh`, unauthenticated, non-GitHub remote): this is
+// a best-effort warning, never a hard dependency — a probe that cannot see
+// the platform must never block the push by itself.
+function listOpenPrFiles(ghBin) {
+  try {
+    const out = execFileSync(ghBin, ['pr', 'list', '--state', 'open', '--json', 'number,files'], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const parsed = JSON.parse(out);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// sharedPageConflicts(prs, changedFiles) — every open PR whose file list
+// overlaps SHARED_GENERATED_PAGES, each with the overlapping paths named.
+//
+// P2 (Codex, PR #385 bot review, Amendment 27): an overlap with SOME open
+// PR's touched files is not, by itself, a conflict THIS push can create —
+// only a shared page BOTH sides touch can turn one CONFLICTING. Before this
+// fix, `changedFiles` did not exist: any open PR touching a generated page
+// refused the push, even a code-only branch that never comes near it, the
+// moment ANY unrelated open PR happened to carry docs/INDEX.md. `changedFiles`
+// (null when it could not be determined — see getOwnChangedFiles below) now
+// narrows the overlap to paths THIS branch itself changed; a null set falls
+// back to the pre-fix, conservative "report every overlap" behaviour rather
+// than silently going quiet when the branch's own diff is unknown.
+function sharedPageConflicts(prs, changedFiles) {
+  if (!Array.isArray(prs)) return [];
+  const hits = [];
+  for (const pr of prs) {
+    const files = Array.isArray(pr.files) ? pr.files.map((f) => f && f.path).filter(Boolean) : [];
+    let overlap = files.filter((f) => SHARED_GENERATED_PAGES.has(f));
+    if (changedFiles) overlap = overlap.filter((f) => changedFiles.has(f));
+    if (overlap.length) hits.push({ number: pr.number, files: overlap });
+  }
+  return hits;
+}
+
+// resolveUpstreamDefaultRef() -> "origin/<branch>" | null. cwd-based, the
+// SAME resolution order (and the SAME small local copy, never an import of a
+// content-hash-pinned file) lane-gate.mjs's --sweep-check auto-base-ref fix
+// uses (Amendment 27): `origin/HEAD` symbolic ref first, then the literal
+// `origin/main`/`origin/master`.
+function resolveUpstreamDefaultRef() {
+  try {
+    const out = execFileSync('git', ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (out) return out.replace(/^refs\/remotes\//, '');
+  } catch { /* fall through to the literal candidates */ }
+  for (const ref of ['origin/main', 'origin/master']) {
+    try {
+      execFileSync('git', ['rev-parse', '--verify', '--quiet', ref], { stdio: ['ignore', 'ignore', 'ignore'] });
+      return ref;
+    } catch { /* try the next candidate */ }
+  }
+  return null;
+}
+
+// getOwnChangedFiles(opts) -> Set<string> | null. `--files-from` (test/
+// dry-run determinism, mirroring lane-gate.mjs's own flag) always wins; with
+// neither flag, the base ref is auto-resolved the same way lane-gate.mjs's
+// --sweep-check now does, and the branch's own diff against it is read. null
+// means "could not determine" (no git, no resolvable base, an unreadable
+// --files-from path) — the caller's conservative fallback, never a silent
+// narrowing of what gets reported.
+function getOwnChangedFiles(opts) {
+  if (opts.filesFrom) {
+    let text;
+    try {
+      text = opts.filesFrom === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(opts.filesFrom, 'utf8');
+    } catch {
+      return null;
+    }
+    return new Set(text.split('\n').map((s) => s.trim()).filter(Boolean));
+  }
+  const baseRef = opts.baseRef || resolveUpstreamDefaultRef();
+  if (!baseRef) return null;
+  try {
+    const out = execFileSync('git', ['diff', '--name-only', '--no-renames', `${baseRef}...HEAD`], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return new Set(out.split('\n').map((s) => s.trim()).filter(Boolean));
+  } catch {
+    return null;
+  }
+}
+
+function runSharedPageCheck(opts) {
+  const ghBin = opts.ghBin || process.env.AAI_GH_BIN || 'gh';
+  const remoteUrl = opts.remoteUrl !== null ? (opts.remoteUrl || null) : readOriginUrl();
+  const host = extractHost(remoteUrl);
+  if (classify(host) !== 'github') {
+    console.log('SHARED-PAGE-PUSH SKIP — platform is not github (gh pr list has no portable equivalent here)');
+    exit(0);
+  }
+  const prs = listOpenPrFiles(ghBin);
+  if (prs === null) {
+    console.log('SHARED-PAGE-PUSH SKIP — gh pr list unavailable (absent/unauthenticated) — never blocks on a probe failure');
+    exit(0);
+  }
+  const changed = getOwnChangedFiles(opts);
+  if (changed === null) {
+    console.error('pr-platform: NOTE could not determine this branch\'s own changed files — reporting every open PR that touches a shared generated page (conservative fallback)');
+  }
+  const hits = sharedPageConflicts(prs, changed);
+  if (hits.length === 0) {
+    console.log('SHARED-PAGE-PUSH CLEAR');
+    exit(0);
+  }
+  for (const h of hits) {
+    console.error(`pr-platform: SHARED-PAGE-PUSH CONFLICT PR #${h.number} touches ${h.files.join(', ')} — this push would turn it CONFLICTING`);
+  }
+  exit(1);
 }
 
 // Read `git remote get-url origin` from the current working directory. git
@@ -214,6 +367,7 @@ function sanitize(remoteUrl) {
 
 function main() {
   const opts = parseArgs(process.argv);
+  if (opts.checkSharedPageConflicts) { runSharedPageCheck(opts); return; }
   const remoteUrl = opts.remoteUrl !== null ? (opts.remoteUrl || null) : readOriginUrl();
 
   if (!remoteUrl) {
@@ -253,4 +407,7 @@ function realOrResolve(p) {
 const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 if (isMain) runMain(() => main());
 
-export { classify, extractHost, sanitize, readReviewerBots };
+export {
+  classify, extractHost, sanitize, readReviewerBots,
+  sharedPageConflicts, listOpenPrFiles, SHARED_GENERATED_PAGES,
+};

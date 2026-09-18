@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 // ISSUE-0001 / SPEC-0007 — normalize line endings ONCE at parser entry so every
 // `\n`-splitting parser behaves identically for LF, CRLF (Windows / core.autocrlf),
@@ -590,6 +591,101 @@ export function walk(dir, out = []) {
   return out;
 }
 
+// True when `root` is inside a git work tree. The SAME predicate
+// allocate-doc-number.mjs's own guardDocFiles gate already uses (git
+// rev-parse --is-inside-work-tree), exported here so a second generator does
+// not reimplement it (spec-close-ceremony-sweep D3).
+export function isGitWorkTree(root) {
+  try {
+    return execFileSync(
+      'git', ['-C', root, 'rev-parse', '--is-inside-work-tree'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+// existsOnDisk(p) -> true/false for "the path is there to read", but ONLY
+// for the ordinary-dirty-tree shape (ENOENT): a tracked path git's INDEX
+// still names after the file was moved, renamed or deleted on disk without
+// staging either side of the move — exactly what `docs-canon.mjs` phase 2
+// (and a plain `mv`/`rm`) produce, in every dirty tree, all the time. Any
+// OTHER stat failure (EACCES, ELOOP, ENOTDIR, ...) is NOT that shape and is
+// rethrown rather than swallowed — "could not look" must never read as
+// "nothing to find" (spec-close-ceremony-sweep D9's own class, applied here
+// to the walk itself, not only to the AC-table shape check it was written
+// for).
+function existsOnDisk(p) {
+  try {
+    fs.statSync(p);
+    return true;
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return false;
+    throw e;
+  }
+}
+
+// walkTracked(root, dir) -> absolute paths of every git-TRACKED .md file
+// under root/dir that ALSO exists on disk right now (recursive; excludes
+// INDEX.md and .gitkeep, the same filter walk() applies), replacing a
+// working-tree readdir/walk with `git ls-files` (spec-close-ceremony-sweep
+// D3, M8: a generated page must be built from what git tracks, never from an
+// untracked draft or one machine's scratch file sitting in the working
+// tree). The tracked set and the on-disk set differ in every dirty tree —
+// this is the ONE place that reconciles them (Spec-AC-22 robustness
+// contract, spec-close-ceremony-sweep TEST-576): a tracked-but-vanished path
+// is SKIPPED, never handed to a caller's `readFileSync` to crash on: the
+// walk enumerates what git tracks and reads what exists. Outside a git work
+// tree, degrades to walk() with a NOTE on stderr naming the fallback
+// (degrade-with-NOTE convention, .aai/AGENTS.md) — a non-git consumer of the
+// generator still gets a best-effort index rather than an empty one.
+export function walkTracked(root, dir) {
+  if (!isGitWorkTree(root)) {
+    console.error(`NOTE: ${root} is not a git work tree — ${dir} falls back to a working-tree walk (untracked files may be included).`);
+    return walk(path.join(root, dir));
+  }
+  let listing;
+  try {
+    listing = execFileSync('git', ['-C', root, 'ls-files', '-z', '--', dir], { encoding: 'utf8' });
+  } catch {
+    console.error(`NOTE: "git ls-files -- ${dir}" failed under ${root} — falling back to a working-tree walk (untracked files may be included).`);
+    return walk(path.join(root, dir));
+  }
+  const out = [];
+  for (const rel of listing.split('\0')) {
+    if (!rel || !rel.endsWith('.md')) continue;
+    const base = path.basename(rel);
+    if (base === 'INDEX.md' || base === '.gitkeep') continue;
+    const abs = path.join(root, rel);
+    if (!existsOnDisk(abs)) continue;
+    out.push(abs);
+  }
+  return out.sort();
+}
+
+// isTrackedFile(root, relPath) -> true when relPath is present in root's git
+// index (spec-close-ceremony-sweep Spec-AC-23): a generated, TRACKED page
+// must never carry a value derived from an untracked, one-machine input
+// (docs/ai/STATE.yaml is gitignored by every project this layer vendors
+// into — M8 measured the committed overview-data.json baking in exactly
+// that). Outside a git work tree there is no index to consult to tell
+// tracked from untracked, so this degrades to true (permissive — same
+// direction walkTracked()'s own degrade takes, matching pre-existing
+// behavior for a non-git consumer) rather than blinding every caller.
+export function isTrackedFile(root, relPath) {
+  if (!isGitWorkTree(root)) return true;
+  try {
+    execFileSync(
+      'git', ['-C', root, 'ls-files', '--error-unmatch', '--', relPath],
+      { encoding: 'utf8', stdio: ['ignore', 'ignore', 'ignore'] },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function parseFrontmatter(content) {
   content = normalizeNewlines(content);
   if (!content.startsWith('---\n')) return null;
@@ -919,6 +1015,51 @@ export function isMutationCellPlaceholder(cell) {
   return MUTATION_CELL_PLACEHOLDERS.has(c.toLowerCase());
 }
 
+// SHARED_GENERATED_PAGES — every committed page a ride's own numbering/close
+// ceremony regenerates, so a tool that must recognize "a generated page just
+// changed" (pr-platform.mjs's Spec-AC-30 shared-page push check today) reads
+// ONE list instead of hand-maintaining its own copy that can drift from the
+// real paths. Mirrors allocate-doc-number.mjs's own SPEC_PAGE_GENERATORS
+// (docs/ai/overview.html + overview-data.json, docs/USER_GUIDE.md) plus
+// docs/INDEX.md (generate-docs-index.mjs), docs/ai/factory-report.html +
+// docs/ai/factory-report-data.json (generate-factory-report.mjs, both halves
+// — the data JSON is written FIRST and UNCONDITIONALLY, the HTML is the one
+// behind a --data-only flag) and docs/SKILL_CATALOG.html +
+// docs/skill-catalog-data.json (generate-docs-hub.mjs, invoked via
+// close-work-item.mjs's regenerateDocsHubBestEffort()) — the EIGHT pages
+// close-work-item.mjs's regen tail actually writes.
+//
+// Amendment 20: this is the THIRD time this set's membership was hand-
+// counted and the SECOND time the count was wrong (Amendment 18 said five,
+// omitting the docs-hub pair; Amendment 19 said seven, omitting
+// factory-report-data.json — the same html+data-JSON pair shape it had just
+// corrected for the docs hub, one generator further down the same tail).
+// TEST-580 (tests/skills/test-aai-pr-platform.sh) no longer asserts equality
+// against a second hand-written twin of this list: it RUNS the five
+// generators the regen tail invokes in an isolated scratch clone and asserts
+// this set against what they are MEASURED to write. This set itself is still
+// hand-written (something has to declare the authoritative membership for
+// sharedPageConflicts() to import), but the ONLY thing measured against it
+// now is a real generator run, not a second hand count of the same list.
+//
+// allocate-doc-number.mjs is `protected_paths_l3` and cannot import this
+// file (or export its own local list) without a ceremony-3 ride (D1); until
+// then the two lists are kept in sync BY HAND at every edit of either, not
+// by a shared import both directions (its own SPEC_PAGE_GENERATORS subset —
+// overview.html/overview-data.json/USER_GUIDE.md — is unaffected by the
+// docs-hub or factory-report pairs, which it never named: pinned from the
+// test side by test-aai-doc-numbering.sh instead, see its own comment).
+export const SHARED_GENERATED_PAGES = new Set([
+  'docs/INDEX.md',
+  'docs/ai/overview.html',
+  'docs/ai/overview-data.json',
+  'docs/USER_GUIDE.md',
+  'docs/ai/factory-report.html',
+  'docs/ai/factory-report-data.json',
+  'docs/SKILL_CATALOG.html',
+  'docs/skill-catalog-data.json',
+]);
+
 export const STRATEGY_ENUM = ['loop', 'tdd', 'hybrid', 'direct', 'untested', 'undecided'];
 
 // resolveStrategy(content, callerStrategy) -> the normalized strategy token
@@ -998,15 +1139,37 @@ export function acTableGreen(content) {
   return { green: rows.length > 0 && open.length === 0, total: rows.length, open };
 }
 
-// SPEC-0011 G4 — near-miss AC-table detection. Returns { warnings: [{kind, detail}] }.
-// Fires when a doc carries a table that LOOKS like an Acceptance Criteria Status
-// table (a markdown table whose header has a `Spec-AC` column AND a Review-By-like
-// or Evidence-like column) but is NOT the exact canonical shape parseAcTable
-// recognizes — so the drift engine would silently mis-report or skip it. Narrow by
-// construction: the canonical `## Acceptance Criteria Status` heading with exact
-// `Review-By` + `Evidence` columns trips nothing. Tables that merely share the
-// `Spec-AC` key (Test Plan, Acceptance Criteria Mapping) are NOT AC-status-like
-// (they carry neither a Review-By nor an Evidence column) and never warn.
+// SPEC-0011 G4 / spec-close-ceremony-sweep Spec-AC-11 (issue 370) — near-miss
+// AC-table detection. Returns { warnings: [{kind, detail}] }. Fires when a doc
+// carries a table that LOOKS like an Acceptance Criteria Status table (a
+// markdown table whose header has a `Spec-AC` OR bare `AC` id column AND a
+// Review-By-like, Evidence-like, or Status column) but is NOT the exact
+// canonical or lean shape parseAcTable/parseLeanAcTable recognizes — so the
+// drift engine would silently mis-report or skip it. Narrow by construction:
+// the canonical `## Acceptance Criteria Status` heading with exact
+// `Review-By` + `Evidence` columns trips nothing, and neither does a
+// gate-accepted lean table (Spec-AC-13's `leanAccepted` suppression below).
+// Tables that merely share the `Spec-AC` key (Test Plan, Acceptance Criteria
+// Mapping) are NOT AC-status-like (they carry neither a Review-By, Evidence,
+// nor bare-AC-id shape) and never warn.
+//
+// Five independent `kind`s, each on its own trigger:
+//  1. `heading` — a heading that MATCHES /acceptance criteria/i but is NOT the
+//     canonical `## Acceptance Criteria Status`, UNLESS the table is a
+//     gate-accepted lean table (Spec-AC-13 D7 "one authority": the shape check
+//     must not warn about a table `--gate` simultaneously accepts).
+//  2. `evidence-column` — a malformed Evidence column (`Evidence (TEST)`).
+//  3. `review-by-column` — a malformed Review-By-like column (`Review By`, ...).
+//  4. `column-set` (Spec-AC-11 / issue 370) — the id column reads bare `AC`
+//     instead of `Spec-AC` and NEITHER parseAcTable NOR parseLeanAcTable
+//     recognizes any row in the WHOLE document (M9's live-corpus shape:
+//     `AC | Status | Evidence`). A doc whose `AC`-headed table nonetheless has
+//     a literal `Review-By` column IS seen by parseAcTable (hasGate: true,
+//     merely zero rows) and is deliberately NOT column-set (that gap is a
+//     separate, unmeasured concern this AC does not claim).
+//  5. `status-vocabulary` (Spec-AC-11) — a data row's Status cell, once
+//     normalized, is outside `planned/implementing/done/deferred/blocked/
+//     rejected`.
 export function detectNearMissAcTable(content) {
   content = normalizeNewlines(content);
   const lines = content.split('\n');
@@ -1014,6 +1177,14 @@ export function detectNearMissAcTable(content) {
   let heading = null;            // most-recent heading line (trimmed)
   let headingCanonical = false;  // exactly the canonical `## Acceptance Criteria Status`
   let headingAcLike = false;     // matches /acceptance criteria/i (any level)
+  // Computed ONCE per doc (single-AC-table assumption shared with the rest of
+  // this module): whether ANY table in the doc parses as canonical/lean, and
+  // whether a lean table with real rows exists (the "gate accepts it" fact
+  // Spec-AC-13 needs the heading warning to defer to).
+  const acGate = parseAcTable(content);
+  const acLean = parseLeanAcTable(content);
+  const neitherParses = !acGate.hasGate && !acLean.hasLean;
+  const leanAccepted = acLean.hasLean && acLean.rows.length > 0;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (/^#{1,6}\s+/.test(line)) {
@@ -1027,20 +1198,29 @@ export function detectNearMissAcTable(content) {
     const next = lines[i + 1] ?? '';
     if (!/^\s*\|\s*[-:|\s]+\|/.test(next)) continue;
     const cells = line.split('|').map(c => c.trim()).filter(Boolean);
-    if (!cells.includes('Spec-AC')) continue;
+    if (!cells.includes('Spec-AC') && !cells.includes('AC')) continue;
+    const hasSpecAcCol = cells.includes('Spec-AC');
+    const hasBareAcCol = cells.includes('AC');
     const hasReviewByCol = cells.some(c => /^review[\s_-]?by\b/i.test(c));
     const hasEvidenceCol = cells.some(c => /^evidence\b/i.test(c));
-    if (!hasReviewByCol && !hasEvidenceCol) continue;   // Test Plan / Mapping tables: not AC-status-like
+    const hasStatusCol = cells.includes('Status');
+    // The M9 "AC | Status | Evidence" shape (bare AC id, no Review-By) is
+    // AC-status-like even without Evidence: it is a candidate for `column-set`
+    // precisely because neither parser recognizes it anywhere in the doc.
+    const acLikeUnparsed = hasBareAcCol && !hasSpecAcCol && hasStatusCol && neitherParses;
+    if (!hasReviewByCol && !hasEvidenceCol && !acLikeUnparsed) continue;   // Test Plan / Mapping tables: not AC-status-like
     const reviewByMalformed = cells.find(c => /^review[\s_-]?by\b/i.test(c) && c !== 'Review-By');
     const evidenceMalformed = cells.find(c => /^evidence\b.+/i.test(c));   // trailing text, e.g. "Evidence (TEST)"
     // Narrow triggers (each independent, per Spec-AC-04 wording):
     //  1. a heading that MATCHES /acceptance criteria/i but is NOT the canonical
     //     `## Acceptance Criteria Status` — an AC section that parseAcTable will miss.
     //     (A well-formed EXAMPLE table under an ordinary prose heading — e.g. an RFC
-    //     documenting the AC-table format — does NOT match and never trips.)
+    //     documenting the AC-table format — does NOT match and never trips.) A
+    //     gate-accepted lean table is the one shape this deliberately EXCLUDES
+    //     (Spec-AC-13 D7): the near-miss report and `--gate` must agree.
     //  2. a malformed Evidence column (`Evidence (TEST)`), even under the canonical heading.
     //  3. a malformed Review-By-like column (`Review By`, `ReviewBy`, ...).
-    if (headingAcLike && !headingCanonical) {
+    if (headingAcLike && !headingCanonical && !leanAccepted) {
       warnings.push({ kind: 'heading', detail: `malformed AC table — AC-like table under non-canonical heading ${heading ? `"${heading}"` : '(none)'}, expected "## Acceptance Criteria Status"; treated as missing, verdict may be inaccurate` });
     }
     if (evidenceMalformed) {
@@ -1048,6 +1228,55 @@ export function detectNearMissAcTable(content) {
     }
     if (reviewByMalformed) {
       warnings.push({ kind: 'review-by-column', detail: `malformed AC table — Review-By column is "${reviewByMalformed}", not "Review-By"; gate table not recognized, verdict may be inaccurate` });
+    }
+    // 4. column-set (Spec-AC-11 / issue 370): the id column is bare "AC", and
+    //    neither parser sees any row of it anywhere in the doc.
+    if (acLikeUnparsed) {
+      warnings.push({ kind: 'column-set', detail: `malformed AC table — id column is "AC", not "Spec-AC" (header: ${cells.join(' | ')}); neither the canonical nor the lean parser recognizes any row, so the table reads as absent, verdict may be inaccurate` });
+    }
+    // 5. status-vocabulary (Spec-AC-11): walk this table's DATA rows (from the
+    //    separator we already matched to the first non-`|` line) and flag any
+    //    Status cell that does not normalize to a canonical AC_STATUS_ENUM
+    //    member. Positional, via splitTableCells, so an empty interior cell
+    //    never desyncs the column index (unlike the filter(Boolean) `cells`
+    //    above, which is header-only and never mis-indexes a row).
+    //    CORRECTED (spec-close-ceremony-sweep Amendment 16, T5): this used to
+    //    read `if (hasStatusCol && hasSpecAcCol)`, with a comment claiming
+    //    the `hasSpecAcCol` half was REQUIRED for M9's "0 live hits" — a
+    //    mutation dropping it (`if (hasStatusCol)`) STAYED GREEN against the
+    //    live corpus AND a fixture built specifically to exercise a bare-"AC"
+    //    table with an out-of-vocabulary status word (TEST-582): the real,
+    //    load-bearing guard is `idIdx`/`idVal` below. A bare-"AC" table has no
+    //    "Spec-AC" header, so `idIdx` is always -1, `idVal` is always empty,
+    //    and every row is already skipped by the placeholder-row check two
+    //    lines down — REGARDLESS of `hasSpecAcCol`. The M9 docs read 0 hits
+    //    because they have no Spec-AC column (this row-level check), not
+    //    because of a table-level scoping condition; their status words
+    //    ("planned"/"done") also happen to be canonical, which is coincidence,
+    //    not the mechanism. `hasSpecAcCol` is removed here as dead weight.
+    if (hasStatusCol) {
+      const headerPositional = splitTableCells(line);
+      const statusIdx = headerPositional.indexOf('Status');
+      const idIdx = headerPositional.indexOf('Spec-AC');
+      if (statusIdx >= 0) {
+        for (let j = i + 2; j < lines.length; j += 1) {
+          const rowLine = lines[j];
+          if (!rowLine.trim().startsWith('|')) break;
+          const rowCells = splitTableCells(rowLine);
+          if (rowCells.length !== headerPositional.length) continue;   // pipe-broken row: Spec-AC-12's concern, not this one
+          // idIdx < 0 (no "Spec-AC" column, e.g. a bare-"AC" column-set
+          // table) means idVal is always '', so THIS is what excludes that
+          // shape from status-vocabulary — the load-bearing half of what the
+          // old `hasSpecAcCol` table-level condition only restated redundantly.
+          const idVal = idIdx >= 0 ? (rowCells[idIdx] ?? '') : '';
+          if (!idVal || idVal.startsWith('Spec-AC-xx') || idVal.startsWith('<')) continue;   // placeholder row, or no Spec-AC column at all
+          const rawStatus = rowCells[statusIdx] ?? '';
+          if (rawStatus === '' || rawStatus === '—' || rawStatus === '-') continue;   // empty is a separate, existing signal
+          if (!normalizeAcStatus(rawStatus).canonical) {
+            warnings.push({ kind: 'status-vocabulary', detail: `malformed AC table — status "${rawStatus}" for ${idVal} is outside planned/implementing/done/deferred/blocked/rejected; treated as open, verdict may be inaccurate` });
+          }
+        }
+      }
     }
   }
   return { warnings };

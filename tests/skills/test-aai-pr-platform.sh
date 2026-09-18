@@ -409,6 +409,358 @@ test_022_skill_pr_no_bots_hardening() {
     || log_fail "TEST-022 SKILL_PR 5d GitHub-no-bots hardening"
 }
 
+# --- TEST-569 (Spec-AC-30): shared-page push check names an overlapping ----
+# open PR and refuses; a non-overlapping PR is silent (deny-by-default gh
+# stub: it only answers the EXACT expected invocation, per LEARNED
+# fu-learned-deny-by-default-mocks — anything else is a test bug, not a
+# tolerated call).
+build_gh_stub_pr_list() {  # $1=bin path  $2=json body for `pr list --state open --json number,files`
+  local bin="$1" body="$2"
+  cat > "$bin" <<STUBEOF
+#!/usr/bin/env bash
+if [[ "\$1" == "pr" && "\$2" == "list" && "\$3" == "--state" && "\$4" == "open" && "\$5" == "--json" && "\$6" == "number,files" && \$# -eq 6 ]]; then
+  cat <<'JSON'
+$body
+JSON
+  exit 0
+fi
+echo "gh stub: unexpected invocation: \$*" >&2
+exit 99
+STUBEOF
+  chmod +x "$bin"
+}
+
+test_569_shared_page_push_names_open_prs() {
+  log_info "TEST-569: an open PR touching docs/INDEX.md makes the pre-push check name it and refuse; no overlap is silent (Spec-AC-30)..."
+  local bin="$TMP_ROOT/gh-t569"
+  # P2 fix (Amendment 27): the check now intersects with THIS branch's own
+  # changed files. --files-from names docs/INDEX.md as changed here, so
+  # every arm below still tests exactly what it tested before that fix
+  # narrowed the check — TEST-593 (below) is the new arm proving the
+  # narrowing itself.
+  local changed="$TMP_ROOT/t569-changed.txt"
+  printf 'docs/INDEX.md\n' > "$changed"
+  build_gh_stub_pr_list "$bin" '[{"number":42,"files":[{"path":"docs/INDEX.md"},{"path":"src/foo.js"}]}]'
+  local out rc
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" --files-from "$changed" 2>&1)"; rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    log_fail "TEST-569: an overlapping open PR must refuse (exit non-zero), got 0: $out"
+  elif [[ "$out" != *"42"* || "$out" != *"docs/INDEX.md"* ]]; then
+    log_fail "TEST-569: the refusal must name the PR number and the overlapping path: $out"
+  else
+    log_pass "TEST-569: overlapping open PR named and refused"
+  fi
+
+  build_gh_stub_pr_list "$bin" '[{"number":7,"files":[{"path":"src/bar.js"}]}]'
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" --files-from "$changed" 2>&1)"; rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    log_fail "TEST-569: a non-overlapping open PR must exit 0, got $rc: $out"
+  elif [[ "$out" == *"CONFLICT"* ]]; then
+    log_fail "TEST-569: a non-overlapping open PR must be silent about a conflict, got: $out"
+  else
+    log_pass "TEST-569: non-overlapping open PR is silent (CLEAR)"
+  fi
+
+  # non-github platform: never blocks, names the reason (degrade-with-NOTE)
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://gitlab.com/o/r.git" --gh-bin "$bin" --files-from "$changed" 2>&1)"; rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    log_fail "TEST-569: a non-github platform must never block, got rc=$rc: $out"
+  elif [[ "$out" != *"SKIP"* ]]; then
+    log_fail "TEST-569: a non-github platform must name the skip: $out"
+  else
+    log_pass "TEST-569: non-github platform skips, never blocks"
+  fi
+}
+
+# --- TEST-593 (Spec-AC-30, P2 Codex / PR #385 bot review, Amendment 27) -----
+test_593_shared_page_push_scoped_to_own_diff() {
+  log_info "TEST-593: an open PR touching docs/INDEX.md is SILENT when THIS branch's own diff never touches it; loud once it does (Spec-AC-30)..."
+  local bin="$TMP_ROOT/gh-t593"
+  build_gh_stub_pr_list "$bin" '[{"number":99,"files":[{"path":"docs/INDEX.md"}]}]'
+
+  # This branch changed only an unrelated file -- an overlap with SOME open
+  # PR is not, by itself, a conflict THIS push can create.
+  local unrelated="$TMP_ROOT/t593-unrelated.txt"
+  printf 'src/unrelated.js\n' > "$unrelated"
+  local out rc
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" --files-from "$unrelated" 2>&1)"; rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    log_fail "TEST-593: a shared-page PR overlap must be SILENT when this branch never touches that page, got rc=$rc: $out"
+  elif [[ "$out" == *"CONFLICT"* ]]; then
+    log_fail "TEST-593: reported a conflict for a page this branch's own diff never touches: $out"
+  else
+    log_pass "TEST-593: an unrelated open PR's shared-page overlap is silent when this branch does not touch that page"
+  fi
+
+  # Same open PR, but this branch DOES touch docs/INDEX.md too -- real conflict.
+  local overlapping="$TMP_ROOT/t593-overlap.txt"
+  printf 'docs/INDEX.md\n' > "$overlapping"
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" --files-from "$overlapping" 2>&1)"; rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    log_fail "TEST-593: a real overlap (both sides touch docs/INDEX.md) must refuse, got rc=0: $out"
+  elif [[ "$out" != *"99"* || "$out" != *"docs/INDEX.md"* ]]; then
+    log_fail "TEST-593: the refusal must still name the PR and the overlapping path: $out"
+  else
+    log_pass "TEST-593: a real overlap (this branch also touches the shared page) still refuses"
+  fi
+
+  # An unreadable --files-from degrades to the conservative pre-fix
+  # behaviour (report every overlap) rather than silently going quiet.
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" --files-from "$TMP_ROOT/t593-does-not-exist.txt" 2>&1)"; rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    log_fail "TEST-593: an unreadable --files-from must fall back to the conservative report-every-overlap behaviour, got rc=0: $out"
+  else
+    log_pass "TEST-593: an unreadable --files-from degrades to the conservative fallback (reports the overlap) instead of silently narrowing"
+  fi
+}
+
+# --- TEST-580 (Spec-AC-30): SHARED_GENERATED_PAGES names a real path for -----
+# EVERY page it lists, one arm per page — B4's wrong-path finding (a hand-
+# maintained 'docs/overview.html' that no such file answers to, silently
+# never matched by sharedPageConflicts()'s exact Set.has()) is pinned per
+# entry, not just for docs/INDEX.md (TEST-569's only fixture path).
+#
+# T-NEW-1 (validation-round2): the ORIGINAL version of this test looped over
+# the very set it was testing (`pages`, read back from SHARED_GENERATED_PAGES
+# itself), so deleting a member kept it green — one conflict arm fewer, no
+# assertion left to notice. Round-2's fix replaced the loop with a literal,
+# hand-written twin list inside THIS file.
+#
+# B1-R4 (validation-round4, Amendment 20): the hand-written twin was itself
+# the hole. Round 3 (Amendment 19) corrected both `SHARED_GENERATED_PAGES`
+# and the twin list here to name SEVEN pages, in the SAME edit — so when both
+# omitted `docs/ai/factory-report-data.json` (generate-factory-report.mjs
+# writes it unconditionally, one line before the HTML the twin DID name),
+# nothing could tell: an equality check between two hand-written lists that
+# drift TOGETHER cannot see a shared omission (validation-round4 section 5,
+# arm E5). This is the third time a hand count of this set was wrong.
+#
+# Fixed structurally, not by counting again: the twin list is GONE. This test
+# now RUNS the regen tail's five generators — exactly as close-work-item.mjs
+# invokes them (`node <generator>`, no arguments, its own default output
+# path) — in an isolated scratch clone, and MEASURES which tracked paths they
+# actually wrote (see build below). `SHARED_GENERATED_PAGES` is asserted
+# equal to that MEASURED set, never to a second hand-written copy of it. A
+# page a generator writes can no longer go uncounted just because a human
+# forgot it twice in the same edit — the measurement doesn't require anyone
+# to remember it once.
+test_580_shared_page_set_covers_every_generated_page() {
+  log_info "TEST-580: SHARED_GENERATED_PAGES matches disk and equals the pages the close ceremony's regen tail is MEASURED to actually write, one conflict arm per page (Spec-AC-30)..."
+  local bin="$TMP_ROOT/gh-t580" page rc out ok=1
+
+  # --- Build an isolated scratch clone -----------------------------------
+  # Same recipe mutation-run.mjs's buildIsolatedClone() uses (D4): clone
+  # HEAD, then reproduce the developer's own UNCOMMITTED tracked edits via
+  # `git diff HEAD | git apply`, so a mid-ride edit to lib/docs-model.mjs or
+  # to a generator is measured before it is ever committed — without a
+  # generator run ever writing a regenerated page into the real working
+  # tree (running these generators dirties tracked pages; this suite must
+  # leave the tree clean).
+  local clone_dir
+  clone_dir="$(mktemp -d "$TMP_ROOT/regen-clone.XXXXXX")" \
+    || { log_fail "TEST-580: could not create the scratch clone directory"; return; }
+  git clone --local --no-hardlinks --quiet "$PROJECT_ROOT" "$clone_dir" \
+    || { log_fail "TEST-580: could not build the scratch clone"; return; }
+  local base_commit
+  base_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+  (cd "$clone_dir" && git checkout --quiet "$base_commit") \
+    || { log_fail "TEST-580: could not checkout $base_commit in the scratch clone"; return; }
+  local wt_diff
+  wt_diff="$(cd "$PROJECT_ROOT" && git diff HEAD)"
+  if [[ -n "$wt_diff" ]]; then
+    printf '%s\n' "$wt_diff" | (cd "$clone_dir" && git apply) \
+      || { log_fail "TEST-580: could not reproduce uncommitted tracked edits in the scratch clone"; return; }
+  fi
+
+  # --- Run the regen tail's five generators, exactly as invoked -----------
+  # close-work-item.mjs's regen tail: regenerateIndex() (also run inside
+  # selfVerify() and on both rollback paths) plus the four
+  # regenerate*BestEffort() calls after the success log line. Every one is
+  # `execFileSync('node', [<generator>], { cwd: ROOT })` — no arguments — so
+  # exercising them with no arguments here is what actually runs in
+  # production, not a --output flag this test would have to keep in sync by
+  # hand.
+  local -a REGEN_TAIL_GENERATORS=(
+    "generate-docs-index.mjs"
+    "generate-overview.mjs"
+    "generate-userguide-rollup.mjs"
+    "generate-docs-hub.mjs"
+    "generate-factory-report.mjs"
+  )
+  # A marker file's mtime, taken AFTER the clone is fully built and BEFORE
+  # any generator runs, turns "did this generator write this path" into a
+  # content-INDEPENDENT signal. `git status --porcelain` alone is not enough:
+  # measured directly, a generator run against unchanged source data is
+  # idempotent BYTE-FOR-BYTE for some pages (docs/USER_GUIDE.md and
+  # docs/SKILL_CATALOG.html both regenerate identical bytes today), and such
+  # a page shows NOTHING in `git status --porcelain` even though
+  # fs.writeFileSync() genuinely opened, truncated and rewrote it — porcelain
+  # diffs content, not writes. `sleep 1` guards the comparison against 1s
+  # mtime resolution on some filesystems (same guard test-aai-live-status.sh
+  # already uses for the same reason).
+  local marker="$clone_dir/.regen-marker"
+  touch "$marker" || { log_fail "TEST-580: could not create the mtime marker"; return; }
+  sleep 1
+  local gen gen_out gen_rc
+  for gen in "${REGEN_TAIL_GENERATORS[@]}"; do
+    gen_out="$(cd "$clone_dir" && node ".aai/scripts/$gen" 2>&1)"; gen_rc=$?
+    [[ $gen_rc -eq 0 ]] \
+      || { log_fail "TEST-580: $gen must exit 0 in the scratch clone, got $gen_rc: $gen_out"; rm -rf "$clone_dir"; return; }
+  done
+
+  # --- Derive the measured set --------------------------------------------
+  # `git ls-files` in the clone is a TRACKED-paths-only list, so an untracked
+  # near-miss (generate-docs-index.mjs's docs/INDEX.violations.md, written
+  # only on a non-terminal near-miss) or a gitignored artefact
+  # (docs/INDEX.audit.md) can never reach `derived` — no separate exclusion
+  # code is needed for either class because neither is a member of the list
+  # this loop reads from. A path is MEASURED written iff it is tracked AND
+  # its mtime moved past the marker.
+  local -a derived=()
+  local tf
+  while IFS= read -r tf; do
+    [[ -n "$tf" ]] || continue
+    [[ -f "$clone_dir/$tf" && "$clone_dir/$tf" -nt "$marker" ]] || continue
+    derived+=("$tf")
+  done < <(cd "$clone_dir" && git ls-files)
+
+  if [[ ${#derived[@]} -eq 0 ]]; then
+    log_fail "TEST-580: the regen tail wrote nothing the derivation could measure (scratch-clone defect, not a real-repo finding)"
+    rm -rf "$clone_dir"
+    return
+  fi
+
+  # Explicit, justified exclusions — belt-and-suspenders over the structural
+  # ones above. Neither class can reach `derived` TODAY: none of the five
+  # generators above appends to a ledger or writes under these directories.
+  # Named here anyway (not left as an implicit non-match) because a FUTURE
+  # generator edit that started doing either would be a DIFFERENT conflict
+  # class from "a wholesale-rewritten shared page" and must not silently
+  # join this set:
+  #   - append-only ledgers: appended to by close-work-item.mjs's own
+  #     emitEvent()/applyDocMutation(), never rewritten wholesale — a PR
+  #     touching one merges by history, it does not clobber it outright.
+  #   - the ride's own documents (docs/specs/**, docs/ai/briefs/**,
+  #     docs/issues/**): written by this ride's own tooling (spec-amend,
+  #     intake), ride-specific by construction, never shared across PRs the
+  #     way a regenerated catalog page is.
+  local -a EXCLUDED_LEDGERS=(
+    "docs/ai/EVENTS.jsonl"
+    "docs/ai/METRICS.jsonl"
+    "docs/ai/decisions.jsonl"
+    "docs/ai/tests/test-runs.jsonl"
+  )
+  local -a filtered=()
+  local excluded_hit lg
+  for tf in "${derived[@]}"; do
+    excluded_hit=0
+    for lg in "${EXCLUDED_LEDGERS[@]}"; do
+      [[ "$tf" == "$lg" ]] && { excluded_hit=1; break; }
+    done
+    case "$tf" in
+      docs/specs/*|docs/ai/briefs/*|docs/issues/*) excluded_hit=1 ;;
+    esac
+    [[ $excluded_hit -eq 0 ]] && filtered+=("$tf")
+  done
+  derived=("${filtered[@]:-}")
+
+  local pages
+  pages="$(node -e '
+    import("'"$PROJECT_ROOT"'/.aai/scripts/lib/docs-model.mjs").then(m => {
+      console.log([...m.SHARED_GENERATED_PAGES].join("\n"));
+    });
+  ')"
+  [[ -n "$pages" ]] || { log_fail "TEST-580: SHARED_GENERATED_PAGES is empty or unreadable"; rm -rf "$clone_dir"; return; }
+  grep -qF "docs/overview.html" <<<"$pages" \
+    && { log_fail "TEST-580: SHARED_GENERATED_PAGES still names the non-existent docs/overview.html"; ok=0; }
+
+  # Every page the scratch clone MEASURED written must be a member of the
+  # set — drift in the "set lost a real page" direction reddens HERE,
+  # independent of the conflict-detection loop below.
+  for page in "${derived[@]:-}"; do
+    grep -qF "$page" <<<"$pages" \
+      || { log_info "TEST-580: SHARED_GENERATED_PAGES is missing '$page' — the scratch clone measured this page WRITTEN by the regen tail"; ok=0; }
+  done
+
+  # Every path the set DOES name must exist on disk (stat it) — drift in the
+  # OTHER direction (a stale or renamed entry) reddens too.
+  while IFS= read -r page; do
+    [[ -n "$page" ]] || continue
+    [[ -f "$PROJECT_ROOT/$page" ]] \
+      || { log_info "TEST-580: SHARED_GENERATED_PAGES names '$page', which does not exist in the repo"; ok=0; }
+  done <<<"$pages"
+
+  # D3 (validation-round3): containment alone only catches a MISSING member;
+  # an EXTRA member that exists on disk but is never actually regenerated
+  # (e.g. docs/TECHNOLOGY.md) would pass the stat loop and every conflict arm
+  # silently. Assert EXACT equality between the set and the MEASURED list —
+  # an extra entry reddens as loudly as a missing one, and — the fix for
+  # B1-R4 specifically — a page the set is missing reddens even when NO
+  # hand-written twin list was ever updated to notice it either.
+  local sorted_pages sorted_derived
+  sorted_pages="$(sort <<<"$pages")"
+  sorted_derived="$(printf '%s\n' "${derived[@]:-}" | sort)"
+  [[ "$sorted_pages" == "$sorted_derived" ]] \
+    || { log_info "TEST-580: SHARED_GENERATED_PAGES must equal the pages MEASURED written by the regen tail EXACTLY (declared: $(tr '\n' ' ' <<<"$sorted_pages") | measured: $(tr '\n' ' ' <<<"$sorted_derived"))"; ok=0; }
+
+  # One conflict-detection arm per page the scratch clone MEASURED written —
+  # the measured list, not the set under test, so a page dropped FROM the
+  # set still gets its own arm and reddens as "not individually caught",
+  # rather than simply producing one arm fewer.
+  # P2 fix (Amendment 27): --files-from names THIS page as this branch's own
+  # changed file, so each arm still proves "a real overlap refuses" — the
+  # scoping the fix added is TEST-593's job, not this coverage sweep's.
+  local page_changed="$TMP_ROOT/t580-changed.txt"
+  for page in "${derived[@]:-}"; do
+    build_gh_stub_pr_list "$bin" "[{\"number\":580,\"files\":[{\"path\":\"$page\"}]}]"
+    printf '%s\n' "$page" > "$page_changed"
+    out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" --files-from "$page_changed" 2>&1)"; rc=$?
+    if [[ "$rc" -eq 0 ]]; then
+      log_info "TEST-580: a PR touching '$page' must refuse (exit non-zero), got 0: $out"; ok=0
+    elif [[ "$out" != *"$page"* ]]; then
+      log_info "TEST-580: the refusal for '$page' must name that path: $out"; ok=0
+    fi
+  done
+
+  rm -rf "$clone_dir"
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-580: SHARED_GENERATED_PAGES matches disk and equals the pages the regen tail's five generators are MEASURED to actually write, each individually caught as a conflict" \
+    || log_fail "TEST-580 shared-page set coverage"
+}
+
+# --- TEST-590 (Spec-AC-30, validation-round5 B3-R5) --------------------------
+# TEST-580 above RUNS the five REGEN_TAIL_GENERATORS, but nothing made
+# `tests/skills/suite-map.yaml`'s `aai-pr-platform` row NAME them — so
+# `select-suites.mjs --files-from` on a diff touching only one of the five
+# generators selected zero pr-platform, and the suite that measures "does
+# this generator's page belong to the shared set" never re-ran on the very
+# diff that could change the answer (measured live, validation round 5:
+# DROPPED 89 for every one of the five). Pinned from the SAME literal array
+# TEST-580 already runs, so the two rows can never drift apart the way three
+# earlier hand-written page lists did (Amendments 19/20).
+test_590_suite_map_names_the_regen_tail_generators() {
+  log_info "TEST-590: the aai-pr-platform suite-map row names every REGEN_TAIL_GENERATORS script (Spec-AC-30)..."
+  local map="$PROJECT_ROOT/tests/skills/suite-map.yaml"
+  [[ -f "$map" ]] || { log_fail "TEST-590: $map missing"; return; }
+  local row; row="$(awk '/^  aai-pr-platform:/{on=1;next} on&&/^  [a-z]/{on=0} on' "$map")"
+  [[ -n "$row" ]] || log_fail "TEST-590: no aai-pr-platform row in $map"
+  local -a REGEN_TAIL_GENERATORS=(
+    "generate-docs-index.mjs"
+    "generate-overview.mjs"
+    "generate-userguide-rollup.mjs"
+    "generate-docs-hub.mjs"
+    "generate-factory-report.mjs"
+  )
+  local gen
+  for gen in "${REGEN_TAIL_GENERATORS[@]}"; do
+    grep -qF ".aai/scripts/$gen" <<< "$row" \
+      || log_fail "TEST-590: suite-map aai-pr-platform row must list .aai/scripts/$gen so a diff touching it re-selects the suite that runs TEST-580 over it"
+  done
+  grep -qF "lib/docs-model.mjs" <<< "$row" \
+    || log_fail "TEST-590: suite-map aai-pr-platform row must list .aai/scripts/lib/docs-model.mjs, the SHARED_GENERATED_PAGES authority TEST-580 asserts equality against"
+  log_pass "TEST-590: aai-pr-platform suite-map row names every regen-tail generator plus the shared-set authority"
+}
+
 ALL_TESTS=(
   test_001_github_https
   test_002_github_ssh_scp
@@ -432,6 +784,10 @@ ALL_TESTS=(
   test_020_reviewer_bots_text_shape
   test_021_reviewer_bots_json
   test_022_skill_pr_no_bots_hardening
+  test_569_shared_page_push_names_open_prs
+  test_593_shared_page_push_scoped_to_own_diff
+  test_580_shared_page_set_covers_every_generated_page
+  test_590_suite_map_names_the_regen_tail_generators
 )
 
 main() {
@@ -445,7 +801,9 @@ main() {
     for sel in "$@"; do
       fn=""
       for cand in "${ALL_TESTS[@]}"; do
-        [[ "$cand" == *"_${sel}_"* || "$cand" == "test_${sel}"* ]] && fn="$cand"
+        # exact-name match first (mutation-run.mjs's --selector convention
+        # passes the full function name, per every other suite in this repo)
+        [[ "$cand" == "$sel" || "$cand" == *"_${sel}_"* || "$cand" == "test_${sel}"* ]] && fn="$cand"
       done
       if [[ -n "$fn" ]]; then
         "$fn"

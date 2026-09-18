@@ -30,6 +30,38 @@ permissions:
   contents: read
 
 jobs:
+  sweep-check:
+    # Report-only CI mirror of Spec-AC-34's merge gate (GitHub issue 338):
+    # surfaces whether a consistent `pr_sweep` record (Spec-AC-33) exists for
+    # this PR, WITHOUT blocking it — the local claude-hook-gate.sh mirror is
+    # an opt-in overlay this repo does not install (validation-round1 B2b:
+    # Amendment 13 overclaimed it as always enforcing). Making this check
+    # REQUIRED is a repo-settings decision for the owner, not this job
+    # (tracked: fu-sweep-check-not-a-required-check).
+    name: post-open review sweep record (report-only, Spec-AC-34)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: "lane-gate.mjs --sweep-check --pr <N> (report-only)"
+        run: |
+          set +e
+          node .aai/scripts/lane-gate.mjs --sweep-check --pr "${{ github.event.pull_request.number }}"
+          rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::Spec-AC-34 sweep-check: no valid pr_sweep record for this PR yet (rc=$rc; report-only, not blocking)."
+          else
+            echo "Spec-AC-34 sweep-check: consistent pr_sweep record found."
+          fi
+          exit 0
+
   guards:
     name: doc-numbering guards (report-only unless enforced)
     runs-on: ubuntu-latest

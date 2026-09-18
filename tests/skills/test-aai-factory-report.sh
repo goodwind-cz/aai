@@ -1236,7 +1236,10 @@ JSONL
   run_report "$d2" --data-only --decisions "$badpath"
   [[ "$EC" == 0 ]] || log_fail "an unreadable decisions ledger must exit 0 (degrade, never crash): $(cat "$OUT")"
   local dj2="$d2/docs/ai/factory-report-data.json"
-  [[ "$(node_get "$dj2" 'm.follow_ups.open_count')" == "0" ]] || log_fail "unreadable ledger must report open_count 0"
+  # close-ceremony-sweep Spec-AC-24 (TEST-557): an UNREADABLE ledger must
+  # publish open_count null, never 0 — 0 reads as good news for a registry
+  # the reader could not even open. (Was 0 before TEST-557; see that row.)
+  [[ "$(node_get "$dj2" 'm.follow_ups.open_count')" == "null" ]] || log_fail "unreadable ledger must report open_count null, not 0 (TEST-557)"
   [[ "$(node_get "$dj2" 'm.follow_ups.oldest_age_days')" == "null" ]] || log_fail "unreadable ledger oldest_age_days must be null"
   local unreadprobe
   unreadprobe="$(node -e '
@@ -1288,6 +1291,13 @@ JSONL
   # follow-ups.mjs, and the generator only imports its fold. A base ref that
   # cannot be resolved (shallow clone, detached HEAD) degrades this ONE
   # assertion rather than failing or skipping the whole test.
+  #
+  # close-ceremony-sweep Spec-AC-24 (TEST-557) carves out exactly TWO lines by
+  # NAME, not by loosening the pattern: registry.unreadable is a field
+  # loadRegistry ALREADY exposes (the hardening stays in follow-ups.mjs), and
+  # deciding open_count/its render is the generator's own job — the same class
+  # as the oldest_age_days null/n-a convention two lines away that this guard
+  # never flagged. Anything else touching the follow-up path still reddens.
   local base_ref=""
   if [[ -n "${AAI_FACTORY_REPORT_BASE_REF:-}" ]]; then
     base_ref="$AAI_FACTORY_REPORT_BASE_REF"
@@ -1302,11 +1312,42 @@ JSONL
     local followdiff
     followdiff="$(git -C "$PROJECT_ROOT" diff -U0 "$base_ref" -- .aai/scripts/generate-factory-report.mjs \
       | grep -E '^[-+][^-+]' | grep -vE '^[-+][[:space:]]*(//|\*)' \
-      | grep -iE 'follow.up|follow_up|followUp|loadRegistry' || true)"
+      | grep -iE 'follow.up|follow_up|followUp|loadRegistry' \
+      | grep -vE 'open_count: (registry\.unreadable . null : )?openFollowUps\.length,?[[:space:]]*$' \
+      | grep -vE '<b>\$\{m\.follow_ups\.open_count' || true)"
     [[ -z "$followdiff" ]] || log_fail "no changed line in generate-factory-report.mjs may touch the follow-up registry path — that hardening belongs in follow-ups.mjs: ${followdiff:0:512}"
   fi
 
-  log_pass "generator exits 0 over absent/unreadable/malformed-line ledgers; unreadable note names the path without absent/empty; malformed note carries UNDERSTATED; both render in HTML; no changed generator line touches the follow-up path (TEST-040)"
+  log_pass "generator exits 0 over absent/unreadable/malformed-line ledgers; unreadable note names the path without absent/empty; malformed note carries UNDERSTATED; both render in HTML; only the TEST-557-named lines touch the follow-up path (TEST-040)"
+}
+
+# ============ TEST-557 (Spec-AC-24, close-ceremony-sweep) ====================
+# A degraded input must never be published as good news: an UNREADABLE
+# decisions ledger must report open_count null, never 0 (0 reads as "no open
+# follow-ups", which is false — the registry could not even be opened).
+test_557_open_count_null_when_unreadable() {
+  log_info "Test: an unreadable --decisions path publishes open_count null (never 0) and the HTML renders n/a for it (TEST-557)..."
+  local d; d="$(mk_repo t557-unreadable)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":60}],"verdict":"PASS"}
+JSONL
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" "A" "2026-07-02T00:00:00Z"
+  local badpath="$d/docs/ai/a-directory-not-a-ledger-557"
+  mkdir -p "$badpath"
+
+  run_report "$d" --data-only --decisions "$badpath"
+  [[ "$EC" == 0 ]] || log_fail "TEST-557: an unreadable decisions ledger must exit 0 (degrade, never crash): $(cat "$OUT")"
+  local dj="$d/docs/ai/factory-report-data.json"
+  [[ "$(node_get "$dj" 'm.follow_ups.open_count')" == "null" ]] \
+    || log_fail "TEST-557: open_count must be null for an unreadable registry, got $(node_get "$dj" 'm.follow_ups.open_count')"
+
+  run_report "$d" --decisions "$badpath"
+  [[ "$EC" == 0 ]] || log_fail "TEST-557: the full render must also exit 0 over an unreadable decisions ledger: $(cat "$OUT")"
+  local html="$d/docs/ai/factory-report.html"
+  grep -qF '<b>n/a</b><span>open follow-ups</span>' "$html" \
+    || log_fail "TEST-557: the HTML must render n/a for the open-follow-ups KPI when open_count is null, matching the oldest_age_days convention: $(grep -F 'open follow-ups' "$html" || true)"
+
+  log_pass "TEST-557: an unreadable registry publishes open_count null and an n/a render, never a false zero"
 }
 
 # ============ TEST-031 (Spec-AC-01, spec-ride-cost-readout) ==================
@@ -1926,6 +1967,7 @@ main() {
   test_028_follow_ups_block
   test_029_follow_ups_report_only
   test_040_follow_ups_unreadable_and_understatement
+  test_557_open_count_null_when_unreadable
   test_041_validation_waivers_surfaced
   test_031_scope_cost_elapsed_and_agent_time
   test_032_scope_cost_role_counts

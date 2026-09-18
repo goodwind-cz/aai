@@ -22,7 +22,16 @@
 #       mirrored gate still runs at its original call site, so a skipped
 #       mirror loses nothing).
 #   2 — block; stderr is shown to the model as the reason. Emitted ONLY for a
-#       genuine gate verdict, never for adapter errors.
+#       genuine gate verdict, never for adapter errors. ONE deliberate
+#       exception (B2, validation-round1; ordering fixed by
+#       fu-hookgate-capability-before-deny): the `merge` gate's PR-number
+#       resolution failing is itself a verdict ("cannot check a sweep record
+#       for a PR I cannot identify"), not an adapter error, so it denies too
+#       -- but ONLY when the tooling to look was actually present (`gh` on
+#       PATH to resolve a branch-implicit PR; `node` + lane-gate.mjs to check
+#       a record). When that tooling itself is absent there is nothing to
+#       resolve or check, which is an ordinary capability-absent case and
+#       falls open like every other one.
 #
 # HONESTY NOTE: this is a guardrail against habit, not a security boundary —
 # an agent inside the session could unset the hook or set the env marker.
@@ -75,15 +84,169 @@ case "$GATE" in
     # Mirror gate 2: constitution article 7 — operator-only merge (strict).
     [ -n "$CMD" ] || exit 0
     printf '%s' "$CMD" | grep -Eq '(^|[;&|[:space:]])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-;&|[:space:]][^[:space:]]*)?)*[[:space:]]+merge([[:space:]]|$)|(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)' || exit 0
-    [ "${AAI_OPERATOR_MERGE:-}" = "1" ] && exit 0
-    {
-      echo "Merge denied: constitution article 7 (operator-only merge) — the agent never merges;"
-      echo "the PR ceremony ends at 'gh pr create' (.aai/SKILL_PR.prompt.md step 6)."
-      echo "If the OPERATOR explicitly directed this merge, run it with AAI_OPERATOR_MERGE=1."
-      echo "(Guardrail, not a security boundary — setting the marker without operator direction"
-      echo "is a constitution violation.)"
-    } >&2
-    exit 2
+    if [ "${AAI_OPERATOR_MERGE:-}" != "1" ]; then
+      {
+        echo "Merge denied: constitution article 7 (operator-only merge) — the agent never merges;"
+        echo "the PR ceremony ends at 'gh pr create' (.aai/SKILL_PR.prompt.md step 6)."
+        echo "If the OPERATOR explicitly directed this merge, run it with AAI_OPERATOR_MERGE=1."
+        echo "(Guardrail, not a security boundary — setting the marker without operator direction"
+        echo "is a constitution violation.)"
+      } >&2
+      exit 2
+    fi
+    # Mirror gate 2b (Spec-AC-34, GitHub issue 338): a `gh pr merge <N>`
+    # additionally needs a recorded, consistent post-open review sweep
+    # (CHANGE-0060 step 5d). CALLS lane-gate.mjs --sweep-check — never
+    # reimplements its predicate (this file's own header rule). Scoped to an
+    # ACTUAL `gh pr merge` invocation only (MERGE_SEG below) — a plain
+    # `git merge` matched the outer `merge` case's regex too (article 7 is
+    # unconditional for both) but names no PR and has no sweep record to
+    # check; it must keep falling through to exit 0 once article 7 clears.
+    #
+    # B2 (validation-round1): the PR number is NOT always positional right
+    # after `merge` -- `gh pr merge --squash 385`, `gh pr merge --squash
+    # --delete-branch 385`, and the numberless `gh pr merge --squash`
+    # .aai/SKILL_PR.prompt.md:488 itself tells the role to run all parsed as
+    # "no PR number" under the old regex, which fell through to exit 0
+    # (ALLOW) — treating "couldn't parse it" as an adapter error let every one
+    # of those forms bypass the gate this section exists for. Take the number
+    # from ANY positional (non-flag) argument in the merge command segment
+    # (skipping a `-R`/`--repo` value, the one flag that legitimately carries
+    # a slash-form target rather than the PR itself); when none is found,
+    # resolve it the same way `gh pr merge` itself would — from the current
+    # branch via `gh pr view`.
+    #
+    # fu-hookgate-capability-before-deny (code review round 1/2 of
+    # close-ceremony-sweep): the capability tests (is `gh` on PATH to resolve
+    # a branch-implicit PR; is `node` + lane-gate.mjs present to check a
+    # record at all) MUST run before any attempt to treat "couldn't resolve"
+    # as a verdict. Without them first, a machine that never had the tooling
+    # to check anything (no gh, or no node/.aai layer) reads identically to
+    # "checked, and it's unresolvable/missing" and gets denied for a check it
+    # could never have run — exactly the fail-open contract this file's
+    # header promises for every OTHER adapter-trouble path. Denying is
+    # reserved for when the tooling to look IS present and what it finds is
+    # genuinely absent or contradictory:
+    #   - no positional target AND no `gh` on PATH: nothing can resolve
+    #     the PR at all -- capability absent -> fall through, allow.
+    #   - no positional target, `gh` present, but `gh pr view` itself
+    #     can't name one (no PR on this branch, network/auth failure, ...):
+    #     the tool to look existed and looked -- genuinely unresolvable ->
+    #     deny (UNLIKE every other adapter-trouble path in this file: an
+    #     unidentified PR means this gate cannot judge anything, and "cannot
+    #     judge" must never read as "nothing to enforce").
+    #   - a PR number is known (positional or resolved) but `node` or
+    #     lane-gate.mjs is missing: nothing can check a sweep record at all
+    #     -- capability absent -> fall through, allow.
+    #   - a PR number is known AND node+lane-gate.mjs are present AND the
+    #     sweep-check itself denies (rc 5): a genuine verdict -> deny.
+    #
+    # P1 (Codex, PR #385 bot review, Amendment 27): `gh pr merge --help`
+    # documents THREE positional target forms — [<number> | <url> | <branch>]
+    # — but this parser recognised only a bare digit token; a URL or a branch
+    # name (`gh pr merge feature-branch`, or a PR URL) fell through to the
+    # SAME "no positional target" path as a genuinely bare `gh pr merge`, and
+    # was judged against whatever PR `gh pr view` (no arg) resolves for the
+    # CURRENT branch instead — a different PR than the one actually named on
+    # the command line. Fixed: after stripping every value-taking flag (now
+    # -R/--repo, -b/--body, -F/--body-file, -t/--subject,
+    # --match-head-commit — gh's full value-flag set for this subcommand, not
+    # just -R/--repo) and every remaining boolean flag, the first surviving
+    # bare token is the TARGET, in whichever of the three forms it takes.
+    MERGE_SEG="$(printf '%s' "$CMD" | grep -oE 'gh[[:space:]]+pr[[:space:]]+merge([[:space:]][^;&|]*)?' | head -1)"
+    if [ -n "$MERGE_SEG" ]; then
+      # Strip a value-taking flag's value WHOLE, including a quoted phrase
+      # carrying embedded spaces (`--subject "fix 123"`) -- the single
+      # bare-token pattern alone (third -e below) only ever consumed up to
+      # the first space inside the quotes, leaving a stray `123"` behind
+      # that then read as a (wrong) positional target. Quoted forms first
+      # (double, then single), bare token last, so an already-stripped
+      # quoted value is never re-matched by the bare-token pass.
+      PR_SEARCH="$(printf '%s' "$MERGE_SEG" | sed -E \
+        -e 's/(^|[[:space:]])(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)[[:space:]]+"[^"]*"//g' \
+        -e "s/(^|[[:space:]])(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)[[:space:]]+'[^']*'//g" \
+        -e 's/(^|[[:space:]])(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)[[:space:]]+[^[:space:]]+//g')"
+      # NB-2 (validation-round2): a quoted bare number (`gh pr merge "385"`)
+      # is not a bare token under the digit scan below, so it fell through to
+      # branch resolution and was judged against a DIFFERENT PR's record.
+      # Strip quotes ONLY around a token that is nothing but digits -- never a
+      # quoted PHRASE that happens to contain one (`--subject "fix 123"` is
+      # already gone whole, above; this rule still protects any OTHER quoted
+      # phrase — validation-round1 B2's own control, still armed).
+      PR_SEARCH="$(printf '%s' "$PR_SEARCH" | sed -E "s/\"([0-9]+)\"/ \1 /g; s/'([0-9]+)'/ \1 /g")"
+      # Drop the "gh pr merge" prefix, then every remaining boolean flag
+      # (-A/--auto, --admin, -d/--delete-branch, --disable-auto, -m/--merge,
+      # -r/--rebase, -s/--squash, or any future one), leaving only bare
+      # positional tokens. The first one, if any, is the target.
+      TARGET_SEARCH="$(printf '%s' "$PR_SEARCH" | sed -E 's/^[[:space:]]*gh[[:space:]]+pr[[:space:]]+merge//')"
+      TARGET_SEARCH="$(printf '%s' "$TARGET_SEARCH" | sed -E 's/(^|[[:space:]])-[A-Za-z0-9-]+//g')"
+      TARGET="$(printf '%s' "$TARGET_SEARCH" | tr -s '[:space:]' '\n' | grep -v '^$' | head -1)"
+      PR=""
+      if printf '%s' "$TARGET" | grep -Eq '^[0-9]+$'; then
+        PR="$TARGET"
+      elif [ -n "$TARGET" ]; then
+        # A non-numeric target (<url> | <branch>) needs `gh pr view <target>`
+        # to resolve — same capability-before-deny split as the bare-command
+        # case below: no `gh` at all means nothing can resolve it (fall
+        # through, allow); `gh` present but unable to name a PR for THIS
+        # target means the tool looked and genuinely could not (deny).
+        if command -v gh >/dev/null 2>&1; then
+          PR="$(cd "$ROOT" 2>/dev/null && gh pr view "$TARGET" --json number -q .number 2>/dev/null || true)"
+          printf '%s' "$PR" | grep -Eq '^[0-9]+$' || PR=""
+          if [ -z "$PR" ]; then
+            {
+              echo "Merge denied: could not resolve a PR for target \"$TARGET\"."
+              echo "Command: $CMD"
+              echo "'gh pr view $TARGET --json number' did not resolve one (Spec-AC-34, issue"
+              echo "338) -- this gate refuses to guess rather than allow a merge it cannot check"
+              echo "a sweep record for."
+            } >&2
+            exit 2
+          fi
+        fi
+      fi
+      if [ -z "$PR" ] && [ -z "$TARGET" ] && command -v gh >/dev/null 2>&1; then
+        PR="$(cd "$ROOT" 2>/dev/null && gh pr view --json number -q .number 2>/dev/null || true)"
+        printf '%s' "$PR" | grep -Eq '^[0-9]+$' || PR=""
+        if [ -z "$PR" ]; then
+          {
+            echo "Merge denied: could not determine which PR this merge command targets."
+            echo "Command: $CMD"
+            echo "No positional PR number, and 'gh pr view --json number' (current branch) did"
+            echo "not resolve one either (Spec-AC-34, issue 338) -- this gate refuses to guess"
+            echo "rather than allow a merge it cannot check a sweep record for."
+            echo "Run 'gh pr merge <N> ...' naming the PR explicitly, or merge from a branch"
+            echo "with exactly one open PR."
+          } >&2
+          exit 2
+        fi
+      fi
+      # PR is still empty here only when there was no resolvable positional
+      # target AND no `gh` on PATH to try resolving one -- capability absent,
+      # not a verdict; fall through to the unconditional exit 0 below.
+      if [ -n "$PR" ]; then
+        if command -v node >/dev/null 2>&1 && [ -f "$ROOT/.aai/scripts/lane-gate.mjs" ]; then
+          SWEEP_ARGS=(--sweep-check --pr "$PR" --repo-root "$ROOT")
+          [ -n "${AAI_SWEEP_SPEC:-}" ] && SWEEP_ARGS+=(--spec "$AAI_SWEEP_SPEC")
+          [ -n "${AAI_SWEEP_INTAKE:-}" ] && SWEEP_ARGS+=(--intake "$AAI_SWEEP_INTAKE")
+          [ -n "${AAI_SWEEP_STATE:-}" ] && SWEEP_ARGS+=(--state "$AAI_SWEEP_STATE")
+          [ -n "${AAI_SWEEP_BASE_REF:-}" ] && SWEEP_ARGS+=(--base-ref "$AAI_SWEEP_BASE_REF")
+          SWEEP_OUT="$(cd "$ROOT" 2>/dev/null && node "$ROOT/.aai/scripts/lane-gate.mjs" "${SWEEP_ARGS[@]}" 2>&1)"
+          SWEEP_RC=$?
+          if [ "$SWEEP_RC" -eq 5 ]; then
+            {
+              echo "Merge denied: no valid post-open review sweep record for PR $PR (Spec-AC-34, issue 338)."
+              printf '%s\n' "$SWEEP_OUT" | tail -5
+              echo "Record one with .aai/scripts/append-event.mjs --event pr_sweep ..., then retry."
+            } >&2
+            exit 2
+          fi
+          # rc 0 (verified) or anything else (adapter trouble, e.g. no script) -> allow.
+        fi
+        # capability absent (no node / no lane-gate.mjs): nothing to check -> allow.
+      fi
+    fi
+    exit 0
     ;;
 
   state-dump)

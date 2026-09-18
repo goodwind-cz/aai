@@ -20,9 +20,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  DOC_STATUS_ENUM, walk, DOC_FAMILIES, slugFamilyForPath,
+  DOC_STATUS_ENUM, walkTracked, DOC_FAMILIES, slugFamilyForPath,
   parseFrontmatter, parseAcTable, parseReviewBy, extractReferences, toPosix,
-  normalizeAcStatus, detectNearMissAcTable,
+  normalizeAcStatus, detectNearMissAcTable, TERMINAL_DOC_STATUS,
 } from './lib/docs-model.mjs';
 import { runAudit, suggestedStep, loadConfig, firstCommitDate } from './lib/docs-audit-core.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
@@ -174,7 +174,11 @@ function main() {
   const nearMissWarnings = [];
 
   for (const dir of SCAN_DIRS) {
-    for (const filePath of walk(path.join(ROOT, dir))) {
+    // spec-close-ceremony-sweep Spec-AC-22 (D3, TEST-554): enumerate git-
+    // TRACKED documents only — an untracked draft must never reach the
+    // committed index. walkTracked() degrades to a working-tree walk
+    // outside a git work tree, printing a NOTE naming the fallback.
+    for (const filePath of walkTracked(ROOT, dir)) {
       // SPEC-0007 — emit POSIX paths wherever a path enters a record/row, so the
       // committed docs/INDEX.md is OS-independent. No-op on POSIX (path.sep === '/').
       // toPosix() splits on both separator types so it is unit-testable on any OS.
@@ -194,7 +198,20 @@ function main() {
       }
       const acTable = parseAcTable(content);
       const nearMiss = detectNearMissAcTable(content).warnings;
-      if (nearMiss.length) nearMissWarnings.push({ rel, warnings: nearMiss });
+      // spec-close-ceremony-sweep Spec-AC-14/22 hazard (fu-index-violations-
+      // mirrors-terminal-docs) — same partition as docs-audit.mjs's --strict
+      // promotion (Amendment 3): a near-miss finding on a document whose
+      // frontmatter status is already TERMINAL (done/deferred/rejected/
+      // superseded/legacy/current) is NEVER mirrored into the untracked
+      // docs/INDEX.violations.md companion. A terminal document cannot newly
+      // reach that status with a broken table (the audit's own --strict gate
+      // refuses it while the doc is still open), so mirroring it here only
+      // regenerates an untracked file for historical docs this generator does
+      // not own — the "untracked file reaches a committed page" class this
+      // sweep exists to remove (M9: 8 such `done` docs on the live tree).
+      // The finding is NOT lost: docs-audit.mjs's own report still lists it
+      // under "### Near-miss AC tables" regardless of terminal status.
+      if (nearMiss.length && !TERMINAL_DOC_STATUS.has(status)) nearMissWarnings.push({ rel, warnings: nearMiss });
       for (const row of acTable.rows) {
         // SPEC-0010 Group C — normalize via the shared helper. A qualified
         // `<canonical> (<qualifier>)` normalizes to its base status (not a

@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { parseFrontmatter, DOC_TYPE_ENUM } from './lib/docs-model.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -117,11 +118,23 @@ function findDoc(docsDir, ref) {
   return null;
 }
 function readIntake(p) {
-  let head; try { head = fs.readFileSync(p, 'utf8').split('\n').slice(0, 30); } catch { return null; }
-  const fm = {};
-  for (const l of head) { const m = /^([a-z_]+):\s*(.*)$/.exec(l); if (m) fm[m[1]] = m[2].trim(); }
+  let content; try { content = fs.readFileSync(p, 'utf8'); } catch { return null; }
+  // NB-3 (validation-round2): "resolves to a real document" must mean the
+  // file PARSES as an intake document -- frontmatter carrying an id AND a
+  // type the corpus type map recognizes -- not merely "the file is
+  // readable". `gate --intake junk.txt` was admitting because readIntake
+  // returned an object for ANY readable file, and the id-mismatch usage
+  // error only fires when the file HAS an `id:` line. Uses the SAME
+  // frontmatter authority docs-audit already reads with (lib/docs-model.mjs
+  // parseFrontmatter + DOC_TYPE_ENUM), never a second parser: a junk file
+  // with no frontmatter, or an id with no recognized type, is not a
+  // document, so readIntake returns null exactly like a findDoc() miss and
+  // gate's `if (!intake) return deny(...)` (Spec-AC-29) covers it too.
+  const fm = parseFrontmatter(content);
+  if (!fm || !fm.id || !fm.type || !DOC_TYPE_ENUM.has(fm.type)) return null;
+  const head = content.split('\n').slice(0, 30);
   const title = (head.find((l) => /^# /.test(l)) || '').replace(/^# /, '');
-  return { path: p, id: fm.id || null, status: fm.status || null, type: fm.type || null, blocks: fm.blocks || null, title };
+  return { path: p, id: fm.id, status: fm.status || null, type: fm.type, blocks: fm.blocks || null, title };
 }
 function statusOf(docsDir, ref) { const d = findDoc(docsDir, ref); return d ? d.status : null; }
 
@@ -139,6 +152,17 @@ function nextRide(rm, docsDir) {
 }
 
 // --- gate --------------------------------------------------------------------------
+// isFirstUnfinished (CHANGE-0184 / Spec-AC-29) — the roadmap's ranking is
+// enforced HERE, not merely documented: a pair is admissible only when it is
+// the FIRST pair, in roadmap order, whose OWN roadmap-level status is not
+// "done". Walks pairs in order; the first not-done pair encountered decides
+// the answer for every pair (true for itself, false for every later one).
+function isFirstUnfinished(pair, roadmap) {
+  for (const p of roadmap.pairs) {
+    if (p.status !== 'done') return p === pair;
+  }
+  return false;
+}
 function isMaintenance(ref, intake) {
   if (intake && intake.type && MAINT_TYPES.has(intake.type)) return true;
   if (intake && intake.title && /\b(fix|guard|harness|hygiene|tripwire|flake|refactor|cleanup|lint)\b/i.test(intake.title)) return true;
@@ -167,6 +191,32 @@ function main() {
 
   if (a.cmd === 'validate') {
     if (loaded.error) usage(`invalid roadmap ${a.roadmap}: ${loaded.error}`);
+    // A STARTED pair (active/done) names refs that must already be real
+    // documents; a still-planned pair may legitimately be named ahead of its
+    // own intake, so it is exempt (fu-ride-select-validate-ref-exists).
+    // DISCLOSED narrowing of Spec-AC-29's literal text (which states no
+    // status carve-out): the live docs/ai/roadmap.yaml names two planned
+    // capabilities (friction-channel-sweep, canon-is-a-build-artifact) with
+    // no document yet — the roadmap's whole purpose is to name future work
+    // ahead of intake (wave_2 is the same shape, entirely unvalidated), so
+    // requiring a document before a pair even starts would force a stub
+    // intake to be filed for no reason but to satisfy this gate. RESIDUAL
+    // RISK (spec Amendment 16, R6), NOT mitigated elsewhere: a typo in a
+    // still-planned pair's slug is caught by neither this check nor `gate`
+    // below — `gate`'s own capability-admission arm
+    // (`if (pair.capability === a.ref) return admit(...)`) matches by
+    // STRING EQUALITY against the roadmap's own text, so a slug that is
+    // internally consistent but never resolves to a document is admitted
+    // once its pair becomes first-unfinished, exactly like a correctly
+    // spelled one. The typo is only caught downstream, when Planning/intake
+    // cannot find a document to work from. Reported, not fixed here — out
+    // of Spec-AC-29's own `validate` scope.
+    for (const [i, pr] of loaded.roadmap.pairs.entries()) {
+      if (pr.status === 'planned') continue;
+      for (const ref of [pr.capability, pr.maintenance]) {
+        if (!findDoc(a.docs, ref)) usage(`pair ${i + 1} (${pr.capability}): "${ref}" matches no document id under ${a.docs}`);
+      }
+    }
     process.stdout.write(`roadmap OK: ${loaded.roadmap.pairs.length} pair(s), ${loaded.roadmap.wave_2.length} wave-2 item(s)\n`);
     process.exit(0);
   }
@@ -198,6 +248,27 @@ function main() {
   if (status === 'done') return deny(`${a.ref} is already done — nothing to ride`);
   if (pair) {
     if (pair.status === 'done') return deny(`${a.ref} belongs to a pair already marked done in the roadmap`);
+    // AC-004: a ref already in flight is never refused by ranking, whichever
+    // pair it belongs to — a roadmap edit must not refuse a ride mid-flight.
+    if (status === 'implementing') return admit(`${a.ref} is already implementing — in flight`);
+    if (!isFirstUnfinished(pair, rm)) {
+      const ahead = rm.pairs.find((p) => p.status !== 'done');
+      return deny(`pair ahead — ${a.ref} is not the first unfinished pair; ${ahead.capability} (and its maintenance ${ahead.maintenance}) must be done first (ranked roadmap order, 1:1 budget); override with --override "<reason>" if the owner really wants it out of order`);
+    }
+    // Spec-AC-29's own text: "on refs that exist" — the SAME authority
+    // `validate` uses (`intake`, resolved above via `findDoc`/`readIntake`,
+    // never a second copy of that resolution), applied here too. `validate`
+    // exempts a still-`planned` pair (B5, Amendment 16, R6) because a
+    // roadmap may legitimately name future work before its own intake
+    // exists; `gate` does NOT carry that exemption, planned or not — gate is
+    // the moment a ref is about to be WORKED ON (every real call site names
+    // `--intake <primary_path>` for a document that was just created), so a
+    // missing document here is exactly the defect this check exists to
+    // catch, not a legitimate ahead-of-intake naming. This closes Amendment
+    // 16's R6 residual (validation-round1 B5/R6): a typo'd-but-internally-
+    // consistent roadmap slug — capability OR maintenance half — no longer
+    // reaches an ADMIT.
+    if (!intake) return deny(`${a.ref} matches roadmap pair "${pair.capability}"/"${pair.maintenance}" but no document resolves for "${a.ref}" under ${a.docs} — file its intake before gating this ref (Spec-AC-29: gate admits only refs that exist)`);
     if (pair.capability === a.ref) return admit('a roadmap capability');
     const cs = statusOf(a.docs, pair.capability);
     if (!STARTED.has(cs || '')) return deny(`pair first — ${a.ref} is the maintenance half of a pair whose capability ${pair.capability} is ${cs || 'not filed'}; start ${pair.capability} before it (1:1 budget)`);

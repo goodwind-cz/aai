@@ -40,6 +40,26 @@ wave_2:
   - later-thing
 YAML
 }
+# A 3-pair fixture roadmap (Spec-AC-29 ranking): each pair's own status is
+# independently controllable so a test can move which pair is first-unfinished.
+write_roadmap3() { # $1=pair1 status $2=pair2 status $3=pair3 status
+  cat > "$TEST_DIR/roadmap3.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-a
+    maintenance: maint-a
+    status: $1
+  - capability: cap-b
+    maintenance: maint-b
+    status: $2
+  - capability: cap-c
+    maintenance: maint-c
+    status: $3
+wave_2:
+  - later-thing
+YAML
+}
 # Doc status for a ref is read from a docs dir: the gate needs to know whether
 # a capability is planned/implementing/done. Fixture docs dir with frontmatter.
 write_doc() { # $1=slug $2=type $3=status [$4=extra frontmatter line]
@@ -127,9 +147,15 @@ test_003_pair_first() {
   write_doc cap-one change draft
   [ "$(run gate --ref cap-one --roadmap "$TEST_DIR/pairdone.yaml" --docs "$TEST_DIR/docs")" != "0" ] || log_fail "TEST-003: a pair marked done in the roadmap must refuse its capability"
   grep -qi "already marked done" "$TEST_DIR/err" || log_fail "TEST-003: the refusal must say the pair is marked done: $(err)"
-  # a capability on the roadmap always passes, regardless of anything
-  [ "$(run gate --ref cap-two --roadmap "$TEST_DIR/roadmap.yaml" --docs "$TEST_DIR/docs")" = "0" ] || log_fail "TEST-003: a roadmap capability must always pass: $(err)"
-  log_pass "pair first: refused, then allowed; a capability always passes (TEST-003)"
+  # CORRECTED (Spec-AC-29, TDD run 10): this used to assert "a capability on
+  # the roadmap always passes, regardless of anything" — that WAS the
+  # CHANGE-0184 defect (the gate admitted any on-roadmap capability, not only
+  # the next one). Sequential admission means pair 2's capability is refused
+  # while pair 1 is unfinished; TEST-565 in this suite covers the full ranking
+  # matrix (first-pair admission, later-pair refusal, in-flight, override).
+  [ "$(run gate --ref cap-two --roadmap "$TEST_DIR/roadmap.yaml" --docs "$TEST_DIR/docs")" != "0" ] || log_fail "TEST-003: pair 2's capability must be refused while pair 1 is unfinished (Spec-AC-29)"
+  grep -qi "cap-one" "$TEST_DIR/err" || log_fail "TEST-003: the refusal must name pair 1's capability cap-one as ahead: $(err)"
+  log_pass "pair first: refused, then allowed; a later pair's capability is refused until pair 1 is done (TEST-003, corrected under Spec-AC-29)"
 }
 
 # --- TEST-004 (Spec-AC-04): off-roadmap fix goes to the backlog ---------------
@@ -214,6 +240,231 @@ test_007_wiring() {
   log_pass "canon wiring present: gate in SHIP and LOOP, two-round STOP, operator contract ≤40 lines (TEST-007)"
 }
 
+# --- TEST-565 (Spec-AC-29): sequential admission -------------------------
+test_565_gate_admits_only_the_next_pair() {
+  log_info "Test: gate admits only the first unfinished pair; an in-flight ref and blocks: stay unaffected; override still one-shot (TEST-565)..."
+  write_roadmap3 planned planned planned
+  write_doc cap-a change draft; write_doc cap-b change draft; write_doc cap-c change draft
+  # nothing started: pair 1 admitted, pairs 2/3 refused naming pair 1's capability
+  [ "$(run gate --ref cap-a --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-565: pair 1's capability must be admitted: $(err)"
+  [ "$(run gate --ref cap-b --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-565: pair 2's capability must be refused while pair 1 is unfinished"
+  grep -q "cap-a" "$TEST_DIR/err" || log_fail "TEST-565: pair 2's refusal must name pair 1's capability cap-a: $(err)"
+  [ "$(run gate --ref cap-c --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-565: pair 3's capability must be refused while pair 1 is unfinished"
+  grep -q "cap-a" "$TEST_DIR/err" || log_fail "TEST-565: pair 3's refusal must name pair 1's capability cap-a: $(err)"
+
+  # pair 1 capability implementing: its maintenance is admitted, the capability
+  # itself stays admitted (in flight), pair 2 stays refused. maint-a's own
+  # document must exist too (Amendment 17: gate requires the REF IT ADMITS
+  # to resolve to a document, capability or maintenance alike — the same
+  # authority validate uses, never a second copy of that resolution).
+  write_doc cap-a change implementing
+  write_doc maint-a change draft
+  [ "$(run gate --ref maint-a --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-565: pair 1's maintenance must be admitted once its capability is implementing: $(err)"
+  [ "$(run gate --ref cap-a --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-565: an implementing capability must stay admitted: $(err)"
+  [ "$(run gate --ref cap-b --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-565: pair 2 must still be refused while pair 1 is not done"
+
+  # pair 1 done (roadmap-level): pair 2's capability is now admitted, pair 3
+  # refused naming pair 2
+  write_roadmap3 done planned planned
+  [ "$(run gate --ref cap-b --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-565: pair 2's capability must be admitted once pair 1 is done: $(err)"
+  [ "$(run gate --ref cap-c --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-565: pair 3 must be refused while pair 2 is unfinished"
+  grep -q "cap-b" "$TEST_DIR/err" || log_fail "TEST-565: pair 3's refusal must name pair 2's capability cap-b: $(err)"
+
+  # AC-004: an implementing ref in a later, non-first pair stays admitted as in flight
+  write_doc cap-c change implementing
+  [ "$(run gate --ref cap-c --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-565: an implementing ref in a non-first pair must stay admitted (in flight): $(err)"
+  grep -qi "in flight" "$TEST_DIR/out" || log_fail "TEST-565: the in-flight admission must say so: $(out)"
+  write_doc cap-c change draft
+
+  # AC-005: blocks: naming a not-first roadmap ref is admitted unchanged
+  write_doc some-fix issue draft "blocks: cap-c"
+  [ "$(run gate --ref some-fix --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-some-fix.md" --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-565: blocks: naming a not-first roadmap ref must still admit: $(err)"
+
+  # AC-007: --override stays one-shot and logged, even against the new ranking refusal
+  : > "$TEST_DIR/events565.jsonl"
+  [ "$(run gate --ref cap-c --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs" --events "$TEST_DIR/events565.jsonl" --override "owner: out of order for a customer")" = "0" ] \
+    || log_fail "TEST-565: --override must admit a ranking refusal: $(err)"
+  local n; n="$(grep -c '"event":"ride_gate_override"' "$TEST_DIR/events565.jsonl")"
+  [ "$n" = "1" ] || log_fail "TEST-565: exactly one override event must be appended, got $n"
+
+  # shipped roadmap: pair 7 (close-ceremony-sweep) closed with its real
+  # PR/commit (Spec-AC-10, spec-close-ceremony-sweep) makes pair 8
+  # (update-installs-ref-guard-undisclosed) the first unfinished pair; ITS
+  # capability is admitted by ranking (same property as the pair-1/2 arm
+  # above, re-pointed at the live file instead of a fixture). Amendment 25
+  # (close-ceremony-sweep): this assertion named pair 7 itself, which the
+  # gate now correctly REFUSES ("already done — nothing to ride") once the
+  # roadmap flip this comment already described actually landed; re-point it
+  # at pair 8, the ref the comment was always describing.
+  [ "$(run gate --ref update-installs-ref-guard-undisclosed --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
+    || log_fail "TEST-565: shipped roadmap: pair 8's capability must be admitted: $(err)"
+  log_pass "gate admits only the first unfinished pair; in-flight and blocks: unaffected; override still one-shot logged (TEST-565)"
+}
+
+# --- TEST-566 (Spec-AC-29): validate refuses an unresolvable started ref --
+test_566_validate_refuses_unknown_refs() {
+  log_info "Test: validate refuses a STARTED pair's ref with no matching document id, naming the slug and its pair; a still-planned pair is exempt; the live roadmap still passes (TEST-566)..."
+  write_doc cap-one change draft
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-one\n    maintenance: no-such-doc-slug\n    status: active\n' > "$TEST_DIR/typo.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/typo.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-566: an active pair naming a non-existent doc id must refuse"
+  grep -q "no-such-doc-slug" "$TEST_DIR/err" || log_fail "TEST-566: the refusal must name the unknown ref: $(err)"
+  grep -q "pair 1" "$TEST_DIR/err" || log_fail "TEST-566: the refusal must name the pair: $(err)"
+  # a STILL-PLANNED pair naming an unfiled slug is exempt (named ahead of its
+  # own intake is legitimate — it has not started yet)
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-one\n    maintenance: not-yet-intaken\n    status: planned\n' > "$TEST_DIR/planned-ahead.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/planned-ahead.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-566: a still-planned pair naming an unfiled ref must NOT refuse: $(err)"
+  # the live roadmap validates clean (every active/done pair resolves)
+  [ "$(run validate --roadmap "$SHIPPED")" = "0" ] || log_fail "TEST-566: the shipped roadmap must still validate: $(err)"
+  # Spec-AC-29's own text ("SHALL refuse a roadmap ref that matches no
+  # document id") is proven load-bearing on the LIVE roadmap, not just on a
+  # synthetic fixture: without the still-planned exemption, the SAME live
+  # roadmap must refuse (proving the exemption is genuinely exercised by
+  # real data, not a carve-out nothing ever needs), and the started-pair
+  # half is proven non-vacuous the same way (disclosed Amendment 16, B5).
+  local nx_engine="$TEST_DIR/ride-select-no-exemption.mjs"
+  sed "s/if (pr.status === 'planned') continue;//" "$ENGINE" > "$nx_engine"
+  local nx_rc; nx_rc="$(node "$nx_engine" validate --roadmap "$SHIPPED" > "$TEST_DIR/nx.out" 2> "$TEST_DIR/nx.err"; echo $?)"
+  [ "$nx_rc" != "0" ] \
+    || log_fail "TEST-566: removing the still-planned exemption must make the LIVE roadmap refuse (a real undocumented planned slug exists) — got 0: $(cat "$TEST_DIR/nx.out")"
+  log_pass "validate refuses a started pair's unknown ref, exempts a still-planned one (exercised for real on the live roadmap, not vacuously), live roadmap unaffected (TEST-566)"
+}
+
+# --- TEST-535 (spec-close-ceremony-sweep Spec-AC-10): the live roadmap's
+# pair 7 (mutation-gate-for-tests / unrecorded-spec-amendment-is-invisible,
+# M5) reads status done now that its maintenance half (CHANGE-0181) closed
+# with a real PR/commit, and the live roadmap still validates. Pair 7 sitting
+# at status: active (both docs terminal, the roadmap simply never told) is
+# what let ride-select.mjs gate ADMIT close-ceremony-sweep's own pair 8 ahead
+# of an unfinished earlier pair under the pre-fix reading (M5) -- flipping it
+# is this AC's whole content; `validate` itself only checks that a
+# started pair's refs resolve to real documents, so it stays green either
+# way and is asserted here only per the row's own text, not as the property
+# this test actually proves.
+test_535_roadmap_pair_seven_done() {
+  log_info "TEST-535: roadmap pair 7 (mutation-gate-for-tests / unrecorded-spec-amendment-is-invisible) reads status done, and ride-select.mjs validate passes over the live file..."
+  local block cap maint status
+  block="$(awk '
+    /^  - capability:/ { n++ }
+    n==7 { print }
+    n==8 { exit }
+  ' "$SHIPPED")"
+  [ -n "$block" ] || log_fail "TEST-535: docs/ai/roadmap.yaml has no 7th pair block"
+  cap="$(printf '%s\n' "$block" | awk -F': ' '/^  - capability:/{print $2; exit}')"
+  maint="$(printf '%s\n' "$block" | awk -F': ' '/^    maintenance:/{print $2; exit}')"
+  status="$(printf '%s\n' "$block" | awk -F': ' '/^    status:/{print $2; exit}')"
+  [ "$cap" = "mutation-gate-for-tests" ] \
+    || log_fail "TEST-535: pair 7's capability must be mutation-gate-for-tests, got '$cap'"
+  [ "$maint" = "unrecorded-spec-amendment-is-invisible" ] \
+    || log_fail "TEST-535: pair 7's maintenance must be unrecorded-spec-amendment-is-invisible, got '$maint'"
+  [ "$status" = "done" ] \
+    || log_fail "TEST-535: pair 7 status must be done, got '$status'"
+  [ "$(run validate --roadmap "$SHIPPED")" = "0" ] \
+    || log_fail "TEST-535: ride-select.mjs validate must pass over the live roadmap: $(err)"
+  log_pass "TEST-535: roadmap pair 7 reads done, live roadmap validates"
+}
+
+# --- TEST-583 (Spec-AC-29, Amendment 17, R6 closed) — gate refuses a ref
+# that matches no document, on the SAME authority validate uses -----------
+test_583_gate_refuses_undocumented_ref() {
+  log_info "Test: gate refuses a first-unfinished roadmap ref (capability OR maintenance) that matches no document, naming the ref and the missing doc; admits once the document exists (TEST-583)..."
+  # Dedicated slugs (cap-t583/maint-t583), never used by an earlier test in
+  # this suite's SHARED $TEST_DIR — reusing write_roadmap's cap-one/maint-one
+  # would collide with docs those earlier tests already wrote there.
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-t583\n    maintenance: maint-t583\n    status: planned\n' > "$TEST_DIR/roadmap583.yaml"
+  # Arm A: the CAPABILITY ref has no document at all (typo'd-but-internally-
+  # consistent slug) — gate must refuse, not admit "a roadmap capability".
+  [ "$(run gate --ref cap-t583 --roadmap "$TEST_DIR/roadmap583.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-583: an undocumented capability ref must NOT be admitted: $(out)"
+  grep -qF "cap-t583" "$TEST_DIR/err" || log_fail "TEST-583: the refusal must name the ref cap-t583: $(err)"
+  grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-583: the refusal must name the missing document: $(err)"
+  # Arm B: same fixture, the capability's document now exists — gate admits.
+  write_doc cap-t583 change draft
+  [ "$(run gate --ref cap-t583 --roadmap "$TEST_DIR/roadmap583.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-583: a documented capability ref must be admitted once its doc exists: $(err)"
+  grep -qF "a roadmap capability" "$TEST_DIR/out" || log_fail "TEST-583: the admission must read 'a roadmap capability': $(out)"
+  # Arm C: the capability has STARTED (implementing) but the MAINTENANCE
+  # ref itself has no document — gate must refuse the maintenance ref too,
+  # not just check the capability's own status.
+  write_doc cap-t583 change implementing
+  [ "$(run gate --ref maint-t583 --roadmap "$TEST_DIR/roadmap583.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-583: an undocumented maintenance ref must NOT be admitted even though its capability started: $(out)"
+  grep -qF "maint-t583" "$TEST_DIR/err" || log_fail "TEST-583: the refusal must name the ref maint-t583: $(err)"
+  grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-583: the refusal must name the missing document: $(err)"
+  # Arm D: same fixture, the maintenance document now exists — gate admits.
+  write_doc maint-t583 change draft
+  [ "$(run gate --ref maint-t583 --roadmap "$TEST_DIR/roadmap583.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-583: a documented maintenance ref must be admitted once its doc exists: $(err)"
+  grep -qF "the maintenance half of a pair" "$TEST_DIR/out" || log_fail "TEST-583: the admission must read the maintenance-half reason: $(out)"
+  # Control: the live roadmap is unaffected by this check (every ref gate
+  # can currently reach is either the live pair 8 capability, which HAS a
+  # document, or refused earlier for ranking — B5/R6's own measurement).
+  # Amendment 25 (close-ceremony-sweep): pair 7 (close-ceremony-sweep) is now
+  # done, so pair 8 (update-installs-ref-guard-undisclosed) is the live
+  # admissible ref this control was always describing.
+  [ "$(run gate --ref update-installs-ref-guard-undisclosed --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
+    || log_fail "TEST-583: the live roadmap's own admissible ref must still be admitted: $(err)"
+  log_pass "TEST-583: gate refuses an undocumented roadmap ref (capability or maintenance), naming the ref and the missing document, and admits once the document exists; live roadmap unaffected"
+}
+
+# --- TEST-588 (Spec-AC-29, validation-round2 NB-3) — --intake must resolve
+# to a PARSED intake document, not merely a readable file --------------------
+test_588_gate_intake_requires_a_real_document() {
+  log_info "Test: gate --intake refuses a readable file that is not a parseable intake document (no frontmatter, no --- fence, no id, or an id with no recognized type); admits a real one (TEST-588)..."
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-t588\n    maintenance: maint-t588\n    status: planned\n' > "$TEST_DIR/roadmap588.yaml"
+
+  # Arm A (NB-3): a readable file with no frontmatter at all must NOT admit.
+  printf 'not frontmatter, just junk text\n' > "$TEST_DIR/junk588.txt"
+  [ "$(run gate --ref cap-t588 --intake "$TEST_DIR/junk588.txt" --roadmap "$TEST_DIR/roadmap588.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-588: gate --intake junk588.txt (no frontmatter) must NOT be admitted: $(out)"
+  grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-588: the refusal must name the missing document: $(err)"
+
+  # Arm B: a readable file WITH frontmatter but no `id:` line — still not a
+  # document (the pre-fix code's own id-mismatch check never even fired here).
+  printf -- '---\ntype: change\nstatus: draft\n---\n\n# no id\n' > "$TEST_DIR/noid588.txt"
+  [ "$(run gate --ref cap-t588 --intake "$TEST_DIR/noid588.txt" --roadmap "$TEST_DIR/roadmap588.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-588: gate --intake noid588.txt (frontmatter, no id) must NOT be admitted: $(out)"
+  grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-588: the no-id refusal must name the missing document: $(err)"
+
+  # Arm C: a readable file with an id but a type OUTSIDE the corpus type map
+  # — still not a document.
+  printf -- '---\nid: cap-t588\ntype: not-a-real-type\nstatus: draft\n---\n\n# cap-t588\n' > "$TEST_DIR/badtype588.txt"
+  [ "$(run gate --ref cap-t588 --intake "$TEST_DIR/badtype588.txt" --roadmap "$TEST_DIR/roadmap588.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-588: gate --intake badtype588.txt (unrecognized type) must NOT be admitted: $(out)"
+  grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-588: the bad-type refusal must name the missing document: $(err)"
+
+  # Arm D (validation-round3 D2): bare id:/type: lines with NO --- fence at
+  # all, both values otherwise valid (a real id, a recognized type) — must
+  # still NOT admit. "Parses as frontmatter" is not the same property as
+  # "carries an id and a known type"; a fallback ad hoc line scan that only
+  # checks the latter would admit this file. parseFrontmatter requires the
+  # opening `---` fence before it looks at any key, so this must be refused
+  # on the fence, not merely on a missing id or type.
+  printf 'id: cap-t588\ntype: change\nstatus: draft\n\n# cap-t588\n' > "$TEST_DIR/nofence588.txt"
+  [ "$(run gate --ref cap-t588 --intake "$TEST_DIR/nofence588.txt" --roadmap "$TEST_DIR/roadmap588.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-588: gate --intake nofence588.txt (id/type lines, no --- fence) must NOT be admitted: $(out)"
+  grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-588: the no-fence refusal must name the missing document: $(err)"
+
+  # Control: a genuine intake document (frontmatter, id, recognized type) IS admitted.
+  write_doc cap-t588 change draft
+  [ "$(run gate --ref cap-t588 --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-cap-t588.md" --roadmap "$TEST_DIR/roadmap588.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-588: control -- a real intake document must still be admitted: $(err)"
+  grep -qF "a roadmap capability" "$TEST_DIR/out" || log_fail "TEST-588: the control admission must read 'a roadmap capability': $(out)"
+
+  log_pass "TEST-588: gate --intake refuses a readable-but-unparseable file (no frontmatter, no --- fence, no id, or an unrecognized type), and admits a real intake document"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -229,6 +480,11 @@ main() {
   test_005_fail_closed
   test_006_override
   test_007_wiring
+  test_565_gate_admits_only_the_next_pair
+  test_566_validate_refuses_unknown_refs
+  test_535_roadmap_pair_seven_done
+  test_583_gate_refuses_undocumented_ref
+  test_588_gate_intake_requires_a_real_document
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

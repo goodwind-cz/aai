@@ -4628,6 +4628,64 @@ test_064_dispatch_text_coaching_guard() {  # TEST-064 / Spec-AC-11
   log_pass "check-dispatch-text.mjs: one fixture per detector exits 6/named under --strict and 0/NOTE without; three negative controls stay clean under --strict; --path and stdin agree byte for byte; SUBAGENT_PROTOCOL.md carries the rule (TEST-064)"
 }
 
+test_567_rule_4a_single_retarget() {  # TEST-567 / Spec-AC-29
+  log_info "Test: with a live-shaped roadmap of three planned pairs and three matching open intakes, sequential gate admission leaves exactly one candidate, and 4a dispatches a single retarget instead of needs_llm multiple_open_intakes (TEST-567)..."
+  local d
+  d="$(mk_root t567)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass pass validation done tdd optional inline CHANGE-0001
+  printf '{"date_utc":"2026-07-01","ref_id":"CHANGE-0001","agent_runs":[]}\n' > "$d/docs/ai/METRICS.jsonl"
+  write_intake_doc "$d/docs/issues/CHANGE-0002-a.md" cap-one change 2 draft
+  write_intake_doc "$d/docs/issues/CHANGE-0003-b.md" cap-two change 3 draft
+  write_intake_doc "$d/docs/issues/CHANGE-0004-c.md" cap-three change 4 draft
+  # buildOpenIntakes resolves ride-select.mjs relative to --root, so the
+  # fixture carries the REAL (post-Spec-AC-29) engine, never a copy frozen at
+  # test-authoring time — this proves the actual fix, not a stand-in.
+  #
+  # Amendment 21 (validation round 4's own follow-up): this fixture vendored
+  # ride-select.mjs ALONE, with no lib/ copy at all. When close-ceremony-
+  # sweep's R6/D2 fix gave ride-select.mjs a new dependency (`import {
+  # parseFrontmatter, DOC_TYPE_ENUM } from './lib/docs-model.mjs'`), the
+  # vendored copy could no longer resolve it: node exits with
+  # ERR_MODULE_NOT_FOUND (node:internal/modules/esm/resolve:275) the instant
+  # ride-select.mjs is invoked, which orchestration-dispatch.mjs's
+  # roadmapGate() degrades into a plain gate refusal — a passing arm went
+  # silently wrong, not a crash, because the caller treats "gate could not
+  # run" the same as "gate said no". Fixed the same way every OTHER fixture
+  # in this suite that vendors a live .mjs script already does (see e.g.
+  # test-aai-docs-audit.sh's setup_iso_repo, test-aai-doc-numbering.sh's
+  # fixture root): copy the WHOLE lib/ directory, not a hand-picked file, so
+  # the NEXT import ride-select.mjs's own source gains cannot break this
+  # fixture silently again.
+  mkdir -p "$d/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/ride-select.mjs" "$d/.aai/scripts/ride-select.mjs"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  cat > "$d/docs/ai/roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-one
+    maintenance: maint-one
+    status: planned
+  - capability: cap-two
+    maintenance: maint-two
+    status: planned
+  - capability: cap-three
+    maintenance: maint-three
+    status: planned
+wave_2:
+  - later-thing
+YAML
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-567: single-candidate retarget must exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  node -e '
+    const fs = require("fs");
+    const o = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const ok = o.verdict === "dispatch" && o.rule === "4a" && o.ref_id === "cap-one" && o.retarget && o.retarget.to_ref === "cap-one";
+    if (!ok) { console.error("TEST-567: expected a single dispatch retarget to cap-one, got: " + JSON.stringify(o)); process.exit(1); }
+  ' "$OUT" || log_fail "TEST-567: 4a must retarget to pair 1'\''s capability alone, not needs_llm multiple_open_intakes"
+  log_pass "TEST-567: three-candidate roadmap fixture narrows to one admitted candidate, 4a dispatches a single retarget"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026 + harness-universal-routing TEST-048..058/060 (TEST-059 lives in test-aai-layer-profiles.sh); TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
@@ -4695,6 +4753,7 @@ main() {
   test_063_carve_reconciliation
   test_064_dispatch_text_coaching_guard
   test_065_effort_suffix_note
+  test_567_rule_4a_single_retarget
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

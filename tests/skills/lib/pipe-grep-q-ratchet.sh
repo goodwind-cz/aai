@@ -61,7 +61,11 @@ PGQ_BASELINE_DEFAULT_REL="tests/skills/lib/pipe-grep-q-baseline.tsv"
 
 # pgq_scan <dir> — one `<count>\t<basename>` line per *.sh file in <dir> that
 # carries the shape, sorted by name. Files with zero occurrences are omitted, so
-# a file appearing at all is itself signal.
+# a file appearing at all is itself signal. An UNREADABLE file (Spec-AC-28)
+# instead gets an `ERROR\t<basename>` row — never omitted, never folded into
+# the same "0" a clean file reports. "Could not look" and "looked, found
+# nothing" are different facts; conflating them is exactly the class this
+# ride's `pipe-grep-q-ratchet.sh` fix exists to remove from this file itself.
 #
 # `-o | wc -l` counts OCCURRENCES, not matching lines: two unsafe sites on one
 # line would otherwise ratchet as one.
@@ -70,11 +74,16 @@ PGQ_BASELINE_DEFAULT_REL="tests/skills/lib/pipe-grep-q-baseline.tsv"
 # file exits 1, and a bare `_pgq_n="$(...)"` under the caller's `set -euo
 # pipefail` aborts the whole suite on the first clean file. Most files are
 # clean, so this fires immediately (the `rc=$?`-after-a-pipe trap, one layer
-# down).
+# down). The readability check below runs BEFORE that swallow, so an
+# unreadable file never reaches it.
 pgq_scan() {
   local _pgq_dir="$1" _pgq_f _pgq_n
   for _pgq_f in "$_pgq_dir"/*.sh; do
     [ -f "$_pgq_f" ] || continue
+    if [ ! -r "$_pgq_f" ]; then
+      printf 'ERROR\t%s\n' "${_pgq_f##*/}"
+      continue
+    fi
     _pgq_n="$("$PGQ_GREP" -vE '^[[:space:]]*#' "$_pgq_f" 2>/dev/null | "$PGQ_GREP" -Eo "$PGQ_PATTERN" 2>/dev/null | "$PGQ_GREP" -c '' 2>/dev/null)" || _pgq_n=0
     [ -n "$_pgq_n" ] || _pgq_n=0
     [ "$_pgq_n" -gt 0 ] || continue

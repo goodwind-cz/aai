@@ -2294,6 +2294,241 @@ test_034_mutation_gate_pin_recut() {
   log_pass "close-work-item.mjs pin re-cut: live tree asserts OK, the tail-wording defect is corrected, and dropping the newest entry reproduces MISMATCH naming the recomputed hash (Spec-AC-19, TEST-490)"
 }
 
+# ==================== spec-close-ceremony-sweep TDD run 6 ====================
+# TEST-544..549 (Spec-AC-17, Spec-AC-18): verify-closures reads claims
+# honestly and refuses a blind run; an over-cap id is reported unfilable.
+
+# ============================ TEST-544 (Spec-AC-17) ==========================
+test_544_verify_closures_strict_value() {
+  log_info "Test: verify-closures --strict=<value> is a usage error (exit 2), while the bare --strict flag still enables strict mode (Spec-AC-17, TEST-544)..."
+  local led; led="$(mk_ledger t544)"
+  local doc; doc="$(mk_doc t544-miss "## Registry items closed by this scope
+
+- \`fu-t544-open-miss\` (P2) — never in the ledger.
+")"
+
+  run_fu verify-closures --path "$doc" --ledger "$led" --strict=true
+  [[ "$EC" == 2 ]] || log_fail "TEST-544: --strict=true must be a usage error (exit 2), got $EC: out=$OUT err=$ERR"
+  grep -qF "strict" <<<"$ERR" || log_fail "TEST-544: the usage error must name --strict: $ERR"
+
+  run_fu verify-closures --path "$doc" --ledger "$led" --strict
+  [[ "$EC" == 1 ]] || log_fail "TEST-544: the bare --strict flag must still enable strict mode (exit 1 on a MISS), got $EC: out=$OUT err=$ERR"
+
+  log_pass "verify-closures refuses --strict=<value> as a usage error while the bare flag still works (Spec-AC-17, TEST-544)"
+}
+
+# ============================ TEST-545 (Spec-AC-17) ==========================
+test_545_verify_closures_blind_corpus() {
+  log_info "Test: a corpus run (no --path) whose cwd has no docs/specs or docs/issues exits 2 naming both resolved roots and the cwd, instead of a silent zero-claims exit 0 (Spec-AC-17, TEST-545)..."
+  local led; led="$(mk_ledger t545)"
+  local foreign="$TEST_DIR/t545-foreign-cwd"
+  mkdir -p "$foreign"
+  local o="$TEST_DIR/.stdout-545" e="$TEST_DIR/.stderr-545"
+  local ec=0
+  ( cd "$foreign" && node "$FU" verify-closures --ledger "$led" ) > "$o" 2> "$e" || ec=$?
+  local err; err="$(cat "$e")"
+  [[ "$ec" == 2 ]] || log_fail "TEST-545: a blind corpus run must exit 2, got $ec: $err"
+  grep -qF "docs/specs" <<<"$err" || log_fail "TEST-545: the refusal must name the resolved docs/specs root: $err"
+  grep -qF "docs/issues" <<<"$err" || log_fail "TEST-545: the refusal must name the resolved docs/issues root: $err"
+  # Match the leaf directory name only, not the full path: macOS resolves
+  # $TMPDIR through a /var -> /private/var symlink, so the shell's own
+  # $foreign string and node's process.cwd() (which canonicalizes) can
+  # legitimately print two different absolute spellings of the SAME
+  # directory — the property under test is "names the cwd", not "matches
+  # this shell's unresolved path string".
+  grep -qF "t545-foreign-cwd" <<<"$err" || log_fail "TEST-545: the refusal must name the cwd: $err"
+
+  log_pass "verify-closures refuses a blind corpus run naming both resolved roots and the cwd (Spec-AC-17, TEST-545)"
+}
+
+# ============================ TEST-546 (Spec-AC-17) ==========================
+test_546_claim_before_first_label() {
+  log_info "Test: a fu- id named in prose BEFORE the first CLOSED FULLY label is scanned as a claim, and the same prefix opening with the none sentinel is not (Spec-AC-17, TEST-546)..."
+  local led; led="$(mk_ledger t546)"
+
+  local d1; d1="$(mk_doc t546-prefix-claim "## Registry items closed by this scope
+
+Also worth naming directly: \`fu-546-prefix-claim\` is discussed below.
+
+CLOSED FULLY:
+
+- \`fu-546-labelled-claim\` (P2) — closed.
+")"
+  run_fu verify-closures --path "$d1" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-546(a): must exit 0, got $EC: $ERR"
+  local c1; c1="$(node -e 'console.log(JSON.parse(process.argv[1]).claims.map(c=>c.id).sort().join(","))' "$OUT")"
+  [[ "$c1" == "fu-546-labelled-claim,fu-546-prefix-claim" ]] \
+    || log_fail "TEST-546(a): expected both the prefix id and the labelled id, got [$c1]"
+
+  local d2; d2="$(mk_doc t546-prefix-none "## Registry items closed by this scope
+
+none of the following are claimed here: \`fu-546-prefix-neighbor\`.
+
+CLOSED FULLY:
+
+- \`fu-546-labelled-claim-b\` (P2) — closed.
+")"
+  run_fu verify-closures --path "$d2" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-546(b): must exit 0, got $EC: $ERR"
+  local c2; c2="$(node -e 'console.log(JSON.parse(process.argv[1]).claims.map(c=>c.id).sort().join(","))' "$OUT")"
+  [[ "$c2" == "fu-546-labelled-claim-b" ]] \
+    || log_fail "TEST-546(b): a none-opening prefix must not be scanned, got [$c2]"
+
+  log_pass "a claim mentioned before the first CLOSED label is scanned, unless the prefix opens with the none sentinel (Spec-AC-17, TEST-546)"
+}
+
+# ============================ TEST-547 (Spec-AC-17) ==========================
+test_547_bulleted_claims_after_blank_line() {
+  log_info "Test: a 'Registry items closed by this scope:' label followed by a blank line and a bulleted claim list yields every id in the list, and an unrelated paragraph after the list is not claimed (Spec-AC-17, TEST-547)..."
+  local led; led="$(mk_ledger t547)"
+
+  local d1; d1="$(mk_doc t547-list "## Notes
+
+Registry items closed by this scope:
+
+- \`fu-547-list-one\`
+- \`fu-547-list-two\`
+
+An unrelated paragraph that happens to mention \`fu-547-unrelated\` in passing.
+")"
+  run_fu verify-closures --path "$d1" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-547: must exit 0, got $EC: $ERR"
+  local c1; c1="$(node -e 'console.log(JSON.parse(process.argv[1]).claims.map(c=>c.id).sort().join(","))' "$OUT")"
+  [[ "$c1" == "fu-547-list-one,fu-547-list-two" ]] \
+    || log_fail "TEST-547: expected exactly the two listed ids, not the unrelated paragraph's id: [$c1]"
+
+  log_pass "a blank-line-separated bulleted claim list is read in full, and the following unrelated paragraph is excluded (Spec-AC-17, TEST-547)"
+}
+
+# ============================ TEST-548 (Spec-AC-17) ==========================
+test_548_not_closed_disclosure_is_not_a_claim() {
+  log_info "Test: an inline paragraph that closes two ids and states in the same sentence that a third stays NOT CLOSED yields two claims, not three (Spec-AC-17, TEST-548)..."
+  local led; led="$(mk_ledger t548)"
+
+  local d1; d1="$(mk_doc t548-inline "## Notes
+Registry items closed by this scope: \`fu-548-a\` and \`fu-548-b\` are closed; \`fu-548-c\` stays NOT CLOSED in this paragraph.
+")"
+  run_fu verify-closures --path "$d1" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-548: must exit 0, got $EC: $ERR"
+  local c1; c1="$(node -e 'console.log(JSON.parse(process.argv[1]).claims.map(c=>c.id).sort().join(","))' "$OUT")"
+  [[ "$c1" == "fu-548-a,fu-548-b" ]] \
+    || log_fail "TEST-548: expected exactly the two closed ids, not the NOT CLOSED disclosure: [$c1]"
+
+  log_pass "an inline NOT CLOSED disclosure in the same sentence is never turned into a claim (Spec-AC-17, TEST-548)"
+}
+
+# ============================ TEST-549 (Spec-AC-18) ==========================
+test_549_over_cap_id_is_unfilable() {
+  log_info "Test: a report naming a 52-char fu- id is reported unfilable with the length and the cap, while a filable-but-absent id still reads absent (Spec-AC-18, TEST-549)..."
+  local led; led="$(mk_ledger t549)"
+  local overcap="fu-this-id-is-deliberately-longer-than-the-forty-char-cap"
+  local overcap_len=${#overcap}
+  [[ "$overcap_len" -gt 40 ]] || log_fail "TEST-549: fixture id must itself exceed 40 chars, got $overcap_len"
+
+  local doc; doc="$(mk_doc t549 "## Registry items closed by this scope
+
+- \`$overcap\` (P2) — an id longer than the registry allows.
+- \`fu-549-filable-but-absent\` (P2) — never in the ledger.
+")"
+  run_fu verify-closures --path "$doc" --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "TEST-549: report-only run must exit 0, got $EC: $ERR"
+  grep -qF "unfilable" <<<"$OUT" || log_fail "TEST-549: the report must name the id unfilable: $OUT"
+  grep -qF "$overcap_len" <<<"$OUT" || log_fail "TEST-549: the report must name the id's own length ($overcap_len): $OUT"
+  grep -qF "40" <<<"$OUT" || log_fail "TEST-549: the report must name the registry's cap (40): $OUT"
+  grep -qF "fu-549-filable-but-absent" <<<"$OUT" || log_fail "TEST-549: the filable-but-absent id must still be reported: $OUT"
+  grep -qF "absent" <<<"$OUT" || log_fail "TEST-549: the filable-but-absent id must still read absent: $OUT"
+  # The over-cap id itself must NOT read plain "absent" — it is unfilable,
+  # a distinct class named directly on its own report line.
+  local overcap_line
+  overcap_line="$(grep -F "$overcap" <<<"$OUT")"
+  grep -qF "unfilable" <<<"$overcap_line" || log_fail "TEST-549: the over-cap id's own line must say unfilable, not just absent: $overcap_line"
+
+  log_pass "an over-cap id is reported unfilable naming both numbers, distinct from an absent id (Spec-AC-18, TEST-549)"
+}
+
+# ============================ TEST-578 (Spec-AC-17) ==========================
+# spec-close-ceremony-sweep Amendment 14: a fu- id mentioned in the TRAILING
+# PROSE of an unrelated bullet (inside spec-close-ceremony-sweep's own
+# "CLOSED WITHOUT CODE" bullet for fu-factory-report-stale-draft-path, which
+# honestly notes that fu-amend-friction-upsert-channel-ba7701 is "still
+# open") was read as a claim by the old extractIds(seg.text)-over-the-whole-
+# segment scan — an honest disclosure manufactured a false MISS. Measured
+# 2026-09-18 against the live corpus that a naive "only the very first id in
+# the bullet, no exceptions" fix would ALSO silently drop 48 real claims from
+# docs/specs/SPEC-0179-spec-test-framework-sweep.md's own established
+# "- Spec-AC-NN: fu-id" bullet shape, so this row also pins that shape still
+# reads as a claim.
+test_578_claim_is_the_bullet_head_not_a_mention() {
+  log_info "Test: a claim is the id that OPENS a bullet -- the leading id (optionally after one 'Label:' token), or a comma-separated run of ids at the head -- never an id mentioned later in that bullet's own prose (Spec-AC-17, TEST-578)..."
+  local led; led="$(mk_ledger t578)"
+
+  local doc; doc="$(mk_doc t578-mention-in-prose "## Registry items closed by this scope
+
+CLOSED FULLY:
+
+- \`fu-578-bullet-head\` (P2) — fixes the thing, and note that \`fu-578-mentioned-later\` is a DIFFERENT item still open elsewhere in this prose.
+- Spec-AC-09: fu-578-labelled-head
+- \`fu-578-run-a\`, \`fu-578-run-b\` — closed together in one bullet.
+")"
+  run_fu verify-closures --path "$doc" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-578: must exit 0, got $EC: $ERR"
+  local ids
+  ids="$(node -e 'console.log(JSON.parse(process.argv[1]).claims.map(c=>c.id).sort().join(","))' "$OUT")"
+  [[ "$ids" == "fu-578-bullet-head,fu-578-labelled-head,fu-578-run-a,fu-578-run-b" ]] \
+    || log_fail "TEST-578: expected only the bullet-opening ids (never the later mention), got [$ids]"
+
+  log_pass "a claim is the id (or comma-run of ids) that opens a bullet, optionally after one 'Label:' token; a later mention in that bullet's own prose is never a claim (Spec-AC-17, TEST-578)"
+}
+
+# ============================ TEST-579 (Spec-AC-17) ==========================
+# spec-close-ceremony-sweep Amendment 14: verify-closures called every claim
+# satisfied only by status `done`, so fu-stale-check-events-false-ac-status
+# -- claimed under this ride's own "DROPPED, with the measured reason:"
+# label, and genuinely dropped in the ledger with a measured reason -- read
+# MISS status=dropped. splitByLabels (D9) is the one label authority; this
+# row keys the required status off it, per label, rather than inventing a
+# second one.
+test_579_dropped_label_requires_dropped_status() {
+  log_info "Test: a claim under a DROPPED label is satisfied by status dropped, one under CLOSED FULLY only by done; a mismatch either way is a MISS naming which way round it is (Spec-AC-17, TEST-579)..."
+  local led; led="$(mk_ledger t579)"
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-579-dropped-ok","ref_id":"CHANGE-0100","severity":"P2","finding":"x","decision":"y","source":"s"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-01-02T00:00:00Z","actor":"a","type":"follow_up_status","id":"fu-579-dropped-ok","status":"dropped","resolved_by":"t579","source":"s"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-579-done-under-dropped","ref_id":"CHANGE-0100","severity":"P2","finding":"x","decision":"y","source":"s"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-01-02T00:00:00Z","actor":"a","type":"follow_up_status","id":"fu-579-done-under-dropped","status":"done","resolved_by":"t579","source":"s"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-579-dropped-under-closed","ref_id":"CHANGE-0100","severity":"P2","finding":"x","decision":"y","source":"s"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-01-02T00:00:00Z","actor":"a","type":"follow_up_status","id":"fu-579-dropped-under-closed","status":"dropped","resolved_by":"t579","source":"s"}' >> "$led"
+
+  local doc; doc="$(mk_doc t579 "## Registry items closed by this scope
+
+CLOSED FULLY:
+
+- \`fu-579-dropped-under-closed\` (P2) — claimed closed, but the ledger only shows dropped.
+
+DROPPED, with the measured reason:
+
+- \`fu-579-dropped-ok\` (P2) — genuinely dropped, matches the ledger.
+- \`fu-579-done-under-dropped\` (P2) — claimed dropped, but the ledger shows done.
+")"
+  run_fu verify-closures --path "$doc" --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-579: must exit 0, got $EC: $ERR"
+  local tally
+  tally="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const byId = Object.fromEntries(j.claims.map(c=>[c.id,c]));
+    const ok = byId["fu-579-dropped-ok"];
+    if (!ok || ok.verdict !== "OK") { console.log("OK-CLAIM:"+JSON.stringify(ok)); process.exit(0); }
+    const m1 = byId["fu-579-dropped-under-closed"];
+    if (!m1 || m1.verdict !== "MISS" || m1.status !== "dropped") { console.log("M1:"+JSON.stringify(m1)); process.exit(0); }
+    const m2 = byId["fu-579-done-under-dropped"];
+    if (!m2 || m2.verdict !== "MISS" || !/^done/.test(m2.status) || !/dropped/.test(m2.status)) { console.log("M2:"+JSON.stringify(m2)); process.exit(0); }
+    console.log("OK");
+  ' "$OUT")"
+  [[ "$tally" == "OK" ]] \
+    || log_fail "TEST-579: expected dropped-satisfies-DROPPED (OK), CLOSED-claimed-but-dropped (MISS status=dropped), DROPPED-claimed-but-done (MISS naming both directions): $tally ($OUT)"
+
+  log_pass "a DROPPED-labelled claim is satisfied by status dropped, a CLOSED one only by done, and a mismatch either way is a MISS naming which way round it is (Spec-AC-17, TEST-579)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-followup-registry TEST-001..005, 008, 009; role-verification-guards TEST-010/Spec-AC-09 N1)"
   echo "  + followups-cli-hardening TEST-011..015,017"
@@ -2333,6 +2568,14 @@ main() {
   test_032_spec_test_framework_sweep_closure_is_real
   test_033_reopen_appends_open_status
   test_034_mutation_gate_pin_recut
+  test_544_verify_closures_strict_value
+  test_545_verify_closures_blind_corpus
+  test_546_claim_before_first_label
+  test_547_bulleted_claims_after_blank_line
+  test_548_not_closed_disclosure_is_not_a_claim
+  test_549_over_cap_id_is_unfilable
+  test_578_claim_is_the_bullet_head_not_a_mention
+  test_579_dropped_label_requires_dropped_status
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

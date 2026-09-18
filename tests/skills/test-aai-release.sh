@@ -1481,8 +1481,15 @@ test_036_golden_flow_record_precondition() {
   build_repo "$repo" two_entries
   # The precondition names `node .aai/scripts/golden-flow.mjs`, so it arms only
   # where that command exists (a generic repo's block stays byte-identical).
-  mkdir -p "$repo/.aai/scripts" "$repo/docs/ai/tests"
+  # aai-release.sh only ever stats this path (`[ -f ... ]`, never `node`s
+  # it), so golden-flow.mjs's own lib/ imports are never actually resolved
+  # here — copied anyway (check-vendored-script-deps.mjs, Amendment 21) so a
+  # vendored-engine check never has to guess "copied to run" from "copied to
+  # stat", and a future test that DOES invoke this copy inherits a fixture
+  # that already carries what golden-flow.mjs needs.
+  mkdir -p "$repo/.aai/scripts/lib" "$repo/docs/ai/tests"
   cp "$PROJECT_ROOT/.aai/scripts/golden-flow.mjs" "$repo/.aai/scripts/golden-flow.mjs"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$repo/.aai/scripts/lib/"
   commit_all "$repo" "vendor golden-flow"
   git -C "$repo" tag -a v2026.01.01 -m v2026.01.01
   local tag_date; tag_date="$(git -C "$repo" log -1 --format=%ci v2026.01.01)"
@@ -1537,6 +1544,43 @@ test_036_golden_flow_record_precondition() {
   log_pass "TEST-036 (spec TEST-008): missing/stale/unparsable record NAMED (never blocking); fresh record leaves the block byte-identical"
 }
 
+# --- TEST-570 (Spec-AC-31): CHANGELOG documents the heading shape it enforces
+test_570_changelog_shape_is_documented() {
+  log_info "Test: the CHANGELOG preamble names the per-entry heading shape and the two exits that enforce it; --dry-run still refuses a scaffold carrying a body (TEST-570)..."
+  local cl="$PROJECT_ROOT/CHANGELOG.md"
+  local pre="$TMP_ROOT/t570-preamble.txt"
+  awk '/^## \[unreleased\]/{exit} {print}' "$cl" > "$pre"
+  grep -qF '## [unreleased] — <type>' "$pre" \
+    || log_fail "TEST-570: the CHANGELOG preamble must name the per-entry heading shape '## [unreleased] — <type>...'"
+  grep -qF 'exit 12' "$pre" || log_fail "TEST-570: the preamble must name exit 12 (malformed)"
+  grep -qF 'exit 13' "$pre" || log_fail "TEST-570: the preamble must name exit 13 (no rollable entries)"
+
+  # Spec-AC-31 (code review 20260918T172546Z BLOCKING-2): "stated once" is a
+  # COUNT, not a grep hit -- a prior ride added the CHANGELOG statement
+  # WITHOUT removing SKILL_PR.prompt.md's own restatement of the same shape,
+  # and this same grep-only check stayed green through it. Count every
+  # statement of the literal shape across BOTH files a third statement could
+  # land in: exactly one (CHANGELOG.md's own preamble), never a second.
+  local skill_pr="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  local changelog_hits skill_pr_hits
+  changelog_hits="$(grep -cF '## [unreleased] — <type>: <title>' "$cl" || true)"
+  skill_pr_hits="$(grep -cF '## [unreleased] — <type>: <title>' "$skill_pr" || true)"
+  [[ "${changelog_hits:-0}" -eq 1 ]] \
+    || log_fail "TEST-570: the per-entry heading shape must be stated exactly once, in CHANGELOG.md's own preamble -- found ${changelog_hits:-0} statement(s) in CHANGELOG.md"
+  [[ "${skill_pr_hits:-0}" -eq 0 ]] \
+    || log_fail "TEST-570: SKILL_PR.prompt.md must not restate the heading shape a second time -- found ${skill_pr_hits} statement(s), want a cross-reference instead"
+  grep -qF "CHANGELOG.md's own preamble" "$skill_pr" \
+    || log_fail "TEST-570: SKILL_PR.prompt.md's CHANGELOG step must cross-reference CHANGELOG.md's own preamble, not restate the shape"
+
+  local repo="$TMP_ROOT/t570"
+  build_repo "$repo" malformed
+  local rc=0
+  ( cd "$repo" && bash "$RELEASE_SH" --dry-run ) >"$TMP_ROOT/t570.out" 2>&1 || rc=$?
+  [[ "$rc" == "12" ]] || log_fail "TEST-570: a malformed scaffold under --dry-run must exit 12, got $rc: $(cat "$TMP_ROOT/t570.out")"
+  grep -qi "malformed" "$TMP_ROOT/t570.out" || log_fail "TEST-570: the refusal must say 'malformed': $(cat "$TMP_ROOT/t570.out")"
+  log_pass "TEST-570: CHANGELOG preamble documents the heading shape + exits 12/13; --dry-run still refuses a scaffold with a body"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -1583,6 +1627,7 @@ main() {
   test_034_exit_codes_documented
   test_035_fallback_incomplete_exits_18
   test_036_golden_flow_record_precondition
+  test_570_changelog_shape_is_documented
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

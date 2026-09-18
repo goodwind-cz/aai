@@ -195,6 +195,14 @@ suites:
       - docs/ai/factory-report-data.json
       - docs/ai/dashboard.html
       - docs/ai/dashboard-data.json
+      # Amendment 20 (validation-round4, B1-R4): STALE_SCAN_PAGES is now
+      # derived from lib/docs-model.mjs's SHARED_GENERATED_PAGES, which
+      # includes the docs-hub pair — glob it and its generator too, the same
+      # convention as generate-overview.mjs/generate-userguide-rollup.mjs
+      # above.
+      - .aai/scripts/generate-docs-hub.mjs
+      - docs/SKILL_CATALOG.html
+      - docs/skill-catalog-data.json
       - tests/fixtures/close-regenerate-order/**
 
   aai-docs-audit:
@@ -404,6 +412,7 @@ suites:
     globs:
       - .aai/scripts/check-test-registration.mjs
       - .aai/scripts/check-base-ref-pins.mjs
+      - .aai/scripts/check-vendored-script-deps.mjs
       - tests/skills/lib/assert-payload.sh
       - tests/skills/lib/pipe-grep-q-ratchet.sh
       - tests/skills/lib/pipe-grep-q-baseline.tsv
@@ -633,6 +642,18 @@ suites:
     globs:
       - .aai/scripts/pr-platform.mjs
       - .aai/SKILL_PR.prompt.md
+      # validation-round5 B3-R5: TEST-580 now RUNS these five generators (the
+      # close-ceremony regen tail) inside an isolated scratch clone and
+      # asserts lib/docs-model.mjs's SHARED_GENERATED_PAGES equals what they
+      # are MEASURED to write — a diff touching any one of them, or the
+      # shared authority itself, must re-select this suite (mirrors the
+      # aai-doc-numbering row's own TEST-031-pinned reasoning above).
+      - .aai/scripts/generate-docs-index.mjs
+      - .aai/scripts/generate-overview.mjs
+      - .aai/scripts/generate-userguide-rollup.mjs
+      - .aai/scripts/generate-docs-hub.mjs
+      - .aai/scripts/generate-factory-report.mjs
+      - .aai/scripts/lib/docs-model.mjs
 
   aai-pr-waiver:
     globs:

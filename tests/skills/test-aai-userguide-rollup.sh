@@ -86,11 +86,17 @@ setup_fixture() {
 }
 
 # new_fixture_dir <name> -> prints the fixture dir's absolute path (docs/product/
-# ready, docs/USER_GUIDE.md NOT created — a caller seeds it per-test).
+# ready, docs/USER_GUIDE.md seeded with a minimal real-repo-shaped file — a
+# real repository always carries one; close-ceremony-sweep Spec-AC-24
+# (TEST-558) moved the "file genuinely absent" case to its own bare fixture,
+# built without this helper, since that is now a DIFFERENT, no-op-triggering
+# axis this helper's callers are not testing. A caller may still overwrite
+# this seed with its own docs/USER_GUIDE.md content (TEST-007 does).
 new_fixture_dir() {
   local name="$1"
   local dir="$TEST_DIR/$name"
   mkdir -p "$dir/docs/product"
+  printf '# AAI User Guide\n' > "$dir/docs/USER_GUIDE.md"
   echo "$dir"
 }
 
@@ -359,6 +365,28 @@ test_011_empty_product_dir() {
   log_pass "Degenerate/empty: zero product docs -> stable marker-contained block, exit 0"
 }
 
+# --- close-ceremony-sweep Spec-AC-24 (TEST-558) ------------------------------
+
+test_558_rollup_noops_without_userguide() {
+  log_info "Test: with no docs/USER_GUIDE.md, the rollup no-ops -- leaves no file behind, exits 0, names the no-op on stdout (TEST-558)..."
+  # Built WITHOUT new_fixture_dir (which now seeds a minimal USER_GUIDE.md
+  # for every other test in this suite) — this row's whole claim needs the
+  # file genuinely absent.
+  local dir="$TEST_DIR/t558"
+  mkdir -p "$dir/docs/product"
+  write_product_doc "$dir" "feature-a" "2026-01-01" "Feature A"
+
+  local out="$TEST_DIR/t558.out" err="$TEST_DIR/t558.err" code
+  code=$(run_rollup "$dir" "$out" "$err")
+  [[ "$code" == "0" ]] || log_fail "TEST-558: generator must exit 0 when USER_GUIDE.md is absent: $(cat "$err")"
+  [[ ! -f "$dir/docs/USER_GUIDE.md" ]] \
+    || log_fail "TEST-558: no docs/USER_GUIDE.md must be created by an absent-file run"
+  grep -qi "no-op" "$out" \
+    || log_fail "TEST-558: stdout must name the no-op, not exit silently: $(cat "$out")"
+
+  log_pass "TEST-558: an absent docs/USER_GUIDE.md leaves no file behind, exits 0, and names the no-op"
+}
+
 # --- spec-product-docs-capability-model TEST-010 (Spec-AC-04, SEAM-3) -------
 #
 # The rollup is the READ-ONLY reader of docs/product/*.md and does not itself
@@ -443,6 +471,7 @@ main() {
   test_010_placeholder_excluded
   test_014_exclusion_named_on_stdout
   test_011_empty_product_dir
+  test_558_rollup_noops_without_userguide
   test_019_capability_migrated_docs_render
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="

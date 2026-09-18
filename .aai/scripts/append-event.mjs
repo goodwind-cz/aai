@@ -4,7 +4,8 @@
 // Event types (closed set): ac_status, ac_evidence, defer_extended, doc_lifecycle,
 //   docs_audit, work_item_closed, code_review_completed (SPEC-0011 G2),
 //   phase_confirmed, spec_scope_edited (CHANGE-0120),
-//   validation_verdict (role-verification-guards G2).
+//   validation_verdict (role-verification-guards G2),
+//   pr_sweep (Spec-AC-33, CHANGE-0060 step 5d mechanization / GitHub issue 338).
 // Required: --event, --ref. Auto-filled: v=1, ts (ISO UTC), actor (git slug).
 //
 // Examples:
@@ -14,6 +15,8 @@
 //   append-event.mjs --event defer_extended --ref SPEC-0042/Spec-AC-07 \
 //     --old-review-by 2026-08-01 --new-review-by 2026-Q4 --notes "..."
 //   append-event.mjs --event doc_lifecycle --ref RFC-0042 --from draft --to implementing
+//   append-event.mjs --event pr_sweep --ref close-ceremony-sweep --pr 42 --lane heavy \
+//     --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept
 //
 // Multi-file parent IDs: use --ref PARENT-ID/<filename-suffix> for a
 // file-specific transition, bare --ref PARENT-ID for a parent-level one.
@@ -24,10 +27,15 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { nowIso } from './lib/iso-time.mjs';
+import { PR_SWEEP_OUTCOMES, sweepContradictions, parseSweepCount } from './lib/pr-sweep.mjs';
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
 const SCHEMA_VERSION = 1;
-const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited', 'validation_verdict']);
+const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited', 'validation_verdict', 'pr_sweep']);
+// PR_SWEEP_OUTCOMES / sweepContradictions live in lib/pr-sweep.mjs — the SAME
+// predicate lane-gate.mjs --sweep-check imports and re-runs on the read side
+// (validation-round1 NB-2: two copies of one gate is the DEBT-0002 pattern
+// this ride exists to avoid repeating).
 
 function parseArgs(argv) {
   const args = {};
@@ -158,6 +166,77 @@ function main() {
       entry.payload = { status: args.status, hash: args.hash };
       if (args.notes) entry.payload.notes = args.notes;
       break;
+    case 'pr_sweep': {
+      // CHANGE-0060 step 5d mechanization (Spec-AC-33, GitHub issue 338): a
+      // merge-readiness claim ("the post-open bot sweep happened") is a
+      // sentence a role writes; lane-gate.mjs --sweep-check (Spec-AC-34)
+      // reads this record back before a merge is judged allowed. A record
+      // whose fields contradict each other is refused WHOLE — nothing
+      // written — so the ledger can never carry a claim the record itself
+      // disproves.
+      if (args.pr === undefined) fail('pr_sweep requires --pr');
+      if (!args.lane || !['fast', 'heavy'].includes(args.lane)) fail('pr_sweep requires --lane fast|heavy');
+      if (!args.reviewer_bots) fail('pr_sweep requires --reviewer-bots');
+      if (!args.outcome || !PR_SWEEP_OUTCOMES.has(args.outcome)) {
+        fail(`pr_sweep requires --outcome ${[...PR_SWEEP_OUTCOMES].join('|')}`);
+      }
+      // B3 (validation-round1): a count that is not a non-negative integer
+      // is a usage error, not a silent NaN -- Number('abc') coerced past
+      // every sweepContradictions comparison (NaN <= 0 and NaN > 0 are both
+      // false) and wrote `null` counts. Refuse whole, nothing written, name
+      // the field.
+      // NB-5 (validation-round2): --pr was the sibling of B3, three lines
+      // away from the fix -- `Number(args.pr)` was unvalidated, so "abc"
+      // silently minted `"pr":null` and "0x181" minted `"pr":385` for a PR
+      // number nobody typed. SAME parseSweepCount helper as the count
+      // fields: a non-negative integer or a refusal naming --pr.
+      let pr;
+      let threadsSeen;
+      let threadsUnresolved;
+      try {
+        pr = parseSweepCount(args.pr, 'pr');
+        threadsSeen = parseSweepCount(args.threads_seen, 'threads_seen');
+        threadsUnresolved = parseSweepCount(args.threads_unresolved, 'threads_unresolved');
+      } catch (err) {
+        fail(`pr_sweep ${err.message}`);
+      }
+      // validation-round3 (remediation, Amendment 19): parseSweepCount's
+      // non-negative-integer rule is shared with the count fields, where 0
+      // is a legitimate count -- but --pr names a pull request, and there is
+      // no PR 0. Refuse it separately; the count fields keep accepting 0.
+      if (pr === 0) fail('pr_sweep --pr must be a positive integer (there is no PR 0), got 0');
+      const payload = {
+        pr,
+        lane: args.lane,
+        reviewer_bots: args.reviewer_bots,
+        threads_seen: threadsSeen,
+        threads_unresolved: threadsUnresolved,
+        outcome: args.outcome,
+      };
+      const bad = sweepContradictions(payload);
+      if (bad.length) fail(`pr_sweep record contradicts itself: ${bad.join('; ')}`);
+      // P1 (Codex, PR #385 bot review, Amendment 27): bind the record to the
+      // REVIEWED head. Before this, a pr_sweep payload named only the PR and
+      // lane, so once recorded, ANY later push to that PR (a remediation
+      // commit, or an entirely new one) still satisfied --sweep-check without
+      // the new diff ever being reviewed. `head_sha` is derived HERE, from
+      // this process's own `git rev-parse HEAD` — never accepted as a caller
+      // flag, which a stale/copy-pasted value could spoof — so it can only
+      // ever name the commit the sweep was ACTUALLY run against. Best-effort:
+      // a non-git cwd or a repo with no commits yet cannot name a head at
+      // all, and null is written rather than failing the whole write (this
+      // event predates the invariant in every corpus that already has
+      // pr_sweep records; lane-gate.mjs --sweep-check degrades the same way
+      // — see its own header note — when either side of the comparison is
+      // unknown).
+      let headSha = null;
+      try {
+        headSha = execSync('git rev-parse HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+      } catch { /* non-git cwd / no commits yet -- head_sha stays null */ }
+      payload.head_sha = headSha;
+      entry.payload = payload;
+      break;
+    }
   }
 
   fs.mkdirSync(path.dirname(EVENTS_PATH), { recursive: true });

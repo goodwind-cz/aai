@@ -457,6 +457,22 @@ test_wiring_and_protocol() {
   log_pass "single-writer rule, orchestrator wiring, and LOCKS.md demotion all present"
 }
 
+# --- TEST-571 (Spec-AC-31): the append-only EVENTS rule is stated once -----
+test_571_ledger_rule_stated_once() {
+  log_info "TEST-571: SUBAGENT_CONTRACT states the append-only EVENTS rule once (HAZ-LEDGER), cross-referenced from the single-writer list, not restated..."
+  [[ -f "$CONTRACT_DOC" ]] || log_fail "TEST-571: missing $CONTRACT_DOC"
+  # HAZ-LEDGER's own bullet is the ONE full statement of the append-only
+  # rule; the single-writer EVENTS mention cross-references it by name
+  # rather than restating the rule in its own words a second time.
+  grep -qF 'docs/ai/EVENTS.jsonl` via `append-event.mjs` (HAZ-LEDGER)' "$CONTRACT_DOC" \
+    || log_fail "TEST-571: the single-writer EVENTS mention must cross-reference HAZ-LEDGER, not restate the rule"
+  local commutative_hits
+  commutative_hits="$(grep -c 'commutative audit log' "$CONTRACT_DOC" || true)"
+  [[ "${commutative_hits:-0}" -eq 0 ]] \
+    || log_fail "TEST-571: the append-only rule must not be restated a second time (found 'commutative audit log' ${commutative_hits} time(s))"
+  log_pass "TEST-571: append-only EVENTS rule stated once (HAZ-LEDGER), cross-referenced"
+}
+
 main() {
   echo "Testing $TEST_NAME (atomic scope-lock CLI + single-writer wiring)"
   check_deps
@@ -472,6 +488,7 @@ main() {
   test_list_view
   test_gitignore
   test_wiring_and_protocol
+  test_571_ledger_rule_stated_once
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

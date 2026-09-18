@@ -221,6 +221,19 @@ build_fixture_sources() {
   fi
   verify_fixture_copy_completeness
 
+  # src-old is a copy of the SAME content, taken BEFORE `git init` so the copy
+  # never walks a live `.git`. It used to be taken after, and then had its
+  # `.git` deleted again — pure waste, and a race: git's background maintenance
+  # creates and removes `.git/objects/maintenance.lock` under load, so `cp -R`
+  # could stat a file that had just vanished and fail the whole suite. Observed
+  # on CI only (PR #385, nested under hygiene-pack TEST-473, never standalone);
+  # a local tree is too idle to lose the race.
+  FIX_SRC_OLD="$TMP_ROOT/src-old"
+  cp -R "$FIX_SRC" "$FIX_SRC_OLD" \
+    || log_fail "fixture build: cp -R failed copying the pre-git fixture source to $FIX_SRC_OLD"
+  [[ ! -e "$FIX_SRC_OLD/.git" ]] \
+    || log_fail "fixture build: src-old must be copied BEFORE git init, but it carries a .git directory"
+
   git -C "$FIX_SRC" init -q -b main
   git -C "$FIX_SRC" config user.email "test@example.invalid"
   git -C "$FIX_SRC" config user.name "AAI Test"
@@ -235,9 +248,6 @@ build_fixture_sources() {
   # durably to the PARENT of the commit that introduced profile support — the
   # oldest commit touching the `PROFILES.yaml` marker in this file — so the
   # "default == pre-profile behavior" guarantee stays provable as HEAD advances.
-  FIX_SRC_OLD="$TMP_ROOT/src-old"
-  cp -R "$FIX_SRC" "$FIX_SRC_OLD"
-  rm -rf "$FIX_SRC_OLD/.git"
   local profile_intro
   profile_intro="$(git -C "$PROJECT_ROOT" log --reverse --format='%H' -S 'PROFILES.yaml' -- .aai/scripts/aai-sync.sh | qhead -1)"
   [[ -n "$profile_intro" ]] || log_fail "cannot locate the commit that introduced profile support in aai-sync.sh"
@@ -331,6 +341,45 @@ test_488_mutation_gate_files_classified() {
       || log_fail "TEST-488: $f must be classified as CORE (a gate, per the classification rule) — found core=$n_core extended=$n_ext"
   done
   log_pass "TEST-488: mutation-run.mjs, mutation-gate.mjs, lib/mutation-record.mjs and lib/spec-contract-hash.mjs each classified exactly once, as core"
+}
+
+# --- TEST-572 (spec-close-ceremony-sweep Spec-AC-32) — every new .aai file
+# this ride adds is classified exactly once in core, and the manifest's
+# live-tree union still holds. close-ceremony-sweep (TDD runs 1-12) added
+# ZERO new .aai files: every path it touched (SKILL_INTAKE.prompt.md,
+# SKILL_PR.prompt.md, VALIDATION.prompt.md, SUBAGENT_CONTRACT.md, and the
+# .aai/scripts/** + .aai/templates/** engine/template files it edited) is a
+# MODIFICATION of a path already classified before this ride started —
+# verified with `git diff --name-status 7270a29c..HEAD -- .aai`, zero `A`
+# rows. There is therefore no per-file enumeration to run (unlike TEST-009L
+# and TEST-488 above, which each name a list of genuinely new paths); the
+# obligation this row exists to discharge collapses to re-proving the
+# live-tree union independently of TEST-001, so a regression this ride
+# introduces is attributed to Spec-AC-32's own row rather than borrowed from
+# TEST-001's. Mirrors TEST-001's checks (manifest not found, duplicate
+# entries, cross-profile overlap, unclassified files, stale entries).
+test_572_new_aai_files_classified() {
+  log_info "TEST-572: no new .aai file this ride adds is unclassified, and the manifest's live-tree union holds..."
+  [[ -f "$MANIFEST" ]] || log_fail "TEST-572: manifest not found: $MANIFEST"
+
+  local core extended
+  core="$(profile_list "$MANIFEST" core)"
+  extended="$(profile_list "$MANIFEST" extended)"
+
+  local listed actual dupes overlap unclassified stale
+  listed="$(printf '%s\n%s\n' "$core" "$extended" | LC_ALL=C sort)"
+  actual="$(cd "$PROJECT_ROOT" && find .aai -type f ! -path '.aai/cache/*' | LC_ALL=C sort)"
+
+  dupes="$(printf '%s\n' "$listed" | uniq -d)"
+  [[ -z "$dupes" ]] || log_fail "TEST-572: duplicate/overlapping manifest entries:"$'\n'"$dupes"
+  overlap="$(comm -12 <(printf '%s\n' "$core" | LC_ALL=C sort) <(printf '%s\n' "$extended" | LC_ALL=C sort))"
+  [[ -z "$overlap" ]] || log_fail "TEST-572: paths listed in BOTH profiles:"$'\n'"$overlap"
+  unclassified="$(comm -23 <(printf '%s\n' "$actual") <(printf '%s\n' "$listed"))"
+  [[ -z "$unclassified" ]] || log_fail "TEST-572: UNCLASSIFIED vendored files (add to PROFILES.yaml):"$'\n'"$unclassified"
+  stale="$(comm -13 <(printf '%s\n' "$actual") <(printf '%s\n' "$listed"))"
+  [[ -z "$stale" ]] || log_fail "TEST-572: stale manifest entries (no such file):"$'\n'"$stale"
+
+  log_pass "TEST-572: this ride adds no new .aai file; the manifest's live-tree union (core+extended == .aai tree) still holds"
 }
 
 # --- TEST-002 — default run byte-identical to the pre-change sync (Spec-AC-02) -
@@ -815,6 +864,7 @@ main() {
   test_manifest_conformance
   test_new_files_classified
   test_488_mutation_gate_files_classified
+  test_572_new_aai_files_classified
   build_fixture_sources
   test_default_byte_identity
   test_core_exact_set

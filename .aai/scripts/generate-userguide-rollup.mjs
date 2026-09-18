@@ -168,11 +168,20 @@ function spliceMarkedRegion(content, block) {
 
 function main() {
   const args = parseArgs(process.argv);
+  const outPath = path.resolve(ROOT, args.outputPath);
+  // spec-close-ceremony-sweep Spec-AC-24 (TEST-558): a rollup generator must
+  // never CREATE the file it rolls into — that is bootstrapping a page out
+  // of nothing, not degrading an existing one. When docs/USER_GUIDE.md does
+  // not exist yet, no-op: leave no file behind, exit 0, and NAME the no-op
+  // (degrade-with-NOTE convention, .aai/AGENTS.md) rather than exiting
+  // silently.
+  if (!fs.existsSync(outPath)) {
+    console.log(`userguide-rollup: no-op — ${path.relative(ROOT, outPath)} does not exist (nothing to roll a section into)`);
+    exit(0);
+  }
   const docs = loadProductDocs(ROOT);
   const block = renderBlock(docs);
-  const outPath = path.resolve(ROOT, args.outputPath);
-  let existing = '';
-  try { existing = fs.readFileSync(outPath, 'utf8'); } catch { /* first run: no file yet */ }
+  const existing = fs.readFileSync(outPath, 'utf8');
   const next = spliceMarkedRegion(existing, block);
   fs.writeFileSync(outPath, next);
   console.log(`userguide-rollup: ${docs.length} delivered feature(s) rendered -> ${path.relative(ROOT, outPath)}`);

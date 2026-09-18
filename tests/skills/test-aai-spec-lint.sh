@@ -2016,6 +2016,60 @@ EOF
     || log_fail "TEST-494 header prefix match and unmapped finding"
 }
 
+# --- TEST-541 — the specimen masker is lib/docs-audit-core.mjs's, shared -----
+# (spec-close-ceremony-sweep Spec-AC-14 / fu-mask-duplicates-docs-audit-core)
+# Two concrete bugs the OLD local maskCodeSpecimens carried: (1) a line-initial
+# run of 3+ backticks that ALSO closes on the SAME line (a genuine inline code
+# span, e.g. ```x``` ) was treated as a FENCE OPEN regardless — it swallowed
+# every following line, including a live marker several lines later, until
+# some unrelated line happened to start with a backtick; (2) a fence's close
+# test only checked the CHARACTER (backtick vs tilde), never the RUN LENGTH,
+# so a four-backtick fence closed prematurely at any later 3-backtick-only
+# line, leaking the remainder of the specimen (including a marker inside it)
+# as live text. Both are fixed by importing the shared masker instead of
+# keeping a second, buggier copy.
+test_541_shared_specimen_masker() {
+  local out rc ok=1 n
+  # No local copy at all: the AC's own literal probe.
+  n=$(/usr/bin/grep -c 'maskCodeSpecimens' "$LINT" || true)
+  [[ "$n" -eq 0 ]] || { log_info "TEST-541: spec-lint.mjs still declares/names a local maskCodeSpecimens ($n occurrence(s))"; ok=0; }
+
+  # Bug 1: a LINE-INITIAL triple-backtick run that ALSO closes on that same
+  # line (CommonMark: a fence's info string may not carry a backtick, so this
+  # is an inline code span, never a fence open) must not swallow a live
+  # marker that follows it. The run must be line-initial to exercise the
+  # fence-vs-inline-span ambiguity at all -- a mid-line run never matches the
+  # fence-open regex on either the old or the new masker.
+  new_fixture_root
+  clarify_body > "$FIX/docs/specs/SPEC-DRAFT-clarify-inline-run.md" <<'EOF'
+```x``` — an inline run that opens and closes on this very line.
+
+[NEEDS-CLARIFICATION: does this marker still fire after the inline run above?]
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-541(bug1)" || ok=0
+  grep -qF "unresolved-clarification" <<<"$out" \
+    || { log_info "TEST-541(bug1): the marker after a line-initial same-line triple-backtick run was swallowed: $out"; ok=0; }
+
+  # Bug 2: a four-backtick fence must not be closed early by a shorter
+  # (three-backtick) run inside it; both markers stay masked to EOF of fence.
+  new_fixture_root
+  clarify_body > "$FIX/docs/specs/SPEC-DRAFT-clarify-fourtick.md" <<'EOF'
+````
+[NEEDS-CLARIFICATION: still inside the four-backtick fence]
+```
+[NEEDS-CLARIFICATION: still inside, past the stray three-backtick line]
+````
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-541(bug2)" || ok=0
+  grep -q "unresolved-clarification" <<<"$out" \
+    && { log_info "TEST-541(bug2): a marker inside a four-backtick fence leaked past a shorter stray run: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-541 spec-lint.mjs carries no local masker; a same-line inline run no longer swallows a later marker, and a four-backtick fence no longer leaks past a shorter stray run" \
+    || log_fail "TEST-541 shared specimen masker"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -2070,6 +2124,7 @@ main() {
   test_478_mutation_cell_lint
   test_479_column_by_name
   test_494_header_prefix_match_and_unmapped_finding
+  test_541_shared_specimen_masker
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

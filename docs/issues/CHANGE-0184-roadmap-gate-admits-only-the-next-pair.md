@@ -2,11 +2,13 @@
 id: roadmap-gate-admits-only-the-next-pair
 type: change
 number: 184
-status: draft
+status: done
 blocks: standardized-backlog-drain
 links:
-  pr: []
-  commits: []
+  pr:
+    - 385
+  commits:
+    - 4aca0a50e66a8e3ee2f837bce04ba4676805346c
 ---
 
 # The roadmap gate admits only the first unfinished pair, so the owner's order is enforced, not decorative

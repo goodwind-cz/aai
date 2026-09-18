@@ -38,7 +38,34 @@ CORE_LIB="$PROJECT_ROOT/.aai/scripts/lib/state-core.mjs"
 CHECK_SCRIPT="$PROJECT_ROOT/.aai/scripts/check-state.mjs"
 AUDIT_SCRIPT="$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"
 
+# spec-close-ceremony-sweep Spec-AC-11: generate-docs-index.mjs now writes
+# docs/INDEX.violations.md (an untracked companion) whenever the near-miss
+# shape check has a live finding, which it now legitimately does (M9's 8
+# column-set docs) -- test_019_regression_anchor regenerates the REAL index
+# against PROJECT_ROOT, so without this floor it would leave that new file
+# behind. Armed by test_019 itself (before either generate-docs-index call);
+# empty means "did not exist before" (remove it), non-empty means "restore
+# this backup".
+INDEX_VIOLATIONS_REAL_BACKUP=""
+INDEX_VIOLATIONS_REAL_ARMED=""
+INDEX_VIOLATIONS_REAL_EXISTED=0
+
 cleanup() {
+  if [[ -n "$INDEX_VIOLATIONS_REAL_ARMED" ]]; then
+    local viol="$PROJECT_ROOT/docs/INDEX.violations.md"
+    if [[ "$INDEX_VIOLATIONS_REAL_EXISTED" == "1" && -n "$INDEX_VIOLATIONS_REAL_BACKUP" && -f "$INDEX_VIOLATIONS_REAL_BACKUP" ]]; then
+      cp "$INDEX_VIOLATIONS_REAL_BACKUP" "$viol" \
+        || echo "NOTE: could not restore docs/INDEX.violations.md — the untracked companion may be left dirty" >&2
+      # Copilot (PR #385 bot review, Amendment 27): the mktemp backup itself
+      # was never removed after restoring from it, leaking one file into
+      # /tmp per run (or per CI job) forever. Removed unconditionally once
+      # its job (the restore above) is done, whether the restore succeeded
+      # or not — nothing else in this suite reads it afterward.
+      rm -f "$INDEX_VIOLATIONS_REAL_BACKUP"
+    elif [[ "$INDEX_VIOLATIONS_REAL_EXISTED" == "0" && -f "$viol" ]]; then
+      rm -f "$viol"
+    fi
+  fi
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
     echo "INFO: keeping fixture at $TEST_DIR"
     return 0
@@ -839,6 +866,16 @@ MD
 
 test_019_regression_anchor() {  # TEST-019 / Spec-AC-12
   log_info "Test: real-repo docs-audit CLEAN + generate-docs-index idempotent (TEST-019)..."
+  # Arm the docs/INDEX.violations.md floor (see cleanup()) BEFORE either
+  # generate-docs-index call below.
+  INDEX_VIOLATIONS_REAL_ARMED=1
+  if [[ -f "$PROJECT_ROOT/docs/INDEX.violations.md" ]]; then
+    INDEX_VIOLATIONS_REAL_EXISTED=1
+    INDEX_VIOLATIONS_REAL_BACKUP="$(mktemp "${TMPDIR:-/tmp}/aai-state-t019-violations.XXXXXX")"
+    cp "$PROJECT_ROOT/docs/INDEX.violations.md" "$INDEX_VIOLATIONS_REAL_BACKUP"
+  else
+    INDEX_VIOLATIONS_REAL_EXISTED=0
+  fi
   local ec=0
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/t19-audit.log" 2>&1) || ec=$?
   [[ "$ec" == 0 ]] || log_fail "real-repo docs-audit --check --strict --no-event must exit 0 (got $ec): $(tail -10 "$TEST_DIR/t19-audit.log")"
@@ -3040,8 +3077,14 @@ test_071_rguard_predicate_which_file() {  # TEST-037 / Spec-AC-12
   # sibling to a docs/ai/STATE.yaml) must ALSO refuse exit 3, even though it
   # sits outside THIS repo's own root (arm B, independent of arm A).
   local other="$TEST_DIR/t71-other-project"
-  mkdir -p "$other/.aai/scripts" "$other/docs/ai"
+  mkdir -p "$other/.aai/scripts/lib" "$other/docs/ai"
   cp "$PROJECT_ROOT/.aai/scripts/state.mjs" "$other/.aai/scripts/state.mjs"
+  # state.mjs's real ./lib/*.mjs imports (check-vendored-script-deps.mjs,
+  # Amendment 21). st_sub() always runs the REAL $PROJECT_ROOT/.aai/scripts/
+  # state.mjs (never this copy) — this vendored copy exists only so $other
+  # LOOKS like a second real project root — but copied anyway so it stays
+  # correct if a future arm ever invokes THIS copy directly.
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$other/.aai/scripts/lib/"
   write_state_fixture "$other/docs/ai/STATE.yaml"
   cp "$other/docs/ai/STATE.yaml" "$TEST_DIR/t71-other-before.yaml"
   ec=0
@@ -3058,6 +3101,38 @@ test_071_rguard_predicate_which_file() {  # TEST-037 / Spec-AC-12
   ! grep -q '^FAIL:' "$d_out" || log_fail "(d) test-aai-check-state.sh must carry zero FAIL: lines under the marker: $(grep '^FAIL:' "$d_out")"
 
   log_pass "R-GUARD asks WHICH file — mktemp fixture writes, shipping/other-project STATE refuses exit 3 byte-identical, CORE suite green with no scrub (TEST-037)"
+}
+
+test_078_index_violations_backup_removed_after_cleanup() {  # Copilot, PR #385 bot review, Amendment 27
+  log_info "Test: cleanup()'s docs/INDEX.violations.md restore removes its OWN mktemp backup afterward, leaking no stray /tmp file (Copilot PR #385 bot review)..."
+  local scratch_root backup_file
+  scratch_root="$(mktemp -d "${TMPDIR:-/tmp}/aai-state-t078-root.XXXXXX")"
+  mkdir -p "$scratch_root/docs"
+  echo "pre-existing violations (must be restored)" > "$scratch_root/docs/INDEX.violations.md"
+  backup_file="$(mktemp "${TMPDIR:-/tmp}/aai-state-t078-backup.XXXXXX")"
+  echo "backed-up content" > "$backup_file"
+
+  # Run cleanup() in a SUBSHELL with PROJECT_ROOT/TEST_DIR/KEEP_TEST_DIR and
+  # the INDEX_VIOLATIONS_REAL_* globals overridden locally, so this never
+  # touches the real repo's own docs/INDEX.violations.md or TEST_DIR — the
+  # same "existed=1, a real backup file present" branch test_019 arms.
+  (
+    PROJECT_ROOT="$scratch_root"
+    TEST_DIR=""
+    KEEP_TEST_DIR=""
+    INDEX_VIOLATIONS_REAL_ARMED=1
+    INDEX_VIOLATIONS_REAL_EXISTED=1
+    INDEX_VIOLATIONS_REAL_BACKUP="$backup_file"
+    cleanup
+  )
+
+  [[ ! -f "$backup_file" ]] \
+    || { rm -rf "$scratch_root" "$backup_file"; log_fail "TEST-078: cleanup() left its mktemp backup behind: $backup_file"; }
+  grep -q "backed-up content" "$scratch_root/docs/INDEX.violations.md" \
+    || { rm -rf "$scratch_root"; log_fail "TEST-078: cleanup() did not restore the backup's content before removing it"; }
+
+  rm -rf "$scratch_root"
+  log_pass "TEST-078: cleanup() restores docs/INDEX.violations.md then removes its own mktemp backup, no stray /tmp file left"
 }
 
 test_077_rguard_directory_symlink() {  # TEST-039 / Spec-AC-12 (validation-round1 B1)
@@ -3498,6 +3573,7 @@ main() {
   test_074_amend_run
   test_075_clear_focus
   test_076_help_and_usage_grammar
+  test_078_index_violations_backup_removed_after_cleanup
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

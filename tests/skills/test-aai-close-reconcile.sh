@@ -735,6 +735,448 @@ test_015_unreadable_doc_never_reads_clean() {
   log_pass "TEST-015: an unreadable touched document fails the gate closed (named path, non-zero exit) in both --check and --apply, instead of vanishing into a false CLEAN"
 }
 
+# --- TEST-524 (Spec-AC-04(a)) ------------------------------------------------
+test_524_terminal_without_telemetry() {
+  log_info "TEST-524 (Spec-AC-04): a doc terminal at the delivery sha with empty links.commits and no work_item_closed event is itemed by --check..."
+  local dir base head out rc
+
+  dir=$(init_range_repo "t524")
+  base=$(git -C "$dir" rev-parse HEAD)
+  write_issue_doc "$dir/docs/issues/ISSUE-0524-t524.md" "t524-ref" "done"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "flip t524 done with no telemetry (#524)"
+  head=$(git -C "$dir" rev-parse HEAD)
+
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-524: expected exit 1, got $rc. Output:\n$out"
+  assert_payload_contains "$out" "OPEN docs/issues/ISSUE-0524-t524.md" "TEST-524: missing OPEN line for the terminal-without-telemetry doc"
+  assert_payload_contains "$out" "id=t524-ref" "TEST-524: missing id=t524-ref"
+  assert_payload_contains "$out" "reason=terminal-without-telemetry" "TEST-524: missing reason=terminal-without-telemetry"
+
+  # negative control: --apply must refuse (never guess a commit/PR for an
+  # already-terminal doc) and leave the doc's bytes unchanged.
+  local before after out_apply rc_apply
+  before="$(cat "$dir/docs/issues/ISSUE-0524-t524.md")"
+  out_apply="$(node "$CLOSE_RECONCILE" --apply --range "$base..$head" --root "$dir" 2>&1)" && rc_apply=0 || rc_apply=$?
+  [[ "$rc_apply" -ne 0 ]] || log_fail "TEST-524: --apply expected non-zero (refusal), got 0. Output:\n$out_apply"
+  assert_payload_contains "$out_apply" "reason=terminal-without-telemetry" "TEST-524: --apply refusal missing reason=terminal-without-telemetry"
+  after="$(cat "$dir/docs/issues/ISSUE-0524-t524.md")"
+  [[ "$before" == "$after" ]] || log_fail "TEST-524: --apply must not write to a terminal-without-telemetry doc"
+
+  # positive control: a terminal doc WITH links.commits and a work_item_closed
+  # event must never be itemed — the ceremony genuinely ran.
+  local dir2 base2 head2 out2 rc2
+  dir2=$(init_range_repo "t524ctrl")
+  base2=$(git -C "$dir2" rev-parse HEAD)
+  cat > "$dir2/docs/issues/ISSUE-0524-t524ctrl.md" <<'EOF'
+---
+id: t524ctrl-ref
+type: issue
+status: done
+links:
+  pr:
+    - 999
+  commits:
+    - deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+---
+
+# Issue — Fixture t524ctrl-ref
+
+## Summary
+- fixture doc for close-reconcile tests.
+EOF
+  echo '{"v":1,"ts":"2020-01-01T00:00:00Z","actor":"test","event":"work_item_closed","ref":"t524ctrl-ref","payload":{}}' >> "$dir2/docs/ai/EVENTS.jsonl"
+  git -C "$dir2" add -A
+  git -C "$dir2" commit -q -m "already properly closed t524ctrl (#525)"
+  head2=$(git -C "$dir2" rev-parse HEAD)
+
+  out2="$(node "$CLOSE_RECONCILE" --check --range "$base2..$head2" --root "$dir2" 2>&1)" && rc2=0 || rc2=$?
+  [[ "$rc2" -eq 0 ]] || log_fail "TEST-524: positive control (real telemetry present) expected exit 0 CLEAN, got $rc2. Output:\n$out2"
+  assert_payload_contains "$out2" "CLEAN" "TEST-524: positive control expected CLEAN"
+
+  # SPLIT-CONJUNCT ARMS (T2): the predicate is `linksCommitsEmpty &&
+  # !hasCloseEvent` — dropping EITHER conjunct alone must still leave a
+  # doc that satisfies only the OTHER one CLEAN, so each half needs its
+  # own input that would falsely redden if that half were removed.
+
+  # Arm B: links.commits EMPTY, but a work_item_closed event DOES exist —
+  # pins the `!hasCloseEvent` half: without it (mutated to always-true),
+  # this doc would be wrongly itemed on the commits-empty half alone.
+  local dir3 base3 head3 out3 rc3
+  dir3=$(init_range_repo "t524b")
+  base3=$(git -C "$dir3" rev-parse HEAD)
+  write_issue_doc "$dir3/docs/issues/ISSUE-0524-t524b.md" "t524b-ref" "done"
+  echo '{"v":1,"ts":"2020-01-01T00:00:00Z","actor":"test","event":"work_item_closed","ref":"t524b-ref","payload":{}}' >> "$dir3/docs/ai/EVENTS.jsonl"
+  git -C "$dir3" add -A
+  git -C "$dir3" commit -q -m "flip t524b done, event present, commits still empty (#524)"
+  head3=$(git -C "$dir3" rev-parse HEAD)
+  out3="$(node "$CLOSE_RECONCILE" --check --range "$base3..$head3" --root "$dir3" 2>&1)" && rc3=0 || rc3=$?
+  [[ "$rc3" -eq 0 ]] || log_fail "TEST-524: empty links.commits BUT a work_item_closed event present must stay CLEAN (the !hasCloseEvent conjunct alone must not fire), got $rc3. Output:\n$out3"
+  assert_payload_contains "$out3" "CLEAN" "TEST-524: arm B (event present, commits empty) expected CLEAN"
+
+  # Arm C: links.commits NON-EMPTY, but NO work_item_closed event — pins
+  # the `linksCommitsEmpty` half: without it (mutated to always-true),
+  # this doc would be wrongly itemed on the no-event half alone.
+  local dir4 base4 head4 out4 rc4
+  dir4=$(init_range_repo "t524c")
+  base4=$(git -C "$dir4" rev-parse HEAD)
+  cat > "$dir4/docs/issues/ISSUE-0524-t524c.md" <<'EOF'
+---
+id: t524c-ref
+type: issue
+status: done
+links:
+  pr:
+    - 999
+  commits:
+    - deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+---
+
+# Issue — Fixture t524c-ref
+
+## Summary
+- fixture doc for close-reconcile tests.
+EOF
+  git -C "$dir4" add -A
+  git -C "$dir4" commit -q -m "flip t524c done, commits present, event still absent (#524)"
+  head4=$(git -C "$dir4" rev-parse HEAD)
+  out4="$(node "$CLOSE_RECONCILE" --check --range "$base4..$head4" --root "$dir4" 2>&1)" && rc4=0 || rc4=$?
+  [[ "$rc4" -eq 0 ]] || log_fail "TEST-524: links.commits present BUT no work_item_closed event must stay CLEAN (the linksCommitsEmpty conjunct alone must not fire), got $rc4. Output:\n$out4"
+  assert_payload_contains "$out4" "CLEAN" "TEST-524: arm C (commits present, event absent) expected CLEAN"
+
+  log_pass "TEST-524: a terminal doc with no links.commits and no work_item_closed event is itemed reason=terminal-without-telemetry and --apply refuses it; a properly-closed terminal doc stays CLEAN; either telemetry half alone (event-only or commits-only) also stays CLEAN, pinning both conjuncts independently"
+}
+
+# --- TEST-525 (Spec-AC-04(b)) ------------------------------------------------
+test_525_unpaired_draft_intake() {
+  log_info "TEST-525 (Spec-AC-04): a draft intake with NO paired spec whose frontmatter id a range commit names is itemed; one no commit names is not..."
+  local dir base head out rc
+
+  dir=$(init_range_repo "t525")
+  base=$(git -C "$dir" rev-parse HEAD)
+  # The MAINTENANCE HALF itself is never touched by this range (M2's own
+  # shape) — only a doc the range DOES touch names its id, the way this
+  # corpus's own intake/spec docs already do ("Paired maintenance half:
+  # `<id>`"). Written straight into the seed commit so the range under test
+  # never touches ISSUE-0525-t525.md at all.
+  write_issue_doc "$dir/docs/issues/ISSUE-0525-t525.md" "t525-ref" "draft"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "seed the untouched maintenance half"
+  base=$(git -C "$dir" rev-parse HEAD)
+  cat > "$dir/docs/issues/ISSUE-0525-carrier.md" <<'EOF'
+---
+id: t525-carrier-ref
+type: change
+status: implementing
+links:
+  pr: []
+  commits: []
+---
+
+# Change — Fixture t525-carrier-ref
+
+## Summary
+- Paired maintenance half: `t525-ref`.
+EOF
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver the carrier that names t525-ref (#526)"
+  head=$(git -C "$dir" rev-parse HEAD)
+
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-525: expected exit 1, got $rc. Output:\n$out"
+  assert_payload_contains "$out" "OPEN docs/issues/ISSUE-0525-t525.md" "TEST-525: missing OPEN line for the unpaired, unmentioned-until-now doc"
+  assert_payload_contains "$out" "id=t525-ref" "TEST-525: missing id=t525-ref"
+  assert_payload_contains "$out" "reason=id-mention-unpaired" "TEST-525: missing reason=id-mention-unpaired"
+  # the carrier itself is ALSO an item (status implementing) — not this row's
+  # concern, but its presence must not crowd out the maintenance half's line.
+  assert_payload_contains "$out" "id=t525-carrier-ref" "TEST-525: carrier doc (status implementing) should still be reported too"
+
+  # negative control: a draft doc NO commit in the range names is not itemed
+  # by this arm (it may still be silent overall — a bare draft, no spec, no
+  # mention — the CLEAN case this escape must not over-fire on).
+  local dir2 base2 head2 out2 rc2
+  dir2=$(init_range_repo "t525ctrl")
+  base2=$(git -C "$dir2" rev-parse HEAD)
+  write_issue_doc "$dir2/docs/issues/ISSUE-0525-ctrl.md" "t525ctrl-ref" "draft"
+  git -C "$dir2" add -A
+  git -C "$dir2" commit -q -m "seed the never-mentioned doc"
+  base2=$(git -C "$dir2" rev-parse HEAD)
+  echo "unrelated" >> "$dir2/src/app.js"
+  git -C "$dir2" add -A
+  git -C "$dir2" commit -q -m "deliver something that never names t525ctrl-ref (#527)"
+  head2=$(git -C "$dir2" rev-parse HEAD)
+
+  out2="$(node "$CLOSE_RECONCILE" --check --range "$base2..$head2" --root "$dir2" 2>&1)" && rc2=0 || rc2=$?
+  [[ "$rc2" -eq 0 ]] || log_fail "TEST-525: negative control (never mentioned) expected exit 0 CLEAN, got $rc2. Output:\n$out2"
+  assert_payload_contains "$out2" "CLEAN" "TEST-525: negative control expected CLEAN"
+
+  log_pass "TEST-525: a range-mentioned, unpaired draft intake is itemed reason=id-mention-unpaired; an un-mentioned draft intake stays CLEAN"
+}
+
+# --- TEST-526 (Spec-AC-04, real corpus replay) -------------------------------
+test_526_replays_the_two_real_ranges() {
+  log_info "TEST-526 (Spec-AC-04): replaying PR 382's and PR 384's real merge ranges over THIS repository no longer names ISSUE-0040 or CHANGE-0181 (spec-close-ceremony-sweep Spec-AC-10 closed both, run 11); a fully closed pair in the same shape stays CLEAN..."
+  local out rc
+
+  # Replayed directly against $PROJECT_ROOT's own git history (read-only:
+  # --check never writes) — these two ranges and the two doc ids are the
+  # literal M2 measurement this AC exists to close. THIS ROW WAS ORIGINALLY
+  # WRITTEN (TDD run 2/12) asserting exit 1 with the doc named — the state
+  # M2 measured, before Spec-AC-10 (this ride's OWN run 11) closed both
+  # docs with their real pr/commit. Re-run against the now-corrected live
+  # corpus: each range still separately surfaces one UNRELATED, genuinely
+  # still-open pre-existing item (DEBT-0003 / DEBT-0007 — real, out of this
+  # ride's scope) — asserted on by name here (not merely exit 1) so this row
+  # keeps exercising missingCloseEvidence's real id-mention-unpaired
+  # detection instead of only proving a negative; a mutation that disables
+  # that detection now reddens THIS assertion (its own real doc going
+  # unnoticed) rather than staying green on a property neither range
+  # exercises any more. The narrower, ride-specific property is the
+  # not-contains pair below: neither output names ISSUE-0040 or CHANGE-0181
+  # by id any more.
+  out="$(node "$CLOSE_RECONCILE" --check --range "68fd2e14..e6aae10b" --root "$PROJECT_ROOT" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-526: PR 382's range expected exit 1 (an unrelated open item, DEBT-0003, is still unpaired), got $rc. Output:\n$out"
+  assert_payload_contains "$out" "console-log-then-exit-across-41-clis" \
+    "TEST-526: PR 382's range must still name the unrelated open item DEBT-0003 (console-log-then-exit-across-41-clis) — proves id-mention-unpaired detection is still armed"
+  assert_payload_not_contains "$out" "focus-and-validation-state-go-stale-silently" \
+    "TEST-526: PR 382's range must no longer name ISSUE-0040 (focus-and-validation-state-go-stale-silently) — Spec-AC-10 closed it with links.pr 382/links.commits e6aae10b"
+
+  out="$(node "$CLOSE_RECONCILE" --check --range "94a983ec..7270a29c" --root "$PROJECT_ROOT" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-526: PR 384's range expected exit 1 (an unrelated open item, DEBT-0007, is still unpaired), got $rc. Output:\n$out"
+  assert_payload_contains "$out" "withdrawn-claim-sweeps-are-not-verifiable" \
+    "TEST-526: PR 384's range must still name the unrelated open item DEBT-0007 (withdrawn-claim-sweeps-are-not-verifiable) — proves id-mention-unpaired detection is still armed"
+  assert_payload_not_contains "$out" "unrecorded-spec-amendment-is-invisible" \
+    "TEST-526: PR 384's range must no longer name CHANGE-0181 (unrecorded-spec-amendment-is-invisible) — Spec-AC-10 closed it with links.pr 384/links.commits 7270a29c"
+
+  # A fully closed pair in the SAME shape (carrier names a maintenance half
+  # that is itself already terminal) must stay CLEAN — proving this arm
+  # reads the maintenance half's OWN status, not just the mention.
+  local dir base head out2 rc2
+  dir=$(init_range_repo "t526closed")
+  base=$(git -C "$dir" rev-parse HEAD)
+  write_issue_doc "$dir/docs/issues/ISSUE-0526-t526.md" "t526-ref" "done"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "seed the already-closed maintenance half"
+  base=$(git -C "$dir" rev-parse HEAD)
+  cat > "$dir/docs/issues/ISSUE-0526-carrier.md" <<'EOF'
+---
+id: t526-carrier-ref
+type: change
+status: done
+links:
+  pr:
+    - 528
+  commits:
+    - cafebabecafebabecafebabecafebabecafebabe
+---
+
+# Change — Fixture t526-carrier-ref
+
+## Summary
+- Paired maintenance half: `t526-ref`.
+EOF
+  echo '{"v":1,"ts":"2020-01-01T00:00:00Z","actor":"test","event":"work_item_closed","ref":"t526-carrier-ref","payload":{}}' >> "$dir/docs/ai/EVENTS.jsonl"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver the carrier, already fully closed (#528)"
+  head=$(git -C "$dir" rev-parse HEAD)
+
+  out2="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc2=0 || rc2=$?
+  [[ "$rc2" -eq 0 ]] || log_fail "TEST-526: a fully closed pair expected exit 0 CLEAN, got $rc2. Output:\n$out2"
+  assert_payload_contains "$out2" "CLEAN" "TEST-526: a fully closed pair expected CLEAN"
+
+  log_pass "TEST-526: replaying PR 382's and PR 384's real ranges no longer names ISSUE-0040 or CHANGE-0181 (Spec-AC-10 closed both); a fully closed pair in the same shape stays CLEAN"
+}
+
+# --- TEST-527 (Spec-AC-05) ----------------------------------------------------
+test_527_pairs_by_links_requirement() {
+  log_info "TEST-527 (Spec-AC-05): an off-convention pair is paired through the spec's links.requirement; --apply closes both halves; a second --check is CLEAN for a non-empty candidate set..."
+  local dir base head out rc
+
+  dir=$(init_range_repo "t527")
+  base=$(git -C "$dir" rev-parse HEAD)
+  write_issue_doc "$dir/docs/issues/ISSUE-0527-t527.md" "t527-ref" "implementing"
+  # The spec's id deliberately does NOT read "spec-t527-ref" — the literal
+  # convention pairItems() tries first — so only the links.requirement
+  # fallback can pair it to its primary.
+  cat > "$dir/docs/specs/SPEC-0527-t527.md" <<'EOF'
+---
+id: spec-t527-alt
+type: spec
+number: null
+status: implementing
+ceremony_level: 2
+links:
+  requirement: docs/issues/ISSUE-0527-t527.md
+  rfc: null
+  pr: []
+  commits: []
+---
+
+# SPEC — Fixture spec-t527-alt
+
+SPEC-FROZEN: true
+
+## Acceptance Criteria Status
+
+| Spec-AC | Description | Status | Evidence | Review-By | Notes |
+|---------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | fixture | done | commit-abc | — | — |
+
+## Test Plan
+
+| Test ID | Spec-AC | Type | File path | Description | Status |
+|---------|---------|------|-----------|--------------|--------|
+| TEST-001 | Spec-AC-01 | unit | n/a | fixture | green |
+EOF
+  echo "changed" >> "$dir/src/app.js"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver t527 off-convention pair (#529)"
+  head=$(git -C "$dir" rev-parse HEAD)
+
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-527: first --check expected exit 1 (non-empty candidate set), got $rc. Output:\n$out"
+  assert_payload_contains "$out" "id=t527-ref" "TEST-527: first --check does not name the primary"
+
+  out="$(node "$CLOSE_RECONCILE" --apply --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-527: --apply expected exit 0, got $rc. Output:\n$out"
+  local closed_lines
+  closed_lines=$(printf '%s\n' "$out" | grep -c "^close-reconcile: CLOSED " || true)
+  [[ "${closed_lines:-0}" -eq 1 ]] || log_fail "TEST-527: expected exactly ONE close-work-item.mjs invocation (one CLOSED line), got ${closed_lines:-0}. Output:\n$out"
+
+  grep -q "^status: done" "$dir/docs/issues/ISSUE-0527-t527.md" || log_fail "TEST-527: primary doc was not closed"
+  grep -q "^status: done" "$dir/docs/specs/SPEC-0527-t527.md" || log_fail "TEST-527: off-convention spec was not closed alongside its primary"
+
+  local out2 rc2
+  out2="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc2=0 || rc2=$?
+  [[ "$rc2" -eq 0 ]] || log_fail "TEST-527: second --check expected exit 0, got $rc2. Output:\n$out2"
+  assert_payload_contains "$out2" "CLEAN" "TEST-527: second --check expected CLEAN (both halves now terminal, not an empty candidate set)"
+
+  log_pass "TEST-527: an off-convention pair is paired via links.requirement, closed in ONE invocation, and a re-check is genuinely CLEAN"
+}
+
+# --- TEST-594 (Spec-AC-04(b), P1 Codex / PR #385 bot review, Amendment 27) ---
+test_594_unreadable_untouched_candidate_never_reads_clean() {
+  log_info "TEST-594 (Spec-AC-04(b)): an unreadable UNTOUCHED corpus document must never let --check print CLEAN, even when the range names its id..."
+  local dir base head out rc target
+
+  dir=$(init_range_repo "t594")
+  target="$dir/docs/issues/ISSUE-0594-t594.md"
+  write_issue_doc "$target" "t594-ref" "draft"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "seed the untouched maintenance half"
+  base=$(git -C "$dir" rev-parse HEAD)
+  cat > "$dir/docs/issues/ISSUE-0594-carrier.md" <<'EOF'
+---
+id: t594-carrier-ref
+type: change
+status: implementing
+links:
+  pr: []
+  commits: []
+---
+
+# Change — Fixture t594-carrier-ref
+
+## Summary
+- Paired maintenance half: `t594-ref`.
+EOF
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver the carrier that names t594-ref (#594)"
+  head=$(git -C "$dir" rev-parse HEAD)
+
+  if ! seed_make_unreadable "$target"; then
+    log_info "TEST-594: chmod 000 denies this uid nothing (root/CI perm bypass) — the unreadable-candidate defect cannot be exercised on this machine, skipping this test's assertions"
+    chmod 644 "$target" 2>/dev/null || true
+    return 0
+  fi
+
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  chmod 644 "$target" 2>/dev/null || true
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-594: an unreadable untouched candidate must not let --check exit 0, got rc=0. Output:\n$out"
+  assert_payload_not_contains "$out" "close-reconcile: CLEAN" \
+    "TEST-594: --check reported CLEAN despite an untouched candidate document it could not read — id-mention-unpaired printed CLEAN precisely because a document could not be inspected"
+  assert_payload_contains "$out" "docs/issues/ISSUE-0594-t594.md" \
+    "TEST-594: output does not name the unreadable untouched candidate path"
+  assert_payload_contains "$out" "doc-unreadable" \
+    "TEST-594: output does not name the doc-unreadable reason"
+
+  log_pass "TEST-594: an unreadable untouched corpus document refuses the gate closed instead of letting id-mention-unpaired read CLEAN"
+}
+
+# --- TEST-595 (Spec-AC-04(b)/Spec-AC-05, P2 Codex / PR #385 bot review, Amendment 27) ---
+test_595_candidate_pairs_by_links_requirement() {
+  log_info "TEST-595 (Spec-AC-04(b)): an untouched candidate mentioned by the range is not id-mention-unpaired when an off-convention spec elsewhere in the corpus pairs it via links.requirement..."
+  local dir base head out rc
+
+  dir=$(init_range_repo "t595")
+  write_issue_doc "$dir/docs/issues/ISSUE-0595-t595.md" "t595-ref" "draft"
+  # Off-convention spec id (does NOT read "spec-t595-ref") whose OWN
+  # links.requirement names the primary's path verbatim -- the SAME fallback
+  # pairItems() already honours for docs already in `items`, now also
+  # honoured at the candidate-detection stage (missingPairedSpecMention).
+  cat > "$dir/docs/specs/SPEC-0595-t595.md" <<'EOF'
+---
+id: spec-t595-alt
+type: spec
+number: null
+status: implementing
+ceremony_level: 2
+links:
+  requirement: docs/issues/ISSUE-0595-t595.md
+  rfc: null
+  pr: []
+  commits: []
+---
+
+# SPEC — Fixture spec-t595-alt
+
+SPEC-FROZEN: true
+
+## Acceptance Criteria Status
+
+| Spec-AC | Description | Status | Evidence | Review-By | Notes |
+|---------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | fixture | done | commit-abc | — | — |
+
+## Test Plan
+
+| Test ID | Spec-AC | Type | File path | Description | Status |
+|---------|---------|------|-----------|--------------|--------|
+| TEST-001 | Spec-AC-01 | unit | n/a | fixture | green |
+EOF
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "seed the untouched primary and its off-convention spec"
+  base=$(git -C "$dir" rev-parse HEAD)
+  cat > "$dir/docs/issues/ISSUE-0595-carrier.md" <<'EOF'
+---
+id: t595-carrier-ref
+type: change
+status: implementing
+links:
+  pr: []
+  commits: []
+---
+
+# Change — Fixture t595-carrier-ref
+
+## Summary
+- Paired maintenance half: `t595-ref`.
+EOF
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver the carrier that names t595-ref (#595)"
+  head=$(git -C "$dir" rev-parse HEAD)
+
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  assert_payload_not_contains "$out" "reason=id-mention-unpaired" \
+    "TEST-595: an off-convention spec paired via links.requirement must not be reported id-mention-unpaired: $out"
+  assert_payload_not_contains "$out" "docs/issues/ISSUE-0595-t595.md" \
+    "TEST-595: the paired primary must not be named as an item at all: $out"
+  assert_payload_contains "$out" "id=t595-carrier-ref" "TEST-595: carrier doc (status implementing) should still be reported"
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-595: expected exit 1 (carrier still open on its own account), got $rc. Output:\n$out"
+
+  log_pass "TEST-595: an untouched candidate paired via an off-convention spec's links.requirement is not flagged id-mention-unpaired"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -761,6 +1203,12 @@ main() {
   test_013_umbrella_parent_is_exempt
   test_014_attribution_is_resolved_per_item_not_per_range
   test_015_unreadable_doc_never_reads_clean
+  test_524_terminal_without_telemetry
+  test_525_unpaired_draft_intake
+  test_526_replays_the_two_real_ranges
+  test_527_pairs_by_links_requirement
+  test_594_unreadable_untouched_candidate_never_reads_clean
+  test_595_candidate_pairs_by_links_requirement
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

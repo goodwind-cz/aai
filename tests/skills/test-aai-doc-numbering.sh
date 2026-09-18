@@ -472,6 +472,9 @@ links:
 MD
   # a number:null DRAFT whose slug does NOT contain the word "unnumbered"
   write_draft "$d" rfc RFC gadget-flow
+  # Spec-AC-22: the tracked-only walk reads `git ls-files`, so both fixture
+  # docs must be STAGED before the generator runs (no commit needed).
+  (cd "$d" && git add -A docs)
   (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen1.log 2>&1) \
     || log_fail "index gen failed: $(cat "$d/gen1.log")"
   local index="$d/docs/INDEX.md"
@@ -1069,17 +1072,40 @@ TXT
 # The CLOSED list (D3). NOT a repo-wide grep: `SPEC-DRAFT-` is legitimate,
 # permanent prose in docs/specs/**, docs/issues/**, .aai/** and tests/**, and
 # docs/ai/STATE.yaml legitimately records a point-in-time DRAFT path mid-ride.
-# Only these eight PUBLISHED, GENERATED pages are read.
-STALE_SCAN_PAGES=(
-  "docs/USER_GUIDE.md"
-  "docs/INDEX.md"
-  "docs/ai/overview.html"
-  "docs/ai/overview-data.json"
-  "docs/ai/factory-report.html"
-  "docs/ai/factory-report-data.json"
-  "docs/ai/dashboard.html"
-  "docs/ai/dashboard-data.json"
-)
+# Only these PUBLISHED, GENERATED pages are read.
+#
+# Amendment 20 (validation-round4, B1-R4): this array used to be a THIRD
+# hand-written copy of close-ceremony-sweep's shared-page membership
+# (alongside lib/docs-model.mjs's SHARED_GENERATED_PAGES and
+# orchestration-dispatch.mjs's TREE_HASH_EXCLUDE_PATHS), and it had drifted:
+# it named docs/ai/factory-report-data.json (so it, alone of the three lists,
+# already had that one right) but was MISSING docs/SKILL_CATALOG.html and
+# docs/skill-catalog-data.json, the docs-hub pair Amendment 19 added to
+# SHARED_GENERATED_PAGES. Nothing ever compared this list to that one, so the
+# gap was as invisible as B1-R4's was. Fixed structurally: derived from
+# SHARED_GENERATED_PAGES itself (the single authority) at suite load time,
+# plus docs/ai/dashboard.html/-data.json named explicitly — generate-
+# dashboard.mjs is NOT part of close-work-item.mjs's regen tail (so its pages
+# are outside SHARED_GENERATED_PAGES by definition), but IS the same
+# "published, generated page a DRAFT reference could go stale in" class this
+# scan exists to catch, so it stays in this list's own scope even though it
+# is not a close-ceremony shared page. A node failure here is fatal to the
+# whole suite (not silently absorbed into an empty list, which would turn
+# this D3 detection check into a silent no-op over nothing).
+STALE_SCAN_PAGES=()
+while IFS= read -r _stale_scan_page; do
+  [[ -n "$_stale_scan_page" ]] && STALE_SCAN_PAGES+=("$_stale_scan_page")
+done < <(node -e '
+  import("'"$PROJECT_ROOT"'/.aai/scripts/lib/docs-model.mjs").then(m => {
+    for (const p of m.SHARED_GENERATED_PAGES) console.log(p);
+  }).catch((e) => { process.stderr.write(String(e && e.stack || e) + "\n"); process.exit(1); });
+')
+if [[ ${#STALE_SCAN_PAGES[@]} -eq 0 ]]; then
+  echo "FATAL: could not derive STALE_SCAN_PAGES from lib/docs-model.mjs's SHARED_GENERATED_PAGES" >&2
+  exit 1
+fi
+STALE_SCAN_PAGES+=("docs/ai/dashboard.html" "docs/ai/dashboard-data.json")
+unset _stale_scan_page
 
 # scan_stale_draft_refs <root>
 #   The D3 predicate. For every closed-list page that EXISTS and is git-TRACKED
@@ -1187,6 +1213,13 @@ None.
 None.
 MD
   printf '# User Guide\n\nHand-written prose that must survive verbatim.\n' > "$d/docs/USER_GUIDE.md"
+  # Spec-AC-22 (spec-close-ceremony-sweep): the generators now enumerate
+  # through `git ls-files` (D3's tracked-only walk), so an UNSTAGED fixture
+  # document is invisible to them — stage before generating, the way a real
+  # intake would (no commit required here; the tracked walk reads staged
+  # adds, and the commit below still lands for the allocator step that
+  # follows).
+  (cd "$d" && git add -A docs)
   (cd "$d" && node .aai/scripts/generate-overview.mjs >/dev/null 2>&1) \
     || log_fail "fixture seed: generate-overview.mjs failed"
   (cd "$d" && node .aai/scripts/generate-userguide-rollup.mjs >/dev/null 2>&1) \
@@ -1601,7 +1634,120 @@ test_031_suite_map_row() {
   done
   grep -qF "tests/fixtures/close-regenerate-order" <<< "$row" \
     || log_fail "suite-map aai-doc-numbering row must list the incident-replay fixture tree"
-  log_pass "TEST-031 suite-map aai-doc-numbering row carries all eight closed-list pages + the replay fixtures"
+  log_pass "TEST-031 suite-map aai-doc-numbering row carries every closed-list page + the replay fixtures"
+}
+
+# --- TEST-552 (spec-close-ceremony-sweep Spec-AC-20, D2) ---------------------
+# SKILL_PR step 1b names the restamp invocation IMMEDIATELY AFTER the
+# allocator's own invocation line, keyed on the allocator's own completion
+# output (the `allocated ...` line), so a renumbered frozen spec is restamped
+# in the SAME step that renumbered it rather than left to redden later.
+test_552_skill_pr_runs_the_restamp() {
+  log_info "TEST-552: SKILL_PR step 1b names the restamp invocation immediately after the allocator call, keyed on the allocator's own completion output..."
+  local pr="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  local alloc="$ALLOC_SCRIPT"
+  assert_file "$pr"; assert_file "$alloc"
+
+  local sec; sec="$(awk '/^1b\. /{on=1} /^1c\. /{on=0} on' "$pr")"
+  [[ -n "$sec" ]] || log_fail "TEST-552: could not extract SKILL_PR step 1b"
+
+  grep -qF 'spec-amend.mjs restamp' <<< "$sec" \
+    || log_fail "TEST-552: SKILL_PR step 1b must name the spec-amend.mjs restamp invocation"
+
+  # Ordering: the restamp line must sit AFTER the allocator's own invocation
+  # line within step 1b — awk over the extracted section (a here-string, not
+  # a pipe from a live producer, so no early-closing-reader risk under -o
+  # pipefail).
+  local alloc_line restamp_line
+  alloc_line="$(awk 'index($0,"allocate-doc-number.mjs --path"){print NR; exit}' <<< "$sec")"
+  restamp_line="$(awk 'index($0,"spec-amend.mjs restamp"){print NR; exit}' <<< "$sec")"
+  [[ -n "$alloc_line" ]] \
+    || log_fail "TEST-552: could not find the allocator's own invocation line inside step 1b"
+  [[ -n "$restamp_line" ]] \
+    || log_fail "TEST-552: could not find the restamp invocation line inside step 1b"
+  [[ "$restamp_line" -gt "$alloc_line" ]] \
+    || log_fail "TEST-552: the restamp invocation (line $restamp_line) must appear AFTER the allocator's own invocation (line $alloc_line) in step 1b"
+
+  # Keyed on the allocator's own completion output: step 1b must reference
+  # the `allocated ...` completion line's own leading word, and the allocator
+  # itself must still print it (source pin, mirroring TEST-030's discipline).
+  grep -qF 'allocated' <<< "$sec" \
+    || log_fail "TEST-552: step 1b must key the restamp off the allocator's own completion output (the 'allocated ...' line)"
+  grep -qF 'allocate complete:' "$alloc" \
+    || log_fail "TEST-552: the allocator must still print a completion line"
+
+  log_pass "TEST-552 SKILL_PR step 1b names the restamp invocation right after the allocator call, keyed on the allocator's own completion output"
+}
+
+# --- TEST-589 (Spec-AC-30, Amendment 20) -------------------------------------
+# allocate-doc-number.mjs's SPEC_PAGE_GENERATORS is `protected_paths_l3` and
+# cannot import lib/docs-model.mjs's SHARED_GENERATED_PAGES (D1) — the two
+# lists are kept in sync BY HAND, and validation-round4 named this as exactly
+# the same class of invisible drift as B1-R4: "no test reads
+# SPEC_PAGE_GENERATORS at all... both lists would pass every check the ride
+# has" if someone added a generator to the allocator whose page is not in the
+# shared set, or renamed one of the three. This test PINS the agreement from
+# the test side (the only side that CAN import both): it parses
+# SPEC_PAGE_GENERATORS's own literal `pages: [...]` arrays straight out of
+# allocate-doc-number.mjs's source text (never edits or imports that L3 file)
+# and asserts every page it names is a member of SHARED_GENERATED_PAGES.
+#
+# validation-round5 NB-1 (non-blocking, fixed): the extraction regex only
+# matched a SINGLE-quoted `'docs/...'` string, so a page string written with
+# double quotes was silently not extracted — the NO-PAGES-EXTRACTED guard
+# only fires at ZERO extractions, so the run still passed on the OTHER pages.
+# Fixed: the extraction now matches either quote style.
+#
+# S1 (non-blocking, fixed): subset containment alone lets a DROPPED page pass
+# silently — shrinking `pages: [...]` (even to empty) still satisfies "every
+# extracted page is a member", so nothing reddened. `EXPECTED_ALLOCATOR_PAGES`
+# below is the test-side pin of the allocator's CURRENT three pages (the only
+# way to catch a drop without importing the protected_paths_l3 file itself,
+# D1); extraction must equal it EXACTLY, in addition to the pre-existing
+# subset-of-SHARED_GENERATED_PAGES check (that direction still catches an
+# ADDED page the shared set does not recognize, membership or not).
+test_589_allocator_pages_agree_with_shared_set() {
+  log_info "TEST-589: allocate-doc-number.mjs's SPEC_PAGE_GENERATORS pages are all members of lib/docs-model.mjs's SHARED_GENERATED_PAGES, and match the pinned expected set exactly..."
+  local -a EXPECTED_ALLOCATOR_PAGES=(
+    "docs/ai/overview.html"
+    "docs/ai/overview-data.json"
+    "docs/USER_GUIDE.md"
+  )
+  local expected_sorted; expected_sorted="$(printf '%s\n' "${EXPECTED_ALLOCATOR_PAGES[@]}" | sort)"
+  local out rc
+  out="$(node -e '
+    import("node:fs").then(async (fsMod) => {
+      const fs = fsMod.default;
+      const { SHARED_GENERATED_PAGES } = await import("'"$PROJECT_ROOT"'/.aai/scripts/lib/docs-model.mjs");
+      const src = fs.readFileSync("'"$PROJECT_ROOT"'/.aai/scripts/allocate-doc-number.mjs", "utf8");
+      const m = src.match(/const SPEC_PAGE_GENERATORS = \[([\s\S]*?)\n\];/);
+      if (!m) { console.log("BLOCK-NOT-FOUND"); process.exit(2); }
+      const pages = [...m[1].matchAll(/[\x27"]((?:docs)\/[^\x27"]+)[\x27"]/g)].map((x) => x[1]);
+      if (pages.length === 0) { console.log("NO-PAGES-EXTRACTED"); process.exit(2); }
+      const bad = pages.filter((p) => !SHARED_GENERATED_PAGES.has(p));
+      console.log(`PAGES:${pages.join(",")}`);
+      console.log(`BAD:${bad.join(",")}`);
+      process.exit(bad.length ? 1 : 0);
+    });
+  ' 2>&1)"; rc=$?
+
+  if [[ "$out" == *"BLOCK-NOT-FOUND"* ]]; then
+    log_fail "TEST-589: could not locate SPEC_PAGE_GENERATORS in allocate-doc-number.mjs — the extraction regex needs updating for whatever shape it moved to"
+    return
+  fi
+  if [[ "$out" == *"NO-PAGES-EXTRACTED"* ]]; then
+    log_fail "TEST-589: SPEC_PAGE_GENERATORS block found but no docs/ page string was extracted from it — extraction regex is stale"
+    return
+  fi
+  if [[ "$rc" -ne 0 ]]; then
+    log_fail "TEST-589: allocate-doc-number.mjs's SPEC_PAGE_GENERATORS names a page SHARED_GENERATED_PAGES does not (both lists have drifted apart): $out"
+    return
+  fi
+  local pages_line; pages_line="$(grep -oE '^PAGES:.*' <<<"$out" | cut -d: -f2-)"
+  local extracted_sorted; extracted_sorted="$(tr ',' '\n' <<<"$pages_line" | sort)"
+  [[ "$extracted_sorted" == "$expected_sorted" ]] \
+    || log_fail "TEST-589: SPEC_PAGE_GENERATORS must extract EXACTLY the pinned expected set (extracted: $(tr '\n' ' ' <<<"$extracted_sorted") | expected: $(tr '\n' ' ' <<<"$expected_sorted")) — a page was dropped, added or renamed"
+  log_pass "TEST-589: every SPEC_PAGE_GENERATORS page agrees with SHARED_GENERATED_PAGES and matches the pinned expected set exactly ($out)"
 }
 
 main() {
@@ -1645,6 +1791,8 @@ main() {
     test_029_close_work_item_byte_unchanged
     test_030_ordering_documented
     test_031_suite_map_row
+    test_552_skill_pr_runs_the_restamp
+    test_589_allocator_pages_agree_with_shared_set
   )
 
   local t total=${#tests[@]} failed_names=()

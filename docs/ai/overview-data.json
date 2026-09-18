@@ -1,17 +1,14 @@
 {
-  "generatedAt": "2026-09-17T17:49:23.734Z",
+  "generatedAt": "2026-09-18T18:31:01.386Z",
   "project": "aai",
   "counts": {
-    "delivered": 245,
-    "in_progress": 21,
+    "delivered": 249,
+    "in_progress": 18,
     "releases": 1,
     "tokens_total": 68899611
   },
   "waiting_on_you": null,
-  "current_focus": {
-    "ref": "mutation-gate-for-tests",
-    "type": "intake_change"
-  },
+  "current_focus": null,
   "in_flight": null,
   "in_progress": [
     {
@@ -72,32 +69,6 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "unrecorded-spec-amendment-is-invisible",
-      "title": "An amendment nobody recorded is invisible to the gate that exists to catch it",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "roadmap-gate-admits-only-the-next-pair",
-      "title": "The roadmap gate admits only the first unfinished pair, so the owner's order is enforced, not decorative",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0184-roadmap-gate-admits-only-the-next-pair.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -176,19 +147,6 @@
       "type": "issue",
       "status": "draft",
       "path": "docs/issues/ISSUE-0039-disposable-checkout-lifecycle-residuals.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "focus-and-validation-state-go-stale-silently",
-      "title": "Focus keeps a foreign spec, a validation verdict outlives the code it validated, and the sweep that finds both runs last",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -289,6 +247,32 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "roadmap-gate-admits-only-the-next-pair",
+      "title": "The roadmap gate admits only the first unfinished pair, so the owner's order is enforced, not decorative",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0184-roadmap-gate-admits-only-the-next-pair.md",
+      "closed_on": "2026-09-18",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "close-ceremony-sweep",
+      "title": "The close ceremony, the docs audit and the generated pages agree with git",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0188-close-ceremony-sweep.md",
+      "closed_on": "2026-09-18",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0182-spec-close-ceremony-sweep.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-close-ceremony-sweep-20260918T172546Z.md"
+    },
     {
       "ref": "mutation-gate-for-tests",
       "title": "A test is admitted only with the mutation that reddens it",
@@ -3473,14 +3457,99 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "unrecorded-spec-amendment-is-invisible",
+      "title": "An amendment nobody recorded is invisible to the gate that exists to catch it",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "focus-and-validation-state-go-stale-silently",
+      "title": "Focus keeps a foreign spec, a validation verdict outlives the code it validated, and the sweep that finds both runs last",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
     }
   ],
   "delivered_groups": [
+    {
+      "key": "month:undated",
+      "kind": "month",
+      "label": "Undated",
+      "items": [
+        {
+          "ref": "unrecorded-spec-amendment-is-invisible",
+          "title": "An amendment nobody recorded is invisible to the gate that exists to catch it",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md",
+          "closed_on": null,
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "focus-and-validation-state-go-stale-silently",
+          "title": "Focus keeps a foreign spec, a validation verdict outlives the code it validated, and the sweep that finds both runs last",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md",
+          "closed_on": null,
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        }
+      ]
+    },
     {
       "key": "month:2026-09",
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "roadmap-gate-admits-only-the-next-pair",
+          "title": "The roadmap gate admits only the first unfinished pair, so the owner's order is enforced, not decorative",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0184-roadmap-gate-admits-only-the-next-pair.md",
+          "closed_on": "2026-09-18",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "close-ceremony-sweep",
+          "title": "The close ceremony, the docs audit and the generated pages agree with git",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0188-close-ceremony-sweep.md",
+          "closed_on": "2026-09-18",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0182-spec-close-ceremony-sweep.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-close-ceremony-sweep-20260918T172546Z.md"
+        },
         {
           "ref": "mutation-gate-for-tests",
           "title": "A test is admitted only with the mutation that reddens it",
