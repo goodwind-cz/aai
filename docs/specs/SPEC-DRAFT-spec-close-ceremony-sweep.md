@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: aa7d4ac49a7b19dbc1a69e17dec864294ea60e592f2e7040601d286179c5a305
+frozen_sha256: e9f8b510094b60d1a80245b8fbcd5c100a059c8ed79d797e538bc2b8cd4dcbc4
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -1250,9 +1250,9 @@ Run 9 also re-recorded TEST-550 and TEST-551, which its edit of the shared
 
 Sign-off: none (tracked).
 
-## Amendment 10 (post-freeze, 2026-09-18 — two run-10 mutation deviations, TDD run 10)
+## Amendment 10 (post-freeze, 2026-09-18 — three run-10 mutation deviations, a same-ride hazard fix, TDD run 10)
 
-Both cells left verbatim in intent; both records RED.
+All three cells left verbatim in intent; all three records RED.
 
 - **TEST-565 (Spec-AC-29).** The cell names `if (isFirstUnfinished(pair,
   roadmap))` (positive form, parameter named `roadmap`). The shipped guard is
@@ -1298,6 +1298,49 @@ headroom 96/2048 (`tests/skills/test-aai-prompt-diet.sh` TEST-010). No
 ledger entry was added this run (Spec-AC-32/TEST-012 true-up is run 11's
 job, per this ride's own run plan); run 11 must account for this 722 B along
 with its own.
+
+**Spec-AC-22 broke `tests/skills/test-aai-doc-numbering.sh`, fixed in this
+ride (standing decision, not filed).** Run 8's D3 tracked-only walk
+(`git ls-files`) made an UNSTAGED fixture document invisible to
+`generate-overview.mjs`/`generate-userguide-rollup.mjs`/
+`generate-docs-index.mjs`; run 8 adapted roughly 35 call sites of this shape
+in `tests/skills/test-aai-docs-audit.sh` but missed `test-aai-doc-numbering.sh`,
+which was not on its run's suite list. Six arms broke: `seed_projection_fixture`
+(shared by `test_020_alloc_regenerates_spec_pages`,
+`test_021_readonly_modes_no_regen`, `test_022_generator_order_pin`,
+`test_027_regen_degradation`, `test_028_exit_contract_unchanged`) wrote its
+three projection-fixture docs and ran the two generators BEFORE its own
+`git add -A docs && git commit`; `test_009_index_display_id` ran
+`generate-docs-index.mjs` over two hand-written docs with no staging at all.
+Fixed by staging (`git add -A docs`, no commit needed — the tracked walk
+reads staged adds, same as a real intake) immediately before each generator
+call; no assertion text changed. `env -u AAI_ROLE AAI_TEST_TIMEOUT=3000 bash
+tests/skills/test-aai-doc-numbering.sh` now reports 31/32 arms passed, the
+sole red being TEST-029 (the `close-work-item.mjs` hash pin, re-pinned in
+run 11, per this ride's own disclosed pre-existing red).
+
+**Survey: no other suite shares the shape.** `grep -rn
+"generate-docs-index\|generate-overview\|generate-userguide-rollup"
+tests/skills/*.sh` was read end to end. `test-aai-docs-audit.sh` (run 8),
+`test-aai-overview.sh`/`test-aai-userguide-rollup.sh`/`test-aai-factory-report.sh`
+(run 8) and `test-aai-product-docs.sh` (its own pre-existing
+`commit_fixture_docs` helper) already stage or commit before every generator
+call; `test-aai-spec-lint.sh` and `test-aai-doc-numbering.sh`'s two
+mirror-based arms (TEST-013, `test_011_seam_survival`) generate over a plain
+`cp -R` directory that is never a git work tree, so D3 degrades to the
+working-tree walk and staging does not apply; `test-aai-state.sh` generates
+over the live `$PROJECT_ROOT` checkout; `test-aai-doc-number-reservation.sh`,
+`test-aai-git-ref-guard.sh` and `test-aai-close-work-item.sh` vendor the
+generator scripts as allocator dependencies but never invoke them directly.
+One suite DOES share the shape and was found, NOT fixed (out of this run's
+scope — reported, not filed): `tests/skills/test-aai-docs-canon.sh`
+`test_seam1_index_includes_canonical` (TEST-301) crashes
+`generate-docs-index.mjs` with `ENOENT` reading `docs/specs/SPEC-X-a.md` —
+`docs-canon.mjs` phase 2 moves that file to `docs/_archive/specs/` on disk
+without staging either side of the move, so the tracked walk still lists the
+committed-but-now-missing old path. The suite's `log_fail` aborts on first
+failure, so every arm after TEST-301 (`run_index` is also called at
+`test_e2e_suite_marker`/TEST-203) is unverified.
 
 Sign-off: none (tracked).
 
