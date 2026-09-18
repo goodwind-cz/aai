@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 // ISSUE-0001 / SPEC-0007 — normalize line endings ONCE at parser entry so every
 // `\n`-splitting parser behaves identically for LF, CRLF (Windows / core.autocrlf),
@@ -588,6 +589,74 @@ export function walk(dir, out = []) {
     }
   }
   return out;
+}
+
+// True when `root` is inside a git work tree. The SAME predicate
+// allocate-doc-number.mjs's own guardDocFiles gate already uses (git
+// rev-parse --is-inside-work-tree), exported here so a second generator does
+// not reimplement it (spec-close-ceremony-sweep D3).
+export function isGitWorkTree(root) {
+  try {
+    return execFileSync(
+      'git', ['-C', root, 'rev-parse', '--is-inside-work-tree'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+// walkTracked(root, dir) -> absolute paths of every git-TRACKED .md file
+// under root/dir (recursive; excludes INDEX.md and .gitkeep, the same filter
+// walk() applies), replacing a working-tree readdir/walk with `git ls-files`
+// (spec-close-ceremony-sweep D3, M8: a generated page must be built from
+// what git tracks, never from an untracked draft or one machine's scratch
+// file sitting in the working tree). Outside a git work tree, degrades to
+// walk() with a NOTE on stderr naming the fallback (degrade-with-NOTE
+// convention, .aai/AGENTS.md) — a non-git consumer of the generator still
+// gets a best-effort index rather than an empty one.
+export function walkTracked(root, dir) {
+  if (!isGitWorkTree(root)) {
+    console.error(`NOTE: ${root} is not a git work tree — ${dir} falls back to a working-tree walk (untracked files may be included).`);
+    return walk(path.join(root, dir));
+  }
+  let listing;
+  try {
+    listing = execFileSync('git', ['-C', root, 'ls-files', '-z', '--', dir], { encoding: 'utf8' });
+  } catch {
+    console.error(`NOTE: "git ls-files -- ${dir}" failed under ${root} — falling back to a working-tree walk (untracked files may be included).`);
+    return walk(path.join(root, dir));
+  }
+  const out = [];
+  for (const rel of listing.split('\0')) {
+    if (!rel || !rel.endsWith('.md')) continue;
+    const base = path.basename(rel);
+    if (base === 'INDEX.md' || base === '.gitkeep') continue;
+    out.push(path.join(root, rel));
+  }
+  return out.sort();
+}
+
+// isTrackedFile(root, relPath) -> true when relPath is present in root's git
+// index (spec-close-ceremony-sweep Spec-AC-23): a generated, TRACKED page
+// must never carry a value derived from an untracked, one-machine input
+// (docs/ai/STATE.yaml is gitignored by every project this layer vendors
+// into — M8 measured the committed overview-data.json baking in exactly
+// that). Outside a git work tree there is no index to consult to tell
+// tracked from untracked, so this degrades to true (permissive — same
+// direction walkTracked()'s own degrade takes, matching pre-existing
+// behavior for a non-git consumer) rather than blinding every caller.
+export function isTrackedFile(root, relPath) {
+  if (!isGitWorkTree(root)) return true;
+  try {
+    execFileSync(
+      'git', ['-C', root, 'ls-files', '--error-unmatch', '--', relPath],
+      { encoding: 'utf8', stdio: ['ignore', 'ignore', 'ignore'] },
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function parseFrontmatter(content) {

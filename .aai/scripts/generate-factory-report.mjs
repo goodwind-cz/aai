@@ -684,7 +684,11 @@ function buildModel(args) {
     // The ledger actually read (PR #257 Copilot): --decisions can point
     // elsewhere, and a report naming a path it did not read is a lie.
     source: args.decisionsPath,
-    open_count: openFollowUps.length,
+    // spec-close-ceremony-sweep Spec-AC-24 (TEST-557): a registry the reader
+    // could not even OPEN (registry.unreadable — a directory, EACCES, EIO)
+    // must never report 0 open follow-ups, which reads as good news. null,
+    // the SAME "never 0" convention oldest_age_days already draws below.
+    open_count: registry.unreadable ? null : openFollowUps.length,
     // null (never 0) for an empty backlog — an empty registry and a
     // brand-new one must not look like a same-day deferral.
     oldest_age_days: followUpAges.length ? Math.max(...followUpAges) : null,
@@ -1056,7 +1060,7 @@ function renderHtml(m) {
 <section id="follow-ups">
 <h2>Open follow-ups — deferred work, ageing</h2>
 <div class="kpis">
-  <div class="kpi"><b>${m.follow_ups.open_count}</b><span>open follow-ups</span></div>
+  <div class="kpi"><b>${m.follow_ups.open_count === null ? 'n/a' : m.follow_ups.open_count}</b><span>open follow-ups</span></div>
   <div class="kpi"><b>${m.follow_ups.oldest_age_days === null ? 'n/a' : `${m.follow_ups.oldest_age_days}d`}</b><span>oldest open item</span></div>
 </div>
 <p class="meta">Typed <code>follow_up</code> entries folded out of <code>${esc(m.follow_ups.source ?? 'docs/ai/decisions.jsonl')}</code>, oldest first. Report-only — nothing here blocks anything. Close one with <code>node .aai/scripts/follow-ups.mjs close --id &lt;id&gt; --resolved-by &lt;ref&gt;</code>.</p>

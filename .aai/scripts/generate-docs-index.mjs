@@ -20,7 +20,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  DOC_STATUS_ENUM, walk, DOC_FAMILIES, slugFamilyForPath,
+  DOC_STATUS_ENUM, walkTracked, DOC_FAMILIES, slugFamilyForPath,
   parseFrontmatter, parseAcTable, parseReviewBy, extractReferences, toPosix,
   normalizeAcStatus, detectNearMissAcTable, TERMINAL_DOC_STATUS,
 } from './lib/docs-model.mjs';
@@ -174,7 +174,11 @@ function main() {
   const nearMissWarnings = [];
 
   for (const dir of SCAN_DIRS) {
-    for (const filePath of walk(path.join(ROOT, dir))) {
+    // spec-close-ceremony-sweep Spec-AC-22 (D3, TEST-554): enumerate git-
+    // TRACKED documents only — an untracked draft must never reach the
+    // committed index. walkTracked() degrades to a working-tree walk
+    // outside a git work tree, printing a NOTE naming the fallback.
+    for (const filePath of walkTracked(ROOT, dir)) {
       // SPEC-0007 — emit POSIX paths wherever a path enters a record/row, so the
       // committed docs/INDEX.md is OS-independent. No-op on POSIX (path.sep === '/').
       // toPosix() splits on both separator types so it is unit-testable on any OS.

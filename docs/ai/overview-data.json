@@ -1,17 +1,14 @@
 {
-  "generatedAt": "2026-09-17T17:49:23.734Z",
+  "generatedAt": "2026-09-18T02:44:53.720Z",
   "project": "aai",
   "counts": {
     "delivered": 245,
-    "in_progress": 21,
+    "in_progress": 22,
     "releases": 1,
     "tokens_total": 68899611
   },
   "waiting_on_you": null,
-  "current_focus": {
-    "ref": "mutation-gate-for-tests",
-    "type": "intake_change"
-  },
+  "current_focus": null,
   "in_flight": null,
   "in_progress": [
     {
@@ -102,6 +99,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "close-ceremony-sweep",
+      "title": "The close ceremony, the docs audit and the generated pages agree with git",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md",
       "validation": null,
       "review": null
     },

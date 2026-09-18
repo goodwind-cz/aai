@@ -146,6 +146,14 @@ run_audit() {
   (cd "$TEST_DIR" && node .aai/scripts/docs-audit.mjs "$@")
 }
 
+# spec-close-ceremony-sweep Spec-AC-22 (D3): generate-docs-index.mjs now
+# enumerates git-TRACKED documents only (git ls-files, which reads staged-
+# but-uncommitted adds too — the real intake workflow always stages a new
+# doc before the pre-commit hook regenerates the index). Every fixture repo
+# call site below that writes a doc and immediately regenerates the index
+# without an intervening `git commit` now also runs `git add -A -- docs`
+# first, so it keeps testing its own claim instead of the tracked-only
+# enumeration TEST-554 owns. The one deliberate exception is TEST-554 itself.
 setup_fixture() {
   log_info "Setting up fixture repo..."
   TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
@@ -334,7 +342,7 @@ test_quick_mode() {
 
 test_index_sections_and_idempotence() {
   log_info "Test: INDEX gains audit sections and is idempotent (TEST-005, TEST-007)..."
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > index-run1.log 2>&1) \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > index-run1.log 2>&1) \
     || log_fail "generate-docs-index.mjs failed: $(cat "$TEST_DIR/index-run1.log")"
   local index="$TEST_DIR/docs/INDEX.md"
   assert_file "$index"
@@ -353,7 +361,7 @@ test_index_sections_and_idempotence() {
   assert_contains "$audit" "probable-false-done"
 
   grep -v '^Generated:' "$index" > "$TEST_DIR/index-run1.snapshot"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > index-run2.log 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > index-run2.log 2>&1)
   grep -v '^Generated:' "$index" > "$TEST_DIR/index-run2.snapshot"
   diff -q "$TEST_DIR/index-run1.snapshot" "$TEST_DIR/index-run2.snapshot" >/dev/null \
     || log_fail "INDEX must be idempotent modulo the Generated timestamp"
@@ -471,7 +479,7 @@ MD
   run_audit --check --no-event --path docs/specs/SPEC-301-reviewby-literals.md \
     > "$TEST_DIR/reviewby.log" \
     || log_fail "Review-By skill literals must not be schema violations"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > reviewby-index.log 2>&1) \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > reviewby-index.log 2>&1) \
     || log_fail "generate-docs-index must accept Review-By literals: $(cat "$TEST_DIR/reviewby-index.log")"
   log_pass "Review-By literals and combos accepted"
 }
@@ -720,7 +728,7 @@ MD
   (cd "$TEST_DIR" && git add docs/specs/SPEC-100-legacy-bad.md \
     && GIT_COMMITTER_DATE="2026-01-15T10:00:00Z" GIT_AUTHOR_DATE="2026-01-15T10:00:00Z" \
        git commit -qm "docs: legacy spec fixture")
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > legacy-skip.log 2>&1) \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > legacy-skip.log 2>&1) \
     || log_fail "Legacy-doc violations must auto-skip, not hard-fail: $(cat "$TEST_DIR/legacy-skip.log")"
   # SPEC-0010 (ISSUE-0003) WARNING-1: the committed INDEX lists the skipped doc
   # PLAINLY (git-invariant) — the git-history-dependent "[legacy — auto-skipped]"
@@ -731,7 +739,7 @@ MD
   assert_contains "$TEST_DIR/docs/INDEX.audit.md" "SPEC-100"
   (cd "$TEST_DIR" && git rm -q docs/specs/SPEC-100-legacy-bad.md \
     && git commit -qm "docs: drop legacy fixture")
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   log_pass "Legacy violations demote to the Skipped section automatically"
 }
 
@@ -798,7 +806,7 @@ MD
     || log_fail "docs/INDEX.md was not committed by the hook"
   grep -v '^Generated:' "$TEST_DIR/hook-committed.raw" > "$TEST_DIR/hook-committed.snap"
   # A fresh regen AFTER the commit object exists.
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
     || log_fail "post-commit regen failed"
   grep -v '^Generated:' "$d/docs/INDEX.md" > "$TEST_DIR/post-commit.snap"
   diff -q "$TEST_DIR/hook-committed.snap" "$TEST_DIR/post-commit.snap" >/dev/null \
@@ -822,14 +830,14 @@ links:
 # Done doc with no AC gate and (initially) no commit referencing its ID
 MD
   (cd "$d" && git add -A && git commit -qm "docs: add fixture without mentioning the id" >/dev/null)
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
     || log_fail "index gen (run 1) failed"
   local index="$d/docs/INDEX.md"
   grep -v '^Generated:' "$index" > "$TEST_DIR/gi-run1.snap"
   # Mutate git history ONLY (docs on disk unchanged): a commit that now references
   # the doc ID. Pre-fix this clears the baked drift row -> INDEX changes.
   (cd "$d" && git commit --allow-empty -qm "chore: reference CHANGE-5002 now done" >/dev/null)
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
     || log_fail "index gen (run 2) failed"
   grep -v '^Generated:' "$index" > "$TEST_DIR/gi-run2.snap"
   diff -q "$TEST_DIR/gi-run1.snap" "$TEST_DIR/gi-run2.snap" >/dev/null \
@@ -897,7 +905,7 @@ links:
 | Spec-AC-01 | first       | done         | a1b2c3d  | TDD       | —     |
 | Spec-AC-02 | second      | bogus-status | —        | —         | —     |
 MD
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
     || log_fail "default generator run must exit 0 (degrade-and-report): $(cat "$d/gen.log")"
   local index="$d/docs/INDEX.md"
   # Row-level, not whole-doc: the doc stays in its correct (Done) placement section.
@@ -937,7 +945,7 @@ links:
 | Spec-AC-01 | first       | done (pre-existing) | a1b2c3d  | TDD       | inherited from prior |
 MD
   # --strict must exit 0 (the qualified status is NOT a violation).
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs --strict > gen-strict.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs --strict > gen-strict.log 2>&1) \
     || log_fail "generate-docs-index --strict must exit 0 on a qualified AC status: $(cat "$d/gen-strict.log")"
   local index="$d/docs/INDEX.md"
   extract_section "$index" "## Done" | qgrep -qF "SPEC-6008" \
@@ -989,7 +997,7 @@ links:
 MD
   (cd "$d" && git add -A && git commit -qm "docs: SPEC-6009 fixture" >/dev/null 2>&1) || true
   # Generator --strict: genuine garbage (finished) is still fatal.
-  if (cd "$d" && node .aai/scripts/generate-docs-index.mjs --strict > gen-strict.log 2>&1); then
+  if (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs --strict > gen-strict.log 2>&1); then
     log_fail "generate-docs-index --strict must exit 1 when a genuinely-invalid AC status is present"
   fi
   grep -qF "finished" "$d/gen-strict.log" \
@@ -1021,21 +1029,21 @@ MD
   # Default (and the retained --continue-on-error no-op alias) is degrade-and-report:
   # a schema violation never blocks the index — it exits 0 and writes a best-effort
   # index with a "Skipped (schema violations)" section listing the bad doc.
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs \
     > index-partial.log 2>&1) \
     || log_fail "Default run must degrade-and-report (exit 0): $(cat "$TEST_DIR/index-partial.log")"
   assert_contains "$TEST_DIR/docs/INDEX.md" "Skipped (schema violations)"
   assert_contains "$TEST_DIR/docs/INDEX.md" "SPEC-998"
   # --continue-on-error is a retained no-op alias — same degrade-and-report behavior.
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs --continue-on-error \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs --continue-on-error \
     > index-alias.log 2>&1) \
     || log_fail "--continue-on-error (no-op alias) must exit 0: $(cat "$TEST_DIR/index-alias.log")"
   # --strict is the CI/pre-commit gate: it MUST hard-fail (non-zero) on the violation.
-  if (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs --strict > index-strict.log 2>&1); then
+  if (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs --strict > index-strict.log 2>&1); then
     log_fail "--strict must hard-fail (non-zero) on a schema violation"
   fi
   rm "$TEST_DIR/docs/specs/SPEC-998-bad-status.md"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   log_pass "Default degrade-and-report + --strict gate both correct"
 }
 
@@ -1737,7 +1745,7 @@ links:
 | Spec-AC-01 | first       | implementing | —        | —          | —              |
 | Spec-AC-02 | second      | deferred     | —        | 2099-01-01 | needs upstream |
 MD
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > index-defer.log 2>&1) \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > index-defer.log 2>&1) \
     || log_fail "generate-docs-index (default) must succeed: $(cat "$TEST_DIR/index-defer.log")"
   local index="$TEST_DIR/docs/INDEX.md"
   assert_contains "$index" "## Deferred (whole-doc)"
@@ -1747,7 +1755,7 @@ MD
   # the per-AC deferred section is a different, still-present section
   assert_contains "$index" "## Deferred items (per-AC"
   rm "$TEST_DIR/docs/specs/SPEC-9001-whole-deferred.md" "$TEST_DIR/docs/specs/SPEC-9002-perac-deferred.md"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   log_pass "Whole-doc deferred section present and distinct from per-AC deferred items"
 }
 
@@ -1766,14 +1774,14 @@ links:
 ---
 # Frontmatter status with no doc-level placement section
 MD
-  if (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs --strict > zero-strict.log 2>&1); then
+  if (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs --strict > zero-strict.log 2>&1); then
     log_fail "generate-docs-index --strict must exit non-zero on a zero-section doc"
   fi
   assert_contains "$TEST_DIR/zero-strict.log" "SPEC-9003"
   grep -qiE "zero|coverage" "$TEST_DIR/zero-strict.log" \
     || log_fail "strict coverage failure must mention coverage / zero-section"
   rm "$TEST_DIR/docs/specs/SPEC-9003-zero-section.md"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   log_pass "Zero-section coverage invariant is fatal under --strict"
 }
 
@@ -1789,13 +1797,13 @@ links:
 ---
 # Frontmatter status with no doc-level placement section
 MD
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > zero-soft.log 2>&1) \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > zero-soft.log 2>&1) \
     || log_fail "default (non-strict) run must exit 0 with a zero-section doc: $(cat "$TEST_DIR/zero-soft.log")"
   assert_file "$TEST_DIR/docs/INDEX.md"
   assert_contains "$TEST_DIR/docs/INDEX.md" "SPEC-9003"
   assert_contains "$TEST_DIR/docs/INDEX.md" "Coverage gaps"
   rm "$TEST_DIR/docs/specs/SPEC-9003-zero-section.md"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   log_pass "Degrade-and-report: best-effort INDEX written, gap surfaced, exit 0"
 }
 
@@ -1828,7 +1836,7 @@ links:
 | Spec-AC-01 | first       | implementing | —        | —          | —              |
 | Spec-AC-02 | second      | deferred     | —        | 2099-01-01 | needs upstream |
 MD
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > dbl-run1.log 2>&1) \
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > dbl-run1.log 2>&1) \
     || log_fail "index gen failed: $(cat "$TEST_DIR/dbl-run1.log")"
   local index="$TEST_DIR/docs/INDEX.md"
   extract_section "$index" "## Deferred (whole-doc)" > "$TEST_DIR/whole.txt"
@@ -1844,12 +1852,12 @@ MD
     log_fail "SPEC-9002 (non-deferred doc) must NOT appear in the whole-doc deferred section"
   fi
   grep -v '^Generated:' "$index" > "$TEST_DIR/dbl1.snap"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   grep -v '^Generated:' "$index" > "$TEST_DIR/dbl2.snap"
   diff -q "$TEST_DIR/dbl1.snap" "$TEST_DIR/dbl2.snap" >/dev/null \
     || log_fail "INDEX must be idempotent modulo the Generated line"
   rm "$TEST_DIR/docs/specs/SPEC-9001-whole-deferred.md" "$TEST_DIR/docs/specs/SPEC-9002-perac-deferred.md"
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  (cd "$TEST_DIR" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
   log_pass "No double-listing across whole-doc vs per-AC deferred; INDEX idempotent"
 }
 
@@ -2042,8 +2050,11 @@ EOF
 # claim stated directly instead of through a whole-file diff. A file yielding
 # zero path tokens FAILS rather than passing vacuously.
 index_posix_findings() {  # $1 = index file
+  # spec-close-ceremony-sweep Spec-AC-24 (TEST-559): fold stderr into the
+  # captured output too, so an infra failure's message is never lost to a
+  # caller that captures only stdout via command substitution.
   node "$TEST_DIR/index-posix-check.mjs" \
-    "$PROJECT_ROOT/.aai/scripts/lib/docs-model.mjs" "$1"
+    "$PROJECT_ROOT/.aai/scripts/lib/docs-model.mjs" "$1" 2>&1
 }
 
 # Write the Node predicate index_posix_findings runs. Called once from setup.
@@ -2052,32 +2063,43 @@ index_write_posix_check() {
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 const [libPath, indexPath] = process.argv.slice(2);
-const { toPosix } = await import(pathToFileURL(libPath).href);
-if (typeof toPosix !== 'function') {
-  console.log(`toPosix is not exported by ${libPath} — the POSIX check cannot run`);
-  process.exit(1);
-}
-const findings = [];
-let tokens = 0;
-fs.readFileSync(indexPath, 'utf8').split('\n').forEach((line, i) => {
-  const n = i + 1;
-  if (line.includes('\\')) {
-    findings.push(`line ${n}: index path is not POSIX — a backslash separator is present: ${line.trim()}`);
+// spec-close-ceremony-sweep Spec-AC-24 (TEST-559): an INFRASTRUCTURE failure
+// (the index path is unreadable, the lib fails to import, ...) must exit
+// with a code DISTINCT from a genuine POSIX finding (1) and must fold its
+// message into the captured output — a bare uncaught throw sends its stack
+// only to stderr, which a caller capturing stdout alone (command
+// substitution with no 2>&1) reads as exit 1 with an EMPTY payload.
+try {
+  const { toPosix } = await import(pathToFileURL(libPath).href);
+  if (typeof toPosix !== 'function') {
+    console.log(`toPosix is not exported by ${libPath} — the POSIX check cannot run`);
+    process.exit(1);
   }
-  for (const m of line.matchAll(/docs[\\/][A-Za-z0-9._\\/-]*\.md/g)) {
-    tokens += 1;
-    const tok = m[0];
-    if (toPosix(tok) !== tok) {
-      findings.push(`line ${n}: index path is not POSIX — toPosix is not a no-op here: ${tok} -> ${toPosix(tok)}`);
+  const findings = [];
+  let tokens = 0;
+  fs.readFileSync(indexPath, 'utf8').split('\n').forEach((line, i) => {
+    const n = i + 1;
+    if (line.includes('\\')) {
+      findings.push(`line ${n}: index path is not POSIX — a backslash separator is present: ${line.trim()}`);
     }
+    for (const m of line.matchAll(/docs[\\/][A-Za-z0-9._\\/-]*\.md/g)) {
+      tokens += 1;
+      const tok = m[0];
+      if (toPosix(tok) !== tok) {
+        findings.push(`line ${n}: index path is not POSIX — toPosix is not a no-op here: ${tok} -> ${toPosix(tok)}`);
+      }
+    }
+  });
+  if (tokens === 0) {
+    findings.push(`no docs/*.md path token found in ${indexPath} — the POSIX check would be vacuous`);
   }
-});
-if (tokens === 0) {
-  findings.push(`no docs/*.md path token found in ${indexPath} — the POSIX check would be vacuous`);
+  console.log(`tokens_checked=${tokens}`);
+  for (const f of findings) console.log(f);
+  process.exit(findings.length ? 1 : 0);
+} catch (e) {
+  console.log(`INFRA-ERROR: ${e.message}`);
+  process.exit(2);
 }
-console.log(`tokens_checked=${tokens}`);
-for (const f of findings) console.log(f);
-process.exit(findings.length ? 1 : 0);
 EOF
 }
 
@@ -2455,7 +2477,7 @@ MD
     || log_fail "pinned-clock generation failed: $(cat "$d/gen-earlier.log")"
   local snap_earlier="$TEST_DIR/t-indexarm-overdue-earlier.snap"
   cp "$d/docs/INDEX.md" "$snap_earlier"
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen-fresh.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen-fresh.log 2>&1) \
     || log_fail "fresh generation failed: $(cat "$d/gen-fresh.log")"
   local snap_fresh="$TEST_DIR/t-indexarm-overdue-fresh.snap"
   cp "$d/docs/INDEX.md" "$snap_fresh"
@@ -2531,7 +2553,7 @@ links:
 # Implementing spec
 MD
   (cd "$d" && git add -A && git commit -qm "crlf corpus")
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
     || log_fail "generator failed on CRLF corpus: $(cat "$d/gen.log")"
   local index="$d/docs/INDEX.md"
   extract_section "$index" "## Done" | qgrep -qF "SPEC-7001" \
@@ -2577,7 +2599,7 @@ links:
 MD
   (cd "$d" && git add -A && git commit -qm "high-legacy corpus")
   local ec=0
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.out 2> gen.err) || ec=$?
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen.out 2> gen.err) || ec=$?
   [[ "$ec" == 0 ]] || log_fail "legacy-ratio guard must NOT change the exit code (got $ec)"
   grep -qiF "legacy-ratio guard" "$d/gen.err" \
     || log_fail "high-legacy corpus must emit the legacy-ratio warning on stderr"
@@ -2586,7 +2608,7 @@ MD
   # Negative control: drop to 1 legacy of 2 (ratio 50%, count 1) — must stay silent.
   rm "$d/docs/specs/LEG-2.md" "$d/docs/specs/LEG-3.md"
   local ec2=0
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen2.out 2> gen2.err) || ec2=$?
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen2.out 2> gen2.err) || ec2=$?
   [[ "$ec2" == 0 ]] || log_fail "negative-control run must still exit 0 (got $ec2)"
   if grep -qiF "legacy-ratio guard" "$d/gen2.err"; then
     log_fail "a normal corpus (<=1 legacy / <=50%) must NOT emit the legacy-ratio warning"
@@ -2874,7 +2896,7 @@ MD
     log_fail "canonical SPEC-1141 must NOT be flagged as a near-miss (negative control)"
   fi
   # Surface 2: generate-docs-index.mjs -> docs/INDEX.violations.md
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
     || log_fail "generate-docs-index must exit 0 (degrade-and-report): $(cat "$d/gen.log")"
   assert_file "$d/docs/INDEX.violations.md"
   grep -qF "SPEC-1140" "$d/docs/INDEX.violations.md" \
@@ -2948,7 +2970,7 @@ MD
 
   # Surface 2: generate-docs-index.mjs -> docs/INDEX.violations.md mirrors
   # ONLY the non-terminal doc's finding.
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
     || log_fail "TEST-575: generate-docs-index must exit 0 (degrade-and-report): $(cat "$d/gen.log")"
   assert_file "$d/docs/INDEX.violations.md"
   grep -qF "SPEC-1160" "$d/docs/INDEX.violations.md" \
@@ -2961,7 +2983,7 @@ MD
   # companion file at all -- the exact "untracked file reaches a committed
   # page" shape this sweep exists to remove.
   rm -f "$d/docs/specs/SPEC-1160-open.md" "$d/docs/INDEX.violations.md"
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen2.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > gen2.log 2>&1) \
     || log_fail "TEST-575: generate-docs-index must exit 0 on an all-terminal near-miss corpus: $(cat "$d/gen2.log")"
   if [[ -f "$d/docs/INDEX.violations.md" ]]; then
     log_fail "TEST-575: an all-terminal near-miss corpus must leave NO docs/INDEX.violations.md at all, found: $(cat "$d/docs/INDEX.violations.md")"
@@ -3706,6 +3728,100 @@ MD
 
   rm -rf "$d"
   log_pass "TEST-538 duplicate declared Spec-AC id reconciled by multiplicity: --gate fails naming it, --check is not CLEAN"
+}
+
+# --- close-ceremony-sweep Spec-AC-22/24 (TEST-554, TEST-559) -----------------
+
+test_554_index_tracked_only() {  # TEST-554 / Spec-AC-22
+  log_info "Test: generate-docs-index.mjs enumerates tracked documents only; outside a git work tree it prints a NOTE naming the fallback (TEST-554)..."
+  local d; d="$(setup_iso_repo t554)"
+  mkdir -p "$d/docs/issues"
+  cat > "$d/docs/issues/ISSUE-9001-tracked.md" <<'MD'
+---
+id: ISSUE-9001
+type: issue
+status: draft
+links:
+  pr: []
+---
+# Tracked doc
+MD
+  (cd "$d" && git add docs/issues/ISSUE-9001-tracked.md && git commit -qm "docs: tracked fixture")
+  cat > "$d/docs/issues/ISSUE-9002-untracked.md" <<'MD'
+---
+id: ISSUE-9002
+type: issue
+status: draft
+links:
+  pr: []
+---
+# Untracked doc
+MD
+  # deliberately never git add'd
+
+  local rc=0
+  # NOT staged here (deliberately, unlike every other call site in this
+  # suite) — this row's whole claim is that an UNTRACKED file (ISSUE-9002,
+  # never git add'd above) must be excluded from the regenerated INDEX.
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-554: generate-docs-index.mjs must exit 0 in a git work tree: $(cat "$d/gen.log")"
+  grep -qF "ISSUE-9001" "$d/docs/INDEX.md" \
+    || log_fail "TEST-554: the tracked document must be listed in the regenerated INDEX: $(cat "$d/docs/INDEX.md")"
+  grep -qF "ISSUE-9002" "$d/docs/INDEX.md" \
+    && log_fail "TEST-554: the UNTRACKED document must NOT be listed in the regenerated INDEX"
+
+  # Outside a git work tree: fs-walk degrade, named by a NOTE (D3). A path
+  # under $TEST_DIR would still be INSIDE the git repo setup_fixture already
+  # initialized there — a fresh, sibling mktemp dir is genuinely git-free.
+  local nogit; nogit="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-t554-nogit.XXXXXX")"
+  mkdir -p "$nogit/.aai/scripts/lib" "$nogit/docs/issues" "$nogit/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$nogit/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$nogit/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$nogit/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$nogit/.aai/scripts/lib/"
+  cp "$d/docs/issues/ISSUE-9001-tracked.md" "$nogit/docs/issues/"
+  rc=0
+  (cd "$nogit" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-554: outside a git work tree the generator must still exit 0 (degrade-and-report): $(cat "$nogit/gen.log")"
+  grep -qF "NOTE" "$nogit/gen.log" \
+    || log_fail "TEST-554: outside a git work tree the generator must print a NOTE naming the fallback: $(cat "$nogit/gen.log")"
+  grep -qF "ISSUE-9001" "$nogit/docs/INDEX.md" \
+    || log_fail "TEST-554: outside a git work tree the fs-walk fallback must still index the doc on disk: $(cat "$nogit/docs/INDEX.md")"
+
+  rm -rf "$d" "$nogit"
+  log_pass "TEST-554: INDEX enumerates tracked documents only; a non-git tree degrades with a named NOTE"
+}
+
+test_559_posix_predicate_infra_exit() {  # TEST-559 / Spec-AC-24
+  log_info "Test: the index POSIX predicate distinguishes an infra throw (exit 2, message captured) from a genuine finding (exit 1) (TEST-559)..."
+  # Self-sufficient: works whether or not setup_indexarm_snapshots ran first.
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  index_write_posix_check
+
+  local rc out
+  rc=0
+  out="$(index_posix_findings "$TEST_DIR/no-such-index-559.md")" || rc=$?
+  [[ "$rc" -eq 2 ]] \
+    || log_fail "TEST-559: an unreadable index path must exit 2 (infra failure), distinct from a genuine finding's exit 1, got $rc: $(payload_preview "$out")"
+  [[ -n "$out" ]] \
+    || log_fail "TEST-559: the infra failure's message must be captured in the output, not empty"
+  grep -qF "INFRA-ERROR" <<<"$out" \
+    || log_fail "TEST-559: the captured output must fold the thrown error's message, not just a bare exit code: $(payload_preview "$out")"
+
+  local base="$TEST_DIR/t559-base.md" genuine="$TEST_DIR/t559-genuine.md"
+  {
+    echo "Source: docs/{issues}"
+    echo "- docs/issues/FOO-001.md"
+  } > "$base"
+  sed 's#docs/issues/#docs\\issues\\#' "$base" > "$genuine"
+  rc=0
+  out="$(index_posix_findings "$genuine")" || rc=$?
+  [[ "$rc" -eq 1 ]] \
+    || log_fail "TEST-559: a genuine POSIX-path finding must still exit 1, distinct from the infra code 2, got $rc: $(payload_preview "$out")"
+  grep -qF "index path is not POSIX" <<<"$out" \
+    || log_fail "TEST-559: the genuine finding must still name the path problem: $(payload_preview "$out")"
+
+  log_pass "TEST-559: infra throw exits 2 with a captured message; a genuine finding still exits 1"
 }
 
 # --- CHANGE-0007 / SPEC-0013 H1 — body lint (TEST-001..009) ------------------
@@ -5525,7 +5641,7 @@ MD
 test_change0027_index_seam() {  # TEST-012 / Spec-AC-09 (SEAM-1)
   log_info "Test: generate-docs-index.mjs renders the false-open row + D9 suggested step (TEST-012)..."
   local d; d="$(setup_fo_repo fo-index-seam)"
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > index.log 2>&1) \
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs > index.log 2>&1) \
     || log_fail "TEST-012: generate-docs-index.mjs failed: $(cat "$d/index.log")"
   local audit="$d/docs/INDEX.audit.md"
   assert_file "$audit"
@@ -7492,7 +7608,7 @@ MD
   (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test" \
     && git add -A && git commit -qm "chore: seed")
   # Committed docs/INDEX.md, generated for real, listing the one seed doc.
-  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1)
+  (cd "$d" && git add -A -- docs >/dev/null 2>&1 || true; node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1)
   (cd "$d" && git add docs/INDEX.md && git commit -qm "chore: index")
   printf '%s' "$d"
 }
@@ -7642,6 +7758,8 @@ main() {
   test_536_unparseable_ac_table_shape
   test_537_shape_check_live_yield
   test_538_duplicate_ac_id_multiplicity
+  test_554_index_tracked_only
+  test_559_posix_predicate_infra_exit
   test_change0007_lint_stray_markup
   test_change0007_lint_unbalanced_fence
   test_change0007_lint_placeholder

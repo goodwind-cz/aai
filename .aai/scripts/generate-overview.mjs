@@ -22,6 +22,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { extractUsageTotal } from './lib/usage-note.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { walkTracked, isTrackedFile } from './lib/docs-model.mjs';
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ['docs/issues', 'docs/rfc', 'docs/requirements', 'docs/releases'];
@@ -83,13 +84,18 @@ function readFrontmatter(body) {
 function scanDocs() {
   const docs = [];
   for (const dir of [...SCAN_DIRS, SPEC_DIR]) {
-    const abs = path.join(ROOT, dir);
+    // spec-close-ceremony-sweep Spec-AC-22 (D3, TEST-555): enumerate git-
+    // TRACKED documents only, through the SAME shared enumerator
+    // generate-docs-index.mjs uses — an untracked draft must never reach the
+    // stakeholder-facing overview page. walkTracked() degrades to a
+    // working-tree readdir outside a git work tree, with its own NOTE.
     let files = [];
-    try { files = fs.readdirSync(abs).filter(f => f.endsWith('.md')).sort(); } catch { continue; }
-    for (const fname of files) {
+    try { files = walkTracked(ROOT, dir); } catch { continue; }
+    for (const filePath of files) {
+      const fname = path.basename(filePath);
       if (fname === 'INDEX.md' || fname.startsWith('.')) continue;
       let body;
-      try { body = fs.readFileSync(path.join(abs, fname), 'utf8'); } catch { continue; }
+      try { body = fs.readFileSync(filePath, 'utf8'); } catch { continue; }
       const fm = readFrontmatter(body);
       docs.push({ ...fm, path: `${dir}/${fname}`, dir, file: fname });
     }
@@ -256,7 +262,16 @@ function buildModel() {
   const docs = scanDocs();
   const events = readJsonl('docs/ai/EVENTS.jsonl');
   const metrics = readJsonl('docs/ai/METRICS.jsonl');
-  const state = readState();
+  let state = readState();
+  // spec-close-ceremony-sweep Spec-AC-23 (TEST-556): docs/ai/STATE.yaml is a
+  // gitignored, ONE-MACHINE file (M8 measured the committed
+  // overview-data.json baking in exactly that: current_focus/in_flight from
+  // whichever machine last regenerated it locally). A TRACKED artefact must
+  // never carry a value derived from an untracked input, so gate the whole
+  // state object here, ONCE — every downstream read (waiting_on_you,
+  // current_focus, in_flight) goes through this single variable.
+  const stateIsTracked = isTrackedFile(ROOT, 'docs/ai/STATE.yaml');
+  state = stateIsTracked ? state : null;
   const ticks = readTicks(5);
   // in_flight (dev-progress-hub Spec-AC-01/02): built ONCE here and consumed
   // by both renderHtml() and the overview-data.json write below — a single

@@ -95,6 +95,22 @@ mk_repo() {
   printf '%s' "$d"
 }
 
+# mk_git_repo <name> -> same layout as mk_repo, but a REAL, git-initialized
+# repository (close-ceremony-sweep Spec-AC-22/23, TEST-555/556): the
+# tracked-vs-untracked and tracked-STATE fixtures need an actual git index to
+# distinguish, which a plain mktemp directory has no way to express.
+mk_git_repo() {
+  local d; d="$(mk_repo "$1")"
+  (
+    cd "$d" \
+      && git init -q \
+      && git config user.email test@example.com \
+      && git config user.name "AAI Test" \
+      && git commit -q --allow-empty -m init
+  ) >/dev/null 2>&1
+  printf '%s' "$d"
+}
+
 write_change_doc() {  # $1 path $2 id $3 status
   cat > "$1" <<EOF
 ---
@@ -637,6 +653,75 @@ test_dph06_closed_ride_not_in_flight() {  # TEST-009 / Spec-AC-03 (spec-dispatch
   log_pass "closed ride (real clear-focus, or phase-closed alone) never renders/JSONs in-flight; live-focus control still does (TEST-009)"
 }
 
+# --- close-ceremony-sweep Spec-AC-22/23 (TEST-555, TEST-556) -----------------
+
+test_555_overview_tracked_only() {  # TEST-555 / Spec-AC-22
+  log_info "Test: generate-overview.mjs enumerates tracked documents only (TEST-555)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  local d; d="$(mk_git_repo t555)"
+  write_change_doc "$d/docs/issues/CHANGE-9001-tracked.md" "CHG-T555A" "draft"
+  (cd "$d" && git add docs/issues/CHANGE-9001-tracked.md && git commit -qm "tracked fixture")
+  write_change_doc "$d/docs/issues/CHANGE-9002-untracked.md" "CHG-T555B" "draft"
+  # deliberately never git add'd
+
+  run_overview "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-555: overview must exit 0: $(cat "$OUT")"
+  grep -qF "CHG-T555A" "$d/docs/ai/overview-data.json" \
+    || log_fail "TEST-555: the tracked document must appear in overview-data.json: $(cat "$d/docs/ai/overview-data.json")"
+  grep -qF "CHG-T555B" "$d/docs/ai/overview-data.json" \
+    && log_fail "TEST-555: the UNTRACKED document must NOT appear in overview-data.json"
+  grep -qF "CHG-T555A" "$d/docs/ai/overview.html" \
+    || log_fail "TEST-555: the tracked document must render in overview.html"
+  grep -qF "CHG-T555B" "$d/docs/ai/overview.html" \
+    && log_fail "TEST-555: the UNTRACKED document must NOT render in overview.html"
+
+  log_pass "TEST-555: overview-data.json and overview.html enumerate tracked documents only"
+}
+
+test_556_no_untracked_state_in_tracked_pages() {  # TEST-556 / Spec-AC-23
+  log_info "Test: overview-data.json carries no current_focus/in_flight derived from an untracked STATE.yaml (TEST-556)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+
+  # (a) STATE.yaml present but UNTRACKED (the real-world shape: gitignored).
+  local d; d="$(mk_git_repo t556a)"
+  write_state_yaml "$d/docs/ai/STATE.yaml" "FIX-T556" "intake_change" "implementation" "tdd" "optional" "inline" "pass" "not_run"
+  local i
+  for i in 1 2 3 4 5 6; do
+    write_tick "$d/docs/ai/LOOP_TICKS.jsonl" "$i" "Role$i" "scope-$i" "$((i * 10))" "h$i.0"
+  done
+  # STATE.yaml/LOOP_TICKS.jsonl are deliberately never git add'd — this is
+  # M8's concrete failure: one machine's local, untracked STATE baked into
+  # the committed overview-data.json.
+
+  run_overview "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-556: overview must exit 0 with an untracked STATE.yaml present: $(cat "$OUT")"
+  local jfocus jinflight
+  jfocus="$(node_get "$d/docs/ai/overview-data.json" 'm.current_focus')"
+  jinflight="$(node_get "$d/docs/ai/overview-data.json" 'm.in_flight')"
+  [[ "$jfocus" == "null" ]] \
+    || log_fail "TEST-556: overview-data.json current_focus must be null when STATE.yaml is untracked, got: $jfocus"
+  [[ "$jinflight" == "null" ]] \
+    || log_fail "TEST-556: overview-data.json in_flight must be null when STATE.yaml is untracked, got: $jinflight"
+  grep -qF "FIX-T556" "$d/docs/ai/overview.html" \
+    && log_fail "TEST-556: the untracked focus ref must not leak into the rendered overview.html"
+
+  # (b) TRACKED STATE.yaml control — the gate must not blind the normal case.
+  local d2; d2="$(mk_git_repo t556b)"
+  write_state_yaml "$d2/docs/ai/STATE.yaml" "FIX-T556B" "intake_change" "implementation" "tdd" "optional" "inline" "pass" "not_run"
+  for i in 1 2 3 4 5 6; do
+    write_tick "$d2/docs/ai/LOOP_TICKS.jsonl" "$i" "Role$i" "scope-$i" "$((i * 10))" "h$i.0"
+  done
+  (cd "$d2" && git add docs/ai/STATE.yaml docs/ai/LOOP_TICKS.jsonl && git commit -qm "tracked STATE control")
+  run_overview "$d2"
+  [[ "$EC" == 0 ]] || log_fail "TEST-556: overview must exit 0 with a TRACKED STATE.yaml control: $(cat "$OUT")"
+  local jfocus2
+  jfocus2="$(node_get "$d2/docs/ai/overview-data.json" 'm.current_focus')"
+  [[ "$jfocus2" != "null" ]] \
+    || log_fail "TEST-556: a control fixture with a TRACKED STATE.yaml must still carry current_focus (the gate must not blind the normal case)"
+
+  log_pass "TEST-556: an untracked STATE.yaml never reaches overview-data.json/overview.html; a tracked STATE.yaml control still renders"
+}
+
 main() {
   echo "Testing $TEST_NAME (token-economics-end-to-end TEST-005..007 + dev-progress-hub TEST-001..006)"
   check_deps
@@ -652,6 +737,8 @@ main() {
   test_dph04_malformed_line_no_slot_consumed
   test_dph05_data_json_mirrors_render
   test_dph06_closed_ride_not_in_flight
+  test_555_overview_tracked_only
+  test_556_no_untracked_state_in_tracked_pages
   echo ""
   log_pass "All $TEST_NAME tests passed (dev-progress-hub TEST-006: full-suite regression check)"
 }
