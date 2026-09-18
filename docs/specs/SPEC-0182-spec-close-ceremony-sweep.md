@@ -4,7 +4,7 @@ type: spec
 number: 182
 status: done
 mutation_gate: v1
-frozen_sha256: 3d1ecb2334fe26a587ab3fb188d01131007996662652157c77a0bb7e2e2102d3
+frozen_sha256: 0bc3049607b7091c53b6100aea63072e3be417f3d70035e84f5cca3f6374966a
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0188-close-ceremony-sweep.md
@@ -704,7 +704,12 @@ its own mutation; the evidence for each is
 | TEST-596 | Spec-AC-22 | integration | tests/skills/test-aai-overview.sh | test_596_nested_tracked_doc_keeps_its_real_path (P1, Codex, PR #385 bot review, Amendment 27) — a tracked document under a subdirectory of a scan dir keeps its REAL path (derived from walkTracked()'s own filePath via path.relative), not one rebuilt from the scan root plus basename that drops the subdirectory and points at a nonexistent file. | sed:s/docs\.push\(\{ \.\.\.fm, path: rel, dir, file: fname \}\);/docs.push({ ...fm, path: `${dir}\/${fname}`, dir, file: fname });/ in generate-overview.mjs — restores the flattened scan-root+basename path, reddening the nested-path assertion. | green |
 | TEST-597 | Spec-AC-34 | integration | tests/skills/test-aai-hooks-overlay.sh | test_020_merge_gate_branch_and_url_targets (P1, Codex, PR #385 bot review, Amendment 27) — gh pr merge <branch> and gh pr merge <url> are resolved via gh pr view <target>, judged against THAT PR's own sweep record, never the current-branch-implicit one a targetless resolution would return. | patch:docs/ai/tdd/spec-close-ceremony-sweep/mutation-TEST-597.patch in claude-hook-gate.sh — forces TARGET empty regardless of the command line, reddening both the branch and the URL arm. | green |
 | TEST-598 | Spec-AC-34 | integration | tests/skills/test-aai-lightweight-lane.sh | test_598_sweep_check_recovers_diff_without_flags (P1, Codex, PR #385 bot review, Amendment 27) — --sweep-check with no --base-ref/--files-from of its own (the documented, real invocation shape) auto-resolves the upstream default branch and recomputes the REAL diff surface, so a genuine fast-lane pr_sweep record actually passes its own gate instead of always recomputing heavy for lack of a diff source. | sed:s/const derivedBaseRef = resolveUpstreamDefaultRef\(opts\.repoRoot\);/const derivedBaseRef = null;/ in lane-gate.mjs — disables the auto-base-ref recovery, reddening the fast-lane-passes assertion (lane-mismatch: record_lane=fast computed_lane=heavy). | green |
-| TEST-599 | Spec-AC-34 | integration | tests/skills/test-aai-lightweight-lane.sh | test_599_sweep_check_denies_stale_head (P1, Codex, PR #385 bot review, Amendment 27) — a pr_sweep record whose stamped head_sha no longer matches the current HEAD (a later push after the sweep was recorded) is denied reason=stale-head naming both shas, when both resolve; degrades to no-check (never a new false deny) when either side is unresolvable. | sed:s/if \(recHeadSha && headSha && recHeadSha !== headSha\) \{/if (false) {/ in lane-gate.mjs — disables the stale-head comparison, reddening the deny-on-later-push assertion. | green |
+| TEST-599 | Spec-AC-34 | integration | tests/skills/test-aai-lightweight-lane.sh | test_599_sweep_check_denies_stale_head (P1, Codex, PR #385 bot review, Amendment 27) — a pr_sweep record whose stamped head_sha no longer matches the current HEAD (a later push after the sweep was recorded) is denied reason=stale-head naming both shas, when both resolve; degrades to no-check (never a new false deny) when either side is unresolvable. Amendment 28 re-record: the guard grew a second line (the isStaleHeadSafeDelta call), so the original two-line sed no longer matched; regenerated against the same semantic property on the surviving single-line condition. | sed:s/recHeadSha !== headSha/false/ in lane-gate.mjs — the outer stale-head condition can never be true, reddening the deny-on-later-push assertion. | green |
+| TEST-600 | Spec-AC-34 | integration | tests/skills/test-aai-lightweight-lane.sh | test_600_sweep_check_allows_telemetry_only_delta (Amendment 28) — the record-carrying commit itself (append-event.mjs stamps head_sha from HEAD before its own caller commits that write) is the real, honest shape of every pr_sweep record; --sweep-check must ALLOW it, not deny its own just-made commit. | sed:s/&& !isStaleHeadSafeDelta\(opts\.repoRoot, recHeadSha, headSha\)\) \{/&& true) {/ in lane-gate.mjs — the exception can never fire, reddening the telemetry-only-delta-allows assertion. | green |
+| TEST-601 | Spec-AC-34 | integration | tests/skills/test-aai-lightweight-lane.sh | test_601_sweep_check_denies_rewritten_ledger (Amendment 28) — a telemetry ledger whose recordHead content was REWRITTEN in place (an earlier line edited, the record's own line left byte-identical) rather than appended to still denies stale-head; the exception is about the BYTES, not the filename. | sed:s/if \(!after\.startsWith\(before\)\) return false;/if (false) return false;/ in lib/pr-sweep.mjs — the prefix check can never fail, reddening the rewritten-ledger-denies assertion. | green |
+| TEST-602 | Spec-AC-34 | integration | tests/skills/test-aai-lightweight-lane.sh | test_602_sweep_check_allows_index_md_regen_only (Amendment 28) — found by dogfooding this very fix against PR #385's own history: the AAI:INDEX-AUTOGEN pre-commit hook re-stages docs/INDEX.md on every commit touching any docs/ path, including the one that carries a pr_sweep record, so its regeneration-timestamp-only delta must also not deny. | sed:s/if \(!isIndexMdRegenOnlySafe\(before, after\)\) return false;/return false;/ in lib/pr-sweep.mjs — docs/INDEX.md deltas always deny, reddening the regen-only-allows assertion. | green |
+| TEST-603 | Spec-AC-34 | integration | tests/skills/test-aai-lightweight-lane.sh | test_603_sweep_check_denies_index_md_content_change (Amendment 28) — a docs/INDEX.md delta that is MORE than its own regeneration timestamp (a real corpus change) still denies stale-head; the exception is strictly narrower than "docs/INDEX.md always safe". | sed:s/return strip\(before\) === strip\(after\);/return true;/ in lib/pr-sweep.mjs — any docs/INDEX.md delta reads as regen-only, reddening the content-change-denies assertion. | green |
+| TEST-604 | Spec-AC-34 | integration | tests/skills/test-aai-lightweight-lane.sh | test_604_sweep_check_degrades_missing_head_sha (Amendment 28 regression pin) — an old-format record with no head_sha field (predates Amendment 27) degrades to cannot-verify across a later push, never a false stale-head deny; unchanged behaviour, pinned against Amendment 28's own edits to the same guard. | sed:s/if \(recHeadSha && headSha && recHeadSha !== headSha/if (headSha && recHeadSha !== headSha/ in lane-gate.mjs — the comparison runs even without a recorded head_sha, reddening the degrade-never-false-deny assertion. | green |
 
 Test status values: pending to red to green. Every Spec-AC above has at least one
 row; every row names exactly one Spec-AC. Mutation cells are written as
@@ -2467,6 +2472,165 @@ diagnostic byproducts (a stray `docs/INDEX.md` timestamp bump and a stray
 before this amendment's own commit). This amendment's own `spec-amend.mjs
 add` record uses `--ref close-ceremony-sweep`, per Amendment 20's correction
 of Amendment 18's mistake.
+
+Sign-off: none (tracked).
+
+## Amendment 28 (post-freeze, 2026-09-18 — the head_sha binding failed its own first real use; dogfooding caught it; the bot finding it answers was still correct)
+
+**What happened.** PR #385's own sweep was recorded honestly: 8 bot threads
+seen, 0 unresolved, `append-event.mjs --event pr_sweep ... --outcome swept`,
+then `git add docs/ai/EVENTS.jsonl && git commit` (`d4ca13a4`). Immediately
+afterward, `node .aai/scripts/lane-gate.mjs --sweep-check --pr 385` — the
+SAME check `.aai/SKILL_PR.prompt.md` step 6 runs right before `gh pr merge`
+— denied:
+
+```
+SWEEP-CHECK denied reason=stale-head pr=385
+  record_head=f4e69da44636382bb8d50bcdf504850447067ec8
+  current_head=d4ca13a481b37e3442da2b07ff6e996eba7b672a
+```
+
+**Root cause.** `append-event.mjs`'s `pr_sweep` case (Amendment 27) derives
+`head_sha` from `git rev-parse HEAD` at the moment the CLI runs — BEFORE the
+caller's own `git add`+`git commit` of that write exists. The commit that
+carries the record is therefore, by construction, always one commit AHEAD of
+the sha the record names. Every honest "record it, commit it" sequence hits
+this: the record is stale the instant it lands. The only ways out before
+this amendment were to leave the record uncommitted (no evidence reaches
+main) or never commit it (defeats Spec-AC-33's whole point). The mechanism
+failed its own first real use — dogfooding is what caught it, not a review
+round. The bot finding Amendment 27 answered (an unbound record can be
+carried past ANY later push) was still correct; the binding it prescribed
+was simply unusable as specified. Both are true at once.
+
+**The fix.** A sweep is a statement about the REVIEWED CODE. A commit that
+only appends to an append-only telemetry ledger does not change reviewed
+code, so it must not invalidate the record. `lib/pr-sweep.mjs` gains
+`isStaleHeadSafeDelta(repoRoot, recordHead, currentHead)`: when the two shas
+differ, `lane-gate.mjs --sweep-check` now compares the two trees
+(`git diff --name-only recordHead..currentHead`) and skips the stale-head
+deny only when EVERY differing path clears one of two narrow, explicitly
+justified exceptions below. Any other differing path — a source file, a
+test, an ordinary doc — still denies `reason=stale-head`, unchanged from
+Amendment 27.
+
+**Exception 1 — append-only telemetry ledgers (`STALE_HEAD_SAFE_LEDGERS`).**
+A qualifying path's content at `recordHead` must be a byte-exact PREFIX of
+its content at `currentHead` (an append, never a rewrite — reusing
+`SUBAGENT_CONTRACT.md`'s HAZ-LEDGER "the base must stay an exact prefix"
+discipline verbatim, not re-deriving it). The set is exactly the three files
+HAZ-LEDGER already designates append-only, no more:
+- `docs/ai/EVENTS.jsonl` — the ledger the pr_sweep record itself lands in;
+  recording a sweep at all is impossible without a commit touching this
+  exact file.
+- `docs/ai/decisions.jsonl` — HITL/owner decision records, appended by the
+  same discipline, never rewritten.
+- `docs/ai/tests/test-runs.jsonl` — test-run telemetry, appended by the test
+  harness, never rewritten.
+
+Two OTHER tracked `*.jsonl` files under `docs/ai/` were considered and
+DELIBERATELY left out — `docs/ai/METRICS.jsonl` and
+`docs/ai/tests/golden-flow.jsonl`. Both may in practice also be append-only,
+but neither is named by HAZ-LEDGER's own canon, and this predicate reuses
+that established list rather than growing a second, independently-judged one
+of "probably fine" files. A ledger present at `recordHead` and absent at
+`currentHead`, or whose earlier content was edited in place (the tail
+matches but an earlier line does not — TEST-601), still denies: the
+exception is about the BYTES being a strict prefix, not about the filename
+being on a list.
+
+**Exception 2 — `docs/INDEX.md`'s own regeneration timestamp.** Found by
+using the fix for real against PR #385's own history, not by inspection:
+even with Exception 1 in place, `--sweep-check` still denied at the PR's
+actual current head, because `git diff --name-only f4e69da4..d4ca13a4` names
+TWO paths, not one — `docs/ai/EVENTS.jsonl` AND `docs/INDEX.md`. The
+`AAI:INDEX-AUTOGEN` pre-commit hook (`install-pre-commit-hook.sh`)
+regenerates and re-stages `docs/INDEX.md` on EVERY commit whose staged paths
+match `^docs/`, and appending a pr_sweep record always touches
+`docs/ai/EVENTS.jsonl` — a `docs/` path — so the record-carrying commit
+ALWAYS also carries this mechanical re-stage. Left unhandled, this
+reproduces the identical defect (a record-only commit denies its own merge)
+under a different filename, on every future sweep, not just this one — the
+"only delta is the sweep record itself" premise this amendment's dispatch
+was written under does not hold without also accounting for this coupling.
+
+`docs/INDEX.md` is not append-only, so it cannot join
+`STALE_HEAD_SAFE_LEDGERS`; instead `isIndexMdRegenOnlySafe(before, after)`
+strips the ONE line that changes on every mechanical regeneration by
+construction — `Generated: <timestamp>` — from both sides and requires the
+REMAINDER to be byte-identical. This is strictly narrower than "docs/INDEX.md
+always safe": a real corpus change (a document added, removed, or its
+indexed metadata changed) still changes a line other than the timestamp and
+so still denies (TEST-603). Only the hook's own no-op re-stage — same
+indexed content, new wall-clock stamp — is exempted (TEST-602).
+
+Disclosure: this widens the dispatch's own stated design ("any other
+differing path — a source file, a test, a doc — still denies") by exactly
+one narrowly-scoped case. It is not a general doc exemption, and the
+justification is empirical, not aesthetic: without it, the primary fix
+(Exception 1 alone) remains permanently non-functional for its stated
+purpose, because the ONE mechanism that writes a pr_sweep record structurally
+always trips it. Reported here plainly rather than silently expanded.
+
+**Regression pin.** The pre-existing degrade — a record with no `head_sha`
+at all (predates Amendment 27) never produces a stale-head deny, even across
+a later push, because the comparison cannot be made — is unchanged. TEST-604
+pins it against this amendment's own edits to the same guard.
+
+**Tests.** New: TEST-600 (telemetry-ledger-only delta allows — the real
+ceremony shape: record, then commit that same record), TEST-601 (a rewritten,
+not appended, ledger still denies), TEST-602 (a docs/INDEX.md
+regeneration-timestamp-only delta allows), TEST-603 (a docs/INDEX.md delta
+beyond its timestamp still denies), TEST-604 (a missing head_sha still
+degrades, never a false deny) — all in
+`tests/skills/test-aai-lightweight-lane.sh`, all RED under
+`mutation-run.mjs` against the guard each names, all GREEN after. Amendment
+27's own TEST-598/599 (target `lane-gate.mjs`) and TEST-585 (target
+`lib/pr-sweep.mjs`) staled by this amendment's edits to their targets;
+TEST-598 and TEST-585 re-reddened against their ALREADY-RECORDED mutation
+expressions unchanged. TEST-599's own recorded mutation
+(`sed:s/if \(recHeadSha && headSha && recHeadSha !== headSha\) \{/if (false) {/`)
+no longer applied — the guard grew a second line (the
+`isStaleHeadSafeDelta` call) — and was regenerated against the same
+semantic property (`sed:s/recHeadSha !== headSha/false/`, disabling the
+outer condition entirely), same class as Amendment 27's own TEST-587
+re-record.
+
+**Verification on PR #385 itself**, at its real current head (`d4ca13a4`,
+record `f4e69da4`):
+
+```
+$ git rev-parse HEAD
+d4ca13a481b37e3442da2b07ff6e996eba7b672a
+$ node .aai/scripts/lane-gate.mjs --sweep-check --pr 385
+SWEEP-CHECK allowed pr=385 lane=heavy outcome=swept
+```
+
+and, in a disposable worktree at the same base with one source-file change
+planted on top (`.aai/scripts/lane-gate.mjs`, a trailing comment):
+
+```
+$ node .aai/scripts/lane-gate.mjs --sweep-check --pr 385 --repo-root <worktree>
+SWEEP-CHECK denied reason=stale-head pr=385
+  record_head=f4e69da44636382bb8d50bcdf504850447067ec8
+  current_head=<planted commit>
+```
+
+**Full verification.** `mutation-gate.mjs --spec <this spec>`:
+`GATE PASS: 84 row(s) satisfied degraded=0 unstamped=0` (79 prior + 5 new:
+TEST-600 through TEST-604). `tests/skills/test-aai-lightweight-lane.sh` (33
+PASS lines, 0 FAIL), `tests/skills/test-aai-golden-flow.sh` (19 PASS lines, 0
+FAIL — TEST-585 re-confirmed green against the re-recorded target),
+`tests/skills/test-aai-hooks-overlay.sh` (20 PASS lines, 0 FAIL) each run in
+full, rc=0. `docs-audit.mjs --check --strict`, `spec-amend.mjs list --strict`
+(after this amendment's own record), `follow-ups.mjs verify-closures
+--strict` (miss=0) and `spec-lint.mjs --path <this spec>` are all clean. The
+working tree is left clean of this session's own diagnostic byproducts (a
+stray `docs_audit` EVENTS.jsonl line from an interim `--check` run, reverted
+before this amendment's own commit) — the same discipline Amendment 27
+established. This amendment's own `spec-amend.mjs add` record uses `--ref
+close-ceremony-sweep`, per Amendment 20's correction of Amendment 18's
+mistake.
 
 Sign-off: none (tracked).
 

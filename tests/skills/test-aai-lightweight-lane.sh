@@ -532,6 +532,159 @@ test_599_sweep_check_denies_stale_head() {
   log_pass "TEST-599: --sweep-check denies reason=stale-head when the record's head no longer matches the current HEAD"
 }
 
+# --- TEST-600 (Spec-AC-34, Amendment 28) ------------------------------------
+test_600_sweep_check_allows_telemetry_only_delta() {
+  log_info "Test: --sweep-check ALLOWS when the record-carrying commit is the ONLY delta since the recorded head -- the real ceremony shape: recording the sweep and committing it MOVES head_sha out from under its own record (TEST-600)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  mk
+  mk_git_lane_fixture "$TEST_DIR" 1 direct >/dev/null
+  echo "docs change" > "$TEST_DIR/docs/x.md"
+  (cd "$TEST_DIR" && git add -A && git commit -q -m "deliver docs change (#600)") >/dev/null 2>&1
+
+  # append-event.mjs stamps head_sha from THIS process's own git rev-parse
+  # HEAD, BEFORE the caller commits that write -- so the commit that carries
+  # the record always names a head_sha one commit behind itself.
+  (cd "$TEST_DIR" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t600-ride \
+     --pr 600 --lane fast --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome skipped_fast_lane >/dev/null 2>&1)
+  (cd "$TEST_DIR" && git add docs/ai/EVENTS.jsonl && git commit -q -m "record the sweep") >/dev/null 2>&1
+
+  OUT="$(node "$GATE" --sweep-check --pr 600 --repo-root "$TEST_DIR" \
+    --spec "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md" --state "$TEST_DIR/docs/ai/STATE.yaml" 2>&1)" && CODE=0 || CODE=$?
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-600: recording the sweep and committing that SAME record must still ALLOW, got $CODE: $OUT"
+  assert_payload_contains "$OUT" "allowed" "TEST-600: expected an 'allowed' verdict line: $OUT"
+
+  log_pass "TEST-600: --sweep-check allows a telemetry-ledger-only delta since the recorded head"
+}
+
+# --- TEST-601 (Spec-AC-34, Amendment 28) ------------------------------------
+test_601_sweep_check_denies_rewritten_ledger() {
+  log_info "Test: --sweep-check still DENIES stale-head when the ledger's EARLIER content was rewritten, not merely appended to (TEST-601)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  mk
+  mk_git_lane_fixture "$TEST_DIR" 1 direct >/dev/null
+  mkdir -p "$TEST_DIR/docs/ai"
+  printf '{"event":"baseline","payload":{}}\n' > "$TEST_DIR/docs/ai/EVENTS.jsonl"
+  echo "docs change" > "$TEST_DIR/docs/x.md"
+  (cd "$TEST_DIR" && git add -A && git commit -q -m "deliver docs change (#611) with a baseline ledger line") >/dev/null 2>&1
+  # append-event.mjs stamps head_sha from HEAD as of THIS commit -- the same
+  # one about to carry the record -- not the record-carrying commit itself.
+  local head_a
+  head_a="$(cd "$TEST_DIR" && git rev-parse HEAD)"
+
+  (cd "$TEST_DIR" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t601-ride \
+     --pr 611 --lane fast --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome skipped_fast_lane >/dev/null 2>&1)
+  (cd "$TEST_DIR" && git add docs/ai/EVENTS.jsonl && git commit -q -m "record the sweep") >/dev/null 2>&1
+
+  # Rewrite the FIRST line in place (not an append) while leaving the
+  # pr_sweep record's own line, the LAST line, byte-identical -- so the
+  # record is still found unchanged, but the ledger's recordHead content is
+  # no longer a strict PREFIX of its currentHead content.
+  local rest
+  rest="$(tail -n +2 "$TEST_DIR/docs/ai/EVENTS.jsonl")"
+  { printf '{"event":"baseline-edited-in-place","payload":{}}\n'; printf '%s\n' "$rest"; } > "$TEST_DIR/docs/ai/EVENTS.jsonl"
+  (cd "$TEST_DIR" && git add docs/ai/EVENTS.jsonl && git commit -q -m "rewrite the ledger's earlier content, not append") >/dev/null 2>&1
+  local head_b
+  head_b="$(cd "$TEST_DIR" && git rev-parse HEAD)"
+
+  OUT="$(node "$GATE" --sweep-check --pr 611 --repo-root "$TEST_DIR" \
+    --spec "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md" --state "$TEST_DIR/docs/ai/STATE.yaml" 2>&1)" && CODE=0 || CODE=$?
+  [[ "$CODE" -eq 5 ]] || log_fail "TEST-601: a rewritten (non-append) ledger must still DENY stale-head, got $CODE: $OUT"
+  assert_payload_has_line "$OUT" "SWEEP-CHECK denied reason=stale-head pr=611 record_head=$head_a current_head=$head_b" \
+    "TEST-601: missing/incorrect stale-head deny line: $OUT"
+
+  log_pass "TEST-601: --sweep-check denies a rewritten (non-append) telemetry ledger"
+}
+
+# --- TEST-602 (Spec-AC-34, Amendment 28) ------------------------------------
+test_602_sweep_check_allows_index_md_regen_only() {
+  log_info "Test: --sweep-check ALLOWS when docs/INDEX.md ALSO differs but ONLY its own regeneration-timestamp line changed -- the AAI:INDEX-AUTOGEN pre-commit hook re-stages it on every docs/ commit, including the one that carries the sweep record (TEST-602)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  mk
+  mk_git_lane_fixture "$TEST_DIR" 1 direct >/dev/null
+  echo "docs change" > "$TEST_DIR/docs/x.md"
+  printf 'Docs Index\n\nGenerated: 2020-01-01T00:00:00.000Z\nSource: x\n' > "$TEST_DIR/docs/INDEX.md"
+  (cd "$TEST_DIR" && git add -A && git commit -q -m "deliver docs change (#622)") >/dev/null 2>&1
+
+  (cd "$TEST_DIR" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t602-ride \
+     --pr 622 --lane fast --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome skipped_fast_lane >/dev/null 2>&1)
+  (cd "$TEST_DIR" && git add docs/ai/EVENTS.jsonl && git commit -q -m "record the sweep") >/dev/null 2>&1
+
+  # simulate the hook's own mechanical regen: ONLY the Generated line moves.
+  printf 'Docs Index\n\nGenerated: 2020-01-01T00:00:05.000Z\nSource: x\n' > "$TEST_DIR/docs/INDEX.md"
+  (cd "$TEST_DIR" && git add docs/INDEX.md && git commit -q -m "regenerate docs/INDEX.md (hook)") >/dev/null 2>&1
+
+  OUT="$(node "$GATE" --sweep-check --pr 622 --repo-root "$TEST_DIR" \
+    --spec "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md" --state "$TEST_DIR/docs/ai/STATE.yaml" 2>&1)" && CODE=0 || CODE=$?
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-602: a docs/INDEX.md timestamp-only regen alongside the record must still ALLOW, got $CODE: $OUT"
+  assert_payload_contains "$OUT" "allowed" "TEST-602: expected an 'allowed' verdict line: $OUT"
+
+  log_pass "TEST-602: --sweep-check allows a docs/INDEX.md regeneration-timestamp-only delta"
+}
+
+# --- TEST-603 (Spec-AC-34, Amendment 28) ------------------------------------
+test_603_sweep_check_denies_index_md_content_change() {
+  log_info "Test: --sweep-check still DENIES stale-head when docs/INDEX.md's delta is MORE than its regeneration timestamp -- a real corpus change, not just the hook's mechanical re-stage (TEST-603)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  mk
+  mk_git_lane_fixture "$TEST_DIR" 1 direct >/dev/null
+  echo "docs change" > "$TEST_DIR/docs/x.md"
+  printf 'Docs Index\n\nGenerated: 2020-01-01T00:00:00.000Z\nSource: x\n' > "$TEST_DIR/docs/INDEX.md"
+  (cd "$TEST_DIR" && git add -A && git commit -q -m "deliver docs change (#633)") >/dev/null 2>&1
+  local head_a
+  head_a="$(cd "$TEST_DIR" && git rev-parse HEAD)"
+
+  (cd "$TEST_DIR" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t603-ride \
+     --pr 633 --lane fast --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome skipped_fast_lane >/dev/null 2>&1)
+  (cd "$TEST_DIR" && git add docs/ai/EVENTS.jsonl && git commit -q -m "record the sweep") >/dev/null 2>&1
+
+  # the timestamp moves AND a real entry is added -- a genuine corpus change,
+  # not the hook's mechanical no-op regen.
+  printf 'Docs Index\n\nGenerated: 2020-01-01T00:00:05.000Z\nSource: x\n- new-doc.md\n' > "$TEST_DIR/docs/INDEX.md"
+  (cd "$TEST_DIR" && git add docs/INDEX.md && git commit -q -m "regenerate docs/INDEX.md with a real corpus change") >/dev/null 2>&1
+  local head_b
+  head_b="$(cd "$TEST_DIR" && git rev-parse HEAD)"
+
+  OUT="$(node "$GATE" --sweep-check --pr 633 --repo-root "$TEST_DIR" \
+    --spec "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md" --state "$TEST_DIR/docs/ai/STATE.yaml" 2>&1)" && CODE=0 || CODE=$?
+  [[ "$CODE" -eq 5 ]] || log_fail "TEST-603: a docs/INDEX.md content change beyond its timestamp must still DENY stale-head, got $CODE: $OUT"
+  assert_payload_has_line "$OUT" "SWEEP-CHECK denied reason=stale-head pr=633 record_head=$head_a current_head=$head_b" \
+    "TEST-603: missing/incorrect stale-head deny line: $OUT"
+
+  log_pass "TEST-603: --sweep-check denies a docs/INDEX.md delta beyond its own regeneration timestamp"
+}
+
+# --- TEST-604 (Spec-AC-34, Amendment 28) ------------------------------------
+test_604_sweep_check_degrades_missing_head_sha() {
+  log_info "Test: an old-format record with no head_sha field degrades to 'cannot verify' -- NEVER a stale-head false deny, even across a later push (TEST-604)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  mk
+  mk_git_lane_fixture "$TEST_DIR" 1 direct >/dev/null
+  echo "docs change" > "$TEST_DIR/docs/x.md"
+  (cd "$TEST_DIR" && git add -A && git commit -q -m "deliver docs change (#644)") >/dev/null 2>&1
+
+  mkdir -p "$TEST_DIR/docs/ai"
+  # hand-crafted OLD-FORMAT record: no head_sha at all (predates Amendment 27).
+  printf '{"event":"pr_sweep","payload":{"pr":644,"lane":"fast","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"skipped_fast_lane"}}\n' \
+    >> "$TEST_DIR/docs/ai/EVENTS.jsonl"
+  (cd "$TEST_DIR" && git add docs/ai/EVENTS.jsonl && git commit -q -m "record the sweep (old format, no head_sha)") >/dev/null 2>&1
+
+  # a later push after the record -- WITH head_sha present this would be a
+  # legitimate stale-head deny; absent, the comparison cannot be made at all.
+  echo "one more line" >> "$TEST_DIR/docs/x.md"
+  (cd "$TEST_DIR" && git add -A && git commit -q -m "a later push") >/dev/null 2>&1
+
+  OUT="$(node "$GATE" --sweep-check --pr 644 --repo-root "$TEST_DIR" \
+    --spec "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md" --state "$TEST_DIR/docs/ai/STATE.yaml" 2>&1)" && CODE=0 || CODE=$?
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-604: a missing head_sha must degrade, never produce a false stale-head deny, got $CODE: $OUT"
+  assert_payload_line_not_matches "$OUT" 'reason=stale-head' "TEST-604: a missing head_sha must never produce a stale-head deny: $OUT"
+
+  log_pass "TEST-604: --sweep-check degrades to cannot-verify (never a false deny) when the record carries no head_sha"
+}
+
 main() {
   echo "Testing $TEST_NAME (lightweight-e2e-lane / spec-lightweight-e2e-lane)"
   check_deps
@@ -561,6 +714,11 @@ main() {
   test_024_spec_wins_over_intake
   test_598_sweep_check_recovers_diff_without_flags
   test_599_sweep_check_denies_stale_head
+  test_600_sweep_check_allows_telemetry_only_delta
+  test_601_sweep_check_denies_rewritten_ledger
+  test_602_sweep_check_allows_index_md_regen_only
+  test_603_sweep_check_denies_index_md_content_change
+  test_604_sweep_check_degrades_missing_head_sha
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

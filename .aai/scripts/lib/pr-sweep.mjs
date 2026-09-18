@@ -8,6 +8,8 @@
 // threads_unresolved: 7 and outcome: swept past --sweep-check). One
 // predicate, called twice.
 
+import { execFileSync } from 'node:child_process';
+
 // Closed set of legal pr_sweep outcomes (Spec-AC-33).
 export const PR_SWEEP_OUTCOMES = new Set(['swept', 'skipped_fast_lane', 'internal_substituted']);
 
@@ -95,4 +97,134 @@ export function parseSweepCount(raw, field) {
     throw err;
   }
   return Number(raw);
+}
+
+// Amendment 28 — the stale-head exception. head_sha binding (Amendment 27,
+// finding 3+4) makes a pr_sweep record impossible to ever land: the SAME
+// commit that appends the record to docs/ai/EVENTS.jsonl is the commit that
+// moves HEAD past the sha the record names, so an honest "record it, commit
+// it" sequence denies its own merge the instant it lands (dogfooded on PR
+// #385 itself: record f4e69da4, commit it as d4ca13a4, --sweep-check then
+// denied reason=stale-head against its own just-made commit).
+//
+// The principled fix: a sweep is a statement about REVIEWED CODE. A commit
+// that only appends to an append-only telemetry ledger does not change
+// reviewed code, so it must not invalidate the record. This is the SAME
+// three files SUBAGENT_CONTRACT.md's HAZ-LEDGER hazard already designates
+// append-only by established convention (not a new judgment call here):
+//   - docs/ai/EVENTS.jsonl        — the ledger the pr_sweep record itself
+//     lands in (append-event.mjs); a sweep can never be recorded at all
+//     without a commit touching this exact file.
+//   - docs/ai/decisions.jsonl     — HITL/owner decision records, appended by
+//     the same discipline, never rewritten.
+//   - docs/ai/tests/test-runs.jsonl — test-run telemetry, appended by the
+//     test harness, never rewritten.
+// A path outside this set is deliberately NOT exempted, even another *.jsonl
+// ledger (e.g. docs/ai/METRICS.jsonl, docs/ai/tests/golden-flow.jsonl) —
+// HAZ-LEDGER does not name them, and this predicate reuses that canon rather
+// than growing its own list by guessing which other files are "probably
+// fine". Any other differing path — a source file, a test, a doc — still
+// denies stale-head, per Spec-AC-34.
+export const STALE_HEAD_SAFE_LEDGERS = new Set([
+  'docs/ai/EVENTS.jsonl',
+  'docs/ai/decisions.jsonl',
+  'docs/ai/tests/test-runs.jsonl',
+]);
+
+// docs/INDEX.md is a SECOND, narrower exception, found by dogfooding this
+// very fix against PR #385's own real history: even with the ledger set
+// above, --sweep-check still denied at PR #385's actual current head,
+// because the `AAI:INDEX-AUTOGEN` pre-commit hook (install-pre-commit-
+// hook.sh) regenerates and re-stages docs/INDEX.md on EVERY commit that
+// touches any docs/ path — and appending a pr_sweep record always touches
+// docs/ai/EVENTS.jsonl, a docs/ path, so the record-carrying commit ALSO
+// always carries this mechanical re-stage. Left unhandled, that reproduces
+// the identical defect (a record-only commit denies its own merge) under a
+// different filename — every future honest sweep would hit it, not just
+// this one. docs/INDEX.md is not append-only, so it cannot join
+// STALE_HEAD_SAFE_LEDGERS; instead its diff is compared with the ONE line
+// that changes on every mechanical regeneration by construction — `Generated:
+// <timestamp>` — stripped from both sides first. Any OTHER difference (a
+// document added, removed, or its indexed metadata changed) still denies:
+// this is strictly narrower than "docs/INDEX.md always safe", not a general
+// doc exemption.
+const INDEX_MD_PATH = 'docs/INDEX.md';
+const INDEX_MD_TIMESTAMP_LINE = /^Generated: .*$/m;
+function isIndexMdRegenOnlySafe(before, after) {
+  const strip = (s) => s.replace(INDEX_MD_TIMESTAMP_LINE, 'Generated: <stripped>');
+  return strip(before) === strip(after);
+}
+
+// readGitBlob(repoRoot, ref, path) -> file content at that commit, or null
+// when the path does not exist there (a ledger created AFTER recordHead is
+// legitimately absent at recordHead — its whole content at currentHead is
+// then trivially an "append" onto nothing). Any OTHER git failure (bad ref,
+// no git, not a repo) throws, so the caller's catch-all can fail closed
+// (deny) rather than silently reading a missing blob as an empty-and-safe
+// ledger.
+function readGitBlob(repoRoot, ref, path) {
+  try {
+    return execFileSync('git', ['show', `${ref}:${path}`], {
+      cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  } catch (err) {
+    // git show exits non-zero both for "path missing at this ref" (fine,
+    // treat as empty) and for a genuine failure (bad ref, not a repo --
+    // must NOT be swallowed the same way). Distinguish the only way
+    // available without parsing stderr text: ask git separately whether the
+    // ref itself resolves at all.
+    try {
+      execFileSync('git', ['cat-file', '-e', `${ref}^{commit}`], {
+        cwd: repoRoot, stdio: ['ignore', 'ignore', 'ignore'],
+      });
+    } catch {
+      throw err; // the ref itself is bad -- a real failure, not "path absent"
+    }
+    return null; // ref resolves, path just isn't there at this ref
+  }
+}
+
+// isStaleHeadSafeDelta(repoRoot, recordHead, currentHead) -> true only when
+// EVERY path that differs between the two commits is EITHER (a) one of
+// STALE_HEAD_SAFE_LEDGERS whose content at recordHead is a byte-exact
+// PREFIX of its content at currentHead (an append, never a rewrite --
+// HAZ-LEDGER's own "the base must stay an exact prefix" discipline, reused
+// here rather than re-derived), OR (b) docs/INDEX.md with only its
+// regeneration-timestamp line differing (see isIndexMdRegenOnlySafe above).
+// A ledger that was REWRITTEN (its recordHead content is not a strict
+// prefix -- reordered, truncated, edited in place) still denies, same as a
+// non-ledger path. Any git failure denies too (returns false): this
+// predicate only ever ADDS an ALLOW on top of the pre-existing stale-head
+// deny, never invents a new false ALLOW out of a tool error.
+export function isStaleHeadSafeDelta(repoRoot, recordHead, currentHead) {
+  let changed;
+  try {
+    const out = execFileSync('git', ['diff', '--name-only', `${recordHead}..${currentHead}`], {
+      cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    changed = out.split('\n').map((s) => s.trim()).filter(Boolean);
+  } catch {
+    return false;
+  }
+  if (changed.length === 0) return false; // caller only calls this when the shas differ; an empty diff here is unexpected -- never the reason an ALLOW happens
+  for (const path of changed) {
+    const isLedger = STALE_HEAD_SAFE_LEDGERS.has(path);
+    const isIndex = path === INDEX_MD_PATH;
+    if (!isLedger && !isIndex) return false;
+    let before;
+    let after;
+    try {
+      before = readGitBlob(repoRoot, recordHead, path) ?? '';
+      after = readGitBlob(repoRoot, currentHead, path);
+    } catch {
+      return false;
+    }
+    if (after === null) return false; // present at recordHead and gone at currentHead -- a rewrite (deletion), never safe
+    if (isIndex) {
+      if (!isIndexMdRegenOnlySafe(before, after)) return false;
+      continue;
+    }
+    if (!after.startsWith(before)) return false; // not a strict prefix -- rewritten, not appended
+  }
+  return true;
 }

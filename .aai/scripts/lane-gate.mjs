@@ -60,7 +60,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
-import { sweepContradictions } from './lib/pr-sweep.mjs';
+import { sweepContradictions, isStaleHeadSafeDelta } from './lib/pr-sweep.mjs';
 
 // ---- --sweep-check --pr <N> (Spec-AC-34, GitHub issue 338 mechanization) --
 // Verifies a `pr_sweep` event (Spec-AC-33, append-event.mjs) exists for the
@@ -524,7 +524,16 @@ function runSweepCheck(opts) {
   // capability-absent-falls-open convention.
   const recHeadSha = record.payload && record.payload.head_sha;
   const headSha = currentHeadSha(opts.repoRoot);
-  if (recHeadSha && headSha && recHeadSha !== headSha) {
+  // Amendment 28: the commit that CARRIES the record is, by construction,
+  // the commit that moves HEAD past the sha the record names (append-
+  // event.mjs stamps head_sha from ITS OWN `git rev-parse HEAD`, before the
+  // caller's own commit of that write exists) -- so a literal sha
+  // mismatch here is not automatically a later, unreviewed push. Only deny
+  // when the delta since recHeadSha is NOT explainable entirely by appends
+  // to the closed set of telemetry ledgers isStaleHeadSafeDelta checks
+  // against; any other differing path (source, test, doc) still denies.
+  if (recHeadSha && headSha && recHeadSha !== headSha
+      && !isStaleHeadSafeDelta(opts.repoRoot, recHeadSha, headSha)) {
     console.log(`SWEEP-CHECK denied reason=stale-head pr=${pr} record_head=${recHeadSha} current_head=${headSha}`);
     console.log('the recorded sweep names a different commit than the one about to merge -- re-sweep and re-record before merging');
     exit(5);
