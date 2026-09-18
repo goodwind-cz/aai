@@ -502,9 +502,10 @@ test_016_merge_gate_sweep_check() {
   local ok=1 d rc err
 
   d="$(new_fixture)"
-  mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai" "$d/bin"
   cp "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" "$d/.aai/scripts/lane-gate.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
   : > "$d/docs/ai/EVENTS.jsonl"
 
   # No pr_sweep record at all for PR 42: denied, naming the absent record.
@@ -538,6 +539,81 @@ test_016_merge_gate_sweep_check() {
   [[ "$rc" -eq 0 ]] || { log_info "TEST-574: unreadable EVENTS.jsonl must fail OPEN (allow), got $rc: $err"; ok=0; }
   rmdir "$d/docs/ai/EVENTS.jsonl" 2>/dev/null || true
 
+  # B2 (validation-round1): the PR number is NOT always positional right
+  # after `merge` -- prove the three other forms the old positional-only
+  # regex missed each still get judged against the real record (not allowed
+  # by a parse miss). No record for PR 45/46: denied naming it.
+  err=$(payload_for "gh pr merge --squash 45" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: 'gh pr merge --squash 45' (number after flags) exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "45" "TEST-574: 'gh pr merge --squash 45' deny message does not name PR 45: $err" || ok=0
+
+  err=$(payload_for "gh pr merge --squash --delete-branch 46" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: 'gh pr merge --squash --delete-branch 46' exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "46" "TEST-574: 'gh pr merge --squash --delete-branch 46' deny message does not name PR 46: $err" || ok=0
+
+  # A consistent record for PR 45 (the positional-after-flags form): allowed.
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t574-ride \
+     --pr 45 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+  err=$(payload_for "gh pr merge --squash 45" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-574: 'gh pr merge --squash 45' with a consistent record exited $rc (want 0): $err"; ok=0; }
+
+  # Bare `gh pr merge` (no positional PR number at all -- the numberless form
+  # .aai/SKILL_PR.prompt.md:488 itself documents) resolves the PR from the
+  # branch via `gh pr view`. Fake `gh` on PATH so the test never touches the
+  # network: pr view -> "47".
+  cat > "$d/bin/gh" <<'GHSTUB'
+#!/usr/bin/env bash
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  echo "47"
+  exit 0
+fi
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+  err=$(payload_for "gh pr merge" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: bare 'gh pr merge' (resolved to 47, no record) exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "47" "TEST-574: bare 'gh pr merge' deny message does not name the resolved PR 47: $err" || ok=0
+
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t574-ride \
+     --pr 47 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+  err=$(payload_for "gh pr merge" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-574: bare 'gh pr merge' resolved to 47 with a consistent record exited $rc (want 0): $err"; ok=0; }
+
+  # Bare `gh pr merge` when resolution ITSELF fails (fake gh returns nothing
+  # usable): denied, naming that neither a positional number nor `gh pr view`
+  # identified a PR -- never allowed by default on an unresolvable target.
+  cat > "$d/bin/gh" <<'GHSTUB'
+#!/usr/bin/env bash
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+  err=$(payload_for "gh pr merge" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: bare 'gh pr merge' with unresolvable PR exited $rc (want 2, never allow-by-default)"; ok=0; }
+  assert_payload_contains "$err" "could not determine" "TEST-574: unresolvable-PR deny message does not explain why: $err" || ok=0
+  rm -f "$d/bin/gh"
+
+  # T3 (validation-round1): a hand-appended record whose OWN lane already
+  # matches the branch's computed lane (so the lane-mismatch check above
+  # never fires) but whose outcome is illegal for that lane must still be
+  # denied -- this is the one property the old outcomeLegalOnLane guarded and
+  # no test ever reached (every prior arm was caught one check earlier).
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":48,"lane":"heavy","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"skipped_fast_lane"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 48 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: lane-matched but outcome-illegal record (PR 48) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "48" "TEST-574: outcome-illegal deny message does not name PR 48: $err" || ok=0
+
+  # NB-2 (validation-round1): the read side must re-validate the WHOLE
+  # record, not just the lane -- a hand-appended line whose lane matches but
+  # carries threads_unresolved > 0 alongside outcome: swept must be denied
+  # too (before this fix, --sweep-check only ever looked at lane + the one
+  # skipped_fast_lane/lane pairing).
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":49,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":7,"outcome":"swept"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 49 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: lane-matched but self-contradictory record (PR 49, threads_unresolved=7 + swept) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "49" "TEST-574: self-contradictory-record deny message does not name PR 49: $err" || ok=0
+
   # The hook must call lane-gate.mjs's --sweep-check mode, never restate its
   # predicate (this file's own "never reimplement a predicate here" rule).
   grep -qF "lane-gate.mjs" "$ADAPTER" || { log_info "TEST-574: merge gate does not call lane-gate.mjs"; ok=0; }
@@ -545,7 +621,7 @@ test_016_merge_gate_sweep_check() {
   grep -qE 'ceremony_level|implementation_strategy' "$ADAPTER" \
     && { log_info "TEST-574: the hook appears to restate a lane-gate predicate"; ok=0; }
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-574 merge gate calls lane-gate.mjs --sweep-check: denies absent/mismatched records, allows a consistent one, fails open on an unreadable EVENTS.jsonl" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-574 merge gate calls lane-gate.mjs --sweep-check: denies absent/mismatched records, allows a consistent one, fails open on an unreadable EVENTS.jsonl; the PR number is taken from any positional argument or resolved from the branch, never allowed by default when unresolvable; the read side re-validates the whole record" \
                   || log_fail "TEST-574 merge gate sweep-check"
 }
 

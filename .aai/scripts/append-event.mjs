@@ -27,33 +27,15 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { nowIso } from './lib/iso-time.mjs';
+import { PR_SWEEP_OUTCOMES, sweepContradictions, parseSweepCount } from './lib/pr-sweep.mjs';
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
 const SCHEMA_VERSION = 1;
 const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited', 'validation_verdict', 'pr_sweep']);
-const PR_SWEEP_OUTCOMES = new Set(['swept', 'skipped_fast_lane', 'internal_substituted']);
-
-// Spec-AC-33 — the four self-contradictions a pr_sweep record may never
-// carry: each is a claim the payload's OWN other fields disprove. Returns a
-// list of reasons (empty = consistent). Kept as its own function so the
-// refusal is a single, nameable predicate (mutation-run.mjs targets the call
-// site, not this body).
-function sweepContradictions(p) {
-  const bad = [];
-  if (p.outcome === 'swept' && (p.threads_seen <= 0 || p.reviewer_bots !== 'expected')) {
-    bad.push('swept requires threads_seen > 0 and reviewer_bots=expected');
-  }
-  if (p.outcome === 'skipped_fast_lane' && p.lane !== 'fast') {
-    bad.push('skipped_fast_lane is not legal on the heavy lane');
-  }
-  if (p.outcome === 'internal_substituted' && p.reviewer_bots === 'expected') {
-    bad.push('internal_substituted is not legal while reviewer_bots=expected');
-  }
-  if (p.threads_unresolved > 0) {
-    bad.push(`threads_unresolved=${p.threads_unresolved} must be 0 before a merge-readiness claim`);
-  }
-  return bad;
-}
+// PR_SWEEP_OUTCOMES / sweepContradictions live in lib/pr-sweep.mjs — the SAME
+// predicate lane-gate.mjs --sweep-check imports and re-runs on the read side
+// (validation-round1 NB-2: two copies of one gate is the DEBT-0002 pattern
+// this ride exists to avoid repeating).
 
 function parseArgs(argv) {
   const args = {};
@@ -198,12 +180,25 @@ function main() {
       if (!args.outcome || !PR_SWEEP_OUTCOMES.has(args.outcome)) {
         fail(`pr_sweep requires --outcome ${[...PR_SWEEP_OUTCOMES].join('|')}`);
       }
+      // B3 (validation-round1): a count that is not a non-negative integer
+      // is a usage error, not a silent NaN -- Number('abc') coerced past
+      // every sweepContradictions comparison (NaN <= 0 and NaN > 0 are both
+      // false) and wrote `null` counts. Refuse whole, nothing written, name
+      // the field.
+      let threadsSeen;
+      let threadsUnresolved;
+      try {
+        threadsSeen = parseSweepCount(args.threads_seen, 'threads_seen');
+        threadsUnresolved = parseSweepCount(args.threads_unresolved, 'threads_unresolved');
+      } catch (err) {
+        fail(`pr_sweep ${err.message}`);
+      }
       const payload = {
         pr: Number(args.pr),
         lane: args.lane,
         reviewer_bots: args.reviewer_bots,
-        threads_seen: Number(args.threads_seen ?? 0),
-        threads_unresolved: Number(args.threads_unresolved ?? 0),
+        threads_seen: threadsSeen,
+        threads_unresolved: threadsUnresolved,
         outcome: args.outcome,
       };
       const bad = sweepContradictions(payload);

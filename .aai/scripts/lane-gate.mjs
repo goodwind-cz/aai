@@ -60,6 +60,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { sweepContradictions } from './lib/pr-sweep.mjs';
 
 // ---- --sweep-check --pr <N> (Spec-AC-34, GitHub issue 338 mechanization) --
 // Verifies a `pr_sweep` event (Spec-AC-33, append-event.mjs) exists for the
@@ -381,13 +382,6 @@ function readPrSweepRecords(eventsPath, pr) {
   return out;
 }
 
-function outcomeLegalOnLane(outcome, lane) {
-  // The one lane/outcome pairing append-event.mjs itself refuses to write
-  // (Spec-AC-33) restated here as a defense-in-depth read-side check for a
-  // record written before that refusal existed, or edited by hand.
-  return !(outcome === 'skipped_fast_lane' && lane !== 'fast');
-}
-
 // Resolve a default --spec when the caller supplies none: the SAME
 // docs/ai/STATE.yaml current_focus.spec_path SKILL_PR step 5 already reads
 // by hand, so claude-hook-gate.sh's merge gate can call --sweep-check with
@@ -451,8 +445,18 @@ function runSweepCheck(opts) {
     console.log(`SWEEP-CHECK denied reason=lane-mismatch pr=${pr} record_lane=${recLane} computed_lane=${verdict.lane}`);
     exit(5);
   }
-  if (!outcomeLegalOnLane(recOutcome, verdict.lane)) {
-    console.log(`SWEEP-CHECK denied reason=illegal-outcome pr=${pr} outcome=${recOutcome} lane=${verdict.lane}`);
+  // validation-round1 NB-2: re-validate the WHOLE record with the SAME
+  // predicate append-event.mjs's writer uses, not just the lane match above
+  // -- a hand-appended line (bypassing the writer entirely) can carry any
+  // combination of fields, e.g. threads_unresolved: 7 with outcome: swept,
+  // which the lane-mismatch check alone never looks at. This also covers the
+  // one contradiction (skipped_fast_lane recorded against a non-fast lane)
+  // the old, now-removed outcomeLegalOnLane duplicated -- one predicate,
+  // called twice, never a second copy of it.
+  const bad = sweepContradictions(record.payload || {});
+  if (bad.length) {
+    console.log(`SWEEP-CHECK denied reason=contradictory-record pr=${pr} lane=${verdict.lane} outcome=${recOutcome}`);
+    console.log(bad.join('; '));
     exit(5);
   }
   console.log(`SWEEP-CHECK allowed pr=${pr} lane=${verdict.lane} outcome=${recOutcome}`);

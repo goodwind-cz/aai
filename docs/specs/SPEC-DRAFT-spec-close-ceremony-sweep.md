@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: e566ae733705d31ef22332a196bc63cdb45b3b6a69698b91154c299bc82b5586
+frozen_sha256: bb96900f8544c06cd53e2aaa9698ac040c3efa3886dc23c9944e99bda5758217
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -1481,6 +1481,128 @@ subset-of-allowlist ratchet Amendment 13's run left red, since this ride's
 own claims were not yet true) is now green BY THE FIX, not by growing
 `KNOWN_UNVERIFIED_CLOSURE_CLAIMS` — the allowlist is unchanged at its
 three pre-existing entries.
+
+Sign-off: none (tracked).
+
+## Amendment 15 (post-freeze, 2026-09-18 — validation-round1 sweep-mechanization remediation: B2/B2b/B3/T1/T3 fixed, Amendment 13 corrected, TDD run 13)
+
+**Amendment 13's merge-time claim was false, and is corrected here by name.**
+It read: "The gate Spec-AC-34 adds stands between this ride and its own
+merge, which is the point of it." Validation round 1 (B2, B2-EXTRA) measured
+this false twice over: (a) this repository carries no `.claude/settings.json`
+— neither here nor at user level — so `claude-hook-gate.sh merge` never runs
+in this environment at all, hook-overlay or not; (b) even where the overlay
+IS installed, the PR number was extracted only when positional and
+immediately after `merge`, so `gh pr merge --squash 385`, `gh pr merge
+--squash --delete-branch 385`, and the numberless `gh pr merge --squash`
+this skill's own step 6 tells the role to run all parsed as "no PR number"
+and fell through to ALLOW. Both are fixed below; this section is the
+disclosure Amendment 13 should have carried and did not.
+
+**B2 — the merge gate now takes the PR number from ANY positional argument.**
+`.aai/scripts/claude-hook-gate.sh`'s `merge` case isolates the `gh pr merge`
+command segment and reads the first standalone digit token in it (skipping a
+`-R`/`--repo` value), covering all three forms above. When none is found, it
+resolves the PR from the current branch via `gh pr view --json number -q
+.number` — the same resolution `gh pr merge` itself performs. Failing to
+resolve a PR for an ACTUAL `gh pr merge` invocation is the ONE deliberate
+exception to this file's fail-open design (documented in its own header):
+it now DENIES, naming why, rather than allowing a merge it cannot check a
+sweep record for. A plain `git merge` (no PR, no sweep record to check) is
+unaffected — the whole PR-resolution block is scoped to a `gh pr merge`
+match. `tests/skills/test-aai-hooks-overlay.sh` TEST-574 gains arms for all
+three positional forms (denied naming the parsed PR; allowed once a
+consistent record exists) and for the bare numberless form, both resolved
+(denied/allowed by a fake `gh pr view` on `$PATH`, no network) and
+unresolvable (denied, never allowed by default).
+
+**B2b — the sweep check now runs even without the hook overlay, and CI
+surfaces it report-only.** (a) `.aai/SKILL_PR.prompt.md` step 6 gains a
+SWEEP CHECK bullet naming `lane-gate.mjs --sweep-check --pr <n>` as an
+explicit pre-merge command, so the ceremony runs it whether or not the
+Claude-hooks overlay is installed — +232 B measured (34562 -> 34794 bytes,
+`/usr/bin/wc -c`), credited 1:1 in `tests/skills/lib/prompt-diet-ledger.sh`
+(TEST-012 pin 35185 -> 35417), headroom unchanged at 2046/2048; no trim was
+needed, the addition fit inside the existing headroom. (b)
+`.github/workflows/docs-numbering.yml` gains a REPORT-ONLY `sweep-check` job
+(`pull_request` events only) running `lane-gate.mjs --sweep-check --pr
+<N>` and posting `::warning::` on a non-zero verdict without failing the
+job. Making it a required check is a repo branch-protection decision that
+belongs to the owner, not this remediation — filed as
+`fu-sweep-check-not-a-required-check` (P2).
+
+**B3 — a non-numeric `pr_sweep` count is now a refused usage error.**
+`append-event.mjs` computed `Number(args.threads_seen ?? 0)`; a non-numeric
+value coerced to `NaN`, and every `sweepContradictions` comparison against
+`NaN` is false, so the record was written whole with `null` counts — exactly
+the self-contradictory shape Spec-AC-33 exists to refuse. Fixed by
+`parseSweepCount` (new shared `.aai/scripts/lib/pr-sweep.mjs`): a value that
+is not a non-negative integer throws, naming the field, and nothing is
+written. `TEST-573` gains a contradiction-6 arm (`--threads-seen abc
+--threads-unresolved xyz`) asserting the refusal names `--threads-seen`.
+
+**T1 — the `reviewer_bots` half of the `swept` check is now independently
+pinned.** `sweepContradictions`' `swept` arm ORs two conditions
+(`threads_seen <= 0 || reviewer_bots !== 'expected'`); `TEST-573` exercised
+only the `threads_seen` half, so dropping the `reviewer_bots` half stayed
+green. `TEST-573` gains a contradiction-5 arm (`--reviewer-bots none
+--threads-seen 2 --outcome swept`) that reaches and reddens it alone.
+
+**T3 / NB-2 — the read side now re-validates the WHOLE record with the SAME
+predicate the writer uses, not a second copy of one arm of it.** The old
+`outcomeLegalOnLane` restated (as a second copy) only the `skipped_fast_lane`
+arm, and no test reached it — every prior `TEST-574` arm was caught one
+check earlier by the lane-mismatch comparison. `sweepContradictions` (Spec-
+AC-33) and `PR_SWEEP_OUTCOMES` now live in `.aai/scripts/lib/pr-sweep.mjs`,
+imported by BOTH `append-event.mjs` (write side) and `lane-gate.mjs`
+(`--sweep-check`, read side) — one predicate, called twice, never
+reimplemented — and `outcomeLegalOnLane` is retired as redundant with it.
+This closes T3 (a hand-appended record whose own `lane` field already
+matches the branch's computed lane, so lane-mismatch passes, but whose
+`outcome` is illegal for it, is still denied) AND the non-blocking finding
+NB-2 in the same fix (a hand-appended record with `threads_unresolved: 7`
+and `outcome: swept` — the validation-round1 report's own example — is now
+denied too, not just a lane mismatch). `TEST-574` gains one arm per case,
+each a hand-appended `EVENTS.jsonl` line (bypassing `append-event.mjs`
+entirely, the exact "edited by hand" threat this check defends against).
+
+**NB-1, decided and disclosed rather than silently left.** Validation
+round 1 asked whether `internal_substituted` with `reviewer_bots: none` and
+`threads_seen: 0` is legal. It stays LEGAL: `reviewer_bots: none` means no
+bot layer existed to produce threads, so `threads_seen: 0` is the honest,
+not the suspicious, shape for that outcome — `internal_substituted` is
+exactly SKILL_PR step 5d's REVIEWER-FALLBACK CONTRACT case. Both `TEST-573`
+and `TEST-574` already used this shape as their canonical consistent record
+before this remediation and continue to; nothing in the code changes for
+this decision, only the disclosure that it was a decision.
+
+**Mutation records.** `TEST-573` and `TEST-574`'s LIVE records are re-run
+with their ORIGINAL frozen-cell expressions (`const bad =
+sweepContradictions(payload); -> const bad = [];` on
+`.aai/scripts/append-event.mjs`; `if [ "$SWEEP_RC" -eq 5 ]; then -> if
+false; then` on `.aai/scripts/claude-hook-gate.sh`) — both still RED, un-
+staling them after this round's edits. Before that final run, each of B3,
+T1, T3+NB-2, and B2 above was proven RED with its OWN targeted mutation
+(reviewer_bots-arm removal; the validation-catch no-op'd; the
+`sweepContradictions(record.payload \|\| {})` call on `lane-gate.mjs`
+deleted; the PR-digit regex narrowed back to positional-only), each rotated
+into `docs/ai/tdd/spec-close-ceremony-sweep/` as archived (never live)
+evidence per this repo's "never delete, never overwrite" rule. Editing
+`.aai/SKILL_PR.prompt.md` and `tests/skills/lib/prompt-diet-ledger.sh` also
+staled three EARLIER rows outside this remediation's own scope —
+`TEST-552`, `TEST-568` (both target `.aai/SKILL_PR.prompt.md`) and
+`TEST-012` (target `tests/skills/lib/prompt-diet-ledger.sh`) — re-run with
+their recorded expressions; `TEST-012`'s original `--patch` no longer
+applied cleanly (this remediation's own new ledger entry shifted the
+patch's trailing context), so an equivalent `--sed` mutation bumping the
+same leading byte field by one (2359 -> 2360) was used instead, same
+property, and is disclosed here as that row's Mutation-cell deviation. No
+other row's target changed under this remediation; the remaining OFFENDING
+rows `mutation-gate.mjs` reports (`TEST-536/537/540/554/559/565/566/569/576`)
+belong to a concurrently-dispatched remediation agent's own files
+(`docs-model.mjs`, `ride-select.mjs`, `pr-platform.mjs`,
+`test-aai-docs-audit.sh`) and are that agent's to re-run, not this
+section's.
 
 Sign-off: none (tracked).
 

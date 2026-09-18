@@ -494,6 +494,9 @@ PROCESS
      capability ride, any public or external side effect, or ceremony 3 is
      NEVER covered. Cite the record in the merge report. Absent such a record,
      or on any unmet condition, the hard rule above stands unchanged.
+   - SWEEP CHECK (Spec-AC-34), runs even without the hook overlay: before
+     `gh pr merge`, `node .aai/scripts/lane-gate.mjs --sweep-check --pr <n>`
+     must exit 0, or step 5d's `pr_sweep` record is missing/wrong -- fix, retry.
    - Hook marker (RFC-0010, opt-in overlay): projects with the Claude hooks
      overlay installed deny `git merge` / `gh pr merge` mechanically unless
      `AAI_OPERATOR_MERGE=1` is set on that command. The agent NEVER sets this

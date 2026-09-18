@@ -22,7 +22,10 @@
 #       mirrored gate still runs at its original call site, so a skipped
 #       mirror loses nothing).
 #   2 — block; stderr is shown to the model as the reason. Emitted ONLY for a
-#       genuine gate verdict, never for adapter errors.
+#       genuine gate verdict, never for adapter errors. ONE deliberate
+#       exception (B2, validation-round1): the `merge` gate's PR-number
+#       resolution failing is itself a verdict ("cannot check a sweep record
+#       for a PR I cannot identify"), not an adapter error, so it denies too.
 #
 # HONESTY NOTE: this is a guardrail against habit, not a security boundary —
 # an agent inside the session could unset the hook or set the env marker.
@@ -88,28 +91,66 @@ case "$GATE" in
     # Mirror gate 2b (Spec-AC-34, GitHub issue 338): a `gh pr merge <N>`
     # additionally needs a recorded, consistent post-open review sweep
     # (CHANGE-0060 step 5d). CALLS lane-gate.mjs --sweep-check — never
-    # reimplements its predicate (this file's own header rule). Any adapter
-    # trouble here (no PR number parsed, no node, no script) allows, same as
-    # every other gate in this file; only a CLEAN lane-gate.mjs verdict
-    # (exit 0 or 5) is ever honored as a real answer.
-    PR="$(printf '%s' "$CMD" | grep -oE 'gh[[:space:]]+pr[[:space:]]+merge[[:space:]]+[0-9]+' | grep -oE '[0-9]+$' | head -1)"
-    if [ -n "$PR" ] && command -v node >/dev/null 2>&1 && [ -f "$ROOT/.aai/scripts/lane-gate.mjs" ]; then
-      SWEEP_ARGS=(--sweep-check --pr "$PR" --repo-root "$ROOT")
-      [ -n "${AAI_SWEEP_SPEC:-}" ] && SWEEP_ARGS+=(--spec "$AAI_SWEEP_SPEC")
-      [ -n "${AAI_SWEEP_INTAKE:-}" ] && SWEEP_ARGS+=(--intake "$AAI_SWEEP_INTAKE")
-      [ -n "${AAI_SWEEP_STATE:-}" ] && SWEEP_ARGS+=(--state "$AAI_SWEEP_STATE")
-      [ -n "${AAI_SWEEP_BASE_REF:-}" ] && SWEEP_ARGS+=(--base-ref "$AAI_SWEEP_BASE_REF")
-      SWEEP_OUT="$(cd "$ROOT" 2>/dev/null && node "$ROOT/.aai/scripts/lane-gate.mjs" "${SWEEP_ARGS[@]}" 2>&1)"
-      SWEEP_RC=$?
-      if [ "$SWEEP_RC" -eq 5 ]; then
+    # reimplements its predicate (this file's own header rule). Scoped to an
+    # ACTUAL `gh pr merge` invocation only (MERGE_SEG below) — a plain
+    # `git merge` matched the outer `merge` case's regex too (article 7 is
+    # unconditional for both) but names no PR and has no sweep record to
+    # check; it must keep falling through to exit 0 once article 7 clears.
+    #
+    # B2 (validation-round1): the PR number is NOT always positional right
+    # after `merge` -- `gh pr merge --squash 385`, `gh pr merge --squash
+    # --delete-branch 385`, and the numberless `gh pr merge --squash`
+    # .aai/SKILL_PR.prompt.md:488 itself tells the role to run all parsed as
+    # "no PR number" under the old regex, which fell through to exit 0
+    # (ALLOW) — treating "couldn't parse it" as an adapter error let every one
+    # of those forms bypass the gate this section exists for. Take the number
+    # from ANY positional (non-flag) argument in the merge command segment
+    # (skipping a `-R`/`--repo` value, the one flag that legitimately carries
+    # a slash-form target rather than the PR itself); when none is found,
+    # resolve it the same way `gh pr merge` itself would — from the current
+    # branch via `gh pr view`. UNLIKE every other adapter-trouble path in this
+    # file, failing to resolve a PR number for an actual `gh pr merge` is NOT
+    # allowed to fall through to exit 0: an unidentified PR means this gate
+    # cannot judge anything, and "cannot judge" must never read as "nothing
+    # to enforce".
+    MERGE_SEG="$(printf '%s' "$CMD" | grep -oE 'gh[[:space:]]+pr[[:space:]]+merge([[:space:]][^;&|]*)?' | head -1)"
+    if [ -n "$MERGE_SEG" ]; then
+      PR_SEARCH="$(printf '%s' "$MERGE_SEG" | sed -E 's/(^|[[:space:]])(-R|--repo)[[:space:]]+[^[:space:]]+//g')"
+      PR="$(printf '%s' "$PR_SEARCH" | grep -oE '(^|[[:space:]])[0-9]+([[:space:]]|$)' | grep -oE '[0-9]+' | head -1)"
+      if [ -z "$PR" ] && command -v gh >/dev/null 2>&1; then
+        PR="$(cd "$ROOT" 2>/dev/null && gh pr view --json number -q .number 2>/dev/null || true)"
+        printf '%s' "$PR" | grep -Eq '^[0-9]+$' || PR=""
+      fi
+      if [ -z "$PR" ]; then
         {
-          echo "Merge denied: no valid post-open review sweep record for PR $PR (Spec-AC-34, issue 338)."
-          printf '%s\n' "$SWEEP_OUT" | tail -5
-          echo "Record one with .aai/scripts/append-event.mjs --event pr_sweep ..., then retry."
+          echo "Merge denied: could not determine which PR this merge command targets."
+          echo "Command: $CMD"
+          echo "No positional PR number, and 'gh pr view --json number' (current branch) did"
+          echo "not resolve one either (Spec-AC-34, issue 338) -- this gate refuses to guess"
+          echo "rather than allow a merge it cannot check a sweep record for."
+          echo "Run 'gh pr merge <N> ...' naming the PR explicitly, or merge from a branch"
+          echo "with exactly one open PR."
         } >&2
         exit 2
       fi
-      # rc 0 (verified) or anything else (adapter trouble) -> fall through, allow.
+      if command -v node >/dev/null 2>&1 && [ -f "$ROOT/.aai/scripts/lane-gate.mjs" ]; then
+        SWEEP_ARGS=(--sweep-check --pr "$PR" --repo-root "$ROOT")
+        [ -n "${AAI_SWEEP_SPEC:-}" ] && SWEEP_ARGS+=(--spec "$AAI_SWEEP_SPEC")
+        [ -n "${AAI_SWEEP_INTAKE:-}" ] && SWEEP_ARGS+=(--intake "$AAI_SWEEP_INTAKE")
+        [ -n "${AAI_SWEEP_STATE:-}" ] && SWEEP_ARGS+=(--state "$AAI_SWEEP_STATE")
+        [ -n "${AAI_SWEEP_BASE_REF:-}" ] && SWEEP_ARGS+=(--base-ref "$AAI_SWEEP_BASE_REF")
+        SWEEP_OUT="$(cd "$ROOT" 2>/dev/null && node "$ROOT/.aai/scripts/lane-gate.mjs" "${SWEEP_ARGS[@]}" 2>&1)"
+        SWEEP_RC=$?
+        if [ "$SWEEP_RC" -eq 5 ]; then
+          {
+            echo "Merge denied: no valid post-open review sweep record for PR $PR (Spec-AC-34, issue 338)."
+            printf '%s\n' "$SWEEP_OUT" | tail -5
+            echo "Record one with .aai/scripts/append-event.mjs --event pr_sweep ..., then retry."
+          } >&2
+          exit 2
+        fi
+        # rc 0 (verified) or anything else (adapter trouble, e.g. no node/script) -> allow.
+      fi
     fi
     exit 0
     ;;

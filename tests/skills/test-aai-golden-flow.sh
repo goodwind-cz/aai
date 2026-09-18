@@ -800,6 +800,26 @@ test_573_pr_sweep_record_refuses_contradiction() {
   after="$(line_count)"
   [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused threads_unresolved record must append nothing"
 
+  # Contradiction 5 (T1, validation-round1): swept with threads_seen > 0 but
+  # reviewer_bots != expected must ALSO be refused -- the reviewer_bots half
+  # of contradiction 1's OR is a separate, independently-pinned property from
+  # the threads_seen half contradiction 1 above already covers.
+  before="$after"
+  code=0; append_sweep --pr 901 --lane heavy --reviewer-bots none --threads-seen 2 --threads-unresolved 0 --outcome swept || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-573: swept with reviewer_bots=none (threads_seen>0) must be refused, got exit 0: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused swept/reviewer_bots-none record must append nothing"
+
+  # Contradiction 6 (B3, validation-round1): a non-numeric count is a usage
+  # error, refused whole with the offending field named -- not silently
+  # coerced to NaN and written as a null count.
+  before="$after"
+  code=0; append_sweep --pr 901 --lane heavy --reviewer-bots expected --threads-seen abc --threads-unresolved xyz --outcome swept || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-573: a non-numeric --threads-seen must be refused, got exit 0: $(cat "$out")"
+  grep -qF "threads-seen" "$out" || log_fail "TEST-573: the non-numeric-count refusal does not name --threads-seen: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused non-numeric-count record must append nothing"
+
   # One consistent record per outcome: each appends exactly one line.
   before="$after"
   code=0; append_sweep --pr 902 --lane heavy --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept || code=$?

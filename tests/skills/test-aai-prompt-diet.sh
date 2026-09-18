@@ -825,7 +825,12 @@ test_012_growth_sum_matches_ledger() {
   # +120 B net (run 9, Spec-AC-25 -- a duplicate invocation line removed but
   # replaced by a longer non-repeating sentence). Credited 1:1, headroom
   # returns to 2046/2048.
-  local want_growth=35185
+  # Then 35185 -> 35417: close-ceremony-sweep validation-round1 B2b
+  # remediation (+232 B) -- SKILL_PR.prompt.md step 6 gains a SWEEP CHECK
+  # bullet naming lane-gate.mjs --sweep-check --pr <n> as an explicit
+  # pre-merge command so Spec-AC-34's gate runs whether or not the Claude
+  # hooks overlay is installed. Credited 1:1, headroom stays 2046/2048.
+  local want_growth=35417
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
