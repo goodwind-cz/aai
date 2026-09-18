@@ -714,7 +714,13 @@ test_003_steps_from_questions() {
   [[ -f "$record" ]] || log_fail "TEST-003: record not written"
   [[ "$(json_field "$record" 'r.steps_total')" == "4" ]] || log_fail "TEST-003: steps_total must be 4: $(cat "$record")"
   [[ "$(json_field "$record" 'r.steps_failed')" == "3" ]] || log_fail "TEST-003: steps_failed must be 3: $(cat "$record")"
-  [[ "$(json_field "$record" 'r.questions_asked')" == "3" ]] || log_fail "TEST-003: questions_asked must be 3: $(cat "$record")"
+  # Spec-AC-28 (TDD run 9): none of these three fixture steps ever touches the
+  # real HITL channel (docs/ai/hitl-channel.json) -- a bash `read` on closed
+  # stdin, a plain `exit 3`, and a timeout are ordinary step FAILURES, not an
+  # asked question. questions_asked now counts only entries whose
+  # hitl_entries > 0, so it is 0 here even though all three are failures; the
+  # problem log (questions.length) still lists all three unchanged.
+  [[ "$(json_field "$record" 'r.questions_asked')" == "0" ]] || log_fail "TEST-003: questions_asked must be 0 -- none of these three failures touched the HITL channel: $(cat "$record")"
   [[ "$(json_field "$record" 'r.questions.length')" == "3" ]] || log_fail "TEST-003: questions must list 3 entries"
   [[ "$(json_field "$record" 'r.questions[0].step')" == "ask-operator" ]] || log_fail "TEST-003: first question must be the stdin step"
   [[ "$(json_field "$record" 'r.questions[0].exit_code')" != "0" ]] || log_fail "TEST-003: the stdin-reading step must not exit 0 with stdin closed"
@@ -724,6 +730,27 @@ test_003_steps_from_questions() {
   case "$(json_field "$record" 'r.questions[1].output')" in *"refused: fixture step"*) ;; *) log_fail "TEST-003: exit-three output missing" ;; esac
   [[ "$(json_field "$record" 'r.questions[2].timed_out')" == "true" ]] || log_fail "TEST-003: the sleeping step must be recorded as timed out: $(cat "$record")"
   log_pass "TEST-003 questions recorded with command, exit code, output; timeout observed, not hung"
+}
+
+# --- TEST-564 (Spec-AC-28): questions_asked counts only steps that actually
+# asked a human, never a step that merely failed ----------------------------
+
+test_564_questions_are_not_failures() {
+  log_info "TEST-564: two failed steps, zero HITL entries -> questions_asked 0 while steps_failed and the questions problem log still hold both..."
+  local out="$TEST_DIR/t564-out" record="$TEST_DIR/t564-record.jsonl" steps="$TEST_DIR/t564-steps.jsonl"
+  {
+    printf '%s\n' '{"name":"boom-one","run":["bash","-c","echo boom-one; exit 2"]}'
+    printf '%s\n' '{"name":"boom-two","run":["bash","-c","echo boom-two; exit 5"]}'
+  } > "$steps"
+  flow_env_run "$out" "$record" --steps-from "$steps"
+  [[ "$CODE" -eq 1 ]] || log_fail "TEST-564: expected exit 1, got $CODE: $OUT"
+  [[ "$(json_field "$record" 'r.steps_total')" == "2" ]] || log_fail "TEST-564: steps_total must be 2: $(cat "$record")"
+  [[ "$(json_field "$record" 'r.steps_failed')" == "2" ]] || log_fail "TEST-564: steps_failed must be 2: $(cat "$record")"
+  [[ "$(json_field "$record" 'r.questions.length')" == "2" ]] \
+    || log_fail "TEST-564: the questions problem log must still hold both entries: $(cat "$record")"
+  [[ "$(json_field "$record" 'r.questions_asked')" == "0" ]] \
+    || log_fail "TEST-564: questions_asked must be 0 -- neither failure touched the HITL channel, so a failed step must not be counted as an asked question: $(cat "$record")"
+  log_pass "TEST-564 two failed steps, zero HITL entries -> questions_asked 0, steps_failed 2, questions log holds both"
 }
 
 # --- TEST-006 (Spec-AC-04): the record reads the gate, never recomputes ----
@@ -941,6 +968,7 @@ main() {
   test_001_full_run_clean
   test_002_seam_fixture_layer
   test_003_steps_from_questions
+  test_564_questions_are_not_failures
   test_006_record_reads_gate_and_skill_pr_wiring
   test_007_record_append_only_and_diff
   test_417_locked_concurrent_appends

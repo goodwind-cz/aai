@@ -250,7 +250,7 @@ function overlayKey(ts, ref) {
   const t = str(ts);
   const r = str(ref);
   if (t === null || r === null) return null;
-  return `${t} ${r}`;
+  return `${t}\u0000${r}`;
 }
 
 // Codepoint ordering, never localeCompare: "latest wins" must not depend on

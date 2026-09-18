@@ -1632,6 +1632,124 @@ test_104_pgq_shrink_never_lowers_the_bar() {  # TEST-005 / Spec-AC-03
   log_pass "test_104: SHRINK and GONE are NOTEs, never a rise, and the recorded number is never rewritten by a comparison (TEST-005)"
 }
 
+# --- TEST-562 (spec-close-ceremony-sweep Spec-AC-27) — no tracked text file
+# may carry a literal NUL byte; a guard proves it -----------------------------
+NONUL_LIB_REL="tests/skills/lib/no-nul-guard.sh"
+
+test_562_no_nul_in_tracked_text() {  # TEST-562 / Spec-AC-27
+  log_info "TEST-562: the no-NUL guard names a planted NUL fixture and exits non-zero; over the live tree it exits 0 (requires spec-amend.mjs's NUL to be an escape)..."
+  local guard="$PROJECT_ROOT/$NONUL_LIB_REL" d
+  [[ -f "$guard" ]] || log_fail "TEST-562: missing $NONUL_LIB_REL"
+  d="$(ap_tmpdir)"
+  # shellcheck source=lib/no-nul-guard.sh
+  . "$guard"
+
+  # ---- fixture: a real git repo, one clean tracked file, one NUL-carrying one
+  local fx="$d/nonul-fixture"
+  rm -rf "$fx"; mkdir -p "$fx"
+  git init -q "$fx"
+  git -C "$fx" config user.email t@t.example
+  git -C "$fx" config user.name t
+  printf 'clean text\n' > "$fx/clean.txt"
+  # Plant a literal NUL byte via printf's raw byte output -- never through a
+  # bash string variable, which truncates at the first NUL (the same shape
+  # M7 measured: `.aai/scripts/spec-amend.mjs` line 253).
+  printf 'before\000after\n' > "$fx/planted.bin"
+  git -C "$fx" add -A
+  git -C "$fx" commit -qm "fixture: one clean tracked file, one NUL-carrying tracked file"
+
+  local out rc
+  out=$(bash "$guard" --check "$fx" 2>&1) && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-562: the guard must exit non-zero over a tree that plants a NUL-carrying tracked file, got 0: $out"
+  case "$out" in
+    *"planted.bin"*) : ;;
+    *) log_fail "TEST-562: the guard must name the planted NUL fixture, got: $out" ;;
+  esac
+  case "$out" in
+    *"clean.txt"*) log_fail "TEST-562: a genuinely clean tracked file must never be named, got: $out" ;;
+    *) : ;;
+  esac
+
+  # ---- live tree: exits clean -- REQUIRES spec-amend.mjs's NUL to be gone
+  local live_out live_rc
+  live_out=$(bash "$guard" --check "$PROJECT_ROOT" 2>&1) && live_rc=0 || live_rc=$?
+  [[ "$live_rc" -eq 0 ]] \
+    || log_fail "TEST-562: the live tree must carry zero tracked files with a NUL byte, guard exited $live_rc naming: $live_out"
+  [[ -z "$live_out" ]] \
+    || log_fail "TEST-562: a clean live-tree run must print nothing, got: $live_out"
+
+  # BITE: the probe itself is genuinely exercised, not vacuously true --
+  # direct unit-level check against nonul_file_has_nul.
+  nonul_file_has_nul "$fx/planted.bin" \
+    || log_fail "TEST-562: nonul_file_has_nul must detect the planted byte directly"
+  if nonul_file_has_nul "$fx/clean.txt"; then
+    log_fail "TEST-562: nonul_file_has_nul must not false-positive on a genuinely clean file"
+  fi
+
+  log_pass "TEST-562 the no-NUL guard names a planted fixture and exits non-zero; the live tree exits 0 clean (spec-amend.mjs's NUL is now an escape); bite proven"
+}
+
+# --- TEST-563 (spec-close-ceremony-sweep Spec-AC-28) — a grep ERROR is not
+# an improvement: pgq_scan must distinguish "could not read the file" from
+# "read it, found nothing" ----------------------------------------------------
+
+test_563_pgq_scan_reports_read_errors() {  # TEST-563 / Spec-AC-28
+  log_info "TEST-563: an unreadable file makes pgq_scan report an ERROR row naming it, not a count of 0 that reads as an improvement..."
+  local ratchet="$PROJECT_ROOT/$PGQ_LIB_REL" d
+  d="$(ap_tmpdir)"
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$ratchet"
+
+  local fx="$d/pgq-error-fixture"
+  rm -rf "$fx"; mkdir -p "$fx"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-clean.sh"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-locked.sh"
+
+  chmod 000 "$fx/test-aai-locked.sh" 2>/dev/null
+  if cat "$fx/test-aai-locked.sh" >/dev/null 2>&1; then
+    chmod 644 "$fx/test-aai-locked.sh" 2>/dev/null
+    log_info "TEST-563: chmod 000 denies this uid nothing (root/CI perm bypass) -- the unreadable-file defect cannot be exercised on this machine, skipping this test's assertions"
+    return 0
+  fi
+
+  local scan
+  scan="$(pgq_scan "$fx")"
+  chmod 644 "$fx/test-aai-locked.sh" 2>/dev/null
+
+  case $'\n'"$scan" in
+    *$'\n'"ERROR"$'\t'"test-aai-locked.sh"*) : ;;
+    *) log_fail "TEST-563: an unreadable file must be reported as an ERROR row naming it, got: $scan" ;;
+  esac
+  case "$scan" in
+    *"test-aai-clean.sh"*) log_fail "TEST-563: a genuinely clean, readable file must not appear at all, got: $scan" ;;
+    *) : ;;
+  esac
+
+  # BITE: without the readability check, the unreadable file's grep pipeline
+  # fails and falls back to the pre-existing swallow (`_pgq_n=0`), so it
+  # silently VANISHES from the scan -- indistinguishable from a clean file
+  # with no matches, exactly the "improvement" this row must not tolerate.
+  # The named mutation `sed:s/_pgq_rc=\$\?/_pgq_n=0/` has no target against
+  # this implementation (there is no `_pgq_rc=$?` assignment to revert): the
+  # equivalent expression below disables the readability branch this fix
+  # actually added, restoring the exact pre-fix silent-vanish behavior.
+  local mutant mscan mrc
+  mutant="$d/pgq-error-mutant.sh"
+  sed 's/if \[ ! -r "\$_pgq_f" \]; then/if false; then/' "$ratchet" > "$mutant"
+  cmp -s "$mutant" "$ratchet" \
+    && log_fail "TEST-563: the bite mutation changed nothing in $PGQ_LIB_REL -- the assertion cannot bite (test bug, not a real finding)"
+
+  chmod 000 "$fx/test-aai-locked.sh" 2>/dev/null
+  mscan=$(bash -c '. "$1"; pgq_scan "$2"' _ "$mutant" "$fx") && mrc=0 || mrc=$?
+  chmod 644 "$fx/test-aai-locked.sh" 2>/dev/null
+  case "$mscan" in
+    *"ERROR"*) log_fail "TEST-563: the bite mutation must make the unreadable file vanish (no ERROR row), got: $mscan" ;;
+    *) log_info "  bite proven: without the readability check the unreadable file silently vanishes (reads as 0, an 'improvement')" ;;
+  esac
+
+  log_pass "TEST-563 pgq_scan reports an unreadable file as an ERROR row, never as a silent 0; bite proven"
+}
+
 # --- TEST-470 (round 10, PR #381 remediation, SPEC-0179 Amendment Round 10)
 # — the SECOND ratchet arm: shipping scripts (.aai/scripts/*.sh and
 # .aai/scripts/lib/*.sh) that set pipefail must carry zero occurrences of the
@@ -4220,6 +4338,8 @@ main() {
   test_102_pgq_ratchet_gate_and_bite
   test_103_pgq_baseline_is_measured_not_typed
   test_104_pgq_shrink_never_lowers_the_bar
+  test_562_no_nul_in_tracked_text
+  test_563_pgq_scan_reports_read_errors
   test_122_pgq_corpus_drained_to_zero
   test_123_pgq_bite_at_zero_and_handtyped_baseline_rejected
   test_124_degenerate_pass_guards_uncovered_and_ratcheted

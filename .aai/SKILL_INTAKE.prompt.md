@@ -85,7 +85,7 @@ Index:     docs/INDEX.md regenerated
 Next step: Run .aai/ORCHESTRATION.prompt.md to dispatch the next role.
 ---
 
-SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its six blocks (staleness preflight, language policy, durable doc identity, post-save check, metrics question, implementation mode choice) exactly.
+SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its five blocks (language policy, durable doc identity, post-save check, metrics question, implementation mode choice) exactly. STEP 0 above already applied that first block — this line does not repeat it (Spec-AC-25: at most one invocation instruction per intake).
 
 EFFICIENCY RULES
 - Ask only for missing high-impact fields.

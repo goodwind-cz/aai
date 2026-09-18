@@ -119,8 +119,25 @@ function git(repo, argsArr, timeoutMs) {
   };
 }
 
-function isGitRepo(repo, timeoutMs) {
-  return git(repo, ['rev-parse', '--git-dir'], timeoutMs);
+function isGitRepo(repo, timeoutMs, deadline) {
+  return budgetedGit(repo, ['rev-parse', '--git-dir'], timeoutMs, deadline);
+}
+
+// budgetedGit — the ONE call site every git() invocation in this file goes
+// through from here down (Spec-AC-25: "clamp every git call, not only
+// fetches, to the remaining --budget-ms"). Before this fix only the two
+// `git fetch` call sites clamped their own timeout to the remaining budget;
+// every OTHER call (symbolic-ref, rev-parse, rev-list, submodule status,
+// config lookups) used the flat per-call --timeout-ms regardless of how much
+// of the wall-clock budget was already spent, so a slow or hung LOCAL git
+// invocation (or simply many of them) could keep running well past
+// --budget-ms. Once the deadline has passed, no further git process is even
+// spawned — this call degrades to a plain failure silently, exactly like a
+// real git failure already does at every call site below.
+function budgetedGit(repo, argsArr, timeoutMs, deadline) {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) return { ok: false, stdout: '', timedOut: false, enoent: false };
+  return git(repo, argsArr, Math.min(timeoutMs, remaining));
 }
 
 // --- Superproject branch arm (Spec-AC-01, Spec-AC-02, Spec-AC-06) ----------
@@ -134,15 +151,16 @@ function isGitRepo(repo, timeoutMs) {
 function checkBranchArm(args, lines, deadline) {
   const { repo, timeoutMs, noFetch } = args;
 
-  const headRef = git(repo, ['symbolic-ref', '-q', 'HEAD'], timeoutMs);
+  const headRef = budgetedGit(repo, ['symbolic-ref', '-q', 'HEAD'], timeoutMs, deadline);
   if (!headRef.ok) return; // detached HEAD -> skip silently
   const branch = headRef.stdout.replace(/^refs\/heads\//, '');
   if (!branch) return;
 
-  const upstreamRef = git(
+  const upstreamRef = budgetedGit(
     repo,
     ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
     timeoutMs,
+    deadline,
   );
   if (!upstreamRef.ok || !upstreamRef.stdout) return; // no configured upstream -> skip silently
   const upstream = upstreamRef.stdout;
@@ -153,9 +171,6 @@ function checkBranchArm(args, lines, deadline) {
   if (!remoteBranch) return;
 
   if (!noFetch) {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) return; // budget already spent -> skip silently
-    const fetchTimeout = Math.min(timeoutMs, remaining);
     // EXPLICIT destination refspec (never a bare `<remote> <branch>` pair):
     // a plain `git fetch origin main` only updates `refs/remotes/origin/main`
     // as an AMBIENT side effect of the remote's already-configured fetch
@@ -166,11 +181,11 @@ function checkBranchArm(args, lines, deadline) {
     // regardless of ambient refspec config (found: CI-only TEST-020 failure
     // with 0 AAI-STALE lines where the local reproduction was clean).
     const fetchRefspec = `+${remoteBranch}:refs/remotes/${remoteName}/${remoteBranch}`;
-    const fetchRes = git(repo, ['fetch', '--quiet', remoteName, fetchRefspec], fetchTimeout);
-    if (!fetchRes.ok) return; // unreachable / auth failure / timeout / stale remote -> skip silently
+    const fetchRes = budgetedGit(repo, ['fetch', '--quiet', remoteName, fetchRefspec], timeoutMs, deadline);
+    if (!fetchRes.ok) return; // unreachable / auth failure / timeout / budget exhausted -> skip silently
   }
 
-  const countRes = git(repo, ['rev-list', '--count', `HEAD..${upstream}`], timeoutMs);
+  const countRes = budgetedGit(repo, ['rev-list', '--count', `HEAD..${upstream}`], timeoutMs, deadline);
   if (!countRes.ok) return;
   const n = Number.parseInt(countRes.stdout, 10);
   if (!Number.isInteger(n) || n <= 0) return;
@@ -183,15 +198,24 @@ function checkBranchArm(args, lines, deadline) {
 // prefixed `-` is uninitialized — skipped, never fetched, never reported).
 // Each submodule's failure degrades that submodule alone; it never aborts
 // the loop or the run.
-function listInitializedSubmodulePaths(repo, timeoutMs) {
-  const res = git(repo, ['submodule', 'status'], timeoutMs);
+function listInitializedSubmodulePaths(repo, timeoutMs, deadline) {
+  const res = budgetedGit(repo, ['submodule', 'status'], timeoutMs, deadline);
   if (!res.ok || !res.stdout) return [];
   const paths = [];
   for (const line of res.stdout.split('\n')) {
     if (!line || line.startsWith('-')) continue; // uninitialized -> skip
-    const trimmed = line.replace(/^[+U ]/, '').trim();
-    const parts = trimmed.split(/\s+/);
-    if (parts[1]) paths.push(parts[1]);
+    // `git submodule status` format: <flag><40-hex-sha1> <path>[ (<describe>)].
+    // A naive `trimmed.split(/\s+/)` (the previous approach) truncates any
+    // path containing whitespace at its first space, silently mis-resolving
+    // the submodule's directory (Spec-AC-26). Parse positionally instead:
+    // the flag char plus the fixed-width sha1 anchor where the path begins,
+    // and an optional trailing " (<describe>)" is stripped from the end —
+    // whatever whitespace remains between them is part of the path itself.
+    // The flag char is OPTIONAL in this pattern: `git()` trims the WHOLE
+    // multi-line stdout blob, not each line, so a leading-space flag on the
+    // very first line is already gone by the time it reaches here.
+    const m = line.match(/^[+U ]?([0-9a-f]{40}) (.+?)(?: \([^()]*\))?$/);
+    if (m && m[2]) paths.push(m[2]);
   }
   return paths;
 }
@@ -199,12 +223,13 @@ function listInitializedSubmodulePaths(repo, timeoutMs) {
 // The .gitmodules SECTION name for a given submodule path (needed to look up
 // `submodule.<name>.branch`); null when .gitmodules is absent or has no
 // matching row.
-function submoduleNameForPath(repo, subPath, timeoutMs) {
+function submoduleNameForPath(repo, subPath, timeoutMs, deadline) {
   if (!fs.existsSync(path.join(repo, '.gitmodules'))) return null;
-  const res = git(
+  const res = budgetedGit(
     repo,
     ['config', '-f', '.gitmodules', '--get-regexp', '^submodule\\..*\\.path$'],
     timeoutMs,
+    deadline,
   );
   if (!res.ok || !res.stdout) return null;
   for (const line of res.stdout.split('\n')) {
@@ -218,42 +243,52 @@ function submoduleNameForPath(repo, subPath, timeoutMs) {
 // configured, else the submodule remote's default branch resolved from
 // `refs/remotes/origin/HEAD`. Neither resolves -> null (caller degrades that
 // submodule silently).
-function resolveSubmoduleBranch(repo, subPath, name, timeoutMs) {
+//
+// Spec-AC-26: git's own `submodule.<name>.branch` convention treats the
+// literal value `.` as a SENTINEL ("track whatever branch the superproject
+// itself has checked out"), never as a real branch name. Reading it as a
+// refspec (the previous behavior) built `origin/.`, which resolves to
+// nothing, so the submodule silently read as "up to date" — indistinguishable
+// from a submodule with no staleness at all. Treating `.` as equivalent to
+// "no branch configured" and falling through to the same origin/HEAD default
+// -branch resolution used when `submodule.<name>.branch` is absent gives a
+// REAL behind-count instead of a silent skip.
+function resolveSubmoduleBranch(repo, subPath, name, timeoutMs, deadline) {
   if (name) {
-    const cfg = git(repo, ['config', '-f', '.gitmodules', '--get', `submodule.${name}.branch`], timeoutMs);
-    if (cfg.ok && cfg.stdout) return cfg.stdout.trim();
+    const cfg = budgetedGit(repo, ['config', '-f', '.gitmodules', '--get', `submodule.${name}.branch`], timeoutMs, deadline);
+    if (cfg.ok && cfg.stdout) {
+      const b = cfg.stdout.trim();
+      if (b && b !== '.') return b;
+    }
   }
   const subDir = path.join(repo, subPath);
-  const head = git(subDir, ['symbolic-ref', 'refs/remotes/origin/HEAD'], timeoutMs);
+  const head = budgetedGit(subDir, ['symbolic-ref', 'refs/remotes/origin/HEAD'], timeoutMs, deadline);
   if (head.ok && head.stdout) return head.stdout.replace(/^refs\/remotes\/origin\//, '');
   return null;
 }
 
 function checkSubmodulesArm(args, lines, deadline) {
   const { repo, timeoutMs, noFetch } = args;
-  const subPaths = listInitializedSubmodulePaths(repo, timeoutMs);
+  const subPaths = listInitializedSubmodulePaths(repo, timeoutMs, deadline);
 
   for (const subPath of subPaths) {
     if (Date.now() >= deadline) break; // budget exhausted -> stop silently, keep what was found
     const subDir = path.join(repo, subPath);
     if (!fs.existsSync(subDir)) continue;
 
-    const name = submoduleNameForPath(repo, subPath, timeoutMs);
-    const branch = resolveSubmoduleBranch(repo, subPath, name, timeoutMs);
+    const name = submoduleNameForPath(repo, subPath, timeoutMs, deadline);
+    const branch = resolveSubmoduleBranch(repo, subPath, name, timeoutMs, deadline);
     if (!branch) continue; // D7: neither ref resolves -> degrade this submodule alone
 
     if (!noFetch) {
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) break; // budget spent mid-list -> stop silently
-      const fetchTimeout = Math.min(timeoutMs, remaining);
       // Explicit destination refspec — same reasoning as the branch arm
       // above: never depend on ambient tracking-ref-update behavior.
-      const fetchRes = git(subDir, ['fetch', '--quiet', 'origin', `+${branch}:refs/remotes/origin/${branch}`], fetchTimeout);
-      if (!fetchRes.ok) continue; // this submodule alone degrades, others still checked
+      const fetchRes = budgetedGit(subDir, ['fetch', '--quiet', 'origin', `+${branch}:refs/remotes/origin/${branch}`], timeoutMs, deadline);
+      if (!fetchRes.ok) continue; // this submodule alone degrades (incl. budget exhausted), others still checked
     }
 
     const ref = `origin/${branch}`;
-    const countRes = git(subDir, ['rev-list', '--count', `HEAD..${ref}`], timeoutMs);
+    const countRes = budgetedGit(subDir, ['rev-list', '--count', `HEAD..${ref}`], timeoutMs, deadline);
     if (!countRes.ok) continue;
     const n = Number.parseInt(countRes.stdout, 10);
     if (!Number.isInteger(n) || n <= 0) continue;
@@ -267,7 +302,7 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   const deadline = Date.now() + args.budgetMs;
 
-  const dirCheck = isGitRepo(args.repo, args.timeoutMs);
+  const dirCheck = isGitRepo(args.repo, args.timeoutMs, deadline);
   if (dirCheck.enoent) { exit(0); return; } // git not on PATH -> silent no-op
   if (!dirCheck.ok) { exit(0); return; } // not a git work tree -> silent no-op
 
@@ -285,5 +320,14 @@ function realOrResolve(p) {
   try { return fs.realpathSync(p); } catch { return path.resolve(p); }
 }
 if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
-  runMain(() => main());
+  // Spec-AC-25: this preflight's OWN contract (see the exit-codes note at the
+  // top of this file) is "0 always at runtime" — a usage error (exit 2) is
+  // the one case a human typed wrong, thrown deliberately via exit(2) above
+  // and caught by runMain's own ExitSignal branch before onError ever runs.
+  // An unexpected bug here (a genuine ReferenceError/TypeError, not a usage
+  // error) must never surface as a crash with a stack trace on the caller's
+  // stderr: the intake router only ever "relays stdout verbatim" and
+  // "proceeds regardless of outcome" — a crash is not a degradation this
+  // preflight is allowed to hand back. Swallow it silently and exit 0.
+  runMain(() => main(), { onError() { process.exitCode = 0; } });
 }

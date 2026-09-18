@@ -548,7 +548,13 @@ function main() {
     os_family: process.platform === 'win32' ? 'windows' : process.platform,
     steps_total: steps.length,
     steps_failed: failed,
-    questions_asked: questions.length,
+    // Spec-AC-28: `questions` is the PROBLEM LOG (every step that failed,
+    // timed out, OR asked) — questions_asked must count only the ones that
+    // genuinely asked a human (hitl_entries > 0), never a step that simply
+    // failed. `questions.length` conflated "the step failed" with "a human
+    // was asked", so a run with zero real HITL activity could still report a
+    // non-zero questions_asked purely from ordinary step failures.
+    questions_asked: questions.filter((q) => q.hitl_entries > 0).length,
     questions,
     files_left: gate.ok ? g.files_left : null,
     docs_open: gate.ok ? g.docs_open : null,

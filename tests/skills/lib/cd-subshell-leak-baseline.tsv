@@ -31,6 +31,7 @@
 1	.aai/scripts/triage.sh
 1	.aai/scripts/validate-skills.sh
 2	tests/skills/lib/degenerate-pass-ratchet.sh
+2	tests/skills/lib/no-nul-guard.sh
 2	tests/skills/lib/pipe-grep-q-ratchet.sh
 3	tests/skills/test-aai-advisory-skills.sh
 2	tests/skills/test-aai-bootstrap.sh
