@@ -29,6 +29,15 @@
 //     [--max-files <N>] [--select-suites <path>] [--map <path>]
 //     [--docs-audit <path>] [--json]
 //
+//   node .aai/scripts/lane-gate.mjs --sweep-check --pr <N> [--repo-root <dir>]
+//     [--spec <spec.md>] [--intake <intake.md>] [--state <STATE.yaml>]
+//     [--base-ref <ref> | --files-from <path|->]
+//   (Spec-AC-34, GitHub issue 338.) A SEPARATE mode with a SEPARATE exit
+//   contract — 0 allow, 5 deny (stdout names what's missing/mismatched) — see
+//   the header comment above runSweepCheck. --spec/--intake/--state default
+//   from docs/ai/STATE.yaml (current_focus.spec_path) when omitted, so the
+//   merge-time hook can call this with no ride-specific flags of its own.
+//
 // Output (stdout): a verdict line then one line per predicate value, e.g.
 //
 //   LANE fast
@@ -52,6 +61,23 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
+// ---- --sweep-check --pr <N> (Spec-AC-34, GitHub issue 338 mechanization) --
+// Verifies a `pr_sweep` event (Spec-AC-33, append-event.mjs) exists for the
+// given PR whose recorded lane equals the lane THIS invocation computes for
+// the branch, and whose outcome is legal on that lane. This is the ONLY
+// place issue 338's "merge-readiness claim" is judged — claude-hook-gate.sh's
+// merge gate CALLS this mode rather than restating the predicate.
+//
+//   Exit 0 — a consistent pr_sweep record for --pr exists; ALLOW.
+//   Exit 5 — no record, or a mismatched/illegal one; DENY (stdout names what
+//            is missing or mismatched).
+// Any OTHER outcome (an uncaught throw — e.g. an existing-but-unreadable
+// docs/ai/EVENTS.jsonl) is NOT a verdict: it reaches runMain's onError below
+// and is reported as exit 0 (fail-open), the same contract this file's own
+// header states for the lane computation itself. A MISSING file is not that
+// case — it is read as "no records" and denied normally (a merge with
+// nothing recorded is not an adapter error).
+
 const SELF_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = resolve(SELF_DIR, '..', '..');
 
@@ -62,7 +88,7 @@ function parseArgs(argv) {
   const out = {
     spec: null, intake: null, state: null, baseRef: null, filesFrom: null, repoRoot: null,
     maxFiles: DEFAULT_MAX_FILES, selectSuites: null, mapPath: null,
-    auditPath: null, json: false,
+    auditPath: null, json: false, sweepCheck: false, pr: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -77,6 +103,8 @@ function parseArgs(argv) {
     else if (a === '--map') out.mapPath = argv[++i];
     else if (a === '--docs-audit') out.auditPath = argv[++i];
     else if (a === '--json') out.json = true;
+    else if (a === '--sweep-check') out.sweepCheck = true;
+    else if (a === '--pr') out.pr = argv[++i];
     // Unknown flags ignored on purpose — a CLI slip must never fail the
     // ceremony; it degrades to HEAVY via the normal fail-closed path.
   }
@@ -286,10 +314,10 @@ function evaluateDiffSurface(changed, maxFiles, repoRoot) {
   return { ok, count, classes, detail };
 }
 
-function main() {
-  const opts = parseArgs(process.argv.slice(2));
-  opts.repoRoot = resolve(opts.repoRoot || DEFAULT_REPO_ROOT);
-
+// The four-predicate conjunction, extracted so --sweep-check can recompute
+// the SAME verdict the normal invocation prints — one function, never two
+// readings of "the lane" (S5-style seam, kept closed inside this one file).
+function computeLaneVerdict(opts) {
   const ceremony = readCeremonyLevel(opts.spec ? resolve(opts.spec) : null,
     opts.intake ? resolve(opts.intake) : null);
   const strategy = readStrategy(opts.state ? resolve(opts.state) : null);
@@ -332,30 +360,141 @@ function main() {
   else if (!surface.ok) reason = 'diff_surface';
 
   const fast = reason === null;
+  return { ceremony, strategy, protectedCfgOk, suite, surface, lines, reason, fast, lane: fast ? 'fast' : 'heavy' };
+}
+
+// ---- pr_sweep record lookup (Spec-AC-34) -----------------------------------
+function readPrSweepRecords(eventsPath, pr) {
+  if (!existsSync(eventsPath)) return [];
+  // Deliberately UN-guarded: an existing-but-unreadable file (permissions,
+  // EISDIR, ...) must THROW here so it reaches runMain's onError and fails
+  // open, rather than being swallowed into an empty (and therefore DENYING)
+  // record list — see the header note above runSweepCheck.
+  const text = readFileSync(eventsPath, 'utf8');
+  const out = [];
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    let obj;
+    try { obj = JSON.parse(line); } catch { continue; }
+    if (obj && obj.event === 'pr_sweep' && obj.payload && Number(obj.payload.pr) === pr) out.push(obj);
+  }
+  return out;
+}
+
+function outcomeLegalOnLane(outcome, lane) {
+  // The one lane/outcome pairing append-event.mjs itself refuses to write
+  // (Spec-AC-33) restated here as a defense-in-depth read-side check for a
+  // record written before that refusal existed, or edited by hand.
+  return !(outcome === 'skipped_fast_lane' && lane !== 'fast');
+}
+
+// Resolve a default --spec when the caller supplies none: the SAME
+// docs/ai/STATE.yaml current_focus.spec_path SKILL_PR step 5 already reads
+// by hand, so claude-hook-gate.sh's merge gate can call --sweep-check with
+// no ride-specific flags of its own. Sweep-check-only (an explicit --spec/
+// --intake always wins; the normal mode's existing missing-spec -> heavy
+// default is unchanged, so no existing fixture is affected).
+function resolveDefaultSpecFromState(statePath) {
+  if (!statePath || !existsSync(statePath)) return null;
+  let text;
+  try {
+    text = readFileSync(statePath, 'utf8');
+  } catch {
+    return null;
+  }
+  let inBlock = false;
+  for (const raw of text.split('\n')) {
+    if (!raw.trim()) continue;
+    const indent = raw.length - raw.trimStart().length;
+    const line = raw.trim();
+    if (!inBlock) {
+      if (indent === 0 && /^current_focus\s*:/.test(line)) inBlock = true;
+      continue;
+    }
+    if (indent === 0) break;
+    const m = line.match(/^spec_path\s*:\s*(\S+)/);
+    if (indent === 2 && m) return m[1];
+  }
+  return null;
+}
+
+function runSweepCheck(opts) {
+  const pr = Number(opts.pr);
+  if (!Number.isInteger(pr) || pr <= 0) {
+    console.log('SWEEP-CHECK denied reason=bad-pr');
+    console.log(`--sweep-check requires a positive integer --pr, got ${JSON.stringify(opts.pr)}`);
+    exit(5);
+  }
+
+  const statePath = opts.state ? resolve(opts.state) : resolve(opts.repoRoot, 'docs/ai/STATE.yaml');
+  let specPath = opts.spec ? resolve(opts.spec) : null;
+  const intakePath = opts.intake ? resolve(opts.intake) : null;
+  if (!specPath && !intakePath) {
+    const derived = resolveDefaultSpecFromState(statePath);
+    if (derived) specPath = resolve(opts.repoRoot, derived);
+  }
+
+  const verdict = computeLaneVerdict({ ...opts, spec: specPath, intake: intakePath, state: statePath });
+
+  const eventsPath = resolve(opts.repoRoot, 'docs/ai/EVENTS.jsonl');
+  const records = readPrSweepRecords(eventsPath, pr);
+  if (records.length === 0) {
+    console.log(`SWEEP-CHECK denied reason=missing-record pr=${pr} computed_lane=${verdict.lane}`);
+    console.log(`no pr_sweep record found for PR ${pr} in ${eventsPath}`);
+    exit(5);
+  }
+  // Latest record for this PR wins (a re-armed sweep after new commits, RFC-0009).
+  const record = records[records.length - 1];
+  const recLane = record.payload && record.payload.lane;
+  const recOutcome = record.payload && record.payload.outcome;
+  if (recLane !== verdict.lane) {
+    console.log(`SWEEP-CHECK denied reason=lane-mismatch pr=${pr} record_lane=${recLane} computed_lane=${verdict.lane}`);
+    exit(5);
+  }
+  if (!outcomeLegalOnLane(recOutcome, verdict.lane)) {
+    console.log(`SWEEP-CHECK denied reason=illegal-outcome pr=${pr} outcome=${recOutcome} lane=${verdict.lane}`);
+    exit(5);
+  }
+  console.log(`SWEEP-CHECK allowed pr=${pr} lane=${verdict.lane} outcome=${recOutcome}`);
+  exit(0);
+}
+
+function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  opts.repoRoot = resolve(opts.repoRoot || DEFAULT_REPO_ROOT);
+
+  if (opts.sweepCheck) {
+    runSweepCheck(opts);
+    return;
+  }
+
+  const v = computeLaneVerdict(opts);
 
   if (opts.json) {
     console.log(JSON.stringify({
-      lane: fast ? 'fast' : 'heavy',
-      reason,
+      lane: v.lane,
+      reason: v.reason,
       predicates: {
-        ceremony_level: { value: ceremony.value, ok: ceremony.ok, source: ceremony.source ?? null },
-        strategy: { value: strategy.value, ok: strategy.ok },
-        protected_config: { ok: protectedCfgOk },
-        suite_selection: { mode: suite.mode, detail: suite.detail },
-        diff_surface: { count: surface.count, classes: surface.classes, ok: surface.ok, detail: surface.detail },
+        ceremony_level: { value: v.ceremony.value, ok: v.ceremony.ok, source: v.ceremony.source ?? null },
+        strategy: { value: v.strategy.value, ok: v.strategy.ok },
+        protected_config: { ok: v.protectedCfgOk },
+        suite_selection: { mode: v.suite.mode, detail: v.suite.detail },
+        diff_surface: { count: v.surface.count, classes: v.surface.classes, ok: v.surface.ok, detail: v.surface.detail },
       },
     }, null, 2));
     exit(0);
   }
 
-  console.log(fast ? 'LANE fast' : `LANE heavy reason=${reason}`);
-  for (const l of lines) console.log(l);
+  console.log(v.fast ? 'LANE fast' : `LANE heavy reason=${v.reason}`);
+  for (const l of v.lines) console.log(l);
   exit(0);
 }
 
 runMain(() => main(), {
   onError(err) {
-    // Any unexpected internal error -> HEAVY, exit 0 (never fail the ceremony).
+    // Any unexpected internal error -> ALLOW/HEAVY, exit 0 (never fail the
+    // ceremony, and never manufacture a --sweep-check DENY out of an adapter
+    // error — see the header note above runSweepCheck).
     console.log('LANE heavy reason=internal-error');
     console.log(`internal_error=${String((err && err.message) || err).slice(0, 160)}`);
     process.exitCode = 0;

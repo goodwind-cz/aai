@@ -462,6 +462,12 @@ PROCESS
      "internal review substituted for absent bot layer" in the PR description.
    - Wait for the CI re-run and repeat this sweep ONCE for NEW comments
      before declaring merge-ready.
+   - RECORD IT (Spec-AC-33/34, issue 338): `append-event.mjs --event pr_sweep
+     --pr <N> --lane <fast|heavy> --reviewer-bots <expected|none|unknown>
+     --threads-seen <n> --threads-unresolved 0 --outcome
+     <swept|skipped_fast_lane|internal_substituted>` before any merge — the
+     hook-overlay merge gate calls `lane-gate.mjs --sweep-check` and denies a
+     `gh pr merge` with no matching record.
    - FRICTION HOOK (canon-file gate/lint/CI failure handled, default-on): when
      a CI check or bot finding here surfaces an AAI-owned defect, best-effort
      record it per .aai/system/FRICTION_PROTOCOL.md "Deterministic hook

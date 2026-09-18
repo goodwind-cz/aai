@@ -494,6 +494,61 @@ test_015_strict_audit() {
   fi
 }
 
+# TEST-574 (Spec-AC-34, close-ceremony-sweep): the merge gate CALLS
+# lane-gate.mjs --sweep-check --pr <N> rather than restating its predicate
+# (issue 338 mechanization).
+test_016_merge_gate_sweep_check() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-574 $ADAPTER does not exist"; return; }
+  local ok=1 d rc err
+
+  d="$(new_fixture)"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" "$d/.aai/scripts/lane-gate.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  : > "$d/docs/ai/EVENTS.jsonl"
+
+  # No pr_sweep record at all for PR 42: denied, naming the absent record.
+  err=$(payload_for "gh pr merge 42 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: no-record merge exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "pr_sweep" "TEST-574: deny message does not name the absent pr_sweep record: $err" || ok=0
+  assert_payload_contains "$err" "42" "TEST-574: deny message does not name PR 42: $err" || ok=0
+
+  # A consistent record for PR 42 (heavy lane, internal_substituted outcome —
+  # this fixture carries no spec/STATE, so lane-gate computes heavy by
+  # default): merge is allowed.
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t574-ride \
+     --pr 42 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+  err=$(payload_for "gh pr merge 42 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-574: consistent-record merge exited $rc (want 0): $err"; ok=0; }
+
+  # A fast-lane record against the (computed-heavy) branch: denied again.
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t574-ride \
+     --pr 43 --lane fast --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome skipped_fast_lane >/dev/null)
+  err=$(payload_for "gh pr merge 43 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: fast-lane-record-on-heavy-branch merge exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "43" "TEST-574: lane-mismatch deny message does not name PR 43: $err" || ok=0
+
+  # An unreadable EVENTS.jsonl (a directory in its place, permission-
+  # independent) must fail OPEN — never a false deny.
+  rm -f "$d/docs/ai/EVENTS.jsonl"
+  mkdir -p "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 44 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-574: unreadable EVENTS.jsonl must fail OPEN (allow), got $rc: $err"; ok=0; }
+  rmdir "$d/docs/ai/EVENTS.jsonl" 2>/dev/null || true
+
+  # The hook must call lane-gate.mjs's --sweep-check mode, never restate its
+  # predicate (this file's own "never reimplement a predicate here" rule).
+  grep -qF "lane-gate.mjs" "$ADAPTER" || { log_info "TEST-574: merge gate does not call lane-gate.mjs"; ok=0; }
+  grep -qF -- "--sweep-check" "$ADAPTER" || { log_info "TEST-574: merge gate does not invoke --sweep-check"; ok=0; }
+  grep -qE 'ceremony_level|implementation_strategy' "$ADAPTER" \
+    && { log_info "TEST-574: the hook appears to restate a lane-gate predicate"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-574 merge gate calls lane-gate.mjs --sweep-check: denies absent/mismatched records, allows a consistent one, fails open on an unreadable EVENTS.jsonl" \
+                  || log_fail "TEST-574 merge gate sweep-check"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -515,6 +570,7 @@ main() {
   test_013_repo_uninstalled
   test_014_prompt_diet_floor
   test_015_strict_audit
+  test_016_merge_gate_sweep_check
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

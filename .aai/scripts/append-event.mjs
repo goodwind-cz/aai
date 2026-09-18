@@ -4,7 +4,8 @@
 // Event types (closed set): ac_status, ac_evidence, defer_extended, doc_lifecycle,
 //   docs_audit, work_item_closed, code_review_completed (SPEC-0011 G2),
 //   phase_confirmed, spec_scope_edited (CHANGE-0120),
-//   validation_verdict (role-verification-guards G2).
+//   validation_verdict (role-verification-guards G2),
+//   pr_sweep (Spec-AC-33, CHANGE-0060 step 5d mechanization / GitHub issue 338).
 // Required: --event, --ref. Auto-filled: v=1, ts (ISO UTC), actor (git slug).
 //
 // Examples:
@@ -14,6 +15,8 @@
 //   append-event.mjs --event defer_extended --ref SPEC-0042/Spec-AC-07 \
 //     --old-review-by 2026-08-01 --new-review-by 2026-Q4 --notes "..."
 //   append-event.mjs --event doc_lifecycle --ref RFC-0042 --from draft --to implementing
+//   append-event.mjs --event pr_sweep --ref close-ceremony-sweep --pr 42 --lane heavy \
+//     --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept
 //
 // Multi-file parent IDs: use --ref PARENT-ID/<filename-suffix> for a
 // file-specific transition, bare --ref PARENT-ID for a parent-level one.
@@ -27,7 +30,30 @@ import { nowIso } from './lib/iso-time.mjs';
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
 const SCHEMA_VERSION = 1;
-const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited', 'validation_verdict']);
+const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited', 'validation_verdict', 'pr_sweep']);
+const PR_SWEEP_OUTCOMES = new Set(['swept', 'skipped_fast_lane', 'internal_substituted']);
+
+// Spec-AC-33 — the four self-contradictions a pr_sweep record may never
+// carry: each is a claim the payload's OWN other fields disprove. Returns a
+// list of reasons (empty = consistent). Kept as its own function so the
+// refusal is a single, nameable predicate (mutation-run.mjs targets the call
+// site, not this body).
+function sweepContradictions(p) {
+  const bad = [];
+  if (p.outcome === 'swept' && (p.threads_seen <= 0 || p.reviewer_bots !== 'expected')) {
+    bad.push('swept requires threads_seen > 0 and reviewer_bots=expected');
+  }
+  if (p.outcome === 'skipped_fast_lane' && p.lane !== 'fast') {
+    bad.push('skipped_fast_lane is not legal on the heavy lane');
+  }
+  if (p.outcome === 'internal_substituted' && p.reviewer_bots === 'expected') {
+    bad.push('internal_substituted is not legal while reviewer_bots=expected');
+  }
+  if (p.threads_unresolved > 0) {
+    bad.push(`threads_unresolved=${p.threads_unresolved} must be 0 before a merge-readiness claim`);
+  }
+  return bad;
+}
 
 function parseArgs(argv) {
   const args = {};
@@ -158,6 +184,33 @@ function main() {
       entry.payload = { status: args.status, hash: args.hash };
       if (args.notes) entry.payload.notes = args.notes;
       break;
+    case 'pr_sweep': {
+      // CHANGE-0060 step 5d mechanization (Spec-AC-33, GitHub issue 338): a
+      // merge-readiness claim ("the post-open bot sweep happened") is a
+      // sentence a role writes; lane-gate.mjs --sweep-check (Spec-AC-34)
+      // reads this record back before a merge is judged allowed. A record
+      // whose fields contradict each other is refused WHOLE — nothing
+      // written — so the ledger can never carry a claim the record itself
+      // disproves.
+      if (!args.pr) fail('pr_sweep requires --pr');
+      if (!args.lane || !['fast', 'heavy'].includes(args.lane)) fail('pr_sweep requires --lane fast|heavy');
+      if (!args.reviewer_bots) fail('pr_sweep requires --reviewer-bots');
+      if (!args.outcome || !PR_SWEEP_OUTCOMES.has(args.outcome)) {
+        fail(`pr_sweep requires --outcome ${[...PR_SWEEP_OUTCOMES].join('|')}`);
+      }
+      const payload = {
+        pr: Number(args.pr),
+        lane: args.lane,
+        reviewer_bots: args.reviewer_bots,
+        threads_seen: Number(args.threads_seen ?? 0),
+        threads_unresolved: Number(args.threads_unresolved ?? 0),
+        outcome: args.outcome,
+      };
+      const bad = sweepContradictions(payload);
+      if (bad.length) fail(`pr_sweep record contradicts itself: ${bad.join('; ')}`);
+      entry.payload = payload;
+      break;
+    }
   }
 
   fs.mkdirSync(path.dirname(EVENTS_PATH), { recursive: true });

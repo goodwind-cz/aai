@@ -753,6 +753,78 @@ test_564_questions_are_not_failures() {
   log_pass "TEST-564 two failed steps, zero HITL entries -> questions_asked 0, steps_failed 2, questions log holds both"
 }
 
+# --- TEST-573 (Spec-AC-33): append-event.mjs learns pr_sweep and refuses a
+# self-contradictory record whole, nothing written -------------------------
+
+test_573_pr_sweep_record_refuses_contradiction() {
+  log_info "TEST-573: four contradictory pr_sweep payloads are refused with nothing appended; one consistent record per outcome appends exactly one line..."
+  local d out events
+  d="$TEST_DIR/t573"
+  out="$TEST_DIR/t573-out"
+  events="$d/docs/ai/EVENTS.jsonl"
+  mkdir -p "$d/docs/ai"
+  : > "$events"
+
+  append_sweep() {
+    (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t573-ride "$@") >"$out" 2>&1
+  }
+  line_count() { wc -l < "$events" | tr -d ' '; }
+
+  local before after code
+
+  # Contradiction 1: swept with no thread seen (reviewer_bots=expected).
+  before="$(line_count)"
+  code=0; append_sweep --pr 901 --lane heavy --reviewer-bots expected --threads-seen 0 --threads-unresolved 0 --outcome swept || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-573: swept with threads_seen=0 must be refused, got exit 0: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused swept/no-thread record must append nothing (before=$before after=$after)"
+
+  # Contradiction 2: skipped_fast_lane on the heavy lane.
+  before="$after"
+  code=0; append_sweep --pr 901 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 --outcome skipped_fast_lane || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-573: skipped_fast_lane on the heavy lane must be refused, got exit 0: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused skipped_fast_lane/heavy record must append nothing"
+
+  # Contradiction 3: internal_substituted while reviewer_bots=expected.
+  before="$after"
+  code=0; append_sweep --pr 901 --lane heavy --reviewer-bots expected --threads-seen 0 --threads-unresolved 0 --outcome internal_substituted || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-573: internal_substituted while reviewer_bots=expected must be refused, got exit 0: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused internal_substituted/expected record must append nothing"
+
+  # Contradiction 4: threads_unresolved above zero, otherwise an outcome-valid swept record.
+  before="$after"
+  code=0; append_sweep --pr 901 --lane heavy --reviewer-bots expected --threads-seen 2 --threads-unresolved 1 --outcome swept || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-573: threads_unresolved=1 must be refused, got exit 0: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$before" ]] || log_fail "TEST-573: a refused threads_unresolved record must append nothing"
+
+  # One consistent record per outcome: each appends exactly one line.
+  before="$after"
+  code=0; append_sweep --pr 902 --lane heavy --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept || code=$?
+  [[ "$code" -eq 0 ]] || log_fail "TEST-573: a consistent swept record must be accepted, exit $code: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$((before + 1))" ]] || log_fail "TEST-573: the consistent swept record must append exactly one line (before=$before after=$after)"
+
+  before="$after"
+  code=0; append_sweep --pr 903 --lane fast --reviewer-bots none --threads-seen 0 --threads-unresolved 0 --outcome skipped_fast_lane || code=$?
+  [[ "$code" -eq 0 ]] || log_fail "TEST-573: a consistent skipped_fast_lane record must be accepted, exit $code: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$((before + 1))" ]] || log_fail "TEST-573: the consistent skipped_fast_lane record must append exactly one line"
+
+  before="$after"
+  code=0; append_sweep --pr 904 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 --outcome internal_substituted || code=$?
+  [[ "$code" -eq 0 ]] || log_fail "TEST-573: a consistent internal_substituted record must be accepted, exit $code: $(cat "$out")"
+  after="$(line_count)"
+  [[ "$after" == "$((before + 1))" ]] || log_fail "TEST-573: the consistent internal_substituted record must append exactly one line"
+
+  local cnt; cnt="$(grep -cF '"event":"pr_sweep"' "$events" || true)"
+  [[ "$cnt" == "3" ]] || log_fail "TEST-573: expected exactly 3 pr_sweep lines in EVENTS.jsonl, got $cnt"
+
+  log_pass "TEST-573 (Spec-AC-33) the four contradictions are refused with nothing appended; a consistent record per outcome appends exactly one line"
+}
+
 # --- TEST-006 (Spec-AC-04): the record reads the gate, never recomputes ----
 
 test_006_record_reads_gate_and_skill_pr_wiring() {
@@ -965,6 +1037,7 @@ main() {
   test_521_gate_refuses_foreign_ref
   test_522_registry_class_identity
   test_523_paired_half_blocks_push
+  test_573_pr_sweep_record_refuses_contradiction
   test_001_full_run_clean
   test_002_seam_fixture_layer
   test_003_steps_from_questions

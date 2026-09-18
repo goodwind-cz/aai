@@ -75,15 +75,43 @@ case "$GATE" in
     # Mirror gate 2: constitution article 7 — operator-only merge (strict).
     [ -n "$CMD" ] || exit 0
     printf '%s' "$CMD" | grep -Eq '(^|[;&|[:space:]])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-;&|[:space:]][^[:space:]]*)?)*[[:space:]]+merge([[:space:]]|$)|(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)' || exit 0
-    [ "${AAI_OPERATOR_MERGE:-}" = "1" ] && exit 0
-    {
-      echo "Merge denied: constitution article 7 (operator-only merge) — the agent never merges;"
-      echo "the PR ceremony ends at 'gh pr create' (.aai/SKILL_PR.prompt.md step 6)."
-      echo "If the OPERATOR explicitly directed this merge, run it with AAI_OPERATOR_MERGE=1."
-      echo "(Guardrail, not a security boundary — setting the marker without operator direction"
-      echo "is a constitution violation.)"
-    } >&2
-    exit 2
+    if [ "${AAI_OPERATOR_MERGE:-}" != "1" ]; then
+      {
+        echo "Merge denied: constitution article 7 (operator-only merge) — the agent never merges;"
+        echo "the PR ceremony ends at 'gh pr create' (.aai/SKILL_PR.prompt.md step 6)."
+        echo "If the OPERATOR explicitly directed this merge, run it with AAI_OPERATOR_MERGE=1."
+        echo "(Guardrail, not a security boundary — setting the marker without operator direction"
+        echo "is a constitution violation.)"
+      } >&2
+      exit 2
+    fi
+    # Mirror gate 2b (Spec-AC-34, GitHub issue 338): a `gh pr merge <N>`
+    # additionally needs a recorded, consistent post-open review sweep
+    # (CHANGE-0060 step 5d). CALLS lane-gate.mjs --sweep-check — never
+    # reimplements its predicate (this file's own header rule). Any adapter
+    # trouble here (no PR number parsed, no node, no script) allows, same as
+    # every other gate in this file; only a CLEAN lane-gate.mjs verdict
+    # (exit 0 or 5) is ever honored as a real answer.
+    PR="$(printf '%s' "$CMD" | grep -oE 'gh[[:space:]]+pr[[:space:]]+merge[[:space:]]+[0-9]+' | grep -oE '[0-9]+$' | head -1)"
+    if [ -n "$PR" ] && command -v node >/dev/null 2>&1 && [ -f "$ROOT/.aai/scripts/lane-gate.mjs" ]; then
+      SWEEP_ARGS=(--sweep-check --pr "$PR" --repo-root "$ROOT")
+      [ -n "${AAI_SWEEP_SPEC:-}" ] && SWEEP_ARGS+=(--spec "$AAI_SWEEP_SPEC")
+      [ -n "${AAI_SWEEP_INTAKE:-}" ] && SWEEP_ARGS+=(--intake "$AAI_SWEEP_INTAKE")
+      [ -n "${AAI_SWEEP_STATE:-}" ] && SWEEP_ARGS+=(--state "$AAI_SWEEP_STATE")
+      [ -n "${AAI_SWEEP_BASE_REF:-}" ] && SWEEP_ARGS+=(--base-ref "$AAI_SWEEP_BASE_REF")
+      SWEEP_OUT="$(cd "$ROOT" 2>/dev/null && node "$ROOT/.aai/scripts/lane-gate.mjs" "${SWEEP_ARGS[@]}" 2>&1)"
+      SWEEP_RC=$?
+      if [ "$SWEEP_RC" -eq 5 ]; then
+        {
+          echo "Merge denied: no valid post-open review sweep record for PR $PR (Spec-AC-34, issue 338)."
+          printf '%s\n' "$SWEEP_OUT" | tail -5
+          echo "Record one with .aai/scripts/append-event.mjs --event pr_sweep ..., then retry."
+        } >&2
+        exit 2
+      fi
+      # rc 0 (verified) or anything else (adapter trouble) -> fall through, allow.
+    fi
+    exit 0
     ;;
 
   state-dump)
