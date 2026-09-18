@@ -103,9 +103,16 @@
  *     a synthetic `aai-sync.sh` written out for a DIFFERENT fixture process
  *     to run, never code this file itself executes — excluded by
  *     `computeHeredocMask` (below). The remaining 71 grep-matched lines are
- *     all real, and all now correctly recognized (0 were before this round's
- *     fix, for the 15 whose source used a variable other than
- *     `$PROJECT_ROOT`/`$SRC_ROOT`; 62 already were). SIX further genuine
+ *     all real, and all now correctly recognized: 13 of them (of 15 raw
+ *     grep lines spelling some OTHER variable; the other 2 of those 15 are
+ *     the excluded heredoc lines above) were fixed this round, and 58 (of
+ *     62 raw grep lines spelling `$PROJECT_ROOT`/`$SRC_ROOT`; the other 4
+ *     of those 62 are the excluded BITE-fixture lines above) already were —
+ *     NOT 62, which double-counted the 4 BITE lines as "already recognized
+ *     real sites" when they were never real sites at all (validation-round6,
+ *     confirmed by instrumenting the pre-round checker at its own
+ *     `existsSync` push point: `SITES 58`; Amendment 22's matching sentence
+ *     is corrected by name in Amendment 23, not edited here). SIX further genuine
  *     vendoring sites — `test-aai-delta-stage3.sh:77`/`:335`,
  *     `test-aai-live-status.sh:611`, `test-aai-spec-amend.sh:1422`/`:1476`,
  *     `test-aai-test-canon.sh:122` — are OUTSIDE that same blind grep
@@ -353,15 +360,25 @@ function computeHeredocMask(lines) {
 }
 
 // maskQuotedRegions(line) -> the line with every character that sits inside
-// a single- or double-quoted STRING LITERAL replaced by a space, so a name
-// that merely appears in prose (e.g. a log_info/log_fail message) can never
-// satisfy CALL_RE below (validation-round5 B1-R5: `log_info "... (main-guard
-// ...)"` let `(main-guard` be read as a call to `main`, inheriting that
-// function's whole-file coverage — v2's rejected whole-file masking, revived
-// through a string). A `$(...)` command-substitution span is CODE regardless
-// of whether it sits inside a double-quoted string (`x="$(helper ...)"` is
-// the corpus's own idiom for a call-and-capture) and is left unmasked;
-// single-quoted text is never re-entered as code (bash gives it none).
+// a single- or double-quoted STRING LITERAL, or an unquoted `#` COMMENT,
+// replaced by a space, so a name that merely appears in prose (a
+// log_info/log_fail message, or a `# built on top of setup_iso_repo`-shaped
+// comment) can never satisfy CALL_RE below (validation-round5 B1-R5:
+// `log_info "... (main-guard ...)"` let `(main-guard` be read as a call to
+// `main`, inheriting that function's whole-file coverage — v2's rejected
+// whole-file masking, revived through a string; code review 20260918T172546Z
+// NON-BLOCKING measured the SAME shape revived through a `#` comment instead,
+// 21 call edges live in the corpus that exist only because a function name
+// appears after one, three of them the same `test_fn -> main` pattern).
+// A `#` starts a comment only when it opens a WORD — the first character of
+// the line or preceded by whitespace — so `${#arr[@]}` / `${var#pattern}`
+// parameter expansion is never mis-masked as a comment; bash applies the
+// same word-boundary rule. A `$(...)` command-substitution span is CODE
+// regardless of whether it sits inside a double-quoted string
+// (`x="$(helper ...)"` is the corpus's own idiom for a call-and-capture) and
+// is left unmasked, including a `#` inside it (still a real comment there,
+// masked the same way); single-quoted text is never re-entered as code
+// (bash gives it none).
 function maskQuotedRegions(line) {
   const chars = line.split('');
   const out = new Array(chars.length);
@@ -379,6 +396,11 @@ function maskQuotedRegions(line) {
     if (c === '\\' && top === 'dquote') {
       out[i] = ' ';
       if (i + 1 < chars.length) { out[i + 1] = ' '; i += 2; } else { i += 1; }
+      continue;
+    }
+    if (c === '#' && top === 'code' && (i === 0 || /\s/.test(chars[i - 1]))) {
+      for (let j = i; j < chars.length; j += 1) out[j] = ' ';
+      i = chars.length;
       continue;
     }
     if (c === "'" && top !== 'dquote') {
@@ -455,7 +477,13 @@ function maskQuotedRegions(line) {
 // v3.1 runs CALL_RE only against `maskQuotedRegions(line)` (above), so a
 // name is a call edge only when it sits in COMMAND POSITION — never inside
 // a quoted string literal, `$(...)` command substitution excepted (that is
-// still a real call, wherever it is quoted).
+// still a real call, wherever it is quoted). v3.1, as first shipped, did not
+// mask `#` comments — the SAME prose-name gap v3 had just closed for quoted
+// strings, revived through a comment instead (code review 20260918T172546Z
+// NON-BLOCKING: 21 call edges in the live corpus existed only because a
+// function name appeared after an unquoted `#`, three of them the exact
+// `test_fn -> main` shape B1-R5 named). v3.2 masks a `#` that opens a word
+// the same way it already masks a quote — see `maskQuotedRegions` above.
 const CALL_RE = /(?:^|[=(]\s*|&&\s*|;\s*)"?\$?\(?\s*([A-Za-z_][A-Za-z0-9_]*)\b/g;
 
 function scanFile(relFile, absFile, scriptsRootAbs, violations, vendoredSites) {

@@ -9,13 +9,58 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-Every entry heading is `## [unreleased] — <type>: <title>`, never a bare
-`## [unreleased]` with body text under it — `aai-release` fails closed on
-that shape (exit 12, malformed) rather than silently merging or dropping it,
-and refuses a cut with zero rollable entries (exit 13). A bare, EMPTY
-`## [unreleased]` scaffold is fine — it is the marker a cut leaves on top.
+Every entry heading follows `## [unreleased] — <type>: <title>` (Keep-a-
+Changelog style: type is feat/fix/docs/chore/ci/..., title a short summary).
+`aai-release` itself enforces only the `## [unreleased] — ` prefix — any
+text after the dash is free-form and rolls up unexamined; the `<type>:
+<title>` shape beyond that is a house convention this preamble states, not a
+rule its parser checks. What the parser DOES enforce: a bare `## [unreleased]`
+heading with non-blank body text under it fails closed (exit 12, malformed)
+rather than silently merging or dropping it, and a cut with zero rollable
+entries is refused too (exit 13). A bare, EMPTY `## [unreleased]` scaffold is
+fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
+
+## [unreleased] — feat(ceremony): the close ceremony, docs audit and generated pages agree with git (CHANGE-DRAFT-close-ceremony-sweep / SPEC-DRAFT-spec-close-ceremony-sweep)
+
+- **`ride-select.mjs`'s roadmap gate now admits only the FIRST unfinished
+  capability pair** (previously any capability anywhere on the roadmap
+  passed) — a vendoring project may see a `gate`/`validate` refusal it did
+  not see before; re-run against your own `docs/ai/roadmap.yaml` after
+  updating.
+- **`docs-audit.mjs --check --strict` now hard-fails a near-miss
+  (present-but-unparseable) AC table for any NON-terminal document** —
+  draft/proposed/accepted/implementing/frozen only; a done/deferred/
+  rejected/superseded/legacy/current document with the same shape stays
+  report-only.
+- **New hard gate `check-vendored-script-deps.mjs`** (`core:`,
+  `aai-hygiene-pack`) refuses a test fixture that vendors an AAI engine
+  script without also vendoring its real, transitive dependencies — closes
+  the class of bug behind a `ride-select.mjs`-vendoring regression this
+  ride hit twice on its own fixtures.
+- **The post-open bot-review sweep is now a recorded, machine-checked
+  claim**: `append-event.mjs --event pr_sweep` writes a validated record,
+  `lane-gate.mjs --sweep-check` reads it back, and `claude-hook-gate.sh`'s
+  `merge` gate denies (fail-open on an unreadable ledger) a merge with no
+  matching, consistent record for that PR and lane.
+- **`close-work-item.mjs` gains `--paired <doc>`**, closing a second,
+  paired document in the same transaction as `--ref` (mutually exclusive
+  with `--stamp-pr`).
+- **`follow-ups.mjs verify-closures`** now refuses a blind run (no `--ref`)
+  and an over-cap run instead of silently truncating.
+- **`spec-amend.mjs`**: a renumbered frozen spec now restamps its own
+  cross-references atomically instead of refusing the amendment outright.
+- New CI workflow `.github/workflows/docs-numbering.yml`; new refusal
+  `pr-platform.mjs --check-shared-page-conflicts` names the open PRs a push
+  regenerating a shared generated page (INDEX.md, the overview, the
+  factory report, ...) would turn CONFLICTING.
+- `docs-audit` now reports a present-but-unparseable AC table instead of
+  silently reading it as absent, and reconciles duplicate document ids by
+  multiplicity; `docs-canon.mjs` stages its own writes and both sides of
+  every move; INDEX and the overview page now derive from git-tracked
+  content only, so an untracked draft can no longer leak into a committed
+  index.
 
 ## [unreleased] — feat(gate): a test is admitted only with the mutation that reddens it (CHANGE-0187 / SPEC-0181)
 

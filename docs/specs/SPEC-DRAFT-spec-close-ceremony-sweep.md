@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: a2aa6a19704e99e9546c42e7d11955034ecdb39158719d1d2bff3ea77d539362
+frozen_sha256: dbb80df8fc94f10dc80f0566e893308806b19414e6c6dd2effccc0542c689c9c
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -1002,6 +1002,16 @@ NOT CLOSED, owned elsewhere, named so they are not lost:
   `.aai/SKILL_PR.prompt.md`, whose enforcement was prose only. The issue is
   closed at this ride's PR citing the two ACs and their tests, not a reading.
 
+**Superseded sentences (code review 20260918T172546Z).** No amendment below is
+edited in place; a correction is a later amendment naming the wrong sentence
+by name. Four of the twenty-three amendments below correct one sentence of an
+earlier one this way — the amendment being corrected still stands otherwise;
+read the correcting amendment's own text, not this index, for what changed:
+- Amendment 16 (`base-ref-pin-baseline.tsv` "left unrecorded" sentence) -> corrected by Amendment 18 §7
+- Amendment 19 (shared-page count and NB cross-reference) -> corrected by Amendment 20 §"Correcting Amendment 19"
+- Amendment 20 (TEST-567 "environment artifact, not a regression" diagnosis) -> corrected by Amendment 21
+- Amendment 21 ("The permanent guard" completeness claim) -> corrected by Amendment 22
+
 ## Amendment 1 (post-freeze, 2026-09-18 — TEST-525 Mutation cell, TDD run 2)
 
 The TEST-525 Mutation cell is the one cell of this spec that was REWRITTEN, not
@@ -1811,6 +1821,224 @@ Fixed: the `aai-pr-platform` row gains all five `REGEN_TAIL_GENERATORS` (`genera
 **The claim, stated plainly.** The guard this ride shipped last round claimed two properties it did not have — that its call-graph inheritance never extends to a function that is merely NAMED, and that its SOURCE detection covers every vendored engine regardless of spelling — and asserted a third artefact's (TEST-580's) reach that its own suite-map wiring did not support. Recording a completeness claim that measures false, then catching it one round later, is this ride's own recurring shape (Amendments 19, 20 and 21 each did this once, for the shared-page set and for the `ride-select.mjs` diagnosis in turn); this amendment is that same shape applied to the checker BUILT to end it. The round that caught it — reading the checker's own docstring as a claim to attack, not as documentation to trust — is the reason the claim is now true rather than merely written down.
 
 **Verification.** `node .aai/scripts/check-vendored-script-deps.mjs --root .` → `CLEAN — 0 violation(s) (77 vendored engine site(s) checked)`. `tests/skills/test-aai-hygiene-pack.sh` (including `test_131`'s four bite proofs), `test-aai-layer-drift.sh`, `test-aai-pr-platform.sh` (including new TEST-590), `test-aai-suite-select.sh`, `test-aai-doc-numbering.sh` (33/33, including the fixed TEST-589) and `test-aai-orchestration-dispatch.sh` (89/89) were each run in full and pass. `mutation-gate.mjs --spec <this spec>`: GATE PASS, 72 row(s) (71 prior + TEST-590), degraded=0, unstamped=0; TEST-590's own recorded mutation (a suite-map-block-anchored regex, since three other rows glob the same generator name elsewhere in the file) reddens naming TEST-590; TEST-589's existing record — unedited, since only the test file changed, not its `allocate-doc-number.mjs` target — remains fresh and was re-verified by hand against both S1 and S2's own reproductions. `docs-audit.mjs --check --strict`, `spec-amend.mjs list --strict`, `follow-ups.mjs verify-closures --strict` and `spec-lint.mjs --path <this spec>` are all clean. `check-cd-subshell-leak.mjs` (592 occurrences, UNSAFE 0) is unchanged against its recorded baseline — this round's new lines did not raise any file's count above it, so no re-record was needed. The full framework sweep (`AAI_TEST_TIMEOUT=3000`) was run three times, disclosed rather than trimmed to the clean one: the first run caught the TEST-012/heartbeat-mention near miss above (`aai-heartbeat` FAIL, everything else green) before any commit, and was killed once the cause was read; after the rephrase, the second run itself became a casualty of this same report being drafted concurrently — `spec-amend.mjs add` writing to this very spec and to `decisions.jsonl` while `aai-delta-stage3`'s tripwire-discarded wave was re-running serially, so the framework's own shipping-repository tripwire correctly attributed a real dirty-tree change to an innocent suite (94/95, one false FAIL, `waves_reattributed: 1` — the run-ledger record for it is left in `docs/ai/tests/test-runs.jsonl` rather than erased, per the same disclose-the-cost convention Amendment 21 applied to its own skipped-sweep consequence). The third run, with every edit already committed to the working tree and nothing running concurrently, is clean: **95/95 (100%), Tripwire 95/95 attested clean, 0 not attested, Isolation 95/95, Seeding 95/95, 0 wave(s) re-run serially** (`docs/ai/tests/test-runs.jsonl` run id `test-20260918-170533`). The working tree is left clean.
+
+Sign-off: none (tracked).
+
+## Amendment 23 (post-freeze, 2026-09-18 — code review 20260918T172546Z remediation: two BLOCKING findings fixed, three truth-fixes; validation-round6 remediation: one further BLOCKING number and one further claim corrected; TDD run 19)
+
+A code review found a bypass five validation rounds did not: `sweepContradictions`
+had no rule for an out-of-vocabulary `outcome`, so a hand-appended
+`docs/ai/EVENTS.jsonl` line the writer would refuse read as a consistent
+merge-readiness record on the gate that exists precisely to catch a
+hand-appended line. Both of the review's BLOCKING findings, its three named
+truth-fixes, and two further corrections validation round 6 returned
+concurrently are fixed here. The review's `code_quality.findings` list carries
+13 NON-BLOCKING entries; two of them are among the three truth-fixes below
+(the comment-derived call-edge gap in `check-vendored-script-deps.mjs`, and
+the `docs-audit-core.mjs` terminal-partition comment) and are fixed here too.
+The remaining eleven are left for the registry, per dispatch — no redesign, no
+module split (`lib/docs-model.mjs`), no amendment form change beyond this one.
+
+**BLOCKING-1 — the read side accepted a record its own writer would refuse.**
+`lib/pr-sweep.mjs` exported both `sweepContradictions` (the read side's whole
+defense) and `PR_SWEEP_OUTCOMES` (the closed outcome vocabulary), but only
+`append-event.mjs` (the writer) imported the vocabulary — `sweepContradictions`
+had a branch for each of the three legal outcomes and none for anything else,
+so an unrecognized outcome matched no branch and read as consistent. The
+review reproduced it directly: a hand-appended
+`{"pr":999,...,"outcome":"totally_fine"}` line made
+`lane-gate.mjs --sweep-check` print `SWEEP-CHECK allowed pr=999 lane=heavy
+outcome=totally_fine`, rc=0. Fixed inside `sweepContradictions` itself, not by
+adding a second import to `lane-gate.mjs` — the two sides cannot diverge by
+import list again, because the check is now part of the one predicate both
+already call. `sweepContradictions` now judges every field `append-event.mjs`
+validates before it will write, not only the four shape-dependent
+contradictions: `outcome` against `PR_SWEEP_OUTCOMES`, `lane` against
+`fast|heavy`, and `pr`/`threads_seen`/`threads_unresolved` against the same
+non-negative-integer rule `parseSweepCount` enforces at write time (a bare
+JS `typeof`/`Number.isInteger` check, since these fields arrive already
+JSON-parsed on the read side — a string, float or negative value the writer
+would have refused now fails the SAME way here). `reviewer_bots` is left
+alone: its open vocabulary is a pre-existing, separate gap on BOTH sides
+(the writer itself only checks truthiness), filed in the review as NB-3, not
+part of this divergence.
+
+Four new arms in TEST-574 (`tests/skills/test-aai-hooks-overlay.sh`) pin this.
+Three go through the actual merge gate: the review's own `outcome=totally_fine`
+repro (PR 50), a hand-appended non-integer `threads_seen` (PR 51, the same
+NaN-coercion shape B3/validation-round1 closed on the write side, revived on
+the read side), and a hand-appended STRING-typed `pr` field (PR 52) that
+`readPrSweepRecords`'s `Number(payload.pr) === pr` filter still matches by
+value while `sweepContradictions` now catches by type. The fourth calls
+`sweepContradictions` directly with an illegal `lane` value: the merge-gate
+path itself cannot reach this one (the lane-mismatch check ahead of
+`sweepContradictions` already denies anything other than the two values
+`computeLaneVerdict` can itself produce), but the predicate must judge it the
+same way for any future direct caller, per its own header's one-predicate
+promise. All four verified RED against the pre-fix `lib/pr-sweep.mjs`
+(rc=0/allowed on every one of the three hook-level arms, `CLEAN` on the direct
+predicate call) and GREEN after.
+
+**BLOCKING-2 — the CHANGELOG obligation and the "stated once" inversion.**
+Two halves, both in Spec-AC-30/31's scope.
+
+(a) This branch carried no `## [unreleased] — ` entry of its own for ~30
+commits and a dozen user-visible changes, only the six-line preamble
+paragraph Spec-AC-31 added. A new entry now leads `CHANGELOG.md`
+(`CHANGE-DRAFT-close-ceremony-sweep / SPEC-DRAFT-spec-close-ceremony-sweep`),
+naming the changes an operator or a vendoring project will notice, including
+by name the two the dispatch called out: `ride-select.mjs`'s roadmap gate now
+admits only the first unfinished capability pair (previously any capability
+on the roadmap passed — a downstream refusal with no prior note), and
+`docs-audit.mjs --check --strict` now hard-fails a near-miss AC table for any
+non-terminal document.
+
+(b) Spec-AC-31 says a convention is stated once, where its tool reads it; this
+ride's own delivery of that AC ADDED a second statement of the entry-heading
+shape `.aai/SKILL_PR.prompt.md:146` already carried on main, and the added
+sentence attributed to `aai-release` an enforcement it does not perform —
+`aai-release.sh`'s awk classifier (`hline ~ /^## \[unreleased\] — /`) matches
+only the `## [unreleased] — ` prefix; the `<type>: <title>` shape after the
+dash is never examined. Both are fixed: the CHANGELOG preamble is now the
+single defensible home (it is what `aai-release` actually reads from, even
+though it enforces less of the shape than the old wording claimed), rewritten
+to say precisely what the parser enforces (the prefix, and the
+malformed/no-rollable-entries exits) versus what is a stated house convention
+only; `.aai/SKILL_PR.prompt.md`'s step 3b no longer restates the shape,
+cross-referencing "CHANGELOG.md's own preamble" by name instead — the SAME
+cross-reference pattern the AC's own SUBAGENT_CONTRACT half already used
+correctly. `fu-changelog-unreleased-shape-undoc` and
+`fu-contract-ledger-rule-stated-twice` (both filed under Spec-AC-31) are
+addressed by this fix; left for the orchestrator to close, per this ride's
+own registry convention.
+
+TEST-570 (`tests/skills/test-aai-release.sh`) previously only grepped the
+CHANGELOG preamble for the literal heading-shape string and never counted
+statements, so a second one landed silently. It now counts: exactly one
+statement of `## [unreleased] — <type>: <title>` across CHANGELOG.md, zero in
+`.aai/SKILL_PR.prompt.md`, and the cross-reference phrase present. Verified
+RED by temporarily re-adding the SKILL_PR restatement (found 1 second
+statement, failed) and GREEN restored.
+
+**Three truth-fixes (a false comment being this ride's own subject).**
+
+1. `.aai/scripts/lib/docs-audit-core.mjs:~1205`'s comment asserted a
+   mechanism that does not exist — "a terminal doc cannot newly reach done
+   with a broken table because the table only gates OPEN work." Nothing
+   forces a `--strict` run while a document is open (validation-round1 NB-7,
+   restated as NON-BLOCKING by this review). The comment now says what the
+   code actually does: `TERMINAL_DOC_STATUS` is a PROXY for "pre-existing,
+   not newly introduced," true today only because the eight live near-miss
+   documents it was measured against are, and always were, `done`; a
+   baseline-recorded exemption (the pattern `cd-subshell-leak-baseline.tsv`
+   / `base-ref-pin-baseline.tsv` / `degenerate-pass-baseline.tsv` already use
+   in this same diff) would pin the eight named documents instead of the
+   whole terminal-status class, and is filed as a follow-up, not shipped.
+   Behavior unchanged; only the comment was wrong.
+
+2. `.aai/scripts/check-vendored-script-deps.mjs:~455`'s comment and header
+   docstring claimed a name is a call edge "only when it sits in COMMAND
+   POSITION" — but `#` comments were never masked, so a name mentioned only
+   in a comment (e.g. `# built on top of setup_iso_repo`) still counted as a
+   call and could re-grant a whole function's coverage to an unrelated
+   caller, the exact v2 whole-file-masking hazard v3/v3.1 had already closed
+   for quoted strings. The review measured 21 such comment-derived edges live
+   in the corpus, three of them the `test_fn -> main` shape
+   validation-round5's B1-R5 called blocking. Not load-bearing today (the
+   checker still reports `CLEAN — 0 violation(s) (77 vendored engine site(s)
+   checked)` with comments stripped, re-confirmed here) — but rather than
+   append a fourth round's disclosure paragraph to a SCOPE section already
+   caught making a narrower-than-claimed completeness claim three rounds
+   running, `maskQuotedRegions` now masks a `#` that opens a word (start of
+   line or preceded by whitespace) the same way it already masks a quote,
+   which closes the class instead of documenting it. A `#` that does NOT
+   open a word — `${#arr[@]}`, `${var#pattern}` parameter expansion — is left
+   alone; bash applies the same word-boundary rule, and this was verified
+   directly (`${#arr[@]}; setup_iso_repo foo` still exposes the real call
+   after the semicolon). Live-corpus verdict unchanged:
+   `CLEAN — 0 violation(s) (77 vendored engine site(s) checked)`.
+
+3. A four-line superseded/corrections index was added near the top of the
+   amendment block (right after the Registry section, before Amendment 1):
+   Amendment 16's `base-ref-pin-baseline.tsv` sentence (corrected by
+   Amendment 18 §7), Amendment 19's shared-page count and NB cross-reference
+   (corrected by Amendment 20's "Correcting Amendment 19" section),
+   Amendment 20's TEST-567 "environment artifact" diagnosis (corrected by
+   Amendment 21), and Amendment 21's "The permanent guard" completeness claim
+   (corrected by Amendment 22) — four of the twenty-three amendments below
+   correct one sentence of an earlier one. No amendment is edited in place;
+   the index points at the correcting amendment's own text rather than
+   restating the correction.
+
+**Validation-round6 corrections (not editing Amendment 22 in place — corrected
+by name here, this ride's own established convention).**
+
+1. `check-vendored-script-deps.mjs`'s SCOPE section and Amendment 22 both said
+   "62 already were" recognized before the B2-R5 round's fix, alongside "the
+   remaining 71 grep-matched lines are all real, and all now correctly
+   recognized." Validation round 6 measured the true number as 58, two
+   independent ways: instrumenting the pre-round checker at its own
+   `existsSync` push point prints `SITES 58`; and of the 62 raw grep lines
+   spelling `$PROJECT_ROOT`/`$SRC_ROOT`, 4 are the `target-engine.mjs` BITE
+   fixtures `existsSync` correctly drops in both the old and new checker — so
+   "62 already were" double-counted those 4 as "already-recognized real
+   sites" when they were never real sites at all. The sentence also failed
+   its own arithmetic (62 + 13 real-among-15 = 75, not the stated 71); with
+   58 it closes exactly: 58 + 13 + 6(excluded: 4 BITE + 2 heredoc) = 77. Fixed
+   in the SCOPE section's own text (the file, not the amendment); Amendment
+   22's matching sentence is corrected by name here, not edited.
+
+2. Amendment 22's B2-R5 paragraph said "every one of those fixtures happened
+   to carry its dependencies by hand already ... so nothing was shipping
+   broken." That is false for at least one of the fixtures the SAME round
+   fixed: `tests/skills/test-aai-suite-isolation.sh`'s TEST-305(e) fixture
+   vendors `aai-friction.mjs`, which imports `detectHarness` from
+   `./lib/harness.mjs` — a second real dependency the fixture had never
+   carried before that round's fix added the `cp` line (credited in the
+   fixture's own comment to "validation-round5 B2-R5"). Reproduced directly:
+   copying `aai-friction.mjs` and only its first-named dependency
+   (`aai-redact.mjs`) into a scratch fixture and invoking it dies with
+   `Error [ERR_MODULE_NOT_FOUND] ... imported from
+   .../.aai/scripts/aai-friction.mjs` — the vendored CLI could not start.
+   TEST-305(e) asserts the friction spool is EMPTY for a wrapped command that
+   exits 0; with the CLI unable to start at all, that negative assertion was
+   passing VACUOUSLY, not because the property held. This is the exact class
+   of bug this ride exists to close (a test that passes because the program
+   under test never ran), and it was live in the corpus until the SAME round
+   whose own prose denied it. The fixture fix already stands at HEAD (the
+   `harness.mjs` copy); TEST-305 passes non-vacuously today, re-verified
+   here. Amendment 22's "nothing was shipping broken" sentence is corrected
+   by name, not edited.
+
+**Verification.** `mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md`:
+GATE PASS, 72 row(s), degraded=0, unstamped=0 — no new Test Plan rows (TEST-574
+gained four arms and TEST-570 gained a count assertion, both under their
+existing ids). Editing `lib/pr-sweep.mjs` staled TEST-585's record;
+`.aai/scripts/lib/docs-audit-core.mjs` staled TEST-538/539/541/542;
+`.aai/SKILL_PR.prompt.md` staled TEST-552/568; `CHANGELOG.md` staled TEST-570.
+All seven were re-run LAST with their OWN already-recorded mutation expression
+(unchanged) against the final edited target, and reddened again. A full
+`mutation-run.mjs --replay --spec <this spec>` (all 72 rows) was started as a
+further check but did not finish in reasonable time and was killed
+unconfirmed — disclosed rather than claimed: the PASS this verification relies
+on is `mutation-gate.mjs`'s own target_sha256 match over all 72 rows plus the
+seven rows individually re-run and reddened above, not a full replay.
+`tests/skills/test-aai-hooks-overlay.sh`,
+`tests/skills/test-aai-golden-flow.sh`, `tests/skills/test-aai-release.sh`,
+`tests/skills/test-aai-lightweight-lane.sh`, `tests/skills/test-aai-hygiene-pack.sh`
+and `tests/skills/test-aai-docs-audit.sh` were each run in full and pass.
+`node .aai/scripts/check-vendored-script-deps.mjs` -> `CLEAN — 0 violation(s)
+(77 vendored engine site(s) checked)`, unchanged by the comment-masking fix.
+`bash .aai/scripts/aai-release.sh --dry-run` against the live tree rolls up
+this ride's own new entry correctly and still refuses a malformed scaffold
+under TEST-570's fixture (exit 12, "malformed"). `check-cd-subshell-leak.mjs`
+was re-recorded (`--record`): one file widened (`test-aai-hooks-overlay.sh`
+28 -> 32, this round's own four new TEST-574 arms), UNSAFE 0 before and
+after, a pure widening. `docs-audit.mjs --check --strict`, `spec-amend.mjs
+list --strict`, `follow-ups.mjs verify-closures --strict` and `spec-lint.mjs
+--path <this spec>` are all clean. The working tree is left clean; this
+amendment's own record uses `--ref close-ceremony-sweep` (the sibling ref id,
+per Amendment 20's own correction of Amendment 18's mistake).
 
 Sign-off: none (tracked).
 

@@ -614,6 +614,50 @@ GHSTUB
   [[ "$rc" -eq 2 ]] || { log_info "TEST-574: lane-matched but self-contradictory record (PR 49, threads_unresolved=7 + swept) exited $rc (want 2)"; ok=0; }
   assert_payload_contains "$err" "49" "TEST-574: self-contradictory-record deny message does not name PR 49: $err" || ok=0
 
+  # BLOCKING-1 (code review 20260918T172546Z): a hand-appended record whose
+  # outcome is OUTSIDE PR_SWEEP_OUTCOMES must be denied exactly like the
+  # writer would refuse it -- reproduces the reviewer's own repro verbatim
+  # (a record append-event.mjs would never write used to read SWEEP-CHECK
+  # allowed, rc=0, because sweepContradictions had no rule for an unknown
+  # outcome and every per-outcome branch fell through as "consistent").
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":50,"lane":"heavy","reviewer_bots":"expected","threads_seen":3,"threads_unresolved":0,"outcome":"totally_fine"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 50 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: unknown-outcome record (PR 50, outcome=totally_fine) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "50" "TEST-574: unknown-outcome deny message does not name PR 50: $err" || ok=0
+
+  # Same divergence class, the COUNT fields: a hand-appended threads_seen
+  # that is not the integer parseSweepCount would ever have written (here a
+  # bare string) makes every sweepContradictions numeric comparison coerce
+  # to false, the identical NaN-shaped gap B3/validation-round1 closed on
+  # the WRITE side -- the read side must refuse it the same way.
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":51,"lane":"heavy","reviewer_bots":"expected","threads_seen":"abc","threads_unresolved":0,"outcome":"swept"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 51 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: non-integer threads_seen record (PR 51) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "51" "TEST-574: non-integer-threads_seen deny message does not name PR 51: $err" || ok=0
+
+  # And the `pr` field ITSELF: readPrSweepRecords matches records by
+  # `Number(payload.pr) === pr`, so a STRING "52" still finds the record
+  # (Number("52") === 52) -- sweepContradictions must judge the field's
+  # TYPE, not just the numeric value the filter already matched on.
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t574-ride","payload":{"pr":"52","lane":"heavy","reviewer_bots":"expected","threads_seen":3,"threads_unresolved":0,"outcome":"swept"}}' >> "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 52 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: string-typed pr field record (PR 52) exited $rc (want 2)"; ok=0; }
+  assert_payload_contains "$err" "52" "TEST-574: string-pr deny message does not name PR 52: $err" || ok=0
+
+  # `lane` cannot be reached with an illegal value through this hook path at
+  # all (the lane-mismatch check ahead of sweepContradictions already denies
+  # anything other than the two values computeLaneVerdict can itself
+  # produce) -- but lane-gate.mjs's own header promises ONE predicate for
+  # both read and write, so sweepContradictions must judge it directly too,
+  # for any future caller that invokes the predicate without that earlier
+  # gate. Pinned at the predicate level, not through the hook.
+  lane_check=$(cd "$d" && node --input-type=module -e '
+    import { sweepContradictions } from "./.aai/scripts/lib/pr-sweep.mjs";
+    const bad = sweepContradictions({ pr: 1, lane: "orbit", reviewer_bots: "expected", threads_seen: 1, threads_unresolved: 0, outcome: "swept" });
+    process.stdout.write(bad.length > 0 ? "BAD" : "CLEAN");
+  ' 2>&1)
+  [[ "$lane_check" == "BAD" ]] || { log_info "TEST-574: sweepContradictions does not reject an illegal lane value directly, got: $lane_check"; ok=0; }
+
   # The hook must call lane-gate.mjs's --sweep-check mode, never restate its
   # predicate (this file's own "never reimplement a predicate here" rule).
   grep -qF "lane-gate.mjs" "$ADAPTER" || { log_info "TEST-574: merge gate does not call lane-gate.mjs"; ok=0; }

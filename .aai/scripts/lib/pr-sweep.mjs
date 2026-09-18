@@ -11,11 +11,46 @@
 // Closed set of legal pr_sweep outcomes (Spec-AC-33).
 export const PR_SWEEP_OUTCOMES = new Set(['swept', 'skipped_fast_lane', 'internal_substituted']);
 
+// A pr_sweep count/pr field is well-formed the same way parseSweepCount
+// requires at write time: a genuine (already-parsed) JS integer, never a
+// string, float, or negative number. A hand-appended EVENTS.jsonl line can
+// carry any JSON shape at all in these fields, and `"3" <= 0` / `NaN > 0`
+// coerce false the same way an out-of-vocabulary value used to slip past
+// the outcome check below -- so this is the SAME class of gap, checked the
+// same way (code review 20260918T172546Z, BLOCKING-1).
+function isNonNegativeInt(v) {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0;
+}
+
 // Spec-AC-33 — the four self-contradictions a pr_sweep record may never
 // carry: each is a claim the payload's OWN other fields disprove. Returns a
 // list of reasons (empty = consistent).
+//
+// This is also the WHOLE of the read side's defense against a hand-appended
+// EVENTS.jsonl line (lane-gate.mjs --sweep-check re-runs this SAME function
+// instead of re-deriving the writer's rules): every field append-event.mjs
+// validates before it will write a record must be judged here too, or a
+// line that bypasses the writer entirely reads as consistent regardless of
+// what it says (code review 20260918T172546Z, BLOCKING-1 — reproduced with
+// a hand-appended `"outcome":"totally_fine"` record that read SWEEP-CHECK
+// allowed, rc=0, because no per-outcome branch below matched it).
 export function sweepContradictions(p) {
   const bad = [];
+  if (!PR_SWEEP_OUTCOMES.has(p.outcome)) {
+    bad.push(`outcome must be one of ${[...PR_SWEEP_OUTCOMES].join('|')}, got ${JSON.stringify(p.outcome)}`);
+  }
+  if (p.lane !== 'fast' && p.lane !== 'heavy') {
+    bad.push(`lane must be fast|heavy, got ${JSON.stringify(p.lane)}`);
+  }
+  if (!isNonNegativeInt(p.pr) || p.pr === 0) {
+    bad.push(`pr must be a positive integer, got ${JSON.stringify(p.pr)}`);
+  }
+  if (!isNonNegativeInt(p.threads_seen)) {
+    bad.push(`threads_seen must be a non-negative integer, got ${JSON.stringify(p.threads_seen)}`);
+  }
+  if (!isNonNegativeInt(p.threads_unresolved)) {
+    bad.push(`threads_unresolved must be a non-negative integer, got ${JSON.stringify(p.threads_unresolved)}`);
+  }
   if (p.outcome === 'swept' && (p.threads_seen <= 0 || p.reviewer_bots !== 'expected')) {
     bad.push('swept requires threads_seen > 0 and reviewer_bots=expected');
   }

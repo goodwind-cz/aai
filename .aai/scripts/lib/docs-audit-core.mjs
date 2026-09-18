@@ -1202,12 +1202,23 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     docs.push(doc);
     // spec-close-ceremony-sweep Spec-AC-11 (amended D7): --strict hard-fails
     // the near-miss shape check ONLY for a doc whose frontmatter status is
-    // NON-terminal. A terminal doc (TERMINAL_DOC_STATUS: done/deferred/
-    // rejected/superseded/legacy/current — the SAME partition IN_FLIGHT_DOC_
-    // STATUS/TERMINAL_DOC_STATUS already uses elsewhere in this module for
-    // "settled vs in flight") cannot newly reach done with a broken table —
-    // the table only gates OPEN work — so it stays report-only even under
-    // --strict, still listed here unconditionally either way.
+    // NON-terminal. TERMINAL_DOC_STATUS (done/deferred/rejected/superseded/
+    // legacy/current — the SAME partition IN_FLIGHT_DOC_STATUS/TERMINAL_
+    // DOC_STATUS already uses elsewhere in this module for "settled vs in
+    // flight") is a PROXY for "pre-existing, not newly introduced", not a
+    // mechanism that enforces it: nothing requires a --strict run while a
+    // document is open, so a doc created draft with a broken table and
+    // flipped to done inside one PR reaches main permanently exempt too
+    // (validation-round1 NB-7; code review 20260918T172546Z NON-BLOCKING,
+    // both left unremediated by owner decision — the eight live near-miss
+    // documents this exemption was measured against are, and were always,
+    // all `done`, which is what makes the proxy hold today). A baseline-
+    // recorded exemption (the pattern this same diff already uses elsewhere:
+    // cd-subshell-leak-baseline.tsv, base-ref-pin-baseline.tsv,
+    // degenerate-pass-baseline.tsv) would pin the eight NAMED documents
+    // instead of the whole terminal-status class; filed as a follow-up, not
+    // shipped here. Report-only even under --strict for a terminal doc,
+    // still listed here unconditionally either way.
     if (nearMiss.length) {
       const terminal = TERMINAL_DOC_STATUS.has(String(fm?.status ?? '').toLowerCase());
       nearMissWarnings.push({ id, rel: f.rel, warnings: nearMiss, terminal });

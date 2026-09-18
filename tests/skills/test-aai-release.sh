@@ -1555,6 +1555,23 @@ test_570_changelog_shape_is_documented() {
   grep -qF 'exit 12' "$pre" || log_fail "TEST-570: the preamble must name exit 12 (malformed)"
   grep -qF 'exit 13' "$pre" || log_fail "TEST-570: the preamble must name exit 13 (no rollable entries)"
 
+  # Spec-AC-31 (code review 20260918T172546Z BLOCKING-2): "stated once" is a
+  # COUNT, not a grep hit -- a prior ride added the CHANGELOG statement
+  # WITHOUT removing SKILL_PR.prompt.md's own restatement of the same shape,
+  # and this same grep-only check stayed green through it. Count every
+  # statement of the literal shape across BOTH files a third statement could
+  # land in: exactly one (CHANGELOG.md's own preamble), never a second.
+  local skill_pr="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  local changelog_hits skill_pr_hits
+  changelog_hits="$(grep -cF '## [unreleased] — <type>: <title>' "$cl" || true)"
+  skill_pr_hits="$(grep -cF '## [unreleased] — <type>: <title>' "$skill_pr" || true)"
+  [[ "${changelog_hits:-0}" -eq 1 ]] \
+    || log_fail "TEST-570: the per-entry heading shape must be stated exactly once, in CHANGELOG.md's own preamble -- found ${changelog_hits:-0} statement(s) in CHANGELOG.md"
+  [[ "${skill_pr_hits:-0}" -eq 0 ]] \
+    || log_fail "TEST-570: SKILL_PR.prompt.md must not restate the heading shape a second time -- found ${skill_pr_hits} statement(s), want a cross-reference instead"
+  grep -qF "CHANGELOG.md's own preamble" "$skill_pr" \
+    || log_fail "TEST-570: SKILL_PR.prompt.md's CHANGELOG step must cross-reference CHANGELOG.md's own preamble, not restate the shape"
+
   local repo="$TMP_ROOT/t570"
   build_repo "$repo" malformed
   local rc=0

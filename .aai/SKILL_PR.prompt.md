@@ -143,9 +143,11 @@ PROCESS
 
 3b. CHANGELOG — keep the human-readable history fed (root `CHANGELOG.md`):
    - For every feature/fix scope (feat/fix; pure chore/docs noise may skip),
-     add a `## [unreleased] — <type>: <title>` entry at the top of the entry
-     list, Keep-a-Changelog style, 3–10 hyphen bullets: what changed, why it
-     matters, and the ref ids (CHANGE-xxxx / SPEC-xxxx; PR number once known).
+     add a per-entry heading at the top of the entry list in the shape
+     CHANGELOG.md's own preamble names (Spec-AC-31: stated once, where its
+     tool reads it — do not restate the shape here), followed by 3–10
+     hyphen bullets: what changed, why it matters, and the ref ids
+     (CHANGE-xxxx / SPEC-xxxx; PR number once known).
    - Stage `CHANGELOG.md` together with the scope.
    - Rationale: the changelog is the aggregated view operators read; it once
      silently drifted 10 PRs behind.
