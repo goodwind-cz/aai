@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: e9f8b510094b60d1a80245b8fbcd5c100a059c8ed79d797e538bc2b8cd4dcbc4
+frozen_sha256: 24268cf9adf27c7829ce638ccb8e14b7a078316c9dc8498af98c3c657e7d2df6
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -660,6 +660,7 @@ its own mutation; the evidence for each is
 | TEST-553 | Spec-AC-21 | integration | tests/skills/test-aai-intake.sh | test_553_templates_pass_intake_file — each of the eight templates copied verbatim to its DRAFT path passes docs-audit --intake-file, and every template carries exactly one number key. | Delete the number key from one template with sed:s/^number: null$// in ISSUE_TEMPLATE.md. | pending |
 | TEST-554 | Spec-AC-22 | integration | tests/skills/test-aai-docs-audit.sh | test_554_index_tracked_only — a fixture repository with one tracked and one untracked doc regenerates an INDEX naming the tracked doc only, and a run outside a git work tree prints a NOTE naming the fallback. | Restore the working-tree walk with sed:s/walkTracked(ROOT, dir)/walk(path.join(ROOT, dir))/ in generate-docs-index.mjs. | pending |
 | TEST-555 | Spec-AC-22 | integration | tests/skills/test-aai-overview.sh | test_555_overview_tracked_only — the same fixture regenerates overview-data.json and overview.html naming the tracked doc only. | Restore the per-directory readdir with sed:s/walkTracked(ROOT, dir)/fs.readdirSync(path.join(ROOT, dir))/ in generate-overview.mjs. | pending |
+| TEST-576 | Spec-AC-22 | integration | tests/skills/test-aai-docs-audit.sh | test_576_tracked_but_vanished_is_skipped_not_crashed — a fixture whose docs/ has one committed doc moved off disk without staging regenerates the INDEX successfully (exit 0), the INDEX does not name the vanished doc, and the still-present tracked doc is still indexed. | Drop the existence check with sed:s/if (!existsOnDisk(abs)) continue;// in docs-model.mjs's walkTracked. | green |
 | TEST-556 | Spec-AC-23 | integration | tests/skills/test-aai-overview.sh | test_556_no_untracked_state_in_tracked_pages — with an untracked STATE.yaml present, overview-data.json carries no current_focus or in_flight values, and the regenerated repository artefact no longer names a local focus. | Reinstate the unconditional state read with sed:s/stateIsTracked ? state : null/state/. | pending |
 | TEST-557 | Spec-AC-24 | integration | tests/skills/test-aai-factory-report.sh | test_557_open_count_null_when_unreadable — an unreadable --decisions path publishes open_count null and renders n slash a, matching the oldest_age_days convention two lines below it. | Restore the zero with sed:s/registry.unreadable ? null : openFollowUps.length/openFollowUps.length/. | pending |
 | TEST-558 | Spec-AC-24 | integration | tests/skills/test-aai-userguide-rollup.sh | test_558_rollup_noops_without_userguide — a fixture with no docs slash USER_GUIDE.md leaves no file behind and exits 0 with a named no-op line. | Remove the existence guard with sed:s/if (!fs.existsSync(outPath))/if (false)/. | pending |
@@ -1341,6 +1342,25 @@ without staging either side of the move, so the tracked walk still lists the
 committed-but-now-missing old path. The suite's `log_fail` aborts on first
 failure, so every arm after TEST-301 (`run_index` is also called at
 `test_e2e_suite_marker`/TEST-203) is unverified.
+
+Sign-off: none (tracked).
+
+## Amendment 11 (post-freeze, 2026-09-18 — Spec-AC-22's own robustness contract, TEST-576, TDD run 10 correction)
+
+Amendment 10 reported `test-aai-docs-canon.sh` TEST-301 crashing `generate-docs-index.mjs` with `ENOENT` and left it unfixed as out of scope. On re-instruction, the CAUSE half of that finding is Spec-AC-22's own robustness contract, not a separate hazard, and is fixed here.
+
+**Cause.** Since Spec-AC-22 (run 8), `lib/docs-model.mjs`'s `walkTracked(root, dir)` enumerates `git ls-files` and hands every returned path straight to a caller's `fs.readFileSync` with no existence check. The tracked set (what git's index names) and the on-disk set (what is actually there) differ in every dirty tree — a plain `mv`/`rm` that has not been staged, or `docs-canon.mjs` phase 2 moving an original into `docs/_archive/` without staging either side of the move, both produce exactly this shape. `generate-docs-index.mjs` (and, by the same shared function, `generate-overview.mjs`) crashed with an uncaught `ENOENT` stack trace instead of producing an index — Spec-AC-22's own text ("enumerate tracked documents only, and name the degradation when they cannot consult git") already commits to enumerating what git tracks; enumerating a path git tracks but silently crashing on it when the two sets diverge is a violation of that same commitment, not a new one, so this is not a fresh AC.
+
+**Fix.** `walkTracked` now filters its `git ls-files` listing through a new `existsOnDisk(p)` check before returning it: a tracked path that is not there right now is SKIPPED, never handed to a caller to crash on — "the walk enumerates what git tracks and reads what exists." The check distinguishes `ENOENT` (skip, the ordinary dirty-tree shape) from every other `fs.statSync` failure (EACCES, ELOOP, ENOTDIR, ...), which is rethrown rather than swallowed — "could not look" must never read as "nothing to find" (the same class this sweep's D9 near-miss check exists to close, applied here to the walk itself). One place, both callers (`generate-docs-index.mjs`, `generate-overview.mjs`) covered by the same fix; `generate-factory-report.mjs`'s `releaseMembership` does not call `walkTracked` (a plain `readdirSync`, unaffected, out of scope here).
+
+**TEST-576 (Spec-AC-22)**, in `tests/skills/test-aai-docs-audit.sh` (the suite that already owns Spec-AC-22's other rows, TEST-554/TEST-559): a fixture commits two tracked specs, then `mv`s one off disk without staging either side. `generate-docs-index.mjs` now exits 0 (no `ENOENT` reaches stdout/stderr), the still-present doc is still indexed, and the vanished one is silently absent — never crashed on, never fabricated. Mutation cell (`sed:s/if (!existsOnDisk(abs)) continue;//`, dropping the existence check so the read throws again) confirmed RED through `mutation-run.mjs`, matching the row verbatim.
+
+**`test-aai-docs-canon.sh` re-run in full.** The crash is gone; TEST-301 (and TEST-302/306, TEST-203, which share its `run_index` call) now fail on a plain, non-crashing assertion instead:
+- TEST-301: `Expected 'CANON-spec-x' in <TEST_DIR>/docs/INDEX.md`
+- TEST-302/306: `Expected 'docs/canonical/spec-x.md' in <TEST_DIR>/docs/INDEX.md`
+- TEST-203: `Expected 'CANON-spec-x' in <TEST_DIR>/docs/INDEX.md`
+
+All three share one root cause, and it is a DIFFERENT hazard from the one fixed above: `docs-canon.mjs` phase 2 writes `docs/canonical/spec-x.md` and moves the originals into `docs/_archive/` on disk without ever running `git add` for either side — the new canonical doc is not merely late to be read, it is genuinely UNTRACKED, so Spec-AC-22's tracked-only walk correctly and permanently excludes it until something stages it. TEST-303, TEST-304, TEST-305, TEST-120, TEST-201 and TEST-202 (everything else after TEST-119) now run and PASS — the earlier suite-wide abort (this suite's `log_fail` exits on first failure) was masking them, not a real dependency on TEST-301. Reported, not fixed — no assertion was touched — under the same out-of-scope reasoning Amendment 10 gave: the remedy belongs to `docs-canon.mjs`'s own git-staging discipline (or its test fixture's), not to Spec-AC-22's walk.
 
 Sign-off: none (tracked).
 
