@@ -410,6 +410,41 @@ test_583_gate_refuses_undocumented_ref() {
   log_pass "TEST-583: gate refuses an undocumented roadmap ref (capability or maintenance), naming the ref and the missing document, and admits once the document exists; live roadmap unaffected"
 }
 
+# --- TEST-588 (Spec-AC-29, validation-round2 NB-3) — --intake must resolve
+# to a PARSED intake document, not merely a readable file --------------------
+test_588_gate_intake_requires_a_real_document() {
+  log_info "Test: gate --intake refuses a readable file that is not a parseable intake document (no frontmatter, or an id with no recognized type); admits a real one (TEST-588)..."
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-t588\n    maintenance: maint-t588\n    status: planned\n' > "$TEST_DIR/roadmap588.yaml"
+
+  # Arm A (NB-3): a readable file with no frontmatter at all must NOT admit.
+  printf 'not frontmatter, just junk text\n' > "$TEST_DIR/junk588.txt"
+  [ "$(run gate --ref cap-t588 --intake "$TEST_DIR/junk588.txt" --roadmap "$TEST_DIR/roadmap588.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-588: gate --intake junk588.txt (no frontmatter) must NOT be admitted: $(out)"
+  grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-588: the refusal must name the missing document: $(err)"
+
+  # Arm B: a readable file WITH frontmatter but no `id:` line — still not a
+  # document (the pre-fix code's own id-mismatch check never even fired here).
+  printf -- '---\ntype: change\nstatus: draft\n---\n\n# no id\n' > "$TEST_DIR/noid588.txt"
+  [ "$(run gate --ref cap-t588 --intake "$TEST_DIR/noid588.txt" --roadmap "$TEST_DIR/roadmap588.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-588: gate --intake noid588.txt (frontmatter, no id) must NOT be admitted: $(out)"
+  grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-588: the no-id refusal must name the missing document: $(err)"
+
+  # Arm C: a readable file with an id but a type OUTSIDE the corpus type map
+  # — still not a document.
+  printf -- '---\nid: cap-t588\ntype: not-a-real-type\nstatus: draft\n---\n\n# cap-t588\n' > "$TEST_DIR/badtype588.txt"
+  [ "$(run gate --ref cap-t588 --intake "$TEST_DIR/badtype588.txt" --roadmap "$TEST_DIR/roadmap588.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-588: gate --intake badtype588.txt (unrecognized type) must NOT be admitted: $(out)"
+  grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-588: the bad-type refusal must name the missing document: $(err)"
+
+  # Control: a genuine intake document (frontmatter, id, recognized type) IS admitted.
+  write_doc cap-t588 change draft
+  [ "$(run gate --ref cap-t588 --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-cap-t588.md" --roadmap "$TEST_DIR/roadmap588.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-588: control -- a real intake document must still be admitted: $(err)"
+  grep -qF "a roadmap capability" "$TEST_DIR/out" || log_fail "TEST-588: the control admission must read 'a roadmap capability': $(out)"
+
+  log_pass "TEST-588: gate --intake refuses a readable-but-unparseable file (no frontmatter, no id, or an unrecognized type), and admits a real intake document"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -429,6 +464,7 @@ main() {
   test_566_validate_refuses_unknown_refs
   test_535_roadmap_pair_seven_done
   test_583_gate_refuses_undocumented_ref
+  test_588_gate_intake_requires_a_real_document
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

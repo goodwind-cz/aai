@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { parseFrontmatter, DOC_TYPE_ENUM } from './lib/docs-model.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -117,11 +118,23 @@ function findDoc(docsDir, ref) {
   return null;
 }
 function readIntake(p) {
-  let head; try { head = fs.readFileSync(p, 'utf8').split('\n').slice(0, 30); } catch { return null; }
-  const fm = {};
-  for (const l of head) { const m = /^([a-z_]+):\s*(.*)$/.exec(l); if (m) fm[m[1]] = m[2].trim(); }
+  let content; try { content = fs.readFileSync(p, 'utf8'); } catch { return null; }
+  // NB-3 (validation-round2): "resolves to a real document" must mean the
+  // file PARSES as an intake document -- frontmatter carrying an id AND a
+  // type the corpus type map recognizes -- not merely "the file is
+  // readable". `gate --intake junk.txt` was admitting because readIntake
+  // returned an object for ANY readable file, and the id-mismatch usage
+  // error only fires when the file HAS an `id:` line. Uses the SAME
+  // frontmatter authority docs-audit already reads with (lib/docs-model.mjs
+  // parseFrontmatter + DOC_TYPE_ENUM), never a second parser: a junk file
+  // with no frontmatter, or an id with no recognized type, is not a
+  // document, so readIntake returns null exactly like a findDoc() miss and
+  // gate's `if (!intake) return deny(...)` (Spec-AC-29) covers it too.
+  const fm = parseFrontmatter(content);
+  if (!fm || !fm.id || !fm.type || !DOC_TYPE_ENUM.has(fm.type)) return null;
+  const head = content.split('\n').slice(0, 30);
   const title = (head.find((l) => /^# /.test(l)) || '').replace(/^# /, '');
-  return { path: p, id: fm.id || null, status: fm.status || null, type: fm.type || null, blocks: fm.blocks || null, title };
+  return { path: p, id: fm.id, status: fm.status || null, type: fm.type, blocks: fm.blocks || null, title };
 }
 function statusOf(docsDir, ref) { const d = findDoc(docsDir, ref); return d ? d.status : null; }
 

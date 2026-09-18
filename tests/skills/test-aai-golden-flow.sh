@@ -845,6 +845,119 @@ test_573_pr_sweep_record_refuses_contradiction() {
   log_pass "TEST-573 (Spec-AC-33) the four contradictions are refused with nothing appended; a consistent record per outcome appends exactly one line"
 }
 
+# --- TEST-584 (Spec-AC-33, validation-round2 T-NEW-2): threads_unresolved --
+# owns its OWN refusal arm, independent of threads_seen ---------------------
+#
+# T-NEW-2: TEST-573's contradiction-6 arm passes BOTH --threads-seen abc AND
+# --threads-unresolved xyz, and the refusal fires on threads_seen (the field
+# checked first) — so append-event.mjs's parsing of threads_unresolved could
+# be reverted to the exact NaN-coercing `Number(args.threads_unresolved ?? 0)`
+# expression B3 reported and no test would notice. Pinned here directly: a
+# VALID --threads-seen with an INVALID --threads-unresolved must be refused
+# naming --threads-unresolved specifically, and append nothing.
+test_584_pr_sweep_threads_unresolved_owns_its_arm() {
+  log_info "TEST-584: a non-numeric --threads-unresolved is refused naming itself, independent of a VALID --threads-seen (Spec-AC-33)..."
+  local d out events before after code
+  d="$TEST_DIR/t584"
+  out="$TEST_DIR/t584-out"
+  events="$d/docs/ai/EVENTS.jsonl"
+  mkdir -p "$d/docs/ai"
+  : > "$events"
+
+  before="$(wc -l < "$events" | tr -d ' ')"
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t584-ride --pr 950 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved xyz --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-584: a non-numeric --threads-unresolved (with a valid --threads-seen) must be refused, got exit 0: $(cat "$out")"
+  grep -qF "threads-unresolved" "$out" || log_fail "TEST-584: the refusal does not name --threads-unresolved: $(cat "$out")"
+  after="$(wc -l < "$events" | tr -d ' ')"
+  [[ "$after" == "$before" ]] || log_fail "TEST-584: a refused non-numeric threads_unresolved record must append nothing (before=$before after=$after)"
+
+  # Control: the SAME payload with threads_unresolved valid (0) is accepted.
+  before="$after"
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t584-ride --pr 951 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -eq 0 ]] || log_fail "TEST-584: control (valid threads_unresolved) must be accepted, got exit $code: $(cat "$out")"
+  after="$(wc -l < "$events" | tr -d ' ')"
+  [[ "$after" == "$((before + 1))" ]] || log_fail "TEST-584: the control record must append exactly one line"
+
+  log_pass "TEST-584 (Spec-AC-33) --threads-unresolved is refused on its own bad value, naming itself, independent of --threads-seen"
+}
+
+# --- TEST-585 (Spec-AC-33, validation-round2 T-NEW-3): a count is a --------
+# non-negative INTEGER — a float is refused, pinned directly -----------------
+#
+# T-NEW-3: the alphabetic case ("abc") is the only shape TEST-573 exercises;
+# "2.5" being refused was true of the shipped code but held by no test, so
+# widening the digit regex to accept floats stayed green. Pinned here for
+# both count fields.
+test_585_pr_sweep_count_rejects_float() {
+  log_info "TEST-585: a fractional --threads-seen / --threads-unresolved is refused as a non-integer count (Spec-AC-33)..."
+  local d out events code
+  d="$TEST_DIR/t585"
+  out="$TEST_DIR/t585-out"
+  events="$d/docs/ai/EVENTS.jsonl"
+  mkdir -p "$d/docs/ai"
+  : > "$events"
+
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t585-ride --pr 960 --lane heavy \
+    --reviewer-bots expected --threads-seen 1.5 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-585: --threads-seen 1.5 must be refused, got exit 0: $(cat "$out")"
+  grep -qF "threads-seen" "$out" || log_fail "TEST-585: the refusal does not name --threads-seen: $(cat "$out")"
+  [[ -s "$events" ]] && log_fail "TEST-585: a refused fractional threads_seen record must append nothing: $(cat "$events")"
+
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t585-ride --pr 961 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 2.5 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-585: --threads-unresolved 2.5 must be refused, got exit 0: $(cat "$out")"
+  grep -qF "threads-unresolved" "$out" || log_fail "TEST-585: the refusal does not name --threads-unresolved: $(cat "$out")"
+  [[ -s "$events" ]] && log_fail "TEST-585: a refused fractional threads_unresolved record must append nothing: $(cat "$events")"
+
+  log_pass "TEST-585 (Spec-AC-33) a fractional count is refused, not silently truncated or accepted"
+}
+
+# --- TEST-586 (Spec-AC-33, validation-round2 NB-5): --pr is a count field --
+# too — the SAME parseSweepCount helper covers it, pinned directly ----------
+#
+# NB-5: `pr: Number(args.pr)` was the sibling of B3, three lines from its
+# fix: "abc" silently minted "pr":null and "0x181" minted "pr":385 for a PR
+# number nobody typed. A null-PR record is unfindable (fails closed), but a
+# hex/typo'd PR number mints a merge-readiness record for the WRONG PR.
+test_586_pr_sweep_pr_field_rejects_garbage() {
+  log_info "TEST-586: a non-integer --pr (alphabetic or hex-looking) is refused, never silently coerced (Spec-AC-33)..."
+  local d out events code
+  d="$TEST_DIR/t586"
+  out="$TEST_DIR/t586-out"
+  events="$d/docs/ai/EVENTS.jsonl"
+  mkdir -p "$d/docs/ai"
+  : > "$events"
+
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t586-ride --pr abc --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-586: --pr abc must be refused, got exit 0: $(cat "$out")"
+  grep -qF -- "--pr" "$out" || log_fail "TEST-586: the refusal does not name --pr: $(cat "$out")"
+  [[ -s "$events" ]] && log_fail "TEST-586: a refused --pr abc record must append nothing: $(cat "$events")"
+
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t586-ride --pr 0x181 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-586: --pr 0x181 must be refused (never silently reinterpreted as PR 385), got exit 0: $(cat "$out")"
+  grep -qF -- "--pr" "$out" || log_fail "TEST-586: the 0x181 refusal does not name --pr: $(cat "$out")"
+  [[ -s "$events" ]] && log_fail "TEST-586: a refused --pr 0x181 record must append nothing: $(cat "$events")"
+
+  # Control: a real integer PR is accepted.
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t586-ride --pr 385 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -eq 0 ]] || log_fail "TEST-586: control --pr 385 must be accepted, got exit $code: $(cat "$out")"
+  grep -qF '"pr":385' "$events" || log_fail "TEST-586: the accepted record must carry pr:385: $(cat "$events")"
+
+  log_pass "TEST-586 (Spec-AC-33) --pr is validated by the same non-negative-integer rule as the count fields, never silently coerced"
+}
+
 # --- TEST-006 (Spec-AC-04): the record reads the gate, never recomputes ----
 
 test_006_record_reads_gate_and_skill_pr_wiring() {
@@ -1058,6 +1171,9 @@ main() {
   test_522_registry_class_identity
   test_523_paired_half_blocks_push
   test_573_pr_sweep_record_refuses_contradiction
+  test_584_pr_sweep_threads_unresolved_owns_its_arm
+  test_585_pr_sweep_count_rejects_float
+  test_586_pr_sweep_pr_field_rejects_garbage
   test_001_full_run_clean
   test_002_seam_fixture_layer
   test_003_steps_from_questions

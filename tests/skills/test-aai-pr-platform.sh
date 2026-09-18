@@ -470,12 +470,35 @@ test_569_shared_page_push_names_open_prs() {
 # maintained 'docs/overview.html' that no such file answers to, silently
 # never matched by sharedPageConflicts()'s exact Set.has()) is pinned per
 # entry, not just for docs/INDEX.md (TEST-569's only fixture path).
+#
+# T-NEW-1 (validation-round2): the ORIGINAL version of this test looped over
+# the very set it was testing (`pages`, read back from SHARED_GENERATED_PAGES
+# itself), so deleting a member kept it green — one conflict arm fewer, no
+# assertion left to notice. Fixed: the pages this ride's close ceremony
+# ACTUALLY regenerates (close-work-item.mjs regenerateIndex /
+# regenerateOverviewBestEffort / regenerateUserguideRollupBestEffort /
+# regenerateFactoryReportBestEffort) are named LITERALLY here, never read
+# back from the module under test, and every literal page both (a) must be a
+# member of the set and (b) gets its own conflict-detection arm — so a
+# dropped member reddens on containment even before the conflict loop runs,
+# and the conflict loop itself still catches it independently. Every path the
+# set DOES name (whichever direction it drifts) is also stat()ed against the
+# real repo, answering "what happens when the two lists drift: today,
+# nothing" with "it reddens".
 test_580_shared_page_set_covers_every_generated_page() {
-  log_info "TEST-580: every page in SHARED_GENERATED_PAGES is individually detected as a conflict, and every one is a path a real generator writes (Spec-AC-30)..."
+  log_info "TEST-580: SHARED_GENERATED_PAGES matches disk and covers every page the close ceremony actually regenerates, one conflict arm per page (Spec-AC-30)..."
   local bin="$TMP_ROOT/gh-t580" page rc out ok=1
 
-  # Every page the shared set names is a real, generator-written path (not
-  # 'docs/overview.html', which no generator has ever written).
+  # The five pages close-work-item.mjs's regen tail actually writes — named
+  # literally, never derived from SHARED_GENERATED_PAGES.
+  local -a REGENERATED_PAGES=(
+    "docs/INDEX.md"
+    "docs/ai/overview.html"
+    "docs/ai/overview-data.json"
+    "docs/USER_GUIDE.md"
+    "docs/ai/factory-report.html"
+  )
+
   local pages
   pages="$(node -e '
     import("'"$PROJECT_ROOT"'/.aai/scripts/lib/docs-model.mjs").then(m => {
@@ -485,12 +508,28 @@ test_580_shared_page_set_covers_every_generated_page() {
   [[ -n "$pages" ]] || { log_fail "TEST-580: SHARED_GENERATED_PAGES is empty or unreadable"; return; }
   grep -qF "docs/overview.html" <<<"$pages" \
     && { log_fail "TEST-580: SHARED_GENERATED_PAGES still names the non-existent docs/overview.html"; ok=0; }
-  grep -qF "docs/ai/overview.html" <<<"$pages" \
-    || { log_info "TEST-580: SHARED_GENERATED_PAGES must name the real docs/ai/overview.html"; ok=0; }
 
-  # One conflict-detection arm per page named in the set.
+  # Every page this ride actually regenerates must be a member of the set —
+  # drift in the "set lost a real page" direction reddens HERE, independent
+  # of the conflict-detection loop below.
+  for page in "${REGENERATED_PAGES[@]}"; do
+    grep -qF "$page" <<<"$pages" \
+      || { log_info "TEST-580: SHARED_GENERATED_PAGES is missing '$page', a page the close ceremony regenerates"; ok=0; }
+  done
+
+  # Every path the set DOES name must exist on disk (stat it) — drift in the
+  # OTHER direction (a stale or renamed entry) reddens too.
   while IFS= read -r page; do
     [[ -n "$page" ]] || continue
+    [[ -f "$PROJECT_ROOT/$page" ]] \
+      || { log_info "TEST-580: SHARED_GENERATED_PAGES names '$page', which does not exist in the repo"; ok=0; }
+  done <<<"$pages"
+
+  # One conflict-detection arm per page this ride ACTUALLY regenerates — the
+  # literal list, not the set under test, so a page dropped FROM the set
+  # still gets its own arm and reddens as "not individually caught", rather
+  # than simply producing one arm fewer.
+  for page in "${REGENERATED_PAGES[@]}"; do
     build_gh_stub_pr_list "$bin" "[{\"number\":580,\"files\":[{\"path\":\"$page\"}]}]"
     out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" 2>&1)"; rc=$?
     if [[ "$rc" -eq 0 ]]; then
@@ -498,9 +537,9 @@ test_580_shared_page_set_covers_every_generated_page() {
     elif [[ "$out" != *"$page"* ]]; then
       log_info "TEST-580: the refusal for '$page' must name that path: $out"; ok=0
     fi
-  done <<<"$pages"
+  done
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-580: every SHARED_GENERATED_PAGES entry names a real path and is individually caught as a conflict" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-580: SHARED_GENERATED_PAGES matches disk and covers every page the ride regenerates, each individually caught as a conflict" \
     || log_fail "TEST-580 shared-page set coverage"
 }
 

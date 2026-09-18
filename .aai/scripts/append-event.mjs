@@ -174,7 +174,7 @@ function main() {
       // whose fields contradict each other is refused WHOLE — nothing
       // written — so the ledger can never carry a claim the record itself
       // disproves.
-      if (!args.pr) fail('pr_sweep requires --pr');
+      if (args.pr === undefined) fail('pr_sweep requires --pr');
       if (!args.lane || !['fast', 'heavy'].includes(args.lane)) fail('pr_sweep requires --lane fast|heavy');
       if (!args.reviewer_bots) fail('pr_sweep requires --reviewer-bots');
       if (!args.outcome || !PR_SWEEP_OUTCOMES.has(args.outcome)) {
@@ -185,16 +185,23 @@ function main() {
       // every sweepContradictions comparison (NaN <= 0 and NaN > 0 are both
       // false) and wrote `null` counts. Refuse whole, nothing written, name
       // the field.
+      // NB-5 (validation-round2): --pr was the sibling of B3, three lines
+      // away from the fix -- `Number(args.pr)` was unvalidated, so "abc"
+      // silently minted `"pr":null` and "0x181" minted `"pr":385` for a PR
+      // number nobody typed. SAME parseSweepCount helper as the count
+      // fields: a non-negative integer or a refusal naming --pr.
+      let pr;
       let threadsSeen;
       let threadsUnresolved;
       try {
+        pr = parseSweepCount(args.pr, 'pr');
         threadsSeen = parseSweepCount(args.threads_seen, 'threads_seen');
         threadsUnresolved = parseSweepCount(args.threads_unresolved, 'threads_unresolved');
       } catch (err) {
         fail(`pr_sweep ${err.message}`);
       }
       const payload = {
-        pr: Number(args.pr),
+        pr,
         lane: args.lane,
         reviewer_bots: args.reviewer_bots,
         threads_seen: threadsSeen,

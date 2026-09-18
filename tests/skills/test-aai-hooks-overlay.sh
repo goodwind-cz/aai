@@ -625,6 +625,70 @@ GHSTUB
                   || log_fail "TEST-574 merge gate sweep-check"
 }
 
+# TEST-587 (Spec-AC-34, validation-round2 NB-2): a QUOTED positional PR
+# number must be judged against ITSELF, never fall through to branch
+# resolution and get judged against a different PR's record.
+test_017_merge_gate_quoted_pr_number() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-587 $ADAPTER does not exist"; return; }
+  local ok=1 d rc err
+
+  d="$(new_fixture)"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai" "$d/bin"
+  cp "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" "$d/.aai/scripts/lane-gate.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
+  : > "$d/docs/ai/EVENTS.jsonl"
+
+  # A consistent record exists ONLY for PR 777 (standing in for "whatever PR
+  # the current branch would resolve to"), never for PR 385.
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t587-ride \
+     --pr 777 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+  cat > "$d/bin/gh" <<'GHSTUB'
+#!/usr/bin/env bash
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  echo "777"
+  exit 0
+fi
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+
+  # NB-2: a double-quoted bare PR number must be parsed as PR 385, not fall
+  # through to branch resolution (which would find 777's consistent record
+  # and wrongly ALLOW a merge of PR 385).
+  err=$(payload_for 'gh pr merge "385" --squash' | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-587: quoted 'gh pr merge \"385\"' exited $rc (want 2, denied against PR 385's own absent record): $err"; ok=0; }
+  assert_payload_contains "$err" "385" "TEST-587: the quoted-PR deny message does not name PR 385: $err" || ok=0
+
+  # Same for a single-quoted number.
+  err=$(payload_for "gh pr merge '385' --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-587: single-quoted 'gh pr merge '\''385'\''' exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "385" "TEST-587: the single-quoted-PR deny message does not name PR 385: $err" || ok=0
+
+  # Control: the UNQUOTED form still works (regression guard for the fix).
+  err=$(payload_for "gh pr merge 385 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-587: control unquoted 'gh pr merge 385' exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "385" "TEST-587: the unquoted-PR control deny message does not name PR 385: $err" || ok=0
+
+  # A quoted PHRASE containing a digit must NOT be taken as the PR number
+  # (validation-round1 B2's own control, must survive this fix): quoting
+  # digits-only must not widen into quoting-any-token.
+  err=$(payload_for 'gh pr merge --subject "fix 123" --squash 385' | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-587: '--subject \"fix 123\" --squash 385' exited $rc (want 2, judged against 385 not 123): $err"; ok=0; }
+  assert_payload_contains "$err" "385" "TEST-587: a digit inside a quoted PHRASE was taken instead of the real PR 385: $err" || ok=0
+
+  # Now record a consistent record for PR 385: the quoted form allows.
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t587-ride \
+     --pr 385 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome internal_substituted >/dev/null)
+  err=$(payload_for 'gh pr merge "385" --squash' | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-587: quoted 'gh pr merge \"385\"' with a consistent PR-385 record exited $rc (want 0): $err"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-587 (Spec-AC-34, NB-2) a quoted positional PR number is judged against ITSELF, never a different PR resolved from the branch" \
+                  || log_fail "TEST-587 merge gate quoted PR number"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -647,6 +711,7 @@ main() {
   test_014_prompt_diet_floor
   test_015_strict_audit
   test_016_merge_gate_sweep_check
+  test_017_merge_gate_quoted_pr_number
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

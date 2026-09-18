@@ -116,6 +116,13 @@ case "$GATE" in
     MERGE_SEG="$(printf '%s' "$CMD" | grep -oE 'gh[[:space:]]+pr[[:space:]]+merge([[:space:]][^;&|]*)?' | head -1)"
     if [ -n "$MERGE_SEG" ]; then
       PR_SEARCH="$(printf '%s' "$MERGE_SEG" | sed -E 's/(^|[[:space:]])(-R|--repo)[[:space:]]+[^[:space:]]+//g')"
+      # NB-2 (validation-round2): a quoted bare number (`gh pr merge "385"`)
+      # is not a bare token under the digit scan below, so it fell through to
+      # branch resolution and was judged against a DIFFERENT PR's record.
+      # Strip quotes ONLY around a token that is nothing but digits -- never a
+      # quoted PHRASE that happens to contain one (`--subject "fix 123"` must
+      # keep failing to yield 123; validation-round1 B2's own control).
+      PR_SEARCH="$(printf '%s' "$PR_SEARCH" | sed -E "s/\"([0-9]+)\"/ \1 /g; s/'([0-9]+)'/ \1 /g")"
       PR="$(printf '%s' "$PR_SEARCH" | grep -oE '(^|[[:space:]])[0-9]+([[:space:]]|$)' | grep -oE '[0-9]+' | head -1)"
       if [ -z "$PR" ] && command -v gh >/dev/null 2>&1; then
         PR="$(cd "$ROOT" 2>/dev/null && gh pr view --json number -q .number 2>/dev/null || true)"
