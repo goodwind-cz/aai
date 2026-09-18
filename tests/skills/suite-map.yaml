@@ -412,6 +412,7 @@ suites:
     globs:
       - .aai/scripts/check-test-registration.mjs
       - .aai/scripts/check-base-ref-pins.mjs
+      - .aai/scripts/check-vendored-script-deps.mjs
       - tests/skills/lib/assert-payload.sh
       - tests/skills/lib/pipe-grep-q-ratchet.sh
       - tests/skills/lib/pipe-grep-q-baseline.tsv

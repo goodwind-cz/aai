@@ -1481,8 +1481,15 @@ test_036_golden_flow_record_precondition() {
   build_repo "$repo" two_entries
   # The precondition names `node .aai/scripts/golden-flow.mjs`, so it arms only
   # where that command exists (a generic repo's block stays byte-identical).
-  mkdir -p "$repo/.aai/scripts" "$repo/docs/ai/tests"
+  # aai-release.sh only ever stats this path (`[ -f ... ]`, never `node`s
+  # it), so golden-flow.mjs's own lib/ imports are never actually resolved
+  # here — copied anyway (check-vendored-script-deps.mjs, Amendment 21) so a
+  # vendored-engine check never has to guess "copied to run" from "copied to
+  # stat", and a future test that DOES invoke this copy inherits a fixture
+  # that already carries what golden-flow.mjs needs.
+  mkdir -p "$repo/.aai/scripts/lib" "$repo/docs/ai/tests"
   cp "$PROJECT_ROOT/.aai/scripts/golden-flow.mjs" "$repo/.aai/scripts/golden-flow.mjs"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$repo/.aai/scripts/lib/"
   commit_all "$repo" "vendor golden-flow"
   git -C "$repo" tag -a v2026.01.01 -m v2026.01.01
   local tag_date; tag_date="$(git -C "$repo" log -1 --format=%ci v2026.01.01)"

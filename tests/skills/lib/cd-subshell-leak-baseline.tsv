@@ -67,7 +67,7 @@
 2	tests/skills/test-aai-heartbeat.sh
 2	tests/skills/test-aai-hitl-channel.sh
 4	tests/skills/test-aai-hitl-propagation.sh
-23	tests/skills/test-aai-hooks-overlay.sh
+28	tests/skills/test-aai-hooks-overlay.sh
 50	tests/skills/test-aai-hygiene-pack.sh
 3	tests/skills/test-aai-implementation-mode.sh
 15	tests/skills/test-aai-intake.sh
@@ -87,7 +87,7 @@
 2	tests/skills/test-aai-overview.sh
 2	tests/skills/test-aai-pipe-safe.sh
 2	tests/skills/test-aai-planning-probes.sh
-5	tests/skills/test-aai-pr-platform.sh
+8	tests/skills/test-aai-pr-platform.sh
 2	tests/skills/test-aai-pr-waiver.sh
 2	tests/skills/test-aai-pricing.sh
 2	tests/skills/test-aai-product-docs.sh

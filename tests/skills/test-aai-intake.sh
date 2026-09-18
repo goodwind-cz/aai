@@ -1248,6 +1248,14 @@ EOF
   broken_dir=$(intake_scratch)
   broken="$broken_dir/docs-audit.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$broken"
+  # docs-audit.mjs's real ./lib/*.mjs imports (check-vendored-script-deps.mjs,
+  # Amendment 21) — irrelevant to THIS arm (the syntax error appended below
+  # makes node fail to PARSE the file, before it ever reaches import
+  # resolution), but copied to the same sibling `lib/` shape docs-audit.mjs's
+  # own relative imports expect, so this fixture stays correct if a future
+  # edit here ever runs an UNCORRUPTED copy of the script.
+  mkdir -p "$broken_dir/lib"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$broken_dir/lib/"
   printf '
 syntax error {{{
 ' >> "$broken"

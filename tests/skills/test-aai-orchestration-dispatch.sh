@@ -4640,8 +4640,25 @@ test_567_rule_4a_single_retarget() {  # TEST-567 / Spec-AC-29
   # buildOpenIntakes resolves ride-select.mjs relative to --root, so the
   # fixture carries the REAL (post-Spec-AC-29) engine, never a copy frozen at
   # test-authoring time — this proves the actual fix, not a stand-in.
-  mkdir -p "$d/.aai/scripts"
+  #
+  # Amendment 21 (validation round 4's own follow-up): this fixture vendored
+  # ride-select.mjs ALONE, with no lib/ copy at all. When close-ceremony-
+  # sweep's R6/D2 fix gave ride-select.mjs a new dependency (`import {
+  # parseFrontmatter, DOC_TYPE_ENUM } from './lib/docs-model.mjs'`), the
+  # vendored copy could no longer resolve it: node exits with
+  # ERR_MODULE_NOT_FOUND (node:internal/modules/esm/resolve:275) the instant
+  # ride-select.mjs is invoked, which orchestration-dispatch.mjs's
+  # roadmapGate() degrades into a plain gate refusal — a passing arm went
+  # silently wrong, not a crash, because the caller treats "gate could not
+  # run" the same as "gate said no". Fixed the same way every OTHER fixture
+  # in this suite that vendors a live .mjs script already does (see e.g.
+  # test-aai-docs-audit.sh's setup_iso_repo, test-aai-doc-numbering.sh's
+  # fixture root): copy the WHOLE lib/ directory, not a hand-picked file, so
+  # the NEXT import ride-select.mjs's own source gains cannot break this
+  # fixture silently again.
+  mkdir -p "$d/.aai/scripts/lib"
   cp "$PROJECT_ROOT/.aai/scripts/ride-select.mjs" "$d/.aai/scripts/ride-select.mjs"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   cat > "$d/docs/ai/roadmap.yaml" <<YAML
 budget:
   maintenance_per_capability: 1

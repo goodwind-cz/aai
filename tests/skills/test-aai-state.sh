@@ -3071,8 +3071,14 @@ test_071_rguard_predicate_which_file() {  # TEST-037 / Spec-AC-12
   # sibling to a docs/ai/STATE.yaml) must ALSO refuse exit 3, even though it
   # sits outside THIS repo's own root (arm B, independent of arm A).
   local other="$TEST_DIR/t71-other-project"
-  mkdir -p "$other/.aai/scripts" "$other/docs/ai"
+  mkdir -p "$other/.aai/scripts/lib" "$other/docs/ai"
   cp "$PROJECT_ROOT/.aai/scripts/state.mjs" "$other/.aai/scripts/state.mjs"
+  # state.mjs's real ./lib/*.mjs imports (check-vendored-script-deps.mjs,
+  # Amendment 21). st_sub() always runs the REAL $PROJECT_ROOT/.aai/scripts/
+  # state.mjs (never this copy) — this vendored copy exists only so $other
+  # LOOKS like a second real project root — but copied anyway so it stays
+  # correct if a future arm ever invokes THIS copy directly.
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$other/.aai/scripts/lib/"
   write_state_fixture "$other/docs/ai/STATE.yaml"
   cp "$other/docs/ai/STATE.yaml" "$TEST_DIR/t71-other-before.yaml"
   ec=0

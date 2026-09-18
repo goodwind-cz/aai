@@ -350,6 +350,13 @@ test_006_cat06_duplicate_key_fail() {
   mkdir -p "$fixture/.aai/scripts/lib"
   cp "$PROJECT_ROOT/.aai/scripts/check-state.mjs" "$fixture/.aai/scripts/check-state.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/lib/state-core.mjs" "$fixture/.aai/scripts/lib/state-core.mjs"
+  # check-state.mjs's OTHER real import (check-vendored-script-deps.mjs,
+  # Amendment 21). Never actually resolved from this copy today —
+  # aai-doctor.mjs's CAT-06 spawns check-state.mjs via its OWN real
+  # scriptDir (import.meta.url), never `$fixture` — but copied anyway so
+  # this fixture is never one `import.meta.url` refactor away from a
+  # silent ERR_MODULE_NOT_FOUND.
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$fixture/.aai/scripts/lib/cli-pipe-guard.mjs"
   cat > "$fixture/docs/ai/STATE.yaml" <<'EOF'
 project_status: active
 metrics:
@@ -547,8 +554,13 @@ test_013_cat13_exit4_tolerated() {
   local fixture out rc
   fixture="$(new_bare_fixture t013)"
   add_core_and_role_files "$fixture"
-  mkdir -p "$fixture/.aai/scripts"
+  mkdir -p "$fixture/.aai/scripts/lib"
   cp "$PROJECT_ROOT/.aai/scripts/layer-drift.mjs" "$fixture/.aai/scripts/layer-drift.mjs"
+  # layer-drift.mjs's real import (check-vendored-script-deps.mjs, Amendment
+  # 21) — see test_006's identical note: never actually resolved from this
+  # copy today (aai-doctor.mjs's CAT-13 spawns it via its own real
+  # scriptDir), copied anyway so this fixture stays correct if that changes.
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$fixture/.aai/scripts/lib/cli-pipe-guard.mjs"
   # No .aai/system/AAI_PIN.md -> real layer-drift.mjs exits 4 (unverifiable).
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"; rc=$?
   if echo "$out" | grep "^CAT-13" | qgrep -q "WARN" \

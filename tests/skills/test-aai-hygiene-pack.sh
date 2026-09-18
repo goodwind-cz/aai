@@ -4301,6 +4301,120 @@ test_127_withdrawn_phrases_drained() {  # TEST-438 / Spec-AC-21
   log_pass "test_127: all four withdrawn phrases are drained from tests/skills, .aai/ and docs/specs, and a planted instance is still caught (TEST-438)"
 }
 
+# --- test_131 (Amendment 21, validation-round4 follow-up) -------------------
+# check-vendored-script-deps.mjs's own gate-and-bite: a LIVE GATE over this
+# repository, plus fixture proofs pinning the two design properties measured
+# by hand while building it (see the checker's own docstring for the two
+# rejected simpler designs and why): call-graph INHERITANCE (a helper
+# function's lib copy covers a caller that vendors and runs the engine) and
+# NO FALSE-NEGATIVE MASKING (an unrelated function's whole-tree copy must
+# never cover a violation in a function that never calls it).
+test_131_vendored_script_deps_gate_and_bite() {
+  log_info "test_131: check-vendored-script-deps.mjs — live gate over this repo, plus call-graph-inheritance and no-false-masking bite proofs..."
+  local checker="$PROJECT_ROOT/.aai/scripts/check-vendored-script-deps.mjs"
+  [[ -f "$checker" ]] || log_fail "test_131: missing .aai/scripts/check-vendored-script-deps.mjs"
+
+  # ---- LIVE GATE -----------------------------------------------------------
+  local live_out live_rc=0
+  live_out="$(node "$checker" --root "$PROJECT_ROOT" 2>&1)" || live_rc=$?
+  [[ "$live_rc" -eq 0 ]] \
+    || log_fail "test_131: the live gate FAILED on this repository — a vendored engine's own dependency is missing from its fixture (see above):\n$live_out"
+  [[ "$live_out" == *"CLEAN"* ]] \
+    || log_fail "test_131: the live gate printed no CLEAN summary: $live_out"
+
+  # ---- fixture scaffold ------------------------------------------------
+  local fx
+  fx="$(mktemp -d "${TMPDIR:-/tmp}/aai-vendored-deps-fixture.XXXXXX")"
+  mkdir -p "$fx/.aai/scripts/lib" "$fx/tests/skills"
+  # A trivial engine with ONE real lib dependency, mirroring ride-select.mjs's
+  # own shape (a script that imports something from ./lib/).
+  printf 'export const DEP_MARK = 1;\n' > "$fx/.aai/scripts/lib/dep-lib.mjs"
+  printf "import { DEP_MARK } from './lib/dep-lib.mjs';\nconsole.log(DEP_MARK);\n" \
+    > "$fx/.aai/scripts/target-engine.mjs"
+
+  # BITE 1 — the base case: a fixture function vendors target-engine.mjs and
+  # copies NOTHING from lib/. Must be a VIOLATION naming both the engine and
+  # the missing dependency.
+  cat > "$fx/tests/skills/test-fake-bite1.sh" <<'EOS'
+vendor_bad() {
+  mkdir -p "$d/.aai/scripts"
+  cp "$PROJECT_ROOT/.aai/scripts/target-engine.mjs" "$d/.aai/scripts/target-engine.mjs"
+}
+EOS
+  local out rc
+  rc=0; out="$(node "$checker" --root "$fx" 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_131 BITE 1: vendoring target-engine.mjs with zero lib/ coverage must be a VIOLATION, got rc=0: $out"
+  [[ "$out" == *"target-engine.mjs"* && "$out" == *"lib/dep-lib.mjs"* ]] \
+    || log_fail "test_131 BITE 1: the violation must name both the engine and the missing dependency: $out"
+  rm -f "$fx/tests/skills/test-fake-bite1.sh"
+
+  # CONTROL — the same shape, but the vendoring function ALSO copies the
+  # dependency directly. Must be CLEAN, or the two checks above prove nothing
+  # (a checker that always reddens is as useless as one that never does).
+  cat > "$fx/tests/skills/test-fake-control.sh" <<'EOS'
+vendor_ok() {
+  mkdir -p "$d/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/target-engine.mjs" "$d/.aai/scripts/target-engine.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/dep-lib.mjs" "$d/.aai/scripts/lib/dep-lib.mjs"
+}
+EOS
+  rc=0; out="$(node "$checker" --root "$fx" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 && "$out" == *"CLEAN"* ]] \
+    || log_fail "test_131 CONTROL: a function that copies its own dependency directly must be CLEAN, got rc=$rc: $out"
+  rm -f "$fx/tests/skills/test-fake-control.sh"
+
+  # BITE 2 — CALL-GRAPH INHERITANCE (the property v1 of this checker lacked,
+  # measured as 19 false positives before this design existed). A shared
+  # helper copies the dependency; a DIFFERENT function that CALLS the helper
+  # (bash command substitution capture, the real corpus's own idiom —
+  # `d="$(setup_iso_repo ...)"`) vendors and runs the engine. Must be CLEAN.
+  cat > "$fx/tests/skills/test-fake-bite2.sh" <<'EOS'
+helper_builds_fixture() {
+  local hd="$TEST_DIR/hb"
+  mkdir -p "$hd/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/dep-lib.mjs" "$hd/.aai/scripts/lib/dep-lib.mjs"
+  printf '%s' "$hd"
+}
+vendor_via_helper() {
+  local d
+  d="$(helper_builds_fixture)"
+  cp "$PROJECT_ROOT/.aai/scripts/target-engine.mjs" "$d/.aai/scripts/target-engine.mjs"
+}
+EOS
+  rc=0; out="$(node "$checker" --root "$fx" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 && "$out" == *"CLEAN"* ]] \
+    || log_fail "test_131 BITE 2: a caller that vendors the engine on top of a HELPER function's lib copy (call-graph inheritance) must be CLEAN, got rc=$rc: $out"
+  rm -f "$fx/tests/skills/test-fake-bite2.sh"
+
+  # BITE 3 — NO FALSE-NEGATIVE MASKING (the property v2 of this checker had,
+  # measured directly: it stayed CLEAN when Amendment 21's own real fix was
+  # reverted, because an UNRELATED function elsewhere in the same file did a
+  # whole-tree copy). An unrelated, never-called function copies everything;
+  # the actual vendoring function copies nothing and calls nothing. Must
+  # STILL be a VIOLATION — the unrelated copy must never mask it.
+  cat > "$fx/tests/skills/test-fake-bite3.sh" <<'EOS'
+decoy_unrelated_helper() {
+  local hd="$TEST_DIR/decoy"
+  mkdir -p "$hd/.aai"
+  cp -r "$PROJECT_ROOT/.aai/scripts" "$hd/.aai/scripts"
+}
+vendor_bad_beside_a_decoy() {
+  mkdir -p "$d/.aai/scripts"
+  cp "$PROJECT_ROOT/.aai/scripts/target-engine.mjs" "$d/.aai/scripts/target-engine.mjs"
+}
+EOS
+  rc=0; out="$(node "$checker" --root "$fx" 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_131 BITE 3: an unrelated, never-called whole-tree copy elsewhere in the file must NOT mask a real violation, got rc=0: $out"
+  [[ "$out" == *"vendor_bad_beside_a_decoy"* ]] \
+    || log_fail "test_131 BITE 3: the violation must be attributed to the actually-offending function, not the decoy: $out"
+  rm -f "$fx/tests/skills/test-fake-bite3.sh"
+
+  rm -rf "$fx"
+  log_pass "test_131: live gate CLEAN over this repo; call-graph inheritance covers a helper-built fixture, an unrelated decoy copy never masks a real violation"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -4367,6 +4481,7 @@ main() {
   test_094_mutation_selector_fails_closed_corpus_wide
   test_129_mutation_gate_suite_registration
   test_130_node_bash_selector_scanner_whitespace_parity
+  test_131_vendored_script_deps_gate_and_bite
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
