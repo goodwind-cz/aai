@@ -457,7 +457,12 @@ const FLAG_SPECS = {
   add: ['--ledger', '--id', '--ref', '--severity', '--what', '--why', '--source', '--actor', '--origin', '--source-ts'],
   close: ['--ledger', '--id', '--resolved-by', '--source', '--status', '--actor', '--origin', '--source-ts', '--correct'],
   reopen: ['--ledger', '--id', '--reason', '--source', '--actor'],
-  'verify-closures': ['--ledger', '--path', '--strict'],
+  // --strict is deliberately NOT listed here (Spec-AC-17): it is a BOOLEAN
+  // flag (see the dedicated `tok === '--strict'` branch below, the same
+  // shape as `--correct` on `close`), and a value-flag entry is what let
+  // `--strict=<value>` slip past as an ordinary `--flag=value` assignment
+  // instead of being refused.
+  'verify-closures': ['--ledger', '--path'],
 };
 
 // D1 — a value is a value unless it is EXACTLY a token this subcommand knows.
@@ -819,8 +824,36 @@ function opensWithNoneSentinel(text) {
 //   - unlabelled, opening with the `none` sentinel (backticks tolerated):
 //     zero claims — every id in it is a neighbour, not a claim.
 //   - any other unlabelled body: every fu- id in it is a claim.
+// A labelled body ALSO has a fourth segment: the PREFIX before the first
+// label. It is scanned like any other unlabelled segment (Spec-AC-17) — a
+// claim named in prose ahead of the first "CLOSED FULLY:" is still a claim —
+// unless that prefix itself opens with the `none` sentinel, in which case it
+// is exempted the same way an unlabelled body is.
 const HEADING_RE = /^##[ \t]+Registry items closed by this scope[ \t]*$/m;
 const LABEL_RE = /\b(CLOSED FULLY|CLOSED QUALIFIEDLY|NOT CLOSED)\b/g;
+
+// splitByLabels(text) -> [{label, text}] — one segment per CLOSED FULLY /
+// CLOSED QUALIFIEDLY / NOT CLOSED label found in `text`, each segment
+// carrying the text that runs from just after its OWN label to the start of
+// the next one (or the end of `text` for the last one). A segment ahead of
+// the first label (or the whole text, when no label appears at all) carries
+// `label: null`. Shared by both claim-shape scanners so PREFIX and
+// no-label-at-all bodies are read by ONE rule instead of two.
+function splitByLabels(text) {
+  const labels = [];
+  const labelRe = new RegExp(LABEL_RE);
+  let lm;
+  while ((lm = labelRe.exec(text)) !== null) {
+    labels.push({ label: lm[1], start: lm.index, end: lm.index + lm[0].length });
+  }
+  if (labels.length === 0) return [{ label: null, text }];
+  const segments = [{ label: null, text: text.slice(0, labels[0].start) }];
+  for (let i = 0; i < labels.length; i += 1) {
+    const segEnd = i + 1 < labels.length ? labels[i + 1].start : text.length;
+    segments.push({ label: labels[i].label, text: text.slice(labels[i].end, segEnd) });
+  }
+  return segments;
+}
 
 function extractHeadingClaims(text) {
   const claims = new Set();
@@ -832,35 +865,26 @@ function extractHeadingClaims(text) {
   const nextHeading = rest.search(/\n##[ \t]+/);
   const body = nextHeading === -1 ? rest : rest.slice(0, nextHeading);
 
-  const labels = [];
-  let lm;
-  const labelRe = new RegExp(LABEL_RE);
-  while ((lm = labelRe.exec(body)) !== null) {
-    labels.push({ label: lm[1], start: lm.index, end: lm.index + lm[0].length });
-  }
-
-  if (labels.length === 0) {
-    if (opensWithNoneSentinel(body)) return claims; // the none sentinel: zero claims
-    for (const id of extractIds(body)) claims.add(id);
-    return claims;
-  }
-  for (let i = 0; i < labels.length; i += 1) {
-    if (labels[i].label === 'NOT CLOSED') continue; // disclaimed, never a claim
-    // This label's segment runs from just after ITS OWN match to the START
-    // of the NEXT label's match (or the end of the body for the last one) —
-    // so the next label's own text is never scanned as part of this segment.
-    const segEnd = i + 1 < labels.length ? labels[i + 1].start : body.length;
-    const seg = body.slice(labels[i].end, segEnd);
-    for (const id of extractIds(seg)) claims.add(id);
+  for (const seg of splitByLabels(body)) {
+    if (seg.label === 'NOT CLOSED') continue; // disclaimed, never a claim
+    if (seg.label === null && opensWithNoneSentinel(seg.text)) continue; // the none sentinel: zero claims
+    for (const id of extractIds(seg.text)) claims.add(id);
   }
   return claims;
 }
 
 // extractInlineClaims(text) -> Set<id> — the inline bullet-label shape:
 // `Registry items closed:` or `Registry items closed by this scope:`,
-// exact text, the claim list is the rest of that statement up to the next
-// top-level bullet or a blank line. The neighbouring `Registry items the
-// ratchet holds open:` label is a DIFFERENT string and is never matched.
+// exact text. The claim segment normally runs up to the next top-level
+// bullet or a blank line (the neighbouring `Registry items the ratchet
+// holds open:` label is a DIFFERENT string and is never matched); but a
+// label immediately followed by a blank line and THEN a bulleted list
+// (Spec-AC-17) is the list itself, not an unrelated neighbour — read to the
+// end of that contiguous bulleted block instead of stopping at the blank
+// line that only separates the label from its own list. A clause carrying
+// an explicit "NOT CLOSED" disclosure is excluded whole (Spec-AC-17): the
+// inline shape has no heading to anchor a label BEFORE the ids it covers
+// the way the heading shape's labels do, so disclaiming works by sentence.
 const INLINE_LABEL_RE = /Registry items closed(?: by this scope)?:/g;
 
 function extractInlineClaims(text) {
@@ -873,10 +897,38 @@ function extractInlineClaims(text) {
     const blank = after.search(/\n[ \t]*\n/);
     let cut = after.length;
     if (nextBullet !== -1) cut = Math.min(cut, nextBullet);
-    if (blank !== -1) cut = Math.min(cut, blank);
-    const segment = after.slice(0, cut);
+    const preBlankHasId = blank === -1 ? true : extractIds(after.slice(0, blank)).length > 0;
+    if (blank !== -1 && preBlankHasId) cut = Math.min(cut, blank);
+    let segment = after.slice(0, cut);
+
+    // The label was followed immediately by a blank line with no id ahead
+    // of it: if a bulleted list starts right after that blank, the list IS
+    // the claim content — read through to the end of the contiguous
+    // bulleted block (the next blank-then-non-bullet gap), not just its
+    // first line.
+    if (blank !== -1 && !preBlankHasId) {
+      const tail = after.slice(blank);
+      const listRel = tail.search(/\n-[ \t]/);
+      if (listRel !== -1) {
+        let endRel = tail.length;
+        const gapRe = /\n[ \t]*\n/g;
+        gapRe.lastIndex = listRel;
+        let gm;
+        while ((gm = gapRe.exec(tail)) !== null) {
+          if (!/^-[ \t]/.test(tail.slice(gm.index + gm[0].length))) {
+            endRel = gm.index;
+            break;
+          }
+        }
+        segment = tail.slice(0, endRel);
+      }
+    }
+
     if (opensWithNoneSentinel(segment)) continue;  // same sentinel as the heading shape
-    for (const id of extractIds(segment)) claims.add(id);
+    for (const clause of segment.split(/(?<=[.;])\s+/)) {
+      if (/\bNOT CLOSED\b/.test(clause)) continue; // disclaimed in the same sentence, never a claim
+      for (const id of extractIds(clause)) claims.add(id);
+    }
   }
   return claims;
 }
@@ -963,10 +1015,18 @@ function cmdVerifyClosures(opts) {
     }
     docPaths = [docAbs];
   } else {
-    docPaths = [
-      ...listMarkdownFiles(path.resolve(process.cwd(), 'docs/specs')),
-      ...listMarkdownFiles(path.resolve(process.cwd(), 'docs/issues')),
-    ];
+    const specsAbs = path.resolve(process.cwd(), 'docs/specs');
+    const issuesAbs = path.resolve(process.cwd(), 'docs/issues');
+    docPaths = [...listMarkdownFiles(specsAbs), ...listMarkdownFiles(issuesAbs)];
+    // A corpus run whose roots resolve to nothing (Spec-AC-17) — most often
+    // a foreign cwd — used to report a silent, technically-true "zero
+    // claims" CLEAN. That reads as "nothing left to verify" when the real
+    // cause is "nothing was ever scanned"; refuse it by name instead.
+    if (docPaths.length === 0) {
+      usageError(
+        `corpus roots resolve to nothing: ${specsAbs} and ${issuesAbs} (cwd=${process.cwd()})`,
+      );
+    }
   }
 
   const claims = [];
@@ -988,8 +1048,12 @@ function cmdVerifyClosures(opts) {
       let verdict;
       let status;
       if (!item) {
+        // Spec-AC-18: an id over the registry's own 40-char cap can never be
+        // filed (`add` refuses it, ID_MAX_LEN above) — reported distinctly
+        // from an ordinary absent id, naming both numbers, so the two never
+        // read as the same kind of gap.
         verdict = 'MISS';
-        status = 'absent';
+        status = id.length > ID_MAX_LEN ? `unfilable (${id.length} chars, max ${ID_MAX_LEN})` : 'absent';
       } else if (item.status !== 'done') {
         verdict = 'MISS';
         status = item.status;
