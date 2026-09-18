@@ -2,12 +2,10 @@
 id: intake-doc-identity-table-and-its-pins
 type: issue
 number: 42
-status: done
+status: draft
 links:
-  pr:
-    - 385
-  commits:
-    - b477fb3b
+  pr: []
+  commits: []
 ---
 
 # The intake identity table is authoritative for more types than the tools support, and its pins read the wrong thing

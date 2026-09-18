@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-18T22:48:51.237Z
+Generated: 2026-09-18T22:54:12.006Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -50,7 +50,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (436)
+## Done (435)
 
 | ID | Type | Path |
 |---|---|---|
@@ -276,7 +276,6 @@ _None._
 | ISSUE-0037 | issues | docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md |
 | ISSUE-0038 | issues | docs/issues/ISSUE-0038-checks-that-assert-less-than-they-claim.md |
 | ISSUE-0040 | issues | docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md |
-| ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0045 | issues | docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md |
 | ISSUE-0046 | issues | docs/issues/ISSUE-0046-adhoc-probes-unisolated-report-only.md |
 | ISSUE-0048 | issues | docs/issues/ISSUE-0048-bare-main-baseref-sweep.md |
@@ -491,7 +490,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (16)
+## Drafts (17)
 
 | ID | Type | Path |
 |---|---|---|
@@ -507,6 +506,7 @@ _None._
 | DEBT-0007 | issues | docs/issues/DEBT-0007-withdrawn-claim-sweeps-are-not-verifiable.md |
 | ISSUE-0039 | issues | docs/issues/ISSUE-0039-disposable-checkout-lifecycle-residuals.md |
 | ISSUE-0041 | issues | docs/issues/ISSUE-0041-hardcoded-path-defeats-suite-isolation.md |
+| ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0047 | issues | docs/issues/ISSUE-0047-agents-tree-not-synced.md |
