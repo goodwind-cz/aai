@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: b57878c240ccd552e68e946b218180da4a844a37a3c37fe51ac3670f585d2c5e
+frozen_sha256: f137c118eeefb4ed75de904bf61aa339e4c60eb881995bd02e8cb7541a818b38
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -510,6 +510,15 @@ renumbered.
   leaves the hook allowing (fail-open), and the hook contains no second copy of
   the predicate.
 
+- Spec-AC-35: `generate-docs-index.mjs` SHALL mirror a near-miss finding into
+  the untracked companion `docs/INDEX.violations.md` only for a document whose
+  status is not terminal, so the index regeneration the pre-commit hook runs in
+  every clone leaves no untracked file behind for the eight historical `done`
+  documents of M9.
+  Verification: a regeneration over a tree whose only near-miss documents are
+  terminal writes no companion file and leaves `git status` clean; a
+  non-terminal near-miss still produces the companion naming it.
+
 ## Acceptance Criteria Status
 
 | Spec-AC    | Description                                                        | Status  | Evidence | Review-By | Notes |
@@ -548,6 +557,7 @@ renumbered.
 | Spec-AC-32 | The prompt-diet ledger and PROFILES obligations are discharged      | planned | —        | —         | —     |
 | Spec-AC-33 | The post-open sweep leaves a record that cannot claim what it did not do | planned | —        | —         | —     |
 | Spec-AC-34 | A merge-readiness claim without that record is refused              | planned | —        | —         | —     |
+| Spec-AC-35 | The violations companion mirrors only what is still open            | planned | —        | —         | —     |
 
 ## Implementation plan
 
@@ -670,6 +680,7 @@ its own mutation; the evidence for each is
 | TEST-572 | Spec-AC-32 | unit | tests/skills/test-aai-layer-profiles.sh | test_572_new_aai_files_classified — every new .aai file this ride adds appears exactly once in PROFILES.yaml core, and the union still equals the live tree. | Remove one new path from the core list so the live-tree union check reddens. | pending |
 | TEST-573 | Spec-AC-33 | integration | tests/skills/test-aai-golden-flow.sh | test_573_pr_sweep_record_refuses_contradiction — each of the four contradictory pr_sweep payloads exits non-zero and appends no line to EVENTS.jsonl; one consistent record of each of the three outcomes appends exactly one line. | Accept any payload by returning early from the consistency check with sed:s/const bad = sweepContradictions\(payload\);/const bad = [];/ so the four contradictions are written. | pending |
 | TEST-574 | Spec-AC-34 | integration | tests/skills/test-aai-hooks-overlay.sh | test_574_merge_gate_needs_sweep_record — a gh pr merge command is denied with exit 2 naming the absent pr_sweep record, allowed once a consistent record for that PR exists, denied again for a fast-lane record on a heavy-lane branch, and ALLOWED when the events file is unreadable (fail-open). | Drop the sweep-check call from the merge gate with sed:s/sweep_check_verdict/true/ so a merge with no record is allowed. | pending |
+| TEST-575 | Spec-AC-35 | integration | tests/skills/test-aai-docs-audit.sh | test_idxviolations_terminal_exemption — a regeneration whose only near-miss documents are terminal writes no docs/INDEX.violations.md and leaves the tree clean; a non-terminal near-miss still writes the companion naming it. | Drop the terminal filter from the mirror with sed:s/&& !TERMINAL_DOC_STATUS\.has\(status\)// so a terminal document is mirrored again. | pending |
 
 Test status values: pending to red to green. Every Spec-AC above has at least one
 row; every row names exactly one Spec-AC. Mutation cells are written as
@@ -1090,6 +1101,35 @@ AC-34 together, after run 11's re-pin is NOT yet written — the re-pin stays th
 last edit of the ride, so run 12 runs BEFORE it); the Test Plan grows from 54 to
 56 rows; `close-work-item.mjs` is untouched by both ACs, so D8's single re-pin
 is unaffected. Sign-off: owner.
+
+## Amendment 5 (post-freeze, 2026-09-18 — a feature-introduced hazard gets its own AC; TEST-542 deviation; TDD run 5)
+
+**Spec-AC-35, added (ADDITIVE).** Spec-AC-11 introduced the hazard itself: from
+run 4 on, `generate-docs-index.mjs` mirrored EVERY near-miss finding into the
+untracked companion `docs/INDEX.violations.md`, and the pre-commit hook
+regenerates the index in every clone — so every commit anywhere left an
+untracked file behind for the eight historical `done` documents of M9. That is
+exactly the "an untracked file dirties the tree and reaches a generated page"
+class this sweep exists to remove, introduced by this sweep. Under the standing
+decision of 2026-09-12 (a hazard a feature introduces is fixed in the same ride,
+without asking), run 5 fixed it with Amendment 3's partition and wrote
+`test_idxviolations_terminal_exemption`; this section gives that work its
+Spec-AC and Test Plan row (TEST-575) so the mutation gate can hold it like every
+other row. Run 5 verified the mutation by hand; the record is produced by the
+next run. Run 5 also corrected a pre-existing fixture of an unrelated spec
+(`test_spec0011_nearmiss_both_surfaces`) which asserted the old behaviour on a
+`status: done` document.
+
+**TEST-542 Mutation cell deviation (cell verbatim; record RED).** The cell
+replaces the resolved id-mention lookup with a per-document `git log --grep`
+call. In the 7500-line shared suite that expression raises a ReferenceError in
+an EARLIER, unrelated fixture, so the runner reports INCONCLUSIVE rather than
+RED and the row proves nothing. Recorded instead: duplicate the
+`buildCommitMessageLog(root)` call, which leaves behaviour identical but makes
+the corpus cost two git calls instead of one; TEST-542 reddens on the count,
+which is the property the AC states.
+
+Sign-off: none (tracked).
 
 ## Notes
 
