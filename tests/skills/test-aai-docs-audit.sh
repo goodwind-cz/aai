@@ -3516,18 +3516,29 @@ test_536_unparseable_ac_table_shape() {  # TEST-536 / Spec-AC-11
   grep -qF "status-vocabulary" "$d/plain.log" || log_fail "TEST-536: status-vocabulary kind must be reported: $out"
   grep -qF "spec-9002-statusvocab" "$d/plain.log" || log_fail "TEST-536: status-vocabulary finding must name spec-9002-statusvocab: $out"
 
-  # Arm 1 — NON-terminal doc present: --strict hard-fails.
+  # Drop the status-vocabulary doc before the strict-mode arms below: an
+  # out-of-vocabulary Status word on a CANONICAL (Spec-AC-headed) table also
+  # trips the PRE-EXISTING, independent "unknown AC status" schema violation
+  # (docs-audit-core.mjs `violations.push`, unrelated to near-miss and never
+  # exempt by terminal status) -- leaving it in would confound arms 1/2,
+  # which exist to isolate the near-miss terminal-exemption specifically.
+  rm -f "$d/docs/specs/SPEC-DRAFT-statusvocab.md"
+  (cd "$d" && git add -A && git commit -qm "chore: drop the status-vocabulary doc before the strict-mode arms" >/dev/null)
+
+  # Arm 1 — NON-terminal column-set doc present: --strict hard-fails.
   rc=0
   out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
   [[ "$rc" -ne 0 ]] || log_fail "TEST-536 arm 1: --check --strict must exit non-zero while the OPEN doc's near-miss is present: $out"
   printf '%s' "$out" | grep -qF "CHECK FAILED" || log_fail "TEST-536 arm 1: --strict output must carry CHECK FAILED: $out"
   printf '%s' "$out" | grep -qF "near-miss" || log_fail "TEST-536 arm 1: CHECK FAILED must name near-miss: $out"
+  printf '%s' "$out" | grep -qF "0 schema violation(s)" || log_fail "TEST-536 arm 1: the failure must be near-miss-driven, not an unrelated schema violation: $out"
 
-  # Arm 2 — drop the OPEN fixtures; only the DONE doc's IDENTICAL shape
-  # remains. --strict must now exit 0 (terminal exemption: the table only
-  # gates open work, so a done doc cannot newly reach done with a broken one).
-  rm -f "$d/docs/issues/ISSUE-9001-colset-open.md" "$d/docs/specs/SPEC-DRAFT-statusvocab.md"
-  (cd "$d" && git add -A && git commit -qm "chore: drop the open fixtures" >/dev/null)
+  # Arm 2 — drop the OPEN column-set doc too; only the DONE doc's IDENTICAL
+  # shape remains. --strict must now exit 0 (terminal exemption: the table
+  # only gates open work, so a done doc cannot newly reach done with a
+  # broken one).
+  rm -f "$d/docs/issues/ISSUE-9001-colset-open.md"
+  (cd "$d" && git add -A && git commit -qm "chore: drop the open column-set doc" >/dev/null)
   rc=0
   out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] \
