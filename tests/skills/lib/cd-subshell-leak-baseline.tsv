@@ -21,7 +21,7 @@
 10	.aai/scripts/aai-run-tests.sh
 2	.aai/scripts/aai-sync.sh
 1	.aai/scripts/aai-update.sh
-3	.aai/scripts/claude-hook-gate.sh
+4	.aai/scripts/claude-hook-gate.sh
 1	.aai/scripts/cloudflare-share.sh
 2	.aai/scripts/expert-fetch.sh
 2	.aai/scripts/live-spool.sh
@@ -67,7 +67,7 @@
 2	tests/skills/test-aai-heartbeat.sh
 2	tests/skills/test-aai-hitl-channel.sh
 4	tests/skills/test-aai-hitl-propagation.sh
-39	tests/skills/test-aai-hooks-overlay.sh
+42	tests/skills/test-aai-hooks-overlay.sh
 50	tests/skills/test-aai-hygiene-pack.sh
 3	tests/skills/test-aai-implementation-mode.sh
 15	tests/skills/test-aai-intake.sh
@@ -76,7 +76,7 @@
 5	tests/skills/test-aai-layer-profiles.sh
 3	tests/skills/test-aai-learned-append.sh
 6	tests/skills/test-aai-learned-routing.sh
-2	tests/skills/test-aai-lightweight-lane.sh
+5	tests/skills/test-aai-lightweight-lane.sh
 3	tests/skills/test-aai-live-serve.sh
 5	tests/skills/test-aai-live-status.sh
 7	tests/skills/test-aai-metrics.sh
