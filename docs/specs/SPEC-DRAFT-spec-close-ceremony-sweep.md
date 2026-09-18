@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: f137c118eeefb4ed75de904bf61aa339e4c60eb881995bd02e8cb7541a818b38
+frozen_sha256: b5958b7a222d0282565203fb9c579fb660715c312caea71965aadf01383d444e
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -1128,6 +1128,42 @@ RED and the row proves nothing. Recorded instead: duplicate the
 `buildCommitMessageLog(root)` call, which leaves behaviour identical but makes
 the corpus cost two git calls instead of one; TEST-542 reddens on the count,
 which is the property the AC states.
+
+Sign-off: none (tracked).
+
+## Amendment 6 (post-freeze, 2026-09-18 — four Mutation-cell deviations and one unattributable test, TDD run 6)
+
+**Four rows of Spec-AC-17 record an equivalent mutation (cells verbatim; all
+records RED).** Each frozen cell names a code shape the implementation written
+this run does not have: `VALUE_FLAGS_VERIFY` (TEST-544, the real structure is
+the `verify-closures` entry of `FLAG_SPECS`), `segments.unshift(...)`
+(TEST-546, the prefix segment is produced by a shared `splitByLabels` helper
+instead), the blank-line `cut` computation (TEST-547) and `splitByLabels(after)`
+(TEST-548, the inline claim shape is split into sentence clauses by design, not
+by labels). The recorded expressions edit the structures that do exist and
+redden the same property; each is in its own `mutation-TEST-<id>.txt`.
+
+TEST-547 is worth naming separately: the first expression tried there — the one
+closest to the frozen cell — came back STAYED GREEN. The line it edits is
+vestigial once the list-extension branch fires, so it does not gate the
+behaviour at all. The re-targeted expression on the extension block's own guard
+reddens. This is the gate doing its job on a control that would otherwise have
+looked proven.
+
+**TEST-575 could not be attributed until its test named itself.** The test
+existed and was green, but none of its four `log_fail` branches carried the
+string `TEST-575`, and `mutation-run.mjs` classifies a redden by finding
+`TEST-<id>` in the FAIL output — so the first attempt was INCONCLUSIVE, not
+because the mutation was wrong but because no failure could be attributed to
+the row. Commit 48bbaf17 tags the four branches; no assertion changed. The
+row's own named mutation then reddened verbatim. Any suite arm this ride adds
+must name its own test id in every failure message for the gate to hold it.
+
+**TEST-521, TEST-522 and TEST-523 were re-recorded, not re-decided.** Run 1 had
+recorded them before its own final edit of `.aai/scripts/nothing-left-behind.mjs`,
+so the gate reported them STALE against `target_sha256`. Each row's own recorded
+expression was re-run unchanged; all three came back RED, so the properties
+still hold and no source change was needed.
 
 Sign-off: none (tracked).
 
