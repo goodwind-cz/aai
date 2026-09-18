@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 9e671edca64e24e941d71c71adc2aeabac134b50526691eb7618e9ce8d2c3c02
+frozen_sha256: dd007002cbc8717dd03dfb1bb5cdd533b520cd191d1cd4c3f3a1d5c928487050
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -984,6 +984,47 @@ cells are left VERBATIM; the recorded expressions live in
 - **TEST-532 (Spec-AC-08).** The cell names a variable `resolvedRel`; the
   implementation's variable is `rel`. Same expression otherwise
   (`d.rel === rel` to `d.id === ref`), same property.
+
+No Spec-AC, test id, selector or file path changed. Sign-off: none (tracked).
+
+## Amendment 3 (post-freeze, 2026-09-18 — Spec-AC-11's strict promotion is scoped to open documents, TDD run 4)
+
+**Spec-AC-11 and D7 (text left VERBATIM).** The frozen text promotes the two
+new near-miss kinds to a hard failure "under `--strict`". D7 measured the live
+yield (8 documents, all `done`) but not who already runs `--check --strict`
+over the live corpus and expects exit 0: sixteen suites (for example
+`test-aai-constitution.sh` TEST-010) and `.github/workflows/docs-numbering.yml`.
+Promoting as written would have reddened all of them for eight historical
+documents this ride does not own; run 4's first draft therefore dropped
+`--strict` from those seventeen callers, and the orchestrator refused that
+trade (sixteen existing guards weakened to seat one new check). Implemented
+instead (commits 28bca045, e7998ebe): under `--strict` the `column-set` and
+`status-vocabulary` kinds hard-fail ONLY for a document whose status is not in
+`TERMINAL_DOC_STATUS` (`docs-model.mjs`, the partition the audit already uses
+for settled-vs-in-flight); for a terminal document the finding is still listed
+under `### Near-miss AC tables` with kind and cell, and the run exits 0. A
+document cannot newly reach a terminal status with such a table, because it
+fails strict while it is open; the eight M9 documents stay report-only; every
+existing strict caller is untouched (`git diff main` on those seventeen files
+is empty). TEST-536 proves both sides (a non-terminal fixture fails strict and
+passes without it; a `done` fixture with the same shape is listed and exits 0)
+and TEST-537 proves the live corpus names exactly the 8 and exits 0 under
+`--strict`.
+
+**Two Mutation-cell deviations (cells verbatim; records in
+`docs/ai/tdd/spec-close-ceremony-sweep/`, both RED):**
+
+- **TEST-537 (Spec-AC-11).** The cell promotes the kinds into the default
+  hard-fail set. Under the scoped design that mutation reddens seven earlier
+  live-corpus `--strict` tests of the same suite before TEST-537 runs (the suite
+  has no selector isolation for them), so the runner reports it INCONCLUSIVE.
+  Recorded instead: widen the `neitherParses` detection so the live yield
+  becomes 9 documents (CHANGE-0121 joins the 8); TEST-537 reddens on the count.
+- **TEST-538 (Spec-AC-12).** The cell's literal pattern `declaredCount >
+  parsedCount` also matches a comment line in `docs-audit-core.mjs`; the
+  unanchored sed edited the comment and STAYED GREEN. Recorded instead the same
+  edit anchored to the full statement (`if (declaredCount > 99) out.push(id);`),
+  which reddens the multiplicity arm.
 
 No Spec-AC, test id, selector or file path changed. Sign-off: none (tracked).
 
