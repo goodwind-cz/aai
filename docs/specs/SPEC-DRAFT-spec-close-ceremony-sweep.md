@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 440de1fa025e34f49b306f1fa2876a91138f207cad175827a9e7c576c6ac98a4
+frozen_sha256: 29999c5bb3ea1ec363d887dde87adff9070f1f37c38d7c0e10f368f2a49dc476
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -1376,6 +1376,32 @@ Amendment 11 reported the three remaining `test-aai-docs-canon.sh` assertion fai
 **TEST-577 (Spec-AC-22)**, in `tests/skills/test-aai-docs-canon.sh` (the suite whose own fixture exposed the hazard, mapped to Spec-AC-22 as TEST-576 was): after `reset_fixture_seams`'s phase 2 run, `git status --porcelain` shows the new canonical doc and at least one archived original both staged, with no unstaged (working-tree-column) marker left under `docs/` by docs-canon's own writes; the same-breath `generate-docs-index.mjs` run names the canonical doc and never names either archived path. Registered to run BEFORE TEST-301 in `main()` (a comment says why): both exercise the identical `reset_fixture_seams` -> phase2 -> index flow, and TEST-301's own `assert_contains` failure carries no `TEST-301` tag (pre-existing, not this ride's row to retag) — ordering TEST-577 first keeps ITS tagged assertion the one a shared-cause mutation reddens first, so `mutation-run.mjs` (which attributes a redden by finding the target TEST id in the FAIL output) can isolate it. Mutation (`sed:s/stageGitPaths(root, [canonAbs]);\n    result.written.push(domain);/result.written.push(domain);/`, dropping the canonical-write staging call in `runPhase2`'s first-synthesis path) confirmed RED through `mutation-run.mjs`.
 
 **`test-aai-docs-canon.sh` re-run in full: all 32 arms green**, including TEST-301, TEST-302/306 and TEST-203 — by the fix, no assertion was edited. `test-aai-docs-audit.sh` and `test-aai-overview.sh` (Amendment 11's suites) were not touched this round and are unaffected.
+
+Sign-off: none (tracked).
+
+## Amendment 13 (post-freeze, 2026-09-18 — TEST-574 deviation and the prompt budget, TDD run 12)
+
+**TEST-574 (Spec-AC-34), cell verbatim; record RED.** The cell names a
+`sweep_check_verdict` variable; the implementation has no such name. Recorded
+instead an expression that disables the identical deny branch in
+`.aai/scripts/claude-hook-gate.sh` (the `SWEEP_RC` equals 5 arm), which is what
+the cell's edit was for.
+
+**The prompt budget is overdrawn until run 11 credits it.** Spec-AC-34's one
+line in `.aai/SKILL_PR.prompt.md` step 5d, which names the two commands a role
+must run so the sweep leaves its record, costs 409 bytes measured (34153 to
+34562). Headroom after run 10 was 96 bytes, so `test-aai-prompt-diet.sh`
+TEST-010 and, transitively, `test-aai-hooks-overlay.sh` TEST-014 are red from
+commit 80a23eb2 until run 11 discharges Spec-AC-32. That is the ledger's design
+working: the corpus cannot grow without someone signing for it.
+
+**What the merge of this ride's own PR now requires.** The gate Spec-AC-34 adds
+stands between this ride and its own merge, which is the point of it. Before
+`gh pr merge`, the orchestrator records the sweep truthfully — lane `heavy`
+(this spec is ceremony 2), the real count of bot threads seen, zero unresolved,
+and the outcome that matches what step 5d actually did — and only then merges.
+A record that does not match what happened is refused by Spec-AC-33, and an
+absent one by Spec-AC-34.
 
 Sign-off: none (tracked).
 
