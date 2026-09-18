@@ -1,6 +1,7 @@
 ---
 id: DEBT-XXXX
 type: techdebt
+number: null
 status: draft
 links:
   pr: []

@@ -1,6 +1,7 @@
 ---
 id: CHG-XXXX
 type: change
+number: null
 status: draft
 links:
   pr: []

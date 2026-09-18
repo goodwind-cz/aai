@@ -1,6 +1,7 @@
 ---
 id: REL-XXXX
 type: release
+number: null
 status: draft
 links:
   pr: []

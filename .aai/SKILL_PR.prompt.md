@@ -73,6 +73,17 @@ PROCESS
    - Update the in-scope list: DROP the `*-DRAFT-*` path, ADD the
      `<TYPE>-000N-<slug>.md` path + every page the allocator just printed
      (INDEX, overview x2, USER_GUIDE) — unstaged means a dead link ships.
+   - RESTAMP A RENUMBERED FROZEN SPEC (Spec-AC-20 / D2): the allocator's own
+     `allocated <old> -> <new> ...` completion line above is what this step
+     keys on — immediately after it, for the doc it just renamed, run:
+       node .aai/scripts/spec-amend.mjs restamp --spec <TYPE-000N-slug.md path> --ref <ref-id>
+     A spec carrying `frozen_sha256` whose own SPEC-DRAFT- self-references the
+     rewrite pass just touched drifted from its frozen anchor for a purely
+     mechanical reason; restamp re-anchors it and appends the disclosing
+     ledger record, so it reads as a DISCLOSED restamp at the PR/close gate
+     instead of reddening `list --strict` as an undisclosed-amendment. A doc
+     with no `frozen_sha256`, or whose content already matches its anchor
+     (nothing drifted), is a no-op: exit 0, nothing written.
    - Exit codes: 0 success/nothing; 3 base ref unreachable — STOP (never commit an
      unnumbered draft); 4 guard failure (malformed / collision) — STOP and fix.
    - FALLBACK: if the allocator is absent (older layer), NOTE it and proceed — the

@@ -1604,6 +1604,48 @@ test_031_suite_map_row() {
   log_pass "TEST-031 suite-map aai-doc-numbering row carries all eight closed-list pages + the replay fixtures"
 }
 
+# --- TEST-552 (spec-close-ceremony-sweep Spec-AC-20, D2) ---------------------
+# SKILL_PR step 1b names the restamp invocation IMMEDIATELY AFTER the
+# allocator's own invocation line, keyed on the allocator's own completion
+# output (the `allocated ...` line), so a renumbered frozen spec is restamped
+# in the SAME step that renumbered it rather than left to redden later.
+test_552_skill_pr_runs_the_restamp() {
+  log_info "TEST-552: SKILL_PR step 1b names the restamp invocation immediately after the allocator call, keyed on the allocator's own completion output..."
+  local pr="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  local alloc="$ALLOC_SCRIPT"
+  assert_file "$pr"; assert_file "$alloc"
+
+  local sec; sec="$(awk '/^1b\. /{on=1} /^1c\. /{on=0} on' "$pr")"
+  [[ -n "$sec" ]] || log_fail "TEST-552: could not extract SKILL_PR step 1b"
+
+  grep -qF 'spec-amend.mjs restamp' <<< "$sec" \
+    || log_fail "TEST-552: SKILL_PR step 1b must name the spec-amend.mjs restamp invocation"
+
+  # Ordering: the restamp line must sit AFTER the allocator's own invocation
+  # line within step 1b — awk over the extracted section (a here-string, not
+  # a pipe from a live producer, so no early-closing-reader risk under -o
+  # pipefail).
+  local alloc_line restamp_line
+  alloc_line="$(awk 'index($0,"allocate-doc-number.mjs --path"){print NR; exit}' <<< "$sec")"
+  restamp_line="$(awk 'index($0,"spec-amend.mjs restamp"){print NR; exit}' <<< "$sec")"
+  [[ -n "$alloc_line" ]] \
+    || log_fail "TEST-552: could not find the allocator's own invocation line inside step 1b"
+  [[ -n "$restamp_line" ]] \
+    || log_fail "TEST-552: could not find the restamp invocation line inside step 1b"
+  [[ "$restamp_line" -gt "$alloc_line" ]] \
+    || log_fail "TEST-552: the restamp invocation (line $restamp_line) must appear AFTER the allocator's own invocation (line $alloc_line) in step 1b"
+
+  # Keyed on the allocator's own completion output: step 1b must reference
+  # the `allocated ...` completion line's own leading word, and the allocator
+  # itself must still print it (source pin, mirroring TEST-030's discipline).
+  grep -qF 'allocated' <<< "$sec" \
+    || log_fail "TEST-552: step 1b must key the restamp off the allocator's own completion output (the 'allocated ...' line)"
+  grep -qF 'allocate complete:' "$alloc" \
+    || log_fail "TEST-552: the allocator must still print a completion line"
+
+  log_pass "TEST-552 SKILL_PR step 1b names the restamp invocation right after the allocator call, keyed on the allocator's own completion output"
+}
+
 main() {
   echo ""
   echo "AAI Doc-Numbering Test Suite (SPEC-0015 / RFC-0007)"
@@ -1645,6 +1687,7 @@ main() {
     test_029_close_work_item_byte_unchanged
     test_030_ordering_documented
     test_031_suite_map_row
+    test_552_skill_pr_runs_the_restamp
   )
 
   local t total=${#tests[@]} failed_names=()

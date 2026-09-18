@@ -1,6 +1,7 @@
 ---
 id: PRD-XXXX
 type: requirement
+number: null
 status: draft
 links:
   spec: null

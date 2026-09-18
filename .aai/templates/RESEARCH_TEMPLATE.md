@@ -1,6 +1,7 @@
 ---
 id: RES-XXXX
 type: research
+number: null
 status: draft
 links:
   pr: []

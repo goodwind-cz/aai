@@ -280,6 +280,25 @@ count_spaced_amendments() {
   ' "$1"
 }
 
+# last_amendment_for <ledger> <ref_id> -> the LAST spec_amendment record
+# whose ref_id matches, as one JSON line (empty if none) — independent of the
+# tool under test, and immune to a follow_up record the SAME `restamp`/`add`
+# call appends right after it in the same ledger.
+last_amendment_for() {
+  node -e '
+    const fs=require("fs");
+    const raw=fs.readFileSync(process.argv[1],"utf8");
+    let found="";
+    for (const line of raw.split(/\r?\n/)) {
+      const t=line.trim();
+      if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { continue; }
+      if (r && r.type==="spec_amendment" && r.ref_id===process.argv[2]) found=t;
+    }
+    process.stdout.write(found);
+  ' "$1" "$2"
+}
+
 # json_field <json> <node-expression over `j`>
 json_field() {
   node -e '
@@ -1960,6 +1979,139 @@ EOF
     || log_fail "TEST-516 unreadable spec"
 }
 
+# --- TEST-550 (Spec-AC-19, D2) ------------------------------------------------
+# `spec-amend.mjs restamp` appends a spec_amendment record carrying the
+# from/to frozen_sha256 anchors as 64-hex values, writes the spec ATOMICALLY
+# (temp file + rename in the SAME directory — a clean run leaves no stray tmp
+# file), and the ledger record lands BEFORE the spec is ever touched: a
+# process killed right after the ledger append (AAI_SPEC_AMEND_INJECT_CRASH=
+# before-rename, the same fault-hook convention lib/state-engine.mjs uses)
+# leaves the spec byte-identical to its pre-restamp state while the ledger
+# already carries the disclosure.
+test_550_amendment_record_anchors() {
+  log_info "Test: restamp's ledger record carries from/to frozen_sha256 as 64-hex values matching the spec before/after, a clean run leaves no stray tmp file, and a crash right after the ledger append leaves the spec byte-identical (TEST-550)..."
+  local ok=1
+
+  # --- Arm A: a clean run — record shape + no leftover tmp file ------------
+  local specsdir led spec
+  specsdir="$TEST_DIR/t550a-specs"; led="$(mk_ledger t550a)"
+  spec="$(mk_freezable_spec t550a-specs/fixture.md spec-t550-fixture direct)"
+  freeze_spec "$spec" || { log_fail "TEST-550 arm A setup: real spec-freeze.mjs refused the fixture"; return; }
+  local pre_anchor; pre_anchor="$(frozen_sha256_of "$spec")"
+  [[ -n "$pre_anchor" ]] || { log_fail "TEST-550 arm A setup: no frozen_sha256 written by the real tool"; return; }
+  sed -i.bak 's/original description text/RENUMBERED description text/' "$spec"
+  local expect_next; expect_next="$(contract_hash_of "$spec")"
+
+  run_sa restamp --spec "$spec" --ref t550a-ride --ledger "$led"
+  [[ "$EC" == 0 ]] || { log_fail "TEST-550 arm A: restamp must succeed on a genuinely drifted anchor, got $EC (stdout: $OUT) (stderr: $ERR)"; ok=0; }
+
+  local last from to rtype
+  last="$(last_amendment_for "$led" t550a-ride)"
+  rtype="$(json_field "$last" 'j.type')"
+  from="$(json_field "$last" 'j.from_frozen_sha256')"
+  to="$(json_field "$last" 'j.to_frozen_sha256')"
+  [[ "$rtype" == "spec_amendment" ]] \
+    || { log_fail "TEST-550 arm A: the appended record's type must be spec_amendment, got $rtype: $last"; ok=0; }
+  [[ "$from" =~ ^[0-9a-f]{64}$ ]] \
+    || { log_fail "TEST-550 arm A: from_frozen_sha256 must be a 64-hex value, got '$from': $last"; ok=0; }
+  [[ "$to" =~ ^[0-9a-f]{64}$ ]] \
+    || { log_fail "TEST-550 arm A: to_frozen_sha256 must be a 64-hex value, got '$to': $last"; ok=0; }
+  [[ "$from" == "$pre_anchor" ]] \
+    || { log_fail "TEST-550 arm A: from_frozen_sha256 must equal the spec's pre-restamp anchor; from=$from pre=$pre_anchor"; ok=0; }
+  [[ "$to" == "$expect_next" ]] \
+    || { log_fail "TEST-550 arm A: to_frozen_sha256 must equal the post-edit contract-projection hash; to=$to expect=$expect_next"; ok=0; }
+  local post_anchor; post_anchor="$(frozen_sha256_of "$spec")"
+  [[ "$post_anchor" == "$to" ]] \
+    || { log_fail "TEST-550 arm A: the spec's OWN stored anchor must now equal to_frozen_sha256; stored=$post_anchor to=$to"; ok=0; }
+
+  # This is the assertion the row's own named mutation reddens: a direct
+  # fs.writeFileSync(absSpec, out) in place of fs.renameSync(tmpSpec, absSpec)
+  # produces the SAME final spec content but never consumes the tmp file the
+  # earlier fs.writeFileSync(tmpSpec, out) line created, so it survives on
+  # disk as a stray dotfile next to the spec.
+  local stray; stray="$(find "$specsdir" -maxdepth 1 -name '.*.restamp-*.tmp')"
+  [[ -z "$stray" ]] \
+    || { log_fail "TEST-550 arm A: a clean restamp must leave no leftover .*.restamp-*.tmp file (the atomic rename must consume it); found: $stray"; ok=0; }
+
+  # --- Arm B: a crash right after the ledger append leaves the spec untouched
+  local specsdirB ledB specB
+  specsdirB="$TEST_DIR/t550b-specs"; ledB="$(mk_ledger t550b)"
+  specB="$(mk_freezable_spec t550b-specs/fixture.md spec-t550b-fixture direct)"
+  freeze_spec "$specB" || { log_fail "TEST-550 arm B setup: real spec-freeze.mjs refused the fixture"; return; }
+  sed -i.bak 's/original description text/RENUMBERED description text/' "$specB"
+  local pre_bytes; pre_bytes="$(cat "$specB")"
+
+  AAI_SPEC_AMEND_INJECT_CRASH=before-rename run_sa restamp --spec "$specB" --ref t550b-ride --ledger "$ledB"
+  [[ "$EC" -ne 0 ]] \
+    || { log_fail "TEST-550 arm B: a SIGKILL-injected restamp must not exit 0, got $EC"; ok=0; }
+
+  local post_bytes; post_bytes="$(cat "$specB")"
+  [[ "$post_bytes" == "$pre_bytes" ]] \
+    || { log_fail "TEST-550 arm B: a process killed right after the ledger append must leave the spec BYTE-IDENTICAL to its pre-restamp state; it changed"; ok=0; }
+
+  local lastB rtypeB fromB toB
+  lastB="$(last_amendment_for "$ledB" t550b-ride)"
+  rtypeB="$(json_field "$lastB" 'j.type')"
+  fromB="$(json_field "$lastB" 'j.from_frozen_sha256')"
+  toB="$(json_field "$lastB" 'j.to_frozen_sha256')"
+  [[ "$rtypeB" == "spec_amendment" ]] \
+    || { log_fail "TEST-550 arm B: the ledger must ALREADY carry the spec_amendment record even though the file write never landed; got type=$rtypeB: $lastB"; ok=0; }
+  [[ "$fromB" =~ ^[0-9a-f]{64}$ && "$toB" =~ ^[0-9a-f]{64}$ ]] \
+    || { log_fail "TEST-550 arm B: the pre-crash ledger record must still carry both 64-hex anchors; from=$fromB to=$toB"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-550 restamp's ledger record carries from/to frozen_sha256 as matching 64-hex values, a clean run leaves no stray tmp file, and a crash right after the ledger append leaves the spec byte-identical while the ledger already discloses it" \
+    || log_fail "TEST-550 amendment record anchors"
+}
+
+# --- TEST-551 (Spec-AC-20, D2, S3) --------------------------------------------
+# The real sequence Spec-AC-20 exists for: a frozen spec whose own body names
+# its DRAFT path gets that path rewritten (the allocator's own verbatim
+# substring substitution, `content.split(oldBase).join(newBase)`, applied
+# here to a fixture rather than mocked) — `list --strict` must refuse it as
+# undisclosed until `restamp` is run, and pass once it has.
+test_551_restamp_after_renumbering() {
+  log_info "Test: a frozen fixture spec whose DRAFT self-reference the allocator rewrote fails list --strict as undisclosed-amendment, and passes after restamp (TEST-551)..."
+  local ok=1
+  local specsdir led spec
+  specsdir="$TEST_DIR/t551-specs"; led="$(mk_ledger t551)"
+  spec="$(mk_freezable_spec t551-specs/fixture.md spec-t551-fixture direct)"
+  # A body self-reference to this spec's own DRAFT path — the exact literal
+  # token allocate-doc-number.mjs's rewriteReferences() substitutes verbatim
+  # at merge (docs/specs/<TYPE>-DRAFT-<slug>.md -> docs/specs/<TYPE>-000N-<slug>.md).
+  printf '\nSee docs/specs/SPEC-DRAFT-spec-t551-fixture.md for the frozen text.\n' >> "$spec"
+  freeze_spec "$spec" || { log_fail "TEST-551 setup: real spec-freeze.mjs refused the fixture"; return; }
+  grep -qF 'SPEC-DRAFT-spec-t551-fixture.md' "$spec" \
+    || { log_fail "TEST-551 setup: the DRAFT self-reference did not survive into the frozen body"; return; }
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 0 ]] || { log_fail "TEST-551: baseline (unrenumbered) strict must be clean, got $EC (stdout: $OUT)"; ok=0; }
+
+  # Simulate the allocator's own rewrite pass: a plain verbatim substring
+  # substitution of the DRAFT basename for the numbered one, nothing else
+  # touched (never spec-amend.mjs, never frozen_sha256).
+  sed -i.bak 's/SPEC-DRAFT-spec-t551-fixture\.md/SPEC-0182-spec-t551-fixture.md/' "$spec"
+  grep -qF 'SPEC-0182-spec-t551-fixture.md' "$spec" \
+    || { log_fail "TEST-551: the simulated allocator rewrite did not land"; ok=0; }
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 1 ]] \
+    || { log_fail "TEST-551: WITHOUT restamp, the renumbered spec must refuse strict as undisclosed, got $EC (stdout: $OUT)"; ok=0; }
+  grep -qF 'STRICT-VIOLATION undisclosed-amendment' <<<"$OUT" \
+    || { log_fail "TEST-551: the refusal must print STRICT-VIOLATION undisclosed-amendment; stdout: $OUT"; ok=0; }
+  grep -qF 'spec-t551-fixture' <<<"$OUT" \
+    || { log_fail "TEST-551: the refusal must name the offending spec; stdout: $OUT"; ok=0; }
+
+  run_sa restamp --spec "$spec" --ref t551-ride --ledger "$led"
+  [[ "$EC" == 0 ]] || { log_fail "TEST-551: restamp must succeed on the renumbered spec, got $EC (stdout: $OUT) (stderr: $ERR)"; ok=0; }
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 0 ]] \
+    || { log_fail "TEST-551: WITH restamp, list --strict must exit 0 (a disclosed restamp, not a refusal), got $EC (stdout: $OUT)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-551 a frozen spec renumbered by the allocator's own DRAFT-to-numbered rewrite refuses list --strict as undisclosed until restamp is run, and passes once it has" \
+    || log_fail "TEST-551 restamp after renumbering"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -1989,6 +2141,8 @@ main() {
   test_514_anchor_without_marker_caught
   test_515_contract_hash_escaped_pipe
   test_516_unreadable_spec_refuses
+  test_550_amendment_record_anchors
+  test_551_restamp_after_renumbering
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

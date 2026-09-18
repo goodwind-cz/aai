@@ -1692,6 +1692,63 @@ test_031_select_suites_maps_the_new_script_to_aai_intake() {
     || log_fail "TEST-031 select-suites.mjs mapping (Spec-AC-09)"
 }
 
+# TEST-553 (spec-close-ceremony-sweep Spec-AC-21) — every intake template,
+# copied VERBATIM (no hand edit) to its DRAFT path, passes the real
+# docs-audit.mjs --intake-file gate; every template carries exactly one
+# `number:` key (fu-intake-templates-lack-number-key).
+test_553_templates_pass_intake_file() {
+  log_info "TEST-553 (Spec-AC-21): each of the eight templates, copied verbatim to its DRAFT path, passes docs-audit --intake-file; every template names exactly one number: key..."
+  local ok=1 root
+  root="$(intake_fixture_root)"
+
+  # intake-type:template-file:dir:prefix — dir/prefix mirror
+  # .aai/INTAKE_COMMON.md's own table; hotfix deliberately reuses
+  # ISSUE_TEMPLATE.md, the SAME pairing the real router uses.
+  local pairs=(
+    "prd:REQUIREMENT_TEMPLATE.md:requirements:PRD"
+    "change:CHANGE_TEMPLATE.md:issues:CHANGE"
+    "issue:ISSUE_TEMPLATE.md:issues:ISSUE"
+    "hotfix:ISSUE_TEMPLATE.md:issues:ISSUE"
+    "techdebt:TECHDEBT_TEMPLATE.md:issues:DEBT"
+    "research:RESEARCH_TEMPLATE.md:specs:RES"
+    "rfc:RFC_TEMPLATE.md:rfc:RFC"
+    "release:RELEASE_TEMPLATE.md:releases:REL"
+  )
+  local line it tpl dir pfx n=0
+  for line in "${pairs[@]}"; do
+    n=$((n + 1))
+    IFS=':' read -r it tpl dir pfx <<< "$line"
+    local rel="docs/$dir/$pfx-DRAFT-t553-$it.md"
+    local dest="$root/$rel"
+    mkdir -p "$(dirname "$dest")"
+    cp "$PROJECT_ROOT/.aai/templates/$tpl" "$dest"
+
+    local res rc
+    res="$(intake_guard "$root" "$rel")"
+    rc="${res%%|*}"
+    [[ "$rc" == 0 ]] \
+      || { log_fail "FAIL TEST-553: intake type '$it' ($tpl, verbatim, saved as $rel) must pass --intake-file, got: $res"; ok=0; }
+  done
+  [[ "$n" -eq 8 ]] \
+    || { log_fail "FAIL TEST-553: expected 8 intake-type/template pairs, iterated $n"; ok=0; }
+
+  # Every DISTINCT template file (issue/hotfix share one) carries exactly one
+  # `number:` key — the shape --intake-file's number-absent finding requires.
+  local f
+  for f in REQUIREMENT_TEMPLATE.md CHANGE_TEMPLATE.md ISSUE_TEMPLATE.md TECHDEBT_TEMPLATE.md RESEARCH_TEMPLATE.md RFC_TEMPLATE.md RELEASE_TEMPLATE.md; do
+    local c; c="$(/usr/bin/grep -c '^number:' "$PROJECT_ROOT/.aai/templates/$f")"
+    [[ "$c" == 1 ]] \
+      || { log_fail "FAIL TEST-553: $f must carry exactly one ^number: line, counted $c"; ok=0; }
+  done
+
+  # NOTE: this suite's own log_fail prints "✗ $*" (no "FAIL" prefix, unlike
+  # the other three suites this ride touches) — every message above spells
+  # "FAIL TEST-553" itself, FAIL before the id in the same line, because
+  # mutation-run.mjs's redden-attribution regex requires that order.
+  [[ $ok -eq 1 ]] && log_pass "TEST-553 all eight intake type/template pairs pass --intake-file verbatim (no hand edit), and every template carries exactly one number: key" \
+    || log_fail "FAIL TEST-553 templates pass intake file"
+}
+
 # Main test execution
 main() {
   echo "Testing: $TEST_NAME"
@@ -1730,6 +1787,7 @@ main() {
   test_027_staleness_preflight_precedes_first_question
   test_028_profiles_yaml_classifies_new_script_in_core
   test_031_select_suites_maps_the_new_script_to_aai_intake
+  test_553_templates_pass_intake_file
 
   echo ""
   echo "All tests passed!"
