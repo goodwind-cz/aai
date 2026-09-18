@@ -465,6 +465,45 @@ test_569_shared_page_push_names_open_prs() {
   fi
 }
 
+# --- TEST-580 (Spec-AC-30): SHARED_GENERATED_PAGES names a real path for -----
+# EVERY page it lists, one arm per page — B4's wrong-path finding (a hand-
+# maintained 'docs/overview.html' that no such file answers to, silently
+# never matched by sharedPageConflicts()'s exact Set.has()) is pinned per
+# entry, not just for docs/INDEX.md (TEST-569's only fixture path).
+test_580_shared_page_set_covers_every_generated_page() {
+  log_info "TEST-580: every page in SHARED_GENERATED_PAGES is individually detected as a conflict, and every one is a path a real generator writes (Spec-AC-30)..."
+  local bin="$TMP_ROOT/gh-t580" page rc out ok=1
+
+  # Every page the shared set names is a real, generator-written path (not
+  # 'docs/overview.html', which no generator has ever written).
+  local pages
+  pages="$(node -e '
+    import("'"$PROJECT_ROOT"'/.aai/scripts/lib/docs-model.mjs").then(m => {
+      console.log([...m.SHARED_GENERATED_PAGES].join("\n"));
+    });
+  ')"
+  [[ -n "$pages" ]] || { log_fail "TEST-580: SHARED_GENERATED_PAGES is empty or unreadable"; return; }
+  grep -qF "docs/overview.html" <<<"$pages" \
+    && { log_fail "TEST-580: SHARED_GENERATED_PAGES still names the non-existent docs/overview.html"; ok=0; }
+  grep -qF "docs/ai/overview.html" <<<"$pages" \
+    || { log_info "TEST-580: SHARED_GENERATED_PAGES must name the real docs/ai/overview.html"; ok=0; }
+
+  # One conflict-detection arm per page named in the set.
+  while IFS= read -r page; do
+    [[ -n "$page" ]] || continue
+    build_gh_stub_pr_list "$bin" "[{\"number\":580,\"files\":[{\"path\":\"$page\"}]}]"
+    out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" 2>&1)"; rc=$?
+    if [[ "$rc" -eq 0 ]]; then
+      log_info "TEST-580: a PR touching '$page' must refuse (exit non-zero), got 0: $out"; ok=0
+    elif [[ "$out" != *"$page"* ]]; then
+      log_info "TEST-580: the refusal for '$page' must name that path: $out"; ok=0
+    fi
+  done <<<"$pages"
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-580: every SHARED_GENERATED_PAGES entry names a real path and is individually caught as a conflict" \
+    || log_fail "TEST-580 shared-page set coverage"
+}
+
 ALL_TESTS=(
   test_001_github_https
   test_002_github_ssh_scp
@@ -489,6 +528,7 @@ ALL_TESTS=(
   test_021_reviewer_bots_json
   test_022_skill_pr_no_bots_hardening
   test_569_shared_page_push_names_open_prs
+  test_580_shared_page_set_covers_every_generated_page
 )
 
 main() {

@@ -318,7 +318,18 @@ test_566_validate_refuses_unknown_refs() {
     || log_fail "TEST-566: a still-planned pair naming an unfiled ref must NOT refuse: $(err)"
   # the live roadmap validates clean (every active/done pair resolves)
   [ "$(run validate --roadmap "$SHIPPED")" = "0" ] || log_fail "TEST-566: the shipped roadmap must still validate: $(err)"
-  log_pass "validate refuses a started pair's unknown ref, exempts a still-planned one, live roadmap unaffected (TEST-566)"
+  # Spec-AC-29's own text ("SHALL refuse a roadmap ref that matches no
+  # document id") is proven load-bearing on the LIVE roadmap, not just on a
+  # synthetic fixture: without the still-planned exemption, the SAME live
+  # roadmap must refuse (proving the exemption is genuinely exercised by
+  # real data, not a carve-out nothing ever needs), and the started-pair
+  # half is proven non-vacuous the same way (disclosed Amendment 16, B5).
+  local nx_engine="$TEST_DIR/ride-select-no-exemption.mjs"
+  sed "s/if (pr.status === 'planned') continue;//" "$ENGINE" > "$nx_engine"
+  local nx_rc; nx_rc="$(node "$nx_engine" validate --roadmap "$SHIPPED" > "$TEST_DIR/nx.out" 2> "$TEST_DIR/nx.err"; echo $?)"
+  [ "$nx_rc" != "0" ] \
+    || log_fail "TEST-566: removing the still-planned exemption must make the LIVE roadmap refuse (a real undocumented planned slug exists) — got 0: $(cat "$TEST_DIR/nx.out")"
+  log_pass "validate refuses a started pair's unknown ref, exempts a still-planned one (exercised for real on the live roadmap, not vacuously), live roadmap unaffected (TEST-566)"
 }
 
 # --- TEST-535 (spec-close-ceremony-sweep Spec-AC-10): the live roadmap's

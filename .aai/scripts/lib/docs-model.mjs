@@ -1015,6 +1015,27 @@ export function isMutationCellPlaceholder(cell) {
   return MUTATION_CELL_PLACEHOLDERS.has(c.toLowerCase());
 }
 
+// SHARED_GENERATED_PAGES — every committed page a ride's own numbering/close
+// ceremony regenerates, so a tool that must recognize "a generated page just
+// changed" (pr-platform.mjs's Spec-AC-30 shared-page push check today) reads
+// ONE list instead of hand-maintaining its own copy that can drift from the
+// real paths. Mirrors allocate-doc-number.mjs's own SPEC_PAGE_GENERATORS
+// (docs/ai/overview.html + overview-data.json, docs/USER_GUIDE.md) plus
+// docs/INDEX.md (generate-docs-index.mjs) and docs/ai/factory-report.html
+// (generate-factory-report.mjs) — the same five pages close-work-item.mjs's
+// regen tail names. allocate-doc-number.mjs is `protected_paths_l3` and
+// cannot import this file (or export its own local list) without a
+// ceremony-3 ride (D1); until then the two lists are the SAME five paths,
+// verified by hand at every edit of either, not by a shared import both
+// directions.
+export const SHARED_GENERATED_PAGES = new Set([
+  'docs/INDEX.md',
+  'docs/ai/overview.html',
+  'docs/ai/overview-data.json',
+  'docs/USER_GUIDE.md',
+  'docs/ai/factory-report.html',
+]);
+
 export const STRATEGY_ENUM = ['loop', 'tdd', 'hybrid', 'direct', 'untested', 'undecided'];
 
 // resolveStrategy(content, callerStrategy) -> the normalized strategy token
@@ -1194,13 +1215,22 @@ export function detectNearMissAcTable(content) {
     //    Status cell that does not normalize to a canonical AC_STATUS_ENUM
     //    member. Positional, via splitTableCells, so an empty interior cell
     //    never desyncs the column index (unlike the filter(Boolean) `cells`
-    //    above, which is header-only and never mis-indexes a row). Scoped to
-    //    `hasSpecAcCol` ONLY: a bare-"AC"-id table (the column-set shape) is a
-    //    different, informal vocabulary (e.g. these live docs' own "pending")
-    //    never governed by AC_STATUS_ENUM in the first place — M9 measured
-    //    this arm at 0 live hits, which requires excluding that shape, not
-    //    just the real corpus happening to avoid it.
-    if (hasStatusCol && hasSpecAcCol) {
+    //    above, which is header-only and never mis-indexes a row).
+    //    CORRECTED (spec-close-ceremony-sweep Amendment 16, T5): this used to
+    //    read `if (hasStatusCol && hasSpecAcCol)`, with a comment claiming
+    //    the `hasSpecAcCol` half was REQUIRED for M9's "0 live hits" — a
+    //    mutation dropping it (`if (hasStatusCol)`) STAYED GREEN against the
+    //    live corpus AND a fixture built specifically to exercise a bare-"AC"
+    //    table with an out-of-vocabulary status word (TEST-582): the real,
+    //    load-bearing guard is `idIdx`/`idVal` below. A bare-"AC" table has no
+    //    "Spec-AC" header, so `idIdx` is always -1, `idVal` is always empty,
+    //    and every row is already skipped by the placeholder-row check two
+    //    lines down — REGARDLESS of `hasSpecAcCol`. The M9 docs read 0 hits
+    //    because they have no Spec-AC column (this row-level check), not
+    //    because of a table-level scoping condition; their status words
+    //    ("planned"/"done") also happen to be canonical, which is coincidence,
+    //    not the mechanism. `hasSpecAcCol` is removed here as dead weight.
+    if (hasStatusCol) {
       const headerPositional = splitTableCells(line);
       const statusIdx = headerPositional.indexOf('Status');
       const idIdx = headerPositional.indexOf('Spec-AC');
@@ -1210,8 +1240,12 @@ export function detectNearMissAcTable(content) {
           if (!rowLine.trim().startsWith('|')) break;
           const rowCells = splitTableCells(rowLine);
           if (rowCells.length !== headerPositional.length) continue;   // pipe-broken row: Spec-AC-12's concern, not this one
+          // idIdx < 0 (no "Spec-AC" column, e.g. a bare-"AC" column-set
+          // table) means idVal is always '', so THIS is what excludes that
+          // shape from status-vocabulary — the load-bearing half of what the
+          // old `hasSpecAcCol` table-level condition only restated redundantly.
           const idVal = idIdx >= 0 ? (rowCells[idIdx] ?? '') : '';
-          if (!idVal || idVal.startsWith('Spec-AC-xx') || idVal.startsWith('<')) continue;   // placeholder row
+          if (!idVal || idVal.startsWith('Spec-AC-xx') || idVal.startsWith('<')) continue;   // placeholder row, or no Spec-AC column at all
           const rawStatus = rowCells[statusIdx] ?? '';
           if (rawStatus === '' || rawStatus === '—' || rawStatus === '-') continue;   // empty is a separate, existing signal
           if (!normalizeAcStatus(rawStatus).canonical) {

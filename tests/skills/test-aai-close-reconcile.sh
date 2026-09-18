@@ -794,7 +794,57 @@ EOF
   [[ "$rc2" -eq 0 ]] || log_fail "TEST-524: positive control (real telemetry present) expected exit 0 CLEAN, got $rc2. Output:\n$out2"
   assert_payload_contains "$out2" "CLEAN" "TEST-524: positive control expected CLEAN"
 
-  log_pass "TEST-524: a terminal doc with no links.commits and no work_item_closed event is itemed reason=terminal-without-telemetry and --apply refuses it; a properly-closed terminal doc stays CLEAN"
+  # SPLIT-CONJUNCT ARMS (T2): the predicate is `linksCommitsEmpty &&
+  # !hasCloseEvent` — dropping EITHER conjunct alone must still leave a
+  # doc that satisfies only the OTHER one CLEAN, so each half needs its
+  # own input that would falsely redden if that half were removed.
+
+  # Arm B: links.commits EMPTY, but a work_item_closed event DOES exist —
+  # pins the `!hasCloseEvent` half: without it (mutated to always-true),
+  # this doc would be wrongly itemed on the commits-empty half alone.
+  local dir3 base3 head3 out3 rc3
+  dir3=$(init_range_repo "t524b")
+  base3=$(git -C "$dir3" rev-parse HEAD)
+  write_issue_doc "$dir3/docs/issues/ISSUE-0524-t524b.md" "t524b-ref" "done"
+  echo '{"v":1,"ts":"2020-01-01T00:00:00Z","actor":"test","event":"work_item_closed","ref":"t524b-ref","payload":{}}' >> "$dir3/docs/ai/EVENTS.jsonl"
+  git -C "$dir3" add -A
+  git -C "$dir3" commit -q -m "flip t524b done, event present, commits still empty (#524)"
+  head3=$(git -C "$dir3" rev-parse HEAD)
+  out3="$(node "$CLOSE_RECONCILE" --check --range "$base3..$head3" --root "$dir3" 2>&1)" && rc3=0 || rc3=$?
+  [[ "$rc3" -eq 0 ]] || log_fail "TEST-524: empty links.commits BUT a work_item_closed event present must stay CLEAN (the !hasCloseEvent conjunct alone must not fire), got $rc3. Output:\n$out3"
+  assert_payload_contains "$out3" "CLEAN" "TEST-524: arm B (event present, commits empty) expected CLEAN"
+
+  # Arm C: links.commits NON-EMPTY, but NO work_item_closed event — pins
+  # the `linksCommitsEmpty` half: without it (mutated to always-true),
+  # this doc would be wrongly itemed on the no-event half alone.
+  local dir4 base4 head4 out4 rc4
+  dir4=$(init_range_repo "t524c")
+  base4=$(git -C "$dir4" rev-parse HEAD)
+  cat > "$dir4/docs/issues/ISSUE-0524-t524c.md" <<'EOF'
+---
+id: t524c-ref
+type: issue
+status: done
+links:
+  pr:
+    - 999
+  commits:
+    - deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+---
+
+# Issue — Fixture t524c-ref
+
+## Summary
+- fixture doc for close-reconcile tests.
+EOF
+  git -C "$dir4" add -A
+  git -C "$dir4" commit -q -m "flip t524c done, commits present, event still absent (#524)"
+  head4=$(git -C "$dir4" rev-parse HEAD)
+  out4="$(node "$CLOSE_RECONCILE" --check --range "$base4..$head4" --root "$dir4" 2>&1)" && rc4=0 || rc4=$?
+  [[ "$rc4" -eq 0 ]] || log_fail "TEST-524: links.commits present BUT no work_item_closed event must stay CLEAN (the linksCommitsEmpty conjunct alone must not fire), got $rc4. Output:\n$out4"
+  assert_payload_contains "$out4" "CLEAN" "TEST-524: arm C (commits present, event absent) expected CLEAN"
+
+  log_pass "TEST-524: a terminal doc with no links.commits and no work_item_closed event is itemed reason=terminal-without-telemetry and --apply refuses it; a properly-closed terminal doc stays CLEAN; either telemetry half alone (event-only or commits-only) also stays CLEAN, pinning both conjuncts independently"
 }
 
 # --- TEST-525 (Spec-AC-04(b)) ------------------------------------------------

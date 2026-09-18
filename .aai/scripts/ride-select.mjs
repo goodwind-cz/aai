@@ -181,6 +181,23 @@ function main() {
     // A STARTED pair (active/done) names refs that must already be real
     // documents; a still-planned pair may legitimately be named ahead of its
     // own intake, so it is exempt (fu-ride-select-validate-ref-exists).
+    // DISCLOSED narrowing of Spec-AC-29's literal text (which states no
+    // status carve-out): the live docs/ai/roadmap.yaml names two planned
+    // capabilities (friction-channel-sweep, canon-is-a-build-artifact) with
+    // no document yet — the roadmap's whole purpose is to name future work
+    // ahead of intake (wave_2 is the same shape, entirely unvalidated), so
+    // requiring a document before a pair even starts would force a stub
+    // intake to be filed for no reason but to satisfy this gate. RESIDUAL
+    // RISK (spec Amendment 16, R6), NOT mitigated elsewhere: a typo in a
+    // still-planned pair's slug is caught by neither this check nor `gate`
+    // below — `gate`'s own capability-admission arm
+    // (`if (pair.capability === a.ref) return admit(...)`) matches by
+    // STRING EQUALITY against the roadmap's own text, so a slug that is
+    // internally consistent but never resolves to a document is admitted
+    // once its pair becomes first-unfinished, exactly like a correctly
+    // spelled one. The typo is only caught downstream, when Planning/intake
+    // cannot find a document to work from. Reported, not fixed here — out
+    // of Spec-AC-29's own `validate` scope.
     for (const [i, pr] of loaded.roadmap.pairs.entries()) {
       if (pr.status === 'planned') continue;
       for (const ref of [pr.capability, pr.maintenance]) {

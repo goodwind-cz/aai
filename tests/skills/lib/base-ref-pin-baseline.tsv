@@ -13,7 +13,7 @@
 # the real repository with no `origin/main` attempt above it fails whether or
 # not this file mentions it.
 #
-1	test-aai-branch-guard.sh
+1	test-aai-close-work-item.sh
 1	test-aai-deslop.sh
 1	test-aai-factory-report.sh
 1	test-aai-golden-flow.sh

@@ -61,6 +61,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { SHARED_GENERATED_PAGES } from './lib/docs-model.mjs';
 
 function fail(msg) {
   console.error(`pr-platform: ${msg}`);
@@ -108,14 +109,11 @@ function parseArgs(argv) {
 // to the base branch that changes one of them can turn ANY OTHER open PR
 // that also touches it into a merge conflict the moment this branch lands.
 // Deliberately NOT the same list as SPEC-0181's tree-hash exclusions — these
-// pages ARE reviewed content, just machine-written.
-const SHARED_GENERATED_PAGES = new Set([
-  'docs/INDEX.md',
-  'docs/ai/overview-data.json',
-  'docs/overview.html',
-  'docs/USER_GUIDE.md',
-  'docs/ai/factory-report.html',
-]);
+// pages ARE reviewed content, just machine-written. SHARED_GENERATED_PAGES
+// itself lives in lib/docs-model.mjs (Amendment 16): a hand-maintained local
+// copy here previously named 'docs/overview.html', which does not exist —
+// the real page is 'docs/ai/overview.html' — so this check silently never
+// matched it (TEST-569's fixture only ever exercised docs/INDEX.md).
 
 // listOpenPrFiles(ghBin) — the open PR set with their touched files, or null
 // on ANY probe failure (no `gh`, unauthenticated, non-GitHub remote): this is

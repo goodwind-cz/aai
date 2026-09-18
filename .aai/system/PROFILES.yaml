@@ -152,6 +152,10 @@ core:
   - .aai/scripts/lib/pricing.mjs
   - .aai/scripts/lib/product-doc.mjs
   - .aai/scripts/lib/prompt-hash.mjs
+  # core: append-event.mjs (core, pr_sweep write side) and lane-gate.mjs
+  # (core, --sweep-check read side) both import this — same precedent as
+  # every other shared .aai/scripts/lib/*.mjs entry in this list.
+  - .aai/scripts/lib/pr-sweep.mjs
   - .aai/scripts/lib/repo-tripwire.sh
   - .aai/scripts/lib/runtime-file.mjs
   - .aai/scripts/lib/session-lock.mjs

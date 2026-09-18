@@ -3749,6 +3749,51 @@ test_537_shape_check_live_yield() {  # TEST-537 / Spec-AC-11
   log_pass "TEST-537 live corpus near-miss yield matches M9 (8 documents), report-only always, --strict stays CLEAN (all terminal)"
 }
 
+test_582_status_vocabulary_scoped_to_spec_ac_col() {  # TEST-582 / Spec-AC-11 (Amendment 16, T5)
+  log_info "Test: a bare-'AC'-id table's informal status word is reported ONLY as column-set, never ALSO as status-vocabulary — the hasSpecAcCol scoping is load-bearing, pinned directly rather than only claimed in a comment (TEST-582)..."
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  local d="$TEST_DIR/iso-t582"
+  rm -rf "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/issues" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  # A bare "AC"-id column-set table (M9's own shape) whose Status word
+  # ("green") is genuinely OUT of AC_STATUS_ENUM — unlike ISSUE-9001/9003 in
+  # setup_near_miss_fixture (TEST-536), which both happen to use "planned"
+  # (already canonical), so neither of THOSE two exercises this arm at all.
+  cat > "$d/docs/issues/ISSUE-9004-colset-informal-status.md" <<'MD'
+---
+id: ISSUE-9004
+type: issue
+status: implementing
+links:
+  pr: []
+---
+# Column-set fixture, informal out-of-vocabulary status word
+
+## Acceptance Criteria
+
+| AC | Requirement | Status |
+|----|-------------|--------|
+| AC-001 | first table entry | green |
+MD
+  (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test" \
+    && git add -A && git commit -qm "chore: seed T5 status-vocabulary-scoping fixture")
+
+  local rc=0 out
+  out="$(cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-582: --check without --strict must exit 0 (got $rc): $(printf '%s' "$out" | tail -20)"
+  grep -qF "column-set" <<<"$out" \
+    || log_fail "TEST-582: the bare-AC informal-status doc must still be reported column-set: $(payload_preview "$out")"
+  grep -qF "status-vocabulary" <<<"$out" \
+    && log_fail "TEST-582: a bare-AC table's informal status word must NOT ALSO be reported status-vocabulary (hasSpecAcCol scoping): $(payload_preview "$out")"
+
+  rm -rf "$d"
+  log_pass "TEST-582: a bare-AC table's out-of-vocabulary status word is reported once, as column-set, never doubled as status-vocabulary"
+}
+
 test_538_duplicate_ac_id_multiplicity() {  # TEST-538 / Spec-AC-12
   log_info "Test: a spec declaring Spec-AC-01 twice, one copy pipe-broken and planned, fails --gate naming the id and is not CLEAN under --check (TEST-538)..."
   local d rc out
@@ -3894,7 +3939,77 @@ MD
     && log_fail "TEST-576: the vanished doc must NOT be named in the regenerated INDEX"
 
   rm -rf "$d"
-  log_pass "TEST-576: a tracked-but-vanished doc is skipped, never crashed on; the index still regenerates over what is left"
+  log_pass "TEST-576: a tracked-but-vanished doc is excluded from the regenerated INDEX and never crashes the generator; the index still regenerates over what is left"
+}
+
+test_581_stat_error_other_than_enoent_is_never_swallowed() {  # TEST-581 / Spec-AC-22 (Amendment 16, T4)
+  log_info "Test: existsOnDisk() distinguishes ENOENT (skip, TEST-576) from every OTHER fs.statSync failure, which must surface, never read as 'nothing to find' (TEST-581)..."
+  local d; d="$(setup_iso_repo t581)"
+  mkdir -p "$d/docs/specs/blocked"
+  cat > "$d/docs/specs/SPEC-9003-present.md" <<'MD'
+---
+id: SPEC-9003
+type: spec
+number: 9003
+status: done
+links:
+  pr: []
+---
+# Present doc
+MD
+  cat > "$d/docs/specs/blocked/SPEC-9004-unreachable.md" <<'MD'
+---
+id: SPEC-9004
+type: spec
+number: 9004
+status: done
+links:
+  pr: []
+---
+# Unreachable doc
+MD
+  (cd "$d" && git add docs/specs && git commit -qm "docs: two tracked specs, one under a directory")
+  # Replace the PARENT DIRECTORY with a plain file, without staging either
+  # side. git's index still names docs/specs/blocked/SPEC-9004-unreachable.md,
+  # but docs/specs/blocked is now a FILE, not a directory — stat()ing the
+  # child path fails ENOTDIR, never ENOENT. This is deliberately NOT the
+  # permission-bit route (EACCES): a root-running CI user bypasses file-mode
+  # checks entirely, so a chmod-000 fixture would silently pass on such a
+  # runner and prove nothing. ENOTDIR fails the same way regardless of the
+  # running user, so this arm is portable to any POSIX CI identity.
+  rm -rf "$d/docs/specs/blocked"
+  printf 'not a directory any more\n' > "$d/docs/specs/blocked"
+
+  local rc=0
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "TEST-581: a non-ENOENT stat failure (ENOTDIR) must NOT exit 0 — 'could not look' must never read as 'nothing to find': $(cat "$d/gen.log")"
+  grep -qi "ENOTDIR" "$d/gen.log" \
+    || log_fail "TEST-581: the surfaced failure must name the real error (ENOTDIR), not a swallowed/generic one: $(cat "$d/gen.log")"
+  # A run over the untouched fixture (both docs genuinely readable) still
+  # succeeds, so this arm is pinning the ENOTDIR path specifically, not a
+  # generally-broken generator.
+  local d2; d2="$(setup_iso_repo t581ctrl)"
+  mkdir -p "$d2/docs/specs"
+  cat > "$d2/docs/specs/SPEC-9005-present.md" <<'MD'
+---
+id: SPEC-9005
+type: spec
+number: 9005
+status: done
+links:
+  pr: []
+---
+# Present doc
+MD
+  (cd "$d2" && git add docs/specs && git commit -qm "docs: one tracked spec")
+  local rc2=0
+  (cd "$d2" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) || rc2=$?
+  [[ "$rc2" -eq 0 ]] \
+    || log_fail "TEST-581: control (no stat failure at all) must exit 0: $(cat "$d2/gen.log")"
+
+  rm -rf "$d" "$d2"
+  log_pass "TEST-581: a genuine non-ENOENT stat failure (ENOTDIR) crashes the generator naming the real error, instead of silently vanishing the doc from INDEX.md like the ENOENT case does"
 }
 
 test_559_posix_predicate_infra_exit() {  # TEST-559 / Spec-AC-24
@@ -7862,10 +7977,12 @@ main() {
   test_spec0011_review_artifact_boundary
   test_spec0011_regression
   test_536_unparseable_ac_table_shape
+  test_582_status_vocabulary_scoped_to_spec_ac_col
   test_537_shape_check_live_yield
   test_538_duplicate_ac_id_multiplicity
   test_554_index_tracked_only
   test_576_tracked_but_vanished_is_skipped_not_crashed
+  test_581_stat_error_other_than_enoent_is_never_swallowed
   test_559_posix_predicate_infra_exit
   test_change0007_lint_stray_markup
   test_change0007_lint_unbalanced_fence

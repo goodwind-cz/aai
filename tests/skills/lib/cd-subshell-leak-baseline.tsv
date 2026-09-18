@@ -21,7 +21,7 @@
 10	.aai/scripts/aai-run-tests.sh
 2	.aai/scripts/aai-sync.sh
 1	.aai/scripts/aai-update.sh
-1	.aai/scripts/claude-hook-gate.sh
+3	.aai/scripts/claude-hook-gate.sh
 1	.aai/scripts/cloudflare-share.sh
 2	.aai/scripts/expert-fetch.sh
 2	.aai/scripts/live-spool.sh
@@ -49,7 +49,7 @@
 12	tests/skills/test-aai-deslop.sh
 2	tests/skills/test-aai-doc-number-reservation.sh
 11	tests/skills/test-aai-doc-numbering.sh
-25	tests/skills/test-aai-docs-audit.sh
+26	tests/skills/test-aai-docs-audit.sh
 3	tests/skills/test-aai-docs-canon.sh
 3	tests/skills/test-aai-docs-hub.sh
 3	tests/skills/test-aai-docs-lock.sh
@@ -67,13 +67,13 @@
 2	tests/skills/test-aai-heartbeat.sh
 2	tests/skills/test-aai-hitl-channel.sh
 4	tests/skills/test-aai-hitl-propagation.sh
-11	tests/skills/test-aai-hooks-overlay.sh
+23	tests/skills/test-aai-hooks-overlay.sh
 50	tests/skills/test-aai-hygiene-pack.sh
 3	tests/skills/test-aai-implementation-mode.sh
 15	tests/skills/test-aai-intake.sh
 3	tests/skills/test-aai-issues.sh
 3	tests/skills/test-aai-layer-drift.sh
-4	tests/skills/test-aai-layer-profiles.sh
+5	tests/skills/test-aai-layer-profiles.sh
 3	tests/skills/test-aai-learned-append.sh
 6	tests/skills/test-aai-learned-routing.sh
 2	tests/skills/test-aai-lightweight-lane.sh
