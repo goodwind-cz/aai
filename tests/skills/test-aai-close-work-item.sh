@@ -96,6 +96,27 @@ GUARD_CONFIG_LIB="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs"
 
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
+# shellcheck source=lib/close-work-item-pin.sh
+# TEST-533 (Spec-AC-09) makes this suite the FOURTH consumer of the shared
+# pin, alongside test-aai-close-reconcile.sh, test-aai-doc-numbering.sh and
+# test-aai-follow-ups.sh.
+. "$SCRIPT_DIR/lib/close-work-item-pin.sh"
+PIN_FILE="$SCRIPT_DIR/lib/close-work-item-pin.sh"
+
+# base_ref — prints the ref TEST-533 compares the pin file's entry count
+# against, or NOTHING when no base exists. A bare `main` does not resolve on
+# a GitHub `pull_request` checkout (detached HEAD, only `origin/main` is
+# fetched) NOR inside mutation-run.mjs's own isolated `git clone --local`
+# (which carries `main` only as `origin/main`, not a local branch) — same
+# class as tests/skills/test-aai-deslop.sh's base_ref (docs/knowledge/
+# LEARNED.md 2026-07-19). Callers MUST fail closed on the empty result.
+base_ref() {
+  if (cd "$PROJECT_ROOT" && git rev-parse --verify -q origin/main >/dev/null 2>&1); then
+    printf 'origin/main'
+  elif (cd "$PROJECT_ROOT" && git rev-parse --verify -q main >/dev/null 2>&1); then
+    printf 'main'
+  fi
+}
 
 cleanup() {
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
@@ -1809,23 +1830,41 @@ test_022_seam_close_updates_userguide_rollup() {
   local dir; dir=$(new_fixture_repo "t022")
   write_user_visible_change_doc "$dir/docs/issues/CHANGE-0001-t022.md" "t022-slug" "draft"
   write_real_product_doc "$dir" "t022-slug"
+  # spec-close-ceremony-sweep Spec-AC-24 (run 8 of this ride, TEST-558): the
+  # rollup generator now deliberately no-ops rather than CREATING
+  # docs/USER_GUIDE.md from nothing when it is absent ("a rollup generator
+  # must never CREATE the file it rolls into" -- generate-userguide-rollup.mjs
+  # main()). This test predates that contract and asserted the OLD
+  # create-from-nothing behavior; the fixture now seeds a hand-written
+  # USER_GUIDE.md up front (mirroring tests/skills/test-aai-userguide-rollup.sh
+  # TEST-007's own containment fixture) so the SEAM under test -- a real
+  # close UPDATING an existing rollup -- still exercises the real property
+  # instead of the no-op guard.
+  cat > "$dir/docs/USER_GUIDE.md" <<'EOF'
+# AAI User Guide
+
+Hand-written intro paragraph that must never be touched.
+EOF
   commit_fixture_docs "$dir"
 
-  [[ ! -e "$dir/docs/USER_GUIDE.md" ]] \
-    || log_fail "t022: fixture setup bug -- docs/USER_GUIDE.md must not pre-exist"
+  [[ -f "$dir/docs/USER_GUIDE.md" ]] \
+    || log_fail "t022: fixture setup bug -- docs/USER_GUIDE.md must pre-exist (Spec-AC-24: the rollup no-ops on an absent file)"
+
+  local before; before="$(cat "$dir/docs/USER_GUIDE.md")"
 
   local out="$TEST_DIR/t022.out" err="$TEST_DIR/t022.err" code
   code=$(run_close "$dir" "$out" "$err" --ref t022-slug --pr 22 --commit a2a2a22)
   assert_exit "close with rollup hook" 0 "$code"
 
-  [[ -f "$dir/docs/USER_GUIDE.md" ]] \
-    || log_fail "t022: close did not regenerate docs/USER_GUIDE.md (best-effort rollup hook, D5)"
+  local after; after="$(cat "$dir/docs/USER_GUIDE.md")"
+  [[ "$after" == "$before"* ]] \
+    || log_fail "t022: hand-written content before the markers was altered"
   grep -qF '<!-- AAI:USERGUIDE-ROLLUP:BEGIN' "$dir/docs/USER_GUIDE.md" \
     || log_fail "t022: USER_GUIDE.md missing the rollup BEGIN marker"
   grep -qF 'Fixture Feature t022-slug' "$dir/docs/USER_GUIDE.md" \
     || log_fail "t022: rendered rollup does not carry the just-closed item's product doc title"
 
-  log_pass "SEAM: a real close regenerates USER_GUIDE with the product doc rendered in the marked region (product-docs-enforced TEST-011)"
+  log_pass "SEAM: a real close updates an existing USER_GUIDE with the product doc rendered in the marked region (product-docs-enforced TEST-011)"
 }
 
 # --- product-docs-enforced TEST-012 (Spec-AC-04): negative control ----------
@@ -3954,6 +3993,73 @@ test_532_product_doc_shares_an_id() {
   log_pass "self-verify resolves the audited doc by PATH: an id collision with a docs/product/ doc no longer rolls back a genuinely clean close (Spec-AC-08, TEST-532)"
 }
 
+# --- TEST-533 (spec-close-ceremony-sweep Spec-AC-09) — the shared hash-pin
+# allowlist carries exactly ONE new entry for the whole ride's edit to
+# close-work-item.mjs (run 3, Spec-AC-06/07/08 in one commit): the live
+# content hash matches exactly one entry (not zero, not a duplicate), the
+# allowed-hash array grew by exactly ONE against main, and the new entry's
+# own prose re-affirms both frozen invariants (the exit contract + D6
+# snapshot/rollback transaction; no --resolves wiring into follow-ups.mjs).
+# Makes this suite the FOURTH consumer of the shared pin (see the source
+# line near the top of this file).
+test_533_pin_has_exactly_one_new_entry() {
+  log_info "TEST-533: the pin file's allowed-hash array grew by exactly one against main, the live hash matches exactly one entry, and its prose names both frozen invariants..."
+  [[ -f "$CLOSE_SCRIPT" ]] || log_fail "TEST-533: close-work-item.mjs does not exist: $CLOSE_SCRIPT"
+  [[ -f "$PIN_FILE" ]] || log_fail "TEST-533: pin file does not exist: $PIN_FILE"
+
+  local live_hash
+  live_hash="$($(sha_cmd) "$CLOSE_SCRIPT" | awk '{print $1}')"
+
+  # (a) membership: EXACTLY one entry for the live hash (not zero, not a
+  # duplicate) -- close_work_item_pin_assert alone only proves "at least
+  # one", the shape a duplicated hash line would still satisfy.
+  local match_count
+  match_count="$(grep -c "^  \"$live_hash " "$PIN_FILE" || true)"
+  [[ "${match_count:-0}" -eq 1 ]] \
+    || log_fail "TEST-533: live close-work-item.mjs hash $live_hash must match EXACTLY ONE pin entry, found ${match_count:-0}"
+
+  # (b) the shared assert function agrees this is the OK case (uses the
+  # SAME allowlist both real callers use, not a second independent check).
+  local pin_result
+  pin_result="$(close_work_item_pin_assert "$PROJECT_ROOT")" \
+    || log_fail "TEST-533: $pin_result"
+
+  # (c) the array grew by EXACTLY ONE against main -- proves the row COUNTS
+  # entries rather than only checking membership (the row's own named
+  # mutation: adding a SECOND new hash entry must redden this arm even
+  # though the live hash would still match exactly one entry each).
+  local head_ref base_count head_count merge_base
+  head_ref="$(base_ref)"
+  [[ -n "$head_ref" ]] || log_fail "TEST-533: no base ref (origin/main or main) resolves — cannot verify the pin array grew by exactly one"
+  merge_base="$(git -C "$PROJECT_ROOT" merge-base "$head_ref" HEAD)"
+  base_count="$(git -C "$PROJECT_ROOT" show "$merge_base:tests/skills/lib/close-work-item-pin.sh" | grep -c '^  "[0-9a-f]\{64\} ' || true)"
+  head_count="$(grep -c '^  "[0-9a-f]\{64\} ' "$PIN_FILE" || true)"
+  [[ $((head_count - base_count)) -eq 1 ]] \
+    || log_fail "TEST-533: allowed-hash array must have grown by exactly one against $head_ref (merge-base $merge_base): base=$base_count head=$head_count"
+
+  # (d) the new entry's own prose re-affirms both frozen invariants.
+  local new_entry
+  new_entry="$(grep "^  \"$live_hash " "$PIN_FILE")"
+  case "$new_entry" in
+    *"exit contract"*) ;;
+    *) log_fail "TEST-533: the new entry must re-affirm the exit-contract/D6-snapshot-rollback invariant: $new_entry" ;;
+  esac
+  case "$new_entry" in
+    *"snapshot"*"rollback"*) ;;
+    *) log_fail "TEST-533: the new entry must re-affirm the D6 snapshot/rollback transaction invariant: $new_entry" ;;
+  esac
+  case "$new_entry" in
+    *"--resolves"*) ;;
+    *) log_fail "TEST-533: the new entry must re-affirm the no-follow-ups-coupling invariant (--resolves): $new_entry" ;;
+  esac
+  case "$new_entry" in
+    *"follow-ups.mjs"*) ;;
+    *) log_fail "TEST-533: the new entry must name follow-ups.mjs when re-affirming the no-coupling invariant: $new_entry" ;;
+  esac
+
+  log_pass "TEST-533: pin array grew by exactly one against main ($base_count -> $head_count), live hash matches exactly one entry, both frozen invariants named in its prose"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -4037,6 +4143,7 @@ main() {
   test_530_skip_keeps_planned_echo
   test_531_mutation_notice_names_counts
   test_532_product_doc_shares_an_id
+  test_533_pin_has_exactly_one_new_entry
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
