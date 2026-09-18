@@ -195,6 +195,14 @@ suites:
       - docs/ai/factory-report-data.json
       - docs/ai/dashboard.html
       - docs/ai/dashboard-data.json
+      # Amendment 20 (validation-round4, B1-R4): STALE_SCAN_PAGES is now
+      # derived from lib/docs-model.mjs's SHARED_GENERATED_PAGES, which
+      # includes the docs-hub pair — glob it and its generator too, the same
+      # convention as generate-overview.mjs/generate-userguide-rollup.mjs
+      # above.
+      - .aai/scripts/generate-docs-hub.mjs
+      - docs/SKILL_CATALOG.html
+      - docs/skill-catalog-data.json
       - tests/fixtures/close-regenerate-order/**
 
   aai-docs-audit:

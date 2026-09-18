@@ -1021,24 +1021,41 @@ export function isMutationCellPlaceholder(cell) {
 // ONE list instead of hand-maintaining its own copy that can drift from the
 // real paths. Mirrors allocate-doc-number.mjs's own SPEC_PAGE_GENERATORS
 // (docs/ai/overview.html + overview-data.json, docs/USER_GUIDE.md) plus
-// docs/INDEX.md (generate-docs-index.mjs), docs/ai/factory-report.html
-// (generate-factory-report.mjs) and docs/SKILL_CATALOG.html +
+// docs/INDEX.md (generate-docs-index.mjs), docs/ai/factory-report.html +
+// docs/ai/factory-report-data.json (generate-factory-report.mjs, both halves
+// — the data JSON is written FIRST and UNCONDITIONALLY, the HTML is the one
+// behind a --data-only flag) and docs/SKILL_CATALOG.html +
 // docs/skill-catalog-data.json (generate-docs-hub.mjs, invoked via
-// close-work-item.mjs's regenerateDocsHubBestEffort()) — the seven pages
-// close-work-item.mjs's regen tail actually writes (Amendment 19: Amendment
-// 18 and this file both claimed FIVE, omitting the docs-hub pair; measured
-// false and corrected). allocate-doc-number.mjs is `protected_paths_l3` and
-// cannot import this file (or export its own local list) without a
-// ceremony-3 ride (D1); until then the two lists are kept in sync BY HAND at
-// every edit of either, not by a shared import both directions (its own
-// SPEC_PAGE_GENERATORS subset — overview.html/overview-data.json/
-// USER_GUIDE.md — is unaffected by the docs-hub pair, which it never named).
+// close-work-item.mjs's regenerateDocsHubBestEffort()) — the EIGHT pages
+// close-work-item.mjs's regen tail actually writes.
+//
+// Amendment 20: this is the THIRD time this set's membership was hand-
+// counted and the SECOND time the count was wrong (Amendment 18 said five,
+// omitting the docs-hub pair; Amendment 19 said seven, omitting
+// factory-report-data.json — the same html+data-JSON pair shape it had just
+// corrected for the docs hub, one generator further down the same tail).
+// TEST-580 (tests/skills/test-aai-pr-platform.sh) no longer asserts equality
+// against a second hand-written twin of this list: it RUNS the five
+// generators the regen tail invokes in an isolated scratch clone and asserts
+// this set against what they are MEASURED to write. This set itself is still
+// hand-written (something has to declare the authoritative membership for
+// sharedPageConflicts() to import), but the ONLY thing measured against it
+// now is a real generator run, not a second hand count of the same list.
+//
+// allocate-doc-number.mjs is `protected_paths_l3` and cannot import this
+// file (or export its own local list) without a ceremony-3 ride (D1); until
+// then the two lists are kept in sync BY HAND at every edit of either, not
+// by a shared import both directions (its own SPEC_PAGE_GENERATORS subset —
+// overview.html/overview-data.json/USER_GUIDE.md — is unaffected by the
+// docs-hub or factory-report pairs, which it never named: pinned from the
+// test side by test-aai-doc-numbering.sh instead, see its own comment).
 export const SHARED_GENERATED_PAGES = new Set([
   'docs/INDEX.md',
   'docs/ai/overview.html',
   'docs/ai/overview-data.json',
   'docs/USER_GUIDE.md',
   'docs/ai/factory-report.html',
+  'docs/ai/factory-report-data.json',
   'docs/SKILL_CATALOG.html',
   'docs/skill-catalog-data.json',
 ]);

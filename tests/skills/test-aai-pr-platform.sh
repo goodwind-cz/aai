@@ -474,42 +474,146 @@ test_569_shared_page_push_names_open_prs() {
 # T-NEW-1 (validation-round2): the ORIGINAL version of this test looped over
 # the very set it was testing (`pages`, read back from SHARED_GENERATED_PAGES
 # itself), so deleting a member kept it green — one conflict arm fewer, no
-# assertion left to notice. Fixed: the pages this ride's close ceremony
-# ACTUALLY regenerates (close-work-item.mjs regenerateIndex /
-# regenerateOverviewBestEffort / regenerateUserguideRollupBestEffort /
-# regenerateDocsHubBestEffort / regenerateFactoryReportBestEffort) are named
-# LITERALLY here, never read back from the module under test, and every
-# literal page both (a) must be a member of the set and (b) gets its own
-# conflict-detection arm — so a dropped member reddens on containment even
-# before the conflict loop runs, and the conflict loop itself still catches
-# it independently. Every path the set DOES name (whichever direction it
-# drifts) is also stat()ed against the real repo, answering "what happens
-# when the two lists drift: today, nothing" with "it reddens".
+# assertion left to notice. Round-2's fix replaced the loop with a literal,
+# hand-written twin list inside THIS file.
 #
-# B1 (validation-round3, Amendment 19): the regen tail's five FUNCTION calls
-# write SEVEN committed pages — regenerateDocsHubBestEffort() alone writes
-# TWO (docs/SKILL_CATALOG.html + docs/skill-catalog-data.json). Round 2's fix
-# above named only the other four functions' five pages and still claimed
-# completeness; both the claim and SHARED_GENERATED_PAGES are corrected here.
-# The exact-equality check below (D3) additionally catches an entry that
-# does not belong (the "stale/extra entry" direction was previously only an
-# existence check: a real-but-never-regenerated page like docs/TECHNOLOGY.md
-# passed the stat loop and every conflict arm silently).
+# B1-R4 (validation-round4, Amendment 20): the hand-written twin was itself
+# the hole. Round 3 (Amendment 19) corrected both `SHARED_GENERATED_PAGES`
+# and the twin list here to name SEVEN pages, in the SAME edit — so when both
+# omitted `docs/ai/factory-report-data.json` (generate-factory-report.mjs
+# writes it unconditionally, one line before the HTML the twin DID name),
+# nothing could tell: an equality check between two hand-written lists that
+# drift TOGETHER cannot see a shared omission (validation-round4 section 5,
+# arm E5). This is the third time a hand count of this set was wrong.
+#
+# Fixed structurally, not by counting again: the twin list is GONE. This test
+# now RUNS the regen tail's five generators — exactly as close-work-item.mjs
+# invokes them (`node <generator>`, no arguments, its own default output
+# path) — in an isolated scratch clone, and MEASURES which tracked paths they
+# actually wrote (see build below). `SHARED_GENERATED_PAGES` is asserted
+# equal to that MEASURED set, never to a second hand-written copy of it. A
+# page a generator writes can no longer go uncounted just because a human
+# forgot it twice in the same edit — the measurement doesn't require anyone
+# to remember it once.
 test_580_shared_page_set_covers_every_generated_page() {
-  log_info "TEST-580: SHARED_GENERATED_PAGES matches disk and covers every page the close ceremony actually regenerates, one conflict arm per page (Spec-AC-30)..."
+  log_info "TEST-580: SHARED_GENERATED_PAGES matches disk and equals the pages the close ceremony's regen tail is MEASURED to actually write, one conflict arm per page (Spec-AC-30)..."
   local bin="$TMP_ROOT/gh-t580" page rc out ok=1
 
-  # The seven pages close-work-item.mjs's regen tail actually writes — named
-  # literally, never derived from SHARED_GENERATED_PAGES.
-  local -a REGENERATED_PAGES=(
-    "docs/INDEX.md"
-    "docs/ai/overview.html"
-    "docs/ai/overview-data.json"
-    "docs/USER_GUIDE.md"
-    "docs/ai/factory-report.html"
-    "docs/SKILL_CATALOG.html"
-    "docs/skill-catalog-data.json"
+  # --- Build an isolated scratch clone -----------------------------------
+  # Same recipe mutation-run.mjs's buildIsolatedClone() uses (D4): clone
+  # HEAD, then reproduce the developer's own UNCOMMITTED tracked edits via
+  # `git diff HEAD | git apply`, so a mid-ride edit to lib/docs-model.mjs or
+  # to a generator is measured before it is ever committed — without a
+  # generator run ever writing a regenerated page into the real working
+  # tree (running these generators dirties tracked pages; this suite must
+  # leave the tree clean).
+  local clone_dir
+  clone_dir="$(mktemp -d "$TMP_ROOT/regen-clone.XXXXXX")" \
+    || { log_fail "TEST-580: could not create the scratch clone directory"; return; }
+  git clone --local --no-hardlinks --quiet "$PROJECT_ROOT" "$clone_dir" \
+    || { log_fail "TEST-580: could not build the scratch clone"; return; }
+  local base_commit
+  base_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+  (cd "$clone_dir" && git checkout --quiet "$base_commit") \
+    || { log_fail "TEST-580: could not checkout $base_commit in the scratch clone"; return; }
+  local wt_diff
+  wt_diff="$(cd "$PROJECT_ROOT" && git diff HEAD)"
+  if [[ -n "$wt_diff" ]]; then
+    printf '%s\n' "$wt_diff" | (cd "$clone_dir" && git apply) \
+      || { log_fail "TEST-580: could not reproduce uncommitted tracked edits in the scratch clone"; return; }
+  fi
+
+  # --- Run the regen tail's five generators, exactly as invoked -----------
+  # close-work-item.mjs's regen tail: regenerateIndex() (also run inside
+  # selfVerify() and on both rollback paths) plus the four
+  # regenerate*BestEffort() calls after the success log line. Every one is
+  # `execFileSync('node', [<generator>], { cwd: ROOT })` — no arguments — so
+  # exercising them with no arguments here is what actually runs in
+  # production, not a --output flag this test would have to keep in sync by
+  # hand.
+  local -a REGEN_TAIL_GENERATORS=(
+    "generate-docs-index.mjs"
+    "generate-overview.mjs"
+    "generate-userguide-rollup.mjs"
+    "generate-docs-hub.mjs"
+    "generate-factory-report.mjs"
   )
+  # A marker file's mtime, taken AFTER the clone is fully built and BEFORE
+  # any generator runs, turns "did this generator write this path" into a
+  # content-INDEPENDENT signal. `git status --porcelain` alone is not enough:
+  # measured directly, a generator run against unchanged source data is
+  # idempotent BYTE-FOR-BYTE for some pages (docs/USER_GUIDE.md and
+  # docs/SKILL_CATALOG.html both regenerate identical bytes today), and such
+  # a page shows NOTHING in `git status --porcelain` even though
+  # fs.writeFileSync() genuinely opened, truncated and rewrote it — porcelain
+  # diffs content, not writes. `sleep 1` guards the comparison against 1s
+  # mtime resolution on some filesystems (same guard test-aai-live-status.sh
+  # already uses for the same reason).
+  local marker="$clone_dir/.regen-marker"
+  touch "$marker" || { log_fail "TEST-580: could not create the mtime marker"; return; }
+  sleep 1
+  local gen gen_out gen_rc
+  for gen in "${REGEN_TAIL_GENERATORS[@]}"; do
+    gen_out="$(cd "$clone_dir" && node ".aai/scripts/$gen" 2>&1)"; gen_rc=$?
+    [[ $gen_rc -eq 0 ]] \
+      || { log_fail "TEST-580: $gen must exit 0 in the scratch clone, got $gen_rc: $gen_out"; rm -rf "$clone_dir"; return; }
+  done
+
+  # --- Derive the measured set --------------------------------------------
+  # `git ls-files` in the clone is a TRACKED-paths-only list, so an untracked
+  # near-miss (generate-docs-index.mjs's docs/INDEX.violations.md, written
+  # only on a non-terminal near-miss) or a gitignored artefact
+  # (docs/INDEX.audit.md) can never reach `derived` — no separate exclusion
+  # code is needed for either class because neither is a member of the list
+  # this loop reads from. A path is MEASURED written iff it is tracked AND
+  # its mtime moved past the marker.
+  local -a derived=()
+  local tf
+  while IFS= read -r tf; do
+    [[ -n "$tf" ]] || continue
+    [[ -f "$clone_dir/$tf" && "$clone_dir/$tf" -nt "$marker" ]] || continue
+    derived+=("$tf")
+  done < <(cd "$clone_dir" && git ls-files)
+
+  if [[ ${#derived[@]} -eq 0 ]]; then
+    log_fail "TEST-580: the regen tail wrote nothing the derivation could measure (scratch-clone defect, not a real-repo finding)"
+    rm -rf "$clone_dir"
+    return
+  fi
+
+  # Explicit, justified exclusions — belt-and-suspenders over the structural
+  # ones above. Neither class can reach `derived` TODAY: none of the five
+  # generators above appends to a ledger or writes under these directories.
+  # Named here anyway (not left as an implicit non-match) because a FUTURE
+  # generator edit that started doing either would be a DIFFERENT conflict
+  # class from "a wholesale-rewritten shared page" and must not silently
+  # join this set:
+  #   - append-only ledgers: appended to by close-work-item.mjs's own
+  #     emitEvent()/applyDocMutation(), never rewritten wholesale — a PR
+  #     touching one merges by history, it does not clobber it outright.
+  #   - the ride's own documents (docs/specs/**, docs/ai/briefs/**,
+  #     docs/issues/**): written by this ride's own tooling (spec-amend,
+  #     intake), ride-specific by construction, never shared across PRs the
+  #     way a regenerated catalog page is.
+  local -a EXCLUDED_LEDGERS=(
+    "docs/ai/EVENTS.jsonl"
+    "docs/ai/METRICS.jsonl"
+    "docs/ai/decisions.jsonl"
+    "docs/ai/tests/test-runs.jsonl"
+  )
+  local -a filtered=()
+  local excluded_hit lg
+  for tf in "${derived[@]}"; do
+    excluded_hit=0
+    for lg in "${EXCLUDED_LEDGERS[@]}"; do
+      [[ "$tf" == "$lg" ]] && { excluded_hit=1; break; }
+    done
+    case "$tf" in
+      docs/specs/*|docs/ai/briefs/*|docs/issues/*) excluded_hit=1 ;;
+    esac
+    [[ $excluded_hit -eq 0 ]] && filtered+=("$tf")
+  done
+  derived=("${filtered[@]:-}")
 
   local pages
   pages="$(node -e '
@@ -517,16 +621,16 @@ test_580_shared_page_set_covers_every_generated_page() {
       console.log([...m.SHARED_GENERATED_PAGES].join("\n"));
     });
   ')"
-  [[ -n "$pages" ]] || { log_fail "TEST-580: SHARED_GENERATED_PAGES is empty or unreadable"; return; }
+  [[ -n "$pages" ]] || { log_fail "TEST-580: SHARED_GENERATED_PAGES is empty or unreadable"; rm -rf "$clone_dir"; return; }
   grep -qF "docs/overview.html" <<<"$pages" \
     && { log_fail "TEST-580: SHARED_GENERATED_PAGES still names the non-existent docs/overview.html"; ok=0; }
 
-  # Every page this ride actually regenerates must be a member of the set —
-  # drift in the "set lost a real page" direction reddens HERE, independent
-  # of the conflict-detection loop below.
-  for page in "${REGENERATED_PAGES[@]}"; do
+  # Every page the scratch clone MEASURED written must be a member of the
+  # set — drift in the "set lost a real page" direction reddens HERE,
+  # independent of the conflict-detection loop below.
+  for page in "${derived[@]:-}"; do
     grep -qF "$page" <<<"$pages" \
-      || { log_info "TEST-580: SHARED_GENERATED_PAGES is missing '$page', a page the close ceremony regenerates"; ok=0; }
+      || { log_info "TEST-580: SHARED_GENERATED_PAGES is missing '$page' — the scratch clone measured this page WRITTEN by the regen tail"; ok=0; }
   done
 
   # Every path the set DOES name must exist on disk (stat it) — drift in the
@@ -539,20 +643,22 @@ test_580_shared_page_set_covers_every_generated_page() {
 
   # D3 (validation-round3): containment alone only catches a MISSING member;
   # an EXTRA member that exists on disk but is never actually regenerated
-  # (e.g. docs/TECHNOLOGY.md) passed every check above silently. Assert EXACT
-  # equality between the set and the literal list — an extra entry reddens
-  # as loudly as a missing one.
-  local sorted_pages sorted_expected
+  # (e.g. docs/TECHNOLOGY.md) would pass the stat loop and every conflict arm
+  # silently. Assert EXACT equality between the set and the MEASURED list —
+  # an extra entry reddens as loudly as a missing one, and — the fix for
+  # B1-R4 specifically — a page the set is missing reddens even when NO
+  # hand-written twin list was ever updated to notice it either.
+  local sorted_pages sorted_derived
   sorted_pages="$(sort <<<"$pages")"
-  sorted_expected="$(printf '%s\n' "${REGENERATED_PAGES[@]}" | sort)"
-  [[ "$sorted_pages" == "$sorted_expected" ]] \
-    || { log_info "TEST-580: SHARED_GENERATED_PAGES must equal the seven regenerated pages EXACTLY (got: $pages)"; ok=0; }
+  sorted_derived="$(printf '%s\n' "${derived[@]:-}" | sort)"
+  [[ "$sorted_pages" == "$sorted_derived" ]] \
+    || { log_info "TEST-580: SHARED_GENERATED_PAGES must equal the pages MEASURED written by the regen tail EXACTLY (declared: $(tr '\n' ' ' <<<"$sorted_pages") | measured: $(tr '\n' ' ' <<<"$sorted_derived"))"; ok=0; }
 
-  # One conflict-detection arm per page this ride ACTUALLY regenerates — the
-  # literal list, not the set under test, so a page dropped FROM the set
-  # still gets its own arm and reddens as "not individually caught", rather
-  # than simply producing one arm fewer.
-  for page in "${REGENERATED_PAGES[@]}"; do
+  # One conflict-detection arm per page the scratch clone MEASURED written —
+  # the measured list, not the set under test, so a page dropped FROM the
+  # set still gets its own arm and reddens as "not individually caught",
+  # rather than simply producing one arm fewer.
+  for page in "${derived[@]:-}"; do
     build_gh_stub_pr_list "$bin" "[{\"number\":580,\"files\":[{\"path\":\"$page\"}]}]"
     out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" 2>&1)"; rc=$?
     if [[ "$rc" -eq 0 ]]; then
@@ -562,7 +668,9 @@ test_580_shared_page_set_covers_every_generated_page() {
     fi
   done
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-580: SHARED_GENERATED_PAGES matches disk and covers every page the ride regenerates, each individually caught as a conflict" \
+  rm -rf "$clone_dir"
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-580: SHARED_GENERATED_PAGES matches disk and equals the pages the regen tail's five generators are MEASURED to actually write, each individually caught as a conflict" \
     || log_fail "TEST-580 shared-page set coverage"
 }
 

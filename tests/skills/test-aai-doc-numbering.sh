@@ -1072,17 +1072,40 @@ TXT
 # The CLOSED list (D3). NOT a repo-wide grep: `SPEC-DRAFT-` is legitimate,
 # permanent prose in docs/specs/**, docs/issues/**, .aai/** and tests/**, and
 # docs/ai/STATE.yaml legitimately records a point-in-time DRAFT path mid-ride.
-# Only these eight PUBLISHED, GENERATED pages are read.
-STALE_SCAN_PAGES=(
-  "docs/USER_GUIDE.md"
-  "docs/INDEX.md"
-  "docs/ai/overview.html"
-  "docs/ai/overview-data.json"
-  "docs/ai/factory-report.html"
-  "docs/ai/factory-report-data.json"
-  "docs/ai/dashboard.html"
-  "docs/ai/dashboard-data.json"
-)
+# Only these PUBLISHED, GENERATED pages are read.
+#
+# Amendment 20 (validation-round4, B1-R4): this array used to be a THIRD
+# hand-written copy of close-ceremony-sweep's shared-page membership
+# (alongside lib/docs-model.mjs's SHARED_GENERATED_PAGES and
+# orchestration-dispatch.mjs's TREE_HASH_EXCLUDE_PATHS), and it had drifted:
+# it named docs/ai/factory-report-data.json (so it, alone of the three lists,
+# already had that one right) but was MISSING docs/SKILL_CATALOG.html and
+# docs/skill-catalog-data.json, the docs-hub pair Amendment 19 added to
+# SHARED_GENERATED_PAGES. Nothing ever compared this list to that one, so the
+# gap was as invisible as B1-R4's was. Fixed structurally: derived from
+# SHARED_GENERATED_PAGES itself (the single authority) at suite load time,
+# plus docs/ai/dashboard.html/-data.json named explicitly — generate-
+# dashboard.mjs is NOT part of close-work-item.mjs's regen tail (so its pages
+# are outside SHARED_GENERATED_PAGES by definition), but IS the same
+# "published, generated page a DRAFT reference could go stale in" class this
+# scan exists to catch, so it stays in this list's own scope even though it
+# is not a close-ceremony shared page. A node failure here is fatal to the
+# whole suite (not silently absorbed into an empty list, which would turn
+# this D3 detection check into a silent no-op over nothing).
+STALE_SCAN_PAGES=()
+while IFS= read -r _stale_scan_page; do
+  [[ -n "$_stale_scan_page" ]] && STALE_SCAN_PAGES+=("$_stale_scan_page")
+done < <(node -e '
+  import("'"$PROJECT_ROOT"'/.aai/scripts/lib/docs-model.mjs").then(m => {
+    for (const p of m.SHARED_GENERATED_PAGES) console.log(p);
+  }).catch((e) => { process.stderr.write(String(e && e.stack || e) + "\n"); process.exit(1); });
+')
+if [[ ${#STALE_SCAN_PAGES[@]} -eq 0 ]]; then
+  echo "FATAL: could not derive STALE_SCAN_PAGES from lib/docs-model.mjs's SHARED_GENERATED_PAGES" >&2
+  exit 1
+fi
+STALE_SCAN_PAGES+=("docs/ai/dashboard.html" "docs/ai/dashboard-data.json")
+unset _stale_scan_page
 
 # scan_stale_draft_refs <root>
 #   The D3 predicate. For every closed-list page that EXISTS and is git-TRACKED
@@ -1611,7 +1634,7 @@ test_031_suite_map_row() {
   done
   grep -qF "tests/fixtures/close-regenerate-order" <<< "$row" \
     || log_fail "suite-map aai-doc-numbering row must list the incident-replay fixture tree"
-  log_pass "TEST-031 suite-map aai-doc-numbering row carries all eight closed-list pages + the replay fixtures"
+  log_pass "TEST-031 suite-map aai-doc-numbering row carries every closed-list page + the replay fixtures"
 }
 
 # --- TEST-552 (spec-close-ceremony-sweep Spec-AC-20, D2) ---------------------
@@ -1656,6 +1679,52 @@ test_552_skill_pr_runs_the_restamp() {
   log_pass "TEST-552 SKILL_PR step 1b names the restamp invocation right after the allocator call, keyed on the allocator's own completion output"
 }
 
+# --- TEST-589 (Spec-AC-30, Amendment 20) -------------------------------------
+# allocate-doc-number.mjs's SPEC_PAGE_GENERATORS is `protected_paths_l3` and
+# cannot import lib/docs-model.mjs's SHARED_GENERATED_PAGES (D1) — the two
+# lists are kept in sync BY HAND, and validation-round4 named this as exactly
+# the same class of invisible drift as B1-R4: "no test reads
+# SPEC_PAGE_GENERATORS at all... both lists would pass every check the ride
+# has" if someone added a generator to the allocator whose page is not in the
+# shared set, or renamed one of the three. This test PINS the agreement from
+# the test side (the only side that CAN import both): it parses
+# SPEC_PAGE_GENERATORS's own literal `pages: [...]` arrays straight out of
+# allocate-doc-number.mjs's source text (never edits or imports that L3 file)
+# and asserts every page it names is a member of SHARED_GENERATED_PAGES.
+test_589_allocator_pages_agree_with_shared_set() {
+  log_info "TEST-589: allocate-doc-number.mjs's SPEC_PAGE_GENERATORS pages are all members of lib/docs-model.mjs's SHARED_GENERATED_PAGES..."
+  local out rc
+  out="$(node -e '
+    import("node:fs").then(async (fsMod) => {
+      const fs = fsMod.default;
+      const { SHARED_GENERATED_PAGES } = await import("'"$PROJECT_ROOT"'/.aai/scripts/lib/docs-model.mjs");
+      const src = fs.readFileSync("'"$PROJECT_ROOT"'/.aai/scripts/allocate-doc-number.mjs", "utf8");
+      const m = src.match(/const SPEC_PAGE_GENERATORS = \[([\s\S]*?)\n\];/);
+      if (!m) { console.log("BLOCK-NOT-FOUND"); process.exit(2); }
+      const pages = [...m[1].matchAll(/'"'"'((?:docs)\/[^'"'"']+)'"'"'/g)].map((x) => x[1]);
+      if (pages.length === 0) { console.log("NO-PAGES-EXTRACTED"); process.exit(2); }
+      const bad = pages.filter((p) => !SHARED_GENERATED_PAGES.has(p));
+      console.log(`PAGES:${pages.join(",")}`);
+      console.log(`BAD:${bad.join(",")}`);
+      process.exit(bad.length ? 1 : 0);
+    });
+  ' 2>&1)"; rc=$?
+
+  if [[ "$out" == *"BLOCK-NOT-FOUND"* ]]; then
+    log_fail "TEST-589: could not locate SPEC_PAGE_GENERATORS in allocate-doc-number.mjs — the extraction regex needs updating for whatever shape it moved to"
+    return
+  fi
+  if [[ "$out" == *"NO-PAGES-EXTRACTED"* ]]; then
+    log_fail "TEST-589: SPEC_PAGE_GENERATORS block found but no docs/ page string was extracted from it — extraction regex is stale"
+    return
+  fi
+  if [[ "$rc" -ne 0 ]]; then
+    log_fail "TEST-589: allocate-doc-number.mjs's SPEC_PAGE_GENERATORS names a page SHARED_GENERATED_PAGES does not (both lists have drifted apart): $out"
+    return
+  fi
+  log_pass "TEST-589: every SPEC_PAGE_GENERATORS page agrees with SHARED_GENERATED_PAGES ($out)"
+}
+
 main() {
   echo ""
   echo "AAI Doc-Numbering Test Suite (SPEC-0015 / RFC-0007)"
@@ -1698,6 +1767,7 @@ main() {
     test_030_ordering_documented
     test_031_suite_map_row
     test_552_skill_pr_runs_the_restamp
+    test_589_allocator_pages_agree_with_shared_set
   )
 
   local t total=${#tests[@]} failed_names=()
