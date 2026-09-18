@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-17T17:49:23.734Z",
+  "generatedAt": "2026-09-18T12:05:03.211Z",
   "project": "aai",
   "counts": {
     "delivered": 245,
@@ -8,10 +8,7 @@
     "tokens_total": 68899611
   },
   "waiting_on_you": null,
-  "current_focus": {
-    "ref": "mutation-gate-for-tests",
-    "type": "intake_change"
-  },
+  "current_focus": null,
   "in_flight": null,
   "in_progress": [
     {
