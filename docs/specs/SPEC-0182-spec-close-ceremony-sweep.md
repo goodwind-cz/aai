@@ -4,7 +4,7 @@ type: spec
 number: 182
 status: done
 mutation_gate: v1
-frozen_sha256: 9bb6461394777284afe32d988f029e2bf2f26258eb464dff3362d9657eb848f5
+frozen_sha256: 9f296bca67ea781e937d3b5b935f1fb81015975ea20f3e70d74e3a078a3856e1
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0188-close-ceremony-sweep.md
@@ -2235,6 +2235,26 @@ are clean. The working tree is left clean; this amendment's own record uses
 mistake.
 
 Sign-off: none (tracked).
+
+## Amendment 26 (post-freeze, 2026-09-18 — a fixture copied a live .git, CI only)
+
+`tests/skills/test-aai-layer-profiles.sh` built its `src-old` fixture by copying
+`src-new` AFTER `git init` had run in it, and then deleted the copied `.git`
+again. On PR #385's CI the copy raced git's own background maintenance:
+`cp: cannot stat '.../src-new/.git/objects/maintenance.lock': No such file or
+directory` — a file that existed at readdir and was gone at copy. The suite
+exited 1 inside `test-aai-hygiene-pack.sh` TEST-473's nested run while the same
+suite PASSED standalone in the same sweep, which is the signature of a race, not
+a defect in what it asserts. A local tree is too idle to lose it.
+
+The copy now happens BEFORE `git init`, so it never walks a live repository, and
+an assertion fails the build if `src-old` ever carries a `.git` again. Copying
+it was pure waste in the first place: the next line deleted it.
+
+This is the second time this ride met the class "a step that reads a tree
+another process is writing" (the first was `git status` undercounting a
+byte-identical regeneration, Amendment 20). No Spec-AC, test id, selector or
+Mutation cell changed. Sign-off: none (tracked).
 
 ## Notes
 

@@ -221,6 +221,19 @@ build_fixture_sources() {
   fi
   verify_fixture_copy_completeness
 
+  # src-old is a copy of the SAME content, taken BEFORE `git init` so the copy
+  # never walks a live `.git`. It used to be taken after, and then had its
+  # `.git` deleted again — pure waste, and a race: git's background maintenance
+  # creates and removes `.git/objects/maintenance.lock` under load, so `cp -R`
+  # could stat a file that had just vanished and fail the whole suite. Observed
+  # on CI only (PR #385, nested under hygiene-pack TEST-473, never standalone);
+  # a local tree is too idle to lose the race.
+  FIX_SRC_OLD="$TMP_ROOT/src-old"
+  cp -R "$FIX_SRC" "$FIX_SRC_OLD" \
+    || log_fail "fixture build: cp -R failed copying the pre-git fixture source to $FIX_SRC_OLD"
+  [[ ! -e "$FIX_SRC_OLD/.git" ]] \
+    || log_fail "fixture build: src-old must be copied BEFORE git init, but it carries a .git directory"
+
   git -C "$FIX_SRC" init -q -b main
   git -C "$FIX_SRC" config user.email "test@example.invalid"
   git -C "$FIX_SRC" config user.name "AAI Test"
@@ -235,9 +248,6 @@ build_fixture_sources() {
   # durably to the PARENT of the commit that introduced profile support — the
   # oldest commit touching the `PROFILES.yaml` marker in this file — so the
   # "default == pre-profile behavior" guarantee stays provable as HEAD advances.
-  FIX_SRC_OLD="$TMP_ROOT/src-old"
-  cp -R "$FIX_SRC" "$FIX_SRC_OLD"
-  rm -rf "$FIX_SRC_OLD/.git"
   local profile_intro
   profile_intro="$(git -C "$PROJECT_ROOT" log --reverse --format='%H' -S 'PROFILES.yaml' -- .aai/scripts/aai-sync.sh | qhead -1)"
   [[ -n "$profile_intro" ]] || log_fail "cannot locate the commit that introduced profile support in aai-sync.sh"
