@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: e914bb4ec15c92cf50e3ca799973eb75769f0c7ca2cbbed59d0533d6135bf37f
+frozen_sha256: aa7d4ac49a7b19dbc1a69e17dec864294ea60e592f2e7040601d286179c5a305
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -551,9 +551,9 @@ renumbered.
 | Spec-AC-26 | The staleness preflight parses the sentinel branch and odd paths    | planned | —        | —         | —     |
 | Spec-AC-27 | No tracked text file carries a NUL byte, and a guard proves it      | planned | —        | —         | —     |
 | Spec-AC-28 | A grep error is not an improvement, and a failure is not a question | planned | —        | —         | —     |
-| Spec-AC-29 | The roadmap gate admits only the next pair, on refs that exist      | planned | —        | —         | —     |
-| Spec-AC-30 | Every ceremony commit is verified, and a shared-page push is warned | planned | —        | —         | —     |
-| Spec-AC-31 | Each convention is stated once, where its tool reads it             | planned | —        | —         | —     |
+| Spec-AC-29 | The roadmap gate admits only the next pair, on refs that exist      | done    | docs/ai/tdd/spec-close-ceremony-sweep/TEST-565.green.log, TEST-566.green.log, TEST-567.green.log | —         | ride-select.mjs sequential admission + validate doc-existence check; orchestration-dispatch.mjs unchanged (already reads candidate.gate) |
+| Spec-AC-30 | Every ceremony commit is verified, and a shared-page push is warned | done    | docs/ai/tdd/spec-close-ceremony-sweep/TEST-568.green.log, TEST-569.green.log | —         | SKILL_PR 4c/5c verify their own commit; pr-platform.mjs --check-shared-page-conflicts |
+| Spec-AC-31 | Each convention is stated once, where its tool reads it             | done    | docs/ai/tdd/spec-close-ceremony-sweep/TEST-570.green.log, TEST-571.green.log | —         | CHANGELOG preamble documents the heading shape; SUBAGENT_CONTRACT cross-references HAZ-LEDGER instead of restating it |
 | Spec-AC-32 | The prompt-diet ledger and PROFILES obligations are discharged      | planned | —        | —         | —     |
 | Spec-AC-33 | The post-open sweep leaves a record that cannot claim what it did not do | planned | —        | —         | —     |
 | Spec-AC-34 | A merge-readiness claim without that record is refused              | planned | —        | —         | —     |
@@ -669,13 +669,13 @@ its own mutation; the evidence for each is
 | TEST-562 | Spec-AC-27 | integration | tests/skills/test-aai-hygiene-pack.sh | test_562_no_nul_in_tracked_text — the guard names a planted NUL fixture and exits non-zero, and over the live tree it exits 0, which requires spec-amend.mjs line 253 to have been de-NULed. | Change the guard's sentinel with sed:s/\\u0000/\\u0001/ so a planted NUL is no longer detected. | pending |
 | TEST-563 | Spec-AC-28 | integration | tests/skills/test-aai-hygiene-pack.sh | test_563_pgq_error_is_not_zero — an unreadable file makes pgq_scan report an ERROR row naming it rather than a count of 0 that reads as an improvement. | Restore the swallow with sed:s/_pgq_rc=\$\?/_pgq_n=0/ in pipe-grep-q-ratchet.sh. | pending |
 | TEST-564 | Spec-AC-28 | integration | tests/skills/test-aai-golden-flow.sh | test_564_questions_are_not_failures — a golden-flow run with two failed steps and zero HITL entries reports questions_asked 0 while the questions problem log still holds both entries. | Restore the length count with sed:s/questions.filter\(\(q\) => q.hitl_entries > 0\).length/questions.length/. | pending |
-| TEST-565 | Spec-AC-29 | integration | tests/skills/test-aai-ride-select.sh | test_565_gate_admits_only_the_next_pair — with three planned pairs and nothing started, gate admits pair 1 and refuses pairs 2 and 3 naming pair 1; with pair 1 implementing, its maintenance is admitted and pair 2 stays refused; with pair 1 done, pair 2 is admitted; an implementing ref in a later pair stays admitted as in flight; an off-roadmap ref carrying blocks is admitted unchanged; --override stays one-shot and logged. | Restore the any-capability admission with sed:s/if (isFirstUnfinished(pair, roadmap))/if (true)/. | pending |
-| TEST-566 | Spec-AC-29 | integration | tests/skills/test-aai-ride-select.sh | test_566_validate_refuses_unknown_refs — a roadmap pair naming a capability slug that matches no document id makes validate exit non-zero naming the slug and its pair, while the live roadmap passes. | Remove the resolution with sed:s/if (!findDoc(a.docs, ref))/if (false)/. | pending |
-| TEST-567 | Spec-AC-29 | integration | tests/skills/test-aai-orchestration-dispatch.sh | test_567_rule_4a_single_retarget — a STATE and roadmap fixture matching the live roadmap with three open intakes dispatches one retarget instead of needs_llm multiple_open_intakes. | Bypass the gate in buildOpenIntakes with sed:s/if (!rideGateAdmits(ref))/if (false)/. | pending |
-| TEST-568 | Spec-AC-30 | unit | tests/skills/test-aai-learned-routing.sh | test_568_every_ceremony_commit_is_verified — SKILL_PR steps 4c and 5c each name a committed-blob verification alongside step 4a's, and the verification names the paths it expects rather than the exit code. | Delete the 4c verification line with sed:s/git show --stat HEAD/git status/ in SKILL_PR.prompt.md. | pending |
-| TEST-569 | Spec-AC-30 | integration | tests/skills/test-aai-pr-platform.sh | test_569_shared_page_push_names_open_prs — a fixture with one open PR whose file list carries docs slash INDEX.md makes the pre-push check name that PR and refuse; with no overlapping PR it is silent. | Query merged PRs instead with sed:s/--state open/--state merged/ in the helper. | pending |
-| TEST-570 | Spec-AC-31 | integration | tests/skills/test-aai-release.sh | test_570_changelog_shape_is_documented — the CHANGELOG preamble names the per-entry unreleased heading shape and the two exits that enforce it, and aai-release --dry-run still refuses a scaffold carrying a body. | Change the documented heading shape in the preamble so it no longer matches what the engine enforces. | pending |
-| TEST-571 | Spec-AC-31 | integration | tests/skills/test-aai-docs-lock.sh | test_571_ledger_rule_stated_once — SUBAGENT_CONTRACT.md states the append-only EVENTS rule once and cross-references it from the single-writer list. | Restore the second statement with sed:s/(HAZ-LEDGER)/(the append-only, commutative audit log)/. | pending |
+| TEST-565 | Spec-AC-29 | integration | tests/skills/test-aai-ride-select.sh | test_565_gate_admits_only_the_next_pair — with three planned pairs and nothing started, gate admits pair 1 and refuses pairs 2 and 3 naming pair 1; with pair 1 implementing, its maintenance is admitted and pair 2 stays refused; with pair 1 done, pair 2 is admitted; an implementing ref in a later pair stays admitted as in flight; an off-roadmap ref carrying blocks is admitted unchanged; --override stays one-shot and logged. | Restore the any-capability admission with sed:s/if (!isFirstUnfinished(pair, rm))/if (false)/ (deviation, run 10: the function's own parameter is named roadmap, the call site's local is rm, and the guard is written negated-to-refuse; this equivalent expression bypasses the same refusal). | green |
+| TEST-566 | Spec-AC-29 | integration | tests/skills/test-aai-ride-select.sh | test_566_validate_refuses_unknown_refs — a roadmap pair naming a capability slug that matches no document id makes validate exit non-zero naming the slug and its pair, while the live roadmap passes. | Remove the resolution with sed:s/if (!findDoc(a.docs, ref))/if (false)/. | green |
+| TEST-567 | Spec-AC-29 | integration | tests/skills/test-aai-orchestration-dispatch.sh | test_567_rule_4a_single_retarget — a STATE and roadmap fixture matching the live roadmap with three open intakes dispatches one retarget instead of needs_llm multiple_open_intakes. | Bypass the gate in roadmapGate's catch with sed:s/admitted: false, consulted: true, reason: msg/admitted: true, consulted: true, reason: msg/ in orchestration-dispatch.mjs (deviation, run 10: buildOpenIntakes calls roadmapGate, not a function literally named rideGateAdmits; this equivalent expression makes every gate refusal read as an admission, the same bypassed property). | green |
+| TEST-568 | Spec-AC-30 | unit | tests/skills/test-aai-learned-routing.sh | test_568_every_ceremony_commit_is_verified — SKILL_PR steps 4c and 5c each name a committed-blob verification alongside step 4a's, and the verification names the paths it expects rather than the exit code. | Delete the 4c verification line with sed:s/git show --stat HEAD/git status/ in SKILL_PR.prompt.md. | green |
+| TEST-569 | Spec-AC-30 | integration | tests/skills/test-aai-pr-platform.sh | test_569_shared_page_push_names_open_prs — a fixture with one open PR whose file list carries docs slash INDEX.md makes the pre-push check name that PR and refuse; with no overlapping PR it is silent. | Query merged PRs instead with sed:s/'--state', 'open'/'--state', 'merged'/ in pr-platform.mjs (deviation, run 10: the call is an execFileSync argv array, not a shell string, so the row's literal --state open never appears contiguous in source; this is the same flag flipped in the array form). | green |
+| TEST-570 | Spec-AC-31 | integration | tests/skills/test-aai-release.sh | test_570_changelog_shape_is_documented — the CHANGELOG preamble names the per-entry unreleased heading shape and the two exits that enforce it, and aai-release --dry-run still refuses a scaffold carrying a body. | Change the documented heading shape in the preamble so it no longer matches what the engine enforces. | green |
+| TEST-571 | Spec-AC-31 | integration | tests/skills/test-aai-docs-lock.sh | test_571_ledger_rule_stated_once — SUBAGENT_CONTRACT.md states the append-only EVENTS rule once and cross-references it from the single-writer list. | Restore the second statement with sed:s/(HAZ-LEDGER)/(the append-only, commutative audit log)/. | green |
 | TEST-012 | Spec-AC-32 | unit | tests/skills/test-aai-prompt-diet.sh | test_012_growth_sum_matches_ledger — the existing ledger checkpoint, re-pinned to 32826 plus this ride's measured net prompt-corpus delta, with TEST-010 reporting headroom 2046 of 2048. | Change the appended JUSTIFIED_ADDITIONS entry's leading byte field by one so the independent re-sum disagrees with the pin. | pending |
 | TEST-572 | Spec-AC-32 | unit | tests/skills/test-aai-layer-profiles.sh | test_572_new_aai_files_classified — every new .aai file this ride adds appears exactly once in PROFILES.yaml core, and the union still equals the live tree. | Remove one new path from the core list so the live-tree union check reddens. | pending |
 | TEST-573 | Spec-AC-33 | integration | tests/skills/test-aai-golden-flow.sh | test_573_pr_sweep_record_refuses_contradiction — each of the four contradictory pr_sweep payloads exits non-zero and appends no line to EVENTS.jsonl; one consistent record of each of the three outcomes appends exactly one line. | Accept any payload by returning early from the consistency check with sed:s/const bad = sweepContradictions\(payload\);/const bad = [];/ so the four contradictions are written. | pending |
@@ -1247,6 +1247,57 @@ live, and the guard now catches it.
 
 Run 9 also re-recorded TEST-550 and TEST-551, which its edit of the shared
 `spec-amend.mjs` made STALE; both reddened again unchanged.
+
+Sign-off: none (tracked).
+
+## Amendment 10 (post-freeze, 2026-09-18 — two run-10 mutation deviations, TDD run 10)
+
+Both cells left verbatim in intent; both records RED.
+
+- **TEST-565 (Spec-AC-29).** The cell names `if (isFirstUnfinished(pair,
+  roadmap))` (positive form, parameter named `roadmap`). The shipped guard is
+  written negated-to-refuse, and the call site's local variable is `rm`
+  (`roadmap` is only the function's own parameter name). Recorded instead
+  `s/if (!isFirstUnfinished(pair, rm))/if (false)/`, which forces the same
+  refusal branch to never fire — the identical any-capability-admits property
+  the cell names, expressed against the literal source.
+- **TEST-567 (Spec-AC-29).** The cell names a function `rideGateAdmits(ref)`
+  inside `buildOpenIntakes`. `buildOpenIntakes` calls `roadmapGate(root,
+  refId, relPath)`, which returns `{ admitted, consulted, reason }`; there is
+  no boolean-returning `rideGateAdmits`. Recorded instead
+  `s/admitted: false, consulted: true, reason: msg/admitted: true, consulted:
+  true, reason: msg/` against `roadmapGate`'s `catch` arm in
+  `orchestration-dispatch.mjs` — every gate refusal now reads as an
+  admission, the same "bypass the gate" property, reddening TEST-567 exactly
+  as the unmutated property would.
+- **TEST-569 (Spec-AC-30).** Cell verbatim in intent, deviated in syntax: the
+  cell's `s/--state open/--state merged/` assumes a shell-string invocation;
+  `pr-platform.mjs` calls `gh` via `execFileSync` with an argv array, so the
+  literal substring `--state open` never appears contiguous in source.
+  Recorded `s/'--state', 'open'/'--state', 'merged'/` against the array
+  literal — the same flag value flipped in the array form. Record RED.
+
+**A suite-selector gap, found and fixed, not worked around.**
+`tests/skills/test-aai-pr-platform.sh`'s positional-selector loop only
+matched a SHORT numeric/partial selector (`*_${sel}_*` / `test_${sel}*`);
+`mutation-run.mjs --selector` passes the exact `test_*` FUNCTION NAME, the
+convention every other selector-accepting suite in this repo honors. Passing
+TEST-569's full selector read as "no test matches", which is not the same
+failure as TEST-569 itself reddening — an INCONCLUSIVE mutation record would
+have been a false negative on the harness, not the property. Added an
+exact-name branch to the selector loop (additive; the two legacy shapes are
+unchanged) so `test-aai-pr-platform.sh` joins the universal convention
+`test-aai-hygiene-pack.sh` test_094 already enumerates corpus-wide. Filed
+`fu-pr-platform-selector-exact-name` (P3) is not needed — the fix landed in
+this same run rather than being deferred.
+
+**Prompt-diet headroom is now tight.** Spec-AC-30's SKILL_PR.prompt.md edits
+(steps 4c/5c commit verification + the step-5 shared-page push check) cost a
+measured 722 B against the shared `.aai/*.prompt.md` corpus budget, leaving
+headroom 96/2048 (`tests/skills/test-aai-prompt-diet.sh` TEST-010). No
+ledger entry was added this run (Spec-AC-32/TEST-012 true-up is run 11's
+job, per this ride's own run plan); run 11 must account for this 722 B along
+with its own.
 
 Sign-off: none (tracked).
 
