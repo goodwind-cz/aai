@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 7580e29012cb80e2dd5d75624cc76d3b932bf93b0716b7deb502352ca18b6348
+frozen_sha256: 731f87415247b839ccb31fa3fa93be96695c400b48f718bedec9953886c91a49
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -1187,6 +1187,33 @@ gap is filed as `fu-suite-fail-text-blocks-attribution` (P2). Amendment 6
 recorded the first instance of this class (TEST-575, an untagged arm); together
 they say the attribution contract is prose that nothing checks, which is the
 same class this sweep exists to close.
+
+Sign-off: none (tracked).
+
+## Amendment 8 (post-freeze, 2026-09-18 — two Mutation-cell deviations, TDD run 8)
+
+Both cells are left verbatim; both records are RED.
+
+- **TEST-554 (Spec-AC-22).** `tests/skills/test-aai-docs-audit.sh` has no
+  selector isolation, so the cell's edit of `generate-docs-index.mjs` (which no
+  longer imports the working-tree walk) crashes an EARLIER test of the same
+  suite and the runner reports INCONCLUSIVE. Recorded instead against
+  `lib/docs-model.mjs`, forcing `walkTracked`'s `isGitWorkTree` branch true so
+  the tracked enumeration degrades back to the working-tree walk; the same
+  property reddens. This is the third row this ride has had to re-anchor for
+  that one suite's lack of isolation; the cause is filed, not worked around
+  silently.
+- **TEST-559 (Spec-AC-24).** Recorded through `--patch` rather than `--sed`:
+  the suite carries a second, unrelated `process.exit(2)` that a global
+  expression would also edit, and the property needs multi-line context the
+  single-line `--sed` field cannot carry.
+
+Run 8 also re-recorded TEST-536, TEST-537, TEST-540 and TEST-575, which its own
+edits to shared targets made STALE, and adapted about 35 fixture call sites of
+`test-aai-docs-audit.sh` that regenerated an index over an uncommitted document:
+under Spec-AC-22 the generators read what git tracks, so a fixture must stage
+its document the way a real intake does. That adaptation is a consequence of the
+AC, disclosed here rather than filed.
 
 Sign-off: none (tracked).
 
