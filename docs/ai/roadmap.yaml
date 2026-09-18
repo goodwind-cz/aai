@@ -29,7 +29,7 @@ pairs:
     status: done
   - capability: mutation-gate-for-tests
     maintenance: unrecorded-spec-amendment-is-invisible
-    status: active
+    status: done
   - capability: close-ceremony-sweep
     maintenance: roadmap-gate-admits-only-the-next-pair
     status: planned

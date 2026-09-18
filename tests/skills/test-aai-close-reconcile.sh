@@ -865,21 +865,38 @@ EOF
 
 # --- TEST-526 (Spec-AC-04, real corpus replay) -------------------------------
 test_526_replays_the_two_real_ranges() {
-  log_info "TEST-526 (Spec-AC-04): replaying PR 382's and PR 384's real merge ranges over THIS repository names ISSUE-0040 and CHANGE-0181; a fully closed pair in the same shape stays CLEAN..."
+  log_info "TEST-526 (Spec-AC-04): replaying PR 382's and PR 384's real merge ranges over THIS repository no longer names ISSUE-0040 or CHANGE-0181 (spec-close-ceremony-sweep Spec-AC-10 closed both, run 11); a fully closed pair in the same shape stays CLEAN..."
   local out rc
 
   # Replayed directly against $PROJECT_ROOT's own git history (read-only:
   # --check never writes) — these two ranges and the two doc ids are the
-  # literal M2 measurement this AC exists to close.
+  # literal M2 measurement this AC exists to close. THIS ROW WAS ORIGINALLY
+  # WRITTEN (TDD run 2/12) asserting exit 1 with the doc named — the state
+  # M2 measured, before Spec-AC-10 (this ride's OWN run 11) closed both
+  # docs with their real pr/commit. Re-run against the now-corrected live
+  # corpus: each range still separately surfaces one UNRELATED, genuinely
+  # still-open pre-existing item (DEBT-0003 / DEBT-0007 — real, out of this
+  # ride's scope) — asserted on by name here (not merely exit 1) so this row
+  # keeps exercising missingCloseEvidence's real id-mention-unpaired
+  # detection instead of only proving a negative; a mutation that disables
+  # that detection now reddens THIS assertion (its own real doc going
+  # unnoticed) rather than staying green on a property neither range
+  # exercises any more. The narrower, ride-specific property is the
+  # not-contains pair below: neither output names ISSUE-0040 or CHANGE-0181
+  # by id any more.
   out="$(node "$CLOSE_RECONCILE" --check --range "68fd2e14..e6aae10b" --root "$PROJECT_ROOT" 2>&1)" && rc=0 || rc=$?
-  [[ "$rc" -eq 1 ]] || log_fail "TEST-526: PR 382's range expected exit 1, got $rc. Output:\n$out"
-  assert_payload_contains "$out" "focus-and-validation-state-go-stale-silently" \
-    "TEST-526: PR 382's range does not name ISSUE-0040 (focus-and-validation-state-go-stale-silently)"
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-526: PR 382's range expected exit 1 (an unrelated open item, DEBT-0003, is still unpaired), got $rc. Output:\n$out"
+  assert_payload_contains "$out" "console-log-then-exit-across-41-clis" \
+    "TEST-526: PR 382's range must still name the unrelated open item DEBT-0003 (console-log-then-exit-across-41-clis) — proves id-mention-unpaired detection is still armed"
+  assert_payload_not_contains "$out" "focus-and-validation-state-go-stale-silently" \
+    "TEST-526: PR 382's range must no longer name ISSUE-0040 (focus-and-validation-state-go-stale-silently) — Spec-AC-10 closed it with links.pr 382/links.commits e6aae10b"
 
   out="$(node "$CLOSE_RECONCILE" --check --range "94a983ec..7270a29c" --root "$PROJECT_ROOT" 2>&1)" && rc=0 || rc=$?
-  [[ "$rc" -eq 1 ]] || log_fail "TEST-526: PR 384's range expected exit 1, got $rc. Output:\n$out"
-  assert_payload_contains "$out" "unrecorded-spec-amendment-is-invisible" \
-    "TEST-526: PR 384's range does not name CHANGE-0181 (unrecorded-spec-amendment-is-invisible)"
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-526: PR 384's range expected exit 1 (an unrelated open item, DEBT-0007, is still unpaired), got $rc. Output:\n$out"
+  assert_payload_contains "$out" "withdrawn-claim-sweeps-are-not-verifiable" \
+    "TEST-526: PR 384's range must still name the unrelated open item DEBT-0007 (withdrawn-claim-sweeps-are-not-verifiable) — proves id-mention-unpaired detection is still armed"
+  assert_payload_not_contains "$out" "unrecorded-spec-amendment-is-invisible" \
+    "TEST-526: PR 384's range must no longer name CHANGE-0181 (unrecorded-spec-amendment-is-invisible) — Spec-AC-10 closed it with links.pr 384/links.commits 7270a29c"
 
   # A fully closed pair in the SAME shape (carrier names a maintenance half
   # that is itself already terminal) must stay CLEAN — proving this arm
@@ -917,7 +934,7 @@ EOF
   [[ "$rc2" -eq 0 ]] || log_fail "TEST-526: a fully closed pair expected exit 0 CLEAN, got $rc2. Output:\n$out2"
   assert_payload_contains "$out2" "CLEAN" "TEST-526: a fully closed pair expected CLEAN"
 
-  log_pass "TEST-526: replaying PR 382's and PR 384's real ranges names ISSUE-0040 and CHANGE-0181 by id; a fully closed pair in the same shape stays CLEAN"
+  log_pass "TEST-526: replaying PR 382's and PR 384's real ranges no longer names ISSUE-0040 or CHANGE-0181 (Spec-AC-10 closed both); a fully closed pair in the same shape stays CLEAN"
 }
 
 # --- TEST-527 (Spec-AC-05) ----------------------------------------------------

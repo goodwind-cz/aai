@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-18T05:15:45.936Z
+Generated: 2026-09-18T05:57:35.136Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -51,7 +51,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (430)
+## Done (432)
 
 | ID | Type | Path |
 |---|---|---|
@@ -229,6 +229,7 @@ _None._
 | CHANGE-0175 | issues | docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md |
 | CHANGE-0177 | issues | docs/issues/CHANGE-0177-lessons-that-must-hold-downstream-are-guards.md |
 | CHANGE-0178 | issues | docs/issues/CHANGE-0178-live-page-shows-dead-heartbeats-not-live-work.md |
+| CHANGE-0181 | issues | docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md |
 | CHANGE-0182 | issues | docs/issues/CHANGE-0182-harness-universal-routing.md |
 | CHANGE-0183 | issues | docs/issues/CHANGE-0183-telemetry-fields-not-prose.md |
 | CHANGE-0185 | issues | docs/issues/CHANGE-0185-test-framework-sweep.md |
@@ -273,6 +274,7 @@ _None._
 | ISSUE-0036 | issues | docs/issues/ISSUE-0036-harness-surfaces-drift-unguarded.md |
 | ISSUE-0037 | issues | docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md |
 | ISSUE-0038 | issues | docs/issues/ISSUE-0038-checks-that-assert-less-than-they-claim.md |
+| ISSUE-0040 | issues | docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md |
 | ISSUE-0045 | issues | docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md |
 | ISSUE-0046 | issues | docs/issues/ISSUE-0046-adhoc-probes-unisolated-report-only.md |
 | ISSUE-0048 | issues | docs/issues/ISSUE-0048-bare-main-baseref-sweep.md |
@@ -486,7 +488,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (21)
+## Drafts (19)
 
 | ID | Type | Path |
 |---|---|---|
@@ -495,7 +497,6 @@ _None._
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
-| CHANGE-0181 | issues | docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md |
 | CHANGE-0184 | issues | docs/issues/CHANGE-0184-roadmap-gate-admits-only-the-next-pair.md |
 | close-ceremony-sweep (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
@@ -504,7 +505,6 @@ _None._
 | DEBT-0006 | issues | docs/issues/DEBT-0006-payload-size-hazards-past-the-one-fixed-site.md |
 | DEBT-0007 | issues | docs/issues/DEBT-0007-withdrawn-claim-sweeps-are-not-verifiable.md |
 | ISSUE-0039 | issues | docs/issues/ISSUE-0039-disposable-checkout-lifecycle-residuals.md |
-| ISSUE-0040 | issues | docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md |
 | ISSUE-0041 | issues | docs/issues/ISSUE-0041-hardcoded-path-defeats-suite-isolation.md |
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |

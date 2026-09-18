@@ -1958,6 +1958,63 @@ test_change0166_closeout_is_clean_and_terminal() {
   log_pass "TEST-444: CHANGE-0166's frontmatter status ($status) is terminal with $pr_count delivering PR(s) named, and docs-audit --check --strict over it is CLEAN"
 }
 
+# --- TEST-534 (spec-close-ceremony-sweep Spec-AC-10) — the two M2 stale
+# halves (CHANGE-0181 and ISSUE-0040 -- delivered by PR 384/merge 7270a29c
+# and PR 382/merge e6aae10b respectively, but left status: draft with empty
+# links on main) read terminal with their REAL pr/commit, and docs-audit's
+# CLEAN verdict for each is BY EVIDENCE, not by blindness: a status: draft
+# doc sits outside the false-open heuristic's eligible-status set
+# (docs-audit-core.mjs D1, "draft excluded -- not yet ready"), so the
+# PRE-FIX draft already read CLEAN / "False-open: 0" / "1 open, 0 done" --
+# even though commit 7270a29c's own message names both
+# "unrecorded-spec-amendment-is-invisible" and "CHANGE-0181" (confirmed via
+# `git log --grep`). A CLEAN verdict over a doc the heuristic never looked
+# at proves nothing; the post-fix "0 open, 1 done" bucket proves the audit
+# now reads it as the terminal, evidenced doc it is. Mirrors
+# test_change0166_closeout_is_clean_and_terminal's shape, doubled and
+# pinned to the exact pr/commit this ride verified against `git log`.
+test_534_two_stale_halves_are_closed() {
+  log_info "TEST-534: CHANGE-0181 and ISSUE-0040 read status done with their real PR/commit; CLEAN because docs-audit evaluated a done doc, not because it skipped a draft one..."
+  local entry rel pr sha doc status pr_hit commit_hit logf
+  local -a docs=(
+    "docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md 384 7270a29cdbeb3ae9ad93b9ec3776465d094b5ce5"
+    "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md 382 e6aae10b18aad49eeb2ceb1f3e1de6c4bd1b215f"
+  )
+  for entry in "${docs[@]}"; do
+    read -r rel pr sha <<<"$entry"
+    doc="$PROJECT_ROOT/$rel"
+    [[ -f "$doc" ]] || log_fail "TEST-534: $rel not found: $doc"
+
+    status="$(awk -F': ' '/^status:/{print $2; exit}' "$doc" | tr -d '\r')"
+    [[ "$status" == "done" ]] \
+      || log_fail "TEST-534: $rel frontmatter status must be done, got '$status'"
+
+    pr_hit="$(awk '/^  pr:/{p=1;next} p && /^    - /{print; next} {p=0}' "$doc" | grep -c "$pr\$")" || true
+    [[ "$pr_hit" -ge 1 ]] \
+      || log_fail "TEST-534: $rel links.pr must contain $pr, found none"
+
+    commit_hit="$(awk '/^  commits:/{p=1;next} p && /^    - /{print; next} {p=0}' "$doc" | grep -Fc "$sha")" || true
+    [[ "$commit_hit" -ge 1 ]] \
+      || log_fail "TEST-534: $rel links.commits must contain $sha, found none"
+
+    logf="$TEST_DIR/534-$(basename "$rel").log"
+    (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event --path "$rel" > "$logf" 2>&1) \
+      || log_fail "TEST-534: docs-audit --check --strict over $rel must exit 0: $(tail -10 "$logf")"
+    grep -qF "Verdict: CLEAN" "$logf" \
+      || log_fail "TEST-534: $rel expected 'Verdict: CLEAN':"$'\n'"$(cat "$logf")"
+    if grep -qF "CHECK FAILED" "$logf"; then
+      log_fail "TEST-534: $rel must not report CHECK FAILED:"$'\n'"$(cat "$logf")"
+    fi
+    # by evidence, not blindness (see header comment): the scan bucket must
+    # read the doc as terminal, not the pre-fix "1 open, 0 done" shape a
+    # still-draft doc (never evaluated by the false-open heuristic) reads as
+    # CLEAN under.
+    grep -qF "0 open, 1 done" "$logf" \
+      || log_fail "TEST-534: $rel expected the audit's Tracked bucket to read '0 open, 1 done' (terminal, evaluated), not a draft-shaped bucket:"$'\n'"$(cat "$logf")"
+  done
+  log_pass "TEST-534: CHANGE-0181 and ISSUE-0040 both terminal with their real PR/commit, CLEAN because docs-audit evaluated a done doc"
+}
+
 # --- SPEC-0007 fixtures (ISSUE-0001): CRLF/lone-CR-tolerant parsers + POSIX paths ---
 
 # Build an isolated mini-repo under $TEST_DIR with the vendored scripts, so a
@@ -7765,6 +7822,7 @@ main() {
   test_spec0006_open_decision_guard
   test_spec0006_no_regression_real_repo
   test_change0166_closeout_is_clean_and_terminal
+  test_534_two_stale_halves_are_closed
   test_issue0001_frontmatter_crlf_tolerance
   test_issue0001_actable_crlf_tolerance
   setup_indexarm_snapshots

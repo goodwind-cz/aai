@@ -293,10 +293,12 @@ test_565_gate_admits_only_the_next_pair() {
   local n; n="$(grep -c '"event":"ride_gate_override"' "$TEST_DIR/events565.jsonl")"
   [ "$n" = "1" ] || log_fail "TEST-565: exactly one override event must be appended, got $n"
 
-  # shipped roadmap: pair 7 is the first unfinished pair (1-6 done); its
-  # maintenance (capability already done) is admitted
-  [ "$(run gate --ref unrecorded-spec-amendment-is-invisible --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
-    || log_fail "TEST-565: shipped roadmap: pair 7's maintenance must be admitted: $(err)"
+  # shipped roadmap: pair 7 closed with its real PR/commit (Spec-AC-10,
+  # spec-close-ceremony-sweep) makes pair 8 the first unfinished pair; its
+  # capability is admitted by ranking (same property as the pair-1/2 arm
+  # above, re-pointed at the live file instead of a fixture).
+  [ "$(run gate --ref close-ceremony-sweep --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
+    || log_fail "TEST-565: shipped roadmap: pair 8's capability must be admitted: $(err)"
   log_pass "gate admits only the first unfinished pair; in-flight and blocks: unaffected; override still one-shot logged (TEST-565)"
 }
 
@@ -319,6 +321,40 @@ test_566_validate_refuses_unknown_refs() {
   log_pass "validate refuses a started pair's unknown ref, exempts a still-planned one, live roadmap unaffected (TEST-566)"
 }
 
+# --- TEST-535 (spec-close-ceremony-sweep Spec-AC-10): the live roadmap's
+# pair 7 (mutation-gate-for-tests / unrecorded-spec-amendment-is-invisible,
+# M5) reads status done now that its maintenance half (CHANGE-0181) closed
+# with a real PR/commit, and the live roadmap still validates. Pair 7 sitting
+# at status: active (both docs terminal, the roadmap simply never told) is
+# what let ride-select.mjs gate ADMIT close-ceremony-sweep's own pair 8 ahead
+# of an unfinished earlier pair under the pre-fix reading (M5) -- flipping it
+# is this AC's whole content; `validate` itself only checks that a
+# started pair's refs resolve to real documents, so it stays green either
+# way and is asserted here only per the row's own text, not as the property
+# this test actually proves.
+test_535_roadmap_pair_seven_done() {
+  log_info "TEST-535: roadmap pair 7 (mutation-gate-for-tests / unrecorded-spec-amendment-is-invisible) reads status done, and ride-select.mjs validate passes over the live file..."
+  local block cap maint status
+  block="$(awk '
+    /^  - capability:/ { n++ }
+    n==7 { print }
+    n==8 { exit }
+  ' "$SHIPPED")"
+  [ -n "$block" ] || log_fail "TEST-535: docs/ai/roadmap.yaml has no 7th pair block"
+  cap="$(printf '%s\n' "$block" | awk -F': ' '/^  - capability:/{print $2; exit}')"
+  maint="$(printf '%s\n' "$block" | awk -F': ' '/^    maintenance:/{print $2; exit}')"
+  status="$(printf '%s\n' "$block" | awk -F': ' '/^    status:/{print $2; exit}')"
+  [ "$cap" = "mutation-gate-for-tests" ] \
+    || log_fail "TEST-535: pair 7's capability must be mutation-gate-for-tests, got '$cap'"
+  [ "$maint" = "unrecorded-spec-amendment-is-invisible" ] \
+    || log_fail "TEST-535: pair 7's maintenance must be unrecorded-spec-amendment-is-invisible, got '$maint'"
+  [ "$status" = "done" ] \
+    || log_fail "TEST-535: pair 7 status must be done, got '$status'"
+  [ "$(run validate --roadmap "$SHIPPED")" = "0" ] \
+    || log_fail "TEST-535: ride-select.mjs validate must pass over the live roadmap: $(err)"
+  log_pass "TEST-535: roadmap pair 7 reads done, live roadmap validates"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -336,6 +372,7 @@ main() {
   test_007_wiring
   test_565_gate_admits_only_the_next_pair
   test_566_validate_refuses_unknown_refs
+  test_535_roadmap_pair_seven_done
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

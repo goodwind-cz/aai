@@ -2,10 +2,12 @@
 id: unrecorded-spec-amendment-is-invisible
 number: 181
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 384
+  commits:
+    - 7270a29cdbeb3ae9ad93b9ec3776465d094b5ce5
 ---
 
 # An amendment nobody recorded is invisible to the gate that exists to catch it

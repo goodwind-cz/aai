@@ -2,10 +2,12 @@
 id: focus-and-validation-state-go-stale-silently
 type: issue
 number: 40
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 382
+  commits:
+    - e6aae10b18aad49eeb2ceb1f3e1de6c4bd1b215f
 ---
 
 # Focus keeps a foreign spec, a validation verdict outlives the code it validated, and the sweep that finds both runs last
