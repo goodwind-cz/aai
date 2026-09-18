@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-18T00:13:55.349Z
+Generated: 2026-09-18T00:56:26.776Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-close-ceremony-sweep | specs | implementing | 32 planned | docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md |
+| spec-close-ceremony-sweep | specs | implementing | 34 planned | docs/specs/SPEC-DRAFT-spec-close-ceremony-sweep.md |
 
 ## Canonical layer (0)
 

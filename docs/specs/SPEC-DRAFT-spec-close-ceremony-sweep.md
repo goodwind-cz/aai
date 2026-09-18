@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: dd007002cbc8717dd03dfb1bb5cdd533b520cd191d1cd4c3f3a1d5c928487050
+frozen_sha256: b57878c240ccd552e68e946b218180da4a844a37a3c37fe51ac3670f585d2c5e
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -486,6 +486,30 @@ renumbered.
   with headroom 2046 of 2048; `tests/skills/test-aai-layer-profiles.sh` TEST-001
   passes against the live tree.
 
+- Spec-AC-33: `append-event.mjs` SHALL accept a `pr_sweep` event whose payload
+  names the pull request, the lane, the reviewer-bot expectation, the counts of
+  bot threads seen and still unresolved, and one outcome of
+  `swept` / `skipped_fast_lane` / `internal_substituted`; and SHALL REFUSE, with
+  nothing written, a record whose fields contradict each other: `swept` with no
+  thread seen or without `reviewer_bots: expected`, `skipped_fast_lane` on the
+  heavy lane, `internal_substituted` while `reviewer_bots: expected`, or any
+  outcome with `threads_unresolved` above zero.
+  Verification: each of the four contradictions exits non-zero and appends no
+  line; a consistent record of each outcome appends exactly one line.
+
+- Spec-AC-34: `lane-gate.mjs` SHALL gain a `--sweep-check --pr <N>` mode that
+  exits 0 only when a `pr_sweep` record for that pull request exists whose lane
+  equals the lane the gate itself computes for the branch and whose outcome is
+  legal on that lane, exits 5 naming what is missing or mismatched otherwise,
+  and `.aai/scripts/claude-hook-gate.sh`'s `merge` gate SHALL CALL that mode
+  rather than restate its predicate, keeping its documented fail-open on every
+  adapter error.
+  Verification: a merge command with no record is denied naming the absent
+  record; the same command after a consistent record is allowed; a fast-lane
+  record against a heavy-lane branch is denied; an unreadable events file
+  leaves the hook allowing (fail-open), and the hook contains no second copy of
+  the predicate.
+
 ## Acceptance Criteria Status
 
 | Spec-AC    | Description                                                        | Status  | Evidence | Review-By | Notes |
@@ -522,6 +546,8 @@ renumbered.
 | Spec-AC-30 | Every ceremony commit is verified, and a shared-page push is warned | planned | —        | —         | —     |
 | Spec-AC-31 | Each convention is stated once, where its tool reads it             | planned | —        | —         | —     |
 | Spec-AC-32 | The prompt-diet ledger and PROFILES obligations are discharged      | planned | —        | —         | —     |
+| Spec-AC-33 | The post-open sweep leaves a record that cannot claim what it did not do | planned | —        | —         | —     |
+| Spec-AC-34 | A merge-readiness claim without that record is refused              | planned | —        | —         | —     |
 
 ## Implementation plan
 
@@ -642,6 +668,8 @@ its own mutation; the evidence for each is
 | TEST-571 | Spec-AC-31 | integration | tests/skills/test-aai-docs-lock.sh | test_571_ledger_rule_stated_once — SUBAGENT_CONTRACT.md states the append-only EVENTS rule once and cross-references it from the single-writer list. | Restore the second statement with sed:s/(HAZ-LEDGER)/(the append-only, commutative audit log)/. | pending |
 | TEST-012 | Spec-AC-32 | unit | tests/skills/test-aai-prompt-diet.sh | test_012_growth_sum_matches_ledger — the existing ledger checkpoint, re-pinned to 32826 plus this ride's measured net prompt-corpus delta, with TEST-010 reporting headroom 2046 of 2048. | Change the appended JUSTIFIED_ADDITIONS entry's leading byte field by one so the independent re-sum disagrees with the pin. | pending |
 | TEST-572 | Spec-AC-32 | unit | tests/skills/test-aai-layer-profiles.sh | test_572_new_aai_files_classified — every new .aai file this ride adds appears exactly once in PROFILES.yaml core, and the union still equals the live tree. | Remove one new path from the core list so the live-tree union check reddens. | pending |
+| TEST-573 | Spec-AC-33 | integration | tests/skills/test-aai-golden-flow.sh | test_573_pr_sweep_record_refuses_contradiction — each of the four contradictory pr_sweep payloads exits non-zero and appends no line to EVENTS.jsonl; one consistent record of each of the three outcomes appends exactly one line. | Accept any payload by returning early from the consistency check with sed:s/const bad = sweepContradictions\(payload\);/const bad = [];/ so the four contradictions are written. | pending |
+| TEST-574 | Spec-AC-34 | integration | tests/skills/test-aai-hooks-overlay.sh | test_574_merge_gate_needs_sweep_record — a gh pr merge command is denied with exit 2 naming the absent pr_sweep record, allowed once a consistent record for that PR exists, denied again for a fast-lane record on a heavy-lane branch, and ALLOWED when the events file is unreadable (fail-open). | Drop the sweep-check call from the merge gate with sed:s/sweep_check_verdict/true/ so a merge with no record is allowed. | pending |
 
 Test status values: pending to red to green. Every Spec-AC above has at least one
 row; every row names exactly one Spec-AC. Mutation cells are written as
@@ -925,15 +953,13 @@ NOT CLOSED, owned elsewhere, named so they are not lost:
   the guard and the covering suite arm. If the implementer's reading of the
   record contradicts that, the issue stays open and is re-filed as a registry
   item — disclosed here, never silently.
-- Issue 338 (`aai-pr / post_open_sweep`, high, contract_violation) — TRIAGED. The
-  record carries no prose by design and no local observation survives
-  (`docs/ai/friction/` does not exist on this tree, S6). The contract it names is
-  `.aai/SKILL_PR.prompt.md` step 5d, whose enforcement is prose only. Spec-AC-30
-  hardens two neighbouring prose-only ceremony contracts in the same file; the
-  step-5d sweep itself is NOT mechanized here, because a sweep-completion gate is
-  a new capability rather than a defect fix. The issue is closed with a comment
-  stating exactly that, and the mechanization is filed as
-  `fu-post-open-sweep-has-no-mechanism`, a new registry item the owner can rank.
+- Issue 338 (`aai-pr / post_open_sweep`, high, contract_violation) — MECHANIZED
+  by owner decision of 2026-09-18 (see Amendment 4); Spec-AC-33 and Spec-AC-34
+  replace the triage-and-close disposition this section first carried. The
+  record still carries no prose and no local observation survives (S6), so the
+  fix is not derived from its text but from the contract it names: step 5d of
+  `.aai/SKILL_PR.prompt.md`, whose enforcement was prose only. The issue is
+  closed at this ride's PR citing the two ACs and their tests, not a reading.
 
 ## Amendment 1 (post-freeze, 2026-09-18 — TEST-525 Mutation cell, TDD run 2)
 
@@ -1027,6 +1053,43 @@ and TEST-537 proves the live corpus names exactly the 8 and exits 0 under
   which reddens the multiplicity arm.
 
 No Spec-AC, test id, selector or file path changed. Sign-off: none (tracked).
+
+## Amendment 4 (post-freeze, 2026-09-18 — owner adds the step-5d mechanization; ADDITIVE)
+
+The owner was shown the menu this spec's `## GitHub issues` section raised for
+issue 338 (A: close it with a measured reason and file the mechanization as a
+registry item the owner ranks; B: mechanize it in this ride at +2 Spec-AC and
+one more TDD run; C: leave it open) and answered **B** on 2026-09-18. This
+section is the scope change that answer makes, recorded with the owner's
+sign-off because the canon assigns a post-freeze scope change to the owner.
+
+Added, additively — no existing Spec-AC, test id, selector, file path or
+Mutation cell is changed, and no delivered run is invalidated:
+
+- **Spec-AC-33** — `append-event.mjs` learns a `pr_sweep` event and refuses a
+  self-contradictory record (TEST-573, `tests/skills/test-aai-golden-flow.sh`).
+- **Spec-AC-34** — `lane-gate.mjs --sweep-check --pr <N>` judges that record
+  against the lane it computes itself, and the `merge` gate of
+  `.aai/scripts/claude-hook-gate.sh` CALLS that mode instead of restating the
+  predicate, keeping its fail-open (TEST-574,
+  `tests/skills/test-aai-hooks-overlay.sh`).
+
+Why this shape. The defect class issue 338 names is a contract enforced by
+prose: a merge-readiness claim is a sentence a role writes, and nothing reads
+the state that sentence asserts. Mechanizing it needs both halves — a record
+that cannot claim what it did not do (AC-33) and a gate that refuses the merge
+without it (AC-34). The lane authority is the judge because step 5d's own
+obligation branches on the lane: the fast lane may legally skip the external
+sweep, the heavy lane may not. The hook is a mirror by its own stated rule
+("never reimplement a predicate here"), so the harness-specific file gains a
+call, not a copy — the predicate stays harness-universal in `lane-gate.mjs`.
+None of the three files is `protected_paths_l3`, so ceremony 2 may edit them.
+
+Consequences for this ride: the TDD slicing grows a twelfth run (AC-33 and
+AC-34 together, after run 11's re-pin is NOT yet written — the re-pin stays the
+last edit of the ride, so run 12 runs BEFORE it); the Test Plan grows from 54 to
+56 rows; `close-work-item.mjs` is untouched by both ACs, so D8's single re-pin
+is unaffected. Sign-off: owner.
 
 ## Notes
 
