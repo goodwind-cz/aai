@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 731f87415247b839ccb31fa3fa93be96695c400b48f718bedec9953886c91a49
+frozen_sha256: e914bb4ec15c92cf50e3ca799973eb75769f0c7ca2cbbed59d0533d6135bf37f
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -1214,6 +1214,39 @@ edits to shared targets made STALE, and adapted about 35 fixture call sites of
 under Spec-AC-22 the generators read what git tracks, so a fixture must stage
 its document the way a real intake does. That adaptation is a consequence of the
 AC, disclosed here rather than filed.
+
+Sign-off: none (tracked).
+
+## Amendment 9 (post-freeze, 2026-09-18 — two Mutation-cell deviations and one corrected assertion, TDD run 9)
+
+Cells verbatim; both records RED.
+
+- **TEST-560 (Spec-AC-25).** The cell edits an empty `onError() {}`; the shipped
+  handler has a body, so the expression has no target. Recorded instead: delete
+  the whole `onError` option, which is what makes an unexpected throw stop
+  exiting 0.
+- **TEST-562 (Spec-AC-27).** The cell names `\u0000` and `\u0001` string
+  literals; the guard tests the byte numerically (`buf.includes(0)`). Recorded
+  instead `buf.includes(0)` to `buf.includes(1)`, the same property.
+
+**One existing assertion was corrected, not merely satisfied.** Spec-AC-28's
+`golden-flow.mjs` change makes `questions_asked` count only steps that actually
+recorded a HITL entry, instead of every failed or timed-out step. Its suite arm
+TEST-003 asserted the old number (3); under the corrected meaning the fixture
+asks nothing, so the arm now asserts 0. The number changed because the quantity
+changed, and this is the disclosure.
+
+**The one tracked NUL byte is gone.** `.aai/scripts/spec-amend.mjs` line 253
+used a literal NUL as a Map-key join separator — load-bearing, never serialized
+— replaced by its escape, behaviour identical. The guard
+(`tests/skills/lib/no-nul-guard.sh`) enumerates through `git ls-files` and
+exits 0 on the live tree. While writing that guard's own comment, run 9 planted
+a fresh literal NUL in prose describing the escape and caught it only because
+sourcing the file defined no functions: the trap this AC exists to close is
+live, and the guard now catches it.
+
+Run 9 also re-recorded TEST-550 and TEST-551, which its edit of the shared
+`spec-amend.mjs` made STALE; both reddened again unchanged.
 
 Sign-off: none (tracked).
 
