@@ -200,6 +200,11 @@ function main() {
       } catch (err) {
         fail(`pr_sweep ${err.message}`);
       }
+      // validation-round3 (remediation, Amendment 19): parseSweepCount's
+      // non-negative-integer rule is shared with the count fields, where 0
+      // is a legitimate count -- but --pr names a pull request, and there is
+      // no PR 0. Refuse it separately; the count fields keep accepting 0.
+      if (pr === 0) fail('pr_sweep --pr must be a positive integer (there is no PR 0), got 0');
       const payload = {
         pr,
         lane: args.lane,

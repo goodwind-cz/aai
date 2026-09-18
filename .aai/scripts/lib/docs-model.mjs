@@ -1021,19 +1021,26 @@ export function isMutationCellPlaceholder(cell) {
 // ONE list instead of hand-maintaining its own copy that can drift from the
 // real paths. Mirrors allocate-doc-number.mjs's own SPEC_PAGE_GENERATORS
 // (docs/ai/overview.html + overview-data.json, docs/USER_GUIDE.md) plus
-// docs/INDEX.md (generate-docs-index.mjs) and docs/ai/factory-report.html
-// (generate-factory-report.mjs) — the same five pages close-work-item.mjs's
-// regen tail names. allocate-doc-number.mjs is `protected_paths_l3` and
+// docs/INDEX.md (generate-docs-index.mjs), docs/ai/factory-report.html
+// (generate-factory-report.mjs) and docs/SKILL_CATALOG.html +
+// docs/skill-catalog-data.json (generate-docs-hub.mjs, invoked via
+// close-work-item.mjs's regenerateDocsHubBestEffort()) — the seven pages
+// close-work-item.mjs's regen tail actually writes (Amendment 19: Amendment
+// 18 and this file both claimed FIVE, omitting the docs-hub pair; measured
+// false and corrected). allocate-doc-number.mjs is `protected_paths_l3` and
 // cannot import this file (or export its own local list) without a
-// ceremony-3 ride (D1); until then the two lists are the SAME five paths,
-// verified by hand at every edit of either, not by a shared import both
-// directions.
+// ceremony-3 ride (D1); until then the two lists are kept in sync BY HAND at
+// every edit of either, not by a shared import both directions (its own
+// SPEC_PAGE_GENERATORS subset — overview.html/overview-data.json/
+// USER_GUIDE.md — is unaffected by the docs-hub pair, which it never named).
 export const SHARED_GENERATED_PAGES = new Set([
   'docs/INDEX.md',
   'docs/ai/overview.html',
   'docs/ai/overview-data.json',
   'docs/USER_GUIDE.md',
   'docs/ai/factory-report.html',
+  'docs/SKILL_CATALOG.html',
+  'docs/skill-catalog-data.json',
 ]);
 
 export const STRATEGY_ENUM = ['loop', 'tdd', 'hybrid', 'direct', 'untested', 'undecided'];

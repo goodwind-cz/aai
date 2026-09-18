@@ -413,7 +413,7 @@ test_583_gate_refuses_undocumented_ref() {
 # --- TEST-588 (Spec-AC-29, validation-round2 NB-3) — --intake must resolve
 # to a PARSED intake document, not merely a readable file --------------------
 test_588_gate_intake_requires_a_real_document() {
-  log_info "Test: gate --intake refuses a readable file that is not a parseable intake document (no frontmatter, or an id with no recognized type); admits a real one (TEST-588)..."
+  log_info "Test: gate --intake refuses a readable file that is not a parseable intake document (no frontmatter, no --- fence, no id, or an id with no recognized type); admits a real one (TEST-588)..."
   printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-t588\n    maintenance: maint-t588\n    status: planned\n' > "$TEST_DIR/roadmap588.yaml"
 
   # Arm A (NB-3): a readable file with no frontmatter at all must NOT admit.
@@ -436,13 +436,25 @@ test_588_gate_intake_requires_a_real_document() {
     || log_fail "TEST-588: gate --intake badtype588.txt (unrecognized type) must NOT be admitted: $(out)"
   grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-588: the bad-type refusal must name the missing document: $(err)"
 
+  # Arm D (validation-round3 D2): bare id:/type: lines with NO --- fence at
+  # all, both values otherwise valid (a real id, a recognized type) — must
+  # still NOT admit. "Parses as frontmatter" is not the same property as
+  # "carries an id and a known type"; a fallback ad hoc line scan that only
+  # checks the latter would admit this file. parseFrontmatter requires the
+  # opening `---` fence before it looks at any key, so this must be refused
+  # on the fence, not merely on a missing id or type.
+  printf 'id: cap-t588\ntype: change\nstatus: draft\n\n# cap-t588\n' > "$TEST_DIR/nofence588.txt"
+  [ "$(run gate --ref cap-t588 --intake "$TEST_DIR/nofence588.txt" --roadmap "$TEST_DIR/roadmap588.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-588: gate --intake nofence588.txt (id/type lines, no --- fence) must NOT be admitted: $(out)"
+  grep -qi "no document resolves" "$TEST_DIR/err" || log_fail "TEST-588: the no-fence refusal must name the missing document: $(err)"
+
   # Control: a genuine intake document (frontmatter, id, recognized type) IS admitted.
   write_doc cap-t588 change draft
   [ "$(run gate --ref cap-t588 --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-cap-t588.md" --roadmap "$TEST_DIR/roadmap588.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
     || log_fail "TEST-588: control -- a real intake document must still be admitted: $(err)"
   grep -qF "a roadmap capability" "$TEST_DIR/out" || log_fail "TEST-588: the control admission must read 'a roadmap capability': $(out)"
 
-  log_pass "TEST-588: gate --intake refuses a readable-but-unparseable file (no frontmatter, no id, or an unrecognized type), and admits a real intake document"
+  log_pass "TEST-588: gate --intake refuses a readable-but-unparseable file (no frontmatter, no --- fence, no id, or an unrecognized type), and admits a real intake document"
 }
 
 main() {

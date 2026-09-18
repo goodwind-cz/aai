@@ -477,19 +477,29 @@ test_569_shared_page_push_names_open_prs() {
 # assertion left to notice. Fixed: the pages this ride's close ceremony
 # ACTUALLY regenerates (close-work-item.mjs regenerateIndex /
 # regenerateOverviewBestEffort / regenerateUserguideRollupBestEffort /
-# regenerateFactoryReportBestEffort) are named LITERALLY here, never read
-# back from the module under test, and every literal page both (a) must be a
-# member of the set and (b) gets its own conflict-detection arm — so a
-# dropped member reddens on containment even before the conflict loop runs,
-# and the conflict loop itself still catches it independently. Every path the
-# set DOES name (whichever direction it drifts) is also stat()ed against the
-# real repo, answering "what happens when the two lists drift: today,
-# nothing" with "it reddens".
+# regenerateDocsHubBestEffort / regenerateFactoryReportBestEffort) are named
+# LITERALLY here, never read back from the module under test, and every
+# literal page both (a) must be a member of the set and (b) gets its own
+# conflict-detection arm — so a dropped member reddens on containment even
+# before the conflict loop runs, and the conflict loop itself still catches
+# it independently. Every path the set DOES name (whichever direction it
+# drifts) is also stat()ed against the real repo, answering "what happens
+# when the two lists drift: today, nothing" with "it reddens".
+#
+# B1 (validation-round3, Amendment 19): the regen tail's five FUNCTION calls
+# write SEVEN committed pages — regenerateDocsHubBestEffort() alone writes
+# TWO (docs/SKILL_CATALOG.html + docs/skill-catalog-data.json). Round 2's fix
+# above named only the other four functions' five pages and still claimed
+# completeness; both the claim and SHARED_GENERATED_PAGES are corrected here.
+# The exact-equality check below (D3) additionally catches an entry that
+# does not belong (the "stale/extra entry" direction was previously only an
+# existence check: a real-but-never-regenerated page like docs/TECHNOLOGY.md
+# passed the stat loop and every conflict arm silently).
 test_580_shared_page_set_covers_every_generated_page() {
   log_info "TEST-580: SHARED_GENERATED_PAGES matches disk and covers every page the close ceremony actually regenerates, one conflict arm per page (Spec-AC-30)..."
   local bin="$TMP_ROOT/gh-t580" page rc out ok=1
 
-  # The five pages close-work-item.mjs's regen tail actually writes — named
+  # The seven pages close-work-item.mjs's regen tail actually writes — named
   # literally, never derived from SHARED_GENERATED_PAGES.
   local -a REGENERATED_PAGES=(
     "docs/INDEX.md"
@@ -497,6 +507,8 @@ test_580_shared_page_set_covers_every_generated_page() {
     "docs/ai/overview-data.json"
     "docs/USER_GUIDE.md"
     "docs/ai/factory-report.html"
+    "docs/SKILL_CATALOG.html"
+    "docs/skill-catalog-data.json"
   )
 
   local pages
@@ -524,6 +536,17 @@ test_580_shared_page_set_covers_every_generated_page() {
     [[ -f "$PROJECT_ROOT/$page" ]] \
       || { log_info "TEST-580: SHARED_GENERATED_PAGES names '$page', which does not exist in the repo"; ok=0; }
   done <<<"$pages"
+
+  # D3 (validation-round3): containment alone only catches a MISSING member;
+  # an EXTRA member that exists on disk but is never actually regenerated
+  # (e.g. docs/TECHNOLOGY.md) passed every check above silently. Assert EXACT
+  # equality between the set and the literal list — an extra entry reddens
+  # as loudly as a missing one.
+  local sorted_pages sorted_expected
+  sorted_pages="$(sort <<<"$pages")"
+  sorted_expected="$(printf '%s\n' "${REGENERATED_PAGES[@]}" | sort)"
+  [[ "$sorted_pages" == "$sorted_expected" ]] \
+    || { log_info "TEST-580: SHARED_GENERATED_PAGES must equal the seven regenerated pages EXACTLY (got: $pages)"; ok=0; }
 
   # One conflict-detection arm per page this ride ACTUALLY regenerates — the
   # literal list, not the set under test, so a page dropped FROM the set

@@ -925,8 +925,15 @@ test_585_pr_sweep_count_rejects_float() {
 # fix: "abc" silently minted "pr":null and "0x181" minted "pr":385 for a PR
 # number nobody typed. A null-PR record is unfindable (fails closed), but a
 # hex/typo'd PR number mints a merge-readiness record for the WRONG PR.
+#
+# validation-round3 D1 / Amendment 19: two more shapes pinned directly. A
+# fractional --pr (385.0) must be refused whole, never truncated to an
+# integer PR nobody typed (the shipped /^[0-9]+$/ rule already refuses it;
+# this arm was simply unpinned). And --pr 0 must be refused: parseSweepCount
+# legitimately accepts 0 for a COUNT field, but a pull request is never
+# numbered 0, so append-event.mjs refuses it with its own explicit check.
 test_586_pr_sweep_pr_field_rejects_garbage() {
-  log_info "TEST-586: a non-integer --pr (alphabetic or hex-looking) is refused, never silently coerced (Spec-AC-33)..."
+  log_info "TEST-586: a non-integer --pr (alphabetic, hex-looking, or fractional) or --pr 0 is refused, never silently coerced (Spec-AC-33)..."
   local d out events code
   d="$TEST_DIR/t586"
   out="$TEST_DIR/t586-out"
@@ -948,6 +955,26 @@ test_586_pr_sweep_pr_field_rejects_garbage() {
   grep -qF -- "--pr" "$out" || log_fail "TEST-586: the 0x181 refusal does not name --pr: $(cat "$out")"
   [[ -s "$events" ]] && log_fail "TEST-586: a refused --pr 0x181 record must append nothing: $(cat "$events")"
 
+  # validation-round3 D1: a fractional PR number must be refused whole, never
+  # silently truncated to the integer part (--threads-seen/--threads-unresolved
+  # already pin the float boundary for the count fields; --pr owns its own arm).
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t586-ride --pr 385.0 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-586: --pr 385.0 must be refused (never silently truncated to PR 385), got exit 0: $(cat "$out")"
+  grep -qF -- "--pr" "$out" || log_fail "TEST-586: the 385.0 refusal does not name --pr: $(cat "$out")"
+  [[ -s "$events" ]] && log_fail "TEST-586: a refused --pr 385.0 record must append nothing: $(cat "$events")"
+
+  # validation-round3 (Amendment 19): --pr 0 is a non-negative integer, so
+  # parseSweepCount's shared count rule alone accepts it -- but a pull request
+  # is never numbered 0. Must be refused, naming --pr.
+  code=0
+  (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t586-ride --pr 0 --lane heavy \
+    --reviewer-bots expected --threads-seen 2 --threads-unresolved 0 --outcome swept) >"$out" 2>&1 || code=$?
+  [[ "$code" -ne 0 ]] || log_fail "TEST-586: --pr 0 must be refused (there is no PR 0), got exit 0: $(cat "$out")"
+  grep -qF -- "--pr" "$out" || log_fail "TEST-586: the --pr 0 refusal does not name --pr: $(cat "$out")"
+  [[ -s "$events" ]] && log_fail "TEST-586: a refused --pr 0 record must append nothing: $(cat "$events")"
+
   # Control: a real integer PR is accepted.
   code=0
   (cd "$d" && node "$APPEND_EVENT" --event pr_sweep --ref t586-ride --pr 385 --lane heavy \
@@ -955,7 +982,7 @@ test_586_pr_sweep_pr_field_rejects_garbage() {
   [[ "$code" -eq 0 ]] || log_fail "TEST-586: control --pr 385 must be accepted, got exit $code: $(cat "$out")"
   grep -qF '"pr":385' "$events" || log_fail "TEST-586: the accepted record must carry pr:385: $(cat "$events")"
 
-  log_pass "TEST-586 (Spec-AC-33) --pr is validated by the same non-negative-integer rule as the count fields, never silently coerced"
+  log_pass "TEST-586 (Spec-AC-33) --pr is validated by the same non-negative-integer rule as the count fields (plus its own positive-integer floor), never silently coerced or truncated"
 }
 
 # --- TEST-006 (Spec-AC-04): the record reads the gate, never recomputes ----
