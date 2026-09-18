@@ -297,11 +297,16 @@ test_565_gate_admits_only_the_next_pair() {
   local n; n="$(grep -c '"event":"ride_gate_override"' "$TEST_DIR/events565.jsonl")"
   [ "$n" = "1" ] || log_fail "TEST-565: exactly one override event must be appended, got $n"
 
-  # shipped roadmap: pair 7 closed with its real PR/commit (Spec-AC-10,
-  # spec-close-ceremony-sweep) makes pair 8 the first unfinished pair; its
+  # shipped roadmap: pair 7 (close-ceremony-sweep) closed with its real
+  # PR/commit (Spec-AC-10, spec-close-ceremony-sweep) makes pair 8
+  # (update-installs-ref-guard-undisclosed) the first unfinished pair; ITS
   # capability is admitted by ranking (same property as the pair-1/2 arm
-  # above, re-pointed at the live file instead of a fixture).
-  [ "$(run gate --ref close-ceremony-sweep --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
+  # above, re-pointed at the live file instead of a fixture). Amendment 25
+  # (close-ceremony-sweep): this assertion named pair 7 itself, which the
+  # gate now correctly REFUSES ("already done — nothing to ride") once the
+  # roadmap flip this comment already described actually landed; re-point it
+  # at pair 8, the ref the comment was always describing.
+  [ "$(run gate --ref update-installs-ref-guard-undisclosed --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
     || log_fail "TEST-565: shipped roadmap: pair 8's capability must be admitted: $(err)"
   log_pass "gate admits only the first unfinished pair; in-flight and blocks: unaffected; override still one-shot logged (TEST-565)"
 }
@@ -405,7 +410,10 @@ test_583_gate_refuses_undocumented_ref() {
   # Control: the live roadmap is unaffected by this check (every ref gate
   # can currently reach is either the live pair 8 capability, which HAS a
   # document, or refused earlier for ranking — B5/R6's own measurement).
-  [ "$(run gate --ref close-ceremony-sweep --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
+  # Amendment 25 (close-ceremony-sweep): pair 7 (close-ceremony-sweep) is now
+  # done, so pair 8 (update-installs-ref-guard-undisclosed) is the live
+  # admissible ref this control was always describing.
+  [ "$(run gate --ref update-installs-ref-guard-undisclosed --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
     || log_fail "TEST-583: the live roadmap's own admissible ref must still be admitted: $(err)"
   log_pass "TEST-583: gate refuses an undocumented roadmap ref (capability or maintenance), naming the ref and the missing document, and admits once the document exists; live roadmap unaffected"
 }

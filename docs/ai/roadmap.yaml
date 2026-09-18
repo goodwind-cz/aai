@@ -32,7 +32,7 @@ pairs:
     status: done
   - capability: close-ceremony-sweep
     maintenance: roadmap-gate-admits-only-the-next-pair
-    status: planned
+    status: done
   - capability: update-installs-ref-guard-undisclosed
     maintenance: agents-tree-not-synced
     status: planned

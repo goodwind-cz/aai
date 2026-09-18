@@ -81,6 +81,24 @@ run_gate() {
   printf '%s\n' "$rc"
 }
 
+# Build a directory containing ONLY the named tools (symlinked from their
+# real location), then print its path. Setting PATH to exactly this
+# directory is the only reliable way to make `command -v <tool>` genuinely
+# fail for one specific tool without guessing what else on the real PATH
+# might otherwise resolve it first (TEST-591/592, fu-hookgate-capability-
+# before-deny). A tool not found on the host is silently omitted, matching
+# "genuinely absent" for that tool too.
+minimal_path() {
+  local dir="$1" t p
+  shift
+  mkdir -p "$dir"
+  for t in "$@"; do
+    p="$(command -v "$t" 2>/dev/null)" || continue
+    ln -sf "$p" "$dir/$t"
+  done
+  printf '%s' "$dir"
+}
+
 # TEST-001 — template exists and parses as JSON
 test_001_template_valid_json() {
   if [[ ! -f "$TEMPLATE" ]]; then
@@ -189,6 +207,18 @@ test_004_fail_open_shape() {
   if ! (cmd='a[xy]c' _cmd_has 'a[xy]c'); then
     log_fail "TEST-004: _cmd_has must still match when the literal bracketed substring IS present"
   fi
+  # CI-only flake (found live on PR #385, never reproduced locally): with the
+  # adapter absent, `if [ -f "$G" ]; then ...; fi` never touches stdin at all
+  # -- the command exits with nothing having read the pipe. Piping into that
+  # under `set -o pipefail` races the reader's exit against the writer's
+  # `write()`: on a loaded CI runner the reader can close its end first,
+  # handing `printf` an EPIPE ("printf: write error: Broken pipe") that
+  # pipefail then reports as the WHOLE pipeline's exit code -- reading back
+  # as "command exits 1, not 0" even though the command itself never ran.
+  # Fixed the way TEST-008 already does it below: write the payload to a real
+  # file once and redirect it in, which never races because there is no live
+  # pipe for either side to close early.
+  printf '{}' > "$d/test004-payload.json"
   i=0
   while IFS= read -r cmd; do
     [[ -z "$cmd" ]] && continue
@@ -201,7 +231,7 @@ test_004_fail_open_shape() {
       ok=0
     fi
     rc=0
-    printf '{}' | (cd "$d" && CLAUDE_PROJECT_DIR="$d" sh -c "$cmd" >/dev/null 2>&1) || rc=$?
+    (cd "$d" && CLAUDE_PROJECT_DIR="$d" sh -c "$cmd" < "$d/test004-payload.json" >/dev/null 2>&1) || rc=$?
     if [[ "$rc" -ne 0 ]]; then
       log_info "TEST-004: command $i exits $rc (not 0) with the adapter absent"
       ok=0
@@ -754,6 +784,91 @@ GHSTUB
                   || log_fail "TEST-587 merge gate quoted PR number"
 }
 
+# TEST-591 (fu-hookgate-capability-before-deny, code review round 1/2 of
+# close-ceremony-sweep): when the TOOLING to resolve or check a PR is
+# genuinely absent -- no `gh` to resolve a branch-implicit PR, no `node`, no
+# .aai layer (lane-gate.mjs) to run a check against -- that is a capability
+# gap, not a verdict, and the merge gate must ALLOW exactly like every other
+# adapter-trouble path this file documents. Before the fix, "cannot resolve"
+# was treated as a verdict regardless of WHY it couldn't resolve, so any of
+# these three absences read identically to a genuinely unresolvable/missing
+# record and denied.
+test_018_merge_gate_capability_absent_allows() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-591 $ADAPTER does not exist"; return; }
+  local ok=1 d rc err minp
+
+  # (a) no positional PR number AND no `gh` on PATH at all: nothing can even
+  # attempt to resolve which PR this is -- capability absent -> ALLOW.
+  d="$(new_fixture)"
+  minp="$(minimal_path "$d/nogh-bin" cat grep sed bash node)"
+  err=$(payload_for "gh pr merge --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$minp" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-591: bare 'gh pr merge' with no gh on PATH exited $rc (want 0, capability absent): $err"; ok=0; }
+
+  # (b) a positional PR number IS given (so resolution needs no gh at all),
+  # but `node` is absent: nothing can run the sweep-check -- ALLOW.
+  d="$(new_fixture)"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" "$d/.aai/scripts/lane-gate.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  minp="$(minimal_path "$d/nonode-bin" cat grep sed bash gh)"
+  err=$(payload_for "gh pr merge 42 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$minp" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-591: 'gh pr merge 42' with no node on PATH exited $rc (want 0, capability absent): $err"; ok=0; }
+
+  # (c) a positional PR number IS given, node IS present (ambient PATH), but
+  # the .aai layer itself (lane-gate.mjs) is absent -- the TEST-004 shape,
+  # exercised here through the real adapter rather than the template guard:
+  # nothing to check the PR against -- ALLOW.
+  d="$(new_fixture)"
+  err=$(payload_for "gh pr merge 42 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-591: 'gh pr merge 42' with no .aai layer exited $rc (want 0, capability absent): $err"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-591 (fu-hookgate-capability-before-deny) merge gate ALLOWS when the tooling to resolve or check a PR is absent (no gh, no node, no .aai layer) -- capability absence is never read as an unresolvable/missing verdict" \
+                  || log_fail "TEST-591 merge gate capability-absent"
+}
+
+# TEST-592 (fu-hookgate-capability-before-deny): the companion half -- when
+# the SAME tooling IS present and it genuinely cannot resolve or verify the
+# PR, that IS a verdict and the gate must still deny (this is the behavior
+# B2/validation-round1 introduced; the capability-order fix must not weaken
+# it for the case the tooling actually ran and came back empty/denied).
+test_019_merge_gate_tooling_present_unresolvable_denies() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-592 $ADAPTER does not exist"; return; }
+  local ok=1 d rc err
+
+  # (a) `gh` IS on PATH (capability present) but resolution itself fails (no
+  # PR on this branch / gh error) and no positional number was given: denied,
+  # naming that neither path identified a PR.
+  d="$(new_fixture)"
+  mkdir -p "$d/bin"
+  cat > "$d/bin/gh" <<'GHSTUB'
+#!/usr/bin/env bash
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+  err=$(payload_for "gh pr merge" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-592: bare 'gh pr merge' with gh present but unresolvable exited $rc (want 2, tooling present): $err"; ok=0; }
+  assert_payload_contains "$err" "could not determine" "TEST-592: tooling-present-unresolvable deny message does not explain why: $err" || ok=0
+
+  # (b) node + lane-gate.mjs ARE present (capability present), the PR IS
+  # known, but there is no valid sweep record for it: denied (unchanged
+  # behavior, still exercised here to pin it alongside the capability-order
+  # fix, not just via TEST-574).
+  d="$(new_fixture)"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" "$d/.aai/scripts/lane-gate.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  err=$(payload_for "gh pr merge 99 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-592: 'gh pr merge 99' with capability present but no sweep record exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "99" "TEST-592: capability-present-no-record deny message does not name PR 99: $err" || ok=0
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-592 (fu-hookgate-capability-before-deny) merge gate still DENIES when the tooling to resolve or check a PR is present and what it finds is genuinely unresolvable or missing" \
+                  || log_fail "TEST-592 merge gate tooling-present-unresolvable"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -777,6 +892,8 @@ main() {
   test_015_strict_audit
   test_016_merge_gate_sweep_check
   test_017_merge_gate_quoted_pr_number
+  test_018_merge_gate_capability_absent_allows
+  test_019_merge_gate_tooling_present_unresolvable_denies
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

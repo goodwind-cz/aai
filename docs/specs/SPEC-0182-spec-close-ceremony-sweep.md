@@ -4,7 +4,7 @@ type: spec
 number: 182
 status: done
 mutation_gate: v1
-frozen_sha256: 8b235ca80305defdd49c88fa22c67ee86af0792e20a926d69d065c6b991f47da
+frozen_sha256: 9bb6461394777284afe32d988f029e2bf2f26258eb464dff3362d9657eb848f5
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0188-close-ceremony-sweep.md
@@ -2111,6 +2111,128 @@ pass. `docs-audit.mjs --check --strict`, `spec-amend.mjs list --strict`,
 spec>` are all clean (rc=0). The working tree is left clean; this amendment's
 own record uses `--ref close-ceremony-sweep`, per Amendment 20's correction
 of Amendment 18's mistake.
+
+Sign-off: none (tracked).
+
+## Amendment 25 (post-freeze, 2026-09-18 — PR #385 CI remediation: three CI-only red suites fixed, `fu-hookgate-capability-before-deny` closed)
+
+**CI caught what a local run could not.** PR #385's CI (run `35380764350`) came
+back red in three suites while every local run of the same suites was clean —
+disclosed here rather than trimmed to the clean re-run, because the
+discrepancy IS the finding in two of the three cases: no environment-mismatch
+theory survived reading the actual job logs (`gh run view --job <id> --log`),
+and the true causes were narrower and, in one case, different from what the
+CI-red symptom first suggested.
+
+**1. `test-aai-hooks-overlay.sh` TEST-004 ("fail-open shape").** The CI log
+(job `105716197473`) named the real, reproducible cause directly: `line 204:
+printf: write error: Broken pipe`, then `TEST-004: command 3 exits 1 (not 0)
+with the adapter absent`. TEST-004 pipes a payload into
+`if [ -f "$G" ]; then bash "$G" "$gate"; fi` inside a fixture with no `.aai`
+layer at all — `$G` never exists, so the `if` body never runs and NOTHING
+reads the pipe. Under this suite's own `set -o pipefail`, that is a race: on
+a loaded CI runner the reader can exit (closing its end of the pipe) before
+`printf`'s `write()` lands, handing it `EPIPE`, which pipefail then reports as
+the whole pipeline's exit code — a command that never ran reads back as
+"exits 1, not 0." Reproduced by reasoning, not by reproducing the timing
+locally (this class of race routinely does not reproduce off the exact
+runner) — the log's mechanism is unambiguous, so no local repro was needed to
+act on it. Fixed the way `TEST-008` (later in this same file) already avoids
+the same class: write the `{}` payload to a real file once and
+redirect it in (`< "$d/test004-payload.json"`) instead of piping, which
+cannot race because neither side ever has to close a live pipe early.
+
+Investigating this also surfaced the review-round-1 finding filed as
+`fu-hookgate-capability-before-deny` (P3, rated low at the time; not what CI
+actually tripped on for TEST-004, but real and worth closing while the
+adapter is open): `claude-hook-gate.sh`'s `merge` gate resolved a PR number
+(`:116-141` as it stood) BEFORE checking whether the tooling to resolve or
+check it — `gh` on PATH, `node` + `lane-gate.mjs` present — existed at all.
+On a machine missing any of that tooling, "couldn't resolve/check" reads
+identically to "checked, and it's genuinely unresolvable or missing," so an
+operator-directed merge with no `gh` on PATH (and no positional PR number)
+denied instead of falling open like every other adapter-trouble path this
+file's own header documents. Fixed the order: the capability tests now gate
+BOTH the PR-resolution and the sweep-check step, in `.aai/scripts/claude-hook-gate.sh`.
+An empty `PR` after the resolution block now means one of two things and the
+code tells them apart:
+- no positional number AND no `gh` on PATH at all — capability absent, falls
+  through to `exit 0`;
+- no positional number, `gh` IS present, but `gh pr view` itself could not
+  name one — tooling present, genuinely unresolvable — denies (unchanged from
+  before this fix; this is the B2/validation-round1 behavior, preserved).
+
+Symmetrically, a known PR number with `node`/`lane-gate.mjs` absent now falls
+open (nothing to check it against) instead of running past a check that was
+never reachable. Two new arms prove both halves: `TEST-591` (capability
+absent — no `gh` and no PR number; a PR number with no `node`; a PR number
+with no `.aai` layer — all three ALLOW) and `TEST-592` (tooling present but
+genuinely unresolvable or missing — `gh` present but `gh pr view` fails; `node`
++ `lane-gate.mjs` present but no sweep record — both DENY, unchanged). A
+`minimal_path()` test helper builds a PATH containing only named, symlinked
+tools, since the alternative (prepending a fake binary) cannot make
+`command -v <tool>` fail for a tool the real PATH still resolves. Adding
+`TEST-591`'s node-absent arm vendors `lane-gate.mjs` into its fixture, so it
+also copies `lib/cli-pipe-guard.mjs` and `lib/pr-sweep.mjs` alongside it
+(`check-vendored-script-deps.mjs`'s own dependency rule, Amendment 21/22).
+Closed: `fu-hookgate-capability-before-deny`.
+
+**2. `test-aai-ride-select.sh` TEST-002.** The gate correctly refused the next
+ride (`update-installs-ref-guard-undisclosed`) because `docs/ai/roadmap.yaml`
+still carried the `close-ceremony-sweep` pair at `status: planned`, even
+though this ride is delivered, merged (PR #385) and closed — the roadmap was
+stale, not the gate. Flipped that pair to `status: done`, the same move run
+11 made for the pair before it. `ride-select.mjs validate` and
+`gate --ref update-installs-ref-guard-undisclosed` both confirm the next ride
+is now admitted.
+
+That flip exposed two DORMANT bugs in the same suite, invisible until pair 7
+(`close-ceremony-sweep`) actually reached `done`: `TEST-565` and `TEST-583`
+each carry a "shipped roadmap" control arm whose own comment already said the
+live admissible ref is pair 8 (`update-installs-ref-guard-undisclosed`), but
+whose assertion literally gated `--ref close-ceremony-sweep` instead — the
+comment was written ahead of the roadmap state it described. While pair 7
+was `planned`, `close-ceremony-sweep` itself WAS the first-unfinished ref, so
+the wrong assertion happened to pass; once pair 7 flipped to `done`, the gate
+correctly refuses it ("already done — nothing to ride") and both arms went
+red. Corrected both assertions to `--ref update-installs-ref-guard-undisclosed`,
+matching what their own comments always described; `test-aai-ride-select.sh`
+passes in full.
+
+**3. `test-aai-hygiene-pack.sh` — `cd-subshell-leak` baseline.** Two sources
+raised `tests/skills/test-aai-hooks-overlay.sh`'s occurrence count: the
+`TEST-004` file-redirect fix above (one more `cd "$d" && ...` fixture setup)
+and the `TEST-591`/`TEST-592` arms (each builds fixtures the same way TEST-574
+already does). Re-recorded 32 -> 39 (wider than the 32 -> 34 this ride
+initially estimated, since the fix and the two new arms landed together);
+`check-cd-subshell-leak.mjs` reports `UNSAFE 0` both before and after —
+`node .aai/scripts/check-cd-subshell-leak.mjs --record`.
+
+**Verification.** This amendment touches `.aai/scripts/claude-hook-gate.sh`,
+`tests/skills/test-aai-hooks-overlay.sh`, `tests/skills/test-aai-ride-select.sh`,
+`docs/ai/roadmap.yaml` and `tests/skills/lib/cd-subshell-leak-baseline.tsv`.
+`mutation-gate.mjs --spec docs/specs/SPEC-0182-spec-close-ceremony-sweep.md`
+first reported `GATE FAIL: 3 offending row(s)` — `TEST-535` (target
+`docs/ai/roadmap.yaml`, staled by the pair-7 status flip), `TEST-574` and
+`TEST-587` (target `.aai/scripts/claude-hook-gate.sh`, staled by the
+capability-order fix) — all three re-run against their own already-recorded
+mutation expressions (`TEST-535`'s patch, `TEST-574`'s
+`sed:s/if \[ "\$SWEEP_RC" -eq 5 \]; then/if false; then/`, `TEST-587`'s
+patch), all three RED, matching their prior first-fail lines. Second gate
+run: `GATE PASS: 72 row(s) satisfied degraded=0 unstamped=0`, zero offending
+(`TEST-591`/`TEST-592` are new proof arms for a review-round follow-up, not
+new spec Test Plan rows, so the gate does not track them — their own RED/GREEN
+pair was confirmed directly: both fail the way TEST-591 names before the
+capability-order fix and pass after). `tests/skills/test-aai-hooks-overlay.sh`
+(19/19), `tests/skills/test-aai-ride-select.sh` (12/12),
+`tests/skills/test-aai-hygiene-pack.sh` and
+`tests/skills/test-aai-orchestration-dispatch.sh` were each run in full and
+pass. `check-vendored-script-deps.mjs --root .`: `CLEAN — 0 violation(s) (79
+vendored engine site(s) checked)`. `docs-audit.mjs --check --strict`,
+`spec-amend.mjs list --strict` and `follow-ups.mjs verify-closures --strict`
+are clean. The working tree is left clean; this amendment's own record uses
+`--ref close-ceremony-sweep`, per Amendment 20's correction of Amendment 18's
+mistake.
 
 Sign-off: none (tracked).
 
