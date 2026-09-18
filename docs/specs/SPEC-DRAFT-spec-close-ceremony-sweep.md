@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: b5958b7a222d0282565203fb9c579fb660715c312caea71965aadf01383d444e
+frozen_sha256: 7580e29012cb80e2dd5d75624cc76d3b932bf93b0716b7deb502352ca18b6348
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-close-ceremony-sweep.md
@@ -1164,6 +1164,29 @@ recorded them before its own final edit of `.aai/scripts/nothing-left-behind.mjs
 so the gate reported them STALE against `target_sha256`. Each row's own recorded
 expression was re-run unchanged; all three came back RED, so the properties
 still hold and no source change was needed.
+
+Sign-off: none (tracked).
+
+## Amendment 7 (post-freeze, 2026-09-18 — TEST-553 records a substitute for a tool limit, TDD run 7)
+
+**TEST-553 (Spec-AC-21), cell verbatim; record RED.** The cell deletes the
+frontmatter key with a per-line anchored expression. `mutation-run.mjs` builds
+its RegExp from `--sed` honouring only the `g` flag, so `^` and `$` anchor to
+the whole file and the expression matches nothing: it could never redden, for
+any template, in any ride. Recorded instead the same deletion written without
+anchors (the key plus its newline), which reddens. This is a limit of the
+mutation runner, not of the AC, and it is filed as
+`fu-mutation-sed-drops-multiline-flag` (P2) rather than worked around silently
+— sweep 7 owns that file.
+
+**A second suite could not attribute a redden.** `tests/skills/test-aai-intake.sh`
+prints its failures through a wrapper that emits a cross mark and no literal
+`FAIL`, and `mutation-run.mjs` looks for `FAIL` followed by the test id. Run 7
+prefixed that suite's failure text so TEST-553 could be attributed; the general
+gap is filed as `fu-suite-fail-text-blocks-attribution` (P2). Amendment 6
+recorded the first instance of this class (TEST-575, an untagged arm); together
+they say the attribution contract is prose that nothing checks, which is the
+same class this sweep exists to close.
 
 Sign-off: none (tracked).
 
