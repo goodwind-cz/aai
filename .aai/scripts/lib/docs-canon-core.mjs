@@ -13,9 +13,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import {
   CANONICAL_SECTIONS, domainToReqDomain, DOMAIN_SLUG_RE,
-  parseFrontmatter, asList,
+  parseFrontmatter, asList, isGitWorkTree,
 } from './docs-model.mjs';
 
 export const CANONICAL_DIR = 'docs/canonical';
@@ -37,6 +38,45 @@ const SUPERSESSION_MARKERS = [
 
 export function sha256(s) {
   return crypto.createHash('sha256').update(s).digest('hex');
+}
+
+// stageGitPaths(root, paths) — Spec-AC-22 writer-owns-visibility: a
+// generated page (INDEX, overview) is built from what git TRACKS
+// (lib/docs-model.mjs walkTracked); a writer that mutates docs/ without
+// staging its own output makes that same-breath regeneration blind to it —
+// invisible before Spec-AC-22, a user-visible behaviour change (a vanished
+// or a phantom-absent doc) once the walk went tracked-only. Every absolute
+// path this module writes or moves — BOTH sides of an archive move (the new
+// archived file AND the now-deleted original) — is staged here immediately,
+// so any regeneration the CALLER triggers next, however soon, already sees
+// it; this module never triggers regeneration itself, but the writer owns
+// making its writes visible regardless of who reads them next.
+// Degrades to a named NOTE, never throws: outside a git work tree (no index
+// to stage into) or on any `git add` failure, the write itself already
+// succeeded and must not be undone or blocked by a staging problem.
+export function stageGitPaths(root, paths) {
+  const list = (paths || []).filter(Boolean);
+  if (!list.length) return;
+  if (!isGitWorkTree(root)) {
+    console.error(`NOTE: ${root} is not a git work tree — docs-canon wrote ${list.length} path(s) unstaged.`);
+    return;
+  }
+  // ONE `git add` call per path, not a single call over the whole list: `git
+  // add` on a literal pathspec resolves ALL its arguments before staging any
+  // of them, so one path that cannot resolve (e.g. the ORIGINAL side of a
+  // move when the source was never tracked to begin with — a pre-existing
+  // condition this writer does not control) would otherwise fail the WHOLE
+  // call and silently drop staging for every other, perfectly valid path in
+  // the same call (observed: archiveSource's own new archive file went
+  // unstaged because its sibling delete-path failed to resolve). Each path
+  // degrades independently.
+  for (const p of list) {
+    try {
+      execFileSync('git', ['-C', root, 'add', '--', p], { stdio: ['ignore', 'ignore', 'pipe'] });
+    } catch (e) {
+      console.error(`NOTE: git add failed for docs-canon's own write ${p} — the regenerated page may not see it until staged by hand: ${(e && e.message) || e}`);
+    }
+  }
 }
 
 function stripFrontmatter(content) {
@@ -445,6 +485,9 @@ export function archiveSource(root, srcRel, canonicalRel, { archiveDir = ARCHIVE
   }
   fs.writeFileSync(destAbs, content);
   fs.rmSync(srcAbs);
+  // both sides of the move: the new archived file AND the now-deleted
+  // original (staging a deleted path is how git records the removal).
+  stageGitPaths(root, [destAbs, srcAbs]);
   return destRel;
 }
 
@@ -493,6 +536,7 @@ export function runPhase2(root, map, { canonicalDir = CANONICAL_DIR, archiveDir 
         sectionBodies: extra.sectionBodies ?? {},
       });
       fs.writeFileSync(canonAbs, text);
+      stageGitPaths(root, [canonAbs]);
       d.sourceHashes = rerunHashes; // re-baseline so the domain reads clean next run
       result.resynced.push(domain);
       continue;
@@ -529,6 +573,7 @@ export function runPhase2(root, map, { canonicalDir = CANONICAL_DIR, archiveDir 
       sectionBodies: extra.sectionBodies ?? {},
     });
     fs.writeFileSync(canonAbs, text);
+    stageGitPaths(root, [canonAbs]);
     result.written.push(domain);
 
     // record source-body hashes for future drift detection (idempotence + drift)
@@ -544,6 +589,7 @@ export function writeJson(root, rel, obj) {
   const abs = path.join(root, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, JSON.stringify(obj, null, 2) + '\n');
+  stageGitPaths(root, [abs]);
 }
 
 export function readJson(root, rel) {
