@@ -40,6 +40,26 @@ wave_2:
   - later-thing
 YAML
 }
+# A 3-pair fixture roadmap (Spec-AC-29 ranking): each pair's own status is
+# independently controllable so a test can move which pair is first-unfinished.
+write_roadmap3() { # $1=pair1 status $2=pair2 status $3=pair3 status
+  cat > "$TEST_DIR/roadmap3.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-a
+    maintenance: maint-a
+    status: $1
+  - capability: cap-b
+    maintenance: maint-b
+    status: $2
+  - capability: cap-c
+    maintenance: maint-c
+    status: $3
+wave_2:
+  - later-thing
+YAML
+}
 # Doc status for a ref is read from a docs dir: the gate needs to know whether
 # a capability is planned/implementing/done. Fixture docs dir with frontmatter.
 write_doc() { # $1=slug $2=type $3=status [$4=extra frontmatter line]
@@ -127,9 +147,15 @@ test_003_pair_first() {
   write_doc cap-one change draft
   [ "$(run gate --ref cap-one --roadmap "$TEST_DIR/pairdone.yaml" --docs "$TEST_DIR/docs")" != "0" ] || log_fail "TEST-003: a pair marked done in the roadmap must refuse its capability"
   grep -qi "already marked done" "$TEST_DIR/err" || log_fail "TEST-003: the refusal must say the pair is marked done: $(err)"
-  # a capability on the roadmap always passes, regardless of anything
-  [ "$(run gate --ref cap-two --roadmap "$TEST_DIR/roadmap.yaml" --docs "$TEST_DIR/docs")" = "0" ] || log_fail "TEST-003: a roadmap capability must always pass: $(err)"
-  log_pass "pair first: refused, then allowed; a capability always passes (TEST-003)"
+  # CORRECTED (Spec-AC-29, TDD run 10): this used to assert "a capability on
+  # the roadmap always passes, regardless of anything" — that WAS the
+  # CHANGE-0184 defect (the gate admitted any on-roadmap capability, not only
+  # the next one). Sequential admission means pair 2's capability is refused
+  # while pair 1 is unfinished; TEST-565 in this suite covers the full ranking
+  # matrix (first-pair admission, later-pair refusal, in-flight, override).
+  [ "$(run gate --ref cap-two --roadmap "$TEST_DIR/roadmap.yaml" --docs "$TEST_DIR/docs")" != "0" ] || log_fail "TEST-003: pair 2's capability must be refused while pair 1 is unfinished (Spec-AC-29)"
+  grep -qi "cap-one" "$TEST_DIR/err" || log_fail "TEST-003: the refusal must name pair 1's capability cap-one as ahead: $(err)"
+  log_pass "pair first: refused, then allowed; a later pair's capability is refused until pair 1 is done (TEST-003, corrected under Spec-AC-29)"
 }
 
 # --- TEST-004 (Spec-AC-04): off-roadmap fix goes to the backlog ---------------
@@ -214,6 +240,85 @@ test_007_wiring() {
   log_pass "canon wiring present: gate in SHIP and LOOP, two-round STOP, operator contract ≤40 lines (TEST-007)"
 }
 
+# --- TEST-565 (Spec-AC-29): sequential admission -------------------------
+test_565_gate_admits_only_the_next_pair() {
+  log_info "Test: gate admits only the first unfinished pair; an in-flight ref and blocks: stay unaffected; override still one-shot (TEST-565)..."
+  write_roadmap3 planned planned planned
+  write_doc cap-a change draft; write_doc cap-b change draft; write_doc cap-c change draft
+  # nothing started: pair 1 admitted, pairs 2/3 refused naming pair 1's capability
+  [ "$(run gate --ref cap-a --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-565: pair 1's capability must be admitted: $(err)"
+  [ "$(run gate --ref cap-b --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-565: pair 2's capability must be refused while pair 1 is unfinished"
+  grep -q "cap-a" "$TEST_DIR/err" || log_fail "TEST-565: pair 2's refusal must name pair 1's capability cap-a: $(err)"
+  [ "$(run gate --ref cap-c --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-565: pair 3's capability must be refused while pair 1 is unfinished"
+  grep -q "cap-a" "$TEST_DIR/err" || log_fail "TEST-565: pair 3's refusal must name pair 1's capability cap-a: $(err)"
+
+  # pair 1 capability implementing: its maintenance is admitted, the capability
+  # itself stays admitted (in flight), pair 2 stays refused
+  write_doc cap-a change implementing
+  [ "$(run gate --ref maint-a --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-565: pair 1's maintenance must be admitted once its capability is implementing: $(err)"
+  [ "$(run gate --ref cap-a --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-565: an implementing capability must stay admitted: $(err)"
+  [ "$(run gate --ref cap-b --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-565: pair 2 must still be refused while pair 1 is not done"
+
+  # pair 1 done (roadmap-level): pair 2's capability is now admitted, pair 3
+  # refused naming pair 2
+  write_roadmap3 done planned planned
+  [ "$(run gate --ref cap-b --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-565: pair 2's capability must be admitted once pair 1 is done: $(err)"
+  [ "$(run gate --ref cap-c --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-565: pair 3 must be refused while pair 2 is unfinished"
+  grep -q "cap-b" "$TEST_DIR/err" || log_fail "TEST-565: pair 3's refusal must name pair 2's capability cap-b: $(err)"
+
+  # AC-004: an implementing ref in a later, non-first pair stays admitted as in flight
+  write_doc cap-c change implementing
+  [ "$(run gate --ref cap-c --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-565: an implementing ref in a non-first pair must stay admitted (in flight): $(err)"
+  grep -qi "in flight" "$TEST_DIR/out" || log_fail "TEST-565: the in-flight admission must say so: $(out)"
+  write_doc cap-c change draft
+
+  # AC-005: blocks: naming a not-first roadmap ref is admitted unchanged
+  write_doc some-fix issue draft "blocks: cap-c"
+  [ "$(run gate --ref some-fix --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-some-fix.md" --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-565: blocks: naming a not-first roadmap ref must still admit: $(err)"
+
+  # AC-007: --override stays one-shot and logged, even against the new ranking refusal
+  : > "$TEST_DIR/events565.jsonl"
+  [ "$(run gate --ref cap-c --roadmap "$TEST_DIR/roadmap3.yaml" --docs "$TEST_DIR/docs" --events "$TEST_DIR/events565.jsonl" --override "owner: out of order for a customer")" = "0" ] \
+    || log_fail "TEST-565: --override must admit a ranking refusal: $(err)"
+  local n; n="$(grep -c '"event":"ride_gate_override"' "$TEST_DIR/events565.jsonl")"
+  [ "$n" = "1" ] || log_fail "TEST-565: exactly one override event must be appended, got $n"
+
+  # shipped roadmap: pair 7 is the first unfinished pair (1-6 done); its
+  # maintenance (capability already done) is admitted
+  [ "$(run gate --ref unrecorded-spec-amendment-is-invisible --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
+    || log_fail "TEST-565: shipped roadmap: pair 7's maintenance must be admitted: $(err)"
+  log_pass "gate admits only the first unfinished pair; in-flight and blocks: unaffected; override still one-shot logged (TEST-565)"
+}
+
+# --- TEST-566 (Spec-AC-29): validate refuses an unresolvable started ref --
+test_566_validate_refuses_unknown_refs() {
+  log_info "Test: validate refuses a STARTED pair's ref with no matching document id, naming the slug and its pair; a still-planned pair is exempt; the live roadmap still passes (TEST-566)..."
+  write_doc cap-one change draft
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-one\n    maintenance: no-such-doc-slug\n    status: active\n' > "$TEST_DIR/typo.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/typo.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-566: an active pair naming a non-existent doc id must refuse"
+  grep -q "no-such-doc-slug" "$TEST_DIR/err" || log_fail "TEST-566: the refusal must name the unknown ref: $(err)"
+  grep -q "pair 1" "$TEST_DIR/err" || log_fail "TEST-566: the refusal must name the pair: $(err)"
+  # a STILL-PLANNED pair naming an unfiled slug is exempt (named ahead of its
+  # own intake is legitimate — it has not started yet)
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-one\n    maintenance: not-yet-intaken\n    status: planned\n' > "$TEST_DIR/planned-ahead.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/planned-ahead.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-566: a still-planned pair naming an unfiled ref must NOT refuse: $(err)"
+  # the live roadmap validates clean (every active/done pair resolves)
+  [ "$(run validate --roadmap "$SHIPPED")" = "0" ] || log_fail "TEST-566: the shipped roadmap must still validate: $(err)"
+  log_pass "validate refuses a started pair's unknown ref, exempts a still-planned one, live roadmap unaffected (TEST-566)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -229,6 +334,8 @@ main() {
   test_005_fail_closed
   test_006_override
   test_007_wiring
+  test_565_gate_admits_only_the_next_pair
+  test_566_validate_refuses_unknown_refs
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

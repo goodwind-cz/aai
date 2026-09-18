@@ -1537,6 +1537,26 @@ test_036_golden_flow_record_precondition() {
   log_pass "TEST-036 (spec TEST-008): missing/stale/unparsable record NAMED (never blocking); fresh record leaves the block byte-identical"
 }
 
+# --- TEST-570 (Spec-AC-31): CHANGELOG documents the heading shape it enforces
+test_570_changelog_shape_is_documented() {
+  log_info "Test: the CHANGELOG preamble names the per-entry heading shape and the two exits that enforce it; --dry-run still refuses a scaffold carrying a body (TEST-570)..."
+  local cl="$PROJECT_ROOT/CHANGELOG.md"
+  local pre="$TMP_ROOT/t570-preamble.txt"
+  awk '/^## \[unreleased\]/{exit} {print}' "$cl" > "$pre"
+  grep -qF '## [unreleased] — <type>' "$pre" \
+    || log_fail "TEST-570: the CHANGELOG preamble must name the per-entry heading shape '## [unreleased] — <type>...'"
+  grep -qF 'exit 12' "$pre" || log_fail "TEST-570: the preamble must name exit 12 (malformed)"
+  grep -qF 'exit 13' "$pre" || log_fail "TEST-570: the preamble must name exit 13 (no rollable entries)"
+
+  local repo="$TMP_ROOT/t570"
+  build_repo "$repo" malformed
+  local rc=0
+  ( cd "$repo" && bash "$RELEASE_SH" --dry-run ) >"$TMP_ROOT/t570.out" 2>&1 || rc=$?
+  [[ "$rc" == "12" ]] || log_fail "TEST-570: a malformed scaffold under --dry-run must exit 12, got $rc: $(cat "$TMP_ROOT/t570.out")"
+  grep -qi "malformed" "$TMP_ROOT/t570.out" || log_fail "TEST-570: the refusal must say 'malformed': $(cat "$TMP_ROOT/t570.out")"
+  log_pass "TEST-570: CHANGELOG preamble documents the heading shape + exits 12/13; --dry-run still refuses a scaffold with a body"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -1583,6 +1603,7 @@ main() {
   test_034_exit_codes_documented
   test_035_fallback_incomplete_exits_18
   test_036_golden_flow_record_precondition
+  test_570_changelog_shape_is_documented
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

@@ -262,6 +262,38 @@ test_005_skill_pr_wiring() {
   log_pass "SKILL_PR runs the committed-scope check with --strict, after the commit and before the push (TEST-005)"
 }
 
+# --- TEST-568 (Spec-AC-30): 4c and 5c each verify their own commit --------
+test_568_every_ceremony_commit_is_verified() {
+  log_info "Test: SKILL_PR 4c and 5c each verify their own committed blob by explicit paths, not --from-state, with a manual fallback (TEST-568)..."
+  local f="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  local s4c e4c s5c e5c
+  s4c="$(grep -nE '^4c\. CLOSE BEFORE PUSH' "$f" | qhead -1 | cut -d: -f1)"
+  e4c="$(grep -nE '^5\. PLATFORM GATE' "$f" | qhead -1 | cut -d: -f1)"
+  s5c="$(grep -nE '^5c\. STAMP THE PR NUMBER' "$f" | qhead -1 | cut -d: -f1)"
+  e5c="$(grep -nE '^5d\. POST-OPEN REVIEW SWEEP' "$f" | qhead -1 | cut -d: -f1)"
+  [ -n "$s4c" ] && [ -n "$e4c" ] && [ -n "$s5c" ] && [ -n "$e5c" ] \
+    || log_fail "TEST-568: could not locate the 4c/5c step boundaries in $f"
+  sed -n "${s4c},${e4c}p" "$f" > "$TEST_DIR/step4c.txt"
+  sed -n "${s5c},${e5c}p" "$f" > "$TEST_DIR/step5c.txt"
+  grep -q 'check-committed-scope.mjs' "$TEST_DIR/step4c.txt" \
+    || log_fail "TEST-568: step 4c must verify its own committed blob"
+  grep -q 'check-committed-scope.mjs' "$TEST_DIR/step5c.txt" \
+    || log_fail "TEST-568: step 5c must verify its own committed blob"
+  # "names the paths it expects rather than the exit code": the INVOCATION
+  # line itself must carry explicit paths, never --from-state (a mention
+  # explaining why NOT to use it is fine — only the actual flag on the actual
+  # command line is disallowed)
+  grep 'node .aai/scripts/check-committed-scope.mjs' "$TEST_DIR/step4c.txt" | qgrep -q -- '--from-state' \
+    && log_fail "TEST-568: step 4c's invocation must name explicit paths, not --from-state (wrong scope)"
+  grep 'node .aai/scripts/check-committed-scope.mjs' "$TEST_DIR/step5c.txt" | qgrep -q -- '--from-state' \
+    && log_fail "TEST-568: step 5c's invocation must name explicit paths, not --from-state (wrong scope)"
+  grep -q 'git show --stat HEAD' "$TEST_DIR/step4c.txt" \
+    || log_fail "TEST-568: step 4c must name a manual fallback (git show --stat HEAD) for when the script is absent"
+  grep -q 'git show --stat HEAD' "$TEST_DIR/step5c.txt" \
+    || log_fail "TEST-568: step 5c must name the same fallback"
+  log_pass "SKILL_PR 4c and 5c each verify their own committed blob by explicit paths (TEST-568)"
+}
+
 # --- TEST-006 (Spec-AC-05): the triage is complete and honest -----------------
 test_006_learned_triaged() {
   log_info "Test: every LEARNED entry is triaged, guard ids are OPEN follow-ups, nothing was deleted (TEST-006)..."
@@ -712,6 +744,7 @@ main() {
   test_006_learned_triaged
   test_007_scope_ref_id_gate
   test_008_ledger_append_vs_divergence
+  test_568_every_ceremony_commit_is_verified
   test_010_strict_rejects_pending_append
   test_520_scope_folded_block_split
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="

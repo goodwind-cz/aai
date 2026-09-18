@@ -9,6 +9,12 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+Every entry heading is `## [unreleased] — <type>: <title>`, never a bare
+`## [unreleased]` with body text under it — `aai-release` fails closed on
+that shape (exit 12, malformed) rather than silently merging or dropping it,
+and refuses a cut with zero rollable entries (exit 13). A bare, EMPTY
+`## [unreleased]` scaffold is fine — it is the marker a cut leaves on top.
+
 ## [unreleased]
 
 ## [unreleased] — feat(gate): a test is admitted only with the mutation that reddens it (CHANGE-0187 / SPEC-0181)

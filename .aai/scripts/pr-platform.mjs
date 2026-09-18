@@ -68,7 +68,9 @@ function fail(msg) {
 }
 
 function parseArgs(argv) {
-  const opts = { remoteUrl: null, prConfig: null, json: false };
+  const opts = {
+    remoteUrl: null, prConfig: null, json: false, checkSharedPageConflicts: false, ghBin: null,
+  };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--remote-url') {
@@ -83,14 +85,89 @@ function parseArgs(argv) {
       i += 1;
     } else if (tok === '--json') {
       opts.json = true;
+    } else if (tok === '--check-shared-page-conflicts') {
+      opts.checkSharedPageConflicts = true;
+    } else if (tok === '--gh-bin') {
+      const v = argv[i + 1];
+      if (v === undefined) fail('--gh-bin requires a value');
+      opts.ghBin = v;
+      i += 1;
     } else if (tok === '-h' || tok === '--help') {
-      console.log('Usage: node pr-platform.mjs [--remote-url <url>] [--pr-config <path>] [--json]');
+      console.log('Usage: node pr-platform.mjs [--remote-url <url>] [--pr-config <path>] [--json]\n'
+        + '       node pr-platform.mjs --check-shared-page-conflicts [--gh-bin <path>]');
       exit(0);
     } else {
       fail(`unknown flag "${tok}"`);
     }
   }
   return opts;
+}
+
+// SHARED-PAGE PUSH CHECK (Spec-AC-30 / fu-main-push-conflicts-open-pr). Every
+// ride's numbering step regenerates these committed, generated pages; a push
+// to the base branch that changes one of them can turn ANY OTHER open PR
+// that also touches it into a merge conflict the moment this branch lands.
+// Deliberately NOT the same list as SPEC-0181's tree-hash exclusions — these
+// pages ARE reviewed content, just machine-written.
+const SHARED_GENERATED_PAGES = new Set([
+  'docs/INDEX.md',
+  'docs/ai/overview-data.json',
+  'docs/overview.html',
+  'docs/USER_GUIDE.md',
+  'docs/ai/factory-report.html',
+]);
+
+// listOpenPrFiles(ghBin) — the open PR set with their touched files, or null
+// on ANY probe failure (no `gh`, unauthenticated, non-GitHub remote): this is
+// a best-effort warning, never a hard dependency — a probe that cannot see
+// the platform must never block the push by itself.
+function listOpenPrFiles(ghBin) {
+  try {
+    const out = execFileSync(ghBin, ['pr', 'list', '--state', 'open', '--json', 'number,files'], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const parsed = JSON.parse(out);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// sharedPageConflicts(prs) — every open PR whose file list overlaps
+// SHARED_GENERATED_PAGES, each with the overlapping paths named.
+function sharedPageConflicts(prs) {
+  if (!Array.isArray(prs)) return [];
+  const hits = [];
+  for (const pr of prs) {
+    const files = Array.isArray(pr.files) ? pr.files.map((f) => f && f.path).filter(Boolean) : [];
+    const overlap = files.filter((f) => SHARED_GENERATED_PAGES.has(f));
+    if (overlap.length) hits.push({ number: pr.number, files: overlap });
+  }
+  return hits;
+}
+
+function runSharedPageCheck(opts) {
+  const ghBin = opts.ghBin || process.env.AAI_GH_BIN || 'gh';
+  const remoteUrl = opts.remoteUrl !== null ? (opts.remoteUrl || null) : readOriginUrl();
+  const host = extractHost(remoteUrl);
+  if (classify(host) !== 'github') {
+    console.log('SHARED-PAGE-PUSH SKIP — platform is not github (gh pr list has no portable equivalent here)');
+    exit(0);
+  }
+  const prs = listOpenPrFiles(ghBin);
+  if (prs === null) {
+    console.log('SHARED-PAGE-PUSH SKIP — gh pr list unavailable (absent/unauthenticated) — never blocks on a probe failure');
+    exit(0);
+  }
+  const hits = sharedPageConflicts(prs);
+  if (hits.length === 0) {
+    console.log('SHARED-PAGE-PUSH CLEAR');
+    exit(0);
+  }
+  for (const h of hits) {
+    console.error(`pr-platform: SHARED-PAGE-PUSH CONFLICT PR #${h.number} touches ${h.files.join(', ')} — this push would turn it CONFLICTING`);
+  }
+  exit(1);
 }
 
 // Read `git remote get-url origin` from the current working directory. git
@@ -214,6 +291,7 @@ function sanitize(remoteUrl) {
 
 function main() {
   const opts = parseArgs(process.argv);
+  if (opts.checkSharedPageConflicts) { runSharedPageCheck(opts); return; }
   const remoteUrl = opts.remoteUrl !== null ? (opts.remoteUrl || null) : readOriginUrl();
 
   if (!remoteUrl) {
@@ -253,4 +331,7 @@ function realOrResolve(p) {
 const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 if (isMain) runMain(() => main());
 
-export { classify, extractHost, sanitize, readReviewerBots };
+export {
+  classify, extractHost, sanitize, readReviewerBots,
+  sharedPageConflicts, listOpenPrFiles, SHARED_GENERATED_PAGES,
+};

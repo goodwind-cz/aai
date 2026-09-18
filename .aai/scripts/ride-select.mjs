@@ -139,6 +139,17 @@ function nextRide(rm, docsDir) {
 }
 
 // --- gate --------------------------------------------------------------------------
+// isFirstUnfinished (CHANGE-0184 / Spec-AC-29) — the roadmap's ranking is
+// enforced HERE, not merely documented: a pair is admissible only when it is
+// the FIRST pair, in roadmap order, whose OWN roadmap-level status is not
+// "done". Walks pairs in order; the first not-done pair encountered decides
+// the answer for every pair (true for itself, false for every later one).
+function isFirstUnfinished(pair, roadmap) {
+  for (const p of roadmap.pairs) {
+    if (p.status !== 'done') return p === pair;
+  }
+  return false;
+}
 function isMaintenance(ref, intake) {
   if (intake && intake.type && MAINT_TYPES.has(intake.type)) return true;
   if (intake && intake.title && /\b(fix|guard|harness|hygiene|tripwire|flake|refactor|cleanup|lint)\b/i.test(intake.title)) return true;
@@ -167,6 +178,15 @@ function main() {
 
   if (a.cmd === 'validate') {
     if (loaded.error) usage(`invalid roadmap ${a.roadmap}: ${loaded.error}`);
+    // A STARTED pair (active/done) names refs that must already be real
+    // documents; a still-planned pair may legitimately be named ahead of its
+    // own intake, so it is exempt (fu-ride-select-validate-ref-exists).
+    for (const [i, pr] of loaded.roadmap.pairs.entries()) {
+      if (pr.status === 'planned') continue;
+      for (const ref of [pr.capability, pr.maintenance]) {
+        if (!findDoc(a.docs, ref)) usage(`pair ${i + 1} (${pr.capability}): "${ref}" matches no document id under ${a.docs}`);
+      }
+    }
     process.stdout.write(`roadmap OK: ${loaded.roadmap.pairs.length} pair(s), ${loaded.roadmap.wave_2.length} wave-2 item(s)\n`);
     process.exit(0);
   }
@@ -198,6 +218,13 @@ function main() {
   if (status === 'done') return deny(`${a.ref} is already done — nothing to ride`);
   if (pair) {
     if (pair.status === 'done') return deny(`${a.ref} belongs to a pair already marked done in the roadmap`);
+    // AC-004: a ref already in flight is never refused by ranking, whichever
+    // pair it belongs to — a roadmap edit must not refuse a ride mid-flight.
+    if (status === 'implementing') return admit(`${a.ref} is already implementing — in flight`);
+    if (!isFirstUnfinished(pair, rm)) {
+      const ahead = rm.pairs.find((p) => p.status !== 'done');
+      return deny(`pair ahead — ${a.ref} is not the first unfinished pair; ${ahead.capability} (and its maintenance ${ahead.maintenance}) must be done first (ranked roadmap order, 1:1 budget); override with --override "<reason>" if the owner really wants it out of order`);
+    }
     if (pair.capability === a.ref) return admit('a roadmap capability');
     const cs = statusOf(a.docs, pair.capability);
     if (!STARTED.has(cs || '')) return deny(`pair first — ${a.ref} is the maintenance half of a pair whose capability ${pair.capability} is ${cs || 'not filed'}; start ${pair.capability} before it (1:1 budget)`);

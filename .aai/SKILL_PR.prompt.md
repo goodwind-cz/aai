@@ -243,6 +243,10 @@ PROCESS
      push yet, there is no PR to update. This commit rides out together with
      the FIRST push in step 5, so the very first CI run already sees a
      closed doc.
+   - VERIFY THE CLOSE COMMIT (Spec-AC-30): `node .aai/scripts/check-committed-scope.mjs
+     <closed-doc-path(s)> docs/ai/EVENTS.jsonl --strict --rev HEAD --expect-branch <branch>`
+     (never `--from-state` — wrong scope here). Non-zero: STOP, re-stage,
+     `git commit --amend`. FALLBACK: `git show --stat HEAD`.
    - Merge boundary unchanged: this step never merges, and never pushes.
 
 5. PLATFORM GATE + PUSH + PR:
@@ -293,6 +297,9 @@ PROCESS
      registry_self_items) and clear each item before pushing — an untracked
      file, a doc still `draft`, an audit finding or a follow-up this ride
      filed about its own ceremony is what a merged ride leaves behind.
+   - SHARED-PAGE PUSH CHECK (Spec-AC-30): `node .aai/scripts/pr-platform.mjs
+     --check-shared-page-conflicts` (github only, else SKIP, never blocks).
+     Non-zero: STOP, coordinate with the named open PR(s) before pushing.
    - `github`/`azure`/`unknown` with a remote: `git push -u origin <branch>`.
      `none`: skip the push entirely and go straight to GENERIC MODE below.
    - Branch on the value the step-5 probe printed — NEVER guess:
@@ -379,9 +386,11 @@ PROCESS
      `TBD` placeholder was found, meaning step 4c did not run with `--pr TBD`
      before this push (the ordering was violated somewhere): fix the
      ordering and re-run 4c, never hand-edit `links.pr`.
-   - Stage and push the mutated doc(s) as a follow-up `chore(close): <ref>
-     stamp PR #<N>` commit on the SAME branch (same scope-only staging
-     discipline as steps 2-4), updating the open PR.
+   - Stage, COMMIT (`chore(close): <ref> stamp PR #<N>`, same discipline as
+     steps 2-4), and VERIFY it (Spec-AC-30) with `node .aai/scripts/check-committed-scope.mjs
+     <closed-doc-path(s)> --strict --rev HEAD --expect-branch <branch>`
+     (non-zero STOPs; FALLBACK `git show --stat HEAD`) before pushing this
+     commit on the SAME branch, updating the open PR.
    - FAST LANE (lightweight-e2e-lane): on `LANE fast`, this stamp-pr commit's
      diff is a single frontmatter line (`links.pr`) — even lighter than
      before this change, because the close ceremony's real diff (status flip

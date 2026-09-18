@@ -409,6 +409,62 @@ test_022_skill_pr_no_bots_hardening() {
     || log_fail "TEST-022 SKILL_PR 5d GitHub-no-bots hardening"
 }
 
+# --- TEST-569 (Spec-AC-30): shared-page push check names an overlapping ----
+# open PR and refuses; a non-overlapping PR is silent (deny-by-default gh
+# stub: it only answers the EXACT expected invocation, per LEARNED
+# fu-learned-deny-by-default-mocks — anything else is a test bug, not a
+# tolerated call).
+build_gh_stub_pr_list() {  # $1=bin path  $2=json body for `pr list --state open --json number,files`
+  local bin="$1" body="$2"
+  cat > "$bin" <<STUBEOF
+#!/usr/bin/env bash
+if [[ "\$1" == "pr" && "\$2" == "list" && "\$3" == "--state" && "\$4" == "open" && "\$5" == "--json" && "\$6" == "number,files" && \$# -eq 6 ]]; then
+  cat <<'JSON'
+$body
+JSON
+  exit 0
+fi
+echo "gh stub: unexpected invocation: \$*" >&2
+exit 99
+STUBEOF
+  chmod +x "$bin"
+}
+
+test_569_shared_page_push_names_open_prs() {
+  log_info "TEST-569: an open PR touching docs/INDEX.md makes the pre-push check name it and refuse; no overlap is silent (Spec-AC-30)..."
+  local bin="$TMP_ROOT/gh-t569"
+  build_gh_stub_pr_list "$bin" '[{"number":42,"files":[{"path":"docs/INDEX.md"},{"path":"src/foo.js"}]}]'
+  local out rc
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" 2>&1)"; rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    log_fail "TEST-569: an overlapping open PR must refuse (exit non-zero), got 0: $out"
+  elif [[ "$out" != *"42"* || "$out" != *"docs/INDEX.md"* ]]; then
+    log_fail "TEST-569: the refusal must name the PR number and the overlapping path: $out"
+  else
+    log_pass "TEST-569: overlapping open PR named and refused"
+  fi
+
+  build_gh_stub_pr_list "$bin" '[{"number":7,"files":[{"path":"src/bar.js"}]}]'
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://github.com/o/r.git" --gh-bin "$bin" 2>&1)"; rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    log_fail "TEST-569: a non-overlapping open PR must exit 0, got $rc: $out"
+  elif [[ "$out" == *"CONFLICT"* ]]; then
+    log_fail "TEST-569: a non-overlapping open PR must be silent about a conflict, got: $out"
+  else
+    log_pass "TEST-569: non-overlapping open PR is silent (CLEAR)"
+  fi
+
+  # non-github platform: never blocks, names the reason (degrade-with-NOTE)
+  out="$(node "$PROBE" --check-shared-page-conflicts --remote-url "https://gitlab.com/o/r.git" --gh-bin "$bin" 2>&1)"; rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    log_fail "TEST-569: a non-github platform must never block, got rc=$rc: $out"
+  elif [[ "$out" != *"SKIP"* ]]; then
+    log_fail "TEST-569: a non-github platform must name the skip: $out"
+  else
+    log_pass "TEST-569: non-github platform skips, never blocks"
+  fi
+}
+
 ALL_TESTS=(
   test_001_github_https
   test_002_github_ssh_scp
@@ -432,6 +488,7 @@ ALL_TESTS=(
   test_020_reviewer_bots_text_shape
   test_021_reviewer_bots_json
   test_022_skill_pr_no_bots_hardening
+  test_569_shared_page_push_names_open_prs
 )
 
 main() {
@@ -445,7 +502,9 @@ main() {
     for sel in "$@"; do
       fn=""
       for cand in "${ALL_TESTS[@]}"; do
-        [[ "$cand" == *"_${sel}_"* || "$cand" == "test_${sel}"* ]] && fn="$cand"
+        # exact-name match first (mutation-run.mjs's --selector convention
+        # passes the full function name, per every other suite in this repo)
+        [[ "$cand" == "$sel" || "$cand" == *"_${sel}_"* || "$cand" == "test_${sel}"* ]] && fn="$cand"
       done
       if [[ -n "$fn" ]]; then
         "$fn"
