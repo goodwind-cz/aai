@@ -624,6 +624,36 @@ test_602_sweep_check_allows_index_md_regen_only() {
   log_pass "TEST-602: --sweep-check allows a docs/INDEX.md regeneration-timestamp-only delta"
 }
 
+# --- TEST-605 (Spec-AC-34, Amendment 29) ------------------------------------
+# The date-rollover half of the same exception: the hook rewrites BOTH clock
+# lines, and `Today (UTC):` only moves when the date rolls, so a ride inside one
+# day can never see it. PR #386 crossed midnight and denied its own merge.
+test_605_sweep_check_allows_index_md_date_rollover() {
+  log_info "Test: --sweep-check ALLOWS when docs/INDEX.md's Today (UTC) line ALSO moved, which happens when the ride crosses midnight (TEST-605)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  mk
+  mk_git_lane_fixture "$TEST_DIR" 1 direct >/dev/null
+  echo "docs change" > "$TEST_DIR/docs/x.md"
+  printf 'Docs Index\n\nGenerated: 2020-01-01T23:59:00.000Z\nToday (UTC): 2020-01-01 — counts above use this date.\nSource: x\n' > "$TEST_DIR/docs/INDEX.md"
+  (cd "$TEST_DIR" && git add -A && git commit -q -m "deliver docs change (#625)") >/dev/null 2>&1
+
+  (cd "$TEST_DIR" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t605-ride \
+     --pr 625 --lane fast --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
+     --outcome skipped_fast_lane >/dev/null 2>&1)
+  (cd "$TEST_DIR" && git add docs/ai/EVENTS.jsonl && git commit -q -m "record the sweep") >/dev/null 2>&1
+
+  # the hook regenerates after midnight: BOTH clock lines move, nothing else.
+  printf 'Docs Index\n\nGenerated: 2020-01-02T00:00:05.000Z\nToday (UTC): 2020-01-02 — counts above use this date.\nSource: x\n' > "$TEST_DIR/docs/INDEX.md"
+  (cd "$TEST_DIR" && git add docs/INDEX.md && git commit -q -m "regenerate docs/INDEX.md (hook, after midnight)") >/dev/null 2>&1
+
+  OUT="$(node "$GATE" --sweep-check --pr 625 --repo-root "$TEST_DIR" \
+    --spec "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md" --state "$TEST_DIR/docs/ai/STATE.yaml" 2>&1)" && CODE=0 || CODE=$?
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-605: a docs/INDEX.md clock-lines-only regen across midnight must still ALLOW, got exit $CODE: $OUT"
+  assert_payload_contains "$OUT" "allowed" "TEST-605: expected an 'allowed' verdict line: $OUT"
+
+  log_pass "TEST-605: --sweep-check allows a docs/INDEX.md regen whose Today (UTC) line moved with the date"
+}
+
 # --- TEST-603 (Spec-AC-34, Amendment 28) ------------------------------------
 test_603_sweep_check_denies_index_md_content_change() {
   log_info "Test: --sweep-check still DENIES stale-head when docs/INDEX.md's delta is MORE than its regeneration timestamp -- a real corpus change, not just the hook's mechanical re-stage (TEST-603)..."
@@ -719,6 +749,7 @@ main() {
   test_602_sweep_check_allows_index_md_regen_only
   test_603_sweep_check_denies_index_md_content_change
   test_604_sweep_check_degrades_missing_head_sha
+  test_605_sweep_check_allows_index_md_date_rollover
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
