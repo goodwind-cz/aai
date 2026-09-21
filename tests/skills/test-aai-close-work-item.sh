@@ -3997,7 +3997,8 @@ test_532_product_doc_shares_an_id() {
 # allowlist carries exactly ONE new entry for the whole ride's edit to
 # close-work-item.mjs (run 3, Spec-AC-06/07/08 in one commit): the live
 # content hash matches exactly one entry (not zero, not a duplicate), the
-# allowed-hash array grew by exactly ONE against main, and the new entry's
+# allowed-hash array grew by exactly ONE against main WHEN the engine
+# changed there (and not at all when it did not), and the new entry's
 # own prose re-affirms both frozen invariants (the exit contract + D6
 # snapshot/rollback transaction; no --resolves wiring into follow-ups.mjs).
 # Makes this suite the FOURTH consumer of the shared pin (see the source
@@ -4024,18 +4025,25 @@ test_533_pin_has_exactly_one_new_entry() {
   pin_result="$(close_work_item_pin_assert "$PROJECT_ROOT")" \
     || log_fail "TEST-533: $pin_result"
 
-  # (c) the array grew by EXACTLY ONE against main -- proves the row COUNTS
-  # entries rather than only checking membership (the row's own named
-  # mutation: adding a SECOND new hash entry must redden this arm even
-  # though the live hash would still match exactly one entry each).
-  local head_ref base_count head_count merge_base
+  # (c) the array's growth matches what the engine did. The first version of
+  # this arm asserted "grew by exactly one" unconditionally, which is only
+  # true on the ride that re-pins: once that ride merged, EVERY later branch
+  # that leaves close-work-item.mjs alone has growth zero and reddened this
+  # arm. The rule is conditional on the engine: re-pinned when it changed,
+  # untouched when it did not. It still COUNTS entries rather than checking
+  # membership, so the row's own named mutation (a SECOND new hash entry)
+  # reddens either way.
+  local head_ref base_count head_count merge_base engine_changed expected
   head_ref="$(base_ref)"
-  [[ -n "$head_ref" ]] || log_fail "TEST-533: no base ref (origin/main or main) resolves — cannot verify the pin array grew by exactly one"
+  [[ -n "$head_ref" ]] || log_fail "TEST-533: no base ref (origin/main or main) resolves — cannot verify the pin array"
   merge_base="$(git -C "$PROJECT_ROOT" merge-base "$head_ref" HEAD)"
   base_count="$(git -C "$PROJECT_ROOT" show "$merge_base:tests/skills/lib/close-work-item-pin.sh" | grep -c '^  "[0-9a-f]\{64\} ' || true)"
   head_count="$(grep -c '^  "[0-9a-f]\{64\} ' "$PIN_FILE" || true)"
-  [[ $((head_count - base_count)) -eq 1 ]] \
-    || log_fail "TEST-533: allowed-hash array must have grown by exactly one against $head_ref (merge-base $merge_base): base=$base_count head=$head_count"
+  engine_changed=0
+  git -C "$PROJECT_ROOT" diff --quiet "$merge_base" -- .aai/scripts/close-work-item.mjs || engine_changed=1
+  if [[ "$engine_changed" -eq 1 ]]; then expected=1; else expected=0; fi
+  [[ $((head_count - base_count)) -eq "$expected" ]] \
+    || log_fail "TEST-533: the allowed-hash array must grow by exactly $expected against $head_ref (close-work-item.mjs $([[ $engine_changed -eq 1 ]] && echo changed || echo unchanged) since merge-base $merge_base): base=$base_count head=$head_count"
 
   # (d) the new entry's own prose re-affirms both frozen invariants.
   local new_entry
@@ -4057,7 +4065,7 @@ test_533_pin_has_exactly_one_new_entry() {
     *) log_fail "TEST-533: the new entry must name follow-ups.mjs when re-affirming the no-coupling invariant: $new_entry" ;;
   esac
 
-  log_pass "TEST-533: pin array grew by exactly one against main ($base_count -> $head_count), live hash matches exactly one entry, both frozen invariants named in its prose"
+  log_pass "TEST-533: pin array moved by exactly $expected against main ($base_count -> $head_count, engine $([[ $engine_changed -eq 1 ]] && echo changed || echo unchanged)), live hash matches exactly one entry, both frozen invariants named in its prose"
 }
 
 main() {
