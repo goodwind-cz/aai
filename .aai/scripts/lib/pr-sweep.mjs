@@ -143,15 +143,23 @@ export const STALE_HEAD_SAFE_LEDGERS = new Set([
 // different filename — every future honest sweep would hit it, not just
 // this one. docs/INDEX.md is not append-only, so it cannot join
 // STALE_HEAD_SAFE_LEDGERS; instead its diff is compared with the ONE line
-// that changes on every mechanical regeneration by construction — `Generated:
-// <timestamp>` — stripped from both sides first. Any OTHER difference (a
-// document added, removed, or its indexed metadata changed) still denies:
-// this is strictly narrower than "docs/INDEX.md always safe", not a general
-// doc exemption.
+// that change on every mechanical regeneration by construction — stripped from
+// both sides first. There are TWO such lines, not one: `Generated: <timestamp>`
+// changes on every regeneration, and `Today (UTC): <date>` changes whenever the
+// date rolls over. The first version of this exception named only `Generated:`
+// and denied a record-only commit the moment a ride crossed midnight (observed
+// on PR #386, 2026-09-19 to 2026-09-20) — a ride inside one day could never see
+// it. Any OTHER difference (a document added, removed, or its indexed metadata
+// changed) still denies: this is strictly narrower than "docs/INDEX.md always
+// safe", not a general doc exemption.
 const INDEX_MD_PATH = 'docs/INDEX.md';
-const INDEX_MD_TIMESTAMP_LINE = /^Generated: .*$/m;
+const INDEX_MD_CLOCK_LINES = [
+  [/^Generated: .*$/m, 'Generated: <stripped>'],
+  [/^Today \(UTC\): .*$/m, 'Today (UTC): <stripped>'],
+];
 function isIndexMdRegenOnlySafe(before, after) {
-  const strip = (s) => s.replace(INDEX_MD_TIMESTAMP_LINE, 'Generated: <stripped>');
+  const strip = (s) =>
+    INDEX_MD_CLOCK_LINES.reduce((acc, [re, repl]) => acc.replace(re, repl), s);
   return strip(before) === strip(after);
 }
 
