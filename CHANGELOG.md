@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — feat(ceremony): the close ceremony, docs audit and generated pages agree with git (CHANGE-0188-close-ceremony-sweep / SPEC-0182-spec-close-ceremony-sweep)
+## [v2026.09.21] — feat(ceremony): the close ceremony, docs audit and generated pages agree with git (CHANGE-0188-close-ceremony-sweep / SPEC-0182-spec-close-ceremony-sweep)
 
 - **`ride-select.mjs`'s roadmap gate now admits only the FIRST unfinished
   capability pair** (previously any capability anywhere on the roadmap
@@ -62,7 +62,7 @@ fine — it is the marker a cut leaves on top.
   content only, so an untracked draft can no longer leak into a committed
   index.
 
-## [unreleased] — feat(gate): a test is admitted only with the mutation that reddens it (CHANGE-0187 / SPEC-0181)
+## [v2026.09.21] — feat(gate): a test is admitted only with the mutation that reddens it (CHANGE-0187 / SPEC-0181)
 
 - **`mutation-run.mjs`** applies a named mutation (`--sed`, a JavaScript RegExp,
   or `--patch`) in an isolated clone of the dirty working tree, runs ONE selected
@@ -108,7 +108,7 @@ fine — it is the marker a cut leaves on top.
   12 candidates weighed in the spec and left open with a reason each.
   Wave 3 ride 4, paired with CHANGE-0181.
 
-## [unreleased] — feat(tests): the test framework is fast, hermetic and honest about what it ran
+## [v2026.09.21] — feat(tests): the test framework is fast, hermetic and honest about what it ran
 
 - **Refilling queue instead of wave barriers** in `tests/skills/test-framework.sh`
   with a rolling attribution window: a suite that writes the shipping repository
@@ -162,7 +162,7 @@ fine — it is the marker a cut leaves on top.
   `--force` re-validations), two review rounds, nine remediation rounds.
   Wave 3 sweep 2.
   Merged by the orchestrator under the wave-3 mandate of 2026-09-13.
-## [unreleased] — fix(dispatch): the dispatch loop and STATE say the truth about the ride they are running
+## [v2026.09.21] — fix(dispatch): the dispatch loop and STATE say the truth about the ride they are running
 
 - **A stale pass routes to Validation by rule** (rule 11s): a verdict whose tree
   hash moved is no longer an advisory the LLM may ignore; the tick names the
@@ -200,7 +200,7 @@ fine — it is the marker a cut leaves on top.
   gains a sibling `state.mjs` so its guard arm still fires (see the spec's
   Amendment "cross-sweep reconciliation").
 
-## [unreleased] — chore(roadmap): the mutation gate rides before the remaining wave-3 sweeps
+## [v2026.09.21] — chore(roadmap): the mutation gate rides before the remaining wave-3 sweeps
 
 - Owner decision (menu answer A, 2026-09-14): sweeps 1 to 3 each needed three
   to five validation rounds, mostly on controls that claimed a property they
@@ -210,7 +210,7 @@ fine — it is the marker a cut leaves on top.
   TEST, dispatch text that pre-rates findings refused). `canon-is-a-build-artifact` moves to the end of
   wave 3. `hitl_decision` appended.
 
-## [unreleased] — chore(ledger): owner signs off seven post-freeze amendment follow-ups
+## [v2026.09.21] — chore(ledger): owner signs off seven post-freeze amendment follow-ups
 
 - The owner accepted the fourteen amendment records tracked by seven
   `fu-amend-*` follow-ups as they stand (menu answer A, 2026-09-14): every
@@ -219,7 +219,7 @@ fine — it is the marker a cut leaves on top.
   the seven follow-ups closed, one `hitl_decision` appended. Amendments filed
   by the wave-3 sweeps stay unsigned-tracked for a later menu.
 
-## [unreleased] — fix(telemetry): run telemetry is recorded as fields, so cost and reliability stop depending on prose
+## [v2026.09.21] — fix(telemetry): run telemetry is recorded as fields, so cost and reliability stop depending on prose
 
 - **`state.mjs append-run` takes fields** — `--harness`, `--tokens-total`,
   `--verdict pass|fail|none`, `--requested-model`, `--actual-model` — written
@@ -261,7 +261,7 @@ fine — it is the marker a cut leaves on top.
   rounds, two review rounds. Wave 3 sweep 1 (CHANGE-0183). Merged by the
   orchestrator under the wave-3 mandate of 2026-09-13.
 
-## [unreleased] — chore(roadmap): wave 3 — subsystem sweeps under the owner's "resolve everything" mandate
+## [v2026.09.21] — chore(roadmap): wave 3 — subsystem sweeps under the owner's "resolve everything" mandate
 
 - **Roadmap re-cut as seven subsystem sweeps** (telemetry fields, test
   framework, dispatch/state, close ceremony, ref-guard + sync, friction
@@ -279,7 +279,7 @@ fine — it is the marker a cut leaves on top.
   records and are closed by the sweeps that own them.
 - Session record: `docs/project-sessions/2026-09-13-wave-3-subsystem-sweeps.md`.
 
-## [unreleased] — feat(routing): the dispatcher knows its harness, and MODEL_ROUTING binds tiers per harness
+## [v2026.09.21] — feat(routing): the dispatcher knows its harness, and MODEL_ROUTING binds tiers per harness
 
 - **Every dispatch verdict carries `harness`** (`claude` / `codex` / `gemini` /
   `cursor` / `unknown`), detected once per process by a pure environment
@@ -320,7 +320,7 @@ fine — it is the marker a cut leaves on top.
   (TEST-048..060), 35+ mutations, three validation rounds, one review round.
   Roadmap wave 2 pair 1, capability half (CHANGE-0182).
 
-## [unreleased] — fix(friction): the publish flow says what it filed, and what still needs doing
+## [v2026.09.21] — fix(friction): the publish flow says what it filed, and what still needs doing
 
 - **The confirmed-publish success line now names the issue URL** and states
   plainly that the record is prose-free by design and an analysis comment is
@@ -344,7 +344,7 @@ fine — it is the marker a cut leaves on top.
   issue answers their complaint and refuses the remedy they imply.
 - Upstream: `goodwind-cz/aai#371`. ISSUE-0082 / SPEC-0176.
 
-## [unreleased] — fix(close): the close ceremony fires from the merge, not only from /aai-pr
+## [v2026.09.21] — fix(close): the close ceremony fires from the merge, not only from /aai-pr
 
 - **New `.aai/scripts/close-reconcile.mjs --range A..B`** reconciles a
   skipped close ceremony from the MERGE itself — git-only, no PR API, no
