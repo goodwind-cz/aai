@@ -248,6 +248,66 @@ function definedSpecAcIds(bytes) {
   return new Set();
 }
 
+// JSON.parse keeps only the last occurrence of a repeated object key. Scan the
+// already syntax-validated JSON separately so contradictory authoritative
+// fields are refused at every nesting level, including escape-equivalent keys.
+function duplicateJsonObjectKeys(source) {
+  const duplicates = [];
+  let index = 0;
+  const whitespace = () => { while (/\s/.test(source[index] ?? '')) index += 1; };
+  const string = () => {
+    const start = index;
+    index += 1;
+    while (index < source.length) {
+      if (source[index] === '"') { index += 1; break; }
+      if (source[index] === '\\') {
+        index += source[index + 1] === 'u' ? 6 : 2;
+      } else {
+        index += 1;
+      }
+    }
+    return JSON.parse(source.slice(start, index));
+  };
+  const value = () => {
+    whitespace();
+    if (source[index] === '{') { object(); return; }
+    if (source[index] === '[') { array(); return; }
+    if (source[index] === '"') { string(); return; }
+    while (index < source.length && !/[,\]}]/.test(source[index])) index += 1;
+  };
+  const array = () => {
+    index += 1;
+    whitespace();
+    if (source[index] === ']') { index += 1; return; }
+    while (index < source.length) {
+      value();
+      whitespace();
+      if (source[index] === ']') { index += 1; return; }
+      index += 1;
+    }
+  };
+  const object = () => {
+    index += 1;
+    const keys = new Set();
+    whitespace();
+    if (source[index] === '}') { index += 1; return; }
+    while (index < source.length) {
+      whitespace();
+      const key = string();
+      if (keys.has(key)) duplicates.push(key);
+      keys.add(key);
+      whitespace();
+      index += 1;
+      value();
+      whitespace();
+      if (source[index] === '}') { index += 1; return; }
+      index += 1;
+    }
+  };
+  value();
+  return duplicates;
+}
+
 function extractOutcomeBlock(markdown, refuse) {
   const blocks = [];
   let openFence = null;
@@ -283,7 +343,10 @@ function extractOutcomeBlock(markdown, refuse) {
     return null;
   }
   try {
-    return JSON.parse(blocks[0]);
+    const data = JSON.parse(blocks[0]);
+    const duplicates = duplicateJsonObjectKeys(blocks[0]);
+    for (const key of duplicates) refuse(`duplicate JSON object key: ${key}`);
+    return duplicates.length === 0 ? data : null;
   } catch (error) {
     refuse(`aai-outcome-v1 JSON is malformed: ${error.message}`);
     return null;

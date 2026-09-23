@@ -473,6 +473,19 @@ const STATE_UPDATE_SUBCOMMANDS = new Set([
   'clear-focus', 'log-tick', 'reset-block',
 ]);
 
+const ROLE_UPDATE_SUBCOMMANDS = new Map([
+  ['planning', new Set(['set-focus', 'set-phase', 'set-strategy', 'set-worktree', 'set-code-review'])],
+  ['implementation preparation', new Set(['set-focus', 'set-phase', 'set-worktree'])],
+  ['implementation preparation / worktree decision', new Set(['set-focus', 'set-phase', 'set-worktree'])],
+  ['implementation', new Set(['set-focus', 'set-phase', 'set-code-review'])],
+  ['tdd implementation', new Set(['set-focus', 'set-phase', 'set-code-review'])],
+  ['validation', new Set(['set-validation', 'set-phase'])],
+  ['code review', new Set(['set-code-review'])],
+  ['remediation', new Set(['reset-block', 'set-phase', 'set-human-input'])],
+  ['metrics flush', new Set(['set-validation', 'set-code-review', 'set-human-input'])],
+  ['orchestration', STATE_UPDATE_SUBCOMMANDS],
+]);
+
 function isFlagValueSequence(words, start) {
   for (let i = start; i < words.length; i += 2) {
     if (!words[i].startsWith('--') || words[i + 1] === undefined || words[i + 1].startsWith('--')) return false;
@@ -480,15 +493,32 @@ function isFlagValueSequence(words, start) {
   return true;
 }
 
-function isAllowedMergeCommand(words) {
+function commandFlagValues(words, name) {
+  const values = [];
+  for (let i = 3; i < words.length; i += 2) if (words[i] === name) values.push(words[i + 1]);
+  return values;
+}
+
+function isAllowedMergeCommand(words, role) {
   if (!words || words[0] !== 'node') return false;
   const script = normalizedScriptPath(words[1] ?? '');
   if (script === '.aai/scripts/orchestration-dispatch.mjs') {
-    return words.length === 4 && words.includes('--human') && words.includes('--confirm');
+    return role === 'validation'
+      && words.length === 4 && words.includes('--human') && words.includes('--confirm');
   }
-  return script === '.aai/scripts/state.mjs'
-    && STATE_UPDATE_SUBCOMMANDS.has(words[2])
-    && isFlagValueSequence(words, 3);
+  if (script !== '.aai/scripts/state.mjs'
+      || !STATE_UPDATE_SUBCOMMANDS.has(words[2])
+      || !ROLE_UPDATE_SUBCOMMANDS.get(role)?.has(words[2])
+      || !isFlagValueSequence(words, 3)) return false;
+  if (words[2] === 'set-code-review' && role !== 'code review' && role !== 'orchestration') {
+    const statuses = commandFlagValues(words, '--status');
+    if (statuses.length !== 1 || statuses[0] !== 'not_run') return false;
+  }
+  if (words[2] === 'set-validation' && role === 'metrics flush') {
+    const statuses = commandFlagValues(words, '--status');
+    if (statuses.length !== 1 || statuses[0] !== 'not_run') return false;
+  }
+  return true;
 }
 
 function parseValidationStateCommand(words) {
@@ -625,6 +655,7 @@ function parseSubagentResultBlock(candidateRawLines) {
 function validateResult(parsed, nowMs) {
   const violations = [];
   const commandWords = (parsed.state_update_commands ?? []).map(parseCommandWords);
+  const role = String(parsed.fields.role ?? '').trim().toLowerCase();
 
   for (const bad of parsed.malformed ?? []) {
     violations.push(['E-MALFORMED-LINE', `unparseable block line: ${bad}`]);
@@ -641,10 +672,10 @@ function validateResult(parsed, nowMs) {
   }
 
   for (let i = 0; i < commandWords.length; i += 1) {
-    if (!isAllowedMergeCommand(commandWords[i])) {
+    if (!isAllowedMergeCommand(commandWords[i], role)) {
       violations.push([
         'E-STATE-UPDATE-COMMAND',
-        `state_update_commands[${i}] is not an allowlisted state mutation or validation snapshot`,
+        `state_update_commands[${i}] is not allowlisted for role ${JSON.stringify(parsed.fields.role)}`,
       ]);
     }
   }
@@ -739,7 +770,6 @@ function validateResult(parsed, nowMs) {
   // by standalone Validation. FAIL/BLOCKED and all other roles retain their
   // existing result-block behavior. The returned command strings remain data;
   // this checker never parses or executes them.
-  const role = String(parsed.fields.role ?? '').trim().toLowerCase();
   if (role === 'validation' && parsed.fields.status === 'PASS') {
     const reportPath = parsed.fields.outcome_report;
     if (!parsed.present.has('outcome_report') || typeof reportPath !== 'string' || reportPath.trim() === '') {
