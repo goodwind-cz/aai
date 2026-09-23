@@ -147,18 +147,25 @@ For each tick (1..max_ticks):
        loop horizon may advance to review/close without another revalidation
        cycle.
      - PRE-COMPLETION TREE-STALENESS GATE: when the current STATE would satisfy
-       stop 2c below, run `node .aai/scripts/orchestration-dispatch.mjs --human
-       --confirm` before evaluating that stop and parse its JSON result. This is
+       stop 2c below, first run
+       `node .aai/scripts/orchestration-dispatch.mjs --human` and parse its
+       JSON without permitting a first-observation
+       write. If `state_summary.last_validation_verdict` is null, stop 2c is
+       ineligible: set Validation to `not_run`, set phase `validation` /
+       `in_progress`, and continue to step 3 for fresh Validation. Otherwise
+       run the same command with `--confirm` and parse that JSON result before
+       evaluating the stop. This is
        the same deterministic snapshot and validation-verdict stamp comparison
        used by orchestration rule 11s. If the command fails, its output is not
        valid JSON, its result has `rule: "11s"`, or its `advisories` include
        `validation_verdict_stale`, stop 2c is ineligible: do NOT print LOOP
        COMPLETE and do NOT enter unattended chaining. Continue to step 3 so the
-       normal orchestrator routes fresh Validation. A first-observation stamp
-       written by `--confirm` is expected; its EVENTS path is excluded from the
-       tree hash. Any other successful result preserves the existing stop
-       ordering. This precondition is required because stop 2c exits before
-       step 3 and therefore cannot rely on rule 11s being reached later.
+       normal orchestrator routes fresh Validation. The existing stamp's
+       EVENTS path is excluded from the tree hash. Any other successful result
+       preserves the existing stop ordering. A first-observation stamp belongs to the Validation PASS
+       handoff required by `check-role-output.mjs`, never to this late
+       completion check. This precondition is required because stop 2c exits
+       before step 3 and therefore cannot rely on rule 11s being reached later.
 
   2. CHECK stop conditions (in order):
      a. project_status == paused

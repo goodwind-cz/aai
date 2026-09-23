@@ -401,10 +401,12 @@ test_008_loop_resume_wiring() {
   grep 'fresh Validation' "$loop" >/dev/null || log_fail "loop lacks refused-report routing to fresh Validation"
   grep -F 'orchestration-dispatch.mjs --human' "$loop" >/dev/null \
     || log_fail "loop completion lacks the deterministic dispatcher staleness precheck"
-  grep -A3 -F 'PRE-COMPLETION TREE-STALENESS GATE:' "$loop" | grep -F -- '--confirm' >/dev/null \
+  grep -A20 -F 'PRE-COMPLETION TREE-STALENESS GATE:' "$loop" | grep -F -- '--confirm' >/dev/null \
     || log_fail "loop completion staleness precheck must opt into the verdict stamp with --confirm"
   grep -F 'validation_verdict_stale' "$loop" >/dev/null \
     || log_fail "loop completion precheck does not name the stale-verdict refusal"
+  grep -F 'last_validation_verdict' "$loop" >/dev/null \
+    || log_fail "loop completion precheck does not refuse a missing validation snapshot before first-observation stamping"
   invalidate_line="$(awk '/set-validation --status not_run --ref <focus-ref>/{print NR; exit}' "$loop")"
   phase_line="$(awk '/set-phase --ref <focus-ref> --phase validation/{print NR; exit}' "$loop")"
   stale_gate_line="$(awk '/PRE-COMPLETION TREE-STALENESS GATE:/{print NR; exit}' "$loop")"

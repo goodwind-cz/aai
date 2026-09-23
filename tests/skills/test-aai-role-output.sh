@@ -640,6 +640,9 @@ subagent_result:
   files_changed: []
   blockers: []
   outcome_report: tests/fixtures/role-outputs/outcome-report-valid.md
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-validation --status pass --ref role-output-contracts --evidence tests/fixtures/role-outputs/outcome-report-valid.md
+    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm
 ```
 EOF
   set +e
@@ -780,6 +783,51 @@ NODE
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "unfinished second outcome fence expected exit 1, got $rc: $out"
   assert_payload_contains "$out" "E-OUTCOME-REPORT" "unfinished second fence expected E-OUTCOME-REPORT, got: $out"
+
+  # The checked report, recorded STATE evidence, and immediate tree snapshot
+  # are one handoff contract. A different evidence path or an omitted stamp
+  # command must fail before the orchestrator can replay either command list.
+  local mismatched_result="$TMP_ROOT/mismatched-evidence-result.md" missing_stamp_result="$TMP_ROOT/missing-stamp-result.md" duplicate_validation_result="$TMP_ROOT/duplicate-validation-result.md"
+  cp "$FIXTURES_DIR/validation-valid.md" "$mismatched_result"
+  replace_fixture_token "$mismatched_result" \
+    '--evidence tests/fixtures/role-outputs/outcome-report-valid.md' \
+    '--evidence docs/ai/reports/different.md'
+  set +e
+  out="$(runcheck --file "$mismatched_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "mismatched set-validation evidence expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-EVIDENCE" "mismatched evidence expected E-OUTCOME-EVIDENCE, got: $out"
+
+  cp "$FIXTURES_DIR/validation-valid.md" "$duplicate_validation_result"
+  node - "$duplicate_validation_result" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const stamp = '    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm\n';
+const overwrite = '    - node .aai/scripts/state.mjs set-validation --status pass --ref role-output-contracts --evidence docs/ai/reports/different.md\n';
+if (!source.includes(stamp)) process.exit(1);
+fs.writeFileSync(file, source.replace(stamp, `${overwrite}${stamp}`));
+NODE
+  set +e
+  out="$(runcheck --file "$duplicate_validation_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "second set-validation overwrite expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-EVIDENCE" "duplicate set-validation expected E-OUTCOME-EVIDENCE, got: $out"
+
+  cp "$FIXTURES_DIR/validation-valid.md" "$missing_stamp_result"
+  node - "$missing_stamp_result" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const line = '    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm\n';
+if (!source.includes(line)) process.exit(1);
+fs.writeFileSync(file, source.replace(line, ''));
+NODE
+  set +e
+  out="$(runcheck --file "$missing_stamp_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "Validation PASS without immediate snapshot command expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-VALIDATION-SNAPSHOT" "missing snapshot expected E-VALIDATION-SNAPSHOT, got: $out"
   log_pass "TEST-023 Validation PASS outcome_report gate"
 }
 

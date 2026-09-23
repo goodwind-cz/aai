@@ -29,6 +29,9 @@
 //   10. E-BAD-ROLE        — `role` is one of the canonical dispatched,
 //      semantic, or state-recorded roles. Unknown and empty spellings fail
 //      closed so they cannot bypass role-scoped checks.
+//   11. E-OUTCOME-EVIDENCE / E-VALIDATION-SNAPSHOT — Validation PASS binds
+//      the checked report to set-validation evidence and snapshots the tree
+//      immediately after the returned STATE commands are replayed.
 //   4. E-NO-EVIDENCE      — `evidence` has at least one entry with an
 //      INTEGER `exit_code`.
 //   8. E-MALFORMED-LINE — a base-indent block line that is neither a key nor a comment (never silently skipped)
@@ -420,6 +423,47 @@ function parseScalarList(nested) {
   return items;
 }
 
+// Minimal shell-word parser for the canonical returned commands. It never
+// executes input; it only preserves quoted path/argument boundaries well
+// enough to compare exact flag values. Unsupported/unclosed quoting refuses
+// by yielding null, which cannot satisfy either Validation handoff gate.
+function parseCommandWords(command) {
+  const words = [];
+  let word = '';
+  let quote = null;
+  let escaped = false;
+  let started = false;
+  for (const ch of String(command)) {
+    if (escaped) { word += ch; escaped = false; started = true; continue; }
+    if (quote) {
+      if (ch === quote) quote = null;
+      else if (ch === '\\' && quote === '"') escaped = true;
+      else word += ch;
+      started = true;
+      continue;
+    }
+    if (ch === "'" || ch === '"') { quote = ch; started = true; continue; }
+    if (ch === '\\') { escaped = true; started = true; continue; }
+    if (/\s/.test(ch)) {
+      if (started) { words.push(word); word = ''; started = false; }
+      continue;
+    }
+    word += ch;
+    started = true;
+  }
+  if (quote || escaped) return null;
+  if (started) words.push(word);
+  return words;
+}
+
+function flagValues(words, name) {
+  const values = [];
+  for (let i = 0; i < words.length - 1; i += 1) {
+    if (words[i] === name) values.push(words[i + 1]);
+  }
+  return values;
+}
+
 // A sequence of mapping items ("- key: value" plus sibling "key: value"
 // continuation lines two spaces further in) at nested's own indent level.
 function parseEvidenceList(nested) {
@@ -480,6 +524,7 @@ function parseSubagentResultBlock(candidateRawLines) {
   let evidence = [];
   let filesChanged = [];
   let blockers = [];
+  let stateUpdateCommands = [];
 
   let i = 0;
   while (i < body.length) {
@@ -519,11 +564,16 @@ function parseSubagentResultBlock(candidateRawLines) {
       filesChanged = inlineVal === '[]' ? [] : parseScalarList(nested);
     } else if (key === 'blockers') {
       blockers = inlineVal === '[]' ? [] : parseScalarList(nested);
+    } else if (key === 'state_update_commands') {
+      stateUpdateCommands = inlineVal === '[]' ? [] : parseScalarList(nested);
     }
     // else: extra extension field — nested lines already consumed above;
     // intentionally ignored (validate required core only).
   }
-  return { present, fields, evidence, files_changed: filesChanged, blockers, malformed };
+  return {
+    present, fields, evidence, files_changed: filesChanged, blockers,
+    state_update_commands: stateUpdateCommands, malformed,
+  };
 }
 
 function validateResult(parsed, nowMs) {
@@ -645,6 +695,45 @@ function validateResult(parsed, nowMs) {
       if (!outcome.ok) {
         violations.push(['E-OUTCOME-REPORT', outcome.reasons.join('; ')]);
       }
+    }
+    const rawCommands = parsed.state_update_commands ?? [];
+    const commands = rawCommands.map((command) => /[;&|`$<>]/.test(String(command))
+      ? null : parseCommandWords(command));
+    const scope = String(parsed.fields.scope ?? '');
+    let evidenceCommandIndex = -1;
+    let validationCommandCount = 0;
+    for (let i = 0; i < commands.length; i += 1) {
+      const words = commands[i];
+      if (!words || words[0] !== 'node' || words[1] !== '.aai/scripts/state.mjs'
+          || words[2] !== 'set-validation') continue;
+      validationCommandCount += 1;
+      const statuses = flagValues(words, '--status');
+      const refs = flagValues(words, '--ref');
+      const evidencePaths = flagValues(words, '--evidence');
+      if (statuses.length === 1 && statuses[0] === 'pass'
+          && refs.length === 1 && refs[0] === scope
+          && evidencePaths.includes(reportPath)) {
+        evidenceCommandIndex = i;
+      }
+    }
+    if (evidenceCommandIndex === -1 || validationCommandCount !== 1) {
+      violations.push([
+        'E-OUTCOME-EVIDENCE',
+        'Validation PASS requires set-validation --status pass with --ref equal to scope and --evidence equal to outcome_report',
+      ]);
+    }
+    const hasSnapshotAfterEvidence = commands.some((words, index) => words
+      && index > evidenceCommandIndex
+      && words[0] === 'node'
+      && words[1] === '.aai/scripts/orchestration-dispatch.mjs'
+      && words.length === 4
+      && words.includes('--human')
+      && words.includes('--confirm'));
+    if (!hasSnapshotAfterEvidence) {
+      violations.push([
+        'E-VALIDATION-SNAPSHOT',
+        'Validation PASS requires orchestration-dispatch.mjs --human --confirm after set-validation to snapshot the validated tree',
+      ]);
     }
   }
 
