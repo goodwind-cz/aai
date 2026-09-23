@@ -109,14 +109,15 @@ NODE
 
 make_state_fixture() {
   local name=$1 ref=${2:-original-request-outcome-backcheck}
+  local primary_path=${3:-docs/issues/CHANGE-0189-original-request-outcome-backcheck.md}
+  local spec_path=${4:-docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md}
   local state="$TMP_ROOT/$name-state.yaml"
   cp "$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml" "$state"
   node "$PROJECT_ROOT/.aai/scripts/state.mjs" set-focus --state "$state" \
     --type intake_change --ref "$ref" \
-    --path docs/issues/CHANGE-0189-original-request-outcome-backcheck.md \
-    --spec-path docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md >/dev/null
+    --path "$primary_path" --spec-path "$spec_path" >/dev/null
   node "$PROJECT_ROOT/.aai/scripts/state.mjs" set-strategy --state "$state" \
-    --selected tdd --source docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md \
+    --selected tdd --source "$spec_path" \
     --rationale fixture >/dev/null
   node "$PROJECT_ROOT/.aai/scripts/state.mjs" set-worktree --state "$state" \
     --recommendation recommended --user-decision worktree --base-ref HEAD \
@@ -322,11 +323,13 @@ test_008_loop_resume_wiring() {
   [[ -n "$invalidate_line" && -n "$phase_line" && "$invalidate_line" -lt "$phase_line" ]] \
     || log_fail "refused standing PASS must invalidate last_validation before validation phase routing"
   local root state dispatch immutable before_focus after_focus fixture_ref=test-008-resume
+  local fixture_intake="$FIXTURES/dispatch-eligible-intake.md"
+  local fixture_spec="$FIXTURES/dispatch-eligible-spec.md"
   if grep -F '"event":"validation_verdict","ref":"test-008-resume"' "$PROJECT_ROOT/docs/ai/EVENTS.jsonl" >/dev/null; then
     log_fail "TEST-008 fixture ref must not reuse a historical validation verdict"
   fi
   root="$(make_fixture "$fixture_ref" external)"
-  state="$(make_state_fixture test-008 "$fixture_ref")"
+  state="$(make_state_fixture test-008 "$fixture_ref" "$fixture_intake" "$fixture_spec")"
   before_focus="$(awk '/^current_focus:/{inside=1;next} inside && /ref_id:/{print $2;exit}' "$state")"
 
   run_check --report report.md --ref "$fixture_ref" \
