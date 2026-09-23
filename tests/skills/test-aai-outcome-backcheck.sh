@@ -213,7 +213,7 @@ test_004_verification_horizon() {
 
 test_005_fail_closed_schema() {
   log_info "TEST-005: malformed, missing, duplicate, dangling, stale and contradictory data refuse"
-  local root variant tick
+  local root variant tick outside_file local_root
   tick='`'
   root="$(make_fixture test-005)"
   run_check --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$root" >/dev/null
@@ -239,6 +239,17 @@ NODE
   assert_refusal 'source intake is unreadable: missing.md' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
   variant="$TMP_ROOT/test-005-evidence"; cp -R "$root" "$variant"; replace_once "$variant/report.md" 'evidence/check.log' 'evidence/missing.log'
   assert_refusal 'outcome OUT-001 evidence is unreadable: evidence/missing.log' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  outside_file="$TMP_ROOT/test-005-outside-evidence.log"; printf '%s\n' 'verification passed' > "$outside_file"
+  variant="$TMP_ROOT/test-005-evidence-symlink-escape"; cp -R "$root" "$variant"; rm "$variant/evidence/check.log"; ln -s "$outside_file" "$variant/evidence/check.log"
+  assert_refusal 'outcome OUT-001 evidence path resolves outside --root: evidence/check.log' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  outside_file="$TMP_ROOT/test-005-outside-intake.md"; printf '%s\n' '# Request' 'Deliver the requested result exactly.' > "$outside_file"
+  variant="$TMP_ROOT/test-005-source-symlink-escape"; cp -R "$root" "$variant"; rm "$variant/intake.md"; ln -s "$outside_file" "$variant/intake.md"
+  assert_refusal 'source intake path resolves outside --root: intake.md' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-internal-evidence-symlink"; cp -R "$root" "$variant"; mkdir "$variant/internal"; mv "$variant/evidence/check.log" "$variant/internal/check.log"; ln -s ../internal/check.log "$variant/evidence/check.log"
+  assert_admissible --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  local_root="$(make_fixture test-005-consumed-symlink-escape local_file)"
+  outside_file="$TMP_ROOT/test-005-outside-final.txt"; printf '%s\n' 'DELIVERED' > "$outside_file"; rm "$local_root/output/final.txt"; ln -s "$outside_file" "$local_root/output/final.txt"
+  assert_refusal 'outcome OUT-001 expected target path resolves outside --root: output/final.txt' --report report.md --ref test-005-consumed-symlink-escape --since 2026-06-01T00:00:00Z --root "$local_root"
   variant="$TMP_ROOT/test-005-duplicate"; cp -R "$root" "$variant"; replace_once "$variant/report.md" '"outcomes": [' '"outcomes": [{"id":"OUT-001","requirement_ids":["REQ-001"],"target":{"kind":"repository","expected_identity":"x","observed_identity":"x"},"verification":{"operation":"x","evidence_path":"evidence/check.log","evidence_sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","observed_at_utc":"2026-06-01T00:01:00Z","result":"satisfied"},"persistence":{"applicable":false,"reason":"x"}},'
   assert_refusal 'duplicate outcome id: OUT-001' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
   variant="$TMP_ROOT/test-005-dangling"; cp -R "$root" "$variant"; replace_once "$variant/report.md" '"outcome_ids": [' '"outcome_ids": ["OUT-MISSING", '

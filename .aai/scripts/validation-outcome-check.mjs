@@ -90,7 +90,26 @@ function resolveLocal(root, relative, label, refuse) {
     refuse(`${label} path escapes --root: ${relative}`);
     return null;
   }
-  return resolved;
+  let rootReal;
+  try {
+    rootReal = fs.realpathSync.native(rootAbs);
+  } catch (error) {
+    refuse(`--root is unreadable: ${root} (${error.code ?? error.message})`);
+    return null;
+  }
+  let resolvedReal;
+  try {
+    resolvedReal = fs.realpathSync.native(resolved);
+  } catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return resolved;
+    refuse(`${label} path cannot be resolved: ${relative} (${error.code ?? error.message})`);
+    return null;
+  }
+  if (resolvedReal !== rootReal && !resolvedReal.startsWith(`${rootReal}${path.sep}`)) {
+    refuse(`${label} path resolves outside --root: ${relative}`);
+    return null;
+  }
+  return resolvedReal;
 }
 
 function readHashedFile(root, entry, label, refuse) {
