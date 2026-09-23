@@ -804,7 +804,7 @@ const fs = require('node:fs');
 const file = process.argv[2];
 const source = fs.readFileSync(file, 'utf8');
 const stamp = '    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm\n';
-const overwrite = '    - node .aai/scripts/state.mjs set-validation --status pass --ref role-output-contracts --evidence docs/ai/reports/different.md\n';
+const overwrite = '    - node ./.aai/scripts/state.mjs set-validation --status pass --ref role-output-contracts --evidence docs/ai/reports/different.md\n';
 if (!source.includes(stamp)) process.exit(1);
 fs.writeFileSync(file, source.replace(stamp, `${overwrite}${stamp}`));
 NODE
