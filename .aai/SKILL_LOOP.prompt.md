@@ -146,6 +146,19 @@ For each tick (1..max_ticks):
        dynamic observations must be renewed. A Validation created after this
        loop horizon may advance to review/close without another revalidation
        cycle.
+     - PRE-COMPLETION TREE-STALENESS GATE: when the current STATE would satisfy
+       stop 2c below, run `node .aai/scripts/orchestration-dispatch.mjs --human
+       --confirm` before evaluating that stop and parse its JSON result. This is
+       the same deterministic snapshot and validation-verdict stamp comparison
+       used by orchestration rule 11s. If the command fails, its output is not
+       valid JSON, its result has `rule: "11s"`, or its `advisories` include
+       `validation_verdict_stale`, stop 2c is ineligible: do NOT print LOOP
+       COMPLETE and do NOT enter unattended chaining. Continue to step 3 so the
+       normal orchestrator routes fresh Validation. A first-observation stamp
+       written by `--confirm` is expected; its EVENTS path is excluded from the
+       tree hash. Any other successful result preserves the existing stop
+       ordering. This precondition is required because stop 2c exits before
+       step 3 and therefore cannot rely on rule 11s being reached later.
 
   2. CHECK stop conditions (in order):
      a. project_status == paused
@@ -181,7 +194,8 @@ For each tick (1..max_ticks):
             exit other than 0 (auto) or 3 (park) — a ledger-append failure
             or a usage error — is treated as UNMAPPABLE: print the HITL
             block and EXIT (fail closed, never guess).
-     c. last_validation.status == pass AND active_work_items are all done/empty
+     c. PRE-COMPLETION TREE-STALENESS GATE passed AND
+        last_validation.status == pass AND active_work_items are all done/empty
         AND (code_review.required != true OR code_review.status in [pass, waived])
         → DEFAULT (unattended is false or unset): Print: "LOOP COMPLETE:
           validation PASS, review gate satisfied, no open items." and EXIT.

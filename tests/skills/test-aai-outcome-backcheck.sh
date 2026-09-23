@@ -160,6 +160,10 @@ NODE
 test_001_requirement_assessments() {
   log_info "TEST-001: aligned control passes; semantic gaps and violated outcomes refuse"
   local root variant assessment
+  grep -F 'exact path `output/final.txt`' "$FIXTURES/scenarios/scenario-05/spec.md" >/dev/null \
+    || log_fail "scenario-05 spec must preserve the exact-path constraint so its wrong-target failure is unambiguous"
+  grep -F 'Reopened output/draft.txt' "$FIXTURES/scenarios/scenario-05/evidence/readback.log" >/dev/null \
+    || log_fail "scenario-05 must retain the wrong-target read-back that distinguishes it from scenario-06"
   root="$(make_fixture test-001)"
   run_check --report report.md --ref test-001 --since 2026-06-01T00:00:00Z --root "$root" >/dev/null
   for assessment in omitted weakened unknown; do
@@ -384,14 +388,24 @@ test_007_prompt_sequence() {
 test_008_loop_resume_wiring() {
   log_info "TEST-008: two real horizons route standing PASS to Code Review or fresh Validation"
   local loop="$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md"
-  local invalidate_line phase_line
+  local invalidate_line phase_line stale_gate_line completion_line
   grep 'validation-outcome-check.mjs' "$loop" >/dev/null || log_fail "loop lacks outcome checker invocation"
   grep 'LOOP_VERIFICATION_HORIZON' "$loop" >/dev/null || log_fail "loop lacks verification horizon contract"
   grep 'fresh Validation' "$loop" >/dev/null || log_fail "loop lacks refused-report routing to fresh Validation"
+  grep -F 'orchestration-dispatch.mjs --human' "$loop" >/dev/null \
+    || log_fail "loop completion lacks the deterministic dispatcher staleness precheck"
+  grep -A3 -F 'PRE-COMPLETION TREE-STALENESS GATE:' "$loop" | grep -F -- '--confirm' >/dev/null \
+    || log_fail "loop completion staleness precheck must opt into the verdict stamp with --confirm"
+  grep -F 'validation_verdict_stale' "$loop" >/dev/null \
+    || log_fail "loop completion precheck does not name the stale-verdict refusal"
   invalidate_line="$(awk '/set-validation --status not_run --ref <focus-ref>/{print NR; exit}' "$loop")"
   phase_line="$(awk '/set-phase --ref <focus-ref> --phase validation/{print NR; exit}' "$loop")"
+  stale_gate_line="$(awk '/PRE-COMPLETION TREE-STALENESS GATE:/{print NR; exit}' "$loop")"
+  completion_line="$(awk '/c\. PRE-COMPLETION TREE-STALENESS GATE passed AND/{print NR; exit}' "$loop")"
   [[ -n "$invalidate_line" && -n "$phase_line" && "$invalidate_line" -lt "$phase_line" ]] \
     || log_fail "refused standing PASS must invalidate last_validation before validation phase routing"
+  [[ -n "$stale_gate_line" && -n "$completion_line" && "$stale_gate_line" -lt "$completion_line" ]] \
+    || log_fail "tree-staleness dispatch check must run before the loop completion stop"
   local root state dispatch immutable before_focus after_focus fixture_ref=test-008-resume
   local fixture_intake="$FIXTURES/dispatch-eligible-intake.md"
   local fixture_spec="$FIXTURES/dispatch-eligible-spec.md"
