@@ -108,6 +108,7 @@
 
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 import { checkOutcomeReport } from './validation-outcome-check.mjs';
 
 // --- exit discipline (cli-exit-truncates-pipe-sweep) ------------------------
@@ -456,12 +457,25 @@ function parseCommandWords(command) {
   return words;
 }
 
-function flagValues(words, name) {
-  const values = [];
-  for (let i = 0; i < words.length - 1; i += 1) {
-    if (words[i] === name) values.push(words[i + 1]);
+function normalizedScriptPath(value) {
+  return path.posix.normalize(String(value).replaceAll('\\', '/'));
+}
+
+function parseValidationStateCommand(words) {
+  if (!words || words[0] !== 'node'
+      || normalizedScriptPath(words[1] ?? '') !== '.aai/scripts/state.mjs'
+      || words[2] !== 'set-validation') return null;
+  const allowed = new Set(['--status', '--ref', '--model', '--evidence', '--notes']);
+  const repeated = new Set(['--evidence']);
+  const seen = new Map();
+  for (let i = 3; i < words.length; i += 2) {
+    const flag = words[i];
+    const value = words[i + 1];
+    if (!allowed.has(flag) || value === undefined || value.startsWith('--')) return { valid: false, seen };
+    if (!repeated.has(flag) && seen.has(flag)) return { valid: false, seen };
+    seen.set(flag, [...(seen.get(flag) ?? []), value]);
   }
-  return values;
+  return { valid: true, seen };
 }
 
 // A sequence of mapping items ("- key: value" plus sibling "key: value"
@@ -696,21 +710,20 @@ function validateResult(parsed, nowMs) {
         violations.push(['E-OUTCOME-REPORT', outcome.reasons.join('; ')]);
       }
     }
-    const rawCommands = parsed.state_update_commands ?? [];
-    const commands = rawCommands.map((command) => /[;&|`$<>]/.test(String(command))
-      ? null : parseCommandWords(command));
+    const commands = (parsed.state_update_commands ?? []).map(parseCommandWords);
     const scope = String(parsed.fields.scope ?? '');
     let evidenceCommandIndex = -1;
     let validationCommandCount = 0;
     for (let i = 0; i < commands.length; i += 1) {
       const words = commands[i];
-      if (!words || words[0] !== 'node' || words[1] !== '.aai/scripts/state.mjs'
-          || words[2] !== 'set-validation') continue;
+      const stateCommand = parseValidationStateCommand(words);
+      if (!stateCommand) continue;
       validationCommandCount += 1;
-      const statuses = flagValues(words, '--status');
-      const refs = flagValues(words, '--ref');
-      const evidencePaths = flagValues(words, '--evidence');
-      if (statuses.length === 1 && statuses[0] === 'pass'
+      const statuses = stateCommand.seen.get('--status') ?? [];
+      const refs = stateCommand.seen.get('--ref') ?? [];
+      const evidencePaths = stateCommand.seen.get('--evidence') ?? [];
+      if (stateCommand.valid
+          && statuses.length === 1 && statuses[0] === 'pass'
           && refs.length === 1 && refs[0] === scope
           && evidencePaths.includes(reportPath)) {
         evidenceCommandIndex = i;
@@ -725,7 +738,7 @@ function validateResult(parsed, nowMs) {
     const hasSnapshotAfterEvidence = commands.some((words, index) => words
       && index > evidenceCommandIndex
       && words[0] === 'node'
-      && words[1] === '.aai/scripts/orchestration-dispatch.mjs'
+      && normalizedScriptPath(words[1]) === '.aai/scripts/orchestration-dispatch.mjs'
       && words.length === 4
       && words.includes('--human')
       && words.includes('--confirm'));

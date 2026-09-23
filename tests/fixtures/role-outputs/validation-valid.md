@@ -16,7 +16,7 @@ subagent_result:
   blockers: []
   outcome_report: tests/fixtures/role-outputs/outcome-report-valid.md
   state_update_commands:
-    - node .aai/scripts/state.mjs set-validation --status pass --ref role-output-contracts --evidence tests/fixtures/role-outputs/outcome-report-valid.md
+    - node .aai/scripts/state.mjs set-validation --status pass --ref role-output-contracts --evidence tests/fixtures/role-outputs/outcome-report-valid.md --notes "validated -> ready"
     - node .aai/scripts/state.mjs set-phase --ref role-output-contracts --phase code_review --status in_progress
     - node .aai/scripts/orchestration-dispatch.mjs --human --confirm
 ```
