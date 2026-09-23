@@ -43,4 +43,4 @@ The independent validator still judges whether the requirement inventory is comp
 
 - Request: ../issues/CHANGE-0189-original-request-outcome-backcheck.md
 - Spec: ../specs/SPEC-0183-spec-original-request-outcome-backcheck.md
-- Validation evidence: ../ai/reports/VALIDATION-20260923T071517Z-original-request-outcome-backcheck.md
+- Validation evidence: ../ai/reports/VALIDATION-20260923T074012Z-original-request-outcome-backcheck-close.md
