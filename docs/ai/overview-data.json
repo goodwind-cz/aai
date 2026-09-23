@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T14:29:10.828Z",
+  "generatedAt": "2026-09-23T21:16:26.085Z",
   "project": "aai",
   "counts": {
     "delivered": 250,
@@ -173,7 +173,7 @@
       "type": "issue",
       "status": "draft",
       "path": "docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md",
-      "closed_on": "2026-09-18",
+      "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
