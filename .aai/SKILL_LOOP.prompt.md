@@ -113,6 +113,10 @@ print its one-line verdict as an INFORMATIONAL line (never block or branch on
 its exit code; the script is read-only and self-bounded). If the script is
 absent (older vendored layer), skip silently.
 
+Also at loop start (once), capture `LOOP_VERIFICATION_HORIZON` from the system
+UTC clock. Reuse it for this uninterrupted invocation; a resumed invocation
+captures a new horizon.
+
 Also at loop start (once): RIDE GATE — when `current_focus.ref_id` is set, run
 `node .aai/scripts/ride-select.mjs gate --ref <ref_id> --intake <primary_path>`;
 non-zero → print its message verbatim and EXIT (same shape as stop 2b). A ride
@@ -122,6 +126,26 @@ For each tick (1..max_ticks):
 
   1. READ docs/ai/STATE.yaml.
      - If missing or invalid: auto-repair with safe defaults (same rule as ORCHESTRATION.prompt.md).
+     - When the current focus has a standing Validation PASS that could be used
+       to complete OR to dispatch a later role, locate its authoritative
+       `VALIDATION-*.md` evidence for that same ref and run
+       `validation-outcome-check.mjs --report <path> --ref <focus-ref>
+       --since "$LOOP_VERIFICATION_HORIZON" --root <repository-root>`. Missing
+       legacy evidence, wrong-ref evidence or refusal makes that PASS unusable.
+       Before dispatch, invalidate that scope's standing pass through the sole
+       STATE writer, then mark Validation in progress:
+         node .aai/scripts/state.mjs set-validation --status not_run --ref <focus-ref> \
+           --notes "Standing PASS outcome report refused; fresh Validation required."
+         node .aai/scripts/state.mjs set-phase --ref <focus-ref> --phase validation \
+           --status in_progress
+       Then continue through normal orchestration so current-tree invalidation
+       still applies. Phase-only routing is insufficient: it leaves
+       `last_validation.status: pass` and can select Metrics Flush. Do not
+       restart Implementation, fail unrelated work, edit immutable evidence, or
+       update a timestamp in place. Matching immutable bytes remain reusable;
+       dynamic observations must be renewed. A Validation created after this
+       loop horizon may advance to review/close without another revalidation
+       cycle.
 
   2. CHECK stop conditions (in order):
      a. project_status == paused

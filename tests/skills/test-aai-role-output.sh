@@ -69,6 +69,7 @@ test_001_valid_fixtures() {
   log_info "TEST-001: every VALID fixture (4 role classes) -> exit 0, no violation lines..."
   local f out rc
   for f in "$FIXTURES_DIR"/*-valid.md; do
+    [[ "$(basename "$f")" == "outcome-report-valid.md" ]] && continue
     set +e
     out="$(runcheck --file "$f" --now 2026-06-01T00:00:00Z)"; rc=$?
     set -e
@@ -261,8 +262,10 @@ test_006_zero_dep() {
   local import_lines non_stdlib
   import_lines="$(grep -E "^import .* from ['\"]" "$CHECKER" || true)"
   [[ -n "$import_lines" ]] || log_fail "checker has no import statements to verify (unexpected)"
-  non_stdlib="$(echo "$import_lines" | grep -vE "from ['\"]node:" || true)"
-  [[ -z "$non_stdlib" ]] || log_fail "checker imports a non-stdlib module: $non_stdlib"
+  non_stdlib="$(echo "$import_lines" | grep -vE "from ['\"]node:|from ['\"]\./validation-outcome-check\.mjs['\"]" || true)"
+  [[ -z "$non_stdlib" ]] || log_fail "checker imports an unapproved module: $non_stdlib"
+  [[ "$(echo "$import_lines" | grep -c "from './validation-outcome-check.mjs'" || true)" -eq 1 ]] \
+    || log_fail "checker must import exactly the shared local outcome checker"
   [[ ! -f "$PROJECT_ROOT/.aai/scripts/package.json" ]] \
     || log_fail "no package.json/manifest may be added for the checker"
   [[ ! -f "$PROJECT_ROOT/package.json" ]] \
@@ -624,7 +627,7 @@ test_022_planning_verdict_controls() {
   cat > "$msg" <<'EOF'
 ```yaml
 subagent_result:
-  scope: s
+  scope: role-output-contracts
   role: Validation
   status: PASS
   started_utc: 2026-01-07T00:00:00Z
@@ -636,6 +639,7 @@ subagent_result:
       exit_code: 0
   files_changed: []
   blockers: []
+  outcome_report: tests/fixtures/role-outputs/outcome-report-valid.md
 ```
 EOF
   set +e
@@ -671,6 +675,92 @@ EOF
   log_pass "TEST-022 negative controls: Planning status PASS, Validation verdicts, and Planning extension fields all still pass"
 }
 
+# --- TEST-023 — Validation PASS requires an admissible outcome report --------
+test_023_validation_pass_requires_outcome_report() {
+  log_info "TEST-023: Validation PASS without outcome_report is refused at the real handoff..."
+  local msg="$TMP_ROOT/validation-pass-no-outcome.md" out rc sentinel="$TMP_ROOT/state-command-ran"
+  cat > "$msg" <<'EOF'
+```yaml
+subagent_result:
+  scope: original-request-outcome-backcheck
+  role: Validation
+  status: PASS
+  started_utc: 2026-01-07T00:00:00Z
+  ended_utc: 2026-01-07T00:01:00Z
+  duration_seconds: 60
+  evidence:
+    - command: echo validated
+      exit_code: 0
+  files_changed: []
+  blockers: []
+  state_update_commands:
+    - touch STATE_COMMAND_SENTINEL
+```
+EOF
+  replace_fixture_token() {
+    local file=$1 token=$2 replacement=$3
+    node - "$file" "$token" "$replacement" <<'NODE'
+const fs = require('node:fs');
+const [file, token, replacement] = process.argv.slice(2);
+fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(token, replacement));
+NODE
+  }
+  replace_fixture_token "$msg" STATE_COMMAND_SENTINEL "$sentinel"
+  set +e
+  out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "Validation PASS without outcome_report expected exit 1, got $rc; output: $out"
+  assert_payload_contains "$out" "E-OUTCOME-REPORT" \
+    "Validation PASS without outcome_report expected E-OUTCOME-REPORT, got: $out"
+  [[ ! -e "$sentinel" ]] || log_fail "role-output checker executed a returned state command"
+
+  # The shipped real report is the positive control.
+  set +e
+  out="$(runcheck --file "$FIXTURES_DIR/validation-valid.md" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "Validation PASS with admissible outcome_report expected exit 0, got $rc: $out"
+
+  # A present report whose bytes no longer match its evidence is rejected at
+  # E-OUTCOME-REPORT, after the enclosing result is otherwise valid.
+  local poisoned_report="$TMP_ROOT/poisoned-outcome.md" poisoned_result="$TMP_ROOT/poisoned-result.md" example_report="$TMP_ROOT/example-outcome.md" example_result="$TMP_ROOT/example-result.md" unclosed_report="$TMP_ROOT/unclosed-outcome.md" unclosed_result="$TMP_ROOT/unclosed-result.md"
+  cp "$FIXTURES_DIR/outcome-report-valid.md" "$poisoned_report"
+  replace_fixture_token "$poisoned_report" \
+    '984bc58aed2fd7c5669bae60fec4dcdbbab73b06545e25f216ae136c630ec667' \
+    'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+  cp "$FIXTURES_DIR/validation-valid.md" "$poisoned_result"
+  replace_fixture_token "$poisoned_result" 'tests/fixtures/role-outputs/outcome-report-valid.md' "$poisoned_report"
+  set +e
+  out="$(runcheck --file "$poisoned_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "poisoned outcome report expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-REPORT" "poisoned report expected E-OUTCOME-REPORT, got: $out"
+
+  # The actual Validation handoff must not treat an outer Markdown example as
+  # authority, and must reject a second unfinished outcome fence.
+  node - "$FIXTURES_DIR/outcome-report-valid.md" "$example_report" "$unclosed_report" <<'NODE'
+const fs = require('node:fs');
+const [source, example, unclosed] = process.argv.slice(2);
+const report = fs.readFileSync(source, 'utf8');
+fs.writeFileSync(example, `\`\`\`\`markdown\n${report}\`\`\`\`\n`);
+fs.writeFileSync(unclosed, `${report}\n\`\`\`aai-outcome-v1\n{"version":1}\n`);
+NODE
+  cp "$FIXTURES_DIR/validation-valid.md" "$example_result"
+  cp "$FIXTURES_DIR/validation-valid.md" "$unclosed_result"
+  replace_fixture_token "$example_result" 'tests/fixtures/role-outputs/outcome-report-valid.md' "$example_report"
+  replace_fixture_token "$unclosed_result" 'tests/fixtures/role-outputs/outcome-report-valid.md' "$unclosed_report"
+  set +e
+  out="$(runcheck --file "$example_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "example-only outcome report expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-REPORT" "example-only report expected E-OUTCOME-REPORT, got: $out"
+  set +e
+  out="$(runcheck --file "$unclosed_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "unfinished second outcome fence expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-REPORT" "unfinished second fence expected E-OUTCOME-REPORT, got: $out"
+  log_pass "TEST-023 Validation PASS outcome_report gate"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -689,6 +779,7 @@ main() {
   test_014_seam1_contract_skeleton
   test_021_planning_verdict_rejected
   test_022_planning_verdict_controls
+  test_023_validation_pass_requires_outcome_report
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }
 

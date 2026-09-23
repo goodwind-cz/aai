@@ -91,7 +91,8 @@
 //                      contract is binary — 0 clean / 1 anything else).
 //
 // SCOPE NOTES
-//   Deterministic, LLM-free, zero-dependency: Node stdlib only (`node:fs`),
+//   Deterministic, LLM-free, zero-dependency: Node stdlib plus the sibling
+//   read-only outcome checker,
 //   no network access, no model call, no package manifest (Technology
 //   contract: docs/TECHNOLOGY.md). Semantic/quality judgment of a role's
 //   work stays with Validation/Code Review — this script validates SHAPE
@@ -101,6 +102,7 @@
 
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { checkOutcomeReport } from './validation-outcome-check.mjs';
 
 // --- exit discipline (cli-exit-truncates-pipe-sweep) ------------------------
 // INLINED, not imported from ./lib/cli-pipe-guard.mjs: this checker's own
@@ -489,7 +491,8 @@ function parseSubagentResultBlock(candidateRawLines) {
       key === 'status' ||
       key === 'started_utc' ||
       key === 'ended_utc' ||
-      key === 'duration_seconds'
+      key === 'duration_seconds' ||
+      key === 'outcome_report'
     ) {
       fields[key] = inlineVal !== '' ? parseScalar(inlineVal) : '';
     } else if (key === 'evidence') {
@@ -591,6 +594,29 @@ function validateResult(parsed, nowMs) {
         'E-FUTURE-STARTED',
         `started_utc is ${Math.round(aheadSeconds)}s ahead of --now, limit ${FUTURE_TOLERANCE_SECONDS}s`,
       ]);
+    }
+  }
+
+  // A Validation PASS is not mergeable without the same report contract used
+  // by standalone Validation. FAIL/BLOCKED and all other roles retain their
+  // existing result-block behavior. The returned command strings remain data;
+  // this checker never parses or executes them.
+  const role = String(parsed.fields.role ?? '').trim().toLowerCase();
+  if (role === 'validation' && parsed.fields.status === 'PASS') {
+    const reportPath = parsed.fields.outcome_report;
+    if (!parsed.present.has('outcome_report') || typeof reportPath !== 'string' || reportPath.trim() === '') {
+      violations.push(['E-OUTCOME-REPORT', 'Validation PASS requires a scalar outcome_report path']);
+    } else if (startedDate) {
+      const outcome = checkOutcomeReport({
+        reportPath,
+        ref: String(parsed.fields.scope ?? ''),
+        since: String(parsed.fields.started_utc ?? ''),
+        root: process.cwd(),
+        now: new Date(nowMs),
+      });
+      if (!outcome.ok) {
+        violations.push(['E-OUTCOME-REPORT', outcome.reasons.join('; ')]);
+      }
     }
   }
 

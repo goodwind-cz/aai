@@ -1,0 +1,3 @@
+COMMAND: node worktree/test/status.test.js
+EXIT_CODE: 0
+OUTPUT: status --json test: PASS

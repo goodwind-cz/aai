@@ -43,6 +43,10 @@ PROCESS
    - Coverage table (Requirement -> Spec -> Evidence)
    - Screenshot gallery using markdown image links:
      `![<label>](screenshots/<run_id>/<file>)`
+   - The authoritative `aai-outcome-v1` block produced by the standard
+     Validation flow, preserved byte-for-byte. If this skill rewrites any
+     surrounding report content, rerun `validation-outcome-check.mjs` with the
+     same ref, root and validation-start horizon; refusal blocks PASS.
 6) Write `docs/ai/reports/LATEST.md` with:
    - Link to the newest report file
    - Short summary

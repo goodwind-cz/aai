@@ -1,23 +1,24 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-21T12:46:56.302Z
+Generated: 2026-09-23T07:38:48.187Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0183 | specs | implementing | 9 planned | docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (28)
+## Product (29)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -39,6 +40,7 @@ _None._
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
 | lightweight-e2e-lane | lightweight-e2e-lane | 1 | docs/product/lightweight-e2e-lane.md |
 | live-status-dashboard | live-status-dashboard | 2 | docs/product/live-status-dashboard.md |
+| original-request-outcome-backcheck | original-request-outcome-backcheck | 1 | docs/product/original-request-outcome-backcheck.md |
 | orphan-sweep | orphan-sweep | 1 | docs/product/orphan-sweep.md |
 | platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
@@ -490,7 +492,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (17)
+## Drafts (19)
 
 | ID | Type | Path |
 |---|---|---|
@@ -499,6 +501,7 @@ _None._
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
+| CHANGE-0189 | issues | docs/issues/CHANGE-0189-original-request-outcome-backcheck.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -511,6 +514,7 @@ _None._
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0047 | issues | docs/issues/ISSUE-0047-agents-tree-not-synced.md |
 | ISSUE-0083 | issues | docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md |
+| RES-0004 | specs | docs/specs/RES-0004-longhorizon-harness-adoption.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -564,4 +568,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-21 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-23 — counts above use this date for overdue checks.

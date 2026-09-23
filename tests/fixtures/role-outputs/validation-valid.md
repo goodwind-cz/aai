@@ -14,4 +14,5 @@ subagent_result:
       output_snippet: "ALL TESTS PASSED"
   files_changed: []
   blockers: []
+  outcome_report: tests/fixtures/role-outputs/outcome-report-valid.md
 ```
