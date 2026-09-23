@@ -509,7 +509,7 @@ function commandFlagValues(words, name) {
   return values;
 }
 
-function isAllowedMergeCommand(words, role) {
+function isAllowedMergeCommand(words, role, scope) {
   if (!words || words[0] !== 'node') return false;
   const script = normalizedScriptPath(words[1] ?? '');
   if (script === '.aai/scripts/orchestration-dispatch.mjs') {
@@ -518,8 +518,20 @@ function isAllowedMergeCommand(words, role) {
   }
   if (script !== '.aai/scripts/state.mjs'
       || !STATE_UPDATE_SUBCOMMANDS.has(words[2])
-      || !ROLE_UPDATE_SUBCOMMANDS.get(role)?.has(words[2])
-      || !isFlagValueSequence(words, 3)) return false;
+      || !ROLE_UPDATE_SUBCOMMANDS.get(role)?.has(words[2])) return false;
+  if (words[2] === 'reset-block') {
+    return role === 'remediation'
+      && ['last_validation', 'code_review'].includes(words[3])
+      && (words.length === 4 || (words.length === 5 && words[4] === '--force'));
+  }
+  if (!isFlagValueSequence(words, 3)) return false;
+  const refs = commandFlagValues(words, '--ref');
+  if (role !== 'orchestration') {
+    if (refs.length > 0 && (refs.length !== 1 || refs[0] !== scope)) return false;
+    const scopeRequired = ['set-focus', 'set-phase', 'set-validation'].includes(words[2])
+      && !(role === 'metrics flush' && words[2] === 'set-validation');
+    if (scopeRequired && refs.length !== 1) return false;
+  }
   if (words[2] === 'set-code-review' && role !== 'code review' && role !== 'orchestration') {
     const statuses = commandFlagValues(words, '--status');
     if (statuses.length !== 1 || statuses[0] !== 'not_run') return false;
@@ -711,7 +723,7 @@ function validateResult(parsed, nowMs) {
   }
 
   for (let i = 0; i < commandWords.length; i += 1) {
-    if (!isAllowedMergeCommand(commandWords[i], role)) {
+    if (!isAllowedMergeCommand(commandWords[i], role, String(parsed.fields.scope ?? ''))) {
       violations.push([
         'E-STATE-UPDATE-COMMAND',
         `state_update_commands[${i}] is not allowlisted for role ${JSON.stringify(parsed.fields.role)}`,
