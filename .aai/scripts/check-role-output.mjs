@@ -478,7 +478,7 @@ const ROLE_UPDATE_SUBCOMMANDS = new Map([
   ['implementation preparation', new Set(['set-focus', 'set-phase', 'set-worktree'])],
   ['implementation preparation / worktree decision', new Set(['set-focus', 'set-phase', 'set-worktree'])],
   ['implementation', new Set(['set-focus', 'set-phase', 'set-code-review'])],
-  ['tdd implementation', new Set(['set-focus', 'set-phase', 'set-code-review'])],
+  ['tdd implementation', new Set(['set-focus', 'set-phase', 'set-code-review', 'set-tdd-cycle'])],
   ['validation', new Set(['set-validation', 'set-phase'])],
   ['code review', new Set(['set-code-review'])],
   ['remediation', new Set(['reset-block', 'set-phase', 'set-human-input'])],
@@ -600,6 +600,7 @@ function parseSubagentResultBlock(candidateRawLines) {
   let filesChanged = [];
   let blockers = [];
   let stateUpdateCommands = [];
+  let invalidStateUpdateCommands = false;
 
   let i = 0;
   while (i < body.length) {
@@ -641,7 +642,10 @@ function parseSubagentResultBlock(candidateRawLines) {
     } else if (key === 'blockers') {
       blockers = inlineVal === '[]' ? [] : parseScalarList(nested);
     } else if (key === 'state_update_commands') {
-      stateUpdateCommands = inlineVal === '[]' ? [] : parseScalarList(nested);
+      const commandInlineVal = inlineVal.replace(/(?:^|\s+)#.*$/, '').trim();
+      if (commandInlineVal === '[]') stateUpdateCommands = [];
+      else if (commandInlineVal !== '') invalidStateUpdateCommands = true;
+      else stateUpdateCommands = parseScalarList(nested);
     }
     // else: extra extension field — nested lines already consumed above;
     // intentionally ignored (validate required core only).
@@ -649,6 +653,7 @@ function parseSubagentResultBlock(candidateRawLines) {
   return {
     present, fields, evidence, files_changed: filesChanged, blockers,
     state_update_commands: stateUpdateCommands, malformed, duplicates,
+    invalid_state_update_commands: invalidStateUpdateCommands,
   };
 }
 
@@ -663,6 +668,13 @@ function validateResult(parsed, nowMs) {
 
   for (const key of parsed.duplicates ?? []) {
     violations.push(['E-DUPLICATE-FIELD', `duplicate top-level field: ${key}`]);
+  }
+
+  if (parsed.invalid_state_update_commands) {
+    violations.push([
+      'E-STATE-UPDATE-COMMAND',
+      'state_update_commands must be an indented scalar list or []',
+    ]);
   }
 
   for (const key of REQUIRED_FIELDS) {

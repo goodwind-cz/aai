@@ -788,7 +788,7 @@ NODE
   # The checked report, recorded STATE evidence, and immediate tree snapshot
   # are one handoff contract. A different evidence path or an omitted stamp
   # command must fail before the orchestrator can replay either command list.
-  local mismatched_result="$TMP_ROOT/mismatched-evidence-result.md" missing_stamp_result="$TMP_ROOT/missing-stamp-result.md" duplicate_validation_result="$TMP_ROOT/duplicate-validation-result.md" arbitrary_command_result="$TMP_ROOT/arbitrary-command-result.md" duplicate_key_result="$TMP_ROOT/duplicate-key-result.md" cross_role_result="$TMP_ROOT/cross-role-result.md"
+  local mismatched_result="$TMP_ROOT/mismatched-evidence-result.md" missing_stamp_result="$TMP_ROOT/missing-stamp-result.md" duplicate_validation_result="$TMP_ROOT/duplicate-validation-result.md" arbitrary_command_result="$TMP_ROOT/arbitrary-command-result.md" duplicate_key_result="$TMP_ROOT/duplicate-key-result.md" cross_role_result="$TMP_ROOT/cross-role-result.md" inline_commands_result="$TMP_ROOT/inline-commands-result.md"
   cp "$FIXTURES_DIR/validation-valid.md" "$mismatched_result"
   replace_fixture_token "$mismatched_result" \
     '--evidence tests/fixtures/role-outputs/outcome-report-valid.md' \
@@ -863,6 +863,16 @@ NODE
   [[ "$rc" -eq 1 ]] || log_fail "Validation cross-role code-review verdict expected exit 1, got $rc: $out"
   assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "cross-role verdict expected E-STATE-UPDATE-COMMAND, got: $out"
 
+  cp "$FIXTURES_DIR/implementation-valid.md" "$inline_commands_result"
+  replace_fixture_token "$inline_commands_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands: ["node .aai/scripts/state.mjs set-code-review --status pass"]'
+  set +e
+  out="$(runcheck --file "$inline_commands_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "nonempty inline state_update_commands expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "inline command list expected E-STATE-UPDATE-COMMAND, got: $out"
+
   cp "$FIXTURES_DIR/validation-valid.md" "$missing_stamp_result"
   node - "$missing_stamp_result" <<'NODE'
 const fs = require('node:fs');
@@ -916,6 +926,21 @@ EOF
     set -e
     [[ "$rc" -eq 0 ]] || log_fail "canonical role '$role' must remain accepted, got $rc: $out"
   done
+
+  sed 's|^  role: .*|  role: TDD Implementation|' "$FIXTURES_DIR/implementation-valid.md" > "$msg"
+  node - "$msg" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const anchor = '  blockers: []\n';
+const commands = '  state_update_commands:\n    - node .aai/scripts/state.mjs set-tdd-cycle --status IDLE\n';
+if (!source.includes(anchor)) process.exit(1);
+fs.writeFileSync(file, source.replace(anchor, `${anchor}${commands}`));
+NODE
+  set +e
+  out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "TDD Implementation set-tdd-cycle must be accepted, got $rc: $out"
   log_pass "TEST-024 role enum rejects bypass spellings and accepts canonical roles"
 }
 
