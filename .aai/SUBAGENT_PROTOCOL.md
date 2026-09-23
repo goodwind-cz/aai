@@ -336,7 +336,7 @@ After all subagents complete, the orchestrator MUST:
      `prompt_hash` (see "Harness-reported usage capture" above)
    - `updated_at_utc`
    - `state_update_commands` (per `.aai/SUBAGENT_CONTRACT.md` D1, when present
-     on a collected block): run each listed `state.mjs` command, in the
+     on a collected block): run each listed merge command, in the
      returned order, as part of this merge write — this is the returned-commands
      duty's orchestrator-side half; the subagent-facing duty is not restated
      here. CONFLICT RULE: when two or more collected blocks return commands
@@ -344,6 +344,10 @@ After all subagents complete, the orchestrator MUST:
      decomposed validators), do NOT replay them — construct ONE merged command
      from the aggregate outcome (any fail -> overall fail; evidence paths
      combined), so a later `pass` can never overwrite an earlier `fail`.
+     For an aggregate Validation PASS, preserve the checked report as the
+     `set-validation --evidence` path and run its following
+     `orchestration-dispatch.mjs --human --confirm` snapshot command before
+     any later role or completion check.
 4. Only after STATE.yaml is updated: proceed to deliver result to user.
 
 ## Delivery gate (mandatory)

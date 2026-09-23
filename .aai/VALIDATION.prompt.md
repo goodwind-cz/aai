@@ -281,6 +281,8 @@ PROCESS
       node .aai/scripts/state.mjs set-validation --status <pass|fail> --ref <REF-ID> \
         --evidence <VALIDATION-report> [--evidence <path>]... --notes "<verdict summary>"
       node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase <code_review|remediation|validation> [--status <s>]
+      # PASS only, immediately after the STATE commands:
+      node .aai/scripts/orchestration-dispatch.mjs --human --confirm
     (`set-validation` self-stamps `run_at_utc` from the system clock; each
     command bumps the real `updated_at_utc` itself. code_review.status remains
     not_run/fail unless a separate code review report has already recorded pass
@@ -290,7 +292,9 @@ PROCESS
     them (.aai/SUBAGENT_CONTRACT.md), and for PASS add the scalar
     `outcome_report: <VALIDATION-report>` to the result block. Sole agent: run them.
     The report checked in step 7c and the report passed as state evidence
-    must be the same path and must belong to this scope.
+    must be the same path and must belong to this scope. On PASS the result
+    checker requires both that exact evidence binding and the immediately
+    following dispatcher command, which snapshots the validated tree.
 
 PARALLEL VALIDATION (when scope has ≥3 independent requirement groups)
 If requirements can be grouped into ≥3 independent groups (no cross-dependency):
