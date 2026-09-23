@@ -783,6 +783,45 @@ NODE
   log_pass "TEST-023 Validation PASS outcome_report gate"
 }
 
+# --- TEST-024 — unknown roles cannot bypass role-scoped gates ---------------
+test_024_role_enum_is_closed() {
+  log_info "TEST-024: unknown and empty roles -> E-BAD-ROLE; canonical roles remain accepted..."
+  local msg="$TMP_ROOT/role-enum.md" out rc role
+  for role in Validator '' Typo; do
+    cat > "$msg" <<EOF
+\`\`\`yaml
+subagent_result:
+  scope: role-output-contracts
+  role: $role
+  status: PASS
+  started_utc: 2026-01-07T00:00:00Z
+  ended_utc: 2026-01-07T00:01:00Z
+  duration_seconds: 60
+  evidence:
+    - command: echo ok
+      exit_code: 0
+  files_changed: []
+  blockers: []
+\`\`\`
+EOF
+    set +e
+    out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
+    set -e
+    [[ "$rc" -eq 1 ]] || log_fail "unknown role '$role' expected exit 1, got $rc: $out"
+    assert_payload_contains "$out" "E-BAD-ROLE" "unknown role '$role' expected E-BAD-ROLE, got: $out"
+  done
+
+  for role in Planning Implementation 'TDD Implementation' Validation 'Code Review' Remediation 'Implementation Preparation' Research Orchestration 'Metrics Flush'; do
+    [[ "$role" == Validation ]] && continue
+    sed "s/^  role: .*/  role: $role/" "$FIXTURES_DIR/implementation-valid.md" > "$msg"
+    set +e
+    out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
+    set -e
+    [[ "$rc" -eq 0 ]] || log_fail "canonical role '$role' must remain accepted, got $rc: $out"
+  done
+  log_pass "TEST-024 role enum rejects bypass spellings and accepts canonical roles"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -802,6 +841,7 @@ main() {
   test_021_planning_verdict_rejected
   test_022_planning_verdict_controls
   test_023_validation_pass_requires_outcome_report
+  test_024_role_enum_is_closed
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }
 

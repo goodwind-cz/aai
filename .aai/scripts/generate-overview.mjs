@@ -208,8 +208,14 @@ function readTicks(limit) {
 function evidenceFor(ref, dir) {
   const abs = path.join(ROOT, dir);
   let files = [];
-  try { files = fs.readdirSync(abs).filter(f => f.includes(ref)).sort(); } catch { return null; }
-  return files.length ? `${dir}/${files[files.length - 1]}` : null;
+  try {
+    files = fs.readdirSync(abs, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.includes(ref))
+      .map((entry) => `${dir}/${entry.name}`)
+      .filter((rel) => isTrackedFile(ROOT, rel))
+      .sort();
+  } catch { return null; }
+  return files.length ? files[files.length - 1] : null;
 }
 
 function esc(s) {

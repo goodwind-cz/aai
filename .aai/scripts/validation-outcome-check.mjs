@@ -251,8 +251,10 @@ function definedSpecAcIds(bytes) {
 function extractOutcomeBlock(markdown, refuse) {
   const blocks = [];
   let openFence = null;
-  for (const line of markdown.split(/\r?\n/)) {
+  const commentState = { inComment: false };
+  for (const rawLine of markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')) {
     if (!openFence) {
+      const line = maskCommentsOutsideInlineCode(rawLine, commentState);
       const opener = /^(?: {0,3})(`{3,}|~{3,})(.*)$/.exec(line);
       if (!opener) continue;
       openFence = {
@@ -263,6 +265,7 @@ function extractOutcomeBlock(markdown, refuse) {
       };
       continue;
     }
+    const line = rawLine;
     const closer = /^(?: {0,3})(`{3,}|~{3,})[ \t]*$/.exec(line);
     if (closer && closer[1][0] === openFence.character && closer[1].length >= openFence.length) {
       if (openFence.outcome) blocks.push(openFence.lines.join('\n'));

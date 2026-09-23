@@ -26,6 +26,9 @@
 //      the required core is validated) — one violation line per missing
 //      field.
 //   3. E-BAD-STATUS       — `status` is one of PASS / FAIL / BLOCKED.
+//   10. E-BAD-ROLE        — `role` is one of the canonical dispatched,
+//      semantic, or state-recorded roles. Unknown and empty spellings fail
+//      closed so they cannot bypass role-scoped checks.
 //   4. E-NO-EVIDENCE      — `evidence` has at least one entry with an
 //      INTEGER `exit_code`.
 //   8. E-MALFORMED-LINE — a base-indent block line that is neither a key nor a comment (never silently skipped)
@@ -158,6 +161,18 @@ const REQUIRED_FIELDS = [
   'blockers',
 ];
 const VALID_STATUSES = new Set(['PASS', 'FAIL', 'BLOCKED']);
+const VALID_ROLES = new Set([
+  'planning',
+  'implementation preparation',
+  'implementation',
+  'tdd implementation',
+  'validation',
+  'code review',
+  'remediation',
+  'research',
+  'orchestration',
+  'metrics flush',
+]);
 // Fields that record a VALIDATION VERDICT. Reserved to the Validation role
 // (E-PLANNING-VERDICT, see the header). `status` is deliberately NOT here.
 const VERDICT_FIELDS = new Set([
@@ -527,6 +542,16 @@ function validateResult(parsed, nowMs) {
       violations.push([
         'E-BAD-STATUS',
         `status must be one of PASS|FAIL|BLOCKED, got: ${JSON.stringify(status)}`,
+      ]);
+    }
+  }
+
+  if (parsed.present.has('role')) {
+    const role = String(parsed.fields.role ?? '').trim().toLowerCase();
+    if (!VALID_ROLES.has(role)) {
+      violations.push([
+        'E-BAD-ROLE',
+        `role must be canonical, got: ${JSON.stringify(parsed.fields.role)}`,
       ]);
     }
   }

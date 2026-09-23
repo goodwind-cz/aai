@@ -766,6 +766,34 @@ test_597_reopened_item_hides_historical_delivery_date() {
   log_pass "TEST-597: historical close events do not label a currently-open item as delivered"
 }
 
+# --- TEST-598 (PR #388 Codex review): evidence links are tracked files only --
+test_598_evidence_links_require_tracked_files() {
+  log_info "Test: evidence links ignore directories and untracked files while preserving tracked files (TEST-598)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  local d; d="$(mk_git_repo t598)"
+  write_change_doc "$d/docs/issues/CHANGE-9005-evidence.md" "CHG-T598" "done"
+  mkdir -p "$d/docs/ai/reports/validation-CHG-T598"
+  printf '%s\n' 'untracked report' > "$d/docs/ai/reports/report-CHG-T598.md"
+  printf '%s\n' 'tracked review' > "$d/docs/ai/reviews/review-CHG-T598.md"
+  (cd "$d" && git add docs/issues/CHANGE-9005-evidence.md docs/ai/reviews/review-CHG-T598.md && git commit -qm "tracked evidence fixture")
+
+  run_overview "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-598: overview must exit 0: $(cat "$OUT")"
+  local dj="$d/docs/ai/overview-data.json" validation review
+  validation="$(node_get "$dj" 'm.delivered.find(x=>x.ref==="CHG-T598").validation')"
+  review="$(node_get "$dj" 'm.delivered.find(x=>x.ref==="CHG-T598").review')"
+  [[ "$validation" == "null" ]] \
+    || log_fail "TEST-598: directory/untracked report must not become validation evidence, got $validation"
+  [[ "$review" == "docs/ai/reviews/review-CHG-T598.md" ]] \
+    || log_fail "TEST-598: tracked review must remain linked, got $review"
+  grep -qF 'docs/ai/reports/validation-CHG-T598' "$d/docs/ai/overview.html" \
+    && log_fail "TEST-598: rendered overview must not link the untracked report directory"
+  grep -qF 'docs/ai/reviews/review-CHG-T598.md' "$d/docs/ai/overview.html" \
+    || log_fail "TEST-598: rendered overview must link the tracked review"
+
+  log_pass "TEST-598: evidence links are restricted to tracked regular files"
+}
+
 main() {
   echo "Testing $TEST_NAME (token-economics-end-to-end TEST-005..007 + dev-progress-hub TEST-001..006)"
   check_deps
@@ -785,6 +813,7 @@ main() {
   test_556_no_untracked_state_in_tracked_pages
   test_596_nested_tracked_doc_keeps_its_real_path
   test_597_reopened_item_hides_historical_delivery_date
+  test_598_evidence_links_require_tracked_files
   echo ""
   log_pass "All $TEST_NAME tests passed (dev-progress-hub TEST-006: full-suite regression check)"
 }

@@ -224,6 +224,13 @@ test_005_fail_closed_schema() {
 
   variant="$TMP_ROOT/test-005-no-block"; cp -R "$root" "$variant"; replace_once "$variant/report.md" 'aai-outcome-v1' 'json'
   assert_refusal 'expected exactly one aai-outcome-v1 block, found 0' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-commented-block"; cp -R "$root" "$variant"
+  node - "$variant/report.md" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+fs.writeFileSync(file, `<!--\n${fs.readFileSync(file, 'utf8')}\n-->\n`);
+NODE
+  assert_refusal 'expected exactly one aai-outcome-v1 block, found 0' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
   variant="$TMP_ROOT/test-005-example-only"; cp -R "$root" "$variant"
   node - "$variant/report.md" <<'NODE'
 const fs = require('node:fs');
