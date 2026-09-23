@@ -1,26 +1,16 @@
 # Subagent Contract
 
-The per-dispatch payload every spawned subagent (Implementation, Validation,
-Planning, Research) receives. Orchestrator-only material (decomposition, MODEL
-contract table, review anti-gaming, validator spawning, usage capture, merge
-protocol, delivery gate, platform fallback) stays in `.aai/SUBAGENT_PROTOCOL.md`.
+The per-dispatch payload every spawned subagent (Implementation, Validation, Planning, Research) receives. Orchestrator-only material (decomposition, MODEL contract table, review anti-gaming, validator spawning, usage capture, merge protocol, delivery gate, platform fallback) stays in `.aai/SUBAGENT_PROTOCOL.md`.
 The Standing hazards below bind the dispatched unit's own hands, so they live here rather than in per-dispatch prose.
 
 ## Standing hazards (HARD — each rule is a measured incident, not a style note)
 
 These bind YOU on every dispatch whether or not the dispatch text repeats them; a dispatch may ADD a hazard, never waive one.
 
-- HAZ-RESTORE — no restoring git command on a tracked file (`git checkout --`,
-  `git restore`, `git stash`/`pop`, `git reset --hard`): mutate a COPY instead.
-  Scar `fu-orchestrator-mutated-real-file` (P2, 2026-08-21): a bite-proof
-  mutation went into the tracked suite file itself and its restore silently
-  failed on a mis-anchored `sed`.
+- HAZ-RESTORE — no restoring git command on a tracked file (`git checkout --`, `git restore`, `git stash`/`pop`, `git reset --hard`): mutate a COPY instead. Scar `fu-orchestrator-mutated-real-file` (P2, 2026-08-21): a bite-proof mutation went into the tracked suite file itself and its restore silently failed on a mis-anchored `sed`.
 - HAZ-SCRATCH — experiments live in ONE reused copy under the absolute scratch path the dispatch names, never in the shipping tree. Scar `fu-subagent-probe-hits-real-repo` (P1, 2026-08-15): a probe `cd`-ed inside a command substitution, so the parent shell stayed in the real repository and the run created two commits on `main`.
   Allowance, not a sixth hazard: `.git/hooks/reference-transaction` (marker `AAI:REF-GUARD`) now refuses that exact shape unless `AAI_GIT_WRITE=1` is set on the one command, and stays silent everywhere else, including under this hazard's own scratch copy.
-- HAZ-CD — verify a path is non-empty AND absolute immediately before every
-  `cd`. Scar `fu-empty-path-cd-stays-in-shipping-repo` (2026-08-22): a
-  `local a=1 b=$a` chain left the fixture path empty, `cd ""` stayed put, and
-  the harness committed into the shipping repository.
+- HAZ-CD — verify a path is non-empty AND absolute immediately before every `cd`. Scar `fu-empty-path-cd-stays-in-shipping-repo` (2026-08-22): a `local a=1 b=$a` chain left the fixture path empty, `cd ""` stayed put, and the harness committed into the shipping repository.
 - HAZ-LEDGER — append-only ledgers (`EVENTS.jsonl`, `decisions.jsonl`,
   `tests/test-runs.jsonl` under `docs/ai/`): only ever add at the end, and a
   merge must leave the base a byte-exact prefix. About the BYTES, not the tool —
@@ -52,9 +42,15 @@ subagent_result:
     - <relative path>
   blockers:
     - <description of any blocker; empty list if none>
+  outcome_report: <required scalar path for role Validation + status PASS only>
   state_update_commands:            # optional (D1): STATE mutator commands returned instead of run
     - <fully-substituted node .aai/scripts/state.mjs ... command, one per item, indented exactly as here>
 ```
+
+`outcome_report` is required only for a Validation `PASS`. It names the exact
+report already checked by `validation-outcome-check.mjs`; the returned
+`set-validation --evidence` command must name that same path. Other roles and
+Validation FAIL/BLOCKED omit it.
 
 Timing capture rules:
 - Capture `started_utc`/`ended_utc` from the system clock (`date -u` /

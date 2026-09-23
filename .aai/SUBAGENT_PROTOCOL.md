@@ -310,6 +310,11 @@ After all subagents complete, the orchestrator MUST:
    `git worktree list --porcelain` capture the merge step does not hold — so a
    live ride is gated only when the operator adds them. The gates themselves
    are proven by tests/skills/test-aai-planning-probes.sh.
+   For Validation PASS, also verify the accepted scalar `outcome_report` is the
+   same scope report named by `set-validation --evidence` in the returned
+   `state_update_commands`; mismatch is reject-and-re-prompt and no command is
+   run. Treat command strings as data for this comparison—never shell-parse or
+   execute them during checking.
 2. Evaluate overall status:
    - `PASS` only if every subagent returned `PASS`
    - `FAIL` if any subagent returned `FAIL` — trigger Remediation for that scope only

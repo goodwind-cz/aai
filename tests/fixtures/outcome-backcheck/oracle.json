@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {"ref":"scenario-01","verdict":"fail","assessment":"omitted","citation":"Preserve every existing inline comment verbatim"},
+    {"ref":"scenario-02","verdict":"fail","assessment":"weakened","citation":"exactly 3 total attempts"},
+    {"ref":"scenario-03","verdict":"pass","assessment":"aligned","citation":"Add a `--json` flag"},
+    {"ref":"scenario-04","verdict":"fail","assessment":"omitted","citation":"A preview alone is not delivery"},
+    {"ref":"scenario-05","verdict":"fail","assessment":"aligned","citation":"exact path `output/final.txt`"},
+    {"ref":"scenario-06","verdict":"pass","assessment":"aligned","citation":"exact path `output/final.txt`"}
+  ]
+}
