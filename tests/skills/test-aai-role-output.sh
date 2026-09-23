@@ -788,7 +788,7 @@ NODE
   # The checked report, recorded STATE evidence, and immediate tree snapshot
   # are one handoff contract. A different evidence path or an omitted stamp
   # command must fail before the orchestrator can replay either command list.
-  local mismatched_result="$TMP_ROOT/mismatched-evidence-result.md" missing_stamp_result="$TMP_ROOT/missing-stamp-result.md" duplicate_validation_result="$TMP_ROOT/duplicate-validation-result.md" arbitrary_command_result="$TMP_ROOT/arbitrary-command-result.md" duplicate_key_result="$TMP_ROOT/duplicate-key-result.md" cross_role_result="$TMP_ROOT/cross-role-result.md" inline_commands_result="$TMP_ROOT/inline-commands-result.md" glob_command_result="$TMP_ROOT/glob-command-result.md"
+  local mismatched_result="$TMP_ROOT/mismatched-evidence-result.md" escaped_mismatch_result="$TMP_ROOT/escaped-mismatch-result.md" missing_stamp_result="$TMP_ROOT/missing-stamp-result.md" duplicate_validation_result="$TMP_ROOT/duplicate-validation-result.md" arbitrary_command_result="$TMP_ROOT/arbitrary-command-result.md" duplicate_key_result="$TMP_ROOT/duplicate-key-result.md" cross_role_result="$TMP_ROOT/cross-role-result.md" inline_commands_result="$TMP_ROOT/inline-commands-result.md" glob_command_result="$TMP_ROOT/glob-command-result.md"
   cp "$FIXTURES_DIR/validation-valid.md" "$mismatched_result"
   replace_fixture_token "$mismatched_result" \
     '--evidence tests/fixtures/role-outputs/outcome-report-valid.md' \
@@ -798,6 +798,22 @@ NODE
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "mismatched set-validation evidence expected exit 1, got $rc: $out"
   assert_payload_contains "$out" "E-OUTCOME-EVIDENCE" "mismatched evidence expected E-OUTCOME-EVIDENCE, got: $out"
+
+  cp "$FIXTURES_DIR/validation-valid.md" "$escaped_mismatch_result"
+  node - "$escaped_mismatch_result" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const original = '--evidence tests/fixtures/role-outputs/outcome-report-valid.md --notes';
+const escaped = '--evidence "tests/fixtures/role-outputs/outcome\\-report-valid.md" --notes';
+if (!source.includes(original)) process.exit(1);
+fs.writeFileSync(file, source.replace(original, escaped));
+NODE
+  set +e
+  out="$(runcheck --file "$escaped_mismatch_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "double-quoted preserved backslash mismatch expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-EVIDENCE" "preserved backslash mismatch expected E-OUTCOME-EVIDENCE, got: $out"
 
   cp "$FIXTURES_DIR/validation-valid.md" "$duplicate_validation_result"
   node - "$duplicate_validation_result" <<'NODE'

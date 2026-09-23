@@ -437,19 +437,29 @@ function parseCommandWords(command) {
   let word = '';
   let quote = null;
   let escaped = false;
+  let escapedInDouble = false;
   let started = false;
   for (const ch of String(command)) {
-    if (escaped) { word += ch; escaped = false; started = true; continue; }
+    if (escaped) {
+      if (ch !== '\n') {
+        if (escapedInDouble && !['$', '`', '"', '\\'].includes(ch)) word += '\\';
+        word += ch;
+        started = true;
+      }
+      escaped = false;
+      escapedInDouble = false;
+      continue;
+    }
     if (quote) {
       if (ch === quote) quote = null;
-      else if (ch === '\\' && quote === '"') escaped = true;
+      else if (ch === '\\' && quote === '"') { escaped = true; escapedInDouble = true; }
       else if (quote === '"' && (ch === '$' || ch === '`')) return null;
       else word += ch;
       started = true;
       continue;
     }
     if (ch === "'" || ch === '"') { quote = ch; started = true; continue; }
-    if (ch === '\\') { escaped = true; started = true; continue; }
+    if (ch === '\\') { escaped = true; escapedInDouble = false; started = true; continue; }
     if (';&|<>$`*?[]{}~#()!'.includes(ch)) return null;
     if (/\s/.test(ch)) {
       if (started) { words.push(word); word = ''; started = false; }
