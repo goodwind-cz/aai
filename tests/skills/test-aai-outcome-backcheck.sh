@@ -244,6 +244,10 @@ NODE
   assert_refusal 'expected exactly one aai-outcome-v1 block, found 2' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
   variant="$TMP_ROOT/test-005-malformed"; cp -R "$root" "$variant"; replace_once "$variant/report.md" '"version": 1' '"version": '
   assert_refusal 'aai-outcome-v1 JSON is malformed:' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-duplicate-json-top"; cp -R "$root" "$variant"; replace_once "$variant/report.md" '"version": 1' '"requirements": [], "version": 1'
+  assert_refusal 'duplicate JSON object key: requirements' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-duplicate-json-nested"; cp -R "$root" "$variant"; replace_once "$variant/report.md" '"result": "satisfied"' '"result": "violated", "result": "satisfied"'
+  assert_refusal 'duplicate JSON object key: result' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
   variant="$TMP_ROOT/test-005-non-object"; cp -R "$root" "$variant"; printf '%s\n' '```aai-outcome-v1' 'null' '```' > "$variant/report.md"
   assert_refusal 'outcome block must be a JSON object' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
   variant="$TMP_ROOT/test-005-source"; cp -R "$root" "$variant"; replace_once "$variant/report.md" 'intake.md' 'missing.md'
