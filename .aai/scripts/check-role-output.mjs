@@ -34,6 +34,8 @@
 //      immediately after the returned STATE commands are replayed.
 //   12. E-STATE-UPDATE-COMMAND — every returned merge command is an
 //      allowlisted state.mjs mutation or the exact validation snapshot call.
+//   13. E-DUPLICATE-FIELD — a top-level result key appears more than once;
+//      duplicate YAML keys are rejected instead of silently overwriting data.
 //   4. E-NO-EVIDENCE      — `evidence` has at least one entry with an
 //      INTEGER `exit_code`.
 //   8. E-MALFORMED-LINE — a base-indent block line that is neither a key nor a comment (never silently skipped)
@@ -563,6 +565,7 @@ function parseSubagentResultBlock(candidateRawLines) {
   const present = new Set();
   const fields = {};
   const malformed = [];
+  const duplicates = [];
   let evidence = [];
   let filesChanged = [];
   let blockers = [];
@@ -589,6 +592,7 @@ function parseSubagentResultBlock(candidateRawLines) {
     while (i < body.length && body[i].indent > baseIndent) i++;
     const nested = body.slice(nestedStart, i);
 
+    if (present.has(key)) duplicates.push(key);
     present.add(key);
     if (
       key === 'scope' ||
@@ -614,7 +618,7 @@ function parseSubagentResultBlock(candidateRawLines) {
   }
   return {
     present, fields, evidence, files_changed: filesChanged, blockers,
-    state_update_commands: stateUpdateCommands, malformed,
+    state_update_commands: stateUpdateCommands, malformed, duplicates,
   };
 }
 
@@ -624,6 +628,10 @@ function validateResult(parsed, nowMs) {
 
   for (const bad of parsed.malformed ?? []) {
     violations.push(['E-MALFORMED-LINE', `unparseable block line: ${bad}`]);
+  }
+
+  for (const key of parsed.duplicates ?? []) {
+    violations.push(['E-DUPLICATE-FIELD', `duplicate top-level field: ${key}`]);
   }
 
   for (const key of REQUIRED_FIELDS) {
@@ -770,7 +778,7 @@ function validateResult(parsed, nowMs) {
     if (evidenceCommandIndex === -1 || validationCommandCount !== 1) {
       violations.push([
         'E-OUTCOME-EVIDENCE',
-        'Validation PASS requires set-validation --status pass with --ref equal to scope and --evidence equal to outcome_report',
+        'Validation PASS requires set-validation --status pass with --ref equal to scope and --evidence including outcome_report',
       ]);
     }
     const hasSnapshotAfterEvidence = commands.some((words, index) => words
