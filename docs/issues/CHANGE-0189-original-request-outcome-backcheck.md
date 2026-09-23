@@ -2,12 +2,14 @@
 id: original-request-outcome-backcheck
 type: change
 number: 189
-status: draft
+status: done
 user_visible: true
 capability: original-request-outcome-backcheck
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - a884179d81201c3a3ae263607682ab63a0594837
 ---
 
 # Change — Verify original requirements and persisted outcomes

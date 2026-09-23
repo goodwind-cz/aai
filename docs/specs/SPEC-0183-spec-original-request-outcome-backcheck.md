@@ -2,13 +2,15 @@
 id: spec-original-request-outcome-backcheck
 type: spec
 number: 183
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: original-request-outcome-backcheck
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - a884179d81201c3a3ae263607682ab63a0594837
 ---
 
 # Spec — Original-request and persisted-outcome backcheck
@@ -99,20 +101,20 @@ false evidence and test-selector false success inform the non-vacuity controls.
 
 ## Acceptance Criteria Status
 
-Every row remains planned until implementation produces evidence. The command
-and observable references below resolve to Verification and Test Plan.
+The rows below were verified by independent validation and closed with their
+evidence. The command references resolve to Verification and Test Plan.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | WHEN a declared original requirement is omitted, weakened, violated or unknown, the report checker SHALL refuse PASS; an aligned report SHALL pass. | planned |  |  | V1 TEST-001 green; delivery citation deferred to close. |
-| Spec-AC-02 | WHEN an independent validator receives the six natural-language scenarios in S1, it SHALL inventory their material original constraints and report the specified gap or aligned result, with source and evidence citations. | planned |  |  | V2 semantic score 6/6; delivery citation deferred to close. |
-| Spec-AC-03 | WHEN persistence is required, preview-only, wrong-target or mismatched saved bytes SHALL be refused; read-back of the exact saved target SHALL pass. | planned |  |  | V1 TEST-003 green; delivery citation deferred to close. |
-| Spec-AC-04 | WHEN evidence is reused, changed local targets or dynamic observations older than the supplied verification horizon SHALL be refused; matching immutable targets and current observations SHALL pass without implementation restart. | planned |  |  | V1 TEST-004 green; delivery citation deferred to close. |
-| Spec-AC-05 | WHEN a required block, source, evidence file, identity, status or link is missing, malformed or contradictory, the checker SHALL refuse with an outcome-specific reason after the enclosing result is otherwise valid. | planned |  |  | V1 TEST-005 green; delivery citation deferred to close. |
-| Spec-AC-06 | WHEN routine validation hands off PASS, standalone Validation SHALL run the checker before state commands and dispatched Validation SHALL be mechanically checked by check-role-output; optional presentation SHALL retain the same block. | planned |  |  | V1 TEST-006/007 green; delivery citation deferred to close. |
-| Spec-AC-07 | WHEN the loop starts or resumes with a reusable PASS, it SHALL check the outcome report before completion or dispatch; stale repository evidence SHALL still trigger existing current-tree validation. | planned |  |  | V1/V3 TEST-008/009 green; delivery citation deferred to close. |
-| Spec-AC-08 | WHEN a code-only scope is validated, it SHALL pass with repository evidence and no GUI/account/persistence fields; other roles and non-PASS outputs SHALL retain their current behavior. | planned |  |  | V1/V3 TEST-010 green; delivery citation deferred to close. |
-| Spec-AC-09 | The checker SHALL ship in the core profile, be selected by the existing test framework, and prompt growth SHALL have measured ledger accounting with no added runtime dependencies. | planned |  |  | V4 TEST-011 green; delivery citation deferred to close. |
+| Spec-AC-01 | WHEN a declared original requirement is omitted, weakened, violated or unknown, the report checker SHALL refuse PASS; an aligned report SHALL pass. | done | docs/ai/reports/VALIDATION-20260923T071517Z-original-request-outcome-backcheck.md AC Coverage; TEST-001; full framework test-20260923-001922 plus disclosed targeted remediation evidence |  | Verified; evidence limits recorded in validation report. |
+| Spec-AC-02 | WHEN an independent validator receives the six natural-language scenarios in S1, it SHALL inventory their material original constraints and report the specified gap or aligned result, with source and evidence citations. | done | docs/ai/reports/VALIDATION-20260923T071517Z-original-request-outcome-backcheck.md AC Coverage; TEST-002 semantic 6/6; full framework test-20260923-001922 plus disclosed targeted remediation evidence |  | Verified; evidence limits recorded in validation report. |
+| Spec-AC-03 | WHEN persistence is required, preview-only, wrong-target or mismatched saved bytes SHALL be refused; read-back of the exact saved target SHALL pass. | done | docs/ai/reports/VALIDATION-20260923T071517Z-original-request-outcome-backcheck.md AC Coverage; TEST-003; full framework test-20260923-001922 plus disclosed targeted remediation evidence |  | Verified; evidence limits recorded in validation report. |
+| Spec-AC-04 | WHEN evidence is reused, changed local targets or dynamic observations older than the supplied verification horizon SHALL be refused; matching immutable targets and current observations SHALL pass without implementation restart. | done | docs/ai/reports/VALIDATION-20260923T071517Z-original-request-outcome-backcheck.md AC Coverage; TEST-004; full framework test-20260923-001922 plus disclosed targeted remediation evidence |  | Verified; evidence limits recorded in validation report. |
+| Spec-AC-05 | WHEN a required block, source, evidence file, identity, status or link is missing, malformed or contradictory, the checker SHALL refuse with an outcome-specific reason after the enclosing result is otherwise valid. | done | docs/ai/reports/VALIDATION-20260923T071517Z-original-request-outcome-backcheck.md AC Coverage; TEST-005; full framework test-20260923-001922 plus disclosed targeted remediation evidence |  | Verified; evidence limits recorded in validation report. |
+| Spec-AC-06 | WHEN routine validation hands off PASS, standalone Validation SHALL run the checker before state commands and dispatched Validation SHALL be mechanically checked by check-role-output; optional presentation SHALL retain the same block. | done | docs/ai/reports/VALIDATION-20260923T071517Z-original-request-outcome-backcheck.md AC Coverage; TEST-006/007; full framework test-20260923-001922 plus disclosed targeted remediation evidence |  | Verified; evidence limits recorded in validation report. |
+| Spec-AC-07 | WHEN the loop starts or resumes with a reusable PASS, it SHALL check the outcome report before completion or dispatch; stale repository evidence SHALL still trigger existing current-tree validation. | done | docs/ai/reports/VALIDATION-20260923T071517Z-original-request-outcome-backcheck.md AC Coverage; TEST-008/009; full framework test-20260923-001922 plus disclosed targeted remediation evidence |  | Verified; evidence limits recorded in validation report. |
+| Spec-AC-08 | WHEN a code-only scope is validated, it SHALL pass with repository evidence and no GUI/account/persistence fields; other roles and non-PASS outputs SHALL retain their current behavior. | done | docs/ai/reports/VALIDATION-20260923T071517Z-original-request-outcome-backcheck.md AC Coverage; TEST-010; full framework test-20260923-001922 plus disclosed targeted remediation evidence |  | Verified; evidence limits recorded in validation report. |
+| Spec-AC-09 | The checker SHALL ship in the core profile, be selected by the existing test framework, and prompt growth SHALL have measured ledger accounting with no added runtime dependencies. | done | docs/ai/reports/VALIDATION-20260923T071517Z-original-request-outcome-backcheck.md AC Coverage; TEST-011; full framework test-20260923-001922 plus disclosed targeted remediation evidence |  | Verified; evidence limits recorded in validation report. |
 
 ## Implementation plan
 

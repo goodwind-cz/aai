@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-23T07:37:36.336Z",
+  "generatedAt": "2026-09-23T07:39:39.807Z",
   "project": "aai",
   "counts": {
-    "delivered": 249,
-    "in_progress": 19,
+    "delivered": 250,
+    "in_progress": 18,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -75,19 +75,6 @@
       "spec": null,
       "validation": null,
       "review": null
-    },
-    {
-      "ref": "original-request-outcome-backcheck",
-      "title": "Change — Verify original requirements and persisted outcomes",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0189-original-request-outcome-backcheck.md",
-      "closed_on": null,
-      "agent_minutes": 401,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md",
-      "validation": "docs/ai/reports/original-request-outcome-backcheck",
-      "review": "docs/ai/reviews/review-20260923T073457Z-original-request-outcome-backcheck.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -260,6 +247,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "original-request-outcome-backcheck",
+      "title": "Change — Verify original requirements and persisted outcomes",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0189-original-request-outcome-backcheck.md",
+      "closed_on": "2026-09-23",
+      "agent_minutes": 401,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md",
+      "validation": "docs/ai/reports/original-request-outcome-backcheck",
+      "review": "docs/ai/reviews/review-20260923T073457Z-original-request-outcome-backcheck.md"
+    },
     {
       "ref": "unrecorded-spec-amendment-is-invisible",
       "title": "An amendment nobody recorded is invisible to the gate that exists to catch it",
@@ -3504,6 +3504,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "original-request-outcome-backcheck",
+          "title": "Change — Verify original requirements and persisted outcomes",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0189-original-request-outcome-backcheck.md",
+          "closed_on": "2026-09-23",
+          "agent_minutes": 401,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md",
+          "validation": "docs/ai/reports/original-request-outcome-backcheck",
+          "review": "docs/ai/reviews/review-20260923T073457Z-original-request-outcome-backcheck.md"
+        },
         {
           "ref": "unrecorded-spec-amendment-is-invisible",
           "title": "An amendment nobody recorded is invisible to the gate that exists to catch it",
