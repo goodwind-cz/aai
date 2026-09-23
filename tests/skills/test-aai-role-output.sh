@@ -69,7 +69,7 @@ test_001_valid_fixtures() {
   log_info "TEST-001: every VALID fixture (4 role classes) -> exit 0, no violation lines..."
   local f out rc
   for f in "$FIXTURES_DIR"/*-valid.md; do
-    [[ "$(basename "$f")" == "outcome-report-valid.md" ]] && continue
+    grep -qF 'subagent_result:' "$f" || continue
     set +e
     out="$(runcheck --file "$f" --now 2026-06-01T00:00:00Z)"; rc=$?
     set -e
@@ -540,6 +540,7 @@ test_014_seam1_contract_skeleton() {
     -e 's/^      output_snippet: .*/      output_snippet: ok/' \
     -e 's/^    - <relative path>/    - some\/file.txt/' \
     -e 's/^    - <description of any blocker.*/    - none/' \
+    -e 's|^    - <fully-substituted node .aai/scripts/state.mjs.*|    - node .aai/scripts/state.mjs set-phase --ref seam1-test --phase validation --status in_progress|' \
     "$body"
   rm -f "$body.bak"
 
@@ -787,7 +788,7 @@ NODE
   # The checked report, recorded STATE evidence, and immediate tree snapshot
   # are one handoff contract. A different evidence path or an omitted stamp
   # command must fail before the orchestrator can replay either command list.
-  local mismatched_result="$TMP_ROOT/mismatched-evidence-result.md" missing_stamp_result="$TMP_ROOT/missing-stamp-result.md" duplicate_validation_result="$TMP_ROOT/duplicate-validation-result.md"
+  local mismatched_result="$TMP_ROOT/mismatched-evidence-result.md" missing_stamp_result="$TMP_ROOT/missing-stamp-result.md" duplicate_validation_result="$TMP_ROOT/duplicate-validation-result.md" arbitrary_command_result="$TMP_ROOT/arbitrary-command-result.md"
   cp "$FIXTURES_DIR/validation-valid.md" "$mismatched_result"
   replace_fixture_token "$mismatched_result" \
     '--evidence tests/fixtures/role-outputs/outcome-report-valid.md' \
@@ -813,6 +814,22 @@ NODE
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "second set-validation overwrite expected exit 1, got $rc: $out"
   assert_payload_contains "$out" "E-OUTCOME-EVIDENCE" "duplicate set-validation expected E-OUTCOME-EVIDENCE, got: $out"
+
+  cp "$FIXTURES_DIR/validation-valid.md" "$arbitrary_command_result"
+  node - "$arbitrary_command_result" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const stamp = '    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm\n';
+const mutation = `    - node -e "require('node:fs').appendFileSync('CHANGELOG.md', 'changed')"\n`;
+if (!source.includes(stamp)) process.exit(1);
+fs.writeFileSync(file, source.replace(stamp, `${mutation}${stamp}`));
+NODE
+  set +e
+  out="$(runcheck --file "$arbitrary_command_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "arbitrary command before snapshot expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "arbitrary command expected E-STATE-UPDATE-COMMAND, got: $out"
 
   cp "$FIXTURES_DIR/validation-valid.md" "$missing_stamp_result"
   node - "$missing_stamp_result" <<'NODE'
