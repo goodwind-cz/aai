@@ -828,12 +828,13 @@ test_012_growth_sum_matches_ledger() {
   # Then 35185 -> 35417: close-ceremony-sweep validation-round1 B2b
   # Then 35417 -> 36633: original-request-outcome-backcheck D1-D3; then
   # 36633 -> 37073: its resume-routing remediation; then 37073 -> 37090:
-  # required text-pin remediation.
+  # required text-pin remediation; then 37090 -> 38157: its final-head
+  # pre-completion tree-staleness gate remediation (+1067 B).
   # remediation (+232 B) -- SKILL_PR.prompt.md step 6 gains a SWEEP CHECK
   # bullet naming lane-gate.mjs --sweep-check --pr <n> as an explicit
   # pre-merge command so Spec-AC-34's gate runs whether or not the Claude
   # hooks overlay is installed. Credited 1:1, headroom stays 2046/2048.
-  local want_growth=37090
+  local want_growth=38157
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
