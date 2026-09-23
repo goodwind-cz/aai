@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T21:16:26.085Z",
+  "generatedAt": "2026-09-23T21:33:51.592Z",
   "project": "aai",
   "counts": {
     "delivered": 250,
@@ -257,7 +257,7 @@
       "agent_minutes": 401,
       "token_total": null,
       "spec": "docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md",
-      "validation": "docs/ai/reports/original-request-outcome-backcheck",
+      "validation": null,
       "review": "docs/ai/reviews/review-20260923T142850Z-original-request-outcome-backcheck-pr388-final-v7.md"
     },
     {
@@ -3514,7 +3514,7 @@
           "agent_minutes": 401,
           "token_total": null,
           "spec": "docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md",
-          "validation": "docs/ai/reports/original-request-outcome-backcheck",
+          "validation": null,
           "review": "docs/ai/reviews/review-20260923T142850Z-original-request-outcome-backcheck-pr388-final-v7.md"
         },
         {
