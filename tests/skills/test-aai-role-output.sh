@@ -811,9 +811,9 @@ EOF
     assert_payload_contains "$out" "E-BAD-ROLE" "unknown role '$role' expected E-BAD-ROLE, got: $out"
   done
 
-  for role in Planning Implementation 'TDD Implementation' Validation 'Code Review' Remediation 'Implementation Preparation' Research Orchestration 'Metrics Flush'; do
+  for role in Planning 'Technology extraction' Bootstrap 'Implementation Preparation / Worktree decision' Implementation 'TDD Implementation' Validation 'Code Review' Remediation 'Implementation Preparation' Research Orchestration 'Metrics Flush'; do
     [[ "$role" == Validation ]] && continue
-    sed "s/^  role: .*/  role: $role/" "$FIXTURES_DIR/implementation-valid.md" > "$msg"
+    sed "s|^  role: .*|  role: $role|" "$FIXTURES_DIR/implementation-valid.md" > "$msg"
     set +e
     out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
     set -e
