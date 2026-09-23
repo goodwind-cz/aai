@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T08:54:34.136Z",
+  "generatedAt": "2026-09-23T13:50:21.043Z",
   "project": "aai",
   "counts": {
     "delivered": 250,
@@ -258,7 +258,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md",
       "validation": "docs/ai/reports/original-request-outcome-backcheck",
-      "review": "docs/ai/reviews/review-20260923T085402Z-original-request-outcome-backcheck-pr388-remediation.md"
+      "review": "docs/ai/reviews/review-20260923T134749Z-original-request-outcome-backcheck-pr388-final-v6.md"
     },
     {
       "ref": "unrecorded-spec-amendment-is-invisible",
@@ -3515,7 +3515,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md",
           "validation": "docs/ai/reports/original-request-outcome-backcheck",
-          "review": "docs/ai/reviews/review-20260923T085402Z-original-request-outcome-backcheck-pr388-remediation.md"
+          "review": "docs/ai/reviews/review-20260923T134749Z-original-request-outcome-backcheck-pr388-final-v6.md"
         },
         {
           "ref": "unrecorded-spec-amendment-is-invisible",

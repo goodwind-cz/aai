@@ -116,6 +116,119 @@ function readHashedFile(root, entry, label, refuse) {
   return { resolved, bytes, actual };
 }
 
+function backtickRunLength(line, index) {
+  let length = 0;
+  while (line[index + length] === '`') length += 1;
+  return length;
+}
+
+function hasInlineClosingDelimiter(line, index, length) {
+  for (let column = index + length; column < line.length; column += 1) {
+    if (line[column] !== '`') continue;
+    if ((column === 0 || line[column - 1] !== '`') && backtickRunLength(line, column) === length) return true;
+  }
+  return false;
+}
+
+function maskCommentsOutsideInlineCode(line, state) {
+  let masked = '';
+  let inlineLength = 0;
+  for (let index = 0; index < line.length;) {
+    if (inlineLength) {
+      if (line[index] === '`' && (index === 0 || line[index - 1] !== '`') && backtickRunLength(line, index) === inlineLength) {
+        masked += ' '.repeat(inlineLength);
+        index += inlineLength;
+        inlineLength = 0;
+      } else {
+        masked += ' ';
+        index += 1;
+      }
+      continue;
+    }
+    if (state.inComment) {
+      if (line.startsWith('-->', index)) {
+        masked += '   ';
+        index += 3;
+        state.inComment = false;
+      } else {
+        masked += ' ';
+        index += 1;
+      }
+      continue;
+    }
+    if (line[index] === '`') {
+      const length = backtickRunLength(line, index);
+      if (hasInlineClosingDelimiter(line, index, length)) {
+        inlineLength = length;
+        masked += ' '.repeat(length);
+        index += length;
+        continue;
+      }
+    }
+    if (line.startsWith('<!--', index)) {
+      masked += '    ';
+      index += 4;
+      state.inComment = true;
+      continue;
+    }
+    masked += line[index];
+    index += 1;
+  }
+  return masked;
+}
+
+function maskNonAuthoritativeMarkdown(markdown) {
+  const lines = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const state = { inComment: false };
+  let openFence = null;
+  return lines.map((line, lineIndex) => {
+    if (openFence) {
+      const closer = /^(?: {0,3})(`{3,}|~{3,})[ \t]*$/.exec(line);
+      if (closer && closer[1][0] === openFence.character && closer[1].length >= openFence.length) openFence = null;
+      return '';
+    }
+    if (!state.inComment) {
+      const opener = /^(?: {0,3})(`{3,})[^`]*$|^(?: {0,3})(~{3,}).*$/.exec(line);
+      const fence = opener?.[1] ?? opener?.[2];
+      if (fence) {
+        openFence = { character: fence[0], length: fence.length };
+        return '';
+      }
+    }
+    const uncommented = maskCommentsOutsideInlineCode(line, state);
+    return uncommented;
+  }).join('\n');
+}
+
+function tableCells(line) {
+  return line.split(/(?<!\\)\|/).map((cell) => cell.trim()).slice(1, -1);
+}
+
+function definedSpecAcIds(bytes) {
+  const lines = maskNonAuthoritativeMarkdown(bytes.toString('utf8')).split('\n');
+  const headingIndex = lines.findIndex((line) => /^##\s+Acceptance Criteria Status\b/i.test(line)
+    || /^##\s+Acceptance Criteria[ \t]*$/i.test(line));
+  if (headingIndex === -1) {
+    return new Set(lines.map((line) => /^(?:-|\*)\s+(Spec-AC-\d+):\s+\S/.exec(line)?.[1]).filter(Boolean));
+  }
+  for (let index = headingIndex + 1; index < lines.length && !/^##\s/.test(lines[index]); index += 1) {
+    if (!lines[index].trim().startsWith('|')) continue;
+    const header = tableCells(lines[index]);
+    const separator = lines[index + 1] ?? '';
+    if (!header.includes('Spec-AC')) continue;
+    if (!/^\|\s*[-:|\s]+\|/.test(separator)) return new Set();
+    if (!header.includes('Review-By') && !header.includes('Status')) return new Set();
+    const specAcColumn = header.indexOf('Spec-AC');
+    const ids = new Set();
+    for (let row = index + 2; row < lines.length && lines[row].trim().startsWith('|'); row += 1) {
+      const cells = tableCells(lines[row]);
+      if (cells.length === header.length && /^Spec-AC-\d+$/.test(cells[specAcColumn])) ids.add(cells[specAcColumn]);
+    }
+    return ids;
+  }
+  return new Set();
+}
+
 function extractOutcomeBlock(markdown, refuse) {
   const blocks = [];
   let openFence = null;
@@ -208,6 +321,7 @@ export function checkOutcomeReport({ reportPath, ref, since, root = process.cwd(
   if (!Array.isArray(data.sources) || data.sources.length < 2) refuse('sources must contain intake and frozen spec entries');
   const sourcePaths = new Set();
   const sourceKinds = new Set();
+  let frozenSpecAcIds = null;
   if (Array.isArray(data.sources)) {
     for (const [index, source] of data.sources.entries()) {
       if (!source || typeof source !== 'object' || Array.isArray(source)) {
@@ -219,7 +333,8 @@ export function checkOutcomeReport({ reportPath, ref, since, root = process.cwd(
       sourceKinds.add(source.kind);
       if (sourcePaths.has(source.path)) refuse(`duplicate source path: ${source.path}`);
       sourcePaths.add(source.path);
-      readHashedFile(root, source, `source ${source.kind ?? index}`, refuse);
+      const sourceFile = readHashedFile(root, source, `source ${source.kind ?? index}`, refuse);
+      if (source.kind === 'spec' && sourceFile) frozenSpecAcIds = definedSpecAcIds(sourceFile.bytes);
     }
   }
   for (const kind of ['intake', 'spec']) if (!sourceKinds.has(kind)) refuse(`missing ${kind} source`);
@@ -253,6 +368,9 @@ export function checkOutcomeReport({ reportPath, ref, since, root = process.cwd(
       refuse(`aligned requirement ${requirement.id} must map to at least one Spec-AC`);
     } else if (new Set(requirement.spec_ac_ids).size !== requirement.spec_ac_ids.length) {
       refuse(`requirement ${requirement.id} has duplicate Spec-AC links`);
+    } else if (frozenSpecAcIds && requirement.spec_ac_ids.some((id) => !frozenSpecAcIds.has(id))) {
+      const unknownId = requirement.spec_ac_ids.find((id) => !frozenSpecAcIds.has(id));
+      refuse(`requirement ${requirement.id} references undefined Spec-AC: ${unknownId}`);
     }
     if (!ASSESSMENTS.has(requirement.assessment)) refuse(`requirement ${requirement.id} assessment is invalid`);
     else if (requirement.assessment !== 'aligned') refuse(`requirement ${requirement.id} is ${requirement.assessment}`);
@@ -382,4 +500,11 @@ function main() {
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
-if (invokedPath === fileURLToPath(import.meta.url)) process.exitCode = main();
+const modulePath = fileURLToPath(import.meta.url);
+let isMainModule = false;
+try {
+  isMainModule = invokedPath && fs.realpathSync(invokedPath) === fs.realpathSync(modulePath);
+} catch {
+  isMainModule = false;
+}
+if (isMainModule) process.exitCode = main();
