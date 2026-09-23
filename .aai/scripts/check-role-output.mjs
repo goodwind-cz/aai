@@ -450,7 +450,7 @@ function parseCommandWords(command) {
     }
     if (ch === "'" || ch === '"') { quote = ch; started = true; continue; }
     if (ch === '\\') { escaped = true; started = true; continue; }
-    if (';&|<>$`'.includes(ch)) return null;
+    if (';&|<>$`*?[]{}~#()!'.includes(ch)) return null;
     if (/\s/.test(ch)) {
       if (started) { words.push(word); word = ''; started = false; }
       continue;
