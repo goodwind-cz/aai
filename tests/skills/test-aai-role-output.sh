@@ -722,7 +722,7 @@ NODE
 
   # A present report whose bytes no longer match its evidence is rejected at
   # E-OUTCOME-REPORT, after the enclosing result is otherwise valid.
-  local poisoned_report="$TMP_ROOT/poisoned-outcome.md" poisoned_result="$TMP_ROOT/poisoned-result.md" example_report="$TMP_ROOT/example-outcome.md" example_result="$TMP_ROOT/example-result.md" unclosed_report="$TMP_ROOT/unclosed-outcome.md" unclosed_result="$TMP_ROOT/unclosed-result.md"
+  local poisoned_report="$TMP_ROOT/poisoned-outcome.md" poisoned_result="$TMP_ROOT/poisoned-result.md" undefined_ac_report="$TMP_ROOT/undefined-ac-outcome.md" undefined_ac_result="$TMP_ROOT/undefined-ac-result.md" example_report="$TMP_ROOT/example-outcome.md" example_result="$TMP_ROOT/example-result.md" unclosed_report="$TMP_ROOT/unclosed-outcome.md" unclosed_result="$TMP_ROOT/unclosed-result.md"
   cp "$FIXTURES_DIR/outcome-report-valid.md" "$poisoned_report"
   replace_fixture_token "$poisoned_report" \
     '984bc58aed2fd7c5669bae60fec4dcdbbab73b06545e25f216ae136c630ec667' \
@@ -734,6 +734,17 @@ NODE
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "poisoned outcome report expected exit 1, got $rc: $out"
   assert_payload_contains "$out" "E-OUTCOME-REPORT" "poisoned report expected E-OUTCOME-REPORT, got: $out"
+
+  cp "$FIXTURES_DIR/outcome-report-valid.md" "$undefined_ac_report"
+  replace_fixture_token "$undefined_ac_report" '"Spec-AC-01"' '"Spec-AC-999"'
+  cp "$FIXTURES_DIR/validation-valid.md" "$undefined_ac_result"
+  replace_fixture_token "$undefined_ac_result" 'tests/fixtures/role-outputs/outcome-report-valid.md' "$undefined_ac_report"
+  set +e
+  out="$(runcheck --file "$undefined_ac_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "undefined Spec-AC outcome report expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-REPORT" "undefined Spec-AC report expected E-OUTCOME-REPORT, got: $out"
+  assert_payload_contains "$out" "references undefined Spec-AC: Spec-AC-999" "undefined Spec-AC reason missing: $out"
 
   # The actual Validation handoff must not treat an outer Markdown example as
   # authority, and must reject a second unfinished outcome fence.

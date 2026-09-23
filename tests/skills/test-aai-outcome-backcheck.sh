@@ -33,6 +33,14 @@ assert_refusal() {
   [[ "$output" == *"OUTCOME-CHECK: $expected"* ]] || log_fail "expected refusal '$expected', got: $output"
 }
 
+assert_admissible() {
+  local output rc
+  set +e
+  output="$(run_check "$@" 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "expected admissible report (0), got $rc: $output"
+}
+
 make_fixture() {
   local name=$1 kind=${2:-repository}
   local root="$TMP_ROOT/$name"
@@ -104,6 +112,22 @@ const [file, from, to] = process.argv.slice(2);
 const before = fs.readFileSync(file, 'utf8');
 if (!before.includes(from)) process.exit(4);
 fs.writeFileSync(file, before.replace(from, to));
+NODE
+}
+
+replace_report_spec_ac() {
+  local report=$1 spec=$2 ac_id=$3
+  node - "$report" "$spec" "$ac_id" <<'NODE'
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const [report, spec, acId] = process.argv.slice(2);
+const before = fs.readFileSync(report, 'utf8');
+const match = /```aai-outcome-v1\n([\s\S]*?)\n```/.exec(before);
+if (!match) process.exit(4);
+const data = JSON.parse(match[1]);
+data.sources.find((source) => source.kind === 'spec').sha256 = crypto.createHash('sha256').update(fs.readFileSync(spec)).digest('hex');
+data.requirements[0].spec_ac_ids = [acId];
+fs.writeFileSync(report, before.replace(match[1], JSON.stringify(data, null, 2)));
 NODE
 }
 
@@ -189,7 +213,8 @@ test_004_verification_horizon() {
 
 test_005_fail_closed_schema() {
   log_info "TEST-005: malformed, missing, duplicate, dangling, stale and contradictory data refuse"
-  local root variant
+  local root variant tick
+  tick='`'
   root="$(make_fixture test-005)"
   run_check --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$root" >/dev/null
 
@@ -222,6 +247,40 @@ NODE
   assert_refusal 'outcome OUT-001 observation is in the future' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
   variant="$TMP_ROOT/test-005-empty-ac"; cp -R "$root" "$variant"; replace_once "$variant/report.md" $'"spec_ac_ids": [\n        "Spec-AC-01"\n      ]' '"spec_ac_ids": []'
   assert_refusal 'aligned requirement REQ-001 must map to at least one Spec-AC' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-undefined-ac"; cp -R "$root" "$variant"; replace_once "$variant/report.md" '"Spec-AC-01"' '"Spec-AC-999"'
+  assert_refusal 'requirement REQ-001 references undefined Spec-AC: Spec-AC-999' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-fenced-spec-ac"; cp -R "$root" "$variant"; printf '%s\n' '```markdown' '## Acceptance Criteria' '| Spec-AC | Description | Status |' '|---|---|---|' '| Spec-AC-999 | example only | done |' '```' >> "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-999
+  assert_refusal 'requirement REQ-001 references undefined Spec-AC: Spec-AC-999' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-commented-spec-ac"; cp -R "$root" "$variant"; printf '%s\n' '<!--' '## Acceptance Criteria' '| Spec-AC | Description | Status |' '|---|---|---|' '| Spec-AC-999 | example only | done |' '-->' >> "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-999
+  assert_refusal 'requirement REQ-001 references undefined Spec-AC: Spec-AC-999' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-second-spec-table"; cp -R "$root" "$variant"; printf '%s\n' '# Spec' '## Acceptance Criteria' '' '| Spec-AC | Description | Status |' '|---|---|---|' '| Spec-AC-01 | defined criterion | done |' '' '| Spec-AC | Description | Status |' '|---|---|---|' '| Spec-AC-999 | later illustration | done |' > "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-999
+  assert_refusal 'requirement REQ-001 references undefined Spec-AC: Spec-AC-999' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-malformed-first-table"; cp -R "$root" "$variant"; printf '%s\n' '## Acceptance Criteria Status' '| Spec-AC | Description | Status | Review-By |' '| INVALID SEPARATOR |' '| Spec-AC-02 | actual | done | |' '' 'Example only:' '| Spec-AC | Description | Status | Review-By |' '|---|---|---|---|' '| Spec-AC-01 | illustration | done | |' > "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-01
+  assert_refusal 'requirement REQ-001 references undefined Spec-AC: Spec-AC-01' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-multiline-inline-list-declaration"; cp -R "$root" "$variant"; printf '%s\n' '# Spec' "Example $tick" '- Spec-AC-01: actual list declaration.' "$tick ends here." > "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-01
+  assert_admissible --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-multiline-inline-then-compact"; cp -R "$root" "$variant"; printf '%s\n' '# Spec' "Example $tick" '- Spec-AC-999: fake example.' "$tick ends here." '- Spec-AC-01: actual declaration.' > "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-01
+  assert_admissible --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-unmatched-before-fence"; cp -R "$root" "$variant"; printf '%s\n' '# Spec' "A literal unmatched $tick marker." '```markdown' "- Spec-AC-999: example $tick text." '```' '## Acceptance Criteria Status' '| Spec-AC | Description | Status | Review-By |' '|---|---|---|---|' '| Spec-AC-01 | desired condition | done | |' > "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-01
+  assert_admissible --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-unmatched-before-paragraph"; cp -R "$root" "$variant"; printf '%s\n' '# Spec' "A literal unmatched $tick marker." '' '- Spec-AC-01: actual declaration.' > "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-01
+  assert_admissible --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-unmatched-at-eof"; cp -R "$root" "$variant"; printf '%s\n' '# Spec' '- Spec-AC-01: actual declaration.' "A literal unmatched $tick marker." > "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-01
+  assert_admissible --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-lean-status"; cp -R "$root" "$variant"; printf '%s\n' '## Acceptance Criteria Status' '| Spec-AC | Description | Status |' '|---|---|---|' '| Spec-AC-01 | defined criterion | done |' > "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-01
+  assert_admissible --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-inline-span"; cp -R "$root" "$variant"; printf '%s\n' '``` x ```' '## Acceptance Criteria Status' '| Spec-AC | Description | Status | Review-By |' '|---|---|---|---|' '| Spec-AC-01 | defined criterion | done | |' > "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-01
+  assert_admissible --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-comment-in-fence"; cp -R "$root" "$variant"; printf '%s\n' '```html' '<!--' '```' '## Acceptance Criteria Status' '| Spec-AC | Description | Status | Review-By |' '|---|---|---|---|' '| Spec-AC-01 | defined criterion | done | |' > "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-01
+  assert_admissible --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-comment-in-inline"; cp -R "$root" "$variant"; printf '%s\n' 'Text `<!--` is example syntax.' '## Acceptance Criteria Status' '| Spec-AC | Description | Status | Review-By |' '|---|---|---|---|' '| Spec-AC-01 | defined criterion | done | |' > "$variant/spec.md"; replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-01
+  assert_admissible --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-lone-cr"; cp -R "$root" "$variant"; node - "$variant/spec.md" <<'NODE'
+const fs = require('node:fs');
+fs.writeFileSync(process.argv[2], '## Acceptance Criteria Status\n| Spec-AC | Description | Status | Review-By |\n|---|---|---|---|\n| Spec-AC-01 | defined criterion | done | |\n'.replaceAll('\n', '\r'));
+NODE
+  replace_report_spec_ac "$variant/report.md" "$variant/spec.md" Spec-AC-01
+  assert_admissible --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
   variant="$TMP_ROOT/test-005-malformed-ac"; cp -R "$root" "$variant"
   node - "$variant/report.md" <<'NODE'
 const fs = require('node:fs');
@@ -374,6 +433,26 @@ NODE
   log_pass "TEST-008 two-horizon state/dispatch resume"
 }
 
+test_012_cli_symlink_entrypoint() {
+  log_info "TEST-012: symlinked checker entrypoint runs its CLI"
+  local root target link symlinked_root help_output help_rc
+  root="$(make_fixture test-012 local_file)"
+  target="$TMP_ROOT/validation-outcome-check-real.mjs"
+  link="$TMP_ROOT/validation-outcome-check-link.mjs"
+  symlinked_root="$TMP_ROOT/test-012-symlinked-root"
+  cp "$CHECKER" "$target"
+  ln -s "$target" "$link"
+  ln -s "$root" "$symlinked_root"
+  set +e
+  help_output="$(node "$link" --help 2>&1)"; help_rc=$?
+  set -e
+  [[ "$help_rc" -eq 0 ]] || log_fail "symlinked --help expected exit 0, got $help_rc: $help_output"
+  [[ "$help_output" == *'validate one aai-outcome-v1 JSON report block'* ]] \
+    || log_fail "symlinked --help did not run the checker CLI: $help_output"
+  node "$link" --report report.md --ref test-012 --since 2026-06-01T00:00:00Z --root "$symlinked_root" >/dev/null
+  log_pass "TEST-012 symlinked CLI entrypoint"
+}
+
 test_010_code_only_and_compatibility() {
   log_info "TEST-010: concise repository-only outcome needs no GUI/account/save fields"
   local root
@@ -467,6 +546,7 @@ main() {
       CURRENT_TEST_ID=TEST-005; test_005_fail_closed_schema
       CURRENT_TEST_ID=TEST-007; test_007_prompt_sequence
       CURRENT_TEST_ID=TEST-008; test_008_loop_resume_wiring
+      CURRENT_TEST_ID=TEST-012; test_012_cli_symlink_entrypoint
       CURRENT_TEST_ID=TEST-010; test_010_code_only_and_compatibility
       ;;
     test_001_requirement_assessments) CURRENT_TEST_ID=TEST-001; test_001_requirement_assessments ;;
@@ -475,6 +555,7 @@ main() {
     test_005_fail_closed_schema) CURRENT_TEST_ID=TEST-005; test_005_fail_closed_schema ;;
     test_007_prompt_sequence) CURRENT_TEST_ID=TEST-007; test_007_prompt_sequence ;;
     test_008_loop_resume_wiring) CURRENT_TEST_ID=TEST-008; test_008_loop_resume_wiring ;;
+    test_012_cli_symlink_entrypoint) CURRENT_TEST_ID=TEST-012; test_012_cli_symlink_entrypoint ;;
     test_010_code_only_and_compatibility) CURRENT_TEST_ID=TEST-010; test_010_code_only_and_compatibility ;;
     *) log_fail "unknown selector: $selected" ;;
   esac
