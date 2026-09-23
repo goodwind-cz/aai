@@ -163,7 +163,10 @@ const REQUIRED_FIELDS = [
 const VALID_STATUSES = new Set(['PASS', 'FAIL', 'BLOCKED']);
 const VALID_ROLES = new Set([
   'planning',
+  'technology extraction',
+  'bootstrap',
   'implementation preparation',
+  'implementation preparation / worktree decision',
   'implementation',
   'tdd implementation',
   'validation',
