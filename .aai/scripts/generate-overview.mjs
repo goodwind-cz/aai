@@ -345,7 +345,7 @@ function buildModel() {
       type: d.type ?? d.dir.split('/')[1],
       status: d.status ?? 'unknown',
       path: d.path,
-      closed_on: closeKey ? closedAt.get(closeKey) : null,
+      closed_on: d.status === 'done' && closeKey ? closedAt.get(closeKey) : null,
       agent_minutes: effort.has(ref) ? Math.round(effort.get(ref) / 60) : null,
       token_total: tokens.has(ref) ? tokens.get(ref) : null,
       spec: specsByRef.get(ref) ?? specByFilename(ref),
