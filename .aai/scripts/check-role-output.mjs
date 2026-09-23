@@ -32,6 +32,8 @@
 //   11. E-OUTCOME-EVIDENCE / E-VALIDATION-SNAPSHOT — Validation PASS binds
 //      the checked report to set-validation evidence and snapshots the tree
 //      immediately after the returned STATE commands are replayed.
+//   12. E-STATE-UPDATE-COMMAND — every returned merge command is an
+//      allowlisted state.mjs mutation or the exact validation snapshot call.
 //   4. E-NO-EVIDENCE      — `evidence` has at least one entry with an
 //      INTEGER `exit_code`.
 //   8. E-MALFORMED-LINE — a base-indent block line that is neither a key nor a comment (never silently skipped)
@@ -439,12 +441,14 @@ function parseCommandWords(command) {
     if (quote) {
       if (ch === quote) quote = null;
       else if (ch === '\\' && quote === '"') escaped = true;
+      else if (quote === '"' && (ch === '$' || ch === '`')) return null;
       else word += ch;
       started = true;
       continue;
     }
     if (ch === "'" || ch === '"') { quote = ch; started = true; continue; }
     if (ch === '\\') { escaped = true; started = true; continue; }
+    if (';&|<>$`'.includes(ch)) return null;
     if (/\s/.test(ch)) {
       if (started) { words.push(word); word = ''; started = false; }
       continue;
@@ -459,6 +463,30 @@ function parseCommandWords(command) {
 
 function normalizedScriptPath(value) {
   return path.posix.normalize(String(value).replaceAll('\\', '/'));
+}
+
+const STATE_UPDATE_SUBCOMMANDS = new Set([
+  'set-focus', 'set-phase', 'set-validation', 'set-code-review', 'set-strategy',
+  'set-worktree', 'set-tdd-cycle', 'set-human-input', 'append-run', 'amend-run',
+  'clear-focus', 'log-tick', 'reset-block',
+]);
+
+function isFlagValueSequence(words, start) {
+  for (let i = start; i < words.length; i += 2) {
+    if (!words[i].startsWith('--') || words[i + 1] === undefined || words[i + 1].startsWith('--')) return false;
+  }
+  return true;
+}
+
+function isAllowedMergeCommand(words) {
+  if (!words || words[0] !== 'node') return false;
+  const script = normalizedScriptPath(words[1] ?? '');
+  if (script === '.aai/scripts/orchestration-dispatch.mjs') {
+    return words.length === 4 && words.includes('--human') && words.includes('--confirm');
+  }
+  return script === '.aai/scripts/state.mjs'
+    && STATE_UPDATE_SUBCOMMANDS.has(words[2])
+    && isFlagValueSequence(words, 3);
 }
 
 function parseValidationStateCommand(words) {
@@ -592,6 +620,7 @@ function parseSubagentResultBlock(candidateRawLines) {
 
 function validateResult(parsed, nowMs) {
   const violations = [];
+  const commandWords = (parsed.state_update_commands ?? []).map(parseCommandWords);
 
   for (const bad of parsed.malformed ?? []) {
     violations.push(['E-MALFORMED-LINE', `unparseable block line: ${bad}`]);
@@ -600,6 +629,15 @@ function validateResult(parsed, nowMs) {
   for (const key of REQUIRED_FIELDS) {
     if (!parsed.present.has(key)) {
       violations.push(['E-MISSING-FIELD', `missing required field: ${key}`]);
+    }
+  }
+
+  for (let i = 0; i < commandWords.length; i += 1) {
+    if (!isAllowedMergeCommand(commandWords[i])) {
+      violations.push([
+        'E-STATE-UPDATE-COMMAND',
+        `state_update_commands[${i}] is not an allowlisted state mutation or validation snapshot`,
+      ]);
     }
   }
 
@@ -710,7 +748,7 @@ function validateResult(parsed, nowMs) {
         violations.push(['E-OUTCOME-REPORT', outcome.reasons.join('; ')]);
       }
     }
-    const commands = (parsed.state_update_commands ?? []).map(parseCommandWords);
+    const commands = commandWords;
     const scope = String(parsed.fields.scope ?? '');
     let evidenceCommandIndex = -1;
     let validationCommandCount = 0;
