@@ -1018,7 +1018,7 @@ run_close() {
   local dir="$1" outfile="$2" errfile="$3"
   shift 3
   local code=0
-  ( cd "$dir" && AAI_ROLE= node "$CLOSE_SCRIPT" "$@" > "$outfile" 2> "$errfile" ) || code=$?
+  ( cd "$dir" && env -u AAI_ROLE node "$CLOSE_SCRIPT" "$@" > "$outfile" 2> "$errfile" ) || code=$?
   echo "$code"
 }
 

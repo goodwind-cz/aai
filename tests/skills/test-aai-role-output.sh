@@ -702,9 +702,20 @@ EOF
     node - "$file" "$token" "$replacement" <<'NODE'
 const fs = require('node:fs');
 const [file, token, replacement] = process.argv.slice(2);
-fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(token, replacement));
+const source = fs.readFileSync(file, 'utf8');
+if (!source.includes(token)) {
+  console.error(`fixture token not found: ${token}`);
+  process.exit(1);
+}
+fs.writeFileSync(file, source.replace(token, replacement));
 NODE
   }
+  local missing_token_probe="$TMP_ROOT/missing-token-probe.txt"
+  printf 'token absent\n' > "$missing_token_probe"
+  set +e
+  replace_fixture_token "$missing_token_probe" MISSING_TOKEN replacement >/dev/null 2>&1; rc=$?
+  set -e
+  [[ "$rc" -ne 0 ]] || log_fail "fixture token replacement must fail when the token is absent"
   replace_fixture_token "$msg" STATE_COMMAND_SENTINEL "$sentinel"
   set +e
   out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
