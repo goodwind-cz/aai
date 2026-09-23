@@ -788,7 +788,7 @@ NODE
   # The checked report, recorded STATE evidence, and immediate tree snapshot
   # are one handoff contract. A different evidence path or an omitted stamp
   # command must fail before the orchestrator can replay either command list.
-  local mismatched_result="$TMP_ROOT/mismatched-evidence-result.md" escaped_mismatch_result="$TMP_ROOT/escaped-mismatch-result.md" missing_stamp_result="$TMP_ROOT/missing-stamp-result.md" duplicate_validation_result="$TMP_ROOT/duplicate-validation-result.md" arbitrary_command_result="$TMP_ROOT/arbitrary-command-result.md" duplicate_key_result="$TMP_ROOT/duplicate-key-result.md" cross_role_result="$TMP_ROOT/cross-role-result.md" inline_commands_result="$TMP_ROOT/inline-commands-result.md" glob_command_result="$TMP_ROOT/glob-command-result.md"
+  local mismatched_result="$TMP_ROOT/mismatched-evidence-result.md" escaped_mismatch_result="$TMP_ROOT/escaped-mismatch-result.md" missing_stamp_result="$TMP_ROOT/missing-stamp-result.md" duplicate_validation_result="$TMP_ROOT/duplicate-validation-result.md" arbitrary_command_result="$TMP_ROOT/arbitrary-command-result.md" duplicate_key_result="$TMP_ROOT/duplicate-key-result.md" cross_role_result="$TMP_ROOT/cross-role-result.md" inline_commands_result="$TMP_ROOT/inline-commands-result.md" glob_command_result="$TMP_ROOT/glob-command-result.md" disabled_review_result="$TMP_ROOT/disabled-review-result.md" multiline_command_result="$TMP_ROOT/multiline-command-result.md"
   cp "$FIXTURES_DIR/validation-valid.md" "$mismatched_result"
   replace_fixture_token "$mismatched_result" \
     '--evidence tests/fixtures/role-outputs/outcome-report-valid.md' \
@@ -900,6 +900,29 @@ NODE
   [[ "$rc" -eq 1 ]] || log_fail "unquoted shell-expanding command token expected exit 1, got $rc: $out"
   assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "unquoted glob expected E-STATE-UPDATE-COMMAND, got: $out"
 
+  cp "$FIXTURES_DIR/implementation-valid.md" "$disabled_review_result"
+  replace_fixture_token "$disabled_review_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-code-review --required false --status not_run --scope implementation-diff'
+  set +e
+  out="$(runcheck --file "$disabled_review_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "Implementation disabling required review expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "disabled review expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  cp "$FIXTURES_DIR/implementation-valid.md" "$multiline_command_result"
+  replace_fixture_token "$multiline_command_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-phase --ref role-output-contracts --phase validation --status in_progress
+      && node .aai/scripts/state.mjs set-code-review --required true --status pass --scope implementation-diff'
+  set +e
+  out="$(runcheck --file "$multiline_command_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "multiline state command continuation expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "multiline command expected E-STATE-UPDATE-COMMAND, got: $out"
+
   cp "$FIXTURES_DIR/validation-valid.md" "$missing_stamp_result"
   node - "$missing_stamp_result" <<'NODE'
 const fs = require('node:fs');
@@ -960,7 +983,7 @@ const fs = require('node:fs');
 const file = process.argv[2];
 const source = fs.readFileSync(file, 'utf8');
 const anchor = '  blockers: []\n';
-const commands = '  state_update_commands:\n    - node .aai/scripts/state.mjs set-tdd-cycle --status IDLE\n    - node .aai/scripts/state.mjs set-phase --ref role-output-contracts --phase validation --notes "evidence-[x].md"\n';
+const commands = '  state_update_commands:\n    - node .aai/scripts/state.mjs set-tdd-cycle --status IDLE\n    - node .aai/scripts/state.mjs set-phase --ref role-output-contracts --phase validation --notes "evidence-[x].md"\n    - node .aai/scripts/state.mjs set-code-review --required true --status not_run --scope implementation-diff\n';
 if (!source.includes(anchor)) process.exit(1);
 fs.writeFileSync(file, source.replace(anchor, `${anchor}${commands}`));
 NODE

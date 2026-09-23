@@ -523,6 +523,17 @@ function isAllowedMergeCommand(words, role) {
   if (words[2] === 'set-code-review' && role !== 'code review' && role !== 'orchestration') {
     const statuses = commandFlagValues(words, '--status');
     if (statuses.length !== 1 || statuses[0] !== 'not_run') return false;
+    const required = commandFlagValues(words, '--required');
+    if (required.length !== 1) return false;
+    if (['implementation', 'tdd implementation'].includes(role) && required[0] !== 'true') return false;
+    if (role === 'metrics flush' && required[0] !== 'false') return false;
+    if (role === 'planning' && !['true', 'false'].includes(required[0])) return false;
+  }
+  if (words[2] === 'set-code-review' && role === 'code review') {
+    const statuses = commandFlagValues(words, '--status');
+    const required = commandFlagValues(words, '--required');
+    if (statuses.length !== 1 || !['pass', 'fail', 'waived'].includes(statuses[0])) return false;
+    if (required.length !== 1 || !['true', 'false'].includes(required[0])) return false;
   }
   if (words[2] === 'set-validation' && role === 'metrics flush') {
     const statuses = commandFlagValues(words, '--status');
@@ -655,7 +666,13 @@ function parseSubagentResultBlock(candidateRawLines) {
       const commandInlineVal = inlineVal.replace(/(?:^|\s+)#.*$/, '').trim();
       if (commandInlineVal === '[]') stateUpdateCommands = [];
       else if (commandInlineVal !== '') invalidStateUpdateCommands = true;
-      else stateUpdateCommands = parseScalarList(nested);
+      else {
+        const listIndent = nested[0]?.indent;
+        const exactPhysicalList = nested.every((line) => line.indent === listIndent
+          && (line.content === '-' || line.content.startsWith('- ')));
+        if (!exactPhysicalList) invalidStateUpdateCommands = true;
+        else stateUpdateCommands = parseScalarList(nested);
+      }
     }
     // else: extra extension field — nested lines already consumed above;
     // intentionally ignored (validate required core only).
