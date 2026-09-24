@@ -63,6 +63,20 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# -Hooks is contradictory with -DeclineRefGuard/-ArmRefGuard (frozen
+# Implementation plan edge case; code review 20260924T124304Z D-1; mirrors
+# the .sh twin's check above its own -Hooks resolution). Both single-purpose
+# actions dispatch-and-exit before the -Hooks-selected flow below is ever
+# reached, so an EXPLICIT -Hooks on the same command line can never do
+# anything -- exit 2 naming the contradiction. $PSBoundParameters, not
+# $Hooks -ne 'all', so a bare -DeclineRefGuard (the 'all' default,
+# unconsulted) is unaffected. TEST-645.
+$hooksExplicit = $PSBoundParameters.ContainsKey('Hooks')
+if (($DeclineRefGuard -or $ArmRefGuard) -and $hooksExplicit) {
+  [Console]::Error.WriteLine("-Hooks is contradictory with -DeclineRefGuard/-ArmRefGuard (these act on the reference-transaction hook alone).")
+  exit 2
+}
+
 # --Hooks <csv> over the closed set index/ref-guard/all (D6), mirroring the
 # .sh twin's resolution: resolved once into the two booleans every
 # selection-aware guard below consults. An unknown token exits 2 naming the
@@ -276,6 +290,19 @@ function Read-RefGuardPolicy {
 # of shadowing it behind a second line, and they keep succeeding (Spec-AC-05
 # is a SHALL on the value it writes) rather than trading the violation for a
 # loud but still-unhelpful refusal.
+#
+# CREATION (code review 20260924T124304Z B2): the mere EXISTENCE of
+# docs/ai/docs-audit.yaml flips docs-audit from report-only to enforced mode
+# (lib/docs-audit-core.mjs -- any parsed config, however sparse, makes
+# `mode = 'enforced'`; same measurement as the .sh twin's comment above
+# Write-RefGuardPolicy's counterpart). aai-sync already creates this same
+# file and discloses that consequence; a -DeclineRefGuard/-ArmRefGuard run
+# that creates it silently was a second, undisclosed creation path. SEED
+# from the same template aai-sync uses (so this command creates the same
+# object a sync would have) and print the SAME disclosure line, before
+# setting the ref_guard key; when the template is not present, a NOTE names
+# the same consequence instead. Governs only the first write to an absent
+# file (TEST-644 is this twin's arm of TEST-643).
 function Write-RefGuardPolicy {
   param(
     [Parameter(Mandatory = $true)][string]$ConfigPath,
@@ -283,6 +310,16 @@ function Write-RefGuardPolicy {
   )
   $dir = Split-Path -Parent $ConfigPath
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
+  $configWasAbsent = -not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)
+  if ($configWasAbsent) {
+    $docsAuditTemplate = Join-Path $repoRoot '.aai/templates/docs-audit.template.yaml'
+    if (Test-Path -LiteralPath $docsAuditTemplate -PathType Leaf) {
+      Copy-Item -LiteralPath $docsAuditTemplate -Destination $ConfigPath
+      Write-Host "SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml (dials report-only; docs-audit --check now runs enforced)"
+    } else {
+      Write-Host "NOTE: creating docs/ai/docs-audit.yaml -- this switches docs-audit from report-only to enforced mode (docs-audit --check may now hard-fail on pre-existing orphans/violations it previously only reported)."
+    }
+  }
   $existingLines = @()
   if (Test-Path -LiteralPath $ConfigPath -PathType Leaf) {
     $existingLines = @(Get-Content -LiteralPath $ConfigPath)
@@ -312,6 +349,18 @@ function Write-RefGuardPolicy {
 # Disable-RefGuard -- Spec-AC-05 (Amendment 1: .ps1 twin): remove an
 # AAI-managed ref-guard hook if present, refuse (unmodified) a foreign one,
 # and record ref_guard: declined.
+#
+# ORDER (code review 20260924T124304Z B1 -- this twin never got round 1's
+# B1b fix; the .sh's decline_ref_guard writes the declaration BEFORE
+# removing the hook, this function did the opposite): write the declaration
+# FIRST. The D6 discipline this file already applies to the two hook slots
+# ("check both before writing either") now applies to the decline's own two
+# effects here too -- a Write-RefGuardPolicy failure (an unwritable config:
+# read-only fs, permissions) must never leave the guard removed with no
+# record of why. Writing first means that failure returns $false with the
+# guard still installed and still armed; disarmed-but-silent is not
+# reachable, not merely rare. Mirrors the .sh twin exactly (TEST-635); the
+# .ps1 arm here is TEST-642.
 function Disable-RefGuard {
   $reftxIsAai = $false
   if (Test-Path -LiteralPath $reftxPath -PathType Leaf) {
@@ -323,12 +372,12 @@ function Disable-RefGuard {
     Write-Host "Refusing to remove a foreign hook -- -DeclineRefGuard only removes an AAI-managed guard."
     return $false
   }
+  if (-not (Write-RefGuardPolicy -ConfigPath $configPath -Value 'declined')) {
+    return $false
+  }
   if (Test-Path -LiteralPath $reftxPath -PathType Leaf) {
     Remove-Item -LiteralPath $reftxPath
     Write-Host "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $reftxPath"
-  }
-  if (-not (Write-RefGuardPolicy -ConfigPath $configPath -Value 'declined')) {
-    return $false
   }
   Write-Host "Declined the AAI reference-transaction guard. Recorded ref_guard: declined in $configPath"
   Write-Host "Re-arm with: pwsh $repoRoot/.aai/scripts/install-pre-commit-hook.ps1 -ArmRefGuard"

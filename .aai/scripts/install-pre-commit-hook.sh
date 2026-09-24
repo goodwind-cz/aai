@@ -51,6 +51,7 @@ UNINSTALL=0
 PRINT=0
 PRINT_HOOK=""
 HOOKS_ARG="all"
+HOOKS_ARG_EXPLICIT=0
 DECLINE_REF_GUARD=0
 ARM_REF_GUARD=0
 
@@ -87,6 +88,7 @@ while [[ $_i -lt $_ARGC ]]; do
         exit 2
       fi
       HOOKS_ARG="${_ARGV[$_i]}"
+      HOOKS_ARG_EXPLICIT=1
       ;;
     -h|--help)
       grep '^#' "$0" | sed 's/^# \{0,1\}//'
@@ -99,6 +101,21 @@ while [[ $_i -lt $_ARGC ]]; do
   esac
   _i=$((_i + 1))
 done
+
+# --hooks is contradictory with --decline-ref-guard/--arm-ref-guard (frozen
+# Implementation plan edge case, undisclosed deviation flagged by code
+# review 20260924T124304Z D-1: measured, --decline-ref-guard --hooks
+# ref-guard used to exit 0 silently ignoring --hooks). Both single-purpose
+# actions act on the reference-transaction hook alone and dispatch-and-exit
+# BEFORE the --hooks-selected flow below is ever reached, so a --hooks value
+# on the same command line can never do anything — exit 2 naming the
+# contradiction rather than silently accept and ignore it. Checked against
+# EXPLICIT use only (HOOKS_ARG_EXPLICIT), so a bare --decline-ref-guard
+# (HOOKS_ARG's unconsulted "all" default) is unaffected. TEST-645.
+if [[ ( "$DECLINE_REF_GUARD" == 1 || "$ARM_REF_GUARD" == 1 ) && "$HOOKS_ARG_EXPLICIT" == 1 ]]; then
+  echo "ERROR: --hooks is contradictory with --decline-ref-guard/--arm-ref-guard (these act on the reference-transaction hook alone)." >&2
+  exit 2
+fi
 
 # --hooks <csv> over the closed set index/ref-guard/all (D6), default all —
 # resolved once into the two booleans every selection-aware guard below
@@ -379,8 +396,30 @@ read_ref_guard_policy() {
 # splits on /\r?\n/, which consumes a trailing CR as part of the line
 # delimiter — and the .ps1 twin reads lines with Get-Content, which strips
 # every line-ending style before any regex runs.
+# CREATION (code review 20260924T124304Z B2): the mere EXISTENCE of
+# docs/ai/docs-audit.yaml flips docs-audit from report-only to enforced mode
+# (lib/docs-audit-core.mjs loadConfig/runAudit — any parsed config, however
+# sparse, makes `mode = 'enforced'`; measured: docs-audit --check rc 0->1 in
+# a scratch repo with one schema-violating doc, purely from this file coming
+# into existence). aai-sync.sh already creates this same file and already
+# discloses that exact consequence ("SEED docs/ai/docs-audit.yaml from
+# .aai/templates/docs-audit.template.yaml (dials report-only; docs-audit
+# --check now runs enforced)"); a --decline-ref-guard or --arm-ref-guard run
+# that creates the file silently was a second, undisclosed creation path for
+# the ride whose own thesis is "a consumer learns what a command is about to
+# change". Fixed the stronger way the reviewer offered: SEED from the same
+# template aai-sync uses (so the file this command creates is the same
+# object a sync would have created — every OTHER dial report-only, not a
+# bare single-key stub) and print the SAME disclosure line, before setting
+# the ref_guard key on top. When the template is not present (a pre-CHANGE-
+# 0121 vendored tree), fall back to a bare NOTE naming the same consequence
+# — never create the file silently either way. This governs ONLY the first
+# write to an absent file; a second run down either branch takes the
+# existing "replace" gate above and is unaffected.
 write_ref_guard_policy() {
   local value="$1" write_mode="replace_or_append_key"
+  local config_was_absent=0
+  [[ -f "$CONFIG_PATH" ]] || config_was_absent=1
   mkdir -p "$(dirname "$CONFIG_PATH")"
   if [[ "$write_mode" == "replace_or_append_key" ]] && [[ -f "$CONFIG_PATH" ]] \
      && grep -Eq '^ref_guard:[[:space:]]*[^[:space:]]' "$CONFIG_PATH" 2>/dev/null; then
@@ -391,6 +430,15 @@ write_ref_guard_policy() {
     ' "$CONFIG_PATH" > "$tmp"
     mv "$tmp" "$CONFIG_PATH"
   else
+    if [[ "$config_was_absent" == 1 ]]; then
+      local docs_audit_template="$REPO_ROOT/.aai/templates/docs-audit.template.yaml"
+      if [[ -f "$docs_audit_template" ]]; then
+        cp -a "$docs_audit_template" "$CONFIG_PATH"
+        echo "SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml (dials report-only; docs-audit --check now runs enforced)"
+      else
+        echo "NOTE: creating docs/ai/docs-audit.yaml -- this switches docs-audit from report-only to enforced mode (docs-audit --check may now hard-fail on pre-existing orphans/violations it previously only reported)."
+      fi
+    fi
     if [[ -f "$CONFIG_PATH" && -s "$CONFIG_PATH" ]]; then
       local last_byte; last_byte="$(tail -c1 "$CONFIG_PATH" 2>/dev/null)"
       [[ -n "$last_byte" ]] && printf '\n' >> "$CONFIG_PATH"

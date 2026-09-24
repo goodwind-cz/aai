@@ -1885,6 +1885,229 @@ test_641_ps1_write_policy_corrects_stray_value() {
     || log_fail "TEST-641 .ps1 write policy corrects a stray value"
 }
 
+# --- TEST-642 (Spec-AC-05, code review 20260924T124304Z B1) — the .ps1
+# twin of TEST-635: Disable-RefGuard writes the declaration BEFORE removing
+# the hook, so a write failure leaves the guard installed and armed rather
+# than a disarmed repo with no record of the decline. Round 1's B1b fix
+# reordered the .sh only (TEST-635); the .ps1 never got it, and Amendment 3
+# recorded the fix as covering "the declaration" with no twin qualifier.
+# Reproduced by the code review under pwsh 7.6.3 with a read-only
+# docs-audit.yaml. Static source-order check (mirroring TEST-608/631-633's
+# discipline, catching the regression even with no pwsh on the host) PLUS a
+# pwsh-conditional behavioural reproduction of the review's own repro, per
+# TEST-638/641's pattern ------------------------------------------------
+test_642_ps1_decline_orders_write_before_removal() {
+  if [[ ! -f "$INSTALLER_PS1" ]]; then
+    log_fail "TEST-642: $INSTALLER_PS1 not found"
+    return
+  fi
+  local ok=1
+
+  local fn_body
+  fn_body="$(awk '/^function Disable-RefGuard \{$/{p=1} p{print} p && /^}$/{exit}' "$INSTALLER_PS1")"
+  [[ -n "$fn_body" ]] || { log_fail "TEST-642: could not extract the Disable-RefGuard function body"; ok=0; }
+  local write_line remove_line
+  write_line="$(grep -nF 'Write-RefGuardPolicy -ConfigPath $configPath' <<<"$fn_body" | qhead -1 | cut -d: -f1)"
+  remove_line="$(grep -nF 'Remove-Item -LiteralPath $reftxPath' <<<"$fn_body" | qhead -1 | cut -d: -f1)"
+  [[ -n "$write_line" && -n "$remove_line" ]] || { log_fail "TEST-642: could not locate both the write and the remove call in Disable-RefGuard"; ok=0; }
+  if [[ -n "$write_line" && -n "$remove_line" && "$write_line" -gt "$remove_line" ]]; then
+    log_fail "TEST-642: Disable-RefGuard still removes the hook BEFORE writing the declaration (B1)"
+    ok=0
+  fi
+
+  if command -v pwsh >/dev/null 2>&1; then
+    local d; d="$(new_repo t642)"
+    (cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" >/dev/null 2>&1)
+    require_guard_installed "TEST-642 (setup)" "$d" || return
+    local cfg="$d/docs/ai/docs-audit.yaml"
+    mkdir -p "$(dirname "$cfg")"
+    printf 'close_gate: enforce\n' > "$cfg"
+    chmod 444 "$cfg"
+
+    local out rc
+    out="$(cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" -DeclineRefGuard 2>&1)"; rc=$?
+    chmod 644 "$cfg"
+    [[ $rc -ne 0 ]] || { log_fail "TEST-642: pwsh -DeclineRefGuard against an unwritable config expected non-zero, got 0: $out"; ok=0; }
+    [[ -f "$d/.git/hooks/reference-transaction" ]] \
+      || { log_fail "TEST-642: a failed .ps1 decline write left the guard removed (disarmed with no record) -- $out"; ok=0; }
+    /usr/bin/grep -qE '^ref_guard:[[:space:]]*declined([[:space:]]|$)' "$cfg" \
+      && { log_fail "TEST-642: the config claims declined despite the .ps1 write failing"; ok=0; }
+  else
+    log_info "TEST-642: pwsh not available on this host -- the .ps1 twin's ordering not re-verified behaviourally this run (pinned statically above)"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-642 the .ps1 twin's Disable-RefGuard writes the declaration BEFORE removing the guard (source order, plus a pwsh reproduction of the code review's read-only-config repro), so a write failure leaves the guard installed and armed rather than disarmed with no record" \
+    || log_fail "TEST-642 .ps1 decline write-before-removal ordering"
+}
+
+# --- TEST-643 (Spec-AC-05, code review 20260924T124304Z B2) — the mere
+# EXISTENCE of docs/ai/docs-audit.yaml flips docs-audit from report-only to
+# enforced mode (lib/docs-audit-core.mjs); write_ref_guard_policy used to
+# create that file silently on a first --decline-ref-guard/--arm-ref-guard.
+# Now it SEEDs from .aai/templates/docs-audit.template.yaml (the same
+# object aai-sync would have created, every OTHER dial report-only) and
+# discloses the same consequence aai-sync already prints, when the template
+# is present in the fixture; and falls back to a NOTE naming the same
+# consequence when it is not. Both branches here, both leaving exactly one
+# ref_guard: line -----------------------------------------------------------
+test_643_decline_seeds_or_discloses_new_config() {
+  local ok=1
+
+  # Branch A: template present in the fixture (the normal vendored shape).
+  local d; d="$(new_repo t643template)"
+  install_guard "$d" >/dev/null 2>&1
+  require_guard_installed "TEST-643 (setup A)" "$d" || return
+  mkdir -p "$d/.aai/templates"
+  cp "$PROJECT_ROOT/.aai/templates/docs-audit.template.yaml" "$d/.aai/templates/docs-audit.template.yaml"
+  [[ -f "$d/docs/ai/docs-audit.yaml" ]] && { log_fail "TEST-643: fixture precondition broken -- docs-audit.yaml already exists before the decline"; ok=0; }
+
+  local out rc
+  out="$(install_guard "$d" --decline-ref-guard 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-643: --decline-ref-guard on an absent config with a template present expected exit 0, got $rc: $out"; ok=0; }
+  grep -qF 'SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml' <<<"$out" \
+    || { log_fail "TEST-643: no SEED disclosure line on stdout: $out"; ok=0; }
+  grep -qiF 'enforced' <<<"$out" \
+    || { log_fail "TEST-643: the SEED disclosure does not name the enforced-mode consequence: $out"; ok=0; }
+  local cfg="$d/docs/ai/docs-audit.yaml"
+  grep -qF 'CHANGE-0121' "$cfg" \
+    || { log_fail "TEST-643: the created config does not carry the template's own content (not seeded, still a bare stub)"; ok=0; }
+  local count; count="$(/usr/bin/grep -c '^ref_guard:' "$cfg")"
+  [[ "$count" -eq 1 ]] || { log_fail "TEST-643: seeded config carries $count ref_guard: lines, want 1"; ok=0; }
+  /usr/bin/grep -qE '^ref_guard:[[:space:]]*declined([[:space:]]|$)' "$cfg" \
+    || { log_fail "TEST-643: seeded config does not read back as declined"; ok=0; }
+
+  # Branch B: no template in the fixture (a pre-CHANGE-0121 vendored tree) --
+  # never create the file silently: a NOTE names the same consequence.
+  local d2; d2="$(new_repo t643notemplate)"
+  install_guard "$d2" >/dev/null 2>&1
+  require_guard_installed "TEST-643 (setup B)" "$d2" || return
+  [[ -d "$d2/.aai/templates" ]] && rm -rf "$d2/.aai/templates"
+  local out2 rc2
+  out2="$(install_guard "$d2" --decline-ref-guard 2>&1)"; rc2=$?
+  [[ $rc2 -eq 0 ]] || { log_fail "TEST-643: --decline-ref-guard on an absent config with no template expected exit 0, got $rc2: $out2"; ok=0; }
+  grep -qF 'NOTE: creating docs/ai/docs-audit.yaml' <<<"$out2" \
+    || { log_fail "TEST-643: no NOTE disclosure when the template is absent: $out2"; ok=0; }
+  grep -qiF 'enforced' <<<"$out2" \
+    || { log_fail "TEST-643: the NOTE does not name the enforced-mode consequence: $out2"; ok=0; }
+  local cfg2="$d2/docs/ai/docs-audit.yaml"
+  local count2; count2="$(/usr/bin/grep -c '^ref_guard:' "$cfg2")"
+  [[ "$count2" -eq 1 ]] || { log_fail "TEST-643: no-template config carries $count2 ref_guard: lines, want 1"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-643 --decline-ref-guard on an absent docs/ai/docs-audit.yaml seeds it from .aai/templates/docs-audit.template.yaml and prints the same enforced-mode disclosure aai-sync prints when the template is present, and prints an equivalent NOTE when it is not -- never a silent, undisclosed creation" \
+    || log_fail "TEST-643 decline seeds or discloses a new config"
+}
+
+# --- TEST-644 (Spec-AC-05, code review 20260924T124304Z B2) — the .ps1
+# twin of TEST-643: static assertion that Write-RefGuardPolicy carries the
+# same seed-or-disclose branch (mirroring TEST-608/631-633's discipline),
+# plus a pwsh-conditional behavioural run of Branch A (template present),
+# per TEST-638/641's pattern -------------------------------------------
+test_644_ps1_decline_seeds_or_discloses_new_config() {
+  if [[ ! -f "$INSTALLER_PS1" ]]; then
+    log_fail "TEST-644: $INSTALLER_PS1 not found"
+    return
+  fi
+  local ok=1
+
+  local fn_body
+  fn_body="$(awk '/^function Write-RefGuardPolicy \{$/{p=1} p{print} p && /^}$/{exit}' "$INSTALLER_PS1")"
+  [[ -n "$fn_body" ]] || { log_fail "TEST-644: could not extract the Write-RefGuardPolicy function body"; ok=0; }
+  grep -qF 'docs-audit.template.yaml' <<<"$fn_body" \
+    || { log_fail "TEST-644: Write-RefGuardPolicy does not reference the docs-audit template at all"; ok=0; }
+  grep -qF 'SEED docs/ai/docs-audit.yaml' <<<"$fn_body" \
+    || { log_fail "TEST-644: Write-RefGuardPolicy does not print the SEED disclosure"; ok=0; }
+  grep -qF 'NOTE: creating docs/ai/docs-audit.yaml' <<<"$fn_body" \
+    || { log_fail "TEST-644: Write-RefGuardPolicy does not print the no-template NOTE fallback"; ok=0; }
+
+  if command -v pwsh >/dev/null 2>&1; then
+    local d; d="$(new_repo t644)"
+    (cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" >/dev/null 2>&1)
+    require_guard_installed "TEST-644 (setup)" "$d" || return
+    mkdir -p "$d/.aai/templates"
+    cp "$PROJECT_ROOT/.aai/templates/docs-audit.template.yaml" "$d/.aai/templates/docs-audit.template.yaml"
+
+    local out rc
+    out="$(cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" -DeclineRefGuard 2>&1)"; rc=$?
+    [[ $rc -eq 0 ]] || { log_fail "TEST-644: pwsh -DeclineRefGuard on an absent config with a template present expected exit 0, got $rc: $out"; ok=0; }
+    grep -qF 'SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml' <<<"$out" \
+      || { log_fail "TEST-644: pwsh run printed no SEED disclosure: $out"; ok=0; }
+    local cfg="$d/docs/ai/docs-audit.yaml"
+    grep -qF 'CHANGE-0121' "$cfg" \
+      || { log_fail "TEST-644: the .ps1-created config does not carry the template's own content"; ok=0; }
+    local count; count="$(/usr/bin/grep -c '^ref_guard:' "$cfg")"
+    [[ "$count" -eq 1 ]] || { log_fail "TEST-644: $cfg carries $count ref_guard: lines after the .ps1 twin seeds it, want 1"; ok=0; }
+  else
+    log_info "TEST-644: pwsh not available on this host -- the .ps1 twin's seed-or-disclose behaviour not re-verified this run (pinned statically above)"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-644 the .ps1 twin's Write-RefGuardPolicy carries the same seed-from-template-or-NOTE branch as the .sh gate, so a first write to an absent config is never silent there either" \
+    || log_fail "TEST-644 .ps1 decline seeds or discloses a new config"
+}
+
+# --- TEST-645 (Spec-AC-01/05, code review 20260924T124304Z D-1) — the
+# frozen Implementation plan's edge case ("--decline-ref-guard combined
+# with --hooks ref-guard is contradictory and exits 2 naming the
+# contradiction") was undelivered; measured exit 0 with --hooks silently
+# ignored. --decline-ref-guard/--arm-ref-guard dispatch-and-exit before the
+# --hooks-selected flow is ever reached, so an EXPLICIT --hooks on the same
+# command line can never do anything -- now refused. A bare
+# --decline-ref-guard (the unconsulted "all" default) is unaffected --------
+test_645_hooks_contradicts_decline_arm() {
+  local ok=1
+  local d; d="$(new_repo t645)"
+
+  local out rc
+  out="$(install_guard "$d" --decline-ref-guard --hooks ref-guard 2>&1)"; rc=$?
+  [[ $rc -eq 2 ]] || { log_fail "TEST-645: --decline-ref-guard --hooks ref-guard expected exit 2, got $rc: $out"; ok=0; }
+  [[ -f "$d/docs/ai/docs-audit.yaml" ]] && { log_fail "TEST-645: the contradiction still wrote a config"; ok=0; }
+
+  local out2 rc2
+  out2="$(install_guard "$d" --hooks index --arm-ref-guard 2>&1)"; rc2=$?
+  [[ $rc2 -eq 2 ]] || { log_fail "TEST-645: --hooks index --arm-ref-guard expected exit 2, got $rc2: $out2"; ok=0; }
+
+  # A bare --decline-ref-guard (no explicit --hooks) is NOT a contradiction.
+  local out3 rc3
+  out3="$(install_guard "$d" --decline-ref-guard 2>&1)"; rc3=$?
+  [[ $rc3 -eq 0 ]] || { log_fail "TEST-645: a bare --decline-ref-guard (no explicit --hooks) expected exit 0, got $rc3: $out3"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-645 --hooks combined with --decline-ref-guard or --arm-ref-guard exits 2 naming the contradiction (the frozen plan's edge case), while a bare --decline-ref-guard/--arm-ref-guard (no explicit --hooks) is unaffected" \
+    || log_fail "TEST-645 --hooks contradicts decline/arm"
+}
+
+# --- TEST-646 (Spec-AC-01/05, code review 20260924T124304Z D-1) — the .ps1
+# twin of TEST-645: static assertion that the contradiction check consults
+# $PSBoundParameters (mirroring TEST-608/631-633's discipline), plus a
+# pwsh-conditional behavioural run, per TEST-638/641's pattern -------------
+test_646_ps1_hooks_contradicts_decline_arm() {
+  if [[ ! -f "$INSTALLER_PS1" ]]; then
+    log_fail "TEST-646: $INSTALLER_PS1 not found"
+    return
+  fi
+  local ok=1
+
+  grep -qF "PSBoundParameters.ContainsKey('Hooks')" "$INSTALLER_PS1" \
+    || { log_fail "TEST-646: .ps1 has no explicit-Hooks detection at all"; ok=0; }
+  grep -qF '($DeclineRefGuard -or $ArmRefGuard) -and $hooksExplicit' "$INSTALLER_PS1" \
+    || { log_fail "TEST-646: .ps1's contradiction check does not gate on DeclineRefGuard/ArmRefGuard plus explicit Hooks"; ok=0; }
+
+  if command -v pwsh >/dev/null 2>&1; then
+    local d; d="$(new_repo t646)"
+    local out rc
+    out="$(cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" -DeclineRefGuard -Hooks ref-guard 2>&1)"; rc=$?
+    [[ $rc -eq 2 ]] || { log_fail "TEST-646: pwsh -DeclineRefGuard -Hooks ref-guard expected exit 2, got $rc: $out"; ok=0; }
+    [[ -f "$d/docs/ai/docs-audit.yaml" ]] && { log_fail "TEST-646: the .ps1 contradiction still wrote a config"; ok=0; }
+
+    local out2 rc2
+    out2="$(cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" -DeclineRefGuard 2>&1)"; rc2=$?
+    [[ $rc2 -eq 0 ]] || { log_fail "TEST-646: a bare pwsh -DeclineRefGuard (no explicit -Hooks) expected exit 0, got $rc2: $out2"; ok=0; }
+  else
+    log_info "TEST-646: pwsh not available on this host -- the .ps1 twin's contradiction refusal not re-verified behaviourally this run (pinned statically above)"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-646 the .ps1 twin's -Hooks contradiction check mirrors the .sh gate (\$PSBoundParameters, not the Hooks default value), exiting 2 when -Hooks is explicit alongside -DeclineRefGuard/-ArmRefGuard and 0 on a bare decline/arm" \
+    || log_fail "TEST-646 .ps1 -Hooks contradicts decline/arm"
+}
+
 main() {
   check_deps
   HOOKS_DIGEST_BEFORE="$(manifest_of "$PROJECT_ROOT/.git/hooks")"
@@ -1958,6 +2181,11 @@ main() {
   test_639_model_routing_note_cites_amendment_2
   test_640_decline_arm_corrects_stray_value
   test_641_ps1_write_policy_corrects_stray_value
+  test_642_ps1_decline_orders_write_before_removal
+  test_643_decline_seeds_or_discloses_new_config
+  test_644_ps1_decline_seeds_or_discloses_new_config
+  test_645_hooks_contradicts_decline_arm
+  test_646_ps1_hooks_contradicts_decline_arm
   test_311_hooks_dir_unchanged
 
   echo ""
