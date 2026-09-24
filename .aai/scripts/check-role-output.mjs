@@ -694,7 +694,11 @@ function parseSubagentResultBlock(candidateRawLines) {
         const listIndent = nested[0]?.indent;
         const exactPhysicalList = nested.every((line) => line.indent === listIndent
           && (line.content === '-' || line.content.startsWith('- ')));
-        if (!exactPhysicalList) invalidStateUpdateCommands = true;
+        const hasQuotedScalar = nested.some((line) => {
+          const value = line.content.startsWith('- ') ? line.content.slice(2).trim() : '';
+          return value.startsWith('"') || value.startsWith("'");
+        });
+        if (!exactPhysicalList || hasQuotedScalar) invalidStateUpdateCommands = true;
         else stateUpdateCommands = parseScalarList(nested);
       }
     }
