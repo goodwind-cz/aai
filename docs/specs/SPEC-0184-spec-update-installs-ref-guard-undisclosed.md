@@ -4,7 +4,7 @@ type: spec
 number: 184
 status: done
 mutation_gate: v1
-frozen_sha256: b8a6da28d257005dd23203782e2971af5e9d9634d14fe6813f3cc3f8615b62a0
+frozen_sha256: 2b6db6524411862497a10d5251dd3b60a70bce8496a21b6a28b7347e087dafa9
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md
@@ -464,6 +464,8 @@ produced by `node .aai/scripts/mutation-run.mjs`.
 | TEST-644 | Spec-AC-04 | integration | tests/skills/test-aai-git-ref-guard.sh | test_644_ps1_config_creation_is_disclosed — the twin carries the same seeding and disclosure. | Neuter the twin's absent-config branch. | green |
 | TEST-645 | Spec-AC-01 | integration | tests/skills/test-aai-git-ref-guard.sh | test_645_decline_with_explicit_hooks_refuses — a decline or arm combined with an explicit hooks selection is a usage error naming the contradiction, while a bare decline is unaffected. | Neuter the contradiction gate so the explicit selection is silently ignored again. | green |
 | TEST-646 | Spec-AC-01 | integration | tests/skills/test-aai-git-ref-guard.sh | test_646_ps1_decline_with_explicit_hooks_refuses — the twin refuses the same contradiction. | Neuter the twin's contradiction gate. | green |
+| TEST-647 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_647_arm_creates_hooks_dir — arming against a core.hooksPath naming a missing directory creates it and records the policy, and the installed line cannot print unless the write succeeded, including against an existing but unwritable directory. | Delete the ensure-hooks-dir call from the arm path so the write is attempted into a directory that does not exist. | pending |
+| TEST-648 | Spec-AC-10 | integration | tests/skills/test-aai-release.sh | test_648_df_conflict_recovery — a directory-file conflict on the release branch makes the fallback name the blocking ref and suggest a command that can succeed, rather than repeating the invocation that just failed. | Pass an empty error text to the conflict parser so the recipe falls back to repeating the failing command. | pending |
 
 ## Seams
 
@@ -838,6 +840,41 @@ on an inapplicable flag, but about eight mutation records pin the current
 spellings, so it is its own ride) and `fu-docs-audit-yaml-misnamed-guard-config`
 (the file is the repository's general guard-policy surface with two writers and
 still calls itself the docs audit's).
+
+Sign-off: none (tracked).
+
+## Amendment 7 (post-freeze, 2026-09-24 — two external review findings, and a bash rule worth stating)
+
+Both findings are the same shape this ride keeps meeting: a command telling the
+operator something that is not so.
+
+**Arming against a hooks directory that does not exist printed success and
+exited 1.** With `core.hooksPath` naming a missing directory, `--arm-ref-guard`
+reached the hook write before anything created that directory, printed
+"Installed AAI reference-transaction hook", and exited 1 having written no
+policy. The root cause is a bash rule worth carrying beyond this file: the
+function was called as `arm_ref_guard || exit 1`, and a function invoked on the
+left of `||` has `set -e` SUSPENDED for its entire body — so the failing `cat`
+and `chmod` did not abort it and the unconditional success line ran anyway.
+Both twins now create or validate the effective hooks directory before writing,
+and the installed line is gated on the write actually succeeding, which also
+catches an existing-but-unwritable directory that creating it would not fix.
+TEST-647 pins it, behaviourally on both twins.
+
+**The release fallback's recovery advice could not succeed.** The
+directory-file-conflict handler this ride added reports the failure honestly,
+but its recipe told the operator to re-run the very `git branch` command that
+had just failed and would fail identically. Both twins now parse git's own
+message for the blocking ref, name it, and suggest a rename or delete against
+it — stripping the `refs/heads/` prefix in the suggested command because
+`git branch -m` and `-D` reject the fully qualified form, while the reason line
+keeps the full ref git reported. TEST-648 pins it, behaviourally on both twins.
+
+Fixing the first surfaced an incidental breakage worth noting: `--print
+ref-guard`'s extractor matched the hook heredoc's opener by its exact previous
+text, so guarding that write broke the extraction and reddened TEST-611 and
+TEST-612 on the real suite. A test that matches code by its literal spelling
+fails on any edit to the line, including a correct one.
 
 Sign-off: none (tracked).
 
