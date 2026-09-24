@@ -2108,6 +2108,74 @@ test_646_ps1_hooks_contradicts_decline_arm() {
     || log_fail "TEST-646 .ps1 -Hooks contradicts decline/arm"
 }
 
+# --- TEST-647 (code review 20260924, P2) — --arm-ref-guard/-ArmRefGuard must
+# create (or validate) the EFFECTIVE git hooks directory before writing into
+# it: `core.hooksPath` can name a directory that does not exist yet, reached
+# BEFORE the normal --hooks install path's own mkdir (the early
+# --arm-ref-guard/--decline-ref-guard dispatch exits before that point). The
+# .sh twin's worse failure mode: `set -e` is suspended for a function called
+# as `f || exit 1` (arm_ref_guard() is), so write_refguard_hook's failing
+# `cat`/`chmod` never aborted the function and its final, unconditional echo
+# ran regardless — the command PRINTED "Installed ..." and still exited 1,
+# with no policy written. Both twins now call ensure_hooks_dir/Confirm-
+# HooksDir first, and write_refguard_hook/Enable-RefGuard no longer print
+# "Installed" unless the write actually happened. -------------------------
+test_647_arm_ref_guard_creates_missing_hooks_dir() {
+  local ok=1
+
+  # (a) .sh: core.hooksPath names a directory that does not exist yet —
+  # --arm-ref-guard must create it, write the hook there, and record the
+  # policy (behavioural).
+  local d; d="$(new_repo t647)"
+  git -C "$d" config core.hooksPath missing-hooks-dir
+  local out rc
+  out="$(install_guard "$d" --arm-ref-guard 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-647: --arm-ref-guard against a missing core.hooksPath dir expected exit 0, got $rc: $out"; ok=0; }
+  [[ -f "$d/missing-hooks-dir/reference-transaction" ]] \
+    || { log_fail "TEST-647: the effective hook was not written to missing-hooks-dir: $out"; ok=0; }
+  [[ -x "$d/missing-hooks-dir/reference-transaction" ]] \
+    || { log_fail "TEST-647: the written hook is not executable"; ok=0; }
+  grep -qF "ref_guard: armed" "$d/docs/ai/docs-audit.yaml" 2>/dev/null \
+    || { log_fail "TEST-647: ref_guard: armed was not recorded: $(cat "$d/docs/ai/docs-audit.yaml" 2>&1)"; ok=0; }
+
+  # (b) .sh: the worse half of the finding — on a genuinely UNWRITABLE but
+  # EXISTING hooks dir (mkdir -p is a silent no-op there), the "Installed"
+  # line must never print alongside a failed write (behavioural).
+  local d2; d2="$(new_repo t647b)"
+  chmod 555 "$d2/.git/hooks"
+  local out2 rc2
+  out2="$(install_guard "$d2" --arm-ref-guard 2>&1)"; rc2=$?
+  chmod 755 "$d2/.git/hooks"
+  [[ $rc2 -ne 0 ]] || { log_fail "TEST-647: --arm-ref-guard against an unwritable (existing) hooks dir expected non-zero, got 0: $out2"; ok=0; }
+  if grep -qF "Installed AAI reference-transaction hook" <<<"$out2"; then
+    log_fail "TEST-647: the misleading 'Installed' line printed even though the write failed: $out2"; ok=0
+  fi
+
+  # (c) .ps1 twin.
+  if [[ -f "$INSTALLER_PS1" ]]; then
+    grep -qF "function Confirm-HooksDir" "$INSTALLER_PS1" \
+      || { log_fail "TEST-647: .ps1 has no Confirm-HooksDir helper"; ok=0; }
+    grep -qF "if (-not (Confirm-HooksDir)) { return \$false }" "$INSTALLER_PS1" \
+      || { log_fail "TEST-647: .ps1's Enable-RefGuard does not call Confirm-HooksDir before writing"; ok=0; }
+    if command -v pwsh >/dev/null 2>&1; then
+      local d3; d3="$(new_repo t647c)"
+      git -C "$d3" config core.hooksPath missing-hooks-dir
+      local out3 rc3
+      out3="$(cd "$d3" && pwsh -NoProfile -File "$INSTALLER_PS1" -ArmRefGuard 2>&1)"; rc3=$?
+      [[ $rc3 -eq 0 ]] || { log_fail "TEST-647: .ps1 -ArmRefGuard against a missing core.hooksPath dir expected exit 0, got $rc3: $out3"; ok=0; }
+      [[ -f "$d3/missing-hooks-dir/reference-transaction" ]] \
+        || { log_fail "TEST-647: .ps1 did not write the effective hook to missing-hooks-dir: $out3"; ok=0; }
+    else
+      log_info "TEST-647: pwsh not available on this host -- the .ps1 twin's directory-creation fix not re-verified behaviourally this run (pinned statically above)"
+    fi
+  else
+    log_fail "TEST-647: $INSTALLER_PS1 not found"; ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-647 --arm-ref-guard/-ArmRefGuard create the effective hooks directory before writing (core.hooksPath naming a missing dir), and a write failure never prints the 'Installed' line (both twins)" \
+    || log_fail "TEST-647 arm-ref-guard missing hooks dir"
+}
+
 main() {
   check_deps
   HOOKS_DIGEST_BEFORE="$(manifest_of "$PROJECT_ROOT/.git/hooks")"
@@ -2186,6 +2254,7 @@ main() {
   test_644_ps1_decline_seeds_or_discloses_new_config
   test_645_hooks_contradicts_decline_arm
   test_646_ps1_hooks_contradicts_decline_arm
+  test_647_arm_ref_guard_creates_missing_hooks_dir
   test_311_hooks_dir_unchanged
 
   echo ""

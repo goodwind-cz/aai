@@ -1614,6 +1614,87 @@ test_627_ps1_fallback_guarded() {
   log_pass "TEST-627 the .ps1 fallback wraps both the git branch and git reset --hard invocations in try/catch that actually CALL \$fallbackIncomplete"
 }
 
+# --- TEST-648 (code review 20260924, P2) — the D/F-conflict fallback recipe
+# must name the ref actually blocking creation and offer a step that can
+# succeed, not repeat the exact `git branch` invocation that just failed and
+# will fail again the same way. TEST-625 already pins that a D/F conflict
+# reports FALLBACK INCOMPLETE and exits 18; this row pins that the recipe
+# itself is actionable. Behavioural for .sh (real fixture); behavioural for
+# .ps1 when pwsh is present, else the generic recipe's static shape.
+test_648_fallback_branch_conflict_names_ref() {
+  log_info "TEST-648: the D/F-conflict fallback names the conflicting ref and an actionable recovery step, not a repeat of the failing git branch command..."
+  local repo="$TMP_ROOT/t648" bare="$TMP_ROOT/t648-bare.git" stub="$TMP_ROOT/t648-stub" log="$TMP_ROOT/t648-ghlog"
+  local out="$TMP_ROOT/t648.out" err="$TMP_ROOT/t648.err" rc=0
+  setup_protected_fixture t648
+  # Same D/F conflict shape as TEST-625: a ref one level DEEPER than the
+  # release branch name already occupies that path.
+  git -C "$repo" branch "chore/release-v9.8.2/x" HEAD
+
+  ( cd "$repo" && PATH="$stub:$PATH" bash "$RELEASE_SH" --version v9.8.2 --confirm ) \
+    >"$out" 2>"$err" || rc=$?
+
+  [[ "$rc" == "18" ]] \
+    || log_fail "TEST-648: expected exit 18 (fallback INCOMPLETE), got $rc:"$'\n'"$(cat "$out" "$err")"
+  grep -qF "FALLBACK INCOMPLETE" "$out" || log_fail "TEST-648: the report never names the incomplete fallback:"$'\n'"$(cat "$out")"
+  grep -qF "'refs/heads/chore/release-v9.8.2/x' already exists" "$out" \
+    || log_fail "TEST-648: the report never names the conflicting ref refs/heads/chore/release-v9.8.2/x:"$'\n'"$(cat "$out")"
+
+  # The recipe's FIRST step (immediately after "- Finish by hand:") must not
+  # be the generic, exact-repeat line -- it must name the conflicting branch
+  # and a command that can actually run against it.
+  local recipe_first
+  recipe_first="$(awk '/- Finish by hand:/{getline; print; exit}' "$out")"
+  case "$recipe_first" in
+    *"git branch chore/release-v9.8.2 "*"if that ref does not exist yet"*)
+      log_fail "TEST-648: the recipe's first step is still the exact failing invocation, unchanged: $recipe_first" ;;
+  esac
+  case "$recipe_first" in
+    *"chore/release-v9.8.2/x"*) ;;
+    *) log_fail "TEST-648: the recipe's first step never names the conflicting branch: $recipe_first" ;;
+  esac
+  case "$recipe_first" in
+    *"git branch -m"*|*"git branch -D"*) ;;
+    *) log_fail "TEST-648: the recipe's first step names no rename/delete command an operator can run: $recipe_first" ;;
+  esac
+  # And that suggested command must be one git itself will actually accept
+  # (a short branch name, not the refs/heads/... path -- `git branch -D
+  # refs/heads/x` fails with "not found").
+  case "$recipe_first" in
+    *"refs/heads/chore/release-v9.8.2/x"*)
+      log_fail "TEST-648: the suggested git branch -m/-D command carries the refs/heads/ prefix, which git branch rejects: $recipe_first" ;;
+  esac
+
+  if [[ -f "$RELEASE_PS1" ]] && command -v pwsh >/dev/null 2>&1; then
+    local repo2="$TMP_ROOT/t648ps1" bare2="$TMP_ROOT/t648ps1-bare.git" stub2="$TMP_ROOT/t648ps1-stub" log2="$TMP_ROOT/t648ps1-ghlog"
+    local out2="$TMP_ROOT/t648ps1.out" err2="$TMP_ROOT/t648ps1.err" rc2=0
+    setup_protected_fixture t648ps1
+    git -C "$repo2" branch "chore/release-v9.8.3/x" HEAD
+    ( cd "$repo2" && PATH="$stub2:$PATH" pwsh -NoProfile -File "$RELEASE_PS1" --version v9.8.3 --confirm ) \
+      >"$out2" 2>"$err2" || rc2=$?
+    [[ "$rc2" == "18" ]] \
+      || log_fail "TEST-648: .ps1 twin expected exit 18 (fallback INCOMPLETE), got $rc2:"$'\n'"$(cat "$out2" "$err2")"
+    grep -qF "'refs/heads/chore/release-v9.8.3/x' already exists" "$out2" \
+      || log_fail "TEST-648: .ps1 twin never names the conflicting ref refs/heads/chore/release-v9.8.3/x:"$'\n'"$(cat "$out2")"
+    local recipe_first2
+    recipe_first2="$(awk '/- Finish by hand:/{getline; print; exit}' "$out2")"
+    case "$recipe_first2" in
+      *"git branch -m"*|*"git branch -D"*) ;;
+      *) log_fail "TEST-648: .ps1 twin's recipe first step names no rename/delete command: $recipe_first2" ;;
+    esac
+  else
+    log_info "TEST-648: pwsh (or the .ps1 twin) not available on this host -- the .ps1 twin's D/F-conflict guidance not re-verified behaviourally this run"
+    grep -qF "function Get-DfConflictRef" "$RELEASE_PS1" \
+      || log_fail "TEST-648: .ps1 has no Get-DfConflictRef helper"
+    grep -qF 'git branch -m $conflictingBranch <new-name>' "$RELEASE_PS1" \
+      || log_fail "TEST-648: .ps1's fallback never wires Get-DfConflictRef into an actionable recovery step"
+  fi
+
+  if [[ -f "$log" ]] && grep -q 'pr create' "$log"; then
+    log_fail "TEST-648: the INCOMPLETE fallback opened a PR anyway: $(cat "$log")"
+  fi
+  log_pass "TEST-648 D/F-conflict fallback names the conflicting ref and an actionable git branch -m/-D step, not a repeat of the exact failing invocation (both twins)"
+}
+
 # --- TEST-036 (simple-and-friendly-to-use Spec-AC-06 / spec TEST-008): the
 # dry run NAMES a missing golden-flow record; never blocks; byte-identical
 # `## Preconditions` block when a record newer than the tag exists ----------
@@ -1772,6 +1853,7 @@ main() {
   test_625_fallback_branch_failure_reports
   test_626_fallback_reset_failure_reports
   test_627_ps1_fallback_guarded
+  test_648_fallback_branch_conflict_names_ref
   test_036_golden_flow_record_precondition
   test_570_changelog_shape_is_documented
 

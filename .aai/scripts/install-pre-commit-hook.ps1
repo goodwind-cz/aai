@@ -233,6 +233,27 @@ function Test-EffectiveHook {
   return $true
 }
 
+# Confirm-HooksDir -- create or validate the EFFECTIVE git hooks directory
+# ($hooksDir, the parent of $reftxPath) before anything writes into it.
+# Mirrors the .sh twin's ensure_hooks_dir (TEST-647): `core.hooksPath` can
+# name a directory that does not exist yet (measured: a scratch repo with
+# `git config core.hooksPath missing-dir`), and Enable-RefGuard -- the
+# -ArmRefGuard dispatch below, which runs BEFORE the normal install flow's own
+# New-Item further down -- must not hand Set-Content a parent directory that
+# is not there. Under this script's own $ErrorActionPreference = 'Stop' a
+# missing parent turns Set-Content into an immediate terminating error rather
+# than a false "Installed" line (the .sh twin's worse failure mode), but the
+# net effect for the operator is the same defect this finding names: an
+# explicit -ArmRefGuard that should simply create the directory instead dies.
+function Confirm-HooksDir {
+  if ((Test-Path -LiteralPath $hooksDir) -and -not (Test-Path -LiteralPath $hooksDir -PathType Container)) {
+    Write-Error "The effective git hooks path $hooksDir exists and is not a directory. Refusing to install rather than reporting success on a guard git cannot run."
+    return $false
+  }
+  New-Item -ItemType Directory -Force -Path $hooksDir | Out-Null
+  return $true
+}
+
 # Show-ForeignReftxRefusal -- the shared refusal text for a foreign
 # (non-AAI) file occupying the reference-transaction slot: ONE function, not
 # a second literal copy of the message. Mirrors the .sh twin's
@@ -395,6 +416,7 @@ function Enable-RefGuard {
       return $false
     }
   }
+  if (-not (Confirm-HooksDir)) { return $false }  # TEST-647: core.hooksPath may name a directory that does not exist yet
   Set-Content -Path $reftxPath -Value $reftxBody -NoNewline
   if ($IsLinux -or $IsMacOS) {
     & chmod +x $reftxPath | Out-Null
@@ -467,11 +489,7 @@ if ($foreign) {
   exit 1
 }
 
-if ((Test-Path -LiteralPath $hooksDir) -and -not (Test-Path -LiteralPath $hooksDir -PathType Container)) {
-  Write-Error "The effective git hooks path $hooksDir exists and is not a directory. Refusing to install rather than reporting success on a guard git cannot run."
-  exit 1
-}
-New-Item -ItemType Directory -Force -Path $hooksDir | Out-Null
+if (-not (Confirm-HooksDir)) { exit 1 }
 
 $skipPreCommit = $false
 if ($wantIndex -and (Test-Path $hookPath) -and (-not $Force)) {

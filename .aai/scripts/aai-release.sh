@@ -61,6 +61,22 @@ is_protected_branch_rejection() {
   return 1
 }
 
+# df_conflict_ref <git-branch-stderr-text> — pulls the pre-existing ref out of
+# git's own D/F (directory/file) conflict message on `git branch <name> <sha>`
+# ("cannot lock ref 'refs/heads/X': 'refs/heads/X/Y' exists; cannot create
+# 'refs/heads/X'") so the protected-branch fallback (TEST-648) can NAME the
+# ref actually blocking creation instead of repeating the exact command that
+# just failed and will fail again the same way. Matched literally on git's own
+# wording, not a generic ref-name regex, so a miss (a different `git branch`
+# failure, or a future git message change) prints nothing rather than
+# inventing a wrong ref name — the caller falls back to the generic recipe.
+df_conflict_ref() {
+  local text="$1"
+  if [[ "$text" =~ cannot\ lock\ ref\ \'[^\']+\':\ \'([^\']+)\'\ exists\;\ cannot\ create ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --version)        VERSION="${2:?--version needs a value}"; shift 2 ;;
@@ -497,11 +513,18 @@ if [[ "$NO_REMOTE" != "1" ]]; then
     fallback_incomplete() {
       # D5 exit 18: the fallback engaged but could not finish. Name the exact
       # manual commands rather than leaving a half-cut release to reconstruct.
+      # $2 (TEST-648, optional): overrides the generic first recovery line
+      # below when that generic line — re-running the exact `git branch`
+      # invocation that just failed — cannot itself succeed (e.g. a D/F ref
+      # conflict, where re-running the identical command fails identically
+      # and strands the operator: the finding this pins). Every other caller
+      # omits it and keeps the generic line.
+      local branch_step="${2:-git branch $RELEASE_BRANCH $RELEASE_SHA     # if that ref does not exist yet}"
       echo "## aai-release — PROTECTED-BRANCH FALLBACK INCOMPLETE"
       echo "- Reason:  $1"
       echo "- Version: $VERSION (release commit exists LOCALLY, tag is LOCAL ONLY)"
       echo "- Finish by hand:"
-      echo "    git branch $RELEASE_BRANCH $RELEASE_SHA     # if that ref does not exist yet"
+      echo "    $branch_step"
       echo "    git reset --hard $PRE_CUT_SHA               # on $BRANCH"
       echo "    git push --no-follow-tags origin $RELEASE_BRANCH"
       echo "    gh pr create --base $BRANCH --head $RELEASE_BRANCH --title 'chore(release): $VERSION'"
@@ -527,10 +550,35 @@ if [[ "$NO_REMOTE" != "1" ]]; then
     # scope — under `set -euo pipefail` a failure (e.g. a D/F-conflicting ref
     # already at $RELEASE_BRANCH, or a reset that cannot check out its target)
     # killed the script raw at git's own exit code, never reaching the
-    # INCOMPLETE report below. `|| fallback_incomplete "..."` is one line each
-    # on purpose (mutation-run.mjs's --sed compiles a JS RegExp without the
-    # multiline flag; Amendment 1 TEST-616 hit exactly this limit).
-    git -C "$ROOT" branch "$RELEASE_BRANCH" "$RELEASE_SHA" || fallback_incomplete "creating $RELEASE_BRANCH failed (git branch exited non-zero; its output is on stderr above)"
+    # INCOMPLETE report below. The reset call's `|| fallback_incomplete "..."`
+    # stays one line on purpose (mutation-run.mjs's --sed compiles a JS
+    # RegExp without the multiline flag; Amendment 1 TEST-616 hit exactly this
+    # limit); the branch call below captures stderr instead, so a D/F ref
+    # conflict can be told apart from any other failure (TEST-648).
+    BRANCH_ERR_LOG="$(mktemp "${TMPDIR:-/tmp}/aai-release-branch.XXXXXX")"
+    if ! git -C "$ROOT" branch "$RELEASE_BRANCH" "$RELEASE_SHA" 2>"$BRANCH_ERR_LOG"; then
+      branch_err_text="$(cat "$BRANCH_ERR_LOG")"
+      cat "$BRANCH_ERR_LOG" >&2  # D1: git's own output is never swallowed
+      rm -f "$BRANCH_ERR_LOG"
+      conflicting_ref="$(df_conflict_ref "$branch_err_text")"
+      if [[ -n "$conflicting_ref" ]]; then
+        # TEST-648: name the ref actually blocking creation and a step that
+        # can succeed — renaming/deleting it, or cutting under a different
+        # release-branch name — instead of the generic line, which is this
+        # exact command re-run against the exact ref that just refused it.
+        # `git branch -m/-D` take the short branch name, not a refs/heads/...
+        # path (measured: `git branch -D refs/heads/x` -> "not found"), so the
+        # refs/heads/ prefix is stripped for the SUGGESTED command while the
+        # Reason line above keeps the full ref git itself reported.
+        conflicting_branch="${conflicting_ref#refs/heads/}"
+        fallback_incomplete \
+          "creating $RELEASE_BRANCH failed: '$conflicting_ref' already exists and blocks it (a directory/file ref conflict; git branch exited non-zero, its output is on stderr above)" \
+          "git branch -m $conflicting_branch <new-name>   # or: git branch -D $conflicting_branch -- then: git branch $RELEASE_BRANCH $RELEASE_SHA   # or pick a different release branch name and repeat this recipe with it"
+      else
+        fallback_incomplete "creating $RELEASE_BRANCH failed (git branch exited non-zero; its output is on stderr above)"
+      fi
+    fi
+    rm -f "$BRANCH_ERR_LOG" 2>/dev/null || true
     git -C "$ROOT" reset -q --hard "$PRE_CUT_SHA" || fallback_incomplete "resetting $BRANCH to $PRE_CUT_SHA failed (git reset exited non-zero; its output is on stderr above)"
 
     PUSH_LOG="$(mktemp "${TMPDIR:-/tmp}/aai-release-push.XXXXXX")"

@@ -120,6 +120,26 @@ function Test-ProtectedBranchRejection {
   return $false
 }
 
+function Get-DfConflictRef {
+  # Parity twin of aai-release.sh's df_conflict_ref (TEST-648): pulls the
+  # pre-existing ref out of git's own D/F (directory/file) conflict message
+  # on `git branch <name> <sha>` ("cannot lock ref 'refs/heads/X':
+  # 'refs/heads/X/Y' exists; cannot create 'refs/heads/X'") so the fallback
+  # can name the ref actually blocking creation instead of repeating the
+  # exact command that just failed and will fail again the same way. Matched
+  # literally on git's own wording, not a generic ref-name pattern, so a miss
+  # prints nothing rather than inventing a wrong ref name -- the caller falls
+  # back to the generic recipe.
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][AllowEmptyString()][string]$Text
+  )
+  if ([string]::IsNullOrEmpty($Text)) { return '' }
+  $m = [regex]::Match($Text, "cannot lock ref '[^']+': '([^']+)' exists; cannot create")
+  if ($m.Success) { return $m.Groups[1].Value }
+  return ''
+}
+
 function Select-CapturedValue {
   # Invoke-NativeChecked folds the child's stdout AND stderr into ONE array and
   # returns it wrapped (`return ,$out`), so the pipeline sees a SINGLE object:
@@ -428,12 +448,19 @@ try {
       # D5 exit 18: the fallback engaged but could not finish -- name the exact
       # manual commands rather than leaving a half-cut release to reconstruct.
       $fallbackIncomplete = {
-        param([string]$Reason)
+        # $BranchStep (TEST-648, optional): overrides the generic first
+        # recovery line below when that generic line -- re-running the exact
+        # `git branch` invocation that just failed -- cannot itself succeed
+        # (e.g. a D/F ref conflict, where re-running the identical command
+        # fails identically and strands the operator). Callers that hit an
+        # ordinary (non-deterministic) failure omit it and keep the generic
+        # line.
+        param([string]$Reason, [string]$BranchStep = "git branch $releaseBranch $releaseSha     # if that ref does not exist yet")
         Write-Host "## aai-release - PROTECTED-BRANCH FALLBACK INCOMPLETE"
         Write-Host "- Reason:  $Reason"
         Write-Host "- Version: $Version (release commit exists LOCALLY, tag is LOCAL ONLY)"
         Write-Host "- Finish by hand:"
-        Write-Host "    git branch $releaseBranch $releaseSha     # if that ref does not exist yet"
+        Write-Host "    $BranchStep"
         Write-Host "    git reset --hard $preCutSha               # on $branch"
         Write-Host "    git push --no-follow-tags origin $releaseBranch"
         Write-Host "    gh pr create --base $branch --head $releaseBranch --title 'chore(release): $Version'"
@@ -464,7 +491,22 @@ try {
       }
       if ($branchCreateError) {
         [Console]::Error.WriteLine($branchCreateError)
-        & $fallbackIncomplete "creating $releaseBranch failed (its output is on stderr above)"
+        # TEST-648: name the ref actually blocking creation and a step that
+        # can succeed -- renaming/deleting it, or cutting under a different
+        # release-branch name -- instead of the generic line, which is this
+        # exact command re-run against the exact ref that just refused it.
+        $conflictingRef = Get-DfConflictRef -Text $branchCreateError
+        if ($conflictingRef) {
+          # `git branch -m/-D` take the short branch name, not a refs/heads/...
+          # path, so it is stripped for the SUGGESTED command while the Reason
+          # line keeps the full ref git itself reported (parity: aai-release.sh).
+          $conflictingBranch = $conflictingRef -replace '^refs/heads/', ''
+          & $fallbackIncomplete `
+            "creating $releaseBranch failed: '$conflictingRef' already exists and blocks it (a directory/file ref conflict; its output is on stderr above)" `
+            "git branch -m $conflictingBranch <new-name>   # or: git branch -D $conflictingBranch -- then: git branch $releaseBranch $releaseSha   # or pick a different release branch name and repeat this recipe with it"
+        } else {
+          & $fallbackIncomplete "creating $releaseBranch failed (its output is on stderr above)"
+        }
       }
 
       $resetError = ''

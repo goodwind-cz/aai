@@ -162,7 +162,7 @@ done
 if [[ "$PRINT" == 1 ]]; then
   case "$PRINT_HOOK" in
     ref-guard)
-      awk '/^cat > "\$REFTX_PATH" <<.REFTXHOOK.$/{p=1; next} /^REFTXHOOK$/{if(p){exit}} p' "$0"
+      awk '/^if ! cat > "\$REFTX_PATH" <<.REFTXHOOK.$/{p=1; next} /^REFTXHOOK$/{if(p){exit}} p' "$0"
       ;;
     *)
       awk '/^cat > "\$HOOK_PATH" <<.HOOK.$/{p=1; next} /^HOOK$/{if(p){exit}} p' "$0"
@@ -268,17 +268,43 @@ foreign_reftx_refusal() {
   echo "       Pass --force to overwrite, or merge the AAI:REF-GUARD body with: $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print ref-guard" >&2
 }
 
+# ensure_hooks_dir — create or validate the EFFECTIVE git hooks directory
+# (dirname of $REFTX_PATH) before anything writes into it. Both the normal
+# --hooks write path below and the explicit --arm-ref-guard/--decline-ref-guard
+# dispatch (Spec-AC-05) call this before touching $REFTX_PATH: `core.hooksPath`
+# can point at a directory that does not exist yet (measured: a scratch repo
+# with `git config core.hooksPath nonexistent-dir`), and a write into a missing
+# directory must be refused, not silently skipped and reported installed.
+ensure_hooks_dir() {
+  if [[ -e "$HOOKS_DIR" && ! -d "$HOOKS_DIR" ]]; then
+    echo "ERROR: the effective git hooks path $HOOKS_DIR exists and is not a directory." >&2
+    echo "       Refusing to install rather than reporting success on a guard git cannot run." >&2
+    return 1
+  fi
+  mkdir -p "$HOOKS_DIR" || {
+    echo "ERROR: could not create the effective git hooks directory $HOOKS_DIR." >&2
+    return 1
+  }
+}
+
 # write_refguard_hook — install the AAI:REF-GUARD reference-transaction hook
 # body (skip, reporting so, when it is already AAI-managed and --force is not
 # given). Shared by the normal --hooks ref-guard write path below AND
 # arm_ref_guard (Spec-AC-05), so the heredoc's bytes live in exactly ONE
 # place — D9: no byte of the installed hook body may drift between callers.
+# CALLERS MUST ensure_hooks_dir first: this function does not create
+# $HOOKS_DIR itself, and every branch below is guarded so the final "Installed"
+# line cannot print unless the write it describes actually happened (TEST-647:
+# a missing $HOOKS_DIR used to leave `cat`/`chmod` silently failing under the
+# `arm_ref_guard || exit 1` call — set -e does not fire for a command whose
+# exit status is being tested — while this function's last command, the echo,
+# still ran and reported success on nothing written).
 write_refguard_hook() {
   if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
     echo "AAI reference-transaction hook already installed at $REFTX_PATH. No action taken."
     return 0
   fi
-cat > "$REFTX_PATH" <<'REFTXHOOK'
+if ! cat > "$REFTX_PATH" <<'REFTXHOOK'
 #!/bin/sh
 # AAI:REF-GUARD -- refuses a refs/heads/main ref update unless AAI_GIT_WRITE=1.
 # Installed by .aai/scripts/install-pre-commit-hook.sh (or the .ps1 twin).
@@ -319,7 +345,14 @@ AAI:REF-GUARD refused this refs/heads/main update.
 AAI_REF_GUARD_MSG
 exit 1
 REFTXHOOK
-  chmod +x "$REFTX_PATH"
+then
+    echo "ERROR: could not write $REFTX_PATH (TEST-647: the effective hooks directory may be missing)." >&2
+    return 1
+  fi
+  if ! chmod +x "$REFTX_PATH"; then
+    echo "ERROR: could not make $REFTX_PATH executable." >&2
+    return 1
+  fi
   echo "Installed AAI reference-transaction hook (AAI:REF-GUARD) at $REFTX_PATH"
   echo "Effect: a refs/heads/main update is refused unless AAI_GIT_WRITE=1 is set on that command. Decline: bash $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --decline-ref-guard"
 }
@@ -490,7 +523,8 @@ arm_ref_guard() {
     foreign_reftx_refusal
     return 1
   fi
-  write_refguard_hook
+  ensure_hooks_dir || return 1  # TEST-647: core.hooksPath may name a directory that does not exist yet
+  write_refguard_hook || return 1
   attest_effective reference-transaction "$REFTX_MARKER" || return 1
   write_ref_guard_policy armed || return 1
   echo "Recorded ref_guard: armed in $CONFIG_PATH"
@@ -551,15 +585,7 @@ if [[ "$FOREIGN" == 1 ]]; then
   exit 1
 fi
 
-if [[ -e "$HOOKS_DIR" && ! -d "$HOOKS_DIR" ]]; then
-  echo "ERROR: the effective git hooks path $HOOKS_DIR exists and is not a directory." >&2
-  echo "       Refusing to install rather than reporting success on a guard git cannot run." >&2
-  exit 1
-fi
-mkdir -p "$HOOKS_DIR" || {
-  echo "ERROR: could not create the effective git hooks directory $HOOKS_DIR." >&2
-  exit 1
-}
+ensure_hooks_dir || exit 1
 
 if [[ "$WANT_INDEX" == 1 ]]; then  # AC-01 write selection: index
 if [[ -f "$HOOK_PATH" && "$FORCE" != 1 ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
