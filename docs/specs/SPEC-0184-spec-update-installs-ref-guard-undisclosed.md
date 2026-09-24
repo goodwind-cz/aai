@@ -554,7 +554,6 @@ FIXED BY THIS SCOPE, each by the named Spec-AC, each with a test a named
 mutation reddens:
 
 - `fu-update-installs-ref-guard-undisclosed` — Spec-AC-01 through Spec-AC-08
-- `fu-routing-file-overwritten-on-update` — Spec-AC-09
 - `fu-release-fallback-branch-unguarded` — Spec-AC-10
 
 ALREADY FIXED IN THE TREE, closed on evidence plus a mutation that reddens the
@@ -577,6 +576,19 @@ arm:
   downstream symptom a working comparison never produces.
 
 REJECTED BY THIS SCOPE: none.
+
+DROPPED, with the measured reason:
+
+- `fu-routing-file-overwritten-on-update` — the owner decided on 2026-09-24
+  that overwriting the shipped `MODEL_ROUTING.yaml` on update is CORRECT: the
+  table tracks a moving external world and a consumer will not track it for us.
+  Preserving the consumer's edit is therefore not the fix, so this item is
+  dropped against this ride rather than closed as if the scope had delivered
+  it. The real gaps it pointed at — nobody keeps the table current, and a
+  consumer's exception has nowhere to live that an update does not overwrite —
+  are `docs/issues/CHANGE-DRAFT-routing-tables-have-an-owner-and-a-seam.md`
+  (PR #389). Spec-AC-09 delivers only the note correction that survives that
+  decision; see Amendment 2.
 
 ## GitHub issues
 

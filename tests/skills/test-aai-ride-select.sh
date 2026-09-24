@@ -299,15 +299,20 @@ test_565_gate_admits_only_the_next_pair() {
 
   # shipped roadmap: pair 7 (close-ceremony-sweep) closed with its real
   # PR/commit (Spec-AC-10, spec-close-ceremony-sweep) makes pair 8
-  # (update-installs-ref-guard-undisclosed) the first unfinished pair; ITS
-  # capability is admitted by ranking (same property as the pair-1/2 arm
-  # above, re-pointed at the live file instead of a fixture). Amendment 25
-  # (close-ceremony-sweep): this assertion named pair 7 itself, which the
-  # gate now correctly REFUSES ("already done — nothing to ride") once the
-  # roadmap flip this comment already described actually landed; re-point it
-  # at pair 8, the ref the comment was always describing.
-  [ "$(run gate --ref update-installs-ref-guard-undisclosed --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
-    || log_fail "TEST-565: shipped roadmap: pair 8's capability must be admitted: $(err)"
+  # the FIRST UNFINISHED pair's capability is admitted by ranking (same
+  # property as the pair-1/2 arm above, re-pointed at the live file instead of
+  # a fixture). This assertion used to name a pair by INDEX and went stale on
+  # every close: it named pair 7, then pair 8, each time after the gate had
+  # started correctly refusing the finished one. It now DERIVES the ref from
+  # the shipped roadmap, so completing a pair moves the target instead of
+  # breaking the test — a maintenance tax two rides paid before anyone read
+  # the pattern.
+  local first_unfinished
+  first_unfinished="$(awk '/^  - capability:/ { cap=$3 } /^    status:/ { if ($2 != "done" && cap != "") { print cap; exit } }' "$SHIPPED")"
+  [ -n "$first_unfinished" ] \
+    || log_fail "TEST-565: the shipped roadmap has no unfinished pair — this arm needs a new shape"
+  [ "$(run gate --ref "$first_unfinished" --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
+    || log_fail "TEST-565: shipped roadmap: the first unfinished pair's capability ($first_unfinished) must be admitted: $(err)"
   log_pass "gate admits only the first unfinished pair; in-flight and blocks: unaffected; override still one-shot logged (TEST-565)"
 }
 
@@ -410,11 +415,14 @@ test_583_gate_refuses_undocumented_ref() {
   # Control: the live roadmap is unaffected by this check (every ref gate
   # can currently reach is either the live pair 8 capability, which HAS a
   # document, or refused earlier for ranking — B5/R6's own measurement).
-  # Amendment 25 (close-ceremony-sweep): pair 7 (close-ceremony-sweep) is now
-  # done, so pair 8 (update-installs-ref-guard-undisclosed) is the live
-  # admissible ref this control was always describing.
-  [ "$(run gate --ref update-installs-ref-guard-undisclosed --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
-    || log_fail "TEST-583: the live roadmap's own admissible ref must still be admitted: $(err)"
+  # Like TEST-565's live arm, this used to name the admissible pair by index
+  # and went stale on every close. It now derives it from the shipped roadmap.
+  local live_admissible
+  live_admissible="$(awk '/^  - capability:/ { cap=$3 } /^    status:/ { if ($2 != "done" && cap != "") { print cap; exit } }' "$SHIPPED")"
+  [ -n "$live_admissible" ] \
+    || log_fail "TEST-583: the shipped roadmap has no unfinished pair — this control needs a new shape"
+  [ "$(run gate --ref "$live_admissible" --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
+    || log_fail "TEST-583: the live roadmap's own admissible ref ($live_admissible) must still be admitted: $(err)"
   log_pass "TEST-583: gate refuses an undocumented roadmap ref (capability or maintenance), naming the ref and the missing document, and admits once the document exists; live roadmap unaffected"
 }
 
