@@ -451,8 +451,32 @@ try {
         & $fallbackIncomplete "branch $releaseBranch already exists - never clobbering an existing ref"
       }
 
-      Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'branch', $releaseBranch, $releaseSha) | Out-Null
-      Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'reset', '-q', '--hard', $preCutSha) | Out-Null
+      # D5/Spec-AC-10: Invoke-NativeChecked THROWS on a non-zero exit, and
+      # under this script's outer `$ErrorActionPreference = 'Stop'` that
+      # throw propagates PAST $fallbackIncomplete entirely -- a bash-side rc
+      # check has no PowerShell equivalent unless the call is itself wrapped.
+      # Same try/catch shape as the push and gh pr create arms just below.
+      $branchCreateError = ''
+      try {
+        Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'branch', $releaseBranch, $releaseSha) | Out-Null
+      } catch {
+        $branchCreateError = "$($_.Exception.Message)"
+      }
+      if ($branchCreateError) {
+        [Console]::Error.WriteLine($branchCreateError)
+        & $fallbackIncomplete "creating $releaseBranch failed (its output is on stderr above)"
+      }
+
+      $resetError = ''
+      try {
+        Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'reset', '-q', '--hard', $preCutSha) | Out-Null
+      } catch {
+        $resetError = "$($_.Exception.Message)"
+      }
+      if ($resetError) {
+        [Console]::Error.WriteLine($resetError)
+        & $fallbackIncomplete "resetting $branch to $preCutSha failed (its output is on stderr above)"
+      }
 
       $branchPushError = ''
       try {

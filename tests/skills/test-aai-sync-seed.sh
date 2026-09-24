@@ -27,6 +27,7 @@ set -euo pipefail
 
 TEST_NAME="aai-sync-seed"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/lib/pipe-safe.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SYNC_SH="$PROJECT_ROOT/.aai/scripts/aai-sync.sh"
 SYNC_PS1="$PROJECT_ROOT/.aai/scripts/aai-sync.ps1"
@@ -705,8 +706,14 @@ test_bash_seed_crlf_safe() {
 # refreshes a stale copy on re-sync, and the .ps1 engine does the same.
 test_agents_skills_mirror_synced() {
   log_info "TEST-022: aai-sync propagates + gitignores .agents/skills (primary Gemini/Cursor discovery path)..."
-  local dst="$TMP_ROOT/agents-skills-mirror"
-  mkdir -p "$dst"
+  # A fresh, unique dir per call (not a fixed name): TEST-630 replays this
+  # exact function a second time in the same process/$TMP_ROOT (mutation
+  # proof, D8) — a fixed path would reuse the FIRST call's already-mutated
+  # fixture (its own target-only-skill and stale-entry arms leave the tree
+  # non-pristine) and the second call's freshness assumptions would break for
+  # a reason that has nothing to do with the mutation under test.
+  local dst
+  dst="$(mktemp -d "${TMP_ROOT}/agents-skills-mirror.XXXXXX")"
   git -C "$dst" init -q -b main
   bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-022: sync failed"
 
@@ -753,8 +760,8 @@ test_agents_skills_mirror_synced() {
   #     and assert it propagates the mirror and gitignores it, not merely that
   #     the path string appears somewhere in the script.
   if command -v pwsh >/dev/null 2>&1; then
-    local pdst="$TMP_ROOT/agents-skills-ps1"
-    mkdir -p "$pdst"
+    local pdst
+    pdst="$(mktemp -d "${TMP_ROOT}/agents-skills-ps1.XXXXXX")"
     git -C "$pdst" init -q -b main
     pwsh -NoProfile -File "$SYNC_PS1" -TargetRoot "$pdst" >/dev/null 2>&1 \
       || log_fail "TEST-022: aai-sync.ps1 run failed"
@@ -770,10 +777,110 @@ test_agents_skills_mirror_synced() {
   log_pass "TEST-022 .agents/skills synced entry-by-entry (target-only preserved), gitignored once, refreshed on re-sync, ps1 parity exercised"
 }
 
+# --- TEST-628 (Spec-AC-11, spec-update-installs-ref-guard-undisclosed) --------
+# file_content_different (fu-sync-hash-compare-fails-open) already fails
+# closed when `cmp` cannot complete the comparison (exit 2), but no test
+# drove that path directly -- the only existing pin (test-aai-layer-profiles.sh
+# TEST-004) asserts a downstream symptom a working `cmp` never produces. This
+# calls the function directly (extracted from aai-sync.sh via the same
+# awk-body-extraction shape test-aai-doctor.sh and test-aai-git-ref-guard.sh
+# already use for a sourceable-function unit check -- aai-sync.sh itself is
+# not safely sourceable, it runs its whole sync top-to-bottom), driven by an
+# UNREADABLE path so `cmp` itself exits 2. The .ps1 twin's catch arm is
+# checked statically (residual-risk note: the Windows CI leg is the only
+# real runtime check on the twin).
+test_628_compare_fails_closed() {
+  log_info "TEST-628: file_content_different reports NOT different when cmp cannot complete the comparison (exit 2, driven with an unreadable path); the .ps1 twin's catch arm returns false..."
+  local fn readable unreadable out rc=0
+  fn="$(awk '/^file_content_different\(\) \{/{f=1} f{print; if ($0 ~ /^}/) exit}' "$SYNC_SH")"
+  [[ -n "$fn" ]] || log_fail "TEST-628: could not extract file_content_different() from $SYNC_SH"
+
+  readable="$TMP_ROOT/t628-readable.txt"
+  unreadable="$TMP_ROOT/t628-unreadable.txt"
+  printf 'a\n' > "$readable"
+  printf 'b\n' > "$unreadable"
+  chmod 000 "$unreadable"
+  if [[ ! -r "$unreadable" ]]; then
+    out="$(
+      bash -c "
+        set -euo pipefail
+        $fn
+        if file_content_different \"\$1\" \"\$2\"; then echo DIFFERENT; else echo NOT_DIFFERENT; fi
+      " _ "$readable" "$unreadable"
+    )" || rc=$?
+    chmod 644 "$unreadable"
+    [[ "$rc" -eq 0 ]] || log_fail "TEST-628: calling file_content_different against an unreadable path errored (rc=$rc): $out"
+    [[ "$out" == "NOT_DIFFERENT" ]] \
+      || log_fail "TEST-628: file_content_different treated an unreadable-path cmp failure (exit 2) as DIFFERENT, expected NOT_DIFFERENT (fail-closed): $out"
+  else
+    chmod 644 "$unreadable"
+    log_info "TEST-628 note: chmod 000 did not make the file unreadable in this environment (root?) — bash arm SKIPPED, ps1 static arm still runs"
+  fi
+
+  # ps1 twin (static): the catch arm of Test-FileContentDifferent must
+  # `return $false` (fail closed), never $true.
+  local body
+  body="$(awk '/^function Test-FileContentDifferent \{$/{f=1} f{print; if ($0 ~ /^}$/) exit}' "$SYNC_PS1")"
+  [[ -n "$body" ]] || log_fail "TEST-628: could not extract Test-FileContentDifferent from $SYNC_PS1"
+  local catch_body
+  catch_body="$(printf '%s\n' "$body" | awk '/} catch \{/{f=1;next} f{print}')"
+  [[ -n "$catch_body" ]] || log_fail "TEST-628: Test-FileContentDifferent has no catch block: $body"
+  printf '%s\n' "$catch_body" | qgrep -qF 'return $false' \
+    || log_fail "TEST-628: Test-FileContentDifferent's catch arm does not return \$false (fail-closed): $catch_body"
+  printf '%s\n' "$catch_body" | qgrep -qF 'return $true' \
+    && log_fail "TEST-628: Test-FileContentDifferent's catch arm returns \$true somewhere (fail-open): $catch_body"
+
+  log_pass "TEST-628 file_content_different reports NOT_DIFFERENT when cmp cannot complete (exit 2, unreadable path); ps1 catch arm returns \$false"
+}
+
+# --- TEST-629/630 (Spec-AC-11, D8): two already-fixed registry items close on
+# a mutation that reddens their EXISTING pin, never on a reading of the
+# source. These wrap the existing pins (test_bash_seed_crlf_safe / TEST-021,
+# test_agents_skills_mirror_synced / TEST-022) rather than duplicate their
+# fixtures — running the real pin IS the proof; nothing here re-implements
+# it. The inner call runs inside a command substitution (a real subshell) so
+# its own log_fail (which calls `exit 1`) only ends that subshell; this
+# wrapper then re-raises with a message carrying its OWN TEST-62{9,0} id,
+# because mutation-run.mjs attributes a redden by finding that literal id in
+# a FAIL line, and the wrapped pin's failure message only ever says
+# TEST-021/TEST-022.
+
+test_629_crlf_pin_still_bites() {
+  log_info "TEST-629: replaying the existing CRLF pin (test_bash_seed_crlf_safe / TEST-021) under mutation -- fu-gitignore-crlf-exact-line closes on this proof, not a reading..."
+  local out rc=0
+  out="$(test_bash_seed_crlf_safe 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-629: the existing CRLF pin (test_bash_seed_crlf_safe) failed under mutation:"$'\n'"$out"
+  log_pass "TEST-629 the existing CRLF pin still bites under mutation; fu-gitignore-crlf-exact-line closes on this proof"
+}
+
+test_630_agents_tree_pin_still_bites() {
+  log_info "TEST-630: replaying the existing .agents/skills propagation pin (test_agents_skills_mirror_synced / TEST-022) under mutation -- fu-agents-tree-not-synced closes on this proof, not a reading..."
+  local out rc=0
+  out="$(test_agents_skills_mirror_synced 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-630: the existing .agents/skills propagation pin (test_agents_skills_mirror_synced) failed under mutation:"$'\n'"$out"
+  log_pass "TEST-630 the existing .agents/skills propagation pin still bites under mutation; fu-agents-tree-not-synced closes on this proof"
+}
 
 main() {
   echo "=== Test Suite: $TEST_NAME ==="
   check_deps
+
+  # Single-test dispatch (mutation-run.mjs D3 --selector; same shape as
+  # test-aai-release.sh's main()): a mutation isolated to a widely-used
+  # shared helper (e.g. gitignore-block.sh) can break an EARLIER test in the
+  # full-suite run below, which would make the suite exit before ever
+  # reaching the row's own FAIL line -- INCONCLUSIVE rather than RED, even
+  # when the row's own assertion is the one that actually catches the
+  # mutation. Positional dispatch lets the mutation gate run exactly the
+  # test a row names.
+  if [[ $# -gt 0 ]]; then
+    "$1"
+    echo "=== $TEST_NAME: SELECTED TEST PASSED ($1) ==="
+    return
+  fi
+
   test_seed_fresh
   test_preserve_existing
   test_template_and_parity
@@ -795,6 +902,9 @@ main() {
   test_bash_sync_regression_pin
   test_bash_seed_crlf_safe
   test_agents_skills_mirror_synced
+  test_628_compare_fails_closed
+  test_629_crlf_pin_still_bites
+  test_630_agents_tree_pin_still_bites
   if [[ "$PWSH_ARM_SKIPPED" -eq 1 ]]; then
     log_skip "pwsh absent — one or more PowerShell assertions were not exercised (all bash-only assertions above passed)"
   fi

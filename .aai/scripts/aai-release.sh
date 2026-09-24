@@ -523,8 +523,15 @@ if [[ "$NO_REMOTE" != "1" ]]; then
       fallback_incomplete "branch $RELEASE_BRANCH already exists — never clobbering an existing ref"
     fi
 
-    git -C "$ROOT" branch "$RELEASE_BRANCH" "$RELEASE_SHA"
-    git -C "$ROOT" reset -q --hard "$PRE_CUT_SHA"
+    # D5/Spec-AC-10: neither of these two calls had an rc check before this
+    # scope — under `set -euo pipefail` a failure (e.g. a D/F-conflicting ref
+    # already at $RELEASE_BRANCH, or a reset that cannot check out its target)
+    # killed the script raw at git's own exit code, never reaching the
+    # INCOMPLETE report below. `|| fallback_incomplete "..."` is one line each
+    # on purpose (mutation-run.mjs's --sed compiles a JS RegExp without the
+    # multiline flag; Amendment 1 TEST-616 hit exactly this limit).
+    git -C "$ROOT" branch "$RELEASE_BRANCH" "$RELEASE_SHA" || fallback_incomplete "creating $RELEASE_BRANCH failed (git branch exited non-zero; its output is on stderr above)"
+    git -C "$ROOT" reset -q --hard "$PRE_CUT_SHA" || fallback_incomplete "resetting $BRANCH to $PRE_CUT_SHA failed (git reset exited non-zero; its output is on stderr above)"
 
     PUSH_LOG="$(mktemp "${TMPDIR:-/tmp}/aai-release-push.XXXXXX")"
     branch_push_rc=0
