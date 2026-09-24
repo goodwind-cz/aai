@@ -242,6 +242,9 @@ NODE
   assert_refusal 'unterminated aai-outcome-v1 block' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
   variant="$TMP_ROOT/test-005-duplicate-block"; cp -R "$root" "$variant"; printf '\n%s\n' '```aai-outcome-v1' '{}' '```' >> "$variant/report.md"
   assert_refusal 'expected exactly one aai-outcome-v1 block, found 2' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
+  variant="$TMP_ROOT/test-005-comment-token-in-fence-info"; cp -R "$root" "$variant"
+  printf '\n%s\n' '```text <!--' 'example' '```' '```aai-outcome-v1' '{}' '```' >> "$variant/report.md"
+  assert_refusal 'expected exactly one aai-outcome-v1 block, found 2' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
   variant="$TMP_ROOT/test-005-malformed"; cp -R "$root" "$variant"; replace_once "$variant/report.md" '"version": 1' '"version": '
   assert_refusal 'aai-outcome-v1 JSON is malformed:' --report report.md --ref test-005 --since 2026-06-01T00:00:00Z --root "$variant"
   variant="$TMP_ROOT/test-005-duplicate-json-top"; cp -R "$root" "$variant"; replace_once "$variant/report.md" '"version": 1' '"requirements": [], "version": 1'

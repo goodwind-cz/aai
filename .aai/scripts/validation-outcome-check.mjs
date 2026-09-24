@@ -314,8 +314,12 @@ function extractOutcomeBlock(markdown, refuse) {
   const commentState = { inComment: false };
   for (const rawLine of markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')) {
     if (!openFence) {
-      const line = maskCommentsOutsideInlineCode(rawLine, commentState);
-      const opener = /^(?: {0,3})(`{3,}|~{3,})(.*)$/.exec(line);
+      const openerPattern = /^(?: {0,3})(`{3,}|~{3,})(.*)$/;
+      let opener = commentState.inComment ? null : openerPattern.exec(rawLine);
+      if (!opener) {
+        const line = maskCommentsOutsideInlineCode(rawLine, commentState);
+        opener = openerPattern.exec(line);
+      }
       if (!opener) continue;
       openFence = {
         character: opener[1][0],
