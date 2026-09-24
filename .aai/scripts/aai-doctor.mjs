@@ -62,6 +62,7 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { readRefGuardPolicy } from './lib/guard-config.mjs';
 
 // --- generic helpers -----------------------------------------------------
 
@@ -440,6 +441,16 @@ function catGitRefGuard(root) {
   const rel = pathRes.stdout.trim();
   const hookPath = path.isAbsolute(rel) ? rel : path.join(root, rel);
   if (!fs.existsSync(hookPath)) {
+    // D4 (spec-update-installs-ref-guard-undisclosed): reality outranks the
+    // declaration. This is the ONLY branch that consults it — an ABSENT
+    // AAI guard is the one state a declared decline can actually explain,
+    // so a genuinely armed hook (below) or a foreign one (further below)
+    // never reach this check and their verdicts are unaffected (Spec-AC-07).
+    const cfgPath = path.join(root, 'docs/ai/docs-audit.yaml');
+    const policy = readRefGuardPolicy(path.join(root, 'docs/ai'));
+    if (policy === 'declined') {
+      return cat('CAT-17', 'Git Ref Guard', 'DECLINED', `declined via ${cfgPath} (ref_guard: declined) — re-arm with: bash .aai/scripts/install-pre-commit-hook.sh --arm-ref-guard`);
+    }
     return cat('CAT-17', 'Git Ref Guard', 'WARN', installer
       ? `not armed (refs/heads/main writes are ambient; effective hooks path is ${hookPath}) — run bash .aai/scripts/install-pre-commit-hook.sh`
       : 'not armed and installer missing — run /aai-update');

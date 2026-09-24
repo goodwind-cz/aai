@@ -25,6 +25,17 @@
   (default all). Only the selected hook(s) are installed/uninstalled; a
   foreign file in an unselected slot never blocks the run (Spec-AC-01/02).
 
+.PARAMETER DeclineRefGuard
+  Remove an AAI-managed reference-transaction hook if present (refusing,
+  unmodified, a foreign one) and record `ref_guard: declined` in
+  docs/ai/docs-audit.yaml -- the same column-0 key the .sh twin writes, so
+  one config file serves a repo checked out on either platform (Spec-AC-05,
+  Amendment 1).
+
+.PARAMETER ArmRefGuard
+  (Re-)install the reference-transaction hook (same foreign-hook refusal as
+  a normal install) and record `ref_guard: armed`.
+
 .EXAMPLE
   .\.aai\scripts\install-pre-commit-hook.ps1
 
@@ -33,13 +44,18 @@
 
 .EXAMPLE
   .\.aai\scripts\install-pre-commit-hook.ps1 -Hooks index
+
+.EXAMPLE
+  .\.aai\scripts\install-pre-commit-hook.ps1 -DeclineRefGuard
 #>
 
 [CmdletBinding()]
 param(
   [switch]$Force,
   [switch]$Uninstall,
-  [string]$Hooks = 'all'
+  [string]$Hooks = 'all',
+  [switch]$DeclineRefGuard,
+  [switch]$ArmRefGuard
 )
 
 $ErrorActionPreference = 'Stop'
@@ -111,6 +127,60 @@ if (-not $reftxPath) {
 $hooksDir   = Split-Path -Parent $reftxPath
 $marker     = "# AAI:INDEX-AUTOGEN"
 $reftxMarker = "# AAI:REF-GUARD"
+# docs/ai/docs-audit.yaml -- the committed guard-policy surface (D2), the
+# SAME file and the SAME column-0 `ref_guard: <value>` key the .sh twin
+# reads/writes (Amendment 1: one config file must serve a repo checked out
+# on either platform). Read by lib/guard-config.mjs's readRefGuardPolicy
+# (the canonical JS reader); this script mirrors it with the identical
+# grammar, never a node import (check-vendored-script-deps.mjs).
+$configPath = Join-Path $repoRoot 'docs/ai/docs-audit.yaml'
+
+# $reftxBody -- moved up from the normal install flow (below) so the early
+# -DeclineRefGuard/-ArmRefGuard dispatch (also below) can install the SAME
+# body Enable-RefGuard needs, without a second copy of the heredoc.
+$reftxBody = @'
+#!/bin/sh
+# AAI:REF-GUARD -- refuses a refs/heads/main ref update unless AAI_GIT_WRITE=1.
+# Installed by .aai/scripts/install-pre-commit-hook.ps1 (or the .sh twin).
+# This is a git reference-transaction hook: it fires for EVERY ref update in
+# this repository, from any process, at any nesting depth, through any
+# subshell. See
+# docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
+
+aai_state="$1"
+
+if [ "$aai_state" != "prepared" ]; then
+  exit 0
+fi
+
+aai_guarded=0
+while read -r aai_old aai_new aai_ref; do
+  if [ "$aai_ref" = "refs/heads/main" ]; then
+    aai_guarded=1
+  fi
+done
+
+if [ "$aai_guarded" != "1" ]; then
+  exit 0
+fi
+
+if [ "$AAI_GIT_WRITE" = "1" ]; then
+  exit 0
+fi
+
+cat >&2 <<'AAI_REF_GUARD_MSG'
+AAI:REF-GUARD refused this refs/heads/main update.
+  Guard:  git reference-transaction hook, marker AAI:REF-GUARD.
+  Reason: a write to refs/heads/main must be a deliberate, narrow exception,
+          never an ambient default (agent-shell-can-write-the-shipping-repo).
+  Fix:    re-run this ONE command with AAI_GIT_WRITE=1 set. PowerShell has no
+          VAR=value command prefix, so scope it to a child process:
+            pwsh -NoProfile -Command '$env:AAI_GIT_WRITE=1; git commit ...'
+          From a POSIX shell on this machine:  AAI_GIT_WRITE=1 git commit ...
+  Uninstall this guard: pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall
+AAI_REF_GUARD_MSG
+exit 1
+'@
 
 # Test-EffectiveHook -- re-ask git where it would look, and prove the file THERE
 # is ours and runnable. This is the post-condition that makes the exit code
@@ -146,6 +216,149 @@ function Test-EffectiveHook {
   return $true
 }
 
+# Show-ForeignReftxRefusal -- the shared refusal text for a foreign
+# (non-AAI) file occupying the reference-transaction slot: ONE function, not
+# a second literal copy of the message. Mirrors the .sh twin's
+# foreign_reftx_refusal() and the reason it exists as a function at all --
+# a duplicate copy of a refusal string is exactly what broke TEST-612's
+# mutation target on the .sh twin the first time it was written (a recorded
+# --sed then hits whichever copy comes first and the row stops proving its
+# property). Called from BOTH the normal selection-aware foreign check below
+# and Enable-RefGuard.
+function Show-ForeignReftxRefusal {
+  Write-Error "$reftxPath already exists and is not AAI-managed. Pass -Force to overwrite."
+}
+
+# Read-RefGuardPolicy / Write-RefGuardPolicy -- the .ps1 twin of the .sh's
+# read_ref_guard_policy / write_ref_guard_policy (Spec-AC-05/06, moved into
+# this run's scope by Amendment 1): the IDENTICAL column-0 `ref_guard:
+# <value>` key and the IDENTICAL fail-CLOSED grammar, so one
+# docs/ai/docs-audit.yaml serves a repo checked out on either platform.
+# 'declined' is recognized ONLY as a literal column-0 `ref_guard: declined`
+# line; an absent file, an absent key, an indented/commented key, or any
+# other value all read as 'armed' -- never silently disarm a safeguard on a
+# typo (D3).
+function Read-RefGuardPolicy {
+  param([Parameter(Mandatory = $true)][string]$ConfigPath)
+  if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
+    return 'armed'
+  }
+  foreach ($line in (Get-Content -LiteralPath $ConfigPath)) {
+    if ($line -match '^ref_guard:\s*declined(\s|$)') {
+      return 'declined'
+    }
+  }
+  return 'armed'
+}
+
+# Write-RefGuardPolicy -- replace-or-append the column-0 `ref_guard: <value>`
+# line, creating the file with only this key when it is absent, disturbing
+# no other line. "Replace" is recognised ONLY via the same fail-CLOSED
+# column-0 pattern Read-RefGuardPolicy uses, so a stray indented/commented/
+# invalid line is never treated as the key to replace. Ends by reading the
+# value back through Read-RefGuardPolicy and refusing if it disagrees -- the
+# write is not trusted merely because it did not throw.
+function Write-RefGuardPolicy {
+  param(
+    [Parameter(Mandatory = $true)][string]$ConfigPath,
+    [Parameter(Mandatory = $true)][string]$Value
+  )
+  $dir = Split-Path -Parent $ConfigPath
+  New-Item -ItemType Directory -Force -Path $dir | Out-Null
+  $existingLines = @()
+  if (Test-Path -LiteralPath $ConfigPath -PathType Leaf) {
+    $existingLines = @(Get-Content -LiteralPath $ConfigPath)
+  }
+  $replaced = $false
+  $out = New-Object System.Collections.Generic.List[string]
+  foreach ($line in $existingLines) {
+    if ((-not $replaced) -and ($line -match '^ref_guard:\s*(armed|declined)(\s|$)')) {
+      $out.Add("ref_guard: $Value")
+      $replaced = $true
+    } else {
+      $out.Add($line)
+    }
+  }
+  if (-not $replaced) {
+    $out.Add("ref_guard: $Value")
+  }
+  Set-Content -LiteralPath $ConfigPath -Value $out
+  $verify = Read-RefGuardPolicy -ConfigPath $ConfigPath
+  if ($verify -ne $Value) {
+    Write-Error "Wrote ref_guard: $Value to $ConfigPath but reading it back gives $verify."
+    return $false
+  }
+  return $true
+}
+
+# Disable-RefGuard -- Spec-AC-05 (Amendment 1: .ps1 twin): remove an
+# AAI-managed ref-guard hook if present, refuse (unmodified) a foreign one,
+# and record ref_guard: declined.
+function Disable-RefGuard {
+  $reftxIsAai = $false
+  if (Test-Path -LiteralPath $reftxPath -PathType Leaf) {
+    $existing = Get-Content -LiteralPath $reftxPath -Raw
+    if ($existing -match [regex]::Escape($reftxMarker)) { $reftxIsAai = $true }
+  }
+  if ((Test-Path -LiteralPath $reftxPath -PathType Leaf) -and (-not $reftxIsAai)) {
+    Show-ForeignReftxRefusal
+    Write-Host "Refusing to remove a foreign hook -- -DeclineRefGuard only removes an AAI-managed guard."
+    return $false
+  }
+  if (Test-Path -LiteralPath $reftxPath -PathType Leaf) {
+    Remove-Item -LiteralPath $reftxPath
+    Write-Host "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $reftxPath"
+  }
+  if (-not (Write-RefGuardPolicy -ConfigPath $configPath -Value 'declined')) {
+    return $false
+  }
+  Write-Host "Declined the AAI reference-transaction guard. Recorded ref_guard: declined in $configPath"
+  Write-Host "Re-arm with: pwsh $repoRoot/.aai/scripts/install-pre-commit-hook.ps1 -ArmRefGuard"
+  return $true
+}
+
+# Enable-RefGuard -- Spec-AC-05 (Amendment 1: .ps1 twin): (re-)install the
+# ref-guard hook (same foreign-hook refusal as the normal write path) and
+# record ref_guard: armed.
+function Enable-RefGuard {
+  if ((Test-Path -LiteralPath $reftxPath -PathType Leaf) -and (-not $Force)) {
+    $existing = Get-Content -LiteralPath $reftxPath -Raw
+    if (-not ($existing -match [regex]::Escape($reftxMarker))) {
+      Show-ForeignReftxRefusal
+      return $false
+    }
+  }
+  Set-Content -Path $reftxPath -Value $reftxBody -NoNewline
+  if ($IsLinux -or $IsMacOS) {
+    & chmod +x $reftxPath | Out-Null
+  }
+  if (-not (Test-EffectiveHook -Name 'reference-transaction' -Marker $reftxMarker)) {
+    return $false
+  }
+  if (-not (Write-RefGuardPolicy -ConfigPath $configPath -Value 'armed')) {
+    return $false
+  }
+  Write-Host "Recorded ref_guard: armed in $configPath"
+  return $true
+}
+
+# -DeclineRefGuard / -ArmRefGuard are single-purpose actions on the ref-guard
+# hook alone: dispatched here (after path resolution, before the
+# -Hooks-selected install/uninstall flow below) and exit before reaching it
+# -- mirrors the .sh twin's dispatch ordering exactly.
+if ($DeclineRefGuard -and $ArmRefGuard) {
+  [Console]::Error.WriteLine("-DeclineRefGuard and -ArmRefGuard are contradictory.")
+  exit 2
+}
+if ($DeclineRefGuard) {
+  if (-not (Disable-RefGuard)) { exit 1 }
+  exit 0
+}
+if ($ArmRefGuard) {
+  if (-not (Enable-RefGuard)) { exit 1 }
+  exit 0
+}
+
 if ($Uninstall) {
   if ($wantIndex) {
     if ((Test-Path $hookPath) -and ((Get-Content $hookPath -Raw) -match [regex]::Escape($marker))) {
@@ -179,7 +392,7 @@ if ($wantIndex -and (Test-Path $hookPath) -and (-not $Force)) {
 if ($wantRefGuard -and (Test-Path $reftxPath) -and (-not $Force)) {
   $existingReftx = Get-Content $reftxPath -Raw
   if (-not ($existingReftx -match [regex]::Escape($reftxMarker))) {
-    Write-Error "$reftxPath already exists and is not AAI-managed. Pass -Force to overwrite."
+    Show-ForeignReftxRefusal
     $foreign = $true
   }
 }
@@ -371,50 +584,6 @@ if ($wantRefGuard -and (Test-Path $reftxPath) -and (-not $Force)) {
     $skipReftx = $true
   }
 }
-
-$reftxBody = @'
-#!/bin/sh
-# AAI:REF-GUARD -- refuses a refs/heads/main ref update unless AAI_GIT_WRITE=1.
-# Installed by .aai/scripts/install-pre-commit-hook.ps1 (or the .sh twin).
-# This is a git reference-transaction hook: it fires for EVERY ref update in
-# this repository, from any process, at any nesting depth, through any
-# subshell. See
-# docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
-
-aai_state="$1"
-
-if [ "$aai_state" != "prepared" ]; then
-  exit 0
-fi
-
-aai_guarded=0
-while read -r aai_old aai_new aai_ref; do
-  if [ "$aai_ref" = "refs/heads/main" ]; then
-    aai_guarded=1
-  fi
-done
-
-if [ "$aai_guarded" != "1" ]; then
-  exit 0
-fi
-
-if [ "$AAI_GIT_WRITE" = "1" ]; then
-  exit 0
-fi
-
-cat >&2 <<'AAI_REF_GUARD_MSG'
-AAI:REF-GUARD refused this refs/heads/main update.
-  Guard:  git reference-transaction hook, marker AAI:REF-GUARD.
-  Reason: a write to refs/heads/main must be a deliberate, narrow exception,
-          never an ambient default (agent-shell-can-write-the-shipping-repo).
-  Fix:    re-run this ONE command with AAI_GIT_WRITE=1 set. PowerShell has no
-          VAR=value command prefix, so scope it to a child process:
-            pwsh -NoProfile -Command '$env:AAI_GIT_WRITE=1; git commit ...'
-          From a POSIX shell on this machine:  AAI_GIT_WRITE=1 git commit ...
-  Uninstall this guard: pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall
-AAI_REF_GUARD_MSG
-exit 1
-'@
 
 if ($wantRefGuard) {
   if (-not $skipReftx) {

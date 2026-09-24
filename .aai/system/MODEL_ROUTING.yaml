@@ -18,20 +18,25 @@
 #   the single largest lever on autonomous-run cost. Binding the map here makes
 #   the choice deterministic and auditable instead of a per-tick LLM judgment.
 #
-# UPGRADING (NB-6, review-harness-universal-routing-20260913T002056Z) -- this
-# file is CORE-VENDORED (`.aai/system/PROFILES.yaml` `core:`), so `/aai-update`
-# OVERWRITES a consumer's copy with the shipped file, same as every other
-# core-listed file. A consumer with a hand-edited MODE A file (no `@<harness>`
-# sections) keeps byte-identical behaviour (Spec-AC-06) ONLY UNTIL the next
-# update replaces the file -- Mode A back-compat is a property of the CODE
-# reading an old-shaped file, not a guarantee that the file itself survives an
-# update. To keep a customization (a tier pin, a role override, a cost cap)
-# across updates, re-apply it as one or more `@<harness>` sections (Mode B,
-# see the key-form contract below) in THIS file after each update, rather than
-# relying on the update to preserve an unsuffixed edit. Preserving a
-# consumer's copy across `/aai-update` (an `aai-sync.sh` change) is tracked
-# separately (`fu-routing-file-overwritten-on-update`) and is NOT this note's
-# claim.
+# UPGRADING (NB-6, review-harness-universal-routing-20260913T002056Z; owner
+# decision 2026-09-24, spec-update-installs-ref-guard-undisclosed Amendment 1)
+# -- this file is CORE-VENDORED (`.aai/system/PROFILES.yaml` `core:`), so
+# `/aai-update` OVERWRITES a consumer's copy with the shipped file, same as
+# every other core-listed file, and this is INTENTIONAL: the table tracks a
+# moving external world (model retirements, new tiers, pricing) that a
+# consumer's own unsuffixed edit cannot track for them, so the update keeps
+# overwriting it rather than freezing it at whatever a consumer last edited.
+# A consumer with a hand-edited MODE A file (no `@<harness>` sections) keeps
+# byte-identical behaviour (Spec-AC-06) ONLY UNTIL the next update replaces
+# the file -- Mode A back-compat is a property of the CODE reading an
+# old-shaped file, not a guarantee that the file itself survives an update.
+# To keep a customization (a tier pin, a role override, a cost cap) across
+# updates, re-apply it as one or more `@<harness>` sections (Mode B, see the
+# key-form contract below) in THIS file after each update. A central process
+# that keeps this table current, plus a separate consumer-owned config the
+# update never overwrites, is its own intake
+# (`CHANGE-DRAFT-routing-tables-have-an-owner-and-a-seam`) -- NOT a change to
+# this file's overwrite behaviour, which stays exactly as described above.
 #
 # HARNESS-SCOPED KEY FORM (harness-universal-routing D1)
 # - `tiers:` / `roles:` / `validation_alternate:` may each carry an

@@ -34,7 +34,9 @@
 # (TEST-613, TEST-614), the --decline-ref-guard / --arm-ref-guard config
 # writer (TEST-615, TEST-616), and lib/guard-config.mjs's fail-CLOSED
 # readRefGuardPolicy (TEST-617; TEST-618's shell/JS conformance arm lives in
-# test-aai-hygiene-pack.sh).
+# test-aai-hygiene-pack.sh), .aai/SKILL_UPDATE.prompt.md step 4 naming both
+# hooks (TEST-621, Spec-AC-08), and the PowerShell twin of the decline/arm
+# surface (TEST-631..633, Spec-AC-05/06 moved into scope by Amendment 1).
 #
 # Exit codes:
 #   0  - All tests passed
@@ -50,6 +52,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 INSTALLER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
 INSTALLER_PS1="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
 DOCTOR="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
+UPDATE_PROMPT="$PROJECT_ROOT/.aai/SKILL_UPDATE.prompt.md"
 
 TMP_ROOT=""
 FAILED=0
@@ -1404,6 +1407,150 @@ test_617_policy_reader_fails_closed() {
   [[ $ok -eq 1 ]] && log_pass "TEST-617 readRefGuardPolicy returns armed for an absent file, an absent key, an indented key, a commented key and the invalid value 'decline' (naming it on stderr), and declined only for a column-0 ref_guard: declined"
 }
 
+# --- TEST-621 (Spec-AC-08) — SKILL_UPDATE step 4 names both hooks ----------
+test_621_update_prompt_names_both_hooks() {
+  local ok=1
+  [[ -f "$UPDATE_PROMPT" ]] || { log_fail "TEST-621: missing $UPDATE_PROMPT"; return; }
+
+  grep -qF "AAI:REF-GUARD" "$UPDATE_PROMPT" || { log_fail "TEST-621: step 4 does not name AAI:REF-GUARD"; ok=0; }
+  grep -qF "refs/heads/main" "$UPDATE_PROMPT" || { log_fail "TEST-621: step 4 does not name refs/heads/main"; ok=0; }
+  grep -qF "AAI_GIT_WRITE=1" "$UPDATE_PROMPT" || { log_fail "TEST-621: step 4 does not name AAI_GIT_WRITE=1"; ok=0; }
+  grep -qF -- "--decline-ref-guard" "$UPDATE_PROMPT" || { log_fail "TEST-621: step 4 does not name the --decline-ref-guard command"; ok=0; }
+
+  # fact 4: the inaccurate contract is the sentence scoping the installer's
+  # safety property to the pre-commit hook alone -- it must be gone, replaced
+  # by wording that covers both hooks.
+  if grep -qF "refuses to overwrite a foreign pre-commit hook" "$UPDATE_PROMPT"; then
+    log_fail "TEST-621: step 4 still carries the pre-commit-only safety sentence verbatim"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-621 SKILL_UPDATE step 4 names AAI:REF-GUARD, refs/heads/main, AAI_GIT_WRITE=1 and --decline-ref-guard, and no longer states the pre-commit-only safety sentence" \
+    || log_fail "TEST-621 SKILL_UPDATE step 4 names both hooks"
+}
+
+# --- TEST-631 (Spec-AC-05, Amendment 1) — .ps1 declares the decline/arm
+# surface and dispatches it before the -Hooks flow (static parse, mirroring
+# TEST-608/624/627's discipline: the Windows CI leg is the only real
+# behavioural check on this twin; this suite verified the SAME assertions
+# behaviourally via a local pwsh 7.6.3 run, per the TDD run's own report). --
+test_631_ps1_decline_arm_params_static() {
+  if [[ ! -f "$INSTALLER_PS1" ]]; then
+    log_fail "TEST-631: $INSTALLER_PS1 not found"
+    return
+  fi
+  local ok=1
+
+  grep -qF '[switch]$DeclineRefGuard' "$INSTALLER_PS1" \
+    || { log_fail "TEST-631: .ps1 does not declare a -DeclineRefGuard switch"; ok=0; }
+  grep -qF '[switch]$ArmRefGuard' "$INSTALLER_PS1" \
+    || { log_fail "TEST-631: .ps1 does not declare a -ArmRefGuard switch"; ok=0; }
+
+  # The contradiction refusal exits 2, matching the .sh twin's closed-set
+  # discipline ([Console]::Error, not Write-Error, per the known
+  # $ErrorActionPreference='Stop' trap -- a specific exit code needs the
+  # direct stderr write).
+  grep -qE '\$DeclineRefGuard -and \$ArmRefGuard' "$INSTALLER_PS1" \
+    || { log_fail "TEST-631: .ps1 has no -DeclineRefGuard/-ArmRefGuard contradiction check"; ok=0; }
+  grep -qF 'contradictory' "$INSTALLER_PS1" \
+    || { log_fail "TEST-631: .ps1 contradiction check does not name it as such"; ok=0; }
+
+  # Both dispatch arms call the functions that do the real work, and both
+  # are pinned to the CODE (an `if` guarding the call), not merely to a
+  # mention of the flag somewhere in prose.
+  grep -qE 'if \(\$DeclineRefGuard\)' "$INSTALLER_PS1" \
+    || { log_fail "TEST-631: .ps1 has no if (\$DeclineRefGuard) dispatch arm"; ok=0; }
+  grep -qF 'Disable-RefGuard' "$INSTALLER_PS1" \
+    || { log_fail "TEST-631: .ps1 does not call Disable-RefGuard"; ok=0; }
+  grep -qE 'if \(\$ArmRefGuard\)' "$INSTALLER_PS1" \
+    || { log_fail "TEST-631: .ps1 has no if (\$ArmRefGuard) dispatch arm"; ok=0; }
+  grep -qF 'Enable-RefGuard' "$INSTALLER_PS1" \
+    || { log_fail "TEST-631: .ps1 does not call Enable-RefGuard"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-631 .ps1 declares -DeclineRefGuard/-ArmRefGuard, refuses the contradiction (exit 2), and dispatches to Disable-RefGuard/Enable-RefGuard before the -Hooks flow" \
+    || log_fail "TEST-631 .ps1 decline/arm params"
+}
+
+# --- TEST-632 (Spec-AC-06, Amendment 1) — .ps1's reader fails CLOSED over
+# the SAME key the .sh twin reads/writes (static parse) --------------------
+test_632_ps1_policy_reader_fails_closed_static() {
+  if [[ ! -f "$INSTALLER_PS1" ]]; then
+    log_fail "TEST-632: $INSTALLER_PS1 not found"
+    return
+  fi
+  local ok=1
+
+  # The default return, reached for an absent file AND falls through for
+  # every non-matching line, must be 'armed' -- pinned on the actual
+  # function body, not a substring anywhere in the file.
+  local reader_body
+  reader_body="$(awk '/^function Read-RefGuardPolicy \{$/{p=1} p{print} p && /^}$/{exit}' "$INSTALLER_PS1")"
+  [[ -n "$reader_body" ]] || { log_fail "TEST-632: could not extract the Read-RefGuardPolicy function body"; ok=0; }
+  grep -qF "return 'armed'" <<<"$reader_body" || { log_fail "TEST-632: Read-RefGuardPolicy's absent-file arm does not return 'armed'"; ok=0; }
+  # 'declined' is matched ONLY via a column-0-anchored regex against the
+  # LITERAL value 'declined' -- an unanchored or substring match would read
+  # an indented/commented line as declined, the exact D3 inversion this row
+  # guards.
+  grep -qE -- "-match '\^ref_guard:.*declined" <<<"$reader_body" \
+    || { log_fail "TEST-632: Read-RefGuardPolicy does not column-0-anchor the 'declined' match"; ok=0; }
+  # The LAST line reached (after the loop, for every non-'declined' line)
+  # must default to 'armed', not 'declined' -- pins the fail-CLOSED
+  # direction itself, not just the two literals' presence.
+  local reader_tail
+  reader_tail="$(printf '%s\n' "$reader_body" | tail -3)"
+  grep -qF "return 'armed'" <<<"$reader_tail" \
+    || { log_fail "TEST-632: Read-RefGuardPolicy's fall-through (after the loop) does not default to 'armed': $reader_tail"; ok=0; }
+
+  # The IDENTICAL key: both twins must spell the same column-0 literal, so
+  # one docs/ai/docs-audit.yaml serves a repo checked out on either
+  # platform (Amendment 1's own wording) -- checked by grepping the SAME
+  # literal out of BOTH scripts, not asserted once and trusted for both.
+  grep -qF 'ref_guard: $Value' "$INSTALLER_PS1" \
+    || { log_fail "TEST-632: .ps1's writer does not spell the key as 'ref_guard: \$Value'"; ok=0; }
+  grep -qF "printf 'ref_guard: %s\\n'" "$INSTALLER" \
+    || { log_fail "TEST-632: .sh's writer no longer spells the key the .ps1 twin mirrors (cross-twin key drift)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-632 .ps1's Read-RefGuardPolicy defaults to 'armed' (absent file and fall-through alike), recognizes 'declined' only via a column-0-anchored match, and both twins spell the identical ref_guard key" \
+    || log_fail "TEST-632 .ps1 policy reader fails closed"
+}
+
+# --- TEST-633 (Amendment 1 hazard) — the foreign-reftx refusal text lives
+# in exactly ONE place in the .ps1, never a second literal copy a recorded
+# mutation could miss (the fu-duplicate-message-collides-mutation class) ---
+test_633_ps1_foreign_refusal_shared_helper() {
+  if [[ ! -f "$INSTALLER_PS1" ]]; then
+    log_fail "TEST-633: $INSTALLER_PS1 not found"
+    return
+  fi
+  local ok=1
+
+  grep -qF 'function Show-ForeignReftxRefusal' "$INSTALLER_PS1" \
+    || { log_fail "TEST-633: .ps1 has no Show-ForeignReftxRefusal function"; ok=0; }
+
+  # Exactly one literal copy of the $reftxPath refusal sentence -- inside
+  # the shared function itself.
+  local n
+  n="$(/usr/bin/grep -cF '$reftxPath already exists and is not AAI-managed' "$INSTALLER_PS1")"
+  if [[ "$n" != "1" ]]; then
+    log_fail "TEST-633: .ps1 carries $n literal copies of the reftx refusal sentence (want exactly 1, in the shared function)"
+    ok=0
+  fi
+
+  # The shared function is CALLED from at least two sites -- the normal
+  # selection-aware write-path check AND the decline/arm surface -- proving
+  # it is actually shared, not merely defined and unused from one call site.
+  local calls
+  calls="$(/usr/bin/grep -cF 'Show-ForeignReftxRefusal' "$INSTALLER_PS1")"
+  # 1 definition + >=2 call sites.
+  if [[ "$calls" -lt 3 ]]; then
+    log_fail "TEST-633: Show-ForeignReftxRefusal appears $calls times total (want >=3: 1 definition + >=2 call sites)"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-633 the foreign-reftx refusal text lives in exactly one place (Show-ForeignReftxRefusal), called from >=2 sites" \
+    || log_fail "TEST-633 .ps1 foreign-refusal shared helper"
+}
+
 main() {
   check_deps
   HOOKS_DIGEST_BEFORE="$(manifest_of "$PROJECT_ROOT/.git/hooks")"
@@ -1465,6 +1612,10 @@ main() {
   test_615_decline_writes_one_line
   test_616_decline_respects_a_foreign_hook
   test_617_policy_reader_fails_closed
+  test_621_update_prompt_names_both_hooks
+  test_631_ps1_decline_arm_params_static
+  test_632_ps1_policy_reader_fails_closed_static
+  test_633_ps1_foreign_refusal_shared_helper
   test_311_hooks_dir_unchanged
 
   echo ""
