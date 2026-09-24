@@ -28,11 +28,41 @@ set -euo pipefail
 FORCE=0
 UNINSTALL=0
 PRINT=0
-for arg in "$@"; do
+PRINT_HOOK=""
+HOOKS_ARG="all"
+
+# Index-based (not `for arg in "$@"`) so --hooks and an optional --print
+# argument can each consume the NEXT token — Spec-AC-01/Spec-AC-03.
+_ARGV=("$@")
+_ARGC=${#_ARGV[@]}
+_i=0
+while [[ $_i -lt $_ARGC ]]; do
+  arg="${_ARGV[$_i]}"
   case "$arg" in
     --force) FORCE=1 ;;
     --uninstall) UNINSTALL=1 ;;
-    --print) PRINT=1 ;;
+    --print)
+      PRINT=1
+      # --print's hook argument is OPTIONAL: only a literal 'index' or
+      # 'ref-guard' immediately after it is consumed, so `--print --force`
+      # still parses --force as its own flag (bare --print stays valid).
+      if [[ $((_i + 1)) -lt $_ARGC ]]; then
+        case "${_ARGV[$((_i + 1))]}" in
+          index|ref-guard)
+            PRINT_HOOK="${_ARGV[$((_i + 1))]}"
+            _i=$((_i + 1))
+            ;;
+        esac
+      fi
+      ;;
+    --hooks)
+      _i=$((_i + 1))
+      if [[ $_i -ge $_ARGC ]]; then
+        echo "ERROR: --hooks requires a value (closed set: index, ref-guard, all)" >&2
+        exit 2
+      fi
+      HOOKS_ARG="${_ARGV[$_i]}"
+      ;;
     -h|--help)
       grep '^#' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -42,14 +72,48 @@ for arg in "$@"; do
       exit 2
       ;;
   esac
+  _i=$((_i + 1))
 done
 
-# --print: emit the AAI:INDEX-AUTOGEN pre-commit hook body to stdout so a
-# foreign-hook owner can hand-merge it, without touching any repo state.
-# Extracted from this script's own heredoc (not a second copy) so it can
-# never drift from what --force would actually install (PR #302 Copilot).
+# --hooks <csv> over the closed set index/ref-guard/all (D6), default all —
+# resolved once into the two booleans every selection-aware guard below
+# consults. An unknown token exits 2 naming the closed set and writes
+# nothing (checked before any repo/hook state is touched).
+WANT_INDEX=0
+WANT_REFGUARD=0
+_hooks_csv="$HOOKS_ARG"
+while [[ -n "$_hooks_csv" ]]; do
+  _hooks_tok="${_hooks_csv%%,*}"
+  case "$_hooks_csv" in
+    *,*) _hooks_csv="${_hooks_csv#*,}" ;;
+    *) _hooks_csv="" ;;
+  esac
+  case "$_hooks_tok" in
+    index) WANT_INDEX=1 ;;
+    ref-guard) WANT_REFGUARD=1 ;;
+    all) WANT_INDEX=1; WANT_REFGUARD=1 ;;
+    *)
+      echo "ERROR: unknown --hooks value: '$_hooks_tok' (closed set: index, ref-guard, all)" >&2
+      exit 2
+      ;;
+  esac
+done
+
+# --print [index|ref-guard]: emit a hook body to stdout so a foreign-hook
+# owner can hand-merge it, without touching any repo state. Bare --print (or
+# --print index) keeps emitting the AAI:INDEX-AUTOGEN body (TEST-314 muscle
+# memory, D5); --print ref-guard emits the AAI:REF-GUARD body. Both are
+# extracted from this script's own heredocs (never a second copy) so neither
+# can drift from what --hooks would actually install (PR #302 Copilot; D5).
 if [[ "$PRINT" == 1 ]]; then
-  awk '/^cat > "\$HOOK_PATH" <<.HOOK.$/{p=1; next} /^HOOK$/{if(p){exit}} p' "$0"
+  case "$PRINT_HOOK" in
+    ref-guard)
+      awk '/^cat > "\$REFTX_PATH" <<.REFTXHOOK.$/{p=1; next} /^REFTXHOOK$/{if(p){exit}} p' "$0"
+      ;;
+    *)
+      awk '/^cat > "\$HOOK_PATH" <<.HOOK.$/{p=1; next} /^HOOK$/{if(p){exit}} p' "$0"
+      ;;
+  esac
   exit 0
 fi
 
@@ -134,31 +198,39 @@ attest_effective() {
 }
 
 if [[ "$UNINSTALL" == 1 ]]; then
-  if [[ -f "$HOOK_PATH" ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
-    rm "$HOOK_PATH"
-    echo "Uninstalled AAI pre-commit hook from $HOOK_PATH"
-  else
-    echo "No AAI pre-commit hook found (or hook is not AAI-managed). No action taken."
+  if [[ "$WANT_INDEX" == 1 ]]; then  # AC-01 uninstall selection: index
+    if [[ -f "$HOOK_PATH" ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
+      rm "$HOOK_PATH"
+      echo "Uninstalled AAI pre-commit hook from $HOOK_PATH"
+    else
+      echo "No AAI pre-commit hook found (or hook is not AAI-managed). No action taken."
+    fi
   fi
-  if [[ -f "$REFTX_PATH" ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
-    rm "$REFTX_PATH"
-    echo "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $REFTX_PATH"
-  else
-    echo "No AAI reference-transaction hook found (or hook is not AAI-managed). No action taken."
+  if [[ "$WANT_REFGUARD" == 1 ]]; then  # AC-01 uninstall selection: ref-guard
+    if [[ -f "$REFTX_PATH" ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
+      rm "$REFTX_PATH"
+      echo "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $REFTX_PATH"
+    else
+      echo "No AAI reference-transaction hook found (or hook is not AAI-managed). No action taken."
+    fi
   fi
   exit 0
 fi
 
+# Selection-aware (Spec-AC-02): a foreign file in a slot this run was NOT
+# asked to touch is not a reason to refuse — only a SELECTED slot's foreign
+# file blocks the run, and it blocks the WHOLE run (both slots stay
+# untouched), so the selected set is never partially installed.
 FOREIGN=0
-if [[ -f "$HOOK_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$MARKER" "$HOOK_PATH"; then
+if [[ "$WANT_INDEX" == 1 && -f "$HOOK_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$MARKER" "$HOOK_PATH"; then  # AC-02 foreign check: index
   echo "ERROR: $HOOK_PATH already exists and is not AAI-managed." >&2
   echo "       Pass --force to overwrite, or merge the snippet manually:" >&2
   echo "       $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print" >&2
   FOREIGN=1
 fi
-if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
+if [[ "$WANT_REFGUARD" == 1 && -f "$REFTX_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then  # AC-02 foreign check: ref-guard
   echo "ERROR: $REFTX_PATH already exists and is not AAI-managed." >&2
-  echo "       Pass --force to overwrite, or merge the AAI:REF-GUARD body manually." >&2
+  echo "       Pass --force to overwrite, or merge the AAI:REF-GUARD body with: $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print ref-guard" >&2
   FOREIGN=1
 fi
 if [[ "$FOREIGN" == 1 ]]; then
@@ -175,6 +247,7 @@ mkdir -p "$HOOKS_DIR" || {
   exit 1
 }
 
+if [[ "$WANT_INDEX" == 1 ]]; then  # AC-01 write selection: index
 if [[ -f "$HOOK_PATH" && "$FORCE" != 1 ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
   echo "AAI pre-commit hook already installed at $HOOK_PATH. No action taken."
 else
@@ -337,7 +410,9 @@ chmod +x "$HOOK_PATH"
 echo "Installed AAI pre-commit hook at $HOOK_PATH"
 echo "Effect: on every commit that touches docs/, regenerate docs/INDEX.md and stage it."
 fi
+fi  # AC-01 write selection: index (close)
 
+if [[ "$WANT_REFGUARD" == 1 ]]; then  # AC-01 write selection: ref-guard
 if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
   echo "AAI reference-transaction hook already installed at $REFTX_PATH. No action taken."
 else
@@ -386,14 +461,22 @@ chmod +x "$REFTX_PATH"
 echo "Installed AAI reference-transaction hook (AAI:REF-GUARD) at $REFTX_PATH"
 echo "Effect: a refs/heads/main update is refused unless AAI_GIT_WRITE=1 is set on that command."
 fi
+fi  # AC-01 write selection: ref-guard (close)
 
 # Post-condition (PR #304 Codex P1): exit 0 must mean "git will run these",
 # never "a write succeeded somewhere". /aai-update reads this exit code as
 # proof of protection, so a hook that landed off the effective path — or that
-# lost its executable bit — has to end this script non-zero.
+# lost its executable bit — has to end this script non-zero. Selection-aware
+# (Spec-AC-02): attestation covers exactly the SELECTED set, so exit 0 keeps
+# meaning "git will run what I installed" — an unselected hook this run never
+# touched is not attested.
 ATTEST_OK=1
-attest_effective pre-commit "$MARKER" || ATTEST_OK=0
-attest_effective reference-transaction "$REFTX_MARKER" || ATTEST_OK=0
+if [[ "$WANT_INDEX" == 1 ]]; then  # AC-02 attestation selection: index
+  attest_effective pre-commit "$MARKER" || ATTEST_OK=0
+fi
+if [[ "$WANT_REFGUARD" == 1 ]]; then  # AC-02 attestation selection: ref-guard
+  attest_effective reference-transaction "$REFTX_MARKER" || ATTEST_OK=0
+fi
 if [[ "$ATTEST_OK" != 1 ]]; then
   echo "ERROR: installation did NOT leave an active hook at the path git resolves." >&2
   echo "       Check 'git config core.hooksPath' and 'git rev-parse --git-path hooks/reference-transaction'." >&2

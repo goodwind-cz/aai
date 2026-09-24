@@ -25,6 +25,13 @@
 # Covers TEST-301..313 from
 # docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
 #
+# Covers TEST-606..612 (Spec-AC-01/02/03) from
+# docs/specs/SPEC-DRAFT-spec-update-installs-ref-guard-undisclosed.md: the
+# installer's --hooks <csv> per-hook selection (index/ref-guard/all, TEST-606,
+# TEST-607, TEST-608 .ps1 static twin), selection-scoped foreign-hook checks
+# and attestation (TEST-609, TEST-610), and the --print <hook> manual-merge
+# path (TEST-611, TEST-612).
+#
 # Exit codes:
 #   0  - All tests passed
 #   1  - Tests failed
@@ -1012,14 +1019,257 @@ test_316_ps1_ascii_outside_here_strings() {
   log_pass "TEST-316 .ps1 carries no non-ASCII outside its here-strings (5.1 code-page safe)"
 }
 
+# --- TEST-606 (Spec-AC-01) — --hooks <csv> selection ------------------------
+test_606_hooks_selection() {
+  local ok=1
+
+  # --hooks index installs only the index hook
+  local d1; d1="$(new_repo t606idx)"
+  install_guard "$d1" --hooks index >/dev/null 2>&1
+  [[ -f "$d1/.git/hooks/pre-commit" ]] || { log_fail "TEST-606: --hooks index did not install the pre-commit hook"; ok=0; }
+  [[ -f "$d1/.git/hooks/reference-transaction" ]] && { log_fail "TEST-606: --hooks index also installed the reference-transaction hook"; ok=0; }
+
+  # --hooks ref-guard installs only the guard
+  local d2; d2="$(new_repo t606rg)"
+  install_guard "$d2" --hooks ref-guard >/dev/null 2>&1
+  [[ -f "$d2/.git/hooks/reference-transaction" ]] || { log_fail "TEST-606: --hooks ref-guard did not install the reference-transaction hook"; ok=0; }
+  [[ -f "$d2/.git/hooks/pre-commit" ]] && { log_fail "TEST-606: --hooks ref-guard also installed the pre-commit hook"; ok=0; }
+
+  # no flag installs both
+  local d3; d3="$(new_repo t606both)"
+  install_guard "$d3" >/dev/null 2>&1
+  [[ -f "$d3/.git/hooks/pre-commit" ]] || { log_fail "TEST-606: no-flag run did not install pre-commit"; ok=0; }
+  [[ -f "$d3/.git/hooks/reference-transaction" ]] || { log_fail "TEST-606: no-flag run did not install reference-transaction"; ok=0; }
+
+  # --hooks all installs both
+  local d4; d4="$(new_repo t606all)"
+  install_guard "$d4" --hooks all >/dev/null 2>&1
+  [[ -f "$d4/.git/hooks/pre-commit" ]] || { log_fail "TEST-606: --hooks all did not install pre-commit"; ok=0; }
+  [[ -f "$d4/.git/hooks/reference-transaction" ]] || { log_fail "TEST-606: --hooks all did not install reference-transaction"; ok=0; }
+
+  # an unknown token exits 2 naming the closed set, and writes nothing
+  local d5; d5="$(new_repo t606bad)"
+  local out5 rc5
+  out5="$(install_guard "$d5" --hooks bogus 2>&1)"; rc5=$?
+  if [[ $rc5 -ne 2 ]]; then
+    log_fail "TEST-606: --hooks bogus expected exit 2, got $rc5"; ok=0
+  fi
+  if [[ "$out5" != *"index"* || "$out5" != *"ref-guard"* || "$out5" != *"all"* ]]; then
+    log_fail "TEST-606: --hooks bogus refusal does not name the closed set (index, ref-guard, all): $out5"; ok=0
+  fi
+  [[ -f "$d5/.git/hooks/pre-commit" ]] && { log_fail "TEST-606: --hooks bogus wrote a pre-commit hook despite exiting 2"; ok=0; }
+  [[ -f "$d5/.git/hooks/reference-transaction" ]] && { log_fail "TEST-606: --hooks bogus wrote a reference-transaction hook despite exiting 2"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-606 --hooks index/ref-guard/all/no-flag select the right hook(s); an unknown token exits 2 naming the closed set and writes nothing"
+}
+
+# --- TEST-607 (Spec-AC-01) — --uninstall --hooks <csv> selection ------------
+test_607_uninstall_selection() {
+  local ok=1
+  local d; d="$(new_repo t607)"
+  install_guard "$d" >/dev/null 2>&1
+  require_guard_installed "TEST-607" "$d" || return
+  [[ -f "$d/.git/hooks/pre-commit" ]] || { log_fail "TEST-607: setup precondition failed — pre-commit hook missing"; return; }
+  local pc_before; pc_before="$(cat "$d/.git/hooks/pre-commit")"
+
+  install_guard "$d" --uninstall --hooks ref-guard >/dev/null 2>&1
+  [[ -f "$d/.git/hooks/reference-transaction" ]] && { log_fail "TEST-607: --uninstall --hooks ref-guard left the guard installed"; ok=0; }
+  [[ -f "$d/.git/hooks/pre-commit" ]] || { log_fail "TEST-607: --uninstall --hooks ref-guard removed the pre-commit hook too"; ok=0; }
+  local pc_after; pc_after="$(cat "$d/.git/hooks/pre-commit" 2>/dev/null)"
+  if [[ "$pc_before" != "$pc_after" ]]; then
+    log_fail "TEST-607: pre-commit hook bytes changed by a guard-only uninstall"; ok=0
+  fi
+
+  # --uninstall with no selection still removes both
+  local d2; d2="$(new_repo t607both)"
+  install_guard "$d2" >/dev/null 2>&1
+  require_guard_installed "TEST-607 (both)" "$d2" || return
+  install_guard "$d2" --uninstall >/dev/null 2>&1
+  [[ -f "$d2/.git/hooks/pre-commit" ]] && { log_fail "TEST-607: unselected --uninstall left the pre-commit hook"; ok=0; }
+  [[ -f "$d2/.git/hooks/reference-transaction" ]] && { log_fail "TEST-607: unselected --uninstall left the reference-transaction hook"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-607 --uninstall --hooks ref-guard removes only the guard and leaves pre-commit byte-identical; an unselected --uninstall still removes both"
+}
+
+# --- TEST-608 (Spec-AC-01) — .ps1 twin, static (mirrors TEST-309) -----------
+test_608_ps1_hooks_static() {
+  if [[ ! -f "$INSTALLER_PS1" ]]; then
+    log_fail "TEST-608: $INSTALLER_PS1 not found"
+    return
+  fi
+  local ok=1
+
+  grep -qE "\\[string\\]\\\$Hooks[[:space:]]*=[[:space:]]*'all'" "$INSTALLER_PS1" \
+    || { log_fail "TEST-608: .ps1 does not declare a -Hooks parameter defaulting to 'all'"; ok=0; }
+  grep -qF "'index'" "$INSTALLER_PS1" || { log_fail "TEST-608: .ps1 -Hooks validation does not name 'index'"; ok=0; }
+  grep -qF "'ref-guard'" "$INSTALLER_PS1" || { log_fail "TEST-608: .ps1 -Hooks validation does not name 'ref-guard'"; ok=0; }
+  grep -qF '$wantIndex' "$INSTALLER_PS1" || { log_fail "TEST-608: .ps1 has no \$wantIndex selection variable"; ok=0; }
+  grep -qF '$wantRefGuard' "$INSTALLER_PS1" || { log_fail "TEST-608: .ps1 has no \$wantRefGuard selection variable"; ok=0; }
+
+  # Both write blocks must be guarded by the selection variables — pinned on
+  # the CODE (the `if ($want...)` wrapping the Set-Content call), mirroring
+  # TEST-309's discipline of asserting on code shape, not merely on the file
+  # mentioning the words somewhere.
+  grep -qE 'if \(\$wantIndex\)' "$INSTALLER_PS1" \
+    || { log_fail "TEST-608: .ps1 pre-commit write block is not guarded by \$wantIndex"; ok=0; }
+  grep -qE 'if \(\$wantRefGuard\)' "$INSTALLER_PS1" \
+    || { log_fail "TEST-608: .ps1 reference-transaction write block is not guarded by \$wantRefGuard"; ok=0; }
+  grep -qF 'Set-Content -Path $hookPath' "$INSTALLER_PS1" \
+    || { log_fail "TEST-608: .ps1 no longer writes the pre-commit hook via Set-Content -Path \$hookPath"; ok=0; }
+  grep -qF 'Set-Content -Path $reftxPath' "$INSTALLER_PS1" \
+    || { log_fail "TEST-608: .ps1 no longer writes the reference-transaction hook via Set-Content -Path \$reftxPath"; ok=0; }
+
+  # An unrecognised -Hooks token must exit 2 naming the closed set.
+  grep -qF 'closed set: index, ref-guard, all' "$INSTALLER_PS1" \
+    || { log_fail "TEST-608: .ps1 unknown -Hooks value message does not name the closed set"; ok=0; }
+  grep -qF 'exit 2' "$INSTALLER_PS1" \
+    || { log_fail "TEST-608: .ps1 has no exit 2 path for an unrecognised -Hooks token"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-608 .ps1 declares -Hooks defaulting to 'all', validates 'index'/'ref-guard'/'all' into \$wantIndex/\$wantRefGuard naming the closed set on a miss (exit 2), and both write blocks are guarded by those selection variables"
+}
+
+# --- TEST-609 (Spec-AC-02) — foreign file in an UNSELECTED slot -------------
+test_609_unselected_foreign_slot() {
+  local ok=1
+  local d; d="$(new_repo t609)"
+  mkdir -p "$d/.git/hooks"
+  printf '#!/bin/sh\necho foreign-reftx\n' > "$d/.git/hooks/reference-transaction"
+  local foreign_before; foreign_before="$(cat "$d/.git/hooks/reference-transaction")"
+
+  local out rc
+  out="$(install_guard "$d" --hooks index 2>&1)"; rc=$?
+  if [[ $rc -ne 0 ]]; then
+    log_fail "TEST-609: --hooks index with a foreign guard slot expected exit 0, got $rc: $out"
+    ok=0
+  fi
+  [[ -f "$d/.git/hooks/pre-commit" ]] || { log_fail "TEST-609: --hooks index did not install pre-commit despite the unselected foreign slot"; ok=0; }
+  local foreign_after; foreign_after="$(cat "$d/.git/hooks/reference-transaction" 2>/dev/null)"
+  if [[ "$foreign_before" != "$foreign_after" ]]; then
+    log_fail "TEST-609: the unselected foreign reference-transaction file was modified"; ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-609 a foreign file in an UNSELECTED slot does not stop --hooks index from installing and exiting 0, and the foreign file is byte-identical afterward"
+}
+
+# --- TEST-610 (Spec-AC-02) — foreign file in a SELECTED slot ----------------
+test_610_selected_foreign_slot_writes_nothing() {
+  local ok=1
+  local d; d="$(new_repo t610)"
+  mkdir -p "$d/.git/hooks"
+  printf '#!/bin/sh\necho foreign-reftx\n' > "$d/.git/hooks/reference-transaction"
+  local foreign_before; foreign_before="$(cat "$d/.git/hooks/reference-transaction")"
+
+  local out rc
+  out="$(install_guard "$d" --hooks all 2>&1)"; rc=$?
+  if [[ $rc -eq 0 ]]; then
+    log_fail "TEST-610: a foreign file in a SELECTED slot expected non-zero, got 0: $out"; ok=0
+  fi
+  [[ -f "$d/.git/hooks/pre-commit" ]] && { log_fail "TEST-610: a refused install still wrote the pre-commit hook (must be atomic across the selected set)"; ok=0; }
+  local foreign_after; foreign_after="$(cat "$d/.git/hooks/reference-transaction" 2>/dev/null)"
+  if [[ "$foreign_before" != "$foreign_after" ]]; then
+    log_fail "TEST-610: the SELECTED foreign reference-transaction file was modified"; ok=0
+  fi
+
+  # Attestation covers exactly the selected set: an index-only install must
+  # succeed even though no reference-transaction hook exists anywhere in this
+  # SECOND, clean fixture — if attestation were not scoped to the selection,
+  # it would try (and fail) to attest an absent reference-transaction hook.
+  local d2; d2="$(new_repo t610b)"
+  local out2 rc2
+  out2="$(install_guard "$d2" --hooks index 2>&1)"; rc2=$?
+  if [[ $rc2 -ne 0 ]]; then
+    log_fail "TEST-610: --hooks index on a clean fixture expected exit 0 (attestation must not cover the unselected reference-transaction hook), got $rc2: $out2"
+    ok=0
+  fi
+  [[ -f "$d2/.git/hooks/reference-transaction" ]] && { log_fail "TEST-610: --hooks index on a clean fixture unexpectedly installed the reference-transaction hook"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-610 a foreign file in a SELECTED slot exits non-zero and leaves both slots byte-identical to their pre-run state; an index-only install on a hookless fixture exits 0, proving attestation covers exactly the selected set"
+}
+
+# --- TEST-611 (Spec-AC-03) — --print <hook> emits the right body -----------
+test_611_print_ref_guard_body() {
+  local ok=1
+  local d; d="$(new_repo t611)"
+  install_guard "$d" >/dev/null 2>&1
+  require_guard_installed "TEST-611" "$d" || return
+
+  local out rc
+  out="$(bash "$INSTALLER" --print ref-guard 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-611: --print ref-guard expected exit 0, got $rc"; ok=0; }
+  local installed; installed="$(cat "$d/.git/hooks/reference-transaction")"
+  if [[ "$out" != "$installed" ]]; then
+    log_fail "TEST-611: --print ref-guard is not byte-identical to the installed reference-transaction hook"
+    ok=0
+  fi
+  grep -qF "AAI:REF-GUARD" <<<"$out" || { log_fail "TEST-611: --print ref-guard output does not carry the AAI:REF-GUARD marker: $out"; ok=0; }
+
+  local out_index rc_index
+  out_index="$(bash "$INSTALLER" --print index 2>&1)"; rc_index=$?
+  [[ $rc_index -eq 0 ]] || { log_fail "TEST-611: --print index expected exit 0, got $rc_index"; ok=0; }
+  grep -qF "AAI:INDEX-AUTOGEN" <<<"$out_index" || { log_fail "TEST-611: --print index does not carry the AAI:INDEX-AUTOGEN marker"; ok=0; }
+
+  local out_bare rc_bare
+  out_bare="$(bash "$INSTALLER" --print 2>&1)"; rc_bare=$?
+  [[ $rc_bare -eq 0 ]] || { log_fail "TEST-611: bare --print expected exit 0, got $rc_bare"; ok=0; }
+  if [[ "$out_bare" != "$out_index" ]]; then
+    log_fail "TEST-611: bare --print does not match --print index byte-for-byte"
+    ok=0
+  fi
+
+  # None of the three writes anything.
+  local d2; d2="$(new_repo t611w)"
+  (cd "$d2" && bash "$INSTALLER" --print ref-guard >/dev/null 2>&1)
+  (cd "$d2" && bash "$INSTALLER" --print index >/dev/null 2>&1)
+  (cd "$d2" && bash "$INSTALLER" --print >/dev/null 2>&1)
+  [[ -f "$d2/.git/hooks/pre-commit" ]] && { log_fail "TEST-611: --print installed a pre-commit hook (must be read-only)"; ok=0; }
+  [[ -f "$d2/.git/hooks/reference-transaction" ]] && { log_fail "TEST-611: --print installed a reference-transaction hook (must be read-only)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-611 --print ref-guard is byte-identical to the installed AAI:REF-GUARD hook; --print index and bare --print emit the index body; none of the three writes anything"
+}
+
+# --- TEST-612 (Spec-AC-03) — the foreign refusal names a REAL command ------
+test_612_foreign_reftx_names_a_real_command() {
+  local ok=1
+  local d; d="$(new_repo t612)"
+  mkdir -p "$d/.git/hooks"
+  printf '#!/bin/sh\necho foreign-reftx\n' > "$d/.git/hooks/reference-transaction"
+
+  local out rc
+  out="$(install_guard "$d" 2>&1)"; rc=$?
+  [[ $rc -ne 0 ]] || { log_fail "TEST-612: foreign reference-transaction slot expected a refusal, got exit 0"; ok=0; }
+  if ! grep -qF "install-pre-commit-hook.sh --print ref-guard" <<<"$out"; then
+    log_fail "TEST-612: the foreign reference-transaction refusal does not name install-pre-commit-hook.sh --print ref-guard: $out"
+    ok=0
+  fi
+
+  local out2 rc2
+  out2="$(bash "$INSTALLER" --print ref-guard 2>&1)"; rc2=$?
+  [[ $rc2 -eq 0 ]] || { log_fail "TEST-612: the named command --print ref-guard expected exit 0, got $rc2"; ok=0; }
+  grep -qF "AAI:REF-GUARD" <<<"$out2" || { log_fail "TEST-612: the named command's output does not carry the AAI:REF-GUARD marker"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-612 the foreign reference-transaction refusal names install-pre-commit-hook.sh --print ref-guard, and running that exact command exits 0 emitting the AAI:REF-GUARD body"
+}
+
 main() {
   check_deps
   HOOKS_DIGEST_BEFORE="$(manifest_of "$PROJECT_ROOT/.git/hooks")"
 
   if [[ "${1:-}" != "" ]]; then
     local t="$1"
-    if declare -f "test_${t}" >/dev/null 2>&1; then
-      "test_${t}"
+    # Accept BOTH the short suffix (bash test-aai-git-ref-guard.sh 606_...,
+    # this suite's own long-standing manual-invocation convention) AND the
+    # full test_* function name (mutation-run.mjs's --selector convention,
+    # which always passes the FULL name it extracted from this file's own
+    # `test_*() {` definitions — TEST-606 RED-authoring discovered this
+    # mismatch: passing the full name through the OLD single-form lookup
+    # produced "Unknown test" for every row in this suite, never a genuine
+    # mutation redden).
+    local fn="test_${t}"
+    if ! declare -f "test_${t}" >/dev/null 2>&1 && declare -f "$1" >/dev/null 2>&1; then
+      fn="$1"
+    fi
+    if declare -f "$fn" >/dev/null 2>&1; then
+      "$fn"
     else
       echo "Unknown test: $t" >&2
       exit 2
@@ -1049,6 +1299,13 @@ main() {
   test_312_contract_and_diet
   test_313_live_degrade_and_report
   test_316_ps1_ascii_outside_here_strings
+  test_606_hooks_selection
+  test_607_uninstall_selection
+  test_608_ps1_hooks_static
+  test_609_unselected_foreign_slot
+  test_610_selected_foreign_slot_writes_nothing
+  test_611_print_ref_guard_body
+  test_612_foreign_reftx_names_a_real_command
   test_311_hooks_dir_unchanged
 
   echo ""

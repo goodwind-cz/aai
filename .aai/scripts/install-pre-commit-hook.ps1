@@ -20,20 +20,51 @@
 .PARAMETER Uninstall
   Remove the AAI-managed hooks. Leaves non-AAI hooks alone.
 
+.PARAMETER Hooks
+  Comma-separated selection over the closed set index, ref-guard, all
+  (default all). Only the selected hook(s) are installed/uninstalled; a
+  foreign file in an unselected slot never blocks the run (Spec-AC-01/02).
+
 .EXAMPLE
   .\.aai\scripts\install-pre-commit-hook.ps1
 
 .EXAMPLE
   .\.aai\scripts\install-pre-commit-hook.ps1 -Uninstall
+
+.EXAMPLE
+  .\.aai\scripts\install-pre-commit-hook.ps1 -Hooks index
 #>
 
 [CmdletBinding()]
 param(
   [switch]$Force,
-  [switch]$Uninstall
+  [switch]$Uninstall,
+  [string]$Hooks = 'all'
 )
 
 $ErrorActionPreference = 'Stop'
+
+# --Hooks <csv> over the closed set index/ref-guard/all (D6), mirroring the
+# .sh twin's resolution: resolved once into the two booleans every
+# selection-aware guard below consults. An unknown token exits 2 naming the
+# closed set before any repo/hook state is touched.
+$wantIndex = $false
+$wantRefGuard = $false
+foreach ($hooksTok in ($Hooks -split ',')) {
+  switch ($hooksTok.Trim()) {
+    'index' { $wantIndex = $true }
+    'ref-guard' { $wantRefGuard = $true }
+    'all' { $wantIndex = $true; $wantRefGuard = $true }
+    default {
+      # $ErrorActionPreference = 'Stop' makes Write-Error a TERMINATING error
+      # that exits 1 before reaching an explicit `exit`, so the unknown-token
+      # refusal below writes to stderr directly to keep the intended exit 2
+      # (matching the .sh twin's closed-set refusal).
+      [Console]::Error.WriteLine("Unknown -Hooks value: '$hooksTok' (closed set: index, ref-guard, all)")
+      exit 2
+    }
+  }
+}
 
 $repoRoot = (& git rev-parse --show-toplevel 2>$null).Trim()
 if (-not $repoRoot) {
@@ -116,30 +147,36 @@ function Test-EffectiveHook {
 }
 
 if ($Uninstall) {
-  if ((Test-Path $hookPath) -and ((Get-Content $hookPath -Raw) -match [regex]::Escape($marker))) {
-    Remove-Item $hookPath
-    Write-Host "Uninstalled AAI pre-commit hook from $hookPath"
-  } else {
-    Write-Host "No AAI pre-commit hook found (or hook is not AAI-managed). No action taken."
+  if ($wantIndex) {
+    if ((Test-Path $hookPath) -and ((Get-Content $hookPath -Raw) -match [regex]::Escape($marker))) {
+      Remove-Item $hookPath
+      Write-Host "Uninstalled AAI pre-commit hook from $hookPath"
+    } else {
+      Write-Host "No AAI pre-commit hook found (or hook is not AAI-managed). No action taken."
+    }
   }
-  if ((Test-Path $reftxPath) -and ((Get-Content $reftxPath -Raw) -match [regex]::Escape($reftxMarker))) {
-    Remove-Item $reftxPath
-    Write-Host "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $reftxPath"
-  } else {
-    Write-Host "No AAI reference-transaction hook found (or hook is not AAI-managed). No action taken."
+  if ($wantRefGuard) {
+    if ((Test-Path $reftxPath) -and ((Get-Content $reftxPath -Raw) -match [regex]::Escape($reftxMarker))) {
+      Remove-Item $reftxPath
+      Write-Host "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $reftxPath"
+    } else {
+      Write-Host "No AAI reference-transaction hook found (or hook is not AAI-managed). No action taken."
+    }
   }
   exit 0
 }
 
+# Selection-aware (Spec-AC-02): a foreign file in a slot this run was NOT
+# asked to touch is not a reason to refuse.
 $foreign = $false
-if ((Test-Path $hookPath) -and (-not $Force)) {
+if ($wantIndex -and (Test-Path $hookPath) -and (-not $Force)) {
   $existing = Get-Content $hookPath -Raw
   if (-not ($existing -match [regex]::Escape($marker))) {
     Write-Error "$hookPath already exists and is not AAI-managed. Pass -Force to overwrite."
     $foreign = $true
   }
 }
-if ((Test-Path $reftxPath) -and (-not $Force)) {
+if ($wantRefGuard -and (Test-Path $reftxPath) -and (-not $Force)) {
   $existingReftx = Get-Content $reftxPath -Raw
   if (-not ($existingReftx -match [regex]::Escape($reftxMarker))) {
     Write-Error "$reftxPath already exists and is not AAI-managed. Pass -Force to overwrite."
@@ -157,7 +194,7 @@ if ((Test-Path -LiteralPath $hooksDir) -and -not (Test-Path -LiteralPath $hooksD
 New-Item -ItemType Directory -Force -Path $hooksDir | Out-Null
 
 $skipPreCommit = $false
-if ((Test-Path $hookPath) -and (-not $Force)) {
+if ($wantIndex -and (Test-Path $hookPath) -and (-not $Force)) {
   $existing = Get-Content $hookPath -Raw
   if ($existing -match [regex]::Escape($marker)) {
     Write-Host "AAI pre-commit hook already installed at $hookPath. No action taken."
@@ -315,17 +352,19 @@ fi
 echo "AAI:INDEX-AUTOGEN: regenerated and staged docs/INDEX.md"
 '@
 
-if (-not $skipPreCommit) {
-  Set-Content -Path $hookPath -Value $hookBody -NoNewline
-  if ($IsLinux -or $IsMacOS) {
-    & chmod +x $hookPath | Out-Null
+if ($wantIndex) {
+  if (-not $skipPreCommit) {
+    Set-Content -Path $hookPath -Value $hookBody -NoNewline
+    if ($IsLinux -or $IsMacOS) {
+      & chmod +x $hookPath | Out-Null
+    }
+    Write-Host "Installed AAI pre-commit hook at $hookPath"
+    Write-Host "Effect: on every commit that touches docs/, regenerate docs/INDEX.md and stage it."
   }
-  Write-Host "Installed AAI pre-commit hook at $hookPath"
-  Write-Host "Effect: on every commit that touches docs/, regenerate docs/INDEX.md and stage it."
 }
 
 $skipReftx = $false
-if ((Test-Path $reftxPath) -and (-not $Force)) {
+if ($wantRefGuard -and (Test-Path $reftxPath) -and (-not $Force)) {
   $existingReftx = Get-Content $reftxPath -Raw
   if ($existingReftx -match [regex]::Escape($reftxMarker)) {
     Write-Host "AAI reference-transaction hook already installed at $reftxPath. No action taken."
@@ -377,19 +416,23 @@ AAI_REF_GUARD_MSG
 exit 1
 '@
 
-if (-not $skipReftx) {
-  Set-Content -Path $reftxPath -Value $reftxBody -NoNewline
-  if ($IsLinux -or $IsMacOS) {
-    & chmod +x $reftxPath | Out-Null
+if ($wantRefGuard) {
+  if (-not $skipReftx) {
+    Set-Content -Path $reftxPath -Value $reftxBody -NoNewline
+    if ($IsLinux -or $IsMacOS) {
+      & chmod +x $reftxPath | Out-Null
+    }
+    Write-Host "Installed AAI reference-transaction hook (AAI:REF-GUARD) at $reftxPath"
+    Write-Host "Effect: a refs/heads/main update is refused unless AAI_GIT_WRITE=1 is set on that command."
   }
-  Write-Host "Installed AAI reference-transaction hook (AAI:REF-GUARD) at $reftxPath"
-  Write-Host "Effect: a refs/heads/main update is refused unless AAI_GIT_WRITE=1 is set on that command."
 }
 
-# Post-condition (PR #304 Codex P1) -- see Test-EffectiveHook.
+# Post-condition (PR #304 Codex P1) -- see Test-EffectiveHook. Selection-aware
+# (Spec-AC-02): attestation covers exactly the SELECTED set, mirroring the
+# .sh twin.
 $attestOk = $true
-if (-not (Test-EffectiveHook -Name 'pre-commit' -Marker $marker)) { $attestOk = $false }
-if (-not (Test-EffectiveHook -Name 'reference-transaction' -Marker $reftxMarker)) { $attestOk = $false }
+if ($wantIndex -and -not (Test-EffectiveHook -Name 'pre-commit' -Marker $marker)) { $attestOk = $false }
+if ($wantRefGuard -and -not (Test-EffectiveHook -Name 'reference-transaction' -Marker $reftxMarker)) { $attestOk = $false }
 if (-not $attestOk) {
   Write-Error "Installation did NOT leave an active hook at the path git resolves. Check 'git config core.hooksPath' and 'git rev-parse --git-path hooks/reference-transaction'."
   exit 1
