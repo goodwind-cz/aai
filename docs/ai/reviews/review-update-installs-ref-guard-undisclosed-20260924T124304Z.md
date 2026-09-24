@@ -6,7 +6,7 @@ Scope: `git diff main..HEAD` in `/Users/ales/Projects/aai-feat-ref-guard-sweep`
 (branch `feat/update-installs-ref-guard-undisclosed`, HEAD `3c4d049f`,
 base `main f84f84ab`). 22 files, +3096/-189.
 
-Spec: `docs/specs/SPEC-DRAFT-spec-update-installs-ref-guard-undisclosed.md`
+Spec: `docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md`
 (frozen, 4 post-freeze Amendments).
 
 Prior work NOT repeated: validation rounds 1-3
@@ -24,7 +24,7 @@ or excluding scope.
 ```yaml
 review:
   scope: "git diff main..HEAD (f84f84ab..3c4d049f), worktree /Users/ales/Projects/aai-feat-ref-guard-sweep"
-  spec: docs/specs/SPEC-DRAFT-spec-update-installs-ref-guard-undisclosed.md
+  spec: docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -447,7 +447,7 @@ pre-rate any outcome, did not exclude scope, and explicitly invited the
 review:
   round: 2
   scope: "git diff 3c4d049f..24ebfe0e, worktree /Users/ales/Projects/aai-feat-ref-guard-sweep"
-  spec: docs/specs/SPEC-DRAFT-spec-update-installs-ref-guard-undisclosed.md
+  spec: docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -470,7 +470,7 @@ review:
           what: "AC Status table still 11 `planned` rows with empty Evidence; Test Plan rows TEST-642..646 carry status `pending`. Canon-carved for the close flip, not for this round." }
       - { id: D-5, kind: frozen-body-now-false, status: NEW (a round-1 miss, not a round-2 regression),
           what: "Residual risks bullet 1 (spec:485-492) still states that a no-flag re-install re-arms a declined guard. Amendment 3 reversed that and TEST-636 pins the reversal. The bullet is superseded by a later amendment that names the override, which is this project's additive-with-disclosure convention, but read alone it is false.",
-          where: "docs/specs/SPEC-DRAFT-spec-update-installs-ref-guard-undisclosed.md:485-492" }
+          where: "docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md:485-492" }
   code_quality:
     verdict: pass
     findings:

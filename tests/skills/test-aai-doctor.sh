@@ -19,7 +19,7 @@
 # Covers TEST-001..022 from docs/specs/SPEC-0100-spec-doctor-determinize.md.
 #
 # Covers TEST-619..620 (Spec-AC-07) from
-# docs/specs/SPEC-DRAFT-spec-update-installs-ref-guard-undisclosed.md: CAT-17
+# docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md: CAT-17
 # consults lib/guard-config.mjs's readRefGuardPolicy for a non-counting
 # DECLINED state when no AAI guard is present, and reality (an armed or a
 # foreign hook) outranks the declaration (D4).

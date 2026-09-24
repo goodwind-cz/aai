@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-24T14:05:32.541Z
+Generated: 2026-09-24T15:18:18.921Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-update-installs-ref-guard-undisclosed | specs | implementing | 11 planned | docs/specs/SPEC-DRAFT-spec-update-installs-ref-guard-undisclosed.md |
+| SPEC-0184 | specs | implementing | 11 done | docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md |
 
 ## Canonical layer (0)
 

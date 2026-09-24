@@ -26,7 +26,7 @@
 # docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
 #
 # Covers TEST-606..617 (Spec-AC-01..06) from
-# docs/specs/SPEC-DRAFT-spec-update-installs-ref-guard-undisclosed.md: the
+# docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md: the
 # installer's --hooks <csv> per-hook selection (index/ref-guard/all, TEST-606,
 # TEST-607, TEST-608 .ps1 static twin), selection-scoped foreign-hook checks
 # and attestation (TEST-609, TEST-610), the --print <hook> manual-merge
