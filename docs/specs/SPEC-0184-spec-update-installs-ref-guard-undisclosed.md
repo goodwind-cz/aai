@@ -2,15 +2,17 @@
 id: spec-update-installs-ref-guard-undisclosed
 type: spec
 number: 184
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: bb53ff6432306ec8385e0f6ce814bd7db2b9582d632fb98b23bd83f3f244a6ef
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - ff49ca7514216e85286e09b2e3033198a85988b0
 ---
 
 # Spec — a consumer learns that its git behaviour is about to change, and may say no in a way a machine can read

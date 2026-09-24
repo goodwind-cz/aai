@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-24T15:17:04.032Z",
+  "generatedAt": "2026-09-24T15:18:28.751Z",
   "project": "aai",
   "counts": {
-    "delivered": 249,
-    "in_progress": 18,
+    "delivered": 251,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -207,32 +207,6 @@
       "review": null
     },
     {
-      "ref": "agents-tree-not-synced",
-      "title": "P2 backlog cluster: harness-surfaces-drift-unguarded (1 item)",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0047-agents-tree-not-synced.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "update-installs-ref-guard-undisclosed",
-      "title": "/aai-update silently arms a git ref-guard in every consumer, under a licence written for a different hook",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-update-installs-ref-guard-undisclosed-20260924T124304Z.md"
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -247,6 +221,32 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "agents-tree-not-synced",
+      "title": "P2 backlog cluster: harness-surfaces-drift-unguarded (1 item)",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0047-agents-tree-not-synced.md",
+      "closed_on": "2026-09-24",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "update-installs-ref-guard-undisclosed",
+      "title": "/aai-update silently arms a git ref-guard in every consumer, under a licence written for a different hook",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md",
+      "closed_on": "2026-09-24",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-update-installs-ref-guard-undisclosed-20260924T124304Z.md"
+    },
     {
       "ref": "unrecorded-spec-amendment-is-invisible",
       "title": "An amendment nobody recorded is invisible to the gate that exists to catch it",
@@ -3491,6 +3491,32 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "agents-tree-not-synced",
+          "title": "P2 backlog cluster: harness-surfaces-drift-unguarded (1 item)",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0047-agents-tree-not-synced.md",
+          "closed_on": "2026-09-24",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "update-installs-ref-guard-undisclosed",
+          "title": "/aai-update silently arms a git ref-guard in every consumer, under a licence written for a different hook",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md",
+          "closed_on": "2026-09-24",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-update-installs-ref-guard-undisclosed-20260924T124304Z.md"
+        },
         {
           "ref": "unrecorded-spec-amendment-is-invisible",
           "title": "An amendment nobody recorded is invisible to the gate that exists to catch it",
