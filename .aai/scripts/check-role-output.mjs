@@ -525,6 +525,8 @@ function isAllowedMergeCommand(words, role, scope, resultStatus) {
       && (words.length === 4 || (words.length === 5 && words[4] === '--force'));
   }
   if (!isFlagValueSequence(words, 3)) return false;
+  if (commandFlagValues(words, '--state').length > 0
+      || commandFlagValues(words, '--ticks').length > 0) return false;
   const refs = commandFlagValues(words, '--ref');
   if (role !== 'orchestration') {
     if (refs.length > 0 && (refs.length !== 1 || refs[0] !== scope)) return false;
