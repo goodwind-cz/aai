@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: bd8baf7c5ca17de0f5680b0352493f47c0065907ececb05b8aa0e14ee456d00c
+frozen_sha256: bb53ff6432306ec8385e0f6ce814bd7db2b9582d632fb98b23bd83f3f244a6ef
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md
@@ -483,13 +483,27 @@ produced by `node .aai/scripts/mutation-run.mjs`.
 
 ## Residual risks
 
-- A consumer who declines the guard and later re-installs hooks by running the
-  installer with no flags gets the guard back, because the default is armed and
-  the declaration is only consulted by doctor and by the decline command
-  itself. Making the installer refuse to install a declined guard would turn a
-  committed file into an ambient veto over an explicit command; the explicit
-  command wins, and the disclosure says so. Not covered by an automated test
-  beyond the disclosure text.
+- SUPERSEDED as of Amendment 3, kept here because an amendment corrects, it
+  never rewrites: this bullet said a consumer who declines and later runs the
+  installer with no flags gets the guard back, because the declaration is only
+  consulted by doctor and by the decline command. That stopped being true when
+  Amendment 3 made a plain install honour a declared decline — the orchestrator
+  overrode this very reasoning, on the ground that `/aai-update` is not the
+  consumer's explicit command but the automatic side effect the issue was filed
+  about. TEST-636 and TEST-637 pin the behaviour this bullet denies.
+
+- Declining the guard leaves `docs-audit --check` ENFORCED rather than
+  report-only, and this scope makes that visible rather than avoidable.
+  Measured at delivery: a repository with no `docs/ai/docs-audit.yaml` reports
+  `Mode: report-only`; after a decline it reports `Mode: enforced`, because
+  `docs-audit-core.mjs` keys the mode on the file's EXISTENCE and no flag
+  declines the guard without creating it. Seeding from the shipped template
+  does not soften it — the template's own dials govern the other guards and its
+  `legacy_until_date` ships commented out. The disclosure now names the
+  consequence, so nobody meets it as a surprise, but a consumer who wants the
+  ref-guard declined AND the docs audit report-only has no single command for
+  it. Filed rather than solved here: it needs the mode to stop being inferred
+  from a file's existence, which is a different subsystem's contract.
 - The preserve behaviour for `MODEL_ROUTING.yaml` means a consumer who edits it
   stops receiving new shipped tiers. The NOTE on every update is the only
   mitigation; whether it is read is outside this repository's reach.
