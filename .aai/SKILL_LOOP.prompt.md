@@ -113,6 +113,10 @@ print its one-line verdict as an INFORMATIONAL line (never block or branch on
 its exit code; the script is read-only and self-bounded). If the script is
 absent (older vendored layer), skip silently.
 
+Also at loop start (once), capture `LOOP_VERIFICATION_HORIZON` from the system
+UTC clock. Reuse it for this uninterrupted invocation; a resumed invocation
+captures a new horizon.
+
 Also at loop start (once): RIDE GATE — when `current_focus.ref_id` is set, run
 `node .aai/scripts/ride-select.mjs gate --ref <ref_id> --intake <primary_path>`;
 non-zero → print its message verbatim and EXIT (same shape as stop 2b). A ride
@@ -122,6 +126,46 @@ For each tick (1..max_ticks):
 
   1. READ docs/ai/STATE.yaml.
      - If missing or invalid: auto-repair with safe defaults (same rule as ORCHESTRATION.prompt.md).
+     - When the current focus has a standing Validation PASS that could be used
+       to complete OR to dispatch a later role, locate its authoritative
+       `VALIDATION-*.md` evidence for that same ref and run
+       `validation-outcome-check.mjs --report <path> --ref <focus-ref>
+       --since "$LOOP_VERIFICATION_HORIZON" --root <repository-root>`. Missing
+       legacy evidence, wrong-ref evidence or refusal makes that PASS unusable.
+       Before dispatch, invalidate that scope's standing pass through the sole
+       STATE writer, then mark Validation in progress:
+         node .aai/scripts/state.mjs set-validation --status not_run --ref <focus-ref> \
+           --notes "Standing PASS outcome report refused; fresh Validation required."
+         node .aai/scripts/state.mjs set-phase --ref <focus-ref> --phase validation \
+           --status in_progress
+       Then continue through normal orchestration so current-tree invalidation
+       still applies. Phase-only routing is insufficient: it leaves
+       `last_validation.status: pass` and can select Metrics Flush. Do not
+       restart Implementation, fail unrelated work, edit immutable evidence, or
+       update a timestamp in place. Matching immutable bytes remain reusable;
+       dynamic observations must be renewed. A Validation created after this
+       loop horizon may advance to review/close without another revalidation
+       cycle.
+     - PRE-COMPLETION TREE-STALENESS GATE: when the current STATE would satisfy
+       stop 2c below, first run
+       `node .aai/scripts/orchestration-dispatch.mjs --human` and parse its
+       JSON without permitting a first-observation
+       write. If `state_summary.last_validation_verdict` is null, stop 2c is
+       ineligible: set Validation to `not_run`, set phase `validation` /
+       `in_progress`, and continue to step 3 for fresh Validation. Otherwise
+       run the same command with `--confirm` and parse that JSON result before
+       evaluating the stop. This is
+       the same deterministic snapshot and validation-verdict stamp comparison
+       used by orchestration rule 11s. If the command fails, its output is not
+       valid JSON, its result has `rule: "11s"`, or its `advisories` include
+       `validation_verdict_stale`, stop 2c is ineligible: do NOT print LOOP
+       COMPLETE and do NOT enter unattended chaining. Continue to step 3 so the
+       normal orchestrator routes fresh Validation. The existing stamp's
+       EVENTS path is excluded from the tree hash. Any other successful result
+       preserves the existing stop ordering. A first-observation stamp belongs to the Validation PASS
+       handoff required by `check-role-output.mjs`, never to this late
+       completion check. This precondition is required because stop 2c exits
+       before step 3 and therefore cannot rely on rule 11s being reached later.
 
   2. CHECK stop conditions (in order):
      a. project_status == paused
@@ -157,7 +201,8 @@ For each tick (1..max_ticks):
             exit other than 0 (auto) or 3 (park) — a ledger-append failure
             or a usage error — is treated as UNMAPPABLE: print the HITL
             block and EXIT (fail closed, never guess).
-     c. last_validation.status == pass AND active_work_items are all done/empty
+     c. PRE-COMPLETION TREE-STALENESS GATE passed AND
+        last_validation.status == pass AND active_work_items are all done/empty
         AND (code_review.required != true OR code_review.status in [pass, waived])
         → DEFAULT (unattended is false or unset): Print: "LOOP COMPLETE:
           validation PASS, review gate satisfied, no open items." and EXIT.

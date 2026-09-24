@@ -781,8 +781,21 @@ suites:
   aai-role-output:
     globs:
       - .aai/scripts/check-role-output.mjs
+      - .aai/scripts/validation-outcome-check.mjs
       - .aai/SUBAGENT_CONTRACT.md
       - .aai/SUBAGENT_PROTOCOL.md
+
+  aai-outcome-backcheck:
+    globs:
+      - .aai/VALIDATION.prompt.md
+      - .aai/SKILL_LOOP.prompt.md
+      - .aai/SKILL_VALIDATE_REPORT.prompt.md
+      - .aai/SUBAGENT_CONTRACT.md
+      - .aai/SUBAGENT_PROTOCOL.md
+      - .aai/templates/BRIEF_TEMPLATE.md
+      - .aai/scripts/validation-outcome-check.mjs
+      - .aai/scripts/check-role-output.mjs
+      - .aai/system/PROFILES.yaml
 
   aai-routine:
     globs:

@@ -101,6 +101,7 @@ core:
   - .aai/scripts/check-base-ref-pins.mjs
   - .aai/scripts/check-cd-subshell-leak.mjs
   - .aai/scripts/check-role-output.mjs
+  - .aai/scripts/validation-outcome-check.mjs
   - .aai/scripts/check-state.mjs
   - .aai/scripts/check-test-registration.mjs
   - .aai/scripts/check-vendored-script-deps.mjs

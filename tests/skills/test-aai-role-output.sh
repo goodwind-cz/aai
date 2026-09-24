@@ -69,6 +69,7 @@ test_001_valid_fixtures() {
   log_info "TEST-001: every VALID fixture (4 role classes) -> exit 0, no violation lines..."
   local f out rc
   for f in "$FIXTURES_DIR"/*-valid.md; do
+    grep -qF 'subagent_result:' "$f" || continue
     set +e
     out="$(runcheck --file "$f" --now 2026-06-01T00:00:00Z)"; rc=$?
     set -e
@@ -261,8 +262,10 @@ test_006_zero_dep() {
   local import_lines non_stdlib
   import_lines="$(grep -E "^import .* from ['\"]" "$CHECKER" || true)"
   [[ -n "$import_lines" ]] || log_fail "checker has no import statements to verify (unexpected)"
-  non_stdlib="$(echo "$import_lines" | grep -vE "from ['\"]node:" || true)"
-  [[ -z "$non_stdlib" ]] || log_fail "checker imports a non-stdlib module: $non_stdlib"
+  non_stdlib="$(echo "$import_lines" | grep -vE "from ['\"]node:|from ['\"]\./validation-outcome-check\.mjs['\"]" || true)"
+  [[ -z "$non_stdlib" ]] || log_fail "checker imports an unapproved module: $non_stdlib"
+  [[ "$(echo "$import_lines" | grep -c "from './validation-outcome-check.mjs'" || true)" -eq 1 ]] \
+    || log_fail "checker must import exactly the shared local outcome checker"
   [[ ! -f "$PROJECT_ROOT/.aai/scripts/package.json" ]] \
     || log_fail "no package.json/manifest may be added for the checker"
   [[ ! -f "$PROJECT_ROOT/package.json" ]] \
@@ -537,6 +540,7 @@ test_014_seam1_contract_skeleton() {
     -e 's/^      output_snippet: .*/      output_snippet: ok/' \
     -e 's/^    - <relative path>/    - some\/file.txt/' \
     -e 's/^    - <description of any blocker.*/    - none/' \
+    -e 's|^    - <fully-substituted node .aai/scripts/state.mjs.*|    - node .aai/scripts/state.mjs set-phase --ref seam1-test --phase validation --status in_progress|' \
     "$body"
   rm -f "$body.bak"
 
@@ -624,7 +628,7 @@ test_022_planning_verdict_controls() {
   cat > "$msg" <<'EOF'
 ```yaml
 subagent_result:
-  scope: s
+  scope: role-output-contracts
   role: Validation
   status: PASS
   started_utc: 2026-01-07T00:00:00Z
@@ -636,6 +640,10 @@ subagent_result:
       exit_code: 0
   files_changed: []
   blockers: []
+  outcome_report: tests/fixtures/role-outputs/outcome-report-valid.md
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-validation --status pass --ref role-output-contracts --evidence tests/fixtures/role-outputs/outcome-report-valid.md
+    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm
 ```
 EOF
   set +e
@@ -671,6 +679,406 @@ EOF
   log_pass "TEST-022 negative controls: Planning status PASS, Validation verdicts, and Planning extension fields all still pass"
 }
 
+# --- TEST-023 — Validation PASS requires an admissible outcome report --------
+test_023_validation_pass_requires_outcome_report() {
+  log_info "TEST-023: Validation PASS without outcome_report is refused at the real handoff..."
+  local msg="$TMP_ROOT/validation-pass-no-outcome.md" out rc sentinel="$TMP_ROOT/state-command-ran"
+  cat > "$msg" <<'EOF'
+```yaml
+subagent_result:
+  scope: original-request-outcome-backcheck
+  role: Validation
+  status: PASS
+  started_utc: 2026-01-07T00:00:00Z
+  ended_utc: 2026-01-07T00:01:00Z
+  duration_seconds: 60
+  evidence:
+    - command: echo validated
+      exit_code: 0
+  files_changed: []
+  blockers: []
+  state_update_commands:
+    - touch STATE_COMMAND_SENTINEL
+```
+EOF
+  replace_fixture_token() {
+    local file=$1 token=$2 replacement=$3
+    node - "$file" "$token" "$replacement" <<'NODE'
+const fs = require('node:fs');
+const [file, token, replacement] = process.argv.slice(2);
+const source = fs.readFileSync(file, 'utf8');
+if (!source.includes(token)) {
+  console.error(`fixture token not found: ${token}`);
+  process.exit(1);
+}
+fs.writeFileSync(file, source.replace(token, replacement));
+NODE
+  }
+  local missing_token_probe="$TMP_ROOT/missing-token-probe.txt"
+  printf 'token absent\n' > "$missing_token_probe"
+  set +e
+  replace_fixture_token "$missing_token_probe" MISSING_TOKEN replacement >/dev/null 2>&1; rc=$?
+  set -e
+  [[ "$rc" -ne 0 ]] || log_fail "fixture token replacement must fail when the token is absent"
+  replace_fixture_token "$msg" STATE_COMMAND_SENTINEL "$sentinel"
+  set +e
+  out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "Validation PASS without outcome_report expected exit 1, got $rc; output: $out"
+  assert_payload_contains "$out" "E-OUTCOME-REPORT" \
+    "Validation PASS without outcome_report expected E-OUTCOME-REPORT, got: $out"
+  [[ ! -e "$sentinel" ]] || log_fail "role-output checker executed a returned state command"
+
+  # The shipped real report is the positive control.
+  set +e
+  out="$(runcheck --file "$FIXTURES_DIR/validation-valid.md" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "Validation PASS with admissible outcome_report expected exit 0, got $rc: $out"
+
+  # A present report whose bytes no longer match its evidence is rejected at
+  # E-OUTCOME-REPORT, after the enclosing result is otherwise valid.
+  local poisoned_report="$TMP_ROOT/poisoned-outcome.md" poisoned_result="$TMP_ROOT/poisoned-result.md" undefined_ac_report="$TMP_ROOT/undefined-ac-outcome.md" undefined_ac_result="$TMP_ROOT/undefined-ac-result.md" example_report="$TMP_ROOT/example-outcome.md" example_result="$TMP_ROOT/example-result.md" unclosed_report="$TMP_ROOT/unclosed-outcome.md" unclosed_result="$TMP_ROOT/unclosed-result.md"
+  cp "$FIXTURES_DIR/outcome-report-valid.md" "$poisoned_report"
+  replace_fixture_token "$poisoned_report" \
+    '984bc58aed2fd7c5669bae60fec4dcdbbab73b06545e25f216ae136c630ec667' \
+    'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+  cp "$FIXTURES_DIR/validation-valid.md" "$poisoned_result"
+  replace_fixture_token "$poisoned_result" 'tests/fixtures/role-outputs/outcome-report-valid.md' "$poisoned_report"
+  set +e
+  out="$(runcheck --file "$poisoned_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "poisoned outcome report expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-REPORT" "poisoned report expected E-OUTCOME-REPORT, got: $out"
+
+  cp "$FIXTURES_DIR/outcome-report-valid.md" "$undefined_ac_report"
+  replace_fixture_token "$undefined_ac_report" '"Spec-AC-01"' '"Spec-AC-999"'
+  cp "$FIXTURES_DIR/validation-valid.md" "$undefined_ac_result"
+  replace_fixture_token "$undefined_ac_result" 'tests/fixtures/role-outputs/outcome-report-valid.md' "$undefined_ac_report"
+  set +e
+  out="$(runcheck --file "$undefined_ac_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "undefined Spec-AC outcome report expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-REPORT" "undefined Spec-AC report expected E-OUTCOME-REPORT, got: $out"
+  assert_payload_contains "$out" "references undefined Spec-AC: Spec-AC-999" "undefined Spec-AC reason missing: $out"
+
+  # The actual Validation handoff must not treat an outer Markdown example as
+  # authority, and must reject a second unfinished outcome fence.
+  node - "$FIXTURES_DIR/outcome-report-valid.md" "$example_report" "$unclosed_report" <<'NODE'
+const fs = require('node:fs');
+const [source, example, unclosed] = process.argv.slice(2);
+const report = fs.readFileSync(source, 'utf8');
+fs.writeFileSync(example, `\`\`\`\`markdown\n${report}\`\`\`\`\n`);
+fs.writeFileSync(unclosed, `${report}\n\`\`\`aai-outcome-v1\n{"version":1}\n`);
+NODE
+  cp "$FIXTURES_DIR/validation-valid.md" "$example_result"
+  cp "$FIXTURES_DIR/validation-valid.md" "$unclosed_result"
+  replace_fixture_token "$example_result" 'tests/fixtures/role-outputs/outcome-report-valid.md' "$example_report"
+  replace_fixture_token "$unclosed_result" 'tests/fixtures/role-outputs/outcome-report-valid.md' "$unclosed_report"
+  set +e
+  out="$(runcheck --file "$example_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "example-only outcome report expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-REPORT" "example-only report expected E-OUTCOME-REPORT, got: $out"
+  set +e
+  out="$(runcheck --file "$unclosed_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "unfinished second outcome fence expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-REPORT" "unfinished second fence expected E-OUTCOME-REPORT, got: $out"
+
+  # The checked report, recorded STATE evidence, and immediate tree snapshot
+  # are one handoff contract. A different evidence path or an omitted stamp
+  # command must fail before the orchestrator can replay either command list.
+  local mismatched_result="$TMP_ROOT/mismatched-evidence-result.md" escaped_mismatch_result="$TMP_ROOT/escaped-mismatch-result.md" missing_stamp_result="$TMP_ROOT/missing-stamp-result.md" duplicate_validation_result="$TMP_ROOT/duplicate-validation-result.md" arbitrary_command_result="$TMP_ROOT/arbitrary-command-result.md" duplicate_key_result="$TMP_ROOT/duplicate-key-result.md" cross_role_result="$TMP_ROOT/cross-role-result.md" inline_commands_result="$TMP_ROOT/inline-commands-result.md" glob_command_result="$TMP_ROOT/glob-command-result.md" disabled_review_result="$TMP_ROOT/disabled-review-result.md" multiline_command_result="$TMP_ROOT/multiline-command-result.md" foreign_ref_result="$TMP_ROOT/foreign-ref-result.md" contradictory_review_result="$TMP_ROOT/contradictory-review-result.md" contradictory_validation_result="$TMP_ROOT/contradictory-validation-result.md" yaml_escape_result="$TMP_ROOT/yaml-escape-result.md"
+  cp "$FIXTURES_DIR/validation-valid.md" "$mismatched_result"
+  replace_fixture_token "$mismatched_result" \
+    '--evidence tests/fixtures/role-outputs/outcome-report-valid.md' \
+    '--evidence docs/ai/reports/different.md'
+  set +e
+  out="$(runcheck --file "$mismatched_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "mismatched set-validation evidence expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-EVIDENCE" "mismatched evidence expected E-OUTCOME-EVIDENCE, got: $out"
+
+  cp "$FIXTURES_DIR/validation-valid.md" "$escaped_mismatch_result"
+  node - "$escaped_mismatch_result" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const original = '--evidence tests/fixtures/role-outputs/outcome-report-valid.md --notes';
+const escaped = '--evidence "tests/fixtures/role-outputs/outcome\\-report-valid.md" --notes';
+if (!source.includes(original)) process.exit(1);
+fs.writeFileSync(file, source.replace(original, escaped));
+NODE
+  set +e
+  out="$(runcheck --file "$escaped_mismatch_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "double-quoted preserved backslash mismatch expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-EVIDENCE" "preserved backslash mismatch expected E-OUTCOME-EVIDENCE, got: $out"
+
+  cp "$FIXTURES_DIR/validation-valid.md" "$duplicate_validation_result"
+  node - "$duplicate_validation_result" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const stamp = '    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm\n';
+const overwrite = '    - node ./.aai/scripts/state.mjs set-validation --status pass --ref role-output-contracts --evidence docs/ai/reports/different.md\n';
+if (!source.includes(stamp)) process.exit(1);
+fs.writeFileSync(file, source.replace(stamp, `${overwrite}${stamp}`));
+NODE
+  set +e
+  out="$(runcheck --file "$duplicate_validation_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "second set-validation overwrite expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-OUTCOME-EVIDENCE" "duplicate set-validation expected E-OUTCOME-EVIDENCE, got: $out"
+
+  cp "$FIXTURES_DIR/validation-valid.md" "$arbitrary_command_result"
+  node - "$arbitrary_command_result" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const stamp = '    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm\n';
+const mutation = `    - node -e "require('node:fs').appendFileSync('CHANGELOG.md', 'changed')"\n`;
+if (!source.includes(stamp)) process.exit(1);
+fs.writeFileSync(file, source.replace(stamp, `${mutation}${stamp}`));
+NODE
+  set +e
+  out="$(runcheck --file "$arbitrary_command_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "arbitrary command before snapshot expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "arbitrary command expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  cp "$FIXTURES_DIR/validation-valid.md" "$duplicate_key_result"
+  node - "$duplicate_key_result" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const key = '  state_update_commands:\n';
+const hidden = `  state_update_commands:\n    - node -e "require('node:fs').appendFileSync('CHANGELOG.md', 'changed')"\n`;
+if (!source.includes(key)) process.exit(1);
+fs.writeFileSync(file, source.replace(key, `${hidden}${key}`));
+NODE
+  set +e
+  out="$(runcheck --file "$duplicate_key_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "duplicate state_update_commands key expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-DUPLICATE-FIELD" "duplicate state_update_commands expected E-DUPLICATE-FIELD, got: $out"
+
+  cp "$FIXTURES_DIR/validation-valid.md" "$cross_role_result"
+  node - "$cross_role_result" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const stamp = '    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm\n';
+const forgedReview = '    - node .aai/scripts/state.mjs set-code-review --required true --status pass --scope HEAD~1..HEAD\n';
+if (!source.includes(stamp)) process.exit(1);
+fs.writeFileSync(file, source.replace(stamp, `${stamp}${forgedReview}`));
+NODE
+  set +e
+  out="$(runcheck --file "$cross_role_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "Validation cross-role code-review verdict expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "cross-role verdict expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  cp "$FIXTURES_DIR/implementation-valid.md" "$inline_commands_result"
+  replace_fixture_token "$inline_commands_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands: ["node .aai/scripts/state.mjs set-code-review --status pass"]'
+  set +e
+  out="$(runcheck --file "$inline_commands_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "nonempty inline state_update_commands expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "inline command list expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  cp "$FIXTURES_DIR/implementation-valid.md" "$glob_command_result"
+  replace_fixture_token "$glob_command_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-phase --ref role-output-contracts --phase validation --notes evidence-[x].md'
+  set +e
+  out="$(runcheck --file "$glob_command_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "unquoted shell-expanding command token expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "unquoted glob expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  cp "$FIXTURES_DIR/implementation-valid.md" "$disabled_review_result"
+  replace_fixture_token "$disabled_review_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-code-review --required false --status not_run --scope implementation-diff'
+  set +e
+  out="$(runcheck --file "$disabled_review_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "Implementation disabling required review expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "disabled review expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  cp "$FIXTURES_DIR/implementation-valid.md" "$multiline_command_result"
+  replace_fixture_token "$multiline_command_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-phase --ref role-output-contracts --phase validation --status in_progress
+      && node .aai/scripts/state.mjs set-code-review --required true --status pass --scope implementation-diff'
+  set +e
+  out="$(runcheck --file "$multiline_command_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "multiline state command continuation expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "multiline command expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  cp "$FIXTURES_DIR/implementation-valid.md" "$foreign_ref_result"
+  replace_fixture_token "$foreign_ref_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-phase --ref another-scope --phase validation --status in_progress'
+  set +e
+  out="$(runcheck --file "$foreign_ref_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "foreign --ref state mutation expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "foreign ref expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  cp "$FIXTURES_DIR/implementation-valid.md" "$foreign_ref_result"
+  replace_fixture_token "$foreign_ref_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-phase --ref role-output-contracts --phase validation --state .aai/templates/STATE_TEMPLATE.yaml'
+  set +e
+  out="$(runcheck --file "$foreign_ref_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "alternate state target expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "alternate state target expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  cp "$FIXTURES_DIR/implementation-valid.md" "$yaml_escape_result"
+  replace_fixture_token "$yaml_escape_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - "node .aai/scripts/state.mjs set-code-review --required true --status not_run --scope implementation-diff\u0026\u0026node\u0020.aai/scripts/state.mjs\u0020set-code-review\u0020--required\u0020true\u0020--status\u0020pass\u0020--scope\u0020implementation-diff"'
+  set +e
+  out="$(runcheck --file "$yaml_escape_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "quoted YAML command scalar expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "quoted YAML command scalar expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  sed -e 's|^  role: .*|  role: Code Review|' -e 's|^  status: PASS|  status: FAIL|' \
+    "$FIXTURES_DIR/implementation-valid.md" > "$contradictory_review_result"
+  replace_fixture_token "$contradictory_review_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-code-review --required true --status pass --scope implementation-diff'
+  set +e
+  out="$(runcheck --file "$contradictory_review_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "failed Code Review returning pass verdict expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "contradictory review verdict expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  sed -e 's|^  role: .*|  role: Validation|' -e 's|^  status: PASS|  status: FAIL|' \
+    "$FIXTURES_DIR/implementation-valid.md" > "$contradictory_validation_result"
+  replace_fixture_token "$contradictory_validation_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-validation --status pass --ref role-output-contracts'
+  set +e
+  out="$(runcheck --file "$contradictory_validation_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "failed Validation returning pass verdict expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "contradictory validation verdict expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  replace_fixture_token "$contradictory_review_result" '--status pass' '--status fail'
+  set +e
+  out="$(runcheck --file "$contradictory_review_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "failed Code Review recording fail must be accepted, got $rc: $out"
+
+  replace_fixture_token "$contradictory_validation_result" '--status pass' '--status fail'
+  set +e
+  out="$(runcheck --file "$contradictory_validation_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "failed Validation recording fail must be accepted, got $rc: $out"
+
+  cp "$FIXTURES_DIR/validation-valid.md" "$missing_stamp_result"
+  node - "$missing_stamp_result" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const line = '    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm\n';
+if (!source.includes(line)) process.exit(1);
+fs.writeFileSync(file, source.replace(line, ''));
+NODE
+  set +e
+  out="$(runcheck --file "$missing_stamp_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "Validation PASS without immediate snapshot command expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-VALIDATION-SNAPSHOT" "missing snapshot expected E-VALIDATION-SNAPSHOT, got: $out"
+  log_pass "TEST-023 Validation PASS outcome_report gate"
+}
+
+# --- TEST-024 — unknown roles cannot bypass role-scoped gates ---------------
+test_024_role_enum_is_closed() {
+  log_info "TEST-024: unknown and empty roles -> E-BAD-ROLE; canonical roles remain accepted..."
+  local msg="$TMP_ROOT/role-enum.md" out rc role
+  for role in Validator '' Typo; do
+    cat > "$msg" <<EOF
+\`\`\`yaml
+subagent_result:
+  scope: role-output-contracts
+  role: $role
+  status: PASS
+  started_utc: 2026-01-07T00:00:00Z
+  ended_utc: 2026-01-07T00:01:00Z
+  duration_seconds: 60
+  evidence:
+    - command: echo ok
+      exit_code: 0
+  files_changed: []
+  blockers: []
+\`\`\`
+EOF
+    set +e
+    out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
+    set -e
+    [[ "$rc" -eq 1 ]] || log_fail "unknown role '$role' expected exit 1, got $rc: $out"
+    assert_payload_contains "$out" "E-BAD-ROLE" "unknown role '$role' expected E-BAD-ROLE, got: $out"
+  done
+
+  for role in Planning 'Technology extraction' Bootstrap 'Implementation Preparation / Worktree decision' Implementation 'TDD Implementation' Validation 'Code Review' Remediation 'Implementation Preparation' Research Orchestration 'Metrics Flush'; do
+    [[ "$role" == Validation ]] && continue
+    sed "s|^  role: .*|  role: $role|" "$FIXTURES_DIR/implementation-valid.md" > "$msg"
+    set +e
+    out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
+    set -e
+    [[ "$rc" -eq 0 ]] || log_fail "canonical role '$role' must remain accepted, got $rc: $out"
+  done
+
+  sed 's|^  role: .*|  role: TDD Implementation|' "$FIXTURES_DIR/implementation-valid.md" > "$msg"
+  node - "$msg" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const anchor = '  blockers: []\n';
+const commands = '  state_update_commands:\n    - node .aai/scripts/state.mjs set-tdd-cycle --status IDLE\n    - node .aai/scripts/state.mjs set-phase --ref role-output-contracts --phase validation --notes "evidence-[x].md"\n    - node .aai/scripts/state.mjs set-code-review --required true --status not_run --scope implementation-diff\n';
+if (!source.includes(anchor)) process.exit(1);
+fs.writeFileSync(file, source.replace(anchor, `${anchor}${commands}`));
+NODE
+  set +e
+  out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "TDD Implementation set-tdd-cycle must be accepted, got $rc: $out"
+
+  sed 's|^  role: .*|  role: Remediation|' "$FIXTURES_DIR/implementation-valid.md" > "$msg"
+  node - "$msg" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+const source = fs.readFileSync(file, 'utf8');
+const anchor = '  blockers: []\n';
+const commands = '  state_update_commands:\n    - node .aai/scripts/state.mjs reset-block last_validation\n    - node .aai/scripts/state.mjs reset-block code_review --force\n';
+if (!source.includes(anchor)) process.exit(1);
+fs.writeFileSync(file, source.replace(anchor, `${anchor}${commands}`));
+NODE
+  set +e
+  out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "Remediation reset-block positional grammar must be accepted, got $rc: $out"
+
+  log_pass "TEST-024 role enum rejects bypass spellings and accepts canonical roles"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -689,6 +1097,8 @@ main() {
   test_014_seam1_contract_skeleton
   test_021_planning_verdict_rejected
   test_022_planning_verdict_controls
+  test_023_validation_pass_requires_outcome_report
+  test_024_role_enum_is_closed
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }
 

@@ -26,6 +26,16 @@
 //      the required core is validated) — one violation line per missing
 //      field.
 //   3. E-BAD-STATUS       — `status` is one of PASS / FAIL / BLOCKED.
+//   10. E-BAD-ROLE        — `role` is one of the canonical dispatched,
+//      semantic, or state-recorded roles. Unknown and empty spellings fail
+//      closed so they cannot bypass role-scoped checks.
+//   11. E-OUTCOME-EVIDENCE / E-VALIDATION-SNAPSHOT — Validation PASS binds
+//      the checked report to set-validation evidence and snapshots the tree
+//      immediately after the returned STATE commands are replayed.
+//   12. E-STATE-UPDATE-COMMAND — every returned merge command is an
+//      allowlisted state.mjs mutation or the exact validation snapshot call.
+//   13. E-DUPLICATE-FIELD — a top-level result key appears more than once;
+//      duplicate YAML keys are rejected instead of silently overwriting data.
 //   4. E-NO-EVIDENCE      — `evidence` has at least one entry with an
 //      INTEGER `exit_code`.
 //   8. E-MALFORMED-LINE — a base-indent block line that is neither a key nor a comment (never silently skipped)
@@ -91,7 +101,8 @@
 //                      contract is binary — 0 clean / 1 anything else).
 //
 // SCOPE NOTES
-//   Deterministic, LLM-free, zero-dependency: Node stdlib only (`node:fs`),
+//   Deterministic, LLM-free, zero-dependency: Node stdlib plus the sibling
+//   read-only outcome checker,
 //   no network access, no model call, no package manifest (Technology
 //   contract: docs/TECHNOLOGY.md). Semantic/quality judgment of a role's
 //   work stays with Validation/Code Review — this script validates SHAPE
@@ -101,6 +112,8 @@
 
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { checkOutcomeReport } from './validation-outcome-check.mjs';
 
 // --- exit discipline (cli-exit-truncates-pipe-sweep) ------------------------
 // INLINED, not imported from ./lib/cli-pipe-guard.mjs: this checker's own
@@ -156,6 +169,21 @@ const REQUIRED_FIELDS = [
   'blockers',
 ];
 const VALID_STATUSES = new Set(['PASS', 'FAIL', 'BLOCKED']);
+const VALID_ROLES = new Set([
+  'planning',
+  'technology extraction',
+  'bootstrap',
+  'implementation preparation',
+  'implementation preparation / worktree decision',
+  'implementation',
+  'tdd implementation',
+  'validation',
+  'code review',
+  'remediation',
+  'research',
+  'orchestration',
+  'metrics flush',
+]);
 // Fields that record a VALIDATION VERDICT. Reserved to the Validation role
 // (E-PLANNING-VERDICT, see the header). `status` is deliberately NOT here.
 const VERDICT_FIELDS = new Set([
@@ -400,6 +428,163 @@ function parseScalarList(nested) {
   return items;
 }
 
+// Minimal shell-word parser for the canonical returned commands. It never
+// executes input; it only preserves quoted path/argument boundaries well
+// enough to compare exact flag values. Unsupported/unclosed quoting refuses
+// by yielding null, which cannot satisfy either Validation handoff gate.
+function parseCommandWords(command) {
+  const words = [];
+  let word = '';
+  let quote = null;
+  let escaped = false;
+  let escapedInDouble = false;
+  let started = false;
+  for (const ch of String(command)) {
+    if (escaped) {
+      if (ch !== '\n') {
+        if (escapedInDouble && !['$', '`', '"', '\\'].includes(ch)) word += '\\';
+        word += ch;
+        started = true;
+      }
+      escaped = false;
+      escapedInDouble = false;
+      continue;
+    }
+    if (quote) {
+      if (ch === quote) quote = null;
+      else if (ch === '\\' && quote === '"') { escaped = true; escapedInDouble = true; }
+      else if (quote === '"' && (ch === '$' || ch === '`')) return null;
+      else word += ch;
+      started = true;
+      continue;
+    }
+    if (ch === "'" || ch === '"') { quote = ch; started = true; continue; }
+    if (ch === '\\') { escaped = true; escapedInDouble = false; started = true; continue; }
+    if (';&|<>$`*?[]{}~#()!'.includes(ch)) return null;
+    if (/\s/.test(ch)) {
+      if (started) { words.push(word); word = ''; started = false; }
+      continue;
+    }
+    word += ch;
+    started = true;
+  }
+  if (quote || escaped) return null;
+  if (started) words.push(word);
+  return words;
+}
+
+function normalizedScriptPath(value) {
+  return path.posix.normalize(String(value).replaceAll('\\', '/'));
+}
+
+const STATE_UPDATE_SUBCOMMANDS = new Set([
+  'set-focus', 'set-phase', 'set-validation', 'set-code-review', 'set-strategy',
+  'set-worktree', 'set-tdd-cycle', 'set-human-input', 'append-run', 'amend-run',
+  'clear-focus', 'log-tick', 'reset-block',
+]);
+
+const ROLE_UPDATE_SUBCOMMANDS = new Map([
+  ['planning', new Set(['set-focus', 'set-phase', 'set-strategy', 'set-worktree', 'set-code-review'])],
+  ['implementation preparation', new Set(['set-focus', 'set-phase', 'set-worktree'])],
+  ['implementation preparation / worktree decision', new Set(['set-focus', 'set-phase', 'set-worktree'])],
+  ['implementation', new Set(['set-focus', 'set-phase', 'set-code-review'])],
+  ['tdd implementation', new Set(['set-focus', 'set-phase', 'set-code-review', 'set-tdd-cycle'])],
+  ['validation', new Set(['set-validation', 'set-phase'])],
+  ['code review', new Set(['set-code-review'])],
+  ['remediation', new Set(['reset-block', 'set-phase', 'set-human-input'])],
+  ['metrics flush', new Set(['set-validation', 'set-code-review', 'set-human-input'])],
+  ['orchestration', STATE_UPDATE_SUBCOMMANDS],
+]);
+
+function isFlagValueSequence(words, start) {
+  for (let i = start; i < words.length; i += 2) {
+    if (!words[i].startsWith('--') || words[i + 1] === undefined || words[i + 1].startsWith('--')) return false;
+  }
+  return true;
+}
+
+function commandFlagValues(words, name) {
+  const values = [];
+  for (let i = 3; i < words.length; i += 2) if (words[i] === name) values.push(words[i + 1]);
+  return values;
+}
+
+function isAllowedMergeCommand(words, role, scope, resultStatus) {
+  if (!words || words[0] !== 'node') return false;
+  const script = normalizedScriptPath(words[1] ?? '');
+  if (script === '.aai/scripts/orchestration-dispatch.mjs') {
+    return role === 'validation'
+      && words.length === 4 && words.includes('--human') && words.includes('--confirm');
+  }
+  if (script !== '.aai/scripts/state.mjs'
+      || !STATE_UPDATE_SUBCOMMANDS.has(words[2])
+      || !ROLE_UPDATE_SUBCOMMANDS.get(role)?.has(words[2])) return false;
+  if (words[2] === 'reset-block') {
+    return role === 'remediation'
+      && ['last_validation', 'code_review'].includes(words[3])
+      && (words.length === 4 || (words.length === 5 && words[4] === '--force'));
+  }
+  if (!isFlagValueSequence(words, 3)) return false;
+  if (commandFlagValues(words, '--state').length > 0
+      || commandFlagValues(words, '--ticks').length > 0) return false;
+  const refs = commandFlagValues(words, '--ref');
+  if (role !== 'orchestration') {
+    if (refs.length > 0 && (refs.length !== 1 || refs[0] !== scope)) return false;
+    const scopeRequired = ['set-focus', 'set-phase', 'set-validation'].includes(words[2])
+      && !(role === 'metrics flush' && words[2] === 'set-validation');
+    if (scopeRequired && refs.length !== 1) return false;
+  }
+  if (words[2] === 'set-code-review' && role !== 'code review' && role !== 'orchestration') {
+    const statuses = commandFlagValues(words, '--status');
+    if (statuses.length !== 1 || statuses[0] !== 'not_run') return false;
+    const required = commandFlagValues(words, '--required');
+    if (required.length !== 1) return false;
+    if (['implementation', 'tdd implementation'].includes(role) && required[0] !== 'true') return false;
+    if (role === 'metrics flush' && required[0] !== 'false') return false;
+    if (role === 'planning' && !['true', 'false'].includes(required[0])) return false;
+  }
+  if (words[2] === 'set-code-review' && role === 'code review') {
+    const statuses = commandFlagValues(words, '--status');
+    const required = commandFlagValues(words, '--required');
+    const allowedStatuses = resultStatus === 'PASS'
+      ? ['pass', 'waived']
+      : resultStatus === 'FAIL' ? ['fail'] : [];
+    if (statuses.length !== 1 || !allowedStatuses.includes(statuses[0])) return false;
+    if (required.length !== 1 || !['true', 'false'].includes(required[0])) return false;
+  }
+  if (words[2] === 'set-validation' && role === 'validation') {
+    const stateCommand = parseValidationStateCommand(words);
+    const statuses = stateCommand?.seen.get('--status') ?? [];
+    const expectedStatus = resultStatus === 'PASS'
+      ? 'pass'
+      : resultStatus === 'FAIL' ? 'fail' : null;
+    if (!stateCommand?.valid || expectedStatus === null
+        || statuses.length !== 1 || statuses[0] !== expectedStatus) return false;
+  }
+  if (words[2] === 'set-validation' && role === 'metrics flush') {
+    const statuses = commandFlagValues(words, '--status');
+    if (statuses.length !== 1 || statuses[0] !== 'not_run') return false;
+  }
+  return true;
+}
+
+function parseValidationStateCommand(words) {
+  if (!words || words[0] !== 'node'
+      || normalizedScriptPath(words[1] ?? '') !== '.aai/scripts/state.mjs'
+      || words[2] !== 'set-validation') return null;
+  const allowed = new Set(['--status', '--ref', '--model', '--evidence', '--notes']);
+  const repeated = new Set(['--evidence']);
+  const seen = new Map();
+  for (let i = 3; i < words.length; i += 2) {
+    const flag = words[i];
+    const value = words[i + 1];
+    if (!allowed.has(flag) || value === undefined || value.startsWith('--')) return { valid: false, seen };
+    if (!repeated.has(flag) && seen.has(flag)) return { valid: false, seen };
+    seen.set(flag, [...(seen.get(flag) ?? []), value]);
+  }
+  return { valid: true, seen };
+}
+
 // A sequence of mapping items ("- key: value" plus sibling "key: value"
 // continuation lines two spaces further in) at nested's own indent level.
 function parseEvidenceList(nested) {
@@ -457,9 +642,12 @@ function parseSubagentResultBlock(candidateRawLines) {
   const present = new Set();
   const fields = {};
   const malformed = [];
+  const duplicates = [];
   let evidence = [];
   let filesChanged = [];
   let blockers = [];
+  let stateUpdateCommands = [];
+  let invalidStateUpdateCommands = false;
 
   let i = 0;
   while (i < body.length) {
@@ -482,6 +670,7 @@ function parseSubagentResultBlock(candidateRawLines) {
     while (i < body.length && body[i].indent > baseIndent) i++;
     const nested = body.slice(nestedStart, i);
 
+    if (present.has(key)) duplicates.push(key);
     present.add(key);
     if (
       key === 'scope' ||
@@ -489,7 +678,8 @@ function parseSubagentResultBlock(candidateRawLines) {
       key === 'status' ||
       key === 'started_utc' ||
       key === 'ended_utc' ||
-      key === 'duration_seconds'
+      key === 'duration_seconds' ||
+      key === 'outcome_report'
     ) {
       fields[key] = inlineVal !== '' ? parseScalar(inlineVal) : '';
     } else if (key === 'evidence') {
@@ -498,23 +688,69 @@ function parseSubagentResultBlock(candidateRawLines) {
       filesChanged = inlineVal === '[]' ? [] : parseScalarList(nested);
     } else if (key === 'blockers') {
       blockers = inlineVal === '[]' ? [] : parseScalarList(nested);
+    } else if (key === 'state_update_commands') {
+      const commandInlineVal = inlineVal.replace(/(?:^|\s+)#.*$/, '').trim();
+      if (commandInlineVal === '[]') stateUpdateCommands = [];
+      else if (commandInlineVal !== '') invalidStateUpdateCommands = true;
+      else {
+        const listIndent = nested[0]?.indent;
+        const exactPhysicalList = nested.every((line) => line.indent === listIndent
+          && (line.content === '-' || line.content.startsWith('- ')));
+        const hasQuotedScalar = nested.some((line) => {
+          const value = line.content.startsWith('- ') ? line.content.slice(2).trim() : '';
+          return value.startsWith('"') || value.startsWith("'");
+        });
+        if (!exactPhysicalList || hasQuotedScalar) invalidStateUpdateCommands = true;
+        else stateUpdateCommands = parseScalarList(nested);
+      }
     }
     // else: extra extension field — nested lines already consumed above;
     // intentionally ignored (validate required core only).
   }
-  return { present, fields, evidence, files_changed: filesChanged, blockers, malformed };
+  return {
+    present, fields, evidence, files_changed: filesChanged, blockers,
+    state_update_commands: stateUpdateCommands, malformed, duplicates,
+    invalid_state_update_commands: invalidStateUpdateCommands,
+  };
 }
 
 function validateResult(parsed, nowMs) {
   const violations = [];
+  const commandWords = (parsed.state_update_commands ?? []).map(parseCommandWords);
+  const role = String(parsed.fields.role ?? '').trim().toLowerCase();
 
   for (const bad of parsed.malformed ?? []) {
     violations.push(['E-MALFORMED-LINE', `unparseable block line: ${bad}`]);
   }
 
+  for (const key of parsed.duplicates ?? []) {
+    violations.push(['E-DUPLICATE-FIELD', `duplicate top-level field: ${key}`]);
+  }
+
+  if (parsed.invalid_state_update_commands) {
+    violations.push([
+      'E-STATE-UPDATE-COMMAND',
+      'state_update_commands must be an indented scalar list or []',
+    ]);
+  }
+
   for (const key of REQUIRED_FIELDS) {
     if (!parsed.present.has(key)) {
       violations.push(['E-MISSING-FIELD', `missing required field: ${key}`]);
+    }
+  }
+
+  for (let i = 0; i < commandWords.length; i += 1) {
+    if (!isAllowedMergeCommand(
+      commandWords[i],
+      role,
+      String(parsed.fields.scope ?? ''),
+      parsed.fields.status,
+    )) {
+      violations.push([
+        'E-STATE-UPDATE-COMMAND',
+        `state_update_commands[${i}] is not allowlisted for role ${JSON.stringify(parsed.fields.role)}`,
+      ]);
     }
   }
 
@@ -524,6 +760,16 @@ function validateResult(parsed, nowMs) {
       violations.push([
         'E-BAD-STATUS',
         `status must be one of PASS|FAIL|BLOCKED, got: ${JSON.stringify(status)}`,
+      ]);
+    }
+  }
+
+  if (parsed.present.has('role')) {
+    const role = String(parsed.fields.role ?? '').trim().toLowerCase();
+    if (!VALID_ROLES.has(role)) {
+      violations.push([
+        'E-BAD-ROLE',
+        `role must be canonical, got: ${JSON.stringify(parsed.fields.role)}`,
       ]);
     }
   }
@@ -590,6 +836,66 @@ function validateResult(parsed, nowMs) {
       violations.push([
         'E-FUTURE-STARTED',
         `started_utc is ${Math.round(aheadSeconds)}s ahead of --now, limit ${FUTURE_TOLERANCE_SECONDS}s`,
+      ]);
+    }
+  }
+
+  // A Validation PASS is not mergeable without the same report contract used
+  // by standalone Validation. FAIL/BLOCKED and all other roles retain their
+  // existing result-block behavior. The returned command strings remain data;
+  // this checker never parses or executes them.
+  if (role === 'validation' && parsed.fields.status === 'PASS') {
+    const reportPath = parsed.fields.outcome_report;
+    if (!parsed.present.has('outcome_report') || typeof reportPath !== 'string' || reportPath.trim() === '') {
+      violations.push(['E-OUTCOME-REPORT', 'Validation PASS requires a scalar outcome_report path']);
+    } else if (startedDate) {
+      const outcome = checkOutcomeReport({
+        reportPath,
+        ref: String(parsed.fields.scope ?? ''),
+        since: String(parsed.fields.started_utc ?? ''),
+        root: process.cwd(),
+        now: new Date(nowMs),
+      });
+      if (!outcome.ok) {
+        violations.push(['E-OUTCOME-REPORT', outcome.reasons.join('; ')]);
+      }
+    }
+    const commands = commandWords;
+    const scope = String(parsed.fields.scope ?? '');
+    let evidenceCommandIndex = -1;
+    let validationCommandCount = 0;
+    for (let i = 0; i < commands.length; i += 1) {
+      const words = commands[i];
+      const stateCommand = parseValidationStateCommand(words);
+      if (!stateCommand) continue;
+      validationCommandCount += 1;
+      const statuses = stateCommand.seen.get('--status') ?? [];
+      const refs = stateCommand.seen.get('--ref') ?? [];
+      const evidencePaths = stateCommand.seen.get('--evidence') ?? [];
+      if (stateCommand.valid
+          && statuses.length === 1 && statuses[0] === 'pass'
+          && refs.length === 1 && refs[0] === scope
+          && evidencePaths.includes(reportPath)) {
+        evidenceCommandIndex = i;
+      }
+    }
+    if (evidenceCommandIndex === -1 || validationCommandCount !== 1) {
+      violations.push([
+        'E-OUTCOME-EVIDENCE',
+        'Validation PASS requires set-validation --status pass with --ref equal to scope and --evidence including outcome_report',
+      ]);
+    }
+    const hasSnapshotAfterEvidence = commands.some((words, index) => words
+      && index > evidenceCommandIndex
+      && words[0] === 'node'
+      && normalizedScriptPath(words[1]) === '.aai/scripts/orchestration-dispatch.mjs'
+      && words.length === 4
+      && words.includes('--human')
+      && words.includes('--confirm'));
+    if (!hasSnapshotAfterEvidence) {
+      violations.push([
+        'E-VALIDATION-SNAPSHOT',
+        'Validation PASS requires orchestration-dispatch.mjs --human --confirm after set-validation to snapshot the validated tree',
       ]);
     }
   }

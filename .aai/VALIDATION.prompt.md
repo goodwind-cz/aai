@@ -153,11 +153,17 @@ This conditionality applies ONLY to the RED-proof obligation. Never soften
 tdd/hybrid, the independence rule, adversarial stance, or the AC STATUS GATE.
 
 PROCESS
+0) Capture `VALIDATION_STARTED_UTC` once from the system UTC clock. It is the
+   validation report's `validation_started_utc` and the `--since` horizon below.
 1) Read docs/ai/STATE.yaml and verify validation is allowed (not paused, not blocked by human_input).
    Advisory: run `node .aai/scripts/spec-lint.mjs --path <spec_path>` and record its structural
    findings as advisory context (report-only in v1, never the verdict); if the script is absent, note it and continue.
-2) Inventory all requirements and acceptance criteria.
-3) Verify mapping to implementation specs.
+2) Inventory all requirements from the independently read original intake/request
+   and every authorized correction, including each material constraint (preservation, exact target,
+   numeric and process constraints). Unavailable original text is `unknown` and
+   blocks PASS; never reconstruct it from the implementation conversation.
+3) Compare that inventory with the frozen spec. Record aligned, omitted, weakened
+   or unknown for every requirement and cite the source text actually read.
 4) Locate implementation paths.
 5) Discover and execute ALL available test suites:
    a) Read docs/TECHNOLOGY.md to identify test tooling and commands.
@@ -217,9 +223,22 @@ PROCESS
       (see .aai/ROLE_COMMON.md FRICTION HOOK for the full capture contract).
       Trigger: a gate, lint, or CI check fails on an AAI-owned canon file
       during discovery. Never let it affect this step's outcome.
-6) Build coverage table.
+6) Build the coverage table and write the normal
+   `docs/ai/reports/VALIDATION-<run_id>-<scope>.md` report. It MUST contain
+   exactly one fenced `aai-outcome-v1` JSON block conforming to the schema in
+   `.aai/scripts/validation-outcome-check.mjs` (`--help` and its header are the
+   schema reference): hashed intake/spec sources, the requirement inventory,
+   reciprocal outcome/evidence links, exact target identity, persistence
+   applicability and observed bytes/timestamps. The report is the evidence
+   authority; `LATEST.md`, when present, is only a pointer.
 7) Run AC STATUS GATE (see section above) and record any blocking findings.
 7b) Apply the `.aai/SKILL_VERIFY.prompt.md` gate before producing any verdict.
+7c) Before any PASS claim or step 9 command, run and honor:
+      node .aai/scripts/validation-outcome-check.mjs \
+        --report <VALIDATION-report> --ref <REF-ID> \
+        --since "$VALIDATION_STARTED_UTC" --root <repository-root>
+    Exit 1 is evidence refusal and blocks PASS; exit 2 is invalid invocation and
+    blocks PASS. Do not restamp old observations to satisfy freshness.
 8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear (clear INCLUDES a gate exit covered by the MECHANICAL CHECKS carve).
    FRICTION HOOK — best-effort record per `.aai/system/FRICTION_PROTOCOL.md`
    (see .aai/ROLE_COMMON.md FRICTION HOOK for the full capture contract).
@@ -260,15 +279,22 @@ PROCESS
     the two gates above.
 9) Update docs/ai/STATE.yaml — PRIMARY PATH (transactional CLI, SPEC-0012):
       node .aai/scripts/state.mjs set-validation --status <pass|fail> --ref <REF-ID> \
-        --evidence <path> [--evidence <path>]... --notes "<verdict summary>"
+        --evidence <VALIDATION-report> [--evidence <path>]... --notes "<verdict summary>"
       node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase <code_review|remediation|validation> [--status <s>]
+      # PASS only, immediately after the STATE commands:
+      node .aai/scripts/orchestration-dispatch.mjs --human --confirm
     (`set-validation` self-stamps `run_at_utc` from the system clock; each
     command bumps the real `updated_at_utc` itself. code_review.status remains
     not_run/fail unless a separate code review report has already recorded pass
     or waiver — do NOT touch it here.)
     FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.
     Dispatched: return these as `state_update_commands:` instead of running
-    them (.aai/SUBAGENT_CONTRACT.md). Sole agent: run them.
+    them (.aai/SUBAGENT_CONTRACT.md), and for PASS add the scalar
+    `outcome_report: <VALIDATION-report>` to the result block. Sole agent: run them.
+    The report checked in step 7c and the report passed as state evidence
+    must be the same path and must belong to this scope. On PASS the result
+    checker requires both that exact evidence binding and the immediately
+    following dispatcher command, which snapshots the validated tree.
 
 PARALLEL VALIDATION (when scope has ≥3 independent requirement groups)
 If requirements can be grouped into ≥3 independent groups (no cross-dependency):

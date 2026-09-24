@@ -1011,11 +1011,14 @@ delivered_by_contains() {
 # --- invocation + assertion helpers ------------------------------------------
 
 # run_close <fixture_dir> <outfile> <errfile> <args...> — echoes the exit code.
+# Every ordinary arm models an orchestrator-owned close inside its disposable
+# fixture. Deliberate single-writer refusal coverage sets AAI_ROLE=subagent
+# explicitly in test_054 instead of inheriting the dispatched test runner.
 run_close() {
   local dir="$1" outfile="$2" errfile="$3"
   shift 3
   local code=0
-  ( cd "$dir" && node "$CLOSE_SCRIPT" "$@" > "$outfile" 2> "$errfile" ) || code=$?
+  ( cd "$dir" && env -u AAI_ROLE node "$CLOSE_SCRIPT" "$@" > "$outfile" 2> "$errfile" ) || code=$?
   echo "$code"
 }
 

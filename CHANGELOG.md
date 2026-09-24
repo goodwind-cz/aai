@@ -22,6 +22,18 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat: original-request outcome backcheck
+
+- **Validation PASS carries an outcome backcheck.** Reports use one
+  `aai-outcome-v1` block that links original-request constraints to observed
+  evidence.
+- **The stdlib-only checker refuses invalid evidence.** Missing, contradictory,
+  stale, changed, preview-only, and wrong-target evidence cannot support a
+  dispatched Validation PASS; code-only validation stays concise.
+- **Loop resume invalidates a refused standing PASS.** It resets the status to
+  `not_run` before fresh Validation dispatches, preventing stale routing to
+  Metrics Flush.
+
 ## [v2026.09.21] — feat(ceremony): the close ceremony, docs audit and generated pages agree with git (CHANGE-0188-close-ceremony-sweep / SPEC-0182-spec-close-ceremony-sweep)
 
 - **`ride-select.mjs`'s roadmap gate now admits only the FIRST unfinished

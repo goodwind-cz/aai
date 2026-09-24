@@ -1,0 +1,599 @@
+#!/usr/bin/env node
+// validation-outcome-check.mjs — mechanical gate for the single
+// `aai-outcome-v1` JSON block in an independent Validation report.
+//
+// Usage:
+//   node .aai/scripts/validation-outcome-check.mjs \
+//     --report <path> --ref <scope-ref> --since <ISO-8601 UTC> [--root <repo>]
+//
+// Exit 0: mechanically admissible. Exit 1: evidence refusal, printed as
+// `OUTCOME-CHECK: <reason>`. Exit 2: invalid CLI usage. Node stdlib only; this
+// checker reads local bytes and never executes report content or uses a network.
+//
+// The single accepted schema is JSON object version 1 with:
+//   ref, validation_started_utc,
+//   sources[{kind:intake|spec,path,sha256}],
+//   requirements[{id,source:{path,quote},constraint,spec_ac_ids[],assessment,
+//     rationale,required:true,outcome_ids[]}], and
+//   outcomes[{id,requirement_ids[],target:{kind,expected_identity,
+//     observed_identity,...},verification:{operation,evidence_path,
+//     evidence_sha256,observed_at_utc,result},persistence:{applicable,...}}].
+// Local-file targets additionally carry consumed_path/consumed_sha256; external
+// targets carry dynamic and, when false, immutable_revision. IDs and links are
+// unique and reciprocal. An aligned requirement must map to at least one
+// Spec-AC. The report wraps this object in exactly one `aai-outcome-v1` fence.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+
+const ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|\+00:00)$/;
+const SHA256_RE = /^[a-f0-9]{64}$/;
+const ASSESSMENTS = new Set(['aligned', 'omitted', 'weakened', 'unknown']);
+const RESULTS = new Set(['satisfied', 'violated', 'unknown']);
+const TARGET_KINDS = new Set(['repository', 'local_file', 'external']);
+
+function usage(message) {
+  if (message) process.stderr.write(`validation-outcome-check: ${message}\n`);
+  process.stderr.write('usage: node .aai/scripts/validation-outcome-check.mjs --report <path> --ref <ref> --since <UTC> [--root <repo>]\n');
+  return 2;
+}
+
+function parseArgs(argv) {
+  const options = { root: process.cwd() };
+  for (let i = 0; i < argv.length; i += 1) {
+    const flag = argv[i];
+    if (flag === '--help' || flag === '-h') return { help: true };
+    if (!['--report', '--ref', '--since', '--root'].includes(flag)) return { error: `unknown argument: ${flag}` };
+    const value = argv[i + 1];
+    if (!value || value.startsWith('--')) return { error: `${flag} requires a value` };
+    const key = flag.slice(2);
+    if (Object.hasOwn(options, key) && key !== 'root') return { error: `duplicate argument: ${flag}` };
+    options[key] = value;
+    i += 1;
+  }
+  for (const key of ['report', 'ref', 'since']) {
+    if (!options[key]) return { error: `--${key} is required` };
+  }
+  return { options };
+}
+
+function parseUtc(value) {
+  if (typeof value !== 'string' || !ISO_UTC_RE.test(value)) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(value);
+  if (!match) return null;
+  if (date.getUTCFullYear() !== Number(match[1]) || date.getUTCMonth() + 1 !== Number(match[2])
+      || date.getUTCDate() !== Number(match[3]) || date.getUTCHours() !== Number(match[4])
+      || date.getUTCMinutes() !== Number(match[5]) || date.getUTCSeconds() !== Number(match[6])) return null;
+  return date;
+}
+
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+function resolveLocal(root, relative, label, refuse) {
+  if (typeof relative !== 'string' || relative.trim() === '') {
+    refuse(`${label} path is missing`);
+    return null;
+  }
+  if (path.isAbsolute(relative)) {
+    refuse(`${label} path must be repository-relative: ${relative}`);
+    return null;
+  }
+  const rootAbs = path.resolve(root);
+  const resolved = path.resolve(rootAbs, relative);
+  if (resolved !== rootAbs && !resolved.startsWith(`${rootAbs}${path.sep}`)) {
+    refuse(`${label} path escapes --root: ${relative}`);
+    return null;
+  }
+  let rootReal;
+  try {
+    rootReal = fs.realpathSync.native(rootAbs);
+  } catch (error) {
+    refuse(`--root is unreadable: ${root} (${error.code ?? error.message})`);
+    return null;
+  }
+  let resolvedReal;
+  try {
+    resolvedReal = fs.realpathSync.native(resolved);
+  } catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return resolved;
+    refuse(`${label} path cannot be resolved: ${relative} (${error.code ?? error.message})`);
+    return null;
+  }
+  if (resolvedReal !== rootReal && !resolvedReal.startsWith(`${rootReal}${path.sep}`)) {
+    refuse(`${label} path resolves outside --root: ${relative}`);
+    return null;
+  }
+  return resolvedReal;
+}
+
+function readHashedFile(root, entry, label, refuse) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+    refuse(`${label} entry is missing or malformed`);
+    return null;
+  }
+  const resolved = resolveLocal(root, entry.path, label, refuse);
+  if (!resolved) return null;
+  if (!SHA256_RE.test(entry.sha256 ?? '')) {
+    refuse(`${label} sha256 is malformed`);
+    return null;
+  }
+  let bytes;
+  try {
+    bytes = fs.readFileSync(resolved);
+  } catch (error) {
+    refuse(`${label} is unreadable: ${entry.path} (${error.code ?? error.message})`);
+    return null;
+  }
+  const actual = sha256(bytes);
+  if (actual !== entry.sha256) refuse(`${label} hash mismatch: ${entry.path}`);
+  return { resolved, bytes, actual };
+}
+
+function backtickRunLength(line, index) {
+  let length = 0;
+  while (line[index + length] === '`') length += 1;
+  return length;
+}
+
+function hasInlineClosingDelimiter(line, index, length) {
+  for (let column = index + length; column < line.length; column += 1) {
+    if (line[column] !== '`') continue;
+    if ((column === 0 || line[column - 1] !== '`') && backtickRunLength(line, column) === length) return true;
+  }
+  return false;
+}
+
+function maskCommentsOutsideInlineCode(line, state) {
+  let masked = '';
+  let inlineLength = 0;
+  for (let index = 0; index < line.length;) {
+    if (inlineLength) {
+      if (line[index] === '`' && (index === 0 || line[index - 1] !== '`') && backtickRunLength(line, index) === inlineLength) {
+        masked += ' '.repeat(inlineLength);
+        index += inlineLength;
+        inlineLength = 0;
+      } else {
+        masked += ' ';
+        index += 1;
+      }
+      continue;
+    }
+    if (state.inComment) {
+      if (line.startsWith('-->', index)) {
+        masked += '   ';
+        index += 3;
+        state.inComment = false;
+      } else {
+        masked += ' ';
+        index += 1;
+      }
+      continue;
+    }
+    if (line[index] === '`') {
+      const length = backtickRunLength(line, index);
+      if (hasInlineClosingDelimiter(line, index, length)) {
+        inlineLength = length;
+        masked += ' '.repeat(length);
+        index += length;
+        continue;
+      }
+    }
+    if (line.startsWith('<!--', index)) {
+      masked += '    ';
+      index += 4;
+      state.inComment = true;
+      continue;
+    }
+    masked += line[index];
+    index += 1;
+  }
+  return masked;
+}
+
+function maskNonAuthoritativeMarkdown(markdown) {
+  const lines = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const state = { inComment: false };
+  let openFence = null;
+  return lines.map((line, lineIndex) => {
+    if (openFence) {
+      const closer = /^(?: {0,3})(`{3,}|~{3,})[ \t]*$/.exec(line);
+      if (closer && closer[1][0] === openFence.character && closer[1].length >= openFence.length) openFence = null;
+      return '';
+    }
+    if (!state.inComment) {
+      const opener = /^(?: {0,3})(`{3,})[^`]*$|^(?: {0,3})(~{3,}).*$/.exec(line);
+      const fence = opener?.[1] ?? opener?.[2];
+      if (fence) {
+        openFence = { character: fence[0], length: fence.length };
+        return '';
+      }
+    }
+    const uncommented = maskCommentsOutsideInlineCode(line, state);
+    return uncommented;
+  }).join('\n');
+}
+
+function tableCells(line) {
+  return line.split(/(?<!\\)\|/).map((cell) => cell.trim()).slice(1, -1);
+}
+
+function definedSpecAcIds(bytes) {
+  const lines = maskNonAuthoritativeMarkdown(bytes.toString('utf8')).split('\n');
+  const headingIndex = lines.findIndex((line) => /^##\s+Acceptance Criteria Status\b/i.test(line)
+    || /^##\s+Acceptance Criteria[ \t]*$/i.test(line));
+  if (headingIndex === -1) {
+    return new Set(lines.map((line) => /^(?:-|\*)\s+(Spec-AC-\d+):\s+\S/.exec(line)?.[1]).filter(Boolean));
+  }
+  for (let index = headingIndex + 1; index < lines.length && !/^##\s/.test(lines[index]); index += 1) {
+    if (!lines[index].trim().startsWith('|')) continue;
+    const header = tableCells(lines[index]);
+    const separator = lines[index + 1] ?? '';
+    if (!header.includes('Spec-AC')) continue;
+    if (!/^\|\s*[-:|\s]+\|/.test(separator)) return new Set();
+    if (!header.includes('Review-By') && !header.includes('Status')) return new Set();
+    const specAcColumn = header.indexOf('Spec-AC');
+    const ids = new Set();
+    for (let row = index + 2; row < lines.length && lines[row].trim().startsWith('|'); row += 1) {
+      const cells = tableCells(lines[row]);
+      if (cells.length === header.length && /^Spec-AC-\d+$/.test(cells[specAcColumn])) ids.add(cells[specAcColumn]);
+    }
+    return ids;
+  }
+  return new Set();
+}
+
+// JSON.parse keeps only the last occurrence of a repeated object key. Scan the
+// already syntax-validated JSON separately so contradictory authoritative
+// fields are refused at every nesting level, including escape-equivalent keys.
+function duplicateJsonObjectKeys(source) {
+  const duplicates = [];
+  let index = 0;
+  const whitespace = () => { while (/\s/.test(source[index] ?? '')) index += 1; };
+  const string = () => {
+    const start = index;
+    index += 1;
+    while (index < source.length) {
+      if (source[index] === '"') { index += 1; break; }
+      if (source[index] === '\\') {
+        index += source[index + 1] === 'u' ? 6 : 2;
+      } else {
+        index += 1;
+      }
+    }
+    return JSON.parse(source.slice(start, index));
+  };
+  const value = () => {
+    whitespace();
+    if (source[index] === '{') { object(); return; }
+    if (source[index] === '[') { array(); return; }
+    if (source[index] === '"') { string(); return; }
+    while (index < source.length && !/[,\]}]/.test(source[index])) index += 1;
+  };
+  const array = () => {
+    index += 1;
+    whitespace();
+    if (source[index] === ']') { index += 1; return; }
+    while (index < source.length) {
+      value();
+      whitespace();
+      if (source[index] === ']') { index += 1; return; }
+      index += 1;
+    }
+  };
+  const object = () => {
+    index += 1;
+    const keys = new Set();
+    whitespace();
+    if (source[index] === '}') { index += 1; return; }
+    while (index < source.length) {
+      whitespace();
+      const key = string();
+      if (keys.has(key)) duplicates.push(key);
+      keys.add(key);
+      whitespace();
+      index += 1;
+      value();
+      whitespace();
+      if (source[index] === '}') { index += 1; return; }
+      index += 1;
+    }
+  };
+  value();
+  return duplicates;
+}
+
+function extractOutcomeBlock(markdown, refuse) {
+  const blocks = [];
+  let openFence = null;
+  const commentState = { inComment: false };
+  for (const rawLine of markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')) {
+    if (!openFence) {
+      const openerPattern = /^(?: {0,3})(`{3,}|~{3,})(.*)$/;
+      let opener = commentState.inComment ? null : openerPattern.exec(rawLine);
+      if (!opener) {
+        const line = maskCommentsOutsideInlineCode(rawLine, commentState);
+        opener = openerPattern.exec(line);
+      }
+      if (!opener) continue;
+      openFence = {
+        character: opener[1][0],
+        length: opener[1].length,
+        outcome: opener[2].trim() === 'aai-outcome-v1',
+        lines: [],
+      };
+      continue;
+    }
+    const line = rawLine;
+    const closer = /^(?: {0,3})(`{3,}|~{3,})[ \t]*$/.exec(line);
+    if (closer && closer[1][0] === openFence.character && closer[1].length >= openFence.length) {
+      if (openFence.outcome) blocks.push(openFence.lines.join('\n'));
+      openFence = null;
+      continue;
+    }
+    openFence.lines.push(line);
+  }
+  if (openFence?.outcome) {
+    refuse('unterminated aai-outcome-v1 block');
+    return null;
+  }
+  if (blocks.length !== 1) {
+    refuse(`expected exactly one aai-outcome-v1 block, found ${blocks.length}`);
+    return null;
+  }
+  try {
+    const data = JSON.parse(blocks[0]);
+    const duplicates = duplicateJsonObjectKeys(blocks[0]);
+    for (const key of duplicates) refuse(`duplicate JSON object key: ${key}`);
+    return duplicates.length === 0 ? data : null;
+  } catch (error) {
+    refuse(`aai-outcome-v1 JSON is malformed: ${error.message}`);
+    return null;
+  }
+}
+
+function requireString(value, label, refuse) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    refuse(`${label} must be a nonempty string`);
+    return false;
+  }
+  return true;
+}
+
+function uniqueIds(entries, label, refuse) {
+  const ids = new Set();
+  for (const [index, entry] of entries.entries()) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      refuse(`${label}[${index}] is malformed`);
+      continue;
+    }
+    if (!requireString(entry.id, `${label}[${index}].id`, refuse)) continue;
+    if (ids.has(entry.id)) refuse(`duplicate ${label} id: ${entry.id}`);
+    ids.add(entry.id);
+  }
+  return ids;
+}
+
+export function checkOutcomeReport({ reportPath, ref, since, root = process.cwd(), now = new Date() }) {
+  const reasons = [];
+  const refuse = (reason) => {
+    if (!reasons.includes(reason)) reasons.push(reason);
+  };
+  const sinceDate = parseUtc(since);
+  if (!sinceDate) return { ok: false, reasons: ['--since is not a valid ISO-8601 UTC timestamp'] };
+  const nowDate = now instanceof Date ? now : parseUtc(now);
+  if (!nowDate || Number.isNaN(nowDate.getTime())) return { ok: false, reasons: ['checker clock is invalid'] };
+
+  let markdown;
+  try {
+    markdown = fs.readFileSync(path.resolve(root, reportPath), 'utf8');
+  } catch (error) {
+    return { ok: false, reasons: [`report is unreadable: ${reportPath} (${error.code ?? error.message})`] };
+  }
+  const data = extractOutcomeBlock(markdown, refuse);
+  if (data === null && reasons.length > 0) return { ok: false, reasons };
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    refuse('outcome block must be a JSON object');
+    return { ok: false, reasons, data };
+  }
+  if (data.version !== 1) refuse(`unsupported outcome schema version: ${JSON.stringify(data.version)}`);
+  if (data.ref !== ref) refuse(`report ref mismatch: expected ${ref}, got ${JSON.stringify(data.ref)}`);
+  const startedDate = parseUtc(data.validation_started_utc);
+  if (!startedDate) refuse('validation_started_utc is invalid');
+  else if (startedDate.getTime() > nowDate.getTime()) refuse('validation_started_utc is in the future');
+
+  if (!Array.isArray(data.sources) || data.sources.length < 2) refuse('sources must contain intake and frozen spec entries');
+  const sourcePaths = new Set();
+  const sourceKinds = new Set();
+  let frozenSpecAcIds = null;
+  if (Array.isArray(data.sources)) {
+    for (const [index, source] of data.sources.entries()) {
+      if (!source || typeof source !== 'object' || Array.isArray(source)) {
+        refuse(`sources[${index}] is malformed`);
+        continue;
+      }
+      if (!['intake', 'spec'].includes(source.kind)) refuse(`sources[${index}].kind must be intake or spec`);
+      if (sourceKinds.has(source.kind)) refuse(`duplicate source kind: ${source.kind}`);
+      sourceKinds.add(source.kind);
+      if (sourcePaths.has(source.path)) refuse(`duplicate source path: ${source.path}`);
+      sourcePaths.add(source.path);
+      const sourceFile = readHashedFile(root, source, `source ${source.kind ?? index}`, refuse);
+      if (source.kind === 'spec' && sourceFile) frozenSpecAcIds = definedSpecAcIds(sourceFile.bytes);
+    }
+  }
+  for (const kind of ['intake', 'spec']) if (!sourceKinds.has(kind)) refuse(`missing ${kind} source`);
+
+  if (!Array.isArray(data.requirements) || data.requirements.length === 0) refuse('requirement inventory must be nonempty');
+  if (!Array.isArray(data.outcomes) || data.outcomes.length === 0) refuse('outcomes must be nonempty');
+  const requirements = Array.isArray(data.requirements) ? data.requirements : [];
+  const outcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
+  const requirementIds = uniqueIds(requirements, 'requirement', refuse);
+  const outcomeIds = uniqueIds(outcomes, 'outcome', refuse);
+  const validIdEntry = (entry) => entry && typeof entry === 'object' && !Array.isArray(entry)
+    && typeof entry.id === 'string' && entry.id.trim() !== '';
+  const requirementById = new Map(requirements.filter(validIdEntry).map((entry) => [entry.id, entry]));
+  const outcomeById = new Map(outcomes.filter(validIdEntry).map((entry) => [entry.id, entry]));
+
+  const linkedRequirements = new Set();
+  for (const requirement of requirements) {
+    if (!requirement || typeof requirement !== 'object') continue;
+    requireString(requirement.constraint, `requirement ${requirement.id}.constraint`, refuse);
+    requireString(requirement.rationale, `requirement ${requirement.id}.rationale`, refuse);
+    if (!requirement.source || typeof requirement.source !== 'object') {
+      refuse(`requirement ${requirement.id} source citation is missing`);
+    } else {
+      if (!sourcePaths.has(requirement.source.path)) refuse(`requirement ${requirement.id} cites an undeclared source path`);
+      requireString(requirement.source.quote, `requirement ${requirement.id} source quote`, refuse);
+    }
+    if (!Array.isArray(requirement.spec_ac_ids)) refuse(`requirement ${requirement.id}.spec_ac_ids must be an array`);
+    else if (requirement.spec_ac_ids.some((id) => typeof id !== 'string' || id.trim() === '')) {
+      refuse(`requirement ${requirement.id} has malformed Spec-AC link`);
+    } else if (requirement.assessment === 'aligned' && requirement.spec_ac_ids.length === 0) {
+      refuse(`aligned requirement ${requirement.id} must map to at least one Spec-AC`);
+    } else if (new Set(requirement.spec_ac_ids).size !== requirement.spec_ac_ids.length) {
+      refuse(`requirement ${requirement.id} has duplicate Spec-AC links`);
+    } else if (frozenSpecAcIds && requirement.spec_ac_ids.some((id) => !frozenSpecAcIds.has(id))) {
+      const unknownId = requirement.spec_ac_ids.find((id) => !frozenSpecAcIds.has(id));
+      refuse(`requirement ${requirement.id} references undefined Spec-AC: ${unknownId}`);
+    }
+    if (!ASSESSMENTS.has(requirement.assessment)) refuse(`requirement ${requirement.id} assessment is invalid`);
+    else if (requirement.assessment !== 'aligned') refuse(`requirement ${requirement.id} is ${requirement.assessment}`);
+    if (requirement.required !== true) refuse(`requirement ${requirement.id} must declare required: true`);
+    if (!Array.isArray(requirement.outcome_ids) || requirement.outcome_ids.length === 0) {
+      refuse(`requirement ${requirement.id} has no outcome links`);
+    } else {
+      const seenLinks = new Set();
+      for (const outcomeId of requirement.outcome_ids) {
+        if (typeof outcomeId !== 'string' || outcomeId.trim() === '') {
+          refuse(`requirement ${requirement.id} has malformed outcome link`);
+          continue;
+        }
+        if (seenLinks.has(outcomeId)) refuse(`requirement ${requirement.id} has duplicate outcome link: ${outcomeId}`);
+        seenLinks.add(outcomeId);
+        if (!outcomeIds.has(outcomeId)) refuse(`requirement ${requirement.id} has dangling outcome link: ${outcomeId}`);
+        else if (!Array.isArray(outcomeById.get(outcomeId)?.requirement_ids)
+          || !outcomeById.get(outcomeId).requirement_ids.includes(requirement.id)) {
+          refuse(`requirement ${requirement.id} link to ${outcomeId} is not reciprocal`);
+        }
+      }
+    }
+  }
+
+  for (const outcome of outcomes) {
+    if (!outcome || typeof outcome !== 'object') continue;
+    if (!Array.isArray(outcome.requirement_ids) || outcome.requirement_ids.length === 0) {
+      refuse(`outcome ${outcome.id} has no requirement links`);
+    } else {
+      const seenLinks = new Set();
+      for (const requirementId of outcome.requirement_ids) {
+        if (typeof requirementId !== 'string' || requirementId.trim() === '') {
+          refuse(`outcome ${outcome.id} has malformed requirement link`);
+          continue;
+        }
+        if (seenLinks.has(requirementId)) refuse(`outcome ${outcome.id} has duplicate requirement link: ${requirementId}`);
+        seenLinks.add(requirementId);
+        if (!requirementIds.has(requirementId)) refuse(`outcome ${outcome.id} has dangling requirement link: ${requirementId}`);
+        else if (!Array.isArray(requirementById.get(requirementId)?.outcome_ids)
+          || !requirementById.get(requirementId).outcome_ids.includes(outcome.id)) {
+          refuse(`outcome ${outcome.id} link to ${requirementId} is not reciprocal`);
+        }
+        linkedRequirements.add(requirementId);
+      }
+    }
+    const target = outcome.target;
+    if (!target || typeof target !== 'object' || !TARGET_KINDS.has(target.kind)) {
+      refuse(`outcome ${outcome.id} target kind is invalid`);
+      continue;
+    }
+    requireString(target.expected_identity, `outcome ${outcome.id} expected identity`, refuse);
+    requireString(target.observed_identity, `outcome ${outcome.id} observed identity`, refuse);
+    if (target.kind === 'local_file') {
+      const expectedPath = resolveLocal(root, target.expected_identity, `outcome ${outcome.id} expected target`, refuse);
+      const observedPath = resolveLocal(root, target.observed_identity, `outcome ${outcome.id} observed target`, refuse);
+      if (expectedPath && observedPath && expectedPath !== observedPath) refuse(`outcome ${outcome.id} target identity mismatch`);
+    } else if (target.expected_identity !== target.observed_identity) {
+      refuse(`outcome ${outcome.id} target identity mismatch`);
+    }
+
+    const verification = outcome.verification;
+    if (!verification || typeof verification !== 'object') {
+      refuse(`outcome ${outcome.id} verification is missing`);
+      continue;
+    }
+    requireString(verification.operation, `outcome ${outcome.id} verification operation`, refuse);
+    readHashedFile(root, { path: verification.evidence_path, sha256: verification.evidence_sha256 }, `outcome ${outcome.id} evidence`, refuse);
+    const observedDate = parseUtc(verification.observed_at_utc);
+    if (!observedDate) refuse(`outcome ${outcome.id} observation timestamp is invalid`);
+    else if (observedDate.getTime() > nowDate.getTime()) refuse(`outcome ${outcome.id} observation is in the future`);
+    if (!RESULTS.has(verification.result)) refuse(`outcome ${outcome.id} result is invalid`);
+    else if (verification.result !== 'satisfied') refuse(`outcome ${outcome.id} result is ${verification.result}`);
+
+    const persistence = outcome.persistence;
+    if (!persistence || typeof persistence !== 'object' || typeof persistence.applicable !== 'boolean') {
+      refuse(`outcome ${outcome.id} persistence applicability is missing`);
+    } else if (persistence.applicable) {
+      if (!['saved', 'exported', 'applied'].includes(persistence.boundary)) refuse(`outcome ${outcome.id} persistence boundary is invalid`);
+      if (!/read[- ]?back|reopen/i.test(verification.operation ?? '')) refuse(`outcome ${outcome.id} lacks a read-back or reopen operation`);
+    } else {
+      requireString(persistence.reason, `outcome ${outcome.id} persistence not-applicable reason`, refuse);
+    }
+
+    if (target.kind === 'local_file') {
+      const expectedPath = resolveLocal(root, target.expected_identity, `outcome ${outcome.id} expected target`, refuse);
+      const consumedPath = resolveLocal(root, target.consumed_path, `outcome ${outcome.id} consumed target`, refuse);
+      if (expectedPath && consumedPath && expectedPath !== consumedPath) refuse(`outcome ${outcome.id} consumed path does not match expected target`);
+      const consumed = readHashedFile(root, { path: target.consumed_path, sha256: target.consumed_sha256 }, `outcome ${outcome.id} consumed file`, refuse);
+      if (consumed && persistence?.applicable !== true) refuse(`outcome ${outcome.id} local file must declare persistence applicable`);
+    } else if (target.kind === 'external') {
+      if (typeof target.dynamic !== 'boolean') refuse(`outcome ${outcome.id} external target must declare dynamic`);
+      if (target.dynamic === true && observedDate && observedDate.getTime() < sinceDate.getTime()) {
+        refuse(`outcome ${outcome.id} dynamic observation predates verification horizon`);
+      }
+      if (target.dynamic === false) requireString(target.immutable_revision, `outcome ${outcome.id} immutable revision`, refuse);
+    }
+  }
+  for (const requirementId of requirementIds) {
+    if (!linkedRequirements.has(requirementId)) refuse(`requirement ${requirementId} is not linked back from an outcome`);
+  }
+  return { ok: reasons.length === 0, reasons, data };
+}
+
+export function formatOutcomeRefusals(result) {
+  return result.reasons.map((reason) => `OUTCOME-CHECK: ${reason}`);
+}
+
+function main() {
+  const parsed = parseArgs(process.argv.slice(2));
+  if (parsed.help) {
+    process.stdout.write('validation-outcome-check.mjs — validate one aai-outcome-v1 JSON report block\n\n');
+    process.stdout.write('Schema: version/ref/start, intake+spec sources, reciprocal requirements/outcomes, target identity, hashed evidence, persistence and freshness.\n');
+    process.stdout.write('usage: node .aai/scripts/validation-outcome-check.mjs --report <path> --ref <ref> --since <UTC> [--root <repo>]\n');
+    return 0;
+  }
+  if (parsed.error) return usage(parsed.error);
+  if (!parseUtc(parsed.options.since)) return usage('--since is not a valid ISO-8601 UTC timestamp');
+  const result = checkOutcomeReport({
+    reportPath: parsed.options.report,
+    ref: parsed.options.ref,
+    since: parsed.options.since,
+    root: parsed.options.root,
+  });
+  if (result.ok) return 0;
+  for (const line of formatOutcomeRefusals(result)) process.stdout.write(`${line}\n`);
+  return 1;
+}
+
+const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
+const modulePath = fileURLToPath(import.meta.url);
+let isMainModule = false;
+try {
+  isMainModule = invokedPath && fs.realpathSync(invokedPath) === fs.realpathSync(modulePath);
+} catch {
+  isMainModule = false;
+}
+if (isMainModule) process.exitCode = main();
