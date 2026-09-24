@@ -2352,3 +2352,4 @@
 {"v":1,"ts":"2026-09-21T12:35:35Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"intake-doc-identity-table-and-its-pins","payload":{"from":"done","to":"draft"}}
 {"v":1,"ts":"2026-09-21T12:46:56Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"close-ceremony-sweep","payload":{"pr":387,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"66dbd260f5bd483932e9e84205e00ef8e138b8c5"}}
 {"v":1,"ts":"2026-09-24T07:16:25Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-update-installs-ref-guard-undisclosed","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-24T10:31:36Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":506,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
