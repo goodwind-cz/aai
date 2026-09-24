@@ -4,7 +4,7 @@ type: spec
 number: 184
 status: done
 mutation_gate: v1
-frozen_sha256: bb53ff6432306ec8385e0f6ce814bd7db2b9582d632fb98b23bd83f3f244a6ef
+frozen_sha256: b8a6da28d257005dd23203782e2971af5e9d9634d14fe6813f3cc3f8615b62a0
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md

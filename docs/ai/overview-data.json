@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-24T15:18:28.751Z",
+  "generatedAt": "2026-09-24T17:20:12.554Z",
   "project": "aai",
   "counts": {
     "delivered": 251,
-    "in_progress": 16,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -69,6 +69,19 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "friction-channel-sweep",
+      "title": "The friction channel files what happened, with the harness, in one shape",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0190-friction-channel-sweep.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,

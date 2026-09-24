@@ -1,7 +1,7 @@
 ---
 id: friction-channel-sweep
 type: change
-number: null
+number: 190
 status: draft
 capability: friction-channel-sweep
 links:
