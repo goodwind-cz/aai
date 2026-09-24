@@ -25,12 +25,16 @@
 # Covers TEST-301..313 from
 # docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
 #
-# Covers TEST-606..612 (Spec-AC-01/02/03) from
+# Covers TEST-606..617 (Spec-AC-01..06) from
 # docs/specs/SPEC-DRAFT-spec-update-installs-ref-guard-undisclosed.md: the
 # installer's --hooks <csv> per-hook selection (index/ref-guard/all, TEST-606,
 # TEST-607, TEST-608 .ps1 static twin), selection-scoped foreign-hook checks
-# and attestation (TEST-609, TEST-610), and the --print <hook> manual-merge
-# path (TEST-611, TEST-612).
+# and attestation (TEST-609, TEST-610), the --print <hook> manual-merge
+# path (TEST-611, TEST-612), the fresh-install disclosure and --help surface
+# (TEST-613, TEST-614), the --decline-ref-guard / --arm-ref-guard config
+# writer (TEST-615, TEST-616), and lib/guard-config.mjs's fail-CLOSED
+# readRefGuardPolicy (TEST-617; TEST-618's shell/JS conformance arm lives in
+# test-aai-hygiene-pack.sh).
 #
 # Exit codes:
 #   0  - All tests passed
@@ -1250,6 +1254,156 @@ test_612_foreign_reftx_names_a_real_command() {
   [[ $ok -eq 1 ]] && log_pass "TEST-612 the foreign reference-transaction refusal names install-pre-commit-hook.sh --print ref-guard, and running that exact command exits 0 emitting the AAI:REF-GUARD body"
 }
 
+# --- TEST-613 (Spec-AC-04) — a fresh ref-guard install discloses its effect -
+test_613_install_discloses_ref_guard() {
+  local ok=1
+  local d; d="$(new_repo t613)"
+  local out
+  out="$(install_guard "$d" --hooks ref-guard 2>&1)"
+  grep -qF "refs/heads/main" <<<"$out" || { log_fail "TEST-613: fresh ref-guard install does not name refs/heads/main: $out"; ok=0; }
+  grep -qF "AAI_GIT_WRITE=1" <<<"$out" || { log_fail "TEST-613: fresh ref-guard install does not name AAI_GIT_WRITE=1: $out"; ok=0; }
+  grep -qF -- "--decline-ref-guard" <<<"$out" || { log_fail "TEST-613: fresh ref-guard install does not name the --decline-ref-guard command: $out"; ok=0; }
+
+  local d2; d2="$(new_repo t613idx)"
+  local out2
+  out2="$(install_guard "$d2" --hooks index 2>&1)"
+  if grep -qF "refs/heads/main" <<<"$out2" || grep -qF "AAI_GIT_WRITE=1" <<<"$out2" || grep -qF -- "--decline-ref-guard" <<<"$out2"; then
+    log_fail "TEST-613: an index-only install printed ref-guard disclosure text: $out2"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-613 a fresh ref-guard install discloses refs/heads/main, AAI_GIT_WRITE=1 and the --decline-ref-guard command; an index-only install prints none of them"
+}
+
+# --- TEST-614 (Spec-AC-04) — --help documents the new surface --------------
+test_614_help_documents_the_new_surface() {
+  local ok=1
+  local out
+  out="$(bash "$INSTALLER" --help 2>&1)"
+  grep -qF -- "--hooks" <<<"$out" || { log_fail "TEST-614: --help does not mention --hooks"; ok=0; }
+  grep -qF "index, ref-guard, all" <<<"$out" || { log_fail "TEST-614: --help does not name the closed set index, ref-guard, all"; ok=0; }
+  grep -qF -- "--print [index|ref-guard]" <<<"$out" || { log_fail "TEST-614: --help does not document --print with a hook argument"; ok=0; }
+  grep -qF -- "--decline-ref-guard" <<<"$out" || { log_fail "TEST-614: --help does not mention --decline-ref-guard"; ok=0; }
+  grep -qF -- "--arm-ref-guard" <<<"$out" || { log_fail "TEST-614: --help does not mention --arm-ref-guard"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-614 --help names --hooks with its closed set, --print with a hook argument, --decline-ref-guard and --arm-ref-guard"
+}
+
+# --- TEST-615 (Spec-AC-05) — --decline-ref-guard writes one committed line -
+test_615_decline_writes_one_line() {
+  local ok=1
+  local d; d="$(new_repo t615)"
+  install_guard "$d" >/dev/null 2>&1
+  require_guard_installed "TEST-615" "$d" || return
+
+  local out rc
+  out="$(install_guard "$d" --decline-ref-guard 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-615: --decline-ref-guard expected exit 0, got $rc: $out"; ok=0; }
+  [[ -f "$d/.git/hooks/reference-transaction" ]] && { log_fail "TEST-615: --decline-ref-guard left the guard installed"; ok=0; }
+  local cfg="$d/docs/ai/docs-audit.yaml"
+  [[ -f "$cfg" ]] || { log_fail "TEST-615: --decline-ref-guard did not create $cfg"; ok=0; }
+  grep -qE '^ref_guard: declined$' "$cfg" || { log_fail "TEST-615: $cfg does not carry a column-0 ref_guard: declined line: $(cat "$cfg" 2>/dev/null)"; ok=0; }
+
+  local before; before="$(cat "$cfg")"
+  local out2 rc2
+  out2="$(install_guard "$d" --decline-ref-guard 2>&1)"; rc2=$?
+  [[ $rc2 -eq 0 ]] || { log_fail "TEST-615: second --decline-ref-guard run expected exit 0, got $rc2: $out2"; ok=0; }
+  local after; after="$(cat "$cfg")"
+  [[ "$before" == "$after" ]] || { log_fail "TEST-615: second --decline-ref-guard run changed $cfg bytes"; ok=0; }
+  local count; count="$(grep -c '^ref_guard:' "$cfg")"
+  [[ "$count" -eq 1 ]] || { log_fail "TEST-615: $cfg carries $count ref_guard: lines, want 1"; ok=0; }
+
+  # Absent-file case: a fresh repo with no docs-audit.yaml at all.
+  local d3; d3="$(new_repo t615fresh)"
+  install_guard "$d3" --decline-ref-guard >/dev/null 2>&1
+  [[ -f "$d3/docs/ai/docs-audit.yaml" ]] || { log_fail "TEST-615: --decline-ref-guard on an absent config did not create one"; ok=0; }
+  grep -qE '^ref_guard: declined$' "$d3/docs/ai/docs-audit.yaml" \
+    || { log_fail "TEST-615: freshly created config does not carry ref_guard: declined"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-615 --decline-ref-guard writes a column-0 ref_guard: declined into docs/ai/docs-audit.yaml (creating it when absent), removes an AAI-managed guard, exits 0, and is idempotent (byte-identical second run, exactly one key line)"
+}
+
+# --- TEST-616 (Spec-AC-05) — decline refuses a foreign hook; arm reverses --
+test_616_decline_respects_a_foreign_hook() {
+  local ok=1
+  local d; d="$(new_repo t616)"
+  mkdir -p "$d/.git/hooks"
+  printf '#!/bin/sh\necho foreign-reftx\n' > "$d/.git/hooks/reference-transaction"
+  local foreign_before; foreign_before="$(cat "$d/.git/hooks/reference-transaction")"
+
+  local out rc
+  out="$(install_guard "$d" --decline-ref-guard 2>&1)"; rc=$?
+  [[ $rc -ne 0 ]] || { log_fail "TEST-616: --decline-ref-guard against a foreign hook expected non-zero, got 0: $out"; ok=0; }
+  local foreign_after; foreign_after="$(cat "$d/.git/hooks/reference-transaction" 2>/dev/null)"
+  [[ "$foreign_before" == "$foreign_after" ]] || { log_fail "TEST-616: the foreign reference-transaction file was modified"; ok=0; }
+  local cfg="$d/docs/ai/docs-audit.yaml"
+  [[ -f "$cfg" ]] && { log_fail "TEST-616: --decline-ref-guard wrote $cfg despite refusing"; ok=0; }
+
+  # --arm-ref-guard after a real decline restores armed + the guard, one line.
+  local d2; d2="$(new_repo t616arm)"
+  install_guard "$d2" >/dev/null 2>&1
+  require_guard_installed "TEST-616 (setup)" "$d2" || return
+  install_guard "$d2" --decline-ref-guard >/dev/null 2>&1
+  [[ -f "$d2/.git/hooks/reference-transaction" ]] && { log_fail "TEST-616: setup decline did not remove the guard"; ok=0; }
+  local out2 rc2
+  out2="$(install_guard "$d2" --arm-ref-guard 2>&1)"; rc2=$?
+  [[ $rc2 -eq 0 ]] || { log_fail "TEST-616: --arm-ref-guard expected exit 0, got $rc2: $out2"; ok=0; }
+  require_guard_installed "TEST-616 (armed)" "$d2" || return
+  local cfg2="$d2/docs/ai/docs-audit.yaml"
+  grep -qE '^ref_guard: armed$' "$cfg2" || { log_fail "TEST-616: $cfg2 does not carry ref_guard: armed after --arm-ref-guard"; ok=0; }
+  local count2; count2="$(grep -c '^ref_guard:' "$cfg2")"
+  [[ "$count2" -eq 1 ]] || { log_fail "TEST-616: $cfg2 carries $count2 ref_guard: lines after arm, want 1"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-616 --decline-ref-guard refuses a foreign reference-transaction hook (exit non-zero, foreign file byte-identical, no config written); --arm-ref-guard after a decline restores armed plus the guard with exactly one ref_guard line"
+}
+
+# --- TEST-617 (Spec-AC-06) — readRefGuardPolicy fails CLOSED ---------------
+test_617_policy_reader_fails_closed() {
+  local ok=1
+  local lib="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs"
+  [[ -f "$lib" ]] || { log_fail "TEST-617: missing $lib"; return; }
+
+  local d; d="$TMP_ROOT/t617"
+  mkdir -p "$d"
+
+  reader_verdict_617() {  # $1 dir -> stdout policy, stderr warnings on fd passed by caller
+    (cd "$PROJECT_ROOT" && node --input-type=module -e '
+      import { readRefGuardPolicy } from "./.aai/scripts/lib/guard-config.mjs";
+      console.log(readRefGuardPolicy(process.argv[1]));
+    ' "$1")
+  }
+
+  # absent file
+  rm -rf "$d"; mkdir -p "$d"
+  [[ "$(reader_verdict_617 "$d" 2>/dev/null)" == "armed" ]] || { log_fail "TEST-617: absent file did not read as armed"; ok=0; }
+
+  # absent key
+  printf 'legacy_until_date: 2026-06-12\n' > "$d/docs-audit.yaml"
+  [[ "$(reader_verdict_617 "$d" 2>/dev/null)" == "armed" ]] || { log_fail "TEST-617: absent key did not read as armed"; ok=0; }
+
+  # indented key
+  printf '  ref_guard: declined\n' > "$d/docs-audit.yaml"
+  [[ "$(reader_verdict_617 "$d" 2>/dev/null)" == "armed" ]] || { log_fail "TEST-617: an indented key was read as declined"; ok=0; }
+
+  # commented key
+  printf '# ref_guard: declined\n' > "$d/docs-audit.yaml"
+  [[ "$(reader_verdict_617 "$d" 2>/dev/null)" == "armed" ]] || { log_fail "TEST-617: a commented-out key was read as declined"; ok=0; }
+
+  # invalid value ('decline', not 'declined'), named on stderr
+  printf 'ref_guard: decline\n' > "$d/docs-audit.yaml"
+  local out617 err617
+  out617="$(reader_verdict_617 "$d" 2>"$TMP_ROOT/t617.stderr")"
+  err617="$(cat "$TMP_ROOT/t617.stderr")"
+  [[ "$out617" == "armed" ]] || { log_fail "TEST-617: the invalid value 'decline' was not read as armed"; ok=0; }
+  grep -qF "decline" <<<"$err617" || { log_fail "TEST-617: the invalid value was not named on stderr: $err617"; ok=0; }
+
+  # valid: column-0 declined
+  printf 'ref_guard: declined\n' > "$d/docs-audit.yaml"
+  [[ "$(reader_verdict_617 "$d" 2>/dev/null)" == "declined" ]] || { log_fail "TEST-617: a column-0 ref_guard: declined line was not read as declined"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-617 readRefGuardPolicy returns armed for an absent file, an absent key, an indented key, a commented key and the invalid value 'decline' (naming it on stderr), and declined only for a column-0 ref_guard: declined"
+}
+
 main() {
   check_deps
   HOOKS_DIGEST_BEFORE="$(manifest_of "$PROJECT_ROOT/.git/hooks")"
@@ -1306,6 +1460,11 @@ main() {
   test_610_selected_foreign_slot_writes_nothing
   test_611_print_ref_guard_body
   test_612_foreign_reftx_names_a_real_command
+  test_613_install_discloses_ref_guard
+  test_614_help_documents_the_new_surface
+  test_615_decline_writes_one_line
+  test_616_decline_respects_a_foreign_hook
+  test_617_policy_reader_fails_closed
   test_311_hooks_dir_unchanged
 
   echo ""

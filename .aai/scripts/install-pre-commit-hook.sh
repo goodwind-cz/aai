@@ -17,9 +17,27 @@ set -euo pipefail
 #   ./.aai/scripts/install-pre-commit-hook.sh           # install if absent
 #   ./.aai/scripts/install-pre-commit-hook.sh --force   # overwrite existing
 #   ./.aai/scripts/install-pre-commit-hook.sh --uninstall
-#   ./.aai/scripts/install-pre-commit-hook.sh --print   # emit the pre-commit
-#                                                        # hook body to stdout
-#                                                        # for a manual merge
+#   ./.aai/scripts/install-pre-commit-hook.sh --print [index|ref-guard]
+#                                                        # emit a hook body to
+#                                                        # stdout for a manual
+#                                                        # merge (bare --print
+#                                                        # keeps the index body)
+#   ./.aai/scripts/install-pre-commit-hook.sh --hooks <csv>
+#                                                        # select which hook(s)
+#                                                        # to install/uninstall
+#                                                        # -- closed set:
+#                                                        # index, ref-guard, all
+#                                                        # (default all)
+#   ./.aai/scripts/install-pre-commit-hook.sh --decline-ref-guard
+#                                                        # remove the ref-guard
+#                                                        # hook and record the
+#                                                        # decline in
+#                                                        # docs/ai/docs-audit.yaml
+#   ./.aai/scripts/install-pre-commit-hook.sh --arm-ref-guard
+#                                                        # (re-)install the
+#                                                        # ref-guard hook and
+#                                                        # record the arm in
+#                                                        # docs/ai/docs-audit.yaml
 #
 # Idempotent per hook. Refuses to overwrite a non-AAI hook unless --force is
 # given (checked for BOTH hooks before writing either, so a foreign hook in
@@ -30,6 +48,8 @@ UNINSTALL=0
 PRINT=0
 PRINT_HOOK=""
 HOOKS_ARG="all"
+DECLINE_REF_GUARD=0
+ARM_REF_GUARD=0
 
 # Index-based (not `for arg in "$@"`) so --hooks and an optional --print
 # argument can each consume the NEXT token — Spec-AC-01/Spec-AC-03.
@@ -41,6 +61,8 @@ while [[ $_i -lt $_ARGC ]]; do
   case "$arg" in
     --force) FORCE=1 ;;
     --uninstall) UNINSTALL=1 ;;
+    --decline-ref-guard) DECLINE_REF_GUARD=1 ;;
+    --arm-ref-guard) ARM_REF_GUARD=1 ;;
     --print)
       PRINT=1
       # --print's hook argument is OPTIONAL: only a literal 'index' or
@@ -171,6 +193,12 @@ REFTX_PATH="$(resolve_hook_path reference-transaction)" || {
 HOOKS_DIR="$(dirname "$REFTX_PATH")"
 MARKER="# AAI:INDEX-AUTOGEN"
 REFTX_MARKER="# AAI:REF-GUARD"
+# docs/ai/docs-audit.yaml — the committed guard-policy surface (D2). Read by
+# lib/guard-config.mjs's readRefGuardPolicy (the canonical JS reader) and
+# mirrored here by a deliberate THIN shell grep (no node import in this
+# script — check-vendored-script-deps.mjs gates it); the conformance test is
+# tests/skills/test-aai-hygiene-pack.sh test_618 (Spec-AC-06).
+CONFIG_PATH="$REPO_ROOT/docs/ai/docs-audit.yaml"
 
 # attest_effective <name> <marker> — re-ask git where it would look, and prove
 # the file THERE is ours and runnable. This is the post-condition that makes
@@ -196,6 +224,177 @@ attest_effective() {
   fi
   return 0
 }
+
+# foreign_reftx_refusal — the shared refusal text for a foreign (non-AAI)
+# file occupying the reference-transaction slot: Spec-AC-03/D5's own
+# --print ref-guard command is the ONE place this sentence is spelled out, so
+# arm_ref_guard (Spec-AC-05) reuses it verbatim rather than carrying a second,
+# driftable copy (a second copy is exactly what broke TEST-612's mutation
+# target the first time this function was written — see the commit).
+foreign_reftx_refusal() {
+  echo "ERROR: $REFTX_PATH already exists and is not AAI-managed." >&2
+  echo "       Pass --force to overwrite, or merge the AAI:REF-GUARD body with: $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print ref-guard" >&2
+}
+
+# write_refguard_hook — install the AAI:REF-GUARD reference-transaction hook
+# body (skip, reporting so, when it is already AAI-managed and --force is not
+# given). Shared by the normal --hooks ref-guard write path below AND
+# arm_ref_guard (Spec-AC-05), so the heredoc's bytes live in exactly ONE
+# place — D9: no byte of the installed hook body may drift between callers.
+write_refguard_hook() {
+  if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
+    echo "AAI reference-transaction hook already installed at $REFTX_PATH. No action taken."
+    return 0
+  fi
+cat > "$REFTX_PATH" <<'REFTXHOOK'
+#!/bin/sh
+# AAI:REF-GUARD -- refuses a refs/heads/main ref update unless AAI_GIT_WRITE=1.
+# Installed by .aai/scripts/install-pre-commit-hook.sh (or the .ps1 twin).
+# This is a git reference-transaction hook: it fires for EVERY ref update in
+# this repository, from any process, at any nesting depth, through any
+# subshell. See
+# docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
+
+aai_state="$1"
+
+if [ "$aai_state" != "prepared" ]; then
+  exit 0
+fi
+
+aai_guarded=0
+while read -r aai_old aai_new aai_ref; do
+  if [ "$aai_ref" = "refs/heads/main" ]; then
+    aai_guarded=1
+  fi
+done
+
+if [ "$aai_guarded" != "1" ]; then
+  exit 0
+fi
+
+if [ "$AAI_GIT_WRITE" = "1" ]; then
+  exit 0
+fi
+
+cat >&2 <<'AAI_REF_GUARD_MSG'
+AAI:REF-GUARD refused this refs/heads/main update.
+  Guard:  git reference-transaction hook, marker AAI:REF-GUARD.
+  Reason: a write to refs/heads/main must be a deliberate, narrow exception,
+          never an ambient default (agent-shell-can-write-the-shipping-repo).
+  Fix:    re-run this ONE command with AAI_GIT_WRITE=1 set, e.g.
+            AAI_GIT_WRITE=1 git commit ...
+  Uninstall this guard: bash .aai/scripts/install-pre-commit-hook.sh --uninstall
+AAI_REF_GUARD_MSG
+exit 1
+REFTXHOOK
+  chmod +x "$REFTX_PATH"
+  echo "Installed AAI reference-transaction hook (AAI:REF-GUARD) at $REFTX_PATH"
+  echo "Effect: a refs/heads/main update is refused unless AAI_GIT_WRITE=1 is set on that command. Decline: bash $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --decline-ref-guard"
+}
+
+# read_ref_guard_policy <config-path> — thin column-0 shell MIRROR of
+# lib/guard-config.mjs's readRefGuardPolicy (Spec-AC-06/D3; conformance-tested
+# on a shared fixture set by tests/skills/test-aai-hygiene-pack.sh test_618,
+# the same discipline test_031 already applies to the enforce/report-only
+# dials). FAILS CLOSED, like the JS reader: prints 'declined' only for a
+# literal column-0 `ref_guard: declined` line; an absent file, an absent key,
+# an indented or commented key, or any OTHER value (including 'armed')
+# prints 'armed'. write_ref_guard_policy below uses it as its own post-write
+# attestation — the same "exit 0 must mean it really happened" discipline
+# attest_effective applies to the installed hooks.
+read_ref_guard_policy() {
+  local cfg="$1"
+  if [[ -f "$cfg" ]] && grep -Eq '^ref_guard:[[:space:]]*declined([[:space:]]|$)' "$cfg" 2>/dev/null; then
+    printf 'declined'
+  else
+    printf 'armed'
+  fi
+}
+
+# write_ref_guard_policy <armed|declined> — replace-or-append the column-0
+# `ref_guard: <value>` line in docs/ai/docs-audit.yaml (D2), creating the file
+# with only this key when it is absent, and disturbing no other key or
+# comment. "Replace" is recognised ONLY via the same fail-CLOSED column-0
+# pattern readRefGuardPolicy uses (lib/guard-config.mjs, Spec-AC-06): an
+# existing indented/commented/invalid ref_guard line is never treated as the
+# key to replace, so a stray one is left alone and a new, valid column-0 line
+# is appended instead. Idempotent per Spec-AC-05: writing the SAME value twice
+# leaves the file byte-identical, because the valid line just written matches
+# on the next pass. Ends by reading the value back through read_ref_guard_policy
+# above and refusing if it disagrees — the write is not trusted merely because
+# it did not error.
+write_ref_guard_policy() {
+  local value="$1" write_mode="replace_or_append_key"
+  mkdir -p "$(dirname "$CONFIG_PATH")"
+  if [[ "$write_mode" == "replace_or_append_key" ]] && [[ -f "$CONFIG_PATH" ]] \
+     && grep -Eq '^ref_guard:[[:space:]]*(armed|declined)([[:space:]]|$)' "$CONFIG_PATH" 2>/dev/null; then
+    local tmp; tmp="$(mktemp)"
+    awk -v val="$value" '
+      /^ref_guard:[ \t]*(armed|declined)([ \t]|$)/ && !done { print "ref_guard: " val; done=1; next }
+      { print }
+    ' "$CONFIG_PATH" > "$tmp"
+    mv "$tmp" "$CONFIG_PATH"
+  else
+    if [[ -f "$CONFIG_PATH" && -s "$CONFIG_PATH" ]]; then
+      local last_byte; last_byte="$(tail -c1 "$CONFIG_PATH" 2>/dev/null)"
+      [[ -n "$last_byte" ]] && printf '\n' >> "$CONFIG_PATH"
+    fi
+    printf 'ref_guard: %s\n' "$value" >> "$CONFIG_PATH"
+  fi
+  local verify; verify="$(read_ref_guard_policy "$CONFIG_PATH")"
+  if [[ "$verify" != "$value" ]]; then
+    echo "ERROR: wrote ref_guard: $value to $CONFIG_PATH but reading it back gives $verify." >&2
+    return 1
+  fi
+}
+
+# decline_ref_guard — Spec-AC-05: remove an AAI-managed ref-guard hook if
+# present, refuse (unmodified) a foreign one, and record ref_guard: declined.
+decline_ref_guard() {
+  local reftx_is_aai=0
+  [[ -f "$REFTX_PATH" ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH" && reftx_is_aai=1  # AC-05 decline removal: foreign-marker test
+  if [[ -f "$REFTX_PATH" && "$reftx_is_aai" != 1 ]]; then
+    echo "ERROR: $REFTX_PATH already exists and is not AAI-managed." >&2
+    echo "       Refusing to remove a foreign hook -- --decline-ref-guard only removes an AAI-managed guard." >&2
+    return 1
+  fi
+  if [[ -f "$REFTX_PATH" ]]; then
+    rm "$REFTX_PATH"
+    echo "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $REFTX_PATH"
+  fi
+  write_ref_guard_policy declined || return 1
+  echo "Declined the AAI reference-transaction guard. Recorded ref_guard: declined in $CONFIG_PATH"
+  echo "Re-arm with: bash $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --arm-ref-guard"
+}
+
+# arm_ref_guard — Spec-AC-05: (re-)install the ref-guard hook (same
+# foreign-hook refusal as the normal write path) and record ref_guard: armed.
+arm_ref_guard() {
+  if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
+    foreign_reftx_refusal
+    return 1
+  fi
+  write_refguard_hook
+  attest_effective reference-transaction "$REFTX_MARKER" || return 1
+  write_ref_guard_policy armed || return 1
+  echo "Recorded ref_guard: armed in $CONFIG_PATH"
+}
+
+# --decline-ref-guard / --arm-ref-guard are single-purpose actions on the
+# ref-guard hook alone: dispatched here (after path resolution, before the
+# --hooks-selected install/uninstall flow below) and exit before reaching it.
+if [[ "$DECLINE_REF_GUARD" == 1 && "$ARM_REF_GUARD" == 1 ]]; then
+  echo "ERROR: --decline-ref-guard and --arm-ref-guard are contradictory." >&2
+  exit 2
+fi
+if [[ "$DECLINE_REF_GUARD" == 1 ]]; then
+  decline_ref_guard || exit 1
+  exit 0
+fi
+if [[ "$ARM_REF_GUARD" == 1 ]]; then
+  arm_ref_guard || exit 1
+  exit 0
+fi
 
 if [[ "$UNINSTALL" == 1 ]]; then
   if [[ "$WANT_INDEX" == 1 ]]; then  # AC-01 uninstall selection: index
@@ -229,8 +428,7 @@ if [[ "$WANT_INDEX" == 1 && -f "$HOOK_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$
   FOREIGN=1
 fi
 if [[ "$WANT_REFGUARD" == 1 && -f "$REFTX_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then  # AC-02 foreign check: ref-guard
-  echo "ERROR: $REFTX_PATH already exists and is not AAI-managed." >&2
-  echo "       Pass --force to overwrite, or merge the AAI:REF-GUARD body with: $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print ref-guard" >&2
+  foreign_reftx_refusal
   FOREIGN=1
 fi
 if [[ "$FOREIGN" == 1 ]]; then
@@ -413,54 +611,7 @@ fi
 fi  # AC-01 write selection: index (close)
 
 if [[ "$WANT_REFGUARD" == 1 ]]; then  # AC-01 write selection: ref-guard
-if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
-  echo "AAI reference-transaction hook already installed at $REFTX_PATH. No action taken."
-else
-cat > "$REFTX_PATH" <<'REFTXHOOK'
-#!/bin/sh
-# AAI:REF-GUARD -- refuses a refs/heads/main ref update unless AAI_GIT_WRITE=1.
-# Installed by .aai/scripts/install-pre-commit-hook.sh (or the .ps1 twin).
-# This is a git reference-transaction hook: it fires for EVERY ref update in
-# this repository, from any process, at any nesting depth, through any
-# subshell. See
-# docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
-
-aai_state="$1"
-
-if [ "$aai_state" != "prepared" ]; then
-  exit 0
-fi
-
-aai_guarded=0
-while read -r aai_old aai_new aai_ref; do
-  if [ "$aai_ref" = "refs/heads/main" ]; then
-    aai_guarded=1
-  fi
-done
-
-if [ "$aai_guarded" != "1" ]; then
-  exit 0
-fi
-
-if [ "$AAI_GIT_WRITE" = "1" ]; then
-  exit 0
-fi
-
-cat >&2 <<'AAI_REF_GUARD_MSG'
-AAI:REF-GUARD refused this refs/heads/main update.
-  Guard:  git reference-transaction hook, marker AAI:REF-GUARD.
-  Reason: a write to refs/heads/main must be a deliberate, narrow exception,
-          never an ambient default (agent-shell-can-write-the-shipping-repo).
-  Fix:    re-run this ONE command with AAI_GIT_WRITE=1 set, e.g.
-            AAI_GIT_WRITE=1 git commit ...
-  Uninstall this guard: bash .aai/scripts/install-pre-commit-hook.sh --uninstall
-AAI_REF_GUARD_MSG
-exit 1
-REFTXHOOK
-chmod +x "$REFTX_PATH"
-echo "Installed AAI reference-transaction hook (AAI:REF-GUARD) at $REFTX_PATH"
-echo "Effect: a refs/heads/main update is refused unless AAI_GIT_WRITE=1 is set on that command."
-fi
+  write_refguard_hook
 fi  # AC-01 write selection: ref-guard (close)
 
 # Post-condition (PR #304 Codex P1): exit 0 must mean "git will run these",
