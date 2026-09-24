@@ -4447,6 +4447,67 @@ EOS
   log_pass "test_131: live gate CLEAN over this repo; call-graph inheritance covers a helper-built fixture, an unrelated decoy copy never masks a real violation, and a decoy merely NAMED in prose is never read as a call"
 }
 
+test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisclosed TEST-618 / Spec-AC-06
+  log_info "Test: lib/guard-config.mjs readRefGuardPolicy and the installer's thin shell grep agree on the same fixture set (Spec-AC-06)..."
+  local lib="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs"
+  local installer_sh="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
+  [[ -f "$lib" ]] || log_fail "missing shared reader $lib"
+  [[ -f "$installer_sh" ]] || log_fail "missing $installer_sh"
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+
+  # Unlike the enforce/report-only dials (test_031), ref_guard's mirror lives
+  # directly in install-pre-commit-hook.sh (D5 — no node import in a script
+  # that ships into targets with no guaranteed node module resolution); the
+  # coupling is still documented at the fork site.
+  grep -qF "lib/guard-config.mjs" "$installer_sh" \
+    || log_fail "TEST-618: install-pre-commit-hook.sh must name lib/guard-config.mjs as the canonical reader it mirrors"
+
+  # Extract the ACTUAL grep -Eq pattern from the installer (drift now fails
+  # this test instead of diverging silently).
+  local rg_pat
+  rg_pat="$(awk -F"'" '/grep -Eq/ && /ref_guard:/ { print $(NF-1); exit }' "$installer_sh")"
+  [[ -n "$rg_pat" ]] || log_fail "TEST-618: could not extract the ref_guard grep pattern from install-pre-commit-hook.sh"
+
+  TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
+  local d="$TEST_DIR/t618"
+  mkdir -p "$d"
+
+  reader_verdict_ref_guard() {  # $1 dir -> armed|declined
+    (cd "$PROJECT_ROOT" && node --input-type=module -e '
+      import { readRefGuardPolicy } from "./.aai/scripts/lib/guard-config.mjs";
+      console.log(readRefGuardPolicy(process.argv[1], { warn: () => {} }));
+    ' "$1")
+  }
+
+  check_ref_guard_variant() {  # $1 label, $2 config-content ('' = absent file)
+    local label="$1" content="$2"
+    rm -f "$d/docs-audit.yaml"
+    [[ -n "$content" ]] && printf '%s\n' "$content" > "$d/docs-audit.yaml"
+    local want="armed"
+    if [[ -f "$d/docs-audit.yaml" ]] && grep -Eq "$rg_pat" "$d/docs-audit.yaml" 2>/dev/null; then
+      want="declined"
+    fi
+    local got
+    got="$(reader_verdict_ref_guard "$d")"
+    [[ "$got" == "$want" ]] \
+      || log_fail "TEST-618: ref_guard conformance drift on '$label': shell grep says $want, reader says $got"
+  }
+
+  check_ref_guard_variant "absent file" ""
+  check_ref_guard_variant "absent key" "legacy_until_date: 2026-06-12"
+  check_ref_guard_variant "declined" "ref_guard: declined"
+  check_ref_guard_variant "armed" "ref_guard: armed"
+  check_ref_guard_variant "trailing comment" "ref_guard: declined  # note"
+  check_ref_guard_variant "commented out" "# ref_guard: declined"
+  check_ref_guard_variant "invalid value" "ref_guard: decline"
+  check_ref_guard_variant "indented key" "  ref_guard: declined"
+  check_ref_guard_variant "glued comment" "ref_guard: declined# note"
+  check_ref_guard_variant "quoted value" 'ref_guard: "declined"'
+  check_ref_guard_variant "CRLF line" $'ref_guard: declined\r'
+
+  log_pass "readRefGuardPolicy and the installer's thin shell grep agree on all fixture variants (Spec-AC-06, TEST-618)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -4514,6 +4575,7 @@ main() {
   test_129_mutation_gate_suite_registration
   test_130_node_bash_selector_scanner_whitespace_parity
   test_131_vendored_script_deps_gate_and_bite
+  test_618_ref_guard_grep_conformance
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

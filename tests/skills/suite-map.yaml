@@ -364,6 +364,9 @@ suites:
       - .aai/scripts/install-pre-commit-hook.sh
       - .aai/scripts/install-pre-commit-hook.ps1
       - .aai/scripts/aai-doctor.mjs
+      - .aai/scripts/lib/guard-config.mjs
+      - docs/ai/docs-audit.yaml
+      - .aai/SKILL_UPDATE.prompt.md
       - .aai/SUBAGENT_CONTRACT.md
       - docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md
 

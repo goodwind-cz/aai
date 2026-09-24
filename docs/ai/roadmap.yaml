@@ -35,7 +35,7 @@ pairs:
     status: done
   - capability: update-installs-ref-guard-undisclosed
     maintenance: agents-tree-not-synced
-    status: planned
+    status: done
   - capability: friction-channel-sweep
     maintenance: hand-authored-friction-is-second-class
     status: planned

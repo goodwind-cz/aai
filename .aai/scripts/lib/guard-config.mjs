@@ -141,6 +141,50 @@ export function readCoupledFamilies(dir) {
   return groups;
 }
 
+// ref_guard: armed | declined (spec-update-installs-ref-guard-undisclosed D2/
+// D3) — a SEPARATE closed vocabulary from GUARD_DIALS, deliberately NOT added
+// to that array: the grammar differs (armed/declined, not enforce/report-
+// only) and, more importantly, the FAIL DIRECTION differs. GUARD_DIALS is
+// grep-mirrored by pre-commit-checks.{sh,ps1}; ref_guard's mirror lives in
+// install-pre-commit-hook.sh (D5's own thin shell grep — no node import
+// there, per check-vendored-script-deps.mjs), conformance-tested by
+// tests/skills/test-aai-hygiene-pack.sh test_618.
+export const REF_GUARD_POLICY = ['armed', 'declined'];
+
+// readRefGuardPolicy(dir) -> 'armed' | 'declined'
+// Column-0 `ref_guard: <value>` line scan in docs-audit.yaml, same line
+// discipline as readGuardConfig (indented/commented lines are never a dial;
+// the value is the full non-whitespace token, so a glued comment fails the
+// closed-set check). UNLIKE every enforce/report-only dial above, this FAILS
+// CLOSED to 'armed': an absent file, an absent key, an indented or commented
+// key, and any value outside {armed, declined} all mean 'armed' (D3). Falling
+// open on the OTHER dials degrades a REPORT; falling open here would
+// silently disarm a SAFEGUARD on a typo — the asymmetry is deliberate. An
+// out-of-vocabulary value is named on stderr, mirroring the other dials'
+// invalid-value notice.
+export function readRefGuardPolicy(dir, opts = {}) {
+  const warnPrefix = opts.warnPrefix ?? 'guard-config';
+  const warn = opts.warn ?? (m => console.error(m));
+  const cfgPath = path.join(dir, GUARD_CONFIG_BASENAME);
+  let raw;
+  try {
+    raw = fs.readFileSync(cfgPath, 'utf8');
+  } catch {
+    return 'armed';   // absent file: fail-CLOSED default (D3)
+  }
+  for (const line of raw.split(/\r?\n/)) {
+    const m = line.match(/^ref_guard:\s*(\S+)/);
+    if (!m) continue;   // column-0 only; first occurrence wins
+    if (m[1] === 'armed' || m[1] === 'declined') {
+      return m[1];
+    }
+    warn(`${warnPrefix}: WARNING ref_guard value "${m[1]}" in ${cfgPath} is not `
+      + '"armed" or "declined" — treating as armed (fail-CLOSED default)');
+    return 'armed';   // invalid value: fail-CLOSED default (D3)
+  }
+  return 'armed';   // absent key: fail-CLOSED default (D3)
+}
+
 // The full coupled group containing `prefix` (including `prefix` itself), or
 // the singleton [prefix] when it is in no configured group (the default,
 // uncoupled case — D7 "AAI core ships the key absent").

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-21T12:46:56.302Z
+Generated: 2026-09-24T21:40:06.792Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -50,7 +50,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (435)
+## Done (438)
 
 | ID | Type | Path |
 |---|---|---|
@@ -278,6 +278,7 @@ _None._
 | ISSUE-0040 | issues | docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md |
 | ISSUE-0045 | issues | docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md |
 | ISSUE-0046 | issues | docs/issues/ISSUE-0046-adhoc-probes-unisolated-report-only.md |
+| ISSUE-0047 | issues | docs/issues/ISSUE-0047-agents-tree-not-synced.md |
 | ISSUE-0048 | issues | docs/issues/ISSUE-0048-bare-main-baseref-sweep.md |
 | ISSUE-0049 | issues | docs/issues/ISSUE-0049-cli-exit-truncates-pipe-sweep.md |
 | ISSUE-0053 | issues | docs/issues/ISSUE-0053-drain-pipe-grep-q-ratchet.md |
@@ -289,6 +290,7 @@ _None._
 | ISSUE-0080 | issues | docs/issues/ISSUE-0080-friction-upsert-channel-cannot-file.md |
 | ISSUE-0081 | issues | docs/issues/ISSUE-0081-close-ceremony-fires-only-via-aai-pr.md |
 | ISSUE-0082 | issues | docs/issues/ISSUE-0082-friction-publish-hides-required-followup.md |
+| ISSUE-0083 | issues | docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -487,10 +489,11 @@ _None._
 | SPEC-0180 | specs | docs/specs/SPEC-0180-spec-dispatch-state-sweep.md |
 | SPEC-0181 | specs | docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md |
 | SPEC-0182 | specs | docs/specs/SPEC-0182-spec-close-ceremony-sweep.md |
+| SPEC-0184 | specs | docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (17)
+## Drafts (16)
 
 | ID | Type | Path |
 |---|---|---|
@@ -499,6 +502,7 @@ _None._
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
+| CHANGE-0190 | issues | docs/issues/CHANGE-0190-friction-channel-sweep.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -509,8 +513,6 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
-| ISSUE-0047 | issues | docs/issues/ISSUE-0047-agents-tree-not-synced.md |
-| ISSUE-0083 | issues | docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -564,4 +566,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-21 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-24 — counts above use this date for overdue checks.

@@ -42,18 +42,23 @@ and do NOT narrate the steps — run the one script and relay its output.
    - exit 3 = upstream fetch failed (auth/network — an access issue, not a missing repo)
    - exit 4 = source is malformed (sync script missing in the fetched source)
 
-4. (Non-blocking) On a successful, non-dry-run sync, install the docs-index
-   pre-commit hook automatically — do NOT ask first:
+4. (Non-blocking) On a successful, non-dry-run sync, install the AAI git hook
+   SET automatically — do NOT ask first:
    ```bash
    bash .aai/scripts/install-pre-commit-hook.sh        # .ps1 on Windows
    ```
-   This is safe by design: the installer is idempotent (no-op if the AAI hook is
-   already present) and WITHOUT `--force` it refuses to overwrite a foreign
-   pre-commit hook. Therefore:
-   - installed / already present → report one line: "Docs-index pre-commit hook installed."
-   - non-zero exit (a foreign hook exists) → treat as NON-FATAL; do not pass
-     `--force`, do not clobber. Report once: "Existing non-AAI pre-commit hook
-     left untouched — to add index auto-regen, merge manually or re-run with --force."
+   This installs BOTH hooks by default: the docs-index pre-commit hook, and a
+   reference-transaction hook (AAI:REF-GUARD) that refuses any refs/heads/main
+   update in this repository unless AAI_GIT_WRITE=1 is set on that command.
+   This is safe by design: the installer is idempotent per hook (no-op if the
+   AAI hook is already present) and WITHOUT `--force` it refuses to overwrite
+   a foreign hook in EITHER slot, never a partial install. Therefore:
+   - installed / already present → report one line naming both hooks: "AAI git
+     hooks installed (docs-index pre-commit, AAI:REF-GUARD reference-
+     transaction). Decline the ref-guard: install-pre-commit-hook.sh --decline-ref-guard."
+   - non-zero exit (a foreign hook exists in a slot) → treat as NON-FATAL; do
+     not pass `--force`, do not clobber. Report once, naming the slot(s):
+     "Existing non-AAI hook left untouched — merge manually or re-run with --force."
    Skip this step entirely on --dry-run.
 
 ## Safety

@@ -830,7 +830,14 @@ test_012_growth_sum_matches_ledger() {
   # bullet naming lane-gate.mjs --sweep-check --pr <n> as an explicit
   # pre-merge command so Spec-AC-34's gate runs whether or not the Claude
   # hooks overlay is installed. Credited 1:1, headroom stays 2046/2048.
-  local want_growth=35417
+  # Then 35417 -> 35820: update-installs-ref-guard-undisclosed Spec-AC-08
+  # (+403 B, TEST-622) -- .aai/SKILL_UPDATE.prompt.md step 4 rewritten to
+  # name both installed hooks (AAI:INDEX-AUTOGEN, AAI:REF-GUARD), the
+  # ref-guard's refs/heads/main + AAI_GIT_WRITE=1 effect and the
+  # --decline-ref-guard escape, replacing the pre-commit-only safety
+  # sentence fact 4 named as the stale contract. Credited 1:1, headroom
+  # stays 2046/2048.
+  local want_growth=35820
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1514,6 +1521,68 @@ test_429_select_suites_named_in_both_prompts() {
     || log_fail "TEST-429 select-suites.mjs prompt-corpus truing"
 }
 
+# TEST-622 (spec-update-installs-ref-guard-undisclosed Spec-AC-08) — this
+# ride's SKILL_UPDATE.prompt.md growth is measured, not guessed: the ledger
+# entry's own "<before> -> <after>" measurement matches its leading credited
+# byte count, the file on disk still carries that many bytes, and the ledger
+# prefix through this entry moved by exactly the credited amount over the
+# ride's own inherited pin (35417, TEST-012's prior want_growth) — TEST-023/
+# TEST-429's discipline, scoped to this ride's own entry.
+test_622_diet_true_up() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-622 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local ok=1 _e entry='' n=0 lead before after measured now
+  local ledger_key='update-installs-ref-guard-undisclosed Spec-AC-08'
+  local prefix=0 prefix_closed=0
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    if [[ "$prefix_closed" -eq 0 ]]; then
+      prefix=$(( prefix + ${_e%% *} ))
+    fi
+    case "$_e" in
+      *"$ledger_key"*) entry="$_e"; n=$((n + 1)); prefix_closed=1 ;;
+    esac
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-622: JUSTIFIED_ADDITIONS carries $n entries naming '$ledger_key' (want exactly 1)"
+    return
+  fi
+
+  lead="${entry%% *}"
+  # The entry states its own measurement as "SKILL_UPDATE.prompt.md <before>
+  # -> <after>"; a credit whose arithmetic is only in the prose is a credit
+  # nobody can re-check.
+  before="$(printf '%s' "$entry" | sed -n 's/.*SKILL_UPDATE\.prompt\.md \([0-9][0-9]*\) -> [0-9][0-9]*.*/\1/p' | qhead -1)"
+  after="$(printf '%s' "$entry" | sed -n 's/.*SKILL_UPDATE\.prompt\.md [0-9][0-9]* -> \([0-9][0-9]*\).*/\1/p' | qhead -1)"
+  if [[ -z "$before" || -z "$after" ]]; then
+    log_info "TEST-622: the ledger entry does not record its measurement as 'SKILL_UPDATE.prompt.md <before> -> <after>'"
+    ok=0
+  else
+    measured=$(( after - before ))
+    if [[ "$lead" -ne "$measured" ]]; then
+      log_info "TEST-622: entry credits $lead B but its own measurement is $measured B ($before -> $after)"
+      ok=0
+    fi
+    now=$(/usr/bin/wc -c < .aai/SKILL_UPDATE.prompt.md | tr -d ' ')
+    if [[ "$now" -ne "$after" ]]; then
+      log_info "TEST-622: .aai/SKILL_UPDATE.prompt.md is $now B on disk, entry recorded $after B"
+      ok=0
+    fi
+  fi
+
+  # The pin moved by exactly the credited amount over the ride's own
+  # inherited 35417 — read off the ledger prefix through this entry, so a
+  # LATER scope's own itemized append never disturbs it.
+  if [[ "$prefix" -ne $(( 35417 + lead )) ]]; then
+    log_info "TEST-622: ledger prefix through this entry=$prefix (want 35417 + $lead = $(( 35417 + lead )))"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-622 (Spec-AC-08) SKILL_UPDATE.prompt.md growth $lead B is measured and credited 1:1, pin 35417 -> $prefix" \
+    || log_fail "TEST-622 (Spec-AC-08) diet true-up"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1544,6 +1613,7 @@ main() {
   test_022_ac_flip_guard_canon_wiring
   test_023_ac_flip_growth_credited
   test_429_select_suites_named_in_both_prompts
+  test_622_diet_true_up
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

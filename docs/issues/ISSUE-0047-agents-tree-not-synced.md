@@ -2,7 +2,12 @@
 id: agents-tree-not-synced
 type: issue
 number: 47
-status: draft
+status: done
+links:
+  commits:
+    - ff49ca7514216e85286e09b2e3033198a85988b0
+  pr:
+    - 393
 ---
 
 # P2 backlog cluster: harness-surfaces-drift-unguarded (1 item)

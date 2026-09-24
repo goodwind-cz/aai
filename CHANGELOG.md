@@ -22,6 +22,46 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix(update): the ref-guard is disclosed before it is installed, and can be declined (ISSUE-0083 / SPEC-0184)
+
+- **`/aai-update` no longer arms a git hook without saying so.** Since
+  v2026.08.29 the hook installer managed two hooks: the docs-index convenience
+  hook and an `AAI:REF-GUARD` reference-transaction hook that refuses every
+  `refs/heads/main` update unless `AAI_GIT_WRITE=1` is set on that command. The
+  update prompt's ask-nothing licence was written when there was one hook and
+  was never revised, so a consumer refreshing documentation tooling met the
+  guard for the first time as a refused commit. The install now discloses the
+  guard and what it does to `refs/heads/main`.
+- **Per-hook selection.** `install-pre-commit-hook.sh --hooks index` or
+  `--hooks ref-guard` (and `-Hooks` on the PowerShell twin) installs or
+  uninstalls one hook without the other. `--print <hook>` emits either hook's
+  body for a manual merge; previously only the docs-index body could be
+  printed, so a consumer with a foreign pre-commit hook could not hand-merge
+  the guard at all.
+- **A decline that survives an update.** `--decline-ref-guard` removes the
+  guard and records `ref_guard: declined` in `docs/ai/docs-audit.yaml`, which
+  `/aai-update` does not overwrite. A later plain install honours that
+  declaration and says why it skipped; `--arm-ref-guard` and `--force` both
+  still install. The reader fails closed: absent, indented, commented or
+  invalid all mean armed.
+- **`/aai-doctor` CAT-17 tells three states apart** — armed, deliberately
+  declined, and unarmed by accident. A project that declines is no longer
+  counted as an issue forever. An actually-installed or foreign hook still
+  outranks the declaration.
+- **Consumer-visible side effect, stated rather than hidden:** declining
+  creates `docs/ai/docs-audit.yaml` if it is absent, and the existence of that
+  file switches `docs-audit --check` from report-only to enforced. The install
+  now seeds it from the shipped template and prints the same disclosure the
+  sync path prints.
+- **The release fallback reports its own failure.** `aai-release.sh`'s fallback
+  ran `git branch` and `git reset --hard` with no return-code check under
+  `set -euo pipefail`; the PowerShell twin threw past its own incomplete flag.
+  Both were silent; both now report.
+- Spec: SPEC-0184, ceremony 2, TDD, 41 Test Plan rows each holding a mutation
+  that reddens it, six amendments, three validation rounds and two code review
+  rounds.
+
+
 ## [v2026.09.21] — feat(ceremony): the close ceremony, docs audit and generated pages agree with git (CHANGE-0188-close-ceremony-sweep / SPEC-0182-spec-close-ceremony-sweep)
 
 - **`ride-select.mjs`'s roadmap gate now admits only the FIRST unfinished

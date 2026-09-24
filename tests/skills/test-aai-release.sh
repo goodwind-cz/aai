@@ -1471,6 +1471,230 @@ test_035_fallback_incomplete_exits_18() {
   log_pass "TEST-035 D5 exit 18: a taken release-branch name stops the fallback before the reset, names the manual commands, opens no PR"
 }
 
+# --- TEST-625/626/627 (Spec-AC-10, spec-update-installs-ref-guard-undisclosed):
+# the fallback's git branch / git reset --hard calls had no rc check before
+# this scope -- under set -euo pipefail either one failing killed the script
+# raw at git's own exit code, never reaching the FALLBACK INCOMPLETE report
+# below. TEST-625 drives a REAL git-branch failure (a D/F-conflicting ref).
+# TEST-626 drives the reset arm through a `git` PATH stub that intercepts
+# only the exact "reset -q --hard" invocation (no other git call in this
+# script uses that triplet) and forwards everything else to the real git --
+# the same "stub the external tool" shape build_stub_gh already uses in this
+# file, chosen over a filesystem-permission fixture because no directory
+# permission can isolate JUST the reset call without also breaking the roll
+# commit that must precede it (both write the same repo-root/docs-ai paths).
+# TEST-627 is the .ps1 twin's static parity check (residual-risk note: a
+# static parse is not a substitute for the Windows CI leg).
+
+build_stub_git_reset_fail() {
+  local bin_dir="$1" real_git
+  real_git="$(command -v git)"
+  mkdir -p "$bin_dir"
+  cat > "$bin_dir/git" <<STUBEOF
+#!/usr/bin/env bash
+# Intercepts exactly the protected-branch fallback's "reset -q --hard" call
+# and fails it; every other invocation passes straight through to the real
+# git unmodified (TEST-626).
+if [[ "\${3:-}" == "reset" && "\${4:-}" == "-q" && "\${5:-}" == "--hard" ]]; then
+  echo "fatal: stub-injected reset failure (TEST-626 fixture)" >&2
+  exit 128
+fi
+exec "$real_git" "\$@"
+STUBEOF
+  chmod +x "$bin_dir/git"
+}
+
+test_625_fallback_branch_failure_reports() {
+  log_info "TEST-625: a D/F-conflicting ref (chore/release-v9.8.0/x) makes the fallback's git branch step fail; the report names it, exits 18, and leaves the target branch un-reset..."
+  local repo="$TMP_ROOT/t625" bare="$TMP_ROOT/t625-bare.git" stub="$TMP_ROOT/t625-stub" log="$TMP_ROOT/t625-ghlog"
+  local out="$TMP_ROOT/t625.out" err="$TMP_ROOT/t625.err" rc=0 pre_sha
+  setup_protected_fixture t625
+  pre_sha="$(git -C "$repo" rev-parse HEAD)"
+  # D/F conflict: a ref one level DEEPER than the release branch name already
+  # occupies that path, so `git branch chore/release-v9.8.0 <sha>` cannot lock
+  # 'refs/heads/chore/release-v9.8.0' (measured: `fatal: cannot lock ref
+  # 'refs/heads/chore/release-v9.8.0': 'refs/heads/chore/release-v9.8.0/x'
+  # exists`, git exit 128).
+  git -C "$repo" branch "chore/release-v9.8.0/x" HEAD
+
+  ( cd "$repo" && PATH="$stub:$PATH" bash "$RELEASE_SH" --version v9.8.0 --confirm ) \
+    >"$out" 2>"$err" || rc=$?
+
+  [[ "$rc" == "18" ]] \
+    || log_fail "TEST-625: expected exit 18 (fallback INCOMPLETE), got $rc:"$'\n'"$(cat "$out" "$err")"
+  grep -qF "FALLBACK INCOMPLETE" "$out" || log_fail "TEST-625: the report never names the incomplete fallback:"$'\n'"$(cat "$out")"
+  grep -qF "creating chore/release-v9.8.0 failed" "$out" \
+    || log_fail "TEST-625: the report never names the branch-creation step: $(cat "$out")"
+  [[ "$(git -C "$repo" rev-parse HEAD)" != "$pre_sha" ]] \
+    || log_fail "TEST-625: bad fixture -- the release commit never landed"
+  [[ "$(git -C "$repo" log -1 --format=%s)" == "chore(release): v9.8.0" ]] \
+    || log_fail "TEST-625: the target branch was moved even though git branch never succeeded -- it must be left exactly where the failure found it"
+  git -C "$repo" rev-parse -q --verify "refs/heads/chore/release-v9.8.0" >/dev/null 2>&1 \
+    && log_fail "TEST-625: a chore/release-v9.8.0 ref must not exist -- the git branch call itself failed"
+  if [[ -f "$log" ]] && grep -q 'pr create' "$log"; then
+    log_fail "TEST-625: the INCOMPLETE fallback opened a PR anyway: $(cat "$log")"
+  fi
+  [[ -z "$(git -C "$bare" show-ref 2>/dev/null || true)" ]] \
+    || log_fail "TEST-625: the INCOMPLETE fallback published refs to the remote: $(git -C "$bare" show-ref)"
+  log_pass "TEST-625 D/F-conflicting ref makes the fallback's git branch step fail: FALLBACK INCOMPLETE names it, exit 18, target branch left at the release commit"
+}
+
+test_626_fallback_reset_failure_reports() {
+  log_info "TEST-626: a fallback whose git reset --hard fails prints FALLBACK INCOMPLETE naming the reset step and exits 18, with the release branch already created and reported..."
+  local repo="$TMP_ROOT/t626" bare="$TMP_ROOT/t626-bare.git" ghstub="$TMP_ROOT/t626-stub" gitstub="$TMP_ROOT/t626-gitstub" log="$TMP_ROOT/t626-ghlog"
+  local out="$TMP_ROOT/t626.out" err="$TMP_ROOT/t626.err" rc=0 pre_sha
+  setup_protected_fixture t626
+  build_stub_git_reset_fail "$gitstub"
+  pre_sha="$(git -C "$repo" rev-parse HEAD)"
+
+  ( cd "$repo" && PATH="$gitstub:$ghstub:$PATH" bash "$RELEASE_SH" --version v9.8.1 --confirm ) \
+    >"$out" 2>"$err" || rc=$?
+
+  [[ "$rc" == "18" ]] \
+    || log_fail "TEST-626: expected exit 18 (fallback INCOMPLETE), got $rc:"$'\n'"$(cat "$out" "$err")"
+  grep -qF "FALLBACK INCOMPLETE" "$out" || log_fail "TEST-626: the report never names the incomplete fallback:"$'\n'"$(cat "$out")"
+  grep -qF "resetting main to" "$out" || log_fail "TEST-626: the report never names the reset step: $(cat "$out")"
+  git -C "$repo" rev-parse -q --verify "refs/heads/chore/release-v9.8.1" >/dev/null 2>&1 \
+    || log_fail "TEST-626: the release branch must already have been created before the stub-failed reset ran"
+  [[ "$(git -C "$repo" rev-parse "refs/heads/chore/release-v9.8.1")" == "$(git -C "$repo" rev-parse HEAD)" ]] \
+    || log_fail "TEST-626: the release branch must carry the release commit"
+  [[ "$(git -C "$repo" rev-parse HEAD)" != "$pre_sha" ]] \
+    || log_fail "TEST-626: HEAD must still be at the release commit -- the stub-failed reset must not have moved it"
+  [[ "$(git -C "$repo" log -1 --format=%s)" == "chore(release): v9.8.1" ]] \
+    || log_fail "TEST-626: HEAD must remain at the release commit after a failed reset"
+  if [[ -f "$log" ]] && grep -q 'pr create' "$log"; then
+    log_fail "TEST-626: the INCOMPLETE fallback opened a PR anyway: $(cat "$log")"
+  fi
+  [[ -z "$(git -C "$bare" show-ref 2>/dev/null || true)" ]] \
+    || log_fail "TEST-626: the INCOMPLETE fallback published refs to the remote: $(git -C "$bare" show-ref)"
+  log_pass "TEST-626 a stub-failed git reset --hard makes the fallback report FALLBACK INCOMPLETE naming the reset step, exit 18, release branch already created and carrying the release commit"
+}
+
+test_627_ps1_fallback_guarded() {
+  log_info "TEST-627: the .ps1 fallback wraps both the release-branch and reset --hard invocations in try/catch routed to \$fallbackIncomplete (static parse)..."
+  local ps1="$RELEASE_PS1"
+  [[ -f "$ps1" ]] || log_fail "TEST-627: aai-release.ps1 not found: $ps1"
+
+  local branch_line reset_line
+  branch_line="$(grep -n "Arguments @('-C', \$Root, 'branch', \$releaseBranch, \$releaseSha)" "$ps1" | qhead -1 | cut -d: -f1)"
+  reset_line="$(grep -n "Arguments @('-C', \$Root, 'reset', '-q', '--hard', \$preCutSha)" "$ps1" | qhead -1 | cut -d: -f1)"
+  [[ -n "$branch_line" ]] || log_fail "TEST-627: could not find the ps1 release-branch git invocation"
+  [[ -n "$reset_line" ]] || log_fail "TEST-627: could not find the ps1 reset --hard invocation"
+  [[ "$branch_line" != "$reset_line" ]] || log_fail "TEST-627: branch and reset resolved to the same line (parser bug)"
+
+  # Two checks per call, both load-bearing (a wide line-count window alone is
+  # a vacuous pass: this function's OWN explanatory comment a few lines above
+  # the branch call contains the literal substring "$fallbackIncomplete", so
+  # a plain grep over a +N window would pass even with the try/catch removed
+  # — caught by deliberately mutating the try/catch away, TEST-627 stayed
+  # GREEN against the wide-window version until this narrowed one replaced it):
+  #   (a) the line immediately above the invocation (skipping blank lines) is
+  #       literally "try {" — not "somewhere in a window";
+  #   (b) the block from the invocation down to the next BLANK line contains
+  #       an actual call site "& $fallbackIncomplete" (the `&` call operator
+  #       rules out a bare mention in a comment).
+  local branch_prev reset_prev branch_block reset_block
+  branch_prev="$(sed -n "1,$((branch_line-1))p" "$ps1" | qgrep -v '^[[:space:]]*$' | tail -1)"
+  reset_prev="$(sed -n "1,$((reset_line-1))p" "$ps1" | qgrep -v '^[[:space:]]*$' | tail -1)"
+  branch_block="$(awk -v start="$branch_line" 'NR>=start{print; if ($0 ~ /^[[:space:]]*$/) exit}' "$ps1")"
+  reset_block="$(awk -v start="$reset_line" 'NR>=start{print; if ($0 ~ /^[[:space:]]*$/) exit}' "$ps1")"
+
+  case "$branch_prev" in
+    *"try {") ;;
+    *) log_fail "TEST-627: the line immediately above the branch invocation is not 'try {': '$branch_prev'" ;;
+  esac
+  grep -qF '& $fallbackIncomplete' <<< "$branch_block" \
+    || log_fail "TEST-627: the branch invocation's block never CALLS \$fallbackIncomplete (a bare mention does not count):"$'\n'"$branch_block"
+  case "$reset_prev" in
+    *"try {") ;;
+    *) log_fail "TEST-627: the line immediately above the reset invocation is not 'try {': '$reset_prev'" ;;
+  esac
+  grep -qF '& $fallbackIncomplete' <<< "$reset_block" \
+    || log_fail "TEST-627: the reset invocation's block never CALLS \$fallbackIncomplete (a bare mention does not count):"$'\n'"$reset_block"
+  log_pass "TEST-627 the .ps1 fallback wraps both the git branch and git reset --hard invocations in try/catch that actually CALL \$fallbackIncomplete"
+}
+
+# --- TEST-648 (code review 20260924, P2) — the D/F-conflict fallback recipe
+# must name the ref actually blocking creation and offer a step that can
+# succeed, not repeat the exact `git branch` invocation that just failed and
+# will fail again the same way. TEST-625 already pins that a D/F conflict
+# reports FALLBACK INCOMPLETE and exits 18; this row pins that the recipe
+# itself is actionable. Behavioural for .sh (real fixture); behavioural for
+# .ps1 when pwsh is present, else the generic recipe's static shape.
+test_648_fallback_branch_conflict_names_ref() {
+  log_info "TEST-648: the D/F-conflict fallback names the conflicting ref and an actionable recovery step, not a repeat of the failing git branch command..."
+  local repo="$TMP_ROOT/t648" bare="$TMP_ROOT/t648-bare.git" stub="$TMP_ROOT/t648-stub" log="$TMP_ROOT/t648-ghlog"
+  local out="$TMP_ROOT/t648.out" err="$TMP_ROOT/t648.err" rc=0
+  setup_protected_fixture t648
+  # Same D/F conflict shape as TEST-625: a ref one level DEEPER than the
+  # release branch name already occupies that path.
+  git -C "$repo" branch "chore/release-v9.8.2/x" HEAD
+
+  ( cd "$repo" && PATH="$stub:$PATH" bash "$RELEASE_SH" --version v9.8.2 --confirm ) \
+    >"$out" 2>"$err" || rc=$?
+
+  [[ "$rc" == "18" ]] \
+    || log_fail "TEST-648: expected exit 18 (fallback INCOMPLETE), got $rc:"$'\n'"$(cat "$out" "$err")"
+  grep -qF "FALLBACK INCOMPLETE" "$out" || log_fail "TEST-648: the report never names the incomplete fallback:"$'\n'"$(cat "$out")"
+  grep -qF "'refs/heads/chore/release-v9.8.2/x' already exists" "$out" \
+    || log_fail "TEST-648: the report never names the conflicting ref refs/heads/chore/release-v9.8.2/x:"$'\n'"$(cat "$out")"
+
+  # The recipe's FIRST step (immediately after "- Finish by hand:") must not
+  # be the generic, exact-repeat line -- it must name the conflicting branch
+  # and a command that can actually run against it.
+  local recipe_first
+  recipe_first="$(awk '/- Finish by hand:/{getline; print; exit}' "$out")"
+  case "$recipe_first" in
+    *"git branch chore/release-v9.8.2 "*"if that ref does not exist yet"*)
+      log_fail "TEST-648: the recipe's first step is still the exact failing invocation, unchanged: $recipe_first" ;;
+  esac
+  case "$recipe_first" in
+    *"chore/release-v9.8.2/x"*) ;;
+    *) log_fail "TEST-648: the recipe's first step never names the conflicting branch: $recipe_first" ;;
+  esac
+  case "$recipe_first" in
+    *"git branch -m"*|*"git branch -D"*) ;;
+    *) log_fail "TEST-648: the recipe's first step names no rename/delete command an operator can run: $recipe_first" ;;
+  esac
+  # And that suggested command must be one git itself will actually accept
+  # (a short branch name, not the refs/heads/... path -- `git branch -D
+  # refs/heads/x` fails with "not found").
+  case "$recipe_first" in
+    *"refs/heads/chore/release-v9.8.2/x"*)
+      log_fail "TEST-648: the suggested git branch -m/-D command carries the refs/heads/ prefix, which git branch rejects: $recipe_first" ;;
+  esac
+
+  if [[ -f "$RELEASE_PS1" ]] && command -v pwsh >/dev/null 2>&1; then
+    local repo2="$TMP_ROOT/t648ps1" bare2="$TMP_ROOT/t648ps1-bare.git" stub2="$TMP_ROOT/t648ps1-stub" log2="$TMP_ROOT/t648ps1-ghlog"
+    local out2="$TMP_ROOT/t648ps1.out" err2="$TMP_ROOT/t648ps1.err" rc2=0
+    setup_protected_fixture t648ps1
+    git -C "$repo2" branch "chore/release-v9.8.3/x" HEAD
+    ( cd "$repo2" && PATH="$stub2:$PATH" pwsh -NoProfile -File "$RELEASE_PS1" --version v9.8.3 --confirm ) \
+      >"$out2" 2>"$err2" || rc2=$?
+    [[ "$rc2" == "18" ]] \
+      || log_fail "TEST-648: .ps1 twin expected exit 18 (fallback INCOMPLETE), got $rc2:"$'\n'"$(cat "$out2" "$err2")"
+    grep -qF "'refs/heads/chore/release-v9.8.3/x' already exists" "$out2" \
+      || log_fail "TEST-648: .ps1 twin never names the conflicting ref refs/heads/chore/release-v9.8.3/x:"$'\n'"$(cat "$out2")"
+    local recipe_first2
+    recipe_first2="$(awk '/- Finish by hand:/{getline; print; exit}' "$out2")"
+    case "$recipe_first2" in
+      *"git branch -m"*|*"git branch -D"*) ;;
+      *) log_fail "TEST-648: .ps1 twin's recipe first step names no rename/delete command: $recipe_first2" ;;
+    esac
+  else
+    log_info "TEST-648: pwsh (or the .ps1 twin) not available on this host -- the .ps1 twin's D/F-conflict guidance not re-verified behaviourally this run"
+    grep -qF "function Get-DfConflictRef" "$RELEASE_PS1" \
+      || log_fail "TEST-648: .ps1 has no Get-DfConflictRef helper"
+    grep -qF 'git branch -m $conflictingBranch <new-name>' "$RELEASE_PS1" \
+      || log_fail "TEST-648: .ps1's fallback never wires Get-DfConflictRef into an actionable recovery step"
+  fi
+
+  if [[ -f "$log" ]] && grep -q 'pr create' "$log"; then
+    log_fail "TEST-648: the INCOMPLETE fallback opened a PR anyway: $(cat "$log")"
+  fi
+  log_pass "TEST-648 D/F-conflict fallback names the conflicting ref and an actionable git branch -m/-D step, not a repeat of the exact failing invocation (both twins)"
+}
+
 # --- TEST-036 (simple-and-friendly-to-use Spec-AC-06 / spec TEST-008): the
 # dry run NAMES a missing golden-flow record; never blocks; byte-identical
 # `## Preconditions` block when a record newer than the tag exists ----------
@@ -1626,6 +1850,10 @@ main() {
   test_033_ps1_fallback_parity
   test_034_exit_codes_documented
   test_035_fallback_incomplete_exits_18
+  test_625_fallback_branch_failure_reports
+  test_626_fallback_reset_failure_reports
+  test_627_ps1_fallback_guarded
+  test_648_fallback_branch_conflict_names_ref
   test_036_golden_flow_record_precondition
   test_570_changelog_shape_is_documented
 

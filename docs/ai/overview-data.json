@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-18T22:41:31.436Z",
+  "generatedAt": "2026-09-24T17:20:12.554Z",
   "project": "aai",
   "counts": {
-    "delivered": 250,
+    "delivered": 251,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 68899611
@@ -69,6 +69,19 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "friction-channel-sweep",
+      "title": "The friction channel files what happened, with the harness, in one shape",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0190-friction-channel-sweep.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -168,6 +181,19 @@
       "review": null
     },
     {
+      "ref": "intake-doc-identity-table-and-its-pins",
+      "title": "The intake identity table is authoritative for more types than the tools support, and its pins read the wrong thing",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md",
+      "closed_on": "2026-09-18",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "tripwire-ratchet-arms-without-coverage",
       "title": "The drained offender table left an arm with no legal repair, a spec that contradicts its own code, and a green that proves nothing",
       "type": "issue",
@@ -194,32 +220,6 @@
       "review": null
     },
     {
-      "ref": "agents-tree-not-synced",
-      "title": "P2 backlog cluster: harness-surfaces-drift-unguarded (1 item)",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0047-agents-tree-not-synced.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "update-installs-ref-guard-undisclosed",
-      "title": "/aai-update silently arms a git ref-guard in every consumer, under a licence written for a different hook",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -234,6 +234,45 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "agents-tree-not-synced",
+      "title": "P2 backlog cluster: harness-surfaces-drift-unguarded (1 item)",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0047-agents-tree-not-synced.md",
+      "closed_on": "2026-09-24",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "update-installs-ref-guard-undisclosed",
+      "title": "/aai-update silently arms a git ref-guard in every consumer, under a licence written for a different hook",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md",
+      "closed_on": "2026-09-24",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-update-installs-ref-guard-undisclosed-20260924T124304Z.md"
+    },
+    {
+      "ref": "unrecorded-spec-amendment-is-invisible",
+      "title": "An amendment nobody recorded is invisible to the gate that exists to catch it",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md",
+      "closed_on": "2026-09-18",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "roadmap-gate-admits-only-the-next-pair",
       "title": "The roadmap gate admits only the first unfinished pair, so the owner's order is enforced, not decorative",
@@ -261,11 +300,11 @@
       "review": "docs/ai/reviews/review-close-ceremony-sweep-20260918T172546Z.md"
     },
     {
-      "ref": "intake-doc-identity-table-and-its-pins",
-      "title": "The intake identity table is authoritative for more types than the tools support, and its pins read the wrong thing",
+      "ref": "focus-and-validation-state-go-stale-silently",
+      "title": "Focus keeps a foreign spec, a validation verdict outlives the code it validated, and the sweep that finds both runs last",
       "type": "issue",
       "status": "done",
-      "path": "docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md",
+      "path": "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md",
       "closed_on": "2026-09-18",
       "agent_minutes": null,
       "token_total": null,
@@ -3457,47 +3496,21 @@
       "spec": null,
       "validation": null,
       "review": null
-    },
-    {
-      "ref": "unrecorded-spec-amendment-is-invisible",
-      "title": "An amendment nobody recorded is invisible to the gate that exists to catch it",
-      "type": "change",
-      "status": "done",
-      "path": "docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "focus-and-validation-state-go-stale-silently",
-      "title": "Focus keeps a foreign spec, a validation verdict outlives the code it validated, and the sweep that finds both runs last",
-      "type": "issue",
-      "status": "done",
-      "path": "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
     }
   ],
   "delivered_groups": [
     {
-      "key": "month:undated",
+      "key": "month:2026-09",
       "kind": "month",
-      "label": "Undated",
+      "label": "2026-09",
       "items": [
         {
-          "ref": "unrecorded-spec-amendment-is-invisible",
-          "title": "An amendment nobody recorded is invisible to the gate that exists to catch it",
-          "type": "change",
+          "ref": "agents-tree-not-synced",
+          "title": "P2 backlog cluster: harness-surfaces-drift-unguarded (1 item)",
+          "type": "issue",
           "status": "done",
-          "path": "docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md",
-          "closed_on": null,
+          "path": "docs/issues/ISSUE-0047-agents-tree-not-synced.md",
+          "closed_on": "2026-09-24",
           "agent_minutes": null,
           "token_total": null,
           "spec": null,
@@ -3505,25 +3518,31 @@
           "review": null
         },
         {
-          "ref": "focus-and-validation-state-go-stale-silently",
-          "title": "Focus keeps a foreign spec, a validation verdict outlives the code it validated, and the sweep that finds both runs last",
+          "ref": "update-installs-ref-guard-undisclosed",
+          "title": "/aai-update silently arms a git ref-guard in every consumer, under a licence written for a different hook",
           "type": "issue",
           "status": "done",
-          "path": "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md",
-          "closed_on": null,
+          "path": "docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md",
+          "closed_on": "2026-09-24",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-update-installs-ref-guard-undisclosed-20260924T124304Z.md"
+        },
+        {
+          "ref": "unrecorded-spec-amendment-is-invisible",
+          "title": "An amendment nobody recorded is invisible to the gate that exists to catch it",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md",
+          "closed_on": "2026-09-18",
           "agent_minutes": null,
           "token_total": null,
           "spec": null,
           "validation": null,
           "review": null
-        }
-      ]
-    },
-    {
-      "key": "month:2026-09",
-      "kind": "month",
-      "label": "2026-09",
-      "items": [
+        },
         {
           "ref": "roadmap-gate-admits-only-the-next-pair",
           "title": "The roadmap gate admits only the first unfinished pair, so the owner's order is enforced, not decorative",
@@ -3551,11 +3570,11 @@
           "review": "docs/ai/reviews/review-close-ceremony-sweep-20260918T172546Z.md"
         },
         {
-          "ref": "intake-doc-identity-table-and-its-pins",
-          "title": "The intake identity table is authoritative for more types than the tools support, and its pins read the wrong thing",
+          "ref": "focus-and-validation-state-go-stale-silently",
+          "title": "Focus keeps a foreign spec, a validation verdict outlives the code it validated, and the sweep that finds both runs last",
           "type": "issue",
           "status": "done",
-          "path": "docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md",
+          "path": "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md",
           "closed_on": "2026-09-18",
           "agent_minutes": null,
           "token_total": null,

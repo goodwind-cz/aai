@@ -2,10 +2,12 @@
 id: update-installs-ref-guard-undisclosed
 type: issue
 number: 83
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 393
+  commits:
+    - ff49ca7514216e85286e09b2e3033198a85988b0
 ---
 
 # /aai-update silently arms a git ref-guard in every consumer, under a licence written for a different hook

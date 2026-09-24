@@ -18,6 +18,12 @@
 #
 # Covers TEST-001..022 from docs/specs/SPEC-0100-spec-doctor-determinize.md.
 #
+# Covers TEST-619..620 (Spec-AC-07) from
+# docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md: CAT-17
+# consults lib/guard-config.mjs's readRefGuardPolicy for a non-counting
+# DECLINED state when no AAI guard is present, and reality (an armed or a
+# foreign hook) outranks the declaration (D4).
+#
 # Exit codes:
 #   0  - All tests passed
 #   1  - Tests failed
@@ -97,9 +103,11 @@ install_doctor_copy() {
   mkdir -p "$d/.aai/scripts/lib"
   cp "$DOCTOR" "$d/.aai/scripts/aai-doctor.mjs"
   # aai-doctor.mjs's own pipe-exit-discipline import (cli-exit-truncates-pipe-
-  # sweep) — a hard dependency of every copy, not an opt-in helper like the
-  # ones below.
+  # sweep) and CAT-17's readRefGuardPolicy import (Spec-AC-07) — both hard
+  # dependencies of every copy, not opt-in helpers like the ones below
+  # (check-vendored-script-deps.mjs gates a vendored engine missing either).
   cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs" "$d/.aai/scripts/lib/guard-config.mjs"
   local helper
   for helper in "$@"; do
     mkdir -p "$d/.aai/scripts/$(dirname "$helper")"
@@ -1883,6 +1891,119 @@ exit 1
     || log_fail "TEST-040 CAT-17 effective-path + behavioural-probe"
 }
 
+# --- TEST-619 (Spec-AC-07) — a declared decline is a non-counting state ----
+test_619_cat17_declined_is_not_an_issue() {
+  local ok=1
+  local d; d="$(build_clean_fixture t619)"
+  rm -f "$d/.git/hooks/reference-transaction"
+  printf 'ref_guard: declined\n' > "$d/docs/ai/docs-audit.yaml"
+  # docs-audit.yaml is TRACKED (build_clean_fixture commits it); commit and
+  # push the edit too, or CAT-08's git-status check WARNs on the dirty tree
+  # and pollutes the "only CAT-17 would have WARNed" premise this test needs.
+  git -C "$d" add -A
+  git -C "$d" commit -q -m "t619: decline the ref guard"
+  git -C "$d" push -q origin main
+
+  local out rc
+  # The FIXTURE's own vendored copy (not --root against $DOCTOR): CAT-11/
+  # CAT-13 resolve their docs-audit.mjs/layer-drift.mjs siblings relative to
+  # the INVOKED script's own location, so only the fixture's own copy picks
+  # up build_clean_fixture's always-clean stubs (test_014's discipline).
+  out="$(node "$d/.aai/scripts/aai-doctor.mjs" --strict 2>&1)"; rc=$?
+  local cat17; cat17="$(echo "$out" | grep '^CAT-17')"
+  if [[ "$(printf '%s' "$cat17" | tr 'A-Z' 'a-z')" != *'declined'* ]]; then
+    log_info "TEST-619: CAT-17 does not name the declined state: $cat17"
+    ok=0
+  fi
+  if [[ "$cat17" != *"docs-audit.yaml"* ]]; then
+    log_info "TEST-619: CAT-17 does not name the config path: $cat17"
+    ok=0
+  fi
+  if [[ "$cat17" != *"--arm-ref-guard"* ]]; then
+    log_info "TEST-619: CAT-17 does not name the re-arm command: $cat17"
+    ok=0
+  fi
+  if ! dr_line_hit "$out" '^DOCTOR CLEAN$'; then
+    log_info "TEST-619: DOCTOR summary counted the declined category: $(echo "$out" | grep '^DOCTOR')"
+    ok=0
+  fi
+  if [[ "$rc" -ne 0 ]]; then
+    log_info "TEST-619: --strict expected exit 0 when only CAT-17 would have WARNed (declined), got $rc"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-619 CAT-17 reports a declined state naming docs/ai/docs-audit.yaml and --arm-ref-guard, DOCTOR ISSUES does not count it, and --strict exits 0" \
+    || log_fail "TEST-619 CAT-17 declined non-counting state"
+}
+
+# --- TEST-620 (Spec-AC-07) — reality outranks the declaration (D4) ---------
+test_620_cat17_declaration_never_over_reads() {
+  local ok=1
+  local reftx_body='#!/bin/sh
+# AAI:REF-GUARD
+aai_state="$1"
+if [ "$aai_state" != "prepared" ]; then exit 0; fi
+aai_guarded=0
+while read -r o n r; do [ "$r" = "refs/heads/main" ] && aai_guarded=1; done
+[ "$aai_guarded" = "1" ] || exit 0
+[ "$AAI_GIT_WRITE" = "1" ] && exit 0
+exit 1
+'
+
+  # (a) a GENUINELY armed guard + a declined declaration -> PASS armed
+  # regardless (D4: reality outranks the declaration).
+  local da="$TMP_ROOT/t620-armed"
+  rm -rf "$da"; mkdir -p "$da/.git/hooks" "$da/docs/ai"
+  git -C "$da" init -q -b main >/dev/null
+  git -C "$da" config user.email "test@example.invalid"; git -C "$da" config user.name "AAI Test"
+  git -C "$da" commit -q --allow-empty -m init
+  printf '%s' "$reftx_body" > "$da/.git/hooks/reference-transaction"
+  chmod +x "$da/.git/hooks/reference-transaction"
+  printf 'ref_guard: declined\n' > "$da/docs/ai/docs-audit.yaml"
+  local outa; outa="$(node "$DOCTOR" --root "$da" 2>&1 | grep '^CAT-17')"
+  if [[ "$outa" != *' PASS '* ]]; then
+    log_info "TEST-620: armed guard with a declined declaration did not report PASS: $outa"
+    ok=0
+  fi
+
+  # (b) a FOREIGN reference-transaction hook + a declined declaration -> the
+  # existing "not AAI-managed" WARN is not suppressed by the declaration.
+  local db="$TMP_ROOT/t620-foreign"
+  rm -rf "$db"; mkdir -p "$db/.git/hooks" "$db/docs/ai"
+  git -C "$db" init -q -b main >/dev/null
+  git -C "$db" config user.email "test@example.invalid"; git -C "$db" config user.name "AAI Test"
+  git -C "$db" commit -q --allow-empty -m init
+  printf '#!/bin/sh\necho foreign-reftx\n' > "$db/.git/hooks/reference-transaction"
+  chmod +x "$db/.git/hooks/reference-transaction"
+  printf 'ref_guard: declined\n' > "$db/docs/ai/docs-audit.yaml"
+  local outb; outb="$(node "$DOCTOR" --root "$db" 2>&1 | grep '^CAT-17')"
+  if [[ "$(printf '%s' "$outb" | tr 'A-Z' 'a-z')" != *'not aai-managed'* ]]; then
+    log_info "TEST-620: a foreign reference-transaction hook's WARN was suppressed by a declined declaration: $outb"
+    ok=0
+  fi
+  if [[ "$(printf '%s' "$outb" | tr 'A-Z' 'a-z')" == *'declined'* ]]; then
+    log_info "TEST-620: the foreign-hook WARN mentions 'declined' -- the declaration must not reach this branch: $outb"
+    ok=0
+  fi
+
+  # (c) no declaration at all, absent guard -> the current WARN text is
+  # unchanged verbatim (this fixture root carries no installer file, so the
+  # "installer missing" wording is the one exercised).
+  local dc="$TMP_ROOT/t620-undeclared"
+  rm -rf "$dc"; mkdir -p "$dc/.git/hooks"
+  git -C "$dc" init -q -b main >/dev/null
+  git -C "$dc" config user.email "test@example.invalid"; git -C "$dc" config user.name "AAI Test"
+  git -C "$dc" commit -q --allow-empty -m init
+  local outc; outc="$(node "$DOCTOR" --root "$dc" 2>&1 | grep '^CAT-17')"
+  if [[ "$(printf '%s' "$outc" | tr 'A-Z' 'a-z')" != *'not armed and installer missing'* ]]; then
+    log_info "TEST-620: the undeclared WARN text changed: $outc"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-620 an armed guard reports PASS armed despite a declined declaration, a foreign reference-transaction hook still WARNs despite it, and an undeclared fixture keeps the current not-armed WARN text verbatim" \
+    || log_fail "TEST-620 CAT-17 declaration never over-reads"
+}
+
 # --- TEST-439 (spec-test-framework-sweep Spec-AC-22) — every CLI main()
 # guard resolves both sides through realpath, so invoking the script through
 # a SYMLINKED checkout still runs main() instead of silently no-op'ing.
@@ -1991,6 +2112,8 @@ main() {
   test_038_0139_canonical_invocation_fixtures
   test_039_0139_canonical_invocation_shape
   test_040_cat17_effective_path_and_probe
+  test_619_cat17_declined_is_not_an_issue
+  test_620_cat17_declaration_never_over_reads
   test_439_argv1_guard_resolves_symlinks
 
   echo ""
