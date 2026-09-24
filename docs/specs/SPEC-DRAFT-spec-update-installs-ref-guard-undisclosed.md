@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: d7da69490d94a6a2d8e9f5109e682d6beb5e5bebf4d9bca2fb3603468c28feb6
+frozen_sha256: bd8baf7c5ca17de0f5680b0352493f47c0065907ececb05b8aa0e14ee456d00c
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md
@@ -457,6 +457,11 @@ produced by `node .aai/scripts/mutation-run.mjs`.
 | TEST-639 | Spec-AC-09 | integration | tests/skills/test-aai-git-ref-guard.sh | test_639_model_routing_note_cites_amendment_2 — the routing file's UPGRADING note cites the amendment that actually carries the owner's re-disposition. | Revert the citation to Amendment 1, which does not carry that decision. | pending |
 | TEST-640 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_640_typoed_value_heals — arming and declining against a config whose ref_guard value is a typo each leave exactly one key with the right value, both readers agree afterwards, and a plain reinstall then behaves as the declaration says. | Revert the writer's replace gate to the closed armed-or-declined vocabulary so a typoed value is appended beside rather than replaced. | pending |
 | TEST-641 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_641_ps1_typoed_value_heals — the PowerShell twin carries the same widened gate, asserted on the source text and, where pwsh is present, exercised. | Revert the twin's gate to the closed vocabulary. | pending |
+| TEST-642 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_642_ps1_declares_before_removing — the PowerShell twin writes the declaration before it removes the hook, so a failed write leaves the guard installed rather than the consumer disarmed and unrecorded; asserted on source order and, where pwsh is present, exercised against an unwritable config. | Patch the twin's order back so the hook is removed first. | pending |
+| TEST-643 | Spec-AC-04 | integration | tests/skills/test-aai-git-ref-guard.sh | test_643_config_creation_is_disclosed — creating docs/ai/docs-audit.yaml as a side effect of a decline seeds it from the shipped template and says so, in the template-present and template-absent branches alike. | Neuter the absent-config branch so the file is created silently again. | pending |
+| TEST-644 | Spec-AC-04 | integration | tests/skills/test-aai-git-ref-guard.sh | test_644_ps1_config_creation_is_disclosed — the twin carries the same seeding and disclosure. | Neuter the twin's absent-config branch. | pending |
+| TEST-645 | Spec-AC-01 | integration | tests/skills/test-aai-git-ref-guard.sh | test_645_decline_with_explicit_hooks_refuses — a decline or arm combined with an explicit hooks selection is a usage error naming the contradiction, while a bare decline is unaffected. | Neuter the contradiction gate so the explicit selection is silently ignored again. | pending |
+| TEST-646 | Spec-AC-01 | integration | tests/skills/test-aai-git-ref-guard.sh | test_646_ps1_decline_with_explicit_hooks_refuses — the twin refuses the same contradiction. | Neuter the twin's contradiction gate. | pending |
 
 ## Seams
 
@@ -757,6 +762,54 @@ observation was an unnumbered note — recorded here rather than edited there.
 so in both twins: D4 makes every reader trust an installed hook over a stale
 declaration, so the gap is inert, and `--arm-ref-guard` is the command that
 changes the declaration.
+
+Sign-off: none (tracked).
+
+## Amendment 5 (post-freeze, 2026-09-24 — code review found two blocking defects three validation rounds missed)
+
+**Amendment 3's ordering claim was true of one twin only, and this corrects it.**
+That amendment records the decline's write-before-remove ordering as fixed,
+without naming a twin. It was fixed in `install-pre-commit-hook.sh` and NOT in
+`install-pre-commit-hook.ps1`, which went on removing the hook first. Code
+review reproduced the consequence under pwsh against an unwritable config: the
+hook gone, the configuration still saying `armed`, a non-zero exit — a consumer
+disarmed with no record, on the very platform `goodwind-cz/aai#369` was reported
+from. Three validation rounds missed it because each exercised the twin
+behaviourally for a different property and took the ordering on the record's
+word. Fixed here and pinned by TEST-642, whose static half catches the
+regression on a host with no pwsh and whose behavioural half reproduces the
+reviewer's case where pwsh exists.
+
+**Declining a git hook silently switched on a docs gate — this ride's own thesis
+turned against it.** The decline writer created `docs/ai/docs-audit.yaml` when
+absent, and the mere EXISTENCE of that file flips the docs audit from
+report-only to enforced. Measured by the reviewer: `docs-audit --check` returns
+0 before a decline in a repository with no configuration and 1 after. The only
+previous creator of that file, `aai-sync.sh`, discloses that consequence; the
+new writer did not. This scope exists because `/aai-update` changed a consumer's
+git behaviour without telling them, and it had begun changing their docs-audit
+behaviour without telling them. Both twins now seed the file from the shipped
+template — the same object the sync path would create — and print the sync
+path's own disclosure, with an equivalent note when the template is absent.
+TEST-643 and TEST-644 pin it.
+
+**One frozen-plan edge case implemented, one recorded as dropped.** A decline or
+arm combined with an EXPLICIT hooks selection now exits 2 naming the
+contradiction, as the plan said, instead of silently ignoring the selection
+(TEST-645, TEST-646; a bare decline is unaffected). The plan's `-Print` for the
+PowerShell twin is NOT delivered and is recorded here as dropped: the twin never
+had `--print`, so this is a pre-existing gap rather than a regression, and
+emitting a heredoc body from PowerShell is feature work of its own. The
+remaining AC-table rows still read `planned`; that flip is owed at the close and
+is carved by canon, not an omission.
+
+**Two structural findings filed rather than fixed**, with the reviewer's own
+reasoning: `fu-installer-flag-lattice-no-mode` (six flags with unrefused and
+silently-ignored combinations; the clean answer is one resolved mode with exit 2
+on an inapplicable flag, but about eight mutation records pin the current
+spellings, so it is its own ride) and `fu-docs-audit-yaml-misnamed-guard-config`
+(the file is the repository's general guard-policy surface with two writers and
+still calls itself the docs audit's).
 
 Sign-off: none (tracked).
 
