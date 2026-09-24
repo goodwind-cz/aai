@@ -934,6 +934,17 @@ NODE
   [[ "$rc" -eq 1 ]] || log_fail "foreign --ref state mutation expected exit 1, got $rc: $out"
   assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "foreign ref expected E-STATE-UPDATE-COMMAND, got: $out"
 
+  cp "$FIXTURES_DIR/implementation-valid.md" "$foreign_ref_result"
+  replace_fixture_token "$foreign_ref_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-phase --ref role-output-contracts --phase validation --state .aai/templates/STATE_TEMPLATE.yaml'
+  set +e
+  out="$(runcheck --file "$foreign_ref_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "alternate state target expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "alternate state target expected E-STATE-UPDATE-COMMAND, got: $out"
+
   cp "$FIXTURES_DIR/implementation-valid.md" "$yaml_escape_result"
   replace_fixture_token "$yaml_escape_result" '  blockers: []' \
     '  blockers: []
