@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 338f3eefb38706cae00f7cc9b73fb295ff582998c13ab3651179aa2ba0152fdb
+frozen_sha256: 374b28276233adfdce5bf2fd76408763be2d7e301cc3700ce2e691ed59db4909
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md
@@ -449,6 +449,12 @@ produced by `node .aai/scripts/mutation-run.mjs`.
 | TEST-631 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_631_ps1_decline_arm_params — the PowerShell twin exposes DeclineRefGuard and ArmRefGuard, and asking for both at once is a usage error with nothing written. | Neuter the contradiction check so both switches together are accepted; the record is in mutation-TEST-631.txt (added by Amendment 2). | pending |
 | TEST-632 | Spec-AC-06 | integration | tests/skills/test-aai-git-ref-guard.sh | test_632_ps1_policy_fails_closed — the twin reads the same key and falls back to armed on absent, indented, commented or invalid input, so one docs-audit.yaml serves a repository checked out on either platform. | Flip the fall-through default to declined; the record is in mutation-TEST-632.txt (added by Amendment 2). | pending |
 | TEST-633 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_633_ps1_shared_refusal_helper — the twin prints its foreign-hook refusal through one shared helper rather than a duplicated literal. | Restore a duplicate literal copy of the refusal sentence; the record is in mutation-TEST-633.txt (added by Amendment 2). | pending |
+| TEST-634 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_634_decline_arm_crlf_write — a decline against a CRLF docs/ai/docs-audit.yaml records the declaration and removes the hook, and the mirror arm case restores it; neither reports success it did not achieve. | Revert the awk whitespace class so it no longer accepts a carriage return, restoring the disagreement with the grep gate. | pending |
+| TEST-635 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_635_decline_orders_write_before_removal — when the declaration cannot be written, the guard is still installed and armed afterwards; the decline never leaves a consumer disarmed with nothing recorded. | Patch the order back so the hook is removed before the declaration is written. | pending |
+| TEST-636 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_636_plain_reinstall_honours_decline — a plain installer run after a decline leaves the guard uninstalled and says why, while an explicit arm and a forced run both still install it. | Neuter the condition that consults the declared policy before a plain ref-guard install. | pending |
+| TEST-637 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_637_ps1_plain_reinstall_honours_decline_static — the PowerShell twin carries the same policy consultation before a plain install, asserted on the source text per this spec's residual-risk note. | Flip the compared policy value so the twin skips on armed instead of declined. | pending |
+| TEST-638 | Spec-AC-01 | integration | tests/skills/test-aai-git-ref-guard.sh | test_638_hooks_empty_rejected — an empty hooks selection is a usage error in both twins rather than a run that installs nothing and reports success. | Neuter the empty-argument guard so the shell twin accepts it again. | pending |
+| TEST-639 | Spec-AC-09 | integration | tests/skills/test-aai-git-ref-guard.sh | test_639_model_routing_note_cites_amendment_2 — the routing file's UPGRADING note cites the amendment that actually carries the owner's re-disposition. | Revert the citation to Amendment 1, which does not carry that decision. | pending |
 
 ## Seams
 
@@ -651,6 +657,60 @@ was otherwise only asserted.
 
 Sign-off: owner for the Spec-AC-09 re-disposition (decision of 2026-09-24);
 none (tracked) for the rest.
+
+## Amendment 3 (post-freeze, 2026-09-24 — validation round 1's blocking finding and five more rows)
+
+Validation round 1 returned FAIL on one blocking finding, and the finding is
+worth stating plainly because of where it sat.
+
+**The decline writer was CRLF-blind, inside the ride that certifies a CRLF
+blindness closed.** `write_ref_guard_policy` checked for a replaceable key with
+a `grep -E` whose `[[:space:]]` includes a carriage return, then replaced it
+with an `awk` whose `[ \t]` does not. On a `docs/ai/docs-audit.yaml` with
+Windows line endings the gate said "replace it", the action matched nothing,
+the append branch never ran, and the read-back honestly reported the old value
+— so `--decline-ref-guard` removed the hook, recorded nothing, and exited 1.
+The consumer ends up disarmed, with no record of having declined, and CAT-17
+warns forever: the exact complaint ISSUE-0083 was filed about. The mirror case
+re-armed while claiming failure. Meanwhile Spec-AC-11 of this same spec closes
+`fu-gitignore-crlf-exact-line`, an older defect of exactly this class whose fix
+was a `tr -d "\r"`. A ride can close a class and reintroduce it in the same
+diff; only an adversarial round caught it. TEST-634 pins it.
+
+Fixed as the class rather than the instance: the matchers in that file now agree
+on what a line is, and the other two readers were checked — `lib/guard-config.mjs`
+splits on `/\r?\n/` and the `.ps1` reads through `Get-Content`, so neither ever
+had it. `.gitattributes` is deliberately NOT extended to pin `docs/ai/*.yaml` to
+LF: the file is the project's own, a CRLF copy of it is legitimate, and matcher
+parity fixes the case a bytes-rewrite would not reach.
+
+**The decline left a partial state.** It removed the hook before writing the
+declaration, so any write failure disarmed the consumer silently. The file
+already applied "check both before writing either" to the two hook slots; the
+decline's own two effects now get the same discipline — the declaration is
+written first, and a failure leaves the guard installed and armed.
+
+**A declared decline now survives `/aai-update`, and that was an
+orchestrator override of the validator's own disposition.** Validation measured
+that a plain installer run re-armed the guard while the config said `declined`,
+and ruled it non-blocking because this spec accepts it as a residual risk. That
+reading is fair, and it was overruled: D1 justifies the residual with "the
+explicit command wins", and `/aai-update` is not the consumer's explicit
+command — it is the automatic side effect that produced the complaint. A decline
+that the next documentation refresh reverts does not fix the issue. Both twins
+now consult the declaration before a plain install and skip the guard aloud;
+`--arm-ref-guard` and `--force` remain two-way overrides, so the exit is not a
+trap door.
+
+Six rows added: TEST-634 through TEST-639, covering the above plus the empty
+hooks selection the shell twin used to accept with a success footer, and the
+routing note's citation, which pointed at Amendment 1 rather than the
+Amendment 2 that carries the owner's decision. The Verification section's suite
+commands were corrected in place (they named a form that exits 126 because the
+suite files are not executable); that is a Verification text fix, not an AC
+change.
+
+Sign-off: none (tracked).
 
 ## Notes
 
