@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 55eb36337f4c5c110ea612a404f8eef55087cee9b1daa1fa462da929f0dd8aca
+frozen_sha256: c2eb3fee1f8044af69b9befa3bdd92dc87f03582b06efe642840034c0c9623b7
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md
@@ -551,6 +551,49 @@ REJECTED BY THIS SCOPE: none.
   of the two hooks it installs. It is closed at this ride's PR citing the four
   criteria and their tests, and the closing comment names the `.ps1` twin
   explicitly because the reporter was on Windows.
+
+## Amendment 1 (post-freeze, 2026-09-24 — the decline surface binds BOTH twins; three Mutation-cell deviations, TDD run 2)
+
+**Spec-AC-05 and Spec-AC-06 bind the PowerShell twin as well as the shell one.**
+Run 2 delivered the disclosure, the decline writer and the fail-closed reader in
+`install-pre-commit-hook.sh` and named the gap honestly: the `.ps1` has no
+decline or arm surface yet. Left there, this ride would ship an exit that only
+POSIX consumers can take — and the consumer whose report opened
+`goodwind-cz/aai#369` was on Windows. A guard that can only be declined on the
+platform that did not report it is not the fix this intake asked for. The twin
+is therefore in scope for run 3, not a later ride: same closed-set selection,
+same one-line declaration, same fail-closed reading, and the `.ps1` must write
+the identical key so one `docs/ai/docs-audit.yaml` serves a repository checked
+out on either platform. The Windows CI leg remains the only real runtime check
+on it; a static shape test is not a substitute and must not be reported as one.
+
+**Three Mutation-cell deviations (cells left verbatim; records RED).** All three
+are limits of how `mutation-run.mjs` applies `--sed`, not disagreements with what
+the rows assert:
+
+- **TEST-613.** The cell anchors with `^`. `--sed` compiles a JavaScript RegExp
+  without the multiline flag, so `^` matches only at the start of the file and
+  the expression can never fire mid-file. Recorded instead a prefix that turns
+  the disclosure `echo` into a no-op.
+- **TEST-616.** The cell describes removing a check that spanned two lines. A
+  `--sed` replacement containing `\n` does not insert a newline (JavaScript
+  treats the replacement literally there), so the first attempt silently
+  corrupted the script. Run 2 refactored the check onto one line so a
+  single-line expression applies cleanly, and recorded that.
+- **TEST-617.** The cell's `sed:s/return 'armed';/return 'declined';/` hits the
+  FIRST occurrence under a non-global replace — the absent-file branch, not the
+  invalid-value branch the row is about. A distinguishing comment now makes the
+  equivalent expression target the intended branch.
+
+**One hazard run 2 introduced and fixed.** Copy-pasting an existing refusal
+sentence into a new code path gave run 1's TEST-612 a second, unmutated copy of
+its target string; the recorded `--sed` then hit whichever copy came first and
+the row stopped proving its property. Caught by `--replay`, not by the suite.
+Fixed by extracting one shared helper for that message. Filed as
+`fu-duplicate-message-collides-mutation` (P3) because nothing prevents the next
+occurrence.
+
+Sign-off: none (tracked).
 
 ## Notes
 
