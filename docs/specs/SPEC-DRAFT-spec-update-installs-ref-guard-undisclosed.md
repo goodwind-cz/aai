@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 374b28276233adfdce5bf2fd76408763be2d7e301cc3700ce2e691ed59db4909
+frozen_sha256: d7da69490d94a6a2d8e9f5109e682d6beb5e5bebf4d9bca2fb3603468c28feb6
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md
@@ -455,6 +455,8 @@ produced by `node .aai/scripts/mutation-run.mjs`.
 | TEST-637 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_637_ps1_plain_reinstall_honours_decline_static — the PowerShell twin carries the same policy consultation before a plain install, asserted on the source text per this spec's residual-risk note. | Flip the compared policy value so the twin skips on armed instead of declined. | pending |
 | TEST-638 | Spec-AC-01 | integration | tests/skills/test-aai-git-ref-guard.sh | test_638_hooks_empty_rejected — an empty hooks selection is a usage error in both twins rather than a run that installs nothing and reports success. | Neuter the empty-argument guard so the shell twin accepts it again. | pending |
 | TEST-639 | Spec-AC-09 | integration | tests/skills/test-aai-git-ref-guard.sh | test_639_model_routing_note_cites_amendment_2 — the routing file's UPGRADING note cites the amendment that actually carries the owner's re-disposition. | Revert the citation to Amendment 1, which does not carry that decision. | pending |
+| TEST-640 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_640_typoed_value_heals — arming and declining against a config whose ref_guard value is a typo each leave exactly one key with the right value, both readers agree afterwards, and a plain reinstall then behaves as the declaration says. | Revert the writer's replace gate to the closed armed-or-declined vocabulary so a typoed value is appended beside rather than replaced. | pending |
+| TEST-641 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_641_ps1_typoed_value_heals — the PowerShell twin carries the same widened gate, asserted on the source text and, where pwsh is present, exercised. | Revert the twin's gate to the closed vocabulary. | pending |
 
 ## Seams
 
@@ -709,6 +711,52 @@ Amendment 2 that carries the owner's decision. The Verification section's suite
 commands were corrected in place (they named a form that exits 126 because the
 suite files are not executable); that is a Verification text fix, not an AC
 change.
+
+Sign-off: none (tracked).
+
+## Amendment 4 (post-freeze, 2026-09-24 — the writer and the reader disagreed about what a key is; and why round 1 missed it)
+
+**Spec-AC-05 was breached by a success path.** The writer's replace gate matched
+a CLOSED vocabulary (`armed|declined`) while `readRefGuardPolicy` matches ANY
+non-blank token. On a config whose value is a typo the writer therefore saw no
+replaceable key, took its append branch, and left TWO `ref_guard:` lines — while
+exiting 0 and reporting success. Spec-AC-05 says "leaving exactly one
+`ref_guard:` line" and names that very `grep -c` as its verification, so this
+was a breach of the frozen AC, not a nicety. The decline direction was worse:
+exit 0, hook removed, `readRefGuardPolicy` still answering `armed`, so CAT-17
+warns "not armed" forever and a plain install will not restore the guard because
+the shell mirror says `declined`. ISSUE-0083's own complaint, reached through a
+command that reported success. Both twins now gate on the reader's grammar, so
+an unrecognised value is healed rather than duplicated; refusing was rejected
+because it would block the very command a consumer runs BECAUSE the value is
+wrong. TEST-640 and TEST-641 pin it.
+
+**Why round 1 did not catch it, which is the part worth keeping.** Round 1 saw
+the same reader divergence, filed it as its N5, and ruled it inert on an
+explicit premise: that the only consumer of the shell mirror was the writer's
+own read-back. The remediation that round 1 itself produced — making a declared
+decline survive a plain install — ADDED the second consumer and invalidated that
+premise. Nobody returned to the dismissal after the thing it rested on changed.
+A finding ruled harmless is only as good as its premise, and a later change in
+the same ride can retire that premise silently.
+
+**Amendment 3 overstated the CRLF fix, and this corrects it.** It claimed the
+class was fixed; it was the instance plus one character — `[ \t\r]` is not
+`[[:space:]]`, so a vertical tab or form feed still split the gate from the
+action, and validation reproduced the original mechanism on them. The two sides
+are now the identical class, so no whitespace character can divide them.
+
+**Two smaller corrections.** TEST-637's second assertion was vacuous: it grepped
+the `.ps1` for a bare literal that already exists as an unrelated initialiser,
+so deleting the skip it was meant to pin left it green. It now anchors on the
+skip's own site. And Amendment 3 cited "round 1's N9" for the Verification
+command fix; N9 is round 1's amendment-count finding, while the exit-126
+observation was an unnumbered note — recorded here rather than edited there.
+
+`--force` overriding the hook but not the declaration is INTENDED and now says
+so in both twins: D4 makes every reader trust an installed hook over a stale
+declaration, so the gap is inert, and `--arm-ref-guard` is the command that
+changes the declaration.
 
 Sign-off: none (tracked).
 
