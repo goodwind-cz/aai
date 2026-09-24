@@ -41,7 +41,10 @@ set -euo pipefail
 #
 # Idempotent per hook. Refuses to overwrite a non-AAI hook unless --force is
 # given (checked for BOTH hooks before writing either, so a foreign hook in
-# one slot never causes a partial install of the other).
+# one slot never causes a partial install of the other). A declared
+# `ref_guard: declined` (docs/ai/docs-audit.yaml) is honoured by a plain
+# install: the ref-guard hook is skipped, not silently re-armed. Override
+# with --arm-ref-guard or --force.
 
 FORCE=0
 UNINSTALL=0
@@ -101,6 +104,18 @@ done
 # resolved once into the two booleans every selection-aware guard below
 # consults. An unknown token exits 2 naming the closed set and writes
 # nothing (checked before any repo/hook state is touched).
+#
+# --hooks "" (validation round 1, N2): an empty string is not a member of the
+# closed set either, but the csv loop below only iterates while the remainder
+# is non-empty, so an empty HOOKS_ARG used to fall straight through with both
+# booleans still 0 -- exit 0, nothing installed, the success footer printed
+# anyway. The .ps1 twin already rejected it (its foreach over -split ','
+# yields one empty token, which hits its own closed-set default branch).
+# Rejected here explicitly so the twins agree.
+if [[ -z "$HOOKS_ARG" ]]; then
+  echo "ERROR: unknown --hooks value: '' (closed set: index, ref-guard, all)" >&2
+  exit 2
+fi
 WANT_INDEX=0
 WANT_REFGUARD=0
 _hooks_csv="$HOOKS_ARG"
@@ -323,6 +338,26 @@ read_ref_guard_policy() {
 # on the next pass. Ends by reading the value back through read_ref_guard_policy
 # above and refusing if it disagrees — the write is not trusted merely because
 # it did not error.
+#
+# CRLF (validation round 1, B1): the GATE grep just below and the ACTION awk
+# on the next line must agree on what counts as "whitespace" in this line, or
+# the gate can see a replaceable key the action cannot find. They used to
+# disagree — grep's [[:space:]] includes CR, awk's [ \t] did not — so on a
+# CRLF docs-audit.yaml (the default Windows checkout shape for a path
+# .gitattributes does not pin to eol=lf, and the shape the .ps1 twin's own
+# Set-Content writes on Windows) the gate fired, the awk replaced nothing, and
+# write_ref_guard_policy fell through to the read-back check below, which
+# correctly reported failure — but only AFTER decline_ref_guard had already
+# removed the guard (see its own CRLF-safe reordering). Fixed by widening the
+# awk class to [ \t\r], the same characters the grep gate treats as
+# whitespace, rather than by normalising the file's line endings: this file
+# is project-owned and CRLF is a legitimate shape for it (D2), so the fix is
+# matcher parity, not a rewrite of bytes the consumer did not ask this script
+# to touch. lib/guard-config.mjs's readRefGuardPolicy never had this bug — it
+# splits on /\r?\n/, which consumes a trailing CR as part of the line
+# delimiter — and the .ps1 twin reads lines with Get-Content, which strips
+# both line-ending styles before any regex runs; this class disagreement was
+# unique to this awk program.
 write_ref_guard_policy() {
   local value="$1" write_mode="replace_or_append_key"
   mkdir -p "$(dirname "$CONFIG_PATH")"
@@ -330,7 +365,7 @@ write_ref_guard_policy() {
      && grep -Eq '^ref_guard:[[:space:]]*(armed|declined)([[:space:]]|$)' "$CONFIG_PATH" 2>/dev/null; then
     local tmp; tmp="$(mktemp)"
     awk -v val="$value" '
-      /^ref_guard:[ \t]*(armed|declined)([ \t]|$)/ && !done { print "ref_guard: " val; done=1; next }
+      /^ref_guard:[ \t\r]*(armed|declined)([ \t\r]|$)/ && !done { print "ref_guard: " val; done=1; next }
       { print }
     ' "$CONFIG_PATH" > "$tmp"
     mv "$tmp" "$CONFIG_PATH"
@@ -350,6 +385,18 @@ write_ref_guard_policy() {
 
 # decline_ref_guard — Spec-AC-05: remove an AAI-managed ref-guard hook if
 # present, refuse (unmodified) a foreign one, and record ref_guard: declined.
+#
+# ORDER (validation round 1, B1b): write the declaration BEFORE removing the
+# hook. The D6 discipline this file already applies to the hook slots ("check
+# both before writing either") is extended here to the decline's own two
+# effects: a write_ref_guard_policy failure (an unwritable config -- read-only
+# fs, permissions) must never leave the guard removed with no record of why.
+# Writing first means that failure returns 1 with the guard still installed
+# and still armed -- disarmed-but-silent was never reachable, not merely rare.
+# arm_ref_guard does not need the same reorder: D4 makes CAT-17 (and every
+# other reader) trust an actually-installed hook file over the declaration,
+# so a stale 'declined' line surviving a hook install that then fails to
+# record 'armed' is read as armed anyway, by design.
 decline_ref_guard() {
   local reftx_is_aai=0
   [[ -f "$REFTX_PATH" ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH" && reftx_is_aai=1  # AC-05 decline removal: foreign-marker test
@@ -358,11 +405,11 @@ decline_ref_guard() {
     echo "       Refusing to remove a foreign hook -- --decline-ref-guard only removes an AAI-managed guard." >&2
     return 1
   fi
+  write_ref_guard_policy declined || return 1
   if [[ -f "$REFTX_PATH" ]]; then
     rm "$REFTX_PATH"
     echo "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $REFTX_PATH"
   fi
-  write_ref_guard_policy declined || return 1
   echo "Declined the AAI reference-transaction guard. Recorded ref_guard: declined in $CONFIG_PATH"
   echo "Re-arm with: bash $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --arm-ref-guard"
 }
@@ -611,7 +658,24 @@ fi
 fi  # AC-01 write selection: index (close)
 
 if [[ "$WANT_REFGUARD" == 1 ]]; then  # AC-01 write selection: ref-guard
-  write_refguard_hook
+  # N1 (validation round 1): a declared decline must survive a plain
+  # re-install -- the exact shape /aai-update's SKILL_UPDATE step 4 runs on
+  # every successful sync, with no flags. D1's "the explicit command wins"
+  # names --arm-ref-guard, not an automatic documentation-refresh side
+  # effect, so a bare `--hooks all`/no-flag run honours a declared decline
+  # the same way it would honour one typed by hand. Two explicit overrides
+  # stay available: --arm-ref-guard (a separate dispatch above this whole
+  # --hooks flow, which never consults the policy at all -- always wins) and
+  # --force, whose existing contract is already "proceed past a protective
+  # refusal in this slot" (a foreign hook) and is the natural one-flag way to
+  # push a plain --hooks run past a decline too, without switching commands.
+  if [[ "$FORCE" != 1 ]] && [[ "$(read_ref_guard_policy "$CONFIG_PATH")" == "declined" ]]; then
+    echo "Skipped AAI reference-transaction hook (AAI:REF-GUARD): $CONFIG_PATH declares ref_guard: declined."
+    echo "Re-arm with: bash $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --arm-ref-guard (or pass --force)."
+    WANT_REFGUARD=0
+  else
+    write_refguard_hook
+  fi
 fi  # AC-01 write selection: ref-guard (close)
 
 # Post-condition (PR #304 Codex P1): exit 0 must mean "git will run these",

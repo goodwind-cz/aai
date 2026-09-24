@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: a9de0824180a9614aa8133b2dfc248f7bb0fe195b21b606b0d1c4d7443e540c3
+frozen_sha256: 338f3eefb38706cae00f7cc9b73fb295ff582998c13ab3651179aa2ba0152fdb
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md
@@ -486,12 +486,18 @@ produced by `node .aai/scripts/mutation-run.mjs`.
 
 ## Verification
 
-- `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-git-ref-guard.sh`
-- `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-doctor.sh`
-- `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-sync-seed.sh`
-- `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-release.sh`
-- `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-hygiene-pack.sh`
-- `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-prompt-diet.sh`
+Remediation note (validation round 1, N9): the suite files are mode 0644, so
+`aai-run-tests.sh tests/skills/X.sh` execs a non-executable file and exits
+126. The working form names `bash` as the command `aai-run-tests.sh` runs,
+corrected below. Housekeeping only — no AC or Test Plan row changes, so no
+amendment is owed.
+
+- `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-git-ref-guard.sh`
+- `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-doctor.sh`
+- `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-sync-seed.sh`
+- `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-release.sh`
+- `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-hygiene-pack.sh`
+- `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-prompt-diet.sh`
 - `node .aai/scripts/mutation-run.mjs --replay --spec <this spec>`
 - `AAI_TEST_TIMEOUT=3000 bash .aai/scripts/aai-run-tests.sh` (full sweep, once,
   before close)

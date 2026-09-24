@@ -38,6 +38,17 @@
 # hooks (TEST-621, Spec-AC-08), and the PowerShell twin of the decline/arm
 # surface (TEST-631..633, Spec-AC-05/06 moved into scope by Amendment 1).
 #
+# Covers TEST-634..639 (Spec-AC-01/05/09), added remediating validation
+# round 1's findings against the same spec: the write action agreeing with
+# its own gate on a CRLF docs-audit.yaml (TEST-634, B1), the decline writing
+# its declaration BEFORE removing the guard so a write failure never leaves
+# the repo disarmed-and-silent (TEST-635, B1b), a plain no-flag re-install
+# (the exact shape /aai-update's SKILL_UPDATE step 4 runs) honouring a
+# declared decline with --force/--arm-ref-guard as the explicit overrides
+# (TEST-636 .sh, TEST-637 .ps1 static twin, N1), --hooks '' rejected by both
+# twins (TEST-638, N2), and MODEL_ROUTING.yaml's UPGRADING note citing the
+# amendment that actually re-dispositions Spec-AC-09 (TEST-639, N3).
+#
 # Exit codes:
 #   0  - All tests passed
 #   1  - Tests failed
@@ -53,6 +64,7 @@ INSTALLER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
 INSTALLER_PS1="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
 DOCTOR="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
 UPDATE_PROMPT="$PROJECT_ROOT/.aai/SKILL_UPDATE.prompt.md"
+MODEL_ROUTING="$PROJECT_ROOT/.aai/system/MODEL_ROUTING.yaml"
 
 TMP_ROOT=""
 FAILED=0
@@ -1551,6 +1563,187 @@ test_633_ps1_foreign_refusal_shared_helper() {
     || log_fail "TEST-633 .ps1 foreign-refusal shared helper"
 }
 
+# --- TEST-634 (Spec-AC-05, validation round 1 B1) — write_ref_guard_policy's
+# replace ACTION agrees with its own GATE on a CRLF docs-audit.yaml. Before
+# the fix, grep's [[:space:]] gate matched a CRLF line the awk's [ \t] action
+# could not, so the gate said "replaceable key present", the awk replaced
+# nothing, and the run fell through to a loud read-back failure -- but only
+# AFTER decline_ref_guard had already removed the guard (TEST-635 covers that
+# half). Both directions here: decline on an armed CRLF config, arm on a
+# declined CRLF config -----------------------------------------------------
+test_634_decline_arm_crlf_write() {
+  local ok=1
+  local d; d="$(new_repo t634)"
+  install_guard "$d" >/dev/null 2>&1
+  require_guard_installed "TEST-634 (setup)" "$d" || return
+  local cfg="$d/docs/ai/docs-audit.yaml"
+  mkdir -p "$(dirname "$cfg")"
+  printf 'close_gate: enforce\r\nref_guard: armed\r\n' > "$cfg"
+
+  local out rc
+  out="$(install_guard "$d" --decline-ref-guard 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-634: --decline-ref-guard on a CRLF config expected exit 0, got $rc: $out"; ok=0; }
+  [[ -f "$d/.git/hooks/reference-transaction" ]] && { log_fail "TEST-634: --decline-ref-guard on a CRLF config left the guard installed"; ok=0; }
+  /usr/bin/grep -qE '^ref_guard:[[:space:]]*declined([[:space:]]|$)' "$cfg" \
+    || { log_fail "TEST-634: CRLF config does not read back as declined: $(od -c "$cfg" 2>/dev/null)"; ok=0; }
+  local count; count="$(/usr/bin/grep -c '^ref_guard:' "$cfg")"
+  [[ "$count" -eq 1 ]] || { log_fail "TEST-634: CRLF config carries $count ref_guard: lines after decline, want 1"; ok=0; }
+  grep -qF 'close_gate: enforce' "$cfg" \
+    || { log_fail "TEST-634: decline on a CRLF config disturbed the unrelated close_gate line"; ok=0; }
+
+  # Mirror: --arm-ref-guard on a CRLF config declaring declined.
+  local d2; d2="$(new_repo t634arm)"
+  local cfg2="$d2/docs/ai/docs-audit.yaml"
+  mkdir -p "$(dirname "$cfg2")"
+  printf 'ref_guard: declined\r\n' > "$cfg2"
+  local out2 rc2
+  out2="$(install_guard "$d2" --arm-ref-guard 2>&1)"; rc2=$?
+  [[ $rc2 -eq 0 ]] || { log_fail "TEST-634: --arm-ref-guard on a CRLF config expected exit 0, got $rc2: $out2"; ok=0; }
+  require_guard_installed "TEST-634 (armed)" "$d2" || return
+  /usr/bin/grep -qE '^ref_guard:[[:space:]]*armed([[:space:]]|$)' "$cfg2" \
+    || { log_fail "TEST-634: CRLF config does not read back as armed after --arm-ref-guard"; ok=0; }
+  local count2; count2="$(/usr/bin/grep -c '^ref_guard:' "$cfg2")"
+  [[ "$count2" -eq 1 ]] || { log_fail "TEST-634: CRLF config carries $count2 ref_guard: lines after arm, want 1"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-634 write_ref_guard_policy's replace action agrees with its own gate on a CRLF docs-audit.yaml: --decline-ref-guard and --arm-ref-guard both exit 0 and leave exactly one correctly-valued column-0 ref_guard line" \
+    || log_fail "TEST-634 CRLF decline/arm write"
+}
+
+# --- TEST-635 (Spec-AC-05, validation round 1 B1b) — decline_ref_guard
+# writes the declaration BEFORE removing the guard, so a write failure
+# (unwritable config -- reproduced with chmod 444, taking the APPEND branch
+# since no ref_guard key exists yet) leaves the guard installed and armed
+# rather than a disarmed repo with no record of the decline ----------------
+test_635_decline_orders_write_before_removal() {
+  local ok=1
+  local d; d="$(new_repo t635)"
+  install_guard "$d" >/dev/null 2>&1
+  require_guard_installed "TEST-635 (setup)" "$d" || return
+  local cfg="$d/docs/ai/docs-audit.yaml"
+  mkdir -p "$(dirname "$cfg")"
+  printf 'close_gate: enforce\n' > "$cfg"
+  chmod 444 "$cfg"
+
+  local out rc
+  out="$(install_guard "$d" --decline-ref-guard 2>&1)"; rc=$?
+  chmod 644 "$cfg"
+  [[ $rc -ne 0 ]] || { log_fail "TEST-635: --decline-ref-guard against an unwritable config expected non-zero, got 0: $out"; ok=0; }
+  [[ -f "$d/.git/hooks/reference-transaction" ]] \
+    || { log_fail "TEST-635: a failed decline write left the guard removed (disarmed with no record) -- $out"; ok=0; }
+  /usr/bin/grep -qE '^ref_guard:[[:space:]]*declined([[:space:]]|$)' "$cfg" \
+    && { log_fail "TEST-635: the config claims declined despite the write failing"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-635 --decline-ref-guard writes the declaration BEFORE removing the guard, so a write failure leaves the guard installed and armed rather than disarmed with no record" \
+    || log_fail "TEST-635 decline write-before-removal ordering"
+}
+
+# --- TEST-636 (Spec-AC-05, validation round 1 N1) — a plain, no-flag
+# re-install (the exact shape /aai-update's SKILL_UPDATE step 4 runs on every
+# successful sync) honours a declared decline instead of silently re-arming
+# it; --force and --arm-ref-guard are the two explicit overrides -----------
+test_636_plain_reinstall_honours_decline() {
+  local ok=1
+  local d; d="$(new_repo t636)"
+  install_guard "$d" >/dev/null 2>&1
+  require_guard_installed "TEST-636 (setup)" "$d" || return
+  install_guard "$d" --decline-ref-guard >/dev/null 2>&1
+  [[ -f "$d/.git/hooks/reference-transaction" ]] && { log_fail "TEST-636: setup decline did not remove the guard"; ok=0; }
+
+  local out rc
+  out="$(install_guard "$d" 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-636: a plain no-flag re-install after a decline expected exit 0, got $rc: $out"; ok=0; }
+  [[ -f "$d/.git/hooks/reference-transaction" ]] \
+    && { log_fail "TEST-636: a plain, no-flag re-install silently re-armed a declared decline"; ok=0; }
+  grep -qiF 'declined' <<<"$out" || { log_fail "TEST-636: the skip was not disclosed on stdout: $out"; ok=0; }
+  local cfg="$d/docs/ai/docs-audit.yaml"
+  /usr/bin/grep -qE '^ref_guard:[[:space:]]*declined([[:space:]]|$)' "$cfg" \
+    || { log_fail "TEST-636: the declaration was disturbed by the skip"; ok=0; }
+
+  # --force overrides the decline.
+  local out2 rc2
+  out2="$(install_guard "$d" --force 2>&1)"; rc2=$?
+  [[ $rc2 -eq 0 ]] || { log_fail "TEST-636: --force after a decline expected exit 0, got $rc2: $out2"; ok=0; }
+  require_guard_installed "TEST-636 (--force override)" "$d" || return
+
+  # --arm-ref-guard overrides the decline too (a separate dispatch above the
+  # whole --hooks flow that never consults the policy at all -- re-decline
+  # first so this arm is genuinely exercised, not just inherited state).
+  install_guard "$d" --decline-ref-guard >/dev/null 2>&1
+  local out3 rc3
+  out3="$(install_guard "$d" --arm-ref-guard 2>&1)"; rc3=$?
+  [[ $rc3 -eq 0 ]] || { log_fail "TEST-636: --arm-ref-guard after a decline expected exit 0, got $rc3: $out3"; ok=0; }
+  require_guard_installed "TEST-636 (--arm-ref-guard override)" "$d" || return
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-636 a plain, no-flag re-install honours a declared decline (skips the ref-guard hook, discloses why on stdout, leaves the declaration untouched); --force and --arm-ref-guard both override it" \
+    || log_fail "TEST-636 plain reinstall honours decline"
+}
+
+# --- TEST-637 (Spec-AC-05, validation round 1 N1) — the .ps1 twin of
+# TEST-636 (static parse, mirroring TEST-608/624/627/631-633's discipline:
+# the Windows CI leg is the only real behavioural check on this twin; this
+# round verified the SAME assertion behaviourally by hand on pwsh 7.6.3) ---
+test_637_ps1_plain_reinstall_honours_decline_static() {
+  if [[ ! -f "$INSTALLER_PS1" ]]; then
+    log_fail "TEST-637: $INSTALLER_PS1 not found"
+    return
+  fi
+  local ok=1
+
+  grep -qF "if (\$wantRefGuard -and (-not \$Force) -and ((Read-RefGuardPolicy -ConfigPath \$configPath) -eq 'declined')) {" "$INSTALLER_PS1" \
+    || { log_fail "TEST-637: .ps1's plain -Hooks flow does not gate the ref-guard install on a declined policy"; ok=0; }
+  grep -qF '$wantRefGuard = $false' "$INSTALLER_PS1" \
+    || { log_fail "TEST-637: .ps1 does not clear \$wantRefGuard when skipping a declined install"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-637 .ps1's plain -Hooks flow (mirroring the .sh twin) also skips the ref-guard hook when the declared policy is declined, unless -Force is given" \
+    || log_fail "TEST-637 .ps1 plain reinstall honours decline"
+}
+
+# --- TEST-638 (Spec-AC-01, validation round 1 N2) — --hooks '' is rejected
+# by BOTH twins (exit 2, nothing installed); the .sh used to accept it (the
+# csv loop never iterates on an empty string, so both selection booleans
+# stayed 0 and the run exited 0 having installed nothing) while the .ps1
+# already rejected it (its foreach over -split ',' yields one empty token,
+# which hits the same closed-set default branch as any unknown value) ------
+test_638_hooks_empty_rejected() {
+  local ok=1
+  local d; d="$(new_repo t638)"
+
+  local out rc
+  out="$(install_guard "$d" --hooks "" 2>&1)"; rc=$?
+  [[ $rc -eq 2 ]] || { log_fail "TEST-638: --hooks '' expected exit 2, got $rc: $out"; ok=0; }
+  [[ -f "$d/.git/hooks/reference-transaction" ]] && { log_fail "TEST-638: --hooks '' installed a guard despite rejecting"; ok=0; }
+  [[ -f "$d/.git/hooks/pre-commit" ]] && { log_fail "TEST-638: --hooks '' installed the index hook despite rejecting"; ok=0; }
+
+  if command -v pwsh >/dev/null 2>&1 && [[ -f "$INSTALLER_PS1" ]]; then
+    local d2; d2="$(new_repo t638ps1)"
+    local out2 rc2
+    out2="$(cd "$d2" && pwsh -NoProfile -File "$INSTALLER_PS1" -Hooks "" 2>&1)"; rc2=$?
+    [[ $rc2 -eq 2 ]] || { log_fail "TEST-638: .ps1 -Hooks '' expected exit 2, got $rc2: $out2"; ok=0; }
+  else
+    log_info "TEST-638: pwsh not available on this host -- .ps1 twin's -Hooks '' behaviour not re-verified this run (its rejection is pinned statically by TEST-608's closed-set assertion)"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-638 --hooks '' is rejected by the .sh (exit 2, nothing installed), matching the .ps1 twin's -Hooks '' rejection" \
+    || log_fail "TEST-638 --hooks '' rejected"
+}
+
+# --- TEST-639 (Spec-AC-09, validation round 1 N3) — MODEL_ROUTING.yaml's
+# UPGRADING note cites Amendment 2 (the owner's 2026-09-24 re-disposition of
+# Spec-AC-09), not Amendment 1 (which bound the decline surface to the .ps1
+# twin and has nothing to do with the routing table) ------------------------
+test_639_model_routing_note_cites_amendment_2() {
+  local ok=1
+  [[ -f "$MODEL_ROUTING" ]] || { log_fail "TEST-639: missing $MODEL_ROUTING"; return; }
+
+  grep -qF 'spec-update-installs-ref-guard-undisclosed Amendment 2' "$MODEL_ROUTING" \
+    || { log_fail "TEST-639: UPGRADING note does not cite Amendment 2"; ok=0; }
+  grep -qF 'spec-update-installs-ref-guard-undisclosed Amendment 1)' "$MODEL_ROUTING" \
+    && { log_fail "TEST-639: UPGRADING note still cites Amendment 1"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-639 MODEL_ROUTING.yaml's UPGRADING note cites Amendment 2 (Spec-AC-09's owner re-disposition), not Amendment 1 (the decline-surface twin binding)" \
+    || log_fail "TEST-639 MODEL_ROUTING amendment citation"
+}
+
 main() {
   check_deps
   HOOKS_DIGEST_BEFORE="$(manifest_of "$PROJECT_ROOT/.git/hooks")"
@@ -1616,6 +1809,12 @@ main() {
   test_631_ps1_decline_arm_params_static
   test_632_ps1_policy_reader_fails_closed_static
   test_633_ps1_foreign_refusal_shared_helper
+  test_634_decline_arm_crlf_write
+  test_635_decline_orders_write_before_removal
+  test_636_plain_reinstall_honours_decline
+  test_637_ps1_plain_reinstall_honours_decline_static
+  test_638_hooks_empty_rejected
+  test_639_model_routing_note_cites_amendment_2
   test_311_hooks_dir_unchanged
 
   echo ""

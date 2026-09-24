@@ -19,7 +19,7 @@
 #   the choice deterministic and auditable instead of a per-tick LLM judgment.
 #
 # UPGRADING (NB-6, review-harness-universal-routing-20260913T002056Z; owner
-# decision 2026-09-24, spec-update-installs-ref-guard-undisclosed Amendment 1)
+# decision 2026-09-24, spec-update-installs-ref-guard-undisclosed Amendment 2)
 # -- this file is CORE-VENDORED (`.aai/system/PROFILES.yaml` `core:`), so
 # `/aai-update` OVERWRITES a consumer's copy with the shipped file, same as
 # every other core-listed file, and this is INTENTIONAL: the table tracks a

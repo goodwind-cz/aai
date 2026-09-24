@@ -12,7 +12,10 @@
   core.hooksPath and a linked worktree's shared git dir. It is usually
   .git/hooks, but never assume that.
   Idempotent per hook. Refuses to overwrite a non-AAI hook unless -Force is
-  given (checked for BOTH hooks before writing either).
+  given (checked for BOTH hooks before writing either). A declared
+  `ref_guard: declined` (docs/ai/docs-audit.yaml) is honoured by a plain
+  install: the ref-guard hook is skipped, not silently re-armed. Override
+  with -ArmRefGuard or -Force.
 
 .PARAMETER Force
   Overwrite an existing hook that is not AAI-managed.
@@ -574,6 +577,18 @@ if ($wantIndex) {
     Write-Host "Installed AAI pre-commit hook at $hookPath"
     Write-Host "Effect: on every commit that touches docs/, regenerate docs/INDEX.md and stage it."
   }
+}
+
+# N1 (validation round 1, mirrors the .sh twin): a declared decline must
+# survive a plain re-install -- the shape SKILL_UPDATE step 4 runs on every
+# successful sync, with no flags. -ArmRefGuard (dispatched above, before this
+# whole -Hooks flow, and never consulting the policy) and -Force (whose
+# existing contract is already "proceed past a protective refusal in this
+# slot") stay the two explicit overrides.
+if ($wantRefGuard -and (-not $Force) -and ((Read-RefGuardPolicy -ConfigPath $configPath) -eq 'declined')) {
+  Write-Host "Skipped AAI reference-transaction hook (AAI:REF-GUARD): $configPath declares ref_guard: declined."
+  Write-Host "Re-arm with: pwsh $repoRoot/.aai/scripts/install-pre-commit-hook.ps1 -ArmRefGuard (or pass -Force)."
+  $wantRefGuard = $false
 }
 
 $skipReftx = $false
