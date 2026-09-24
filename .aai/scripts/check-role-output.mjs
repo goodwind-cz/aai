@@ -509,7 +509,7 @@ function commandFlagValues(words, name) {
   return values;
 }
 
-function isAllowedMergeCommand(words, role, scope) {
+function isAllowedMergeCommand(words, role, scope, resultStatus) {
   if (!words || words[0] !== 'node') return false;
   const script = normalizedScriptPath(words[1] ?? '');
   if (script === '.aai/scripts/orchestration-dispatch.mjs') {
@@ -544,8 +544,20 @@ function isAllowedMergeCommand(words, role, scope) {
   if (words[2] === 'set-code-review' && role === 'code review') {
     const statuses = commandFlagValues(words, '--status');
     const required = commandFlagValues(words, '--required');
-    if (statuses.length !== 1 || !['pass', 'fail', 'waived'].includes(statuses[0])) return false;
+    const allowedStatuses = resultStatus === 'PASS'
+      ? ['pass', 'waived']
+      : resultStatus === 'FAIL' ? ['fail'] : [];
+    if (statuses.length !== 1 || !allowedStatuses.includes(statuses[0])) return false;
     if (required.length !== 1 || !['true', 'false'].includes(required[0])) return false;
+  }
+  if (words[2] === 'set-validation' && role === 'validation') {
+    const stateCommand = parseValidationStateCommand(words);
+    const statuses = stateCommand?.seen.get('--status') ?? [];
+    const expectedStatus = resultStatus === 'PASS'
+      ? 'pass'
+      : resultStatus === 'FAIL' ? 'fail' : null;
+    if (!stateCommand?.valid || expectedStatus === null
+        || statuses.length !== 1 || statuses[0] !== expectedStatus) return false;
   }
   if (words[2] === 'set-validation' && role === 'metrics flush') {
     const statuses = commandFlagValues(words, '--status');
@@ -723,7 +735,12 @@ function validateResult(parsed, nowMs) {
   }
 
   for (let i = 0; i < commandWords.length; i += 1) {
-    if (!isAllowedMergeCommand(commandWords[i], role, String(parsed.fields.scope ?? ''))) {
+    if (!isAllowedMergeCommand(
+      commandWords[i],
+      role,
+      String(parsed.fields.scope ?? ''),
+      parsed.fields.status,
+    )) {
       violations.push([
         'E-STATE-UPDATE-COMMAND',
         `state_update_commands[${i}] is not allowlisted for role ${JSON.stringify(parsed.fields.role)}`,

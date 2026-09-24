@@ -788,7 +788,7 @@ NODE
   # The checked report, recorded STATE evidence, and immediate tree snapshot
   # are one handoff contract. A different evidence path or an omitted stamp
   # command must fail before the orchestrator can replay either command list.
-  local mismatched_result="$TMP_ROOT/mismatched-evidence-result.md" escaped_mismatch_result="$TMP_ROOT/escaped-mismatch-result.md" missing_stamp_result="$TMP_ROOT/missing-stamp-result.md" duplicate_validation_result="$TMP_ROOT/duplicate-validation-result.md" arbitrary_command_result="$TMP_ROOT/arbitrary-command-result.md" duplicate_key_result="$TMP_ROOT/duplicate-key-result.md" cross_role_result="$TMP_ROOT/cross-role-result.md" inline_commands_result="$TMP_ROOT/inline-commands-result.md" glob_command_result="$TMP_ROOT/glob-command-result.md" disabled_review_result="$TMP_ROOT/disabled-review-result.md" multiline_command_result="$TMP_ROOT/multiline-command-result.md" foreign_ref_result="$TMP_ROOT/foreign-ref-result.md"
+  local mismatched_result="$TMP_ROOT/mismatched-evidence-result.md" escaped_mismatch_result="$TMP_ROOT/escaped-mismatch-result.md" missing_stamp_result="$TMP_ROOT/missing-stamp-result.md" duplicate_validation_result="$TMP_ROOT/duplicate-validation-result.md" arbitrary_command_result="$TMP_ROOT/arbitrary-command-result.md" duplicate_key_result="$TMP_ROOT/duplicate-key-result.md" cross_role_result="$TMP_ROOT/cross-role-result.md" inline_commands_result="$TMP_ROOT/inline-commands-result.md" glob_command_result="$TMP_ROOT/glob-command-result.md" disabled_review_result="$TMP_ROOT/disabled-review-result.md" multiline_command_result="$TMP_ROOT/multiline-command-result.md" foreign_ref_result="$TMP_ROOT/foreign-ref-result.md" contradictory_review_result="$TMP_ROOT/contradictory-review-result.md" contradictory_validation_result="$TMP_ROOT/contradictory-validation-result.md"
   cp "$FIXTURES_DIR/validation-valid.md" "$mismatched_result"
   replace_fixture_token "$mismatched_result" \
     '--evidence tests/fixtures/role-outputs/outcome-report-valid.md' \
@@ -934,6 +934,42 @@ NODE
   [[ "$rc" -eq 1 ]] || log_fail "foreign --ref state mutation expected exit 1, got $rc: $out"
   assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "foreign ref expected E-STATE-UPDATE-COMMAND, got: $out"
 
+  sed -e 's|^  role: .*|  role: Code Review|' -e 's|^  status: PASS|  status: FAIL|' \
+    "$FIXTURES_DIR/implementation-valid.md" > "$contradictory_review_result"
+  replace_fixture_token "$contradictory_review_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-code-review --required true --status pass --scope implementation-diff'
+  set +e
+  out="$(runcheck --file "$contradictory_review_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "failed Code Review returning pass verdict expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "contradictory review verdict expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  sed -e 's|^  role: .*|  role: Validation|' -e 's|^  status: PASS|  status: FAIL|' \
+    "$FIXTURES_DIR/implementation-valid.md" > "$contradictory_validation_result"
+  replace_fixture_token "$contradictory_validation_result" '  blockers: []' \
+    '  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-validation --status pass --ref role-output-contracts'
+  set +e
+  out="$(runcheck --file "$contradictory_validation_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "failed Validation returning pass verdict expected exit 1, got $rc: $out"
+  assert_payload_contains "$out" "E-STATE-UPDATE-COMMAND" "contradictory validation verdict expected E-STATE-UPDATE-COMMAND, got: $out"
+
+  replace_fixture_token "$contradictory_review_result" '--status pass' '--status fail'
+  set +e
+  out="$(runcheck --file "$contradictory_review_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "failed Code Review recording fail must be accepted, got $rc: $out"
+
+  replace_fixture_token "$contradictory_validation_result" '--status pass' '--status fail'
+  set +e
+  out="$(runcheck --file "$contradictory_validation_result" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "failed Validation recording fail must be accepted, got $rc: $out"
+
   cp "$FIXTURES_DIR/validation-valid.md" "$missing_stamp_result"
   node - "$missing_stamp_result" <<'NODE'
 const fs = require('node:fs');
@@ -1017,6 +1053,7 @@ NODE
   out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "Remediation reset-block positional grammar must be accepted, got $rc: $out"
+
   log_pass "TEST-024 role enum rejects bypass spellings and accepts canonical roles"
 }
 
