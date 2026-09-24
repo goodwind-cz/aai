@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: c2eb3fee1f8044af69b9befa3bdd92dc87f03582b06efe642840034c0c9623b7
+frozen_sha256: a9de0824180a9614aa8133b2dfc248f7bb0fe195b21b606b0d1c4d7443e540c3
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md
@@ -446,6 +446,9 @@ produced by `node .aai/scripts/mutation-run.mjs`.
 | TEST-628 | Spec-AC-11 | unit | tests/skills/test-aai-sync-seed.sh | test_628_compare_fails_closed — file_content_different reports NOT different when cmp cannot complete the comparison (exit 2, driven with an unreadable path), and the .ps1 twin's catch arm returns false. | sed:s/\[\[ "\$rc" -eq 1 \]\]/[[ "$rc" -ne 0 ]]/ in aai-sync.sh so an unobtainable comparison reads as different again. | pending |
 | TEST-629 | Spec-AC-11 | integration | tests/skills/test-aai-sync-seed.sh | test_629_crlf_pin_still_bites — the existing CRLF pin is replayed under mutation, proving fu-gitignore-crlf-exact-line is closed by a test that reddens rather than by a reading of the source. | sed:s/tr -d "\\r" < "\$gitignore_path"/cat "$gitignore_path"/ in lib/gitignore-block.sh so the CR-blind exact match returns. | pending |
 | TEST-630 | Spec-AC-11 | integration | tests/skills/test-aai-sync-seed.sh | test_630_agents_tree_pin_still_bites — the existing .agents/skills propagation pin is replayed under mutation, proving fu-agents-tree-not-synced is closed by a test that reddens. | Disable the .agents/skills copy loop in aai-sync.sh by making its directory guard false, so a target never receives the mirror. | pending |
+| TEST-631 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_631_ps1_decline_arm_params — the PowerShell twin exposes DeclineRefGuard and ArmRefGuard, and asking for both at once is a usage error with nothing written. | Neuter the contradiction check so both switches together are accepted; the record is in mutation-TEST-631.txt (added by Amendment 2). | pending |
+| TEST-632 | Spec-AC-06 | integration | tests/skills/test-aai-git-ref-guard.sh | test_632_ps1_policy_fails_closed — the twin reads the same key and falls back to armed on absent, indented, commented or invalid input, so one docs-audit.yaml serves a repository checked out on either platform. | Flip the fall-through default to declined; the record is in mutation-TEST-632.txt (added by Amendment 2). | pending |
+| TEST-633 | Spec-AC-05 | integration | tests/skills/test-aai-git-ref-guard.sh | test_633_ps1_shared_refusal_helper — the twin prints its foreign-hook refusal through one shared helper rather than a duplicated literal. | Restore a duplicate literal copy of the refusal sentence; the record is in mutation-TEST-633.txt (added by Amendment 2). | pending |
 
 ## Seams
 
@@ -594,6 +597,54 @@ Fixed by extracting one shared helper for that message. Filed as
 occurrence.
 
 Sign-off: none (tracked).
+
+## Amendment 2 (post-freeze, 2026-09-24 — Spec-AC-09 re-dispositioned by the owner; TEST-620's evidence shape; three twin rows added)
+
+**Spec-AC-09 is narrowed by an owner decision, not by the implementer.** Its
+frozen text asks `aai-sync` to KEEP a target's edited
+`.aai/system/MODEL_ROUTING.yaml` and to record a conflict. The owner decided on
+2026-09-24 that the opposite is correct: the table binds tier to model id and
+tracks a moving external world — new models, changed prices — and a consumer
+will not track that for us, so overwriting the shipped table on update is the
+behaviour to keep. What the frozen AC mistook for the defect is a consequence of
+that being right. The real gaps are that nobody keeps the table current and
+nothing notices when it lapses (measured: `PRICING.yaml` carries no `as_of` or
+any freshness marker, and its three readers cannot tell fresh data from a
+year-old copy), and that a consumer's exception has nowhere to live that an
+update does not overwrite. Both are now their own scope:
+`docs/issues/CHANGE-DRAFT-routing-tables-have-an-owner-and-a-seam.md` (PR #389).
+
+Spec-AC-09 therefore delivers only what survives that decision: the routing
+file's own UPGRADING note states the overwrite as INTENDED and points at the
+owner/seam intake, instead of instructing every consumer to re-apply their
+customization after each update — the defect handed to the user as a procedure.
+No preservation mechanism, no conflict record, no conditional copy in either
+sync twin. TEST-623 and TEST-624, which gated the withdrawn mechanism, are
+withdrawn with it and are not owed. `fu-routing-file-overwritten-on-update` is
+dropped against this ride and re-dispositioned to that intake, rather than
+closed as if this scope had fixed it.
+
+**TEST-620 is a negative control and its RED is the mutation, not a failing
+run.** Its three assertions (armed passes, a foreign hook warns, an undeclared
+project is unchanged) are already true on the unmodified tree, because the
+policy check Spec-AC-07 adds lives only in the absent-guard branch. There is no
+pre-implementation failure to capture, so `tdd-evidence-check.mjs` has nothing
+to accept and the row's proof is its mutation record alone
+(`mutation-TEST-620.txt`, which reorders the policy check above the existence
+and marker checks and makes D4 — reality outranks the declaration — fail). The
+suite's own `test_303_unmutated_control` has the same shape. Recorded here so
+the row is not later read as missing evidence.
+
+**Three rows added for the twin** that Amendment 1 moved into run 3: TEST-631,
+TEST-632 and TEST-633, all against `install-pre-commit-hook.ps1`. Their proof is
+static in the suite, per this spec's own residual-risk note that the Windows CI
+leg is the only real runtime check on the twin — but run 3 also verified the
+contract across twins by hand: a `.ps1` decline wrote the key and a `.sh` arm
+read that same key back and replaced it, which is the property that matters and
+was otherwise only asserted.
+
+Sign-off: owner for the Spec-AC-09 re-disposition (decision of 2026-09-24);
+none (tracked) for the rest.
 
 ## Notes
 
