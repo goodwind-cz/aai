@@ -329,43 +329,64 @@ read_ref_guard_policy() {
 # write_ref_guard_policy <armed|declined> — replace-or-append the column-0
 # `ref_guard: <value>` line in docs/ai/docs-audit.yaml (D2), creating the file
 # with only this key when it is absent, and disturbing no other key or
-# comment. "Replace" is recognised ONLY via the same fail-CLOSED column-0
-# pattern readRefGuardPolicy uses (lib/guard-config.mjs, Spec-AC-06): an
-# existing indented/commented/invalid ref_guard line is never treated as the
-# key to replace, so a stray one is left alone and a new, valid column-0 line
-# is appended instead. Idempotent per Spec-AC-05: writing the SAME value twice
-# leaves the file byte-identical, because the valid line just written matches
-# on the next pass. Ends by reading the value back through read_ref_guard_policy
-# above and refusing if it disagrees — the write is not trusted merely because
-# it did not error.
+# comment. "Replace" recognises ANY column-0 `ref_guard:` line carrying a
+# non-blank token as the key to replace — the SAME "is this line the key"
+# grammar lib/guard-config.mjs's readRefGuardPolicy uses (Spec-AC-06's
+# `^ref_guard:\s*(\S+)`), not the narrower armed|declined set an earlier
+# version of this gate used. Idempotent per Spec-AC-05: writing the SAME
+# value twice leaves the file byte-identical, because the valid line just
+# written matches on the next pass. Ends by reading the value back through
+# read_ref_guard_policy above and refusing if it disagrees — the write is
+# not trusted merely because it did not error.
 #
-# CRLF (validation round 1, B1): the GATE grep just below and the ACTION awk
-# on the next line must agree on what counts as "whitespace" in this line, or
-# the gate can see a replaceable key the action cannot find. They used to
-# disagree — grep's [[:space:]] includes CR, awk's [ \t] did not — so on a
-# CRLF docs-audit.yaml (the default Windows checkout shape for a path
-# .gitattributes does not pin to eol=lf, and the shape the .ps1 twin's own
-# Set-Content writes on Windows) the gate fired, the awk replaced nothing, and
-# write_ref_guard_policy fell through to the read-back check below, which
-# correctly reported failure — but only AFTER decline_ref_guard had already
-# removed the guard (see its own CRLF-safe reordering). Fixed by widening the
-# awk class to [ \t\r], the same characters the grep gate treats as
-# whitespace, rather than by normalising the file's line endings: this file
-# is project-owned and CRLF is a legitimate shape for it (D2), so the fix is
-# matcher parity, not a rewrite of bytes the consumer did not ask this script
-# to touch. lib/guard-config.mjs's readRefGuardPolicy never had this bug — it
+# WHY "any token", not a closed set (validation round 2, B2): the earlier
+# gate matched ONLY an existing armed|declined line, so a config already
+# carrying an out-of-vocabulary `ref_guard:` value (a typo) was never
+# recognised as replaceable — it fell to the APPEND branch below and the file
+# ended up with TWO `ref_guard:` lines. `--arm-ref-guard` then violated
+# Spec-AC-05's "leaving exactly one ref_guard: line" outright (measured:
+# `grep -c` == 2). In the decline direction the canonical JS reader
+# (first-occurrence-wins) kept reading the STALE first line while this
+# script's own read_ref_guard_policy mirror (a whole-file search) found the
+# freshly appended second line — the two readers disagreed about a file THIS
+# script had just written, and because the plain-install skip below now
+# consults that same mirror (N1), the disagreement reached a consumer as a
+# silent, permanent disarm: ISSUE-0083's complaint, restored through a
+# success path. Of the three fix shapes validation named, the other two were
+# rejected: refusing an unrecognised existing value outright would block the
+# very command a consumer runs BECAUSE the value is wrong, trading the
+# one-command exit D2 promises for a forced manual edit; and widening only
+# the post-write read-back would turn the violation into a loud failure
+# rather than the SUCCESS Spec-AC-05 requires ("SHALL ... leaving exactly one
+# ref_guard: line") — a failed run does not satisfy a SHALL either. Widening
+# the gate instead makes `--arm-ref-guard` / `--decline-ref-guard`
+# self-healing: an explicit arm/decline command corrects a stray value in
+# place instead of shadowing it behind a second line.
+#
+# CRLF (validation round 1, B1; round 2, NB1): the GATE grep and the ACTION
+# awk below now use the IDENTICAL character class, [[:space:]], in both —
+# not merely overlapping ones. An earlier fix widened the awk to [ \t\r] to
+# match most of the grep's [[:space:]], but \v and \f stayed gate-only, so
+# the original CRLF-class bug survived on those two bytes (round 2 measured
+# it: a config with `ref_guard:\x0Barmed` still split the gate from the
+# action). Spelling both sides as [[:space:]] — this awk program, and every
+# other POSIX-conforming awk, accepts POSIX bracket classes — leaves exactly
+# one whitespace definition in this function instead of two kept in sync by
+# hand, so the class cannot re-drift. This file is project-owned and CRLF is
+# a legitimate shape for it (D2), so the fix stays matcher parity, not a
+# rewrite of bytes the consumer did not ask this script to touch.
+# lib/guard-config.mjs's readRefGuardPolicy never had the CRLF class bug — it
 # splits on /\r?\n/, which consumes a trailing CR as part of the line
 # delimiter — and the .ps1 twin reads lines with Get-Content, which strips
-# both line-ending styles before any regex runs; this class disagreement was
-# unique to this awk program.
+# every line-ending style before any regex runs.
 write_ref_guard_policy() {
   local value="$1" write_mode="replace_or_append_key"
   mkdir -p "$(dirname "$CONFIG_PATH")"
   if [[ "$write_mode" == "replace_or_append_key" ]] && [[ -f "$CONFIG_PATH" ]] \
-     && grep -Eq '^ref_guard:[[:space:]]*(armed|declined)([[:space:]]|$)' "$CONFIG_PATH" 2>/dev/null; then
+     && grep -Eq '^ref_guard:[[:space:]]*[^[:space:]]' "$CONFIG_PATH" 2>/dev/null; then
     local tmp; tmp="$(mktemp)"
     awk -v val="$value" '
-      /^ref_guard:[ \t\r]*(armed|declined)([ \t\r]|$)/ && !done { print "ref_guard: " val; done=1; next }
+      /^ref_guard:[[:space:]]*[^[:space:]]/ && !done { print "ref_guard: " val; done=1; next }
       { print }
     ' "$CONFIG_PATH" > "$tmp"
     mv "$tmp" "$CONFIG_PATH"
@@ -669,6 +690,20 @@ if [[ "$WANT_REFGUARD" == 1 ]]; then  # AC-01 write selection: ref-guard
   # --force, whose existing contract is already "proceed past a protective
   # refusal in this slot" (a foreign hook) and is the natural one-flag way to
   # push a plain --hooks run past a decline too, without switching commands.
+  #
+  # --force is intentionally scoped to the HOOK, not the DECLARATION
+  # (validation round 2, NB3): after a --force past a decline, the guard is
+  # installed but docs/ai/docs-audit.yaml still reads `ref_guard: declined`.
+  # This is left as-is rather than made to also rewrite the key, because
+  # --force's contract predates this scope ("proceed past a protective
+  # refusal in this slot") and already means something narrower than "also
+  # change the committed declaration" -- conflating the two would make a
+  # one-off override on THIS run silently rewrite a file D2 defines as a
+  # deliberate, reviewable act. Nothing is unsafe about the gap: D4 makes
+  # every reader (CAT-17, the plain-install skip above) trust an actually-
+  # installed hook over the stale declaration, so the file is inert once the
+  # hook is present. A consumer who wants the DECLARATION changed too runs
+  # --arm-ref-guard, which is what that command is for.
   if [[ "$FORCE" != 1 ]] && [[ "$(read_ref_guard_policy "$CONFIG_PATH")" == "declined" ]]; then
     echo "Skipped AAI reference-transaction hook (AAI:REF-GUARD): $CONFIG_PATH declares ref_guard: declined."
     echo "Re-arm with: bash $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --arm-ref-guard (or pass --force)."

@@ -62,7 +62,7 @@
 2	tests/skills/test-aai-friction-capture-points.sh
 3	tests/skills/test-aai-friction-wiring.sh
 3	tests/skills/test-aai-friction.sh
-17	tests/skills/test-aai-git-ref-guard.sh
+20	tests/skills/test-aai-git-ref-guard.sh
 4	tests/skills/test-aai-golden-flow.sh
 2	tests/skills/test-aai-heartbeat.sh
 2	tests/skills/test-aai-hitl-channel.sh

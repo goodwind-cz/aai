@@ -256,11 +256,26 @@ function Read-RefGuardPolicy {
 
 # Write-RefGuardPolicy -- replace-or-append the column-0 `ref_guard: <value>`
 # line, creating the file with only this key when it is absent, disturbing
-# no other line. "Replace" is recognised ONLY via the same fail-CLOSED
-# column-0 pattern Read-RefGuardPolicy uses, so a stray indented/commented/
-# invalid line is never treated as the key to replace. Ends by reading the
-# value back through Read-RefGuardPolicy and refusing if it disagrees -- the
-# write is not trusted merely because it did not throw.
+# no other line. "Replace" recognises ANY column-0 `ref_guard:` line carrying
+# a non-blank token as the key to replace -- the SAME "is this line the key"
+# grammar lib/guard-config.mjs's readRefGuardPolicy uses (Spec-AC-06), not
+# the narrower armed|declined set an earlier version of this gate used.
+# Ends by reading the value back through Read-RefGuardPolicy and refusing if
+# it disagrees -- the write is not trusted merely because it did not throw.
+#
+# WHY "any token", not a closed set (validation round 2, B2, cross-twin: the
+# .sh's write_ref_guard_policy carries the full account): the earlier gate
+# matched ONLY an existing armed|declined line, so a config already carrying
+# an out-of-vocabulary `ref_guard:` value (a typo) fell to the APPEND branch
+# below and the file ended up with TWO `ref_guard:` lines -- violating
+# Spec-AC-05's "leaving exactly one ref_guard: line" and leaving the
+# canonical JS reader (first-occurrence-wins) disagreeing with this file's
+# own Read-RefGuardPolicy mirror (a whole-file scan) about a file this
+# script had just written. Widening the gate makes -ArmRefGuard /
+# -DeclineRefGuard self-healing: they correct a stray value in place instead
+# of shadowing it behind a second line, and they keep succeeding (Spec-AC-05
+# is a SHALL on the value it writes) rather than trading the violation for a
+# loud but still-unhelpful refusal.
 function Write-RefGuardPolicy {
   param(
     [Parameter(Mandatory = $true)][string]$ConfigPath,
@@ -275,7 +290,7 @@ function Write-RefGuardPolicy {
   $replaced = $false
   $out = New-Object System.Collections.Generic.List[string]
   foreach ($line in $existingLines) {
-    if ((-not $replaced) -and ($line -match '^ref_guard:\s*(armed|declined)(\s|$)')) {
+    if ((-not $replaced) -and ($line -match '^ref_guard:\s*\S')) {
       $out.Add("ref_guard: $Value")
       $replaced = $true
     } else {
@@ -585,6 +600,17 @@ if ($wantIndex) {
 # whole -Hooks flow, and never consulting the policy) and -Force (whose
 # existing contract is already "proceed past a protective refusal in this
 # slot") stay the two explicit overrides.
+#
+# -Force is intentionally scoped to the HOOK, not the DECLARATION
+# (validation round 2, NB3, same decision as the .sh twin): after a -Force
+# past a decline, the guard is installed but docs/ai/docs-audit.yaml still
+# reads `ref_guard: declined`. Left as-is: -Force's contract predates this
+# scope and already means something narrower than "also change the
+# committed declaration" -- conflating the two would make a one-off
+# override on THIS run silently rewrite a file D2 defines as a deliberate,
+# reviewable act. D4 makes every reader trust an actually-installed hook
+# over a stale declaration, so the gap is inert; -ArmRefGuard is the command
+# for changing the declaration too.
 if ($wantRefGuard -and (-not $Force) -and ((Read-RefGuardPolicy -ConfigPath $configPath) -eq 'declined')) {
   Write-Host "Skipped AAI reference-transaction hook (AAI:REF-GUARD): $configPath declares ref_guard: declined."
   Write-Host "Re-arm with: pwsh $repoRoot/.aai/scripts/install-pre-commit-hook.ps1 -ArmRefGuard (or pass -Force)."

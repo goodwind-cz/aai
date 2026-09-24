@@ -49,6 +49,17 @@
 # twins (TEST-638, N2), and MODEL_ROUTING.yaml's UPGRADING note citing the
 # amendment that actually re-dispositions Spec-AC-09 (TEST-639, N3).
 #
+# Covers TEST-640..641 (Spec-AC-05), added remediating validation round 2's
+# blocking finding against the same spec: write_ref_guard_policy's replace
+# GATE now recognises ANY existing column-0 ref_guard: line (the same
+# any-token grammar lib/guard-config.mjs's readRefGuardPolicy uses to decide
+# a line IS the key), not just an armed|declined one, so a pre-existing
+# out-of-vocabulary value is corrected in place instead of appended behind
+# (TEST-640 .sh, TEST-641 .ps1 twin, B2). TEST-637's second assertion was
+# also re-cut this round (NB2): it now anchors on the skip's own call site
+# instead of a bare literal that also occurs, unrelated, at the file's
+# selection-boolean initializer.
+#
 # Exit codes:
 #   0  - All tests passed
 #   1  - Tests failed
@@ -1678,10 +1689,11 @@ test_636_plain_reinstall_honours_decline() {
     || log_fail "TEST-636 plain reinstall honours decline"
 }
 
-# --- TEST-637 (Spec-AC-05, validation round 1 N1) — the .ps1 twin of
-# TEST-636 (static parse, mirroring TEST-608/624/627/631-633's discipline:
-# the Windows CI leg is the only real behavioural check on this twin; this
-# round verified the SAME assertion behaviourally by hand on pwsh 7.6.3) ---
+# --- TEST-637 (Spec-AC-05, validation round 1 N1; second assertion re-cut
+# validation round 2 NB2) — the .ps1 twin of TEST-636 (static parse,
+# mirroring TEST-608/624/627/631-633's discipline: the Windows CI leg is the
+# only real behavioural check on this twin; round 2 verified the SAME
+# assertion behaviourally by hand on pwsh 7.6.3) ---------------------------
 test_637_ps1_plain_reinstall_honours_decline_static() {
   if [[ ! -f "$INSTALLER_PS1" ]]; then
     log_fail "TEST-637: $INSTALLER_PS1 not found"
@@ -1689,10 +1701,24 @@ test_637_ps1_plain_reinstall_honours_decline_static() {
   fi
   local ok=1
 
-  grep -qF "if (\$wantRefGuard -and (-not \$Force) -and ((Read-RefGuardPolicy -ConfigPath \$configPath) -eq 'declined')) {" "$INSTALLER_PS1" \
+  local cond="if (\$wantRefGuard -and (-not \$Force) -and ((Read-RefGuardPolicy -ConfigPath \$configPath) -eq 'declined')) {"
+  grep -qF "$cond" "$INSTALLER_PS1" \
     || { log_fail "TEST-637: .ps1's plain -Hooks flow does not gate the ref-guard install on a declined policy"; ok=0; }
-  grep -qF '$wantRefGuard = $false' "$INSTALLER_PS1" \
-    || { log_fail "TEST-637: .ps1 does not clear \$wantRefGuard when skipping a declined install"; ok=0; }
+
+  # Anchored on the skip's OWN site (validation round 2, NB2 — this arm was
+  # DEFEATED: the bare literal '$wantRefGuard = $false' also occurs at the
+  # pre-existing selection-boolean initializer near the top of the script,
+  # independent of this feature, so asserting it ANYWHERE in the file proved
+  # nothing — a mutation that deleted the skip's own assignment left that
+  # unrelated literal standing and the row stayed green). Grabbing the lines
+  # immediately after the condition just checked and requiring the
+  # assignment WITHIN that slice (mirroring TEST-632's function-body
+  # extraction discipline) pins the skip's actual effect, not merely the
+  # literal's existence somewhere in the corpus.
+  local skip_block
+  skip_block="$(grep -A3 -F "$cond" "$INSTALLER_PS1")"
+  grep -qF '$wantRefGuard = $false' <<<"$skip_block" \
+    || { log_fail "TEST-637: .ps1 does not clear \$wantRefGuard INSIDE the declined-skip block (the bare literal exists elsewhere in the file, e.g. the selection initializer, which does not count)"; ok=0; }
 
   [[ $ok -eq 1 ]] && log_pass "TEST-637 .ps1's plain -Hooks flow (mirroring the .sh twin) also skips the ref-guard hook when the declared policy is declined, unless -Force is given" \
     || log_fail "TEST-637 .ps1 plain reinstall honours decline"
@@ -1742,6 +1768,121 @@ test_639_model_routing_note_cites_amendment_2() {
 
   [[ $ok -eq 1 ]] && log_pass "TEST-639 MODEL_ROUTING.yaml's UPGRADING note cites Amendment 2 (Spec-AC-09's owner re-disposition), not Amendment 1 (the decline-surface twin binding)" \
     || log_fail "TEST-639 MODEL_ROUTING amendment citation"
+}
+
+# --- TEST-640 (Spec-AC-05, validation round 2 B2) — --arm-ref-guard and
+# --decline-ref-guard each CORRECT a pre-existing out-of-vocabulary
+# `ref_guard:` value in place, rather than appending a second line behind
+# it. Before this fix, write_ref_guard_policy's replace GATE recognised only
+# an existing armed|declined line, so a config already carrying a typo fell
+# to the APPEND branch: --arm-ref-guard then violated Spec-AC-05's "leaving
+# exactly one ref_guard: line" outright (grep -c == 2), and in the decline
+# direction the canonical JS reader (first-occurrence-wins) kept reading the
+# STALE first line while this file's own shell mirror found the freshly
+# appended second one — a disagreement that, because the plain-install skip
+# (TEST-636) consults that same mirror, reached a consumer as a silent,
+# permanent disarm: ISSUE-0083's complaint, restored through a success path.
+# Both directions here, both readers checked after each, and the plain
+# re-install property re-proven on the corrected file ----------------------
+test_640_decline_arm_corrects_stray_value() {
+  local ok=1
+
+  # --arm-ref-guard direction (validation's Reproduction A).
+  local d; d="$(new_repo t640arm)"
+  install_guard "$d" >/dev/null 2>&1
+  require_guard_installed "TEST-640 (arm setup)" "$d" || return
+  local cfg="$d/docs/ai/docs-audit.yaml"
+  mkdir -p "$(dirname "$cfg")"
+  printf 'ref_guard: bogus\n' > "$cfg"
+
+  local out rc
+  out="$(install_guard "$d" --arm-ref-guard 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]] || { log_fail "TEST-640: --arm-ref-guard on a pre-existing invalid value expected exit 0, got $rc: $out"; ok=0; }
+  local count; count="$(/usr/bin/grep -c '^ref_guard:' "$cfg")"
+  [[ "$count" -eq 1 ]] || { log_fail "TEST-640: $cfg carries $count ref_guard: lines after arming a typoed value, want 1"; ok=0; }
+  /usr/bin/grep -qE '^ref_guard: armed$' "$cfg" \
+    || { log_fail "TEST-640: $cfg does not read back as armed after correcting a typo: $(cat "$cfg" 2>/dev/null)"; ok=0; }
+  local js_arm; js_arm="$(cd "$PROJECT_ROOT" && node --input-type=module -e '
+    import { readRefGuardPolicy } from "./.aai/scripts/lib/guard-config.mjs";
+    console.log(readRefGuardPolicy(process.argv[1]));
+  ' "$d/docs/ai" 2>/dev/null)"
+  [[ "$js_arm" == "armed" ]] || { log_fail "TEST-640: readRefGuardPolicy disagrees after arm-correcting a typo: got '$js_arm', want armed"; ok=0; }
+
+  # --decline-ref-guard direction (validation's Reproduction B): the sharper
+  # half, because the plain-install skip trusts the SHELL mirror, not the JS
+  # reader — both must land on the same value for the guard to stay
+  # recoverable by a plain run.
+  local d2; d2="$(new_repo t640decline)"
+  local cfg2="$d2/docs/ai/docs-audit.yaml"
+  mkdir -p "$(dirname "$cfg2")"
+  printf 'close_gate: enforce\nref_guard: bogus\n' > "$cfg2"
+
+  local out2 rc2
+  out2="$(install_guard "$d2" --decline-ref-guard 2>&1)"; rc2=$?
+  [[ $rc2 -eq 0 ]] || { log_fail "TEST-640: --decline-ref-guard on a pre-existing invalid value expected exit 0, got $rc2: $out2"; ok=0; }
+  local count2; count2="$(/usr/bin/grep -c '^ref_guard:' "$cfg2")"
+  [[ "$count2" -eq 1 ]] || { log_fail "TEST-640: $cfg2 carries $count2 ref_guard: lines after declining a typoed value, want 1"; ok=0; }
+  grep -qF 'close_gate: enforce' "$cfg2" \
+    || { log_fail "TEST-640: declining a typoed value disturbed the unrelated close_gate line"; ok=0; }
+  local js_decline; js_decline="$(cd "$PROJECT_ROOT" && node --input-type=module -e '
+    import { readRefGuardPolicy } from "./.aai/scripts/lib/guard-config.mjs";
+    console.log(readRefGuardPolicy(process.argv[1]));
+  ' "$d2/docs/ai" 2>/dev/null)"
+  [[ "$js_decline" == "declined" ]] || { log_fail "TEST-640: readRefGuardPolicy disagrees after decline-correcting a typo: got '$js_decline', want declined"; ok=0; }
+
+  # The property that made this blocking: a PLAIN re-install after the
+  # decline must actually skip — not silently re-arm because the two
+  # readers disagreed about what the file says.
+  local out3 rc3
+  out3="$(install_guard "$d2" 2>&1)"; rc3=$?
+  [[ $rc3 -eq 0 ]] || { log_fail "TEST-640: plain re-install after correcting-and-declining expected exit 0, got $rc3: $out3"; ok=0; }
+  [[ -f "$d2/.git/hooks/reference-transaction" ]] \
+    && { log_fail "TEST-640: a plain re-install silently re-armed a decline recorded over a typo -- the exact B2 disarm"; ok=0; }
+  grep -qiF 'declined' <<<"$out3" || { log_fail "TEST-640: the plain re-install's skip was not disclosed on stdout: $out3"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-640 --arm-ref-guard and --decline-ref-guard each correct a pre-existing out-of-vocabulary ref_guard: value in place (exactly one line, the shell mirror and lib/guard-config.mjs agreeing), and a plain re-install after such a decline still honours it" \
+    || log_fail "TEST-640 decline/arm corrects a stray value"
+}
+
+# --- TEST-641 (Spec-AC-05, validation round 2 B2, .ps1 twin) — the .ps1
+# twin of TEST-640: Write-RefGuardPolicy's replace match is the SAME
+# any-token grammar as the .sh gate (static parse, mirroring
+# TEST-608/624/627/631-633's discipline), behaviourally re-verified with
+# pwsh when available on this host, exactly as TEST-638 already does for
+# --hooks '' -----------------------------------------------------------------
+test_641_ps1_write_policy_corrects_stray_value() {
+  if [[ ! -f "$INSTALLER_PS1" ]]; then
+    log_fail "TEST-641: $INSTALLER_PS1 not found"
+    return
+  fi
+  local ok=1
+
+  local writer_body
+  writer_body="$(awk '/^function Write-RefGuardPolicy \{$/{p=1} p{print} p && /^}$/{exit}' "$INSTALLER_PS1")"
+  [[ -n "$writer_body" ]] || { log_fail "TEST-641: could not extract the Write-RefGuardPolicy function body"; ok=0; }
+  grep -qF -- "-match '^ref_guard:\s*\S'" <<<"$writer_body" \
+    || { log_fail "TEST-641: Write-RefGuardPolicy's replace match is not the widened any-token grammar (still closed to armed|declined -- the B2 defect)"; ok=0; }
+  grep -qF '(armed|declined)' <<<"$writer_body" \
+    && { log_fail "TEST-641: Write-RefGuardPolicy still carries the closed-vocabulary replace match"; ok=0; }
+
+  if command -v pwsh >/dev/null 2>&1; then
+    local d; d="$(new_repo t641)"
+    local cfg="$d/docs/ai/docs-audit.yaml"
+    mkdir -p "$(dirname "$cfg")"
+    printf 'ref_guard: bogus\n' > "$cfg"
+    local out rc
+    out="$(cd "$d" && pwsh -NoProfile -File "$INSTALLER_PS1" -ArmRefGuard 2>&1)"; rc=$?
+    [[ $rc -eq 0 ]] || { log_fail "TEST-641: pwsh -ArmRefGuard on a pre-existing invalid value expected exit 0, got $rc: $out"; ok=0; }
+    local count; count="$(/usr/bin/grep -c '^ref_guard:' "$cfg")"
+    [[ "$count" -eq 1 ]] || { log_fail "TEST-641: $cfg carries $count ref_guard: lines after the .ps1 twin arms a typoed value, want 1"; ok=0; }
+    /usr/bin/grep -qE '^ref_guard: armed$' "$cfg" \
+      || { log_fail "TEST-641: $cfg does not read back as armed after the .ps1 twin corrects a typo"; ok=0; }
+  else
+    log_info "TEST-641: pwsh not available on this host -- the .ps1 twin's correcting behaviour not re-verified this run (pinned statically above)"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-641 the .ps1 twin's Write-RefGuardPolicy replace match is the same any-token grammar as the .sh gate, so a pre-existing invalid value is corrected in place rather than appended behind" \
+    || log_fail "TEST-641 .ps1 write policy corrects a stray value"
 }
 
 main() {
@@ -1815,6 +1956,8 @@ main() {
   test_637_ps1_plain_reinstall_honours_decline_static
   test_638_hooks_empty_rejected
   test_639_model_routing_note_cites_amendment_2
+  test_640_decline_arm_corrects_stray_value
+  test_641_ps1_write_policy_corrects_stray_value
   test_311_hooks_dir_unchanged
 
   echo ""
