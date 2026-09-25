@@ -98,6 +98,10 @@ core:
   - .aai/scripts/autonomous-loop.ps1
   - .aai/scripts/autonomous-loop.sh
   - .aai/scripts/branch-guard.mjs
+  # core: canon.mjs build is wired into ORCHESTRATION.prompt.md's dispatch
+  # step (a core prompt) and CANON.yaml is its one declaration — same
+  # precedent as every other core script + its own declared data file below.
+  - .aai/scripts/canon.mjs
   - .aai/scripts/check-base-ref-pins.mjs
   - .aai/scripts/check-cd-subshell-leak.mjs
   - .aai/scripts/check-role-output.mjs
@@ -197,6 +201,7 @@ core:
   - .aai/scripts/validation-waiver.mjs
   - .aai/system/AAI_PIN.md
   - .aai/system/AUTONOMOUS_LOOP.md
+  - .aai/system/CANON.yaml
   - .aai/system/DOCS_AI_CANON.list
   - .aai/system/DYNAMIC_SKILLS.md
   - .aai/system/HARNESS_SKILLS.yaml

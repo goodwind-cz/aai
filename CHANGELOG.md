@@ -22,6 +22,34 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(canon): the rules that bind agents are assembled and asserted, not pasted (CHANGE-0191 / SPEC-0186)
+
+The dispatch payload a role receives was assembled by an orchestrator reading
+four canonical files, and the only guard on what actually arrived was a byte
+budget. The contract's prefix order lived as prose, an allowlist count was a log
+string, and a rule against backgrounding sweeps existed only in dispatch text.
+
+- `canon.mjs build` assembles the payload from `CANON.yaml` in a DECLARED order
+  and fails closed with a named token — `canon-section-absent`,
+  `canon-count-mismatch`, `canon-duplicate-rule`, `canon-over-budget` — instead
+  of shipping a quietly wrong prefix. A dispatched role can no longer receive a
+  payload missing its own role section.
+- Every order, count and uniqueness assertion parses the ASSEMBLED OUTPUT, never
+  the declaration it came from, so a manifest that disagrees with the payload is
+  a failure rather than a self-consistent lie.
+- `.aai/ORCHESTRATION.prompt.md` now carries the build command as one executable
+  line, and a test EXTRACTS and RUNS it — a prompt is no longer checked by
+  asserting it contains a string.
+- `canon.mjs claims` drives the withdrawn-claim sweep from a declared claim list
+  that reaches the repository root and covers tense and voice, replacing a
+  hand-written grep that missed whatever nobody thought of.
+- `canon.mjs check` renders the operator-waiver grammar from
+  `validation-waiver.mjs`'s own exports and pins it byte-identical to that
+  file's header, and resolves every `owner decision` citation in the prompt
+  corpus against `decisions.jsonl` — refusing one that is unsigned.
+- `SPEC-0148`'s hand-counted enumeration of corrected documents (it claimed 2
+  specs + 3 intakes where the diff had corrected 3 + 4) is now generated.
+
 ## [unreleased] — fix(friction): the friction channel is alive, and its surface reports the backlog instead of the inbox (CHANGE-0190 / SPEC-0185)
 
 The channel that turns AAI's own failures into tracked work had been silent for

@@ -179,7 +179,22 @@ const RECORD_RE = new RegExp(
   + 'at=(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z) reason="([^"]*)"\\]',
   'g',
 );
-const BY_VALUES = ['operator', 'agent'];
+export const BY_VALUES = ['operator', 'agent'];
+
+// WAIVER_KEY_ORDER / WAIVER_PLACEHOLDERS (canon-is-a-build-artifact Spec-AC-12):
+// the SAME building blocks RECORD_RE is built from, exported so a renderer
+// outside this file (canon.mjs `check --section validation_waiver`) can
+// reconstruct the grammar line from data rather than repeating the literal
+// string — a second copy of the line would drift from this file's own header
+// silently. Order matches the header comment's GRAMMAR line and RECORD_RE's
+// capture-group order exactly.
+export const WAIVER_KEY_ORDER = ['by', 'ref', 'at', 'reason'];
+export const WAIVER_PLACEHOLDERS = {
+  by: `<${BY_VALUES.join('|')}>`,
+  ref: '<REF-ID>',
+  at: '<YYYY-MM-DDTHH:MM:SSZ>',
+  reason: '"<text>"',
+};
 
 export const ARCHIVE_SENTINEL = 'AAI-VALIDATION-ARCHIVED';
 export const ARCHIVE_VERSION = 1;

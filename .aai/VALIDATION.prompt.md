@@ -186,6 +186,12 @@ PROCESS
       finding-bearing round is a STOP whose only instruction is "split the
       ride" — never a fourth round. Each round so far found a real escape,
       which means the scope was cut wrong, not under-verified.
+      STANDING DECISION (a) (owner decision wave-2-roadmap, 2026-09-12):
+      when the extra round's hazard was INTRODUCED BY THE FEATURE UNDER
+      DELIVERY and cannot be split out without shipping it, take ONE
+      additional round without asking, naming the hazard in the round note;
+      a second such extension on the same scope is a STOP that asks.
+      Separable findings keep the two-round cap unchanged.
    c3) PROGRESS HEARTBEAT (advisory). At each round boundary run
       `node .aai/scripts/heartbeat.mjs write --ref <REF-ID> --role Validation --message "<this round>"`
       so an observer reads progress without asking the orchestrator. Its

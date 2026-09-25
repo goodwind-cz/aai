@@ -309,10 +309,36 @@ test_565_gate_admits_only_the_next_pair() {
   # the pattern.
   local first_unfinished
   first_unfinished="$(awk '/^  - capability:/ { cap=$3 } /^    status:/ { if ($2 != "done" && cap != "") { print cap; exit } }' "$SHIPPED")"
-  [ -n "$first_unfinished" ] \
-    || log_fail "TEST-565: the shipped roadmap has no unfinished pair — this arm needs a new shape"
-  [ "$(run gate --ref "$first_unfinished" --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
-    || log_fail "TEST-565: shipped roadmap: the first unfinished pair's capability ($first_unfinished) must be admitted: $(err)"
+  # The derivation above fixed "the target moves on every close". It did not
+  # fix "the list runs out": completing the last pair of the last wave leaves
+  # NO unfinished pair, and the shipped roadmap reached that state when wave 3
+  # closed (canon-is-a-build-artifact, PR #395). An exhausted roadmap is a
+  # legitimate state, not a broken fixture, so this arm asserts the behaviour
+  # of whichever state the shipped file is actually in — and never log_skip,
+  # which is exit 42 and would void the whole suite.
+  if [ -n "$first_unfinished" ]; then
+    [ "$(run gate --ref "$first_unfinished" --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
+      || log_fail "TEST-565: shipped roadmap: the first unfinished pair's capability ($first_unfinished) must be admitted: $(err)"
+  else
+    # Every pair done. `next` must SAY so rather than name a ride, and the
+    # gate must still refuse — both a finished capability and a name that is
+    # only a wave-2 candidate. A gate that admitted either here would be
+    # handing out rides off a roadmap with nothing left on it.
+    local done_cap
+    done_cap="$(awk '/^  - capability:/ { cap=$3 } /^    status:/ { if ($2 == "done" && cap != "") { last=cap } } END { print last }' "$SHIPPED")"
+    [ -n "$done_cap" ] || log_fail "TEST-565: exhausted roadmap: no done pair found either — the file is not a roadmap"
+    [ "$(run gate --ref "$done_cap" --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" != "0" ] \
+      || log_fail "TEST-565: exhausted roadmap: a finished capability ($done_cap) must still be refused: $(err)"
+    grep -qi "already done" "$TEST_DIR/err" \
+      || log_fail "TEST-565: exhausted roadmap: the refusal must say the capability is already done: $(err)"
+    [ "$(run gate --ref no-such-capability-anywhere --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" != "0" ] \
+      || log_fail "TEST-565: exhausted roadmap: an off-roadmap ref must still be refused: $(err)"
+    run next --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs" >/dev/null 2>&1
+    grep -qi "complete" "$TEST_DIR/out" \
+      || log_fail "TEST-565: exhausted roadmap: next must report the wave complete, got: $(cat "$TEST_DIR/out")"
+    grep -qF "$done_cap" "$TEST_DIR/out" \
+      && log_fail "TEST-565: exhausted roadmap: next must not name a finished capability ($done_cap) as the next ride: $(cat "$TEST_DIR/out")"
+  fi
   log_pass "gate admits only the first unfinished pair; in-flight and blocks: unaffected; override still one-shot logged (TEST-565)"
 }
 
@@ -419,10 +445,20 @@ test_583_gate_refuses_undocumented_ref() {
   # and went stale on every close. It now derives it from the shipped roadmap.
   local live_admissible
   live_admissible="$(awk '/^  - capability:/ { cap=$3 } /^    status:/ { if ($2 != "done" && cap != "") { print cap; exit } }' "$SHIPPED")"
-  [ -n "$live_admissible" ] \
-    || log_fail "TEST-583: the shipped roadmap has no unfinished pair — this control needs a new shape"
-  [ "$(run gate --ref "$live_admissible" --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
-    || log_fail "TEST-583: the live roadmap's own admissible ref ($live_admissible) must still be admitted: $(err)"
+  # Same exhaustion as TEST-565's live arm: with wave 3 closed there is no
+  # unfinished pair left to admit. The control's POINT is that the fixture
+  # arms above did not disturb the live file, so when nothing is admissible
+  # it asserts the live refusal instead — never log_skip (exit 42 voids the
+  # suite) and never a silent pass.
+  if [ -n "$live_admissible" ]; then
+    [ "$(run gate --ref "$live_admissible" --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
+      || log_fail "TEST-583: the live roadmap's own admissible ref ($live_admissible) must still be admitted: $(err)"
+  else
+    [ "$(run gate --ref maint-t583 --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" != "0" ] \
+      || log_fail "TEST-583: the fixture ref maint-t583 must not be admissible against the LIVE roadmap: $(err)"
+    grep -qi "not on the roadmap" "$TEST_DIR/err" \
+      || log_fail "TEST-583: the live refusal must say the fixture ref is not on the roadmap: $(err)"
+  fi
   log_pass "TEST-583: gate refuses an undocumented roadmap ref (capability or maintenance), naming the ref and the missing document, and admits once the document exists; live roadmap unaffected"
 }
 

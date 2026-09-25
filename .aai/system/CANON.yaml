@@ -1,0 +1,210 @@
+# .aai/system/CANON.yaml — the ordered, asserted dispatch-payload declaration
+# (SPEC-DRAFT-spec-canon-is-a-build-artifact D2). This is the ONLY place a
+# canon count, order or byte ceiling lives; a number that is not in this file
+# is not asserted (D2). Consumed by `.aai/scripts/canon.mjs`, node stdlib
+# only — parsed LINE-BASED, like `.aai/system/PROFILES.yaml`: keep this exact
+# two-space indentation, `key: value` per line, no flow-style collections
+# except the empty-list literal `[]`.
+#
+# CONTRACT
+# - `roles:` — role name -> its prompt file, repo-root-relative. The `role`
+#   section type below resolves its path through this map at build time.
+# - `sections:` — the ordered dispatch sections `canon.mjs build` assembles,
+#   in the exact order they are emitted (D3: the ASSEMBLED PAYLOAD must
+#   follow this order, never a hardcoded one). Each entry:
+#     id: <token>            section marker id (`<<<AAI-CANON-SECTION <id>`)
+#     type: file | role | scope
+#       file  — `path:` is a repo-root-relative file. Absent or empty ->
+#               `canon-section-absent: <id> <path>` (Spec-AC-02).
+#       role  — path is resolved from `roles:` by the `--role` CLI value.
+#       scope — synthesized from the `--ref` CLI value; not file-backed.
+#   Contract FIRST, scope LAST (Spec-AC-01) — this file's own order IS the
+#   assertion; reordering these two lines moves the live build's output.
+# - `standing_hazards:` — the declared `- HAZ-` line count the assembled
+#   payload must contain exactly (Spec-AC-03).
+# - `byte_ceiling:` — the declared max byte size of the assembled payload,
+#   UTF-8 bytes (Spec-AC-05).
+# - `uniqueness_exceptions:` — the ONLY admitted duplicate rule lines
+#   (Spec-AC-04), each `text:` (normalized: trimmed, internal whitespace
+#   collapsed to one space) plus a `reason:` the check prints when the
+#   exception is used. `[]` when none are declared, as today.
+# - `historical:` / `annotation_window:` / `claims:` — the withdrawn-claim
+#   sweep `canon.mjs claims` reads (Spec-AC-08..10). See the LINE-SHAPE
+#   DECISION comment below for what each declares and why. Each `claims:`
+#   entry's `origin_docs:` (Spec-AC-11) names the claim's OWN origin
+#   document(s), excluded from `claims --report`'s generated enumeration,
+#   each with a `reason:` the report prints — never a silent exclusion.
+# - `waiver_legacy_versions:` — Spec-AC-12, see its own comment near the
+#   bottom of this file.
+#
+# LINE-SHAPE DECISION (R2, measured 2026-09-25, canon-is-a-build-artifact
+# Implementation): the duplicate-rule scan matches every line beginning
+# `- ` (a markdown bullet) in the assembled payload. Measured false-positive
+# rate over the LIVE corpus for every role this file declares — contract +
+# that role's own prompt + LEARNED.md, the exact section set one `build`
+# call assembles — is ZERO (`sort | uniq -d` over the bulleted lines of each
+# of the 6 role payloads individually returns nothing). The only corpus that
+# produces a collision is the union of ALL SIX role prompts at once — a
+# shape `canon.mjs build` never assembles (one `--role` per call) — so the
+# broad bullet shape is safe for what this tool actually builds. A narrower
+# pattern (bullets matching the `- HAZ-` hazard-token shape only) was
+# considered and rejected: it would miss a duplicated non-hazard canon rule,
+# which is exactly the defect class `fu-contract-ledger-rule-stated-twice`
+# was.
+#
+# `historical:` (D5) — the ONLY two declared exemption routes for `claims`
+# are this glob list and a `**CORRECTION (<date>).**` / `**WITHDRAWN
+# <date>**` annotation within `annotation_window` lines after a hit. This
+# file is itself in the list (Implementation plan edge case: a claim
+# pattern's own declaration below would otherwise be a self-inflicted live
+# assertion). `docs/issues/**` is declared historical because intake/
+# backlog documents narrate a defect's history — quoting the withdrawn
+# claim as evidence of what was wrong — rather than asserting it as
+# current instruction; this is the SAME category `docs/ai/reviews/**` and
+# `docs/ai/reports/**` are already in, just not yet declared for the
+# `docs/issues/` shape. Measured live
+# (2026-09-25, `git ls-files | grep -l 'deleted by a separate change\|will
+# be removed'`): every hit outside this exemption set and the
+# `annotation_window` below is already corrected (SPEC-0138:75, 4 lines
+# above its `**CORRECTION (2026-08-23).**` block at :79).
+# `tests/skills/test-aai-canon.sh` is declared historical for the SAME
+# self-declaration reason as this file: TEST-687..689 plant literal claim
+# text into fixtures to prove the detector catches it, so the suite's own
+# source is code exercising the check, never a live assertion of the claim.
+#
+# A blanket `docs/specs/SPEC-DRAFT-*.md` glob (matching ANY in-flight,
+# not-yet-numbered spec) alone does NOT survive this ride's own close
+# step (validation round 1 BLOCKING-4, measured 2026-09-25): `.aai/SKILL_PR
+# .prompt.md`'s allocate-doc-number.mjs RENAMES this file to
+# `SPEC-<NNNN>-spec-canon-is-a-build-artifact.md` before it ships, and a
+# generic `SPEC-DRAFT-*.md` glob has no slug to match against, so it would
+# silently stop covering this spec's own Spec-AC-10 text and TEST-688 Test
+# Plan row — both of which quote "are deleted by a separate change" / "is
+# deleted by a separate change" verbatim as PROSE ABOUT the withdrawn claim
+# (the same self-declaration category as the test-aai-canon.sh line above),
+# never as current instruction. The frontmatter `id:` (`spec-canon-is-a-
+# build-artifact`) is the one thing the rename does NOT touch
+# (allocate-doc-number.mjs stamps `number:`, it does not rewrite `id:`), so
+# the slug below is the stable handle: the entry matches BOTH the
+# pre-rename `SPEC-DRAFT-` form and every post-rename `SPEC-<NNNN>-` form,
+# and nothing else — a differently-slugged spec that happens to get
+# numbered is not exempted by this line.
+#
+# A blanket `docs/specs/SPEC-DRAFT-*.md` entry was CONSIDERED and REJECTED
+# (validation round 2 NB-5, measured 2026-09-25: `git archive HEAD`, drop
+# that one line, `node .aai/scripts/canon.mjs claims` -> rc=0 scanned=694
+# clean — the slug-anchored entry above already covers this ride's own
+# prose in both its pre- and post-rename forms, so the blanket line buys
+# nothing). Declaring it anyway would be the exact hazard D5 exists to
+# police: a standing, undated exemption for every OTHER draft spec's
+# `docs/specs/SPEC-DRAFT-*.md`, present or future, none of them measured,
+# none of them reviewed. Narrower-but-still-generic was rejected too — any
+# narrowing short of a slug is this same hazard at a smaller radius. Only
+# the slug-anchored entry below is declared.
+#
+# `tests/skills/results/**` (found live, 2026-09-25, `tests/**` reaching the
+# test framework's OWN run-artifact tree): `test-framework.sh` captures every
+# suite's stdout into `tests/skills/results/<run-id>/<suite>.log`
+# (`.gitignore:106`), and TEST-688's own `PASS:` line quotes the declared
+# pattern set in its description ("future tense 'will be removed'") — a
+# captured log is therefore a LIVE, un-annotated hit the very next run, with
+# no fixture involved: `env -u AAI_ROLE bash tests/skills/test-aai-canon.sh`
+# followed immediately by `node .aai/scripts/canon.mjs claims` reproduces
+# `claim-live-assertion: tripwire-permanent
+# tests/skills/results/<run-id>/aai-canon.log:<N>` on a clean tree. This is
+# NOT the same category as `docs/issues/**` or `docs/ai/reviews/**` above
+# (narrated history a human wrote) — it is BUILD/RUN EXHAUST: a gitignored
+# tree neither reviewed nor shipped, regenerated wholesale on every sweep, the
+# same category `docs/ai/tdd/**` is already in two lines above. Left
+# undeclared it is SELF-AMPLIFYING (every run leaves another log the next
+# run's scan trips on, without anyone editing a single tracked file), which
+# is worse than a one-off false positive: a corpus glob reaching a directory
+# it does not own is exactly the `fu-sweep-scope-excludes-repo-root` shape
+# inverted — this time the corpus reaches TOO FAR rather than not far enough.
+# Declared here, by name, rather than fixed by deleting the directory (a
+# green that depends on someone having cleaned up first is not a green).
+# TEST-687's new arm proves the declaration is scoped to this ONE gitignored
+# path and nothing wider: the same claim text planted in a REAL corpus file
+# in the same run is still reported.
+
+historical:
+  - docs/ai/decisions.jsonl
+  - docs/ai/reviews/**
+  - docs/ai/reports/**
+  - docs/ai/tdd/**
+  - docs/archive/**
+  - docs/issues/**
+  - docs/specs/SPEC-*-spec-canon-is-a-build-artifact.md
+  - .aai/system/CANON.yaml
+  - tests/skills/test-aai-canon.sh
+  - tests/skills/results/**
+
+# annotation_window (D5) — the number of lines AFTER a claim hit that a
+# declared correction/withdrawal annotation may appear in for the hit to be
+# exempt. 6 covers the live SPEC-0138 case (hit at :75, annotation at :79,
+# distance 4) with margin.
+annotation_window: 6
+
+# claims (Spec-AC-08..10) — the withdrawn claim this scope makes checkable:
+# the tripwire/isolation mechanism is NOT going away (`hitl_decision`
+# 2026-08-23T20:05:00Z, `ref_id: the-tripwire-is-permanent-not-transitional`,
+# docs/ai/decisions.jsonl:453, superseding the 2026-08-19T16:59:51Z decision
+# that first called it transitional). `patterns` cover both the
+# present-tense wording validation round 2 found uncorrected
+# (`fu-sweep-regex-misses-present-tense`) and the original future-tense
+# wording. `corpus` reaches the repository root via the literal
+# `CHANGELOG.md` entry (`fu-sweep-scope-excludes-repo-root`) rather than
+# stopping at `.aai/ docs/ tests/`.
+claims:
+  - id: tripwire-permanent
+    decision_ts: 2026-08-23T20:05:00Z
+    decision_ref: the-tripwire-is-permanent-not-transitional
+    corpus:
+      - .aai/**
+      - docs/**
+      - tests/**
+      - CHANGELOG.md
+    patterns:
+      - are deleted by a separate change
+      - is deleted by a separate change
+      - will be removed
+    origin_docs:
+      - path: docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md
+        reason: this spec's own Spec-AC-01 (SPEC-0148) delivered exactly this dated correction; the report below enumerates FOLLOW-ON corrections made by later, separate scopes, not the claim's own origin document
+
+roles:
+  Planning: .aai/PLANNING.prompt.md
+  Implementation: .aai/IMPLEMENTATION.prompt.md
+  Validation: .aai/VALIDATION.prompt.md
+  Remediation: .aai/REMEDIATION.prompt.md
+  TDD Implementation: .aai/SKILL_TDD.prompt.md
+  Code Review: .aai/SKILL_CODE_REVIEW.prompt.md
+
+sections:
+  - id: contract
+    type: file
+    path: .aai/SUBAGENT_CONTRACT.md
+  - id: role
+    type: role
+  - id: learned
+    type: file
+    path: docs/knowledge/LEARNED.md
+  - id: scope
+    type: scope
+
+standing_hazards: 5
+
+byte_ceiling: 150000
+
+uniqueness_exceptions: []
+
+# waiver_legacy_versions (Spec-AC-12) — the ONLY `AAI-VALIDATION-WAIVER v<N>`
+# literal this repo may carry besides the CURRENT version, which
+# `canon.mjs check --section validation_waiver` reads from
+# `.aai/scripts/validation-waiver.mjs`'s own exported `WAIVER_VERSION`
+# (the code IS the source of truth for "current" — nothing here restates it).
+# Each declared legacy version needs a reason, printed whenever it is matched
+# (the same never-silent-exception discipline `uniqueness_exceptions` uses).
+waiver_legacy_versions:
+  - version: 1
+    reason: pre-scope-binding grammar (bot review PR #303 F-1); refused by name as waiver_obsolete_version, never honoured, kept only in fixtures that prove the refusal
