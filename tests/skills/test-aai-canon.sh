@@ -109,15 +109,20 @@ expect_rc_nonzero() {
     || log_fail "$what: expected a non-zero exit, got 0 — stdout: $(payload_preview "$(cat "$CANON_OUT")")"
 }
 
-# run_canon_hash <cwd> <manifest-rel-to-cwd> <role> <ref> — same as
-# run_canon but adds --print-hash (Spec-AC-06). Sets CANON_OUT / CANON_ERR /
-# CANON_RC the same way.
+# run_canon_hash <cwd> <manifest-rel-to-cwd> <role> — drives the command AS
+# SPEC-AC-06 DOCUMENTS IT: `node .aai/scripts/canon.mjs build --role <R>
+# --print-hash` (plus `--manifest` for the fixture path) — NO `--ref`. F1
+# (Codex P2): an earlier version of this helper passed an extra `--ref` the
+# documented command never has, which hid a bug where the unconditional
+# `--ref is required` check rejected the contract's own worked example.
+# Passing no ref here is what proves that bug is actually fixed, not papered
+# over.
 run_canon_hash() {
-  local cwd="$1" manifest="$2" role="$3" ref="$4"
+  local cwd="$1" manifest="$2" role="$3"
   CANON_OUT="$(mktemp "$TEST_DIR/canon-hash-out.XXXXXX")"
   CANON_ERR="$(mktemp "$TEST_DIR/canon-hash-err.XXXXXX")"
   set +e
-  ( cd "$cwd" && node "$CANON" build --role "$role" --ref "$ref" --manifest "$manifest" --print-hash >"$CANON_OUT" 2>"$CANON_ERR" )
+  ( cd "$cwd" && node "$CANON" build --role "$role" --manifest "$manifest" --print-hash >"$CANON_OUT" 2>"$CANON_ERR" )
   CANON_RC=$?
   set -e
 }
@@ -534,7 +539,42 @@ EOF
   assert_payload_contains "$(cat "$CANON_ERR")" "canon-count-mismatch: standing_hazards declared=5 found=4" \
     "TEST-677: an UNDER-count (found < declared) must refuse the same way as an over-count, naming both numbers" || return 1
 
-  log_pass "TEST-677 the declared hazard count is asserted against the ASSEMBLED payload (live clean at 5, fixture refuses declared=5 found=6 whether the 6th hazard lives in the contract, the role prompt or LEARNED.md, an indented/mid-line occurrence is correctly not counted, and an UNDER-count of 4 refuses too)"
+  # F2 (Codex P2, canon.mjs:420): the hazard-count assertion above depends
+  # on `standing_hazards` being declared as a number — deleting that ONE
+  # line previously disabled the whole control silently, building a full
+  # payload and exiting 0 even though nothing was checked. An otherwise
+  # VALID fixture (sections resolve, hazards would count clean at 5) whose
+  # manifest simply OMITS `standing_hazards:` must refuse, never build.
+  local d7="$TEST_DIR/t677-hazards-absent"
+  mkdir -p "$d7"
+  base_fixture_tree "$d7"
+  sed -i.bak '/^standing_hazards: /d' "$d7/CANON.yaml"
+  rm -f "$d7/CANON.yaml.bak"
+  /usr/bin/grep -q '^standing_hazards:' "$d7/CANON.yaml" \
+    && log_fail "TEST-677: fixture setup: standing_hazards line must be gone"
+  run_canon "$d7" "CANON.yaml" "FixtureRole" "TEST-677-hazards-absent-ref"
+  expect_rc_nonzero "TEST-677 a manifest missing standing_hazards must refuse, not build clean"
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-manifest-incomplete: standing_hazards" \
+    "TEST-677: an absent standing_hazards must refuse by name, naming the field" || return 1
+  local hazards_absent_bytes
+  hazards_absent_bytes="$(wc -c < "$CANON_OUT" | tr -d ' ')"
+  [[ "$hazards_absent_bytes" -eq 0 ]] \
+    || log_fail "TEST-677: stdout must be EMPTY when standing_hazards is absent, got $hazards_absent_bytes bytes"
+
+  # Same proof for a NON-NUMERIC declaration (the manifest parser's
+  # `parseInt` turns a stray word into NaN, which the old typeof-number
+  # guard also silently treated as "nothing to check").
+  local d8="$TEST_DIR/t677-hazards-nonnumeric"
+  mkdir -p "$d8"
+  base_fixture_tree "$d8"
+  sed -i.bak 's/^standing_hazards: 5/standing_hazards: not-a-number/' "$d8/CANON.yaml"
+  rm -f "$d8/CANON.yaml.bak"
+  run_canon "$d8" "CANON.yaml" "FixtureRole" "TEST-677-hazards-nonnumeric-ref"
+  expect_rc_nonzero "TEST-677 a non-numeric standing_hazards must refuse, not build clean"
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-manifest-incomplete: standing_hazards" \
+    "TEST-677: a non-numeric standing_hazards must refuse by the same name as an absent one" || return 1
+
+  log_pass "TEST-677 the declared hazard count is asserted against the ASSEMBLED payload (live clean at 5, fixture refuses declared=5 found=6 whether the 6th hazard lives in the contract, the role prompt or LEARNED.md, an indented/mid-line occurrence is correctly not counted, an UNDER-count of 4 refuses too) — and an otherwise-valid manifest with standing_hazards ABSENT or NON-NUMERIC refuses closed (canon-manifest-incomplete) instead of silently building"
 }
 
 # --- TEST-678 ------------------------------------------------------------------
@@ -817,7 +857,39 @@ test_680_over_budget_refused() {
   run_canon "$d" "CANON.yaml" "FixtureRole" "TEST-680-ref"
   expect_rc 0 "TEST-680 a ceiling exactly EQUAL to the measured size must NOT refuse (refusal is for EXCEEDS, not reaches)"
 
-  log_pass "TEST-680 a ceiling one byte below the measured payload refuses, naming measured=$measured ceiling=$((measured - 1)) — and a ceiling exactly EQUAL to the measured size does not refuse"
+  # F2 (Codex P2, canon.mjs:440): the byte-ceiling assertion above depends
+  # on `byte_ceiling` being declared as a number — deleting that ONE line
+  # previously disabled the whole control silently (same defect class as
+  # TEST-677's standing_hazards arm). An otherwise-VALID fixture (sections
+  # resolve, hazards match, payload would build well under any real ceiling)
+  # whose manifest simply OMITS `byte_ceiling:` must refuse, never build.
+  local d2="$TEST_DIR/t680-ceiling-absent"
+  mkdir -p "$d2"
+  base_fixture_tree "$d2"
+  sed -i.bak '/^byte_ceiling: /d' "$d2/CANON.yaml"
+  rm -f "$d2/CANON.yaml.bak"
+  /usr/bin/grep -q '^byte_ceiling:' "$d2/CANON.yaml" \
+    && log_fail "TEST-680: fixture setup: byte_ceiling line must be gone"
+  run_canon "$d2" "CANON.yaml" "FixtureRole" "TEST-680-ceiling-absent-ref"
+  expect_rc_nonzero "TEST-680 a manifest missing byte_ceiling must refuse, not build clean"
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-manifest-incomplete: byte_ceiling" \
+    "TEST-680: an absent byte_ceiling must refuse by name, naming the field" || return 1
+  local ceiling_absent_bytes
+  ceiling_absent_bytes="$(wc -c < "$CANON_OUT" | tr -d ' ')"
+  [[ "$ceiling_absent_bytes" -eq 0 ]] \
+    || log_fail "TEST-680: stdout must be EMPTY when byte_ceiling is absent, got $ceiling_absent_bytes bytes"
+
+  # Same proof for a NON-NUMERIC declaration.
+  local d3="$TEST_DIR/t680-ceiling-nonnumeric"
+  mkdir -p "$d3"
+  base_fixture_tree "$d3"
+  write_fixture_manifest "$d3" "contract,role,learned,scope" 5 "not-a-number" ""
+  run_canon "$d3" "CANON.yaml" "FixtureRole" "TEST-680-ceiling-nonnumeric-ref"
+  expect_rc_nonzero "TEST-680 a non-numeric byte_ceiling must refuse, not build clean"
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-manifest-incomplete: byte_ceiling" \
+    "TEST-680: a non-numeric byte_ceiling must refuse by the same name as an absent one" || return 1
+
+  log_pass "TEST-680 a ceiling one byte below the measured payload refuses, naming measured=$measured ceiling=$((measured - 1)) — a ceiling exactly EQUAL to the measured size does not refuse — and an otherwise-valid manifest with byte_ceiling ABSENT or NON-NUMERIC refuses closed (canon-manifest-incomplete) instead of silently building"
 }
 
 # --- TEST-681 ------------------------------------------------------------------
@@ -845,7 +917,7 @@ test_682_hash_matches_prompt_hash() {
   mkdir -p "$d"
   base_fixture_tree "$d"
 
-  run_canon_hash "$d" "CANON.yaml" "FixtureRole" "TEST-682-ref"
+  run_canon_hash "$d" "CANON.yaml" "FixtureRole"
   expect_rc 0 "TEST-682 print-hash build"
   local canon_hash ref_hash
   canon_hash="$(cat "$CANON_OUT")"
@@ -853,7 +925,24 @@ test_682_hash_matches_prompt_hash() {
   [[ -n "$canon_hash" ]] || log_fail "TEST-682: canon.mjs printed no hash"
   [[ "$canon_hash" == "$ref_hash" ]] \
     || log_fail "TEST-682: canon.mjs build --print-hash ($canon_hash) != computeEffectivePromptHash ($ref_hash)"
-  log_pass "TEST-682 build --print-hash equals computeEffectivePromptHash for the same fixture tree ($canon_hash)"
+
+  # F1 (Codex P2, canon.mjs:405): Spec-AC-06's OWN documented command is
+  # `node .aai/scripts/canon.mjs build --role <R> --print-hash` — no
+  # `--manifest`, no `--ref`. Run that EXACT line, unmodified, against the
+  # live tree; the unconditional `--ref is required` check used to reject
+  # it even though the hash path never reads `--ref`.
+  local live_out live_err live_rc
+  live_out="$(mktemp "$TEST_DIR/t682-live-out.XXXXXX")"
+  live_err="$(mktemp "$TEST_DIR/t682-live-err.XXXXXX")"
+  set +e
+  ( cd "$PROJECT_ROOT" && node .aai/scripts/canon.mjs build --role Validation --print-hash >"$live_out" 2>"$live_err" )
+  live_rc=$?
+  set -e
+  [[ "$live_rc" -eq 0 ]] \
+    || log_fail "TEST-682: Spec-AC-06's documented command must exit 0 as written, got $live_rc — stderr: $(payload_preview "$(cat "$live_err")")"
+  [[ -s "$live_out" ]] || log_fail "TEST-682: Spec-AC-06's documented command printed no hash"
+
+  log_pass "TEST-682 build --print-hash equals computeEffectivePromptHash for the same fixture tree ($canon_hash), and Spec-AC-06's own documented command (no --ref) exits 0 against the live tree"
 }
 
 # --- TEST-683 ------------------------------------------------------------------
@@ -865,7 +954,7 @@ test_683_hash_moves_with_the_contract() {
   mkdir -p "$d"
   base_fixture_tree "$d"
 
-  run_canon_hash "$d" "CANON.yaml" "FixtureRole" "TEST-683-ref"
+  run_canon_hash "$d" "CANON.yaml" "FixtureRole"
   expect_rc 0 "TEST-683 baseline print-hash build"
   local hash_before ref_before
   hash_before="$(cat "$CANON_OUT")"
@@ -875,7 +964,7 @@ test_683_hash_moves_with_the_contract() {
 
   printf '.' >> "$d/.aai/SUBAGENT_CONTRACT.md"
 
-  run_canon_hash "$d" "CANON.yaml" "FixtureRole" "TEST-683-ref"
+  run_canon_hash "$d" "CANON.yaml" "FixtureRole"
   expect_rc 0 "TEST-683 mutated print-hash build"
   local hash_after ref_after
   hash_after="$(cat "$CANON_OUT")"
@@ -1009,7 +1098,51 @@ test_686_live_claims_clean() {
   [[ -n "$scanned" ]] || log_fail "TEST-686: could not read the scanned-file count off stderr"
   [[ "$scanned" -gt 0 ]] \
     || log_fail "TEST-686: scanned count must be non-zero (an empty scan cannot look clean), got $scanned"
-  log_pass "TEST-686 the live tree's claims run exits 0 and scanned $scanned files"
+
+  # F3 (Codex P2, canon.mjs:663): the live-tree arm above only proves the
+  # REAL corpus is non-empty today; it says nothing about what the TOOL
+  # does when a claim's own corpus glob matches NOTHING — misspelled, a
+  # renamed/deleted directory. Prove that on a fixture: the claim's
+  # `hitl_decision` resolves cleanly (isolating this from TEST-685's
+  # unresolvable-record refusal), but its declared corpus glob points at a
+  # directory that does not exist, so `scanned` is 0. `findClaimHits`
+  # previously returned `scanned=0` with no hits, which read as "clean" and
+  # exited 0 — a withdrawn assertion whose corpus was misspelled would then
+  # go entirely unchecked. It must refuse instead, by name, with empty
+  # stdout.
+  local d="$TEST_DIR/t686-corpus-empty"
+  mkdir -p "$d/.aai/system" "$d/docs/ai"
+  cat > "$d/docs/ai/decisions.jsonl" <<'EOF'
+{"v":1,"ts":"2099-01-01T00:00:00Z","type":"hitl_decision","ref_id":"fixture-corpus-empty-decision","decision":"n/a"}
+EOF
+  cat > "$d/.aai/system/CANON.yaml" <<'EOF'
+historical: []
+annotation_window: 6
+claims:
+  - id: fixture-corpus-empty-claim
+    decision_ts: 2099-01-01T00:00:00Z
+    decision_ref: fixture-corpus-empty-decision
+    corpus:
+      - "no-such-directory/**/*.md"
+    patterns:
+      - unreachable claim text
+roles:
+  FixtureRole: .aai/ROLE.prompt.md
+sections: []
+standing_hazards: 0
+byte_ceiling: 20000
+uniqueness_exceptions: []
+EOF
+  run_claims "$d" "--manifest" ".aai/system/CANON.yaml"
+  expect_rc_nonzero "TEST-686 a claim whose corpus glob matches zero files must refuse, never report clean"
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-corpus-empty: fixture-corpus-empty-claim no-such-directory/**/*.md" \
+    "TEST-686: stderr must name the claim id and its declared corpus when the scan finds zero files" || return 1
+  local empty_corpus_bytes
+  empty_corpus_bytes="$(wc -c < "$CANON_OUT" | tr -d ' ')"
+  [[ "$empty_corpus_bytes" -eq 0 ]] \
+    || log_fail "TEST-686: stdout must stay EMPTY on a corpus-empty refusal, got $empty_corpus_bytes bytes"
+
+  log_pass "TEST-686 the live tree's claims run exits 0 and scanned $scanned files; a fixture claim whose corpus glob matches zero files refuses by name (canon-corpus-empty) instead of reporting clean"
 }
 
 # --- TEST-687 ------------------------------------------------------------------

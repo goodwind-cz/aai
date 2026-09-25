@@ -32,11 +32,17 @@
 // FAIL CLOSED (D4): every refusal prints a named reason token plus the
 // offending file:line (and, for a count, both numbers) to stderr, and
 // stdout is left completely EMPTY — never a truncated payload. `build`'s
-// checks run in this order: section resolution (absent/empty), hazard
-// count, duplicate rule, byte budget; the first violation found refuses and
-// stops there. `claims` instead collects every un-exempted hit before
-// refusing (Spec-AC-10: each planted variant must be reported with its own
-// line, not just the first).
+// checks run in this order: mandatory manifest fields (`standing_hazards`,
+// `byte_ceiling` present and numeric — `canon-manifest-incomplete`, BEFORE
+// any section is resolved or any payload emitted: a missing declaration is
+// a refusal, never "nothing to check"), section resolution (absent/empty),
+// hazard count, duplicate rule, byte budget; the first violation found
+// refuses and stops there. `claims` instead collects every un-exempted hit
+// before refusing (Spec-AC-10: each planted variant must be reported with
+// its own line, not just the first) — but a claim whose declared corpus
+// glob matches ZERO files also refuses by name
+// (`canon-corpus-empty`): a corpus that scans nothing is not evidence the
+// claim is clean, it is evidence the declaration cannot be checked.
 //
 // Node stdlib only (docs/TECHNOLOGY.md) — no YAML dependency. CANON.yaml is
 // parsed by a small hand-rolled, file-shape-specific parser below, the same
@@ -402,29 +408,53 @@ function parseBuildArgs(argv) {
     else usageError(`unrecognized argument: ${a}`);
   }
   if (!opts.role) usageError('--role is required');
-  if (!opts.ref) usageError('--ref is required');
+  // --ref is dispatch-scope text the `scope` section frames into the
+  // PAYLOAD; `--print-hash` never emits the payload (Spec-AC-06's own
+  // documented command is `build --role <R> --print-hash`, no `--ref`), so
+  // requiring it there rejects the contract's own worked example. A plain
+  // (non-hash) build still needs it — there is no payload without a scope.
+  if (!opts.printHash && !opts.ref) usageError('--ref is required');
   return opts;
+}
+
+// MANDATORY_NUMERIC_FIELDS: the manifest fields `build` asserts against the
+// assembled payload. A field this tool never declared present+numeric is a
+// check that never ran, not a check that passed — F2 (Codex P2, this ride's
+// own thesis turned against it): a manifest with valid sections but neither
+// field previously emitted a full payload and exited 0, silently disabling
+// the hazard-count and byte-ceiling controls. Checked BEFORE any section is
+// resolved or any payload byte is emitted (D4).
+const MANDATORY_NUMERIC_FIELDS = ['standing_hazards', 'byte_ceiling'];
+
+function assertMandatoryManifestFields(manifest, manifestPath) {
+  const missing = MANDATORY_NUMERIC_FIELDS.filter(
+    (f) => typeof manifest[f] !== 'number' || Number.isNaN(manifest[f]),
+  );
+  if (missing.length === 0) return;
+  for (const f of missing) {
+    process.stderr.write(`canon-manifest-incomplete: ${f} missing or non-numeric in ${manifestPath}\n`);
+  }
+  exit(10);
 }
 
 function runBuild(argv) {
   const opts = parseBuildArgs(argv);
   const manifest = loadManifest(opts.manifest);
+  assertMandatoryManifestFields(manifest, opts.manifest);
 
-  const resolution = resolveSections(manifest, opts.role, opts.ref);
+  const resolution = resolveSections(manifest, opts.role, opts.ref || '');
   if (!resolution.ok) {
     process.stderr.write(`canon-section-absent: ${resolution.id} ${resolution.path}\n`);
     exit(3);
   }
   const { sections } = resolution;
 
-  if (typeof manifest.standing_hazards === 'number' && !Number.isNaN(manifest.standing_hazards)) {
-    const found = countHazardLines(sections);
-    if (found !== manifest.standing_hazards) {
-      process.stderr.write(
-        `canon-count-mismatch: standing_hazards declared=${manifest.standing_hazards} found=${found}\n`
-      );
-      exit(4);
-    }
+  const found = countHazardLines(sections);
+  if (found !== manifest.standing_hazards) {
+    process.stderr.write(
+      `canon-count-mismatch: standing_hazards declared=${manifest.standing_hazards} found=${found}\n`
+    );
+    exit(4);
   }
 
   const dup = findDuplicateRule(sections, manifest.uniqueness_exceptions);
@@ -437,7 +467,7 @@ function runBuild(argv) {
 
   const payload = framePayload(sections);
   const measured = Buffer.byteLength(payload, 'utf8');
-  if (typeof manifest.byte_ceiling === 'number' && !Number.isNaN(manifest.byte_ceiling) && measured > manifest.byte_ceiling) {
+  if (measured > manifest.byte_ceiling) {
     process.stderr.write(`canon-over-budget: measured=${measured} ceiling=${manifest.byte_ceiling}\n`);
     exit(6);
   }
@@ -653,6 +683,17 @@ function runClaims(argv) {
     }
     const { hits, scanned } = findClaimHits(ROOT, claim, manifest.historical, window);
     totalScanned += scanned;
+    // F3 (Codex P2): a corpus glob that matches ZERO files (misspelled,
+    // renamed, a deleted directory) previously fell through to the `else`
+    // branch below and printed "clean" — a missing corpus becoming a
+    // successful safety check. Refuse by name instead, the same fail-fast
+    // shape `claim-record-unresolvable` above uses: zero scanned files is
+    // never evidence a withdrawn claim is unasserted, only that this claim
+    // could not be checked at all.
+    if (scanned === 0) {
+      process.stderr.write(`canon-corpus-empty: ${claim.id} ${claim.corpus.join(' ')}\n`);
+      exit(11);
+    }
     if (hits.length > 0) {
       refused = true;
       for (const h of hits) {
