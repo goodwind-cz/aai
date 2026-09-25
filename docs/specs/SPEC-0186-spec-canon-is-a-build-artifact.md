@@ -1,7 +1,7 @@
 ---
 id: spec-canon-is-a-build-artifact
 type: spec
-number: null
+number: 186
 status: implementing
 mutation_gate: v1
 frozen_sha256: 1223f04b8112704150a4bfbee6ea50a298c6a0b2272f7eeafbb6e7fb9c794b6a

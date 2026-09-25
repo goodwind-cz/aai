@@ -2,7 +2,7 @@
 #
 # Test: canon.mjs build / claims — the dispatch payload is ASSEMBLED and
 # ASSERTED, never pasted, and a withdrawn claim's correction is checkable,
-# not hand-swept (SPEC-DRAFT-spec-canon-is-a-build-artifact,
+# not hand-swept (SPEC-0186-spec-canon-is-a-build-artifact,
 # Spec-AC-01..Spec-AC-10, TEST-674..TEST-689; wave 3, sweep 7).
 #
 # TEST-682..689 (run 2) add: `build --print-hash` (Spec-AC-06 — S2, the

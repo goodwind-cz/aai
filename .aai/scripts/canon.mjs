@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // canon.mjs — the rules that bind a dispatched agent are ASSEMBLED and
-// ASSERTED, never pasted (SPEC-DRAFT-spec-canon-is-a-build-artifact).
+// ASSERTED, never pasted (SPEC-0186-spec-canon-is-a-build-artifact).
 //
 // THIS FILE (D1): ONE script, subcommands `build` / `check` / `claims`, all
 // reading the same declaration (`.aai/system/CANON.yaml`) — three files

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-25T18:33:56.276Z
+Generated: 2026-09-25T18:34:45.505Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-canon-is-a-build-artifact | specs | implementing | 15 done | docs/specs/SPEC-DRAFT-spec-canon-is-a-build-artifact.md |
+| SPEC-0186 | specs | implementing | 15 done | docs/specs/SPEC-0186-spec-canon-is-a-build-artifact.md |
 
 ## Canonical layer (0)
 
