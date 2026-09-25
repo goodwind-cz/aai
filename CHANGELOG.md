@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — feat(canon): the rules that bind agents are assembled and asserted, not pasted (CHANGE-0191 / SPEC-0186)
+## [v2026.09.25] — feat(canon): the rules that bind agents are assembled and asserted, not pasted (CHANGE-0191 / SPEC-0186)
 
 The dispatch payload a role receives was assembled by an orchestrator reading
 four canonical files, and the only guard on what actually arrived was a byte
@@ -50,7 +50,7 @@ string, and a rule against backgrounding sweeps existed only in dispatch text.
 - `SPEC-0148`'s hand-counted enumeration of corrected documents (it claimed 2
   specs + 3 intakes where the diff had corrected 3 + 4) is now generated.
 
-## [unreleased] — fix(friction): the friction channel is alive, and its surface reports the backlog instead of the inbox (CHANGE-0190 / SPEC-0185)
+## [v2026.09.25] — fix(friction): the friction channel is alive, and its surface reports the backlog instead of the inbox (CHANGE-0190 / SPEC-0185)
 
 The channel that turns AAI's own failures into tracked work had been silent for
 twenty days: 824 observations spooled, 759 never triaged, 0 issues filed — while
@@ -71,7 +71,7 @@ backlog. The one signal that could have promoted anything, the owner's signed
 - The discovery surface reports the backlog, and the close ceremony surfaces it to
   the owner by default.
 
-## [unreleased] — fix(update): the ref-guard is disclosed before it is installed, and can be declined (ISSUE-0083 / SPEC-0184)
+## [v2026.09.25] — fix(update): the ref-guard is disclosed before it is installed, and can be declined (ISSUE-0083 / SPEC-0184)
 
 - **`/aai-update` no longer arms a git hook without saying so.** Since
   v2026.08.29 the hook installer managed two hooks: the docs-index convenience
