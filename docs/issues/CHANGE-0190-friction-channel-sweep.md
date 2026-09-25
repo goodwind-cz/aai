@@ -6,7 +6,7 @@ status: done
 capability: friction-channel-sweep
 links:
   pr:
-    - TBD
+    - 394
   commits:
     - b7f978d69e05133d5c2a74f6012172cd3db77304
 ---
