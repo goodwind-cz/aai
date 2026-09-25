@@ -850,7 +850,13 @@ test_012_growth_sum_matches_ledger() {
   # EOF insertion lands under the file's last "## Session ..." heading, so
   # the writer this ride ships can satisfy the lint this ride ships).
   # Credited 1:1, headroom stays 1942/2048 (TEST-010).
-  local want_growth=37038
+  # Then 37038 -> 37212: friction-channel-sweep PR #394 bot review remediation
+  # F4 (+174 B) -- .aai/SKILL_FEEDBACK_TRIAGE.prompt.md's Report section states
+  # the SIGNAL_FLOOR gate on the recurrence bonus (a zero-signal cluster
+  # scores 0 no matter how often it recurs) instead of the flat
+  # impact+confidence+reproducible+recurrence sum the code no longer
+  # implements. Credited 1:1, headroom stays 1942/2048 (TEST-010).
+  local want_growth=37212
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

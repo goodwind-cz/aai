@@ -126,7 +126,7 @@ write_report() {
 
 # --- TEST-669 (Spec-AC-11): backlog reporting across four fixture dirs -----
 test_669_status_reports_the_backlog() {
-  log_info "Test: candidates/report_observations/report_stale reported correctly across four fixture friction dirs (TEST-669)..."
+  log_info "Test: candidates/report_observations/report_stale reported correctly across six fixture friction dirs (TEST-669)..."
   mock_gh 0
 
   # Arm 1: no report at all. observations.jsonl already has 3 lines (setup).
@@ -165,7 +165,50 @@ test_669_status_reports_the_backlog() {
   [ "$(printf '%s' "$out" | jq_field candidates)" = "0" ] || log_fail "TEST-669 arm4: candidates must be 0 on an empty spool"
   [ "$(printf '%s' "$out" | jq_field report_observations)" = "0" ] || log_fail "TEST-669 arm4: report_observations must be 0 on an empty spool"
 
-  log_pass "candidates/report_observations/report_stale correct across all four fixture arms; human line names both numbers when stale (TEST-669)"
+  # Arm 5 (PR #394 bot review F1): the spool carries ONE malformed line (what
+  # a crashed or concurrent writer leaves) next to 3 parseable ones. Before
+  # the shared predicate (lib/friction-spool.mjs), `observations` counted
+  # every non-blank line (4) while the triage engine's own
+  # `total_observations` counts only PARSEABLE lines (3) — so a report whose
+  # total matches the triage engine's count could never match `observations`
+  # and `report_stale` was pinned true FOREVER, even immediately after a
+  # fresh, fully-current triage run. The surface must count what triage
+  # counts.
+  local d5="$TD/d5/friction"; mkdir -p "$d5"
+  printf '{"a":1}\n{"a":2}\nnot valid json\n{"a":3}\n' > "$d5/observations.jsonl"
+  write_report "$d5" 3 1
+  out="$(run "$d5" "$TD/bin/gh" --json)"
+  [ "$(printf '%s' "$out" | jq_field observations)" = "3" ] \
+    || log_fail "TEST-669 arm5 (F1): observations must count only the 3 PARSEABLE lines, one malformed line present, got: $(printf '%s' "$out" | jq_field observations)"
+  [ "$(printf '%s' "$out" | jq_field report_stale)" = "false" ] \
+    || log_fail "TEST-669 arm5 (F1): report_stale must be false once the report's total matches the PARSEABLE count, a malformed line must not pin it stale forever"
+
+  # Arm 6 (PR #394 bot review F2): an EMPTY spool next to a report that
+  # PARSES as JSON but is structurally wrong (`clusters` is not an array,
+  # `total_observations` is 0) — the exact shape that reads as a healthy,
+  # CURRENT report before the fix, because `0 !== 0` alongside an unvalidated
+  # `clusters: "corrupt"` normalized to zero candidates. This must fail
+  # closed exactly like an absent report instead.
+  local d6="$TD/d6/friction"; mkdir -p "$d6"
+  printf '{"total_observations":0,"clusters":"corrupt"}\n' > "$d6/triage-report.json"
+  out="$(run "$d6" "$TD/bin/gh" --json)"
+  [ "$(printf '%s' "$out" | jq_field report_stale)" = "true" ] \
+    || log_fail "TEST-669 arm6 (F2): a structurally invalid report (clusters not an array) alongside an empty spool must still read report_stale=true, fail closed like an absent report, got: $(printf '%s' "$out" | jq_field report_stale)"
+  [ "$(printf '%s' "$out" | jq_field report_observations)" = "0" ] \
+    || log_fail "TEST-669 arm6 (F2): report_observations must be 0 for a structurally invalid report"
+
+  # Arm 6b: same structurally invalid report, but with one observation and
+  # one draft present so the human line actually prints — proves the
+  # invalid report surfaces exactly like an absent one ("report: none yet"),
+  # not silently as a current, healthy report.
+  local d6b="$TD/d6b/friction"; mkdir -p "$d6b/pending-issues"
+  printf '{"a":1}\n' > "$d6b/observations.jsonl"
+  : > "$d6b/pending-issues/v1_z.md"
+  printf '{"total_observations":0,"clusters":"corrupt"}\n' > "$d6b/triage-report.json"
+  out="$(run "$d6b" "$TD/bin/gh")"
+  assert_payload_contains "$out" "report: none yet" "TEST-669 arm6b (F2): a structurally invalid report must surface exactly like an absent one"
+
+  log_pass "candidates/report_observations/report_stale correct across all fixture arms, including a malformed spool line (F1) and a structurally invalid report (F2); human line names both numbers when stale (TEST-669)"
 }
 
 # --- TEST-670 (Spec-AC-11): stale report never advertises a publish -------

@@ -405,6 +405,15 @@ function externalRunnerFindings(root, files) {
 // following it, say) must still be flagged. A rule widened to accept any
 // leading `[...]` would silently accept exactly that decoy and misreport a
 // genuinely unmarked bullet as compliant.
+//
+// EXACTLY ONE, not "at least one" (PR #394 bot review F3): a plain
+// `.test()` against an anchored-at-start pattern only proves the bullet
+// STARTS WITH an accepted marker — it says nothing about what comes right
+// after. `- [local] [guard → fu-two] ...` starts with `[local]` and so
+// matched, TOTAL: 0, while being exactly the contradictory both-markers
+// shape this rule and the header comment forbid. sessionBulletMarkerOk()
+// below additionally rejects a second marker-shaped bracket immediately
+// following the first.
 const SESSION_HEADING_RE = /^##\s+Session\b/;
 const ANY_HEADING_RE = /^##\s+/;
 const BULLET_START_RE = /^-\s+(.*)$/;
@@ -413,7 +422,19 @@ const BULLET_START_RE = /^-\s+(.*)$/;
 // convention (an optional leading `[YYYY-MM-DD] ` date bracket, THEN the
 // marker) — several `## Session …` blocks (e.g. 2026-08-24 onward) already
 // carry dated, marked entries predating this rule.
-const SESSION_MARKER_RE = /^(?:\[\d{4}-\d{2}-\d{2}\]\s+)?(?:\[local\]|\[guard\s*(?:->|→)\s*[^\]]+\])/;
+const SESSION_DATE_PREFIX_RE = /^\[\d{4}-\d{2}-\d{2}\]\s+/;
+const SESSION_MARKER_TOKEN_RE = /^(?:\[local\]|\[guard\s*(?:->|→)\s*[^\]]+\])/;
+// sessionBulletMarkerOk(text) -> true only when text (a Session bullet's
+// content right after "- ") carries an optional date bracket followed by
+// EXACTLY ONE [local]/[guard → <id>] marker — not zero, not two.
+function sessionBulletMarkerOk(text) {
+  const dm = SESSION_DATE_PREFIX_RE.exec(text);
+  let rest = dm ? text.slice(dm[0].length) : text;
+  const mm = SESSION_MARKER_TOKEN_RE.exec(rest);
+  if (!mm) return false; // no marker at all
+  rest = rest.slice(mm[0].length).replace(/^\s+/, '');
+  return !SESSION_MARKER_TOKEN_RE.test(rest); // a second marker right after is contradictory
+}
 function sessionMarkerFindings(root, files) {
   const findings = [];
   for (const f of files) {
@@ -428,11 +449,15 @@ function sessionMarkerFindings(root, files) {
       if (!inSession) continue;
       const bm = BULLET_START_RE.exec(line);
       if (!bm) continue;
-      if (!SESSION_MARKER_RE.test(bm[1])) {
+      if (!sessionBulletMarkerOk(bm[1])) {
+        const rest = SESSION_DATE_PREFIX_RE.test(bm[1]) ? bm[1].slice(SESSION_DATE_PREFIX_RE.exec(bm[1])[0].length) : bm[1];
+        const hasOne = SESSION_MARKER_TOKEN_RE.test(rest);
         findings.push({
           file: relOf(root, f),
           line: i + 1,
-          msg: `Session bullet carries no [local] or [guard → <id>] marker right after "- "`,
+          msg: hasOne
+            ? `Session bullet carries MORE THAN ONE [local]/[guard → <id>] marker right after "- " — exactly one is required`
+            : `Session bullet carries no [local] or [guard → <id>] marker right after "- "`,
         });
       }
     }

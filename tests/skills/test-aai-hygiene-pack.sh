@@ -2559,7 +2559,7 @@ NODE
 # `[guard → <id>]` marker right after the leading `- `. The
 # `session-marker` rule in learned-guard-lints.mjs is that check.
 test_668_session_bullets_carry_a_marker() {  # TEST-668 / Spec-AC-10
-  log_info "test_668: session-marker reports zero over the live LEARNED.md, bites on a fixture with one unmarked (decoy-bracket) Session bullet, and the header no longer claims the region untriaged (TEST-668)..."
+  log_info "test_668: session-marker reports zero over the live LEARNED.md, bites on a fixture with one unmarked (decoy-bracket) Session bullet and one bullet carrying TWO markers (contradictory), and the header no longer claims the region untriaged (TEST-668)..."
   local learned="$PROJECT_ROOT/docs/knowledge/LEARNED.md"
   [[ -f "$learned" ]] || log_fail "TEST-668: missing docs/knowledge/LEARNED.md"
 
@@ -2571,7 +2571,10 @@ test_668_session_bullets_carry_a_marker() {  # TEST-668 / Spec-AC-10
   # 2. Fixture: one Session bullet carries a DECOY bracket (a date, not a
   #    real marker) — this is the shape a rule "widened to match any
   #    bracketed token" would wrongly accept, so it is what the named
-  #    mutation for TEST-668 must redden.
+  #    mutation for TEST-668 must redden. A second bullet carries TWO real
+  #    markers back to back (`[local] [guard → fu-two] ...`) — the rule says
+  #    EXACTLY one marker, so a "matches at least one" check (PR #394 bot
+  #    review F3) would wrongly read this as compliant.
   local d; d="$(ap_tmpdir)"
   local fx="$d/session-marker-fixture"
   rm -rf "$fx"; mkdir -p "$fx"
@@ -2582,12 +2585,15 @@ test_668_session_bullets_carry_a_marker() {  # TEST-668 / Spec-AC-10
 
 - [local] a properly marked bullet with no defect.
 - [2026-09-25] a decoy-bracketed bullet with NO real [local] or [guard] marker at all.
+- [local] [guard → fu-two] a bullet carrying TWO markers, which is contradictory (exactly one is required).
 MD
   lgl_run session-marker "$fx"
-  [[ "$LGL_TOTAL" -ge 1 ]] \
-    || log_fail "TEST-668: a Session bullet whose only bracket is a decoy date (no real marker) must be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+  [[ "$LGL_TOTAL" -ge 2 ]] \
+    || log_fail "TEST-668: both the decoy-bracket bullet and the two-marker bullet must be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
   [[ "$LGL_OUT" == *"FIXTURE.md:6:"* ]] \
-    || log_fail "TEST-668: the finding must name the unmarked bullet's own line, got: $LGL_OUT"
+    || log_fail "TEST-668: the finding must name the unmarked (decoy-bracket) bullet's own line, got: $LGL_OUT"
+  [[ "$LGL_OUT" == *"FIXTURE.md:7:"* ]] \
+    || log_fail "TEST-668: the finding must ALSO name the two-marker (exactly-one violation) bullet's own line, got: $LGL_OUT"
 
   # Negative control: the properly-marked bullet (line 5) must NOT appear in
   # the findings.
@@ -2600,7 +2606,26 @@ MD
   grep -qF "fu-triage-undated-learned-log" "$learned" \
     || log_fail "TEST-668: the header must still name fu-triage-undated-learned-log (closed, not deleted)"
 
-  log_pass "test_668: session-marker is 0 over the live corpus, bites a decoy-bracket unmarked bullet, spares a real [local] bullet, and the header states the triage is done (TEST-668)"
+  # 4. learned-append.mjs (the writer) self-marks Session entries with
+  # exactly one marker (PR #394 bot review F3 asks this be checked too): a
+  # dry-run --marker local append run through the lint must NOT be flagged.
+  local wf="$d/writer-fixture"; rm -rf "$wf"; mkdir -p "$wf"
+  cat > "$wf/FIXTURE.md" <<'MD'
+# Fixture
+
+## Session 2099-01-01 (fixture, not the real corpus)
+MD
+  local appended
+  appended="$(node "$PROJECT_ROOT/.aai/scripts/learned-append.mjs" --target "$wf/FIXTURE.md" --text "writer self-marks with exactly one marker" --source "TEST-668" --marker local --dry-run 2>&1)" \
+    || log_fail "TEST-668: learned-append.mjs --dry-run failed: $appended"
+  # drop learned-append's own "dry-run — would append:" prefix line, keep
+  # only the bullet it would write.
+  printf '%s\n' "$appended" | tail -n +2 >> "$wf/FIXTURE.md"
+  lgl_run session-marker "$wf"
+  [[ "$LGL_TOTAL" == "0" ]] \
+    || log_fail "TEST-668: learned-append.mjs's own self-marked entry must pass session-marker (exactly one marker), got TOTAL=$LGL_TOTAL: $LGL_OUT"
+
+  log_pass "test_668: session-marker is 0 over the live corpus, bites a decoy-bracket unmarked bullet AND a contradictory two-marker bullet, spares a real [local] bullet and learned-append.mjs's own self-marked output, and the header states the triage is done (TEST-668)"
 }
 
 # Converted sites, as `<suite file>|<needle it must still assert>`. The needle

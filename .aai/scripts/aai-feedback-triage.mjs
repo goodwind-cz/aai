@@ -18,6 +18,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { HARNESS_VALUES } from './lib/harness.mjs';
+import { readSpoolRows } from './lib/friction-spool.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..');
@@ -179,20 +180,6 @@ function loadConfig(path) {
   return cfg;
 }
 
-function readSpool(path) {
-  let text;
-  try { text = readFileSync(path, 'utf8'); } catch { return []; }
-  const rows = [];
-  for (const line of text.split('\n')) {
-    if (!line.trim()) continue;
-    try {
-      const obj = JSON.parse(line);
-      if (obj && typeof obj === 'object' && !Array.isArray(obj)) rows.push(obj);
-    } catch { /* tolerate a partial/corrupt line */ }
-  }
-  return rows;
-}
-
 // Hard gates. Returns { ok: true } or { ok: false, reason }.
 function gate(obs) {
   if (obs.schema_version !== 1 && obs.schema_version !== 2) {
@@ -285,7 +272,7 @@ function main() {
   if (args.help) { process.stdout.write(HELP); process.exit(0); }
 
   const config = loadConfig(args.config);
-  const rows = readSpool(args.spool);
+  const rows = readSpoolRows(args.spool);
   const report = triage(rows, config);
 
   // LOCAL only: write the report. No issue payload is emitted, and there is no

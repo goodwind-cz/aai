@@ -25,7 +25,9 @@ performs no network I/O and holds no token; there is nothing to fail on.
 
 ## Report
 `triage-report.json` lists, per fingerprint cluster: `failure_class`, `recurrence`,
-a composite `score` (impact + confidence + reproducible + recurrence), a `decision`
+a composite `score` (impact + confidence + reproducible, plus a capped recurrence
+bonus that counts ONLY once impact/confidence/reproducible already clear a floor —
+a cluster with none of those signals scores 0 no matter how often it recurs), a `decision`
 (`review_candidate` at/above the configured threshold, else `retain`), and
 `auto_publishable` (always `false` in this slice). Dropped observations are
 summarized by gate reason. The operator reviews this locally; the review-mode

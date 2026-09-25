@@ -34,6 +34,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { countSpoolRows } from './lib/friction-spool.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..');
@@ -58,22 +59,43 @@ counts are offline filesystem reads; the only external call is a read-only
 \`gh auth status\`. No mutation, no issue writes.
 `;
 
+// countObservations() -> the SAME count the triage engine writes as
+// `total_observations` (lib/friction-spool.mjs's shared readSpoolRows()
+// predicate: a line parses as JSON and is a plain object) — NOT every
+// non-blank line (PR #394 review F1). Before this shared predicate existed,
+// this function counted raw non-blank lines while aai-feedback-triage.mjs
+// counted only the parseable ones; one malformed line left behind by a
+// crashed or concurrent writer then pinned `report_stale` (below) to true
+// FOREVER, because the raw count could never again equal the report's
+// parseable-row count, even immediately after a fresh triage run.
 function countObservations() {
-  try {
-    return readFileSync(SPOOL, 'utf8').split('\n').filter((l) => l.trim()).length;
-  } catch { return 0; }
+  return countSpoolRows(SPOOL);
 }
 function countDrafts() {
   try {
     return readdirSync(PENDING_DIR).filter((f) => f.endsWith('.md')).length;
   } catch { return 0; }
 }
+// isValidReportShape(report) -> true only when the parsed JSON is actually
+// shaped like a triage-report.json (aai-feedback-triage.mjs's REPORT_SCHEMA):
+// a plain object whose `total_observations` is a finite number and whose
+// `clusters` is an array. A report that PARSES but is structurally wrong
+// (e.g. `{"total_observations":0,"clusters":"corrupt"}`) must fail the same
+// way an absent report does (PR #394 review F2) — otherwise it silently
+// normalizes to zero observations/candidates and, next to an empty spool,
+// reads as a healthy CURRENT report instead of an unusable, broken one.
+function isValidReportShape(report) {
+  return !!report && typeof report === 'object' && !Array.isArray(report)
+    && Number.isFinite(report.total_observations)
+    && Array.isArray(report.clusters);
+}
 // readTriageReport() -> { hasReport, reportObservations, candidates,
 // reportStale } read from the last triage-report.json (never re-triaged
-// here — see file header). A missing, unreadable, or malformed report is
-// treated as absent, which is itself a stale state (there is nothing
-// current to trust) — distinct from a report that genuinely reports 0
-// observations, which is why `hasReport` is its own field.
+// here — see file header). A missing, unreadable, structurally-invalid (F2),
+// or malformed report is treated as absent, which is itself a stale state
+// (there is nothing current to trust) — distinct from a report that
+// genuinely reports 0 observations, which is why `hasReport` is its own
+// field.
 function readTriageReport(spoolLines) {
   let report;
   try {
@@ -81,9 +103,11 @@ function readTriageReport(spoolLines) {
   } catch {
     return { hasReport: false, reportObservations: 0, candidates: 0, reportStale: true };
   }
-  const reportObservations = Number.isFinite(report?.total_observations) ? report.total_observations : 0;
-  const clusters = Array.isArray(report?.clusters) ? report.clusters : [];
-  const candidates = clusters.filter((c) => c?.decision === 'review_candidate').length;
+  if (!isValidReportShape(report)) {
+    return { hasReport: false, reportObservations: 0, candidates: 0, reportStale: true };
+  }
+  const reportObservations = report.total_observations;
+  const candidates = report.clusters.filter((c) => c?.decision === 'review_candidate').length;
   const reportStale = reportObservations !== spoolLines;
   return { hasReport: true, reportObservations, candidates, reportStale };
 }
