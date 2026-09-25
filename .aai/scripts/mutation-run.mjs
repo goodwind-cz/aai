@@ -132,6 +132,7 @@ import {
   isRotatedFileName,
   patchFileName,
   rotatedPatchFileName,
+  parseSedExpr,
 } from './lib/mutation-record.mjs';
 
 const ROOT = process.cwd();
@@ -359,14 +360,19 @@ function extractSelectors(suiteContent) {
 // delimiter '/', backslash-escaped delimiters honored). Sufficient for the
 // mutation expressions this ride's own Test Plan rows use; unsupported syntax
 // throws rather than silently no-op-ing.
+//
+// D1 (SPEC-DRAFT spec-gate-checks-declared-mutation): the grammar itself now
+// lives in ONE place, lib/mutation-record.mjs's `parseSedExpr` (shared with
+// the gate's own `extractDeclaredMutations`), so an expression this applier
+// accepts and an expression the gate is willing to compare can never
+// independently drift apart. Behaviour here is otherwise UNCHANGED: only the
+// `g` flag is ever actually honoured (fu-mutation-sed-drops-multiline-flag,
+// deliberately not closed by this move — see the spec's Residual risks).
 function applySedExpr(expr, content) {
-  const m = /^s\/((?:\\.|[^\\/])*)\/((?:\\.|[^\\/])*)\/([a-z]*)$/.exec(expr);
-  if (!m) throw new Error(`unsupported --sed expression (want s/pattern/replacement/[flags]): ${expr}`);
-  const [, patSrc, replSrc, flags] = m;
-  const pattern = patSrc.replace(/\\\//g, '/');
-  const replacement = replSrc.replace(/\\\//g, '/');
-  const re = new RegExp(pattern, flags.includes('g') ? 'g' : '');
-  return content.replace(re, replacement);
+  const parsed = parseSedExpr(expr);
+  if (!parsed) throw new Error(`unsupported --sed expression, does not match the shared SED_EXPR_RE grammar (lib/mutation-record.mjs): ${expr}`);
+  const re = new RegExp(parsed.pattern, parsed.flags.includes('g') ? 'g' : '');
+  return content.replace(re, parsed.replacement);
 }
 
 // Remediation round 7 (Codex P1, PR #384) + validation rounds 10 and 11:

@@ -215,6 +215,34 @@ fixture tail
 EOF
 }
 
+# mg_write_gate_record_mut <evidence_dir> <test_id> <suite> <verdict>
+# <base_commit> <mutation_value> — same shape as mg_write_gate_record but
+# with an EXPLICIT `mutation:` field (SPEC-DRAFT
+# spec-gate-checks-declared-mutation TEST-701/702/703/704/705/706): that
+# field carries whatever the record actually "ran", independent of what the
+# row's own Mutation cell declares — the exact comparison this ride adds.
+mg_write_gate_record_mut() {
+  local dir="$1" test_id="$2" suite="$3" verdict="$4" base_commit="$5" mutation_value="$6"
+  mkdir -p "$dir"
+  cat > "$dir/mutation-${test_id}.txt" <<EOF
+mutation_record: v1
+spec_id: fixture
+test_id: ${test_id}
+suite: ${suite}
+selector: test_fixture
+target: lib/fixture.mjs
+mutation: ${mutation_value}
+base_commit: ${base_commit}
+tree_hash: $(printf '0%.0s' $(seq 1 64))
+run_at_utc: 2026-01-01T00:00:00Z
+rc: 1
+verdict: ${verdict}
+first_fail: FAIL fixture TEST-9001
+---
+fixture tail
+EOF
+}
+
 # mg_gate <spec_path> [extra args...] — runs the real CLI from $PROJECT_ROOT
 # (so git ancestry is real) against an absolute --spec path.
 mg_gate() {
@@ -2241,6 +2269,352 @@ EOS
   log_pass "TEST-700 --replay re-stamps target_sha256 (and only target_sha256) on a still-reddening record whose target merely moved, naming the count on stdout, turning a gate STALE back to PASS -- exactly the gate's own printed remedy, now true; a second replay over a fresh record re-stamps nothing, and a record whose mutation stays green on replay is left byte-identical, never re-stamped"
 }
 
+# ===== SPEC-DRAFT spec-gate-checks-declared-mutation (TEST-701..709) =======
+# The gate now COMPARES a row's declared mutation to what its record actually
+# ran, rather than merely checking the Mutation cell is non-empty. TEST-701
+# is the trap this whole scope exists to close: a record produced by a
+# DIFFERENT mutation must no longer satisfy the row.
+
+# --- TEST-701 — Spec-AC-01: a declared/recorded mismatch is OFFENDING ------
+test_701_declared_mismatch_is_offending() {
+  log_info "Test: mutation-gate.mjs compares a row's declared mutation to the record's actual mutation -- a mismatch is OFFENDING naming both values, exit 5 (TEST-701, Spec-AC-01)..."
+  local suite="tests/skills/fixture-suite.sh"
+  local head_commit; head_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+  local id; id="$(mg_gate_id declared-mismatch)"
+  local spec; spec="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec" "$id" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/A/B/ | pending |
+EOF
+  local dir; dir="$(mg_gate_evidence_dir "$id")"
+  mg_write_gate_record_mut "$dir" TEST-9001 "$suite" RED "$head_commit" 'sed:s/C/D/'
+  local out rc
+  out="$(mg_gate "$spec" 2>&1)"; rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-701: want exit 5, got $rc: $out"
+  assert_payload_line_matches "$out" 'OFFENDING TEST-9001:.*sed:s/A/B/.*sed:s/C/D/' \
+    "TEST-701: the OFFENDING reason must name both the declared value and the recorded value: $out"
+
+  log_pass "TEST-701 a declared mutation that does not canonically equal the record's mutation is OFFENDING, naming both values, and the gate exits 5"
+}
+
+# --- TEST-702 — Spec-AC-02: a matching declaration (single, or the SECOND of
+# two) satisfies the row -----------------------------------------------------
+test_702_gate_accepts_matching_declaration() {
+  log_info "Test: a record matching its row's single declared token, and a record matching the SECOND of two declared tokens (a rotated-plus-live cell, D4), are both satisfied -- gate exits 0 (TEST-702, Spec-AC-02)..."
+  local suite="tests/skills/fixture-suite.sh"
+  local head_commit; head_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+  local id; id="$(mg_gate_id declared-match)"
+  local spec; spec="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec" "$id" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/A/B/ | pending |
+| TEST-9002 | Spec-AC-01 | unit | ${suite} | b | sed:s/OLD1/NEW1/ (rotated) then sed:s/OLD2/NEW2/ (live) | pending |
+EOF
+  local dir; dir="$(mg_gate_evidence_dir "$id")"
+  mg_write_gate_record_mut "$dir" TEST-9001 "$suite" RED "$head_commit" 'sed:s/A/B/'
+  mg_write_gate_record_mut "$dir" TEST-9002 "$suite" RED "$head_commit" 'sed:s/OLD2/NEW2/'
+  local out rc
+  out="$(mg_gate "$spec" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-702: want exit 0, got $rc: $out"
+  assert_payload_contains "$out" 'GATE PASS: 2 row(s) satisfied' \
+    "TEST-702: both rows (a single-token match, and a second-of-two-token match) must be satisfied: $out"
+  assert_payload_not_contains "$out" 'OFFENDING' "TEST-702: neither row should be OFFENDING: $out"
+
+  log_pass "TEST-702 a record matching its row's single declared token, and a record matching the second of two declared tokens (rotated+live, D4), are both satisfied and the gate exits 0"
+}
+
+# --- TEST-703 — Spec-AC-03: canonicalization equates whitespace/backticks,
+# keeps backslash escapes significant -----------------------------------------
+test_703_canonicalization_boundaries() {
+  log_info "Test: canonicalizeMutation equates whitespace and surrounding-backtick differences but keeps backslash escapes significant (TEST-703, Spec-AC-03)..."
+  local suite="tests/skills/fixture-suite.sh"
+  local head_commit; head_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+
+  # Arm 1 — the cell wraps its token in backticks (D2: stripped before
+  # extraction), and the record's OWN mutation: field carries extra
+  # leading/trailing whitespace (a realistic hand-edited record).
+  # canonicalizeMutation collapses/trims BOTH sides to the identical token.
+  local id_ws; id_ws="$(mg_gate_id canon-whitespace)"
+  local spec_ws; spec_ws="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_ws" "$id_ws" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | \`sed:s/A/B/\` | pending |
+EOF
+  local dir_ws; dir_ws="$(mg_gate_evidence_dir "$id_ws")"
+  mkdir -p "$dir_ws"
+  {
+    printf 'mutation_record: v1\n'
+    printf 'spec_id: %s\n' "$id_ws"
+    printf 'test_id: TEST-9001\n'
+    printf 'suite: %s\n' "$suite"
+    printf 'selector: test_fixture\n'
+    printf 'target: lib/fixture.mjs\n'
+    printf 'mutation:   sed:s/A/B/   \n'
+    printf 'base_commit: %s\n' "$head_commit"
+    printf 'tree_hash: %s\n' "$(printf '0%.0s' $(seq 1 64))"
+    printf 'run_at_utc: 2026-01-01T00:00:00Z\n'
+    printf 'rc: 1\n'
+    printf 'verdict: RED\n'
+    printf 'first_fail: FAIL fixture TEST-9001\n'
+    printf -- '---\n'
+    printf 'fixture tail\n'
+  } > "$dir_ws/mutation-TEST-9001.txt"
+  local out_ws rc_ws
+  out_ws="$(mg_gate "$spec_ws" 2>&1)"; rc_ws=$?
+  [[ "$rc_ws" -eq 0 ]] || log_fail "TEST-703 arm1 (whitespace+backticks): want exit 0, got $rc_ws: $out_ws"
+  assert_payload_contains "$out_ws" 'GATE PASS: 1 row(s) satisfied' \
+    "TEST-703 arm1: a declaration differing only by whitespace/backticks must satisfy the row: $out_ws"
+
+  # Arm 2 — the cell declares an ESCAPED paren (a literal '(' / ')' in the
+  # pattern); the record ran the UNESCAPED form (a capture group) -- a
+  # DIFFERENT regex that could not have matched the same source.
+  # Canonicalization must NOT equate them.
+  local id_bs; id_bs="$(mg_gate_id canon-backslash)"
+  local spec_bs; spec_bs="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_bs" "$id_bs" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/a\(b\)c/X/ | pending |
+EOF
+  mg_write_gate_record_mut "$(mg_gate_evidence_dir "$id_bs")" TEST-9001 "$suite" RED "$head_commit" 'sed:s/a(b)c/X/'
+  local out_bs rc_bs
+  out_bs="$(mg_gate "$spec_bs" 2>&1)"; rc_bs=$?
+  [[ "$rc_bs" -eq 5 ]] || log_fail "TEST-703 arm2 (backslash-significant): want exit 5, got $rc_bs: $out_bs"
+  assert_payload_line_matches "$out_bs" 'OFFENDING TEST-9001:' \
+    "TEST-703 arm2: an escaped-vs-unescaped paren must NOT canonicalize equal: $out_bs"
+
+  log_pass "TEST-703 canonicalizeMutation equates whitespace and surrounding-backtick differences but keeps backslash escapes significant, matching D3 exactly"
+}
+
+# --- TEST-704 — Spec-AC-04: an uncomparable cell is named, counted, and
+# excluded from satisfied ----------------------------------------------------
+test_704_uncomparable_class_is_named() {
+  log_info "Test: a row whose cell has no machine-readable declaration is UNCOMPARABLE, named on stdout, counted in uncomparable=<n>, and excluded from satisfied (TEST-704, Spec-AC-04)..."
+  local suite="tests/skills/fixture-suite.sh"
+  local head_commit; head_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+  local id; id="$(mg_gate_id uncomparable)"
+  local spec; spec="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec" "$id" tdd "mutation_gate: v1"$'\n'"mutation_uncomparable: 1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/A/B/ | pending |
+| TEST-9002 | Spec-AC-01 | unit | ${suite} | b | stop comparing the owner_signoff field entirely | pending |
+EOF
+  local dir; dir="$(mg_gate_evidence_dir "$id")"
+  mg_write_gate_record_mut "$dir" TEST-9001 "$suite" RED "$head_commit" 'sed:s/A/B/'
+  mg_write_gate_record_mut "$dir" TEST-9002 "$suite" RED "$head_commit" 'sed:s/UNRELATED/CHANGE/'
+  local out rc
+  out="$(mg_gate "$spec" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-704: want exit 0, got $rc: $out"
+  assert_payload_line_matches "$out" 'UNCOMPARABLE TEST-9002:' \
+    "TEST-704: the prose row must be named UNCOMPARABLE on stdout: $out"
+  assert_payload_not_contains "$out" 'UNCOMPARABLE TEST-9001' \
+    "TEST-704: the comparable, matching row must NOT be named uncomparable: $out"
+  assert_payload_contains "$out" 'uncomparable=1' "TEST-704: the summary line must carry uncomparable=1: $out"
+  assert_payload_contains "$out" 'GATE PASS: 1 row(s) satisfied' \
+    "TEST-704: only the comparable, matching row counts as satisfied: $out"
+
+  log_pass "TEST-704 a prose Mutation cell is named UNCOMPARABLE, counted in uncomparable=<n> right after unstamped=<n>, and excluded from the satisfied count"
+}
+
+# --- TEST-705 — Spec-AC-05: the uncomparable ratchet (normal path) ---------
+test_705_uncomparable_ratchet() {
+  log_info "Test: the mutation_uncomparable ratchet refuses above baseline, passes at baseline, and NOTEs a lowerable baseline below it; spec-lint stays quiet about the new key (TEST-705, Spec-AC-05)..."
+  local suite="tests/skills/fixture-suite.sh"
+  local head_commit; head_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+
+  # Arm A — baseline absent (= 0), actual uncomparable = 1 -> exceeds -> exit
+  # 5, naming the spec, actual and baseline.
+  local id_a; id_a="$(mg_gate_id ratchet-above)"
+  local spec_a; spec_a="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_a" "$id_a" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/A/B/ | pending |
+| TEST-9002 | Spec-AC-01 | unit | ${suite} | b | prose only, no machine-readable token | pending |
+EOF
+  local dir_a; dir_a="$(mg_gate_evidence_dir "$id_a")"
+  mg_write_gate_record_mut "$dir_a" TEST-9001 "$suite" RED "$head_commit" 'sed:s/A/B/'
+  mg_write_gate_record_mut "$dir_a" TEST-9002 "$suite" RED "$head_commit" 'sed:s/UNRELATED/CHANGE/'
+  local out_a rc_a
+  out_a="$(mg_gate "$spec_a" 2>&1)"; rc_a=$?
+  [[ "$rc_a" -eq 5 ]] || log_fail "TEST-705 arm A (above baseline): want exit 5, got $rc_a: $out_a"
+  assert_payload_line_matches "$out_a" "OFFENDING ${id_a}:.*actual=1.*baseline=0" \
+    "TEST-705 arm A: the ratchet refusal must name the spec, the actual count and the baseline: $out_a"
+
+  # Arm B — baseline equals actual (1) -> exit 0, an ordinary GATE PASS, no
+  # lower-the-baseline NOTE.
+  local id_b; id_b="$(mg_gate_id ratchet-equal)"
+  local spec_b; spec_b="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_b" "$id_b" tdd "mutation_gate: v1"$'\n'"mutation_uncomparable: 1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/A/B/ | pending |
+| TEST-9002 | Spec-AC-01 | unit | ${suite} | b | prose only, no machine-readable token | pending |
+EOF
+  local dir_b; dir_b="$(mg_gate_evidence_dir "$id_b")"
+  mg_write_gate_record_mut "$dir_b" TEST-9001 "$suite" RED "$head_commit" 'sed:s/A/B/'
+  mg_write_gate_record_mut "$dir_b" TEST-9002 "$suite" RED "$head_commit" 'sed:s/UNRELATED/CHANGE/'
+  local out_b rc_b
+  out_b="$(mg_gate "$spec_b" 2>&1)"; rc_b=$?
+  [[ "$rc_b" -eq 0 ]] || log_fail "TEST-705 arm B (at baseline): want exit 0, got $rc_b: $out_b"
+  assert_payload_contains "$out_b" 'GATE PASS: 1 row(s) satisfied' "TEST-705 arm B: expected an ordinary PASS: $out_b"
+  assert_payload_not_contains "$out_b" 'NOTE: mutation_uncomparable' \
+    "TEST-705 arm B: an exact-baseline match must not print the lower-the-baseline NOTE: $out_b"
+
+  local lint_out_b
+  lint_out_b="$(node "$PROJECT_ROOT/.aai/scripts/spec-lint.mjs" --path "$spec_b" 2>&1)"
+  assert_payload_not_contains "$lint_out_b" 'mutation_uncomparable' \
+    "TEST-705 arm B: spec-lint must report no finding naming mutation_uncomparable: $lint_out_b"
+
+  # Arm C — baseline above actual (2 > 1) -> exit 0, PLUS a NOTE that the
+  # baseline can be lowered to the real (measured) count.
+  local id_c; id_c="$(mg_gate_id ratchet-below)"
+  local spec_c; spec_c="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_c" "$id_c" tdd "mutation_gate: v1"$'\n'"mutation_uncomparable: 2" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/A/B/ | pending |
+| TEST-9002 | Spec-AC-01 | unit | ${suite} | b | prose only, no machine-readable token | pending |
+EOF
+  local dir_c; dir_c="$(mg_gate_evidence_dir "$id_c")"
+  mg_write_gate_record_mut "$dir_c" TEST-9001 "$suite" RED "$head_commit" 'sed:s/A/B/'
+  mg_write_gate_record_mut "$dir_c" TEST-9002 "$suite" RED "$head_commit" 'sed:s/UNRELATED/CHANGE/'
+  local out_c rc_c
+  out_c="$(mg_gate "$spec_c" 2>&1)"; rc_c=$?
+  [[ "$rc_c" -eq 0 ]] || log_fail "TEST-705 arm C (below baseline): want exit 0, got $rc_c: $out_c"
+  assert_payload_contains "$out_c" 'NOTE: mutation_uncomparable' "TEST-705 arm C: expected the lower-the-baseline NOTE: $out_c"
+  assert_payload_contains "$out_c" 'can be lowered to 1' "TEST-705 arm C: the NOTE must name the real (lower) count: $out_c"
+
+  log_pass "TEST-705 the mutation_uncomparable ratchet refuses above baseline naming the spec/actual/baseline, passes silently at baseline, and prints a lower-the-baseline NOTE below it -- spec-lint carries no finding about the new key"
+}
+
+# --- TEST-706 — Spec-AC-06: the ratchet holds with NO evidence tree --------
+test_706_ratchet_without_evidence_tree() {
+  log_info "Test: the ratchet reads committed row text alone -- it refuses at exit 5 even with NO evidence directory when the count grows past baseline, and the unchanged DEGRADED: evidence tree absent line/exit 0 survives when the count is at baseline (TEST-706, Spec-AC-06)..."
+  local suite="tests/skills/fixture-suite.sh"
+
+  # Arm A — no evidence dir at all, baseline absent (=0), actual=1 -> exceeds
+  # -> exit 5, naming the spec (never a silent DEGRADED exit 0).
+  local id_a; id_a="$(mg_gate_id ratchet-no-evidence-above)"
+  local spec_a; spec_a="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_a" "$id_a" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | prose only, no machine-readable token | pending |
+EOF
+  [[ ! -e "$(mg_gate_evidence_dir "$id_a")" ]] || log_fail "TEST-706 arm A setup: evidence dir must not pre-exist"
+  local out_a rc_a
+  out_a="$(mg_gate "$spec_a" 2>&1)"; rc_a=$?
+  [[ "$rc_a" -eq 5 ]] || log_fail "TEST-706 arm A: want exit 5, got $rc_a: $out_a"
+  assert_payload_line_matches "$out_a" "OFFENDING ${id_a}:.*actual=1.*baseline=0" \
+    "TEST-706 arm A: the ratchet must refuse and name the spec even with no evidence tree: $out_a"
+
+  # Arm B — no evidence dir, baseline == actual (1) -> the UNCHANGED
+  # DEGRADED: evidence tree absent line, exit 0.
+  local id_b; id_b="$(mg_gate_id ratchet-no-evidence-equal)"
+  local spec_b; spec_b="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_b" "$id_b" tdd "mutation_gate: v1"$'\n'"mutation_uncomparable: 1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | prose only, no machine-readable token | pending |
+EOF
+  [[ ! -e "$(mg_gate_evidence_dir "$id_b")" ]] || log_fail "TEST-706 arm B setup: evidence dir must not pre-exist"
+  local out_b rc_b
+  out_b="$(mg_gate "$spec_b" 2>&1)"; rc_b=$?
+  [[ "$rc_b" -eq 0 ]] || log_fail "TEST-706 arm B: want exit 0, got $rc_b: $out_b"
+  assert_payload_contains "$out_b" 'DEGRADED: evidence tree absent degraded=1' \
+    "TEST-706 arm B: the ordinary evidence-tree-absent DEGRADED line must survive unchanged: $out_b"
+
+  log_pass "TEST-706 the ratchet is evaluated from committed row text alone: it refuses (exit 5, naming the spec) even with no evidence directory once the count grows past baseline, and leaves the unchanged DEGRADED: evidence tree absent line/exit 0 in place when the count is at baseline"
+}
+
+# --- TEST-707 — Spec-AC-07: one sed grammar, shared by the extractor and the
+# runner's applier ------------------------------------------------------------
+test_707_one_sed_grammar() {
+  log_info "Test: the sed grammar has exactly one definition -- an expression the exported parser/extractor accepts is accepted by a REAL mutation-run.mjs run, and one it refuses is refused there too; no second inline copy remains in mutation-run.mjs (TEST-707, Spec-AC-07)..."
+
+  # The OLD inline regex/error text is gone from mutation-run.mjs -- the
+  # grammar now lives in ONE place, lib/mutation-record.mjs.
+  local grep_count
+  grep_count="$(/usr/bin/grep -c 'want s/pattern/replacement/' "$PROJECT_ROOT/.aai/scripts/mutation-run.mjs" || true)"
+  [[ "${grep_count:-0}" -eq 0 ]] \
+    || log_fail "TEST-707: the inline sed-grammar copy must be gone from mutation-run.mjs, found $grep_count occurrence(s)"
+
+  # The exported grammar's OWN verdict on three expressions.
+  local node_out
+  node_out="$(node --input-type=module -e "
+import { parseSedExpr } from '$PROJECT_ROOT/.aai/scripts/lib/mutation-record.mjs';
+for (const e of process.argv.slice(1)) console.log(e + ' => ' + (parseSedExpr(e) ? 'accept' : 'refuse'));
+" 's/hello/go\/od/' 's/hello/goodbye/g' 's/foo/bar/x')"
+  assert_payload_contains "$node_out" 's/hello/go\/od/ => accept' "TEST-707: the exported grammar must accept expr1 (escaped delimiter): $node_out"
+  assert_payload_contains "$node_out" 's/hello/goodbye/g => accept' "TEST-707: the exported grammar must accept expr2 (plain, flagged): $node_out"
+  assert_payload_contains "$node_out" 's/foo/bar/x => refuse' "TEST-707: the exported grammar must refuse an invalid flag letter: $node_out"
+
+  # A REAL mutation-run.mjs run over a fixture repo must agree, expression by
+  # expression -- not a second, independently hand-rolled regex.
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-707"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  printf 'marker-present' > "$fx/lib/extra.txt"
+
+  # expr1 (escaped delimiter in the replacement half) -- ACCEPTED: applies
+  # cleanly and reddens the fixture suite's own greeting assertion.
+  local run1 rc1
+  run1="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/go\/od/' 2>&1)"; rc1=$?
+  [[ "$rc1" -eq 0 ]] || log_fail "TEST-707: expr1 (escaped delimiter) must be ACCEPTED by the real tool (RED), got exit $rc1: $run1"
+  assert_payload_not_contains "$run1" 'unsupported --sed expression' \
+    "TEST-707: expr1 must never be refused as an unsupported grammar: $run1"
+
+  # expr3 (invalid flag letter) -- REFUSED by the REAL tool too, with the
+  # SAME grammar-refusal cause the exported parseSedExpr disagreement would
+  # be, never a silently divergent acceptance.
+  local run3 rc3
+  run3="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9002 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/foo/bar/x' 2>&1)"; rc3=$?
+  [[ "$rc3" -eq 2 ]] || log_fail "TEST-707: expr3 (invalid flag) must be REFUSED by the real tool, got exit $rc3: $run3"
+  assert_payload_contains "$run3" 'unsupported --sed expression' \
+    "TEST-707: expr3's refusal must be the grammar refusal, not a different exit-2 cause: $run3"
+
+  log_pass "TEST-707 the sed grammar has exactly one definition: an expression the exported parser/extractor accepts is accepted by a real mutation-run.mjs run and vice versa, and mutation-run.mjs no longer carries its own inline copy"
+}
+
+# --- TEST-709 — Spec-AC-09: the 5 live gated specs carry measured baselines -
+test_709_live_corpus_baselines_are_measured() {
+  log_info "Test: each of the 5 live mutation-gated specs carries a mutation_uncomparable value equal to what the shipped classifier measures over its own committed Test Plan rows (TEST-709, Spec-AC-09)..."
+  local specs=(
+    "docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md"
+    "docs/specs/SPEC-0182-spec-close-ceremony-sweep.md"
+    "docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md"
+    "docs/specs/SPEC-0185-spec-friction-channel-sweep.md"
+    "docs/specs/SPEC-0186-spec-canon-is-a-build-artifact.md"
+  )
+  local s
+  for s in "${specs[@]}"; do
+    [[ -f "$PROJECT_ROOT/$s" ]] || log_fail "TEST-709: expected live spec missing: $s"
+  done
+
+  local node_out
+  node_out="$(node --input-type=module -e "
+import fs from 'node:fs';
+import { parseFrontmatter, parseTestPlanTable, isMutationCellPlaceholder } from '$PROJECT_ROOT/.aai/scripts/lib/docs-model.mjs';
+import { extractDeclaredMutations } from '$PROJECT_ROOT/.aai/scripts/lib/mutation-record.mjs';
+for (const s of process.argv.slice(1)) {
+  const content = fs.readFileSync(s, 'utf8');
+  const fm = parseFrontmatter(content) ?? {};
+  const tp = parseTestPlanTable(content);
+  let actual = 0;
+  for (const row of tp.rows) {
+    const cell = (row.mutationCell ?? '').trim();
+    if (!cell) continue;
+    if (isMutationCellPlaceholder(cell)) continue;
+    if (extractDeclaredMutations(cell).length === 0) actual++;
+  }
+  if (fm.mutation_uncomparable === undefined) { console.log('MISSING_BASELINE ' + s); continue; }
+  const baseline = Number(fm.mutation_uncomparable);
+  if (actual !== baseline) console.log('MISMATCH ' + s + ' actual=' + actual + ' baseline=' + baseline);
+  else console.log('OK ' + s + ' actual=' + actual);
+}
+" "${specs[@]/#/$PROJECT_ROOT/}")"
+
+  assert_payload_not_contains "$node_out" 'MISMATCH' "TEST-709: a live spec's measured count disagreed with its frontmatter baseline: $node_out"
+  assert_payload_not_contains "$node_out" 'MISSING_BASELINE' "TEST-709: a live gated spec has no mutation_uncomparable frontmatter value: $node_out"
+  for s in "${specs[@]}"; do
+    assert_payload_contains "$node_out" "OK $PROJECT_ROOT/$s" "TEST-709: missing an OK measurement line for $s: $node_out"
+  done
+
+  log_pass "TEST-709 all 5 live mutation-gated specs carry a mutation_uncomparable value equal to the shipped classifier's own measurement over their committed Test Plan rows"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -2268,6 +2642,14 @@ main() {
   test_513_patch_scope_refusal
   test_517_flag_value_usage_errors
   test_700_replay_restamps_stale_target
+  test_701_declared_mismatch_is_offending
+  test_702_gate_accepts_matching_declaration
+  test_703_canonicalization_boundaries
+  test_704_uncomparable_class_is_named
+  test_705_uncomparable_ratchet
+  test_706_ratchet_without_evidence_tree
+  test_707_one_sed_grammar
+  test_709_live_corpus_baselines_are_measured
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -694,6 +694,55 @@ SPEC-FROZEN: true
 EOF
 }
 
+# write_mutation_gate_uncomparable_spec_doc <path> <id> <status> — SPEC-DRAFT
+# spec-gate-checks-declared-mutation Spec-AC-08 (TEST-708): an applicable
+# spec whose ONE Test Plan row's Mutation cell carries PROSE (no
+# sed:/patch: token) and whose frontmatter `mutation_uncomparable: 1`
+# matches that row count exactly — the real gate therefore PASSES
+# (`GATE PASS: 0 row(s) satisfied ... uncomparable=1`, never a refusal, the
+# ratchet is satisfied at baseline) while still reporting uncomparable=1 in
+# its summary line. The caller must ALSO create the evidence DIRECTORY and a
+# valid matching record for TEST-001 (same discipline as the builders
+# above) — an uncomparable row still owes every existing record check (D5).
+write_mutation_gate_uncomparable_spec_doc() {
+  local path="$1" id="$2" status="$3"
+  cat > "$path" <<EOF
+---
+id: $id
+type: spec
+number: null
+status: $status
+ceremony_level: 2
+mutation_gate: v1
+mutation_uncomparable: 1
+links:
+  requirement: null
+  rfc: null
+  pr: []
+  commits: []
+---
+
+# SPEC — Fixture $id
+
+SPEC-FROZEN: true
+
+## Implementation strategy
+- Strategy: tdd
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence   | Review-By | Notes |
+|------------|--------------|--------|------------|-----------|-------|
+| Spec-AC-01 | fixture      | done   | commit-abc | —         | —     |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected)          | Description | Mutation                              | Status |
+|----------|------------|------|--------------------------------|--------------|----------------------------------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/skills/fixture-suite.sh | fixture      | prose only, no machine-readable token | green  |
+EOF
+}
+
 # --- usage-capture-gate fixture builders (spec-telemetry-completeness) -------
 
 # set_usage_capture_gate_dial <fixture_dir> <enforce|report-only|bogus> —
@@ -3775,6 +3824,58 @@ EOF
   log_pass "TEST-505: an all-exempt vacuous pass surfaces its exempt/degraded counts as a WARNING even under enforce, a mixed offending+exempt spec's REFUSED reason names the exempt count too, and a satisfied-but-unstamped (legacy record) spec surfaces its unstamped count as a WARNING too (Spec-AC-07, NB4-r7)"
 }
 
+# --- TEST-708 (SPEC-DRAFT spec-gate-checks-declared-mutation Spec-AC-08) ---
+# a spec whose gate run reports uncomparable=1 must surface that count in
+# the close's mutation-gate WARNING, not close silently -- the SAME
+# "a named degrade the close must not discard" shape NB-2 fixed for exempt
+# and NB4-r7 fixed for unstamped.
+test_708_close_surfaces_uncomparable() {
+  log_info "Test: a close whose spec's gate reports uncomparable=1 prints that count in the mutation-gate WARNING instead of closing silently (TEST-708, Spec-AC-08)..."
+  local dir; dir=$(new_fixture_repo "t708")
+  seed_mutation_gate_engine "$dir"
+  set_mutation_gate_dial "$dir" "enforce"
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t708.md" "t708-change" "implementing"
+  write_mutation_gate_uncomparable_spec_doc "$dir/docs/specs/SPEC-0001-t708.md" "t708-spec" "implementing"
+  mkdir -p "$dir/docs/ai/tdd/t708-spec" "$dir/lib"
+  # The record's target must exist AND be STAMPED (target_sha256 matching
+  # the live file) -- otherwise the row is also `unstamped=1`, which alone
+  # already trips the close's notice and would mask whether uncomparable=1
+  # is what actually drives it (the row must isolate ONE named degrade).
+  printf '// fixture target\n' > "$dir/lib/fixture.mjs"
+  local target_sha; target_sha="$($(sha_cmd) "$dir/lib/fixture.mjs" | awk '{print $1}')"
+  commit_fixture_docs "$dir"
+  local head_h; head_h="$(git -C "$dir" rev-parse HEAD)"
+  cat > "$dir/docs/ai/tdd/t708-spec/mutation-TEST-001.txt" <<EOF
+mutation_record: v1
+spec_id: t708-spec
+test_id: TEST-001
+suite: tests/skills/fixture-suite.sh
+selector: test_fixture
+target: lib/fixture.mjs
+mutation: sed:s/UNRELATED/CHANGE/
+base_commit: ${head_h}
+tree_hash: $(printf '0%.0s' $(seq 1 64))
+run_at_utc: 2026-01-01T00:00:00Z
+rc: 1
+verdict: RED
+first_fail: FAIL fixture TEST-001
+target_sha256: ${target_sha}
+---
+fixture tail
+EOF
+  local out="$TEST_DIR/t708.out" err="$TEST_DIR/t708.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t708-change --spec t708-spec --pr 67 --commit c708c708)
+  assert_exit "TEST-708: an at-baseline uncomparable spec passes the gate (exit 0) even under enforce -- never a refusal" 0 "$code"
+  grep -qi 'WARNING (mutation gate)' "$err" \
+    || log_fail "TEST-708: expected a mutation-gate WARNING on stderr, got: $(cat "$err")"
+  grep -qF 'uncomparable=1' "$err" \
+    || log_fail "TEST-708: the WARNING must name the uncomparable count, got: $(cat "$err")"
+  grep -q '^status: done$' "$dir/docs/specs/SPEC-0001-t708.md" \
+    || log_fail "TEST-708: a satisfied-with-uncomparable gate result must not block the close"
+
+  log_pass "TEST-708 a close whose spec reports uncomparable=1 prints that count in the mutation-gate WARNING rather than closing silently, and the close still succeeds"
+}
+
 # ===== spec-close-ceremony-sweep (Spec-AC-06/07/08, TEST-528..531) ===========
 #
 # TDD run 3/11 of docs/specs/SPEC-0182-spec-close-ceremony-sweep.md:
@@ -4274,6 +4375,7 @@ main() {
   test_067_mutation_gate_close_wiring
   test_068_mutation_gate_all_exempt_notice
   test_069_usage_gate_tokens_total_field_passes
+  test_708_close_surfaces_uncomparable
   test_528_paired_close_one_transaction
   test_529_paired_close_idempotent
   test_530_skip_keeps_planned_echo
