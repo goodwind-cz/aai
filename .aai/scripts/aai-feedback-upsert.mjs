@@ -313,6 +313,14 @@ function ghRefusalLine(prefix, r) {
 const ISSUE_URL_RE = /^https?:\/\/([^\s/]+)\/([^\s/]+)\/([^\s/]+)\/issues\/(\d+)$/;
 const TRUSTED_ISSUE_HOST = 'github.com';
 const MAX_ISSUE_NUMBER_DIGITS = 10;
+// `rawNumber` (Spec-AC-06, S4): carried on every `untrusted_url` refusal, so a
+// caller that wanted to (wrongly) act on the shape-matched-but-uncertified
+// number could reach for `parsed.rawNumber` -- the certified-prose comment
+// gate below MUST read `parsed.certified`, never this field, or an
+// uncertified URL (foreign host, oversized number, wrong destination) would
+// still receive the second mutating write. It is absent (not merely falsy)
+// on `unparseable`: the regex never matched at all there, so there is no
+// number to report either way.
 function parseIssueUrl(stdout, destination) {
   const lines = (stdout || '').split('\n');
   for (const raw of lines) {
@@ -324,17 +332,17 @@ function parseIssueUrl(stdout, destination) {
     let decodedHost;
     try { decodedHost = decodeURIComponent(host); } catch { decodedHost = host; }
     if (host.includes('@') || decodedHost.includes('@')) {
-      return { certified: false, reason: 'untrusted_url', detail: 'the reported URL carries embedded userinfo (a credential shape, raw or percent-encoded) and was not printed' };
+      return { certified: false, reason: 'untrusted_url', detail: 'the reported URL carries embedded userinfo (a credential shape, raw or percent-encoded) and was not printed', rawNumber: number };
     }
     if (host.toLowerCase() !== TRUSTED_ISSUE_HOST) {
-      return { certified: false, reason: 'untrusted_url', detail: 'the reported URL host is not github.com and was not printed' };
+      return { certified: false, reason: 'untrusted_url', detail: 'the reported URL host is not github.com and was not printed', rawNumber: number };
     }
     if (number.length > MAX_ISSUE_NUMBER_DIGITS) {
-      return { certified: false, reason: 'untrusted_url', detail: 'the reported URL carries an implausibly long issue number and was not printed' };
+      return { certified: false, reason: 'untrusted_url', detail: 'the reported URL carries an implausibly long issue number and was not printed', rawNumber: number };
     }
     const ownerRepo = `${owner}/${repo}`;
     if (!destination || ownerRepo.toLowerCase() !== destination.toLowerCase()) {
-      return { certified: false, reason: 'untrusted_url', detail: 'the reported URL does not match the configured destination and was not printed' };
+      return { certified: false, reason: 'untrusted_url', detail: 'the reported URL does not match the configured destination and was not printed', rawNumber: number };
     }
     return { certified: true, url: line, number };
   }
@@ -363,17 +371,21 @@ function ghAuthHint(state) {
 // (transient error / API drift). Callers must distinguish "searched and none"
 // (safe to create) from "could not search" (the confirm path fails CLOSED and
 // refuses to create, so a search hiccup can never fan out into a duplicate).
+// Spec-AC-07: a process that EXITS non-zero and a process that exits 0 with
+// unparseable stdout are two DIFFERENT failure modes — `parseFailed: true`
+// distinguishes the second, so the caller never renders a parse failure as
+// "(exit 0)" (a status that reads as "gh said everything is fine").
 function dedupSearch(destination, fp) {
-  if (!destination) return { searched: false, exists: false, ghResult: null };
+  if (!destination) return { searched: false, exists: false, ghResult: null, parseFailed: false };
   // NO `--state`: `gh search issues` accepts only {open|closed}, and `--state all`
   // — which this call carried until 2026-09-04 — is rejected by the CLI on every
   // invocation. Omitting the flag searches ALL states, which is the semantics the
   // dedup needs. The rejection made `searched` permanently false, so the
   // fail-closed below refused every create and the channel could never file.
   const r = runGh(['search', 'issues', '--repo', destination, '--match', 'body', `aai-friction:${fp}`, '--json', 'number', '--limit', '1']);
-  if (!r.ok) return { searched: false, exists: false, ghResult: r };
-  try { const arr = JSON.parse(r.stdout); return { searched: true, exists: Array.isArray(arr) && arr.length > 0, ghResult: r }; }
-  catch { return { searched: false, exists: false, ghResult: r }; }
+  if (!r.ok) return { searched: false, exists: false, ghResult: r, parseFailed: false };
+  try { const arr = JSON.parse(r.stdout); return { searched: true, exists: Array.isArray(arr) && arr.length > 0, ghResult: r, parseFailed: false }; }
+  catch { return { searched: false, exists: false, ghResult: r, parseFailed: true }; }
 }
 
 // Labels that actually EXIST in the destination. `gh issue create` refuses an
@@ -381,20 +393,24 @@ function dedupSearch(destination, fp) {
 // write. TRI-STATE like dedupSearch, but the caller degrades the OPPOSITE way:
 // { read:false } means "drop every label and file anyway". The asymmetry is
 // deliberate — a duplicate issue is a real harm, an unlabelled issue is not.
+// Spec-AC-07 (fu-existinglabels-discards-status): the `runGh` result travels
+// back as `ghResult` in EVERY branch (not just the failure one), so the caller
+// can always render the true refusal — exit status and certified stderr —
+// through `ghRefusalLine` instead of a status-free "could not read" message.
 const LABEL_LIST_LIMIT = 500;
 function existingLabels(destination) {
-  if (!destination) return { read: false, names: [], truncated: false };
+  if (!destination) return { read: false, names: [], truncated: false, ghResult: null };
   const r = runGh(['label', 'list', '--repo', destination, '--json', 'name', '--limit', String(LABEL_LIST_LIMIT)]);
-  if (!r.ok) return { read: false, names: [], truncated: false };
+  if (!r.ok) return { read: false, names: [], truncated: false, ghResult: r };
   try {
     const arr = JSON.parse(r.stdout);
-    if (!Array.isArray(arr)) return { read: false, names: [], truncated: false };
+    if (!Array.isArray(arr)) return { read: false, names: [], truncated: false, ghResult: r };
     const names = arr.map((x) => (x && typeof x.name === 'string' ? x.name : '')).filter(Boolean);
     // A full page means the list MAY be cut short, so "does not exist" would be
     // a claim we cannot support. Say "not in the first N" instead of asserting
     // absence — an untrue guard message is an untrue instruction.
-    return { read: true, names, truncated: arr.length >= LABEL_LIST_LIMIT };
-  } catch { return { read: false, names: [], truncated: false }; }
+    return { read: true, names, truncated: arr.length >= LABEL_LIST_LIMIT, ghResult: r };
+  } catch { return { read: false, names: [], truncated: false, ghResult: r }; }
 }
 
 // GitHub label names are case-insensitive for matching purposes.
@@ -530,15 +546,21 @@ function buildPayload(rep, cluster, fp) {
     `- recurrence: ${safeInt(cluster.recurrence)}  score: ${safeInt(cluster.score)}`,
   ].filter(Boolean);
   // Transmit redaction of the ONLY free-text field: summary. Dropped if unsafe.
+  // `certifiedSummary` (Spec-AC-06) is the SAME certified value the blockquote
+  // above renders -- one certification, two uses (the filed body and, on a
+  // certified URL, the follow-up analysis comment) -- never a second
+  // independent read of `rep.summary` that could disagree with what the body
+  // actually carries.
   let summaryLine = null;
   let redactionStatus = 'none';
+  let certifiedSummary = null;
   if (typeof rep.summary === 'string' && rep.summary.length) {
     const r = redactSummary(rep.summary);
-    if (r.ok) { summaryLine = `\n> ${r.value}`; redactionStatus = 'transmit_clean'; }
+    if (r.ok) { summaryLine = `\n> ${r.value}`; redactionStatus = 'transmit_clean'; certifiedSummary = r.value; }
     else redactionStatus = 'transmit_dropped';
   }
   const body = `${summaryLine ? summaryLine + '\n\n' : ''}${facts.join('\n')}\n\n${MARKER(fp)}\n`;
-  return { title, body, redaction_status: redactionStatus };
+  return { title, body, redaction_status: redactionStatus, certifiedSummary };
 }
 
 // Rolling 7-day budget from the local ledger (created issues only).
@@ -636,7 +658,19 @@ function main() {
     }
     const ds = dedupSearch(cfg.destination, fp);
     if (!ds.searched) {
-      process.stderr.write(ghRefusalLine(`aai-feedback-upsert: could not verify dedup for ${fp} — refusing to create`, ds.ghResult || { ok: false, status: null, stderrFirst: '' }));
+      // Spec-AC-07: a PARSE failure (gh exited 0, stdout was not the expected
+      // JSON) is a DIFFERENT cause than a process failure, and must never be
+      // rendered as "(exit 0)" -- a status that reads as "gh said everything
+      // is fine". The real (possibly non-zero) status is discarded here on
+      // purpose; only a genuine process failure (the else branch) reports it.
+      if (ds.parseFailed) {
+        process.stderr.write(ghRefusalLine(
+          `aai-feedback-upsert: could not verify dedup for ${fp} — refusing to create (gh search exited 0 but its output was not valid JSON: a parse failure, not a process failure)`,
+          { ok: false, status: null, stderrFirst: ds.ghResult ? ds.ghResult.stderrFirst : '' },
+        ));
+      } else {
+        process.stderr.write(ghRefusalLine(`aai-feedback-upsert: could not verify dedup for ${fp} — refusing to create`, ds.ghResult || { ok: false, status: null, stderrFirst: '' }));
+      }
       process.exit(1);
     }
     if (ds.exists) {
@@ -656,7 +690,13 @@ function main() {
     if (cfg.labels.length) {
       const ls = existingLabels(cfg.destination);
       if (!ls.read) {
-        process.stderr.write(`aai-feedback-upsert: could not read the label set for ${cfg.destination} — filing without labels (${cfg.labels.join(', ')})\n`);
+        // Spec-AC-07 (fu-existinglabels-discards-status): render the real
+        // refusal through ghRefusalLine -- the exit status and the certified
+        // stderr detail -- instead of a status-free "could not read".
+        process.stderr.write(ghRefusalLine(
+          `aai-feedback-upsert: could not read the label set for ${cfg.destination} — filing without labels (${cfg.labels.join(', ')})`,
+          ls.ghResult,
+        ));
       } else {
         for (const label of cfg.labels) {
           if (hasLabel(ls.names, label)) ghArgs.push('--label', label);
@@ -687,8 +727,30 @@ function main() {
     // NOTE and a literal placeholder rather than ever echoing the raw blob
     // (D2). The advertised `gh issue comment` command always names the
     // CONFIGURED destination (D3), never one parsed out of the URL, and it is
-    // only ever PRINTED here -- never executed (seam S3).
+    // only ever PRINTED here -- never executed (seam S3) -- UNLESS the record
+    // itself carries a summary the TRANSMIT pass certified AND the returned
+    // URL is itself certified (Spec-AC-06): then the engine runs that comment
+    // itself, once, against the CERTIFIED number (never `parsed.rawNumber`,
+    // which a shape-matched-but-uncertified URL also carries -- reading it
+    // here would post a certified human sentence to a host or repo that was
+    // never certified as the operator's own).
     const parsed = parseIssueUrl(r.stdout, cfg.destination);
+    let commentResult = null;
+    if (parsed.certified && payload.certifiedSummary) {
+      commentResult = runGh(
+        ['issue', 'comment', parsed.number, '--repo', cfg.destination, '--body', payload.certifiedSummary],
+        { mutating: true },
+      );
+      if (!commentResult.ok) {
+        // The issue is FILED and the ledger entry is WRITTEN already (above);
+        // only the follow-up comment failed. Name the real cause and exit
+        // non-zero -- a silent success here would hide that the certified
+        // analysis never reached the maintainer.
+        process.stderr.write(ghRefusalLine('aai-feedback-upsert: gh issue comment failed', commentResult));
+        process.stdout.write(`filed issue for ${fp} in ${cfg.destination}\n${parsed.url}\n`);
+        process.exit(1);
+      }
+    }
     const followup = [];
     if (parsed.certified) {
       followup.push(parsed.url);
@@ -697,8 +759,12 @@ function main() {
     } else {
       followup.push('NOTE: could not read the issue number from gh\'s output -- fill in <issue-number> below by hand.');
     }
-    followup.push('This record is prose-free by design: a human analysis comment is required for the issue to be actionable.');
-    followup.push(`gh issue comment ${parsed.certified ? parsed.number : '<issue-number>'} --repo ${cfg.destination} --body-file <file>`);
+    if (commentResult) {
+      followup.push('the certified analysis was posted as a comment on the filed issue -- no further hand-written follow-up is required.');
+    } else {
+      followup.push('This record is prose-free by design: a human analysis comment is required for the issue to be actionable.');
+      followup.push(`gh issue comment ${parsed.certified ? parsed.number : '<issue-number>'} --repo ${cfg.destination} --body-file <file>`);
+    }
     process.stdout.write(`filed issue for ${fp} in ${cfg.destination}\n${followup.join('\n')}\n`);
     process.exit(0);
   }

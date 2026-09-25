@@ -837,7 +837,26 @@ test_012_growth_sum_matches_ledger() {
   # --decline-ref-guard escape, replacing the pre-commit-only safety
   # sentence fact 4 named as the stale contract. Credited 1:1, headroom
   # stays 2046/2048.
-  local want_growth=35820
+  # friction-channel-sweep validation-round1 B2 remediation: 35820 -> 36842
+  # (+1022 B) crediting .aai/SKILL_FEEDBACK_UPSERT.prompt.md's Safety model /
+  # "After a confirmed publish" rewrite so the prompt states the certified-
+  # prose analysis-comment write Spec-AC-06 actually ships, instead of the
+  # prior "only prints, never runs" text. Credited 1:1, headroom stays
+  # 1942/2048 (TEST-010).
+  # friction-channel-sweep code-review remediation3 BLOCKING fix: 36842 ->
+  # 37038 (+196 B) crediting .aai/SKILL_WRAP_UP.prompt.md step 3's new
+  # session-marker self-mark / --guard override sentence (learned-append.mjs
+  # now emits a conforming [local]/[guard -> <id>] marker when its default
+  # EOF insertion lands under the file's last "## Session ..." heading, so
+  # the writer this ride ships can satisfy the lint this ride ships).
+  # Credited 1:1, headroom stays 1942/2048 (TEST-010).
+  # Then 37038 -> 37212: friction-channel-sweep PR #394 bot review remediation
+  # F4 (+174 B) -- .aai/SKILL_FEEDBACK_TRIAGE.prompt.md's Report section states
+  # the SIGNAL_FLOOR gate on the recurrence bonus (a zero-signal cluster
+  # scores 0 no matter how often it recurs) instead of the flat
+  # impact+confidence+reproducible+recurrence sum the code no longer
+  # implements. Credited 1:1, headroom stays 1942/2048 (TEST-010).
+  local want_growth=37212
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

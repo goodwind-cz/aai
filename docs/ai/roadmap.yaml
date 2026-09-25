@@ -38,7 +38,7 @@ pairs:
     status: done
   - capability: friction-channel-sweep
     maintenance: hand-authored-friction-is-second-class
-    status: planned
+    status: done
   - capability: canon-is-a-build-artifact
     maintenance: operator-waiver-unblocks-pr
     status: planned

@@ -106,6 +106,10 @@ suites:
       - .aai/scripts/close-work-item.mjs
       - .aai/SKILL_PR.prompt.md
       - .aai/VALIDATION.prompt.md
+      # spec-friction-channel-sweep Spec-AC-12: the close ceremony's
+      # best-effort friction-backlog line shells out to aai-feedback-status.mjs,
+      # and TEST-671 asserts against it directly.
+      - .aai/scripts/aai-feedback-status.mjs
 
   aai-constitution:
     globs:
@@ -578,6 +582,11 @@ suites:
       - .aai/system/FRICTION_PROTOCOL.md
       - docs/knowledge/LEARNED.md
       - docs/knowledge/**
+
+  aai-ledger-merge:
+    globs:
+      - .aai/scripts/ledger-merge.mjs
+      - .aai/system/PROFILES.yaml
 
   aai-metrics:
     globs:

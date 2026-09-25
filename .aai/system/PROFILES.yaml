@@ -138,6 +138,7 @@ core:
   - .aai/scripts/intake-staleness-check.mjs
   - .aai/scripts/layer-drift.mjs
   - .aai/scripts/learned-append.mjs
+  - .aai/scripts/ledger-merge.mjs
   - .aai/scripts/lib/append-lock.mjs
   - .aai/scripts/lib/append-lock.sh
   - .aai/scripts/lib/cli-pipe-guard.mjs
@@ -282,6 +283,11 @@ extended:
   - .aai/scripts/golden-flow.mjs
   - .aai/scripts/lib/aai-redact.mjs
   - .aai/scripts/lib/docs-canon-core.mjs
+  # extended: the shared spool-line predicate for aai-feedback-status.mjs and
+  # aai-feedback-triage.mjs, both extended (RFC-0012 friction feedback) —
+  # same precedent as every other scripts/lib/*.mjs entry classified with its
+  # only importers.
+  - .aai/scripts/lib/friction-spool.mjs
   - .aai/scripts/lib/test-canon-core.mjs
   - .aai/scripts/live-parsers/claude-code.mjs
   - .aai/scripts/live-parsers/codex.mjs

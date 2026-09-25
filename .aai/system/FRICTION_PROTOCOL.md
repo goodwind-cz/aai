@@ -125,9 +125,14 @@ only `summary` is ever redacted.
 ### Summary redaction (D2/D3/D4)
 
 The free-text `summary` is off by default. It is persisted only when
-`.aai/feedback.yaml` `capture.summary_enabled: true` AND the hard redactor
-(`.aai/scripts/lib/aai-redact.mjs`) certifies it clean. The redactor is
-FAIL-CLOSED and defends in two layers:
+`.aai/feedback.yaml` `capture.summary_enabled: true`, OR the caller passed
+`record --promote` (spec-friction-channel-sweep D2 — a human who wrote and
+read a sentence certifying it, readable ONLY from argv; an input JSON key
+literally named `promote` is inert, dropped by the same D6 deny-by-default
+allowlist as any other unlisted key), AND the hard redactor
+(`.aai/scripts/lib/aai-redact.mjs`) certifies it clean either way — `--promote`
+admits a summary for certification, it never exempts one from it. The redactor
+is FAIL-CLOSED and defends in two layers:
 
 1. **Allow-list charset gate (primary).** Deny-list detection of secrets in free
    text is fundamentally incomplete, so the summary is first required to consist
@@ -151,6 +156,16 @@ be detected in free text; the opt-in/off-by-default/local-only posture bounds th
 blast radius. This is the CAPTURE pass of RFC-0013's double redaction; the
 TRANSMIT pass (later upsert slice) re-runs the SAME shared redactor before any
 external write.
+
+**The NOTE contract (spec-friction-channel-sweep Spec-AC-05).** Every time a
+supplied `summary` is dropped — the gate closed (`capture.summary_enabled` is
+`false` and `--promote` was not given), or the redactor's own certification
+failed — `record` writes exactly ONE line to stderr naming the reason (the gate,
+or the redactor's `reason`: `over_length`, `control_char`, `unsafe_char`,
+`empty`, or a detector class). stdout (`recorded <fingerprint>`) and the exit
+code are unchanged either way — the NOTE is a diagnosis, never a second
+failure mode. The automatic capture point in `aai-run-tests.sh` never supplies
+`--promote` or a `summary`, so its own calls never reach this branch.
 
 ---
 

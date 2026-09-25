@@ -61,7 +61,10 @@ PROCESS
    The gate accepts only a byte-exact pure append (any rewrite, reorder,
    mid-insert, or deletion is rejected with nothing written) and stamps the
    house date+source format itself — see .aai/system/FRICTION_PROTOCOL.md's
-   "Learned-append gate" pointer for the full contract.
+   "Learned-append gate" pointer for the full contract. If the append lands
+   under a "## Session …" heading it self-marks `[local]`; pass
+   `--guard <follow-up-id>` instead when the note is enforcement that
+   belongs in the layer (see `--help`).
 
 4. CHECK UNCOMMITTED WORK
    Run `git status` (read-only) and report:

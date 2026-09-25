@@ -11,9 +11,12 @@
 //   contract). See .aai/system/FRICTION_PROTOCOL.md for the full contract.
 //
 // GRAMMAR
-//   node .aai/scripts/aai-friction.mjs record --input <path|->
+//   node .aai/scripts/aai-friction.mjs record --input <path|-> [--promote]
 //   node .aai/scripts/aai-friction.mjs --help
 //   `--input -` reads the observation JSON from stdin; otherwise it is a path.
+//   `--promote` (spec-friction-channel-sweep D2, argv-only) admits a schema-v2
+//   `summary` for certification even while .aai/feedback.yaml
+//   capture.summary_enabled is false; it does not exempt it from redaction.
 //
 // D6 DENY-BY-DEFAULT (the privacy crux)
 //   The persisted record is built by COPYING ONLY the nine allowlisted keys
@@ -91,13 +94,15 @@ const REDACTION_VALUES = ['none', 'standard', 'hard'];
 const HELP = `aai-friction — RFC-0012 Phase 0 offline friction capture.
 
 Usage:
-  node .aai/scripts/aai-friction.mjs record --input <path|->
+  node .aai/scripts/aai-friction.mjs record --input <path|-> [--promote]
   node .aai/scripts/aai-friction.mjs --help
 
 record
   Validate a schema-v1 or -v2 observation (JSON) and append ONE JSONL line to
   the untracked spool at docs/ai/friction/${SPOOL_FILE_NAME}. Pass a file path,
-  or '-' to read the observation from stdin.
+  or '-' to read the observation from stdin. '--promote' (argv-only; an input
+  JSON key named 'promote' is inert) admits a v2 'summary' for certification
+  even while .aai/feedback.yaml capture.summary_enabled is false.
 
 Guarantees:
   - Offline: no token and no network access is ever used.
@@ -109,8 +114,10 @@ Guarantees:
     input key — named identity fields or any novel key — is dropped by
     construction.
   - Redaction (RFC-0013): the opt-in free-text 'summary' (schema v2) is persisted
-    only when .aai/feedback.yaml enables it AND the hard redactor certifies it
-    clean; otherwise it is dropped fail-closed (the record still persists).
+    only when .aai/feedback.yaml enables it, or --promote was given, AND the
+    hard redactor certifies it clean; otherwise it is dropped fail-closed (the
+    record still persists) and ONE NOTE line naming the reason (the capture
+    gate, or the redactor's own reason) is written to stderr.
   - Concurrency-safe: the line is appended with O_APPEND, so concurrent
     record processes never lose or interleave lines; a rejected input never
     leaves a partial line.
@@ -419,6 +426,12 @@ function loadSummaryEnabled() {
 
 function parseRecordArgs(rest) {
   let input = null;
+  // spec-friction-channel-sweep D2/Spec-AC-03: `promote` is readable ONLY from
+  // argv — never from the input JSON (validate()/record() below never read an
+  // input key named `promote`, so a caller-supplied one is inert by
+  // construction, the same deny-by-default discipline D6 already applies to
+  // every other unlisted key).
+  let promote = false;
   let i = 0;
   while (i < rest.length) {
     const tok = rest[i];
@@ -428,16 +441,31 @@ function parseRecordArgs(rest) {
       if (val === undefined) usageExit('--input requires a <path|-> argument');
       input = val;
       i += 2;
+    } else if (tok === '--promote') {
+      if (promote) usageExit('--promote given more than once');
+      promote = true;
+      i += 1;
     } else {
       usageExit(`unrecognized argument: ${tok}`);
     }
   }
   if (input === null) usageExit('record requires --input <path|->');
-  return input;
+  return { input, promote };
+}
+
+// spec-friction-channel-sweep Spec-AC-05: ONE shared write site for every
+// dropped-summary NOTE, so a single mutation can never leave one call site
+// silent while another still reports (LEARNED: "never echo an existing
+// refusal/disclosure sentence verbatim from new code; call a shared helper").
+// stderr only — never stdout, so it can never be mistaken for the `recorded
+// <fingerprint>` success line the caller depends on, and it never changes the
+// exit contract (record() continues normally after calling this).
+function noteSummaryDropped(reason) {
+  process.stderr.write(`aai-friction: NOTE: summary dropped (reason: ${reason})\n`);
 }
 
 function record(rest) {
-  const inputArg = parseRecordArgs(rest);
+  const { input: inputArg, promote } = parseRecordArgs(rest);
   const obj = readInput(inputArg);
   const fields = validate(obj);
 
@@ -470,18 +498,28 @@ function record(rest) {
     if (v2.confidence !== undefined) persisted.confidence = v2.confidence;
     if (v2.workaround !== undefined) persisted.workaround = v2.workaround;
     if (v2.evidenceRef !== undefined) persisted.evidence_ref = v2.evidenceRef;
-    // Free-text summary: only if opted in AND the redactor certifies it clean.
-    // Deny-by-default + fail-closed DROP (RFC-0013 D2/D4): an uncertain summary
-    // is dropped (never persisted class-redacted in the capture pass), the
-    // structured record still persists, and redaction_status records the outcome.
+    // Free-text summary: only if opted in (spec-friction-channel-sweep D2: the
+    // automatic default `capture.summary_enabled`, OR the explicit, argv-only
+    // `--promote`) AND the redactor certifies it clean. Deny-by-default +
+    // fail-closed DROP (RFC-0013 D2/D4, spec-friction-channel-sweep D3): an
+    // uncertain summary is dropped (never persisted class-redacted in the
+    // capture pass), the structured record still persists, and
+    // redaction_status records the outcome. Spec-AC-05: every drop writes ONE
+    // NOTE to stderr naming why — the gate (no summary consulted at all) or
+    // the redactor's own reason — never silent.
     let redactionStatus = 'none';
-    if (v2.summary !== undefined && loadSummaryEnabled()) {
-      const r = redactSummary(v2.summary, { maxLen: MAX_SUMMARY_LEN });
-      if (r.ok) {
-        persisted.summary = r.value;
-        redactionStatus = 'capture_clean';
+    if (v2.summary !== undefined) {
+      if (promote || loadSummaryEnabled()) {
+        const r = redactSummary(v2.summary, { maxLen: MAX_SUMMARY_LEN });
+        if (r.ok) {
+          persisted.summary = r.value;
+          redactionStatus = 'capture_clean';
+        } else {
+          redactionStatus = 'capture_dropped_fields';
+          noteSummaryDropped(r.reason);
+        }
       } else {
-        redactionStatus = 'capture_dropped_fields';
+        noteSummaryDropped('capture_gate');
       }
     }
     persisted.redaction_status = redactionStatus;

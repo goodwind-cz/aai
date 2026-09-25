@@ -240,6 +240,65 @@ test_014_harness_key() {
   log_pass "harness key allowed through the gate; closed-set normalized, never rejected whole (TEST-014)"
 }
 
+# --- TEST-649 (Spec-AC-01): recurrence only promotes a cluster that already
+# carries signal; a signal-free or confidence-only cluster stays retain no
+# matter how large -----------------------------------------------------------
+test_649_recurrence_only_promotes() {
+  log_info "Test: recurrence bonus is gated on SIGNAL_FLOOR -- zero-signal and confidence-only clusters never become candidates by recurrence alone; a low/low cluster at recurrence 3 and a lone high/high observation both do (TEST-649)..."
+  local sp="$TEST_DIR/s649"; local rep="$TEST_DIR/r649"
+  local i
+  {
+    for i in $(seq 1 6); do obs "v1:zero" "contract_violation"; done
+    for i in $(seq 1 20); do obs "v1:confonly" "contract_violation" ',"confidence":"low"'; done
+    for i in $(seq 1 3); do obs "v1:lowlow" "contract_violation" ',"impact":"low","confidence":"low"'; done
+    obs "v1:hihi" "contract_violation" ',"impact":"high","confidence":"high"'
+  } > "$sp"
+  [ "$(run "$sp" "" "$rep")" = "0" ] || log_fail "TEST-649: triage must exit 0"
+  [ "$(clu "$rep" v1:zero decision)" = "retain" ] || \
+    log_fail "TEST-649: six zero-signal observations of one fingerprint must NOT become a review candidate (got $(clu "$rep" v1:zero decision), score $(clu "$rep" v1:zero score))"
+  [ "$(clu "$rep" v1:confonly decision)" = "retain" ] || \
+    log_fail "TEST-649: twenty confidence-only observations of one fingerprint must NOT become a review candidate at any recurrence (got $(clu "$rep" v1:confonly decision), score $(clu "$rep" v1:confonly score))"
+  [ "$(clu "$rep" v1:lowlow decision)" = "review_candidate" ] || \
+    log_fail "TEST-649: three low/low observations of one fingerprint (recurrence 3, signal 2) must be a review candidate (got $(clu "$rep" v1:lowlow decision), score $(clu "$rep" v1:lowlow score))"
+  [ "$(clu "$rep" v1:hihi decision)" = "review_candidate" ] || \
+    log_fail "TEST-649: a single high/high observation must be a review candidate on signal alone (got $(clu "$rep" v1:hihi decision), score $(clu "$rep" v1:hihi score))"
+  log_pass "recurrence promotes only a cluster whose own max signal already clears the floor (TEST-649)"
+}
+
+# --- TEST-650 (Spec-AC-01): RECURRENCE_CAP is pinned at 3, not the member
+# count -----------------------------------------------------------------------
+test_650_recurrence_cap_pinned() {
+  log_info "Test: RECURRENCE_CAP is declared as 3 in the source, and a twelve-member low/low cluster scores exactly 5 -- the cap binds at 3, not at the twelve observations present (TEST-650)..."
+  grep -qE '^const RECURRENCE_CAP = 3;' "$SCRIPT" || \
+    log_fail "TEST-650: the source must declare RECURRENCE_CAP as 3 (static)"
+  local sp="$TEST_DIR/s650"; local rep="$TEST_DIR/r650"
+  local i
+  { for i in $(seq 1 12); do obs "v1:dozen" "contract_violation" ',"impact":"low","confidence":"low"'; done
+  } > "$sp"
+  [ "$(run "$sp" "" "$rep")" = "0" ] || log_fail "TEST-650: triage must exit 0"
+  [ "$(clu "$rep" v1:dozen score)" = "5" ] || \
+    log_fail "TEST-650: a twelve-member low/low cluster must score exactly 5 (signal 2 + cap 3), not the member count (got $(clu "$rep" v1:dozen score))"
+  log_pass "RECURRENCE_CAP pinned at 3; a twelve-member cluster scores 5, not the member count (TEST-650)"
+}
+
+# --- TEST-651 (Spec-AC-01): the delivered harness rendering in triage closes
+# on its existing pin (TEST-014), proven to redden under mutation, never on a
+# reading of the source. Wraps test_014_harness_key rather than duplicating
+# its fixture -- running the real pin IS the proof. The inner call runs in a
+# command substitution (a real subshell), so its own log_fail (which calls
+# exit 1) only ends that subshell; this wrapper re-raises with its OWN
+# TEST-651 id, because mutation-run.mjs attributes a redden by finding that
+# literal id in a FAIL line, and the wrapped pin's failure only ever says
+# TEST-014. --------------------------------------------------------------
+test_651_harness_pin_still_bites() {
+  log_info "TEST-651: replaying the existing harness pin (test_014_harness_key / TEST-014) under mutation -- the delivered harness rendering in triage closes on this proof, not a reading..."
+  local out rc=0
+  out="$(test_014_harness_key 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] || \
+    log_fail "TEST-651: the existing harness pin (test_014_harness_key) failed under mutation:"$'\n'"$out"
+  log_pass "TEST-651 the existing harness pin still bites under mutation"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   setup
@@ -260,6 +319,9 @@ main() {
   test_012_failclosed_config
   test_013_profiles
   test_014_harness_key
+  test_649_recurrence_only_promotes
+  test_650_recurrence_cap_pinned
+  test_651_harness_pin_still_bites
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

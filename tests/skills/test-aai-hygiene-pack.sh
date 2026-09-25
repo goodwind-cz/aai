@@ -1098,8 +1098,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 95 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 95 (pin moved for aai-mutation-gate, spec-mutation-gate-for-tests continuation 1) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 96 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 96 (pin moved for aai-ledger-merge, spec-friction-channel-sweep Spec-AC-09) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -1957,13 +1957,13 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   grep -qE '^  aai-mutation-gate:$' "$map" \
     || log_fail "TEST-487: tests/skills/suite-map.yaml has no 'aai-mutation-gate:' row"
 
-  # Count arm: the pin (test_090's own number) holds at 95 and matches the
+  # Count arm: the pin (test_090's own number) holds at 96 and matches the
   # LIVE row count — a row deleted without moving the pin reddens BOTH arms
   # together, which is the two-way check the Mutation column drives.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 95 ]] \
-    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 95"
+  [[ "$row_count" -eq 96 ]] \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 96"
 
   # check-test-registration.mjs exits 0 over the live tree (no orphan test_*
   # function anywhere under tests/skills, this suite's new ones included).
@@ -2551,6 +2551,81 @@ NODE
     || log_fail "test_126: expected exactly 6 Spec-AC-15 LEARNED markers checked, got: $marker_check_out"
 
   log_pass "test_126: all five tests/skills lints and the external-runner lint are 0 over the live corpus, and every Spec-AC-15 LEARNED marker cites its shipped guard (TEST-428)"
+}
+
+# --- TEST-668 (Spec-AC-10) — session-marker lint --------------------------
+# spec-friction-channel-sweep: every bullet under a `## Session …` heading in
+# docs/knowledge/LEARNED.md must carry exactly one `[local]` or
+# `[guard → <id>]` marker right after the leading `- `. The
+# `session-marker` rule in learned-guard-lints.mjs is that check.
+test_668_session_bullets_carry_a_marker() {  # TEST-668 / Spec-AC-10
+  log_info "test_668: session-marker reports zero over the live LEARNED.md, bites on a fixture with one unmarked (decoy-bracket) Session bullet and one bullet carrying TWO markers (contradictory), and the header no longer claims the region untriaged (TEST-668)..."
+  local learned="$PROJECT_ROOT/docs/knowledge/LEARNED.md"
+  [[ -f "$learned" ]] || log_fail "TEST-668: missing docs/knowledge/LEARNED.md"
+
+  # 1. Live corpus: zero findings.
+  lgl_run session-marker "$PROJECT_ROOT/docs/knowledge"
+  [[ "$LGL_TOTAL" == "0" ]] \
+    || log_fail "TEST-668: session-marker over the live docs/knowledge/LEARNED.md must report 0, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+
+  # 2. Fixture: one Session bullet carries a DECOY bracket (a date, not a
+  #    real marker) — this is the shape a rule "widened to match any
+  #    bracketed token" would wrongly accept, so it is what the named
+  #    mutation for TEST-668 must redden. A second bullet carries TWO real
+  #    markers back to back (`[local] [guard → fu-two] ...`) — the rule says
+  #    EXACTLY one marker, so a "matches at least one" check (PR #394 bot
+  #    review F3) would wrongly read this as compliant.
+  local d; d="$(ap_tmpdir)"
+  local fx="$d/session-marker-fixture"
+  rm -rf "$fx"; mkdir -p "$fx"
+  cat > "$fx/FIXTURE.md" <<'MD'
+# Fixture
+
+## Session 2099-01-01 (fixture, not the real corpus)
+
+- [local] a properly marked bullet with no defect.
+- [2026-09-25] a decoy-bracketed bullet with NO real [local] or [guard] marker at all.
+- [local] [guard → fu-two] a bullet carrying TWO markers, which is contradictory (exactly one is required).
+MD
+  lgl_run session-marker "$fx"
+  [[ "$LGL_TOTAL" -ge 2 ]] \
+    || log_fail "TEST-668: both the decoy-bracket bullet and the two-marker bullet must be flagged, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+  [[ "$LGL_OUT" == *"FIXTURE.md:6:"* ]] \
+    || log_fail "TEST-668: the finding must name the unmarked (decoy-bracket) bullet's own line, got: $LGL_OUT"
+  [[ "$LGL_OUT" == *"FIXTURE.md:7:"* ]] \
+    || log_fail "TEST-668: the finding must ALSO name the two-marker (exactly-one violation) bullet's own line, got: $LGL_OUT"
+
+  # Negative control: the properly-marked bullet (line 5) must NOT appear in
+  # the findings.
+  [[ "$LGL_OUT" != *"FIXTURE.md:5:"* ]] \
+    || log_fail "TEST-668 CONTROL: the correctly [local]-marked bullet must not be flagged: $LGL_OUT"
+
+  # 3. The header no longer claims the Session region is untriaged.
+  ! grep -qi "not yet triaged" "$learned" \
+    || log_fail "TEST-668: LEARNED.md header must no longer claim the Session region is untriaged"
+  grep -qF "fu-triage-undated-learned-log" "$learned" \
+    || log_fail "TEST-668: the header must still name fu-triage-undated-learned-log (closed, not deleted)"
+
+  # 4. learned-append.mjs (the writer) self-marks Session entries with
+  # exactly one marker (PR #394 bot review F3 asks this be checked too): a
+  # dry-run --marker local append run through the lint must NOT be flagged.
+  local wf="$d/writer-fixture"; rm -rf "$wf"; mkdir -p "$wf"
+  cat > "$wf/FIXTURE.md" <<'MD'
+# Fixture
+
+## Session 2099-01-01 (fixture, not the real corpus)
+MD
+  local appended
+  appended="$(node "$PROJECT_ROOT/.aai/scripts/learned-append.mjs" --target "$wf/FIXTURE.md" --text "writer self-marks with exactly one marker" --source "TEST-668" --marker local --dry-run 2>&1)" \
+    || log_fail "TEST-668: learned-append.mjs --dry-run failed: $appended"
+  # drop learned-append's own "dry-run — would append:" prefix line, keep
+  # only the bullet it would write.
+  printf '%s\n' "$appended" | tail -n +2 >> "$wf/FIXTURE.md"
+  lgl_run session-marker "$wf"
+  [[ "$LGL_TOTAL" == "0" ]] \
+    || log_fail "TEST-668: learned-append.mjs's own self-marked entry must pass session-marker (exactly one marker), got TOTAL=$LGL_TOTAL: $LGL_OUT"
+
+  log_pass "test_668: session-marker is 0 over the live corpus, bites a decoy-bracket unmarked bullet AND a contradictory two-marker bullet, spares a real [local] bullet and learned-append.mjs's own self-marked output, and the header states the triage is done (TEST-668)"
 }
 
 # Converted sites, as `<suite file>|<needle it must still assert>`. The needle
@@ -4552,6 +4627,7 @@ main() {
   test_124_degenerate_pass_guards_uncovered_and_ratcheted
   test_125_learned_guard_lints_bite
   test_126_learned_guard_lints_live_and_markers
+  test_668_session_bullets_carry_a_marker
   test_105_converted_sites_keep_their_needles
   test_121_new_assert_payload_helpers
   test_106_base_ref_pin_gate_and_bite

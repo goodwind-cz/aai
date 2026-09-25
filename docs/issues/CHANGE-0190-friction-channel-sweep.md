@@ -2,11 +2,13 @@
 id: friction-channel-sweep
 type: change
 number: 190
-status: draft
+status: done
 capability: friction-channel-sweep
 links:
-  pr: []
-  commits: []
+  pr:
+    - 394
+  commits:
+    - b7f978d69e05133d5c2a74f6012172cd3db77304
 ---
 
 # The friction channel files what happened, with the harness, in one shape

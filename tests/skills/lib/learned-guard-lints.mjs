@@ -387,6 +387,84 @@ function externalRunnerFindings(root, files) {
   return findings;
 }
 
+// ---------------------------------------------------------------------------
+// RULE: session-marker (spec-friction-channel-sweep Spec-AC-10,
+// fu-triage-undated-learned-log)
+//
+// docs/knowledge/LEARNED.md's own header says every bullet under a
+// `## Session …` heading carries exactly one `[local]` or `[guard → <id>]`
+// marker, placed right after the leading `- `. This rule is that check: a
+// top-level bullet (a line starting with `- ` at column 0, inside a section
+// whose most recent `## ` heading starts with "Session") whose text — right
+// after the `- ` — does NOT open with a literal `[local]` or a
+// `[guard <arrow> <id>]` token is flagged.
+//
+// STRICT BY DESIGN: the marker check is anchored on the two literal marker
+// shapes, never "any bracketed token" — a bullet that opens with an
+// unrelated bracket (a stray `[2026-09-25]` date with no real marker
+// following it, say) must still be flagged. A rule widened to accept any
+// leading `[...]` would silently accept exactly that decoy and misreport a
+// genuinely unmarked bullet as compliant.
+//
+// EXACTLY ONE, not "at least one" (PR #394 bot review F3): a plain
+// `.test()` against an anchored-at-start pattern only proves the bullet
+// STARTS WITH an accepted marker — it says nothing about what comes right
+// after. `- [local] [guard → fu-two] ...` starts with `[local]` and so
+// matched, TOTAL: 0, while being exactly the contradictory both-markers
+// shape this rule and the header comment forbid. sessionBulletMarkerOk()
+// below additionally rejects a second marker-shaped bracket immediately
+// following the first.
+const SESSION_HEADING_RE = /^##\s+Session\b/;
+const ANY_HEADING_RE = /^##\s+/;
+const BULLET_START_RE = /^-\s+(.*)$/;
+// A Session bullet is either undated (marker is the FIRST bracket, the shape
+// this triage introduced) or already follows the file's own dated-entry
+// convention (an optional leading `[YYYY-MM-DD] ` date bracket, THEN the
+// marker) — several `## Session …` blocks (e.g. 2026-08-24 onward) already
+// carry dated, marked entries predating this rule.
+const SESSION_DATE_PREFIX_RE = /^\[\d{4}-\d{2}-\d{2}\]\s+/;
+const SESSION_MARKER_TOKEN_RE = /^(?:\[local\]|\[guard\s*(?:->|→)\s*[^\]]+\])/;
+// sessionBulletMarkerOk(text) -> true only when text (a Session bullet's
+// content right after "- ") carries an optional date bracket followed by
+// EXACTLY ONE [local]/[guard → <id>] marker — not zero, not two.
+function sessionBulletMarkerOk(text) {
+  const dm = SESSION_DATE_PREFIX_RE.exec(text);
+  let rest = dm ? text.slice(dm[0].length) : text;
+  const mm = SESSION_MARKER_TOKEN_RE.exec(rest);
+  if (!mm) return false; // no marker at all
+  rest = rest.slice(mm[0].length).replace(/^\s+/, '');
+  return !SESSION_MARKER_TOKEN_RE.test(rest); // a second marker right after is contradictory
+}
+function sessionMarkerFindings(root, files) {
+  const findings = [];
+  for (const f of files) {
+    const lines = readLines(f);
+    let inSession = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (ANY_HEADING_RE.test(line)) {
+        inSession = SESSION_HEADING_RE.test(line);
+        continue;
+      }
+      if (!inSession) continue;
+      const bm = BULLET_START_RE.exec(line);
+      if (!bm) continue;
+      if (!sessionBulletMarkerOk(bm[1])) {
+        const rest = SESSION_DATE_PREFIX_RE.test(bm[1]) ? bm[1].slice(SESSION_DATE_PREFIX_RE.exec(bm[1])[0].length) : bm[1];
+        const hasOne = SESSION_MARKER_TOKEN_RE.test(rest);
+        findings.push({
+          file: relOf(root, f),
+          line: i + 1,
+          msg: hasOne
+            ? `Session bullet carries MORE THAN ONE [local]/[guard → <id>] marker right after "- " — exactly one is required`
+            : `Session bullet carries no [local] or [guard → <id>] marker right after "- "`,
+        });
+      }
+    }
+  }
+  return findings;
+}
+
 const RULES = {
   "local-crossref": { fn: localCrossrefFindings, exts: [".sh"] },
   "cd-underived": { fn: cdUnderivedFindings, exts: [".sh"] },
@@ -394,6 +472,7 @@ const RULES = {
   "deny-default-mock": { fn: denyDefaultMockFindings, exts: [".sh"] },
   "absence-no-control": { fn: absenceNoControlFindings, exts: [".sh"] },
   "external-runner": { fn: externalRunnerFindings, exts: [".prompt.md"] },
+  "session-marker": { fn: sessionMarkerFindings, exts: [".md"] },
 };
 
 function main() {

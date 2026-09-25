@@ -2,10 +2,12 @@
 id: hand-authored-friction-is-second-class
 number: 172
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 394
+  commits:
+    - b7f978d69e05133d5c2a74f6012172cd3db77304
 ---
 
 # A hand-authored friction observation cannot be scored, cannot carry prose, and can never reach upstream
