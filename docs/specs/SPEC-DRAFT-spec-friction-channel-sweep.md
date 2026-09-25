@@ -3,7 +3,7 @@ id: spec-friction-channel-sweep
 type: spec
 status: implementing
 mutation_gate: v1
-frozen_sha256: df75b9a6b786bf83a3638c2603a547396c42e19d647099ecfc3b502be57130a0
+frozen_sha256: bb13008a90c4f3b8bfb44c856c596873aaac487947b242f3dc290a7326ab1b10
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0190-friction-channel-sweep.md
