@@ -2,15 +2,17 @@
 id: spec-friction-channel-sweep
 number: 185
 type: spec
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 9346fa7fbb5cdb63c44106f087f0b23140d370819f3959c1991af541558ed51a
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0190-friction-channel-sweep.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - b7f978d69e05133d5c2a74f6012172cd3db77304
 ---
 
 # Spec — the channel the owner reads says what happened, and says when it is not being read

@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-25T08:58:04.348Z",
+  "generatedAt": "2026-09-25T08:59:33.107Z",
   "project": "aai",
   "counts": {
-    "delivered": 251,
-    "in_progress": 17,
+    "delivered": 253,
+    "in_progress": 15,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -17,19 +17,6 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "hand-authored-friction-is-second-class",
-      "title": "A hand-authored friction observation cannot be scored, cannot carry prose, and can never reach upstream",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0172-hand-authored-friction-is-second-class.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -73,19 +60,6 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "friction-channel-sweep",
-      "title": "The friction channel files what happened, with the harness, in one shape",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0190-friction-channel-sweep.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0185-spec-friction-channel-sweep.md",
       "validation": null,
       "review": null
     },
@@ -234,6 +208,32 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "hand-authored-friction-is-second-class",
+      "title": "A hand-authored friction observation cannot be scored, cannot carry prose, and can never reach upstream",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0172-hand-authored-friction-is-second-class.md",
+      "closed_on": "2026-09-25",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "friction-channel-sweep",
+      "title": "The friction channel files what happened, with the harness, in one shape",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0190-friction-channel-sweep.md",
+      "closed_on": "2026-09-25",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0185-spec-friction-channel-sweep.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "agents-tree-not-synced",
       "title": "P2 backlog cluster: harness-surfaces-drift-unguarded (1 item)",
@@ -3504,6 +3504,32 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "hand-authored-friction-is-second-class",
+          "title": "A hand-authored friction observation cannot be scored, cannot carry prose, and can never reach upstream",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0172-hand-authored-friction-is-second-class.md",
+          "closed_on": "2026-09-25",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "friction-channel-sweep",
+          "title": "The friction channel files what happened, with the harness, in one shape",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0190-friction-channel-sweep.md",
+          "closed_on": "2026-09-25",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0185-spec-friction-channel-sweep.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "agents-tree-not-synced",
           "title": "P2 backlog cluster: harness-surfaces-drift-unguarded (1 item)",
