@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-25T08:59:33.107Z",
+  "generatedAt": "2026-09-25T09:12:35.045Z",
   "project": "aai",
   "counts": {
     "delivered": 253,
-    "in_progress": 15,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -56,6 +56,19 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "canon-is-a-build-artifact",
+      "title": "The rules that bind agents are assembled and asserted, not pasted",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0191-canon-is-a-build-artifact.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
