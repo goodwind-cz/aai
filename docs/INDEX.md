@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-24T22:08:58.273Z
+Generated: 2026-09-25T03:17:16.481Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-friction-channel-sweep | specs | implementing | 11 planned | docs/specs/SPEC-DRAFT-spec-friction-channel-sweep.md |
+| spec-friction-channel-sweep | specs | implementing | 12 planned | docs/specs/SPEC-DRAFT-spec-friction-channel-sweep.md |
 
 ## Canonical layer (0)
 
@@ -567,4 +567,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-24 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-25 — counts above use this date for overdue checks.

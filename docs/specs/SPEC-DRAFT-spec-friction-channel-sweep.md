@@ -3,7 +3,7 @@ id: spec-friction-channel-sweep
 type: spec
 status: implementing
 mutation_gate: v1
-frozen_sha256: 4a7810872fa1bc7fc9ebc7685977e8c466c0cf9c37bc9860ccb6ab9c4235acd6
+frozen_sha256: df75b9a6b786bf83a3638c2603a547396c42e19d647099ecfc3b502be57130a0
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0190-friction-channel-sweep.md
@@ -413,6 +413,17 @@ None.
   asserting the printed line, the `next` line and the `--json` fields; the
   stale arm's fixture reproduces the measured 65-against-824 shape.
 
+- Spec-AC-12: The close ceremony SHALL surface the friction backlog, so what the
+  factory learns about itself reaches the owner by default rather than when he
+  remembers to ask. `close-work-item.mjs` — the script that actually runs, not a
+  prompt step that describes one — SHALL print one line naming the untriaged
+  count and the candidates that clear the signal floor, and a failure of that
+  step SHALL degrade to a NOTE rather than block a close.
+  Verification: a close over a spool with untriaged records prints the line and
+  its counts; a close whose backlog step is made to fail still closes, with the
+  NOTE; the line names candidates by the same scoring Spec-AC-01 defines, not a
+  second one.
+
 ## Acceptance Criteria Status
 
 | Spec-AC    | Description                                                         | Status  | Evidence | Review-By | Notes |
@@ -428,6 +439,7 @@ None.
 | Spec-AC-09 | The append-only ledger merge is a command, not a memory             | planned | —        | —         | run 4 |
 | Spec-AC-10 | Every Session lesson declares where its enforcement lives           | planned | —        | —         | run 4 |
 | Spec-AC-11 | The discovery surface reports the backlog, not the inbox            | planned | —        | —         | run 4 |
+| Spec-AC-12 | The close ceremony surfaces the backlog, so it reaches the owner by default | planned | —        | —         | —     |
 
 ## Implementation plan
 
@@ -548,6 +560,7 @@ and selector; the mutation evidence for each is
 | TEST-668 | Spec-AC-10 | integration | tests/skills/test-aai-hygiene-pack.sh | test_668_session_bullets_carry_a_marker — the new learned-guard-lints rule reports zero findings over the live docs/knowledge/LEARNED.md and a non-zero count over a fixture whose Session section holds one unmarked bullet; the header no longer claims the region is untriaged. | Widen the rule's marker pattern to match any bracketed token so an unmarked bullet passes. | pending |
 | TEST-669 | Spec-AC-11 | integration | tests/skills/test-aai-feedback-status.sh | test_669_status_reports_the_backlog — four fixture friction directories (no report, a report matching the spool, a report reporting 65 against a 824-line spool with drafts present, an empty spool) produce the expected printed line, the expected next command, and the expected candidates / report_observations / report_stale values under --json. | Compare the report against itself rather than the spool with sed:s/report.total_observations !== spoolLines/false/ so a stale report reads as current. | pending |
 | TEST-670 | Spec-AC-11 | integration | tests/skills/test-aai-feedback-status.sh | test_670_stale_report_never_advertises_publish — with drafts present and a stale report, the next line names the triage command and not a publish; with drafts present and a current report it names the publish; the empty-spool arm stays silent on stdout while --json still emits the object. | Restore the draft-first ordering so a stale report still advertises a publish over its drafts. | pending |
+| TEST-671 | Spec-AC-12 | integration | tests/skills/test-aai-close-work-item.sh | test_671_close_surfaces_the_backlog — a close prints the friction backlog line naming the untriaged count and the candidates worth the owner's attention, and a failure of that step degrades to a NOTE rather than blocking the close. | Neuter the backlog call so the close prints nothing and the operator learns nothing. | pending |
 
 ## Seams
 
@@ -722,3 +735,36 @@ FILED BY THIS SCOPE (new follow-ups, each with its measurement):
   the issue does). They are LEFT OPEN as the evidence that produced D4, and the
   ride's PR comments on each naming the criterion that stops the next one
   arriving that way. Closing them would delete the measurement.
+
+## Amendment 1 (post-freeze, 2026-09-25 — the owner routes the backlog into the close ceremony; ADDITIVE)
+
+Planning measured that this factory's friction channel has been silent for
+twenty days: 824 observations spooled, the last triage on 2026-09-05 seeing 65
+of them, 759 never triaged, nothing filed from this repository since — while
+the one surface that reports any of it would still have printed "824 captured,
+7 drafts pending your --confirm" over drafts cut from that September snapshot.
+The cause is that `aai-feedback-status.mjs` has exactly ONE caller in the whole
+factory, `/aai-wrap-up` step 6, so it runs only when the owner asks. Planning
+recorded that closing the loop needed a product decision about where the owner
+is actually reached, and raised it as a menu (D9).
+
+The owner answered **A on 2026-09-25**: fold it into the close ceremony, so
+every merged ride ends with the backlog line. This section is the scope change
+that answer makes, recorded with his sign-off because the canon assigns a
+post-freeze scope change to the owner.
+
+Added additively as **Spec-AC-12** with **TEST-671**; no existing Spec-AC, test
+id, selector, file path or Mutation cell changes, and Spec-AC-11 still stands on
+its own — the surface must stop lying whether or not anything calls it.
+
+Two things the implementation must honour, both learned the hard way this month.
+It goes in `close-work-item.mjs`, the script that runs, NOT in a prompt step
+that describes one: this ride's whole subsystem exists because a chain ended in
+a write nobody read, and four sweeps in a row found a control whose enforcement
+was prose. And it must be best-effort: a backlog step that can block a close
+would make every ride hostage to the reporting channel, which is the opposite of
+the property being bought. That file is hash-pinned by four suites, so this work
+belongs with the ride's single re-pin, written last.
+
+Sign-off: owner.
+
