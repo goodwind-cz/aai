@@ -4,7 +4,7 @@ type: spec
 number: 186
 status: done
 mutation_gate: v1
-frozen_sha256: 1223f04b8112704150a4bfbee6ea50a298c6a0b2272f7eeafbb6e7fb9c794b6a
+frozen_sha256: 1904bdd4dfeaae1e700db1a86b9d2a572ac25c5878fa886a52ca86d3b930936c
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0191-canon-is-a-build-artifact.md
@@ -18,6 +18,52 @@ links:
 # Spec — the rules that bind agents are assembled and asserted, not pasted
 
 SPEC-FROZEN: true
+
+## Amendment (post-freeze, 2026-09-25 — the mutation gate's own remedy line did not work)
+
+This is a FROZEN spec (ride CLOSED — see the `## The pairing, settled`
+section above and `## Links` below) amended after the freeze and disclosed
+here rather than rewritten silently, the convention
+`docs/specs/SPEC-0153-spec-close-leaves-state-stale.md`'s own `## Amendment`
+section already established (additive-with-disclosure).
+
+Authority: `docs/ai/decisions.jsonl`, `type: hitl_decision`, `ref_id:
+canon-is-a-build-artifact`, ts `2026-09-25T19:33:00Z`, `owner_signoff: true`
+— the OWNER chose to fix the defect properly rather than merge over it, and
+directed that it land as an additive amendment with its own Test Plan row
+and RED mutation record. This amendment's own `spec_amendment` ledger entry
+(`.aai/scripts/spec-amend.mjs add`) is nonetheless recorded `--signoff none`
+per the owner's own instruction for that entry — the owner decision above
+is cited as authority in prose, not laundered into the ledger's `owner_signoff`
+key for a record the owner did not personally sign.
+
+WHAT WAS WRONG, measured while closing THIS ride: `.aai/scripts/
+allocate-doc-number.mjs` rewrites the `SPEC-DRAFT-…` reference inside source
+files at the close step; a mutation record pins `target_sha256` over the
+WHOLE target file, so that one-comment close-step edit to
+`.aai/scripts/canon.mjs` staled 17 of this ride's own 26 Test Plan rows and
+`close-work-item.mjs` REFUSED at the mutation gate. Worse: the gate's own
+printed remedy line read "re-run mutation-run.mjs (or --replay) for this
+row" — but `mutation-run.mjs --replay` only VERIFIED a record, it never
+re-stamped `target_sha256`. Following the gate's own printed remedy left
+every one of the 17 rows STALE; recovery took a manual re-record of all 17.
+
+WHAT CHANGED: `mutation-run.mjs --replay` now re-stamps a row's
+`target_sha256` to the live target's bytes whenever it re-applies the
+record's own recorded mutation AND the row still reddens — the replay has
+just established, first-hand, exactly the fact the stamp records. It never
+fires on STAYED GREEN or INCONCLUSIVE (staleness there is the whole point:
+the property under test genuinely stopped holding), never invents a stamp on
+a legacy record that never carried one, and it names every row it re-stamps
+on stdout, counted in the summary line — never a silent rewrite of evidence.
+`mutation-gate.mjs`'s STALE-target remedy line is corrected to name the
+remedy that actually clears the gate; its staleness CHECK itself is
+unchanged (the check was always right — only the remedy line was wrong).
+
+ADDED BY THIS AMENDMENT: Spec-AC-16 and Test Plan row TEST-700, RED-recorded
+against a real mutation to `.aai/scripts/mutation-run.mjs` and GREEN against
+the shipped fix (`docs/ai/tdd/spec-canon-is-a-build-artifact/mutation-
+TEST-700.txt`, `green-TEST-700.log`).
 
 ## Links
 - Requirement: docs/issues/CHANGE-0191-canon-is-a-build-artifact.md
@@ -434,6 +480,26 @@ untouched (D7 keeps `state.mjs` out of scope); article 7 is unaffected.
   Verification: run both against the real repository, not a fixture, and record
   stdout. A gate proved only on fixtures has never met the corpus it governs.
 
+- Spec-AC-16 (ADDED 2026-09-25 by the post-freeze amendment above, ref
+  `canon-is-a-build-artifact`): `node .aai/scripts/mutation-run.mjs --replay`
+  SHALL re-stamp a still-reddening record's `target_sha256` to the LIVE
+  target's bytes whenever it re-applies the record's own recorded mutation
+  and the row still reddens, and SHALL name every row it re-stamps on stdout
+  and count it in the summary line rather than rewriting evidence silently.
+  A record that does NOT redden on replay (STAYED GREEN, INCONCLUSIVE, or a
+  mutation that can no longer be applied at all) SHALL NEVER be re-stamped.
+  `node .aai/scripts/mutation-gate.mjs`'s STALE-target remedy line SHALL name
+  the remedy that actually clears the gate.
+  Verification: an isolated fixture's target is touched harmlessly (a
+  trailing comment; the target's behavior is unchanged); the gate reports
+  the row STALE, naming `--replay` as the remedy; `--replay` re-applies the
+  record's mutation, confirms it still reddens, re-stamps `target_sha256` to
+  the touched bytes and says so on stdout (`1 re-stamped` in the summary
+  line); the gate is clean immediately after; a second `--replay` with
+  nothing touched re-stamps nothing (`0 re-stamped`); a record whose replay
+  STAYS GREEN is left byte-identical on disk, never re-stamped. (Closes
+  `fu-mutation-gate-remedy-does-not-restamp`.)
+
 ## Acceptance Criteria Status
 
 | Spec-AC    | Description                                                          | Status  | Evidence | Review-By | Notes |
@@ -453,6 +519,7 @@ untouched (D7 keeps `state.mjs` out of scope); article 7 is unaffected.
 | Spec-AC-13 | The round-cap canon is current and every citation resolves           | done    | docs/ai/tdd/spec-canon-is-a-build-artifact/green-TEST-694.log, docs/ai/tdd/spec-canon-is-a-build-artifact/green-TEST-695.log | —         | run 3 |
 | Spec-AC-14 | New canon files are classified and the corpus growth is ledgered     | done    | docs/ai/tdd/spec-canon-is-a-build-artifact/green-TEST-696.log, docs/ai/tdd/spec-canon-is-a-build-artifact/green-TEST-697.log | —         | run 3 |
 | Spec-AC-15 | The checks are green against the live tree, not only fixtures        | done    | docs/ai/tdd/spec-canon-is-a-build-artifact/green-TEST-698.log, docs/ai/tdd/spec-canon-is-a-build-artifact/green-TEST-699.log | —         | run 3 |
+| Spec-AC-16 | --replay re-stamps target_sha256 on a still-reddening stale row; the gate's own remedy line names it | done | docs/ai/tdd/spec-canon-is-a-build-artifact/green-TEST-700.log | —         | ADDED 2026-09-25 by the post-freeze amendment (unsigned, tracked — docs/ai/decisions.jsonl spec_amendment ref canon-is-a-build-artifact) |
 
 ## Implementation plan
 
@@ -528,6 +595,7 @@ for every mutation whose target string occurs more than once in its file.
 | TEST-697 | Spec-AC-14 | integration | tests/skills/test-aai-prompt-diet.sh | test_697_corpus_growth_ledgered — the measured prompt-corpus delta has a matching `JUSTIFIED_ADDITIONS` entry and the TEST-012 checkpoint equals the new prefix total. | patch: decrement the bumped TEST-012 checkpoint by one byte; the prefix arithmetic reddens. | green |
 | TEST-698 | Spec-AC-15 | integration | tests/skills/test-aai-canon.sh | test_698_live_check_all — `canon.mjs check --all` exits 0 against the REAL repository and prints a non-zero count of sections, claims and citations checked. | patch: make `--all` return early after the first section; the counts drop and the non-zero assertions on the later categories redden. | green |
 | TEST-699 | Spec-AC-15 | integration | tests/skills/test-aai-canon.sh | test_699_live_build_every_role — `canon.mjs build --role <R>` exits 0 for every role the live manifest declares, and the declared role count matches the number of built payloads. | patch: drop one role from the live manifest's declared roles; the count comparison reddens. | green |
+| TEST-700 | Spec-AC-16 | integration | tests/skills/test-aai-mutation-gate.sh | ADDED 2026-09-25 by the post-freeze amendment. test_700_replay_restamps_stale_target — an isolated fixture's target is touched harmlessly (a comment); assert the gate reports the row STALE naming `--replay` as the remedy; run `--replay` and assert it confirms the row still reddens, re-stamps `target_sha256` to the touched bytes (named on stdout, counted `1 re-stamped` in the summary line) and the gate goes clean; a second replay with nothing touched re-stamps nothing (`0 re-stamped`); a record whose replay STAYS GREEN is left byte-identical, never re-stamped. | sed: in mutation-run.mjs's `replay()`, change the RED-branch restamp guard `if (liveSha256 !== fields.target_sha256) {` to `if (false) {`; the row stays STALE after `--replay` and the test's gate-clean assertion reddens. | green |
 
 ## Seams
 
@@ -677,6 +745,33 @@ NOT CLOSED BY THIS SCOPE, with the reason: `fu-mutation-gate-absent-tree-passes`
 closed `mutation-gate-for-tests` capability and their repair is an owner policy
 decision about whether mutation evidence stays gitignored. This ride names
 them rather than silently inheriting them.
+
+ALSO NOT CLOSED BY THIS SCOPE — three defects in the ceremony's own tooling,
+found while running this ride and named here so the next ride does not
+rediscover them:
+
+- `fu-gate-ignores-declared-mutation` (P2) — `mutation-gate.mjs:273-279` checks
+  only that a Test Plan row's Mutation cell is non-empty and not a placeholder.
+  It never compares the cell to what the stored record actually mutated, so a
+  record produced by a DIFFERENT mutation satisfies the row. Found when
+  validation round 1 read TEST-694's record and saw it target a different file
+  than its cell declares, under a GATE PASS. Every ride since PR #384 has read
+  GATE PASS as proof the DECLARED mutation reddens; it never was.
+- `fu-allocator-stales-mutation-records` (P2) — the close ceremony stales its
+  own evidence. `allocate-doc-number.mjs` rewrites the SPEC-DRAFT reference
+  inside source files, and a record pins `target_sha256` over the WHOLE target,
+  so one comment edit staled 17 of this ride's 26 rows and the close was
+  REFUSED. The gate's printed remedy names `--replay`, which only verifies and
+  never re-stamps, so following it leaves every row stale.
+- `fu-mutation-run-patch-self-rotate` (P2) — `mutation-run.mjs --patch` can
+  destroy its own input: `rotateExisting()` moves the live
+  `mutation-TEST-<id>.patch` aside before the new record is written, so passing
+  that canonical path as the `--patch` SOURCE rotates the source away. Four
+  pairs were lost and recovered from rotation copies during remediation 1. The
+  mechanism was read from the code, not independently reproduced.
+
+All three belong to the closed `mutation-gate-for-tests` and
+`close-ceremony-sweep` capabilities rather than to this scope.
 
 ## Documents this scope closes
 

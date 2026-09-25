@@ -34,6 +34,21 @@
 //        docs/ai/tdd/ — the verdict it produced cannot be trusted, so it is
 //        downgraded to INCONCLUSIVE rather than recorded as-is); recorded,
 //        non-zero exit
+//   RE-STAMPING (fu-mutation-gate-remedy-does-not-restamp): a record that
+//   still carries a `target_sha256` from a PRIOR run necessarily reads the
+//   target's PRIOR bytes. When --replay re-applies that record's mutation and
+//   the target still reddens, the replay has just established, first-hand,
+//   what the live target's bytes are RIGHT NOW — so it re-stamps the
+//   record's `target_sha256` to those live bytes before moving on, closing
+//   the exact gap mutation-gate.mjs's own STALE remedy line used to name
+//   (re-running via --replay alone never used to touch the stamp, leaving
+//   the gate STALE forever). Never fires on STAYED GREEN/INCONCLUSIVE — only
+//   a confirmed RED re-establishes that fact — and never invents a
+//   `target_sha256` on a legacy record that never carried one (that stays a
+//   named `unstamped` degrade at the gate, D8's own distinction). Each
+//   restamp is named on stdout and counted in the summary line, never a
+//   silent rewrite of evidence.
+//
 //   --replay:
 //     0  every live record for the spec still reddens
 //     1  one or more records replayed cleanly but no longer redden (STAYED
@@ -911,6 +926,13 @@ function replay(args) {
   // render as the same exit code.
   let failures = 0;
   let inconclusive = 0;
+  // A THIRD counter, orthogonal to both above (fu-mutation-gate-remedy-does-
+  // not-restamp): how many live records this replay re-stamped because they
+  // still reddened but carried a target_sha256 the live target had already
+  // moved past. Not a failure (the row is fine) and not an inconclusive (the
+  // replay DID complete) — its own honest count in the summary line, so a
+  // restamp is never a silent mutation of evidence.
+  let restamped = 0;
   for (const name of liveRecords) {
     const testId = /^mutation-(TEST-\d+)\.txt$/.exec(name)[1];
     const text = fs.readFileSync(path.join(dir, name), 'utf8');
@@ -1015,7 +1037,36 @@ function replay(args) {
       }
       const { verdict } = classifyVerdict(rc, output, testId);
       if (verdict === 'RED') {
-        process.stdout.write(`RED ${testId}: still reddens (${fields.suite} ${fields.selector})\n`);
+        // fu-mutation-gate-remedy-does-not-restamp: this replay just
+        // re-applied the record's OWN mutation to the LIVE target and
+        // watched it redden — that is exactly the fact target_sha256
+        // records, established first-hand, right now. A stale stamp (the
+        // target's bytes moved since the record was produced, e.g. an
+        // unrelated edit elsewhere in the same file) must not survive a
+        // replay that just re-confirmed the row. Only fires when the record
+        // already carries a target_sha256 (never manufactures one on a
+        // legacy record — that stays a named `unstamped` degrade at the
+        // gate) and only when the live bytes actually moved (a fresh record
+        // is a no-op re-write, not a rewrite at all).
+        let restampNote = '';
+        if (fields.target_sha256) {
+          try {
+            const liveSha256 = createHash('sha256').update(fs.readFileSync(targetAbs)).digest('hex');
+            if (liveSha256 !== fields.target_sha256) {
+              const restampedText = formatRecord({ ...fields, target_sha256: liveSha256 }, parsed.tail);
+              const recPath = path.join(dir, name);
+              const tmpRecPath = `${recPath}.tmp-${process.pid}-${Date.now()}`;
+              fs.writeFileSync(tmpRecPath, restampedText);
+              fs.renameSync(tmpRecPath, recPath);
+              restamped++;
+              restampNote = ' — target_sha256 re-stamped to the live target (this replay is the fact the stamp records)';
+            }
+          } catch {
+            // targetAbs is already known to exist (checked above); nothing
+            // to add here.
+          }
+        }
+        process.stdout.write(`RED ${testId}: still reddens (${fields.suite} ${fields.selector})${restampNote}\n`);
       } else {
         failures++;
         // Remediation round 5 (D8 amendment): when the record carries a
@@ -1042,7 +1093,7 @@ function replay(args) {
   }
 
   const attempted = liveRecords.length - inconclusive;
-  process.stdout.write(`mutation-run --replay: ${attempted - failures}/${attempted} attempted records still redden (${inconclusive} inconclusive of ${liveRecords.length} total)\n`);
+  process.stdout.write(`mutation-run --replay: ${attempted - failures}/${attempted} attempted records still redden (${inconclusive} inconclusive of ${liveRecords.length} total, ${restamped} re-stamped)\n`);
   if (failures > 0) exit(1);
   if (inconclusive > 0) exit(4);
   exit(0);

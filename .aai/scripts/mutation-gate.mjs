@@ -321,17 +321,29 @@ function main() {
       // NB3-r7 (validation round 7): a DELETED (or renamed) target is a
       // different cause from an EDITED one — say so, rather than reusing the
       // "changed since the record" wording the comparison below uses for a
-      // genuine hash mismatch.
+      // genuine hash mismatch. fu-mutation-gate-remedy-does-not-restamp: a
+      // MISSING target is the one shape --replay genuinely cannot heal (its
+      // own existsSync check refuses before any mutation is even applied),
+      // so the remedy here still names a fresh (plain) mutation-run.mjs run,
+      // never --replay.
       offending.push({
         testId: row.testId,
-        reason: `STALE ${row.testId}: target ${f.target} missing — re-run mutation-run.mjs (or --replay) for this row`,
+        reason: `STALE ${row.testId}: target ${f.target} missing — restore the target or re-run mutation-run.mjs (not --replay, which cannot restamp a target that no longer exists) to produce a fresh record for this row`,
       });
       continue;
     }
     if (liveSha256 !== f.target_sha256) {
+      // fu-mutation-gate-remedy-does-not-restamp (measured closing this
+      // ride): the OLD wording here told an operator to "re-run
+      // mutation-run.mjs (or --replay)", but --replay used to only VERIFY —
+      // it never re-stamped target_sha256, so following this exact remedy
+      // left the row STALE forever. --replay now re-stamps target_sha256
+      // whenever it re-applies a record's mutation and the row still
+      // reddens (see mutation-run.mjs's own RE-STAMPING note), so this line
+      // now names the remedy that actually clears the gate.
       offending.push({
         testId: row.testId,
-        reason: `STALE ${row.testId}: target ${f.target} changed since the record — re-run mutation-run.mjs (or --replay) for this row`,
+        reason: `STALE ${row.testId}: target ${f.target} changed since the record — re-run mutation-run.mjs --replay for this row (a replay that still reddens re-stamps target_sha256 automatically)`,
       });
       continue;
     }

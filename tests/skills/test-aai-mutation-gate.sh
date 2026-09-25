@@ -2132,6 +2132,115 @@ test_517_flag_value_usage_errors() {
   log_pass "TEST-517 a missing or flag-shaped value for --spec (mutation-gate.mjs) and every value-taking flag of mutation-run.mjs is a usage error (exit 2), and a well-formed invocation is unaffected"
 }
 
+# --- TEST-700 — Spec-AC-16 (SPEC-0186 additive amendment, ref
+# canon-is-a-build-artifact) — fu-mutation-gate-remedy-does-not-restamp ------
+# Measured closing THIS ride: one comment edit to canon.mjs staled 17 rows,
+# and the gate's own printed remedy ("re-run mutation-run.mjs (or --replay)")
+# left every one of them STALE, because --replay only VERIFIED and never
+# re-stamped. This test drives the REAL mutation-run.mjs and mutation-gate.mjs
+# end to end and proves the remedy now actually works.
+test_700_replay_restamps_stale_target() {
+  log_info "Test: mutation-run.mjs --replay re-stamps a still-reddening record's target_sha256 to the live target's bytes, turning a gate STALE back to PASS -- the gate's own printed remedy now actually works (TEST-700, closes fu-mutation-gate-remedy-does-not-restamp)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  mg_write_gate_spec "$fx/docs/specs/fixture-spec.md" "fixture-spec-700" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | tests/skills/fixture-suite.sh | a | sed:s/hello/goodbye/ | pending |
+EOF
+  ( cd "$fx" && git add -A && git commit -q -m base )
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-700 setup: mutation-run.mjs producer exited $rc: $out"
+  local rec="$fx/docs/ai/tdd/fixture-spec-700/mutation-TEST-9001.txt"
+  [[ -f "$rec" ]] || log_fail "TEST-700 setup: no record written at $rec"
+  local sha_before; sha_before="$(shasum -a 256 "$fx/lib/greeting.mjs" | awk '{print $1}')"
+  assert_payload_contains "$(cat "$rec")" "target_sha256: ${sha_before}" \
+    "TEST-700 setup: the producer's own record must be stamped to the pre-touch target"
+
+  # Touch the target HARMLESSLY: append a comment. The output is unchanged
+  # (still prints 'hello'), and the recorded 'sed:s/hello/goodbye/' mutation
+  # still applies (one 'hello' occurrence remains) -- exactly the shape a
+  # one-comment edit produced for real on this ride's own canon.mjs.
+  printf "// bump\n" >> "$fx/lib/greeting.mjs"
+  local sha_after; sha_after="$(shasum -a 256 "$fx/lib/greeting.mjs" | awk '{print $1}')"
+  [[ "$sha_after" != "$sha_before" ]] || log_fail "TEST-700 setup: the harmless touch did not change the target's bytes"
+
+  # BEFORE: the gate must see the row as STALE, naming --replay as the fix.
+  local gate_before; gate_before="$(cd "$fx" && node "$MUTATION_GATE" --spec docs/specs/fixture-spec.md 2>&1)"; rc=$?
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-700: a harmlessly-touched target must turn the gate OFFENDING (STALE) before replay, got $rc: $gate_before"
+  assert_payload_contains "$gate_before" "STALE TEST-9001" "TEST-700: the gate must name the STALE class before replay: $gate_before"
+  assert_payload_contains "$gate_before" "re-run mutation-run.mjs --replay for this row" \
+    "TEST-700: the gate's own remedy line must name --replay as the fix: $gate_before"
+
+  # --replay re-applies the recorded mutation; it still reddens (the target
+  # still contains 'hello' to replace), so it must re-stamp target_sha256 to
+  # the CURRENT (touched) bytes -- and say so on stdout, honestly.
+  local replay_out; replay_out="$(cd "$fx" && node "$MUTATION_RUN" --replay --spec docs/specs/fixture-spec.md 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-700: --replay of a still-reddening, merely stale-stamped record must exit 0, got $rc: $replay_out"
+  assert_payload_contains "$replay_out" "RED TEST-9001: still reddens" "TEST-700: replay must confirm the row still reddens: $replay_out"
+  assert_payload_contains "$replay_out" "target_sha256 re-stamped" "TEST-700: replay must say it re-stamped the row: $replay_out"
+  assert_payload_contains "$replay_out" ", 1 re-stamped)" "TEST-700: the summary line must count exactly one re-stamped row: $replay_out"
+  assert_payload_contains "$(cat "$rec")" "target_sha256: ${sha_after}" \
+    "TEST-700: the record on disk must now carry the TOUCHED target's sha256: $(cat "$rec")"
+
+  # AFTER: the gate is clean again -- the exact demonstration the fix exists
+  # to make true (a still-reddening row is never left stale by its own
+  # printed remedy).
+  local gate_after; gate_after="$(cd "$fx" && node "$MUTATION_GATE" --spec docs/specs/fixture-spec.md 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-700: the gate must be clean after --replay re-stamps the row, got $rc: $gate_after"
+  assert_payload_contains "$gate_after" 'unstamped=0' "TEST-700: the freshly re-stamped row must not count as unstamped: $gate_after"
+
+  # A SECOND --replay, with nothing touched in between, must be a genuine
+  # no-op: the row already matches, so this run re-stamps NOTHING -- never a
+  # blind rewrite on every replay regardless of drift.
+  local replay_out2; replay_out2="$(cd "$fx" && node "$MUTATION_RUN" --replay --spec docs/specs/fixture-spec.md 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-700: a second replay with nothing touched must still exit 0, got $rc: $replay_out2"
+  assert_payload_not_contains "$replay_out2" "target_sha256 re-stamped" \
+    "TEST-700: a replay over an already-fresh record must not claim a re-stamp: $replay_out2"
+  assert_payload_contains "$replay_out2" ", 0 re-stamped)" "TEST-700: the summary line must count zero re-stamps when nothing drifted: $replay_out2"
+
+  # A record whose mutation still APPLIES but whose SUITE no longer catches
+  # it (STAYED GREEN on replay) must never be re-stamped either -- restamp is
+  # gated on a CONFIRMED RED, not merely on "the mutation still changed the
+  # target's bytes".
+  cat > "$fx/tests/skills/fixture-suite.sh" <<'EOS'
+#!/usr/bin/env bash
+set -uo pipefail
+FSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FROOT="$(cd "$FSCRIPT_DIR/../.." && pwd)"
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+test_9001_greet_and_marker() {
+  node "$FROOT/lib/greeting.mjs" >/dev/null 2>&1
+  log_pass "TEST-9001 no longer asserts the greeting text (STAYED GREEN fixture)"
+}
+main() {
+  if [[ -n "${1:-}" ]]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"; return
+  fi
+  test_9001_greet_and_marker
+}
+main "$@"
+EOS
+
+  local before_bytes; before_bytes="$(cat "$rec")"
+  local replay_stayed; replay_stayed="$(cd "$fx" && node "$MUTATION_RUN" --replay --spec docs/specs/fixture-spec.md 2>&1)"; rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-700: a replay whose suite no longer catches the mutation must exit non-zero, got $rc: $replay_stayed"
+  assert_payload_contains "$replay_stayed" "STAYED GREEN TEST-9001: no longer reddens" \
+    "TEST-700: replay must report STAYED GREEN once the suite stops catching the mutation: $replay_stayed"
+  assert_payload_not_contains "$replay_stayed" "target_sha256 re-stamped" \
+    "TEST-700: a STAYED GREEN replay must never claim a re-stamp: $replay_stayed"
+  [[ "$(cat "$rec")" == "$before_bytes" ]] \
+    || log_fail "TEST-700: a STAYED GREEN replay must leave the record byte-identical on disk, never re-stamped"
+
+  log_pass "TEST-700 --replay re-stamps target_sha256 (and only target_sha256) on a still-reddening record whose target merely moved, naming the count on stdout, turning a gate STALE back to PASS -- exactly the gate's own printed remedy, now true; a second replay over a fresh record re-stamps nothing, and a record whose mutation stays green on replay is left byte-identical, never re-stamped"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -2158,6 +2267,7 @@ main() {
   test_506_gate_detects_stale_target
   test_513_patch_scope_refusal
   test_517_flag_value_usage_errors
+  test_700_replay_restamps_stale_target
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
