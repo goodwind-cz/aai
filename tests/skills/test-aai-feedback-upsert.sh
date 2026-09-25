@@ -131,7 +131,10 @@ case "$1 $2" in
     [ "$3" = "--repo" ] && is_repo "$4" || gh_reject "expected --repo <owner/name>, got: $3 $4"
     [ "$5" = "--json" ] && [ "$6" = "name" ] || gh_reject "expected --json name, got: $5 $6"
     [ "$7" = "--limit" ] && [ "$8" = "500" ] || gh_reject "expected --limit 500, got: $7 $8"
-    if [ "${LABEL_LIST_FAIL:-0}" = "1" ]; then echo "could not list labels" >&2; exit 1; fi
+    if [ "${LABEL_LIST_FAIL:-0}" = "1" ]; then
+      printf '%s\n' "${LABEL_LIST_STDERR:-could not list labels}" >&2
+      exit "${LABEL_LIST_FAIL_CODE:-1}"
+    fi
     cat "${LABEL_RESULT:-/dev/null}" 2>/dev/null || echo "[]"
     exit 0 ;;
 
@@ -174,6 +177,20 @@ case "$1 $2" in
     # look identical to a foreign-host mismatch.
     echo "https://github.com/${create_dest}/issues/4271"
     exit 0 ;;
+
+  "issue comment")
+    # issue comment <n> --repo <o/r> --body <text> -- Spec-AC-06's second
+    # mutating call. A distinct skeleton from "issue create", so a call site
+    # that tried to hide inside the create shape (or vice versa) is refused.
+    [ "$#" -eq 7 ] || gh_reject "issue comment argv must be exactly 7 tokens, got $#: $*"
+    case "$3" in ''|*[!0-9]*) gh_reject "expected a numeric issue number, got: $3" ;; esac
+    [ "$4" = "--repo" ] && is_repo "$5" || gh_reject "expected --repo <owner/name>, got: $4 $5"
+    [ "$6" = "--body" ] && [ -n "$7" ] || gh_reject "expected --body <non-empty>, got: $6"
+    if [ "${COMMENT_FAIL:-0}" = "1" ]; then
+      printf '%s\n' "${COMMENT_STDERR:-comment failed}" >&2
+      exit "${COMMENT_FAIL_CODE:-1}"
+    fi
+    exit 0 ;;
 esac
 gh_reject "unpinned command: $*"
 SH
@@ -185,7 +202,13 @@ SH
   printf '[{"name":"aai-friction"}]' > "$TEST_DIR/labels.json"; LABEL_RESULT="$TEST_DIR/labels.json"; export LABEL_RESULT
   printf '[]' > "$TEST_DIR/nolabels.json"
   LABEL_LIST_FAIL=0; export LABEL_LIST_FAIL
+  LABEL_LIST_FAIL_CODE=1; export LABEL_LIST_FAIL_CODE
+  LABEL_LIST_STDERR=""; export LABEL_LIST_STDERR
+  COMMENT_FAIL=0; export COMMENT_FAIL
+  COMMENT_FAIL_CODE=1; export COMMENT_FAIL_CODE
+  COMMENT_STDERR=""; export COMMENT_STDERR
   SEARCH_FAIL=0; export SEARCH_FAIL
+  SEARCH_FAIL_CODE=1; export SEARCH_FAIL_CODE
   SEARCH_STDERR=""; export SEARCH_STDERR
   SEARCH_STDERR_EMPTY=0; export SEARCH_STDERR_EMPTY
   SEARCH_STDERR_FILE=""; export SEARCH_STDERR_FILE
@@ -219,6 +242,7 @@ RUN() {
       > "$TEST_DIR/out" 2> "$TEST_DIR/err"; echo $?
 }
 creates() { local n; n="$(grep -c "^issue create" "$GH_CALLS" 2>/dev/null)"; echo "${n:-0}"; }
+comments() { local n; n="$(grep -c "^issue comment" "$GH_CALLS" 2>/dev/null)"; echo "${n:-0}"; }
 # One valid review_candidate, spool + report, and a clean budget ledger. Every
 # case that needs it calls this, so no case inherits another case's fixture.
 seed_single_candidate() {
@@ -1587,6 +1611,162 @@ test_652_harness_payload_pin_still_bites() {
   log_pass "TEST-652 the existing payload harness pin still bites under mutation"
 }
 
+# --- TEST-660 (Spec-AC-06): a certified prose summary + a certified URL -----
+# issues exactly ONE additional mutating `gh issue comment` call, argv pinned -
+test_660_certified_prose_is_commented() {
+  log_info "Test: a certified-prose publish issues exactly two mutating calls, create then comment, both pinned (TEST-660)..."
+  seed_single_candidate
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"the gate threw on a missing transition"}
+JSONL
+  reset_calls
+  local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  [ "$code" = "0" ] || log_fail "TEST-660: a successful certified-prose publish must exit 0 (err=$(cat "$TEST_DIR/err"))"
+  [ "$(creates)" = "1" ] || log_fail "TEST-660: the issue create must happen exactly once (made $(creates))"
+  [ "$(comments)" = "1" ] || log_fail "TEST-660: the comment call must happen exactly once (made $(comments), err=$(cat "$TEST_DIR/err"))"
+  # GH_CALLS also records the non-mutating auth/search preflight, so the
+  # ORDER of the two MUTATING calls is proven by their own line numbers, not
+  # by absolute line 1/2 of the whole recording.
+  local create_ln comment_ln
+  create_ln="$(grep -n '^issue create' "$GH_CALLS" | cut -d: -f1 | qhead -1)"
+  comment_ln="$(grep -n '^issue comment' "$GH_CALLS" | cut -d: -f1 | qhead -1)"
+  [ -n "$create_ln" ] && [ -n "$comment_ln" ] || log_fail "TEST-660: both an issue create and an issue comment call must be recorded (calls: $(cat "$GH_CALLS"))"
+  [ "$create_ln" -lt "$comment_ln" ] || log_fail "TEST-660: issue create must precede issue comment (create at line $create_ln, comment at line $comment_ln)"
+  local second; second="$(grep '^issue comment' "$GH_CALLS" | qhead -1)"
+  case "$second" in "issue comment 4271 --repo goodwind-cz/aai --body the gate threw on a missing transition") ;; \
+    *) log_fail "TEST-660: the comment argv must be issue comment <parsed-number> --repo <destination> --body <certified prose>, got: $second" ;; esac
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_contains "$out" "https://github.com/goodwind-cz/aai/issues/4271" "TEST-660: stdout must still carry the filed issue URL"
+  log_pass "certified prose is commented exactly once, argv pinned (TEST-660)"
+}
+
+# --- TEST-661 (Spec-AC-06): (a) a prose-free record only PRINTS the comment -
+# command; (b) a comment call that FAILS still leaves the issue filed and the -
+# ledger written, names the real exit status, and exits non-zero -----------
+test_661_prose_free_and_failed_comment() {
+  log_info "Test: prose-free files one issue and only prints the command; a failed comment leaves the issue filed and named (TEST-661)..."
+
+  # (a) prose-free: no summary field at all.
+  seed_single_candidate
+  reset_calls
+  local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  [ "$code" = "0" ] || log_fail "TEST-661 (a): a prose-free publish must still exit 0 (err=$(cat "$TEST_DIR/err"))"
+  [ "$(creates)" = "1" ] || log_fail "TEST-661 (a): the issue must still be filed (made $(creates))"
+  [ "$(comments)" = "0" ] || log_fail "TEST-661 (a): a prose-free record must never trigger a comment call (made $(comments))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_contains "$out" "gh issue comment 4271 --repo goodwind-cz/aai --body-file" "TEST-661 (a): stdout must still print the manual comment command"
+
+  # (b) certified prose present, but the comment call itself fails.
+  seed_single_candidate
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"the transmit pass certified this text"}
+JSONL
+  reset_calls
+  COMMENT_FAIL=1; COMMENT_FAIL_CODE=7; COMMENT_STDERR="comment endpoint exploded"
+  code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  COMMENT_FAIL=0; COMMENT_FAIL_CODE=1; COMMENT_STDERR=""
+  [ "$code" != "0" ] || log_fail "TEST-661 (b): a failed comment call must exit non-zero"
+  [ "$(creates)" = "1" ] || log_fail "TEST-661 (b): the issue must remain FILED even though the comment failed (made $(creates))"
+  [ "$(comments)" = "1" ] || log_fail "TEST-661 (b): the comment call must actually have been attempted (made $(comments))"
+  local led; led="$(cat "$TEST_DIR/friction/upsert-ledger.jsonl" 2>/dev/null)"
+  case "$led" in *'"fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"'*) ;; \
+    *) log_fail "TEST-661 (b): the ledger entry must still be written when the comment fails: $led" ;; esac
+  local err; err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "exit 7" "TEST-661 (b): the refusal must name the comment call's real exit status"
+  assert_payload_contains "$err" "comment endpoint exploded" "TEST-661 (b): the refusal must name the certified stderr detail"
+  log_pass "prose-free only prints the command; a failed comment leaves the issue filed and is named (TEST-661)"
+}
+
+# --- TEST-662 (Spec-AC-06): an uncertified URL (foreign host, or garbled ----
+# stdout) never triggers the comment call even when certified prose exists --
+test_662_uncertified_url_never_commented() {
+  log_info "Test: a foreign-host URL and a garbled create stdout each keep the existing manual NOTE and issue no comment call (TEST-662)..."
+
+  # (a) shape-matching but foreign-host URL: parseIssueUrl can extract a raw
+  # number (parsed.rawNumber) but MUST NOT certify it.
+  seed_single_candidate
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"certified prose that must never be sent to an uncertified URL"}
+JSONL
+  CREATE_STDOUT_OVERRIDE="https://evil.example.com/goodwind-cz/aai/issues/4271"
+  reset_calls
+  local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-662 (a): a foreign-host create must still degrade to exit 0 (err=$(cat "$TEST_DIR/err"))"
+  [ "$(creates)" = "1" ] || log_fail "TEST-662 (a): the issue must still be filed (made $(creates))"
+  [ "$(comments)" = "0" ] || log_fail "TEST-662 (a): an uncertified foreign-host URL must never trigger a comment call (made $(comments))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_contains "$out" "NOTE" "TEST-662 (a): stdout must still carry the existing manual NOTE"
+
+  # (b) garbled create stdout: no URL shape at all, so parseIssueUrl returns
+  # 'unparseable' with no number of any kind.
+  seed_single_candidate
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"certified prose that must never be sent when the URL is unparseable"}
+JSONL
+  CREATE_STDOUT_OVERRIDE="not-a-github-url-marker-XYZ"
+  reset_calls
+  code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-662 (b): a garbled create stdout must still degrade to exit 0 (err=$(cat "$TEST_DIR/err"))"
+  [ "$(creates)" = "1" ] || log_fail "TEST-662 (b): the issue must still be filed (made $(creates))"
+  [ "$(comments)" = "0" ] || log_fail "TEST-662 (b): an unparseable create stdout must never trigger a comment call (made $(comments))"
+  out="$(cat "$TEST_DIR/out")"
+  assert_payload_contains "$out" "NOTE" "TEST-662 (b): stdout must still carry the existing manual NOTE"
+  log_pass "an uncertified URL, shape-matched or garbled, never triggers a comment call (TEST-662)"
+}
+
+# --- TEST-663 (Spec-AC-07): existingLabels' runGh result names the real ------
+# refusal — exit status and certified stderr detail — the issue still files --
+test_663_label_refusal_names_status() {
+  log_info "Test: a failing label list names its real exit status and stderr detail; the issue still files unlabelled (TEST-663)..."
+  seed_single_candidate
+  LABEL_LIST_FAIL=1; LABEL_LIST_FAIL_CODE=4; LABEL_LIST_STDERR="label endpoint refused"
+  reset_calls
+  local code; code="$(RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  LABEL_LIST_FAIL=0; LABEL_LIST_FAIL_CODE=1; LABEL_LIST_STDERR=""
+  [ "$code" = "0" ] || log_fail "TEST-663: a failing label read must not block the write (err=$(cat "$TEST_DIR/err"))"
+  [ "$(creates)" = "1" ] || log_fail "TEST-663: the issue must still be filed, unlabelled, when the label read fails (made $(creates))"
+  local err; err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "exit 4" "TEST-663: the refusal must name the real exit status"
+  assert_payload_contains "$err" "label endpoint refused" "TEST-663: the refusal must name the certified stderr detail"
+  local line; line="$(grep '^issue create' "$GH_CALLS" | qhead -1)"
+  case "$line" in *"--label"*) log_fail "TEST-663: the filed issue must carry no label when the label read failed: $line" ;; esac
+  log_pass "a failing label read names its exit status and stderr detail; issue still filed unlabelled (TEST-663)"
+}
+
+# --- TEST-664 (Spec-AC-07): a dedup search exiting 0 with unparseable stdout -
+# refuses as a PARSE failure (never "exit 0"); a real process failure still --
+# names its own exit status --------------------------------------------------
+test_664_parse_failure_is_not_exit_zero() {
+  log_info "Test: a parse failure never prints exit 0; a real process failure still names its status (TEST-664)..."
+
+  # (a) gh exits 0 but the stdout is not the expected JSON shape.
+  seed_single_candidate
+  printf 'not-json-at-all' > "$TEST_DIR/garbled-search.json"
+  SEARCH_RESULT="$TEST_DIR/garbled-search.json"
+  reset_calls
+  local code; code="$(RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  SEARCH_RESULT="$TEST_DIR/empty.json"
+  [ "$code" != "0" ] || log_fail "TEST-664 (a): an unparseable dedup search must refuse the publish"
+  [ "$(creates)" = "0" ] || log_fail "TEST-664 (a): must not create when the dedup search could not be parsed (made $(creates))"
+  local err; err="$(cat "$TEST_DIR/err")"
+  assert_payload_not_contains "$err" "exit 0" "TEST-664 (a): a parse failure must never print exit 0: $err"
+  assert_payload_contains "$err" "parse failure" "TEST-664 (a): the refusal must name the parse failure"
+
+  # (b) a genuine process failure (gh exits 4) still names its real status.
+  seed_single_candidate
+  SEARCH_FAIL=1; SEARCH_FAIL_CODE=4; SEARCH_STDERR="dedup probe exploded again"
+  reset_calls
+  code="$(RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  SEARCH_FAIL=0; SEARCH_FAIL_CODE=1; SEARCH_STDERR=""
+  [ "$code" != "0" ] || log_fail "TEST-664 (b): a real process failure must still refuse the publish"
+  [ "$(creates)" = "0" ] || log_fail "TEST-664 (b): must not create when the dedup search process failed (made $(creates))"
+  err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "exit 4" "TEST-664 (b): a real process failure must still name its real exit status"
+  log_pass "a parse failure never claims exit 0; a real process failure still names its status (TEST-664)"
+}
+
 test_009_profiles() {
   log_info "Test: new .aai files classified; layer-profiles green (TEST-009)..."
   local out code; out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
@@ -1707,6 +1887,11 @@ main() {
   test_063_large_stderr_does_not_lose_exit_status
   test_064_harness_in_payload
   test_652_harness_payload_pin_still_bites
+  test_660_certified_prose_is_commented
+  test_661_prose_free_and_failed_comment
+  test_662_uncertified_url_never_commented
+  test_663_label_refusal_names_status
+  test_664_parse_failure_is_not_exit_zero
   test_009_profiles
   test_404_nested_failure_names_file_with_linecount
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
