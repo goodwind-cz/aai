@@ -36,6 +36,7 @@
 3	tests/skills/test-aai-advisory-skills.sh
 2	tests/skills/test-aai-bootstrap.sh
 5	tests/skills/test-aai-branch-guard.sh
+2	tests/skills/test-aai-canon.sh
 7	tests/skills/test-aai-ceremony-levels.sh
 3	tests/skills/test-aai-check-state.sh
 2	tests/skills/test-aai-close-reconcile.sh

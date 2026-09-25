@@ -1,0 +1,71 @@
+# .aai/system/CANON.yaml — the ordered, asserted dispatch-payload declaration
+# (SPEC-DRAFT-spec-canon-is-a-build-artifact D2). This is the ONLY place a
+# canon count, order or byte ceiling lives; a number that is not in this file
+# is not asserted (D2). Consumed by `.aai/scripts/canon.mjs`, node stdlib
+# only — parsed LINE-BASED, like `.aai/system/PROFILES.yaml`: keep this exact
+# two-space indentation, `key: value` per line, no flow-style collections
+# except the empty-list literal `[]`.
+#
+# CONTRACT
+# - `roles:` — role name -> its prompt file, repo-root-relative. The `role`
+#   section type below resolves its path through this map at build time.
+# - `sections:` — the ordered dispatch sections `canon.mjs build` assembles,
+#   in the exact order they are emitted (D3: the ASSEMBLED PAYLOAD must
+#   follow this order, never a hardcoded one). Each entry:
+#     id: <token>            section marker id (`<<<AAI-CANON-SECTION <id>`)
+#     type: file | role | scope
+#       file  — `path:` is a repo-root-relative file. Absent or empty ->
+#               `canon-section-absent: <id> <path>` (Spec-AC-02).
+#       role  — path is resolved from `roles:` by the `--role` CLI value.
+#       scope — synthesized from the `--ref` CLI value; not file-backed.
+#   Contract FIRST, scope LAST (Spec-AC-01) — this file's own order IS the
+#   assertion; reordering these two lines moves the live build's output.
+# - `standing_hazards:` — the declared `- HAZ-` line count the assembled
+#   payload must contain exactly (Spec-AC-03).
+# - `byte_ceiling:` — the declared max byte size of the assembled payload,
+#   UTF-8 bytes (Spec-AC-05).
+# - `uniqueness_exceptions:` — the ONLY admitted duplicate rule lines
+#   (Spec-AC-04), each `text:` (normalized: trimmed, internal whitespace
+#   collapsed to one space) plus a `reason:` the check prints when the
+#   exception is used. `[]` when none are declared, as today.
+#
+# LINE-SHAPE DECISION (R2, measured 2026-09-25, canon-is-a-build-artifact
+# Implementation): the duplicate-rule scan matches every line beginning
+# `- ` (a markdown bullet) in the assembled payload. Measured false-positive
+# rate over the LIVE corpus for every role this file declares — contract +
+# that role's own prompt + LEARNED.md, the exact section set one `build`
+# call assembles — is ZERO (`sort | uniq -d` over the bulleted lines of each
+# of the 6 role payloads individually returns nothing). The only corpus that
+# produces a collision is the union of ALL SIX role prompts at once — a
+# shape `canon.mjs build` never assembles (one `--role` per call) — so the
+# broad bullet shape is safe for what this tool actually builds. A narrower
+# pattern (bullets matching the `- HAZ-` hazard-token shape only) was
+# considered and rejected: it would miss a duplicated non-hazard canon rule,
+# which is exactly the defect class `fu-contract-ledger-rule-stated-twice`
+# was.
+
+roles:
+  Planning: .aai/PLANNING.prompt.md
+  Implementation: .aai/IMPLEMENTATION.prompt.md
+  Validation: .aai/VALIDATION.prompt.md
+  Remediation: .aai/REMEDIATION.prompt.md
+  TDD Implementation: .aai/SKILL_TDD.prompt.md
+  Code Review: .aai/SKILL_CODE_REVIEW.prompt.md
+
+sections:
+  - id: contract
+    type: file
+    path: .aai/SUBAGENT_CONTRACT.md
+  - id: role
+    type: role
+  - id: learned
+    type: file
+    path: docs/knowledge/LEARNED.md
+  - id: scope
+    type: scope
+
+standing_hazards: 5
+
+byte_ceiling: 150000
+
+uniqueness_exceptions: []

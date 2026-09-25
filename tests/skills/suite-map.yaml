@@ -78,6 +78,12 @@ suites:
       - .aai/AGENTS.md
       - .aai/SKILL_PR.prompt.md
 
+  aai-canon:
+    globs:
+      - .aai/scripts/canon.mjs
+      - .aai/system/CANON.yaml
+      - .aai/ORCHESTRATION.prompt.md
+
   aai-ceremony-levels:
     globs:
       - .aai/PLANNING.prompt.md
