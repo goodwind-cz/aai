@@ -860,7 +860,12 @@ test_012_growth_sum_matches_ledger() {
   # (+132 B) -- .aai/ORCHESTRATION.prompt.md step 2's one runnable
   # canon.mjs build command line TEST-684 extracts and executes. Credited
   # 1:1, headroom stays 1942/2048 (TEST-010).
-  local want_growth=37344
+  # Then 37344 -> 37762: canon-is-a-build-artifact run 3 (Spec-AC-13)
+  # (+418 B) -- .aai/VALIDATION.prompt.md's round-cap rule gains STANDING
+  # DECISION (a) (owner decision wave-2-roadmap, 2026-09-12), the citation
+  # canon.mjs check --section decision_citations now resolves. Credited
+  # 1:1, headroom stays 1942/2048 (TEST-010).
+  local want_growth=37762
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1606,6 +1611,65 @@ test_622_diet_true_up() {
     || log_fail "TEST-622 (Spec-AC-08) diet true-up"
 }
 
+# TEST-697 (canon-is-a-build-artifact Spec-AC-14) — this ride's own
+# .aai/VALIDATION.prompt.md growth (STANDING DECISION (a), Spec-AC-13) is
+# measured, not guessed: the ledger entry's own "<before> -> <after>"
+# measurement matches its leading credited byte count, the file on disk still
+# carries that many bytes, and the ledger prefix through this entry moved by
+# exactly the credited amount over the ride's own inherited pin (37344,
+# TEST-012's prior want_growth) — TEST-622's discipline, scoped to this
+# ride's own entry.
+test_697_corpus_growth_ledgered() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-697 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local ok=1 _e entry='' n=0 lead before after measured now
+  local ledger_key='canon-is-a-build-artifact run 3 (Spec-AC-13)'
+  local prefix=0 prefix_closed=0
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    if [[ "$prefix_closed" -eq 0 ]]; then
+      prefix=$(( prefix + ${_e%% *} ))
+    fi
+    case "$_e" in
+      *"$ledger_key"*) entry="$_e"; n=$((n + 1)); prefix_closed=1 ;;
+    esac
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-697: JUSTIFIED_ADDITIONS carries $n entries naming '$ledger_key' (want exactly 1)"
+    return
+  fi
+
+  lead="${entry%% *}"
+  before="$(printf '%s' "$entry" | sed -n 's/.*VALIDATION\.prompt\.md \([0-9][0-9]*\) -> [0-9][0-9]*.*/\1/p' | qhead -1)"
+  after="$(printf '%s' "$entry" | sed -n 's/.*VALIDATION\.prompt\.md [0-9][0-9]* -> \([0-9][0-9]*\).*/\1/p' | qhead -1)"
+  if [[ -z "$before" || -z "$after" ]]; then
+    log_info "TEST-697: the ledger entry does not record its measurement as 'VALIDATION.prompt.md <before> -> <after>'"
+    ok=0
+  else
+    measured=$(( after - before ))
+    if [[ "$lead" -ne "$measured" ]]; then
+      log_info "TEST-697: entry credits $lead B but its own measurement is $measured B ($before -> $after)"
+      ok=0
+    fi
+    now=$(/usr/bin/wc -c < .aai/VALIDATION.prompt.md | tr -d ' ')
+    if [[ "$now" -ne "$after" ]]; then
+      log_info "TEST-697: .aai/VALIDATION.prompt.md is $now B on disk, entry recorded $after B"
+      ok=0
+    fi
+  fi
+
+  # The pin moved by exactly the credited amount over the ride's own
+  # inherited 37344 (TEST-012's prior want_growth, run 2's final value).
+  if [[ "$prefix" -ne $(( 37344 + lead )) ]]; then
+    log_info "TEST-697: ledger prefix through this entry=$prefix (want 37344 + $lead = $(( 37344 + lead )))"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-697 (Spec-AC-14) VALIDATION.prompt.md growth $lead B is measured and credited 1:1, pin 37344 -> $prefix" \
+    || log_fail "TEST-697 (Spec-AC-14) corpus growth true-up"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1637,6 +1701,7 @@ main() {
   test_023_ac_flip_growth_credited
   test_429_select_suites_named_in_both_prompts
   test_622_diet_true_up
+  test_697_corpus_growth_ledgered
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

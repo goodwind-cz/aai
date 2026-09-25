@@ -382,6 +382,39 @@ test_572_new_aai_files_classified() {
   log_pass "TEST-572: this ride adds no new .aai file; the manifest's live-tree union (core+extended == .aai tree) still holds"
 }
 
+# --- TEST-696 (canon-is-a-build-artifact Spec-AC-14) -------------------------
+# `.aai/scripts/canon.mjs` and `.aai/system/CANON.yaml` each appear in
+# EXACTLY ONE PROFILES.yaml list, and the suite's own live-tree union check
+# (TEST-572's own logic, re-run here so a canon-specific regression names
+# itself rather than hiding inside the generic sweep) stays green.
+test_696_new_canon_files_classified() {
+  log_info "TEST-696: canon.mjs and CANON.yaml are each classified exactly once, union check green..."
+  [[ -f "$MANIFEST" ]] || log_fail "TEST-696: manifest not found: $MANIFEST"
+
+  local core extended listed
+  core="$(profile_list "$MANIFEST" core)"
+  extended="$(profile_list "$MANIFEST" extended)"
+  listed="$(printf '%s\n%s\n' "$core" "$extended" | LC_ALL=C sort)"
+
+  local f count
+  for f in .aai/scripts/canon.mjs .aai/system/CANON.yaml; do
+    count="$(printf '%s\n' "$listed" | qgrep -c "^${f}$" || true)"
+    [[ "$count" -eq 1 ]] \
+      || log_fail "TEST-696: $f must appear in exactly one PROFILES.yaml list, found $count"
+  done
+
+  local actual dupes unclassified stale
+  actual="$(cd "$PROJECT_ROOT" && find .aai -type f ! -path '.aai/cache/*' | LC_ALL=C sort)"
+  dupes="$(printf '%s\n' "$listed" | uniq -d)"
+  [[ -z "$dupes" ]] || log_fail "TEST-696: duplicate/overlapping manifest entries:"$'\n'"$dupes"
+  unclassified="$(comm -23 <(printf '%s\n' "$actual") <(printf '%s\n' "$listed"))"
+  [[ -z "$unclassified" ]] || log_fail "TEST-696: UNCLASSIFIED vendored files (add to PROFILES.yaml):"$'\n'"$unclassified"
+  stale="$(comm -13 <(printf '%s\n' "$actual") <(printf '%s\n' "$listed"))"
+  [[ -z "$stale" ]] || log_fail "TEST-696: stale manifest entries (no such file):"$'\n'"$stale"
+
+  log_pass "TEST-696: canon.mjs and CANON.yaml each classified exactly once, live-tree union holds"
+}
+
 # --- TEST-002 — default run byte-identical to the pre-change sync (Spec-AC-02) -
 test_default_byte_identity() {
   log_info "TEST-002: flag-less run byte-identical to HEAD engine; --profile extended == default..."
@@ -865,6 +898,7 @@ main() {
   test_new_files_classified
   test_488_mutation_gate_files_classified
   test_572_new_aai_files_classified
+  test_696_new_canon_files_classified
   build_fixture_sources
   test_default_byte_identity
   test_core_exact_set

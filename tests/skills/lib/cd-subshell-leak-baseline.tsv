@@ -74,7 +74,7 @@
 15	tests/skills/test-aai-intake.sh
 3	tests/skills/test-aai-issues.sh
 3	tests/skills/test-aai-layer-drift.sh
-5	tests/skills/test-aai-layer-profiles.sh
+6	tests/skills/test-aai-layer-profiles.sh
 3	tests/skills/test-aai-learned-append.sh
 6	tests/skills/test-aai-learned-routing.sh
 2	tests/skills/test-aai-ledger-merge.sh

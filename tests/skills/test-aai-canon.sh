@@ -15,6 +15,20 @@
 # DECLARED claim list in CANON.yaml, reaching the repository root via
 # CHANGELOG.md, covering present/future tense).
 #
+# TEST-690..699 (run 3, the final run) add: `claims --report` (Spec-AC-11 —
+# the GENERATED enumeration of documents carrying their OWN dated correction
+# annotation for a claim, closing fu-spec-d6-enumeration-stale; TEST-691 reads
+# BOTH the report's own numbers and SPEC-0148's dated addendum block and
+# compares them value-to-value, never a literal in the test); `check --section
+# validation_waiver` (Spec-AC-12 — the waiver grammar RENDERED from
+# validation-waiver.mjs's own exported constants and asserted verbatim against
+# that file's own header, plus a literal-version sweep over `.aai/**` and
+# `tests/skills/**`); `check --section decision_citations` (Spec-AC-13 — every
+# `owner decision <ref>, <date>` citation in `.aai/*.prompt.md` resolved
+# against `docs/ai/decisions.jsonl`); and `check --all` / `build` for every
+# declared role against the LIVE tree (Spec-AC-15 — a gate proved only on
+# fixtures has never met the corpus it governs).
+#
 # D3 (anti-vacuity, the whole reason this suite exists): every order/count/
 # uniqueness assertion below parses `canon.mjs build`'s STDOUT — the
 # ASSEMBLED PAYLOAD — never the manifest it was built from. TEST-675 pins
@@ -133,6 +147,67 @@ run_claims() {
   ( cd "$cwd" && node "$CANON" claims "$@" >"$CANON_OUT" 2>"$CANON_ERR" )
   CANON_RC=$?
   set -e
+}
+
+# run_canon_report <cwd> — `claims --report` against the LIVE default
+# manifest at <cwd>. Sets CANON_OUT / CANON_ERR / CANON_RC.
+run_canon_report() {
+  local cwd="$1"
+  CANON_OUT="$(mktemp "$TEST_DIR/canon-report-out.XXXXXX")"
+  CANON_ERR="$(mktemp "$TEST_DIR/canon-report-err.XXXXXX")"
+  set +e
+  ( cd "$cwd" && node "$CANON" claims --report >"$CANON_OUT" 2>"$CANON_ERR" )
+  CANON_RC=$?
+  set -e
+}
+
+# run_canon_check <cwd> [canon.mjs check args...] — sets CANON_OUT / CANON_ERR
+# / CANON_RC. <cwd> is PROJECT_ROOT (live tree, read-only) or a scratch
+# fixture tree with its own `.aai/system/CANON.yaml` at the default path.
+run_canon_check() {
+  local cwd="$1"
+  shift
+  CANON_OUT="$(mktemp "$TEST_DIR/canon-check-out.XXXXXX")"
+  CANON_ERR="$(mktemp "$TEST_DIR/canon-check-err.XXXXXX")"
+  set +e
+  ( cd "$cwd" && node "$CANON" check "$@" >"$CANON_OUT" 2>"$CANON_ERR" )
+  CANON_RC=$?
+  set -e
+}
+
+# build_waiver_fixture <dir> <version> — a COPY of the real
+# validation-waiver.mjs + its lib/cli-pipe-guard.mjs dependency (canon.mjs's
+# `check --section validation_waiver` dynamically imports the file from
+# <dir>, never the shipped one, so a fixture bump is what the check actually
+# reads), with `WAIVER_VERSION` bumped to <version>, plus a manifest
+# declaring v1 as the only legacy version and a planted stale `v2` literal
+# under tests/skills/** (Spec-AC-12's second declared glob).
+build_waiver_fixture() {
+  local d="$1" version="$2"
+  mkdir -p "$d/.aai/scripts/lib" "$d/.aai/system" "$d/tests/skills"
+  cp "$PROJECT_ROOT/.aai/scripts/validation-waiver.mjs" "$d/.aai/scripts/validation-waiver.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
+  sed -i.bak "s/^export const WAIVER_VERSION = [0-9][0-9]*;/export const WAIVER_VERSION = ${version};/" \
+    "$d/.aai/scripts/validation-waiver.mjs"
+  rm -f "$d/.aai/scripts/validation-waiver.mjs.bak"
+  cat > "$d/tests/skills/fixture-waiver-usage.sh" <<'EOF'
+# fixture: a stale v2 literal under tests/skills/** for TEST-693's sweep.
+REC="[AAI-VALIDATION-WAIVER v2 by=operator ref=FIXTURE at=2026-01-01T00:00:00Z reason=\"x\"]"
+EOF
+  cat > "$d/.aai/system/CANON.yaml" <<'EOF'
+historical: []
+annotation_window: 6
+claims: []
+roles:
+  FixtureRole: .aai/ROLE.prompt.md
+sections: []
+standing_hazards: 0
+byte_ceiling: 20000
+uniqueness_exceptions: []
+waiver_legacy_versions:
+  - version: 1
+    reason: fixture legacy version
+EOF
 }
 
 # build_claims_copy <dir> — a COPIED tree (Spec-AC-09's own wording) built
@@ -644,9 +719,212 @@ EOF
   log_pass "TEST-689 a sentence about deletion that does not assert the withdrawn claim is not reported"
 }
 
+# --- TEST-690 ------------------------------------------------------------------
+# `claims --report` GENERATES the per-doc-type counts by scanning the live
+# corpus for the claim's OWN dated correction annotations — never hand-counted
+# (closes fu-spec-d6-enumeration-stale). Measured 2026-09-25: 3 specs, 4 intakes.
+test_690_enumeration_is_generated() {
+  run_canon_report "$PROJECT_ROOT"
+  expect_rc 0 "TEST-690 live claims --report"
+  local specs intakes
+  specs="$(/usr/bin/grep -o 'specs=[0-9]*' "$CANON_ERR" | qhead -n1 | cut -d= -f2)" || true
+  intakes="$(/usr/bin/grep -o 'intakes=[0-9]*' "$CANON_ERR" | qhead -n1 | cut -d= -f2)" || true
+  [[ -n "$specs" && -n "$intakes" ]] || log_fail "TEST-690: could not read specs=/intakes= counts off stderr"
+  [[ "$specs" -eq 3 ]] || log_fail "TEST-690: expected the generated specs count to be 3, got $specs"
+  [[ "$intakes" -eq 4 ]] || log_fail "TEST-690: expected the generated intakes count to be 4, got $intakes"
+  log_pass "TEST-690 claims --report generates specs=$specs intakes=$intakes from the live corpus"
+}
+
+# --- TEST-691 ------------------------------------------------------------------
+# SPEC-0148 carries a dated additive block stating the true set; its two
+# numbers must equal claims --report's own numbers, read from the report and
+# from the spec file — never a literal hard-coded in this test.
+test_691_spec0148_block_matches_report() {
+  run_canon_report "$PROJECT_ROOT"
+  expect_rc 0 "TEST-691 live claims --report"
+  local report_specs report_intakes
+  report_specs="$(/usr/bin/grep -o 'specs=[0-9]*' "$CANON_ERR" | qhead -n1 | cut -d= -f2)" || true
+  report_intakes="$(/usr/bin/grep -o 'intakes=[0-9]*' "$CANON_ERR" | qhead -n1 | cut -d= -f2)" || true
+  [[ -n "$report_specs" && -n "$report_intakes" ]] || log_fail "TEST-691: could not read the report's own counts"
+
+  local spec0148="$PROJECT_ROOT/docs/specs/SPEC-0148-spec-the-tripwire-is-permanent-not-transitional.md"
+  [[ -f "$spec0148" ]] || log_fail "TEST-691: SPEC-0148 not found: $spec0148"
+  local extract_js='
+import { readFileSync } from "node:fs";
+const t = readFileSync(process.argv[1], "utf8");
+const m = /(\d+) specs? \([^)]+\) and (\d+) intakes? \([^)]+\)/.exec(t);
+process.stdout.write(m ? m[1] + " " + m[2] : "");
+'
+  local block_counts block_specs block_intakes
+  block_counts="$(node --input-type=module -e "$extract_js" "$spec0148")"
+  block_specs="${block_counts%% *}"
+  block_intakes="${block_counts##* }"
+  [[ -n "$block_specs" && -n "$block_intakes" && "$block_counts" == *" "* ]] \
+    || log_fail "TEST-691: SPEC-0148 must carry a dated block stating '<N> specs (...) and <M> intakes (...)'"
+  [[ "$block_specs" -eq "$report_specs" ]] \
+    || log_fail "TEST-691: SPEC-0148's block states $block_specs specs but the report generated $report_specs"
+  [[ "$block_intakes" -eq "$report_intakes" ]] \
+    || log_fail "TEST-691: SPEC-0148's block states $block_intakes intakes but the report generated $report_intakes"
+  log_pass "TEST-691 SPEC-0148's dated block ($block_specs specs, $block_intakes intakes) equals claims --report's own generated counts"
+}
+
+# --- TEST-692 ------------------------------------------------------------------
+# The waiver grammar line, RENDERED from validation-waiver.mjs's own exported
+# WAIVER_SENTINEL / WAIVER_VERSION / WAIVER_KEY_ORDER, appears VERBATIM as a
+# comment line in that file's own header — an INDEPENDENT second render
+# (never trusting canon.mjs's internal comparison alone), matching S2's
+# both-implementations discipline.
+test_692_grammar_rendered_from_code() {
+  run_canon_check "$PROJECT_ROOT" --section validation_waiver
+  expect_rc 0 "TEST-692 live validation_waiver check"
+
+  # The path is INTERPOLATED into the script, never passed as process.argv[1]:
+  # validation-waiver.mjs's own main-guard compares process.argv[1] against
+  # its real path (a PROCESS-global array, shared by every dynamically
+  # imported module), so passing that same path as our positional arg would
+  # spuriously satisfy its own "am I the entry point" check and run its CLI.
+  local waiver_path="$PROJECT_ROOT/.aai/scripts/validation-waiver.mjs"
+  local render_js="
+import { pathToFileURL } from 'node:url';
+const mod = await import(pathToFileURL('${waiver_path}').href);
+const { WAIVER_SENTINEL, WAIVER_VERSION, WAIVER_KEY_ORDER, WAIVER_PLACEHOLDERS } = mod;
+const line = '[' + WAIVER_SENTINEL + ' v' + WAIVER_VERSION + ' '
+  + WAIVER_KEY_ORDER.map((k) => k + '=' + WAIVER_PLACEHOLDERS[k]).join(' ') + ']';
+process.stdout.write(line);
+"
+  local rendered
+  rendered="$(node --input-type=module -e "$render_js")"
+  [[ -n "$rendered" ]] || log_fail "TEST-692: could not independently render the grammar line"
+  /usr/bin/grep -qF "$rendered" "$PROJECT_ROOT/.aai/scripts/validation-waiver.mjs" \
+    || log_fail "TEST-692: rendered grammar line [$rendered] not found verbatim in validation-waiver.mjs"
+  log_pass "TEST-692 the independently-rendered grammar line ($rendered) appears verbatim in validation-waiver.mjs's own header"
+}
+
+# --- TEST-693 ------------------------------------------------------------------
+# The live tree exits 0 (v2 current, v1 declared legacy); a fixture COPY with
+# WAIVER_VERSION bumped to 3 refuses, naming the header line plus every stale
+# v2 literal under BOTH declared globs (.aai/** and tests/skills/**).
+test_693_version_bump_names_every_stale_literal() {
+  run_canon_check "$PROJECT_ROOT" --section validation_waiver
+  expect_rc 0 "TEST-693 live tree (v2 current, v1 declared legacy)"
+
+  local d="$TEST_DIR/t693"
+  mkdir -p "$d"
+  build_waiver_fixture "$d" 3
+
+  run_canon_check "$d" --section validation_waiver
+  expect_rc_nonzero "TEST-693 fixture with WAIVER_VERSION=3"
+  assert_payload_contains "$(cat "$CANON_ERR")" "waiver-grammar-drift:" \
+    "TEST-693: stderr must refuse with waiver-grammar-drift" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" ".aai/scripts/validation-waiver.mjs" \
+    "TEST-693: stderr must name the header line's own file" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" "tests/skills/fixture-waiver-usage.sh" \
+    "TEST-693: stderr must name the stale v2 literal under tests/skills/**" || return 1
+  log_pass "TEST-693 a WAIVER_VERSION bump refuses, naming the header line and every stale v2 literal under the declared globs"
+}
+
+# --- TEST-694 ------------------------------------------------------------------
+# .aai/VALIDATION.prompt.md states STANDING DECISION (a) with its 2026-09-12
+# citation, and check --section decision_citations resolves it (and the prior
+# review-round-cap citation) against an owner_signoff: true record.
+test_694_round_cap_amendment_present() {
+  /usr/bin/grep -q "STANDING DECISION (a)" "$PROJECT_ROOT/.aai/VALIDATION.prompt.md" \
+    || log_fail "TEST-694: .aai/VALIDATION.prompt.md must carry STANDING DECISION (a)"
+  /usr/bin/grep -q "owner decision wave-2-roadmap, 2026-09-12" "$PROJECT_ROOT/.aai/VALIDATION.prompt.md" \
+    || log_fail "TEST-694: .aai/VALIDATION.prompt.md must cite 'owner decision wave-2-roadmap, 2026-09-12'"
+
+  run_canon_check "$PROJECT_ROOT" --section decision_citations
+  expect_rc 0 "TEST-694 live decision_citations check"
+  local resolved
+  resolved="$(/usr/bin/grep -o 'resolved=[0-9]*' "$CANON_ERR" | qhead -n1 | cut -d= -f2)" || true
+  [[ -n "$resolved" ]] || log_fail "TEST-694: could not read the resolved-citation count off stderr"
+  [[ "$resolved" -ge 2 ]] \
+    || log_fail "TEST-694: expected at least 2 resolved citations (review-round-cap + wave-2-roadmap), got $resolved"
+  log_pass "TEST-694 STANDING DECISION (a) is present, cites wave-2-roadmap 2026-09-12, and the citation check resolves $resolved citations"
+}
+
+# --- TEST-695 ------------------------------------------------------------------
+# A fixture prompt whose cited decision date is one day off the ledger
+# refuses with citation-unresolvable, naming the prompt file:line; the check
+# still prints the number of citations it resolved (zero).
+test_695_citation_must_resolve() {
+  local d="$TEST_DIR/t695"
+  mkdir -p "$d/.aai/system" "$d/docs/ai"
+  cat > "$d/docs/ai/decisions.jsonl" <<'EOF'
+{"v":1,"ts":"2099-01-02T00:00:00Z","type":"hitl_decision","ref_id":"fixture-decision","owner_signoff":true,"decision":"n/a"}
+EOF
+  cat > "$d/.aai/FIXTURE.prompt.md" <<'EOF'
+# Fixture prompt
+Cites (owner decision fixture-decision, 2099-01-01) — one day off from the ledger.
+EOF
+  cat > "$d/.aai/system/CANON.yaml" <<'EOF'
+historical: []
+annotation_window: 6
+claims: []
+roles:
+  FixtureRole: .aai/ROLE.prompt.md
+sections: []
+standing_hazards: 0
+byte_ceiling: 20000
+uniqueness_exceptions: []
+EOF
+
+  run_canon_check "$d" --section decision_citations
+  expect_rc_nonzero "TEST-695 citation dated one day off the ledger"
+  assert_payload_contains "$(cat "$CANON_ERR")" "citation-unresolvable: .aai/FIXTURE.prompt.md:2 ref=fixture-decision date=2099-01-01" \
+    "TEST-695: stderr must name the prompt file:line and the unresolved ref/date" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" "resolved=0" \
+    "TEST-695: stderr must print the number of citations it resolved" || return 1
+  log_pass "TEST-695 a citation dated one day off the ledger refuses, naming the prompt file:line, resolved=0 printed"
+}
+
+# --- TEST-698 ------------------------------------------------------------------
+# `check --all` exits 0 against the REAL repository and prints a non-zero
+# count for every section it ran — an empty check can never look clean.
+test_698_live_check_all() {
+  run_canon_check "$PROJECT_ROOT" --all
+  expect_rc 0 "TEST-698 live check --all"
+  local checked resolved
+  checked="$(/usr/bin/grep -o 'checked=[0-9]*' "$CANON_ERR" | qhead -n1 | cut -d= -f2)" || true
+  resolved="$(/usr/bin/grep -o 'resolved=[0-9]*' "$CANON_ERR" | qhead -n1 | cut -d= -f2)" || true
+  [[ -n "$checked" ]] || log_fail "TEST-698: could not read the validation_waiver checked= count off stderr"
+  [[ "$checked" -gt 0 ]] || log_fail "TEST-698: validation_waiver checked count must be non-zero, got $checked"
+  [[ -n "$resolved" ]] || log_fail "TEST-698: could not read the decision_citations resolved= count off stderr"
+  [[ "$resolved" -gt 0 ]] || log_fail "TEST-698: decision_citations resolved count must be non-zero, got $resolved"
+  log_pass "TEST-698 check --all exits 0 against the live tree (checked=$checked waiver literals, resolved=$resolved citations)"
+}
+
+# --- TEST-699 ------------------------------------------------------------------
+# `build --role <R>` exits 0 for every role the LIVE manifest declares, and
+# the declared role count matches the number of successful builds.
+manifest_role_names() {
+  awk '
+    /^roles:/ { insec=1; next }
+    insec && /^[^ ]/ { insec=0 }
+    insec && /^  [A-Za-z]/ { sub(/:.*/, ""); sub(/^  /, ""); print }
+  ' "$1"
+}
+
+test_699_live_build_every_role() {
+  local roles count built role
+  roles="$(manifest_role_names "$LIVE_MANIFEST")"
+  count="$(printf '%s\n' "$roles" | qgrep -c .)" || true
+  [[ -n "$count" && "$count" -gt 0 ]] || log_fail "TEST-699: could not read any declared role from $LIVE_MANIFEST"
+  built=0
+  while IFS= read -r role; do
+    [[ -n "$role" ]] || continue
+    run_canon "$PROJECT_ROOT" ".aai/system/CANON.yaml" "$role" "TEST-699-ref"
+    expect_rc 0 "TEST-699 live build --role $role"
+    built=$((built + 1))
+  done <<< "$roles"
+  [[ "$built" -eq "$count" ]] \
+    || log_fail "TEST-699: built $built payloads but the manifest declares $count roles"
+  log_pass "TEST-699 build --role <R> exits 0 for every one of the $count declared roles"
+}
+
 # --- runner ------------------------------------------------------------------
 
-ALL_TESTS="674_build_order_live 675_order_follows_manifest_not_code 676_absent_section_fails_closed 677_hazard_count_asserted 678_duplicate_rule_refused 679_declared_exception_admitted 680_over_budget_refused 681_size_is_the_real_size 682_hash_matches_prompt_hash 683_hash_moves_with_the_contract 684_prompt_command_runs 685_claim_record_must_resolve 686_live_claims_clean 687_root_changelog_in_corpus 688_present_tense_matched 689_negative_control"
+ALL_TESTS="674_build_order_live 675_order_follows_manifest_not_code 676_absent_section_fails_closed 677_hazard_count_asserted 678_duplicate_rule_refused 679_declared_exception_admitted 680_over_budget_refused 681_size_is_the_real_size 682_hash_matches_prompt_hash 683_hash_moves_with_the_contract 684_prompt_command_runs 685_claim_record_must_resolve 686_live_claims_clean 687_root_changelog_in_corpus 688_present_tense_matched 689_negative_control 690_enumeration_is_generated 691_spec0148_block_matches_report 692_grammar_rendered_from_code 693_version_bump_names_every_stale_literal 694_round_cap_amendment_present 695_citation_must_resolve 698_live_check_all 699_live_build_every_role"
 
 main() {
   local requested="${1:-}"

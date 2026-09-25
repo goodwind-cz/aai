@@ -30,7 +30,12 @@
 #   exception is used. `[]` when none are declared, as today.
 # - `historical:` / `annotation_window:` / `claims:` — the withdrawn-claim
 #   sweep `canon.mjs claims` reads (Spec-AC-08..10). See the LINE-SHAPE
-#   DECISION comment below for what each declares and why.
+#   DECISION comment below for what each declares and why. Each `claims:`
+#   entry's `origin_docs:` (Spec-AC-11) names the claim's OWN origin
+#   document(s), excluded from `claims --report`'s generated enumeration,
+#   each with a `reason:` the report prints — never a silent exclusion.
+# - `waiver_legacy_versions:` — Spec-AC-12, see its own comment near the
+#   bottom of this file.
 #
 # LINE-SHAPE DECISION (R2, measured 2026-09-25, canon-is-a-build-artifact
 # Implementation): the duplicate-rule scan matches every line beginning
@@ -108,6 +113,9 @@ claims:
       - are deleted by a separate change
       - is deleted by a separate change
       - will be removed
+    origin_docs:
+      - path: docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md
+        reason: this spec's own Spec-AC-01 (SPEC-0148) delivered exactly this dated correction; the report below enumerates FOLLOW-ON corrections made by later, separate scopes, not the claim's own origin document
 
 roles:
   Planning: .aai/PLANNING.prompt.md
@@ -134,3 +142,14 @@ standing_hazards: 5
 byte_ceiling: 150000
 
 uniqueness_exceptions: []
+
+# waiver_legacy_versions (Spec-AC-12) — the ONLY `AAI-VALIDATION-WAIVER v<N>`
+# literal this repo may carry besides the CURRENT version, which
+# `canon.mjs check --section validation_waiver` reads from
+# `.aai/scripts/validation-waiver.mjs`'s own exported `WAIVER_VERSION`
+# (the code IS the source of truth for "current" — nothing here restates it).
+# Each declared legacy version needs a reason, printed whenever it is matched
+# (the same never-silent-exception discipline `uniqueness_exceptions` uses).
+waiver_legacy_versions:
+  - version: 1
+    reason: pre-scope-binding grammar (bot review PR #303 F-1); refused by name as waiver_obsolete_version, never honoured, kept only in fixtures that prove the refusal

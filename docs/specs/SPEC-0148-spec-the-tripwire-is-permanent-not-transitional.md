@@ -208,6 +208,17 @@ the write landed**. It stopped on its own AC-002 rather than proceed.
   (SPEC-0144, SPEC-0145) and three intake documents (CHANGE-0151, CHANGE-0156,
   CHANGE-0157). Each gets the same dated correction block, not a rewrite.
 
+  **CORRECTION (2026-09-25).** The enumeration above undercounted, measured by
+  `node .aai/scripts/canon.mjs claims --report` (canon-is-a-build-artifact
+  Spec-AC-11, closing `fu-spec-d6-enumeration-stale`) rather than re-derived by
+  hand. The GENERATED true set of documents carrying their OWN dated
+  correction annotation for this claim is 3 specs (SPEC-0138, SPEC-0144,
+  SPEC-0145) and 4 intakes (CHANGE-0151, CHANGE-0152, CHANGE-0156,
+  CHANGE-0157) — the paragraph above is left standing exactly as written, not
+  rewritten. SPEC-0137 is excluded from the generated count: this spec's own
+  Spec-AC-01 delivered its correction directly, so SPEC-0137 is the claim's
+  origin document, not a follow-on correction the way the other seven are.
+
 ## Constitution deviations
 
 None.

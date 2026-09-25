@@ -46,6 +46,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const ROOT = process.cwd();
@@ -65,7 +66,8 @@ const RULE_LINE_RE = /^- (.+)$/;
 
 const USAGE =
   'usage: node .aai/scripts/canon.mjs build --role <R> --ref <r> [--manifest <path>] [--print-hash]\n'
-  + '       node .aai/scripts/canon.mjs claims [--manifest <path>]\n';
+  + '       node .aai/scripts/canon.mjs claims [--manifest <path>] [--report]\n'
+  + '       node .aai/scripts/canon.mjs check (--section <name> | --all) [--manifest <path>]\n';
 
 function usageError(msg) {
   process.stderr.write(`canon: ${msg}\n`);
@@ -102,6 +104,7 @@ function parseManifestText(content) {
     historical: [],
     annotation_window: null,
     claims: [],
+    waiver_legacy_versions: [],
   };
   let i = 0;
   while (i < lines.length) {
@@ -169,7 +172,7 @@ function parseManifestText(content) {
       if (inline.trim() === '[]') { i += 1; continue; }
       i += 1;
       while (i < lines.length && /^ {2}- /.test(lines[i])) {
-        const claim = { corpus: [], patterns: [] };
+        const claim = { corpus: [], patterns: [], origin_docs: [] };
         const idm = /^ {2}- id:\s*(.+)$/.exec(lines[i]);
         if (idm) claim.id = stripQuotes(idm[1]);
         i += 1;
@@ -185,10 +188,46 @@ function parseManifestText(content) {
             }
             continue;
           }
+          // origin_docs (Spec-AC-11): list of {path, reason} objects, one
+          // indent level deeper than corpus/patterns' bare-scalar lists —
+          // the SAME shape uniqueness_exceptions uses at the top level.
+          if (fm && fm[1] === 'origin_docs') {
+            i += 1;
+            while (i < lines.length && /^ {6}- /.test(lines[i])) {
+              const od = {};
+              const pm = /^ {6}- path:\s*(.+)$/.exec(lines[i]);
+              if (pm) od.path = stripQuotes(pm[1]);
+              i += 1;
+              while (i < lines.length && /^ {8}\S/.test(lines[i])) {
+                const rm = /^ {8}(\w+):\s*(.*)$/.exec(lines[i]);
+                if (rm) od[rm[1]] = stripQuotes(rm[2]);
+                i += 1;
+              }
+              claim.origin_docs.push(od);
+            }
+            continue;
+          }
           if (fm) claim[fm[1]] = stripQuotes(fm[2]);
           i += 1;
         }
         manifest.claims.push(claim);
+      }
+      continue;
+    }
+    if (key === 'waiver_legacy_versions') {
+      if (inline.trim() === '[]') { i += 1; continue; }
+      i += 1;
+      while (i < lines.length && /^ {2}- /.test(lines[i])) {
+        const lv = {};
+        const vm = /^ {2}- version:\s*(.+)$/.exec(lines[i]);
+        if (vm) lv.version = parseInt(stripQuotes(vm[1]), 10);
+        i += 1;
+        while (i < lines.length && /^ {4}\S/.test(lines[i])) {
+          const fm = /^ {4}(\w+):\s*(.*)$/.exec(lines[i]);
+          if (fm) lv[fm[1]] = stripQuotes(fm[2]);
+          i += 1;
+        }
+        manifest.waiver_legacy_versions.push(lv);
       }
       continue;
     }
@@ -540,11 +579,59 @@ function findClaimHits(root, claim, historicalGlobs, window) {
   return { hits, scanned };
 }
 
+// --- claims --report (Spec-AC-11) -----------------------------------------------
+//
+// GENERATED, not hand-counted (closes fu-spec-d6-enumeration-stale): scans the
+// claim's OWN declared corpus for a document carrying its OWN dated
+// correction/withdrawal annotation — never a literal claim-pattern hit, which
+// R2's own measurement (CANON.yaml's LINE-SHAPE DECISION comment) shows the
+// follow-on corrections mostly do NOT restate verbatim. `REPORT_ANNOTATION_RE`
+// requires the marker to OPEN its own (trimmed) line — the shape every genuine
+// correction block in this corpus uses — so a file that merely QUOTES another
+// document's annotation inside a sentence (DEBT-0007, ISSUE-0071 both do this,
+// measured 2026-09-25) is not miscounted as carrying its own.
+const REPORT_ANNOTATION_RE = /^\s*\*\*(?:CORRECTION \((\d{4}-\d{2}-\d{2})\)[.:]|WITHDRAWN (\d{4}-\d{2}-\d{2}))\*\*/;
+const REPORT_DOC_TYPES = [
+  { type: 'specs', re: /^docs\/specs\/SPEC-\d+-/ },
+  { type: 'intakes', re: /^docs\/issues\/[A-Za-z]+-\d+-/ },
+];
+
+// buildClaimsReport(root, claim) -> { specs: [{path,line}], intakes: [...] },
+// each entry the FIRST line in its file whose annotation date equals the
+// claim's own decision date — a doc counts once even when it carries more
+// than one correction block (SPEC-0144 has two). `claim.origin_docs` is
+// excluded, printed separately by the caller so the exclusion is never silent
+// (the uniqueness_exceptions discipline, reapplied here).
+function buildClaimsReport(root, claim) {
+  const targetDate = String(claim.decision_ts || '').slice(0, 10);
+  const originPaths = new Set((claim.origin_docs || []).map((o) => o.path));
+  const files = collectCorpusFiles(root, claim.corpus);
+  const report = { specs: [], intakes: [] };
+  for (const relPath of files) {
+    if (originPaths.has(relPath)) continue;
+    const docType = REPORT_DOC_TYPES.find((dt) => dt.re.test(relPath));
+    if (!docType) continue;
+    let content;
+    try { content = fs.readFileSync(path.resolve(root, relPath), 'utf8'); } catch { continue; }
+    const lines = content.replace(/\r\n/g, '\n').split('\n');
+    for (let i = 0; i < lines.length; i += 1) {
+      const m = REPORT_ANNOTATION_RE.exec(lines[i]);
+      if (!m) continue;
+      const foundDate = m[1] || m[2];
+      if (foundDate !== targetDate) continue;
+      report[docType.type].push({ path: relPath, line: i + 1 });
+      break; // first qualifying match only — the file counts once
+    }
+  }
+  return report;
+}
+
 function parseClaimsArgs(argv) {
-  const opts = { manifest: DEFAULT_MANIFEST };
+  const opts = { manifest: DEFAULT_MANIFEST, report: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--manifest') { opts.manifest = argv[i + 1]; i += 1; }
+    else if (a === '--report') { opts.report = true; }
     else usageError(`unrecognized argument: ${a}`);
   }
   return opts;
@@ -574,18 +661,188 @@ function runClaims(argv) {
     } else {
       process.stderr.write(`canon-claims: id=${claim.id} scanned=${scanned} clean\n`);
     }
+    if (opts.report) {
+      for (const od of claim.origin_docs || []) {
+        process.stderr.write(`canon-claims-report-origin-excluded: id=${claim.id} ${od.path} reason="${od.reason || ''}"\n`);
+      }
+      const rpt = buildClaimsReport(ROOT, claim);
+      for (const kind of ['specs', 'intakes']) {
+        for (const e of rpt[kind]) {
+          process.stderr.write(`canon-claims-report: id=${claim.id} ${kind.slice(0, -1)} ${e.path}:${e.line}\n`);
+        }
+      }
+      process.stderr.write(`canon-claims-report: id=${claim.id} specs=${rpt.specs.length} intakes=${rpt.intakes.length}\n`);
+    }
   }
   if (refused) exit(8);
   process.stderr.write(`canon-claims: claims=${manifest.claims.length} scanned=${totalScanned} clean\n`);
   exit(0);
 }
 
+// --- check subcommand (Spec-AC-12..13, --all Spec-AC-15) ------------------------
+//
+// `validation_waiver` renders the grammar line FROM `validation-waiver.mjs`'s
+// own exported `WAIVER_SENTINEL` / `WAIVER_VERSION` / `WAIVER_KEY_ORDER` /
+// `WAIVER_PLACEHOLDERS` (that file's single source of truth — this check
+// never restates the grammar as a second literal) and asserts it appears,
+// BYTE-IDENTICAL, as a `//` comment line inside that file's own header — its
+// own GRAMMAR line, never the adjacent EXAMPLE line one comment block above
+// it, which carries concrete values instead of the `<placeholder>` tokens and
+// would never equal a rendered line. It then scans the declared globs for
+// every `AAI-VALIDATION-WAIVER v<N>` literal and refuses by name
+// (`waiver-grammar-drift`) at the first one whose N is neither the CURRENT
+// version (from the code) nor a manifest-declared legacy version.
+//
+// Both roots (the LIVE tree and a fixture copy) resolve `validation-waiver.mjs`
+// relative to `root`, via a DYNAMIC import — never the static top-level import
+// canon.mjs's own build/claims machinery would use — so a fixture whose OWN
+// copy of the file declares a different `WAIVER_VERSION` (TEST-693) is what
+// this check actually reads, not the real one.
+
+async function loadWaiverModule(root) {
+  const abs = path.resolve(root, '.aai/scripts/validation-waiver.mjs');
+  return import(pathToFileURL(abs).href);
+}
+
+async function checkValidationWaiver(root, manifest) {
+  const waiverRelPath = '.aai/scripts/validation-waiver.mjs';
+  const mod = await loadWaiverModule(root);
+  const { WAIVER_SENTINEL: sentinel, WAIVER_VERSION: version, WAIVER_KEY_ORDER: keyOrder, WAIVER_PLACEHOLDERS: placeholders } = mod;
+  const rendered = `[${sentinel} v${version} ${keyOrder.map((k) => `${k}=${placeholders[k]}`).join(' ')}]`;
+
+  let src;
+  try { src = fs.readFileSync(path.resolve(root, waiverRelPath), 'utf8'); } catch { src = ''; }
+  const srcLines = src.split(/\r?\n/);
+  let headerLineNo = null;
+  for (let i = 0; i < srcLines.length; i += 1) {
+    if (!/^\s*\/\//.test(srcLines[i])) continue;
+    if (srcLines[i].replace(/^\s*\/\/\s*/, '').trim() === rendered) { headerLineNo = i + 1; break; }
+  }
+
+  const legacyVersions = new Set((manifest.waiver_legacy_versions || []).map((l) => Number(l.version)));
+  const literalRe = /AAI-VALIDATION-WAIVER v(\d+)/g;
+  const files = collectCorpusFiles(root, ['.aai/**', 'tests/skills/**']);
+  const violations = [];
+  let checked = 0;
+  for (const relPath of files) {
+    let content;
+    try { content = fs.readFileSync(path.resolve(root, relPath), 'utf8'); } catch { continue; }
+    const lines = content.replace(/\r\n/g, '\n').split('\n');
+    for (let i = 0; i < lines.length; i += 1) {
+      literalRe.lastIndex = 0;
+      let m;
+      while ((m = literalRe.exec(lines[i])) !== null) {
+        checked += 1;
+        const v = Number(m[1]);
+        if (v === version || legacyVersions.has(v)) continue;
+        violations.push({ path: relPath, line: i + 1, found: v });
+      }
+    }
+  }
+
+  return { version, rendered, headerFound: headerLineNo !== null, violations, checked };
+}
+
+// `decision_citations` extracts every `owner decision <ref_id>, <YYYY-MM-DD>`
+// citation from the live `.aai/*.prompt.md` glob (the shape every citation in
+// this corpus already uses, measured 2026-09-25) and resolves it against
+// `docs/ai/decisions.jsonl`: a matching `hitl_decision` whose `ref_id`, date
+// (the `ts` prefix) and `owner_signoff: true` all agree. An unresolved
+// citation refuses by name (`citation-unresolvable`) naming the prompt
+// file:line; a resolved one is counted, never merely believed.
+const CITATION_RE = /owner decision ([a-z][a-z0-9-]*), (\d{4}-\d{2}-\d{2})/g;
+
+async function checkDecisionCitations(root) {
+  const decisionsPath = path.resolve(root, 'docs/ai/decisions.jsonl');
+  let decisionsText = '';
+  try { decisionsText = fs.readFileSync(decisionsPath, 'utf8'); } catch { /* no ledger: every citation below is unresolvable */ }
+  const records = [];
+  for (const line of decisionsText.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    let rec;
+    try { rec = JSON.parse(line); } catch { continue; }
+    if (rec && rec.type === 'hitl_decision') records.push(rec);
+  }
+  const promptFiles = collectCorpusFiles(root, ['.aai/*.prompt.md']);
+  const violations = [];
+  let resolved = 0;
+  for (const relPath of promptFiles) {
+    let content;
+    try { content = fs.readFileSync(path.resolve(root, relPath), 'utf8'); } catch { continue; }
+    const lines = content.replace(/\r\n/g, '\n').split('\n');
+    for (let i = 0; i < lines.length; i += 1) {
+      CITATION_RE.lastIndex = 0;
+      let m;
+      while ((m = CITATION_RE.exec(lines[i])) !== null) {
+        const [, refId, date] = m;
+        const ok = records.some(
+          (r) => r.ref_id === refId && String(r.ts || '').slice(0, 10) === date && r.owner_signoff === true,
+        );
+        if (ok) resolved += 1;
+        else violations.push({ path: relPath, line: i + 1, refId, date });
+      }
+    }
+  }
+  return { resolved, violations };
+}
+
+function parseCheckArgs(argv) {
+  const opts = { manifest: DEFAULT_MANIFEST, section: null, all: false };
+  for (let i = 0; i < argv.length; i += 1) {
+    const a = argv[i];
+    if (a === '--manifest') { opts.manifest = argv[i + 1]; i += 1; }
+    else if (a === '--section') { opts.section = argv[i + 1]; i += 1; }
+    else if (a === '--all') { opts.all = true; }
+    else usageError(`unrecognized argument: ${a}`);
+  }
+  if (!opts.all && !opts.section) usageError('--section <name> or --all is required');
+  return opts;
+}
+
+const KNOWN_SECTIONS = ['validation_waiver', 'decision_citations'];
+
+async function runCheck(argv) {
+  const opts = parseCheckArgs(argv);
+  const manifest = loadManifest(opts.manifest);
+  if (opts.section && !KNOWN_SECTIONS.includes(opts.section)) {
+    usageError(`unknown --section "${opts.section}" (known: ${KNOWN_SECTIONS.join(', ')})`);
+  }
+  const sections = opts.all ? KNOWN_SECTIONS : [opts.section];
+  let refused = false;
+
+  for (const section of sections) {
+    if (section === 'validation_waiver') {
+      const r = await checkValidationWaiver(ROOT, manifest);
+      if (!r.headerFound) {
+        refused = true;
+        process.stderr.write(`waiver-grammar-drift: .aai/scripts/validation-waiver.mjs does not carry the rendered grammar line verbatim (expected: ${r.rendered})\n`);
+      }
+      for (const v of r.violations) {
+        refused = true;
+        process.stderr.write(`waiver-grammar-drift: ${v.path}:${v.line} found=v${v.found} expected=v${r.version} or a declared legacy version\n`);
+      }
+      process.stderr.write(`canon-check: section=validation_waiver checked=${r.checked} current=v${r.version}\n`);
+    } else if (section === 'decision_citations') {
+      const r = await checkDecisionCitations(ROOT);
+      for (const v of r.violations) {
+        refused = true;
+        process.stderr.write(`citation-unresolvable: ${v.path}:${v.line} ref=${v.refId} date=${v.date}\n`);
+      }
+      process.stderr.write(`canon-check: section=decision_citations resolved=${r.resolved}\n`);
+    }
+  }
+  if (refused) exit(9);
+  process.stderr.write(`canon-check: sections=${sections.join(',')} clean\n`);
+  exit(0);
+}
+
 // --- main ----------------------------------------------------------------------
 
-function main(argv) {
+async function main(argv) {
   const [cmd, ...rest] = argv;
   if (cmd === 'build') { runBuild(rest); return; }
   if (cmd === 'claims') { runClaims(rest); return; }
+  if (cmd === 'check') { await runCheck(rest); return; }
   if (cmd === undefined || cmd === '-h' || cmd === '--help') {
     process.stdout.write(USAGE);
     exit(cmd === undefined ? 2 : 0);
@@ -606,4 +863,7 @@ export {
   globToRegExp,
   collectCorpusFiles,
   findClaimHits,
+  buildClaimsReport,
+  checkValidationWaiver,
+  checkDecisionCitations,
 };
