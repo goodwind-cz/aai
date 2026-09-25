@@ -283,7 +283,7 @@ twenty bullets in one pass and is disclosed as a residual risk of that scope.
   same file). Regex finds candidates; only reading closes the claim.
   (Source: the-tripwire-is-permanent-not-transitional ride; closes
   fu-claim-sweep-needs-reading-not-regex.)
-- [2026-08-24] [guard → fu-learned-ledger-merge-procedure] Merge an append-only ledger (docs/ai/decisions.jsonl,
+- [2026-08-24] [guard → fu-learned-ledger-merge-procedure] (guard shipped: `.aai/scripts/ledger-merge.mjs` — spec-friction-channel-sweep Spec-AC-09 ships this procedure as a command instead of prose.) Merge an append-only ledger (docs/ai/decisions.jsonl,
   docs/ai/EVENTS.jsonl) by keeping the BASE side a byte-exact prefix and
   appending both branches' new lines after it; a union in any other order
   rewrites existing bytes from the base's point of view even when no record

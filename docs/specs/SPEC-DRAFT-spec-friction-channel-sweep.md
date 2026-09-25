@@ -3,7 +3,7 @@ id: spec-friction-channel-sweep
 type: spec
 status: implementing
 mutation_gate: v1
-frozen_sha256: bb13008a90c4f3b8bfb44c856c596873aaac487947b242f3dc290a7326ab1b10
+frozen_sha256: 39569fd79fa29956cd082f792318adaf5a74205aba9ce4d419656738ca611757
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0190-friction-channel-sweep.md
@@ -820,6 +820,27 @@ same function re-derived at two points in time, which is what the code and the
 prompt say; nothing claims two algorithms. Read strictly the word could suggest
 otherwise, and it is recorded here rather than rewritten, because an amendment
 corrects and does not rewrite.
+
+Sign-off: none (tracked).
+
+## Amendment 3 (post-freeze, 2026-09-25 — Amendment 2's TEST-673 sentence is superseded)
+
+**Amendment 2's Spec-AC-12 paragraph closes with a sentence that is now false.**
+It states the hang "was reproduced under an external watchdog rather than
+through the mutation runner ... the evidence file is named outside the replay
+glob for that reason." That described the state before commit `2517f776`,
+which lands in this same ride and is titled precisely "TEST-673's hang fixture
+is self-bounded, so its RED is canonical": it replaced the fixture's unbounded
+busy loop with one that self-bounds at 30s, which is what makes the arm safe
+to drive through `mutation-run.mjs`. `docs/ai/tdd/spec-friction-channel-sweep/mutation-TEST-673.txt`
+is a runner-written `mutation_record: v1` (`run_at_utc: 2026-09-25T07:09:08Z`,
+`verdict: RED`), and its filename matches the replay glob
+`/^mutation-(TEST-\d+)\.txt$/` in `.aai/scripts/mutation-run.mjs`. The
+paragraph was written before `2517f776` and carried forward unrevised; this is
+the orchestrator's error, not the implementer's. Amendment 2's closing
+sentence for Spec-AC-12 is superseded by this one: TEST-673's row is a normal
+runner-produced mutation record inside the replay glob, same as any other row,
+and the mutation gate covers it like any other.
 
 Sign-off: none (tracked).
 
