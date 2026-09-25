@@ -22,6 +22,27 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix(friction): the friction channel is alive, and its surface reports the backlog instead of the inbox (CHANGE-0190 / SPEC-0185)
+
+The channel that turns AAI's own failures into tracked work had been silent for
+twenty days: 824 observations spooled, 759 never triaged, 0 issues filed — while
+the status surface reported it healthy, because it read the inbox rather than the
+backlog. The one signal that could have promoted anything, the owner's signed
+`RECURRENCE_CAP`, had been retired by an unrelated change.
+
+- Recurrence now PROMOTES a scored cluster instead of manufacturing one, and a
+  hand-authored observation carries its own signal, so a single real report is no
+  longer invisible beside 819 automated ones.
+- Prose enters by an explicit human act, is redacted twice, and the write is
+  positively proved; a dropped summary is named to the caller instead of vanishing.
+- The channel files the analysis comment it can certify, and every `gh` refusal
+  names its true cause and its true exit status.
+- `ledger-merge.mjs` makes the append-only ledger merge a command rather than a
+  procedure someone has to remember; the LEARNED append gate writes the style the
+  house reads, and every Session lesson declares where its enforcement lives.
+- The discovery surface reports the backlog, and the close ceremony surfaces it to
+  the owner by default.
+
 ## [unreleased] — fix(update): the ref-guard is disclosed before it is installed, and can be declined (ISSUE-0083 / SPEC-0184)
 
 - **`/aai-update` no longer arms a git hook without saying so.** Since

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-24T17:20:12.554Z",
+  "generatedAt": "2026-09-25T08:58:04.348Z",
   "project": "aai",
   "counts": {
     "delivered": 251,
@@ -85,7 +85,7 @@
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
-      "spec": null,
+      "spec": "docs/specs/SPEC-0185-spec-friction-channel-sweep.md",
       "validation": null,
       "review": null
     },
