@@ -427,7 +427,36 @@ EOF
   run_canon "$d3" "CANON.yaml" "FixtureRole" "TEST-677-anchor-ref"
   expect_rc 0 "TEST-677 indented/mid-line '- HAZ-' occurrences must not inflate the count (still 5)"
 
-  log_pass "TEST-677 the declared hazard count is asserted against the ASSEMBLED payload (live clean at 5, fixture refuses declared=5 found=6, and an indented/mid-line occurrence is correctly not counted)"
+  # Spec-AC-03's own text: "in the ASSEMBLED payload" — not "in the
+  # contract file". A 6th hazard living in the ROLE PROMPT section (a
+  # different file `build` assembles into the same payload) must inflate
+  # the count exactly the same way the contract-file case above does,
+  # proving the scan sums across every section, not one hand-picked file.
+  local d4="$TEST_DIR/t677-role-section"
+  mkdir -p "$d4"
+  base_fixture_tree "$d4"
+  cat >> "$d4/.aai/ROLE.prompt.md" <<'EOF'
+- HAZ-SMUGGLED — a sixth hazard living in the role prompt, not the contract.
+EOF
+  run_canon "$d4" "CANON.yaml" "FixtureRole" "TEST-677-role-ref"
+  expect_rc_nonzero "TEST-677 a 6th hazard planted in the ROLE section (not the contract)"
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-count-mismatch: standing_hazards declared=5 found=6" \
+    "TEST-677: a hazard line in the role-prompt section must count toward the ASSEMBLED total, not just the contract file" || return 1
+
+  # Same proof for LEARNED.md — the third file-backed section a `build`
+  # call assembles alongside the contract and the role prompt.
+  local d5="$TEST_DIR/t677-learned-section"
+  mkdir -p "$d5"
+  base_fixture_tree "$d5"
+  cat >> "$d5/docs/knowledge/LEARNED.md" <<'EOF'
+- HAZ-SMUGGLED — a sixth hazard living in LEARNED.md, not the contract.
+EOF
+  run_canon "$d5" "CANON.yaml" "FixtureRole" "TEST-677-learned-ref"
+  expect_rc_nonzero "TEST-677 a 6th hazard planted in the LEARNED section (not the contract)"
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-count-mismatch: standing_hazards declared=5 found=6" \
+    "TEST-677: a hazard line in LEARNED.md must count toward the ASSEMBLED total, not just the contract file" || return 1
+
+  log_pass "TEST-677 the declared hazard count is asserted against the ASSEMBLED payload (live clean at 5, fixture refuses declared=5 found=6 whether the 6th hazard lives in the contract, the role prompt or LEARNED.md, and an indented/mid-line occurrence is correctly not counted)"
 }
 
 # --- TEST-678 ------------------------------------------------------------------
@@ -539,7 +568,35 @@ EOF
   assert_payload_contains "$(cat "$CANON_ERR")" ".aai/SUBAGENT_CONTRACT.md:14" \
     "TEST-678: stderr must name the whitespace-variant duplicate's SECOND occurrence" || return 1
 
-  log_pass "TEST-678 a rule line repeated within one source file refuses, naming the text and both line numbers — proven for a HAZ-prefixed line, a non-hazard bullet (the shape a HAZ-only pattern would miss), and a whitespace-variant duplicate (the shape a bare-trim normalization would miss)"
+  # Spec-AC-04's own text: "twice in the assembled payload, including twice
+  # within one source file" — the "including" makes within-one-file the
+  # NARROWER, called-out case, not the only one. A rule stated once in the
+  # contract and restated verbatim in the ROLE PROMPT — a different source
+  # file, same assembled payload — must refuse the same way
+  # (fu-contract-ledger-rule-stated-twice's own cross-file shape).
+  local d4="$TEST_DIR/t678-crossfile"
+  mkdir -p "$d4"
+  base_fixture_tree "$d4"
+  cat >> "$d4/.aai/SUBAGENT_CONTRACT.md" <<'EOF'
+
+## Cross-file rule
+
+- Never write docs/ai/STATE.yaml.
+EOF
+  cat >> "$d4/.aai/ROLE.prompt.md" <<'EOF'
+- Never write docs/ai/STATE.yaml.
+EOF
+
+  run_canon "$d4" "CANON.yaml" "FixtureRole" "TEST-678-crossfile-ref"
+  expect_rc_nonzero "TEST-678 the same rule line repeated across TWO DIFFERENT source files"
+  assert_payload_contains "$(cat "$CANON_ERR")" 'canon-duplicate-rule: "- Never write docs/ai/STATE.yaml."' \
+    "TEST-678: a rule duplicated ACROSS files must refuse the same way as one duplicated within a file" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" ".aai/SUBAGENT_CONTRACT.md:13" \
+    "TEST-678: stderr must name the FIRST (contract) occurrence" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" ".aai/ROLE.prompt.md:4" \
+    "TEST-678: stderr must name the SECOND (role prompt) occurrence, proving the duplicate scan is not reset per section" || return 1
+
+  log_pass "TEST-678 a rule line repeated within one source file refuses, naming the text and both line numbers — proven for a HAZ-prefixed line, a non-hazard bullet (the shape a HAZ-only pattern would miss), a whitespace-variant duplicate, and a duplicate spanning two DIFFERENT source files in the same assembled payload"
 }
 
 # --- TEST-679 ------------------------------------------------------------------
@@ -760,7 +817,24 @@ EOF
   assert_payload_contains "$(cat "$CANON_ERR")" "claim-record-unresolvable: fixture-claim does-not-exist 2099-01-01T00:00:00Z" \
     "TEST-685: a ref_id match with a mismatched decision_ts must still refuse (the ts half is not decorative)" || return 1
 
-  log_pass "TEST-685 a claim whose decision timestamp is absent from the ledger refuses, naming the claim id — proven with decision_ref and decision_ts mismatched together AND with decision_ts isolated"
+  # Spec-AC-08's own text: "not in `docs/ai/decisions.jsonl`" resolves a
+  # withdrawn claim to its superseding `hitl_decision` — not to any record
+  # at all. A record of a DIFFERENT type carrying the SAME ref_id AND the
+  # SAME ts must still refuse — proving the TYPE half of the match is
+  # asserted, the same shape Spec-AC-13's decision_citations arm isolates.
+  local d3="$TEST_DIR/t685-wrong-type"
+  mkdir -p "$d3/.aai/system" "$d3/docs/ai"
+  cat > "$d3/docs/ai/decisions.jsonl" <<'EOF'
+{"v":1,"ts":"2099-01-01T00:00:00Z","type":"follow_up","ref_id":"does-not-exist","finding":"not a decision at all"}
+EOF
+  cp "$d/.aai/system/CANON.yaml" "$d3/.aai/system/CANON.yaml"
+
+  run_claims "$d3" "--manifest" ".aai/system/CANON.yaml"
+  expect_rc_nonzero "TEST-685 matching ref_id AND ts but a WRONG record type"
+  assert_payload_contains "$(cat "$CANON_ERR")" "claim-record-unresolvable: fixture-claim does-not-exist 2099-01-01T00:00:00Z" \
+    "TEST-685: a follow_up record must not resolve the claim even with matching ref_id and ts (the type half is not decorative)" || return 1
+
+  log_pass "TEST-685 a claim whose decision timestamp is absent from the ledger refuses, naming the claim id — proven with decision_ref and decision_ts mismatched together, with decision_ts isolated, and with a matching ref_id+ts on a WRONG record type"
 }
 
 # --- TEST-686 ------------------------------------------------------------------
@@ -826,7 +900,74 @@ test_687_root_changelog_in_corpus() {
   assert_payload_contains "$(cat "$CANON_ERR")" "claim-live-assertion: tripwire-permanent CHANGELOG.md:$hit_line" \
     "TEST-687: a hit whose only nearby annotation sits BEYOND the declared window must still be reported" || return 1
 
-  log_pass "TEST-687 the declared corpus reaches CHANGELOG.md at the repository root (planted at line $planted_line, clean after removal), and annotation_window is a bound — a correction 8 lines away does not exempt a hit at line $hit_line"
+  # D5's own text: the ONLY two declared exemption routes are a `historical:`
+  # glob and a DATED `**CORRECTION (<date>).**` / `**WITHDRAWN <date>**`
+  # marker — "an undeclared exemption cannot exist". An UNDATED
+  # `**CORRECTION**` (no `(<date>).`) is neither declared route and must
+  # NOT exempt a hit, even sitting on the very next line.
+  local d3="$TEST_DIR/t687-undated"
+  mkdir -p "$d3"
+  build_claims_copy "$d3"
+  local before3 hit_line3
+  before3="$(wc -l < "$d3/CHANGELOG.md" | tr -d ' ')"
+  {
+    printf '%s\n' "AAI-CANON-TEST-687-UNDATED: They are deleted by a separate change."
+    printf '%s\n' "**CORRECTION** undated, so not a declared annotation."
+  } >> "$d3/CHANGELOG.md"
+  hit_line3=$((before3 + 1))
+
+  run_claims "$d3"
+  expect_rc_nonzero "TEST-687 an UNDATED **CORRECTION** marker must not exempt the hit above it"
+  assert_payload_contains "$(cat "$CANON_ERR")" "claim-live-assertion: tripwire-permanent CHANGELOG.md:$hit_line3" \
+    "TEST-687: an undated CORRECTION marker is not a declared exemption route and must not silence the hit" || return 1
+
+  # D5's other route: a `historical:` glob's `*` matches WITHIN one path
+  # segment and must not cross `/`. A custom claim declares
+  # `docs/generated-*.md` historical: a planted hit at
+  # `docs/generated-687.md` (the wildcard satisfied WITHIN one segment)
+  # must be exempt, but the SAME hit at `docs/generated-sub/687.md`
+  # (satisfying the wildcard would require crossing a `/`) must NOT be —
+  # isolating the segment boundary itself, not merely a differently-named
+  # sibling file.
+  local d4="$TEST_DIR/t687-glob-segment"
+  mkdir -p "$d4/.aai/system" "$d4/docs/generated-sub" "$d4/docs/ai"
+  cat > "$d4/docs/generated-687.md" <<'EOF'
+AAI-CANON-TEST-687-SEG-A: They are deleted by a separate change.
+EOF
+  cat > "$d4/docs/generated-sub/687.md" <<'EOF'
+AAI-CANON-TEST-687-SEG-B: They are deleted by a separate change.
+EOF
+  cat > "$d4/docs/ai/decisions.jsonl" <<'EOF'
+{"v":1,"ts":"2099-01-01T00:00:00Z","type":"hitl_decision","ref_id":"fixture-segment-decision","owner_signoff":true,"decision":"n/a"}
+EOF
+  cat > "$d4/.aai/system/CANON.yaml" <<'EOF'
+historical:
+  - docs/generated-*.md
+annotation_window: 6
+claims:
+  - id: fixture-segment-claim
+    decision_ts: 2099-01-01T00:00:00Z
+    decision_ref: fixture-segment-decision
+    corpus:
+      - docs/**
+    patterns:
+      - are deleted by a separate change
+roles:
+  FixtureRole: .aai/ROLE.prompt.md
+sections: []
+standing_hazards: 0
+byte_ceiling: 20000
+uniqueness_exceptions: []
+EOF
+
+  run_claims "$d4" "--manifest" ".aai/system/CANON.yaml"
+  expect_rc_nonzero "TEST-687 a hit whose exemption requires the glob's '*' to cross a '/' must still be reported"
+  assert_payload_contains "$(cat "$CANON_ERR")" "claim-live-assertion: fixture-segment-claim docs/generated-sub/687.md:1" \
+    "TEST-687: '*' in a historical glob must not cross a '/' — docs/generated-sub/687.md is not the same segment as docs/generated-*.md" || return 1
+  assert_payload_not_contains "$(cat "$CANON_ERR")" "docs/generated-687.md:1" \
+    "TEST-687: the IN-SEGMENT match (docs/generated-687.md) must still be exempt (the positive control for the glob itself)" || return 1
+
+  log_pass "TEST-687 the declared corpus reaches CHANGELOG.md at the repository root (planted at line $planted_line, clean after removal), annotation_window is a bound (a correction 8 lines away does not exempt a hit at line $hit_line), an undated CORRECTION marker does not exempt (hit at line $hit_line3), and a historical glob's '*' does not cross a path separator (in-segment exempt, cross-segment reported)"
 }
 
 # --- TEST-688 ------------------------------------------------------------------
@@ -891,7 +1032,37 @@ test_690_enumeration_is_generated() {
   assert_payload_contains "$(cat "$CANON_ERR")" "canon-claims-report-origin-excluded: id=tripwire-permanent docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md reason=\"" \
     "TEST-690: the origin-doc exclusion must be printed, naming the excluded path and a non-empty reason" || return 1
 
-  log_pass "TEST-690 claims --report generates specs=$specs intakes=$intakes from the live corpus, and its origin-doc exclusion is printed (never silent)"
+  # buildClaimsReport's own comment: "the FIRST line in its file whose
+  # annotation date equals the claim's own decision date" — a file's
+  # correction block does not have to be the file's FIRST annotation of
+  # ANY date to count; it has to be the first one AT THE TARGET DATE. A
+  # fixture spec whose FIRST annotation block is dated for something else
+  # entirely, and whose SECOND block is dated for THIS claim's decision,
+  # must still be counted, and reported at the SECOND block's own line —
+  # proving the scan does not stop at a file's first annotation regardless
+  # of its date (the frozen Mutation cell's own falsifier for this row).
+  local d690="$TEST_DIR/t690-firstmatch"
+  mkdir -p "$d690"
+  build_claims_copy "$d690"
+  mkdir -p "$d690/docs/specs"
+  cat > "$d690/docs/specs/SPEC-9999-fixture-test690.md" <<'EOF'
+# Fixture spec (TEST-690)
+
+**CORRECTION (2026-01-01).** An unrelated earlier correction, a different date.
+
+Body text.
+
+**CORRECTION (2026-08-23).** The real correction, matching this claim's decision date.
+EOF
+
+  run_canon_report "$d690"
+  expect_rc 0 "TEST-690 fixture: an early non-matching annotation ahead of the matching one"
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-claims-report: id=tripwire-permanent spec docs/specs/SPEC-9999-fixture-test690.md:7" \
+    "TEST-690: the fixture spec must be reported at its SECOND (matching-date) annotation's line, not its first" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-claims-report: id=tripwire-permanent specs=1 intakes=0" \
+    "TEST-690: the fixture's single matching-date spec must be counted" || return 1
+
+  log_pass "TEST-690 claims --report generates specs=$specs intakes=$intakes from the live corpus, its origin-doc exclusion is printed (never silent), and a file whose FIRST annotation misses the target date but whose SECOND one matches is still counted, at the matching line"
 }
 
 # --- TEST-691 ------------------------------------------------------------------
@@ -1054,7 +1225,40 @@ EOF
   assert_payload_contains "$(cat "$CANON_ERR")" "resolved=0" \
     "TEST-694: an unsigned-only match must not count toward resolved=" || return 1
 
-  log_pass "TEST-694 STANDING DECISION (a) is present, cites wave-2-roadmap 2026-09-12, the citation check resolves $resolved citations, and an unsigned matching record is refused"
+  # Spec-AC-13's own text: "resolves to a `hitl_decision`" — not "resolves
+  # to any ledger record". `docs/ai/decisions.jsonl` is an append-only
+  # ledger many roles write to (follow_up, follow_up_status, ...); a
+  # NON-hitl_decision record carrying a matching ref_id, date AND
+  # owner_signoff:true must still refuse — the TYPE half of the
+  # three-part match is asserted, not merely ref_id+date+signoff.
+  local d6="$TEST_DIR/t694-wrong-type"
+  mkdir -p "$d6/.aai/system" "$d6/docs/ai"
+  cat > "$d6/docs/ai/decisions.jsonl" <<'EOF'
+{"v":1,"ts":"2099-05-05T00:00:00Z","type":"follow_up","ref_id":"never-signed-anything","owner_signoff":true,"finding":"not a decision at all"}
+EOF
+  cat > "$d6/.aai/FIXTURE.prompt.md" <<'EOF'
+# Fixture prompt
+Cites (owner decision never-signed-anything, 2099-05-05) — a follow_up record, not a hitl_decision.
+EOF
+  cat > "$d6/.aai/system/CANON.yaml" <<'EOF'
+historical: []
+annotation_window: 6
+claims: []
+roles:
+  FixtureRole: .aai/ROLE.prompt.md
+sections: []
+standing_hazards: 0
+byte_ceiling: 20000
+uniqueness_exceptions: []
+EOF
+  run_canon_check "$d6" --section decision_citations
+  expect_rc_nonzero "TEST-694 a follow_up record with matching ref_id, date AND owner_signoff:true"
+  assert_payload_contains "$(cat "$CANON_ERR")" "citation-unresolvable: .aai/FIXTURE.prompt.md:2 ref=never-signed-anything date=2099-05-05" \
+    "TEST-694: a non-hitl_decision record must not resolve an owner-decision citation, even with matching ref_id/date/signoff" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" "resolved=0" \
+    "TEST-694: a type-mismatched record must not count toward resolved=" || return 1
+
+  log_pass "TEST-694 STANDING DECISION (a) is present, cites wave-2-roadmap 2026-09-12, the citation check resolves $resolved citations, an unsigned matching record is refused, and a non-hitl_decision record with matching ref_id/date/signoff is refused too"
 }
 
 # --- TEST-695 ------------------------------------------------------------------
@@ -1124,6 +1328,27 @@ test_699_live_build_every_role() {
   roles="$(manifest_role_names "$LIVE_MANIFEST")"
   count="$(printf '%s\n' "$roles" | qgrep -c .)" || true
   [[ -n "$count" && "$count" -gt 0 ]] || log_fail "TEST-699: could not read any declared role from $LIVE_MANIFEST"
+
+  # Anti-vacuity (D3): comparing $built against $count below is a
+  # self-consistency check — both are read off the SAME manifest, so
+  # dropping a declared role shrinks them together and the comparison
+  # never reddens (the frozen Test Plan's own declared mutation for this
+  # row). Pin the expected role SET independently instead, off canon.mjs's
+  # own usage-error vocabulary (its "unknown --role" message names exactly
+  # these six) — a role dropped from CANON.yaml is then caught even though
+  # $built and $count would still agree with each other.
+  local expected_roles="Planning
+Implementation
+Validation
+Remediation
+TDD Implementation
+Code Review"
+  local roles_sorted expected_sorted
+  roles_sorted="$(printf '%s\n' "$roles" | sort)"
+  expected_sorted="$(printf '%s\n' "$expected_roles" | sort)"
+  [[ "$roles_sorted" == "$expected_sorted" ]] \
+    || log_fail "TEST-699: the manifest's declared role SET must equal the known six roles — got:"$'\n'"$roles_sorted"$'\n'"expected:"$'\n'"$expected_sorted"
+
   built=0
   while IFS= read -r role; do
     [[ -n "$role" ]] || continue
@@ -1133,7 +1358,7 @@ test_699_live_build_every_role() {
   done <<< "$roles"
   [[ "$built" -eq "$count" ]] \
     || log_fail "TEST-699: built $built payloads but the manifest declares $count roles"
-  log_pass "TEST-699 build --role <R> exits 0 for every one of the $count declared roles"
+  log_pass "TEST-699 build --role <R> exits 0 for every one of the $count declared roles, and the declared role SET equals the known six (not merely self-consistent with its own count)"
 }
 
 # --- runner ------------------------------------------------------------------
