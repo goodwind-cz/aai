@@ -2369,3 +2369,5 @@
 {"v":1,"ts":"2026-09-24T15:18:25Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"agents-tree-not-synced","payload":{"commit":"ff49ca7514216e85286e09b2e3033198a85988b0"}}
 {"v":1,"ts":"2026-09-24T21:40:06Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"update-installs-ref-guard-undisclosed","payload":{"pr":393,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"b96beaa45709ea33bcf12f1abe0672ad2eebff00"}}
 {"v":1,"ts":"2026-09-24T22:08:30Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-friction-channel-sweep","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-25T05:52:03Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":508,"orphans":0,"drifted":2,"stale":0,"false_open":2,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-25T05:59:45Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":508,"orphans":0,"drifted":2,"stale":0,"false_open":2,"mode":"enforced"}}
