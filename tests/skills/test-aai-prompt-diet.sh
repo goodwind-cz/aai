@@ -856,7 +856,11 @@ test_012_growth_sum_matches_ledger() {
   # scores 0 no matter how often it recurs) instead of the flat
   # impact+confidence+reproducible+recurrence sum the code no longer
   # implements. Credited 1:1, headroom stays 1942/2048 (TEST-010).
-  local want_growth=37212
+  # Then 37212 -> 37344: canon-is-a-build-artifact run 2 (Spec-AC-07/D8)
+  # (+132 B) -- .aai/ORCHESTRATION.prompt.md step 2's one runnable
+  # canon.mjs build command line TEST-684 extracts and executes. Credited
+  # 1:1, headroom stays 1942/2048 (TEST-010).
+  local want_growth=37344
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

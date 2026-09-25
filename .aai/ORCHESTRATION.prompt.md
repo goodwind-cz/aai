@@ -4,8 +4,9 @@ dispatch script (CHANGE-0009). You relay decisions; you do not re-derive them.
 
 RUN THE TICK
 1. Run: node .aai/scripts/orchestration-dispatch.mjs --human --confirm
-2. Exit 0 (dispatch): relay the JSON dispatch — spawn the named role per the
-   call contract in .aai/SUBAGENT_PROTOCOL.md (ENV row: export
+2. Exit 0 (dispatch): assemble the prefix with `node .aai/scripts/canon.mjs build --role Validation --ref HEAD` (swap --role for the dispatched role),
+   relay the JSON dispatch — spawn the named role per the call contract in
+   .aai/SUBAGENT_PROTOCOL.md (ENV row: export
    AAI_ROLE=subagent for the role, UNSET for the orchestrator's own writes),
    honoring suggested_tier and validator_independence. After the role
    completes, append its run via state.mjs append-run with harness-reported usage per SUBAGENT_PROTOCOL.md.

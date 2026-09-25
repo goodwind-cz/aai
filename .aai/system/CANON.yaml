@@ -28,6 +28,9 @@
 #   (Spec-AC-04), each `text:` (normalized: trimmed, internal whitespace
 #   collapsed to one space) plus a `reason:` the check prints when the
 #   exception is used. `[]` when none are declared, as today.
+# - `historical:` / `annotation_window:` / `claims:` — the withdrawn-claim
+#   sweep `canon.mjs claims` reads (Spec-AC-08..10). See the LINE-SHAPE
+#   DECISION comment below for what each declares and why.
 #
 # LINE-SHAPE DECISION (R2, measured 2026-09-25, canon-is-a-build-artifact
 # Implementation): the duplicate-rule scan matches every line beginning
@@ -43,6 +46,68 @@
 # considered and rejected: it would miss a duplicated non-hazard canon rule,
 # which is exactly the defect class `fu-contract-ledger-rule-stated-twice`
 # was.
+#
+# `historical:` (D5) — the ONLY two declared exemption routes for `claims`
+# are this glob list and a `**CORRECTION (<date>).**` / `**WITHDRAWN
+# <date>**` annotation within `annotation_window` lines after a hit. This
+# file is itself in the list (Implementation plan edge case: a claim
+# pattern's own declaration below would otherwise be a self-inflicted live
+# assertion). `docs/issues/**` and `docs/specs/SPEC-DRAFT-*.md` are declared
+# historical because intake/backlog documents and an in-flight, not-yet-
+# numbered spec narrate a defect's history — quoting the withdrawn claim as
+# evidence of what was wrong — rather than asserting it as current
+# instruction; this is the SAME category `docs/ai/reviews/**` and
+# `docs/ai/reports/**` are already in, just not yet declared for the
+# `docs/issues/` and `docs/specs/SPEC-DRAFT-` shapes. Measured live
+# (2026-09-25, `git ls-files | grep -l 'deleted by a separate change\|will
+# be removed'`): every hit outside this exemption set and the
+# `annotation_window` below is already corrected (SPEC-0138:75, 4 lines
+# above its `**CORRECTION (2026-08-23).**` block at :79).
+# `tests/skills/test-aai-canon.sh` is declared historical for the SAME
+# self-declaration reason as this file: TEST-687..689 plant literal claim
+# text into fixtures to prove the detector catches it, so the suite's own
+# source is code exercising the check, never a live assertion of the claim.
+
+historical:
+  - docs/ai/decisions.jsonl
+  - docs/ai/reviews/**
+  - docs/ai/reports/**
+  - docs/ai/tdd/**
+  - docs/archive/**
+  - docs/issues/**
+  - docs/specs/SPEC-DRAFT-*.md
+  - .aai/system/CANON.yaml
+  - tests/skills/test-aai-canon.sh
+
+# annotation_window (D5) — the number of lines AFTER a claim hit that a
+# declared correction/withdrawal annotation may appear in for the hit to be
+# exempt. 6 covers the live SPEC-0138 case (hit at :75, annotation at :79,
+# distance 4) with margin.
+annotation_window: 6
+
+# claims (Spec-AC-08..10) — the withdrawn claim this scope makes checkable:
+# the tripwire/isolation mechanism is NOT going away (`hitl_decision`
+# 2026-08-23T20:05:00Z, `ref_id: the-tripwire-is-permanent-not-transitional`,
+# docs/ai/decisions.jsonl:453, superseding the 2026-08-19T16:59:51Z decision
+# that first called it transitional). `patterns` cover both the
+# present-tense wording validation round 2 found uncorrected
+# (`fu-sweep-regex-misses-present-tense`) and the original future-tense
+# wording. `corpus` reaches the repository root via the literal
+# `CHANGELOG.md` entry (`fu-sweep-scope-excludes-repo-root`) rather than
+# stopping at `.aai/ docs/ tests/`.
+claims:
+  - id: tripwire-permanent
+    decision_ts: 2026-08-23T20:05:00Z
+    decision_ref: the-tripwire-is-permanent-not-transitional
+    corpus:
+      - .aai/**
+      - docs/**
+      - tests/**
+      - CHANGELOG.md
+    patterns:
+      - are deleted by a separate change
+      - is deleted by a separate change
+      - will be removed
 
 roles:
   Planning: .aai/PLANNING.prompt.md
