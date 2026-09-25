@@ -1524,6 +1524,24 @@ JSONL
   log_pass "harness renders on the facts line; off-set and absent both degrade to unknown (TEST-064)"
 }
 
+# --- TEST-652 (Spec-AC-01): the delivered harness field on the issue facts
+# line closes on its existing pin (TEST-064), proven to redden under
+# mutation, never on a reading of the source. Wraps test_064_harness_in_payload
+# rather than duplicating its fixture -- running the real pin IS the proof.
+# The inner call runs in a command substitution (a real subshell), so its own
+# log_fail (which calls exit 1) only ends that subshell; this wrapper
+# re-raises with its OWN TEST-652 id, because mutation-run.mjs attributes a
+# redden by finding that literal id in a FAIL line, and the wrapped pin's
+# failure only ever says TEST-064. ------------------------------------------
+test_652_harness_payload_pin_still_bites() {
+  log_info "TEST-652: replaying the existing payload harness pin (test_064_harness_in_payload / TEST-064) under mutation -- the harness field on the issue facts line closes on this proof, not a reading..."
+  local out rc=0
+  out="$(test_064_harness_in_payload 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] || \
+    log_fail "TEST-652: the existing payload harness pin (test_064_harness_in_payload) failed under mutation:"$'\n'"$out"
+  log_pass "TEST-652 the existing payload harness pin still bites under mutation"
+}
+
 test_009_profiles() {
   log_info "Test: new .aai files classified; layer-profiles green (TEST-009)..."
   local out code; out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
@@ -1642,6 +1660,7 @@ main() {
   test_062_empty_create_stdout_degrades
   test_063_large_stderr_does_not_lose_exit_status
   test_064_harness_in_payload
+  test_652_harness_payload_pin_still_bites
   test_009_profiles
   test_404_nested_failure_names_file_with_linecount
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="

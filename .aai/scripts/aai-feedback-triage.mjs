@@ -59,7 +59,13 @@ function safeHarness(v) { return HARNESS_VALUES.includes(v) ? v : 'unknown'; }
 const IMPACT_SCORE = { low: 1, medium: 2, high: 3 };
 const CONFIDENCE_SCORE = { low: 1, medium: 2, high: 3 };
 const REPRODUCIBLE_BONUS = 2;
-const RECURRENCE_CAP = 5; // recurrence contributes at most this many points
+const RECURRENCE_CAP = 3; // recurrence contributes at most this many points
+// friction-triage-scoring-rewards-recurrence (2026-09-05, re-measured
+// 2026-09-25): recurrence may only PROMOTE a cluster that already carries
+// signal, never manufacture a candidate on its own. A cluster whose own max
+// signal is below this floor gets no recurrence bonus at all, regardless of
+// how large it grows.
+const SIGNAL_FLOOR = 2;
 
 const MODES = new Set(['local', 'review', 'auto']);
 const DEFAULT_THRESHOLD = 4;
@@ -235,7 +241,7 @@ function triage(rows, config) {
   for (const [fp, members] of byFp) {
     const recurrence = members.length;
     const maxSignal = members.reduce((m, o) => Math.max(m, observationSignal(o)), 0);
-    const recurrenceBonus = Math.min(recurrence - 1, RECURRENCE_CAP);
+    const recurrenceBonus = maxSignal >= SIGNAL_FLOOR ? Math.min(recurrence - 1, RECURRENCE_CAP) : 0;
     const score = maxSignal + recurrenceBonus;
     // auto is LOCKED in this slice: never publishable regardless of score.
     const autoPublishable = false;

@@ -998,6 +998,56 @@ test_113_harness_on_observations() {
   log_pass "harness derived from the environment, a supplied value dropped, a legacy caller still records (TEST-113)"
 }
 
+# --- TEST-653 (Spec-AC-02): a hand-authored v2 record is scoreable; a v1
+# record's appended line stays byte-identical to the pre-v2 tool. What was
+# missing was never the field (schema v2 has accepted impact/confidence since
+# RFC-0013) — this pins the field's persistence AND its scoreability under a
+# mutation that reddens, never a reading of the source. -----------------------
+test_653_hand_authored_is_scoreable() {
+  log_info "Test: a schema-v2 record carrying impact high + confidence high persists both and triages to signal 6; a schema-v1 record's appended line stays byte-identical to the pre-v2 tool (TEST-653)..."
+  local triage_script="$PROJECT_ROOT/.aai/scripts/aai-feedback-triage.mjs"
+  [ -f "$triage_script" ] || log_fail "TEST-653: triage engine missing: $triage_script"
+
+  # (a) v2 hand-authored impact high + confidence high -> persists both,
+  # triages to signal 6 (3 + 3, no recurrence, no reproducible bonus).
+  local sp="$TEST_DIR/sp653"; mkdir -p "$sp"
+  write_v2 "$TEST_DIR/v2_653.json" ',
+  "impact": "high",
+  "confidence": "high"'
+  local code; code="$(run_record "$sp" "$TEST_DIR/v2_653.json")"
+  assert_exit "TEST-653 v2 record" 0 "$code"
+  local keys; keys="$(line_keys "$sp/observations.jsonl")"
+  assert_key_present "TEST-653" "$keys" "impact"
+  assert_key_present "TEST-653" "$keys" "confidence"
+  [ "$(line_get "$sp/observations.jsonl" impact)" = "high" ] \
+    || log_fail "TEST-653: impact must persist verbatim as high"
+  [ "$(line_get "$sp/observations.jsonl" confidence)" = "high" ] \
+    || log_fail "TEST-653: confidence must persist verbatim as high"
+  local rep="$TEST_DIR/rep653.json"
+  local tcode=0
+  node "$triage_script" --spool "$sp/observations.jsonl" --config /nonexistent --out "$rep" \
+    >/dev/null 2>&1 || tcode=$?
+  [ "$tcode" = "0" ] || log_fail "TEST-653: triage over the hand-authored spool must exit 0 (got $tcode)"
+  local score; score="$(node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(String(r.clusters[0].score))' "$rep")"
+  [ "$score" = "6" ] \
+    || log_fail "TEST-653: impact high + confidence high (no recurrence, no reproducible) must score exactly 6 (got $score)"
+
+  # (b) v1 record -> appended line stays byte-identical to the pre-v2 tool:
+  # exactly the 9 legacy keys, in the pre-v2 insertion order, no impact/confidence.
+  local sp1="$TEST_DIR/sp653v1"; mkdir -p "$sp1"
+  write_wellformed "$TEST_DIR/v1_653.json"
+  code="$(run_record "$sp1" "$TEST_DIR/v1_653.json")"
+  assert_exit "TEST-653 v1 record" 0 "$code"
+  local v1keys; v1keys="$(line_keys "$sp1/observations.jsonl")"
+  [ "$v1keys" = "aai_pin,failure_class,fingerprint,harness,node_major,os_family,schema_version,skill_id,skill_phase" ] \
+    || log_fail "TEST-653: v1 record must persist exactly the 9 legacy keys, no impact/confidence (got: $v1keys)"
+  local order; order="$(node -e 'const l=require("fs").readFileSync(process.argv[1],"utf8").trim();process.stdout.write(Object.keys(JSON.parse(l)).join(","))' "$sp1/observations.jsonl")"
+  [ "$order" = "schema_version,os_family,aai_pin,node_major,harness,skill_id,skill_phase,failure_class,fingerprint" ] \
+    || log_fail "TEST-653: v1 record key ORDER must stay byte-identical to the pre-v2 tool (got: $order)"
+
+  log_pass "hand-authored v2 impact+confidence persists and scores 6; v1 line stays byte-identical to the pre-v2 tool (TEST-653)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1040,6 +1090,7 @@ main() {
   test_108_redactor_no_network_static
   test_112_summary_enabled_scoped
   test_113_harness_on_observations
+  test_653_hand_authored_is_scoreable
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
