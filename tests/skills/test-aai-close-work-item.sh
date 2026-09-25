@@ -4152,12 +4152,27 @@ test_673_hung_backlog_step_never_blocks_close() {
   mkdir -p "$dir/docs/ai/friction"
   printf '{"n":1}\n' > "$dir/docs/ai/friction/observations.jsonl"
 
-  # A CPU-bound infinite loop: an execFileSync `timeout` is a parent-side
-  # wall-clock watchdog, so it fires regardless of whether the child's own
-  # event loop is responsive -- this reproduces "still running" (validation
-  # round 1's hanging `gh` stub), not merely "exits slowly".
+  # A CPU-bound busy-wait, bounded at 30s rather than infinite: an
+  # execFileSync `timeout` is a parent-side wall-clock watchdog, so it fires
+  # regardless of whether the child's own event loop is responsive -- this
+  # still reproduces "still running" (validation round 1's hanging `gh`
+  # stub) under the production timeout, which kills it at 300ms here, long
+  # before the 30s mark. The bound matters for the MUTATED arm (the timeout
+  # removed): mutation-run.mjs's own suite runner carries no timeout of its
+  # own, so an unboundedly-hung fixture would hang the replay tooling
+  # forever right along with the close -- this fixture instead exits BY
+  # ITSELF at 30s, so a mutated run still finishes (in finite time) and
+  # fails on its own elapsed-time assertion below, a genuine bounded RED
+  # rather than a tool-level hang.
   local hang="$TEST_DIR/hang-status.mjs"
-  printf 'for (;;) {}\n' > "$hang"
+  cat > "$hang" <<'JS'
+const startMs = Date.now();
+while (Date.now() - startMs < 30000) { /* spin: a production timeout is expected to kill this well before 30s */ }
+process.stdout.write(JSON.stringify({
+  observations: 0, drafts: 0, gh: 'absent', gh_ready: false,
+  candidates: 0, report_observations: 0, report_stale: false, next: '',
+}));
+JS
 
   local out="$TEST_DIR/t673.out" err="$TEST_DIR/t673.err" code
   local start end elapsed

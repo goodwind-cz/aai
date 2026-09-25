@@ -561,6 +561,8 @@ and selector; the mutation evidence for each is
 | TEST-669 | Spec-AC-11 | integration | tests/skills/test-aai-feedback-status.sh | test_669_status_reports_the_backlog — four fixture friction directories (no report, a report matching the spool, a report reporting 65 against a 824-line spool with drafts present, an empty spool) produce the expected printed line, the expected next command, and the expected candidates / report_observations / report_stale values under --json. | Compare the report against itself rather than the spool with sed:s/report.total_observations !== spoolLines/false/ so a stale report reads as current. | pending |
 | TEST-670 | Spec-AC-11 | integration | tests/skills/test-aai-feedback-status.sh | test_670_stale_report_never_advertises_publish — with drafts present and a stale report, the next line names the triage command and not a publish; with drafts present and a current report it names the publish; the empty-spool arm stays silent on stdout while --json still emits the object. | Restore the draft-first ordering so a stale report still advertises a publish over its drafts. | pending |
 | TEST-671 | Spec-AC-12 | integration | tests/skills/test-aai-close-work-item.sh | test_671_close_surfaces_the_backlog — a close prints the friction backlog line naming the untriaged count and the candidates worth the owner's attention, and a failure of that step degrades to a NOTE rather than blocking the close. | Neuter the backlog call so the close prints nothing and the operator learns nothing. | pending |
+| TEST-672 | Spec-AC-06 | integration | tests/skills/test-aai-feedback-upsert.sh | test_672_comment_body_is_the_certified_blockquote — a comment call fires exactly when the filed body carries a certified blockquote, and its body is byte-identical to that blockquote rather than a second read of the same field. | Replace the certified summary with the raw one at both the gate and the body, which is the substitution that sent a token and a key path to a public repository while the suite stayed green. | pending |
+| TEST-673 | Spec-AC-12 | integration | tests/skills/test-aai-close-work-item.sh | test_673_backlog_step_cannot_hang_a_close — a genuinely hung backlog child is bounded and degrades to a NOTE, so the close finishes instead of waiting on the network. | Remove the timeout from the backlog spawn so a hung child holds the close open. | pending |
 
 ## Seams
 
@@ -767,4 +769,57 @@ the property being bought. That file is hash-pinned by four suites, so this work
 belongs with the ride's single re-pin, written last.
 
 Sign-off: owner.
+
+## Amendment 2 (post-freeze, 2026-09-25 — validation round 1's four blocking findings)
+
+**The call site this ride added had nothing guarding what it sends.** Replacing
+the certified summary with the raw one, at the comment gate and at its body,
+left the ENTIRE upsert suite green — including the arm written to catch exactly
+that, because it greps only the `issue create` line and never looks at the
+`issue comment` line or asserts that no comment was made. Under that
+substitution a confirmed publish sent a token-shaped string and an SSH key path
+to a public repository's issue comment, reproduced end to end. This spec's own
+D3 names vacuous greens as the reason its positive controls exist, and the ride
+reproduced one on the site it introduced. TEST-672 now pins the structural
+property — a comment fires exactly when the filed body carries a certified
+blockquote, and carries byte-identically that blockquote rather than a second
+read — and TEST-657's arm inspects the whole recorded call set instead of one
+line.
+
+**The shipped contract said the opposite of the code.** `.aai/SKILL_FEEDBACK_UPSERT.prompt.md`
+still told its reader that the comment command "only PRINTS that command, it
+never runs it", and its safety model still named one mutating call, while
+Spec-AC-06 had added a second. The Implementation plan named that file and it
+was never touched; the delivery commit disclosed the diet accounting but not the
+dropped plan item. Corrected, measured at +1022 B, credited 1:1 with the
+TEST-012 pin moved by exactly that amount; headroom stays 1942 of 2048.
+
+**The Registry section made twelve closure claims where it meant six.** Its
+subsections used prose headings instead of the vocabulary the closure reader
+understands, so bullets under REJECTED, OUT OF SCOPE and FILED read as claims
+that those items were closed. `verify-closures --strict` went from rc=0 on main
+to rc=1 here, and TEST-029's allowlist is drain-only, so this would have stayed
+red in main AFTER the merge rather than clearing at the close. The three
+sections now carry the `NOT CLOSED` label and the six genuinely resolved items
+are closed for real; the checker is rc=0 repo-wide.
+
+**Spec-AC-12 put an unbounded network call in the close path.** The owner's
+amendment forbade a backlog step that could block a close, and the first
+implementation could: `close-work-item.mjs` spawned a status tool that spawns
+`gh`, with no timeout on either, where before this ride that file made no
+network calls at all. With a hung stub the step was still running after ten
+seconds. Both spawns are now bounded, the outer one overridable by environment,
+and TEST-673 pins that a genuinely hung child degrades to a NOTE. The hang was
+reproduced under an external watchdog rather than through the mutation runner,
+because the runner has no suite timeout and cannot safely drive an unbounded
+mutant — the evidence file is named outside the replay glob for that reason.
+
+**One wording note carried rather than edited.** The residual-risk and D3 prose
+calls the record-time and transmit-time redactions "independent". They are the
+same function re-derived at two points in time, which is what the code and the
+prompt say; nothing claims two algorithms. Read strictly the word could suggest
+otherwise, and it is recorded here rather than rewritten, because an amendment
+corrects and does not rewrite.
+
+Sign-off: none (tracked).
 
