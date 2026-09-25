@@ -6,13 +6,22 @@ Thin wrapper over `.aai/scripts/aai-feedback-upsert.mjs`. It turns the triage
 report's `review_candidate` clusters into transmit-redacted, deduplicated,
 budget-checked GitHub issue drafts. THE DEFAULT RUN WRITES NOTHING TO GITHUB.
 
-## Safety model (RFC-0012 D7/D8)
+## Safety model (RFC-0012 D7/D8, Spec-AC-06 D4/D5)
 - A plain run is **PREPARE-ONLY**: it writes drafts to
   `docs/ai/friction/pending-issues/<fp>.md` and prints the exact confirmed-write
   command. No mutating GitHub call is made.
 - An issue is filed ONLY via an explicit, human-confirmed step:
   `node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm`
   which re-runs the transmit redaction + budget check immediately before the write.
+  Under the SAME `--confirm`, this step may make a SECOND mutating call: when the
+  record carries a summary the transmit redactor certified AND the returned issue
+  URL is itself certified, the engine posts that certified prose as one
+  `gh issue comment` analysis comment on the filed issue — no second human
+  approval. A prose-free record (today's default; every automatic capture is
+  prose-free) or an uncertified URL keeps the old behaviour exactly: one write,
+  the comment command only PRINTED. A failed comment never unfiles the issue —
+  the ledger entry still writes and the process exits non-zero naming the
+  comment's own failure.
 - `auto` mode is refused (locked). `local` (default) prepares nothing.
 
 ## Run
@@ -34,16 +43,20 @@ node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm
   it shells to an authenticated `gh`; missing/unauthenticated `gh` degrades to
   prepare-nothing.
 
-## After a confirmed publish: the work is not finished when the issue is filed
-The transmitted record is prose-free by design (structured fields only) — a
-maintainer cannot act on it without a human-written follow-up comment. On a
-confirmed publish the engine prints the filed issue's URL and a runnable
-`gh issue comment <n> --repo <destination> --body-file <file>` command; it only
-PRINTS that command, it never runs it. The prepared draft in
-`pending-issues/<fp>.md` also carries a static, commented-out
-`## Analysis (reporter follow-up)` skeleton so the shape is visible before you
-confirm. Write your own analysis, save it to a file, and run the printed
-comment command by hand — that is the required second step.
+## After a confirmed publish: the work is not finished when the issue is filed — unless it already is
+An automatic record is prose-free by design (structured fields only) — a
+maintainer cannot act on it without a human-written follow-up comment. When
+the record instead carries a `--promote`d summary that BOTH redaction passes
+certified, and the filed issue's URL itself certifies, the engine has ALREADY
+posted that certified prose as the analysis comment — the printed output names
+the comment as done and no further action is needed. Only when the record is
+prose-free, or the URL could not be certified, does the engine print a runnable
+`gh issue comment <n> --repo <destination> --body-file <file>` command instead
+of running it. The prepared draft in `pending-issues/<fp>.md` also carries a
+static, commented-out `## Analysis (reporter follow-up)` skeleton so the shape
+is visible before you confirm. In that prose-free/uncertified case: write your
+own analysis, save it to a file, and run the printed comment command by hand —
+that is the required second step.
 
 ## When to run
 Explicitly, after reviewing the triage report — and only after the operator has

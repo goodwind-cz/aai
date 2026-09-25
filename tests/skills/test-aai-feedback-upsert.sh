@@ -845,6 +845,16 @@ JSONL
   # "\n> " buildPayload emits) is the actual blockquote signature -- a bare
   # "> " false-positives on the dedup marker's own "-->" comment closer.
   case "$line" in *" > "*) log_fail "TEST-657 (a): the poisoned arm's FILED body must carry no blockquote at all (the transmit pass must drop the summary, not certify a garbled one): $line" ;; esac
+  # B1 (validation round 1): a mutation that sources the COMMENT gate/body from
+  # the raw record instead of the certified value leaves the create-line-only
+  # checks above green, because the comment call is a SEPARATE mutating write
+  # that the poisoned arm never inspected. Assert on the whole recording, not
+  # one line: the comment must never fire for an uncertifiable summary, and
+  # the secret text must never reach ANY gh call, not just "issue create".
+  [ "$(comments)" = "0" ] \
+    || log_fail "TEST-657 (a): a poisoned summary must never trigger the analysis comment call (comments=$(comments), calls=$(cat "$GH_CALLS"))"
+  grep -qF 'AKIAABCDEFGHIJKLMNOP' "$GH_CALLS" \
+    && log_fail "TEST-657 (a): a poisoned summary must never reach ANY gh call, not just issue create (calls=$(cat "$GH_CALLS"))"
 
   # (b) clean: persists verbatim as the blockquote in the FILED body.
   seed_single_candidate
@@ -859,8 +869,84 @@ JSONL
     *"> the gate threw on a missing transition"*) ;;
     *) log_fail "TEST-657 (b): a clean summary must appear as the blockquote in the FILED body: $line" ;;
   esac
+  # POSITIVE CONTROL (B1): a certified summary must also reach the analysis
+  # COMMENT call, not merely the create body -- both mutating calls exist.
+  [ "$(comments)" = "1" ] \
+    || log_fail "TEST-657 (b): a certified clean summary must trigger exactly one analysis comment (comments=$(comments), calls=$(cat "$GH_CALLS"))"
+  local cline; cline="$(grep '^issue comment' "$GH_CALLS")"
+  case "$cline" in
+    *"the gate threw on a missing transition"*) ;;
+    *) log_fail "TEST-657 (b): the analysis comment must carry the certified summary verbatim: $cline" ;;
+  esac
 
   log_pass "transmit redaction certifies independently both ways in the FILED argv; creates==1 in both arms (TEST-657)"
+}
+
+# --- TEST-672 (Spec-AC-06/B1 remediation): the comment body is STRUCTURALLY
+# tied to the certified blockquote, never a second, independent read ---------
+# Validation round 1 proved a mutation (`payload.certifiedSummary` -> the raw
+# `rep.summary`, both occurrences -- the comment gate AND its --body) left the
+# whole suite green: TEST-657's assertions only ever looked at the
+# `issue create` line. This row does not grep for one known secret string; it
+# asserts the INVARIANT that must hold regardless of what the summary text is
+# -- a comment call fires IFF the filed body already carries a certified
+# blockquote, and when it does, the comment's --body is byte-identical to
+# that blockquote. A gate/body sourced from anywhere else (the raw record,
+# a re-read of the spool, a differently-redacted copy) breaks one half of
+# that invariant even when the two values happen to coincide on a clean arm.
+test_672_comment_body_is_the_certified_blockquote() {
+  log_info "Test: the analysis comment fires iff the filed body carries a certified blockquote, and its --body is byte-identical to that blockquote (TEST-672)..."
+
+  extract_create_blockquote() { # $1 = raw "issue create ..." line -> sets HAS_BQ, BQ
+    local sq; sq="$(printf '%s' "$1" | tr -s ' ')"
+    case "$sq" in
+      *"--body > "*)
+        HAS_BQ=1
+        BQ="${sq#*--body > }"
+        BQ="${BQ%% - failure_class:*}"
+        ;;
+      *) HAS_BQ=0; BQ="" ;;
+    esac
+  }
+  extract_comment_body() { # $1 = raw "issue comment ..." line -> sets CB
+    local sq; sq="$(printf '%s' "$1" | tr -s ' ')"
+    CB="${sq#*--body }"
+  }
+
+  # (a) poisoned: no certified blockquote may exist, so no comment may fire.
+  seed_single_candidate
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"leaked AKIAABCDEFGHIJKLMNOP in the log"}
+JSONL
+  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  [ "$(creates)" = "1" ] || log_fail "TEST-672 (a) POSITIVE CONTROL: the poisoned arm must actually FILE (creates=$(creates))"
+  local cline; cline="$(grep '^issue create' "$GH_CALLS")"
+  extract_create_blockquote "$cline"
+  local n_comments; n_comments="$(comments)"
+  case "$HAS_BQ $n_comments" in
+    "0 0") ;;
+    *) log_fail "TEST-672 (a): comment-call count ($n_comments) must match whether the filed body carries a certified blockquote (has_blockquote=$HAS_BQ) -- an uncertified summary must never trigger the analysis comment" ;;
+  esac
+
+  # (b) clean: a certified blockquote exists and the comment must repeat it
+  # verbatim -- structural equality, not a match against a fixed string.
+  seed_single_candidate
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"the gate threw on a missing transition"}
+JSONL
+  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  [ "$(creates)" = "1" ] || log_fail "TEST-672 (b) POSITIVE CONTROL: the clean arm must actually FILE (creates=$(creates))"
+  cline="$(grep '^issue create' "$GH_CALLS")"
+  extract_create_blockquote "$cline"
+  [ "$HAS_BQ" = "1" ] || log_fail "TEST-672 (b): the clean arm's filed body must carry a certified blockquote: $cline"
+  n_comments="$(comments)"
+  [ "$n_comments" = "1" ] || log_fail "TEST-672 (b): a certified blockquote must trigger exactly one analysis comment (comments=$n_comments)"
+  local ccline; ccline="$(grep '^issue comment' "$GH_CALLS")"
+  extract_comment_body "$ccline"
+  [ "$BQ" = "$CB" ] \
+    || log_fail "TEST-672 (b): the comment's --body must be byte-identical to the certified blockquote (blockquote='$BQ' comment='$CB')"
+
+  log_pass "the analysis comment's presence and content are structurally tied to the certified blockquote, in both arms (TEST-672)"
 }
 
 # --- TEST-033: a failed post-create ledger append is loud and non-zero --------
@@ -1855,6 +1941,7 @@ main() {
   test_031_auth_preflight_gates_publish
   test_032_create_argv_destination_and_content
   test_657_transmit_redaction_independent
+  test_672_comment_body_is_the_certified_blockquote
   test_033_ledger_append_failure_is_loud
   test_034_config_parse_label_drop_is_named
   test_035_duplicate_gate_is_per_destination

@@ -682,7 +682,7 @@ CLOSED ON EXTERNAL EVIDENCE, no code and no test possible:
   pin a remote repository's label set, and this spec does not pretend
   otherwise.
 
-REJECTED BY THIS SCOPE, with the measured reason:
+NOT CLOSED — REJECTED BY THIS SCOPE, with the measured reason:
 
 - The intake's proposal that the label be "created on first use, disclosed" —
   rejected per D7. The label exists, so the work has no subject; and giving the
@@ -690,7 +690,7 @@ REJECTED BY THIS SCOPE, with the measured reason:
   design rests on, that its only mutation is one issue behind one human
   `--confirm`.
 
-OUT OF SCOPE, named so they are not read as dropped:
+NOT CLOSED — OUT OF SCOPE, named so they are not read as dropped:
 
 - `fu-amend-friction-upsert-channel-ba7701` (P2),
   `fu-amend-friction-publish-hides-r-b86049` (P2) and
@@ -703,7 +703,7 @@ OUT OF SCOPE, named so they are not read as dropped:
   (`tracked_by: dispatch-state-sweep`) matched a keyword scan of this bucket
   and belong to those rides.
 
-FILED BY THIS SCOPE (new follow-ups, each with its measurement):
+NOT CLOSED — FILED BY THIS SCOPE (new follow-ups, each with its measurement):
 
 - `fu-friction-loop-has-no-scheduler` (P2) — nothing in the factory runs
   `aai-feedback-status.mjs` or the triage engine except `/aai-wrap-up`;

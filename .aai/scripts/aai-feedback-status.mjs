@@ -88,14 +88,24 @@ function readTriageReport(spoolLines) {
   return { hasReport: true, reportObservations, candidates, reportStale };
 }
 // Read-only auth probe. Returns 'ready' | 'unauthenticated' | 'absent'. Never
-// throws, never mutates — `gh auth status` performs no write.
+// throws, never mutates — `gh auth status` performs no write. `timeout`
+// bounds the wall clock (B4, spec-friction-channel-sweep validation round 1):
+// this is the ONE network call in a chain the close ceremony's best-effort
+// backlog step now spawns (surfaceFrictionBacklog -> this script -> gh), and
+// before that chain existed close-work-item.mjs made zero network calls. A
+// hung `gh` must degrade this probe, never hang the caller — killSignal
+// SIGKILL because a stuck `gh` past its own timeout has already shown SIGTERM
+// does not reliably reap it (same posture as golden-flow.mjs / update-doctor-
+// report.mjs's own execFileSync timeouts).
 function ghState() {
   const bin = process.env.AAI_GH_BIN || 'gh';
   try {
-    execFileSync(bin, ['auth', 'status'], { stdio: ['ignore', 'ignore', 'ignore'] });
+    execFileSync(bin, ['auth', 'status'], { stdio: ['ignore', 'ignore', 'ignore'], timeout: 5000, killSignal: 'SIGKILL' });
     return 'ready';
   } catch (e) {
-    // execFileSync throws ENOENT (gh absent) or a non-zero exit (unauthenticated).
+    // execFileSync throws ENOENT (gh absent), a non-zero exit (unauthenticated),
+    // or ETIMEDOUT (ours, when the timeout above fired) — all three degrade the
+    // same way: this is a best-effort read-only probe, not a hard requirement.
     return e && e.code === 'ENOENT' ? 'absent' : 'unauthenticated';
   }
 }

@@ -4135,6 +4135,52 @@ JSON
   log_pass "TEST-671: close prints the friction backlog line with its counts; a rigged failure of that step degrades to a NOTE and the close still succeeds (Spec-AC-12, Amendment 1)"
 }
 
+# --- TEST-673 (B4 remediation, Spec-AC-12/Amendment 1): a HUNG backlog child
+# must never block a close — a wall-clock bound fires and degrades to a NOTE.
+# Validation round 1 proved neither execFileSync in the surfaceFrictionBacklog
+# chain (this file, and aai-feedback-status.mjs's own `gh auth status` call)
+# carried a `timeout`: a hanging `gh` stub left the step still running after
+# ten seconds, and before this amendment close-work-item.mjs made ZERO
+# network calls at all. TEST-671's rigged arm only covers a non-zero EXIT,
+# which the existing try/catch already handled without a timeout; a HANG is a
+# different failure a wall-clock bound is the only thing that catches.
+test_673_hung_backlog_step_never_blocks_close() {
+  log_info "TEST-673: a friction-status child that never returns must not hang the close -- the timeout bound fires and the close degrades to a NOTE (Spec-AC-12/B4)..."
+  local dir; dir=$(new_fixture_repo "t673")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t673.md" "t673-slug" "draft"
+  commit_fixture_docs "$dir"
+  mkdir -p "$dir/docs/ai/friction"
+  printf '{"n":1}\n' > "$dir/docs/ai/friction/observations.jsonl"
+
+  # A CPU-bound infinite loop: an execFileSync `timeout` is a parent-side
+  # wall-clock watchdog, so it fires regardless of whether the child's own
+  # event loop is responsive -- this reproduces "still running" (validation
+  # round 1's hanging `gh` stub), not merely "exits slowly".
+  local hang="$TEST_DIR/hang-status.mjs"
+  printf 'for (;;) {}\n' > "$hang"
+
+  local out="$TEST_DIR/t673.out" err="$TEST_DIR/t673.err" code
+  local start end elapsed
+  start=$(date +%s)
+  code=$(AAI_FEEDBACK_STATUS_SCRIPT="$hang" AAI_FRICTION_BACKLOG_TIMEOUT_MS=300 \
+    run_close "$dir" "$out" "$err" --ref t673-slug --pr 1 --commit c3c3c03)
+  end=$(date +%s)
+  elapsed=$((end - start))
+  assert_exit "TEST-673 close survives a HUNG backlog step" 0 "$code"
+  [[ "$elapsed" -le 5 ]] \
+    || log_fail "TEST-673: a close with a hung backlog step and a 300ms bound ran for ${elapsed}s -- the timeout is not bounding the call (removing it reproduces validation round 1's 'STILL RUNNING after 10s')"
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t673.md" \
+    || log_fail "TEST-673: the close itself must still succeed when the backlog step hangs"
+  grep -qi "NOTE" "$err" \
+    || log_fail "TEST-673: a hung backlog step must degrade to a NOTE on stderr, got: $(cat "$err")"
+  # Same negative-check discipline as TEST-671: the NOTE text legitimately
+  # contains "friction backlog", so anchor on the SUCCESS line's unique tail.
+  ! grep -qF "clearing the signal floor" "$err" \
+    || log_fail "TEST-673: a hung backlog step must not print the successful backlog line at all"
+
+  log_pass "TEST-673: a hung backlog child is bounded by the timeout and degrades to a NOTE without blocking the close (${elapsed}s elapsed, Spec-AC-12/B4)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -4220,6 +4266,7 @@ main() {
   test_532_product_doc_shares_an_id
   test_533_pin_has_exactly_one_new_entry
   test_671_close_surfaces_the_backlog
+  test_673_hung_backlog_step_never_blocks_close
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

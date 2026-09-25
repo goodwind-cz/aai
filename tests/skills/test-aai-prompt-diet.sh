@@ -837,7 +837,13 @@ test_012_growth_sum_matches_ledger() {
   # --decline-ref-guard escape, replacing the pre-commit-only safety
   # sentence fact 4 named as the stale contract. Credited 1:1, headroom
   # stays 2046/2048.
-  local want_growth=35820
+  # friction-channel-sweep validation-round1 B2 remediation: 35820 -> 36842
+  # (+1022 B) crediting .aai/SKILL_FEEDBACK_UPSERT.prompt.md's Safety model /
+  # "After a confirmed publish" rewrite so the prompt states the certified-
+  # prose analysis-comment write Spec-AC-06 actually ships, instead of the
+  # prior "only prints, never runs" text. Credited 1:1, headroom stays
+  # 1942/2048 (TEST-010).
+  local want_growth=36842
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

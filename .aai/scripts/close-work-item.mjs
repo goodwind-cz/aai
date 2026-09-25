@@ -1346,11 +1346,25 @@ function surfaceFrictionBacklog() {
     const statusScript = process.env.AAI_FEEDBACK_STATUS_SCRIPT || path.join(SCRIPT_DIR, 'aai-feedback-status.mjs');
     if (!fs.existsSync(statusScript)) return;
     const frictionDir = process.env.AAI_FRICTION_DIR || path.join(ROOT, 'docs', 'ai', 'friction');
+    // B4 (validation round 1): this script itself now shells to
+    // aai-feedback-status.mjs, which shells to `gh auth status` — before this
+    // amendment close-work-item.mjs made ZERO network calls. Amendment 1
+    // requires this step be best-effort and NEVER block a close; a hang in
+    // either child is a block. `timeout`+killSignal bound the WHOLE chain
+    // from this end too (defense in depth over aai-feedback-status.mjs's own
+    // bound on its inner `gh` call — either one firing degrades to the NOTE
+    // below, never a hang here). AAI_FRICTION_BACKLOG_TIMEOUT_MS is a
+    // test-only override (same posture as AAI_FEEDBACK_STATUS_SCRIPT above)
+    // so a suite can prove the bound fires without a real multi-second wait —
+    // see tests/skills/test-aai-close-work-item.sh TEST-673.
+    const backlogTimeoutMs = Number(process.env.AAI_FRICTION_BACKLOG_TIMEOUT_MS) || 8000;
     const out = execFileSync('node', [statusScript, '--json'], {
       encoding: 'utf8',
       cwd: ROOT,
       stdio: ['ignore', 'pipe', 'ignore'],
       env: { ...process.env, AAI_FRICTION_DIR: frictionDir },
+      timeout: backlogTimeoutMs,
+      killSignal: 'SIGKILL',
     });
     const status = JSON.parse(out);
     const observations = Number(status.observations) || 0;
