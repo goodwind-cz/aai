@@ -72,6 +72,23 @@
 # self-declaration reason as this file: TEST-687..689 plant literal claim
 # text into fixtures to prove the detector catches it, so the suite's own
 # source is code exercising the check, never a live assertion of the claim.
+#
+# `docs/specs/SPEC-DRAFT-*.md` alone does NOT survive this ride's own close
+# step (validation round 1 BLOCKING-4, measured 2026-09-25): `.aai/SKILL_PR
+# .prompt.md`'s allocate-doc-number.mjs RENAMES this file to
+# `SPEC-<NNNN>-spec-canon-is-a-build-artifact.md` before it ships, and the
+# glob above has no slug to match against, so it silently stops covering
+# this spec's own Spec-AC-10 text and TEST-688 Test Plan row — both of which
+# quote "are deleted by a separate change" / "is deleted by a separate
+# change" verbatim as PROSE ABOUT the withdrawn claim (the same
+# self-declaration category as the test-aai-canon.sh line above), never as
+# current instruction. The frontmatter `id:` (`spec-canon-is-a-build-
+# artifact`) is the one thing the rename does NOT touch (allocate-doc-
+# number.mjs stamps `number:`, it does not rewrite `id:`), so the slug is
+# the stable handle: the entry below matches BOTH the pre-rename
+# `SPEC-DRAFT-` form and every post-rename `SPEC-<NNNN>-` form, and nothing
+# else — a differently-slugged spec that happens to get numbered is not
+# exempted by this line.
 
 historical:
   - docs/ai/decisions.jsonl
@@ -81,6 +98,7 @@ historical:
   - docs/archive/**
   - docs/issues/**
   - docs/specs/SPEC-DRAFT-*.md
+  - docs/specs/SPEC-*-spec-canon-is-a-build-artifact.md
   - .aai/system/CANON.yaml
   - tests/skills/test-aai-canon.sh
 

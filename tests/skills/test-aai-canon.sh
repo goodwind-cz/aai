@@ -370,7 +370,27 @@ test_676_absent_section_fails_closed() {
   local out_bytes
   out_bytes="$(wc -c < "$CANON_OUT" | tr -d ' ')"
   [[ "$out_bytes" -eq 0 ]] || log_fail "TEST-676: stdout must be EMPTY on refusal (a truncated payload must never be written), got $out_bytes bytes"
-  log_pass "TEST-676 an absent declared section refuses closed with the named token and empty stdout"
+
+  # Spec-AC-02's OTHER half: a section whose file EXISTS but is EMPTY fails
+  # closed the same way as an absent one — "absent OR empty", not just
+  # absent. A separate fixture (a present, zero-byte contract file) proves
+  # the length-zero branch, never merely the missing-path branch above.
+  local d2="$TEST_DIR/t676-empty"
+  mkdir -p "$d2/.aai" "$d2/docs/knowledge"
+  base_fixture_tree "$d2"
+  : > "$d2/.aai/SUBAGENT_CONTRACT.md"
+  [[ -f "$d2/.aai/SUBAGENT_CONTRACT.md" && ! -s "$d2/.aai/SUBAGENT_CONTRACT.md" ]] \
+    || log_fail "TEST-676: fixture setup: contract file must exist and be empty"
+
+  run_canon "$d2" "CANON.yaml" "FixtureRole" "TEST-676-empty-ref"
+  expect_rc_nonzero "TEST-676 present-but-empty section"
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-section-absent: contract .aai/SUBAGENT_CONTRACT.md" \
+    "TEST-676: an EMPTY (present, 0-byte) section must refuse the same way as an absent one" || return 1
+  local out_bytes2
+  out_bytes2="$(wc -c < "$CANON_OUT" | tr -d ' ')"
+  [[ "$out_bytes2" -eq 0 ]] || log_fail "TEST-676: stdout must be EMPTY on the empty-section refusal too, got $out_bytes2 bytes"
+
+  log_pass "TEST-676 a declared section refuses closed whether ABSENT or present-but-EMPTY, with the named token and empty stdout"
 }
 
 # --- TEST-677 ------------------------------------------------------------------
@@ -391,7 +411,23 @@ EOF
   expect_rc_nonzero "TEST-677 fixture with a 6th hazard"
   assert_payload_contains "$(cat "$CANON_ERR")" "canon-count-mismatch: standing_hazards declared=5 found=6" \
     "TEST-677: stderr must name both the declared and found counts" || return 1
-  log_pass "TEST-677 the declared hazard count is asserted against the ASSEMBLED payload (live clean at 5, fixture refuses declared=5 found=6)"
+
+  # Spec-AC-03 counts LINES matching `^- HAZ-` — anchored at line start, not
+  # a bare substring search. An indented or mid-line "- HAZ-" occurrence
+  # must NOT inflate the count: a fixture carrying one of each, still
+  # declared at 5, must build clean.
+  local d3="$TEST_DIR/t677-anchor"
+  mkdir -p "$d3"
+  base_fixture_tree "$d3"
+  cat >> "$d3/.aai/SUBAGENT_CONTRACT.md" <<'EOF'
+
+  - HAZ-SIX — indented, not a line-start rule; must not count.
+Text mentioning - HAZ-SEVEN mid-line must not count either.
+EOF
+  run_canon "$d3" "CANON.yaml" "FixtureRole" "TEST-677-anchor-ref"
+  expect_rc 0 "TEST-677 indented/mid-line '- HAZ-' occurrences must not inflate the count (still 5)"
+
+  log_pass "TEST-677 the declared hazard count is asserted against the ASSEMBLED payload (live clean at 5, fixture refuses declared=5 found=6, and an indented/mid-line occurrence is correctly not counted)"
 }
 
 # --- TEST-678 ------------------------------------------------------------------
@@ -429,7 +465,81 @@ EOF
     "TEST-678: stderr must name the FIRST occurrence's file:line" || return 1
   assert_payload_contains "$(cat "$CANON_ERR")" ".aai/SUBAGENT_CONTRACT.md:13" \
     "TEST-678: stderr must name the SECOND occurrence's file:line" || return 1
-  log_pass "TEST-678 a rule line repeated within one source file refuses, naming the text and both line numbers"
+
+  # Spec-AC-04's own text: "No DECLARED CANON RULE LINE shall appear twice"
+  # — not "no HAZ-prefixed line". CANON.yaml's own LINE-SHAPE DECISION
+  # comment records that a narrower `- HAZ-` -only pattern was considered
+  # and REJECTED precisely because it would miss a duplicated NON-hazard
+  # rule (fu-contract-ledger-rule-stated-twice's own shape). Prove the
+  # broad shape is what actually ships: a fixture whose duplicated bullet
+  # is NOT HAZ-prefixed must refuse the same way.
+  local d2="$TEST_DIR/t678-nonhaz"
+  mkdir -p "$d2/.aai" "$d2/docs/knowledge"
+  base_fixture_tree "$d2"
+  cat > "$d2/.aai/SUBAGENT_CONTRACT.md" <<'EOF'
+# Fixture Contract
+
+## Standing hazards
+
+- HAZ-ONE — one thing.
+- HAZ-TWO — two thing.
+- HAZ-THREE — three thing.
+- HAZ-FOUR — four thing.
+- HAZ-FIVE — five thing.
+
+## Non-hazard rule
+
+- Never write docs/ai/STATE.yaml.
+- Never write docs/ai/STATE.yaml.
+EOF
+  # 5 "- HAZ-" lines (no duplicate among them) — declare 5 so the
+  # hazard-COUNT check passes cleanly and the DUPLICATE check on the
+  # non-hazard bullet is what fires.
+  write_fixture_manifest "$d2" "contract,role,learned,scope" 5 20000 ""
+
+  run_canon "$d2" "CANON.yaml" "FixtureRole" "TEST-678-nonhaz-ref"
+  expect_rc_nonzero "TEST-678 duplicate NON-hazard rule line"
+  assert_payload_contains "$(cat "$CANON_ERR")" 'canon-duplicate-rule: "- Never write docs/ai/STATE.yaml."' \
+    "TEST-678: a duplicated non-hazard bullet must refuse by the same mechanism, naming its normalized text" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" ".aai/SUBAGENT_CONTRACT.md:13" \
+    "TEST-678: stderr must name the non-hazard duplicate's FIRST occurrence" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" ".aai/SUBAGENT_CONTRACT.md:14" \
+    "TEST-678: stderr must name the non-hazard duplicate's SECOND occurrence" || return 1
+
+  # Spec-AC-04's own "normalized (trimmed, internal whitespace collapsed)"
+  # clause: two occurrences that are NOT byte-identical, but collapse to
+  # the same normalized text, must still refuse as a duplicate.
+  local d3="$TEST_DIR/t678-whitespace"
+  mkdir -p "$d3/.aai" "$d3/docs/knowledge"
+  base_fixture_tree "$d3"
+  cat > "$d3/.aai/SUBAGENT_CONTRACT.md" <<'EOF'
+# Fixture Contract
+
+## Standing hazards
+
+- HAZ-ONE — one thing.
+- HAZ-TWO — two thing.
+- HAZ-THREE — three thing.
+- HAZ-FOUR — four thing.
+- HAZ-FIVE — five thing.
+
+## Non-hazard rule, whitespace variant
+
+- Never write docs/ai/STATE.yaml.
+-  Never  write  docs/ai/STATE.yaml.
+EOF
+  write_fixture_manifest "$d3" "contract,role,learned,scope" 5 20000 ""
+
+  run_canon "$d3" "CANON.yaml" "FixtureRole" "TEST-678-whitespace-ref"
+  expect_rc_nonzero "TEST-678 two occurrences differing only in internal whitespace"
+  assert_payload_contains "$(cat "$CANON_ERR")" 'canon-duplicate-rule: "- Never write docs/ai/STATE.yaml."' \
+    "TEST-678: two occurrences collapsing to the SAME normalized text must refuse, even though their raw bytes differ" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" ".aai/SUBAGENT_CONTRACT.md:13" \
+    "TEST-678: stderr must name the whitespace-variant duplicate's FIRST occurrence" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" ".aai/SUBAGENT_CONTRACT.md:14" \
+    "TEST-678: stderr must name the whitespace-variant duplicate's SECOND occurrence" || return 1
+
+  log_pass "TEST-678 a rule line repeated within one source file refuses, naming the text and both line numbers — proven for a HAZ-prefixed line, a non-hazard bullet (the shape a HAZ-only pattern would miss), and a whitespace-variant duplicate (the shape a bare-trim normalization would miss)"
 }
 
 # --- TEST-679 ------------------------------------------------------------------
@@ -632,7 +742,25 @@ EOF
   expect_rc_nonzero "TEST-685 unresolvable claim record"
   assert_payload_contains "$(cat "$CANON_ERR")" "claim-record-unresolvable: fixture-claim does-not-exist 2099-01-01T00:00:00Z" \
     "TEST-685: stderr must name the claim id, decision ref and decision timestamp" || return 1
-  log_pass "TEST-685 a claim whose decision timestamp is absent from the ledger refuses, naming the claim id"
+
+  # The fixture above changes BOTH decision_ref and decision_ts at once, so
+  # it cannot tell whether the TIMESTAMP half of the match is compared at
+  # all. Isolate it: a record whose ref_id MATCHES the claim's declared
+  # decision_ref but whose ts does NOT must still refuse — proving
+  # `decision_ts` is independently asserted, not just `decision_ref`.
+  local d2="$TEST_DIR/t685-ts-only"
+  mkdir -p "$d2/.aai/system" "$d2/docs/ai"
+  cat > "$d2/docs/ai/decisions.jsonl" <<'EOF'
+{"v":1,"ts":"1999-01-01T00:00:00Z","type":"hitl_decision","ref_id":"does-not-exist","decision":"n/a"}
+EOF
+  cp "$d/.aai/system/CANON.yaml" "$d2/.aai/system/CANON.yaml"
+
+  run_claims "$d2" "--manifest" ".aai/system/CANON.yaml"
+  expect_rc_nonzero "TEST-685 matching ref_id but mismatched decision_ts"
+  assert_payload_contains "$(cat "$CANON_ERR")" "claim-record-unresolvable: fixture-claim does-not-exist 2099-01-01T00:00:00Z" \
+    "TEST-685: a ref_id match with a mismatched decision_ts must still refuse (the ts half is not decorative)" || return 1
+
+  log_pass "TEST-685 a claim whose decision timestamp is absent from the ledger refuses, naming the claim id — proven with decision_ref and decision_ts mismatched together AND with decision_ts isolated"
 }
 
 # --- TEST-686 ------------------------------------------------------------------
@@ -675,7 +803,30 @@ test_687_root_changelog_in_corpus() {
   mv "$tmp" "$d/CHANGELOG.md"
   run_claims "$d"
   expect_rc 0 "TEST-687 after removing the planted line"
-  log_pass "TEST-687 the declared corpus reaches CHANGELOG.md at the repository root (planted at line $planted_line, clean after removal)"
+
+  # `annotation_window: 6` is a BOUND, not "any later annotation exempts
+  # everything before it": a correction/withdrawal marker further than 6
+  # lines AFTER the hit must NOT exempt it. Plant a hit, then 7 filler
+  # lines (pushing a CORRECTION marker to i+8, one past the declared
+  # window's i+6 reach), and assert the hit is still reported live.
+  local d2="$TEST_DIR/t687-window"
+  mkdir -p "$d2"
+  build_claims_copy "$d2"
+  local before2 hit_line
+  before2="$(wc -l < "$d2/CHANGELOG.md" | tr -d ' ')"
+  {
+    printf '%s\n' "AAI-CANON-TEST-687-FAR: They are deleted by a separate change."
+    printf 'filler line %s\n' 1 2 3 4 5 6 7
+    printf '%s\n' "**CORRECTION (2026-08-23).** too far away to exempt the hit above."
+  } >> "$d2/CHANGELOG.md"
+  hit_line=$((before2 + 1))
+
+  run_claims "$d2"
+  expect_rc_nonzero "TEST-687 a correction marker further than annotation_window (6) lines away must not exempt"
+  assert_payload_contains "$(cat "$CANON_ERR")" "claim-live-assertion: tripwire-permanent CHANGELOG.md:$hit_line" \
+    "TEST-687: a hit whose only nearby annotation sits BEYOND the declared window must still be reported" || return 1
+
+  log_pass "TEST-687 the declared corpus reaches CHANGELOG.md at the repository root (planted at line $planted_line, clean after removal), and annotation_window is a bound — a correction 8 lines away does not exempt a hit at line $hit_line"
 }
 
 # --- TEST-688 ------------------------------------------------------------------
@@ -732,7 +883,15 @@ test_690_enumeration_is_generated() {
   [[ -n "$specs" && -n "$intakes" ]] || log_fail "TEST-690: could not read specs=/intakes= counts off stderr"
   [[ "$specs" -eq 3 ]] || log_fail "TEST-690: expected the generated specs count to be 3, got $specs"
   [[ "$intakes" -eq 4 ]] || log_fail "TEST-690: expected the generated intakes count to be 4, got $intakes"
-  log_pass "TEST-690 claims --report generates specs=$specs intakes=$intakes from the live corpus"
+
+  # The origin-doc exclusion (Spec-AC-11) must NEVER be silent — same
+  # never-silent-exception discipline TEST-679 pins for uniqueness_exceptions,
+  # applied here to origin_docs. Assert the live report actually PRINTS the
+  # exclusion and its declared reason, naming the excluded path.
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-claims-report-origin-excluded: id=tripwire-permanent docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md reason=\"" \
+    "TEST-690: the origin-doc exclusion must be printed, naming the excluded path and a non-empty reason" || return 1
+
+  log_pass "TEST-690 claims --report generates specs=$specs intakes=$intakes from the live corpus, and its origin-doc exclusion is printed (never silent)"
 }
 
 # --- TEST-691 ------------------------------------------------------------------
@@ -797,7 +956,27 @@ process.stdout.write(line);
   [[ -n "$rendered" ]] || log_fail "TEST-692: could not independently render the grammar line"
   /usr/bin/grep -qF "$rendered" "$PROJECT_ROOT/.aai/scripts/validation-waiver.mjs" \
     || log_fail "TEST-692: rendered grammar line [$rendered] not found verbatim in validation-waiver.mjs"
-  log_pass "TEST-692 the independently-rendered grammar line ($rendered) appears verbatim in validation-waiver.mjs's own header"
+
+  # The bash re-render above proves the LITERAL matches today; it does NOT
+  # prove the GATE (`canon.mjs check --section validation_waiver`) would
+  # refuse if the header ever drifted from it. Drive the checker itself on a
+  # fixture copy: unmodified first (positive control — a clean copy must
+  # still pass), then with the header's own grammar comment drifted, which
+  # must refuse by name.
+  local d="$TEST_DIR/t692"
+  mkdir -p "$d"
+  build_waiver_fixture "$d" 2
+  run_canon_check "$d" --section validation_waiver
+  expect_rc 0 "TEST-692 fixture copy, header intact (positive control)"
+
+  sed -i.bak 's/at=<YYYY-MM-DDTHH:MM:SSZ>/at=<TIMESTAMP>/' "$d/.aai/scripts/validation-waiver.mjs"
+  rm -f "$d/.aai/scripts/validation-waiver.mjs.bak"
+  run_canon_check "$d" --section validation_waiver
+  expect_rc_nonzero "TEST-692 fixture copy, header grammar drifted"
+  assert_payload_contains "$(cat "$CANON_ERR")" "waiver-grammar-drift: .aai/scripts/validation-waiver.mjs does not carry the rendered grammar line verbatim" \
+    "TEST-692: the GATE itself must refuse a drifted header, naming waiver-grammar-drift and the file" || return 1
+
+  log_pass "TEST-692 the independently-rendered grammar line ($rendered) appears verbatim in validation-waiver.mjs's own header, and the GATE refuses when it drifts (clean fixture passes, drifted fixture refuses)"
 }
 
 # --- TEST-693 ------------------------------------------------------------------
@@ -840,7 +1019,42 @@ test_694_round_cap_amendment_present() {
   [[ -n "$resolved" ]] || log_fail "TEST-694: could not read the resolved-citation count off stderr"
   [[ "$resolved" -ge 2 ]] \
     || log_fail "TEST-694: expected at least 2 resolved citations (review-round-cap + wave-2-roadmap), got $resolved"
-  log_pass "TEST-694 STANDING DECISION (a) is present, cites wave-2-roadmap 2026-09-12, and the citation check resolves $resolved citations"
+
+  # Spec-AC-13's own clause: matching ref_id AND matching date is NOT
+  # enough — the record must also carry `owner_signoff: true`. A fixture
+  # whose decision record matches ref_id and date exactly but is UNSIGNED
+  # (owner_signoff: false) must still refuse — otherwise a decision nobody
+  # signed would bind every role reading the citation. This is the arm the
+  # frozen Mutation cell below names ("the arm that asserts an unsigned
+  # record is refused reddens") and it did not exist before this round.
+  local d="$TEST_DIR/t694-unsigned"
+  mkdir -p "$d/.aai/system" "$d/docs/ai"
+  cat > "$d/docs/ai/decisions.jsonl" <<'EOF'
+{"v":1,"ts":"2099-03-04T00:00:00Z","type":"hitl_decision","ref_id":"unsigned-decision","owner_signoff":false,"decision":"n/a"}
+EOF
+  cat > "$d/.aai/FIXTURE.prompt.md" <<'EOF'
+# Fixture prompt
+Cites (owner decision unsigned-decision, 2099-03-04) — ref_id and date match, signoff does not.
+EOF
+  cat > "$d/.aai/system/CANON.yaml" <<'EOF'
+historical: []
+annotation_window: 6
+claims: []
+roles:
+  FixtureRole: .aai/ROLE.prompt.md
+sections: []
+standing_hazards: 0
+byte_ceiling: 20000
+uniqueness_exceptions: []
+EOF
+  run_canon_check "$d" --section decision_citations
+  expect_rc_nonzero "TEST-694 an unsigned decision record (owner_signoff:false) with matching ref_id and date"
+  assert_payload_contains "$(cat "$CANON_ERR")" "citation-unresolvable: .aai/FIXTURE.prompt.md:2 ref=unsigned-decision date=2099-03-04" \
+    "TEST-694: an unsigned record must refuse the citation by name, naming the prompt file:line" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" "resolved=0" \
+    "TEST-694: an unsigned-only match must not count toward resolved=" || return 1
+
+  log_pass "TEST-694 STANDING DECISION (a) is present, cites wave-2-roadmap 2026-09-12, the citation check resolves $resolved citations, and an unsigned matching record is refused"
 }
 
 # --- TEST-695 ------------------------------------------------------------------

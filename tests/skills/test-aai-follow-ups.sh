@@ -2152,6 +2152,26 @@ test_032_spec_test_framework_sweep_closure_is_real() {
     if [[ "$id" == "fu-role-guard-blocks-own-fixtures" && "$resolved_by" == "dispatch-state-sweep" ]]; then
       continue
     fi
+    # Cross-sweep reconciliation (canon-is-a-build-artifact remediation
+    # round 1, 2026-09-25): this spec's own `## Registry items rejected by
+    # this scope` table records THREE ids as `status: dropped,
+    # resolved_by: test-framework-sweep, source: "wrong subsystem ..."` —
+    # each one explicitly routed to a NAMED successor ride by that same drop
+    # reason (fu-contract-prefix-order-unenforced -> "the subagent contract
+    # and dispatch payload assembly, sweep 7"; fu-sweep-scope-excludes-repo-
+    # root and fu-sweep-regex-misses-present-tense -> "withdrawn-claim
+    # sweeps, DEBT-0007, sweep 7"). canon-is-a-build-artifact IS sweep 7: it
+    # reopened all three, built the capability each one named (Spec-AC-01..07,
+    # Spec-AC-08..11) and closed them for real. The later, truer record wins
+    # in the fold; each id stays in THIS spec's (SPEC-0179's) rejected table
+    # as history — its own dropped-reason literally forecast the ride that
+    # would close it. Only these three ids, only that one ride — any other
+    # foreign resolved_by still fails.
+    case "$id" in
+      fu-contract-prefix-order-unenforced|fu-sweep-scope-excludes-repo-root|fu-sweep-regex-misses-present-tense)
+        [[ "$resolved_by" == "canon-is-a-build-artifact" ]] && continue
+        ;;
+    esac
     case "$resolved_by" in
       test-framework-sweep|test-framework-sweep-*) ;;
       *) bad_attrib="${bad_attrib:+$bad_attrib }$id($resolved_by)" ;;
