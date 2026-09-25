@@ -52,7 +52,8 @@
 // GRAMMAR
 //   node .aai/scripts/learned-append.mjs --source "<text>" \
 //     [--text "<rule>" | --file <path> | (stdin)] \
-//     [--section "<Heading>"] [--target <path>] [--dry-run]
+//     [--section "<Heading>"] [--target <path>] \
+//     [--marker local | --guard <follow-up-id>] [--dry-run]
 //   node .aai/scripts/learned-append.mjs --full \
 //     [--text "<content>" | --file <path> | (stdin)] \
 //     [--target <path>] [--dry-run]
@@ -61,6 +62,20 @@
 //   Input precedence: exactly one of --text / --file / stdin. Supplying more
 //   than one is a usage error. `--target` defaults to docs/knowledge/LEARNED.md
 //   (repo-relative, resolved against the current working directory).
+//
+// SESSION-MARKER CONVENTION (rule-text mode only)
+//   docs/knowledge/LEARNED.md's own header requires every bullet under a
+//   "## Session …" heading to open with a literal `[local]` or
+//   `[guard → <id>]` marker (enforced by tests/skills/lib/learned-guard-
+//   lints.mjs rule `session-marker`). When the resolved insertion point
+//   lands under such a heading — including the ordinary no-`--section` EOF
+//   append, whenever the file's CURRENT LAST heading happens to be a
+//   Session one — this script emits `[local]` by default, since it cannot
+//   know whether the note is a local quirk or belongs to a guard. Pass
+//   `--guard <follow-up-id>` when the entry documents enforcement that
+//   belongs in the layer instead (emits `[guard → <id>]`); `--marker local`
+//   states the default explicitly. Outside a Session section neither flag
+//   is needed and the bullet is emitted unmarked, as before.
 //
 // EXIT CONTRACT
 //   0  success — a pure append was written (or, under --dry-run, would have
@@ -91,7 +106,13 @@ function printHelp() {
 Rule-text mode (default):
   node .aai/scripts/learned-append.mjs --source "<how learned>" \\
     [--text "<rule>" | --file <path> | (stdin)] \\
-    [--section "<Heading>"] [--target <path>] [--dry-run]
+    [--section "<Heading>"] [--target <path>] \\
+    [--marker local | --guard <follow-up-id>] [--dry-run]
+
+  Landing under a "## Session …" heading requires a [local]/[guard → <id>]
+  marker (session-marker lint); this defaults to [local] there and is
+  emitted automatically. Pass --guard <id> when the note is enforcement
+  that belongs in the layer instead. Elsewhere neither flag is needed.
 
 Full-content mode (generic verifier, e.g. for a critic-assembled candidate):
   node .aai/scripts/learned-append.mjs --full \\
@@ -122,6 +143,8 @@ function parseArgs(argv) {
       case '--source': args.source = requireValue(argv, ++i, '--source'); break;
       case '--section': args.section = requireValue(argv, ++i, '--section'); break;
       case '--target': args.target = requireValue(argv, ++i, '--target'); break;
+      case '--marker': args.marker = requireValue(argv, ++i, '--marker'); break;
+      case '--guard': args.guard = requireValue(argv, ++i, '--guard'); break;
       case '--full': args.full = true; break;
       case '--dry-run': args.dryRun = true; break;
       default: fail(`unknown flag: ${tok}`, 2);
@@ -157,6 +180,35 @@ function todayUTC() {
 const MAX_LINE_WIDTH = 76;
 const CONTINUATION_INDENT = '  ';
 
+// Session-marker convention (tests/skills/lib/learned-guard-lints.mjs rule
+// `session-marker`, spec-friction-channel-sweep Spec-AC-10): every bullet
+// that lands under a `## Session …` heading must open with a literal
+// `[local]` or `[guard → <id>]` marker right after `- `. This writer is the
+// ONLY sanctioned path onto that file, so it must satisfy the lint it will
+// be judged by, not just document the requirement for a human editor.
+// Duplicated (not imported) because this is a production write path and
+// the lint lives in a test helper — kept in sync by
+// test-aai-learned-append.sh's session-marker coverage.
+const SESSION_HEADING_RE = /^##\s+Session\b/;
+
+// True when a rule-text-mode append (given its resolved insertion) will
+// land under a `## Session …` heading — i.e. the entry needs a marker or
+// the session-marker lint will redden on the very next hygiene-pack run.
+function landsInSessionSection(original, section, insertion) {
+  if (insertion.newHeading) return SESSION_HEADING_RE.test(`## ${section}`);
+  // A mid-file insertion (offset short of true EOF) is always rejected by
+  // isPureAppend regardless of marker — see buildRuleTextCandidate's
+  // "Deliberately constructed" comment — so only the true-EOF append (no
+  // --section, or --section naming the file's current last heading) needs
+  // its governing heading resolved here.
+  if (insertion.offset !== original.length) return false;
+  const { lines } = lineOffsets(original);
+  for (let li = lines.length - 1; li >= 0; li -= 1) {
+    if (HEADING_RE.test(lines[li])) return SESSION_HEADING_RE.test(lines[li]);
+  }
+  return false;
+}
+
 // wrapWords(words, maxWidth, firstPrefix, contPrefix) -> lines[]. Greedy
 // word-wrap: a single word never splits (an overlong token, e.g. a URL,
 // simply overflows its own line rather than being cut mid-word).
@@ -179,14 +231,18 @@ function wrapWords(words, maxWidth, firstPrefix, contPrefix) {
   return lines;
 }
 
-function formatEntry(text, source, dateStr) {
+// marker, when given, is the literal `[local]` or `[guard → <id>]` token —
+// already validated and resolved by the caller (see landsInSessionSection /
+// main) — placed right after `- [date] `, satisfying the session-marker
+// lint at the write site instead of leaving it to a human hand-edit.
+function formatEntry(text, source, dateStr, marker) {
   // A rule entry is exactly one line: embedded line breaks would let one
   // "entry" smuggle arbitrary extra lines past the format (PR #169 P2).
   if (/[\r\n]/.test(text) || /[\r\n]/.test(source)) {
     process.stderr.write('learned-append: usage error — rule text and source must be single-line (no line breaks)\n');
     exit(2);
   }
-  const firstPrefix = `- [${dateStr}] `;
+  const firstPrefix = marker ? `- [${dateStr}] ${marker} ` : `- [${dateStr}] `;
   const words = `${text} (Source: ${source})`.split(' ').filter((w) => w.length > 0);
   return wrapWords(words, MAX_LINE_WIDTH, firstPrefix, CONTINUATION_INDENT).join('\n');
 }
@@ -324,13 +380,34 @@ function main() {
 
   let candidate;
   if (args.full) {
-    if (args.source || args.section) fail('--full cannot be combined with --source or --section', 2);
+    if (args.source || args.section || args.marker || args.guard) {
+      fail('--full cannot be combined with --source, --section, --marker, or --guard', 2);
+    }
     candidate = readInput(args);
   } else {
     if (!args.source) fail('rule-text mode requires --source', 2);
+    if (args.marker !== undefined && args.marker !== 'local') {
+      fail(`--marker only accepts "local"; for a guard marker use --guard <id>`, 2);
+    }
+    if (args.marker !== undefined && args.guard !== undefined) {
+      fail('give at most one of --marker or --guard, not both', 2);
+    }
+    if (args.guard !== undefined && args.guard.trim() === '') {
+      fail('--guard requires a non-empty follow-up id', 2);
+    }
     const text = readInput(args);
-    const entryLine = formatEntry(text.trim(), args.source, todayUTC());
     const insertion = resolveInsertion(original, args.section);
+    // The session-marker lint (tests/skills/lib/learned-guard-lints.mjs)
+    // requires a [local]/[guard → <id>] marker on every bullet that lands
+    // under a "## Session …" heading. An explicit --marker/--guard always
+    // wins; otherwise default to [local] ONLY where the lint would actually
+    // require it, so ordinary top-level/named-section entries stay
+    // unmarked exactly as before.
+    let marker;
+    if (args.guard !== undefined) marker = `[guard → ${args.guard}]`;
+    else if (args.marker === 'local') marker = '[local]';
+    else if (landsInSessionSection(original, args.section, insertion)) marker = '[local]';
+    const entryLine = formatEntry(text.trim(), args.source, todayUTC(), marker);
     candidate = buildRuleTextCandidate(original, entryLine, insertion, args.section);
   }
 

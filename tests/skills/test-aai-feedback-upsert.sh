@@ -930,16 +930,21 @@ JSONL
 
   # (b) clean: a certified blockquote exists and the comment must repeat it
   # verbatim -- structural equality, not a match against a fixed string.
-  # evidence_ref (and every other optional field the CREATE body may carry) is
-  # populated here with a distinctive, non-empty value on purpose (validation
-  # round 2 O-R2-4): a fixture that leaves every optional field EMPTY cannot
-  # distinguish a comment body built from certifiedSummary alone from one
-  # built as certifiedSummary + <raw optional field>, because concatenating
-  # "" changes nothing. A populated, non-blockquote value that leaks into CB
-  # makes that mutation shape reddens this row instead of hiding behind it.
+  # EVERY optional field the CREATE body may carry -- evidence_ref,
+  # confidence, workaround, reproducible, harness -- is populated here with a
+  # distinctive, non-empty value on purpose (validation round 2 O-R2-4;
+  # widened again code-review remediation3 N3
+  # (fu-comment-guard-blind-to-fields): a fixture leaving any one of them
+  # EMPTY cannot distinguish a comment body built from certifiedSummary alone
+  # from one built as certifiedSummary + <that raw field>, because
+  # concatenating "" changes nothing). A
+  # populated, non-blockquote value that leaks into CB makes that mutation
+  # shape redden this row instead of hiding behind it -- proven for
+  # evidence_ref and (code-review remediation3 N3) confidence, both recorded
+  # under docs/ai/tdd/spec-friction-channel-sweep/mutation-TEST-672*.
   seed_single_candidate
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
-{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"the gate threw on a missing transition","evidence_ref":"/Users/ales/.ssh/id_rsa AKIAABCDEFGHIJKLMNOP"}
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"the gate threw on a missing transition","evidence_ref":"/Users/ales/.ssh/id_rsa AKIAABCDEFGHIJKLMNOP","confidence":"high","workaround":"automatic","reproducible":true,"harness":"codex"}
 JSONL
   reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
   [ "$(creates)" = "1" ] || log_fail "TEST-672 (b) POSITIVE CONTROL: the clean arm must actually FILE (creates=$(creates))"
