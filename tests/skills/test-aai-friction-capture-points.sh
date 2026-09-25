@@ -197,6 +197,91 @@ test_004_wrapper_isolation() {
   log_pass "Isolation: missing-dir gate + off-switch both suppress capture, exit preserved (TEST-004)"
 }
 
+# --- TEST-655 (Spec-AC-03): the wrapper never promotes -----------------------
+# spec-friction-channel-sweep Spec-AC-03: the automatic capture point in
+# aai-run-tests.sh must pass neither --promote nor any summary. Static: the
+# wrapper's own record invocation names neither token. Behavioral: a real
+# failing command through the wrapper appends a line with no summary key.
+test_655_wrapper_never_promotes() {
+  log_info "Test: the wrapper's own record invocation names neither --promote nor a summary field; a real failing command through the wrapper appends a line with no summary key (TEST-655)..."
+  [ -f "$WRAPPER" ] || log_fail "TEST-655: wrapper not found: $WRAPPER"
+
+  local rec_line
+  rec_line="$(grep -n 'record --input -' "$WRAPPER")"
+  [ -n "$rec_line" ] || log_fail "TEST-655: could not locate the wrapper's record invocation in $WRAPPER"
+  case "$rec_line" in
+    *--promote*) log_fail "TEST-655: the wrapper's record invocation must never carry --promote: $rec_line" ;;
+  esac
+  grep -qF '"summary"' "$WRAPPER" \
+    && log_fail "TEST-655: the wrapper's captured JSON must never carry a summary field" || true
+
+  local sp="$TEST_DIR/sp655"; mkdir -p "$sp"
+  local spool="$sp/observations.jsonl"
+  local rc=0
+  AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'exit 5' >/dev/null 2>&1 || rc=$?
+  [ "$rc" = "5" ] || log_fail "TEST-655: wrapper must preserve exit code 5 (got $rc)"
+  [ "$(spool_count "$spool")" = "1" ] || log_fail "TEST-655: expected exactly one observation"
+  [ "$(line_get "$spool" summary)" = "__UNDEF__" ] \
+    || log_fail "TEST-655: the automatic capture point must never persist a summary"
+  log_pass "wrapper never promotes: no --promote/summary token in its own call, appended line carries no summary key (TEST-655)"
+}
+
+# --- TEST-659 (Spec-AC-05): a NOTE from the capture path never masks the caller
+# The wrapper's own JSON body never sets a summary (TEST-655 pins that), so its
+# automatic capture call never itself reaches the NOTE branch today. What this
+# proves is the composed contract Spec-AC-05 depends on: (1) a real failing
+# command through the wrapper still exits with its own status and still
+# appends exactly one observation, using the SAME aai-friction.mjs the NOTE
+# change landed in (regression); (2) the capture CLI's own `record --promote`
+# call, when it DOES trigger a NOTE (an over-length summary), still exits 0
+# and still prints exactly "recorded <fingerprint>" on stdout — nothing for
+# the wrapper's `>/dev/null 2>&1 || true` swallow idiom to mask, and nothing
+# that could flip a caller's exit code.
+test_659_note_never_masks_the_caller() {
+  log_info "Test: a failing command through the wrapper keeps its own exit status; the capture CLI's own exit code and stdout are unchanged by a NOTE (TEST-659)..."
+  [ -f "$WRAPPER" ] || log_fail "TEST-659: wrapper not found: $WRAPPER"
+  [ -f "$FRICTION_CLI" ] || log_fail "TEST-659: $FRICTION_CLI not found"
+
+  # (1) regression: the real wrapper, unchanged behavior after the Spec-AC-05
+  # NOTE was added.
+  local sp="$TEST_DIR/sp659"; mkdir -p "$sp"
+  local spool="$sp/observations.jsonl"
+  local rc=0
+  AAI_FRICTION_SPOOL_DIR="$sp" sh "$WRAPPER" sh -c 'exit 6' >/dev/null 2>&1 || rc=$?
+  [ "$rc" = "6" ] || log_fail "TEST-659: wrapper must preserve exit code 6 (got $rc)"
+  [ "$(spool_count "$spool")" = "1" ] || log_fail "TEST-659: expected exactly one observation from the wrapper"
+
+  # (2) the capture CLI's own contract: a --promote call that DOES trigger a
+  # NOTE (an over-length summary) still exits 0 and still prints exactly
+  # "recorded <fingerprint>" on stdout.
+  local sp2="$TEST_DIR/sp659b"; mkdir -p "$sp2"
+  local spool2="$sp2/observations.jsonl"
+  local long; long="$(head -c 201 < /dev/zero | tr '\0' a)"
+  cat > "$TEST_DIR/note659.json" <<JSON
+{
+  "schema_version": 2,
+  "skill_id": "SKILL_TDD",
+  "skill_phase": "validation",
+  "failure_class": "contract_violation",
+  "expected_behavior": "the gate passes",
+  "observed_behavior": "the gate threw",
+  "summary": "$long"
+}
+JSON
+  local out="$TEST_DIR/n659.out" err="$TEST_DIR/n659.err" ncode=0
+  AAI_FRICTION_SPOOL_DIR="$sp2" node "$FRICTION_CLI" record --input "$TEST_DIR/note659.json" --promote \
+    > "$out" 2> "$err" || ncode=$?
+  [ "$ncode" = "0" ] \
+    || log_fail "TEST-659: a NOTE-triggering record call must still exit 0 (got $ncode, stderr: $(cat "$err"))"
+  grep -qF "NOTE" "$err" \
+    || log_fail "TEST-659: setup invalid — this call must actually trigger a NOTE (stderr: $(cat "$err"))"
+  local fp; fp="$(line_get "$spool2" fingerprint)"
+  [ "$(cat "$out")" = "recorded $fp" ] \
+    || log_fail "TEST-659: a NOTE must never change record's own stdout contract (got: $(cat "$out"))"
+
+  log_pass "a real failing command through the wrapper keeps its own status; a NOTE-triggering record call keeps exit 0 and its stdout contract (TEST-659)"
+}
+
 # --- TEST-005 (AC-005): capture failure never masks the wrapper --------------
 test_005_wrapper_never_masks() {
   log_info "Test: a capture that FAILS (EISDIR spool) is swallowed; wrapper exits the real code (TEST-005)..."
@@ -373,6 +458,8 @@ main() {
   test_003_wrapper_success_no_record
   test_004_wrapper_isolation
   test_005_wrapper_never_masks
+  test_655_wrapper_never_promotes
+  test_659_note_never_masks_the_caller
 
   test_006_close_with_remediation_records
   test_007_close_without_remediation_no_record

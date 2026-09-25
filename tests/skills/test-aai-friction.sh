@@ -1048,6 +1048,131 @@ test_653_hand_authored_is_scoreable() {
   log_pass "hand-authored v2 impact+confidence persists and scores 6; v1 line stays byte-identical to the pre-v2 tool (TEST-653)"
 }
 
+# --- TEST-654 (Spec-AC-03): record --promote admits prose past the gate -----
+# spec-friction-channel-sweep D2: prose enters by a human act, never by a
+# default. `--promote` is argv-only; an input JSON key literally named
+# 'promote' is inert (dropped by the same D6 deny-by-default discipline as
+# every other unlisted key).
+test_654_promote_admits_prose() {
+  log_info "Test: --promote admits a v2 summary even with the config gate off; without the flag none persists; a JSON 'promote' key is inert (TEST-654)..."
+  local sp="$TEST_DIR/sp654"; mkdir -p "$sp"
+  local spool="$sp/observations.jsonl"
+
+  # (a) gate off (real .aai/feedback.yaml, capture.summary_enabled: false),
+  # no --promote -> no summary persisted at all.
+  write_v2 "$TEST_DIR/p654.json" ',
+  "summary": "the gate threw on a missing transition"'
+  local code=0
+  AAI_FRICTION_SPOOL_DIR="$sp" node "$SCRIPT" record --input "$TEST_DIR/p654.json" \
+    > "$OUT" 2> "$ERR" || code=$?
+  assert_exit "TEST-654 (a): gate off, no --promote" 0 "$code"
+  assert_key_absent "TEST-654 (a)" "$(line_keys "$spool")" "summary"
+
+  # (b) gate off, WITH --promote -> the clean summary is certified and persists.
+  rm -f "$spool"
+  code=0
+  AAI_FRICTION_SPOOL_DIR="$sp" node "$SCRIPT" record --input "$TEST_DIR/p654.json" --promote \
+    > "$OUT" 2> "$ERR" || code=$?
+  assert_exit "TEST-654 (b): --promote admits a clean summary" 0 "$code"
+  [ "$(line_get "$spool" summary)" = "the gate threw on a missing transition" ] \
+    || log_fail "TEST-654 (b): --promote must persist the clean summary verbatim"
+  [ "$(line_get "$spool" redaction_status)" = "capture_clean" ] \
+    || log_fail "TEST-654 (b): redaction_status must be capture_clean"
+
+  # (c) an input JSON key literally named 'promote' must be INERT — argv only.
+  rm -f "$spool"
+  write_v2 "$TEST_DIR/p654c.json" ',
+  "summary": "the gate threw on a missing transition",
+  "promote": true'
+  code=0
+  AAI_FRICTION_SPOOL_DIR="$sp" node "$SCRIPT" record --input "$TEST_DIR/p654c.json" \
+    > "$OUT" 2> "$ERR" || code=$?
+  assert_exit "TEST-654 (c): JSON 'promote' key, no --promote flag" 0 "$code"
+  assert_key_absent "TEST-654 (c)" "$(line_keys "$spool")" "summary"
+
+  log_pass "record --promote admits prose past the gate; without it none persists; a JSON promote key is inert (TEST-654)"
+}
+
+# --- TEST-656 (Spec-AC-04): capture-time redaction, both ways, positive control ---
+# D3: a promoted summary passes the SAME capture-time redactor an automatic
+# one would; each arm carries a POSITIVE CONTROL that the append actually
+# happened (spool line count grows by exactly one), never just an absence
+# assertion (LEARNED fu-learned-positive-control-for-absence).
+test_656_capture_redaction_both_ways() {
+  log_info "Test: a promoted poisoned summary is dropped capture_dropped_fields (text absent, spool +1); a clean one persists capture_clean (text present, spool +1) (TEST-656)..."
+  local sp="$TEST_DIR/sp656"; mkdir -p "$sp"
+  local spool="$sp/observations.jsonl"
+
+  # (a) poisoned: a credential-shaped token must never reach the spool.
+  write_v2 "$TEST_DIR/poison656.json" ',
+  "summary": "leaked AKIAABCDEFGHIJKLMNOP in the log"'
+  [ "$(spool_count "$spool")" = "0" ] || log_fail "TEST-656: spool must start empty"
+  local code=0
+  AAI_FRICTION_SPOOL_DIR="$sp" node "$SCRIPT" record --input "$TEST_DIR/poison656.json" --promote \
+    > "$OUT" 2> "$ERR" || code=$?
+  assert_exit "TEST-656 (a): poisoned promoted summary" 0 "$code"
+  [ "$(spool_count "$spool")" = "1" ] \
+    || log_fail "TEST-656 (a) POSITIVE CONTROL: the spool must grow by exactly 1 line (got $(spool_count "$spool"))"
+  assert_key_absent "TEST-656 (a)" "$(line_keys "$spool")" "summary"
+  [ "$(line_get "$spool" redaction_status)" = "capture_dropped_fields" ] \
+    || log_fail "TEST-656 (a): redaction_status must be capture_dropped_fields"
+  grep -qF "AKIAABCDEFGHIJKLMNOP" "$spool" \
+    && log_fail "TEST-656 (a): the poisoned text must never reach the spool" || true
+
+  # (b) clean: persists verbatim, spool grows by exactly 1 MORE line.
+  write_v2 "$TEST_DIR/clean656.json" ',
+  "summary": "the gate threw on a missing transition"'
+  code=0
+  AAI_FRICTION_SPOOL_DIR="$sp" node "$SCRIPT" record --input "$TEST_DIR/clean656.json" --promote \
+    > "$OUT" 2> "$ERR" || code=$?
+  assert_exit "TEST-656 (b): clean promoted summary" 0 "$code"
+  [ "$(spool_count "$spool")" = "2" ] \
+    || log_fail "TEST-656 (b) POSITIVE CONTROL: the spool must grow by exactly 1 more line (got $(spool_count "$spool"))"
+  [ "$(line_get "$spool" summary)" = "the gate threw on a missing transition" ] \
+    || log_fail "TEST-656 (b): the clean text must be present verbatim"
+  [ "$(line_get "$spool" redaction_status)" = "capture_clean" ] \
+    || log_fail "TEST-656 (b): redaction_status must be capture_clean"
+
+  log_pass "capture-time redaction certifies independently both ways; spool grows by exactly one line per arm (TEST-656)"
+}
+
+# --- TEST-658 (Spec-AC-05): a dropped summary is named to the caller --------
+test_658_dropped_summary_is_named() {
+  log_info "Test: a dropped summary names its reason on stderr; stdout and exit code stay the 'recorded <fingerprint>' contract in both arms (TEST-658)..."
+  local sp="$TEST_DIR/sp658"; mkdir -p "$sp"
+  local spool="$sp/observations.jsonl"
+
+  # (a) gate off, no --promote -> stderr names the capture gate.
+  write_v2 "$TEST_DIR/gate658.json" ',
+  "summary": "the gate threw on a missing transition"'
+  local code=0
+  AAI_FRICTION_SPOOL_DIR="$sp" node "$SCRIPT" record --input "$TEST_DIR/gate658.json" \
+    > "$OUT" 2> "$ERR" || code=$?
+  assert_exit "TEST-658 (a)" 0 "$code"
+  grep -qF "capture_gate" "$ERR" \
+    || log_fail "TEST-658 (a): stderr must name the capture gate as the reason (got: $(cat "$ERR"))"
+  local fp; fp="$(line_get "$spool" fingerprint)"
+  [ "$(cat "$OUT")" = "recorded $fp" ] \
+    || log_fail "TEST-658 (a): stdout must stay exactly 'recorded <fingerprint>' (got: $(cat "$OUT"))"
+
+  # (b) --promote + a 201-character summary -> stderr names over_length.
+  rm -f "$spool"
+  local long; long="$(head -c 201 < /dev/zero | tr '\0' a)"
+  write_v2 "$TEST_DIR/long658.json" ",
+  \"summary\": \"$long\""
+  code=0
+  AAI_FRICTION_SPOOL_DIR="$sp" node "$SCRIPT" record --input "$TEST_DIR/long658.json" --promote \
+    > "$OUT" 2> "$ERR" || code=$?
+  assert_exit "TEST-658 (b)" 0 "$code"
+  grep -qF "over_length" "$ERR" \
+    || log_fail "TEST-658 (b): stderr must name over_length (got: $(cat "$ERR"))"
+  fp="$(line_get "$spool" fingerprint)"
+  [ "$(cat "$OUT")" = "recorded $fp" ] \
+    || log_fail "TEST-658 (b): stdout must stay exactly 'recorded <fingerprint>' (got: $(cat "$OUT"))"
+
+  log_pass "a dropped summary names its reason on stderr; stdout/exit stay the record contract in both arms (TEST-658)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1091,6 +1216,9 @@ main() {
   test_112_summary_enabled_scoped
   test_113_harness_on_observations
   test_653_hand_authored_is_scoreable
+  test_654_promote_admits_prose
+  test_656_capture_redaction_both_ways
+  test_658_dropped_summary_is_named
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

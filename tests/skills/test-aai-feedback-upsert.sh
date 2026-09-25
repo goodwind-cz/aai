@@ -794,6 +794,51 @@ JSONL
   log_pass "the filed create argv is correctly targeted and redacted (TEST-032)"
 }
 
+# --- TEST-657 (Spec-AC-04): transmit redaction is independent, positive control
+# D3: the transmit-time redactor is a SECOND, independent certification of a
+# promoted summary — TEST-032 above already proves the drop side once; this
+# row is the Spec-AC-04 row itself, with a POSITIVE CONTROL (creates == 1) in
+# BOTH arms, plus the clean arm this file had never exercised on the FILED
+# argv before (TEST-002/003 only ever checked the PREPARE-path draft).
+test_657_transmit_redaction_independent() {
+  log_info "Test: a poisoned summary never reaches the FILED gh argv (issue still filed); a clean one appears as the blockquote; POSITIVE CONTROL creates==1 in both arms (TEST-657)..."
+
+  # (a) poisoned: dropped from the filed body, issue still created.
+  seed_single_candidate
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"leaked AKIAABCDEFGHIJKLMNOP in the log"}
+JSONL
+  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  [ "$(creates)" = "1" ] \
+    || log_fail "TEST-657 (a) POSITIVE CONTROL: the poisoned arm must actually FILE, or it proves nothing about redaction (creates=$(creates), err=$(cat "$TEST_DIR/err"))"
+  local line; line="$(grep '^issue create' "$GH_CALLS")"
+  case "$line" in *AKIA*) log_fail "TEST-657 (a): a poisoned summary must never reach the FILED argv: $line" ;; esac
+  # A certified-unconditionally regression would still drop the AKIA text
+  # itself (redactSummary's ok:false result carries no .value) but would leak
+  # an "undefined" blockquote in its place -- assert NO blockquote marker at
+  # all reaches the filed body, not merely that the raw secret text is absent.
+  # " > " (space-anchored on both sides, the collapsed form of the leading
+  # "\n> " buildPayload emits) is the actual blockquote signature -- a bare
+  # "> " false-positives on the dedup marker's own "-->" comment closer.
+  case "$line" in *" > "*) log_fail "TEST-657 (a): the poisoned arm's FILED body must carry no blockquote at all (the transmit pass must drop the summary, not certify a garbled one): $line" ;; esac
+
+  # (b) clean: persists verbatim as the blockquote in the FILED body.
+  seed_single_candidate
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"the gate threw on a missing transition"}
+JSONL
+  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  [ "$(creates)" = "1" ] \
+    || log_fail "TEST-657 (b) POSITIVE CONTROL: the clean arm must actually FILE, or it proves nothing about redaction (creates=$(creates), err=$(cat "$TEST_DIR/err"))"
+  line="$(grep '^issue create' "$GH_CALLS")"
+  case "$line" in
+    *"> the gate threw on a missing transition"*) ;;
+    *) log_fail "TEST-657 (b): a clean summary must appear as the blockquote in the FILED body: $line" ;;
+  esac
+
+  log_pass "transmit redaction certifies independently both ways in the FILED argv; creates==1 in both arms (TEST-657)"
+}
+
 # --- TEST-033: a failed post-create ledger append is loud and non-zero --------
 # The issue EXISTS at that point; a silent success would leave the duplicate
 # guard blind to a fingerprint that is already public.
@@ -1629,6 +1674,7 @@ main() {
   test_030_duplicate_gate_scans_whole_ledger
   test_031_auth_preflight_gates_publish
   test_032_create_argv_destination_and_content
+  test_657_transmit_redaction_independent
   test_033_ledger_append_failure_is_loud
   test_034_config_parse_label_drop_is_named
   test_035_duplicate_gate_is_per_destination
