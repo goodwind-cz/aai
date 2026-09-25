@@ -175,14 +175,18 @@ function isAncestorOfHead(commit) {
 // reaches this classifier) yet yields ZERO tokens from
 // extractDeclaredMutations. Reads ROW TEXT ONLY — no record lookup, no
 // evidence directory — so this is the ONE judgement this gate can still make
-// on a checkout with no evidence tree at all (D7), and it is deliberately
-// NOT filtered by the row's own Status column: the ratchet's baseline (D6)
-// was measured the same way (a spec-wide text classification), so a status-
-// filtered count here would silently disagree with the frontmatter anchor
-// it is compared against.
+// on a checkout with no evidence tree at all (D7). An EXEMPT row (Status
+// deferred/dropped/rejected) is skipped first, matching the per-row loop
+// below byte-for-byte: the frozen spec's Implementation plan Edge cases says
+// an EXEMPT row "is still exempted first and is never classified, counted or
+// compared" — a deferred row carrying a prose Mutation cell must not drive
+// this ratchet with a remedy nobody can perform (you cannot produce a RED
+// record for a row that is deliberately not being run).
 function computeUncomparableRows(rows) {
   const out = [];
   for (const row of rows) {
+    const statusNorm = (row.statusCell ?? '').trim().toLowerCase();
+    if (EXEMPT_STATUSES.has(statusNorm)) continue;
     const cell = (row.mutationCell ?? '').trim();
     if (!cell) continue;
     if (isMutationCellPlaceholder(cell)) continue;

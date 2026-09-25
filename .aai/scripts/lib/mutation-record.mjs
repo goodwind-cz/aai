@@ -240,14 +240,30 @@ export function canonicalizeMutation(s) {
 
 // extractDeclaredMutations(cellText) -> string[] of canonicalized declared
 // tokens (each including its `sed:`/`patch:` prefix), in the order found.
-// D2: scans the cell AFTER stripping markdown code-span backticks (so
-// `` `sed:s/A/B/` `` and bare `sed:s/A/B/` extract to the identical token —
-// Spec-AC-03's backtick equivalence lives HERE, not in canonicalizeMutation,
-// which D3 keeps to whitespace alone) for `sed:` and `patch:` declarations.
-// A cell with zero matches yields an empty array — the caller's signal that
-// the row is UNCOMPARABLE, never a thrown error and never a guess.
+// D2: scans the cell UNMODIFIED (no backtick stripping — see below) for
+// `sed:` and `patch:` declarations. A cell with zero matches yields an empty
+// array — the caller's signal that the row is UNCOMPARABLE, never a thrown
+// error and never a guess.
+//
+// Spec-AC-03's "surrounding backticks" equivalence needs no separate strip
+// step: SED_DECL_RE's match starts at the literal `sed:` and ends at the
+// flags run plus its `(?![A-Za-z])` boundary, so a markdown code-span
+// delimiter immediately before `sed:` or immediately after the closing
+// flags is never PART of the match in the first place — stripping it was
+// always a no-op. A blanket `.replace(/`/g, '')` over the whole cell did
+// something else, and wrongly: it also deleted backticks that are INSIDE
+// the declared pattern/replacement (a template-literal expression, e.g.
+// `` sed:s/deny(`${a.ref}` x/deny(false/ ``), which corrupts the extracted
+// token two ways at once — a declaration containing a literal backtick can
+// never again equal ANY record (false OFFENDING, unfixable by re-running),
+// and a record that dropped the same backtick(s) wrongly SATISFIES a
+// declaration that could not have matched the same source (false PASS,
+// exactly the hole D3 refuses one notch lower for backslashes). Leaving the
+// cell untouched fixes both: surrounding delimiters stay excluded by the
+// regex boundary alone, and internal backticks stay significant on both
+// sides of the comparison.
 export function extractDeclaredMutations(cellText) {
-  const text = String(cellText ?? '').replace(/`/g, '');
+  const text = String(cellText ?? '');
   const out = [];
   SED_DECL_RE.lastIndex = 0;
   let m;

@@ -2615,6 +2615,102 @@ for (const s of process.argv.slice(1)) {
   log_pass "TEST-709 all 5 live mutation-gated specs carry a mutation_uncomparable value equal to the shipped classifier's own measurement over their committed Test Plan rows"
 }
 
+# --- TEST-710 — Spec-AC-03 (round 2): a backtick INSIDE a declared
+# expression stays significant on both sides of the comparison
+# --------------------------------------------------------------------------
+# Validation round 1 BLOCKING-2: extractDeclaredMutations used to strip
+# EVERY backtick from the whole cell before matching, not just the markdown
+# code-span delimiters surrounding a declaration. That one blanket strip
+# caused two opposite defects that TEST-701..709 never noticed: (A) a cell
+# declaring a template-literal mutation containing a literal backtick was
+# wrongly satisfied by a record that ran the backtick-FREE form — a
+# different regex that could not have matched the same source (a false
+# PASS); and (B) a cell whose declared expression genuinely contains a
+# backtick could never again equal ANY record, because the record's own
+# `mutation:` field is never backtick-stripped (a false, unfixable
+# OFFENDING). This test proves both directions are fixed, using the exact
+# expressions from the validation report.
+test_710_backtick_inside_expression_significant() {
+  log_info "Test: a backtick INSIDE a declared sed: expression (not a surrounding markdown code-span delimiter) stays significant -- an identical record satisfies the row, and a record that dropped the backtick does NOT (TEST-710, Spec-AC-03 round 2, closes BLOCKING-2)..."
+  local suite="tests/skills/fixture-suite.sh"
+  local head_commit; head_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+  local decl='sed:s/deny(`${a.ref} x/deny(false/'
+  local decl_no_backtick='sed:s/deny(${a.ref} x/deny(false/'
+
+  # Arm 1 — the cell's declared expression carries a literal backtick (a
+  # template-literal mutation); the record ran the IDENTICAL expression,
+  # backtick included. Must satisfy: exit 0.
+  local id_match; id_match="$(mg_gate_id backtick-inside-match)"
+  local spec_match; spec_match="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_match" "$id_match" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | ${decl} | pending |
+EOF
+  mg_write_gate_record_mut "$(mg_gate_evidence_dir "$id_match")" TEST-9001 "$suite" RED "$head_commit" "$decl"
+  local out_match rc_match
+  out_match="$(mg_gate "$spec_match" 2>&1)"; rc_match=$?
+  [[ "$rc_match" -eq 0 ]] || log_fail "TEST-710 arm1 (backtick-inside, identical record): want exit 0, got $rc_match: $out_match"
+  assert_payload_contains "$out_match" 'GATE PASS: 1 row(s) satisfied' \
+    "TEST-710 arm1: a record carrying the SAME internal backtick must satisfy the row: $out_match"
+
+  # Arm 2 — the SAME cell, but the record ran the backtick-FREE form: a
+  # DIFFERENT regex that could not have matched the same source. Must NOT
+  # satisfy: exit 5, OFFENDING, naming both values -- this is the false
+  # negative BLOCKING-2 scenario A named, and it is the D3 hole ("an
+  # escape-insensitive compare ... would re-open the same hole one notch
+  # lower") one notch lower again.
+  local id_mismatch; id_mismatch="$(mg_gate_id backtick-inside-mismatch)"
+  local spec_mismatch; spec_mismatch="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_mismatch" "$id_mismatch" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | ${decl} | pending |
+EOF
+  mg_write_gate_record_mut "$(mg_gate_evidence_dir "$id_mismatch")" TEST-9001 "$suite" RED "$head_commit" "$decl_no_backtick"
+  local out_mismatch rc_mismatch
+  out_mismatch="$(mg_gate "$spec_mismatch" 2>&1)"; rc_mismatch=$?
+  [[ "$rc_mismatch" -eq 5 ]] || log_fail "TEST-710 arm2 (backtick-inside, backtick-free record): want exit 5, got $rc_mismatch: $out_mismatch"
+  assert_payload_line_matches "$out_mismatch" 'OFFENDING TEST-9001:' \
+    "TEST-710 arm2: a record that dropped an internal backtick must NOT satisfy a declaration that carries one: $out_mismatch"
+
+  log_pass "TEST-710 a backtick inside a declared expression is significant on both sides of the comparison: an identical record satisfies, a backtick-free record does not"
+}
+
+# --- TEST-711 — Implementation plan Edge cases (round 2): an EXEMPT row
+# never drives the mutation_uncomparable ratchet -------------------------
+# Validation round 1 N2/N3: computeUncomparableRows() read every row's
+# Mutation cell with no Status filter, contradicting the frozen spec's own
+# Edge cases ("A row that is EXEMPT ... is still exempted first and is never
+# classified, counted or compared"). A deferred row carrying a prose
+# Mutation cell drove the ratchet past a baseline that had no way to account
+# for it, with a remedy nobody can perform (you cannot produce a RED record
+# for a row that is deliberately not being run). The same fixture also
+# proved the summary's `uncomparable=<n>` (the per-row array, exempt
+# excluded) and the ratchet refusal's `actual=<n>` (the old, unfiltered
+# text-wide count) could disagree (N3); this test pins both counts to zero.
+test_711_exempt_row_never_drives_uncomparable_ratchet() {
+  log_info "Test: a deferred row with a prose Mutation cell is exempted BEFORE the uncomparable ratchet ever sees it -- it does not count, does not appear as UNCOMPARABLE, and does not drive an OFFENDING ratchet refusal at baseline 0 (TEST-711, closes N2/N3)..."
+  local suite="tests/skills/fixture-suite.sh"
+  local head_commit; head_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+  local id; id="$(mg_gate_id exempt-not-in-ratchet)"
+  local spec; spec="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec" "$id" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/A/B/ | pending |
+| TEST-9002 | Spec-AC-01 | unit | ${suite} | b | some prose describing the deferred change, no machine-readable token | deferred |
+EOF
+  mg_write_gate_record_mut "$(mg_gate_evidence_dir "$id")" TEST-9001 "$suite" RED "$head_commit" 'sed:s/A/B/'
+  local out rc
+  out="$(mg_gate "$spec" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-711: an EXEMPT prose row must not exceed a baseline=0 ratchet: want exit 0, got $rc: $out"
+  assert_payload_contains "$out" 'uncomparable=0' \
+    "TEST-711: the deferred row must not be counted uncomparable: $out"
+  assert_payload_not_contains "$out" 'UNCOMPARABLE TEST-9002' \
+    "TEST-711: the deferred row must never be classified/printed UNCOMPARABLE: $out"
+  assert_payload_not_contains "$out" 'OFFENDING' \
+    "TEST-711: the ratchet must not refuse over a row that is exempted first: $out"
+  assert_payload_line_matches "$out" 'EXEMPT TEST-9002: status deferred' \
+    "TEST-711: the row must still be named EXEMPT: $out"
+
+  log_pass "TEST-711 a deferred (EXEMPT) row's prose Mutation cell never reaches the uncomparable ratchet -- it is exempted first, matching the frozen spec's Edge cases exactly, and the summary/ratchet counts agree at 0"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -2650,6 +2746,8 @@ main() {
   test_706_ratchet_without_evidence_tree
   test_707_one_sed_grammar
   test_709_live_corpus_baselines_are_measured
+  test_710_backtick_inside_expression_significant
+  test_711_exempt_row_never_drives_uncomparable_ratchet
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

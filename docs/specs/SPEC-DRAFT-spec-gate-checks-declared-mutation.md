@@ -4,7 +4,7 @@ number: null
 type: spec
 status: implementing
 mutation_gate: v1
-frozen_sha256: cc21078fde6022051081d63239f1c8cb3b0acd26a7ad3f091d2195cd61702199
+frozen_sha256: 8460803fc9f8f2f30d6b07abdcb5061b3a8a45ee8d323dfcf564fab0a925f948
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-gate-checks-declared-mutation.md
@@ -389,6 +389,13 @@ which is the only way to redden a corpus-consistency assertion.
 - **R6 — a mutation containing a pipe character cannot be declared at all**: the
   Test Plan table parser splits the row on it. Such a row is permanently
   uncomparable and must be carried in the baseline.
+- **R7 — whitespace canonicalization equates genuinely different regexes,
+  beside R3.** `canonicalizeMutation` collapses internal whitespace runs, so
+  a record that ran `sed:s/A  B/C/` satisfies a cell declaring `sed:s/A B/C/`,
+  and vice versa (verified both directions). This CONFORMS to D3 as frozen —
+  D3 canonicalizes whitespace on purpose — so behaviour is unchanged; it was
+  simply undisclosed until this amendment. Same remedy as R3: the OFFENDING
+  line, when one prints, names both values.
 
 ## Verification
 
@@ -431,7 +438,7 @@ verification matrix.
 
 - `fu-gate-ignores-declared-mutation` (P2) — closed by Spec-AC-01..05.
 
-Open items in the same neighbourhood, explicitly NOT closed:
+Open items in the same neighbourhood, NOT CLOSED, and not this scope's to close:
 - `fu-mutation-evidence-is-gitignored` (P3) — whether mutation evidence stops
   being gitignored is an owner policy decision, out of scope (intake).
 - `fu-mutation-gate-absent-tree-passes` (P2) — the RED-record requirement still
