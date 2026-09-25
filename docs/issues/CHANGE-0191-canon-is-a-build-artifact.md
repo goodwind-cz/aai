@@ -2,11 +2,13 @@
 id: canon-is-a-build-artifact
 type: change
 number: 191
-status: draft
+status: done
 capability: canon-is-a-build-artifact
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 3ec7d6e0aa293b8f10a41e6ffdacda23cdedce17
 ---
 
 # The rules that bind agents are assembled and asserted, not pasted

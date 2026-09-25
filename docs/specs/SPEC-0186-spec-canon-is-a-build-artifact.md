@@ -2,15 +2,17 @@
 id: spec-canon-is-a-build-artifact
 type: spec
 number: 186
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 1223f04b8112704150a4bfbee6ea50a298c6a0b2272f7eeafbb6e7fb9c794b6a
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0191-canon-is-a-build-artifact.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 3ec7d6e0aa293b8f10a41e6ffdacda23cdedce17
 ---
 
 # Spec — the rules that bind agents are assembled and asserted, not pasted

@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-25T18:34:04.590Z",
+  "generatedAt": "2026-09-25T18:39:41.662Z",
   "project": "aai",
   "counts": {
-    "delivered": 253,
-    "in_progress": 16,
+    "delivered": 255,
+    "in_progress": 14,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -11,19 +11,6 @@
   "current_focus": null,
   "in_flight": null,
   "in_progress": [
-    {
-      "ref": "operator-waiver-unblocks-pr",
-      "title": "An operator who validated the change themselves can reach a PR without lying",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
     {
       "ref": "decision-menu-options-parser",
       "title": "The dashboard turns a pending decision's options into buttons — reliably in both directions",
@@ -60,19 +47,6 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "canon-is-a-build-artifact",
-      "title": "The rules that bind agents are assembled and asserted, not pasted",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0191-canon-is-a-build-artifact.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0186-spec-canon-is-a-build-artifact.md",
       "validation": null,
       "review": null
     },
@@ -222,6 +196,19 @@
   ],
   "delivered": [
     {
+      "ref": "operator-waiver-unblocks-pr",
+      "title": "An operator who validated the change themselves can reach a PR without lying",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md",
+      "closed_on": "2026-09-25",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "hand-authored-friction-is-second-class",
       "title": "A hand-authored friction observation cannot be scored, cannot carry prose, and can never reach upstream",
       "type": "change",
@@ -244,6 +231,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0185-spec-friction-channel-sweep.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "canon-is-a-build-artifact",
+      "title": "The rules that bind agents are assembled and asserted, not pasted",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0191-canon-is-a-build-artifact.md",
+      "closed_on": "2026-09-25",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0186-spec-canon-is-a-build-artifact.md",
       "validation": null,
       "review": null
     },
@@ -3518,6 +3518,19 @@
       "label": "2026-09",
       "items": [
         {
+          "ref": "operator-waiver-unblocks-pr",
+          "title": "An operator who validated the change themselves can reach a PR without lying",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md",
+          "closed_on": "2026-09-25",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
           "ref": "hand-authored-friction-is-second-class",
           "title": "A hand-authored friction observation cannot be scored, cannot carry prose, and can never reach upstream",
           "type": "change",
@@ -3540,6 +3553,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0185-spec-friction-channel-sweep.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "canon-is-a-build-artifact",
+          "title": "The rules that bind agents are assembled and asserted, not pasted",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0191-canon-is-a-build-artifact.md",
+          "closed_on": "2026-09-25",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0186-spec-canon-is-a-build-artifact.md",
           "validation": null,
           "review": null
         },

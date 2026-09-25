@@ -2,8 +2,13 @@
 id: operator-waiver-unblocks-pr
 type: change
 number: 167
-status: draft
+status: done
 ceremony_level: 1
+links:
+  commits:
+    - 3ec7d6e0aa293b8f10a41e6ffdacda23cdedce17
+  pr:
+    - TBD
 ---
 
 # An operator who validated the change themselves can reach a PR without lying

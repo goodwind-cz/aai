@@ -2385,3 +2385,12 @@
 {"v":1,"ts":"2026-09-25T08:59:30Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"hand-authored-friction-is-second-class","payload":{"commit":"b7f978d69e05133d5c2a74f6012172cd3db77304"}}
 {"v":1,"ts":"2026-09-25T10:10:12Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"friction-channel-sweep","payload":{"pr":394,"lane":"heavy","reviewer_bots":"expected","threads_seen":4,"threads_unresolved":0,"outcome":"swept","head_sha":"f241b41d8be75e88ee02821578a70eab132fb314"}}
 {"v":1,"ts":"2026-09-25T10:47:03Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-canon-is-a-build-artifact","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-25T18:39:38Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"canon-is-a-build-artifact","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-25T18:39:38Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"canon-is-a-build-artifact","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-25T18:39:38Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"canon-is-a-build-artifact","payload":{"commit":"3ec7d6e0aa293b8f10a41e6ffdacda23cdedce17"}}
+{"v":1,"ts":"2026-09-25T18:39:38Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-canon-is-a-build-artifact","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-25T18:39:38Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-canon-is-a-build-artifact","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-25T18:39:38Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-canon-is-a-build-artifact","payload":{"commit":"3ec7d6e0aa293b8f10a41e6ffdacda23cdedce17"}}
+{"v":1,"ts":"2026-09-25T18:39:38Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"operator-waiver-unblocks-pr","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-25T18:39:38Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"operator-waiver-unblocks-pr","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-25T18:39:38Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"operator-waiver-unblocks-pr","payload":{"commit":"3ec7d6e0aa293b8f10a41e6ffdacda23cdedce17"}}

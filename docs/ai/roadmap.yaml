@@ -41,7 +41,7 @@ pairs:
     status: done
   - capability: canon-is-a-build-artifact
     maintenance: operator-waiver-unblocks-pr
-    status: planned
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
