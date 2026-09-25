@@ -149,6 +149,36 @@ function todayUTC() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// House bullet style (spec-friction-channel-sweep Spec-AC-08): wrapped at
+// no more than MAX_LINE_WIDTH characters per line, a two-space continuation
+// indent, and a capitalised `(Source: ` attribution — the style
+// docs/knowledge/LEARNED.md's own header documents and the corpus mostly
+// uses (fact 10: 21 entries already `(Source: `, 15 still `(source: `).
+const MAX_LINE_WIDTH = 76;
+const CONTINUATION_INDENT = '  ';
+
+// wrapWords(words, maxWidth, firstPrefix, contPrefix) -> lines[]. Greedy
+// word-wrap: a single word never splits (an overlong token, e.g. a URL,
+// simply overflows its own line rather than being cut mid-word).
+function wrapWords(words, maxWidth, firstPrefix, contPrefix) {
+  const lines = [];
+  let current = firstPrefix;
+  let atLineStart = true;
+  for (const word of words) {
+    const candidate = atLineStart ? current + word : `${current} ${word}`;
+    if (!atLineStart && candidate.length > maxWidth) {
+      lines.push(current);
+      current = contPrefix + word;
+      atLineStart = false;
+    } else {
+      current = candidate;
+      atLineStart = false;
+    }
+  }
+  lines.push(current);
+  return lines;
+}
+
 function formatEntry(text, source, dateStr) {
   // A rule entry is exactly one line: embedded line breaks would let one
   // "entry" smuggle arbitrary extra lines past the format (PR #169 P2).
@@ -156,7 +186,9 @@ function formatEntry(text, source, dateStr) {
     process.stderr.write('learned-append: usage error — rule text and source must be single-line (no line breaks)\n');
     exit(2);
   }
-  return `- [${dateStr}] ${text} (source: ${source})`;
+  const firstPrefix = `- [${dateStr}] `;
+  const words = `${text} (Source: ${source})`.split(' ').filter((w) => w.length > 0);
+  return wrapWords(words, MAX_LINE_WIDTH, firstPrefix, CONTINUATION_INDENT).join('\n');
 }
 
 // Character offsets of the start of each line, indices aligned with

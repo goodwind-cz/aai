@@ -1321,6 +1321,65 @@ function captureRemediationFriction(ref) {
   }
 }
 
+// --- FRICTION BACKLOG LINE (spec-friction-channel-sweep Spec-AC-12, ---------
+// Amendment 1 — owner-signed 2026-09-25)
+//
+// The owner's post-freeze answer to D9's menu (docs/specs/SPEC-DRAFT-spec-
+// friction-channel-sweep.md, "## Amendment 1"): fold the friction backlog
+// into the close ceremony so what the factory learns about itself reaches
+// him by default, not only when he remembers to run /aai-wrap-up. STRICTLY
+// LAST, best-effort, the same discipline as the four regen calls and CAPTURE
+// POINT 2 above: a failure here degrades to a NOTE and NEVER changes the
+// close exit code or reaches rollback — a backlog step that COULD block a
+// close would make every ride hostage to the reporting channel, the exact
+// opposite of the property this amendment buys. Reads candidates/staleness
+// through aai-feedback-status.mjs's OWN --json output, scoped to THIS repo's
+// friction dir via AAI_FRICTION_DIR (never the real checkout's spool when
+// running against a fixture) — the SAME scoring Spec-AC-01 defines, never a
+// second one reimplemented here.
+function surfaceFrictionBacklog() {
+  try {
+    // AAI_FEEDBACK_STATUS_SCRIPT is a test-only override (mirrors
+    // AAI_GH_BIN/AAI_FRICTION_SPOOL_DIR elsewhere in this codebase) letting a
+    // suite rig a deterministic failure of this step without touching the
+    // real script — see tests/skills/test-aai-close-work-item.sh TEST-671.
+    const statusScript = process.env.AAI_FEEDBACK_STATUS_SCRIPT || path.join(SCRIPT_DIR, 'aai-feedback-status.mjs');
+    if (!fs.existsSync(statusScript)) return;
+    const frictionDir = process.env.AAI_FRICTION_DIR || path.join(ROOT, 'docs', 'ai', 'friction');
+    const out = execFileSync('node', [statusScript, '--json'], {
+      encoding: 'utf8',
+      cwd: ROOT,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      env: { ...process.env, AAI_FRICTION_DIR: frictionDir },
+    });
+    const status = JSON.parse(out);
+    const observations = Number(status.observations) || 0;
+    const reportObservations = Number(status.report_observations) || 0;
+    const candidates = Number(status.candidates) || 0;
+    const untriaged = Math.max(0, observations - reportObservations);
+    // Quiet when there is nothing to surface (mirrors aai-feedback-status.mjs's
+    // OWN shadow-mode silence, and every other close carrying an empty/absent
+    // friction dir — the overwhelming majority of closes, including every
+    // fixture in this and sibling suites) — printing "0 untriaged, 0
+    // candidates" on every ordinary close would be exactly the noise this
+    // subsystem exists to cut through, not add.
+    if (untriaged <= 0 && candidates <= 0) return;
+    // stderr, not stdout — matching every other best-effort informational
+    // line in this file (captureRemediationFriction's own INFO, the four
+    // regen skip NOTEs): stdout stays the ONE pinned "closed ..." line
+    // several suites (e.g. test-aai-close-work-item.sh's G1 byte-identical
+    // arm) compare byte-for-byte across an unrelated change.
+    process.stderr.write(
+      `close-work-item: friction backlog — ${untriaged} untriaged observation(s), ${candidates} review candidate(s) clearing the signal floor ` +
+      '(node .aai/scripts/aai-feedback-status.mjs for detail)\n'
+    );
+  } catch (err) {
+    process.stderr.write(
+      `close-work-item: NOTE friction backlog line skipped (best-effort, non-fatal): ${err.message}\n`
+    );
+  }
+}
+
 // For each closed doc, assert the REAL audit classifies it tracked-done /
 // aligned with no missing-close-telemetry entry (Spec-AC-02). The audit
 // engine is the oracle — no heuristic is re-implemented here.
@@ -2067,6 +2126,9 @@ function main() {
   // capture failure never changes the exit code and never reaches rollback. Only
   // the primary --ref ride's remediation load is summarized (the anchor doc).
   captureRemediationFriction(resolved[0].fmId);
+  // Spec-AC-12 / Amendment 1: strictly last, best-effort — see
+  // surfaceFrictionBacklog's own header for the full discipline.
+  surfaceFrictionBacklog();
   // spec-close-leaves-state-stale D3 — STATE RECONCILE, strictly AFTER the
   // try/catch above has proved the close CLEAN: OUTSIDE that block's rollback
   // scope by construction. Never affects the doc/event transaction; only its

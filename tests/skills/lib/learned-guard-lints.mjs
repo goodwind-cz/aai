@@ -387,6 +387,59 @@ function externalRunnerFindings(root, files) {
   return findings;
 }
 
+// ---------------------------------------------------------------------------
+// RULE: session-marker (spec-friction-channel-sweep Spec-AC-10,
+// fu-triage-undated-learned-log)
+//
+// docs/knowledge/LEARNED.md's own header says every bullet under a
+// `## Session …` heading carries exactly one `[local]` or `[guard → <id>]`
+// marker, placed right after the leading `- `. This rule is that check: a
+// top-level bullet (a line starting with `- ` at column 0, inside a section
+// whose most recent `## ` heading starts with "Session") whose text — right
+// after the `- ` — does NOT open with a literal `[local]` or a
+// `[guard <arrow> <id>]` token is flagged.
+//
+// STRICT BY DESIGN: the marker check is anchored on the two literal marker
+// shapes, never "any bracketed token" — a bullet that opens with an
+// unrelated bracket (a stray `[2026-09-25]` date with no real marker
+// following it, say) must still be flagged. A rule widened to accept any
+// leading `[...]` would silently accept exactly that decoy and misreport a
+// genuinely unmarked bullet as compliant.
+const SESSION_HEADING_RE = /^##\s+Session\b/;
+const ANY_HEADING_RE = /^##\s+/;
+const BULLET_START_RE = /^-\s+(.*)$/;
+// A Session bullet is either undated (marker is the FIRST bracket, the shape
+// this triage introduced) or already follows the file's own dated-entry
+// convention (an optional leading `[YYYY-MM-DD] ` date bracket, THEN the
+// marker) — several `## Session …` blocks (e.g. 2026-08-24 onward) already
+// carry dated, marked entries predating this rule.
+const SESSION_MARKER_RE = /^(?:\[\d{4}-\d{2}-\d{2}\]\s+)?(?:\[local\]|\[guard\s*(?:->|→)\s*[^\]]+\])/;
+function sessionMarkerFindings(root, files) {
+  const findings = [];
+  for (const f of files) {
+    const lines = readLines(f);
+    let inSession = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (ANY_HEADING_RE.test(line)) {
+        inSession = SESSION_HEADING_RE.test(line);
+        continue;
+      }
+      if (!inSession) continue;
+      const bm = BULLET_START_RE.exec(line);
+      if (!bm) continue;
+      if (!SESSION_MARKER_RE.test(bm[1])) {
+        findings.push({
+          file: relOf(root, f),
+          line: i + 1,
+          msg: `Session bullet carries no [local] or [guard → <id>] marker right after "- "`,
+        });
+      }
+    }
+  }
+  return findings;
+}
+
 const RULES = {
   "local-crossref": { fn: localCrossrefFindings, exts: [".sh"] },
   "cd-underived": { fn: cdUnderivedFindings, exts: [".sh"] },
@@ -394,6 +447,7 @@ const RULES = {
   "deny-default-mock": { fn: denyDefaultMockFindings, exts: [".sh"] },
   "absence-no-control": { fn: absenceNoControlFindings, exts: [".sh"] },
   "external-runner": { fn: externalRunnerFindings, exts: [".prompt.md"] },
+  "session-marker": { fn: sessionMarkerFindings, exts: [".md"] },
 };
 
 function main() {

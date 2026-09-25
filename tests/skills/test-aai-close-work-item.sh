@@ -4068,6 +4068,73 @@ test_533_pin_has_exactly_one_new_entry() {
   log_pass "TEST-533: pin array moved by exactly $expected against main ($base_count -> $head_count, engine $([[ $engine_changed -eq 1 ]] && echo changed || echo unchanged)), live hash matches exactly one entry, both frozen invariants named in its prose"
 }
 
+# --- TEST-671 (Spec-AC-12, Amendment 1): the close surfaces the backlog ----
+# spec-friction-channel-sweep: the close ceremony prints one line naming the
+# untriaged count and the review-candidate count (the SAME scoring Spec-AC-01
+# defines, read through aai-feedback-status.mjs --json), and a failure of
+# that step degrades to a NOTE rather than blocking the close.
+test_671_close_surfaces_the_backlog() {
+  log_info "TEST-671: a close over a spool with untriaged records prints the friction backlog line and its counts; a rigged failure of that step still closes, with a NOTE (Spec-AC-12, Amendment 1)..."
+  local dir; dir=$(new_fixture_repo "t671")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t671.md" "t671-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  # Seed docs/ai/friction: 5 observations, a report covering only 2 of them
+  # (3 untriaged) with 1 review-candidate cluster among 3 total clusters.
+  mkdir -p "$dir/docs/ai/friction"
+  local spool="$dir/docs/ai/friction/observations.jsonl"
+  : > "$spool"
+  for i in 1 2 3 4 5; do printf '{"n":%s}\n' "$i" >> "$spool"; done
+  cat > "$dir/docs/ai/friction/triage-report.json" <<'JSON'
+{
+  "schema": "aai-triage/v1", "mode": "local", "threshold": 4,
+  "total_observations": 2, "kept": 2, "dropped": [],
+  "clusters": [
+    { "fingerprint": "v1:a", "failure_class": "deterministic_script_failure", "harness": "claude", "recurrence": 1, "score": 9, "decision": "review_candidate", "auto_publishable": false },
+    { "fingerprint": "v1:b", "failure_class": "deterministic_script_failure", "harness": "claude", "recurrence": 1, "score": 1, "decision": "retain", "auto_publishable": false },
+    { "fingerprint": "v1:c", "failure_class": "deterministic_script_failure", "harness": "claude", "recurrence": 1, "score": 1, "decision": "retain", "auto_publishable": false }
+  ]
+}
+JSON
+
+  local out="$TEST_DIR/t671.out" err="$TEST_DIR/t671.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t671-slug --pr 1 --commit a1a1a01)
+  assert_exit "TEST-671 close with a backlog" 0 "$code"
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t671.md" \
+    || log_fail "TEST-671: setup invalid — the close did not flip the doc to done"
+  # stderr, not stdout — matching every other best-effort informational line
+  # in this file (the G1 byte-identical arm pins stdout to the ONE "closed
+  # ..." line and would break on any other stream carrying new output).
+  grep -qF "friction backlog" "$err" \
+    || log_fail "TEST-671: stderr must carry the friction backlog line, got: $(cat "$err")"
+  grep -qF "3 untriaged observation(s)" "$err" \
+    || log_fail "TEST-671: stderr must name 3 untriaged observation(s) (5 spool - 2 triaged), got: $(cat "$err")"
+  grep -qF "1 review candidate(s)" "$err" \
+    || log_fail "TEST-671: stderr must name 1 review candidate(s), got: $(cat "$err")"
+
+  # Second doc/close: the backlog step is RIGGED to fail (AAI_FEEDBACK_STATUS_SCRIPT
+  # points at a script that always exits 1) — the close must still succeed,
+  # degrading to a NOTE on stderr rather than blocking.
+  write_change_doc "$dir/docs/issues/CHANGE-0002-t671b.md" "t671b-slug" "draft"
+  commit_fixture_docs "$dir"
+  local broken="$TEST_DIR/broken-status.mjs"
+  printf 'process.exit(1);\n' > "$broken"
+  local out2="$TEST_DIR/t671b.out" err2="$TEST_DIR/t671b.err" code2
+  code2=$(AAI_FEEDBACK_STATUS_SCRIPT="$broken" run_close "$dir" "$out2" "$err2" --ref t671b-slug --pr 1 --commit b1b1b02)
+  assert_exit "TEST-671 close survives a rigged backlog failure" 0 "$code2"
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0002-t671b.md" \
+    || log_fail "TEST-671: the close itself must still succeed when the backlog step is rigged to fail"
+  grep -qi "NOTE" "$err2" \
+    || log_fail "TEST-671: a rigged backlog failure must degrade to a NOTE on stderr, got: $(cat "$err2")"
+  # The NOTE text itself legitimately contains the substring "friction
+  # backlog" ("... NOTE friction backlog line skipped ..."), so the negative
+  # check below anchors on the SUCCESS line's own unique tail instead.
+  ! grep -qF "clearing the signal floor" "$err2" \
+    || log_fail "TEST-671: a rigged backlog failure must not print the successful backlog line at all"
+
+  log_pass "TEST-671: close prints the friction backlog line with its counts; a rigged failure of that step degrades to a NOTE and the close still succeeds (Spec-AC-12, Amendment 1)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -4152,6 +4219,7 @@ main() {
   test_531_mutation_notice_names_counts
   test_532_product_doc_shares_an_id
   test_533_pin_has_exactly_one_new_entry
+  test_671_close_surfaces_the_backlog
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

@@ -3,14 +3,26 @@
 // Tells a human operator, in plain terms, the state of the local friction
 // feedback loop so the built machinery is actually reachable:
 //   - how many friction observations are captured in the local spool,
+//   - how many of those clear the triage signal floor as REVIEW CANDIDATES,
+//     read from the last triage report (spec-friction-channel-sweep Spec-AC-11),
+//   - whether that report is STALE — its own total_observations no longer
+//     matches the live spool's line count, named with BOTH numbers, because a
+//     surface that reports "N captured" without saying whether the report
+//     behind "candidates" is current is a surface that can lie by omission
+//     (measured: a 65-observation report sat behind an 824-observation spool
+//     for 20 days while this surface kept advertising drafts built from it),
 //   - how many prepared issue drafts await their `--confirm`,
 //   - whether GitHub `gh` is present and authenticated (read-only check),
-//   - the exact next command to run.
+//   - the exact next command to run — which NAMES TRIAGE, never a publish
+//     over stale drafts, whenever the report is absent or stale, even while
+//     drafts exist (D9: the surface must state the backlog, not the inbox).
 //
-// Offline for the counts (pure filesystem reads of the untracked spool). The ONLY
-// external call is a READ-ONLY `gh auth status` — it never mutates and degrades
-// cleanly if gh is absent/unauthenticated. Wired into /aai-wrap-up as an
-// end-of-session nudge (silent when there is nothing to surface).
+// Offline for the counts (pure filesystem reads of the untracked spool and the
+// triage report — never a re-run of the triage engine itself, so "candidates"
+// is read from the SAME scoring Spec-AC-01 defines, not a second one). The
+// ONLY external call is a READ-ONLY `gh auth status` — it never mutates and
+// degrades cleanly if gh is absent/unauthenticated. Wired into /aai-wrap-up as
+// an end-of-session nudge (silent when there is nothing to surface).
 //
 // Usage:
 //   node .aai/scripts/aai-feedback-status.mjs [--json]
@@ -28,6 +40,9 @@ const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..');
 const FRICTION_DIR = process.env.AAI_FRICTION_DIR || join(REPO_ROOT, 'docs', 'ai', 'friction');
 const SPOOL = join(FRICTION_DIR, 'observations.jsonl');
 const PENDING_DIR = join(FRICTION_DIR, 'pending-issues');
+const TRIAGE_REPORT = join(FRICTION_DIR, 'triage-report.json');
+const TRIAGE_CMD = 'node .aai/scripts/aai-feedback-triage.mjs   # review clusters, then prepare with aai-feedback-upsert.mjs';
+const PUBLISH_CMD = 'review docs/ai/friction/pending-issues/, then: node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm';
 
 const HELP = `aai-feedback-status — RFC-0012 friction feedback discovery.
 
@@ -35,8 +50,10 @@ Usage:
   node .aai/scripts/aai-feedback-status.mjs [--json]
   node .aai/scripts/aai-feedback-status.mjs --help
 
-Reports the local feedback-loop state: observations captured, drafts pending your
---confirm, and whether GitHub \`gh\` is authenticated — plus the next command. The
+Reports the local feedback-loop state: observations captured, review candidates
+and staleness read from the last triage report, drafts pending your --confirm,
+and whether GitHub \`gh\` is authenticated — plus the next command (triage,
+never a publish over stale drafts, whenever the report is absent or stale). The
 counts are offline filesystem reads; the only external call is a read-only
 \`gh auth status\`. No mutation, no issue writes.
 `;
@@ -50,6 +67,25 @@ function countDrafts() {
   try {
     return readdirSync(PENDING_DIR).filter((f) => f.endsWith('.md')).length;
   } catch { return 0; }
+}
+// readTriageReport() -> { hasReport, reportObservations, candidates,
+// reportStale } read from the last triage-report.json (never re-triaged
+// here — see file header). A missing, unreadable, or malformed report is
+// treated as absent, which is itself a stale state (there is nothing
+// current to trust) — distinct from a report that genuinely reports 0
+// observations, which is why `hasReport` is its own field.
+function readTriageReport(spoolLines) {
+  let report;
+  try {
+    report = JSON.parse(readFileSync(TRIAGE_REPORT, 'utf8'));
+  } catch {
+    return { hasReport: false, reportObservations: 0, candidates: 0, reportStale: true };
+  }
+  const reportObservations = Number.isFinite(report?.total_observations) ? report.total_observations : 0;
+  const clusters = Array.isArray(report?.clusters) ? report.clusters : [];
+  const candidates = clusters.filter((c) => c?.decision === 'review_candidate').length;
+  const reportStale = reportObservations !== spoolLines;
+  return { hasReport: true, reportObservations, candidates, reportStale };
 }
 // Read-only auth probe. Returns 'ready' | 'unauthenticated' | 'absent'. Never
 // throws, never mutates — `gh auth status` performs no write.
@@ -85,14 +121,28 @@ function main() {
   const ghHint = gh === 'absent' ? 'install & run: gh auth login'
     : gh === 'unauthenticated' ? 'run: gh auth login'
     : 'ready';
+  const { hasReport, reportObservations, candidates, reportStale } = readTriageReport(observations);
 
-  // Next actionable command for the operator.
+  // Next actionable command for the operator (Spec-AC-11 / D9): a stale or
+  // absent report NAMES TRIAGE, never a publish over drafts built from it —
+  // even while drafts exist. The override only fires when there is something
+  // actionable at all (drafts or observations); an empty loop stays null.
   let next = null;
-  if (drafts > 0) next = 'review docs/ai/friction/pending-issues/, then: node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm';
-  else if (observations > 0) next = 'node .aai/scripts/aai-feedback-triage.mjs   # review clusters, then prepare with aai-feedback-upsert.mjs';
+  if (drafts > 0) next = PUBLISH_CMD;
+  else if (observations > 0) next = TRIAGE_CMD;
+  if (reportStale && next !== null) next = TRIAGE_CMD;
 
   if (args.json) {
-    process.stdout.write(JSON.stringify({ observations, drafts, gh, gh_ready: ghReady, next: next || '' }, null, 2) + '\n');
+    process.stdout.write(JSON.stringify({
+      observations,
+      drafts,
+      gh,
+      gh_ready: ghReady,
+      candidates,
+      report_observations: reportObservations,
+      report_stale: reportStale,
+      next: next || '',
+    }, null, 2) + '\n');
     process.exit(0);
   }
 
@@ -103,9 +153,19 @@ function main() {
   if (observations === 0 && drafts === 0) {
     process.exit(0);
   }
-  process.stdout.write(
-    `friction feedback: ${observations} observation(s) captured · ${drafts} draft(s) pending your --confirm · gh: ${ghHint}\n`
-  );
+  const reportSegment = !hasReport
+    ? 'report: none yet'
+    : reportStale
+      ? `report STALE (${reportObservations} of ${observations} triaged)`
+      : null;
+  const parts = [
+    `${observations} observation(s) captured`,
+    `${candidates} review candidate(s)`,
+    `${drafts} draft(s) pending your --confirm`,
+  ];
+  if (reportSegment) parts.push(reportSegment);
+  parts.push(`gh: ${ghHint}`);
+  process.stdout.write(`friction feedback: ${parts.join(' · ')}\n`);
   if (next) process.stdout.write(`  next: ${next}\n`);
 }
 

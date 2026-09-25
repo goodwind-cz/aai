@@ -174,7 +174,7 @@ test_001_pure_append_no_section() {
   assert_exit "TEST-001" 0 "$code"
 
   local today; today="$(date -u +%Y-%m-%d)"
-  local expected="- [$today] brand new rule (source: unit test)"
+  local expected="- [$today] brand new rule (Source: unit test)"
   local last_line; last_line="$(tail -n 1 "$f")"
   [ "$last_line" = "$expected" ] || log_fail "TEST-001: last line '$last_line' != expected '$expected'"
 
@@ -194,7 +194,7 @@ test_002_section_matches_last() {
   assert_exit "TEST-002" 0 "$code"
 
   local today; today="$(date -u +%Y-%m-%d)"
-  local expected="- [$today] conventions rule (source: unit test)"
+  local expected="- [$today] conventions rule (Source: unit test)"
   local last_line; last_line="$(tail -n 1 "$f")"
   [ "$last_line" = "$expected" ] || log_fail "TEST-002: last line '$last_line' != expected '$expected'"
   log_pass "--section matching the last heading == plain append (TEST-002)"
@@ -211,7 +211,7 @@ test_003_section_new_heading() {
 
   grep -qF "## Deploy" "$f" || log_fail "TEST-003: new '## Deploy' heading not found"
   local today; today="$(date -u +%Y-%m-%d)"
-  local expected="- [$today] deploy rule (source: unit test)"
+  local expected="- [$today] deploy rule (Source: unit test)"
   local last_line; last_line="$(tail -n 1 "$f")"
   [ "$last_line" = "$expected" ] || log_fail "TEST-003: last line '$last_line' != expected '$expected'"
   # Everything that existed before must still be present, byte-for-byte, as a prefix.
@@ -351,11 +351,11 @@ test_011_sequential_appends() {
   code="$(run_gate "$f" --source "writer B" --text "second rule")"
   assert_exit "TEST-011 second append" 0 "$code"
 
-  grep -qF "first rule (source: writer A)" "$f" || log_fail "TEST-011: first append missing after the second call"
-  grep -qF "second rule (source: writer B)" "$f" || log_fail "TEST-011: second append missing"
+  grep -qF "first rule (Source: writer A)" "$f" || log_fail "TEST-011: first append missing after the second call"
+  grep -qF "second rule (Source: writer B)" "$f" || log_fail "TEST-011: second append missing"
   local first_line_no second_line_no
-  first_line_no="$(grep -n "first rule (source: writer A)" "$f" | qhead -1 | cut -d: -f1)"
-  second_line_no="$(grep -n "second rule (source: writer B)" "$f" | qhead -1 | cut -d: -f1)"
+  first_line_no="$(grep -n "first rule (Source: writer A)" "$f" | qhead -1 | cut -d: -f1)"
+  second_line_no="$(grep -n "second rule (Source: writer B)" "$f" | qhead -1 | cut -d: -f1)"
   [ "$first_line_no" -lt "$second_line_no" ] || log_fail "TEST-011: appends must land in call order"
   log_pass "Two sequential real appends both persist, in order (TEST-011)"
 }
@@ -466,6 +466,52 @@ test_017_companion_suites_green() {
   log_pass "Companion suites (friction-wiring, hygiene-pack) stay green (TEST-017)"
 }
 
+# --- TEST-665 (Spec-AC-08): the house bullet style (spec-friction-channel-sweep) ---
+
+test_665_house_style_bullet() {
+  log_info "Test: an appended rule emits the house bullet -- wrapped at <= 76 chars, a two-space continuation indent, and a capitalised (Source: ... ) (TEST-665)..."
+  local f="$TEST_DIR/t665.md"; fresh_copy "$f"
+  OUT="$TEST_DIR/o665"; ERR="$TEST_DIR/e665"
+  local long_text="this rule text is deliberately long enough that wrapping it together with its attribution at a seventy six character width must split across more than one physical line to prove the wrap is real"
+  local code; code="$(run_gate "$f" --source "a rather long provenance string naming exactly how this was learned in detail" --text "$long_text")"
+  assert_exit "TEST-665" 0 "$code"
+
+  # Every line of the WHOLE file (base lines included) must be <= 76 chars --
+  # the fixture's own lines are short, so this only bites on the new bullet.
+  local max_len; max_len="$(awk '{ print length }' "$f" | sort -rn | qhead -1)"
+  [ "$max_len" -le 76 ] || log_fail "TEST-665: a line of length $max_len exceeds the 76-character cap"
+
+  # At least one continuation line was actually produced (the wrap is real,
+  # not a no-op), and every continuation line begins with exactly two spaces
+  # (not one, not three, not a tab). Written to a fixture FILE and read with
+  # `< file` (never piped into the while, which would run it in a subshell
+  # and swallow log_fail's exit).
+  local appended_file="$TEST_DIR/t665.appended"
+  tail -n +$(($(wc -l < "$BASE" | tr -d ' ') + 1)) "$f" > "$appended_file"
+  local cont_count; cont_count="$(tail -n +2 "$appended_file" | wc -l | tr -d ' ')"
+  [ "${cont_count:-0}" -gt 0 ] || log_fail "TEST-665: the long rule must wrap onto at least one continuation line"
+  local first_line=1
+  while IFS= read -r line; do
+    if [ "$first_line" = "1" ]; then first_line=0; continue; fi
+    case "$line" in
+      '  '*) : ;;
+      *) log_fail "TEST-665: continuation line does not begin with exactly two spaces: '$line'" ;;
+    esac
+    case "$line" in
+      '   '*) log_fail "TEST-665: continuation line begins with MORE than two spaces: '$line'" ;;
+    esac
+  done < "$appended_file"
+
+  grep -qF '(Source: ' "$appended_file" || log_fail "TEST-665: attribution must read '(Source: ' (capitalised)"
+  ! grep -qF '(source: ' "$appended_file" || log_fail "TEST-665: no lowercase '(source: ' attribution may appear in the NEW bullet"
+
+  # isPureAppend still holds byte-exactly: the original bytes are an
+  # unmodified PREFIX of the new file.
+  head -c "$(wc -c < "$BASE" | tr -d ' ')" "$f" > "$TEST_DIR/t665.prefix"
+  cmp -s "$BASE" "$TEST_DIR/t665.prefix" || log_fail "TEST-665: original content is not an unmodified prefix of the new file (isPureAppend violated)"
+  log_pass "House-style bullet: wrapped <= 76 chars, two-space continuation, capitalised (Source: ..., pure append intact (TEST-665)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -494,6 +540,7 @@ main() {
   test_015_profiles_classified
   test_016_prompt_diet_ledger
   test_017_companion_suites_green
+  test_665_house_style_bullet
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

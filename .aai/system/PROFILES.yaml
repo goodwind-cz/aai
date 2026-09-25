@@ -138,6 +138,7 @@ core:
   - .aai/scripts/intake-staleness-check.mjs
   - .aai/scripts/layer-drift.mjs
   - .aai/scripts/learned-append.mjs
+  - .aai/scripts/ledger-merge.mjs
   - .aai/scripts/lib/append-lock.mjs
   - .aai/scripts/lib/append-lock.sh
   - .aai/scripts/lib/cli-pipe-guard.mjs

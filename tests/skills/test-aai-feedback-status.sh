@@ -94,6 +94,116 @@ test_004_empty() {
   log_pass "empty spool -> SILENT human line, --json still emits, exit 0 (TEST-004)"
 }
 
+# write_report <dir> <total_observations> <candidate_count> — writes a
+# minimal but real triage-report.json shape (aai-feedback-triage.mjs's own
+# REPORT_SCHEMA) with exactly <candidate_count> review_candidate clusters
+# among 5 total clusters, so `candidates` is unambiguous.
+write_report() {
+  local dir="$1" total="$2" cands="$3"
+  node -e '
+    const fs = require("fs");
+    const [dir, total, cands] = process.argv.slice(1);
+    const n = Number(cands);
+    const clusters = [];
+    for (let i = 0; i < 5; i++) {
+      clusters.push({
+        fingerprint: "v1:c" + i,
+        failure_class: "deterministic_script_failure",
+        harness: "claude",
+        recurrence: 1,
+        score: i < n ? 9 : 1,
+        decision: i < n ? "review_candidate" : "retain",
+        auto_publishable: false,
+      });
+    }
+    const report = {
+      schema: "aai-triage/v1", mode: "local", threshold: 4,
+      total_observations: Number(total), kept: Number(total), dropped: [], clusters,
+    };
+    fs.writeFileSync(dir + "/triage-report.json", JSON.stringify(report, null, 2) + "\n");
+  ' "$dir" "$total" "$cands"
+}
+
+# --- TEST-669 (Spec-AC-11): backlog reporting across four fixture dirs -----
+test_669_status_reports_the_backlog() {
+  log_info "Test: candidates/report_observations/report_stale reported correctly across four fixture friction dirs (TEST-669)..."
+  mock_gh 0
+
+  # Arm 1: no report at all. observations.jsonl already has 3 lines (setup).
+  local out
+  out="$(run "$TD/friction" "$TD/bin/gh" --json)"
+  [ "$(printf '%s' "$out" | jq_field candidates)" = "0" ] || log_fail "TEST-669 arm1: candidates must be 0 with no report"
+  [ "$(printf '%s' "$out" | jq_field report_observations)" = "0" ] || log_fail "TEST-669 arm1: report_observations must be 0 with no report"
+  [ "$(printf '%s' "$out" | jq_field report_stale)" = "true" ] || log_fail "TEST-669 arm1: report_stale must be true with no report"
+  out="$(run "$TD/friction" "$TD/bin/gh")"
+  assert_payload_contains "$out" "report: none yet" "TEST-669 arm1: human line must say 'report: none yet'"
+
+  # Arm 2: report matches the spool exactly (3 observations, 2 candidates).
+  write_report "$TD/friction" 3 2
+  out="$(run "$TD/friction" "$TD/bin/gh" --json)"
+  [ "$(printf '%s' "$out" | jq_field candidates)" = "2" ] || log_fail "TEST-669 arm2: candidates must be 2"
+  [ "$(printf '%s' "$out" | jq_field report_observations)" = "3" ] || log_fail "TEST-669 arm2: report_observations must be 3"
+  [ "$(printf '%s' "$out" | jq_field report_stale)" = "false" ] || log_fail "TEST-669 arm2: report_stale must be false when the report matches the spool"
+
+  # Arm 3: report BEHIND the spool, drafts present — reproduces the measured
+  # 65-against-824 shape (spec-friction-channel-sweep "What is established").
+  local d3="$TD/d3/friction"; mkdir -p "$d3/pending-issues"
+  node -e 'const fs=require("fs");let s="";for(let i=0;i<824;i++)s+=JSON.stringify({a:i})+"\n";fs.writeFileSync(process.argv[1],s);' "$d3/observations.jsonl"
+  write_report "$d3" 65 3
+  for i in 1 2 3 4 5 6 7; do : > "$d3/pending-issues/v1_x$i.md"; done
+  out="$(run "$d3" "$TD/bin/gh" --json)"
+  [ "$(printf '%s' "$out" | jq_field observations)" = "824" ] || log_fail "TEST-669 arm3: observations must be 824"
+  [ "$(printf '%s' "$out" | jq_field drafts)" = "7" ] || log_fail "TEST-669 arm3: drafts must be 7"
+  [ "$(printf '%s' "$out" | jq_field candidates)" = "3" ] || log_fail "TEST-669 arm3: candidates must be 3"
+  [ "$(printf '%s' "$out" | jq_field report_observations)" = "65" ] || log_fail "TEST-669 arm3: report_observations must be 65"
+  [ "$(printf '%s' "$out" | jq_field report_stale)" = "true" ] || log_fail "TEST-669 arm3: report_stale must be true (65 != 824)"
+  out="$(run "$d3" "$TD/bin/gh")"
+  assert_payload_contains "$out" "report STALE (65 of 824 triaged)" "TEST-669 arm3: human line must name BOTH numbers"
+
+  # Arm 4: empty spool (no observations, no drafts, no report).
+  out="$(run "$TD/empty" "$TD/bin/gh" --json)"
+  [ "$(printf '%s' "$out" | jq_field candidates)" = "0" ] || log_fail "TEST-669 arm4: candidates must be 0 on an empty spool"
+  [ "$(printf '%s' "$out" | jq_field report_observations)" = "0" ] || log_fail "TEST-669 arm4: report_observations must be 0 on an empty spool"
+
+  log_pass "candidates/report_observations/report_stale correct across all four fixture arms; human line names both numbers when stale (TEST-669)"
+}
+
+# --- TEST-670 (Spec-AC-11): stale report never advertises a publish -------
+test_670_stale_report_never_advertises_publish() {
+  log_info "Test: next names triage (never publish) whenever the report is absent/stale, even with drafts present; a current report still advertises publish; the empty arm stays silent on stdout (TEST-670)..."
+  mock_gh 0
+
+  # Drafts present (setup: 2 drafts) + a STALE report (report says 1, spool has 3).
+  write_report "$TD/friction" 1 0
+  local out; out="$(run "$TD/friction" "$TD/bin/gh" --json)"
+  case "$(printf '%s' "$out" | jq_field next)" in
+    *aai-feedback-triage.mjs*) : ;;
+    *) log_fail "TEST-670: with drafts present and a STALE report, next must name triage, got: $(printf '%s' "$out" | jq_field next)" ;;
+  esac
+  case "$(printf '%s' "$out" | jq_field next)" in
+    *--confirm*) log_fail "TEST-670: next must NEVER advertise a publish while the report is stale, got: $(printf '%s' "$out" | jq_field next)" ;;
+    *) : ;;
+  esac
+
+  # Drafts present + a CURRENT report (matches the 3-line spool): next
+  # reverts to the ordinary publish advertisement.
+  write_report "$TD/friction" 3 1
+  out="$(run "$TD/friction" "$TD/bin/gh" --json)"
+  case "$(printf '%s' "$out" | jq_field next)" in
+    *--confirm*) : ;;
+    *) log_fail "TEST-670: with drafts present and a CURRENT report, next must advertise the publish, got: $(printf '%s' "$out" | jq_field next)" ;;
+  esac
+
+  # Empty spool: stdout stays SILENT (pinned TEST-004 contract), --json still
+  # emits the full object including the new fields.
+  local human; human="$(run "$TD/empty" "$TD/bin/gh")"
+  [ -z "$human" ] || log_fail "TEST-670: empty spool must stay SILENT on stdout even with the new fields, got: $human"
+  out="$(run "$TD/empty" "$TD/bin/gh" --json)"
+  [ "$(printf '%s' "$out" | jq_field report_stale)" = "true" ] || log_fail "TEST-670: empty arm --json must still emit report_stale"
+
+  log_pass "next names triage over a stale/absent report even with drafts present, reverts to publish once current, and the empty arm stays silent (TEST-670)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   setup
@@ -105,6 +215,8 @@ main() {
   test_002_gh_state
   test_003_no_mutation
   test_004_empty
+  test_669_status_reports_the_backlog
+  test_670_stale_report_never_advertises_publish
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

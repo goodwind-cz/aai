@@ -17,14 +17,17 @@ Every **dated** entry — the `- [YYYY-MM-DD] …` lines below — carries one m
   deleted when it moves**: removing a lesson because its enforcement changed
   hands is how the lesson is lost.
 
-The older `## Session …` sections further down are an undated running log and
-are **not yet triaged**; several of them are the downstream class this rule is
-about (BSD-vs-GNU tool differences, `git clean` under `docs/`, validating a new
-gate against the whole corpus). Working through them is tracked as
-`fu-triage-undated-learned-log` — until then, do not read the absence of a
-marker there as a classification. Saying "every entry carries a marker" while
-twenty of them do not is the kind of claim a downstream reader disproves by
-scrolling, so it is not made here.
+The older `## Session …` sections further down are an undated running log.
+They were triaged 2026-09-25 (spec-friction-channel-sweep Spec-AC-10,
+closing `fu-triage-undated-learned-log`): every bullet under a `## Session …`
+heading now carries exactly one `[local]` or `[guard → <id>]` marker, placed
+right after the leading `- ` (these bullets predate the dated-entry
+convention above, so the marker sits without a `[YYYY-MM-DD]` prefix). A
+lint (`tests/skills/lib/learned-guard-lints.mjs` rule `session-marker`,
+enforced by `tests/skills/test-aai-hygiene-pack.sh`) now refuses a Session
+bullet that carries no marker — it pins that a marker EXISTS, not that it is
+the right one; the triage judgement itself was applied by one reader to
+twenty bullets in one pass and is disclosed as a residual risk of that scope.
 
 <!--
   This file captures corrections and learnings from user feedback.
@@ -57,7 +60,7 @@ scrolling, so it is not made here.
 
 ## Session 2026-07-15/16 (P1 delivery + follow-ups)
 
-- `tests/skills/test-aai-worktree.sh` fails deterministically in its scratch-git
+- [local] `tests/skills/test-aai-worktree.sh` fails deterministically in its scratch-git
   fixture on this machine ("Commit not found in feature branch") — known
   pre-existing environmental failure, reproduced on clean main repeatedly.
   Verify suspected regressions against a DISPOSABLE WORKTREE cut from the BASE
@@ -65,17 +68,17 @@ scrolling, so it is not made here.
   you your own branch), never via `git stash`: stashing reverts the SHARED
   working tree and HAZ-RESTORE in `.aai/SUBAGENT_CONTRACT.md` prohibits it.
   (Source: CHANGE-0012/0010/0009 validation runs, 2026-07-15.)
-- `docs/ai/archive/worktrees/` is this repo's local, untracked convention for
+- [local] `docs/ai/archive/worktrees/` is this repo's local, untracked convention for
   archiving a worktree's STATE.yaml before `git worktree remove` (established
   2026-07-15; consumed by ledger-recovery flushes). Do not delete casually.
-- Universal workflow lessons from this session (merge-conflict resolution,
+- [local] Universal workflow lessons from this session (merge-conflict resolution,
   no-number-prediction, verify-merge, cleanup-after-MERGED, enforce flip)
   were promoted INTO the vendored layer (SPEC learned-to-layer-promotion) —
   they deliberately do NOT live here, so vendored projects inherit them.
 
 ## Session 2026-07-17 (CHANGE-0030/SPEC-0041 TDD)
 
-- `tests/skills/test-aai-prompt-diet.sh` TEST-010 (corpus byte-budget floor,
+- [local] `tests/skills/test-aai-prompt-diet.sh` TEST-010 (corpus byte-budget floor,
   `BASELINE_PROMPT_BYTES` / `REQUIRED_REDUCTION_BYTES`) already FAILS on clean
   main — reproduced via git-stash comparison before touching anything (net
   reduction 28187 bytes < 28672 required, ~485B short at c144736/PR #92).
@@ -115,7 +118,7 @@ scrolling, so it is not made here.
 
 ## Session 2026-07-16/17 (RES-0001 tail + delta-spec lifecycle)
 
-- Per-scope metrics are LOST if a worktree's `STATE.yaml` is not archived to
+- [local] Per-scope metrics are LOST if a worktree's `STATE.yaml` is not archived to
   `docs/ai/archive/worktrees/` BEFORE `git worktree remove`. The archive
   convention already existed (see above), but it was not followed for the
   l1-close-gate / delta-stage-2 / delta-stage-3 scopes this session, so their
@@ -124,7 +127,7 @@ scrolling, so it is not made here.
   ORDER: `cp <wt>/docs/ai/STATE.yaml docs/ai/archive/worktrees/STATE-<slug>-<ts>.yaml`
   (or run the metrics flush) as the FIRST post-MERGED cleanup step, before
   removing the worktree. (Source: this session's wrap-up.)
-- Two independent gates are not redundant: on delta-stage-3 the dual-verdict
+- [local] Two independent gates are not redundant: on delta-stage-3 the dual-verdict
   review PASSED by tracing the code, but independent validation on a DIFFERENT
   model FAILED it by actually running multi-run fixtures — catching a tombstone
   deletion that reused a retired REQ id. For deterministic writers, a validator
@@ -133,7 +136,7 @@ scrolling, so it is not made here.
 
 ## Session 2026-07-17/19 (workflow-hardening arc + spec-id collision cascade)
 
-- Spec DRAFT slugs MUST be `spec-`-prefixed (`id: spec-<change-slug>`). A spec
+- [guard → spec-id-shape-lint] Spec DRAFT slugs MUST be `spec-`-prefixed (`id: spec-<change-slug>`). A spec
   named with a bare-slug id collides with its change/issue's id; the audit's
   `byId` map is last-writer-wins, so one doc silently overwrites the other and
   the audit still reports CLEAN. Four collisions shipped this session
@@ -141,7 +144,7 @@ scrolling, so it is not made here.
   at three layers: lint at freeze (`spec-lint` `spec-id-shape`, SPEC-0058),
   detect at audit (`docs-audit` duplicate-doc-id, SPEC-0057), fail-closed at
   close (`close-work-item.mjs`). (Source: ISSUE-0015 remediation; SPEC-0057/0058.)
-- Mechanize any recurring agent-hand-performed governance ceremony that has
+- [guard → close-work-item-mechanization] Mechanize any recurring agent-hand-performed governance ceremony that has
   correctness rules. The close ceremony (status flip + links + the exact
   slug-ref event set + re-audit) was ~10 manual steps and tripped
   false-open/false-done 3× before `close-work-item.mjs` made it
@@ -149,7 +152,7 @@ scrolling, so it is not made here.
   -> rollback on drift). Same for `metrics-flush` (stop emitting wrong-ref
   close events) and worktree telemetry (reconcile at PR). (Source: CHANGE-0037/
   0038/0039.)
-- A new audit/lint GATE must be validated against the WHOLE existing corpus AND
+- [local] A new audit/lint GATE must be validated against the WHOLE existing corpus AND
   all test fixtures before merge — not just its own scope's tests. The SPEC-0057
   duplicate-id detector correctly flipped the real repo to NEEDS-TRIAGE (3 real
   latent collisions). The SPEC-0058 `spec-id-shape` rule shipped under-migrated:
@@ -157,19 +160,19 @@ scrolling, so it is not made here.
   specs by content or filename), breaking `test-aai-ceremony-levels.sh` on main.
   Run the full suite matrix, not just the declared scope. (Source: SPEC-0057/
   0058; ceremony-levels fallout, CHANGE-0040.)
-- `close-work-item.mjs` self-verifies full-CLEAN, so it CANNOT close a scope
+- [guard → close-work-item-self-verify] `close-work-item.mjs` self-verifies full-CLEAN, so it CANNOT close a scope
   whose own change makes the repo NEEDS-TRIAGE (e.g. shipping a detector that
   flags pre-existing debt) — hand-close those, then remediate. It also
   fail-closes on an ambiguous/duplicate id — a guardrail that caught the
   SPEC-0056 collision. (Source: SPEC-0056/0057 close.)
-- The prompt-diet byte floor re-breaches on EVERY scope that adds
+- [guard → prompt-diet-justified-additions] The prompt-diet byte floor re-breaches on EVERY scope that adds
   `.aai/*.prompt.md` prose; the anti-bloat guard only flags it when the suite
   runs (main was silently red by 764 B this session). Bumping the
   `JUSTIFIED_ADDITIONS` ledger is now part of definition-of-done for any
   prompt-touching scope, and the credit is an itemized summed array (not a magic
   number) so the fix is a self-documenting data append. (Source: DEBT-0002,
   CHANGE-0040.)
-- Two operational hazards for the loop: (1) inline validation that runs
+- [guard → haz-restore-subagent-contract] Two operational hazards for the loop: (1) inline validation that runs
   `git checkout`/`stash` mutates the SHARED working tree. HAZ-RESTORE in
   `.aai/SUBAGENT_CONTRACT.md` prohibits those COMMANDS outright — it does not
   ban inline work, which stays a supported mode. A role that needs to mutate
@@ -180,17 +183,17 @@ scrolling, so it is not made here.
 
 ## Session 2026-07-19 (skill-suite CI gate + Linux portability)
 
-- A test runner that forces `sh <file>` on `#!/usr/bin/env bash` suites produces
+- [guard → aai-run-tests-shebang-honoring] A test runner that forces `sh <file>` on `#!/usr/bin/env bash` suites produces
   FALSE PASSES (bash-only syntax like process substitution `< <(…)` or arrays
   either errors early or is silently mis-parsed). Honor each suite's shebang
   (`bash "$f"` or execute directly). A serialized full-suite sweep that forced
   `sh` hid a real red (`verify-gate` TEST-006) and mis-flagged `hooks-overlay`;
   the shebang-honoring rerun surfaced 15 real failures the first pass masked.
   (Source: this session's `otestuj` v1 vs v2 runners.)
-- NEVER `git clean` under `docs/` in a verification/iteration loop — the intake
+- [local] NEVER `git clean` under `docs/` in a verification/iteration loop — the intake
   DRAFTs, frozen spec, and review report of the in-flight scope are UNTRACKED but
   wanted; `git clean` deletes them.
-- **CORRECTION (2026-08-23).** The line above used to continue "restore only
+- [local] **CORRECTION (2026-08-23).** The line above used to continue "restore only
   tracked telemetry (`git checkout -- docs/ai/EVENTS.jsonl docs/ai/METRICS.jsonl
   docs/INDEX.md`)". Do NOT do that. `EVENTS.jsonl` and `METRICS.jsonl` are
   APPEND-ONLY LEDGERS: restoring them drops the close events a finished ride just
@@ -204,27 +207,27 @@ scrolling, so it is not made here.
   `fu-learned-events-restore-vs-hazards`.
   A `git clean -fdq docs/` between suite runs destroyed a spec+issue+review
   mid-loop (recovered by re-prompting the still-alive Planning/Review subagents).
-- Metrics flush (rule 14) fires BEFORE the operator's PR step and its
+- [local] Metrics flush (rule 14) fires BEFORE the operator's PR step and its
   partial-flush reset (SPEC-0013 H5, triggered by a stale sibling work item like
   `pr-67-post-merge-review`) nulls `last_validation`/`code_review` — so
   `SKILL_PR` preconditions then fail. Truthfully RE-RECORD the genuine PASS
   verdicts (evidence already exists) before the PR ceremony. Candidate workflow
   fix: defer rule 14 until after PR, or don't partial-reset the just-flushed
   focus ref. (Source: PR #115/#116 ceremonies this session.)
-- Skill suites are written/run on macOS (BSD tools) but CI runs Ubuntu (GNU) —
+- [local] Skill suites are written/run on macOS (BSD tools) but CI runs Ubuntu (GNU) —
   latent BSD/GNU breakage passes locally, fails only in CI. Concrete traps found:
   `mktemp -t <bare-prefix>` errors "too few X's" on GNU (use a full `…​.XXXXXX`
   template, identical on both); `stat -f '%u'` SUCCEEDS on GNU as
   `--file-system` (wrong data) so `stat -f || stat -c` never falls through — try
   GNU `stat -c` FIRST. (Source: CHANGE-0043/SPEC-0062, RC2/RC4.)
-- A fresh CI checkout lacks per-dev gitignored runtime files (`docs/ai/STATE.yaml`
+- [local] A fresh CI checkout lacks per-dev gitignored runtime files (`docs/ai/STATE.yaml`
   RFC-0001, `docs/ai/tdd/*.log`) and lacks a local `main` branch (detached PR
   checkout / temp repos default to `master` or an empty ref). Suites must be
   hermetic: self-seed the precondition via the canonical initializer (or
   soft-skip when genuinely absent, degrade-and-report), and build fixture repos
   with `git init -b main`. Do NOT assume a developer's environment on CI.
   (Source: CHANGE-0043 RC1/RC3.)
-- The single highest-leverage structural win: skill suites were never gated in CI
+- [guard → skill-suite-ci-workflow] The single highest-leverage structural win: skill suites were never gated in CI
   (only docs-numbering + ps1-quality ran), so reds accumulated invisibly — one
   merged red (verify-gate), three test-infra reds, and 15 Linux-portability
   failures. Adding `.github/workflows/skill-suite.yml` (run every suite honoring
@@ -233,7 +236,7 @@ scrolling, so it is not made here.
   output tail ALWAYS (not only under `--verbose`), else CI failures are opaque —
   this diagnostic change is what made the Linux root-cause analysis possible from
   the CI log alone. (Source: CHANGE-0042/0043.)
-- When only CI reproduces a failure (platform-specific), CI IS the authoritative
+- [local] When only CI reproduces a failure (platform-specific), CI IS the authoritative
   validator — the loop's Validation/Review subagents run on the local host and
   cannot attest green-on-Linux. Weave CI into the loop: implementer pushes, the
   CI run is the RED->GREEN evidence, Validation verifies `gh run` conclusion +
