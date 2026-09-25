@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-25T09:12:35.045Z",
+  "generatedAt": "2026-09-25T17:35:44.512Z",
   "project": "aai",
   "counts": {
     "delivered": 253,
@@ -72,7 +72,7 @@
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
-      "spec": null,
+      "spec": "docs/specs/SPEC-DRAFT-spec-canon-is-a-build-artifact.md",
       "validation": null,
       "review": null
     },

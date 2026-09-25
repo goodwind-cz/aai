@@ -690,8 +690,18 @@ function runClaims(argv) {
 // it, which carries concrete values instead of the `<placeholder>` tokens and
 // would never equal a rendered line. It then scans the declared globs for
 // every `AAI-VALIDATION-WAIVER v<N>` literal and refuses by name
-// (`waiver-grammar-drift`) at the first one whose N is neither the CURRENT
+// (`waiver-grammar-drift`) at every one whose N is neither the CURRENT
 // version (from the code) nor a manifest-declared legacy version.
+//
+// A literal matching a DECLARED LEGACY version is not a refusal, but per
+// CANON.yaml's own `waiver_legacy_versions` comment ("printed whenever it is
+// matched — the same never-silent-exception discipline `uniqueness_exceptions`
+// uses") it is never admitted SILENTLY either: `canon-check-waiver-legacy`
+// names the file:line, the matched version and its declared reason, the same
+// shape `canon-duplicate-rule-exception` already uses for Spec-AC-04. Before
+// this (validation round 3 NB-2), the declaration's own text described a
+// print the code never performed — three live v1 literals were admitted with
+// no trace in `check --section validation_waiver`'s output.
 //
 // Both roots (the LIVE tree and a fixture copy) resolve `validation-waiver.mjs`
 // relative to `root`, via a DYNAMIC import — never the static top-level import
@@ -719,10 +729,15 @@ async function checkValidationWaiver(root, manifest) {
     if (srcLines[i].replace(/^\s*\/\/\s*/, '').trim() === rendered) { headerLineNo = i + 1; break; }
   }
 
-  const legacyVersions = new Set((manifest.waiver_legacy_versions || []).map((l) => Number(l.version)));
+  // version -> reason, so a legacy MATCH can be printed with its declared
+  // reason (never silently admitted) — see the comment block above.
+  const legacyVersionReasons = new Map(
+    (manifest.waiver_legacy_versions || []).map((l) => [Number(l.version), l.reason || '']),
+  );
   const literalRe = /AAI-VALIDATION-WAIVER v(\d+)/g;
   const files = collectCorpusFiles(root, ['.aai/**', 'tests/skills/**']);
   const violations = [];
+  const legacyMatches = [];
   let checked = 0;
   for (const relPath of files) {
     let content;
@@ -734,13 +749,17 @@ async function checkValidationWaiver(root, manifest) {
       while ((m = literalRe.exec(lines[i])) !== null) {
         checked += 1;
         const v = Number(m[1]);
-        if (v === version || legacyVersions.has(v)) continue;
+        if (v === version) continue;
+        if (legacyVersionReasons.has(v)) {
+          legacyMatches.push({ path: relPath, line: i + 1, version: v, reason: legacyVersionReasons.get(v) });
+          continue;
+        }
         violations.push({ path: relPath, line: i + 1, found: v });
       }
     }
   }
 
-  return { version, rendered, headerFound: headerLineNo !== null, violations, checked };
+  return { version, rendered, headerFound: headerLineNo !== null, violations, legacyMatches, checked };
 }
 
 // `decision_citations` extracts every `owner decision <ref_id>, <YYYY-MM-DD>`
@@ -820,6 +839,9 @@ async function runCheck(argv) {
       for (const v of r.violations) {
         refused = true;
         process.stderr.write(`waiver-grammar-drift: ${v.path}:${v.line} found=v${v.found} expected=v${r.version} or a declared legacy version\n`);
+      }
+      for (const lm of r.legacyMatches) {
+        process.stderr.write(`canon-check-waiver-legacy: ${lm.path}:${lm.line} v${lm.version} reason="${lm.reason}"\n`);
       }
       process.stderr.write(`canon-check: section=validation_waiver checked=${r.checked} current=v${r.version}\n`);
     } else if (section === 'decision_citations') {

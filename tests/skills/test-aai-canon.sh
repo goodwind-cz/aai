@@ -191,8 +191,17 @@ build_waiver_fixture() {
     "$d/.aai/scripts/validation-waiver.mjs"
   rm -f "$d/.aai/scripts/validation-waiver.mjs.bak"
   cat > "$d/tests/skills/fixture-waiver-usage.sh" <<'EOF'
-# fixture: a stale v2 literal under tests/skills/** for TEST-693's sweep.
+# fixture: a stale v2 literal under tests/skills/** for TEST-693's sweep,
+# plus a declared-LEGACY v1 literal for TEST-692's silent-admission proof.
 REC="[AAI-VALIDATION-WAIVER v2 by=operator ref=FIXTURE at=2026-01-01T00:00:00Z reason=\"x\"]"
+REC_LEGACY="[AAI-VALIDATION-WAIVER v1 by=operator ref=FIXTURE at=2026-01-01T00:00:00Z reason=\"y\"]"
+EOF
+  # A SECOND stale literal, under `.aai/**` rather than `tests/skills/**`, so
+  # TEST-693 can prove EACH stale literal is named (Spec-AC-12's own plural
+  # "naming each file:line"), not just the first one the scan encounters.
+  cat > "$d/.aai/system/fixture-waiver-note.md" <<'EOF'
+Note: a second stale literal for TEST-693 lives here, under `.aai/**` rather
+than `tests/skills/**`: [AAI-VALIDATION-WAIVER v2 by=operator ref=FIXTURE-AAI at=2026-01-01T00:00:00Z reason="x"].
 EOF
   cat > "$d/.aai/system/CANON.yaml" <<'EOF'
 historical: []
@@ -349,7 +358,26 @@ test_675_order_follows_manifest_not_code() {
     || log_fail "TEST-675: swapping the manifest's first two sections must move the PAYLOAD's first two — expected [role contract learned scope], got [$swapped_order]"
   [[ "$swapped_order" != "$base_order" ]] \
     || log_fail "TEST-675: swapped-manifest payload order must differ from the baseline payload order (vacuous otherwise)"
-  log_pass "TEST-675 the payload order follows the manifest's declared order, not a hardcoded one (baseline=[$base_order] swapped=[$swapped_order])"
+
+  # BLOCKING-3 (validation round 3): the swap above moves the FIRST two
+  # sections and leaves 'scope' in its natural LAST slot — invisible to an
+  # emitter that hard-codes scope LAST regardless of the manifest. Swap the
+  # LAST two sections instead (learned, scope -> scope, learned) so 'scope'
+  # itself moves off the last position, proving Spec-AC-01's "scope/inputs
+  # LAST" clause is read from the manifest, not hard-coded.
+  local scope_moved="$TEST_DIR/t675-scope-not-last"
+  mkdir -p "$scope_moved"
+  base_fixture_tree "$scope_moved"
+  write_fixture_manifest "$scope_moved" "contract,role,scope,learned" 5 20000 ""
+
+  run_canon "$scope_moved" "CANON.yaml" "FixtureRole" "TEST-675-scope-not-last"
+  expect_rc 0 "TEST-675 scope-not-last fixture build"
+  local scope_order
+  scope_order="$(section_ids "$CANON_OUT")"
+  [[ "$scope_order" == "contract role scope learned" ]] \
+    || log_fail "TEST-675: a manifest declaring 'scope' BEFORE 'learned' must emit 'scope' before 'learned' — expected [contract role scope learned], got [$scope_order]"
+
+  log_pass "TEST-675 the payload order follows the manifest's declared order, not a hardcoded one (baseline=[$base_order] swapped-first-two=[$swapped_order] scope-not-last=[$scope_order])"
 }
 
 # --- TEST-676 ------------------------------------------------------------------
@@ -390,7 +418,42 @@ test_676_absent_section_fails_closed() {
   out_bytes2="$(wc -c < "$CANON_OUT" | tr -d ' ')"
   [[ "$out_bytes2" -eq 0 ]] || log_fail "TEST-676: stdout must be EMPTY on the empty-section refusal too, got $out_bytes2 bytes"
 
-  log_pass "TEST-676 a declared section refuses closed whether ABSENT or present-but-EMPTY, with the named token and empty stdout"
+  # BLOCKING-2 (validation round 3): both arms above are `type: file` (the
+  # CONTRACT section). Spec-AC-02 says "a DECLARED CANON SECTION" — `role`
+  # (CANON.yaml:161) is equally a declared canon section, resolved through a
+  # DIFFERENT branch of resolveSections, and must fail closed the same way
+  # for both its ABSENT and EMPTY sub-cases. Left unguarded, a truncated or
+  # missing role prompt would build a payload with an EMPTY role frame at
+  # rc=0 — a dispatched agent receiving no role instructions at all.
+  local d3="$TEST_DIR/t676-role-missing"
+  mkdir -p "$d3/.aai" "$d3/docs/knowledge"
+  base_fixture_tree "$d3"
+  rm -f "$d3/.aai/ROLE.prompt.md"
+
+  run_canon "$d3" "CANON.yaml" "FixtureRole" "TEST-676-role-missing-ref"
+  expect_rc_nonzero "TEST-676 absent ROLE-type section"
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-section-absent: role .aai/ROLE.prompt.md" \
+    "TEST-676: an absent ROLE-type section's source file must refuse the same way as an absent FILE-type one" || return 1
+  local out_bytes3
+  out_bytes3="$(wc -c < "$CANON_OUT" | tr -d ' ')"
+  [[ "$out_bytes3" -eq 0 ]] || log_fail "TEST-676: stdout must be EMPTY on the absent-role refusal too, got $out_bytes3 bytes"
+
+  local d4="$TEST_DIR/t676-role-empty"
+  mkdir -p "$d4/.aai" "$d4/docs/knowledge"
+  base_fixture_tree "$d4"
+  : > "$d4/.aai/ROLE.prompt.md"
+  [[ -f "$d4/.aai/ROLE.prompt.md" && ! -s "$d4/.aai/ROLE.prompt.md" ]] \
+    || log_fail "TEST-676: fixture setup: role prompt file must exist and be empty"
+
+  run_canon "$d4" "CANON.yaml" "FixtureRole" "TEST-676-role-empty-ref"
+  expect_rc_nonzero "TEST-676 present-but-empty ROLE-type section"
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-section-absent: role .aai/ROLE.prompt.md" \
+    "TEST-676: an EMPTY (present, 0-byte) ROLE-type section must refuse the same way as an absent one — a dispatched agent must never receive a payload with an empty role frame" || return 1
+  local out_bytes4
+  out_bytes4="$(wc -c < "$CANON_OUT" | tr -d ' ')"
+  [[ "$out_bytes4" -eq 0 ]] || log_fail "TEST-676: stdout must be EMPTY on the empty-role refusal too, got $out_bytes4 bytes"
+
+  log_pass "TEST-676 a declared section refuses closed whether ABSENT or present-but-EMPTY, with the named token and empty stdout — proven for the FILE-type contract section AND the ROLE-type section"
 }
 
 # --- TEST-677 ------------------------------------------------------------------
@@ -456,7 +519,22 @@ EOF
   assert_payload_contains "$(cat "$CANON_ERR")" "canon-count-mismatch: standing_hazards declared=5 found=6" \
     "TEST-677: a hazard line in LEARNED.md must count toward the ASSEMBLED total, not just the contract file" || return 1
 
-  log_pass "TEST-677 the declared hazard count is asserted against the ASSEMBLED payload (live clean at 5, fixture refuses declared=5 found=6 whether the 6th hazard lives in the contract, the role prompt or LEARNED.md, and an indented/mid-line occurrence is correctly not counted)"
+  # Spec-AC-03's own text: the build SHALL refuse "when the number ...
+  # DIFFERS" from the declared count — both directions. Every arm above
+  # plants a 6th hazard (found > declared); prove the UNDER-count direction
+  # too, so a comparison mutated to only catch over-counts cannot pass: a
+  # fixture with only 4 "- HAZ-" lines, still declared at 5, must refuse.
+  local d6="$TEST_DIR/t677-undercount"
+  mkdir -p "$d6"
+  base_fixture_tree "$d6"
+  sed -i.bak '/^- HAZ-FIVE/d' "$d6/.aai/SUBAGENT_CONTRACT.md"
+  rm -f "$d6/.aai/SUBAGENT_CONTRACT.md.bak"
+  run_canon "$d6" "CANON.yaml" "FixtureRole" "TEST-677-undercount-ref"
+  expect_rc_nonzero "TEST-677 fixture with only 4 hazards (declared 5)"
+  assert_payload_contains "$(cat "$CANON_ERR")" "canon-count-mismatch: standing_hazards declared=5 found=4" \
+    "TEST-677: an UNDER-count (found < declared) must refuse the same way as an over-count, naming both numbers" || return 1
+
+  log_pass "TEST-677 the declared hazard count is asserted against the ASSEMBLED payload (live clean at 5, fixture refuses declared=5 found=6 whether the 6th hazard lives in the contract, the role prompt or LEARNED.md, an indented/mid-line occurrence is correctly not counted, and an UNDER-count of 4 refuses too)"
 }
 
 # --- TEST-678 ------------------------------------------------------------------
@@ -630,7 +708,79 @@ EOF
   expect_rc 0 "TEST-679 declared exception must open the build"
   assert_payload_contains "$(cat "$CANON_ERR")" 'canon-duplicate-rule-exception: "- HAZ-ONE — one thing." reason="TEST-679 fixture: the repeated note deliberately restates HAZ-ONE for emphasis"' \
     "TEST-679: an admitted duplicate must be printed with its declared reason" || return 1
-  log_pass "TEST-679 a declared uniqueness exception admits the duplicate and prints it with its reason"
+
+  # Spec-AC-04's own text: "EACH of which the check SHALL print" — plural.
+  # The arm above declares and prints exactly ONE exception. Prove a SECOND,
+  # independently declared exception is ALSO printed in the same build, not
+  # merely the first one a scan happens to encounter.
+  local d2="$TEST_DIR/t679-two"
+  mkdir -p "$d2/.aai" "$d2/docs/knowledge"
+  base_fixture_tree "$d2"
+  cat > "$d2/.aai/SUBAGENT_CONTRACT.md" <<'EOF'
+# Fixture Contract
+
+## Standing hazards
+
+- HAZ-ONE — one thing.
+- HAZ-TWO — two thing.
+- HAZ-THREE — three thing.
+- HAZ-FOUR — four thing.
+- HAZ-FIVE — five thing.
+
+## Repeated notes
+
+- HAZ-ONE — one thing.
+- Never write docs/ai/STATE.yaml.
+- Never write docs/ai/STATE.yaml.
+EOF
+  write_fixture_manifest "$d2" "contract,role,learned,scope" 6 20000 \
+'  - text: "- HAZ-ONE — one thing."
+    reason: "TEST-679 fixture: exception one"
+  - text: "- Never write docs/ai/STATE.yaml."
+    reason: "TEST-679 fixture: exception two"'
+
+  run_canon "$d2" "CANON.yaml" "FixtureRole" "TEST-679-two-ref"
+  expect_rc 0 "TEST-679 two declared exceptions must both open the build"
+  assert_payload_contains "$(cat "$CANON_ERR")" 'canon-duplicate-rule-exception: "- HAZ-ONE — one thing." reason="TEST-679 fixture: exception one"' \
+    "TEST-679: the FIRST of two declared exceptions must be printed with its own reason" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" 'canon-duplicate-rule-exception: "- Never write docs/ai/STATE.yaml." reason="TEST-679 fixture: exception two"' \
+    "TEST-679: the SECOND of two declared exceptions must ALSO be printed with its own reason, not just the first" || return 1
+
+  # Spec-AC-04's own text: "the ONLY admitted duplicates SHALL be THOSE
+  # LISTED" — a declared exception must admit ONLY its own declared text,
+  # never every duplicate once uniqueness_exceptions is non-empty. A fixture
+  # with ONE declared exception (HAZ-ONE) and a SEPARATE, UNDECLARED
+  # duplicate (a non-hazard bullet) must still refuse on the undeclared one.
+  local d3="$TEST_DIR/t679-partial"
+  mkdir -p "$d3/.aai" "$d3/docs/knowledge"
+  base_fixture_tree "$d3"
+  cat > "$d3/.aai/SUBAGENT_CONTRACT.md" <<'EOF'
+# Fixture Contract
+
+## Standing hazards
+
+- HAZ-ONE — one thing.
+- HAZ-TWO — two thing.
+- HAZ-THREE — three thing.
+- HAZ-FOUR — four thing.
+- HAZ-FIVE — five thing.
+
+## Repeated notes
+
+- HAZ-ONE — one thing.
+- Never write docs/ai/STATE.yaml.
+- Never write docs/ai/STATE.yaml.
+EOF
+  write_fixture_manifest "$d3" "contract,role,learned,scope" 6 20000 \
+'  - text: "- HAZ-ONE — one thing."
+    reason: "TEST-679 fixture: only HAZ-ONE is declared, the STATE.yaml duplicate is NOT"'
+
+  run_canon "$d3" "CANON.yaml" "FixtureRole" "TEST-679-partial-ref"
+  expect_rc_nonzero "TEST-679 one declared exception must not admit a SEPARATE, undeclared duplicate"
+  assert_payload_contains "$(cat "$CANON_ERR")" 'canon-duplicate-rule: "- Never write docs/ai/STATE.yaml."' \
+    "TEST-679: an undeclared duplicate must still refuse even though a DIFFERENT duplicate is declared as an exception in the same build (the exception list is not a blanket amnesty)" || return 1
+
+  log_pass "TEST-679 a declared uniqueness exception admits the duplicate and prints it with its reason — proven for one exception, for two independently declared exceptions, and that a declared exception never admits a SEPARATE undeclared duplicate"
 }
 
 # --- TEST-680 ------------------------------------------------------------------
@@ -657,7 +807,17 @@ test_680_over_budget_refused() {
   expect_rc_nonzero "TEST-680 ceiling one byte below measured"
   assert_payload_contains "$(cat "$CANON_ERR")" "canon-over-budget: measured=$measured ceiling=$((measured - 1))" \
     "TEST-680: stderr must name both the measured size and the ceiling" || return 1
-  log_pass "TEST-680 a ceiling one byte below the measured payload refuses, naming measured=$measured ceiling=$((measured - 1))"
+
+  # Spec-AC-05's own text: refuse when the size "EXCEEDS" the ceiling —
+  # strictly greater. A ceiling exactly EQUAL to the measured size must NOT
+  # refuse; this is the boundary a mutant changing '>' to '>=' would break
+  # silently while every arm above (which only tests one byte UNDER) stays
+  # green.
+  write_fixture_manifest "$d" "contract,role,learned,scope" 5 "$measured" ""
+  run_canon "$d" "CANON.yaml" "FixtureRole" "TEST-680-ref"
+  expect_rc 0 "TEST-680 a ceiling exactly EQUAL to the measured size must NOT refuse (refusal is for EXCEEDS, not reaches)"
+
+  log_pass "TEST-680 a ceiling one byte below the measured payload refuses, naming measured=$measured ceiling=$((measured - 1)) — and a ceiling exactly EQUAL to the measured size does not refuse"
 }
 
 # --- TEST-681 ------------------------------------------------------------------
@@ -967,7 +1127,39 @@ EOF
   assert_payload_not_contains "$(cat "$CANON_ERR")" "docs/generated-687.md:1" \
     "TEST-687: the IN-SEGMENT match (docs/generated-687.md) must still be exempt (the positive control for the glob itself)" || return 1
 
-  log_pass "TEST-687 the declared corpus reaches CHANGELOG.md at the repository root (planted at line $planted_line, clean after removal), annotation_window is a bound (a correction 8 lines away does not exempt a hit at line $hit_line), an undated CORRECTION marker does not exempt (hit at line $hit_line3), and a historical glob's '*' does not cross a path separator (in-segment exempt, cross-segment reported)"
+  # `tests/skills/results/**` (found live, 2026-09-25): `test-framework.sh`
+  # captures every suite's own stdout into this gitignored run-artifact tree
+  # (.gitignore:106), and TEST-688's OWN `PASS:` description line quotes the
+  # declared pattern set — so running THIS suite left a log the very next
+  # `canon.mjs claims` call reported as a LIVE hit, self-amplifying with
+  # every sweep. Prove the declared exemption (CANON.yaml historical:) is
+  # scoped to that ONE gitignored path, not a blanket amnesty: a hit planted
+  # under a results-style path is EXEMPT, while the SAME claim text planted
+  # in a REAL corpus file in the SAME run is still reported.
+  local d5="$TEST_DIR/t687-results"
+  mkdir -p "$d5/tests/skills/results/test-20990101-000000" "$d5/tests/skills/not-results"
+  build_claims_copy "$d5"
+  printf '%s\n' "PASS: TEST-000 fixture: are deleted by a separate change." \
+    > "$d5/tests/skills/results/test-20990101-000000/aai-canon.log"
+  printf '%s\n' "AAI-CANON-TEST-687-RESULTS-CONTROL: They are deleted by a separate change." \
+    > "$d5/docs/plant-687-results-control.md"
+  # A SECOND, narrower control: a path under tests/skills/ but NOT under
+  # results/ — isolating the boundary itself, not merely a differently-
+  # rooted sibling, so an over-broad declaration (e.g. `tests/skills/**` or
+  # `tests/**` in place of `tests/skills/results/**`) is caught too.
+  printf '%s\n' "AAI-CANON-TEST-687-NOTRESULTS-CONTROL: They are deleted by a separate change." \
+    > "$d5/tests/skills/not-results/plant.md"
+
+  run_claims "$d5"
+  expect_rc_nonzero "TEST-687 a results-tree plant alone must not blind the scan to a REAL corpus hit"
+  assert_payload_not_contains "$(cat "$CANON_ERR")" "tests/skills/results/" \
+    "TEST-687: a hit under tests/skills/results/** (the test framework's OWN gitignored run-artifact tree) must be EXEMPT, not reported" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" "claim-live-assertion: tripwire-permanent docs/plant-687-results-control.md:1" \
+    "TEST-687: the SAME claim text planted in a REAL corpus file in the SAME run must still be reported — the results-tree exemption is scoped, not a blanket amnesty (the positive control)" || return 1
+  assert_payload_contains "$(cat "$CANON_ERR")" "claim-live-assertion: tripwire-permanent tests/skills/not-results/plant.md:1" \
+    "TEST-687: a hit under tests/skills/ but NOT under results/ must still be reported — the exemption's boundary is results/**, not the whole tests/skills/ tree" || return 1
+
+  log_pass "TEST-687 the declared corpus reaches CHANGELOG.md at the repository root (planted at line $planted_line, clean after removal), annotation_window is a bound (a correction 8 lines away does not exempt a hit at line $hit_line), an undated CORRECTION marker does not exempt (hit at line $hit_line3), a historical glob's '*' does not cross a path separator (in-segment exempt, cross-segment reported), and the test framework's OWN gitignored run-artifact tree (tests/skills/results/**) is exempt without blinding the scan to a real corpus hit in the same run"
 }
 
 # --- TEST-688 ------------------------------------------------------------------
@@ -981,6 +1173,7 @@ test_688_present_tense_matched() {
   cat > "$d/docs/plant-688.md" <<'EOF'
 AAI-CANON-TEST-688-A: They are deleted by a separate change.
 AAI-CANON-TEST-688-B: It is deleted by a separate change.
+AAI-CANON-TEST-688-C: The legacy fixtures will be removed in a later change.
 EOF
 
   run_claims "$d"
@@ -989,7 +1182,14 @@ EOF
     "TEST-688: the 'are deleted' variant (line 1) must be reported" || return 1
   assert_payload_contains "$(cat "$CANON_ERR")" "claim-live-assertion: tripwire-permanent docs/plant-688.md:2" \
     "TEST-688: the 'is deleted' variant (line 2) must be reported" || return 1
-  log_pass "TEST-688 both present-tense variants are each reported on their own line"
+  # BLOCKING-1 (validation round 3): the declared pattern set's THIRD
+  # member, "will be removed" — the ORIGINAL, future-tense wording of the
+  # withdrawn claim that `fu-sweep-regex-misses-present-tense` was filed
+  # ABOUT — was never planted by any fixture before this round; deleting it
+  # from CANON.yaml left the whole suite green.
+  assert_payload_contains "$(cat "$CANON_ERR")" "claim-live-assertion: tripwire-permanent docs/plant-688.md:3" \
+    "TEST-688: the future-tense 'will be removed' variant (line 3), the claim's ORIGINAL wording, must be reported" || return 1
+  log_pass "TEST-688 all three declared pattern variants (present tense 'are/is deleted', future tense 'will be removed') are each reported on their own line"
 }
 
 # --- TEST-689 ------------------------------------------------------------------
@@ -1108,6 +1308,16 @@ test_692_grammar_rendered_from_code() {
   run_canon_check "$PROJECT_ROOT" --section validation_waiver
   expect_rc 0 "TEST-692 live validation_waiver check"
 
+  # Part 4 (validation round 3, non-blocking finding NB-2, fixed this round):
+  # CANON.yaml's own `waiver_legacy_versions` comment says a declared legacy
+  # version's reason is "printed whenever it is matched" — before this round
+  # the code never printed it, so the live tree's three v1 literals were
+  # admitted SILENTLY. Assert the print actually happens against the LIVE
+  # tree, naming one of the three measured v1 sites and its declared reason
+  # verbatim from CANON.yaml.
+  assert_payload_contains "$(cat "$CANON_ERR")" 'canon-check-waiver-legacy: tests/skills/test-aai-pr-waiver.sh:412 v1 reason="pre-scope-binding grammar (bot review PR #303 F-1); refused by name as waiver_obsolete_version, never honoured, kept only in fixtures that prove the refusal"' \
+    "TEST-692: a declared LEGACY waiver-version literal must never be admitted silently — its reason must be printed whenever it is matched (CANON.yaml's own text)" || return 1
+
   # The path is INTERPOLATED into the script, never passed as process.argv[1]:
   # validation-waiver.mjs's own main-guard compares process.argv[1] against
   # its real path (a PROCESS-global array, shared by every dynamically
@@ -1139,6 +1349,8 @@ process.stdout.write(line);
   build_waiver_fixture "$d" 2
   run_canon_check "$d" --section validation_waiver
   expect_rc 0 "TEST-692 fixture copy, header intact (positive control)"
+  assert_payload_contains "$(cat "$CANON_ERR")" 'canon-check-waiver-legacy: tests/skills/fixture-waiver-usage.sh:4 v1 reason="fixture legacy version"' \
+    "TEST-692: the FIXTURE's own declared-legacy v1 literal must be named with its declared reason on a clean, non-refusing run too — the print is not conditional on a refusal happening elsewhere" || return 1
 
   sed -i.bak 's/at=<YYYY-MM-DDTHH:MM:SSZ>/at=<TIMESTAMP>/' "$d/.aai/scripts/validation-waiver.mjs"
   rm -f "$d/.aai/scripts/validation-waiver.mjs.bak"
@@ -1170,7 +1382,13 @@ test_693_version_bump_names_every_stale_literal() {
     "TEST-693: stderr must name the header line's own file" || return 1
   assert_payload_contains "$(cat "$CANON_ERR")" "tests/skills/fixture-waiver-usage.sh" \
     "TEST-693: stderr must name the stale v2 literal under tests/skills/**" || return 1
-  log_pass "TEST-693 a WAIVER_VERSION bump refuses, naming the header line and every stale v2 literal under the declared globs"
+  # Spec-AC-12's own text: "naming EACH file:line" — plural. The arm above
+  # names only the ONE stale literal under tests/skills/**; prove a SECOND,
+  # independently planted stale literal under `.aai/**` is ALSO named in the
+  # same run, not merely the first one the sweep happens to encounter.
+  assert_payload_contains "$(cat "$CANON_ERR")" "waiver-grammar-drift: .aai/system/fixture-waiver-note.md:2 found=v2" \
+    "TEST-693: stderr must ALSO name the second stale v2 literal, under .aai/** — EACH stale literal is named, not just the first" || return 1
+  log_pass "TEST-693 a WAIVER_VERSION bump refuses, naming the header line and EVERY stale v2 literal under the declared globs (proven with two independently planted literals, one per glob)"
 }
 
 # --- TEST-694 ------------------------------------------------------------------

@@ -101,6 +101,31 @@
 # none of them reviewed. Narrower-but-still-generic was rejected too — any
 # narrowing short of a slug is this same hazard at a smaller radius. Only
 # the slug-anchored entry below is declared.
+#
+# `tests/skills/results/**` (found live, 2026-09-25, `tests/**` reaching the
+# test framework's OWN run-artifact tree): `test-framework.sh` captures every
+# suite's stdout into `tests/skills/results/<run-id>/<suite>.log`
+# (`.gitignore:106`), and TEST-688's own `PASS:` line quotes the declared
+# pattern set in its description ("future tense 'will be removed'") — a
+# captured log is therefore a LIVE, un-annotated hit the very next run, with
+# no fixture involved: `env -u AAI_ROLE bash tests/skills/test-aai-canon.sh`
+# followed immediately by `node .aai/scripts/canon.mjs claims` reproduces
+# `claim-live-assertion: tripwire-permanent
+# tests/skills/results/<run-id>/aai-canon.log:<N>` on a clean tree. This is
+# NOT the same category as `docs/issues/**` or `docs/ai/reviews/**` above
+# (narrated history a human wrote) — it is BUILD/RUN EXHAUST: a gitignored
+# tree neither reviewed nor shipped, regenerated wholesale on every sweep, the
+# same category `docs/ai/tdd/**` is already in two lines above. Left
+# undeclared it is SELF-AMPLIFYING (every run leaves another log the next
+# run's scan trips on, without anyone editing a single tracked file), which
+# is worse than a one-off false positive: a corpus glob reaching a directory
+# it does not own is exactly the `fu-sweep-scope-excludes-repo-root` shape
+# inverted — this time the corpus reaches TOO FAR rather than not far enough.
+# Declared here, by name, rather than fixed by deleting the directory (a
+# green that depends on someone having cleaned up first is not a green).
+# TEST-687's new arm proves the declaration is scoped to this ONE gitignored
+# path and nothing wider: the same claim text planted in a REAL corpus file
+# in the same run is still reported.
 
 historical:
   - docs/ai/decisions.jsonl
@@ -112,6 +137,7 @@ historical:
   - docs/specs/SPEC-*-spec-canon-is-a-build-artifact.md
   - .aai/system/CANON.yaml
   - tests/skills/test-aai-canon.sh
+  - tests/skills/results/**
 
 # annotation_window (D5) — the number of lines AFTER a claim hit that a
 # declared correction/withdrawal annotation may appear in for the hit to be
