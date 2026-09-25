@@ -10,7 +10,7 @@ links:
   requirement: docs/issues/CHANGE-0191-canon-is-a-build-artifact.md
   rfc: null
   pr:
-    - TBD
+    - 395
   commits:
     - 3ec7d6e0aa293b8f10a41e6ffdacda23cdedce17
 ---

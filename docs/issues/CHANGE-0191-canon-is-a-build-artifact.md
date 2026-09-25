@@ -6,7 +6,7 @@ status: done
 capability: canon-is-a-build-artifact
 links:
   pr:
-    - TBD
+    - 395
   commits:
     - 3ec7d6e0aa293b8f10a41e6ffdacda23cdedce17
 ---
