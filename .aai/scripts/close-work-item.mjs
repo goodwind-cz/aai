@@ -1186,8 +1186,14 @@ function evaluateEvidencePathGate(docs, evidenceRoot) {
 // naming exempt/degraded/unstamped even if that upstream prose ever changes
 // shape, and a regression that stops collecting one of the three counts
 // reddens visibly here rather than silently disappearing into an unread field.
+// `uncomparable` (SPEC-DRAFT spec-gate-checks-declared-mutation Spec-AC-08):
+// the SAME "a named degrade the close must not discard" shape NB-2 fixed for
+// exempt and NB4-r7 fixed for unstamped — a spec whose gate run reports
+// uncomparable=<n> (a Mutation cell the gate could not parse into a
+// machine-readable declaration) must surface that count here too, not only
+// in mutation-gate.mjs's own stdout nobody at the close ever reads.
 function formatMutationNotice(n) {
-  return `${n.spec}: exempt=${n.exempt} degraded=${n.degraded} unstamped=${n.unstamped}`;
+  return `${n.spec}: exempt=${n.exempt} degraded=${n.degraded} unstamped=${n.unstamped} uncomparable=${n.uncomparable}`;
 }
 
 // evaluateMutationGate(resolved) -> { severity, dial?, offending?, reason? }.
@@ -1234,16 +1240,23 @@ function evaluateMutationGate(resolved) {
       // exempt counts — captured here the same way, never hand-parsed
       // elsewhere.
       const unstampedN = Number(/unstamped=(\d+)/.exec(summaryLine)?.[1] ?? 0);
-      // Gated on exemptN/unstampedN, not degradedN: D9's OWN degrade classes
-      // (pre-change spec, evidence tree absent — no Status column was ever
-      // read, so nothing was ever exempted) are unrelated to NB-2/NB4-r7 and
-      // stay exactly as silent at the close as before this fix (an existing,
-      // intentional close-work-item.mjs contract). Only a summary line that
-      // itself carries exempt=N and/or unstamped=N — an ordinary PASS with
-      // some exempt rows, the "every row exempt" DEGRADED class, or a PASS/
-      // FAIL carrying a legacy unstamped record — is a notice here.
-      if (exemptN > 0 || unstampedN > 0) {
-        notices.push({ spec: doc.rel, exempt: exemptN, degraded: degradedN, unstamped: unstampedN, summary: summaryLine });
+      // uncomparableN (Spec-AC-08): a Mutation cell the gate could not parse
+      // into a machine-readable declaration (SPEC-DRAFT spec-gate-checks-
+      // declared-mutation D5) — counted by the gate, never satisfied, and
+      // now surfaced here the same way exempt/unstamped already are.
+      const uncomparableN = Number(/uncomparable=(\d+)/.exec(summaryLine)?.[1] ?? 0);
+      // Gated on exemptN/unstampedN/uncomparableN, not degradedN: D9's OWN
+      // degrade classes (pre-change spec, evidence tree absent — no Status
+      // column was ever read, so nothing was ever exempted) are unrelated to
+      // NB-2/NB4-r7/Spec-AC-08 and stay exactly as silent at the close as
+      // before this fix (an existing, intentional close-work-item.mjs
+      // contract). Only a summary line that itself carries exempt=N and/or
+      // unstamped=N and/or uncomparable=N — an ordinary PASS with some
+      // exempt rows, the "every row exempt" DEGRADED class, a PASS/FAIL
+      // carrying a legacy unstamped record, or a PASS/FAIL carrying an
+      // uncomparable count — is a notice here.
+      if (exemptN > 0 || unstampedN > 0 || uncomparableN > 0) {
+        notices.push({ spec: doc.rel, exempt: exemptN, degraded: degradedN, unstamped: unstampedN, uncomparable: uncomparableN, summary: summaryLine });
       }
     }
     if (status === 0) continue;

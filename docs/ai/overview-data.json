@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-25T18:39:41.662Z",
+  "generatedAt": "2026-09-26T10:56:00.781Z",
   "project": "aai",
   "counts": {
-    "delivered": 255,
+    "delivered": 256,
     "in_progress": 14,
     "releases": 1,
     "tokens_total": 68899611
@@ -195,6 +195,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "gate-checks-declared-mutation",
+      "title": "The mutation gate checks that the recorded run is the mutation the row declares",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0193-gate-checks-declared-mutation.md",
+      "closed_on": "2026-09-26",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0187-spec-gate-checks-declared-mutation.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "operator-waiver-unblocks-pr",
       "title": "An operator who validated the change themselves can reach a PR without lying",
@@ -3517,6 +3530,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "gate-checks-declared-mutation",
+          "title": "The mutation gate checks that the recorded run is the mutation the row declares",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0193-gate-checks-declared-mutation.md",
+          "closed_on": "2026-09-26",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0187-spec-gate-checks-declared-mutation.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "operator-waiver-unblocks-pr",
           "title": "An operator who validated the change themselves can reach a PR without lying",

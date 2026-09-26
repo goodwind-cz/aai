@@ -66,11 +66,12 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { parseFrontmatter, parseTestPlanTable, resolveStrategy, isMutationCellPlaceholder } from './lib/docs-model.mjs';
-import { parseRecord, recordFileName } from './lib/mutation-record.mjs';
+import { parseRecord, recordFileName, extractDeclaredMutations, canonicalizeMutation } from './lib/mutation-record.mjs';
 
 const ROOT = process.cwd();
 
@@ -168,6 +169,61 @@ function isAncestorOfHead(commit) {
   }
 }
 
+// computeUncomparableRows(rows) -> [{ testId, reason }] — SPEC-DRAFT
+// spec-gate-checks-declared-mutation D2/D6/D7: every row whose Mutation cell
+// is non-empty and not a placeholder (the gate's OWN two pre-existing
+// classes — a missing/placeholder cell is already OFFENDING and never
+// reaches this classifier) yet yields ZERO tokens from
+// extractDeclaredMutations. Reads ROW TEXT ONLY — no record lookup, no
+// evidence directory — so this is the ONE judgement this gate can still make
+// on a checkout with no evidence tree at all (D7). An EXEMPT row (Status
+// deferred/dropped/rejected) is skipped first, matching the per-row loop
+// below byte-for-byte: the frozen spec's Implementation plan Edge cases says
+// an EXEMPT row "is still exempted first and is never classified, counted or
+// compared" — a deferred row carrying a prose Mutation cell must not drive
+// this ratchet with a remedy nobody can perform (you cannot produce a RED
+// record for a row that is deliberately not being run).
+// EXPORTED (validation round 2 BLOCKING, TEST-709): a test asserting
+// Spec-AC-09 ("equal to the count the shipped classifier measures") must call
+// THIS function, never re-implement its loop — a second copy is exactly the
+// defect class this ride exists to close (round 1's tautological TEST-703
+// backtick arm was the first instance; a re-implemented TEST-709 was the
+// second). Exporting a function from a CLI script is otherwise inert: this
+// file's own entry point is now guarded (see the isMain check at the bottom),
+// so `import`ing this module for its exports no longer also runs main()
+// against the importer's own process.argv.
+export function computeUncomparableRows(rows) {
+  const out = [];
+  for (const row of rows) {
+    const statusNorm = (row.statusCell ?? '').trim().toLowerCase();
+    if (EXEMPT_STATUSES.has(statusNorm)) continue;
+    const cell = (row.mutationCell ?? '').trim();
+    if (!cell) continue;
+    if (isMutationCellPlaceholder(cell)) continue;
+    if (extractDeclaredMutations(cell).length === 0) {
+      out.push({ testId: row.testId, reason: `Mutation cell has no machine-readable declaration: ${JSON.stringify(cell)}` });
+    }
+  }
+  return out;
+}
+
+// readUncomparableBaseline(fm, specArg) -> non-negative integer (absent = 0,
+// D6). A non-integer or negative value is a gate error (exit 3) naming the
+// spec, never a silent 0 (Implementation plan "Edge cases").
+function readUncomparableBaseline(fm, specArg) {
+  const raw = fm.mutation_uncomparable;
+  if (raw === undefined || raw === null || String(raw).trim() === '') return 0;
+  const s = String(raw).trim();
+  if (!/^-?\d+$/.test(s)) {
+    gateError(`--spec ${specArg} has a non-integer mutation_uncomparable frontmatter value (${JSON.stringify(raw)}); must be a non-negative integer`);
+  }
+  const n = Number(s);
+  if (n < 0) {
+    gateError(`--spec ${specArg} has a negative mutation_uncomparable frontmatter value (${n}); must be a non-negative integer`);
+  }
+  return n;
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) printHelp();
@@ -209,11 +265,16 @@ function main() {
       if (payload.unstamped) {
         console.log(`NOTE: unstamped=${payload.unstamped} record(s) lack target_sha256 (predate the D8 stale-record check) — regenerate via mutation-run.mjs to close the gap`);
       }
+      if (payload.ratchet_note) {
+        console.log(payload.ratchet_note);
+      }
       if (args.listDegraded) {
         for (const d of payload.degraded_rows ?? []) console.log(`DEGRADED ${d.testId}: ${d.reason}`);
       }
       for (const e of payload.exempt_rows ?? []) console.log(`EXEMPT ${e.testId}: status ${e.status}`);
+      for (const u of payload.uncomparable_rows ?? []) console.log(`UNCOMPARABLE ${u.testId}: ${u.reason}`);
       for (const o of payload.offending_rows ?? []) console.log(`OFFENDING ${o.testId}: ${o.reason}`);
+      for (const s of payload.spec_offending ?? []) console.log(`OFFENDING ${s.specId}: ${s.reason}`);
     }
   };
 
@@ -231,6 +292,22 @@ function main() {
     exit(0);
   }
 
+  // D6/D7: the uncomparable ratchet is evaluated for EVERY applicable spec,
+  // reading committed row text only — before the evidence-directory check
+  // below, so it runs identically whether or not that directory exists (the
+  // one place a DEGRADED run can now exit 5).
+  const uncomparableBaseline = readUncomparableBaseline(fm, args.spec);
+  const textUncomparableRows = computeUncomparableRows(tp.rows);
+  const uncomparableIdSet = new Set(textUncomparableRows.map((r) => r.testId));
+  const ratchetActual = textUncomparableRows.length;
+  const ratchetExceeded = ratchetActual > uncomparableBaseline;
+  const ratchetBelow = ratchetActual < uncomparableBaseline;
+  const ratchetOffendingEntry = () => ({
+    specId,
+    reason: `mutation_uncomparable actual=${ratchetActual} exceeds frontmatter baseline=${uncomparableBaseline} (row(s): ${textUncomparableRows.map((r) => r.testId).join(', ') || 'none named'}) — reconcile the drifted row(s) via mutation-run.mjs (and spec-amend.mjs to disclose the cell edit) or raise mutation_uncomparable to ${ratchetActual} with disclosure`,
+  });
+  const ratchetNoteText = () => `NOTE: mutation_uncomparable (${uncomparableBaseline}) can be lowered to ${ratchetActual}`;
+
   const evidenceDir = path.join(ROOT, 'docs', 'ai', 'tdd', specId);
   let evidenceDirExists = false;
   try {
@@ -239,21 +316,59 @@ function main() {
     evidenceDirExists = false;
   }
   if (!evidenceDirExists) {
+    if (ratchetExceeded) {
+      const payload = {
+        spec_id: specId,
+        applicable: true,
+        degraded: tp.rows.length,
+        degraded_class: 'evidence tree absent',
+        uncomparable: ratchetActual,
+        uncomparable_rows: textUncomparableRows,
+        uncomparable_baseline: uncomparableBaseline,
+        spec_offending: [ratchetOffendingEntry()],
+        offending_rows: [],
+        degraded_rows: tp.rows.map((r) => ({ testId: r.testId, reason: 'evidence tree absent' })),
+        summary_line: `GATE FAIL: mutation_uncomparable ratchet exceeded degraded=${tp.rows.length} uncomparable=${ratchetActual}`,
+      };
+      summary(payload);
+      exit(5);
+    }
     const payload = {
       spec_id: specId,
       applicable: true,
       degraded: tp.rows.length,
       degraded_class: 'evidence tree absent',
-      summary_line: `DEGRADED: evidence tree absent degraded=${tp.rows.length}`,
+      uncomparable: ratchetActual,
+      uncomparable_rows: textUncomparableRows,
+      uncomparable_baseline: uncomparableBaseline,
+      // `uncomparable=<n>` is appended, never inserted — the line still
+      // STARTS with the byte-identical "DEGRADED: evidence tree absent
+      // degraded=<n>" prefix Spec-AC-06/TEST-706 pin (D7: the ratchet is
+      // evaluated even here, and the count it read must be visible, not
+      // only silently correct).
+      summary_line: `DEGRADED: evidence tree absent degraded=${tp.rows.length} uncomparable=${ratchetActual}`,
       offending_rows: [],
       degraded_rows: tp.rows.map((r) => ({ testId: r.testId, reason: 'evidence tree absent' })),
     };
+    if (ratchetBelow) payload.ratchet_note = ratchetNoteText();
     summary(payload);
     exit(0);
   }
 
   const offending = [];
   const exempt = [];
+  // F3 (round 3 review): there is no separate per-row `uncomparable` array
+  // here any more. `textUncomparableRows` (computed above, before this
+  // loop, from row TEXT ALONE — the same source `uncomparableIdSet` and
+  // `ratchetActual` already read) is now the ONE place both the count and
+  // the names come from, in every branch below. A row that fails an earlier
+  // check (missing record, wrong suite, non-RED, non-ancestor) still
+  // `continue`s into `offending` exactly as before — that diagnosis is not
+  // replaced — but it no longer also needs a SECOND, independently
+  // populated array to be named as UNCOMPARABLE: it already IS a member of
+  // `textUncomparableRows` if its cell has no declared token, and every
+  // consumer below reads that array directly, never a copy that some
+  // `continue` can skip past.
   // Remediation round 5 (D8 amendment, BLOCKING-1 validation round 6): a
   // record's own `target_sha256` (optional — see lib/mutation-record.mjs)
   // lets this gate tell that a SATISFIED-shaped record has gone STALE — its
@@ -309,6 +424,33 @@ function main() {
       offending.push({ testId: row.testId, reason: `record's base_commit "${f.base_commit}" is not an ancestor of HEAD` });
       continue;
     }
+    // Spec-AC-01/02/03/04 (D2, D3, D4, D5): the row's cell is classified
+    // against the SAME text-only judgement the ratchet above already made
+    // (uncomparableIdSet) — a row with zero declared tokens is UNCOMPARABLE
+    // and excluded from `satisfied`, never silently counted as passing
+    // (D5: it still owes every check above AND the target_sha256 checks
+    // below, so it falls through rather than `continue`ing here). A row
+    // WITH declared token(s) must have its record's `mutation` canonically
+    // equal AT LEAST ONE of them (D4: a cell may legitimately carry a
+    // rotated token beside the live one) — any other recorded value is a
+    // declaration that does not match what actually ran, and is OFFENDING,
+    // naming both the declared and the recorded value (never accusing a row
+    // this gate could not parse — that fails safe to UNCOMPARABLE instead,
+    // D2). A row already in `uncomparableIdSet` skips the comparison below
+    // (there is nothing declared to compare against) but is never pushed to
+    // a local array here — it is named later, uniformly, from
+    // `textUncomparableRows` (F3).
+    if (!uncomparableIdSet.has(row.testId)) {
+      const declaredTokens = extractDeclaredMutations(mCell);
+      const recordedCanon = canonicalizeMutation(f.mutation);
+      if (!declaredTokens.includes(recordedCanon)) {
+        offending.push({
+          testId: row.testId,
+          reason: `declared mutation (${declaredTokens.join(' | ')}) does not match the record's mutation "${f.mutation}" (canonical "${recordedCanon}")`,
+        });
+        continue;
+      }
+    }
     if (!f.target_sha256) {
       unstamped++;
       continue;
@@ -349,7 +491,20 @@ function main() {
     }
   }
 
-  if (offending.length) {
+  if (offending.length || ratchetExceeded) {
+    // F3 (round 3 review, the THIRD appearance of the N3 shape): the count
+    // (`uncomparable: ratchetActual`) and the names (`uncomparable_rows`)
+    // now both read `textUncomparableRows` — the ONE row-text-only array
+    // computed before this loop even starts, which `uncomparableIdSet` and
+    // `ratchetActual` are themselves derived from. A row whose Mutation
+    // cell is text-uncomparable but whose RECORD is missing (or otherwise
+    // fails an earlier check) still lands in `offending` via its own
+    // `continue` above — that diagnosis is unchanged — but it can no longer
+    // go silently unnamed here: it is a member of `textUncomparableRows` by
+    // construction, regardless of which branch of the per-row loop it left
+    // through. The count and the names cannot disagree because there is no
+    // second, incrementally-populated array left for them to disagree
+    // FROM.
     const payload = {
       spec_id: specId,
       applicable: true,
@@ -358,21 +513,29 @@ function main() {
       offending_rows: offending,
       degraded_rows: [],
       exempt_rows: exempt,
-      summary_line: `GATE FAIL: ${offending.length} offending row(s) degraded=0 unstamped=${unstamped}${exempt.length ? ` exempt=${exempt.length}` : ''}`,
+      uncomparable: ratchetActual,
+      uncomparable_rows: textUncomparableRows,
+      uncomparable_baseline: uncomparableBaseline,
+      spec_offending: ratchetExceeded ? [ratchetOffendingEntry()] : [],
+      summary_line: `GATE FAIL: ${offending.length} offending row(s) degraded=0 unstamped=${unstamped} uncomparable=${ratchetActual}${exempt.length ? ` exempt=${exempt.length}` : ''}`,
     };
     summary(payload);
     exit(5);
   }
 
-  const satisfied = tp.rows.length - exempt.length;
+  const satisfied = tp.rows.length - exempt.length - ratchetActual;
 
   // Remediation round 4 (NB-2): a Test Plan whose rows are ALL exempt passes
   // vacuously — zero rows were ever judged against the RED-record
   // requirement, which reads identically to a spec with no rows at all. That
   // is an applicability degrade (D9's own class), not a satisfied-rows PASS,
   // so it gets its own named class here rather than a "GATE PASS: 0 row(s)
-  // satisfied" line an operator would read as "nothing to report".
-  if (exempt.length > 0 && satisfied === 0) {
+  // satisfied" line an operator would read as "nothing to report". Guarded
+  // on exempt.length === tp.rows.length (not merely satisfied === 0, which
+  // the new uncomparable subtraction can now also drive to zero without
+  // every row being exempt) — this class is specifically "every row exempt",
+  // never "every row exempt or uncomparable".
+  if (exempt.length > 0 && exempt.length === tp.rows.length) {
     const payload = {
       spec_id: specId,
       applicable: true,
@@ -382,7 +545,19 @@ function main() {
       offending_rows: [],
       degraded_rows: [],
       exempt_rows: exempt,
+      uncomparable: 0,
+      uncomparable_rows: [],
+      uncomparable_baseline: uncomparableBaseline,
     };
+    // F4 (round 3 review): every OTHER exit-0 path that can find
+    // `ratchetBelow` true (the ordinary PASS below, and the evidence-tree-
+    // absent DEGRADE above) prints the lower-the-baseline NOTE. This path
+    // used to be the one silent exception — every row exempt still leaves
+    // `mutation_uncomparable` (D6) evaluated against `ratchetActual` (D7,
+    // read from committed row text alone, unaffected by every row also
+    // being exempt), so a baseline that could be lowered went undisclosed
+    // here indefinitely.
+    if (ratchetBelow) payload.ratchet_note = ratchetNoteText();
     summary(payload);
     exit(0);
   }
@@ -395,10 +570,23 @@ function main() {
     offending_rows: [],
     degraded_rows: [],
     exempt_rows: exempt,
-    summary_line: `GATE PASS: ${satisfied} row(s) satisfied degraded=0 unstamped=${unstamped}${exempt.length ? ` exempt=${exempt.length}` : ''}`,
+    uncomparable: ratchetActual,
+    uncomparable_rows: textUncomparableRows,
+    uncomparable_baseline: uncomparableBaseline,
+    summary_line: `GATE PASS: ${satisfied} row(s) satisfied degraded=0 unstamped=${unstamped} uncomparable=${ratchetActual}${exempt.length ? ` exempt=${exempt.length}` : ''}`,
   };
+  if (ratchetBelow) payload.ratchet_note = ratchetNoteText();
   summary(payload);
   exit(0);
 }
 
-runMain(() => main());
+// Standard ESM entry-point guard (matching mutation-run.mjs's own NB4-r3):
+// lets a TEST import this module for its exports (computeUncomparableRows)
+// without ALSO running the CLI against the importer's own process.argv — a
+// pure safety addition; every existing `node mutation-gate.mjs ...`
+// invocation is unaffected (argv[1] IS this file in that case). Both sides
+// through realpath so a symlinked invocation still runs.
+const __argvReal = (() => { try { return fs.realpathSync(path.resolve(process.argv[1] ?? '')); } catch { return ''; } })();
+if (__argvReal !== '' && __argvReal === fs.realpathSync(fileURLToPath(import.meta.url))) {
+  runMain(() => main());
+}

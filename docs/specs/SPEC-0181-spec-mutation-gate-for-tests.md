@@ -6,6 +6,7 @@ status: done
 frozen_sha256: 6d46c5b264d482df500c802df8d5f7daea0260d6db3e8d2de920fa8544dcc752
 ceremony_level: 2
 mutation_gate: v1
+mutation_uncomparable: 49
 links:
   requirement: docs/issues/CHANGE-0187-mutation-gate-for-tests.md
   rfc: null

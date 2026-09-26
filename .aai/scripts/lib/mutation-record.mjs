@@ -170,3 +170,127 @@ export function patchFileName(testId) {
 export function rotatedPatchFileName(testId, runAtUtc, suffix) {
   return `mutation-${testId}.${runAtUtc}${suffix ? `.${suffix}` : ''}.patch`;
 }
+
+// --- declared-mutation grammar (SPEC-DRAFT spec-gate-checks-declared-
+// mutation D1, D2, D3) --------------------------------------------------
+//
+// D1: ONE grammar, in ONE module, imported by BOTH the runner's applier
+// (mutation-run.mjs `applySedExpr`, which now calls `parseSedExpr` instead
+// of carrying its own inline regex) and the gate's extractor
+// (`extractDeclaredMutations`, mutation-gate.mjs) — a declaration the gate
+// is willing to compare is by construction an expression the runner is able
+// to apply, and vice versa (TEST-707).
+
+// SED_EXPR_RE — the whole-string "s/<pat>/<repl>/<flags>" grammar (the
+// applier's own character classes: an escaped char OR any char that is not
+// a backslash/slash, for both the pattern and replacement halves; flags
+// restricted to the real JS RegExp modifier letters). Written as a real
+// regex LITERAL (never hand-escaped into a string) so its `.source` is the
+// single byte-exact definition every other regex below is built from —
+// hand-duplicating this source as a second string literal is exactly the
+// drift D1 exists to close.
+export const SED_EXPR_RE = /^s\/((?:\\.|[^\\/])*)\/((?:\\.|[^\\/])*)\/([gimsuy]*)$/;
+
+// parseSedExpr(expr) -> { pattern, replacement, flags } | null. Never
+// throws — a non-match is DATA the caller interprets (mutation-run.mjs's
+// applySedExpr throws its own usage message; extractDeclaredMutations below
+// simply does not yield a token for it, per D2's fail-safe direction).
+// `pattern`/`replacement` have delimiter-escaped slashes (`\/`) un-escaped
+// back to `/`, matching the applier's own prior inline behaviour exactly.
+export function parseSedExpr(expr) {
+  const m = SED_EXPR_RE.exec(String(expr ?? ''));
+  if (!m) return null;
+  const [, patSrc, replSrc, flags] = m;
+  return {
+    pattern: patSrc.replace(/\\\//g, '/'),
+    replacement: replSrc.replace(/\\\//g, '/'),
+    flags,
+  };
+}
+
+// SED_DECL_RE — an embedded `sed:s/<pat>/<repl>/<flags>` declaration found
+// inside free text (a Test Plan Mutation cell), searched globally. Built
+// from SED_EXPR_RE's OWN `.source` (anchors stripped, `sed:` prefix and a
+// trailing boundary added) rather than a second hand-written pattern, so the
+// two can never independently drift into judging different expressions
+// (D1). The `(?!\w)` boundary is D2's fail-safe: a flags run that bleeds
+// into a following WORD CHARACTER — a letter (`sed:s/A/B/gone`), a DIGIT
+// (`sed:s/A/B/g1`) or an underscore (`sed:s/A/B/g_`) — fails to match here
+// at all, on every possible backtrack of the `[gimsuy]*` flags run (down to
+// zero flags), so the row lands in the counted UNCOMPARABLE class rather
+// than being silently truncated to a shorter, syntactically-valid-looking
+// prefix that the runner's own anchored `parseSedExpr` would never have
+// accepted for the cell's actual (complete) text (F1, round 3 review: the
+// earlier `(?![A-Za-z])` boundary let a digit or underscore suffix through,
+// so a malformed expression could satisfy a row via a prefix of itself that
+// was never what the cell declared or what could have been run).
+export const SED_DECL_RE = new RegExp(
+  `sed:${SED_EXPR_RE.source.replace(/^\^/, '').replace(/\$$/, '')}(?!\\w)`,
+  'g'
+);
+
+// PATCH_DECL_RE — an embedded `patch:<path>.patch` declaration, searched
+// globally. Path characters are the ordinary repo-relative-path set; the
+// declaration ends at the FIRST run of characters outside that set (so a
+// cell that only mentions the word "patch:" in prose, or breaks the path
+// with a space, yields no token — D2's fail-safe direction again).
+// Leading `(?<!\w)` and trailing `(?![A-Za-z0-9_./-])` token boundaries (F2,
+// round 3 review): without them, `notpatch:foo.patch` extracted
+// `patch:foo.patch` (the literal `patch:` glued onto a preceding word, with
+// no left boundary at all), and `patch:foo.patch.bak` extracted
+// `patch:foo.patch` (the group's own greedy-then-backtrack search for a
+// `.patch` suffix stopped at the FIRST one it could close, silently
+// dropping the `.bak` tail rather than refusing the whole ambiguous
+// declaration). Both are now unmatchable — zero tokens, UNCOMPARABLE —
+// rather than a valid-looking path that was never what the cell declared.
+export const PATCH_DECL_RE = /(?<!\w)patch:([A-Za-z0-9_./-]+\.patch)(?![A-Za-z0-9_./-])/g;
+
+// canonicalizeMutation(s) -> s with internal whitespace runs collapsed to a
+// single space and outer whitespace trimmed. NOTHING else (D3): backslashes
+// stay significant on purpose — an escape-insensitive compare would accept
+// `sed:s/split(X)/…/` for a record that ran `sed:s/split\(X\)/…/`, a
+// DIFFERENT regex that could not have matched the source.
+export function canonicalizeMutation(s) {
+  return String(s ?? '').replace(/\s+/g, ' ').trim();
+}
+
+// extractDeclaredMutations(cellText) -> string[] of canonicalized declared
+// tokens (each including its `sed:`/`patch:` prefix), in the order found.
+// D2: scans the cell UNMODIFIED (no backtick stripping — see below) for
+// `sed:` and `patch:` declarations. A cell with zero matches yields an empty
+// array — the caller's signal that the row is UNCOMPARABLE, never a thrown
+// error and never a guess.
+//
+// Spec-AC-03's "surrounding backticks" equivalence needs no separate strip
+// step: SED_DECL_RE's match starts at the literal `sed:` and ends at the
+// flags run plus its `(?![A-Za-z])` boundary, so a markdown code-span
+// delimiter immediately before `sed:` or immediately after the closing
+// flags is never PART of the match in the first place — stripping it was
+// always a no-op. A blanket `.replace(/`/g, '')` over the whole cell did
+// something else, and wrongly: it also deleted backticks that are INSIDE
+// the declared pattern/replacement (a template-literal expression, e.g.
+// `` sed:s/deny(`${a.ref}` x/deny(false/ ``), which corrupts the extracted
+// token two ways at once — a declaration containing a literal backtick can
+// never again equal ANY record (false OFFENDING, unfixable by re-running),
+// and a record that dropped the same backtick(s) wrongly SATISFIES a
+// declaration that could not have matched the same source (false PASS,
+// exactly the hole D3 refuses one notch lower for backslashes). Leaving the
+// cell untouched fixes both: surrounding delimiters stay excluded by the
+// regex boundary alone, and internal backticks stay significant on both
+// sides of the comparison.
+export function extractDeclaredMutations(cellText) {
+  const text = String(cellText ?? '');
+  const out = [];
+  SED_DECL_RE.lastIndex = 0;
+  let m;
+  while ((m = SED_DECL_RE.exec(text))) {
+    out.push(canonicalizeMutation(m[0]));
+    if (m[0].length === 0) SED_DECL_RE.lastIndex += 1;
+  }
+  PATCH_DECL_RE.lastIndex = 0;
+  while ((m = PATCH_DECL_RE.exec(text))) {
+    out.push(canonicalizeMutation(m[0]));
+    if (m[0].length === 0) PATCH_DECL_RE.lastIndex += 1;
+  }
+  return out;
+}

@@ -4,6 +4,7 @@ type: spec
 number: 182
 status: done
 mutation_gate: v1
+mutation_uncomparable: 10
 frozen_sha256: 0bc3049607b7091c53b6100aea63072e3be417f3d70035e84f5cca3f6374966a
 ceremony_level: 2
 links:

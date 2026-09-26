@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-25T21:27:44.845Z
+Generated: 2026-09-26T12:04:14.237Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -50,7 +50,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (444)
+## Done (446)
 
 | ID | Type | Path |
 |---|---|---|
@@ -240,6 +240,7 @@ _None._
 | CHANGE-0188 | issues | docs/issues/CHANGE-0188-close-ceremony-sweep.md |
 | CHANGE-0190 | issues | docs/issues/CHANGE-0190-friction-channel-sweep.md |
 | CHANGE-0191 | issues | docs/issues/CHANGE-0191-canon-is-a-build-artifact.md |
+| CHANGE-0193 | issues | docs/issues/CHANGE-0193-gate-checks-declared-mutation.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -496,6 +497,7 @@ _None._
 | SPEC-0184 | specs | docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md |
 | SPEC-0185 | specs | docs/specs/SPEC-0185-spec-friction-channel-sweep.md |
 | SPEC-0186 | specs | docs/specs/SPEC-0186-spec-canon-is-a-build-artifact.md |
+| SPEC-0187 | specs | docs/specs/SPEC-0187-spec-gate-checks-declared-mutation.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -569,4 +571,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-25 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-26 — counts above use this date for overdue checks.
