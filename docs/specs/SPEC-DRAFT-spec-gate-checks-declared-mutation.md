@@ -4,7 +4,7 @@ number: null
 type: spec
 status: implementing
 mutation_gate: v1
-frozen_sha256: 8460803fc9f8f2f30d6b07abdcb5061b3a8a45ee8d323dfcf564fab0a925f948
+frozen_sha256: 152fd6c1bac459c287722ff9484aa17f79c015eac555420acaed49948c73e152
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-gate-checks-declared-mutation.md
@@ -200,7 +200,7 @@ None.
   does not canonically equal any declared token THEN the gate reports the row
   as OFFENDING, names both the declared and the recorded value, and exits 5.
   - Verification: `bash tests/skills/test-aai-mutation-gate.sh
-    test_701_gate_compares_declared_mutation`; the fixture's stdout carries
+    test_701_declared_mismatch_is_offending`; the fixture's stdout carries
     `OFFENDING TEST-9001:` with both values and the run exits 5.
 - Spec-AC-02: WHEN the record's `mutation` canonically equals one of the cell's
   declared tokens (including a cell that declares two) THEN the row is counted
@@ -211,7 +211,14 @@ None.
   surrounding backticks THEN they compare equal, AND WHEN they differ by a
   backslash escape THEN they do not.
   - Verification: same suite, `test_703_canonicalization_boundaries`; the
-    whitespace arm exits 0, the backslash arm exits 5.
+    whitespace arm exits 0, the backslash arm exits 5. Round 2 (validation
+    BLOCKING-2): a backtick INSIDE a declared expression (not a surrounding
+    markdown code-span delimiter) is proven significant on BOTH sides of the
+    comparison by `test_710_backtick_inside_expression_significant` — the
+    genuine backtick-significance claim now lives there, since a
+    surrounding-backtick delimiter is never part of the match in the first
+    place (D2), which is what made the ORIGINAL arm 1 of test_703
+    tautological for that claim.
 - Spec-AC-04: WHEN a row's cell declares no machine-readable mutation THEN the
   gate prints `UNCOMPARABLE <TEST-id>:` for it, carries `uncomparable=<n>` in
   the summary line, and EXCLUDES the row from the `satisfied` count.
@@ -227,7 +234,12 @@ None.
   to <n>`.
   - Verification: same suite, `test_705_uncomparable_ratchet`; three arms, exit
     5 / 0 / 0, and `node .aai/scripts/spec-lint.mjs --path <fixture>` reports no
-    finding naming `mutation_uncomparable`.
+    finding naming `mutation_uncomparable`. Round 2 (validation N2/N3):
+    `test_711_exempt_row_never_drives_uncomparable_ratchet` proves an EXEMPT
+    row's prose Mutation cell is excluded from this ratchet altogether
+    (Implementation plan "Edge cases"), and that a NON-exempt prose row with
+    no record still makes the FAIL summary's `uncomparable=<n>` agree with
+    this ratchet's own `actual=<n>` rather than under-reporting it.
 - Spec-AC-06: WHEN an applicable spec's evidence directory is absent THEN the
   gate still evaluates the ratchet — exit 5 naming the spec when the count
   exceeds the baseline, and the unchanged `DEGRADED: evidence tree absent`
@@ -261,15 +273,15 @@ None.
 
 | Spec-AC    | Description                                                                                                  | Status  | Evidence | Review-By | Notes |
 |------------|--------------------------------------------------------------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | WHEN a declared mutation does not match the record THEN the row is OFFENDING naming both values, exit 5        | planned | —        | —         | —     |
-| Spec-AC-02 | WHEN the record matches any declared token THEN the row counts as satisfied                                    | planned | —        | —         | —     |
-| Spec-AC-03 | Canonicalization equates whitespace and backticks and keeps backslashes significant                            | planned | —        | —         | —     |
-| Spec-AC-04 | An undeclarable cell is NAMED and counted as uncomparable and never counted as satisfied                       | planned | —        | —         | —     |
-| Spec-AC-05 | The uncomparable count is ratcheted against the spec's own frontmatter baseline                                | planned | —        | —         | —     |
-| Spec-AC-06 | The ratchet holds on a checkout with no evidence tree                                                          | planned | —        | —         | —     |
-| Spec-AC-07 | One sed grammar shared by the runner's applier and the gate's extractor                                        | planned | —        | —         | —     |
-| Spec-AC-08 | The close ceremony names a non-zero uncomparable count instead of closing silently                             | planned | —        | —         | —     |
-| Spec-AC-09 | The 5 live gated specs carry measured baselines                                                                | planned | —        | —         | —     |
+| Spec-AC-01 | WHEN a declared mutation does not match the record THEN the row is OFFENDING naming both values, exit 5        | done | test_701_declared_mismatch_is_offending green; mutation-TEST-701.txt | validation:2026-09-26 | validation round 2: held |
+| Spec-AC-02 | WHEN the record matches any declared token THEN the row counts as satisfied                                    | done | test_702_gate_accepts_matching_declaration green; mutation-TEST-702.txt | validation:2026-09-26 | validation round 2: held |
+| Spec-AC-03 | Canonicalization equates whitespace and backticks and keeps backslashes significant                            | done | test_703_canonicalization_boundaries + test_710_backtick_inside_expression_significant green; mutation-TEST-703/710.txt | validation:2026-09-26 | validation round 2: held (backtick-significance proof moved to TEST-710 after round 1 BLOCKING-2; TEST-703 arm 1 reworked to close the round-2 M4 internal-whitespace gap) |
+| Spec-AC-04 | An undeclarable cell is NAMED and counted as uncomparable and never counted as satisfied                       | done | test_704_uncomparable_class_is_named green; mutation-TEST-704.txt | validation:2026-09-26 | validation round 2: held |
+| Spec-AC-05 | The uncomparable count is ratcheted against the spec's own frontmatter baseline                                | done | test_705_uncomparable_ratchet + test_711_exempt_row_never_drives_uncomparable_ratchet green; mutation-TEST-705/711.txt | validation:2026-09-26 | validation round 2: held (TEST-711 closes N2/N3 — an EXEMPT row never drives the ratchet, and the FAIL summary's uncomparable= now agrees with the ratchet's own actual= for a non-exempt row too) |
+| Spec-AC-06 | The ratchet holds on a checkout with no evidence tree                                                          | done | test_706_ratchet_without_evidence_tree green; mutation-TEST-706.txt | validation:2026-09-26 | validation round 2: held |
+| Spec-AC-07 | One sed grammar shared by the runner's applier and the gate's extractor                                        | done | test_707_one_sed_grammar green; mutation-TEST-707.txt | validation:2026-09-26 | validation round 2: held |
+| Spec-AC-08 | The close ceremony names a non-zero uncomparable count instead of closing silently                             | done | test_708_close_surfaces_uncomparable green; mutation-TEST-708.txt | validation:2026-09-26 | validation round 2: held |
+| Spec-AC-09 | The 5 live gated specs carry measured baselines                                                                | done | test_709_live_corpus_baselines_are_measured green (now calling the exported computeUncomparableRows, never a re-implementation); mutation-TEST-709.txt; SPEC-0184 re-stamped 31 -> 30 | validation:2026-09-26 | validation round 2: was FAILS (SPEC-0184 shipped 30 vs frontmatter 31, TEST-709 blind to it) — closed this round |
 
 ## Implementation plan
 
@@ -336,6 +348,8 @@ Edge cases:
 | TEST-707 | Spec-AC-07 | integration | tests/skills/test-aai-mutation-gate.sh     | The same three expressions are accepted or refused identically by the exported grammar and by a real mutation-run.mjs run, and mutation-run carries no second copy         | sed:s/\[gimsuy\]\*/[a-z]*/                                                                                                     | green |
 | TEST-708 | Spec-AC-08 | integration | tests/skills/test-aai-close-work-item.sh   | A close whose spec reports uncomparable=1 prints that count in the mutation gate WARNING instead of closing silently                                                       | sed:s/uncomparableN > 0/false/                                                                                                 | green |
 | TEST-709 | Spec-AC-09 | integration | tests/skills/test-aai-mutation-gate.sh     | Each of the 5 live gated specs carries a mutation_uncomparable equal to the count the shipped classifier measures over its committed rows                                  | sed:s/mutation_uncomparable: 10/mutation_uncomparable: 11/                                                                     | green |
+| TEST-710 | Spec-AC-03 | integration | tests/skills/test-aai-mutation-gate.sh     | A backtick INSIDE a declared sed: expression (not a surrounding markdown code-span delimiter) stays significant on both sides of the comparison: an identical record satisfies the row, and a record that dropped the backtick does not (closes validation round 1 BLOCKING-2) | sed:s/String\(cellText \?\? ''\)/String(cellText ?? '').replace(\/`\/g, '')/                                                  | green |
+| TEST-711 | Spec-AC-05 | integration | tests/skills/test-aai-mutation-gate.sh     | A deferred (EXEMPT) row's prose Mutation cell never reaches the uncomparable ratchet, and a NON-exempt prose row with no record still makes the FAIL summary's uncomparable count agree with the ratchet's own actual= (closes validation round 1 N2/N3, Implementation plan Edge cases) | sed:s/EXEMPT_STATUSES\.has\(statusNorm\)/false/g                                                                               | green |
 
 Notes on the Mutation column: each expression above targets the code the row
 proves and was written against the implementation plan, not against code that
@@ -343,7 +357,12 @@ exists yet. Per D3 the gate compares these cells EXACTLY, so the implementer
 reconciles each cell with the expression `mutation-run.mjs` records, disclosing
 the change through `spec-amend.mjs add`. TEST-709's mutation targets
 docs/specs/SPEC-0182-spec-close-ceremony-sweep.md (a committed baseline value),
-which is the only way to redden a corpus-consistency assertion.
+which is the only way to redden a corpus-consistency assertion. TEST-710 and
+TEST-711 were added by a post-freeze amendment (validation round 2): both
+close a round-1 blocking finding that already shipped and passed before this
+scope's own RED-record discipline was applied to them; this amendment applies
+it retroactively rather than leaving the two arms that close round 1
+permanently outside the frozen spec's own Test Plan.
 
 ## Seams
 
@@ -412,14 +431,14 @@ which is the only way to redden a corpus-consistency assertion.
   exit 0 in this worktree (no evidence tree), with `uncomparable=` present in
   every summary line.
 - PASS criteria: all TEST-xxx green AND all Spec-AC terminal AND a RED record
-  under docs/ai/tdd/spec-gate-checks-declared-mutation/ for each of the 9 rows.
+  under docs/ai/tdd/spec-gate-checks-declared-mutation/ for each of the 11 rows.
 
 ## Evidence contract
 
 - ref_id: gate-checks-declared-mutation
 - Per TEST-xxx: the `mutation-run.mjs` record at
-  docs/ai/tdd/spec-gate-checks-declared-mutation/mutation-TEST-70N.txt, carrying
-  `verdict: RED` and the expression the Mutation cell declares.
+  docs/ai/tdd/spec-gate-checks-declared-mutation/mutation-<TEST-id>.txt,
+  carrying `verdict: RED` and the expression the Mutation cell declares.
 - Per Spec-AC: the suite command above, its exit code, and the assertion text
   that names the observable.
 - Review scope: the branch diff fix/gate-checks-declared-mutation..main over

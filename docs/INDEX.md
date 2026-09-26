@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-25T23:53:44.475Z
+Generated: 2026-09-26T10:22:25.421Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-gate-checks-declared-mutation | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-gate-checks-declared-mutation.md |
+| spec-gate-checks-declared-mutation | specs | implementing | 9 done | docs/specs/SPEC-DRAFT-spec-gate-checks-declared-mutation.md |
 
 ## Canonical layer (0)
 
@@ -571,4 +571,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-25 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-26 — counts above use this date for overdue checks.

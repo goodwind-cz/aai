@@ -2328,14 +2328,25 @@ test_703_canonicalization_boundaries() {
   local suite="tests/skills/fixture-suite.sh"
   local head_commit; head_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
 
-  # Arm 1 — the cell wraps its token in backticks (D2: stripped before
-  # extraction), and the record's OWN mutation: field carries extra
-  # leading/trailing whitespace (a realistic hand-edited record).
-  # canonicalizeMutation collapses/trims BOTH sides to the identical token.
+  # Arm 1 — validation round 2 N-r2 (M4): the ORIGINAL version of this arm
+  # only varied LEADING/TRAILING whitespace on the record side (handled by a
+  # plain .trim(), so it never actually exercised the INTERNAL run-collapse
+  # `canonicalizeMutation` also performs) and wrapped the cell's token in
+  # backticks (D2: never part of the match at all, by construction of the
+  # SED_DECL_RE boundary — a structural no-op, not a behaviour TEST-710 does
+  # not already prove). Both properties made this arm tautological: no
+  # single-line mutation of the shipped code could redden it uniquely. It now
+  # ALSO carries a genuinely different internal whitespace RUN LENGTH between
+  # the cell and the record (double space vs single space inside the pattern,
+  # the exact R7 example the frozen spec's Residual risks names), on top of
+  # the pre-existing leading/trailing padding — so this arm now falls RED
+  # under EITHER canonicalizeMutation regression: dropping `.trim()` (the
+  # already-declared Mutation cell for this row) OR dropping the internal
+  # `\s+` collapse (M4, previously invisible to every arm in this suite).
   local id_ws; id_ws="$(mg_gate_id canon-whitespace)"
   local spec_ws; spec_ws="$(mg_new_fixture)/spec.md"
   mg_write_gate_spec "$spec_ws" "$id_ws" tdd "mutation_gate: v1" <<EOF
-| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | \`sed:s/A/B/\` | pending |
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | \`sed:s/A  B/C/\` | pending |
 EOF
   local dir_ws; dir_ws="$(mg_gate_evidence_dir "$id_ws")"
   mkdir -p "$dir_ws"
@@ -2346,7 +2357,7 @@ EOF
     printf 'suite: %s\n' "$suite"
     printf 'selector: test_fixture\n'
     printf 'target: lib/fixture.mjs\n'
-    printf 'mutation:   sed:s/A/B/   \n'
+    printf 'mutation:   sed:s/A B/C/   \n'
     printf 'base_commit: %s\n' "$head_commit"
     printf 'tree_hash: %s\n' "$(printf '0%.0s' $(seq 1 64))"
     printf 'run_at_utc: 2026-01-01T00:00:00Z\n'
@@ -2358,9 +2369,9 @@ EOF
   } > "$dir_ws/mutation-TEST-9001.txt"
   local out_ws rc_ws
   out_ws="$(mg_gate "$spec_ws" 2>&1)"; rc_ws=$?
-  [[ "$rc_ws" -eq 0 ]] || log_fail "TEST-703 arm1 (whitespace+backticks): want exit 0, got $rc_ws: $out_ws"
+  [[ "$rc_ws" -eq 0 ]] || log_fail "TEST-703 arm1 (internal-whitespace-run collapse + leading/trailing trim): want exit 0, got $rc_ws: $out_ws"
   assert_payload_contains "$out_ws" 'GATE PASS: 1 row(s) satisfied' \
-    "TEST-703 arm1: a declaration differing only by whitespace/backticks must satisfy the row: $out_ws"
+    "TEST-703 arm1: a declaration differing from the record by an internal whitespace RUN LENGTH (double space vs single, R7) plus leading/trailing padding must still satisfy the row: $out_ws"
 
   # Arm 2 — the cell declares an ESCAPED paren (a literal '(' / ')' in the
   # pattern); the record ran the UNESCAPED form (a capture group) -- a
@@ -2583,22 +2594,23 @@ test_709_live_corpus_baselines_are_measured() {
     [[ -f "$PROJECT_ROOT/$s" ]] || log_fail "TEST-709: expected live spec missing: $s"
   done
 
+  # Validation round 2 BLOCKING: this arm used to RE-IMPLEMENT the classifier
+  # loop by hand (no Status filter), so it could not observe — and actively
+  # REDDENED against — a correction to the shipped classifier's own behavior
+  # (the N2 EXEMPT-row fix). It now imports and calls
+  # computeUncomparableRows(tp.rows) directly, the SAME function
+  # mutation-gate.mjs's own ratchet calls, so this arm's measurement can never
+  # independently drift from what the gate actually enforces.
   local node_out
   node_out="$(node --input-type=module -e "
 import fs from 'node:fs';
-import { parseFrontmatter, parseTestPlanTable, isMutationCellPlaceholder } from '$PROJECT_ROOT/.aai/scripts/lib/docs-model.mjs';
-import { extractDeclaredMutations } from '$PROJECT_ROOT/.aai/scripts/lib/mutation-record.mjs';
+import { parseFrontmatter, parseTestPlanTable } from '$PROJECT_ROOT/.aai/scripts/lib/docs-model.mjs';
+import { computeUncomparableRows } from '$PROJECT_ROOT/.aai/scripts/mutation-gate.mjs';
 for (const s of process.argv.slice(1)) {
   const content = fs.readFileSync(s, 'utf8');
   const fm = parseFrontmatter(content) ?? {};
   const tp = parseTestPlanTable(content);
-  let actual = 0;
-  for (const row of tp.rows) {
-    const cell = (row.mutationCell ?? '').trim();
-    if (!cell) continue;
-    if (isMutationCellPlaceholder(cell)) continue;
-    if (extractDeclaredMutations(cell).length === 0) actual++;
-  }
+  const actual = computeUncomparableRows(tp.rows).length;
   if (fm.mutation_uncomparable === undefined) { console.log('MISSING_BASELINE ' + s); continue; }
   const baseline = Number(fm.mutation_uncomparable);
   if (actual !== baseline) console.log('MISMATCH ' + s + ' actual=' + actual + ' baseline=' + baseline);
@@ -2708,7 +2720,39 @@ EOF
   assert_payload_line_matches "$out" 'EXEMPT TEST-9002: status deferred' \
     "TEST-711: the row must still be named EXEMPT: $out"
 
-  log_pass "TEST-711 a deferred (EXEMPT) row's prose Mutation cell never reaches the uncomparable ratchet -- it is exempted first, matching the frozen spec's Edge cases exactly, and the summary/ratchet counts agree at 0"
+  # Arm B (N3, non-exempt) — validation round 2: N3 was "fixed for the
+  # demonstrated (EXEMPT) case, not eliminated" — a NON-exempt row whose cell
+  # is prose AND whose record is MISSING is pushed to `offending` and
+  # `continue`s before ever reaching the per-row uncomparable classification,
+  # so the summary's per-row `uncomparable=<n>` (the array, populated only for
+  # rows that reach that step) could disagree with the ratchet refusal's own
+  # `actual=<n>` (computed from row TEXT ALONE, D7) for the SAME run. Status
+  # here is "pending" (never exempt) on purpose, so this arm is independent of
+  # arm A above and of TEST-711's own declared Mutation (which targets the
+  # EXEMPT skip, not this branch) — it is a standing regression check for the
+  # mutation-gate.mjs fix that makes the FAIL summary line report the ratchet's
+  # own count rather than the smaller pre-classification one.
+  local id_n3; id_n3="$(mg_gate_id uncomparable-summary-agrees)"
+  local spec_n3; spec_n3="$(mg_new_fixture)/spec.md"
+  mg_write_gate_spec "$spec_n3" "$id_n3" tdd "mutation_gate: v1" <<EOF
+| TEST-9001 | Spec-AC-01 | unit | ${suite} | a | sed:s/A/B/ | pending |
+| TEST-9002 | Spec-AC-01 | unit | ${suite} | b | prose only, no machine-readable token, and no record on disk | pending |
+EOF
+  mg_write_gate_record_mut "$(mg_gate_evidence_dir "$id_n3")" TEST-9001 "$suite" RED "$head_commit" 'sed:s/A/B/'
+  # TEST-9002 deliberately gets NO record file — it fails the "missing
+  # record" check before the classifier ever sees it, while the ratchet
+  # (row text alone) still counts it.
+  local out_n3 rc_n3
+  out_n3="$(mg_gate "$spec_n3" 2>&1)"; rc_n3=$?
+  [[ "$rc_n3" -eq 5 ]] || log_fail "TEST-711 arm B (N3, non-exempt): want exit 5, got $rc_n3: $out_n3"
+  assert_payload_contains "$out_n3" 'uncomparable=1' \
+    "TEST-711 arm B: the FAIL summary's uncomparable count must agree with the ratchet's own actual=1, not silently report 0: $out_n3"
+  assert_payload_line_matches "$out_n3" 'OFFENDING TEST-9002: missing record' \
+    "TEST-711 arm B: the non-exempt prose row with no record must still be OFFENDING (missing record), never silently folded into uncomparable: $out_n3"
+  assert_payload_line_matches "$out_n3" "OFFENDING ${id_n3}:.*actual=1.*baseline=0" \
+    "TEST-711 arm B: the ratchet refusal must name actual=1, matching the summary's uncomparable=1: $out_n3"
+
+  log_pass "TEST-711 a deferred (EXEMPT) row's prose Mutation cell never reaches the uncomparable ratchet -- it is exempted first, matching the frozen spec's Edge cases exactly, the summary/ratchet counts agree at 0, and (arm B, N3) a NON-exempt prose row with no record still makes the FAIL summary's uncomparable count agree with the ratchet's actual= rather than under-reporting it"
 }
 
 main() {

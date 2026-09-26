@@ -66,6 +66,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
@@ -182,7 +183,16 @@ function isAncestorOfHead(commit) {
 // compared" — a deferred row carrying a prose Mutation cell must not drive
 // this ratchet with a remedy nobody can perform (you cannot produce a RED
 // record for a row that is deliberately not being run).
-function computeUncomparableRows(rows) {
+// EXPORTED (validation round 2 BLOCKING, TEST-709): a test asserting
+// Spec-AC-09 ("equal to the count the shipped classifier measures") must call
+// THIS function, never re-implement its loop — a second copy is exactly the
+// defect class this ride exists to close (round 1's tautological TEST-703
+// backtick arm was the first instance; a re-implemented TEST-709 was the
+// second). Exporting a function from a CLI script is otherwise inert: this
+// file's own entry point is now guarded (see the isMain check at the bottom),
+// so `import`ing this module for its exports no longer also runs main()
+// against the importer's own process.argv.
+export function computeUncomparableRows(rows) {
   const out = [];
   for (const row of rows) {
     const statusNorm = (row.statusCell ?? '').trim().toLowerCase();
@@ -470,6 +480,23 @@ function main() {
   }
 
   if (offending.length || ratchetExceeded) {
+    // N3 (validation round 2, non-blocking-but-fixed): `uncomparable.length`
+    // (the per-row array below) only counts rows that reached the
+    // classification step at all — a row whose Mutation cell is ALREADY
+    // text-uncomparable but whose RECORD is missing (or otherwise fails an
+    // earlier check) is pushed to `offending` and `continue`s BEFORE ever
+    // reaching that step, so it is silently absent from `uncomparable.length`
+    // while `ratchetActual` (computed from row TEXT ALONE, D7) still counts
+    // it. That let this same GATE FAIL summary line print `uncomparable=0`
+    // beside an `OFFENDING <spec-id>: ... actual=1 ...` ratchet refusal for
+    // the SAME run — two numbers for one fact, and close-work-item.mjs reads
+    // the summary line's number, not the ratchet's prose. `ratchetActual` is
+    // the authoritative D7 measure (a strict superset of the per-row array:
+    // every row counted in `uncomparable` is by construction also counted in
+    // `ratchetActual`, never the reverse), so it is what this line reports —
+    // the two are provably equal whenever no row failed an earlier check
+    // (the ordinary case, and the ONLY case the PASS branch below can reach),
+    // and `ratchetActual` is the honest, non-optimistic count otherwise.
     const payload = {
       spec_id: specId,
       applicable: true,
@@ -478,11 +505,11 @@ function main() {
       offending_rows: offending,
       degraded_rows: [],
       exempt_rows: exempt,
-      uncomparable: uncomparable.length,
+      uncomparable: ratchetActual,
       uncomparable_rows: uncomparable,
       uncomparable_baseline: uncomparableBaseline,
       spec_offending: ratchetExceeded ? [ratchetOffendingEntry()] : [],
-      summary_line: `GATE FAIL: ${offending.length} offending row(s) degraded=0 unstamped=${unstamped} uncomparable=${uncomparable.length}${exempt.length ? ` exempt=${exempt.length}` : ''}`,
+      summary_line: `GATE FAIL: ${offending.length} offending row(s) degraded=0 unstamped=${unstamped} uncomparable=${ratchetActual}${exempt.length ? ` exempt=${exempt.length}` : ''}`,
     };
     summary(payload);
     exit(5);
@@ -536,4 +563,13 @@ function main() {
   exit(0);
 }
 
-runMain(() => main());
+// Standard ESM entry-point guard (matching mutation-run.mjs's own NB4-r3):
+// lets a TEST import this module for its exports (computeUncomparableRows)
+// without ALSO running the CLI against the importer's own process.argv — a
+// pure safety addition; every existing `node mutation-gate.mjs ...`
+// invocation is unaffected (argv[1] IS this file in that case). Both sides
+// through realpath so a symlinked invocation still runs.
+const __argvReal = (() => { try { return fs.realpathSync(path.resolve(process.argv[1] ?? '')); } catch { return ''; } })();
+if (__argvReal !== '' && __argvReal === fs.realpathSync(fileURLToPath(import.meta.url))) {
+  runMain(() => main());
+}
