@@ -213,12 +213,19 @@ export function parseSedExpr(expr) {
 // from SED_EXPR_RE's OWN `.source` (anchors stripped, `sed:` prefix and a
 // trailing boundary added) rather than a second hand-written pattern, so the
 // two can never independently drift into judging different expressions
-// (D1). The `(?![A-Za-z])` boundary is D2's fail-safe: a flags run that
-// bleeds into a following word (`sed:s/A/B/gone`) fails to match here at
-// all — the row lands in the counted UNCOMPARABLE class rather than being
-// silently truncated to flags "g" plus an orphaned "one".
+// (D1). The `(?!\w)` boundary is D2's fail-safe: a flags run that bleeds
+// into a following WORD CHARACTER — a letter (`sed:s/A/B/gone`), a DIGIT
+// (`sed:s/A/B/g1`) or an underscore (`sed:s/A/B/g_`) — fails to match here
+// at all, on every possible backtrack of the `[gimsuy]*` flags run (down to
+// zero flags), so the row lands in the counted UNCOMPARABLE class rather
+// than being silently truncated to a shorter, syntactically-valid-looking
+// prefix that the runner's own anchored `parseSedExpr` would never have
+// accepted for the cell's actual (complete) text (F1, round 3 review: the
+// earlier `(?![A-Za-z])` boundary let a digit or underscore suffix through,
+// so a malformed expression could satisfy a row via a prefix of itself that
+// was never what the cell declared or what could have been run).
 export const SED_DECL_RE = new RegExp(
-  `sed:${SED_EXPR_RE.source.replace(/^\^/, '').replace(/\$$/, '')}(?![A-Za-z])`,
+  `sed:${SED_EXPR_RE.source.replace(/^\^/, '').replace(/\$$/, '')}(?!\\w)`,
   'g'
 );
 
@@ -227,7 +234,16 @@ export const SED_DECL_RE = new RegExp(
 // declaration ends at the FIRST run of characters outside that set (so a
 // cell that only mentions the word "patch:" in prose, or breaks the path
 // with a space, yields no token — D2's fail-safe direction again).
-export const PATCH_DECL_RE = /patch:([A-Za-z0-9_./-]+\.patch)/g;
+// Leading `(?<!\w)` and trailing `(?![A-Za-z0-9_./-])` token boundaries (F2,
+// round 3 review): without them, `notpatch:foo.patch` extracted
+// `patch:foo.patch` (the literal `patch:` glued onto a preceding word, with
+// no left boundary at all), and `patch:foo.patch.bak` extracted
+// `patch:foo.patch` (the group's own greedy-then-backtrack search for a
+// `.patch` suffix stopped at the FIRST one it could close, silently
+// dropping the `.bak` tail rather than refusing the whole ambiguous
+// declaration). Both are now unmatchable — zero tokens, UNCOMPARABLE —
+// rather than a valid-looking path that was never what the cell declared.
+export const PATCH_DECL_RE = /(?<!\w)patch:([A-Za-z0-9_./-]+\.patch)(?![A-Za-z0-9_./-])/g;
 
 // canonicalizeMutation(s) -> s with internal whitespace runs collapsed to a
 // single space and outer whitespace trimmed. NOTHING else (D3): backslashes

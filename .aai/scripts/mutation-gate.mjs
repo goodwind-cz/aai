@@ -357,7 +357,18 @@ function main() {
 
   const offending = [];
   const exempt = [];
-  const uncomparable = [];
+  // F3 (round 3 review): there is no separate per-row `uncomparable` array
+  // here any more. `textUncomparableRows` (computed above, before this
+  // loop, from row TEXT ALONE — the same source `uncomparableIdSet` and
+  // `ratchetActual` already read) is now the ONE place both the count and
+  // the names come from, in every branch below. A row that fails an earlier
+  // check (missing record, wrong suite, non-RED, non-ancestor) still
+  // `continue`s into `offending` exactly as before — that diagnosis is not
+  // replaced — but it no longer also needs a SECOND, independently
+  // populated array to be named as UNCOMPARABLE: it already IS a member of
+  // `textUncomparableRows` if its cell has no declared token, and every
+  // consumer below reads that array directly, never a copy that some
+  // `continue` can skip past.
   // Remediation round 5 (D8 amendment, BLOCKING-1 validation round 6): a
   // record's own `target_sha256` (optional — see lib/mutation-record.mjs)
   // lets this gate tell that a SATISFIED-shaped record has gone STALE — its
@@ -425,10 +436,11 @@ function main() {
     // declaration that does not match what actually ran, and is OFFENDING,
     // naming both the declared and the recorded value (never accusing a row
     // this gate could not parse — that fails safe to UNCOMPARABLE instead,
-    // D2).
-    if (uncomparableIdSet.has(row.testId)) {
-      uncomparable.push({ testId: row.testId, reason: `Mutation cell has no machine-readable declaration: ${JSON.stringify(mCell)}` });
-    } else {
+    // D2). A row already in `uncomparableIdSet` skips the comparison below
+    // (there is nothing declared to compare against) but is never pushed to
+    // a local array here — it is named later, uniformly, from
+    // `textUncomparableRows` (F3).
+    if (!uncomparableIdSet.has(row.testId)) {
       const declaredTokens = extractDeclaredMutations(mCell);
       const recordedCanon = canonicalizeMutation(f.mutation);
       if (!declaredTokens.includes(recordedCanon)) {
@@ -480,23 +492,19 @@ function main() {
   }
 
   if (offending.length || ratchetExceeded) {
-    // N3 (validation round 2, non-blocking-but-fixed): `uncomparable.length`
-    // (the per-row array below) only counts rows that reached the
-    // classification step at all — a row whose Mutation cell is ALREADY
-    // text-uncomparable but whose RECORD is missing (or otherwise fails an
-    // earlier check) is pushed to `offending` and `continue`s BEFORE ever
-    // reaching that step, so it is silently absent from `uncomparable.length`
-    // while `ratchetActual` (computed from row TEXT ALONE, D7) still counts
-    // it. That let this same GATE FAIL summary line print `uncomparable=0`
-    // beside an `OFFENDING <spec-id>: ... actual=1 ...` ratchet refusal for
-    // the SAME run — two numbers for one fact, and close-work-item.mjs reads
-    // the summary line's number, not the ratchet's prose. `ratchetActual` is
-    // the authoritative D7 measure (a strict superset of the per-row array:
-    // every row counted in `uncomparable` is by construction also counted in
-    // `ratchetActual`, never the reverse), so it is what this line reports —
-    // the two are provably equal whenever no row failed an earlier check
-    // (the ordinary case, and the ONLY case the PASS branch below can reach),
-    // and `ratchetActual` is the honest, non-optimistic count otherwise.
+    // F3 (round 3 review, the THIRD appearance of the N3 shape): the count
+    // (`uncomparable: ratchetActual`) and the names (`uncomparable_rows`)
+    // now both read `textUncomparableRows` — the ONE row-text-only array
+    // computed before this loop even starts, which `uncomparableIdSet` and
+    // `ratchetActual` are themselves derived from. A row whose Mutation
+    // cell is text-uncomparable but whose RECORD is missing (or otherwise
+    // fails an earlier check) still lands in `offending` via its own
+    // `continue` above — that diagnosis is unchanged — but it can no longer
+    // go silently unnamed here: it is a member of `textUncomparableRows` by
+    // construction, regardless of which branch of the per-row loop it left
+    // through. The count and the names cannot disagree because there is no
+    // second, incrementally-populated array left for them to disagree
+    // FROM.
     const payload = {
       spec_id: specId,
       applicable: true,
@@ -506,7 +514,7 @@ function main() {
       degraded_rows: [],
       exempt_rows: exempt,
       uncomparable: ratchetActual,
-      uncomparable_rows: uncomparable,
+      uncomparable_rows: textUncomparableRows,
       uncomparable_baseline: uncomparableBaseline,
       spec_offending: ratchetExceeded ? [ratchetOffendingEntry()] : [],
       summary_line: `GATE FAIL: ${offending.length} offending row(s) degraded=0 unstamped=${unstamped} uncomparable=${ratchetActual}${exempt.length ? ` exempt=${exempt.length}` : ''}`,
@@ -515,7 +523,7 @@ function main() {
     exit(5);
   }
 
-  const satisfied = tp.rows.length - exempt.length - uncomparable.length;
+  const satisfied = tp.rows.length - exempt.length - ratchetActual;
 
   // Remediation round 4 (NB-2): a Test Plan whose rows are ALL exempt passes
   // vacuously — zero rows were ever judged against the RED-record
@@ -541,6 +549,15 @@ function main() {
       uncomparable_rows: [],
       uncomparable_baseline: uncomparableBaseline,
     };
+    // F4 (round 3 review): every OTHER exit-0 path that can find
+    // `ratchetBelow` true (the ordinary PASS below, and the evidence-tree-
+    // absent DEGRADE above) prints the lower-the-baseline NOTE. This path
+    // used to be the one silent exception — every row exempt still leaves
+    // `mutation_uncomparable` (D6) evaluated against `ratchetActual` (D7,
+    // read from committed row text alone, unaffected by every row also
+    // being exempt), so a baseline that could be lowered went undisclosed
+    // here indefinitely.
+    if (ratchetBelow) payload.ratchet_note = ratchetNoteText();
     summary(payload);
     exit(0);
   }
@@ -553,10 +570,10 @@ function main() {
     offending_rows: [],
     degraded_rows: [],
     exempt_rows: exempt,
-    uncomparable: uncomparable.length,
-    uncomparable_rows: uncomparable,
+    uncomparable: ratchetActual,
+    uncomparable_rows: textUncomparableRows,
     uncomparable_baseline: uncomparableBaseline,
-    summary_line: `GATE PASS: ${satisfied} row(s) satisfied degraded=0 unstamped=${unstamped} uncomparable=${uncomparable.length}${exempt.length ? ` exempt=${exempt.length}` : ''}`,
+    summary_line: `GATE PASS: ${satisfied} row(s) satisfied degraded=0 unstamped=${unstamped} uncomparable=${ratchetActual}${exempt.length ? ` exempt=${exempt.length}` : ''}`,
   };
   if (ratchetBelow) payload.ratchet_note = ratchetNoteText();
   summary(payload);
