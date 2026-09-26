@@ -22,6 +22,29 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix(gate): the mutation gate checks that the recorded run is the mutation the row declares (CHANGE-0193 / SPEC-0187)
+
+`mutation-gate.mjs` checked only that a Test Plan row's Mutation cell was
+non-empty. It never compared that cell to what the stored record actually
+mutated, so a record produced by a DIFFERENT mutation satisfied the row — and
+`GATE PASS` meant "some mutation reddened something", not "the declared
+mutation reddens this test".
+
+The damage was measured before anything was built: of the 95 comparable rows
+across the 5 governed specs, 86 carry a record and only **34 match**. The other
+52 declare something other than what ran.
+
+- A row whose declaration is machine-readable is now compared to its record, and
+  a mismatch is OFFENDING with BOTH values printed — what was declared and what
+  was found.
+- A row that cannot be compared is counted and NAMED in its own class, in the
+  gate's summary and at the close, so a pass can no longer mean "we did not
+  look". That count is a drain-only ratchet declared in each spec's own
+  frontmatter, and it holds on a checkout with no evidence tree at all.
+- Comparison is exact after whitespace canonicalization only: backslashes and
+  backticks stay significant, because an escape-insensitive compare would accept
+  a record that ran a regex which could not have matched.
+
 ## [v2026.09.25] — feat(canon): the rules that bind agents are assembled and asserted, not pasted (CHANGE-0191 / SPEC-0186)
 
 The dispatch payload a role receives was assembled by an orchestrator reading

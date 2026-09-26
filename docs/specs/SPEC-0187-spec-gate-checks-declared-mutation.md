@@ -1,13 +1,13 @@
 ---
 id: spec-gate-checks-declared-mutation
-number: null
+number: 187
 type: spec
 status: implementing
 mutation_gate: v1
-frozen_sha256: 152fd6c1bac459c287722ff9484aa17f79c015eac555420acaed49948c73e152
+frozen_sha256: 914007f9e24c2c1fd8632a068d1315413406929482db51378630c6f1bddc03f5
 ceremony_level: 2
 links:
-  requirement: docs/issues/CHANGE-DRAFT-gate-checks-declared-mutation.md
+  requirement: docs/issues/CHANGE-0193-gate-checks-declared-mutation.md
   rfc: null
   pr: []
   commits: []
@@ -18,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-gate-checks-declared-mutation.md
+- Requirement: docs/issues/CHANGE-0193-gate-checks-declared-mutation.md
 - Registry item drained: `fu-gate-ignores-declared-mutation` (P2)
 - Technology contract: docs/TECHNOLOGY.md (Node stdlib only, no dependencies)
 
@@ -90,7 +90,7 @@ survive being defined as code:
   contradicts it. The orchestrator's hypothesis that a named path can stand in
   for a declaration is not supported by the corpus.
 - "90 are pure prose" — under the grammar above the uncomparable class is
-  **134**, not 90.
+  **133**, not 90.
 - Not in the intake, and the most important number here: of the 95 comparable
   rows, 86 have a record on the owner's main checkout, and only **34** of those
   match it. **52 declare something other than what ran.** TEST-694 is not a
@@ -167,10 +167,10 @@ or in CI. This is the one place a `DEGRADED` run can now exit 5.
 - **On any checkout without the gitignored evidence tree** (CI, a fresh clone,
   this worktree): unchanged for the RED-record half — all 5 specs still take
   `DEGRADED: evidence tree absent` at exit 0. The ratchet (D7) additionally
-  runs; with the baselines this ride stamps (49 / 10 / 31 / 17 / 27) all 5
+  runs; with the baselines this ride stamps (49 / 10 / 30 / 17 / 27) all 5
   pass.
 - **On the owner's main checkout**, which holds evidence for SPEC-0181,
-  SPEC-0182 and SPEC-0184: 34 rows match, 134 are counted UNCOMPARABLE at
+  SPEC-0182 and SPEC-0184: 34 rows match, 133 are counted UNCOMPARABLE at
   baseline, and **52 rows would newly be OFFENDING** (exit 5). Those 3 specs
   are already closed and nothing re-runs the gate over a closed spec, so no
   scheduled ride is blocked; but a ride that RE-closes one of them (an
@@ -309,7 +309,7 @@ Components and order:
    an `OFFENDING <spec-id>: ...` line so close-work-item's existing
    `OFFENDING ` filter reports it unchanged.
 5. `docs/specs/SPEC-0181/0182/0184/0185/0186` — add
-   `mutation_uncomparable: 49 / 10 / 31 / 17 / 27` to the frontmatter
+   `mutation_uncomparable: 49 / 10 / 30 / 17 / 27` to the frontmatter
    (re-measured by the shipped classifier at implementation time; if a number
    differs from this spec's, the shipped measurement wins and the difference is
    disclosed).
@@ -425,7 +425,7 @@ permanently outside the frozen spec's own Test Plan.
   close-work-item.mjs; they prove step 6's re-pin).
 - `bash tests/skills/test-aai-layer-profiles.sh` — exit 0 (no new `.aai/**`
   file, so the classification set is unchanged).
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-gate-checks-declared-mutation.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0187-spec-gate-checks-declared-mutation.md`
   — exit 0.
 - `node .aai/scripts/mutation-gate.mjs --spec <each of the 5 gated specs>` —
   exit 0 in this worktree (no evidence tree), with `uncomparable=` present in
