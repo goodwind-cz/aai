@@ -2,11 +2,13 @@
 id: gate-checks-declared-mutation
 type: change
 number: 193
-status: draft
+status: done
 capability: gate-checks-declared-mutation
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 3e43a9ebe92b707f58c26faf8a9135ed63359a8c
 ---
 
 # The mutation gate checks that the recorded run is the mutation the row declares

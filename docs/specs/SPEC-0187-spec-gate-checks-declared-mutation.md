@@ -2,15 +2,17 @@
 id: spec-gate-checks-declared-mutation
 number: 187
 type: spec
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 914007f9e24c2c1fd8632a068d1315413406929482db51378630c6f1bddc03f5
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0193-gate-checks-declared-mutation.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 3e43a9ebe92b707f58c26faf8a9135ed63359a8c
 ---
 
 # Spec — the mutation gate compares the declared mutation to the one that ran
