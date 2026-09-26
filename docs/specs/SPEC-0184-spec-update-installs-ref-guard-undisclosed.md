@@ -4,7 +4,7 @@ type: spec
 number: 184
 status: done
 mutation_gate: v1
-frozen_sha256: 2b6db6524411862497a10d5251dd3b60a70bce8496a21b6a28b7347e087dafa9
+frozen_sha256: 104bcbf1edbecf884de943bf5367441282c3d195563446680c279a63f5df9024
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md
@@ -588,7 +588,7 @@ DROPPED, with the measured reason:
   dropped against this ride rather than closed as if the scope had delivered
   it. The real gaps it pointed at — nobody keeps the table current, and a
   consumer's exception has nowhere to live that an update does not overwrite —
-  are `docs/issues/CHANGE-DRAFT-routing-tables-have-an-owner-and-a-seam.md`
+  are `docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md`
   (PR #389). Spec-AC-09 delivers only the note correction that survives that
   decision; see Amendment 2.
 
@@ -661,7 +661,7 @@ nothing notices when it lapses (measured: `PRICING.yaml` carries no `as_of` or
 any freshness marker, and its three readers cannot tell fresh data from a
 year-old copy), and that a consumer's exception has nowhere to live that an
 update does not overwrite. Both are now their own scope:
-`docs/issues/CHANGE-DRAFT-routing-tables-have-an-owner-and-a-seam.md` (PR #389).
+`docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md` (PR #389).
 
 Spec-AC-09 therefore delivers only what survives that decision: the routing
 file's own UPGRADING note states the overwrite as INTENDED and points at the

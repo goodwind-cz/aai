@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-25T18:39:41.662Z",
+  "generatedAt": "2026-09-26T09:26:32.574Z",
   "project": "aai",
   "counts": {
     "delivered": 255,
-    "in_progress": 14,
+    "in_progress": 15,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -43,6 +43,19 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "routing-tables-have-an-owner-and-a-seam",
+      "title": "The routing and pricing tables have a keeper, and a consumer's exception has somewhere to live",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
