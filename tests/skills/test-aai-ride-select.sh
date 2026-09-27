@@ -11,6 +11,8 @@
 set -u
 TEST_NAME="test-aai-ride-select"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ENGINE="$PROJECT_ROOT/.aai/scripts/ride-select.mjs"
 SHIPPED="$PROJECT_ROOT/docs/ai/roadmap.yaml"
@@ -609,8 +611,8 @@ YAML
   local out2 rc2
   out2="$(node "$NLB" --ref nlb717-cap --root "$NLBROOT" --json)"; rc2=$?
   [ "$rc2" = "0" ] || log_fail "TEST-717: nothing-left-behind must exit 0 over a capability-only pair: $out2"
-  echo "$out2" | grep -q '"docs_open":0' || log_fail "TEST-717: docs_open must be 0 (no paired maintenance half reported): $out2"
-  echo "$out2" | grep -qi 'paired maintenance half' && log_fail "TEST-717: a capability-only pair must never report a paired maintenance half: $out2"
+  assert_payload_contains "$out2" '"docs_open":0' "TEST-717: docs_open must be 0 (no paired maintenance half reported)"
+  assert_payload_not_contains "$out2" 'paired maintenance half' "TEST-717: a capability-only pair must never report a paired maintenance half"
   log_pass "nothing-left-behind reports no paired maintenance half for a capability-only roadmap pair (TEST-717)"
 }
 
@@ -1050,12 +1052,12 @@ YAML
     || log_fail "TEST-738: every pre-existing byte must be unchanged (prefix diff)"
   local appended
   appended="$(tail -n +$((n_orig + 1)) "$ROADMAP")"
-  printf '%s\n' "$appended" | grep -qF 'capability: cap-t738-new' \
-    || log_fail "TEST-738: the appended block must name the picked candidate: $appended"
-  printf '%s\n' "$appended" | grep -qF 'status: planned' \
-    || log_fail "TEST-738: the appended pair must carry status: planned, got: $appended"
-  printf '%s\n' "$appended" | grep -q 'maintenance:' \
-    && log_fail "TEST-738: the appended block must carry no maintenance: line: $appended"
+  assert_payload_contains "$appended" 'capability: cap-t738-new' \
+    "TEST-738: the appended block must name the picked candidate"
+  assert_payload_contains "$appended" 'status: planned' \
+    "TEST-738: the appended pair must carry status: planned"
+  assert_payload_not_contains "$appended" 'maintenance:' \
+    "TEST-738: the appended block must carry no maintenance: line"
   [ "$(run validate --roadmap "$ROADMAP" --docs "$D")" = "0" ] \
     || log_fail "TEST-738: the REAL ride-select.mjs validate must accept the written roadmap: $(err)"
   log_pass "write appends a planned capability-only pair, prior bytes unchanged, real validator accepts (TEST-738)"
@@ -1090,9 +1092,9 @@ SHIM
   [ -f "$RECORDER" ] || log_fail "TEST-739: the shim must have recorded an argv (certification never ran a child process)"
   local argv
   argv="$(cat "$RECORDER")"
-  printf '%s' "$argv" | grep -qF '"validate"' || log_fail "TEST-739: certification must invoke the shim with 'validate', got: $argv"
-  printf '%s' "$argv" | grep -qF '"--roadmap"' || log_fail "TEST-739: certification must pass --roadmap, got: $argv"
-  printf '%s' "$argv" | grep -qF "\"$ROADMAP\"" || log_fail "TEST-739: certification must name the written roadmap path, got: $argv"
+  assert_payload_contains "$argv" '"validate"' "TEST-739: certification must invoke the shim with 'validate'"
+  assert_payload_contains "$argv" '"--roadmap"' "TEST-739: certification must pass --roadmap"
+  assert_payload_contains "$argv" "\"$ROADMAP\"" "TEST-739: certification must name the written roadmap path"
   log_pass "certification runs ride-select.mjs validate as a real child process (TEST-739)"
 }
 
