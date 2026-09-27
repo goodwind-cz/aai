@@ -715,18 +715,40 @@ function cmdBind(a) {
   if (!openIds.has(a.ref) && !doc) {
     refuse(`"${a.ref}" is neither an open follow-up id in ${a.ledger} nor a resolvable document under ${a.docs}`);
   }
-  // BLOCKING-2 (validation round 1, F1): D13 proved only that the ref comes
-  // "from the backlog" — it never asked whether the resolved document is
-  // itself a CAPABILITY (type in CAPABILITY_TYPES). Without this, a
-  // `type: change` intake (an owner decision the gate would otherwise refuse
-  // and route to the roadmap) can be bound straight into another
-  // capability's maintenance slot, consuming the 1:1 budget and silently
-  // admitting an unranked capability. Mirrors D8's own exclusion on the
-  // capability side (D8: "maintenance types ... are excluded — the roadmap
-  // now carries capabilities only"): the maintenance side gets the same
-  // exclusion, in reverse.
-  if (doc && CAPABILITY_TYPES.has(doc.type)) {
-    refuse(`"${a.ref}" resolves to a document of type "${doc.type}" (${doc.path}) — that is a CAPABILITY type (${[...CAPABILITY_TYPES].join(', ')}), and bind only accepts a MAINTENANCE ref: an open follow-up id, or a document whose type is not one of those (mirrors D8's exclusion on the capability side)`);
+  // BLOCKING-2 (validation round 1, F1) / B1+B2 (validation round 2): D13
+  // proved only that the ref comes "from the backlog" — it never asked
+  // whether the ref is ITSELF already a roadmap capability. Round 1's fix
+  // asked the wrong question (a document `type:` check) and validation
+  // round 2 measured it against the owner's own data: 8 of the 11
+  // maintenance halves on the SHIPPED roadmap are `type: change` documents
+  // (the CAPABILITY_TYPES set's own majority member), so that check refused
+  // the commonest real shape in this repo (B1); and the check was a 5-value
+  // denylist over an open set — 197 live doc ids outside both
+  // CAPABILITY_TYPES and ride-select.mjs's own MAINT_TYPES, a trailing YAML
+  // comment on the type line, or a typeless intake all defeated it outright
+  // (B2). `type:` is not where this factory records the capability/
+  // maintenance distinction — the ROADMAP is: a slug is a capability because
+  // the OWNER put it in a `capability:` slot. Refuse a ref that already
+  // holds one of those slots, read from the very pairs `readPairsForBind`
+  // just parsed — a closed set drawn from the file `gate` itself reads, not
+  // a guess about an intake's frontmatter. This also fixes NB-4 (the old
+  // check's answer depended on `resolveDoc`'s first-walk-match order for a
+  // duplicated id): the decision no longer consults `doc.type` at all, so
+  // which of two same-id documents `resolveDoc` happens to return can no
+  // longer change it.
+  const roadmapCapabilities = new Set(pairs.map((p) => p.capability));
+  if (roadmapCapabilities.has(a.ref)) {
+    refuse(`"${a.ref}" is already a roadmap CAPABILITY (${a.roadmap}) — bind only accepts a MAINTENANCE ref, and a ref already ranked as a capability cannot also be bound as another capability's maintenance half: it would consume the 1:1 budget slot without ever being ranked (mirrors D8's exclusion on the intake side, decided by the roadmap itself rather than by document type)`);
+  }
+  // Also refuse a ref already bound as some OTHER pair's maintenance half:
+  // the same ref serving two capabilities at once defeats the 1:1 budget
+  // exactly as a duplicate roadmap ref would (ride-select.mjs's own
+  // loadRoadmap refuses that as "appears twice in the roadmap" — certify()
+  // below would catch it too, but bind names the reason itself here rather
+  // than surfacing the roadmap parser's generic duplicate-ref error).
+  const boundElsewhere = pairs.find((p) => p.maintenance === a.ref);
+  if (boundElsewhere) {
+    refuse(`"${a.ref}" is already bound as the maintenance half of "${boundElsewhere.capability}" (${a.roadmap}) — one ref cannot serve two capabilities under the 1:1 budget`);
   }
 
   const lines = text.split('\n');

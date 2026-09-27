@@ -1317,33 +1317,169 @@ test_750_write_direction_value_drives_pick() {
   log_pass "the same --pick 1 writes a different candidate when --direction changes (TEST-750)"
 }
 
-# --- TEST-751 (Spec-AC-14): BLOCKING-2 — bind refuses a ref that resolves ----
-# to a CAPABILITY-typed document, and still succeeds for a genuine
-# maintenance-typed document.
-test_751_bind_refuses_capability_typed_ref() {
-  log_info "Test: bind refuses a ref resolving to a capability-typed document, and still accepts a maintenance-typed one (TEST-751)..."
+# --- TEST-751 (Spec-AC-14): validation round 2 B1/B2 — bind refuses a ref ----
+# that the ROADMAP already records as a capability (a `capability:` slot on
+# ANY pair, not just the one being bound into — N14: a check narrowed to a
+# single hardcoded capability name must not pass this), and still succeeds
+# for a `type: change` ref that is not a roadmap capability — the 8-of-11
+# MAJORITY shape on the shipped roadmap, which round 1's now-reverted
+# doc-`type` check refused outright (B1).
+test_751_bind_refuses_roadmap_capability_ref() {
+  log_info "Test: bind refuses a ref that is already a roadmap capability (any pair, not just the one being bound), and still accepts a type:change ref that is not one (TEST-751)..."
   local D="$TEST_DIR/p751docs"
   local ROADMAP="$TEST_DIR/p751-roadmap.yaml" LEDGER="$TEST_DIR/p751-ledger.jsonl"
   cat > "$ROADMAP" <<YAML
 budget:
   maintenance_per_capability: 1
 pairs:
-  - capability: cap-t751
+  - capability: cap-t751-a
+    status: planned
+  - capability: cap-t751-b
+    status: planned
+  - capability: cap-t751-c
     status: planned
 YAML
   cp "$ROADMAP" "$TEST_DIR/p751-roadmap.orig.yaml"
   : > "$LEDGER"
-  propose_write_doc "$D" cap-t751-capdoc change draft
-  [ "$(run_propose bind --capability cap-t751 --ref cap-t751-capdoc --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "1" ] \
-    || log_fail "TEST-751: bind must refuse a ref resolving to a capability-typed (change) document: $(pout)"
-  grep -qF 'CAPABILITY type' "$TEST_DIR/perr" || log_fail "TEST-751: the refusal must name the CAPABILITY type mismatch: $(perr)"
-  cmp -s "$ROADMAP" "$TEST_DIR/p751-roadmap.orig.yaml" || log_fail "TEST-751: bind must write nothing on a capability-typed ref refusal"
-  propose_write_doc "$D" cap-t751-maintdoc issue draft
-  [ "$(run_propose bind --capability cap-t751 --ref cap-t751-maintdoc --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
-    || log_fail "TEST-751: bind must still accept a maintenance-typed (issue) document: $(perr)"
+  # cap-t751-c must itself resolve to a document (D13's backlog check runs
+  # FIRST) so the refusal below is proven to come from the roadmap-capability
+  # check, not from "no document resolves".
+  propose_write_doc "$D" cap-t751-c change draft
+  [ "$(run_propose bind --capability cap-t751-a --ref cap-t751-c --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "1" ] \
+    || log_fail "TEST-751: bind must refuse a ref that is already a roadmap capability (cap-t751-c, the THIRD pair's own capability — not cap-t751-a): $(pout)"
+  grep -qF 'roadmap CAPABILITY' "$TEST_DIR/perr" || log_fail "TEST-751: the refusal must name the roadmap-capability mismatch: $(perr)"
+  cmp -s "$ROADMAP" "$TEST_DIR/p751-roadmap.orig.yaml" || log_fail "TEST-751: bind must write nothing on a roadmap-capability ref refusal"
+  propose_write_doc "$D" cap-t751-maintdoc change draft
+  [ "$(run_propose bind --capability cap-t751-a --ref cap-t751-maintdoc --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-751: bind must accept a type:change ref that is NOT a roadmap capability (the 8-of-11 majority shape, B1): $(perr)"
   /usr/bin/grep -q '^    maintenance: cap-t751-maintdoc' "$ROADMAP" \
-    || log_fail "TEST-751: the accepted maintenance-typed ref must be bound: $(cat "$ROADMAP")"
-  log_pass "bind refuses a capability-typed ref and still accepts a maintenance-typed one (TEST-751)"
+    || log_fail "TEST-751: the accepted type:change ref must be bound: $(cat "$ROADMAP")"
+  log_pass "bind refuses a ref that is a roadmap capability on any pair, and accepts a type:change ref that is not one (TEST-751)"
+}
+
+# --- TEST-757 (Spec-AC-14): validation round 2 B2 — the doc-type denylist ---
+# is GONE: a ref whose resolved document carries a type in NEITHER
+# CAPABILITY_TYPES nor ride-select.mjs's MAINT_TYPES (measured live: 197 such
+# ids — spec/product/release) is admitted when it is not a roadmap
+# capability, on a stated reason (roadmap membership), never a silent type
+# filter. Two different type values prove it is not a single-value carve-out.
+test_757_bind_no_type_denylist() {
+  log_info "Test: bind admits a spec-typed and a product-typed ref that are not roadmap capabilities — no type denylist survives (TEST-757)..."
+  local D="$TEST_DIR/p757docs"
+  local ROADMAP="$TEST_DIR/p757-roadmap.yaml" LEDGER="$TEST_DIR/p757-ledger.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t757-a
+    status: planned
+  - capability: cap-t757-b
+    status: planned
+YAML
+  : > "$LEDGER"
+  propose_write_doc "$D" cap-t757-specdoc spec current
+  [ "$(run_propose bind --capability cap-t757-a --ref cap-t757-specdoc --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-757: bind must admit a spec-typed ref that is not a roadmap capability: $(perr)"
+  propose_write_doc "$D" cap-t757-productdoc product current
+  [ "$(run_propose bind --capability cap-t757-b --ref cap-t757-productdoc --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-757: bind must admit a product-typed ref that is not a roadmap capability: $(perr)"
+  /usr/bin/grep -q '^    maintenance: cap-t757-specdoc' "$ROADMAP" \
+    || log_fail "TEST-757: the spec-typed ref must be bound: $(cat "$ROADMAP")"
+  /usr/bin/grep -q '^    maintenance: cap-t757-productdoc' "$ROADMAP" \
+    || log_fail "TEST-757: the product-typed ref must be bound: $(cat "$ROADMAP")"
+  log_pass "bind admits refs of types outside every denylist, on the roadmap-membership reason alone (TEST-757)"
+}
+
+# --- TEST-758 (Spec-AC-14): validation round 2 B1 finding — a ref already ---
+# bound as another pair's maintenance half is refused: one ref cannot serve
+# two capabilities under the 1:1 budget (the "decide and defend" addition the
+# round 2 remediation brief asked for alongside the roadmap-capability check).
+test_758_bind_refuses_ref_bound_elsewhere() {
+  log_info "Test: bind refuses a ref already bound as another pair's maintenance half (TEST-758)..."
+  local D="$TEST_DIR/p758docs"
+  local ROADMAP="$TEST_DIR/p758-roadmap.yaml" LEDGER="$TEST_DIR/p758-ledger.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t758-a
+    status: planned
+  - capability: cap-t758-b
+    status: planned
+YAML
+  : > "$LEDGER"
+  propose_write_doc "$D" maint-t758-shared change draft
+  [ "$(run_propose bind --capability cap-t758-a --ref maint-t758-shared --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-758: the first bind of the shared ref must succeed: $(perr)"
+  cp "$ROADMAP" "$TEST_DIR/p758-roadmap.after-first-bind.yaml"
+  [ "$(run_propose bind --capability cap-t758-b --ref maint-t758-shared --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "1" ] \
+    || log_fail "TEST-758: binding the SAME ref into a second pair must be refused: $(pout)"
+  grep -qF 'already bound as the maintenance half of' "$TEST_DIR/perr" \
+    || log_fail "TEST-758: the refusal must name which pair the ref is already bound to: $(perr)"
+  cmp -s "$ROADMAP" "$TEST_DIR/p758-roadmap.after-first-bind.yaml" \
+    || log_fail "TEST-758: the refused second bind must write nothing: $(cat "$ROADMAP")"
+  log_pass "bind refuses a ref already bound as another pair's maintenance half (TEST-758)"
+}
+
+# --- TEST-759 (Spec-AC-05, Spec-AC-14): validation round 2 NB-3 — the gate's --
+# off-roadmap maintenance refusal advertises a bind command that must ACTUALLY
+# succeed (round 1's type check made it always refuse for exactly the class
+# F1's own repro used).
+test_759_gate_bind_remedy_succeeds() {
+  log_info "Test: the bind command the gate's maintenance refusal advertises actually succeeds (TEST-759, NB-3)..."
+  local D="$TEST_DIR/p759docs"
+  mkdir -p "$D"
+  local ROADMAP="$TEST_DIR/p759-roadmap.yaml" LEDGER="$TEST_DIR/p759-ledger.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t759
+    status: planned
+YAML
+  : > "$LEDGER"
+  # A type:change intake whose SLUG carries a maintenance word (MAINT_WORDS)
+  # — the gate classifies it as maintenance by REF, bind must classify it by
+  # roadmap membership, and the two must agree.
+  propose_write_doc "$D" a-guard-rail-view-of-spend-t759 change draft
+  [ "$(run gate --ref a-guard-rail-view-of-spend-t759 --intake "$D/issues/CHANGE-DRAFT-a-guard-rail-view-of-spend-t759.md" --roadmap "$ROADMAP" --docs "$D")" = "1" ] \
+    || log_fail "TEST-759: gate must refuse the off-roadmap maintenance ref: $(out)"
+  grep -qF 'roadmap-propose.mjs bind' "$TEST_DIR/err" \
+    || log_fail "TEST-759: the refusal must name the bind command: $(err)"
+  [ "$(run_propose bind --capability cap-t759 --ref a-guard-rail-view-of-spend-t759 --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-759: the bind command the gate advertises must actually succeed: $(perr)"
+  log_pass "the gate's advertised bind command actually succeeds (TEST-759, NB-3)"
+}
+
+# --- TEST-760 (Spec-AC-03): validation round 2 NB-6 — next stops proposing --
+# a maintenance ref that resolves to no document (a bind from an open
+# follow-up id, D13's first arm): the OLD behaviour handed an autonomous loop
+# a ref `gate` immediately refuses — a livelock, not merely an un-closeable
+# pair (R7). `next` now proposes filing the intake instead.
+test_760_next_stops_proposing_dead_ref() {
+  log_info "Test: next never proposes a maintenance ref with no resolvable document — it proposes filing the intake instead (TEST-760, NB-6)..."
+  cat > "$TEST_DIR/roadmap760.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t760
+    maintenance: fu-t760-dead
+    status: active
+YAML
+  write_doc cap-t760 change implementing
+  [ "$(run next --roadmap "$TEST_DIR/roadmap760.yaml" --docs "$TEST_DIR/docs" --json)" = "0" ] \
+    || log_fail "TEST-760: next must exit 0: $(err)"
+  grep -qF '"next":"fu-t760-dead"' "$TEST_DIR/out" \
+    && log_fail "TEST-760: next must never propose a maintenance ref with no resolvable document (the R7 livelock): $(out)"
+  grep -qF '"action":"file-intake"' "$TEST_DIR/out" \
+    || log_fail "TEST-760: next must propose filing the intake instead of the dead ref: $(out)"
+  grep -qF 'fu-t760-dead' "$TEST_DIR/out" \
+    || log_fail "TEST-760: the file-intake action must still name the ref that needs an intake: $(out)"
+  [ "$(run gate --ref fu-t760-dead --roadmap "$TEST_DIR/roadmap760.yaml" --docs "$TEST_DIR/docs")" = "1" ] \
+    || log_fail "TEST-760: gate must still refuse the dead ref (R7 unchanged): $(out)"
+  grep -qF 'no document resolves' "$TEST_DIR/err" \
+    || log_fail "TEST-760: gate's refusal reason must be unchanged: $(err)"
+  log_pass "next stops proposing a maintenance ref nothing can resolve, and proposes filing its intake instead (TEST-760, NB-6)"
 }
 
 # --- TEST-752 (Spec-AC-12, D10 amendment): BLOCKING-3 — promoting a wave_2- --
@@ -1375,6 +1511,43 @@ YAML
   [ "$(run validate --roadmap "$ROADMAP" --docs "$D")" = "0" ] \
     || log_fail "TEST-752: the real validator must accept the roadmap after promotion: $(err)"
   log_pass "write promoting a wave_2-sourced pick removes it from wave_2 and the real validator accepts (TEST-752)"
+}
+
+# --- TEST-761 (Spec-AC-12): validation round 2 NB-1/N15 — promoting a -------
+# wave_2-sourced pick removes ONLY its own line; a mutation that deletes
+# EVERY wave_2 row (not just the matching one) must redden this, which
+# TEST-752's single-entry fixture could not (round 2 measured: against the
+# shipped roadmap, one promotion emptied all four of the owner's deferred
+# wave_2 items and `validate` still said OK).
+test_761_promotion_leaves_other_wave2_entries() {
+  log_info "Test: promoting one wave_2 slug leaves every OTHER wave_2 entry in place (TEST-761, N15)..."
+  local D="$TEST_DIR/p761docs"
+  mkdir -p "$D"
+  local ROADMAP="$TEST_DIR/p761-roadmap.yaml" LEDGER="$TEST_DIR/p761-ledger.jsonl" SPOOL="$TEST_DIR/p761-spool.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t761-existing
+    maintenance: maint-t761-existing
+    status: planned
+wave_2:
+  - cap-t761-promote
+  - cap-t761-keep-one
+  - cap-t761-keep-two
+YAML
+  : > "$LEDGER"
+  [ "$(run_propose write --direction "please promote t761 item" --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL")" = "0" ] \
+    || log_fail "TEST-761: write promoting the wave_2 slug must exit 0: $(perr)"
+  /usr/bin/grep -qE '^  - cap-t761-promote$' "$ROADMAP" \
+    && log_fail "TEST-761: the promoted slug's OLD wave_2 listing must be removed: $(cat "$ROADMAP")"
+  /usr/bin/grep -qE '^  - cap-t761-keep-one$' "$ROADMAP" \
+    || log_fail "TEST-761: an UNTOUCHED wave_2 entry must survive the promotion (N15 — deleting every wave_2 row must redden this): $(cat "$ROADMAP")"
+  /usr/bin/grep -qE '^  - cap-t761-keep-two$' "$ROADMAP" \
+    || log_fail "TEST-761: a SECOND untouched wave_2 entry must also survive the promotion: $(cat "$ROADMAP")"
+  [ "$(run validate --roadmap "$ROADMAP" --docs "$D")" = "0" ] \
+    || log_fail "TEST-761: the real validator must accept the roadmap after promotion: $(err)"
+  log_pass "promoting one wave_2 slug leaves every other wave_2 entry in place (TEST-761, N15)"
 }
 
 # --- TEST-753 (Spec-AC-06): F4 — harvest excludes an intake draft whose id ---
@@ -1513,12 +1686,17 @@ main() {
   test_748_harvest_row_numbers_and_write_pick_fidelity
   test_749_write_requires_direction
   test_750_write_direction_value_drives_pick
-  test_751_bind_refuses_capability_typed_ref
+  test_751_bind_refuses_roadmap_capability_ref
   test_752_write_promotes_wave2_slug_and_removes_it
   test_753_harvest_excludes_already_paired_intake
   test_754_gate_pair_ahead_never_prints_null
   test_755_gate_doc_missing_never_prints_null
   test_756_write_discloses_gate_turned_on
+  test_757_bind_no_type_denylist
+  test_758_bind_refuses_ref_bound_elsewhere
+  test_759_gate_bind_remedy_succeeds
+  test_760_next_stops_proposing_dead_ref
+  test_761_promotion_leaves_other_wave2_entries
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

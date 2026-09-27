@@ -162,6 +162,19 @@ function nextRide(rm, docsDir) {
     if (pr.maintenance === null) {
       return { action: 'bind', capability: pr.capability, command: bindCommand(pr.capability), pair: pr };
     }
+    // NB-6 (validation round 2): a maintenance ref bound from an open
+    // follow-up id (D13's first backlog arm) has no DOCUMENT under --docs to
+    // resolve to until an intake is filed for it. Proposing it as `next`
+    // anyway hands an autonomous loop a ref `gate` immediately refuses ("no
+    // document resolves for ..."), forever — a LIVELOCK, not merely an
+    // un-closeable pair (R7 described the refusal but not this). Use the
+    // SAME resolution authority `gate`'s own off-roadmap check already uses
+    // (findDoc) so `next` and `gate` never disagree about what "resolves"
+    // means, and propose filing the intake instead of a ref nothing can act
+    // on.
+    if (!findDoc(docsDir, pr.maintenance)) {
+      return { action: 'file-intake', ref: pr.maintenance, capability: pr.capability, pair: pr };
+    }
     const ms = statusOf(docsDir, pr.maintenance);
     if (ms !== 'done') return { ref: pr.maintenance, half: 'maintenance', pair: pr };
   }
@@ -262,6 +275,15 @@ function main() {
       process.stdout.write(a.json
         ? JSON.stringify({ action: 'bind', capability: n.capability, command: n.command }) + '\n'
         : `${n.capability}: maintenance slot unbound — ${n.command}\n`);
+      process.exit(0);
+    }
+    // NB-6: a bound maintenance ref with no document yet (e.g. bound from an
+    // open follow-up id) — stop short of proposing it; name the blocker
+    // instead of a ref `gate` will only refuse.
+    if (n.action === 'file-intake') {
+      process.stdout.write(a.json
+        ? JSON.stringify({ action: 'file-intake', ref: n.ref, capability: n.capability }) + '\n'
+        : `${n.ref}: bound as the maintenance half of ${n.capability} but no document resolves for it yet — file its intake before this pair's maintenance half can be ridden\n`);
       process.exit(0);
     }
     process.stdout.write(a.json ? JSON.stringify({ next: n.ref, half: n.half, pair: n.pair }) + '\n' : `${n.ref}\n`);
