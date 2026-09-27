@@ -291,7 +291,12 @@ function main() {
     if (status === 'implementing') return admit(`${a.ref} is already implementing — in flight`);
     if (!isFirstUnfinished(pair, rm)) {
       const ahead = rm.pairs.find((p) => p.status !== 'done');
-      return deny(`pair ahead — ${a.ref} is not the first unfinished pair; ${ahead.capability} (and its maintenance ${ahead.maintenance}) must be done first (ranked roadmap order, 1:1 budget); override with --override "<reason>" if the owner really wants it out of order`);
+      // F6 (non-blocking, validation round 1): a capability-only pair (D2 —
+      // `maintenance:` optional) has `maintenance === null`; printing that
+      // straight into the template literal renders the literal word "null",
+      // not a sentence an owner can act on. `unbound` matches the vocabulary
+      // D2/D4 already use for this exact state.
+      return deny(`pair ahead — ${a.ref} is not the first unfinished pair; ${ahead.capability} (and its maintenance ${ahead.maintenance || 'unbound'}) must be done first (ranked roadmap order, 1:1 budget); override with --override "<reason>" if the owner really wants it out of order`);
     }
     // Spec-AC-29's own text: "on refs that exist" — the SAME authority
     // `validate` uses (`intake`, resolved above via `findDoc`/`readIntake`,
@@ -306,7 +311,10 @@ function main() {
     // 16's R6 residual (validation-round1 B5/R6): a typo'd-but-internally-
     // consistent roadmap slug — capability OR maintenance half — no longer
     // reaches an ADMIT.
-    if (!intake) return deny(`${a.ref} matches roadmap pair "${pair.capability}"/"${pair.maintenance}" but no document resolves for "${a.ref}" under ${a.docs} — file its intake before gating this ref (Spec-AC-29: gate admits only refs that exist)`);
+    // F6 (non-blocking, validation round 1): same "unbound" substitution as
+    // the pair-ahead refusal above — a capability-only pair's maintenance
+    // slot is null, not the string "null".
+    if (!intake) return deny(`${a.ref} matches roadmap pair "${pair.capability}"/"${pair.maintenance || 'unbound'}" but no document resolves for "${a.ref}" under ${a.docs} — file its intake before gating this ref (Spec-AC-29: gate admits only refs that exist)`);
     if (pair.capability === a.ref) return admit('a roadmap capability');
     const cs = statusOf(a.docs, pair.capability);
     if (!STARTED.has(cs || '')) return deny(`pair first — ${a.ref} is the maintenance half of a pair whose capability ${pair.capability} is ${cs || 'not filed'}; start ${pair.capability} before it (1:1 budget)`);

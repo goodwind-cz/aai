@@ -19,8 +19,12 @@
 //        [--roadmap <path>] [--docs <dir>] [--ledger <path>] [--spool <path>]
 //        [--json]
 //   node .aai/scripts/roadmap-propose.mjs write --pick <n[,n...]>
-//        [--direction "<sentence>"] [--roadmap <path>] [--docs <dir>]
+//        --direction "<sentence>" [--roadmap <path>] [--docs <dir>]
 //        [--ledger <path>] [--spool <path>]
+//        (--direction is REQUIRED on write, not optional: --pick is an index
+//        into the ranking that sentence produces, and write re-runs that
+//        ranking itself rather than trusting a caller-supplied selection —
+//        see BLOCKING-1 / F2 in validation-round1.txt.)
 //   node .aai/scripts/roadmap-propose.mjs bind --capability <slug>
 //        --ref <maintenance-ref> [--roadmap <path>] [--docs <dir>]
 //        [--ledger <path>]
@@ -96,10 +100,23 @@ function parseArgs(argv) {
   if (!['harvest', 'write', 'bind'].includes(a.cmd)) {
     usage('usage: roadmap-propose.mjs <harvest|write|bind> ...\n' +
       '  harvest [--direction "<sentence>"] [--roadmap <p>] [--docs <dir>] [--ledger <p>] [--spool <p>] [--json]\n' +
-      '  write --pick <n[,n...]> [--direction "<sentence>"] [--roadmap <p>] [--docs <dir>] [--ledger <p>] [--spool <p>]\n' +
+      '  write --pick <n[,n...]> --direction "<sentence>" [--roadmap <p>] [--docs <dir>] [--ledger <p>] [--spool <p>]\n' +
       '  bind --capability <slug> --ref <maintenance-ref> [--roadmap <p>] [--docs <dir>] [--ledger <p>]');
   }
   if (a.cmd === 'write' && !a.pick) usage('write requires --pick <n[,n...]>');
+  // BLOCKING-1 (validation round 1, F2): `write` used to re-run harvest's own
+  // ranking with `--direction` OPTIONAL, defaulting to "" — an owner who
+  // picked row N off a DIRECTED harvest could silently get a DIFFERENT
+  // candidate written, because the un-directed re-ranking sorted differently
+  // and picks.map((i) => candidates[i - 1]) then indexed into that other
+  // order. `--pick` is only ever a safe index into "the ranking the owner
+  // just looked at" when write is handed the EXACT SAME sentence — so write
+  // now refuses (usage, exit 2, nothing written) unless `--direction` is
+  // given, the same way it already refuses a missing `--pick`. (The
+  // alternative the finding names — pick by id instead of index — was
+  // rejected: an id-based pick still needs a stable id-per-row, which is
+  // strictly more surface for the same guarantee this one flag already buys.)
+  if (a.cmd === 'write' && !a.direction) usage('write requires --direction "<sentence>" (the SAME sentence the harvest ranking being picked from was run with — Spec-AC-12/F2)');
   if (a.cmd === 'bind') {
     if (!a.capability) usage('bind requires --capability <slug>');
     if (!a.ref) usage('bind requires --ref <maintenance-ref>');
@@ -184,8 +201,12 @@ function compareCandidates(a, b) {
 
 // D8 intake source: docs/issues/*.md (direct children only — never a
 // recursive walk) whose frontmatter carries status: draft and a type in the
-// capability set.
-function intakeCandidates(docsDir) {
+// capability set. F4 (non-blocking, validation round 1): `pairSlugs` is
+// applied here too, mirroring wave2Candidates below — without it, harvest
+// kept re-offering a capability that a prior `write` had already paired
+// (the intake doc itself stays `status: draft`, so nothing else ever
+// retires it), which is the STEADY STATE after the very first write.
+function intakeCandidates(docsDir, pairSlugs) {
   const dir = path.join(docsDir, 'issues');
   let names;
   try { names = fs.readdirSync(dir); } catch { return []; }
@@ -198,6 +219,7 @@ function intakeCandidates(docsDir) {
     const fm = parseFrontmatter(content);
     if (!fm || !fm.id || fm.status !== 'draft') continue;
     if (!CAPABILITY_TYPES.has(fm.type)) continue;
+    if (pairSlugs.has(fm.id)) continue;
     const heading = (content.split('\n').find((l) => /^# /.test(l)) || '').trim();
     out.push({ id: fm.id, source: 'intake', label: `${fm.id} ${heading}`.trim(), path: p });
   }
@@ -431,7 +453,7 @@ function buildCandidates(a) {
   const notes = [];
   const roadmapInfo = readWave2AndPairSlugs(a.roadmap);
   const rawAll = [
-    ...intakeCandidates(a.docs),
+    ...intakeCandidates(a.docs, roadmapInfo.pairSlugs),
     ...wave2Candidates(roadmapInfo, a.docs),
     ...frictionCandidates(a.spool, notes),
   ];
@@ -441,13 +463,22 @@ function buildCandidates(a) {
   const ctx = { direction: a.direction, docsDir: a.docs, followUps, repoRoot };
   const candidates = raw.map((c) => evaluateCandidate(c, ctx));
   candidates.sort(compareCandidates);
+  // BLOCKING-1 (validation round 1, F2): `write --pick <n>` takes a 1-based
+  // INDEX into exactly this ranked order, and harvest used to print no
+  // number at all — the owner had nothing to type. The index is stamped
+  // onto the candidate record itself (not just the text formatter) so
+  // --json carries it too, and so it is the SAME number cmdWrite's
+  // parsePickList/selection logic (below) is keyed against — one source of
+  // truth for "row N", never a formatter-only decoration a JSON consumer
+  // could miss.
+  candidates.forEach((c, i) => { c.index = i + 1; });
   return { candidates, notes };
 }
 
 function formatRow(c) {
   const tokens = c.direction_tokens.length ? c.direction_tokens.join(',') : 'none';
   const age = c.age_note ? `${c.age_days} (${c.age_note})` : String(c.age_days);
-  return `${c.id} [${c.source}] direction=${c.direction} (${tokens}) observations=${c.observations} blocks_in=${c.blocks_in} age_days=${age}`;
+  return `${c.index}. ${c.id} [${c.source}] direction=${c.direction} (${tokens}) observations=${c.observations} blocks_in=${c.blocks_in} age_days=${age}`;
 }
 
 function cmdHarvest(a) {
@@ -572,6 +603,25 @@ function removeWave2Entries(text, ids) {
   return out.join('\n');
 }
 
+// F1 (validation round 1) asks whether `write`/`bind` should append an
+// EVENTS.jsonl line the way `gate --override` does. Decision: NO, and here
+// is why. `--override` bypasses a REFUSAL — its only trace, absent an
+// EVENTS line, would be the ride that follows it; the owner has no other way
+// to COUNT how often the gate's own judgment was overruled. `write` and
+// `bind` are the opposite shape: they are not a bypass of anything, they are
+// THE way this scope's whole feature is meant to be used, and their effect
+// is a byte-diffable change to docs/ai/roadmap.yaml itself — a tracked file
+// under normal code review (D1's rationale: this stays a sibling script
+// precisely so the shared roadmap keeps being reviewed like any other
+// change). An EVENTS line here would duplicate strictly less information
+// than `git log -p -- docs/ai/roadmap.yaml` already carries (who, when, and
+// the padded ranking rationale printed to stdout, none of which EVENTS'
+// single-line JSON shape has room for), while adding a second success path
+// that certify()/rollback() would have to keep in lock-step (an EVENTS
+// append that survives a rolled-back write would be a false positive worse
+// than the silence F1 found). If this changes — e.g. bind starts mutating a
+// SHARED roadmap outside of a reviewed PR — it should gain its own Spec-AC
+// and mutation-pinned test, not a bolt-on here.
 function cmdWrite(a) {
   const { candidates } = buildCandidates(a);
   if (!candidates.length) refuse('nothing harvested');
@@ -595,7 +645,17 @@ function cmdWrite(a) {
     process.stderr.write(cert.stderr);
     refuse(`the appended roadmap did not validate — original bytes restored (${a.roadmap})`);
   }
-  process.stdout.write(`wrote ${selected.length} capability pair(s) to ${a.roadmap}: ${selected.map((c) => c.id).join(', ')}\n`);
+  // F7 (non-blocking, validation round 1): writing into a project that had NO
+  // docs/ai/roadmap.yaml yet (D12's own edge case) CREATES one — and
+  // orchestration-dispatch.mjs's roadmapGate() reads "file present" as
+  // "consult the gate" (D11: "a project with no docs/ai/roadmap.yaml sees no
+  // file, no gate ... exactly as today"). That is a real, intended
+  // side-effect (the whole point of `write`), but the success line used to
+  // say nothing about it, so an owner who ran `write` once could be
+  // surprised every ride afterwards. Disclosed on the one line this run
+  // prints, only when it is actually true (`!existed`).
+  const gateNote = existed ? '' : ` — this project had no roadmap: the ride gate is now ON for every ride from here (${a.roadmap})`;
+  process.stdout.write(`wrote ${selected.length} capability pair(s) to ${a.roadmap}: ${selected.map((c) => c.id).join(', ')}${gateNote}\n`);
   process.exit(0);
 }
 
@@ -624,15 +684,17 @@ function readPairsForBind(text) {
   return pairs;
 }
 
-// resolveDoc(docsDir, id) -> the path of a document whose frontmatter id
-// matches, or null — the same walk+parseFrontmatter authority the harvest
-// sources above already use, never a second frontmatter parser.
+// resolveDoc(docsDir, id) -> { path, type } for a document whose frontmatter
+// id matches, or null — the same walk+parseFrontmatter authority the harvest
+// sources above already use, never a second frontmatter parser. Carries
+// `type` (not just the path) so cmdBind's CAPABILITY_TYPES check below can
+// classify the resolved document without a second walk of the tree.
 function resolveDoc(docsDir, id) {
   for (const p of walk(docsDir)) {
     let content;
     try { content = fs.readFileSync(p, 'utf8'); } catch { continue; }
     const fm = parseFrontmatter(content);
-    if (fm && fm.id === id) return p;
+    if (fm && fm.id === id) return { path: p, type: fm.type || null };
   }
   return null;
 }
@@ -652,6 +714,19 @@ function cmdBind(a) {
   const doc = resolveDoc(a.docs, a.ref);
   if (!openIds.has(a.ref) && !doc) {
     refuse(`"${a.ref}" is neither an open follow-up id in ${a.ledger} nor a resolvable document under ${a.docs}`);
+  }
+  // BLOCKING-2 (validation round 1, F1): D13 proved only that the ref comes
+  // "from the backlog" — it never asked whether the resolved document is
+  // itself a CAPABILITY (type in CAPABILITY_TYPES). Without this, a
+  // `type: change` intake (an owner decision the gate would otherwise refuse
+  // and route to the roadmap) can be bound straight into another
+  // capability's maintenance slot, consuming the 1:1 budget and silently
+  // admitting an unranked capability. Mirrors D8's own exclusion on the
+  // capability side (D8: "maintenance types ... are excluded — the roadmap
+  // now carries capabilities only"): the maintenance side gets the same
+  // exclusion, in reverse.
+  if (doc && CAPABILITY_TYPES.has(doc.type)) {
+    refuse(`"${a.ref}" resolves to a document of type "${doc.type}" (${doc.path}) — that is a CAPABILITY type (${[...CAPABILITY_TYPES].join(', ')}), and bind only accepts a MAINTENANCE ref: an open follow-up id, or a document whose type is not one of those (mirrors D8's exclusion on the capability side)`);
   }
 
   const lines = text.split('\n');

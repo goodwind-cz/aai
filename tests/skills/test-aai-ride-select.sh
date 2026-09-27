@@ -1208,7 +1208,7 @@ test_743_opt_out_leaves_no_file() {
     process.stdout.write(String(j.candidates.length));
   ' "$TEST_DIR/pout")"
   [ "$n_candidates" = "0" ] || log_fail "TEST-743: an empty docs dir and absent roadmap must yield zero candidates, got $n_candidates"
-  [ "$(run_propose write --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p743-ledger.jsonl" --spool "$TEST_DIR/p743-spool.jsonl")" = "1" ] \
+  [ "$(run_propose write --direction "p743 direction" --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p743-ledger.jsonl" --spool "$TEST_DIR/p743-spool.jsonl")" = "1" ] \
     || log_fail "TEST-743: write with zero harvested candidates must exit 1: $(pout)"
   grep -qF 'nothing harvested' "$TEST_DIR/perr" || log_fail "TEST-743: the refusal must say nothing harvested: $(perr)"
   [ ! -e "$ROADMAP" ] || log_fail "TEST-743: write with zero candidates must create no roadmap file"
@@ -1232,6 +1232,230 @@ test_744_no_automatic_invocation_site() {
   hits="$(/usr/bin/grep -rl "$SCAN_PATTERN" "$PROJECT_ROOT"/.aai/*.prompt.md "$PROJECT_ROOT/.aai/scripts/orchestration-dispatch.mjs" 2>/dev/null || true)"
   [ -z "$hits" ] || log_fail "TEST-744: no .aai prompt or orchestration-dispatch.mjs may invoke roadmap-propose automatically, found: $hits"
   log_pass "no prompt or dispatch branch invokes roadmap-propose automatically (TEST-744)"
+}
+
+# === Remediation round (validation-round1.txt) ==============================
+
+# --- TEST-748 (Spec-AC-06, Spec-AC-12): BLOCKING-1 — harvest prints stable ---
+# 1-based row numbers, and write --pick N writes exactly the Nth-ranked
+# candidate off that SAME ranking — never row 1 regardless of N (widened,
+# multi-candidate fixture: TEST-738's single-candidate fixture could never
+# exercise pick fidelity at all).
+test_748_harvest_row_numbers_and_write_pick_fidelity() {
+  log_info "Test: harvest prints 1-based row numbers and write --pick N writes exactly the Nth-ranked candidate (TEST-748)..."
+  local D="$TEST_DIR/p748docs"
+  propose_write_doc "$D" cap-t748-gamma change draft
+  propose_write_doc "$D" cap-t748-beta change draft
+  propose_write_doc "$D" cap-t748-alpha change draft
+  local ROADMAP="$TEST_DIR/p748-roadmap.yaml" LEDGER="$TEST_DIR/p748-ledger.jsonl" SPOOL="$TEST_DIR/p748-spool.jsonl"
+  : > "$LEDGER"
+  local DIRECTION="the beta idea please"
+  [ "$(run_propose harvest --direction "$DIRECTION" --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-748: harvest must exit 0: $(perr)"
+  # Ranked order under this direction: beta (direction=1) first, then alpha
+  # and gamma tied at direction=0, id-ASC ("cap-t748-alpha" < "cap-t748-gamma").
+  [ "$(propose_field cap-t748-beta index)" = "1" ] || log_fail "TEST-748: cap-t748-beta must be row 1, got: $(pout)"
+  [ "$(propose_field cap-t748-alpha index)" = "2" ] || log_fail "TEST-748: cap-t748-alpha must be row 2, got: $(pout)"
+  [ "$(propose_field cap-t748-gamma index)" = "3" ] || log_fail "TEST-748: cap-t748-gamma must be row 3, got: $(pout)"
+  # The TEXT rows must carry the same numbers, not just the JSON field.
+  [ "$(run_propose harvest --direction "$DIRECTION" --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL")" = "0" ] \
+    || log_fail "TEST-748: text harvest must exit 0: $(perr)"
+  grep -qE '^1\. cap-t748-beta ' "$TEST_DIR/pout" || log_fail "TEST-748: the text row for cap-t748-beta must be numbered 1: $(pout)"
+  grep -qE '^2\. cap-t748-alpha ' "$TEST_DIR/pout" || log_fail "TEST-748: the text row for cap-t748-alpha must be numbered 2: $(pout)"
+  grep -qE '^3\. cap-t748-gamma ' "$TEST_DIR/pout" || log_fail "TEST-748: the text row for cap-t748-gamma must be numbered 3: $(pout)"
+  # write --pick 2 must write row 2 (alpha) — NOT row 1 (beta). A write that
+  # recomputed a prefix (candidates.slice(0, picks.length)) instead of
+  # indexing candidates[pick-1] would write beta here instead.
+  local ROADMAP2="$TEST_DIR/p748-write-roadmap.yaml"
+  [ "$(run_propose write --direction "$DIRECTION" --pick 2 --roadmap "$ROADMAP2" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL")" = "0" ] \
+    || log_fail "TEST-748: write --pick 2 must exit 0: $(perr)"
+  /usr/bin/grep -q 'capability: cap-t748-alpha' "$ROADMAP2" \
+    || log_fail "TEST-748: write --pick 2 must write the SECOND-ranked candidate (cap-t748-alpha): $(cat "$ROADMAP2")"
+  /usr/bin/grep -q 'capability: cap-t748-beta' "$ROADMAP2" \
+    && log_fail "TEST-748: write --pick 2 must NOT write the first-ranked candidate (cap-t748-beta): $(cat "$ROADMAP2")"
+  /usr/bin/grep -q 'capability: cap-t748-gamma' "$ROADMAP2" \
+    && log_fail "TEST-748: write --pick 2 must NOT write the third-ranked candidate (cap-t748-gamma): $(cat "$ROADMAP2")"
+  log_pass "harvest prints stable row numbers and write --pick N writes exactly the Nth-ranked candidate (TEST-748)"
+}
+
+# --- TEST-749 (Spec-AC-12): BLOCKING-1 — write refuses (usage, exit 2) when --
+# --direction is omitted, and writes nothing.
+test_749_write_requires_direction() {
+  log_info "Test: write refuses with a usage error when --direction is omitted, and writes nothing (TEST-749)..."
+  local D="$TEST_DIR/p749docs"
+  propose_write_doc "$D" cap-t749 change draft
+  local ROADMAP="$TEST_DIR/p749-nonexistent/roadmap.yaml"
+  rm -rf "$TEST_DIR/p749-nonexistent"
+  [ "$(run_propose write --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p749-ledger.jsonl" --spool "$TEST_DIR/p749-spool.jsonl")" = "2" ] \
+    || log_fail "TEST-749: write with no --direction must exit 2 (usage), got $(pout): $(perr)"
+  grep -qF -- '--direction' "$TEST_DIR/perr" || log_fail "TEST-749: the usage refusal must name --direction: $(perr)"
+  [ ! -e "$ROADMAP" ] || log_fail "TEST-749: write with no --direction must create no roadmap file"
+  log_pass "write refuses with a usage error when --direction is omitted, and writes nothing (TEST-749)"
+}
+
+# --- TEST-750 (Spec-AC-12): BLOCKING-1 — the SENTENCE, not merely its --------
+# presence, drives what write picks: the same --pick 1 writes a DIFFERENT
+# candidate when --direction changes.
+test_750_write_direction_value_drives_pick() {
+  log_info "Test: the same --pick 1 writes a different candidate when --direction changes, proving write's ranking is driven by the sentence itself (TEST-750)..."
+  local D="$TEST_DIR/p750docs"
+  propose_write_doc "$D" cap-t750-gamma change draft
+  propose_write_doc "$D" cap-t750-beta change draft
+  propose_write_doc "$D" cap-t750-alpha change draft
+  local LEDGER="$TEST_DIR/p750-ledger.jsonl" SPOOL="$TEST_DIR/p750-spool.jsonl"
+  : > "$LEDGER"
+  local ROADMAP_BETA="$TEST_DIR/p750-roadmap-beta.yaml"
+  [ "$(run_propose write --direction "the beta idea please" --pick 1 --roadmap "$ROADMAP_BETA" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL")" = "0" ] \
+    || log_fail "TEST-750: write directed at beta must exit 0: $(perr)"
+  /usr/bin/grep -q 'capability: cap-t750-beta' "$ROADMAP_BETA" \
+    || log_fail "TEST-750: --direction naming beta with --pick 1 must write cap-t750-beta: $(cat "$ROADMAP_BETA")"
+  local ROADMAP_GAMMA="$TEST_DIR/p750-roadmap-gamma.yaml"
+  [ "$(run_propose write --direction "the gamma idea please" --pick 1 --roadmap "$ROADMAP_GAMMA" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL")" = "0" ] \
+    || log_fail "TEST-750: write directed at gamma must exit 0: $(perr)"
+  /usr/bin/grep -q 'capability: cap-t750-gamma' "$ROADMAP_GAMMA" \
+    || log_fail "TEST-750: --direction naming gamma with --pick 1 must write cap-t750-gamma: $(cat "$ROADMAP_GAMMA")"
+  log_pass "the same --pick 1 writes a different candidate when --direction changes (TEST-750)"
+}
+
+# --- TEST-751 (Spec-AC-14): BLOCKING-2 — bind refuses a ref that resolves ----
+# to a CAPABILITY-typed document, and still succeeds for a genuine
+# maintenance-typed document.
+test_751_bind_refuses_capability_typed_ref() {
+  log_info "Test: bind refuses a ref resolving to a capability-typed document, and still accepts a maintenance-typed one (TEST-751)..."
+  local D="$TEST_DIR/p751docs"
+  local ROADMAP="$TEST_DIR/p751-roadmap.yaml" LEDGER="$TEST_DIR/p751-ledger.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t751
+    status: planned
+YAML
+  cp "$ROADMAP" "$TEST_DIR/p751-roadmap.orig.yaml"
+  : > "$LEDGER"
+  propose_write_doc "$D" cap-t751-capdoc change draft
+  [ "$(run_propose bind --capability cap-t751 --ref cap-t751-capdoc --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "1" ] \
+    || log_fail "TEST-751: bind must refuse a ref resolving to a capability-typed (change) document: $(pout)"
+  grep -qF 'CAPABILITY type' "$TEST_DIR/perr" || log_fail "TEST-751: the refusal must name the CAPABILITY type mismatch: $(perr)"
+  cmp -s "$ROADMAP" "$TEST_DIR/p751-roadmap.orig.yaml" || log_fail "TEST-751: bind must write nothing on a capability-typed ref refusal"
+  propose_write_doc "$D" cap-t751-maintdoc issue draft
+  [ "$(run_propose bind --capability cap-t751 --ref cap-t751-maintdoc --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-751: bind must still accept a maintenance-typed (issue) document: $(perr)"
+  /usr/bin/grep -q '^    maintenance: cap-t751-maintdoc' "$ROADMAP" \
+    || log_fail "TEST-751: the accepted maintenance-typed ref must be bound: $(cat "$ROADMAP")"
+  log_pass "bind refuses a capability-typed ref and still accepts a maintenance-typed one (TEST-751)"
+}
+
+# --- TEST-752 (Spec-AC-12, D10 amendment): BLOCKING-3 — promoting a wave_2- --
+# sourced pick removes its old wave_2 listing and the real validator accepts
+# (the D10 amendment / removeWave2Entries, shipped in run 3 with no test of
+# its own — validation round 1 F3).
+test_752_write_promotes_wave2_slug_and_removes_it() {
+  log_info "Test: write promoting a wave_2-sourced pick removes the slug from wave_2 and the real validator accepts (TEST-752)..."
+  local D="$TEST_DIR/p752docs"
+  mkdir -p "$D"
+  local ROADMAP="$TEST_DIR/p752-roadmap.yaml" LEDGER="$TEST_DIR/p752-ledger.jsonl" SPOOL="$TEST_DIR/p752-spool.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t752-existing
+    maintenance: maint-t752-existing
+    status: planned
+wave_2:
+  - cap-t752-promote
+YAML
+  : > "$LEDGER"
+  [ "$(run_propose write --direction "please promote t752 item" --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL")" = "0" ] \
+    || log_fail "TEST-752: write promoting the wave_2 slug must exit 0: $(perr)"
+  /usr/bin/grep -q 'capability: cap-t752-promote' "$ROADMAP" \
+    || log_fail "TEST-752: the promoted slug must appear as a pair: $(cat "$ROADMAP")"
+  /usr/bin/grep -qE '^  - cap-t752-promote$' "$ROADMAP" \
+    && log_fail "TEST-752: the promoted slug's OLD wave_2 listing must be removed: $(cat "$ROADMAP")"
+  [ "$(run validate --roadmap "$ROADMAP" --docs "$D")" = "0" ] \
+    || log_fail "TEST-752: the real validator must accept the roadmap after promotion: $(err)"
+  log_pass "write promoting a wave_2-sourced pick removes it from wave_2 and the real validator accepts (TEST-752)"
+}
+
+# --- TEST-753 (Spec-AC-06): F4 — harvest excludes an intake draft whose id ---
+# is already a roadmap pair (the steady state after the first write).
+test_753_harvest_excludes_already_paired_intake() {
+  log_info "Test: harvest excludes an intake draft whose id is already a roadmap capability pair (TEST-753)..."
+  local D="$TEST_DIR/p753docs"
+  propose_write_doc "$D" cap-t753-paired change draft
+  propose_write_doc "$D" cap-t753-free change draft
+  local ROADMAP="$TEST_DIR/p753-roadmap.yaml"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t753-paired
+    maintenance: maint-t753-paired
+    status: planned
+YAML
+  [ "$(run_propose harvest --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p753-ledger.jsonl" --spool "$TEST_DIR/p753-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-753: harvest must exit 0: $(perr)"
+  grep -qF '"id":"cap-t753-free"' "$TEST_DIR/pout" || log_fail "TEST-753: an unpaired intake draft must still be harvested: $(pout)"
+  grep -qF '"id":"cap-t753-paired"' "$TEST_DIR/pout" \
+    && log_fail "TEST-753: an intake draft already paired on the roadmap must NOT be harvested again: $(pout)"
+  log_pass "harvest excludes an intake draft whose id is already a roadmap pair (TEST-753)"
+}
+
+# --- TEST-754 (Spec-AC-05): F6 — the "pair ahead" refusal never prints the --
+# literal word null for an unbound (capability-only) maintenance slot.
+test_754_gate_pair_ahead_never_prints_null() {
+  log_info "Test: the pair-ahead refusal names the unbound maintenance slot as unbound, never the literal word null (TEST-754)..."
+  local D="$TEST_DIR/p754docs"
+  mkdir -p "$D"
+  cat > "$TEST_DIR/p754-roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t754-first
+    status: planned
+  - capability: cap-t754-second
+    status: planned
+YAML
+  [ "$(run gate --ref cap-t754-second --roadmap "$TEST_DIR/p754-roadmap.yaml" --docs "$D")" = "1" ] \
+    || log_fail "TEST-754: gate on the second (not-first-unfinished) pair must refuse: $(out)"
+  grep -qF 'null' "$TEST_DIR/err" && log_fail "TEST-754: the pair-ahead refusal must never print the literal word null: $(err)"
+  grep -qF 'unbound' "$TEST_DIR/err" || log_fail "TEST-754: the pair-ahead refusal must name the unbound maintenance slot: $(err)"
+  log_pass "the pair-ahead refusal names an unbound maintenance slot as unbound, never null (TEST-754)"
+}
+
+# --- TEST-755 (Spec-AC-29): F6 — the doc-missing refusal never prints the ---
+# literal word null for an unbound (capability-only) maintenance slot.
+test_755_gate_doc_missing_never_prints_null() {
+  log_info "Test: the doc-missing refusal names the unbound maintenance slot as unbound, never the literal word null (TEST-755)..."
+  local D="$TEST_DIR/p755docs"
+  mkdir -p "$D"
+  cat > "$TEST_DIR/p755-roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t755-first
+    status: planned
+YAML
+  [ "$(run gate --ref cap-t755-first --roadmap "$TEST_DIR/p755-roadmap.yaml" --docs "$D")" = "1" ] \
+    || log_fail "TEST-755: gate on the first-unfinished pair with no resolvable document must refuse: $(out)"
+  grep -qF 'null' "$TEST_DIR/err" && log_fail "TEST-755: the doc-missing refusal must never print the literal word null: $(err)"
+  grep -qF 'unbound' "$TEST_DIR/err" || log_fail "TEST-755: the doc-missing refusal must name the unbound maintenance slot: $(err)"
+  log_pass "the doc-missing refusal names an unbound maintenance slot as unbound, never null (TEST-755)"
+}
+
+# --- TEST-756 (Spec-AC-15): F7 — write against a project with no roadmap ----
+# discloses, in its own success line, that the ride gate is now ON.
+test_756_write_discloses_gate_turned_on() {
+  log_info "Test: write against a project with no roadmap discloses in its success line that the ride gate is now on (TEST-756)..."
+  local D="$TEST_DIR/p756docs"
+  propose_write_doc "$D" cap-t756 change draft
+  local ROADMAP="$TEST_DIR/p756-nonexistent/roadmap.yaml"
+  rm -rf "$TEST_DIR/p756-nonexistent"
+  [ "$(run_propose write --direction "cap t756" --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p756-ledger.jsonl" --spool "$TEST_DIR/p756-spool.jsonl")" = "0" ] \
+    || log_fail "TEST-756: write creating a fresh roadmap must exit 0: $(perr)"
+  assert_payload_contains "$(pout)" 'gate is now ON' \
+    "TEST-756: the success line must disclose that the ride gate is now on for this project"
+  log_pass "write against a project with no roadmap discloses that the ride gate is now on (TEST-756)"
 }
 
 main() {
@@ -1286,6 +1510,15 @@ main() {
   test_742_bind_adds_maintenance_line_and_certifies
   test_743_opt_out_leaves_no_file
   test_744_no_automatic_invocation_site
+  test_748_harvest_row_numbers_and_write_pick_fidelity
+  test_749_write_requires_direction
+  test_750_write_direction_value_drives_pick
+  test_751_bind_refuses_capability_typed_ref
+  test_752_write_promotes_wave2_slug_and_removes_it
+  test_753_harvest_excludes_already_paired_intake
+  test_754_gate_pair_ahead_never_prints_null
+  test_755_gate_doc_missing_never_prints_null
+  test_756_write_discloses_gate_turned_on
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

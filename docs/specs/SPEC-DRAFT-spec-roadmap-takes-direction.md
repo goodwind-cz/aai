@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 7efe00ff23effee48ac326bad91d0a043236ea0b92ff26a0eb3722b4e45c8e7b
+frozen_sha256: 4e8261093566acad973efde28f682994be9e007a829c5b8b8c3feb9ff4b9a0c2
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-roadmap-takes-direction.md
@@ -279,6 +279,75 @@ would otherwise have shown the same capability twice, never a silent drop of
 one source. See spec_amendment (docs/ai/decisions.jsonl, ref
 roadmap-takes-direction) and TEST-747.
 
+**D15 — remediation round (validation round 1) amendments.** Independent
+validation (docs/ai/tdd/spec-roadmap-takes-direction/validation-round1.txt)
+found three BLOCKING defects and four non-blocking ones; this amendment
+records the fixes.
+- **D15a (BLOCKING-1, F2) — `write` now refuses a `--pick` with no
+  `--direction`, and `harvest` prints stable row numbers.** `--pick` is a
+  1-based index into the ranking `harvest` printed; `write` re-runs that same
+  ranking rather than trusting a caller-supplied selection, so it is only
+  safe when handed the EXACT sentence the owner's harvest was run with.
+  `--direction` was optional on `write` (defaulting to `""`), so a directed
+  harvest's row 1 could be silently written as a DIFFERENT candidate once
+  `write` re-ranked with no direction at all — and `harvest`'s own rows
+  carried no number for the owner to type in the first place. `write` now
+  refuses (usage, exit 2, nothing written) unless `--direction` is given;
+  every candidate `harvest` prints (text and `--json`) now carries its
+  1-based `index` in the SAME ranked order `write`'s `candidates[pick-1]`
+  indexes into. TEST-748..750.
+- **D15b (BLOCKING-2, F1) — `bind` refuses a ref whose resolved document is a
+  CAPABILITY type.** D13 proved only that a `--ref` comes "from the
+  backlog" (an open follow-up id or a resolvable document); it never asked
+  whether the resolved document is itself a capability
+  (`CAPABILITY_TYPES` — D8's own exclusion, in reverse). Without this check a
+  `type: change` intake — an owner decision the gate would otherwise route to
+  the roadmap — could be bound straight into another capability's
+  maintenance slot, consuming the 1:1 budget and admitting an unranked
+  capability with no trace. TEST-751.
+  - Considered and rejected: an EVENTS.jsonl append on `write`/`bind`
+    mirroring `gate --override`. `--override` bypasses a refusal and needs a
+    trace beyond the ride that follows it; `write`/`bind` are not a bypass —
+    they are the feature, and their effect is already a byte-diffable,
+    reviewed change to `docs/ai/roadmap.yaml` itself, which carries more
+    information than an EVENTS line would (see the comment above `cmdWrite`
+    in roadmap-propose.mjs for the full reasoning).
+- **D15c (BLOCKING-3, F3) — the D10 amendment (`removeWave2Entries`) is now
+  pinned by its own test.** The function shipped in run 3 with no Test Plan
+  row; deleting its call left TEST-715..747 fully green because none of
+  those fixtures promote a wave_2-sourced pick against a roadmap that still
+  lists it in `wave_2`. TEST-752 closes that gap: it promotes a pure
+  `wave_2` slug and asserts both that the pair is written AND that the old
+  `wave_2:` line is gone, against the real validator.
+- **D15d (non-blocking, F4) — `intakeCandidates` now excludes already-paired
+  slugs**, mirroring `wave2Candidates`'s existing `pairSlugs` exclusion; an
+  intake draft's `status` never changes on `write`, so without this a
+  harvested-and-written capability kept reappearing in every later harvest —
+  the steady state after the very first write. TEST-753.
+- **D15e (non-blocking, F6) — the two refusals that name an unbound
+  maintenance slot print `unbound`, never the literal word `null`.**
+  `ride-select.mjs`'s pair-ahead and doc-missing refusals interpolate a
+  pair's `maintenance` field directly; for a capability-only pair (D2) that
+  field is JS `null`, which a template literal renders as the three
+  characters `null`. TEST-754, TEST-755.
+- **D15f (non-blocking, F7) — `write`'s success line discloses when it just
+  created a project's first `docs/ai/roadmap.yaml`.** Creating the file (D12)
+  switches `orchestration-dispatch.mjs`'s `roadmapGate()` on for every later
+  ride in that project; the prior success line said nothing about it.
+  TEST-756.
+- **Disclosed, not fixed (non-blocking, F5) — `bind` still accepts an open
+  follow-up id (D13's first arm) that no consumer can resolve as a
+  document.** `ride-select.mjs gate` and `nothing-left-behind.mjs` both
+  resolve a maintenance ref to a DOCUMENT id, so a follow-up-id-only bind
+  produces a maintenance half the gate refuses and the close ceremony skips
+  — the pair can then only finish via `--override`, the exact disease this
+  ride exists to treat. Not fixed this round: the smallest correct remedy is
+  teaching `gate`/`nothing-left-behind` a new resolvable-ref shape (a
+  follow-up id), which is a change to two OTHER scripts' own read paths, not
+  a "cheap" local fix in this scope. See R7.
+- See docs/ai/tdd/spec-roadmap-takes-direction/validation-round1.txt for the
+  full findings text and live-corpus reproductions this amendment answers.
+
 ## Constitution deviations
 
 None.
@@ -393,21 +462,21 @@ None.
 
 | Spec-AC    | Description                                                                                  | Status  | Evidence | Review-By | Notes |
 |------------|----------------------------------------------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | WHEN a pair carries no maintenance line the validator SHALL accept the roadmap                  | done | TEST-715, TEST-716, TEST-717 green; `bash tests/skills/test-aai-ride-select.sh` exit 0 | —         | D2    |
+| Spec-AC-01 | WHEN a pair carries no maintenance line the validator SHALL accept the roadmap                  | done | TEST-715, TEST-716, TEST-717, TEST-754, TEST-755 green; `bash tests/skills/test-aai-ride-select.sh` exit 0 | —         | D2, D15e |
 | Spec-AC-02 | WHEN the shipped roadmap is validated after the relaxation it SHALL report the identical summary | done | TEST-718 green; `node .aai/scripts/ride-select.mjs validate` exit 0, stdout `roadmap OK: 11 pair(s), 4 wave-2 item(s)` | —         | regression proof for D2 |
 | Spec-AC-03 | WHEN next reaches a started capability with an unbound slot it SHALL propose the bind command    | done | TEST-719, TEST-720 green | —         | D4    |
 | Spec-AC-04 | WHEN next finds no unfinished pair it SHALL offer the harvest command                            | done | TEST-721 green | —         | D5    |
 | Spec-AC-05 | WHEN gate refuses an off-roadmap maintenance ref it SHALL name the bind command and stay exit 1  | done | TEST-722 green | —         | D3    |
-| Spec-AC-06 | WHEN harvest runs every candidate SHALL print its source and all four ranking components, and the set SHALL carry no duplicate id | done | TEST-723, TEST-724, TEST-725, TEST-747 green; `bash tests/skills/test-aai-ride-select.sh` exit 0 | —         | D6 D9 D14 |
+| Spec-AC-06 | WHEN harvest runs every candidate SHALL print its source and all four ranking components, and the set SHALL carry no duplicate id | done | TEST-723, TEST-724, TEST-725, TEST-747, TEST-748, TEST-753 green; `bash tests/skills/test-aai-ride-select.sh` exit 0 | —         | D6 D9 D14 D15a D15d |
 | Spec-AC-07 | WHEN the direction sentence changes the matching candidate SHALL rise in rank                    | done | TEST-726, TEST-727, TEST-728 green (MOVEMENT); TEST-726 re-pinned to a suffix-fold-specific mutation and its fixture rewritten to a natural plural sentence (remediation round, D7 amendment) | —         | movement proof, D7 |
 | Spec-AC-08 | WHEN an open follow-up naming a candidate is added that candidate SHALL rise in rank             | done | TEST-729, TEST-730 green (MOVEMENT) | —         | movement proof, D9 |
 | Spec-AC-09 | WHEN a non-terminal document blocking a candidate is added that candidate SHALL rise in rank     | done | TEST-731, TEST-732 green (MOVEMENT) | —         | movement proof, D9 |
 | Spec-AC-10 | WHEN candidates tie on every earlier key the older candidate SHALL rank first                    | done | TEST-733, TEST-734 green (MOVEMENT) | —         | movement proof, D9 |
 | Spec-AC-11 | WHEN friction contributes it SHALL contribute only review candidates under a readable label      | done | TEST-735, TEST-736, TEST-737 green | —         | D8, measurement 7 |
-| Spec-AC-12 | WHEN write runs the appended roadmap SHALL be accepted by the real validator with prior bytes intact | done | TEST-738, TEST-739 green; real write/bind run against a scratch copy of the shipped roadmap (see report) | —         | D10, D10 amendment |
+| Spec-AC-12 | WHEN write runs the appended roadmap SHALL be accepted by the real validator with prior bytes intact | done | TEST-738, TEST-739, TEST-748, TEST-749, TEST-750, TEST-752 green; real write/bind run against a scratch copy of the shipped roadmap (see report) | —         | D10, D10 amendment, D15a, D15c |
 | Spec-AC-13 | WHEN the appended roadmap would not validate the original bytes SHALL be restored and the run refuse | done | TEST-740 green | —         | D10   |
-| Spec-AC-14 | WHEN bind names a ref that is not in the backlog it SHALL refuse and write nothing                | done | TEST-741, TEST-742 green | —         | D13   |
-| Spec-AC-15 | WHEN a project has not opted in no file, no gate and no prompt SHALL change                       | done | TEST-743, TEST-744 green | —         | D11 D12 |
+| Spec-AC-14 | WHEN bind names a ref that is not in the backlog it SHALL refuse and write nothing                | done | TEST-741, TEST-742, TEST-751 green | —         | D13, D15b |
+| Spec-AC-15 | WHEN a project has not opted in no file, no gate and no prompt SHALL change                       | done | TEST-743, TEST-744, TEST-756 green | —         | D11 D12 D15f |
 | Spec-AC-16 | WHEN the companion obligations are checked the new file SHALL be classified and the corpus ledgered | done | TEST-745, TEST-746 green; `bash tests/skills/test-aai-layer-profiles.sh` and `bash tests/skills/test-aai-prompt-diet.sh` exit 0 | —         | PROFILES + prompt diet |
 
 ## Implementation plan
@@ -496,6 +565,15 @@ the file under test).
 | TEST-744 | Spec-AC-15 | integration | tests/skills/test-aai-ride-select.sh  | no prompt and no dispatch branch invokes roadmap-propose automatically         | `sed:s/SCAN_PATTERN='roadmap-propose'/SCAN_PATTERN='ride-select'/` in the suite's own corpus-scan expectation (reconciled: the scan pattern lives in its own variable, never a bare inline string, so a mutation of it is unambiguous — target is the suite file itself) | done |
 | TEST-745 | Spec-AC-16 | integration | tests/skills/test-aai-layer-profiles.sh | the new .aai script is classified in PROFILES.yaml                           | `sed:s/roadmap-propose.mjs//` in .aai/system/PROFILES.yaml core list | done |
 | TEST-746 | Spec-AC-16 | integration | tests/skills/test-aai-prompt-diet.sh  | the AGENTS.md growth is ledgered and the TEST-012 pin moves from 37762         | `sed:s/JUSTIFIED_ADDITIONS\+=\( "100 roadmap-takes-direction/JUSTIFIED_ADDITIONS+=( "0 roadmap-takes-direction/` in tests/skills/lib/prompt-diet-ledger.sh (reconciled: the shipped credit measured 100 B, not a placeholder `<n>`) | done |
+| TEST-748 | Spec-AC-06, Spec-AC-12 | integration | tests/skills/test-aai-ride-select.sh  | D15a (validation round 1 F2) — harvest prints stable 1-based row numbers, and write --pick N writes exactly the Nth-ranked candidate off that ranking, never row 1 | `sed:s/c\.index = i \+ 1;/c.index = 1;/` in roadmap-propose.mjs buildCandidates | done |
+| TEST-749 | Spec-AC-12 | integration | tests/skills/test-aai-ride-select.sh  | D15a (F2) — write refuses (usage, exit 2) when --direction is omitted, and writes nothing | `sed:s/!a\.direction\) usage\(/false) usage(/` in roadmap-propose.mjs parseArgs | done |
+| TEST-750 | Spec-AC-12 | integration | tests/skills/test-aai-ride-select.sh  | D15a (F2) — the same --pick 1 writes a different candidate when --direction changes, proving the sentence's VALUE drives the ranking write uses | `sed:s/direction: a\.direction, docsDir/direction: '', docsDir/` in roadmap-propose.mjs buildCandidates | done |
+| TEST-751 | Spec-AC-14 | integration | tests/skills/test-aai-ride-select.sh  | D15b (F1) — bind refuses a ref resolving to a capability-typed document, and still accepts a maintenance-typed one | `sed:s/if \(doc && CAPABILITY_TYPES\.has\(doc\.type\)\) {/if (false) {/` in roadmap-propose.mjs cmdBind | done |
+| TEST-752 | Spec-AC-12 | integration | tests/skills/test-aai-ride-select.sh  | D15c (F3) — write promoting a wave_2-sourced pick removes the slug from wave_2 and the real validator accepts (pins the D10 amendment's removeWave2Entries, shipped in run 3 with no test) | `sed:s/const baseText = original === null \? null : removeWave2Entries\(original, promotedFromWave2\);/const baseText = original;/` in roadmap-propose.mjs cmdWrite | done |
+| TEST-753 | Spec-AC-06 | integration | tests/skills/test-aai-ride-select.sh  | D15d (F4) — harvest excludes an intake draft whose id is already a roadmap capability pair | `sed:s/if \(pairSlugs\.has\(fm\.id\)\) continue;//` in roadmap-propose.mjs intakeCandidates | done |
+| TEST-754 | Spec-AC-01 | integration | tests/skills/test-aai-ride-select.sh  | D15e (F6) — the pair-ahead refusal names an unbound maintenance slot as unbound, never the literal word null | `sed:s/ahead\.maintenance \|\| 'unbound'/ahead.maintenance/` in ride-select.mjs gate (pair-ahead deny) | done |
+| TEST-755 | Spec-AC-01 | integration | tests/skills/test-aai-ride-select.sh  | D15e (F6) — the doc-missing refusal names an unbound maintenance slot as unbound, never the literal word null | `sed:s/pair\.maintenance \|\| 'unbound'/pair.maintenance/` in ride-select.mjs gate (doc-missing deny) | done |
+| TEST-756 | Spec-AC-15 | integration | tests/skills/test-aai-ride-select.sh  | D15f (F7) — write against a project with no roadmap discloses in its success line that the ride gate is now on | `sed:s/const gateNote = existed \? '' :/const gateNote = true ? '' :/` in roadmap-propose.mjs cmdWrite | done |
 
 Mutation-cell note: the token `006!!` stands for the two-character logical-or
 operator in the sed expressions above. A literal pipe character inside a
@@ -557,6 +635,16 @@ output shape.
   on a `done` pair. A hand-edited roadmap that DELETES a done pair's
   maintenance line now validates where it previously refused. Accepted: the
   budget's meaning is forward-looking, and `gate` never consults a done pair.
+- R7 (D15, disclosed not fixed, validation round 1 F5) — `bind` accepts an
+  open follow-up id as a maintenance ref (D13's first arm), but
+  `ride-select.mjs gate` and `nothing-left-behind.mjs` both resolve a
+  maintenance ref to a DOCUMENT id, never a follow-up id. A pair bound this
+  way is refused by `gate` and skipped by the close ceremony — it can then
+  only be finished with `--override`, the same disease this ride exists to
+  treat. The smallest correct remedy touches two OTHER scripts' own
+  ref-resolution paths, not a local fix here; tracked as an open item for a
+  future ride, not this one's own follow-up ledger (that would blur who owns
+  the fix).
 
 ## Verification
 
@@ -572,8 +660,10 @@ output shape.
   — exit 0.
 - `node .aai/scripts/check-vendored-script-deps.mjs` — CLEAN.
 - PASS criteria: all TEST-xxx green AND all Spec-AC terminal AND a RED record
-  under `docs/ai/tdd/spec-roadmap-takes-direction/` for each of the 33 rows
-  (32 plus TEST-747, added by the D14 remediation amendment).
+  under `docs/ai/tdd/spec-roadmap-takes-direction/` for each of the 42 rows
+  (33 — 32 plus TEST-747 from the D14 remediation amendment — plus
+  TEST-748..756, added by the D15 remediation amendment answering
+  validation-round1.txt).
 
 ## Evidence contract
 
