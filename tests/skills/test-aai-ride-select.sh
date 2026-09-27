@@ -1631,6 +1631,38 @@ test_756_write_discloses_gate_turned_on() {
   log_pass "write against a project with no roadmap discloses that the ride gate is now on (TEST-756)"
 }
 
+# --- TEST-762 (Spec-AC-03): validation round 3 NB-1 — next stops proposing --
+# a CAPABILITY ref with no resolvable document: NB-6/D16 (TEST-760) closed
+# this livelock on the maintenance half only. `write` promotes a wave_2 or
+# friction candidate straight into a pair's `capability:` slot with no
+# document filed yet far more often than it binds a documentless maintenance
+# ref, so this was the FIRST dead end an owner actually met, not a rare edge
+# (validation-round3 NB-1). `next` now proposes filing the intake instead,
+# the same as the maintenance half already does.
+test_762_next_stops_proposing_dead_capability_ref() {
+  log_info "Test: next never proposes a capability ref with no resolvable document — it proposes filing the intake instead (TEST-762, NB-1)..."
+  cat > "$TEST_DIR/roadmap762.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t762-nodoc
+    status: planned
+YAML
+  [ "$(run next --roadmap "$TEST_DIR/roadmap762.yaml" --docs "$TEST_DIR/docs" --json)" = "0" ] \
+    || log_fail "TEST-762: next must exit 0: $(err)"
+  grep -qF '"next":"cap-t762-nodoc"' "$TEST_DIR/out" \
+    && log_fail "TEST-762: next must never propose a capability ref with no resolvable document (the NB-1 livelock): $(out)"
+  grep -qF '"action":"file-intake"' "$TEST_DIR/out" \
+    || log_fail "TEST-762: next must propose filing the intake instead of the dead capability ref: $(out)"
+  grep -qF 'cap-t762-nodoc' "$TEST_DIR/out" \
+    || log_fail "TEST-762: the file-intake action must still name the ref that needs an intake: $(out)"
+  [ "$(run gate --ref cap-t762-nodoc --roadmap "$TEST_DIR/roadmap762.yaml" --docs "$TEST_DIR/docs")" = "1" ] \
+    || log_fail "TEST-762: gate must still refuse the dead capability ref: $(out)"
+  grep -qF 'no document resolves' "$TEST_DIR/err" \
+    || log_fail "TEST-762: gate's refusal reason must name the missing document: $(err)"
+  log_pass "next stops proposing a capability ref nothing can resolve, and proposes filing its intake instead (TEST-762, NB-1)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -1697,6 +1729,7 @@ main() {
   test_759_gate_bind_remedy_succeeds
   test_760_next_stops_proposing_dead_ref
   test_761_promotion_leaves_other_wave2_entries
+  test_762_next_stops_proposing_dead_capability_ref
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

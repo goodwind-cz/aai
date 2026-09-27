@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: a4f1615fe7132315dd7ac6576fbb3c26d34aa5a824ea3135a67c57e4fa4b4762
+frozen_sha256: 4a69dd24926896db10d3418f07638f281b45c6eb9b7eca12a5f18cc94a99d8c2
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-roadmap-takes-direction.md
@@ -429,6 +429,42 @@ half is refused).
   full findings text, the live-corpus reproductions this amendment answers,
   and the mutation probes (N1..N17) it ran.
 
+**D17 — remediation round (validation round 3) amendment: NB-1 fixed, NB-2
+disclosed.** Independent validation (docs/ai/tdd/spec-roadmap-takes-direction/
+validation-round3.txt) returned PASS with 0 blocking findings — the round 2
+remediation is merge-ready — and recommended taking the two non-blocking
+findings an owner actually meets now, filing the rest as follow-ups.
+- **NB-1 fixed.** D16's NB-6 fix (`findDoc` gating a proposed maintenance ref
+  before `next` offers it) covered the maintenance half only; the CAPABILITY
+  half (`ride-select.mjs:157`) still returned a pair's capability ref
+  unconditionally once its status was not STARTED, even when NO document
+  resolved for it at all. This ride's own `write` promotes a wave_2 or
+  friction candidate straight into a `capability:` slot with no document
+  filed yet far more often than it binds a documentless maintenance ref
+  (round 3 measured: 3 of the 4 live wave_2 slugs and every friction
+  candidate have no document), so this was the FIRST dead end an owner
+  actually met, not a rare edge — validation demonstrated it live end to end
+  with `cloud-morning-digest`. `nextRide` now runs the SAME `findDoc`
+  resolution before returning a capability ref, and proposes filing its
+  intake instead (`action: 'file-intake', half: 'capability'`), mirroring the
+  existing maintenance-half shape; the human-text rendering distinguishes the
+  two halves so the message never claims a capability ref was "bound as the
+  maintenance half of" itself. TEST-762 pins it.
+- **NB-2 disclosed, not fixed.** The surviving consequence of D16's B2
+  removal — `bind` still accepts any backlog ref, so `gate`'s off-roadmap "an
+  owner decision" refusal is answerable by binding that ref into an unbound
+  maintenance slot — was reasoned in D16 and asserted by TEST-757, but was
+  absent from Residual risks. Added as R8, in the owner's own words, naming
+  the roadmap diff in the PR as the real control.
+- NB-3..NB-6 (TEST-760's narrow fixture, `bind`'s wave_2-axis reason quality,
+  F4's one-sided harvest/write exclusion, a stale `resolveDoc` comment/field)
+  are disclosed, not fixed, and tracked as follow-ups against this spec
+  rather than folded into this amendment — round 3's own recommendation: none
+  of them is worth splitting the ride for.
+- See docs/ai/tdd/spec-roadmap-takes-direction/validation-round3.txt for the
+  full findings text and the live-corpus reproduction (harvest -> write ->
+  next against a scratch copy of the shipped roadmap) this amendment answers.
+
 ## Constitution deviations
 
 None.
@@ -555,7 +591,7 @@ None.
 |------------|----------------------------------------------------------------------------------------------|---------|----------|-----------|-------|
 | Spec-AC-01 | WHEN a pair carries no maintenance line the validator SHALL accept the roadmap                  | done | TEST-715, TEST-716, TEST-717, TEST-754, TEST-755 green; `bash tests/skills/test-aai-ride-select.sh` exit 0 | —         | D2, D15e |
 | Spec-AC-02 | WHEN the shipped roadmap is validated after the relaxation it SHALL report the identical summary | done | TEST-718 green; `node .aai/scripts/ride-select.mjs validate` exit 0, stdout `roadmap OK: 11 pair(s), 4 wave-2 item(s)` | —         | regression proof for D2 |
-| Spec-AC-03 | WHEN next reaches a started capability with an unbound slot it SHALL propose the bind command    | done | TEST-719, TEST-720, TEST-760 green | —         | D4, D16 (NB-6) |
+| Spec-AC-03 | WHEN next reaches a started capability with an unbound slot it SHALL propose the bind command    | done | TEST-719, TEST-720, TEST-760, TEST-762 green | —         | D4, D16 (NB-6), D17 (NB-1) |
 | Spec-AC-04 | WHEN next finds no unfinished pair it SHALL offer the harvest command                            | done | TEST-721 green | —         | D5    |
 | Spec-AC-05 | WHEN gate refuses an off-roadmap maintenance ref it SHALL name the bind command and stay exit 1  | done | TEST-722, TEST-759 green | —         | D3, D16 (NB-3) |
 | Spec-AC-06 | WHEN harvest runs every candidate SHALL print its source and all four ranking components, and the set SHALL carry no duplicate id | done | TEST-723, TEST-724, TEST-725, TEST-747, TEST-748, TEST-753 green; `bash tests/skills/test-aai-ride-select.sh` exit 0 | —         | D6 D9 D14 D15a D15d |
@@ -670,6 +706,7 @@ the file under test).
 | TEST-759 | Spec-AC-05, Spec-AC-14 | integration | tests/skills/test-aai-ride-select.sh  | D16 (NB-3) — the bind command the gate's off-roadmap maintenance refusal advertises actually succeeds for a type:change intake the gate itself classifies as maintenance by ref/title | `sed:s/const roadmapCapabilities = new Set\(pairs\.map\(\(p\) => p\.capability\)\);/if (doc && doc.type === 'change') refuse('type denylist reintroduced'); const roadmapCapabilities = new Set(pairs.map((p) => p.capability));/` in roadmap-propose.mjs cmdBind | done |
 | TEST-760 | Spec-AC-03 | integration | tests/skills/test-aai-ride-select.sh  | D16 (NB-6) — next never proposes a bound maintenance ref that resolves to no document; it proposes filing the intake instead (closes the livelock R7 named) | `sed:s/if \(!findDoc\(docsDir, pr\.maintenance\)\) {/if (false) {/` in ride-select.mjs nextRide | done |
 | TEST-761 | Spec-AC-12 | integration | tests/skills/test-aai-ride-select.sh  | D16 (NB-1/N15) — promoting one wave_2 slug leaves every OTHER wave_2 entry in place (a widened, 3-entry fixture; the single-entry TEST-752 fixture could not distinguish "delete the promoted row" from "delete every row") | `sed:s/if \(wm && ids\.has\(wm\[1\]\)\) continue;/if (wm) continue;/` in roadmap-propose.mjs removeWave2Entries | done |
+| TEST-762 | Spec-AC-03 | integration | tests/skills/test-aai-ride-select.sh  | validation-round3 NB-1 — next never proposes a CAPABILITY ref with no resolvable document (the same livelock TEST-760/NB-6 closed on the maintenance half only — this ride's own write promotes a wave_2 or friction candidate straight into a capability slot with no document far more often) | `sed:s/if \(!findDoc\(docsDir, pr\.capability\)\) {/if (false) {/` in ride-select.mjs nextRide | done |
 
 Mutation-cell note: the token `006!!` stands for the two-character logical-or
 operator in the sed expressions above. A literal pipe character inside a
@@ -746,6 +783,24 @@ output shape.
   (TEST-760) — but the underlying disclosed gap (a follow-up-id-only bind
   still needs `--override` to finish, even once its intake is filed) is
   unchanged and still belongs to a future ride.
+- R8 (validation round 3 NB-2) — `bind` still accepts any backlog ref into an
+  unbound maintenance slot, so `gate`'s off-roadmap "an owner decision"
+  refusal is answerable by binding that ref into a pair whose capability is
+  already implementing: `gate` REFUSES, `bind` converts the refusal into an
+  ADMIT in one command, then `gate` ADMITS the same ref as that pair's
+  maintenance half. This is round 1's F1 and round 2's B2 residual,
+  deliberately not re-closed: D16 established that no reliable discriminator
+  exists — document `type:` is the wrong axis, and `ride-select.mjs`'s own
+  `isMaintenance` heuristic would misclassify the roadmap's own halves — and
+  TEST-757 asserts the permissive behaviour as intended, not merely
+  unfixed. The control is the roadmap diff in the PR, not the gate:
+  `docs/ai/roadmap.yaml` is tracked, not gitignored, so the bind is a
+  reviewable commit; `nothing-left-behind.mjs` counts an uncommitted roadmap
+  as `files_left`; `SKILL_PR` resets out-of-scope staging before a PR opens.
+  The gate is also narrower than it first appears: the host pair must be
+  first-unfinished AND its capability already started — the same bind against
+  an unstarted capability ends at "pair first ... is not filed", and against
+  a not-first pair at "pair ahead".
 
 ## Verification
 

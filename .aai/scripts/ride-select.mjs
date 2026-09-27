@@ -154,7 +154,20 @@ function nextRide(rm, docsDir) {
     const cs = statusOf(docsDir, pr.capability);
     // D2: the capability comes first UNLESS it has already started; proposing a
     // ride that is already implementing is proposing to start it twice.
-    if (!STARTED.has(cs || '')) return { ref: pr.capability, half: 'capability', pair: pr };
+    if (!STARTED.has(cs || '')) {
+      // NB-1 (validation round 3): the SAME livelock NB-6/D16 closed on the
+      // maintenance half (below) was still open here — this ride's own
+      // `write` promotes a wave_2 or friction candidate straight into a
+      // pair's `capability:` slot with no document filed yet far more often
+      // than it binds a documentless maintenance ref, so this was the FIRST
+      // thing an owner met, not a rare edge. Same resolution authority
+      // (findDoc) gate's off-roadmap check already uses, so `next` and
+      // `gate` never disagree about what "resolves" means.
+      if (!findDoc(docsDir, pr.capability)) {
+        return { action: 'file-intake', ref: pr.capability, capability: pr.capability, half: 'capability', pair: pr };
+      }
+      return { ref: pr.capability, half: 'capability', pair: pr };
+    }
     // D4: a started capability whose maintenance slot is UNBOUND (no
     // `maintenance:` line) used to fall through to `statusOf(docs, null)` and
     // return `{ ref: null }` — a latent defect the D2 relaxation activates.
@@ -173,7 +186,7 @@ function nextRide(rm, docsDir) {
     // means, and propose filing the intake instead of a ref nothing can act
     // on.
     if (!findDoc(docsDir, pr.maintenance)) {
-      return { action: 'file-intake', ref: pr.maintenance, capability: pr.capability, pair: pr };
+      return { action: 'file-intake', ref: pr.maintenance, capability: pr.capability, half: 'maintenance', pair: pr };
     }
     const ms = statusOf(docsDir, pr.maintenance);
     if (ms !== 'done') return { ref: pr.maintenance, half: 'maintenance', pair: pr };
@@ -277,13 +290,18 @@ function main() {
         : `${n.capability}: maintenance slot unbound — ${n.command}\n`);
       process.exit(0);
     }
-    // NB-6: a bound maintenance ref with no document yet (e.g. bound from an
-    // open follow-up id) — stop short of proposing it; name the blocker
-    // instead of a ref `gate` will only refuse.
+    // NB-6 (round 2): a bound maintenance ref with no document yet (e.g.
+    // bound from an open follow-up id) — stop short of proposing it; name
+    // the blocker instead of a ref `gate` will only refuse.
+    // NB-1 (round 3): the twin gap on the capability half — a wave_2 or
+    // friction candidate `write` just promoted has no document either.
     if (n.action === 'file-intake') {
+      const humanText = n.half === 'capability'
+        ? `${n.ref}: this pair's capability has no document yet — file its intake before this pair can be ridden\n`
+        : `${n.ref}: bound as the maintenance half of ${n.capability} but no document resolves for it yet — file its intake before this pair's maintenance half can be ridden\n`;
       process.stdout.write(a.json
-        ? JSON.stringify({ action: 'file-intake', ref: n.ref, capability: n.capability }) + '\n'
-        : `${n.ref}: bound as the maintenance half of ${n.capability} but no document resolves for it yet — file its intake before this pair's maintenance half can be ridden\n`);
+        ? JSON.stringify({ action: 'file-intake', ref: n.ref, capability: n.capability, half: n.half }) + '\n'
+        : humanText);
       process.exit(0);
     }
     process.stdout.write(a.json ? JSON.stringify({ next: n.ref, half: n.half, pair: n.pair }) + '\n' : `${n.ref}\n`);
