@@ -1664,6 +1664,111 @@ YAML
   log_pass "next stops proposing a capability ref nothing can resolve, and proposes filing its intake instead (TEST-762, NB-1)"
 }
 
+# --- TEST-763 (Spec-AC-08): PR #399 Codex review F1 (D18 amendment) — a -----
+# malformed decision ledger line's UNDERSTATED warning reaches harvest's own
+# notes. `follow-ups.mjs list --json` SUCCEEDS over a ledger holding a
+# malformed line and says so in its own `parsed.notes` (an "EXCLUDED …
+# UNDERSTATED" line); the reader used to keep only `parsed.items` and drop
+# the notes, so `observations` could come out low with no warning anywhere.
+test_763_harvest_surfaces_followups_understated_note() {
+  log_info "Test: a malformed decision ledger line's UNDERSTATED warning reaches harvest's own notes (TEST-763, F1)..."
+  local D="$TEST_DIR/p763docs"
+  propose_write_doc "$D" cap-t763 change draft
+  local LEDGER="$TEST_DIR/p763-ledger.jsonl"
+  : > "$LEDGER"
+  node "$FOLLOWUPS" add --id fu-t763-probe --ref cap-t763 --severity P2 --what "w" --why "y" --source "s" --ledger "$LEDGER" >/dev/null 2>&1 \
+    || log_fail "TEST-763: adding the fixture follow-up must succeed"
+  printf 'not valid json at all\n' >> "$LEDGER"
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p763-roadmap.yaml" --docs "$D" --ledger "$LEDGER" --spool "$TEST_DIR/p763-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-763: harvest must exit 0 even though the ledger holds a malformed line: $(perr)"
+  assert_payload_contains "$(pout)" 'follow-ups:' \
+    "TEST-763: the surfaced note must be attributed to the follow-ups source"
+  assert_payload_contains "$(pout)" 'UNDERSTATED' \
+    "TEST-763: harvest's notes must surface the follow-ups reader's own UNDERSTATED warning"
+  log_pass "a malformed decision ledger line's UNDERSTATED warning reaches harvest's own notes (TEST-763)"
+}
+
+# --- TEST-764 (Spec-AC-11): PR #399 Codex review F2 (D18 amendment) — a -----
+# malformed friction spool line is always surfaced as a NOTE, whether the
+# spool is partially or entirely malformed. `readSpoolRows` used to filter a
+# partial/malformed/non-object JSONL row with no count anywhere: a PARTIALLY
+# malformed spool got no note at all, and an ALL-malformed spool reached the
+# empty branch and printed "the friction spool is empty or absent" — a
+# healthy-read description of what was actually a corrupt read.
+test_764_harvest_surfaces_corrupt_spool_note() {
+  log_info "Test: a malformed friction spool line is surfaced as a NOTE, whether the spool is partially or entirely malformed (TEST-764, F2)..."
+  local SPOOL="$TEST_DIR/p764-spool.jsonl"
+  cat > "$SPOOL" <<JSONL
+{"schema_version":2,"harness":"claude-code","skill_id":"aai-t764","skill_phase":"test-execution","failure_class":"deterministic_script_failure","fingerprint":"fp-t764","impact":"high","confidence":"high","reproducible":true}
+{not valid json
+JSONL
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p764-roadmap.yaml" --docs "$TEST_DIR/p764docs" --ledger "$TEST_DIR/p764-ledger.jsonl" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-764: harvest must exit 0 over a partially malformed spool: $(perr)"
+  local n_friction
+  n_friction="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(String(j.candidates.filter((c) => c.source === "friction").length));
+  ' "$TEST_DIR/pout")"
+  [ "$n_friction" = "1" ] || log_fail "TEST-764: the one well-formed row must still become a friction candidate, got $n_friction: $(pout)"
+  assert_payload_contains "$(pout)" 'malformed friction spool line' \
+    "TEST-764: a partially malformed spool must surface a malformed-line note, not silence"
+  assert_payload_contains "$(pout)" 'UNDERSTATED' \
+    "TEST-764: the malformed-spool note must warn friction observations may be understated"
+
+  local SPOOL2="$TEST_DIR/p764-spool-allbad.jsonl"
+  printf '{not json\nalso not json\n' > "$SPOOL2"
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p764b-roadmap.yaml" --docs "$TEST_DIR/p764bdocs" --ledger "$TEST_DIR/p764b-ledger.jsonl" --spool "$SPOOL2" --json)" = "0" ] \
+    || log_fail "TEST-764: harvest must exit 0 over an entirely malformed spool: $(perr)"
+  assert_payload_contains "$(pout)" '2 malformed friction spool line' \
+    "TEST-764: an entirely malformed spool must still count and name its malformed lines"
+  assert_payload_not_contains "$(pout)" 'is empty or absent' \
+    "TEST-764: an entirely malformed spool must never be described as merely empty or absent"
+  log_pass "a malformed friction spool line is surfaced as a NOTE, whether the spool is partially or entirely malformed (TEST-764)"
+}
+
+# --- TEST-765 (Spec-AC-06): PR #399 Codex review F3 (D18 amendment) — dedup -
+# never drops a friction candidate's recurrence. When a friction-generated id
+# also exists as a wave_2 slug (or intake draft), mergeDuplicateCandidates
+# used to keep the richest duplicate's OWN `recurrence` field (undefined for
+# a non-friction record) and evaluateCandidate's `c.source === 'friction'`
+# exact-equality check never matched a merged, comma-joined source ("wave_2,
+# friction") — silently dropping the friction row's recurrence from
+# observations with no warning anywhere.
+test_765_harvest_dedup_keeps_friction_recurrence() {
+  log_info "Test: a friction candidate's recurrence survives a dedup merge with a colliding wave_2 slug (TEST-765, F3)..."
+  local D="$TEST_DIR/p765docs"
+  local SPOOL="$TEST_DIR/p765-spool.jsonl"
+  local LEDGER="$TEST_DIR/p765-ledger.jsonl"
+  : > "$LEDGER"
+  # skill_id + failure_class must slugify to the SAME id the wave_2 fixture
+  # below deliberately collides with (frictionLabel: friction-<skill_id>-
+  # <failure_class>); failure_class must also be a real taxonomy class (a
+  # non-taxonomy one is dropped before scoring, per aai-feedback-triage.mjs).
+  cat > "$SPOOL" <<JSONL
+{"schema_version":2,"harness":"claude-code","skill_id":"t765","skill_phase":"test-execution","failure_class":"deterministic_script_failure","fingerprint":"fp-t765","impact":"high","confidence":"high","reproducible":true}
+{"schema_version":2,"harness":"claude-code","skill_id":"t765","skill_phase":"test-execution","failure_class":"deterministic_script_failure","fingerprint":"fp-t765","impact":"high","confidence":"high","reproducible":true}
+JSONL
+  cat > "$TEST_DIR/p765-roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t765-other
+    maintenance: maint-t765-other
+    status: planned
+wave_2:
+  - friction-t765-deterministic-script-failure
+YAML
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p765-roadmap.yaml" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-765: harvest must exit 0: $(perr)"
+  local source
+  source="$(propose_field friction-t765-deterministic-script-failure source)"
+  [ "$source" = '"wave_2,friction"' ] \
+    || log_fail "TEST-765: the merged candidate's source must name both wave_2 and friction, got $source: $(pout)"
+  [ "$(propose_field friction-t765-deterministic-script-failure observations)" = "2" ] \
+    || log_fail "TEST-765: the friction row's recurrence (2) must still count toward observations after the dedup merge, got: $(pout)"
+  log_pass "a friction candidate's recurrence survives a dedup merge with a colliding wave_2 slug (TEST-765)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -1731,6 +1836,9 @@ main() {
   test_760_next_stops_proposing_dead_ref
   test_761_promotion_leaves_other_wave2_entries
   test_762_next_stops_proposing_dead_capability_ref
+  test_763_harvest_surfaces_followups_understated_note
+  test_764_harvest_surfaces_corrupt_spool_note
+  test_765_harvest_dedup_keeps_friction_recurrence
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

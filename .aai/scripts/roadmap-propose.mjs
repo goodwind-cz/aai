@@ -40,7 +40,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { parseFrontmatter, walk, TERMINAL_DOC_STATUS } from './lib/docs-model.mjs';
-import { readSpoolRows } from './lib/friction-spool.mjs';
+import { readSpoolRowsDetailed } from './lib/friction-spool.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -284,10 +284,25 @@ function frictionLabel(row) {
 // skill_id/skill_phase/failure_class — a triage cluster itself carries none
 // of those (measurement 7). An empty or absent spool contributes zero
 // candidates and one printed NOTE, never an error.
+//
+// F2 (PR #399 Codex review, D18 amendment): readSpoolRowsDetailed's own
+// `malformed` count is surfaced as a NOTE whenever it is non-zero — a spool
+// that is PARTIALLY malformed used to get no note at all (the valid rows
+// still made candidates, but nothing said any row had been skipped), and a
+// spool that is ALL malformed used to reach the empty-spool branch below and
+// describe a healthy read ("0 friction candidates", no different from a
+// spool that was never written at all) for what is actually a corrupt one.
+// Both cases now name the count, so friction observations that MIGHT be
+// understated are never reported as if the read were complete.
 function frictionCandidates(spoolPath, notes) {
-  const rows = readSpoolRows(spoolPath);
+  const { rows, malformed } = readSpoolRowsDetailed(spoolPath);
+  if (malformed > 0) {
+    notes.push(`${malformed} malformed friction spool line(s) skipped at ${spoolPath} — friction observations may therefore be UNDERSTATED`);
+  }
   if (rows.length === 0) {
-    notes.push('the friction spool is empty or absent — 0 friction candidates');
+    notes.push(malformed > 0
+      ? 'the friction spool has no readable rows — every non-blank line was malformed — 0 friction candidates'
+      : 'the friction spool is empty or absent — 0 friction candidates');
     return [];
   }
   const outPath = path.join(os.tmpdir(), `roadmap-propose-triage-${process.pid}-${Date.now()}.json`);
@@ -324,12 +339,36 @@ function frictionCandidates(spoolPath, notes) {
 
 // --- evidence (D9) ------------------------------------------------------------
 
-function readFollowUps(ledgerPath) {
+// F1 (PR #399 Codex review, D18 amendment): `follow-ups.mjs list --json`
+// SUCCEEDS over a ledger with malformed lines and says so in its own
+// `parsed.notes` (an "EXCLUDED … the counts above may therefore be
+// UNDERSTATED" line — see loadRegistry in follow-ups.mjs). This reader used
+// to keep only `parsed.items` and throw the notes away, so `observations`
+// could come out low with nothing anywhere to say so. Every note containing
+// UNDERSTATED is now folded into the harvest's own `notes` (attributed to
+// follow-ups so it reads distinctly from the friction/wave_2 sources below).
+// A ledger that does not exist yet is the same lenient "no evidence" state
+// every other harvest source treats an absent input as (D11/D12: no
+// roadmap; frictionCandidates above: no spool) — follow-ups.mjs itself
+// refuses (usage, exit 2) a missing ledger, and that refusal is swallowed
+// here into an empty list exactly as before this amendment, never a note. A
+// ledger that DOES exist but still could not be read (permissions, a
+// directory, an unexpected crash) is a real degradation, not an empty
+// project, and is now named rather than silently discarded.
+function readFollowUps(ledgerPath, notes) {
   try {
     const raw = execFileSync(process.execPath, [FOLLOW_UPS_SCRIPT, 'list', '--ledger', ledgerPath, '--status', 'all', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     const parsed = JSON.parse(raw);
+    for (const n of (parsed && Array.isArray(parsed.notes)) ? parsed.notes : []) {
+      if (/UNDERSTATED/.test(n)) notes.push(`follow-ups: ${n}`);
+    }
     return Array.isArray(parsed.items) ? parsed.items : [];
-  } catch { return []; }
+  } catch (e) {
+    if (fs.existsSync(ledgerPath)) {
+      notes.push(`follow-ups.mjs list --json could not be read at ${ledgerPath} — observations may therefore be UNDERSTATED (${e.message})`);
+    }
+    return [];
+  }
 }
 
 // observations: OPEN follow-ups whose ref_id equals the candidate id.
@@ -411,29 +450,51 @@ function richness(c) {
 // happened to run first), and `source` becomes every contributing source,
 // comma-joined in SOURCE_PRIORITY order — "intake,wave_2" is disclosed
 // signal (the owner sees a candidate came from two places), not noise.
+// F3 (PR #399 Codex review, D18 amendment): `recurrence` lives ONLY on a raw
+// friction candidate (frictionCandidates never sets it on an intake/wave_2
+// row), and `richness()` ties whenever neither duplicate has a resolved doc
+// path — which a friction row never does — so a friction id that collides
+// with a wave_2 slug of equal label length keeps whichever raw record was
+// inserted FIRST as `best` (wave_2, by SOURCE_PRIORITY's own listing order in
+// rawAll) and silently drops the friction record's `recurrence` on the floor.
+// `recurrence` is therefore folded across every duplicate HERE, independent
+// of which raw record `best` ends up being, so the merged candidate always
+// carries it forward when any contributing source is friction.
 function mergeDuplicateCandidates(raw) {
   const byId = new Map();
   for (const c of raw) {
     const entry = byId.get(c.id);
     if (!entry) {
-      byId.set(c.id, { best: c, sources: new Set([c.source]) });
+      byId.set(c.id, {
+        best: c,
+        sources: new Set([c.source]),
+        recurrence: typeof c.recurrence === 'number' ? c.recurrence : null,
+      });
       continue;
     }
     entry.sources.add(c.source);
+    if (typeof c.recurrence === 'number') entry.recurrence = (entry.recurrence ?? 0) + c.recurrence;
     if (richness(c) > richness(entry.best)) entry.best = c;
   }
-  return [...byId.values()].map(({ best, sources }) => ({
+  return [...byId.values()].map(({ best, sources, recurrence }) => ({
     ...best,
     source: [...sources]
       .sort((x, y) => (SOURCE_PRIORITY[x] ?? 99) - (SOURCE_PRIORITY[y] ?? 99))
       .join(','),
+    recurrence,
   }));
 }
 
 function evaluateCandidate(c, ctx) {
   const { direction, direction_tokens } = directionMatch(ctx.direction, c.label);
   let observations = openFollowUpCount(ctx.followUps, c.id);
-  if (c.source === 'friction' && typeof c.recurrence === 'number') observations += c.recurrence;
+  // F3 (PR #399 Codex review, D18 amendment): after mergeDuplicateCandidates
+  // a friction-contributed id's `source` is a comma-joined list (e.g.
+  // "wave_2,friction"), never the bare string "friction" — an exact-equality
+  // check here skipped the recurrence bump for every friction candidate that
+  // also collided with a wave_2 slug or intake draft, understating its
+  // observations with no note anywhere.
+  if (c.source.split(',').includes('friction') && typeof c.recurrence === 'number') observations += c.recurrence;
   const blocksIn = blocksInCount(ctx.docsDir, c.id);
   const age = ageDays(c.path, ctx.repoRoot);
   return {
@@ -458,7 +519,7 @@ function buildCandidates(a) {
     ...frictionCandidates(a.spool, notes),
   ];
   const raw = mergeDuplicateCandidates(rawAll);
-  const followUps = readFollowUps(a.ledger);
+  const followUps = readFollowUps(a.ledger, notes);
   const repoRoot = findRepoRoot(a.docs);
   const ctx = { direction: a.direction, docsDir: a.docs, followUps, repoRoot };
   const candidates = raw.map((c) => evaluateCandidate(c, ctx));

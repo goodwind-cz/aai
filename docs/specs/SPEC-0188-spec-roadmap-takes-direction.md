@@ -4,7 +4,7 @@ type: spec
 number: 188
 status: done
 mutation_gate: v1
-frozen_sha256: b077e046f7862a20f7b905267c3f3d0e86dc37d523875de2c71e7bbd4c83ca7d
+frozen_sha256: bf2f29293104f2e8633aff30661fc06f9430efa17c96e77530fd99daacabccdc
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0194-roadmap-takes-direction.md
@@ -467,6 +467,65 @@ findings an owner actually meets now, filing the rest as follow-ups.
   full findings text and the live-corpus reproduction (harvest -> write ->
   next against a scratch copy of the shipped roadmap) this amendment answers.
 
+**D18 — remediation round (PR #399 Codex review) amendment: three P1
+findings, one class.** The Codex review bot raised three findings against
+`roadmap-propose.mjs`, each an independent instance of the same defect: an
+evidence source under-counts what it read and says nothing about it, so the
+printed ranking looks complete when it is not — the worst failure shape for a
+scope whose whole premise (D6) is a ranking whose reasons are visible. The
+unifying rule this amendment applies to all three: every source must report
+what it could not read, and harvest must surface it; a count that might be
+understated is never printed as if it were complete.
+- **F1 — the follow-ups reader discarded an UNDERSTATED warning.**
+  `follow-ups.mjs list --json` SUCCEEDS over a decision ledger holding a
+  malformed line and says so in its own `parsed.notes` (an "EXCLUDED … the
+  counts above may therefore be UNDERSTATED" line, `loadRegistry`'s own D4
+  note). `readFollowUps` kept only `parsed.items` and dropped `parsed.notes`
+  on the floor, so a candidate's `observations` could come out low, and the
+  slate could reorder, with no warning anywhere. Every note matching
+  `UNDERSTATED` is now folded into harvest's own `notes`, attributed to
+  follow-ups. A ledger that does not exist yet stays the same lenient "no
+  evidence" empty read every other source gives an absent input (D11/D12,
+  the friction spool below) — `follow-ups.mjs` itself refuses a MISSING
+  ledger outright, and that refusal is still swallowed silently, unchanged
+  from before this amendment; only a ledger that EXISTS but still could not
+  be read (permissions, a directory, an unexpected crash) is now named,
+  since that is a real degradation, not an empty project. TEST-763.
+- **F2 — a corrupt friction spool was reported as an empty one.**
+  `readSpoolRows` silently filtered a partial, malformed or non-object JSONL
+  row with no count anywhere: a spool that was PARTIALLY malformed produced
+  its valid candidates with no note that anything had been skipped, and a
+  spool that was ALL malformed reached the empty-spool branch and printed
+  "the friction spool is empty or absent" — a healthy-read description of
+  what was actually a corrupt read. `lib/friction-spool.mjs` gains
+  `readSpoolRowsDetailed(path) -> { rows, malformed }` (the existing
+  `readSpoolRows`/`countSpoolRows` exports are now thin wrappers over it, so
+  every other caller — `aai-feedback-triage.mjs`, `aai-feedback-status.mjs`
+  — is unchanged); `frictionCandidates` names the malformed count as a NOTE
+  whenever it is non-zero, and the empty-spool note itself now distinguishes
+  a genuinely empty/absent spool from one with no readable rows because every
+  line was malformed. TEST-764.
+- **F3 — dedup dropped a friction candidate's recurrence.** When a
+  friction-generated id collides with a `wave_2` slug or an intake draft
+  (D14's own dedup), `mergeDuplicateCandidates` kept only the RICHEST
+  duplicate's own fields — and `recurrence` lives solely on the raw friction
+  record, so a merge that kept a non-friction record as `best` (richness
+  ties whenever neither duplicate has a resolved doc path, which a friction
+  row never does, and the earlier-inserted raw record then wins the tie)
+  dropped it outright. Even where `recurrence` did survive, `evaluateCandidate`
+  tested `c.source === 'friction'` by exact equality, and a merged
+  candidate's `source` is a comma-joined list ("wave_2,friction") that this
+  can never equal — so the recurrence bump was skipped regardless. Fixed at
+  both points: `mergeDuplicateCandidates` now folds `recurrence` across every
+  duplicate independent of which raw record `best` ends up being, and
+  `evaluateCandidate` checks source list MEMBERSHIP
+  (`c.source.split(',').includes('friction')`), not equality. TEST-765.
+- Every fix is proven by a mutation-run.mjs RED record reverting exactly
+  that fix (mutation-gate.mjs --spec this spec: GATE PASS — see the
+  Verification section below for the row count).
+- See PR #399's Codex review comments for the findings text this amendment
+  answers.
+
 ## Constitution deviations
 
 None.
@@ -596,12 +655,12 @@ None.
 | Spec-AC-03 | WHEN next reaches a started capability with an unbound slot it SHALL propose the bind command    | done | TEST-719, TEST-720, TEST-760, TEST-762 green | —         | D4, D16 (NB-6), D17 (NB-1) |
 | Spec-AC-04 | WHEN next finds no unfinished pair it SHALL offer the harvest command                            | done | TEST-721 green | —         | D5    |
 | Spec-AC-05 | WHEN gate refuses an off-roadmap maintenance ref it SHALL name the bind command and stay exit 1  | done | TEST-722, TEST-759 green | —         | D3, D16 (NB-3) |
-| Spec-AC-06 | WHEN harvest runs every candidate SHALL print its source and all four ranking components, and the set SHALL carry no duplicate id | done | TEST-723, TEST-724, TEST-725, TEST-747, TEST-748, TEST-753 green; `bash tests/skills/test-aai-ride-select.sh` exit 0 | —         | D6 D9 D14 D15a D15d |
+| Spec-AC-06 | WHEN harvest runs every candidate SHALL print its source and all four ranking components, and the set SHALL carry no duplicate id | done | TEST-723, TEST-724, TEST-725, TEST-747, TEST-748, TEST-753, TEST-765 green; `bash tests/skills/test-aai-ride-select.sh` exit 0 | —         | D6 D9 D14 D15a D15d D18 (F3) |
 | Spec-AC-07 | WHEN the direction sentence changes the matching candidate SHALL rise in rank                    | done | TEST-726, TEST-727, TEST-728 green (MOVEMENT); TEST-726 re-pinned to a suffix-fold-specific mutation and its fixture rewritten to a natural plural sentence (remediation round, D7 amendment) | —         | movement proof, D7 |
-| Spec-AC-08 | WHEN an open follow-up naming a candidate is added that candidate SHALL rise in rank             | done | TEST-729, TEST-730 green (MOVEMENT) | —         | movement proof, D9 |
+| Spec-AC-08 | WHEN an open follow-up naming a candidate is added that candidate SHALL rise in rank             | done | TEST-729, TEST-730, TEST-763 green (MOVEMENT) | —         | movement proof, D9, D18 (F1) |
 | Spec-AC-09 | WHEN a non-terminal document blocking a candidate is added that candidate SHALL rise in rank     | done | TEST-731, TEST-732 green (MOVEMENT) | —         | movement proof, D9 |
 | Spec-AC-10 | WHEN candidates tie on every earlier key the older candidate SHALL rank first                    | done | TEST-733, TEST-734 green (MOVEMENT) | —         | movement proof, D9 |
-| Spec-AC-11 | WHEN friction contributes it SHALL contribute only review candidates under a readable label      | done | TEST-735, TEST-736, TEST-737 green | —         | D8, measurement 7 |
+| Spec-AC-11 | WHEN friction contributes it SHALL contribute only review candidates under a readable label      | done | TEST-735, TEST-736, TEST-737, TEST-764 green | —         | D8, measurement 7, D18 (F2) |
 | Spec-AC-12 | WHEN write runs the appended roadmap SHALL be accepted by the real validator with prior bytes intact | done | TEST-738, TEST-739, TEST-748, TEST-749, TEST-750, TEST-752, TEST-761 green; real write/bind run against a scratch copy of the shipped roadmap (see report) | —         | D10, D10 amendment, D15a, D15c, D16 (N15) |
 | Spec-AC-13 | WHEN the appended roadmap would not validate the original bytes SHALL be restored and the run refuse | done | TEST-740 green | —         | D10   |
 | Spec-AC-14 | WHEN bind names a ref that is not in the backlog, or that is already a roadmap capability, or that is already bound elsewhere, it SHALL refuse and write nothing | done | TEST-741, TEST-742, TEST-751, TEST-757, TEST-758 green | —         | D13, D16 (supersedes D15b's doc-type axis) |
@@ -709,6 +768,9 @@ the file under test).
 | TEST-760 | Spec-AC-03 | integration | tests/skills/test-aai-ride-select.sh  | D16 (NB-6) — next never proposes a bound maintenance ref that resolves to no document; it proposes filing the intake instead (closes the livelock R7 named) | `sed:s/if \(!findDoc\(docsDir, pr\.maintenance\)\) {/if (false) {/` in ride-select.mjs nextRide | done |
 | TEST-761 | Spec-AC-12 | integration | tests/skills/test-aai-ride-select.sh  | D16 (NB-1/N15) — promoting one wave_2 slug leaves every OTHER wave_2 entry in place (a widened, 3-entry fixture; the single-entry TEST-752 fixture could not distinguish "delete the promoted row" from "delete every row") | `sed:s/if \(wm && ids\.has\(wm\[1\]\)\) continue;/if (wm) continue;/` in roadmap-propose.mjs removeWave2Entries | done |
 | TEST-762 | Spec-AC-03 | integration | tests/skills/test-aai-ride-select.sh  | validation-round3 NB-1 — next never proposes a CAPABILITY ref with no resolvable document (the same livelock TEST-760/NB-6 closed on the maintenance half only — this ride's own write promotes a wave_2 or friction candidate straight into a capability slot with no document far more often) | `sed:s/if \(!findDoc\(docsDir, pr\.capability\)\) {/if (false) {/` in ride-select.mjs nextRide | done |
+| TEST-763 | Spec-AC-08 | integration | tests/skills/test-aai-ride-select.sh  | D18 (PR #399 Codex review, F1) — a malformed decision ledger line's UNDERSTATED warning (follow-ups.mjs list --json's own parsed.notes) reaches harvest's own notes, attributed to follow-ups | `sed:s/if \(\/UNDERSTATED\/\.test\(n\)\)/if (false)/` in roadmap-propose.mjs readFollowUps | done |
+| TEST-764 | Spec-AC-11 | integration | tests/skills/test-aai-ride-select.sh  | D18 (PR #399 Codex review, F2) — a malformed friction spool line is surfaced as a NOTE naming its count, whether the spool is partially or entirely malformed, never silently read as merely empty | `sed:s/if \(malformed > 0\) \{/if (false) {/` in roadmap-propose.mjs frictionCandidates | done |
+| TEST-765 | Spec-AC-06 | integration | tests/skills/test-aai-ride-select.sh  | D18 (PR #399 Codex review, F3) — a friction candidate's recurrence survives a dedup merge with a colliding wave_2 slug: the merged, comma-joined source still counts as contributing friction | `sed:s/c.source.split\(','\).includes\('friction'\)/c.source === 'friction'/` in roadmap-propose.mjs evaluateCandidate | done |
 
 Mutation-cell note: the token `006!!` stands for the two-character logical-or
 operator in the sed expressions above. A literal pipe character inside a
@@ -818,11 +880,13 @@ output shape.
   — exit 0.
 - `node .aai/scripts/check-vendored-script-deps.mjs` — CLEAN.
 - PASS criteria: all TEST-xxx green AND all Spec-AC terminal AND a RED record
-  under `docs/ai/tdd/spec-roadmap-takes-direction/` for each of the 47 rows
+  under `docs/ai/tdd/spec-roadmap-takes-direction/` for each of the 51 rows
   (42 — 33 plus TEST-747 from the D14 remediation amendment, plus TEST-748..756
   from the D15 remediation amendment answering validation-round1.txt — plus
   TEST-757..761, added by the D16 remediation amendment answering
-  validation-round2.txt).
+  validation-round2.txt — plus TEST-762, added by the D17 remediation
+  amendment answering validation-round3.txt — plus TEST-763..765, added by
+  the D18 remediation amendment answering the PR #399 Codex review).
 
 ## Evidence contract
 
