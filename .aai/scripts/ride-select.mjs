@@ -81,11 +81,15 @@ function loadRoadmap(p) {
   const seen = new Set();
   for (const [i, pr] of rm.pairs.entries()) {
     const n = i + 1;
-    if (!pr.maintenance || !pr.status) return { error: `pair ${n} (${pr.capability}) is missing maintenance or status` };
+    // Spec-AC-01/D2: `maintenance` is now OPTIONAL — a pair with no
+    // `maintenance:` line is a capability whose maintenance slot is UNBOUND
+    // (null), not a malformed pair. `status` stays required.
+    if (!pr.status) return { error: `pair ${n} (${pr.capability}) is missing status` };
     // Same-ref before the duplicate scan, or a pair naming one ref twice would be
     // reported as "appears twice" — true, but not the reason that matters.
-    if (pr.capability === pr.maintenance) return { error: `pair ${n}: capability and maintenance are the same ref "${pr.capability}"` };
+    if (pr.maintenance !== null && pr.capability === pr.maintenance) return { error: `pair ${n}: capability and maintenance are the same ref "${pr.capability}"` };
     for (const r of [pr.capability, pr.maintenance]) {
+      if (r === null) continue; // unbound maintenance slot — nothing to validate yet
       if (!SLUG.test(r)) return { error: `pair ${n}: "${r}" is neither a slug id nor a numbered display id` };
       if (seen.has(r)) return { error: `pair ${n}: "${r}" appears twice in the roadmap` };
       seen.add(r);
@@ -139,13 +143,52 @@ function readIntake(p) {
 function statusOf(docsDir, ref) { const d = findDoc(docsDir, ref); return d ? d.status : null; }
 
 // --- next -------------------------------------------------------------------------
+// D13 command text lives here too (D4/D5), so nextRide and gate's off-roadmap
+// refusal (below) never drift on the exact command an owner is told to run.
+function bindCommand(capability) {
+  return `node .aai/scripts/roadmap-propose.mjs bind --capability ${capability} --ref <maintenance-ref>`;
+}
 function nextRide(rm, docsDir) {
   for (const pr of rm.pairs) {
     if (pr.status === 'done') continue;
-    const cs = statusOf(docsDir, pr.capability); const ms = statusOf(docsDir, pr.maintenance);
+    const cs = statusOf(docsDir, pr.capability);
     // D2: the capability comes first UNLESS it has already started; proposing a
     // ride that is already implementing is proposing to start it twice.
-    if (!STARTED.has(cs || '')) return { ref: pr.capability, half: 'capability', pair: pr };
+    if (!STARTED.has(cs || '')) {
+      // NB-1 (validation round 3): the SAME livelock NB-6/D16 closed on the
+      // maintenance half (below) was still open here — this ride's own
+      // `write` promotes a wave_2 or friction candidate straight into a
+      // pair's `capability:` slot with no document filed yet far more often
+      // than it binds a documentless maintenance ref, so this was the FIRST
+      // thing an owner met, not a rare edge. Same resolution authority
+      // (findDoc) gate's off-roadmap check already uses, so `next` and
+      // `gate` never disagree about what "resolves" means.
+      if (!findDoc(docsDir, pr.capability)) {
+        return { action: 'file-intake', ref: pr.capability, capability: pr.capability, half: 'capability', pair: pr };
+      }
+      return { ref: pr.capability, half: 'capability', pair: pr };
+    }
+    // D4: a started capability whose maintenance slot is UNBOUND (no
+    // `maintenance:` line) used to fall through to `statusOf(docs, null)` and
+    // return `{ ref: null }` — a latent defect the D2 relaxation activates.
+    // Propose the bind instead of ever emitting a null/empty ref.
+    if (pr.maintenance === null) {
+      return { action: 'bind', capability: pr.capability, command: bindCommand(pr.capability), pair: pr };
+    }
+    // NB-6 (validation round 2): a maintenance ref bound from an open
+    // follow-up id (D13's first backlog arm) has no DOCUMENT under --docs to
+    // resolve to until an intake is filed for it. Proposing it as `next`
+    // anyway hands an autonomous loop a ref `gate` immediately refuses ("no
+    // document resolves for ..."), forever — a LIVELOCK, not merely an
+    // un-closeable pair (R7 described the refusal but not this). Use the
+    // SAME resolution authority `gate`'s own off-roadmap check already uses
+    // (findDoc) so `next` and `gate` never disagree about what "resolves"
+    // means, and propose filing the intake instead of a ref nothing can act
+    // on.
+    if (!findDoc(docsDir, pr.maintenance)) {
+      return { action: 'file-intake', ref: pr.maintenance, capability: pr.capability, half: 'maintenance', pair: pr };
+    }
+    const ms = statusOf(docsDir, pr.maintenance);
     if (ms !== 'done') return { ref: pr.maintenance, half: 'maintenance', pair: pr };
   }
   return null;
@@ -214,6 +257,11 @@ function main() {
     for (const [i, pr] of loaded.roadmap.pairs.entries()) {
       if (pr.status === 'planned') continue;
       for (const ref of [pr.capability, pr.maintenance]) {
+        // Spec-AC-01/D2: an unbound maintenance slot (no `maintenance:` line)
+        // has nothing to resolve yet — binding happens later, at ride time,
+        // from the backlog (D3). Skip the document-existence check for that
+        // slot alone; the capability half of the SAME pair is still checked.
+        if (ref === null) continue;
         if (!findDoc(a.docs, ref)) usage(`pair ${i + 1} (${pr.capability}): "${ref}" matches no document id under ${a.docs}`);
       }
     }
@@ -225,7 +273,37 @@ function main() {
 
   if (a.cmd === 'next') {
     const n = nextRide(rm, a.docs);
-    if (!n) { process.stdout.write(a.json ? JSON.stringify({ next: null, wave_1: 'complete', wave_2: rm.wave_2 }) + '\n' : `wave 1 complete — wave 2 candidates: ${rm.wave_2.join(', ') || 'none'}\n`); process.exit(0); }
+    // D5: an exhausted roadmap (no unfinished pair) offers the harvest
+    // instead of only naming wave_2 — still exit 0, never a prompt or write.
+    const harvestCommand = 'node .aai/scripts/roadmap-propose.mjs harvest --direction "<one sentence of owner direction>"';
+    if (!n) {
+      process.stdout.write(a.json
+        ? JSON.stringify({ next: null, wave_1: 'complete', wave_2: rm.wave_2, harvest_command: harvestCommand }) + '\n'
+        : `wave 1 complete — wave 2 candidates: ${rm.wave_2.join(', ') || 'none'} — harvest a new slate: ${harvestCommand}\n`);
+      process.exit(0);
+    }
+    // D4: a started capability with an unbound maintenance slot proposes the
+    // bind instead of ever printing a null/empty ref.
+    if (n.action === 'bind') {
+      process.stdout.write(a.json
+        ? JSON.stringify({ action: 'bind', capability: n.capability, command: n.command }) + '\n'
+        : `${n.capability}: maintenance slot unbound — ${n.command}\n`);
+      process.exit(0);
+    }
+    // NB-6 (round 2): a bound maintenance ref with no document yet (e.g.
+    // bound from an open follow-up id) — stop short of proposing it; name
+    // the blocker instead of a ref `gate` will only refuse.
+    // NB-1 (round 3): the twin gap on the capability half — a wave_2 or
+    // friction candidate `write` just promoted has no document either.
+    if (n.action === 'file-intake') {
+      const humanText = n.half === 'capability'
+        ? `${n.ref}: this pair's capability has no document yet — file its intake before this pair can be ridden\n`
+        : `${n.ref}: bound as the maintenance half of ${n.capability} but no document resolves for it yet — file its intake before this pair's maintenance half can be ridden\n`;
+      process.stdout.write(a.json
+        ? JSON.stringify({ action: 'file-intake', ref: n.ref, capability: n.capability, half: n.half }) + '\n'
+        : humanText);
+      process.exit(0);
+    }
     process.stdout.write(a.json ? JSON.stringify({ next: n.ref, half: n.half, pair: n.pair }) + '\n' : `${n.ref}\n`);
     process.exit(0);
   }
@@ -253,7 +331,12 @@ function main() {
     if (status === 'implementing') return admit(`${a.ref} is already implementing — in flight`);
     if (!isFirstUnfinished(pair, rm)) {
       const ahead = rm.pairs.find((p) => p.status !== 'done');
-      return deny(`pair ahead — ${a.ref} is not the first unfinished pair; ${ahead.capability} (and its maintenance ${ahead.maintenance}) must be done first (ranked roadmap order, 1:1 budget); override with --override "<reason>" if the owner really wants it out of order`);
+      // F6 (non-blocking, validation round 1): a capability-only pair (D2 —
+      // `maintenance:` optional) has `maintenance === null`; printing that
+      // straight into the template literal renders the literal word "null",
+      // not a sentence an owner can act on. `unbound` matches the vocabulary
+      // D2/D4 already use for this exact state.
+      return deny(`pair ahead — ${a.ref} is not the first unfinished pair; ${ahead.capability} (and its maintenance ${ahead.maintenance || 'unbound'}) must be done first (ranked roadmap order, 1:1 budget); override with --override "<reason>" if the owner really wants it out of order`);
     }
     // Spec-AC-29's own text: "on refs that exist" — the SAME authority
     // `validate` uses (`intake`, resolved above via `findDoc`/`readIntake`,
@@ -268,7 +351,10 @@ function main() {
     // 16's R6 residual (validation-round1 B5/R6): a typo'd-but-internally-
     // consistent roadmap slug — capability OR maintenance half — no longer
     // reaches an ADMIT.
-    if (!intake) return deny(`${a.ref} matches roadmap pair "${pair.capability}"/"${pair.maintenance}" but no document resolves for "${a.ref}" under ${a.docs} — file its intake before gating this ref (Spec-AC-29: gate admits only refs that exist)`);
+    // F6 (non-blocking, validation round 1): same "unbound" substitution as
+    // the pair-ahead refusal above — a capability-only pair's maintenance
+    // slot is null, not the string "null".
+    if (!intake) return deny(`${a.ref} matches roadmap pair "${pair.capability}"/"${pair.maintenance || 'unbound'}" but no document resolves for "${a.ref}" under ${a.docs} — file its intake before gating this ref (Spec-AC-29: gate admits only refs that exist)`);
     if (pair.capability === a.ref) return admit('a roadmap capability');
     const cs = statusOf(a.docs, pair.capability);
     if (!STARTED.has(cs || '')) return deny(`pair first — ${a.ref} is the maintenance half of a pair whose capability ${pair.capability} is ${cs || 'not filed'}; start ${pair.capability} before it (1:1 budget)`);
@@ -283,7 +369,10 @@ function main() {
     return admit(`off-roadmap but blocks roadmap item ${b}`);
   }
   if (isMaintenance(a.ref, intake)) {
-    return deny(`${a.ref} is maintenance and not on the roadmap — file it to the backlog: node .aai/scripts/follow-ups.mjs add --id fu-<slug> --ref <roadmap-ref> --severity P3 --what "…" --why "…" --source "…"; or add "blocks: <roadmap ref>" to its intake if it blocks one`);
+    // D3: the gate stays side-effect-free — it is NOT taught to admit an
+    // unbound maintenance ride on the fly. The refusal now also names the
+    // bind command (D4/D13), alongside the pre-existing backlog remedy.
+    return deny(`${a.ref} is maintenance and not on the roadmap — file it to the backlog: node .aai/scripts/follow-ups.mjs add --id fu-<slug> --ref <roadmap-ref> --severity P3 --what "…" --why "…" --source "…"; or add "blocks: <roadmap ref>" to its intake if it blocks one; or bind it to a roadmap capability whose maintenance slot is unbound: node .aai/scripts/roadmap-propose.mjs bind --capability <roadmap-ref> --ref ${a.ref}`);
   }
   return deny(`${a.ref} is not on the roadmap — add it to docs/ai/roadmap.yaml (an owner decision) or mark its intake "blocks: <roadmap ref>"`);
 }

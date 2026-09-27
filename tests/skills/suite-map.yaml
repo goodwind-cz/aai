@@ -311,6 +311,7 @@ suites:
   aai-ride-select:
     globs:
       - .aai/scripts/ride-select.mjs
+      - .aai/scripts/roadmap-propose.mjs
       - docs/ai/roadmap.yaml
 
   aai-unattended:

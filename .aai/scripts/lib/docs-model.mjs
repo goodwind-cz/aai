@@ -579,9 +579,20 @@ export function specFrozenInBody(content) {
   return SPEC_FROZEN_TRUE_RE.test(content);
 }
 
+// NB-4 (validation-round2, spec-roadmap-takes-direction): fs.readdirSync
+// order is NOT a sorted guarantee, so a consumer that stops at the FIRST
+// match for a duplicated id (resolveDoc in roadmap-propose.mjs, findDoc in
+// ride-select.mjs) used to get an answer that depended on directory-entry
+// order rather than on anything about the documents themselves. Sorting each
+// directory's entries by name before recursing makes every walk() traversal
+// (and therefore every first-match consumer built on it) deterministic and
+// reproducible across machines/filesystems, not just "usually alphabetical
+// by accident" as it was before.
 export function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  for (const entry of entries) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(full, out);
     else if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'INDEX.md' && entry.name !== '.gitkeep') {

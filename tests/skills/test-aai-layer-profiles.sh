@@ -343,6 +343,24 @@ test_488_mutation_gate_files_classified() {
   log_pass "TEST-488: mutation-run.mjs, mutation-gate.mjs, lib/mutation-record.mjs and lib/spec-contract-hash.mjs each classified exactly once, as core"
 }
 
+# --- TEST-745 (spec-roadmap-takes-direction Spec-AC-16) — the new sibling
+# harvester is classified exactly once, as core (same precedent as TEST-009L
+# and TEST-488 above): .aai/scripts/roadmap-propose.mjs.
+test_745_roadmap_propose_classified() {
+  log_info "TEST-745: .aai/scripts/roadmap-propose.mjs is classified in exactly one profile list..."
+  [[ -f "$MANIFEST" ]] || log_fail "TEST-745: manifest not found: $MANIFEST"
+  local core extended
+  core="$(profile_list "$MANIFEST" core)"
+  extended="$(profile_list "$MANIFEST" extended)"
+  local f=".aai/scripts/roadmap-propose.mjs" n_core n_ext
+  [[ -f "$PROJECT_ROOT/$f" ]] || log_fail "TEST-745: $f does not exist on disk"
+  n_core="$(printf '%s\n' "$core" | grep -cFx "$f")" || true
+  n_ext="$(printf '%s\n' "$extended" | grep -cFx "$f")" || true
+  [[ $((n_core + n_ext)) -eq 1 ]] \
+    || log_fail "TEST-745: $f must be classified in EXACTLY ONE of core/extended, found core=$n_core extended=$n_ext"
+  log_pass "TEST-745: roadmap-propose.mjs classified exactly once"
+}
+
 # --- TEST-572 (spec-close-ceremony-sweep Spec-AC-32) — every new .aai file
 # this ride adds is classified exactly once in core, and the manifest's
 # live-tree union still holds. close-ceremony-sweep (TDD runs 1-12) added
@@ -897,6 +915,7 @@ main() {
   test_manifest_conformance
   test_new_files_classified
   test_488_mutation_gate_files_classified
+  test_745_roadmap_propose_classified
   test_572_new_aai_files_classified
   test_696_new_canon_files_classified
   build_fixture_sources

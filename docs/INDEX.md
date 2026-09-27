@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-26T12:04:14.237Z
+Generated: 2026-09-27T13:52:48.234Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -50,7 +50,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (446)
+## Done (448)
 
 | ID | Type | Path |
 |---|---|---|
@@ -241,6 +241,7 @@ _None._
 | CHANGE-0190 | issues | docs/issues/CHANGE-0190-friction-channel-sweep.md |
 | CHANGE-0191 | issues | docs/issues/CHANGE-0191-canon-is-a-build-artifact.md |
 | CHANGE-0193 | issues | docs/issues/CHANGE-0193-gate-checks-declared-mutation.md |
+| CHANGE-0194 | issues | docs/issues/CHANGE-0194-roadmap-takes-direction.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -498,6 +499,7 @@ _None._
 | SPEC-0185 | specs | docs/specs/SPEC-0185-spec-friction-channel-sweep.md |
 | SPEC-0186 | specs | docs/specs/SPEC-0186-spec-canon-is-a-build-artifact.md |
 | SPEC-0187 | specs | docs/specs/SPEC-0187-spec-gate-checks-declared-mutation.md |
+| SPEC-0188 | specs | docs/specs/SPEC-0188-spec-roadmap-takes-direction.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -571,4 +573,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-26 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-27 — counts above use this date for overdue checks.

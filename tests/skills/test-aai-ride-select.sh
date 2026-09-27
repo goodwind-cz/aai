@@ -11,9 +11,13 @@
 set -u
 TEST_NAME="test-aai-ride-select"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ENGINE="$PROJECT_ROOT/.aai/scripts/ride-select.mjs"
 SHIPPED="$PROJECT_ROOT/docs/ai/roadmap.yaml"
+PROPOSE="$PROJECT_ROOT/.aai/scripts/roadmap-propose.mjs"
+FOLLOWUPS="$PROJECT_ROOT/.aai/scripts/follow-ups.mjs"
 
 log_pass() { echo "PASS: $*"; }
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -69,6 +73,41 @@ write_doc() { # $1=slug $2=type $3=status [$4=extra frontmatter line]
 run() { node "$ENGINE" "$@" > "$TEST_DIR/out" 2> "$TEST_DIR/err"; echo $?; }
 out() { cat "$TEST_DIR/out"; }
 err() { cat "$TEST_DIR/err"; }
+
+# --- roadmap-propose.mjs harvest fixtures (Spec-AC-06..11) -------------------
+# Every harvest test gets its OWN docs dir (pNNNdocs), roadmap path, ledger
+# and spool — never the shared $TEST_DIR/docs write_doc() accumulates into
+# across this whole suite, which would otherwise leak dozens of unrelated
+# fixture docs into a harvest's intake source.
+propose_write_doc() { # $1=docsRoot $2=slug $3=type $4=status [$5=extra frontmatter line]
+  mkdir -p "$1/issues"
+  printf -- '---\nid: %s\nnumber: null\ntype: %s\nstatus: %s\n%s\nlinks:\n  pr: []\n---\n\n# %s\n' "$2" "$3" "$4" "${5:-}" "$2" > "$1/issues/CHANGE-DRAFT-$2.md"
+}
+run_propose() { node "$PROPOSE" "$@" > "$TEST_DIR/pout" 2> "$TEST_DIR/perr"; echo $?; }
+pout() { cat "$TEST_DIR/pout"; }
+perr() { cat "$TEST_DIR/perr"; }
+# propose_field <id> <field> -> JSON.stringify()'d value of that field on the
+# candidate with that id, from the LAST run_propose's stdout ($TEST_DIR/pout).
+propose_field() {
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[3], "utf8"));
+    const c = j.candidates.find((x) => x.id === process.argv[1]);
+    if (!c) { process.stdout.write("__MISSING__"); process.exit(0); }
+    process.stdout.write(JSON.stringify(c[process.argv[2]]));
+  ' "$1" "$2" "$TEST_DIR/pout"
+}
+propose_top_id() {
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(j.candidates.length ? j.candidates[0].id : "__EMPTY__");
+  ' "$TEST_DIR/pout"
+}
+propose_index_of() {
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"));
+    process.stdout.write(String(j.candidates.findIndex((x) => x.id === process.argv[1])));
+  ' "$1" "$TEST_DIR/pout"
+}
 
 # --- TEST-001 (Spec-AC-01): validate — shipped roadmap 0; malformed fixtures 2 -
 test_001_validate() {
@@ -509,10 +548,1232 @@ test_588_gate_intake_requires_a_real_document() {
   log_pass "TEST-588: gate --intake refuses a readable-but-unparseable file (no frontmatter, no --- fence, no id, or an unrecognized type), and admits a real intake document"
 }
 
+# --- TEST-715 (Spec-AC-01, D2): maintenance becomes optional ------------------
+test_715_validate_unbound_maintenance_slot() {
+  log_info "Test: validate accepts a two-pair fixture whose last pair carries no maintenance line (TEST-715)..."
+  cat > "$TEST_DIR/roadmap715.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t715-a
+    maintenance: maint-t715-a
+    status: planned
+  - capability: cap-t715-b
+    status: planned
+YAML
+  [ "$(run validate --roadmap "$TEST_DIR/roadmap715.yaml")" = "0" ] \
+    || log_fail "TEST-715: a pair with no maintenance line must still validate: $(err)"
+  grep -qF 'roadmap OK: 2 pair(s), 0 wave-2 item(s)' "$TEST_DIR/out" \
+    || log_fail "TEST-715: the summary must count both pairs, got: $(out)"
+  log_pass "validate accepts a capability-only pair with no maintenance line (TEST-715)"
+}
+
+# --- TEST-716 (Spec-AC-01, D2): the doc-existence check is skipped for an ----
+# unbound slot on an active (non-planned) pair --------------------------------
+test_716_validate_skips_unbound_doc_check() {
+  log_info "Test: validate skips the document-existence check for an unbound maintenance slot on an active pair (TEST-716)..."
+  cat > "$TEST_DIR/roadmap716.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t716
+    status: active
+YAML
+  write_doc cap-t716 change implementing
+  [ "$(run validate --roadmap "$TEST_DIR/roadmap716.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-716: an active pair with a documented capability and an unbound maintenance slot must validate: $(err)"
+  log_pass "validate skips the document check for an unbound maintenance slot on an active pair (TEST-716)"
+}
+
+# --- TEST-717 (Spec-AC-01, S2 seam): nothing-left-behind over a --------------
+# capability-only pair — pinned, no change owed in nothing-left-behind.mjs ----
+test_717_nlb_seam_unbound_maintenance() {
+  log_info "Test: nothing-left-behind over a capability-only roadmap pair exits 0 and reports no paired maintenance half (TEST-717)..."
+  local NLB="$PROJECT_ROOT/.aai/scripts/nothing-left-behind.mjs"
+  local NLBROOT="$TEST_DIR/nlb717"
+  rm -rf "$NLBROOT"
+  mkdir -p "$NLBROOT/docs/ai" "$NLBROOT/docs/issues"
+  cat > "$NLBROOT/docs/ai/roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: nlb717-cap
+    status: done
+YAML
+  printf -- '---\nid: nlb717-cap\ntype: change\nstatus: done\nlinks:\n  pr: []\n---\n\n# nlb717-cap\n' \
+    > "$NLBROOT/docs/issues/CHANGE-DRAFT-nlb717-cap.md"
+  # A second, unrelated in-flight doc — present so a mutated readRoadmapPairs
+  # that stops requiring `pair.maintenance` has somewhere spurious to match
+  # (the seam this row pins), while the UNMUTATED code must ignore it.
+  printf -- '---\nid: nlb717-other\ntype: change\nstatus: draft\nlinks:\n  pr: []\n---\n\n# nlb717-other\n' \
+    > "$NLBROOT/docs/issues/CHANGE-DRAFT-nlb717-other.md"
+  ( cd "$NLBROOT" && git init -q && git config user.email nlb717@example.com && git config user.name nlb717 && git add -A && git commit -q -m "feat: nlb717-cap ships" ) \
+    || log_fail "TEST-717: fixture git init/commit must succeed (a CI runner has no default git identity): $(git -C "$NLBROOT" status --porcelain)"
+  local out2 rc2
+  out2="$(node "$NLB" --ref nlb717-cap --root "$NLBROOT" --json)"; rc2=$?
+  [ "$rc2" = "0" ] || log_fail "TEST-717: nothing-left-behind must exit 0 over a capability-only pair: $out2"
+  assert_payload_contains "$out2" '"docs_open":0' "TEST-717: docs_open must be 0 (no paired maintenance half reported)"
+  assert_payload_not_contains "$out2" 'paired maintenance half' "TEST-717: a capability-only pair must never report a paired maintenance half"
+  log_pass "nothing-left-behind reports no paired maintenance half for a capability-only roadmap pair (TEST-717)"
+}
+
+# --- TEST-718 (Spec-AC-02): shipped roadmap regression proof -----------------
+test_718_validate_shipped_regression() {
+  log_info "Test: validate over the shipped docs/ai/roadmap.yaml still prints the identical summary after the relaxation (TEST-718)..."
+  [ "$(run validate --roadmap "$SHIPPED")" = "0" ] || log_fail "TEST-718: the shipped roadmap must still validate: $(err)"
+  [ "$(out)" = "roadmap OK: 11 pair(s), 4 wave-2 item(s)" ] \
+    || log_fail "TEST-718: the summary line must be byte-identical, got: $(out)"
+  log_pass "the shipped roadmap still validates with the identical summary line (TEST-718)"
+}
+
+# --- TEST-719 (Spec-AC-03, D4): next proposes a bind, never a null ref -------
+test_719_next_proposes_bind() {
+  log_info "Test: next on a started capability with an unbound maintenance slot returns action bind, never a null ref (TEST-719)..."
+  cat > "$TEST_DIR/roadmap719.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t719
+    status: active
+YAML
+  write_doc cap-t719 change implementing
+  [ "$(run next --roadmap "$TEST_DIR/roadmap719.yaml" --docs "$TEST_DIR/docs" --json)" = "0" ] \
+    || log_fail "TEST-719: next must exit 0: $(err)"
+  grep -qF '"action":"bind"' "$TEST_DIR/out" || log_fail "TEST-719: the JSON action field must be bind, got: $(out)"
+  grep -qF '"capability":"cap-t719"' "$TEST_DIR/out" || log_fail "TEST-719: the JSON capability field must name cap-t719, got: $(out)"
+  grep -qF '"ref":null' "$TEST_DIR/out" && log_fail "TEST-719: next must never emit a null ref, got: $(out)"
+  log_pass "next proposes a bind for a started capability with an unbound maintenance slot, never a null ref (TEST-719)"
+}
+
+# --- TEST-720 (Spec-AC-03, D13): the bind action names the runnable command --
+test_720_next_bind_names_command() {
+  log_info "Test: the bind action names the capability slug and the runnable roadmap-propose.mjs bind command (TEST-720)..."
+  cat > "$TEST_DIR/roadmap720.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t720
+    status: active
+YAML
+  write_doc cap-t720 change implementing
+  [ "$(run next --roadmap "$TEST_DIR/roadmap720.yaml" --docs "$TEST_DIR/docs" --json)" = "0" ] \
+    || log_fail "TEST-720: next must exit 0: $(err)"
+  grep -qF 'roadmap-propose.mjs bind' "$TEST_DIR/out" \
+    || log_fail "TEST-720: the command field must name roadmap-propose.mjs bind, got: $(out)"
+  grep -qF 'cap-t720' "$TEST_DIR/out" || log_fail "TEST-720: the command must name the capability cap-t720, got: $(out)"
+  log_pass "the bind action names the runnable roadmap-propose.mjs bind command (TEST-720)"
+}
+
+# --- TEST-721 (Spec-AC-04, D5): an exhausted roadmap offers the harvest ------
+test_721_next_offers_harvest_when_exhausted() {
+  log_info "Test: next on an exhausted roadmap emits harvest_command alongside the wave-2 list (TEST-721)..."
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-t721\n    maintenance: maint-t721\n    status: done\nwave_2:\n  - later-t721\n' \
+    > "$TEST_DIR/roadmap721.yaml"
+  [ "$(run next --roadmap "$TEST_DIR/roadmap721.yaml" --docs "$TEST_DIR/docs" --json)" = "0" ] \
+    || log_fail "TEST-721: next must exit 0 on an exhausted roadmap: $(err)"
+  grep -qF 'harvest_command' "$TEST_DIR/out" || log_fail "TEST-721: the JSON must carry a harvest_command field, got: $(out)"
+  grep -qF 'roadmap-propose.mjs harvest --direction' "$TEST_DIR/out" \
+    || log_fail "TEST-721: the harvest_command must name roadmap-propose.mjs harvest --direction, got: $(out)"
+  grep -qF 'later-t721' "$TEST_DIR/out" || log_fail "TEST-721: the wave-2 list must still be present, got: $(out)"
+  log_pass "an exhausted roadmap offers the harvest command alongside the wave-2 list (TEST-721)"
+}
+
+# --- TEST-722 (Spec-AC-05, D3): the off-roadmap maintenance refusal names ----
+# the bind command as well as the backlog command -----------------------------
+test_722_gate_refusal_names_bind() {
+  log_info "Test: the off-roadmap maintenance refusal exits 1 and names both the backlog and the bind command (TEST-722)..."
+  write_roadmap planned
+  [ "$(run gate --ref some-flake-fix-t722 --roadmap "$TEST_DIR/roadmap.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-722: an off-roadmap maintenance ref must still be refused: $(out)"
+  grep -qF 'follow-ups.mjs add' "$TEST_DIR/err" || log_fail "TEST-722: the refusal must still name the backlog command: $(err)"
+  grep -qF 'roadmap-propose.mjs bind' "$TEST_DIR/err" || log_fail "TEST-722: the refusal must also name the bind command: $(err)"
+  log_pass "the off-roadmap maintenance refusal names both the backlog and the bind command, and stays exit 1 (TEST-722)"
+}
+
+# =============================================================================
+# roadmap-propose.mjs harvest (Spec-AC-06..11) — the harvest and the ranking.
+# Every candidate must print its source and all four ranking components
+# (Spec-AC-06); Spec-AC-07..10 are MOVEMENT proofs, never a "a list was
+# produced" control (spec Implementation strategy).
+# =============================================================================
+
+# --- TEST-723 (Spec-AC-06): every candidate prints source + all four ---------
+# ranking components ----------------------------------------------------------
+test_723_harvest_prints_ranking_components() {
+  log_info "Test: harvest --json emits source, label, direction, direction_tokens, observations, blocks_in and age_days on every candidate (TEST-723)..."
+  local D="$TEST_DIR/p723docs"
+  propose_write_doc "$D" cap-t723 change draft
+  [ "$(run_propose harvest --direction "cap t723 direction sentence" --roadmap "$TEST_DIR/p723-roadmap.yaml" --docs "$D" --ledger "$TEST_DIR/p723-ledger.jsonl" --spool "$TEST_DIR/p723-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-723: harvest must exit 0: $(perr)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const c = j.candidates.find((x) => x.id === "cap-t723");
+    if (!c) { console.error("candidate cap-t723 missing"); process.exit(1); }
+    const need = ["source", "label", "direction", "direction_tokens", "observations", "blocks_in", "age_days"];
+    for (const k of need) { if (c[k] === undefined || c[k] === null) { console.error("missing field " + k); process.exit(1); } }
+  ' "$TEST_DIR/pout" || log_fail "TEST-723: every candidate must carry source/label/direction/direction_tokens/observations/blocks_in/age_days: $(pout)"
+  log_pass "harvest prints all four ranking components plus source and label on every candidate (TEST-723)"
+}
+
+# --- TEST-724 (Spec-AC-06): intake source is capability-typed drafts only ----
+test_724_harvest_intake_capability_types_only() {
+  log_info "Test: harvest draws intake candidates only from draft docs whose type is in the capability set (TEST-724)..."
+  local D="$TEST_DIR/p724docs"
+  propose_write_doc "$D" cap-t724-change change draft
+  propose_write_doc "$D" cap-t724-issue issue draft
+  propose_write_doc "$D" cap-t724-done change done
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p724-roadmap.yaml" --docs "$D" --ledger "$TEST_DIR/p724-ledger.jsonl" --spool "$TEST_DIR/p724-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-724: harvest must exit 0: $(perr)"
+  grep -qF '"id":"cap-t724-change"' "$TEST_DIR/pout" || log_fail "TEST-724: a draft change-type doc must be harvested: $(pout)"
+  grep -qF '"id":"cap-t724-issue"' "$TEST_DIR/pout" && log_fail "TEST-724: an issue-type doc must NOT be harvested: $(pout)"
+  grep -qF '"id":"cap-t724-done"' "$TEST_DIR/pout" && log_fail "TEST-724: a done (non-draft) doc must NOT be harvested: $(pout)"
+  log_pass "harvest draws intake candidates only from draft docs of a capability type (TEST-724)"
+}
+
+# --- TEST-725 (Spec-AC-06): wave_2 excludes already-paired slugs -------------
+test_725_harvest_wave2_excludes_paired() {
+  log_info "Test: harvest draws wave_2 slugs that are not already pairs (TEST-725)..."
+  cat > "$TEST_DIR/p725-roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t725-paired
+    maintenance: maint-t725-paired
+    status: planned
+wave_2:
+  - cap-t725-paired
+  - cap-t725-free
+YAML
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p725-roadmap.yaml" --docs "$TEST_DIR/p725docs" --ledger "$TEST_DIR/p725-ledger.jsonl" --spool "$TEST_DIR/p725-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-725: harvest must exit 0: $(perr)"
+  grep -qF '"id":"cap-t725-free"' "$TEST_DIR/pout" || log_fail "TEST-725: an un-paired wave_2 slug must be harvested: $(pout)"
+  grep -qF '"id":"cap-t725-paired"' "$TEST_DIR/pout" && log_fail "TEST-725: a wave_2 slug already paired must NOT be harvested: $(pout)"
+  log_pass "harvest draws only wave_2 slugs that are not already a pair (TEST-725)"
+}
+
+# --- TEST-726 (Spec-AC-07): MOVEMENT — direction sentence swaps the top ------
+# candidate and changes the matching candidate's own direction count. Both
+# fixture candidates carry a SINGULAR noun in their id (option / menu); both
+# directions below use the ordinary PLURAL form of that noun ("options" /
+# "menus") and never the candidate's own exact token — an owner writing a
+# natural sentence, not the slug, is the whole premise of Spec-AC-07 (measured
+# live-corpus defect: "decisions as menus" scored 0 against a candidate
+# labelled "decision-menu-options-parser" under exact-token matching). A
+# regression to exact equality reddens this test (see mutation below).
+test_726_harvest_direction_movement() {
+  log_info "Test: MOVEMENT — two directions over one fixture swap the top candidate and change its direction count (TEST-726)..."
+  local D="$TEST_DIR/p726docs"
+  propose_write_doc "$D" cap-t726-option change draft
+  propose_write_doc "$D" cap-t726-menu change draft
+  local ROADMAP="$TEST_DIR/p726-roadmap.yaml" LEDGER="$TEST_DIR/p726-ledger.jsonl" SPOOL="$TEST_DIR/p726-spool.jsonl"
+  [ "$(run_propose harvest --direction "align with the available options here" --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-726: first harvest must exit 0: $(perr)"
+  [ "$(propose_top_id)" = "cap-t726-option" ] || log_fail "TEST-726: a sentence naming options (plural of the option candidate's own singular token) must rank it first, got $(propose_top_id): $(pout)"
+  local menu_dir_1; menu_dir_1="$(propose_field cap-t726-menu direction)"
+  [ "$(run_propose harvest --direction "align with the various menus here" --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-726: second harvest must exit 0: $(perr)"
+  [ "$(propose_top_id)" = "cap-t726-menu" ] || log_fail "TEST-726: a sentence naming menus (plural of the menu candidate's own singular token) must rank it first, got $(propose_top_id): $(pout)"
+  local menu_dir_2; menu_dir_2="$(propose_field cap-t726-menu direction)"
+  [ "$menu_dir_1" != "$menu_dir_2" ] \
+    || log_fail "TEST-726: menu's own direction count must differ between the two runs, got $menu_dir_1 both times"
+  log_pass "changing the direction sentence rises the matching candidate and changes its direction count (TEST-726)"
+}
+
+# --- TEST-727 (Spec-AC-07): direction is the PRIMARY sort key ----------------
+test_727_harvest_direction_is_primary_key() {
+  log_info "Test: direction is the PRIMARY sort key — a lower-evidence candidate that matches the sentence outranks a higher-evidence one that does not (TEST-727)..."
+  local D="$TEST_DIR/p727docs"
+  propose_write_doc "$D" cap-t727-cache-speed change draft
+  propose_write_doc "$D" cap-t727-search-relevance change draft
+  local ROADMAP="$TEST_DIR/p727-roadmap.yaml" LEDGER="$TEST_DIR/p727-ledger.jsonl" SPOOL="$TEST_DIR/p727-spool.jsonl"
+  : > "$LEDGER"
+  node "$FOLLOWUPS" add --id fu-t727-probe --ref cap-t727-cache-speed --severity P2 --what "w" --why "y" --source "s" --ledger "$LEDGER" >/dev/null 2>&1 \
+    || log_fail "TEST-727: adding the fixture follow-up must succeed"
+  [ "$(run_propose harvest --direction "the team should improve search relevance next" --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-727: harvest must exit 0: $(perr)"
+  [ "$(propose_field cap-t727-cache-speed observations)" = "1" ] \
+    || log_fail "TEST-727: cap-t727-cache-speed must show observations 1 from the fixture follow-up: $(pout)"
+  [ "$(propose_field cap-t727-cache-speed direction)" = "0" ] \
+    || log_fail "TEST-727: cap-t727-cache-speed must show direction 0 (the sentence names the OTHER candidate): $(pout)"
+  local idx_evidence idx_direction
+  idx_evidence="$(propose_index_of cap-t727-cache-speed)"
+  idx_direction="$(propose_index_of cap-t727-search-relevance)"
+  [ "$idx_direction" -lt "$idx_evidence" ] \
+    || log_fail "TEST-727: the direction-matching candidate must outrank the higher-evidence, non-matching one (direction idx=$idx_direction, evidence idx=$idx_evidence): $(pout)"
+  log_pass "direction outranks higher evidence on a non-matching candidate (TEST-727)"
+}
+
+# --- TEST-728 (Spec-AC-07): tokens under 4 characters never count ------------
+test_728_harvest_tokenize_filters_short_tokens() {
+  log_info "Test: tokens under 4 characters never count toward a direction match, even when not a stopword (TEST-728)..."
+  local D="$TEST_DIR/p728docs"
+  propose_write_doc "$D" cap-t728-ux change draft
+  [ "$(run_propose harvest --direction "improve the ux now" --roadmap "$TEST_DIR/p728-roadmap.yaml" --docs "$D" --ledger "$TEST_DIR/p728-ledger.jsonl" --spool "$TEST_DIR/p728-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-728: harvest must exit 0: $(perr)"
+  [ "$(propose_field cap-t728-ux direction)" = "0" ] \
+    || log_fail "TEST-728: a short shared token (ux) below the 4-character floor must not count as a direction match, got: $(pout)"
+  log_pass "tokens under 4 characters never count toward a direction match (TEST-728)"
+}
+
+# --- TEST-729 (Spec-AC-08): MOVEMENT — one open follow-up naming B raises ----
+# its observations 0 to 1 and lowers its index --------------------------------
+test_729_harvest_observations_movement() {
+  log_info "Test: MOVEMENT — adding one open follow-up naming candidate B raises its observations 0 to 1 and lowers its index (TEST-729)..."
+  local D="$TEST_DIR/p729docs"
+  propose_write_doc "$D" cap-t729-aaa change draft
+  propose_write_doc "$D" cap-t729-bbb change draft
+  local ROADMAP="$TEST_DIR/p729-roadmap.yaml" LEDGER="$TEST_DIR/p729-ledger.jsonl" SPOOL="$TEST_DIR/p729-spool.jsonl"
+  : > "$LEDGER"
+  [ "$(run_propose harvest --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-729: first harvest must exit 0: $(perr)"
+  [ "$(propose_field cap-t729-bbb observations)" = "0" ] || log_fail "TEST-729: cap-t729-bbb must start at observations 0: $(pout)"
+  local idx_before; idx_before="$(propose_index_of cap-t729-bbb)"
+  node "$FOLLOWUPS" add --id fu-rank-probe-729 --ref cap-t729-bbb --severity P2 --what "w" --why "y" --source "s" --ledger "$LEDGER" >/dev/null 2>&1 \
+    || log_fail "TEST-729: adding the fixture follow-up must succeed"
+  [ "$(run_propose harvest --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-729: second harvest must exit 0: $(perr)"
+  [ "$(propose_field cap-t729-bbb observations)" = "1" ] || log_fail "TEST-729: cap-t729-bbb's observations must rise to 1, got: $(pout)"
+  local idx_after; idx_after="$(propose_index_of cap-t729-bbb)"
+  [ "$idx_after" -lt "$idx_before" ] \
+    || log_fail "TEST-729: cap-t729-bbb must overtake its earlier tie (index before=$idx_before, after=$idx_after): $(pout)"
+  log_pass "adding one open follow-up naming a candidate raises its observations and its rank (TEST-729)"
+}
+
+# --- TEST-730 (Spec-AC-08): a CLOSED follow-up does not raise observations --
+test_730_harvest_closed_followup_ignored() {
+  log_info "Test: a CLOSED follow-up naming candidate B does not raise its observations (TEST-730)..."
+  local D="$TEST_DIR/p730docs"
+  propose_write_doc "$D" cap-t730 change draft
+  local ROADMAP="$TEST_DIR/p730-roadmap.yaml" LEDGER="$TEST_DIR/p730-ledger.jsonl" SPOOL="$TEST_DIR/p730-spool.jsonl"
+  : > "$LEDGER"
+  node "$FOLLOWUPS" add --id fu-t730-probe --ref cap-t730 --severity P2 --what "w" --why "y" --source "s" --ledger "$LEDGER" >/dev/null 2>&1 \
+    || log_fail "TEST-730: adding the fixture follow-up must succeed"
+  node "$FOLLOWUPS" close --id fu-t730-probe --resolved-by cap-t730 --source "sha:deadbeef" --ledger "$LEDGER" >/dev/null 2>&1 \
+    || log_fail "TEST-730: closing the fixture follow-up must succeed"
+  [ "$(run_propose harvest --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-730: harvest must exit 0: $(perr)"
+  [ "$(propose_field cap-t730 observations)" = "0" ] \
+    || log_fail "TEST-730: a closed follow-up must not count toward observations, got: $(pout)"
+  log_pass "a closed follow-up naming a candidate does not raise its observations (TEST-730)"
+}
+
+# --- TEST-731 (Spec-AC-09): MOVEMENT — a non-terminal blocking document ------
+# naming B raises its blocks_in 0 to 1 and lowers its index -------------------
+test_731_harvest_blocks_in_movement() {
+  log_info "Test: MOVEMENT — adding a non-terminal document with blocks naming B raises its blocks_in 0 to 1 and lowers its index (TEST-731)..."
+  local D="$TEST_DIR/p731docs"
+  propose_write_doc "$D" cap-t731-aaa change draft
+  propose_write_doc "$D" cap-t731-bbb change draft
+  local ROADMAP="$TEST_DIR/p731-roadmap.yaml" LEDGER="$TEST_DIR/p731-ledger.jsonl" SPOOL="$TEST_DIR/p731-spool.jsonl"
+  [ "$(run_propose harvest --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-731: first harvest must exit 0: $(perr)"
+  [ "$(propose_field cap-t731-bbb blocks_in)" = "0" ] || log_fail "TEST-731: cap-t731-bbb must start at blocks_in 0: $(pout)"
+  local idx_before; idx_before="$(propose_index_of cap-t731-bbb)"
+  propose_write_doc "$D" cap-t731-blocker issue draft "blocks: cap-t731-bbb"
+  [ "$(run_propose harvest --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-731: second harvest must exit 0: $(perr)"
+  [ "$(propose_field cap-t731-bbb blocks_in)" = "1" ] || log_fail "TEST-731: cap-t731-bbb's blocks_in must rise to 1, got: $(pout)"
+  local idx_after; idx_after="$(propose_index_of cap-t731-bbb)"
+  [ "$idx_after" -lt "$idx_before" ] \
+    || log_fail "TEST-731: cap-t731-bbb must overtake its earlier tie on direction and observations (index before=$idx_before, after=$idx_after): $(pout)"
+  log_pass "adding a non-terminal blocking document raises blocks_in and rank (TEST-731)"
+}
+
+# --- TEST-732 (Spec-AC-09): a TERMINAL blocking document does not raise ------
+# blocks_in --------------------------------------------------------------------
+test_732_harvest_terminal_blocker_ignored() {
+  log_info "Test: a TERMINAL document blocking B does not raise its blocks_in (TEST-732)..."
+  local D="$TEST_DIR/p732docs"
+  propose_write_doc "$D" cap-t732 change draft
+  propose_write_doc "$D" cap-t732-blocker issue done "blocks: cap-t732"
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p732-roadmap.yaml" --docs "$D" --ledger "$TEST_DIR/p732-ledger.jsonl" --spool "$TEST_DIR/p732-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-732: harvest must exit 0: $(perr)"
+  [ "$(propose_field cap-t732 blocks_in)" = "0" ] \
+    || log_fail "TEST-732: a blocking document whose OWN status is terminal (done) must not raise blocks_in, got: $(pout)"
+  log_pass "a terminal (done) blocking document does not raise blocks_in (TEST-732)"
+}
+
+# --- TEST-733 (Spec-AC-10): MOVEMENT — tied on every earlier key, the -------
+# older first-commit date ranks first -----------------------------------------
+test_733_harvest_age_tiebreak() {
+  log_info "Test: MOVEMENT — with every earlier key tied the older first-commit date ranks first (TEST-733)..."
+  local D="$TEST_DIR/p733docs"
+  mkdir -p "$D/issues"
+  ( cd "$D" && git init -q && git config user.email t733@example.com && git config user.name t733 )
+  propose_write_doc "$D" cap-t733-older change draft
+  ( cd "$D" && git add -A && GIT_AUTHOR_DATE="2026-01-01T00:00:00" GIT_COMMITTER_DATE="2026-01-01T00:00:00" git commit -q -m older )
+  propose_write_doc "$D" cap-t733-newer change draft
+  ( cd "$D" && git add -A && GIT_AUTHOR_DATE="2026-06-01T00:00:00" GIT_COMMITTER_DATE="2026-06-01T00:00:00" git commit -q -m newer )
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p733-roadmap.yaml" --docs "$D" --ledger "$TEST_DIR/p733-ledger.jsonl" --spool "$TEST_DIR/p733-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-733: harvest must exit 0: $(perr)"
+  local age_older age_newer
+  age_older="$(propose_field cap-t733-older age_days)"
+  age_newer="$(propose_field cap-t733-newer age_days)"
+  [ "$age_older" -gt "$age_newer" ] \
+    || log_fail "TEST-733: the older candidate must report a larger age_days (older=$age_older, newer=$age_newer): $(pout)"
+  local idx_older idx_newer
+  idx_older="$(propose_index_of cap-t733-older)"
+  idx_newer="$(propose_index_of cap-t733-newer)"
+  [ "$idx_older" -lt "$idx_newer" ] \
+    || log_fail "TEST-733: tied on every earlier key, the older candidate must rank first (older idx=$idx_older, newer idx=$idx_newer): $(pout)"
+  log_pass "with every earlier key tied, the older first-commit date ranks first (TEST-733)"
+}
+
+# --- TEST-734 (Spec-AC-10): an untracked candidate reports age unknown ------
+test_734_harvest_untracked_age_unknown() {
+  log_info "Test: an untracked candidate reports age_days 0 and the literal note age unknown (TEST-734)..."
+  local D="$TEST_DIR/p734docs"
+  propose_write_doc "$D" cap-t734 change draft
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p734-roadmap.yaml" --docs "$D" --ledger "$TEST_DIR/p734-ledger.jsonl" --spool "$TEST_DIR/p734-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-734: harvest must exit 0: $(perr)"
+  [ "$(propose_field cap-t734 age_days)" = "0" ] || log_fail "TEST-734: an untracked candidate must report age_days 0, got: $(pout)"
+  [ "$(propose_field cap-t734 age_note)" = '"age unknown"' ] \
+    || log_fail "TEST-734: an untracked candidate must carry the literal note 'age unknown', got: $(pout)"
+  log_pass "an untracked candidate reports age_days 0 and the note age unknown (TEST-734)"
+}
+
+# --- TEST-735 (Spec-AC-11): only review_candidate clusters become friction --
+# candidates -------------------------------------------------------------------
+test_735_harvest_friction_review_candidates_only() {
+  log_info "Test: only review_candidate clusters become friction candidates (TEST-735)..."
+  local SPOOL="$TEST_DIR/p735-spool.jsonl"
+  cat > "$SPOOL" <<JSONL
+{"schema_version":2,"harness":"claude-code","skill_id":"aai-tdd","skill_phase":"test-execution","failure_class":"deterministic_script_failure","fingerprint":"fp-t735-above","impact":"high","confidence":"high","reproducible":true}
+{"schema_version":2,"harness":"claude-code","skill_id":"aai-other","skill_phase":"other-phase","failure_class":"stalled_progress","fingerprint":"fp-t735-below"}
+JSONL
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p735-roadmap.yaml" --docs "$TEST_DIR/p735docs" --ledger "$TEST_DIR/p735-ledger.jsonl" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-735: harvest must exit 0: $(perr)"
+  local n_friction
+  n_friction="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(String(j.candidates.filter((c) => c.source === "friction").length));
+  ' "$TEST_DIR/pout")"
+  [ "$n_friction" = "1" ] || log_fail "TEST-735: exactly one review_candidate cluster must become a friction candidate, got $n_friction: $(pout)"
+  grep -qF 'friction-aai-tdd-deterministic-script-failure' "$TEST_DIR/pout" \
+    || log_fail "TEST-735: the surviving candidate must be labelled from the above-threshold row's skill_id and failure_class: $(pout)"
+  log_pass "harvest contributes only review_candidate friction clusters (TEST-735)"
+}
+
+# --- TEST-736 (Spec-AC-11): the friction label never carries the raw --------
+# fingerprint hash --------------------------------------------------------------
+test_736_harvest_friction_label_never_hash() {
+  log_info "Test: a friction label carries skill_id and failure_class and no v1 fingerprint hash appears in the output (TEST-736)..."
+  local SPOOL="$TEST_DIR/p736-spool.jsonl"
+  cat > "$SPOOL" <<JSONL
+{"schema_version":2,"harness":"claude-code","skill_id":"aai-run-tests","skill_phase":"test-execution","failure_class":"deterministic_script_failure","fingerprint":"v1:abc123deadbeef","impact":"high","confidence":"high","reproducible":true}
+JSONL
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p736-roadmap.yaml" --docs "$TEST_DIR/p736docs" --ledger "$TEST_DIR/p736-ledger.jsonl" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-736: harvest must exit 0: $(perr)"
+  grep -qF 'friction-aai-run-tests-deterministic-script-failure' "$TEST_DIR/pout" \
+    || log_fail "TEST-736: the friction candidate must be labelled from skill_id and failure_class, got: $(pout)"
+  [ "$(/usr/bin/grep -c 'v1:' "$TEST_DIR/pout")" = "0" ] \
+    || log_fail "TEST-736: no candidate label may contain the raw v1: fingerprint hash: $(pout)"
+  log_pass "the friction label carries skill_id and failure_class, never the raw fingerprint (TEST-736)"
+}
+
+# --- TEST-737 (Spec-AC-11): an empty or absent spool degrades to a NOTE -----
+test_737_harvest_empty_spool_note() {
+  log_info "Test: an empty or absent spool yields zero friction candidates, exit 0 and one NOTE line (TEST-737)..."
+  local SPOOL="$TEST_DIR/p737-spool-absent.jsonl"
+  rm -f "$SPOOL"
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p737-roadmap.yaml" --docs "$TEST_DIR/p737docs" --ledger "$TEST_DIR/p737-ledger.jsonl" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-737: harvest over an absent spool must exit 0: $(perr)"
+  grep -qF 'spool is empty' "$TEST_DIR/pout" || log_fail "TEST-737: the NOTE must say the spool is empty (or absent): $(pout)"
+  local n_notes
+  n_notes="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(String(j.notes.length));
+  ' "$TEST_DIR/pout")"
+  [ "$n_notes" = "1" ] || log_fail "TEST-737: exactly one NOTE must be printed for an absent spool, got $n_notes: $(pout)"
+  local n_friction
+  n_friction="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(String(j.candidates.filter((c) => c.source === "friction").length));
+  ' "$TEST_DIR/pout")"
+  [ "$n_friction" = "0" ] || log_fail "TEST-737: an absent spool must contribute zero friction candidates, got $n_friction: $(pout)"
+  log_pass "an empty or absent friction spool yields zero candidates, exit 0, and one NOTE (TEST-737)"
+}
+
+# --- TEST-747 (Spec-AC-06): a duplicate id across two sources contributes ---
+# exactly ONE candidate set member, naming every contributing source --------
+# (measured live-corpus defect: decision-menu-options-parser printed twice,
+# once [intake] from its own draft doc and once [wave_2] from the roadmap's
+# wave_2 list, because nothing ever asked whether two sources named the SAME
+# capability id).
+test_747_harvest_dedupes_by_id() {
+  log_info "Test: a candidate id reachable from both an intake draft and an unpaired wave_2 slug contributes exactly one candidate, naming both sources (TEST-747)..."
+  local D="$TEST_DIR/p747docs"
+  propose_write_doc "$D" cap-t747-both change draft
+  cat > "$TEST_DIR/p747-roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t747-other
+    maintenance: maint-t747-other
+    status: planned
+wave_2:
+  - cap-t747-both
+YAML
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p747-roadmap.yaml" --docs "$D" --ledger "$TEST_DIR/p747-ledger.jsonl" --spool "$TEST_DIR/p747-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-747: harvest must exit 0: $(perr)"
+  local n_both
+  n_both="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(String(j.candidates.filter((c) => c.id === "cap-t747-both").length));
+  ' "$TEST_DIR/pout")"
+  [ "$n_both" = "1" ] || log_fail "TEST-747: a candidate reachable from two sources must contribute exactly ONE row, got $n_both: $(pout)"
+  local source
+  source="$(propose_field cap-t747-both source)"
+  [ "$source" = '"intake,wave_2"' ] \
+    || log_fail "TEST-747: the merged candidate's source must name BOTH contributing sources, got $source: $(pout)"
+  log_pass "a duplicate id across intake and wave_2 contributes exactly one candidate, naming both sources (TEST-747)"
+}
+
+# --- TEST-738 (Spec-AC-12): write appends planned capability-only pairs -----
+test_738_write_appends_and_certifies() {
+  log_info "Test: write appends planned capability-only pairs, leaves prior bytes identical, and the REAL validator accepts (TEST-738)..."
+  local D="$TEST_DIR/p738docs"
+  propose_write_doc "$D" cap-t738-existing change planned
+  propose_write_doc "$D" cap-t738-new change draft
+  local ROADMAP="$TEST_DIR/p738-roadmap.yaml"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t738-existing
+    maintenance: maint-t738-existing
+    status: planned
+YAML
+  cp "$ROADMAP" "$TEST_DIR/p738-roadmap.orig.yaml"
+  [ "$(run_propose write --direction "cap t738 new direction" --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p738-ledger.jsonl" --spool "$TEST_DIR/p738-spool.jsonl")" = "0" ] \
+    || log_fail "TEST-738: write must exit 0: $(perr)"
+  local n_orig
+  n_orig="$(wc -l < "$TEST_DIR/p738-roadmap.orig.yaml" | tr -d ' ')"
+  diff <(head -n "$n_orig" "$ROADMAP") "$TEST_DIR/p738-roadmap.orig.yaml" >/dev/null \
+    || log_fail "TEST-738: every pre-existing byte must be unchanged (prefix diff)"
+  local appended
+  appended="$(tail -n +$((n_orig + 1)) "$ROADMAP")"
+  assert_payload_contains "$appended" 'capability: cap-t738-new' \
+    "TEST-738: the appended block must name the picked candidate"
+  assert_payload_contains "$appended" 'status: planned' \
+    "TEST-738: the appended pair must carry status: planned"
+  assert_payload_not_contains "$appended" 'maintenance:' \
+    "TEST-738: the appended block must carry no maintenance: line"
+  [ "$(run validate --roadmap "$ROADMAP" --docs "$D")" = "0" ] \
+    || log_fail "TEST-738: the REAL ride-select.mjs validate must accept the written roadmap: $(err)"
+  log_pass "write appends a planned capability-only pair, prior bytes unchanged, real validator accepts (TEST-738)"
+}
+
+# --- TEST-739 (Spec-AC-12): certification spawns ride-select.mjs validate --
+# as a REAL child process — proven by an argv-recording shim, never a
+# test-owned parser or an in-process import.
+test_739_write_certifies_via_real_child_process() {
+  log_info "Test: certification spawns ride-select.mjs validate as a real child process, proven by an argv-recording shim (TEST-739)..."
+  local COPY="$TEST_DIR/p739-scripts"
+  rm -rf "$COPY"
+  mkdir -p "$COPY"
+  cp -R "$PROJECT_ROOT/.aai/scripts/." "$COPY/"
+  cat > "$COPY/ride-select.mjs" <<'SHIM'
+#!/usr/bin/env node
+import fs from 'node:fs';
+fs.writeFileSync(process.env.T739_ARGV_RECORDER, JSON.stringify(process.argv.slice(2)));
+process.exit(0);
+SHIM
+  local D="$TEST_DIR/p739docs"
+  propose_write_doc "$D" cap-t739 change draft
+  local ROADMAP="$TEST_DIR/p739-roadmap.yaml"
+  rm -f "$ROADMAP"
+  local RECORDER="$TEST_DIR/p739-argv.json"
+  rm -f "$RECORDER"
+  T739_ARGV_RECORDER="$RECORDER" node "$COPY/roadmap-propose.mjs" write --direction "cap t739" --pick 1 \
+    --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p739-ledger.jsonl" --spool "$TEST_DIR/p739-spool.jsonl" \
+    > "$TEST_DIR/pout" 2> "$TEST_DIR/perr"
+  local rc=$?
+  [ "$rc" = "0" ] || log_fail "TEST-739: write against the always-admitting shim must exit 0: rc=$rc $(perr)"
+  [ -f "$RECORDER" ] || log_fail "TEST-739: the shim must have recorded an argv (certification never ran a child process)"
+  local argv
+  argv="$(cat "$RECORDER")"
+  assert_payload_contains "$argv" '"validate"' "TEST-739: certification must invoke the shim with 'validate'"
+  assert_payload_contains "$argv" '"--roadmap"' "TEST-739: certification must pass --roadmap"
+  assert_payload_contains "$argv" "\"$ROADMAP\"" "TEST-739: certification must name the written roadmap path"
+  log_pass "certification runs ride-select.mjs validate as a real child process (TEST-739)"
+}
+
+# --- TEST-740 (Spec-AC-13): a refused certification restores original bytes -
+test_740_write_rollback_on_refused_certification() {
+  log_info "Test: a refused certification restores the original bytes, exits 1 and prints the validator's own stderr (TEST-740)..."
+  local COPY="$TEST_DIR/p740-scripts"
+  rm -rf "$COPY"
+  mkdir -p "$COPY"
+  cp -R "$PROJECT_ROOT/.aai/scripts/." "$COPY/"
+  cat > "$COPY/ride-select.mjs" <<'SHIM'
+#!/usr/bin/env node
+process.stderr.write('ride-select: REFUSED -- TEST-740 stub always refuses\n');
+process.exit(1);
+SHIM
+  local D="$TEST_DIR/p740docs"
+  propose_write_doc "$D" cap-t740 change draft
+  local ROADMAP="$TEST_DIR/p740-roadmap.yaml"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t740-existing
+    maintenance: maint-t740-existing
+    status: planned
+YAML
+  cp "$ROADMAP" "$TEST_DIR/p740-roadmap.orig.yaml"
+  node "$COPY/roadmap-propose.mjs" write --direction "cap t740" --pick 1 \
+    --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p740-ledger.jsonl" --spool "$TEST_DIR/p740-spool.jsonl" \
+    > "$TEST_DIR/pout" 2> "$TEST_DIR/perr"
+  local rc=$?
+  [ "$rc" = "1" ] || log_fail "TEST-740: a refused certification must exit 1, got $rc: $(perr)"
+  cmp -s "$ROADMAP" "$TEST_DIR/p740-roadmap.orig.yaml" \
+    || log_fail "TEST-740: the original bytes must be restored on a refused certification"
+  grep -qF 'TEST-740 stub always refuses' "$TEST_DIR/perr" \
+    || log_fail "TEST-740: stderr must carry the validator's own refusal text: $(cat "$TEST_DIR/perr")"
+  log_pass "a refused certification restores the original bytes and reports the validator's refusal (TEST-740)"
+}
+
+# --- TEST-741 (Spec-AC-14): bind refuses a ref outside the backlog ----------
+test_741_bind_refuses_unknown_ref() {
+  log_info "Test: bind refuses a ref that is neither an open follow-up nor a resolvable document and writes nothing (TEST-741)..."
+  local D="$TEST_DIR/p741docs"
+  local ROADMAP="$TEST_DIR/p741-roadmap.yaml"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t741
+    status: planned
+YAML
+  cp "$ROADMAP" "$TEST_DIR/p741-roadmap.orig.yaml"
+  [ "$(run_propose bind --capability cap-t741 --ref nowhere-to-be-found --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p741-ledger.jsonl")" = "1" ] \
+    || log_fail "TEST-741: bind with an unresolvable ref must exit 1: $(pout)"
+  cmp -s "$ROADMAP" "$TEST_DIR/p741-roadmap.orig.yaml" || log_fail "TEST-741: bind must write nothing on refusal"
+  log_pass "bind refuses a ref that is neither an open follow-up nor a resolvable document, and writes nothing (TEST-741)"
+}
+
+# --- TEST-742 (Spec-AC-14): bind adds exactly one maintenance line ----------
+test_742_bind_adds_maintenance_line_and_certifies() {
+  log_info "Test: bind adds exactly one maintenance line to the named pair, the real validator accepts, and a re-bind is refused (TEST-742)..."
+  local D="$TEST_DIR/p742docs"
+  mkdir -p "$D"
+  local ROADMAP="$TEST_DIR/p742-roadmap.yaml" LEDGER="$TEST_DIR/p742-ledger.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t742
+    status: planned
+YAML
+  : > "$LEDGER"
+  node "$FOLLOWUPS" add --id fu-t742-probe --ref cap-t742 --severity P3 --what w --why y --source s --ledger "$LEDGER" >/dev/null 2>&1 \
+    || log_fail "TEST-742: adding the fixture follow-up must succeed"
+  [ "$(run_propose bind --capability cap-t742 --ref fu-t742-probe --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-742: bind with a valid open follow-up ref must exit 0: $(perr)"
+  local n_maint
+  n_maint="$(/usr/bin/grep -c '^    maintenance:' "$ROADMAP")"
+  [ "$n_maint" = "1" ] || log_fail "TEST-742: exactly one maintenance: line must be added, got $n_maint"
+  [ "$(run validate --roadmap "$ROADMAP" --docs "$D")" = "0" ] \
+    || log_fail "TEST-742: the real validator must accept the bound roadmap: $(err)"
+  node "$FOLLOWUPS" add --id fu-t742-second --ref cap-t742 --severity P3 --what w --why y --source s --ledger "$LEDGER" >/dev/null 2>&1 \
+    || log_fail "TEST-742: adding the second fixture follow-up must succeed"
+  [ "$(run_propose bind --capability cap-t742 --ref fu-t742-second --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "1" ] \
+    || log_fail "TEST-742: a second bind on an already-bound pair must be refused: $(pout)"
+  # The refusal must come from bind's OWN already-bound guard, not merely
+  # from certify() catching a duplicate maintenance: line after the fact
+  # (ride-select.mjs's closed-shape parser refuses two maintenance keys in
+  # one pair regardless, which would otherwise mask this guard's removal).
+  grep -qF 'already bound' "$TEST_DIR/perr" \
+    || log_fail "TEST-742: the re-bind refusal must name the pair as already bound (bind's own guard, not certify's): $(perr)"
+  n_maint="$(/usr/bin/grep -c '^    maintenance:' "$ROADMAP")"
+  [ "$n_maint" = "1" ] || log_fail "TEST-742: the maintenance line count must stay at exactly 1 after a refused re-bind, got $n_maint"
+  log_pass "bind adds exactly one maintenance line, the real validator accepts, and a re-bind is refused (TEST-742)"
+}
+
+# --- TEST-743 (Spec-AC-15): an absent roadmap and zero candidates leave -----
+# no file behind
+test_743_opt_out_leaves_no_file() {
+  log_info "Test: an absent roadmap and zero harvested candidates leave no file behind (TEST-743)..."
+  local D="$TEST_DIR/p743docs"
+  mkdir -p "$D/issues"
+  local ROADMAP="$TEST_DIR/p743-nonexistent/roadmap.yaml"
+  rm -rf "$TEST_DIR/p743-nonexistent"
+  [ "$(run_propose harvest --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p743-ledger.jsonl" --spool "$TEST_DIR/p743-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-743: harvest over an absent roadmap must exit 0: $(perr)"
+  [ ! -e "$ROADMAP" ] || log_fail "TEST-743: harvest must create no roadmap file"
+  local n_candidates
+  n_candidates="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(String(j.candidates.length));
+  ' "$TEST_DIR/pout")"
+  [ "$n_candidates" = "0" ] || log_fail "TEST-743: an empty docs dir and absent roadmap must yield zero candidates, got $n_candidates"
+  [ "$(run_propose write --direction "p743 direction" --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p743-ledger.jsonl" --spool "$TEST_DIR/p743-spool.jsonl")" = "1" ] \
+    || log_fail "TEST-743: write with zero harvested candidates must exit 1: $(pout)"
+  grep -qF 'nothing harvested' "$TEST_DIR/perr" || log_fail "TEST-743: the refusal must say nothing harvested: $(perr)"
+  [ ! -e "$ROADMAP" ] || log_fail "TEST-743: write with zero candidates must create no roadmap file"
+  log_pass "an absent roadmap and zero harvested candidates leave no file behind (TEST-743)"
+}
+
+# --- TEST-744 (Spec-AC-15): no prompt or dispatch branch invokes -----------
+# roadmap-propose automatically. The scan pattern below lives in its own
+# assigned variable (never written out in this comment, so the recorded
+# mutation's first — and only — match is the real assignment line, not a
+# prose mention of it) so the mutation that flips the scan target to the
+# WRONG, legitimately-wired name hits exactly this test's own assertion
+# rather than one of the many unrelated occurrences of the harvester's name
+# earlier in this suite file (e.g. the $PROPOSE path assignment) — a bare,
+# unanchored rename would hit whichever occurs FIRST in the file, not this
+# check.
+test_744_no_automatic_invocation_site() {
+  log_info "Test: no .aai prompt or orchestration-dispatch.mjs invokes roadmap-propose automatically (TEST-744)..."
+  local SCAN_PATTERN='roadmap-propose'
+  local hits
+  hits="$(/usr/bin/grep -rl "$SCAN_PATTERN" "$PROJECT_ROOT"/.aai/*.prompt.md "$PROJECT_ROOT/.aai/scripts/orchestration-dispatch.mjs" 2>/dev/null || true)"
+  [ -z "$hits" ] || log_fail "TEST-744: no .aai prompt or orchestration-dispatch.mjs may invoke roadmap-propose automatically, found: $hits"
+  log_pass "no prompt or dispatch branch invokes roadmap-propose automatically (TEST-744)"
+}
+
+# === Remediation round (validation-round1.txt) ==============================
+
+# --- TEST-748 (Spec-AC-06, Spec-AC-12): BLOCKING-1 — harvest prints stable ---
+# 1-based row numbers, and write --pick N writes exactly the Nth-ranked
+# candidate off that SAME ranking — never row 1 regardless of N (widened,
+# multi-candidate fixture: TEST-738's single-candidate fixture could never
+# exercise pick fidelity at all).
+test_748_harvest_row_numbers_and_write_pick_fidelity() {
+  log_info "Test: harvest prints 1-based row numbers and write --pick N writes exactly the Nth-ranked candidate (TEST-748)..."
+  local D="$TEST_DIR/p748docs"
+  propose_write_doc "$D" cap-t748-gamma change draft
+  propose_write_doc "$D" cap-t748-beta change draft
+  propose_write_doc "$D" cap-t748-alpha change draft
+  local ROADMAP="$TEST_DIR/p748-roadmap.yaml" LEDGER="$TEST_DIR/p748-ledger.jsonl" SPOOL="$TEST_DIR/p748-spool.jsonl"
+  : > "$LEDGER"
+  local DIRECTION="the beta idea please"
+  [ "$(run_propose harvest --direction "$DIRECTION" --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-748: harvest must exit 0: $(perr)"
+  # Ranked order under this direction: beta (direction=1) first, then alpha
+  # and gamma tied at direction=0, id-ASC ("cap-t748-alpha" < "cap-t748-gamma").
+  [ "$(propose_field cap-t748-beta index)" = "1" ] || log_fail "TEST-748: cap-t748-beta must be row 1, got: $(pout)"
+  [ "$(propose_field cap-t748-alpha index)" = "2" ] || log_fail "TEST-748: cap-t748-alpha must be row 2, got: $(pout)"
+  [ "$(propose_field cap-t748-gamma index)" = "3" ] || log_fail "TEST-748: cap-t748-gamma must be row 3, got: $(pout)"
+  # The TEXT rows must carry the same numbers, not just the JSON field.
+  [ "$(run_propose harvest --direction "$DIRECTION" --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL")" = "0" ] \
+    || log_fail "TEST-748: text harvest must exit 0: $(perr)"
+  grep -qE '^1\. cap-t748-beta ' "$TEST_DIR/pout" || log_fail "TEST-748: the text row for cap-t748-beta must be numbered 1: $(pout)"
+  grep -qE '^2\. cap-t748-alpha ' "$TEST_DIR/pout" || log_fail "TEST-748: the text row for cap-t748-alpha must be numbered 2: $(pout)"
+  grep -qE '^3\. cap-t748-gamma ' "$TEST_DIR/pout" || log_fail "TEST-748: the text row for cap-t748-gamma must be numbered 3: $(pout)"
+  # write --pick 2 must write row 2 (alpha) — NOT row 1 (beta). A write that
+  # recomputed a prefix (candidates.slice(0, picks.length)) instead of
+  # indexing candidates[pick-1] would write beta here instead.
+  local ROADMAP2="$TEST_DIR/p748-write-roadmap.yaml"
+  [ "$(run_propose write --direction "$DIRECTION" --pick 2 --roadmap "$ROADMAP2" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL")" = "0" ] \
+    || log_fail "TEST-748: write --pick 2 must exit 0: $(perr)"
+  /usr/bin/grep -q 'capability: cap-t748-alpha' "$ROADMAP2" \
+    || log_fail "TEST-748: write --pick 2 must write the SECOND-ranked candidate (cap-t748-alpha): $(cat "$ROADMAP2")"
+  /usr/bin/grep -q 'capability: cap-t748-beta' "$ROADMAP2" \
+    && log_fail "TEST-748: write --pick 2 must NOT write the first-ranked candidate (cap-t748-beta): $(cat "$ROADMAP2")"
+  /usr/bin/grep -q 'capability: cap-t748-gamma' "$ROADMAP2" \
+    && log_fail "TEST-748: write --pick 2 must NOT write the third-ranked candidate (cap-t748-gamma): $(cat "$ROADMAP2")"
+  log_pass "harvest prints stable row numbers and write --pick N writes exactly the Nth-ranked candidate (TEST-748)"
+}
+
+# --- TEST-749 (Spec-AC-12): BLOCKING-1 — write refuses (usage, exit 2) when --
+# --direction is omitted, and writes nothing.
+test_749_write_requires_direction() {
+  log_info "Test: write refuses with a usage error when --direction is omitted, and writes nothing (TEST-749)..."
+  local D="$TEST_DIR/p749docs"
+  propose_write_doc "$D" cap-t749 change draft
+  local ROADMAP="$TEST_DIR/p749-nonexistent/roadmap.yaml"
+  rm -rf "$TEST_DIR/p749-nonexistent"
+  [ "$(run_propose write --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p749-ledger.jsonl" --spool "$TEST_DIR/p749-spool.jsonl")" = "2" ] \
+    || log_fail "TEST-749: write with no --direction must exit 2 (usage), got $(pout): $(perr)"
+  grep -qF -- '--direction' "$TEST_DIR/perr" || log_fail "TEST-749: the usage refusal must name --direction: $(perr)"
+  [ ! -e "$ROADMAP" ] || log_fail "TEST-749: write with no --direction must create no roadmap file"
+  log_pass "write refuses with a usage error when --direction is omitted, and writes nothing (TEST-749)"
+}
+
+# --- TEST-750 (Spec-AC-12): BLOCKING-1 — the SENTENCE, not merely its --------
+# presence, drives what write picks: the same --pick 1 writes a DIFFERENT
+# candidate when --direction changes.
+test_750_write_direction_value_drives_pick() {
+  log_info "Test: the same --pick 1 writes a different candidate when --direction changes, proving write's ranking is driven by the sentence itself (TEST-750)..."
+  local D="$TEST_DIR/p750docs"
+  propose_write_doc "$D" cap-t750-gamma change draft
+  propose_write_doc "$D" cap-t750-beta change draft
+  propose_write_doc "$D" cap-t750-alpha change draft
+  local LEDGER="$TEST_DIR/p750-ledger.jsonl" SPOOL="$TEST_DIR/p750-spool.jsonl"
+  : > "$LEDGER"
+  local ROADMAP_BETA="$TEST_DIR/p750-roadmap-beta.yaml"
+  [ "$(run_propose write --direction "the beta idea please" --pick 1 --roadmap "$ROADMAP_BETA" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL")" = "0" ] \
+    || log_fail "TEST-750: write directed at beta must exit 0: $(perr)"
+  /usr/bin/grep -q 'capability: cap-t750-beta' "$ROADMAP_BETA" \
+    || log_fail "TEST-750: --direction naming beta with --pick 1 must write cap-t750-beta: $(cat "$ROADMAP_BETA")"
+  local ROADMAP_GAMMA="$TEST_DIR/p750-roadmap-gamma.yaml"
+  [ "$(run_propose write --direction "the gamma idea please" --pick 1 --roadmap "$ROADMAP_GAMMA" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL")" = "0" ] \
+    || log_fail "TEST-750: write directed at gamma must exit 0: $(perr)"
+  /usr/bin/grep -q 'capability: cap-t750-gamma' "$ROADMAP_GAMMA" \
+    || log_fail "TEST-750: --direction naming gamma with --pick 1 must write cap-t750-gamma: $(cat "$ROADMAP_GAMMA")"
+  log_pass "the same --pick 1 writes a different candidate when --direction changes (TEST-750)"
+}
+
+# --- TEST-751 (Spec-AC-14): validation round 2 B1/B2 — bind refuses a ref ----
+# that the ROADMAP already records as a capability (a `capability:` slot on
+# ANY pair, not just the one being bound into — N14: a check narrowed to a
+# single hardcoded capability name must not pass this), and still succeeds
+# for a `type: change` ref that is not a roadmap capability — the 8-of-11
+# MAJORITY shape on the shipped roadmap, which round 1's now-reverted
+# doc-`type` check refused outright (B1).
+test_751_bind_refuses_roadmap_capability_ref() {
+  log_info "Test: bind refuses a ref that is already a roadmap capability (any pair, not just the one being bound), and still accepts a type:change ref that is not one (TEST-751)..."
+  local D="$TEST_DIR/p751docs"
+  local ROADMAP="$TEST_DIR/p751-roadmap.yaml" LEDGER="$TEST_DIR/p751-ledger.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t751-a
+    status: planned
+  - capability: cap-t751-b
+    status: planned
+  - capability: cap-t751-c
+    status: planned
+YAML
+  cp "$ROADMAP" "$TEST_DIR/p751-roadmap.orig.yaml"
+  : > "$LEDGER"
+  # cap-t751-c must itself resolve to a document (D13's backlog check runs
+  # FIRST) so the refusal below is proven to come from the roadmap-capability
+  # check, not from "no document resolves".
+  propose_write_doc "$D" cap-t751-c change draft
+  [ "$(run_propose bind --capability cap-t751-a --ref cap-t751-c --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "1" ] \
+    || log_fail "TEST-751: bind must refuse a ref that is already a roadmap capability (cap-t751-c, the THIRD pair's own capability — not cap-t751-a): $(pout)"
+  grep -qF 'roadmap CAPABILITY' "$TEST_DIR/perr" || log_fail "TEST-751: the refusal must name the roadmap-capability mismatch: $(perr)"
+  cmp -s "$ROADMAP" "$TEST_DIR/p751-roadmap.orig.yaml" || log_fail "TEST-751: bind must write nothing on a roadmap-capability ref refusal"
+  propose_write_doc "$D" cap-t751-maintdoc change draft
+  [ "$(run_propose bind --capability cap-t751-a --ref cap-t751-maintdoc --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-751: bind must accept a type:change ref that is NOT a roadmap capability (the 8-of-11 majority shape, B1): $(perr)"
+  /usr/bin/grep -q '^    maintenance: cap-t751-maintdoc' "$ROADMAP" \
+    || log_fail "TEST-751: the accepted type:change ref must be bound: $(cat "$ROADMAP")"
+  log_pass "bind refuses a ref that is a roadmap capability on any pair, and accepts a type:change ref that is not one (TEST-751)"
+}
+
+# --- TEST-757 (Spec-AC-14): validation round 2 B2 — the doc-type denylist ---
+# is GONE: a ref whose resolved document carries a type in NEITHER
+# CAPABILITY_TYPES nor ride-select.mjs's MAINT_TYPES (measured live: 197 such
+# ids — spec/product/release) is admitted when it is not a roadmap
+# capability, on a stated reason (roadmap membership), never a silent type
+# filter. Two different type values prove it is not a single-value carve-out.
+test_757_bind_no_type_denylist() {
+  log_info "Test: bind admits a spec-typed and a product-typed ref that are not roadmap capabilities — no type denylist survives (TEST-757)..."
+  local D="$TEST_DIR/p757docs"
+  local ROADMAP="$TEST_DIR/p757-roadmap.yaml" LEDGER="$TEST_DIR/p757-ledger.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t757-a
+    status: planned
+  - capability: cap-t757-b
+    status: planned
+YAML
+  : > "$LEDGER"
+  propose_write_doc "$D" cap-t757-specdoc spec current
+  [ "$(run_propose bind --capability cap-t757-a --ref cap-t757-specdoc --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-757: bind must admit a spec-typed ref that is not a roadmap capability: $(perr)"
+  propose_write_doc "$D" cap-t757-productdoc product current
+  [ "$(run_propose bind --capability cap-t757-b --ref cap-t757-productdoc --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-757: bind must admit a product-typed ref that is not a roadmap capability: $(perr)"
+  /usr/bin/grep -q '^    maintenance: cap-t757-specdoc' "$ROADMAP" \
+    || log_fail "TEST-757: the spec-typed ref must be bound: $(cat "$ROADMAP")"
+  /usr/bin/grep -q '^    maintenance: cap-t757-productdoc' "$ROADMAP" \
+    || log_fail "TEST-757: the product-typed ref must be bound: $(cat "$ROADMAP")"
+  log_pass "bind admits refs of types outside every denylist, on the roadmap-membership reason alone (TEST-757)"
+}
+
+# --- TEST-758 (Spec-AC-14): validation round 2 B1 finding — a ref already ---
+# bound as another pair's maintenance half is refused: one ref cannot serve
+# two capabilities under the 1:1 budget (the "decide and defend" addition the
+# round 2 remediation brief asked for alongside the roadmap-capability check).
+test_758_bind_refuses_ref_bound_elsewhere() {
+  log_info "Test: bind refuses a ref already bound as another pair's maintenance half (TEST-758)..."
+  local D="$TEST_DIR/p758docs"
+  local ROADMAP="$TEST_DIR/p758-roadmap.yaml" LEDGER="$TEST_DIR/p758-ledger.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t758-a
+    status: planned
+  - capability: cap-t758-b
+    status: planned
+YAML
+  : > "$LEDGER"
+  propose_write_doc "$D" maint-t758-shared change draft
+  [ "$(run_propose bind --capability cap-t758-a --ref maint-t758-shared --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-758: the first bind of the shared ref must succeed: $(perr)"
+  cp "$ROADMAP" "$TEST_DIR/p758-roadmap.after-first-bind.yaml"
+  [ "$(run_propose bind --capability cap-t758-b --ref maint-t758-shared --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "1" ] \
+    || log_fail "TEST-758: binding the SAME ref into a second pair must be refused: $(pout)"
+  grep -qF 'already bound as the maintenance half of' "$TEST_DIR/perr" \
+    || log_fail "TEST-758: the refusal must name which pair the ref is already bound to: $(perr)"
+  cmp -s "$ROADMAP" "$TEST_DIR/p758-roadmap.after-first-bind.yaml" \
+    || log_fail "TEST-758: the refused second bind must write nothing: $(cat "$ROADMAP")"
+  log_pass "bind refuses a ref already bound as another pair's maintenance half (TEST-758)"
+}
+
+# --- TEST-759 (Spec-AC-05, Spec-AC-14): validation round 2 NB-3 — the gate's --
+# off-roadmap maintenance refusal advertises a bind command that must ACTUALLY
+# succeed (round 1's type check made it always refuse for exactly the class
+# F1's own repro used).
+test_759_gate_bind_remedy_succeeds() {
+  log_info "Test: the bind command the gate's maintenance refusal advertises actually succeeds (TEST-759, NB-3)..."
+  local D="$TEST_DIR/p759docs"
+  mkdir -p "$D"
+  local ROADMAP="$TEST_DIR/p759-roadmap.yaml" LEDGER="$TEST_DIR/p759-ledger.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t759
+    status: planned
+YAML
+  : > "$LEDGER"
+  # A type:change intake whose SLUG carries a maintenance word (MAINT_WORDS)
+  # — the gate classifies it as maintenance by REF, bind must classify it by
+  # roadmap membership, and the two must agree.
+  propose_write_doc "$D" a-guard-rail-view-of-spend-t759 change draft
+  [ "$(run gate --ref a-guard-rail-view-of-spend-t759 --intake "$D/issues/CHANGE-DRAFT-a-guard-rail-view-of-spend-t759.md" --roadmap "$ROADMAP" --docs "$D")" = "1" ] \
+    || log_fail "TEST-759: gate must refuse the off-roadmap maintenance ref: $(out)"
+  grep -qF 'roadmap-propose.mjs bind' "$TEST_DIR/err" \
+    || log_fail "TEST-759: the refusal must name the bind command: $(err)"
+  [ "$(run_propose bind --capability cap-t759 --ref a-guard-rail-view-of-spend-t759 --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-759: the bind command the gate advertises must actually succeed: $(perr)"
+  log_pass "the gate's advertised bind command actually succeeds (TEST-759, NB-3)"
+}
+
+# --- TEST-760 (Spec-AC-03): validation round 2 NB-6 — next stops proposing --
+# a maintenance ref that resolves to no document (a bind from an open
+# follow-up id, D13's first arm): the OLD behaviour handed an autonomous loop
+# a ref `gate` immediately refuses — a livelock, not merely an un-closeable
+# pair (R7). `next` now proposes filing the intake instead.
+test_760_next_stops_proposing_dead_ref() {
+  log_info "Test: next never proposes a maintenance ref with no resolvable document — it proposes filing the intake instead (TEST-760, NB-6)..."
+  cat > "$TEST_DIR/roadmap760.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t760
+    maintenance: fu-t760-dead
+    status: active
+YAML
+  write_doc cap-t760 change implementing
+  [ "$(run next --roadmap "$TEST_DIR/roadmap760.yaml" --docs "$TEST_DIR/docs" --json)" = "0" ] \
+    || log_fail "TEST-760: next must exit 0: $(err)"
+  grep -qF '"next":"fu-t760-dead"' "$TEST_DIR/out" \
+    && log_fail "TEST-760: next must never propose a maintenance ref with no resolvable document (the R7 livelock): $(out)"
+  grep -qF '"action":"file-intake"' "$TEST_DIR/out" \
+    || log_fail "TEST-760: next must propose filing the intake instead of the dead ref: $(out)"
+  grep -qF 'fu-t760-dead' "$TEST_DIR/out" \
+    || log_fail "TEST-760: the file-intake action must still name the ref that needs an intake: $(out)"
+  [ "$(run gate --ref fu-t760-dead --roadmap "$TEST_DIR/roadmap760.yaml" --docs "$TEST_DIR/docs")" = "1" ] \
+    || log_fail "TEST-760: gate must still refuse the dead ref (R7 unchanged): $(out)"
+  grep -qF 'no document resolves' "$TEST_DIR/err" \
+    || log_fail "TEST-760: gate's refusal reason must be unchanged: $(err)"
+  log_pass "next stops proposing a maintenance ref nothing can resolve, and proposes filing its intake instead (TEST-760, NB-6)"
+}
+
+# --- TEST-752 (Spec-AC-12, D10 amendment): BLOCKING-3 — promoting a wave_2- --
+# sourced pick removes its old wave_2 listing and the real validator accepts
+# (the D10 amendment / removeWave2Entries, shipped in run 3 with no test of
+# its own — validation round 1 F3).
+test_752_write_promotes_wave2_slug_and_removes_it() {
+  log_info "Test: write promoting a wave_2-sourced pick removes the slug from wave_2 and the real validator accepts (TEST-752)..."
+  local D="$TEST_DIR/p752docs"
+  mkdir -p "$D"
+  local ROADMAP="$TEST_DIR/p752-roadmap.yaml" LEDGER="$TEST_DIR/p752-ledger.jsonl" SPOOL="$TEST_DIR/p752-spool.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t752-existing
+    maintenance: maint-t752-existing
+    status: planned
+wave_2:
+  - cap-t752-promote
+YAML
+  : > "$LEDGER"
+  [ "$(run_propose write --direction "please promote t752 item" --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL")" = "0" ] \
+    || log_fail "TEST-752: write promoting the wave_2 slug must exit 0: $(perr)"
+  /usr/bin/grep -q 'capability: cap-t752-promote' "$ROADMAP" \
+    || log_fail "TEST-752: the promoted slug must appear as a pair: $(cat "$ROADMAP")"
+  /usr/bin/grep -qE '^  - cap-t752-promote$' "$ROADMAP" \
+    && log_fail "TEST-752: the promoted slug's OLD wave_2 listing must be removed: $(cat "$ROADMAP")"
+  [ "$(run validate --roadmap "$ROADMAP" --docs "$D")" = "0" ] \
+    || log_fail "TEST-752: the real validator must accept the roadmap after promotion: $(err)"
+  log_pass "write promoting a wave_2-sourced pick removes it from wave_2 and the real validator accepts (TEST-752)"
+}
+
+# --- TEST-761 (Spec-AC-12): validation round 2 NB-1/N15 — promoting a -------
+# wave_2-sourced pick removes ONLY its own line; a mutation that deletes
+# EVERY wave_2 row (not just the matching one) must redden this, which
+# TEST-752's single-entry fixture could not (round 2 measured: against the
+# shipped roadmap, one promotion emptied all four of the owner's deferred
+# wave_2 items and `validate` still said OK).
+test_761_promotion_leaves_other_wave2_entries() {
+  log_info "Test: promoting one wave_2 slug leaves every OTHER wave_2 entry in place (TEST-761, N15)..."
+  local D="$TEST_DIR/p761docs"
+  mkdir -p "$D"
+  local ROADMAP="$TEST_DIR/p761-roadmap.yaml" LEDGER="$TEST_DIR/p761-ledger.jsonl" SPOOL="$TEST_DIR/p761-spool.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t761-existing
+    maintenance: maint-t761-existing
+    status: planned
+wave_2:
+  - cap-t761-promote
+  - cap-t761-keep-one
+  - cap-t761-keep-two
+YAML
+  : > "$LEDGER"
+  [ "$(run_propose write --direction "please promote t761 item" --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL")" = "0" ] \
+    || log_fail "TEST-761: write promoting the wave_2 slug must exit 0: $(perr)"
+  /usr/bin/grep -qE '^  - cap-t761-promote$' "$ROADMAP" \
+    && log_fail "TEST-761: the promoted slug's OLD wave_2 listing must be removed: $(cat "$ROADMAP")"
+  /usr/bin/grep -qE '^  - cap-t761-keep-one$' "$ROADMAP" \
+    || log_fail "TEST-761: an UNTOUCHED wave_2 entry must survive the promotion (N15 — deleting every wave_2 row must redden this): $(cat "$ROADMAP")"
+  /usr/bin/grep -qE '^  - cap-t761-keep-two$' "$ROADMAP" \
+    || log_fail "TEST-761: a SECOND untouched wave_2 entry must also survive the promotion: $(cat "$ROADMAP")"
+  [ "$(run validate --roadmap "$ROADMAP" --docs "$D")" = "0" ] \
+    || log_fail "TEST-761: the real validator must accept the roadmap after promotion: $(err)"
+  log_pass "promoting one wave_2 slug leaves every other wave_2 entry in place (TEST-761, N15)"
+}
+
+# --- TEST-753 (Spec-AC-06): F4 — harvest excludes an intake draft whose id ---
+# is already a roadmap pair (the steady state after the first write).
+test_753_harvest_excludes_already_paired_intake() {
+  log_info "Test: harvest excludes an intake draft whose id is already a roadmap capability pair (TEST-753)..."
+  local D="$TEST_DIR/p753docs"
+  propose_write_doc "$D" cap-t753-paired change draft
+  propose_write_doc "$D" cap-t753-free change draft
+  local ROADMAP="$TEST_DIR/p753-roadmap.yaml"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t753-paired
+    maintenance: maint-t753-paired
+    status: planned
+YAML
+  [ "$(run_propose harvest --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p753-ledger.jsonl" --spool "$TEST_DIR/p753-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-753: harvest must exit 0: $(perr)"
+  grep -qF '"id":"cap-t753-free"' "$TEST_DIR/pout" || log_fail "TEST-753: an unpaired intake draft must still be harvested: $(pout)"
+  grep -qF '"id":"cap-t753-paired"' "$TEST_DIR/pout" \
+    && log_fail "TEST-753: an intake draft already paired on the roadmap must NOT be harvested again: $(pout)"
+  log_pass "harvest excludes an intake draft whose id is already a roadmap pair (TEST-753)"
+}
+
+# --- TEST-754 (Spec-AC-05): F6 — the "pair ahead" refusal never prints the --
+# literal word null for an unbound (capability-only) maintenance slot.
+test_754_gate_pair_ahead_never_prints_null() {
+  log_info "Test: the pair-ahead refusal names the unbound maintenance slot as unbound, never the literal word null (TEST-754)..."
+  local D="$TEST_DIR/p754docs"
+  mkdir -p "$D"
+  cat > "$TEST_DIR/p754-roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t754-first
+    status: planned
+  - capability: cap-t754-second
+    status: planned
+YAML
+  [ "$(run gate --ref cap-t754-second --roadmap "$TEST_DIR/p754-roadmap.yaml" --docs "$D")" = "1" ] \
+    || log_fail "TEST-754: gate on the second (not-first-unfinished) pair must refuse: $(out)"
+  grep -qF 'null' "$TEST_DIR/err" && log_fail "TEST-754: the pair-ahead refusal must never print the literal word null: $(err)"
+  grep -qF 'unbound' "$TEST_DIR/err" || log_fail "TEST-754: the pair-ahead refusal must name the unbound maintenance slot: $(err)"
+  log_pass "the pair-ahead refusal names an unbound maintenance slot as unbound, never null (TEST-754)"
+}
+
+# --- TEST-755 (Spec-AC-29): F6 — the doc-missing refusal never prints the ---
+# literal word null for an unbound (capability-only) maintenance slot.
+test_755_gate_doc_missing_never_prints_null() {
+  log_info "Test: the doc-missing refusal names the unbound maintenance slot as unbound, never the literal word null (TEST-755)..."
+  local D="$TEST_DIR/p755docs"
+  mkdir -p "$D"
+  cat > "$TEST_DIR/p755-roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t755-first
+    status: planned
+YAML
+  [ "$(run gate --ref cap-t755-first --roadmap "$TEST_DIR/p755-roadmap.yaml" --docs "$D")" = "1" ] \
+    || log_fail "TEST-755: gate on the first-unfinished pair with no resolvable document must refuse: $(out)"
+  grep -qF 'null' "$TEST_DIR/err" && log_fail "TEST-755: the doc-missing refusal must never print the literal word null: $(err)"
+  grep -qF 'unbound' "$TEST_DIR/err" || log_fail "TEST-755: the doc-missing refusal must name the unbound maintenance slot: $(err)"
+  log_pass "the doc-missing refusal names an unbound maintenance slot as unbound, never null (TEST-755)"
+}
+
+# --- TEST-756 (Spec-AC-15): F7 — write against a project with no roadmap ----
+# discloses, in its own success line, that the ride gate is now ON.
+test_756_write_discloses_gate_turned_on() {
+  log_info "Test: write against a project with no roadmap discloses in its success line that the ride gate is now on (TEST-756)..."
+  local D="$TEST_DIR/p756docs"
+  propose_write_doc "$D" cap-t756 change draft
+  local ROADMAP="$TEST_DIR/p756-nonexistent/roadmap.yaml"
+  rm -rf "$TEST_DIR/p756-nonexistent"
+  [ "$(run_propose write --direction "cap t756" --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p756-ledger.jsonl" --spool "$TEST_DIR/p756-spool.jsonl")" = "0" ] \
+    || log_fail "TEST-756: write creating a fresh roadmap must exit 0: $(perr)"
+  assert_payload_contains "$(pout)" 'gate is now ON' \
+    "TEST-756: the success line must disclose that the ride gate is now on for this project"
+  log_pass "write against a project with no roadmap discloses that the ride gate is now on (TEST-756)"
+}
+
+# --- TEST-762 (Spec-AC-03): validation round 3 NB-1 — next stops proposing --
+# a CAPABILITY ref with no resolvable document: NB-6/D16 (TEST-760) closed
+# this livelock on the maintenance half only. `write` promotes a wave_2 or
+# friction candidate straight into a pair's `capability:` slot with no
+# document filed yet far more often than it binds a documentless maintenance
+# ref, so this was the FIRST dead end an owner actually met, not a rare edge
+# (validation-round3 NB-1). `next` now proposes filing the intake instead,
+# the same as the maintenance half already does.
+test_762_next_stops_proposing_dead_capability_ref() {
+  log_info "Test: next never proposes a capability ref with no resolvable document — it proposes filing the intake instead (TEST-762, NB-1)..."
+  cat > "$TEST_DIR/roadmap762.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t762-nodoc
+    status: planned
+YAML
+  [ "$(run next --roadmap "$TEST_DIR/roadmap762.yaml" --docs "$TEST_DIR/docs" --json)" = "0" ] \
+    || log_fail "TEST-762: next must exit 0: $(err)"
+  grep -qF '"next":"cap-t762-nodoc"' "$TEST_DIR/out" \
+    && log_fail "TEST-762: next must never propose a capability ref with no resolvable document (the NB-1 livelock): $(out)"
+  grep -qF '"action":"file-intake"' "$TEST_DIR/out" \
+    || log_fail "TEST-762: next must propose filing the intake instead of the dead capability ref: $(out)"
+  grep -qF 'cap-t762-nodoc' "$TEST_DIR/out" \
+    || log_fail "TEST-762: the file-intake action must still name the ref that needs an intake: $(out)"
+  [ "$(run gate --ref cap-t762-nodoc --roadmap "$TEST_DIR/roadmap762.yaml" --docs "$TEST_DIR/docs")" = "1" ] \
+    || log_fail "TEST-762: gate must still refuse the dead capability ref: $(out)"
+  grep -qF 'no document resolves' "$TEST_DIR/err" \
+    || log_fail "TEST-762: gate's refusal reason must name the missing document: $(err)"
+  log_pass "next stops proposing a capability ref nothing can resolve, and proposes filing its intake instead (TEST-762, NB-1)"
+}
+
+# --- TEST-763 (Spec-AC-08): PR #399 Codex review F1 (D18 amendment) — a -----
+# malformed decision ledger line's UNDERSTATED warning reaches harvest's own
+# notes. `follow-ups.mjs list --json` SUCCEEDS over a ledger holding a
+# malformed line and says so in its own `parsed.notes` (an "EXCLUDED …
+# UNDERSTATED" line); the reader used to keep only `parsed.items` and drop
+# the notes, so `observations` could come out low with no warning anywhere.
+test_763_harvest_surfaces_followups_understated_note() {
+  log_info "Test: a malformed decision ledger line's UNDERSTATED warning reaches harvest's own notes (TEST-763, F1)..."
+  local D="$TEST_DIR/p763docs"
+  propose_write_doc "$D" cap-t763 change draft
+  local LEDGER="$TEST_DIR/p763-ledger.jsonl"
+  : > "$LEDGER"
+  node "$FOLLOWUPS" add --id fu-t763-probe --ref cap-t763 --severity P2 --what "w" --why "y" --source "s" --ledger "$LEDGER" >/dev/null 2>&1 \
+    || log_fail "TEST-763: adding the fixture follow-up must succeed"
+  printf 'not valid json at all\n' >> "$LEDGER"
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p763-roadmap.yaml" --docs "$D" --ledger "$LEDGER" --spool "$TEST_DIR/p763-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-763: harvest must exit 0 even though the ledger holds a malformed line: $(perr)"
+  assert_payload_contains "$(pout)" 'follow-ups:' \
+    "TEST-763: the surfaced note must be attributed to the follow-ups source"
+  assert_payload_contains "$(pout)" 'UNDERSTATED' \
+    "TEST-763: harvest's notes must surface the follow-ups reader's own UNDERSTATED warning"
+  log_pass "a malformed decision ledger line's UNDERSTATED warning reaches harvest's own notes (TEST-763)"
+}
+
+# --- TEST-764 (Spec-AC-11): PR #399 Codex review F2 (D18 amendment) — a -----
+# malformed friction spool line is always surfaced as a NOTE, whether the
+# spool is partially or entirely malformed. `readSpoolRows` used to filter a
+# partial/malformed/non-object JSONL row with no count anywhere: a PARTIALLY
+# malformed spool got no note at all, and an ALL-malformed spool reached the
+# empty branch and printed "the friction spool is empty or absent" — a
+# healthy-read description of what was actually a corrupt read.
+test_764_harvest_surfaces_corrupt_spool_note() {
+  log_info "Test: a malformed friction spool line is surfaced as a NOTE, whether the spool is partially or entirely malformed (TEST-764, F2)..."
+  local SPOOL="$TEST_DIR/p764-spool.jsonl"
+  cat > "$SPOOL" <<JSONL
+{"schema_version":2,"harness":"claude-code","skill_id":"aai-t764","skill_phase":"test-execution","failure_class":"deterministic_script_failure","fingerprint":"fp-t764","impact":"high","confidence":"high","reproducible":true}
+{not valid json
+JSONL
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p764-roadmap.yaml" --docs "$TEST_DIR/p764docs" --ledger "$TEST_DIR/p764-ledger.jsonl" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-764: harvest must exit 0 over a partially malformed spool: $(perr)"
+  local n_friction
+  n_friction="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(String(j.candidates.filter((c) => c.source === "friction").length));
+  ' "$TEST_DIR/pout")"
+  [ "$n_friction" = "1" ] || log_fail "TEST-764: the one well-formed row must still become a friction candidate, got $n_friction: $(pout)"
+  assert_payload_contains "$(pout)" 'malformed friction spool line' \
+    "TEST-764: a partially malformed spool must surface a malformed-line note, not silence"
+  assert_payload_contains "$(pout)" 'UNDERSTATED' \
+    "TEST-764: the malformed-spool note must warn friction observations may be understated"
+
+  local SPOOL2="$TEST_DIR/p764-spool-allbad.jsonl"
+  printf '{not json\nalso not json\n' > "$SPOOL2"
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p764b-roadmap.yaml" --docs "$TEST_DIR/p764bdocs" --ledger "$TEST_DIR/p764b-ledger.jsonl" --spool "$SPOOL2" --json)" = "0" ] \
+    || log_fail "TEST-764: harvest must exit 0 over an entirely malformed spool: $(perr)"
+  assert_payload_contains "$(pout)" '2 malformed friction spool line' \
+    "TEST-764: an entirely malformed spool must still count and name its malformed lines"
+  assert_payload_not_contains "$(pout)" 'is empty or absent' \
+    "TEST-764: an entirely malformed spool must never be described as merely empty or absent"
+  log_pass "a malformed friction spool line is surfaced as a NOTE, whether the spool is partially or entirely malformed (TEST-764)"
+}
+
+# --- TEST-765 (Spec-AC-06): PR #399 Codex review F3 (D18 amendment) — dedup -
+# never drops a friction candidate's recurrence. When a friction-generated id
+# also exists as a wave_2 slug (or intake draft), mergeDuplicateCandidates
+# used to keep the richest duplicate's OWN `recurrence` field (undefined for
+# a non-friction record) and evaluateCandidate's `c.source === 'friction'`
+# exact-equality check never matched a merged, comma-joined source ("wave_2,
+# friction") — silently dropping the friction row's recurrence from
+# observations with no warning anywhere.
+test_765_harvest_dedup_keeps_friction_recurrence() {
+  log_info "Test: a friction candidate's recurrence survives a dedup merge with a colliding wave_2 slug (TEST-765, F3)..."
+  local D="$TEST_DIR/p765docs"
+  local SPOOL="$TEST_DIR/p765-spool.jsonl"
+  local LEDGER="$TEST_DIR/p765-ledger.jsonl"
+  : > "$LEDGER"
+  # skill_id + failure_class must slugify to the SAME id the wave_2 fixture
+  # below deliberately collides with (frictionLabel: friction-<skill_id>-
+  # <failure_class>); failure_class must also be a real taxonomy class (a
+  # non-taxonomy one is dropped before scoring, per aai-feedback-triage.mjs).
+  cat > "$SPOOL" <<JSONL
+{"schema_version":2,"harness":"claude-code","skill_id":"t765","skill_phase":"test-execution","failure_class":"deterministic_script_failure","fingerprint":"fp-t765","impact":"high","confidence":"high","reproducible":true}
+{"schema_version":2,"harness":"claude-code","skill_id":"t765","skill_phase":"test-execution","failure_class":"deterministic_script_failure","fingerprint":"fp-t765","impact":"high","confidence":"high","reproducible":true}
+JSONL
+  cat > "$TEST_DIR/p765-roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t765-other
+    maintenance: maint-t765-other
+    status: planned
+wave_2:
+  - friction-t765-deterministic-script-failure
+YAML
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p765-roadmap.yaml" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+    || log_fail "TEST-765: harvest must exit 0: $(perr)"
+  local source
+  source="$(propose_field friction-t765-deterministic-script-failure source)"
+  [ "$source" = '"wave_2,friction"' ] \
+    || log_fail "TEST-765: the merged candidate's source must name both wave_2 and friction, got $source: $(pout)"
+  [ "$(propose_field friction-t765-deterministic-script-failure observations)" = "2" ] \
+    || log_fail "TEST-765: the friction row's recurrence (2) must still count toward observations after the dedup merge, got: $(pout)"
+  log_pass "a friction candidate's recurrence survives a dedup merge with a colliding wave_2 slug (TEST-765)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
   [ -f "$SHIPPED" ] || log_fail "shipped roadmap missing: $SHIPPED"
+  [ -f "$PROPOSE" ] || log_fail "roadmap-propose.mjs missing: $PROPOSE"
   if [ $# -gt 0 ]; then
     declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
     "$1"; echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="; return
@@ -529,6 +1790,55 @@ main() {
   test_535_roadmap_pair_seven_done
   test_583_gate_refuses_undocumented_ref
   test_588_gate_intake_requires_a_real_document
+  test_715_validate_unbound_maintenance_slot
+  test_716_validate_skips_unbound_doc_check
+  test_717_nlb_seam_unbound_maintenance
+  test_718_validate_shipped_regression
+  test_719_next_proposes_bind
+  test_720_next_bind_names_command
+  test_721_next_offers_harvest_when_exhausted
+  test_722_gate_refusal_names_bind
+  test_723_harvest_prints_ranking_components
+  test_724_harvest_intake_capability_types_only
+  test_725_harvest_wave2_excludes_paired
+  test_726_harvest_direction_movement
+  test_727_harvest_direction_is_primary_key
+  test_728_harvest_tokenize_filters_short_tokens
+  test_729_harvest_observations_movement
+  test_730_harvest_closed_followup_ignored
+  test_731_harvest_blocks_in_movement
+  test_732_harvest_terminal_blocker_ignored
+  test_733_harvest_age_tiebreak
+  test_734_harvest_untracked_age_unknown
+  test_735_harvest_friction_review_candidates_only
+  test_736_harvest_friction_label_never_hash
+  test_737_harvest_empty_spool_note
+  test_747_harvest_dedupes_by_id
+  test_738_write_appends_and_certifies
+  test_739_write_certifies_via_real_child_process
+  test_740_write_rollback_on_refused_certification
+  test_741_bind_refuses_unknown_ref
+  test_742_bind_adds_maintenance_line_and_certifies
+  test_743_opt_out_leaves_no_file
+  test_744_no_automatic_invocation_site
+  test_748_harvest_row_numbers_and_write_pick_fidelity
+  test_749_write_requires_direction
+  test_750_write_direction_value_drives_pick
+  test_751_bind_refuses_roadmap_capability_ref
+  test_752_write_promotes_wave2_slug_and_removes_it
+  test_753_harvest_excludes_already_paired_intake
+  test_754_gate_pair_ahead_never_prints_null
+  test_755_gate_doc_missing_never_prints_null
+  test_756_write_discloses_gate_turned_on
+  test_757_bind_no_type_denylist
+  test_758_bind_refuses_ref_bound_elsewhere
+  test_759_gate_bind_remedy_succeeds
+  test_760_next_stops_proposing_dead_ref
+  test_761_promotion_leaves_other_wave2_entries
+  test_762_next_stops_proposing_dead_capability_ref
+  test_763_harvest_surfaces_followups_understated_note
+  test_764_harvest_surfaces_corrupt_spool_note
+  test_765_harvest_dedup_keeps_friction_recurrence
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"
