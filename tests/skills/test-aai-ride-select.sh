@@ -509,6 +509,147 @@ test_588_gate_intake_requires_a_real_document() {
   log_pass "TEST-588: gate --intake refuses a readable-but-unparseable file (no frontmatter, no --- fence, no id, or an unrecognized type), and admits a real intake document"
 }
 
+# --- TEST-715 (Spec-AC-01, D2): maintenance becomes optional ------------------
+test_715_validate_unbound_maintenance_slot() {
+  log_info "Test: validate accepts a two-pair fixture whose last pair carries no maintenance line (TEST-715)..."
+  cat > "$TEST_DIR/roadmap715.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t715-a
+    maintenance: maint-t715-a
+    status: planned
+  - capability: cap-t715-b
+    status: planned
+YAML
+  [ "$(run validate --roadmap "$TEST_DIR/roadmap715.yaml")" = "0" ] \
+    || log_fail "TEST-715: a pair with no maintenance line must still validate: $(err)"
+  grep -qF 'roadmap OK: 2 pair(s), 0 wave-2 item(s)' "$TEST_DIR/out" \
+    || log_fail "TEST-715: the summary must count both pairs, got: $(out)"
+  log_pass "validate accepts a capability-only pair with no maintenance line (TEST-715)"
+}
+
+# --- TEST-716 (Spec-AC-01, D2): the doc-existence check is skipped for an ----
+# unbound slot on an active (non-planned) pair --------------------------------
+test_716_validate_skips_unbound_doc_check() {
+  log_info "Test: validate skips the document-existence check for an unbound maintenance slot on an active pair (TEST-716)..."
+  cat > "$TEST_DIR/roadmap716.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t716
+    status: active
+YAML
+  write_doc cap-t716 change implementing
+  [ "$(run validate --roadmap "$TEST_DIR/roadmap716.yaml" --docs "$TEST_DIR/docs")" = "0" ] \
+    || log_fail "TEST-716: an active pair with a documented capability and an unbound maintenance slot must validate: $(err)"
+  log_pass "validate skips the document check for an unbound maintenance slot on an active pair (TEST-716)"
+}
+
+# --- TEST-717 (Spec-AC-01, S2 seam): nothing-left-behind over a --------------
+# capability-only pair — pinned, no change owed in nothing-left-behind.mjs ----
+test_717_nlb_seam_unbound_maintenance() {
+  log_info "Test: nothing-left-behind over a capability-only roadmap pair exits 0 and reports no paired maintenance half (TEST-717)..."
+  local NLB="$PROJECT_ROOT/.aai/scripts/nothing-left-behind.mjs"
+  local NLBROOT="$TEST_DIR/nlb717"
+  rm -rf "$NLBROOT"
+  mkdir -p "$NLBROOT/docs/ai" "$NLBROOT/docs/issues"
+  cat > "$NLBROOT/docs/ai/roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: nlb717-cap
+    status: done
+YAML
+  printf -- '---\nid: nlb717-cap\ntype: change\nstatus: done\nlinks:\n  pr: []\n---\n\n# nlb717-cap\n' \
+    > "$NLBROOT/docs/issues/CHANGE-DRAFT-nlb717-cap.md"
+  # A second, unrelated in-flight doc — present so a mutated readRoadmapPairs
+  # that stops requiring `pair.maintenance` has somewhere spurious to match
+  # (the seam this row pins), while the UNMUTATED code must ignore it.
+  printf -- '---\nid: nlb717-other\ntype: change\nstatus: draft\nlinks:\n  pr: []\n---\n\n# nlb717-other\n' \
+    > "$NLBROOT/docs/issues/CHANGE-DRAFT-nlb717-other.md"
+  ( cd "$NLBROOT" && git init -q && git add -A && git commit -q -m "feat: nlb717-cap ships" )
+  local out2 rc2
+  out2="$(node "$NLB" --ref nlb717-cap --root "$NLBROOT" --json)"; rc2=$?
+  [ "$rc2" = "0" ] || log_fail "TEST-717: nothing-left-behind must exit 0 over a capability-only pair: $out2"
+  echo "$out2" | grep -q '"docs_open":0' || log_fail "TEST-717: docs_open must be 0 (no paired maintenance half reported): $out2"
+  echo "$out2" | grep -qi 'paired maintenance half' && log_fail "TEST-717: a capability-only pair must never report a paired maintenance half: $out2"
+  log_pass "nothing-left-behind reports no paired maintenance half for a capability-only roadmap pair (TEST-717)"
+}
+
+# --- TEST-718 (Spec-AC-02): shipped roadmap regression proof -----------------
+test_718_validate_shipped_regression() {
+  log_info "Test: validate over the shipped docs/ai/roadmap.yaml still prints the identical summary after the relaxation (TEST-718)..."
+  [ "$(run validate --roadmap "$SHIPPED")" = "0" ] || log_fail "TEST-718: the shipped roadmap must still validate: $(err)"
+  [ "$(out)" = "roadmap OK: 11 pair(s), 4 wave-2 item(s)" ] \
+    || log_fail "TEST-718: the summary line must be byte-identical, got: $(out)"
+  log_pass "the shipped roadmap still validates with the identical summary line (TEST-718)"
+}
+
+# --- TEST-719 (Spec-AC-03, D4): next proposes a bind, never a null ref -------
+test_719_next_proposes_bind() {
+  log_info "Test: next on a started capability with an unbound maintenance slot returns action bind, never a null ref (TEST-719)..."
+  cat > "$TEST_DIR/roadmap719.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t719
+    status: active
+YAML
+  write_doc cap-t719 change implementing
+  [ "$(run next --roadmap "$TEST_DIR/roadmap719.yaml" --docs "$TEST_DIR/docs" --json)" = "0" ] \
+    || log_fail "TEST-719: next must exit 0: $(err)"
+  grep -qF '"action":"bind"' "$TEST_DIR/out" || log_fail "TEST-719: the JSON action field must be bind, got: $(out)"
+  grep -qF '"capability":"cap-t719"' "$TEST_DIR/out" || log_fail "TEST-719: the JSON capability field must name cap-t719, got: $(out)"
+  grep -qF '"ref":null' "$TEST_DIR/out" && log_fail "TEST-719: next must never emit a null ref, got: $(out)"
+  log_pass "next proposes a bind for a started capability with an unbound maintenance slot, never a null ref (TEST-719)"
+}
+
+# --- TEST-720 (Spec-AC-03, D13): the bind action names the runnable command --
+test_720_next_bind_names_command() {
+  log_info "Test: the bind action names the capability slug and the runnable roadmap-propose.mjs bind command (TEST-720)..."
+  cat > "$TEST_DIR/roadmap720.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t720
+    status: active
+YAML
+  write_doc cap-t720 change implementing
+  [ "$(run next --roadmap "$TEST_DIR/roadmap720.yaml" --docs "$TEST_DIR/docs" --json)" = "0" ] \
+    || log_fail "TEST-720: next must exit 0: $(err)"
+  grep -qF 'roadmap-propose.mjs bind' "$TEST_DIR/out" \
+    || log_fail "TEST-720: the command field must name roadmap-propose.mjs bind, got: $(out)"
+  grep -qF 'cap-t720' "$TEST_DIR/out" || log_fail "TEST-720: the command must name the capability cap-t720, got: $(out)"
+  log_pass "the bind action names the runnable roadmap-propose.mjs bind command (TEST-720)"
+}
+
+# --- TEST-721 (Spec-AC-04, D5): an exhausted roadmap offers the harvest ------
+test_721_next_offers_harvest_when_exhausted() {
+  log_info "Test: next on an exhausted roadmap emits harvest_command alongside the wave-2 list (TEST-721)..."
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-t721\n    maintenance: maint-t721\n    status: done\nwave_2:\n  - later-t721\n' \
+    > "$TEST_DIR/roadmap721.yaml"
+  [ "$(run next --roadmap "$TEST_DIR/roadmap721.yaml" --docs "$TEST_DIR/docs" --json)" = "0" ] \
+    || log_fail "TEST-721: next must exit 0 on an exhausted roadmap: $(err)"
+  grep -qF 'harvest_command' "$TEST_DIR/out" || log_fail "TEST-721: the JSON must carry a harvest_command field, got: $(out)"
+  grep -qF 'roadmap-propose.mjs harvest --direction' "$TEST_DIR/out" \
+    || log_fail "TEST-721: the harvest_command must name roadmap-propose.mjs harvest --direction, got: $(out)"
+  grep -qF 'later-t721' "$TEST_DIR/out" || log_fail "TEST-721: the wave-2 list must still be present, got: $(out)"
+  log_pass "an exhausted roadmap offers the harvest command alongside the wave-2 list (TEST-721)"
+}
+
+# --- TEST-722 (Spec-AC-05, D3): the off-roadmap maintenance refusal names ----
+# the bind command as well as the backlog command -----------------------------
+test_722_gate_refusal_names_bind() {
+  log_info "Test: the off-roadmap maintenance refusal exits 1 and names both the backlog and the bind command (TEST-722)..."
+  write_roadmap planned
+  [ "$(run gate --ref some-flake-fix-t722 --roadmap "$TEST_DIR/roadmap.yaml" --docs "$TEST_DIR/docs")" != "0" ] \
+    || log_fail "TEST-722: an off-roadmap maintenance ref must still be refused: $(out)"
+  grep -qF 'follow-ups.mjs add' "$TEST_DIR/err" || log_fail "TEST-722: the refusal must still name the backlog command: $(err)"
+  grep -qF 'roadmap-propose.mjs bind' "$TEST_DIR/err" || log_fail "TEST-722: the refusal must also name the bind command: $(err)"
+  log_pass "the off-roadmap maintenance refusal names both the backlog and the bind command, and stays exit 1 (TEST-722)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -529,6 +670,14 @@ main() {
   test_535_roadmap_pair_seven_done
   test_583_gate_refuses_undocumented_ref
   test_588_gate_intake_requires_a_real_document
+  test_715_validate_unbound_maintenance_slot
+  test_716_validate_skips_unbound_doc_check
+  test_717_nlb_seam_unbound_maintenance
+  test_718_validate_shipped_regression
+  test_719_next_proposes_bind
+  test_720_next_bind_names_command
+  test_721_next_offers_harvest_when_exhausted
+  test_722_gate_refusal_names_bind
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

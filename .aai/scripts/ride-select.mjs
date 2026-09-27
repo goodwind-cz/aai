@@ -81,11 +81,15 @@ function loadRoadmap(p) {
   const seen = new Set();
   for (const [i, pr] of rm.pairs.entries()) {
     const n = i + 1;
-    if (!pr.maintenance || !pr.status) return { error: `pair ${n} (${pr.capability}) is missing maintenance or status` };
+    // Spec-AC-01/D2: `maintenance` is now OPTIONAL — a pair with no
+    // `maintenance:` line is a capability whose maintenance slot is UNBOUND
+    // (null), not a malformed pair. `status` stays required.
+    if (!pr.status) return { error: `pair ${n} (${pr.capability}) is missing status` };
     // Same-ref before the duplicate scan, or a pair naming one ref twice would be
     // reported as "appears twice" — true, but not the reason that matters.
-    if (pr.capability === pr.maintenance) return { error: `pair ${n}: capability and maintenance are the same ref "${pr.capability}"` };
+    if (pr.maintenance !== null && pr.capability === pr.maintenance) return { error: `pair ${n}: capability and maintenance are the same ref "${pr.capability}"` };
     for (const r of [pr.capability, pr.maintenance]) {
+      if (r === null) continue; // unbound maintenance slot — nothing to validate yet
       if (!SLUG.test(r)) return { error: `pair ${n}: "${r}" is neither a slug id nor a numbered display id` };
       if (seen.has(r)) return { error: `pair ${n}: "${r}" appears twice in the roadmap` };
       seen.add(r);
@@ -139,13 +143,26 @@ function readIntake(p) {
 function statusOf(docsDir, ref) { const d = findDoc(docsDir, ref); return d ? d.status : null; }
 
 // --- next -------------------------------------------------------------------------
+// D13 command text lives here too (D4/D5), so nextRide and gate's off-roadmap
+// refusal (below) never drift on the exact command an owner is told to run.
+function bindCommand(capability) {
+  return `node .aai/scripts/roadmap-propose.mjs bind --capability ${capability} --ref <maintenance-ref>`;
+}
 function nextRide(rm, docsDir) {
   for (const pr of rm.pairs) {
     if (pr.status === 'done') continue;
-    const cs = statusOf(docsDir, pr.capability); const ms = statusOf(docsDir, pr.maintenance);
+    const cs = statusOf(docsDir, pr.capability);
     // D2: the capability comes first UNLESS it has already started; proposing a
     // ride that is already implementing is proposing to start it twice.
     if (!STARTED.has(cs || '')) return { ref: pr.capability, half: 'capability', pair: pr };
+    // D4: a started capability whose maintenance slot is UNBOUND (no
+    // `maintenance:` line) used to fall through to `statusOf(docs, null)` and
+    // return `{ ref: null }` — a latent defect the D2 relaxation activates.
+    // Propose the bind instead of ever emitting a null/empty ref.
+    if (pr.maintenance === null) {
+      return { action: 'bind', capability: pr.capability, command: bindCommand(pr.capability), pair: pr };
+    }
+    const ms = statusOf(docsDir, pr.maintenance);
     if (ms !== 'done') return { ref: pr.maintenance, half: 'maintenance', pair: pr };
   }
   return null;
@@ -214,6 +231,11 @@ function main() {
     for (const [i, pr] of loaded.roadmap.pairs.entries()) {
       if (pr.status === 'planned') continue;
       for (const ref of [pr.capability, pr.maintenance]) {
+        // Spec-AC-01/D2: an unbound maintenance slot (no `maintenance:` line)
+        // has nothing to resolve yet — binding happens later, at ride time,
+        // from the backlog (D3). Skip the document-existence check for that
+        // slot alone; the capability half of the SAME pair is still checked.
+        if (ref === null) continue;
         if (!findDoc(a.docs, ref)) usage(`pair ${i + 1} (${pr.capability}): "${ref}" matches no document id under ${a.docs}`);
       }
     }
@@ -225,7 +247,23 @@ function main() {
 
   if (a.cmd === 'next') {
     const n = nextRide(rm, a.docs);
-    if (!n) { process.stdout.write(a.json ? JSON.stringify({ next: null, wave_1: 'complete', wave_2: rm.wave_2 }) + '\n' : `wave 1 complete — wave 2 candidates: ${rm.wave_2.join(', ') || 'none'}\n`); process.exit(0); }
+    // D5: an exhausted roadmap (no unfinished pair) offers the harvest
+    // instead of only naming wave_2 — still exit 0, never a prompt or write.
+    const harvestCommand = 'node .aai/scripts/roadmap-propose.mjs harvest --direction "<one sentence of owner direction>"';
+    if (!n) {
+      process.stdout.write(a.json
+        ? JSON.stringify({ next: null, wave_1: 'complete', wave_2: rm.wave_2, harvest_command: harvestCommand }) + '\n'
+        : `wave 1 complete — wave 2 candidates: ${rm.wave_2.join(', ') || 'none'} — harvest a new slate: ${harvestCommand}\n`);
+      process.exit(0);
+    }
+    // D4: a started capability with an unbound maintenance slot proposes the
+    // bind instead of ever printing a null/empty ref.
+    if (n.action === 'bind') {
+      process.stdout.write(a.json
+        ? JSON.stringify({ action: 'bind', capability: n.capability, command: n.command }) + '\n'
+        : `${n.capability}: maintenance slot unbound — ${n.command}\n`);
+      process.exit(0);
+    }
     process.stdout.write(a.json ? JSON.stringify({ next: n.ref, half: n.half, pair: n.pair }) + '\n' : `${n.ref}\n`);
     process.exit(0);
   }
@@ -283,7 +321,10 @@ function main() {
     return admit(`off-roadmap but blocks roadmap item ${b}`);
   }
   if (isMaintenance(a.ref, intake)) {
-    return deny(`${a.ref} is maintenance and not on the roadmap — file it to the backlog: node .aai/scripts/follow-ups.mjs add --id fu-<slug> --ref <roadmap-ref> --severity P3 --what "…" --why "…" --source "…"; or add "blocks: <roadmap ref>" to its intake if it blocks one`);
+    // D3: the gate stays side-effect-free — it is NOT taught to admit an
+    // unbound maintenance ride on the fly. The refusal now also names the
+    // bind command (D4/D13), alongside the pre-existing backlog remedy.
+    return deny(`${a.ref} is maintenance and not on the roadmap — file it to the backlog: node .aai/scripts/follow-ups.mjs add --id fu-<slug> --ref <roadmap-ref> --severity P3 --what "…" --why "…" --source "…"; or add "blocks: <roadmap ref>" to its intake if it blocks one; or bind it to a roadmap capability whose maintenance slot is unbound: node .aai/scripts/roadmap-propose.mjs bind --capability <roadmap-ref> --ref ${a.ref}`);
   }
   return deny(`${a.ref} is not on the roadmap — add it to docs/ai/roadmap.yaml (an owner decision) or mark its intake "blocks: <roadmap ref>"`);
 }
