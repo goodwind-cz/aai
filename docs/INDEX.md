@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-27T11:36:18.586Z
+Generated: 2026-09-27T11:47:48.299Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-roadmap-takes-direction | specs | implementing | 16 done | docs/specs/SPEC-DRAFT-spec-roadmap-takes-direction.md |
+| SPEC-0188 | specs | implementing | 16 done | docs/specs/SPEC-0188-spec-roadmap-takes-direction.md |
 
 ## Canonical layer (0)
 
@@ -509,7 +509,7 @@ _None._
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
-| roadmap-takes-direction (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-roadmap-takes-direction.md |
+| CHANGE-0194 | issues | docs/issues/CHANGE-0194-roadmap-takes-direction.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

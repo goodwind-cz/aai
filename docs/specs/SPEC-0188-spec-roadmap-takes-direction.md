@@ -1,13 +1,13 @@
 ---
 id: spec-roadmap-takes-direction
 type: spec
-number: null
+number: 188
 status: implementing
 mutation_gate: v1
-frozen_sha256: 4a69dd24926896db10d3418f07638f281b45c6eb9b7eca12a5f18cc94a99d8c2
+frozen_sha256: b077e046f7862a20f7b905267c3f3d0e86dc37d523875de2c71e7bbd4c83ca7d
 ceremony_level: 2
 links:
-  requirement: docs/issues/CHANGE-DRAFT-roadmap-takes-direction.md
+  requirement: docs/issues/CHANGE-0194-roadmap-takes-direction.md
   rfc: null
   pr: []
   commits: []
@@ -18,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-roadmap-takes-direction.md
+- Requirement: docs/issues/CHANGE-0194-roadmap-takes-direction.md
 - Owner decisions: `capability-roadmap-drives-rides`, `maintenance-budget-one-to-one`
   (hitl_decision, 2026-09-05, docs/ai/decisions.jsonl)
 - Technology contract: docs/TECHNOLOGY.md (Node stdlib only, no dependencies)
@@ -471,7 +471,7 @@ None.
 
 ## Acceptance Criteria Mapping
 
-- Maps to: docs/issues/CHANGE-DRAFT-roadmap-takes-direction.md "Desired Behavior"
+- Maps to: docs/issues/CHANGE-0194-roadmap-takes-direction.md "Desired Behavior"
 
 - Spec-AC-01: WHEN `validate` runs against a roadmap whose last pair carries no
   `maintenance:` line THEN it exits 0 and reports that pair in its count.
@@ -812,7 +812,7 @@ output shape.
 - `bash tests/skills/test-aai-nothing-left-behind.sh` — exit 0 (S2).
 - `bash tests/skills/test-aai-golden-flow.sh` — exit 0 (it names the roadmap).
 - `node .aai/scripts/ride-select.mjs validate` — exit 0, stdout unchanged.
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-roadmap-takes-direction.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0188-spec-roadmap-takes-direction.md`
   — exit 0.
 - `node .aai/scripts/check-vendored-script-deps.mjs` — CLEAN.
 - PASS criteria: all TEST-xxx green AND all Spec-AC terminal AND a RED record

@@ -22,6 +22,38 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(roadmap): the roadmap takes a direction from the owner instead of only refusing rides (CHANGE-0194 / SPEC-0188)
+
+`docs/ai/roadmap.yaml` was read by three scripts and **written by none**, so the
+roadmap could say no and could not take yes. Its only input was "the owner sits
+down, ranks candidates in a session doc, and someone hand-writes YAML". When it
+ran out it did not ask — it refused, and after wave 3 completed every new ride
+ran on `--override`.
+
+That is half a cure. The gate was built because *"guards begot guards and the
+six fix chains consumed the month"*; it stops fix-chasing and never carried the
+owner's direction in. Downstream, a project switching roadmap discipline on got
+exactly that half, which is why it read as overhead.
+
+- `roadmap-propose.mjs harvest` collects candidates from the three places intent
+  already lands — open draft intakes, unpaired `wave_2` slugs, and friction
+  review-candidates — and prints **numbered rows with the reason for each rank**
+  (direction match, observation count, what blocks it, age). Not a hidden score.
+- Ranking takes **one sentence of direction** and survives ordinary word forms,
+  so "decisions as menus" matches `decision-menu-options-parser`. The fold is
+  conservative by design: it can miss, it cannot invent a match.
+- `write --pick N` writes the row the owner saw — it **refuses without the
+  sentence that produced the ranking**, so a pick can never resolve against a
+  re-ranking nobody read. It certifies by spawning the real `ride-select.mjs
+  validate` and restores the original bytes if the result would not validate.
+- `bind` fills a maintenance half at ride time, deciding by the candidate's
+  **role in the roadmap** rather than its document type, and `maintenance:`
+  became optional so a pair no longer has to predict months ahead which fix an
+  unbuilt capability will need.
+- An exhausted roadmap now offers the harvest, and `next` never proposes a ref
+  its own gate would refuse.
+- A project that never opts in is untouched: no file, no gate, no prompt.
+
 ## [unreleased] — fix(gate): the mutation gate checks that the recorded run is the mutation the row declares (CHANGE-0193 / SPEC-0187)
 
 `mutation-gate.mjs` checked only that a Test Plan row's Mutation cell was
