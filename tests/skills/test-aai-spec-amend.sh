@@ -301,10 +301,19 @@ last_amendment_for() {
 
 # json_field <json> <node-expression over `j`>
 json_field() {
-  node -e '
-    let j; try { j=JSON.parse(process.argv[1]); } catch (e) { console.log("UNPARSEABLE:"+e.message); process.exit(0); }
-    console.log(String(eval(process.argv[2])));
-  ' "$1" "$2"
+  # The JSON arrives on STDIN, never as argv: `list --json` over the LIVE ledger
+  # is ~940 KB today and Linux caps a single argv entry at 128 KiB, so passing it
+  # as an argument died with `node: Argument list too long` on CI while passing
+  # on macOS, whose limit is ~1 MB. The ledger only grows, so this was going to
+  # bite every ride from here on, not just the one that crossed the line.
+  printf '%s' "$1" | node -e '
+    let raw = "";
+    process.stdin.on("data", (d) => { raw += d; });
+    process.stdin.on("end", () => {
+      let j; try { j=JSON.parse(raw); } catch (e) { console.log("UNPARSEABLE:"+e.message); process.exit(0); }
+      console.log(String(eval(process.argv[1])));
+    });
+  ' "$2"
 }
 
 # --- TEST-001 (Spec-AC-01) ----------------------------------------------------
