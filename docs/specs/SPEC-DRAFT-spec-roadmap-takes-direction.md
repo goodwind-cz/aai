@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 77c3d1503fcd10651d42426ea69cd350ecef31f75c9f21fd30b3a1c6cf7c36a9
+frozen_sha256: 57e6f53a72ba53983377c54007a5f9bc7ff4d32057b437a22848e973ef67c08c
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-roadmap-takes-direction.md
@@ -173,6 +173,22 @@ a closed 40-word stopword list, and intersected. `direction` is the count of
 DISTINCT shared tokens and the matched tokens themselves are printed. Direction
 is the PRIMARY key — that is what "direction in" means — and evidence orders
 what the sentence does not separate.
+**D7 amendment (post-freeze, remediation round):** the intersection is over a
+CONSERVATIVE suffix fold (`normalizeToken`), not the raw token — a
+single-letter plural ("options" -> "option"), an `-ies` plural
+("categories" -> "category") and a sibilant plural ("boxes" -> "box") are
+folded to the same form on BOTH sides before matching. Measured live-corpus
+defect this closes: `harvest --direction "decisions as menus"` scored 0
+against `decision-menu-options-parser` under exact-token equality — an owner
+who has to write the candidate's own exact singular tokens to score a match
+does not need the ranking at all, which was the whole premise Spec-AC-07
+exists to prove. Disclosed limits: no irregular plurals (child/children), no
+derivational forms (decide/decision), no verb inflection (-ing/-ed), and a
+handful of singular nouns that themselves end in one "s" (status, campus)
+fold to a non-word and simply fail to match anything real — a false
+NEGATIVE, never a false positive, the same shape of trade-off D7 already
+accepted for the 4-character token floor. See spec_amendment
+(docs/ai/decisions.jsonl, ref roadmap-takes-direction) and TEST-726.
 
 **D8 — Three candidate sources, each with a readable label.**
 - `intake`: `docs/issues/*.md` with `status: draft` and a `type` in the
@@ -231,6 +247,21 @@ either matches an OPEN follow-up id in the registry or resolves to a document
 under `--docs`. On success it writes exactly one `maintenance:` line into that
 pair and re-validates through D10's same real-validator-or-rollback path.
 
+**D14 — a candidate id is deduplicated ACROSS sources, richest record wins,
+every contributing source is named (post-freeze amendment).** Measured
+live-corpus defect: `decision-menu-options-parser` was printed twice by one
+`harvest` run — once `[intake]` (its own draft doc) and once `[wave_2]` (the
+same slug, unpaired) — because D8's three sources were concatenated with no
+id-uniqueness check. `mergeDuplicateCandidates` now collapses every group of
+raw candidates sharing an `id` into ONE record before evaluation: the
+richest duplicate (a resolved doc `path` outranks none; among two with the
+same path-presence, the longer/more descriptive `label` wins) supplies the
+kept `label`/`path`, and `source` becomes every contributing source,
+comma-joined (`"intake,wave_2"`) — disclosed signal that the owner's menu
+would otherwise have shown the same capability twice, never a silent drop of
+one source. See spec_amendment (docs/ai/decisions.jsonl, ref
+roadmap-takes-direction) and TEST-747.
+
 ## Constitution deviations
 
 None.
@@ -265,16 +296,24 @@ None.
     --roadmap <fixture> --docs <fixture-docs>` exits 1 and stderr contains both
     `follow-ups.mjs add` and `roadmap-propose.mjs bind`.
 - Spec-AC-06: WHEN `harvest` runs THEN every candidate row prints its source and
-  all four ranking components by name.
+  all four ranking components by name, and the candidate SET carries no
+  duplicate id (D14 amendment).
   - Verification: `node .aai/scripts/roadmap-propose.mjs harvest --direction
     "<sentence>" --json` exits 0 and every element of `candidates` carries
     non-null `source`, `label`, `direction`, `direction_tokens`,
-    `observations`, `blocks_in` and `age_days`.
-- Spec-AC-07: WHEN the direction sentence changes so that it shares tokens with
-  candidate B instead of candidate A THEN B's rank rises above A's.
+    `observations`, `blocks_in` and `age_days`; over a fixture where one id is
+    both an intake draft AND an unpaired wave_2 slug, exactly one candidate
+    with that id is printed and its `source` names both contributing sources
+    (TEST-747).
+- Spec-AC-07: WHEN the direction sentence changes so that it shares
+  (suffix-folded, D7 amendment) tokens with candidate B instead of candidate A
+  THEN B's rank rises above A's.
   - Verification: two `harvest --json` runs over the SAME fixture with two
     different `--direction` values; `candidates[0].id` is A in the first run
-    and B in the second, and B's `direction` value differs between them.
+    and B in the second, and B's `direction` value differs between them. The
+    sentences use the ORDINARY plural of each candidate's own singular token
+    (never the candidate's exact word), so a regression to exact-token
+    equality reddens TEST-726.
 - Spec-AC-08: WHEN one open follow-up whose `ref_id` is candidate B is added to
   the registry THEN B's `observations` rises by exactly 1 and B overtakes a
   candidate it previously tied with on direction.
@@ -342,8 +381,8 @@ None.
 | Spec-AC-03 | WHEN next reaches a started capability with an unbound slot it SHALL propose the bind command    | done | TEST-719, TEST-720 green | —         | D4    |
 | Spec-AC-04 | WHEN next finds no unfinished pair it SHALL offer the harvest command                            | done | TEST-721 green | —         | D5    |
 | Spec-AC-05 | WHEN gate refuses an off-roadmap maintenance ref it SHALL name the bind command and stay exit 1  | done | TEST-722 green | —         | D3    |
-| Spec-AC-06 | WHEN harvest runs every candidate SHALL print its source and all four ranking components         | done | TEST-723, TEST-724, TEST-725 green; `bash tests/skills/test-aai-ride-select.sh` exit 0 | —         | D6 D9 |
-| Spec-AC-07 | WHEN the direction sentence changes the matching candidate SHALL rise in rank                    | done | TEST-726, TEST-727, TEST-728 green (MOVEMENT) | —         | movement proof, D7 |
+| Spec-AC-06 | WHEN harvest runs every candidate SHALL print its source and all four ranking components, and the set SHALL carry no duplicate id | done | TEST-723, TEST-724, TEST-725, TEST-747 green; `bash tests/skills/test-aai-ride-select.sh` exit 0 | —         | D6 D9 D14 |
+| Spec-AC-07 | WHEN the direction sentence changes the matching candidate SHALL rise in rank                    | done | TEST-726, TEST-727, TEST-728 green (MOVEMENT); TEST-726 re-pinned to a suffix-fold-specific mutation and its fixture rewritten to a natural plural sentence (remediation round, D7 amendment) | —         | movement proof, D7 |
 | Spec-AC-08 | WHEN an open follow-up naming a candidate is added that candidate SHALL rise in rank             | done | TEST-729, TEST-730 green (MOVEMENT) | —         | movement proof, D9 |
 | Spec-AC-09 | WHEN a non-terminal document blocking a candidate is added that candidate SHALL rise in rank     | done | TEST-731, TEST-732 green (MOVEMENT) | —         | movement proof, D9 |
 | Spec-AC-10 | WHEN candidates tie on every earlier key the older candidate SHALL rank first                    | done | TEST-733, TEST-734 green (MOVEMENT) | —         | movement proof, D9 |
@@ -418,7 +457,7 @@ the file under test).
 | TEST-723 | Spec-AC-06 | integration | tests/skills/test-aai-ride-select.sh  | harvest --json emits source, label, direction, direction_tokens, observations, blocks_in and age_days on every candidate | `sed:s/blocks_in: blocksIn,//` in roadmap-propose.mjs candidate serializer  | done |
 | TEST-724 | Spec-AC-06 | integration | tests/skills/test-aai-ride-select.sh  | harvest draws intake candidates only from draft docs whose type is in the capability set | `sed:s/CAPABILITY_TYPES.has\(fm.type\)/true/` in roadmap-propose.mjs intake source (reconciled: unescaped parens are a JS regex GROUP, not literal — the declared cell never matched the source) | done |
 | TEST-725 | Spec-AC-06 | integration | tests/skills/test-aai-ride-select.sh  | harvest draws wave_2 slugs that are not already pairs                          | `sed:s/!pairSlugs.has\(slug\)/true/` in roadmap-propose.mjs wave2 source (reconciled: same unescaped-paren defect as TEST-724) | done |
-| TEST-726 | Spec-AC-07 | integration | tests/skills/test-aai-ride-select.sh  | MOVEMENT — two directions over one fixture swap the top candidate and change its direction count | `sed:s/shared.size/0/` in roadmap-propose.mjs directionMatch               | done |
+| TEST-726 | Spec-AC-07 | integration | tests/skills/test-aai-ride-select.sh  | MOVEMENT — two directions, each the ORDINARY PLURAL of a fixture candidate's own singular token (never its exact word), swap the top candidate and change its direction count | `sed:s/return tok.slice\(0, -1\);/return tok;/` in roadmap-propose.mjs normalizeToken (D7 amendment: re-pinned from the pre-amendment `sed:s/shared.size/0/`, which zeroed matching entirely rather than specifically reverting the plural fold to exact equality) | done |
 | TEST-727 | Spec-AC-07 | integration | tests/skills/test-aai-ride-select.sh  | direction is the PRIMARY sort key — a lower-evidence candidate that matches the sentence outranks a higher-evidence one that does not | `sed:s/b.direction - a.direction \|\|//` in roadmap-propose.mjs comparator (006!! resolved to the real escaped operator per the Mutation-cell note; `splitTableCells`'s `(?<!\\)\|` honors the escape) | done |
 | TEST-728 | Spec-AC-07 | unit        | tests/skills/test-aai-ride-select.sh  | stopwords and tokens under 4 characters never count as a direction match       | `sed:s/tok.length >= 4/tok.length >= 1/` in roadmap-propose.mjs tokenize    | done |
 | TEST-729 | Spec-AC-08 | integration | tests/skills/test-aai-ride-select.sh  | MOVEMENT — adding one open follow-up naming candidate B raises its observations 0 to 1 and lowers its index | `sed:s/b.observations - a.observations \|\|//` in roadmap-propose.mjs comparator (006!! resolved, as TEST-727) | done |
@@ -430,6 +469,7 @@ the file under test).
 | TEST-735 | Spec-AC-11 | integration | tests/skills/test-aai-ride-select.sh  | only review_candidate clusters become friction candidates                      | `sed:s/c.decision === 'review_candidate'/true/` in roadmap-propose.mjs frictionCandidates | done |
 | TEST-736 | Spec-AC-11 | integration | tests/skills/test-aai-ride-select.sh  | a friction label carries skill_id and failure_class and no v1 fingerprint hash appears in the output | `sed:s/const id = frictionLabel\(row\);/const id = c.fingerprint;/` in roadmap-propose.mjs frictionCandidates (reconciled: the bare `frictionLabel(row)` text also matches the function's own definition line, which the naive substitution corrupts into invalid syntax before the usage site is ever reached — narrowed to the one assignment site) | done |
 | TEST-737 | Spec-AC-11 | integration | tests/skills/test-aai-ride-select.sh  | an empty or absent spool yields zero friction candidates, exit 0 and one NOTE line | `sed:s/spool is empty/ /` in roadmap-propose.mjs frictionCandidates        | done |
+| TEST-747 | Spec-AC-06 | integration | tests/skills/test-aai-ride-select.sh  | D14 amendment — a candidate id reachable from both an intake draft and an unpaired wave_2 slug contributes exactly ONE candidate, its source naming both | `sed:s/const raw = mergeDuplicateCandidates\(rawAll\);/const raw = rawAll;/` in roadmap-propose.mjs buildCandidates | done |
 | TEST-738 | Spec-AC-12 | integration | tests/skills/test-aai-ride-select.sh  | write appends planned capability-only pairs, leaves prior bytes identical, and the REAL validator accepts | `sed:s/status: planned/status: active/` in roadmap-propose.mjs pair emitter | pending |
 | TEST-739 | Spec-AC-12 | integration | tests/skills/test-aai-ride-select.sh  | the certification runs ride-select.mjs validate as a child process, proven by a shim recording its own argv | `sed:s/'validate', '--roadmap'/'next', '--roadmap'/` in roadmap-propose.mjs certify | pending |
 | TEST-740 | Spec-AC-13 | integration | tests/skills/test-aai-ride-select.sh  | a refused certification restores the original bytes, exits 1 and prints the validator stderr | `sed:s/fs.writeFileSync(target, original)//` in roadmap-propose.mjs rollback | pending |
@@ -473,6 +513,13 @@ output shape.
   in words no candidate uses scores 0 everywhere and the slate falls back to
   evidence order. Mitigated only by printing the matched tokens per candidate so
   the owner can see the sentence missed; not mitigated by the code.
+  Remediation-round narrowing (D7 amendment): the overlap now folds a
+  conservative plural suffix (options/option, categories/category, boxes/box)
+  so an ORDINARY sentence reaches a candidate written in the singular — the
+  original defect (exact-token equality required the owner to already know
+  the candidate's own slug words) is closed, but the remaining shallowness
+  (no synonyms, no derivational forms, no irregular plurals) is unchanged and
+  still falls back to evidence order exactly as before.
 - R2 — Friction contributes almost nothing today (3 review candidates over 824
   observations, measurement 7). The source is wired and tested but its live
   yield is near zero until the spool diversifies. Disclosed rather than fixed:
@@ -508,7 +555,8 @@ output shape.
   — exit 0.
 - `node .aai/scripts/check-vendored-script-deps.mjs` — CLEAN.
 - PASS criteria: all TEST-xxx green AND all Spec-AC terminal AND a RED record
-  under `docs/ai/tdd/spec-roadmap-takes-direction/` for each of the 32 rows.
+  under `docs/ai/tdd/spec-roadmap-takes-direction/` for each of the 33 rows
+  (32 plus TEST-747, added by the D14 remediation amendment).
 
 ## Evidence contract
 

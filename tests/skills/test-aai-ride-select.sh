@@ -749,23 +749,30 @@ YAML
 }
 
 # --- TEST-726 (Spec-AC-07): MOVEMENT — direction sentence swaps the top ------
-# candidate and changes the matching candidate's own direction count ---------
+# candidate and changes the matching candidate's own direction count. Both
+# fixture candidates carry a SINGULAR noun in their id (option / menu); both
+# directions below use the ordinary PLURAL form of that noun ("options" /
+# "menus") and never the candidate's own exact token — an owner writing a
+# natural sentence, not the slug, is the whole premise of Spec-AC-07 (measured
+# live-corpus defect: "decisions as menus" scored 0 against a candidate
+# labelled "decision-menu-options-parser" under exact-token matching). A
+# regression to exact equality reddens this test (see mutation below).
 test_726_harvest_direction_movement() {
   log_info "Test: MOVEMENT — two directions over one fixture swap the top candidate and change its direction count (TEST-726)..."
   local D="$TEST_DIR/p726docs"
-  propose_write_doc "$D" cap-t726-alpha change draft
-  propose_write_doc "$D" cap-t726-beta change draft
+  propose_write_doc "$D" cap-t726-option change draft
+  propose_write_doc "$D" cap-t726-menu change draft
   local ROADMAP="$TEST_DIR/p726-roadmap.yaml" LEDGER="$TEST_DIR/p726-ledger.jsonl" SPOOL="$TEST_DIR/p726-spool.jsonl"
-  [ "$(run_propose harvest --direction "align with cap-t726-alpha" --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+  [ "$(run_propose harvest --direction "align with the available options here" --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
     || log_fail "TEST-726: first harvest must exit 0: $(perr)"
-  [ "$(propose_top_id)" = "cap-t726-alpha" ] || log_fail "TEST-726: an alpha-matching direction must rank alpha first, got $(propose_top_id): $(pout)"
-  local beta_dir_1; beta_dir_1="$(propose_field cap-t726-beta direction)"
-  [ "$(run_propose harvest --direction "align with cap-t726-beta" --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
+  [ "$(propose_top_id)" = "cap-t726-option" ] || log_fail "TEST-726: a sentence naming options (plural of the option candidate's own singular token) must rank it first, got $(propose_top_id): $(pout)"
+  local menu_dir_1; menu_dir_1="$(propose_field cap-t726-menu direction)"
+  [ "$(run_propose harvest --direction "align with the various menus here" --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER" --spool "$SPOOL" --json)" = "0" ] \
     || log_fail "TEST-726: second harvest must exit 0: $(perr)"
-  [ "$(propose_top_id)" = "cap-t726-beta" ] || log_fail "TEST-726: a beta-matching direction must rank beta first, got $(propose_top_id): $(pout)"
-  local beta_dir_2; beta_dir_2="$(propose_field cap-t726-beta direction)"
-  [ "$beta_dir_1" != "$beta_dir_2" ] \
-    || log_fail "TEST-726: beta's own direction count must differ between the two runs, got $beta_dir_1 both times"
+  [ "$(propose_top_id)" = "cap-t726-menu" ] || log_fail "TEST-726: a sentence naming menus (plural of the menu candidate's own singular token) must rank it first, got $(propose_top_id): $(pout)"
+  local menu_dir_2; menu_dir_2="$(propose_field cap-t726-menu direction)"
+  [ "$menu_dir_1" != "$menu_dir_2" ] \
+    || log_fail "TEST-726: menu's own direction count must differ between the two runs, got $menu_dir_1 both times"
   log_pass "changing the direction sentence rises the matching candidate and changes its direction count (TEST-726)"
 }
 
@@ -984,6 +991,41 @@ test_737_harvest_empty_spool_note() {
   log_pass "an empty or absent friction spool yields zero candidates, exit 0, and one NOTE (TEST-737)"
 }
 
+# --- TEST-747 (Spec-AC-06): a duplicate id across two sources contributes ---
+# exactly ONE candidate set member, naming every contributing source --------
+# (measured live-corpus defect: decision-menu-options-parser printed twice,
+# once [intake] from its own draft doc and once [wave_2] from the roadmap's
+# wave_2 list, because nothing ever asked whether two sources named the SAME
+# capability id).
+test_747_harvest_dedupes_by_id() {
+  log_info "Test: a candidate id reachable from both an intake draft and an unpaired wave_2 slug contributes exactly one candidate, naming both sources (TEST-747)..."
+  local D="$TEST_DIR/p747docs"
+  propose_write_doc "$D" cap-t747-both change draft
+  cat > "$TEST_DIR/p747-roadmap.yaml" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t747-other
+    maintenance: maint-t747-other
+    status: planned
+wave_2:
+  - cap-t747-both
+YAML
+  [ "$(run_propose harvest --roadmap "$TEST_DIR/p747-roadmap.yaml" --docs "$D" --ledger "$TEST_DIR/p747-ledger.jsonl" --spool "$TEST_DIR/p747-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-747: harvest must exit 0: $(perr)"
+  local n_both
+  n_both="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(String(j.candidates.filter((c) => c.id === "cap-t747-both").length));
+  ' "$TEST_DIR/pout")"
+  [ "$n_both" = "1" ] || log_fail "TEST-747: a candidate reachable from two sources must contribute exactly ONE row, got $n_both: $(pout)"
+  local source
+  source="$(propose_field cap-t747-both source)"
+  [ "$source" = '"intake,wave_2"' ] \
+    || log_fail "TEST-747: the merged candidate's source must name BOTH contributing sources, got $source: $(pout)"
+  log_pass "a duplicate id across intake and wave_2 contributes exactly one candidate, naming both sources (TEST-747)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -1028,6 +1070,7 @@ main() {
   test_735_harvest_friction_review_candidates_only
   test_736_harvest_friction_label_never_hash
   test_737_harvest_empty_spool_note
+  test_747_harvest_dedupes_by_id
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

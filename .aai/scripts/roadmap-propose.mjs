@@ -92,13 +92,41 @@ function tokenize(text) {
     .filter((tok) => tok.length >= 4 && !STOPWORDS.has(tok));
 }
 
+// normalizeToken(tok) -> a CONSERVATIVE, suffix-only English-plural fold —
+// no dictionary, no dependency (docs/TECHNOLOGY.md: Node stdlib only). Fixes
+// the live-corpus defect an owner sentence in ordinary prose ("decisions as
+// menus") scored 0 against a candidate label written in the singular
+// ("decision-menu-options-parser"), because matching was exact-token
+// equality: the whole premise of a ONE-SENTENCE direction is that the owner
+// never has to already know the candidate's own slug words.
+// Rules, applied in order, first match wins:
+//   - boxes/glasses/watches -> box/glass/watch  (…sses/…ches/…shes/…xes/…zes)
+//   - categories -> category                    (…ies -> …y)
+//   - options -> option, decisions -> decision  (a single trailing s, not ss)
+// DISCLOSED LIMITS (D7 amendment): this is a suffix rule, not morphology —
+// it does not fold irregular plurals (child/children), derivational forms
+// (decide/decision) or verb inflection (-ing/-ed), so those still need the
+// owner to share the candidate's own word; and it over-stems a handful of
+// singular nouns that themselves end in one "s" (status, campus, bonus),
+// folding them to a non-word that then simply fails to match anything real —
+// a false NEGATIVE, never a false positive, and the same shape of trade-off
+// D7 already accepted for the 4-character token floor.
+function normalizeToken(tok) {
+  if (tok.length > 5 && /(sses|ches|shes|xes|zes)$/.test(tok)) return tok.slice(0, -2);
+  if (tok.length > 4 && /ies$/.test(tok)) return `${tok.slice(0, -3)}y`;
+  if (tok.length > 4 && /s$/.test(tok) && !/ss$/.test(tok)) return tok.slice(0, -1);
+  return tok;
+}
+
 // directionMatch(sentence, label) -> { direction, direction_tokens } — the
-// count of DISTINCT tokens shared between the owner's sentence and the
-// candidate's own label, and the matched tokens themselves (D7: printed, not
-// hidden).
+// count of DISTINCT normalized tokens shared between the owner's sentence and
+// the candidate's own label, and the matched (normalized) tokens themselves
+// (D7: printed, not hidden). Normalizing BOTH sides through the same fold
+// (normalizeToken) is what lets "decisions" reach a label written as
+// "decision" without the owner ever typing the candidate's exact word.
 function directionMatch(sentence, label) {
-  const sentenceTokens = new Set(tokenize(sentence));
-  const labelTokens = new Set(tokenize(label));
+  const sentenceTokens = new Set(tokenize(sentence).map(normalizeToken));
+  const labelTokens = new Set(tokenize(label).map(normalizeToken));
   const shared = new Set([...sentenceTokens].filter((t) => labelTokens.has(t)));
   return { direction: shared.size, direction_tokens: [...shared].sort() };
 }
@@ -298,6 +326,50 @@ function ageDays(candidatePath, repoRoot) {
 
 // --- assembly ------------------------------------------------------------------
 
+// SOURCE_PRIORITY — the tie-break order for a merged candidate's OWN source
+// field and for choosing which duplicate's label/path wins on an exact
+// richness tie: intake (a real drafted doc) before wave_2 (a bare slug)
+// before friction (a synthesized label), matching D8's own listing order.
+const SOURCE_PRIORITY = { intake: 0, wave_2: 1, friction: 2 };
+
+// richness(c) -> a comparable score for "which duplicate record is worth
+// keeping": a candidate with a resolved doc path outranks one without (more
+// can be measured from it — age_days is real, not "age unknown"), and among
+// two with the same path-presence the one with the longer, more descriptive
+// label wins (an intake candidate's `id # title` beats a wave_2 candidate's
+// bare slug for the same id).
+function richness(c) {
+  return (c.path ? 1 : 0) * 1000 + c.label.length;
+}
+
+// mergeDuplicateCandidates(raw) -> raw with every duplicate `id` collapsed to
+// ONE record — the live-corpus defect this closes: `decision-menu-options-parser`
+// reached the printed menu twice, once `[intake]` (a draft doc) and once
+// `[wave_2]` (the same slug, unpaired), because nothing here ever asked
+// whether two sources named the SAME capability. The richest duplicate's
+// label/path is kept (never silently dropped in favour of whichever source
+// happened to run first), and `source` becomes every contributing source,
+// comma-joined in SOURCE_PRIORITY order — "intake,wave_2" is disclosed
+// signal (the owner sees a candidate came from two places), not noise.
+function mergeDuplicateCandidates(raw) {
+  const byId = new Map();
+  for (const c of raw) {
+    const entry = byId.get(c.id);
+    if (!entry) {
+      byId.set(c.id, { best: c, sources: new Set([c.source]) });
+      continue;
+    }
+    entry.sources.add(c.source);
+    if (richness(c) > richness(entry.best)) entry.best = c;
+  }
+  return [...byId.values()].map(({ best, sources }) => ({
+    ...best,
+    source: [...sources]
+      .sort((x, y) => (SOURCE_PRIORITY[x] ?? 99) - (SOURCE_PRIORITY[y] ?? 99))
+      .join(','),
+  }));
+}
+
 function evaluateCandidate(c, ctx) {
   const { direction, direction_tokens } = directionMatch(ctx.direction, c.label);
   let observations = openFollowUpCount(ctx.followUps, c.id);
@@ -320,11 +392,12 @@ function evaluateCandidate(c, ctx) {
 function buildCandidates(a) {
   const notes = [];
   const roadmapInfo = readWave2AndPairSlugs(a.roadmap);
-  const raw = [
+  const rawAll = [
     ...intakeCandidates(a.docs),
     ...wave2Candidates(roadmapInfo, a.docs),
     ...frictionCandidates(a.spool, notes),
   ];
+  const raw = mergeDuplicateCandidates(rawAll);
   const followUps = readFollowUps(a.ledger);
   const repoRoot = findRepoRoot(a.docs);
   const ctx = { direction: a.direction, docsDir: a.docs, followUps, repoRoot };
