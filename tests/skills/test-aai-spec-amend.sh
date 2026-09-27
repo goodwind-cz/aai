@@ -469,7 +469,10 @@ test_003_live_ledger_format_trap() {
   local missing
   missing="$(node -e '
     const fs=require("fs");
-    const j=JSON.parse(process.argv[1]);
+    // argv[1] is the PATH run_sa wrote stdout to, never the payload: `list --json`
+    // is ~135 KB and Linux caps one argv entry at 128 KiB (macOS ~1 MB), so passing
+    // the content was a CI-only `Argument list too long`.
+    const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
     const seen=new Set(j.items.map(i=>i.ts+" "+i.ref_id));
     const miss=[];
     for (const line of fs.readFileSync(process.argv[2],"utf8").split(/\r?\n/)) {
@@ -481,7 +484,7 @@ test_003_live_ledger_format_trap() {
       if (!seen.has(r.ts+" "+r.ref_id)) miss.push(r.ts+" "+r.ref_id);
     }
     process.stdout.write(miss.join(","));
-  ' "$OUT" "$LIVE_LEDGER")"
+  ' "$TEST_DIR/.stdout" "$LIVE_LEDGER")"
   [[ -z "$missing" ]] \
     || log_fail "TEST-003: space-serialized records missing from \`list --json\`: $missing"
 
@@ -561,7 +564,8 @@ test_005_three_buckets_field_over_prose() {
 
   local verdict
   verdict="$(node -e '
-    let j; try { j=JSON.parse(process.argv[1]); } catch (e) { console.log("UNPARSEABLE:"+e.message); process.exit(0); }
+    // argv[1] is a PATH, not the payload — see the note at TEST-003.
+    let j; try { j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); } catch (e) { console.log("UNPARSEABLE:"+e.message); process.exit(0); }
     const want = {
       "t005-signed":"signed",
       "t005-tracked":"unsigned-tracked",
@@ -581,7 +585,7 @@ test_005_three_buckets_field_over_prose() {
     const absent=(j.items||[]).find(i=>i.ref_id==="t005-absent");
     if (absent.owner_signoff!==null) { console.log("ABSENT-SIGNOFF-GUESSED="+JSON.stringify(absent.owner_signoff)); process.exit(0); }
     console.log("BUCKETS-OK");
-  ' "$OUT")"
+  ' "$TEST_DIR/.stdout")"
   [[ "$verdict" == "BUCKETS-OK" ]] || log_fail "TEST-005: $verdict"
 
   # --status is a VIEW, and each of the three views is exact.
