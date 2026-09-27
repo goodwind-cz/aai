@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-27T11:47:00.172Z",
+  "generatedAt": "2026-09-27T11:48:01.114Z",
   "project": "aai",
   "counts": {
-    "delivered": 256,
-    "in_progress": 15,
+    "delivered": 257,
+    "in_progress": 14,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -47,19 +47,6 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "roadmap-takes-direction",
-      "title": "The roadmap takes a direction from the owner instead of only refusing rides",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0194-roadmap-takes-direction.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0188-spec-roadmap-takes-direction.md",
       "validation": null,
       "review": null
     },
@@ -208,6 +195,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "roadmap-takes-direction",
+      "title": "The roadmap takes a direction from the owner instead of only refusing rides",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0194-roadmap-takes-direction.md",
+      "closed_on": "2026-09-27",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0188-spec-roadmap-takes-direction.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "gate-checks-declared-mutation",
       "title": "The mutation gate checks that the recorded run is the mutation the row declares",
@@ -3543,6 +3543,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "roadmap-takes-direction",
+          "title": "The roadmap takes a direction from the owner instead of only refusing rides",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0194-roadmap-takes-direction.md",
+          "closed_on": "2026-09-27",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0188-spec-roadmap-takes-direction.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "gate-checks-declared-mutation",
           "title": "The mutation gate checks that the recorded run is the mutation the row declares",

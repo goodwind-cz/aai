@@ -2413,3 +2413,9 @@
 {"v":1,"ts":"2026-09-27T01:55:01Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-roadmap-takes-direction","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-09-27T11:02:14Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":514,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
 {"v":1,"ts":"2026-09-27T11:02:23Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":514,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-27T11:47:57Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"roadmap-takes-direction","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-27T11:47:57Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"roadmap-takes-direction","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-27T11:47:57Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"roadmap-takes-direction","payload":{"commit":"62dc3085d958d7f8fcf2af292527cb63129f4f69"}}
+{"v":1,"ts":"2026-09-27T11:47:57Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-roadmap-takes-direction","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-27T11:47:57Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-roadmap-takes-direction","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-27T11:47:57Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-roadmap-takes-direction","payload":{"commit":"62dc3085d958d7f8fcf2af292527cb63129f4f69"}}

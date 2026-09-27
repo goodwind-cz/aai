@@ -2,15 +2,17 @@
 id: spec-roadmap-takes-direction
 type: spec
 number: 188
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: b077e046f7862a20f7b905267c3f3d0e86dc37d523875de2c71e7bbd4c83ca7d
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0194-roadmap-takes-direction.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 62dc3085d958d7f8fcf2af292527cb63129f4f69
 ---
 
 # Spec — the roadmap takes a direction from the owner instead of only refusing rides

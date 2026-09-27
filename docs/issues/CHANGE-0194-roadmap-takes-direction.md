@@ -2,11 +2,13 @@
 id: roadmap-takes-direction
 type: change
 number: 194
-status: draft
+status: done
 capability: roadmap-takes-direction
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 62dc3085d958d7f8fcf2af292527cb63129f4f69
 ---
 
 # The roadmap takes a direction from the owner instead of only refusing rides
