@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-27T07:09:34.091Z
+Generated: 2026-09-27T07:36:33.538Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-roadmap-takes-direction | specs | implementing | 5 done, 11 planned | docs/specs/SPEC-DRAFT-spec-roadmap-takes-direction.md |
+| spec-roadmap-takes-direction | specs | implementing | 11 done, 5 planned | docs/specs/SPEC-DRAFT-spec-roadmap-takes-direction.md |
 
 ## Canonical layer (0)
 
