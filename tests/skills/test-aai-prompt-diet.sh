@@ -865,7 +865,13 @@ test_012_growth_sum_matches_ledger() {
   # DECISION (a) (owner decision wave-2-roadmap, 2026-09-12), the citation
   # canon.mjs check --section decision_citations now resolves. Credited
   # 1:1, headroom stays 1942/2048 (TEST-010).
-  local want_growth=37762
+  # Then 37762 -> 37862: roadmap-takes-direction run 3 (Spec-AC-16) (+100 B)
+  # -- .aai/AGENTS.md Operator contract rule 4 gains one sentence naming
+  # `roadmap-propose.mjs bind` and `roadmap-propose.mjs harvest`, kept to
+  # the tight 106 B of remaining headroom (AGENTS.md sits outside TEST-010's
+  # live glob, so this credit adds to headroom with no offsetting shrink).
+  # Credited 1:1, headroom moves 1942 -> 2042/2048 (TEST-010).
+  local want_growth=37862
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1670,6 +1676,64 @@ test_697_corpus_growth_ledgered() {
     || log_fail "TEST-697 (Spec-AC-14) corpus growth true-up"
 }
 
+# --- TEST-746 (spec-roadmap-takes-direction Spec-AC-16) — the AGENTS.md rule
+# 4 growth is measured and credited 1:1, and the TEST-012 pin moves by
+# exactly that amount over the inherited 37762 (run 2's final value). Same
+# shape as TEST-697 above, but AGENTS.md sits OUTSIDE TEST-010's live
+# .aai/*.prompt.md glob (it is not a *.prompt.md file), so this entry's
+# credit is the only place its growth is measured — never TEST-010's own
+# accounting.
+test_746_roadmap_takes_direction_growth_ledgered() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-746 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local ok=1 _e entry='' n=0 lead before after measured now
+  local ledger_key='roadmap-takes-direction run 3 (Spec-AC-16)'
+  local prefix=0 prefix_closed=0
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    if [[ "$prefix_closed" -eq 0 ]]; then
+      prefix=$(( prefix + ${_e%% *} ))
+    fi
+    case "$_e" in
+      *"$ledger_key"*) entry="$_e"; n=$((n + 1)); prefix_closed=1 ;;
+    esac
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-746: JUSTIFIED_ADDITIONS carries $n entries naming '$ledger_key' (want exactly 1)"
+    return
+  fi
+
+  lead="${entry%% *}"
+  before="$(printf '%s' "$entry" | sed -n 's/.*AGENTS\.md \([0-9][0-9]*\) -> [0-9][0-9]*.*/\1/p' | qhead -1)"
+  after="$(printf '%s' "$entry" | sed -n 's/.*AGENTS\.md [0-9][0-9]* -> \([0-9][0-9]*\).*/\1/p' | qhead -1)"
+  if [[ -z "$before" || -z "$after" ]]; then
+    log_info "TEST-746: the ledger entry does not record its measurement as 'AGENTS.md <before> -> <after>'"
+    ok=0
+  else
+    measured=$(( after - before ))
+    if [[ "$lead" -ne "$measured" ]]; then
+      log_info "TEST-746: entry credits $lead B but its own measurement is $measured B ($before -> $after)"
+      ok=0
+    fi
+    now=$(/usr/bin/wc -c < .aai/AGENTS.md | tr -d ' ')
+    if [[ "$now" -ne "$after" ]]; then
+      log_info "TEST-746: .aai/AGENTS.md is $now B on disk, entry recorded $after B"
+      ok=0
+    fi
+  fi
+
+  # The pin moved by exactly the credited amount over the ride's own
+  # inherited 37762 (TEST-012's prior want_growth, run 2's final value).
+  if [[ "$prefix" -ne $(( 37762 + lead )) ]]; then
+    log_info "TEST-746: ledger prefix through this entry=$prefix (want 37762 + $lead = $(( 37762 + lead )))"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-746 (Spec-AC-16) AGENTS.md growth $lead B is measured and credited 1:1, pin 37762 -> $prefix" \
+    || log_fail "TEST-746 (Spec-AC-16) corpus growth true-up"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1702,6 +1766,7 @@ main() {
   test_429_select_suites_named_in_both_prompts
   test_622_diet_true_up
   test_697_corpus_growth_ledgered
+  test_746_roadmap_takes_direction_growth_ledgered
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

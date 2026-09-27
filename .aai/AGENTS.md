@@ -314,6 +314,8 @@ discipline is opt-in downstream).
    source; `node .aai/scripts/ride-select.mjs gate` refuses a maintenance ride
    whose paired capability has not started and an off-roadmap fix (file it to
    the backlog). The owner may `--override "<reason>"`; it is logged, never silent.
+   Bind maintenance with `roadmap-propose.mjs bind`; harvest with
+   `roadmap-propose.mjs harvest`.
 5. **A lesson that must hold downstream is a guard, not a note.** Anything that
    must behave correctly wherever AAI is installed is implemented in the
    vendored layer — a script, a test, a canon rule. `docs/knowledge/LEARNED.md`

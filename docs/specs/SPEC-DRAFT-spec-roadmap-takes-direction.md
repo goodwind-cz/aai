@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 57e6f53a72ba53983377c54007a5f9bc7ff4d32057b437a22848e973ef67c08c
+frozen_sha256: 7efe00ff23effee48ac326bad91d0a043236ea0b92ff26a0eb3722b4e45c8e7b
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-DRAFT-roadmap-takes-direction.md
@@ -228,6 +228,23 @@ child process. A non-zero exit restores the original bytes (or deletes the file
 it created), exits 1 and prints the validator's own stderr verbatim. There is no
 second copy of the roadmap parser anywhere in this scope, and Spec-AC-12's test
 asserts the real validator was the thing that ran.
+**D10 amendment (post-freeze, run 3):** a picked candidate sourced (wholly or
+partly) from `wave_2` is being PROMOTED into a real pair; leaving its old
+`wave_2:` listing in place makes the SAME ref appear in both `pairs` and
+`wave_2`, which the closed-shape validator refuses as a duplicate ref.
+Measured live-corpus defect: running `write --pick` against a scratch copy of
+the SHIPPED `docs/ai/roadmap.yaml`, picking the wave_2 slug
+`standardized-backlog-drain`, reddened
+`wave_2: "standardized-backlog-drain" appears twice in the roadmap` — found by
+running against the live corpus (per this run's own mandate), not by the
+fixtures TEST-715..737/747 wrote. `write` now also removes the promoted
+slug's own line from `wave_2:` in the SAME edit
+(`removeWave2Entries`), still inside the one write-or-rollback transaction.
+This narrows Spec-AC-12's "every pre-existing byte is unchanged" to the
+PREFIX its own verification actually checks (`head -n <N>`, which never
+reaches the `wave_2:` section that follows the pairs list) — the `wave_2`
+TAIL may legitimately lose exactly the promoted slug's own line. See
+spec_amendment (docs/ai/decisions.jsonl, ref roadmap-takes-direction).
 
 **D11 — Opt-in is untouched.** `roadmap-propose.mjs` executes only when invoked
 by name. It is wired into no automatic path: no `.aai/*.prompt.md` step, no
@@ -387,11 +404,11 @@ None.
 | Spec-AC-09 | WHEN a non-terminal document blocking a candidate is added that candidate SHALL rise in rank     | done | TEST-731, TEST-732 green (MOVEMENT) | —         | movement proof, D9 |
 | Spec-AC-10 | WHEN candidates tie on every earlier key the older candidate SHALL rank first                    | done | TEST-733, TEST-734 green (MOVEMENT) | —         | movement proof, D9 |
 | Spec-AC-11 | WHEN friction contributes it SHALL contribute only review candidates under a readable label      | done | TEST-735, TEST-736, TEST-737 green | —         | D8, measurement 7 |
-| Spec-AC-12 | WHEN write runs the appended roadmap SHALL be accepted by the real validator with prior bytes intact | planned | —    | —         | D10   |
-| Spec-AC-13 | WHEN the appended roadmap would not validate the original bytes SHALL be restored and the run refuse | planned | —    | —         | D10   |
-| Spec-AC-14 | WHEN bind names a ref that is not in the backlog it SHALL refuse and write nothing                | planned | —        | —         | D13   |
-| Spec-AC-15 | WHEN a project has not opted in no file, no gate and no prompt SHALL change                       | planned | —        | —         | D11 D12 |
-| Spec-AC-16 | WHEN the companion obligations are checked the new file SHALL be classified and the corpus ledgered | planned | —      | —         | PROFILES + prompt diet |
+| Spec-AC-12 | WHEN write runs the appended roadmap SHALL be accepted by the real validator with prior bytes intact | done | TEST-738, TEST-739 green; real write/bind run against a scratch copy of the shipped roadmap (see report) | —         | D10, D10 amendment |
+| Spec-AC-13 | WHEN the appended roadmap would not validate the original bytes SHALL be restored and the run refuse | done | TEST-740 green | —         | D10   |
+| Spec-AC-14 | WHEN bind names a ref that is not in the backlog it SHALL refuse and write nothing                | done | TEST-741, TEST-742 green | —         | D13   |
+| Spec-AC-15 | WHEN a project has not opted in no file, no gate and no prompt SHALL change                       | done | TEST-743, TEST-744 green | —         | D11 D12 |
+| Spec-AC-16 | WHEN the companion obligations are checked the new file SHALL be classified and the corpus ledgered | done | TEST-745, TEST-746 green; `bash tests/skills/test-aai-layer-profiles.sh` and `bash tests/skills/test-aai-prompt-diet.sh` exit 0 | —         | PROFILES + prompt diet |
 
 ## Implementation plan
 
@@ -470,15 +487,15 @@ the file under test).
 | TEST-736 | Spec-AC-11 | integration | tests/skills/test-aai-ride-select.sh  | a friction label carries skill_id and failure_class and no v1 fingerprint hash appears in the output | `sed:s/const id = frictionLabel\(row\);/const id = c.fingerprint;/` in roadmap-propose.mjs frictionCandidates (reconciled: the bare `frictionLabel(row)` text also matches the function's own definition line, which the naive substitution corrupts into invalid syntax before the usage site is ever reached — narrowed to the one assignment site) | done |
 | TEST-737 | Spec-AC-11 | integration | tests/skills/test-aai-ride-select.sh  | an empty or absent spool yields zero friction candidates, exit 0 and one NOTE line | `sed:s/spool is empty/ /` in roadmap-propose.mjs frictionCandidates        | done |
 | TEST-747 | Spec-AC-06 | integration | tests/skills/test-aai-ride-select.sh  | D14 amendment — a candidate id reachable from both an intake draft and an unpaired wave_2 slug contributes exactly ONE candidate, its source naming both | `sed:s/const raw = mergeDuplicateCandidates\(rawAll\);/const raw = rawAll;/` in roadmap-propose.mjs buildCandidates | done |
-| TEST-738 | Spec-AC-12 | integration | tests/skills/test-aai-ride-select.sh  | write appends planned capability-only pairs, leaves prior bytes identical, and the REAL validator accepts | `sed:s/status: planned/status: active/` in roadmap-propose.mjs pair emitter | pending |
-| TEST-739 | Spec-AC-12 | integration | tests/skills/test-aai-ride-select.sh  | the certification runs ride-select.mjs validate as a child process, proven by a shim recording its own argv | `sed:s/'validate', '--roadmap'/'next', '--roadmap'/` in roadmap-propose.mjs certify | pending |
-| TEST-740 | Spec-AC-13 | integration | tests/skills/test-aai-ride-select.sh  | a refused certification restores the original bytes, exits 1 and prints the validator stderr | `sed:s/fs.writeFileSync(target, original)//` in roadmap-propose.mjs rollback | pending |
-| TEST-741 | Spec-AC-14 | integration | tests/skills/test-aai-ride-select.sh  | bind refuses a ref that is neither an open follow-up nor a resolvable document and writes nothing | `sed:s/if (!openIds.has(ref) 006!! !findDoc(docs, ref))/if (false)/` in roadmap-propose.mjs bind | pending |
-| TEST-742 | Spec-AC-14 | integration | tests/skills/test-aai-ride-select.sh  | bind adds exactly one maintenance line to the named pair and the real validator accepts | `sed:s/pair.maintenance !== null/false/` in roadmap-propose.mjs bind slot check | pending |
-| TEST-743 | Spec-AC-15 | integration | tests/skills/test-aai-ride-select.sh  | harvest in a tree with no roadmap exits 0 and creates no docs/ai/roadmap.yaml  | `sed:s/if (!candidates.length) refuse/if (false) refuse/` in roadmap-propose.mjs write | pending |
-| TEST-744 | Spec-AC-15 | integration | tests/skills/test-aai-ride-select.sh  | no prompt and no dispatch branch invokes roadmap-propose automatically         | `sed:s/roadmap-propose/ride-select/` in the suite's own corpus-scan expectation | pending |
-| TEST-745 | Spec-AC-16 | integration | tests/skills/test-aai-layer-profiles.sh | the new .aai script is classified in PROFILES.yaml                           | `sed:s/roadmap-propose.mjs//` in .aai/system/PROFILES.yaml core list | pending |
-| TEST-746 | Spec-AC-16 | integration | tests/skills/test-aai-prompt-diet.sh  | the AGENTS.md growth is ledgered and the TEST-012 pin moves from 37762         | `sed:s/JUSTIFIED_ADDITIONS+=( "<n> roadmap-takes-direction/JUSTIFIED_ADDITIONS+=( "0 roadmap-takes-direction/` in tests/skills/lib/prompt-diet-ledger.sh | pending |
+| TEST-738 | Spec-AC-12 | integration | tests/skills/test-aai-ride-select.sh  | write appends planned capability-only pairs, leaves prior bytes identical, and the REAL validator accepts | `sed:s/status: planned/status: active/` in roadmap-propose.mjs pair emitter | done |
+| TEST-739 | Spec-AC-12 | integration | tests/skills/test-aai-ride-select.sh  | the certification runs ride-select.mjs validate as a child process, proven by a shim recording its own argv | `sed:s/'validate', '--roadmap'/'next', '--roadmap'/` in roadmap-propose.mjs certify | done |
+| TEST-740 | Spec-AC-13 | integration | tests/skills/test-aai-ride-select.sh  | a refused certification restores the original bytes, exits 1 and prints the validator stderr | `sed:s/fs\.writeFileSync\(target, original\);//` in roadmap-propose.mjs rollback (reconciled: unescaped parens are a JS regex GROUP, not literal — the declared cell never matched the source, same class as TEST-724) | done |
+| TEST-741 | Spec-AC-14 | integration | tests/skills/test-aai-ride-select.sh  | bind refuses a ref that is neither an open follow-up nor a resolvable document and writes nothing | `sed:s/if \(!openIds\.has\(a\.ref\) && !doc\)/if (false)/` in roadmap-propose.mjs bind (reconciled: the shipped check reads `openIds`/`doc` and `&&`, not the `ref`/`findDoc`/006!! placeholder text the cell's draft used before the code existed) | done |
+| TEST-742 | Spec-AC-14 | integration | tests/skills/test-aai-ride-select.sh  | bind adds exactly one maintenance line to the named pair, the real validator accepts, and a same-pair re-bind is refused by name (not merely by certify() catching a duplicate maintenance: line) | `sed:s/pair\.maintenance !== null/false/` in roadmap-propose.mjs bind slot check | done |
+| TEST-743 | Spec-AC-15 | integration | tests/skills/test-aai-ride-select.sh  | harvest in a tree with no roadmap exits 0 and creates no docs/ai/roadmap.yaml; write with zero harvested candidates exits 1 and creates none either | `sed:s/if \(!candidates\.length\) refuse/if (false) refuse/` in roadmap-propose.mjs write (reconciled: same unescaped-paren defect as TEST-724/TEST-740) | done |
+| TEST-744 | Spec-AC-15 | integration | tests/skills/test-aai-ride-select.sh  | no prompt and no dispatch branch invokes roadmap-propose automatically         | `sed:s/SCAN_PATTERN='roadmap-propose'/SCAN_PATTERN='ride-select'/` in the suite's own corpus-scan expectation (reconciled: the scan pattern lives in its own variable, never a bare inline string, so a mutation of it is unambiguous — target is the suite file itself) | done |
+| TEST-745 | Spec-AC-16 | integration | tests/skills/test-aai-layer-profiles.sh | the new .aai script is classified in PROFILES.yaml                           | `sed:s/roadmap-propose.mjs//` in .aai/system/PROFILES.yaml core list | done |
+| TEST-746 | Spec-AC-16 | integration | tests/skills/test-aai-prompt-diet.sh  | the AGENTS.md growth is ledgered and the TEST-012 pin moves from 37762         | `sed:s/JUSTIFIED_ADDITIONS\+=\( "100 roadmap-takes-direction/JUSTIFIED_ADDITIONS+=( "0 roadmap-takes-direction/` in tests/skills/lib/prompt-diet-ledger.sh (reconciled: the shipped credit measured 100 B, not a placeholder `<n>`) | done |
 
 Mutation-cell note: the token `006!!` stands for the two-character logical-or
 operator in the sed expressions above. A literal pipe character inside a

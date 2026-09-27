@@ -1026,6 +1026,212 @@ YAML
   log_pass "a duplicate id across intake and wave_2 contributes exactly one candidate, naming both sources (TEST-747)"
 }
 
+# --- TEST-738 (Spec-AC-12): write appends planned capability-only pairs -----
+test_738_write_appends_and_certifies() {
+  log_info "Test: write appends planned capability-only pairs, leaves prior bytes identical, and the REAL validator accepts (TEST-738)..."
+  local D="$TEST_DIR/p738docs"
+  propose_write_doc "$D" cap-t738-existing change planned
+  propose_write_doc "$D" cap-t738-new change draft
+  local ROADMAP="$TEST_DIR/p738-roadmap.yaml"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t738-existing
+    maintenance: maint-t738-existing
+    status: planned
+YAML
+  cp "$ROADMAP" "$TEST_DIR/p738-roadmap.orig.yaml"
+  [ "$(run_propose write --direction "cap t738 new direction" --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p738-ledger.jsonl" --spool "$TEST_DIR/p738-spool.jsonl")" = "0" ] \
+    || log_fail "TEST-738: write must exit 0: $(perr)"
+  local n_orig
+  n_orig="$(wc -l < "$TEST_DIR/p738-roadmap.orig.yaml" | tr -d ' ')"
+  diff <(head -n "$n_orig" "$ROADMAP") "$TEST_DIR/p738-roadmap.orig.yaml" >/dev/null \
+    || log_fail "TEST-738: every pre-existing byte must be unchanged (prefix diff)"
+  local appended
+  appended="$(tail -n +$((n_orig + 1)) "$ROADMAP")"
+  printf '%s\n' "$appended" | grep -qF 'capability: cap-t738-new' \
+    || log_fail "TEST-738: the appended block must name the picked candidate: $appended"
+  printf '%s\n' "$appended" | grep -qF 'status: planned' \
+    || log_fail "TEST-738: the appended pair must carry status: planned, got: $appended"
+  printf '%s\n' "$appended" | grep -q 'maintenance:' \
+    && log_fail "TEST-738: the appended block must carry no maintenance: line: $appended"
+  [ "$(run validate --roadmap "$ROADMAP" --docs "$D")" = "0" ] \
+    || log_fail "TEST-738: the REAL ride-select.mjs validate must accept the written roadmap: $(err)"
+  log_pass "write appends a planned capability-only pair, prior bytes unchanged, real validator accepts (TEST-738)"
+}
+
+# --- TEST-739 (Spec-AC-12): certification spawns ride-select.mjs validate --
+# as a REAL child process — proven by an argv-recording shim, never a
+# test-owned parser or an in-process import.
+test_739_write_certifies_via_real_child_process() {
+  log_info "Test: certification spawns ride-select.mjs validate as a real child process, proven by an argv-recording shim (TEST-739)..."
+  local COPY="$TEST_DIR/p739-scripts"
+  rm -rf "$COPY"
+  mkdir -p "$COPY"
+  cp -R "$PROJECT_ROOT/.aai/scripts/." "$COPY/"
+  cat > "$COPY/ride-select.mjs" <<'SHIM'
+#!/usr/bin/env node
+import fs from 'node:fs';
+fs.writeFileSync(process.env.T739_ARGV_RECORDER, JSON.stringify(process.argv.slice(2)));
+process.exit(0);
+SHIM
+  local D="$TEST_DIR/p739docs"
+  propose_write_doc "$D" cap-t739 change draft
+  local ROADMAP="$TEST_DIR/p739-roadmap.yaml"
+  rm -f "$ROADMAP"
+  local RECORDER="$TEST_DIR/p739-argv.json"
+  rm -f "$RECORDER"
+  T739_ARGV_RECORDER="$RECORDER" node "$COPY/roadmap-propose.mjs" write --direction "cap t739" --pick 1 \
+    --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p739-ledger.jsonl" --spool "$TEST_DIR/p739-spool.jsonl" \
+    > "$TEST_DIR/pout" 2> "$TEST_DIR/perr"
+  local rc=$?
+  [ "$rc" = "0" ] || log_fail "TEST-739: write against the always-admitting shim must exit 0: rc=$rc $(perr)"
+  [ -f "$RECORDER" ] || log_fail "TEST-739: the shim must have recorded an argv (certification never ran a child process)"
+  local argv
+  argv="$(cat "$RECORDER")"
+  printf '%s' "$argv" | grep -qF '"validate"' || log_fail "TEST-739: certification must invoke the shim with 'validate', got: $argv"
+  printf '%s' "$argv" | grep -qF '"--roadmap"' || log_fail "TEST-739: certification must pass --roadmap, got: $argv"
+  printf '%s' "$argv" | grep -qF "\"$ROADMAP\"" || log_fail "TEST-739: certification must name the written roadmap path, got: $argv"
+  log_pass "certification runs ride-select.mjs validate as a real child process (TEST-739)"
+}
+
+# --- TEST-740 (Spec-AC-13): a refused certification restores original bytes -
+test_740_write_rollback_on_refused_certification() {
+  log_info "Test: a refused certification restores the original bytes, exits 1 and prints the validator's own stderr (TEST-740)..."
+  local COPY="$TEST_DIR/p740-scripts"
+  rm -rf "$COPY"
+  mkdir -p "$COPY"
+  cp -R "$PROJECT_ROOT/.aai/scripts/." "$COPY/"
+  cat > "$COPY/ride-select.mjs" <<'SHIM'
+#!/usr/bin/env node
+process.stderr.write('ride-select: REFUSED -- TEST-740 stub always refuses\n');
+process.exit(1);
+SHIM
+  local D="$TEST_DIR/p740docs"
+  propose_write_doc "$D" cap-t740 change draft
+  local ROADMAP="$TEST_DIR/p740-roadmap.yaml"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t740-existing
+    maintenance: maint-t740-existing
+    status: planned
+YAML
+  cp "$ROADMAP" "$TEST_DIR/p740-roadmap.orig.yaml"
+  node "$COPY/roadmap-propose.mjs" write --direction "cap t740" --pick 1 \
+    --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p740-ledger.jsonl" --spool "$TEST_DIR/p740-spool.jsonl" \
+    > "$TEST_DIR/pout" 2> "$TEST_DIR/perr"
+  local rc=$?
+  [ "$rc" = "1" ] || log_fail "TEST-740: a refused certification must exit 1, got $rc: $(perr)"
+  cmp -s "$ROADMAP" "$TEST_DIR/p740-roadmap.orig.yaml" \
+    || log_fail "TEST-740: the original bytes must be restored on a refused certification"
+  grep -qF 'TEST-740 stub always refuses' "$TEST_DIR/perr" \
+    || log_fail "TEST-740: stderr must carry the validator's own refusal text: $(cat "$TEST_DIR/perr")"
+  log_pass "a refused certification restores the original bytes and reports the validator's refusal (TEST-740)"
+}
+
+# --- TEST-741 (Spec-AC-14): bind refuses a ref outside the backlog ----------
+test_741_bind_refuses_unknown_ref() {
+  log_info "Test: bind refuses a ref that is neither an open follow-up nor a resolvable document and writes nothing (TEST-741)..."
+  local D="$TEST_DIR/p741docs"
+  local ROADMAP="$TEST_DIR/p741-roadmap.yaml"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t741
+    status: planned
+YAML
+  cp "$ROADMAP" "$TEST_DIR/p741-roadmap.orig.yaml"
+  [ "$(run_propose bind --capability cap-t741 --ref nowhere-to-be-found --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p741-ledger.jsonl")" = "1" ] \
+    || log_fail "TEST-741: bind with an unresolvable ref must exit 1: $(pout)"
+  cmp -s "$ROADMAP" "$TEST_DIR/p741-roadmap.orig.yaml" || log_fail "TEST-741: bind must write nothing on refusal"
+  log_pass "bind refuses a ref that is neither an open follow-up nor a resolvable document, and writes nothing (TEST-741)"
+}
+
+# --- TEST-742 (Spec-AC-14): bind adds exactly one maintenance line ----------
+test_742_bind_adds_maintenance_line_and_certifies() {
+  log_info "Test: bind adds exactly one maintenance line to the named pair, the real validator accepts, and a re-bind is refused (TEST-742)..."
+  local D="$TEST_DIR/p742docs"
+  mkdir -p "$D"
+  local ROADMAP="$TEST_DIR/p742-roadmap.yaml" LEDGER="$TEST_DIR/p742-ledger.jsonl"
+  cat > "$ROADMAP" <<YAML
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-t742
+    status: planned
+YAML
+  : > "$LEDGER"
+  node "$FOLLOWUPS" add --id fu-t742-probe --ref cap-t742 --severity P3 --what w --why y --source s --ledger "$LEDGER" >/dev/null 2>&1 \
+    || log_fail "TEST-742: adding the fixture follow-up must succeed"
+  [ "$(run_propose bind --capability cap-t742 --ref fu-t742-probe --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "0" ] \
+    || log_fail "TEST-742: bind with a valid open follow-up ref must exit 0: $(perr)"
+  local n_maint
+  n_maint="$(/usr/bin/grep -c '^    maintenance:' "$ROADMAP")"
+  [ "$n_maint" = "1" ] || log_fail "TEST-742: exactly one maintenance: line must be added, got $n_maint"
+  [ "$(run validate --roadmap "$ROADMAP" --docs "$D")" = "0" ] \
+    || log_fail "TEST-742: the real validator must accept the bound roadmap: $(err)"
+  node "$FOLLOWUPS" add --id fu-t742-second --ref cap-t742 --severity P3 --what w --why y --source s --ledger "$LEDGER" >/dev/null 2>&1 \
+    || log_fail "TEST-742: adding the second fixture follow-up must succeed"
+  [ "$(run_propose bind --capability cap-t742 --ref fu-t742-second --roadmap "$ROADMAP" --docs "$D" --ledger "$LEDGER")" = "1" ] \
+    || log_fail "TEST-742: a second bind on an already-bound pair must be refused: $(pout)"
+  # The refusal must come from bind's OWN already-bound guard, not merely
+  # from certify() catching a duplicate maintenance: line after the fact
+  # (ride-select.mjs's closed-shape parser refuses two maintenance keys in
+  # one pair regardless, which would otherwise mask this guard's removal).
+  grep -qF 'already bound' "$TEST_DIR/perr" \
+    || log_fail "TEST-742: the re-bind refusal must name the pair as already bound (bind's own guard, not certify's): $(perr)"
+  n_maint="$(/usr/bin/grep -c '^    maintenance:' "$ROADMAP")"
+  [ "$n_maint" = "1" ] || log_fail "TEST-742: the maintenance line count must stay at exactly 1 after a refused re-bind, got $n_maint"
+  log_pass "bind adds exactly one maintenance line, the real validator accepts, and a re-bind is refused (TEST-742)"
+}
+
+# --- TEST-743 (Spec-AC-15): an absent roadmap and zero candidates leave -----
+# no file behind
+test_743_opt_out_leaves_no_file() {
+  log_info "Test: an absent roadmap and zero harvested candidates leave no file behind (TEST-743)..."
+  local D="$TEST_DIR/p743docs"
+  mkdir -p "$D/issues"
+  local ROADMAP="$TEST_DIR/p743-nonexistent/roadmap.yaml"
+  rm -rf "$TEST_DIR/p743-nonexistent"
+  [ "$(run_propose harvest --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p743-ledger.jsonl" --spool "$TEST_DIR/p743-spool.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-743: harvest over an absent roadmap must exit 0: $(perr)"
+  [ ! -e "$ROADMAP" ] || log_fail "TEST-743: harvest must create no roadmap file"
+  local n_candidates
+  n_candidates="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(String(j.candidates.length));
+  ' "$TEST_DIR/pout")"
+  [ "$n_candidates" = "0" ] || log_fail "TEST-743: an empty docs dir and absent roadmap must yield zero candidates, got $n_candidates"
+  [ "$(run_propose write --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p743-ledger.jsonl" --spool "$TEST_DIR/p743-spool.jsonl")" = "1" ] \
+    || log_fail "TEST-743: write with zero harvested candidates must exit 1: $(pout)"
+  grep -qF 'nothing harvested' "$TEST_DIR/perr" || log_fail "TEST-743: the refusal must say nothing harvested: $(perr)"
+  [ ! -e "$ROADMAP" ] || log_fail "TEST-743: write with zero candidates must create no roadmap file"
+  log_pass "an absent roadmap and zero harvested candidates leave no file behind (TEST-743)"
+}
+
+# --- TEST-744 (Spec-AC-15): no prompt or dispatch branch invokes -----------
+# roadmap-propose automatically. The scan pattern below lives in its own
+# assigned variable (never written out in this comment, so the recorded
+# mutation's first — and only — match is the real assignment line, not a
+# prose mention of it) so the mutation that flips the scan target to the
+# WRONG, legitimately-wired name hits exactly this test's own assertion
+# rather than one of the many unrelated occurrences of the harvester's name
+# earlier in this suite file (e.g. the $PROPOSE path assignment) — a bare,
+# unanchored rename would hit whichever occurs FIRST in the file, not this
+# check.
+test_744_no_automatic_invocation_site() {
+  log_info "Test: no .aai prompt or orchestration-dispatch.mjs invokes roadmap-propose automatically (TEST-744)..."
+  local SCAN_PATTERN='roadmap-propose'
+  local hits
+  hits="$(/usr/bin/grep -rl "$SCAN_PATTERN" "$PROJECT_ROOT"/.aai/*.prompt.md "$PROJECT_ROOT/.aai/scripts/orchestration-dispatch.mjs" 2>/dev/null || true)"
+  [ -z "$hits" ] || log_fail "TEST-744: no .aai prompt or orchestration-dispatch.mjs may invoke roadmap-propose automatically, found: $hits"
+  log_pass "no prompt or dispatch branch invokes roadmap-propose automatically (TEST-744)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -1071,6 +1277,13 @@ main() {
   test_736_harvest_friction_label_never_hash
   test_737_harvest_empty_spool_note
   test_747_harvest_dedupes_by_id
+  test_738_write_appends_and_certifies
+  test_739_write_certifies_via_real_child_process
+  test_740_write_rollback_on_refused_certification
+  test_741_bind_refuses_unknown_ref
+  test_742_bind_adds_maintenance_line_and_certifies
+  test_743_opt_out_leaves_no_file
+  test_744_no_automatic_invocation_site
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"
