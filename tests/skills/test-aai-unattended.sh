@@ -271,21 +271,21 @@ pairs:
     maintenance: maint-one
     status: planned
 YAML
-  # next proposes cap-one, but no intake document exists on disk for it -> the
-  # unattended chaining branch must stop the run with a named reason rather
-  # than fabricate or author one (D5).
+  # cap-one is a complete roadmap pair: its capability half already has an
+  # intake document on disk, so next() resolves and proposes it (the
+  # NB-1 guard gates the capability half on document resolution the same
+  # way it gates maintenance — round 3, TEST-762 — so a documentless
+  # capability would instead come back as {action:'file-intake'}; that
+  # branch is exercised by test-aai-ride-select.sh, not here).
+  printf -- '---\nid: cap-one\nnumber: null\ntype: change\nstatus: draft\nlinks:\n  pr: []\n---\n\n# cap-one\n' > "$TEST_DIR/docs/issues/CHANGE-DRAFT-cap-one.md"
   local nxt; nxt="$(node "$ride_select" next --roadmap "$TEST_DIR/roadmap.yaml" --docs "$TEST_DIR/docs" --json)"
   assert_payload_contains "$nxt" '"next":"cap-one"' "TEST-010: fixture setup: next must propose cap-one"
-  [ ! -e "$TEST_DIR/docs/issues/CHANGE-DRAFT-cap-one.md" ] || log_fail "TEST-010: fixture setup: cap-one must have no intake on disk"
-  # simulate the loop's own gate check: gate refuses because findDoc() cannot
-  # locate an intake, so statusOf returns null -> "not on the roadmap"? no —
-  # cap-one IS the roadmap capability, so gate ADMITS by roadmap membership
-  # alone; the D5 refusal is specifically "intake document exists on disk",
-  # which this engine's preflight enforces via --intake.
+  # this suite's actual subject is the *unattended engine's own* intake-on-disk
+  # gate (D5): preflight refuses to run unless the caller names an --intake
+  # path that exists, independent of what next()/gate already resolved from
+  # the roadmap — it never trusts a bound it wasn't explicitly handed.
   [ "$(run preflight --max-run-tokens 1 --max-ticks 1 --stagnation-limit 1 --max-prs 1)" = "3" ] || log_fail "TEST-010: preflight without --intake naming an existing path must refuse (no fabricated intake)"
   grep -qi "intake" "$TEST_DIR/err" || log_fail "TEST-010: the refusal must name intake as the missing bound"
-  # now the intake exists on disk AND the gate admits (cap-one is a roadmap capability)
-  printf -- '---\nid: cap-one\nnumber: null\ntype: change\nstatus: draft\nlinks:\n  pr: []\n---\n\n# cap-one\n' > "$TEST_DIR/docs/issues/CHANGE-DRAFT-cap-one.md"
   [ "$(node "$ride_select" gate --ref cap-one --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-cap-one.md" --roadmap "$TEST_DIR/roadmap.yaml" --docs "$TEST_DIR/docs" >/dev/null 2>&1; echo $?)" = "0" ] || log_fail "TEST-010: ride-select gate must admit cap-one once its intake exists"
   [ "$(run preflight --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-cap-one.md" --max-run-tokens 1 --max-ticks 1 --stagnation-limit 1 --max-prs 1)" = "0" ] || log_fail "TEST-010: preflight must admit once the intake path exists and is named: $(err)"
   log_pass "chaining's intake-on-disk gate refuses a doc-less proposal and admits once the intake exists (TEST-010)"
