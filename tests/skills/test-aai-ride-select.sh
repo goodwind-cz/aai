@@ -608,7 +608,7 @@ YAML
   printf -- '---\nid: nlb717-other\ntype: change\nstatus: draft\nlinks:\n  pr: []\n---\n\n# nlb717-other\n' \
     > "$NLBROOT/docs/issues/CHANGE-DRAFT-nlb717-other.md"
   ( cd "$NLBROOT" && git init -q && git config user.email nlb717@example.com && git config user.name nlb717 && git add -A && git commit -q -m "feat: nlb717-cap ships" ) \
-    || log_fail "TEST-717: fixture git init/commit must succeed (a CI runner has no default git identity): $(cd "$NLBROOT" && git status --porcelain)"
+    || log_fail "TEST-717: fixture git init/commit must succeed (a CI runner has no default git identity): $(git -C "$NLBROOT" status --porcelain)"
   local out2 rc2
   out2="$(node "$NLB" --ref nlb717-cap --root "$NLBROOT" --json)"; rc2=$?
   [ "$rc2" = "0" ] || log_fail "TEST-717: nothing-left-behind must exit 0 over a capability-only pair: $out2"
