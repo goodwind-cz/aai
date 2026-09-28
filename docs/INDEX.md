@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-29T11:41:35.984Z
+Generated: 2026-09-29T11:41:53.703Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0191 | specs | implementing | 5 done | docs/specs/SPEC-0191-spec-prompts-invoke-wsl-bash-on-windows.md |
 
 ## Canonical layer (0)
 
@@ -52,7 +51,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (456)
+## Done (458)
 
 | ID | Type | Path |
 |---|---|---|
@@ -302,6 +301,7 @@ _None._
 | ISSUE-0082 | issues | docs/issues/ISSUE-0082-friction-publish-hides-required-followup.md |
 | ISSUE-0083 | issues | docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md |
 | ISSUE-0084 | issues | docs/issues/ISSUE-0084-feedback-triage-missing-output-dir.md |
+| ISSUE-0085 | issues | docs/issues/ISSUE-0085-prompts-invoke-wsl-bash-on-windows.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -510,10 +510,11 @@ _None._
 | SPEC-0188 | specs | docs/specs/SPEC-0188-spec-roadmap-takes-direction.md |
 | SPEC-0189 | specs | docs/specs/SPEC-0189-spec-growth-pins-dont-wall-the-corpus.md |
 | SPEC-0190 | specs | docs/specs/SPEC-0190-spec-feedback-triage-missing-output-dir.md |
+| SPEC-0191 | specs | docs/specs/SPEC-0191-spec-prompts-invoke-wsl-bash-on-windows.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
@@ -531,7 +532,6 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
-| ISSUE-0085 | issues | docs/issues/ISSUE-0085-prompts-invoke-wsl-bash-on-windows.md |
 
 ## Deferred (whole-doc) (0)
 

@@ -2,10 +2,12 @@
 id: prompts-invoke-wsl-bash-on-windows
 type: issue
 number: 85
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 18ec527d66cdf565fbe1a07da012ade29f7ccd2d
 ---
 
 # Issue — Skill prompts tell Windows agents to invoke bash, which hits a blocked WSL shim

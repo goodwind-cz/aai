@@ -2,15 +2,17 @@
 id: spec-prompts-invoke-wsl-bash-on-windows
 type: spec
 number: 191
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: e8aad8fa92fdcbd2bdc0d368ae0760e641f2b94e48242b17989ac6da8fa8f2ce
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0085-prompts-invoke-wsl-bash-on-windows.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 18ec527d66cdf565fbe1a07da012ade29f7ccd2d
 ---
 
 # Spec — skill prompts must not tell a Windows agent to invoke bash for tests
