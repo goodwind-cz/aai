@@ -10,7 +10,7 @@ links:
   requirement: docs/issues/ISSUE-0086-strategy-unscoped-from-current-focus.md
   rfc: null
   pr:
-    - TBD
+    - 405
   commits:
     - d1fe5091373c81a7c148d145d136fe8246a169c6
 ---
