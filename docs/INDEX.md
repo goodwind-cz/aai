@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-28T19:09:12.743Z
+Generated: 2026-09-28T19:15:56.523Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0190 | specs | implementing | 3 done | docs/specs/SPEC-0190-spec-feedback-triage-missing-output-dir.md |
 
 ## Canonical layer (0)
 
@@ -528,7 +529,7 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
-| feedback-triage-missing-output-dir (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-feedback-triage-missing-output-dir.md |
+| ISSUE-0084 | issues | docs/issues/ISSUE-0084-feedback-triage-missing-output-dir.md |
 
 ## Deferred (whole-doc) (0)
 

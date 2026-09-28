@@ -299,6 +299,21 @@ test_651_harness_pin_still_bites() {
   log_pass "TEST-651 the existing harness pin still bites under mutation"
 }
 
+# --- TEST-652 (Spec-AC-01/02): missing --out parent + missing spool is not ENOENT
+test_652_missing_outdir() {
+  log_info "TEST-652: missing --out parent directory and missing spool still writes a local 0-observation report..."
+  local outdir="$TEST_DIR/no-such-friction-dir/nested"
+  local rep="$outdir/triage-report.json"
+  [ ! -e "$outdir" ] || log_fail "TEST-652: precondition — parent must not exist yet"
+  local rc
+  rc="$(run "$TEST_DIR/no-such-spool.jsonl" "/nonexistent/feedback.yaml" "$rep")"
+  [ "$rc" = "0" ] || log_fail "TEST-652: engine must exit 0 when --out parent is missing (got $rc; err=$(cat "$TEST_DIR/err"))"
+  [ -f "$rep" ] || log_fail "TEST-652: report file must be created at $rep"
+  [ "$(rp "$rep" total_observations)" = "0" ] || log_fail "TEST-652: total_observations must be 0 (got $(rp "$rep" total_observations))"
+  [ "$(rp "$rep" kept)" = "0" ] || log_fail "TEST-652: kept must be 0 (got $(rp "$rep" kept))"
+  log_pass "missing --out parent is created; missing spool yields a 0-observation report (TEST-652)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   setup
@@ -322,6 +337,7 @@ main() {
   test_649_recurrence_only_promotes
   test_650_recurrence_cap_pinned
   test_651_harness_pin_still_bites
+  test_652_missing_outdir
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"
