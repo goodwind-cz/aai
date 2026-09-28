@@ -19,12 +19,24 @@ links:
   external world (new models, changed prices) and a consumer will not track it
   for us. Owner decision, 2026-09-24.
 - Two things follow from that being correct, and neither exists today.
-  1. **Nobody keeps them current, and nothing notices when they are stale.**
-     Measured at f84f84ab: `PRICING.yaml` carries no `as_of`, `last_reviewed` or
-     any other freshness marker; `grep -rn "stale|last_reviewed|as_of"` over it
-     returns nothing. Three scripts (`metrics-flush.mjs`, `metrics-report.mjs`,
-     `orchestration-dispatch.mjs`) read it and none can tell fresh data from a
-     year-old copy. Keeping it current is today an act of memory.
+  1. **The freshness contract exists and nothing enforces it.** An earlier
+     draft of this intake claimed `PRICING.yaml` carried no freshness marker at
+     all. That was wrong, and wrong in an instructive way: the grep behind it
+     searched `stale|last_reviewed|as_of` — this author's assumed vocabulary —
+     and read its own miss as an absence. Corrected by measurement on
+     2026-09-28 (PR #389 review, Codex):
+     `.aai/system/PRICING.yaml:9-18` already declares
+     `pricing_meta.last_updated_utc`, `update_policy.cadence_days: 30` and
+     `require_last_verified_utc: true`, with `last_verified_utc` on sources and
+     models.
+     The real defect is sharper. **No script and no test reads any of those
+     fields**: `grep -rln "cadence_days\|last_updated_utc\|require_last_verified_utc"`
+     over `.aai/scripts/` and `tests/skills/` returns NOTHING, while three
+     scripts (`metrics-flush.mjs`, `metrics-report.mjs`,
+     `orchestration-dispatch.mjs`) read the file and none consult its age. The
+     table states its own 30-day policy and the factory cannot tell fresh data
+     from a year-old copy — enforcement by prose, which is the class this
+     repository keeps finding rather than a missing contract.
   2. **A consumer's exception has nowhere to live.** The only file they can edit
      to pin a role cheaper, override a tier or cap cost is the one we overwrite.
      The routing file's UPGRADING note tells them to re-apply the customization
@@ -79,7 +91,13 @@ links:
 - AC-002: a consumer configuration file exists that `/aai-update` provably does
   not overwrite, demonstrated by an update run over a customized target.
 - AC-003: a routing exception expressed there changes the resolved model for the
-  role it names, and its absence changes nothing.
+  role it names, and its absence changes nothing. The exception MUST carry the
+  harness it applies to: Mode B resolves only inside `roles@<harness>` /
+  `tiers@<harness>` and returns null when the harness does not match, so a
+  role-only override carrying a vendor-specific model id would silently follow a
+  project that switches from Claude to Codex, or is used with both at once
+  (raised in PR #389 review, Codex). A consumer override that cannot name its
+  harness is not a seam, it is a trap.
 - AC-004: the routing file's UPGRADING note no longer instructs the reader to
   re-apply customizations after every update, because they no longer need to.
 
