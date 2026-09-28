@@ -36,7 +36,7 @@ const TARGET_KINDS = new Set(['repository', 'local_file', 'external']);
 
 function usage(message) {
   if (message) process.stderr.write(`validation-outcome-check: ${message}\n`);
-  process.stderr.write('usage: node .aai/scripts/validation-outcome-check.mjs --report <path> --ref <ref> --since <UTC> [--root <repo>]\n');
+  process.stderr.write('usage: node .aai/scripts/validation-outcome-check.mjs --report <path> --ref <ref> --since <UTC> [--root <repo>] [--intake <path> --spec <path>]\n');
   return 2;
 }
 
@@ -45,7 +45,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
     if (flag === '--help' || flag === '-h') return { help: true };
-    if (!['--report', '--ref', '--since', '--root'].includes(flag)) return { error: `unknown argument: ${flag}` };
+    if (!['--report', '--ref', '--since', '--root', '--intake', '--spec'].includes(flag)) return { error: `unknown argument: ${flag}` };
     const value = argv[i + 1];
     if (!value || value.startsWith('--')) return { error: `${flag} requires a value` };
     const key = flag.slice(2);
@@ -379,7 +379,47 @@ function uniqueIds(entries, label, refuse) {
   return ids;
 }
 
-export function checkOutcomeReport({ reportPath, ref, since, root = process.cwd(), now = new Date() }) {
+// The report labels its own sources, so the labels alone cannot say WHOSE
+// request was backchecked: a report naming another work item's intake and
+// frozen spec, hashed truthfully, would otherwise pass. The expected pair
+// comes from the caller (--intake/--spec) or, failing that, from the STATE
+// focus that names this very ref. With neither available the checker refuses
+// rather than trusting the report (Codex P1, PR #388).
+function readStateFocus(root, ref) {
+  let text;
+  try {
+    text = fs.readFileSync(path.join(path.resolve(root), '.aai', 'STATE.yaml'), 'utf8');
+  } catch {
+    return null;
+  }
+  const focus = /^current_focus:\n((?:[ \t]+.*\n?)*)/m.exec(text);
+  if (!focus) return null;
+  const field = (name) => {
+    const found = new RegExp(`^[ \\t]+${name}:[ \\t]*(?:"([^"]*)"|'([^']*)'|([^\\n#]*))`, 'm').exec(focus[1]);
+    if (!found) return null;
+    const value = (found[1] ?? found[2] ?? found[3] ?? '').trim();
+    return value === '' || value === 'null' || value === '~' ? null : value;
+  };
+  if (field('ref_id') !== ref) return null;
+  const intake = field('primary_path');
+  const spec = field('spec_path');
+  if (!intake || !spec) return null;
+  return { intake, spec, origin: '.aai/STATE.yaml current_focus' };
+}
+
+function resolveScopeBinding({ root, ref, intake, spec }) {
+  if (intake && spec) return { intake, spec, origin: '--intake/--spec' };
+  if (intake || spec) {
+    return { error: 'scope sources are unbound: --intake and --spec must be given together' };
+  }
+  const fromState = readStateFocus(root, ref);
+  if (fromState) return fromState;
+  return {
+    error: `scope sources are unbound: pass --intake and --spec, or run where .aai/STATE.yaml holds a current_focus on ${ref}`,
+  };
+}
+
+export function checkOutcomeReport({ reportPath, ref, since, root = process.cwd(), now = new Date(), intake: expectedIntake = null, spec: expectedSpec = null }) {
   const reasons = [];
   const refuse = (reason) => {
     if (!reasons.includes(reason)) reasons.push(reason);
@@ -407,6 +447,9 @@ export function checkOutcomeReport({ reportPath, ref, since, root = process.cwd(
   if (!startedDate) refuse('validation_started_utc is invalid');
   else if (startedDate.getTime() > nowDate.getTime()) refuse('validation_started_utc is in the future');
 
+  const binding = resolveScopeBinding({ root, ref, intake: expectedIntake, spec: expectedSpec });
+  if (binding.error) return { ok: false, reasons: [binding.error], data };
+
   if (!Array.isArray(data.sources) || data.sources.length < 2) refuse('sources must contain intake and frozen spec entries');
   const sourcePaths = new Set();
   const sourceKinds = new Set();
@@ -422,6 +465,14 @@ export function checkOutcomeReport({ reportPath, ref, since, root = process.cwd(
       sourceKinds.add(source.kind);
       if (sourcePaths.has(source.path)) refuse(`duplicate source path: ${source.path}`);
       sourcePaths.add(source.path);
+      if (source.kind === 'intake' || source.kind === 'spec') {
+        const expected = binding[source.kind];
+        const declared = resolveLocal(root, source.path, `${source.kind} source`, refuse);
+        const wanted = resolveLocal(root, expected, `${source.kind} scope binding`, refuse);
+        if (declared && wanted && declared !== wanted) {
+          refuse(`${source.kind} source ${source.path} is not the ${source.kind} this ref is scoped to (${expected})`);
+        }
+      }
       const sourceFile = readHashedFile(root, source, `source ${source.kind ?? index}`, refuse);
       if (source.kind === 'spec' && sourceFile) frozenSpecAcIds = definedSpecAcIds(sourceFile.bytes);
     }
@@ -572,7 +623,7 @@ function main() {
   if (parsed.help) {
     process.stdout.write('validation-outcome-check.mjs — validate one aai-outcome-v1 JSON report block\n\n');
     process.stdout.write('Schema: version/ref/start, intake+spec sources, reciprocal requirements/outcomes, target identity, hashed evidence, persistence and freshness.\n');
-    process.stdout.write('usage: node .aai/scripts/validation-outcome-check.mjs --report <path> --ref <ref> --since <UTC> [--root <repo>]\n');
+    process.stdout.write('usage: node .aai/scripts/validation-outcome-check.mjs --report <path> --ref <ref> --since <UTC> [--root <repo>] [--intake <path> --spec <path>]\n');
     return 0;
   }
   if (parsed.error) return usage(parsed.error);
@@ -582,6 +633,8 @@ function main() {
     ref: parsed.options.ref,
     since: parsed.options.since,
     root: parsed.options.root,
+    intake: parsed.options.intake ?? null,
+    spec: parsed.options.spec ?? null,
   });
   if (result.ok) return 0;
   for (const line of formatOutcomeRefusals(result)) process.stdout.write(`${line}\n`);

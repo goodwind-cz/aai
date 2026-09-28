@@ -61,7 +61,22 @@ check_deps() {
 # Run the checker; never aborts the suite on non-zero exit (callers inspect
 # $? and $out deliberately).
 runcheck() {
-  node "$CHECKER" "$@"
+  # The outcome checker binds a PASS report's intake/spec to the scope it
+  # claims (TEST-013 in aai-outcome-backcheck). These fixtures deliberately
+  # cite fixture documents rather than the live CHANGE-0068/SPEC-0094 pair,
+  # so the suite names that pair explicitly; a real Validation leaves both
+  # unset and the checker reads STATE's focus instead.
+  local arg has_binding=0
+  for arg in "$@"; do
+    [[ "$arg" == '--outcome-intake' || "$arg" == '--outcome-spec' ]] && { has_binding=1; break; }
+  done
+  if [[ "$has_binding" -eq 1 ]]; then
+    node "$CHECKER" "$@"
+  else
+    node "$CHECKER" "$@" \
+      --outcome-intake tests/fixtures/role-outputs/outcome-intake.md \
+      --outcome-spec tests/fixtures/role-outputs/outcome-spec.md
+  fi
 }
 
 # --- TEST-001 — every VALID fixture -> exit 0, zero violation lines ----------

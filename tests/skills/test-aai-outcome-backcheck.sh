@@ -19,7 +19,19 @@ sha256_file() {
 }
 
 run_check() {
-  node "$CHECKER" "$@"
+  # TEST-013 is the arm that owns the scope binding; every other arm is about
+  # some other property, so the helper supplies the fixture's own pair unless
+  # the caller named one. An invocation that must be seen UNBOUND calls the
+  # checker directly, not through here.
+  local arg has_binding=0
+  for arg in "$@"; do
+    [[ "$arg" == '--intake' || "$arg" == '--spec' ]] && { has_binding=1; break; }
+  done
+  if [[ "$has_binding" -eq 1 ]]; then
+    node "$CHECKER" "$@"
+  else
+    node "$CHECKER" "$@" --intake intake.md --spec spec.md
+  fi
 }
 
 assert_refusal() {
@@ -490,8 +502,96 @@ test_012_cli_symlink_entrypoint() {
   [[ "$help_rc" -eq 0 ]] || log_fail "symlinked --help expected exit 0, got $help_rc: $help_output"
   [[ "$help_output" == *'validate one aai-outcome-v1 JSON report block'* ]] \
     || log_fail "symlinked --help did not run the checker CLI: $help_output"
-  node "$link" --report report.md --ref test-012 --since 2026-06-01T00:00:00Z --root "$symlinked_root" >/dev/null
+  node "$link" --report report.md --ref test-012 --since 2026-06-01T00:00:00Z --root "$symlinked_root" \
+    --intake intake.md --spec spec.md >/dev/null
   log_pass "TEST-012 symlinked CLI entrypoint"
+}
+
+test_013_sources_bound_to_scope() {
+  # Codex P1 on PR #388: the checker trusted whichever files the report
+  # LABELLED intake and spec. Substituting another work item's documents --
+  # with their real hashes -- passed, so a report could backcheck a request
+  # the ride never made. The expected paths must come from the caller
+  # (--intake/--spec) or from STATE's focus for this ref, and a report that
+  # names anything else is refused.
+  local root variant
+  root="$(make_fixture test-013 repository)"
+
+  # The honest report, with the caller naming the paths it expects.
+  assert_admissible --report report.md --ref test-013 --since 2026-06-01T00:00:00Z \
+    --root "$root" --intake intake.md --spec spec.md
+
+  # The substitution: another work item's spec, hashed truthfully.
+  variant="$TMP_ROOT/scope-bound-substituted"
+  rm -rf "$variant"; cp -R "$root" "$variant"
+  printf '%s\n' '# Other spec' '- Spec-AC-01: deliver the requested result.' > "$variant/other-spec.md"
+  node - "$variant" <<'NODE'
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const [root] = process.argv.slice(2);
+const file = `${root}/report.md`;
+const before = fs.readFileSync(file, 'utf8');
+const match = /```aai-outcome-v1\n([\s\S]*?)\n```/.exec(before);
+const data = JSON.parse(match[1]);
+const spec = data.sources.find((source) => source.kind === 'spec');
+spec.path = 'other-spec.md';
+spec.sha256 = crypto.createHash('sha256').update(fs.readFileSync(`${root}/other-spec.md`)).digest('hex');
+for (const requirement of data.requirements) {
+  if (requirement.source && requirement.source.path === 'spec.md') requirement.source.path = 'other-spec.md';
+}
+fs.writeFileSync(file, before.replace(match[1], JSON.stringify(data, null, 2)));
+NODE
+  assert_refusal 'spec source other-spec.md is not the spec this ref is scoped to (spec.md)' \
+    --report report.md --ref test-013 --since 2026-06-01T00:00:00Z \
+    --root "$variant" --intake intake.md --spec spec.md
+
+  # The same substitution on the intake half.
+  variant="$TMP_ROOT/scope-bound-intake"
+  rm -rf "$variant"; cp -R "$root" "$variant"
+  printf '%s\n' '# Other request' 'Deliver the requested result exactly.' > "$variant/other-intake.md"
+  node - "$variant" <<'NODE'
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const [root] = process.argv.slice(2);
+const file = `${root}/report.md`;
+const before = fs.readFileSync(file, 'utf8');
+const match = /```aai-outcome-v1\n([\s\S]*?)\n```/.exec(before);
+const data = JSON.parse(match[1]);
+const intake = data.sources.find((source) => source.kind === 'intake');
+intake.path = 'other-intake.md';
+intake.sha256 = crypto.createHash('sha256').update(fs.readFileSync(`${root}/other-intake.md`)).digest('hex');
+for (const requirement of data.requirements) {
+  if (requirement.source && requirement.source.path === 'intake.md') requirement.source.path = 'other-intake.md';
+}
+fs.writeFileSync(file, before.replace(match[1], JSON.stringify(data, null, 2)));
+NODE
+  assert_refusal 'intake source other-intake.md is not the intake this ref is scoped to (intake.md)' \
+    --report report.md --ref test-013 --since 2026-06-01T00:00:00Z \
+    --root "$variant" --intake intake.md --spec spec.md
+
+  # Fail closed: with neither flag given and no STATE to read, the checker
+  # refuses rather than trusting the report's own labels.
+  local output rc
+  set +e
+  output="$(node "$CHECKER" --report report.md --ref test-013 --since 2026-06-01T00:00:00Z --root "$root" 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] \
+    || log_fail "TEST-013: unbound invocation exited $rc, want an evidence refusal (1): $output"
+  [[ "$output" == *'OUTCOME-CHECK: scope sources are unbound'* ]] \
+    || log_fail "TEST-013: unbound invocation did not refuse for want of a scope binding: $output"
+
+  # STATE is the other admissible binding: a focus on this ref names both
+  # paths, and the checker reads them instead of the CLI pair.
+  local state_root
+  state_root="$TMP_ROOT/scope-bound-state"
+  rm -rf "$state_root"; cp -R "$root" "$state_root"
+  mkdir -p "$state_root/.aai"
+  cp "$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml" "$state_root/.aai/STATE.yaml"
+  node "$PROJECT_ROOT/.aai/scripts/state.mjs" set-focus --state "$state_root/.aai/STATE.yaml" \
+    --type intake_change --ref test-013 --path intake.md --spec-path spec.md >/dev/null
+  assert_admissible --report report.md --ref test-013 --since 2026-06-01T00:00:00Z --root "$state_root"
+
+  log_pass "TEST-013: intake and spec sources are bound to the ref's own documents (CLI pair or STATE focus), and an unbound invocation fails closed"
 }
 
 test_010_code_only_and_compatibility() {
@@ -589,6 +689,7 @@ main() {
       CURRENT_TEST_ID=TEST-008; test_008_loop_resume_wiring
       CURRENT_TEST_ID=TEST-012; test_012_cli_symlink_entrypoint
       CURRENT_TEST_ID=TEST-010; test_010_code_only_and_compatibility
+      CURRENT_TEST_ID=TEST-013; test_013_sources_bound_to_scope
       ;;
     test_001_requirement_assessments) CURRENT_TEST_ID=TEST-001; test_001_requirement_assessments ;;
     test_003_saved_target_identity) CURRENT_TEST_ID=TEST-003; test_003_saved_target_identity ;;
@@ -598,6 +699,7 @@ main() {
     test_008_loop_resume_wiring) CURRENT_TEST_ID=TEST-008; test_008_loop_resume_wiring ;;
     test_012_cli_symlink_entrypoint) CURRENT_TEST_ID=TEST-012; test_012_cli_symlink_entrypoint ;;
     test_010_code_only_and_compatibility) CURRENT_TEST_ID=TEST-010; test_010_code_only_and_compatibility ;;
+    test_013_sources_bound_to_scope) CURRENT_TEST_ID=TEST-013; test_013_sources_bound_to_scope ;;
     *) log_fail "unknown selector: $selected" ;;
   esac
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="

@@ -217,6 +217,12 @@ function parseArgs(argv) {
   let baseRef = null;
   let worktreeBaseline = null;
   let worktreeGuard = false;
+  // The outcome checker binds a report's intake/spec sources to the scope it
+  // claims. A caller that is NOT the ride's own worktree -- a fixture, or a
+  // report checked from elsewhere -- must name the pair it expects; a real
+  // Validation leaves both unset and the checker reads STATE's focus.
+  let outcomeIntake = null;
+  let outcomeSpec = null;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--file') {
       filePath = argv[++i];
@@ -230,13 +236,19 @@ function parseArgs(argv) {
     } else if (argv[i] === '--worktree-baseline') {
       worktreeBaseline = argv[++i];
       if (worktreeBaseline === undefined || worktreeBaseline.startsWith('--')) usageError('--worktree-baseline requires a path value');
+    } else if (argv[i] === '--outcome-intake') {
+      outcomeIntake = argv[++i];
+      if (outcomeIntake === undefined || outcomeIntake.startsWith('--')) usageError('--outcome-intake requires a path value');
+    } else if (argv[i] === '--outcome-spec') {
+      outcomeSpec = argv[++i];
+      if (outcomeSpec === undefined || outcomeSpec.startsWith('--')) usageError('--outcome-spec requires a path value');
     } else if (argv[i] === '--worktree-guard') {
       worktreeGuard = true;
     } else {
       usageError(`unrecognized argument: ${argv[i]}`);
     }
   }
-  return { filePath, nowArg, baseRef, worktreeBaseline, worktreeGuard };
+  return { filePath, nowArg, baseRef, worktreeBaseline, worktreeGuard, outcomeIntake, outcomeSpec };
 }
 
 // --- the two optional Planning gates (R04 / R09) -----------------------------
@@ -714,7 +726,7 @@ function parseSubagentResultBlock(candidateRawLines) {
   };
 }
 
-function validateResult(parsed, nowMs) {
+function validateResult(parsed, nowMs, scopeBinding = {}) {
   const violations = [];
   const commandWords = (parsed.state_update_commands ?? []).map(parseCommandWords);
   const role = String(parsed.fields.role ?? '').trim().toLowerCase();
@@ -855,6 +867,8 @@ function validateResult(parsed, nowMs) {
         since: String(parsed.fields.started_utc ?? ''),
         root: process.cwd(),
         now: new Date(nowMs),
+        intake: scopeBinding.intake ?? null,
+        spec: scopeBinding.spec ?? null,
       });
       if (!outcome.ok) {
         violations.push(['E-OUTCOME-REPORT', outcome.reasons.join('; ')]);
@@ -904,7 +918,7 @@ function validateResult(parsed, nowMs) {
 }
 
 function main() {
-  const { filePath, nowArg, baseRef, worktreeBaseline, worktreeGuard } = parseArgs(process.argv.slice(2));
+  const { filePath, nowArg, baseRef, worktreeBaseline, worktreeGuard, outcomeIntake, outcomeSpec } = parseArgs(process.argv.slice(2));
 
   let nowMs;
   if (nowArg) {
@@ -934,7 +948,7 @@ function main() {
     exit(1);
   }
 
-  const violations = validateResult(parsed, nowMs);
+  const violations = validateResult(parsed, nowMs, { intake: outcomeIntake, spec: outcomeSpec });
   violations.push(...planningGateViolations(parsed, { baseRef, worktreeBaseline, worktreeGuard }));
   if (violations.length === 0) exit(0);
 
