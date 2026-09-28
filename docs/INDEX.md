@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-28T12:11:14.527Z
+Generated: 2026-09-28T13:39:07.832Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -51,7 +51,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (452)
+## Done (454)
 
 | ID | Type | Path |
 |---|---|---|
@@ -315,6 +315,8 @@ _None._
 | RFC-0014 | rfc | docs/rfc/RFC-0014-unattended-rides-human-gate-at-merge.md |
 | RES-0001 | specs | docs/specs/RES-0001-aai-competitive-gap-and-model-efficiency.md |
 | RES-0002 | specs | docs/specs/RES-0002-mechanical-context-offload-to-cheap-tier.md |
+| RES-0003 | specs | docs/specs/RES-0003-polydao-graph-loop-ideas-for-aai.md |
+| RES-0004 | specs | docs/specs/RES-0004-longhorizon-harness-adoption.md |
 | RESEARCH-0001 | specs | docs/specs/RESEARCH-0001-spec-kit-comparative.md |
 | SPEC-0001 | specs | docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md |
 | SPEC-0002 | specs | docs/specs/SPEC-0002-docs-canonicalization-skill.md |
@@ -508,7 +510,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
@@ -526,7 +528,6 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
-| RES-0004 | specs | docs/specs/RES-0004-longhorizon-harness-adoption.md |
 
 ## Deferred (whole-doc) (0)
 
