@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-27T11:48:01.114Z",
+  "generatedAt": "2026-09-28T05:44:13.422Z",
   "project": "aai",
   "counts": {
     "delivered": 257,
-    "in_progress": 14,
+    "in_progress": 15,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -47,6 +47,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "growth-pins-dont-wall-the-corpus",
+      "title": "A ride's own growth pin stops walling every ride that comes after it",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0195-growth-pins-dont-wall-the-corpus.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0189-spec-growth-pins-dont-wall-the-corpus.md",
       "validation": null,
       "review": null
     },

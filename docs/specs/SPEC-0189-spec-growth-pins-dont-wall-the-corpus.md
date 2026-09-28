@@ -1,13 +1,13 @@
 ---
 id: spec-growth-pins-dont-wall-the-corpus
-number: null
+number: 189
 type: spec
 status: implementing
 mutation_gate: v1
-frozen_sha256: 7ad87b4b2a519a79bca86aa9d18944bc9b213bb1b2eb7ba396bf0821e09a2f14
+frozen_sha256: 35ff0896ea0d2345c6b8d2579eaf22c40d8435a7c57cd5f339405f8aae33375e
 ceremony_level: 1
 links:
-  requirement: docs/issues/CHANGE-DRAFT-growth-pins-dont-wall-the-corpus.md
+  requirement: docs/issues/CHANGE-0195-growth-pins-dont-wall-the-corpus.md
   rfc: null
   pr: []
   commits: []
@@ -27,7 +27,7 @@ relaxed arms stop catching anything, which the Test Plan answers by giving
 every arm a fabricated mis-credited input in the same run.
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-growth-pins-dont-wall-the-corpus.md
+- Requirement: docs/issues/CHANGE-0195-growth-pins-dont-wall-the-corpus.md
 - Decision records: docs/knowledge/LEARNED.md (guard-preconditions-downstream)
 - Technology contract: docs/TECHNOLOGY.md
 
@@ -117,7 +117,7 @@ drift protection without touching the baseline.
 - Inline review scope: tests/skills/test-aai-prompt-diet.sh
 
 ## Acceptance Criteria Mapping
-- Maps to: docs/issues/CHANGE-DRAFT-growth-pins-dont-wall-the-corpus.md
+- Maps to: docs/issues/CHANGE-0195-growth-pins-dont-wall-the-corpus.md
   "Desired Behavior (To-Be)"
 
 ## Constitution deviations
@@ -137,12 +137,12 @@ Never use pipe characters inside cells.
 
 | Spec-AC    | Description                                                                                                                                                                      | Status  | Evidence | Review-By | Notes |
 |------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | WHEN a diet-ledger arm compares a credited `after` to the file's current size THEN it FAILS only when the file is SMALLER than `after`, and passes when the size is equal or larger | planned | —        | —         | the wall removal; floor semantics, TEST-023's already-shipped comparison |
-| Spec-AC-02 | WHEN an entry's leading credited byte count disagrees with its own `<before> -> <after>` arithmetic THEN the arm FAILS, naming the credited figure and the measured one            | planned | —        | —         | the property the arms were written to catch, unchanged |
-| Spec-AC-03 | All four diet-ledger arms decide both comparisons through ONE shared pure helper, and each arm exercises that helper against a fabricated mis-credited input in the same run       | planned | —        | —         | anti-vacuity: a relaxed operator has nowhere to hide |
-| Spec-AC-04 | WHEN `.aai/AGENTS.md` exceeds its declared byte ceiling THEN the suite FAILS naming the ceiling and the overage, and the ceiling is at least the file's current size               | planned | —        | —         | replaces the only on-disk control AGENTS.md had; it is outside TEST-010's budget |
-| Spec-AC-05 | A scan over `tests/skills/*.sh` reports ZERO arms comparing a live on-disk `.aai/**` byte count for EQUALITY against a value measured in the same arm, and the scan is proven to detect a fabricated arm of that shape | planned | —        | —         | the guard against rebuilding the wall |
-| Spec-AC-06 | The helper accepts all four measured PR #388 states for the 418 B VALIDATION entry — 21152, 21570, 23163 and 23581 — rejecting only sizes below 21570                             | planned | —        | —         | the end-to-end outcome, in the bytes the defect was found in |
+| Spec-AC-01 | WHEN a diet-ledger arm compares a credited `after` to the file's current size THEN it FAILS only when the file is SMALLER than `after`, and passes when the size is equal or larger | done    | docs/ai/tdd/spec-growth-pins-dont-wall-the-corpus/green-TEST-766.log, docs/ai/tdd/spec-growth-pins-dont-wall-the-corpus/green-TEST-772.log | —         | the wall removal; floor semantics, TEST-023's already-shipped comparison |
+| Spec-AC-02 | WHEN an entry's leading credited byte count disagrees with its own `<before> -> <after>` arithmetic THEN the arm FAILS, naming the credited figure and the measured one            | done    | docs/ai/tdd/spec-growth-pins-dont-wall-the-corpus/green-TEST-767.log | —         | the property the arms were written to catch, unchanged |
+| Spec-AC-03 | All four diet-ledger arms decide both comparisons through ONE shared pure helper, and each arm exercises that helper against a fabricated mis-credited input in the same run       | done    | docs/ai/tdd/spec-growth-pins-dont-wall-the-corpus/green-TEST-768.log | —         | anti-vacuity: a relaxed operator has nowhere to hide |
+| Spec-AC-04 | WHEN `.aai/AGENTS.md` exceeds its declared byte ceiling THEN the suite FAILS naming the ceiling and the overage, and the ceiling is at least the file's current size               | done    | docs/ai/tdd/spec-growth-pins-dont-wall-the-corpus/green-TEST-769.log | —         | replaces the only on-disk control AGENTS.md had; it is outside TEST-010's budget |
+| Spec-AC-05 | A scan over `tests/skills/*.sh` reports ZERO arms comparing a live on-disk `.aai/**` byte count for EQUALITY against a value measured in the same arm, and the scan is proven to detect a fabricated arm of that shape | done    | docs/ai/tdd/spec-growth-pins-dont-wall-the-corpus/green-TEST-770.log | —         | the guard against rebuilding the wall |
+| Spec-AC-06 | The helper accepts all four measured PR #388 states for the 418 B VALIDATION entry — 21152, 21570, 23163 and 23581 — rejecting only sizes below 21570                             | done    | docs/ai/tdd/spec-growth-pins-dont-wall-the-corpus/green-TEST-771.log | —         | the end-to-end outcome, in the bytes the defect was found in |
 
 Status values: planned, implementing, done, deferred, blocked, rejected.
 
@@ -201,7 +201,13 @@ strictly more than it did. The one new refusal is Spec-AC-05's scan, measured
 at zero hits over all of `tests/skills/*.sh` before it ships, so nothing in
 flight carries the shape it refuses. `TEST-010`'s corpus ratchet, `TEST-012`'s
 re-sum, the ledger's append-only discipline and `TEST-312` are untouched: an
-uncredited byte in the `.aai/*.prompt.md` glob still reddens exactly as today.
+uncredited byte in the `.aai/*.prompt.md` glob is caught only once the
+corpus ratchet's HEADROOM is exhausted — measured 2042 B on 2026-09-28,
+so up to that much uncredited growth now reddens nothing where the
+equality caught the first byte. That is a real reduction in cover, taken
+knowingly: the equality it replaces made the file unmergeable for every
+later ride, and TEST-010's `headroom -lt 0` remains the corpus-wide
+control. `.aai/AGENTS.md` keeps a per-file control via Spec-AC-04.
 
 ## Seams
 
@@ -222,13 +228,13 @@ uncredited byte in the `.aai/*.prompt.md` glob still reddens exactly as today.
 
 | Test ID  | Spec-AC    | Type        | File path (expected)                     | Description                                                                                                                                   | Mutation                                                       | Status  |
 |----------|------------|-------------|------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|---------|
-| TEST-766 | Spec-AC-01 | unit        | tests/skills/test-aai-prompt-diet.sh     | `diet_credit_verdict` rejects a disk size one byte BELOW the credited `after` naming both numbers, and accepts sizes equal to and above it       | sed:s/disk -lt after/disk -gt after/                            | pending |
-| TEST-767 | Spec-AC-02 | unit        | tests/skills/test-aai-prompt-diet.sh     | `diet_credit_verdict` rejects a fabricated entry whose lead credit is off by one from `after - before`, and accepts the matching one             | sed:s/lead -ne measured/false/                                   | pending |
-| TEST-768 | Spec-AC-03 | integration | tests/skills/test-aai-prompt-diet.sh     | Each of TEST-023, TEST-622, TEST-697 and TEST-746 calls the helper and fails if a fabricated mis-credited or below-floor input is ACCEPTED       | sed:s/diet_credit_verdict/true diet_credit_verdict/             | pending |
-| TEST-769 | Spec-AC-04 | integration | tests/skills/test-aai-prompt-diet.sh     | `.aai/AGENTS.md` is at or below `AGENTS_MD_CEILING`, and a fabricated oversize fixture is rejected by the same comparison                        | sed:s/AGENTS_MD_CEILING=/AGENTS_MD_CEILING=99999999 #/          | pending |
-| TEST-770 | Spec-AC-05 | integration | tests/skills/test-aai-prompt-diet.sh     | The scan over tests/skills/*.sh reports zero equality pins on a live `.aai` byte count, and detects a fabricated arm carrying the TEST-697 shape | sed:s/-ne/-XX-never-matches/                                     | pending |
-| TEST-771 | Spec-AC-06 | unit        | tests/skills/test-aai-prompt-diet.sh     | For the 418 B VALIDATION entry the helper accepts 21570, 23163 and 23581 and rejects 21152, the merge-base size the file no longer carries       | sed:s/disk -lt after/disk -ne after/                            | pending |
-| TEST-772 | Spec-AC-01 | e2e         | tests/skills/test-aai-git-ref-guard.sh   | TEST-312 exits 0 with the converted suite, so the embedded run and the ledger append-only comparison both still hold (seam S1)                   | sed:s/disk -lt after/disk -ne after/                            | pending |
+| TEST-766 | Spec-AC-01 | unit        | tests/skills/test-aai-prompt-diet.sh     | `diet_credit_verdict` rejects a disk size one byte BELOW the credited `after` naming both numbers, and accepts sizes equal to and above it       | sed:s/disk -lt after/disk -gt after/                            | green |
+| TEST-767 | Spec-AC-02 | unit        | tests/skills/test-aai-prompt-diet.sh     | `diet_credit_verdict` rejects a fabricated entry whose lead credit is off by one from `after - before`, and accepts the matching one             | sed:s/lead -ne measured/false/                                   | green |
+| TEST-768 | Spec-AC-03 | integration | tests/skills/test-aai-prompt-diet.sh     | Each of TEST-023, TEST-622, TEST-697 and TEST-746 calls the helper and fails if a fabricated mis-credited or below-floor input is ACCEPTED       | sed:s/diet_credit_verdict/true diet_credit_verdict/             | green |
+| TEST-769 | Spec-AC-04 | integration | tests/skills/test-aai-prompt-diet.sh     | `.aai/AGENTS.md` is at or below `AGENTS_MD_CEILING`, and a fabricated oversize fixture is rejected by the same comparison                        | sed:s/AGENTS_MD_CEILING=/AGENTS_MD_CEILING=99999999 #/          | green |
+| TEST-770 | Spec-AC-05 | integration | tests/skills/test-aai-prompt-diet.sh     | The scan over tests/skills/*.sh reports zero equality pins on a live `.aai` byte count, and detects a fabricated arm carrying the TEST-697 shape | sed:s/-ne/-XX-never-matches/                                     | green |
+| TEST-771 | Spec-AC-06 | unit        | tests/skills/test-aai-prompt-diet.sh     | For the 418 B VALIDATION entry the helper accepts 21570, 23163 and 23581 and rejects 21152, the merge-base size the file no longer carries       | sed:s/disk -lt after/disk -ne after/                            | green |
+| TEST-772 | Spec-AC-01 | e2e         | tests/skills/test-aai-git-ref-guard.sh   | TEST-312 exits 0 with the converted suite, so the embedded run and the ledger append-only comparison both still hold (seam S1)                   | sed:s/disk -lt after/disk -ne after/                            | green |
 
 Test status values: pending, red, green.
 
@@ -248,8 +254,10 @@ such rows shipped this month. Each RED run is stored under `docs/ai/tdd/`.
   and `node .aai/scripts/mutation-gate.mjs` exits 0 at close.
 - Rehearsal evidence for Spec-AC-06, recorded once under `docs/ai/tdd/`: grow
   `.aai/VALIDATION.prompt.md` by 1593 B in the worktree to reproduce PR #388's
-  23163 B, run the suite, observe TEST-697 GREEN and TEST-010 RED until the
-  growth is credited, then restore the file and re-run to a clean exit 0.
+  23163 B, run the suite, observe TEST-697 GREEN, then restore the file
+  and re-run to a clean exit 0. (TEST-010 was predicted RED here and is
+  NOT: measured headroom 449/2048, so a 1593 B growth breaches neither
+  bound. The rc 1 -> 0 transition on TEST-697 is what the rehearsal proves.)
 - PASS criteria: all TEST-xxx green AND all Spec-AC in a terminal status.
 
 ## Evidence contract

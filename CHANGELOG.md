@@ -22,6 +22,33 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix(tests): a ride's own growth pin stops walling every ride after it (CHANGE-0195 / SPEC-0189)
+
+Four arms in `tests/skills/test-aai-prompt-diet.sh` asserted that a prompt
+file's CURRENT on-disk size equals the `after` figure recorded in one PAST
+ride's diet-ledger entry. Any later ride that changed the file by a single byte
+failed the arm — and the only repair the arm accepted, editing that past entry,
+is forbidden by name in `test-aai-git-ref-guard.sh` ("credit must be paid by
+ADDING an entry, never by editing history"). The two were mutually
+unsatisfiable, so `.aai/VALIDATION.prompt.md`, `.aai/SKILL_UPDATE.prompt.md`
+and `.aai/AGENTS.md` were unmergeable.
+
+Three of the four walls were built by this factory in the preceding three days.
+PR #388 was already stuck behind one.
+
+- The equalities are now FLOORS, routed through one helper so all four arms
+  share the decision, and each arm proves itself against a fabricated
+  off-by-one credit and a fabricated below-floor size in the same run.
+- `.aai/AGENTS.md` sits in neither the prompt glob nor the corpus ratchet's
+  extra set, so the equality was its only on-disk control; it gains a declared
+  ceiling instead.
+- A corpus scan refuses the wall shape so the next ride cannot rebuild it.
+
+**Honestly reduced:** a single uncredited byte in the `.aai/*.prompt.md` glob no
+longer reddens on its own. Cover now begins once the corpus ratchet's headroom
+(2042 B when measured) is exhausted. The trade is deliberate — the equality it
+replaces made three canon files permanently unmergeable.
+
 ## [unreleased] — feat(roadmap): the roadmap takes a direction from the owner instead of only refusing rides (CHANGE-0194 / SPEC-0188)
 
 `docs/ai/roadmap.yaml` was read by three scripts and **written by none**, so the
