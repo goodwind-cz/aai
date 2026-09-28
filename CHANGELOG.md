@@ -22,6 +22,18 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat: original-request outcome backcheck
+
+- **Validation PASS carries an outcome backcheck.** Reports use one
+  `aai-outcome-v1` block that links original-request constraints to observed
+  evidence.
+- **The stdlib-only checker refuses invalid evidence.** Missing, contradictory,
+  stale, changed, preview-only, and wrong-target evidence cannot support a
+  dispatched Validation PASS; code-only validation stays concise.
+- **Loop resume invalidates a refused standing PASS.** It resets the status to
+  `not_run` before fresh Validation dispatches, preventing stale routing to
+  Metrics Flush.
+
 ## [unreleased] — fix(tests): a ride's own growth pin stops walling every ride after it (CHANGE-0195 / SPEC-0189)
 
 Four arms in `tests/skills/test-aai-prompt-diet.sh` asserted that a prompt

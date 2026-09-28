@@ -29,12 +29,12 @@ of canon bodies into a brief (prompt-diet discipline, RES-0001 F3).
 Per Spec-AC: the verification command(s), expected exit code, and evidence
 path — lifted from the spec's Verification section.
 - Spec-AC-01: <command> → <expected evidence + path>
+- Validation PASS: one authoritative `VALIDATION-*.md` report with an admissible
+  `aai-outcome-v1` block; the same path is returned as `outcome_report` and as
+  `set-validation --evidence`.
 
 ## Return Record
-Fill this skeleton and return it as your result block — do not invent another
-format. Single source: .aai/SUBAGENT_CONTRACT.md section
-"Result block (mandatory subagent output)"; if this skeleton and the contract
-ever diverge, the contract wins (re-sync the template).
+Fill this skeleton and return it as your result block — do not invent another format. The canonical .aai/SUBAGENT_CONTRACT.md section on result blocks wins on divergence.
 
 ```yaml
 subagent_result:
@@ -52,6 +52,7 @@ subagent_result:
     - <relative path>
   blockers:
     - <description of any blocker; empty list if none>
+  outcome_report: <required scalar path for role Validation + status PASS only>
   state_update_commands:            # optional (D1): STATE mutator commands returned instead of run
     - <fully-substituted node .aai/scripts/state.mjs ... command, one per item, indented exactly as here>
 ```

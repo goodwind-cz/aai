@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-28T05:59:31.100Z
+Generated: 2026-09-28T10:04:14.231Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (28)
+## Product (29)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -39,6 +39,7 @@ _None._
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
 | lightweight-e2e-lane | lightweight-e2e-lane | 1 | docs/product/lightweight-e2e-lane.md |
 | live-status-dashboard | live-status-dashboard | 2 | docs/product/live-status-dashboard.md |
+| original-request-outcome-backcheck | original-request-outcome-backcheck | 1 | docs/product/original-request-outcome-backcheck.md |
 | orphan-sweep | orphan-sweep | 1 | docs/product/orphan-sweep.md |
 | platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
@@ -50,7 +51,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (450)
+## Done (452)
 
 | ID | Type | Path |
 |---|---|---|
@@ -238,6 +239,7 @@ _None._
 | CHANGE-0186 | issues | docs/issues/CHANGE-0186-dispatch-state-sweep.md |
 | CHANGE-0187 | issues | docs/issues/CHANGE-0187-mutation-gate-for-tests.md |
 | CHANGE-0188 | issues | docs/issues/CHANGE-0188-close-ceremony-sweep.md |
+| CHANGE-0189 | issues | docs/issues/CHANGE-0189-original-request-outcome-backcheck.md |
 | CHANGE-0190 | issues | docs/issues/CHANGE-0190-friction-channel-sweep.md |
 | CHANGE-0191 | issues | docs/issues/CHANGE-0191-canon-is-a-build-artifact.md |
 | CHANGE-0193 | issues | docs/issues/CHANGE-0193-gate-checks-declared-mutation.md |
@@ -496,6 +498,7 @@ _None._
 | SPEC-0180 | specs | docs/specs/SPEC-0180-spec-dispatch-state-sweep.md |
 | SPEC-0181 | specs | docs/specs/SPEC-0181-spec-mutation-gate-for-tests.md |
 | SPEC-0182 | specs | docs/specs/SPEC-0182-spec-close-ceremony-sweep.md |
+| SPEC-0183 | specs | docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md |
 | SPEC-0184 | specs | docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md |
 | SPEC-0185 | specs | docs/specs/SPEC-0185-spec-friction-channel-sweep.md |
 | SPEC-0186 | specs | docs/specs/SPEC-0186-spec-canon-is-a-build-artifact.md |
@@ -505,7 +508,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
@@ -523,6 +526,7 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
+| RES-0004 | specs | docs/specs/RES-0004-longhorizon-harness-adoption.md |
 
 ## Deferred (whole-doc) (0)
 

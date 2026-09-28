@@ -844,48 +844,56 @@ test_012_growth_sum_matches_ledger() {
   # bullet naming lane-gate.mjs --sweep-check --pr <n> as an explicit
   # pre-merge command so Spec-AC-34's gate runs whether or not the Claude
   # hooks overlay is installed. Credited 1:1, headroom stays 2046/2048.
-  # Then 35417 -> 35820: update-installs-ref-guard-undisclosed Spec-AC-08
+  # Then 35417 -> 36633: original-request-outcome-backcheck D1-D3; then
+  # 36633 -> 37073: its resume-routing remediation; then 37073 -> 37090:
+  # required text-pin remediation; then 37090 -> 38157: its final-head
+  # pre-completion tree-staleness gate remediation (+1067 B); then
+  # 38157 -> 38887: validation-handoff remediation (+730 B).
+  # Rebased onto main 2026-09-28: the seven entries below were recorded
+  # against 35417 on main and are restated here from 38887, the total
+  # this branch's own five entries left behind.
+  # Then 38887 -> 39290: update-installs-ref-guard-undisclosed Spec-AC-08
   # (+403 B, TEST-622) -- .aai/SKILL_UPDATE.prompt.md step 4 rewritten to
   # name both installed hooks (AAI:INDEX-AUTOGEN, AAI:REF-GUARD), the
   # ref-guard's refs/heads/main + AAI_GIT_WRITE=1 effect and the
   # --decline-ref-guard escape, replacing the pre-commit-only safety
   # sentence fact 4 named as the stale contract. Credited 1:1, headroom
   # stays 2046/2048.
-  # friction-channel-sweep validation-round1 B2 remediation: 35820 -> 36842
+  # friction-channel-sweep validation-round1 B2 remediation: 39290 -> 40312
   # (+1022 B) crediting .aai/SKILL_FEEDBACK_UPSERT.prompt.md's Safety model /
   # "After a confirmed publish" rewrite so the prompt states the certified-
   # prose analysis-comment write Spec-AC-06 actually ships, instead of the
   # prior "only prints, never runs" text. Credited 1:1, headroom stays
   # 1942/2048 (TEST-010).
-  # friction-channel-sweep code-review remediation3 BLOCKING fix: 36842 ->
-  # 37038 (+196 B) crediting .aai/SKILL_WRAP_UP.prompt.md step 3's new
+  # friction-channel-sweep code-review remediation3 BLOCKING fix: 40312 ->
+  # 40508 (+196 B) crediting .aai/SKILL_WRAP_UP.prompt.md step 3's new
   # session-marker self-mark / --guard override sentence (learned-append.mjs
   # now emits a conforming [local]/[guard -> <id>] marker when its default
   # EOF insertion lands under the file's last "## Session ..." heading, so
   # the writer this ride ships can satisfy the lint this ride ships).
   # Credited 1:1, headroom stays 1942/2048 (TEST-010).
-  # Then 37038 -> 37212: friction-channel-sweep PR #394 bot review remediation
+  # Then 40508 -> 40682: friction-channel-sweep PR #394 bot review remediation
   # F4 (+174 B) -- .aai/SKILL_FEEDBACK_TRIAGE.prompt.md's Report section states
   # the SIGNAL_FLOOR gate on the recurrence bonus (a zero-signal cluster
   # scores 0 no matter how often it recurs) instead of the flat
   # impact+confidence+reproducible+recurrence sum the code no longer
   # implements. Credited 1:1, headroom stays 1942/2048 (TEST-010).
-  # Then 37212 -> 37344: canon-is-a-build-artifact run 2 (Spec-AC-07/D8)
+  # Then 40682 -> 40814: canon-is-a-build-artifact run 2 (Spec-AC-07/D8)
   # (+132 B) -- .aai/ORCHESTRATION.prompt.md step 2's one runnable
   # canon.mjs build command line TEST-684 extracts and executes. Credited
   # 1:1, headroom stays 1942/2048 (TEST-010).
-  # Then 37344 -> 37762: canon-is-a-build-artifact run 3 (Spec-AC-13)
+  # Then 40814 -> 41232: canon-is-a-build-artifact run 3 (Spec-AC-13)
   # (+418 B) -- .aai/VALIDATION.prompt.md's round-cap rule gains STANDING
   # DECISION (a) (owner decision wave-2-roadmap, 2026-09-12), the citation
   # canon.mjs check --section decision_citations now resolves. Credited
   # 1:1, headroom stays 1942/2048 (TEST-010).
-  # Then 37762 -> 37862: roadmap-takes-direction run 3 (Spec-AC-16) (+100 B)
+  # Then 41232 -> 41332: roadmap-takes-direction run 3 (Spec-AC-16) (+100 B)
   # -- .aai/AGENTS.md Operator contract rule 4 gains one sentence naming
   # `roadmap-propose.mjs bind` and `roadmap-propose.mjs harvest`, kept to
   # the tight 106 B of remaining headroom (AGENTS.md sits outside TEST-010's
   # live glob, so this credit adds to headroom with no offsetting shrink).
   # Credited 1:1, headroom moves 1942 -> 2042/2048 (TEST-010).
-  local want_growth=37862
+  local want_growth=41332
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-09-28T05:45:10.395Z",
+  "generatedAt": "2026-09-28T08:39:50.118Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 140,
-    "delivered": 458,
+    "rides": 141,
+    "delivered": 460,
     "active_weeks": 14,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (458 closes vs 140 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 458,
-    "delivered_per_week_avg": 32.7,
+    "note": "\"delivered\" counts every work_item_closed event (460 closes vs 141 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 460,
+    "delivered_per_week_avg": 32.9,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -27,7 +27,7 @@
       "2026-W36": 31,
       "2026-W37": 15,
       "2026-W38": 12,
-      "2026-W39": 13,
+      "2026-W39": 15,
       "2026-W40": 2
     },
     "delivered_groups": [
@@ -439,7 +439,7 @@
         "key": "month:2026-09",
         "kind": "month",
         "label": "2026-09",
-        "count": 70,
+        "count": 72,
         "refs": [
           "intake-staleness-preflight-warning",
           "spec-intake-staleness-preflight-warning",
@@ -510,7 +510,9 @@
           "roadmap-takes-direction",
           "spec-roadmap-takes-direction",
           "growth-pins-dont-wall-the-corpus",
-          "spec-growth-pins-dont-wall-the-corpus"
+          "spec-growth-pins-dont-wall-the-corpus",
+          "original-request-outcome-backcheck",
+          "spec-original-request-outcome-backcheck"
         ]
       }
     ],
@@ -2347,24 +2349,32 @@
         {
           "ref": "spec-growth-pins-dont-wall-the-corpus",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "original-request-outcome-backcheck",
+          "lead_time_seconds": 31414
+        },
+        {
+          "ref": "spec-original-request-outcome-backcheck",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 4148,
-      "mean_seconds": 115703,
-      "measured": 136,
-      "unmeasurable": 322
+      "median_seconds": 4152,
+      "mean_seconds": 115087.8,
+      "measured": 137,
+      "unmeasurable": 323
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2357,
-      "mean": 5446.2,
-      "measured": 138
+      "median": 2359,
+      "mean": 5580.2,
+      "measured": 139
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 200140,
+        "duration_seconds": 202750,
         "tokens": 19960138
       },
       {
@@ -2374,23 +2384,28 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 72212,
+        "duration_seconds": 73031,
         "tokens": 10861080
       },
       {
         "role": "Remediation",
-        "duration_seconds": 117796,
+        "duration_seconds": 119435,
         "tokens": 12722278
       },
       {
         "role": "Validation",
-        "duration_seconds": 228263,
+        "duration_seconds": 231470,
         "tokens": 14780110
       },
       {
         "role": "Planning",
         "duration_seconds": 77513,
         "tokens": 10204831
+      },
+      {
+        "role": "Other",
+        "duration_seconds": 15801,
+        "tokens": null
       }
     ],
     "per_ride": [
@@ -3093,6 +3108,11 @@
         "ref": "test-framework-sweep",
         "busy_seconds": 65069,
         "remediation_runs": 5
+      },
+      {
+        "ref": "original-request-outcome-backcheck",
+        "busy_seconds": 24076,
+        "remediation_runs": 4
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -3131,12 +3151,16 @@
       {
         "role": "Planning",
         "tokens": 10204831
+      },
+      {
+        "role": "Other",
+        "tokens": null
       }
     ],
     "capture_coverage": {
       "runs_with_marker": 427,
-      "total_runs": 694,
-      "pct": 62,
+      "total_runs": 729,
+      "pct": 59,
       "by_week": [
         {
           "week": "2026-W27",
@@ -3209,6 +3233,12 @@
           "runs_with_marker": 12,
           "total_runs": 37,
           "pct": 32
+        },
+        {
+          "week": "2026-W39",
+          "runs_with_marker": 0,
+          "total_runs": 35,
+          "pct": 0
         }
       ]
     },
@@ -3216,9 +3246,9 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 101,
+          "runs_total": 102,
           "runs_marked": 77,
-          "runs_sentinel": 0,
+          "runs_sentinel": 1,
           "runs_unmarked": 24,
           "tokens_total": 19960138,
           "median_tokens_per_run": 251458,
@@ -3236,9 +3266,9 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 151,
+          "runs_total": 153,
           "runs_marked": 99,
-          "runs_sentinel": 0,
+          "runs_sentinel": 2,
           "runs_unmarked": 52,
           "tokens_total": 10861080,
           "median_tokens_per_run": 98503,
@@ -3246,9 +3276,9 @@
         },
         {
           "role": "Remediation",
-          "runs_total": 105,
+          "runs_total": 109,
           "runs_marked": 64,
-          "runs_sentinel": 0,
+          "runs_sentinel": 4,
           "runs_unmarked": 41,
           "tokens_total": 12722278,
           "median_tokens_per_run": 175818,
@@ -3256,9 +3286,9 @@
         },
         {
           "role": "Validation",
-          "runs_total": 171,
+          "runs_total": 176,
           "runs_marked": 107,
-          "runs_sentinel": 0,
+          "runs_sentinel": 5,
           "runs_unmarked": 64,
           "tokens_total": 14780110,
           "median_tokens_per_run": 130836,
@@ -3273,6 +3303,16 @@
           "tokens_total": 10204831,
           "median_tokens_per_run": 140551,
           "share_pct": 14
+        },
+        {
+          "role": "Other",
+          "runs_total": 23,
+          "runs_marked": 0,
+          "runs_sentinel": 7,
+          "runs_unmarked": 16,
+          "tokens_total": null,
+          "median_tokens_per_run": null,
+          "share_pct": null
         }
       ],
       "by_week": [
@@ -3306,6 +3346,11 @@
             },
             {
               "role": "Planning",
+              "runs_marked": 0,
+              "median_tokens": null
+            },
+            {
+              "role": "Other",
               "runs_marked": 0,
               "median_tokens": null
             }
@@ -3343,6 +3388,11 @@
               "role": "Planning",
               "runs_marked": 0,
               "median_tokens": null
+            },
+            {
+              "role": "Other",
+              "runs_marked": 0,
+              "median_tokens": null
             }
           ]
         },
@@ -3378,6 +3428,11 @@
               "role": "Planning",
               "runs_marked": 19,
               "median_tokens": 114293
+            },
+            {
+              "role": "Other",
+              "runs_marked": 0,
+              "median_tokens": null
             }
           ]
         },
@@ -3413,6 +3468,11 @@
               "role": "Planning",
               "runs_marked": 13,
               "median_tokens": 117542
+            },
+            {
+              "role": "Other",
+              "runs_marked": 0,
+              "median_tokens": null
             }
           ]
         },
@@ -3448,6 +3508,11 @@
               "role": "Planning",
               "runs_marked": 5,
               "median_tokens": 113236
+            },
+            {
+              "role": "Other",
+              "runs_marked": 0,
+              "median_tokens": null
             }
           ]
         },
@@ -3483,6 +3548,11 @@
               "role": "Planning",
               "runs_marked": 3,
               "median_tokens": 153916
+            },
+            {
+              "role": "Other",
+              "runs_marked": 0,
+              "median_tokens": null
             }
           ]
         },
@@ -3518,6 +3588,11 @@
               "role": "Planning",
               "runs_marked": 15,
               "median_tokens": 160524
+            },
+            {
+              "role": "Other",
+              "runs_marked": 0,
+              "median_tokens": null
             }
           ]
         },
@@ -3553,6 +3628,11 @@
               "role": "Planning",
               "runs_marked": 3,
               "median_tokens": 193125
+            },
+            {
+              "role": "Other",
+              "runs_marked": 0,
+              "median_tokens": null
             }
           ]
         },
@@ -3588,6 +3668,11 @@
               "role": "Planning",
               "runs_marked": 5,
               "median_tokens": 172169
+            },
+            {
+              "role": "Other",
+              "runs_marked": 0,
+              "median_tokens": null
             }
           ]
         },
@@ -3621,6 +3706,11 @@
             },
             {
               "role": "Planning",
+              "runs_marked": 0,
+              "median_tokens": null
+            },
+            {
+              "role": "Other",
               "runs_marked": 0,
               "median_tokens": null
             }
@@ -3658,6 +3748,11 @@
               "role": "Planning",
               "runs_marked": 6,
               "median_tokens": 184193
+            },
+            {
+              "role": "Other",
+              "runs_marked": 0,
+              "median_tokens": null
             }
           ]
         },
@@ -3693,6 +3788,11 @@
               "role": "Planning",
               "runs_marked": 1,
               "median_tokens": 338115
+            },
+            {
+              "role": "Other",
+              "runs_marked": 0,
+              "median_tokens": null
             }
           ]
         },
@@ -3726,6 +3826,11 @@
             },
             {
               "role": "Planning",
+              "runs_marked": 0,
+              "median_tokens": null
+            },
+            {
+              "role": "Other",
               "runs_marked": 0,
               "median_tokens": null
             }
@@ -3763,6 +3868,11 @@
               "role": "Planning",
               "runs_marked": 0,
               "median_tokens": null
+            },
+            {
+              "role": "Other",
+              "runs_marked": 0,
+              "median_tokens": null
             }
           ]
         }
@@ -3772,8 +3882,8 @@
   "quality": {
     "first_pass_clean": {
       "clean": 83,
-      "flagged": 114,
-      "rate_pct": 73
+      "flagged": 115,
+      "rate_pct": 72
     },
     "na_reliability": 26,
     "remediation_distribution": {
@@ -3781,7 +3891,7 @@
       "1": 10,
       "2": 7,
       "3": 4,
-      "4": 4,
+      "4": 5,
       "5": 4,
       "6": 1,
       "8": 1,
@@ -3790,7 +3900,7 @@
     "avg_validation_fails": 0.1,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 127,
+      "PASS": 128,
       "null": 13
     },
     "review_events": 26,
@@ -3805,7 +3915,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 3,
+    "field_derived": 4,
     "marker_derived": 2,
     "mixed": 0,
     "no_basis": 135,
@@ -4509,6 +4619,11 @@
         "ref": "test-framework-sweep",
         "verdict_source": "field",
         "cost_basis": "total-blended"
+      },
+      {
+        "ref": "original-request-outcome-backcheck",
+        "verdict_source": "field",
+        "cost_basis": "none"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -4612,11 +4727,11 @@
     },
     {
       "week": "2026-W39",
-      "delivered": 13,
-      "median_lead_time_seconds": null,
-      "busy_seconds": null,
+      "delivered": 15,
+      "median_lead_time_seconds": 31414,
+      "busy_seconds": 24076,
       "tokens": null,
-      "first_pass_rate": null
+      "first_pass_rate": 0
     },
     {
       "week": "2026-W40",
@@ -4630,13 +4745,13 @@
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
     "open_count": 134,
-    "oldest_age_days": 37,
+    "oldest_age_days": 38,
     "items": [
       {
         "id": "fu-typemap-missing-research-hotfix",
         "ref": "spec-intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 37,
+        "age_days": 38,
         "what": "allocate-doc-number.mjs TYPE_MAP has no research and no hotfix row, so --type research and --type hotfix exit 2 as unknown types",
         "status": "open"
       },
@@ -4644,7 +4759,7 @@
         "id": "fu-amend-friction-upsert-channel-ba7701",
         "ref": "friction-upsert-channel-cannot-file",
         "severity": "P2",
-        "age_days": 23,
+        "age_days": 24,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-friction-upsert-channel-cannot-file (docs/specs/spec-friction-upsert-channel-cannot-file): renumbered the Test Plan ids to avoid collision with the suite's existing TEST-001..012, replaced the planned RED control with a stub-contract plus source-token pair, and pinned one-line-per-invocation recording in the gh stub",
         "status": "open"
       },
@@ -4852,7 +4967,7 @@
         "id": "fu-pre-commit-checks-pipe-grep-q",
         "ref": "CHANGE-0185",
         "severity": "P2",
-        "age_days": 13,
+        "age_days": 14,
         "what": ".aai/scripts/pre-commit-checks.sh runs under pipefail and decides with 7 'echo $var | grep -q' pipes; the early-closing reader can SIGPIPE the producer and flip a guard decision (same class as round 9/10 of PR #381)",
         "status": "open"
       },
@@ -4860,7 +4975,7 @@
         "id": "fu-follow-ups-test021-fifo-eintr",
         "ref": "CHANGE-0185",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "test-aai-follow-ups.sh TEST-021 (FIFO arm) fails under 4-way parallel load with 'Interrupted system call' / 'Bad file descriptor' and passes standalone",
         "status": "open"
       },
@@ -5028,7 +5143,7 @@
         "id": "fu-sweep-check-not-a-required-check",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "the report-only sweep-check job in .github/workflows/docs-numbering.yml (Spec-AC-34) is not a required GitHub check",
         "status": "open"
       },
@@ -5164,7 +5279,7 @@
         "id": "fu-mutation-selector-vs-bare-dispatch",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "mutation-run.mjs passes the full test_* function name to --selector, but suites whose main() dispatches on declare -f test_$t expect the bare suffix, so every mutation against such a suite returns INCONCLUSIVE",
         "status": "open"
       },
@@ -5172,7 +5287,7 @@
         "id": "fu-ps1-writeerror-terminates-before-exit",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "install-pre-commit-hook.ps1 sets ErrorActionPreference Stop, so Write-Error terminates before the following exit N ever runs; every pre-existing Write-Error plus exit pair lands on exit 1 by coincidence, not by intent",
         "status": "open"
       },
@@ -5180,7 +5295,7 @@
         "id": "fu-duplicate-message-collides-mutation",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "new code that echoes an EXISTING refusal or disclosure sentence verbatim gives a recorded mutation a second, unmutated copy, so the sed hits whichever comes first in file order and the row silently stops proving its property",
         "status": "open"
       },
@@ -5188,7 +5303,7 @@
         "id": "fu-amend-update-installs-ref-guar-f8caa1",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-update-installs-ref-guard-undisclosed: Spec-AC-05 and Spec-AC-06 bind the PowerShell twin too, delivered in run 3; TEST-613, TEST-616 and TEST-617 record equivalent mutations",
         "status": "open"
       },
@@ -5404,7 +5519,7 @@
         "id": "fu-amend-spec-friction-channel-sweep",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-friction-channel-sweep: TEST-672 and TEST-673 added for validation round 1's four blocking findings; the Registry section relabelled to the closure reader's grammar; the prompt's safety model corrected to describe the second mutating call",
         "status": "open"
       },
@@ -5412,7 +5527,7 @@
         "id": "fu-friction-loop-has-no-scheduler",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "nothing in the factory runs aai-feedback-status.mjs or the triage engine except /aai-wrap-up",
         "status": "open"
       },
@@ -5420,7 +5535,7 @@
         "id": "fu-runtests-capture-is-unscored-noise",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the wrapper's automatic capture supplies confidence: low and no impact on every non-zero exit, including every deliberate TDD RED run",
         "status": "open"
       },
@@ -5428,7 +5543,7 @@
         "id": "fu-runtests-ps1-captures-no-friction",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "aai-run-tests.ps1 has no capture point at all, so a Windows-only failure never reaches the friction channel",
         "status": "open"
       },
@@ -5436,7 +5551,7 @@
         "id": "fu-672-identity-is-squeeze-bound",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "TEST-672's byte-identical comparison runs over tr -s ' ' output and truncates the create side at the literal string \" - failure_class:\"",
         "status": "open"
       },
@@ -5444,7 +5559,7 @@
         "id": "fu-672-no-second-read-assertion",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "spec row and Amendment 2 both claim TEST-672 pins the comment body coming from the blockquote rather than a second independent read of rep.summary; it does not",
         "status": "open"
       },
@@ -5452,7 +5567,7 @@
         "id": "fu-673-elapsed-threshold-headroom",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "TEST-673 asserts elapsed -le 5 seconds against a close ceremony that runs git, docs-audit and four regen passes",
         "status": "open"
       },
@@ -5460,7 +5575,7 @@
         "id": "fu-amendment-rule-not-rule-applied",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "an amendment corrects and does not rewrite is contradicted by the same diff, which rewrote three Registry section headings from prose subheadings to the NOT CLOSED vocabulary",
         "status": "open"
       },
@@ -5468,7 +5583,7 @@
         "id": "fu-backlog-timeout-can-be-weakened",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "AAI_FRICTION_BACKLOG_TIMEOUT_MS accepts a finite value like 999999999 which silently disables the outer bound for practical purposes",
         "status": "open"
       },
@@ -5476,7 +5591,7 @@
         "id": "fu-diet-ledger-plan-qualifier-wrong",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the prompt-diet ledger entry for this ride reads +1022 B, inside the spec's declared ~900 B plan",
         "status": "open"
       },
@@ -5484,7 +5599,7 @@
         "id": "fu-mutation-evidence-is-gitignored",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "pre-existing, not this ride: .gitignore:35 excludes docs/ai/tdd/**, so the 25 mutation records mutation-gate.mjs reads for this spec are never committed",
         "status": "open"
       },
@@ -5492,7 +5607,7 @@
         "id": "fu-note-not-what-hung-gh-produces",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "Amendment 2 and the close comment associate a hung backlog step's degrade-to-NOTE with a hung gh call specifically",
         "status": "open"
       },
@@ -5500,7 +5615,7 @@
         "id": "fu-prompt-only-when-misses-dropped-case",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the prompt says the standalone command is printed only when the record is prose-free, or the URL could not be certified",
         "status": "open"
       },
@@ -5508,7 +5623,7 @@
         "id": "fu-two-prompt-files-still-stale",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the frozen plan named three corpus files whose text describes behaviour this scope changes; only one was corrected, and Amendment 2 speaks of that file and the dropped plan item in the singular",
         "status": "open"
       },
@@ -5516,7 +5631,7 @@
         "id": "fu-merge-needs-paired-flag",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "carried from round 1, still true: the close must pass --paired hand-authored-friction-is-second-class or six of the seven docs-audit reds survive the merge",
         "status": "open"
       },
@@ -5524,7 +5639,7 @@
         "id": "fu-mutation-gate-absent-tree-passes",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "mutation-gate.mjs is absent from .github/workflows entirely, and on a checkout without the gitignored evidence tree it returns the named degrade class 'evidence tree absent' at EXIT 0",
         "status": "open"
       },
@@ -5689,19 +5804,19 @@
         "status": "open"
       },
       {
-        "id": "fu-wall-scan-evaded-by-lt-gt",
-        "ref": "growth-pins-dont-wall-the-corpus",
-        "severity": "P3",
-        "age_days": 0,
-        "what": "the wall-shape scan misses a byte-identical wall written as [[ $now -lt $after ",
-        "status": "open"
-      },
-      {
         "id": "fu-wall-scan-misses-lib-dir",
         "ref": "growth-pins-dont-wall-the-corpus",
         "severity": "P3",
         "age_days": 0,
         "what": "the wall-shape scan (Spec-AC-05) does not reach tests/skills/lib/ — the identical equality planted there leaves TEST-770 green, proven by validation round 1",
+        "status": "open"
+      },
+      {
+        "id": "fu-wall-scan-evaded-two-sided",
+        "ref": "growth-pins-dont-wall-the-corpus",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the wall-shape scan (SPEC-0189 Spec-AC-05) misses a byte-identical wall written as a two-sided inequality (less-than OR greater-than against the same pair), and also misses a path held in a variable or reached through one extra variable hop",
         "status": "open"
       }
     ]
@@ -5938,6 +6053,40 @@
           {
             "role": "Planning",
             "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 4,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "original-request-outcome-backcheck",
+        "date_utc": "2026-09-23",
+        "runs_total": 35,
+        "elapsed_wall_seconds": 31209,
+        "agent_seconds": 24076,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 4
+          },
+          {
+            "role": "Validation",
+            "runs": 5
+          },
+          {
+            "role": "Other",
+            "runs": 23
           }
         ],
         "runs_marked": 0,
@@ -9830,8 +9979,9 @@
   },
   "notes": [
     "NOTE 7 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
+    "NOTE 23 agent_run(s) had a role that matched no canonical role — bucketed as Other",
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
-    "NOTE 49 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
+    "NOTE 50 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
     "NOTE 4 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",
     "NOTE 25 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
     "NOTE 1 id-less follow_up entry folded under a derived id (fu-<ref_id-slug>-<yyyymmddThhmm>) — the original line is never rewritten"

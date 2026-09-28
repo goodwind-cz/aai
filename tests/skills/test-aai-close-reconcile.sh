@@ -339,8 +339,8 @@ test_003_apply_closes_paired_docs_recheck_clean_idempotent() {
   assert_payload_contains "$out" "CLOSED docs/issues/ISSUE-0003-t003.md" "TEST-003: missing CLOSED confirmation for the primary doc"
 
   grep -q "^status: done" "$dir/docs/issues/ISSUE-0003-t003.md" || log_fail "TEST-003: primary doc frontmatter status not flipped to done"
-  grep -qF "    - 103" "$dir/docs/issues/ISSUE-0003-t003.md" || log_fail "TEST-003: primary doc links.pr does not carry 103"
-  grep -qF "    - $head" "$dir/docs/issues/ISSUE-0003-t003.md" || log_fail "TEST-003: primary doc links.commits does not carry the delivery sha"
+  grep -qxF "    - 103" "$dir/docs/issues/ISSUE-0003-t003.md" || log_fail "TEST-003: primary doc links.pr does not carry 103"
+  grep -qxF "    - $head" "$dir/docs/issues/ISSUE-0003-t003.md" || log_fail "TEST-003: primary doc links.commits does not carry the delivery sha"
 
   # multi-source/multi-writer: the paired spec closed in the SAME transaction.
   grep -q "^status: done" "$dir/docs/specs/SPEC-0003-t003.md" || log_fail "TEST-003: paired spec doc was not closed alongside its primary doc"
@@ -676,20 +676,33 @@ test_014_attribution_is_resolved_per_item_not_per_range() {
   out="$(node "$CLOSE_RECONCILE" --apply --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-014: expected exit 0 from --apply, got $rc. Output:\n$out"
 
-  grep -qF "    - 201" "$dir/docs/issues/ISSUE-0014-t014a.md" \
+  grep -qxF "    - 201" "$dir/docs/issues/ISSUE-0014-t014a.md" \
     || log_fail "TEST-014: item a must carry ITS OWN PR (201) in links.pr, not the range's newest"
-  grep -qF "    - $head1" "$dir/docs/issues/ISSUE-0014-t014a.md" \
+  grep -qxF "    - $head1" "$dir/docs/issues/ISSUE-0014-t014a.md" \
     || log_fail "TEST-014: item a must carry ITS OWN delivery commit ($head1) in links.commits, not the range's newest ($head)"
-  if grep -qF "    - 202" "$dir/docs/issues/ISSUE-0014-t014a.md"; then
+  if grep -qxF "    - 202" "$dir/docs/issues/ISSUE-0014-t014a.md"; then
     log_fail "TEST-014: item a wrongly carries PR 202 (the range-wide-attribution defect this test guards against)"
   fi
-  if grep -qF "    - $head" "$dir/docs/issues/ISSUE-0014-t014a.md"; then
+  if grep -qxF "    - $head" "$dir/docs/issues/ISSUE-0014-t014a.md"; then
     log_fail "TEST-014: item a wrongly carries the range's newest commit ($head) instead of its own ($head1)"
   fi
-  grep -qF "    - 202" "$dir/docs/issues/ISSUE-0014-t014b.md" \
+  grep -qxF "    - 202" "$dir/docs/issues/ISSUE-0014-t014b.md" \
     || log_fail "TEST-014: item b must carry PR 202 in links.pr"
-  grep -qF "    - $head" "$dir/docs/issues/ISSUE-0014-t014b.md" \
+  grep -qxF "    - $head" "$dir/docs/issues/ISSUE-0014-t014b.md" \
     || log_fail "TEST-014: item b must carry the delivery commit ($head) in links.commits"
+
+  # The two negative arms above ask whether the OTHER item's PR number leaked
+  # into this doc. Unanchored, `- 202` also matches a COMMIT SHA beginning
+  # "202" -- one delivery sha in 4096, which is how this suite failed on CI
+  # (2026-09-28) while passing everywhere else. The arms are whole-line
+  # matches now; this probe is what keeps them that way.
+  local probe="$TEST_DIR/t014-anchor-probe.md"
+  printf '%s\n' '  pr:' '    - 201' '  commits:' '    - 202fa17c9b0e4d5a6f8b1c2d3e4f5a6b7c8d9e0f' > "$probe"
+  if grep -qxF "    - 202" "$probe"; then
+    log_fail "TEST-014: the PR-leak arms must match whole lines — a commit sha beginning 202 is not PR 202"
+  fi
+  grep -qxF "    - 201" "$probe" \
+    || log_fail "TEST-014: the whole-line match must still find a PR number that IS present"
 
   log_pass "TEST-014: each item is attributed from the commit that actually touched IT, never from the range's aggregate newest commit"
 }
