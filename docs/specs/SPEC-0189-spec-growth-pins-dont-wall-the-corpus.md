@@ -236,7 +236,7 @@ control. `.aai/AGENTS.md` keeps a per-file control via Spec-AC-04.
 | TEST-769 | Spec-AC-04 | integration | tests/skills/test-aai-prompt-diet.sh     | `.aai/AGENTS.md` is at or below `AGENTS_MD_CEILING`, and a fabricated oversize fixture is rejected by the same comparison                        | sed:s/AGENTS_MD_CEILING=/AGENTS_MD_CEILING=99999999 #/          | green |
 | TEST-770 | Spec-AC-05 | integration | tests/skills/test-aai-prompt-diet.sh     | The scan over tests/skills/*.sh reports zero equality pins on a live `.aai` byte count, and detects a fabricated arm carrying the TEST-697 shape | sed:s/-ne/-XX-never-matches/                                     | green |
 | TEST-771 | Spec-AC-06 | unit        | tests/skills/test-aai-prompt-diet.sh     | For the 418 B VALIDATION entry the helper accepts 21570, 23163 and 23581 and rejects 21152, the merge-base size the file no longer carries       | sed:s/disk -lt after/disk -ne after/                            | green |
-| TEST-772 | Spec-AC-01 | e2e         | tests/skills/test-aai-git-ref-guard.sh   | TEST-312 exits 0 with the converted suite, so the embedded run and the ledger append-only comparison both still hold (seam S1)                   | sed:s/disk -lt after/disk -ne after/                            | green |
+| TEST-772 | Spec-AC-01 | e2e         | tests/skills/test-aai-git-ref-guard.sh   | TEST-312 exits 0 with the converted suite, so the embedded run and the ledger append-only comparison both still hold (seam S1)                   | sed:s/disk -lt after/disk -ne after/                            | dropped |
 
 Test status values: pending, red, green.
 
