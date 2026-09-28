@@ -2,15 +2,17 @@
 id: spec-strategy-unscoped-from-current-focus
 type: spec
 number: 192
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 3d0dc40169721db22183005b307fb383db7e851c14728fef4427827c02f6f048
 ceremony_level: 3
 links:
   requirement: docs/issues/ISSUE-0086-strategy-unscoped-from-current-focus.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - d1fe5091373c81a7c148d145d136fe8246a169c6
 ---
 
 # Spec — bind implementation_strategy to the live current_focus ref_id

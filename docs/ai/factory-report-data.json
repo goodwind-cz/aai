@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-09-29T11:41:55.888Z",
+  "generatedAt": "2026-09-29T12:00:24.174Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 141,
-    "delivered": 466,
+    "delivered": 468,
     "active_weeks": 14,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (466 closes vs 141 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 466,
-    "delivered_per_week_avg": 33.3,
+    "note": "\"delivered\" counts every work_item_closed event (468 closes vs 141 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 468,
+    "delivered_per_week_avg": 33.4,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -28,7 +28,7 @@
       "2026-W37": 15,
       "2026-W38": 12,
       "2026-W39": 15,
-      "2026-W40": 8
+      "2026-W40": 10
     },
     "delivered_groups": [
       {
@@ -439,7 +439,7 @@
         "key": "month:2026-09",
         "kind": "month",
         "label": "2026-09",
-        "count": 78,
+        "count": 80,
         "refs": [
           "intake-staleness-preflight-warning",
           "spec-intake-staleness-preflight-warning",
@@ -518,7 +518,9 @@
           "feedback-triage-missing-output-dir",
           "spec-feedback-triage-missing-output-dir",
           "prompts-invoke-wsl-bash-on-windows",
-          "spec-prompts-invoke-wsl-bash-on-windows"
+          "spec-prompts-invoke-wsl-bash-on-windows",
+          "strategy-unscoped-from-current-focus",
+          "spec-strategy-unscoped-from-current-focus"
         ]
       }
     ],
@@ -2387,12 +2389,20 @@
         {
           "ref": "spec-prompts-invoke-wsl-bash-on-windows",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "strategy-unscoped-from-current-focus",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-strategy-unscoped-from-current-focus",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 4152,
       "mean_seconds": 115087.8,
       "measured": 137,
-      "unmeasurable": 329
+      "unmeasurable": 331
     }
   },
   "speed": {
@@ -4765,7 +4775,7 @@
     },
     {
       "week": "2026-W40",
-      "delivered": 8,
+      "delivered": 10,
       "median_lead_time_seconds": null,
       "busy_seconds": null,
       "tokens": null,
@@ -4774,7 +4784,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 141,
+    "open_count": 143,
     "oldest_age_days": 39,
     "items": [
       {
@@ -5903,6 +5913,22 @@
         "severity": "P2",
         "age_days": 0,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-prompts-invoke-wsl-bash-on-windows: mechanical restamp: the allocator rewrote this frozen spec’s own SPEC-DRAFT- path(s) at merge",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-strategy-unscoped-from-c-4f2cdf",
+        "ref": "strategy-unscoped-from-current-focus",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-strategy-unscoped-from-current-focus: TDD GREEN: restamp mutation cells that actually RED (bindRef-unique void 0; false && short-circuit without BRE backslashes), mark TEST-001..007 green, flip Spec-AC-01..06 to done with tdd evidence paths, record HITL-7 inline isolation",
+        "status": "open"
+      },
+      {
+        "id": "fu-set-strategy-ref-shape",
+        "ref": "strategy-unscoped-from-current-focus",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "set-strategy --ref is not shape-validated; empty --ref with unset focus writes ref_id empty and Planning retarget then treats the intake stamp as stale",
         "status": "open"
       }
     ]

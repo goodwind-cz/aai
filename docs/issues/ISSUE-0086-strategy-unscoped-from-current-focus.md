@@ -2,10 +2,12 @@
 id: strategy-unscoped-from-current-focus
 type: issue
 number: 86
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - d1fe5091373c81a7c148d145d136fe8246a169c6
 ---
 
 # Issue — Global implementation_strategy can belong to a different work item than current_focus
