@@ -2,11 +2,13 @@
 id: growth-pins-dont-wall-the-corpus
 type: change
 number: 195
-status: draft
+status: done
 capability: growth-pins-dont-wall-the-corpus
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - c103f592ef2c04b19b42d5de8a4c2ca79fc577b4
 ---
 
 # A ride's own growth pin stops walling every ride that comes after it

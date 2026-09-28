@@ -2,15 +2,17 @@
 id: spec-growth-pins-dont-wall-the-corpus
 number: 189
 type: spec
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 35ff0896ea0d2345c6b8d2579eaf22c40d8435a7c57cd5f339405f8aae33375e
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0195-growth-pins-dont-wall-the-corpus.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - c103f592ef2c04b19b42d5de8a4c2ca79fc577b4
 ---
 
 # Spec — a ride's own growth pin stops walling every ride that comes after it
