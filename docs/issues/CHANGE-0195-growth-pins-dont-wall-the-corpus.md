@@ -6,7 +6,7 @@ status: done
 capability: growth-pins-dont-wall-the-corpus
 links:
   pr:
-    - TBD
+    - 400
   commits:
     - c103f592ef2c04b19b42d5de8a4c2ca79fc577b4
 ---
