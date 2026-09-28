@@ -253,7 +253,9 @@ No completion claim in this phase without the `.aai/SKILL_VERIFY.prompt.md` gate
    `node .aai/scripts/select-suites.mjs --files-from <changed files>`
    (VALIDATION.prompt.md c2). RECOMMENDED at ceremony_level 2 and 3
    before any done/complete claim: run once and report the real tally —
-   `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh`.
+   Canonical test invocation in `.aai/AGENTS.md` (Windows:
+   `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 bash tests/skills/test-framework.sh`;
+   POSIX: `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh`).
    NOT recommended at ceremony_level 0 and 1 (the level itself is the sanctioned
    reason). Absent/unreadable level is treated as 2 (fail-closed). If it did
    not run, say `SWEEP NOT RUN — <reason>` — never a silent omission, never a

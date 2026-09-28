@@ -24,8 +24,10 @@ IDENTIFY → RUN → READ → VERIFY → CLAIM
 
 1. IDENTIFY the specific claim about to be made — which test, which build,
    which behavior, on which files.
-2. RUN the command that can falsify it. For test suites, run through
-   `bash .aai/scripts/aai-run-tests.sh <cmd>` (LEARNED rule) — never invoke the
+2. RUN the command that can falsify it. For test suites, run through the
+   Canonical test invocation in `.aai/AGENTS.md` (Windows:
+   `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <cmd>`; POSIX:
+   `bash .aai/scripts/aai-run-tests.sh <cmd>`) (LEARNED rule) — never invoke the
    test runner directly.
 3. READ the full output, not just the exit-code banner and not just the
    tail.

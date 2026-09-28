@@ -1,7 +1,7 @@
 ---
 id: prompts-invoke-wsl-bash-on-windows
 type: issue
-number: null
+number: 85
 status: draft
 links:
   pr: []

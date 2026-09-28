@@ -172,7 +172,7 @@ PROCESS
       LEAK-SAFE EXECUTION (SPEC-0009): capture the step-start epoch —
       `AAI_REAP_STEP_START_EPOCH=$(date +%s)` — BEFORE launching the test
       command, then run every discovered test command THROUGH the
-      process-group wrapper `bash .aai/scripts/aai-run-tests.sh <cmd>` — never
+      process-group wrapper (Windows: `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <cmd>`; POSIX: `bash .aai/scripts/aai-run-tests.sh <cmd>`) — never
       invoke `vitest`/`tsc`/dev-servers directly. After the test step
       completes, reap this-workspace survivors on the step boundary with the
       workspace-scoped reaper `.aai/scripts/aai-reap-tests.sh`, passing it that
@@ -186,7 +186,9 @@ PROCESS
       SELECTED plus CORE suites named by
       `node .aai/scripts/select-suites.mjs --files-from <changed files>` and
       does NOT require a full sweep. ONE full
-      `bash tests/skills/test-framework.sh` runs before the close ceremony and
+      `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 bash tests/skills/test-framework.sh`
+      (Windows) / `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh` (POSIX)
+      runs before the close ceremony and
       is the sweep the TEST rows cite. State which of the two this round was.
       TWO ROUNDS MAX (owner decision review-round-cap, 2026-09-05): a third
       finding-bearing round is a STOP whose only instruction is "split the

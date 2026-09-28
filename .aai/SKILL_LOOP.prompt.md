@@ -83,7 +83,8 @@ must never orphan hung `vitest`/`esbuild` trees (observed: ~40 trees / ~5.6 GB
 after a 17-tick run). This is a hard rule for every test-running tick:
 - ROUTE THROUGH THE WRAPPER: never invoke `vitest`/`tsc`/dev-servers directly.
   Run every discovered test/build command through the process-group wrapper:
-    bash .aai/scripts/aai-run-tests.sh <cmd> [args...]
+    Windows: powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <cmd> [args...]
+    POSIX:   bash .aai/scripts/aai-run-tests.sh <cmd> [args...]
   It runs the command in its own process group with an inline timeout
   (`AAI_TEST_TIMEOUT`, default 300s → exit 124) and ALWAYS reaps the whole group
   on return, so a leaky child can never outlive the call.

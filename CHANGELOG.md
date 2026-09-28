@@ -20,7 +20,11 @@ rather than silently merging or dropping it, and a cut with zero rollable
 entries is refused too (exit 13). A bare, EMPTY `## [unreleased]` scaffold is
 fine — it is the marker a cut leaves on top.
 
-## [unreleased]
+## [unreleased] — fix: skill prompts must not tell Windows to invoke bash (ISSUE-0085 / SPEC-0191)
+
+- Skill prompts (TDD, Verify, Loop, Validation, Test-Skills, Bootstrap, Deslop) now name the Windows `.ps1` wrapper beside the POSIX `.sh` wrapper.
+- TEST-024 rejects bash-only and host `bash tests/` instructions so a blocked WSL shim is not the documented path.
+- Prompt-diet ledger credits the measured corpus growth (802 + 492 B).
 
 ## [unreleased] — fix: triage creates missing report parent (ISSUE-0084 / SPEC-0190)
 
