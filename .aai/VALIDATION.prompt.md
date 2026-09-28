@@ -151,6 +151,10 @@ execution or the AC STATUS GATE:
   itself; any OTHER discovered suites still run and still gate as usual.
 This conditionality applies ONLY to the RED-proof obligation. Never soften
 tdd/hybrid, the independence rule, adversarial stance, or the AC STATUS GATE.
+STALE BINDING: when `implementation_strategy.ref_id` and `current_focus.ref_id`
+are both non-null and disagree, treat strategy as `undecided` (do not skip
+RED-proof for another item's `untested`/`direct`). Missing/`null` ref_id is
+legacy — honor `selected`.
 
 PROCESS
 0) Capture `VALIDATION_STARTED_UTC` once from the system UTC clock. It is the

@@ -57,6 +57,8 @@ test_001_intake_block() {
   grep -qF "set-strategy --selected <tdd|direct|untested>" "$INTAKE_COMMON" \
     || { log_info "TEST-001: missing set-strategy recording line"; ok=0; }
   grep -qF -- "--source intake" "$INTAKE_COMMON" || { log_info "TEST-001: choice must be recorded with --source intake"; ok=0; }
+  grep -qF -- "--ref <this intake's ref_id>" "$INTAKE_COMMON" \
+    || { log_info "TEST-001: intake recording must pass --ref <this intake's ref_id>"; ok=0; }
   grep -qiF "recommend" "$INTAKE_COMMON" || { log_info "TEST-001: block must carry a recommendation"; ok=0; }
   grep -qiF "does NOT choose" "$INTAKE_COMMON" || { log_info "TEST-001: back-compat no-choice path missing"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-001 intake choice block single-sourced with 4 options + recommendation + back-compat" \
@@ -156,6 +158,47 @@ test_007_enum_seam() {
   [[ $ok -eq 1 ]] && log_pass "TEST-007 strategy enum consistent across producer/consumer + untested guard" || log_fail "TEST-007 enum seam"
 }
 
+# SPEC-0192 TEST-006 / Spec-AC-06 — stale strategy binding bullets in the three
+# prompt readers. Existing TEST-006 in this file is the implementation-mode-choice
+# VALIDATION pin; this row is a distinct spec-local id.
+test_008_stale_strategy_binding_prompts() {
+  local ok=1 f
+  log_info "Test: SKILL_TDD, IMPLEMENTATION, VALIDATION each name both field paths and undecided-on-mismatch (SPEC-0192 TEST-006)..."
+  for f in "$SKILL_TDD" "$IMPLEMENTATION" "$VALIDATION"; do
+    [[ -f "$f" ]] || { log_info "SPEC-0192 TEST-006: $f missing"; ok=0; continue; }
+    grep -qF 'implementation_strategy.ref_id' "$f" \
+      || { log_info "SPEC-0192 TEST-006: $f must name implementation_strategy.ref_id"; ok=0; }
+    grep -qF 'current_focus.ref_id' "$f" \
+      || { log_info "SPEC-0192 TEST-006: $f must name current_focus.ref_id"; ok=0; }
+    grep -qiF 'undecided' "$f" \
+      || { log_info "SPEC-0192 TEST-006: $f must instruct treating a disagreeing pair as undecided"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "SPEC-0192 TEST-006 SKILL_TDD, IMPLEMENTATION, VALIDATION name both field paths and undecided-on-mismatch" \
+    || log_fail "SPEC-0192 TEST-006 stale-binding prompt readers"
+}
+
+# SPEC-0192 TEST-009 / Spec-AC-07 — CHANGE-0100 intake path documents --ref
+# before Planning set-focus, and Planning skips set-strategy only on a matching stamp.
+test_009_intake_bind_ref_before_focus() {
+  local ok=1
+  log_info "Test: INTAKE_COMMON records --ref; PLANNING skips only a matching implementation_strategy.ref_id (SPEC-0192 TEST-009)..."
+  [[ -f "$INTAKE_COMMON" ]] || { log_fail "SPEC-0192 TEST-009 $INTAKE_COMMON missing"; return; }
+  [[ -f "$PLANNING" ]] || { log_fail "SPEC-0192 TEST-009 $PLANNING missing"; return; }
+  [[ -f "$SKILL_INTAKE" ]] || { log_fail "SPEC-0192 TEST-009 $SKILL_INTAKE missing"; return; }
+  grep -qF -- "--ref <this intake's ref_id>" "$INTAKE_COMMON" \
+    || { log_info "SPEC-0192 TEST-009: INTAKE_COMMON must document --ref <this intake's ref_id>"; ok=0; }
+  grep -qiF "disagrees" "$INTAKE_COMMON" \
+    || { log_info "SPEC-0192 TEST-009: INTAKE_COMMON must name disagrees Notes fallback"; ok=0; }
+  grep -qF -- "--ref <this intake's ref_id>" "$SKILL_INTAKE" \
+    || { log_info "SPEC-0192 TEST-009: SKILL_INTAKE must name --ref <this intake's ref_id>"; ok=0; }
+  grep -qF "implementation_strategy.ref_id equals this item's ref_id" "$PLANNING" \
+    || { log_info "SPEC-0192 TEST-009: PLANNING must skip set-strategy only when implementation_strategy.ref_id equals this item's ref_id"; ok=0; }
+  grep -qF -- "--ref <this REF-ID>" "$PLANNING" \
+    || { log_info "SPEC-0192 TEST-009: PLANNING Notes path must pass --ref <this REF-ID>"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "SPEC-0192 TEST-009 INTAKE_COMMON --ref before set-focus; PLANNING skip only on matching stamp" \
+    || log_fail "SPEC-0192 TEST-009 intake bind documentation"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -167,6 +210,8 @@ main() {
   test_005_tdd_routes_away
   test_006_validation_conditional
   test_007_enum_seam
+  test_008_stale_strategy_binding_prompts
+  test_009_intake_bind_ref_before_focus
   echo ""
   if [[ $FAILED -eq 0 ]]; then
     echo "All tests passed!"
@@ -177,4 +222,19 @@ main() {
   fi
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  if [[ $# -ge 1 ]]; then
+    check_deps
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"
+    if [[ $FAILED -eq 0 ]]; then
+      echo "All tests passed!"
+      exit 0
+    else
+      echo "Some tests FAILED."
+      exit 1
+    fi
+  else
+    main "$@"
+  fi
+fi

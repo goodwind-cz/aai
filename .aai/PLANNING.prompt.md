@@ -40,7 +40,8 @@ pending, stop and say so rather than planning around it.
 
 3. A RECORDED HUMAN CHOICE OUTRANKS YOUR JUDGEMENT.
    RESPECT A PRE-RECORDED INTAKE CHOICE: when STATE already carries
-   `implementation_strategy.selected` with `source: intake`, the user made that
+   `implementation_strategy.selected` with `source: intake` whose
+   implementation_strategy.ref_id equals this item's ref_id, the user made that
    call at intake. Keep it. If your analysis says it is wrong, say so to the user
    in your output and let them change it — silently re-planning over someone's
    recorded decision is the friction this rule was written from. The same
@@ -156,10 +157,12 @@ pin these three lines):
       node .aai/scripts/state.mjs set-focus --type <type> --ref <REF-ID> --path <primary_path>
       node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase planning --status in_progress --spec-path <spec_path>
       node .aai/scripts/state.mjs set-strategy --selected <loop|tdd|hybrid|direct|untested> --source <spec_path> --rationale "<why>"
-      (skip this call when STATE already holds an intake-sourced choice you are
-      respecting; if the intake artifact's `## Notes` carries an
-      `Implementation mode (user choice):` line and STATE has none, record THAT
-      choice first with --source intake and the note's rationale)
+      (skip this call only when STATE already holds an intake-sourced choice
+      whose implementation_strategy.ref_id equals this item's ref_id; a leftover
+      whose ref_id disagrees is stale — do not skip. If the intake artifact's
+      `## Notes` carries an `Implementation mode (user choice):` line and STATE
+      has none matching this focus, record THAT choice first with --source intake
+      --ref <this REF-ID> and the note's rationale)
       node .aai/scripts/state.mjs set-worktree --recommendation <not_needed|optional|recommended|required> --base-ref <ref> --rationale "<why>"
       node .aai/scripts/state.mjs set-code-review --required <true|false> --status not_run --scope "<explicit paths or diff range>" --base-ref <ref>
     FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.

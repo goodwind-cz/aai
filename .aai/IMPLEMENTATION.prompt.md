@@ -59,6 +59,7 @@ PROCESS
      `implementation_strategy.rationale` in your hand-off so the no-tests choice
      is visible, and state the declared verification (e.g. a smoke run) you ran.
    - If strategy is `undecided`, STOP and return to Planning.
+   - STALE BINDING: when `implementation_strategy.ref_id` and `current_focus.ref_id` are both non-null and disagree, treat strategy as `undecided` and STOP to Planning. Missing/`null` ref_id is legacy — honor `selected`.
 5) Enforce worktree decision gate — see .aai/ROLE_COMMON.md WORKTREE GATE:
    - If user_decision is `worktree`, confirm the current working directory is
      the recorded `worktree.path`; if not, STOP and switch context.

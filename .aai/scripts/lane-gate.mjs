@@ -183,23 +183,36 @@ function readStrategy(statePath) {
   } catch {
     return { value: null, ok: false };
   }
-  let inBlock = false;
+  let inStrat = false;
+  let inFocus = false;
+  let selected = null;
+  let stratRef = null;
+  let focusRef = null;
   for (const raw of text.split('\n')) {
     if (!raw.trim()) continue;
     const indent = raw.length - raw.trimStart().length;
     const line = raw.trim();
-    if (!inBlock) {
-      if (indent === 0 && /^implementation_strategy\s*:/.test(line)) inBlock = true;
+    if (indent === 0) {
+      inStrat = /^implementation_strategy\s*:/.test(line);
+      inFocus = /^current_focus\s*:/.test(line);
       continue;
     }
-    if (indent === 0) break; // block ended without a selected key
-    const m = line.match(/^selected\s*:\s*(\S+)/);
-    if (indent === 2 && m) {
-      const v = m[1];
-      return { value: v, ok: FAST_STRATEGIES.has(v) };
+    if (inStrat) {
+      const sm = line.match(/^selected\s*:\s*(\S+)/);
+      if (indent === 2 && sm) selected = sm[1];
+      const rm = line.match(/^ref_id\s*:\s*(\S+)/);
+      if (indent === 2 && rm && rm[1] !== 'null') stratRef = rm[1];
+    }
+    if (inFocus) {
+      const fm = line.match(/^ref_id\s*:\s*(\S+)/);
+      if (indent === 2 && fm && fm[1] !== 'null') focusRef = fm[1];
     }
   }
-  return { value: null, ok: false };
+  if (selected == null) return { value: null, ok: false };
+  if (stratRef != null && focusRef != null && stratRef !== focusRef) {
+    return { value: selected, ok: false };
+  }
+  return { value: selected, ok: FAST_STRATEGIES.has(selected) };
 }
 
 // ---- changed-file list (same source select-suites will see) ----

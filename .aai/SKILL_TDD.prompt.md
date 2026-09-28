@@ -42,6 +42,7 @@ Two gates below are TDD's own — the dispatcher does not enforce them.
      `.aai/IMPLEMENTATION.prompt.md` (direct = implement then targeted tests;
      untested = implement only, no tests).
    - If strategy is `undecided`, return to Planning. Do not start RED.
+   - STALE BINDING: when `implementation_strategy.ref_id` and `current_focus.ref_id` are both non-null and disagree, treat strategy as `undecided` (do not start RED on another item's selected). Missing/`null` ref_id is legacy — honor `selected`.
 
 6. **Resolve worktree decision gate** — see .aai/ROLE_COMMON.md WORKTREE GATE.
    - If user selected `inline`, confirm `worktree.inline_review_scope` is explicit.

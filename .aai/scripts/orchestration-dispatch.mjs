@@ -961,6 +961,11 @@ export function buildSnapshot(statePath, root) {
     }
   }
   const strategy = checkEnum(readScalar(lines, 'implementation_strategy', 'selected'), STRATEGIES, 'implementation_strategy.selected');
+  const stratRef = readScalar(lines, 'implementation_strategy', 'ref_id');
+  let strategySelected = strategy;
+  if (stratRef != null && focusRef != null && stratRef !== focusRef) {
+    strategySelected = 'undecided';
+  }
   const worktree = {
     recommendation: checkEnum(readScalar(lines, 'worktree', 'recommendation'), RECOMMENDATIONS, 'worktree.recommendation'),
     user_decision: checkEnum(readScalar(lines, 'worktree', 'user_decision'), USER_DECISIONS, 'worktree.user_decision'),
@@ -1073,7 +1078,7 @@ export function buildSnapshot(statePath, root) {
     focus,
     work_item: item ? { phase: item.phase, status: item.status } : null,
     spec,
-    strategy_selected: strategy,
+    strategy_selected: strategySelected,
     worktree,
     validation,
     review,

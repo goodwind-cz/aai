@@ -32,6 +32,7 @@ implementation_strategy:
   selected: undecided
   source: null
   rationale: null
+  ref_id: null
 worktree:
   recommendation: not_needed
   user_decision: undecided

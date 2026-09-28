@@ -70,7 +70,7 @@ asking after "INTAKE COMPLETE" reads as done and gets skipped)
 Apply the "IMPLEMENTATION MODE CHOICE (end of intake, spec-implementation-mode-choice)"
 block from .aai/INTAKE_COMMON.md exactly: present the 3-way choice with a
 signal-derived recommendation and, only if the user chooses, record it via
-`state.mjs set-strategy --source intake`. If the user does not choose, do nothing
+`state.mjs set-strategy --source intake --ref <this intake's ref_id>`. If the user does not choose, do nothing
 (Planning decides — back-compat).
 
 STEP 3 — CONFIRM ARTIFACT

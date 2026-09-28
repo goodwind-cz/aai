@@ -22,6 +22,21 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: bind implementation_strategy to the live focus (ISSUE-0086 / SPEC-0192)
+
+- **Strategy is stamped with a work-item `ref_id`.** `set-strategy` writes
+  `implementation_strategy.ref_id` from `--ref` or `current_focus.ref_id`.
+  A mismatch is refused (`disagrees`); an unbound write is refused (`--ref`
+  required). Leftover `untested` from another item can no longer choose the
+  fast lane or skip TDD.
+- **Intake records `--ref` before Planning `set-focus`.** CHANGE-0100's
+  mode-choice path now passes `--ref <this intake's ref_id>` so a post-close
+  `clear-focus` checkout does not lose the user's choice. A live other focus
+  still `disagrees`; Notes fallback plus Planning re-record cover it.
+- **Readers treat a disagreeing stamp as stale.** lane-gate is HEAVY,
+  dispatch is `undecided`, and the TDD / Implementation / Validation prompts
+  follow. Missing `ref_id` stays legacy honor.
+
 ## [unreleased] — fix: skill prompts must not tell Windows to invoke bash (ISSUE-0085 / SPEC-0191)
 
 - Skill prompts (TDD, Verify, Loop, Validation, Test-Skills, Bootstrap, Deslop) now name the Windows `.ps1` wrapper beside the POSIX `.sh` wrapper.

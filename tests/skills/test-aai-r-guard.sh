@@ -138,13 +138,13 @@ YAML
   cp "$s" "$TEST_DIR/seam-snapshot.yaml"
   local ec2=0
   ( cd "$PROJECT_ROOT" && AAI_ROLE=subagent node .aai/scripts/state.mjs --state "$s" \
-      set-strategy --selected tdd > "$TEST_DIR/seam-exempt.log" 2>&1 ) || ec2=$?
+      set-strategy --selected tdd --ref scratch-ref > "$TEST_DIR/seam-exempt.log" 2>&1 ) || ec2=$?
   [[ "$ec2" == 0 ]] || { log_fail "TEST-RG-PIN-03: a scratch fixture under the marker must WRITE (D12), got exit $ec2: $(cat "$TEST_DIR/seam-exempt.log")"; return; }
   cmp -s "$s" "$TEST_DIR/seam-snapshot.yaml" && { log_fail "TEST-RG-PIN-03: the scratch fixture must actually CHANGE under the marker"; return; }
 
   local ec=0
   ( cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" \
-      set-strategy --selected tdd > "$TEST_DIR/seam-ok.log" 2>&1 ) || ec=$?
+      set-strategy --selected tdd --ref scratch-ref > "$TEST_DIR/seam-ok.log" 2>&1 ) || ec=$?
   [[ "$ec" == 0 ]] || { log_fail "TEST-RG-PIN-03: marker unset must succeed (got $ec): $(cat "$TEST_DIR/seam-ok.log")"; return; }
   grep -qE '^  selected: tdd$' "$s" || { log_fail "TEST-RG-PIN-03: unset write must actually apply"; return; }
   log_pass "SEAM: wired marker -> state.mjs refuses against the shipping STATE (exit 3, no write) but WRITES a scratch fixture (D12); unset -> writes (TEST-RG-PIN-03)"

@@ -4686,6 +4686,46 @@ YAML
   log_pass "TEST-567: three-candidate roadmap fixture narrows to one admitted candidate, 4a dispatches a single retarget"
 }
 
+test_192_stale_strategy_is_undecided() {  # SPEC-0192 TEST-005 / Spec-AC-04
+  log_info "Test: leftover untested with disagreeing ref_id yields rule 7 Planning, not 9c Implementation (SPEC-0192 TEST-005)..."
+  local d
+  d="$(mk_root t192-stale)"
+  write_dstate "$d/docs/ai/STATE.yaml" not_run not_run planning done untested optional inline
+  awk '
+    $0 == "implementation_strategy:" { in_s = 1 }
+    in_s && $0 == "  rationale: null" {
+      print
+      print "  ref_id: OTHER-9999"
+      in_s = 0
+      next
+    }
+    { print }
+  ' "$d/docs/ai/STATE.yaml" > "$d/docs/ai/STATE.tmp" && mv "$d/docs/ai/STATE.tmp" "$d/docs/ai/STATE.yaml"
+  grep -qE '^  ref_id: OTHER-9999$' "$d/docs/ai/STATE.yaml" \
+    || log_fail "SPEC-0192 TEST-005: fixture must carry leftover strategy ref_id OTHER-9999"
+  grep -qE '^  ref_id: CHANGE-0001$' "$d/docs/ai/STATE.yaml" \
+    || log_fail "SPEC-0192 TEST-005: fixture focus must stay CHANGE-0001"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "SPEC-0192 TEST-005: stale leftover must still dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  node -e '
+    const fs = require("fs");
+    const o = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    if (!(o.verdict === "dispatch" && o.rule === "7" && o.role === "Planning")) {
+      console.error("assert failed: expected rule 7 Planning, got: " + JSON.stringify(o));
+      process.exit(1);
+    }
+  ' "$OUT" || log_fail "SPEC-0192 TEST-005: expected rule 7 Planning, not leftover 9c: $(cat "$OUT" "$ERR")"
+  node -e '
+    const fs = require("fs");
+    const o = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    if (o.state_summary.strategy_selected !== "undecided") {
+      console.error("assert failed: strategy_selected want undecided, got: " + JSON.stringify(o.state_summary.strategy_selected));
+      process.exit(1);
+    }
+  ' "$OUT" || log_fail "SPEC-0192 TEST-005: strategy_selected must be undecided: $(cat "$OUT")"
+  log_pass "leftover untested with disagreeing ref_id yields rule 7 Planning (SPEC-0192 TEST-005)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026 + harness-universal-routing TEST-048..058/060 (TEST-059 lives in test-aai-layer-profiles.sh); TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
@@ -4754,6 +4794,7 @@ main() {
   test_064_dispatch_text_coaching_guard
   test_065_effort_suffix_note
   test_567_rule_4a_single_retarget
+  test_192_stale_strategy_is_undecided
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
