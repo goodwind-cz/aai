@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-28T05:45:10.280Z",
+  "generatedAt": "2026-09-28T08:39:50.061Z",
   "project": "aai",
   "counts": {
-    "delivered": 258,
-    "in_progress": 14,
+    "delivered": 259,
+    "in_progress": 15,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -43,6 +43,19 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "routing-tables-have-an-owner-and-a-seam",
+      "title": "The routing and pricing tables have a keeper, and a consumer's exception has somewhere to live",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -147,7 +160,7 @@
       "type": "issue",
       "status": "draft",
       "path": "docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md",
-      "closed_on": "2026-09-18",
+      "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
@@ -311,6 +324,19 @@
       "spec": "docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md",
       "validation": null,
       "review": "docs/ai/reviews/review-update-installs-ref-guard-undisclosed-20260924T124304Z.md"
+    },
+    {
+      "ref": "original-request-outcome-backcheck",
+      "title": "Change — Verify original requirements and persisted outcomes",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0189-original-request-outcome-backcheck.md",
+      "closed_on": "2026-09-23",
+      "agent_minutes": 401,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260923T142850Z-original-request-outcome-backcheck-pr388-final-v7.md"
     },
     {
       "ref": "unrecorded-spec-amendment-is-invisible",
@@ -3672,6 +3698,19 @@
           "spec": "docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md",
           "validation": null,
           "review": "docs/ai/reviews/review-update-installs-ref-guard-undisclosed-20260924T124304Z.md"
+        },
+        {
+          "ref": "original-request-outcome-backcheck",
+          "title": "Change — Verify original requirements and persisted outcomes",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0189-original-request-outcome-backcheck.md",
+          "closed_on": "2026-09-23",
+          "agent_minutes": 401,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0183-spec-original-request-outcome-backcheck.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260923T142850Z-original-request-outcome-backcheck-pr388-final-v7.md"
         },
         {
           "ref": "unrecorded-spec-amendment-is-invisible",

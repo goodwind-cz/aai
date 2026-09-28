@@ -204,6 +204,7 @@ backlog. The one signal that could have promoted anything, the owner's signed
   that reddens it, six amendments, three validation rounds and two code review
   rounds.
 
+
 ## [v2026.09.21] — feat(ceremony): the close ceremony, docs audit and generated pages agree with git (CHANGE-0188-close-ceremony-sweep / SPEC-0182-spec-close-ceremony-sweep)
 
 - **`ride-select.mjs`'s roadmap gate now admits only the FIRST unfinished
