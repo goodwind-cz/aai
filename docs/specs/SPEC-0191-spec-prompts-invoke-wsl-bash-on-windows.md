@@ -10,7 +10,7 @@ links:
   requirement: docs/issues/ISSUE-0085-prompts-invoke-wsl-bash-on-windows.md
   rfc: null
   pr:
-    - TBD
+    - 404
   commits:
     - 18ec527d66cdf565fbe1a07da012ade29f7ccd2d
 ---
