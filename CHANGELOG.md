@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — feat: original-request outcome backcheck
+## [v2026.09.28] — feat: original-request outcome backcheck
 
 - **Validation PASS carries an outcome backcheck.** Reports use one
   `aai-outcome-v1` block that links original-request constraints to observed
@@ -34,7 +34,7 @@ fine — it is the marker a cut leaves on top.
   `not_run` before fresh Validation dispatches, preventing stale routing to
   Metrics Flush.
 
-## [unreleased] — fix(tests): a ride's own growth pin stops walling every ride after it (CHANGE-0195 / SPEC-0189)
+## [v2026.09.28] — fix(tests): a ride's own growth pin stops walling every ride after it (CHANGE-0195 / SPEC-0189)
 
 Four arms in `tests/skills/test-aai-prompt-diet.sh` asserted that a prompt
 file's CURRENT on-disk size equals the `after` figure recorded in one PAST
@@ -61,7 +61,7 @@ longer reddens on its own. Cover now begins once the corpus ratchet's headroom
 (2042 B when measured) is exhausted. The trade is deliberate — the equality it
 replaces made three canon files permanently unmergeable.
 
-## [unreleased] — feat(roadmap): the roadmap takes a direction from the owner instead of only refusing rides (CHANGE-0194 / SPEC-0188)
+## [v2026.09.28] — feat(roadmap): the roadmap takes a direction from the owner instead of only refusing rides (CHANGE-0194 / SPEC-0188)
 
 `docs/ai/roadmap.yaml` was read by three scripts and **written by none**, so the
 roadmap could say no and could not take yes. Its only input was "the owner sits
@@ -93,7 +93,7 @@ exactly that half, which is why it read as overhead.
   its own gate would refuse.
 - A project that never opts in is untouched: no file, no gate, no prompt.
 
-## [unreleased] — fix(gate): the mutation gate checks that the recorded run is the mutation the row declares (CHANGE-0193 / SPEC-0187)
+## [v2026.09.28] — fix(gate): the mutation gate checks that the recorded run is the mutation the row declares (CHANGE-0193 / SPEC-0187)
 
 `mutation-gate.mjs` checked only that a Test Plan row's Mutation cell was
 non-empty. It never compared that cell to what the stored record actually
