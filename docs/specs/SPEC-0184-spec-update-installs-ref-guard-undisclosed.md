@@ -5,7 +5,7 @@ number: 184
 status: done
 mutation_gate: v1
 mutation_uncomparable: 30
-frozen_sha256: 2b6db6524411862497a10d5251dd3b60a70bce8496a21b6a28b7347e087dafa9
+frozen_sha256: 104bcbf1edbecf884de943bf5367441282c3d195563446680c279a63f5df9024
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md
