@@ -2,10 +2,12 @@
 id: feedback-triage-missing-output-dir
 type: issue
 number: 84
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - a79d17cab83def734e4b619be519084083a04cbe
 ---
 
 # Issue — Feedback triage fails with ENOENT when docs/ai/friction does not exist

@@ -2,14 +2,16 @@
 id: spec-feedback-triage-missing-output-dir
 type: spec
 number: 190
-status: implementing
+status: done
 frozen_sha256: f9f2ba78a6eb9ae29d4b2a8090d184ecca3bf4ff8f3a58a51675e856f968e23b
 ceremony_level: 1
 links:
   requirement: docs/issues/ISSUE-0084-feedback-triage-missing-output-dir.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - a79d17cab83def734e4b619be519084083a04cbe
 ---
 
 # Spec — feedback triage creates the report parent directory before writing

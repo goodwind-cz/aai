@@ -2462,3 +2462,9 @@
 {"v":1,"ts":"2026-09-28T19:12:13Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"feedback-triage-missing-output-dir/Spec-AC-01","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-09-28T19:12:13Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"feedback-triage-missing-output-dir/Spec-AC-02","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-09-28T19:12:13Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"feedback-triage-missing-output-dir/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:17:29Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"feedback-triage-missing-output-dir","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"feedback-triage-missing-output-dir","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"feedback-triage-missing-output-dir","payload":{"commit":"a79d17cab83def734e4b619be519084083a04cbe"}}
+{"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-feedback-triage-missing-output-dir","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"spec-feedback-triage-missing-output-dir","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"spec-feedback-triage-missing-output-dir","payload":{"commit":"a79d17cab83def734e4b619be519084083a04cbe"}}
