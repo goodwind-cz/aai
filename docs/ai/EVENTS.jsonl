@@ -2432,3 +2432,4 @@
 {"v":1,"ts":"2026-09-28T05:45:07Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-growth-pins-dont-wall-the-corpus","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-28T05:45:07Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-growth-pins-dont-wall-the-corpus","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-28T05:45:07Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-growth-pins-dont-wall-the-corpus","payload":{"commit":"c103f592ef2c04b19b42d5de8a4c2ca79fc577b4"}}
+{"v":1,"ts":"2026-09-28T05:51:22Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"growth-pins-dont-wall-the-corpus","payload":{"pr":400,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"47657a6c09688e13005799712b9e5694be399392"}}
