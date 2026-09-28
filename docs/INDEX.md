@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-28T05:51:48.335Z
+Generated: 2026-09-28T05:59:31.100Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -50,7 +50,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (448)
+## Done (450)
 
 | ID | Type | Path |
 |---|---|---|
@@ -242,6 +242,7 @@ _None._
 | CHANGE-0191 | issues | docs/issues/CHANGE-0191-canon-is-a-build-artifact.md |
 | CHANGE-0193 | issues | docs/issues/CHANGE-0193-gate-checks-declared-mutation.md |
 | CHANGE-0194 | issues | docs/issues/CHANGE-0194-roadmap-takes-direction.md |
+| CHANGE-0195 | issues | docs/issues/CHANGE-0195-growth-pins-dont-wall-the-corpus.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -500,6 +501,7 @@ _None._
 | SPEC-0186 | specs | docs/specs/SPEC-0186-spec-canon-is-a-build-artifact.md |
 | SPEC-0187 | specs | docs/specs/SPEC-0187-spec-gate-checks-declared-mutation.md |
 | SPEC-0188 | specs | docs/specs/SPEC-0188-spec-roadmap-takes-direction.md |
+| SPEC-0189 | specs | docs/specs/SPEC-0189-spec-growth-pins-dont-wall-the-corpus.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

@@ -46,6 +46,20 @@ log_fail() { echo "FAIL $*" >&2; FAILED=1; }
 log_skip() { echo "SKIP $*"; exit 42; }
 log_info() { echo "  $*"; }
 
+# Spec-AC-05 (spec-growth-pins-dont-wall-the-corpus): the exact inequality
+# operator text a WALLED equality pin uses against a live on-disk .aai/**
+# byte count. Declared here, at the very top of the file, deliberately ahead
+# of every OTHER occurrence of that same operator text below -- this suite's
+# own pre-existing count checks, and unrelated prose elsewhere in the file --
+# so that a first-occurrence-only mutation of this exact operator text lands
+# on THIS declaration rather than on one of those, which (for a real `[[ ]]`
+# comparison) would crash the WHOLE script at parse time under plain bash
+# (an unrecognized `[[ ]]` binary operator is a parse-time error, not a
+# runtime one), turning a RED into an INCONCLUSIVE. See
+# test_770_corpus_scan_no_equality_pins near the bottom, which scans
+# tests/skills/*.sh for this shape using the pattern below.
+WALL_OPERATOR_PATTERN='-ne|!='
+
 INTAKE_FILES=(
   .aai/INTAKE_CHANGE.prompt.md
   .aai/INTAKE_HOTFIX.prompt.md
@@ -1457,7 +1471,7 @@ test_023_ac_flip_growth_credited() {
     log_fail "TEST-023 (spec TEST-007) JUSTIFIED_ADDITIONS array does not exist"
     return
   fi
-  local ok=1 _e entry='' n=0 lead after measured now
+  local ok=1 _e entry='' n=0 lead after now
   # The ledger PREFIX through this scope's own entry — every entry up to and
   # including it. Checking the prefix rather than JUSTIFIED_GROWTH_BYTES is
   # what keeps the assertion about THIS scope's arithmetic: pinning the whole
@@ -1478,6 +1492,24 @@ test_023_ac_flip_growth_credited() {
     return
   fi
 
+  # Spec-AC-03 anti-vacuity bite check, BEFORE the real check below: the
+  # shared credit-verdict helper (declared near the bottom of this file,
+  # after every arm — see the block comment there for why) must still
+  # reject a fabricated off-by-one credit and a fabricated below-floor disk
+  # size, in the SAME run as this arm's own real check — a relaxed/no-op
+  # helper has nowhere to hide. The call two lines down is also,
+  # deliberately, this file's FIRST call to it (Test Plan TEST-768's
+  # mutation targets the first call, not the real check that already
+  # passes today).
+  if diet_credit_verdict "TEST-023-bite-lead" 99 1000 1100 1100 >/dev/null 2>&1; then
+    log_fail "TEST-768 (Spec-AC-03) TEST-023 bite check: fabricated off-by-one credit (99, want 100) was ACCEPTED by diet_credit_verdict"
+    ok=0
+  fi
+  if diet_credit_verdict "TEST-023-bite-floor" 100 1000 1100 1099 >/dev/null 2>&1; then
+    log_fail "TEST-768 (Spec-AC-03) TEST-023 bite check: fabricated below-floor disk (1099 B, credited 1100 B) was ACCEPTED by diet_credit_verdict"
+    ok=0
+  fi
+
   lead="${entry%% *}"
   # The entry states its own measurement as "<before> -> <after>"; a credit
   # whose arithmetic is only in the prose is a credit nobody can re-check.
@@ -1486,26 +1518,19 @@ test_023_ac_flip_growth_credited() {
     log_info "TEST-023: the ledger entry does not record its measurement as '$AC_FLIP_ROLE_COMMON_BEFORE -> <after>'"
     ok=0
   else
-    measured=$(( after - AC_FLIP_ROLE_COMMON_BEFORE ))
-    if [[ "$lead" -ne "$measured" ]]; then
-      log_info "TEST-023: entry credits $lead B but its own measurement is $measured B ($AC_FLIP_ROLE_COMMON_BEFORE -> $after)"
-      ok=0
-    fi
-    # The disk check is a FLOOR, not an equality. The prefix check above was
-    # already written so a later scope's own itemized append cannot disturb
-    # this arm; this line was not, and unsigned-spec-amendment-has-no-outflow
-    # was the first later scope to legitimately grow the same file (+977 B for
-    # the POST-FREEZE SPEC AMENDMENT block, itemized in its own ledger entry).
-    # What this arm actually needs to know is that the bytes THIS entry
-    # credited still exist — so a SHRINK below the recorded size still fails
-    # (the credit would then be paying for bytes that are gone), while later
-    # growth that carries its own credit is named and allowed.
+    # diet_credit_verdict() owns exactly two decisions (Spec-AC-01/02): the
+    # entry's own arithmetic, and a FLOOR (not equality) against the file's
+    # current on-disk size — unsigned-spec-amendment-has-no-outflow was the
+    # first later scope to legitimately grow this same file past this
+    # entry's credit (+977 B, itemized in its own ledger entry), which is
+    # exactly what a floor permits and an equality would still wall.
     now=$(wc -c < .aai/ROLE_COMMON.md | tr -d ' ')
-    if [[ "$now" -lt "$after" ]]; then
-      log_info "TEST-023: .aai/ROLE_COMMON.md is $now B on disk, BELOW the $after B this entry credited — the credited bytes no longer exist, so the credit must be reclaimed (see TEST-010's cap-guard message)"
+    local verdict_msg
+    if verdict_msg=$(diet_credit_verdict "TEST-023" "$lead" "$AC_FLIP_ROLE_COMMON_BEFORE" "$after" "$now"); then
+      [[ -n "$verdict_msg" ]] && log_info "$verdict_msg"
+    else
+      log_info "$verdict_msg"
       ok=0
-    elif [[ "$now" -ne "$after" ]]; then
-      log_info "TEST-023: .aai/ROLE_COMMON.md has grown to $now B since this entry recorded $after B — later growth must carry its OWN itemized ledger entry (TEST-012 re-sums the whole array, so an uncredited byte reddens there)"
     fi
   fi
 
@@ -1567,7 +1592,7 @@ test_622_diet_true_up() {
     log_fail "TEST-622 JUSTIFIED_ADDITIONS array does not exist"
     return
   fi
-  local ok=1 _e entry='' n=0 lead before after measured now
+  local ok=1 _e entry='' n=0 lead before after now
   local ledger_key='update-installs-ref-guard-undisclosed Spec-AC-08'
   local prefix=0 prefix_closed=0
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
@@ -1583,6 +1608,19 @@ test_622_diet_true_up() {
     return
   fi
 
+  # Spec-AC-03 anti-vacuity bite check (see TEST-023 above for the full
+  # rationale): the shared diet_credit_verdict() helper must still reject a
+  # fabricated off-by-one credit and a fabricated below-floor disk size, in
+  # the SAME run as this arm's own real check below.
+  if diet_credit_verdict "TEST-622-bite-lead" 99 1000 1100 1100 >/dev/null 2>&1; then
+    log_fail "TEST-768 (Spec-AC-03) TEST-622 bite check: fabricated off-by-one credit (99, want 100) was ACCEPTED by diet_credit_verdict"
+    ok=0
+  fi
+  if diet_credit_verdict "TEST-622-bite-floor" 100 1000 1100 1099 >/dev/null 2>&1; then
+    log_fail "TEST-768 (Spec-AC-03) TEST-622 bite check: fabricated below-floor disk (1099 B, credited 1100 B) was ACCEPTED by diet_credit_verdict"
+    ok=0
+  fi
+
   lead="${entry%% *}"
   # The entry states its own measurement as "SKILL_UPDATE.prompt.md <before>
   # -> <after>"; a credit whose arithmetic is only in the prose is a credit
@@ -1593,14 +1631,12 @@ test_622_diet_true_up() {
     log_info "TEST-622: the ledger entry does not record its measurement as 'SKILL_UPDATE.prompt.md <before> -> <after>'"
     ok=0
   else
-    measured=$(( after - before ))
-    if [[ "$lead" -ne "$measured" ]]; then
-      log_info "TEST-622: entry credits $lead B but its own measurement is $measured B ($before -> $after)"
-      ok=0
-    fi
     now=$(/usr/bin/wc -c < .aai/SKILL_UPDATE.prompt.md | tr -d ' ')
-    if [[ "$now" -ne "$after" ]]; then
-      log_info "TEST-622: .aai/SKILL_UPDATE.prompt.md is $now B on disk, entry recorded $after B"
+    local verdict_msg
+    if verdict_msg=$(diet_credit_verdict "TEST-622" "$lead" "$before" "$after" "$now"); then
+      [[ -n "$verdict_msg" ]] && log_info "$verdict_msg"
+    else
+      log_info "$verdict_msg"
       ok=0
     fi
   fi
@@ -1630,7 +1666,7 @@ test_697_corpus_growth_ledgered() {
     log_fail "TEST-697 JUSTIFIED_ADDITIONS array does not exist"
     return
   fi
-  local ok=1 _e entry='' n=0 lead before after measured now
+  local ok=1 _e entry='' n=0 lead before after now
   local ledger_key='canon-is-a-build-artifact run 3 (Spec-AC-13)'
   local prefix=0 prefix_closed=0
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
@@ -1646,6 +1682,19 @@ test_697_corpus_growth_ledgered() {
     return
   fi
 
+  # Spec-AC-03 anti-vacuity bite check (see TEST-023 above for the full
+  # rationale): the shared diet_credit_verdict() helper must still reject a
+  # fabricated off-by-one credit and a fabricated below-floor disk size, in
+  # the SAME run as this arm's own real check below.
+  if diet_credit_verdict "TEST-697-bite-lead" 99 1000 1100 1100 >/dev/null 2>&1; then
+    log_fail "TEST-768 (Spec-AC-03) TEST-697 bite check: fabricated off-by-one credit (99, want 100) was ACCEPTED by diet_credit_verdict"
+    ok=0
+  fi
+  if diet_credit_verdict "TEST-697-bite-floor" 100 1000 1100 1099 >/dev/null 2>&1; then
+    log_fail "TEST-768 (Spec-AC-03) TEST-697 bite check: fabricated below-floor disk (1099 B, credited 1100 B) was ACCEPTED by diet_credit_verdict"
+    ok=0
+  fi
+
   lead="${entry%% *}"
   before="$(printf '%s' "$entry" | sed -n 's/.*VALIDATION\.prompt\.md \([0-9][0-9]*\) -> [0-9][0-9]*.*/\1/p' | qhead -1)"
   after="$(printf '%s' "$entry" | sed -n 's/.*VALIDATION\.prompt\.md [0-9][0-9]* -> \([0-9][0-9]*\).*/\1/p' | qhead -1)"
@@ -1653,14 +1702,12 @@ test_697_corpus_growth_ledgered() {
     log_info "TEST-697: the ledger entry does not record its measurement as 'VALIDATION.prompt.md <before> -> <after>'"
     ok=0
   else
-    measured=$(( after - before ))
-    if [[ "$lead" -ne "$measured" ]]; then
-      log_info "TEST-697: entry credits $lead B but its own measurement is $measured B ($before -> $after)"
-      ok=0
-    fi
     now=$(/usr/bin/wc -c < .aai/VALIDATION.prompt.md | tr -d ' ')
-    if [[ "$now" -ne "$after" ]]; then
-      log_info "TEST-697: .aai/VALIDATION.prompt.md is $now B on disk, entry recorded $after B"
+    local verdict_msg
+    if verdict_msg=$(diet_credit_verdict "TEST-697" "$lead" "$before" "$after" "$now"); then
+      [[ -n "$verdict_msg" ]] && log_info "$verdict_msg"
+    else
+      log_info "$verdict_msg"
       ok=0
     fi
   fi
@@ -1688,7 +1735,7 @@ test_746_roadmap_takes_direction_growth_ledgered() {
     log_fail "TEST-746 JUSTIFIED_ADDITIONS array does not exist"
     return
   fi
-  local ok=1 _e entry='' n=0 lead before after measured now
+  local ok=1 _e entry='' n=0 lead before after now
   local ledger_key='roadmap-takes-direction run 3 (Spec-AC-16)'
   local prefix=0 prefix_closed=0
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
@@ -1704,6 +1751,19 @@ test_746_roadmap_takes_direction_growth_ledgered() {
     return
   fi
 
+  # Spec-AC-03 anti-vacuity bite check (see TEST-023 above for the full
+  # rationale): the shared diet_credit_verdict() helper must still reject a
+  # fabricated off-by-one credit and a fabricated below-floor disk size, in
+  # the SAME run as this arm's own real check below.
+  if diet_credit_verdict "TEST-746-bite-lead" 99 1000 1100 1100 >/dev/null 2>&1; then
+    log_fail "TEST-768 (Spec-AC-03) TEST-746 bite check: fabricated off-by-one credit (99, want 100) was ACCEPTED by diet_credit_verdict"
+    ok=0
+  fi
+  if diet_credit_verdict "TEST-746-bite-floor" 100 1000 1100 1099 >/dev/null 2>&1; then
+    log_fail "TEST-768 (Spec-AC-03) TEST-746 bite check: fabricated below-floor disk (1099 B, credited 1100 B) was ACCEPTED by diet_credit_verdict"
+    ok=0
+  fi
+
   lead="${entry%% *}"
   before="$(printf '%s' "$entry" | sed -n 's/.*AGENTS\.md \([0-9][0-9]*\) -> [0-9][0-9]*.*/\1/p' | qhead -1)"
   after="$(printf '%s' "$entry" | sed -n 's/.*AGENTS\.md [0-9][0-9]* -> \([0-9][0-9]*\).*/\1/p' | qhead -1)"
@@ -1711,14 +1771,12 @@ test_746_roadmap_takes_direction_growth_ledgered() {
     log_info "TEST-746: the ledger entry does not record its measurement as 'AGENTS.md <before> -> <after>'"
     ok=0
   else
-    measured=$(( after - before ))
-    if [[ "$lead" -ne "$measured" ]]; then
-      log_info "TEST-746: entry credits $lead B but its own measurement is $measured B ($before -> $after)"
-      ok=0
-    fi
     now=$(/usr/bin/wc -c < .aai/AGENTS.md | tr -d ' ')
-    if [[ "$now" -ne "$after" ]]; then
-      log_info "TEST-746: .aai/AGENTS.md is $now B on disk, entry recorded $after B"
+    local verdict_msg
+    if verdict_msg=$(diet_credit_verdict "TEST-746" "$lead" "$before" "$after" "$now"); then
+      [[ -n "$verdict_msg" ]] && log_info "$verdict_msg"
+    else
+      log_info "$verdict_msg"
       ok=0
     fi
   fi
@@ -1732,6 +1790,224 @@ test_746_roadmap_takes_direction_growth_ledgered() {
 
   [[ $ok -eq 1 ]] && log_pass "TEST-746 (Spec-AC-16) AGENTS.md growth $lead B is measured and credited 1:1, pin 37762 -> $prefix" \
     || log_fail "TEST-746 (Spec-AC-16) corpus growth true-up"
+}
+
+# --- spec-growth-pins-dont-wall-the-corpus -----------------------------
+#
+# diet_credit_verdict() and its supporting tests/constants are declared HERE
+# (after TEST-023/622/697/746, not "next to compute_reduction_headroom" as
+# first sketched) on purpose: Test Plan TEST-768's mutation
+# (sed:s/diet_credit_verdict/true diet_credit_verdict/, first occurrence in
+# the file only, no g flag) must land on a CALL to this function, not on its
+# own `diet_credit_verdict() {` definition line — "true diet_credit_verdict()
+# {" is a bash syntax error (an unrelated argument before a function
+# definition), which would make the mutated run fail to parse at all and the
+# row come back INCONCLUSIVE rather than RED. Bash resolves a function call
+# at the time it RUNS, not at the time it is read, so a definition placed
+# after every caller in the file is exactly as valid as one placed before —
+# only the mutation's "first occurrence" semantics care about position here.
+#
+# diet_credit_verdict <label> <lead> <before> <after> <disk> — Spec-AC-01/
+# Spec-AC-02: the ONE shared decision every diet-ledger arm (TEST-023/622/
+# 697/746 above, TEST-766/767/771 below) routes through. Owns exactly two
+# comparisons and nothing else — the per-entry ledger lookup, the uniqueness
+# count and the prefix-pin check all stay in each arm. Echoes a reason line
+# and returns 1 on either failure; echoes an informational growth line
+# (never a failure) and returns 0 when disk has grown past its credited
+# figure, since TEST-010's live .aai/*.prompt.md glob headroom — not
+# TEST-012's ledger re-sum — is the control that actually catches an
+# uncredited byte on disk (TEST-023's old advisory line named TEST-012;
+# that was wrong, and this is the one place the correction has to be made).
+diet_credit_verdict() {
+  local label=$1 lead=$2 before=$3 after=$4 disk=$5
+  local measured=$(( after - before ))
+  if [[ lead -ne measured ]]; then
+    echo "$label: entry credits $lead B but its own measurement is $measured B ($before -> $after)"
+    return 1
+  fi
+  # A FLOOR, not an equality: a shrink below the credited figure means the
+  # credited bytes no longer exist (return 1); growth past it is permitted
+  # and reported, never failed (Spec-AC-01).
+  if [[ disk -lt after ]]; then
+    echo "$label: file is $disk B on disk, BELOW the $after B this entry credited -- the credited bytes no longer exist, so the credit must be reclaimed"
+    return 1
+  fi
+  if [[ disk -gt after ]]; then
+    echo "$label: file has grown to $disk B since this entry recorded $after B -- later growth must carry its OWN itemized ledger entry (TEST-010's live .aai/*.prompt.md glob headroom is the control that catches an uncredited byte on disk; TEST-012 only re-sums the ledger array and cannot see a byte on disk)"
+  fi
+  return 0
+}
+
+# TEST-766 (Spec-AC-01, unit) — diet_credit_verdict's floor decision in
+# isolation: rejects a disk size one byte below the credited `after`, and
+# accepts sizes equal to and above it.
+test_766_diet_credit_verdict_floor() {
+  local ok=1 msg
+  if ! msg=$(diet_credit_verdict "TEST-766" 100 1000 1100 1100 2>&1); then
+    log_info "TEST-766: disk==after (1100 B) wrongly REJECTED: $msg"
+    ok=0
+  fi
+  if ! msg=$(diet_credit_verdict "TEST-766" 100 1000 1100 1150 2>&1); then
+    log_info "TEST-766: disk>after (1150 B) wrongly REJECTED: $msg"
+    ok=0
+  fi
+  if msg=$(diet_credit_verdict "TEST-766" 100 1000 1100 1099 2>&1); then
+    log_info "TEST-766: disk=after-1 (1099 B) wrongly ACCEPTED"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-766 (Spec-AC-01) diet_credit_verdict floor: rejects one byte below after, accepts equal and above" \
+    || log_fail "TEST-766 (Spec-AC-01) diet_credit_verdict floor"
+}
+
+# TEST-767 (Spec-AC-02, unit) — diet_credit_verdict's arithmetic decision in
+# isolation: rejects a fabricated entry whose lead credit is off by one from
+# after-before, naming both figures, and accepts the matching one.
+test_767_diet_credit_verdict_arithmetic() {
+  local ok=1 msg
+  if ! msg=$(diet_credit_verdict "TEST-767" 100 1000 1100 1100 2>&1); then
+    log_info "TEST-767: correctly-credited lead (100 B) wrongly REJECTED: $msg"
+    ok=0
+  fi
+  if msg=$(diet_credit_verdict "TEST-767" 99 1000 1100 1100 2>&1); then
+    log_info "TEST-767: off-by-one lead (99 B, want 100 B) wrongly ACCEPTED"
+    ok=0
+  else
+    if [[ "$msg" != *"99"* || "$msg" != *"100"* ]]; then
+      log_info "TEST-767: rejection message does not name both the credited (99) and measured (100) figures: $msg"
+      ok=0
+    fi
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-767 (Spec-AC-02) diet_credit_verdict arithmetic: rejects off-by-one lead naming both figures, accepts the matching one" \
+    || log_fail "TEST-767 (Spec-AC-02) diet_credit_verdict arithmetic"
+}
+
+# AGENTS_MD_CEILING (Spec-AC-04): .aai/AGENTS.md sits OUTSIDE TEST-010's live
+# .aai/*.prompt.md glob and outside its three `extra` files, so the equality
+# pin TEST-746 used to enforce was the only on-disk control this file had.
+# Converting it to a floor (above) removes that control, so this declared
+# ceiling replaces it. Measured 22991 B at base 69b585ba (roadmap-takes-
+# direction run 3); headroom follows TEST-011's WRAPPER_LINE_CEILING style —
+# a fixed constant with room for ordinary growth, not the raw current size.
+AGENTS_MD_CEILING=24000
+
+# agents_md_ceiling_ok <bytes> — the one comparison guarding the ceiling,
+# factored so the synthetic fixture in TEST-769 exercises the EXACT same
+# code path the real measurement does (TEST-011/TEST-015 idiom).
+agents_md_ceiling_ok() {
+  local bytes=$1
+  [[ bytes -le AGENTS_MD_CEILING ]]
+}
+
+test_769_agents_md_ceiling() {
+  local ok=1 now
+  now=$(/usr/bin/wc -c < .aai/AGENTS.md | tr -d ' ')
+  if ! agents_md_ceiling_ok "$now"; then
+    log_info "TEST-769: .aai/AGENTS.md is $now B, over its declared ceiling $AGENTS_MD_CEILING B"
+    ok=0
+  fi
+  # Anti-bloat proof: a synthetic oversize measurement, comfortably above
+  # today's ceiling and comfortably below any plausible future one, must be
+  # REJECTED by the SAME comparison, or the ceiling is decorative.
+  local fake_over=30000
+  if agents_md_ceiling_ok "$fake_over"; then
+    log_info "TEST-769: synthetic oversize fixture $fake_over B (ceiling $AGENTS_MD_CEILING B) was wrongly ACCEPTED -- ceiling guard does not bite"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-769 (Spec-AC-04) .aai/AGENTS.md $now B <= ceiling $AGENTS_MD_CEILING B, oversize fixture rejected" \
+    || log_fail "TEST-769 (Spec-AC-04) AGENTS.md byte ceiling"
+}
+
+# scan_wall_shape <file> — the Spec-AC-05 matcher: a `wc -c` of a `.aai/`
+# path assigned to a variable, then that SAME variable compared with
+# WALL_OPERATOR_PATTERN (-ne / !=) within the next 3 lines. Echoes one
+# "<file>:<line>: <matched line>" per hit, or nothing.
+scan_wall_shape() {
+  local f="$1"
+  awk -v FN="$f" -v OPAT="$WALL_OPERATOR_PATTERN" '
+    { lines[NR] = $0 }
+    END {
+      for (i = 1; i <= NR; i++) {
+        line = lines[i]
+        if (match(line, /[A-Za-z_][A-Za-z0-9_]*=\$?\(?[^\n]*wc -c[^\n]*\.aai\//)) {
+          varname = substr(line, RSTART, RLENGTH)
+          sub(/=.*/, "", varname)
+          gsub(/^[ \t]*/, "", varname)
+          if (varname == "") continue
+          last = (i + 3 <= NR) ? i + 3 : NR
+          for (j = i; j <= last; j++) {
+            if (lines[j] ~ OPAT && index(lines[j], varname) > 0) {
+              print FN ":" j ": " lines[j]
+            }
+          }
+        }
+      }
+    }
+  ' "$f"
+}
+
+# TEST-770 (Spec-AC-05, integration) — zero live equality-pin arms across
+# tests/skills/*.sh, matcher proven to detect a fabricated arm carrying the
+# TEST-697 shape verbatim.
+test_770_corpus_scan_no_equality_pins() {
+  local ok=1 hits='' f h
+  for f in tests/skills/*.sh; do
+    h="$(scan_wall_shape "$f")"
+    [[ -n "$h" ]] && hits="${hits}${h}"$'\n'
+  done
+  if [[ -n "$hits" ]]; then
+    log_info "TEST-770: corpus scan found live equality-pin arm(s), zero wanted:"
+    log_info "$hits"
+    ok=0
+  fi
+
+  # Bite check (Spec-AC-05): prove the matcher detects the TEST-697 shape it
+  # exists to refuse, on a fabricated fixture, in the same run. Assembled
+  # from parts -- the wc-c assignment and the "-ne" operator are never
+  # adjacent literal text in THIS file -- so this suite's own fixture-
+  # construction code is not itself a hit when the corpus scan above runs
+  # over this very file.
+  local fixture wc_assign neq_op cmp_line
+  wc_assign='now=$(/usr/bin/wc -c < .aai/VALIDATION.prompt.md | tr -d '"'"' '"'"')'
+  neq_op='-ne'
+  cmp_line="if [[ \"\$now\" ${neq_op} \"\$after\" ]]; then"
+  fixture="$(mktemp "${TMPDIR:-/tmp}/aai-wall-shape-fixture.XXXXXX")"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' "$wc_assign"
+    printf '%s\n' "$cmp_line"
+    printf '%s\n' '  echo bad'
+    printf '%s\n' 'fi'
+  } > "$fixture"
+  local fixture_hits
+  fixture_hits="$(scan_wall_shape "$fixture")"
+  rm -f "$fixture"
+  if [[ -z "$fixture_hits" ]]; then
+    log_info "TEST-770: matcher failed to detect the fabricated TEST-697-shaped fixture -- bite check does not bite"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-770 (Spec-AC-05) zero live equality-pin arms across tests/skills/*.sh, matcher proven to detect the fabricated shape" \
+    || log_fail "TEST-770 (Spec-AC-05) corpus scan for wall-shaped arms"
+}
+
+# TEST-771 (Spec-AC-06, unit) — the helper accepts all four measured PR #388
+# states for the 418 B VALIDATION entry (merge-base 21152, origin/main
+# 21570, the feature branch 23163, merged 23581) rejecting only sizes below
+# the credited 21570.
+test_771_diet_credit_verdict_pr388_states() {
+  local ok=1 before=21152 after=21570 lead=418 disk msg
+  for disk in 21570 23163 23581; do
+    if ! msg=$(diet_credit_verdict "TEST-771" "$lead" "$before" "$after" "$disk" 2>&1); then
+      log_info "TEST-771: disk=$disk B (>= after=$after B) wrongly REJECTED: $msg"
+      ok=0
+    fi
+  done
+  if diet_credit_verdict "TEST-771" "$lead" "$before" "$after" 21152 >/dev/null 2>&1; then
+    log_info "TEST-771: disk=21152 B (the merge-base size the file no longer carries) wrongly ACCEPTED"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-771 (Spec-AC-06) PR #388 states: accepts 21570/23163/23581, rejects merge-base 21152" \
+    || log_fail "TEST-771 (Spec-AC-06) PR #388 diet_credit_verdict states"
 }
 
 main() {
@@ -1767,6 +2043,11 @@ main() {
   test_622_diet_true_up
   test_697_corpus_growth_ledgered
   test_746_roadmap_takes_direction_growth_ledgered
+  test_766_diet_credit_verdict_floor
+  test_767_diet_credit_verdict_arithmetic
+  test_769_agents_md_ceiling
+  test_770_corpus_scan_no_equality_pins
+  test_771_diet_credit_verdict_pr388_states
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
