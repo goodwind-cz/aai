@@ -2,7 +2,7 @@
 id: unhobbling-audit
 type: research
 number: null
-status: draft
+status: done
 links:
   pr: []
   commits: []

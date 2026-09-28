@@ -2,7 +2,7 @@
 id: longhorizon-harness-adoption
 type: research
 number: 4
-status: draft
+status: done
 links:
   pr: []
   commits: []
