@@ -2481,3 +2481,6 @@
 {"v":1,"ts":"2026-09-28T19:35:35Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-prompts-invoke-wsl-bash-on-windows","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-28T19:35:35Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"spec-prompts-invoke-wsl-bash-on-windows","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-28T19:35:36Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"spec-prompts-invoke-wsl-bash-on-windows","payload":{"commit":"18ec527d66cdf565fbe1a07da012ade29f7ccd2d"}}
+{"v":1,"ts":"2026-09-28T19:37:00.659Z","actor":"cursoragent_cursor.com","event":"ride_gate_override","ref":"strategy-unscoped-from-current-focus","payload":{"reason":"owner invoked /aai-ship on this Windows usage-report intake"}}
+{"v":1,"ts":"2026-09-28T19:43:10.571Z","actor":"cursoragent_cursor.com","event":"ride_gate_override","ref":"strategy-unscoped-from-current-focus","payload":{"reason":"owner invoked /aai-ship on this Windows usage-report intake"}}
+{"v":1,"ts":"2026-09-28T19:43:38Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-strategy-unscoped-from-current-focus","payload":{"from":"draft","to":"implementing"}}

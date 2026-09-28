@@ -1,7 +1,7 @@
 ---
 id: strategy-unscoped-from-current-focus
 type: issue
-number: null
+number: 86
 status: draft
 links:
   pr: []

@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-29T11:41:55.816Z",
+  "generatedAt": "2026-09-29T11:59:14.001Z",
   "project": "aai",
   "counts": {
     "delivered": 261,
-    "in_progress": 15,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -190,6 +190,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "strategy-unscoped-from-current-focus",
+      "title": "Issue — Global implementation_strategy can belong to a different work item than current_focus",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0086-strategy-unscoped-from-current-focus.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0192-spec-strategy-unscoped-from-current-focus.md",
       "validation": null,
       "review": null
     },
