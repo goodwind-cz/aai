@@ -2918,7 +2918,7 @@ test_001_tracked_crlf_overlay() {
 }
 
 test_002_unrelated_untracked_omitted() {
-  log_info "Test: root-level untracked scratch.tmp is omitted from clone-fidelity (TEST-002)..."
+  log_info "Test: root-level untracked scratch.tmp is copied and clone-fidelity holds (TEST-002)..."
   local fx; fx="$(mg_new_fixture)"
   mg_seed_repo "$fx"
   mg_write_fixture_suite "$fx"
@@ -2935,7 +2935,8 @@ test_002_unrelated_untracked_omitted() {
     --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -ne 3 ]] || log_fail "TEST-002: clone-fidelity refused because of root untracked scratch.tmp: $out"
   [[ "$rc" -eq 0 ]] || log_fail "TEST-002: want exit 0, got $rc: $out"
-  log_pass "TEST-002 root-level untracked omitted from clone-fidelity"
+  assert_payload_contains "$out" 'root-level untracked' "TEST-002: missing NOTE that root-level untracked was copied: $out"
+  log_pass "TEST-002 root-level untracked copied; clone-fidelity held"
 }
 
 test_003_eol_only_mismatch_token() {
@@ -2972,7 +2973,8 @@ fs.writeFileSync(p, t.replace(needle, ''));
 "
 
   local out rc
-  out="$(cd "$fx" && node "$scratch/mutation-run.mjs" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+  out="$(cd "$fx" && GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+    node "$scratch/mutation-run.mjs" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
     --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
     --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 3 ]] || log_fail "TEST-003: want clone-fidelity refusal (exit 3) so TreeMismatchError is observed, got $rc: $out"

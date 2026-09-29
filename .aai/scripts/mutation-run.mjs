@@ -483,6 +483,15 @@ function isRootLevelUntracked(p) {
 // clone-fidelity compares working-tree bytes (mixed EOL included), not a
 // git-checkout-then-apply reconstruction. SPEC-DRAFT
 // spec-mutation-clone-fidelity-windows-eol D1.
+function unlinkIfExists(p) {
+  try {
+    fs.lstatSync(p);
+  } catch {
+    return;
+  }
+  fs.unlinkSync(p);
+}
+
 function overlayTrackedWorkingTreeBytes(cloneDir, sourceRoot) {
   const tracked = execFileSync('git', ['-C', sourceRoot, 'ls-files', '-z'], { encoding: 'utf8' });
   for (const rel of tracked.split('\0')) {
@@ -492,8 +501,12 @@ function overlayTrackedWorkingTreeBytes(cloneDir, sourceRoot) {
     try {
       const st = fs.lstatSync(src);
       fs.mkdirSync(path.dirname(dst), { recursive: true });
+      // Unlink dst first (lstat, never follow). copyFileSync onto a leftover
+      // clone symlink would write through to the link target — including ROOT
+      // (spec D4) — when HEAD tracked a symlink and the working tree replaced
+      // it with a regular file.
+      unlinkIfExists(dst);
       if (st.isSymbolicLink()) {
-        try { fs.unlinkSync(dst); } catch { /* dst may not exist yet */ }
         fs.symlinkSync(fs.readlinkSync(src), dst);
       } else if (st.isFile()) {
         fs.copyFileSync(src, dst);
@@ -550,13 +563,13 @@ function buildIsolatedClone() {
     for (const rel of untracked.split('\n')) {
       const p = rel.trim();
       if (!p) continue;
-      if (rootUntracked.has(p)) continue;
       if (p === 'docs/ai/tdd' || p.startsWith('docs/ai/tdd/')) continue;
       const src = path.join(ROOT, p);
       const dst = path.join(cloneDir, p);
       try {
         const st = fs.lstatSync(src);
         fs.mkdirSync(path.dirname(dst), { recursive: true });
+        unlinkIfExists(dst);
         if (st.isSymbolicLink()) {
           fs.symlinkSync(fs.readlinkSync(src), dst);
         } else {
@@ -569,9 +582,14 @@ function buildIsolatedClone() {
 
     overlayTrackedWorkingTreeBytes(cloneDir, ROOT);
 
-    // Root-level untracked stays on sourceTreeFiles so D7's before-map still
-    // sees those paths in ROOT after the run. Deleting them here made D7
-    // report "added: scratch.tmp" (TEST-002). D4 filters a copy below.
+    // Root-level untracked is copied like nested untracked (review B1: omitting
+    // it from the clone false-REDs a suite that needs a new root file). D4
+    // compares the full map; D7 still uses unstripped sourceTreeFiles.
+    if (rootUntracked.size) {
+      process.stderr.write(
+        `NOTE: copied ${rootUntracked.size} root-level untracked path(s) into the clone\n`
+      );
+    }
 
     // NB-5: RUNTIME_ALLOWLIST paths are now part of the tree hash (tree-hash.mjs
     // listTreeFiles), so they must ALSO be reproduced in the clone — the same
@@ -604,15 +622,14 @@ function buildIsolatedClone() {
       const dst = path.join(cloneDir, rel);
       try {
         fs.mkdirSync(path.dirname(dst), { recursive: true });
+        unlinkIfExists(dst);
         fs.writeFileSync(dst, bytes);
         sourceTreeFiles.set(rel, createHash('sha256').update(bytes).digest('hex'));
       } catch (err) {
         process.stderr.write(`mutation-run: skipping runtime-allowlist path that could not be reproduced in the clone: ${rel} (${err.message})\n`);
       }
     }
-    const d4Source = new Map(sourceTreeFiles);
-    for (const rel of rootUntracked) d4Source.delete(rel);
-    const sourceTreeHash = hashFromFileHashes(d4Source);
+    const sourceTreeHash = hashFromFileHashes(sourceTreeFiles);
 
     const cloneTreeFiles = computeTreeFileHashes(cloneDir);
     const cloneTreeHash = hashFromFileHashes(cloneTreeFiles);
@@ -622,7 +639,7 @@ function buildIsolatedClone() {
       // WRITER touching the source tree between the hash captured above and
       // the diff/untracked-copy steps just run against ROOT again, not a bug
       // in the clone builder itself.
-      const treeDiff = diffTreeFileHashes(d4Source, cloneTreeFiles);
+      const treeDiff = diffTreeFileHashes(sourceTreeFiles, cloneTreeFiles);
       const eolNote = eolOnlyMismatchNote(ROOT, cloneDir, treeDiff.changed);
       const eolSuffix = eolNote ? ` — ${eolNote}` : '';
       throw new TreeMismatchError(
