@@ -2936,6 +2936,7 @@ test_002_root_untracked_copied() {
   [[ "$rc" -ne 3 ]] || log_fail "TEST-002: clone-fidelity refused because of root untracked scratch.tmp: $out"
   [[ "$rc" -eq 0 ]] || log_fail "TEST-002: want exit 0, got $rc: $out"
   assert_payload_contains "$out" 'root-level untracked' "TEST-002: missing NOTE that root-level untracked was copied: $out"
+  assert_payload_contains "$out" 'scratch.tmp' "TEST-002: NOTE must name the copied path scratch.tmp: $out"
   log_pass "TEST-002 root-level untracked copied; clone-fidelity held"
 }
 

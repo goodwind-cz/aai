@@ -22,10 +22,15 @@ Rules:
   clone-fidelity hashes mixed EOL as they sit on disk, not as `git apply`
   reconstructed them. Evidence: `overlayTrackedWorkingTreeBytes`, TEST-001.
 
-- Root-level untracked paths are skipped on copy and stripped only from the
-  D4 comparison copy of `sourceTreeFiles`. The returned map stays unstripped
-  so D7 does not report `added: scratch.tmp`. Evidence: TEST-002
+- Root-level untracked paths are copied into the clone and hashed in the D4
+  map. D7 uses the same unstripped `sourceTreeFiles`. Omitting them
+  false-REDs a suite that needs a new root file. Evidence: TEST-002
   `docs/ai/tdd/spec-mutation-clone-fidelity-windows-eol/mutation-TEST-002.txt`.
+
+- Overlay, untracked copy, and allowlist writers in `buildIsolatedClone`
+  walk clone ancestors (`ensureCloneParentDirs`) and unlink the leaf
+  (`unlinkIfExists`, lstat never follow) so a leftover HEAD symlink cannot
+  write through into ROOT. Evidence: TEST-004, TEST-005.
 
 - `eolOnlyMismatchNote` in `.aai/scripts/lib/tree-hash.mjs` names changed
   paths whose source vs clone bytes differ only by CR using the token

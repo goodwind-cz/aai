@@ -472,9 +472,9 @@ function withoutRuntimeAllowlist(fileHashMap) {
   return filtered;
 }
 
-// Root-level untracked (no slash in the relative path) is scratch, not
-// mutation payload. Nested untracked (lib/extra.txt) stays in the fidelity
-// set. SPEC-DRAFT spec-mutation-clone-fidelity-windows-eol D2.
+// Root-level untracked (no slash in the relative path) is named in the
+// copy NOTE (SPEC-DRAFT spec-mutation-clone-fidelity-windows-eol D2). It
+// is copied and hashed like nested untracked; this helper does not skip it.
 function isRootLevelUntracked(p) {
   return Boolean(p) && !p.includes('/') && !p.includes('\\');
 }
@@ -492,6 +492,36 @@ function unlinkIfExists(p) {
   fs.unlinkSync(p);
 }
 
+// Replace leftover clone symlink (or non-dir) ancestors of `rel` with real
+// directories so mkdir/copy cannot follow them into ROOT (spec D4 / B2r).
+// Git relpaths are slash-separated. Walk is lstat-only (never follow).
+function ensureCloneParentDirs(cloneDir, rel) {
+  const root = path.resolve(cloneDir);
+  const parentRel = rel.replace(/\\/g, '/').split('/').slice(0, -1).filter((p) => p && p !== '.');
+  let cur = root;
+  for (const part of parentRel) {
+    if (part === '..') {
+      throw new Error(`clone path escaped cloneDir: ${rel}`);
+    }
+    cur = path.join(cur, part);
+    const resolved = path.resolve(cur);
+    if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+      throw new Error(`clone path escaped cloneDir: ${rel}`);
+    }
+    let st;
+    try {
+      st = fs.lstatSync(cur);
+    } catch {
+      fs.mkdirSync(cur);
+      continue;
+    }
+    if (st.isSymbolicLink() || !st.isDirectory()) {
+      fs.unlinkSync(cur);
+      fs.mkdirSync(cur);
+    }
+  }
+}
+
 function overlayTrackedWorkingTreeBytes(cloneDir, sourceRoot) {
   const tracked = execFileSync('git', ['-C', sourceRoot, 'ls-files', '-z'], { encoding: 'utf8' });
   for (const rel of tracked.split('\0')) {
@@ -500,7 +530,7 @@ function overlayTrackedWorkingTreeBytes(cloneDir, sourceRoot) {
     const dst = path.join(cloneDir, rel);
     try {
       const st = fs.lstatSync(src);
-      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      ensureCloneParentDirs(cloneDir, rel);
       // Unlink dst first (lstat, never follow). copyFileSync onto a leftover
       // clone symlink would write through to the link target — including ROOT
       // (spec D4) — when HEAD tracked a symlink and the working tree replaced
@@ -556,19 +586,20 @@ function buildIsolatedClone() {
     // the whole clone build.
     const untracked = execFileSync('git', ['-C', ROOT, 'ls-files', '--others', '--exclude-standard'], { encoding: 'utf8' });
     const rootUntracked = new Set();
-    for (const rel of untracked.split('\n')) {
-      const p = rel.trim();
+    for (const line of untracked.split('\n')) {
+      const p = line.trim();
       if (p && isRootLevelUntracked(p)) rootUntracked.add(p);
     }
-    for (const rel of untracked.split('\n')) {
-      const p = rel.trim();
+    for (const line of untracked.split('\n')) {
+      const p = line.trim();
       if (!p) continue;
       if (p === 'docs/ai/tdd' || p.startsWith('docs/ai/tdd/')) continue;
       const src = path.join(ROOT, p);
       const dst = path.join(cloneDir, p);
       try {
         const st = fs.lstatSync(src);
-        fs.mkdirSync(path.dirname(dst), { recursive: true });
+        const rel = p;
+        ensureCloneParentDirs(cloneDir, rel);
         unlinkIfExists(dst);
         if (st.isSymbolicLink()) {
           fs.symlinkSync(fs.readlinkSync(src), dst);
@@ -587,7 +618,7 @@ function buildIsolatedClone() {
     // compares the full map; D7 still uses unstripped sourceTreeFiles.
     if (rootUntracked.size) {
       process.stderr.write(
-        `NOTE: copied ${rootUntracked.size} root-level untracked path(s) into the clone\n`
+        `NOTE: copied ${rootUntracked.size} root-level untracked path(s) into the clone: ${[...rootUntracked].sort().join(', ')}\n`
       );
     }
 
@@ -621,7 +652,7 @@ function buildIsolatedClone() {
       }
       const dst = path.join(cloneDir, rel);
       try {
-        fs.mkdirSync(path.dirname(dst), { recursive: true });
+        ensureCloneParentDirs(cloneDir, rel);
         unlinkIfExists(dst);
         fs.writeFileSync(dst, bytes);
         sourceTreeFiles.set(rel, createHash('sha256').update(bytes).digest('hex'));
