@@ -322,6 +322,22 @@ Describe 'aai-run-tests.ps1' {
             $script:startArgs.Timeout | Should -Be 45
         }
 
+        It 'translates a Windows project Python path to Git Bash and leaves the wrapper script path unchanged' {
+            ConvertTo-GitBashPath -Path 'C:\proj\.venv\Scripts\python.exe' | Should -Be '/c/proj/.venv/Scripts/python.exe'
+            ConvertTo-WindowsPath -Path '/c/proj/.venv/Scripts/python.exe' | Should -Be 'C:\proj\.venv\Scripts\python.exe'
+            ConvertTo-GitBashPath -Path 'sh' | Should -Be 'sh'
+            $script:startArgs = $null
+            Mock Start-GitBashProcess {
+                $script:startArgs = @{ ScriptArgs = $ScriptArgs }
+                [PSCustomObject]@{ Id = 4242; ExitCode = 0 }
+            }
+            Mock Wait-ProcessWithTimeout { $true }
+            $rc = Invoke-ViaGitBash -BashPath 'C:\Git\bin\bash.exe' -Command @('C:\proj\.venv\Scripts\python.exe', '-m', 'pytest') `
+                -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 45
+            $rc | Should -Be 0
+            $script:startArgs.ScriptArgs | Should -Be @('C:\repo\.aai\scripts\aai-run-tests.sh', '/c/proj/.venv/Scripts/python.exe', '-m', 'pytest')
+        }
+
         It 'NB-A: outer Git-Bash watchdog deadline = AAI_TEST_TIMEOUT + grace (never races the inner .sh reap-grace sleep)' {
             $script:outerTimeoutSeconds = $null
             Mock Start-GitBashProcess { [PSCustomObject]@{ Id = 4242; ExitCode = 0 } }

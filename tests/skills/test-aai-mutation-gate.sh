@@ -3142,6 +3142,111 @@ EOS
   log_pass "TEST-006 working-tree dir-symlink preserved; overlay did not flatten it"
 }
 
+test_007_lfs_clone_protection() {
+  log_info "Test: local clone opts out of clone protection so an LFS post-checkout hook is not refused (TEST-007)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-lfs-007"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  printf 'marker-present' > "$fx/lib/extra.txt"
+
+  local shim_dir probe real_git
+  shim_dir="$(mktemp -d "${TMPDIR:-/tmp}/aai-mg-git-shim.XXXXXX")"
+  probe="$(mktemp "${TMPDIR:-/tmp}/aai-mg-clone-probe.XXXXXX")"
+  MG_FIXTURE_DIRS="$MG_FIXTURE_DIRS $shim_dir"
+  real_git="$(PATH="/usr/bin:/bin" command -v git)"
+  cat > "$shim_dir/git" <<EOS
+#!/bin/sh
+if [ "\$1" = "clone" ]; then
+  if [ "\${GIT_CLONE_PROTECTION_ACTIVE:-}" != "false" ]; then
+    echo "fatal: active \\\`post-checkout\\\` hook found during \\\`git clone\\\`:" >&2
+    echo "For security reasons, this is disallowed by default." >&2
+    echo "run the command again with \\\`GIT_CLONE_PROTECTION_ACTIVE=false\\\`" >&2
+    exit 128
+  fi
+  printf 'allowed\n' >> "$probe"
+fi
+exec "$real_git" "\$@"
+EOS
+  chmod +x "$shim_dir/git"
+
+  local out rc
+  out="$(cd "$fx" && PATH="$shim_dir:$PATH" node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-007: want RED (exit 0) after a protection-allowed clone, got $rc: $out"
+  assert_payload_not_contains "$out" "post-checkout" "TEST-007: clone protection fatal reached the runner: $out"
+  [[ "$(cat "$probe" 2>/dev/null)" == "allowed" ]] || log_fail "TEST-007: clone did not run with GIT_CLONE_PROTECTION_ACTIVE=false (probe=$(cat "$probe" 2>/dev/null))"
+  log_pass "TEST-007 local clone set GIT_CLONE_PROTECTION_ACTIVE=false and recorded RED"
+}
+
+test_008_gitignored_test_wrapper() {
+  log_info "Test: a gitignored .aai test wrapper is reproduced in the isolated clone (TEST-008)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  printf 'AAI-PS1-SENTINEL\n' > "$fx/.aai/scripts/aai-run-tests.ps1"
+  printf 'docs/ai/tdd/\n.aai/\n' > "$fx/.gitignore"
+  cat > "$fx/tests/skills/fixture-suite.sh" <<'EOS'
+#!/usr/bin/env bash
+set -uo pipefail
+TEST_NAME="fixture-suite"
+FSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FROOT="$(cd "$FSCRIPT_DIR/../.." && pwd)"
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+
+test_9001_greet_and_marker() {
+  [[ -f "$FROOT/.aai/scripts/aai-run-tests.sh" ]] || log_fail "TEST-9001 missing sh wrapper"
+  [[ -f "$FROOT/.aai/scripts/aai-run-tests.ps1" ]] || log_fail "TEST-9001 missing ps1 wrapper"
+  local ps1; ps1="$(cat "$FROOT/.aai/scripts/aai-run-tests.ps1")"
+  [[ "$ps1" == "AAI-PS1-SENTINEL" ]] || log_fail "TEST-9001 ps1 sentinel wrong: got '$ps1'"
+  local outfile rc out
+  outfile="$(mktemp)"
+  node "$FROOT/lib/greeting.mjs" >"$outfile" 2>&1
+  rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    cat "$outfile" >&2
+    rm -f "$outfile"
+    exit "$rc"
+  fi
+  out="$(cat "$outfile")"; rm -f "$outfile"
+  [[ "$out" == "hello" ]] || log_fail "TEST-9001 greeting mismatch: got '$out' want 'hello'"
+  [[ -f "$FROOT/lib/extra.txt" ]] || log_fail "TEST-9001 untracked marker file missing: lib/extra.txt"
+  log_pass "TEST-9001 greeting + wrappers both correct"
+}
+
+main() {
+  if [[ -n "${1:-}" ]]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"
+    return
+  fi
+  test_9001_greet_and_marker
+}
+main "$@"
+EOS
+  chmod +x "$fx/tests/skills/fixture-suite.sh"
+  mg_write_spec "$fx" "fixture-spec-wrap-008"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  printf 'marker-present' > "$fx/lib/extra.txt"
+  # Ignored on purpose: the clone must not need this path. Not a settings template.
+  mkdir -p "$fx/.aai/cache"
+  printf 'not-the-wrapper\n' > "$fx/.aai/cache/scratch.txt"
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-008: want RED (exit 0) with the gitignored wrapper present, got $rc: $out"
+  assert_payload_contains "$out" "TEST-9001 greeting mismatch" "TEST-008: suite did not reach the greeting assertion (wrapper missing?): $out"
+  log_pass "TEST-008 gitignored test wrapper reproduced; mutation RED recorded"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -3188,6 +3293,8 @@ main() {
   test_004_symlink_ancestor_does_not_write_root
   test_005_symlink_leaf_does_not_write_root
   test_006_wt_dir_symlink_not_replaced_by_overlay
+  test_007_lfs_clone_protection
+  test_008_gitignored_test_wrapper
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

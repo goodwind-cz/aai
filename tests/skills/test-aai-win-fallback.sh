@@ -772,7 +772,48 @@ test_026() {
   log_pass "allowlist rationale + operator note + truthful product doc + CHANGELOG heading (TEST-026)"
 }
 
-ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027"
+test_028() {
+  log_info "TEST-028: a Windows project Python path round-trips to Git Bash and a bash suite executes it (no helper command, so not exit 127)..."
+  local lib="$PROJECT_ROOT/.aai/scripts/lib/git-bash-path.sh"
+  [[ -f "$lib" ]] || log_fail "missing $lib"
+  # shellcheck source=/dev/null
+  . "$lib"
+  local win='C:\proj\.venv\Scripts\python.exe'
+  local gb
+  gb="$(aai_to_git_bash_path "$win")"
+  [[ "$gb" == "/c/proj/.venv/Scripts/python.exe" ]] || log_fail "git-bash path wrong: got '$gb'"
+  local back
+  back="$(aai_to_windows_path "$gb")"
+  [[ "$back" == 'C:\proj\.venv\Scripts\python.exe' ]] || log_fail "windows path wrong: got '$back'"
+  local slash
+  slash="$(aai_to_git_bash_path 'C:/proj/.venv/Scripts/python.exe')"
+  [[ "$slash" == "/c/proj/.venv/Scripts/python.exe" ]] || log_fail "C:/ spelling wrong: got '$slash'"
+  # Non-paths stay put (the wrapper must not rewrite "sh" or "-c").
+  [[ "$(aai_to_git_bash_path 'sh')" == "sh" ]] || log_fail "plain token was rewritten"
+
+  local root exe suite out rc
+  root="$(mktemp -d "${TMPDIR:-/tmp}/aai-gb-root.XXXXXX")"
+  mkdir -p "$root/c/proj/.venv/Scripts"
+  exe="$root/c/proj/.venv/Scripts/python.exe"
+  printf '#!/bin/sh\necho PYOK\n' > "$exe"
+  chmod +x "$exe"
+  suite="$(mktemp "${TMPDIR:-/tmp}/aai-gb-suite.XXXXXX")"
+  cat > "$suite" <<'EOS'
+#!/usr/bin/env bash
+py='C:\proj\.venv\Scripts\python.exe'
+out="$("$py")"
+[ "$out" = "PYOK" ] || { echo "FAIL python path: got [$out]" >&2; exit 1; }
+echo PASS
+EOS
+  chmod +x "$suite"
+  out="$(AAI_UNAME="MSYS_NT-10.0" AAI_GIT_BASH_FS_ROOT="$root" bash "$RUN_TESTS_SCRIPT" bash "$suite" 2>&1)" && rc=0 || rc=$?
+  rm -rf "$root" "$suite"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-028: wrapper exit $rc (want 0, not 127): $out"
+  assert_payload_contains "$out" "PASS" "TEST-028: sentinel python did not run: $out"
+  log_pass "TEST-028 Windows Python path translated in-process and executed under Git Bash"
+}
+
+ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028"
 
 # TEST-027 (Spec-AC-04): ALL_TESTS still registers the Windows-safe pin.
 test_027() {

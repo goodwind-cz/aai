@@ -156,6 +156,7 @@ core:
   - .aai/scripts/lib/docs-audit-core.mjs
   - .aai/scripts/lib/docs-model.mjs
   - .aai/scripts/lib/evidence-paths.mjs
+  - .aai/scripts/lib/git-bash-path.sh
   - .aai/scripts/lib/gitignore-block.sh
   - .aai/scripts/lib/guard-config.mjs
   - .aai/scripts/lib/harness.mjs

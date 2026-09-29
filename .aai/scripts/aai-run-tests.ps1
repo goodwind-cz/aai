@@ -629,6 +629,28 @@ function Stop-ProcessTree {
   & taskkill.exe /PID $ProcessId /T /F 2>$null | Out-Null
 }
 
+function ConvertTo-GitBashPath {
+  # In-process. Do not call cygpath: a missing helper exits 127 and the
+  # project Python interpreter never starts.
+  [CmdletBinding()] param([Parameter(Mandatory)][string]$Path)
+  if ($Path -match '^([A-Za-z]):[\\/](.*)$') {
+    $drive = $Matches[1].ToLower()
+    $rest = $Matches[2] -replace '\\', '/'
+    return "/$drive/$rest"
+  }
+  return $Path
+}
+
+function ConvertTo-WindowsPath {
+  [CmdletBinding()] param([Parameter(Mandatory)][string]$Path)
+  if ($Path -match '^/([A-Za-z])/(.*)$') {
+    $drive = $Matches[1].ToUpper()
+    $rest = $Matches[2] -replace '/', '\'
+    return "${drive}:\$rest"
+  }
+  return $Path
+}
+
 function Invoke-ViaGitBash {
   [CmdletBinding()]
   param(
@@ -650,7 +672,13 @@ function Invoke-ViaGitBash {
   # though the command DID start, so the message names the failing branch and
   # exception, not "never started"; the process is still reaped above, so
   # this is a diagnostic-wording caveat only, never a functional gap.
-  $bashArgs = @($ShScriptPath) + $Command
+  # Translate Windows absolute command arguments only. The wrapper script
+  # path stays a Windows path (existing Git Bash launch contract).
+  $translatedCommand = @()
+  foreach ($arg in $Command) {
+    $translatedCommand += (ConvertTo-GitBashPath -Path $arg)
+  }
+  $bashArgs = @($ShScriptPath) + $translatedCommand
   $proc = $null
   $spawnFailed = $false
   try {
