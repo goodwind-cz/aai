@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-29T12:23:00.180Z
+Generated: 2026-09-29T16:43:05.252Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -51,7 +51,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (462)
+## Done (464)
 
 | ID | Type | Path |
 |---|---|---|
@@ -245,6 +245,7 @@ _None._
 | CHANGE-0193 | issues | docs/issues/CHANGE-0193-gate-checks-declared-mutation.md |
 | CHANGE-0194 | issues | docs/issues/CHANGE-0194-roadmap-takes-direction.md |
 | CHANGE-0195 | issues | docs/issues/CHANGE-0195-growth-pins-dont-wall-the-corpus.md |
+| CHANGE-0196 | issues | docs/issues/CHANGE-0196-antigravity-cli-skill-paths.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -515,6 +516,7 @@ _None._
 | SPEC-0191 | specs | docs/specs/SPEC-0191-spec-prompts-invoke-wsl-bash-on-windows.md |
 | SPEC-0192 | specs | docs/specs/SPEC-0192-spec-strategy-unscoped-from-current-focus.md |
 | SPEC-0193 | specs | docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md |
+| SPEC-0194 | specs | docs/specs/SPEC-0194-spec-antigravity-cli-skill-paths.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

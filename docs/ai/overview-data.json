@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-29T12:22:57.152Z",
+  "generatedAt": "2026-09-29T16:42:10.475Z",
   "project": "aai",
   "counts": {
-    "delivered": 263,
+    "delivered": 264,
     "in_progress": 15,
     "releases": 1,
     "tokens_total": 68899611
@@ -208,6 +208,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "antigravity-cli-skill-paths",
+      "title": "Make AAI skills visible on the Antigravity CLI skill paths",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0196-antigravity-cli-skill-paths.md",
+      "closed_on": "2026-09-29",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0194-spec-antigravity-cli-skill-paths.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "mutation-clone-fidelity-windows-eol",
       "title": "Issue — Mutation runner clone fidelity fails on Windows dirty trees with mixed EOL",
@@ -3634,6 +3647,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "antigravity-cli-skill-paths",
+          "title": "Make AAI skills visible on the Antigravity CLI skill paths",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0196-antigravity-cli-skill-paths.md",
+          "closed_on": "2026-09-29",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0194-spec-antigravity-cli-skill-paths.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "mutation-clone-fidelity-windows-eol",
           "title": "Issue — Mutation runner clone fidelity fails on Windows dirty trees with mixed EOL",

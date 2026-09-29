@@ -61,6 +61,14 @@ suites:
       - .gemini/skills/aai-deslop/**
       - .gemini/skills/aai-interrogate/**
 
+  aai-antigravity-project-skills:
+    globs:
+      - .aai/scripts/sync-harness-skills.mjs
+      - .aai/system/HARNESS_SKILLS.yaml
+      - .aai/system/PROFILES.yaml
+      - .claude/skills/**/SKILL.md
+      - .agents/skills/**/SKILL.md
+
   aai-bootstrap:
     globs:
       - .aai/scripts/aai-bootstrap.sh
