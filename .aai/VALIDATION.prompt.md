@@ -170,12 +170,13 @@ PROCESS
    b) Scan the repository for test configuration files (e.g. playwright.config.*, cypress.config.*, jest.config.*, pytest.ini, vitest.config.*, etc.).
    c) For EACH discovered test type (unit, integration, e2e, contract, smoke), execute its test command.
       LEAK-SAFE EXECUTION (SPEC-0009): capture the step-start epoch —
-      `AAI_REAP_STEP_START_EPOCH=$(date +%s)` — BEFORE launching the test
+      Windows: `$env:AAI_REAP_STEP_START_EPOCH = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()`;
+      POSIX: `AAI_REAP_STEP_START_EPOCH=$(date +%s)` — BEFORE launching the test
       command, then run every discovered test command THROUGH the
       process-group wrapper (Windows: `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <cmd>`; POSIX: `bash .aai/scripts/aai-run-tests.sh <cmd>`) — never
       invoke `vitest`/`tsc`/dev-servers directly. After the test step
       completes, reap this-workspace survivors on the step boundary with the
-      workspace-scoped reaper `.aai/scripts/aai-reap-tests.sh`, passing it that
+      workspace-scoped reaper (Windows: `powershell -NoProfile -File .aai/scripts/aai-reap-tests.ps1`; POSIX: `.aai/scripts/aai-reap-tests.sh`), passing it that
       same `AAI_REAP_STEP_START_EPOCH`. See the header comments of both
       scripts for the full safety contract (group-kill guarantee, timeout
       exit-124 convention, epoch-vs-legacy age-guard modes, never a global

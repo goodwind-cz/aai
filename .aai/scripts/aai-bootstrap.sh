@@ -110,15 +110,21 @@ add_unique() {
   eval "${array_name}+=(\"\$value\")"
 }
 
-# Prefix a detected test command with the leak-safe process-group wrapper so a
-# generated aai-test-* skill can never orphan a hung test tree (SPEC-0009). The
-# wrapper is vendored under .aai/scripts/ by aai-sync, so the path resolves in
-# the target project. The bash prefix is the CHANGE-0139 canonical POSIX
-# shape — generated skills must emit the allowlist-stable literal, never the
-# bare path (PR #254 field class: unstable shapes re-trigger approval).
-RUN_TESTS_WRAPPER="bash .aai/scripts/aai-run-tests.sh"
+# Prefix a detected test command with BOTH leak-safe process-group wrappers so
+# a generated aai-test-* skill can never orphan a hung test tree (SPEC-0009)
+# and is never bash-only on Windows (SPEC-0191 / TEST-024). The wrappers are
+# vendored under .aai/scripts/ by aai-sync. Emit both allowlist-stable
+# literals; do not host-OS-select — the agent running the skill picks the
+# matching line. Never emit the bare .sh path (PR #254: unstable shapes
+# re-trigger approval).
 wrap_test_command() {
-  printf '%s %s' "$RUN_TESTS_WRAPPER" "$1"
+  printf 'Windows: powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 %s\nPOSIX: bash .aai/scripts/aai-run-tests.sh %s' "$1" "$1"
+}
+
+# One-line form for marker/index/summary (those surfaces put the command in
+# backticks on a single list item).
+flatten_cmd_for_display() {
+  printf '%s' "${1//$'\n'/ / }"
 }
 
 # Leak-safe Vitest guidance emitted (not applied) when Vitest is detected. This
@@ -134,9 +140,10 @@ vitest_leak_safe_guidance() {
   - `poolOptions.forks.maxForks: 2`, `poolOptions.forks.minForks: 1`
   - `teardownTimeout: 10_000`
 - Bootstrap does NOT edit an existing Vitest config; apply this yourself.
-- The generated command already runs through `.aai/scripts/aai-run-tests.sh`, which
-  puts the run in a killable process group with a timeout so no fork worker can
-  outlive the step.
+- The generated command already runs through the wrapper pair (Windows:
+  `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1`; POSIX:
+  `bash .aai/scripts/aai-run-tests.sh`), which puts the run in a killable
+  process group with a timeout so no fork worker can outlive the step.
 GUIDE
 }
 
@@ -805,6 +812,10 @@ render_skill() {
   local description="$2"
   local command="$3"
   local extra="$4"
+  local fence="bash"
+  if [[ "$command" == *$'\n'* || "$command" == *aai-run-tests.ps1* ]]; then
+    fence=""
+  fi
 
   cat <<EOF
 ---
@@ -820,7 +831,7 @@ $description
 
 Run from the repository root:
 
-\`\`\`bash
+\`\`\`${fence}
 $command
 \`\`\`
 
@@ -855,7 +866,7 @@ render_marker() {
   local generated_lines=""
   local i
   for i in "${!SKILL_NAMES[@]}"; do
-    generated_lines+="- ${SKILL_NAMES[$i]}: \`${SKILL_COMMANDS[$i]}\`"$'\n'
+    generated_lines+="- ${SKILL_NAMES[$i]}: \`$(flatten_cmd_for_display "${SKILL_COMMANDS[$i]}")\`"$'\n'
   done
   [[ -n "$generated_lines" ]] || generated_lines="- None"$'\n'
 
@@ -913,7 +924,7 @@ render_index() {
   local skill_lines=""
   local i
   for i in "${!SKILL_NAMES[@]}"; do
-    skill_lines+="- ${SKILL_NAMES[$i]}: .claude/skills/${SKILL_NAMES[$i]}/SKILL.md - \`${SKILL_COMMANDS[$i]}\`"$'\n'
+    skill_lines+="- ${SKILL_NAMES[$i]}: .claude/skills/${SKILL_NAMES[$i]}/SKILL.md - \`$(flatten_cmd_for_display "${SKILL_COMMANDS[$i]}")\`"$'\n'
   done
   [[ -n "$skill_lines" ]] || skill_lines="- None generated"$'\n'
 
@@ -1072,7 +1083,7 @@ print_summary() {
   else
     local i
     for i in "${!SKILL_NAMES[@]}"; do
-      echo "- /${SKILL_NAMES[$i]} -> ${SKILL_COMMANDS[$i]}"
+      echo "- /${SKILL_NAMES[$i]} -> $(flatten_cmd_for_display "${SKILL_COMMANDS[$i]}")"
     done
   fi
   echo

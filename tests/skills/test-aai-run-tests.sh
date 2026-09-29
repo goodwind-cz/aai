@@ -381,11 +381,17 @@ TS
   marker="$fx/.claude/skills/AAI_DYNAMIC_SKILLS.md"
   [[ -f "$unit" ]] || log_fail "bootstrap did not generate the aai-test-unit skill"
 
-  # Wrapped, not bare: the detected vitest command must be prefixed by the wrapper.
+  # Wrapped, not bare: the detected vitest command must be prefixed by BOTH
+  # platform wrappers (SPEC-0191 — bash-only generated skills are the Windows
+  # WSL E_ACCESSDENIED footgun).
   grep -qF ".aai/scripts/aai-run-tests.sh" "$unit" \
     || log_fail "generated unit-test command must be WRAPPED via .aai/scripts/aai-run-tests.sh (bare command is the RED state)"
   grep -Eq "aai-run-tests\.sh.*vitest" "$unit" \
-    || log_fail "the wrapper must prefix the detected vitest command in the generated skill"
+    || log_fail "the POSIX wrapper must prefix the detected vitest command in the generated skill"
+  grep -qF "powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1" "$unit" \
+    || log_fail "generated unit-test command must also name the Windows .ps1 wrapper"
+  grep -Eq "aai-run-tests\.ps1.*vitest" "$unit" \
+    || log_fail "the Windows wrapper must prefix the detected vitest command in the generated skill"
 
   # Leak-safe vitest guidance emitted somewhere in the generated outputs.
   grep -rqF "maxForks" "$fx/.claude/skills/" \

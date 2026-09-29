@@ -897,7 +897,9 @@ test_012_growth_sum_matches_ledger() {
   # Windows `.ps1` literal beside POSIX bash in the listed skill prompts.
   # Then 42134 -> 42626: same ride review B1 (+492 B) — SKILL_TEST_SKILLS
   # Usage fence and VALIDATION c2 sweep routed through the wrapper pair.
-  local want_growth=42626
+  # Then 42626 -> 43259: same ride Codex P1 reap pair (+633 B) — LOOP /
+  # VALIDATION / BOOTSTRAP name aai-reap-tests.ps1 plus the PowerShell epoch.
+  local want_growth=43259
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

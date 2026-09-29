@@ -62,7 +62,7 @@ When Vitest is detected, bootstrap also emits leak-safe config guidance
 (`pool: 'forks'`, `maxForks: 2`, `teardownTimeout`) — WITHOUT overwriting an
 existing user Vitest config. The loop additionally reaps this-workspace survivors
 after a test-running tick with the workspace+etime-scoped
-`.aai/scripts/aai-reap-tests.sh` (never a global `pkill -f vitest`).
+`.aai/scripts/aai-reap-tests.sh` (POSIX) / `powershell -NoProfile -File .aai/scripts/aai-reap-tests.ps1` (Windows) (never a global `pkill -f vitest`).
 
 ## Safety Rules
 
