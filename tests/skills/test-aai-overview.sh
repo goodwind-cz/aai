@@ -417,6 +417,34 @@ test_008_project_name_from_main_worktree() {
   log_pass "project name derives from the main worktree's directory, not a linked worktree's cwd (TEST-008)"
 }
 
+# PR #403 Codex P2: a checkout whose directory is not the repo name (Cloud
+# Agent `/workspace`) must still publish origin's last path segment.
+test_009_project_name_from_origin_remote() {
+  log_info "Test: project name prefers origin remote basename over checkout directory (PR #403 Codex P2)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  local d="$TEST_DIR/workspace-not-the-repo-t009"
+  rm -rf "$d"
+  mkdir -p "$d/docs/issues" "$d/docs/specs" "$d/docs/releases" "$d/docs/ai/reports" "$d/docs/ai/reviews"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  (
+    cd "$d" \
+      && git init -q \
+      && git config user.email test@example.com \
+      && git config user.name "Test" \
+      && git commit -q --allow-empty -m init \
+      && git remote add origin "https://github.com/goodwind-cz/aai.git"
+  ) >/dev/null 2>&1 || log_fail "TEST-009: could not init the origin-remote fixture"
+  run_overview "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-009: overview must exit 0: $(cat "$OUT")"
+  local pj
+  pj="$(node_get "$d/docs/ai/overview-data.json" 'm.project')"
+  [[ "$pj" == "aai" ]] \
+    || log_fail "TEST-009: project must be origin's last path segment (aai), not the checkout basename, got '$pj'"
+  grep -q '<title>aai — Project Overview</title>' "$d/docs/ai/overview.html" \
+    || log_fail "TEST-009: HTML title must use aai, not the checkout directory name"
+  log_pass "project name prefers origin remote basename over checkout directory (TEST-009)"
+}
+
 # --- TEST-001/002 (Spec-AC-01): In-flight section render + newest-first order ---
 
 test_dph01_in_flight_renders_focus_and_chips() {
@@ -803,6 +831,7 @@ main() {
   test_006_seam_overview_report_agreement
   test_007_release_grouping_and_close_month_fallback
   test_008_project_name_from_main_worktree
+  test_009_project_name_from_origin_remote
   test_dph01_in_flight_renders_focus_and_chips
   test_dph02_last_five_ticks_newest_first
   test_dph03_graceful_omission
