@@ -34,6 +34,7 @@
 2	tests/skills/lib/no-nul-guard.sh
 2	tests/skills/lib/pipe-grep-q-ratchet.sh
 3	tests/skills/test-aai-advisory-skills.sh
+2	tests/skills/test-aai-antigravity-project-skills.sh
 2	tests/skills/test-aai-bootstrap.sh
 5	tests/skills/test-aai-branch-guard.sh
 2	tests/skills/test-aai-canon.sh
@@ -68,7 +69,6 @@
 2	tests/skills/test-aai-heartbeat.sh
 2	tests/skills/test-aai-hitl-channel.sh
 4	tests/skills/test-aai-hitl-propagation.sh
-2	tests/skills/test-aai-home-skills.sh
 42	tests/skills/test-aai-hooks-overlay.sh
 50	tests/skills/test-aai-hygiene-pack.sh
 3	tests/skills/test-aai-implementation-mode.sh

@@ -61,6 +61,14 @@ suites:
       - .gemini/skills/aai-deslop/**
       - .gemini/skills/aai-interrogate/**
 
+  aai-antigravity-project-skills:
+    globs:
+      - .aai/scripts/sync-harness-skills.mjs
+      - .aai/system/HARNESS_SKILLS.yaml
+      - .aai/system/PROFILES.yaml
+      - .claude/skills/**/SKILL.md
+      - .agents/skills/**/SKILL.md
+
   aai-bootstrap:
     globs:
       - .aai/scripts/aai-bootstrap.sh
@@ -414,15 +422,6 @@ suites:
       - .aai/ORCHESTRATION_HITL.prompt.md
       - .aai/SKILL_HITL.prompt.md
       - .aai/scripts/orchestration-dispatch.mjs
-
-  aai-home-skills:
-    globs:
-      - .aai/scripts/publish-home-skills.mjs
-      - .aai/system/PROFILES.yaml
-      - .aai/scripts/sync-harness-skills.mjs
-      - .aai/system/HARNESS_SKILLS.yaml
-      - .claude/skills/**/SKILL.md
-      - .agents/skills/**/SKILL.md
 
   aai-hooks-overlay:
     globs:
