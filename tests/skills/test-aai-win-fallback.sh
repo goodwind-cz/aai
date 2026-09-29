@@ -680,11 +680,19 @@ test_024() {
     residue="$(sed -e "s|${CANON_POSIX_PREFIX}||g" -e "s|${CANON_WIN_PREFIX}||g" "$pf" | grep -nF -- '.aai/scripts/aai-run-tests.sh' || true)"
     [[ -z "$residue" ]] \
       || log_fail "TEST-024: $pf still carries a bare-path aai-run-tests.sh invocation mention after canonical-occurrence strip: $residue"
+    # Pipe-free (pipe-grep-q-ratchet / assert-payload.sh): assert_payload_contains
+    # is fail-closed on miss, so a skip-on-miss filter cannot call it. Use the
+    # same primitives the helper wraps — `[[ =~ ]]` for the host `bash tests/`
+    # ERE (one line, so REG_NEWLINE is not a trap) and `case` for the two
+    # canonical-prefix substring skips (grep -qF).
     local bash_tests="" line
+    local bash_tests_ere='(^|[[:space:]`])bash[[:space:]]+tests/'
     while IFS= read -r line; do
-      echo "$line" | grep -qE '(^|[[:space:]`])bash[[:space:]]+tests/' || continue
-      echo "$line" | grep -qF -- "$CANON_POSIX_PREFIX" && continue
-      echo "$line" | grep -qF -- "$CANON_WIN_PREFIX" && continue
+      [[ "$line" =~ $bash_tests_ere ]] || continue
+      case "$line" in
+        *"$CANON_POSIX_PREFIX"*) continue ;;
+        *"$CANON_WIN_PREFIX"*) continue ;;
+      esac
       bash_tests="${bash_tests}${line}"$'\n'
     done < "$pf"
     [[ -z "$bash_tests" ]] \
