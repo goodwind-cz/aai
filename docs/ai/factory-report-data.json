@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-09-29T22:09:12.867Z",
+  "generatedAt": "2026-09-29T23:42:12.885Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 141,
-    "delivered": 474,
+    "delivered": 476,
     "active_weeks": 14,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (474 closes vs 141 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 474,
-    "delivered_per_week_avg": 33.9,
+    "note": "\"delivered\" counts every work_item_closed event (476 closes vs 141 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 476,
+    "delivered_per_week_avg": 34,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -28,7 +28,7 @@
       "2026-W37": 15,
       "2026-W38": 12,
       "2026-W39": 15,
-      "2026-W40": 16
+      "2026-W40": 18
     },
     "delivered_groups": [
       {
@@ -439,7 +439,7 @@
         "key": "month:2026-09",
         "kind": "month",
         "label": "2026-09",
-        "count": 86,
+        "count": 88,
         "refs": [
           "intake-staleness-preflight-warning",
           "spec-intake-staleness-preflight-warning",
@@ -526,7 +526,9 @@
           "antigravity-cli-skill-paths",
           "spec-antigravity-cli-skill-paths",
           "mutation-clone-windows-run-chain",
-          "spec-mutation-clone-windows-run-chain"
+          "spec-mutation-clone-windows-run-chain",
+          "pricing-missing-models-and-refresh",
+          "spec-pricing-missing-models-and-refresh"
         ]
       }
     ],
@@ -2427,12 +2429,20 @@
         {
           "ref": "spec-mutation-clone-windows-run-chain",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "pricing-missing-models-and-refresh",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-pricing-missing-models-and-refresh",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 4152,
       "mean_seconds": 115087.8,
       "measured": 137,
-      "unmeasurable": 337
+      "unmeasurable": 339
     }
   },
   "speed": {
@@ -4805,7 +4815,7 @@
     },
     {
       "week": "2026-W40",
-      "delivered": 16,
+      "delivered": 18,
       "median_lead_time_seconds": null,
       "busy_seconds": null,
       "tokens": null,
@@ -4877,7 +4887,7 @@
         "id": "fu-amend-spec-harness-universal-routing",
         "ref": "harness-universal-routing",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-harness-universal-routing: Remediation of round-1 validation FAIL: fixed BLOCKING-1 (--confirm fallback lost harness/suggested_model), corrected weak M7/M13 mutation controls, added N3/N5/N6/N8 test coverage, and disclosed the undeclared tests/skills/lib/cd-subshell-leak-baseline.tsv surface + widened review scope",
         "status": "open"
       },
@@ -4989,7 +4999,7 @@
         "id": "fu-clearfocus-announces-unwritten-phase",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 15,
+        "age_days": 16,
         "what": "clear-focus REPLACES an existing phase:/status: line on the focused work item but never INSERTS a missing one, and prints 'work item phase=closed status=done' unconditionally even when the item carries no phase key at all (or there is no focused item).",
         "status": "open"
       },
@@ -4997,7 +5007,7 @@
         "id": "fu-dispatch-text-detector-self-ref-fp",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 15,
+        "age_days": 16,
         "what": "check-dispatch-text.mjs's PRE_RATING_PHRASE_RE is a bare substring match with no exclusion for quoting, negation, or work-ordering prose, so it fires on the very D11 rule it enforces and on legitimate orchestration text.",
         "status": "open"
       },
@@ -5005,7 +5015,7 @@
         "id": "fu-verdict-coverage-same-second-true",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 15,
+        "age_days": 16,
         "what": "metrics-flush.mjs's verdictAfterLastImplementer uses >= where Spec-AC-19 says 'later than', and no test pins the boundary; D7's second-precision coarsening widens the same-second window this decides wrongly.",
         "status": "open"
       },
@@ -5013,7 +5023,7 @@
         "id": "fu-ledger-shrink-arm-unpinned",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 15,
+        "age_days": 16,
         "what": "tests/skills/test-aai-learned-routing.sh's TEST-008 does not pin the SHRINK arm of D15 — a ledger whose worktree content is SHORTER than the committed blob.",
         "status": "open"
       },
@@ -5181,7 +5191,7 @@
         "id": "fu-amend-spec-close-ceremony-sweep",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 11,
+        "age_days": 12,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-close-ceremony-sweep: TEST-525 Mutation cell rewritten: the frozen cell carried two pipe characters that split the row into 11 cells, and named a line run 2's implementation does not have",
         "status": "open"
       },
@@ -5317,7 +5327,7 @@
         "id": "fu-issue-0040-closed-as-data-no-event",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "ISSUE-0040 reads probable-false-done: it was closed as data by Spec-AC-10 with PR 382's real commit, but no ac_evidence event references it, so the drift report flags it",
         "status": "open"
       },
@@ -5325,7 +5335,7 @@
         "id": "fu-reconcile-mention-vs-disclosure",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 10,
+        "age_days": 11,
         "what": "close-reconcile's id-mention-unpaired arm fires on an id a delivered doc names to disclose that it is owned ELSEWHERE, not claimed; six such items on this ride's own merge",
         "status": "open"
       },
@@ -5333,7 +5343,7 @@
         "id": "fu-issue-0042-half-delivered",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 10,
+        "age_days": 11,
         "what": "ISSUE-0042 is half delivered: SPEC-0182 Spec-AC-21 shipped the template number: null half, but its Verification also requires allocate-doc-number.mjs to accept --type research and --type hotfix, which TYPE_MAP still lacks",
         "status": "open"
       },
@@ -5813,7 +5823,7 @@
         "id": "fu-amend-gate-checks-declared-mutation",
         "ref": "gate-checks-declared-mutation",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-gate-checks-declared-mutation: TEST-701..707's Mutation cells reconciled to the exact sed expression mutation-run.mjs actually recorded (TEST-708/709 already matched); Status flipped pending -> green for all 9 rows",
         "status": "open"
       },

@@ -2,10 +2,12 @@
 id: pricing-missing-models-and-refresh
 type: change
 number: 197
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 410
+  commits:
+    - 8eafcc667858e3b95da55eb1b2983e0ff2c1ba74
 ---
 
 # Refresh PRICING.yaml and add missing model families

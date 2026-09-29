@@ -2,13 +2,15 @@
 id: spec-pricing-missing-models-and-refresh
 type: spec
 number: 197
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0197-pricing-missing-models-and-refresh.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 410
+  commits:
+    - 8eafcc667858e3b95da55eb1b2983e0ff2c1ba74
 ---
 
 # Spec — Refresh PRICING.yaml and add missing model families
