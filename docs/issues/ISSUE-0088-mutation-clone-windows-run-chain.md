@@ -2,10 +2,12 @@
 id: mutation-clone-windows-run-chain
 type: issue
 number: 88
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 1912fae483177a4bcc0d591d023e8e4df355df95
 ---
 
 # Issue — Windows mutation clone never reaches the mutated test

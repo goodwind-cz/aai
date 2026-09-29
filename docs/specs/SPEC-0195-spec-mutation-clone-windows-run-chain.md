@@ -2,14 +2,16 @@
 id: spec-mutation-clone-windows-run-chain
 type: spec
 number: 195
-status: implementing
+status: done
 frozen_sha256: 4ba754ed5d314d2c442258cd4bd1bba436b849bc61035702875fc73adc8754ac
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 1912fae483177a4bcc0d591d023e8e4df355df95
 ---
 
 # Spec — Windows mutation clone reaches the mutated test
@@ -82,9 +84,9 @@ Never use pipe characters inside cells.
 
 | Spec-AC    | Description | Status | Evidence | Review-By | Notes |
 |------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN git clone --local would refuse because an active post-checkout hook is blocked by clone protection THEN buildIsolatedClone SHALL still build the clone by invoking that clone with GIT_CLONE_PROTECTION_ACTIVE=false | planned | — | — | D1 |
-| Spec-AC-02 | WHEN .aai/scripts/aai-run-tests.sh and .aai/scripts/aai-run-tests.ps1 exist on disk and are gitignored THEN the isolated clone SHALL contain both files and the suite SHALL run | planned | — | — | D2; no other gitignored path is copied |
-| Spec-AC-03 | WHEN a command argument or a bash command name is a Windows absolute path to the project Python interpreter THEN the Git Bash side SHALL execute the translated /drive/ path and the translation itself SHALL be an in-process string conversion | planned | — | — | D3; reverse translation is the same function |
+| Spec-AC-01 | WHEN git clone --local would refuse because an active post-checkout hook is blocked by clone protection THEN buildIsolatedClone SHALL still build the clone by invoking that clone with GIT_CLONE_PROTECTION_ACTIVE=false | done | docs/ai/reports/VALIDATION-20260929T220559Z-mutation-clone-windows-run-chain.md | — | D1 |
+| Spec-AC-02 | WHEN .aai/scripts/aai-run-tests.sh and .aai/scripts/aai-run-tests.ps1 exist on disk and are gitignored THEN the isolated clone SHALL contain both files and the suite SHALL run | done | docs/ai/reports/VALIDATION-20260929T220559Z-mutation-clone-windows-run-chain.md | — | D2; no other gitignored path is copied |
+| Spec-AC-03 | WHEN a command argument or a bash command name is a Windows absolute path to the project Python interpreter THEN the Git Bash side SHALL execute the translated /drive/ path and the translation itself SHALL be an in-process string conversion | done | docs/ai/reports/VALIDATION-20260929T220559Z-mutation-clone-windows-run-chain.md | — | D3; reverse translation is the same function |
 
 Status values: planned, implementing, done, deferred, blocked, rejected.
 

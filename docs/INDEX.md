@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-29T22:07:22.710Z
+Generated: 2026-09-29T22:09:09.135Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0195 | specs | implementing | 3 planned | docs/specs/SPEC-0195-spec-mutation-clone-windows-run-chain.md |
 
 ## Canonical layer (0)
 
@@ -52,7 +51,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (464)
+## Done (466)
 
 | ID | Type | Path |
 |---|---|---|
@@ -306,6 +305,7 @@ _None._
 | ISSUE-0085 | issues | docs/issues/ISSUE-0085-prompts-invoke-wsl-bash-on-windows.md |
 | ISSUE-0086 | issues | docs/issues/ISSUE-0086-strategy-unscoped-from-current-focus.md |
 | ISSUE-0087 | issues | docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md |
+| ISSUE-0088 | issues | docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -518,10 +518,11 @@ _None._
 | SPEC-0192 | specs | docs/specs/SPEC-0192-spec-strategy-unscoped-from-current-focus.md |
 | SPEC-0193 | specs | docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md |
 | SPEC-0194 | specs | docs/specs/SPEC-0194-spec-antigravity-cli-skill-paths.md |
+| SPEC-0195 | specs | docs/specs/SPEC-0195-spec-mutation-clone-windows-run-chain.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
@@ -539,7 +540,6 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
-| ISSUE-0088 | issues | docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md |
 
 ## Deferred (whole-doc) (0)
 

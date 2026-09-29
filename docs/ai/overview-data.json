@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-29T22:07:25.068Z",
+  "generatedAt": "2026-09-29T22:09:12.743Z",
   "project": "aai",
   "counts": {
-    "delivered": 264,
-    "in_progress": 16,
+    "delivered": 265,
+    "in_progress": 15,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -194,19 +194,6 @@
       "review": null
     },
     {
-      "ref": "mutation-clone-windows-run-chain",
-      "title": "Issue — Windows mutation clone never reaches the mutated test",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0195-spec-mutation-clone-windows-run-chain.md",
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -246,6 +233,19 @@
       "spec": "docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260929T073508Z-mutation-clone-fidelity-windows-eol.md"
+    },
+    {
+      "ref": "mutation-clone-windows-run-chain",
+      "title": "Issue — Windows mutation clone never reaches the mutated test",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md",
+      "closed_on": "2026-09-29",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0195-spec-mutation-clone-windows-run-chain.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260929T220617Z-mutation-clone-windows-run-chain.md"
     },
     {
       "ref": "growth-pins-dont-wall-the-corpus",
@@ -3685,6 +3685,19 @@
           "spec": "docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260929T073508Z-mutation-clone-fidelity-windows-eol.md"
+        },
+        {
+          "ref": "mutation-clone-windows-run-chain",
+          "title": "Issue — Windows mutation clone never reaches the mutated test",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md",
+          "closed_on": "2026-09-29",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0195-spec-mutation-clone-windows-run-chain.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260929T220617Z-mutation-clone-windows-run-chain.md"
         },
         {
           "ref": "growth-pins-dont-wall-the-corpus",
