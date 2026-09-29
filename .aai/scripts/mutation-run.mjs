@@ -604,6 +604,28 @@ function overlayTrackedWorkingTreeBytes(cloneDir, sourceRoot) {
   }
 }
 
+const TEST_WRAPPERS = [
+  '.aai/scripts/aai-run-tests.sh',
+  '.aai/scripts/aai-run-tests.ps1',
+];
+
+// Copy a test-wrapper entry that gitignore kept out of the clone. Skip when
+// the clone already has the path (tracked checkout or the untracked copy).
+function reproduceGitignoredTestWrappers(cloneDir, root) {
+  for (const rel of TEST_WRAPPERS) {
+    const src = path.join(root, rel);
+    if (!fs.existsSync(src)) continue;
+    const dst = path.join(cloneDir, rel);
+    if (fs.existsSync(dst)) continue;
+    try {
+      ensureCloneParentDirs(cloneDir, rel, root);
+      fs.copyFileSync(src, dst);
+    } catch (err) {
+      process.stderr.write(`mutation-run: skipping test wrapper that could not be reproduced in the clone: ${rel} (${err.message})\n`);
+    }
+  }
+}
+
 function buildIsolatedClone() {
   const baseCommit = execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const sourceTreeFiles = computeTreeFileHashes(ROOT);
@@ -624,7 +646,14 @@ function buildIsolatedClone() {
   // be the only cleaned-up failures; this makes cleanup unconditional.
   try {
     const cloneDir = path.join(tmpBase, 'clone');
-    execFileSync('git', ['clone', '--local', '--no-hardlinks', ROOT, cloneDir], { stdio: ['ignore', 'pipe', 'pipe'] });
+    // D1: Git refuses an active post-checkout hook (Git LFS installs one)
+    // during `git clone` unless this spawn opts out. The source is the
+    // operator's own tree. The flag is on this clone only, not on later git
+    // commands. SPEC-0193 overlay still runs after checkout.
+    execFileSync('git', ['clone', '--local', '--no-hardlinks', ROOT, cloneDir], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, GIT_CLONE_PROTECTION_ACTIVE: 'false' },
+    });
     execFileSync('git', ['-C', cloneDir, 'checkout', '--quiet', baseCommit], { stdio: ['ignore', 'pipe', 'pipe'] });
 
     // Reproduce tracked modifications.
@@ -734,6 +763,11 @@ function buildIsolatedClone() {
         `mutation-run: clone tree hash (${cloneTreeHash}) does not match the source working tree's (${sourceTreeHash}) — ${describeTreeDiff(treeDiff)}${eolSuffix} — the clone does not reproduce your tree`
       );
     }
+
+    // D2: a gitignored `.aai` is absent from `git clone` and from the
+    // untracked-not-ignored copy. `runSuite` needs the test wrapper anyway.
+    // Only these two entry points; local settings files are not copied.
+    reproduceGitignoredTestWrappers(cloneDir, ROOT);
 
     return { tmpBase, cloneDir, baseCommit, sourceTreeHash, sourceTreeFiles };
   } catch (err) {

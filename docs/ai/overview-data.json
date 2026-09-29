@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-29T16:42:10.475Z",
+  "generatedAt": "2026-09-29T22:07:25.068Z",
   "project": "aai",
   "counts": {
     "delivered": 264,
-    "in_progress": 15,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -194,6 +194,19 @@
       "review": null
     },
     {
+      "ref": "mutation-clone-windows-run-chain",
+      "title": "Issue — Windows mutation clone never reaches the mutated test",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0195-spec-mutation-clone-windows-run-chain.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -210,7 +223,7 @@
   "delivered": [
     {
       "ref": "antigravity-cli-skill-paths",
-      "title": "Make AAI skills visible on the Antigravity CLI skill paths",
+      "title": "Keep AAI skills on the Antigravity CLI project path",
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0196-antigravity-cli-skill-paths.md",
@@ -3649,7 +3662,7 @@
       "items": [
         {
           "ref": "antigravity-cli-skill-paths",
-          "title": "Make AAI skills visible on the Antigravity CLI skill paths",
+          "title": "Keep AAI skills on the Antigravity CLI project path",
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0196-antigravity-cli-skill-paths.md",

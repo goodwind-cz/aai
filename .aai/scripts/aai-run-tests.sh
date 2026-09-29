@@ -124,6 +124,12 @@ AAI_CMD_DESC="$*"
 # relative invocation. Every later user of this script's own location reads
 # these two instead of re-deriving them.
 AAI_SELF_DIR=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || AAI_SELF_DIR=''
+# In-process Windows <-> Git Bash path translation (D3). Missing lib degrades
+# to today's behavior: arguments pass through unchanged.
+if [ -n "$AAI_SELF_DIR" ] && [ -f "$AAI_SELF_DIR/lib/git-bash-path.sh" ]; then
+  # shellcheck source=lib/git-bash-path.sh
+  . "$AAI_SELF_DIR/lib/git-bash-path.sh"
+fi
 AAI_REPO_ROOT=''
 if [ -n "$AAI_SELF_DIR" ]; then
   AAI_REPO_ROOT=$(cd "$AAI_SELF_DIR/../.." 2>/dev/null && pwd) || AAI_REPO_ROOT=''
@@ -758,6 +764,22 @@ trap 'aai_reap_group; aai_iso_cleanup; exit 129' HUP
 #   3. bash job control (set -m) — ONLY when the wrapper itself runs under bash.
 #   4. bare background — last resort (no isolation) when none of the above exist.
 if [ "$DEGRADED_MSYS" -eq 1 ]; then
+  # Rewrite Windows absolute command arguments to Git Bash paths before
+  # exec. Other arguments (including "sh" / "-c") stay byte-identical.
+  if command -v aai_to_git_bash_path >/dev/null 2>&1; then
+    _aai_n=$#
+    _aai_i=0
+    while [ "$_aai_i" -lt "$_aai_n" ]; do
+      _aai_t=$(aai_to_git_bash_path "$1")
+      shift
+      set -- "$@" "$_aai_t"
+      _aai_i=$((_aai_i + 1))
+    done
+    unset _aai_n _aai_i _aai_t
+  fi
+  if [ -n "$AAI_SELF_DIR" ] && [ -f "$AAI_SELF_DIR/lib/git-bash-path.sh" ]; then
+    export BASH_ENV="$AAI_SELF_DIR/lib/git-bash-path.sh"
+  fi
   "$@" &
   CMD_PID=$!
 elif command -v setsid >/dev/null 2>&1; then

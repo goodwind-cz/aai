@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-29T16:43:05.252Z
+Generated: 2026-09-29T22:07:22.710Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0195 | specs | implementing | 3 planned | docs/specs/SPEC-0195-spec-mutation-clone-windows-run-chain.md |
 
 ## Canonical layer (0)
 
@@ -520,7 +521,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
@@ -538,6 +539,7 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
+| ISSUE-0088 | issues | docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md |
 
 ## Deferred (whole-doc) (0)
 
