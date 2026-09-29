@@ -3135,6 +3135,133 @@ test_078_index_violations_backup_removed_after_cleanup() {  # Copilot, PR #385 b
   log_pass "TEST-078: cleanup() restores docs/INDEX.violations.md then removes its own mktemp backup, no stray /tmp file left"
 }
 
+# --- strategy-unscoped-from-current-focus (SPEC-0192) -------------------------
+
+test_079_strategy_stamps_focus_ref() {  # SPEC-0192 TEST-001 / Spec-AC-01
+  log_info "Test: set-strategy without --ref stamps implementation_strategy.ref_id from current_focus.ref_id (TEST-001)..."
+  local s="$TEST_DIR/t79-state.yaml"
+  write_state_fixture "$s"
+  st "$s" "$TEST_DIR/t79.log" set-strategy --selected tdd --source intake --rationale "bind to live focus" \
+    || log_fail "TEST-001: set-strategy without --ref must exit 0: $(cat "$TEST_DIR/t79.log")"
+  sed -n '/^implementation_strategy:/,/^[a-z]/p' "$s" > "$TEST_DIR/t79-block.txt"
+  grep -qE '^  selected: tdd$' "$TEST_DIR/t79-block.txt" || log_fail "TEST-001: selected must be tdd: $(cat "$TEST_DIR/t79-block.txt")"
+  grep -qE '^  ref_id: CHANGE-0001$' "$TEST_DIR/t79-block.txt" \
+    || log_fail "TEST-001: implementation_strategy.ref_id must equal current_focus.ref_id CHANGE-0001: $(cat "$TEST_DIR/t79-block.txt")"
+  ck "$s" "$TEST_DIR/t79-ck.log" || log_fail "TEST-001: check-state after stamp: $(cat "$TEST_DIR/t79-ck.log")"
+  log_pass "set-strategy without --ref writes ref_id equal to current_focus.ref_id (TEST-001)"
+}
+
+test_080_strategy_ref_mismatch_refused() {  # SPEC-0192 TEST-002 / Spec-AC-02
+  log_info "Test: set-strategy --ref A while current_focus.ref_id is B exits 2, names disagrees, byte-identical (TEST-002)..."
+  local s="$TEST_DIR/t80-state.yaml"
+  write_state_fixture "$s"
+  cp "$s" "$TEST_DIR/t80-snapshot.yaml"
+  local ec=0
+  st "$s" "$TEST_DIR/t80.log" set-strategy --selected tdd --ref ISSUE-0099 || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "TEST-002: mismatch must exit 2 (got $ec): $(cat "$TEST_DIR/t80.log")"
+  grep -q 'disagrees' "$TEST_DIR/t80.log" || log_fail "TEST-002: stderr must contain disagrees: $(cat "$TEST_DIR/t80.log")"
+  grep -q 'ISSUE-0099' "$TEST_DIR/t80.log" || log_fail "TEST-002: stderr must name --ref ISSUE-0099: $(cat "$TEST_DIR/t80.log")"
+  grep -q 'CHANGE-0001' "$TEST_DIR/t80.log" || log_fail "TEST-002: stderr must name current_focus.ref_id CHANGE-0001: $(cat "$TEST_DIR/t80.log")"
+  cmp -s "$s" "$TEST_DIR/t80-snapshot.yaml" || log_fail "TEST-002: STATE must stay byte-identical after mismatch refusal"
+  log_pass "set-strategy --ref mismatch exits 2, names disagrees plus both refs, no write (TEST-002)"
+}
+
+test_081_strategy_unbound_refused() {  # SPEC-0192 TEST-003 / Spec-AC-03
+  log_info "Test: set-strategy with neither --ref nor current_focus.ref_id exits 2 naming --ref, no write (TEST-003)..."
+  local s="$TEST_DIR/t81-state.yaml"
+  write_state_fixture "$s"
+  st "$s" "$TEST_DIR/t81-focus.log" set-focus --type none \
+    || log_fail "TEST-003: set-focus --type none must exit 0: $(cat "$TEST_DIR/t81-focus.log")"
+  cp "$s" "$TEST_DIR/t81-snapshot.yaml"
+  local ec=0
+  st "$s" "$TEST_DIR/t81.log" set-strategy --selected loop || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "TEST-003: unbound set-strategy must exit 2 (got $ec): $(cat "$TEST_DIR/t81.log")"
+  grep -q -- '--ref' "$TEST_DIR/t81.log" || log_fail "TEST-003: stderr must name --ref: $(cat "$TEST_DIR/t81.log")"
+  grep -q 'current_focus.ref_id is unset' "$TEST_DIR/t81.log" \
+    || log_fail "TEST-003: stderr must say current_focus.ref_id is unset: $(cat "$TEST_DIR/t81.log")"
+  cmp -s "$s" "$TEST_DIR/t81-snapshot.yaml" || log_fail "TEST-003: STATE must stay byte-identical after unbound refusal"
+  log_pass "set-strategy with no --ref and null focus ref exits 2 naming --ref, no write (TEST-003)"
+}
+
+test_082_untested_rationale_and_legacy_ref() {  # SPEC-0192 TEST-007 / Spec-AC-05
+  log_info "Test: untested without rationale still exit 2; missing strategy ref_id still honored by lane-gate (TEST-007)..."
+  local s="$TEST_DIR/t82-state.yaml"
+  write_state_fixture "$s"
+  cp "$s" "$TEST_DIR/t82-snapshot.yaml"
+  local ec=0
+  st "$s" "$TEST_DIR/t82.log" set-strategy --selected untested --source intake || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "TEST-007: untested without --rationale must exit 2 (got $ec): $(cat "$TEST_DIR/t82.log")"
+  grep -qF 'untested requires a non-empty --rationale' "$TEST_DIR/t82.log" \
+    || log_fail "TEST-007: stderr must name untested requires a non-empty --rationale: $(cat "$TEST_DIR/t82.log")"
+  cmp -s "$s" "$TEST_DIR/t82-snapshot.yaml" || log_fail "TEST-007: STATE must stay byte-identical after untested-without-rationale"
+
+  local fx="$TEST_DIR/t82-lane"
+  mkdir -p "$fx/docs/specs" "$fx/docs/ai" "$fx/tests/skills" "$fx/.aai/system" "$fx/.aai/scripts"
+  printf -- '---\nid: fx\nstatus: implementing\nceremony_level: 0\n---\n\nbody\n' > "$fx/docs/specs/SPEC-DRAFT-fx.md"
+  printf 'implementation_strategy:\n  selected: untested\n  source: intake\n' > "$fx/docs/ai/STATE.yaml"
+  cat > "$fx/tests/skills/suite-map.yaml" <<'YAML'
+core:
+  - aai-core-a
+full_run_triggers:
+  shared_lib_globs:
+    - .aai/scripts/lib/**
+suites:
+  aai-core-a:
+    globs:
+      - docs/**
+      - .aai/*.prompt.md
+      - tests/**
+      - .aai/scripts/*.mjs
+YAML
+  cat > "$fx/docs/ai/docs-audit.yaml" <<'YAML'
+protected_paths_l3:
+  - .aai/scripts/state.mjs
+YAML
+  cat > "$fx/.aai/system/PROFILES.yaml" <<'YAML'
+core:
+  - .aai/scripts/close-work-item.mjs
+extended:
+  - .aai/scripts/one.mjs
+YAML
+  printf 'docs/x.md\n' > "$fx/files.txt"
+  local lane_out
+  lane_out="$(node "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" --repo-root "$fx" --spec "$fx/docs/specs/SPEC-DRAFT-fx.md" --state "$fx/docs/ai/STATE.yaml" --files-from "$fx/files.txt" --max-files 5 2>&1)" \
+    || log_fail "TEST-007: lane-gate must exit 0: $lane_out"
+  assert_payload_has_line "$lane_out" "LANE fast" \
+    "TEST-007: missing strategy ref_id must still honor untested as fast"
+  assert_payload_line_matches "$lane_out" '^strategy=untested ok$' \
+    "TEST-007: missing ref_id must print strategy=untested ok"
+  log_pass "untested without rationale still exit 2; missing ref_id still honored by lane-gate (TEST-007)"
+}
+
+test_083_intake_ref_binds_when_focus_unset() {  # SPEC-0192 TEST-008 / Spec-AC-07
+  log_info "Test: intake set-strategy --ref NEW with unset focus then Planning set-focus NEW keeps matching stamp (TEST-008)..."
+  local s="$TEST_DIR/t83-state.yaml"
+  write_state_fixture "$s"
+  st "$s" "$TEST_DIR/t83-clear.log" set-focus --type none \
+    || log_fail "TEST-008: set-focus --type none must exit 0: $(cat "$TEST_DIR/t83-clear.log")"
+  st "$s" "$TEST_DIR/t83-strat.log" set-strategy --selected tdd --source intake \
+    --rationale "intake of NEW before Planning set-focus" --ref ISSUE-0086 \
+    || log_fail "TEST-008: intake --ref with unset focus must exit 0: $(cat "$TEST_DIR/t83-strat.log")"
+  sed -n '/^implementation_strategy:/,/^[a-z]/p' "$s" > "$TEST_DIR/t83-block1.txt"
+  grep -qE '^  selected: tdd$' "$TEST_DIR/t83-block1.txt" \
+    || log_fail "TEST-008: selected must be tdd after intake bind: $(cat "$TEST_DIR/t83-block1.txt")"
+  grep -qE '^  source: intake$' "$TEST_DIR/t83-block1.txt" \
+    || log_fail "TEST-008: source must be intake: $(cat "$TEST_DIR/t83-block1.txt")"
+  grep -qE '^  ref_id: ISSUE-0086$' "$TEST_DIR/t83-block1.txt" \
+    || log_fail "TEST-008: implementation_strategy.ref_id must equal --ref ISSUE-0086: $(cat "$TEST_DIR/t83-block1.txt")"
+  st "$s" "$TEST_DIR/t83-focus.log" set-focus --type intake_issue --ref ISSUE-0086 \
+    --path docs/issues/ISSUE-0086.md \
+    || log_fail "TEST-008: Planning set-focus to NEW must exit 0: $(cat "$TEST_DIR/t83-focus.log")"
+  sed -n '/^implementation_strategy:/,/^[a-z]/p' "$s" > "$TEST_DIR/t83-block2.txt"
+  grep -qE '^  ref_id: ISSUE-0086$' "$TEST_DIR/t83-block2.txt" \
+    || log_fail "TEST-008: set-focus must not clear the intake stamp: $(cat "$TEST_DIR/t83-block2.txt")"
+  grep -qE '^  selected: tdd$' "$TEST_DIR/t83-block2.txt" \
+    || log_fail "TEST-008: selected must stay tdd after set-focus: $(cat "$TEST_DIR/t83-block2.txt")"
+  ck "$s" "$TEST_DIR/t83-ck.log" || log_fail "TEST-008: check-state after intake-then-focus: $(cat "$TEST_DIR/t83-ck.log")"
+  log_pass "intake --ref with unset focus then set-focus NEW keeps matching stamp (TEST-008)"
+}
+
 test_077_rguard_directory_symlink() {  # TEST-039 / Spec-AC-12 (validation-round1 B1)
   log_info "Test: R-GUARD judges a --state path's REAL directory target, not its spelling — a directory symlink into the repo's docs/ai is refused byte-identically, a plain .. traversal into the repo still refuses, a symlink to a scratch dir is allowed, and a not-yet-existing scratch leaf is allowed through the guard (TEST-039)..."
 
@@ -3479,7 +3606,7 @@ t76_flags_for() {
     set-phase) echo "--ref --phase --status --path --spec-path" ;;
     set-validation) echo "--status --ref --model --evidence --notes --clear" ;;
     set-code-review) echo "--status --required --scope --base-ref --head-ref --report --notes --clear" ;;
-    set-strategy) echo "--selected --source --rationale" ;;
+    set-strategy) echo "--selected --source --rationale --ref" ;;
     set-worktree) echo "--recommendation --user-decision --base-ref --branch --path --inline-scope --rationale --clear" ;;
     set-tdd-cycle) echo "--status --test-id --spec-path --test-path --red --green --refactor" ;;
     set-human-input) echo "--required --question --reason" ;;
@@ -3574,6 +3701,11 @@ main() {
   test_075_clear_focus
   test_076_help_and_usage_grammar
   test_078_index_violations_backup_removed_after_cleanup
+  test_079_strategy_stamps_focus_ref
+  test_080_strategy_ref_mismatch_refused
+  test_081_strategy_unbound_refused
+  test_082_untested_rationale_and_legacy_ref
+  test_083_intake_ref_binds_when_focus_unset
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

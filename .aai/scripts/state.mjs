@@ -27,10 +27,12 @@
 //                  skips safely with a stderr info line and exit 0.
 //   set-code-review [--status <s>] [--required <b>] [--scope <t>] [--base-ref <r>]
 //                   [--head-ref <r>] [--report <p>]... [--notes <t>] [--clear <f,f>] (>=1 flag)
-//   set-strategy --selected <s> [--source <p>] [--rationale <t>]
+//   set-strategy --selected <s> [--source <p>] [--rationale <t>] [--ref <id>]
 //                  <s> = loop | tdd | hybrid | direct | untested | undecided.
 //                  `untested` (no-tests lane) REQUIRES a non-empty --rationale
 //                  or the command exits 2 pre-write (nothing written).
+//                  `--ref` is optional: bind target is --ref if given, else
+//                  current_focus.ref_id. Mismatch or neither set: exit 2, no write.
 //   set-worktree [--recommendation <r>] [--user-decision <d>] [--base-ref <r>]
 //                [--branch <b>] [--path <p>] [--inline-scope <t>] [--rationale <t>]
 //                [--clear <f,f>] (>=1 flag)
@@ -235,7 +237,7 @@ const CMD_FLAGS = {
   'set-phase': ['ref', 'phase', 'status', 'path', 'spec_path'],
   'set-validation': ['status', 'ref', 'model', 'evidence', 'notes', 'clear'],
   'set-code-review': ['status', 'required', 'scope', 'base_ref', 'head_ref', 'report', 'notes', 'clear'],
-  'set-strategy': ['selected', 'source', 'rationale'],
+  'set-strategy': ['selected', 'source', 'rationale', 'ref'],
   'set-worktree': ['recommendation', 'user_decision', 'base_ref', 'branch', 'path', 'inline_scope', 'rationale', 'clear'],
   'set-tdd-cycle': ['status', 'test_id', 'spec_path', 'test_path', 'red', 'green', 'refactor'],
   'set-human-input': ['required', 'question', 'reason'],
@@ -303,6 +305,7 @@ const CMD_FLAG_META = {
     selected: { required: true, enum: STRATEGIES },
     source: {},
     rationale: {},
+    ref: {},
   },
   'set-worktree': {
     recommendation: { enum: RECOMMENDATIONS },
@@ -1035,15 +1038,26 @@ function cmdSetStrategy(state, flags) {
   const selected = enumFlag(flags, 'selected', STRATEGIES, 'set-strategy', { required: true });
   const source = strFlag(flags, 'source', 'set-strategy');
   const rationale = strFlag(flags, 'rationale', 'set-strategy');
+  const explicitRef = strFlag(flags, 'ref', 'set-strategy');
   // implementation-mode-choice: the no-tests lane must record WHY (audit trail;
   // never a silent rigor downgrade). Reject pre-write so nothing is written.
   if (selected === 'untested' && (rationale === undefined || rationale.trim() === '')) {
     fail('set-strategy: --selected untested requires a non-empty --rationale (the no-tests lane must record why tests are skipped)');
   }
+  const focusRaw = readScalar(state.lines, 'current_focus', 'ref_id');
+  const focusRef = focusRaw == null ? null : unquoteScalar(focusRaw);
+  if (explicitRef !== undefined && focusRef != null && explicitRef !== focusRef) {
+    fail(`set-strategy: --ref ${explicitRef} disagrees with current_focus.ref_id ${focusRef}`);
+  }
+  const bindRef = explicitRef !== undefined ? explicitRef : focusRef;
+  if (bindRef == null) {
+    fail('set-strategy: --ref is required when current_focus.ref_id is unset');
+  }
   editBlock(state.lines, 'implementation_strategy', bl => {
     setField(bl, 2, 'selected', [scalarLine(2, 'selected', selected)]);
     if (source !== undefined) setField(bl, 2, 'source', [scalarLine(2, 'source', yq(source))]);
     if (rationale !== undefined) setField(bl, 2, 'rationale', textFieldLines(2, 'rationale', rationale));
+    setField(bl, 2, 'ref_id', [scalarLine(2, 'ref_id', yq(bindRef))]);
     return bl;
   });
   return `set-strategy: selected=${selected}`;

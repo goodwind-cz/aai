@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-29T11:41:55.816Z",
+  "generatedAt": "2026-09-29T12:00:24.109Z",
   "project": "aai",
   "counts": {
-    "delivered": 261,
+    "delivered": 262,
     "in_progress": 15,
     "releases": 1,
     "tokens_total": 68899611
@@ -246,6 +246,19 @@
       "spec": "docs/specs/SPEC-0191-spec-prompts-invoke-wsl-bash-on-windows.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260928T-prompts-invoke-wsl-bash-on-windows.md"
+    },
+    {
+      "ref": "strategy-unscoped-from-current-focus",
+      "title": "Issue — Global implementation_strategy can belong to a different work item than current_focus",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0086-strategy-unscoped-from-current-focus.md",
+      "closed_on": "2026-09-28",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0192-spec-strategy-unscoped-from-current-focus.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260928T234257Z-strategy-unscoped-from-current-focus.md"
     },
     {
       "ref": "roadmap-takes-direction",
@@ -3646,6 +3659,19 @@
           "spec": "docs/specs/SPEC-0191-spec-prompts-invoke-wsl-bash-on-windows.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260928T-prompts-invoke-wsl-bash-on-windows.md"
+        },
+        {
+          "ref": "strategy-unscoped-from-current-focus",
+          "title": "Issue — Global implementation_strategy can belong to a different work item than current_focus",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0086-strategy-unscoped-from-current-focus.md",
+          "closed_on": "2026-09-28",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0192-spec-strategy-unscoped-from-current-focus.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260928T234257Z-strategy-unscoped-from-current-focus.md"
         },
         {
           "ref": "roadmap-takes-direction",

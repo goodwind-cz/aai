@@ -97,13 +97,16 @@ RECOMMENDATION (derive from deterministic signals, state which fired):
   ceremony_level 2/3 -> recommend option 2 (full TDD).
 If the user CHOOSES, record it before planning:
   node .aai/scripts/state.mjs set-strategy --selected <tdd|direct|untested> \
-    --source intake --rationale "<the user's own words>"
+    --source intake --rationale "<the user's own words>" --ref <this intake's ref_id>
   (`untested` REQUIRES a non-empty --rationale or the CLI exits 2.)
   FRESH CHECKOUT: if docs/ai/STATE.yaml does not exist yet (orchestration
   initializes it later), do NOT run set-strategy — record the choice verbatim
   in the saved intake artifact under `## Notes` as
   `Implementation mode (user choice): <tdd|direct|untested> — <rationale>`;
   Planning treats that note exactly like an intake-sourced record.
+  LIVE OTHER FOCUS: if the call exits 2 because current_focus.ref_id disagrees
+  with this intake's ref_id, do not invent a bypass — record the same Notes
+  line as FRESH CHECKOUT. Planning set-focus then records it with --ref.
 If the user does NOT choose, do nothing here — behavior is UNCHANGED: Planning
 decides the strategy (back-compat). Never silently downgrade rigor: the cheap
 lane must be the user's explicit choice or an explicit recommendation they accept.

@@ -715,6 +715,27 @@ test_604_sweep_check_degrades_missing_head_sha() {
   log_pass "TEST-604: --sweep-check degrades to cannot-verify (never a false deny) when the record carries no head_sha"
 }
 
+test_192_stale_untested_leftover_heavy() {  # SPEC-0192 TEST-004 / Spec-AC-04
+  log_info "Test: leftover untested with disagreeing ref_id is HEAVY, not fast (SPEC-0192 TEST-004)..."
+  mk; fixture "$TEST_DIR" 0 untested
+  cat > "$TEST_DIR/docs/ai/STATE.yaml" <<'YAML'
+current_focus:
+  type: intake_issue
+  ref_id: ITEM-B
+implementation_strategy:
+  selected: untested
+  source: intake
+  rationale: leftover from ITEM-A
+  ref_id: ITEM-A
+YAML
+  run_gate "$TEST_DIR" "docs/x.md"
+  [[ "$CODE" -eq 0 ]] || log_fail "SPEC-0192 TEST-004: exit must be 0, got $CODE: $OUT"
+  assert_payload_line_matches "$OUT" '^LANE heavy' "SPEC-0192 TEST-004: leftover untested must be HEAVY: $OUT"
+  assert_payload_line_not_matches "$OUT" '^LANE fast' "SPEC-0192 TEST-004: leftover untested must not be fast: $OUT"
+  assert_payload_line_not_matches "$OUT" '^strategy=untested ok$' "SPEC-0192 TEST-004: must not treat leftover untested as ok: $OUT"
+  log_pass "leftover untested with disagreeing ref_id is HEAVY, not fast (SPEC-0192 TEST-004)"
+}
+
 main() {
   echo "Testing $TEST_NAME (lightweight-e2e-lane / spec-lightweight-e2e-lane)"
   check_deps
@@ -750,10 +771,16 @@ main() {
   test_603_sweep_check_denies_index_md_content_change
   test_604_sweep_check_degrades_missing_head_sha
   test_605_sweep_check_allows_index_md_date_rollover
+  test_192_stale_untested_leftover_heavy
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  main "$@"
+  if [[ $# -ge 1 ]]; then
+    check_deps
+    "$1"
+  else
+    main
+  fi
 fi

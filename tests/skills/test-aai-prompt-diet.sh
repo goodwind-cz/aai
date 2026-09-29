@@ -899,7 +899,18 @@ test_012_growth_sum_matches_ledger() {
   # Usage fence and VALIDATION c2 sweep routed through the wrapper pair.
   # Then 42626 -> 43259: same ride Codex P1 reap pair (+633 B) — LOOP /
   # VALIDATION / BOOTSTRAP name aai-reap-tests.ps1 plus the PowerShell epoch.
-  local want_growth=43259
+  # Then 43259 -> 43990: strategy-unscoped-from-current-focus SPEC-0192
+  # (+731 B) -- STALE BINDING bullets on SKILL_TDD / IMPLEMENTATION /
+  # VALIDATION (Spec-AC-06). Credited 1:1 at the measured 731 B.
+  # Then 43990 -> 44246: same ride Spec-AC-07 intake bind (+256 B) --
+  # PLANNING skip-only-when-matching-ref (+227) and SKILL_INTAKE --ref (+29).
+  # Then 44246 -> 44405: TEST-010 independently measured a 159 B floor
+  # remainder (after=351864, new-files=19399, credit=42319, net=28513).
+  # Then 44405 -> 44763: Codex P2 parallel stale-binding (+358 B) —
+  # ORCHESTRATION_PARALLEL applies the same non-null ref mismatch → undecided.
+  # Then 44763 -> 44861: rebase onto merged 403+404 TEST-010 floor remainder
+  # (+98 B) — independent deficit after=354247 extra=19399 credit=44763.
+  local want_growth=44861
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
