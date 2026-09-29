@@ -28,8 +28,8 @@ fine — it is the marker a cut leaves on top.
   copies tracked working-tree files into the clone after checkout so mixed
   EOL (`core.autocrlf`) no longer trips clone-fidelity. Root-level untracked
   files are copied and hashed (omitting them false-REDs). Overlay walks
-  path. Overlay walks leftover clone symlink ancestors and unlinks the leaf so
-  copy cannot write through into ROOT. Overlay also preserves a working-tree
+  leftover clone symlink ancestors and unlinks the leaf so copy cannot write
+  through into ROOT. Overlay also preserves a working-tree
   directory symlink instead of flattening it when `git ls-files` still lists
   deleted tracked descendants. Mismatch messages name `EOL-only difference`
   plus the path. ISSUE-0087 / SPEC-0193.
