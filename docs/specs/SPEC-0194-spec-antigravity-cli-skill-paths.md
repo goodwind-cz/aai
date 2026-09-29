@@ -2,15 +2,17 @@
 id: spec-antigravity-cli-skill-paths
 type: spec
 number: 194
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: dd882522c04fd0457831e26561c07dd7239c2e64be129b323e6767ba4889954e
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0196-antigravity-cli-skill-paths.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - a7204fdf62b3e1bd4db77e08a138275ea6fc4ab3
 ---
 
 # Spec — publish AAI skills onto the Antigravity CLI home paths

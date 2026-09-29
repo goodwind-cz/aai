@@ -2,10 +2,12 @@
 id: antigravity-cli-skill-paths
 type: change
 number: 196
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - a7204fdf62b3e1bd4db77e08a138275ea6fc4ab3
 ---
 
 # Make AAI skills visible on the Antigravity CLI skill paths
