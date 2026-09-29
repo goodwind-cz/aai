@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-29T22:09:58.925Z
+Generated: 2026-09-29T23:06:51.540Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -522,7 +522,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
@@ -530,6 +530,7 @@ _None._
 | CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
+| CHANGE-0197 | issues | docs/issues/CHANGE-0197-pricing-missing-models-and-refresh.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
