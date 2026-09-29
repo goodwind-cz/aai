@@ -906,7 +906,9 @@ test_012_growth_sum_matches_ledger() {
   # PLANNING skip-only-when-matching-ref (+227) and SKILL_INTAKE --ref (+29).
   # Then 44246 -> 44405: TEST-010 independently measured a 159 B floor
   # remainder (after=351864, new-files=19399, credit=42319, net=28513).
-  local want_growth=44405
+  # Then 44405 -> 44763: Codex P2 parallel stale-binding (+358 B) —
+  # ORCHESTRATION_PARALLEL applies the same non-null ref mismatch → undecided.
+  local want_growth=44763
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

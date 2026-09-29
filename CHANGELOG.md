@@ -34,8 +34,8 @@ fine — it is the marker a cut leaves on top.
   `clear-focus` checkout does not lose the user's choice. A live other focus
   still `disagrees`; Notes fallback plus Planning re-record cover it.
 - **Readers treat a disagreeing stamp as stale.** lane-gate is HEAVY,
-  dispatch is `undecided`, and the TDD / Implementation / Validation prompts
-  follow. Missing `ref_id` stays legacy honor.
+  dispatch is `undecided`, and the TDD / Implementation / Validation /
+  parallel-orchestration prompts follow. Missing `ref_id` stays legacy honor.
 
 ## [unreleased] — fix: skill prompts must not tell Windows to invoke bash (ISSUE-0085 / SPEC-0191)
 

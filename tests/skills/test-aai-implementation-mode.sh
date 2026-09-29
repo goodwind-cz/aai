@@ -28,6 +28,7 @@ PLANNING=".aai/PLANNING.prompt.md"
 IMPLEMENTATION=".aai/IMPLEMENTATION.prompt.md"
 SKILL_TDD=".aai/SKILL_TDD.prompt.md"
 VALIDATION=".aai/VALIDATION.prompt.md"
+ORCHESTRATION_PARALLEL=".aai/ORCHESTRATION_PARALLEL.prompt.md"
 STATE_MJS=".aai/scripts/state.mjs"
 DISPATCH=".aai/scripts/orchestration-dispatch.mjs"
 
@@ -158,13 +159,15 @@ test_007_enum_seam() {
   [[ $ok -eq 1 ]] && log_pass "TEST-007 strategy enum consistent across producer/consumer + untested guard" || log_fail "TEST-007 enum seam"
 }
 
-# SPEC-0192 TEST-006 / Spec-AC-06 — stale strategy binding bullets in the three
-# prompt readers. Existing TEST-006 in this file is the implementation-mode-choice
-# VALIDATION pin; this row is a distinct spec-local id.
+# SPEC-0192 TEST-006 / Spec-AC-06 — stale strategy binding bullets in the prompt
+# readers. Existing TEST-006 in this file is the implementation-mode-choice
+# VALIDATION pin; this row is a distinct spec-local id. Parallel orchestration
+# is the same leftover-selected footgun (Codex P2 on PR #405): it must apply
+# the same non-null ref mismatch → undecided rule before dispatching TDD.
 test_008_stale_strategy_binding_prompts() {
   local ok=1 f
-  log_info "Test: SKILL_TDD, IMPLEMENTATION, VALIDATION each name both field paths and undecided-on-mismatch (SPEC-0192 TEST-006)..."
-  for f in "$SKILL_TDD" "$IMPLEMENTATION" "$VALIDATION"; do
+  log_info "Test: SKILL_TDD, IMPLEMENTATION, VALIDATION, ORCHESTRATION_PARALLEL each name both field paths and undecided-on-mismatch (SPEC-0192 TEST-006)..."
+  for f in "$SKILL_TDD" "$IMPLEMENTATION" "$VALIDATION" "$ORCHESTRATION_PARALLEL"; do
     [[ -f "$f" ]] || { log_info "SPEC-0192 TEST-006: $f missing"; ok=0; continue; }
     grep -qF 'implementation_strategy.ref_id' "$f" \
       || { log_info "SPEC-0192 TEST-006: $f must name implementation_strategy.ref_id"; ok=0; }
@@ -173,7 +176,7 @@ test_008_stale_strategy_binding_prompts() {
     grep -qiF 'undecided' "$f" \
       || { log_info "SPEC-0192 TEST-006: $f must instruct treating a disagreeing pair as undecided"; ok=0; }
   done
-  [[ $ok -eq 1 ]] && log_pass "SPEC-0192 TEST-006 SKILL_TDD, IMPLEMENTATION, VALIDATION name both field paths and undecided-on-mismatch" \
+  [[ $ok -eq 1 ]] && log_pass "SPEC-0192 TEST-006 SKILL_TDD, IMPLEMENTATION, VALIDATION, ORCHESTRATION_PARALLEL name both field paths and undecided-on-mismatch" \
     || log_fail "SPEC-0192 TEST-006 stale-binding prompt readers"
 }
 

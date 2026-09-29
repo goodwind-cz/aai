@@ -85,6 +85,11 @@ IMPLEMENTATION STRATEGY AND ISOLATION
   dispatch `.aai/SKILL_TDD.prompt.md`, not free-form Implementation.
 - If `implementation_strategy.selected == hybrid`, dispatch only the next explicit
   TDD or loop segment from the spec.
+- STALE BINDING: when `implementation_strategy.ref_id` and the selected scope's
+  `ref_id` (or `current_focus.ref_id`) are both non-null and disagree, treat
+  strategy as `undecided` and dispatch Planning for that scope. Do not dispatch
+  TDD or Implementation from another item's leftover `selected`. Missing/`null`
+  ref_id is legacy — honor `selected`.
 - WORKTREE GATE — see .aai/ROLE_COMMON.md WORKTREE GATE. When the condition
   holds, classify the scope as NEEDS_WORKTREE_DECISION.
 - Inline scopes can be parallelized only when their file/path review scopes do
