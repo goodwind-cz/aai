@@ -20,6 +20,8 @@ rather than silently merging or dropping it, and a cut with zero rollable
 entries is refused too (exit 13). A bare, EMPTY `## [unreleased]` scaffold is
 fine — it is the marker a cut leaves on top.
 
+## [unreleased]
+
 ## [unreleased] — fix: triage creates missing report parent (ISSUE-0084 / SPEC-0190)
 
 - `/aai-feedback-triage` no longer dies with ENOENT when `docs/ai/friction` is absent.
