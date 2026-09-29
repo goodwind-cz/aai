@@ -66,4 +66,5 @@ links:
 - Owner choice at intake: fill what is missing and update existing prices (the broader of the three sets offered).
 - Assumption: the missing set is the ten families in AC-001, plus `deepseek-v4-flash`, which is already present with null rates. A scan of `docs/ai/METRICS.jsonl` on 2026-09-29 found no other unresolved `model_id` besides the `unknown` sentinel.
 - Assumption: `.aai/system/MODEL_ROUTING.yaml` is unchanged in this change. New keys fix lookup. Rebinding tiers is separate work.
+- Owner 2026-09-29: ChatGPT 6.1 sol (`gpt-6.1-sol`) landed on OpenAI pricing the same day; priced in `.aai/system/PRICING.yaml` and recorded in `docs/knowledge/FACTS.md`. Harness routing lists unchanged (out of scope).
 - `on_unknown_model` says to add a null-priced row and then verify. FAIL-008 and the prune rule override that for ids that are not in metrics history: verify first, and add the row only when both rates are known.
