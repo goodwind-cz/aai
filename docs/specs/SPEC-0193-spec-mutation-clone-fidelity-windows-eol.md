@@ -2,15 +2,17 @@
 id: spec-mutation-clone-fidelity-windows-eol
 type: spec
 number: 193
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 0e81bcd62d6a4a621ed97d8980ef3e69c06671a32fa8ba282a28c8ee05ed5d2e
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 46f9241662700e4004b8babf49989371ab779633
 ---
 
 # Spec — Mutation clone fidelity matches working-tree bytes on mixed EOL

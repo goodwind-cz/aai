@@ -2,10 +2,12 @@
 id: mutation-clone-fidelity-windows-eol
 type: issue
 number: 87
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 46f9241662700e4004b8babf49989371ab779633
 ---
 
 # Issue — Mutation runner clone fidelity fails on Windows dirty trees with mixed EOL

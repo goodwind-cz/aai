@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-29T12:22:51.844Z",
+  "generatedAt": "2026-09-29T12:22:57.152Z",
   "project": "aai",
   "counts": {
-    "delivered": 262,
-    "in_progress": 16,
+    "delivered": 263,
+    "in_progress": 15,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -194,19 +194,6 @@
       "review": null
     },
     {
-      "ref": "mutation-clone-fidelity-windows-eol",
-      "title": "Issue — Mutation runner clone fidelity fails on Windows dirty trees with mixed EOL",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-20260929T073508Z-mutation-clone-fidelity-windows-eol.md"
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -221,6 +208,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "mutation-clone-fidelity-windows-eol",
+      "title": "Issue — Mutation runner clone fidelity fails on Windows dirty trees with mixed EOL",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md",
+      "closed_on": "2026-09-29",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260929T073508Z-mutation-clone-fidelity-windows-eol.md"
+    },
     {
       "ref": "growth-pins-dont-wall-the-corpus",
       "title": "A ride's own growth pin stops walling every ride that comes after it",
@@ -3634,6 +3634,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "mutation-clone-fidelity-windows-eol",
+          "title": "Issue — Mutation runner clone fidelity fails on Windows dirty trees with mixed EOL",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md",
+          "closed_on": "2026-09-29",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260929T073508Z-mutation-clone-fidelity-windows-eol.md"
+        },
         {
           "ref": "growth-pins-dont-wall-the-corpus",
           "title": "A ride's own growth pin stops walling every ride that comes after it",
