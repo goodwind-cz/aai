@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-28T19:18:44.812Z
+Generated: 2026-09-29T11:42:03.250Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -51,7 +51,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (456)
+## Done (458)
 
 | ID | Type | Path |
 |---|---|---|
@@ -301,6 +301,7 @@ _None._
 | ISSUE-0082 | issues | docs/issues/ISSUE-0082-friction-publish-hides-required-followup.md |
 | ISSUE-0083 | issues | docs/issues/ISSUE-0083-update-installs-ref-guard-undisclosed.md |
 | ISSUE-0084 | issues | docs/issues/ISSUE-0084-feedback-triage-missing-output-dir.md |
+| ISSUE-0085 | issues | docs/issues/ISSUE-0085-prompts-invoke-wsl-bash-on-windows.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -509,6 +510,7 @@ _None._
 | SPEC-0188 | specs | docs/specs/SPEC-0188-spec-roadmap-takes-direction.md |
 | SPEC-0189 | specs | docs/specs/SPEC-0189-spec-growth-pins-dont-wall-the-corpus.md |
 | SPEC-0190 | specs | docs/specs/SPEC-0190-spec-feedback-triage-missing-output-dir.md |
+| SPEC-0191 | specs | docs/specs/SPEC-0191-spec-prompts-invoke-wsl-bash-on-windows.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -583,4 +585,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-28 — counts above use this date for overdue checks.
+Today (UTC): 2026-09-29 — counts above use this date for overdue checks.

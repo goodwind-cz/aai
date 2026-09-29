@@ -30,8 +30,9 @@ Run it with `--dry-run` first to preview generated commands and file writes.
 
 ## Leak-safe test routing (SPEC-0009)
 Generated `aai-test-*` skills (`aai-test-unit`, `aai-test-e2e`) route their
-detected command through the process-group wrapper
-`bash .aai/scripts/aai-run-tests.sh <cmd>` instead of invoking `vitest`/`playwright`
+detected command through the process-group wrapper (Windows:
+`powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <cmd>`; POSIX:
+`bash .aai/scripts/aai-run-tests.sh <cmd>`) instead of invoking `vitest`/`playwright`
 directly. The wrapper runs the command in its own killable process group with an
 inline timeout, guaranteeing that a suite which leaks open handles cannot orphan
 a hung `vitest`/`esbuild` tree. The wrapper is vendored under `.aai/scripts/` by

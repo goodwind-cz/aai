@@ -893,7 +893,13 @@ test_012_growth_sum_matches_ledger() {
   # the tight 106 B of remaining headroom (AGENTS.md sits outside TEST-010's
   # live glob, so this credit adds to headroom with no offsetting shrink).
   # Credited 1:1, headroom moves 1942 -> 2042/2048 (TEST-010).
-  local want_growth=41332
+  # Then 41332 -> 42134: prompts-invoke-wsl-bash-on-windows (+802 B) —
+  # Windows `.ps1` literal beside POSIX bash in the listed skill prompts.
+  # Then 42134 -> 42626: same ride review B1 (+492 B) — SKILL_TEST_SKILLS
+  # Usage fence and VALIDATION c2 sweep routed through the wrapper pair.
+  # Then 42626 -> 43259: same ride Codex P1 reap pair (+633 B) — LOOP /
+  # VALIDATION / BOOTSTRAP name aai-reap-tests.ps1 plus the PowerShell epoch.
+  local want_growth=43259
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -2018,11 +2024,35 @@ test_771_diet_credit_verdict_pr388_states() {
     || log_fail "TEST-771 (Spec-AC-06) PR #388 diet_credit_verdict states"
 }
 
+# TEST-028 (Spec-AC-05): this ride's 802 B Windows-safe prompt credit is on the ledger.
+test_028_windows_prompt_credit() {
+  local hit=0 e
+  for e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    case "$e" in
+      802\ prompts-invoke-wsl-bash-on-windows*) hit=1 ;;
+    esac
+  done
+  [[ $hit -eq 1 ]] || log_fail "TEST-028: JUSTIFIED_ADDITIONS missing the 802 prompts-invoke-wsl-bash-on-windows credit"
+  [[ $hit -eq 1 ]] && log_pass "TEST-028 ledger credits 802 B for prompts-invoke-wsl-bash-on-windows"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
 
   check_deps
+
+  if [[ $# -gt 0 ]]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"
+    echo ""
+    if [[ $FAILED -eq 0 ]]; then
+      echo "All tests passed!"
+      exit 0
+    fi
+    echo "Some tests FAILED." >&2
+    exit 1
+  fi
 
   test_001_include_reference
   test_002_common_blocks
@@ -2056,6 +2086,7 @@ main() {
   test_769_agents_md_ceiling
   test_770_corpus_scan_no_equality_pins
   test_771_diet_credit_verdict_pr388_states
+  test_028_windows_prompt_credit
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

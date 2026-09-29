@@ -53,7 +53,7 @@ The generator may create/update:
 ## Leak-safe Test Commands (SPEC-0009)
 
 Generated `aai-test-unit` / `aai-test-e2e` skills route their detected command
-through the process-group wrapper `bash .aai/scripts/aai-run-tests.sh <cmd>` rather
+through the process-group wrapper (Windows: `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <cmd>`; POSIX: `bash .aai/scripts/aai-run-tests.sh <cmd>`) rather
 than invoking `vitest`/`playwright` directly. The wrapper runs the command in a
 killable process group with an inline timeout (default 300s → exit 124) so a
 suite that leaks open handles cannot orphan a hung `vitest`/`esbuild` tree; it is
@@ -62,7 +62,7 @@ When Vitest is detected, bootstrap also emits leak-safe config guidance
 (`pool: 'forks'`, `maxForks: 2`, `teardownTimeout`) — WITHOUT overwriting an
 existing user Vitest config. The loop additionally reaps this-workspace survivors
 after a test-running tick with the workspace+etime-scoped
-`.aai/scripts/aai-reap-tests.sh` (never a global `pkill -f vitest`).
+`.aai/scripts/aai-reap-tests.sh` (POSIX) / `powershell -NoProfile -File .aai/scripts/aai-reap-tests.ps1` (Windows) (never a global `pkill -f vitest`).
 
 ## Safety Rules
 

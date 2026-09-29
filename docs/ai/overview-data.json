@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-29T09:53:47.428Z",
+  "generatedAt": "2026-09-29T11:41:55.816Z",
   "project": "aai",
   "counts": {
-    "delivered": 260,
+    "delivered": 261,
     "in_progress": 15,
     "releases": 1,
     "tokens_total": 68899611
@@ -233,6 +233,19 @@
       "spec": "docs/specs/SPEC-0190-spec-feedback-triage-missing-output-dir.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260928T-feedback-triage-missing-output-dir.md"
+    },
+    {
+      "ref": "prompts-invoke-wsl-bash-on-windows",
+      "title": "Issue — Skill prompts tell Windows agents to invoke bash, which hits a blocked WSL shim",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0085-prompts-invoke-wsl-bash-on-windows.md",
+      "closed_on": "2026-09-28",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0191-spec-prompts-invoke-wsl-bash-on-windows.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260928T-prompts-invoke-wsl-bash-on-windows.md"
     },
     {
       "ref": "roadmap-takes-direction",
@@ -3620,6 +3633,19 @@
           "spec": "docs/specs/SPEC-0190-spec-feedback-triage-missing-output-dir.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260928T-feedback-triage-missing-output-dir.md"
+        },
+        {
+          "ref": "prompts-invoke-wsl-bash-on-windows",
+          "title": "Issue — Skill prompts tell Windows agents to invoke bash, which hits a blocked WSL shim",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0085-prompts-invoke-wsl-bash-on-windows.md",
+          "closed_on": "2026-09-28",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0191-spec-prompts-invoke-wsl-bash-on-windows.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260928T-prompts-invoke-wsl-bash-on-windows.md"
         },
         {
           "ref": "roadmap-takes-direction",

@@ -83,17 +83,24 @@ must never orphan hung `vitest`/`esbuild` trees (observed: ~40 trees / ~5.6 GB
 after a 17-tick run). This is a hard rule for every test-running tick:
 - ROUTE THROUGH THE WRAPPER: never invoke `vitest`/`tsc`/dev-servers directly.
   Run every discovered test/build command through the process-group wrapper:
-    bash .aai/scripts/aai-run-tests.sh <cmd> [args...]
+    Windows: powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <cmd> [args...]
+    POSIX:   bash .aai/scripts/aai-run-tests.sh <cmd> [args...]
   It runs the command in its own process group with an inline timeout
   (`AAI_TEST_TIMEOUT`, default 300s → exit 124) and ALWAYS reaps the whole group
   on return, so a leaky child can never outlive the call.
 - PRE-FLIGHT COUNT (loop start, once): count this-workspace `vitest`/`esbuild`
   processes. If the count exceeds the threshold (default 5), `log()` a warning
   (a prior run's leak must not compound) and run the scoped reaper:
-    .aai/scripts/aai-reap-tests.sh
+    Windows: powershell -NoProfile -File .aai/scripts/aai-reap-tests.ps1
+    POSIX:   .aai/scripts/aai-reap-tests.sh
 - POST-TICK REAP: at the START of the test step (before the test command
-  launches), capture the step-start epoch — `AAI_REAP_STEP_START_EPOCH=$(date +%s)`
-  — and export it. After any test-running tick, run `.aai/scripts/aai-reap-tests.sh`
+  launches), capture the step-start epoch —
+    Windows: `$env:AAI_REAP_STEP_START_EPOCH = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()`
+    POSIX:   `AAI_REAP_STEP_START_EPOCH=$(date +%s)`
+  — and export it (POSIX) / set it in the process env (Windows). After any
+  test-running tick, run the matching reaper
+    Windows: `powershell -NoProfile -File .aai/scripts/aai-reap-tests.ps1`
+    POSIX:   `.aai/scripts/aai-reap-tests.sh`
   with that same `AAI_REAP_STEP_START_EPOCH` in its environment, to sweep
   this-workspace survivors. See the script's header comment for the safety
   contract (deterministic step-start-relative age guard, legacy fallback,
@@ -406,7 +413,7 @@ For each tick (1..max_ticks):
      - Undecomposed totals are NOT passed as these flags — they flow to the merge append-run note (D3) and the run-budget tally (condition f, SUBAGENT_PROTOCOL.md) instead.
      - LEAK ACCOUNTING (SPEC-0009): on a test-running tick also include
        `lingering_procs` (this-workspace `vitest`/`esbuild` count AFTER the
-       post-tick `.aai/scripts/aai-reap-tests.sh` sweep) and `free_memory`
+       post-tick `.aai/scripts/aai-reap-tests.sh` / `aai-reap-tests.ps1` sweep) and `free_memory`
        (host free memory), so a process/memory leak is visible in the tick log
        rather than growing silently across ticks.
      - Do not estimate timing. Use real timestamps measured during execution.

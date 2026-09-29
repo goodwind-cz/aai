@@ -2468,3 +2468,16 @@
 {"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-feedback-triage-missing-output-dir","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"spec-feedback-triage-missing-output-dir","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"spec-feedback-triage-missing-output-dir","payload":{"commit":"a79d17cab83def734e4b619be519084083a04cbe"}}
+{"v":1,"ts":"2026-09-28T19:20:15.083Z","actor":"cursoragent_cursor.com","event":"ride_gate_override","ref":"prompts-invoke-wsl-bash-on-windows","payload":{"reason":"owner invoked /aai-ship on this Windows usage-report intake"}}
+{"v":1,"ts":"2026-09-28T19:20:51Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-prompts-invoke-wsl-bash-on-windows","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-28T19:26:55Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"spec-prompts-invoke-wsl-bash-on-windows/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:26:55Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"spec-prompts-invoke-wsl-bash-on-windows/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:26:55Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"spec-prompts-invoke-wsl-bash-on-windows/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:26:55Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"spec-prompts-invoke-wsl-bash-on-windows/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:26:55Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"spec-prompts-invoke-wsl-bash-on-windows/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:35:35Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"prompts-invoke-wsl-bash-on-windows","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:35:35Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"prompts-invoke-wsl-bash-on-windows","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-28T19:35:35Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"prompts-invoke-wsl-bash-on-windows","payload":{"commit":"18ec527d66cdf565fbe1a07da012ade29f7ccd2d"}}
+{"v":1,"ts":"2026-09-28T19:35:35Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-prompts-invoke-wsl-bash-on-windows","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:35:35Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"spec-prompts-invoke-wsl-bash-on-windows","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-28T19:35:36Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"spec-prompts-invoke-wsl-bash-on-windows","payload":{"commit":"18ec527d66cdf565fbe1a07da012ade29f7ccd2d"}}

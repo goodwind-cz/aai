@@ -6,14 +6,22 @@ framework, `tests/skills/test-framework.sh`. Do NOT hand-roll a skill count,
 a dependency table, or a report format — the framework computes all of it.
 
 ## Usage
-```bash
-bash tests/skills/test-framework.sh                # all skills
-bash tests/skills/test-framework.sh --skill aai-share
-bash tests/skills/test-framework.sh --fix           # accepted but a NO-OP today (see step 7)
-bash tests/skills/test-framework.sh --verbose
+On Windows, never invoke `bash` / `bash.exe` / `sh` / `wsl` for this suite.
+Use the Canonical test invocation in `.aai/AGENTS.md`:
 ```
-Prefer `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh ...`
-when running under a loop/orchestrator — it wraps the same invocation in a
+powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 bash tests/skills/test-framework.sh
+powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 bash tests/skills/test-framework.sh --skill aai-share
+powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 bash tests/skills/test-framework.sh --fix
+powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 bash tests/skills/test-framework.sh --verbose
+```
+POSIX:
+```
+bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh
+bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh --skill aai-share
+bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh --fix
+bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh --verbose
+```
+The wrapper wraps the same invocation in a
 killable process group with a timeout watchdog (SPEC-0009), so a hung suite
 cannot strand the run.
 

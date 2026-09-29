@@ -58,7 +58,9 @@ node .aai/scripts/deslop-unrequested.mjs --all [--json]
 
 ## Behavior-unchanged rule
 A deslop pass must be a NO-OP for behavior. After edits, run the full test
-suite through `bash .aai/scripts/aai-run-tests.sh <project test command>` (LEARNED
+suite through the Canonical test invocation in `.aai/AGENTS.md` (Windows:
+`powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <project test command>`;
+POSIX: `bash .aai/scripts/aai-run-tests.sh <project test command>`) (LEARNED
 rule — never invoke the runner directly) and it must pass exactly as before
 the pass. If any test changes outcome, the pass removed load-bearing code:
 revert that edit — do not "fix" the test. Deleting a test is never deslop.
@@ -85,5 +87,4 @@ block included — there is nothing to walk, since this pass edits nothing.
 - The pass's completion claim ("suite green after deslop") goes through the
   `.aai/SKILL_VERIFY.prompt.md` gate: IDENTIFY → RUN → READ → VERIFY → CLAIM,
   with fresh evidence from the post-pass tree.
-- Never present this pass as a review verdict; review remains
-  `.aai/SKILL_CODE_REVIEW.prompt.md`'s job.
+- Never present this pass as a review verdict; review remains `.aai/SKILL_CODE_REVIEW.prompt.md`'s job.

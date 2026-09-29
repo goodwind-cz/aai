@@ -629,10 +629,13 @@ CANON_ROOT_RULE='Run it from the repository root; when elsewhere, cd to the repo
 CANON_PROHIBITION='Never invoke bash.exe, sh, or wsl directly for test runs, and never via CWD-relative paths from a subdirectory - the dispatcher owns interpreter routing.'
 CANON_RATIONALE='The fixed repo-root literal prefix is what approval allowlists match - a stable command shape is approved once, a varying one re-prompts forever.'
 
-# --- TEST-024 (Spec-AC-01): guidance trio carries the contract verbatim; the
-#     seven prompt-corpus invocation mentions carry the bash-prefixed literal --
+# --- TEST-024 (Spec-AC-01/02/03): guidance trio unchanged; prompt corpus is
+#     Windows-safe — Windows .ps1 literal OR AGENTS.md Canonical test
+#     invocation pointer; POSIX bash prefix never stands alone; SKILL_TDD
+#     is in the pin list; bare-path residue still forbidden after BOTH
+#     prefixes are stripped.
 test_024() {
-  log_info "TEST-024: TECHNOLOGY.md + TECHNOLOGY_TEMPLATE.md + AGENTS.md carry both canonical literals + repo-root rule + prohibition; 6 prompts + DYNAMIC_SKILLS.md carry the bash-prefixed POSIX literal with no bare-path mention left..."
+  log_info "TEST-024: TECHNOLOGY.md + TECHNOLOGY_TEMPLATE.md + AGENTS.md carry both canonical literals + repo-root rule + prohibition; listed skill prompts are Windows-safe (pair or AGENTS.md pointer, no bash-only, no bare .sh)..."
 
   local template_doc="$PROJECT_ROOT/.aai/templates/TECHNOLOGY_TEMPLATE.md"
   local agents_doc="$PROJECT_ROOT/.aai/AGENTS.md"
@@ -651,8 +654,6 @@ test_024() {
       || log_fail "$doc missing the pinned prohibition sentence"
   done
 
-  # The seven invocation mentions (six prompt-corpus files + the system-side
-  # DYNAMIC_SKILLS.md): every aai-run-tests.sh mention carries the bash prefix.
   local pf
   local prompt_files=(
     "$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
@@ -661,24 +662,44 @@ test_024() {
     "$PROJECT_ROOT/.aai/SKILL_TEST_SKILLS.prompt.md"
     "$PROJECT_ROOT/.aai/SKILL_BOOTSTRAP.prompt.md"
     "$PROJECT_ROOT/.aai/SKILL_DESLOP.prompt.md"
+    "$PROJECT_ROOT/.aai/SKILL_TDD.prompt.md"
     "$PROJECT_ROOT/.aai/system/DYNAMIC_SKILLS.md"
   )
   for pf in "${prompt_files[@]}"; do
     [[ -f "$pf" ]] || log_fail "missing $pf"
-    grep -qF -- 'bash .aai/scripts/aai-run-tests.sh' "$pf" \
-      || log_fail "$pf missing the bash-prefixed canonical POSIX invocation literal"
-    # Shadow-proof bare-mention audit (PR #254 bot catch): a line-count
-    # compare (grep -c) lets a bare mention hide on a line that ALSO carries
-    # a prefixed one. Strip every canonical occurrence from the content
-    # first, then ANY surviving mention is a bare one — per-occurrence, not
-    # per-line.
+    local has_win=0 has_posix=0 has_pointer=0
+    grep -qF -- "$CANON_WIN_PREFIX" "$pf" && has_win=1
+    grep -qF -- "$CANON_POSIX_PREFIX" "$pf" && has_posix=1
+    grep -qF -- 'Canonical test invocation' "$pf" && grep -qF -- '.aai/AGENTS.md' "$pf" && has_pointer=1
+    [[ "$has_win" -eq 1 || "$has_pointer" -eq 1 ]] \
+      || log_fail "TEST-024: $pf names neither the Windows canonical prefix nor an AGENTS.md Canonical test invocation pointer — a Windows agent following it would start with bash"
+    if [[ "$has_posix" -eq 1 && "$has_win" -ne 1 ]]; then
+      log_fail "TEST-024: $pf carries the POSIX bash prefix without the Windows .ps1 literal — bash-only is the WSL E_ACCESSDENIED footgun"
+    fi
     local residue
-    residue="$(sed 's|bash \.aai/scripts/aai-run-tests\.sh||g' "$pf" | grep -nF -- '.aai/scripts/aai-run-tests.sh' || true)"
+    residue="$(sed -e "s|${CANON_POSIX_PREFIX}||g" -e "s|${CANON_WIN_PREFIX}||g" "$pf" | grep -nF -- '.aai/scripts/aai-run-tests.sh' || true)"
     [[ -z "$residue" ]] \
-      || log_fail "$pf still carries a bare-path aai-run-tests.sh invocation mention after canonical-occurrence strip: $residue"
+      || log_fail "TEST-024: $pf still carries a bare-path aai-run-tests.sh invocation mention after canonical-occurrence strip: $residue"
+    # Pipe-free (pipe-grep-q-ratchet / assert-payload.sh): assert_payload_contains
+    # is fail-closed on miss, so a skip-on-miss filter cannot call it. Use the
+    # same primitives the helper wraps — `[[ =~ ]]` for the host `bash tests/`
+    # ERE (one line, so REG_NEWLINE is not a trap) and `case` for the two
+    # canonical-prefix substring skips (grep -qF).
+    local bash_tests="" line
+    local bash_tests_ere='(^|[[:space:]`])bash[[:space:]]+tests/'
+    while IFS= read -r line; do
+      [[ "$line" =~ $bash_tests_ere ]] || continue
+      case "$line" in
+        *"$CANON_POSIX_PREFIX"*) continue ;;
+        *"$CANON_WIN_PREFIX"*) continue ;;
+      esac
+      bash_tests="${bash_tests}${line}"$'\n'
+    done < "$pf"
+    [[ -z "$bash_tests" ]] \
+      || log_fail "TEST-024: $pf still tells a Windows agent to invoke bash on a tests/ path (WSL E_ACCESSDENIED footgun): $bash_tests"
   done
 
-  log_pass "guidance trio carries the contract verbatim; all seven prompt invocation mentions are bash-prefixed (TEST-024)"
+  log_pass "guidance trio unchanged; listed prompts are Windows-safe (pair or AGENTS.md pointer) (TEST-024)"
 }
 
 # --- TEST-025 (Spec-AC-01): wrapper Usage headers state the canonical shapes,
@@ -751,7 +772,14 @@ test_026() {
   log_pass "allowlist rationale + operator note + truthful product doc + CHANGELOG heading (TEST-026)"
 }
 
-ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026"
+ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027"
+
+# TEST-027 (Spec-AC-04): ALL_TESTS still registers the Windows-safe pin.
+test_027() {
+  log_info "TEST-027: ALL_TESTS still includes 024..."
+  [[ "$ALL_TESTS" == *024* ]] || log_fail "TEST-027: ALL_TESTS missing 024"
+  log_pass "TEST-027 ALL_TESTS includes 024"
+}
 
 main() {
   echo "Testing $TEST_NAME (Windows fallback: MSYS branch, platform matrix, MV protocol doc-presence)"
@@ -761,6 +789,7 @@ main() {
   local t
   for t in $selected; do
     t="${t#TEST-}"
+    t="${t#test_}"
     declare -F "test_${t}" >/dev/null || { echo "Unknown test: $t" >&2; exit 2; }
     "test_${t}"
   done

@@ -22,6 +22,14 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: skill prompts must not tell Windows to invoke bash (ISSUE-0085 / SPEC-0191)
+
+- Skill prompts (TDD, Verify, Loop, Validation, Test-Skills, Bootstrap, Deslop) now name the Windows `.ps1` wrapper beside the POSIX `.sh` wrapper.
+- TEST-024 rejects bash-only and host `bash tests/` instructions so a blocked WSL shim is not the documented path.
+- Prompt-diet ledger credits the measured corpus growth (802 + 492 + 633 B).
+- Bootstrap-generated `aai-test-*` skills emit both Windows `.ps1` and POSIX `.sh` wrapper lines (no host-OS pick).
+- Loop/Validation/Bootstrap reap-and-epoch instructions name `aai-reap-tests.ps1` and the PowerShell step-start epoch beside the POSIX reaper.
+
 ## [unreleased] — fix: triage creates missing report parent (ISSUE-0084 / SPEC-0190)
 
 - `/aai-feedback-triage` no longer dies with ENOENT when `docs/ai/friction` is absent.
