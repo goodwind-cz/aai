@@ -492,21 +492,76 @@ function unlinkIfExists(p) {
   fs.unlinkSync(p);
 }
 
+// True when a SOURCE working-tree ancestor of `rel` is a symlink (lstat,
+// never follow). Tracked descendants under a WT dir-symlink are still in
+// `git ls-files`, but overlaying them would replace the clone's matching
+// symlink with a real directory (Codex P1 on PR #406).
+function sourceHasSymlinkAncestor(sourceRoot, rel) {
+  const parts = rel.replace(/\\/g, '/').split('/').slice(0, -1).filter((p) => p && p !== '.');
+  let cur = path.resolve(sourceRoot);
+  for (const part of parts) {
+    if (part === '..') return false;
+    cur = path.join(cur, part);
+    let st;
+    try {
+      st = fs.lstatSync(cur);
+    } catch {
+      return false;
+    }
+    if (st.isSymbolicLink()) return true;
+  }
+  return false;
+}
+
+// Remove a leftover clone leaf so `dst` can take the SOURCE type. Unlink
+// files and symlinks (spec D4 — never follow). When the working tree
+// replaced a tracked directory with a symlink (or a non-dir), recursively
+// remove a leftover real directory instead of letting EISDIR skip the copy.
+function replaceCloneLeaf(dst, sourceStat) {
+  let st;
+  try {
+    st = fs.lstatSync(dst);
+  } catch {
+    return;
+  }
+  if (st.isDirectory() && !st.isSymbolicLink()) {
+    if (sourceStat.isSymbolicLink() || !sourceStat.isDirectory()) {
+      fs.rmSync(dst, { recursive: true, force: true });
+    }
+    return;
+  }
+  fs.unlinkSync(dst);
+}
+
 // Replace leftover clone symlink (or non-dir) ancestors of `rel` with real
 // directories so mkdir/copy cannot follow them into ROOT (spec D4 / B2r).
 // Git relpaths are slash-separated. Walk is lstat-only (never follow).
-function ensureCloneParentDirs(cloneDir, rel) {
+// When `sourceRoot` is given and the SOURCE ancestor is itself a symlink,
+// stop — do not replace a correctly installed WT dir-symlink with a real
+// directory (Codex P1 / PR #406).
+function ensureCloneParentDirs(cloneDir, rel, sourceRoot) {
   const root = path.resolve(cloneDir);
+  const srcRoot = sourceRoot ? path.resolve(sourceRoot) : null;
   const parentRel = rel.replace(/\\/g, '/').split('/').slice(0, -1).filter((p) => p && p !== '.');
   let cur = root;
+  let srcCur = srcRoot;
   for (const part of parentRel) {
     if (part === '..') {
       throw new Error(`clone path escaped cloneDir: ${rel}`);
     }
     cur = path.join(cur, part);
+    if (srcCur) srcCur = path.join(srcCur, part);
     const resolved = path.resolve(cur);
     if (resolved !== root && !resolved.startsWith(root + path.sep)) {
       throw new Error(`clone path escaped cloneDir: ${rel}`);
+    }
+    if (srcCur) {
+      try {
+        const srcSt = fs.lstatSync(srcCur);
+        if (srcSt.isSymbolicLink()) return;
+      } catch {
+        // source ancestor missing — fall through and normalize the clone
+      }
     }
     let st;
     try {
@@ -529,13 +584,15 @@ function overlayTrackedWorkingTreeBytes(cloneDir, sourceRoot) {
     const src = path.join(sourceRoot, rel);
     const dst = path.join(cloneDir, rel);
     try {
+      if (sourceHasSymlinkAncestor(sourceRoot, rel)) continue;
       const st = fs.lstatSync(src);
-      ensureCloneParentDirs(cloneDir, rel);
+      ensureCloneParentDirs(cloneDir, rel, sourceRoot);
       // Unlink dst first (lstat, never follow). copyFileSync onto a leftover
       // clone symlink would write through to the link target — including ROOT
       // (spec D4) — when HEAD tracked a symlink and the working tree replaced
-      // it with a regular file.
-      unlinkIfExists(dst);
+      // it with a regular file. A leftover clone DIRECTORY must yield to a
+      // WT dir-symlink (Codex P1) rather than skip with EISDIR.
+      replaceCloneLeaf(dst, st);
       if (st.isSymbolicLink()) {
         fs.symlinkSync(fs.readlinkSync(src), dst);
       } else if (st.isFile()) {
@@ -599,8 +656,8 @@ function buildIsolatedClone() {
       try {
         const st = fs.lstatSync(src);
         const rel = p;
-        ensureCloneParentDirs(cloneDir, rel);
-        unlinkIfExists(dst);
+        ensureCloneParentDirs(cloneDir, rel, ROOT);
+        replaceCloneLeaf(dst, st);
         if (st.isSymbolicLink()) {
           fs.symlinkSync(fs.readlinkSync(src), dst);
         } else {
@@ -652,7 +709,7 @@ function buildIsolatedClone() {
       }
       const dst = path.join(cloneDir, rel);
       try {
-        ensureCloneParentDirs(cloneDir, rel);
+        ensureCloneParentDirs(cloneDir, rel, ROOT);
         unlinkIfExists(dst);
         fs.writeFileSync(dst, bytes);
         sourceTreeFiles.set(rel, createHash('sha256').update(bytes).digest('hex'));

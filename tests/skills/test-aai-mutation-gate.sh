@@ -3084,6 +3084,64 @@ test_005_symlink_leaf_does_not_write_root() {
   log_pass "TEST-005 leaf leftover symlink did not write ROOT"
 }
 
+# --- Codex P1 PR #406 — WT dir-symlink must not become a real clone directory
+# HEAD tracks pkg/file.txt as a directory tree. The working tree replaces pkg
+# with a symlink to a directory that still has file.txt. git ls-files still
+# lists the deleted tracked descendant. Overlay must not replace the clone's
+# installed symlink with a real directory — a suite that checks `test -L pkg`
+# would otherwise false-RED while clone-fidelity (which follows) still passes.
+test_006_wt_dir_symlink_not_replaced_by_overlay() {
+  log_info "Test: overlay does not replace a working-tree dir-symlink with a real directory (TEST-006)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_spec "$fx" "fixture-spec-eol-006"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  mkdir -p "$fx/pkg" "$fx/pkg-target"
+  printf 'inside\n' > "$fx/pkg/file.txt"
+  printf 'inside\n' > "$fx/pkg-target/file.txt"
+  cat > "$fx/tests/skills/fixture-suite.sh" <<'EOS'
+#!/usr/bin/env bash
+set -uo pipefail
+TEST_NAME="fixture-suite"
+FSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FROOT="$(cd "$FSCRIPT_DIR/../.." && pwd)"
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+
+test_9001_dir_symlink() {
+  [[ -L "$FROOT/pkg" ]] || log_fail "TEST-9001 pkg must be a directory symlink in the clone, not a real directory"
+  [[ -f "$FROOT/pkg/file.txt" ]] || log_fail "TEST-9001 pkg/file.txt missing through the symlink"
+  local body; body="$(cat "$FROOT/pkg/file.txt")"
+  [[ "$body" == "inside" ]] || log_fail "TEST-9001 pkg/file.txt content wrong: got '$body'"
+  log_pass "TEST-9001 working-tree dir-symlink preserved in the clone"
+}
+
+main() {
+  if [[ -n "${1:-}" ]]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"
+    return
+  fi
+  test_9001_dir_symlink
+}
+main "$@"
+EOS
+  chmod +x "$fx/tests/skills/fixture-suite.sh"
+  mg_write_binary "$fx/lib/blob.bin" AAAA
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  rm -rf "$fx/pkg"
+  ( cd "$fx" && ln -s pkg-target pkg )
+  mg_write_binary "$fx/lib/blob.bin" BBBB
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_dir_symlink \
+    --target lib/greeting.mjs --sed 's/nomatch/x/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 3 ]] || log_fail "TEST-006: clone-fidelity refused (exit 3): $out"
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-006: want STAYED GREEN (exit 5) with the clone keeping the dir-symlink; a real directory would false-RED (exit 0). got $rc: $out"
+  log_pass "TEST-006 working-tree dir-symlink preserved; overlay did not flatten it"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -3129,6 +3187,7 @@ main() {
   test_003_eol_only_mismatch_token
   test_004_symlink_ancestor_does_not_write_root
   test_005_symlink_leaf_does_not_write_root
+  test_006_wt_dir_symlink_not_replaced_by_overlay
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
