@@ -68,6 +68,7 @@
 2	tests/skills/test-aai-heartbeat.sh
 2	tests/skills/test-aai-hitl-channel.sh
 4	tests/skills/test-aai-hitl-propagation.sh
+2	tests/skills/test-aai-home-skills.sh
 42	tests/skills/test-aai-hooks-overlay.sh
 50	tests/skills/test-aai-hygiene-pack.sh
 3	tests/skills/test-aai-implementation-mode.sh

@@ -191,6 +191,7 @@ core:
   - .aai/scripts/pre-commit-checks.sh
   - .aai/scripts/pre-compact-save.ps1
   - .aai/scripts/pre-compact-save.sh
+  - .aai/scripts/publish-home-skills.mjs
   - .aai/scripts/reconcile-telemetry.mjs
   - .aai/scripts/secrets-preflight.mjs
   - .aai/scripts/select-suites.mjs

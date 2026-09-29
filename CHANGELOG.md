@@ -22,6 +22,15 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat: publish AAI skills to Antigravity CLI home paths (CHANGE-0196 / SPEC-0194)
+
+- **Antigravity CLI can see AAI skills from its home trees.** `publish-home-skills.mjs --home <dir> --write` copies each `.claude/skills/*/SKILL.md` into `.gemini/antigravity-cli/skills/{name}/SKILL.md` and `.gemini/skills/{name}/SKILL.md` under that home.
+- **The committed project mirror stays `.agents/skills`.** Home trees are install targets. They are not added to `REQUIRED_MIRROR_TREES`, and `.cursor/skills` stays excluded.
+- **`--home` is required.** The publisher does not read `HOME`, `GEMINI_HOME`, `CLAUDE_CONFIG_DIR`, or `CODEX_HOME`, so a test fixture cannot leak into a real corpus.
+- **Write is byte-identical and idempotent.** A second `--write` leaves matching files untouched. `--check` names a missing tree and exits 1.
+- **Coverage.** `tests/skills/test-aai-home-skills.sh` exercises both trees, idempotence, env isolation, and the existing project-mirror check. The suite-map row-count pin is 99. The new suite's safe `cd && pwd` idiom is recorded in the cd-subshell baseline.
+- CHANGE-0196 / SPEC-0194.
+
 ## [unreleased] — fix: overlay working-tree bytes for mutation clone-fidelity (ISSUE-0087 / SPEC-0193)
 
 - **Mutation clone-fidelity overlays working-tree bytes.** `buildIsolatedClone`
