@@ -3136,7 +3136,7 @@ EOS
   local out rc
   out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
     --suite tests/skills/fixture-suite.sh --selector test_9001_dir_symlink \
-    --target lib/greeting.mjs --sed 's/nomatch/x/' 2>&1)" && rc=0 || rc=$?
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -ne 3 ]] || log_fail "TEST-006: clone-fidelity refused (exit 3): $out"
   [[ "$rc" -eq 5 ]] || log_fail "TEST-006: want STAYED GREEN (exit 5) with the clone keeping the dir-symlink; a real directory would false-RED (exit 0). got $rc: $out"
   log_pass "TEST-006 working-tree dir-symlink preserved; overlay did not flatten it"
