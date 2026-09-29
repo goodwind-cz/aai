@@ -28,16 +28,28 @@ const ROOT = process.cwd();
 const SCAN_DIRS = ['docs/issues', 'docs/rfc', 'docs/requirements', 'docs/releases'];
 const SPEC_DIR = 'docs/specs';
 
-// PR #376 Copilot finding (companion fix, disclosed in SPEC-0177 Amendment
-// Round 3): a ride run from a linked worktree (e.g. aai-feat-<slug>) must
-// still report the MAIN repo's name, not the worktree directory's basename
-// (PR #326/#337 already show this churn shipping and reverting). A linked
-// worktree's `git rev-parse --git-common-dir` resolves to
-// `<main-root>/.git` regardless of which worktree runs it (the same
-// worktree-independent resolution other scripts in this tree already use);
-// the basename of that path's parent is the main root's directory name. Falls back to the cwd basename when git is unavailable or this
-// is not a git checkout at all (a non-git consumer of the generator).
+// Prefer origin's last path segment so a checkout directory named
+// `workspace` (Cloud Agent) still publishes as `aai`. PR #403 Codex P2:
+// regenerating from repo root is not enough when the root basename is not
+// the repository name. Fall back to git-common-dir's parent (PR #376:
+// linked worktrees must not leak their own basename) then cwd.
+function projectNameFromOrigin(root) {
+  try {
+    const url = execFileSync(
+      'git', ['-C', root, 'remote', 'get-url', 'origin'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim();
+    if (!url) return null;
+    const last = url.replace(/\.git$/i, '').replace(/\/+$/, '').split(/[:/]/).filter(Boolean).pop();
+    return last || null;
+  } catch {
+    return null;
+  }
+}
+
 function detectProjectName(root) {
+  const fromOrigin = projectNameFromOrigin(root);
+  if (fromOrigin) return fromOrigin;
   try {
     const common = execFileSync(
       'git', ['-C', root, 'rev-parse', '--path-format=absolute', '--git-common-dir'],

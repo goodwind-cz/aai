@@ -22,6 +22,12 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: triage creates missing report parent (ISSUE-0084 / SPEC-0190)
+
+- `/aai-feedback-triage` no longer dies with ENOENT when `docs/ai/friction` is absent.
+- The engine creates the `--out` parent directory before writing the local report.
+- A clean project with no spool still exits 0 with a zero-observation report (TEST-652).
+
 ## [v2026.09.28] — feat: original-request outcome backcheck
 
 - **Validation PASS carries an outcome backcheck.** Reports use one

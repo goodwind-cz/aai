@@ -14,7 +14,7 @@
 //
 // Node stdlib only (Technology contract: zero runtime dependencies).
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { HARNESS_VALUES } from './lib/harness.mjs';
@@ -277,6 +277,10 @@ function main() {
 
   // LOCAL only: write the report. No issue payload is emitted, and there is no
   // network/send path anywhere in this module (review/auto land in a later slice).
+  // Create --out's parent first: a clean project has no docs/ai/friction, and
+  // missing config / empty spool is not an error (CHANGE-0048). ENOENT on the
+  // write was the remaining hole (feedback-triage-missing-output-dir).
+  mkdirSync(dirname(args.out), { recursive: true });
   writeFileSync(args.out, JSON.stringify(report, null, 2) + '\n');
 
   const rc = report.clusters.filter((c) => c.decision === 'review_candidate').length;

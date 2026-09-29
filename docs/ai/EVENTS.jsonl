@@ -2457,3 +2457,14 @@
 {"v":1,"ts":"2026-09-28T13:07:54Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"longhorizon-harness-adoption","payload":{"validation":"not_run","code_review":"not_run","notes":"research spike: no Validation or Code Review role runs on a research document; closure is the written verdicts themselves"}}
 {"v":1,"ts":"2026-09-28T13:08:08Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":522,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-09-28T13:39:07Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"polydao-graph-loop-ideas-for-aai","payload":{"pr":402,"lane":"heavy","reviewer_bots":"expected","threads_seen":3,"threads_unresolved":0,"outcome":"swept","head_sha":"9cc7fc5d22c245b406f6f7d8ef364a9cbf0c45e4"}}
+{"v":1,"ts":"2026-09-28T19:09:28.134Z","actor":"cursoragent_cursor.com","event":"ride_gate_override","ref":"feedback-triage-missing-output-dir","payload":{"reason":"owner invoked /aai-ship on this Windows usage-report intake"}}
+{"v":1,"ts":"2026-09-28T19:10:22Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"feedback-triage-missing-output-dir","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-28T19:12:13Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"feedback-triage-missing-output-dir/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:12:13Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"feedback-triage-missing-output-dir/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:12:13Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"feedback-triage-missing-output-dir/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:17:29Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"feedback-triage-missing-output-dir","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"feedback-triage-missing-output-dir","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"feedback-triage-missing-output-dir","payload":{"commit":"a79d17cab83def734e4b619be519084083a04cbe"}}
+{"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-feedback-triage-missing-output-dir","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"spec-feedback-triage-missing-output-dir","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-28T19:17:30Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"spec-feedback-triage-missing-output-dir","payload":{"commit":"a79d17cab83def734e4b619be519084083a04cbe"}}
