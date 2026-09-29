@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-29T12:22:36.889Z
+Generated: 2026-09-29T12:22:49.501Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-mutation-clone-fidelity-windows-eol | specs | implementing | 4 done | docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md |
+| SPEC-0193 | specs | implementing | 4 done | docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md |
 
 ## Canonical layer (0)
 
@@ -535,7 +535,7 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
-| mutation-clone-fidelity-windows-eol (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md |
+| ISSUE-0087 | issues | docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md |
 
 ## Deferred (whole-doc) (0)
 

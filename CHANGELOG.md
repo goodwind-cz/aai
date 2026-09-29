@@ -27,8 +27,10 @@ fine — it is the marker a cut leaves on top.
 - **Mutation clone-fidelity overlays working-tree bytes.** `buildIsolatedClone`
   copies tracked working-tree files into the clone after checkout so mixed
   EOL (`core.autocrlf`) no longer trips clone-fidelity. Root-level untracked
-  scratch is omitted from copy and from the D4 hash, but kept on the D7
-  before-map. Mismatch messages name `EOL-only difference` plus the path.
+  files are copied and hashed (omitting them false-REDs). Overlay walks
+  leftover clone symlink ancestors and unlinks the leaf so copy cannot write
+  through into ROOT. Mismatch messages name `EOL-only difference` plus the
+  path. ISSUE-0087 / SPEC-0193.
 
 ## [unreleased] — fix: bind implementation_strategy to the live focus (ISSUE-0086 / SPEC-0192)
 

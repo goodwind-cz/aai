@@ -1,7 +1,7 @@
 ```yaml
 review:
-  scope: "git diff origin/main...HEAD (HEAD 99efa22, merge-base e21dd1b) limited to .aai/scripts/mutation-run.mjs .aai/scripts/lib/tree-hash.mjs tests/skills/test-aai-mutation-gate.sh docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md docs/knowledge/FACTS.md docs/INDEX.md (PR #406)"
-  spec: docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md
+  scope: "git diff origin/main...HEAD (HEAD 99efa22, merge-base e21dd1b) limited to .aai/scripts/mutation-run.mjs .aai/scripts/lib/tree-hash.mjs tests/skills/test-aai-mutation-gate.sh docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md docs/knowledge/FACTS.md docs/INDEX.md (PR #406)"
+  spec: docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -31,7 +31,7 @@ review:
       - { rank: NON-BLOCKING, file: docs/knowledge/FACTS.md, line: 16,
           issue: "The fact 'Root-level untracked paths are skipped on copy and stripped only from the D4 comparison copy of sourceTreeFiles' is false on HEAD.",
           failure_scenario: "FACTS.md is loaded as fact memory. The next agent touching buildIsolatedClone trusts a skip/strip that no longer exists, for example when it adds the --include ride or debugs a D4 mismatch naming a root file." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md, line: 179,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md, line: 179,
           issue: "Spec R2 ('Root-level-only omit may still copy a nested scratch path') and the Problem sentence 'Unrelated dirty/untracked files also enter the hash' describe the pre-99efa22 design. The ISSUE requirement that unrelated untracked files not participate is dropped with no descope line.",
           failure_scenario: "Validation or closeout walks ISSUE Verification item 3 against the spec and finds neither a covering AC nor a recorded descope. The issue can close as delivered while one expected behavior was silently abandoned." }
   cannot_verify:
@@ -51,7 +51,7 @@ review:
 - Reviewer: independent dispatched Code Review, read-only on implementation files.
 - Branch and HEAD: `cursor/mutation-clone-fidelity-windows-eol-a7ce` at `99efa22`. Base `origin/main`, merge-base `e21dd1b`.
 - PR: https://github.com/goodwind-cz/aai/pull/406
-- Spec: `docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md` (frozen, L2). `spec-lint --strategy tdd` passes and `spec-amend list --strict` exits 0.
+- Spec: `docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md` (frozen, L2). `spec-lint --strategy tdd` passes and `spec-amend list --strict` exits 0.
 - Overall: FAIL. Round-1 B1 is cleared. Round-1 B2 is cleared for the leaf shape only; the same write-through remains through a symlinked parent directory (B2r).
 
 ## Scope preflight
@@ -155,7 +155,7 @@ R2 and the Problem sentence describe the old omission design, and the ISSUE bull
 
 - Full suite: `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-mutation-gate.sh`, exit 0.
 - test_001, test_002, and test_003 selected runs: exit 0 each.
-- Replay: `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md` reports 3/3 RED, exit 0.
+- Replay: `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md` reports 3/3 RED, exit 0.
 - `spec-lint --path <spec> --strategy tdd`: LINT PASS, exit 0. `spec-amend list --strict`: exit 0.
 - B1 repro (`repro.sh b1`): `STAYED GREEN`, exit 5.
 - B2 leaf repros (`b2-leaf`, `b2-leaf-out`): targets unchanged, RED, exit 0.

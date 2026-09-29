@@ -1,13 +1,13 @@
 ---
 id: spec-mutation-clone-fidelity-windows-eol
 type: spec
-number: null
+number: 193
 status: implementing
 mutation_gate: v1
-frozen_sha256: fbf997453dc1c18e768164657b4d6ccf5341428adba96b12eee0bc1038ebccc8
+frozen_sha256: 0e81bcd62d6a4a621ed97d8980ef3e69c06671a32fa8ba282a28c8ee05ed5d2e
 ceremony_level: 2
 links:
-  requirement: docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md
+  requirement: docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md
   rfc: null
   pr: []
   commits: []
@@ -24,7 +24,7 @@ not required.
 Ceremony justification is not required at level 2.
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md
+- Requirement: docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md
 - Related done work that does not close this: CHANGE-0187 / SPEC-0181 D4
   clone-fidelity, ISSUE-0045 isolation-shares-the-shipping-git
 - Pair (do not merge the rides): prompts-invoke-wsl-bash-on-windows
@@ -105,7 +105,7 @@ test wrapper (owned by the paired prompts ride).
   this checkout.
 - User decision: inline (autopilot default for not_needed)
 - Base ref: main
-- Inline review scope: `.aai/scripts/mutation-run.mjs .aai/scripts/lib/tree-hash.mjs tests/skills/test-aai-mutation-gate.sh docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md docs/knowledge/FACTS.md docs/INDEX.md`
+- Inline review scope: `.aai/scripts/mutation-run.mjs .aai/scripts/lib/tree-hash.mjs tests/skills/test-aai-mutation-gate.sh docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md docs/knowledge/FACTS.md docs/INDEX.md`
 
 ## Acceptance Criteria Mapping
 - Maps to: ISSUE mutation-clone-fidelity-windows-eol Expected Behavior
@@ -172,7 +172,7 @@ Status values: planned, implementing, done, deferred, blocked, rejected.
 - `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_003_eol_only_mismatch_token`
 - `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_004_symlink_ancestor_does_not_write_root`
 - `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_005_symlink_leaf_does_not_write_root`
-- `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md`
+- `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md`
 - PASS: TEST-001..005 green, Spec-AC-01..04 done, 5/5 mutations RED
 
 ## Evidence contract

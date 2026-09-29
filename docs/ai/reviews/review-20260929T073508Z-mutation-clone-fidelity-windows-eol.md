@@ -1,7 +1,7 @@
 ```yaml
 review:
-  scope: "git diff origin/main...HEAD (HEAD a0f1d3d, merge-base e21dd1b) limited to .aai/scripts/mutation-run.mjs .aai/scripts/lib/tree-hash.mjs tests/skills/test-aai-mutation-gate.sh docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md docs/knowledge/FACTS.md docs/INDEX.md (PR #406)"
-  spec: docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md
+  scope: "git diff origin/main...HEAD (HEAD a0f1d3d, merge-base e21dd1b) limited to .aai/scripts/mutation-run.mjs .aai/scripts/lib/tree-hash.mjs tests/skills/test-aai-mutation-gate.sh docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md docs/knowledge/FACTS.md docs/INDEX.md (PR #406)"
+  spec: docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -39,7 +39,7 @@ review:
 - Reviewer: independent dispatched Code Review, read-only on implementation files.
 - Branch and HEAD: `cursor/mutation-clone-fidelity-windows-eol-a7ce` at `a0f1d3d46c6dde3a1ccedcaba1b17301de700181`. Base `origin/main`, merge-base `e21dd1b`.
 - PR: https://github.com/goodwind-cz/aai/pull/406
-- Spec: `docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md` (frozen, L2). `spec-lint --strategy tdd` PASS exit 0. `spec-amend list --strict` exit 0.
+- Spec: `docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md` (frozen, L2). `spec-lint --strategy tdd` PASS exit 0. `spec-amend list --strict` exit 0.
 - Overall: PASS. spec_compliance PASS. code_quality PASS with one NON-BLOCKING warning.
 
 ## Scope preflight
@@ -78,7 +78,7 @@ Deviations from the frozen spec (neither is an AC miss):
 1. TEST-001 Test Plan says clone bytes equal source bytes; the test asserts exit 0 only. Equal D4 hashes imply equal per-file hashes.
 2. Overlay does not delete clone copies of tracked paths that are gone in the working tree when `git apply` failed (NB-1). Spec-AC-01's WHEN (CRLF dirty file) still holds.
 
-TEST evidence: TEST-001..005 exist and pass. Replay `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md` reports 5/5 still RED, 0 inconclusive, exit 0. TEST-471 (pre-existing dirty-tree clone-fidelity) still passes.
+TEST evidence: TEST-001..005 exist and pass. Replay `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md` reports 5/5 still RED, 0 inconclusive, exit 0. TEST-471 (pre-existing dirty-tree clone-fidelity) still passes.
 
 ## Findings (code_quality)
 
@@ -139,7 +139,7 @@ Dispatched reviewer (D1): do not run these. Orchestrator merges:
 ```bash
 node .aai/scripts/state.mjs set-code-review \
   --required true --status pass \
-  --scope "git diff origin/main...HEAD (HEAD a0f1d3d, merge-base e21dd1b) limited to .aai/scripts/mutation-run.mjs .aai/scripts/lib/tree-hash.mjs tests/skills/test-aai-mutation-gate.sh docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md docs/knowledge/FACTS.md docs/INDEX.md (PR #406)" \
+  --scope "git diff origin/main...HEAD (HEAD a0f1d3d, merge-base e21dd1b) limited to .aai/scripts/mutation-run.mjs .aai/scripts/lib/tree-hash.mjs tests/skills/test-aai-mutation-gate.sh docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md docs/knowledge/FACTS.md docs/INDEX.md (PR #406)" \
   --base-ref origin/main \
   --report docs/ai/reviews/review-20260929T073508Z-mutation-clone-fidelity-windows-eol.md \
   --notes "PASS; H6 NB-1 overlay-tracked-delete residual -> follow-up fu-mutation-overlay-tracked-deletes (recommended, not filed)"

@@ -1,7 +1,7 @@
 ```yaml
 review:
-  scope: "git diff origin/main...HEAD (HEAD 58034c7) limited to .aai/scripts/mutation-run.mjs .aai/scripts/lib/tree-hash.mjs tests/skills/test-aai-mutation-gate.sh docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md docs/knowledge/FACTS.md docs/INDEX.md (PR #406)"
-  spec: docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md
+  scope: "git diff origin/main...HEAD (HEAD 58034c7) limited to .aai/scripts/mutation-run.mjs .aai/scripts/lib/tree-hash.mjs tests/skills/test-aai-mutation-gate.sh docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md docs/knowledge/FACTS.md docs/INDEX.md (PR #406)"
+  spec: docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -46,7 +46,7 @@ review:
 - Reviewer: independent dispatched Code Review (read-only on implementation files)
 - Branch / HEAD: `cursor/mutation-clone-fidelity-windows-eol-a7ce` @ `58034c7cc4110d1ff92728e579e4f734ac82371e`, base `origin/main`
 - PR: https://github.com/goodwind-cz/aai/pull/406
-- Spec: `docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md` (frozen, L2)
+- Spec: `docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md` (frozen, L2)
 - Overall: FAIL. spec_compliance fails on a D4 deviation; code_quality fails with 2 BLOCKING findings.
 
 ## Scope preflight
@@ -143,7 +143,7 @@ Recommended disposition: (a) remediate in tree by pinning the runner invocation'
 
 - Full suite: `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-mutation-gate.sh`, exit 0.
 - `test_001` / `test_002` / `test_003` selected runs: exit 0 each.
-- Replay: `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md` reports 3/3 RED, exit 0.
+- Replay: `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0193-spec-mutation-clone-fidelity-windows-eol.md` reports 3/3 RED, exit 0.
 - B1 repro: PR runner exit 0 RED vs origin/main runner exit 5 STAYED GREEN.
 - B2 repro: source `lib/data.txt` overwritten; outside-file variant clobbered.
 - NB-1 repro: origin/main runner exit 0 on the TEST-002 scenario.
