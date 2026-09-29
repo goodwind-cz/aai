@@ -764,7 +764,7 @@ test_026() {
   log_pass "allowlist rationale + operator note + truthful product doc + CHANGELOG heading (TEST-026)"
 }
 
-ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026"
+ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027"
 
 # TEST-027 (Spec-AC-04): ALL_TESTS still registers the Windows-safe pin.
 test_027() {

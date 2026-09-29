@@ -87,5 +87,4 @@ block included — there is nothing to walk, since this pass edits nothing.
 - The pass's completion claim ("suite green after deslop") goes through the
   `.aai/SKILL_VERIFY.prompt.md` gate: IDENTIFY → RUN → READ → VERIFY → CLAIM,
   with fresh evidence from the post-pass tree.
-- Never present this pass as a review verdict; review remains
-  `.aai/SKILL_CODE_REVIEW.prompt.md`'s job.
+- Never present this pass as a review verdict; review remains `.aai/SKILL_CODE_REVIEW.prompt.md`'s job.
