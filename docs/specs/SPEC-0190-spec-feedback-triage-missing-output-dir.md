@@ -48,9 +48,9 @@ None.
 
 | Spec-AC    | Description | Status | Evidence | Review-By | Notes |
 |------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN the parent directory of `--out` does not exist THEN the engine SHALL create it recursively, write the local triage report, and exit 0 | done | docs/ai/tdd/feedback-triage-missing-output-dir/green-TEST-652.log | — | the ENOENT defect |
-| Spec-AC-02 | WHEN the spool file is also absent THEN the same run SHALL still exit 0 with a report whose `total_observations` is 0 | done | docs/ai/tdd/feedback-triage-missing-output-dir/green-TEST-652.log | — | empty-project first run |
-| Spec-AC-03 | WHEN `tests/skills/test-aai-feedback-triage.sh` runs in full THEN it SHALL exit 0 | done | docs/ai/tdd/feedback-triage-missing-output-dir/green-TEST-653.log | — | no regression of CHANGE-0048 |
+| Spec-AC-01 | WHEN the parent directory of `--out` does not exist THEN the engine SHALL create it recursively, write the local triage report, and exit 0 | done | tests/skills/test-aai-feedback-triage.sh TEST-652 | — | the ENOENT defect |
+| Spec-AC-02 | WHEN the spool file is also absent THEN the same run SHALL still exit 0 with a report whose `total_observations` is 0 | done | tests/skills/test-aai-feedback-triage.sh TEST-652 | — | empty-project first run |
+| Spec-AC-03 | WHEN `tests/skills/test-aai-feedback-triage.sh` runs in full THEN it SHALL exit 0 | done | tests/skills/test-aai-feedback-triage.sh TEST-653 | — | no regression of CHANGE-0048 |
 
 ## Implementation plan
 - `.aai/scripts/aai-feedback-triage.mjs`: import `mkdirSync`, call `mkdirSync(dirname(args.out), { recursive: true })` immediately before `writeFileSync`.
