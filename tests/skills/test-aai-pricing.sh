@@ -191,7 +191,10 @@ for (const id of omitted) {
   if (Object.prototype.hasOwnProperty.call(models, id)) {
     fail('011', `omitted catalog family "${id}" must not have a models key`);
   }
-  if (!pricingText.includes(id)) fail('011', `omitted catalog family "${id}" not named in PRICING.yaml notes`);
+  const noteLine = pricingText.split('\n').find((l) => l.includes(id) && /https?:\/\//.test(l));
+  if (!noteLine) {
+    fail('011', `omitted catalog family "${id}" must appear in PRICING.yaml notes with a checked URL (https://...)`);
+  }
 }
 for (const id of catalog) {
   for (const suffix of ['', '-high', '-xhigh']) {
