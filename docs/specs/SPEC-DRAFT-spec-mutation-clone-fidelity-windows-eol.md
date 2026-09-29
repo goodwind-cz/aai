@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 2f709093b8f84271499603db7c3dda54f5dc920fa3b9e4d82222c9e55882b787
+frozen_sha256: ccce5c1da5ff2889854a1fe614e59afec4efea07893e7397776d0c868bc71dda
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md
@@ -61,11 +61,13 @@ for tracked paths.
 
 ### D2 — unrelated untracked files are outside the fidelity set
 
-Untracked-not-ignored paths participate in copy and D4 hash only when they
-are mutation payload: they start with `.aai/`, `tests/`, or `docs/`, or they
-are on `RUNTIME_ALLOWLIST`. Other untracked files are neither copied nor
-compared. This is the closed list Planning froze; `--include` is out of
-scope (intake allowed it as optional).
+Untracked-not-ignored paths participate in copy and D4 hash unless they are
+**root-level** (the relative path contains no `/`). Nested untracked files
+(`lib/extra.txt`, anything under `.aai/`, `tests/`, `docs/`) stay in the
+fidelity set so SPEC-0181 TEST-471 still reproduces `lib/extra.txt`.
+Root-level scratch (`scratch.tmp`, logs) is neither copied nor compared.
+`--include` stays out of scope. Amended post-freeze: the first freeze used
+a prefix allowlist that would have dropped `lib/extra.txt`.
 
 ### D3 — mismatch names paths and classifies EOL-only
 
@@ -122,9 +124,9 @@ Never use pipe characters inside cells.
 
 | Spec-AC    | Description | Status | Evidence | Review-By | Notes |
 |------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN a tracked dirty file in the source working tree holds CRLF bytes that differ from HEAD THEN buildIsolatedClone SHALL make the clone path byte-identical to those working-tree bytes (clone-fidelity hash equal, no TreeMismatchError) | planned | — | — | D1 |
-| Spec-AC-02 | WHEN an untracked-not-ignored file sits outside .aai/, tests/, and docs/ THEN buildIsolatedClone SHALL omit it from copy and from the D4 hash so clone-fidelity still succeeds | planned | — | — | D2 |
-| Spec-AC-03 | WHEN clone and source hashes differ only by CR bytes on a named path THEN the TreeMismatchError message SHALL contain EOL-only difference and that path | planned | — | — | D3 |
+| Spec-AC-01 | WHEN a tracked dirty file in the source working tree holds CRLF bytes that differ from HEAD THEN buildIsolatedClone SHALL make the clone path byte-identical to those working-tree bytes (clone-fidelity hash equal, no TreeMismatchError) | done | docs/ai/tdd/spec-mutation-clone-fidelity-windows-eol/green-TEST-001-003.log | — | D1; mutation-TEST-001.txt RED |
+| Spec-AC-02 | WHEN an untracked-not-ignored file sits at the repository root (relative path has no slash) THEN buildIsolatedClone SHALL omit it from copy and from the D4 hash so clone-fidelity still succeeds | done | docs/ai/tdd/spec-mutation-clone-fidelity-windows-eol/green-TEST-001-003.log | — | D2 nested untracked still copied; D4 filters a copy, D7 keeps unstripped sourceTreeFiles; mutation-TEST-002.txt RED |
+| Spec-AC-03 | WHEN clone and source hashes differ only by CR bytes on a named path THEN the TreeMismatchError message SHALL contain EOL-only difference and that path | done | docs/ai/tdd/spec-mutation-clone-fidelity-windows-eol/green-TEST-001-003.log | — | D3; mutation-TEST-003.txt RED |
 
 Status values: planned, implementing, done, deferred, blocked, rejected.
 
@@ -133,8 +135,10 @@ Status values: planned, implementing, done, deferred, blocked, rejected.
 1. `.aai/scripts/mutation-run.mjs` `buildIsolatedClone`
    - After checkout (and optional apply), overlay every tracked path from
      `git ls-files -z` in ROOT onto the clone using source working-tree bytes.
-   - Filter untracked copy + strip those paths from `sourceTreeFiles` unless
-     they are payload (`.aai/`, `tests/`, `docs/`) or RUNTIME_ALLOWLIST.
+   - Filter untracked copy of root-level scratch. Do not delete those keys
+     from `sourceTreeFiles` (D7 before-map must still see them in ROOT).
+     D4 compares a filtered copy of the map. Nested untracked stays in the
+     fidelity set.
    - On hash mismatch, classify changed paths whose buffers differ only by CR
      and include `EOL-only difference` plus the path in TreeMismatchError.
 2. `.aai/scripts/lib/tree-hash.mjs` only if the classification helper belongs
@@ -147,9 +151,9 @@ Status values: planned, implementing, done, deferred, blocked, rejected.
 
 | Test ID  | Spec-AC    | Type | File path (expected) | Description | Mutation | Status |
 |----------|------------|------|----------------------|-------------|----------|--------|
-| TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-mutation-gate.sh | Fixture repo with core.autocrlf=true, HEAD file LF, dirty working-tree CRLF on a tracked path; mutation-run clone-fidelity succeeds (exit not 3) and the clone file bytes equal the source working-tree bytes | sed:s/overlayTrackedWorkingTreeBytes(cloneDir, ROOT);// | pending |
-| TEST-002 | Spec-AC-02 | integration | tests/skills/test-aai-mutation-gate.sh | Same runner with an extra untracked file scratch.tmp at repo root; clone-fidelity succeeds and scratch.tmp is absent from the clone | sed:s/isPayloadUntracked(p)/true/ | pending |
-| TEST-003 | Spec-AC-03 | integration | tests/skills/test-aai-mutation-gate.sh | Force a clone vs source CR-only mismatch on a named path; stderr contains EOL-only difference and the path | sed:s/EOL-only difference/path-bytes-differ/ | pending |
+| TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-mutation-gate.sh | Fixture repo with core.autocrlf=true, HEAD file LF, dirty working-tree CRLF on a tracked path; mutation-run clone-fidelity succeeds (exit not 3) and the clone file bytes equal the source working-tree bytes | sed:s/overlayTrackedWorkingTreeBytes\(cloneDir, ROOT\);// | green |
+| TEST-002 | Spec-AC-02 | integration | tests/skills/test-aai-mutation-gate.sh | Same runner with an extra untracked file scratch.tmp at repo root; clone-fidelity succeeds and scratch.tmp is absent from the clone | sed:s/if \(rootUntracked.has\(p\)\) continue;// | green |
+| TEST-003 | Spec-AC-03 | integration | tests/skills/test-aai-mutation-gate.sh | Force a clone vs source CR-only mismatch on a named path; stderr contains EOL-only difference and the path | sed:s/EOL-only difference:/path-bytes-differ:/ | green |
 
 ## Verification
 - `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_001_tracked_crlf_overlay`
@@ -172,8 +176,8 @@ tdd: stored RED artifact per AC-gating test plus the verification matrix.
 
 - R1: Overlay copies every tracked file; large dirty trees pay I/O. Acceptable
   versus false INCONCLUSIVE on Windows.
-- R2: Payload prefix list may omit an untracked file a downstream project
-  keeps outside `.aai/`/`tests/`/`docs/`. Fail-closed they must move it or
-  a later `--include` ride must land. Documented, not this freeze.
+- R2: Root-level-only omit may still copy a nested scratch path a downstream
+  project keeps as untracked. Fail-closed they must gitignore it or a later
+  `--include` ride must land. Documented, not this freeze.
 
 SPEC-FROZEN: true

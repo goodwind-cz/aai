@@ -22,6 +22,14 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: overlay working-tree bytes for mutation clone-fidelity (ISSUE-0087 / SPEC-0193)
+
+- **Mutation clone-fidelity overlays working-tree bytes.** `buildIsolatedClone`
+  copies tracked working-tree files into the clone after checkout so mixed
+  EOL (`core.autocrlf`) no longer trips clone-fidelity. Root-level untracked
+  scratch is omitted from copy and from the D4 hash, but kept on the D7
+  before-map. Mismatch messages name `EOL-only difference` plus the path.
+
 ## [unreleased] — fix: bind implementation_strategy to the live focus (ISSUE-0086 / SPEC-0192)
 
 - **Strategy is stamped with a work-item `ref_id`.** `set-strategy` writes
@@ -50,6 +58,7 @@ fine — it is the marker a cut leaves on top.
 - `/aai-feedback-triage` no longer dies with ENOENT when `docs/ai/friction` is absent.
 - The engine creates the `--out` parent directory before writing the local report.
 - A clean project with no spool still exits 0 with a zero-observation report (TEST-652).
+
 
 ## [v2026.09.28] — feat: original-request outcome backcheck
 

@@ -14,3 +14,19 @@ Rules:
 - `readStrategy` (`.aai/scripts/lane-gate.mjs`) returns `{ok:false}` when both strategy `ref_id` and `current_focus.ref_id` are non-null and differ — HEAVY lane, not the leftover `selected`.
 - `orchestration-dispatch.mjs` treats that same mismatch as `strategy_selected: undecided` (rule 7 / prompts as unbound). Missing `ref_id` is legacy honor.
 - `.aai/INTAKE_COMMON.md` IMPLEMENTATION MODE CHOICE records `set-strategy --source intake --ref <this intake's ref_id>` before Planning `set-focus`. A live other focus `disagrees` falls back to intake Notes; PLANNING skips later `set-strategy` only when `implementation_strategy.ref_id` equals this item.
+
+## mutation clone-fidelity mixed EOL (SPEC-0193)
+
+- `buildIsolatedClone` in `.aai/scripts/mutation-run.mjs` overlays tracked
+  working-tree bytes (`overlayTrackedWorkingTreeBytes`) after checkout so
+  clone-fidelity hashes mixed EOL as they sit on disk, not as `git apply`
+  reconstructed them. Evidence: `overlayTrackedWorkingTreeBytes`, TEST-001.
+
+- Root-level untracked paths are skipped on copy and stripped only from the
+  D4 comparison copy of `sourceTreeFiles`. The returned map stays unstripped
+  so D7 does not report `added: scratch.tmp`. Evidence: TEST-002
+  `docs/ai/tdd/spec-mutation-clone-fidelity-windows-eol/mutation-TEST-002.txt`.
+
+- `eolOnlyMismatchNote` in `.aai/scripts/lib/tree-hash.mjs` names changed
+  paths whose source vs clone bytes differ only by CR using the token
+  `EOL-only difference`. Evidence: TEST-003.

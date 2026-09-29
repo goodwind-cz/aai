@@ -140,3 +140,38 @@ export function describeTreeDiff({ added, removed, changed }) {
   if (removed.length) parts.push(`removed: ${removed.join(', ')}`);
   return parts.join('; ') || '(no path named — the hash differs but no per-file diff found one; a race in the diff itself)';
 }
+
+// isEolOnlyDiff(a, b) -> true when the two buffers are identical after every
+// CR is stripped. Used by clone-fidelity mismatch diagnostics (SPEC-DRAFT
+// spec-mutation-clone-fidelity-windows-eol D3) so an operator can tell
+// "checkout rewrote line endings" from a real content drift. Empty buffers
+// that are equal are NOT "EOL-only" — there is no CR delta to name.
+export function isEolOnlyDiff(a, b) {
+  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) return false;
+  if (Buffer.compare(a, b) === 0) return false;
+  const strip = (buf) => buf.filter((byte) => byte !== 0x0d);
+  const sa = strip(a);
+  const sb = strip(b);
+  return sa.length === sb.length && Buffer.compare(sa, sb) === 0;
+}
+
+// eolOnlyMismatchNote(sourceDir, cloneDir, changedRels) -> a suffix naming
+// every changed path whose source vs clone bytes differ only by CR, or ''.
+// The canonical token `EOL-only difference` is the close/operator grammar.
+export function eolOnlyMismatchNote(sourceDir, cloneDir, changedRels) {
+  if (!Array.isArray(changedRels) || changedRels.length === 0) return '';
+  const named = [];
+  for (const rel of changedRels) {
+    let a;
+    let b;
+    try {
+      a = fs.readFileSync(path.join(sourceDir, rel));
+      b = fs.readFileSync(path.join(cloneDir, rel));
+    } catch {
+      continue;
+    }
+    if (isEolOnlyDiff(a, b)) named.push(rel);
+  }
+  if (!named.length) return '';
+  return `EOL-only difference: ${named.join(', ')}`;
+}

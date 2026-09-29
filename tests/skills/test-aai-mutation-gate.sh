@@ -2894,6 +2894,68 @@ EOF
   log_pass "TEST-714 the all-exempt DEGRADED path prints the lower-the-baseline NOTE exactly like the ordinary PASS and evidence-tree-absent paths, instead of leaving a stale baseline undisclosed"
 }
 
+# --- SPEC-DRAFT spec-mutation-clone-fidelity-windows-eol TEST-001..003 -----
+test_001_tracked_crlf_overlay() {
+  log_info "Test: clone-fidelity overlays tracked working-tree CRLF bytes when git diff is empty under autocrlf (TEST-001)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-eol-001"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base && git config core.autocrlf true )
+  # HEAD is LF; working tree is CRLF. With autocrlf=true, git diff is often
+  # empty, so apply cannot reproduce the bytes — overlay must.
+  printf "console.log('hello');\r\n" > "$fx/lib/greeting.mjs"
+  printf 'marker-present' > "$fx/lib/extra.txt"
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 3 ]] || log_fail "TEST-001: clone-fidelity refused (exit 3) on CRLF dirty tracked file: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-001: want a normal RED run (exit 0), got $rc: $out"
+  log_pass "TEST-001 tracked CRLF overlay: clone-fidelity held, mutation RED recorded"
+}
+
+test_002_unrelated_untracked_omitted() {
+  log_info "Test: root-level untracked scratch.tmp is omitted from clone-fidelity (TEST-002)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-eol-002"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  printf 'marker-present' > "$fx/lib/extra.txt"
+  printf 'junk' > "$fx/scratch.tmp"
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 3 ]] || log_fail "TEST-002: clone-fidelity refused because of root untracked scratch.tmp: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-002: want exit 0, got $rc: $out"
+  log_pass "TEST-002 root-level untracked omitted from clone-fidelity"
+}
+
+test_003_eol_only_mismatch_token() {
+  log_info "Test: EOL-only mismatch note names the path (TEST-003)..."
+  local d; d="$(mg_new_fixture)"
+  mkdir -p "$d/a" "$d/b"
+  printf 'hello\n' > "$d/a/x.txt"
+  printf 'hello\r\n' > "$d/b/x.txt"
+  local note
+  note="$(SOURCE_A="$d/a" SOURCE_B="$d/b" node --input-type=module -e "
+import { eolOnlyMismatchNote } from '$PROJECT_ROOT/.aai/scripts/lib/tree-hash.mjs';
+process.stdout.write(eolOnlyMismatchNote(process.env.SOURCE_A, process.env.SOURCE_B, ['x.txt']));
+")"
+  assert_payload_contains "$note" 'EOL-only difference' "TEST-003: note missing token: [$note]"
+  assert_payload_contains "$note" 'x.txt' "TEST-003: note missing path: [$note]"
+  grep -q 'eolOnlyMismatchNote' "$MUTATION_RUN" \
+    || log_fail "TEST-003: mutation-run.mjs does not call eolOnlyMismatchNote"
+  log_pass "TEST-003 EOL-only difference token + path"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -2934,6 +2996,9 @@ main() {
   test_712_malformed_sed_suffix_is_uncomparable
   test_713_patch_token_boundaries
   test_714_all_exempt_path_emits_ratchet_note
+  test_001_tracked_crlf_overlay
+  test_002_unrelated_untracked_omitted
+  test_003_eol_only_mismatch_token
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

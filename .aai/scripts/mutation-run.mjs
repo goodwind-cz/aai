@@ -121,6 +121,7 @@ import {
   hashFromFileHashes,
   diffTreeFileHashes,
   describeTreeDiff,
+  eolOnlyMismatchNote,
   RUNTIME_ALLOWLIST,
 } from './lib/tree-hash.mjs';
 import {
@@ -471,6 +472,38 @@ function withoutRuntimeAllowlist(fileHashMap) {
   return filtered;
 }
 
+// Root-level untracked (no slash in the relative path) is scratch, not
+// mutation payload. Nested untracked (lib/extra.txt) stays in the fidelity
+// set. SPEC-DRAFT spec-mutation-clone-fidelity-windows-eol D2.
+function isRootLevelUntracked(p) {
+  return Boolean(p) && !p.includes('/') && !p.includes('\\');
+}
+
+// Overlay every tracked path's SOURCE WORKING-TREE bytes onto the clone so
+// clone-fidelity compares working-tree bytes (mixed EOL included), not a
+// git-checkout-then-apply reconstruction. SPEC-DRAFT
+// spec-mutation-clone-fidelity-windows-eol D1.
+function overlayTrackedWorkingTreeBytes(cloneDir, sourceRoot) {
+  const tracked = execFileSync('git', ['-C', sourceRoot, 'ls-files', '-z'], { encoding: 'utf8' });
+  for (const rel of tracked.split('\0')) {
+    if (!rel) continue;
+    const src = path.join(sourceRoot, rel);
+    const dst = path.join(cloneDir, rel);
+    try {
+      const st = fs.lstatSync(src);
+      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      if (st.isSymbolicLink()) {
+        try { fs.unlinkSync(dst); } catch { /* dst may not exist yet */ }
+        fs.symlinkSync(fs.readlinkSync(src), dst);
+      } else if (st.isFile()) {
+        fs.copyFileSync(src, dst);
+      }
+    } catch (err) {
+      process.stderr.write(`mutation-run: skipping tracked overlay ${rel} (${err.message})\n`);
+    }
+  }
+}
+
 function buildIsolatedClone() {
   const baseCommit = execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const sourceTreeFiles = computeTreeFileHashes(ROOT);
@@ -499,7 +532,7 @@ function buildIsolatedClone() {
     if (diff.trim()) {
       const res = spawnSync('git', ['-C', cloneDir, 'apply'], { input: diff, encoding: 'utf8' });
       if (res.status !== 0) {
-        throw new Error(`mutation-run: failed to reproduce tracked modifications in the clone: ${res.stderr || res.stdout}`);
+        process.stderr.write(`mutation-run: git apply did not reproduce tracked modifications (overlay will): ${res.stderr || res.stdout}\n`);
       }
     }
 
@@ -509,9 +542,15 @@ function buildIsolatedClone() {
     // (a permission error, a race) is skipped BY NAME rather than aborting
     // the whole clone build.
     const untracked = execFileSync('git', ['-C', ROOT, 'ls-files', '--others', '--exclude-standard'], { encoding: 'utf8' });
+    const rootUntracked = new Set();
+    for (const rel of untracked.split('\n')) {
+      const p = rel.trim();
+      if (p && isRootLevelUntracked(p)) rootUntracked.add(p);
+    }
     for (const rel of untracked.split('\n')) {
       const p = rel.trim();
       if (!p) continue;
+      if (rootUntracked.has(p)) continue;
       if (p === 'docs/ai/tdd' || p.startsWith('docs/ai/tdd/')) continue;
       const src = path.join(ROOT, p);
       const dst = path.join(cloneDir, p);
@@ -527,6 +566,12 @@ function buildIsolatedClone() {
         process.stderr.write(`mutation-run: skipping untracked path that could not be reproduced in the clone: ${p} (${err.message})\n`);
       }
     }
+
+    overlayTrackedWorkingTreeBytes(cloneDir, ROOT);
+
+    // Root-level untracked stays on sourceTreeFiles so D7's before-map still
+    // sees those paths in ROOT after the run. Deleting them here made D7
+    // report "added: scratch.tmp" (TEST-002). D4 filters a copy below.
 
     // NB-5: RUNTIME_ALLOWLIST paths are now part of the tree hash (tree-hash.mjs
     // listTreeFiles), so they must ALSO be reproduced in the clone — the same
@@ -565,7 +610,9 @@ function buildIsolatedClone() {
         process.stderr.write(`mutation-run: skipping runtime-allowlist path that could not be reproduced in the clone: ${rel} (${err.message})\n`);
       }
     }
-    const sourceTreeHash = hashFromFileHashes(sourceTreeFiles);
+    const d4Source = new Map(sourceTreeFiles);
+    for (const rel of rootUntracked) d4Source.delete(rel);
+    const sourceTreeHash = hashFromFileHashes(d4Source);
 
     const cloneTreeFiles = computeTreeFileHashes(cloneDir);
     const cloneTreeHash = hashFromFileHashes(cloneTreeFiles);
@@ -575,9 +622,11 @@ function buildIsolatedClone() {
       // WRITER touching the source tree between the hash captured above and
       // the diff/untracked-copy steps just run against ROOT again, not a bug
       // in the clone builder itself.
-      const treeDiff = diffTreeFileHashes(sourceTreeFiles, cloneTreeFiles);
+      const treeDiff = diffTreeFileHashes(d4Source, cloneTreeFiles);
+      const eolNote = eolOnlyMismatchNote(ROOT, cloneDir, treeDiff.changed);
+      const eolSuffix = eolNote ? ` — ${eolNote}` : '';
       throw new TreeMismatchError(
-        `mutation-run: clone tree hash (${cloneTreeHash}) does not match the source working tree's (${sourceTreeHash}) — ${describeTreeDiff(treeDiff)} — the clone does not reproduce your tree`
+        `mutation-run: clone tree hash (${cloneTreeHash}) does not match the source working tree's (${sourceTreeHash}) — ${describeTreeDiff(treeDiff)}${eolSuffix} — the clone does not reproduce your tree`
       );
     }
 
