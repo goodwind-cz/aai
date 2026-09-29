@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: ccce5c1da5ff2889854a1fe614e59afec4efea07893e7397776d0c868bc71dda
+frozen_sha256: 8ce720bb1e7865cafb3efeda0525da94bb964df4f6dbe6a6b9c6597df26448fa
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md
@@ -99,7 +99,7 @@ test wrapper (owned by the paired prompts ride).
   this checkout.
 - User decision: inline (autopilot default for not_needed)
 - Base ref: main
-- Inline review scope: `.aai/scripts/mutation-run.mjs .aai/scripts/lib/tree-hash.mjs tests/skills/test-aai-mutation-gate.sh docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md docs/knowledge/FACTS.md`
+- Inline review scope: `.aai/scripts/mutation-run.mjs .aai/scripts/lib/tree-hash.mjs tests/skills/test-aai-mutation-gate.sh docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md docs/knowledge/FACTS.md docs/INDEX.md`
 
 ## Acceptance Criteria Mapping
 - Maps to: ISSUE mutation-clone-fidelity-windows-eol Expected Behavior
@@ -126,7 +126,7 @@ Never use pipe characters inside cells.
 |------------|-------------|--------|----------|-----------|-------|
 | Spec-AC-01 | WHEN a tracked dirty file in the source working tree holds CRLF bytes that differ from HEAD THEN buildIsolatedClone SHALL make the clone path byte-identical to those working-tree bytes (clone-fidelity hash equal, no TreeMismatchError) | done | docs/ai/tdd/spec-mutation-clone-fidelity-windows-eol/green-TEST-001-003.log | — | D1; mutation-TEST-001.txt RED |
 | Spec-AC-02 | WHEN an untracked-not-ignored file sits at the repository root (relative path has no slash) THEN buildIsolatedClone SHALL omit it from copy and from the D4 hash so clone-fidelity still succeeds | done | docs/ai/tdd/spec-mutation-clone-fidelity-windows-eol/green-TEST-001-003.log | — | D2 nested untracked still copied; D4 filters a copy, D7 keeps unstripped sourceTreeFiles; mutation-TEST-002.txt RED |
-| Spec-AC-03 | WHEN clone and source hashes differ only by CR bytes on a named path THEN the TreeMismatchError message SHALL contain EOL-only difference and that path | done | docs/ai/tdd/spec-mutation-clone-fidelity-windows-eol/green-TEST-001-003.log | — | D3; mutation-TEST-003.txt RED |
+| Spec-AC-03 | WHEN clone and source hashes differ only by CR bytes on a named path THEN the TreeMismatchError message SHALL contain EOL-only difference and that path | done | docs/ai/tdd/spec-mutation-clone-fidelity-windows-eol/green-TEST-001-003.log | — | D3; mutation-TEST-003.txt RED via sed on ${eolSuffix} in the runner template |
 
 Status values: planned, implementing, done, deferred, blocked, rejected.
 
@@ -153,7 +153,7 @@ Status values: planned, implementing, done, deferred, blocked, rejected.
 |----------|------------|------|----------------------|-------------|----------|--------|
 | TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-mutation-gate.sh | Fixture repo with core.autocrlf=true, HEAD file LF, dirty working-tree CRLF on a tracked path; mutation-run clone-fidelity succeeds (exit not 3) and the clone file bytes equal the source working-tree bytes | sed:s/overlayTrackedWorkingTreeBytes\(cloneDir, ROOT\);// | green |
 | TEST-002 | Spec-AC-02 | integration | tests/skills/test-aai-mutation-gate.sh | Same runner with an extra untracked file scratch.tmp at repo root; clone-fidelity succeeds and scratch.tmp is absent from the clone | sed:s/if \(rootUntracked.has\(p\)\) continue;// | green |
-| TEST-003 | Spec-AC-03 | integration | tests/skills/test-aai-mutation-gate.sh | Force a clone vs source CR-only mismatch on a named path; stderr contains EOL-only difference and the path | sed:s/EOL-only difference:/path-bytes-differ:/ | green |
+| TEST-003 | Spec-AC-03 | integration | tests/skills/test-aai-mutation-gate.sh | Fixture with tracked CRLF dirty file; a scratch copy of mutation-run.mjs with overlay removed refuses clone-fidelity (exit 3) and stderr contains EOL-only difference plus the path | sed:s/\${eolSuffix}// | green |
 
 ## Verification
 - `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_001_tracked_crlf_overlay`

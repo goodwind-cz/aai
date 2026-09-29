@@ -2939,21 +2939,50 @@ test_002_unrelated_untracked_omitted() {
 }
 
 test_003_eol_only_mismatch_token() {
-  log_info "Test: EOL-only mismatch note names the path (TEST-003)..."
-  local d; d="$(mg_new_fixture)"
-  mkdir -p "$d/a" "$d/b"
-  printf 'hello\n' > "$d/a/x.txt"
-  printf 'hello\r\n' > "$d/b/x.txt"
-  local note
-  note="$(SOURCE_A="$d/a" SOURCE_B="$d/b" node --input-type=module -e "
-import { eolOnlyMismatchNote } from '$PROJECT_ROOT/.aai/scripts/lib/tree-hash.mjs';
-process.stdout.write(eolOnlyMismatchNote(process.env.SOURCE_A, process.env.SOURCE_B, ['x.txt']));
-")"
-  assert_payload_contains "$note" 'EOL-only difference' "TEST-003: note missing token: [$note]"
-  assert_payload_contains "$note" 'x.txt' "TEST-003: note missing path: [$note]"
+  log_info "Test: TreeMismatchError names EOL-only difference and the path (TEST-003)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-eol-003"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base && git config core.autocrlf true )
+  printf "console.log('hello');\r\n" > "$fx/lib/greeting.mjs"
+  printf 'marker-present' > "$fx/lib/extra.txt"
+
+  # Production overlay would make D4 succeed (TEST-001). Spec-AC-03 is the
+  # mismatch diagnostic, so this test runs a scratch COPY of the shipped
+  # runner with only the overlay call removed (HAZ-RESTORE: never edit the
+  # shipping tree). The copy still carries production TreeMismatchError
+  # wiring, so deleting ${eolSuffix} from mutation-run.mjs reddens here.
+  local scratch
+  scratch="$(mktemp -d "${TMPDIR:-/tmp}/aai-mg-eol-runner.XXXXXX")"
+  MG_FIXTURE_DIRS="$MG_FIXTURE_DIRS $scratch"
+  cp -a "$PROJECT_ROOT/.aai/scripts/." "$scratch/"
+  OVERLAY_CALL='overlayTrackedWorkingTreeBytes(cloneDir, ROOT);' \
+  RUNNER_COPY="$scratch/mutation-run.mjs" node --input-type=module -e "
+import fs from 'node:fs';
+const p = process.env.RUNNER_COPY;
+const needle = process.env.OVERLAY_CALL;
+const t = fs.readFileSync(p, 'utf8');
+if (!t.includes(needle)) {
+  process.stderr.write('TEST-003: overlay call missing in copied mutation-run.mjs\n');
+  process.exit(2);
+}
+fs.writeFileSync(p, t.replace(needle, ''));
+"
+
+  local out rc
+  out="$(cd "$fx" && node "$scratch/mutation-run.mjs" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "TEST-003: want clone-fidelity refusal (exit 3) so TreeMismatchError is observed, got $rc: $out"
+  assert_payload_contains "$out" 'EOL-only difference' "TEST-003: TreeMismatchError missing token: $out"
+  assert_payload_contains "$out" 'greeting.mjs' "TEST-003: TreeMismatchError missing path: $out"
   grep -q 'eolOnlyMismatchNote' "$MUTATION_RUN" \
     || log_fail "TEST-003: mutation-run.mjs does not call eolOnlyMismatchNote"
-  log_pass "TEST-003 EOL-only difference token + path"
+  grep -q 'eolSuffix' "$MUTATION_RUN" \
+    || log_fail "TEST-003: mutation-run.mjs TreeMismatchError template dropped eolSuffix"
+  log_pass "TEST-003 TreeMismatchError carries EOL-only difference and the path"
 }
 
 main() {
