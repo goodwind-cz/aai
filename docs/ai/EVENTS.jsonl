@@ -2504,3 +2504,5 @@
 {"v":1,"ts":"2026-09-28T23:52:36Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-strategy-unscoped-from-current-focus","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-28T23:52:36Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"spec-strategy-unscoped-from-current-focus","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-28T23:52:36Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"spec-strategy-unscoped-from-current-focus","payload":{"commit":"d1fe5091373c81a7c148d145d136fe8246a169c6"}}
+{"v":1,"ts":"2026-09-28T23:56:52.711Z","actor":"cursoragent_cursor.com","event":"ride_gate_override","ref":"mutation-clone-fidelity-windows-eol","payload":{"reason":"owner invoked /aai-ship on this Windows usage-report intake"}}
+{"v":1,"ts":"2026-09-28T23:59:44Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-mutation-clone-fidelity-windows-eol","payload":{"from":"draft","to":"implementing"}}
