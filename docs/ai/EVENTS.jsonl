@@ -2504,3 +2504,15 @@
 {"v":1,"ts":"2026-09-28T23:52:36Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-strategy-unscoped-from-current-focus","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-09-28T23:52:36Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"spec-strategy-unscoped-from-current-focus","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-28T23:52:36Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"spec-strategy-unscoped-from-current-focus","payload":{"commit":"d1fe5091373c81a7c148d145d136fe8246a169c6"}}
+{"v":1,"ts":"2026-09-28T23:56:52.711Z","actor":"cursoragent_cursor.com","event":"ride_gate_override","ref":"mutation-clone-fidelity-windows-eol","payload":{"reason":"owner invoked /aai-ship on this Windows usage-report intake"}}
+{"v":1,"ts":"2026-09-28T23:59:44Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-mutation-clone-fidelity-windows-eol","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-29T00:14:04Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"spec-mutation-clone-fidelity-windows-eol/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-29T00:14:04Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"spec-mutation-clone-fidelity-windows-eol/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-29T00:14:04Z","actor":"cursoragent_cursor.com","event":"ac_status","ref":"spec-mutation-clone-fidelity-windows-eol/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-29T06:49:28Z","actor":"cursoragent_cursor.com","event":"validation_verdict","ref":"mutation-clone-fidelity-windows-eol","payload":{"status":"pass","hash":"a6b8d9bf833612dd913164504f7185d1db6c7606dd30b2341428e7d404f0ba76"}}
+{"v":1,"ts":"2026-09-29T08:02:52Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"mutation-clone-fidelity-windows-eol","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-29T08:02:52Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"mutation-clone-fidelity-windows-eol","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-29T08:02:52Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"mutation-clone-fidelity-windows-eol","payload":{"commit":"46f9241662700e4004b8babf49989371ab779633"}}
+{"v":1,"ts":"2026-09-29T08:02:52Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-mutation-clone-fidelity-windows-eol","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-29T08:02:52Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"spec-mutation-clone-fidelity-windows-eol","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-29T08:02:52Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"spec-mutation-clone-fidelity-windows-eol","payload":{"commit":"46f9241662700e4004b8babf49989371ab779633"}}

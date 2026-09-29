@@ -2894,6 +2894,254 @@ EOF
   log_pass "TEST-714 the all-exempt DEGRADED path prints the lower-the-baseline NOTE exactly like the ordinary PASS and evidence-tree-absent paths, instead of leaving a stale baseline undisclosed"
 }
 
+# --- SPEC-DRAFT spec-mutation-clone-fidelity-windows-eol TEST-001..003 -----
+test_001_tracked_crlf_overlay() {
+  log_info "Test: clone-fidelity overlays tracked working-tree CRLF bytes when git diff is empty under autocrlf (TEST-001)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-eol-001"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base && git config core.autocrlf true )
+  # HEAD is LF; working tree is CRLF. With autocrlf=true, git diff is often
+  # empty, so apply cannot reproduce the bytes — overlay must.
+  printf "console.log('hello');\r\n" > "$fx/lib/greeting.mjs"
+  printf 'marker-present' > "$fx/lib/extra.txt"
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 3 ]] || log_fail "TEST-001: clone-fidelity refused (exit 3) on CRLF dirty tracked file: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-001: want a normal RED run (exit 0), got $rc: $out"
+  log_pass "TEST-001 tracked CRLF overlay: clone-fidelity held, mutation RED recorded"
+}
+
+test_002_root_untracked_copied() {
+  log_info "Test: root-level untracked scratch.tmp is copied and clone-fidelity holds (TEST-002)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-eol-002"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  printf 'marker-present' > "$fx/lib/extra.txt"
+  printf 'junk' > "$fx/scratch.tmp"
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 3 ]] || log_fail "TEST-002: clone-fidelity refused because of root untracked scratch.tmp: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-002: want exit 0, got $rc: $out"
+  assert_payload_contains "$out" 'root-level untracked' "TEST-002: missing NOTE that root-level untracked was copied: $out"
+  assert_payload_contains "$out" 'scratch.tmp' "TEST-002: NOTE must name the copied path scratch.tmp: $out"
+  log_pass "TEST-002 root-level untracked copied; clone-fidelity held"
+}
+
+test_003_eol_only_mismatch_token() {
+  log_info "Test: TreeMismatchError names EOL-only difference and the path (TEST-003)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-eol-003"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  ( cd "$fx" && git add -A && git commit -q -m base && git config core.autocrlf true )
+  printf "console.log('hello');\r\n" > "$fx/lib/greeting.mjs"
+  printf 'marker-present' > "$fx/lib/extra.txt"
+
+  # Production overlay would make D4 succeed (TEST-001). Spec-AC-03 is the
+  # mismatch diagnostic, so this test runs a scratch COPY of the shipped
+  # runner with only the overlay call removed (HAZ-RESTORE: never edit the
+  # shipping tree). The copy still carries production TreeMismatchError
+  # wiring, so deleting ${eolSuffix} from mutation-run.mjs reddens here.
+  local scratch
+  scratch="$(mktemp -d "${TMPDIR:-/tmp}/aai-mg-eol-runner.XXXXXX")"
+  MG_FIXTURE_DIRS="$MG_FIXTURE_DIRS $scratch"
+  cp -a "$PROJECT_ROOT/.aai/scripts/." "$scratch/"
+  OVERLAY_CALL='overlayTrackedWorkingTreeBytes(cloneDir, ROOT);' \
+  RUNNER_COPY="$scratch/mutation-run.mjs" node --input-type=module -e "
+import fs from 'node:fs';
+const p = process.env.RUNNER_COPY;
+const needle = process.env.OVERLAY_CALL;
+const t = fs.readFileSync(p, 'utf8');
+if (!t.includes(needle)) {
+  process.stderr.write('TEST-003: overlay call missing in copied mutation-run.mjs\n');
+  process.exit(2);
+}
+fs.writeFileSync(p, t.replace(needle, ''));
+"
+
+  local out rc
+  out="$(cd "$fx" && GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+    node "$scratch/mutation-run.mjs" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "TEST-003: want clone-fidelity refusal (exit 3) so TreeMismatchError is observed, got $rc: $out"
+  assert_payload_contains "$out" 'EOL-only difference' "TEST-003: TreeMismatchError missing token: $out"
+  assert_payload_contains "$out" 'greeting.mjs' "TEST-003: TreeMismatchError missing path: $out"
+  grep -q 'eolOnlyMismatchNote' "$MUTATION_RUN" \
+    || log_fail "TEST-003: mutation-run.mjs does not call eolOnlyMismatchNote"
+  grep -q 'eolSuffix' "$MUTATION_RUN" \
+    || log_fail "TEST-003: mutation-run.mjs TreeMismatchError template dropped eolSuffix"
+  log_pass "TEST-003 TreeMismatchError carries EOL-only difference and the path"
+}
+
+# Binary so `git apply` of the dirty tree fails and the clone keeps HEAD
+# symlinks. Overlay/untracked copy must not follow those leftovers into ROOT.
+# Payload is BIN + NUL + TAG — NUL cannot travel in argv, so TAG is env.
+mg_write_binary() {
+  local dest="$1" tag="$2"
+  DEST="$dest" TAG="$tag" node --input-type=module -e '
+import fs from "node:fs";
+const buf = Buffer.concat([Buffer.from("BIN"), Buffer.from([0]), Buffer.from(process.env.TAG)]);
+fs.writeFileSync(process.env.DEST, buf);
+'
+}
+
+mg_run_greeting_mutation() {
+  local fx="$1"
+  ( cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' )
+}
+
+# --- TEST-004 — Spec-AC-04 ancestor symlink must not write ROOT ---------------
+test_004_symlink_ancestor_does_not_write_root() {
+  log_info "Test: leftover clone dir-symlink cannot write ROOT (TEST-004 staged+unstaged, in-repo+outside)..."
+
+  run_ancestor_arm() {
+    local stage="$1" target="$2"
+    local fx outside payload dest
+    fx="$(mg_new_fixture)"
+    mg_seed_repo "$fx"
+    mg_write_fixture_suite "$fx"
+    mg_write_spec "$fx" "fixture-spec-eol-004-${stage}-${target}"
+    printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+    mkdir -p "$fx/data"
+    printf 'SHIPPING-DATA' > "$fx/data/f.txt"
+    if [[ "$target" == "outside" ]]; then
+      outside="$(mg_new_fixture)"
+      printf 'OUTSIDE-ORIGINAL' > "$outside/f.txt"
+      ln -s "$outside" "$fx/lnk"
+      dest="$outside/f.txt"
+      payload='OUTSIDE-ORIGINAL'
+    else
+      ln -s "$fx/data" "$fx/lnk"
+      dest="$fx/data/f.txt"
+      payload='SHIPPING-DATA'
+    fi
+    mg_write_binary "$fx/lib/blob.bin" AAAA
+    ( cd "$fx" && git add -A && git commit -q -m base )
+    rm -f "$fx/lnk"
+    mkdir -p "$fx/lnk"
+    printf 'LOCAL-REGULAR' > "$fx/lnk/f.txt"
+    mg_write_binary "$fx/lib/blob.bin" BBBB
+    printf 'marker-present' > "$fx/lib/extra.txt"
+    if [[ "$stage" == "staged" ]]; then
+      ( cd "$fx" && git add -A )
+    fi
+
+    local out rc
+    out="$(mg_run_greeting_mutation "$fx" 2>&1)" && rc=0 || rc=$?
+    local got
+    got="$(cat "$dest" 2>/dev/null || printf '%s' 'MISSING')"
+    [[ "$got" == "$payload" ]] || log_fail "TEST-004 ${stage}/${target}: ROOT target overwritten (got '$got', want '$payload'): $out"
+    [[ "$rc" -eq 0 ]] || log_fail "TEST-004 ${stage}/${target}: want RED recorded (exit 0), got $rc: $out"
+  }
+
+  run_ancestor_arm staged in-repo
+  run_ancestor_arm unstaged in-repo
+  run_ancestor_arm unstaged outside
+  log_pass "TEST-004 ancestor leftover symlink did not write ROOT (staged+unstaged)"
+}
+
+# --- TEST-005 — Spec-AC-04 leaf symlink must not write ROOT -------------------
+test_005_symlink_leaf_does_not_write_root() {
+  log_info "Test: leftover clone leaf-symlink cannot write ROOT (TEST-005)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-eol-005"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  printf 'SHIPPING-DATA' > "$fx/lib/data.txt"
+  ln -s "$fx/lib/data.txt" "$fx/lib/link.txt"
+  mg_write_binary "$fx/lib/blob.bin" AAAA
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  rm -f "$fx/lib/link.txt"
+  printf 'LOCAL-LEAF' > "$fx/lib/link.txt"
+  mg_write_binary "$fx/lib/blob.bin" BBBB
+  printf 'marker-present' > "$fx/lib/extra.txt"
+  ( cd "$fx" && git add -A )
+
+  local out rc
+  out="$(mg_run_greeting_mutation "$fx" 2>&1)" && rc=0 || rc=$?
+  local got
+  got="$(cat "$fx/lib/data.txt" 2>/dev/null || printf '%s' 'MISSING')"
+  [[ "$got" == "SHIPPING-DATA" ]] || log_fail "TEST-005: ROOT lib/data.txt overwritten (got '$got'): $out"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-005: want RED recorded (exit 0), got $rc: $out"
+  log_pass "TEST-005 leaf leftover symlink did not write ROOT"
+}
+
+# --- Codex P1 PR #406 — WT dir-symlink must not become a real clone directory
+# HEAD tracks pkg/file.txt as a directory tree. The working tree replaces pkg
+# with a symlink to a directory that still has file.txt. git ls-files still
+# lists the deleted tracked descendant. Overlay must not replace the clone's
+# installed symlink with a real directory — a suite that checks `test -L pkg`
+# would otherwise false-RED while clone-fidelity (which follows) still passes.
+test_006_wt_dir_symlink_not_replaced_by_overlay() {
+  log_info "Test: overlay does not replace a working-tree dir-symlink with a real directory (TEST-006)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_spec "$fx" "fixture-spec-eol-006"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  mkdir -p "$fx/pkg" "$fx/pkg-target"
+  printf 'inside\n' > "$fx/pkg/file.txt"
+  printf 'inside\n' > "$fx/pkg-target/file.txt"
+  cat > "$fx/tests/skills/fixture-suite.sh" <<'EOS'
+#!/usr/bin/env bash
+set -uo pipefail
+TEST_NAME="fixture-suite"
+FSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FROOT="$(cd "$FSCRIPT_DIR/../.." && pwd)"
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+
+test_9001_dir_symlink() {
+  [[ -L "$FROOT/pkg" ]] || log_fail "TEST-9001 pkg must be a directory symlink in the clone, not a real directory"
+  [[ -f "$FROOT/pkg/file.txt" ]] || log_fail "TEST-9001 pkg/file.txt missing through the symlink"
+  local body; body="$(cat "$FROOT/pkg/file.txt")"
+  [[ "$body" == "inside" ]] || log_fail "TEST-9001 pkg/file.txt content wrong: got '$body'"
+  log_pass "TEST-9001 working-tree dir-symlink preserved in the clone"
+}
+
+main() {
+  if [[ -n "${1:-}" ]]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"
+    return
+  fi
+  test_9001_dir_symlink
+}
+main "$@"
+EOS
+  chmod +x "$fx/tests/skills/fixture-suite.sh"
+  mg_write_binary "$fx/lib/blob.bin" AAAA
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  rm -rf "$fx/pkg"
+  ( cd "$fx" && ln -s pkg-target pkg )
+  mg_write_binary "$fx/lib/blob.bin" BBBB
+
+  local out rc
+  out="$(cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_dir_symlink \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 3 ]] || log_fail "TEST-006: clone-fidelity refused (exit 3): $out"
+  [[ "$rc" -eq 5 ]] || log_fail "TEST-006: want STAYED GREEN (exit 5) with the clone keeping the dir-symlink; a real directory would false-RED (exit 0). got $rc: $out"
+  log_pass "TEST-006 working-tree dir-symlink preserved; overlay did not flatten it"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -2934,6 +3182,12 @@ main() {
   test_712_malformed_sed_suffix_is_uncomparable
   test_713_patch_token_boundaries
   test_714_all_exempt_path_emits_ratchet_note
+  test_001_tracked_crlf_overlay
+  test_002_root_untracked_copied
+  test_003_eol_only_mismatch_token
+  test_004_symlink_ancestor_does_not_write_root
+  test_005_symlink_leaf_does_not_write_root
+  test_006_wt_dir_symlink_not_replaced_by_overlay
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

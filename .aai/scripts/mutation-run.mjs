@@ -121,6 +121,7 @@ import {
   hashFromFileHashes,
   diffTreeFileHashes,
   describeTreeDiff,
+  eolOnlyMismatchNote,
   RUNTIME_ALLOWLIST,
 } from './lib/tree-hash.mjs';
 import {
@@ -471,6 +472,138 @@ function withoutRuntimeAllowlist(fileHashMap) {
   return filtered;
 }
 
+// Root-level untracked (no slash in the relative path) is named in the
+// copy NOTE (SPEC-DRAFT spec-mutation-clone-fidelity-windows-eol D2). It
+// is copied and hashed like nested untracked; this helper does not skip it.
+function isRootLevelUntracked(p) {
+  return Boolean(p) && !p.includes('/') && !p.includes('\\');
+}
+
+// Overlay every tracked path's SOURCE WORKING-TREE bytes onto the clone so
+// clone-fidelity compares working-tree bytes (mixed EOL included), not a
+// git-checkout-then-apply reconstruction. SPEC-DRAFT
+// spec-mutation-clone-fidelity-windows-eol D1.
+function unlinkIfExists(p) {
+  try {
+    fs.lstatSync(p);
+  } catch {
+    return;
+  }
+  fs.unlinkSync(p);
+}
+
+// True when a SOURCE working-tree ancestor of `rel` is a symlink (lstat,
+// never follow). Tracked descendants under a WT dir-symlink are still in
+// `git ls-files`, but overlaying them would replace the clone's matching
+// symlink with a real directory (Codex P1 on PR #406).
+function sourceHasSymlinkAncestor(sourceRoot, rel) {
+  const parts = rel.replace(/\\/g, '/').split('/').slice(0, -1).filter((p) => p && p !== '.');
+  let cur = path.resolve(sourceRoot);
+  for (const part of parts) {
+    if (part === '..') return false;
+    cur = path.join(cur, part);
+    let st;
+    try {
+      st = fs.lstatSync(cur);
+    } catch {
+      return false;
+    }
+    if (st.isSymbolicLink()) return true;
+  }
+  return false;
+}
+
+// Remove a leftover clone leaf so `dst` can take the SOURCE type. Unlink
+// files and symlinks (spec D4 — never follow). When the working tree
+// replaced a tracked directory with a symlink (or a non-dir), recursively
+// remove a leftover real directory instead of letting EISDIR skip the copy.
+function replaceCloneLeaf(dst, sourceStat) {
+  let st;
+  try {
+    st = fs.lstatSync(dst);
+  } catch {
+    return;
+  }
+  if (st.isDirectory() && !st.isSymbolicLink()) {
+    if (sourceStat.isSymbolicLink() || !sourceStat.isDirectory()) {
+      fs.rmSync(dst, { recursive: true, force: true });
+    }
+    return;
+  }
+  fs.unlinkSync(dst);
+}
+
+// Replace leftover clone symlink (or non-dir) ancestors of `rel` with real
+// directories so mkdir/copy cannot follow them into ROOT (spec D4 / B2r).
+// Git relpaths are slash-separated. Walk is lstat-only (never follow).
+// When `sourceRoot` is given and the SOURCE ancestor is itself a symlink,
+// stop — do not replace a correctly installed WT dir-symlink with a real
+// directory (Codex P1 / PR #406).
+function ensureCloneParentDirs(cloneDir, rel, sourceRoot) {
+  const root = path.resolve(cloneDir);
+  const srcRoot = sourceRoot ? path.resolve(sourceRoot) : null;
+  const parentRel = rel.replace(/\\/g, '/').split('/').slice(0, -1).filter((p) => p && p !== '.');
+  let cur = root;
+  let srcCur = srcRoot;
+  for (const part of parentRel) {
+    if (part === '..') {
+      throw new Error(`clone path escaped cloneDir: ${rel}`);
+    }
+    cur = path.join(cur, part);
+    if (srcCur) srcCur = path.join(srcCur, part);
+    const resolved = path.resolve(cur);
+    if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+      throw new Error(`clone path escaped cloneDir: ${rel}`);
+    }
+    if (srcCur) {
+      try {
+        const srcSt = fs.lstatSync(srcCur);
+        if (srcSt.isSymbolicLink()) return;
+      } catch {
+        // source ancestor missing — fall through and normalize the clone
+      }
+    }
+    let st;
+    try {
+      st = fs.lstatSync(cur);
+    } catch {
+      fs.mkdirSync(cur);
+      continue;
+    }
+    if (st.isSymbolicLink() || !st.isDirectory()) {
+      fs.unlinkSync(cur);
+      fs.mkdirSync(cur);
+    }
+  }
+}
+
+function overlayTrackedWorkingTreeBytes(cloneDir, sourceRoot) {
+  const tracked = execFileSync('git', ['-C', sourceRoot, 'ls-files', '-z'], { encoding: 'utf8' });
+  for (const rel of tracked.split('\0')) {
+    if (!rel) continue;
+    const src = path.join(sourceRoot, rel);
+    const dst = path.join(cloneDir, rel);
+    try {
+      if (sourceHasSymlinkAncestor(sourceRoot, rel)) continue;
+      const st = fs.lstatSync(src);
+      ensureCloneParentDirs(cloneDir, rel, sourceRoot);
+      // Unlink dst first (lstat, never follow). copyFileSync onto a leftover
+      // clone symlink would write through to the link target — including ROOT
+      // (spec D4) — when HEAD tracked a symlink and the working tree replaced
+      // it with a regular file. A leftover clone DIRECTORY must yield to a
+      // WT dir-symlink (Codex P1) rather than skip with EISDIR.
+      replaceCloneLeaf(dst, st);
+      if (st.isSymbolicLink()) {
+        fs.symlinkSync(fs.readlinkSync(src), dst);
+      } else if (st.isFile()) {
+        fs.copyFileSync(src, dst);
+      }
+    } catch (err) {
+      process.stderr.write(`mutation-run: skipping tracked overlay ${rel} (${err.message})\n`);
+    }
+  }
+}
+
 function buildIsolatedClone() {
   const baseCommit = execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const sourceTreeFiles = computeTreeFileHashes(ROOT);
@@ -499,7 +632,7 @@ function buildIsolatedClone() {
     if (diff.trim()) {
       const res = spawnSync('git', ['-C', cloneDir, 'apply'], { input: diff, encoding: 'utf8' });
       if (res.status !== 0) {
-        throw new Error(`mutation-run: failed to reproduce tracked modifications in the clone: ${res.stderr || res.stdout}`);
+        process.stderr.write(`mutation-run: git apply did not reproduce tracked modifications (overlay will): ${res.stderr || res.stdout}\n`);
       }
     }
 
@@ -509,15 +642,22 @@ function buildIsolatedClone() {
     // (a permission error, a race) is skipped BY NAME rather than aborting
     // the whole clone build.
     const untracked = execFileSync('git', ['-C', ROOT, 'ls-files', '--others', '--exclude-standard'], { encoding: 'utf8' });
-    for (const rel of untracked.split('\n')) {
-      const p = rel.trim();
+    const rootUntracked = new Set();
+    for (const line of untracked.split('\n')) {
+      const p = line.trim();
+      if (p && isRootLevelUntracked(p)) rootUntracked.add(p);
+    }
+    for (const line of untracked.split('\n')) {
+      const p = line.trim();
       if (!p) continue;
       if (p === 'docs/ai/tdd' || p.startsWith('docs/ai/tdd/')) continue;
       const src = path.join(ROOT, p);
       const dst = path.join(cloneDir, p);
       try {
         const st = fs.lstatSync(src);
-        fs.mkdirSync(path.dirname(dst), { recursive: true });
+        const rel = p;
+        ensureCloneParentDirs(cloneDir, rel, ROOT);
+        replaceCloneLeaf(dst, st);
         if (st.isSymbolicLink()) {
           fs.symlinkSync(fs.readlinkSync(src), dst);
         } else {
@@ -526,6 +666,17 @@ function buildIsolatedClone() {
       } catch (err) {
         process.stderr.write(`mutation-run: skipping untracked path that could not be reproduced in the clone: ${p} (${err.message})\n`);
       }
+    }
+
+    overlayTrackedWorkingTreeBytes(cloneDir, ROOT);
+
+    // Root-level untracked is copied like nested untracked (review B1: omitting
+    // it from the clone false-REDs a suite that needs a new root file). D4
+    // compares the full map; D7 still uses unstripped sourceTreeFiles.
+    if (rootUntracked.size) {
+      process.stderr.write(
+        `NOTE: copied ${rootUntracked.size} root-level untracked path(s) into the clone: ${[...rootUntracked].sort().join(', ')}\n`
+      );
     }
 
     // NB-5: RUNTIME_ALLOWLIST paths are now part of the tree hash (tree-hash.mjs
@@ -558,7 +709,8 @@ function buildIsolatedClone() {
       }
       const dst = path.join(cloneDir, rel);
       try {
-        fs.mkdirSync(path.dirname(dst), { recursive: true });
+        ensureCloneParentDirs(cloneDir, rel, ROOT);
+        unlinkIfExists(dst);
         fs.writeFileSync(dst, bytes);
         sourceTreeFiles.set(rel, createHash('sha256').update(bytes).digest('hex'));
       } catch (err) {
@@ -576,8 +728,10 @@ function buildIsolatedClone() {
       // the diff/untracked-copy steps just run against ROOT again, not a bug
       // in the clone builder itself.
       const treeDiff = diffTreeFileHashes(sourceTreeFiles, cloneTreeFiles);
+      const eolNote = eolOnlyMismatchNote(ROOT, cloneDir, treeDiff.changed);
+      const eolSuffix = eolNote ? ` — ${eolNote}` : '';
       throw new TreeMismatchError(
-        `mutation-run: clone tree hash (${cloneTreeHash}) does not match the source working tree's (${sourceTreeHash}) — ${describeTreeDiff(treeDiff)} — the clone does not reproduce your tree`
+        `mutation-run: clone tree hash (${cloneTreeHash}) does not match the source working tree's (${sourceTreeHash}) — ${describeTreeDiff(treeDiff)}${eolSuffix} — the clone does not reproduce your tree`
       );
     }
 
