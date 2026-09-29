@@ -60,5 +60,6 @@ links:
 
 ## Notes
 - Source: local Windows usage report 2026-09-24 (`internal/windows-usage-report.md` in the project store). Not previously filed upstream.
+- Descope (SPEC D2): Expected Behavior "Unrelated untracked files do not participate in clone-fidelity" and Verification item 3. Omitting a root-level untracked file from the clone false-REDs a suite that reads a newly added root file. Root-level untracked files are copied and hashed. Residual: an uncopyable root file refuses via D4 (`removed:`).
 - Related done work that does **not** close this: CHANGE-0187 (`mutation-gate-for-tests`), SPEC-0181 D4 clone-fidelity, ISSUE-0045 (`isolation-shares-the-shipping-git`).
 - Assumption: the 11/11 RED replay after the manual snapshot is evidence that the mutations themselves were correct; the defect is reproduction of a Windows dirty tree.

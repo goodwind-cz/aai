@@ -2917,7 +2917,7 @@ test_001_tracked_crlf_overlay() {
   log_pass "TEST-001 tracked CRLF overlay: clone-fidelity held, mutation RED recorded"
 }
 
-test_002_unrelated_untracked_omitted() {
+test_002_root_untracked_copied() {
   log_info "Test: root-level untracked scratch.tmp is copied and clone-fidelity holds (TEST-002)..."
   local fx; fx="$(mg_new_fixture)"
   mg_seed_repo "$fx"
@@ -2987,6 +2987,102 @@ fs.writeFileSync(p, t.replace(needle, ''));
   log_pass "TEST-003 TreeMismatchError carries EOL-only difference and the path"
 }
 
+# Binary so `git apply` of the dirty tree fails and the clone keeps HEAD
+# symlinks. Overlay/untracked copy must not follow those leftovers into ROOT.
+# Payload is BIN + NUL + TAG — NUL cannot travel in argv, so TAG is env.
+mg_write_binary() {
+  local dest="$1" tag="$2"
+  DEST="$dest" TAG="$tag" node --input-type=module -e '
+import fs from "node:fs";
+const buf = Buffer.concat([Buffer.from("BIN"), Buffer.from([0]), Buffer.from(process.env.TAG)]);
+fs.writeFileSync(process.env.DEST, buf);
+'
+}
+
+mg_run_greeting_mutation() {
+  local fx="$1"
+  ( cd "$fx" && node "$MUTATION_RUN" --spec docs/specs/fixture-spec.md --test-id TEST-9001 \
+    --suite tests/skills/fixture-suite.sh --selector test_9001_greet_and_marker \
+    --target lib/greeting.mjs --sed 's/hello/goodbye/' )
+}
+
+# --- TEST-004 — Spec-AC-04 ancestor symlink must not write ROOT ---------------
+test_004_symlink_ancestor_does_not_write_root() {
+  log_info "Test: leftover clone dir-symlink cannot write ROOT (TEST-004 staged+unstaged, in-repo+outside)..."
+
+  run_ancestor_arm() {
+    local stage="$1" target="$2"
+    local fx outside payload dest
+    fx="$(mg_new_fixture)"
+    mg_seed_repo "$fx"
+    mg_write_fixture_suite "$fx"
+    mg_write_spec "$fx" "fixture-spec-eol-004-${stage}-${target}"
+    printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+    mkdir -p "$fx/data"
+    printf 'SHIPPING-DATA' > "$fx/data/f.txt"
+    if [[ "$target" == "outside" ]]; then
+      outside="$(mg_new_fixture)"
+      printf 'OUTSIDE-ORIGINAL' > "$outside/f.txt"
+      ln -s "$outside" "$fx/lnk"
+      dest="$outside/f.txt"
+      payload='OUTSIDE-ORIGINAL'
+    else
+      ln -s "$fx/data" "$fx/lnk"
+      dest="$fx/data/f.txt"
+      payload='SHIPPING-DATA'
+    fi
+    mg_write_binary "$fx/lib/blob.bin" AAAA
+    ( cd "$fx" && git add -A && git commit -q -m base )
+    rm -f "$fx/lnk"
+    mkdir -p "$fx/lnk"
+    printf 'LOCAL-REGULAR' > "$fx/lnk/f.txt"
+    mg_write_binary "$fx/lib/blob.bin" BBBB
+    printf 'marker-present' > "$fx/lib/extra.txt"
+    if [[ "$stage" == "staged" ]]; then
+      ( cd "$fx" && git add -A )
+    fi
+
+    local out rc
+    out="$(mg_run_greeting_mutation "$fx" 2>&1)" && rc=0 || rc=$?
+    local got
+    got="$(cat "$dest" 2>/dev/null || printf '%s' 'MISSING')"
+    [[ "$got" == "$payload" ]] || log_fail "TEST-004 ${stage}/${target}: ROOT target overwritten (got '$got', want '$payload'): $out"
+    [[ "$rc" -eq 0 ]] || log_fail "TEST-004 ${stage}/${target}: want RED recorded (exit 0), got $rc: $out"
+  }
+
+  run_ancestor_arm staged in-repo
+  run_ancestor_arm unstaged in-repo
+  run_ancestor_arm unstaged outside
+  log_pass "TEST-004 ancestor leftover symlink did not write ROOT (staged+unstaged)"
+}
+
+# --- TEST-005 — Spec-AC-04 leaf symlink must not write ROOT -------------------
+test_005_symlink_leaf_does_not_write_root() {
+  log_info "Test: leftover clone leaf-symlink cannot write ROOT (TEST-005)..."
+  local fx; fx="$(mg_new_fixture)"
+  mg_seed_repo "$fx"
+  mg_write_fixture_suite "$fx"
+  mg_write_spec "$fx" "fixture-spec-eol-005"
+  printf "console.log('hello');\n" > "$fx/lib/greeting.mjs"
+  printf 'SHIPPING-DATA' > "$fx/lib/data.txt"
+  ln -s "$fx/lib/data.txt" "$fx/lib/link.txt"
+  mg_write_binary "$fx/lib/blob.bin" AAAA
+  ( cd "$fx" && git add -A && git commit -q -m base )
+  rm -f "$fx/lib/link.txt"
+  printf 'LOCAL-LEAF' > "$fx/lib/link.txt"
+  mg_write_binary "$fx/lib/blob.bin" BBBB
+  printf 'marker-present' > "$fx/lib/extra.txt"
+  ( cd "$fx" && git add -A )
+
+  local out rc
+  out="$(mg_run_greeting_mutation "$fx" 2>&1)" && rc=0 || rc=$?
+  local got
+  got="$(cat "$fx/lib/data.txt" 2>/dev/null || printf '%s' 'MISSING')"
+  [[ "$got" == "SHIPPING-DATA" ]] || log_fail "TEST-005: ROOT lib/data.txt overwritten (got '$got'): $out"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-005: want RED recorded (exit 0), got $rc: $out"
+  log_pass "TEST-005 leaf leftover symlink did not write ROOT"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -3028,8 +3124,10 @@ main() {
   test_713_patch_token_boundaries
   test_714_all_exempt_path_emits_ratchet_note
   test_001_tracked_crlf_overlay
-  test_002_unrelated_untracked_omitted
+  test_002_root_untracked_copied
   test_003_eol_only_mismatch_token
+  test_004_symlink_ancestor_does_not_write_root
+  test_005_symlink_leaf_does_not_write_root
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

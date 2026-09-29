@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 576dc9586c9571be16dfaa6594c19ebd546f847372a5c51ad6f82f7a32cf84cf
+frozen_sha256: fbf997453dc1c18e768164657b4d6ccf5341428adba96b12eee0bc1038ebccc8
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-DRAFT-mutation-clone-fidelity-windows-eol.md
@@ -39,12 +39,14 @@ Ceremony justification is not required at level 2.
 untracked-not-ignored path, then byte-hashes the clone against the source.
 On Windows (`core.autocrlf=true`) checkout and apply change line endings
 even when Python/content is equivalent, so clone-fidelity refuses or yields
-INCONCLUSIVE and the mutation never tests the changed behavior. Unrelated
-dirty/untracked files also enter the hash.
+INCONCLUSIVE and the mutation never tests the changed behavior.
 
 SPEC-0181 D4 still holds: the clone must reproduce the source working tree.
 This ride changes *how* that reproduction is built (working-tree byte overlay
-of the fidelity set), not the invariant.
+of the fidelity set), not the invariant. Root-level untracked files are
+copied and hashed (D2); omitting them false-REDs a suite that needs a new
+root file. ISSUE Expected Behavior "Unrelated untracked files do not
+participate in clone-fidelity" is descoped for that reason.
 
 ## Design decisions (resolved — do not reopen during implementation)
 
@@ -66,9 +68,12 @@ participate in copy and the D4 hash, the same as nested untracked
 (`lib/extra.txt`). Omitting root-level files from the clone false-REDs a
 suite that needs a newly added root file (the file is untracked at mutation
 time because rides commit after validation). Clone-fidelity succeeds because
-both trees carry the same bytes. Overlay unlinks the clone destination
-before write so a leftover symlink cannot write through to ROOT (D4).
-`--include` stays out of scope.
+both trees carry the same bytes. Overlay, untracked copy, and allowlist
+writers walk each clone ancestor of the destination with lstat and replace
+a symlink or non-directory with a real directory, then unlink the leaf
+(never following). mkdir/copy therefore cannot follow a leftover clone
+symlink into ROOT (D4) when `git apply` of a typechange plus dirty binary
+is warning-only. `--include` stays out of scope.
 
 ### D3 — mismatch names paths and classifies EOL-only
 
@@ -105,9 +110,11 @@ test wrapper (owned by the paired prompts ride).
 ## Acceptance Criteria Mapping
 - Maps to: ISSUE mutation-clone-fidelity-windows-eol Expected Behavior
 - Spec-AC-01: tracked overlay
-- Spec-AC-02: untracked filter
+- Spec-AC-02: root-level untracked copy
 - Spec-AC-03: EOL-only diagnostic
-- Verification: TEST-001..003 via `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_<id>`
+- Spec-AC-04: leftover clone symlink (leaf or ancestor) must not write ROOT
+- Verification: TEST-001..005 via `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_<id>`
+- Descope: ISSUE Expected Behavior "Unrelated untracked files do not participate in clone-fidelity" (and Verification item 3). Reason: omitting a root-level untracked file from the clone false-REDs a suite that reads a newly added root file. Covered by D2 / Spec-AC-02 instead.
 
 ## Constitution deviations
 
@@ -128,6 +135,7 @@ Never use pipe characters inside cells.
 | Spec-AC-01 | WHEN a tracked dirty file in the source working tree holds CRLF bytes that differ from HEAD THEN buildIsolatedClone SHALL make the clone path byte-identical to those working-tree bytes (clone-fidelity hash equal, no TreeMismatchError) | done | docs/ai/tdd/spec-mutation-clone-fidelity-windows-eol/green-TEST-001-003.log | — | D1; mutation-TEST-001.txt RED |
 | Spec-AC-02 | WHEN an untracked-not-ignored file sits at the repository root THEN buildIsolatedClone SHALL copy it and include it in the D4 hash so clone-fidelity still succeeds and a suite that reads that file does not false-RED | done | docs/ai/tdd/spec-mutation-clone-fidelity-windows-eol/green-TEST-001-003.log | — | D2 copy+hash; overlay unlinks dst; mutation-TEST-002.txt RED |
 | Spec-AC-03 | WHEN clone and source hashes differ only by CR bytes on a named path THEN the TreeMismatchError message SHALL contain EOL-only difference and that path | done | docs/ai/tdd/spec-mutation-clone-fidelity-windows-eol/green-TEST-001-003.log | — | D3; mutation-TEST-003.txt RED via sed on ${eolSuffix} in the runner template |
+| Spec-AC-04 | WHEN the clone still holds a HEAD symlink (file or directory) because git apply of a dirty binary failed and the working tree replaced that symlink with a regular file or directory THEN buildIsolatedClone SHALL leave the symlink target bytes in ROOT unchanged | pending | — | — | D2 parent-walk + leaf unlink; TEST-004 ancestor, TEST-005 leaf |
 
 Status values: planned, implementing, done, deferred, blocked, rejected.
 
@@ -136,9 +144,10 @@ Status values: planned, implementing, done, deferred, blocked, rejected.
 1. `.aai/scripts/mutation-run.mjs` `buildIsolatedClone`
    - After checkout (and optional apply), overlay every tracked path from
      `git ls-files -z` in ROOT onto the clone using source working-tree bytes.
-   - Copy untracked-not-ignored files including root-level scratch. Overlay
-     unlinks each clone destination before write so a leftover symlink cannot
-     write through to ROOT. D4 hashes the full map.
+   - Copy untracked-not-ignored files including root-level scratch. Overlay,
+     untracked copy, and allowlist writers walk clone ancestors and replace
+     symlink or non-directory components, then unlink the leaf, so a leftover
+     clone symlink cannot write through to ROOT. D4 hashes the full map.
    - On hash mismatch, classify changed paths whose buffers differ only by CR
      and include `EOL-only difference` plus the path in TreeMismatchError.
 2. `.aai/scripts/lib/tree-hash.mjs` only if the classification helper belongs
@@ -154,13 +163,17 @@ Status values: planned, implementing, done, deferred, blocked, rejected.
 | TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-mutation-gate.sh | Fixture repo with core.autocrlf=true, HEAD file LF, dirty working-tree CRLF on a tracked path; mutation-run clone-fidelity succeeds (exit not 3) and the clone file bytes equal the source working-tree bytes | sed:s/overlayTrackedWorkingTreeBytes\(cloneDir, ROOT\);// | green |
 | TEST-002 | Spec-AC-02 | integration | tests/skills/test-aai-mutation-gate.sh | Same runner with an extra untracked file scratch.tmp at repo root; clone-fidelity succeeds (exit not 3) and a NOTE names the copied root-level path | sed:s/if \(!p\) continue;/if (!p) continue; if (isRootLevelUntracked(p)) continue;/ | green |
 | TEST-003 | Spec-AC-03 | integration | tests/skills/test-aai-mutation-gate.sh | Fixture with tracked CRLF dirty file; a scratch copy of mutation-run.mjs with overlay removed refuses clone-fidelity (exit 3) and stderr contains EOL-only difference plus the path | sed:s/\${eolSuffix}// | green |
+| TEST-004 | Spec-AC-04 | integration | tests/skills/test-aai-mutation-gate.sh | Fixture HEAD tracks an absolute dir symlink plus a dirty binary so git apply fails; working tree replaces the symlink with a real dir and file (staged and unstaged); ROOT target bytes stay unchanged | sed:s/ensureCloneParentDirs\(cloneDir, rel\);//g | pending |
+| TEST-005 | Spec-AC-04 | integration | tests/skills/test-aai-mutation-gate.sh | Fixture HEAD tracks a leaf file symlink plus a dirty binary so git apply fails; working tree replaces the symlink with a regular file; ROOT target bytes stay unchanged | sed:s/unlinkIfExists\(dst\);//g | pending |
 
 ## Verification
 - `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_001_tracked_crlf_overlay`
-- `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_002_unrelated_untracked_omitted`
+- `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_002_root_untracked_copied`
 - `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_003_eol_only_mismatch_token`
+- `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_004_symlink_ancestor_does_not_write_root`
+- `bash .aai/scripts/aai-run-tests.sh tests/skills/test-aai-mutation-gate.sh test_005_symlink_leaf_does_not_write_root`
 - `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-DRAFT-spec-mutation-clone-fidelity-windows-eol.md`
-- PASS: TEST-001..003 green, Spec-AC-01..03 done, 3/3 mutations RED
+- PASS: TEST-001..005 green, Spec-AC-01..04 done, 5/5 mutations RED
 
 ## Evidence contract
 - ref_id: mutation-clone-fidelity-windows-eol
@@ -176,8 +189,8 @@ tdd: stored RED artifact per AC-gating test plus the verification matrix.
 
 - R1: Overlay copies every tracked file; large dirty trees pay I/O. Acceptable
   versus false INCONCLUSIVE on Windows.
-- R2: Root-level-only omit may still copy a nested scratch path a downstream
-  project keeps as untracked. Fail-closed they must gitignore it or a later
-  `--include` ride must land. Documented, not this freeze.
+- R2: An uncopyable root-level untracked file (locked or permission-denied)
+  is counted in the copied NOTE then D4 refuses with `removed:`. Fail-closed.
+  A Windows locked-file fixture is cannot_verify.
 
 SPEC-FROZEN: true
