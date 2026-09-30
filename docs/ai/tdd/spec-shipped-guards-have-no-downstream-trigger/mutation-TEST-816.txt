@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-816: the pushed commit's config is report-only, so the push must exit 0 (the worktree copy must not decide), got 1: AAI:CLOSE-GATE NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)
 selector_honoured: yes
-target_sha256: c674b5218f61346294374c3c1061a1db516bff20591794ad5930bc78ae0870da
+target_sha256: a4a851e9e1d71eef27230e141d7044bee3aef16033904e684501e77ccfa1ec8d
 ---
 INFO: Checking dependencies...
 PASS: Dependencies checked

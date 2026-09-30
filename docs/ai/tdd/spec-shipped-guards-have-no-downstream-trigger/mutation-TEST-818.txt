@@ -1,0 +1,20 @@
+mutation_record: v1
+spec_id: spec-shipped-guards-have-no-downstream-trigger
+test_id: TEST-818
+suite: tests/skills/test-aai-hygiene-pack.sh
+selector: test_818_ps1_upgrade_is_byte_exact_and_order_checked
+target: .aai/scripts/install-pre-commit-hook.ps1
+mutation: sed:s/\$beginLn -gt \$endLn/1 -eq 0/
+base_commit: 1eadb8919d6a5b8553252bec243f360602d14a71
+tree_hash: 652a0b4f283825bae7b504d281eb59776db2ac5f664c6252d40157c4df5f3cb2
+run_at_utc: 2026-09-30T22:22:09Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-818: the .ps1 carries no BEGIN-before-END line-number check ($beginLn -gt $endLn)
+selector_honoured: yes
+target_sha256: 48bda7e48d75c33c162c6447411496ef710cf4f0f442039a70e637a851e82443
+---
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: the .ps1 twin checks marker order before any write and refreshes on bytes (static; behavioural under pwsh) (TEST-818)...
+FAIL: TEST-818: the .ps1 carries no BEGIN-before-END line-number check ($beginLn -gt $endLn)

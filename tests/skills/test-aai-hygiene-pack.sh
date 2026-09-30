@@ -4602,9 +4602,15 @@ test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisc
 #                               TEST-813 both twins produce the same block
 #   mid-operation failure    -> TEST-802 CR-terminated first line / symlinked
 #                               slot refused by name, file byte-identical;
-#                               TEST-806 refused push leaves the remote ref
+#                               TEST-806 refused push leaves the remote ref;
+#                               TEST-817/818 inverted or stray markers and a
+#                               BOM refused BEFORE any write, byte-identical
 #   negative control         -> TEST-803 foreign hook refused, byte-identical;
-#                               TEST-816 worktree enforce does NOT refuse
+#                               TEST-816 worktree enforce does NOT refuse;
+#                               TEST-817/818 a marker merely MENTIONED in a
+#                               foreign hook is not ownership (no upgrade,
+#                               no --uninstall deletion); the refresh keeps
+#                               raw e9/ff fe bytes and a missing final newline
 
 SG_INSTALLER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
 SG_INSTALLER_PS1="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
@@ -5225,6 +5231,194 @@ test_816_default_unchanged_and_pushed_config_wins() {  # TEST-816 / Spec-AC-06
   log_pass "TEST-816 template default report-only (one line), GUARD_DIALS.length 7, and the pre-push decides on the pushed commit's close_gate, never the worktree copy"
 }
 
+# sg_outside_interior <file> — the file's bytes outside the guard block's
+# INTERIOR (both marker lines kept), under LC_ALL=C so a non-UTF-8 byte in a
+# user line is copied, not transcoded. What a refresh must leave untouched.
+sg_outside_interior() {
+  LC_ALL=C awk '/^# AAI:GUARD-CHECKS BEGIN$/{print; skip=1; next} /^# AAI:GUARD-CHECKS END$/{skip=0} !skip' "$1"
+}
+
+# sg_interior <file> — the lines strictly between the two markers.
+sg_interior() {
+  LC_ALL=C awk '/^# AAI:GUARD-CHECKS BEGIN$/{p=1; next} /^# AAI:GUARD-CHECKS END$/{p=0} p' "$1"
+}
+
+# sg_hostile_hooks <dir> <body-file> — the four hostile pre-commit slots
+# TEST-817 and TEST-818 feed to each twin, written under <dir>/h-*:
+#   h-inverted   END above BEGIN around a user line (validation B1)
+#   h-stray-end  an END line and no BEGIN
+#   h-refresh    an edited interior, a Latin-1 / raw-byte user comment
+#                (e9, ff fe) outside the block, and a final line with NO
+#                trailing newline (validation B2)
+#   h-bom        the pre-ride body behind a UTF-8 BOM (validation NB1)
+sg_hostile_hooks() {
+  local d="$1" body="$2"
+  { head -n1 "$body"; printf '# AAI:GUARD-CHECKS END\necho user-line\n# AAI:GUARD-CHECKS BEGIN\n'; tail -n +2 "$body"; } > "$d/h-inverted"
+  { head -n1 "$body"; printf '# AAI:GUARD-CHECKS END\n'; tail -n +2 "$body"; } > "$d/h-stray-end"
+  { head -n1 "$body"; bash "$SG_INSTALLER" --print guard-checks | sed 's/_gc_rc=0$/_gc_rc=0 # user edit/'; printf '# caf\xe9 user comment \xff\xfe raw bytes\n'; tail -n +2 "$body"; printf 'echo last-line-no-newline'; } > "$d/h-refresh"
+  { printf '\xef\xbb\xbf'; cat "$body"; } > "$d/h-bom"
+  chmod +x "$d"/h-*
+}
+
+# sg_assert_refresh_byte_exact <label> <orig> <hook> — the refresh
+# post-condition both twins must meet: every byte outside the interior is
+# unchanged (raw e9 / ff fe bytes included, the missing final newline
+# included), and the interior now equals the shipped one.
+sg_assert_refresh_byte_exact() {
+  local label="$1" orig="$2" hp="$3"
+  sg_outside_interior "$orig" > "$orig.outside"
+  sg_outside_interior "$hp" > "$hp.outside"
+  cmp -s "$orig.outside" "$hp.outside" || log_fail "$label: bytes outside the refreshed interior changed:
+$(LC_ALL=C diff "$orig.outside" "$hp.outside" | qhead -n 12 || true)"
+  [[ "$(LC_ALL=C grep -c $'caf\xe9 user comment \xff\xfe raw bytes' "$hp")" -eq 1 ]] \
+    || log_fail "$label: the raw e9 / ff fe bytes outside the block did not survive the refresh (bytes now: $(LC_ALL=C grep -a 'user comment' "$hp" | od -An -tx1 | tr -s ' \n' ' '))"
+  [[ "$(tail -c1 "$hp" | od -An -c | tr -d ' ')" != '\n' ]] || log_fail "$label: the refresh appended a newline to a final line that had none"
+  bash "$SG_INSTALLER" --print guard-checks > "$hp.shipped"
+  sg_interior "$hp" > "$hp.interior"
+  sg_interior "$hp.shipped" > "$hp.shipped-interior"
+  cmp -s "$hp.interior" "$hp.shipped-interior" || log_fail "$label: the refreshed interior is not the shipped interior"
+}
+
+test_817_marker_order_and_ownership_are_exact() {  # TEST-817 / Spec-AC-13
+  log_info "Test: inverted or stray GUARD markers, a BOM and a merely-mentioned INDEX marker are refused byte-identical; a refresh keeps every byte outside the interior (TEST-817)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local d hp out rc body
+  d="$(sg_repo t817)"
+  hp="$(sg_hook "$d" pre-commit)"
+  mkdir -p "$(dirname "$hp")"
+  body="$d/body"
+  bash "$SG_INSTALLER" --print index > "$body"
+  sg_hostile_hooks "$d" "$body"
+
+  # (a) END above BEGIN: refused BEFORE any write, both line numbers named.
+  cp -p "$d/h-inverted" "$hp"
+  rc=0; out="$(sg_install "$d" --hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-817 (a): inverted markers must make the run exit 1, got $rc: $out"
+  cmp -s "$d/h-inverted" "$hp" || log_fail "TEST-817 (a): the hook with inverted markers was rewritten ($(wc -l < "$d/h-inverted" | tr -d ' ') lines before, $(wc -l < "$hp" | tr -d ' ') after)"
+  assert_payload_contains "$out" "(line 2) BEFORE '# AAI:GUARD-CHECKS BEGIN' (line 4)" "TEST-817 (a): the refusal must name the END line (2) and the BEGIN line (4)"
+  assert_payload_contains "$out" "--force" "TEST-817 (a): the refusal must name --force as the way past it"
+  assert_payload_not_contains "$out" "Refreshed" "TEST-817 (a): a refused run must not announce a refresh"
+
+  # (b) an END line with no BEGIN: refused, never inserted above.
+  cp -p "$d/h-stray-end" "$hp"
+  rc=0; out="$(sg_install "$d" --hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-817 (b): a stray END marker must make the run exit 1, got $rc: $out"
+  cmp -s "$d/h-stray-end" "$hp" || log_fail "TEST-817 (b): the hook with a stray END marker was rewritten"
+  assert_payload_contains "$out" "no '# AAI:GUARD-CHECKS BEGIN'" "TEST-817 (b): the refusal must name the missing BEGIN"
+
+  # (c) refresh path: interior replaced, every other byte as it was.
+  cp -p "$d/h-refresh" "$hp"
+  rc=0; out="$(sg_install "$d" --hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 0 ]] || log_fail "TEST-817 (c): the refresh run must exit 0, got $rc: $out"
+  assert_payload_contains "$out" "Refreshed the AAI:GUARD-CHECKS block" "TEST-817 (c): the refresh must be announced"
+  sg_assert_refresh_byte_exact "TEST-817 (c)" "$d/h-refresh" "$hp"
+
+  # (d) a UTF-8 BOM: refused by name, byte-identical.
+  cp -p "$d/h-bom" "$hp"
+  rc=0; out="$(sg_install "$d" --hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-817 (d): a BOM hook must make the run exit 1, got $rc: $out"
+  cmp -s "$d/h-bom" "$hp" || log_fail "TEST-817 (d): the BOM hook was rewritten"
+  assert_payload_contains "$out" "byte-order mark" "TEST-817 (d): the refusal must name the byte-order mark"
+
+  # (e) ownership is a marker OPENING a line: a foreign hook that merely
+  # mentions the marker in a comment, or quotes it in a string, is refused
+  # as foreign and is NOT deleted by --uninstall.
+  local variant
+  for variant in comment string; do
+    if [[ "$variant" == comment ]]; then
+      printf '#!/bin/sh\n# replaced the old # AAI:INDEX-AUTOGEN hook with my own\nnpm test\n' > "$hp"
+    else
+      printf '#!/bin/sh\necho "# AAI:INDEX-AUTOGEN is what the AAI hook says"\nexit 0\n' > "$hp"
+    fi
+    chmod +x "$hp"
+    cp -p "$hp" "$d/orig-e-$variant"
+    rc=0; out="$(sg_install "$d" --hooks index 2>&1)" || rc=$?
+    [[ $rc -eq 1 ]] || log_fail "TEST-817 (e/$variant): a foreign hook mentioning the marker must be refused (exit 1), got $rc: $out"
+    cmp -s "$d/orig-e-$variant" "$hp" || log_fail "TEST-817 (e/$variant): the foreign hook was rewritten"
+    assert_payload_contains "$out" "not AAI-managed" "TEST-817 (e/$variant): the refusal must say the hook is not AAI-managed"
+    rc=0; out="$(sg_install "$d" --uninstall --hooks index 2>&1)" || rc=$?
+    [[ $rc -eq 0 ]] || log_fail "TEST-817 (e/$variant): --uninstall must exit 0, got $rc: $out"
+    [[ -f "$hp" ]] || log_fail "TEST-817 (e/$variant): --uninstall DELETED a foreign hook that merely mentions the marker"
+    cmp -s "$d/orig-e-$variant" "$hp" || log_fail "TEST-817 (e/$variant): --uninstall changed the foreign hook"
+    assert_payload_contains "$out" "No AAI pre-commit hook found" "TEST-817 (e/$variant): --uninstall must report that no AAI hook was found"
+  done
+  log_pass "TEST-817 inverted markers, a stray END, a BOM and a merely-mentioned marker are refused with the file byte-identical; the refresh keeps every byte outside the interior (raw e9/ff fe, missing final newline) and --uninstall never deletes a foreign hook"
+}
+
+test_818_ps1_upgrade_is_byte_exact_and_order_checked() {  # TEST-818 / Spec-AC-13
+  log_info "Test: the .ps1 twin checks marker order before any write and refreshes on bytes (static; behavioural under pwsh) (TEST-818)..."
+  [[ -f "$SG_INSTALLER_PS1" ]] || log_fail "TEST-818: missing $SG_INSTALLER_PS1"
+  sg_tmp
+  # static: the order comparison, the byte-level marker scan, and no
+  # decode-split-join-re-encode round-trip anywhere in the twin.
+  grep -qF '$beginLn -gt $endLn' "$SG_INSTALLER_PS1" || log_fail "TEST-818: the .ps1 carries no BEGIN-before-END line-number check (\$beginLn -gt \$endLn)"
+  grep -qF 'function Find-MarkerLines' "$SG_INSTALLER_PS1" || log_fail "TEST-818: the .ps1 carries no byte-level Find-MarkerLines"
+  grep -qF 'function Test-MarkerOwned' "$SG_INSTALLER_PS1" || log_fail "TEST-818: the .ps1 carries no byte-level Test-MarkerOwned"
+  if grep -qF 'UTF8.GetString(' "$SG_INSTALLER_PS1"; then log_fail "TEST-818: the .ps1 still decodes the hook as UTF-8 text (UTF8.GetString) — a refresh on decoded text re-encodes bytes outside the markers"; fi
+  local esc
+  for esc in '[regex]::Escape($marker)' '[regex]::Escape($Marker)'; do
+    if grep -qF "$esc" "$SG_INSTALLER_PS1"; then log_fail "TEST-818: the .ps1 still tests ownership on decoded text ($esc)"; fi
+  done
+  if ! command -v pwsh >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
+    log_pass "TEST-818 .ps1 checks marker order and scans markers on bytes (static); SKIP: behavioural arm (pwsh not installed)"
+    return 0
+  fi
+  local d hp out rc body
+  d="$(sg_repo t818)"
+  cp "$SG_INSTALLER_PS1" "$d/.aai/scripts/install-pre-commit-hook.ps1"
+  hp="$(sg_hook "$d" pre-commit)"
+  mkdir -p "$(dirname "$hp")"
+  body="$d/body"
+  bash "$SG_INSTALLER" --print index > "$body"
+  sg_hostile_hooks "$d" "$body"
+
+  cp -p "$d/h-inverted" "$hp"
+  rc=0; out="$(sg_install_ps1 "$d" -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-818 pwsh (a): inverted markers must make the run exit 1, got $rc: $out"
+  cmp -s "$d/h-inverted" "$hp" || log_fail "TEST-818 pwsh (a): the hook with inverted markers was rewritten ($(wc -l < "$d/h-inverted" | tr -d ' ') lines before, $(wc -l < "$hp" | tr -d ' ') after)"
+  assert_payload_contains "$out" "(line 2) BEFORE '# AAI:GUARD-CHECKS BEGIN' (line 4)" "TEST-818 pwsh (a): the refusal must name the END line (2) and the BEGIN line (4)"
+  assert_payload_not_contains "$out" "Refreshed" "TEST-818 pwsh (a): a refused run must not announce a refresh"
+
+  cp -p "$d/h-stray-end" "$hp"
+  rc=0; out="$(sg_install_ps1 "$d" -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-818 pwsh (b): a stray END marker must make the run exit 1, got $rc: $out"
+  cmp -s "$d/h-stray-end" "$hp" || log_fail "TEST-818 pwsh (b): the hook with a stray END marker was rewritten"
+
+  cp -p "$d/h-refresh" "$hp"
+  rc=0; out="$(sg_install_ps1 "$d" -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 0 ]] || log_fail "TEST-818 pwsh (c): the refresh run must exit 0, got $rc: $out"
+  assert_payload_contains "$out" "Refreshed the AAI:GUARD-CHECKS block" "TEST-818 pwsh (c): the refresh must be announced"
+  sg_assert_refresh_byte_exact "TEST-818 pwsh (c)" "$d/h-refresh" "$hp"
+
+  cp -p "$d/h-bom" "$hp"
+  rc=0; out="$(sg_install_ps1 "$d" -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-818 pwsh (d): a BOM hook must make the run exit 1, got $rc: $out"
+  cmp -s "$d/h-bom" "$hp" || log_fail "TEST-818 pwsh (d): the BOM hook was rewritten"
+  assert_payload_contains "$out" "byte-order mark" "TEST-818 pwsh (d): the refusal must name the byte-order mark"
+
+  # (f) a UTF-16LE+BOM file decodes into the marker on text but carries no
+  # marker on disk: refused as foreign, byte-identical (never inserted into).
+  { printf '\xff\xfe'; iconv -f UTF-8 -t UTF-16LE "$body"; } > "$hp"
+  chmod +x "$hp"
+  cp -p "$hp" "$d/orig-utf16"
+  rc=0; out="$(sg_install_ps1 "$d" -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-818 pwsh (f): a UTF-16 hook must be refused (exit 1), got $rc: $out"
+  cmp -s "$d/orig-utf16" "$hp" || log_fail "TEST-818 pwsh (f): the UTF-16 hook was rewritten ($(wc -c < "$d/orig-utf16" | tr -d ' ') bytes before, $(wc -c < "$hp" | tr -d ' ') after)"
+  assert_payload_contains "$out" "not AAI-managed" "TEST-818 pwsh (f): the UTF-16 hook must be refused as foreign"
+
+  printf '#!/bin/sh\n# replaced the old # AAI:INDEX-AUTOGEN hook with my own\nnpm test\n' > "$hp"
+  chmod +x "$hp"
+  cp -p "$hp" "$d/orig-e"
+  rc=0; out="$(sg_install_ps1 "$d" -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-818 pwsh (e): a foreign hook mentioning the marker must be refused (exit 1), got $rc: $out"
+  cmp -s "$d/orig-e" "$hp" || log_fail "TEST-818 pwsh (e): the foreign hook was rewritten"
+  rc=0; out="$(sg_install_ps1 "$d" -Uninstall -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 0 && -f "$hp" ]] || log_fail "TEST-818 pwsh (e): -Uninstall must exit 0 and leave a foreign hook in place (rc=$rc): $out"
+  cmp -s "$d/orig-e" "$hp" || log_fail "TEST-818 pwsh (e): -Uninstall changed the foreign hook"
+  log_pass "TEST-818 .ps1 checks marker order and scans markers on bytes (static); under pwsh inverted markers, a stray END, a BOM, a UTF-16 hook and a merely-mentioned marker are refused byte-identical and the refresh keeps every byte outside the interior"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -5306,6 +5500,8 @@ main() {
   test_814_disclosure_and_docs
   test_815_suite_map_and_registration
   test_816_default_unchanged_and_pushed_config_wins
+  test_817_marker_order_and_ownership_are_exact
+  test_818_ps1_upgrade_is_byte_exact_and_order_checked
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

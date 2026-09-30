@@ -1833,6 +1833,12 @@ test_809_check8_ps1_twin() {
   d="$(sg808_fixture t809)"
   cp "$ps1" "$d/.aai/scripts/pre-commit-checks.ps1"
   printf 'doc_number_guard: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  # refs/remotes/origin/HEAD IS set here (validation NB4): the R1 read must
+  # RESOLVE it, so the "assumed main" fallback NOTE must not appear — the
+  # row's mutation renames the ref the .ps1 reads, which under pwsh makes
+  # the fallback fire and this arm redden behaviourally, not only statically.
+  git -C "$d" update-ref refs/remotes/origin/main HEAD
+  git -C "$d" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
   (cd "$d" && git checkout -q -b feature/y)
   set +e
   (cd "$d" && pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 > pc-feature.log 2>&1)
@@ -1842,6 +1848,7 @@ test_809_check8_ps1_twin() {
   grep -qF "RFC-DRAFT-committed-on-branch" "$d/pc-feature.log" || log_fail "TEST-808: expected 'RFC-DRAFT-committed-on-branch' in $d/pc-feature.log"
   grep -qF "enforce applies on main only" "$d/pc-feature.log" || log_fail "TEST-808: expected 'enforce applies on main only' in $d/pc-feature.log"
   grep -qF "on feature/y this is report-only" "$d/pc-feature.log" || log_fail "TEST-808: expected 'on feature/y this is report-only' in $d/pc-feature.log"
+  if grep -qF "default branch assumed main" "$d/pc-feature.log"; then log_fail "TEST-809 pwsh: refs/remotes/origin/HEAD is set, so the .ps1 must RESOLVE it — the 'default branch assumed main' fallback fired instead: $(grep -F 'default branch' "$d/pc-feature.log")"; fi
   (cd "$d" && git checkout -q main)
   set +e
   (cd "$d" && pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 > pc-main.log 2>&1)

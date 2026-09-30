@@ -2201,11 +2201,18 @@ Notes:
 `bash .aai/scripts/install-pre-commit-hook.sh` (or the `.ps1` twin) writes
 three hooks into the directory git itself resolves (`git rev-parse --git-path
 hooks/<name>`, so `core.hooksPath` and linked worktrees are honoured). Each is
-recognised by its own marker, and the installer never rewrites a byte outside
-an AAI marker on a plain run: a foreign hook in a selected slot is refused by
-name (with `--print`, `--print guard-checks`, `--print ref-guard` or `--print
-pre-push` to hand-merge), and an AAI hook that predates the guard block is
-upgraded in place by inserting the block after its shebang.
+recognised by its own marker — a marker counts only when it opens a line
+(column 0), so a hook that merely mentions one in a comment or a string is
+foreign — and the installer never rewrites a byte outside an AAI marker on a
+plain run: a foreign hook in a selected slot is refused by name (with
+`--print`, `--print guard-checks`, `--print ref-guard` or `--print pre-push`
+to hand-merge) and is never deleted by `--uninstall`; an AAI hook that predates
+the guard block is upgraded in place by inserting the block after its shebang,
+and a later block revision replaces only the bytes between `# AAI:GUARD-CHECKS
+BEGIN` and `END` (in both the `.sh` and the `.ps1` installer, non-UTF-8 bytes
+and line endings outside the block survive as they were). A hook whose markers
+are inverted, unpaired or duplicated, or that starts with a byte-order mark, is
+refused by name and left byte-identical.
 
 | Hook | `--hooks` token | Marker | What it invokes |
 |------|-----------------|--------|-----------------|
@@ -2233,8 +2240,12 @@ successful sync; nothing here is a fix you can miss):
 **The pre-push close gate.** For each pushed ref the hook resolves the default
 branch (`refs/remotes/origin/HEAD`, else `main`, and it says so), then runs
 `close-reconcile.mjs --check` over one range: a default-branch push as
-`<remote sha>..<local sha>` (a first push as `<local>^..<local>`), any other ref
-as `merge-base(origin/<default>, local)..local`. The verdict rides the existing
+`<remote sha>..<local sha>` (a first push as `<local>^..<local>` — so a default
+branch that holds a single commit cannot make its first push under
+`close_gate: enforce`: its `<local>^` does not exist, the range cannot be
+resolved, and enforce treats "the gate could not run" as a refusal; make that
+first push with the pushed commit at `report-only`, or after a second commit),
+any other ref as `merge-base(origin/<default>, local)..local`. The verdict rides the existing
 `close_gate` dial, read from the **pushed commit's** `docs/ai/docs-audit.yaml`
 (never the worktree copy): `report-only` prints and allows; `enforce` refuses
 a push to the **default branch only** — feature-branch pushes are always

@@ -278,6 +278,23 @@ REFTX_MARKER="# AAI:REF-GUARD"
 PREPUSH_MARKER="# AAI:CLOSE-GATE"
 GUARD_BLOCK_BEGIN="# AAI:GUARD-CHECKS BEGIN"
 GUARD_BLOCK_END="# AAI:GUARD-CHECKS END"
+
+# has_marker_line <file> <marker> — the ownership test for the three hook
+# markers (INDEX-AUTOGEN, REF-GUARD, CLOSE-GATE). The marker must OPEN a
+# line: column 0, followed by a space, end of line, or a CR (a CRLF hook the
+# .ps1 twin wrote on Windows) — the shape every shipped body carries
+# ("# AAI:INDEX-AUTOGEN — auto-regenerate …"). A substring hit is NOT
+# ownership: a foreign hook whose comment merely mentions the marker, or
+# quotes it inside a string, must not be upgraded into and must never be
+# deleted by --uninstall (validation NB3; the #414 class). Exact whole-line
+# matching — what the GUARD-CHECKS markers use — is not available here: the
+# shipped bodies themselves carry commentary after the marker on that line
+# and their bytes are pinned (PRECOMMIT_SHA256_BASELINE). The .ps1 twin's
+# Find-MarkerLines applies the identical rule on bytes.
+has_marker_line() {
+  local cr=$'\r'
+  grep -qE "^$2( |$cr?\$)" "$1"
+}
 # docs/ai/docs-audit.yaml — the committed guard-policy surface (D2). Read by
 # lib/guard-config.mjs's readRefGuardPolicy (the canonical JS reader) and
 # mirrored here by a deliberate THIN shell grep (no node import in this
@@ -299,7 +316,7 @@ attest_effective() {
     echo "ERROR: git resolves the $name hook to $p, but no file is there." >&2
     return 1
   fi
-  if ! grep -qF "$marker" "$p"; then
+  if ! has_marker_line "$p" "$marker"; then
     echo "ERROR: the $name hook git would run ($p) does not carry $marker." >&2
     return 1
   fi
@@ -361,7 +378,7 @@ ensure_hooks_dir() {
 # exit status is being tested — while this function's last command, the echo,
 # still ran and reported success on nothing written).
 write_refguard_hook() {
-  if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
+  if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && has_marker_line "$REFTX_PATH" "$REFTX_MARKER"; then
     echo "AAI reference-transaction hook already installed at $REFTX_PATH. No action taken."
     return 0
   fi
@@ -562,7 +579,7 @@ write_ref_guard_policy() {
 # record 'armed' is read as armed anyway, by design.
 decline_ref_guard() {
   local reftx_is_aai=0
-  [[ -f "$REFTX_PATH" ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH" && reftx_is_aai=1  # AC-05 decline removal: foreign-marker test
+  [[ -f "$REFTX_PATH" ]] && has_marker_line "$REFTX_PATH" "$REFTX_MARKER" && reftx_is_aai=1  # AC-05 decline removal: foreign-marker test
   if [[ -f "$REFTX_PATH" && "$reftx_is_aai" != 1 ]]; then
     echo "ERROR: $REFTX_PATH already exists and is not AAI-managed." >&2
     echo "       Refusing to remove a foreign hook -- --decline-ref-guard only removes an AAI-managed guard." >&2
@@ -580,7 +597,7 @@ decline_ref_guard() {
 # arm_ref_guard — Spec-AC-05: (re-)install the ref-guard hook (same
 # foreign-hook refusal as the normal write path) and record ref_guard: armed.
 arm_ref_guard() {
-  if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
+  if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && ! has_marker_line "$REFTX_PATH" "$REFTX_MARKER"; then
     foreign_reftx_refusal
     return 1
   fi
@@ -893,7 +910,7 @@ PREPUSHHOOK
 # write can never truncate what was there; every branch guarded so the
 # "Installed" line cannot print unless the write happened.
 write_prepush_hook() {
-  if [[ -f "$PREPUSH_PATH" && "$FORCE" != 1 ]] && grep -qF "$PREPUSH_MARKER" "$PREPUSH_PATH"; then
+  if [[ -f "$PREPUSH_PATH" && "$FORCE" != 1 ]] && has_marker_line "$PREPUSH_PATH" "$PREPUSH_MARKER"; then
     echo "AAI pre-push hook already installed at $PREPUSH_PATH. No action taken."
     return 0
   fi
@@ -949,14 +966,24 @@ write_precommit_fresh() {
 #     repository;
 #   - a CR-terminated first line is refused by name (an LF block inserted
 #     under a CRLF shebang would produce a hook sh cannot start);
+#   - a UTF-8 byte-order mark is refused by name (sh cannot start a hook
+#     whose first bytes are not '#!'; inserting above the BOM would only
+#     bury the shebang on line 20 — validation NB1);
 #   - no guard block -> insert it after line 1 when that is a shebang, else
 #     at line 1; every other byte stays as it was (the file may be a foreign
-#     hook whose owner hand-merged the marker via --print);
-#   - exactly one block -> replace the interior between the markers only
-#     when it differs from the shipped one; a second run is byte-identical;
-#   - more than one BEGIN marker -> refused: it cannot be proven which one
-#     is the engine's.
-# Every write goes through a temp sibling and rename.
+#     hook whose owner hand-merged the marker via --print); an END marker
+#     with no BEGIN is refused rather than inserted above;
+#   - exactly one block, BEGIN above END -> replace the interior between the
+#     markers only when it differs from the shipped one; every byte outside
+#     the interior is copied as-is (head/tail on line numbers, never a
+#     line-normalising rewrite); a second run is byte-identical;
+#   - more than one BEGIN or END marker -> refused: it cannot be proven
+#     which block is the engine's;
+#   - END above BEGIN -> refused BEFORE any write: with inverted markers no
+#     interior can be located, and a refresh would drop every line after
+#     the BEGIN (validation B1 — 150 user lines lost, the #414 class).
+# Every write goes through a temp sibling and rename, and every message
+# below describes exactly the bytes that path leaves on disk.
 upgrade_precommit_hook() {
   if [[ -L "$HOOK_PATH" ]]; then
     echo "ERROR: $HOOK_PATH is a symlink. Refusing to rewrite through a symlink (the target may be outside this repository); replace the link with a regular file, or pass --force." >&2
@@ -964,6 +991,10 @@ upgrade_precommit_hook() {
   fi
   if [[ "$(wc -l < "$HOOK_PATH" | tr -d ' ')" -eq 0 ]]; then
     echo "ERROR: $HOOK_PATH has no newline-terminated line; refusing to insert the AAI:GUARD-CHECKS block into it. Pass --force to rewrite the whole slot." >&2
+    return 1
+  fi
+  if [[ "$(head -c 3 "$HOOK_PATH" | od -An -tx1 | tr -d ' \n')" == "efbbbf" ]]; then
+    echo "ERROR: $HOOK_PATH starts with a UTF-8 byte-order mark (EF BB BF); sh cannot start a hook whose first bytes are not '#!', so the AAI:GUARD-CHECKS block is not inserted into it. File left as it was. Strip the BOM, or pass --force to rewrite the whole slot." >&2
     return 1
   fi
   local first
@@ -974,6 +1005,12 @@ upgrade_precommit_hook() {
   fi
   local tmp="$HOOK_PATH.aai-tmp.$$"
   if ! grep -qF "$GUARD_BLOCK_BEGIN" "$HOOK_PATH"; then
+    local stray_ends
+    stray_ends="$(grep -cxF "$GUARD_BLOCK_END" "$HOOK_PATH" || true)"
+    if [[ "$stray_ends" -ne 0 ]]; then
+      echo "ERROR: $HOOK_PATH carries $stray_ends '$GUARD_BLOCK_END' line(s) and no '$GUARD_BLOCK_BEGIN'; refusing to insert a block above a stray END marker. File left as it was. Remove the END line by hand, or pass --force to rewrite the whole slot." >&2
+      return 1
+    fi
     if [[ "$first" == '#!'* ]]; then
       { head -n1 "$HOOK_PATH"; guard_block_body; tail -n +2 "$HOOK_PATH"; } > "$tmp" || { rm -f "$tmp"; echo "ERROR: could not write $tmp." >&2; return 1; }
     else
@@ -994,6 +1031,15 @@ upgrade_precommit_hook() {
     echo "ERROR: $HOOK_PATH carries $begins '$GUARD_BLOCK_BEGIN' and $ends '$GUARD_BLOCK_END' line(s); refusing to guess which block is the installer's. File left as it was. Remove the extra markers by hand, or pass --force to rewrite the whole slot." >&2
     return 1
   fi
+  # Line numbers of the one BEGIN and the one END (grep -n on a file: no
+  # pipe, no early-closing reader). The order check runs BEFORE any write.
+  local begin_ln end_ln
+  begin_ln="$(grep -nxF "$GUARD_BLOCK_BEGIN" "$HOOK_PATH")"; begin_ln="${begin_ln%%:*}"
+  end_ln="$(grep -nxF "$GUARD_BLOCK_END" "$HOOK_PATH")"; end_ln="${end_ln%%:*}"
+  if [[ "$begin_ln" -gt "$end_ln" ]]; then
+    echo "ERROR: $HOOK_PATH carries '$GUARD_BLOCK_END' (line $end_ln) BEFORE '$GUARD_BLOCK_BEGIN' (line $begin_ln): the markers are inverted, so no interior can be located and a refresh would drop every line after the BEGIN. File left as it was. Move the BEGIN line above the END line by hand, or pass --force to rewrite the whole slot." >&2
+    return 1
+  fi
   local shipped_tmp="$HOOK_PATH.aai-shipped.$$" current_tmp="$HOOK_PATH.aai-current.$$"
   guard_block_body | guard_block_interior > "$shipped_tmp"
   guard_block_interior "$HOOK_PATH" > "$current_tmp"
@@ -1003,11 +1049,11 @@ upgrade_precommit_hook() {
     return 0
   fi
   rm -f "$current_tmp"
-  awk -v b="$GUARD_BLOCK_BEGIN" -v e="$GUARD_BLOCK_END" -v shipped="$shipped_tmp" '
-    $0==b { print; while ((getline line < shipped) > 0) print line; close(shipped); skip=1; next }
-    $0==e { skip=0 }
-    !skip { print }
-  ' "$HOOK_PATH" > "$tmp" || { rm -f "$tmp" "$shipped_tmp"; echo "ERROR: could not write $tmp." >&2; return 1; }
+  # Byte-exact outside the interior: lines 1..BEGIN are all newline-
+  # terminated (END follows them), so head copies them verbatim; tail from
+  # the END line copies the rest verbatim, a missing final newline included.
+  { head -n "$begin_ln" "$HOOK_PATH"; cat "$shipped_tmp"; tail -n +"$end_ln" "$HOOK_PATH"; } > "$tmp" \
+    || { rm -f "$tmp" "$shipped_tmp"; echo "ERROR: could not write $tmp." >&2; return 1; }
   rm -f "$shipped_tmp"
   if ! chmod +x "$tmp" || ! mv -f "$tmp" "$HOOK_PATH"; then
     rm -f "$tmp"
@@ -1046,7 +1092,7 @@ fi
 
 if [[ "$UNINSTALL" == 1 ]]; then
   if [[ "$WANT_INDEX" == 1 ]]; then  # AC-01 uninstall selection: index
-    if [[ -f "$HOOK_PATH" ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
+    if [[ -f "$HOOK_PATH" ]] && has_marker_line "$HOOK_PATH" "$MARKER"; then
       rm "$HOOK_PATH"
       echo "Uninstalled AAI pre-commit hook from $HOOK_PATH"
     else
@@ -1054,7 +1100,7 @@ if [[ "$UNINSTALL" == 1 ]]; then
     fi
   fi
   if [[ "$WANT_REFGUARD" == 1 ]]; then  # AC-01 uninstall selection: ref-guard
-    if [[ -f "$REFTX_PATH" ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
+    if [[ -f "$REFTX_PATH" ]] && has_marker_line "$REFTX_PATH" "$REFTX_MARKER"; then
       rm "$REFTX_PATH"
       echo "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $REFTX_PATH"
     else
@@ -1062,7 +1108,7 @@ if [[ "$UNINSTALL" == 1 ]]; then
     fi
   fi
   if [[ "$WANT_CLOSEGATE" == 1 ]]; then  # uninstall selection: close-gate
-    if [[ -f "$PREPUSH_PATH" ]] && grep -qF "$PREPUSH_MARKER" "$PREPUSH_PATH"; then
+    if [[ -f "$PREPUSH_PATH" ]] && has_marker_line "$PREPUSH_PATH" "$PREPUSH_MARKER"; then
       rm "$PREPUSH_PATH"
       echo "Uninstalled AAI pre-push hook (AAI:CLOSE-GATE) from $PREPUSH_PATH"
     else
@@ -1077,18 +1123,18 @@ fi
 # file blocks the run, and it blocks the WHOLE run (both slots stay
 # untouched), so the selected set is never partially installed.
 FOREIGN=0
-if [[ "$WANT_INDEX" == 1 && -f "$HOOK_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$MARKER" "$HOOK_PATH"; then  # AC-02 foreign check: index
+if [[ "$WANT_INDEX" == 1 && -f "$HOOK_PATH" && "$FORCE" != 1 ]] && ! has_marker_line "$HOOK_PATH" "$MARKER"; then  # AC-02 foreign check: index
   echo "ERROR: $HOOK_PATH already exists and is not AAI-managed." >&2
   echo "       Pass --force to overwrite, or merge the snippets manually:" >&2
   echo "       $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print               # the AAI:INDEX-AUTOGEN body" >&2
   echo "       $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print guard-checks  # the AAI:GUARD-CHECKS block (put it first)" >&2
   FOREIGN=1
 fi
-if [[ "$WANT_REFGUARD" == 1 && -f "$REFTX_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then  # AC-02 foreign check: ref-guard
+if [[ "$WANT_REFGUARD" == 1 && -f "$REFTX_PATH" && "$FORCE" != 1 ]] && ! has_marker_line "$REFTX_PATH" "$REFTX_MARKER"; then  # AC-02 foreign check: ref-guard
   foreign_reftx_refusal
   FOREIGN=1
 fi
-if [[ "$WANT_CLOSEGATE" == 1 && -f "$PREPUSH_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$PREPUSH_MARKER" "$PREPUSH_PATH"; then  # foreign check: close-gate
+if [[ "$WANT_CLOSEGATE" == 1 && -f "$PREPUSH_PATH" && "$FORCE" != 1 ]] && ! has_marker_line "$PREPUSH_PATH" "$PREPUSH_MARKER"; then  # foreign check: close-gate
   foreign_prepush_refusal
   FOREIGN=1
 fi

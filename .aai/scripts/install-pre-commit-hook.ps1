@@ -169,6 +169,67 @@ $reftxMarker = "# AAI:REF-GUARD"
 $prePushMarker = "# AAI:CLOSE-GATE"
 $guardBlockBegin = "# AAI:GUARD-CHECKS BEGIN"
 $guardBlockEnd = "# AAI:GUARD-CHECKS END"
+
+# Find-MarkerLines -- the byte spans of every line that carries $Marker,
+# found on the file's BYTES, never on decoded text: Get-Content transcodes a
+# UTF-16 file into readable text and re-encodes a Latin-1 one into U+FFFD,
+# so a marker found that way says nothing about the bytes on disk
+# (validation B2 / NB2). Each span is @{ Start; End; Next; Line }: the
+# line's first byte, the byte after its last content byte (its LF, or EOF),
+# the first byte of the following line, and its 1-based line number.
+# -Exact: the line is the marker and nothing else (the GUARD-CHECKS markers;
+# the .sh twin's grep -cxF). Otherwise the marker must OPEN the line --
+# column 0, followed by a space, LF, CR or EOF -- the shape every shipped
+# body carries (the .sh twin's has_marker_line): a foreign hook that merely
+# mentions a marker in a comment, or quotes it in a string, is not owned.
+function Find-MarkerLines {
+  param([byte[]]$Bytes, [string]$Marker, [switch]$Exact)
+  $m = [System.Text.Encoding]::ASCII.GetBytes($Marker)
+  $spans = New-Object System.Collections.Generic.List[object]
+  $n = $Bytes.Length
+  $start = 0
+  $lineNo = 0
+  while ($start -lt $n) {
+    $lineNo++
+    $nl = [Array]::IndexOf($Bytes, [byte]10, $start)
+    $end = if ($nl -lt 0) { $n } else { $nl }
+    $len = $end - $start
+    $hit = $false
+    if ($len -ge $m.Length) {
+      $hit = $true
+      for ($i = 0; $i -lt $m.Length; $i++) {
+        if ($Bytes[$start + $i] -ne $m[$i]) { $hit = $false; break }
+      }
+      if ($hit) {
+        if ($Exact) {
+          $hit = ($len -eq $m.Length)
+        } elseif ($len -gt $m.Length) {
+          $after = $Bytes[$start + $m.Length]
+          $hit = ($after -eq 32 -or $after -eq 13)
+        }
+      }
+    }
+    if ($hit) {
+      $next = if ($nl -lt 0) { $n } else { $nl + 1 }
+      $spans.Add(@{ Start = $start; End = $end; Next = $next; Line = $lineNo })
+    }
+    if ($nl -lt 0) { break }
+    $start = $nl + 1
+  }
+  return ,$spans.ToArray()
+}
+
+# Test-MarkerOwned -- the ownership test for the three hook markers
+# (INDEX-AUTOGEN, REF-GUARD, CLOSE-GATE), on bytes: the marker opens a line
+# of the file at $Path. The one predicate every foreign check, "already
+# installed" check, -Uninstall and attestation below consult, so a hook the
+# installer would delete is exactly a hook it would also refresh.
+function Test-MarkerOwned {
+  param([string]$Path, [string]$Marker)
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+  $b = [System.IO.File]::ReadAllBytes($Path)
+  return ((Find-MarkerLines -Bytes $b -Marker $Marker).Count -gt 0)
+}
 # docs/ai/docs-audit.yaml -- the committed guard-policy surface (D2), the
 # SAME file and the SAME column-0 `ref_guard: <value>` key the .sh twin
 # reads/writes (Amendment 1: one config file must serve a repo checked out
@@ -344,7 +405,7 @@ function Test-EffectiveHook {
     Write-Host "ERROR: git resolves the $Name hook to $p, but no file is there." -ForegroundColor Red
     return $false
   }
-  if (-not ((Get-Content $p -Raw) -match [regex]::Escape($Marker))) {
+  if (-not (Test-MarkerOwned -Path $p -Marker $Marker)) {
     Write-Host "ERROR: the $Name hook git would run ($p) does not carry $Marker." -ForegroundColor Red
     return $false
   }
@@ -512,8 +573,7 @@ function Write-RefGuardPolicy {
 function Disable-RefGuard {
   $reftxIsAai = $false
   if (Test-Path -LiteralPath $reftxPath -PathType Leaf) {
-    $existing = Get-Content -LiteralPath $reftxPath -Raw
-    if ($existing -match [regex]::Escape($reftxMarker)) { $reftxIsAai = $true }
+    if (Test-MarkerOwned -Path $reftxPath -Marker $reftxMarker) { $reftxIsAai = $true }
   }
   if ((Test-Path -LiteralPath $reftxPath -PathType Leaf) -and (-not $reftxIsAai)) {
     Show-ForeignReftxRefusal
@@ -537,8 +597,7 @@ function Disable-RefGuard {
 # record ref_guard: armed.
 function Enable-RefGuard {
   if ((Test-Path -LiteralPath $reftxPath -PathType Leaf) -and (-not $Force)) {
-    $existing = Get-Content -LiteralPath $reftxPath -Raw
-    if (-not ($existing -match [regex]::Escape($reftxMarker))) {
+    if (-not (Test-MarkerOwned -Path $reftxPath -Marker $reftxMarker)) {
       Show-ForeignReftxRefusal
       return $false
     }
@@ -577,7 +636,7 @@ if ($ArmRefGuard) {
 
 if ($Uninstall) {
   if ($wantIndex) {
-    if ((Test-Path $hookPath) -and ((Get-Content $hookPath -Raw) -match [regex]::Escape($marker))) {
+    if (Test-MarkerOwned -Path $hookPath -Marker $marker) {
       Remove-Item $hookPath
       Write-Host "Uninstalled AAI pre-commit hook from $hookPath"
     } else {
@@ -585,7 +644,7 @@ if ($Uninstall) {
     }
   }
   if ($wantRefGuard) {
-    if ((Test-Path $reftxPath) -and ((Get-Content $reftxPath -Raw) -match [regex]::Escape($reftxMarker))) {
+    if (Test-MarkerOwned -Path $reftxPath -Marker $reftxMarker) {
       Remove-Item $reftxPath
       Write-Host "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $reftxPath"
     } else {
@@ -593,7 +652,7 @@ if ($Uninstall) {
     }
   }
   if ($wantCloseGate) {
-    if ((Test-Path $prePushPath) -and ((Get-Content $prePushPath -Raw) -match [regex]::Escape($prePushMarker))) {
+    if (Test-MarkerOwned -Path $prePushPath -Marker $prePushMarker) {
       Remove-Item $prePushPath
       Write-Host "Uninstalled AAI pre-push hook (AAI:CLOSE-GATE) from $prePushPath"
     } else {
@@ -607,22 +666,19 @@ if ($Uninstall) {
 # asked to touch is not a reason to refuse.
 $foreign = $false
 if ($wantIndex -and (Test-Path $hookPath) -and (-not $Force)) {
-  $existing = Get-Content $hookPath -Raw
-  if (-not ($existing -match [regex]::Escape($marker))) {
+  if (-not (Test-MarkerOwned -Path $hookPath -Marker $marker)) {
     Write-Error "$hookPath already exists and is not AAI-managed. Pass -Force to overwrite, or merge the snippets with: bash .aai/scripts/install-pre-commit-hook.sh --print (the AAI:INDEX-AUTOGEN body) and --print guard-checks (the AAI:GUARD-CHECKS block, put it first)."
     $foreign = $true
   }
 }
 if ($wantCloseGate -and (Test-Path $prePushPath) -and (-not $Force)) {
-  $existingPrePush = Get-Content $prePushPath -Raw
-  if (-not ($existingPrePush -match [regex]::Escape($prePushMarker))) {
+  if (-not (Test-MarkerOwned -Path $prePushPath -Marker $prePushMarker)) {
     Show-ForeignPrePushRefusal
     $foreign = $true
   }
 }
 if ($wantRefGuard -and (Test-Path $reftxPath) -and (-not $Force)) {
-  $existingReftx = Get-Content $reftxPath -Raw
-  if (-not ($existingReftx -match [regex]::Escape($reftxMarker))) {
+  if (-not (Test-MarkerOwned -Path $reftxPath -Marker $reftxMarker)) {
     Show-ForeignReftxRefusal
     $foreign = $true
   }
@@ -852,9 +908,14 @@ function Write-BytesViaTemp {
 # file and -Force was not given. The #414 / SPEC-0199 discipline, mirroring
 # the .sh twin's upgrade_precommit_hook: rewrite only what this script can
 # PROVE it owns, otherwise leave the file alone and say so. Works on BYTES
-# (never Get-Content/Set-Content round-trips) so the file's encoding and
-# line endings outside the inserted block are preserved as-is
-# (fu-ps1-setcontent-rewrites-seed-eol).
+# on EVERY path -- insertion and refresh alike -- never a Get-Content /
+# UTF8.GetString round-trip: decoding re-encodes every non-UTF-8 byte
+# outside the markers as U+FFFD (validation B2: `e9 ... ff fe` became
+# `ef bf bd ...` under a message claiming "every other byte unchanged"), and
+# a UTF-16 file decodes into a marker it does not carry on disk (NB2). The
+# file's encoding and line endings outside the touched range are preserved
+# as-is (fu-ps1-setcontent-rewrites-seed-eol). Marker order is checked
+# BEFORE any write (validation B1: END above BEGIN dropped 150 user lines).
 function Update-PreCommitHook {
   $item = Get-Item -LiteralPath $hookPath -Force
   if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
@@ -867,15 +928,28 @@ function Update-PreCommitHook {
     Write-Error "$hookPath has no newline-terminated line; refusing to insert the AAI:GUARD-CHECKS block into it. Pass -Force to rewrite the whole slot."
     return $false
   }
+  if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+    Write-Error "$hookPath starts with a UTF-8 byte-order mark (EF BB BF); sh cannot start a hook whose first bytes are not '#!', so the AAI:GUARD-CHECKS block is not inserted into it. File left as it was. Strip the BOM, or pass -Force to rewrite the whole slot."
+    return $false
+  }
   if ($nl -gt 0 -and $bytes[$nl - 1] -eq 13) {
     Write-Error "$hookPath has a CR-terminated first line (CRLF hook). Refusing to insert an LF block under it -- sh could not start the result. Convert the hook to LF, or pass -Force to rewrite the whole slot."
     return $false
   }
-  $text = [System.Text.Encoding]::UTF8.GetString($bytes)
-  $lines = $text -split "\n"
-  $begins = @($lines | Where-Object { $_ -eq $guardBlockBegin }).Count
-  $ends = @($lines | Where-Object { $_ -eq $guardBlockEnd }).Count
-  if ($begins -eq 0) {
+  $beginSpans = Find-MarkerLines -Bytes $bytes -Marker $guardBlockBegin -Exact
+  $endSpans = Find-MarkerLines -Bytes $bytes -Marker $guardBlockEnd -Exact
+  $begins = $beginSpans.Count
+  $ends = $endSpans.Count
+  # Latin-1 (ISO-8859-1) maps every byte to one char, so this substring test
+  # sees the raw bytes and mirrors the .sh twin's `grep -qF` exactly: a BEGIN
+  # marker anywhere (even quoted inside a string) routes to the count check
+  # below, never to insertion.
+  $hasBeginSubstring = [System.Text.Encoding]::GetEncoding(28591).GetString($bytes).Contains($guardBlockBegin)
+  if (-not $hasBeginSubstring) {
+    if ($ends -ne 0) {
+      Write-Error "$hookPath carries $ends '$guardBlockEnd' line(s) and no '$guardBlockBegin'; refusing to insert a block above a stray END marker. File left as it was. Remove the END line by hand, or pass -Force to rewrite the whole slot."
+      return $false
+    }
     $block = Get-GuardBlockBytes
     $hasShebang = ($bytes.Length -ge 2 -and $bytes[0] -eq 35 -and $bytes[1] -eq 33)
     if ($hasShebang) {
@@ -894,25 +968,27 @@ function Update-PreCommitHook {
     Write-Error "$hookPath carries $begins '$guardBlockBegin' and $ends '$guardBlockEnd' line(s); refusing to guess which block is the installer's. File left as it was. Remove the extra markers by hand, or pass -Force to rewrite the whole slot."
     return $false
   }
+  $beginLn = $beginSpans[0].Line
+  $endLn = $endSpans[0].Line
+  if ($beginLn -gt $endLn) {
+    Write-Error "$hookPath carries '$guardBlockEnd' (line $endLn) BEFORE '$guardBlockBegin' (line $beginLn): the markers are inverted, so no interior can be located and a refresh would drop every line after the BEGIN. File left as it was. Move the BEGIN line above the END line by hand, or pass -Force to rewrite the whole slot."
+    return $false
+  }
+  # The interior is the byte range from the byte after the BEGIN line's LF to
+  # the first byte of the END line; the shipped interior is LF-terminated
+  # UTF-8 (the block is engine-owned ASCII). Compared and spliced as bytes.
   $shippedInterior = Get-GuardBlockInterior -Lines ($hookBody -split "\n")
-  $currentInterior = Get-GuardBlockInterior -Lines $lines
-  if (($shippedInterior -join "`n") -eq ($currentInterior -join "`n")) {
+  $shippedBytes = [System.Text.UTF8Encoding]::new($false).GetBytes(($shippedInterior -join "`n") + "`n")
+  $curStart = $beginSpans[0].Next
+  $curEnd = $endSpans[0].Start
+  $currentBytes = if ($curEnd -gt $curStart) { [byte[]]$bytes[$curStart..($curEnd - 1)] } else { [byte[]]@() }
+  if ([Convert]::ToBase64String($currentBytes) -eq [Convert]::ToBase64String($shippedBytes)) {
     Write-Host "AAI pre-commit hook already installed at $hookPath. No action taken."
     return $true
   }
-  $out = New-Object System.Collections.Generic.List[string]
-  $skip = $false
-  foreach ($line in $lines) {
-    if ($line -eq $guardBlockBegin) {
-      $out.Add($line)
-      foreach ($sl in $shippedInterior) { $out.Add($sl) }
-      $skip = $true
-      continue
-    }
-    if ($line -eq $guardBlockEnd) { $skip = $false }
-    if (-not $skip) { $out.Add($line) }
-  }
-  $new = [System.Text.UTF8Encoding]::new($false).GetBytes(($out -join "`n"))
+  $head = $bytes[0..($curStart - 1)]
+  $tail = $bytes[$curEnd..($bytes.Length - 1)]
+  $new = [byte[]]($head + $shippedBytes + $tail)
   Write-BytesViaTemp -Path $hookPath -Bytes $new
   if ($IsLinux -or $IsMacOS) { & chmod +x $hookPath | Out-Null }
   Write-Host "Refreshed the AAI:GUARD-CHECKS block at $hookPath (interior between the markers replaced; every other byte unchanged)"
@@ -957,8 +1033,7 @@ if ($wantRefGuard -and (-not $Force) -and ((Read-RefGuardPolicy -ConfigPath $con
 
 $skipReftx = $false
 if ($wantRefGuard -and (Test-Path $reftxPath) -and (-not $Force)) {
-  $existingReftx = Get-Content $reftxPath -Raw
-  if ($existingReftx -match [regex]::Escape($reftxMarker)) {
+  if (Test-MarkerOwned -Path $reftxPath -Marker $reftxMarker) {
     Write-Host "AAI reference-transaction hook already installed at $reftxPath. No action taken."
     $skipReftx = $true
   }
@@ -980,8 +1055,7 @@ if ($wantRefGuard) {
 if ($wantCloseGate) {
   $skipPrePush = $false
   if ((Test-Path $prePushPath) -and (-not $Force)) {
-    $existingPrePush = Get-Content $prePushPath -Raw
-    if ($existingPrePush -match [regex]::Escape($prePushMarker)) {
+    if (Test-MarkerOwned -Path $prePushPath -Marker $prePushMarker) {
       Write-Host "AAI pre-push hook already installed at $prePushPath. No action taken."
       $skipPrePush = $true
     }
