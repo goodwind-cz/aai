@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-29T23:42:12.759Z",
+  "generatedAt": "2026-09-30T16:03:28.328Z",
   "project": "aai",
   "counts": {
     "delivered": 266,
-    "in_progress": 15,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -190,6 +190,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "sync-deletes-target-only-hooks",
+      "title": "Hotfix — aai-sync deletes target-only files under hooks/ and the advisory never says so",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0199-spec-sync-deletes-target-only-hooks.md",
       "validation": null,
       "review": null
     },

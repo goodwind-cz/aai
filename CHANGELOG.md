@@ -33,7 +33,7 @@ fine — it is the marker a cut leaves on top.
 - A merge whose shipped snapshot cannot then be written (a directory in its place, EACCES) is reported as what it is — merge applied, snapshot not recorded, next sync can only report — never as "refused (target left untouched)" for a file that was written; dotfiles under `hooks/` are synced and preserved by the bash engine exactly as by `cp -a` and the `.ps1` engine.
 - A fresh target's `hooks/hooks.json` is the source's bytes verbatim (not a re-serialisation); the node-unavailable / merge-refused WARN lines are on stdout in both engines; advisory text names paths relative to the target and source roots; `aai-bootstrap.sh --with-claude-hooks` now FAILS (exit 3) when the shared merge library is missing instead of warn-and-succeeding.
 - `.aai/scripts/aai-sync.sh`, `.aai/scripts/aai-sync.ps1` and `.aai/scripts/aai-bootstrap.sh` (which now calls the same shared merge library) all changed; a quiet run (no deletion, no hook-JSON divergence) produces a byte-identical advisory to before.
-- ISSUE-DRAFT-sync-deletes-target-only-hooks / SPEC-DRAFT-spec-sync-deletes-target-only-hooks.
+- ISSUE-0089-sync-deletes-target-only-hooks / SPEC-0199-spec-sync-deletes-target-only-hooks.
 
 ## [v2026.09.30] — feat(pricing): the price table knows this year's models again (CHANGE-0197 / SPEC-0197)
 

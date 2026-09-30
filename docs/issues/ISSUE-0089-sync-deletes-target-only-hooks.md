@@ -1,7 +1,7 @@
 ---
 id: sync-deletes-target-only-hooks
 type: issue
-number: null
+number: 89
 status: draft
 links:
   pr: []

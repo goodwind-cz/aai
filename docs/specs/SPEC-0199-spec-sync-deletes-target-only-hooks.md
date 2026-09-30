@@ -1,12 +1,12 @@
 ---
 id: spec-sync-deletes-target-only-hooks
 type: spec
-number: null
+number: 199
 status: implementing
-frozen_sha256: b8be694e15417a231b18705c5d19e5eaee16bfcbe6ea27d5905f202c46d3825c
+frozen_sha256: 05f32e4633970cfb2321d741f670546db5056ca613a7d43391b8e5fed1da87e8
 ceremony_level: 2
 links:
-  requirement: docs/issues/ISSUE-DRAFT-sync-deletes-target-only-hooks.md
+  requirement: docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md
   rfc: null
   pr: []
   commits: []
@@ -284,7 +284,7 @@ Edge cases, Seams and Residual risks are corrected in place below and say so.
 No file outside the already-declared review scope changes.
 
 ## Links
-- Requirement / intake: docs/issues/ISSUE-DRAFT-sync-deletes-target-only-hooks.md
+- Requirement / intake: docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md
 - Upstream report: https://github.com/goodwind-cz/aai/issues/414 (pin v2026.09.30, commit beb6a248)
 - Decision records: pending — orchestrator records a `hitl_decision` /
   `spec_amendment` entry in `docs/ai/decisions.jsonl` against this Amendment
@@ -520,8 +520,8 @@ below.
   `.aai/scripts/lib/merge-hooks-json.mjs` (AMENDED, new file)
   `.aai/system/PROFILES.yaml` (AMENDED, added) `tests/skills/test-aai-sync-seed.sh`
   `tests/skills/test-aai-layer-profiles.sh` (AMENDED 2, TEST-002 filter)
-  `docs/specs/SPEC-DRAFT-spec-sync-deletes-target-only-hooks.md`
-  `docs/issues/ISSUE-DRAFT-sync-deletes-target-only-hooks.md` `CHANGELOG.md`
+  `docs/specs/SPEC-0199-spec-sync-deletes-target-only-hooks.md`
+  `docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md` `CHANGELOG.md`
 
 ## Acceptance Criteria Mapping
 
