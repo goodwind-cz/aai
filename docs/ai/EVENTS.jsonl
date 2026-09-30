@@ -2560,3 +2560,4 @@
 {"v":1,"ts":"2026-09-30T16:04:34Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-sync-deletes-target-only-hooks","payload":{"commit":"1efec5f88d26d3d9e53b4bda36455e8c7097513c"}}
 {"v":1,"ts":"2026-09-30T16:17:35Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":540,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-09-30T17:24:16Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"sync-deletes-target-only-hooks","payload":{"pr":415,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"b2cd2edd9540581daa0955e3ca184daaf5859c73"}}
+{"v":1,"ts":"2026-09-30T19:57:00Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-shipped-guards-have-no-downstream-trigger","payload":{"from":"draft","to":"implementing"}}
