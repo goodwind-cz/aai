@@ -1,0 +1,20 @@
+mutation_record: v1
+spec_id: spec-shipped-guards-have-no-downstream-trigger
+test_id: TEST-804
+suite: tests/skills/test-aai-hygiene-pack.sh
+selector: test_804_pre_push_slot_contract
+target: .aai/scripts/install-pre-commit-hook.sh
+mutation: sed:s/close-gate\) WANT_CLOSEGATE=1/close-gate) WANT_CLOSEGATE=0/
+base_commit: 3d9e2a6dc7744dd9ae8e8179efb72a56a62db329
+tree_hash: 8ac3ded1c27454b0e8300ec63f13fbc2d76692f62c68bd15066bc0cfd61a762c
+run_at_utc: 2026-09-30T20:54:15Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-804: --hooks close-gate installed no pre-push
+selector_honoured: yes
+target_sha256: c674b5218f61346294374c3c1061a1db516bff20591794ad5930bc78ae0870da
+---
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: the pre-push slot — install, selection, foreign refusal, uninstall, --print pre-push, closed set (TEST-804)...
+FAIL: TEST-804: --hooks close-gate installed no pre-push

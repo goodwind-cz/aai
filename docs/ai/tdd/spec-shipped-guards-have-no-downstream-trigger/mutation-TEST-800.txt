@@ -1,0 +1,22 @@
+mutation_record: v1
+spec_id: spec-shipped-guards-have-no-downstream-trigger
+test_id: TEST-800
+suite: tests/skills/test-aai-hygiene-pack.sh
+selector: test_800_installed_hook_reaches_guard
+target: .aai/scripts/install-pre-commit-hook.sh
+mutation: sed:s/bash "\$_gc_script"/true/
+base_commit: 3d9e2a6dc7744dd9ae8e8179efb72a56a62db329
+tree_hash: 17f7ee93a77cc56e750d5accadbdbf868840298faf93a81141c497d5d7acb2ee
+run_at_utc: 2026-09-30T20:52:24Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-800: the commit output must carry the allocator guard's own line — the hook never reached pre-commit-checks.sh (needle: 'GUARD FAIL (no-DRAFT-at-merge)'), got: AAI:GUARD-CHECKS: running .aai/scripts/pre-commit-checks.sh
+selector_honoured: yes
+target_sha256: c674b5218f61346294374c3c1061a1db516bff20591794ad5930bc78ae0870da
+---
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: an installed pre-commit hook reaches pre-commit-checks.sh — the draft guard's own line shows on a commit (TEST-800)...
+FAIL: TEST-800: the commit output must carry the allocator guard's own line — the hook never reached pre-commit-checks.sh (needle: 'GUARD FAIL (no-DRAFT-at-merge)'), got: AAI:GUARD-CHECKS: running .aai/scripts/pre-commit-checks.sh
+Wrote docs/INDEX.md (1 docs, 0 overdue, 0 deferred, 0 broken refs)
+AAI:INDEX-AUTOGEN: regenerated and staged docs/INDEX.md

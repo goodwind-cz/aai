@@ -1,0 +1,23 @@
+mutation_record: v1
+spec_id: spec-shipped-guards-have-no-downstream-trigger
+test_id: TEST-805
+suite: tests/skills/test-aai-hygiene-pack.sh
+selector: test_805_feature_push_reports_open_doc
+target: .aai/scripts/install-pre-commit-hook.sh
+mutation: sed:s/_cg_range="\$_cg_base/_cg_range=""; continue #/
+base_commit: 3d9e2a6dc7744dd9ae8e8179efb72a56a62db329
+tree_hash: 17f7ee93a77cc56e750d5accadbdbf868840298faf93a81141c497d5d7acb2ee
+run_at_utc: 2026-09-30T20:52:37Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-805: close-reconcile must name the open spec (needle: 'OPEN docs/specs/SPEC-DRAFT-t.md'), got: AAI:CLOSE-GATE NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)
+selector_honoured: yes
+target_sha256: c674b5218f61346294374c3c1061a1db516bff20591794ad5930bc78ae0870da
+---
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: pushing a feature branch that carries a frozen open spec reports it via the pre-push hook; after done it is CLEAN (TEST-805)...
+FAIL: TEST-805: close-reconcile must name the open spec (needle: 'OPEN docs/specs/SPEC-DRAFT-t.md'), got: AAI:CLOSE-GATE NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)
+AAI:CLOSE-GATE: default branch main (remote origin)
+To /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T//aai-hygiene.qrcYuf/sg-t805-origin.git
+ * [new branch]      feat -> feat

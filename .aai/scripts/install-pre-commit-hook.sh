@@ -4,29 +4,50 @@ set -euo pipefail
 # Install the AAI git hook SET into the EFFECTIVE hooks directory — the one
 # `git rev-parse --git-path hooks/<name>` resolves, which honours core.hooksPath
 # and a linked worktree's shared git dir. It is usually .git/hooks, but never
-# assume that: see the resolve_hook_path comment below.
-#   - pre-commit — opt-in, auto-regenerates docs/INDEX.md whenever
-#     the commit touches docs/ (RFC-0001 layer 4 convenience).
-#   - reference-transaction — refuses a refs/heads/main ref update
-#     unless AAI_GIT_WRITE=1 is set on that exact command (D1/D3,
-#     docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md). This
-#     turns an honest/accidental write to main into a refusal instead of an
-#     ambient default; it is not a security boundary (see the spec's D3).
+# assume that: see the resolve_hook_path comment below. Three hooks, each
+# recognised by its own marker:
+#   - pre-commit (token index, marker AAI:INDEX-AUTOGEN) — auto-regenerates
+#     docs/INDEX.md whenever the commit touches docs/ (RFC-0001 layer 4
+#     convenience). Its first lines are a marker-scoped AAI:GUARD-CHECKS
+#     block (`# AAI:GUARD-CHECKS BEGIN` … `END`) that runs
+#     .aai/scripts/pre-commit-checks.sh on EVERY commit and refuses the
+#     commit when that script does (secrets detection blocks; the doc-
+#     numbering guard reports or blocks per docs/ai/docs-audit.yaml).
+#   - reference-transaction (token ref-guard, marker AAI:REF-GUARD) — refuses
+#     a refs/heads/main ref update unless AAI_GIT_WRITE=1 is set on that
+#     exact command (D1/D3,
+#     docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md).
+#     This turns an honest/accidental write to main into a refusal instead
+#     of an ambient default; it is not a security boundary (the spec's D3).
+#   - pre-push (token close-gate, marker AAI:CLOSE-GATE) — runs
+#     .aai/scripts/close-reconcile.mjs --check over every pushed range: a
+#     default-branch ref is checked as <remote sha>..<local sha>, any other
+#     ref as merge-base(origin/<default>, local)..local. Report-only unless
+#     the PUSHED commit's docs/ai/docs-audit.yaml says `close_gate: enforce`,
+#     and even then only a push to the default branch is refused
+#     (docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md D1).
 #
 # Usage:
 #   ./.aai/scripts/install-pre-commit-hook.sh           # install if absent
 #   ./.aai/scripts/install-pre-commit-hook.sh --force   # overwrite existing
 #   ./.aai/scripts/install-pre-commit-hook.sh --uninstall
-#   ./.aai/scripts/install-pre-commit-hook.sh --print [index|ref-guard]
-#                                                        # emit a hook body to
+#   ./.aai/scripts/install-pre-commit-hook.sh --print [index|ref-guard|guard-checks|pre-push]
+#                                                        # emit a hook body (or
+#                                                        # the guard block) to
 #                                                        # stdout for a manual
 #                                                        # merge (bare --print
 #                                                        # keeps the index body)
+#   ./.aai/scripts/install-pre-commit-hook.sh --print guard-checks
+#                                                        # the AAI:GUARD-CHECKS
+#                                                        # block alone
+#   ./.aai/scripts/install-pre-commit-hook.sh --print pre-push
+#                                                        # the AAI:CLOSE-GATE
+#                                                        # pre-push body
 #   ./.aai/scripts/install-pre-commit-hook.sh --hooks <csv>
 #                                                        # select which hook(s)
 #                                                        # to install/uninstall
 #                                                        # -- closed set:
-#                                                        # index, ref-guard, all
+#                                                        # index, ref-guard, close-gate, all
 #                                                        # (default all)
 #   ./.aai/scripts/install-pre-commit-hook.sh --decline-ref-guard
 #                                                        # remove the ref-guard
@@ -39,12 +60,22 @@ set -euo pipefail
 #                                                        # record the arm in
 #                                                        # docs/ai/docs-audit.yaml
 #
-# Idempotent per hook. Refuses to overwrite a non-AAI hook unless --force is
-# given (checked for BOTH hooks before writing either, so a foreign hook in
-# one slot never causes a partial install of the other). A declared
-# `ref_guard: declined` (docs/ai/docs-audit.yaml) is honoured by a plain
-# install: the ref-guard hook is skipped, not silently re-armed. Override
-# with --arm-ref-guard or --force.
+# Idempotent per hook. A plain run (no flags, the shape /aai-update runs after
+# every successful sync) installs the SELECTED hooks that are absent, leaves
+# an AAI-managed hook whose bytes already match alone, and honours a declared
+# `ref_guard: declined` (docs/ai/docs-audit.yaml) by SKIPPING the ref-guard
+# hook rather than silently re-arming it — so a plain run does not install
+# "both hooks" on a repository that declined one; --arm-ref-guard or --force
+# override the decline. It refuses to overwrite a non-AAI (foreign) hook in a
+# selected slot unless --force is given, and checks EVERY selected slot before
+# writing any, so a foreign hook in one slot never causes a partial install.
+# An AAI pre-commit hook installed before the guard block existed is UPGRADED
+# in place: the block is inserted after the shebang line and every other byte
+# is left as it was (a hand-merged foreign hook that adopted the marker keeps
+# its own body); a hook the installer cannot prove it owns — no AAI marker, a
+# symlinked slot, a CR-terminated first line, more than one guard block — is
+# refused by name and left byte-identical. Nothing outside an AAI marker is
+# ever deleted or rewritten by a plain run.
 
 FORCE=0
 UNINSTALL=0
@@ -69,12 +100,13 @@ while [[ $_i -lt $_ARGC ]]; do
     --arm-ref-guard) ARM_REF_GUARD=1 ;;
     --print)
       PRINT=1
-      # --print's hook argument is OPTIONAL: only a literal 'index' or
-      # 'ref-guard' immediately after it is consumed, so `--print --force`
-      # still parses --force as its own flag (bare --print stays valid).
+      # --print's hook argument is OPTIONAL: only a literal 'index',
+      # 'ref-guard', 'guard-checks' or 'pre-push' immediately after it is
+      # consumed, so `--print --force` still parses --force as its own flag
+      # (bare --print stays valid).
       if [[ $((_i + 1)) -lt $_ARGC ]]; then
         case "${_ARGV[$((_i + 1))]}" in
-          index|ref-guard)
+          index|ref-guard|guard-checks|pre-push)
             PRINT_HOOK="${_ARGV[$((_i + 1))]}"
             _i=$((_i + 1))
             ;;
@@ -84,7 +116,7 @@ while [[ $_i -lt $_ARGC ]]; do
     --hooks)
       _i=$((_i + 1))
       if [[ $_i -ge $_ARGC ]]; then
-        echo "ERROR: --hooks requires a value (closed set: index, ref-guard, all)" >&2
+        echo "ERROR: --hooks requires a value (closed set: index, ref-guard, close-gate, all)" >&2
         exit 2
       fi
       HOOKS_ARG="${_ARGV[$_i]}"
@@ -117,10 +149,11 @@ if [[ ( "$DECLINE_REF_GUARD" == 1 || "$ARM_REF_GUARD" == 1 ) && "$HOOKS_ARG_EXPL
   exit 2
 fi
 
-# --hooks <csv> over the closed set index/ref-guard/all (D6), default all —
-# resolved once into the two booleans every selection-aware guard below
-# consults. An unknown token exits 2 naming the closed set and writes
-# nothing (checked before any repo/hook state is touched).
+# --hooks <csv> over the closed set index/ref-guard/close-gate/all (D6; the
+# close-gate token added by shipped-guards-have-no-downstream-trigger D7),
+# default all — resolved once into the three booleans every selection-aware
+# guard below consults. An unknown token exits 2 naming the closed set and
+# writes nothing (checked before any repo/hook state is touched).
 #
 # --hooks "" (validation round 1, N2): an empty string is not a member of the
 # closed set either, but the csv loop below only iterates while the remainder
@@ -130,11 +163,12 @@ fi
 # yields one empty token, which hits its own closed-set default branch).
 # Rejected here explicitly so the twins agree.
 if [[ -z "$HOOKS_ARG" ]]; then
-  echo "ERROR: unknown --hooks value: '' (closed set: index, ref-guard, all)" >&2
+  echo "ERROR: unknown --hooks value: '' (closed set: index, ref-guard, close-gate, all)" >&2
   exit 2
 fi
 WANT_INDEX=0
 WANT_REFGUARD=0
+WANT_CLOSEGATE=0
 _hooks_csv="$HOOKS_ARG"
 while [[ -n "$_hooks_csv" ]]; do
   _hooks_tok="${_hooks_csv%%,*}"
@@ -145,27 +179,37 @@ while [[ -n "$_hooks_csv" ]]; do
   case "$_hooks_tok" in
     index) WANT_INDEX=1 ;;
     ref-guard) WANT_REFGUARD=1 ;;
-    all) WANT_INDEX=1; WANT_REFGUARD=1 ;;
+    close-gate) WANT_CLOSEGATE=1 ;;
+    all) WANT_INDEX=1; WANT_REFGUARD=1; WANT_CLOSEGATE=1 ;;
     *)
-      echo "ERROR: unknown --hooks value: '$_hooks_tok' (closed set: index, ref-guard, all)" >&2
+      echo "ERROR: unknown --hooks value: '$_hooks_tok' (closed set: index, ref-guard, close-gate, all)" >&2
       exit 2
       ;;
   esac
 done
 
-# --print [index|ref-guard]: emit a hook body to stdout so a foreign-hook
-# owner can hand-merge it, without touching any repo state. Bare --print (or
-# --print index) keeps emitting the AAI:INDEX-AUTOGEN body (TEST-314 muscle
-# memory, D5); --print ref-guard emits the AAI:REF-GUARD body. Both are
-# extracted from this script's own heredocs (never a second copy) so neither
-# can drift from what --hooks would actually install (PR #302 Copilot; D5).
+# --print [index|ref-guard|guard-checks|pre-push]: emit a hook body (or the
+# guard block) to stdout so a foreign-hook owner can hand-merge it, without
+# touching any repo state. Bare --print (or --print index) keeps emitting the
+# AAI:INDEX-AUTOGEN body (TEST-314 muscle memory, D5); --print ref-guard
+# emits the AAI:REF-GUARD body; --print guard-checks the AAI:GUARD-CHECKS
+# block a fresh pre-commit install embeds at its top; --print pre-push the
+# AAI:CLOSE-GATE body. Every one is extracted from this script's own heredoc
+# (never a second copy) so none can drift from what --hooks would actually
+# install (PR #302 Copilot; D5).
 if [[ "$PRINT" == 1 ]]; then
   case "$PRINT_HOOK" in
     ref-guard)
       awk '/^if ! cat > "\$REFTX_PATH" <<.REFTXHOOK.$/{p=1; next} /^REFTXHOOK$/{if(p){exit}} p' "$0"
       ;;
+    guard-checks)
+      awk '/^cat <<.GUARDBLOCK.$/{p=1; next} /^GUARDBLOCK$/{if(p){exit}} p' "$0"
+      ;;
+    pre-push)
+      awk '/^cat <<.PREPUSHHOOK.$/{p=1; next} /^PREPUSHHOOK$/{if(p){exit}} p' "$0"
+      ;;
     *)
-      awk '/^cat > "\$HOOK_PATH" <<.HOOK.$/{p=1; next} /^HOOK$/{if(p){exit}} p' "$0"
+      awk '/^cat <<.HOOK.$/{p=1; next} /^HOOK$/{if(p){exit}} p' "$0"
       ;;
   esac
   exit 0
@@ -222,9 +266,18 @@ REFTX_PATH="$(resolve_hook_path reference-transaction)" || {
   echo "       written to a guessed path would report success while git never runs it." >&2
   exit 1
 }
+PREPUSH_PATH="$(resolve_hook_path pre-push)" || {
+  echo "ERROR: could not resolve the effective git hooks path for pre-push" >&2
+  echo "       (git rev-parse --git-path failed). Refusing to install: a guard" >&2
+  echo "       written to a guessed path would report success while git never runs it." >&2
+  exit 1
+}
 HOOKS_DIR="$(dirname "$REFTX_PATH")"
 MARKER="# AAI:INDEX-AUTOGEN"
 REFTX_MARKER="# AAI:REF-GUARD"
+PREPUSH_MARKER="# AAI:CLOSE-GATE"
+GUARD_BLOCK_BEGIN="# AAI:GUARD-CHECKS BEGIN"
+GUARD_BLOCK_END="# AAI:GUARD-CHECKS END"
 # docs/ai/docs-audit.yaml — the committed guard-policy surface (D2). Read by
 # lib/guard-config.mjs's readRefGuardPolicy (the canonical JS reader) and
 # mirrored here by a deliberate THIN shell grep (no node import in this
@@ -266,6 +319,14 @@ attest_effective() {
 foreign_reftx_refusal() {
   echo "ERROR: $REFTX_PATH already exists and is not AAI-managed." >&2
   echo "       Pass --force to overwrite, or merge the AAI:REF-GUARD body with: $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print ref-guard" >&2
+}
+
+# foreign_prepush_refusal — the pre-push slot's twin of the above (the
+# reference-transaction slot's contract, SPEC-0184 Spec-AC-02, applied to the
+# third slot): one function, one sentence, naming --print pre-push.
+foreign_prepush_refusal() {
+  echo "ERROR: $PREPUSH_PATH already exists and is not AAI-managed." >&2
+  echo "       Pass --force to overwrite, or merge the AAI:CLOSE-GATE body with: $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print pre-push" >&2
 }
 
 # ensure_hooks_dir — create or validate the EFFECTIVE git hooks directory
@@ -530,68 +591,48 @@ arm_ref_guard() {
   echo "Recorded ref_guard: armed in $CONFIG_PATH"
 }
 
-# --decline-ref-guard / --arm-ref-guard are single-purpose actions on the
-# ref-guard hook alone: dispatched here (after path resolution, before the
-# --hooks-selected install/uninstall flow below) and exit before reaching it.
-if [[ "$DECLINE_REF_GUARD" == 1 && "$ARM_REF_GUARD" == 1 ]]; then
-  echo "ERROR: --decline-ref-guard and --arm-ref-guard are contradictory." >&2
-  exit 2
-fi
-if [[ "$DECLINE_REF_GUARD" == 1 ]]; then
-  decline_ref_guard || exit 1
-  exit 0
-fi
-if [[ "$ARM_REF_GUARD" == 1 ]]; then
-  arm_ref_guard || exit 1
-  exit 0
-fi
-
-if [[ "$UNINSTALL" == 1 ]]; then
-  if [[ "$WANT_INDEX" == 1 ]]; then  # AC-01 uninstall selection: index
-    if [[ -f "$HOOK_PATH" ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
-      rm "$HOOK_PATH"
-      echo "Uninstalled AAI pre-commit hook from $HOOK_PATH"
-    else
-      echo "No AAI pre-commit hook found (or hook is not AAI-managed). No action taken."
-    fi
+# guard_block_body — the AAI:GUARD-CHECKS block a fresh pre-commit install
+# embeds right after its shebang, and the block an UPGRADE inserts into a
+# pre-existing AAI hook (upgrade_precommit_hook below). It runs
+# .aai/scripts/pre-commit-checks.sh from the repo root BEFORE the index
+# body's early `exit 0` (which fires on every commit that touches nothing
+# under docs/), propagates a non-zero rc as a refused commit, and degrades
+# to a named NOTE when the script is absent. Everything between the two
+# marker lines is engine-owned and is the ONLY range an upgrade ever
+# rewrites; `--print guard-checks` extracts these same bytes from this
+# heredoc (never a second copy), so the printed block cannot drift from the
+# installed one (SPEC-DRAFT-shipped-guards-have-no-downstream-trigger D6).
+guard_block_body() {
+cat <<'GUARDBLOCK'
+# AAI:GUARD-CHECKS BEGIN
+# managed by install-pre-commit-hook; edit outside these markers
+# Runs .aai/scripts/pre-commit-checks.sh (secrets detection blocks; the
+# doc-numbering guard reports or blocks per docs/ai/docs-audit.yaml) on
+# every commit, before the AAI:INDEX-AUTOGEN body below.
+_gc_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+_gc_script="$_gc_root/.aai/scripts/pre-commit-checks.sh"
+if [ -f "$_gc_script" ]; then
+  echo "AAI:GUARD-CHECKS: running .aai/scripts/pre-commit-checks.sh"
+  _gc_rc=0
+  bash "$_gc_script" || _gc_rc=$?
+  if [ "$_gc_rc" -ne 0 ]; then
+    echo "AAI:GUARD-CHECKS: pre-commit-checks.sh blocked this commit (rc=$_gc_rc)" >&2
+    exit "$_gc_rc"
   fi
-  if [[ "$WANT_REFGUARD" == 1 ]]; then  # AC-01 uninstall selection: ref-guard
-    if [[ -f "$REFTX_PATH" ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
-      rm "$REFTX_PATH"
-      echo "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $REFTX_PATH"
-    else
-      echo "No AAI reference-transaction hook found (or hook is not AAI-managed). No action taken."
-    fi
-  fi
-  exit 0
-fi
-
-# Selection-aware (Spec-AC-02): a foreign file in a slot this run was NOT
-# asked to touch is not a reason to refuse — only a SELECTED slot's foreign
-# file blocks the run, and it blocks the WHOLE run (both slots stay
-# untouched), so the selected set is never partially installed.
-FOREIGN=0
-if [[ "$WANT_INDEX" == 1 && -f "$HOOK_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$MARKER" "$HOOK_PATH"; then  # AC-02 foreign check: index
-  echo "ERROR: $HOOK_PATH already exists and is not AAI-managed." >&2
-  echo "       Pass --force to overwrite, or merge the snippet manually:" >&2
-  echo "       $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print" >&2
-  FOREIGN=1
-fi
-if [[ "$WANT_REFGUARD" == 1 && -f "$REFTX_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then  # AC-02 foreign check: ref-guard
-  foreign_reftx_refusal
-  FOREIGN=1
-fi
-if [[ "$FOREIGN" == 1 ]]; then
-  exit 1
-fi
-
-ensure_hooks_dir || exit 1
-
-if [[ "$WANT_INDEX" == 1 ]]; then  # AC-01 write selection: index
-if [[ -f "$HOOK_PATH" && "$FORCE" != 1 ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
-  echo "AAI pre-commit hook already installed at $HOOK_PATH. No action taken."
 else
-cat > "$HOOK_PATH" <<'HOOK'
+  echo "AAI:GUARD-CHECKS NOTE: .aai/scripts/pre-commit-checks.sh absent; guard checks skipped" >&2
+fi
+# AAI:GUARD-CHECKS END
+GUARDBLOCK
+}
+
+# index_hook_body — the AAI:INDEX-AUTOGEN pre-commit body as shipped before
+# the guard block existed (bare `--print` / `--print index` emit exactly these
+# bytes, TEST-314 muscle memory). A FRESH install composes the hook as
+# <this body's shebang line> + guard_block_body + <the rest of this body>;
+# an UPGRADE of a hook that already carries this body inserts only the block.
+index_hook_body() {
+cat <<'HOOK'
 #!/usr/bin/env bash
 # AAI:INDEX-AUTOGEN — auto-regenerate docs/INDEX.md on docs/ changes.
 # Installed by .aai/scripts/install-pre-commit-hook.sh
@@ -746,10 +787,319 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
 fi
 echo "AAI:INDEX-AUTOGEN: regenerated and staged docs/INDEX.md"
 HOOK
-chmod +x "$HOOK_PATH"
-echo "Installed AAI pre-commit hook at $HOOK_PATH"
-echo "Effect: on every commit that touches docs/, regenerate docs/INDEX.md and stage it."
+}
+
+# pre_push_body — the AAI:CLOSE-GATE pre-push hook: one close-reconcile.mjs
+# --check per pushed ref (D1). Git feeds `<local ref> <local sha> <remote ref>
+# <remote sha>` per line on stdin and the remote name as $1.
+pre_push_body() {
+cat <<'PREPUSHHOOK'
+#!/usr/bin/env bash
+# AAI:CLOSE-GATE -- runs close-reconcile.mjs --check over every pushed range.
+# Installed by .aai/scripts/install-pre-commit-hook.sh (or the .ps1 twin).
+# Per pushed ref (stdin: <local ref> <local sha> <remote ref> <remote sha>):
+#   - a deletion (all-zero local sha) is skipped;
+#   - the default branch (refs/remotes/origin/HEAD, else main) is checked as
+#     <remote sha>..<local sha>; a first push (all-zero remote sha) as
+#     <local sha>^..<local sha> -- the rule .github/workflows/close-gate.yml
+#     applies;
+#   - any other ref as merge-base(refs/remotes/<remote>/<default>, local)..local.
+# Verdict: `close_gate` read from the PUSHED commit's docs/ai/docs-audit.yaml
+# (never the worktree copy). report-only (default): print, exit 0. enforce:
+# refuse ONLY a push to the default branch; every other ref stays report-
+# only, because WIP pushes legitimately precede the close ceremony.
+# See docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md.
+
+_cg_remote="${1:-origin}"
+_cg_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+_cg_script="$_cg_root/.aai/scripts/close-reconcile.mjs"
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "AAI:CLOSE-GATE NOTE: node not found; close gate skipped" >&2
+  exit 0
 fi
+if [ ! -f "$_cg_script" ]; then
+  echo "AAI:CLOSE-GATE NOTE: $_cg_script absent; close gate skipped" >&2
+  exit 0
+fi
+
+# R1 -- default branch: refs/remotes/origin/HEAD with the origin/ prefix
+# stripped; else main, and say so.
+_cg_default="$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+_cg_default="${_cg_default#origin/}"
+if [ -z "$_cg_default" ]; then
+  _cg_default="main"
+  echo "AAI:CLOSE-GATE NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)" >&2
+fi
+echo "AAI:CLOSE-GATE: default branch $_cg_default (remote $_cg_remote)"
+
+_cg_refused=0
+while read -r _cg_lref _cg_local _cg_rref _cg_remote_sha; do
+  [ -n "$_cg_lref" ] || continue
+  case "$_cg_local" in
+    *[!0]*) ;;
+    *) echo "AAI:CLOSE-GATE: $_cg_rref is a deletion; nothing to check"; continue ;;
+  esac
+  # The dial, read from what is being PUSHED (the same "gate what ships,
+  # never the worktree copy" discipline the pre-commit body applies).
+  _cg_mode="report-only"
+  _cg_cfg="$(git show "$_cg_local:docs/ai/docs-audit.yaml" 2>/dev/null || true)"
+  if grep -Eq '^close_gate:[[:space:]]*enforce([[:space:]]|$)' <<<"$_cg_cfg"; then
+    _cg_mode="enforce"
+  fi
+  _cg_is_default=0
+  if [ "$_cg_rref" = "refs/heads/$_cg_default" ]; then
+    _cg_is_default=1
+  fi
+  if [ "$_cg_is_default" = 1 ]; then
+    case "$_cg_remote_sha" in
+      *[!0]*) _cg_range="$_cg_remote_sha..$_cg_local" ;;
+      *) _cg_range="$_cg_local^..$_cg_local" ;;
+    esac
+  else
+    _cg_base="$(git merge-base "refs/remotes/$_cg_remote/$_cg_default" "$_cg_local" 2>/dev/null || true)"
+    if [ -z "$_cg_base" ]; then
+      echo "AAI:CLOSE-GATE NOTE: $_cg_rref skipped -- refs/remotes/$_cg_remote/$_cg_default unresolvable" >&2
+      continue
+    fi
+    _cg_range="$_cg_base..$_cg_local"
+  fi
+  echo "AAI:CLOSE-GATE: $_cg_rref range=$_cg_range close_gate=$_cg_mode"
+  _cg_rc=0
+  _cg_out="$(node "$_cg_script" --check --range "$_cg_range" --root "$_cg_root" 2>&1)" || _cg_rc=$?
+  printf '%s\n' "$_cg_out"
+  if [ "$_cg_rc" -eq 0 ]; then
+    continue
+  fi
+  if [ "$_cg_rc" -eq 2 ]; then
+    echo "AAI:CLOSE-GATE NOTE: close-reconcile.mjs could not resolve range $_cg_range (rc=2)" >&2
+  fi
+  if [ "$_cg_mode" = "enforce" ] && [ "$_cg_is_default" = 1 ]; then
+    echo "AAI:CLOSE-GATE refused: push of $_cg_rref (close_gate: enforce, default branch $_cg_default) -- the close ceremony did not run for range $_cg_range (rc=$_cg_rc)." >&2
+    echo "  Fix: run the close ceremony (/aai-pr, or the close-work-item.mjs command printed above), or set close_gate: report-only in docs/ai/docs-audit.yaml on the pushed commit." >&2
+    _cg_refused=1
+  else
+    echo "AAI:CLOSE-GATE: reported for $_cg_rref (close_gate=$_cg_mode; push allowed)"
+  fi
+done
+exit "$_cg_refused"
+PREPUSHHOOK
+}
+
+# write_prepush_hook — install the AAI:CLOSE-GATE pre-push body (skip,
+# reporting so, when it is already AAI-managed and --force is not given).
+# Same shape and same discipline as write_refguard_hook: callers
+# ensure_hooks_dir first; write via a temp sibling and rename so a failed
+# write can never truncate what was there; every branch guarded so the
+# "Installed" line cannot print unless the write happened.
+write_prepush_hook() {
+  if [[ -f "$PREPUSH_PATH" && "$FORCE" != 1 ]] && grep -qF "$PREPUSH_MARKER" "$PREPUSH_PATH"; then
+    echo "AAI pre-push hook already installed at $PREPUSH_PATH. No action taken."
+    return 0
+  fi
+  local tmp="$PREPUSH_PATH.aai-tmp.$$"
+  if ! pre_push_body > "$tmp"; then
+    rm -f "$tmp"
+    echo "ERROR: could not write $tmp (the effective hooks directory may be missing)." >&2
+    return 1
+  fi
+  if ! chmod +x "$tmp" || ! mv -f "$tmp" "$PREPUSH_PATH"; then
+    rm -f "$tmp"
+    echo "ERROR: could not move $tmp into place at $PREPUSH_PATH." >&2
+    return 1
+  fi
+  echo "Installed AAI pre-push hook (AAI:CLOSE-GATE) at $PREPUSH_PATH"
+  echo "Effect: every push runs close-reconcile.mjs --check over the pushed range (report-only; close_gate: enforce refuses a default-branch push only)."
+}
+
+# guard_block_interior — the engine-owned bytes BETWEEN the two marker lines
+# of a file (or of the shipped block when given no file): the only range an
+# upgrade compares and replaces.
+guard_block_interior() {
+  awk -v b="$GUARD_BLOCK_BEGIN" -v e="$GUARD_BLOCK_END" '$0==b{p=1; next} $0==e{p=0} p' "$@"
+}
+
+# write_precommit_fresh — compose <shebang> + guard block + <index body minus
+# its shebang> into the pre-commit slot via a temp sibling and rename.
+write_precommit_fresh() {
+  local tmp="$HOOK_PATH.aai-tmp.$$"
+  # awk, not head/tail: the body is engine-owned (every line newline-
+  # terminated), and awk reads its whole input, so no early-closing reader
+  # ever SIGPIPEs the producer under this script's own pipefail.
+  if ! { index_hook_body | awk 'NR==1'; guard_block_body; index_hook_body | awk 'NR>1'; } > "$tmp"; then
+    rm -f "$tmp"
+    echo "ERROR: could not write $tmp (the effective hooks directory may be missing)." >&2
+    return 1
+  fi
+  if ! chmod +x "$tmp" || ! mv -f "$tmp" "$HOOK_PATH"; then
+    rm -f "$tmp"
+    echo "ERROR: could not move $tmp into place at $HOOK_PATH." >&2
+    return 1
+  fi
+  echo "Installed AAI pre-commit hook at $HOOK_PATH"
+  echo "Effect: pre-commit-checks.sh now runs on every commit (secrets detection blocks; roughly four seconds per commit); on every commit that touches docs/, regenerate docs/INDEX.md and stage it."
+}
+
+# upgrade_precommit_hook — the pre-commit slot already holds an AAI-marked
+# file and --force was not given. The #414 / SPEC-0199 discipline: rewrite
+# only what this installer can PROVE it owns, otherwise leave the file alone
+# and say so — never rewrite, never add beside, never a "left untouched"
+# message about something that was written.
+#   - lstat first: a symlinked slot is refused, never followed out of the
+#     repository;
+#   - a CR-terminated first line is refused by name (an LF block inserted
+#     under a CRLF shebang would produce a hook sh cannot start);
+#   - no guard block -> insert it after line 1 when that is a shebang, else
+#     at line 1; every other byte stays as it was (the file may be a foreign
+#     hook whose owner hand-merged the marker via --print);
+#   - exactly one block -> replace the interior between the markers only
+#     when it differs from the shipped one; a second run is byte-identical;
+#   - more than one BEGIN marker -> refused: it cannot be proven which one
+#     is the engine's.
+# Every write goes through a temp sibling and rename.
+upgrade_precommit_hook() {
+  if [[ -L "$HOOK_PATH" ]]; then
+    echo "ERROR: $HOOK_PATH is a symlink. Refusing to rewrite through a symlink (the target may be outside this repository); replace the link with a regular file, or pass --force." >&2
+    return 1
+  fi
+  if [[ "$(wc -l < "$HOOK_PATH" | tr -d ' ')" -eq 0 ]]; then
+    echo "ERROR: $HOOK_PATH has no newline-terminated line; refusing to insert the AAI:GUARD-CHECKS block into it. Pass --force to rewrite the whole slot." >&2
+    return 1
+  fi
+  local first
+  IFS= read -r first < "$HOOK_PATH" || true
+  if [[ "$first" == *$'\r' ]]; then
+    echo "ERROR: $HOOK_PATH has a CR-terminated first line (CRLF hook). Refusing to insert an LF block under it — sh could not start the result. Convert the hook to LF, or pass --force to rewrite the whole slot." >&2
+    return 1
+  fi
+  local tmp="$HOOK_PATH.aai-tmp.$$"
+  if ! grep -qF "$GUARD_BLOCK_BEGIN" "$HOOK_PATH"; then
+    if [[ "$first" == '#!'* ]]; then
+      { head -n1 "$HOOK_PATH"; guard_block_body; tail -n +2 "$HOOK_PATH"; } > "$tmp" || { rm -f "$tmp"; echo "ERROR: could not write $tmp." >&2; return 1; }
+    else
+      { guard_block_body; cat "$HOOK_PATH"; } > "$tmp" || { rm -f "$tmp"; echo "ERROR: could not write $tmp." >&2; return 1; }
+    fi
+    if ! chmod +x "$tmp" || ! mv -f "$tmp" "$HOOK_PATH"; then
+      rm -f "$tmp"
+      echo "ERROR: could not move $tmp into place at $HOOK_PATH." >&2
+      return 1
+    fi
+    echo "Upgraded AAI pre-commit hook at $HOOK_PATH: added the AAI:GUARD-CHECKS block (pre-commit-checks.sh now runs on every commit; secrets detection blocks)"
+    return 0
+  fi
+  local begins ends
+  begins="$(grep -cxF "$GUARD_BLOCK_BEGIN" "$HOOK_PATH" || true)"
+  ends="$(grep -cxF "$GUARD_BLOCK_END" "$HOOK_PATH" || true)"
+  if [[ "$begins" -ne 1 || "$ends" -ne 1 ]]; then
+    echo "ERROR: $HOOK_PATH carries $begins '$GUARD_BLOCK_BEGIN' and $ends '$GUARD_BLOCK_END' line(s); refusing to guess which block is the installer's. File left as it was. Remove the extra markers by hand, or pass --force to rewrite the whole slot." >&2
+    return 1
+  fi
+  local shipped_tmp="$HOOK_PATH.aai-shipped.$$" current_tmp="$HOOK_PATH.aai-current.$$"
+  guard_block_body | guard_block_interior > "$shipped_tmp"
+  guard_block_interior "$HOOK_PATH" > "$current_tmp"
+  if cmp -s "$current_tmp" "$shipped_tmp"; then
+    rm -f "$shipped_tmp" "$current_tmp"
+    echo "AAI pre-commit hook already installed at $HOOK_PATH. No action taken."
+    return 0
+  fi
+  rm -f "$current_tmp"
+  awk -v b="$GUARD_BLOCK_BEGIN" -v e="$GUARD_BLOCK_END" -v shipped="$shipped_tmp" '
+    $0==b { print; while ((getline line < shipped) > 0) print line; close(shipped); skip=1; next }
+    $0==e { skip=0 }
+    !skip { print }
+  ' "$HOOK_PATH" > "$tmp" || { rm -f "$tmp" "$shipped_tmp"; echo "ERROR: could not write $tmp." >&2; return 1; }
+  rm -f "$shipped_tmp"
+  if ! chmod +x "$tmp" || ! mv -f "$tmp" "$HOOK_PATH"; then
+    rm -f "$tmp"
+    echo "ERROR: could not move $tmp into place at $HOOK_PATH." >&2
+    return 1
+  fi
+  echo "Refreshed the AAI:GUARD-CHECKS block at $HOOK_PATH (interior between the markers replaced; every other byte unchanged)"
+}
+
+# install_precommit_hook — the pre-commit slot's write path: fresh install
+# when the slot is empty or --force was given, otherwise the marker-scoped
+# upgrade above (a foreign file was already refused before any slot write).
+install_precommit_hook() {
+  if [[ -e "$HOOK_PATH" || -L "$HOOK_PATH" ]] && [[ "$FORCE" != 1 ]]; then
+    upgrade_precommit_hook
+    return $?
+  fi
+  write_precommit_fresh
+}
+
+# --decline-ref-guard / --arm-ref-guard are single-purpose actions on the
+# ref-guard hook alone: dispatched here (after path resolution, before the
+# --hooks-selected install/uninstall flow below) and exit before reaching it.
+if [[ "$DECLINE_REF_GUARD" == 1 && "$ARM_REF_GUARD" == 1 ]]; then
+  echo "ERROR: --decline-ref-guard and --arm-ref-guard are contradictory." >&2
+  exit 2
+fi
+if [[ "$DECLINE_REF_GUARD" == 1 ]]; then
+  decline_ref_guard || exit 1
+  exit 0
+fi
+if [[ "$ARM_REF_GUARD" == 1 ]]; then
+  arm_ref_guard || exit 1
+  exit 0
+fi
+
+if [[ "$UNINSTALL" == 1 ]]; then
+  if [[ "$WANT_INDEX" == 1 ]]; then  # AC-01 uninstall selection: index
+    if [[ -f "$HOOK_PATH" ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
+      rm "$HOOK_PATH"
+      echo "Uninstalled AAI pre-commit hook from $HOOK_PATH"
+    else
+      echo "No AAI pre-commit hook found (or hook is not AAI-managed). No action taken."
+    fi
+  fi
+  if [[ "$WANT_REFGUARD" == 1 ]]; then  # AC-01 uninstall selection: ref-guard
+    if [[ -f "$REFTX_PATH" ]] && grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then
+      rm "$REFTX_PATH"
+      echo "Uninstalled AAI reference-transaction hook (AAI:REF-GUARD) from $REFTX_PATH"
+    else
+      echo "No AAI reference-transaction hook found (or hook is not AAI-managed). No action taken."
+    fi
+  fi
+  if [[ "$WANT_CLOSEGATE" == 1 ]]; then  # uninstall selection: close-gate
+    if [[ -f "$PREPUSH_PATH" ]] && grep -qF "$PREPUSH_MARKER" "$PREPUSH_PATH"; then
+      rm "$PREPUSH_PATH"
+      echo "Uninstalled AAI pre-push hook (AAI:CLOSE-GATE) from $PREPUSH_PATH"
+    else
+      echo "No AAI pre-push hook found (or hook is not AAI-managed). No action taken."
+    fi
+  fi
+  exit 0
+fi
+
+# Selection-aware (Spec-AC-02): a foreign file in a slot this run was NOT
+# asked to touch is not a reason to refuse — only a SELECTED slot's foreign
+# file blocks the run, and it blocks the WHOLE run (both slots stay
+# untouched), so the selected set is never partially installed.
+FOREIGN=0
+if [[ "$WANT_INDEX" == 1 && -f "$HOOK_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$MARKER" "$HOOK_PATH"; then  # AC-02 foreign check: index
+  echo "ERROR: $HOOK_PATH already exists and is not AAI-managed." >&2
+  echo "       Pass --force to overwrite, or merge the snippets manually:" >&2
+  echo "       $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print               # the AAI:INDEX-AUTOGEN body" >&2
+  echo "       $REPO_ROOT/.aai/scripts/install-pre-commit-hook.sh --print guard-checks  # the AAI:GUARD-CHECKS block (put it first)" >&2
+  FOREIGN=1
+fi
+if [[ "$WANT_REFGUARD" == 1 && -f "$REFTX_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$REFTX_MARKER" "$REFTX_PATH"; then  # AC-02 foreign check: ref-guard
+  foreign_reftx_refusal
+  FOREIGN=1
+fi
+if [[ "$WANT_CLOSEGATE" == 1 && -f "$PREPUSH_PATH" && "$FORCE" != 1 ]] && ! grep -qF "$PREPUSH_MARKER" "$PREPUSH_PATH"; then  # foreign check: close-gate
+  foreign_prepush_refusal
+  FOREIGN=1
+fi
+if [[ "$FOREIGN" == 1 ]]; then
+  exit 1
+fi
+
+ensure_hooks_dir || exit 1
+
+if [[ "$WANT_INDEX" == 1 ]]; then  # AC-01 write selection: index
+  install_precommit_hook || exit 1
 fi  # AC-01 write selection: index (close)
 
 if [[ "$WANT_REFGUARD" == 1 ]]; then  # AC-01 write selection: ref-guard
@@ -787,6 +1137,12 @@ if [[ "$WANT_REFGUARD" == 1 ]]; then  # AC-01 write selection: ref-guard
   fi
 fi  # AC-01 write selection: ref-guard (close)
 
+if [[ "$WANT_CLOSEGATE" == 1 ]]; then  # write selection: close-gate
+  # No decline dial of its own: the hook's verdict is already dialled by
+  # `close_gate` in docs/ai/docs-audit.yaml (D8), read from the pushed commit.
+  write_prepush_hook || exit 1
+fi  # write selection: close-gate (close)
+
 # Post-condition (PR #304 Codex P1): exit 0 must mean "git will run these",
 # never "a write succeeded somewhere". /aai-update reads this exit code as
 # proof of protection, so a hook that landed off the effective path — or that
@@ -800,6 +1156,9 @@ if [[ "$WANT_INDEX" == 1 ]]; then  # AC-02 attestation selection: index
 fi
 if [[ "$WANT_REFGUARD" == 1 ]]; then  # AC-02 attestation selection: ref-guard
   attest_effective reference-transaction "$REFTX_MARKER" || ATTEST_OK=0
+fi
+if [[ "$WANT_CLOSEGATE" == 1 ]]; then  # attestation selection: close-gate
+  attest_effective pre-push "$PREPUSH_MARKER" || ATTEST_OK=0
 fi
 if [[ "$ATTEST_OK" != 1 ]]; then
   echo "ERROR: installation did NOT leave an active hook at the path git resolves." >&2

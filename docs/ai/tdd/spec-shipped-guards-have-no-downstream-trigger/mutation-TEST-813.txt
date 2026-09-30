@@ -1,0 +1,24 @@
+mutation_record: v1
+spec_id: spec-shipped-guards-have-no-downstream-trigger
+test_id: TEST-813
+suite: tests/skills/test-aai-hygiene-pack.sh
+selector: test_813_ps1_twin_parity
+target: .aai/scripts/install-pre-commit-hook.ps1
+mutation: sed:s/_cg_refused=0/_cg_refused=1/
+base_commit: 3d9e2a6dc7744dd9ae8e8179efb72a56a62db329
+tree_hash: 17f7ee93a77cc56e750d5accadbdbf868840298faf93a81141c497d5d7acb2ee
+run_at_utc: 2026-09-30T20:52:49Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-813: the pre-push body differs between twins:
+selector_honoured: yes
+target_sha256: b529438caed50639131f05fa7f7389e6c8c7c9d1d6ad4c1c1e5b1c3c355474cb
+---
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: the .ps1 twin ships close-gate, $prePushBody and the guard block byte-identically (TEST-813)...
+FAIL: TEST-813: the pre-push body differs between twins:
+39c39
+< _cg_refused=0
+---
+> _cg_refused=1

@@ -1,0 +1,7 @@
+RED_CLASS: product_red
+# RED capture for TEST-811 — suite test-aai-close-reconcile.sh selector test_811_unknown_platform_refuses_by_name — pre-change tree 3d9e2a6d — exit 1
+=== aai-close-reconcile ===
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: TEST-811 (Spec-AC-08): an unknown host with an unmatched subject refuses naming platform and the grammars tried; no origin tries the union...
+FAIL: TEST-811a: the refusal must name the platform and the grammars tried (needle: 'reason=pr-number-unknown platform=unknown grammars-tried=github,azure'), got: close-reconcile: REFUSED docs/issues/ISSUE-0811-t811a.md id=t811a-ref reason=pr-number-unknown — no commit subject touching docs/issues/ISSUE-0811-t811a.md carries a trailing "(#N)", nothing written

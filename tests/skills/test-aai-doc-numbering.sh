@@ -1750,6 +1750,113 @@ test_589_allocator_pages_agree_with_shared_set() {
   log_pass "TEST-589: every SPEC_PAGE_GENERATORS page agrees with SHARED_GENERATED_PAGES and matches the pinned expected set exactly ($out)"
 }
 
+# --- TEST-808 / TEST-809 (shipped-guards-have-no-downstream-trigger, Spec-AC-05)
+# CHECK 8's `enforce` arm is merge-point-aware: with doc_number_guard: enforce
+# the host blocks a committed unnumbered draft on the DEFAULT branch (R1:
+# refs/remotes/origin/HEAD, else main) and reports it elsewhere with one line
+# `Doc-numbering guard: enforce applies on <default> only; on <branch> this is
+# report-only`. Measured (spec M3): the AAI flow commits drafts on branches by
+# design, so wiring the host into every commit without this refuses every
+# intake commit. Fixture: setup_iso_repo's real allocator + host, a committed
+# draft, the dial flipped per arm; no origin/HEAD is set (the fixture's bare
+# origin is never fetched), so R1 assumes main and says so.
+sg808_fixture() {
+  local d; d="$(setup_iso_repo "$1")"
+  seed_rfcs "$d" 3
+  write_draft "$d" rfc RFC committed-on-branch
+  (cd "$d" && git add docs/rfc/RFC-DRAFT-committed-on-branch.md && git commit -qm "intake: draft on a branch")
+  printf '%s' "$d"
+}
+
+test_808_check8_enforce_is_merge_point_aware() {
+  log_info "TEST-808: doc_number_guard: enforce blocks on the default branch only; a feature branch reports with the one NOTE line..."
+  local d rc
+  d="$(sg808_fixture t808)"
+  printf 'doc_number_guard: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  # feature branch: findings printed, ONE downgrade line, exit 0
+  (cd "$d" && git checkout -q -b feature/x)
+  set +e
+  (cd "$d" && bash .aai/scripts/pre-commit-checks.sh > pc-feature.log 2>&1)
+  rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-808: enforce on a feature branch must exit 0 (report-only), got $rc: $(tail -12 "$d/pc-feature.log")"
+  grep -qF "RFC-DRAFT-committed-on-branch" "$d/pc-feature.log" || log_fail "TEST-808: expected 'RFC-DRAFT-committed-on-branch' in $d/pc-feature.log"
+  grep -qF "enforce applies on main only" "$d/pc-feature.log" || log_fail "TEST-808: expected 'enforce applies on main only' in $d/pc-feature.log"
+  grep -qF "on feature/x this is report-only" "$d/pc-feature.log" || log_fail "TEST-808: expected 'on feature/x this is report-only' in $d/pc-feature.log"
+  grep -qF "default branch assumed main" "$d/pc-feature.log" || log_fail "TEST-808: expected 'default branch assumed main' in $d/pc-feature.log"
+  [[ "$(grep -c 'enforce applies on main only' "$d/pc-feature.log")" -eq 1 ]] \
+    || log_fail "TEST-808: the downgrade must be stated exactly once"
+  if grep -qF "commit blocked" "$d/pc-feature.log"; then log_fail "TEST-808: did not expect 'commit blocked' in $d/pc-feature.log"; fi
+  # default branch: blocked as today
+  (cd "$d" && git checkout -q main)
+  set +e
+  (cd "$d" && bash .aai/scripts/pre-commit-checks.sh > pc-main.log 2>&1)
+  rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-808: enforce on the default branch must exit 1, got $rc: $(tail -12 "$d/pc-main.log")"
+  grep -qF "commit blocked" "$d/pc-main.log" || log_fail "TEST-808: expected 'commit blocked' in $d/pc-main.log"
+  if grep -qF "enforce applies on main only" "$d/pc-main.log"; then log_fail "TEST-808: did not expect 'enforce applies on main only' in $d/pc-main.log"; fi
+  # report-only: exit 0 on both, findings printed, no downgrade line
+  printf 'doc_number_guard: report-only\n' > "$d/docs/ai/docs-audit.yaml"
+  (cd "$d" && bash .aai/scripts/pre-commit-checks.sh > pc-ro-main.log 2>&1) \
+    || log_fail "TEST-808: report-only on main must exit 0: $(tail -12 "$d/pc-ro-main.log")"
+  grep -qF "RFC-DRAFT-committed-on-branch" "$d/pc-ro-main.log" || log_fail "TEST-808: expected 'RFC-DRAFT-committed-on-branch' in $d/pc-ro-main.log"
+  if grep -qF "enforce applies on main only" "$d/pc-ro-main.log"; then log_fail "TEST-808: did not expect 'enforce applies on main only' in $d/pc-ro-main.log"; fi
+  (cd "$d" && git checkout -q feature/x)
+  (cd "$d" && bash .aai/scripts/pre-commit-checks.sh > pc-ro-feature.log 2>&1) \
+    || log_fail "TEST-808: report-only on a feature branch must exit 0: $(tail -12 "$d/pc-ro-feature.log")"
+  grep -qF "RFC-DRAFT-committed-on-branch" "$d/pc-ro-feature.log" || log_fail "TEST-808: expected 'RFC-DRAFT-committed-on-branch' in $d/pc-ro-feature.log"
+  if grep -qF "enforce applies on main only" "$d/pc-ro-feature.log"; then log_fail "TEST-808: did not expect 'enforce applies on main only' in $d/pc-ro-feature.log"; fi
+  rm -rf "$d"
+  log_pass "TEST-808 CHECK 8 enforce is merge-point-aware: feature branch reports with one downgrade line (exit 0), default branch blocks (exit 1), report-only exits 0 on both"
+}
+
+test_809_check8_ps1_twin() {
+  log_info "TEST-809: the .ps1 CHECK 8 block reads refs/remotes/origin/HEAD and compares with the current branch (static; behavioural under pwsh)..."
+  local ps1="$PROJECT_ROOT/.aai/scripts/pre-commit-checks.ps1"
+  [[ -f "$ps1" ]] || log_fail "TEST-809: missing $ps1"
+  # static: the CHECK 8 block (from its header to the SUMMARY header) reads
+  # origin/HEAD, reads the current branch, and states the downgrade line.
+  awk '/^# --- CHECK 8/{p=1} /^# --- SUMMARY/{p=0} p' "$ps1" > "$TEST_DIR/t809-check8.txt"
+  [[ -s "$TEST_DIR/t809-check8.txt" ]] || log_fail "TEST-809: could not isolate the .ps1 CHECK 8 block"
+  # the actual READ, not a mention in a comment: the mutation cell for this
+  # row renames the ref inside this exact command.
+  grep -qF "symbolic-ref -q --short refs/remotes/origin/HEAD" "$TEST_DIR/t809-check8.txt" || log_fail "TEST-809: expected 'symbolic-ref -q --short refs/remotes/origin/HEAD' in $TEST_DIR/t809-check8.txt"
+  grep -qF "symbolic-ref -q --short HEAD" "$TEST_DIR/t809-check8.txt" || log_fail "TEST-809: expected 'symbolic-ref -q --short HEAD' in $TEST_DIR/t809-check8.txt"
+  grep -qF "enforce applies on" "$TEST_DIR/t809-check8.txt" || log_fail "TEST-809: expected 'enforce applies on' in $TEST_DIR/t809-check8.txt"
+  grep -qF "this is report-only" "$TEST_DIR/t809-check8.txt" || log_fail "TEST-809: expected 'this is report-only' in $TEST_DIR/t809-check8.txt"
+  if ! command -v pwsh >/dev/null 2>&1; then
+    log_pass "TEST-809 .ps1 CHECK 8 reads origin/HEAD and compares with the current branch (static); SKIP: behavioural arm (pwsh not installed)"
+    return 0
+  fi
+  local d rc
+  d="$(sg808_fixture t809)"
+  cp "$ps1" "$d/.aai/scripts/pre-commit-checks.ps1"
+  printf 'doc_number_guard: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  (cd "$d" && git checkout -q -b feature/y)
+  set +e
+  (cd "$d" && pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 > pc-feature.log 2>&1)
+  rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-809 pwsh: enforce on a feature branch must exit 0, got $rc: $(tail -12 "$d/pc-feature.log")"
+  grep -qF "RFC-DRAFT-committed-on-branch" "$d/pc-feature.log" || log_fail "TEST-808: expected 'RFC-DRAFT-committed-on-branch' in $d/pc-feature.log"
+  grep -qF "enforce applies on main only" "$d/pc-feature.log" || log_fail "TEST-808: expected 'enforce applies on main only' in $d/pc-feature.log"
+  grep -qF "on feature/y this is report-only" "$d/pc-feature.log" || log_fail "TEST-808: expected 'on feature/y this is report-only' in $d/pc-feature.log"
+  (cd "$d" && git checkout -q main)
+  set +e
+  (cd "$d" && pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 > pc-main.log 2>&1)
+  rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-809 pwsh: enforce on the default branch must exit 1, got $rc: $(tail -12 "$d/pc-main.log")"
+  grep -qF "commit blocked" "$d/pc-main.log" || log_fail "TEST-808: expected 'commit blocked' in $d/pc-main.log"
+  printf 'doc_number_guard: report-only\n' > "$d/docs/ai/docs-audit.yaml"
+  (cd "$d" && pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 > pc-ro.log 2>&1) \
+    || log_fail "TEST-809 pwsh: report-only must exit 0: $(tail -12 "$d/pc-ro.log")"
+  if grep -qF "enforce applies on main only" "$d/pc-ro.log"; then log_fail "TEST-808: did not expect 'enforce applies on main only' in $d/pc-ro.log"; fi
+  rm -rf "$d"
+  log_pass "TEST-809 .ps1 CHECK 8 reads origin/HEAD and compares with the current branch (static), and under pwsh reports on a feature branch, blocks on main, passes report-only"
+}
+
 main() {
   echo ""
   echo "AAI Doc-Numbering Test Suite (SPEC-0015 / RFC-0007)"
@@ -1793,7 +1900,25 @@ main() {
     test_031_suite_map_row
     test_552_skill_pr_runs_the_restamp
     test_589_allocator_pages_agree_with_shared_set
+    test_808_check8_enforce_is_merge_point_aware
+    test_809_check8_ps1_twin
   )
+
+  # Selector mode (shipped-guards-have-no-downstream-trigger): `bash <suite>
+  # test_808_...` runs ONLY the named arm(s) — the shape mutation-run.mjs and the
+  # TDD lane use to capture per-row RED/GREEN evidence without the whole suite.
+  # An unknown name is refused (exit 2) rather than silently running nothing.
+  # `declare -F "$1"` is the dispatch idiom mutation-run.mjs and hygiene-pack's
+  # hp_scan_selector_suites recognise (POSITIONAL_DISPATCH_PATTERNS), so a
+  # recorded mutation isolates ONE arm instead of re-running all of them.
+  if [[ $# -gt 0 ]]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    local sel
+    for sel in "$@"; do
+      declare -F "$sel" >/dev/null || { echo "Unknown test: $sel" >&2; exit 2; }
+    done
+    tests=("$@")
+  fi
 
   local t total=${#tests[@]} failed_names=()
   for t in "${tests[@]}"; do

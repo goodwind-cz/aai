@@ -216,6 +216,27 @@ if [ -f "$DOC_NUMBER_GUARD" ] && command -v node >/dev/null 2>&1; then
        "$PROJECT_ROOT/docs/ai/docs-audit.yaml" 2>/dev/null; then
     DN_MODE="enforce"
   fi
+  # Merge-point-aware enforce (shipped-guards-have-no-downstream-trigger D2):
+  # the AAI flow COMMITS drafts on branches by design (numbering is assigned
+  # at merge by the allocator), so `no-DRAFT-at-merge` has a legitimate
+  # false positive at commit time on any non-default branch — measured, an
+  # enforce dial refused this repository's own intake commits once the
+  # pre-commit hook started reaching this script. `enforce` therefore bites
+  # on the DEFAULT branch only (R1: refs/remotes/origin/HEAD, else main) and
+  # downgrades to report-only elsewhere with ONE line saying so.
+  DN_DEFAULT="$(git -C "$PROJECT_ROOT" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  DN_DEFAULT="${DN_DEFAULT#origin/}"
+  if [ -z "$DN_DEFAULT" ]; then
+    DN_DEFAULT="main"
+    echo "    NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)"
+  fi
+  DN_BRANCH="$(git -C "$PROJECT_ROOT" symbolic-ref -q --short HEAD 2>/dev/null || true)"
+  [ -n "$DN_BRANCH" ] || DN_BRANCH="(detached HEAD)"
+  DN_DOWNGRADE=""
+  if [ "$DN_MODE" = "enforce" ] && ! [ "$DN_BRANCH" = "$DN_DEFAULT" ]; then
+    DN_MODE="report-only"
+    DN_DOWNGRADE="Doc-numbering guard: enforce applies on $DN_DEFAULT only; on $DN_BRANCH this is report-only"
+  fi
   if DN_OUT="$(cd "$PROJECT_ROOT" && node "$DOC_NUMBER_GUARD" --guard 2>&1)"; then
     pass "Doc-numbering guards clean (no-DRAFT-at-merge + duplicate-number)"
   elif [ "$DN_MODE" = "enforce" ]; then
@@ -224,6 +245,7 @@ if [ -f "$DOC_NUMBER_GUARD" ] && command -v node >/dev/null 2>&1; then
   else
     warn "Doc-numbering guard found violations (report-only; commit allowed):"
     echo "$DN_OUT" | sed 's/^/    /'
+    [ -z "$DN_DOWNGRADE" ] || echo "    $DN_DOWNGRADE"
   fi
 else
   pass "Doc-numbering guard skipped (allocator absent or node unavailable)"

@@ -22,6 +22,15 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: shipped guards get an installed caller — pre-commit-checks.sh runs on every commit, a pre-push close gate, Azure merge subjects (goodwind-cz/aai#390, #391, #392)
+
+- **BEHAVIOUR CHANGE on the next `/aai-update`: the installed pre-commit hook now runs `.aai/scripts/pre-commit-checks.sh` on every commit.** The hook the installer wrote never reached that script, so its secrets detection and the doc-numbering guard were dead downstream. A commit carrying a detected secret is now **refused** (it used to go through); roughly four seconds are added per commit. The block is marker-scoped (`# AAI:GUARD-CHECKS BEGIN` … `END`); an AAI hook installed before this ride is upgraded in place by inserting the block after its shebang, every other byte untouched. A foreign hook, a symlinked slot, a CRLF hook or an ambiguous block count is refused by name and left byte-identical — never overwritten (the #414 class).
+- **New `pre-push` hook (`--hooks close-gate`, marker `AAI:CLOSE-GATE`)** runs `close-reconcile.mjs --check` over every pushed range — the first trigger the close gate has in a project with no CI. Report-only by default; `close_gate: enforce` (read from the pushed commit) refuses a push to the default branch only. Degrades to a named NOTE when `node` or the script is absent.
+- **`doc_number_guard: enforce` is now merge-point-aware** in `pre-commit-checks.sh` and `.ps1`: it blocks on the default branch only and reports elsewhere with one line (`enforce applies on <default> only; on <branch> this is report-only`). The shipped default stays `report-only`.
+- **`close-reconcile.mjs` resolves Azure DevOps merge subjects** (`Merged PR <n>:`) beside GitHub's `(#n)`, selected by `--platform` or by the origin URL via `pr-platform.mjs`; an unrecognised host refuses naming the grammars tried.
+- **`/aai-doctor` gains CAT-18 Guard Wiring**, reporting a shipped guard whose hook git would run is missing, unmarked or not executable.
+- Installer: `--print guard-checks`, `--print pre-push`, and `--help` now describes the hook set and the decline-honouring plain run.
+
 ## [unreleased] — fix: aai-sync preserves target-only hooks and reports its deletions (goodwind-cz/aai#414)
 
 - **`hooks/` is now a file-by-file merge**, not a wholesale `copy_replace` (`rm -rf` then `cp -a`). A target-only file under `hooks/` — most notably a downstream project's own `hooks/merge-guard.{sh,ps1,py}` safety control — used to be deleted on every sync; it now survives and is named on stdout as `PRESERVE target-only hook: hooks/<name>`.

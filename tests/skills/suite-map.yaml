@@ -112,6 +112,10 @@ suites:
   aai-close-reconcile:
     globs:
       - .aai/scripts/close-reconcile.mjs
+      - .aai/scripts/pr-platform.mjs
+      # ^ shipped-guards-have-no-downstream-trigger D3: pr-platform.mjs is
+      #   close-reconcile.mjs's grammar-selection import (classify() over the
+      #   origin URL), so a classifier change re-runs this suite.
       - .github/workflows/close-gate.yml
       - .aai/scripts/close-work-item.mjs
 
@@ -432,6 +436,9 @@ suites:
 
   aai-hygiene-pack:
     globs:
+      # shipped-guards-have-no-downstream-trigger: TEST-800..807/813..816 run the
+      # real installer (guard block, pre-push hook, upgrade-by-insertion).
+      - .aai/scripts/install-pre-commit-hook.sh
       - .aai/scripts/check-test-registration.mjs
       - .aai/scripts/check-base-ref-pins.mjs
       - .aai/scripts/check-vendored-script-deps.mjs

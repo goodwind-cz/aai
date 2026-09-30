@@ -1,0 +1,215 @@
+mutation_record: v1
+spec_id: spec-shipped-guards-have-no-downstream-trigger
+test_id: TEST-803
+suite: tests/skills/test-aai-hygiene-pack.sh
+selector: test_803_foreign_refusal_names_print_guard_checks
+target: .aai/scripts/install-pre-commit-hook.sh
+mutation: sed:s/GUARDBLOCK\$/PREPUSHHOOK$/
+base_commit: 3d9e2a6dc7744dd9ae8e8179efb72a56a62db329
+tree_hash: 17f7ee93a77cc56e750d5accadbdbf868840298faf93a81141c497d5d7acb2ee
+run_at_utc: 2026-09-30T20:52:33Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-803: --print guard-checks output differs from the block a fresh install embeds:
+selector_honoured: yes
+target_sha256: c674b5218f61346294374c3c1061a1db516bff20591794ad5930bc78ae0870da
+---
+<     || true)"
+<   CLOSE_GATE_MODE="report-only"
+<   # Here-string, never printf piped into "grep -q" (round 10, PR #381).
+<   if grep -Eq '^close_gate:[[:space:]]*enforce([[:space:]]|$)' <<<"$GATE_CFG"; then
+<     CLOSE_GATE_MODE="enforce"
+<   fi
+<   CLOSE_GATE_FAILED=0
+<   STAGED_SPECS="$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/specs/.*\.md$' || true)"
+<   # SPEC-0013 W2: newline-safe iteration — an unquoted `for` word-splits paths
+<   # with spaces into nonexistent fragments whose failed `git show` silently
+<   # SKIPS the gate (the worst failure shape for a gate).
+<   while IFS= read -r f; do
+<     [[ -n "$f" ]] || continue
+<     # only when the STAGED diff ADDS a 'status: done' line (not an already-done spec)
+<     # Capture, then here-string into grep -q (round 10, PR #381).
+<     _staged_hunk="$(git diff --cached -U0 -- "$f")"
+<     if grep -Eq '^\+status:[[:space:]]*done([[:space:]]|$)' <<<"$_staged_hunk"; then
+<       # Gate the STAGED content, not the worktree: materialize the staged blob so a
+<       # staged-but-unreconciled done cannot pass merely because the worktree carries
+<       # unstaged Evidence (SPEC-0011 G5). Read the id from the staged blob too.
+<       STAGED_TMP="$(mktemp)"
+<       if ! git show ":$f" > "$STAGED_TMP" 2>/dev/null; then
+<         rm -f "$STAGED_TMP"
+<         continue
+<       fi
+<       # Capture, then here-string into head (round 10, PR #381).
+<       _staged_id_lines="$(sed -n 's/^id:[[:space:]]*//p' "$STAGED_TMP")"
+<       gid="$(head -1 <<<"$_staged_id_lines")"
+<       if [[ -z "$gid" ]]; then
+<         gid="$(basename "$f" .md | grep -oE '^[A-Z]+(-[A-Z]+)*-[0-9]+' || true)"
+<       fi
+<       if [[ -z "$gid" ]]; then
+<         rm -f "$STAGED_TMP"
+<         continue
+<       fi
+<       if GATE_OUT="$(node .aai/scripts/docs-audit.mjs --gate-file "$STAGED_TMP" 2>&1)"; then
+<         :
+<       elif [[ "$CLOSE_GATE_MODE" == "enforce" ]]; then
+<         echo "AAI:INDEX-AUTOGEN close-gate: $gid fails the close gate (close_gate: enforce) — commit aborted." >&2
+<         echo "$GATE_OUT" >&2
+<         CLOSE_GATE_FAILED=1
+<       else
+<         echo "AAI:INDEX-AUTOGEN close-gate WARNING: $gid fails the close gate (report-only; commit allowed)." >&2
+<         echo "$GATE_OUT" >&2
+<       fi
+<       rm -f "$STAGED_TMP"
+<     fi
+<   done <<< "$STAGED_SPECS"
+<   if [[ "$CLOSE_GATE_FAILED" == 1 ]]; then
+<     exit 1
+<   fi
+< fi
+< 
+< # AAI:INDEX-AUTOGEN body-lint (SPEC-0013 H1): for each STAGED governed docs/**/*.md
+< # file, materialize the STAGED blob (git show ":$f" — LEARNED 2026-07-03: gate what
+< # is being committed, never the worktree copy) and body-lint it via
+< # docs-audit.mjs --lint-body-file. Block the commit only when docs/ai/docs-audit.yaml
+< # sets body_lint: enforce; otherwise warn and continue (report-only default,
+< # mirroring close_gate). Non-governed dirs (ai, knowledge, archive, _archive,
+< # project-sessions, templates, plans) and generated INDEX files are skipped.
+< if [[ -f .aai/scripts/docs-audit.mjs ]]; then
+<   # SPEC-0013 W1: same staged/HEAD-first config read as the close-gate block —
+<   # an unstaged worktree edit must not downgrade enforce -> warn.
+<   GATE_CFG="$(git show :docs/ai/docs-audit.yaml 2>/dev/null \
+<     || git show HEAD:docs/ai/docs-audit.yaml 2>/dev/null \
+<     || cat docs/ai/docs-audit.yaml 2>/dev/null \
+<     || true)"
+<   BODY_LINT_MODE="report-only"
+<   # Here-string, never printf piped into "grep -q" (round 10, PR #381).
+<   if grep -Eq '^body_lint:[[:space:]]*enforce([[:space:]]|$)' <<<"$GATE_CFG"; then
+<     BODY_LINT_MODE="enforce"
+<   fi
+<   BODY_LINT_FAILED=0
+<   STAGED_GOVERNED_DOCS="$(git diff --cached --name-only --diff-filter=ACM \
+<     | grep -E '^docs/.*\.md$' \
+<     | grep -Ev '^docs/(ai|knowledge|archive|_archive|project-sessions|templates|plans)/' \
+<     | grep -Ev '^docs/INDEX' || true)"
+<   # SPEC-0013 W2: newline-safe iteration (see the close-gate loop above).
+<   while IFS= read -r f; do
+<     [[ -n "$f" ]] || continue
+<     STAGED_TMP="$(mktemp)"
+<     if ! git show ":$f" > "$STAGED_TMP" 2>/dev/null; then
+<       rm -f "$STAGED_TMP"
+<       continue
+<     fi
+<     if LINT_OUT="$(node .aai/scripts/docs-audit.mjs --lint-body-file "$STAGED_TMP" 2>&1)"; then
+<       :
+<     elif [[ "$BODY_LINT_MODE" == "enforce" ]]; then
+<       echo "AAI:INDEX-AUTOGEN body-lint: $f fails body lint (body_lint: enforce) — commit aborted." >&2
+<       echo "$LINT_OUT" >&2
+<       BODY_LINT_FAILED=1
+<     else
+<       echo "AAI:INDEX-AUTOGEN body-lint WARNING: $f fails body lint (report-only; commit allowed)." >&2
+<       echo "$LINT_OUT" >&2
+<     fi
+<     rm -f "$STAGED_TMP"
+<   done <<< "$STAGED_GOVERNED_DOCS"
+<   if [[ "$BODY_LINT_FAILED" == 1 ]]; then
+<     exit 1
+<   fi
+< fi
+< echo "AAI:INDEX-AUTOGEN: regenerated and staged docs/INDEX.md"
+< HOOK
+< }
+< 
+< # pre_push_body — the AAI:CLOSE-GATE pre-push hook: one close-reconcile.mjs
+< # --check per pushed ref (D1). Git feeds `<local ref> <local sha> <remote ref>
+< # <remote sha>` per line on stdin and the remote name as $1.
+< pre_push_body() {
+< cat <<'PREPUSHHOOK'
+< #!/usr/bin/env bash
+< # AAI:CLOSE-GATE -- runs close-reconcile.mjs --check over every pushed range.
+< # Installed by .aai/scripts/install-pre-commit-hook.sh (or the .ps1 twin).
+< # Per pushed ref (stdin: <local ref> <local sha> <remote ref> <remote sha>):
+< #   - a deletion (all-zero local sha) is skipped;
+< #   - the default branch (refs/remotes/origin/HEAD, else main) is checked as
+< #     <remote sha>..<local sha>; a first push (all-zero remote sha) as
+< #     <local sha>^..<local sha> -- the rule .github/workflows/close-gate.yml
+< #     applies;
+< #   - any other ref as merge-base(refs/remotes/<remote>/<default>, local)..local.
+< # Verdict: `close_gate` read from the PUSHED commit's docs/ai/docs-audit.yaml
+< # (never the worktree copy). report-only (default): print, exit 0. enforce:
+< # refuse ONLY a push to the default branch; every other ref stays report-
+< # only, because WIP pushes legitimately precede the close ceremony.
+< # See docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md.
+< 
+< _cg_remote="${1:-origin}"
+< _cg_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+< _cg_script="$_cg_root/.aai/scripts/close-reconcile.mjs"
+< 
+< if ! command -v node >/dev/null 2>&1; then
+<   echo "AAI:CLOSE-GATE NOTE: node not found; close gate skipped" >&2
+<   exit 0
+< fi
+< if [ ! -f "$_cg_script" ]; then
+<   echo "AAI:CLOSE-GATE NOTE: $_cg_script absent; close gate skipped" >&2
+<   exit 0
+< fi
+< 
+< # R1 -- default branch: refs/remotes/origin/HEAD with the origin/ prefix
+< # stripped; else main, and say so.
+< _cg_default="$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+< _cg_default="${_cg_default#origin/}"
+< if [ -z "$_cg_default" ]; then
+<   _cg_default="main"
+<   echo "AAI:CLOSE-GATE NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)" >&2
+< fi
+< echo "AAI:CLOSE-GATE: default branch $_cg_default (remote $_cg_remote)"
+< 
+< _cg_refused=0
+< while read -r _cg_lref _cg_local _cg_rref _cg_remote_sha; do
+<   [ -n "$_cg_lref" ] || continue
+<   case "$_cg_local" in
+<     *[!0]*) ;;
+<     *) echo "AAI:CLOSE-GATE: $_cg_rref is a deletion; nothing to check"; continue ;;
+<   esac
+<   # The dial, read from what is being PUSHED (the same "gate what ships,
+<   # never the worktree copy" discipline the pre-commit body applies).
+<   _cg_mode="report-only"
+<   _cg_cfg="$(git show "$_cg_local:docs/ai/docs-audit.yaml" 2>/dev/null || true)"
+<   if grep -Eq '^close_gate:[[:space:]]*enforce([[:space:]]|$)' <<<"$_cg_cfg"; then
+<     _cg_mode="enforce"
+<   fi
+<   _cg_is_default=0
+<   if [ "$_cg_rref" = "refs/heads/$_cg_default" ]; then
+<     _cg_is_default=1
+<   fi
+<   if [ "$_cg_is_default" = 1 ]; then
+<     case "$_cg_remote_sha" in
+<       *[!0]*) _cg_range="$_cg_remote_sha..$_cg_local" ;;
+<       *) _cg_range="$_cg_local^..$_cg_local" ;;
+<     esac
+<   else
+<     _cg_base="$(git merge-base "refs/remotes/$_cg_remote/$_cg_default" "$_cg_local" 2>/dev/null || true)"
+<     if [ -z "$_cg_base" ]; then
+<       echo "AAI:CLOSE-GATE NOTE: $_cg_rref skipped -- refs/remotes/$_cg_remote/$_cg_default unresolvable" >&2
+<       continue
+<     fi
+<     _cg_range="$_cg_base..$_cg_local"
+<   fi
+<   echo "AAI:CLOSE-GATE: $_cg_rref range=$_cg_range close_gate=$_cg_mode"
+<   _cg_rc=0
+<   _cg_out="$(node "$_cg_script" --check --range "$_cg_range" --root "$_cg_root" 2>&1)" || _cg_rc=$?
+<   printf '%s\n' "$_cg_out"
+<   if [ "$_cg_rc" -eq 0 ]; then
+<     continue
+<   fi
+<   if [ "$_cg_rc" -eq 2 ]; then
+<     echo "AAI:CLOSE-GATE NOTE: close-reconcile.mjs could not resolve range $_cg_range (rc=2)" >&2
+<   fi
+<   if [ "$_cg_mode" = "enforce" ] && [ "$_cg_is_default" = 1 ]; then
+<     echo "AAI:CLOSE-GATE refused: push of $_cg_rref (close_gate: enforce, default branch $_cg_default) -- the close ceremony did not run for range $_cg_range (rc=$_cg_rc)." >&2
+<     echo "  Fix: run the close ceremony (/aai-pr, or the close-work-item.mjs command printed above), or set close_gate: report-only in docs/ai/docs-audit.yaml on the pushed commit." >&2
+<     _cg_refused=1
+<   else
+<     echo "AAI:CLOSE-GATE: reported for $_cg_rref (close_gate=$_cg_mode; push allowed)"
+<   fi
+< done
+< exit "$_cg_refused"

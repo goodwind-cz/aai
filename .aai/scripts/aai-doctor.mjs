@@ -482,6 +482,71 @@ function catGitRefGuard(root) {
   return cat('CAT-17', 'Git Ref Guard', 'WARN', `reference-transaction hook at ${hookPath} carries the AAI:REF-GUARD marker but does NOT behave as a guard on probe (refuses=${probe.refuses}, permits=${probe.permits}) — NOT armed; re-run install-pre-commit-hook.sh --force`);
 }
 
+// --- CAT-18 Guard Wiring (shipped-guards-have-no-downstream-trigger D4) ------
+// AAI vendors guards that are written, tested and documented, and used to
+// ship them with NOTHING installed to invoke them (issues #390/#391/#392):
+// pre-commit-checks.sh was never reached by the installed pre-commit hook,
+// and close-reconcile.mjs's only caller was a GitHub workflow that is not
+// vendored. This category makes an uninvoked guard VISIBLE. It owns a
+// CLOSED table of guard -> (hook, marker) pairs; a pair whose guard file is
+// absent from the tree is not reported (a vendored layer without the script
+// has nothing uninvoked — no false positive). The effective hook path is
+// resolved the way CAT-17 does (`git rev-parse --git-path`, honouring
+// core.hooksPath and linked worktrees — NOT CAT-12's --git-common-dir
+// shortcut), and PASS needs the marker AND the executable bit: the same
+// evidence the installer's own attest_effective demands. Static only — a
+// pre-push hook cannot be fed a synthetic push safely (Residual risk R4).
+const GUARD_WIRING = [
+  { guard: '.aai/scripts/pre-commit-checks.sh', hook: 'pre-commit', marker: 'AAI:GUARD-CHECKS' },
+  { guard: '.aai/scripts/close-reconcile.mjs', hook: 'pre-push', marker: 'AAI:CLOSE-GATE' },
+];
+
+function catGuardWiring(root) {
+  const installerCmd = 'bash .aai/scripts/install-pre-commit-hook.sh';
+  const passes = [];
+  const warns = [];
+  for (const pair of GUARD_WIRING) {
+    if (!exists(root, pair.guard)) continue; // nothing shipped, nothing uninvoked
+    const pathRes = run('git', ['rev-parse', '--git-path', `hooks/${pair.hook}`], root);
+    if (!pathRes.ok || pathRes.stdout.trim() === '') {
+      warns.push(`${pair.guard} has no caller: could not resolve the effective ${pair.hook} hook path (git rev-parse failed) — run ${installerCmd}`);
+      continue;
+    }
+    const rel = pathRes.stdout.trim();
+    const hookPath = path.isAbsolute(rel) ? rel : path.join(root, rel);
+    if (!fs.existsSync(hookPath)) {
+      warns.push(`${pair.guard} has no caller: ${pair.hook} hook absent at ${hookPath} (marker ${pair.marker}) — run ${installerCmd}`);
+      continue;
+    }
+    let body = '';
+    try {
+      body = fs.readFileSync(hookPath, 'utf8');
+    } catch (err) {
+      warns.push(`${pair.guard} has no verified caller: ${pair.hook} hook at ${hookPath} unreadable (${err?.code || 'read failed'}) — run ${installerCmd}`);
+      continue;
+    }
+    if (!body.includes(pair.marker)) {
+      warns.push(`${pair.guard} has no caller: ${pair.hook} hook at ${hookPath} does not carry ${pair.marker} — run ${installerCmd} (upgrades an AAI hook in place; --print for a foreign one)`);
+      continue;
+    }
+    if (process.platform !== 'win32') {
+      try {
+        fs.accessSync(hookPath, fs.constants.X_OK);
+      } catch {
+        warns.push(`${pair.guard} has no caller: ${pair.hook} hook at ${hookPath} carries ${pair.marker} but is not executable — git skips it silently; chmod +x or run ${installerCmd}`);
+        continue;
+      }
+    }
+    passes.push(`${pair.guard} <- ${pair.hook} (${pair.marker})`);
+  }
+  if (warns.length === 0) {
+    return cat('CAT-18', 'Guard Wiring', 'PASS', passes.length
+      ? `wired: ${passes.join('; ')}`
+      : 'no shipped guard needs wiring (pre-commit-checks.sh and close-reconcile.mjs absent from this tree)');
+  }
+  return cat('CAT-18', 'Guard Wiring', 'WARN', warns.join('; ') + (passes.length ? `; wired: ${passes.join('; ')}` : ''));
+}
+
 // Invokes a reference-transaction hook file DIRECTLY with synthetic
 // old/new/ref input for refs/heads/main — this never runs a `git` ref-update
 // command and never touches a real ref, so it is safe against the caller's
@@ -888,6 +953,7 @@ export function runDoctor(root, scriptDir) {
     catWinEnvironment(winProbe),
     catAgentCliProbe(root),
     catGitRefGuard(root),
+    catGuardWiring(root),
   ];
 }
 

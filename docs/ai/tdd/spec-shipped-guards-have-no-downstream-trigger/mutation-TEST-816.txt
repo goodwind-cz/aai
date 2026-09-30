@@ -1,0 +1,28 @@
+mutation_record: v1
+spec_id: spec-shipped-guards-have-no-downstream-trigger
+test_id: TEST-816
+suite: tests/skills/test-aai-hygiene-pack.sh
+selector: test_816_default_unchanged_and_pushed_config_wins
+target: .aai/scripts/install-pre-commit-hook.sh
+mutation: sed:s/git show "\$_cg_local:docs\/ai\/docs-audit.yaml"/cat docs\/ai\/docs-audit.yaml/
+base_commit: 3d9e2a6dc7744dd9ae8e8179efb72a56a62db329
+tree_hash: 17f7ee93a77cc56e750d5accadbdbf868840298faf93a81141c497d5d7acb2ee
+run_at_utc: 2026-09-30T20:52:47Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-816: the pushed commit's config is report-only, so the push must exit 0 (the worktree copy must not decide), got 1: AAI:CLOSE-GATE NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)
+selector_honoured: yes
+target_sha256: c674b5218f61346294374c3c1061a1db516bff20591794ad5930bc78ae0870da
+---
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: shipped default stays report-only, GUARD_DIALS unchanged, the pre-push reads the PUSHED commit's close_gate (TEST-816)...
+FAIL: TEST-816: the pushed commit's config is report-only, so the push must exit 0 (the worktree copy must not decide), got 1: AAI:CLOSE-GATE NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)
+AAI:CLOSE-GATE: default branch main (remote origin)
+AAI:CLOSE-GATE: refs/heads/main range=e0df0612f610fa05a4eb9471bd7b397fc33528cb..3e3e9f041bd803632656b28ecb0be5ab83b0a632 close_gate=enforce
+close-reconcile: OPEN docs/specs/SPEC-DRAFT-t.md id=spec-t arm=frozen_work_merged sha=3e3e9f041bd803632656b28ecb0be5ab83b0a632 reason=pr-number-unknown platform=unknown grammars-tried=github,azure — no shipped grammar matches this host; add one to close-reconcile.mjs
+close-reconcile:   remediation: BLOCKED — no commit subject touching docs/specs/SPEC-DRAFT-t.md matches a PR-number grammar (platform=unknown grammars-tried=github,azure — no shipped grammar matches this host; add one to close-reconcile.mjs), so no PR number can be resolved for this item; this cannot be closed by command until one is known
+close-reconcile: 1 item(s) found — the close ceremony did not run before merge
+AAI:CLOSE-GATE refused: push of refs/heads/main (close_gate: enforce, default branch main) -- the close ceremony did not run for range e0df0612f610fa05a4eb9471bd7b397fc33528cb..3e3e9f041bd803632656b28ecb0be5ab83b0a632 (rc=1).
+  Fix: run the close ceremony (/aai-pr, or the close-work-item.mjs command printed above), or set close_gate: report-only in docs/ai/docs-audit.yaml on the pushed commit.
+error: failed to push some refs to '/var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T//aai-hygiene.t46rjP/sg-t816-origin.git'
