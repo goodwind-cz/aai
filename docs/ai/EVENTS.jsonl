@@ -2540,3 +2540,10 @@
 {"v":1,"ts":"2026-09-29T22:09:08Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"spec-mutation-clone-windows-run-chain","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-29T22:09:08Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"spec-mutation-clone-windows-run-chain","payload":{"commit":"1912fae483177a4bcc0d591d023e8e4df355df95"}}
 {"v":1,"ts":"2026-09-29T22:36:33Z","actor":"cursoragent_cursor.com","event":"pr_sweep","ref":"mutation-clone-windows-run-chain","payload":{"pr":408,"lane":"heavy","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"internal_substituted","head_sha":"242637ac3204bd7c5772fc21c55e0a41ca9abccf"}}
+{"v":1,"ts":"2026-09-29T23:17:34.910Z","actor":"cursoragent_cursor.com","event":"ride_gate_override","ref":"pricing-missing-models-and-refresh","payload":{"reason":"owner invoked /aai-ship change 197; log override and continue"}}
+{"v":1,"ts":"2026-09-29T23:42:08Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"pricing-missing-models-and-refresh","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-29T23:42:08Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"pricing-missing-models-and-refresh","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-29T23:42:08Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"pricing-missing-models-and-refresh","payload":{"commit":"8eafcc667858e3b95da55eb1b2983e0ff2c1ba74"}}
+{"v":1,"ts":"2026-09-29T23:42:08Z","actor":"cursoragent_cursor.com","event":"doc_lifecycle","ref":"spec-pricing-missing-models-and-refresh","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-29T23:42:08Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"spec-pricing-missing-models-and-refresh","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-29T23:42:08Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"spec-pricing-missing-models-and-refresh","payload":{"commit":"8eafcc667858e3b95da55eb1b2983e0ff2c1ba74"}}

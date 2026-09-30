@@ -8,6 +8,11 @@ Rules:
 - If uncertain, mark as UNCERTAIN and list as an open question.
 - Prefer small deltas; avoid restating large documents.
 
+## OpenAI gpt-6.1-sol pricing (CHANGE-0197 owner note 2026-09-29)
+
+- OpenAI publishes **gpt-6.1-sol** (owner wording: ChatGPT 6.1 sol) on the flagship pricing table at `https://platform.openai.com/docs/pricing` with short-context standard list **$2.00 / $1M input** and **$10.00 / $1M output** (verified 2026-09-29). Long-context tier doubles input on the same page.
+- `.aai/system/PRICING.yaml` carries a `gpt-6.1-sol` row from CHANGE-0197; **`.aai/system/MODEL_ROUTING.yaml` was out of scope** for that change.
+
 ## implementation_strategy.ref_id (SPEC-0192)
 
 - `cmdSetStrategy` (`.aai/scripts/state.mjs`) writes `implementation_strategy.ref_id` to `--ref` or else `current_focus.ref_id`. Non-null mismatch: exit 2, message contains `disagrees`, no write. Neither bound: exit 2, message contains `--ref`, no write. `--ref` with unset focus is the CHANGE-0100 intake bind (SPEC-0192 D2 / Spec-AC-07).

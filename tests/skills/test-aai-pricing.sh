@@ -172,6 +172,39 @@ if (!/^lookup_rules:/m.test(fs.readFileSync(pricingPath, 'utf8'))) {
   fail('009', 'PRICING.yaml must document a top-level lookup_rules: section');
 }
 
+// Assert 7 (CHANGE-0197 AC-001): catalog families priced or documented as omitted.
+const catalog = [
+  'claude-fable-5-1', 'claude-opus-5-5', 'claude-sonnet-5-5',
+  'gpt-5.6-sol', 'gpt-5.6-terra', 'gemini-3.8-flash', 'grok-4.7',
+];
+const omitted = ['composer-2.5', 'cursor-grok-4.6', 'muse-spark-1.3'];
+const pricingText = fs.readFileSync(pricingPath, 'utf8');
+for (const id of catalog) {
+  const e = models[id];
+  if (!e) { fail('010', `catalog family "${id}" missing models entry`); continue; }
+  if (!(typeof e.input === 'number' && typeof e.output === 'number' && e.input > 0 && e.output > 0)) {
+    fail('010', `catalog family "${id}" must have finite input/output rates`);
+  }
+  if (!e.last_verified) fail('010', `catalog family "${id}" missing last_verified_utc`);
+}
+for (const id of omitted) {
+  if (Object.prototype.hasOwnProperty.call(models, id)) {
+    fail('011', `omitted catalog family "${id}" must not have a models key`);
+  }
+  const noteLine = pricingText.split('\n').find((l) => l.includes(id) && /https?:\/\//.test(l));
+  if (!noteLine) {
+    fail('011', `omitted catalog family "${id}" must appear in PRICING.yaml notes with a checked URL (https://...)`);
+  }
+}
+for (const id of catalog) {
+  for (const suffix of ['', '-high', '-xhigh']) {
+    const runtime = id + suffix;
+    const key = resolve(runtime);
+    if (key !== id) fail('012', `resolver ${runtime} -> ${key}, expected ${id}`);
+    else console.log(`RESOLVED: ${runtime} -> ${key}`);
+  }
+}
+
 if (failures.length > 0) {
   for (const f of failures) console.error(f);
   process.exit(1);
