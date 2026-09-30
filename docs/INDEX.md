@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-30T00:40:42.756Z
+Generated: 2026-09-30T00:54:42.748Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-sync-deletes-target-only-hooks | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-sync-deletes-target-only-hooks.md |
 
 ## Canonical layer (0)
 
@@ -51,7 +52,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (470)
+## Done (468)
 
 | ID | Type | Path |
 |---|---|---|
@@ -247,7 +248,6 @@ _None._
 | CHANGE-0195 | issues | docs/issues/CHANGE-0195-growth-pins-dont-wall-the-corpus.md |
 | CHANGE-0196 | issues | docs/issues/CHANGE-0196-antigravity-cli-skill-paths.md |
 | CHANGE-0197 | issues | docs/issues/CHANGE-0197-pricing-missing-models-and-refresh.md |
-| CHANGE-0198 | issues | docs/issues/CHANGE-0198-pricing-gpt-6-flagship-family.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -522,11 +522,10 @@ _None._
 | SPEC-0194 | specs | docs/specs/SPEC-0194-spec-antigravity-cli-skill-paths.md |
 | SPEC-0195 | specs | docs/specs/SPEC-0195-spec-mutation-clone-windows-run-chain.md |
 | SPEC-0197 | specs | docs/specs/SPEC-0197-spec-pricing-missing-models-and-refresh.md |
-| SPEC-0198 | specs | docs/specs/SPEC-0198-spec-pricing-gpt-6-flagship-family.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
@@ -544,6 +543,7 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
+| sync-deletes-target-only-hooks (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-sync-deletes-target-only-hooks.md |
 
 ## Deferred (whole-doc) (0)
 

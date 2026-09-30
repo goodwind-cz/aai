@@ -2548,3 +2548,4 @@
 {"v":1,"ts":"2026-09-29T23:42:08Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"spec-pricing-missing-models-and-refresh","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-29T23:42:08Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"spec-pricing-missing-models-and-refresh","payload":{"commit":"8eafcc667858e3b95da55eb1b2983e0ff2c1ba74"}}
 {"v":1,"ts":"2026-09-30T00:08:51Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":536,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-30T00:49:37Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-sync-deletes-target-only-hooks","payload":{"from":"draft","to":"implementing"}}
