@@ -2,14 +2,16 @@
 id: spec-sync-deletes-target-only-hooks
 type: spec
 number: 199
-status: implementing
+status: done
 frozen_sha256: 05f32e4633970cfb2321d741f670546db5056ca613a7d43391b8e5fed1da87e8
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 1efec5f88d26d3d9e53b4bda36455e8c7097513c
 ---
 
 # Spec — aai-sync preserves target-only hooks and reports its deletions

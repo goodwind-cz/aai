@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-30T16:03:41.356Z
+Generated: 2026-09-30T16:04:51.040Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0199 | specs | implementing | 17 done | docs/specs/SPEC-0199-spec-sync-deletes-target-only-hooks.md |
 
 ## Canonical layer (0)
 
@@ -52,7 +51,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (468)
+## Done (470)
 
 | ID | Type | Path |
 |---|---|---|
@@ -308,6 +307,7 @@ _None._
 | ISSUE-0086 | issues | docs/issues/ISSUE-0086-strategy-unscoped-from-current-focus.md |
 | ISSUE-0087 | issues | docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md |
 | ISSUE-0088 | issues | docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md |
+| ISSUE-0089 | issues | docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -522,10 +522,11 @@ _None._
 | SPEC-0194 | specs | docs/specs/SPEC-0194-spec-antigravity-cli-skill-paths.md |
 | SPEC-0195 | specs | docs/specs/SPEC-0195-spec-mutation-clone-windows-run-chain.md |
 | SPEC-0197 | specs | docs/specs/SPEC-0197-spec-pricing-missing-models-and-refresh.md |
+| SPEC-0199 | specs | docs/specs/SPEC-0199-spec-sync-deletes-target-only-hooks.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
@@ -543,7 +544,6 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
-| ISSUE-0089 | issues | docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md |
 
 ## Deferred (whole-doc) (0)
 

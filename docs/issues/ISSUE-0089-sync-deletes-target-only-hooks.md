@@ -2,10 +2,12 @@
 id: sync-deletes-target-only-hooks
 type: issue
 number: 89
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 1efec5f88d26d3d9e53b4bda36455e8c7097513c
 ---
 
 # Hotfix — aai-sync deletes target-only files under hooks/ and the advisory never says so
