@@ -1710,6 +1710,53 @@ test_792_snapshot_unwritable_reports_true_state() {
   log_pass "TEST-792 a snapshot write failure after a real merge is reported truthfully (merge applied, snapshot not recorded) on both engines"
 }
 
+
+# -- TEST-793 (Codex P1 / P2 on PR #415) -------------------------------------
+# The pre-change copy_replace UNLINKED the destination, so a committed
+# hooks.json symlink was replaced. A merge writes THROUGH the link, so a link
+# aimed outside the target would have this engine rewrite a file the sync was
+# never asked to touch. Also asserts the atomic write leaves no temp residue.
+test_793_symlink_destination_refused_and_write_is_atomic() {
+  log_info "TEST-793: a symlinked hooks.json is refused, the file it points at is untouched, and a merge leaves no temp residue..."
+  local root outside victim before after out plain residue
+  root="$(mktemp -d "${TMPDIR:-/tmp}/sync-793.XXXXXX")"
+  outside="$(mktemp -d "${TMPDIR:-/tmp}/sync-793-out.XXXXXX")"
+  victim="$outside/victim.json"
+  printf '%s\n' '{"hooks":{"Stop":[{"matcher":"x","hooks":[{"type":"command","command":"outside.sh"}]}]}}' > "$victim"
+  before="$(shasum -a 256 "$victim" | awk '{print $1}')"
+
+  mkdir -p "$root/hooks"
+  ln -s "$victim" "$root/hooks/hooks.json"
+
+  set +e
+  out="$(node "$PROJECT_ROOT/.aai/scripts/lib/merge-hooks-json.mjs" "$PROJECT_ROOT/hooks/hooks.json" "$root/hooks/hooks.json" 2>&1)"
+  set -e
+
+  case "$out" in
+    *"is a symbolic link"*) : ;;
+    *) log_fail "TEST-793: the refusal must name the symlink as the reason; got: $out" ;;
+  esac
+
+  after="$(shasum -a 256 "$victim" | awk '{print $1}')"
+  [[ "$before" == "$after" ]] \
+    || log_fail "TEST-793: the file OUTSIDE the target was modified through the symlink"
+  [[ -L "$root/hooks/hooks.json" ]] \
+    || log_fail "TEST-793: the symlink was replaced instead of refused"
+
+  plain="$(mktemp -d "${TMPDIR:-/tmp}/sync-793-plain.XXXXXX")"
+  mkdir -p "$plain/hooks"
+  printf '%s\n' '{"hooks":{}}' > "$plain/hooks/hooks.json"
+  node "$PROJECT_ROOT/.aai/scripts/lib/merge-hooks-json.mjs" "$PROJECT_ROOT/hooks/hooks.json" "$plain/hooks/hooks.json" >/dev/null 2>&1
+  residue="$(find "$plain/hooks" -name '.*.tmp' | wc -l | tr -d ' ')"
+  [[ "$residue" == "0" ]] \
+    || log_fail "TEST-793: the atomic write left $residue temp file(s) behind in hooks/"
+  node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' "$plain/hooks/hooks.json" \
+    || log_fail "TEST-793: the merged hooks.json is not valid JSON after an atomic write"
+
+  rm -rf "$root" "$outside" "$plain"
+  log_pass "TEST-793 a symlinked destination is refused without following or replacing it, and the merged write leaves no temp residue"
+}
+
 main() {
   echo "=== Test Suite: $TEST_NAME ==="
   check_deps
@@ -1772,6 +1819,7 @@ main() {
   test_790_ps1_user_edited_matcher_and_fields_preserved
   test_791_hooks_dotfiles_synced_and_preserved_cross_engine
   test_792_snapshot_unwritable_reports_true_state
+  test_793_symlink_destination_refused_and_write_is_atomic
   if [[ "$PWSH_ARM_SKIPPED" -eq 1 ]]; then
     log_skip "pwsh absent — one or more PowerShell assertions were not exercised (all bash-only assertions above passed)"
   fi

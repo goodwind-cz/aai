@@ -156,10 +156,46 @@ function differingKeys(a, b) {
  * @throws {Error} when dstPath exists but is not a JSON object, or carries a
  *   non-object "hooks" key. dstPath is left untouched in every throw path.
  */
+// Codex P2 (PR #415): `writeFileSync` truncates the destination before it
+// writes, so a failure part-way (ENOSPC, a quota) leaves `hooks.json` empty or
+// half-written while every caller still reports "the target was left
+// untouched". Write a sibling temp file and rename only after a successful
+// close, so a refusal path really does preserve the original. The rename is
+// within one directory, so it is atomic on every platform this ships to.
+function writeAtomic(filePath, contents) {
+  const dir = path.dirname(filePath);
+  const tmp = path.join(dir, `.${path.basename(filePath)}.${process.pid}.tmp`);
+  try {
+    fs.writeFileSync(tmp, contents);
+    fs.renameSync(tmp, filePath);
+  } catch (err) {
+    try { fs.unlinkSync(tmp); } catch { /* the temp file may never have existed */ }
+    throw err;
+  }
+}
+
 export function mergeHooksJson(tplPath, dstPath, opts = {}) {
   const shippedPath = opts.shipped || null;
   const tplRaw = fs.readFileSync(tplPath, 'utf8');
   const tpl = JSON.parse(tplRaw);
+
+  // Codex P1 (PR #415): the pre-change `copy_replace` UNLINKED the destination
+  // (`rm -rf` then `cp -a`), so a committed `hooks.json` symlink was replaced.
+  // A merge writes THROUGH the link instead, so a link pointing outside the
+  // target would have this engine rewrite a file the sync was never asked to
+  // touch. lstat before any read or write; a symlink is refused, never
+  // followed and never replaced silently.
+  let dstLink = null;
+  try {
+    dstLink = fs.lstatSync(dstPath);
+  } catch {
+    dstLink = null;
+  }
+  if (dstLink && dstLink.isSymbolicLink()) {
+    throw new Error(
+      `existing ${dstPath} is a symbolic link — refusing to touch it, because merging would write through the link to a file outside this target. Replace it with a real file, or merge the "hooks" key from ${tplPath} manually.`
+    );
+  }
 
   let dst = {};
   if (fs.existsSync(dstPath)) {
@@ -177,7 +213,7 @@ export function mergeHooksJson(tplPath, dstPath, opts = {}) {
       for (const m of matchers) added += (m.hooks || []).length;
     }
     fs.mkdirSync(path.dirname(dstPath), { recursive: true });
-    fs.writeFileSync(dstPath, tplRaw);
+    writeAtomic(dstPath, tplRaw);
     const snapshotError = writeShipped(shippedPath, tplRaw);
     return { added, updated: 0, skipped: 0, left: 0, wrote: true, conflicts: [], snapshotError };
   }
@@ -289,7 +325,7 @@ export function mergeHooksJson(tplPath, dstPath, opts = {}) {
   }
 
   const wrote = added > 0 || updated > 0;
-  if (wrote) fs.writeFileSync(dstPath, JSON.stringify(dst, null, 2) + '\n');
+  if (wrote) writeAtomic(dstPath, JSON.stringify(dst, null, 2) + '\n');
   const snapshotError = writeShipped(shippedPath, tplRaw);
   return { added, updated, skipped, left: conflicts.length, wrote, conflicts, snapshotError };
 }
