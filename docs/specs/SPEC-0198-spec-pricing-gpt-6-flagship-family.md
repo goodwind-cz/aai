@@ -35,4 +35,4 @@ Ceremony justification: pricing table and one skills contract test only; no prot
 
 | Test ID | Spec-AC | File | Description |
 |---------|---------|------|-------------|
-| TEST-006 | 01–05 | tests/skills/test-aai-pricing.sh | PRICING contract + GPT-6 catalog |
+| TEST-006 | Spec-AC-01..05 | tests/skills/test-aai-pricing.sh | PRICING contract + GPT-6 catalog |
