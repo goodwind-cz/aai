@@ -23,12 +23,20 @@ GENERATOR=".aai/scripts/aai-bootstrap.sh"
 SKILL_MARKER="AAI-DYNAMIC-SKILL:START"
 FILE_MARKER="AAI-DYNAMIC-FILE:START"
 
-# Shared additive JSON-hooks merge (self-relative, not CWD-relative: this
-# script's own sibling file, regardless of what directory it is invoked from).
-HOOKS_JSON_MERGE_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/merge-hooks-json.mjs"
+# This script's own directory, resolved once (self-relative, not
+# CWD-relative: the shared libraries below are sibling files regardless of
+# what directory bootstrap is invoked from). One resolution, not one per
+# library: tests/skills/lib/cd-subshell-leak-baseline.tsv ratchets the
+# `cd`-inside-a-substitution shape per file, and a second copy of it here
+# was a RISE (Validation BLOCKING-2, 2026-09-30).
+BOOTSTRAP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Shared JSON-hooks merge (.aai/scripts/lib/merge-hooks-json.mjs — the same
+# file aai-sync.(sh|ps1) call for hooks/hooks*.json).
+HOOKS_JSON_MERGE_LIB="$BOOTSTRAP_SCRIPT_DIR/lib/merge-hooks-json.mjs"
 
 # Shared runtime-sidecar .gitignore reconcile (spec-aai-update-gitignore-drift-reconcile).
-GITIGNORE_BLOCK_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/gitignore-block.sh"
+GITIGNORE_BLOCK_LIB="$BOOTSTRAP_SCRIPT_DIR/lib/gitignore-block.sh"
 if [[ -f "$GITIGNORE_BLOCK_LIB" ]]; then
   # shellcheck source=lib/gitignore-block.sh
   source "$GITIGNORE_BLOCK_LIB"
@@ -985,7 +993,12 @@ install_claude_hooks() {
     return 0
   fi
   if [[ ! -f "$HOOKS_JSON_MERGE_LIB" ]]; then
-    echo "WARN: hooks merge library not found ($HOOKS_JSON_MERGE_LIB) — skipping hooks install. Re-sync (.aai/scripts/aai-sync.sh) to vendor it, then rerun with --with-claude-hooks."
+    # Review NB-1 follow-through (Validation NB-3): --with-claude-hooks was
+    # EXPLICITLY requested; a missing merge library delivers nothing, and
+    # delivering nothing must fail the command (exit 3), not warn-and-succeed.
+    # Bites only on a target vendored from a pre-#414 source.
+    echo "ERROR: hooks merge library not found ($HOOKS_JSON_MERGE_LIB) — the hooks overlay was NOT installed. Re-sync (.aai/scripts/aai-sync.sh) to vendor it, then rerun with --with-claude-hooks." >&2
+    HOOKS_MERGE_FAILED=1
     return 0
   fi
   if ! command -v node >/dev/null 2>&1; then
@@ -1007,7 +1020,7 @@ install_claude_hooks() {
     echo "  hooks overlay: $merge_out"
     # here-string, never printf piped into "grep -q": under pipefail a
     # quiet grep that matches early can SIGPIPE the writer (round 10, PR #381).
-    if grep -q "0 hook(s) added" <<<"$merge_out"; then
+    if grep -q "0 hook(s) added, 0 updated" <<<"$merge_out"; then
       UNCHANGED+=("$dst (AAI hooks overlay already present)")
     else
       WRITTEN+=("$dst (AAI hooks overlay merged)")

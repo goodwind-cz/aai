@@ -566,16 +566,23 @@ if (Test-Path $pluginJson) {
 # hooks/hooks.json and hooks/hooks.windows.json are the ONE exception to
 # "source-owned files overwrite": owner amendment (2026-09-30) - a
 # target-added registration entry (e.g. merge-guard's own PreToolUse hook)
-# must survive a sync, so these two are ADDITIVELY MERGED via the shared
+# must survive a sync, so these two are MERGED via the shared
 # .aai/scripts/lib/merge-hooks-json.mjs (same algorithm as aai-bootstrap.sh's
-# --with-claude-hooks overlay: a source hook whose exact "command" is not
-# already present in the target is appended; an existing target entry is
-# NEVER removed or rewritten). A merge refusal (target does not parse as the
+# --with-claude-hooks overlay). The rule, stated in that file's header: a
+# source hook not present in the target is added; a source-owned entry whose
+# command changed is UPDATED IN PLACE only when the target's copy is
+# byte-equal to what this engine last shipped here (the --shipped snapshot
+# under <target>/.aai/cache/hooks-shipped/, which survives sync/prune and is
+# gitignored); a same-path entry the engine cannot prove it authored is
+# LEFT AS-IS, not added beside, and named in the advisory - a user-modified
+# hook is never rewritten. A target entry whose path the source does not
+# ship is never touched. A merge refusal (target does not parse as the
 # expected JSON shape) or a missing `node` leaves the target file untouched
 # and is named in the advisory - never a silent skip. Retirement residual:
-# because the merge never removes anything, a hook the source has retired
-# stays registered in a target that already carries it (see Spec-AC-08/-11).
+# the merge never removes anything, so a hook the source has retired stays
+# registered in a target that already carries it (see Spec-AC-08/-11).
 $hooksJsonMergeLib = Join-Path $SrcRoot ".aai/scripts/lib/merge-hooks-json.mjs"
+$hooksShippedDir = Join-Path $TargetRoot ".aai/cache/hooks-shipped"
 $hooksNodeAvailable = [bool](Get-Command node -ErrorAction SilentlyContinue)
 $hooksDir = Join-Path $SrcRoot "hooks"
 if (Test-Path $hooksDir) {
@@ -587,7 +594,7 @@ if (Test-Path $hooksDir) {
       if (-not $hooksNodeAvailable) {
         $overwriteConflicts += [pscustomobject]@{
           Path = "hooks/$($_.Name)"
-          Recommendation = "node is unavailable, so the additive hook-registration merge could not run; the target file was left untouched. Install Node.js and re-sync, or merge the `"hooks`" key from the source file manually."
+          Recommendation = "node is unavailable, so the hook-registration merge could not run; the target file was left untouched. Install Node.js and re-sync, or merge the `"hooks`" key from the source file manually."
         }
         Write-Host "  WARN node unavailable - hooks/$($_.Name) registration merge skipped, file left untouched"
       } elseif (-not (Test-Path $hooksJsonMergeLib)) {
@@ -597,14 +604,29 @@ if (Test-Path $hooksDir) {
         }
         Write-Host "  WARN merge library missing - hooks/$($_.Name) registration merge skipped, file left untouched"
       } else {
-        $mergeOut = & node $hooksJsonMergeLib $_.FullName $dstHook 2>&1 | Out-String
-        $mergeOut = $mergeOut.Trim()
+        $shippedPath = Join-Path $hooksShippedDir $_.Name
+        $mergeOut = & node $hooksJsonMergeLib $_.FullName $dstHook --shipped $shippedPath 2>&1 | Out-String
+        # Advisory text names paths relative to the two roots, never the
+        # machine's absolute layout (Validation NB-5). Both separators: the
+        # library echoes the paths as it received them.
+        $mergeOut = $mergeOut.Trim().Replace("$TargetRoot/", "").Replace("$TargetRoot\", "").Replace("$SrcRoot/", "<source>/").Replace("$SrcRoot\", "<source>/")
         if ($LASTEXITCODE -eq 0) {
           Write-Host "  MERGE hooks/$($_.Name): $mergeOut"
+          # One `LEFT-AS-IS <event> <path>: ...` line per source-owned entry
+          # the merge could not prove it authored - the owner's priority
+          # (never rewrite a user-modified hook) applied; surface each one.
+          foreach ($mergeLine in ($mergeOut -split "`r?`n")) {
+            if ($mergeLine.StartsWith("LEFT-AS-IS ")) {
+              $overwriteConflicts += [pscustomobject]@{
+                Path = "hooks/$($_.Name)"
+                Recommendation = "A source-owned hook registration changed in the source, but the target's entry for the same script differs from what this engine last shipped, so it was left as-is and the new version was NOT added beside it (a user-modified hook is never rewritten). $($mergeLine.Substring(11))"
+              }
+            }
+          }
         } else {
           $overwriteConflicts += [pscustomobject]@{
             Path = "hooks/$($_.Name)"
-            Recommendation = "Additive hook-registration merge was refused (existing file does not parse as the expected JSON shape) and the target was left untouched: $mergeOut Merge the registration manually."
+            Recommendation = "Hook-registration merge was refused (existing file does not parse as the expected JSON shape) and the target was left untouched: $mergeOut Merge the registration manually."
           }
           Write-Host "  WARN hooks/$($_.Name) registration merge refused (target left untouched): $mergeOut"
         }

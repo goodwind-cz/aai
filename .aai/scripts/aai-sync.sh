@@ -557,16 +557,27 @@ fi
 # hooks/hooks.json and hooks/hooks.windows.json are the ONE exception to
 # "source-owned files overwrite": owner amendment (2026-09-30) — a
 # target-added registration entry (e.g. merge-guard's own PreToolUse hook)
-# must survive a sync, so these two are ADDITIVELY MERGED via the shared
+# must survive a sync, so these two are MERGED via the shared
 # .aai/scripts/lib/merge-hooks-json.mjs (same algorithm as aai-bootstrap.sh's
-# --with-claude-hooks overlay: a source hook whose exact "command" is not
-# already present in the target is appended; an existing target entry is
-# NEVER removed or rewritten). A merge refusal (target does not parse as the
+# --with-claude-hooks overlay). The rule, stated in that file's header: a
+# source hook not present in the target is added; a source-owned entry whose
+# command changed is UPDATED IN PLACE only when the target's copy is
+# byte-equal to what this engine last shipped here (the `--shipped` snapshot
+# under <target>/.aai/cache/hooks-shipped/, which survives sync/prune and is
+# gitignored); a same-path entry the engine cannot prove it authored is
+# LEFT AS-IS, not added beside, and named in the advisory — a user-modified
+# hook is never rewritten. A target entry whose path the source does not
+# ship is never touched. A merge refusal (target does not parse as the
 # expected JSON shape) or a missing `node` leaves the target file untouched
 # and is named in the advisory — never a silent skip. Retirement residual:
-# because the merge never removes anything, a hook the source has retired
-# stays registered in a target that already carries it (see Spec-AC-08/-11).
+# the merge never removes anything, so a hook the source has retired stays
+# registered in a target that already carries it (see Spec-AC-08/-11).
 HOOKS_JSON_MERGE_LIB="$SRC_ROOT/.aai/scripts/lib/merge-hooks-json.mjs"
+HOOKS_SHIPPED_DIR="$DST_ROOT/.aai/cache/hooks-shipped"
+# Prefixes held in variables so the `${var//"$prefix"/}` scrub below is a
+# LITERAL match on bash 3.2 too (a `[ ]` or `*` in a root path must not glob).
+hooks_dst_prefix="$DST_ROOT/"
+hooks_src_prefix="$SRC_ROOT/"
 if [[ -d "$SRC_ROOT/hooks" ]]; then
   mkdir -p "$DST_ROOT/hooks"
   hooks_node_available=0
@@ -577,19 +588,39 @@ if [[ -d "$SRC_ROOT/hooks" ]]; then
     dst_hook="$DST_ROOT/hooks/$hname"
     case "$hname" in
       hooks.json|hooks.windows.json)
+        # WARN lines go to STDOUT like every other line of this run's
+        # narrative (PRESERVE/MERGE/SYNC) and like the .ps1 engine — Spec-AC-11
+        # says stdout; Validation NB-2 caught the >&2 that TEST-783's 2>&1
+        # could not.
         if [[ "$hooks_node_available" -ne 1 ]]; then
-          OVERWRITE_CONFLICTS+=("hooks/$hname|node is unavailable, so the additive hook-registration merge could not run; the target file was left untouched. Install Node.js and re-sync, or merge the \"hooks\" key from the source file manually.")
-          echo "  WARN node unavailable — hooks/$hname registration merge skipped, file left untouched" >&2
+          OVERWRITE_CONFLICTS+=("hooks/$hname|node is unavailable, so the hook-registration merge could not run; the target file was left untouched. Install Node.js and re-sync, or merge the \"hooks\" key from the source file manually.")
+          echo "  WARN node unavailable — hooks/$hname registration merge skipped, file left untouched"
         elif [[ ! -f "$HOOKS_JSON_MERGE_LIB" ]]; then
           OVERWRITE_CONFLICTS+=("hooks/$hname|The hooks-registration merge library is missing from this source tree; the target file was left untouched. Merge the \"hooks\" key from the source file manually.")
-          echo "  WARN merge library missing — hooks/$hname registration merge skipped, file left untouched" >&2
+          echo "  WARN merge library missing — hooks/$hname registration merge skipped, file left untouched"
         else
           hooks_merge_out=""
-          if hooks_merge_out="$(node "$HOOKS_JSON_MERGE_LIB" "$src_hook" "$dst_hook" 2>&1)"; then
+          if hooks_merge_out="$(node "$HOOKS_JSON_MERGE_LIB" "$src_hook" "$dst_hook" --shipped "$HOOKS_SHIPPED_DIR/$hname" 2>&1)"; then
+            # Advisory text names paths relative to the two roots, never the
+            # machine's absolute layout (Validation NB-5).
+            hooks_merge_out="${hooks_merge_out//"$hooks_dst_prefix"/}"
+            hooks_merge_out="${hooks_merge_out//"$hooks_src_prefix"/<source>/}"
             echo "  MERGE hooks/$hname: $hooks_merge_out"
+            # One `LEFT-AS-IS <event> <path>: ...` line per source-owned entry
+            # the merge could not prove it authored — the owner's priority
+            # (never rewrite a user-modified hook) applied; surface each one.
+            while IFS= read -r hooks_merge_line; do
+              case "$hooks_merge_line" in
+                "LEFT-AS-IS "*)
+                  OVERWRITE_CONFLICTS+=("hooks/$hname|A source-owned hook registration changed in the source, but the target's entry for the same script differs from what this engine last shipped, so it was left as-is and the new version was NOT added beside it (a user-modified hook is never rewritten). ${hooks_merge_line#LEFT-AS-IS }")
+                  ;;
+              esac
+            done <<< "$hooks_merge_out"
           else
-            OVERWRITE_CONFLICTS+=("hooks/$hname|Additive hook-registration merge was refused (existing file does not parse as the expected JSON shape) and the target was left untouched: $hooks_merge_out Merge the registration manually.")
-            echo "  WARN hooks/$hname registration merge refused (target left untouched): $hooks_merge_out" >&2
+            hooks_merge_out="${hooks_merge_out//"$hooks_dst_prefix"/}"
+            hooks_merge_out="${hooks_merge_out//"$hooks_src_prefix"/<source>/}"
+            OVERWRITE_CONFLICTS+=("hooks/$hname|Hook-registration merge was refused (existing file does not parse as the expected JSON shape) and the target was left untouched: $hooks_merge_out Merge the registration manually.")
+            echo "  WARN hooks/$hname registration merge refused (target left untouched): $hooks_merge_out"
           fi
         fi
         continue

@@ -877,7 +877,9 @@ test_630_agents_tree_pin_still_bites() {
 # engine for a quiet run (TEST-778), the PowerShell engine mirrors all four
 # behaviours (TEST-779), a source-retired hook survives disarmed rather than
 # deleted (TEST-780), and the four named regression suites stay green
-# (TEST-781).
+# (TEST-781). TEST-782/783 pin the refusal and node-absent degrade paths;
+# TEST-784..788 (owner-directed extension, 2026-09-30) pin update-in-place
+# vs. left-as-is -- see the block header above test_784.
 
 # --- TEST-773 (Spec-AC-01) — target-only hook survives a real sync ------------
 test_773_hook_target_only_survives_bytes() {
@@ -1207,28 +1209,287 @@ test_783_hook_json_no_node_leaves_untouched() {
   if ! command -v node >/dev/null 2>&1; then
     log_info "TEST-783 note: node already absent from this runner's PATH -- degrading to a direct assertion against the real environment"
   fi
-  local dst="$TMP_ROOT/hooks-783" log="$TMP_ROOT/hooks-783.log" no_node_path
+  local dst="$TMP_ROOT/hooks-783" log="$TMP_ROOT/hooks-783.log" errlog="$TMP_ROOT/hooks-783.err" no_node_path
   mkdir -p "$dst"
   git -C "$dst" init -q -b main
   # A PATH carrying only the directories bash/git themselves need, with every
   # directory that could contain a `node` binary excluded -- proves the
   # DEGRADE path, not just that this one PATH lacks a node symlink.
   no_node_path="$(dirname "$(command -v bash)"):$(dirname "$(command -v git)")"
-  env PATH="$no_node_path" bash "$SYNC_SH" "$dst" >"$log" 2>&1 \
-    || log_fail "TEST-783: sync failed under a node-less PATH (should degrade, not fail): $(cat "$log")"
+  # stdout and stderr captured SEPARATELY: Spec-AC-11 says the WARN is on
+  # stdout (as it is in the .ps1 engine); a `2>&1` log could not tell a
+  # stderr WARN from a stdout one (Validation NB-2, 2026-09-30).
+  env PATH="$no_node_path" bash "$SYNC_SH" "$dst" >"$log" 2>"$errlog" \
+    || log_fail "TEST-783: sync failed under a node-less PATH (should degrade, not fail): $(cat "$log" "$errlog")"
   if env PATH="$no_node_path" bash -c 'command -v node' >/dev/null 2>&1; then
     log_fail "TEST-783: bad fixture -- node is still resolvable on the stripped PATH"
   fi
   [[ -f "$dst/hooks/hooks.json" ]] \
     && log_fail "TEST-783: hooks/hooks.json was created without node (expected: left untouched/absent)"
   grep -qF -- 'WARN node unavailable' "$log" \
-    || log_fail "TEST-783: sync stdout did not warn about the missing node interpreter: $(cat "$log")"
+    || log_fail "TEST-783: sync STDOUT did not warn about the missing node interpreter (stderr was: $(cat "$errlog")); stdout: $(cat "$log")"
   local newest
   newest="$(find "$dst/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | LC_ALL=C sort | tail -n1)"
   [[ -n "$newest" ]] || log_fail "TEST-783: no advisory report was written"
   grep -qF -- '- Path: hooks/hooks.json' "$newest" \
     || log_fail "TEST-783: advisory does not name hooks/hooks.json: $(cat "$newest")"
   log_pass "TEST-783 with node unavailable, hooks/hooks.json is left untouched and named in the advisory"
+}
+
+# ── owner-directed scope extension (2026-09-30) — TEST-784..788 ─────────────
+# Validation measured a second consequence of additive-only merge: a source
+# that CHANGES an already-registered hook's command shipped the new command
+# as an addition and left the old one registered -- two SessionStart entries
+# after a v2 sync, one pointing at a file the source no longer ships, one
+# stale entry per release edit in every downstream target. The owner's
+# decision: match on the script PATH inside the command and UPDATE the
+# source-owned entry in place -- but never rewrite an entry the engine cannot
+# prove it authored (the standing priority: a user-modified hook is never
+# overwritten). The proof is the `--shipped` snapshot the engine records under
+# <target>/.aai/cache/hooks-shipped/: an entry byte-equal to what the engine
+# last shipped is provably unmodified engine output (TEST-784, updated); any
+# other same-path entry is LEFT AS-IS, not added beside, and named in the
+# advisory (TEST-785). A target-added entry whose path the source does not
+# ship is untouched in every case (asserted inside both). A fresh target's
+# hooks.json is the source's bytes, not a re-serialisation (TEST-786,
+# Validation NB-4). An explicit --with-claude-hooks with the merge library
+# missing FAILS instead of warn-and-succeeding (TEST-787, Validation NB-3).
+# The .ps1 engine mirrors update + left-as-is (TEST-788).
+#
+# These need a SOURCE whose hooks/hooks.json can be edited between syncs, so
+# they build a fixture source tree (same builder as TEST-778) and run the
+# engine copy inside it -- never the live repo's hooks.json.
+
+# Count of command entries under one event of a hooks JSON; the merge-guard
+# command must also still be present verbatim (the ride's core property).
+_hooks_event_count() {
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    let n = 0; for (const g of (j.hooks[process.argv[2]] || [])) n += (g.hooks || []).length;
+    console.log(n);' "$1" "$2"
+}
+
+# Seed the target's hooks/hooks.json with a target-added PreToolUse ->
+# merge-guard registration ON TOP of whatever the sync wrote (never a
+# hand-written file: the SessionStart entry must be exactly what the engine
+# shipped, so the update arm is testing provenance, not a lucky string match).
+_hooks_add_merge_guard() {
+  node -e '
+    const fs = require("fs"); const p = process.argv[1]; const cmd = process.argv[2];
+    const j = JSON.parse(fs.readFileSync(p, "utf8"));
+    j.hooks.PreToolUse = [{ matcher: "Bash", hooks: [{ type: "command", command: cmd, async: false }] }];
+    fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");' "$1" "$2"
+}
+
+# Edit the fixture SOURCE's SessionStart command: same script path, new flag
+# (an ordinary release edit; the path key stays, the command string changes).
+_hooks_source_edit_flag() {
+  node -e '
+    const fs = require("fs"); const p = process.argv[1]; const flag = process.argv[2];
+    const j = JSON.parse(fs.readFileSync(p, "utf8"));
+    const h = j.hooks.SessionStart[0].hooks[0];
+    h.command = h.command.replace(/( --v\d+)?$/, " " + flag);
+    fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");' "$1" "$2"
+}
+
+# --- TEST-784 (Spec-AC-12, NEW) — provably-unmodified source-owned entry is
+# UPDATED in place; the target-added entry is untouched; no stale duplicate.
+test_784_hook_json_source_edit_updates_in_place() {
+  log_info "TEST-784: a source-changed command for a source-owned script path is UPDATED in place (target entry equals what the engine last shipped); the target-added merge-guard entry is untouched..."
+  local fixture_src="$TMP_ROOT/upd-784-src" dst="$TMP_ROOT/upd-784" log="$TMP_ROOT/upd-784.log"
+  local guard_cmd='"${CLAUDE_PLUGIN_ROOT}/hooks/merge-guard.sh"' guard_needle='hooks/merge-guard.sh\"' n
+  _778_build_fixture_source "$fixture_src"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst" >/dev/null 2>&1 || log_fail "TEST-784: v1 sync failed"
+  [[ -f "$dst/.aai/cache/hooks-shipped/hooks.json" ]] \
+    || log_fail "TEST-784: the engine did not record what it shipped (.aai/cache/hooks-shipped/hooks.json missing)"
+  cmp -s "$fixture_src/hooks/hooks.json" "$dst/.aai/cache/hooks-shipped/hooks.json" \
+    || log_fail "TEST-784: the shipped snapshot is not a verbatim copy of the source hooks.json"
+  _hooks_add_merge_guard "$dst/hooks/hooks.json" "$guard_cmd"
+  _hooks_source_edit_flag "$fixture_src/hooks/hooks.json" "--v2"
+  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst" >"$log" 2>&1 || log_fail "TEST-784: v2 sync failed: $(cat "$log")"
+  grep -qF -- 'MERGE hooks/hooks.json: 0 hook(s) added, 1 updated' "$log" \
+    || log_fail "TEST-784: sync stdout did not report exactly one in-place update: $(grep -F 'MERGE hooks/hooks.json' "$log" || cat "$log")"
+  n="$(_hooks_event_count "$dst/hooks/hooks.json" SessionStart)"
+  [[ "$n" == "1" ]] \
+    || log_fail "TEST-784: expected exactly 1 SessionStart command after the v2 sync (updated in place), got $n -- the stale v1 entry accumulated: $(cat "$dst/hooks/hooks.json")"
+  grep -qF -- 'session-start.sh\" --v2' "$dst/hooks/hooks.json" \
+    || log_fail "TEST-784: the SessionStart entry was not updated to the v2 command: $(cat "$dst/hooks/hooks.json")"
+  grep -qF -- "$guard_needle" "$dst/hooks/hooks.json" \
+    || log_fail "TEST-784: the target-added PreToolUse -> merge-guard.sh registration was lost by the update: $(cat "$dst/hooks/hooks.json")"
+  n="$(_hooks_event_count "$dst/hooks/hooks.json" PreToolUse)"
+  [[ "$n" == "1" ]] || log_fail "TEST-784: the target-added PreToolUse entry count changed ($n)"
+  # Idempotent: a third run of the same v2 source changes nothing.
+  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst" >"$log" 2>&1 || log_fail "TEST-784: v2 re-sync failed"
+  grep -qF -- 'MERGE hooks/hooks.json: 0 hook(s) added, 0 updated, 1 already present' "$log" \
+    || log_fail "TEST-784: a repeated v2 sync was not a no-op: $(grep -F 'MERGE hooks/hooks.json' "$log")"
+  log_pass "TEST-784 a source-changed command is updated in place (1 SessionStart entry, no stale duplicate); the target-added merge-guard entry is untouched"
+}
+
+# --- TEST-785 (Spec-AC-13, NEW) — an entry the engine cannot prove it
+# authored is LEFT AS-IS, the new command is NOT added beside it, and the
+# advisory names it. Two arms: (a) edited locally after the engine shipped it;
+# (b) no shipped record at all (a target synced by a pre-#414 engine, or a
+# fresh clone whose gitignored .aai/cache/ is empty) -- indistinguishable
+# from a user edit by the files alone, so the owner's priority wins.
+test_785_hook_json_unprovable_entry_left_as_is() {
+  log_info "TEST-785: a same-path entry the engine cannot prove it shipped is left as-is, not duplicated, and named in the advisory (edited-locally arm + no-record arm)..."
+  local fixture_src="$TMP_ROOT/left-785-src" dst="$TMP_ROOT/left-785" log="$TMP_ROOT/left-785.log"
+  local guard_cmd='"${CLAUDE_PLUGIN_ROOT}/hooks/merge-guard.sh"' guard_needle='hooks/merge-guard.sh\"' n newest rec_file="$TMP_ROOT/left-785-rec.txt"
+  _778_build_fixture_source "$fixture_src"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst" >/dev/null 2>&1 || log_fail "TEST-785: v1 sync failed"
+  _hooks_add_merge_guard "$dst/hooks/hooks.json" "$guard_cmd"
+  # (a) the user edits the source-owned SessionStart command locally.
+  _hooks_source_edit_flag "$dst/hooks/hooks.json" "--mine"
+  _hooks_source_edit_flag "$fixture_src/hooks/hooks.json" "--v2"
+  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst" >"$log" 2>&1 || log_fail "TEST-785: v2 sync failed: $(cat "$log")"
+  grep -qF -- 'MERGE hooks/hooks.json: 0 hook(s) added, 0 updated, 0 already present, 1 left as-is' "$log" \
+    || log_fail "TEST-785(a): sync stdout did not report exactly one left-as-is entry: $(grep -F 'MERGE hooks/hooks.json' "$log" || cat "$log")"
+  n="$(_hooks_event_count "$dst/hooks/hooks.json" SessionStart)"
+  [[ "$n" == "1" ]] \
+    || log_fail "TEST-785(a): expected the user's single SessionStart entry to stand alone, got $n entries (the source's version was added beside it): $(cat "$dst/hooks/hooks.json")"
+  grep -qF -- 'session-start.sh\" --mine' "$dst/hooks/hooks.json" \
+    || log_fail "TEST-785(a): the user-modified SessionStart entry was rewritten: $(cat "$dst/hooks/hooks.json")"
+  grep -qF -- "$guard_needle" "$dst/hooks/hooks.json" \
+    || log_fail "TEST-785(a): the target-added merge-guard registration was lost: $(cat "$dst/hooks/hooks.json")"
+  newest="$(find "$dst/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | LC_ALL=C sort | tail -n1)"
+  [[ -n "$newest" ]] || log_fail "TEST-785(a): no advisory was written for a left-as-is registration"
+  awk '/^- Path: hooks\/hooks\.json$/{getline; print; exit}' "$newest" > "$rec_file"
+  grep -qF -- 'left as-is' "$rec_file" \
+    || log_fail "TEST-785(a): the advisory's hooks/hooks.json recommendation does not say the entry was left as-is: $(cat "$newest")"
+  grep -qF -- '--mine' "$rec_file" \
+    || log_fail "TEST-785(a): the advisory does not quote the target's own (kept) command: $(cat "$rec_file")"
+  grep -qF -- "$TMP_ROOT" "$rec_file" \
+    && log_fail "TEST-785(a): the advisory recommendation embeds an absolute filesystem path (Validation NB-5): $(cat "$rec_file")"
+  # (b) no shipped record: the target carries the UNMODIFIED v2 entry but the
+  # engine has no proof it wrote it; the source moves on to v3.
+  local dst_b="$TMP_ROOT/left-785b" log_b="$TMP_ROOT/left-785b.log"
+  mkdir -p "$dst_b"
+  git -C "$dst_b" init -q -b main
+  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst_b" >/dev/null 2>&1 || log_fail "TEST-785(b): v2 sync failed"
+  rm -rf "$dst_b/.aai/cache/hooks-shipped"
+  _hooks_source_edit_flag "$fixture_src/hooks/hooks.json" "--v3"
+  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst_b" >"$log_b" 2>&1 || log_fail "TEST-785(b): v3 sync failed: $(cat "$log_b")"
+  grep -qF -- 'MERGE hooks/hooks.json: 0 hook(s) added, 0 updated, 0 already present, 1 left as-is' "$log_b" \
+    || log_fail "TEST-785(b): without a shipped record the engine must not update (cannot tell a user edit from an older source): $(grep -F 'MERGE hooks/hooks.json' "$log_b" || cat "$log_b")"
+  grep -qF -- 'session-start.sh\" --v2' "$dst_b/hooks/hooks.json" \
+    || log_fail "TEST-785(b): the unprovable v2 entry was rewritten without a shipped record: $(cat "$dst_b/hooks/hooks.json")"
+  n="$(_hooks_event_count "$dst_b/hooks/hooks.json" SessionStart)"
+  [[ "$n" == "1" ]] || log_fail "TEST-785(b): the v3 command was added beside the unprovable entry ($n SessionStart entries)"
+  [[ -f "$dst_b/.aai/cache/hooks-shipped/hooks.json" ]] \
+    || log_fail "TEST-785(b): the engine did not (re)record what it shipped, so the next sync could never update either"
+  log_pass "TEST-785 a same-path entry the engine cannot prove it shipped is left as-is (edited-locally + no-record arms), never duplicated, and named in the advisory"
+}
+
+# --- TEST-786 (Spec-AC-14, NEW — Validation NB-4) — a fresh target's
+# hooks/hooks.json is the SOURCE'S BYTES, not a JSON.stringify
+# re-serialisation. Regression PIN of a pre-change property: the beb6a248
+# engine copied the file verbatim (copy_replace) and this ride's first pass
+# (ac042706) regenerated it -- byte-identical only because the repo's own file
+# happens to be in stringify shape. A reformatted source proves the difference.
+test_786_fresh_target_hooks_json_is_source_bytes() {
+  log_info "TEST-786: a fresh target's hooks/hooks.json is byte-identical to a source hooks.json that is NOT in JSON.stringify shape..."
+  local fixture_src="$TMP_ROOT/fresh-786-src" dst="$TMP_ROOT/fresh-786"
+  _778_build_fixture_source "$fixture_src"
+  # Same document, 4-space indent + a trailing comment-shaped key: valid JSON
+  # that JSON.stringify(x, null, 2) cannot reproduce.
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    const j = JSON.parse(fs.readFileSync(p, "utf8"));
+    j._comment = "reformatted by TEST-786";
+    fs.writeFileSync(p, JSON.stringify(j, null, 4) + "\n");' "$fixture_src/hooks/hooks.json"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst" >/dev/null 2>&1 || log_fail "TEST-786: fresh sync failed"
+  cmp -s "$fixture_src/hooks/hooks.json" "$dst/hooks/hooks.json" \
+    || log_fail "TEST-786: fresh target hooks/hooks.json is not the source's bytes:"$'\n'"$(diff "$fixture_src/hooks/hooks.json" "$dst/hooks/hooks.json" || true)"
+  log_pass "TEST-786 a fresh target's hooks/hooks.json is the source's bytes verbatim, not a re-serialisation"
+}
+
+# --- TEST-787 (Spec-AC-15, NEW — Validation NB-3) — an EXPLICIT
+# --with-claude-hooks whose merge library is missing FAILS (exit 3, nothing
+# written), the same Review-NB-1 rule the refusal branch already follows: a
+# requested capability that delivers nothing must fail, not warn-and-succeed.
+# Fixture: a target vendored from THIS source, then the library removed (the
+# shape of a target synced from a pre-#414 source), bootstrap run from the
+# target's own copy.
+test_787_bootstrap_missing_merge_library_fails_explicit_opt_in() {
+  log_info "TEST-787: aai-bootstrap.sh --with-claude-hooks exits 3 and writes nothing when the shared merge library is missing..."
+  local dst="$TMP_ROOT/lib-absent-hooks-787" log="$TMP_ROOT/lib-absent-hooks-787.log" rc
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-787: sync failed"
+  [[ -f "$dst/.aai/scripts/lib/merge-hooks-json.mjs" ]] \
+    || log_fail "TEST-787: bad fixture -- sync did not vendor .aai/scripts/lib/merge-hooks-json.mjs"
+  [[ -f "$dst/.aai/templates/hooks/settings-hooks.json" ]] \
+    || log_fail "TEST-787: bad fixture -- sync did not vendor the hooks overlay template"
+  rm -f "$dst/.aai/scripts/lib/merge-hooks-json.mjs"
+  [[ -n "$dst" && "$dst" == /* ]] || log_fail "TEST-787: fixture path is empty or relative (HAZ-CD)"
+  rc=0
+  ( cd "$dst" && bash .aai/scripts/aai-bootstrap.sh --with-claude-hooks ) >"$log" 2>&1 || rc=$?
+  [[ "$rc" -eq 3 ]] \
+    || log_fail "TEST-787: expected exit 3 (explicit --with-claude-hooks delivered nothing), got $rc: $(cat "$log")"
+  [[ -f "$dst/.claude/settings.json" ]] \
+    && log_fail "TEST-787: .claude/settings.json was written although the merge library was missing"
+  grep -qF -- 'merge-hooks-json.mjs' "$log" \
+    || log_fail "TEST-787: the failure does not name the missing library: $(cat "$log")"
+  grep -qF -- 'ERROR' "$log" \
+    || log_fail "TEST-787: the failure is not reported as an ERROR (warn-and-succeed shape): $(cat "$log")"
+  log_pass "TEST-787 an explicit --with-claude-hooks with the merge library missing exits 3, writes nothing, and names the library"
+}
+
+# --- TEST-788 (Spec-AC-07, extended) — the .ps1 engine mirrors TEST-784
+# (update in place) and TEST-785(a) (left as-is + advisory).
+test_788_ps1_engine_update_and_left_as_is_parity() {
+  log_info "TEST-788: aai-sync.ps1 updates a provably-unmodified source-owned entry in place and leaves an unprovable one as-is (advisory named)..."
+  if ! command -v pwsh >/dev/null 2>&1; then
+    PWSH_ARM_SKIPPED=1
+    log_info "TEST-788 note: pwsh absent — SKIPPED"
+    return 0
+  fi
+  local fixture_src="$TMP_ROOT/upd-788-src" dst="$TMP_ROOT/upd-788-ps1" log="$TMP_ROOT/upd-788-ps1.log"
+  local guard_cmd='"${CLAUDE_PLUGIN_ROOT}/hooks/merge-guard.ps1"' guard_needle='hooks/merge-guard.ps1\"' n newest rec_file="$TMP_ROOT/upd-788-rec.txt"
+  _778_build_fixture_source "$fixture_src"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  pwsh -NoProfile -File "$fixture_src/.aai/scripts/aai-sync.ps1" -TargetRoot "$dst" >/dev/null 2>&1 \
+    || log_fail "TEST-788: v1 ps1 sync failed"
+  [[ -f "$dst/.aai/cache/hooks-shipped/hooks.json" ]] \
+    || log_fail "TEST-788: the ps1 engine did not record what it shipped"
+  _hooks_add_merge_guard "$dst/hooks/hooks.json" "$guard_cmd"
+  _hooks_source_edit_flag "$fixture_src/hooks/hooks.json" "--v2"
+  pwsh -NoProfile -File "$fixture_src/.aai/scripts/aai-sync.ps1" -TargetRoot "$dst" >"$log" 2>&1 \
+    || log_fail "TEST-788: v2 ps1 sync failed: $(cat "$log")"
+  grep -qF -- 'MERGE hooks/hooks.json: 0 hook(s) added, 1 updated' "$log" \
+    || log_fail "TEST-788: ps1 stdout did not report one in-place update: $(grep -F 'MERGE hooks/hooks.json' "$log" || cat "$log")"
+  n="$(_hooks_event_count "$dst/hooks/hooks.json" SessionStart)"
+  [[ "$n" == "1" ]] || log_fail "TEST-788: expected 1 SessionStart entry after the ps1 v2 sync, got $n: $(cat "$dst/hooks/hooks.json")"
+  grep -qF -- 'session-start.sh\" --v2' "$dst/hooks/hooks.json" \
+    || log_fail "TEST-788: ps1 did not update the SessionStart entry to v2: $(cat "$dst/hooks/hooks.json")"
+  grep -qF -- "$guard_needle" "$dst/hooks/hooks.json" \
+    || log_fail "TEST-788: the target-added merge-guard.ps1 registration was lost: $(cat "$dst/hooks/hooks.json")"
+  # left-as-is arm: local edit, then a v3 source.
+  _hooks_source_edit_flag "$dst/hooks/hooks.json" "--mine"
+  _hooks_source_edit_flag "$fixture_src/hooks/hooks.json" "--v3"
+  pwsh -NoProfile -File "$fixture_src/.aai/scripts/aai-sync.ps1" -TargetRoot "$dst" >"$log" 2>&1 \
+    || log_fail "TEST-788: v3 ps1 sync failed: $(cat "$log")"
+  grep -qF -- 'MERGE hooks/hooks.json: 0 hook(s) added, 0 updated, 0 already present, 1 left as-is' "$log" \
+    || log_fail "TEST-788: ps1 did not leave the user-modified entry as-is: $(grep -F 'MERGE hooks/hooks.json' "$log" || cat "$log")"
+  grep -qF -- 'session-start.sh\" --mine' "$dst/hooks/hooks.json" \
+    || log_fail "TEST-788: ps1 rewrote the user-modified entry: $(cat "$dst/hooks/hooks.json")"
+  n="$(_hooks_event_count "$dst/hooks/hooks.json" SessionStart)"
+  [[ "$n" == "1" ]] || log_fail "TEST-788: ps1 added the v3 command beside the user's entry ($n SessionStart entries)"
+  newest="$(find "$dst/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | LC_ALL=C sort | tail -n1)"
+  [[ -n "$newest" ]] || log_fail "TEST-788: ps1 wrote no advisory for a left-as-is registration"
+  awk '/^- Path: hooks\/hooks\.json$/{getline; print; exit}' "$newest" > "$rec_file"
+  grep -qF -- 'left as-is' "$rec_file" \
+    || log_fail "TEST-788: ps1 advisory does not say the entry was left as-is: $(cat "$newest")"
+  grep -qF -- "$TMP_ROOT" "$rec_file" \
+    && log_fail "TEST-788: ps1 advisory recommendation embeds an absolute filesystem path (Validation NB-5): $(cat "$rec_file")"
+  log_pass "TEST-788 aai-sync.ps1 updates a provably-unmodified entry in place and leaves an unprovable one as-is with an advisory entry"
 }
 
 main() {
@@ -1284,6 +1545,11 @@ main() {
   test_781_regression_suites_exit_zero
   test_782_hook_json_malformed_merge_refused
   test_783_hook_json_no_node_leaves_untouched
+  test_784_hook_json_source_edit_updates_in_place
+  test_785_hook_json_unprovable_entry_left_as_is
+  test_786_fresh_target_hooks_json_is_source_bytes
+  test_787_bootstrap_missing_merge_library_fails_explicit_opt_in
+  test_788_ps1_engine_update_and_left_as_is_parity
   if [[ "$PWSH_ARM_SKIPPED" -eq 1 ]]; then
     log_skip "pwsh absent — one or more PowerShell assertions were not exercised (all bash-only assertions above passed)"
   fi
