@@ -22,6 +22,24 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(pricing): the price table knows this year's models again (CHANGE-0197 / SPEC-0197)
+
+`.aai/system/PRICING.yaml` was past the freshness contract it sets for itself
+(`cadence_days: 30`, last stamped 2026-07-15), and the cost figures in the
+metrics ledger were wrong in two ways that nothing reported.
+
+- **Newer models were billed as older ones.** Longest-prefix lookup resolved
+  `claude-fable-5-1` to `claude-fable-5`, `claude-opus-5-5` to `claude-opus-5`
+  and `gpt-5.6-sol` to `gpt-5`, because each new id starts with an existing key.
+  Each now has its own priced entry.
+- **Whole families billed as nothing.** `gemini-3.8-flash`, `grok-4.7` and the
+  rest matched no key at all, fell through to `unknown`, and contributed zero
+  cost to every run that used them.
+- Every pre-existing rate was re-read from its `source_ref` page and carries a
+  `last_verified_utc`; a family whose vendor page publishes no list price is
+  named in the file notes with the URL checked, never stored as a null-priced
+  key (the prune rule and FAIL-008 already forbid that shape).
+
 ## [unreleased] — fix: let a Windows mutation clone reach the mutated test (ISSUE-0088 / SPEC-0195)
 
 - **Local clone protection no longer stops the Git LFS hook.** `buildIsolatedClone` sets `GIT_CLONE_PROTECTION_ACTIVE=false` on the `git clone --local` spawn only.
