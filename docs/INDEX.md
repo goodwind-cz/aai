@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-30T12:33:31.520Z
+Generated: 2026-09-30T15:32:21.860Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-sync-deletes-target-only-hooks | specs | implementing | 15 done | docs/specs/SPEC-DRAFT-spec-sync-deletes-target-only-hooks.md |
+| spec-sync-deletes-target-only-hooks | specs | implementing | 17 done | docs/specs/SPEC-DRAFT-spec-sync-deletes-target-only-hooks.md |
 
 ## Canonical layer (0)
 

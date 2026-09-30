@@ -3,7 +3,7 @@ id: spec-sync-deletes-target-only-hooks
 type: spec
 number: null
 status: implementing
-frozen_sha256: 0135408d66cc3591c86e7364a7a5dcd3302c90fc609a021bd2be1b181e6d4ac2
+frozen_sha256: b8be694e15417a231b18705c5d19e5eaee16bfcbe6ea27d5905f202c46d3825c
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-DRAFT-sync-deletes-target-only-hooks.md
@@ -124,26 +124,33 @@ shipped it. The rule chosen, stated once here and implemented once in
 
 1. A source hook whose exact `command` is already present in the target's
    event is skipped (idempotent; unchanged).
-2. Otherwise the hook is keyed on the script path inside its command (the
-   first path-like token, quotes and `${VAR}` prefixes kept as written,
-   backslashes normalised to `/`). A target hook in the same event with the
-   same key but a different command is the SAME registration, edited by
-   someone.
-3. That target hook is UPDATED IN PLACE only when the engine can PROVE it is
-   unmodified engine output: the sync engine now records, after every
-   successful merge, a verbatim copy of the source file it merged — the
-   "shipped snapshot" at `<target>/.aai/cache/hooks-shipped/<file>` — and
-   the target's command must be byte-equal to that snapshot's command for
-   the key. Then rewriting it destroys nothing anyone authored. If the
-   source's `matcher` changed too, the hook moves to the source's matcher
-   group.
+2. Otherwise the hook is keyed on the first path-like token inside its
+   command (quotes and `${VAR}` prefixes kept as written, backslashes
+   normalised to `/`; for the shipped commands this is the script path —
+   Amendment 3 / Residual risk 1d state where it is not). A target hook in
+   the same event with the same key but a different command is the SAME
+   registration, edited by someone.
+3. (CORRECTED by Amendment 3) That target hook is UPDATED IN PLACE only
+   when the engine can PROVE it is unmodified engine output: the sync
+   engine records, after every successful merge, a verbatim copy of the
+   source file it merged — the "shipped snapshot" at
+   `<target>/.aai/cache/hooks-shipped/<file>` — and the target's WHOLE
+   registration must equal that snapshot's for the key: the hook object in
+   every field (canonical JSON, not just `command`) AND the enclosing
+   group's `matcher`. Only then does rewriting it destroy nothing anyone
+   authored. If the source's `matcher` changed too, the hook moves to the
+   source's matcher group. (Amendment 2 originally proved the `command`
+   alone; Validation round 2 measured that this silently dropped a
+   user-edited matcher or a user-added `timeout`/`async`.)
 4. In EVERY other same-key-differing case — no snapshot (a target last
    synced by a pre-#414 engine, a fresh clone whose gitignored `.aai/cache/`
-   is empty, another machine), a snapshot that disagrees with the target,
-   or more than one candidate on either side — the owner's priority wins:
-   the target entry is LEFT AS-IS, the source's version is NOT added beside
-   it (that is the accumulation the update exists to stop), and the case is
-   named in the advisory with both commands quoted. Never a silent rewrite.
+   is empty, another machine), a snapshot that disagrees with the target in
+   ANY field or in the matcher, or more than one candidate on either side —
+   the owner's priority wins: the target entry is LEFT AS-IS, the source's
+   version is NOT added beside it (that is the accumulation the update
+   exists to stop), and the case is named in the advisory with both
+   commands quoted and the differing fields or matcher named. Never a
+   silent rewrite.
 5. A target entry whose path the source does not ship at all is never
    touched, in every case — the property this whole ride exists to deliver.
 6. A source event carrying two hooks with the same key (the bootstrap
@@ -162,7 +169,11 @@ source's bytes are not reachable. The snapshot is runtime state, not
 vendored content: `.aai/cache/` is already gitignored by both engines,
 excluded from `PROFILES.yaml` classification and from the core-profile
 prune, and preserved across syncs. Its absence degrades to rule 4 (report,
-never rewrite) — safe by construction.
+never rewrite) — safe by construction. A snapshot the engine could not
+WRITE after a merge that did happen is reported as exactly that (Amendment
+3, NB-A): the merge stands, the run says so, and the next sync degrades to
+rule 4 until the path is writable — never a "left untouched" claim for a
+file that was written.
 
 **Consequences, stated so nothing is left implicit:**
 1. "An existing target entry is NEVER rewritten" (Amendment 1, consequence
@@ -201,6 +212,76 @@ never rewrite) — safe by construction.
    `<n> hook(s) added, <u> updated, <m> already present, <k> left as-is ->
    <path>`; `aai-bootstrap.sh`'s idempotence classification reads the first
    two counters.
+
+## Amendment 3 (Validation round 2 findings, applied by Remediation round 2, 2026-09-30)
+
+Validation round 2 (report `VALIDATION-20260930T141839Z`) reproduced on
+both engines that Amendment 2's update path proved provenance on the
+`command` string ONLY and then replaced the WHOLE hook object — relocating
+it into the source's matcher group — so a user who had narrowed the shipped
+hook's `matcher` (to `startup`), or added `timeout: 120` / flipped
+`async: true` on it, lost that edit silently on the next source-side
+command change, reported as `1 updated` with no advisory entry
+(BLOCKING-3). That contradicted Spec-AC-13's own words and the owner's
+standing invariant. This amendment makes the guarantee TRUE rather than
+re-wording it; the ledger record is filed by the orchestrator against this
+section (Remediation is a dispatched subagent and does not write ledgers).
+
+**The provenance rule, corrected (replaces Amendment 2 rule 3's proof).**
+A target entry is provably unmodified engine output — and therefore may be
+rewritten or relocated — only when its WHOLE registration equals the shipped
+snapshot's for that key: the hook object in every field, compared as
+canonical JSON (key order ignored; `command`, `type`, `async`, `timeout`
+and any other key all count), AND the enclosing group's `matcher`. Any
+difference in any field or in the matcher, a missing snapshot, or an
+ambiguous candidate set falls to rule 4: left as-is, not added beside,
+named in the advisory with the differing fields or the user's matcher
+quoted. Why the whole object and not a widened field list: the harness reads
+`hooks.json` as a runtime contract and this spec cannot enumerate every key
+a consumer honours, so the only proof that "rewriting destroys nothing
+anyone authored" is that NOTHING in the registration differs from what the
+engine itself wrote. Cost: none in the shipped case — the engine writes the
+entry verbatim, so an untouched entry still compares equal.
+
+**Two non-blocking findings fixed in the same round, disclosed here:**
+1. (NB-A) A shipped snapshot the engine could not WRITE after a merge that
+   DID write the target (its path was a directory, its parent a file,
+   EACCES) made the library throw, and both engines then reported "merge
+   refused (target left untouched)" for a target that was written — a
+   control stating the opposite of what happened. The destination merge is
+   the act; the snapshot is bookkeeping whose only failure consequence is
+   that the next run has no proof and degrades to rule 4 (already "safe by
+   construction"). So the library now returns the snapshot failure instead
+   of throwing (`SNAPSHOT-NOT-RECORDED <path>: <error>` on stdout, exit 0),
+   both engines print the true MERGE line plus a WARN naming the unrecorded
+   snapshot, and the advisory entry says the merge was applied and the
+   snapshot was not recorded (Spec-AC-17, TEST-792). The alternative —
+   writing the snapshot BEFORE the destination — was rejected: it would
+   refuse a legitimate merge (and refuse to create `hooks.json` on a fresh
+   target) because a cache directory is unwritable, and a snapshot written
+   ahead of a destination write that then failed would make the target look
+   user-edited forever. The remaining refusal paths all throw BEFORE any
+   write, so "left untouched" is true wherever it is still printed.
+2. (NB-B) The bash engine's two `hooks/` loops globbed without `dotglob`,
+   so a source `hooks/.hidden-hook.sh` was silently dropped and a
+   target-only `hooks/.local-only.sh` was kept but never named — where the
+   pre-#414 `cp -a` and the `.ps1` engine (`Get-ChildItem -Force`) both
+   handle dotfiles. `aai-sync.sh` now sets `dotglob` around exactly those
+   two loops and restores the caller's setting afterwards (Spec-AC-16,
+   TEST-791).
+
+**Disclosed, not changed (NB-C):** the pairing key is the FIRST path-like
+token in the command, not "the script path" — see Residual risks 1d. Its
+measured error direction is safe (left-as-is or add beside, never a
+rewrite), and narrowing the regex would widen this round's scope.
+
+**Consequences:** Spec-AC-12 and Spec-AC-13 are re-worded to the whole-
+registration proof and Spec-AC-13 gains arms (c) and (d); Spec-AC-07 gains
+Spec-AC-17; Spec-AC-16 and Spec-AC-17 are new; TEST-789..792 are new rows,
+each RED against `1936b504` by replay; Amendment 2's rules 2–4 and its
+snapshot paragraph, the Scope decision summary, the Implementation plan,
+Edge cases, Seams and Residual risks are corrected in place below and say so.
+No file outside the already-declared review scope changes.
 
 ## Links
 - Requirement / intake: docs/issues/ISSUE-DRAFT-sync-deletes-target-only-hooks.md
@@ -259,9 +340,10 @@ why; do not implement against it. The corrected decision:
 **Decision (amended twice): `hooks/hooks.json` and `hooks/hooks.windows.json`
 are MERGED, not overwritten.** A source hook not already present in the
 target is appended; a target-added entry is never removed or rewritten; a
-source-owned entry is updated in place only when it is byte-equal to what
-this engine last shipped (Amendment 2, rules 1–7), otherwise left as-is and
-named in the advisory. The algorithm is REUSED, not re-typed, from
+source-owned entry is updated in place only when its whole registration —
+every field of the hook object and its matcher — equals what this engine
+last shipped (Amendment 2 rules 1–7 as corrected by Amendment 3), otherwise
+left as-is and named in the advisory. The algorithm is REUSED, not re-typed, from
 `.aai/scripts/aai-bootstrap.sh`'s `install_claude_hooks`, extracted into
 `.aai/scripts/lib/merge-hooks-json.mjs` and called by both. The three open
 questions original justification point 3 raised are answered there, not
@@ -515,15 +597,18 @@ below.
   exists for — it protects quiet runs from the advisory change.
   Evidence: the two advisory files and the diff exit code.
 
-- Spec-AC-07 (AMENDED twice — see Amendments) — The PowerShell engine
+- Spec-AC-07 (AMENDED three times — see Amendments) — The PowerShell engine
   `aai-sync.ps1` SHALL exhibit the behaviours of Spec-AC-01, Spec-AC-02,
-  Spec-AC-04 (amended), Spec-AC-05, Spec-AC-12 and Spec-AC-13.
+  Spec-AC-04 (amended), Spec-AC-05, Spec-AC-12, Spec-AC-13 (all four arms)
+  and Spec-AC-17.
   Verification: when `pwsh` is on PATH, run
   `pwsh -NoProfile -File .aai/scripts/aai-sync.ps1 <target>` over the same
   fixtures and assert the same observables (the AC-04 observable is the
   merge survival + `MERGE hooks/hooks.json:` stdout line; the AC-12/AC-13
   observables are the `1 updated` / `1 left as-is` counters, the entry
-  counts and the advisory entry, over a fixture source tree). When `pwsh` is
+  counts, the user's registration byte-unchanged and the advisory entry,
+  over a fixture source tree; the AC-17 observable is the true MERGE line
+  plus the snapshot WARN). When `pwsh` is
   absent, the suite sets its documented `PWSH_ARM_SKIPPED` flag and exits 42
   rather than reporting a full pass (existing discipline,
   `tests/skills/test-aai-sync-seed.sh:42-51`).
@@ -584,10 +669,12 @@ below.
   advisory names `hooks/hooks.json`.
   Evidence: the absence check, the captured stdout, and the advisory contents.
 
-- Spec-AC-12 (NEW — Amendment 2) — WHEN the source changes the `command` of
-  a hook it already shipped (same script path, different command) AND the
-  target's entry for that path is byte-equal to what this engine last
-  shipped there (the shipped snapshot), the engine SHALL replace that entry
+- Spec-AC-12 (NEW — Amendment 2; proof corrected by Amendment 3) — WHEN the
+  source changes the `command` of a hook it already shipped (same script
+  path, different command) AND the target's WHOLE registration for that
+  path — the hook object in every field and its enclosing matcher — equals
+  what this engine last shipped there (the shipped snapshot), the engine
+  SHALL replace that entry
   in place — the target ends with exactly one entry for the path, carrying
   the new command — SHALL print `MERGE hooks/<file>: 0 hook(s) added, 1
   updated, ...`, SHALL leave every target-added entry untouched, and a
@@ -601,23 +688,33 @@ below.
   present`.
   Evidence: the before/after `hooks/hooks.json` and the three stdout lines.
 
-- Spec-AC-13 (NEW — Amendment 2) — WHEN the source changes the `command` of
-  a hook for a script path the target also registers, BUT the target's entry
-  is NOT provably unmodified engine output (it differs from the shipped
-  snapshot, or no snapshot exists), the engine SHALL leave the target entry
-  byte-unchanged, SHALL NOT add the source's version beside it, SHALL print
+- Spec-AC-13 (NEW — Amendment 2; arms (c)/(d) added by Amendment 3) — WHEN
+  the source changes the `command` of a hook for a script path the target
+  also registers, BUT the target's registration is NOT provably unmodified
+  engine output (its hook object differs from the shipped snapshot's in ANY
+  field — `command`, `timeout`, `async` or any other key — or it sits
+  under a different `matcher`, or no snapshot exists), the engine SHALL
+  leave the target's registration unchanged in every field and under its
+  own matcher, SHALL NOT add the source's version beside it, SHALL print
   `... 1 left as-is ...`, and the advisory SHALL carry a `- Path:
   hooks/<file>` entry whose Recommendation says `left as-is`, quotes the
-  target's kept command, and contains no absolute filesystem path.
+  target's kept command, names the differing field(s) or the user's
+  matcher, and contains no absolute filesystem path.
   Verification: (a) sync a fixture source once, edit the target's
   `SessionStart` command locally, change the source's command, sync; (b)
   sync once, delete `<target>/.aai/cache/hooks-shipped/`, change the
-  source's command, sync. In both arms the `SessionStart` event still holds
-  exactly 1 command and it is the target's own; in (a) the newest advisory
-  entry matches `left as-is` and the kept command and does not contain the
-  fixture's absolute path; in (b) the snapshot exists again afterwards.
-  Evidence: the two targets' `hooks/hooks.json`, the stdout lines, the
-  advisory entry.
+  source's command, sync; (c) sync once, set the target's `SessionStart`
+  matcher to `startup` (command untouched), change the source's command,
+  sync; (d) sync once, add `"timeout": 120` and set `"async": true` on
+  the target's shipped `SessionStart` hook (command untouched), change the
+  source's command, sync. In all four arms the `SessionStart` event still
+  holds exactly 1 command and it is the target's own; in (c)/(d) the
+  event's JSON is identical before and after the sync; in (a) the newest
+  advisory entry matches `left as-is` and the kept command; in (c) it
+  quotes `matcher "startup"`; in (d) it names `timeout`; none contains
+  the fixture's absolute path; in (b) the snapshot exists again afterwards.
+  Evidence: the targets' `hooks/hooks.json` before/after, the stdout
+  lines, the advisory entries.
 
 - Spec-AC-14 (NEW — Amendment 2, Validation NB-4) — WHEN the target has no
   `hooks/hooks.json` yet, the engine SHALL create it as a byte-for-byte copy
@@ -639,6 +736,39 @@ below.
   exit code 3, no settings file, output matches `merge-hooks-json.mjs` and
   `ERROR`.
   Evidence: the exit code and captured output.
+
+- Spec-AC-16 (NEW — Amendment 3, Validation NB-B) — WHEN `hooks/` carries a
+  dotfile, the bash engine SHALL treat it exactly as any other entry: a
+  source `hooks/.hidden-hook.sh` SHALL be synced byte-identical into the
+  target, and a target-only `hooks/.local-only.sh` SHALL be preserved AND
+  named on stdout as `PRESERVE target-only hook: hooks/.local-only.sh` —
+  parity with the `.ps1` engine and with the pre-#414 `cp -a`.
+  Verification: build a fixture source, add `hooks/.hidden-hook.sh` to it,
+  seed a target with `hooks/.local-only.sh`, run `aai-sync.sh`; then
+  `cmp` on the hidden hook exits 0, the local-only file is unchanged, and
+  stdout contains the PRESERVE line. When `pwsh` is present the same
+  assertions run against `aai-sync.ps1`.
+  Evidence: the `cmp` exit code, the file contents, the captured stdout.
+
+- Spec-AC-17 (NEW — Amendment 3, Validation NB-A) — WHEN a hooks-JSON merge
+  writes the target but the shipped snapshot cannot then be written (its
+  path is a directory, its parent is a file, or EACCES), the engine SHALL
+  exit 0, SHALL print the true `MERGE hooks/<file>: ...` line for what it
+  did, SHALL print a WARN on stdout saying the shipped snapshot could not
+  be recorded, SHALL NOT print or write "left untouched" for that file, and
+  the advisory SHALL carry a `- Path: hooks/<file>` entry whose
+  Recommendation says the merge was applied and the engine could not record
+  what it shipped.
+  Verification: sync a fixture source once, replace
+  `<target>/.aai/cache/hooks-shipped/hooks.json` with a DIRECTORY, add a
+  `Stop` event to the source's `hooks/hooks.json`, sync; then stdout
+  contains `MERGE hooks/hooks.json: 1 hook(s) added` and `shipped snapshot
+  could not be recorded` and not `target left untouched`, the target's
+  `hooks/hooks.json` contains the new hook, and the newest advisory's
+  `hooks/hooks.json` Recommendation matches `could not record what it
+  shipped` and not `left untouched`. Same on `aai-sync.ps1` when
+  `pwsh` is present.
+  Evidence: the captured stdout, the target file, the advisory entry.
 
 ## Constitution deviations
 
@@ -679,15 +809,17 @@ only merge — unaffected.
 | Spec-AC-04 | AMENDED: a target-added hooks JSON registration SHALL survive the merge | done | tests/skills/test-aai-sync-seed.sh TEST-776 green; run log docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log (direct: green suite log, no RED artifact demanded) | — | reuses install_claude_hooks merge algorithm; target-added path never touched (re-asserted inside TEST-784/785) |
 | Spec-AC-05 | WHEN a deletion occurs the advisory SHALL carry a Deleted items section | done | tests/skills/test-aai-sync-seed.sh TEST-777 green; run log docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log (direct: green suite log, no RED artifact demanded) | — | advisory now written on deletions alone |
 | Spec-AC-06 | WHEN nothing is deleted the advisory SHALL stay byte-identical to today | done | tests/skills/test-aai-sync-seed.sh TEST-778 green; run log docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log (direct: green suite log, no RED artifact demanded) | — | modulo the generated-at line |
-| Spec-AC-07 | AMENDED twice: ps1 SHALL match AC-01, 02, 04, 05, 12 and 13 | done | tests/skills/test-aai-sync-seed.sh TEST-779; TEST-788 green; run log docs/ai/tdd/test-773-788-sync-hooks-remediation-20260930T115214Z.log (direct: green suite log, no RED artifact demanded) | — | pwsh-absent arm exits 42, never a silent pass |
+| Spec-AC-07 | AMENDED three times: ps1 SHALL match AC-01, 02, 04, 05, 12, 13 and 17 | done | tests/skills/test-aai-sync-seed.sh TEST-779; TEST-788; TEST-790; TEST-792 green; run log docs/ai/tdd/test-773-792-sync-hooks-remediation2-20260930T150135Z.log (direct: green suite log, no RED artifact demanded) | — | pwsh-absent arm exits 42, never a silent pass |
 | Spec-AC-08 | AMENDED: an existing target registration for a retired hook SHALL survive | done | tests/skills/test-aai-sync-seed.sh TEST-780 green; run log docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log (direct: green suite log, no RED artifact demanded) | — | reverses the pre-amendment disarm-via-overwrite claim |
 | Spec-AC-09 | AMENDED: the five named sync suites SHALL exit 0 on the changed tree | done | tests/skills/test-aai-sync-seed.sh TEST-781 green; run log docs/ai/tdd/test-773-788-sync-hooks-remediation-20260930T115214Z.log (direct: green suite log, no RED artifact demanded) | — | test-aai-hooks-overlay.sh added (shared lib) |
 | Spec-AC-10 | NEW: a malformed target hooks JSON SHALL refuse the merge, stay untouched | done | tests/skills/test-aai-sync-seed.sh TEST-782 green; run log docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log (direct: green suite log, no RED artifact demanded) | — | mirrors install_claude_hooks NB-1 refusal |
 | Spec-AC-11 | NEW: node unavailable SHALL leave the target hooks JSON untouched, WARN on stdout | done | tests/skills/test-aai-sync-seed.sh TEST-783 green; run log docs/ai/tdd/test-773-788-sync-hooks-remediation-20260930T115214Z.log (direct: green suite log, no RED artifact demanded) | — | stdout/stderr captured separately (Validation NB-2) |
-| Spec-AC-12 | NEW (Amendment 2): a provably-unmodified source-owned entry SHALL be updated in place | done | tests/skills/test-aai-sync-seed.sh TEST-784 green; run log docs/ai/tdd/test-773-788-sync-hooks-remediation-20260930T115214Z.log (direct: green suite log, no RED artifact demanded) | — | shipped snapshot is the proof; target-added entry untouched |
-| Spec-AC-13 | NEW (Amendment 2): an unprovable same-path entry SHALL be left as-is and named | done | tests/skills/test-aai-sync-seed.sh TEST-785 green; run log docs/ai/tdd/test-773-788-sync-hooks-remediation-20260930T115214Z.log (direct: green suite log, no RED artifact demanded) | — | never rewritten, never duplicated; both arms (edited, no record) |
+| Spec-AC-12 | NEW (Amendment 2, proof corrected by Amendment 3): a provably-unmodified source-owned entry SHALL be updated in place | done | tests/skills/test-aai-sync-seed.sh TEST-784 green; run log docs/ai/tdd/test-773-792-sync-hooks-remediation2-20260930T150135Z.log (direct: green suite log, no RED artifact demanded) | — | whole hook object + matcher vs the shipped snapshot is the proof; target-added entry untouched |
+| Spec-AC-13 | NEW (Amendment 2, arms c/d by Amendment 3): an unprovable same-path entry SHALL be left as-is and named | done | tests/skills/test-aai-sync-seed.sh TEST-785; TEST-789 green; run log docs/ai/tdd/test-773-792-sync-hooks-remediation2-20260930T150135Z.log (direct: green suite log, no RED artifact demanded) | — | never rewritten, never duplicated; four arms (edited command, no record, edited matcher, added timeout/async) |
 | Spec-AC-14 | NEW (Amendment 2): a fresh target hooks JSON SHALL be the source bytes verbatim | done | tests/skills/test-aai-sync-seed.sh TEST-786 green; run log docs/ai/tdd/test-773-788-sync-hooks-remediation-20260930T115214Z.log (direct: green suite log, no RED artifact demanded) | — | pin of a pre-change property: GREEN at beb6a248, RED at ac042706 |
 | Spec-AC-15 | NEW (Amendment 2): explicit --with-claude-hooks with the merge library missing SHALL fail | done | tests/skills/test-aai-sync-seed.sh TEST-787 green; run log docs/ai/tdd/test-773-788-sync-hooks-remediation-20260930T115214Z.log (direct: green suite log, no RED artifact demanded) | — | exit 3, nothing written (Validation NB-3) |
+| Spec-AC-16 | NEW (Amendment 3): dotfiles under hooks SHALL be synced and preserved+named by the bash engine like ps1 | done | tests/skills/test-aai-sync-seed.sh TEST-791 green; run log docs/ai/tdd/test-773-792-sync-hooks-remediation2-20260930T150135Z.log (direct: green suite log, no RED artifact demanded) | — | dotglob around the two hooks loops, restored after (Validation NB-B) |
+| Spec-AC-17 | NEW (Amendment 3): a merge whose snapshot cannot be written SHALL be reported as applied, never as untouched | done | tests/skills/test-aai-sync-seed.sh TEST-792 green; run log docs/ai/tdd/test-773-792-sync-hooks-remediation2-20260930T150135Z.log (direct: green suite log, no RED artifact demanded) | — | SNAPSHOT-NOT-RECORDED line, exit 0, WARN + advisory on both engines (Validation NB-A) |
 
 ## Implementation plan
 
@@ -700,17 +832,22 @@ Components affected (AMENDED — see Amendment for what changed since freeze):
   destination does not parse as a JSON object or carries a non-object
   `hooks` key (Review NB-1); a missing destination becomes a byte copy of
   the template (rule 7); otherwise skip an exactly-present command, pair the
-  rest by (event, script-path key), update in place only an entry
-  byte-equal to the `--shipped` snapshot's command for that key, leave any
-  other same-key entry as-is (reported), and add the unclaimed rest,
-  creating the `matcher` entry if needed; write the destination only when
-  something was added or updated; rewrite the snapshot (verbatim template
-  bytes) after every successful merge. Exports `mergeHooksJson()` and
-  `hookPathKey()` for reuse and runs as a CLI (`node merge-hooks-json.mjs
-  <template> <dest> [--shipped <snapshot>]`) printing `<n> hook(s) added,
-  <u> updated, <m> already present, <k> left as-is -> <dest>` and one
-  `LEFT-AS-IS <event> <key>: ...` line per left entry. Classified in
-  `.aai/system/PROFILES.yaml` `core:` (new entry).
+  rest by (event, path key), update in place only an entry whose WHOLE hook
+  object (canonical JSON) and enclosing matcher equal the `--shipped`
+  snapshot's for that key (Amendment 3), leave any other same-key entry
+  as-is (reported, naming the differing fields or matcher), and add the
+  unclaimed rest, creating the `matcher` entry if needed; write the
+  destination only when something was added or updated; then rewrite the
+  snapshot (verbatim template bytes) — a snapshot write failure is RETURNED
+  (`snapshotError`), never thrown, because the destination is already
+  written (Amendment 3, NB-A). Exports `mergeHooksJson()`, `hookPathKey()`
+  and `canonicalJson()` for reuse and runs as a CLI (`node
+  merge-hooks-json.mjs <template> <dest> [--shipped <snapshot>]`) printing
+  `<n> hook(s) added, <u> updated, <m> already present, <k> left as-is ->
+  <dest>`, one `LEFT-AS-IS <event> <key>: ...` line per left entry, and
+  one `SNAPSHOT-NOT-RECORDED <path>: <error>` line when the snapshot could
+  not be written (still exit 0). Classified in `.aai/system/PROFILES.yaml`
+  `core:` (new entry).
 - `.aai/scripts/aai-bootstrap.sh` — `install_claude_hooks` calls the shared
   library (`$HOOKS_JSON_MERGE_LIB`, resolved from `$BOOTSTRAP_SCRIPT_DIR`, the
   script's own directory computed ONCE and shared with `GITIGNORE_BLOCK_LIB`
@@ -728,16 +865,21 @@ Components affected (AMENDED — see Amendment for what changed since freeze):
     `:550` with a file-by-file merge modelled on `:360-372`: copy each source
     entry over the target, then walk the target and print
     `PRESERVE target-only hook: hooks/<rel>` for each entry absent from source.
-    Keep the `chmod +x` on `session-start.sh`.
+    Both loops run under `shopt -s dotglob` (the caller's setting restored
+    afterwards) so dotfiles are synced and preserved like `cp -a` and the
+    `.ps1` engine do (Amendment 3, NB-B). Keep the `chmod +x` on
+    `session-start.sh`.
   - For `hooks.json` / `hooks.windows.json` specifically: skip the generic
     copy_replace; instead, when `node` is available and the shared merge
     library exists, call it (`node "$HOOKS_JSON_MERGE_LIB" "$src_hook"
     "$dst_hook" --shipped "$DST_ROOT/.aai/cache/hooks-shipped/<file>"`) — on
     success print `MERGE hooks/<file>: <out>` and append one
-    `OVERWRITE_CONFLICTS` entry per `LEFT-AS-IS` line the library printed;
-    on refusal (nonzero exit) append an `OVERWRITE_CONFLICTS` entry whose
-    recommendation says the merge was refused and names the target as
-    untouched. When `node` is unavailable, or the library is missing, append
+    `OVERWRITE_CONFLICTS` entry per `LEFT-AS-IS` line the library printed,
+    plus one entry and a stdout WARN per `SNAPSHOT-NOT-RECORDED` line
+    (merge applied, snapshot not recorded — Amendment 3, NB-A); on refusal
+    (nonzero exit — which the library now raises only BEFORE any write)
+    append an `OVERWRITE_CONFLICTS` entry whose recommendation says the
+    merge was refused and names the target as untouched. When `node` is unavailable, or the library is missing, append
     an `OVERWRITE_CONFLICTS` entry naming that and leave the target file
     untouched (created or not). All three WARN lines go to stdout. The
     library's output has `$DST_ROOT/` stripped and `$SRC_ROOT/` replaced by
@@ -756,20 +898,21 @@ Components affected (AMENDED — see Amendment for what changed since freeze):
 - `.aai/scripts/aai-sync.ps1` — the same shape: `$deletions`, the merge-or-
   degrade branch for the two JSON files (calling the identical
   `.aai/scripts/lib/merge-hooks-json.mjs` via `node` with the same
-  `--shipped` snapshot path, parsing the same `LEFT-AS-IS` lines, scrubbing
-  the same root prefixes), and the advisory guard/`## Deleted items` block,
+  `--shipped` snapshot path, parsing the same `LEFT-AS-IS` and
+  `SNAPSHOT-NOT-RECORDED` lines, scrubbing the same root prefixes), and the
+  advisory guard/`## Deleted items` block,
   keeping the two engines' advisory output byte-equivalent for everything
   except the two JSON files' own handling.
 - `.aai/system/PROFILES.yaml` — one new `core:` line for the shared library.
   The shipped snapshot lives under `.aai/cache/`, which PROFILES excludes by
   rule and both engines already gitignore and preserve; no new vendored file.
-- `tests/skills/test-aai-sync-seed.sh` — sixteen TEST rows below
-  (TEST-773..788). Chosen over the other suites because it already builds
+- `tests/skills/test-aai-sync-seed.sh` — twenty TEST rows below
+  (TEST-773..792). Chosen over the other suites because it already builds
   temp targets, runs the REAL engines with no network (`:19`), asserts
   PRESERVED-byte-for-byte semantics, and carries the `PWSH_ARM_SKIPPED`
-  exit-42 discipline that Spec-AC-07 needs. TEST-784..788 build a fixture
-  SOURCE tree (the TEST-778 builder) because they must edit the source's
-  `hooks/hooks.json` between syncs.
+  exit-42 discipline that Spec-AC-07 needs. TEST-784..792 (bar 787) build a
+  fixture SOURCE tree (the TEST-778 builder) because they must edit the
+  source's `hooks/hooks.json` or `hooks/` between syncs.
 - `tests/skills/test-aai-layer-profiles.sh` — TEST-002's old-vs-new `diff -rq`
   filter excludes `.aai/cache/` (the shipped snapshot the old engine never
   wrote), matching the suite's own `aai_files_of` exclusion.
@@ -809,6 +952,19 @@ Edge cases:
 - (Amendment 2) The snapshot is rewritten only when its bytes changed, so a
   steady-state re-sync leaves `.aai/cache/` byte-identical (layer-profiles
   idempotence).
+- (Amendment 3) A shipped hook whose `command` the user left alone but
+  whose `matcher` they narrowed, or to which they added `timeout`/flipped
+  `async`, is NOT provably engine output: the whole-object proof fails and
+  the entry is left as-is and named (the exact case the command-only proof
+  rewrote). A user-added SIBLING hook in the shipped hook's matcher group
+  does not block the shipped hook's own update (the proof is per hook
+  object, and a group is deleted only when it empties).
+- (Amendment 3) A snapshot path that is a directory, or a `hooks-shipped`
+  that is a file, after a merge that wrote the target: exit 0, true MERGE
+  line, WARN + advisory "could not record what it shipped"; the next sync
+  degrades to rule 4 until the path is writable.
+- (Amendment 3) A dotfile under `hooks/` on either side is an ordinary
+  entry to both engines (bash: `dotglob` scoped to the two loops).
 
 ## Test Plan
 
@@ -830,6 +986,10 @@ Edge cases:
 | TEST-786 | Spec-AC-14 | integration | tests/skills/test-aai-sync-seed.sh  | (NEW, Amendment 2, NB-4) a fresh target's hooks/hooks.json is the source's bytes even when the source is not in stringify shape — pin: GREEN at beb6a248, RED at ac042706 | n/a — direct | green |
 | TEST-787 | Spec-AC-15 | integration | tests/skills/test-aai-sync-seed.sh  | (NEW, Amendment 2, NB-3) bootstrap --with-claude-hooks with the merge library missing exits 3, writes nothing, names the library | n/a — direct | green |
 | TEST-788 | Spec-AC-07 | integration | tests/skills/test-aai-sync-seed.sh  | (NEW, Amendment 2) the ps1 engine updates a provably-unmodified entry in place and leaves an unprovable one as-is with an advisory entry; absent pwsh exits 42 | n/a — direct | green |
+| TEST-789 | Spec-AC-13 | integration | tests/skills/test-aai-sync-seed.sh  | (NEW, Amendment 3) arms (c)/(d): a user-edited matcher and a user-added timeout/async on the shipped hook (command untouched) survive a source command change byte-for-byte, 1 left as-is, advisory names the matcher/field — RED at 1936b504 (rewritten as 1 updated) | n/a — direct | green |
+| TEST-790 | Spec-AC-07, Spec-AC-13 | integration | tests/skills/test-aai-sync-seed.sh  | (NEW, Amendment 3) the ps1 engine preserves the same two user edits (matcher, fields) with 1 left as-is and an advisory entry; absent pwsh exits 42 — RED at 1936b504 | n/a — direct | green |
+| TEST-791 | Spec-AC-16 | integration | tests/skills/test-aai-sync-seed.sh  | (NEW, Amendment 3) a source hooks/.hidden-hook.sh is synced and a target-only hooks/.local-only.sh is preserved and named by the bash engine; ps1 parity arm when pwsh is present — RED at 1936b504 (bash dropped the dotfile) | n/a — direct | green |
+| TEST-792 | Spec-AC-17, Spec-AC-07 | integration | tests/skills/test-aai-sync-seed.sh  | (NEW, Amendment 3) a merge whose shipped snapshot cannot be written (directory in its place) is reported as applied + snapshot not recorded on both engines, never as refused/untouched — RED at 1936b504 | n/a — direct | green |
 
 Mutation column note: the Mutation gate applies to `tdd`/`hybrid` specs only
 (`spec-lint.mjs` `mutationGateApplicability`). This spec's strategy is
@@ -869,8 +1029,11 @@ Mutation column note: the Mutation gate applies to `tdd`/`hybrid` specs only
    rule is only as sound as that record; a snapshot written by run N and
    read by run N+1 is what TEST-784 (present, agreeing), TEST-785(a)
    (present, disagreeing) and TEST-785(b) (absent) each cross in a
-   different state. The snapshot's absence on a fresh clone is a declared
-   residual, not an untested branch.
+   different state, and TEST-789/790 (present, agreeing on the command but
+   not on the matcher or the fields) cross it where the command-only proof
+   was blind. TEST-792 crosses the snapshot WRITE, not just its read. The
+   snapshot's absence on a fresh clone is a declared residual, not an
+   untested branch.
 
 ## Verification
 
@@ -889,8 +1052,8 @@ files quoted in the validation report; the scoped diff over
 `.aai/system/PROFILES.yaml`, `tests/skills/test-aai-sync-seed.sh` and
 `tests/skills/test-aai-layer-profiles.sh`.
 
-PASS criteria: TEST-773..TEST-788 green (TEST-779/788 may record the
-documented pwsh skip) AND every Spec-AC in a terminal status.
+PASS criteria: TEST-773..TEST-792 green (TEST-779/788/790/791/792 may record
+the documented pwsh skip) AND every Spec-AC in a terminal status.
 
 ## Evidence contract
 
@@ -968,6 +1131,27 @@ after the Amendment:
    warn-and-succeed (exit 0), while the missing-library guard now fails
    (exit 3) — an inconsistency this ride names rather than widens; aligning
    the two older guards is a separate decision.
+1d. (NEW, Amendment 3, Validation NB-C) The pairing key is the FIRST
+   path-like token in the command, not "the script path": `cat /etc/a.txt
+   | x.sh` keys on `/etc/a.txt`, `FOO=/tmp/x.log cmd x.sh` keys on the
+   assignment, and a path containing spaces keys on its last whitespace-free
+   segment (so two different space-containing paths can share a key). For
+   every command this repository ships the key IS the script path. The
+   measured error direction of a mis-key is SAFE — it can only produce
+   left-as-is or an add beside, never a rewrite or a user entry paired for
+   update — but a user's target-added pipeline hook sharing a first token
+   with a source hook permanently blocks that source hook's update, and the
+   advisory then calls the two "the same script". Not changed here:
+   narrowing the regex is a key-semantics change outside this round's scope.
+1e. (NEW, Amendment 3) A source that changes ONLY a shipped hook's
+   `matcher` (command unchanged) is not propagated: rule 1 sees the exact
+   command already present and skips it, so the target keeps the old
+   matcher. Pre-existing under Amendment 2; the whole-object proof makes it
+   visible, and propagating it is a further decision.
+1f. (NEW, Amendment 3) A snapshot the engine cannot write leaves the target
+   permanently in the rule-4 regime for that file — every changed
+   source-owned entry is reported, never updated — until the path is fixed;
+   the run says so on every sync (Spec-AC-17), so it is loud, not silent.
 2. `.codex/skills`, `.gemini/skills` and each `.claude/skills/<entry>` are still
    replaced wholesale, so target-only files there are still destroyed and are
    not in the deletions category.

@@ -561,17 +561,23 @@ fi
 # .aai/scripts/lib/merge-hooks-json.mjs (same algorithm as aai-bootstrap.sh's
 # --with-claude-hooks overlay). The rule, stated in that file's header: a
 # source hook not present in the target is added; a source-owned entry whose
-# command changed is UPDATED IN PLACE only when the target's copy is
-# byte-equal to what this engine last shipped here (the `--shipped` snapshot
-# under <target>/.aai/cache/hooks-shipped/, which survives sync/prune and is
-# gitignored); a same-path entry the engine cannot prove it authored is
-# LEFT AS-IS, not added beside, and named in the advisory — a user-modified
-# hook is never rewritten. A target entry whose path the source does not
-# ship is never touched. A merge refusal (target does not parse as the
-# expected JSON shape) or a missing `node` leaves the target file untouched
-# and is named in the advisory — never a silent skip. Retirement residual:
-# the merge never removes anything, so a hook the source has retired stays
-# registered in a target that already carries it (see Spec-AC-08/-11).
+# command changed is UPDATED IN PLACE only when the target's WHOLE
+# registration — the hook object in every field AND its enclosing matcher —
+# equals what this engine last shipped here (the `--shipped` snapshot under
+# <target>/.aai/cache/hooks-shipped/, which survives sync/prune and is
+# gitignored); a same-path entry the engine cannot prove it authored — a
+# different command, an added `timeout`, a flipped `async`, a changed
+# matcher, or no snapshot at all — is LEFT AS-IS, not added beside, and
+# named in the advisory — a user-modified hook is never rewritten. A target
+# entry whose path the source does not ship is never touched. A merge
+# refusal (target does not parse as the expected JSON shape) or a missing
+# `node` leaves the target file untouched and is named in the advisory —
+# never a silent skip. A snapshot the engine could not RECORD after a merge
+# that did happen is reported as exactly that (the merge stands; the next
+# sync can only report, not update) — never as "left untouched".
+# Retirement residual: the merge never removes anything, so a hook the
+# source has retired stays registered in a target that already carries it
+# (see Spec-AC-08/-11).
 HOOKS_JSON_MERGE_LIB="$SRC_ROOT/.aai/scripts/lib/merge-hooks-json.mjs"
 HOOKS_SHIPPED_DIR="$DST_ROOT/.aai/cache/hooks-shipped"
 # Prefixes held in variables so the `${var//"$prefix"/}` scrub below is a
@@ -582,6 +588,13 @@ if [[ -d "$SRC_ROOT/hooks" ]]; then
   mkdir -p "$DST_ROOT/hooks"
   hooks_node_available=0
   command -v node >/dev/null 2>&1 && hooks_node_available=1
+  # Dotfiles are hooks too: the pre-#414 `cp -a` copied them and the .ps1
+  # engine (`Get-ChildItem -Force`) still does, so both loops below glob
+  # with dotglob (restored afterwards) — Validation round 2 NB-B measured a
+  # source hooks/.hidden-hook.sh silently dropped by this engine alone.
+  hooks_dotglob_was_set=0
+  shopt -q dotglob && hooks_dotglob_was_set=1
+  shopt -s dotglob
   for src_hook in "$SRC_ROOT/hooks/"*; do
     [[ -e "$src_hook" ]] || continue
     hname="$(basename "$src_hook")"
@@ -609,17 +622,27 @@ if [[ -d "$SRC_ROOT/hooks" ]]; then
             # One `LEFT-AS-IS <event> <path>: ...` line per source-owned entry
             # the merge could not prove it authored — the owner's priority
             # (never rewrite a user-modified hook) applied; surface each one.
+            # One `SNAPSHOT-NOT-RECORDED <path>: <error>` line when the merge
+            # stood but the engine could not record what it shipped (NB-A):
+            # report THAT, never "left untouched" for a file that was written.
             while IFS= read -r hooks_merge_line; do
               case "$hooks_merge_line" in
                 "LEFT-AS-IS "*)
                   OVERWRITE_CONFLICTS+=("hooks/$hname|A source-owned hook registration changed in the source, but the target's entry for the same script differs from what this engine last shipped, so it was left as-is and the new version was NOT added beside it (a user-modified hook is never rewritten). ${hooks_merge_line#LEFT-AS-IS }")
                   ;;
+                "SNAPSHOT-NOT-RECORDED "*)
+                  OVERWRITE_CONFLICTS+=("hooks/$hname|The registration merge was applied to the target, but the engine could not record what it shipped (${hooks_merge_line#SNAPSHOT-NOT-RECORDED }), so the next sync can only report a changed source-owned entry as left as-is, never update it, until that path is writable. Fix the snapshot path under .aai/cache/hooks-shipped/ and re-sync.")
+                  echo "  WARN hooks/$hname merged, but the shipped snapshot could not be recorded: ${hooks_merge_line#SNAPSHOT-NOT-RECORDED }"
+                  ;;
               esac
             done <<< "$hooks_merge_out"
           else
+            # The library throws only BEFORE it writes the destination (parse
+            # refusals, an unreadable/unwritable target), so "left untouched"
+            # is true here; the library's own message names the cause.
             hooks_merge_out="${hooks_merge_out//"$hooks_dst_prefix"/}"
             hooks_merge_out="${hooks_merge_out//"$hooks_src_prefix"/<source>/}"
-            OVERWRITE_CONFLICTS+=("hooks/$hname|Hook-registration merge was refused (existing file does not parse as the expected JSON shape) and the target was left untouched: $hooks_merge_out Merge the registration manually.")
+            OVERWRITE_CONFLICTS+=("hooks/$hname|Hook-registration merge was refused and the target was left untouched: $hooks_merge_out Merge the registration manually.")
             echo "  WARN hooks/$hname registration merge refused (target left untouched): $hooks_merge_out"
           fi
         fi
@@ -635,6 +658,7 @@ if [[ -d "$SRC_ROOT/hooks" ]]; then
       echo "  PRESERVE target-only hook: hooks/$hname"
     fi
   done
+  [[ "$hooks_dotglob_was_set" -eq 1 ]] || shopt -u dotglob
   chmod +x "$DST_ROOT/hooks/session-start.sh" 2>/dev/null || true
   echo "  SYNC hooks/"
 fi

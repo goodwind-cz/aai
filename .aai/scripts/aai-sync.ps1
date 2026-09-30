@@ -570,16 +570,21 @@ if (Test-Path $pluginJson) {
 # .aai/scripts/lib/merge-hooks-json.mjs (same algorithm as aai-bootstrap.sh's
 # --with-claude-hooks overlay). The rule, stated in that file's header: a
 # source hook not present in the target is added; a source-owned entry whose
-# command changed is UPDATED IN PLACE only when the target's copy is
-# byte-equal to what this engine last shipped here (the --shipped snapshot
-# under <target>/.aai/cache/hooks-shipped/, which survives sync/prune and is
-# gitignored); a same-path entry the engine cannot prove it authored is
-# LEFT AS-IS, not added beside, and named in the advisory - a user-modified
-# hook is never rewritten. A target entry whose path the source does not
-# ship is never touched. A merge refusal (target does not parse as the
-# expected JSON shape) or a missing `node` leaves the target file untouched
-# and is named in the advisory - never a silent skip. Retirement residual:
-# the merge never removes anything, so a hook the source has retired stays
+# command changed is UPDATED IN PLACE only when the target's WHOLE
+# registration - the hook object in every field AND its enclosing matcher -
+# equals what this engine last shipped here (the --shipped snapshot under
+# <target>/.aai/cache/hooks-shipped/, which survives sync/prune and is
+# gitignored); a same-path entry the engine cannot prove it authored - a
+# different command, an added timeout, a flipped async, a changed matcher,
+# or no snapshot at all - is LEFT AS-IS, not added beside, and named in the
+# advisory - a user-modified hook is never rewritten. A target entry whose
+# path the source does not ship is never touched. A merge refusal (target
+# does not parse as the expected JSON shape) or a missing `node` leaves the
+# target file untouched and is named in the advisory - never a silent skip.
+# A snapshot the engine could not RECORD after a merge that did happen is
+# reported as exactly that (the merge stands; the next sync can only
+# report, not update) - never as "left untouched". Retirement residual: the
+# merge never removes anything, so a hook the source has retired stays
 # registered in a target that already carries it (see Spec-AC-08/-11).
 $hooksJsonMergeLib = Join-Path $SrcRoot ".aai/scripts/lib/merge-hooks-json.mjs"
 $hooksShippedDir = Join-Path $TargetRoot ".aai/cache/hooks-shipped"
@@ -615,18 +620,31 @@ if (Test-Path $hooksDir) {
           # One `LEFT-AS-IS <event> <path>: ...` line per source-owned entry
           # the merge could not prove it authored - the owner's priority
           # (never rewrite a user-modified hook) applied; surface each one.
+          # One `SNAPSHOT-NOT-RECORDED <path>: <error>` line when the merge
+          # stood but the engine could not record what it shipped (NB-A):
+          # report THAT, never "left untouched" for a file that was written.
           foreach ($mergeLine in ($mergeOut -split "`r?`n")) {
             if ($mergeLine.StartsWith("LEFT-AS-IS ")) {
               $overwriteConflicts += [pscustomobject]@{
                 Path = "hooks/$($_.Name)"
                 Recommendation = "A source-owned hook registration changed in the source, but the target's entry for the same script differs from what this engine last shipped, so it was left as-is and the new version was NOT added beside it (a user-modified hook is never rewritten). $($mergeLine.Substring(11))"
               }
+            } elseif ($mergeLine.StartsWith("SNAPSHOT-NOT-RECORDED ")) {
+              $snapshotDetail = $mergeLine.Substring(22)
+              $overwriteConflicts += [pscustomobject]@{
+                Path = "hooks/$($_.Name)"
+                Recommendation = "The registration merge was applied to the target, but the engine could not record what it shipped ($snapshotDetail), so the next sync can only report a changed source-owned entry as left as-is, never update it, until that path is writable. Fix the snapshot path under .aai/cache/hooks-shipped/ and re-sync."
+              }
+              Write-Host "  WARN hooks/$($_.Name) merged, but the shipped snapshot could not be recorded: $snapshotDetail"
             }
           }
         } else {
+          # The library throws only BEFORE it writes the destination (parse
+          # refusals, an unreadable/unwritable target), so "left untouched"
+          # is true here; the library's own message names the cause.
           $overwriteConflicts += [pscustomobject]@{
             Path = "hooks/$($_.Name)"
-            Recommendation = "Hook-registration merge was refused (existing file does not parse as the expected JSON shape) and the target was left untouched: $mergeOut Merge the registration manually."
+            Recommendation = "Hook-registration merge was refused and the target was left untouched: $mergeOut Merge the registration manually."
           }
           Write-Host "  WARN hooks/$($_.Name) registration merge refused (target left untouched): $mergeOut"
         }

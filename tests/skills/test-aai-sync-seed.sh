@@ -863,7 +863,7 @@ test_630_agents_tree_pin_still_bites() {
   log_pass "TEST-630 the existing .agents/skills propagation pin still bites under mutation; fu-agents-tree-not-synced closes on this proof"
 }
 
-# ── spec-sync-deletes-target-only-hooks — TEST-773..781 ────────────────────
+# ── spec-sync-deletes-target-only-hooks — TEST-773..792 ────────────────────
 # goodwind-cz/aai#414: aai-sync used to sync hooks/ with copy_replace
 # (rm -rf then cp -a), which destroyed any target-only file under hooks/ --
 # most damagingly a downstream project's own hooks/merge-guard.{sh,ps1,py}
@@ -1492,6 +1492,224 @@ test_788_ps1_engine_update_and_left_as_is_parity() {
   log_pass "TEST-788 aai-sync.ps1 updates a provably-unmodified entry in place and leaves an unprovable one as-is with an advisory entry"
 }
 
+# ── Remediation round 2 (2026-09-30) — TEST-789..792 ────────────────────────
+# Validation round 2 (BLOCKING-3) measured that proving the COMMAND alone and
+# then replacing the whole hook object silently dropped a user-edited matcher
+# and a user-added timeout/async -- exactly the loss Amendment 2's rule 3
+# promised could not happen. The proof now covers the WHOLE registration:
+# the hook object in every field (canonical JSON) and its enclosing matcher
+# (TEST-789 bash, TEST-790 ps1). Two non-blocking findings fixed in the same
+# round: bash dropped dotfiles under hooks/ where cp -a and the ps1 engine
+# did not (NB-B, TEST-791); and a snapshot the engine could not WRITE after
+# a merge that did happen was reported as "refused (target left untouched)"
+# -- a control stating the opposite of what happened (NB-A, TEST-792).
+
+# Set the SessionStart[0] matcher of a hooks JSON (a user narrowing the
+# shipped hook to one event, the likeliest edit on the shipped file).
+_hooks_edit_matcher() {
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    const j = JSON.parse(fs.readFileSync(p, "utf8"));
+    j.hooks.SessionStart[0].matcher = process.argv[2];
+    fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");' "$1" "$2"
+}
+
+# Add timeout: 120 and flip async: true on SessionStart[0].hooks[0] -- the
+# command string stays byte-identical to what the engine shipped.
+_hooks_add_fields() {
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    const j = JSON.parse(fs.readFileSync(p, "utf8"));
+    const h = j.hooks.SessionStart[0].hooks[0];
+    h.async = true; h.timeout = 120;
+    fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");' "$1"
+}
+
+# Add a NEW event (Stop) to the fixture SOURCE so the next merge must WRITE
+# the destination (an add), independent of the SessionStart provenance path.
+_hooks_source_add_stop_event() {
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    const j = JSON.parse(fs.readFileSync(p, "utf8"));
+    j.hooks.Stop = [{ hooks: [{ type: "command", command: "\"${CLAUDE_PLUGIN_ROOT}/hooks/stop.sh\"", async: false }] }];
+    fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");' "$1"
+}
+
+# Canonical JSON of one event's groups, for byte-level "unchanged" assertions.
+_hooks_event_json() {
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    console.log(JSON.stringify(j.hooks[process.argv[2]] || []));' "$1" "$2"
+}
+
+# Run one engine from a fixture source into a target (absolute paths only).
+_hooks_run_engine() {
+  local engine="$1" src="$2" dst="$3"
+  [[ -n "$dst" && "$dst" == /* ]] || log_fail "bad fixture path: [$dst]"
+  if [[ "$engine" == "ps1" ]]; then
+    pwsh -NoProfile -File "$src/.aai/scripts/aai-sync.ps1" -TargetRoot "$dst"
+  else
+    bash "$src/.aai/scripts/aai-sync.sh" "$dst"
+  fi
+}
+
+# One provenance arm shared by TEST-789 (bash) and TEST-790 (ps1): sync v1,
+# apply the user edit (matcher | fields), ship v2, sync, and assert the
+# user's registration survived byte-for-byte, nothing was added beside it,
+# stdout reported 1 left as-is, and the advisory names the edit.
+# $1 engine (sh|ps1)  $2 arm (matcher|fields)  $3 test id  $4 fixture tag
+_hooks_user_edit_preserved_arm() {
+  local engine="$1" arm="$2" tid="$3" tag="$4"
+  local fixture_src="$TMP_ROOT/$tag-src" dst="$TMP_ROOT/$tag" log="$TMP_ROOT/$tag.log" rec_file="$TMP_ROOT/$tag-rec.txt"
+  local before after n newest
+  _778_build_fixture_source "$fixture_src"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  _hooks_run_engine "$engine" "$fixture_src" "$dst" >/dev/null 2>&1 || log_fail "$tid($arm): v1 $engine sync failed"
+  [[ -f "$dst/.aai/cache/hooks-shipped/hooks.json" ]] || log_fail "$tid($arm): the engine did not record what it shipped"
+  case "$arm" in
+    matcher) _hooks_edit_matcher "$dst/hooks/hooks.json" "startup" ;;
+    fields)  _hooks_add_fields "$dst/hooks/hooks.json" ;;
+    *) log_fail "$tid: unknown arm $arm" ;;
+  esac
+  before="$(_hooks_event_json "$dst/hooks/hooks.json" SessionStart)"
+  _hooks_source_edit_flag "$fixture_src/hooks/hooks.json" "--v2"
+  _hooks_run_engine "$engine" "$fixture_src" "$dst" >"$log" 2>&1 || log_fail "$tid($arm): v2 $engine sync failed: $(cat "$log")"
+  after="$(_hooks_event_json "$dst/hooks/hooks.json" SessionStart)"
+  [[ "$before" == "$after" ]] \
+    || log_fail "$tid($arm): the user-modified SessionStart registration was rewritten (command was untouched, so the old command-only proof let it through):"$'\n'"  before: $before"$'\n'"  after:  $after"
+  grep -qF -- 'MERGE hooks/hooks.json: 0 hook(s) added, 0 updated, 0 already present, 1 left as-is' "$log" \
+    || log_fail "$tid($arm): stdout did not report the entry as left as-is: $(grep -F 'MERGE hooks/hooks.json' "$log" || cat "$log")"
+  n="$(_hooks_event_count "$dst/hooks/hooks.json" SessionStart)"
+  [[ "$n" == "1" ]] || log_fail "$tid($arm): the v2 command was added beside the user's entry ($n SessionStart entries)"
+  newest="$(find "$dst/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | LC_ALL=C sort | tail -n1)"
+  [[ -n "$newest" ]] || log_fail "$tid($arm): no advisory was written for the preserved user edit"
+  awk '/^- Path: hooks\/hooks\.json$/{getline; print; exit}' "$newest" > "$rec_file"
+  grep -qF -- 'left as-is' "$rec_file" \
+    || log_fail "$tid($arm): the advisory's hooks/hooks.json entry does not say left as-is: $(cat "$newest")"
+  case "$arm" in
+    matcher) grep -qF -- 'matcher "startup"' "$rec_file" \
+      || log_fail "$tid(matcher): the advisory does not name the user's matcher: $(cat "$rec_file")" ;;
+    fields)  grep -qF -- 'timeout' "$rec_file" \
+      || log_fail "$tid(fields): the advisory does not name the user-added field: $(cat "$rec_file")" ;;
+  esac
+  grep -qF -- "$TMP_ROOT" "$rec_file" \
+    && log_fail "$tid($arm): the advisory embeds an absolute filesystem path (Validation NB-5): $(cat "$rec_file")"
+  return 0
+}
+
+# --- TEST-789 (Spec-AC-13, arms c+d) — a user-edited MATCHER and a
+# user-added timeout/async on the shipped hook (command untouched) are
+# both preserved byte-for-byte and named in the advisory. RED at 1936b504:
+# both were reported "1 updated" and silently rewritten.
+test_789_hook_json_user_edited_matcher_and_fields_preserved() {
+  log_info "TEST-789: a shipped hook whose matcher or non-command fields the user edited is left as-is (whole-object provenance), not rewritten, and named in the advisory..."
+  _hooks_user_edit_preserved_arm sh matcher TEST-789 prov-789m
+  _hooks_user_edit_preserved_arm sh fields TEST-789 prov-789f
+  log_pass "TEST-789 a user-edited matcher and user-added timeout/async both survive a source command change, 1 left as-is, advisory names the edit"
+}
+
+# --- TEST-790 (Spec-AC-07 / Spec-AC-13) — the same two arms on the ps1
+# engine (same shared library; Validation round 2 probe 4 P3 reproduced the
+# loss there too). Absent pwsh exits 42.
+test_790_ps1_user_edited_matcher_and_fields_preserved() {
+  log_info "TEST-790: aai-sync.ps1 leaves a user-edited matcher / user-added timeout on the shipped hook as-is and names it..."
+  if ! command -v pwsh >/dev/null 2>&1; then
+    PWSH_ARM_SKIPPED=1
+    log_info "TEST-790 note: pwsh absent — SKIPPED"
+    return 0
+  fi
+  _hooks_user_edit_preserved_arm ps1 matcher TEST-790 prov-790m
+  _hooks_user_edit_preserved_arm ps1 fields TEST-790 prov-790f
+  log_pass "TEST-790 aai-sync.ps1 preserves a user-edited matcher and user-added fields (1 left as-is, advisory named)"
+}
+
+# --- TEST-791 (Spec-AC-16) — dotfiles under hooks/ are hooks too: a source
+# hooks/.hidden-hook.sh is synced and a target-only hooks/.local-only.sh is
+# preserved AND named, by the bash engine exactly as by the ps1 engine and
+# the pre-#414 cp -a. RED at 1936b504 (bash globbed without dotglob).
+test_791_hooks_dotfiles_synced_and_preserved_cross_engine() {
+  log_info "TEST-791: a source dotfile under hooks/ is synced and a target-only dotfile is preserved and named (bash; ps1 parity arm when pwsh is present)..."
+  local fixture_src="$TMP_ROOT/dot-791-src" dst="$TMP_ROOT/dot-791" log="$TMP_ROOT/dot-791.log"
+  _778_build_fixture_source "$fixture_src"
+  printf '#!/bin/sh\necho hidden\n' > "$fixture_src/hooks/.hidden-hook.sh"
+  mkdir -p "$dst/hooks"
+  printf 'mine\n' > "$dst/hooks/.local-only.sh"
+  git -C "$dst" init -q -b main
+  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst" >"$log" 2>&1 || log_fail "TEST-791: bash sync failed: $(cat "$log")"
+  cmp -s "$fixture_src/hooks/.hidden-hook.sh" "$dst/hooks/.hidden-hook.sh" \
+    || log_fail "TEST-791: the bash engine did not sync the source dotfile hooks/.hidden-hook.sh (cp -a and the ps1 engine do)"
+  [[ "$(cat "$dst/hooks/.local-only.sh")" == "mine" ]] \
+    || log_fail "TEST-791: the target-only dotfile hooks/.local-only.sh was lost or changed"
+  grep -qF -- 'PRESERVE target-only hook: hooks/.local-only.sh' "$log" \
+    || log_fail "TEST-791: bash stdout did not name the preserved target-only dotfile: $(cat "$log")"
+  if command -v pwsh >/dev/null 2>&1; then
+    local dst_ps="$TMP_ROOT/dot-791-ps1" log_ps="$TMP_ROOT/dot-791-ps1.log"
+    mkdir -p "$dst_ps/hooks"
+    printf 'mine\n' > "$dst_ps/hooks/.local-only.sh"
+    git -C "$dst_ps" init -q -b main
+    pwsh -NoProfile -File "$fixture_src/.aai/scripts/aai-sync.ps1" -TargetRoot "$dst_ps" >"$log_ps" 2>&1 \
+      || log_fail "TEST-791: ps1 sync failed: $(cat "$log_ps")"
+    cmp -s "$fixture_src/hooks/.hidden-hook.sh" "$dst_ps/hooks/.hidden-hook.sh" \
+      || log_fail "TEST-791: the ps1 engine did not sync the source dotfile"
+    grep -qF -- 'PRESERVE target-only hook: hooks/.local-only.sh' "$log_ps" \
+      || log_fail "TEST-791: ps1 stdout did not name the preserved target-only dotfile: $(cat "$log_ps")"
+  else
+    PWSH_ARM_SKIPPED=1
+    log_info "TEST-791 note: pwsh absent — ps1 parity arm SKIPPED"
+  fi
+  log_pass "TEST-791 dotfiles under hooks/ are synced (source) and preserved + named (target-only) by the bash engine, matching ps1"
+}
+
+# --- TEST-792 (Spec-AC-17, Spec-AC-07) — when the shipped snapshot cannot
+# be written (its path is a directory) after a merge that DID write the
+# target, the run reports the merge (MERGE line, target written) plus a
+# WARN naming the unrecorded snapshot, and the advisory entry says the merge
+# was applied -- never "refused (target left untouched)". RED at 1936b504:
+# no MERGE line, "refused (target left untouched)" for a written file.
+_hooks_snapshot_unwritable_arm() {
+  local engine="$1" tid="$2" tag="$3"
+  local fixture_src="$TMP_ROOT/$tag-src" dst="$TMP_ROOT/$tag" log="$TMP_ROOT/$tag.log" rec_file="$TMP_ROOT/$tag-rec.txt" newest
+  _778_build_fixture_source "$fixture_src"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  _hooks_run_engine "$engine" "$fixture_src" "$dst" >/dev/null 2>&1 || log_fail "$tid: v1 $engine sync failed"
+  rm -rf "$dst/.aai/cache/hooks-shipped/hooks.json"
+  mkdir -p "$dst/.aai/cache/hooks-shipped/hooks.json"
+  _hooks_source_add_stop_event "$fixture_src/hooks/hooks.json"
+  _hooks_run_engine "$engine" "$fixture_src" "$dst" >"$log" 2>&1 || log_fail "$tid: v2 $engine sync failed (a snapshot write failure must degrade, not fail): $(cat "$log")"
+  grep -qF -- 'MERGE hooks/hooks.json: 1 hook(s) added' "$log" \
+    || log_fail "$tid: the merge that happened was not reported as a merge: $(grep -E 'MERGE|WARN' "$log" || cat "$log")"
+  grep -qF -- 'stop.sh' "$dst/hooks/hooks.json" \
+    || log_fail "$tid: bad fixture -- the Stop hook was not merged into the target: $(cat "$dst/hooks/hooks.json")"
+  grep -qF -- 'shipped snapshot could not be recorded' "$log" \
+    || log_fail "$tid: stdout did not WARN that the snapshot was not recorded: $(cat "$log")"
+  grep -qF -- 'target left untouched' "$log" \
+    && log_fail "$tid: stdout claims the target was left untouched although it was written: $(cat "$log")"
+  newest="$(find "$dst/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | LC_ALL=C sort | tail -n1)"
+  [[ -n "$newest" ]] || log_fail "$tid: no advisory was written for the unrecorded snapshot"
+  awk '/^- Path: hooks\/hooks\.json$/{getline; print; exit}' "$newest" > "$rec_file"
+  grep -qF -- 'could not record what it shipped' "$rec_file" \
+    || log_fail "$tid: the advisory does not say the snapshot was not recorded: $(cat "$newest")"
+  grep -qF -- 'left untouched' "$rec_file" \
+    && log_fail "$tid: the advisory claims the target was left untouched although it was written: $(cat "$rec_file")"
+  grep -qF -- "$TMP_ROOT" "$rec_file" \
+    && log_fail "$tid: the advisory embeds an absolute filesystem path (Validation NB-5): $(cat "$rec_file")"
+  return 0
+}
+
+test_792_snapshot_unwritable_reports_true_state() {
+  log_info "TEST-792: a merge whose shipped snapshot cannot be written is reported as applied + snapshot not recorded, never as refused/untouched (bash; ps1 arm when pwsh is present)..."
+  _hooks_snapshot_unwritable_arm sh TEST-792 snap-792
+  if command -v pwsh >/dev/null 2>&1; then
+    _hooks_snapshot_unwritable_arm ps1 TEST-792 snap-792-ps1
+  else
+    PWSH_ARM_SKIPPED=1
+    log_info "TEST-792 note: pwsh absent — ps1 arm SKIPPED"
+  fi
+  log_pass "TEST-792 a snapshot write failure after a real merge is reported truthfully (merge applied, snapshot not recorded) on both engines"
+}
+
 main() {
   echo "=== Test Suite: $TEST_NAME ==="
   check_deps
@@ -1550,6 +1768,10 @@ main() {
   test_786_fresh_target_hooks_json_is_source_bytes
   test_787_bootstrap_missing_merge_library_fails_explicit_opt_in
   test_788_ps1_engine_update_and_left_as_is_parity
+  test_789_hook_json_user_edited_matcher_and_fields_preserved
+  test_790_ps1_user_edited_matcher_and_fields_preserved
+  test_791_hooks_dotfiles_synced_and_preserved_cross_engine
+  test_792_snapshot_unwritable_reports_true_state
   if [[ "$PWSH_ARM_SKIPPED" -eq 1 ]]; then
     log_skip "pwsh absent — one or more PowerShell assertions were not exercised (all bash-only assertions above passed)"
   fi
