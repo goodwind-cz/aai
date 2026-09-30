@@ -1,17 +1,16 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-30T01:27:36.648Z
+Generated: 2026-09-30T01:28:15.129Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
-| CHANGE-0199 | issues | implementing | — | docs/issues/CHANGE-0199-readme-portable-workflow-onboarding.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 
 ## Canonical layer (0)
@@ -52,7 +51,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (468)
+## Done (469)
 
 | ID | Type | Path |
 |---|---|---|
@@ -248,6 +247,7 @@ _None._
 | CHANGE-0195 | issues | docs/issues/CHANGE-0195-growth-pins-dont-wall-the-corpus.md |
 | CHANGE-0196 | issues | docs/issues/CHANGE-0196-antigravity-cli-skill-paths.md |
 | CHANGE-0197 | issues | docs/issues/CHANGE-0197-pricing-missing-models-and-refresh.md |
+| CHANGE-0199 | issues | docs/issues/CHANGE-0199-readme-portable-workflow-onboarding.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |

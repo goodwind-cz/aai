@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-09-29T23:42:12.885Z",
+  "generatedAt": "2026-09-30T01:27:57.393Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 141,
-    "delivered": 476,
+    "delivered": 477,
     "active_weeks": 14,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (476 closes vs 141 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 476,
-    "delivered_per_week_avg": 34,
+    "note": "\"delivered\" counts every work_item_closed event (477 closes vs 141 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 477,
+    "delivered_per_week_avg": 34.1,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -28,7 +28,7 @@
       "2026-W37": 15,
       "2026-W38": 12,
       "2026-W39": 15,
-      "2026-W40": 18
+      "2026-W40": 19
     },
     "delivered_groups": [
       {
@@ -439,7 +439,7 @@
         "key": "month:2026-09",
         "kind": "month",
         "label": "2026-09",
-        "count": 88,
+        "count": 89,
         "refs": [
           "intake-staleness-preflight-warning",
           "spec-intake-staleness-preflight-warning",
@@ -528,7 +528,8 @@
           "mutation-clone-windows-run-chain",
           "spec-mutation-clone-windows-run-chain",
           "pricing-missing-models-and-refresh",
-          "spec-pricing-missing-models-and-refresh"
+          "spec-pricing-missing-models-and-refresh",
+          "readme-portable-workflow-onboarding"
         ]
       }
     ],
@@ -2437,12 +2438,16 @@
         {
           "ref": "spec-pricing-missing-models-and-refresh",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "readme-portable-workflow-onboarding",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 4152,
       "mean_seconds": 115087.8,
       "measured": 137,
-      "unmeasurable": 339
+      "unmeasurable": 340
     }
   },
   "speed": {
@@ -4815,7 +4820,7 @@
     },
     {
       "week": "2026-W40",
-      "delivered": 18,
+      "delivered": 19,
       "median_lead_time_seconds": null,
       "busy_seconds": null,
       "tokens": null,
@@ -5031,7 +5036,7 @@
         "id": "fu-test454-4c-arm-uses-guard-proxy",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 15,
+        "age_days": 16,
         "what": "TEST-454's step-4c arm exercises the exported checkBranchPin function rather than close-work-item.mjs's real CLI, disclosed in its own comment as a STATE.yaml-fixture limitation. Validation round 5 proved the real CLI passes too (rc 0, --dry-run needs no live active_work_items entry), showing the fixture limitation is surmountable.",
         "status": "open"
       },
@@ -5039,7 +5044,7 @@
         "id": "fu-tripwire-attributes-concurrent-writes",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 15,
+        "age_days": 16,
         "what": "repo-tripwire attributes a shipping-tree write to the suite it is currently running, even when the writer is a DIFFERENT concurrent process (validation round 5: \"AAI-TRIPWIRE FAIL: test-aai-doc-numbering changed the shipping repository\" was actually the orchestrator's own concurrent full sweep, not doc-numbering).",
         "status": "open"
       },
@@ -5135,7 +5140,7 @@
         "id": "fu-writerecord-rotates-before-patch-copy",
         "ref": "mutation-gate-for-tests",
         "severity": "P2",
-        "age_days": 14,
+        "age_days": 15,
         "what": "mutation-run.mjs writeRecord() rotates the live record and patch aside BEFORE storePatchCopy() reads the caller's --patch path, so regenerating a patch-based record via its own live patch path (re-running the same command) throws ENOENT and destroys the live record",
         "status": "open"
       },
@@ -5967,7 +5972,7 @@
         "id": "fu-set-strategy-ref-shape",
         "ref": "strategy-unscoped-from-current-focus",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "set-strategy --ref is not shape-validated; empty --ref with unset focus writes ref_id empty and Planning retarget then treats the intake stamp as stale",
         "status": "open"
       },
@@ -5975,7 +5980,7 @@
         "id": "fu-amend-mutation-clone-fidelity-8bfdf9",
         "ref": "mutation-clone-fidelity-windows-eol",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-mutation-clone-fidelity-windows-eol: D2: omit only root-level untracked files; nested untracked (lib/, tests/, .aai/) stay in the fidelity set so TEST-471 lib/extra.txt still copies",
         "status": "open"
       },
