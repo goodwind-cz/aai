@@ -142,6 +142,7 @@ mkdir -p \
   "$DST_ROOT/hooks"
 
 OVERWRITE_CONFLICTS=()
+DELETIONS=()
 
 copy_replace() {
   local src="$1"
@@ -329,6 +330,7 @@ if [[ "$PROFILE" == "core" ]]; then
           ;;
       esac
       rm -f "$tgt"
+      DELETIONS+=("$rel")
       echo "  PROFILE prune (not in core): $rel"
     fi
   done < <(find "$DST_ROOT/.aai" -type f)
@@ -353,6 +355,7 @@ else
     [[ "$name" == "scripts" || "$name" == "cache" ]] && continue
     if [[ ! -e "$SRC_ROOT/.aai/$name" ]]; then
       rm -rf "$item"
+      DELETIONS+=(".aai/$name")
       echo "  CLEAN removed stale: .aai/$name"
     fi
   done
@@ -545,9 +548,117 @@ if [[ -f "$SRC_ROOT/.claude-plugin/plugin.json" ]]; then
   echo "  SYNC .claude-plugin/plugin.json"
 fi
 
-# Session hooks (cross-platform: Claude Code, Cursor, Gemini, Codex)
+# Session hooks (cross-platform: Claude Code, Cursor, Gemini, Codex):
+# file-by-file merge, same idiom as .aai/scripts/ (:360-372) — overwrite
+# source-owned hook entries, preserve target-only ones. A wholesale
+# copy_replace here used to delete a target's own hooks/merge-guard.* safety
+# control on every sync (goodwind-cz/aai#414).
+#
+# hooks/hooks.json and hooks/hooks.windows.json are the ONE exception to
+# "source-owned files overwrite": owner amendment (2026-09-30) — a
+# target-added registration entry (e.g. merge-guard's own PreToolUse hook)
+# must survive a sync, so these two are MERGED via the shared
+# .aai/scripts/lib/merge-hooks-json.mjs (same algorithm as aai-bootstrap.sh's
+# --with-claude-hooks overlay). The rule, stated in that file's header: a
+# source hook not present in the target is added; a source-owned entry whose
+# command changed is UPDATED IN PLACE only when the target's WHOLE
+# registration — the hook object in every field AND its enclosing matcher —
+# equals what this engine last shipped here (the `--shipped` snapshot under
+# <target>/.aai/cache/hooks-shipped/, which survives sync/prune and is
+# gitignored); a same-path entry the engine cannot prove it authored — a
+# different command, an added `timeout`, a flipped `async`, a changed
+# matcher, or no snapshot at all — is LEFT AS-IS, not added beside, and
+# named in the advisory — a user-modified hook is never rewritten. A target
+# entry whose path the source does not ship is never touched. A merge
+# refusal (target does not parse as the expected JSON shape) or a missing
+# `node` leaves the target file untouched and is named in the advisory —
+# never a silent skip. A snapshot the engine could not RECORD after a merge
+# that did happen is reported as exactly that (the merge stands; the next
+# sync can only report, not update) — never as "left untouched".
+# Retirement residual: the merge never removes anything, so a hook the
+# source has retired stays registered in a target that already carries it
+# (see Spec-AC-08/-11).
+HOOKS_JSON_MERGE_LIB="$SRC_ROOT/.aai/scripts/lib/merge-hooks-json.mjs"
+HOOKS_SHIPPED_DIR="$DST_ROOT/.aai/cache/hooks-shipped"
+# Prefixes held in variables so the `${var//"$prefix"/}` scrub below is a
+# LITERAL match on bash 3.2 too (a `[ ]` or `*` in a root path must not glob).
+hooks_dst_prefix="$DST_ROOT/"
+hooks_src_prefix="$SRC_ROOT/"
 if [[ -d "$SRC_ROOT/hooks" ]]; then
-  copy_replace "$SRC_ROOT/hooks" "$DST_ROOT/hooks"
+  mkdir -p "$DST_ROOT/hooks"
+  hooks_node_available=0
+  command -v node >/dev/null 2>&1 && hooks_node_available=1
+  # Dotfiles are hooks too: the pre-#414 `cp -a` copied them and the .ps1
+  # engine (`Get-ChildItem -Force`) still does, so both loops below glob
+  # with dotglob (restored afterwards) — Validation round 2 NB-B measured a
+  # source hooks/.hidden-hook.sh silently dropped by this engine alone.
+  hooks_dotglob_was_set=0
+  shopt -q dotglob && hooks_dotglob_was_set=1
+  shopt -s dotglob
+  for src_hook in "$SRC_ROOT/hooks/"*; do
+    [[ -e "$src_hook" ]] || continue
+    hname="$(basename "$src_hook")"
+    dst_hook="$DST_ROOT/hooks/$hname"
+    case "$hname" in
+      hooks.json|hooks.windows.json)
+        # WARN lines go to STDOUT like every other line of this run's
+        # narrative (PRESERVE/MERGE/SYNC) and like the .ps1 engine — Spec-AC-11
+        # says stdout; Validation NB-2 caught the >&2 that TEST-783's 2>&1
+        # could not.
+        if [[ "$hooks_node_available" -ne 1 ]]; then
+          OVERWRITE_CONFLICTS+=("hooks/$hname|node is unavailable, so the hook-registration merge could not run; the target file was left untouched. Install Node.js and re-sync, or merge the \"hooks\" key from the source file manually.")
+          echo "  WARN node unavailable — hooks/$hname registration merge skipped, file left untouched"
+        elif [[ ! -f "$HOOKS_JSON_MERGE_LIB" ]]; then
+          OVERWRITE_CONFLICTS+=("hooks/$hname|The hooks-registration merge library is missing from this source tree; the target file was left untouched. Merge the \"hooks\" key from the source file manually.")
+          echo "  WARN merge library missing — hooks/$hname registration merge skipped, file left untouched"
+        else
+          hooks_merge_out=""
+          if hooks_merge_out="$(node "$HOOKS_JSON_MERGE_LIB" "$src_hook" "$dst_hook" --shipped "$HOOKS_SHIPPED_DIR/$hname" 2>&1)"; then
+            # Advisory text names paths relative to the two roots, never the
+            # machine's absolute layout (Validation NB-5).
+            hooks_merge_out="${hooks_merge_out//"$hooks_dst_prefix"/}"
+            hooks_merge_out="${hooks_merge_out//"$hooks_src_prefix"/<source>/}"
+            echo "  MERGE hooks/$hname: $hooks_merge_out"
+            # One `LEFT-AS-IS <event> <path>: ...` line per source-owned entry
+            # the merge could not prove it authored — the owner's priority
+            # (never rewrite a user-modified hook) applied; surface each one.
+            # One `SNAPSHOT-NOT-RECORDED <path>: <error>` line when the merge
+            # stood but the engine could not record what it shipped (NB-A):
+            # report THAT, never "left untouched" for a file that was written.
+            while IFS= read -r hooks_merge_line; do
+              case "$hooks_merge_line" in
+                "LEFT-AS-IS "*)
+                  OVERWRITE_CONFLICTS+=("hooks/$hname|A source-owned hook registration changed in the source, but the target's entry for the same script differs from what this engine last shipped, so it was left as-is and the new version was NOT added beside it (a user-modified hook is never rewritten). ${hooks_merge_line#LEFT-AS-IS }")
+                  ;;
+                "SNAPSHOT-NOT-RECORDED "*)
+                  OVERWRITE_CONFLICTS+=("hooks/$hname|The registration merge was applied to the target, but the engine could not record what it shipped (${hooks_merge_line#SNAPSHOT-NOT-RECORDED }), so the next sync can only report a changed source-owned entry as left as-is, never update it, until that path is writable. Fix the snapshot path under .aai/cache/hooks-shipped/ and re-sync.")
+                  echo "  WARN hooks/$hname merged, but the shipped snapshot could not be recorded: ${hooks_merge_line#SNAPSHOT-NOT-RECORDED }"
+                  ;;
+              esac
+            done <<< "$hooks_merge_out"
+          else
+            # The library throws only BEFORE it writes the destination (parse
+            # refusals, an unreadable/unwritable target), so "left untouched"
+            # is true here; the library's own message names the cause.
+            hooks_merge_out="${hooks_merge_out//"$hooks_dst_prefix"/}"
+            hooks_merge_out="${hooks_merge_out//"$hooks_src_prefix"/<source>/}"
+            OVERWRITE_CONFLICTS+=("hooks/$hname|Hook-registration merge was refused and the target was left untouched: $hooks_merge_out Merge the registration manually.")
+            echo "  WARN hooks/$hname registration merge refused (target left untouched): $hooks_merge_out"
+          fi
+        fi
+        continue
+        ;;
+    esac
+    copy_replace "$src_hook" "$dst_hook"
+  done
+  for dst_hook in "$DST_ROOT/hooks/"*; do
+    [[ -e "$dst_hook" ]] || continue
+    hname="$(basename "$dst_hook")"
+    if [[ ! -e "$SRC_ROOT/hooks/$hname" ]]; then
+      echo "  PRESERVE target-only hook: hooks/$hname"
+    fi
+  done
+  [[ "$hooks_dotglob_was_set" -eq 1 ]] || shopt -u dotglob
   chmod +x "$DST_ROOT/hooks/session-start.sh" 2>/dev/null || true
   echo "  SYNC hooks/"
 fi
@@ -738,8 +849,10 @@ if [[ -f "$gitignore_file" ]]; then
   fi
 fi
 
-# Create conflict advisory report for files that were overwritten with differences.
-if [[ ${#OVERWRITE_CONFLICTS[@]} -gt 0 ]]; then
+# Create conflict advisory report for files that were overwritten with
+# differences, or deleted (goodwind-cz/aai#414: a purely destructive run used
+# to write no advisory at all).
+if [[ ${#OVERWRITE_CONFLICTS[@]} -gt 0 || ${#DELETIONS[@]} -gt 0 ]]; then
   mkdir -p "$DST_ROOT/docs/ai/reports"
   report_path="$DST_ROOT/docs/ai/reports/sync-conflicts-$(date -u +%Y%m%d-%H%M%S).md"
   {
@@ -757,13 +870,23 @@ if [[ ${#OVERWRITE_CONFLICTS[@]} -gt 0 ]]; then
     echo "3. Keep sync-managed files as baseline templates to reduce future conflicts."
     echo
     echo "## Overwritten items"
-    for conflict in "${OVERWRITE_CONFLICTS[@]}"; do
-      path_part="${conflict%%|*}"
-      rec_part="${conflict#*|}"
+    if [[ ${#OVERWRITE_CONFLICTS[@]} -gt 0 ]]; then
+      for conflict in "${OVERWRITE_CONFLICTS[@]}"; do
+        path_part="${conflict%%|*}"
+        rec_part="${conflict#*|}"
+        echo
+        echo "- Path: $path_part"
+        echo "- Recommendation: $rec_part"
+      done
+    fi
+    if [[ ${#DELETIONS[@]} -gt 0 ]]; then
       echo
-      echo "- Path: $path_part"
-      echo "- Recommendation: $rec_part"
-    done
+      echo "## Deleted items"
+      for deleted in "${DELETIONS[@]}"; do
+        echo
+        echo "- Path: $deleted"
+      done
+    fi
   } > "$report_path"
   echo "  Advisory report: $report_path"
 fi

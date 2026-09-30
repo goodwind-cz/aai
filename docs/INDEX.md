@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-30T00:40:42.756Z
+Generated: 2026-09-30T17:24:16.289Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -51,7 +51,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (470)
+## Done (472)
 
 | ID | Type | Path |
 |---|---|---|
@@ -308,6 +308,7 @@ _None._
 | ISSUE-0086 | issues | docs/issues/ISSUE-0086-strategy-unscoped-from-current-focus.md |
 | ISSUE-0087 | issues | docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md |
 | ISSUE-0088 | issues | docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md |
+| ISSUE-0089 | issues | docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -523,6 +524,7 @@ _None._
 | SPEC-0195 | specs | docs/specs/SPEC-0195-spec-mutation-clone-windows-run-chain.md |
 | SPEC-0197 | specs | docs/specs/SPEC-0197-spec-pricing-missing-models-and-refresh.md |
 | SPEC-0198 | specs | docs/specs/SPEC-0198-spec-pricing-gpt-6-flagship-family.md |
+| SPEC-0199 | specs | docs/specs/SPEC-0199-spec-sync-deletes-target-only-hooks.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

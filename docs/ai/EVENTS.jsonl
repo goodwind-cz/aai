@@ -2548,3 +2548,15 @@
 {"v":1,"ts":"2026-09-29T23:42:08Z","actor":"cursoragent_cursor.com","event":"work_item_closed","ref":"spec-pricing-missing-models-and-refresh","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-09-29T23:42:08Z","actor":"cursoragent_cursor.com","event":"ac_evidence","ref":"spec-pricing-missing-models-and-refresh","payload":{"commit":"8eafcc667858e3b95da55eb1b2983e0ff2c1ba74"}}
 {"v":1,"ts":"2026-09-30T00:08:51Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":536,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-30T00:49:37Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-sync-deletes-target-only-hooks","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-09-30T01:15:28Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":538,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-30T15:04:07Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-sync-deletes-target-only-hooks/Spec-AC-16","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-30T15:04:07Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-sync-deletes-target-only-hooks/Spec-AC-17","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-09-30T16:04:34Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"sync-deletes-target-only-hooks","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-09-30T16:04:34Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"sync-deletes-target-only-hooks","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-30T16:04:34Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"sync-deletes-target-only-hooks","payload":{"commit":"1efec5f88d26d3d9e53b4bda36455e8c7097513c"}}
+{"v":1,"ts":"2026-09-30T16:04:34Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-sync-deletes-target-only-hooks","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-09-30T16:04:34Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-sync-deletes-target-only-hooks","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-09-30T16:04:34Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-sync-deletes-target-only-hooks","payload":{"commit":"1efec5f88d26d3d9e53b4bda36455e8c7097513c"}}
+{"v":1,"ts":"2026-09-30T16:17:35Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":540,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-09-30T17:24:16Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"sync-deletes-target-only-hooks","payload":{"pr":415,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"b2cd2edd9540581daa0955e3ca184daaf5859c73"}}
