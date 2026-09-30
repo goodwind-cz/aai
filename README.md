@@ -1,55 +1,71 @@
-# AAI — autonomous AI development that has to prove it
+# AAI — build with AI. Keep the knowledge.
 
-**An AI agent that plans, implements, tests, validates and reviews your feature in an autonomous loop — and cannot mark anything "done" unless a machine-checked gate says the evidence actually exists. You keep the merge button.**
+**Choose your AI provider, agent harness, and model. Keep one autonomous build loop and your project's knowledge in your repository.**
 
-AAI is a vendorable workflow layer for AI coding agents (Claude Code, Codex, Gemini). One command drops it into any repository and turns "the agent said it works" into a disciplined pipeline: intake → frozen spec with measurable acceptance criteria → TDD with RED-proofed tests → **independent validation in a separate context and a different model** → adversarial code review → gated closeout with telemetry. Every claim leaves a trail; every "done" is challenged before it counts.
+![AAI autonomous build loop: plan, build, test, validate, review, and document; project knowledge flows into your repository.](docs/assets/aai-readme-hero.png)
 
-## Why it is different
+AAI adds a repeatable development loop to an existing repository. It turns a need into a spec with acceptance criteria, implementation and tests, an independent validation pass, code review, documentation, and a pull request. The agent can prepare the change; **you control the merge**.
 
-- **"Done" is gated, not declared.** `docs-audit --gate` refuses to close a spec whose acceptance table has a non-terminal row, an evidence-free "done", or an invalid sign-off. An opt-in pre-commit hook blocks the commit itself — and it gates the *staged* content, not what happens to be on disk.
-- **Validation is genuinely independent.** A fresh subagent with a clean context and a different model than the implementer — because self-evaluation rubber-stamps. In this repo's own history the independent pass repeatedly caught real bugs that a fully green test suite had hidden.
-- **Claims are cross-checked.** A test must first fail (RED-proof) before its pass means anything; a "code-review" sign-off without a recorded review artifact is flagged as `review-claim-unbacked`; docs with almost-right structure trigger warnings instead of silent misreads.
-- **The human stays the operator.** Human-in-the-loop gates for scope and isolation decisions, and a PR ceremony (`/aai-pr`) with a hard rule: the agent never merges. These guardrails run on this repository itself — they have even stopped their own author mid-release until close telemetry existed.
-- **Engineering hygiene built in.** Transactional runtime state (`state.mjs` — atomic writes, strict flags, no silent typo-drops), leak-safe test execution (no orphaned process trees), drift-aware docs with body linting, append-only audit events, per-change metrics.
-- **Vendorable and low-friction.** Ships as prompts + small Node/shell tools, no framework lock-in; wrappers for `.claude`, `.codex` and `.gemini`; backward-compatible updates via `/aai-update`.
+The work also leaves something useful behind: product documentation for user-visible capabilities, decisions, project knowledge, lessons learned, and an audit trail. AAI's [docs index](docs/INDEX.md) shows which tracked work is draft, active, or done, while the docs audit checks whether completion claims have evidence. Your next agent can pick up where the last one stopped.
 
-## Quick start
+**From request to PR:** plan → build → test → validate independently → review → document → ship.
+
+## Try it in your project
+
+From the root of your project, install AAI in a terminal:
 
 ```bash
-# 1. Install into your project (bash; PowerShell variant below)
 curl -fsSL https://raw.githubusercontent.com/goodwind-cz/aai/main/install.sh | bash
+```
 
-# 2. Describe work in one sentence — AAI routes it to the right intake form
+On Windows PowerShell, use `irm https://raw.githubusercontent.com/goodwind-cz/aai/main/install.ps1 | iex` instead. Review the files it added with `git status` and `git diff`.
+
+In your AI coding agent's chat, run `/aai-bootstrap` once to adapt AAI's test, build, and lint shortcuts to your project. Then use these **agent commands** (not shell commands):
+
+### Shape the request with `/aai-intake`
+
+```text
 /aai-intake "Add password reset via email"
-
-# 3. Run the autonomous loop: Planning → Implementation → Validation → Review
-/aai-loop
-
-# 4. Open the PR (scope-only staging, changelog entry, never merges)
-/aai-pr
 ```
 
-Read next: **[User Guide](docs/USER_GUIDE.md)** (how to use every skill) · **[.aai/AGENTS.md](.aai/AGENTS.md)** (agent-side entry point) · **[.aai/PLAYBOOK.md](.aai/PLAYBOOK.md)** (human playbook) · **[CHANGELOG](CHANGELOG.md)** · **[latest release](https://github.com/goodwind-cz/aai/releases/latest)** · canonical workflow in [.aai/workflow/WORKFLOW.md](.aai/workflow/WORKFLOW.md).
+AAI saves a draft request in your repository and prints its path. Review or refine that draft before building.
 
-## Install AAI into the current project
+### Build the draft with `/aai-ship`
 
-From the target project directory, run:
-
-PowerShell:
-
-```powershell
-irm https://raw.githubusercontent.com/goodwind-cz/aai/main/install.ps1 | iex
+```text
+/aai-ship docs/requirements/PRD-DRAFT-password-reset-via-email.md
 ```
 
-Bash:
+Use the path returned by `/aai-intake`; the one above is an example. `/aai-ship` continues from that draft through planning, implementation, independent validation, review, product docs for user-visible work, and the pull request. It can also accept a one-sentence request and create the intake itself. You review and merge the result. For manual control of each stage, use `/aai-loop` and `/aai-pr` after intake. See the [User Guide](docs/USER_GUIDE.md) if your agent does not expose the slash commands directly.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/goodwind-cz/aai/main/install.sh | bash
+### Keep AAI up to date
+
+In a project where AAI is installed, ask your agent to preview and then apply an update:
+
+```text
+/aai-update --dry-run
+/aai-update
 ```
 
-This downloads the canonical AAI repository and runs the matching `.aai/scripts/aai-sync.*` script into the current directory.
+The update refreshes the vendored AAI layer from the canonical repository, reports changed files and any conflicts, and leaves the commit to you. Review the result with `git diff` in your terminal. See the [update guide](docs/product/aai-update.md) for options and limits.
 
-Safer review-first variant:
+## Why use AAI?
+
+- **Freedom to change tools.** AAI's repository-local skills are available in Claude Code, Codex, Cursor, and Google's Antigravity (IDE/CLI). Choose the provider and model your agent offers; the workflow and project knowledge stay with your code. Gemini CLI remains supported for eligible enterprise, Cloud, and paid-API users, but Antigravity CLI is the current path for Google's free and AI Pro/Ultra plans. Model routing varies by harness—Cursor uses your selected model, and Antigravity has shared skill discovery but no dedicated AAI model route yet. See the [harness notes](docs/USER_GUIDE.md#agent-harnesses-and-models).
+- **Evidence before “done.”** Acceptance criteria are tied to tests and evidence. Validation runs in a fresh context and uses a different model when the harness makes one available; a separate review checks the change against the spec. Failed checks send the work back for remediation.
+- **Know what is draft and what shipped.** The [docs index](docs/INDEX.md) groups tracked requests and specs by status; `/aai-docs-audit` checks for stale or unsupported completion claims. Acceptance criteria, decisions, and audit events show what changed and why.
+- **A repository that remembers.** Specs, tests, decisions, product docs, reusable patterns, lessons learned, and shared audit events live beside your code. AAI can surface relevant past learning before new work; its end-to-end ship flow creates or updates product docs for user-visible capabilities.
+
+AAI is a vendored layer of Markdown prompts and small Node/shell tools; it needs no hosted project space. Temporary runtime state and validation reports stay local, while durable conclusions go into tracked project docs.
+
+For the phase and gate contract, see [how the loop works](.aai/workflow/WORKFLOW.md).
+
+<details>
+<summary>Advanced installation and manual sync</summary>
+
+## More installation options
+
+The quick-start installers download the canonical AAI repository and sync its workflow files into your current project. To inspect a script before running it, use one of these review-first variants.
 
 PowerShell:
 
@@ -99,16 +115,16 @@ Bash:
 bash ./install.sh --target-root /path/to/your-project
 ```
 
-After install, review the changes and bootstrap the target project:
+After install, review the changes in your terminal:
 
 ```bash
 git status
 git diff
-/aai-bootstrap
-/aai-doctor
 ```
 
-## Pushing AAI layer into a target project
+Then ask your coding agent to run `/aai-bootstrap` and `/aai-doctor` in its chat.
+
+## Sync AAI into another repository
 
 Run the sync script **from this repository** and pass the path to the target project.
 The script resolves its own source root automatically — no need to copy it to the target first.
@@ -139,10 +155,10 @@ git add .aai docs CLAUDE.md CODEX.md GEMINI.md README_AAI.md SKILLS.md .github/c
 git commit -m "Update AAI layer"
 ```
 
-- Sync scope includes `.aai/**`, `.claude/skills/**`, `.codex/skills/**`, `.gemini/skills/**`, `.github/copilot-instructions.md`, `docs/knowledge`, and root shims (`CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `README_AAI.md`, `SKILLS.md`).
+- Sync scope includes `.aai/**`, `.claude/skills/**`, `.codex/skills/**`, `.gemini/skills/**`, `.agents/skills/**`, `.cursor/rules/aai.mdc`, `.github/copilot-instructions.md`, `docs/knowledge`, and root shims (`CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `README_AAI.md`, `SKILLS.md`).
 - Session-start hooks are synced under `hooks/`, including `hooks/session-start.sh` for POSIX shells and `hooks/session-start.ps1` plus `hooks/hooks.windows.json` for native Windows PowerShell registration.
 - For `.claude/skills/**`, template entries are updated, while target-only local skills are preserved.
-- Target `.gitignore` is auto-updated to ignore `.claude/skills/`, `.codex/skills/`, `.codex/skills.local/`, `.gemini/skills/`, and `.gemini/skills.local/` (sync-managed artifacts).
+- Target `.gitignore` is auto-updated to ignore `.claude/skills/`, `.codex/skills/`, `.codex/skills.local/`, `.gemini/skills/`, `.gemini/skills.local/`, and `.agents/skills/` (sync-managed artifacts).
 - `.github/copilot-instructions.md` is auto-merged: project-specific content is preserved in `docs/ai/project-overrides/copilot-instructions.project.md` and appended under a dedicated Project Overrides section.
 - If other local target content is overwritten, sync creates a local-only advisory in `docs/ai/reports/sync-conflicts-*.md`.
 - Reports under `docs/ai/reports/` are runtime artifacts and should not be committed; durable conclusions must be promoted into project-owned docs.
@@ -152,6 +168,8 @@ git commit -m "Update AAI layer"
 - Missing `docs/TECHNOLOGY.md` is seeded from `.aai/templates/TECHNOLOGY_TEMPLATE.md` and then becomes project-owned.
 - It intentionally does **not** overwrite project docs under `docs/requirements`, `docs/specs`, `docs/decisions`, `docs/releases`, `docs/issues`, `docs/rfc`, or `docs/project-sessions`.
 
+</details>
+
 ## Orientation
 
 ### The loop
@@ -160,12 +178,13 @@ Every scope moves through six phases, defined canonically in
 [.aai/workflow/WORKFLOW.md](.aai/workflow/WORKFLOW.md):
 **Planning → Implementation preparation → Implementation → Validation → Code Review → Remediation**.
 Implementation preparation is the worktree gate — when Planning recommends
-isolation, the agent must ask you before creating a worktree (or accept an
-explicit inline override). Validation is performed by an independent subagent
-with a clean context and a different model, and Code Review is a separate
-adversarial pass; a FAIL from either routes the scope into Remediation and back
-through independent re-validation. A finished scope ends with the `/aai-pr`
-ceremony opening a pull request — the agent never merges; merging is your action.
+isolation, the agent asks you before creating a worktree (or accepts an
+explicit inline override). Validation runs in a fresh context and uses a
+different model when available. Code Review is a separate adversarial pass;
+a FAIL from either routes the scope into Remediation and back through
+independent re-validation. A finished scope ends with `/aai-pr` opening a
+pull request. Merging is your action unless you have recorded explicit
+standing authorization for a defined scope.
 
 ### Repository map
 
@@ -174,6 +193,8 @@ ceremony opening a pull request — the agent never merges; merging is your acti
                             reverse analysis), scripts/, workflow/WORKFLOW.md,
                             templates/, system/ docs, knowledge/ (universal patterns)
 .claude/ .codex/ .gemini/   Per-agent skill wrappers (sync-managed)
+.agents/skills/             Shared project skills for Cursor and Antigravity
+.cursor/rules/              Cursor project rule pointing to AAI guidance
 hooks/                      Session-start hooks (POSIX, PowerShell, Windows registration)
 tests/                      Skill tests (tests/skills/), self-hosting smoke tests,
                             disposable sync fixture (tests/fixtures/target-project/)

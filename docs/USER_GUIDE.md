@@ -53,15 +53,14 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
    ./.aai/scripts/aai-sync.sh /path/to/your-project
    ```
 
-2. **Bootstrap your project (one-time):**
-   ```bash
-   cd /path/to/your-project
+2. **Bootstrap your project (one-time):** In your coding agent's chat, from the target project:
+   ```text
    /aai-bootstrap
    ```
-   This detects your architecture and generates optimized skills.
+   This detects your project's test, build, and lint commands.
 
-3. **Verify installation:**
-   ```bash
+3. **Verify installation:** In the same agent chat:
+   ```text
    /aai-test-skills
    ```
 
@@ -116,25 +115,25 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 
 ### Your First Workflow
 
-```bash
-# 1. Start a new feature
+In your coding agent's chat, start with intake and review the draft it saves in your repository:
+
+```text
 /aai-intake "Add user authentication with JWT"
-
-# 2. AAI will create a requirement document
-# docs/requirements/REQ-001-user-auth.md
-
-# 3. Run TDD cycle
-/aai-tdd
-
-# 4. Validate your work
-/aai-validate-report
-
-# 5. Share the local runtime report
-/aai-share docs/ai/reports/LATEST.md
-
-# 6. If the result is important long-term, promote it into project docs
-# examples: docs/decisions/, docs/specs/, docs/knowledge/, docs/archive/analysis/
 ```
+
+Then pass the **path returned by intake** to ship. For example:
+
+```text
+/aai-ship docs/requirements/PRD-DRAFT-add-user-authentication-with-jwt.md
+```
+
+The path is illustrative; use the actual saved draft. Ship runs planning, implementation, testing, independent validation, review, and product documentation for user-visible work before opening a pull request. You can instead give `/aai-ship` a short need and let it perform intake. Merge remains your decision unless you have explicitly recorded standing authorization for a defined scope. For manual stage-by-stage control, use `/aai-loop` and `/aai-pr` after intake.
+
+### Agent harnesses and models
+
+AAI's project skills are available in Claude Code, Codex, Cursor, and Google Antigravity (IDE/CLI). Cursor and Antigravity discover the shared `.agents/skills/` wrappers; Cursor also gets `.cursor/rules/aai.mdc`. For Google users on free or AI Pro/Ultra plans, use Antigravity CLI: [Google moved those plans away from Gemini CLI in June 2026](https://github.com/google-gemini/gemini-cli/discussions/27274). Gemini CLI remains supported for eligible enterprise, Google Cloud, and paid-API users; AAI still ships `.gemini/skills/` wrappers for it. The work documents, tests, decisions, product docs, and audit events remain in the repository across agent changes.
+
+Model selection is harness-dependent. AAI has model-routing bindings for Claude Code, Codex, and the still-supported Gemini CLI path. Cursor uses the model selected in Cursor; Antigravity consumes the shared skills without a dedicated AAI model-routing binding. Independent validation uses a different model when the active harness can provide one; do not assume every harness can enforce that separation.
 
 ---
 
@@ -165,7 +164,7 @@ AAI uses two different classes of documentation:
 | `/aai-validate-report` | End of work | Validation with screenshots |
 | `/aai-share` | Share results | Publish to Cloudflare Pages |
 | `/aai-loop` | Autonomous work | Multi-tick autonomous loop |
-| `/aai-ship` | State a need, get a PR | Runs intake through review end-to-end, pauses only to open the PR |
+| `/aai-ship` | Start from a need or intake draft | Runs the loop through review, product docs, and PR; stops for required human decisions and at merge |
 | `/aai-hitl` | Loop asked for you | Surfaces the blocked question and unblocks the loop |
 | `/aai-update` | Refresh AAI | Re-sync vendored AAI layer from canonical git `main` |
 
@@ -199,7 +198,7 @@ AAI uses two different classes of documentation:
 | `/aai-docs-audit` | Docs hygiene | Drift detection: claimed vs implemented |
 | `/aai-docs-canon` | Docs consolidation | Layered intake/specs/RFCs → canonical per-domain layer + archive |
 | `/aai-test-canon` | Test consolidation | Fragmented tests → canonical per-domain suites + RED stubs for gaps |
-| `/aai-pr` | Open a PR | Scope-only staging, staged-vs-scope audit, PR body; never merges |
+| `/aai-pr` | Open a PR | Scope-only staging, staged-vs-scope audit, PR body; merge only under scoped, owner-signed authorization |
 | `/aai-release` | Cut a release | Roll CHANGELOG, commit, tag, publish, push; operator-gated, safe dry-run |
 | `/aai-profile` | Optimize | Performance analysis |
 | `/aai-worktree` | Isolate the work | Create and manage a git worktree for a scope |
@@ -547,7 +546,9 @@ orchestrator died mid-tick.
 #### `/aai-pr`
 **What:** PR ceremony (SPEC-0013). Turns a validated, review-passed scope into
 a pushed branch and an opened pull request — with scope-only staging and a
-hard merge boundary. It **never merges**; merging is an operator-only action.
+hard merge boundary. Merging is operator-only by default; a scoped,
+owner-signed standing authorization is the exception described in
+`.aai/SKILL_PR.prompt.md` step 6.
 
 **When to use:**
 - After validation PASS and code review pass/waived, when the scope is ready
@@ -583,8 +584,8 @@ error, but the two commands are: `node .aai/scripts/check-state.mjs --repair`
   unrelated in-flight files end up in a feature commit)
 - Commit before validation PASS + review pass/waived + your explicit
   confirmation
-- `gh pr merge`, PR approval, or auto-merge — merging is yours, after your
-  own review
+- `gh pr merge`, PR approval, or auto-merge without the explicit, recorded
+  authorization and all of its conditions
 - Force-push or history rewrites of a pushed branch
 
 #### Deterministic close ceremony (`close-work-item.mjs`)
@@ -678,18 +679,22 @@ releasing AAI itself or a downstream project with the AAI layer deployed.
 
 #### `/aai-ship`
 
-**What:** Takes a stated need end-to-end autonomously — intake, planning, implementation, validation, review, product docs — opens the pull request on validation PASS with the review gate satisfied (no question asked), and pauses at exactly one checkpoint, at the merge.
+**What:** Takes a stated need or existing open intake draft through planning, implementation, validation, review, product docs, and a pull request. Required worktree, ceremony, or other genuine human decisions can still pause the ride; merging remains operator-only by default.
 
 **When to use:**
 - You can describe the need in a sentence and want the whole pipeline run for it
+- You already reviewed an `/aai-intake` draft and want to build from its saved path
 - You do not want to dispatch each role by hand
 
 **Example:**
-```bash
+```text
 /aai-ship "the release notes should name the PR that shipped each change"
+
+# Or use the actual path returned by /aai-intake:
+/aai-ship docs/requirements/PRD-DRAFT-add-user-authentication-with-jwt.md
 ```
 
-**Note:** It never merges. The one checkpoint sits at the merge: the pull request is already open, and the merge button stays yours.
+**Note:** The PR opens when the validation and review gates pass. Merging is your action unless a scoped, owner-signed standing authorization recorded in the repository applies.
 
 ### 4. Quality & Validation
 
@@ -1906,23 +1911,24 @@ node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm
 
 ### End-to-end autopilot (/aai-ship)
 
-The shortest path from a stated need to a PR is the ship autopilot:
+The shortest path from a stated need or reviewed intake draft to a PR is the ship autopilot:
 
-```bash
+```text
 /aai-ship "Add user profile page with avatar upload"
+# Or: /aai-ship <path returned by /aai-intake>
 ```
 
 It chains intake -> loop (planning, implementation, validation, review) ->
 product docs -> pull request, opened automatically on validation PASS with
-the review gate satisfied (no question asked), behind exactly ONE approval
-surface at the merge (scope, diff stat, evidence links, the PR URL —
-merging stays operator-only). Autopilot defaults are recorded, never
+the review gate satisfied, normally leaving the merge as the final human
+decision (scope, diff stat, evidence links, the PR URL). Autopilot defaults are recorded, never
 silent: the intake metrics question is skipped, and the worktree gate
 auto-resolves (`optional`/`not_needed` -> inline, `recommended` ->
 worktree) — except `required` recommendations and ceremony L3 scopes,
 which always stop for a human. Genuine judgment calls (HITL-1..6) still
-pause the ride; answer them and re-run `/aai-ship` to resume. The agent
-never merges — that stays operator-only.
+pause the ride; answer them and re-run `/aai-ship` to resume. Merging stays
+operator-only unless the repository has a scoped, owner-signed standing
+authorization whose conditions this ride meets.
 
 An opted-in **unattended** ride (`unattended=true` plus an existing
 `--intake <path>` — never free text) additionally resolves its own QUALITY
@@ -1984,7 +1990,7 @@ Two supporting surfaces:
 # 7. Open the pull request
 /aai-pr
 # Scope-only staging + staged-vs-scope audit + gh pr create
-# Reports the PR URL and stops — YOU merge it after your own review
+# Reports the PR URL; you merge after review unless scoped standing authorization applies
 
 # 8. Share
 /aai-share docs/ai/reports/LATEST.md
@@ -2053,7 +2059,7 @@ Two supporting surfaces:
 
 # 4. Loop completes automatically
 # A finished scope ends with an OPEN pull request (/aai-pr ceremony) —
-# the loop never merges; merging is your action after your own review.
+# merging is your action after review unless scoped standing authorization applies.
 ```
 
 ### Shell loop runners (autonomous-loop.sh / .ps1)
