@@ -22,6 +22,16 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: aai-sync preserves target-only hooks and reports its deletions (goodwind-cz/aai#414)
+
+- **`hooks/` is now a file-by-file merge**, not a wholesale `copy_replace` (`rm -rf` then `cp -a`). A target-only file under `hooks/` — most notably a downstream project's own `hooks/merge-guard.{sh,ps1,py}` safety control — used to be deleted on every sync; it now survives and is named on stdout as `PRESERVE target-only hook: hooks/<name>`.
+- **Source-owned hook files still overwrite** and `hooks/session-start.sh` keeps its executable bit.
+- **`hooks/hooks.json` and `hooks/hooks.windows.json` are now ADDITIVELY MERGED, not overwritten** (owner amendment): a target-added registration — the reporter's own `PreToolUse -> merge-guard.sh` hook — now survives a sync. Reuses the same algorithm `aai-bootstrap.sh`'s `--with-claude-hooks` overlay already shipped, extracted into a new shared `.aai/scripts/lib/merge-hooks-json.mjs`. A merge refusal (the target file doesn't parse as the expected JSON shape) or a missing `node` interpreter leaves the target file untouched and is named in the advisory — never a silent skip, never a destructive fallback.
+- **The conflict advisory gained a `## Deleted items` section** and is now written whenever a sync deletes anything (`CLEAN removed stale`, `PROFILE prune`, or a hooks merge refusal/degrade), even when the overwrite list is empty — a purely destructive run used to write no advisory at all.
+- **Retirement is now out of scope**: because the merge never removes anything, a target's existing registration for a hook the source has since retired now survives indefinitely (previously disarmed via wholesale overwrite), and so does the hook's file. A deliberate, accepted tradeoff for never destroying a target's own modification.
+- `.aai/scripts/aai-sync.sh`, `.aai/scripts/aai-sync.ps1` and `.aai/scripts/aai-bootstrap.sh` (which now calls the same shared merge library) all changed; a quiet run (no deletion, no hook-JSON divergence) produces a byte-identical advisory to before.
+- ISSUE-DRAFT-sync-deletes-target-only-hooks / SPEC-DRAFT-spec-sync-deletes-target-only-hooks.
+
 ## [v2026.09.30] — feat(pricing): the price table knows this year's models again (CHANGE-0197 / SPEC-0197)
 
 `.aai/system/PRICING.yaml` was past the freshness contract it sets for itself

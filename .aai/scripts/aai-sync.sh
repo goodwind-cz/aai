@@ -142,6 +142,7 @@ mkdir -p \
   "$DST_ROOT/hooks"
 
 OVERWRITE_CONFLICTS=()
+DELETIONS=()
 
 copy_replace() {
   local src="$1"
@@ -329,6 +330,7 @@ if [[ "$PROFILE" == "core" ]]; then
           ;;
       esac
       rm -f "$tgt"
+      DELETIONS+=("$rel")
       echo "  PROFILE prune (not in core): $rel"
     fi
   done < <(find "$DST_ROOT/.aai" -type f)
@@ -353,6 +355,7 @@ else
     [[ "$name" == "scripts" || "$name" == "cache" ]] && continue
     if [[ ! -e "$SRC_ROOT/.aai/$name" ]]; then
       rm -rf "$item"
+      DELETIONS+=(".aai/$name")
       echo "  CLEAN removed stale: .aai/$name"
     fi
   done
@@ -545,9 +548,62 @@ if [[ -f "$SRC_ROOT/.claude-plugin/plugin.json" ]]; then
   echo "  SYNC .claude-plugin/plugin.json"
 fi
 
-# Session hooks (cross-platform: Claude Code, Cursor, Gemini, Codex)
+# Session hooks (cross-platform: Claude Code, Cursor, Gemini, Codex):
+# file-by-file merge, same idiom as .aai/scripts/ (:360-372) — overwrite
+# source-owned hook entries, preserve target-only ones. A wholesale
+# copy_replace here used to delete a target's own hooks/merge-guard.* safety
+# control on every sync (goodwind-cz/aai#414).
+#
+# hooks/hooks.json and hooks/hooks.windows.json are the ONE exception to
+# "source-owned files overwrite": owner amendment (2026-09-30) — a
+# target-added registration entry (e.g. merge-guard's own PreToolUse hook)
+# must survive a sync, so these two are ADDITIVELY MERGED via the shared
+# .aai/scripts/lib/merge-hooks-json.mjs (same algorithm as aai-bootstrap.sh's
+# --with-claude-hooks overlay: a source hook whose exact "command" is not
+# already present in the target is appended; an existing target entry is
+# NEVER removed or rewritten). A merge refusal (target does not parse as the
+# expected JSON shape) or a missing `node` leaves the target file untouched
+# and is named in the advisory — never a silent skip. Retirement residual:
+# because the merge never removes anything, a hook the source has retired
+# stays registered in a target that already carries it (see Spec-AC-08/-11).
+HOOKS_JSON_MERGE_LIB="$SRC_ROOT/.aai/scripts/lib/merge-hooks-json.mjs"
 if [[ -d "$SRC_ROOT/hooks" ]]; then
-  copy_replace "$SRC_ROOT/hooks" "$DST_ROOT/hooks"
+  mkdir -p "$DST_ROOT/hooks"
+  hooks_node_available=0
+  command -v node >/dev/null 2>&1 && hooks_node_available=1
+  for src_hook in "$SRC_ROOT/hooks/"*; do
+    [[ -e "$src_hook" ]] || continue
+    hname="$(basename "$src_hook")"
+    dst_hook="$DST_ROOT/hooks/$hname"
+    case "$hname" in
+      hooks.json|hooks.windows.json)
+        if [[ "$hooks_node_available" -ne 1 ]]; then
+          OVERWRITE_CONFLICTS+=("hooks/$hname|node is unavailable, so the additive hook-registration merge could not run; the target file was left untouched. Install Node.js and re-sync, or merge the \"hooks\" key from the source file manually.")
+          echo "  WARN node unavailable — hooks/$hname registration merge skipped, file left untouched" >&2
+        elif [[ ! -f "$HOOKS_JSON_MERGE_LIB" ]]; then
+          OVERWRITE_CONFLICTS+=("hooks/$hname|The hooks-registration merge library is missing from this source tree; the target file was left untouched. Merge the \"hooks\" key from the source file manually.")
+          echo "  WARN merge library missing — hooks/$hname registration merge skipped, file left untouched" >&2
+        else
+          hooks_merge_out=""
+          if hooks_merge_out="$(node "$HOOKS_JSON_MERGE_LIB" "$src_hook" "$dst_hook" 2>&1)"; then
+            echo "  MERGE hooks/$hname: $hooks_merge_out"
+          else
+            OVERWRITE_CONFLICTS+=("hooks/$hname|Additive hook-registration merge was refused (existing file does not parse as the expected JSON shape) and the target was left untouched: $hooks_merge_out Merge the registration manually.")
+            echo "  WARN hooks/$hname registration merge refused (target left untouched): $hooks_merge_out" >&2
+          fi
+        fi
+        continue
+        ;;
+    esac
+    copy_replace "$src_hook" "$dst_hook"
+  done
+  for dst_hook in "$DST_ROOT/hooks/"*; do
+    [[ -e "$dst_hook" ]] || continue
+    hname="$(basename "$dst_hook")"
+    if [[ ! -e "$SRC_ROOT/hooks/$hname" ]]; then
+      echo "  PRESERVE target-only hook: hooks/$hname"
+    fi
+  done
   chmod +x "$DST_ROOT/hooks/session-start.sh" 2>/dev/null || true
   echo "  SYNC hooks/"
 fi
@@ -738,8 +794,10 @@ if [[ -f "$gitignore_file" ]]; then
   fi
 fi
 
-# Create conflict advisory report for files that were overwritten with differences.
-if [[ ${#OVERWRITE_CONFLICTS[@]} -gt 0 ]]; then
+# Create conflict advisory report for files that were overwritten with
+# differences, or deleted (goodwind-cz/aai#414: a purely destructive run used
+# to write no advisory at all).
+if [[ ${#OVERWRITE_CONFLICTS[@]} -gt 0 || ${#DELETIONS[@]} -gt 0 ]]; then
   mkdir -p "$DST_ROOT/docs/ai/reports"
   report_path="$DST_ROOT/docs/ai/reports/sync-conflicts-$(date -u +%Y%m%d-%H%M%S).md"
   {
@@ -757,13 +815,23 @@ if [[ ${#OVERWRITE_CONFLICTS[@]} -gt 0 ]]; then
     echo "3. Keep sync-managed files as baseline templates to reduce future conflicts."
     echo
     echo "## Overwritten items"
-    for conflict in "${OVERWRITE_CONFLICTS[@]}"; do
-      path_part="${conflict%%|*}"
-      rec_part="${conflict#*|}"
+    if [[ ${#OVERWRITE_CONFLICTS[@]} -gt 0 ]]; then
+      for conflict in "${OVERWRITE_CONFLICTS[@]}"; do
+        path_part="${conflict%%|*}"
+        rec_part="${conflict#*|}"
+        echo
+        echo "- Path: $path_part"
+        echo "- Recommendation: $rec_part"
+      done
+    fi
+    if [[ ${#DELETIONS[@]} -gt 0 ]]; then
       echo
-      echo "- Path: $path_part"
-      echo "- Recommendation: $rec_part"
-    done
+      echo "## Deleted items"
+      for deleted in "${DELETIONS[@]}"; do
+        echo
+        echo "- Path: $deleted"
+      done
+    fi
   } > "$report_path"
   echo "  Advisory report: $report_path"
 fi

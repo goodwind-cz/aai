@@ -863,6 +863,374 @@ test_630_agents_tree_pin_still_bites() {
   log_pass "TEST-630 the existing .agents/skills propagation pin still bites under mutation; fu-agents-tree-not-synced closes on this proof"
 }
 
+# ── spec-sync-deletes-target-only-hooks — TEST-773..781 ────────────────────
+# goodwind-cz/aai#414: aai-sync used to sync hooks/ with copy_replace
+# (rm -rf then cp -a), which destroyed any target-only file under hooks/ --
+# most damagingly a downstream project's own hooks/merge-guard.{sh,ps1,py}
+# safety control -- on every sync, with no advisory of any kind (a purely
+# destructive run wrote no report at all). These pin: hooks/ is now a
+# file-by-file merge (TEST-773, TEST-774), source-owned hook files still
+# overwrite and keep their executable bit (TEST-775), a diverging
+# source-owned hook registration JSON is flagged in the advisory rather than
+# silently overwritten (TEST-776), the advisory is written on a
+# deletion-only run (TEST-777) and stays byte-identical to the pre-change
+# engine for a quiet run (TEST-778), the PowerShell engine mirrors all four
+# behaviours (TEST-779), a source-retired hook survives disarmed rather than
+# deleted (TEST-780), and the four named regression suites stay green
+# (TEST-781).
+
+# --- TEST-773 (Spec-AC-01) — target-only hook survives a real sync ------------
+test_773_hook_target_only_survives_bytes() {
+  log_info "TEST-773: a target-only hooks/merge-guard.sh survives a real sync byte-identical..."
+  local dst="$TMP_ROOT/hooks-773" recorded="$TMP_ROOT/hooks-773-recorded.sh"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-773: initial sync failed"
+  printf '#!/bin/sh\necho guard\n' > "$dst/hooks/merge-guard.sh"
+  cp "$dst/hooks/merge-guard.sh" "$recorded"
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-773: re-sync failed"
+  [[ -f "$dst/hooks/merge-guard.sh" ]] \
+    || log_fail "TEST-773: target-only hooks/merge-guard.sh was deleted by the sync"
+  cmp -s "$recorded" "$dst/hooks/merge-guard.sh" \
+    || log_fail "TEST-773: target-only hooks/merge-guard.sh changed bytes across the sync"
+  log_pass "TEST-773 a target-only hooks/merge-guard.sh survives a real sync byte-identical"
+}
+
+# --- TEST-774 (Spec-AC-02) — preserved hook is named on stdout ----------------
+test_774_hook_target_only_named_on_stdout() {
+  log_info "TEST-774: sync stdout carries PRESERVE target-only hook naming hooks/merge-guard.sh..."
+  local dst="$TMP_ROOT/hooks-774" log="$TMP_ROOT/hooks-774.log"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-774: initial sync failed"
+  printf '#!/bin/sh\necho guard\n' > "$dst/hooks/merge-guard.sh"
+  bash "$SYNC_SH" "$dst" >"$log" 2>&1 || log_fail "TEST-774: re-sync failed: $(cat "$log")"
+  grep -qF -- 'PRESERVE target-only hook: hooks/merge-guard.sh' "$log" \
+    || log_fail "TEST-774: sync stdout did not name the preserved hook: $(cat "$log")"
+  log_pass "TEST-774 sync stdout names the preserved target-only hook by path"
+}
+
+# --- TEST-775 (Spec-AC-03) — source-owned hook overwritten, stays executable --
+test_775_hook_source_owned_overwritten_stays_executable() {
+  log_info "TEST-775: a differing hooks/session-start.sh is replaced by source bytes and stays executable..."
+  local dst="$TMP_ROOT/hooks-775" src_session="$PROJECT_ROOT/hooks/session-start.sh"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-775: initial sync failed"
+  printf '#!/bin/sh\necho tampered\n' > "$dst/hooks/session-start.sh"
+  chmod -x "$dst/hooks/session-start.sh"
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-775: re-sync failed"
+  cmp -s "$src_session" "$dst/hooks/session-start.sh" \
+    || log_fail "TEST-775: hooks/session-start.sh was not replaced with source bytes"
+  [[ -x "$dst/hooks/session-start.sh" ]] \
+    || log_fail "TEST-775: hooks/session-start.sh is not executable after the sync"
+  log_pass "TEST-775 a differing source-owned hooks/session-start.sh is overwritten and stays executable"
+}
+
+# --- TEST-776 (Spec-AC-04, REVISED by owner amendment 2026-09-30) -------------
+# A target-added registration entry inside hooks/hooks.json (e.g. the
+# reporter's own PreToolUse -> merge-guard.sh hook) is now ADDITIVELY MERGED,
+# not overwritten: it must survive the sync, and the sync SHALL print a
+# `MERGE hooks/hooks.json: ...` line. No advisory entry is written for an
+# ordinary successful merge -- see TEST-782 for the refusal case.
+test_776_hook_json_target_added_entry_survives_merge() {
+  log_info "TEST-776: a target-added hooks/hooks.json registration (PreToolUse -> merge-guard.sh) survives an additive-merge sync..."
+  local dst="$TMP_ROOT/hooks-776" log="$TMP_ROOT/hooks-776.log"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-776: initial sync failed"
+  cat > "$dst/hooks/hooks.json" <<'HOOKSJSON'
+{
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "startup|resume|clear|compact", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"", "async": false } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/merge-guard.sh\"", "async": false } ] }
+    ]
+  }
+}
+HOOKSJSON
+  bash "$SYNC_SH" "$dst" >"$log" 2>&1 || log_fail "TEST-776: re-sync failed: $(cat "$log")"
+  grep -qF -- 'MERGE hooks/hooks.json:' "$log" \
+    || log_fail "TEST-776: sync stdout did not print a MERGE hooks/hooks.json line: $(cat "$log")"
+  grep -qF -- 'merge-guard.sh' "$dst/hooks/hooks.json" \
+    || log_fail "TEST-776: the target-added PreToolUse -> merge-guard.sh registration was lost: $(cat "$dst/hooks/hooks.json")"
+  grep -qF -- 'SessionStart' "$dst/hooks/hooks.json" \
+    || log_fail "TEST-776: the source-owned SessionStart registration is missing after merge: $(cat "$dst/hooks/hooks.json")"
+  log_pass "TEST-776 a target-added hooks/hooks.json registration survives an additive-merge sync"
+}
+
+# --- TEST-777 (Spec-AC-05) — deletion-only run still writes an advisory -------
+test_777_deletion_only_advisory_has_deleted_items() {
+  log_info "TEST-777: a deletion-only re-sync writes an advisory with a Deleted items section naming the path..."
+  local dst="$TMP_ROOT/hooks-777" newest
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-777: initial sync failed"
+  mkdir -p "$dst/.aai/zz-target-only"
+  printf 'x\n' > "$dst/.aai/zz-target-only/x.txt"
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-777: re-sync failed"
+  newest="$(find "$dst/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | LC_ALL=C sort | tail -n1)"
+  [[ -n "$newest" ]] \
+    || log_fail "TEST-777: no advisory was written for a deletion-only run (pre-change baseline: none at all)"
+  grep -qF -- '## Deleted items' "$newest" \
+    || log_fail "TEST-777: advisory missing the '## Deleted items' heading: $(cat "$newest")"
+  grep -qF -- '- Path: .aai/zz-target-only' "$newest" \
+    || log_fail "TEST-777: advisory does not name the deleted path: $(cat "$newest")"
+  log_pass "TEST-777 a deletion-only re-sync writes an advisory with a Deleted items section naming the path"
+}
+
+# --- TEST-778 (Spec-AC-06) — quiet run stays byte-identical to pre-change -----
+# "Pre-change" is the exact aai-sync.sh at the commit this scope's own spec
+# measured against (goodwind-cz/aai#414, pin v2026.09.30) -- an immutable,
+# already-merged point in this repo's history, not the moving HEAD, so this
+# pin stays meaningful after the fix itself is committed and merged.
+#
+# aai-sync.sh resolves its OWN source root two directories above its own
+# path ($0/../..), so a bare extracted copy run from $TMP_ROOT cannot find
+# .aai/. This builds one real fixture SOURCE tree (the subset of this repo
+# aai-sync.sh actually reads from $SRC_ROOT) and swaps only
+# .aai/scripts/aai-sync.sh between the two runs, exactly as the spec's own
+# verification prescribes.
+_778_build_fixture_source() {
+  local dir="$1" item
+  mkdir -p "$dir"
+  for item in .aai hooks .claude .codex .gemini .agents .cursor .claude-plugin docs/knowledge; do
+    [[ -e "$PROJECT_ROOT/$item" ]] || continue
+    mkdir -p "$dir/$(dirname "$item")"
+    cp -R "$PROJECT_ROOT/$item" "$dir/$item"
+  done
+  if [[ -f "$PROJECT_ROOT/README.md" ]]; then
+    cp "$PROJECT_ROOT/README.md" "$dir/README.md"
+  fi
+  if [[ -f "$PROJECT_ROOT/.github/copilot-instructions.md" ]]; then
+    mkdir -p "$dir/.github"
+    cp "$PROJECT_ROOT/.github/copilot-instructions.md" "$dir/.github/copilot-instructions.md"
+  fi
+  if [[ -f "$PROJECT_ROOT/docs/ai/AAI_VERSION.md" ]]; then
+    mkdir -p "$dir/docs/ai"
+    cp "$PROJECT_ROOT/docs/ai/AAI_VERSION.md" "$dir/docs/ai/AAI_VERSION.md"
+  fi
+}
+
+test_778_quiet_run_advisory_byte_identical_old_vs_new() {
+  log_info "TEST-778: old-engine and new-engine advisories match for a quiet run (no deletion, no hook-JSON divergence), generated-at line excluded..."
+  local pre_change_rev="beb6a248"
+  git -C "$PROJECT_ROOT" cat-file -e "${pre_change_rev}:.aai/scripts/aai-sync.sh" 2>/dev/null \
+    || log_fail "TEST-778: pre-change revision $pre_change_rev is not reachable in this checkout's history (needs full history, e.g. fetch-depth: 0)"
+
+  local fixture_src="$TMP_ROOT/quiet-fixture-src"
+  _778_build_fixture_source "$fixture_src"
+
+  local dst_old="$TMP_ROOT/quiet-old" dst_new="$TMP_ROOT/quiet-new" old_report new_report
+  mkdir -p "$dst_old" "$dst_new"
+  git -C "$dst_old" init -q -b main
+  git -C "$dst_new" init -q -b main
+
+  # OLD engine run: swap in the pre-change script, sync, then restore.
+  git -C "$PROJECT_ROOT" show "${pre_change_rev}:.aai/scripts/aai-sync.sh" > "$fixture_src/.aai/scripts/aai-sync.sh" 2>/dev/null \
+    || log_fail "TEST-778: could not extract aai-sync.sh from $pre_change_rev"
+  grep -qF -- 'DELETIONS' "$fixture_src/.aai/scripts/aai-sync.sh" \
+    && log_fail "TEST-778: the extracted 'old' engine already carries the DELETIONS change -- $pre_change_rev is not a pre-change revision"
+  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst_old" >/dev/null 2>&1 \
+    || log_fail "TEST-778: old-engine sync failed"
+
+  # NEW engine run: the current (changed) script, same fixture source tree.
+  cp "$SYNC_SH" "$fixture_src/.aai/scripts/aai-sync.sh"
+  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst_new" >/dev/null 2>&1 \
+    || log_fail "TEST-778: new-engine sync failed"
+
+  old_report="$(find "$dst_old/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | LC_ALL=C sort | tail -n1)"
+  new_report="$(find "$dst_new/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | LC_ALL=C sort | tail -n1)"
+  [[ -n "$old_report" ]] || log_fail "TEST-778: old engine did not write an advisory (bad fixture -- expected a non-empty overwrite list on a fresh target)"
+  [[ -n "$new_report" ]] || log_fail "TEST-778: new engine did not write an advisory (bad fixture)"
+  grep -qF -- '## Deleted items' "$new_report" \
+    && log_fail "TEST-778: new engine's quiet-run advisory unexpectedly contains a Deleted items heading: $(cat "$new_report")"
+  diff <(grep -v -- '^- Generated at (UTC):' "$old_report") <(grep -v -- '^- Generated at (UTC):' "$new_report") \
+    || log_fail "TEST-778: quiet-run advisories differ between the old and new engine (beyond the generated-at line)"
+  log_pass "TEST-778 old-engine and new-engine advisories match for a quiet run, generated-at line excluded"
+}
+
+# --- TEST-779 (Spec-AC-07) — ps1 engine mirrors AC-01,02,04,05 ----------------
+# REVISED by owner amendment 2026-09-30: AC-04's ps1 mirror is now the
+# additive-merge survival property (TEST-776's ps1 twin), not the old
+# "flag the divergence" behavior.
+test_779_ps1_engine_hooks_parity() {
+  log_info "TEST-779: aai-sync.ps1 preserves+names a target-only hook, additively merges a target-added hooks.json registration, and reports a deletion-only advisory..."
+  if ! command -v pwsh >/dev/null 2>&1; then
+    PWSH_ARM_SKIPPED=1
+    log_info "TEST-779 note: pwsh absent — SKIPPED"
+    return 0
+  fi
+  local dst="$TMP_ROOT/hooks-779-ps1" log="$TMP_ROOT/hooks-779-ps1.log"
+  local recorded="$TMP_ROOT/hooks-779-recorded.sh" newest
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  pwsh -NoProfile -File "$SYNC_PS1" -TargetRoot "$dst" >/dev/null 2>&1 \
+    || log_fail "TEST-779: initial ps1 sync failed"
+
+  # AC-01 / AC-02: target-only hook survives byte-identical and is named.
+  printf '#!/bin/sh\necho guard\n' > "$dst/hooks/merge-guard.sh"
+  cp "$dst/hooks/merge-guard.sh" "$recorded"
+  # AC-04 (revised): a target-added hooks.json registration survives an
+  # additive merge, and the sync prints a MERGE hooks/hooks.json line.
+  cat > "$dst/hooks/hooks.json" <<'HOOKSJSON'
+{
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "startup|resume|clear|compact", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"", "async": false } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/merge-guard.ps1\"", "async": false } ] }
+    ]
+  }
+}
+HOOKSJSON
+  pwsh -NoProfile -File "$SYNC_PS1" -TargetRoot "$dst" >"$log" 2>&1 \
+    || log_fail "TEST-779: re-sync failed: $(cat "$log")"
+  [[ -f "$dst/hooks/merge-guard.sh" ]] \
+    || log_fail "TEST-779: target-only hooks/merge-guard.sh was deleted by aai-sync.ps1"
+  cmp -s "$recorded" "$dst/hooks/merge-guard.sh" \
+    || log_fail "TEST-779: target-only hook changed bytes across the ps1 sync"
+  grep -qF -- 'PRESERVE target-only hook: hooks/merge-guard.sh' "$log" \
+    || log_fail "TEST-779: ps1 stdout did not name the preserved hook: $(cat "$log")"
+  grep -qF -- 'MERGE hooks/hooks.json:' "$log" \
+    || log_fail "TEST-779: ps1 stdout did not print a MERGE hooks/hooks.json line: $(cat "$log")"
+  grep -qF -- 'merge-guard.ps1' "$dst/hooks/hooks.json" \
+    || log_fail "TEST-779: the target-added PreToolUse -> merge-guard.ps1 registration was lost: $(cat "$dst/hooks/hooks.json")"
+
+  # AC-05: a deletion-only re-sync still writes an advisory with Deleted items.
+  mkdir -p "$dst/.aai/zz-target-only"
+  printf 'x\n' > "$dst/.aai/zz-target-only/x.txt"
+  pwsh -NoProfile -File "$SYNC_PS1" -TargetRoot "$dst" >/dev/null 2>&1 \
+    || log_fail "TEST-779: deletion-only ps1 re-sync failed"
+  newest="$(find "$dst/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | LC_ALL=C sort | tail -n1)"
+  grep -qF -- '## Deleted items' "$newest" \
+    || log_fail "TEST-779: ps1 advisory missing the Deleted items heading: $(cat "$newest")"
+  grep -qF -- '- Path: .aai/zz-target-only' "$newest" \
+    || log_fail "TEST-779: ps1 advisory does not name the deleted path: $(cat "$newest")"
+
+  log_pass "TEST-779 aai-sync.ps1 preserves+names a target-only hook, additively merges a target-added hooks.json registration, and reports a deletion-only advisory"
+}
+
+# --- TEST-780 (Spec-AC-08, REVISED by owner amendment 2026-09-30) ------------
+# The frozen spec's original claim -- a retired hook is DISARMED because
+# hooks.json is wholly overwritten and the source's registration vanishes --
+# is now FALSE: additive merge never removes an existing target entry. The
+# owner-directed property is the opposite: a target's EXISTING registration
+# for a hook the source no longer ships SHALL survive (same as any other
+# target-added entry), and so SHALL the hook's own file. Retirement (making a
+# stale registration disappear) is explicitly OUT OF SCOPE under additive
+# merge -- residual risk, not silently dropped (see spec Scope decision).
+test_780_retired_hook_registration_and_file_both_survive() {
+  log_info "TEST-780: a target's existing hooks.json registration for a source-retired hook survives, and so does the hook's file..."
+  local dst="$TMP_ROOT/hooks-780"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-780: initial sync failed"
+  printf '#!/bin/sh\necho retired\n' > "$dst/hooks/retired-hook.sh"
+  cat > "$dst/hooks/hooks.json" <<'HOOKSJSON'
+{
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "startup|resume|clear|compact", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"", "async": false } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/retired-hook.sh\"", "async": false } ] }
+    ]
+  }
+}
+HOOKSJSON
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-780: re-sync failed"
+  [[ -f "$dst/hooks/retired-hook.sh" ]] \
+    || log_fail "TEST-780: the retired hook's file was deleted (expected: survives, additive merge never removes)"
+  grep -qF -- 'retired-hook.sh' "$dst/hooks/hooks.json" \
+    || log_fail "TEST-780: the retired hook's EXISTING registration was removed by the sync (additive merge must never remove a target entry): $(cat "$dst/hooks/hooks.json")"
+  grep -qF -- 'SessionStart' "$dst/hooks/hooks.json" \
+    || log_fail "TEST-780: the source-owned SessionStart registration is missing after merge: $(cat "$dst/hooks/hooks.json")"
+  log_pass "TEST-780 a target's existing registration for a source-retired hook survives the merge, and so does the hook's file"
+}
+
+# --- TEST-781 (Spec-AC-09) — the named regression suites stay green ----------
+# test-aai-hooks-overlay.sh added to the set by the owner amendment
+# (2026-09-30): install_claude_hooks in aai-bootstrap.sh now calls the SAME
+# shared .aai/scripts/lib/merge-hooks-json.mjs this scope introduces, so that
+# suite is a regression guard for THIS change too, not just a bystander.
+test_781_regression_suites_exit_zero() {
+  log_info "TEST-781: the sync-engine regression suites exit 0 on the changed tree..."
+  local suite rc outfile
+  for suite in tests/skills/test-aai-layer-drift.sh tests/skills/test-aai-layer-profiles.sh tests/skills/test-aai-bootstrap.sh tests/skills/test-aai-hooks-overlay.sh; do
+    outfile="$TMP_ROOT/regress-$(basename "$suite" .sh).log"
+    rc=0
+    env -u AAI_ROLE bash "$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh" bash "$PROJECT_ROOT/$suite" \
+      > "$outfile" 2>&1 || rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "TEST-781: $suite exited $rc (expected 0); tail: $(tail -c 2000 "$outfile")"
+  done
+  log_info "TEST-781 note: this suite's own green exit (test-aai-sync-seed.sh) is the fifth data point by construction of running as part of this same execution -- it is not re-invoked here to avoid unbounded self-recursion"
+  log_pass "TEST-781 test-aai-layer-drift.sh, test-aai-layer-profiles.sh, test-aai-bootstrap.sh and test-aai-hooks-overlay.sh all exit 0 on the changed tree"
+}
+
+# --- TEST-782 (Spec-AC-10, NEW) — malformed target hooks.json: merge refused,
+# file untouched, advisory names it. Pre-amendment behavior (both the
+# original beb6a248 engine AND this scope's own first pass) silently
+# overwrote a malformed target file with source bytes; the owner amendment
+# requires the SAME refuse-loud discipline install_claude_hooks already has.
+test_782_hook_json_malformed_merge_refused() {
+  log_info "TEST-782: a malformed target hooks/hooks.json refuses the merge, stays byte-untouched, and is named in the advisory..."
+  local dst="$TMP_ROOT/hooks-782" before after newest rec_file="$TMP_ROOT/hooks-782-rec.txt"
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-782: initial sync failed"
+  printf 'NOT JSON {' > "$dst/hooks/hooks.json"
+  before="$(cat "$dst/hooks/hooks.json")"
+  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-782: re-sync failed"
+  after="$(cat "$dst/hooks/hooks.json")"
+  [[ "$before" == "$after" ]] \
+    || log_fail "TEST-782: malformed hooks/hooks.json was modified by the sync (want byte-untouched); before=[$before] after=[$after]"
+  newest="$(find "$dst/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | LC_ALL=C sort | tail -n1)"
+  [[ -n "$newest" ]] || log_fail "TEST-782: no advisory report was written"
+  grep -qF -- '- Path: hooks/hooks.json' "$newest" \
+    || log_fail "TEST-782: advisory does not name hooks/hooks.json: $(cat "$newest")"
+  awk '/^- Path: hooks\/hooks\.json$/{getline; print; exit}' "$newest" > "$rec_file"
+  grep -q 'refused' "$rec_file" \
+    || log_fail "TEST-782: hooks/hooks.json recommendation does not say the merge was refused: $(cat "$newest")"
+  log_pass "TEST-782 a malformed target hooks/hooks.json refuses the merge, stays byte-untouched, and is named in the advisory"
+}
+
+# --- TEST-783 (Spec-AC-11, NEW) — node unavailable: hooks.json left
+# untouched (never created), advisory names it. Mirrors aai-bootstrap.sh's
+# own "node unavailable -> WARN + skip" precedent (never proceed
+# destructively when the interpreter the merge needs is absent).
+test_783_hook_json_no_node_leaves_untouched() {
+  log_info "TEST-783: with node unavailable, hooks/hooks.json is left untouched (not created) and named in the advisory..."
+  if ! command -v node >/dev/null 2>&1; then
+    log_info "TEST-783 note: node already absent from this runner's PATH -- degrading to a direct assertion against the real environment"
+  fi
+  local dst="$TMP_ROOT/hooks-783" log="$TMP_ROOT/hooks-783.log" no_node_path
+  mkdir -p "$dst"
+  git -C "$dst" init -q -b main
+  # A PATH carrying only the directories bash/git themselves need, with every
+  # directory that could contain a `node` binary excluded -- proves the
+  # DEGRADE path, not just that this one PATH lacks a node symlink.
+  no_node_path="$(dirname "$(command -v bash)"):$(dirname "$(command -v git)")"
+  env PATH="$no_node_path" bash "$SYNC_SH" "$dst" >"$log" 2>&1 \
+    || log_fail "TEST-783: sync failed under a node-less PATH (should degrade, not fail): $(cat "$log")"
+  if env PATH="$no_node_path" bash -c 'command -v node' >/dev/null 2>&1; then
+    log_fail "TEST-783: bad fixture -- node is still resolvable on the stripped PATH"
+  fi
+  [[ -f "$dst/hooks/hooks.json" ]] \
+    && log_fail "TEST-783: hooks/hooks.json was created without node (expected: left untouched/absent)"
+  grep -qF -- 'WARN node unavailable' "$log" \
+    || log_fail "TEST-783: sync stdout did not warn about the missing node interpreter: $(cat "$log")"
+  local newest
+  newest="$(find "$dst/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | LC_ALL=C sort | tail -n1)"
+  [[ -n "$newest" ]] || log_fail "TEST-783: no advisory report was written"
+  grep -qF -- '- Path: hooks/hooks.json' "$newest" \
+    || log_fail "TEST-783: advisory does not name hooks/hooks.json: $(cat "$newest")"
+  log_pass "TEST-783 with node unavailable, hooks/hooks.json is left untouched and named in the advisory"
+}
+
 main() {
   echo "=== Test Suite: $TEST_NAME ==="
   check_deps
@@ -905,6 +1273,17 @@ main() {
   test_628_compare_fails_closed
   test_629_crlf_pin_still_bites
   test_630_agents_tree_pin_still_bites
+  test_773_hook_target_only_survives_bytes
+  test_774_hook_target_only_named_on_stdout
+  test_775_hook_source_owned_overwritten_stays_executable
+  test_776_hook_json_target_added_entry_survives_merge
+  test_777_deletion_only_advisory_has_deleted_items
+  test_778_quiet_run_advisory_byte_identical_old_vs_new
+  test_779_ps1_engine_hooks_parity
+  test_780_retired_hook_registration_and_file_both_survive
+  test_781_regression_suites_exit_zero
+  test_782_hook_json_malformed_merge_refused
+  test_783_hook_json_no_node_leaves_untouched
   if [[ "$PWSH_ARM_SKIPPED" -eq 1 ]]; then
     log_skip "pwsh absent — one or more PowerShell assertions were not exercised (all bash-only assertions above passed)"
   fi

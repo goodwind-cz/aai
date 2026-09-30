@@ -3,7 +3,7 @@ id: spec-sync-deletes-target-only-hooks
 type: spec
 number: null
 status: implementing
-frozen_sha256: 230ebc5e27937b2e301ef66a9fcec7942e97fada0aeb5210662d8759ffc9b043
+frozen_sha256: 8a8c4c1306d0e8bc6d1a04ca3b24846f15c97b80a3df2dc0646a6662bcf319ce
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-DRAFT-sync-deletes-target-only-hooks.md
@@ -16,10 +16,90 @@ links:
 
 SPEC-FROZEN: true
 
+## Amendment (owner-directed, relayed via coordinator instruction, 2026-09-30)
+
+This is a FROZEN spec, amended under owner authority mid-implementation —
+not a quiet rewrite. The owner's own words, as relayed: "it simply must not
+overwrite the user-modified hook — you must find a way." A
+`decisions.jsonl` `hitl_decision` / `spec_amendment` ledger record for this
+amendment is filed by the orchestrator against this evidence (implementation
+is a dispatched subagent and does not write ledgers on its own authority);
+this section is the disclosure the ledger record points at.
+
+**What changed and why.** The original Scope decision below ("the
+JSON-registration half") rejected an additive JSON merge on the ground that
+the sync engine has no Node dependency and adding one is a design decision,
+not a hotfix — so `hooks/hooks.json` / `hooks/hooks.windows.json` stayed
+source-owned and wholly overwritten, with the loss only made VISIBLE via the
+advisory (Spec-AC-04, old). That justification's premise 2 is factually
+wrong: an additive, non-destructive JSON-hooks merge ALREADY EXISTS in this
+repository, reviewed and shipped —
+`.aai/scripts/aai-bootstrap.sh`'s `install_claude_hooks` (`--with-claude-hooks`
+path, RFC-0010 / spec-hook-enforced-gates). Its semantics are exactly what
+this scope needs: parse template and destination JSON, refuse loudly and
+touch nothing when either is malformed or `hooks` is a non-object key
+(Review NB-1), add only hooks whose `command` is not already present, find
+or create the matching `matcher` entry, NEVER remove or rewrite a
+destination entry, write only when something was added (idempotent), and
+degrade to a WARN + skip — never a destructive fallback — when `node` is
+unavailable. This spec now REUSES that exact algorithm, extracted into one
+shared file (`.aai/scripts/lib/merge-hooks-json.mjs`) that both
+`install_claude_hooks` and `aai-sync.(sh|ps1)` call, rather than re-typing a
+second dialect of the same merge.
+
+**Consequences, stated so nothing is left implicit:**
+1. `hooks/hooks.json` and `hooks/hooks.windows.json` are no longer
+   source-owned-and-overwritten. They are ADDITIVELY MERGED: a source hook
+   not already present in the target is appended; an existing target entry —
+   whether originally source-provided or target-added — is NEVER removed or
+   rewritten. This is now a HARD requirement, not a residual risk: the
+   reporter's `PreToolUse -> merge-guard.sh` registration survives.
+2. `aai-sync.sh` now calls `node` (previously zero calls — evidence 9 below
+   recorded that as a measurement of the pre-change tree; it is still true
+   AS A MEASUREMENT, but the conclusion drawn from it in this section's
+   original justification point 2 no longer holds). Node absence degrades
+   exactly like `install_claude_hooks` does: WARN, leave the target file
+   untouched (create nothing on a fresh target either), name it in the
+   advisory. A missing interpreter never disarms the merge by falling back
+   to overwrite.
+3. **Retirement is reversed, not preserved.** The original Scope decision
+   ("how target-only, keep is told from source removed it, drop it") relied
+   on wholesale overwrite to disarm a retired hook's registration. Additive
+   merge, by construction, NEVER removes anything — so a target's EXISTING
+   registration for a hook the source has since retired now SURVIVES
+   indefinitely, and so does the hook's file (file survival was already the
+   rule; registration survival is new). Retirement — making a stale
+   registration disappear — is NOT handled by this amendment. This is a
+   REGRESSION relative to the pre-amendment implementation's disarm-via-
+   overwrite property, accepted deliberately: the owner's explicit priority
+   (never destroy a user-modified hook) outranks the softer, already-
+   acknowledged-as-imperfect retirement story. Stated as a residual risk
+   below, not left as a silently false sentence.
+4. A NEW `.aai/**` file is introduced — `.aai/scripts/lib/merge-hooks-json.mjs`
+   — reversing the original "Companion obligations" claim that none would be
+   added. It is classified in `.aai/system/PROFILES.yaml` `core:` (companion
+   obligations, updated below).
+5. `tests/skills/test-aai-hooks-overlay.sh` joins the regression set
+   (Spec-AC-09 / TEST-781): `install_claude_hooks` now calls the same shared
+   library this scope introduces, so that suite guards this change too.
+6. The follow-up `fu-hooks-json-target-entries-lost` this spec originally
+   suggested filing is SUPERSEDED — filing it would now be wrong, since the
+   registration-merge gap it named is closed by this amendment.
+
+Every AC, Test Plan row, Scope decision and citation below that depended on
+the superseded overwrite-and-flag design is updated in place to describe the
+additive-merge design; the original text is corrected rather than left to
+stand beside contradicting new text, and each edited section says so.
+Unaffected material — Spec-AC-01/02/03/05/06, the target-only FILE
+preservation rule, the deletions category, the byte-identity guard for quiet
+runs — is untouched by this amendment.
+
 ## Links
 - Requirement / intake: docs/issues/ISSUE-DRAFT-sync-deletes-target-only-hooks.md
 - Upstream report: https://github.com/goodwind-cz/aai/issues/414 (pin v2026.09.30, commit beb6a248)
-- Decision records: none
+- Decision records: pending — orchestrator records a `hitl_decision` /
+  `spec_amendment` entry in `docs/ai/decisions.jsonl` against this Amendment
+  section (implementation does not write ledgers)
 - Technology contract: docs/TECHNOLOGY.md
 
 ## Measured current behaviour (pre-change, this session)
@@ -62,7 +142,33 @@ from the intake.
     excludes `docs/ai/reports/*`, so a new advisory file cannot break the
     byte-identity (TEST-002) or prune-idempotence (TEST-004) assertions there.
 
-## Scope decision — the JSON-registration half
+## Scope decision — the JSON-registration half (SUPERSEDED — see Amendment)
+
+**This section's original decision is REVERSED by the Amendment above.** Kept
+verbatim below for the historical record of what was decided at freeze and
+why; do not implement against it. The corrected decision:
+
+**Decision (amended): `hooks/hooks.json` and `hooks/hooks.windows.json` are
+ADDITIVELY MERGED, not overwritten.** A source hook not already present in
+the target is appended; an existing target entry is never removed or
+rewritten. The algorithm is REUSED, not re-typed, from
+`.aai/scripts/aai-bootstrap.sh`'s `install_claude_hooks`, extracted into
+`.aai/scripts/lib/merge-hooks-json.mjs` and called by both. The three open
+questions original justification point 3 raised are answered by that reused
+algorithm, not re-litigated: "target-added" needs no identity tracking
+because nothing is ever removed; a same-event-and-matcher registration
+dedupes on exact `command` string equality; idempotence follows from
+"write only when something was added"; `.sh` and `.ps1` parity is proven by
+both calling the one shared script. `node` availability gates the merge
+(WARN + leave untouched when absent — aai-sync.sh now calls `node`,
+superseding this section's original justification point 2 and the "Hard
+constraints" note below).
+
+Follow-up `fu-hooks-json-target-entries-lost`, originally suggested here, is
+SUPERSEDED — do not file it; the gap it named is what this amendment closes.
+
+<details>
+<summary>Original text (superseded, kept for the record)</summary>
 
 The reporter lost two different things: three target-only FILES under `hooks/`,
 and a target-added `PreToolUse` -> `Bash` registration block inside the
@@ -105,7 +211,31 @@ Follow-up to file at close (suggested, not yet filed):
 `hooks/hooks.json` / `hooks/hooks.windows.json` is still overwritten; the
 advisory now names it, but nothing merges it back.
 
-## Scope decision — how "target-only, keep" is told from "source removed it, drop it"
+</details>
+
+## Scope decision — how "target-only, keep" is told from "source removed it, drop it" (SUPERSEDED — see Amendment)
+
+**This section's retirement mechanism is REVERSED by the Amendment above.**
+Kept verbatim below for the historical record; do not implement against it.
+The corrected decision:
+
+**Decision (amended): retirement is explicitly OUT OF SCOPE.** Additive
+merge, by construction, never removes an existing target entry — so a
+target's existing registration for a hook the source has since retired now
+SURVIVES indefinitely (previously it was disarmed by wholesale overwrite),
+and the hook's file survives too (unchanged — file survival was always the
+rule for target-only files). This is a deliberate regression in the narrow
+dimension of "a retired hook eventually stops running everywhere"; it is the
+accepted cost of the owner's higher-priority requirement that a target's own
+modification is never destroyed. No tombstone or retirement manifest is
+introduced (the reasoning against one, below, still holds); a future scope
+that wants literal retirement has to solve "which entries are safe to
+remove" without a provenance marker, which today's JSON shape does not
+carry — that is harder than this amendment, not smaller, and is explicitly
+NOT attempted here.
+
+<details>
+<summary>Original text (superseded, kept for the record)</summary>
 
 **Decision: the source-owned set for `hooks/` is the set of entries present in
 the SOURCE `hooks/` tree at sync time. Everything else in the target's `hooks/`
@@ -139,6 +269,8 @@ hook the source deliberately removed must still disappear", and after this
 change its FILE does not disappear — it is disarmed and left on disk. If the
 owner wants literal deletion, that is a tombstone mechanism and a separate
 scope.
+
+</details>
 
 ## Scope decision — what feeds the new deletions category
 
@@ -189,7 +321,9 @@ below.
 - Base ref: main (`beb6a248`)
 - Worktree branch/path: to be decided by Implementation Preparation
 - Inline review scope: if inline is chosen — `.aai/scripts/aai-sync.sh`
-  `.aai/scripts/aai-sync.ps1` `tests/skills/test-aai-sync-seed.sh`
+  `.aai/scripts/aai-sync.ps1` `.aai/scripts/aai-bootstrap.sh` (AMENDED, added)
+  `.aai/scripts/lib/merge-hooks-json.mjs` (AMENDED, new file)
+  `.aai/system/PROFILES.yaml` (AMENDED, added) `tests/skills/test-aai-sync-seed.sh`
   `docs/specs/SPEC-DRAFT-spec-sync-deletes-target-only-hooks.md`
   `docs/issues/ISSUE-DRAFT-sync-deletes-target-only-hooks.md` `CHANGELOG.md`
 
@@ -222,15 +356,20 @@ below.
   <target>/hooks/session-start.sh` exits 0.
   Evidence: both exit codes.
 
-- Spec-AC-04 — WHEN the target's `hooks/hooks.json` or
-  `hooks/hooks.windows.json` differs from the source copy, the advisory SHALL
-  carry one `- Path:` entry for that file whose `- Recommendation:` text
-  contains the word `registration`.
-  Verification: append a marker line to the target's `hooks/hooks.json`, sync,
-  then in the newest `<target>/docs/ai/reports/sync-conflicts-*.md`
-  `grep -qF '- Path: hooks/hooks.json'` exits 0 and the following
-  `- Recommendation:` line matches `grep -q 'registration'`.
-  Evidence: the advisory file contents.
+- Spec-AC-04 (AMENDED — see Amendment) — WHEN the target's `hooks/hooks.json`
+  or `hooks/hooks.windows.json` carries a registration entry the source does
+  not (a valid, differing JSON), that entry SHALL survive the sync via an
+  additive merge — never overwritten — and the engine SHALL print one stdout
+  line `MERGE hooks/<file>: <n> hook(s) added, <m> already present -> <path>`.
+  No advisory entry is written for an ordinary successful merge (nothing was
+  lost). Original text: "the advisory SHALL carry one `- Path:` entry ...
+  whose Recommendation contains `registration`" — superseded; see Spec-AC-10
+  for the case that DOES still produce an advisory entry (a refused merge).
+  Verification: seed the target's `hooks/hooks.json` with a valid, additional
+  `PreToolUse -> merge-guard.sh` entry, sync, then `grep -qF 'merge-guard.sh'
+  <target>/hooks/hooks.json` exits 0 and the sync stdout contains `MERGE
+  hooks/hooks.json:` (`grep -qF` exits 0).
+  Evidence: the merged `hooks/hooks.json` contents and the captured stdout.
 
 - Spec-AC-05 — WHEN at least one deletion was performed, the advisory SHALL
   contain a `## Deleted items` section listing one `- Path:` line per deleted
@@ -262,99 +401,178 @@ below.
   exists for — it protects quiet runs from the advisory change.
   Evidence: the two advisory files and the diff exit code.
 
-- Spec-AC-07 — The PowerShell engine `aai-sync.ps1` SHALL exhibit the
-  behaviours of Spec-AC-01, Spec-AC-02, Spec-AC-04 and Spec-AC-05.
+- Spec-AC-07 (AMENDED — see Amendment) — The PowerShell engine `aai-sync.ps1`
+  SHALL exhibit the behaviours of Spec-AC-01, Spec-AC-02, Spec-AC-04 (amended)
+  and Spec-AC-05.
   Verification: when `pwsh` is on PATH, run
   `pwsh -NoProfile -File .aai/scripts/aai-sync.ps1 <target>` over the same
-  fixtures and assert the same four observables. When `pwsh` is absent, the
-  suite sets its documented `PWSH_ARM_SKIPPED` flag and exits 42 rather than
-  reporting a full pass (existing discipline,
+  fixtures and assert the same four observables (the AC-04 observable is now
+  the additive-merge survival + `MERGE hooks/hooks.json:` stdout line). When
+  `pwsh` is absent, the suite sets its documented `PWSH_ARM_SKIPPED` flag and
+  exits 42 rather than reporting a full pass (existing discipline,
   `tests/skills/test-aai-sync-seed.sh:42-51`).
-  Evidence: the pwsh run stdout, the preserved file, the advisory file, or the
-  recorded skip.
+  Evidence: the pwsh run stdout, the preserved file, the merged `hooks.json`,
+  or the recorded skip.
 
-- Spec-AC-08 — WHEN the source no longer ships a hook AND no source-owned
-  `hooks/*.json` entry references it, the target's copy of that hook file SHALL
-  survive the sync AND the target's `hooks/hooks.json` SHALL be byte-identical
-  to the source's, carrying no reference to it.
-  Verification: seed the target with `hooks/retired-hook.sh` (absent from
-  source), sync, then `test -f <target>/hooks/retired-hook.sh` exits 0,
-  `cmp <src>/hooks/hooks.json <target>/hooks/hooks.json` exits 0, and
-  `grep -c retired-hook <target>/hooks/hooks.json` reports 0.
-  Evidence: the three results. This is the executable statement of the
-  retirement decision above — disarmed, not deleted.
+- Spec-AC-08 (AMENDED — see Amendment) — WHEN the target already carries a
+  `hooks/hooks.json` (or `hooks/hooks.windows.json`) registration entry for a
+  hook the source no longer ships, that entry SHALL survive the sync
+  unchanged (additive merge never removes an existing target entry), AND the
+  hook's own file SHALL also survive. Original text ("the target's
+  `hooks/hooks.json` SHALL be byte-identical to the source's, carrying no
+  reference to it" — disarmed via overwrite) is superseded: additive merge
+  cannot disarm anything, so retirement is out of scope (residual risk,
+  stated in the Amendment and below).
+  Verification: seed the target with `hooks/retired-hook.sh` AND a
+  `hooks/hooks.json` entry registering it (simulating a hook the source
+  shipped in a prior sync and has since retired), sync, then
+  `test -f <target>/hooks/retired-hook.sh` exits 0 and
+  `grep -qF retired-hook.sh <target>/hooks/hooks.json` exits 0 (the
+  registration SURVIVES — the opposite of the pre-amendment assertion).
+  Evidence: the two results, plus the target `hooks/hooks.json` contents.
 
-- Spec-AC-09 — The four sync-engine suites named by the intake SHALL exit 0 on
-  the changed tree.
+- Spec-AC-09 (AMENDED — see Amendment, suite added) — The sync-engine suites
+  named by the intake, PLUS `test-aai-hooks-overlay.sh` (added: it now
+  exercises the same shared merge library), SHALL exit 0 on the changed tree.
   Verification: each of
   `env -u AAI_ROLE bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-layer-drift.sh`,
   `... tests/skills/test-aai-layer-profiles.sh`,
   `... tests/skills/test-aai-sync-seed.sh`,
-  `... tests/skills/test-aai-bootstrap.sh`
+  `... tests/skills/test-aai-bootstrap.sh`,
+  `... tests/skills/test-aai-hooks-overlay.sh`
   exits 0 (exit 42 counts only for `test-aai-sync-seed.sh` when `pwsh` is
   absent, per Spec-AC-07).
-  Evidence: the four exit codes and stdout tails.
+  Evidence: the five exit codes and stdout tails.
+
+- Spec-AC-10 (NEW — Amendment) — WHEN the target's `hooks/hooks.json` or
+  `hooks/hooks.windows.json` does not parse as the expected JSON shape
+  (malformed JSON, or a non-object `hooks` key), the merge SHALL be refused,
+  the target file SHALL be left byte-untouched, and the advisory SHALL carry
+  one `- Path:` entry for that file whose `- Recommendation:` text says the
+  merge was refused.
+  Verification: write `NOT JSON {` into the target's `hooks/hooks.json`, sync,
+  then the file's bytes are unchanged (`before == after`) and the newest
+  advisory's `hooks/hooks.json` entry's Recommendation matches
+  `grep -q 'refused'`.
+  Evidence: the before/after bytes and the advisory contents.
+
+- Spec-AC-11 (NEW — Amendment) — WHEN `node` is unavailable, the target's
+  `hooks/hooks.json` / `hooks/hooks.windows.json` SHALL be left untouched (not
+  created on a fresh target either), the sync SHALL print a `WARN node
+  unavailable` line, and the advisory SHALL name the file.
+  Verification: run the sync with a `PATH` excluding every directory that
+  could contain a `node` binary, then `hooks/hooks.json` does not exist in the
+  target, stdout contains `WARN node unavailable` (`grep -qF` exits 0), and
+  the newest advisory names `hooks/hooks.json`.
+  Evidence: the absence check, the captured stdout, and the advisory contents.
 
 ## Constitution deviations
 
-None.
+None, including after the Amendment.
 
-Checked article by article against this scope: (1) evidence before claims — the
-pre-change observations above were produced and read in this session, and every
-AC names a command and an observable; (2) simplicity — the retirement tombstone
-was explicitly rejected as speculative, and the JSON merge is split out;
-(3) portability — shell plus PowerShell text edits only, no new dependency, no
-binary store, and evidence 9 records that no Node dependency is introduced;
-(4) degrade and report — the whole scope is the report side of a silent
-degradation, and both residuals are named rather than hidden; (5) additive
-first — the `## Deleted items` section appears only when non-empty, and
-Spec-AC-06 pins that quiet runs are unchanged; (6) single-writer state — no
-STATE write in this scope, and Planning returns its commands to the
-orchestrator; (7) operator-only merge — unaffected.
+Checked article by article against this scope (original assessment; items
+marked AMENDED re-checked against the amended design): (1) evidence before
+claims — the pre-change observations above were produced and read in this
+session, and every AC names a command and an observable; (2) simplicity
+(AMENDED) — the retirement tombstone is still explicitly rejected as
+speculative (Amendment point 3), but the JSON merge is no longer split out —
+it REUSES an already-shipped algorithm (`install_claude_hooks`) via one
+shared file rather than inventing a new one, which is the simpler path once
+the reuse opportunity is known, not a complexity increase; (3) portability
+(AMENDED) — `aai-sync.sh` now calls `node`, reversing evidence 9's
+conclusion, but this is not a NEW class of dependency: it follows the
+already-accepted, already-shipped precedent of `aai-bootstrap.sh`'s optional
+`--with-claude-hooks` node call (RFC-0010), degrades to WARN + skip exactly
+the same way, and touches no binary store; (4) degrade and report — the node-
+unavailable and merge-refused paths both degrade to a named WARN plus an
+advisory entry, never a silent skip or a destructive fallback; (5) additive
+first — the `## Deleted items` section appears only when non-empty, Spec-
+AC-06 pins that quiet runs are unchanged, and the hooks.json merge itself is
+now literally additive-only; (6) single-writer state — no STATE write in this
+scope, and Implementation returns its commands to the orchestrator; the
+amendment's `decisions.jsonl` record is written by the orchestrator against
+this spec's Amendment section, not by a dispatched subagent; (7) operator-
+only merge — unaffected.
 
 ## Acceptance Criteria Status
 
 | Spec-AC    | Description                                                                      | Status  | Evidence | Review-By | Notes                                        |
 |------------|----------------------------------------------------------------------------------|---------|----------|-----------|----------------------------------------------|
-| Spec-AC-01 | WHEN a sync runs the engine SHALL leave a target-only file under hooks unchanged | planned | —        | —         | precedent: .aai/scripts merge                 |
-| Spec-AC-02 | WHEN a target-only hook is preserved the engine SHALL name it on stdout          | planned | —        | —         | per-file line, not a blanket directory line   |
-| Spec-AC-03 | WHEN a source-owned hook file differs the engine SHALL overwrite and keep +x     | planned | —        | —         | guards the chmod at aai-sync.sh:551           |
-| Spec-AC-04 | WHEN a source-owned hooks JSON differs the advisory SHALL name it                | planned | —        | —         | the visible half of the split-out JSON merge  |
-| Spec-AC-05 | WHEN a deletion occurs the advisory SHALL carry a Deleted items section          | planned | —        | —         | advisory now written on deletions alone       |
-| Spec-AC-06 | WHEN nothing is deleted the advisory SHALL stay byte-identical to today          | planned | —        | —         | modulo the generated-at line                  |
-| Spec-AC-07 | The PowerShell engine SHALL match AC-01, AC-02, AC-04 and AC-05                  | planned | —        | —         | pwsh-absent arm exits 42, never a silent pass |
-| Spec-AC-08 | A source-retired hook SHALL survive as a file and carry no registration          | planned | —        | —         | executable form of the retirement decision    |
-| Spec-AC-09 | The four named sync suites SHALL exit 0 on the changed tree                      | planned | —        | —         | regression guard for the engine edits         |
+| Spec-AC-01 | WHEN a sync runs the engine SHALL leave a target-only file under hooks unchanged | done | tests/skills/test-aai-sync-seed.sh TEST-773; docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log | — | precedent: .aai/scripts merge                 |
+| Spec-AC-02 | WHEN a target-only hook is preserved the engine SHALL name it on stdout          | done | tests/skills/test-aai-sync-seed.sh TEST-774; docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log | — | per-file line, not a blanket directory line   |
+| Spec-AC-03 | WHEN a source-owned hook file differs the engine SHALL overwrite and keep +x     | done | tests/skills/test-aai-sync-seed.sh TEST-775; docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log | — | guards the chmod at aai-sync.sh:551 (already true pre-change; this pins the property under the new per-file merge) |
+| Spec-AC-04 | AMENDED: a target-added hooks JSON registration SHALL survive an additive merge  | done | tests/skills/test-aai-sync-seed.sh TEST-776; docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log | — | reuses install_claude_hooks' merge algorithm  |
+| Spec-AC-05 | WHEN a deletion occurs the advisory SHALL carry a Deleted items section          | done | tests/skills/test-aai-sync-seed.sh TEST-777; docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log | — | advisory now written on deletions alone       |
+| Spec-AC-06 | WHEN nothing is deleted the advisory SHALL stay byte-identical to today          | done | tests/skills/test-aai-sync-seed.sh TEST-778; docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log | — | modulo the generated-at line                  |
+| Spec-AC-07 | AMENDED: ps1 SHALL match AC-01, AC-02, AC-04 (amended) and AC-05                 | done | tests/skills/test-aai-sync-seed.sh TEST-779; docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log | — | pwsh-absent arm exits 42, never a silent pass |
+| Spec-AC-08 | AMENDED: an existing target registration for a retired hook SHALL survive       | done | tests/skills/test-aai-sync-seed.sh TEST-780; docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log | — | reverses the pre-amendment disarm-via-overwrite claim |
+| Spec-AC-09 | AMENDED: the five named sync suites SHALL exit 0 on the changed tree            | done | tests/skills/test-aai-sync-seed.sh TEST-781; docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log | — | test-aai-hooks-overlay.sh added (shared lib)  |
+| Spec-AC-10 | NEW: a malformed target hooks JSON SHALL refuse the merge, stay untouched       | done | tests/skills/test-aai-sync-seed.sh TEST-782; docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log | — | mirrors install_claude_hooks' NB-1 refusal    |
+| Spec-AC-11 | NEW: node unavailable SHALL leave the target hooks JSON untouched               | done | tests/skills/test-aai-sync-seed.sh TEST-783; docs/ai/tdd/test-773-783-sync-hooks-amendment-20260930T015645Z.log | — | mirrors install_claude_hooks' node-absent WARN |
 
 ## Implementation plan
 
-Components affected:
+Components affected (AMENDED — see Amendment for what changed since freeze):
 
+- `.aai/scripts/lib/merge-hooks-json.mjs` (NEW) — the additive JSON-hooks
+  merge algorithm, extracted verbatim from `aai-bootstrap.sh`'s
+  `install_claude_hooks` inline `node -e` script: parse template and
+  destination, refuse (throw, exit 1, destination untouched) when the
+  destination does not parse as a JSON object or carries a non-object
+  `hooks` key (Review NB-1), otherwise append any source hook whose
+  `command` is not already present anywhere in the destination's matching
+  event, creating the `matcher` entry if needed, and write the destination
+  only when something was added. Exports `mergeHooksJson()` for reuse and
+  runs as a CLI (`node merge-hooks-json.mjs <template> <dest>`) printing
+  `<n> hook(s) added, <m> already present -> <dest>` on success. Classified
+  in `.aai/system/PROFILES.yaml` `core:` (new entry).
+- `.aai/scripts/aai-bootstrap.sh` — `install_claude_hooks` now calls the
+  shared library (`$HOOKS_JSON_MERGE_LIB`, resolved self-relative to the
+  script's own location, not CWD, so it works regardless of what a test
+  fixture's directory happens to contain) instead of its former inline
+  `node -e` script. A `[[ ! -f "$HOOKS_JSON_MERGE_LIB" ]]` guard degrades to
+  the same WARN + skip shape as the existing missing-template/missing-node
+  guards. Stdout wording (`hooks overlay: <merge_out>`) and the
+  `grep -q "0 hook(s) added"` idempotence check in `WRITTEN+=`/`UNCHANGED+=`
+  classification are preserved exactly, so `test-aai-hooks-overlay.sh`
+  TEST-011 needed no changes.
 - `.aai/scripts/aai-sync.sh`
   - Replace the single `copy_replace "$SRC_ROOT/hooks" "$DST_ROOT/hooks"` at
     `:550` with a file-by-file merge modelled on `:360-372`: copy each source
     entry over the target, then walk the target and print
     `PRESERVE target-only hook: hooks/<rel>` for each entry absent from source.
     Keep the `chmod +x` on `session-start.sh`.
-  - Before overwriting `hooks/hooks.json` and `hooks/hooks.windows.json`, use
-    the existing `file_content_different` helper (`:161-167`, byte compare via
-    `cmp`, fail-closed) and append an `OVERWRITE_CONFLICTS` entry whose
-    recommendation names the registration loss.
+  - For `hooks.json` / `hooks.windows.json` specifically: skip the generic
+    copy_replace; instead, when `node` is available and the shared merge
+    library exists, call it (`node "$HOOKS_JSON_MERGE_LIB" "$src_hook"
+    "$dst_hook"`) — on success print `MERGE hooks/<file>: <out>`; on refusal
+    (nonzero exit) append an `OVERWRITE_CONFLICTS` entry whose recommendation
+    says the merge was refused and names the target as untouched. When `node`
+    is unavailable, or the library is missing, append an `OVERWRITE_CONFLICTS`
+    entry naming that and leave the target file untouched (created or not).
   - Add a `DELETIONS=()` array beside `OVERWRITE_CONFLICTS` (`:144`), append to
     it at `CLEAN removed stale` (`:353-357`) and `PROFILE prune` (`:336-338`).
-  - Change the advisory guard at `:742` to fire when EITHER array is non-empty,
+  - Change the advisory guard to fire when EITHER array is non-empty,
     and emit `## Deleted items` after `## Overwritten items` only when
-    `DELETIONS` is non-empty.
-- `.aai/scripts/aai-sync.ps1` — the same four edits at `:557-562`, `:33`,
-  `:781-802` and the prune/clean sites, keeping the two engines' advisory
-  output byte-equivalent.
-- `tests/skills/test-aai-sync-seed.sh` — the nine new TEST rows below. Chosen
-  over the other three suites because it already builds temp targets, runs the
-  REAL engines with no network (`:19`), asserts PRESERVED-byte-for-byte
+    `DELETIONS` is non-empty. (bash-3.2 nounset note: the `for conflict in
+    "${OVERWRITE_CONFLICTS[@]}"` loop must itself be guarded by a `[[
+    ${#OVERWRITE_CONFLICTS[@]} -gt 0 ]]` check — an empty array reference
+    under `set -u` throws "unbound variable" on bash 3.2/macOS, reachable
+    once the guard can fire on `DELETIONS` alone.)
+- `.aai/scripts/aai-sync.ps1` — the same shape: `$deletions`, the merge-or-
+  degrade branch for the two JSON files (calling the identical
+  `.aai/scripts/lib/merge-hooks-json.mjs` via `node`), and the advisory guard/
+  `## Deleted items` block, keeping the two engines' advisory output
+  byte-equivalent for everything except the two JSON files' own handling.
+- `.aai/system/PROFILES.yaml` — one new `core:` line for the shared library.
+- `tests/skills/test-aai-sync-seed.sh` — eleven TEST rows below (TEST-773..783).
+  Chosen over the other suites because it already builds temp targets, runs
+  the REAL engines with no network (`:19`), asserts PRESERVED-byte-for-byte
   semantics, and carries the `PWSH_ARM_SKIPPED` exit-42 discipline that
   Spec-AC-07 needs.
 
-Data flows: source tree -> per-entry copy decision -> two in-memory arrays
+Data flows: source tree -> per-entry copy decision (hooks.json/hooks.windows.json
+routed through the shared merge library instead) -> two in-memory arrays
 (`OVERWRITE_CONFLICTS`, `DELETIONS`) -> one advisory file under
 `<target>/docs/ai/reports/`.
 
@@ -364,27 +582,34 @@ Edge cases:
   as target-only and not descend destructively.
 - A target-only entry whose name later appears in the source: the source wins
   from that sync on, which is the same rule `.aai/scripts/` uses.
-- `hooks/` absent in the target entirely (fresh install) — the merge must
-  `mkdir -p` and behave exactly as the old wholesale copy did.
+- `hooks/` absent in the target entirely (fresh install) — the file merge must
+  `mkdir -p` and behave exactly as the old wholesale copy did; the JSON merge
+  treats a missing destination as `{}` and creates it fresh (unless `node` is
+  unavailable, in which case nothing is created — see Spec-AC-11).
 - A path containing spaces or `[ ]` — the fixture at
   `test-aai-layer-profiles.sh:562` already pins this class for the engine; the
   new loops must quote every expansion.
 - Advisory ordering: `## Overwritten items` keeps its position; `## Deleted
   items` is appended after it, so Spec-AC-06's diff sees no reordering.
+- A merge that adds zero hooks (target already carries everything source
+  does) must not rewrite the destination file (idempotence) and must not be
+  treated as a refusal (exit 0, not added to `OVERWRITE_CONFLICTS`).
 
 ## Test Plan
 
 | Test ID  | Spec-AC    | Type        | File path (expected)                | Description                                                                                  | Mutation            | Status  |
 |----------|------------|-------------|-------------------------------------|----------------------------------------------------------------------------------------------|---------------------|---------|
-| TEST-773 | Spec-AC-01 | integration | tests/skills/test-aai-sync-seed.sh  | target-only hooks/merge-guard.sh survives a real sync byte-identical                          | n/a — direct        | pending |
-| TEST-774 | Spec-AC-02 | integration | tests/skills/test-aai-sync-seed.sh  | sync stdout carries PRESERVE target-only hook naming hooks/merge-guard.sh                     | n/a — direct        | pending |
-| TEST-775 | Spec-AC-03 | integration | tests/skills/test-aai-sync-seed.sh  | a differing hooks/session-start.sh is replaced by source bytes and stays executable           | n/a — direct        | pending |
-| TEST-776 | Spec-AC-04 | integration | tests/skills/test-aai-sync-seed.sh  | a diverging hooks/hooks.json yields an advisory Path entry whose recommendation says registration | n/a — direct    | pending |
-| TEST-777 | Spec-AC-05 | integration | tests/skills/test-aai-sync-seed.sh  | a deletion-only re-sync writes an advisory with a Deleted items section naming the path       | n/a — direct        | pending |
-| TEST-778 | Spec-AC-06 | integration | tests/skills/test-aai-sync-seed.sh  | old-engine and new-engine advisories match for a quiet run, generated-at line excluded        | n/a — direct        | pending |
-| TEST-779 | Spec-AC-07 | integration | tests/skills/test-aai-sync-seed.sh  | pwsh engine preserves, names, flags the JSON and reports deletions; absent pwsh exits 42      | n/a — direct        | pending |
-| TEST-780 | Spec-AC-08 | integration | tests/skills/test-aai-sync-seed.sh  | a source-retired hook file survives while hooks.json matches source and names it nowhere      | n/a — direct        | pending |
-| TEST-781 | Spec-AC-09 | integration | tests/skills/test-aai-sync-seed.sh  | the four named sync suites exit 0 on the changed tree, recorded as the regression run         | n/a — direct        | pending |
+| TEST-773 | Spec-AC-01 | integration | tests/skills/test-aai-sync-seed.sh  | target-only hooks/merge-guard.sh survives a real sync byte-identical                          | n/a — direct        | green   |
+| TEST-774 | Spec-AC-02 | integration | tests/skills/test-aai-sync-seed.sh  | sync stdout carries PRESERVE target-only hook naming hooks/merge-guard.sh                     | n/a — direct        | green   |
+| TEST-775 | Spec-AC-03 | integration | tests/skills/test-aai-sync-seed.sh  | a differing hooks/session-start.sh is replaced by source bytes and stays executable           | n/a — direct        | green   |
+| TEST-776 | Spec-AC-04 | integration | tests/skills/test-aai-sync-seed.sh  | (AMENDED) a target-added hooks/hooks.json registration (PreToolUse -> merge-guard.sh) survives an additive-merge sync; sync prints a MERGE line | n/a — direct | green |
+| TEST-777 | Spec-AC-05 | integration | tests/skills/test-aai-sync-seed.sh  | a deletion-only re-sync writes an advisory with a Deleted items section naming the path       | n/a — direct        | green   |
+| TEST-778 | Spec-AC-06 | integration | tests/skills/test-aai-sync-seed.sh  | old-engine and new-engine advisories match for a quiet run, generated-at line excluded        | n/a — direct        | green   |
+| TEST-779 | Spec-AC-07 | integration | tests/skills/test-aai-sync-seed.sh  | (AMENDED) pwsh engine preserves+names a target-only hook, additively merges a target-added hooks.json registration, reports a deletion-only advisory; absent pwsh exits 42 | n/a — direct | green |
+| TEST-780 | Spec-AC-08 | integration | tests/skills/test-aai-sync-seed.sh  | (AMENDED) a target's existing hooks.json registration for a source-retired hook SURVIVES the merge, and so does the hook's file | n/a — direct | green |
+| TEST-781 | Spec-AC-09 | integration | tests/skills/test-aai-sync-seed.sh  | (AMENDED, suite added) the five named sync suites (incl. test-aai-hooks-overlay.sh) exit 0 on the changed tree | n/a — direct | green |
+| TEST-782 | Spec-AC-10 | integration | tests/skills/test-aai-sync-seed.sh  | (NEW) a malformed target hooks/hooks.json refuses the merge, stays byte-untouched, and is named in the advisory | n/a — direct | green |
+| TEST-783 | Spec-AC-11 | integration | tests/skills/test-aai-sync-seed.sh  | (NEW) with node unavailable, hooks/hooks.json is left untouched (not created) and named in the advisory | n/a — direct | green |
 
 Mutation column note: the Mutation gate applies to `tdd`/`hybrid` specs only
 (`spec-lint.mjs` `mutationGateApplicability`). This spec's strategy is
@@ -406,68 +631,91 @@ Mutation column note: the Mutation gate applies to `tdd`/`hybrid` specs only
    advisory cannot perturb its byte-identity or idempotence assertions.
    TEST-781 keeps that measurement honest.
 4. The sync engine <-> `hooks/hooks.json` as a runtime contract read by the
-   harness. Spec-AC-08 asserts the registration contract directly rather than
-   reasoning about it.
+   harness. Spec-AC-08 (amended) asserts the survival contract directly
+   rather than reasoning about it.
 5. Residual seam no automated test in this scope crosses: an actual downstream
    project's `/aai-update` run. The fixtures approximate it; nothing here
    proves the reporter's own tree recovers. That verification belongs to the
    reporter after the release.
+6. (NEW, Amendment) `aai-sync.(sh|ps1)` <-> `aai-bootstrap.sh` <->
+   `.aai/scripts/lib/merge-hooks-json.mjs`. Three callers/one algorithm; a
+   change to the shared library now risks both the sync engine's hooks.json
+   handling AND the `--with-claude-hooks` overlay. Crossed by TEST-781's
+   inclusion of `test-aai-hooks-overlay.sh` and by TEST-776/779/780/782/783
+   exercising the library through the sync engine directly — not merely a
+   reading of the extraction.
 
 ## Verification
 
-Commands, run from the repository root:
+Commands, run from the repository root (5th command added by the Amendment):
 
 1. `env -u AAI_ROLE bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-sync-seed.sh`
 2. `env -u AAI_ROLE bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-layer-drift.sh`
 3. `env -u AAI_ROLE bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-layer-profiles.sh`
 4. `env -u AAI_ROLE bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-bootstrap.sh`
+5. `env -u AAI_ROLE bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-hooks-overlay.sh`
 
-Evidence artifacts: the four exit codes and stdout tails; the fixture advisory
+Evidence artifacts: the five exit codes and stdout tails; the fixture advisory
 files quoted in the validation report; the scoped diff over
-`.aai/scripts/aai-sync.sh`, `.aai/scripts/aai-sync.ps1` and
-`tests/skills/test-aai-sync-seed.sh`.
+`.aai/scripts/aai-sync.sh`, `.aai/scripts/aai-sync.ps1`,
+`.aai/scripts/aai-bootstrap.sh`, `.aai/scripts/lib/merge-hooks-json.mjs`,
+`.aai/system/PROFILES.yaml` and `tests/skills/test-aai-sync-seed.sh`.
 
-PASS criteria: TEST-773..TEST-781 green (TEST-779 may record the documented
+PASS criteria: TEST-773..TEST-783 green (TEST-779 may record the documented
 pwsh skip) AND every Spec-AC in a terminal status.
 
 ## Evidence contract
 
 - ref_id: `sync-deletes-target-only-hooks`
 - Spec-AC and TEST links: as mapped in the Test Plan table above
-- Command or review scope: the four commands under `## Verification`; review
-  scope is the three changed files plus this spec, the intake and `CHANGELOG.md`
+- Command or review scope: the five commands under `## Verification`; review
+  scope is `.aai/scripts/aai-sync.sh`, `.aai/scripts/aai-sync.ps1`,
+  `.aai/scripts/aai-bootstrap.sh`, `.aai/scripts/lib/merge-hooks-json.mjs`,
+  `.aai/system/PROFILES.yaml`, `tests/skills/test-aai-sync-seed.sh`, this
+  spec, the intake and `CHANGELOG.md`
 - Exit code or review verdict: recorded per command
 - Evidence path: the validation report under `docs/ai/reports/`
 - Commit SHA or diff range: recorded at hand-off
 
 Under strategy `direct` this spec demands targeted regression tests green with
 exit codes plus the scoped diff. It does NOT demand a stored RED artifact and
-does not demand a verification matrix beyond the four commands listed above.
+does not demand a verification matrix beyond the five commands listed above.
 
 ## Registry items closed by this scope
 
 none — `node .aai/scripts/follow-ups.mjs list` reports no open item whose
-subject is the sync engine's `hooks/` handling or the conflict advisory.
+subject is the sync engine's `hooks/` handling or the conflict advisory. The
+`fu-hooks-json-target-entries-lost` follow-up this spec originally suggested
+filing (never actually filed) is now SUPERSEDED by the Amendment — do not
+file it.
 
 ## Companion obligations
 
-Both entries of the closed list in `.aai/PLANNING.prompt.md` were checked and
-neither applies:
+Both entries of the closed list in `.aai/PLANNING.prompt.md`, re-checked
+after the Amendment:
 
 - Prompt corpus: this scope adds no bytes to `.aai/*.prompt.md` or
   `.aai/AGENTS.md`, so no prompt-diet ledger true-up and no TEST-012 bump.
-- New `.aai/**` file: none. The rejected retirement manifest was the only
-  candidate, and rejecting it is what keeps `.aai/system/PROFILES.yaml`
-  untouched.
+  Unaffected by the Amendment.
+- New `.aai/**` file (AMENDED — now applies): `.aai/scripts/lib/merge-hooks-json.mjs`
+  is a new vendored file, added because it is REUSED by two callers rather
+  than re-typed. Classified in `.aai/system/PROFILES.yaml` `core:` (done,
+  one new line). The rejected retirement manifest is still rejected — this
+  is not that file; it carries no retirement/tombstone logic.
 
 ## Residual risks
 
-1. The JSON-registration half stays broken until the follow-up lands. The
-   advisory names it from this release on; it does not repair it.
-2. A source-retired hook's FILE lingers in the target. It is disarmed, not
-   deleted. Stated as a decision above, not discovered later.
-3. `.codex/skills`, `.gemini/skills` and each `.claude/skills/<entry>` are still
+1. (AMENDED — no longer a defect, replaced) Retirement is out of scope:
+   additive merge never removes an existing target entry, so a target's
+   registration for a hook the source has since retired now SURVIVES
+   indefinitely (previously "disarmed via overwrite" — see the Amendment and
+   the superseded Scope decision above). The hook's FILE also survives,
+   unchanged from before. This is a deliberate, owner-accepted regression in
+   one narrow dimension (a retired hook keeps firing in a target that
+   already registered it) traded for the higher-priority property the owner
+   required (a target's own modification is never destroyed).
+2. `.codex/skills`, `.gemini/skills` and each `.claude/skills/<entry>` are still
    replaced wholesale, so target-only files there are still destroyed and are
    not in the deletions category.
-4. Nothing in this scope proves the reporter's own downstream tree recovers;
+3. Nothing in this scope proves the reporter's own downstream tree recovers;
    the fixtures approximate their setup.

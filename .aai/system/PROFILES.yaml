@@ -161,6 +161,7 @@ core:
   - .aai/scripts/lib/guard-config.mjs
   - .aai/scripts/lib/harness.mjs
   - .aai/scripts/lib/iso-time.mjs
+  - .aai/scripts/lib/merge-hooks-json.mjs
   - .aai/scripts/lib/mutation-record.mjs
   - .aai/scripts/lib/tree-hash.mjs
   - .aai/scripts/lib/pricing.mjs
