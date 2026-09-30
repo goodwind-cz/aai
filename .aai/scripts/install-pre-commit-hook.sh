@@ -914,6 +914,7 @@ write_prepush_hook() {
     echo "AAI pre-push hook already installed at $PREPUSH_PATH. No action taken."
     return 0
   fi
+  assert_regular_slot "$PREPUSH_PATH" "pre-push" || return 1
   local tmp="$PREPUSH_PATH.aai-tmp.$$"
   if ! pre_push_body > "$tmp"; then
     rm -f "$tmp"
@@ -929,6 +930,31 @@ write_prepush_hook() {
   echo "Effect: every push runs close-reconcile.mjs --check over the pushed range (report-only; close_gate: enforce refuses a default-branch push only)."
 }
 
+# assert_regular_slot — validation round 2 B1. Every writer below composes a
+# temp sibling and `mv -f`s it into the slot. `mv -f` into a DIRECTORY moves
+# the temp file INSIDE it and exits 0, so the writer printed "Installed AAI
+# ... hook at <path>" while the slot was still the user's directory and a
+# stray executable had appeared in it. (Before this ride the writers used
+# `cat > "$HOOK_PATH"`, which fails on a directory — the temp-sibling shape
+# this ride introduced for atomicity is what opened it.) Refuse any slot that
+# exists and is not a regular file BEFORE anything is written, so the message
+# and the bytes agree.
+assert_regular_slot() {
+  local slot="$1" label="$2" kind
+  # A symlink is NOT handled here: the dedicated lstat refusal downstream owns
+  # that case and its wording is pinned by a test. Defer to it.
+  [ -L "$slot" ] && return 0
+  [ -e "$slot" ] || return 0
+  [ -f "$slot" ] && return 0
+  if [ -d "$slot" ]; then kind="a directory"
+  elif [ -p "$slot" ]; then kind="a named pipe"
+  elif [ -S "$slot" ]; then kind="a socket"
+  else kind="not a regular file"
+  fi
+  echo "ERROR: $label slot $slot is $kind, not a regular file. Nothing was written and the slot is untouched. Remove or rename it, then re-run." >&2
+  return 1
+}
+
 # guard_block_interior — the engine-owned bytes BETWEEN the two marker lines
 # of a file (or of the shipped block when given no file): the only range an
 # upgrade compares and replaces.
@@ -939,6 +965,7 @@ guard_block_interior() {
 # write_precommit_fresh — compose <shebang> + guard block + <index body minus
 # its shebang> into the pre-commit slot via a temp sibling and rename.
 write_precommit_fresh() {
+  assert_regular_slot "$HOOK_PATH" "pre-commit" || return 1
   local tmp="$HOOK_PATH.aai-tmp.$$"
   # awk, not head/tail: the body is engine-owned (every line newline-
   # terminated), and awk reads its whole input, so no early-closing reader
@@ -985,6 +1012,7 @@ write_precommit_fresh() {
 # Every write goes through a temp sibling and rename, and every message
 # below describes exactly the bytes that path leaves on disk.
 upgrade_precommit_hook() {
+  assert_regular_slot "$HOOK_PATH" "pre-commit" || return 1
   if [[ -L "$HOOK_PATH" ]]; then
     echo "ERROR: $HOOK_PATH is a symlink. Refusing to rewrite through a symlink (the target may be outside this repository); replace the link with a regular file, or pass --force." >&2
     return 1

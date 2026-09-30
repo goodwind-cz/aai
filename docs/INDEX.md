@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-30T22:57:16.130Z
+Generated: 2026-09-30T23:33:04.761Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-shipped-guards-have-no-downstream-trigger | specs | implementing | 13 done | docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md |
+| spec-shipped-guards-have-no-downstream-trigger | specs | implementing | 14 done | docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md |
 
 ## Canonical layer (0)
 

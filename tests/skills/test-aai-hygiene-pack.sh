@@ -5346,6 +5346,42 @@ test_817_marker_order_and_ownership_are_exact() {  # TEST-817 / Spec-AC-13
   log_pass "TEST-817 inverted markers, a stray END, a BOM and a merely-mentioned marker are refused with the file byte-identical; the refresh keeps every byte outside the interior (raw e9/ff fe, missing final newline) and --uninstall never deletes a foreign hook"
 }
 
+
+test_819_nonregular_slot_is_refused_before_any_write() {  # TEST-819 / Spec-AC-13
+  log_info "Test: a hook slot that is a directory is refused before any write — no success line, no stray temp file inside it (TEST-819)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local d slot before after out rc
+  d="$(sg_repo t819)"
+  slot="$(sg_hook "$d" pre-push)"
+  mkdir -p "$slot"
+  printf 'my data\n' > "$slot/user-file"
+  before="$(ls -A "$slot" | sort | tr '\n' ' ')"
+
+  rc=0; out="$(sg_install "$d" --hooks close-gate 2>&1)" || rc=$?
+  after="$(ls -A "$slot" | sort | tr '\n' ' ')"
+
+  # validation round 2 B1: `mv -f` into a directory moves the temp INSIDE it
+  # and exits 0, so the writer announced an install that never happened and
+  # left an executable in the user's directory.
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "TEST-819: a directory in the pre-push slot must refuse (non-zero), got rc=$rc"
+  case "$out" in
+    *"Installed AAI pre-push hook"*)
+      log_fail "TEST-819: the run announced an install while the slot was a directory: $out" ;;
+  esac
+  case "$out" in
+    *"is a directory, not a regular file"*) : ;;
+    *) log_fail "TEST-819: the refusal must name the slot as a directory; got: $out" ;;
+  esac
+  [[ -d "$slot" ]] \
+    || log_fail "TEST-819: the user's directory was replaced"
+  [[ "$before" == "$after" ]] \
+    || log_fail "TEST-819: the directory gained or lost entries (before [$before] after [$after]) — a temp file was moved inside it"
+
+  log_pass "TEST-819 a non-regular hook slot is refused before any write, with no success line and nothing left inside it"
+}
+
 test_818_ps1_upgrade_is_byte_exact_and_order_checked() {  # TEST-818 / Spec-AC-13
   log_info "Test: the .ps1 twin checks marker order before any write and refreshes on bytes (static; behavioural under pwsh) (TEST-818)..."
   [[ -f "$SG_INSTALLER_PS1" ]] || log_fail "TEST-818: missing $SG_INSTALLER_PS1"
@@ -5502,6 +5538,7 @@ main() {
   test_816_default_unchanged_and_pushed_config_wins
   test_817_marker_order_and_ownership_are_exact
   test_818_ps1_upgrade_is_byte_exact_and_order_checked
+  test_819_nonregular_slot_is_refused_before_any_write
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

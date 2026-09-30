@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-817 (a): inverted markers must make the run exit 1, got 0: Refreshed the AAI:GUARD-CHECKS block at /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-hygiene.8ZfRG8/sg-t817/.git/hooks/pre-commit (interior between the markers replaced; every other byte unchanged)
 selector_honoured: yes
-target_sha256: a4a851e9e1d71eef27230e141d7044bee3aef16033904e684501e77ccfa1ec8d
+target_sha256: 997200110f412b6c15ed602edb2b1119ffc5bd381b985a1055a5666e47159b51
 ---
 INFO: Checking dependencies...
 PASS: Dependencies checked

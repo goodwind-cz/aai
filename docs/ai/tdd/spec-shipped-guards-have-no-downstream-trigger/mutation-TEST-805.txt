@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-805: close-reconcile must name the open spec (needle: 'OPEN docs/specs/SPEC-DRAFT-t.md'), got: AAI:CLOSE-GATE NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)
 selector_honoured: yes
-target_sha256: a4a851e9e1d71eef27230e141d7044bee3aef16033904e684501e77ccfa1ec8d
+target_sha256: 997200110f412b6c15ed602edb2b1119ffc5bd381b985a1055a5666e47159b51
 ---
 INFO: Checking dependencies...
 PASS: Dependencies checked
