@@ -1,0 +1,7 @@
+RED_CLASS: product_red
+# RED capture for TEST-800 — suite tests/skills/test-aai-hygiene-pack.sh selector test_800_installed_hook_reaches_guard — pre-change tree 3d9e2a6d — exit 1
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: an installed pre-commit hook reaches pre-commit-checks.sh — the draft guard's own line shows on a commit (TEST-800)...
+FAIL: TEST-800: the commit output must carry the allocator guard's own line — the hook never reached pre-commit-checks.sh (needle: 'GUARD FAIL (no-DRAFT-at-merge)'), got: Wrote docs/INDEX.md (1 docs, 0 overdue, 0 deferred, 0 broken refs)
+AAI:INDEX-AUTOGEN: regenerated and staged docs/INDEX.md

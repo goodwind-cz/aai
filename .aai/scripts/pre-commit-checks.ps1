@@ -186,7 +186,25 @@ if ((Test-Path $DocNumberGuard) -and (Get-Command node -ErrorAction SilentlyCont
     if ((Test-Path $auditCfg) -and ((Get-Content $auditCfg -Raw) -match '(?m)^\s*doc_number_guard:\s*enforce(\s|$)')) {
         $dnMode = "enforce"
     }
+    # Merge-point-aware enforce (shipped-guards-have-no-downstream-trigger D2,
+    # mirrors the .sh twin): the AAI flow commits drafts on branches by design,
+    # so enforce bites on the DEFAULT branch only (R1: refs/remotes/origin/HEAD,
+    # else main) and downgrades to report-only elsewhere with ONE line.
     Push-Location $ProjectRoot
+    $dnDefault = (& git symbolic-ref -q --short refs/remotes/origin/HEAD 2>$null)
+    if ($dnDefault) { $dnDefault = ([string]$dnDefault).Trim() -replace '^origin/', '' }
+    if (-not $dnDefault) {
+        $dnDefault = "main"
+        Write-Host "    NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)"
+    }
+    $dnBranch = (& git symbolic-ref -q --short HEAD 2>$null)
+    if ($dnBranch) { $dnBranch = ([string]$dnBranch).Trim() }
+    if (-not $dnBranch) { $dnBranch = "(detached HEAD)" }
+    $dnDowngrade = ""
+    if (($dnMode -eq "enforce") -and ($dnBranch -ne $dnDefault)) {
+        $dnMode = "report-only"
+        $dnDowngrade = "Doc-numbering guard: enforce applies on $dnDefault only; on $dnBranch this is report-only"
+    }
     $dnOut = node $DocNumberGuard --guard 2>&1
     $dnOk = ($LASTEXITCODE -eq 0)
     Pop-Location
@@ -198,6 +216,7 @@ if ((Test-Path $DocNumberGuard) -and (Get-Command node -ErrorAction SilentlyCont
     } else {
         Write-Warn-Check "Doc-numbering guard found violations (report-only; commit allowed):"
         $dnOut | ForEach-Object { Write-Host "    $_" }
+        if ($dnDowngrade) { Write-Host "    $dnDowngrade" }
     }
 } else {
     Write-Pass-Check "Doc-numbering guard skipped (allocator absent or node unavailable)"

@@ -1190,6 +1190,122 @@ EOF
   log_pass "TEST-595: an untouched candidate paired via an off-convention spec's links.requirement is not flagged id-mention-unpaired"
 }
 
+# --- TEST-810 / TEST-811 (shipped-guards-have-no-downstream-trigger, Spec-AC-07/08)
+# The PR-number grammar is a closed TABLE — github `(#N)` (unchanged bytes) and
+# azure `Merged PR N:` — selected by --platform or by pr-platform.mjs's
+# classify() over the fixture's own `origin` URL (never a stubbed classifier,
+# seam S3). `unknown`/`none` try the union in table order; a miss refuses by
+# name, listing the grammars tried. No network: the origin URL is only ever
+# read with `git remote get-url`.
+test_810_azure_subject_grammar() {
+  log_info "TEST-810 (Spec-AC-07): 'Merged PR 811:' resolves under --platform azure and under detection from a dev.azure.com origin; (#12) still resolves under github; --platform bogus exits 2..."
+  local dir base head out rc
+  # (a) --platform azure: --check prints pr=811, --apply stamps links.pr
+  dir=$(init_range_repo "t810a")
+  base=$(git -C "$dir" rev-parse HEAD)
+  write_issue_doc "$dir/docs/issues/ISSUE-0810-t810a.md" "t810a-ref" "implementing"
+  echo "changed" >> "$dir/src/app.js"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "Merged PR 811: deliver t810a"
+  head=$(git -C "$dir" rev-parse HEAD)
+  out="$(node "$CLOSE_RECONCILE" --check --platform azure --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-810 (a): --check expected exit 1 (one item), got $rc. Output:\n$out"
+  assert_payload_contains "$out" "OPEN docs/issues/ISSUE-0810-t810a.md" "TEST-810 (a): missing OPEN line"
+  assert_payload_contains "$out" "pr=811" "TEST-810 (a): the azure grammar must resolve pr=811"
+  assert_payload_contains "$out" "platform=azure grammar=azure" "TEST-810 (a): the resolution must name platform and grammar"
+  assert_payload_contains "$out" "close-work-item.mjs --ref t810a-ref --pr 811" "TEST-810 (a): the remediation must carry 811"
+  out="$(node "$CLOSE_RECONCILE" --apply --platform azure --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-810 (a): --apply expected exit 0, got $rc. Output:\n$out"
+  assert_payload_contains "$out" "CLOSED docs/issues/ISSUE-0810-t810a.md (pr #811" "TEST-810 (a): missing CLOSED confirmation with pr #811"
+  grep -qxF "    - 811" "$dir/docs/issues/ISSUE-0810-t810a.md" || log_fail "TEST-810 (a): links.pr does not carry 811"
+
+  # (b) detection from the origin URL: no --platform given
+  dir=$(init_range_repo "t810b")
+  git -C "$dir" remote add origin "https://dev.azure.com/org/proj/_git/repo"
+  base=$(git -C "$dir" rev-parse HEAD)
+  write_issue_doc "$dir/docs/issues/ISSUE-0810-t810b.md" "t810b-ref" "implementing"
+  echo "changed" >> "$dir/src/app.js"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "Merged PR 811: deliver t810b"
+  head=$(git -C "$dir" rev-parse HEAD)
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-810 (b): --check expected exit 1, got $rc. Output:\n$out"
+  assert_payload_contains "$out" "platform=azure grammar=azure" "TEST-810 (b): the platform must be detected from the dev.azure.com origin"
+  assert_payload_contains "$out" "pr=811" "TEST-810 (b): 811 must resolve under the detected azure grammar"
+
+  # (c) github keeps working under --platform github
+  dir=$(init_range_repo "t810c")
+  base=$(git -C "$dir" rev-parse HEAD)
+  write_issue_doc "$dir/docs/issues/ISSUE-0810-t810c.md" "t810c-ref" "implementing"
+  echo "changed" >> "$dir/src/app.js"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver t810c (#12)"
+  head=$(git -C "$dir" rev-parse HEAD)
+  out="$(node "$CLOSE_RECONCILE" --check --platform github --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-810 (c): --check expected exit 1, got $rc. Output:\n$out"
+  assert_payload_contains "$out" "pr=12" "TEST-810 (c): (#12) must still resolve under github"
+  assert_payload_contains "$out" "platform=github grammar=github" "TEST-810 (c): the github grammar must be named"
+  # a github subject under the AZURE grammar alone must NOT resolve (single grammar, not the union)
+  out="$(node "$CLOSE_RECONCILE" --check --platform azure --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  assert_payload_contains "$out" "pr-number-unknown" "TEST-810 (c): --platform azure selects the azure grammar ONLY; (#12) must not resolve under it"
+
+  # (d) --platform bogus exits 2 naming the closed set
+  out="$(node "$CLOSE_RECONCILE" --check --platform bogus --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-810 (d): --platform bogus expected exit 2, got $rc. Output:\n$out"
+  assert_payload_contains "$out" "github" "TEST-810 (d): the refusal must name the closed set (github)"
+  assert_payload_contains "$out" "azure" "TEST-810 (d): the refusal must name the closed set (azure)"
+  log_pass "TEST-810: 'Merged PR 811:' resolves under --platform azure (check pr=811, apply stamps links.pr) and under detection from a dev.azure.com origin; (#12) still resolves under github; --platform bogus exits 2"
+}
+
+test_811_unknown_platform_refuses_by_name() {
+  log_info "TEST-811 (Spec-AC-08): an unknown host with an unmatched subject refuses naming platform and the grammars tried; no origin tries the union..."
+  local dir base head out rc doc_before doc_after ev_before ev_after
+  dir=$(init_range_repo "t811a")
+  git -C "$dir" remote add origin "https://gitlab.example/g/r.git"
+  base=$(git -C "$dir" rev-parse HEAD)
+  write_issue_doc "$dir/docs/issues/ISSUE-0811-t811a.md" "t811a-ref" "implementing"
+  echo "changed" >> "$dir/src/app.js"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "Merge request !9: deliver t811a"
+  head=$(git -C "$dir" rev-parse HEAD)
+  doc_before="$(cat "$dir/docs/issues/ISSUE-0811-t811a.md")"
+  ev_before="$(cat "$dir/docs/ai/EVENTS.jsonl")"
+  out="$(node "$CLOSE_RECONCILE" --apply --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-811 (a): --apply must refuse (non-zero) when no grammar matches, got 0. Output:\n$out"
+  assert_payload_contains "$out" "reason=pr-number-unknown platform=unknown grammars-tried=github,azure" "TEST-811 (a): the refusal must name the platform and the grammars tried"
+  assert_payload_contains "$out" "no shipped grammar matches this host" "TEST-811 (a): the refusal must say no shipped grammar matches this host"
+  assert_payload_contains "$out" "close-reconcile.mjs" "TEST-811 (a): the refusal must say where a grammar is added"
+  doc_after="$(cat "$dir/docs/issues/ISSUE-0811-t811a.md")"
+  ev_after="$(cat "$dir/docs/ai/EVENTS.jsonl")"
+  [[ "$doc_before" == "$doc_after" ]] || log_fail "TEST-811 (a): the doc changed despite the refusal"
+  [[ "$ev_before" == "$ev_after" ]] || log_fail "TEST-811 (a): EVENTS.jsonl changed despite the refusal"
+
+  # no origin (platform none): the union resolves (#7) via the github grammar
+  dir=$(init_range_repo "t811b")
+  base=$(git -C "$dir" rev-parse HEAD)
+  write_issue_doc "$dir/docs/issues/ISSUE-0811-t811b.md" "t811b-ref" "implementing"
+  echo "changed" >> "$dir/src/app.js"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "deliver t811b (#7)"
+  head=$(git -C "$dir" rev-parse HEAD)
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-811 (b): --check expected exit 1, got $rc. Output:\n$out"
+  assert_payload_contains "$out" "pr=7" "TEST-811 (b): (#7) must resolve via the union"
+  assert_payload_contains "$out" "platform=none grammar=github" "TEST-811 (b): the line must say platform=none grammar=github"
+  # and the azure form resolves under none too (union, table order)
+  dir=$(init_range_repo "t811c")
+  base=$(git -C "$dir" rev-parse HEAD)
+  write_issue_doc "$dir/docs/issues/ISSUE-0811-t811c.md" "t811c-ref" "implementing"
+  echo "changed" >> "$dir/src/app.js"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "Merged PR 44: deliver t811c"
+  head=$(git -C "$dir" rev-parse HEAD)
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  assert_payload_contains "$out" "pr=44" "TEST-811 (c): 'Merged PR 44:' must resolve via the union with no origin"
+  assert_payload_contains "$out" "platform=none grammar=azure" "TEST-811 (c): the line must say platform=none grammar=azure"
+  log_pass "TEST-811: unknown host + unmatched subject refuses by name (platform=unknown grammars-tried=github,azure, doc and EVENTS byte-identical); no origin tries the union for both grammars"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1222,6 +1338,8 @@ main() {
   test_527_pairs_by_links_requirement
   test_594_unreadable_untouched_candidate_never_reads_clean
   test_595_candidate_pairs_by_links_requirement
+  test_810_azure_subject_grammar
+  test_811_unknown_platform_refuses_by_name
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

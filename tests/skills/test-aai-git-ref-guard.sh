@@ -514,7 +514,14 @@ test_307_clone_seam() {
 # not drift. New hash measured with this file's own `sha_cmd`/`new_repo`/
 # `install_guard` fixture (bash -c reproduction, verified byte-for-byte
 # against the installed hook).
-PRECOMMIT_SHA256_BASELINE="c9679a03e24189a4a777a6d6146ed82f40d9ab7126536ca45aa754f27c8ec4cf"
+#
+# Re-pinned by shipped-guards-have-no-downstream-trigger (Spec-AC-01/D6): a
+# fresh install now composes <shebang> + the AAI:GUARD-CHECKS block + the
+# unchanged AAI:INDEX-AUTOGEN body, so the installed file's bytes moved by
+# exactly that block — an intentional, in-scope change, not drift. The
+# INDEX-AUTOGEN body itself is byte-identical (bare `--print` still emits it
+# unchanged). New hash measured with the same fixture technique.
+PRECOMMIT_SHA256_BASELINE="6b7de0517defb5990574722aa3a8650156b3ea7b0f917eed5aa6f107988ef78a"
 
 test_308_installer_contract() {
   local ok=1
@@ -1150,7 +1157,8 @@ test_608_ps1_hooks_static() {
     || { log_fail "TEST-608: .ps1 no longer writes the reference-transaction hook via Set-Content -Path \$reftxPath"; ok=0; }
 
   # An unrecognised -Hooks token must exit 2 naming the closed set.
-  grep -qF 'closed set: index, ref-guard, all' "$INSTALLER_PS1" \
+  # shipped-guards-have-no-downstream-trigger D7 widened the closed set with close-gate.
+  grep -qF 'closed set: index, ref-guard, close-gate, all' "$INSTALLER_PS1" \
     || { log_fail "TEST-608: .ps1 unknown -Hooks value message does not name the closed set"; ok=0; }
   grep -qF 'exit 2' "$INSTALLER_PS1" \
     || { log_fail "TEST-608: .ps1 has no exit 2 path for an unrecognised -Hooks token"; ok=0; }
@@ -1307,8 +1315,10 @@ test_614_help_documents_the_new_surface() {
   local out
   out="$(bash "$INSTALLER" --help 2>&1)"
   grep -qF -- "--hooks" <<<"$out" || { log_fail "TEST-614: --help does not mention --hooks"; ok=0; }
-  grep -qF "index, ref-guard, all" <<<"$out" || { log_fail "TEST-614: --help does not name the closed set index, ref-guard, all"; ok=0; }
-  grep -qF -- "--print [index|ref-guard]" <<<"$out" || { log_fail "TEST-614: --help does not document --print with a hook argument"; ok=0; }
+  # shipped-guards-have-no-downstream-trigger D7: the closed set gained close-gate
+  # and --print gained guard-checks|pre-push; both pins moved with it.
+  grep -qF "index, ref-guard, close-gate, all" <<<"$out" || { log_fail "TEST-614: --help does not name the closed set index, ref-guard, close-gate, all"; ok=0; }
+  grep -qF -- "--print [index|ref-guard|guard-checks|pre-push]" <<<"$out" || { log_fail "TEST-614: --help does not document --print with a hook argument"; ok=0; }
   grep -qF -- "--decline-ref-guard" <<<"$out" || { log_fail "TEST-614: --help does not mention --decline-ref-guard"; ok=0; }
   grep -qF -- "--arm-ref-guard" <<<"$out" || { log_fail "TEST-614: --help does not mention --arm-ref-guard"; ok=0; }
 

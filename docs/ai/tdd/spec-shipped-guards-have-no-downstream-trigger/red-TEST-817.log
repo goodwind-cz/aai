@@ -1,0 +1,6 @@
+RED_CLASS: product_red
+# RED capture for TEST-817 — suite tests/skills/test-aai-hygiene-pack.sh selector test_817_marker_order_and_ownership_are_exact — pre-change tree 1eadb891 — exit 1
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: inverted or stray GUARD markers, a BOM and a merely-mentioned INDEX marker are refused byte-identical; a refresh keeps every byte outside the interior (TEST-817)...
+FAIL: TEST-817 (a): the hook with inverted markers was rewritten (156 lines before, 21 after)

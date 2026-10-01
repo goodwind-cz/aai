@@ -2196,6 +2196,81 @@ Notes:
 
 ---
 
+## Git hooks the installer writes (and what they invoke)
+
+`bash .aai/scripts/install-pre-commit-hook.sh` (or the `.ps1` twin) writes
+three hooks into the directory git itself resolves (`git rev-parse --git-path
+hooks/<name>`, so `core.hooksPath` and linked worktrees are honoured). Each is
+recognised by its own marker — a marker counts only when it opens a line
+(column 0), so a hook that merely mentions one in a comment or a string is
+foreign — and the installer never rewrites a byte outside an AAI marker on a
+plain run: a foreign hook in a selected slot is refused by name (with
+`--print`, `--print guard-checks`, `--print ref-guard` or `--print pre-push`
+to hand-merge) and is never deleted by `--uninstall`; an AAI hook that predates
+the guard block is upgraded in place by inserting the block after its shebang,
+and a later block revision replaces only the bytes between `# AAI:GUARD-CHECKS
+BEGIN` and `END` (in both the `.sh` and the `.ps1` installer, non-UTF-8 bytes
+and line endings outside the block survive as they were). A hook whose markers
+are inverted, unpaired or duplicated, or that starts with a byte-order mark, is
+refused by name and left byte-identical.
+
+| Hook | `--hooks` token | Marker | What it invokes |
+|------|-----------------|--------|-----------------|
+| `pre-commit` | `index` | `AAI:INDEX-AUTOGEN`, with an `AAI:GUARD-CHECKS` block first | `.aai/scripts/pre-commit-checks.sh` on every commit, then `docs/INDEX.md` regeneration on commits touching `docs/` |
+| `reference-transaction` | `ref-guard` | `AAI:REF-GUARD` | refuses a `refs/heads/main` update unless `AAI_GIT_WRITE=1` is set on that command |
+| `pre-push` | `close-gate` | `AAI:CLOSE-GATE` | `.aai/scripts/close-reconcile.mjs --check` over every pushed range |
+
+**Behaviour changes on your next `/aai-update`** (the installer runs after every
+successful sync; nothing here is a fix you can miss):
+
+1. `pre-commit-checks.sh` now runs on every commit — before this, the
+   installed hook never reached it. Its secrets detection now **blocks** a
+   commit carrying a detected secret (it used to go through), and the
+   doc-numbering guard's findings appear on every commit that carries an
+   unnumbered draft.
+2. Roughly four seconds are added per commit (the doc-numbering guard's own
+   cost, measured).
+3. `doc_number_guard: enforce` became merge-point-aware: it blocks on the
+   default branch only. On any other branch the guard prints its findings plus
+   one line, `Doc-numbering guard: enforce applies on <default> only; on
+   <branch> this is report-only`, and lets the commit through — the AAI flow
+   commits drafts on branches by design (numbering is assigned at merge). The
+   shipped default stays `report-only`.
+
+**The pre-push close gate.** For each pushed ref the hook resolves the default
+branch (`refs/remotes/origin/HEAD`, else `main`, and it says so), then runs
+`close-reconcile.mjs --check` over one range: a default-branch push as
+`<remote sha>..<local sha>` (a first push as `<local>^..<local>` — so a default
+branch that holds a single commit cannot make its first push under
+`close_gate: enforce`: its `<local>^` does not exist, the range cannot be
+resolved, and enforce treats "the gate could not run" as a refusal; make that
+first push with the pushed commit at `report-only`, or after a second commit),
+any other ref as `merge-base(origin/<default>, local)..local`. The verdict rides the existing
+`close_gate` dial, read from the **pushed commit's** `docs/ai/docs-audit.yaml`
+(never the worktree copy): `report-only` prints and allows; `enforce` refuses
+a push to the **default branch only** — feature-branch pushes are always
+report-only, because WIP pushes legitimately precede the close ceremony.
+`node` absent, the script absent or an unresolvable range each print an
+`AAI:CLOSE-GATE NOTE:` line rather than failing silently. A server-side PR
+merge (GitHub, Azure DevOps) never runs a local hook; the one command a CI job
+needs for merge-time detection is
+`node .aai/scripts/close-reconcile.mjs --check --range <before>..<after>` — no
+CI file is vendored.
+
+**Azure DevOps merge subjects.** `close-reconcile.mjs` resolves the PR number
+from a closed grammar table: GitHub's trailing `(#N)` and Azure's `Merged PR
+N: <title>`, selected by `--platform github|azure` or by the origin URL
+(`pr-platform.mjs`). An unrecognised host tries both and, on a miss, refuses by
+name: `reason=pr-number-unknown platform=unknown grammars-tried=github,azure —
+no shipped grammar matches this host; add one to close-reconcile.mjs`.
+
+**`/aai-doctor` CAT-18 Guard Wiring** reports a shipped guard with no caller:
+for `pre-commit-checks.sh` and `close-reconcile.mjs` it checks that the hook
+git would run carries the marker and is executable, and names the installer
+command when it does not.
+
+---
+
 ## Leak-safe test execution
 
 A long `/aai-loop` can orphan hung test process trees: `vitest run` does not exit
