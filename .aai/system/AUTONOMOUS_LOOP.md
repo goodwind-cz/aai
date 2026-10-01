@@ -92,7 +92,9 @@ scope change, so section 6 assigns the decision to the owner. Waiting for that
 decision would strand an autonomous ride at exactly the moment the convention
 earns its keep — so the ride proceeds AND the sign-off it defers becomes a
 tracked obligation the owner can drain, rather than a sentence in a ledger
-nobody is obliged to read.
+nobody is obliged to read. `--signoff none` is the autonomous default; the
+owner is never asked mid-ride, and the sign-off owed is surfaced once, at the
+merge checkpoint.
 
 Record it with the writer, never by hand:
 

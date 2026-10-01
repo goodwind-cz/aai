@@ -29,15 +29,21 @@ AUTOPILOT DEFAULTS (recorded, never silent)
    authority to commit, push and open the pull request — no separate ask.
    The merge checkpoint (step 6) is the one human gate, and it sits at the
    merge, not before the PR.
+5. Post-freeze spec amendment: `--signoff none` is the autonomous default;
+   the owner is never asked mid-ride. The sign-off owed surfaces at step 6.
 
 RUN
 1. INTAKE — follow .aai/SKILL_INTAKE.prompt.md with the need, applying the
    defaults above. Capture the resulting ref_id. Skip entirely when
    `unattended=true` (INPUT already required an existing `--intake`).
    1a. RIDE GATE — run `node .aai/scripts/ride-select.mjs gate --ref <ref_id>
-   --intake <primary_path>`. Non-zero: STOP and print its message verbatim
+   --intake <primary_path>`. No `docs/ai/roadmap.yaml` admits with a
+   `roadmap absent` line; carry `roadmap absent, gate not consulted (autopilot default)`
+   into the step 6 `ride gate:` line (STATE has no field for it).
+   Non-zero: STOP and print its message verbatim
    (a maintenance ride before its paired capability, an off-roadmap fix that
-   belongs in the backlog, a done ref, or an unreadable roadmap). The owner's
+   belongs in the backlog, a done ref, or
+   a present but unreadable or invalid roadmap). The owner's
    `--override "<reason>"` is logged to EVENTS, never silent.
    1b. UNATTENDED PREFLIGHT (only when `unattended=true`) — run
    `node .aai/scripts/unattended-gate.mjs preflight --intake <primary_path>
@@ -78,6 +84,10 @@ RUN
    - evidence: validation report path + review verdict path
    - product doc path (or the recorded skip reason)
    - the pull request's URL
+   - `ride gate: <the gate's ADMIT line>`
+   - `owed sign-offs: <open fu-amend ids>` from
+     `node .aai/scripts/follow-ups.mjs list --status open --ref <ref_id>`
+     (omit when none)
    - "Merging stays operator-only — review the PR above and merge it
      yourself when ready."
    UNDER A STANDING AUTHORIZATION (SKILL_PR step 6: an owner-signed
@@ -91,7 +101,8 @@ STRICT RULES
 - Every autopilot decision is written to STATE with its rationale.
 - HITL questions above the unattended quality boundary (scope, cost,
   irreversibility, guard, unknown), L3/required worktree gates, and review
-  waivers are NEVER auto-answered.
+  waivers are NEVER auto-answered. A post-freeze spec amendment is NOT one
+  of them: `--signoff none` (default 5), never a question.
 - No PASS without executable evidence; no pull request without validation
   PASS and the satisfied review gate. Merging is operator-only unless an
   owner-signed standing authorization covers the ride (SKILL_PR step 6).

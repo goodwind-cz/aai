@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-09-30T17:24:16.289Z
+Generated: 2026-10-01T01:04:04.281Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (29)
+## Product (30)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -31,6 +31,7 @@ _None._
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
+| downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
 | implementation-mode-choice | implementation-mode-choice | 1 | docs/product/implementation-mode-choice.md |
@@ -51,7 +52,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (472)
+## Done (474)
 
 | ID | Type | Path |
 |---|---|---|
@@ -248,6 +249,7 @@ _None._
 | CHANGE-0196 | issues | docs/issues/CHANGE-0196-antigravity-cli-skill-paths.md |
 | CHANGE-0197 | issues | docs/issues/CHANGE-0197-pricing-missing-models-and-refresh.md |
 | CHANGE-0198 | issues | docs/issues/CHANGE-0198-pricing-gpt-6-flagship-family.md |
+| CHANGE-0200 | issues | docs/issues/CHANGE-0200-downstream-rides-ask-no-governance-questions.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -525,6 +527,7 @@ _None._
 | SPEC-0197 | specs | docs/specs/SPEC-0197-spec-pricing-missing-models-and-refresh.md |
 | SPEC-0198 | specs | docs/specs/SPEC-0198-spec-pricing-gpt-6-flagship-family.md |
 | SPEC-0199 | specs | docs/specs/SPEC-0199-spec-sync-deletes-target-only-hooks.md |
+| SPEC-0200 | specs | docs/specs/SPEC-0200-spec-downstream-rides-ask-no-governance-questions.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -599,4 +602,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-09-30 — counts above use this date for overdue checks.
+Today (UTC): 2026-10-01 — counts above use this date for overdue checks.
