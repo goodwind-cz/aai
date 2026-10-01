@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-01T21:31:13.221Z
+Generated: 2026-10-01T21:33:06.431Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0204 | specs | implementing | 12 done, 1 implementing | docs/specs/SPEC-0204-spec-a-check-cannot-tell-silence-from-a-verdict.md |
+| SPEC-0204 | specs | implementing | 13 done | docs/specs/SPEC-0204-spec-a-check-cannot-tell-silence-from-a-verdict.md |
 
 ## Canonical layer (0)
 
