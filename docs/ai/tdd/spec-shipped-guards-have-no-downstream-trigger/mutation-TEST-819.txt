@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-819: the run announced an install while the slot was a directory: Installed AAI pre-push hook (AAI:CLOSE-GATE) at /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-hygiene.ho9s8k/sg-t819/.git/hooks/pre-push
 selector_honoured: yes
-target_sha256: 997200110f412b6c15ed602edb2b1119ffc5bd381b985a1055a5666e47159b51
+target_sha256: f520799d0bceea1c61da7d8926d7f2158370f0af0192bb467365cfd1971a606f
 ---
 INFO: Checking dependencies...
 PASS: Dependencies checked

@@ -921,11 +921,13 @@ write_prepush_hook() {
     echo "ERROR: could not write $tmp (the effective hooks directory may be missing)." >&2
     return 1
   fi
+  cp "$tmp" "$tmp.want" || { rm -f "$tmp" "$tmp.want"; echo "ERROR: could not stage the pre-push body for attestation." >&2; return 1; }
   if ! chmod +x "$tmp" || ! mv -f "$tmp" "$PREPUSH_PATH"; then
-    rm -f "$tmp"
+    rm -f "$tmp" "$tmp.want"
     echo "ERROR: could not move $tmp into place at $PREPUSH_PATH." >&2
     return 1
   fi
+  attest_slot_write "$PREPUSH_PATH" "$tmp.want" "pre-push" "$(basename "$tmp")" || return 1
   echo "Installed AAI pre-push hook (AAI:CLOSE-GATE) at $PREPUSH_PATH"
   echo "Effect: every push runs close-reconcile.mjs --check over the pushed range (report-only; close_gate: enforce refuses a default-branch push only)."
 }
@@ -941,9 +943,29 @@ write_prepush_hook() {
 # and the bytes agree.
 assert_regular_slot() {
   local slot="$1" label="$2" kind
-  # A symlink is NOT handled here: the dedicated lstat refusal downstream owns
-  # that case and its wording is pinned by a test. Defer to it.
-  [ -L "$slot" ] && return 0
+  # Validation round 3 B1: this used to return early on EVERY symlink, with a
+  # comment claiming "the dedicated lstat refusal downstream owns them". That
+  # refusal lives only in upgrade_precommit_hook; write_prepush_hook and
+  # write_precommit_fresh never had one, so a symlink TO A DIRECTORY reached
+  # `mv -f`, which follows the link and drops the body inside the target —
+  # including a target outside the repository — while the run printed
+  # "Installed". The comment asserted a guard it had not checked for, which is
+  # the very class this ride exists to close. A symlink is now judged by what
+  # it RESOLVES to; only a link to a regular file is handed on to the upgrade
+  # path's own lstat refusal, whose wording TEST-802 pins.
+  if [ -L "$slot" ]; then
+    if [ -d "$slot" ]; then
+      echo "ERROR: $label slot $slot is a symbolic link to a directory. Nothing was written: following it would drop the hook body inside that directory, possibly outside this repository. Replace the link with a regular file, or remove it, then re-run." >&2
+      return 1
+    fi
+    if [ ! -e "$slot" ]; then
+      echo "ERROR: $label slot $slot is a dangling symbolic link. Nothing was written: following it would create a file at a target this repository does not own. Remove the link, then re-run." >&2
+      return 1
+    fi
+    [ -f "$slot" ] && return 0
+    echo "ERROR: $label slot $slot is a symbolic link to something that is not a regular file. Nothing was written. Remove the link, then re-run." >&2
+    return 1
+  fi
   [ -e "$slot" ] || return 0
   [ -f "$slot" ] && return 0
   if [ -d "$slot" ]; then kind="a directory"
@@ -952,6 +974,25 @@ assert_regular_slot() {
   else kind="not a regular file"
   fi
   echo "ERROR: $label slot $slot is $kind, not a regular file. Nothing was written and the slot is untouched. Remove or rename it, then re-run." >&2
+  return 1
+}
+
+# attest_slot_write — validation round 3's structural answer. Checking the
+# slot BEFORE the write can only enumerate the states someone thought of, and
+# it cannot see a slot that changes between the check and the rename. So the
+# writers now verify the OUTCOME: after the rename, the slot must be a regular
+# file (not a link) whose bytes are the ones composed. Only then may a success
+# line be printed. A mismatch removes the stray the rename may have left
+# elsewhere and reports what actually happened.
+attest_slot_write() {
+  local slot="$1" expected="$2" label="$3" tmpname="$4"
+  if [ ! -L "$slot" ] && [ -f "$slot" ] && cmp -s "$slot" "$expected"; then
+    rm -f "$expected"
+    return 0
+  fi
+  rm -f "$expected"
+  [ -n "$tmpname" ] && rm -f "$slot/$tmpname" 2>/dev/null
+  echo "ERROR: the $label hook was composed but did not land at $slot — the bytes there are not the ones written (the slot may be a link or a directory). No hook was installed; any stray temporary file has been removed." >&2
   return 1
 }
 
@@ -975,11 +1016,13 @@ write_precommit_fresh() {
     echo "ERROR: could not write $tmp (the effective hooks directory may be missing)." >&2
     return 1
   fi
+  cp "$tmp" "$tmp.want" || { rm -f "$tmp" "$tmp.want"; echo "ERROR: could not stage the pre-commit body for attestation." >&2; return 1; }
   if ! chmod +x "$tmp" || ! mv -f "$tmp" "$HOOK_PATH"; then
-    rm -f "$tmp"
+    rm -f "$tmp" "$tmp.want"
     echo "ERROR: could not move $tmp into place at $HOOK_PATH." >&2
     return 1
   fi
+  attest_slot_write "$HOOK_PATH" "$tmp.want" "pre-commit" "$(basename "$tmp")" || return 1
   echo "Installed AAI pre-commit hook at $HOOK_PATH"
   echo "Effect: pre-commit-checks.sh now runs on every commit (secrets detection blocks; roughly four seconds per commit); on every commit that touches docs/, regenerate docs/INDEX.md and stage it."
 }

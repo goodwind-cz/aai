@@ -5376,6 +5376,29 @@ test_819_nonregular_slot_is_refused_before_any_write() {  # TEST-819 / Spec-AC-1
   esac
   [[ -d "$slot" ]] \
     || log_fail "TEST-819: the user's directory was replaced"
+
+  # validation round 3 B1: the same lie through a SYMLINK to a directory —
+  # `mv -f` follows the link, so the body landed inside the target, including
+  # a target outside the repository, while the run printed "Installed".
+  local out2 rc2 od ob oa
+  od="$TEST_DIR/t819-outside"
+  mkdir -p "$od"
+  printf 'precious\n' > "$od/user-file"
+  ob="$(ls -A "$od" | sort | tr '\n' ' ')"
+  rm -rf "$slot"
+  ln -s "$od" "$slot"
+  rc2=0; out2="$(sg_install "$d" --hooks close-gate 2>&1)" || rc2=$?
+  oa="$(ls -A "$od" | sort | tr '\n' ' ')"
+  [[ "$rc2" -ne 0 ]] \
+    || log_fail "TEST-819: a symlink-to-directory slot must refuse, got rc=$rc2"
+  case "$out2" in
+    *"Installed AAI pre-push hook"*)
+      log_fail "TEST-819: the run announced an install through a symlink to a directory: $out2" ;;
+  esac
+  [[ "$ob" == "$oa" ]] \
+    || log_fail "TEST-819: the symlink's target directory changed (before [$ob] after [$oa]) — the body was written through the link"
+  [[ -L "$slot" ]] \
+    || log_fail "TEST-819: the symlink was replaced instead of refused"
   [[ "$before" == "$after" ]] \
     || log_fail "TEST-819: the directory gained or lost entries (before [$before] after [$after]) — a temp file was moved inside it"
 

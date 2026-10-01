@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-807: with origin/HEAD at trunk an enforce push of trunk must be refused, got exit 0: AAI:CLOSE-GATE NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)
 selector_honoured: yes
-target_sha256: 997200110f412b6c15ed602edb2b1119ffc5bd381b985a1055a5666e47159b51
+target_sha256: f520799d0bceea1c61da7d8926d7f2158370f0af0192bb467365cfd1971a606f
 ---
 INFO: Checking dependencies...
 PASS: Dependencies checked
