@@ -7,7 +7,15 @@ Composes existing canon; do NOT re-derive role logic here.
 
 INPUT
 - A free-text need from the user (any language), OR a path to an existing
-  open intake doc. With neither, ask for the need and stop.
+  open intake doc. With neither, first run `node .aai/scripts/ride-select.mjs show`:
+  `no roadmap` means ask for the need (print no gate text), else run
+  `node .aai/scripts/ride-select.mjs next --json`:
+  a `next` with a `path` is ridden as if that path had been passed; a
+  `file-intake` is ridden as the need, topic = the `ref` slug's words, and
+  step 1 files that intake with frontmatter `id: <ref>` (the roadmap slug
+  wins over the topic-derived slug of DURABLE DOC IDENTITY); any other
+  answer (non-zero exit, `next: null`, `bind`) is printed verbatim, then ask
+  for the need and stop.
 - Unattended (opt-in, never default): the caller passes `unattended=true`
   plus `--intake <path to an existing document>`. Unattended NEVER accepts a
   free-text need — it never authors an intake document (D5); a free-text need
@@ -45,6 +53,11 @@ RUN
    belongs in the backlog, a done ref, or
    a present but unreadable or invalid roadmap). The owner's
    `--override "<reason>"` is logged to EVENTS, never silent.
+   After an ADMIT run
+   `node .aai/scripts/roadmap-edit.mjs ship-append --ref <ref_id> --intake <primary_path>`
+   (a named no-op unless a budget-free roadmap exists and this is a new
+   capability) and carry its one line (`roadmap: appended <ref_id>` when it
+   wrote) into step 6 as `roadmap: <line>`.
    1b. UNATTENDED PREFLIGHT (only when `unattended=true`) — run
    `node .aai/scripts/unattended-gate.mjs preflight --intake <primary_path>
    --max-ticks <n> --stagnation-limit <n> --max-run-tokens <n>
@@ -85,6 +98,7 @@ RUN
    - product doc path (or the recorded skip reason)
    - the pull request's URL
    - `ride gate: <the gate's ADMIT line>`
+   - `roadmap: <the ship-append line>` (omit when step 1a did not run it)
    - `owed sign-offs: <open fu-amend ids>` from
      `node .aai/scripts/follow-ups.mjs list --status open --ref <ref_id>`
      (omit when none)

@@ -8,6 +8,7 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 - [Quick Reference](#quick-reference)
 - [Skills Catalog](#skills-catalog)
 - [Workflows](#workflows)
+- [Roadmap: when and how](#roadmap-when-and-how)
 - [Best Practices](#best-practices)
 - [Leak-safe test execution](#leak-safe-test-execution)
 - [Troubleshooting](#troubleshooting)
@@ -166,6 +167,7 @@ AAI uses two different classes of documentation:
 | `/aai-share` | Share results | Publish to Cloudflare Pages |
 | `/aai-loop` | Autonomous work | Multi-tick autonomous loop |
 | `/aai-ship` | State a need, get a PR | Runs intake through review end-to-end, pauses only to open the PR |
+| `/aai-roadmap` | Order what is built next | Shows and changes the roadmap through a menu; `/aai-ship` with no argument then takes the next item |
 | `/aai-hitl` | Loop asked for you | Surfaces the blocked question and unblocks the loop |
 | `/aai-update` | Refresh AAI | Re-sync vendored AAI layer from canonical git `main` |
 
@@ -383,6 +385,25 @@ unexpected internal error.
 ```
 
 **Note:** Every issue becomes an intake only after you approve it — the skill proposes, it does not enrol work on your behalf.
+
+#### `/aai-roadmap`
+
+**What:** Shows and changes the project's roadmap — the ordered list of capabilities to build next — through a menu. You never type a script and never edit the roadmap file: every action is one deterministic step the skill runs for you and checks before it keeps it.
+
+**When to use:**
+- You want to see what is next, or put capabilities in the order you want them built
+- You want `/aai-ship` with no argument to know what to take next
+- You want to turn the paired-maintenance budget on or off
+- You want ranked candidates from drafts and friction to choose from (harvest)
+
+**Example:**
+```bash
+/aai-roadmap
+/aai-roadmap add
+/aai-roadmap reorder
+```
+
+**Note:** Every question is a menu with a recommended default. The actions are show, add, reorder, harvest, done, drop, budget (on or off) and off. See [Roadmap: when and how](#roadmap-when-and-how) for three worked examples.
 
 ### 3. Development Workflows
 
@@ -2109,6 +2130,55 @@ Notes:
 - In `skill` mode the script checks `.claude/skills/AAI_DYNAMIC_SKILLS.md` as a bootstrap marker; use `-SkipBootstrapCheck` / `--skip-bootstrap-check` only when you intentionally skip dynamic-skills bootstrap.
 - Use `-DryRun` (PowerShell) or `--dry-run` (Bash) to verify loop behavior without executing the agent command.
 - Validate skill readiness and evidence with `.aai/scripts/validate-skills.sh` / `.aai/scripts/validate-skills.ps1`.
+
+---
+
+## Roadmap: when and how
+
+The roadmap is an ordered list of the capabilities your project builds next. It lives in `docs/ai/roadmap.yaml`, and you work with it through `/aai-roadmap` and `/aai-ship`; the file itself is never edited by hand. It has three postures, and you choose by what you create:
+
+| Posture | How you get it | What it does |
+|---------|----------------|--------------|
+| No roadmap | Do nothing (the default) | Nothing is ordered and nothing is consulted; every ride is admitted as before |
+| Roadmap without a budget | `/aai-roadmap add` | The list orders the work; `/aai-ship` with no argument takes the next item; rides are never refused for being out of order |
+| Roadmap with a budget | `/aai-roadmap add` first, then `/aai-roadmap budget` and pick on | As above, plus every capability is paired 1:1 with one maintenance ride, and the gate refuses a maintenance ride whose capability has not started and an off-roadmap fix |
+
+What the skill runs underneath: each menu action is one script call (`ride-select.mjs show`, `roadmap-edit.mjs add|move|done|drop|budget|off`, `roadmap-propose.mjs harvest|write`), and every write is checked by `ride-select.mjs validate` and undone if it fails.
+
+### Example 1: no roadmap
+
+You have just installed AAI and have no roadmap. State a need and the factory rides it, exactly as before:
+
+```
+/aai-ship "the export should include the creation date"
+```
+
+Nothing asks about a roadmap, and the ride report carries the gate line `ADMIT <name> — roadmap absent (docs/ai/roadmap.yaml): gate not consulted`. When you later want order, run `/aai-roadmap`: it prints `no roadmap` and offers a menu whose recommended default is to add your first capability.
+
+### Example 2: a roadmap without a budget
+
+You want three capabilities built in a fixed order and no maintenance pairing:
+
+```
+/aai-roadmap add          # pick the capability, accept the default position (the end)
+/aai-roadmap add          # again, for the second and third
+/aai-roadmap              # show: the next item, what is done, what waits
+/aai-ship                 # no argument: takes the next item on the roadmap
+```
+
+A capability you only named has no document yet. `/aai-ship` with no argument then files its intake for you under the roadmap name (the name on the list becomes the intake's id) and rides it through to the pull request; the next `/aai-ship` moves on to the following item. When a ride ships a capability that is not yet on the list, `/aai-ship` appends it for you and says `roadmap: appended <name>` in its report; during the close ceremony, before the push, the item is marked done. Fixes and chores are admitted at any time. Fixes and chores are admitted at any time. To change the order later, run `/aai-roadmap reorder`.
+
+### Example 3: a roadmap with a budget
+
+You want every capability paired with one maintenance ride (the 1:1 budget) so tidy-up work keeps pace with new work:
+
+```
+/aai-roadmap add          # the first capability (a roadmap must exist before a budget can be switched on)
+/aai-roadmap budget       # pick "on" (the skill explains the pairing in one line)
+/aai-ship                 # no argument: takes the next item on the roadmap
+```
+
+With the budget on, `/aai-ship` for a maintenance ride whose capability has not started is refused with the reason, and an off-roadmap fix is sent to the backlog; you can override once with a stated reason, which is logged. Add more capabilities with `/aai-roadmap add` (or let `/aai-roadmap harvest` rank candidates from your drafts); switch the budget off again with `/aai-roadmap budget` (the pairing lines stay in the file, inactive, so switching back loses nothing). To drop the roadmap entirely, `/aai-roadmap off` asks for confirmation and recommends keeping it.
 
 ---
 

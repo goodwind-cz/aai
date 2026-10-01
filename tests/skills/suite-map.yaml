@@ -320,7 +320,26 @@ suites:
     globs:
       - .aai/scripts/ride-select.mjs
       - .aai/scripts/roadmap-propose.mjs
+      - .aai/scripts/lib/roadmap-model.mjs
       - docs/ai/roadmap.yaml
+
+  # aai-roadmap also asserts the prose and docs that wire the skill in (SHIP, PR,
+  # AGENTS, PROFILES, USER_GUIDE, README, the product doc).
+  aai-roadmap:
+    globs:
+      - .aai/scripts/roadmap-edit.mjs
+      - .aai/scripts/lib/roadmap-model.mjs
+      - .aai/SKILL_ROADMAP.prompt.md
+      - .claude/skills/aai-roadmap/SKILL.md
+      - .aai/scripts/nothing-left-behind.mjs
+      - .aai/scripts/ride-select.mjs
+      - .aai/SKILL_SHIP.prompt.md
+      - .aai/SKILL_PR.prompt.md
+      - .aai/AGENTS.md
+      - .aai/system/PROFILES.yaml
+      - docs/USER_GUIDE.md
+      - docs/product/roadmap.md
+      - README.md
 
   aai-downstream-autopilot:
     globs:
