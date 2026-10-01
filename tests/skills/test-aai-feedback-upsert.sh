@@ -1219,6 +1219,99 @@ test_042_secondary_rate_limit_hint() {
   log_pass "the reporter's own rate-limit line, and GitHub's literal secondary wording, both add the fixed hint (TEST-042)"
 }
 
+# --- TEST-1352 (Spec-AC-12): a dedup search that could not run says WHY ------
+# The PUBLISH path has named the real refusal since #371 (exit status +
+# certified stderr + the rate-limit hint). The PREPARE path did not: every
+# unavailable dedup rendered the same status-free sentence, so an operator
+# reading `not offered:` could not tell a 60-second rate limit from a
+# permanently unreadable repository -- this ride's own defect class, inside
+# this ride's own tooling.
+#
+# So the assertion here is DISCRIMINATION, not presence. A test that only
+# checked "some text appears" would stay green on the very bug being fixed,
+# because the status-free sentence IS some text. Two arms differing ONLY in
+# what `gh` did must produce operator-visible text that differs, in BOTH
+# surfaces prepare writes: the console line and the draft on disk.
+test_1352_dedup_unavailable_is_discriminated() {
+  log_info "Test: prepare and the draft name the gh exit status, the certified stderr and the rate-limit hint, and a rate limit reads differently from no access (TEST-1352)..."
+  local draft="$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md"
+  local rl_stderr="HTTP 403: API rate limit exceeded for user ID 1234567."
+  local na_stderr="gh: Resource not accessible by integration"
+
+  # --- arm A: rate-limited (the reporter's own wording from #371) ----------
+  seed_single_candidate
+  rm -f "$draft"
+  SEARCH_FAIL=1; SEARCH_FAIL_CODE=1; SEARCH_STDERR="$rl_stderr"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
+  local out_rl draft_rl
+  out_rl="$(cat "$TEST_DIR/out")"
+  [ -f "$draft" ] || log_fail "TEST-1352: a blocked candidate must still be written as a draft (arm A)"
+  draft_rl="$(cat "$draft")"
+
+  # --- arm B: no access (same exit path, different cause, different code) --
+  seed_single_candidate
+  rm -f "$draft"
+  SEARCH_FAIL=1; SEARCH_FAIL_CODE=4; SEARCH_STDERR="$na_stderr"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
+  local out_na draft_na
+  out_na="$(cat "$TEST_DIR/out")"
+  [ -f "$draft" ] || log_fail "TEST-1352: a blocked candidate must still be written as a draft (arm B)"
+  draft_na="$(cat "$draft")"
+  SEARCH_FAIL=0; SEARCH_FAIL_CODE=1; SEARCH_STDERR=""
+
+  # Both arms still state the status and the fail-closed reason -- the
+  # widening ADDS to what was said, it does not replace it.
+  local name text
+  for name in out_rl out_na draft_rl draft_na; do
+    eval "text=\"\$$name\""
+    assert_payload_contains "$text" "blocked_dedup_unavailable" "TEST-1352: $name must still carry the status"
+    assert_payload_contains "$text" "fail-closed" "TEST-1352: $name must still name the fail-closed refusal"
+  done
+
+  # Arm A: exit status, the certified stderr line, and the rate-limit hint.
+  for name in out_rl draft_rl; do
+    eval "text=\"\$$name\""
+    assert_payload_contains "$text" "exit 1" "TEST-1352: $name must name the gh exit status"
+    assert_payload_contains "$text" "$rl_stderr" "TEST-1352: $name must carry the certified stderr detail"
+    assert_payload_contains "$text" "gh api rate_limit" "TEST-1352: $name must carry the rate-limit hint"
+    assert_payload_not_contains "$text" "exit 4" "TEST-1352: $name must not name another run's exit status"
+  done
+
+  # Arm B: the OTHER exit status, its own detail, and NO hint. Without this
+  # negative direction a mutation that printed the hint unconditionally would
+  # leave the discrimination unproven while every positive assertion passed.
+  for name in out_na draft_na; do
+    eval "text=\"\$$name\""
+    assert_payload_contains "$text" "exit 4" "TEST-1352: $name must name the gh exit status"
+    assert_payload_contains "$text" "$na_stderr" "TEST-1352: $name must carry the certified stderr detail"
+    assert_payload_not_contains "$text" "rate limit" "TEST-1352: a no-access refusal must carry no rate-limit hint in $name"
+    assert_payload_not_contains "$text" "gh api rate_limit" "TEST-1352: a no-access refusal must not point at gh api rate_limit in $name"
+    assert_payload_not_contains "$text" "exit 1" "TEST-1352: $name must not name another run's exit status"
+  done
+
+  # THE row's own claim, stated as one comparison: the two causes are not the
+  # same sentence. This is what a status-free BLOCK_REASON could never satisfy.
+  [ "$out_rl" != "$out_na" ] \
+    || log_fail "TEST-1352: a rate-limited and a no-access dedup print IDENTICAL prepare output ($(payload_preview "$out_rl"))"
+  [ "$draft_rl" != "$draft_na" ] \
+    || log_fail "TEST-1352: a rate-limited and a no-access dedup write IDENTICAL drafts ($(payload_preview "$draft_rl"))"
+
+  # Negative control: an UNPARSEABLE search (gh exited 0) must NOT be rendered
+  # as "(exit 0)" -- a status that reads as "gh said everything is fine" is
+  # the same class of lie this row exists to remove.
+  seed_single_candidate
+  rm -f "$draft"
+  printf 'not json {[' > "$TEST_DIR/garbage1352.json"; SEARCH_RESULT="$TEST_DIR/garbage1352.json"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
+  local out_pf; out_pf="$(cat "$TEST_DIR/out")"
+  SEARCH_RESULT="$TEST_DIR/empty.json"
+  assert_payload_contains "$out_pf" "blocked_dedup_unavailable" "TEST-1352: a parse failure is still a blocked dedup"
+  assert_payload_not_contains "$out_pf" "exit 0" "TEST-1352: a parse failure must never be rendered as exit 0"
+  assert_payload_not_contains "$out_pf" "gh api rate_limit" "TEST-1352: a parse failure carries no rate-limit hint"
+
+  log_pass "an unavailable dedup names the exit status, the certified stderr and the hint, and the three causes read differently (TEST-1352)"
+}
+
 # --- TEST-043 (Spec-AC-10): a hostile multi-line stderr is capped to the ----
 # certified first line, never leaking a token or a URL -----------------------
 test_043_hostile_stderr_is_capped_and_redacted() {
@@ -2268,6 +2361,7 @@ main() {
     declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
     "$1"; echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="; return
   fi
+  test_1352_dedup_unavailable_is_discriminated
   test_001_prepare_no_write
   test_002_template_and_redaction
   test_004_dedup

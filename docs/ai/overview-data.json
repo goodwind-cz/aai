@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-01T13:59:51.070Z",
+  "generatedAt": "2026-10-01T21:33:13.291Z",
   "project": "aai",
   "counts": {
-    "delivered": 272,
+    "delivered": 273,
     "in_progress": 15,
     "releases": 1,
     "tokens_total": 71857830
@@ -259,6 +259,19 @@
       "spec": "docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md",
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "a-check-cannot-tell-silence-from-a-verdict",
+      "title": "Issue — a check cannot tell silence from a verdict",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0092-a-check-cannot-tell-silence-from-a-verdict.md",
+      "closed_on": "2026-10-01",
+      "agent_minutes": 171,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0204-spec-a-check-cannot-tell-silence-from-a-verdict.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-a-check-cannot-tell-silence-from-a-verdict-20261001T191739Z.md"
     },
     {
       "ref": "sync-deletes-target-only-hooks",
@@ -3822,6 +3835,19 @@
           "spec": "docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md",
           "validation": null,
           "review": null
+        },
+        {
+          "ref": "a-check-cannot-tell-silence-from-a-verdict",
+          "title": "Issue — a check cannot tell silence from a verdict",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0092-a-check-cannot-tell-silence-from-a-verdict.md",
+          "closed_on": "2026-10-01",
+          "agent_minutes": 171,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0204-spec-a-check-cannot-tell-silence-from-a-verdict.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-a-check-cannot-tell-silence-from-a-verdict-20261001T191739Z.md"
         }
       ]
     },

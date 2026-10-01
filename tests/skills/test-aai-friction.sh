@@ -830,6 +830,65 @@ test_104_evidence_ref_shape() {
   log_pass "evidence_ref: safe pointers accepted; URL/abs/free rejected (TEST-104)"
 }
 
+# --- TEST-1353 (Spec-AC-13): a 3-digit AAI doc id is a real id -------------
+# `SPEC-080` exists in this repository's own docs tree, and the shape gate
+# rejected it because the doc-id arm hard-coded FOUR digits. The widening is
+# `\d{4}` -> `\d{3,4}`, and the whole point of this row is that it widens
+# the DIGIT COUNT and nothing else: the gate exists to keep URLs, absolute
+# paths and traversal out, so a change that also admitted one new character
+# would be a different, much worse change wearing this one's clothes. Both
+# halves are asserted — the behaviour (3 digits in, 2 digits and every unsafe
+# shape still out) and the STATIC claim that narrowing the quantifier back to
+# `{4}` reproduces the predecessor regex byte-for-byte.
+test_1353_evidence_ref_three_digit_doc_id() {
+  log_info "Test: evidence_ref accepts a 3-digit AAI doc id and still rejects 2 digits, URLs, absolute and traversal paths (TEST-1353)..."
+  local sp="$TEST_DIR/sp1353"; mkdir -p "$sp"
+  # ACCEPTED: three digits (SPEC-080 is a real doc in this repo) and four
+  # digits (the pre-existing width must not regress), persisted verbatim.
+  local good
+  for good in "SPEC-080" "ISSUE-091" "RFC-002" "SPEC-0079"; do
+    rm -f "$sp/observations.jsonl"
+    write_v2 "$TEST_DIR/g1353.json" ",
+  \"evidence_ref\": \"$good\""
+    [ "$(run_record "$sp" "$TEST_DIR/g1353.json")" = "0" ] \
+      || log_fail "TEST-1353: '$good' must be accepted ($(cat "$ERR"))"
+    [ "$(line_get "$sp/observations.jsonl" evidence_ref)" = "$good" ] \
+      || log_fail "TEST-1353: '$good' must persist verbatim"
+  done
+  # STILL REJECTED: the narrowing direction (2 digits and 5 digits are not AAI
+  # doc ids), plus the three surfaces the gate exists for. A widened digit
+  # count must not have opened any of them.
+  local bad
+  for bad in "SPEC-80" "SPEC-8" "SPEC-00799" "https://evil.example.com/SPEC-080" \
+             "/etc/passwd" "docs/../../etc/passwd" "../docs/SPEC-080" \
+             "SPEC-080-private-customer-acme" "SPEC-080 " "spec-080"; do
+    write_v2 "$TEST_DIR/b1353.json" ",
+  \"evidence_ref\": \"$bad\""
+    [ "$(run_record "$sp" "$TEST_DIR/b1353.json")" != "0" ] \
+      || log_fail "TEST-1353: '$bad' must still be rejected"
+    grep -qF "evidence_ref" "$ERR" || log_fail "TEST-1353: the rejection of '$bad' must name 'evidence_ref'"
+  done
+  # STATIC: no new character class. Narrowing the quantifier back to {4} must
+  # reproduce the predecessor regex EXACTLY — any other edit to the pattern
+  # (a new character in a class, a dropped anchor, a new alternative) fails
+  # here even while every behavioural case above still passes.
+  local rc=0
+  node -e '
+    const fs = require("fs");
+    const src = fs.readFileSync(process.argv[1], "utf8");
+    const m = src.match(/^const EVIDENCE_REF_RE = (\/.*\/);$/m);
+    if (!m) { console.error("EVIDENCE_REF_RE not found as a single-line regex literal"); process.exit(1); }
+    const PREDECESSOR = "/^(?:docs\\/[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*|(?:SPEC|CHANGE|ISSUE|RFC|PRD|RES|DEBT)-\\d{4})$/";
+    const narrowed = m[1].replace("{3,4}", "{4}");
+    if (narrowed !== PREDECESSOR) {
+      console.error("the widening is not quantifier-only;\nshipped:   " + m[1] + "\nnarrowed:  " + narrowed + "\nexpected:  " + PREDECESSOR);
+      process.exit(1);
+    }
+  ' "$SCRIPT" 2>"$ERR" || rc=$?
+  [ "$rc" = "0" ] || log_fail "TEST-1353: the evidence_ref widening must admit no new character class ($(cat "$ERR"))"
+  log_pass "evidence_ref admits a 3-digit AAI doc id, still refuses 2 digits, URLs, absolute and traversal paths, and widened nothing but the digit count (TEST-1353)"
+}
+
 # --- TEST-105 (Spec-AC-04): summary opt-in default off ----------------------
 test_105_summary_optin() {
   log_info "Test: summary is opt-in (default off); clean summary → capture_clean (TEST-105)..."
@@ -1247,6 +1306,7 @@ main() {
     return
   fi
 
+  test_1353_evidence_ref_three_digit_doc_id
   test_001_protocol_sections
   test_002_wellformed_accepted
   test_003_missing_field

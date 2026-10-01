@@ -47,8 +47,8 @@ links:
 ## Acceptance Criteria
 | AC | Status | Evidence |
 |---|---|---|
-| AC-001: when ≥2 scanned docs share a frontmatter `id`, docs-audit emits a `duplicate-doc-id` finding naming the id + all carrying paths, and the verdict becomes NEEDS-TRIAGE. | pending | |
-| AC-002: no false positives — a unique-id corpus (the real repo) reports zero duplicate-doc-id findings; the fileId/slug distinction is respected (a doc's slug id and its numbered fileId are the same doc, not a duplicate). Existing docs-audit behavior/verdicts otherwise unchanged; suite green. | pending | |
+| AC-001: when ≥2 scanned docs share a frontmatter `id`, docs-audit emits a `duplicate-doc-id` finding naming the id + all carrying paths, and the verdict becomes NEEDS-TRIAGE. | done | |
+| AC-002: no false positives — a unique-id corpus (the real repo) reports zero duplicate-doc-id findings; the fileId/slug distinction is respected (a doc's slug id and its numbered fileId are the same doc, not a duplicate). Existing docs-audit behavior/verdicts otherwise unchanged; suite green. | done | |
 
 Ceremony justification: additive detection in one governance script
 (docs-audit-core.mjs) + regression stanzas; no shared-schema change, no

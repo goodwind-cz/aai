@@ -185,6 +185,62 @@ export function readRefGuardPolicy(dir, opts = {}) {
   return 'armed';   // absent key: fail-CLOSED default (D3)
 }
 
+// --- Ref-guard interpreter lookup (spec-a-check-cannot-tell-silence-from-a-
+// verdict D3) ----------------------------------------------------------------
+//
+// aai-doctor's CAT-17 probe runs the reference-transaction hook FILE itself.
+// On POSIX the OS loader honours the shebang, so there is exactly one
+// launcher: exec the file. Windows has no OS-level shebang support, so the
+// probe must name an interpreter — and the one it used to name was bare `sh`
+// then bare `bash`. On a PowerShell host without Git Bash on PATH that is
+// ENOENT followed by `C:\Windows\system32\bash.exe`, i.e. WSL: a different
+// filesystem, a different environment, and a hook that cannot refuse what it
+// cannot see (GitHub #369, spec M4).
+//
+// Git for Windows ships its own POSIX shell beside its exec-path, and that is
+// the interpreter Git ITSELF would use to run this hook. So: derive it, and
+// put it FIRST. This function is PURE and fully injectable (`platform`,
+// `gitExecPath`, `exists`) so the win32 branch is testable on any OS —
+// what that CANNOT prove is that a real Git for Windows install has this
+// layout (residual risk R1; the behavioural evidence is the windows-wsl1 CI
+// step, not a local green).
+
+// `…/Git/mingw64/libexec/git-core` -> `…/Git/usr/bin/sh.exe`, or null when the
+// exec-path is empty or not absolute. win32 semantics explicitly, so the
+// derivation is identical whether this runs on Windows or on a POSIX host
+// evaluating a synthetic path; `path.win32` accepts both separators.
+function gitForWindowsShell(gitExecPath) {
+  const w = path.win32;
+  const core = String(gitExecPath || '').trim().replace(/[\\/]+$/, '');
+  if (core === '' || !w.isAbsolute(core)) return null;
+  // Three levels up from git-core: libexec, then mingw64/mingw32, then the
+  // installation root. A relative resolve would silently borrow this
+  // process's cwd, which is why the isAbsolute guard above is not optional.
+  const root = w.resolve(core, '..', '..', '..');
+  return w.join(root, 'usr', 'bin', 'sh.exe');
+}
+
+// resolveRefGuardLaunchers({ platform, hookPath, gitExecPath, exists })
+// -> [[command, args], …] in the order the probe should try them.
+export function resolveRefGuardLaunchers({
+  platform,
+  hookPath,
+  gitExecPath = '',
+  exists = () => false,
+} = {}) {
+  if (platform !== 'win32') {
+    return [[hookPath, ['prepared']]];
+  }
+  const launchers = [];
+  const gitShell = gitForWindowsShell(gitExecPath);
+  // `exists` gates it: an exec-path of an unexpected shape must degrade to
+  // the bare-name search, never to a spawn of a path nobody confirmed.
+  if (gitShell && exists(gitShell)) launchers.push([gitShell, [hookPath, 'prepared']]);
+  launchers.push(['sh', [hookPath, 'prepared']]);
+  launchers.push(['bash', [hookPath, 'prepared']]);
+  return launchers;
+}
+
 // The full coupled group containing `prefix` (including `prefix` itself), or
 // the singleton [prefix] when it is in no configured group (the default,
 // uncoupled case — D7 "AAI core ships the key absent").

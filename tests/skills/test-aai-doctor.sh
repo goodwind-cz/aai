@@ -249,6 +249,11 @@ fi
 if [ "$AAI_GIT_WRITE" = "1" ]; then
   exit 0
 fi
+# SEAM-1 (spec-a-check-cannot-tell-silence-from-a-verdict D1): the REAL hook
+# body install-pre-commit-hook.sh writes announces its refusal on stderr, and
+# CAT-17's probe now reads that marker rather than trusting a bare non-zero
+# exit. A fixture modelling the installed hook must announce it too.
+echo "AAI:REF-GUARD refused this refs/heads/main update." >&2
 exit 1
 REFTXHOOK
   chmod +x "$d/.git/hooks/reference-transaction"
@@ -1761,6 +1766,7 @@ aai_guarded=0
 while read -r o n r; do [ "$r" = "refs/heads/main" ] && aai_guarded=1; done
 [ "$aai_guarded" = "1" ] || exit 0
 [ "$AAI_GIT_WRITE" = "1" ] && exit 0
+echo "AAI:REF-GUARD refused this refs/heads/main update." >&2
 exit 1
 '
 
@@ -1891,6 +1897,351 @@ exit 1
     || log_fail "TEST-040 CAT-17 effective-path + behavioural-probe"
 }
 
+# --- TEST-1341..1344 (SPEC-DRAFT spec-a-check-cannot-tell-silence-from-a-verdict,
+# Spec-AC-01..04) — CAT-17 says what it OBSERVED, or says it could not observe.
+#
+# Before this ride the probe derived `refuses` from `status !== 0` alone and
+# had two arms only. A hook that cannot execute, that crashes, or that refuses
+# for a reason of its own therefore scored as a PASSING refuse arm, and the
+# category rendered "does NOT behave as a guard ... NOT armed" — a verdict it
+# had not earned (spec M1/M2/M3). Three states move OUT of "NOT armed" and
+# into "could not be behaviourally verified"; none moves in.
+
+# cat17_hook_fixture <name> <hook-body> — a git repo carrying <hook-body> as an
+# EXECUTABLE reference-transaction hook at the default (effective) hooks path.
+# Echoes the fixture path. Its own git identity, because a CI runner has none.
+cat17_hook_fixture() {
+  local name="$1" body="$2"
+  local d="$TMP_ROOT/$name"
+  rm -rf "$d"; mkdir -p "$d/.git/hooks"
+  git -C "$d" init -q -b main >/dev/null
+  git -C "$d" config user.email "test@example.invalid"
+  git -C "$d" config user.name "AAI Test"
+  git -C "$d" commit -q --allow-empty -m init
+  printf '%s' "$body" > "$d/.git/hooks/reference-transaction"
+  chmod +x "$d/.git/hooks/reference-transaction"
+  printf '%s' "$d"
+}
+
+# cat17_line <root> — the CAT-17 line of a doctor run over <root>, or the empty
+# string. Never non-zero (callers accumulate into their own `ok` flag), and the
+# reader consumes all of stdout so nothing can SIGPIPE the doctor under pipefail.
+cat17_line() {
+  local out
+  out="$(node "$DOCTOR" --root "$1" 2>&1)" || true
+  printf '%s\n' "$out" | while IFS= read -r line; do
+    case "$line" in CAT-17*) printf '%s' "$line" ;; esac
+  done
+}
+
+# cat17_assert_unverified <label> <line> <reason-token> — the shared shape of
+# Spec-AC-01..03: the category must name the reason, must say it could not
+# verify, and must NOT claim the hook is NOT armed and must not claim PASS.
+# Returns 1 and log_info's each violation, so callers collect all of them.
+cat17_assert_unverified() {
+  local label="$1" line="$2" token="$3" ok=1 lower
+  lower="$(printf '%s' "$line" | tr 'A-Z' 'a-z')"
+  if [[ "$line" == *' PASS '* ]]; then
+    log_info "$label: got PASS on a hook whose guard behaviour was never observed: $line"; ok=0
+  fi
+  if [[ "$lower" != *'could not be behaviourally verified'* ]]; then
+    log_info "$label: CAT-17 does not say it could not behaviourally verify the hook: $line"; ok=0
+  fi
+  if [[ "$line" != *"$token"* ]]; then
+    log_info "$label: CAT-17 does not name the reason '$token': $line"; ok=0
+  fi
+  if [[ "$lower" == *'not armed'* ]]; then
+    log_info "$label: CAT-17 still claims 'NOT armed' for a state it could not observe: $line"; ok=0
+  fi
+  return $(( ok == 1 ? 0 : 1 ))
+}
+
+# --- TEST-1341 (Spec-AC-01) — a non-zero refuse arm with NO AAI:REF-GUARD on
+# stderr is not evidence this guard refused. ---------------------------------
+test_1341_cat17_no_refusal_marker() {
+  local ok=1
+  # Marker in the BODY, refuses refs/heads/main with a bare `exit 1`, prints
+  # nothing: exactly the pre-ride fixture shape, and exactly the shape a
+  # crashing or mis-launched hook produces.
+  local body='#!/bin/sh
+# AAI:REF-GUARD
+[ "$1" = "prepared" ] || exit 0
+aai_guarded=0
+while read -r o n r; do [ "$r" = "refs/heads/main" ] && aai_guarded=1; done
+[ "$aai_guarded" = "1" ] || exit 0
+[ "$AAI_GIT_WRITE" = "1" ] && exit 0
+exit 1
+'
+  local d; d="$(cat17_hook_fixture t1341-silent-refuser "$body")"
+  local line; line="$(cat17_line "$d")"
+  if [[ -z "$line" ]]; then
+    log_info "TEST-1341: the doctor emitted no CAT-17 line at all"; ok=0
+  fi
+  cat17_assert_unverified "TEST-1341" "$line" "no-refusal-marker" || ok=0
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1341 a marker'd hook that refuses refs/heads/main with a silent non-zero exit is reported as could not be behaviourally verified (no-refusal-marker), never as NOT armed" \
+    || log_fail "TEST-1341 CAT-17 no-refusal-marker discrimination"
+}
+
+# --- TEST-1342 (Spec-AC-02) — the CONTROL arm: a hook that will not exit 0 on
+# a ref it is meant to IGNORE is a hook we could not run as a guard. ---------
+test_1342_cat17_control_arm_nonzero() {
+  local ok=1
+  # Refuses EVERY transaction, marker and all. Its refuse arm looks perfect;
+  # only a control transaction naming a ref no guard cares about exposes it.
+  local body='#!/bin/sh
+# AAI:REF-GUARD
+echo "AAI:REF-GUARD refused this refs/heads/main update." >&2
+exit 1
+'
+  local d; d="$(cat17_hook_fixture t1342-always-refuses "$body")"
+  local line; line="$(cat17_line "$d")"
+  if [[ -z "$line" ]]; then
+    log_info "TEST-1342: the doctor emitted no CAT-17 line at all"; ok=0
+  fi
+  cat17_assert_unverified "TEST-1342" "$line" "control-arm-nonzero" || ok=0
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1342 a marker'd hook that exits non-zero even on a transaction naming only refs/heads/aai-doctor-probe-control is reported as could not be behaviourally verified (control-arm-nonzero), never as NOT armed" \
+    || log_fail "TEST-1342 CAT-17 control-arm discrimination"
+}
+
+# --- TEST-1343 (Spec-AC-03) — the #369 signature: both arms refuse. The honest
+# reading is "the interpreter did not receive AAI_GIT_WRITE", not "broken". --
+test_1343_cat17_permit_arm_refused() {
+  local ok=1
+  # Prints the real refusal marker on refs/heads/main and never consults
+  # AAI_GIT_WRITE, so the permit arm refuses too.
+  local body='#!/bin/sh
+# AAI:REF-GUARD
+[ "$1" = "prepared" ] || exit 0
+aai_guarded=0
+while read -r o n r; do [ "$r" = "refs/heads/main" ] && aai_guarded=1; done
+[ "$aai_guarded" = "1" ] || exit 0
+echo "AAI:REF-GUARD refused this refs/heads/main update." >&2
+exit 1
+'
+  local d; d="$(cat17_hook_fixture t1343-env-blind "$body")"
+  local line; line="$(cat17_line "$d")"
+  if [[ -z "$line" ]]; then
+    log_info "TEST-1343: the doctor emitted no CAT-17 line at all"; ok=0
+  fi
+  cat17_assert_unverified "TEST-1343" "$line" "permit-arm-refused" || ok=0
+  if [[ "$line" != *'AAI_GIT_WRITE'* ]]; then
+    log_info "TEST-1343: the reason does not name AAI_GIT_WRITE as the variable the interpreter may not have received: $line"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1343 a marker'd hook whose permit arm still refuses with AAI_GIT_WRITE=1 set is reported as permit-arm-refused and names AAI_GIT_WRITE, never as NOT armed" \
+    || log_fail "TEST-1343 CAT-17 permit-arm discrimination"
+}
+
+# --- TEST-1344 (Spec-AC-04, SEAM-1) — positive control against over-refusal.
+# The hook body is written by install-pre-commit-hook.sh and the marker is read
+# by aai-doctor.mjs: two files, one contract. Both sides are the REAL scripts —
+# a mock of either would test the mock. This row is admitted by its MUTATION
+# (blunt the installer's marker line and this test reddens), not by a RED
+# against pre-ride code: a control that was already green is the point of it.
+test_1344_cat17_seam1_installed_hook_passes() {
+  local ok=1
+  local d="$TMP_ROOT/t1344-seam1"
+  rm -rf "$d"; mkdir -p "$d/.aai/scripts"
+  git -C "$d" init -q -b main >/dev/null
+  git -C "$d" config user.email "test@example.invalid"
+  git -C "$d" config user.name "AAI Test"
+  git -C "$d" commit -q --allow-empty -m init
+  cp "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" "$d/.aai/scripts/install-pre-commit-hook.sh"
+  # HAZ: the installer resolves its target from `git rev-parse --show-toplevel`,
+  # so it MUST run with the fixture as cwd and never against $PROJECT_ROOT.
+  ( cd "$d" && bash .aai/scripts/install-pre-commit-hook.sh --arm-ref-guard >/dev/null 2>&1 ) || true
+
+  # Hard precondition: without an installed, marker'd hook the assertion below
+  # would be vacuous rather than a crossing test.
+  if [[ ! -f "$d/.git/hooks/reference-transaction" ]]; then
+    log_info "TEST-1344: the real installer wrote no reference-transaction hook into the fixture"
+    ok=0
+  elif ! command grep -qF 'AAI:REF-GUARD' "$d/.git/hooks/reference-transaction"; then
+    log_info "TEST-1344: the installed hook carries no AAI:REF-GUARD body marker"
+    ok=0
+  fi
+
+  local line; line="$(cat17_line "$d")"
+  if [[ "$line" != *' PASS '* ]]; then
+    log_info "TEST-1344: the hook the REAL installer writes is not reported PASS by the REAL doctor: $line"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1344 SEAM-1 the reference-transaction hook written by install-pre-commit-hook.sh is probed PASS by aai-doctor.mjs (installer-emitted AAI:REF-GUARD marker and doctor-read marker are one contract)" \
+    || log_fail "TEST-1344 SEAM-1 installed hook probes PASS"
+}
+
+# --- TEST-1345 (Spec-AC-05) — the regression guard on the DIRECTION of the
+# change. D2 moves three states OUT of "NOT armed"; this row pins that none
+# moved IN. A hook that carries the body marker, exits 0 on the control
+# transaction AND exits 0 on refs/heads/main with no AAI_GIT_WRITE is
+# decorative, and the probe OBSERVED it letting a guarded ref through — so
+# "NOT armed" is a verdict this category earned and must keep saying.
+#
+# HONESTY: no RED is available for this row. Pre-ride code and post-ride code
+# both say "NOT armed" on this fixture, which is precisely the property being
+# pinned, so the row is admitted by its MUTATION (blunt the renderer's
+# "NOT armed" words and this test reddens), exactly like TEST-1344.
+test_1345_cat17_decorative_hook_still_not_armed() {
+  local ok=1
+  # Marker in the body, nothing else: never reads stdin, never refuses.
+  local body='#!/bin/sh
+# AAI:REF-GUARD
+exit 0
+'
+  local d; d="$(cat17_hook_fixture t1345-decorative "$body")"
+  local line; line="$(cat17_line "$d")"
+  local lower; lower="$(printf '%s' "$line" | tr 'A-Z' 'a-z')"
+  if [[ -z "$line" ]]; then
+    log_info "TEST-1345: the doctor emitted no CAT-17 line at all"; ok=0
+  fi
+  if [[ "$line" == *' PASS '* ]]; then
+    log_info "TEST-1345: got PASS on a hook that lets refs/heads/main through without AAI_GIT_WRITE=1: $line"; ok=0
+  fi
+  if [[ "$lower" != *'not armed'* ]]; then
+    log_info "TEST-1345: CAT-17 stopped saying NOT armed about a hook it OBSERVED letting refs/heads/main through — that state must NOT have moved into 'could not be verified': $line"; ok=0
+  fi
+  if [[ "$lower" == *'could not be behaviourally verified'* ]]; then
+    log_info "TEST-1345: CAT-17 claims it could not verify a hook whose decorative behaviour it DID observe: $line"; ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1345 a marker'd hook that exits 0 on refs/heads/main without AAI_GIT_WRITE is still reported NOT armed (no state moved INTO the armed-unknown verdict)" \
+    || log_fail "TEST-1345 CAT-17 decorative hook keeps the NOT armed verdict"
+}
+
+# --- TEST-1346 (Spec-AC-06) — the interpreter LOOKUP, as a pure function.
+# On win32 the probe used to try bare `sh` then bare `bash`; on a PowerShell
+# host without Git Bash on PATH that is ENOENT followed by WSL's
+# C:\Windows\system32\bash.exe (spec M4). resolveRefGuardLaunchers derives Git
+# for Windows' OWN shell from `git --exec-path` and puts it FIRST.
+#
+# It is a PURE function with injected `platform`, `gitExecPath` and `exists`,
+# so this row runs on any OS. What it does NOT prove is that a real Git for
+# Windows install has that layout — residual risk R1; the behavioural half is
+# the CI step TEST-1347 pins the presence of.
+test_1346_resolve_ref_guard_launchers() {
+  local ok=1
+  local probe="$TMP_ROOT/t1346-launchers.mjs"
+  cat > "$probe" <<'T1346_PROBE'
+import { pathToFileURL } from 'node:url';
+
+const mod = await import(pathToFileURL(process.argv[2]).href);
+const fn = mod.resolveRefGuardLaunchers;
+if (typeof fn !== 'function') {
+  console.log('MISSING_EXPORT: resolveRefGuardLaunchers');
+  process.exit(0);
+}
+const slash = (v) => String(v).replace(/\\/g, '/');
+const GIT_EXEC = 'C:\\Program Files\\Git\\mingw64\\libexec\\git-core';
+const GIT_SH = 'C:\\Program Files\\Git\\usr\\bin\\sh.exe';
+const HOOK_WIN = 'C:\\repo\\.git\\hooks\\reference-transaction';
+const win = fn({
+  platform: 'win32',
+  hookPath: HOOK_WIN,
+  gitExecPath: GIT_EXEC,
+  exists: (p) => slash(p) === slash(GIT_SH),
+});
+console.log('WIN_CMDS: ' + win.map((l) => slash(l[0])).join(','));
+console.log('WIN_FIRST_ARGS: ' + JSON.stringify(win[0] ? win[0][1].map(slash) : null));
+const posix = fn({ platform: 'linux', hookPath: '/tmp/hook', gitExecPath: '', exists: () => false });
+console.log('POSIX_COUNT: ' + posix.length);
+console.log('POSIX_FIRST: ' + String(posix[0] ? posix[0][0] : ''));
+console.log('POSIX_ARGS: ' + JSON.stringify(posix[0] ? posix[0][1] : null));
+T1346_PROBE
+
+  local out
+  out="$(node "$probe" "$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs" 2>&1)" || true
+
+  if [[ "$out" == *'MISSING_EXPORT'* ]]; then
+    log_info "TEST-1346: lib/guard-config.mjs does not export resolveRefGuardLaunchers"; ok=0
+  fi
+  # win32: Git for Windows' own sh.exe FIRST, bare sh and bare bash behind it.
+  if [[ "$out" != *'WIN_CMDS: C:/Program Files/Git/usr/bin/sh.exe,sh,bash'* ]]; then
+    log_info "TEST-1346: win32 launcher order is not [Git-for-Windows sh.exe, sh, bash]: $out"; ok=0
+  fi
+  if [[ "$out" != *'WIN_FIRST_ARGS: ["C:/repo/.git/hooks/reference-transaction","prepared"]'* ]]; then
+    log_info "TEST-1346: the win32 first launcher is not invoked as <interpreter> <hook> prepared: $out"; ok=0
+  fi
+  # non-win32: exactly ONE launcher, and it execs the hook file directly.
+  if [[ "$out" != *'POSIX_COUNT: 1'* ]]; then
+    log_info "TEST-1346: a non-win32 platform does not resolve to exactly one launcher: $out"; ok=0
+  fi
+  if [[ "$out" != *'POSIX_FIRST: /tmp/hook'* ]]; then
+    log_info "TEST-1346: the non-win32 launcher is not a DIRECT exec of the hook file: $out"; ok=0
+  fi
+  if [[ "$out" != *'POSIX_ARGS: ["prepared"]'* ]]; then
+    log_info "TEST-1346: the non-win32 launcher does not pass the 'prepared' transaction state: $out"; ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1346 resolveRefGuardLaunchers puts Git for Windows' own usr/bin/sh.exe ahead of bare sh and bare bash on win32 and resolves to exactly one direct-exec launcher elsewhere" \
+    || log_fail "TEST-1346 resolveRefGuardLaunchers win32 interpreter lookup"
+}
+
+# --- TEST-1347 (Spec-AC-07) — the Windows evidence is a CI STEP, not a Pester
+# `It`: a Windows-only `It` SKIPS on Linux and the POSIX gate asserts
+# SkippedCount -eq 0 (spec M12/D4), so it would redden the Linux leg. What is
+# provable HERE is presence only — that the windows-wsl1 job carries a step
+# which installs the ref guard, runs the doctor, and fails the job unless the
+# CAT-17 line carries PASS. The behavioural proof is that step's own CI log.
+test_1347_ps1_quality_windows_cat17_step() {
+  local ok=1
+  local wf="$PROJECT_ROOT/.github/workflows/ps1-quality.yml"
+  local step=""
+  if [[ ! -f "$wf" ]]; then
+    log_info "TEST-1347: $wf is absent"; ok=0
+  else
+    # ONE step inside the windows-wsl1 job: the job block is bounded by the
+    # next job header at the same indent, and the step block by the next
+    # `- ` step marker. Scoped deliberately — asserting over the whole file,
+    # or even the whole job, would be satisfied by the pieces already there
+    # (the selftest step ALREADY runs aai-doctor.mjs --json), so the install,
+    # the doctor run and the PASS assertion must be ONE step to count.
+    step="$(awk '
+      /^  windows-wsl1:/ { injob = 1; next }
+      injob && /^  [A-Za-z0-9_-]+:/ { injob = 0 }
+      !injob { next }
+      /^      - / { instep = ($0 ~ /CAT-17/) }
+      instep { print }
+    ' "$wf")"
+    if [[ -z "$step" ]]; then
+      log_info "TEST-1347: the windows-wsl1 job of $wf carries no CAT-17 step at all"; ok=0
+    fi
+  fi
+
+  if [[ "$step" != *'install-pre-commit-hook.sh --arm-ref-guard'* ]]; then
+    log_info "TEST-1347: the windows-wsl1 CAT-17 step never installs the ref guard (no install-pre-commit-hook.sh --arm-ref-guard)"; ok=0
+  fi
+  if [[ "$step" != *'aai-doctor.mjs'* ]]; then
+    log_info "TEST-1347: the windows-wsl1 CAT-17 step never runs aai-doctor.mjs"; ok=0
+  fi
+  # The assertion itself: a required token that is literally PASS, and a
+  # non-zero exit when the CAT-17 line does not carry it.
+  if [[ "$step" != *'$CAT17_REQUIRED_TOKEN = " PASS "'* ]]; then
+    log_info "TEST-1347: the windows-wsl1 CAT-17 step does not require the literal PASS token on the CAT-17 line"; ok=0
+  fi
+  # -cnotlike, not -notlike (code review finding 1): PowerShell's default
+  # comparison is CASE-INSENSITIVE, so a future reason string carrying
+  # "bypass" or "passed through" would satisfy "* PASS *" and let the step
+  # print OK on a verdict that was never PASS. The gate must read the status
+  # token the renderer actually wrote, so the test requires the case-sensitive
+  # operator rather than merely "some comparison against the token".
+  if [[ "$step" != *'-cnotlike "*$CAT17_REQUIRED_TOKEN*"'* ]]; then
+    log_info "TEST-1347: the windows-wsl1 CAT-17 step does not test the CAT-17 line against the required token CASE-SENSITIVELY (-cnotlike)"; ok=0
+  fi
+  if [[ "$step" != *'AAI-WIN-CAT17-FAIL'* ]]; then
+    log_info "TEST-1347: the windows-wsl1 CAT-17 step has no named loud failure (AAI-WIN-CAT17-FAIL) to fail the job with"; ok=0
+  fi
+  if [[ "$step" != *'exit 1'* ]]; then
+    log_info "TEST-1347: the windows-wsl1 CAT-17 step never fails the job (no non-zero exit)"; ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1347 the windows-wsl1 job of ps1-quality.yml installs the ref guard, runs aai-doctor.mjs and fails the job unless the CAT-17 line carries PASS (presence only — the behavioural proof is the CI run)" \
+    || log_fail "TEST-1347 windows-wsl1 CAT-17 doctor step presence"
+}
+
 # --- TEST-619 (Spec-AC-07) — a declared decline is a non-counting state ----
 test_619_cat17_declined_is_not_an_issue() {
   local ok=1
@@ -1947,6 +2298,7 @@ aai_guarded=0
 while read -r o n r; do [ "$r" = "refs/heads/main" ] && aai_guarded=1; done
 [ "$aai_guarded" = "1" ] || exit 0
 [ "$AAI_GIT_WRITE" = "1" ] && exit 0
+echo "AAI:REF-GUARD refused this refs/heads/main update." >&2
 exit 1
 '
 
@@ -2217,6 +2569,13 @@ main() {
   test_038_0139_canonical_invocation_fixtures
   test_039_0139_canonical_invocation_shape
   test_040_cat17_effective_path_and_probe
+  test_1341_cat17_no_refusal_marker
+  test_1342_cat17_control_arm_nonzero
+  test_1343_cat17_permit_arm_refused
+  test_1344_cat17_seam1_installed_hook_passes
+  test_1345_cat17_decorative_hook_still_not_armed
+  test_1346_resolve_ref_guard_launchers
+  test_1347_ps1_quality_windows_cat17_step
   test_619_cat17_declined_is_not_an_issue
   test_620_cat17_declaration_never_over_reads
   test_812_cat18_guard_wiring

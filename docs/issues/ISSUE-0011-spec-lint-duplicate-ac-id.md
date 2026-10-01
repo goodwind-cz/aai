@@ -47,8 +47,8 @@ links:
 ## Acceptance Criteria
 | AC | Status | Evidence |
 |---|---|---|
-| AC-001: spec-lint reconciles RAW AC-table data rows against the parsed unique-id rows and emits a `duplicate-ac-id` finding (naming the repeated Spec-AC id) whenever a row is dropped; a fixture spec with a duplicate id fails clean-lint. | pending | |
-| AC-002: no false positives — a well-formed table (incl. a legitimate `Spec-AC-NN..MM` range row and the lean/compact AC-table shapes) emits zero duplicate findings; existing spec-lint suite stays green with zero assertion edits. | pending | |
+| AC-001: spec-lint reconciles RAW AC-table data rows against the parsed unique-id rows and emits a `duplicate-ac-id` finding (naming the repeated Spec-AC id) whenever a row is dropped; a fixture spec with a duplicate id fails clean-lint. | done | |
+| AC-002: no false positives — a well-formed table (incl. a legitimate `Spec-AC-NN..MM` range row and the lean/compact AC-table shapes) emits zero duplicate findings; existing spec-lint suite stays green with zero assertion edits. | done | |
 
 Ceremony justification: single-surface additive lint check in spec-lint.mjs +
 regression stanzas; no engine/shared-parser change, no protected path (L1).

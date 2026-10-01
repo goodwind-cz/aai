@@ -50,8 +50,8 @@ links:
 ## Acceptance Criteria
 | AC | Status | Evidence |
 |---|---|---|
-| AC-001: a target key whose quoted value is never properly terminated (consumed to EOF without a real matching close) classifies `missing`, never `exists` — the ambiguity resolves to the safe direction. `consumeQuotedValue` reports the unterminated condition so the classifier can act on it. | pending | |
-| AC-002: no regression — properly-closed quoted values (single-line, multiline, quoted-empty `""`/`''`) and the interior-masking of OTHER keys (SPEC-0049) are unchanged; never-echo invariant preserved; existing secrets-preflight suite green with zero assertion edits. | pending | |
+| AC-001: a target key whose quoted value is never properly terminated (consumed to EOF without a real matching close) classifies `missing`, never `exists` — the ambiguity resolves to the safe direction. `consumeQuotedValue` reports the unterminated condition so the classifier can act on it. | done | |
+| AC-002: no regression — properly-closed quoted values (single-line, multiline, quoted-empty `""`/`''`) and the interior-masking of OTHER keys (SPEC-0049) are unchanged; never-echo invariant preserved; existing secrets-preflight suite green with zero assertion edits. | done | |
 
 Ceremony justification: single-surface safe-direction correctness fix to one
 helper's quote handling + regression stanzas; no engine/protected-path change (L1).
