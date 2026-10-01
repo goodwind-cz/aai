@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — feat: the roadmap is an ordered capability list with an opt-in maintenance budget, and /aai-roadmap manages it (roadmap-serves-downstream-projects)
+## [unreleased] — feat: the roadmap is an ordered capability list with an opt-in maintenance budget, and /aai-roadmap manages it (goodwind-cz/aai#419)
 
 - **The maintenance budget is now opt-in.** A `docs/ai/roadmap.yaml` without a `budget:` block is an ordered list of capabilities: fix, chore, test and techdebt rides are always admitted, `next` never insists on binding maintenance, and an explicitly requested item is admitted even when earlier items are unfinished (order drives `next`, not refusals). A roadmap with `budget.maintenance_per_capability: 1` keeps today's 1:1 pairing, ordering and refusals byte-for-byte; this repository's roadmap is unchanged.
 - **New `/aai-roadmap` skill** (`.aai/SKILL_ROADMAP.prompt.md`, mirrored to every harness): `show`, `add`, `reorder`, `harvest "<direction>"`, `done`, `drop`, `budget on|off`, `off`. Every action is a menu with a recommended default and maps to one deterministic script call; the user never types `node`.
