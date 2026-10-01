@@ -2153,7 +2153,7 @@ You have just installed AAI and have no roadmap. State a need and the factory ri
 /aai-ship "the export should include the creation date"
 ```
 
-Nothing asks about a roadmap, and the ride report carries the gate line `ADMIT <name> — roadmap absent (docs/ai/roadmap.yaml): gate not consulted`. When you later want order, run `/aai-roadmap`: it prints `no roadmap` and offers a menu whose recommended default is to add your first capability.
+Nothing asks about a roadmap. The gate prints `ADMIT <name> — roadmap absent (docs/ai/roadmap.yaml): gate not consulted`, and the ride report's `ride gate:` line reads `roadmap absent, gate not consulted (autopilot default)`. When you later want order, run `/aai-roadmap`: it prints `no roadmap` and offers a menu whose recommended default is to add your first capability.
 
 ### Example 2: a roadmap without a budget
 
@@ -2166,7 +2166,7 @@ You want three capabilities built in a fixed order and no maintenance pairing:
 /aai-ship                 # no argument: takes the next item on the roadmap
 ```
 
-A capability you only named has no document yet. `/aai-ship` with no argument then files its intake for you under the roadmap name (the name on the list becomes the intake's id) and rides it through to the pull request; the next `/aai-ship` moves on to the following item. When a ride ships a capability that is not yet on the list, `/aai-ship` appends it for you and says `roadmap: appended <name>` in its report; during the close ceremony, before the push, the item is marked done. Fixes and chores are admitted at any time. Fixes and chores are admitted at any time. To change the order later, run `/aai-roadmap reorder`.
+A capability you only named has no document yet. `/aai-ship` with no argument then files its intake for you under the roadmap name (the name on the list becomes the intake's id) and rides it through to the pull request; the next `/aai-ship` moves on to the following item. When a ride ships a capability that is not yet on the list, `/aai-ship` appends it for you and says `roadmap: appended <name>` in its report; during the close ceremony, before the push, the item is marked done. Fixes and chores are admitted at any time. To change the order later, run `/aai-roadmap reorder`.
 
 ### Example 3: a roadmap with a budget
 
