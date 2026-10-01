@@ -1098,8 +1098,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 100 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 100 (pin moved for aai-downstream-autopilot) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 101 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 101 (pin moved for aai-roadmap) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -1962,8 +1962,8 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   # together, which is the two-way check the Mutation column drives.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 100 ]] \
-    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 100"
+  [[ "$row_count" -eq 101 ]] \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 101"
 
   # check-test-registration.mjs exits 0 over the live tree (no orphan test_*
   # function anywhere under tests/skills, this suite's new ones included).

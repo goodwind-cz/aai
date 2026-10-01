@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-10-01T09:50:59.629Z",
+  "generatedAt": "2026-10-01T10:51:18.822Z",
   "project": "aai",
   "counts": {
-    "delivered": 270,
+    "delivered": 271,
     "in_progress": 16,
     "releases": 1,
-    "tokens_total": 70231136
+    "tokens_total": 71857830
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -233,6 +233,19 @@
       "spec": "docs/specs/SPEC-0200-spec-downstream-rides-ask-no-governance-questions.md",
       "validation": null,
       "review": "docs/ai/reviews/review-downstream-rides-ask-no-governance-questions-r2-20261001T000422Z.md"
+    },
+    {
+      "ref": "roadmap-serves-downstream-projects",
+      "title": "The roadmap is an ordered capability list with an opt-in maintenance budget and its own skill",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md",
+      "closed_on": "2026-10-01",
+      "agent_minutes": 170,
+      "token_total": 1626694,
+      "spec": "docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261001T104452Z-roadmap-serves-downstream-projects.md"
     },
     {
       "ref": "shipped-guards-have-no-downstream-trigger",
@@ -3770,6 +3783,19 @@
           "spec": "docs/specs/SPEC-0200-spec-downstream-rides-ask-no-governance-questions.md",
           "validation": null,
           "review": "docs/ai/reviews/review-downstream-rides-ask-no-governance-questions-r2-20261001T000422Z.md"
+        },
+        {
+          "ref": "roadmap-serves-downstream-projects",
+          "title": "The roadmap is an ordered capability list with an opt-in maintenance budget and its own skill",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md",
+          "closed_on": "2026-10-01",
+          "agent_minutes": 170,
+          "token_total": 1626694,
+          "spec": "docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261001T104452Z-roadmap-serves-downstream-projects.md"
         },
         {
           "ref": "shipped-guards-have-no-downstream-trigger",

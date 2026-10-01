@@ -916,7 +916,11 @@ test_012_growth_sum_matches_ledger() {
   # (+83). AUTONOMOUS_LOOP 6a and AGENTS rule 4 are outside the glob.
   # Measured under bash with /usr/bin/wc against HEAD, credited 1:1 at zero
   # headroom (TEST-010).
-  local want_growth=45687
+  # Then 45687 -> 50036: roadmap-serves-downstream-projects (+4349 B, validation-round remediation +545 B over the first 3804) --
+  # new SKILL_ROADMAP.prompt.md plus SKILL_SHIP INPUT/1a/step 6 and SKILL_PR
+  # step 4c lines; AGENTS rule 4 is outside the glob. Measured under bash with
+  # /usr/bin/wc against the merge-base, credited 1:1 (TEST-1336).
+  local want_growth=50036
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1880,6 +1884,84 @@ test_1215_downstream_rides_growth_ledgered() {
     || log_fail "TEST-1215 (Spec-AC-11) downstream-rides growth credit"
 }
 
+# --- TEST-1336 (roadmap-serves-downstream-projects Spec-AC-16) — the ride's prose
+# growth is measured per file against the merge-base blob, credited 1:1 by ONE
+# ledger entry appended at the end of the array, and the TEST-012 pin moves by
+# exactly that amount over the inherited 45687. The entry records each file as
+# '<name> <before> -> <after>' (a new file is '0 -> <size>'); the sum of the
+# per-file deltas must equal the credited lead and no file may sit below the
+# size it credited (diet_credit_verdict's floor).
+test_1336_roadmap_growth_ledgered() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-1336 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local ok=1 _e entry='' n=0 lead sum=0 f now verdict_msg
+  local ledger_key='roadmap-serves-downstream-projects'
+  local prefix=0 prefix_closed=0 last_idx=$(( ${#JUSTIFIED_ADDITIONS[@]} - 1 )) idx=0 entry_idx=-1
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    if [[ "$prefix_closed" -eq 0 ]]; then
+      prefix=$(( prefix + ${_e%% *} ))
+    fi
+    case "$_e" in
+      *"$ledger_key"*) entry="$_e"; n=$((n + 1)); prefix_closed=1; entry_idx=$idx ;;
+    esac
+    idx=$(( idx + 1 ))
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-1336: JUSTIFIED_ADDITIONS carries $n entries naming '$ledger_key' (want exactly 1)"
+    return
+  fi
+  if [[ "$entry_idx" -ne "$last_idx" ]]; then
+    log_info "TEST-1336: the entry sits at index $entry_idx, not at the end of the array ($last_idx) -- prefix pins of earlier rides would move"
+    ok=0
+  fi
+  lead="${entry%% *}"
+  local rest="$entry" re mb base_size
+  mb="$(git merge-base HEAD origin/main 2>/dev/null)" || mb=""
+  for f in .aai/SKILL_ROADMAP.prompt.md:SKILL_ROADMAP.prompt.md .aai/SKILL_SHIP.prompt.md:SKILL_SHIP.prompt.md .aai/SKILL_PR.prompt.md:SKILL_PR.prompt.md; do
+    local path="${f%%:*}" name="${f##*:}"
+    re="${name//./\\.} ([0-9]+) -> ([0-9]+)"
+    if [[ "$entry" =~ $re ]]; then
+      now=$(/usr/bin/wc -c < "$path" | tr -d ' ')
+      sum=$(( sum + BASH_REMATCH[2] - BASH_REMATCH[1] ))
+      if verdict_msg=$(diet_credit_verdict "TEST-1336 $name" $(( BASH_REMATCH[2] - BASH_REMATCH[1] )) "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "$now"); then
+        [[ -n "$verdict_msg" ]] && log_info "$verdict_msg"
+      else
+        log_info "$verdict_msg"
+        ok=0
+      fi
+      # the recorded BEFORE is the real size at the merge-base (0 for a file that did not exist)
+      if [[ -n "$mb" ]]; then
+        if git cat-file -e "$mb:$path" 2>/dev/null; then
+          base_size=$(git cat-file -s "$mb:$path")
+        else
+          base_size=0
+        fi
+        if [[ "$base_size" -ne "${BASH_REMATCH[1]}" ]]; then
+          log_info "TEST-1336: $name records before=${BASH_REMATCH[1]} but its merge-base blob is $base_size B"
+          ok=0
+        fi
+      else
+        log_info "TEST-1336: merge-base blob comparison SKIPPED -- origin/main is not resolvable from this checkout"
+      fi
+    else
+      log_info "TEST-1336: the ledger entry does not record '$name <before> -> <after>'"
+      ok=0
+    fi
+  done
+  if [[ "$sum" -ne "$lead" ]]; then
+    log_info "TEST-1336: per-file deltas sum to $sum B but the entry credits $lead B"
+    ok=0
+  fi
+  if [[ "$prefix" -ne $(( 45687 + lead )) ]]; then
+    log_info "TEST-1336: ledger prefix through this entry=$prefix (want 45687 + $lead = $(( 45687 + lead )))"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-1336 (Spec-AC-16) roadmap prose growth $lead B is measured per file and credited 1:1, pin 45687 -> $prefix" \
+    || log_fail "TEST-1336 (Spec-AC-16) roadmap growth credit"
+}
+
 # --- spec-growth-pins-dont-wall-the-corpus -----------------------------
 #
 # diet_credit_verdict() and its supporting tests/constants are declared HERE
@@ -2156,6 +2238,7 @@ main() {
   test_697_corpus_growth_ledgered
   test_746_roadmap_takes_direction_growth_ledgered
   test_1215_downstream_rides_growth_ledgered
+  test_1336_roadmap_growth_ledgered
   test_766_diet_credit_verdict_floor
   test_767_diet_credit_verdict_arithmetic
   test_769_agents_md_ceiling

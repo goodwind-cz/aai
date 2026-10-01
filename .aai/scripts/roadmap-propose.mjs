@@ -614,15 +614,15 @@ function parsePickList(raw, max) {
 
 // buildWriteContent(originalText, appendedBlock) -> the new roadmap text.
 // originalText === null means no file existed yet (D12's own edge case: an
-// absent roadmap gets the header/budget block created before the first
-// pair). Otherwise the block is inserted immediately before the `wave_2:`
-// section header when one exists (so the closed-shape parser still reads
+// absent roadmap gets `pairs:` created before the first pair, with NO
+// budget block: the maintenance budget is opt-in, D10). Otherwise the
+// block is inserted immediately before the `wave_2:` section header when one exists (so the closed-shape parser still reads
 // the appended lines as MORE pairs, not stray wave_2 entries), or appended
 // at the true end of the file when there is none — every existing byte's
 // VALUE is unchanged either way, only its position may shift.
 function buildWriteContent(originalText, appendedBlock) {
   if (originalText === null) {
-    return `budget:\n  maintenance_per_capability: 1\npairs:\n${appendedBlock}`;
+    return `pairs:\n${appendedBlock}`;
   }
   const m = /^wave_2:[ \t]*$/m.exec(originalText);
   if (!m) {

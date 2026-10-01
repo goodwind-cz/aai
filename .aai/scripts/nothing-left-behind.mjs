@@ -193,7 +193,9 @@ function readRoadmapPairs(root) {
   const pairs = [];
   let inPairs = false;
   let cur = null;
+  let hasBudget = false; // roadmap-serves-downstream-projects D2: no top-level budget: = no pairing
   for (const line of lines) {
+    if (/^budget:\s*$/.test(line)) hasBudget = true;
     if (/^pairs:\s*$/.test(line)) { inPairs = true; continue; }
     if (/^[A-Za-z_][\w-]*:/.test(line) && !/^\s/.test(line)) { inPairs = false; }
     if (!inPairs) continue;
@@ -205,6 +207,7 @@ function readRoadmapPairs(root) {
     if (s && cur) { cur.status = s[1].trim(); continue; }
   }
   if (cur) pairs.push(cur);
+  if (!hasBudget) return [];
   return pairs;
 }
 
