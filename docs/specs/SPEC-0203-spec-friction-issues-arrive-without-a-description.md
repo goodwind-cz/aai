@@ -10,7 +10,7 @@ links:
   requirement: docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md
   rfc: null
   pr:
-    - TBD
+    - 420
   commits:
     - 20f277e3cad5becad7668639a487b5f9c564c759
 ---
