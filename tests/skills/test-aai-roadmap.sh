@@ -1182,7 +1182,8 @@ test_1340_first_run_prose() {
   local RM="$PROJECT_ROOT/.aai/SKILL_ROADMAP.prompt.md" SH="$PROJECT_ROOT/.aai/SKILL_SHIP.prompt.md" input
   file_has "$RM" 'offer "add a first capability"' || log_fail "TEST-1340: SKILL_ROADMAP budget on must offer add a first capability when no roadmap exists"
   file_has "$RM" 'last remaining pair cannot be dropped' || log_fail "TEST-1340: SKILL_ROADMAP drop must say the last pair cannot be dropped"
-  region "$RM" '^6\. drop' '^7\. budget' | grep -qF '`off`' || log_fail "TEST-1340: SKILL_ROADMAP drop must point to off"
+  local drop_region; drop_region="$(region "$RM" '^6\. drop' '^7\. budget')"
+  [[ "$drop_region" == *'`off`'* ]] || log_fail "TEST-1340: SKILL_ROADMAP drop must point to off"
   input="$(region "$SH" '^INPUT' '^AUTOPILOT DEFAULTS')"
   case "$input" in *'ride-select.mjs show'*'no roadmap'*'ask for the need'*) ;; *) log_fail "TEST-1340: SKILL_SHIP INPUT must run show first and ask for the need on no roadmap" ;; esac
   # the behaviour behind it: budget on over an absent roadmap is a refusal that creates nothing, show says no roadmap
