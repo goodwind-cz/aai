@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-01T15:11:19.981Z
+Generated: 2026-10-01T21:31:13.221Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0204 | specs | implementing | 12 done, 1 implementing | docs/specs/SPEC-0204-spec-a-check-cannot-tell-silence-from-a-verdict.md |
 
 ## Canonical layer (0)
 
@@ -538,7 +539,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
@@ -556,6 +557,7 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
+| ISSUE-0092 | issues | docs/issues/ISSUE-0092-a-check-cannot-tell-silence-from-a-verdict.md |
 
 ## Deferred (whole-doc) (0)
 

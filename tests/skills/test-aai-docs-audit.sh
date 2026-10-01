@@ -3749,8 +3749,15 @@ test_537_shape_check_live_yield() {  # TEST-537 / Spec-AC-11
   log_pass "TEST-537 live corpus near-miss yield matches M9 (8 documents), report-only always, --strict stays CLEAN (all terminal)"
 }
 
-test_582_status_vocabulary_scoped_to_spec_ac_col() {  # TEST-582 / Spec-AC-11 (Amendment 16, T5)
-  log_info "Test: a bare-'AC'-id table's informal status word is reported ONLY as column-set, never ALSO as status-vocabulary — the hasSpecAcCol scoping is load-bearing, pinned directly rather than only claimed in a comment (TEST-582)..."
+# REVERSED by spec-a-check-cannot-tell-silence-from-a-verdict Spec-AC-10
+# (D6/M8): this arm used to pin the `idIdx`-driven row skip, i.e. that a
+# bare-"AC" table's Status words were NEVER vocabulary-checked. That skip was
+# the defect, not the contract — the shape was reported as a SHAPE problem and
+# never as a VOCABULARY problem however far out of vocabulary its words were.
+# The fixture and the column-set half are unchanged; only the status-vocabulary
+# expectation is inverted. TEST-1350 is the arm that owns the new contract.
+test_582_status_vocabulary_scoped_to_spec_ac_col() {  # TEST-582 / Spec-AC-11 (Amendment 16, T5); reversed by Spec-AC-10
+  log_info "Test: a bare-'AC'-id table's informal status word is reported as column-set AND as status-vocabulary — the id column of such a table is its bare 'AC' column, so its rows are vocabulary-checked like any other (TEST-582)..."
   [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
   local d="$TEST_DIR/iso-t582"
   rm -rf "$d"
@@ -3788,10 +3795,12 @@ MD
   grep -qF "column-set" <<<"$out" \
     || log_fail "TEST-582: the bare-AC informal-status doc must still be reported column-set: $(payload_preview "$out")"
   grep -qF "status-vocabulary" <<<"$out" \
-    && log_fail "TEST-582: a bare-AC table's informal status word must NOT ALSO be reported status-vocabulary (hasSpecAcCol scoping): $(payload_preview "$out")"
+    || log_fail "TEST-582: a bare-AC table's informal status word must ALSO be reported status-vocabulary (Spec-AC-10 widening): $(payload_preview "$out")"
+  grep -qF 'status "green"' <<<"$out" \
+    || log_fail "TEST-582: the status-vocabulary finding must name the offending word: $(payload_preview "$out")"
 
   rm -rf "$d"
-  log_pass "TEST-582: a bare-AC table's out-of-vocabulary status word is reported once, as column-set, never doubled as status-vocabulary"
+  log_pass "TEST-582: a bare-AC table's out-of-vocabulary status word is reported BOTH as column-set and as status-vocabulary"
 }
 
 test_538_duplicate_ac_id_multiplicity() {  # TEST-538 / Spec-AC-12
@@ -7887,10 +7896,243 @@ MD
   log_pass "TEST-441 an untracked working-tree document does not fail the audit arm, and a genuine drift still does"
 }
 
+# ---------------------------------------------------------------------------
+# spec-a-check-cannot-tell-silence-from-a-verdict (Spec-AC-08..11,
+# TEST-1348..1351) — a CLEAN verdict must not read as "I looked and there was
+# nothing" when it means "I could not read N of these tables" (M7), and a
+# bare-"AC" table's status words must be checked like any other (M8).
+# ---------------------------------------------------------------------------
+
+# Self-sufficient (single-test sourced RED/GREEN capture never runs
+# setup_fixture). Builds an isolated corpus under $TEST_DIR:
+#   $2 contains "open"  -> a NON-terminal (status: draft) bare-"AC" table whose
+#                          Status cell reads "green" (out of vocabulary)
+#   $2 contains "done"  -> the IDENTICAL shape on a terminal (status: done) doc
+#   $2 contains "plain" -> one ordinary doc with no AC-like table at all
+setup_silence_fixture() {
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  local d="$TEST_DIR/iso-silence-$1" want="$2"
+  rm -rf "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/issues" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  if [[ "$want" == *plain* ]]; then
+    cat > "$d/docs/issues/ISSUE-9210-plain.md" <<'MD'
+---
+id: ISSUE-9210
+type: issue
+status: draft
+links:
+  pr: []
+---
+# An ordinary doc with no AC-like table at all
+MD
+  fi
+  if [[ "$want" == *open* ]]; then
+    cat > "$d/docs/issues/ISSUE-9211-colset-open.md" <<'MD'
+---
+id: ISSUE-9211
+type: issue
+status: draft
+links:
+  pr: []
+---
+# Column-set shape, NON-terminal (issue 370's literal three-column table)
+
+## Acceptance Criteria
+
+| AC | Requirement | Status |
+|----|-------------|--------|
+| AC-001 | first table entry | green |
+| AC-002 | second table entry | planned |
+MD
+  fi
+  if [[ "$want" == *done* ]]; then
+    cat > "$d/docs/issues/ISSUE-9212-colset-done.md" <<'MD'
+---
+id: ISSUE-9212
+type: issue
+status: done
+links:
+  pr: []
+---
+# The IDENTICAL shape on a terminal doc (report-only under --strict)
+
+## Acceptance Criteria
+
+| AC | Requirement | Status |
+|----|-------------|--------|
+| AC-001 | first table entry | green |
+MD
+  fi
+  ( cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test" \
+    && git add -A && git commit -qm "chore: seed silence fixtures" )
+  printf '%s' "$d"
+}
+
+# The digest headline of the LIVE repository, written to $1. Never a `cd`
+# inside a command substitution (check-cd-subshell-leak.mjs ratchet).
+silence_live_audit() {
+  local out="$1"; shift
+  local rc=0
+  ( cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --no-event "$@" ) > "$out" 2>&1 || rc=$?
+  printf '%s' "$rc"
+}
+
+# The N printed by the "### Near-miss AC tables: N" section heading.
+silence_section_count() {
+  awk '/^### Near-miss AC tables: / { sub(/^### Near-miss AC tables: /, ""); print; exit }' "$1"
+}
+# The N printed by the headline "- Near-miss AC tables: N (...)" bullet.
+silence_headline_count() {
+  awk '/^- Near-miss AC tables: / { sub(/^- Near-miss AC tables: /, ""); sub(/ .*$/, ""); print; exit }' "$1"
+}
+
+test_1348_near_miss_headline_carries_the_count() {   # TEST-1348 / Spec-AC-08
+  log_info "Test: the docs-audit headline carries the near-miss count split into blocking and report-only, and it equals the section count (TEST-1348)..."
+  local d rc hl sec
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  d="$(setup_silence_fixture t1348 "plain open done")"
+
+  rc=0
+  ( cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event ) > "$d/hl.log" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1348: --check must exit 0 (got $rc): $(payload_preview "$(cat "$d/hl.log")")"
+
+  grep -qF -- "- Near-miss AC tables: 2 (1 blocking, 1 report-only)" "$d/hl.log" \
+    || log_fail "TEST-1348: the headline must carry the near-miss count split into blocking and report-only: $(payload_preview "$(cat "$d/hl.log")")"
+
+  hl="$(silence_headline_count "$d/hl.log")"
+  sec="$(silence_section_count "$d/hl.log")"
+  [[ -n "$hl" && "$hl" == "$sec" ]] \
+    || log_fail "TEST-1348 SEAM-3: headline count '$hl' must equal the section count '$sec' on the fixture"
+
+  # SEAM-3 over the LIVE corpus: a renderer that drifts from the counter fails.
+  rc="$(silence_live_audit "$TEST_DIR/silence-live-1348.log")"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1348: live --check must exit 0 (got $rc)"
+  hl="$(silence_headline_count "$TEST_DIR/silence-live-1348.log")"
+  sec="$(silence_section_count "$TEST_DIR/silence-live-1348.log")"
+  [[ -n "$sec" ]] || log_fail "TEST-1348: live audit printed no near-miss section"
+  [[ -n "$hl" ]] \
+    || log_fail "TEST-1348: the live headline carries no near-miss count while the section reports $sec"
+  [[ "$hl" == "$sec" ]] \
+    || log_fail "TEST-1348 SEAM-3: live headline count '$hl' must equal the section count '$sec'"
+
+  log_pass "The near-miss count is part of what the headline SAYS, and it agrees with the section"
+}
+
+test_1349_verdict_names_the_unreadable_tables() {   # TEST-1349 / Spec-AC-09
+  log_info "Test: the Verdict line names the unreadable AC tables when any exist, stays bare CLEAN when none do, and keeps the literal 'Verdict: CLEAN' substring either way (TEST-1349)..."
+  local d rc
+
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  # Arm 1 — near-miss findings present and the corpus is otherwise clean.
+  d="$(setup_silence_fixture t1349a "plain open")"
+  rc=0
+  ( cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event ) > "$d/v.log" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1349 arm 1: --check must exit 0 (got $rc): $(payload_preview "$(cat "$d/v.log")")"
+  grep -qF "### Verdict: CLEAN (1 unreadable AC table(s) — report-only)" "$d/v.log" \
+    || log_fail "TEST-1349 arm 1: the verdict must name the unreadable AC table count: $(payload_preview "$(cat "$d/v.log")")"
+  # SEAM-4: three live suites match this as a SUBSTRING. A suffix is safe.
+  assert_contains "$d/v.log" "Verdict: CLEAN"
+
+  # Arm 2 — no near-miss finding anywhere: the bare form, byte for byte.
+  d="$(setup_silence_fixture t1349b "plain")"
+  rc=0
+  ( cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event ) > "$d/v.log" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1349 arm 2: --check must exit 0 (got $rc): $(payload_preview "$(cat "$d/v.log")")"
+  grep -qxF "### Verdict: CLEAN" "$d/v.log" \
+    || log_fail "TEST-1349 arm 2: a corpus with no near-miss finding must print the bare verdict line: $(payload_preview "$(cat "$d/v.log")")"
+
+  # Arm 3 — the LIVE corpus: CLEAN today, with 8 tables it could not read.
+  rc="$(silence_live_audit "$TEST_DIR/silence-live-1349.log")"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1349 arm 3: live --check must exit 0 (got $rc)"
+  assert_contains "$TEST_DIR/silence-live-1349.log" "Verdict: CLEAN"
+  grep -qF "unreadable AC table(s) — report-only" "$TEST_DIR/silence-live-1349.log" \
+    || log_fail "TEST-1349 arm 3: the live CLEAN verdict must name the unreadable AC tables it did not read"
+
+  log_pass "The verdict stops being silent about what the audit could not read, and the live-CLEAN substring survives"
+}
+
+test_1350_bare_ac_status_words_are_checked() {   # TEST-1350 / Spec-AC-10
+  log_info "Test: a bare-'AC' table whose Status reads 'green' yields BOTH column-set and status-vocabulary, in docs-audit and in INDEX.violations.md (TEST-1350)..."
+  local d rc
+  d="$(setup_silence_fixture t1350 "open")"
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+
+  rc=0
+  ( cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event ) > "$d/nm.log" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1350: --check must exit 0 (got $rc): $(payload_preview "$(cat "$d/nm.log")")"
+  extract_section_h3 "$d/nm.log" "### Near-miss AC tables" > "$d/nm-sec.txt" 2>/dev/null || true
+  grep -qF "column-set" "$d/nm-sec.txt" \
+    || log_fail "TEST-1350: the bare-AC shape must still report column-set: $(payload_preview "$(cat "$d/nm.log")")"
+  grep -qF "status-vocabulary" "$d/nm-sec.txt" \
+    || log_fail "TEST-1350: a bare-AC table's out-of-vocabulary status word must ALSO report status-vocabulary: $(payload_preview "$(cat "$d/nm.log")")"
+  grep -qF 'status "green"' "$d/nm-sec.txt" \
+    || log_fail "TEST-1350: the status-vocabulary finding must name the offending word: $(payload_preview "$(cat "$d/nm-sec.txt")")"
+  # The canonical word on the SAME table is a negative control: no finding.
+  grep -qF 'status "planned"' "$d/nm-sec.txt" \
+    && log_fail "TEST-1350: a canonical status word must never be reported: $(payload_preview "$(cat "$d/nm-sec.txt")")"
+
+  # SEAM-2 — generate-docs-index.mjs recomputes the SAME detector, so the
+  # widened finding must reach INDEX.violations.md for this NON-terminal doc.
+  rc=0
+  ( cd "$d" && node .aai/scripts/generate-docs-index.mjs ) > "$d/gen.log" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1350 SEAM-2: generate-docs-index must exit 0 (got $rc): $(payload_preview "$(cat "$d/gen.log")")"
+  assert_file "$d/docs/INDEX.violations.md"
+  # writeViolationsReport renders each warning's DETAIL, never its kind, so the
+  # crossing assertion is on the detail text the widened row walk produces.
+  grep -qF 'status "green" for AC-001 is outside' "$d/docs/INDEX.violations.md" \
+    || log_fail "TEST-1350 SEAM-2: INDEX.violations.md must carry the widened status-vocabulary finding: $(payload_preview "$(cat "$d/docs/INDEX.violations.md")")"
+
+  log_pass "A bare-AC table's rows are vocabulary-checked, in both consumers of the shared detector"
+}
+
+test_1351_live_corpus_near_miss_set_is_dispositioned() {   # TEST-1351 / Spec-AC-11
+  log_info "Test: --check --strict over the live tree exits 0 and every near-miss document it names is dispositioned in the spec (TEST-1351)..."
+  local rc spec disp live id missing=""
+  local -a cands=()
+  [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  # Glob on the SLUG, never the SPEC-DRAFT filename: the number allocator
+  # renames the file at close and a pinned name would silently stop gating.
+  cands=( "$PROJECT_ROOT"/docs/specs/*spec-a-check-cannot-tell-silence-from-a-verdict.md )
+  spec="${cands[0]}"
+  [[ -f "$spec" ]] \
+    || log_fail "TEST-1351: the ride's spec is not on disk — the disposition gate has nothing to read"
+
+  rc=0
+  ( cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event ) > "$TEST_DIR/silence-strict.log" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-1351: --check --strict over the live tree must stay exit 0 (got $rc): $(payload_preview "$(cat "$TEST_DIR/silence-strict.log")")"
+
+  disp="$TEST_DIR/silence-disposition.txt"
+  extract_section "$spec" "## Disposition of the live corpus" > "$disp" 2>/dev/null || true
+  [[ -s "$disp" ]] || log_fail "TEST-1351: the spec carries no '## Disposition of the live corpus' section"
+
+  extract_section_h3 "$TEST_DIR/silence-strict.log" "### Near-miss AC tables" > "$TEST_DIR/silence-nm-sec.txt" 2>/dev/null || true
+  live="$TEST_DIR/silence-live-ids.txt"
+  awk -F'|' '/^\| / && NF > 2 { gsub(/^[ \t]+|[ \t]+$/, "", $2); if ($2 != "Doc" && $2 != "" && $2 !~ /^-+$/) print $2 }' \
+    "$TEST_DIR/silence-nm-sec.txt" | LC_ALL=C sort -u > "$live"
+
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    grep -qF "$id" "$disp" || missing="$missing $id"
+  done < "$live"
+  [[ -z "$missing" ]] \
+    || log_fail "TEST-1351: near-miss finding(s) over the live corpus with no written disposition:$missing"
+
+  log_pass "Every near-miss document over the live corpus is dispositioned, and --check --strict still exits 0"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
   setup_fixture
+  test_1351_live_corpus_near_miss_set_is_dispositioned
+  test_1348_near_miss_headline_carries_the_count
+  test_1349_verdict_names_the_unreadable_tables
+  test_1350_bare_ac_status_words_are_checked
   test_report_only_without_config
   test_strict_path_intake_gate
   write_config

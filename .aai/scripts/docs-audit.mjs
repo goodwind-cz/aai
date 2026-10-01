@@ -472,6 +472,15 @@ function main() {
   // reported — line appears only when at least one umbrella doc exists, so
   // repos without umbrellas keep byte-identical output.
   if (counts.umbrellaOpen > 0) lines.push(`- Umbrella (deliberately open, false-open heuristic suppressed): ${counts.umbrellaOpen} (${(counts.umbrellaIds || []).join(', ')})`);
+  // spec-a-check-cannot-tell-silence-from-a-verdict Spec-AC-08 (D5/M7): the
+  // near-miss findings used to live ONLY in a `### Near-miss AC tables` section
+  // ~35 lines down, so the headline — the part a reader, a skill or a suite
+  // actually reads — said nothing about N tables the audit could not read. The
+  // count is now part of what the digest SAYS, split into the subset `--strict`
+  // acts on and the subset it never promotes. Same shape as the umbrella line
+  // above: emitted only when there is something to report, so a corpus with no
+  // near-miss finding keeps byte-identical output.
+  if (counts.nearMiss > 0) lines.push(`- Near-miss AC tables: ${counts.nearMiss} (${counts.nearMissBlocking} blocking, ${counts.nearMiss - counts.nearMissBlocking} report-only)`);
   lines.push(`- Tracked: ${counts.trackedOpen} open, ${counts.trackedDone} done, ${counts.superseded} superseded/rejected`);
   // Rollout progress (always-shown): an in-flight rfc/prd umbrella's `status` enum
   // never shows how far along it is — this rolls up its done/total child docs so
@@ -698,7 +707,15 @@ function main() {
   }
 
   const needsTriage = counts.orphans + counts.drifted + counts.obsolete + counts.violations + counts.provenanceDrift + counts.duplicateDocId;
-  lines.push(`### Verdict: ${needsTriage === 0 ? 'CLEAN' : `NEEDS-TRIAGE (${needsTriage} items)`}`);
+  // spec-a-check-cannot-tell-silence-from-a-verdict Spec-AC-09 (D5): a CLEAN
+  // verdict with near-miss findings present used to read as "I looked and there
+  // was nothing" when it meant "I could not read N of these tables" — issue 370's
+  // reporter read exactly this line. The literal substring `Verdict: CLEAN` is
+  // PRESERVED (a suffix, never a rewrite): three live suites match on it
+  // (assert_contains, grep -qF, and a `!= *"### Verdict: CLEAN"*` comparison),
+  // and a corpus with no near-miss finding still prints the bare form byte for byte.
+  const unreadableAc = counts.nearMiss > 0 ? ` (${counts.nearMiss} unreadable AC table(s) — report-only)` : '';
+  lines.push(`### Verdict: ${needsTriage === 0 ? `CLEAN${unreadableAc}` : `NEEDS-TRIAGE (${needsTriage} items)`}`);
   if (result.hardFail) {
     lines.push('');
     const bodyLintPart = args.strict ? `, ${counts.bodyLint} body lint finding(s)` : '';

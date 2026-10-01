@@ -1022,3 +1022,46 @@ jobs:
           if ($result.SkippedCount -ne $expected) { Write-Host "FAIL: SkippedCount ($($result.SkippedCount)) != declared expected ($expected)"; $fail++ }
           if ($fail -gt 0) { Write-Error "Pester gate failed under Windows PowerShell 5.1 with WSL usable ($fail check(s))"; exit 1 }
           Write-Host "PESTER OK (Windows PowerShell 5.1, WSL1 leg): $($result.PassedCount) passed, $($result.SkippedCount) skipped, 0 failed, ${elapsed}s"
+
+      - name: "CAT-17 ref guard probes PASS under Windows PowerShell 5.1 (spec-a-check-cannot-tell-silence-from-a-verdict Spec-AC-07 / D4)"
+        # D4: the Windows evidence for the CAT-17 probe contract is a STEP, not
+        # a Pester `It`. A Windows-only `It` SKIPS on Linux, and the POSIX gate
+        # asserts SkippedCount -eq 0 (tests/skills/test-ps1-quality.sh), so a
+        # Pester row here would redden the Linux leg over an environment that
+        # leg cannot run in. A workflow STEP has no such accounting.
+        #
+        # This job is the only automated environment resembling GitHub #369's
+        # (Windows PowerShell 5.1 with a real WSL1 distro installed and
+        # usable), so it is where D3's interpreter lookup is actually
+        # exercised: bare `bash` on such a host can resolve to WSL's
+        # C:\Windows\system32\bash.exe. Residual risk R2 stands — a hosted
+        # runner still carries Git Bash on PATH, so the match to the field
+        # report is close, not exact.
+        #
+        # tests/skills/test-aai-doctor.sh TEST-1347 pins this step's PRESENCE
+        # and its PASS assertion. Only this step's own log proves the behaviour;
+        # no local green may be read as covering it.
+        shell: powershell   # Windows PowerShell 5.1 (the #369 field environment)
+        timeout-minutes: 5
+        run: |
+          $ErrorActionPreference = "Stop"
+          $CAT17_REQUIRED_TOKEN = " PASS "
+          # Windows PowerShell 5.1 turns a NATIVE command's stderr into an
+          # error record, and under "Stop" that terminates the step. Both
+          # commands below are native and both are judged by their own exit
+          # status / output, which is checked explicitly after each call — so
+          # a chatty stderr must not be allowed to decide this step's verdict.
+          $ErrorActionPreference = "Continue"
+          & bash .aai/scripts/install-pre-commit-hook.sh --arm-ref-guard
+          if ($LASTEXITCODE -ne 0) { Write-Host "AAI-WIN-CAT17-FAIL: install-pre-commit-hook.sh --arm-ref-guard exited $LASTEXITCODE -- the ref guard was never installed, so nothing below would have been a measurement"; exit 1 }
+          if (-not (Test-Path ".git/hooks/reference-transaction")) { Write-Host "AAI-WIN-CAT17-FAIL: the installer left no reference-transaction hook at .git/hooks -- a PASS below could not have come from a probe"; exit 1 }
+          $doctorOut = (& node .aai/scripts/aai-doctor.mjs | Out-String)
+          $cat17 = (($doctorOut -split "\r?\n") | Where-Object { $_ -like "CAT-17*" }) -join " "
+          Write-Host "AAI-WIN-CAT17: $cat17"
+          # -cnotlike, not -notlike: PowerShell's default comparison is CASE-INSENSITIVE,
+          # so a future CAT-17 reason string carrying "bypass" or "passed through" would
+          # satisfy a case-insensitive "* PASS *" and let this step print OK on a verdict
+          # that was never PASS (code review finding 1). The gate must read the status
+          # token the renderer actually wrote.
+          if ($cat17 -cnotlike "*$CAT17_REQUIRED_TOKEN*") { Write-Host "AAI-WIN-CAT17-FAIL: CAT-17 did not report$CAT17_REQUIRED_TOKEN with the ref guard installed -- the GitHub #369 signature (both probe arms refusing, or the hook never reached by the interpreter this host resolves)"; exit 1 }
+          Write-Host "AAI-WIN-CAT17-OK: CAT-17 reports$CAT17_REQUIRED_TOKEN under Windows PowerShell 5.1 with WSL usable"

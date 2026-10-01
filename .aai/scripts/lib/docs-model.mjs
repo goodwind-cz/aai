@@ -1269,17 +1269,25 @@ export function detectNearMissAcTable(content) {
       const headerPositional = splitTableCells(line);
       const statusIdx = headerPositional.indexOf('Status');
       const idIdx = headerPositional.indexOf('Spec-AC');
+      // spec-a-check-cannot-tell-silence-from-a-verdict Spec-AC-10 (D6/M8): a
+      // bare-"AC" table has no 'Spec-AC' header, so `idIdx` was always -1,
+      // `idVal` was always '', and EVERY row was skipped by the placeholder
+      // check below — the bare-"AC" shape was reported as a SHAPE problem
+      // (column-set) and never as a VOCABULARY problem, however far out of
+      // vocabulary its Status words were. The id column for such a table is
+      // its bare 'AC' column; the placeholder-row skip is unchanged.
+      const bareAcIdx = headerPositional.indexOf('AC');
+      const idCol = idIdx >= 0 ? idIdx : bareAcIdx;
       if (statusIdx >= 0) {
         for (let j = i + 2; j < lines.length; j += 1) {
           const rowLine = lines[j];
           if (!rowLine.trim().startsWith('|')) break;
           const rowCells = splitTableCells(rowLine);
           if (rowCells.length !== headerPositional.length) continue;   // pipe-broken row: Spec-AC-12's concern, not this one
-          // idIdx < 0 (no "Spec-AC" column, e.g. a bare-"AC" column-set
-          // table) means idVal is always '', so THIS is what excludes that
-          // shape from status-vocabulary — the load-bearing half of what the
-          // old `hasSpecAcCol` table-level condition only restated redundantly.
-          const idVal = idIdx >= 0 ? (rowCells[idIdx] ?? '') : '';
+          // `idCol` is the 'Spec-AC' column when there is one and the bare
+          // 'AC' column otherwise; it is -1 only for a table with neither,
+          // which this detector never admits in the first place.
+          const idVal = idCol >= 0 ? (rowCells[idCol] ?? '') : '';
           if (!idVal || idVal.startsWith('Spec-AC-xx') || idVal.startsWith('<')) continue;   // placeholder row, or no Spec-AC column at all
           const rawStatus = rowCells[statusIdx] ?? '';
           if (rawStatus === '' || rawStatus === '—' || rawStatus === '-') continue;   // empty is a separate, existing signal

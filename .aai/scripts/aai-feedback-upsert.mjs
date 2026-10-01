@@ -681,10 +681,15 @@ function prepare(args, cfg) {
       : overBudget ? 'deferred_budget'
       : !hasDescription ? 'blocked_no_description'
       : 'new';
+    // Spec-AC-12: when the dedup search could not run, say what it DID. Both
+    // surfaces a prepare run produces -- the console line and the draft on
+    // disk -- carry the same rendered refusal, so a file read tomorrow cannot
+    // disagree with a console read today.
+    const refusal = status === 'blocked_dedup_unavailable' ? dedupUnavailableLine(ds) : '';
     const draftPath = join(PENDING_DIR, `${fp.replace(/[^A-Za-z0-9]/g, '_')}.md`);
     writeFileSync(draftPath,
-      `# ${payload.title}\n\n<!-- status: ${status} | redaction: ${payload.redaction_status} -->\n\n${payload.body}${DRAFT_FOLLOWUP_SKELETON}`);
-    prepared.push({ fingerprint: fp, status, draftPath });
+      `# ${payload.title}\n\n<!-- status: ${status} | redaction: ${payload.redaction_status} -->\n\n${refusal ? `${refusal}\n` : ''}${payload.body}${DRAFT_FOLLOWUP_SKELETON}`);
+    prepared.push({ fingerprint: fp, status, draftPath, refusal });
   }
   return prepared;
 }
@@ -697,6 +702,30 @@ const BLOCK_REASON = {
   deferred_budget: 'the 7-day new-issue budget is exhausted',
   blocked_no_description: 'no description — write one line (expected, observed, where) and pass --description <file> to --publish',
 };
+
+// Spec-AC-12 (rider 3): `blocked_dedup_unavailable` used to render as the
+// BLOCK_REASON sentence alone, which is TRUE of every cause and diagnostic of
+// none -- a 60-second rate limit and a repository the token cannot read
+// printed the same words. That is this ride's own defect class living inside
+// this ride's own tooling, so prepare now renders the SAME one-block refusal
+// the publish path has rendered since #371: the gh exit status, the certified
+// stderr detail, and the fixed rate-limit hint when the raw line matches the
+// signature. No new text is invented here and no new disclosure is made --
+// `ghRefusalLine`/`ghFailDetail` already decide what a gh stderr line may
+// print, and this reaches that decision from the prepare call site, which
+// `dedupSearch` has always fed via `ds.ghResult`.
+const GH_RESULT_UNKNOWN = { ok: false, status: null, stderrFirst: '' };
+function dedupUnavailableLine(ds) {
+  // A PARSE failure is gh exiting ZERO with output nobody can read, so it is
+  // deliberately NOT routed through ghRefusalLine: that would print
+  // "(exit 0)" -- a status an operator reads as "gh said everything is fine"
+  // -- which is the same class of untrue answer this row removes. Say the
+  // thing that actually happened instead (dedupSearch's own `parseFailed`).
+  if (ds.parseFailed) {
+    return `${BLOCK_REASON.blocked_dedup_unavailable}: gh exited 0 and its search output could not be parsed\n`;
+  }
+  return ghRefusalLine(BLOCK_REASON.blocked_dedup_unavailable, ds.ghResult || GH_RESULT_UNKNOWN);
+}
 
 function main() {
   const argv = process.argv.slice(2);
@@ -890,6 +919,10 @@ function main() {
     // to refuse — an instruction the tool would not honour.
     if (p.status === 'new') {
       process.stdout.write(`  ${p.status.padEnd(24)} ${p.fingerprint}  -> review then: node .aai/scripts/aai-feedback-upsert.mjs${ov} --publish ${p.fingerprint} --confirm\n`);
+    } else if (p.refusal) {
+      // Already newline-terminated by the renderer (and multi-line when the
+      // rate-limit hint fires), so it is written as-is rather than re-wrapped.
+      process.stdout.write(`  ${p.status.padEnd(24)} ${p.fingerprint}  -> not offered: ${p.refusal}`);
     } else {
       process.stdout.write(`  ${p.status.padEnd(24)} ${p.fingerprint}  -> not offered: ${BLOCK_REASON[p.status] || p.status}\n`);
     }
