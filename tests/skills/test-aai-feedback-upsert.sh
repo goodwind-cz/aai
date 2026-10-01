@@ -2187,7 +2187,7 @@ JSONL
 # (exit 42 voids the whole suite). ---------------------------------------------
 test_1311_disposition_table_pinned() {
   log_info "Test: the Disposition table carries the four exact GitHub #NNN cells with reasons; #339 close evidence checked when present (TEST-1311)..."
-  local spec="$PROJECT_ROOT/docs/specs/SPEC-DRAFT-spec-friction-issues-arrive-without-a-description.md"
+  local spec="$PROJECT_ROOT/docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md"
   [ -f "$spec" ] || log_fail "TEST-1311: spec missing: $spec"
   local table; table="$(awk '/^## Disposition of the live queue/{f=1;next} /^## /{f=0} f && /^\|/' "$spec")"
   local cell n

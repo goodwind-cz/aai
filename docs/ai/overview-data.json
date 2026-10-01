@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-01T09:50:59.629Z",
+  "generatedAt": "2026-10-01T12:54:02.057Z",
   "project": "aai",
   "counts": {
     "delivered": 270,
@@ -33,7 +33,7 @@
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
-      "spec": null,
+      "spec": "docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md",
       "validation": null,
       "review": null
     },

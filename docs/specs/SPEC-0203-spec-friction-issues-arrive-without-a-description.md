@@ -1,10 +1,10 @@
 ---
 id: spec-friction-issues-arrive-without-a-description
 type: spec
-number: null
+number: 203
 status: implementing
 mutation_gate: v1
-frozen_sha256: 39ea3fd328a91fdb3640a6a00c75c95594b89dfed26ab635f452750683df8709
+frozen_sha256: 574932ff3bf6a679dee6bd56b0c27802bd7f4b6e1724b0a165550e0c6a6c1bb7
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md
@@ -246,11 +246,11 @@ Notes:
   - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-issues.sh` → exit 0
   - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-prompt-diet.sh` → exit 0
   - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-friction-capture-points.sh` and `test-aai-feedback-triage.sh` → exit 0 (regression; untouched by this scope, they read the same spool shape)
-- Mutation gate: `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-DRAFT-spec-friction-issues-arrive-without-a-description.md` → every row KILLED; `node .aai/scripts/mutation-gate.mjs --spec <path>` → PASS.
+- Mutation gate: `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md` → every row KILLED; `node .aai/scripts/mutation-gate.mjs --spec <path>` → PASS.
 - Live (orchestrator, after merge or at the PR ceremony, never a subagent): `gh issue close 339 --repo goodwind-cz/aai --comment "<the fixed text>"`, then `gh issue view 339 --repo goodwind-cz/aai --json state,comments > docs/ai/tdd/spec-friction-issues-arrive-without-a-description/issue-339-close.txt`; `node .aai/scripts/aai-issues.mjs --json` on the live repository shows #369/#370 excerpts starting `(from comment 1 of 1)`.
 - Evidence artifacts: the five suite logs under `docs/ai/tdd/spec-friction-issues-arrive-without-a-description/`, the twelve mutation records, the issue-339 evidence file, the `wc -c` before/after of the prompt.
 - PASS criteria: all TEST-1301..1312 green AND all Spec-AC in a terminal status AND mutation-gate PASS.
-- Review scope (explicit paths): `.aai/scripts/aai-feedback-upsert.mjs`, `.aai/scripts/lib/aai-redact.mjs`, `.aai/scripts/aai-friction.mjs`, `.aai/scripts/aai-issues.mjs`, `.aai/feedback.yaml`, `.aai/SKILL_FEEDBACK_UPSERT.prompt.md`, `.aai/system/FRICTION_PROTOCOL.md`, `docs/USER_GUIDE.md`, `CHANGELOG.md`, `tests/skills/lib/prompt-diet-ledger.sh`, `tests/skills/test-aai-feedback-upsert.sh`, `tests/skills/test-aai-redact.sh`, `tests/skills/test-aai-friction.sh`, `tests/skills/test-aai-issues.sh`, `docs/specs/SPEC-DRAFT-spec-friction-issues-arrive-without-a-description.md`.
+- Review scope (explicit paths): `.aai/scripts/aai-feedback-upsert.mjs`, `.aai/scripts/lib/aai-redact.mjs`, `.aai/scripts/aai-friction.mjs`, `.aai/scripts/aai-issues.mjs`, `.aai/feedback.yaml`, `.aai/SKILL_FEEDBACK_UPSERT.prompt.md`, `.aai/system/FRICTION_PROTOCOL.md`, `docs/USER_GUIDE.md`, `CHANGELOG.md`, `tests/skills/lib/prompt-diet-ledger.sh`, `tests/skills/test-aai-feedback-upsert.sh`, `tests/skills/test-aai-redact.sh`, `tests/skills/test-aai-friction.sh`, `tests/skills/test-aai-issues.sh`, `docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md`.
 
 ## Residual risks (written down, not left out)
 - R1. A certified description can still carry a bare hostname, a customer name or a project code word written as an ordinary word (the accepted RFC-0013 residual); the field is now 2.5x longer and present on EVERY filed issue. The guard is the human who writes and reads it and types `--confirm`; no automated test can cross this seam.
