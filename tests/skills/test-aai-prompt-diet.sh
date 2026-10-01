@@ -1918,7 +1918,18 @@ test_1336_roadmap_growth_ledgered() {
   fi
   lead="${entry%% *}"
   local rest="$entry" re mb base_size
-  mb="$(git merge-base HEAD origin/main 2>/dev/null)" || mb=""
+  # The entry NAMES the merge-base it measured against. Recomputing
+  # `git merge-base HEAD origin/main` would drift the moment this ride lands on
+  # main (the merge-base then carries the ride's own AFTER sizes, and every
+  # recorded BEFORE would read as a fabrication), so resolve the named commit.
+  mb=""
+  if [[ "$entry" =~ merge-base\ ([0-9a-f]{7,40}) ]]; then
+    mb="${BASH_REMATCH[1]}"
+    git cat-file -e "${mb}^{commit}" 2>/dev/null || mb=""
+  else
+    log_info "TEST-1336: the ledger entry does not name the merge-base it measured against"
+    ok=0
+  fi
   for f in .aai/SKILL_ROADMAP.prompt.md:SKILL_ROADMAP.prompt.md .aai/SKILL_SHIP.prompt.md:SKILL_SHIP.prompt.md .aai/SKILL_PR.prompt.md:SKILL_PR.prompt.md; do
     local path="${f%%:*}" name="${f##*:}"
     re="${name//./\\.} ([0-9]+) -> ([0-9]+)"
@@ -1943,7 +1954,7 @@ test_1336_roadmap_growth_ledgered() {
           ok=0
         fi
       else
-        log_info "TEST-1336: merge-base blob comparison SKIPPED -- origin/main is not resolvable from this checkout"
+        log_info "TEST-1336: merge-base blob comparison SKIPPED -- the named merge-base commit is not in this checkout"
       fi
     else
       log_info "TEST-1336: the ledger entry does not record '$name <before> -> <after>'"

@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-1311: the spec must never describe #339 as OPEN (needle: '#339 - OPEN'), got: ---
 selector_honoured: yes
-target_sha256: 4727bb19ac8b80ac3bfca89ccb937e43cebc583138b8c4186ceff6dbe56240e2
+target_sha256: 6a23e1f37af61179206097629643112a6e9b06a05e0b9db3a0fed4ec0426c8e8
 ---
 === test-aai-feedback-upsert ===
 INFO: Test: the Disposition table carries the four exact GitHub #NNN cells with reasons; #339 close evidence checked when present (TEST-1311)...
