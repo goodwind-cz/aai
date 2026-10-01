@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — feat: downstream rides ask no roadmap or amendment sign-off questions (downstream-rides-ask-no-governance-questions)
+## [unreleased] — feat: downstream rides ask no roadmap or amendment sign-off questions (goodwind-cz/aai#416)
 
 - **`ride-select.mjs gate` treats the roadmap file as the posture switch.** With no `docs/ai/roadmap.yaml` the gate admits with one `roadmap absent ... gate not consulted` line, exit 0, and writes nothing (no override event even under `--override --events`). A roadmap that is present but unreadable, empty, a directory or malformed still refuses (exit 1). `validate` and `next` are unchanged. This closes the contradiction between AGENTS.md operator-contract rule 4 ("roadmap discipline is opt-in downstream") and the script's old deny-on-absent behavior, which stopped every downstream `/aai-ship` at step 1a.
 - **Usage errors run before the posture check** in either posture: a missing or non-slug `--ref`, an empty `--override`, or an `--intake` whose id disagrees with `--ref` exit 2 even when the roadmap is absent.
