@@ -2,10 +2,12 @@
 id: a-check-cannot-tell-silence-from-a-verdict
 type: issue
 number: 92
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 86e16baa
 ---
 
 # Issue — a check cannot tell silence from a verdict

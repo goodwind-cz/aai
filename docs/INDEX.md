@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-01T21:33:06.431Z
+Generated: 2026-10-01T21:33:21.821Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0204 | specs | implementing | 13 done | docs/specs/SPEC-0204-spec-a-check-cannot-tell-silence-from-a-verdict.md |
 
 ## Canonical layer (0)
 
@@ -54,7 +53,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (480)
+## Done (482)
 
 | ID | Type | Path |
 |---|---|---|
@@ -316,6 +315,7 @@ _None._
 | ISSUE-0088 | issues | docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md |
 | ISSUE-0089 | issues | docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md |
 | ISSUE-0090 | issues | docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md |
+| ISSUE-0092 | issues | docs/issues/ISSUE-0092-a-check-cannot-tell-silence-from-a-verdict.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -536,10 +536,11 @@ _None._
 | SPEC-0201 | specs | docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md |
 | SPEC-0202 | specs | docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md |
 | SPEC-0203 | specs | docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md |
+| SPEC-0204 | specs | docs/specs/SPEC-0204-spec-a-check-cannot-tell-silence-from-a-verdict.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
@@ -557,7 +558,6 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
-| ISSUE-0092 | issues | docs/issues/ISSUE-0092-a-check-cannot-tell-silence-from-a-verdict.md |
 
 ## Deferred (whole-doc) (0)
 

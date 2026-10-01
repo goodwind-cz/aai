@@ -2,15 +2,17 @@
 id: spec-a-check-cannot-tell-silence-from-a-verdict
 type: spec
 number: 204
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 5d546da7a2bbe040d19d6ce512dc8e0a0668da1294dab17de91f2b52fe7c23ef
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0092-a-check-cannot-tell-silence-from-a-verdict.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 86e16baa
 ---
 
 # Spec — a check says what it observed, or says it could not observe
