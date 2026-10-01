@@ -1,0 +1,25 @@
+RED_CLASS: product_red
+# TEST-1305 pre-change tree HEAD=e7de26d7 suite=test-aai-feedback-upsert.sh selector=test_1305_representative_prefers_summary exit=1
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+=== test-aai-feedback-upsert ===
+INFO: Test: among one fingerprint's members, the summary-carrying one is the representative even with lower signal (TEST-1305)...
+FAIL: TEST-1305: the prepared draft must carry member B's blockquote (# [contract_violation] SKILL_TDD/impl (high impact)
+
+<!-- status: new | redaction: none -->
+
+- failure_class: contract_violation
+- skill: SKILL_TDD / impl
+- impact: high
+- confidence: high
+- reproducible: true
+- os_family: macos  node_major: 22  aai_pin: unknown  harness: unknown
+- recurrence: 2  score: 9
+
+<!-- aai-friction:v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -->
+
+<!--
+## Analysis (reporter follow-up)
+(operator: fill in after filing -- what happened, how to reproduce, and the
+suggested fix. This skeleton is inert: it is never read by the publish path.)
+-->)

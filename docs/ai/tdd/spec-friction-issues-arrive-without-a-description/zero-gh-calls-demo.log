@@ -1,0 +1,16 @@
+### zero-gh-call demonstration, 2026-10-01T11:39:34Z, HEAD=e7de26d7 (working tree), node=/Users/ales/.local/bin/node
+## (1) PROSE-FREE record, --publish --confirm, gh = sentinel stub that appends EVERY invocation to a file the engine does not know about
+aai-feedback-upsert: refusing to file v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: no description — the record carries no certified summary and no --description <file> was given (a maintainer cannot act on structured fields alone)
+exit=2
+sentinel invocations: 0
+## (2) PROSE-FREE record, gh = a path that DOES NOT EXIST, PATH stripped of gh: an attempted spawn would surface as the 'gh not found -- install it' message with exit 1; the refusal must come first
+aai-feedback-upsert: refusing to file v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: no description — the record carries no certified summary and no --description <file> was given (a maintainer cannot act on structured fields alone)
+exit=2
+## (3) POSITIVE CONTROL for (1): same record plus --description, same sentinel stub: the sentinel records the auth preflight -- the stub IS what the engine reaches once the gate passes
+aai-feedback-upsert: GitHub `gh` is not authenticated — run: gh auth login
+exit=1
+sentinel invocations: 1
+auth status
+## (4) POSITIVE CONTROL for (2): same record plus --description, nonexistent gh: the engine now DOES try to spawn gh and reports it absent
+aai-feedback-upsert: GitHub CLI `gh` not found — install it and run: gh auth login
+exit=1

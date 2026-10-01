@@ -1,0 +1,21 @@
+mutation_record: v1
+spec_id: spec-friction-issues-arrive-without-a-description
+test_id: TEST-1302
+suite: tests/skills/test-aai-feedback-upsert.sh
+selector: test_1302_prepare_blocks_without_description
+target: .aai/scripts/aai-feedback-upsert.mjs
+mutation: sed:s/'blocked_no_description'/'new'/
+base_commit: e7de26d7140510a4cebe02054062ff55e29d86f1
+tree_hash: 0e3e5c48c75dd1c9b789e5a426eecbc3745ca99f0353ee30f46e67655adbcc70
+run_at_utc: 2026-10-01T11:37:39Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-1302: the draft header must read status: blocked_no_description (# [contract_violation] SKILL_TDD/impl (high impact)
+selector_honoured: yes
+target_sha256: 0d2bb67457d8493addf3fce0fd06ca30c5a356ced4338bc35a83707f8077fb2d
+---
+=== test-aai-feedback-upsert ===
+INFO: Test: prepare marks a description-less cluster blocked_no_description and offers no --publish; a summary-carrying one is offered (TEST-1302)...
+FAIL: TEST-1302: the draft header must read status: blocked_no_description (# [contract_violation] SKILL_TDD/impl (high impact)
+
+<!-- status: new | redaction: none -->)

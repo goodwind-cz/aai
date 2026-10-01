@@ -1,0 +1,39 @@
+mutation_record: v1
+spec_id: spec-friction-issues-arrive-without-a-description
+test_id: TEST-1311
+suite: tests/skills/test-aai-feedback-upsert.sh
+selector: test_1311_disposition_table_pinned
+target: docs/specs/SPEC-DRAFT-spec-friction-issues-arrive-without-a-description.md
+mutation: sed:s/#339 - CLOSED by this scope/#339 - OPEN/
+base_commit: e7de26d7140510a4cebe02054062ff55e29d86f1
+tree_hash: 0e3e5c48c75dd1c9b789e5a426eecbc3745ca99f0353ee30f46e67655adbcc70
+run_at_utc: 2026-10-01T11:38:00Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-1311: the spec must never describe #339 as OPEN (needle: '#339 - OPEN'), got: ---
+selector_honoured: yes
+target_sha256: f07b9c67f3b47475f5f7fb0d228ccc5cb29fa79d7a585446cc6115735a1eb4d3
+---
+=== test-aai-feedback-upsert ===
+INFO: Test: the Disposition table carries the four exact GitHub #NNN cells with reasons; #339 close evidence checked when present (TEST-1311)...
+FAIL: TEST-1311: the spec must never describe #339 as OPEN (needle: '#339 - OPEN'), got: ---
+id: spec-friction-issues-arrive-without-a-description
+type: spec
+number: null
+status: implementing
+mutation_gate: v1
+frozen_sha256: 39ea3fd328a91fdb3640a6a00c75c95594b89dfed26ab635f452750683df8709
+ceremony_level: 2
+links:
+  requirement: docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md
+  rfc: null
+  pr: []
+  commits: []
+---
+
+# Spec — a friction issue carries a description or is not filed
+
+SPEC-FROZEN: true
+
+## Links
+- Requirement: docs/issues/CHANGE-0179-friction-issues-arrive-wi... [42861 bytes total, truncated to 512]

@@ -1,0 +1,37 @@
+mutation_record: v1
+spec_id: spec-friction-issues-arrive-without-a-description
+test_id: TEST-1309
+suite: tests/skills/test-aai-issues.sh
+selector: test_1309_excerpt_from_first_comment
+target: .aai/scripts/aai-issues.mjs
+mutation: sed:s/proseLineCount\(body\) === 0/false/
+base_commit: e7de26d7140510a4cebe02054062ff55e29d86f1
+tree_hash: 0e3e5c48c75dd1c9b789e5a426eecbc3745ca99f0353ee30f46e67655adbcc70
+run_at_utc: 2026-10-01T11:37:55Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-1309 excerpt from first comment
+selector_honoured: yes
+target_sha256: e76840ddc0c2d4b68e87b8c27adb1be5ed63b060659cd1c6f149fb6c81578f4b
+---
+Testing: aai-issues
+====================
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: TEST-1309: metadata-only body + comment -> excerpt from comment 1 of N; prose body and no-comment body unchanged; comment text sanitized...
+INFO: TEST-1309: issue 1 excerpt must start with '(from comment 1 of 2) ': - failure_class: contract_violation - skill: SKILL_PR / close <!-- aai-friction:v1:abc -->
+INFO: TEST-1309: issue 1 excerpt must carry the first comment's text, whitespace-collapsed: - failure_class: contract_violation - skill: SKILL_PR / close <!-- aai-friction:v1:abc -->
+INFO: TEST-1309: a metadata-only body must not be the excerpt when a comment exists: - failure_class: contract_violation - skill: SKILL_PR / close <!-- aai-friction:v1:abc -->
+INFO: TEST-1309: the text table must carry the labelled comment excerpt: ISSUE #1 [aai-friction] metadata only with comment
+  url: https://github.com/o/r/issues/1
+  excerpt: - failure_class: contract_violation - skill: SKILL_PR / close <!-- aai-friction:v1:abc -->
+ISSUE #2 [] prose body with comment
+  url: https://github.com/o/r/issues/2
+  excerpt: the body has prose here - plus a fact
+ISSUE #3 [] metadata only no comments
+  url: https://github.com/o/r/issues/3
+  excerpt: - failure_class: x <!-- marker -->
+ISSUES 3 platform=github
+
+Some tests FAILED.
+FAIL: TEST-1309 excerpt from first comment

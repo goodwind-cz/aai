@@ -1,0 +1,16 @@
+RED_CLASS: product_red
+# TEST-1312 pre-change tree HEAD=e7de26d7 suite=test-aai-feedback-upsert.sh selector=test_1312_surfaces_state_the_contract exit=1
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+=== test-aai-feedback-upsert ===
+INFO: Test: --help, the prompt, USER_GUIDE and FRICTION_PROTOCOL state --description / no description; CHANGELOG heading; prompt-diet green (TEST-1312)...
+FAIL: TEST-1312: help must name --description (needle: '--description'), got: aai-feedback-upsert — RFC-0012 Phase 2c review-mode upsert (approval-gated).
+
+Usage:
+  node .aai/scripts/aai-feedback-upsert.mjs [--report <p>] [--spool <p>] [--config <p>]
+  node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm [...]
+  node .aai/scripts/aai-feedback-upsert.mjs --help
+
+A plain run is PREPARE-ONLY: it writes transmit-redacted, deduplicated,
+budget-checked issue drafts to docs/ai/friction/pending-issues/ and prints the
+exact confirmed-write command. It performs NO muta... [1242 bytes total, truncated to 512]

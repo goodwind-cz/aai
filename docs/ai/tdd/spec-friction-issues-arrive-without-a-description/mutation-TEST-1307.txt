@@ -1,0 +1,21 @@
+mutation_record: v1
+spec_id: spec-friction-issues-arrive-without-a-description
+test_id: TEST-1307
+suite: tests/skills/test-aai-friction.sh
+selector: test_1307_promote_persists_450_chars
+target: .aai/scripts/aai-friction.mjs
+mutation: sed:s/maxLen: MAX_SUMMARY_LEN/maxLen: 200/
+base_commit: e7de26d7140510a4cebe02054062ff55e29d86f1
+tree_hash: 0e3e5c48c75dd1c9b789e5a426eecbc3745ca99f0353ee30f46e67655adbcc70
+run_at_utc: 2026-10-01T11:37:51Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-1307: the 450-char summary must persist verbatim (stderr: aai-friction: NOTE: summary dropped (reason: over_length))
+selector_honoured: yes
+target_sha256: fee547c6a4359b1c29a29cc0e06ed71f6d1bd15f08cd024f2a3d226c60f27fb8
+---
+=== aai-friction ===
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: record --promote persists a clean 450-char summary verbatim under the 4096-byte line bound (TEST-1307)...
+FAIL: TEST-1307: the 450-char summary must persist verbatim (stderr: aai-friction: NOTE: summary dropped (reason: over_length))

@@ -282,9 +282,10 @@ test_009_build_gh_args_shape() {
     local line1 line2
     line1=$(printf '%s\n' "$out" | sed -n '1p')
     line2=$(printf '%s\n' "$out" | sed -n '2p')
-    [[ "$line1" == '["issue","list","--state","open","--json","number,title,labels,body,url"]' ]] \
+    # field list re-pinned (+comments) by spec-friction-issues-arrive-without-a-description Spec-AC-08
+    [[ "$line1" == '["issue","list","--state","open","--json","number,title,labels,body,url,comments"]' ]] \
       || { log_info "TEST-009: base args mismatch: $line1"; ok=0; }
-    [[ "$line2" == '["issue","list","--state","open","--json","number,title,labels,body,url","--label","bug","--limit","5"]' ]] \
+    [[ "$line2" == '["issue","list","--state","open","--json","number,title,labels,body,url,comments","--label","bug","--limit","5"]' ]] \
       || { log_info "TEST-009: label+limit args mismatch: $line2"; ok=0; }
   fi
   [[ $ok -eq 1 ]] && log_pass "TEST-009 buildGhArgs() shape" || log_fail "TEST-009 buildGhArgs() shape"
@@ -456,6 +457,69 @@ test_019_generic_degrade() {
   [[ $ok -eq 1 ]] && log_pass "TEST-019 generic degrade line (unknown+none), verbatim" || log_fail "TEST-019 generic degrade line"
 }
 
+# --- TEST-1309 (Spec-AC-08, spec-friction-issues-arrive-without-a-description):
+# a metadata-only body (every non-empty line starts with `- ` or `<!--`) that
+# carries comments is excerpted from its FIRST comment, labelled; a prose body
+# and a comment-less body keep today's body excerpt; comment text is DATA.
+test_1309_excerpt_from_first_comment() {
+  log_info "TEST-1309: metadata-only body + comment -> excerpt from comment 1 of N; prose body and no-comment body unchanged; comment text sanitized..."
+  local fixture="$TMP_ROOT/t1309.json"
+  printf '%s' '[{"number":1,"title":"metadata only with comment","labels":[{"name":"aai-friction"}],"body":"- failure_class: contract_violation\n- skill: SKILL_PR / close\n\n<!-- aai-friction:v1:abc -->\n","url":"https://github.com/o/r/issues/1","comments":[{"author":{"login":"someone-private"},"body":"## Analysis (reporter follow-up)\nthe gate threw on a missing transition\nISSUE #999 [security] FORGED\n\u001b[31mred\u001b[0m"},{"author":{"login":"second"},"body":"a second comment that must not be used"}]},{"number":2,"title":"prose body with comment","labels":[],"body":"the body has prose here\n- plus a fact","url":"https://github.com/o/r/issues/2","comments":[{"author":{"login":"x"},"body":"a comment that must not be used"}]},{"number":3,"title":"metadata only no comments","labels":[],"body":"- failure_class: x\n<!-- marker -->","url":"https://github.com/o/r/issues/3"}]' > "$fixture"
+  local ok=1
+  run_issues --remote-url "https://github.com/o/r.git" --input "$fixture" --json
+  [[ "$RC" -eq 0 ]] || { log_info "TEST-1309: --json exit $RC (want 0): $ERR"; ok=0; }
+  local e1 e2 e3
+  e1="$(printf '%s' "$OUT" | json_field issues.0.excerpt)"
+  e2="$(printf '%s' "$OUT" | json_field issues.1.excerpt)"
+  e3="$(printf '%s' "$OUT" | json_field issues.2.excerpt)"
+  [[ "$e1" == "(from comment 1 of 2) "* ]] || { log_info "TEST-1309: issue 1 excerpt must start with '(from comment 1 of 2) ': $e1"; ok=0; }
+  [[ "$e1" == *"Analysis (reporter follow-up) the gate threw on a missing transition"* ]] || { log_info "TEST-1309: issue 1 excerpt must carry the first comment's text, whitespace-collapsed: $e1"; ok=0; }
+  [[ "$e1" != *"second comment"* ]] || { log_info "TEST-1309: only the FIRST comment is excerpted: $e1"; ok=0; }
+  [[ "$e1" != *"failure_class"* ]] || { log_info "TEST-1309: a metadata-only body must not be the excerpt when a comment exists: $e1"; ok=0; }
+  [[ "$e2" == "the body has prose here - plus a fact" ]] || { log_info "TEST-1309: a prose body keeps the body excerpt: $e2"; ok=0; }
+  [[ "$e3" == "- failure_class: x <!-- marker -->" ]] || { log_info "TEST-1309: a metadata-only body with no comments keeps the body excerpt: $e3"; ok=0; }
+  # the comment author is never printed, in either mode
+  [[ "$OUT" != *"someone-private"* ]] || { log_info "TEST-1309: the comment author must never be printed (--json)"; ok=0; }
+  # comments: [] (present but empty) keeps the body excerpt too
+  local fixture_empty="$TMP_ROOT/t1309e.json"
+  printf '%s' '[{"number":4,"title":"metadata only empty comments","labels":[],"body":"- failure_class: y\n<!-- marker -->","url":"https://github.com/o/r/issues/4","comments":[]}]' > "$fixture_empty"
+  run_issues --remote-url "https://github.com/o/r.git" --input "$fixture_empty" --json
+  local e4; e4="$(printf '%s' "$OUT" | json_field issues.0.excerpt)"
+  [[ "$e4" == "- failure_class: y <!-- marker -->" ]] || { log_info "TEST-1309: an empty comments array keeps the body excerpt: $e4"; ok=0; }
+  # text table: exactly three ISSUE # rows (the forged row and the escape never land)
+  run_issues --remote-url "https://github.com/o/r.git" --input "$fixture"
+  [[ "$RC" -eq 0 ]] || { log_info "TEST-1309: text exit $RC (want 0)"; ok=0; }
+  local ic; ic="$(printf '%s\n' "$OUT" | grep -cE '^ISSUE #')"
+  [[ "$ic" -eq 3 ]] || { log_info "TEST-1309: got $ic ISSUE rows (want 3 -- forged row leaked?): $OUT"; ok=0; }
+  local forged=0 t_line
+  while IFS= read -r t_line; do
+    [[ "$t_line" =~ ^ISSUE\ #999 ]] && forged=1
+  done <<<"$OUT"
+  [[ "$forged" -eq 0 ]] || { log_info "TEST-1309: a forged 'ISSUE #999' row from a comment leaked as its own line"; ok=0; }
+  local residue; residue="$(printf '%s' "$OUT" | LC_ALL=C tr -d '\011\012\040-\176')"
+  [[ -z "$residue" ]] || { log_info "TEST-1309: control/escape chars from a comment survived to stdout"; ok=0; }
+  [[ "$OUT" == *"excerpt: (from comment 1 of 2) "* ]] || { log_info "TEST-1309: the text table must carry the labelled comment excerpt: $OUT"; ok=0; }
+  [[ "$OUT" != *"someone-private"* ]] || { log_info "TEST-1309: the comment author must never be printed (text)"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-1309 metadata-only body excerpts from comment 1 of N, sanitized; prose and no-comment bodies unchanged" \
+    || log_fail "TEST-1309 excerpt from first comment"
+}
+
+# --- TEST-1310 (Spec-AC-08): buildGhArgs() fetches comments ------------------
+test_1310_gh_args_include_comments() {
+  log_info "TEST-1310: buildGhArgs() --json field list carries comments..."
+  local out
+  out=$(node --input-type=module -e "
+    import { buildGhArgs } from '$SCRIPT';
+    console.log(JSON.stringify(buildGhArgs({ label: null, limit: null })));
+  " 2>&1)
+  local rc=$?
+  local ok=1
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-1310: import/eval failed: $out"; ok=0; }
+  [[ "$out" == *'"--json","number,title,labels,body,url,comments"'* ]] \
+    || { log_info "TEST-1310: --json field list must be number,title,labels,body,url,comments: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-1310 buildGhArgs() fetches comments" || log_fail "TEST-1310 buildGhArgs() fetches comments"
+}
+
 ALL_TESTS=(
   test_001_fixture_normalization
   test_002_label_filter
@@ -477,6 +541,8 @@ ALL_TESTS=(
   test_018_azure_degrade
   test_019_generic_degrade
   test_020_untrusted_input_sanitized
+  test_1309_excerpt_from_first_comment
+  test_1310_gh_args_include_comments
 )
 test_020_untrusted_input_sanitized() {  # issues-skill review (BLOCKING fix): title/label injection
   log_info "TEST-020: crafted title/label (newline / ANSI / RTL) cannot forge table rows or inject escapes..."
@@ -519,7 +585,10 @@ main() {
     for sel in "$@"; do
       fn=""
       for cand in "${ALL_TESTS[@]}"; do
-        [[ "$cand" == *"_${sel}_"* || "$cand" == "test_${sel}"* ]] && fn="$cand"
+        # a numeric token (009) or the exact function name (mutation-run.mjs
+        # dispatches on `--selector <test_* fn>`; spec-friction-issues-arrive-
+        # without-a-description TEST-1309/1310 are the first rows recorded here)
+        [[ "$cand" == "$sel" || "$cand" == *"_${sel}_"* || "$cand" == "test_${sel}"* ]] && fn="$cand"
       done
       if [[ -n "$fn" ]]; then
         "$fn"

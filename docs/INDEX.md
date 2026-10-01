@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-01T11:12:33.191Z
+Generated: 2026-10-01T12:06:02.310Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-friction-issues-arrive-without-a-description | specs | implementing | 10 planned | docs/specs/SPEC-DRAFT-spec-friction-issues-arrive-without-a-description.md |
+| spec-friction-issues-arrive-without-a-description | specs | implementing | 10 done | docs/specs/SPEC-DRAFT-spec-friction-issues-arrive-without-a-description.md |
 
 ## Canonical layer (0)
 

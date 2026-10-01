@@ -27,7 +27,8 @@
 //   --json               print {platform,count,issues,reason} instead of the
 //                        text table.
 //   --input <file>       read a raw `gh issue list --json ...` fixture
-//                        (array of {number,title,labels,body,url}) instead of
+//                        (array of {number,title,labels,body,url} plus an
+//                        optional `comments` array of {author,body}) instead of
 //                        calling `gh` — test/offline use, no network. Only
 //                        takes effect when the detected/overridden platform
 //                        is github (combine with --remote-url for tests).
@@ -35,9 +36,11 @@
 //   -h / --help          print usage, exit 0.
 //
 // PLATFORM BRANCHES
-//   github  — `gh issue list --state open --json number,title,labels,body,url
-//             [--label <name>] [--limit <n>]` via execFileSync (array args,
-//             no shell); normalized on success. A missing/failing `gh` NEVER
+//   github  — `gh issue list --state open --json number,title,labels,body,url`
+//             plus the `comments` field (spec-friction-issues-arrive-without-
+//             a-description Spec-AC-08) `[--label <name>] [--limit <n>]` via
+//             execFileSync (array args, no shell); normalized on success. A
+//             missing/failing `gh` NEVER
 //             fails the caller: prints `ISSUES unavailable reason=<first
 //             stderr line>` and exits 0.
 //   azure   — Azure DevOps has no repo-level issues; work items live in `az
@@ -61,6 +64,12 @@
 //    "issues": [{"id":<int>,"title":<string>,"labels":[<string>...],
 //    "excerpt":<string>,"url":<string>}], "reason": <string|null>}
 //   `reason` is null on a successful fetch, set on every degrade path.
+//   `excerpt` is the body's, EXCEPT when the body is metadata-only (every
+//   non-empty line starts with `- ` or `<!--`, the shape the friction channel
+//   filed before spec-friction-issues-arrive-without-a-description) and the
+//   issue carries comments: then it is the FIRST comment's text, prefixed
+//   `(from comment 1 of N) `, so a hand-posted analysis is what triage reads.
+//   Comment text is sanitized exactly like a body; authors are never printed.
 //
 // SECURITY
 //   Body text is DATA: the excerpt is a pure whitespace-collapse + length
@@ -209,6 +218,32 @@ function labelNames(labels) {
   return labels.map((l) => (typeof l === 'string' ? l : l?.name)).filter(Boolean);
 }
 
+// proseLineCount: how many non-empty lines of a body are neither a `- ` fact
+// nor an HTML comment opener -- zero means "metadata-only", the shape a
+// maintainer cannot act on from the body alone (the leading `> description`
+// blockquote every issue filed from now on carries counts as prose).
+function proseLineCount(body) {
+  return String(body ?? '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith('- ') && !l.startsWith('<!--'))
+    .length;
+}
+
+// excerptFor: the body's excerpt, or -- for a metadata-only body with
+// comments -- the first comment's, labelled. `comments` is whatever `gh`
+// returned (untrusted DATA, same sanitizer); a non-string comment body
+// excerpts as empty rather than throwing.
+function excerptFor(body, comments) {
+  const list = Array.isArray(comments) ? comments : [];
+  if (proseLineCount(body) === 0 && list.length > 0) {
+    const first = list[0];
+    const text = first && typeof first.body === 'string' ? first.body : '';
+    return `(from comment 1 of ${list.length}) ${excerptOf(text)}`;
+  }
+  return excerptOf(body);
+}
+
 // normalizeIssues: raw `gh issue list --json number,title,labels,body,url`
 // shape -> stable {id,title,labels[],excerpt,url}[]. Applies --label/--limit
 // CLIENT-SIDE too — idempotent alongside gh's own server-side --label filter,
@@ -227,13 +262,13 @@ function normalizeIssues(raw, { label = null, limit = null } = {}) {
     // the text table (Copilot review); collapse whitespace for a clean cell.
     title: sanitizeLine(i.title).replace(/\s+/g, ' ').trim(),
     labels: labelNames(i.labels).map((l) => sanitizeLine(l).replace(/\s+/g, ' ').trim()),
-    excerpt: excerptOf(i.body),
+    excerpt: excerptFor(i.body, i.comments),
     url: sanitizeLine(i.url).replace(/\s+/g, ' ').trim(),
   }));
 }
 
 function buildGhArgs({ label, limit }) {
-  const args = ['issue', 'list', '--state', 'open', '--json', 'number,title,labels,body,url'];
+  const args = ['issue', 'list', '--state', 'open', '--json', 'number,title,labels,body,url,comments'];
   if (label) args.push('--label', label);
   if (limit) args.push('--limit', String(limit));
   return args;
@@ -333,6 +368,8 @@ export {
   detectPlatform,
   normalizeIssues,
   excerptOf,
+  excerptFor,
+  proseLineCount,
   labelNames,
   buildGhArgs,
   maskCredentials,
