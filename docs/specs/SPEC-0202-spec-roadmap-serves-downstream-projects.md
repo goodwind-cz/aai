@@ -2,15 +2,17 @@
 id: spec-roadmap-serves-downstream-projects
 type: spec
 number: 202
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 42d0118456658e059162a0dc55229a0095cee04eb984a97ba49879d61f8e2547
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - d1ed3a43ed5187e2e9fb42a5ec05e045257cb394
 ---
 
 # Spec — the roadmap is an ordered capability list with an opt-in maintenance budget and its own skill
@@ -417,22 +419,22 @@ instead of growing an 838-line file whose own spec forbids automatic callers.
 
 | Spec-AC    | Description | Status  | Evidence | Review-By | Notes |
 |------------|-------------|---------|----------|-----------|-------|
-| Spec-AC-01 | WHEN a roadmap has no budget block validate SHALL exit 0; an empty, duplicate or non-1 budget SHALL exit 2; the shipped roadmap summary SHALL stay byte-identical | planned | — | — | D1 D2 D9 |
-| Spec-AC-02 | WHEN there is no budget gate SHALL admit off-roadmap maintenance, off-roadmap capability and out-of-order roadmap refs and refuse done or documentless refs; with a budget the same fixtures SHALL refuse as today | planned | — | — | D3 |
-| Spec-AC-03 | WHEN there is no budget next SHALL never propose bind, SHALL skip done pairs and pairs whose capability doc is done, and next json SHALL carry a path field | planned | — | — | D7 |
-| Spec-AC-04 | ride-select show SHALL print next item and budget on or off, say no roadmap for an absent path, emit json fields and exit 2 when invalid | planned | — | — | D12 |
-| Spec-AC-05 | Each roadmap-edit verb SHALL make one certified edit and every refused input SHALL leave the roadmap sha256 unchanged | planned | — | — | D5 |
-| Spec-AC-06 | ship-append SHALL append an active capability with one reported line when there is no budget and SHALL be a named no-op for absent, budget on, maintenance type or already listed | planned | — | — | D6 |
-| Spec-AC-07 | advance SHALL flip a pair to done only when its documents are done per posture and otherwise write nothing | planned | — | — | D8 |
-| Spec-AC-08 | IN a fixture repo the real close-work-item close followed by advance SHALL move next to the following pair, and close-work-item.mjs SHALL stay byte-identical | planned | — | — | seam S1 D4 |
-| Spec-AC-09 | The dispatch candidate gate verdict SHALL equal the CLI gate verdict on a no-budget and a budget fixture | planned | — | — | seam S2 |
-| Spec-AC-10 | nothing-left-behind SHALL report no paired maintenance half without a budget and one with a budget, agreeing with show json | planned | — | — | seam S3 |
-| Spec-AC-11 | write against an absent roadmap SHALL create a budget-free file that validates and never proposes bind | planned | — | — | D10 |
-| Spec-AC-12 | The aai-roadmap skill SHALL be registered in the wrapper, three mirrors, PROFILES, suite-map and both USER_GUIDE skill lists | planned | — | — | D11 |
-| Spec-AC-13 | SKILL_ROADMAP SHALL map every action to one script command as a menu and no other prompt SHALL name roadmap-propose | planned | — | — | D9 D12 |
-| Spec-AC-14 | SKILL_SHIP SHALL state the no-argument next path and the ship-append line; SKILL_PR 4c SHALL run advance and stage the roadmap in the close commit | planned | — | — | D13 seam S4 |
-| Spec-AC-15 | USER_GUIDE SHALL carry the roadmap section with three examples, README SHALL point to it, the product doc SHALL pass the gate, AGENTS rule 4 SHALL state order and opt-in budget | planned | — | — | D14 |
-| Spec-AC-16 | The diet ledger SHALL credit the measured growth, prompt-diet SHALL pass and ORCHESTRATION SHALL stay byte-identical | planned | — | — | companion obligations |
+| Spec-AC-01 | WHEN a roadmap has no budget block validate SHALL exit 0; an empty, duplicate or non-1 budget SHALL exit 2; the shipped roadmap summary SHALL stay byte-identical | done | aai-ride-select PASS (TEST-1301/1302/718); repo validate output unchanged (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | D1 D2 D9 |
+| Spec-AC-02 | WHEN there is no budget gate SHALL admit off-roadmap maintenance, off-roadmap capability and out-of-order roadmap refs and refuse done or documentless refs; with a budget the same fixtures SHALL refuse as today | done | aai-ride-select/aai-roadmap PASS; replay: no-budget gate ADMITs on- and off-roadmap; budget refusal of an off-roadmap fix (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | D3 |
+| Spec-AC-03 | WHEN there is no budget next SHALL never propose bind, SHALL skip done pairs and pairs whose capability doc is done, and next json SHALL carry a path field | done | replay: no-budget next gives file-intake/path, never bind; it advances after a done pair (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | D7 |
+| Spec-AC-04 | ride-select show SHALL print next item and budget on or off, say no roadmap for an absent path, emit json fields and exit 2 when invalid | done | replay show in every posture (TEST-1309) (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | D12 |
+| Spec-AC-05 | Each roadmap-edit verb SHALL make one certified edit and every refused input SHALL leave the roadmap sha256 unchanged | done | TEST-1311..1316 PASS; replay refusals rc 1/2 (budget on absent, drop last, off without --confirm, ship-append id mismatch rc 2) (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | D5 |
+| Spec-AC-06 | ship-append SHALL append an active capability with one reported line when there is no budget and SHALL be a named no-op for absent, budget on, maintenance type or already listed | done | replay ship-append: appended / already-on / budget-on / absent no-ops (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | D6 |
+| Spec-AC-07 | advance SHALL flip a pair to done only when its documents are done per posture and otherwise write nothing | done | replay advance: draft no-op, done flip, idempotent repeat (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | D8 |
+| Spec-AC-08 | IN a fixture repo the real close-work-item close followed by advance SHALL move next to the following pair, and close-work-item.mjs SHALL stay byte-identical | done | TEST-1322 real close seam PASS in sweep (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | seam S1 D4 |
+| Spec-AC-09 | The dispatch candidate gate verdict SHALL equal the CLI gate verdict on a no-budget and a budget fixture | done | TEST-1323 PASS (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | seam S2 |
+| Spec-AC-10 | nothing-left-behind SHALL report no paired maintenance half without a budget and one with a budget, agreeing with show json | done | TEST-1324 PASS (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | seam S3 |
+| Spec-AC-11 | write against an absent roadmap SHALL create a budget-free file that validates and never proposes bind | done | TEST-1310 PASS (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | D10 |
+| Spec-AC-12 | The aai-roadmap skill SHALL be registered in the wrapper, three mirrors, PROFILES, suite-map and both USER_GUIDE skill lists | done | TEST-1325..1328 PASS; sync --check rc 0 (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | D11 |
+| Spec-AC-13 | SKILL_ROADMAP SHALL map every action to one script command as a menu and no other prompt SHALL name roadmap-propose | done | TEST-1329/1330/1340 PASS; SKILL_ROADMAP read (add-first offer, last-pair rule) (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | D9 D12 |
+| Spec-AC-14 | SKILL_SHIP SHALL state the no-argument next path and the ship-append line; SKILL_PR 4c SHALL run advance and stage the roadmap in the close commit | done | TEST-1331/1332/1338 PASS; SKILL_SHIP INPUT read; F1 replay end to end (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | D13 seam S4 |
+| Spec-AC-15 | USER_GUIDE SHALL carry the roadmap section with three examples, README SHALL point to it, the product doc SHALL pass the gate, AGENTS rule 4 SHALL state order and opt-in budget | done | TEST-1333..1335/1339 PASS; my literal replay of Examples 1-3 (F1/F2 resolved); NB-A, NB-B cosmetic (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | D14 |
+| Spec-AC-16 | The diet ledger SHALL credit the measured growth, prompt-diet SHALL pass and ORCHESTRATION SHALL stay byte-identical | done | TEST-1336/1337 PASS; independent wc -c = ledger (docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md) | — | companion obligations |
 
 ## Implementation plan
 

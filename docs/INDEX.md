@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-01T10:50:54.869Z
+Generated: 2026-10-01T10:51:29.580Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0202 | specs | implementing | 16 planned | docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md |
 
 ## Canonical layer (0)
 
@@ -54,7 +53,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (476)
+## Done (478)
 
 | ID | Type | Path |
 |---|---|---|
@@ -252,6 +251,7 @@ _None._
 | CHANGE-0197 | issues | docs/issues/CHANGE-0197-pricing-missing-models-and-refresh.md |
 | CHANGE-0198 | issues | docs/issues/CHANGE-0198-pricing-gpt-6-flagship-family.md |
 | CHANGE-0200 | issues | docs/issues/CHANGE-0200-downstream-rides-ask-no-governance-questions.md |
+| CHANGE-0201 | issues | docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -532,10 +532,11 @@ _None._
 | SPEC-0199 | specs | docs/specs/SPEC-0199-spec-sync-deletes-target-only-hooks.md |
 | SPEC-0200 | specs | docs/specs/SPEC-0200-spec-downstream-rides-ask-no-governance-questions.md |
 | SPEC-0201 | specs | docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md |
+| SPEC-0202 | specs | docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (16)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
@@ -543,7 +544,6 @@ _None._
 | CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
-| CHANGE-0201 | issues | docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

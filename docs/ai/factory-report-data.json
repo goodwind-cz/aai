@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-10-01T08:08:02.042Z",
+  "generatedAt": "2026-10-01T10:51:18.929Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 142,
-    "delivered": 482,
+    "rides": 143,
+    "delivered": 484,
     "active_weeks": 14,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (482 closes vs 142 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 482,
-    "delivered_per_week_avg": 34.4,
+    "note": "\"delivered\" counts every work_item_closed event (484 closes vs 143 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 484,
+    "delivered_per_week_avg": 34.6,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -28,7 +28,7 @@
       "2026-W37": 15,
       "2026-W38": 12,
       "2026-W39": 15,
-      "2026-W40": 24
+      "2026-W40": 26
     },
     "delivered_groups": [
       {
@@ -537,12 +537,14 @@
         "key": "month:2026-10",
         "kind": "month",
         "label": "2026-10",
-        "count": 4,
+        "count": 6,
         "refs": [
           "downstream-rides-ask-no-governance-questions",
           "spec-downstream-rides-ask-no-governance-questions",
           "shipped-guards-have-no-downstream-trigger",
-          "spec-shipped-guards-have-no-downstream-trigger"
+          "spec-shipped-guards-have-no-downstream-trigger",
+          "roadmap-serves-downstream-projects",
+          "spec-roadmap-serves-downstream-projects"
         ]
       }
     ],
@@ -2475,25 +2477,33 @@
         {
           "ref": "spec-shipped-guards-have-no-downstream-trigger",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "roadmap-serves-downstream-projects",
+          "lead_time_seconds": 10476
+        },
+        {
+          "ref": "spec-roadmap-serves-downstream-projects",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 4278,
-      "mean_seconds": 114306.6,
-      "measured": 138,
-      "unmeasurable": 344
+      "median_seconds": 4404,
+      "mean_seconds": 113559.6,
+      "measured": 139,
+      "unmeasurable": 345
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2446,
-      "mean": 5586.1,
-      "measured": 140
+      "median": 2533,
+      "mean": 5618.9,
+      "measured": 141
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 204053,
-        "tokens": 20255314
+        "duration_seconds": 207728,
+        "tokens": 20880929
       },
       {
         "role": "Implementation",
@@ -2502,23 +2512,23 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 73516,
-        "tokens": 11165186
+        "duration_seconds": 74412,
+        "tokens": 11327025
       },
       {
         "role": "Remediation",
-        "duration_seconds": 119435,
-        "tokens": 12722278
+        "duration_seconds": 120469,
+        "tokens": 12873228
       },
       {
         "role": "Validation",
-        "duration_seconds": 235580,
-        "tokens": 15335314
+        "duration_seconds": 239297,
+        "tokens": 15751046
       },
       {
         "role": "Planning",
-        "duration_seconds": 78021,
-        "tokens": 10381870
+        "duration_seconds": 78903,
+        "tokens": 10654428
       },
       {
         "role": "Other",
@@ -3236,6 +3246,11 @@
         "ref": "downstream-rides-ask-no-governance-questions",
         "busy_seconds": 6406,
         "remediation_runs": 0
+      },
+      {
+        "ref": "roadmap-serves-downstream-projects",
+        "busy_seconds": 10204,
+        "remediation_runs": 1
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -3245,15 +3260,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 521796,
-      "mean": 788726.2,
-      "measured": 92
+      "median": 522582,
+      "mean": 797736.6,
+      "measured": 93
     },
-    "tokens_total": 72562809,
+    "tokens_total": 74189503,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 20255314
+        "tokens": 20880929
       },
       {
         "role": "Implementation",
@@ -3261,19 +3276,19 @@
       },
       {
         "role": "Code Review",
-        "tokens": 11165186
+        "tokens": 11327025
       },
       {
         "role": "Remediation",
-        "tokens": 12722278
+        "tokens": 12873228
       },
       {
         "role": "Validation",
-        "tokens": 15335314
+        "tokens": 15751046
       },
       {
         "role": "Planning",
-        "tokens": 10381870
+        "tokens": 10654428
       },
       {
         "role": "Other",
@@ -3281,8 +3296,8 @@
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 435,
-      "total_runs": 737,
+      "runs_with_marker": 443,
+      "total_runs": 745,
       "pct": 59,
       "by_week": [
         {
@@ -3365,8 +3380,8 @@
         },
         {
           "week": "2026-W40",
-          "runs_with_marker": 8,
-          "total_runs": 8,
+          "runs_with_marker": 16,
+          "total_runs": 16,
           "pct": 100
         }
       ]
@@ -3375,12 +3390,12 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 104,
-          "runs_marked": 79,
+          "runs_total": 107,
+          "runs_marked": 82,
           "runs_sentinel": 1,
           "runs_unmarked": 24,
-          "tokens_total": 20255314,
-          "median_tokens_per_run": 247174,
+          "tokens_total": 20880929,
+          "median_tokens_per_run": 244982,
           "share_pct": 28
         },
         {
@@ -3395,42 +3410,42 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 155,
-          "runs_marked": 101,
+          "runs_total": 156,
+          "runs_marked": 102,
           "runs_sentinel": 2,
           "runs_unmarked": 52,
-          "tokens_total": 11165186,
-          "median_tokens_per_run": 99678,
+          "tokens_total": 11327025,
+          "median_tokens_per_run": 100243,
           "share_pct": 15
         },
         {
           "role": "Remediation",
-          "runs_total": 109,
-          "runs_marked": 64,
+          "runs_total": 110,
+          "runs_marked": 65,
           "runs_sentinel": 4,
           "runs_unmarked": 41,
-          "tokens_total": 12722278,
-          "median_tokens_per_run": 175818,
-          "share_pct": 18
+          "tokens_total": 12873228,
+          "median_tokens_per_run": 174865,
+          "share_pct": 17
         },
         {
           "role": "Validation",
-          "runs_total": 179,
-          "runs_marked": 110,
+          "runs_total": 181,
+          "runs_marked": 112,
           "runs_sentinel": 5,
           "runs_unmarked": 64,
-          "tokens_total": 15335314,
-          "median_tokens_per_run": 131259,
+          "tokens_total": 15751046,
+          "median_tokens_per_run": 133495,
           "share_pct": 21
         },
         {
           "role": "Planning",
-          "runs_total": 119,
-          "runs_marked": 71,
+          "runs_total": 120,
+          "runs_marked": 72,
           "runs_sentinel": 0,
           "runs_unmarked": 48,
-          "tokens_total": 10381870,
-          "median_tokens_per_run": 142841,
+          "tokens_total": 10654428,
+          "median_tokens_per_run": 144303,
           "share_pct": 14
         },
         {
@@ -3970,8 +3985,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 2,
-              "median_tokens": 147588
+              "runs_marked": 5,
+              "median_tokens": 191820
             },
             {
               "role": "Implementation",
@@ -3980,23 +3995,23 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 2,
-              "median_tokens": 152053
+              "runs_marked": 3,
+              "median_tokens": 161839
             },
             {
               "role": "Remediation",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 1,
+              "median_tokens": 150950
             },
             {
               "role": "Validation",
-              "runs_marked": 3,
+              "runs_marked": 5,
               "median_tokens": 180329
             },
             {
               "role": "Planning",
-              "runs_marked": 1,
-              "median_tokens": 177039
+              "runs_marked": 2,
+              "median_tokens": 224799
             },
             {
               "role": "Other",
@@ -4011,13 +4026,13 @@
   "quality": {
     "first_pass_clean": {
       "clean": 84,
-      "flagged": 116,
+      "flagged": 117,
       "rate_pct": 72
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 84,
-      "1": 10,
+      "1": 11,
       "2": 7,
       "3": 4,
       "4": 5,
@@ -4029,7 +4044,7 @@
     "avg_validation_fails": 0.1,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 129,
+      "PASS": 130,
       "null": 13
     },
     "review_events": 26,
@@ -4044,7 +4059,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 5,
+    "field_derived": 6,
     "marker_derived": 2,
     "mixed": 0,
     "no_basis": 135,
@@ -4758,6 +4773,11 @@
         "ref": "downstream-rides-ask-no-governance-questions",
         "verdict_source": "field",
         "cost_basis": "total-blended"
+      },
+      {
+        "ref": "roadmap-serves-downstream-projects",
+        "verdict_source": "field",
+        "cost_basis": "total-blended"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -4869,16 +4889,16 @@
     },
     {
       "week": "2026-W40",
-      "delivered": 24,
-      "median_lead_time_seconds": 7282,
-      "busy_seconds": 6406,
-      "tokens": 1331525,
-      "first_pass_rate": 100
+      "delivered": 26,
+      "median_lead_time_seconds": 8879,
+      "busy_seconds": 16610,
+      "tokens": 2958219,
+      "first_pass_rate": 50
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 151,
+    "open_count": 154,
     "oldest_age_days": 41,
     "items": [
       {
@@ -4917,7 +4937,7 @@
         "id": "fu-amend-lessons-that-must-hold-d-13bccc",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 24,
+        "age_days": 25,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-lessons-that-must-hold-downstream-are-guards: a guard marker in LEARNED.md may point at an already-shipped script, not only at an open follow-up; the test asserts each kind against reality",
         "status": "open"
       },
@@ -4949,7 +4969,7 @@
         "id": "fu-amend-spec-telemetry-fields-not-prose",
         "ref": "telemetry-fields-not-prose",
         "severity": "P2",
-        "age_days": 17,
+        "age_days": 18,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-telemetry-fields-not-prose: post-freeze scope widening after validation round 1: seam S5 is record -> triage -> upsert, aai-feedback-triage.mjs and its suite join Scope, Affected Area and the review scope, harness enters the triage ALLOWED_KEYS with the closed-set sanitizer; Article-5 deviation text names both append-run callers (ROLE_COMMON.md gained --verdict, +216 corpus bytes ledgered); Spec-AC-13/TEST-030 rationale corrected; residual R8 added",
         "status": "open"
       },
@@ -5429,7 +5449,7 @@
         "id": "fu-duplicate-message-collides-mutation",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "new code that echoes an EXISTING refusal or disclosure sentence verbatim gives a recorded mutation a second, unmutated copy, so the sed hits whichever comes first in file order and the row silently stops proving its property",
         "status": "open"
       },
@@ -5437,7 +5457,7 @@
         "id": "fu-amend-update-installs-ref-guar-f8caa1",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-update-installs-ref-guard-undisclosed: Spec-AC-05 and Spec-AC-06 bind the PowerShell twin too, delivered in run 3; TEST-613, TEST-616 and TEST-617 record equivalent mutations",
         "status": "open"
       },
@@ -5773,7 +5793,7 @@
         "id": "fu-comment-fail-no-retry-exit0",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": ".aai/scripts/aai-feedback-upsert.mjs:739-752 analysis comment is an effect with no record and no retry",
         "status": "open"
       },
@@ -5781,7 +5801,7 @@
         "id": "fu-mutating-flag-dead-assertion",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": ".aai/scripts/aai-feedback-upsert.mjs:173/180 'mutating' is destructured and documented as the confirmed path's safety assertion, but is never read",
         "status": "open"
       },
@@ -5789,7 +5809,7 @@
         "id": "fu-test655-promote-spelling-pin",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "tests/skills/test-aai-friction-capture-points.sh:208-215 TEST-655's headline property is pinned by literal spelling, not structure",
         "status": "open"
       },
@@ -5797,7 +5817,7 @@
         "id": "fu-ledger-merge-byte-prefix-edge",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": ".aai/scripts/ledger-merge.mjs:119-140 the refusal is a BYTE-prefix test, not a line boundary",
         "status": "open"
       },
@@ -5805,7 +5825,7 @@
         "id": "fu-learned-header-format-stale",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "docs/knowledge/LEARNED.md:36 the header's Format comment still documents lowercase '(source: ...)' with no 76-char wrap",
         "status": "open"
       },
@@ -5949,7 +5969,7 @@
         "id": "fu-sweep-denial-did-not-stop-merge",
         "ref": "growth-pins-dont-wall-the-corpus",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "on 2026-09-28 lane-gate.mjs --sweep-check DENIED PR #400 (the recorded sweep named an older commit than the one merging) and the merge went through seconds later anyway, because the check is not required in branch protection and the operator ran both commands in one block without conditioning the merge on the gate's exit status",
         "status": "open"
       },
@@ -5957,7 +5977,7 @@
         "id": "fu-amend-original-request-outcome-f44716",
         "ref": "original-request-outcome-backcheck",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-original-request-outcome-backcheck: The checker binds a report's intake and spec sources to the ref's own documents (--intake/--spec, else STATE's current_focus) and refuses an unbound invocation",
         "status": "open"
       },
@@ -6053,7 +6073,7 @@
         "id": "fu-amend-sync-deletes-target-only-hooks",
         "ref": "sync-deletes-target-only-hooks",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-sync-deletes-target-only-hooks: hooks.json and hooks.windows.json are additively merged instead of overwritten, so a target-added registration survives a sync; retirement of a stale registration is reversed out of scope as the accepted cost",
         "status": "open"
       },
@@ -6087,6 +6107,30 @@
         "severity": "P3",
         "age_days": 0,
         "what": "pin the gate's --intake id-mismatch usage check under an ABSENT roadmap: add one arm to test_1206_usage_checks_before_absent (no roadmap + mismatched --intake must exit 2), shown RED by moving the check below the absent-roadmap branch",
+        "status": "open"
+      },
+      {
+        "id": "fu-mutation-rotation-colon-path",
+        "ref": "shipped-guards-have-no-downstream-trigger",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "mutation-run.mjs names a rotated record with an ISO timestamp containing colons, which Windows forbids in a path — once such a file is committed, actions/checkout fails with 'invalid path' and the whole Windows job dies before any test runs",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-roadmap-serves-downstrea-bc77da",
+        "ref": "roadmap-serves-downstream-projects",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-roadmap-serves-downstream-projects: D16 additive amendment of D13: no-argument /aai-ship rides a file-intake capability and files its intake with id equal to the roadmap slug; show-first when no roadmap; budget on without a roadmap offers add-first; docs order, ADMIT quote, close-ceremony wording and last-pair drop rule fixed; new TEST-1338..1340 with mutation cells; discloses the earlier F3 narrowing of the intake To-Be (no-arg ship stopped at file-intake)",
+        "status": "open"
+      },
+      {
+        "id": "fu-roadmap-docstatus-two-parsers",
+        "ref": "roadmap-serves-downstream-projects",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "roadmap-edit.mjs docStatus (parseFrontmatter) and ride-select.mjs findDoc/statusOf (own line scan) resolve a doc's status differently; a quoted status: \"done\" makes advance flip the pair while next still names it unfinished. Route both through one resolver in lib/roadmap-model.mjs with a seam test.",
         "status": "open"
       }
     ]
@@ -6846,6 +6890,40 @@
         "remediation_runs": 4,
         "remediation_tokens": 971172,
         "remediation_share_pct": 42
+      },
+      {
+        "ref": "roadmap-serves-downstream-projects",
+        "date_utc": "2026-10-01",
+        "runs_total": 8,
+        "elapsed_wall_seconds": 10275,
+        "agent_seconds": 10204,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 3
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 8,
+        "tokens_total": 1626694,
+        "remediation_runs": 1,
+        "remediation_tokens": 150950,
+        "remediation_share_pct": 9
       },
       {
         "ref": "doctor-win-selftest",
