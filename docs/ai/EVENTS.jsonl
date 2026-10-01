@@ -2624,3 +2624,4 @@
 {"v":1,"ts":"2026-10-01T12:55:55Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-friction-issues-arrive-without-a-description","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-01T12:55:55Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-friction-issues-arrive-without-a-description","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-01T12:55:55Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-friction-issues-arrive-without-a-description","payload":{"commit":"20f277e3cad5becad7668639a487b5f9c564c759"}}
+{"v":1,"ts":"2026-10-01T13:28:47Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"friction-issues-arrive-without-a-description","payload":{"pr":420,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"6bf75142bee28184cb43be63805e7110234ce3e1"}}
