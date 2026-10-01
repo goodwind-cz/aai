@@ -10,7 +10,7 @@ links:
   requirement: docs/issues/ISSUE-0092-a-check-cannot-tell-silence-from-a-verdict.md
   rfc: null
   pr:
-    - TBD
+    - 421
   commits:
     - 86e16baa
 ---
