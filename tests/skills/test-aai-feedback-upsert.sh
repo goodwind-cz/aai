@@ -225,9 +225,13 @@ SH
   printf 'triage:\n  mode: review\nupsert:\n  destination: goodwind-cz/aai   # pin\n  labels:\n    - aai-friction\n' > "$TEST_DIR/fblab.yaml"
   # a review-mode config
   printf 'triage:\n  mode: review\nupsert:\n  destination: goodwind-cz/aai   # pinned (RFC-0012 D1)\n  budget:\n    max_new_issues_per_7d: 3\n' > "$TEST_DIR/fb.yaml"
-  # a spool + report with one review_candidate
+  # a spool + report with one review_candidate. The record carries a certified
+  # summary (spec-friction-issues-arrive-without-a-description R6): a record
+  # with no certified description is no longer filed, so every create-asserting
+  # case keeps its meaning only if the shared fixture carries one. The
+  # description-less shape is seed_prose_free_candidate() below.
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
-{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","confidence":"high","reproducible":true}
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","confidence":"high","reproducible":true,"summary":"the transition script exited four on a clean tree"}
 JSONL
   cat > "$TEST_DIR/friction/triage-report.json" <<'JSON'
 {"schema":"aai-triage/v1","clusters":[{"fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","failure_class":"contract_violation","recurrence":2,"score":9,"decision":"review_candidate","auto_publishable":false}]}
@@ -245,9 +249,13 @@ creates() { local n; n="$(grep -c "^issue create" "$GH_CALLS" 2>/dev/null)"; ech
 comments() { local n; n="$(grep -c "^issue comment" "$GH_CALLS" 2>/dev/null)"; echo "${n:-0}"; }
 # One valid review_candidate, spool + report, and a clean budget ledger. Every
 # case that needs it calls this, so no case inherits another case's fixture.
+# The record carries a certified summary (spec-friction-issues-arrive-without-
+# a-description R6, see setup()); SEED_SUMMARY is its exact text so a case can
+# assert on or against it.
+SEED_SUMMARY="the transition script exited four on a clean tree"
 seed_single_candidate() {
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
-{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high"}
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"the transition script exited four on a clean tree"}
 JSONL
   cat > "$TEST_DIR/friction/triage-report.json" <<'JSON'
 {"clusters":[{"fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","failure_class":"contract_violation","recurrence":2,"score":9,"decision":"review_candidate","auto_publishable":false}]}
@@ -287,6 +295,10 @@ JSONL
 # --- TEST-004: dedup ---------------------------------------------------------
 test_004_dedup() {
   log_info "Test: an existing marker -> no duplicate NEW issue (TEST-004)..."
+  # re-pinned by spec-friction-issues-arrive-without-a-description: own fixture
+  # (TEST-002 leaves a poisoned-summary spool behind, which the description
+  # gate now refuses before dedup -- creates=0 for the wrong reason)
+  seed_single_candidate
   printf '[{"number":42}]' > "$TEST_DIR/existing.json"; SEARCH_RESULT="$TEST_DIR/existing.json"
   reset_calls; RUN >/dev/null
   local draft="$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md"
@@ -301,6 +313,10 @@ test_004_dedup() {
 # --- TEST-005: budget --------------------------------------------------------
 test_005_budget() {
   log_info "Test: budget met -> prepared-deferred, not filed (TEST-005)..."
+  # re-pinned by spec-friction-issues-arrive-without-a-description: own
+  # (summary-carrying) fixture, so the budget gate -- not the description
+  # gate -- is what refuses here
+  seed_single_candidate
   # seed the ledger with max_new_issues_per_7d recent creates
   local led="$TEST_DIR/friction/upsert-ledger.jsonl"
   for i in 1 2 3; do echo "{\"event\":\"issue_created\",\"fingerprint\":\"v1:old$i\",\"ts_ms\":999999999999}" >> "$led"; done
@@ -328,8 +344,9 @@ test_006_config() {
 # --- TEST-007: confirmed publish is the only write + ledger append ----------
 test_007_confirm_only_write() {
   log_info "Test: --publish needs --confirm; confirmed -> one create + ledger append (TEST-007)..."
+  # re-pinned by spec-friction-issues-arrive-without-a-description R6: the fixture carries a certified summary
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
-{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high"}
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"the transition script exited four on a clean tree"}
 JSONL
   rm -f "$TEST_DIR/friction/upsert-ledger.jsonl"
   # without --confirm: no write
@@ -364,8 +381,9 @@ test_010_field_sanitization() {
   # Hostile content with DISALLOWED chars (paths/spaces/@/invalid-enum) — caught by
   # the charset/enum gate. (Token-shaped fixtures below are assembled from fragments
   # so no scannable provider-secret literal is committed to this file.)
+  # re-pinned by spec-friction-issues-arrive-without-a-description R6: both arms carry a certified summary so they still FILE
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
-{"schema_version":2,"os_family":"macos-attacker@evil.com","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD_/Users/ales/.ssh/id_rsa","skill_phase":"impl with spaces","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high) not-an-enum (","evidence_ref":"/Users/ales/.ssh/id_rsa"}
+{"schema_version":2,"os_family":"macos-attacker@evil.com","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD_/Users/ales/.ssh/id_rsa","skill_phase":"impl with spaces","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high) not-an-enum (","evidence_ref":"/Users/ales/.ssh/id_rsa","summary":"the hostile field arm carries a certified description"}
 JSONL
   reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
   [ "$(creates)" = "1" ] || log_fail "TEST-010: the hostile-field arm must actually FILE, or it proves nothing (creates=$(creates))"
@@ -382,7 +400,7 @@ JSONL
   # and `tleak` grepped an empty recording. A redaction bypass shipped green.
   rm -f "$TEST_DIR/friction/upsert-ledger.jsonl"
   local GHP="gh""p_" SKL="sk""_live_" AKIA="AKI""A"
-  printf '{"schema_version":2,"os_family":"macos","aai_pin":"%sABCDEFGHIJKLMNOP","node_major":22,"skill_id":"%s1234567890abcdefghijklmnopqrstuvwxyzAB","skill_phase":"%s51ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high"}\n' \
+  printf '{"schema_version":2,"os_family":"macos","aai_pin":"%sABCDEFGHIJKLMNOP","node_major":22,"skill_id":"%s1234567890abcdefghijklmnopqrstuvwxyzAB","skill_phase":"%s51ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"the token arm carries a certified description"}\n' \
     "$AKIA" "$GHP" "$SKL" > "$TEST_DIR/friction/observations.jsonl"
   reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
   [ "$(creates)" = "1" ] || log_fail "TEST-010: the secret-token arm must actually FILE, or it proves nothing about redaction (creates=$(creates))"
@@ -412,8 +430,9 @@ test_012_fingerprint_and_labels() {
   log_info "Test: off-shape fingerprint skipped; configured labels applied on create (TEST-012)..."
   rm -f "$TEST_DIR/friction/upsert-ledger.jsonl"  # the local-ledger gate refuses a fingerprint already filed in this run
   # a report with a POISONED (off-shape) fingerprint alongside a valid one
+  # (re-pinned by spec-friction-issues-arrive-without-a-description R6: the valid record carries a certified summary)
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
-{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high"}
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"the transition script exited four on a clean tree"}
 {"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"X","skill_phase":"y","failure_class":"contract_violation","fingerprint":"v1:POISON_/Users/x/.ssh","impact":"high"}
 JSONL
   cat > "$TEST_DIR/friction/triage-report.json" <<'JSON'
@@ -544,6 +563,10 @@ test_019_argv_coverage() {
       "search issues "*) ;;
       "label list "*) ;;
       "issue create "*) ;;
+      # re-pinned by spec-friction-issues-arrive-without-a-description R6: the
+      # shared fixture now carries a certified summary, so the SPEC-0176
+      # Spec-AC-06 comment call (its own pinned skeleton below) fires here too.
+      "issue comment "*) ;;
       *) unknown="$unknown
 $l" ;;
     esac
@@ -803,12 +826,15 @@ SH
 test_032_create_argv_destination_and_content() {
   log_info "Test: the filed create argv carries the right destination and content (TEST-032)..."
   seed_single_candidate
-  # a summary is present ONLY here: no confirmed publish in this suite ever ran
-  # with one, so the transmit redaction was never exercised on the filed argv.
+  # a poisoned spool summary plus a clean --description: re-pinned by
+  # spec-friction-issues-arrive-without-a-description -- a poisoned summary
+  # alone no longer files (TEST-657/1304 pin that); the --description is what
+  # lets this arm FILE, and the poisoned text must still never reach the argv.
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
 {"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"failed at /Users/ales/.ssh/id_rsa"}
 JSONL
-  reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  printf 'the configured destination gets a templated title\n' > "$TEST_DIR/desc032.txt"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm --description "$TEST_DIR/desc032.txt" >/dev/null
   [ "$(creates)" = "1" ] || log_fail "TEST-032: the create must happen (made $(creates), err=$(cat "$TEST_DIR/err"))"
   local line; line="$(grep '^issue create' "$GH_CALLS" | qhead -1)"
   case "$line" in *"--repo goodwind-cz/aai"*) ;; *) log_fail "TEST-032: the create must target the CONFIGURED destination: $line";; esac
@@ -825,38 +851,29 @@ JSONL
 # BOTH arms, plus the clean arm this file had never exercised on the FILED
 # argv before (TEST-002/003 only ever checked the PREPARE-path draft).
 test_657_transmit_redaction_independent() {
-  log_info "Test: a poisoned summary never reaches the FILED gh argv (issue still filed); a clean one appears as the blockquote; POSITIVE CONTROL creates==1 in both arms (TEST-657)..."
+  log_info "Test: a poisoned summary is REFUSED before any gh call (never filed prose-free); a clean one appears as the blockquote; POSITIVE CONTROL creates==1 on the clean arm (TEST-657)..."
 
-  # (a) poisoned: dropped from the filed body, issue still created.
+  # (a) poisoned: re-pinned by spec-friction-issues-arrive-without-a-description
+  # Spec-AC-04 -- the transmit pass refuses it and the record is NOT filed
+  # (it used to file prose-free). The secret must reach no gh call at all.
   seed_single_candidate
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
 {"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"leaked AKIAABCDEFGHIJKLMNOP in the log"}
 JSONL
-  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
-  [ "$(creates)" = "1" ] \
-    || log_fail "TEST-657 (a) POSITIVE CONTROL: the poisoned arm must actually FILE, or it proves nothing about redaction (creates=$(creates), err=$(cat "$TEST_DIR/err"))"
-  local line; line="$(grep '^issue create' "$GH_CALLS")"
-  case "$line" in *AKIA*) log_fail "TEST-657 (a): a poisoned summary must never reach the FILED argv: $line" ;; esac
-  # A certified-unconditionally regression would still drop the AKIA text
-  # itself (redactSummary's ok:false result carries no .value) but would leak
-  # an "undefined" blockquote in its place -- assert NO blockquote marker at
-  # all reaches the filed body, not merely that the raw secret text is absent.
-  # " > " (space-anchored on both sides, the collapsed form of the leading
-  # "\n> " buildPayload emits) is the actual blockquote signature -- a bare
-  # "> " false-positives on the dedup marker's own "-->" comment closer.
-  case "$line" in *" > "*) log_fail "TEST-657 (a): the poisoned arm's FILED body must carry no blockquote at all (the transmit pass must drop the summary, not certify a garbled one): $line" ;; esac
-  # B1 (validation round 1): a mutation that sources the COMMENT gate/body from
-  # the raw record instead of the certified value leaves the create-line-only
-  # checks above green, because the comment call is a SEPARATE mutating write
-  # that the poisoned arm never inspected. Assert on the whole recording, not
-  # one line: the comment must never fire for an uncertifiable summary, and
-  # the secret text must never reach ANY gh call, not just "issue create".
+  reset_calls
+  local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  [ "$code" = "2" ] || log_fail "TEST-657 (a): a poisoned summary must be refused with exit 2, never filed prose-free (exit $code, err=$(cat "$TEST_DIR/err"))"
+  [ "$(creates)" = "0" ] || log_fail "TEST-657 (a): a poisoned summary must never be filed (creates=$(creates))"
+  [ ! -s "$GH_CALLS" ] || log_fail "TEST-657 (a): the refusal must happen before any gh call (calls=$(cat "$GH_CALLS"))"
   [ "$(comments)" = "0" ] \
     || log_fail "TEST-657 (a): a poisoned summary must never trigger the analysis comment call (comments=$(comments), calls=$(cat "$GH_CALLS"))"
   grep -qF 'AKIAABCDEFGHIJKLMNOP' "$GH_CALLS" \
     && log_fail "TEST-657 (a): a poisoned summary must never reach ANY gh call, not just issue create (calls=$(cat "$GH_CALLS"))"
+  grep -qF 'AKIAABCDEFGHIJKLMNOP' "$TEST_DIR/err" \
+    && log_fail "TEST-657 (a): the refusal must never echo the secret (err=$(cat "$TEST_DIR/err"))"
 
-  # (b) clean: persists verbatim as the blockquote in the FILED body.
+  # (b) clean: persists verbatim as the blockquote in the FILED body (the
+  # POSITIVE CONTROL for arm (a)'s absence: the same path, a certified text, files).
   seed_single_candidate
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
 {"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"the gate threw on a missing transition"}
@@ -879,7 +896,7 @@ JSONL
     *) log_fail "TEST-657 (b): the analysis comment must carry the certified summary verbatim: $cline" ;;
   esac
 
-  log_pass "transmit redaction certifies independently both ways in the FILED argv; creates==1 in both arms (TEST-657)"
+  log_pass "transmit redaction certifies independently both ways: a poisoned summary refuses before any gh call, a clean one is the filed blockquote (TEST-657)"
 }
 
 # --- TEST-672 (Spec-AC-06/B1 remediation): the comment body is STRUCTURALLY
@@ -913,20 +930,23 @@ test_672_comment_body_is_the_certified_blockquote() {
     CB="${sq#*--body }"
   }
 
-  # (a) poisoned: no certified blockquote may exist, so no comment may fire.
+  # (a) poisoned: no certified blockquote can exist, so nothing is filed and
+  # no comment may fire. Re-pinned by spec-friction-issues-arrive-without-a-
+  # description Spec-AC-04 (as TEST-657 (a)): the poisoned arm used to FILE
+  # prose-free; it is now refused before any gh call -- the iff-invariant
+  # holds with zero creates and zero comments, and arm (b) below is the
+  # positive control that the same path does file and comment when certified.
   seed_single_candidate
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
 {"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"leaked AKIAABCDEFGHIJKLMNOP in the log"}
 JSONL
-  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
-  [ "$(creates)" = "1" ] || log_fail "TEST-672 (a) POSITIVE CONTROL: the poisoned arm must actually FILE (creates=$(creates))"
-  local cline; cline="$(grep '^issue create' "$GH_CALLS")"
-  extract_create_blockquote "$cline"
+  reset_calls
+  local code_a; code_a="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  [ "$code_a" = "2" ] || log_fail "TEST-672 (a): the poisoned arm must be refused with exit 2 (got $code_a, err=$(cat "$TEST_DIR/err"))"
+  [ "$(creates)" = "0" ] || log_fail "TEST-672 (a): a poisoned summary must not be filed (creates=$(creates))"
   local n_comments; n_comments="$(comments)"
-  case "$HAS_BQ $n_comments" in
-    "0 0") ;;
-    *) log_fail "TEST-672 (a): comment-call count ($n_comments) must match whether the filed body carries a certified blockquote (has_blockquote=$HAS_BQ) -- an uncertified summary must never trigger the analysis comment" ;;
-  esac
+  [ "$n_comments" = "0" ] || log_fail "TEST-672 (a): with nothing filed there is no blockquote, so no analysis comment may fire (comments=$n_comments)"
+  [ ! -s "$GH_CALLS" ] || log_fail "TEST-672 (a): the refusal must precede every gh call (calls=$(cat "$GH_CALLS"))"
 
   # (b) clean: a certified blockquote exists and the comment must repeat it
   # verbatim -- structural equality, not a match against a fixed string.
@@ -1037,18 +1057,33 @@ test_035_duplicate_gate_is_per_destination() {
 # --- TEST-036 (Spec-AC-01): success line carries URL, prose-free statement, --
 # the printed (never run) gh issue comment command ---------------------------
 test_036_success_line_url_and_followup() {
-  log_info "Test: confirmed publish stdout carries URL, prose-free phrase, gh issue comment line; zero comment invocations (TEST-036)..."
+  log_info "Test: confirmed publish stdout carries the URL and names the posted comment; no prose-free claim; the manual command is printed only when no certified prose was posted (TEST-036)..."
+  # re-pinned by spec-friction-issues-arrive-without-a-description: every filed
+  # issue now carries a certified description, so the success line no longer
+  # states "prose-free"; the comment is POSTED (Spec-AC-06 of SPEC-0176) and the
+  # manual gh issue comment command is printed only when it could not be.
   seed_single_candidate
   reset_calls
   local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
   [ "$code" = "0" ] || log_fail "TEST-036: confirmed publish must exit 0 (err=$(cat "$TEST_DIR/err"))"
   local out; out="$(cat "$TEST_DIR/out")"
   assert_payload_contains "$out" "https://github.com/goodwind-cz/aai/issues/4271" "TEST-036: stdout must carry the filed issue URL"
-  assert_payload_contains "$out" "prose-free" "TEST-036: stdout must state the record is prose-free by design"
-  assert_payload_contains "$out" "gh issue comment 4271 --repo goodwind-cz/aai --body-file" "TEST-036: stdout must carry a runnable gh issue comment command with the parsed number and configured destination"
-  local n; n="$(grep -c "^issue comment" "$GH_CALLS" 2>/dev/null)"; n="${n:-0}"
-  [ "$n" = "0" ] || log_fail "TEST-036: the advertised gh issue comment command must never actually run (ran $n)"
-  log_pass "success line carries URL, prose-free statement, runnable comment command; zero comment calls (TEST-036)"
+  assert_payload_not_contains "$out" "prose-free" "TEST-036: the success line must no longer describe the record as prose-free"
+  assert_payload_contains "$out" "posted as a comment" "TEST-036: stdout must state the certified description was posted as the comment"
+  assert_payload_not_contains "$out" "--body-file" "TEST-036: no manual comment command when the comment was posted"
+  [ "$(comments)" = "1" ] || log_fail "TEST-036: the certified description must be posted exactly once (ran $(comments))"
+  # the manual command is printed exactly when the comment could NOT be posted
+  # (an uncertified URL), with the configured destination and a placeholder.
+  seed_single_candidate
+  CREATE_STDOUT_OVERRIDE="https://evil.example.com/goodwind-cz/aai/issues/4271"
+  reset_calls
+  code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  CREATE_STDOUT_OVERRIDE=""
+  [ "$code" = "0" ] || log_fail "TEST-036 (uncertified URL): must still degrade to exit 0 (err=$(cat "$TEST_DIR/err"))"
+  out="$(cat "$TEST_DIR/out")"
+  assert_payload_contains "$out" "gh issue comment <issue-number> --repo goodwind-cz/aai --body-file" "TEST-036 (uncertified URL): stdout must carry the runnable manual comment command with the configured destination"
+  [ "$(comments)" = "0" ] || log_fail "TEST-036 (uncertified URL): the advertised command must never actually run (ran $(comments))"
+  log_pass "success line carries URL and the posted comment; manual command only when no certified prose was posted (TEST-036)"
 }
 
 # --- TEST-037 (Spec-AC-02): unparseable create stdout degrades cleanly ------
@@ -1244,20 +1279,28 @@ test_044_create_failure_named_and_no_ledger() {
 # --- TEST-045 (Spec-AC-07): --help mentions the comment command and prose- --
 # free ------------------------------------------------------------------------
 test_045_help_mentions_comment_and_prose_free() {
-  log_info "Test: --help mentions gh issue comment and prose-free (TEST-045)..."
+  log_info "Test: --help mentions gh issue comment, --description and the no-description refusal (TEST-045)..."
+  # re-pinned by spec-friction-issues-arrive-without-a-description Spec-AC-10:
+  # the "prose-free" token is replaced by the new contract's tokens.
   local out code; out="$(node "$SCRIPT" --help)"; code=$?
   [ "$code" = "0" ] || log_fail "TEST-045: --help must exit 0"
   assert_payload_contains "$out" "gh issue comment" "TEST-045: --help must mention gh issue comment"
-  assert_payload_contains "$out" "prose-free" "TEST-045: --help must mention prose-free"
-  log_pass "--help documents the follow-up convention (TEST-045)"
+  assert_payload_contains "$out" "--description" "TEST-045: --help must mention --description"
+  assert_payload_contains "$out" "no description" "TEST-045: --help must state the no-description refusal"
+  log_pass "--help documents the description contract and the follow-up convention (TEST-045)"
 }
 
 # --- TEST-046 (Spec-AC-06, seam S4): three surfaces agree on one command ---
 # skeleton ---------------------------------------------------------------------
 test_046_drift_guard_three_surfaces() {
   log_info "Test: seam S4 -- gh issue comment / --repo / --body-file agree across stdout, --help, and the prompt (TEST-046)..."
+  # re-pinned by spec-friction-issues-arrive-without-a-description: the manual
+  # comment command is printed only when the certified prose could NOT be
+  # posted (an uncertified URL), so that is the arm whose stdout is compared.
   seed_single_candidate
+  CREATE_STDOUT_OVERRIDE="https://evil.example.com/goodwind-cz/aai/issues/4271"
   reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  CREATE_STDOUT_OVERRIDE=""
   local pub; pub="$(cat "$TEST_DIR/out")"
   local help; help="$(node "$SCRIPT" --help)"
   local prompt; prompt="$(cat "$PROJECT_ROOT/.aai/SKILL_FEEDBACK_UPSERT.prompt.md")"
@@ -1273,11 +1316,14 @@ test_046_drift_guard_three_surfaces() {
 # --- TEST-047 (Spec-AC-06): the prompt states the work is not finished at --
 # filed ------------------------------------------------------------------------
 test_047_prompt_states_not_finished() {
-  log_info "Test: the prompt carries the heading and states the work is not finished at filed (TEST-047)..."
+  log_info "Test: the prompt carries the heading and states that a record without a description is not filed (TEST-047)..."
+  # re-pinned by spec-friction-issues-arrive-without-a-description Spec-AC-10:
+  # "not finished at filed" is replaced by the new contract's tokens.
   local prompt="$PROJECT_ROOT/.aai/SKILL_FEEDBACK_UPSERT.prompt.md"
   grep -qF "Analysis (reporter follow-up)" "$prompt" || log_fail "TEST-047: the prompt must carry the heading text"
-  grep -qi "not finished" "$prompt" || log_fail "TEST-047: the prompt must state the work is not finished when the issue is filed"
-  log_pass "the prompt states the convention and that filing is not the end (TEST-047)"
+  grep -qF "no description" "$prompt" || log_fail "TEST-047: the prompt must state the no-description refusal"
+  grep -qF -- "--description" "$prompt" || log_fail "TEST-047: the prompt must name --description"
+  log_pass "the prompt states the heading convention and the description contract (TEST-047)"
 }
 
 # --- TEST-048 (Spec-AC-08, seam S2): tri-state REGRESSION guard. Already ----
@@ -1533,8 +1579,16 @@ test_060_case_differing_url_uses_configured_destination_casing() {
   [ "$code" = "0" ] || log_fail "TEST-060: the issue is already filed, so publish must still exit 0 (err=$(cat "$TEST_DIR/err"))"
   local out; out="$(cat "$TEST_DIR/out")"
   assert_payload_contains "$out" "https://github.com/GoodWind-CZ/AAI/issues/4321" "TEST-060: destination comparison is deliberately case-insensitive -- a case-differing but otherwise legitimate URL must still certify and print"
-  assert_payload_contains "$out" "gh issue comment 4321 --repo goodwind-cz/aai --body-file" "TEST-060: the advertised command must name the CONFIGURED destination's own casing, never a value read out of the URL (D3)"
-  assert_payload_not_contains "$out" "--repo GoodWind-CZ/AAI" "TEST-060: the URL's own casing must never be substituted for the configured destination in the printed command"
+  # re-pinned by spec-friction-issues-arrive-without-a-description: a certified
+  # URL now POSTS the comment (the fixture carries a certified description), so
+  # D3 -- the configured destination's own casing, never the URL's -- is
+  # proven on the recorded comment argv, which the printed command used to carry.
+  [ "$(comments)" = "1" ] || log_fail "TEST-060: a certified case-differing URL must receive the posted comment exactly once (comments=$(comments))"
+  local ccline; ccline="$(grep '^issue comment' "$GH_CALLS" | qhead -1)"
+  case "$ccline" in "issue comment 4321 --repo goodwind-cz/aai --body "*) ;; \
+    *) log_fail "TEST-060: the comment call must name the parsed number and the CONFIGURED destination's own casing, never a value read out of the URL (D3): $ccline" ;; esac
+  assert_payload_not_contains "$(cat "$GH_CALLS")" "--repo GoodWind-CZ/AAI" "TEST-060: the URL's own casing must never be substituted for the configured destination in any gh call"
+  assert_payload_not_contains "$out" "--repo GoodWind-CZ/AAI" "TEST-060: the URL's own casing must never be substituted for the configured destination in the printed output"
   # F-2 remediation (validation round 3 survivor): the case-differing fixture
   # above proves the destination comparison is case-INSENSITIVE (an exact
   # match once lower-cased); it does not prove the match is still EXACT and
@@ -1568,8 +1622,10 @@ test_061_certified_url_is_trimmed_not_raw() {
   [ "$code" = "0" ] || log_fail "TEST-061: the issue is already filed, so publish must still exit 0 (err=$(cat "$TEST_DIR/err"))"
   local out; out="$(cat "$TEST_DIR/out")"
   assert_payload_not_contains "$out" "4271   " "TEST-061: trailing whitespace after the certified URL must never survive into the printed line"
+  # next line re-pinned by spec-friction-issues-arrive-without-a-description:
+  # the record now carries a certified description, which the engine posts.
   assert_payload_contains "$out" "https://github.com/goodwind-cz/aai/issues/4271
-This record is prose-free" "TEST-061: the printed URL must be immediately followed by the next followup line with nothing else between -- proves the CERTIFIED trimmed value is printed, not the raw stdout line"
+the certified description was posted as a comment" "TEST-061: the printed URL must be immediately followed by the next followup line with nothing else between -- proves the CERTIFIED trimmed value is printed, not the raw stdout line"
   log_pass "the printed URL is the trimmed, certified match, never the raw stdout line (TEST-061)"
 }
 
@@ -1749,17 +1805,20 @@ JSONL
 # command; (b) a comment call that FAILS still leaves the issue filed and the -
 # ledger written, names the real exit status, and exits non-zero -----------
 test_661_prose_free_and_failed_comment() {
-  log_info "Test: prose-free files one issue and only prints the command; a failed comment leaves the issue filed and named (TEST-661)..."
+  log_info "Test: a prose-free record is refused (no file, no comment, exit 2); a failed comment leaves the issue filed and named (TEST-661)..."
 
-  # (a) prose-free: no summary field at all.
-  seed_single_candidate
+  # (a) prose-free: no summary field at all. Re-pinned by
+  # spec-friction-issues-arrive-without-a-description Spec-AC-01: it used to
+  # file one issue and print the comment command; it now refuses before any
+  # gh call (creates=0, comments=0, exit 2, the missing field named).
+  seed_prose_free_candidate
   reset_calls
   local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
-  [ "$code" = "0" ] || log_fail "TEST-661 (a): a prose-free publish must still exit 0 (err=$(cat "$TEST_DIR/err"))"
-  [ "$(creates)" = "1" ] || log_fail "TEST-661 (a): the issue must still be filed (made $(creates))"
+  [ "$code" = "2" ] || log_fail "TEST-661 (a): a prose-free publish must exit 2 (got $code, err=$(cat "$TEST_DIR/err"))"
+  [ "$(creates)" = "0" ] || log_fail "TEST-661 (a): a prose-free record must not be filed (made $(creates))"
   [ "$(comments)" = "0" ] || log_fail "TEST-661 (a): a prose-free record must never trigger a comment call (made $(comments))"
-  local out; out="$(cat "$TEST_DIR/out")"
-  assert_payload_contains "$out" "gh issue comment 4271 --repo goodwind-cz/aai --body-file" "TEST-661 (a): stdout must still print the manual comment command"
+  [ ! -s "$GH_CALLS" ] || log_fail "TEST-661 (a): the refusal must happen before any gh call (calls=$(cat "$GH_CALLS"))"
+  assert_payload_contains "$(cat "$TEST_DIR/err")" "no description" "TEST-661 (a): the refusal must name the missing description"
 
   # (b) certified prose present, but the comment call itself fails.
   seed_single_candidate
@@ -1779,7 +1838,7 @@ JSONL
   local err; err="$(cat "$TEST_DIR/err")"
   assert_payload_contains "$err" "exit 7" "TEST-661 (b): the refusal must name the comment call's real exit status"
   assert_payload_contains "$err" "comment endpoint exploded" "TEST-661 (b): the refusal must name the certified stderr detail"
-  log_pass "prose-free only prints the command; a failed comment leaves the issue filed and is named (TEST-661)"
+  log_pass "a prose-free record is refused before any gh call; a failed comment leaves the issue filed and is named (TEST-661)"
 }
 
 # --- TEST-662 (Spec-AC-06): an uncertified URL (foreign host, or garbled ----
@@ -1921,6 +1980,286 @@ test_404_nested_failure_names_file_with_linecount() {
   log_pass "nesting wrapper names a file + line count and survives whole-log extraction (TEST-404, Spec-AC-28)"
 }
 
+# ============================================================================
+# spec-friction-issues-arrive-without-a-description (TEST-1301..1305, 1311,
+# 1312): a friction issue carries a certified human-written description or is
+# NOT filed. Every refusal below is an ABSENCE (no gh call), so each test
+# carries a POSITIVE CONTROL in the same function (LEARNED 2026-09-05
+# fu-learned-positive-control-for-absence) and the stub stays deny-by-default.
+# ============================================================================
+
+# A spool line with NO summary at all -- the prose-free record every automatic
+# capture point produces. Shared by the refusal arms below so the shape is
+# written once.
+seed_prose_free_candidate() {
+  seed_single_candidate
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high"}
+JSONL
+}
+
+# --- TEST-1301 (Spec-AC-01): a description-less record is refused BEFORE any -
+# gh call -- not after auth, not after the dedup search, not after the label -
+# read. The stub's whole recording must be EMPTY, and the same fixture plus --
+# --description must file exactly once (positive control). --------------------
+test_1301_publish_refuses_without_description() {
+  log_info "Test: publish of a description-less record refuses with zero gh calls; the same fixture plus --description files once (TEST-1301)..."
+  seed_prose_free_candidate
+  reset_calls
+  local code; code="$(RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  [ "$code" = "2" ] || log_fail "TEST-1301: a description-less publish must exit 2 (got $code, err=$(cat "$TEST_DIR/err"), calls=$(cat "$GH_CALLS"))"
+  local err; err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "refusing to file v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "TEST-1301: the refusal must name the fingerprint it refused"
+  assert_payload_contains "$err" "no description" "TEST-1301: the refusal must name the missing field"
+  assert_payload_contains "$err" "--description" "TEST-1301: the refusal must name the --description flag that supplies it"
+  # ABSENCE: the recording is EMPTY -- no auth status, no search, no label
+  # list, no create. `-s` is "exists and is non-empty"; reset_calls truncated it.
+  [ ! -s "$GH_CALLS" ] || log_fail "TEST-1301: the refusal must happen BEFORE any gh call; recorded: $(cat "$GH_CALLS")"
+  [ "$(creates)" = "0" ] || log_fail "TEST-1301: a description-less publish must never create (made $(creates))"
+  # POSITIVE CONTROL: the identical fixture, plus a one-line description, files
+  # exactly once -- proving the refusal arm above is reachable, not a dead stub.
+  printf 'expected the gate to refuse; observed it passed on a clean tree\n' > "$TEST_DIR/desc1301.txt"
+  reset_calls
+  code="$(RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm --description "$TEST_DIR/desc1301.txt")"
+  [ "$code" = "0" ] || log_fail "TEST-1301 POSITIVE CONTROL: the same fixture plus --description must file (exit $code, err=$(cat "$TEST_DIR/err"))"
+  [ "$(creates)" = "1" ] || log_fail "TEST-1301 POSITIVE CONTROL: exactly one issue create expected (made $(creates))"
+  log_pass "a description-less publish refuses with an empty gh call log; --description makes the same fixture file once (TEST-1301)"
+}
+
+# --- TEST-1302 (Spec-AC-02): prepare marks a description-less cluster --------
+# blocked_no_description and offers it NO --publish line; a summary-carrying --
+# cluster is offered the runnable command as today. --------------------------
+test_1302_prepare_blocks_without_description() {
+  log_info "Test: prepare marks a description-less cluster blocked_no_description and offers no --publish; a summary-carrying one is offered (TEST-1302)..."
+  local draft="$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md"
+  seed_prose_free_candidate
+  rm -f "$draft"
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fblab.yaml")"
+  [ "$code" = "0" ] || log_fail "TEST-1302: prepare must still exit 0 (err=$(cat "$TEST_DIR/err"))"
+  [ -f "$draft" ] || log_fail "TEST-1302: a draft must still be written for a blocked cluster (so the operator can read what is missing)"
+  grep -qF "status: blocked_no_description" "$draft" || log_fail "TEST-1302: the draft header must read status: blocked_no_description ($(head -3 "$draft"))"
+  local out; out="$(cat "$TEST_DIR/out")"
+  assert_payload_contains "$out" "blocked_no_description" "TEST-1302: stdout must carry the blocked status"
+  assert_payload_contains "$out" "not offered: no description" "TEST-1302: stdout must say why the cluster is not offered"
+  assert_payload_contains "$out" "--description" "TEST-1302: stdout must name the --description flag that unblocks it"
+  assert_payload_not_contains "$out" "--publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "TEST-1302: a description-less cluster must NOT be offered a --publish line the tool would refuse"
+  [ "$(creates)" = "0" ] || log_fail "TEST-1302: prepare must never create (made $(creates))"
+  # POSITIVE CONTROL: the summary-carrying fixture is offered the runnable line.
+  seed_single_candidate
+  rm -f "$draft"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
+  out="$(cat "$TEST_DIR/out")"
+  assert_payload_contains "$out" "--publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm" "TEST-1302 POSITIVE CONTROL: a summary-carrying cluster must be offered the runnable publish command"
+  grep -qF "status: new" "$draft" || log_fail "TEST-1302 POSITIVE CONTROL: the summary-carrying draft must read status: new ($(head -3 "$draft"))"
+  log_pass "prepare blocks a description-less cluster by name and offers a summary-carrying one (TEST-1302)"
+}
+
+# --- TEST-1303 (Spec-AC-03): the --description file becomes the leading -----
+# blockquote of the FILED body (lines joined by one space), takes precedence --
+# over the spool summary, never reads the draft, and misuse of the flag exits -
+# 2 naming the flag or the path. ----------------------------------------------
+test_1303_description_file_becomes_blockquote() {
+  log_info "Test: a two-line --description file renders as the leading blockquote in the recorded create argv; flag misuse exits 2 (TEST-1303)..."
+  seed_single_candidate
+  printf 'expected the gate to refuse\nobserved it passed\n' > "$TEST_DIR/desc1303.txt"
+  reset_calls
+  local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm --description "$TEST_DIR/desc1303.txt")"
+  [ "$code" = "0" ] || log_fail "TEST-1303: a publish with a clean --description must file (exit $code, err=$(cat "$TEST_DIR/err"))"
+  [ "$(creates)" = "1" ] || log_fail "TEST-1303: exactly one create expected (made $(creates))"
+  local line; line="$(grep '^issue create' "$GH_CALLS" | qhead -1)"
+  # The stub records the body with newlines collapsed to spaces, so the leading
+  # "\n> text\n\n- failure_class" renders as " > text  - failure_class".
+  case "$line" in
+    *" > expected the gate to refuse observed it passed "*"- failure_class: contract_violation"*"aai-friction:v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*) ;;
+    *) log_fail "TEST-1303: the recorded --body must begin with the joined blockquote, then the facts, then the marker: $line" ;;
+  esac
+  # precedence: the fixture's own spool summary is NOT appended beside it
+  assert_payload_not_contains "$line" "$SEED_SUMMARY" "TEST-1303: --description must take precedence over the spool summary, which must not be appended"
+  # CRLF file: \r stripped by the join
+  printf 'expected the gate to refuse\r\nobserved it passed\r\n' > "$TEST_DIR/desc1303crlf.txt"
+  seed_single_candidate; reset_calls
+  code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm --description "$TEST_DIR/desc1303crlf.txt")"
+  [ "$code" = "0" ] || log_fail "TEST-1303 (CRLF): must file (exit $code, err=$(cat "$TEST_DIR/err"))"
+  line="$(grep '^issue create' "$GH_CALLS" | qhead -1)"
+  case "$line" in *" > expected the gate to refuse observed it passed "*) ;; *) log_fail "TEST-1303 (CRLF): a CRLF description must join identically: $line" ;; esac
+  # --description without --publish: usage error naming the flag, no gh call
+  reset_calls
+  code="$(RUN "$TEST_DIR/fb.yaml" --description "$TEST_DIR/desc1303.txt")"
+  [ "$code" = "2" ] || log_fail "TEST-1303: --description without --publish must exit 2 (got $code)"
+  assert_payload_contains "$(cat "$TEST_DIR/err")" "--description" "TEST-1303: the usage error must name the flag"
+  [ ! -s "$GH_CALLS" ] || log_fail "TEST-1303: a usage error must make no gh call: $(cat "$GH_CALLS")"
+  # an unreadable path: exit 2 naming the path, no gh call
+  seed_single_candidate; reset_calls
+  code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm --description "$TEST_DIR/does-not-exist-1303.txt")"
+  [ "$code" = "2" ] || log_fail "TEST-1303: an unreadable --description path must exit 2 (got $code, err=$(cat "$TEST_DIR/err"))"
+  assert_payload_contains "$(cat "$TEST_DIR/err")" "does-not-exist-1303.txt" "TEST-1303: the refusal must name the unreadable path"
+  [ ! -s "$GH_CALLS" ] || log_fail "TEST-1303: an unreadable path must be refused before any gh call: $(cat "$GH_CALLS")"
+  # SPEC-0176 D5 stays intact: the draft is never read by the publish path.
+  # TEST-040 is re-run here in a subshell (its own log_fail exits only that
+  # subshell) and re-raised under this id.
+  local out rc=0
+  out="$(test_040_poisoned_draft_does_not_change_filed_argv 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] || log_fail "TEST-1303: TEST-040's poisoned-draft invariance must stay green under the new description path:"$'\n'"$out"
+  log_pass "the --description file is the leading blockquote of the filed body; precedence, CRLF, usage and unreadable-path arms hold; TEST-040 unchanged (TEST-1303)"
+}
+
+# --- TEST-1304 (Spec-AC-04): a description the redactor refuses is refused ---
+# naming the class, with zero gh calls; a poisoned spool summary with no -------
+# --description refuses per Spec-AC-01 (it used to file prose-free). ----------
+test_1304_poisoned_description_refused() {
+  log_info "Test: a redactor-refused --description is refused naming the class with zero gh calls; a poisoned spool summary no longer files prose-free (TEST-1304)..."
+  local code err
+  # (a) unsafe_char: an absolute path
+  seed_single_candidate
+  printf '/Users/ales/.ssh/id_rsa\n' > "$TEST_DIR/desc1304a.txt"
+  reset_calls
+  code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm --description "$TEST_DIR/desc1304a.txt")"
+  [ "$code" = "2" ] || log_fail "TEST-1304 (a): a path-carrying description must exit 2 (got $code, calls=$(cat "$GH_CALLS"))"
+  err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "refused by the redactor" "TEST-1304 (a): the refusal must say the redactor refused it"
+  assert_payload_contains "$err" "unsafe_char" "TEST-1304 (a): the refusal must name the redactor's reason class"
+  assert_payload_not_contains "$err" "id_rsa" "TEST-1304 (a): the refused text itself must never be echoed"
+  [ ! -s "$GH_CALLS" ] || log_fail "TEST-1304 (a): a refused description must make no gh call: $(cat "$GH_CALLS")"
+  # (b) secret_aws: an AWS key shape (charset-clean, caught by the deny-list)
+  seed_single_candidate
+  printf 'leaked AKIAABCDEFGHIJKLMNOP in the log\n' > "$TEST_DIR/desc1304b.txt"
+  reset_calls
+  code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm --description "$TEST_DIR/desc1304b.txt")"
+  [ "$code" = "2" ] || log_fail "TEST-1304 (b): a secret-shaped description must exit 2 (got $code, calls=$(cat "$GH_CALLS"))"
+  err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "refused by the redactor" "TEST-1304 (b): the refusal must say the redactor refused it"
+  assert_payload_contains "$err" "secret_aws" "TEST-1304 (b): the refusal must name secret_aws"
+  assert_payload_not_contains "$err" "AKIAABCDEFGHIJKLMNOP" "TEST-1304 (b): the secret must never be echoed"
+  [ ! -s "$GH_CALLS" ] || log_fail "TEST-1304 (b): a refused description must make no gh call: $(cat "$GH_CALLS")"
+  # (c) a poisoned SPOOL summary and no --description: refuses per Spec-AC-01
+  # (the record carries no CERTIFIED summary) -- it used to file prose-free.
+  seed_single_candidate
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"leaked AKIAABCDEFGHIJKLMNOP in the log"}
+JSONL
+  reset_calls
+  code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  [ "$code" = "2" ] || log_fail "TEST-1304 (c): a poisoned spool summary with no --description must refuse (exit $code, calls=$(cat "$GH_CALLS"))"
+  [ "$(creates)" = "0" ] || log_fail "TEST-1304 (c): must never file prose-free (made $(creates))"
+  err="$(cat "$TEST_DIR/err")"
+  assert_payload_contains "$err" "no description" "TEST-1304 (c): the refusal must be the Spec-AC-01 no-description refusal"
+  assert_payload_contains "$err" "secret_aws" "TEST-1304 (c): the refusal must still name why the spool summary did not certify"
+  assert_payload_not_contains "$err" "AKIAABCDEFGHIJKLMNOP" "TEST-1304 (c): the secret must never be echoed"
+  [ ! -s "$GH_CALLS" ] || log_fail "TEST-1304 (c): must refuse before any gh call: $(cat "$GH_CALLS")"
+  # POSITIVE CONTROL: a clean description on the same fixture files once.
+  seed_single_candidate
+  printf 'expected the gate to refuse; observed it passed\n' > "$TEST_DIR/desc1304d.txt"
+  reset_calls
+  code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm --description "$TEST_DIR/desc1304d.txt")"
+  [ "$code" = "0" ] || log_fail "TEST-1304 POSITIVE CONTROL: a clean description must file (exit $code, err=$(cat "$TEST_DIR/err"))"
+  [ "$(creates)" = "1" ] || log_fail "TEST-1304 POSITIVE CONTROL: exactly one create expected (made $(creates))"
+  log_pass "a redactor-refused description is refused by class with zero gh calls; a poisoned spool summary refuses; a clean one files (TEST-1304)"
+}
+
+# --- TEST-1305 (Spec-AC-05): representative() prefers a summary-carrying -----
+# member, so a promoted record is never shadowed by a prose-free sibling with -
+# higher signal. ---------------------------------------------------------------
+test_1305_representative_prefers_summary() {
+  log_info "Test: among one fingerprint's members, the summary-carrying one is the representative even with lower signal (TEST-1305)..."
+  seed_single_candidate
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","confidence":"high","reproducible":true}
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"low","summary":"the low signal member carries the only description"}
+JSONL
+  local draft="$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md"
+  rm -f "$draft"
+  reset_calls; RUN "$TEST_DIR/fb.yaml" >/dev/null
+  grep -qF "> the low signal member carries the only description" "$draft" \
+    || log_fail "TEST-1305: the prepared draft must carry member B's blockquote ($(cat "$draft"))"
+  reset_calls
+  local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
+  [ "$code" = "0" ] || log_fail "TEST-1305: the publish must file without --description because member B carries a summary (exit $code, err=$(cat "$TEST_DIR/err"))"
+  [ "$(creates)" = "1" ] || log_fail "TEST-1305: exactly one create expected (made $(creates))"
+  local line; line="$(grep '^issue create' "$GH_CALLS" | qhead -1)"
+  case "$line" in *"> the low signal member carries the only description"*) ;; *) log_fail "TEST-1305: the FILED body must carry member B's text: $line" ;; esac
+  log_pass "a summary-carrying member is the representative and its text is what is filed (TEST-1305)"
+}
+
+# --- TEST-1311 (Spec-AC-09): the spec's Disposition table pins the four live -
+# issues with their states, each with a reason; the #339 close evidence file --
+# is checked when present. The live close is an ORCHESTRATOR action (spec D4),
+# so an absent evidence file is a NAMED skip of that arm only -- never log_skip
+# (exit 42 voids the whole suite). ---------------------------------------------
+test_1311_disposition_table_pinned() {
+  log_info "Test: the Disposition table carries the four exact GitHub #NNN cells with reasons; #339 close evidence checked when present (TEST-1311)..."
+  local spec="$PROJECT_ROOT/docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md"
+  [ -f "$spec" ] || log_fail "TEST-1311: spec missing: $spec"
+  local table; table="$(awk '/^## Disposition of the live queue/{f=1;next} /^## /{f=0} f && /^\|/' "$spec")"
+  local cell n
+  for cell in "GitHub #338 - CLOSED by the owner 2026-09-30" "GitHub #339 - CLOSED by this scope" "GitHub #369 - OPEN" "GitHub #370 - OPEN"; do
+    assert_payload_contains "$table" "| $cell |" "TEST-1311: the Disposition table must carry the exact cell '$cell'"
+    # the reason cell (third column) of that row is non-empty
+    local reason; reason="$(printf '%s\n' "$table" | awk -F'|' -v c="| $cell |" 'index($0, c) == 1 { r=$4; gsub(/^[ \t]+|[ \t]+$/, "", r); print r }')"
+    [ -n "$reason" ] || log_fail "TEST-1311: the row for '$cell' must carry a non-empty reason cell"
+  done
+  n="$(printf '%s\n' "$table" | awk '/^\| GitHub #/ { c++ } END { print c+0 }')"
+  [ "$n" = "4" ] || log_fail "TEST-1311: exactly four GitHub #NNN rows expected, found $n"
+  # Consistency pin: the spec's PROSE nowhere states #339 as OPEN -- D4,
+  # Spec-AC-09 and the table all say CLOSED by this scope. (The Mutation
+  # cell's first match is D4's sentence, before the table; this pin is what
+  # reddens it. The Test Plan section is excluded because that very cell
+  # spells the mutant text.)
+  local prose; prose="$(awk '/^## Test Plan/{f=1;next} /^## /{f=0} !f' "$spec")"
+  assert_payload_not_contains "$prose" "#339 - OPEN" "TEST-1311: the spec must never describe #339 as OPEN"
+  local ev="$PROJECT_ROOT/docs/ai/tdd/spec-friction-issues-arrive-without-a-description/issue-339-close.txt"
+  if [ -f "$ev" ]; then
+    local evtext; evtext="$(cat "$ev")"
+    assert_payload_contains "$evtext" "CLOSED" "TEST-1311: the #339 close evidence must show state CLOSED"
+    assert_payload_contains "$evtext" "spec-friction-issues-arrive-without-a-description" "TEST-1311: the #339 close comment must name this spec"
+  else
+    log_info "TEST-1311: evidence-file arm SKIPPED (named): $ev is absent -- the live close of #339 is an orchestrator action after the PR ceremony (spec D4); the table pins above still ran"
+  fi
+  log_pass "the Disposition table pins the four live issues with reasons; #339 nowhere OPEN (TEST-1311)"
+}
+
+# --- TEST-1312 (Spec-AC-10): the four prose surfaces and the CHANGELOG state -
+# the new contract; the stale prose-free-after-filing sentence is gone; the ---
+# summary cap reads 500; the prompt-diet suite stays green. --------------------
+test_1312_surfaces_state_the_contract() {
+  log_info "Test: --help, the prompt, USER_GUIDE and FRICTION_PROTOCOL state --description / no description; CHANGELOG heading; prompt-diet green (TEST-1312)..."
+  local help prompt ug fp cl
+  help="$(node "$SCRIPT" --help)" || log_fail "TEST-1312: --help must exit 0"
+  prompt="$(cat "$PROJECT_ROOT/.aai/SKILL_FEEDBACK_UPSERT.prompt.md")"
+  ug="$(awk '/^## Friction feedback loop \(RFC-0012\)/{f=1;next} /^## /{f=0} f' "$PROJECT_ROOT/docs/USER_GUIDE.md")"
+  fp="$(cat "$PROJECT_ROOT/.aai/system/FRICTION_PROTOCOL.md")"
+  cl="$(cat "$PROJECT_ROOT/CHANGELOG.md")"
+  [ -n "$ug" ] || log_fail "TEST-1312: USER_GUIDE's 'Friction feedback loop (RFC-0012)' section not found"
+  local name text
+  for name in help prompt ug fp; do
+    eval "text=\"\$$name\""
+    assert_payload_contains "$text" "--description" "TEST-1312: $name must name --description"
+    assert_payload_contains "$text" "no description" "TEST-1312: $name must state the no-description refusal"
+  done
+  # the stale contract sentence: "prose-free by design" paired with "after filing"
+  for name in help prompt; do
+    eval "text=\"\$$name\""
+    case "$text" in
+      *"prose-free by design"*"after filing"*|*"after filing"*"prose-free by design"*)
+        log_fail "TEST-1312: $name still describes the record as prose-free by design with the description written after filing" ;;
+    esac
+  done
+  # every mention of the flag in the prompt is spelled in full (one per line)
+  local l
+  while IFS= read -r l; do
+    case "$l" in *"--descri"*) case "$l" in *"--description"*) ;; *) log_fail "TEST-1312: the prompt spells the flag incompletely: $l" ;; esac ;; esac
+  done <<<"$prompt"
+  assert_payload_contains "$fp" "<= 500" "TEST-1312: FRICTION_PROTOCOL must state the 500-character summary cap"
+  assert_payload_not_contains "$fp" "<= 200" "TEST-1312: FRICTION_PROTOCOL must no longer state the 200-character cap"
+  local found=0
+  while IFS= read -r l; do
+    case "$l" in "## [unreleased] — fix: "*"--description"*) found=1 ;; esac
+  done <<<"$cl"
+  [ "$found" = "1" ] || log_fail "TEST-1312: CHANGELOG must carry a '## [unreleased] — fix:' heading naming --description"
+  local out code; out="$(bash "$SCRIPT_DIR/test-aai-prompt-diet.sh" 2>&1)"; code=$?
+  [ "$code" = "0" ] || nested_suite_fail "TEST-1312: prompt-diet" "$out" "$code"
+  log_pass "the four surfaces and the CHANGELOG state the contract; stale sentence gone; cap 500; prompt-diet green (TEST-1312)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$SCRIPT" ] || log_fail "engine missing: $SCRIPT"
@@ -1998,6 +2337,13 @@ main() {
   test_662_uncertified_url_never_commented
   test_663_label_refusal_names_status
   test_664_parse_failure_is_not_exit_zero
+  test_1301_publish_refuses_without_description
+  test_1302_prepare_blocks_without_description
+  test_1303_description_file_becomes_blockquote
+  test_1304_poisoned_description_refused
+  test_1305_representative_prefers_summary
+  test_1311_disposition_table_pinned
+  test_1312_surfaces_state_the_contract
   test_009_profiles
   test_404_nested_failure_names_file_with_linecount
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="

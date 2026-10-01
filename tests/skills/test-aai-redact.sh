@@ -48,9 +48,27 @@ assert_drop() {
   case "$got" in drop:*) : ;; *) log_fail "$desc: expected DROP, got '$got' for: $s" ;; esac
 }
 
-main() {
-  echo "=== $TEST_NAME ==="
+# assert_drop_reason <desc> <string> <reason> -- the drop must name THIS class.
+assert_drop_reason() {
+  local desc="$1" s="$2" want="$3" got; got="$(redact "$s")"
+  [ "$got" = "drop:$want" ] || log_fail "$desc: expected drop:$want, got '$got' for a ${#s}-char input"
+}
 
+# --- TEST-1306 (Spec-AC-06, spec-friction-issues-arrive-without-a-description
+# D5): the summary cap is 500 -- a clean 500-character line certifies, 501 is
+# refused as over_length. Built from short prose words so no detector (the
+# 32+-char run of the high-entropy class included) fires on the clean arm.
+test_1306_summary_cap_is_500() {
+  local text500 text501
+  text500="$(node -e 'process.stdout.write("the gate refused the transition ".repeat(20).slice(0, 500))')"
+  [ "${#text500}" = "500" ] || log_fail "TEST-1306: fixture must be exactly 500 chars (got ${#text500})"
+  text501="${text500}x"
+  assert_ok "TEST-1306 clean 500-char line certifies" "$text500"
+  assert_drop_reason "TEST-1306 501-char line is over_length" "$text501" "over_length"
+  log_pass "redactor: a clean 500-char line certifies; 501 is over_length (TEST-1306)"
+}
+
+test_110_redactor_contract() {
   # Clean short human summaries pass.
   assert_ok "clean prose" "planning step failed on a missing transition"
   assert_ok "clean with punctuation" "the spec froze but the AC table had a dangling id"
@@ -115,6 +133,16 @@ main() {
   assert_drop "whitespace"   "   "
 
   log_pass "redactor: clean certified; every detector class + length/control/empty fail closed (TEST-110)"
+}
+
+main() {
+  echo "=== $TEST_NAME ==="
+  if [ $# -gt 0 ]; then
+    declare -F "$1" >/dev/null || { echo "Unknown test: $1" >&2; exit 2; }
+    "$1"; echo "=== $TEST_NAME: SELECTED PASSED ($1) ==="; return
+  fi
+  test_110_redactor_contract
+  test_1306_summary_cap_is_500
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

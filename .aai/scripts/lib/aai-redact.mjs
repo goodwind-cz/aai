@@ -14,8 +14,12 @@
 // fields must NOT be passed here — they cannot carry free content and bypass the
 // redactor by construction (only free-text `summary` is ever redacted).
 
-// Max length of a redactable summary (RFC-0013 D2: short, <= 200 chars).
-export const MAX_SUMMARY_LEN = 200;
+// Max length of a redactable summary: one line, <= 500 chars. RFC-0013 D2's
+// original 200 held a title, not a description; a realistic one-line
+// "expected; observed; where" runs 238-246 chars (spec-friction-issues-arrive-
+// without-a-description D5, measured). Newlines stay refused, so this is still
+// a one-line headline, consumed by both the capture and the transmit pass.
+export const MAX_SUMMARY_LEN = 500;
 
 // Deny-by-default detectors. Order matters only for the reported reason; a single
 // match is enough to fail closed. Each entry is [class, RegExp].

@@ -22,6 +22,15 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: a friction issue carries a description (`--publish --description <file>`) or is not filed (goodwind-cz/aai#339)
+
+- **BEHAVIOUR CHANGE on the next `/aai-update`: `aai-feedback-upsert.mjs --publish <fp> --confirm` of a record with no certified description is REFUSED** (exit 2, before any `gh` call, naming the missing field and the new flag); it used to file a metadata-only body nobody could act on (#339 sat 25 days untriageable). The description is ONE certified human-written line (1..500 chars, same fail-closed redactor): the record's own `record --promote` summary, or the new publish-time `--description <file>` (lines joined by one space, argv-only; the on-disk draft is still never read). A description the redactor refuses is refused naming its reason class.
+- **prepare lists such clusters as `blocked_no_description`** with `not offered: no description — write one line (expected, observed, where) and pass --description <file> to --publish`, and offers them no publish line.
+- **The summary cap rises 200 -> 500** (`MAX_SUMMARY_LEN`, one constant consumed by both the capture pass of `record --promote` and the transmit pass); a realistic one-line "expected; observed; where" runs 238-246 chars and was refused as `over_length`. Newlines stay refused. No redaction rule changes.
+- **`/aai-issues` excerpts the first comment when the body is metadata-only** (`(from comment 1 of N) ...`, same sanitizer, authors never printed), so issues whose analysis lives in a hand-posted comment (#369, #370) no longer read as prose-free during triage. `buildGhArgs()` now fetches `comments`.
+- **`representative()` prefers a summary-carrying member** of a fingerprint, so a promoted record is never shadowed by a prose-free sibling with higher signal.
+- **NO default flips:** `capture.summary_enabled` stays `false` (owner decision 2026-09-05); the posture and its trade-off are now written next to the flag in `.aai/feedback.yaml`.
+
 ## [unreleased] — feat: the roadmap is an ordered capability list with an opt-in maintenance budget, and /aai-roadmap manages it (goodwind-cz/aai#419)
 
 - **The maintenance budget is now opt-in.** A `docs/ai/roadmap.yaml` without a `budget:` block is an ordered list of capabilities: fix, chore, test and techdebt rides are always admitted, `next` never insists on binding maintenance, and an explicitly requested item is admitted even when earlier items are unfinished (order drives `next`, not refusals). A roadmap with `budget.maintenance_per_capability: 1` keeps today's 1:1 pairing, ordering and refusals byte-for-byte; this repository's roadmap is unchanged.

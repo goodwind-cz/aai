@@ -1,0 +1,9 @@
+# CONTROL (not RED): TEST-1311 pins a table that already exists in the frozen spec, so it cannot redden on the pre-change tree (spec Test Plan Notes). Its evidence is the mutation record mutation-TEST-1311.txt plus the evidence-file arm.
+# TEST-1311 pre-change tree HEAD=e7de26d7 suite=test-aai-feedback-upsert.sh selector=test_1311_disposition_table_pinned exit=0
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+=== test-aai-feedback-upsert ===
+INFO: Test: the Disposition table carries the four exact GitHub #NNN cells with reasons; #339 close evidence checked when present (TEST-1311)...
+INFO: TEST-1311: evidence-file arm SKIPPED (named): /private/var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-iso-wrap.Y1YBpC/wt/docs/ai/tdd/spec-friction-issues-arrive-without-a-description/issue-339-close.txt is absent -- the live close of #339 is an orchestrator action after the PR ceremony (spec D4); the table pins above still ran
+PASS: the Disposition table pins the four live issues with reasons; #339 nowhere OPEN (TEST-1311)
+=== test-aai-feedback-upsert: SELECTED PASSED (test_1311_disposition_table_pinned) ===

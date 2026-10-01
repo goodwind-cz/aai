@@ -116,7 +116,7 @@ pointer), so they carry triage signal without any free-text channel:
 | `confidence`   | enum `low \| medium \| high`               | reporter confidence it is AAI-owned                |
 | `workaround`   | enum `none \| manual \| automatic`         | cost of the current workaround                     |
 | `evidence_ref` | safe pointer: repo-relative `docs/…` path OR an AAI doc id (`SPEC-0079`, …) | URLs / absolute paths / free text are REJECTED |
-| `summary`      | opt-in short free-text (<= 200 chars)      | persisted ONLY when enabled AND certified clean    |
+| `summary`      | opt-in short free-text (<= 500 chars)      | persisted ONLY when enabled AND certified clean    |
 | `redaction_status` | enum `none \| capture_clean \| capture_dropped_fields` | which redaction outcome the capture pass recorded |
 
 Structured/enum/bool/`evidence_ref` fields BYPASS the redactor by construction —
@@ -166,6 +166,19 @@ or the redactor's `reason`: `over_length`, `control_char`, `unsafe_char`,
 code are unchanged either way — the NOTE is a diagnosis, never a second
 failure mode. The automatic capture point in `aai-run-tests.sh` never supplies
 `--promote` or a `summary`, so its own calls never reach this branch.
+
+**A filed issue carries a description or is not filed
+(spec-friction-issues-arrive-without-a-description D1/D3).** The transmit pass
+(`aai-feedback-upsert.mjs`) files an issue only with ONE certified
+human-written description as its leading blockquote (one line, <= 500 chars,
+the same redactor): the record's own `--promote`d `summary`, or a publish-time
+`--publish <fp> --confirm --description <file>` (lines joined by one space;
+read from argv, never from the on-disk draft). A record with no description
+is refused BEFORE any `gh` call — prepare marks it `blocked_no_description`,
+publish exits 2 naming the missing field — because a metadata-only body is
+something a maintainer cannot act on. The mechanism, reproduction steps and
+anything naming a path stay a hand-posted comment, which the redactor cannot
+certify by design.
 
 ---
 

@@ -2,10 +2,12 @@
 id: friction-issues-arrive-without-a-description
 number: 179
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 420
+  commits:
+    - 20f277e3cad5becad7668639a487b5f9c564c759
 ---
 
 # A friction issue arrives with a failure class and no description
@@ -33,6 +35,32 @@ links:
   produced nothing actionable.
 - Already registered as `fu-friction-issue-body-is-prose-free`; this intake asks
   for the decision the follow-up defers.
+- Re-measured 2026-10-01, and the picture is sharper than the 2026-09-06 count.
+  Of the five auto-filed issues triaged that day, **every one carried zero
+  prose lines in its body**. Four of them (#414, #392, #391, #390) were
+  nevertheless actionable — and all four only because the OWNER hand-wrote an
+  analysis comment afterwards, each one a full reproduction with file:line
+  evidence. Those four became `ISSUE-0089` and `ISSUE-0090`, two shipped rides.
+  CORRECTION to that triage, found by Planning: only **#339** carries no such
+  comment. **#369 and #370 each carry a full `## Analysis (reporter follow-up)`
+  comment** (3,831 and 3,640 characters). They were called untriageable because
+  `aai-issues.mjs:236` fetches no `comments` at all, so the triage pass saw the
+  prose-free body and nothing else. The channel's reader is therefore a second,
+  independent reason a described issue reads as undescribed — and it is the
+  cheaper of the two to fix.
+- So the channel's automatic half has now produced nothing actionable across
+  two separate measurement days, while its manual half produced the two best
+  intakes of the session. The value is real and it is entirely human-supplied;
+  the automation currently contributes only the fingerprint and the metadata.
+- `capture.summary_enabled` is still `false` in the shipped `.aai/feedback.yaml`
+  (line 17), so this is the default behaviour, not a misconfiguration.
+- One sub-case IS fixed and should not be re-litigated: a summary over the
+  length cap used to be dropped while `record` printed only success. It now
+  emits `NOTE: summary dropped (reason: over_length)` on stderr before the
+  success line (shipped by SPEC-0185, verified 2026-10-01; GitHub issue #361
+  closed on that evidence). The gap is that no summary is captured at all by
+  default — not that a captured one goes missing.
+
 
 ## Scope
 - In scope: deciding and implementing what a friction issue must carry to be

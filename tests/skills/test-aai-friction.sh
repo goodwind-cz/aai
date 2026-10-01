@@ -1155,9 +1155,10 @@ test_658_dropped_summary_is_named() {
   [ "$(cat "$OUT")" = "recorded $fp" ] \
     || log_fail "TEST-658 (a): stdout must stay exactly 'recorded <fingerprint>' (got: $(cat "$OUT"))"
 
-  # (b) --promote + a 201-character summary -> stderr names over_length.
+  # (b) --promote + a 501-character summary -> stderr names over_length
+  # (re-pinned 201 -> 501 by spec-friction-issues-arrive-without-a-description D5).
   rm -f "$spool"
-  local long; long="$(head -c 201 < /dev/zero | tr '\0' a)"
+  local long; long="$(head -c 501 < /dev/zero | tr '\0' a)"
   write_v2 "$TEST_DIR/long658.json" ",
   \"summary\": \"$long\""
   code=0
@@ -1171,6 +1172,68 @@ test_658_dropped_summary_is_named() {
     || log_fail "TEST-658 (b): stdout must stay exactly 'recorded <fingerprint>' (got: $(cat "$OUT"))"
 
   log_pass "a dropped summary names its reason on stderr; stdout/exit stay the record contract in both arms (TEST-658)"
+}
+
+# --- TEST-1307 (Spec-AC-06, spec-friction-issues-arrive-without-a-description
+# D5): the capture pass consumes the raised cap -- `record --promote` with a
+# clean 450-character summary persists it verbatim, capture_clean, and the
+# spool line stays strictly under the 4096-byte atomic-append bound.
+test_1307_promote_persists_450_chars() {
+  log_info "Test: record --promote persists a clean 450-char summary verbatim under the 4096-byte line bound (TEST-1307)..."
+  local sp="$TEST_DIR/sp1307"; mkdir -p "$sp"
+  local spool="$sp/observations.jsonl"
+  local text450
+  text450="$(node -e 'process.stdout.write("the gate refused the transition ".repeat(15).slice(0, 450))')"
+  [ "${#text450}" = "450" ] || log_fail "TEST-1307: fixture must be exactly 450 chars (got ${#text450})"
+  write_v2 "$TEST_DIR/p1307.json" ",
+  \"summary\": \"$text450\""
+  local code=0
+  AAI_FRICTION_SPOOL_DIR="$sp" node "$SCRIPT" record --input "$TEST_DIR/p1307.json" --promote \
+    > "$OUT" 2> "$ERR" || code=$?
+  assert_exit "TEST-1307: record --promote" 0 "$code"
+  [ "$(line_get "$spool" summary)" = "$text450" ] \
+    || log_fail "TEST-1307: the 450-char summary must persist verbatim (stderr: $(cat "$ERR"))"
+  [ "$(line_get "$spool" redaction_status)" = "capture_clean" ] \
+    || log_fail "TEST-1307: redaction_status must be capture_clean (got $(line_get "$spool" redaction_status))"
+  local bytes; bytes="$(wc -c < "$spool" | tr -d ' ')"
+  [ "$bytes" -lt 4096 ] || log_fail "TEST-1307: the spool line must stay under the 4096-byte PIPE_BUF bound (got $bytes)"
+  log_pass "record --promote persists a 450-char summary verbatim, capture_clean, $bytes bytes (TEST-1307)"
+}
+
+# --- TEST-1308 (Spec-AC-07, spec-friction-issues-arrive-without-a-description
+# D2): the shipped .aai/feedback.yaml keeps the capture default false, states
+# the posture (PUBLIC, --promote, --description, trade-off) in the comment
+# block right above it, and the shipped gate still drops an unpromoted
+# summary with the capture_gate NOTE.
+test_1308_shipped_default_and_posture() {
+  log_info "Test: the shipped feedback.yaml keeps summary_enabled: false, states the posture tokens beside it, and the gate still drops an unpromoted summary (TEST-1308)..."
+  local cfg="$PROJECT_ROOT/.aai/feedback.yaml"
+  [ -f "$cfg" ] || log_fail "TEST-1308: shipped config missing: $cfg"
+  # exactly one summary_enabled line under capture:, and it is false
+  local lines; lines="$(awk '/^capture:/{f=1;next} /^[^ \t#]/{f=0} f && /^[ \t]+summary_enabled[ \t]*:/{print NR": "$0}' "$cfg")"
+  local n; n="$(printf '%s\n' "$lines" | awk 'NF{c++} END{print c+0}')"
+  [ "$n" = "1" ] || log_fail "TEST-1308: exactly one summary_enabled line expected under capture:, found $n ($lines)"
+  case "$lines" in *"summary_enabled: false"*) ;; *) log_fail "TEST-1308: the shipped default must stay false: $lines" ;; esac
+  local ln; ln="${lines%%:*}"
+  local start=$(( ln - 12 )); [ "$start" -ge 1 ] || start=1
+  local block; block="$(sed -n "${start},$(( ln - 1 ))p" "$cfg")"
+  local tok
+  for tok in PUBLIC --promote --description trade-off; do
+    case "$block" in *"$tok"*) ;; *) log_fail "TEST-1308: the twelve lines above summary_enabled must name '$tok' (got: $block)" ;; esac
+  done
+  # the shipped gate: a summary with no --promote is dropped with the NOTE
+  local sp="$TEST_DIR/sp1308"; mkdir -p "$sp"
+  local spool="$sp/observations.jsonl"
+  write_v2 "$TEST_DIR/p1308.json" ',
+  "summary": "the gate threw on a missing transition"'
+  local code=0
+  ( unset AAI_FEEDBACK_CONFIG; AAI_FRICTION_SPOOL_DIR="$sp" node "$SCRIPT" record --input "$TEST_DIR/p1308.json" \
+    > "$OUT" 2> "$ERR" ) || code=$?
+  assert_exit "TEST-1308: record against the shipped file" 0 "$code"
+  grep -qF "NOTE: summary dropped (reason: capture_gate)" "$ERR" \
+    || log_fail "TEST-1308: stderr must carry the capture_gate NOTE (got: $(cat "$ERR"))"
+  assert_key_absent "TEST-1308" "$(line_keys "$spool")" "summary"
+  log_pass "the shipped default stays false with the posture stated beside it; the gate still drops an unpromoted summary (TEST-1308)"
 }
 
 main() {
@@ -1219,6 +1282,8 @@ main() {
   test_654_promote_admits_prose
   test_656_capture_redaction_both_ways
   test_658_dropped_summary_is_named
+  test_1307_promote_persists_450_chars
+  test_1308_shipped_default_and_posture
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

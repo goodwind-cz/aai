@@ -1,0 +1,7 @@
+RED_CLASS: product_red
+# TEST-1303 pre-change tree HEAD=e7de26d7 suite=test-aai-feedback-upsert.sh selector=test_1303_description_file_becomes_blockquote exit=1
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+=== test-aai-feedback-upsert ===
+INFO: Test: a two-line --description file renders as the leading blockquote in the recorded create argv; flag misuse exits 2 (TEST-1303)...
+FAIL: TEST-1303: a publish with a clean --description must file (exit 2, err=aai-feedback-upsert: unrecognized argument: --description)

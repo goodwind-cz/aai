@@ -2542,18 +2542,28 @@ stored, and **no issue is ever filed without your explicit confirmation.**
    ```bash
    node .aai/scripts/aai-feedback-upsert.mjs
    # -> writes docs/ai/friction/pending-issues/<fingerprint>.md and prints the
-   #    exact confirmed-write command for each
+   #    exact confirmed-write command for each -- or "not offered: no description"
+   #    for a cluster whose record carries no certified one-line description
    ```
    (In Claude Code this is also invocable as the `/aai-feedback-upsert` skill.)
+   A filed issue always carries one human-written description as its leading
+   blockquote (one line, up to 500 characters, through the same fail-closed
+   redactor); a record with no description is never filed, because a
+   metadata-only body is something a maintainer cannot act on.
 
 5. **Review, then file — the only step that touches GitHub, and only on your
    `--confirm`.** Read the draft in `docs/ai/friction/pending-issues/`, and if you
-   approve, file it:
+   approve, file it. If the draft says `blocked_no_description`, write one line
+   (what you expected, what you observed, where) to a file and pass it:
    ```bash
    node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm
+   # or, for a record that carries no summary of its own:
+   node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm --description my-line.txt
    ```
    This is the single mutating GitHub call. It re-runs the redaction + a
-   per-installation budget check immediately before filing.
+   per-installation budget check immediately before filing; a description the
+   redactor refuses (a path, a key, an address) is refused naming the reason,
+   with no GitHub call made.
 
 ### GitHub authentication (prerequisite)
 
