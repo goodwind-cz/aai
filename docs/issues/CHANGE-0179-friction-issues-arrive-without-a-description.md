@@ -39,8 +39,13 @@ links:
   nevertheless actionable — and all four only because the OWNER hand-wrote an
   analysis comment afterwards, each one a full reproduction with file:line
   evidence. Those four became `ISSUE-0089` and `ISSUE-0090`, two shipped rides.
-  The three with no such comment (#339, #369, #370) could not be triaged at all
-  and are still open for that reason.
+  CORRECTION to that triage, found by Planning: only **#339** carries no such
+  comment. **#369 and #370 each carry a full `## Analysis (reporter follow-up)`
+  comment** (3,831 and 3,640 characters). They were called untriageable because
+  `aai-issues.mjs:236` fetches no `comments` at all, so the triage pass saw the
+  prose-free body and nothing else. The channel's reader is therefore a second,
+  independent reason a described issue reads as undescribed — and it is the
+  cheaper of the two to fix.
 - So the channel's automatic half has now produced nothing actionable across
   two separate measurement days, while its manual half produced the two best
   intakes of the session. The value is real and it is entirely human-supplied;
