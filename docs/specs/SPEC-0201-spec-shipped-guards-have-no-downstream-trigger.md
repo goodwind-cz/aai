@@ -10,7 +10,7 @@ links:
   requirement: docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md
   rfc: null
   pr:
-    - TBD
+    - 417
   commits:
     - f7fa0536e2816e170eb07c83e4417251a57ba95c
 ---
