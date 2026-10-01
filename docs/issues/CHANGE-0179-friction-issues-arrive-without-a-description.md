@@ -2,10 +2,12 @@
 id: friction-issues-arrive-without-a-description
 number: 179
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 20f277e3cad5becad7668639a487b5f9c564c759
 ---
 
 # A friction issue arrives with a failure class and no description

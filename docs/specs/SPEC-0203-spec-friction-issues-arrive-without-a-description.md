@@ -2,15 +2,17 @@
 id: spec-friction-issues-arrive-without-a-description
 type: spec
 number: 203
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 574932ff3bf6a679dee6bd56b0c27802bd7f4b6e1724b0a165550e0c6a6c1bb7
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 20f277e3cad5becad7668639a487b5f9c564c759
 ---
 
 # Spec — a friction issue carries a description or is not filed

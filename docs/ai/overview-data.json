@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-01T12:54:02.057Z",
+  "generatedAt": "2026-10-01T12:56:00.582Z",
   "project": "aai",
   "counts": {
-    "delivered": 270,
-    "in_progress": 16,
+    "delivered": 271,
+    "in_progress": 15,
     "releases": 1,
     "tokens_total": 70231136
   },
@@ -21,19 +21,6 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "friction-issues-arrive-without-a-description",
-      "title": "A friction issue arrives with a failure class and no description",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md",
       "validation": null,
       "review": null
     },
@@ -221,6 +208,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "friction-issues-arrive-without-a-description",
+      "title": "A friction issue arrives with a failure class and no description",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md",
+      "closed_on": "2026-10-01",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "downstream-rides-ask-no-governance-questions",
       "title": "Downstream rides ask no roadmap or amendment sign-off questions",
@@ -3758,6 +3758,19 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
+        {
+          "ref": "friction-issues-arrive-without-a-description",
+          "title": "A friction issue arrives with a failure class and no description",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md",
+          "closed_on": "2026-10-01",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "downstream-rides-ask-no-governance-questions",
           "title": "Downstream rides ask no roadmap or amendment sign-off questions",

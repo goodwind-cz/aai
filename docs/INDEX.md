@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-01T12:55:49.450Z
+Generated: 2026-10-01T12:56:11.119Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0203 | specs | implementing | 10 done | docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md |
 
 ## Canonical layer (0)
 
@@ -53,7 +52,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (476)
+## Done (478)
 
 | ID | Type | Path |
 |---|---|---|
@@ -233,6 +232,7 @@ _None._
 | CHANGE-0175 | issues | docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md |
 | CHANGE-0177 | issues | docs/issues/CHANGE-0177-lessons-that-must-hold-downstream-are-guards.md |
 | CHANGE-0178 | issues | docs/issues/CHANGE-0178-live-page-shows-dead-heartbeats-not-live-work.md |
+| CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0181 | issues | docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md |
 | CHANGE-0182 | issues | docs/issues/CHANGE-0182-harness-universal-routing.md |
 | CHANGE-0183 | issues | docs/issues/CHANGE-0183-telemetry-fields-not-prose.md |
@@ -531,15 +531,15 @@ _None._
 | SPEC-0199 | specs | docs/specs/SPEC-0199-spec-sync-deletes-target-only-hooks.md |
 | SPEC-0200 | specs | docs/specs/SPEC-0200-spec-downstream-rides-ask-no-governance-questions.md |
 | SPEC-0201 | specs | docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md |
+| SPEC-0203 | specs | docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
-| CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
