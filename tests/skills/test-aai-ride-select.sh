@@ -287,6 +287,38 @@ test_1204_directory_refuses() {
   log_pass "directory at the roadmap path refuses (TEST-1204)"
 }
 
+# --- TEST-1217 (Spec-AC-02, Codex P1 on PR #416): a roadmap path that -------
+# exists but cannot be stat-ed (ELOOP self-symlink; EACCES unsearchable parent)
+# is PRESENT-unreadable, never "absent": existsSync() is false for both, so the
+# absent branch must stat and refuse. Root ignores directory modes, so the
+# EACCES arm records a skip there instead of a vacuous pass; the ELOOP arm
+# runs everywhere.
+test_1217_unstatable_roadmap_refuses() {
+  log_info "Test: an unstat-able roadmap path (ELOOP, EACCES) refuses as not readable, never admits as absent (TEST-1217)..."
+  write_doc cap-one change draft
+  local rc loop="$TEST_DIR/loop1217.yaml"
+  ln -s "$loop" "$loop"
+  rc="$(run gate --ref cap-one --roadmap "$loop" --docs "$TEST_DIR/docs")" || true
+  [ "$rc" = "1" ] || log_fail "TEST-1217 (ELOOP): must refuse with exit 1, got $rc: $(out) $(err)"
+  grep -q "REFUSED" "$TEST_DIR/err" || log_fail "TEST-1217 (ELOOP): must say REFUSED: $(err)"
+  grep -q "roadmap not readable" "$TEST_DIR/err" || log_fail "TEST-1217 (ELOOP): must say 'roadmap not readable': $(err)"
+  grep -q "roadmap absent" "$TEST_DIR/out" && log_fail "TEST-1217 (ELOOP): must never print the absent admit line: $(out)"
+  if [ "$(id -u)" = "0" ]; then
+    log_info "TEST-1217 (EACCES): running as root — directory modes are not enforced, arm skipped (not a pass)"
+  else
+    local locked="$TEST_DIR/locked1217"
+    mkdir -p "$locked"
+    printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-one\n    status: planned\n' > "$locked/roadmap.yaml"
+    chmod 000 "$locked"
+    rc="$(run gate --ref cap-one --roadmap "$locked/roadmap.yaml" --docs "$TEST_DIR/docs")" || true
+    chmod 755 "$locked"
+    [ "$rc" = "1" ] || log_fail "TEST-1217 (EACCES): must refuse with exit 1, got $rc: $(out) $(err)"
+    grep -q "roadmap not readable" "$TEST_DIR/err" || log_fail "TEST-1217 (EACCES): must say 'roadmap not readable': $(err)"
+    grep -q "roadmap absent" "$TEST_DIR/out" && log_fail "TEST-1217 (EACCES): must never print the absent admit line: $(out)"
+  fi
+  log_pass "unstat-able roadmap refuses, never admits as absent (TEST-1217)"
+}
+
 # --- TEST-1205 (Spec-AC-02): validate and next keep their absent behavior -----
 test_1205_validate_next_unchanged_on_absent() {
   log_info "Test: validate on an absent path exits 2 and next on an absent path exits 1 (TEST-1205)..."
@@ -1890,6 +1922,7 @@ main() {
   test_1203_malformed_and_empty_refuse
   test_1204_directory_refuses
   test_1205_validate_next_unchanged_on_absent
+  test_1217_unstatable_roadmap_refuses
   test_1206_usage_checks_before_absent
   test_1208_default_roadmap_refuses_off_roadmap
   test_1209_header_and_rule4_state_the_switch

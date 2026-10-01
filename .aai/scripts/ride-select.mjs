@@ -35,6 +35,17 @@ const STARTED = new Set(['implementing', 'done']);
 const MAINT_WORDS = /(^|-)(fix|guard|harness|hygiene|tripwire|flake|refactor|cleanup|lint|chore|test|ci)(-|$)/;
 const MAINT_TYPES = new Set(['issue', 'hotfix', 'techdebt', 'chore', 'test', 'ci']);
 
+// Posture probe (Codex P1, PR #416): `fs.existsSync` returns false for EVERY
+// stat failure, including EACCES on an unsearchable parent directory — a
+// governed project would read as ungoverned. Only a not-found error selects
+// the absent posture; any other failure is a present-but-unreadable roadmap
+// and falls through to loadRoadmap()'s refusal. Twin of the same-named
+// function in orchestration-dispatch.mjs (seam S1, TEST-1207).
+const ABSENT_CODES = new Set(['ENOENT', 'ENOTDIR']);
+function roadmapAbsent(p) {
+  try { fs.statSync(p); return false; } catch (e) { return ABSENT_CODES.has(e && e.code); }
+}
+
 function usage(msg) { process.stderr.write(`ride-select: ${msg}\n`); process.exit(2); }
 function refuse(msg) { process.stderr.write(`ride-select: REFUSED — ${msg}\n`); process.exit(1); }
 
@@ -281,6 +292,8 @@ function main() {
     // The roadmap file is the posture switch: absent = ungoverned, admit without
     // consulting anything and write nothing (no override event: nothing overridden).
     if (!fs.existsSync(a.roadmap)) {
+      // existsSync is false for EACCES too: only a real not-found admits (fail closed).
+      if (!roadmapAbsent(a.roadmap)) refuse(`roadmap not readable: ${a.roadmap} (${a.roadmap}) — a gate that cannot read its roadmap admits nothing`);
       process.stdout.write(`ride-select: ADMIT ${a.ref} — roadmap absent (${a.roadmap}): gate not consulted\n`);
       process.exit(0);
     }

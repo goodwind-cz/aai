@@ -100,13 +100,14 @@ section() {
 has() { [[ "$1" == *"$2"* ]]; }
 
 test_1207_dispatch_gate_agrees_with_cli_gate() {
-  log_info "Test: dispatch open-intake gate.admitted equals the CLI gate verdict for absent, directory and malformed roadmap roots (TEST-1207)..."
+  log_info "Test: dispatch open-intake gate.admitted equals the CLI gate verdict for absent, directory, malformed and eloop (self-symlink) roadmap roots (TEST-1207)..."
   local kind d cli_rc admitted consulted want_consulted
-  for kind in absent directory malformed; do
+  for kind in absent directory malformed eloop; do
     d="$(mk_project "t1207-$kind")"
     case "$kind" in
       directory) mkdir -p "$d/docs/ai/roadmap.yaml" ;;
       malformed) printf 'this is not a roadmap\n' > "$d/docs/ai/roadmap.yaml" ;;
+      eloop) ln -s "$d/docs/ai/roadmap.yaml" "$d/docs/ai/roadmap.yaml" ;;
     esac
     cat > "$d/docs/ai/STATE.yaml" <<YAML
 project_status: active
@@ -157,7 +158,7 @@ YAML
       [[ "$cli_rc" -eq 1 ]] || log_fail "TEST-1207 ($kind): negative control: CLI gate must exit 1, got $cli_rc"
     fi
   done
-  log_pass "TEST-1207: dispatch and CLI gate agree on absent (admit, not consulted), directory and malformed (refuse, consulted)"
+  log_pass "TEST-1207: dispatch and CLI gate agree on absent (admit, not consulted), directory, malformed and eloop (refuse, consulted)"
 }
 
 test_1210_ship_step_1a_absent_admit() {
