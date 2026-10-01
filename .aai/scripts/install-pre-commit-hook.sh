@@ -25,7 +25,7 @@ set -euo pipefail
 #     ref as merge-base(origin/<default>, local)..local. Report-only unless
 #     the PUSHED commit's docs/ai/docs-audit.yaml says `close_gate: enforce`,
 #     and even then only a push to the default branch is refused
-#     (docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md D1).
+#     (docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md D1).
 #
 # Usage:
 #   ./.aai/scripts/install-pre-commit-hook.sh           # install if absent
@@ -618,7 +618,7 @@ arm_ref_guard() {
 # marker lines is engine-owned and is the ONLY range an upgrade ever
 # rewrites; `--print guard-checks` extracts these same bytes from this
 # heredoc (never a second copy), so the printed block cannot drift from the
-# installed one (SPEC-DRAFT-shipped-guards-have-no-downstream-trigger D6).
+# installed one (SPEC-0201-spec-shipped-guards-have-no-downstream-trigger D6).
 guard_block_body() {
 cat <<'GUARDBLOCK'
 # AAI:GUARD-CHECKS BEGIN
@@ -825,7 +825,7 @@ cat <<'PREPUSHHOOK'
 # (never the worktree copy). report-only (default): print, exit 0. enforce:
 # refuse ONLY a push to the default branch; every other ref stays report-
 # only, because WIP pushes legitimately precede the close ceremony.
-# See docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md.
+# See docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md.
 
 _cg_remote="${1:-origin}"
 _cg_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"

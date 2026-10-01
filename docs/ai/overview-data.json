@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-01T00:25:16.980Z",
+  "generatedAt": "2026-10-01T08:05:55.940Z",
   "project": "aai",
   "counts": {
     "delivered": 269,
-    "in_progress": 15,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 70231136
   },
@@ -190,6 +190,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "shipped-guards-have-no-downstream-trigger",
+      "title": "The guards the canon relies on are shipped downstream with nothing to invoke them",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md",
       "validation": null,
       "review": null
     },

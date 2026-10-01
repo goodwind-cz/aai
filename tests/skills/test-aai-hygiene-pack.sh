@@ -4584,7 +4584,7 @@ test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisc
 }
 
 # --- shipped-guards-have-no-downstream-trigger (TEST-800..807, 813..816) ----
-# docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md: the
+# docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md: the
 # installer's pre-commit hook gains a marker-scoped AAI:GUARD-CHECKS block
 # that runs pre-commit-checks.sh, a third AAI:CLOSE-GATE pre-push hook runs
 # close-reconcile.mjs over every pushed range, and neither ever rewrites a

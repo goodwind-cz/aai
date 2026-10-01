@@ -1,13 +1,13 @@
 ---
 id: spec-shipped-guards-have-no-downstream-trigger
 type: spec
-number: null
+number: 201
 status: implementing
 mutation_gate: v1
-frozen_sha256: adce96059fbc85d6c9c3cf060bcb111a1d613bf69f25868f4de16697d9f8ef5f
+frozen_sha256: eed16232084a03d04d910f2953d6bdf0cbd68b9dad3e4d1bc11cd1783f55c611
 ceremony_level: 3
 links:
-  requirement: docs/issues/ISSUE-DRAFT-shipped-guards-have-no-downstream-trigger.md
+  requirement: docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md
   rfc: null
   pr: []
   commits: []
@@ -18,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-shipped-guards-have-no-downstream-trigger.md (id `shipped-guards-have-no-downstream-trigger`)
+- Requirement: docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md (id `shipped-guards-have-no-downstream-trigger`)
 - Decision records: none yet; the owner's strategy choice is recorded in STATE (`implementation_strategy.source: intake`)
 - Technology contract: docs/TECHNOLOGY.md
 - Directly applicable prior art: docs/specs/SPEC-0199-spec-sync-deletes-target-only-hooks.md (ISSUE-0089, GitHub #414 — a sync that destroyed a user-authored hook; the merge-vs-overwrite rule there is reused here as D6), docs/specs/SPEC-0184-spec-update-installs-ref-guard-undisclosed.md (the installer's `--hooks` selection, `--print`, attestation and disclosure contract that this scope extends), docs/specs/SPEC-0175-spec-close-ceremony-fires-only-via-aai-pr.md (close-reconcile and the CI job that is not vendored), docs/specs/SPEC-0103-spec-platform-portable-pr.md (`pr-platform.mjs`, the closed github/azure/unknown/none host classification reused by D3)
@@ -69,7 +69,7 @@ Allowed user decision values:
 
 - M1. `/usr/bin/grep -c pre-commit-checks .aai/scripts/install-pre-commit-hook.sh` → `0`; the same for `.ps1` → `0`. The installed pre-commit body (install-pre-commit-hook.sh:583-687, heredoc `HOOK`) carries only the `AAI:INDEX-AUTOGEN` responsibilities: index regeneration, the SPEC-0011 close gate on staged `status: done` flips, and the SPEC-0013 body lint. It exits 0 early when nothing under `docs/` is staged (line 596). `pre-commit-checks.sh` is never reached, so CHECK 8 (pre-commit-checks.sh:200-230) — and CHECK 2's secrets detection — never execute from a commit.
 - M2. `pre-commit-checks.sh:215-217` resolves CHECK 8's mode by `grep -Eq '^doc_number_guard:[[:space:]]*enforce'` over `docs/ai/docs-audit.yaml`. `.aai/templates/docs-audit.template.yaml:45` ships the key PRESENT and set to `report-only` (the reporter's "absent" is a version difference; the effect is identical). This repository's own `docs/ai/docs-audit.yaml:23` is `doc_number_guard: enforce`.
-- M3. Decisive for D2: in a scratch clone of origin/main, committing one `docs/issues/ISSUE-DRAFT-probe-draft.md` on a feature branch and running `node .aai/scripts/allocate-doc-number.mjs --guard` → `GUARD FAIL (no-DRAFT-at-merge)`, rc=4; `bash .aai/scripts/pre-commit-checks.sh` on that tree under this repository's `enforce` → `BLOCKED: 1 error(s)`. The guard enumerates `git ls-files` (allocate-doc-number.mjs:605-611), so an UNTRACKED draft passes (measured rc=0 in this checkout with `docs/issues/ISSUE-DRAFT-shipped-guards-have-no-downstream-trigger.md` untracked) and a COMMITTED draft on a branch fails. The AAI flow commits DRAFT docs on branches by design — numbering is assigned at MERGE by the allocator (SKILL_PR.prompt.md step 1b, allocate-doc-number.mjs header lines 4-7) — so `no-DRAFT-at-merge` has a legitimate false positive at COMMIT time on any non-default branch. The reporter's "no legitimate false positive" holds at the merge point only.
+- M3. Decisive for D2: in a scratch clone of origin/main, committing one `docs/issues/ISSUE-DRAFT-probe-draft.md` on a feature branch and running `node .aai/scripts/allocate-doc-number.mjs --guard` → `GUARD FAIL (no-DRAFT-at-merge)`, rc=4; `bash .aai/scripts/pre-commit-checks.sh` on that tree under this repository's `enforce` → `BLOCKED: 1 error(s)`. The guard enumerates `git ls-files` (allocate-doc-number.mjs:605-611), so an UNTRACKED draft passes (measured rc=0 in this checkout with `docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md` untracked) and a COMMITTED draft on a branch fails. The AAI flow commits DRAFT docs on branches by design — numbering is assigned at MERGE by the allocator (SKILL_PR.prompt.md step 1b, allocate-doc-number.mjs header lines 4-7) — so `no-DRAFT-at-merge` has a legitimate false positive at COMMIT time on any non-default branch. The reporter's "no legitimate false positive" holds at the merge point only.
 - M4. `--guard` cost: 3.90 s wall with a reachable origin, 4.02 s with `origin` set to an unreachable URL (it degrades with the D3c warning; allocate-doc-number.mjs:369, :392-410). Wiring CHECK 8 into every commit adds roughly four seconds per commit.
 - M5. The only caller of `close-reconcile.mjs` is `.github/workflows/close-gate.yml:34-70` (`on: push: branches: [main]`). `.aai/templates/` holds `WORKFLOW_TEMPLATE.md`, `hooks/live-status-hooks.json`, `hooks/settings-hooks.json` and no CI definition; no vendored file writes a `pre-push` hook (the only pre-push writer in the layer is `autonomous-loop.sh:306-315`, a temporary propose-only block that is restored on exit). In this checkout `git rev-parse --git-path hooks/pre-push` → `.git/hooks/pre-push`, absent.
 - M6. `close-reconcile.mjs:194` — `const PR_SUBJECT_RE = /\(#(\d+)\)\s*$/;` and `parsePrNumber` (lines 285-291) is the ONLY grammar; header D4 (lines 94-98) says a range with no matching subject refuses every item with `pr-number-unknown`. Azure DevOps writes `Merged PR <n>: <title>`; nothing in the file matches it. Platform classification already exists and is shared: `.aai/scripts/pr-platform.mjs` (`classify`, `extractHost`; imported by `aai-issues.mjs:87`), closed set github / azure / unknown / none, reads `git remote get-url origin` or `--remote-url`.
@@ -294,11 +294,11 @@ Notes:
   - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-close-reconcile.sh` (TEST-810, 811)
   - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-doctor.sh` (TEST-812)
   - Regression set the suite-map binds to the touched files: `tests/skills/test-aai-git-ref-guard.sh` (installer contract TEST-301..313, 606..647), `tests/skills/test-aai-docs-audit.sh` (installer greps), `tests/skills/test-aai-pr-platform.sh` (the reused classifier), `tests/skills/test-aai-close-work-item.sh` and `tests/skills/lib/close-work-item-pin.sh` consumers (close-work-item.mjs hash unchanged), `tests/skills/test-aai-layer-profiles.sh` (no new `.aai/**` file), `tests/skills/test-ps1-quality.sh` and the Pester suites on the Windows CI legs for the `.ps1` twins.
-  - `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md` (every row's RED recorded)
+  - `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md` (every row's RED recorded)
   - `node .aai/scripts/docs-audit.mjs --gate <this spec id>` and `--ac-flip-check` before hand-off (ROLE_COMMON pre-handoff reconciliation)
 - Evidence artifacts: `docs/ai/tdd/spec-shipped-guards-have-no-downstream-trigger/mutation-TEST-8xx.txt` per row; the four suite runs' stdout under `docs/ai/tdd/spec-shipped-guards-have-no-downstream-trigger/`; the Validation report `docs/ai/validation/VALIDATION-<ts>.md` with an `aai-outcome-v1` block.
 - PASS criteria: all TEST-800..816 green AND every Spec-AC in a terminal status AND the regression set above green.
-- Review scope (explicit paths): `.aai/scripts/install-pre-commit-hook.sh`, `.aai/scripts/install-pre-commit-hook.ps1`, `.aai/scripts/pre-commit-checks.sh`, `.aai/scripts/pre-commit-checks.ps1`, `.aai/scripts/close-reconcile.mjs`, `.aai/scripts/aai-doctor.mjs`, `tests/skills/test-aai-hygiene-pack.sh`, `tests/skills/test-aai-doc-numbering.sh`, `tests/skills/test-aai-close-reconcile.sh`, `tests/skills/test-aai-doctor.sh`, `tests/skills/suite-map.yaml`, `docs/USER_GUIDE.md`, `CHANGELOG.md`, `docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md`, `docs/issues/ISSUE-DRAFT-shipped-guards-have-no-downstream-trigger.md`. L3 adds the operator checkpoint before merge (WORKFLOW.md ceremony table, PR ceremony column) and review on the most capable tier.
+- Review scope (explicit paths): `.aai/scripts/install-pre-commit-hook.sh`, `.aai/scripts/install-pre-commit-hook.ps1`, `.aai/scripts/pre-commit-checks.sh`, `.aai/scripts/pre-commit-checks.ps1`, `.aai/scripts/close-reconcile.mjs`, `.aai/scripts/aai-doctor.mjs`, `tests/skills/test-aai-hygiene-pack.sh`, `tests/skills/test-aai-doc-numbering.sh`, `tests/skills/test-aai-close-reconcile.sh`, `tests/skills/test-aai-doctor.sh`, `tests/skills/suite-map.yaml`, `docs/USER_GUIDE.md`, `CHANGELOG.md`, `docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md`, `docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md`. L3 adds the operator checkpoint before merge (WORKFLOW.md ceremony table, PR ceremony column) and review on the most capable tier.
 
 ## Evidence contract
 For each implementation, validation, TDD, and code review artifact, record:

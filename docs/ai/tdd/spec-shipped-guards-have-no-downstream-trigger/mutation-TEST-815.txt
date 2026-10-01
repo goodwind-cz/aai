@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-815: suite-map row aai-close-reconcile does not glob .aai/scripts/pr-platform.mjs (close-reconcile.mjs's new import)
 selector_honoured: yes
-target_sha256: 3698bfa3dae097d186f7e4a84f58b3d3909a27aafa7c7c5cd04df1082f060965
+target_sha256: ed99c2e8897ca10f614f23993b6fded1b0d1fb545dab52cdd9cb4837cad310de
 ---
 INFO: Checking dependencies...
 PASS: Dependencies checked

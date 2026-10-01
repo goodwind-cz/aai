@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-01T08:05:36.187Z
+Generated: 2026-10-01T08:06:24.350Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-shipped-guards-have-no-downstream-trigger | specs | implementing | 14 done | docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md |
+| SPEC-0201 | specs | implementing | 14 done | docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md |
 
 ## Canonical layer (0)
 
@@ -550,7 +550,7 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
-| shipped-guards-have-no-downstream-trigger (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-shipped-guards-have-no-downstream-trigger.md |
+| ISSUE-0090 | issues | docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md |
 
 ## Deferred (whole-doc) (0)
 

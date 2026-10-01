@@ -1,7 +1,7 @@
 ---
 id: shipped-guards-have-no-downstream-trigger
 type: issue
-number: null
+number: 90
 status: draft
 links:
   pr: []

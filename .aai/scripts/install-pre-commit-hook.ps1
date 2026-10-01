@@ -10,7 +10,7 @@
   (docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md);
   and a pre-push hook (token close-gate, marker AAI:CLOSE-GATE) running
   .aai/scripts/close-reconcile.mjs --check over every pushed range
-  (docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md).
+  (docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md).
 
 .DESCRIPTION
   Every hook is written to the EFFECTIVE hooks directory -- the one
@@ -303,7 +303,7 @@ $prePushBody = @'
 # (never the worktree copy). report-only (default): print, exit 0. enforce:
 # refuse ONLY a push to the default branch; every other ref stays report-
 # only, because WIP pushes legitimately precede the close ceremony.
-# See docs/specs/SPEC-DRAFT-shipped-guards-have-no-downstream-trigger.md.
+# See docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md.
 
 _cg_remote="${1:-origin}"
 _cg_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
