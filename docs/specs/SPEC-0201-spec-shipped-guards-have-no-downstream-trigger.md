@@ -2,15 +2,17 @@
 id: spec-shipped-guards-have-no-downstream-trigger
 type: spec
 number: 201
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: eed16232084a03d04d910f2953d6bdf0cbd68b9dad3e4d1bc11cd1783f55c611
 ceremony_level: 3
 links:
   requirement: docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - f7fa0536e2816e170eb07c83e4417251a57ba95c
 ---
 
 # Spec — the guards the canon cites as a backstop get an installed caller

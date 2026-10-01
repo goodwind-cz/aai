@@ -2,10 +2,12 @@
 id: shipped-guards-have-no-downstream-trigger
 type: issue
 number: 90
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - f7fa0536e2816e170eb07c83e4417251a57ba95c
 ---
 
 # The guards the canon relies on are shipped downstream with nothing to invoke them
