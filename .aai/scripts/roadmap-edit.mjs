@@ -131,11 +131,16 @@ function setPairStatus(text, ref, status) {
   block[at] = `    status: ${status}`;
   return render(joinLayout(layout));
 }
-function removeBudget(text) { // the `budget:` header plus its indented body, nothing else
+function removeBudget(text) { // the whole `budget:` section, up to the next top-level key
   const lines = toLines(text);
   const h = lines.findIndex((l) => TOP_KEY.test(l) && TOP_KEY.exec(l)[1] === 'budget');
-  let e = h + 1;
-  while (e < lines.length && /^ {2}\S/.test(lines[e])) e += 1;
+  // Codex P2 (PR #419): loadRoadmap filters blank and comment lines, so a
+  // valid budget section may carry them between header and field; the
+  // section ends at the next top-level key, never at the first gap.
+  let next = h + 1;
+  while (next < lines.length && !TOP_KEY.test(lines[next])) next += 1;
+  let e = h + 1; // one past the section's last indented body line
+  for (let i = h + 1; i < next; i += 1) if (/^ {2}\S/.test(lines[i])) e = i + 1;
   return render([...lines.slice(0, h), ...lines.slice(e)]);
 }
 function addBudget(text) { // the block goes directly before `pairs:`

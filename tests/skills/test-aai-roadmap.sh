@@ -399,7 +399,31 @@ YAML
   [ "$(run_edit budget off --roadmap "$R" --docs "$D")" = "1" ] || log_fail "TEST-1314: repeating budget off must exit 1"
   [ "$(sha "$R")" = "$before" ] || log_fail "TEST-1314: repeating budget off must leave the bytes identical"
   [ "$(run_edit budget maybe --roadmap "$R" --docs "$D")" = "2" ] || log_fail "TEST-1314: budget with an unknown state must exit 2"
-  log_pass "budget on/off is reversible, show json follows, repeats refuse byte-identical (TEST-1314)"
+  # Codex P2 (PR #419): a blank line and an unindented comment inside the
+  # budget section are valid (loadRoadmap filters them); budget off must
+  # remove the whole section up to the next top-level key, not stop at them.
+  cat > "$R" <<'YAML'
+budget:
+
+# kept apart on purpose
+  maintenance_per_capability: 1
+
+# this comment belongs to pairs and must survive
+pairs:
+  - capability: cap-a
+    status: active
+YAML
+  [ "$(run_select validate --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1314 (gapped budget): precondition — the gapped roadmap must validate"
+  [ "$(run_edit budget off --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1314 (gapped budget): budget off must exit 0 across a blank line and a comment: $(err)"
+  write_expect "$d/expect-gapped.yaml" <<'YAML'
+
+# this comment belongs to pairs and must survive
+pairs:
+  - capability: cap-a
+    status: active
+YAML
+  same_bytes "$R" "$d/expect-gapped.yaml" || log_fail "TEST-1314 (gapped budget): budget off must remove the whole section; got: $(cat "$R")"
+  log_pass "budget on/off is reversible, show json follows, repeats refuse byte-identical, gapped section removed whole (TEST-1314)"
 }
 
 # --- TEST-1315 (Spec-AC-05): off --confirm ---------------------------------------
