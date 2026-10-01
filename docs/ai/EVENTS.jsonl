@@ -2603,3 +2603,4 @@
 {"v":1,"ts":"2026-10-01T08:07:56Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-shipped-guards-have-no-downstream-trigger","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-01T08:07:56Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-shipped-guards-have-no-downstream-trigger","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-01T08:07:56Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-shipped-guards-have-no-downstream-trigger","payload":{"commit":"f7fa0536e2816e170eb07c83e4417251a57ba95c"}}
+{"v":1,"ts":"2026-10-01T09:20:02Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"shipped-guards-have-no-downstream-trigger","payload":{"pr":417,"lane":"heavy","reviewer_bots":"expected","threads_seen":4,"threads_unresolved":0,"outcome":"swept","head_sha":"b95cb0ef5308106762c70f98e48711f6c21855fe"}}
