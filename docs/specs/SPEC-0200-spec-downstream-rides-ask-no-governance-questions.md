@@ -2,15 +2,17 @@
 id: spec-downstream-rides-ask-no-governance-questions
 type: spec
 number: 200
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 4cc4efb1760529eedbb2afb9dcc6b31247af69e36936dc3520e1ea2dd41edbb7
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0200-downstream-rides-ask-no-governance-questions.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - a32205f3e2301a3ef0a3d9e346508614e1c9f219
 ---
 
 # Spec — downstream rides ask no roadmap or amendment sign-off questions
@@ -239,17 +241,17 @@ documented behavior change, not a silent one.
 
 | Spec-AC    | Description | Status  | Evidence | Review-By | Notes |
 |------------|-------------|---------|----------|-----------|-------|
-| Spec-AC-01 | WHEN gate runs on an absent roadmap path it SHALL exit 0 with one ADMIT line containing absent and not consulted, and write nothing at the roadmap or events path | planned | — | — | D1 D2 D4 D9 |
-| Spec-AC-02 | WHEN the roadmap path exists but is a directory or malformed gate SHALL exit 1 REFUSED; validate and next on an absent path SHALL keep exit 2 and exit 1 | planned | — | — | D2 D3 |
-| Spec-AC-03 | WHEN the roadmap is absent and the ref is missing or not a slug or override is empty gate SHALL exit 2 | planned | — | — | D3 |
-| Spec-AC-04 | FOR absent, directory and malformed fixtures the dispatch candidate gate admitted value SHALL equal the CLI gate verdict, consulted false only when absent | planned | — | — | seam S1, D2 |
-| Spec-AC-05 | WHEN gate runs on the shipped default roadmap path for an off-roadmap maintenance ref it SHALL exit 1 REFUSED | planned | — | — | D8 governed posture kept |
-| Spec-AC-06 | The ride-select header and AGENTS rule 4 SHALL both name the roadmap file as the posture switch, operator contract at most 40 lines | planned | — | — | intake AC-007 |
-| Spec-AC-07 | SKILL_SHIP step 1a SHALL state the absent-roadmap admit and rationale text and name a present but unreadable or invalid roadmap as the stop; step 6 SHALL carry a ride gate line | planned | — | — | D5 |
-| Spec-AC-08 | AUTONOMOUS_LOOP 6a, SKILL_PR amendment gate, ROLE_COMMON and SKILL_SHIP SHALL state signoff none as the no-question default; step 6 SHALL carry one owed sign-offs line | planned | — | — | D6 D7 D10 |
-| Spec-AC-09 | IN a no-roadmap fixture project with default paths gate, spec-amend add and list strict SHALL exit 0 with no question text, positive and negative controls observed | planned | — | — | end-to-end guard |
-| Spec-AC-10 | IN that fixture follow-ups list open for the ride ref SHALL print exactly one fu-amend line | planned | — | — | seam S3, D6 |
-| Spec-AC-11 | The diet ledger SHALL credit the measured corpus growth, the prompt-diet suite SHALL pass, and suite-map SHALL carry one row for the new suite | planned | — | — | companion obligations |
+| Spec-AC-01 | WHEN gate runs on an absent roadmap path it SHALL exit 0 with one ADMIT line containing absent and not consulted, and write nothing at the roadmap or events path | done | TEST-1201, TEST-1202 green (test-aai-ride-select.sh rc 0); absent and absent+override+events probes; RED logs accepted (docs/ai/reports/VALIDATION-20261001T000803Z-downstream-rides-ask-no-governance-questions.md) | — | D1 D2 D4 D9 |
+| Spec-AC-02 | WHEN the roadmap path exists but is a directory or malformed gate SHALL exit 1 REFUSED; validate and next on an absent path SHALL keep exit 2 and exit 1 | done | TEST-1203 to TEST-1205 green; malformed, directory, validate and next probes (docs/ai/reports/VALIDATION-20261001T000803Z-downstream-rides-ask-no-governance-questions.md) | — | D2 D3 |
+| Spec-AC-03 | WHEN the roadmap is absent and the ref is missing or not a slug or override is empty gate SHALL exit 2 | done | TEST-1206 green; absent+mismatched-intake probe exits 2 (docs/ai/reports/VALIDATION-20261001T000803Z-downstream-rides-ask-no-governance-questions.md) | — | D3 |
+| Spec-AC-04 | FOR absent, directory and malformed fixtures the dispatch candidate gate admitted value SHALL equal the CLI gate verdict, consulted false only when absent | done | TEST-1207 green (seam S1); mutation replay reddens (docs/ai/reports/VALIDATION-20261001T000803Z-downstream-rides-ask-no-governance-questions.md) | — | seam S1, D2 |
+| Spec-AC-05 | WHEN gate runs on the shipped default roadmap path for an off-roadmap maintenance ref it SHALL exit 1 REFUSED | done | TEST-1208 green; default-roadmap probe exits 1 (docs/ai/reports/VALIDATION-20261001T000803Z-downstream-rides-ask-no-governance-questions.md) | — | D8 governed posture kept |
+| Spec-AC-06 | The ride-select header and AGENTS rule 4 SHALL both name the roadmap file as the posture switch, operator contract at most 40 lines | done | TEST-1209 green (docs/ai/reports/VALIDATION-20261001T000803Z-downstream-rides-ask-no-governance-questions.md) | — | intake AC-007 |
+| Spec-AC-07 | SKILL_SHIP step 1a SHALL state the absent-roadmap admit and rationale text and name a present but unreadable or invalid roadmap as the stop; step 6 SHALL carry a ride gate line | done | TEST-1210 green (docs/ai/reports/VALIDATION-20261001T000803Z-downstream-rides-ask-no-governance-questions.md) | — | D5 |
+| Spec-AC-08 | AUTONOMOUS_LOOP 6a, SKILL_PR amendment gate, ROLE_COMMON and SKILL_SHIP SHALL state signoff none as the no-question default; step 6 SHALL carry one owed sign-offs line | done | TEST-1211 green; test-aai-spec-amend.sh rc 0 (docs/ai/reports/VALIDATION-20261001T000803Z-downstream-rides-ask-no-governance-questions.md) | — | D6 D7 D10 |
+| Spec-AC-09 | IN a no-roadmap fixture project with default paths gate, spec-amend add and list strict SHALL exit 0 with no question text, positive and negative controls observed | done | TEST-1212, TEST-1213 green (positive and negative controls) (docs/ai/reports/VALIDATION-20261001T000803Z-downstream-rides-ask-no-governance-questions.md) | — | end-to-end guard |
+| Spec-AC-10 | IN that fixture follow-ups list open for the ride ref SHALL print exactly one fu-amend line | done | TEST-1214 green (seam S3) (docs/ai/reports/VALIDATION-20261001T000803Z-downstream-rides-ask-no-governance-questions.md) | — | seam S3, D6 |
+| Spec-AC-11 | The diet ledger SHALL credit the measured corpus growth, the prompt-diet suite SHALL pass, and suite-map SHALL carry one row for the new suite | done | TEST-1215, TEST-1216 green; prompt-diet and hygiene-pack rc 0 (docs/ai/reports/VALIDATION-20261001T000803Z-downstream-rides-ask-no-governance-questions.md) | — | companion obligations |
 
 ## Implementation plan
 

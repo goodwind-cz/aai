@@ -2,12 +2,14 @@
 id: downstream-rides-ask-no-governance-questions
 type: change
 number: 200
-status: draft
+status: done
 capability: downstream-autopilot
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - a32205f3e2301a3ef0a3d9e346508614e1c9f219
 ---
 
 # Downstream rides ask no roadmap or amendment sign-off questions
