@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-01T08:08:01.925Z",
+  "generatedAt": "2026-10-01T09:50:59.629Z",
   "project": "aai",
   "counts": {
     "delivered": 270,
-    "in_progress": 15,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 70231136
   },
@@ -186,6 +186,19 @@
       "type": "issue",
       "status": "draft",
       "path": "docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "merged-worktrees-linger-after-close",
+      "title": "A merged ride leaves its worktree and branch behind, and nothing says so",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
