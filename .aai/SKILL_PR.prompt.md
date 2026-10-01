@@ -238,6 +238,12 @@ PROCESS
    exact false-open shape this ordering exists to prevent, and the script's
    own rollback cannot see edits made before it ran. Exit 6 means the close
    STOOD: keep the flip; run the echoed remaining state.mjs command(s).
+   - Then run `node .aai/scripts/roadmap-edit.mjs advance --ref <slug>` (a
+     named no-op without a roadmap or before the documents are done); non-zero:
+     STOP and print it (the script already restored the file). When
+     `git status --porcelain -- docs/ai/roadmap.yaml` is non-empty, stage
+     `docs/ai/roadmap.yaml` in the close commit and add it to the
+     `check-committed-scope.mjs` path list below.
    - Then run `node .aai/scripts/state.mjs clear-focus --ref <slug>` — a
      closed ride must stop publishing as the in-flight scope
      (fu-overview-shows-closed-ride-inflight).

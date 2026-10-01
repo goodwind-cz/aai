@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-10-01T12:56:00.698Z",
+  "generatedAt": "2026-10-01T13:59:51.127Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 142,
-    "delivered": 484,
+    "rides": 143,
+    "delivered": 486,
     "active_weeks": 14,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (484 closes vs 142 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 484,
-    "delivered_per_week_avg": 34.6,
+    "note": "\"delivered\" counts every work_item_closed event (486 closes vs 143 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 486,
+    "delivered_per_week_avg": 34.7,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -28,7 +28,7 @@
       "2026-W37": 15,
       "2026-W38": 12,
       "2026-W39": 15,
-      "2026-W40": 26
+      "2026-W40": 28
     },
     "delivered_groups": [
       {
@@ -537,12 +537,14 @@
         "key": "month:2026-10",
         "kind": "month",
         "label": "2026-10",
-        "count": 6,
+        "count": 8,
         "refs": [
           "downstream-rides-ask-no-governance-questions",
           "spec-downstream-rides-ask-no-governance-questions",
           "shipped-guards-have-no-downstream-trigger",
           "spec-shipped-guards-have-no-downstream-trigger",
+          "roadmap-serves-downstream-projects",
+          "spec-roadmap-serves-downstream-projects",
           "friction-issues-arrive-without-a-description",
           "spec-friction-issues-arrive-without-a-description"
         ]
@@ -2479,6 +2481,14 @@
           "lead_time_seconds": null
         },
         {
+          "ref": "roadmap-serves-downstream-projects",
+          "lead_time_seconds": 10476
+        },
+        {
+          "ref": "spec-roadmap-serves-downstream-projects",
+          "lead_time_seconds": null
+        },
+        {
           "ref": "friction-issues-arrive-without-a-description",
           "lead_time_seconds": null
         },
@@ -2487,23 +2497,23 @@
           "lead_time_seconds": null
         }
       ],
-      "median_seconds": 4278,
-      "mean_seconds": 114306.6,
-      "measured": 138,
-      "unmeasurable": 346
+      "median_seconds": 4404,
+      "mean_seconds": 113559.6,
+      "measured": 139,
+      "unmeasurable": 347
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2446,
-      "mean": 5586.1,
-      "measured": 140
+      "median": 2533,
+      "mean": 5618.9,
+      "measured": 141
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 204053,
-        "tokens": 20255314
+        "duration_seconds": 207728,
+        "tokens": 20880929
       },
       {
         "role": "Implementation",
@@ -2512,23 +2522,23 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 73516,
-        "tokens": 11165186
+        "duration_seconds": 74412,
+        "tokens": 11327025
       },
       {
         "role": "Remediation",
-        "duration_seconds": 119435,
-        "tokens": 12722278
+        "duration_seconds": 120469,
+        "tokens": 12873228
       },
       {
         "role": "Validation",
-        "duration_seconds": 235580,
-        "tokens": 15335314
+        "duration_seconds": 239297,
+        "tokens": 15751046
       },
       {
         "role": "Planning",
-        "duration_seconds": 78021,
-        "tokens": 10381870
+        "duration_seconds": 78903,
+        "tokens": 10654428
       },
       {
         "role": "Other",
@@ -3246,6 +3256,11 @@
         "ref": "downstream-rides-ask-no-governance-questions",
         "busy_seconds": 6406,
         "remediation_runs": 0
+      },
+      {
+        "ref": "roadmap-serves-downstream-projects",
+        "busy_seconds": 10204,
+        "remediation_runs": 1
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -3255,15 +3270,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 521796,
-      "mean": 788726.2,
-      "measured": 92
+      "median": 522582,
+      "mean": 797736.6,
+      "measured": 93
     },
-    "tokens_total": 72562809,
+    "tokens_total": 74189503,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 20255314
+        "tokens": 20880929
       },
       {
         "role": "Implementation",
@@ -3271,19 +3286,19 @@
       },
       {
         "role": "Code Review",
-        "tokens": 11165186
+        "tokens": 11327025
       },
       {
         "role": "Remediation",
-        "tokens": 12722278
+        "tokens": 12873228
       },
       {
         "role": "Validation",
-        "tokens": 15335314
+        "tokens": 15751046
       },
       {
         "role": "Planning",
-        "tokens": 10381870
+        "tokens": 10654428
       },
       {
         "role": "Other",
@@ -3291,8 +3306,8 @@
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 435,
-      "total_runs": 737,
+      "runs_with_marker": 443,
+      "total_runs": 745,
       "pct": 59,
       "by_week": [
         {
@@ -3375,8 +3390,8 @@
         },
         {
           "week": "2026-W40",
-          "runs_with_marker": 8,
-          "total_runs": 8,
+          "runs_with_marker": 16,
+          "total_runs": 16,
           "pct": 100
         }
       ]
@@ -3385,12 +3400,12 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 104,
-          "runs_marked": 79,
+          "runs_total": 107,
+          "runs_marked": 82,
           "runs_sentinel": 1,
           "runs_unmarked": 24,
-          "tokens_total": 20255314,
-          "median_tokens_per_run": 247174,
+          "tokens_total": 20880929,
+          "median_tokens_per_run": 244982,
           "share_pct": 28
         },
         {
@@ -3405,42 +3420,42 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 155,
-          "runs_marked": 101,
+          "runs_total": 156,
+          "runs_marked": 102,
           "runs_sentinel": 2,
           "runs_unmarked": 52,
-          "tokens_total": 11165186,
-          "median_tokens_per_run": 99678,
+          "tokens_total": 11327025,
+          "median_tokens_per_run": 100243,
           "share_pct": 15
         },
         {
           "role": "Remediation",
-          "runs_total": 109,
-          "runs_marked": 64,
+          "runs_total": 110,
+          "runs_marked": 65,
           "runs_sentinel": 4,
           "runs_unmarked": 41,
-          "tokens_total": 12722278,
-          "median_tokens_per_run": 175818,
-          "share_pct": 18
+          "tokens_total": 12873228,
+          "median_tokens_per_run": 174865,
+          "share_pct": 17
         },
         {
           "role": "Validation",
-          "runs_total": 179,
-          "runs_marked": 110,
+          "runs_total": 181,
+          "runs_marked": 112,
           "runs_sentinel": 5,
           "runs_unmarked": 64,
-          "tokens_total": 15335314,
-          "median_tokens_per_run": 131259,
+          "tokens_total": 15751046,
+          "median_tokens_per_run": 133495,
           "share_pct": 21
         },
         {
           "role": "Planning",
-          "runs_total": 119,
-          "runs_marked": 71,
+          "runs_total": 120,
+          "runs_marked": 72,
           "runs_sentinel": 0,
           "runs_unmarked": 48,
-          "tokens_total": 10381870,
-          "median_tokens_per_run": 142841,
+          "tokens_total": 10654428,
+          "median_tokens_per_run": 144303,
           "share_pct": 14
         },
         {
@@ -3980,8 +3995,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 2,
-              "median_tokens": 147588
+              "runs_marked": 5,
+              "median_tokens": 191820
             },
             {
               "role": "Implementation",
@@ -3990,23 +4005,23 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 2,
-              "median_tokens": 152053
+              "runs_marked": 3,
+              "median_tokens": 161839
             },
             {
               "role": "Remediation",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 1,
+              "median_tokens": 150950
             },
             {
               "role": "Validation",
-              "runs_marked": 3,
+              "runs_marked": 5,
               "median_tokens": 180329
             },
             {
               "role": "Planning",
-              "runs_marked": 1,
-              "median_tokens": 177039
+              "runs_marked": 2,
+              "median_tokens": 224799
             },
             {
               "role": "Other",
@@ -4021,13 +4036,13 @@
   "quality": {
     "first_pass_clean": {
       "clean": 84,
-      "flagged": 116,
+      "flagged": 117,
       "rate_pct": 72
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 84,
-      "1": 10,
+      "1": 11,
       "2": 7,
       "3": 4,
       "4": 5,
@@ -4039,7 +4054,7 @@
     "avg_validation_fails": 0.1,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 129,
+      "PASS": 130,
       "null": 13
     },
     "review_events": 26,
@@ -4054,7 +4069,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 5,
+    "field_derived": 6,
     "marker_derived": 2,
     "mixed": 0,
     "no_basis": 135,
@@ -4768,6 +4783,11 @@
         "ref": "downstream-rides-ask-no-governance-questions",
         "verdict_source": "field",
         "cost_basis": "total-blended"
+      },
+      {
+        "ref": "roadmap-serves-downstream-projects",
+        "verdict_source": "field",
+        "cost_basis": "total-blended"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -4879,16 +4899,16 @@
     },
     {
       "week": "2026-W40",
-      "delivered": 26,
-      "median_lead_time_seconds": 7282,
-      "busy_seconds": 6406,
-      "tokens": 1331525,
-      "first_pass_rate": 100
+      "delivered": 28,
+      "median_lead_time_seconds": 8879,
+      "busy_seconds": 16610,
+      "tokens": 2958219,
+      "first_pass_rate": 50
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 152,
+    "open_count": 154,
     "oldest_age_days": 41,
     "items": [
       {
@@ -4935,7 +4955,7 @@
         "id": "fu-amend-friction-publish-hides-r-b86049",
         "ref": "friction-publish-hides-required-followup",
         "severity": "P2",
-        "age_days": 18,
+        "age_days": 19,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-friction-publish-hides-required-followup: Amendment 2 - Spec-AC-14 added plus TEST-052..057 and residuals R1/R5 amended, R6 added: the printed issue URL is certified before display and the four surviving mutation gaps are closed",
         "status": "open"
       },
@@ -5527,7 +5547,7 @@
         "id": "fu-installer-flag-lattice-no-mode",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "install-pre-commit-hook's six flags resolve as an unsequenced boolean lattice with no single resolved MODE: --uninstall --decline-ref-guard exits 0 leaving the AAI pre-commit hook installed (the uninstall the user asked for silently skipped), and --print <bogus> exits 0 ignoring the rest of the line",
         "status": "open"
       },
@@ -5535,7 +5555,7 @@
         "id": "fu-docs-audit-yaml-misnamed-guard-config",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "docs/ai/docs-audit.yaml's own header still says 'Docs audit policy (RFC-0002 D4)' though the file is now the repo's general committed guard-policy surface, with two writers (aai-sync's template seed, install-pre-commit-hook's ref_guard key) and readers/keys beyond docs-audit (guard-config.mjs calls it 'the committed guard-policy file'; it holds doc_number_guard, usage_capture_gate, mutation_gate, protected_paths_l3 -- none about the docs audit)",
         "status": "open"
       },
@@ -5815,7 +5835,7 @@
         "id": "fu-claims-report-drops-root-annotation",
         "ref": "canon-is-a-build-artifact",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "claims --report's REPORT_DOC_TYPES filter (canon.mjs:594) only recognizes docs/specs/SPEC-\\d+- and docs/issues/[A-Za-z]+-\\d+- paths, so CHANGELOG.md:1856's genuine WITHDRAWN annotation is silently omitted from the generated enumeration, unlike origin_docs which prints its exclusion",
         "status": "open"
       },
@@ -5823,7 +5843,7 @@
         "id": "fu-test699-count-comparison-decorative",
         "ref": "canon-is-a-build-artifact",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "tests/skills/test-aai-canon.sh:920 TEST-699's [[ built -eq count ]] can never differ: built increments once per loop iteration over the same role list count is read from, after an expect_rc 0 that exits on failure",
         "status": "open"
       },
@@ -5831,7 +5851,7 @@
         "id": "fu-orchestration-parallel-still-pastes",
         "ref": "canon-is-a-build-artifact",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": ".aai/ORCHESTRATION_PARALLEL.prompt.md:142-143 still reads 'a copy of .aai/SUBAGENT_CONTRACT.md (stable, first), then scope and inputs' — pasted contract prose, not a pointer to canon.mjs build",
         "status": "open"
       },
@@ -5839,7 +5859,7 @@
         "id": "fu-subagent-protocol-input-row-stale",
         "ref": "canon-is-a-build-artifact",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": ".aai/SUBAGENT_PROTOCOL.md's INPUT row (line ~40) does not name canon.mjs as the dispatch-payload builder",
         "status": "open"
       },
@@ -5847,7 +5867,7 @@
         "id": "fu-mutation-run-patch-self-rotate",
         "ref": "canon-is-a-build-artifact",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "mutation-run.mjs --patch <file> can destroy its own input: rotateExisting() (mutation-run.mjs:618-648) moves the LIVE mutation-TEST-<id>.patch aside before the new record is written, so passing that same canonical path as the --patch SOURCE rotates the source out from under the run",
         "status": "open"
       },
@@ -6097,6 +6117,22 @@
         "severity": "P2",
         "age_days": 0,
         "what": "mutation-run.mjs names a rotated record with an ISO timestamp containing colons, which Windows forbids in a path — once such a file is committed, actions/checkout fails with 'invalid path' and the whole Windows job dies before any test runs",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-roadmap-serves-downstrea-bc77da",
+        "ref": "roadmap-serves-downstream-projects",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-roadmap-serves-downstream-projects: D16 additive amendment of D13: no-argument /aai-ship rides a file-intake capability and files its intake with id equal to the roadmap slug; show-first when no roadmap; budget on without a roadmap offers add-first; docs order, ADMIT quote, close-ceremony wording and last-pair drop rule fixed; new TEST-1338..1340 with mutation cells; discloses the earlier F3 narrowing of the intake To-Be (no-arg ship stopped at file-intake)",
+        "status": "open"
+      },
+      {
+        "id": "fu-roadmap-docstatus-two-parsers",
+        "ref": "roadmap-serves-downstream-projects",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "roadmap-edit.mjs docStatus (parseFrontmatter) and ride-select.mjs findDoc/statusOf (own line scan) resolve a doc's status differently; a quoted status: \"done\" makes advance flip the pair while next still names it unfinished. Route both through one resolver in lib/roadmap-model.mjs with a seam test.",
         "status": "open"
       },
       {
@@ -6864,6 +6900,40 @@
         "remediation_runs": 4,
         "remediation_tokens": 971172,
         "remediation_share_pct": 42
+      },
+      {
+        "ref": "roadmap-serves-downstream-projects",
+        "date_utc": "2026-10-01",
+        "runs_total": 8,
+        "elapsed_wall_seconds": 10275,
+        "agent_seconds": 10204,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 3
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 8,
+        "tokens_total": 1626694,
+        "remediation_runs": 1,
+        "remediation_tokens": 150950,
+        "remediation_share_pct": 9
       },
       {
         "ref": "doctor-win-selftest",
