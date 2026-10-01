@@ -230,13 +230,24 @@ function proseLineCount(body) {
     .length;
 }
 
-// excerptFor: the body's excerpt, or -- for a metadata-only body with
+// isFrictionBody: does this body carry the machine-written dedup marker every
+// auto-filed friction issue ends with (`<!-- aai-friction:<fingerprint> -->`,
+// aai-feedback-upsert MARKER)? An ordinary issue written entirely as bullets
+// or a task list is ALSO prose-free, and it is actionable -- replacing its
+// body with a comment such as "thanks, we'll look" would hide the
+// requirements (Codex P2 on #420). So the comment fallback is gated on the
+// marker: it rescues the bodies this ride is about and touches nothing else.
+function isFrictionBody(body) {
+  return /<!--\s*aai-friction:/.test(String(body ?? ''));
+}
+
+// excerptFor: the body's excerpt, or -- for a metadata-only FRICTION body with
 // comments -- the first comment's, labelled. `comments` is whatever `gh`
 // returned (untrusted DATA, same sanitizer); a non-string comment body
 // excerpts as empty rather than throwing.
 function excerptFor(body, comments) {
   const list = Array.isArray(comments) ? comments : [];
-  if (proseLineCount(body) === 0 && list.length > 0) {
+  if (isFrictionBody(body) && proseLineCount(body) === 0 && list.length > 0) {
     const first = list[0];
     const text = first && typeof first.body === 'string' ? first.body : '';
     return `(from comment 1 of ${list.length}) ${excerptOf(text)}`;
@@ -370,6 +381,7 @@ export {
   excerptOf,
   excerptFor,
   proseLineCount,
+  isFrictionBody,
   labelNames,
   buildGhArgs,
   maskCredentials,

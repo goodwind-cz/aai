@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-1310 buildGhArgs() fetches comments
 selector_honoured: yes
-target_sha256: e76840ddc0c2d4b68e87b8c27adb1be5ed63b060659cd1c6f149fb6c81578f4b
+target_sha256: 948c344725a2855a59109846c9120149116e3f2b11991c26e3089abc0131e4fd
 ---
 Testing: aai-issues
 ====================

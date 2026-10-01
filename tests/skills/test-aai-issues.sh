@@ -500,7 +500,18 @@ test_1309_excerpt_from_first_comment() {
   [[ -z "$residue" ]] || { log_info "TEST-1309: control/escape chars from a comment survived to stdout"; ok=0; }
   [[ "$OUT" == *"excerpt: (from comment 1 of 2) "* ]] || { log_info "TEST-1309: the text table must carry the labelled comment excerpt: $OUT"; ok=0; }
   [[ "$OUT" != *"someone-private"* ]] || { log_info "TEST-1309: the comment author must never be printed (text)"; ok=0; }
-  [[ $ok -eq 1 ]] && log_pass "TEST-1309 metadata-only body excerpts from comment 1 of N, sanitized; prose and no-comment bodies unchanged" \
+  # Codex P2 on #420: a NON-friction body that happens to be bullets-only (an
+  # ordinary issue written as a task list) is actionable -- it must KEEP its
+  # body excerpt even when a comment exists, or a generic "thanks, we will
+  # investigate" would replace the requirements. The gate is the machine-
+  # written `<!-- aai-friction:<fp> -->` marker, not "no prose lines".
+  local fixture_bullets="$TMP_ROOT/t1309b.json"
+  printf '%s' '[{"number":5,"title":"bullets-only ordinary issue","labels":[],"body":"- add a --dry-run flag\n- it must refuse on a dirty tree\n- document it in the user guide","url":"https://github.com/o/r/issues/5","comments":[{"author":{"login":"triager"},"body":"Thanks, we will investigate."}]}]' > "$fixture_bullets"
+  run_issues --remote-url "https://github.com/o/r.git" --input "$fixture_bullets" --json
+  local e5; e5="$(printf '%s' "$OUT" | json_field issues.0.excerpt)"
+  [[ "$e5" == *"add a --dry-run flag"* ]] || { log_info "TEST-1309: a bullets-only NON-friction body must keep its own excerpt: $e5"; ok=0; }
+  [[ "$e5" != *"from comment 1"* ]] || { log_info "TEST-1309: the comment fallback fired on a body with no aai-friction marker: $e5"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-1309 metadata-only FRICTION body excerpts from comment 1 of N, sanitized; prose, no-comment and bullets-only non-friction bodies unchanged" \
     || log_fail "TEST-1309 excerpt from first comment"
 }
 
