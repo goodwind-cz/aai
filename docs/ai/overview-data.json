@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-30T16:17:33.740Z",
+  "generatedAt": "2026-10-01T00:23:05.553Z",
   "project": "aai",
   "counts": {
     "delivered": 268,
-    "in_progress": 15,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 68899611
   },
@@ -60,6 +60,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "downstream-rides-ask-no-governance-questions",
+      "title": "Downstream rides ask no roadmap or amendment sign-off questions",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0200-downstream-rides-ask-no-governance-questions.md",
+      "closed_on": null,
+      "agent_minutes": 107,
+      "token_total": 1331525,
+      "spec": "docs/specs/SPEC-0200-spec-downstream-rides-ask-no-governance-questions.md",
       "validation": null,
       "review": null
     },

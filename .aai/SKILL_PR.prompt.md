@@ -206,7 +206,8 @@ PROCESS
      spec-mutation-gate-for-tests; carrying its `--spec`/`--ref`). Run each
      (`--signoff none` also files the tracked item, so one call per
      violation clears the gate; `--signoff owner` when the owner really
-     decided). Never an in-place edit. For a RECORD violation, never `spec-amend.mjs add`
+     decided). `--signoff none` is the autonomous default;
+     the owner is never asked mid-ride. Never an in-place edit. For a RECORD violation, never `spec-amend.mjs add`
      — that records a NEW amendment and leaves the named record untracked.
      An unsigned post-freeze amendment with no tracked item discharges an
      owner HITL gate by self-disclosure.

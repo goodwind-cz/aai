@@ -322,6 +322,17 @@ suites:
       - .aai/scripts/roadmap-propose.mjs
       - docs/ai/roadmap.yaml
 
+  aai-downstream-autopilot:
+    globs:
+      - .aai/scripts/ride-select.mjs
+      - .aai/scripts/spec-amend.mjs
+      - .aai/scripts/orchestration-dispatch.mjs
+      - .aai/SKILL_SHIP.prompt.md
+      - .aai/SKILL_PR.prompt.md
+      - .aai/system/AUTONOMOUS_LOOP.md
+      - .aai/ROLE_COMMON.md
+      - .aai/AGENTS.md
+
   aai-unattended:
     globs:
       - .aai/scripts/unattended-gate.mjs

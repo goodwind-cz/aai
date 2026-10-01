@@ -22,6 +22,14 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat: downstream rides ask no roadmap or amendment sign-off questions (downstream-rides-ask-no-governance-questions)
+
+- **`ride-select.mjs gate` treats the roadmap file as the posture switch.** With no `docs/ai/roadmap.yaml` the gate admits with one `roadmap absent ... gate not consulted` line, exit 0, and writes nothing (no override event even under `--override --events`). A roadmap that is present but unreadable, empty, a directory or malformed still refuses (exit 1). `validate` and `next` are unchanged. This closes the contradiction between AGENTS.md operator-contract rule 4 ("roadmap discipline is opt-in downstream") and the script's old deny-on-absent behavior, which stopped every downstream `/aai-ship` at step 1a.
+- **Usage errors run before the posture check** in either posture: a missing or non-slug `--ref`, an empty `--override`, or an `--intake` whose id disagrees with `--ref` exit 2 even when the roadmap is absent.
+- **Post-freeze spec amendments never ask the owner mid-ride.** `SKILL_SHIP` (autopilot default 5 + STRICT RULES carve), `SKILL_PR` amendment gate, `AUTONOMOUS_LOOP` 6a and `ROLE_COMMON` all state that `spec-amend.mjs add --signoff none` is the autonomous default; owed sign-offs appear once, as the `owed sign-offs:` line of the `/aai-ship` merge checkpoint, next to a new `ride gate:` line.
+- **New guard suite** `tests/skills/test-aai-downstream-autopilot.sh` runs the real gate and amendment scripts in a fixture project with no roadmap at default paths and asserts zero question text before the merge checkpoint, plus a malformed-roadmap negative control and the dispatch/CLI gate seam; `test-aai-ride-select.sh` TEST-005 flips to the new contract. Suite-map row and prompt-diet credit (826 B) included.
+- Product doc: `docs/product/downstream-autopilot.md`. Spec: spec-downstream-rides-ask-no-governance-questions. Two disclosed, unsigned (`--signoff none`) amendments reconcile Test Plan mutation cells only; tracked by `fu-amend-downstream-rides-ask-no-d8106d`.
+
 ## [unreleased] — fix: aai-sync preserves target-only hooks and reports its deletions (goodwind-cz/aai#414)
 
 - **`hooks/` is now a file-by-file merge**, not a wholesale `copy_replace` (`rm -rf` then `cp -a`). A target-only file under `hooks/` — most notably a downstream project's own `hooks/merge-guard.{sh,ps1,py}` safety control — used to be deleted on every sync; it now survives and is named on stdout as `PRESERVE target-only hook: hooks/<name>`.

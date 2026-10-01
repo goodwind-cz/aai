@@ -10,9 +10,12 @@
 //   node .aai/scripts/ride-select.mjs gate --ref <slug> [--intake <path>] [--roadmap <p>]
 //        [--docs <dir>] [--events <p>] [--override "<reason>"]
 //
-// DENY BY DEFAULT. gate exits 0 only when the ref may start now; every refusal
-// names ONE reason and its remedy. An unreadable or invalid roadmap REFUSES —
-// never "no roadmap, anything goes". Exit: 0 admit · 1 refuse · 2 usage/invalid.
+// The roadmap FILE is the posture switch. gate with NO roadmap file (absent path)
+// ADMITS with one line, "roadmap absent ... not consulted", writing nothing:
+// ungoverned downstream projects ride freely. A roadmap that is PRESENT but
+// unreadable or invalid REFUSES. With a roadmap, DENY BY DEFAULT: gate exits 0
+// only when the ref may start now; every refusal names ONE reason and its
+// remedy. Exit: 0 admit · 1 refuse · 2 usage/invalid (validate/next unchanged).
 //
 // Roadmap shape is CLOSED (see docs/ai/roadmap.yaml header); a line-level
 // parser for exactly that shape, no YAML library, anything else is invalid.
@@ -268,6 +271,20 @@ function main() {
     process.stdout.write(`roadmap OK: ${loaded.roadmap.pairs.length} pair(s), ${loaded.roadmap.wave_2.length} wave-2 item(s)\n`);
     process.exit(0);
   }
+  if (a.cmd === 'gate') {
+    if (!a.ref) usage('gate requires --ref <id> (a slug id like live-agent-dashboard-served-locally, or a numbered display id like CHANGE-0173)');
+    if (!SLUG.test(a.ref)) usage(`--ref "${a.ref}" is neither a slug id nor a numbered display id (TYPE-0000)`);
+    if (a.override !== null && a.override.trim() === '') usage('--override requires a reason');
+    // An --intake whose id disagrees with --ref is a usage error in EITHER
+    // posture (code review NB-3): checked here, before the absent admit.
+    if (a.intake) { const early = readIntake(a.intake); if (early && early.id && early.id !== a.ref) usage(`--intake ${a.intake} has id "${early.id}", not --ref ${a.ref}`); }
+    // The roadmap file is the posture switch: absent = ungoverned, admit without
+    // consulting anything and write nothing (no override event: nothing overridden).
+    if (!fs.existsSync(a.roadmap)) {
+      process.stdout.write(`ride-select: ADMIT ${a.ref} — roadmap absent (${a.roadmap}): gate not consulted\n`);
+      process.exit(0);
+    }
+  }
   if (loaded.error) refuse(`${loaded.error} (${a.roadmap}) — a gate that cannot read its roadmap admits nothing`);
   const rm = loaded.roadmap;
 
@@ -309,11 +326,7 @@ function main() {
   }
 
   // gate
-  if (!a.ref) usage('gate requires --ref <id> (a slug id like live-agent-dashboard-served-locally, or a numbered display id like CHANGE-0173)');
-  if (!SLUG.test(a.ref)) usage(`--ref "${a.ref}" is neither a slug id nor a numbered display id (TYPE-0000)`);
-  if (a.override !== null && a.override.trim() === '') usage('--override requires a reason');
   const intake = a.intake ? readIntake(a.intake) : findDoc(a.docs, a.ref);
-  if (a.intake && intake && intake.id && intake.id !== a.ref) usage(`--intake ${a.intake} has id "${intake.id}", not --ref ${a.ref}`);
   const pair = rm.pairs.find((p) => p.capability === a.ref || p.maintenance === a.ref);
   const status = intake ? intake.status : statusOf(a.docs, a.ref);
 
