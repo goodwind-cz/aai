@@ -91,7 +91,8 @@ confirmation. Each caller below adds its own handling for the already-decided
 `worktree`/`inline` cases.
 
 ## POST-FREEZE SPEC AMENDMENT (any role whose scope outgrows a frozen spec)
-Amending a frozen spec is a scope change, so the sign-off belongs to the owner.
+Amending a frozen spec is a scope change, so the sign-off belongs to the owner,
+but `--signoff none` is the autonomous default; the owner is never asked mid-ride.
 Never hand-write the ledger record: run `node .aai/scripts/spec-amend.mjs add
 --spec <path> --ref <ride-ref> --what "<one line>" --why "<one line>" --signoff
 none`, which appends the record AND files the `fu-amend-…` obligation (keyed on

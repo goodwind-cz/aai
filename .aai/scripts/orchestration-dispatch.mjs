@@ -727,8 +727,15 @@ function buildOpenIntakes(root, focusRef, workItems) {
 //     is a refusal, never an admission.
 // Pure decide() reads only `candidate.gate`; the spawn lives here in the
 // snapshot builder like every other filesystem probe.
+// Twin of ride-select.mjs roadmapAbsent (Codex P1, PR #416): existsSync is
+// false for EACCES too, so only a real not-found selects the absent posture.
+const ABSENT_CODES = new Set(['ENOENT', 'ENOTDIR']);
+function roadmapAbsent(p) {
+  try { fs.statSync(p); return false; } catch (e) { return ABSENT_CODES.has(e && e.code); }
+}
 function roadmapGate(root, refId, relPath) {
   const roadmap = path.resolve(root, 'docs/ai/roadmap.yaml');
+  if (!fs.existsSync(roadmap) && !roadmapAbsent(roadmap)) return { admitted: false, consulted: true, reason: 'roadmap not readable (stat failed, not a not-found) — fail closed' };
   if (!fs.existsSync(roadmap)) return { admitted: true, consulted: false, reason: 'roadmap absent — gate not consulted' };
   const gate = path.resolve(root, '.aai/scripts/ride-select.mjs');
   if (!fs.existsSync(gate)) return { admitted: false, consulted: true, reason: 'roadmap present but ride-select.mjs missing — fail closed' };

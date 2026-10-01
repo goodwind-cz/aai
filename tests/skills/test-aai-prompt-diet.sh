@@ -910,7 +910,13 @@ test_012_growth_sum_matches_ledger() {
   # ORCHESTRATION_PARALLEL applies the same non-null ref mismatch → undecided.
   # Then 44763 -> 44861: rebase onto merged 403+404 TEST-010 floor remainder
   # (+98 B) — independent deficit after=354247 extra=19399 credit=44763.
-  local want_growth=44861
+  # Then 44861 -> 45687: downstream-rides-ask-no-governance-questions
+  # (+826 B) -- SKILL_SHIP 1a/AUTOPILOT DEFAULT 5/step 6/STRICT RULES lines (+659),
+  # SKILL_PR AMENDMENT GATE sentence (+84), ROLE_COMMON POST-FREEZE clause
+  # (+83). AUTONOMOUS_LOOP 6a and AGENTS rule 4 are outside the glob.
+  # Measured under bash with /usr/bin/wc against HEAD, credited 1:1 at zero
+  # headroom (TEST-010).
+  local want_growth=45687
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1817,6 +1823,63 @@ test_746_roadmap_takes_direction_growth_ledgered() {
     || log_fail "TEST-746 (Spec-AC-16) corpus growth true-up"
 }
 
+# --- TEST-1215 (downstream-rides-ask-no-governance-questions Spec-AC-11) —
+# the ride's prose growth is measured per file, credited 1:1 by ONE ledger
+# entry, and the TEST-012 pin moves by exactly that amount over the inherited
+# 44861. The entry records each file as '<name> <before> -> <after>'; the sum
+# of the per-file deltas must equal the credited lead, and no file may sit
+# below the size it credited (diet_credit_verdict's floor).
+test_1215_downstream_rides_growth_ledgered() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-1215 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local ok=1 _e entry='' n=0 lead sum=0 f now verdict_msg
+  local ledger_key='downstream-rides-ask-no-governance-questions'
+  local prefix=0 prefix_closed=0
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    if [[ "$prefix_closed" -eq 0 ]]; then
+      prefix=$(( prefix + ${_e%% *} ))
+    fi
+    case "$_e" in
+      *"$ledger_key"*) entry="$_e"; n=$((n + 1)); prefix_closed=1 ;;
+    esac
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-1215: JUSTIFIED_ADDITIONS carries $n entries naming '$ledger_key' (want exactly 1)"
+    return
+  fi
+  lead="${entry%% *}"
+  local rest="$entry" re
+  for f in .aai/SKILL_SHIP.prompt.md:SKILL_SHIP.prompt.md .aai/SKILL_PR.prompt.md:SKILL_PR.prompt.md .aai/ROLE_COMMON.md:ROLE_COMMON.md; do
+    local path="${f%%:*}" name="${f##*:}"
+    re="${name//./\\.} ([0-9]+) -> ([0-9]+)"
+    if [[ "$entry" =~ $re ]]; then
+      now=$(/usr/bin/wc -c < "$path" | tr -d ' ')
+      sum=$(( sum + BASH_REMATCH[2] - BASH_REMATCH[1] ))
+      if verdict_msg=$(diet_credit_verdict "TEST-1215 $name" $(( BASH_REMATCH[2] - BASH_REMATCH[1] )) "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "$now"); then
+        [[ -n "$verdict_msg" ]] && log_info "$verdict_msg"
+      else
+        log_info "$verdict_msg"
+        ok=0
+      fi
+    else
+      log_info "TEST-1215: the ledger entry does not record '$name <before> -> <after>'"
+      ok=0
+    fi
+  done
+  if [[ "$sum" -ne "$lead" ]]; then
+    log_info "TEST-1215: per-file deltas sum to $sum B but the entry credits $lead B"
+    ok=0
+  fi
+  if [[ "$prefix" -ne $(( 44861 + lead )) ]]; then
+    log_info "TEST-1215: ledger prefix through this entry=$prefix (want 44861 + $lead = $(( 44861 + lead )))"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-1215 (Spec-AC-11) downstream-rides prose growth $lead B is measured per file and credited 1:1, pin 44861 -> $prefix" \
+    || log_fail "TEST-1215 (Spec-AC-11) downstream-rides growth credit"
+}
+
 # --- spec-growth-pins-dont-wall-the-corpus -----------------------------
 #
 # diet_credit_verdict() and its supporting tests/constants are declared HERE
@@ -2092,6 +2155,7 @@ main() {
   test_622_diet_true_up
   test_697_corpus_growth_ledgered
   test_746_roadmap_takes_direction_growth_ledgered
+  test_1215_downstream_rides_growth_ledgered
   test_766_diet_credit_verdict_floor
   test_767_diet_credit_verdict_arithmetic
   test_769_agents_md_ceiling

@@ -230,8 +230,10 @@ test_004_off_roadmap_fix() {
 test_005_fail_closed() {
   log_info "Test: missing/invalid roadmap and a done ref are refused, never passed (TEST-005)..."
   write_doc cap-one change draft
-  [ "$(run gate --ref cap-one --roadmap "$TEST_DIR/nope.yaml" --docs "$TEST_DIR/docs")" != "0" ] || log_fail "TEST-005: a missing roadmap must refuse"
-  grep -qi "roadmap" "$TEST_DIR/err" || log_fail "TEST-005: the refusal must name the roadmap"
+  # TEST-1201 (Spec-AC-01): an ABSENT roadmap admits (the file is the posture switch)
+  [ "$(run gate --ref cap-one --roadmap "$TEST_DIR/nope.yaml" --docs "$TEST_DIR/docs")" = "0" ] || log_fail "TEST-1201: an absent roadmap must admit (exit 0): $(err)"
+  grep -q "ADMIT cap-one — roadmap absent" "$TEST_DIR/out" || log_fail "TEST-1201: stdout must carry 'ADMIT cap-one — roadmap absent': $(out)"
+  grep -q "not consulted" "$TEST_DIR/out" || log_fail "TEST-1201: stdout must say 'not consulted': $(out)"
   printf 'this: is\n  - not: the shape\n' > "$TEST_DIR/junk.yaml"
   [ "$(run gate --ref cap-one --roadmap "$TEST_DIR/junk.yaml" --docs "$TEST_DIR/docs")" != "0" ] || log_fail "TEST-005: an invalid roadmap must refuse"
   grep -q "closed roadmap shape" "$TEST_DIR/err" || log_fail "TEST-005: the invalid-roadmap refusal must name the parse reason: $(err)"
@@ -239,6 +241,137 @@ test_005_fail_closed() {
   [ "$(run gate --ref cap-one --roadmap "$TEST_DIR/roadmap.yaml" --docs "$TEST_DIR/docs")" != "0" ] || log_fail "TEST-005: a done ref must be refused as done"
   grep -qi "done" "$TEST_DIR/err" || log_fail "TEST-005: the refusal must say the ref is done"
   log_pass "fail closed on missing/invalid roadmap and on a done ref (TEST-005)"
+}
+
+# --- TEST-1202 (Spec-AC-01): the absent admit is side-effect free -------------
+test_1202_absent_admit_is_side_effect_free() {
+  log_info "Test: an absent-roadmap admit with --override and --events writes no roadmap and no events file, one stdout line (TEST-1202)..."
+  write_doc cap-one change draft
+  local rc=0
+  rc="$(run gate --ref cap-one --roadmap "$TEST_DIR/s1202/roadmap.yaml" --docs "$TEST_DIR/docs" --events "$TEST_DIR/s1202/events.jsonl" --override "owner: nothing to override")" || true
+  [ "$rc" = "0" ] || log_fail "TEST-1202: absent roadmap with --override must admit: $(err)"
+  [ ! -e "$TEST_DIR/s1202/roadmap.yaml" ] || log_fail "TEST-1202: the roadmap path must not be created"
+  [ ! -e "$TEST_DIR/s1202/events.jsonl" ] || log_fail "TEST-1202: no events file may be created for an absent-roadmap admit"
+  [ ! -e "$TEST_DIR/s1202" ] || log_fail "TEST-1202: no directory may be created for an absent-roadmap admit"
+  local n; n="$(wc -l < "$TEST_DIR/out" | tr -d ' ')"
+  [ "$n" = "1" ] || log_fail "TEST-1202: stdout must be exactly one line, got $n: $(out)"
+  if grep -q '?' "$TEST_DIR/out"; then log_fail "TEST-1202: the admit line must carry no question mark"; fi
+  log_pass "absent admit creates nothing and prints one line (TEST-1202)"
+}
+
+# --- TEST-1203 (Spec-AC-02): present-but-invalid roadmap still refuses --------
+test_1203_malformed_and_empty_refuse() {
+  log_info "Test: a malformed and an empty roadmap file each refuse (exit 1, REFUSED) (TEST-1203)..."
+  write_doc cap-one change draft
+  printf 'this: is\n  - not: the shape\n' > "$TEST_DIR/bad1203.yaml"
+  : > "$TEST_DIR/empty1203.yaml"
+  local f rc
+  for f in bad1203 empty1203; do
+    rc="$(run gate --ref cap-one --roadmap "$TEST_DIR/$f.yaml" --docs "$TEST_DIR/docs")" || true
+    [ "$rc" = "1" ] || log_fail "TEST-1203: $f must refuse with exit 1, got $rc"
+    grep -q "REFUSED" "$TEST_DIR/err" || log_fail "TEST-1203: $f refusal must say REFUSED: $(err)"
+  done
+  log_pass "malformed and empty roadmap files refuse (TEST-1203)"
+}
+
+# --- TEST-1204 (Spec-AC-02): a directory at the roadmap path refuses ----------
+test_1204_directory_refuses() {
+  log_info "Test: a directory at the roadmap path refuses as not readable (TEST-1204)..."
+  write_doc cap-one change draft
+  mkdir -p "$TEST_DIR/dir1204.yaml"
+  local rc
+  rc="$(run gate --ref cap-one --roadmap "$TEST_DIR/dir1204.yaml" --docs "$TEST_DIR/docs")" || true
+  [ "$rc" = "1" ] || log_fail "TEST-1204: a directory roadmap must refuse with exit 1, got $rc"
+  grep -q "REFUSED" "$TEST_DIR/err" || log_fail "TEST-1204: must say REFUSED: $(err)"
+  grep -q "roadmap not readable" "$TEST_DIR/err" || log_fail "TEST-1204: must say 'roadmap not readable': $(err)"
+  log_pass "directory at the roadmap path refuses (TEST-1204)"
+}
+
+# --- TEST-1217 (Spec-AC-02, Codex P1 on PR #416): a roadmap path that -------
+# exists but cannot be stat-ed (ELOOP self-symlink; EACCES unsearchable parent)
+# is PRESENT-unreadable, never "absent": existsSync() is false for both, so the
+# absent branch must stat and refuse. Root ignores directory modes, so the
+# EACCES arm records a skip there instead of a vacuous pass; the ELOOP arm
+# runs everywhere.
+test_1217_unstatable_roadmap_refuses() {
+  log_info "Test: an unstat-able roadmap path (ELOOP, EACCES) refuses as not readable, never admits as absent (TEST-1217)..."
+  write_doc cap-one change draft
+  local rc loop="$TEST_DIR/loop1217.yaml"
+  ln -s "$loop" "$loop"
+  rc="$(run gate --ref cap-one --roadmap "$loop" --docs "$TEST_DIR/docs")" || true
+  [ "$rc" = "1" ] || log_fail "TEST-1217 (ELOOP): must refuse with exit 1, got $rc: $(out) $(err)"
+  grep -q "REFUSED" "$TEST_DIR/err" || log_fail "TEST-1217 (ELOOP): must say REFUSED: $(err)"
+  grep -q "roadmap not readable" "$TEST_DIR/err" || log_fail "TEST-1217 (ELOOP): must say 'roadmap not readable': $(err)"
+  grep -q "roadmap absent" "$TEST_DIR/out" && log_fail "TEST-1217 (ELOOP): must never print the absent admit line: $(out)"
+  if [ "$(id -u)" = "0" ]; then
+    log_info "TEST-1217 (EACCES): running as root — directory modes are not enforced, arm skipped (not a pass)"
+  else
+    local locked="$TEST_DIR/locked1217"
+    mkdir -p "$locked"
+    printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-one\n    status: planned\n' > "$locked/roadmap.yaml"
+    chmod 000 "$locked"
+    rc="$(run gate --ref cap-one --roadmap "$locked/roadmap.yaml" --docs "$TEST_DIR/docs")" || true
+    chmod 755 "$locked"
+    [ "$rc" = "1" ] || log_fail "TEST-1217 (EACCES): must refuse with exit 1, got $rc: $(out) $(err)"
+    grep -q "roadmap not readable" "$TEST_DIR/err" || log_fail "TEST-1217 (EACCES): must say 'roadmap not readable': $(err)"
+    grep -q "roadmap absent" "$TEST_DIR/out" && log_fail "TEST-1217 (EACCES): must never print the absent admit line: $(out)"
+  fi
+  log_pass "unstat-able roadmap refuses, never admits as absent (TEST-1217)"
+}
+
+# --- TEST-1205 (Spec-AC-02): validate and next keep their absent behavior -----
+test_1205_validate_next_unchanged_on_absent() {
+  log_info "Test: validate on an absent path exits 2 and next on an absent path exits 1 (TEST-1205)..."
+  local rc
+  rc="$(run validate --roadmap "$TEST_DIR/nope1205.yaml")" || true
+  [ "$rc" = "2" ] || log_fail "TEST-1205: validate on an absent roadmap must exit 2, got $rc"
+  rc="$(run next --roadmap "$TEST_DIR/nope1205.yaml" --docs "$TEST_DIR/docs")" || true
+  [ "$rc" = "1" ] || log_fail "TEST-1205: next on an absent roadmap must exit 1, got $rc"
+  log_pass "validate and next unchanged on an absent roadmap (TEST-1205)"
+}
+
+# --- TEST-1206 (Spec-AC-03): usage checks run before the absent admit ---------
+test_1206_usage_checks_before_absent() {
+  log_info "Test: with an absent roadmap, missing/non-slug --ref and an empty --override are usage errors (TEST-1206)..."
+  write_doc cap-one change draft
+  local rc
+  rc="$(run gate --roadmap "$TEST_DIR/nope1206.yaml" --docs "$TEST_DIR/docs")" || true
+  [ "$rc" = "2" ] || log_fail "TEST-1206: missing --ref must exit 2, got $rc"
+  rc="$(run gate --ref "NOT A SLUG" --roadmap "$TEST_DIR/nope1206.yaml" --docs "$TEST_DIR/docs")" || true
+  [ "$rc" = "2" ] || log_fail "TEST-1206: a non-slug --ref must exit 2, got $rc"
+  rc="$(run gate --ref cap-one --roadmap "$TEST_DIR/nope1206.yaml" --docs "$TEST_DIR/docs" --override " ")" || true
+  [ "$rc" = "2" ] || log_fail "TEST-1206: an empty --override reason must exit 2, got $rc"
+  log_pass "usage errors precede the absent-roadmap admit (TEST-1206)"
+}
+
+# --- TEST-1208 (Spec-AC-05): default roadmap path keeps the strict gate -------
+test_1208_default_roadmap_refuses_off_roadmap() {
+  log_info "Test: with no --roadmap flag the shipped roadmap refuses an off-roadmap maintenance ref (TEST-1208)..."
+  write_doc zz-offroadmap-fix issue draft
+  local rc
+  rc="$(run gate --ref zz-offroadmap-fix --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-zz-offroadmap-fix.md" --docs "$TEST_DIR/docs" --events "$TEST_DIR/events1208.jsonl")" || true
+  [ "$rc" = "1" ] || log_fail "TEST-1208: the default (shipped) roadmap must refuse an off-roadmap fix with exit 1, got $rc: $(out) $(err)"
+  grep -q "REFUSED" "$TEST_DIR/err" || log_fail "TEST-1208: must say REFUSED: $(err)"
+  log_pass "default roadmap path still governs (TEST-1208)"
+}
+
+# --- TEST-1209 (Spec-AC-06): header and AGENTS rule 4 state the posture switch
+test_1209_header_and_rule4_state_the_switch() {
+  log_info "Test: the ride-select header and AGENTS rule 4 name the roadmap file as the switch (TEST-1209)..."
+  head -n 20 "$ENGINE" > "$TEST_DIR/hdr1209.txt"
+  grep -qi "absent" "$TEST_DIR/hdr1209.txt" || log_fail "TEST-1209: header must say an absent roadmap admits"
+  grep -q "not consulted" "$TEST_DIR/hdr1209.txt" || log_fail "TEST-1209: header must say 'not consulted'"
+  grep -qi "refuse" "$TEST_DIR/hdr1209.txt" || log_fail "TEST-1209: header must say a present invalid roadmap refuses"
+  if grep -qF 'never "no roadmap, anything goes"' "$TEST_DIR/hdr1209.txt"; then log_fail "TEST-1209: header must drop the old anything-goes sentence"; fi
+  awk '/^### Operator contract/{f=1;next} /^### |^## /{if(f)exit} f' "$PROJECT_ROOT/.aai/AGENTS.md" > "$TEST_DIR/contract1209.txt"
+  awk '/^4\. \*\*/{f=1;print;next} /^5\. \*\*/{f=0} f' "$TEST_DIR/contract1209.txt" > "$TEST_DIR/rule4-1209.txt"
+  [ -s "$TEST_DIR/rule4-1209.txt" ] || log_fail "TEST-1209: rule 4 not found in the operator contract"
+  grep -q 'docs/ai/roadmap.yaml' "$TEST_DIR/rule4-1209.txt" || log_fail "TEST-1209: rule 4 must name docs/ai/roadmap.yaml"
+  grep -q 'absent' "$TEST_DIR/rule4-1209.txt" || log_fail "TEST-1209: rule 4 must say 'absent'"
+  grep -q 'not consulted' "$TEST_DIR/rule4-1209.txt" || log_fail "TEST-1209: rule 4 must say 'not consulted'"
+  local n; n="$(wc -l < "$TEST_DIR/contract1209.txt" | tr -d ' ')"
+  [ "$n" -le 40 ] || log_fail "TEST-1209: the operator contract must stay at most 40 lines, got $n"
+  log_pass "posture switch stated in header and rule 4; contract ≤40 lines (TEST-1209)"
 }
 
 # --- TEST-006 (Spec-AC-06): override is loud and logged -----------------------
@@ -1785,6 +1918,14 @@ main() {
   test_005_fail_closed
   test_006_override
   test_007_wiring
+  test_1202_absent_admit_is_side_effect_free
+  test_1203_malformed_and_empty_refuse
+  test_1204_directory_refuses
+  test_1205_validate_next_unchanged_on_absent
+  test_1217_unstatable_roadmap_refuses
+  test_1206_usage_checks_before_absent
+  test_1208_default_roadmap_refuses_off_roadmap
+  test_1209_header_and_rule4_state_the_switch
   test_565_gate_admits_only_the_next_pair
   test_566_validate_refuses_unknown_refs
   test_535_roadmap_pair_seven_done

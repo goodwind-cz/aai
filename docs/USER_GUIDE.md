@@ -2618,6 +2618,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Downstream autopilot: rides ask nothing until the merge
+
+In a project that vendors AAI, `/aai-intake` and `/aai-ship` are the two entry points. A ride taken from them now runs intake, planning, implementation, tests, validation, review and product documentation without asking the owner about two things that belong to the canonical repository's own governance: a capability roadmap the project never wrote, and an owner signature on a specification amendment made mid-ride. The one human checkpoint stays at the merge.
+
+[Product doc](product/downstream-autopilot.md) · [Spec](specs/SPEC-0200-spec-downstream-rides-ask-no-governance-questions.md)
+
 ### Validation of original requirements and saved results
 
 AAI validation compares the original request with the implementation specification and checks evidence for the exact delivered result. Required gaps, unknown results, changed saved files and stale dynamic observations prevent an accepted completion report. Repository changes use a concise evidence record; external-save requirements apply only when the requested outcome needs them.
