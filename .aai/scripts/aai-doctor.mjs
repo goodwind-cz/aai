@@ -525,7 +525,20 @@ function catGuardWiring(root) {
       warns.push(`${pair.guard} has no verified caller: ${pair.hook} hook at ${hookPath} unreadable (${err?.code || 'read failed'}) — run ${installerCmd}`);
       continue;
     }
-    if (!body.includes(pair.marker)) {
+    // Codex P1 on PR #417: `includes` accepts the marker ANYWHERE, so a foreign
+    // hook whose body merely says `echo "AAI:GUARD-CHECKS is not installed"`
+    // made CAT-18 report PASS while neither guard was invoked — a reporting
+    // control that reports the opposite of the truth. Ownership is a marker
+    // that OPENS a line, which is exactly how both installers define it.
+    // The installed marker opens a COMMENT line (`# AAI:GUARD-CHECKS BEGIN`),
+    // so the test is "the line is a comment or bare and the marker is its
+    // first word" — not "the body mentions the marker anywhere", which let
+    // `echo "AAI:GUARD-CHECKS is not installed"` read as wired.
+    const markerOpensLine = new RegExp(
+      `^\\s*#?\\s*${pair.marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`,
+    );
+    const ownsMarker = body.split('\n').some((line) => markerOpensLine.test(line));
+    if (!ownsMarker) {
       warns.push(`${pair.guard} has no caller: ${pair.hook} hook at ${hookPath} does not carry ${pair.marker} — run ${installerCmd} (upgrades an AAI hook in place; --print for a foreign one)`);
       continue;
     }

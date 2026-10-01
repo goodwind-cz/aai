@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-812 CAT-18 guard wiring
 selector_honoured: yes
-target_sha256: 20eeb0069ff7d07dd9d74048357685771bb69066bd7e53cdc1404973f49aa5d8
+target_sha256: 77f49e4bc936225d7f38713854867b26bfd959ebea1240a7388d548768e0d358
 ---
 Testing: aai-doctor
 ====================

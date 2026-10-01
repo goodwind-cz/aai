@@ -1845,9 +1845,9 @@ test_809_check8_ps1_twin() {
   rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "TEST-809 pwsh: enforce on a feature branch must exit 0, got $rc: $(tail -12 "$d/pc-feature.log")"
-  grep -qF "RFC-DRAFT-committed-on-branch" "$d/pc-feature.log" || log_fail "TEST-808: expected 'RFC-DRAFT-committed-on-branch' in $d/pc-feature.log"
-  grep -qF "enforce applies on main only" "$d/pc-feature.log" || log_fail "TEST-808: expected 'enforce applies on main only' in $d/pc-feature.log"
-  grep -qF "on feature/y this is report-only" "$d/pc-feature.log" || log_fail "TEST-808: expected 'on feature/y this is report-only' in $d/pc-feature.log"
+  grep -qF "RFC-DRAFT-committed-on-branch" "$d/pc-feature.log" || log_fail "TEST-809: expected 'RFC-DRAFT-committed-on-branch' in $d/pc-feature.log"
+  grep -qF "enforce applies on main only" "$d/pc-feature.log" || log_fail "TEST-809: expected 'enforce applies on main only' in $d/pc-feature.log"
+  grep -qF "on feature/y this is report-only" "$d/pc-feature.log" || log_fail "TEST-809: expected 'on feature/y this is report-only' in $d/pc-feature.log"
   if grep -qF "default branch assumed main" "$d/pc-feature.log"; then log_fail "TEST-809 pwsh: refs/remotes/origin/HEAD is set, so the .ps1 must RESOLVE it — the 'default branch assumed main' fallback fired instead: $(grep -F 'default branch' "$d/pc-feature.log")"; fi
   (cd "$d" && git checkout -q main)
   set +e
@@ -1855,11 +1855,11 @@ test_809_check8_ps1_twin() {
   rc=$?
   set -e
   [[ "$rc" -eq 1 ]] || log_fail "TEST-809 pwsh: enforce on the default branch must exit 1, got $rc: $(tail -12 "$d/pc-main.log")"
-  grep -qF "commit blocked" "$d/pc-main.log" || log_fail "TEST-808: expected 'commit blocked' in $d/pc-main.log"
+  grep -qF "commit blocked" "$d/pc-main.log" || log_fail "TEST-809: expected 'commit blocked' in $d/pc-main.log"
   printf 'doc_number_guard: report-only\n' > "$d/docs/ai/docs-audit.yaml"
   (cd "$d" && pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 > pc-ro.log 2>&1) \
     || log_fail "TEST-809 pwsh: report-only must exit 0: $(tail -12 "$d/pc-ro.log")"
-  if grep -qF "enforce applies on main only" "$d/pc-ro.log"; then log_fail "TEST-808: did not expect 'enforce applies on main only' in $d/pc-ro.log"; fi
+  if grep -qF "enforce applies on main only" "$d/pc-ro.log"; then log_fail "TEST-809: did not expect 'enforce applies on main only' in $d/pc-ro.log"; fi
   rm -rf "$d"
   log_pass "TEST-809 .ps1 CHECK 8 reads origin/HEAD and compares with the current branch (static), and under pwsh reports on a feature branch, blocks on main, passes report-only"
 }

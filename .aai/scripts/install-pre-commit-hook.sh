@@ -874,9 +874,21 @@ while read -r _cg_lref _cg_local _cg_rref _cg_remote_sha; do
       *) _cg_range="$_cg_local^..$_cg_local" ;;
     esac
   else
-    _cg_base="$(git merge-base "refs/remotes/$_cg_remote/$_cg_default" "$_cg_local" 2>/dev/null || true)"
+    # Codex P2 on PR #417: git hands the pre-push hook whatever the user typed
+    # as the remote, which may be a PATH or a URL rather than a configured
+    # name (see the githooks pre-push contract). `refs/remotes/<url>/<default>`
+    # is then an impossible ref, the NOTE fires and close-reconcile is skipped
+    # -- so `git push <url> HEAD:feat` slipped past the gate this hook exists to
+    # provide. Use the named remote when it IS one; otherwise fall back to the
+    # origin tracking ref, which is what R1 already resolved the default from.
+    if git config --get "remote.$_cg_remote.url" >/dev/null 2>&1; then
+      _cg_track="refs/remotes/$_cg_remote/$_cg_default"
+    else
+      _cg_track="refs/remotes/origin/$_cg_default"
+    fi
+    _cg_base="$(git merge-base "$_cg_track" "$_cg_local" 2>/dev/null || true)"
     if [ -z "$_cg_base" ]; then
-      echo "AAI:CLOSE-GATE NOTE: $_cg_rref skipped -- refs/remotes/$_cg_remote/$_cg_default unresolvable" >&2
+      echo "AAI:CLOSE-GATE NOTE: $_cg_rref skipped -- $_cg_track unresolvable" >&2
       continue
     fi
     _cg_range="$_cg_base..$_cg_local"
@@ -1214,6 +1226,21 @@ if [[ "$FOREIGN" == 1 ]]; then
 fi
 
 ensure_hooks_dir || exit 1
+
+# Codex P2 on PR #417: with every hook selected and `pre-push` a directory, the
+# pre-commit hook was written and only THEN did the pre-push writer refuse —
+# exit 1 over a repository left half upgraded, which contradicts the
+# whole-selected-run refusal this script advertises. Preflight EVERY selected
+# slot before the first writer runs, so a refusal means nothing was written at
+# all.
+PREFLIGHT_OK=1
+[[ "$WANT_INDEX" == 1 ]] && { assert_regular_slot "$HOOK_PATH" "pre-commit" || PREFLIGHT_OK=0; }
+[[ "$WANT_CLOSEGATE" == 1 ]] && { assert_regular_slot "$PREPUSH_PATH" "pre-push" || PREFLIGHT_OK=0; }
+if [[ "$PREFLIGHT_OK" != 1 ]]; then
+  echo "ERROR: refusing the whole run — nothing was written. Fix the slot(s) named above and re-run." >&2
+  exit 1
+fi
+
 
 if [[ "$WANT_INDEX" == 1 ]]; then  # AC-01 write selection: index
   install_precommit_hook || exit 1
