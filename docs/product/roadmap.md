@@ -5,7 +5,7 @@ capability: roadmap
 status: current
 delivered_by:
   - roadmap-serves-downstream-projects
-spec: docs/specs/SPEC-DRAFT-spec-roadmap-serves-downstream-projects.md
+spec: docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md
 updated: 2026-10-01
 ---
 
@@ -105,6 +105,6 @@ is introduced.
 
 ## Links
 
-- Request: docs/issues/CHANGE-DRAFT-roadmap-serves-downstream-projects.md
-- Spec: docs/specs/SPEC-DRAFT-spec-roadmap-serves-downstream-projects.md
+- Request: docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md
+- Spec: docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md
 - Validation evidence: docs/ai/tdd/spec-roadmap-serves-downstream-projects/

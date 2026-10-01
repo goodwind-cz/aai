@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "git diff origin/main..HEAD (0eea891b..8352be61), branch change/roadmap-serves-downstream-projects, 32 paths = STATE code_review.scope"
-  spec: docs/specs/SPEC-DRAFT-spec-roadmap-serves-downstream-projects.md
+  spec: docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -45,8 +45,8 @@ review:
 # Code review — roadmap-serves-downstream-projects (round 1 of 2)
 
 - Scope: `git diff origin/main..HEAD`, base 0eea891b, head 8352be61. The 32 changed paths match STATE `code_review.scope` exactly. `git status --porcelain` was clean at start.
-- Spec: docs/specs/SPEC-DRAFT-spec-roadmap-serves-downstream-projects.md (frozen, `spec-lint --path` PASS). D16 is an additive amendment, disclosed, recorded with `--signoff none`, and tracked by open `fu-amend-roadmap-serves-downstrea-bc77da` (`spec-amend list --strict`: unsigned-tracked).
-- Intake: docs/issues/CHANGE-DRAFT-roadmap-serves-downstream-projects.md. Validation round 2 PASS: docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md.
+- Spec: docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md (frozen, `spec-lint --path` PASS). D16 is an additive amendment, disclosed, recorded with `--signoff none`, and tracked by open `fu-amend-roadmap-serves-downstrea-bc77da` (`spec-amend list --strict`: unsigned-tracked).
+- Intake: docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md. Validation round 2 PASS: docs/ai/reports/VALIDATION-20261001T100543Z-roadmap-serves-downstream-projects.md.
 - Dispatch coaching check: the dispatch did not pre-rate findings and did not exclude any area from scope. Nothing to record.
 
 ## AC table walk
@@ -82,7 +82,7 @@ Deviations from the frozen text are listed here even though each one is reasonab
 1. **NB — stale mutation evidence (docs/USER_GUIDE.md:2169).**
    - What is wrong: commit 27c22aa3 edited USER_GUIDE after the round-2 replay. `mutation-gate.mjs --spec` now prints GATE FAIL, with STALE on TEST-1328, TEST-1333 and TEST-1339.
    - How it bites: close-work-item.mjs runs the real mutation gate at close time, so the close ceremony would refuse.
-   - Recommended disposition: (a) fix in-tree before the PR step with `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-DRAFT-spec-roadmap-serves-downstream-projects.md`. A replay that still turns these tests red re-stamps the records.
+   - Recommended disposition: (a) fix in-tree before the PR step with `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md`. A replay that still turns these tests red re-stamps the records.
    - Why the reviewer did not run it: it would mutate a tracked file, and HAZ-RESTORE plus the reviewer's read-only status rule that out.
 2. **NB — two parsers for document status (.aai/scripts/roadmap-edit.mjs:146).**
    - What is wrong: `docStatus` reads status through `parseFrontmatter`, while ride-select uses the line scan in `findDoc`.

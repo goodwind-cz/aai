@@ -2694,6 +2694,12 @@ In a project that vendors AAI, `/aai-intake` and `/aai-ship` are the two entry p
 
 [Product doc](product/downstream-autopilot.md) · [Spec](specs/SPEC-0200-spec-downstream-rides-ask-no-governance-questions.md)
 
+### Roadmap: an ordered list of what to build next
+
+A project can now keep a roadmap: an ordered list of the capabilities it wants built, in the order it wants them. You work with it through `/aai-roadmap`, which shows the list and offers a menu for every change, and through `/aai-ship`, which with no argument takes the next item on the list. Nobody edits the roadmap file by hand and nobody has to type a script.
+
+[Product doc](product/roadmap.md) · [Spec](specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md)
+
 ### Validation of original requirements and saved results
 
 AAI validation compares the original request with the implementation specification and checks evidence for the exact delivered result. Required gaps, unknown results, changed saved files and stale dynamic observations prevent an accepted completion report. Repository changes use a concise evidence record; external-save requirements apply only when the requested outcome needs them.

@@ -1,13 +1,13 @@
 ---
 id: spec-roadmap-serves-downstream-projects
 type: spec
-number: null
+number: 202
 status: implementing
 mutation_gate: v1
-frozen_sha256: 24cc0397dda5cacac77fbce70396498e845fe341163c07814c9fab9b6cbce229
+frozen_sha256: 42d0118456658e059162a0dc55229a0095cee04eb984a97ba49879d61f8e2547
 ceremony_level: 2
 links:
-  requirement: docs/issues/CHANGE-DRAFT-roadmap-serves-downstream-projects.md
+  requirement: docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md
   rfc: null
   pr: []
   commits: []
@@ -18,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-roadmap-serves-downstream-projects.md
+- Requirement: docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md
   (AC-001..AC-008; owner direction 2026-10-01 in its Notes).
 - Prior specs this scope builds on: SPEC-0168 (spec-roadmap-driven-ride-selection-with-budget,
   the gate and the 1:1 budget), SPEC-0188 (spec-roadmap-takes-direction,

@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-01T09:50:59.629Z",
+  "generatedAt": "2026-10-01T10:48:48.898Z",
   "project": "aai",
   "counts": {
     "delivered": 270,
-    "in_progress": 16,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 70231136
   },
@@ -62,6 +62,19 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "roadmap-serves-downstream-projects",
+      "title": "The roadmap is an ordered capability list with an opt-in maintenance budget and its own skill",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md",
+      "closed_on": null,
+      "agent_minutes": 170,
+      "token_total": 1626694,
+      "spec": "docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261001T104452Z-roadmap-serves-downstream-projects.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
