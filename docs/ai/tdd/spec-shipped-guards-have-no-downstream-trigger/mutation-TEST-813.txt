@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-813: the pre-push body differs between twins:
 selector_honoured: yes
-target_sha256: 48bda7e48d75c33c162c6447411496ef710cf4f0f442039a70e637a851e82443
+target_sha256: 1e80cd0dc516604dada6f908e883a886920e726acc723f52401482c8f9b1e35d
 ---
 INFO: Checking dependencies...
 PASS: Dependencies checked
