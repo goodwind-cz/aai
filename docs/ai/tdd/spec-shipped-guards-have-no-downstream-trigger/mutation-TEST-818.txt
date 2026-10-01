@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-818: the .ps1 carries no BEGIN-before-END line-number check ($beginLn -gt $endLn)
 selector_honoured: yes
-target_sha256: 1e80cd0dc516604dada6f908e883a886920e726acc723f52401482c8f9b1e35d
+target_sha256: 269a9a6deaaa550e03e2b70c326a468685292bbd43fa7475cb55cf43301a7433
 ---
 INFO: Checking dependencies...
 PASS: Dependencies checked

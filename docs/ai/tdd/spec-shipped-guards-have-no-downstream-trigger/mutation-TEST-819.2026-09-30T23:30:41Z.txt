@@ -1,0 +1,20 @@
+mutation_record: v1
+spec_id: spec-shipped-guards-have-no-downstream-trigger
+test_id: TEST-819
+suite: tests/skills/test-aai-hygiene-pack.sh
+selector: test_819_nonregular_slot_is_refused_before_any_write
+target: .aai/scripts/install-pre-commit-hook.sh
+mutation: sed:s/\[ -f "\$slot" \] && return 0/[ -e "$slot" ] \&\& return 0/
+base_commit: 2801e5b11975dd2ae26f45431f353001ba1408ef
+tree_hash: f3ca612d725afc20f3e862f6332864fe8e68aeaa1263988ef29b8a4d491f00e3
+run_at_utc: 2026-09-30T23:30:41Z
+rc: 0
+verdict: STAYED GREEN
+first_fail: (none — the mutated run exited 0)
+selector_honoured: yes
+target_sha256: 997200110f412b6c15ed602edb2b1119ffc5bd381b985a1055a5666e47159b51
+---
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: a hook slot that is a directory is refused before any write — no success line, no stray temp file inside it (TEST-819)...
+PASS: TEST-819 a non-regular hook slot is refused before any write, with no success line and nothing left inside it

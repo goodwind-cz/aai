@@ -919,21 +919,21 @@ function Write-BytesViaTemp {
 function Update-PreCommitHook {
   $item = Get-Item -LiteralPath $hookPath -Force
   if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
-    Write-Error "$hookPath is a symlink. Refusing to rewrite through a symlink (the target may be outside this repository); replace the link with a regular file, or pass -Force."
+    [Console]::Error.WriteLine("$hookPath is a symlink. Refusing to rewrite through a symlink (the target may be outside this repository); replace the link with a regular file, or pass -Force.")
     return $false
   }
   $bytes = [System.IO.File]::ReadAllBytes($hookPath)
   $nl = [Array]::IndexOf($bytes, [byte]10)
   if ($nl -lt 0) {
-    Write-Error "$hookPath has no newline-terminated line; refusing to insert the AAI:GUARD-CHECKS block into it. Pass -Force to rewrite the whole slot."
+    [Console]::Error.WriteLine("$hookPath has no newline-terminated line; refusing to insert the AAI:GUARD-CHECKS block into it. Pass -Force to rewrite the whole slot.")
     return $false
   }
   if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
-    Write-Error "$hookPath starts with a UTF-8 byte-order mark (EF BB BF); sh cannot start a hook whose first bytes are not '#!', so the AAI:GUARD-CHECKS block is not inserted into it. File left as it was. Strip the BOM, or pass -Force to rewrite the whole slot."
+    [Console]::Error.WriteLine("$hookPath starts with a UTF-8 byte-order mark (EF BB BF); sh cannot start a hook whose first bytes are not '#!', so the AAI:GUARD-CHECKS block is not inserted into it. File left as it was. Strip the BOM, or pass -Force to rewrite the whole slot.")
     return $false
   }
   if ($nl -gt 0 -and $bytes[$nl - 1] -eq 13) {
-    Write-Error "$hookPath has a CR-terminated first line (CRLF hook). Refusing to insert an LF block under it -- sh could not start the result. Convert the hook to LF, or pass -Force to rewrite the whole slot."
+    [Console]::Error.WriteLine("$hookPath has a CR-terminated first line (CRLF hook). Refusing to insert an LF block under it -- sh could not start the result. Convert the hook to LF, or pass -Force to rewrite the whole slot.")
     return $false
   }
   $beginSpans = Find-MarkerLines -Bytes $bytes -Marker $guardBlockBegin -Exact
@@ -947,7 +947,7 @@ function Update-PreCommitHook {
   $hasBeginSubstring = [System.Text.Encoding]::GetEncoding(28591).GetString($bytes).Contains($guardBlockBegin)
   if (-not $hasBeginSubstring) {
     if ($ends -ne 0) {
-      Write-Error "$hookPath carries $ends '$guardBlockEnd' line(s) and no '$guardBlockBegin'; refusing to insert a block above a stray END marker. File left as it was. Remove the END line by hand, or pass -Force to rewrite the whole slot."
+      [Console]::Error.WriteLine("$hookPath carries $ends '$guardBlockEnd' line(s) and no '$guardBlockBegin'; refusing to insert a block above a stray END marker. File left as it was. Remove the END line by hand, or pass -Force to rewrite the whole slot.")
       return $false
     }
     $block = Get-GuardBlockBytes
@@ -965,13 +965,13 @@ function Update-PreCommitHook {
     return $true
   }
   if ($begins -ne 1 -or $ends -ne 1) {
-    Write-Error "$hookPath carries $begins '$guardBlockBegin' and $ends '$guardBlockEnd' line(s); refusing to guess which block is the installer's. File left as it was. Remove the extra markers by hand, or pass -Force to rewrite the whole slot."
+    [Console]::Error.WriteLine("$hookPath carries $begins '$guardBlockBegin' and $ends '$guardBlockEnd' line(s); refusing to guess which block is the installer's. File left as it was. Remove the extra markers by hand, or pass -Force to rewrite the whole slot.")
     return $false
   }
   $beginLn = $beginSpans[0].Line
   $endLn = $endSpans[0].Line
   if ($beginLn -gt $endLn) {
-    Write-Error "$hookPath carries '$guardBlockEnd' (line $endLn) BEFORE '$guardBlockBegin' (line $beginLn): the markers are inverted, so no interior can be located and a refresh would drop every line after the BEGIN. File left as it was. Move the BEGIN line above the END line by hand, or pass -Force to rewrite the whole slot."
+    [Console]::Error.WriteLine("$hookPath carries '$guardBlockEnd' (line $endLn) BEFORE '$guardBlockBegin' (line $beginLn): the markers are inverted, so no interior can be located and a refresh would drop every line after the BEGIN. File left as it was. Move the BEGIN line above the END line by hand, or pass -Force to rewrite the whole slot.")
     return $false
   }
   # The interior is the byte range from the byte after the BEGIN line's LF to
