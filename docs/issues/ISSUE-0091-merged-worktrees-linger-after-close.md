@@ -1,7 +1,7 @@
 ---
 id: merged-worktrees-linger-after-close
 type: issue
-number: null
+number: 91
 status: draft
 links:
   pr: []
@@ -19,7 +19,7 @@ links:
 - bug
 
 ## Impact
-- Every ride that uses a worktree, which is every L3 ride and every ride the operator isolates. The factory's own repository accumulated seven in a day.
+- Every ride whose recorded worktree decision actually CREATED one. That is not the same as every L3 ride: an L3 scope recommends a worktree but the operator may record `inline` instead, and then no checkout exists to leave behind. The factory's own repository accumulated seven in a day.
 - Severity: medium. Nothing is lost, but the operator cannot tell a finished ride from a live one without checking each branch against its PR by hand — which is what the orchestrator did repeatedly today.
 - The confusion is worse than the disk: a leftover `STATE.yaml` in a stale worktree names a `current_focus` that no longer exists, and a leftover branch makes `git worktree list` read as parallel work in flight.
 

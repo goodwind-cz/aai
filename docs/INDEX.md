@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-01T09:40:49.546Z
+Generated: 2026-10-01T09:51:20.705Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -551,7 +551,7 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
-| merged-worktrees-linger-after-close (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-merged-worktrees-linger-after-close.md |
+| ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
 
 ## Deferred (whole-doc) (0)
 
