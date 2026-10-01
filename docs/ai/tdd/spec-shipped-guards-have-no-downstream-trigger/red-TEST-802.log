@@ -1,0 +1,7 @@
+RED_CLASS: product_red
+# RED capture for TEST-802 — suite tests/skills/test-aai-hygiene-pack.sh selector test_802_upgrade_inserts_once — pre-change tree 3d9e2a6d — exit 1
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: an existing AAI:INDEX-AUTOGEN hook is upgraded by insertion only, idempotently (TEST-802)...
+FAIL: TEST-802a: the run must announce the upgrade with a line starting 'Upgraded AAI pre-commit hook' (pattern: '^Upgraded AAI pre-commit hook'), got: AAI pre-commit hook already installed at /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-hygiene.HkvW67/sg-t802a/.git/hooks/pre-commit. No action taken.
+Uninstall with: bash .aai/scripts/install-pre-commit-hook.sh --uninstall

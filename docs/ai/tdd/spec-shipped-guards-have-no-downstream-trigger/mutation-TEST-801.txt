@@ -1,0 +1,35 @@
+mutation_record: v1
+spec_id: spec-shipped-guards-have-no-downstream-trigger
+test_id: TEST-801
+suite: tests/skills/test-aai-hygiene-pack.sh
+selector: test_801_guard_block_propagates_block
+target: .aai/scripts/install-pre-commit-hook.sh
+mutation: sed:s/exit "\$_gc_rc"/exit 0/
+base_commit: 3d9e2a6dc7744dd9ae8e8179efb72a56a62db329
+tree_hash: 17f7ee93a77cc56e750d5accadbdbf868840298faf93a81141c497d5d7acb2ee
+run_at_utc: 2026-09-30T20:52:27Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-801: a commit carrying a CHECK 2 secret must be refused, got exit 0: AAI:GUARD-CHECKS: running .aai/scripts/pre-commit-checks.sh
+selector_honoured: yes
+target_sha256: 896936f4fbb2b67857ae91a846052495aa26f3e3d82857ae9baf1609a6aa85a6
+---
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: a CHECK 2 secret in a staged file makes the guard block refuse the commit (TEST-801)...
+FAIL: TEST-801: a commit carrying a CHECK 2 secret must be refused, got exit 0: AAI:GUARD-CHECKS: running .aai/scripts/pre-commit-checks.sh
+─────────────────────────────────────
+PRE-COMMIT QUALITY GATES
+─────────────────────────────────────
+
+[0;33m⚠ STATE.yaml not found — skipping TDD check[0m
+[0;31m✗ Potential secret detected in notes/config.txt[0m
+[0;32m✓ No debug statements found[0m
+[0;32m✓ No TODO/FIXME markers[0m
+    NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)
+[0;32m✓ Doc-numbering guards clean (no-DRAFT-at-merge + duplicate-number)[0m
+
+─────────────────────────────────────
+[0;31mBLOCKED: 1 error(s), 1 warning(s)[0m
+Fix errors before committing.
+AAI:GUARD-CHECKS: pre-commit-checks.sh blocked this commit (rc=1)

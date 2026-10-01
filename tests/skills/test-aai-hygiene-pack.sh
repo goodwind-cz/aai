@@ -4583,6 +4583,901 @@ test_618_ref_guard_grep_conformance() {  # spec-update-installs-ref-guard-undisc
   log_pass "readRefGuardPolicy and the installer's thin shell grep agree on all fixture variants (Spec-AC-06, TEST-618)"
 }
 
+# --- shipped-guards-have-no-downstream-trigger (TEST-800..807, 813..816) ----
+# docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md: the
+# installer's pre-commit hook gains a marker-scoped AAI:GUARD-CHECKS block
+# that runs pre-commit-checks.sh, a third AAI:CLOSE-GATE pre-push hook runs
+# close-reconcile.mjs over every pushed range, and neither ever rewrites a
+# byte outside an AAI marker on a plain run (the #414 / SPEC-0199 class).
+# Every fixture is a throwaway repo under $TEST_DIR carrying the vendored
+# guard toolchain; the REAL installer is run against ONLY that repo
+# (HAZ-SCRATCH) — never $PROJECT_ROOT.
+#
+# Fixture diversity (SPEC-0013 H7), mapped:
+#   degenerate/empty         -> TEST-804 (--hooks index leaves the pre-push slot
+#                               absent), TEST-802 (no-shebang hook: block at line 1)
+#   zero-remainder           -> TEST-802 second run byte-identical; TEST-805
+#                               CLEAN after the doc reads done
+#   multi-source/multi-writer-> TEST-802 hand-merged foreign+marker body;
+#                               TEST-813 both twins produce the same block
+#   mid-operation failure    -> TEST-802 CR-terminated first line / symlinked
+#                               slot refused by name, file byte-identical;
+#                               TEST-806 refused push leaves the remote ref;
+#                               TEST-817/818 inverted or stray markers and a
+#                               BOM refused BEFORE any write, byte-identical
+#   negative control         -> TEST-803 foreign hook refused, byte-identical;
+#                               TEST-816 worktree enforce does NOT refuse;
+#                               TEST-817/818 a marker merely MENTIONED in a
+#                               foreign hook is not ownership (no upgrade,
+#                               no --uninstall deletion); the refresh keeps
+#                               raw e9/ff fe bytes and a missing final newline
+
+SG_INSTALLER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
+SG_INSTALLER_PS1="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
+
+sg_tmp() { TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"; }
+
+# sg_repo <name> — a scratch repo on branch main with the vendored guard
+# toolchain (installer, pre-commit-checks.sh, the allocator, the index
+# generator, close-reconcile.mjs and its imports), a report-only
+# docs/ai/docs-audit.yaml, one seed commit, and a bare `origin`. Echoes the
+# absolute path.
+sg_repo() {
+  # Two statements on purpose: `local a=$1 b=$a` expands every word BEFORE
+  # any assignment lands (HAZ-CD scar: an empty fixture path).
+  local name="$1"
+  local d="$TEST_DIR/sg-$name" bare="$TEST_DIR/sg-$name-origin.git"
+  rm -rf "$d" "$bare"
+  mkdir -p "$d/.aai/scripts/lib" "$d/.aai/templates" "$d/docs/ai" "$d/docs/issues" "$d/docs/specs" "$d/src"
+  cp "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/pre-commit-checks.sh" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/allocate-doc-number.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/close-reconcile.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/pr-platform.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  cp "$PROJECT_ROOT/.aai/templates/docs-audit.template.yaml" "$d/.aai/templates/"
+  printf 'legacy_until_date: 2020-01-01\nclose_gate: report-only\ndoc_number_guard: report-only\nref_guard: armed\n' > "$d/docs/ai/docs-audit.yaml"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  printf 'docs/INDEX.audit.md\n' > "$d/.gitignore"
+  echo "seed" > "$d/src/app.js"
+  git -C "$d" init -q -b main
+  git -C "$d" config user.email test@example.invalid
+  git -C "$d" config user.name "AAI Test"
+  git -C "$d" add -A
+  git -C "$d" commit -q -m "seed"
+  git init -q --bare "$bare"
+  git -C "$bare" symbolic-ref HEAD refs/heads/main
+  git -C "$d" remote add origin "$bare"
+  printf '%s' "$d"
+}
+
+# sg_install <dir> [installer args...] — the fixture's OWN copy of the
+# installer, run from inside <dir> (it resolves the hooks path against $PWD).
+sg_install() {
+  local d="$1"; shift
+  [[ -n "$d" && "$d" == /* ]] || log_fail "sg_install: fixture path must be absolute and non-empty (got '$d')"
+  (cd "$d" && bash .aai/scripts/install-pre-commit-hook.sh "$@")
+}
+
+# sg_install_ps1 <dir> [args...] — the .ps1 twin, same discipline (pwsh only).
+sg_install_ps1() {
+  local d="$1"; shift
+  [[ -n "$d" && "$d" == /* ]] || log_fail "sg_install_ps1: fixture path must be absolute and non-empty (got '$d')"
+  (cd "$d" && pwsh -NoProfile -File .aai/scripts/install-pre-commit-hook.ps1 "$@")
+}
+
+# sg_hook <dir> <name> — the path git itself resolves for hooks/<name>.
+sg_hook() {
+  local d="$1" name="$2" p
+  p="$(git -C "$d" rev-parse --git-path "hooks/$name")"
+  [[ "$p" == /* ]] || p="$d/$p"
+  printf '%s' "$p"
+}
+
+# sg_write_draft <dir> <rel> <id> — an unnumbered draft doc (number: null).
+sg_write_draft() {
+  local d="$1" rel="$2" id="$3"
+  mkdir -p "$(dirname "$d/$rel")"
+  cat > "$d/$rel" <<MD
+---
+id: $id
+type: issue
+number: null
+status: draft
+links:
+  pr: []
+  commits: []
+---
+
+# Issue — $id
+
+## Summary
+- fixture draft.
+MD
+}
+
+# sg_write_frozen_spec <dir> <rel> <id> <status> [commit-link] — a spec
+# carrying the frozen marker spec-freeze.mjs writes; an optional commit link
+# makes a `done` doc carry the telemetry close-reconcile expects of it.
+sg_write_frozen_spec() {
+  local d="$1" rel="$2" id="$3" status="$4" link="${5:-}"
+  local commits="  commits: []"
+  [[ -n "$link" ]] && commits="  commits:
+    - $link"
+  mkdir -p "$(dirname "$d/$rel")"
+  cat > "$d/$rel" <<MD
+---
+id: $id
+type: spec
+number: null
+status: $status
+ceremony_level: 2
+links:
+  requirement: null
+  rfc: null
+  pr: []
+$commits
+---
+
+# SPEC — $id
+
+SPEC-FROZEN: true
+
+## Acceptance Criteria Status
+
+| Spec-AC | Description | Status | Evidence | Review-By | Notes |
+|---------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | fixture | done | docs/ai/tdd/x.log | — | — |
+MD
+}
+
+# sg_strip_block <file> — the file's bytes outside the AAI:GUARD-CHECKS block.
+sg_strip_block() {
+  awk '/^# AAI:GUARD-CHECKS BEGIN$/{skip=1; next} /^# AAI:GUARD-CHECKS END$/{skip=0; next} !skip' "$1"
+}
+
+test_800_installed_hook_reaches_guard() {  # TEST-800 / Spec-AC-01
+  log_info "Test: an installed pre-commit hook reaches pre-commit-checks.sh — the draft guard's own line shows on a commit (TEST-800)..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local d out rc
+  d="$(sg_repo t800)"
+  out="$(sg_install "$d" --hooks index 2>&1)" || log_fail "TEST-800: installer --hooks index exited non-zero: $out"
+  sg_write_draft "$d" "docs/issues/ISSUE-DRAFT-x.md" "x"
+  git -C "$d" add docs/issues/ISSUE-DRAFT-x.md
+  local before; before="$(git -C "$d" rev-parse HEAD)"
+  rc=0
+  git -C "$d" commit -q -m "intake: draft x" > "$d/commit-800.log" 2>&1 || rc=$?
+  out="$(cat "$d/commit-800.log")"
+  [[ $rc -eq 0 ]] || log_fail "TEST-800: a report-only draft commit must exit 0, got $rc: $out"
+  [[ "$(git -C "$d" rev-parse HEAD)" != "$before" ]] || log_fail "TEST-800: the commit did not land"
+  assert_payload_contains "$out" "GUARD FAIL (no-DRAFT-at-merge)" \
+    "TEST-800: the commit output must carry the allocator guard's own line — the hook never reached pre-commit-checks.sh"
+  assert_payload_contains "$out" "AAI:GUARD-CHECKS" \
+    "TEST-800: the commit output must carry the hook's AAI:GUARD-CHECKS prefix"
+  log_pass "TEST-800 an installed pre-commit hook runs pre-commit-checks.sh: the draft guard line and the AAI:GUARD-CHECKS prefix show on a report-only commit"
+}
+
+test_801_guard_block_propagates_block() {  # TEST-801 / Spec-AC-01
+  log_info "Test: a CHECK 2 secret in a staged file makes the guard block refuse the commit (TEST-801)..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local d out rc before
+  d="$(sg_repo t801)"
+  out="$(sg_install "$d" --hooks index 2>&1)" || log_fail "TEST-801: installer --hooks index exited non-zero: $out"
+  mkdir -p "$d/notes"
+  printf 'api_key = "abcdefghijklmnopqrstuvwxyz"\n' > "$d/notes/config.txt"
+  git -C "$d" add notes/config.txt
+  before="$(git -C "$d" rev-parse HEAD)"
+  rc=0
+  git -C "$d" commit -q -m "leak a secret" > "$d/commit-801.log" 2>&1 || rc=$?
+  out="$(cat "$d/commit-801.log")"
+  [[ $rc -ne 0 ]] || log_fail "TEST-801: a commit carrying a CHECK 2 secret must be refused, got exit 0: $out"
+  [[ "$(git -C "$d" rev-parse HEAD)" == "$before" ]] || log_fail "TEST-801: HEAD moved despite the refusal"
+  assert_payload_contains "$out" "AAI:GUARD-CHECKS: pre-commit-checks.sh blocked this commit" \
+    "TEST-801: the refusal must name the guard block and pre-commit-checks.sh"
+  log_pass "TEST-801 a CHECK 2 secret is refused by the guard block: exit non-zero, HEAD unchanged, refusal names AAI:GUARD-CHECKS"
+}
+
+test_802_upgrade_inserts_once() {  # TEST-802 / Spec-AC-02
+  log_info "Test: an existing AAI:INDEX-AUTOGEN hook is upgraded by insertion only, idempotently (TEST-802)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local d hp out rc
+  # (a) the pre-ride AAI body — exactly what --print index emits.
+  d="$(sg_repo t802a)"
+  hp="$(sg_hook "$d" pre-commit)"
+  mkdir -p "$(dirname "$hp")"
+  bash "$SG_INSTALLER" --print index > "$hp"
+  chmod +x "$hp"
+  cp "$hp" "$d/orig-a"
+  out="$(sg_install "$d" --hooks index 2>&1)" || log_fail "TEST-802 (a): upgrade run exited non-zero: $out"
+  assert_payload_line_matches "$out" '^Upgraded AAI pre-commit hook' \
+    "TEST-802 (a): the run must announce the upgrade with a line starting 'Upgraded AAI pre-commit hook'"
+  [[ "$(sed -n '1p' "$hp")" == "$(sed -n '1p' "$d/orig-a")" ]] || log_fail "TEST-802 (a): line 1 (the shebang) changed"
+  [[ "$(sed -n '2p' "$hp")" == "# AAI:GUARD-CHECKS BEGIN" ]] || log_fail "TEST-802 (a): the block was not inserted right after the shebang (line 2 is: $(sed -n '2p' "$hp"))"
+  sg_strip_block "$hp" > "$d/stripped-a"
+  cmp -s "$d/stripped-a" "$d/orig-a" || log_fail "TEST-802 (a): bytes outside the inserted block differ from the original file"
+  [[ -x "$hp" ]] || log_fail "TEST-802 (a): the upgraded hook lost its executable bit"
+  cp "$hp" "$d/after-first"
+  out="$(sg_install "$d" --hooks index 2>&1)" || log_fail "TEST-802 (a): second run exited non-zero: $out"
+  cmp -s "$d/after-first" "$hp" || log_fail "TEST-802 (a): a second run changed the hook's bytes"
+  assert_payload_not_contains "$out" "Upgraded AAI pre-commit hook" "TEST-802 (a): a second run must not claim an upgrade"
+  [[ "$(grep -c '^# AAI:GUARD-CHECKS BEGIN$' "$hp")" -eq 1 ]] || log_fail "TEST-802 (a): expected exactly one BEGIN marker, got $(grep -c '^# AAI:GUARD-CHECKS BEGIN$' "$hp")"
+
+  # (b) a foreign hook whose owner hand-merged the marker via --print.
+  d="$(sg_repo t802b)"
+  hp="$(sg_hook "$d" pre-commit)"
+  mkdir -p "$(dirname "$hp")"
+  printf '#!/bin/sh\necho "mine first"\n# AAI:INDEX-AUTOGEN (hand-merged)\necho "mine last"\nexit 0\n' > "$hp"
+  chmod +x "$hp"
+  cp "$hp" "$d/orig-b"
+  out="$(sg_install "$d" --hooks index 2>&1)" || log_fail "TEST-802 (b): upgrade of a hand-merged hook exited non-zero: $out"
+  [[ "$(sed -n '1p' "$hp")" == '#!/bin/sh' ]] || log_fail "TEST-802 (b): the foreign shebang was not kept as line 1"
+  [[ "$(sed -n '2p' "$hp")" == "# AAI:GUARD-CHECKS BEGIN" ]] || log_fail "TEST-802 (b): the block was not inserted after the shebang"
+  sg_strip_block "$hp" > "$d/stripped-b"
+  cmp -s "$d/stripped-b" "$d/orig-b" || log_fail "TEST-802 (b): the hand-merged hook's own bytes were changed"
+  cp "$hp" "$d/after-b"
+  sg_install "$d" --hooks index >/dev/null 2>&1 || log_fail "TEST-802 (b): second run exited non-zero"
+  cmp -s "$d/after-b" "$hp" || log_fail "TEST-802 (b): second run changed the hand-merged hook"
+
+  # (c) no shebang at all: the block lands at line 1 and no shebang is added.
+  d="$(sg_repo t802c)"
+  hp="$(sg_hook "$d" pre-commit)"
+  mkdir -p "$(dirname "$hp")"
+  printf '# AAI:INDEX-AUTOGEN\necho no-shebang\n' > "$hp"
+  chmod +x "$hp"
+  cp "$hp" "$d/orig-c"
+  sg_install "$d" --hooks index >/dev/null 2>&1 || log_fail "TEST-802 (c): upgrade of a shebang-less hook exited non-zero"
+  [[ "$(sed -n '1p' "$hp")" == "# AAI:GUARD-CHECKS BEGIN" ]] || log_fail "TEST-802 (c): without a shebang the block must start at line 1 (line 1 is: $(sed -n '1p' "$hp"))"
+  sg_strip_block "$hp" > "$d/stripped-c"
+  cmp -s "$d/stripped-c" "$d/orig-c" || log_fail "TEST-802 (c): bytes outside the block changed"
+
+  # (d) a CR-terminated first line: refused by name, file byte-identical.
+  d="$(sg_repo t802d)"
+  hp="$(sg_hook "$d" pre-commit)"
+  mkdir -p "$(dirname "$hp")"
+  printf '#!/bin/sh\r\n# AAI:INDEX-AUTOGEN\r\nexit 0\r\n' > "$hp"
+  chmod +x "$hp"
+  cp "$hp" "$d/orig-d"
+  rc=0
+  out="$(sg_install "$d" --hooks index 2>&1)" || rc=$?
+  [[ $rc -ne 0 ]] || log_fail "TEST-802 (d): a CRLF hook must be refused, got exit 0: $out"
+  cmp -s "$d/orig-d" "$hp" || log_fail "TEST-802 (d): the CRLF hook was modified"
+  assert_payload_contains_i "$out" "CR" "TEST-802 (d): the refusal must name the CR-terminated first line"
+
+  # (e) a symlinked slot: refused before any write, link and target untouched.
+  d="$(sg_repo t802e)"
+  hp="$(sg_hook "$d" pre-commit)"
+  mkdir -p "$(dirname "$hp")"
+  printf '#!/bin/sh\n# AAI:INDEX-AUTOGEN\nexit 0\n' > "$d/real-hook.sh"
+  chmod +x "$d/real-hook.sh"
+  cp "$d/real-hook.sh" "$d/orig-e"
+  ln -s "$d/real-hook.sh" "$hp"
+  rc=0
+  out="$(sg_install "$d" --hooks index 2>&1)" || rc=$?
+  [[ $rc -ne 0 ]] || log_fail "TEST-802 (e): a symlinked hook slot must be refused, got exit 0: $out"
+  [[ -L "$hp" ]] || log_fail "TEST-802 (e): the symlink was replaced"
+  cmp -s "$d/orig-e" "$d/real-hook.sh" || log_fail "TEST-802 (e): the symlink's target was modified"
+  assert_payload_contains_i "$out" "symlink" "TEST-802 (e): the refusal must name the symlink"
+
+  log_pass "TEST-802 upgrade-by-insertion: pre-ride and hand-merged bodies keep every byte outside the block, second run byte-identical with one BEGIN marker, shebang-less inserts at line 1, CRLF and symlinked slots refused by name"
+}
+
+test_803_foreign_refusal_names_print_guard_checks() {  # TEST-803 / Spec-AC-02
+  log_info "Test: a foreign pre-commit hook is refused naming --print guard-checks; --print guard-checks emits the fresh-install block (TEST-803)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local d hp out rc err
+  d="$(sg_repo t803)"
+  hp="$(sg_hook "$d" pre-commit)"
+  mkdir -p "$(dirname "$hp")"
+  printf '#!/bin/sh\necho foreign\n' > "$hp"
+  chmod +x "$hp"
+  cp "$hp" "$d/orig"
+  rc=0
+  err="$(sg_install "$d" --hooks index 2>&1 >/dev/null)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-803: a foreign hook must make the run exit 1, got $rc: $err"
+  cmp -s "$d/orig" "$hp" || log_fail "TEST-803: the foreign hook was modified"
+  assert_payload_contains "$err" "--print guard-checks" "TEST-803: the refusal must name --print guard-checks"
+  assert_payload_contains "$err" "--print" "TEST-803: the refusal must still name --print"
+
+  # --print guard-checks: read-only, and byte-equal to what a fresh install embeds.
+  local d2 hp2
+  d2="$(sg_repo t803p)"
+  rc=0
+  out="$(sg_install "$d2" --print guard-checks)" || rc=$?
+  [[ $rc -eq 0 ]] || log_fail "TEST-803: --print guard-checks expected exit 0, got $rc"
+  [[ ! -e "$(sg_hook "$d2" pre-commit)" ]] || log_fail "TEST-803: --print guard-checks wrote a pre-commit hook (must be read-only)"
+  [[ ! -e "$(sg_hook "$d2" pre-push)" ]] || log_fail "TEST-803: --print guard-checks wrote a pre-push hook (must be read-only)"
+  printf '%s\n' "$out" > "$d2/printed"
+  sg_install "$d2" --hooks index >/dev/null 2>&1 || log_fail "TEST-803: fresh install exited non-zero"
+  hp2="$(sg_hook "$d2" pre-commit)"
+  awk '/^# AAI:GUARD-CHECKS BEGIN$/{p=1} p{print} /^# AAI:GUARD-CHECKS END$/{if(p){exit}}' "$hp2" > "$d2/embedded"
+  [[ -s "$d2/embedded" ]] || log_fail "TEST-803: the fresh install embeds no AAI:GUARD-CHECKS block"
+  cmp -s "$d2/printed" "$d2/embedded" || log_fail "TEST-803: --print guard-checks output differs from the block a fresh install embeds:
+$(diff "$d2/printed" "$d2/embedded" || true)"
+  log_pass "TEST-803 foreign pre-commit refused (exit 1, byte-identical) naming --print guard-checks; --print guard-checks is read-only and byte-equal to the embedded block"
+}
+
+test_804_pre_push_slot_contract() {  # TEST-804 / Spec-AC-03
+  log_info "Test: the pre-push slot — install, selection, foreign refusal, uninstall, --print pre-push, closed set (TEST-804)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local d pp pc out rc err
+  # no flags installs an attested, executable AAI:CLOSE-GATE pre-push
+  d="$(sg_repo t804all)"
+  out="$(sg_install "$d" 2>&1)" || log_fail "TEST-804: a no-flag install exited non-zero: $out"
+  pp="$(sg_hook "$d" pre-push)"
+  [[ -f "$pp" ]] || log_fail "TEST-804: no-flag install left no pre-push at the git-resolved path $pp"
+  grep -qF "# AAI:CLOSE-GATE" "$pp" || log_fail "TEST-804: the installed pre-push does not carry # AAI:CLOSE-GATE"
+  [[ -x "$pp" ]] || log_fail "TEST-804: the installed pre-push is not executable"
+  assert_payload_contains "$out" "Installed AAI pre-push hook (AAI:CLOSE-GATE)" "TEST-804: stdout must announce the pre-push install"
+  cp "$pp" "$d/installed-pre-push"
+
+  # --hooks close-gate alone installs the pre-push and nothing else
+  d="$(sg_repo t804cg)"
+  out="$(sg_install "$d" --hooks close-gate 2>&1)" || log_fail "TEST-804: --hooks close-gate exited non-zero: $out"
+  [[ -f "$(sg_hook "$d" pre-push)" ]] || log_fail "TEST-804: --hooks close-gate installed no pre-push"
+  [[ ! -e "$(sg_hook "$d" pre-commit)" ]] || log_fail "TEST-804: --hooks close-gate wrote the pre-commit slot"
+  [[ ! -e "$(sg_hook "$d" reference-transaction)" ]] || log_fail "TEST-804: --hooks close-gate wrote the reference-transaction slot"
+
+  # --hooks index leaves the pre-push slot absent
+  d="$(sg_repo t804idx)"
+  sg_install "$d" --hooks index >/dev/null 2>&1 || log_fail "TEST-804: --hooks index exited non-zero"
+  [[ ! -e "$(sg_hook "$d" pre-push)" ]] || log_fail "TEST-804: --hooks index wrote a pre-push hook"
+
+  # a foreign pre-push refuses the WHOLE selected run before any slot is written
+  d="$(sg_repo t804f)"
+  pp="$(sg_hook "$d" pre-push)"; pc="$(sg_hook "$d" pre-commit)"
+  mkdir -p "$(dirname "$pp")"
+  printf '#!/bin/sh\necho foreign-pre-push\n' > "$pp"
+  chmod +x "$pp"
+  cp "$pp" "$d/orig-pp"
+  rc=0
+  err="$(sg_install "$d" --hooks index,close-gate 2>&1 >/dev/null)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-804: a foreign pre-push must make the selected run exit 1, got $rc: $err"
+  cmp -s "$d/orig-pp" "$pp" || log_fail "TEST-804: the foreign pre-push was modified"
+  [[ ! -e "$pc" ]] || log_fail "TEST-804: the pre-commit slot was written despite the foreign pre-push refusal (must be atomic)"
+  assert_payload_contains "$err" "--print pre-push" "TEST-804: the refusal must name --print pre-push"
+
+  # --uninstall removes the AAI-marked pre-push and leaves a foreign one
+  d="$(sg_repo t804u)"
+  sg_install "$d" --hooks close-gate >/dev/null 2>&1 || log_fail "TEST-804: install for uninstall arm failed"
+  pp="$(sg_hook "$d" pre-push)"
+  out="$(sg_install "$d" --uninstall --hooks close-gate 2>&1)" || log_fail "TEST-804: --uninstall exited non-zero: $out"
+  [[ ! -e "$pp" ]] || log_fail "TEST-804: --uninstall left the AAI pre-push in place"
+  printf '#!/bin/sh\necho foreign-pre-push\n' > "$pp"
+  cp "$pp" "$d/orig-foreign"
+  sg_install "$d" --uninstall --hooks close-gate >/dev/null 2>&1 || log_fail "TEST-804: --uninstall over a foreign pre-push exited non-zero"
+  cmp -s "$d/orig-foreign" "$pp" || log_fail "TEST-804: --uninstall touched a foreign pre-push"
+
+  # --print pre-push writes nothing and emits the body the install writes
+  d="$(sg_repo t804p)"
+  rc=0
+  out="$(sg_install "$d" --print pre-push)" || rc=$?
+  [[ $rc -eq 0 ]] || log_fail "TEST-804: --print pre-push expected exit 0, got $rc"
+  [[ ! -e "$(sg_hook "$d" pre-push)" ]] || log_fail "TEST-804: --print pre-push wrote a pre-push hook"
+  printf '%s\n' "$out" > "$d/printed"
+  cmp -s "$d/printed" "$TEST_DIR/sg-t804all/installed-pre-push" || log_fail "TEST-804: --print pre-push differs from the installed body:
+$(diff "$d/printed" "$TEST_DIR/sg-t804all/installed-pre-push" || true)"
+
+  # --hooks bogus exits 2 naming the closed set
+  d="$(sg_repo t804bad)"
+  rc=0
+  err="$(sg_install "$d" --hooks bogus 2>&1)" || rc=$?
+  [[ $rc -eq 2 ]] || log_fail "TEST-804: --hooks bogus expected exit 2, got $rc: $err"
+  assert_payload_contains "$err" "index, ref-guard, close-gate, all" "TEST-804: the closed set must read index, ref-guard, close-gate, all"
+  [[ ! -e "$(sg_hook "$d" pre-push)" ]] || log_fail "TEST-804: --hooks bogus wrote a pre-push hook"
+
+  log_pass "TEST-804 pre-push slot: no-flag/--hooks close-gate install an attested AAI:CLOSE-GATE hook, --hooks index leaves it absent, a foreign slot refuses the whole run naming --print pre-push, --uninstall removes only the marked file, --print pre-push matches the install, --hooks bogus names the closed set"
+}
+
+# sg_push <dir> <refspec...> — push, capturing stdout+stderr into <dir>/push.log;
+# prints the exit code (never aborts the arm on its own).
+sg_push() {
+  local d="$1"; shift
+  local rc=0
+  git -C "$d" push "$@" > "$d/push.log" 2>&1 || rc=$?
+  printf '%s' "$rc"
+}
+
+test_805_feature_push_reports_open_doc() {  # TEST-805 / Spec-AC-04
+  log_info "Test: pushing a feature branch that carries a frozen open spec reports it via the pre-push hook; after done it is CLEAN (TEST-805)..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local d bare rc out seed
+  d="$(sg_repo t805)"
+  bare="$TEST_DIR/sg-t805-origin.git"
+  sg_install "$d" --hooks index,close-gate >/dev/null 2>&1 || log_fail "TEST-805: installer failed"
+  seed="$(git -C "$d" rev-parse HEAD)"
+  rc="$(sg_push "$d" -q origin main)"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-805: first push of main must succeed, got $rc: $(cat "$d/push.log")"
+  git -C "$d" checkout -q -b feat
+  sg_write_frozen_spec "$d" "docs/specs/SPEC-DRAFT-t.md" "spec-t" "implementing"
+  git -C "$d" add docs/specs/SPEC-DRAFT-t.md
+  git -C "$d" commit -q -m "freeze t" > "$d/commit-805.log" 2>&1 || log_fail "TEST-805: commit of the frozen spec failed: $(cat "$d/commit-805.log")"
+  rc="$(sg_push "$d" origin feat)"
+  out="$(cat "$d/push.log")"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-805: a report-only feature push must exit 0, got $rc: $out"
+  [[ "$(git -C "$bare" rev-parse refs/heads/feat)" == "$(git -C "$d" rev-parse HEAD)" ]] || log_fail "TEST-805: the remote ref did not move"
+  assert_payload_contains "$out" "AAI:CLOSE-GATE" "TEST-805: the push output must carry the AAI:CLOSE-GATE prefix"
+  assert_payload_contains "$out" "OPEN docs/specs/SPEC-DRAFT-t.md" "TEST-805: close-reconcile must name the open spec"
+  assert_payload_contains "$out" "arm=frozen_work_merged" "TEST-805: the arm must be named"
+  # after the ceremony: done + telemetry -> CLEAN
+  sg_write_frozen_spec "$d" "docs/specs/SPEC-DRAFT-t.md" "spec-t" "done" "$seed"
+  git -C "$d" add docs/specs/SPEC-DRAFT-t.md
+  git -C "$d" commit -q -m "close t" > "$d/commit-805b.log" 2>&1 || log_fail "TEST-805: close commit failed: $(cat "$d/commit-805b.log")"
+  rc="$(sg_push "$d" origin feat)"
+  out="$(cat "$d/push.log")"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-805: push after close must exit 0, got $rc: $out"
+  assert_payload_contains "$out" "close-reconcile: CLEAN" "TEST-805: after the doc reads done the gate must report CLEAN"
+  log_pass "TEST-805 a feature push reports the open frozen spec (AAI:CLOSE-GATE, OPEN, arm=frozen_work_merged) and exits 0; after done it reports close-reconcile: CLEAN"
+}
+
+test_806_enforce_refuses_default_branch_only() {  # TEST-806 / Spec-AC-04
+  log_info "Test: close_gate: enforce in the pushed commit refuses a default-branch push and reports a feature push (TEST-806)..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local d bare rc out seed
+  d="$(sg_repo t806)"
+  bare="$TEST_DIR/sg-t806-origin.git"
+  sg_install "$d" --hooks index,close-gate >/dev/null 2>&1 || log_fail "TEST-806: installer failed"
+  seed="$(git -C "$d" rev-parse HEAD)"
+  rc="$(sg_push "$d" -q origin main)"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-806: seed push failed: $(cat "$d/push.log")"
+  printf 'legacy_until_date: 2020-01-01\nclose_gate: enforce\ndoc_number_guard: report-only\n' > "$d/docs/ai/docs-audit.yaml"
+  sg_write_frozen_spec "$d" "docs/specs/SPEC-DRAFT-t.md" "spec-t" "implementing"
+  git -C "$d" add -A
+  git -C "$d" commit -q -m "freeze t under enforce" > "$d/commit-806.log" 2>&1 || log_fail "TEST-806: commit failed: $(cat "$d/commit-806.log")"
+  rc="$(sg_push "$d" origin main)"
+  out="$(cat "$d/push.log")"
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-806: an enforce push of an open doc to the default branch must be refused, got exit 0: $out"
+  [[ "$(git -C "$bare" rev-parse refs/heads/main)" == "$seed" ]] || log_fail "TEST-806: the remote main moved despite the refusal"
+  assert_payload_contains "$out" "AAI:CLOSE-GATE refused" "TEST-806: the refusal must be named"
+  rc="$(sg_push "$d" origin main:refs/heads/feat2)"
+  out="$(cat "$d/push.log")"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-806: the same commit pushed to a NON-default ref must exit 0 (report-only), got $rc: $out"
+  [[ "$(git -C "$bare" rev-parse refs/heads/feat2)" == "$(git -C "$d" rev-parse HEAD)" ]] || log_fail "TEST-806: the feature ref did not move"
+  assert_payload_contains "$out" "OPEN docs/specs/SPEC-DRAFT-t.md" "TEST-806: the feature push must still carry the report"
+  assert_payload_not_contains "$out" "AAI:CLOSE-GATE refused" "TEST-806: a feature push must never be refused"
+  log_pass "TEST-806 close_gate: enforce refuses only the default-branch push (remote ref unchanged); the same commit to a feature ref is reported and allowed"
+}
+
+test_807_default_branch_resolution_and_notes() {  # TEST-807 / Spec-AC-04
+  log_info "Test: R1 default-branch resolution (origin/HEAD -> trunk), the assumed-main NOTE and the node-absent NOTE (TEST-807)..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local d bare rc out seed
+  d="$(sg_repo t807)"
+  bare="$TEST_DIR/sg-t807-origin.git"
+  sg_install "$d" --hooks index,close-gate >/dev/null 2>&1 || log_fail "TEST-807: installer failed"
+  seed="$(git -C "$d" rev-parse HEAD)"
+  # origin/HEAD unset -> assumed main, named
+  rc="$(sg_push "$d" origin main)"
+  out="$(cat "$d/push.log")"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-807: seed push failed: $out"
+  assert_payload_contains "$out" "default branch assumed main" "TEST-807: with origin/HEAD unset the hook must say it assumed main"
+  # origin/HEAD -> trunk: trunk is the default now; an enforce push of trunk is
+  # the one refused, and main (no longer the default) is report-only.
+  git -C "$d" branch -q trunk
+  rc="$(sg_push "$d" -q origin trunk)"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-807: trunk seed push failed: $(cat "$d/push.log")"
+  git -C "$d" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/trunk
+  git -C "$d" checkout -q trunk
+  printf 'legacy_until_date: 2020-01-01\nclose_gate: enforce\ndoc_number_guard: report-only\n' > "$d/docs/ai/docs-audit.yaml"
+  sg_write_frozen_spec "$d" "docs/specs/SPEC-DRAFT-t.md" "spec-t" "implementing"
+  git -C "$d" add -A
+  git -C "$d" commit -q -m "freeze t on trunk" > "$d/commit-807.log" 2>&1 || log_fail "TEST-807: commit failed: $(cat "$d/commit-807.log")"
+  rc="$(sg_push "$d" origin trunk)"
+  out="$(cat "$d/push.log")"
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-807: with origin/HEAD at trunk an enforce push of trunk must be refused, got exit 0: $out"
+  assert_payload_contains "$out" "trunk" "TEST-807: the hook output must name trunk as the default branch"
+  assert_payload_not_contains "$out" "default branch assumed main" "TEST-807: with origin/HEAD set nothing is assumed"
+  [[ "$(git -C "$bare" rev-parse refs/heads/trunk)" == "$seed" ]] || log_fail "TEST-807: remote trunk moved despite the refusal"
+  rc="$(sg_push "$d" origin trunk:refs/heads/main)"
+  out="$(cat "$d/push.log")"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-807: main is not the default when origin/HEAD is trunk, so its push must be report-only, got $rc: $out"
+  # node absent -> NOTE, exit 0 (a PATH carrying everything but node)
+  local bin="$TEST_DIR/sg-t807-bin" tool
+  rm -rf "$bin"; mkdir -p "$bin"
+  for tool in bash sh git grep sed awk cat printf mktemp rm dirname basename head tail env uname tr; do
+    if command -v "$tool" >/dev/null 2>&1; then ln -s "$(command -v "$tool")" "$bin/$tool"; fi
+  done
+  rc=0
+  env PATH="$bin" git -C "$d" push origin trunk:refs/heads/feat-nonode > "$d/push.log" 2>&1 || rc=$?
+  out="$(cat "$d/push.log")"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-807: with node absent the push must exit 0, got $rc: $out"
+  assert_payload_contains "$out" "AAI:CLOSE-GATE NOTE: node not found" "TEST-807: the node-absent degrade must be a named NOTE"
+  log_pass "TEST-807 origin/HEAD unset -> 'default branch assumed main'; origin/HEAD at trunk -> trunk named and refused under enforce while main is report-only; node absent -> named NOTE, exit 0"
+}
+
+test_813_ps1_twin_parity() {  # TEST-813 / Spec-AC-10
+  log_info "Test: the .ps1 twin ships close-gate, \$prePushBody and the guard block byte-identically (TEST-813)..."
+  [[ -f "$SG_INSTALLER_PS1" ]] || log_fail "TEST-813: missing $SG_INSTALLER_PS1"
+  sg_tmp
+  local d="$TEST_DIR/t813"
+  rm -rf "$d"; mkdir -p "$d"
+  grep -qF "'close-gate'" "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 -Hooks closed set does not declare close-gate"
+  grep -qF 'closed set: index, ref-guard, close-gate, all' "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 closed-set message does not read index, ref-guard, close-gate, all"
+  grep -qF '$prePushBody = @' "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 carries no \$prePushBody here-string"
+  grep -qF '# AAI:CLOSE-GATE' "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 pre-push body carries no # AAI:CLOSE-GATE marker"
+  grep -qF '# AAI:GUARD-CHECKS BEGIN' "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 \$hookBody carries no guard block"
+
+  # guard block: .sh heredoc vs the block inside the .ps1 $hookBody
+  awk '/^cat <<.GUARDBLOCK.$/{p=1; next} /^GUARDBLOCK$/{if(p){exit}} p' "$SG_INSTALLER" > "$d/block.sh"
+  awk '/^# AAI:GUARD-CHECKS BEGIN$/{p=1} p{print} /^# AAI:GUARD-CHECKS END$/{if(p){exit}}' "$SG_INSTALLER_PS1" > "$d/block.ps1"
+  [[ -s "$d/block.sh" && -s "$d/block.ps1" ]] || log_fail "TEST-813: could not extract the guard block from both twins"
+  diff "$d/block.sh" "$d/block.ps1" > "$d/block.diff" || log_fail "TEST-813: the guard block differs between twins:
+$(cat "$d/block.diff")"
+
+  # pre-push body: .sh heredoc vs the .ps1 here-string, modulo the Installed-by line
+  awk '/^cat <<.PREPUSHHOOK.$/{p=1; next} /^PREPUSHHOOK$/{if(p){exit}} p' "$SG_INSTALLER" | grep -v '^# Installed by ' > "$d/prepush.sh"
+  awk '/^\$prePushBody = @.$/{p=1; next} /^.@$/{if(p){exit}} p' "$SG_INSTALLER_PS1" | grep -v '^# Installed by ' > "$d/prepush.ps1"
+  [[ -s "$d/prepush.sh" && -s "$d/prepush.ps1" ]] || log_fail "TEST-813: could not extract the pre-push body from both twins"
+  diff "$d/prepush.sh" "$d/prepush.ps1" > "$d/prepush.diff" || log_fail "TEST-813: the pre-push body differs between twins:
+$(cat "$d/prepush.diff")"
+
+  # behavioural arm (pwsh only): the .ps1 upgrade inserts the block and keeps every other byte
+  if command -v pwsh >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
+    local r hp
+    r="$(sg_repo t813pwsh)"
+    cp "$SG_INSTALLER_PS1" "$r/.aai/scripts/install-pre-commit-hook.ps1"
+    hp="$(sg_hook "$r" pre-commit)"
+    mkdir -p "$(dirname "$hp")"
+    bash "$SG_INSTALLER" --print index > "$hp"
+    chmod +x "$hp"
+    cp "$hp" "$r/orig"
+    local pout prc=0
+    pout="$(sg_install_ps1 "$r" -Hooks index 2>&1)" || prc=$?
+    [[ $prc -eq 0 ]] || log_fail "TEST-813 pwsh: the .ps1 upgrade exited $prc: $pout"
+    [[ "$(sed -n '2p' "$hp")" == "# AAI:GUARD-CHECKS BEGIN" ]] || log_fail "TEST-813 pwsh: the block was not inserted after the shebang"
+    sg_strip_block "$hp" > "$r/stripped"
+    cmp -s "$r/stripped" "$r/orig" || log_fail "TEST-813 pwsh: bytes outside the inserted block changed"
+    cp "$hp" "$r/after"
+    sg_install_ps1 "$r" -Hooks index >/dev/null 2>&1 || log_fail "TEST-813 pwsh: second run exited non-zero"
+    cmp -s "$r/after" "$hp" || log_fail "TEST-813 pwsh: second run changed the hook"
+    log_pass "TEST-813 twins byte-identical (guard block, pre-push body modulo Installed-by); pwsh upgrade inserts once, other bytes untouched"
+  else
+    log_pass "TEST-813 twins byte-identical (guard block, pre-push body modulo Installed-by); SKIP: pwsh behavioural arm (pwsh not installed)"
+  fi
+}
+
+test_814_disclosure_and_docs() {  # TEST-814 / Spec-AC-11
+  log_info "Test: --help, the install disclosure, USER_GUIDE and CHANGELOG state the hooks, the range rule, the behaviour change, the grammar and CAT-18 (TEST-814)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local out
+  out="$(bash "$SG_INSTALLER" --help 2>&1)"
+  assert_payload_contains "$out" "token close-gate" "TEST-814: --help must name the close-gate token"
+  assert_payload_contains "$out" "index, ref-guard, close-gate, all" "TEST-814: --help must name the closed set"
+  assert_payload_contains "$out" "--print guard-checks" "TEST-814: --help must name --print guard-checks"
+  assert_payload_contains "$out" "--print pre-push" "TEST-814: --help must name --print pre-push"
+  assert_payload_contains "$out" "ref_guard: declined" "TEST-814: --help must state that a plain run honours ref_guard: declined"
+  assert_payload_contains "$out" "AAI:CLOSE-GATE" "TEST-814: --help must name the pre-push marker"
+
+  local d
+  d="$(sg_repo t814)"
+  out="$(sg_install "$d" --hooks index 2>&1)" || log_fail "TEST-814: fresh install failed: $out"
+  assert_payload_contains "$out" "pre-commit-checks.sh now runs on every commit" "TEST-814: a fresh install must disclose that pre-commit-checks.sh now runs"
+  assert_payload_contains "$out" "secrets detection blocks" "TEST-814: a fresh install must disclose that secrets detection blocks"
+
+  local ug="$PROJECT_ROOT/docs/USER_GUIDE.md"
+  grep -qF "AAI:INDEX-AUTOGEN" "$ug" || log_fail "TEST-814: USER_GUIDE does not name AAI:INDEX-AUTOGEN"
+  grep -qF "AAI:GUARD-CHECKS" "$ug" || log_fail "TEST-814: USER_GUIDE does not name AAI:GUARD-CHECKS"
+  grep -qF "AAI:CLOSE-GATE" "$ug" || log_fail "TEST-814: USER_GUIDE does not name AAI:CLOSE-GATE"
+  grep -qF "AAI:REF-GUARD" "$ug" || log_fail "TEST-814: USER_GUIDE does not name AAI:REF-GUARD"
+  grep -qF "merge-base" "$ug" || log_fail "TEST-814: USER_GUIDE does not state the feature-branch range rule"
+  grep -qiF "default branch only" "$ug" || log_fail "TEST-814: USER_GUIDE does not state enforce-on-default-branch-only"
+  grep -qF "Merged PR" "$ug" || log_fail "TEST-814: USER_GUIDE does not name the Azure grammar"
+  grep -qF "no shipped grammar matches this host" "$ug" || log_fail "TEST-814: USER_GUIDE does not quote the refusal text"
+  grep -qF "CAT-18" "$ug" || log_fail "TEST-814: USER_GUIDE does not name CAT-18"
+  grep -qF "close-reconcile.mjs --check --range" "$ug" || log_fail "TEST-814: USER_GUIDE does not give the one CI command"
+  grep -qF "secrets detection" "$ug" || log_fail "TEST-814: USER_GUIDE does not disclose the secrets behaviour change"
+
+  grep -qE '^## \[unreleased\] — .*(guard|hook|close gate)' "$PROJECT_ROOT/CHANGELOG.md" \
+    || log_fail "TEST-814: CHANGELOG has no '## [unreleased] — ' heading for this ride"
+  grep -qF "pre-commit-checks.sh" "$PROJECT_ROOT/CHANGELOG.md" || log_fail "TEST-814: CHANGELOG does not name pre-commit-checks.sh"
+  log_pass "TEST-814 --help, the install disclosure, USER_GUIDE and CHANGELOG state the hook set, the range rule, the behaviour change, the Azure grammar refusal and CAT-18"
+}
+
+test_815_suite_map_and_registration() {  # TEST-815 / Spec-AC-12
+  log_info "Test: suite-map rows glob the installer and pr-platform.mjs; check-test-registration exits 0 (TEST-815)..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  sg_tmp
+  local map="$PROJECT_ROOT/tests/skills/suite-map.yaml"
+  awk '/^  aai-hygiene-pack:$/{f=1;next} /^  aai-[a-z0-9-]+:$/{f=0} f' "$map" > "$TEST_DIR/t815-hp.txt"
+  grep -qF ".aai/scripts/install-pre-commit-hook.sh" "$TEST_DIR/t815-hp.txt" \
+    || log_fail "TEST-815: suite-map row aai-hygiene-pack does not glob .aai/scripts/install-pre-commit-hook.sh"
+  awk '/^  aai-close-reconcile:$/{f=1;next} /^  aai-[a-z0-9-]+:$/{f=0} f' "$map" > "$TEST_DIR/t815-cr.txt"
+  grep -qF ".aai/scripts/pr-platform.mjs" "$TEST_DIR/t815-cr.txt" \
+    || log_fail "TEST-815: suite-map row aai-close-reconcile does not glob .aai/scripts/pr-platform.mjs (close-reconcile.mjs's new import)"
+  local rc=0 out
+  out="$(node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc=$?
+  [[ $rc -eq 0 ]] || log_fail "TEST-815: check-test-registration.mjs exited $rc: $out"
+  log_pass "TEST-815 suite-map globs the installer and pr-platform.mjs; every test function is registered"
+}
+
+test_816_default_unchanged_and_pushed_config_wins() {  # TEST-816 / Spec-AC-06
+  log_info "Test: shipped default stays report-only, GUARD_DIALS unchanged, the pre-push reads the PUSHED commit's close_gate (TEST-816)..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local n
+  n="$(grep -c '^doc_number_guard: report-only$' "$PROJECT_ROOT/.aai/templates/docs-audit.template.yaml")"
+  [[ "$n" -eq 1 ]] || log_fail "TEST-816: the template must carry exactly one column-0 'doc_number_guard: report-only' line, got $n"
+  n="$(node --input-type=module -e 'const { GUARD_DIALS } = await import(process.argv[1]); console.log(GUARD_DIALS.length);' "$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs")"
+  [[ "$n" == "7" ]] || log_fail "TEST-816: GUARD_DIALS must still have 7 entries, got $n"
+  local d rc out
+  d="$(sg_repo t816)"
+  sg_install "$d" --hooks index,close-gate >/dev/null 2>&1 || log_fail "TEST-816: installer failed"
+  rc="$(sg_push "$d" -q origin main)"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-816: seed push failed: $(cat "$d/push.log")"
+  sg_write_frozen_spec "$d" "docs/specs/SPEC-DRAFT-t.md" "spec-t" "implementing"
+  git -C "$d" add -A
+  git -C "$d" commit -q -m "freeze t (config committed report-only)" > "$d/commit-816.log" 2>&1 || log_fail "TEST-816: commit failed: $(cat "$d/commit-816.log")"
+  # the WORKTREE copy says enforce; the pushed commit says report-only
+  printf 'legacy_until_date: 2020-01-01\nclose_gate: enforce\ndoc_number_guard: report-only\n' > "$d/docs/ai/docs-audit.yaml"
+  rc="$(sg_push "$d" origin main)"
+  out="$(cat "$d/push.log")"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-816: the pushed commit's config is report-only, so the push must exit 0 (the worktree copy must not decide), got $rc: $out"
+  assert_payload_contains "$out" "OPEN docs/specs/SPEC-DRAFT-t.md" "TEST-816: the report must still be printed"
+  log_pass "TEST-816 template default report-only (one line), GUARD_DIALS.length 7, and the pre-push decides on the pushed commit's close_gate, never the worktree copy"
+}
+
+# sg_outside_interior <file> — the file's bytes outside the guard block's
+# INTERIOR (both marker lines kept), under LC_ALL=C so a non-UTF-8 byte in a
+# user line is copied, not transcoded. What a refresh must leave untouched.
+sg_outside_interior() {
+  LC_ALL=C awk '/^# AAI:GUARD-CHECKS BEGIN$/{print; skip=1; next} /^# AAI:GUARD-CHECKS END$/{skip=0} !skip' "$1"
+}
+
+# sg_interior <file> — the lines strictly between the two markers.
+sg_interior() {
+  LC_ALL=C awk '/^# AAI:GUARD-CHECKS BEGIN$/{p=1; next} /^# AAI:GUARD-CHECKS END$/{p=0} p' "$1"
+}
+
+# sg_hostile_hooks <dir> <body-file> — the four hostile pre-commit slots
+# TEST-817 and TEST-818 feed to each twin, written under <dir>/h-*:
+#   h-inverted   END above BEGIN around a user line (validation B1)
+#   h-stray-end  an END line and no BEGIN
+#   h-refresh    an edited interior, a Latin-1 / raw-byte user comment
+#                (e9, ff fe) outside the block, and a final line with NO
+#                trailing newline (validation B2)
+#   h-bom        the pre-ride body behind a UTF-8 BOM (validation NB1)
+sg_hostile_hooks() {
+  local d="$1" body="$2"
+  { head -n1 "$body"; printf '# AAI:GUARD-CHECKS END\necho user-line\n# AAI:GUARD-CHECKS BEGIN\n'; tail -n +2 "$body"; } > "$d/h-inverted"
+  { head -n1 "$body"; printf '# AAI:GUARD-CHECKS END\n'; tail -n +2 "$body"; } > "$d/h-stray-end"
+  { head -n1 "$body"; bash "$SG_INSTALLER" --print guard-checks | sed 's/_gc_rc=0$/_gc_rc=0 # user edit/'; printf '# caf\xe9 user comment \xff\xfe raw bytes\n'; tail -n +2 "$body"; printf 'echo last-line-no-newline'; } > "$d/h-refresh"
+  { printf '\xef\xbb\xbf'; cat "$body"; } > "$d/h-bom"
+  chmod +x "$d"/h-*
+}
+
+# sg_assert_refresh_byte_exact <label> <orig> <hook> — the refresh
+# post-condition both twins must meet: every byte outside the interior is
+# unchanged (raw e9 / ff fe bytes included, the missing final newline
+# included), and the interior now equals the shipped one.
+sg_assert_refresh_byte_exact() {
+  local label="$1" orig="$2" hp="$3"
+  sg_outside_interior "$orig" > "$orig.outside"
+  sg_outside_interior "$hp" > "$hp.outside"
+  cmp -s "$orig.outside" "$hp.outside" || log_fail "$label: bytes outside the refreshed interior changed:
+$(LC_ALL=C diff "$orig.outside" "$hp.outside" | qhead -n 12 || true)"
+  [[ "$(LC_ALL=C grep -c $'caf\xe9 user comment \xff\xfe raw bytes' "$hp")" -eq 1 ]] \
+    || log_fail "$label: the raw e9 / ff fe bytes outside the block did not survive the refresh (bytes now: $(LC_ALL=C grep -a 'user comment' "$hp" | od -An -tx1 | tr -s ' \n' ' '))"
+  [[ "$(tail -c1 "$hp" | od -An -c | tr -d ' ')" != '\n' ]] || log_fail "$label: the refresh appended a newline to a final line that had none"
+  bash "$SG_INSTALLER" --print guard-checks > "$hp.shipped"
+  sg_interior "$hp" > "$hp.interior"
+  sg_interior "$hp.shipped" > "$hp.shipped-interior"
+  cmp -s "$hp.interior" "$hp.shipped-interior" || log_fail "$label: the refreshed interior is not the shipped interior"
+}
+
+test_817_marker_order_and_ownership_are_exact() {  # TEST-817 / Spec-AC-13
+  log_info "Test: inverted or stray GUARD markers, a BOM and a merely-mentioned INDEX marker are refused byte-identical; a refresh keeps every byte outside the interior (TEST-817)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local d hp out rc body
+  d="$(sg_repo t817)"
+  hp="$(sg_hook "$d" pre-commit)"
+  mkdir -p "$(dirname "$hp")"
+  body="$d/body"
+  bash "$SG_INSTALLER" --print index > "$body"
+  sg_hostile_hooks "$d" "$body"
+
+  # (a) END above BEGIN: refused BEFORE any write, both line numbers named.
+  cp -p "$d/h-inverted" "$hp"
+  rc=0; out="$(sg_install "$d" --hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-817 (a): inverted markers must make the run exit 1, got $rc: $out"
+  cmp -s "$d/h-inverted" "$hp" || log_fail "TEST-817 (a): the hook with inverted markers was rewritten ($(wc -l < "$d/h-inverted" | tr -d ' ') lines before, $(wc -l < "$hp" | tr -d ' ') after)"
+  assert_payload_contains "$out" "(line 2) BEFORE '# AAI:GUARD-CHECKS BEGIN' (line 4)" "TEST-817 (a): the refusal must name the END line (2) and the BEGIN line (4)"
+  assert_payload_contains "$out" "--force" "TEST-817 (a): the refusal must name --force as the way past it"
+  assert_payload_not_contains "$out" "Refreshed" "TEST-817 (a): a refused run must not announce a refresh"
+
+  # (b) an END line with no BEGIN: refused, never inserted above.
+  cp -p "$d/h-stray-end" "$hp"
+  rc=0; out="$(sg_install "$d" --hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-817 (b): a stray END marker must make the run exit 1, got $rc: $out"
+  cmp -s "$d/h-stray-end" "$hp" || log_fail "TEST-817 (b): the hook with a stray END marker was rewritten"
+  assert_payload_contains "$out" "no '# AAI:GUARD-CHECKS BEGIN'" "TEST-817 (b): the refusal must name the missing BEGIN"
+
+  # (c) refresh path: interior replaced, every other byte as it was.
+  cp -p "$d/h-refresh" "$hp"
+  rc=0; out="$(sg_install "$d" --hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 0 ]] || log_fail "TEST-817 (c): the refresh run must exit 0, got $rc: $out"
+  assert_payload_contains "$out" "Refreshed the AAI:GUARD-CHECKS block" "TEST-817 (c): the refresh must be announced"
+  sg_assert_refresh_byte_exact "TEST-817 (c)" "$d/h-refresh" "$hp"
+
+  # (d) a UTF-8 BOM: refused by name, byte-identical.
+  cp -p "$d/h-bom" "$hp"
+  rc=0; out="$(sg_install "$d" --hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-817 (d): a BOM hook must make the run exit 1, got $rc: $out"
+  cmp -s "$d/h-bom" "$hp" || log_fail "TEST-817 (d): the BOM hook was rewritten"
+  assert_payload_contains "$out" "byte-order mark" "TEST-817 (d): the refusal must name the byte-order mark"
+
+  # (e) ownership is a marker OPENING a line: a foreign hook that merely
+  # mentions the marker in a comment, or quotes it in a string, is refused
+  # as foreign and is NOT deleted by --uninstall.
+  local variant
+  for variant in comment string; do
+    if [[ "$variant" == comment ]]; then
+      printf '#!/bin/sh\n# replaced the old # AAI:INDEX-AUTOGEN hook with my own\nnpm test\n' > "$hp"
+    else
+      printf '#!/bin/sh\necho "# AAI:INDEX-AUTOGEN is what the AAI hook says"\nexit 0\n' > "$hp"
+    fi
+    chmod +x "$hp"
+    cp -p "$hp" "$d/orig-e-$variant"
+    rc=0; out="$(sg_install "$d" --hooks index 2>&1)" || rc=$?
+    [[ $rc -eq 1 ]] || log_fail "TEST-817 (e/$variant): a foreign hook mentioning the marker must be refused (exit 1), got $rc: $out"
+    cmp -s "$d/orig-e-$variant" "$hp" || log_fail "TEST-817 (e/$variant): the foreign hook was rewritten"
+    assert_payload_contains "$out" "not AAI-managed" "TEST-817 (e/$variant): the refusal must say the hook is not AAI-managed"
+    rc=0; out="$(sg_install "$d" --uninstall --hooks index 2>&1)" || rc=$?
+    [[ $rc -eq 0 ]] || log_fail "TEST-817 (e/$variant): --uninstall must exit 0, got $rc: $out"
+    [[ -f "$hp" ]] || log_fail "TEST-817 (e/$variant): --uninstall DELETED a foreign hook that merely mentions the marker"
+    cmp -s "$d/orig-e-$variant" "$hp" || log_fail "TEST-817 (e/$variant): --uninstall changed the foreign hook"
+    assert_payload_contains "$out" "No AAI pre-commit hook found" "TEST-817 (e/$variant): --uninstall must report that no AAI hook was found"
+  done
+  log_pass "TEST-817 inverted markers, a stray END, a BOM and a merely-mentioned marker are refused with the file byte-identical; the refresh keeps every byte outside the interior (raw e9/ff fe, missing final newline) and --uninstall never deletes a foreign hook"
+}
+
+
+test_819_nonregular_slot_is_refused_before_any_write() {  # TEST-819 / Spec-AC-13
+  log_info "Test: a hook slot that is a directory is refused before any write — no success line, no stray temp file inside it (TEST-819)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  sg_tmp
+  local d slot before after out rc
+  d="$(sg_repo t819)"
+  slot="$(sg_hook "$d" pre-push)"
+  mkdir -p "$slot"
+  printf 'my data\n' > "$slot/user-file"
+  before="$(ls -A "$slot" | sort | tr '\n' ' ')"
+
+  rc=0; out="$(sg_install "$d" --hooks close-gate 2>&1)" || rc=$?
+  after="$(ls -A "$slot" | sort | tr '\n' ' ')"
+
+  # validation round 2 B1: `mv -f` into a directory moves the temp INSIDE it
+  # and exits 0, so the writer announced an install that never happened and
+  # left an executable in the user's directory.
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "TEST-819: a directory in the pre-push slot must refuse (non-zero), got rc=$rc"
+  case "$out" in
+    *"Installed AAI pre-push hook"*)
+      log_fail "TEST-819: the run announced an install while the slot was a directory: $out" ;;
+  esac
+  case "$out" in
+    *"is a directory, not a regular file"*) : ;;
+    *) log_fail "TEST-819: the refusal must name the slot as a directory; got: $out" ;;
+  esac
+  [[ -d "$slot" ]] \
+    || log_fail "TEST-819: the user's directory was replaced"
+
+  # validation round 3 B1: the same lie through a SYMLINK to a directory —
+  # `mv -f` follows the link, so the body landed inside the target, including
+  # a target outside the repository, while the run printed "Installed".
+  local out2 rc2 od ob oa
+  od="$TEST_DIR/t819-outside"
+  mkdir -p "$od"
+  printf 'precious\n' > "$od/user-file"
+  ob="$(ls -A "$od" | sort | tr '\n' ' ')"
+  rm -rf "$slot"
+  ln -s "$od" "$slot"
+  rc2=0; out2="$(sg_install "$d" --hooks close-gate 2>&1)" || rc2=$?
+  oa="$(ls -A "$od" | sort | tr '\n' ' ')"
+  [[ "$rc2" -ne 0 ]] \
+    || log_fail "TEST-819: a symlink-to-directory slot must refuse, got rc=$rc2"
+  case "$out2" in
+    *"Installed AAI pre-push hook"*)
+      log_fail "TEST-819: the run announced an install through a symlink to a directory: $out2" ;;
+  esac
+  [[ "$ob" == "$oa" ]] \
+    || log_fail "TEST-819: the symlink's target directory changed (before [$ob] after [$oa]) — the body was written through the link"
+  [[ -L "$slot" ]] \
+    || log_fail "TEST-819: the symlink was replaced instead of refused"
+  [[ "$before" == "$after" ]] \
+    || log_fail "TEST-819: the directory gained or lost entries (before [$before] after [$after]) — a temp file was moved inside it"
+
+  log_pass "TEST-819 a non-regular hook slot is refused before any write, with no success line and nothing left inside it"
+}
+
+test_818_ps1_upgrade_is_byte_exact_and_order_checked() {  # TEST-818 / Spec-AC-13
+  log_info "Test: the .ps1 twin checks marker order before any write and refreshes on bytes (static; behavioural under pwsh) (TEST-818)..."
+  [[ -f "$SG_INSTALLER_PS1" ]] || log_fail "TEST-818: missing $SG_INSTALLER_PS1"
+  sg_tmp
+  # static: the order comparison, the byte-level marker scan, and no
+  # decode-split-join-re-encode round-trip anywhere in the twin.
+  grep -qF '$beginLn -gt $endLn' "$SG_INSTALLER_PS1" || log_fail "TEST-818: the .ps1 carries no BEGIN-before-END line-number check (\$beginLn -gt \$endLn)"
+  grep -qF 'function Find-MarkerLines' "$SG_INSTALLER_PS1" || log_fail "TEST-818: the .ps1 carries no byte-level Find-MarkerLines"
+  grep -qF 'function Test-MarkerOwned' "$SG_INSTALLER_PS1" || log_fail "TEST-818: the .ps1 carries no byte-level Test-MarkerOwned"
+  if grep -qF 'UTF8.GetString(' "$SG_INSTALLER_PS1"; then log_fail "TEST-818: the .ps1 still decodes the hook as UTF-8 text (UTF8.GetString) — a refresh on decoded text re-encodes bytes outside the markers"; fi
+  local esc
+  for esc in '[regex]::Escape($marker)' '[regex]::Escape($Marker)'; do
+    if grep -qF "$esc" "$SG_INSTALLER_PS1"; then log_fail "TEST-818: the .ps1 still tests ownership on decoded text ($esc)"; fi
+  done
+  if ! command -v pwsh >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
+    log_pass "TEST-818 .ps1 checks marker order and scans markers on bytes (static); SKIP: behavioural arm (pwsh not installed)"
+    return 0
+  fi
+  local d hp out rc body
+  d="$(sg_repo t818)"
+  cp "$SG_INSTALLER_PS1" "$d/.aai/scripts/install-pre-commit-hook.ps1"
+  hp="$(sg_hook "$d" pre-commit)"
+  mkdir -p "$(dirname "$hp")"
+  body="$d/body"
+  bash "$SG_INSTALLER" --print index > "$body"
+  sg_hostile_hooks "$d" "$body"
+
+  cp -p "$d/h-inverted" "$hp"
+  rc=0; out="$(sg_install_ps1 "$d" -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-818 pwsh (a): inverted markers must make the run exit 1, got $rc: $out"
+  cmp -s "$d/h-inverted" "$hp" || log_fail "TEST-818 pwsh (a): the hook with inverted markers was rewritten ($(wc -l < "$d/h-inverted" | tr -d ' ') lines before, $(wc -l < "$hp" | tr -d ' ') after)"
+  assert_payload_contains "$out" "(line 2) BEFORE '# AAI:GUARD-CHECKS BEGIN' (line 4)" "TEST-818 pwsh (a): the refusal must name the END line (2) and the BEGIN line (4)"
+  assert_payload_not_contains "$out" "Refreshed" "TEST-818 pwsh (a): a refused run must not announce a refresh"
+
+  cp -p "$d/h-stray-end" "$hp"
+  rc=0; out="$(sg_install_ps1 "$d" -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-818 pwsh (b): a stray END marker must make the run exit 1, got $rc: $out"
+  cmp -s "$d/h-stray-end" "$hp" || log_fail "TEST-818 pwsh (b): the hook with a stray END marker was rewritten"
+
+  cp -p "$d/h-refresh" "$hp"
+  rc=0; out="$(sg_install_ps1 "$d" -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 0 ]] || log_fail "TEST-818 pwsh (c): the refresh run must exit 0, got $rc: $out"
+  assert_payload_contains "$out" "Refreshed the AAI:GUARD-CHECKS block" "TEST-818 pwsh (c): the refresh must be announced"
+  sg_assert_refresh_byte_exact "TEST-818 pwsh (c)" "$d/h-refresh" "$hp"
+
+  cp -p "$d/h-bom" "$hp"
+  rc=0; out="$(sg_install_ps1 "$d" -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-818 pwsh (d): a BOM hook must make the run exit 1, got $rc: $out"
+  cmp -s "$d/h-bom" "$hp" || log_fail "TEST-818 pwsh (d): the BOM hook was rewritten"
+  assert_payload_contains "$out" "byte-order mark" "TEST-818 pwsh (d): the refusal must name the byte-order mark"
+
+  # (f) a UTF-16LE+BOM file decodes into the marker on text but carries no
+  # marker on disk: refused as foreign, byte-identical (never inserted into).
+  { printf '\xff\xfe'; iconv -f UTF-8 -t UTF-16LE "$body"; } > "$hp"
+  chmod +x "$hp"
+  cp -p "$hp" "$d/orig-utf16"
+  rc=0; out="$(sg_install_ps1 "$d" -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-818 pwsh (f): a UTF-16 hook must be refused (exit 1), got $rc: $out"
+  cmp -s "$d/orig-utf16" "$hp" || log_fail "TEST-818 pwsh (f): the UTF-16 hook was rewritten ($(wc -c < "$d/orig-utf16" | tr -d ' ') bytes before, $(wc -c < "$hp" | tr -d ' ') after)"
+  assert_payload_contains "$out" "not AAI-managed" "TEST-818 pwsh (f): the UTF-16 hook must be refused as foreign"
+
+  printf '#!/bin/sh\n# replaced the old # AAI:INDEX-AUTOGEN hook with my own\nnpm test\n' > "$hp"
+  chmod +x "$hp"
+  cp -p "$hp" "$d/orig-e"
+  rc=0; out="$(sg_install_ps1 "$d" -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 1 ]] || log_fail "TEST-818 pwsh (e): a foreign hook mentioning the marker must be refused (exit 1), got $rc: $out"
+  cmp -s "$d/orig-e" "$hp" || log_fail "TEST-818 pwsh (e): the foreign hook was rewritten"
+  rc=0; out="$(sg_install_ps1 "$d" -Uninstall -Hooks index 2>&1)" || rc=$?
+  [[ $rc -eq 0 && -f "$hp" ]] || log_fail "TEST-818 pwsh (e): -Uninstall must exit 0 and leave a foreign hook in place (rc=$rc): $out"
+  cmp -s "$d/orig-e" "$hp" || log_fail "TEST-818 pwsh (e): -Uninstall changed the foreign hook"
+  log_pass "TEST-818 .ps1 checks marker order and scans markers on bytes (static); under pwsh inverted markers, a stray END, a BOM, a UTF-16 hook and a merely-mentioned marker are refused byte-identical and the refresh keeps every byte outside the interior"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -4652,6 +5547,21 @@ main() {
   test_130_node_bash_selector_scanner_whitespace_parity
   test_131_vendored_script_deps_gate_and_bite
   test_618_ref_guard_grep_conformance
+  test_800_installed_hook_reaches_guard
+  test_801_guard_block_propagates_block
+  test_802_upgrade_inserts_once
+  test_803_foreign_refusal_names_print_guard_checks
+  test_804_pre_push_slot_contract
+  test_805_feature_push_reports_open_doc
+  test_806_enforce_refuses_default_branch_only
+  test_807_default_branch_resolution_and_notes
+  test_813_ps1_twin_parity
+  test_814_disclosure_and_docs
+  test_815_suite_map_and_registration
+  test_816_default_unchanged_and_pushed_config_wins
+  test_817_marker_order_and_ownership_are_exact
+  test_818_ps1_upgrade_is_byte_exact_and_order_checked
+  test_819_nonregular_slot_is_refused_before_any_write
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

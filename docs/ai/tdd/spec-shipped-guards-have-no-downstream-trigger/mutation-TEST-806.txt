@@ -1,0 +1,28 @@
+mutation_record: v1
+spec_id: spec-shipped-guards-have-no-downstream-trigger
+test_id: TEST-806
+suite: tests/skills/test-aai-hygiene-pack.sh
+selector: test_806_enforce_refuses_default_branch_only
+target: .aai/scripts/install-pre-commit-hook.sh
+mutation: sed:s/_cg_mode="enforce"/_cg_mode="report-only"/
+base_commit: 3d9e2a6dc7744dd9ae8e8179efb72a56a62db329
+tree_hash: 17f7ee93a77cc56e750d5accadbdbf868840298faf93a81141c497d5d7acb2ee
+run_at_utc: 2026-09-30T20:52:40Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-806: an enforce push of an open doc to the default branch must be refused, got exit 0: AAI:CLOSE-GATE NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)
+selector_honoured: yes
+target_sha256: 896936f4fbb2b67857ae91a846052495aa26f3e3d82857ae9baf1609a6aa85a6
+---
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: close_gate: enforce in the pushed commit refuses a default-branch push and reports a feature push (TEST-806)...
+FAIL: TEST-806: an enforce push of an open doc to the default branch must be refused, got exit 0: AAI:CLOSE-GATE NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)
+AAI:CLOSE-GATE: default branch main (remote origin)
+AAI:CLOSE-GATE: refs/heads/main range=ce731d0bbc23ba618b070f90dbd2a954ab6d29c1..b70baa11319ead2a0072c812131597865e9b5c6f close_gate=report-only
+close-reconcile: OPEN docs/specs/SPEC-DRAFT-t.md id=spec-t arm=frozen_work_merged sha=b70baa11319ead2a0072c812131597865e9b5c6f reason=pr-number-unknown platform=unknown grammars-tried=github,azure — no shipped grammar matches this host; add one to close-reconcile.mjs
+close-reconcile:   remediation: BLOCKED — no commit subject touching docs/specs/SPEC-DRAFT-t.md matches a PR-number grammar (platform=unknown grammars-tried=github,azure — no shipped grammar matches this host; add one to close-reconcile.mjs), so no PR number can be resolved for this item; this cannot be closed by command until one is known
+close-reconcile: 1 item(s) found — the close ceremony did not run before merge
+AAI:CLOSE-GATE: reported for refs/heads/main (close_gate=report-only; push allowed)
+To /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T//aai-hygiene.CDjIxF/sg-t806-origin.git
+   ce731d0..b70baa1  main -> main

@@ -631,9 +631,9 @@ test_015_json_shape() {
       const die = (m) => { console.error(m); process.exit(1); };
       if (typeof j.root !== "string") die("root missing/wrong type");
       if (typeof j.generatedAt !== "string") die("generatedAt missing/wrong type");
-      if (!Array.isArray(j.categories) || j.categories.length !== 17) die("categories: want array of 17, got " + (j.categories && j.categories.length));
+      if (!Array.isArray(j.categories) || j.categories.length !== 18) die("categories: want array of 18, got " + (j.categories && j.categories.length));
       const wantIds = [];
-      for (let i = 1; i <= 17; i++) wantIds.push("CAT-" + String(i).padStart(2, "0"));
+      for (let i = 1; i <= 18; i++) wantIds.push("CAT-" + String(i).padStart(2, "0"));
       const gotIds = j.categories.map(c => c.id);
       if (JSON.stringify(gotIds) !== JSON.stringify(wantIds)) die("category ids: " + JSON.stringify(gotIds));
       for (const c of j.categories) {
@@ -650,7 +650,7 @@ test_015_json_shape() {
       if (typeof j.issues !== "number") die("issues not a number");
       if (typeof j.exit !== "number") die("exit not a number");
     });
-  ' && log_pass "TEST-015 --json emits the documented shape (17 categories, CAT-01..17, CAT-14/15/16 carry detail)" \
+  ' && log_pass "TEST-015 --json emits the documented shape (18 categories, CAT-01..18, CAT-14/15/16 carry detail)" \
     || log_fail "TEST-015 --json shape"
 }
 
@@ -1023,7 +1023,7 @@ test_028_output_shape_growth() {
     process.stdin.on("end", () => {
       const j = JSON.parse(d);
       const die = (m) => { console.error(m); process.exit(1); };
-      if (j.categories.length !== 17) die("categories.length=" + j.categories.length + " (want 17)");
+      if (j.categories.length !== 18) die("categories.length=" + j.categories.length + " (want 18)");
       for (let i = 1; i <= 13; i++) {
         const id = "CAT-" + String(i).padStart(2, "0");
         const c = j.categories.find(x => x.id === id);
@@ -1034,7 +1034,7 @@ test_028_output_shape_growth() {
         if (!c || typeof c.detail !== "object" || c.detail === null) die(id + " missing a structured detail object under --json");
       }
     });
-  ' && log_pass "TEST-028 output shape: one line each, --json detail, CAT-01..13 unchanged, 13->17 growth" \
+  ' && log_pass "TEST-028 output shape: one line each, --json detail, CAT-01..13 unchanged, 13->18 growth (CAT-18 Guard Wiring, shipped-guards-have-no-downstream-trigger)" \
     || log_fail "TEST-028 output shape growth"
 }
 
@@ -2054,6 +2054,111 @@ test_439_argv1_guard_resolves_symlinks() {
     || log_fail "TEST-439 argv[1] main-guard symlink resolution"
 }
 
+# --- TEST-812 (shipped-guards-have-no-downstream-trigger, Spec-AC-09) ------
+# CAT-18 Guard Wiring: a CLOSED table of guard -> (hook, marker) pairs —
+# (pre-commit-checks.sh, pre-commit, AAI:GUARD-CHECKS) and
+# (close-reconcile.mjs, pre-push, AAI:CLOSE-GATE). A pair whose guard file is
+# absent is not reported; the effective hook path is resolved the way CAT-17
+# does (`git rev-parse --git-path`, so core.hooksPath is honoured); PASS needs
+# marker + executable bit. The PASS state is produced by the REAL installer
+# (seam S6) so a drifted marker literal on either side reddens this test.
+t812_repo() {
+  local d="$TMP_ROOT/$1"
+  rm -rf "$d"; mkdir -p "$d/.aai/scripts/lib"
+  git -C "$d" init -q -b main
+  git -C "$d" config user.email "test@example.invalid"; git -C "$d" config user.name "AAI Test"
+  git -C "$d" commit -q --allow-empty -m init
+  cp "$PROJECT_ROOT/.aai/scripts/pre-commit-checks.sh" "$d/.aai/scripts/pre-commit-checks.sh"
+  cp "$PROJECT_ROOT/.aai/scripts/close-reconcile.mjs" "$d/.aai/scripts/close-reconcile.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/pr-platform.mjs" "$d/.aai/scripts/pr-platform.mjs"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  cp "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" "$d/.aai/scripts/install-pre-commit-hook.sh"
+  printf '%s' "$d"
+}
+t812_install() {
+  local d="$1"
+  [[ -n "$d" && "$d" == /* ]] || { log_fail "t812_install: fixture path must be absolute (got '$d')"; return 1; }
+  (cd "$d" && bash .aai/scripts/install-pre-commit-hook.sh --hooks index,close-gate)
+}
+t812_line() { node "$DOCTOR" --root "$1" 2>&1 | grep '^CAT-18' || true; }
+
+test_812_cat18_guard_wiring() {
+  local ok=1 d line
+
+  # 1. both wired by the REAL installer -> PASS
+  d="$(t812_repo t812-wired)"
+  if ! t812_install "$d" >/dev/null 2>&1; then
+    log_info "TEST-812: the real installer failed on the fixture"; ok=0
+  fi
+  line="$(t812_line "$d")"
+  if [[ "$line" != "CAT-18 PASS"* ]]; then
+    log_info "TEST-812 wired: expected 'CAT-18 PASS', got: ${line:-<no CAT-18 line>}"; ok=0
+  fi
+
+  # 2. pre-commit without the guard block -> WARN naming guard, marker, installer
+  printf '#!/bin/sh\n# AAI:INDEX-AUTOGEN\n' > "$d/.git/hooks/pre-commit"
+  chmod +x "$d/.git/hooks/pre-commit"
+  line="$(t812_line "$d")"
+  if [[ "$line" != "CAT-18 WARN"* || "$line" != *"pre-commit-checks.sh"* || "$line" != *"AAI:GUARD-CHECKS"* || "$line" != *"install-pre-commit-hook.sh"* ]]; then
+    log_info "TEST-812 no-block: expected WARN naming pre-commit-checks.sh, AAI:GUARD-CHECKS and install-pre-commit-hook.sh, got: $line"; ok=0
+  fi
+
+  # 3. pre-push absent -> WARN naming close-reconcile.mjs and AAI:CLOSE-GATE
+  d="$(t812_repo t812-nopush)"
+  t812_install "$d" >/dev/null 2>&1 || { log_info "TEST-812: installer failed (nopush)"; ok=0; }
+  rm -f "$d/.git/hooks/pre-push"
+  line="$(t812_line "$d")"
+  if [[ "$line" != "CAT-18 WARN"* || "$line" != *"close-reconcile.mjs"* || "$line" != *"AAI:CLOSE-GATE"* ]]; then
+    log_info "TEST-812 pre-push absent: expected WARN naming close-reconcile.mjs and AAI:CLOSE-GATE, got: $line"; ok=0
+  fi
+
+  # 4. pre-push carries the marker but is not executable -> WARN naming it
+  d="$(t812_repo t812-noexec)"
+  t812_install "$d" >/dev/null 2>&1 || { log_info "TEST-812: installer failed (noexec)"; ok=0; }
+  chmod -x "$d/.git/hooks/pre-push"
+  line="$(t812_line "$d")"
+  if [[ "$line" != "CAT-18 WARN"* || "$line" != *"not executable"* || "$line" != *"pre-push"* ]]; then
+    log_info "TEST-812 not executable: expected WARN naming 'not executable' and pre-push, got: $line"; ok=0
+  fi
+
+  # 5. guard script absent -> the pair is not reported; the other pair PASSes
+  d="$(t812_repo t812-noguard)"
+  t812_install "$d" >/dev/null 2>&1 || { log_info "TEST-812: installer failed (noguard)"; ok=0; }
+  rm -f "$d/.aai/scripts/close-reconcile.mjs" "$d/.git/hooks/pre-push"
+  line="$(t812_line "$d")"
+  if [[ "$line" != "CAT-18 PASS"* || "$line" == *"close-reconcile.mjs"* ]]; then
+    log_info "TEST-812 guard absent: with close-reconcile.mjs absent the pre-push pair must not be reported and the line can be PASS, got: $line"; ok=0
+  fi
+
+  # 6. core.hooksPath honoured: hooks live in .custom-hooks, .git/hooks is empty
+  d="$(t812_repo t812-hookspath)"
+  git -C "$d" config core.hooksPath .custom-hooks
+  t812_install "$d" >/dev/null 2>&1 || { log_info "TEST-812: installer failed (hooksPath)"; ok=0; }
+  if [[ ! -f "$d/.custom-hooks/pre-push" ]]; then
+    log_info "TEST-812 hooksPath: fixture precondition failed — the installer did not write into .custom-hooks"; ok=0
+  fi
+  rm -f "$d/.git/hooks/pre-commit" "$d/.git/hooks/pre-push"
+  line="$(t812_line "$d")"
+  if [[ "$line" != "CAT-18 PASS"* ]]; then
+    log_info "TEST-812 hooksPath: expected PASS reading .custom-hooks, got: $line"; ok=0
+  fi
+  git -C "$d" config --unset core.hooksPath
+  line="$(t812_line "$d")"
+  if [[ "$line" != "CAT-18 WARN"* ]]; then
+    log_info "TEST-812 hooksPath unset: with .git/hooks empty the verdict must be WARN, got: $line"; ok=0
+  fi
+
+  # 7. --json carries CAT-18
+  local jout
+  jout="$(node "$DOCTOR" --root "$TMP_ROOT/t812-wired" --json 2>&1)"
+  if [[ "$jout" != *'"id": "CAT-18"'* ]]; then
+    log_info "TEST-812 --json: missing \"id\": \"CAT-18\""; ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-812 CAT-18 guard wiring: wired PASS (real installer), missing block / missing pre-push / non-executable pre-push WARN by name, absent guard not reported, core.hooksPath honoured, --json carries CAT-18" \
+    || log_fail "TEST-812 CAT-18 guard wiring"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2114,6 +2219,7 @@ main() {
   test_040_cat17_effective_path_and_probe
   test_619_cat17_declined_is_not_an_issue
   test_620_cat17_declaration_never_over_reads
+  test_812_cat18_guard_wiring
   test_439_argv1_guard_resolves_symlinks
 
   echo ""

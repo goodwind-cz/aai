@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-01T09:57:27.496Z
+Generated: 2026-10-01T09:58:24.393Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -54,7 +54,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (474)
+## Done (476)
 
 | ID | Type | Path |
 |---|---|---|
@@ -313,6 +313,7 @@ _None._
 | ISSUE-0087 | issues | docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md |
 | ISSUE-0088 | issues | docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md |
 | ISSUE-0089 | issues | docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md |
+| ISSUE-0090 | issues | docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -530,6 +531,7 @@ _None._
 | SPEC-0198 | specs | docs/specs/SPEC-0198-spec-pricing-gpt-6-flagship-family.md |
 | SPEC-0199 | specs | docs/specs/SPEC-0199-spec-sync-deletes-target-only-hooks.md |
 | SPEC-0200 | specs | docs/specs/SPEC-0200-spec-downstream-rides-ask-no-governance-questions.md |
+| SPEC-0201 | specs | docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

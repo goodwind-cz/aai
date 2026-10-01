@@ -120,3 +120,9 @@ Thumbs.db
 # regenerated docs/INDEX.md by the pre-commit hook.
 *.aai-lock/
 docs/ai/hitl-answers.jsonl
+
+# Rotated mutation records carry an ISO timestamp with colons, which
+# Windows forbids in a path: a committed one makes actions/checkout fail
+# before any test runs (PR #417). They are superseded copies; the live
+# record is mutation-TEST-NNN.txt (fu-mutation-rotation-colon-path).
+*.[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*Z.txt

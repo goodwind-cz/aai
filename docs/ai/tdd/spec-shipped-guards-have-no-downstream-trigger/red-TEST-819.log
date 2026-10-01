@@ -1,0 +1,10 @@
+RED_CLASS: product_red
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: a hook slot that is a directory is refused before any write — no success line, no stray temp file inside it (TEST-819)...
+FAIL: TEST-819: the run announced an install through a symlink to a directory: Installed AAI pre-push hook (AAI:CLOSE-GATE) at /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-hygiene.LFeM83/sg-t819/.git/hooks/pre-push
+Effect: every push runs close-reconcile.mjs --check over the pushed range (report-only; close_gate: enforce refuses a default-branch push only).
+ERROR: git resolves the pre-push hook to /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-hygiene.LFeM83/sg-t819/.git/hooks/pre-push, but no file is there.
+ERROR: installation did NOT leave an active hook at the path git resolves.
+       Check 'git config core.hooksPath' and 'git rev-parse --git-path hooks/reference-transaction'.
+rc=1
