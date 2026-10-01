@@ -714,7 +714,24 @@ function main() {
   // PRESERVED (a suffix, never a rewrite): three live suites match on it
   // (assert_contains, grep -qF, and a `!= *"### Verdict: CLEAN"*` comparison),
   // and a corpus with no near-miss finding still prints the bare form byte for byte.
-  const unreadableAc = counts.nearMiss > 0 ? ` (${counts.nearMiss} unreadable AC table(s) — report-only)` : '';
+  // Codex and Copilot both caught this independently on PR #421: the suffix
+  // said "report-only" unconditionally, so a BLOCKING near-miss (a non-terminal
+  // doc whose AC table cannot be read) rendered as
+  // a CLEAN verdict carrying the no-promotion qualifier, and was then followed
+  // by CHECK FAILED. That is this spec's own defect in this spec's own fix: a
+  // line claiming a disposition it did not earn. The suffix now names the
+  // split whenever any finding blocks, and claims no promotion only when none
+  // does. (This comment deliberately avoids the rendered phrases themselves so
+  // the row's mutation stays surgical on behaviour.)
+  // Gated on --strict: without it nothing promotes, so every finding really is
+  // report-only in THAT invocation and saying "blocking" would overclaim in the
+  // other direction.
+  const blockingAc = args.strict ? (counts.nearMissBlocking || 0) : 0;
+  const unreadableAc = counts.nearMiss > 0
+    ? (blockingAc > 0
+      ? ` (${counts.nearMiss} unreadable AC table(s) — ${blockingAc} blocking, ${counts.nearMiss - blockingAc} report-only)`
+      : ` (${counts.nearMiss} unreadable AC table(s) — report-only)`)
+    : '';
   lines.push(`### Verdict: ${needsTriage === 0 ? `CLEAN${unreadableAc}` : `NEEDS-TRIAGE (${needsTriage} items)`}`);
   if (result.hardFail) {
     lines.push('');

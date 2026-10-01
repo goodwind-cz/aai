@@ -8052,7 +8052,25 @@ test_1349_verdict_names_the_unreadable_tables() {   # TEST-1349 / Spec-AC-09
   grep -qF "unreadable AC table(s) — report-only" "$TEST_DIR/silence-live-1349.log" \
     || log_fail "TEST-1349 arm 3: the live CLEAN verdict must name the unreadable AC tables it did not read"
 
-  log_pass "The verdict stops being silent about what the audit could not read, and the live-CLEAN substring survives"
+  # Arm 4 — a BLOCKING near-miss under --strict. Codex and Copilot both caught
+  # this independently on PR #421: the suffix said "report-only" unconditionally,
+  # so a non-terminal doc whose AC table cannot be read rendered as
+  # `CLEAN (1 unreadable AC table(s) — report-only)` and was then followed by
+  # CHECK FAILED -- a line claiming a disposition it did not earn, which is the
+  # very defect this spec exists to remove. Arms 1-3 never saw it because all
+  # three run without --strict or over a corpus with nothing blocking.
+  d="$(setup_silence_fixture t1349d "open")"
+  rc=0
+  ( cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event ) > "$d/v.log" 2>&1 || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-1349 arm 4: --check --strict over a non-terminal unreadable AC table must hard-fail (got $rc)"
+  if grep -qF "unreadable AC table(s) — report-only" "$d/v.log"; then
+    log_fail "TEST-1349 arm 4: a BLOCKING near-miss must never be labelled report-only: $(payload_preview "$(cat "$d/v.log")")"
+  fi
+  grep -qF "1 blocking" "$d/v.log" \
+    || log_fail "TEST-1349 arm 4: the verdict must name the blocking near-miss count: $(payload_preview "$(cat "$d/v.log")")"
+  assert_contains "$d/v.log" "Verdict: CLEAN"
+
+  log_pass "The verdict stops being silent about what the audit could not read, never calls a blocking finding report-only, and the live-CLEAN substring survives"
 }
 
 test_1350_bare_ac_status_words_are_checked() {   # TEST-1350 / Spec-AC-10
