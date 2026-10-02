@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-02T12:35:08.127Z",
+  "generatedAt": "2026-10-02T13:16:43.800Z",
   "project": "aai",
   "counts": {
     "delivered": 274,
@@ -219,7 +219,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-amendment-signature-asks-the-owner-too-often-20261002T094327Z.md"
+      "review": "docs/ai/reviews/review-amendment-signature-asks-the-owner-too-often-20261002T123435Z.md"
     },
     {
       "ref": "friction-issues-arrive-without-a-description",
@@ -3808,7 +3808,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-amendment-signature-asks-the-owner-too-often-20261002T094327Z.md"
+          "review": "docs/ai/reviews/review-amendment-signature-asks-the-owner-too-often-20261002T123435Z.md"
         },
         {
           "ref": "friction-issues-arrive-without-a-description",

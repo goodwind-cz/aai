@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-02T12:35:08.237Z",
+  "generatedAt": "2026-10-02T13:16:43.910Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -4948,7 +4948,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 164,
+    "open_count": 165,
     "oldest_age_days": 42,
     "items": [
       {
@@ -5475,7 +5475,7 @@
         "id": "fu-falseopen-rearms-on-disclosure",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 10,
+        "age_days": 11,
         "what": "docs-audit's false-open detector re-arms for every commit whose message names a non-terminal doc id, so disclosing a reopen re-triggers it and each suppression commit can trigger it again",
         "status": "open"
       },
@@ -5587,7 +5587,7 @@
         "id": "fu-installer-flag-lattice-no-mode",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "install-pre-commit-hook's six flags resolve as an unsequenced boolean lattice with no single resolved MODE: --uninstall --decline-ref-guard exits 0 leaving the AAI pre-commit hook installed (the uninstall the user asked for silently skipped), and --print <bogus> exits 0 ignoring the rest of the line",
         "status": "open"
       },
@@ -5595,7 +5595,7 @@
         "id": "fu-docs-audit-yaml-misnamed-guard-config",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 7,
+        "age_days": 8,
         "what": "docs/ai/docs-audit.yaml's own header still says 'Docs audit policy (RFC-0002 D4)' though the file is now the repo's general committed guard-policy surface, with two writers (aai-sync's template seed, install-pre-commit-hook's ref_guard key) and readers/keys beyond docs-audit (guard-config.mjs calls it 'the committed guard-policy file'; it holds doc_number_guard, usage_capture_gate, mutation_gate, protected_paths_l3 -- none about the docs audit)",
         "status": "open"
       },
@@ -6035,7 +6035,7 @@
         "id": "fu-backlog-is-not-queryable",
         "ref": "polydao-graph-loop-ideas-for-aai",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "the ride selector cannot ask the backlog what needs doing: it walks an ordered roadmap list and skips done, while the state that knows (follow-up ledger, doc lifecycle, mutation-record drift, ac_evidence gaps) is never read as a selection source",
         "status": "open"
       },
@@ -6179,7 +6179,7 @@
         "id": "fu-amend-friction-issues-arrive-w-42a6d1",
         "ref": "spec-friction-issues-arrive-without-a-description",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-friction-issues-arrive-without-a-description: mechanical restamp: the allocator rewrote this frozen spec’s own SPEC-DRAFT- path(s) at merge",
         "status": "open"
       },
@@ -6261,6 +6261,14 @@
         "severity": "P3",
         "age_days": 0,
         "what": "TEST-1376's FLAG_SPECS guard extracts flags only from the same physical line as the subcommand token, so the multi-line USAGE block's continuation lines are unchecked",
+        "status": "open"
+      },
+      {
+        "id": "fu-test1378-guard-line-scoped",
+        "ref": "amendment-signature-asks-the-owner-too-often",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "TEST-1378 arm 2's source-wide unquoted-interpolation guard shares TEST-1376 arm 2's single-physical-line limit: it extracts from the command token onward on one line only",
         "status": "open"
       }
     ]
