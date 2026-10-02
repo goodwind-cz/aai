@@ -2709,14 +2709,29 @@ test_1363_live_ledger_folds_identically() {
   base_script="$dir/spec-amend-base.mjs"
   base_ledger="$dir/base-decisions.jsonl"
 
+  # This arm's baseline is a FIXED POINT IN HISTORY, not a moving ref. It is
+  # the ledger as it stood before this ride appended its migration overlays,
+  # and `origin/main` stopped being that the moment the ride merged — at which
+  # point the arm asserted something only a pre-merge world could satisfy and
+  # turned main red. That is precisely the defect this ride relaxed in
+  # TEST-1336 (SPEC-0202), reproduced here by this ride's own test.
+  # 1ffc03de is the commit this ride branched from; it is the last state of
+  # main in which no record declares an amendment_class.
+  local pre_migration_ref="${AAI_SPEC_AMEND_PRE_MIGRATION_REF:-1ffc03de}"
+  if ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$pre_migration_ref^{commit}" >/dev/null 2>&1; then
+    log_info "TEST-1363: the pre-migration commit $pre_migration_ref is not in this checkout (shallow clone?) — the historical fold arm cannot be produced here"
+    log_pass "TEST-1363 SKIPPED-ARM: pre-migration baseline unreachable; nothing asserted rather than asserting against the wrong baseline"
+    return
+  fi
+
   # BOTH halves come from the SAME committed blob: the PRE-CHANGE code and
   # the PRE-MIGRATION ledger. Re-deriving the old bucket rule by hand here
   # would only prove this suite agrees with itself; running the actual
   # superseded program is the only baseline that cannot drift.
-  git -C "$PROJECT_ROOT" show "$BASE_REF:.aai/scripts/spec-amend.mjs" > "$base_script" 2>/dev/null \
-    || log_fail "TEST-1363: base ref $BASE_REF has no .aai/scripts/spec-amend.mjs — the pre-change fold cannot be produced here; FAILING CLOSED (this is a missing ref, NOT a detected regression)"
-  git -C "$PROJECT_ROOT" show "$BASE_REF:docs/ai/decisions.jsonl" > "$base_ledger" 2>/dev/null \
-    || log_fail "TEST-1363: base ref $BASE_REF has no docs/ai/decisions.jsonl — the pre-migration ledger cannot be produced here; FAILING CLOSED (this is a missing ref, NOT a detected regression)"
+  git -C "$PROJECT_ROOT" show "$pre_migration_ref:.aai/scripts/spec-amend.mjs" > "$base_script" 2>/dev/null \
+    || log_fail "TEST-1363: base ref $pre_migration_ref has no .aai/scripts/spec-amend.mjs — the pre-change fold cannot be produced here; FAILING CLOSED (this is a missing ref, NOT a detected regression)"
+  git -C "$PROJECT_ROOT" show "$pre_migration_ref:docs/ai/decisions.jsonl" > "$base_ledger" 2>/dev/null \
+    || log_fail "TEST-1363: base ref $pre_migration_ref has no docs/ai/decisions.jsonl — the pre-migration ledger cannot be produced here; FAILING CLOSED (this is a missing ref, NOT a detected regression)"
 
   # The extracted program imports its siblings as ./lib/*.mjs, so it is given
   # the REAL lib directory rather than a copy: this arm is about spec-amend's
