@@ -4,7 +4,7 @@ type: spec
 number: 205
 status: done
 mutation_gate: v1
-frozen_sha256: c8f1d3ce0fab128749f2ae1e7b8585c677b16bef97febc2a8fddb4897680cf7e
+frozen_sha256: b3dce38cf6aabfa30182e84387b42f1626bd0430e8e8941c808f87a40329db34
 ceremony_level: 2
 links:
   requirement: null
@@ -98,7 +98,7 @@ no record on the live ledger carries any key matching `/class/i` today, so the
 key is free.
 
 It is declared at `add` time by the writer, at `classify` time as an overlay,
-and by `restamp` as a hardcoded constant. It is **not** required at `add`:
+and by `restamp` from its own measured cause. It is **not** required at `add`:
 `--class` is optional, defaults to `contract`, and `add` STAMPS the resolved
 value on the record explicitly so a record written by either live writer is
 never class-absent. A `--class`-less `add` prints a NOTE naming the other
@@ -116,13 +116,19 @@ claiming the lighter lane — requires an affirmative `--class measurement`,
 while the omission lands in the heavier lane that exists today.
 
 **`restamp` is the existing precedent, and the class generalises it.**
-`restamp` is already the one subcommand that knows, structurally, that its
-change is mechanical: it is reached only when a frozen spec's content drifted
-from its own anchor because `allocate-doc-number.mjs` rewrote the spec's own
-`SPEC-DRAFT-` self-references, and it writes its own `what`/`why` rather than
-accepting them. It is therefore not a separate thing to be preserved beside
-the class — it is the one site where the class is NOT a self-report, and it
-hardcodes `measurement`. It cannot however carry the whole job: `restamp` only
+`restamp` is the one subcommand that does not take the class from a caller:
+it writes its own `what`/`why`, and it MEASURES its own cause rather than
+asserting it (Spec-AC-18/19 — reverse-apply the allocator's substitution and
+require the stored anchor to reappear byte for byte). A verified cause takes
+`measurement`; an unverified one takes `contract` and owes the owner a
+signature like any other.
+
+This paragraph said something else through round 1: that `restamp` is
+"reached only" on allocator drift and so "hardcodes `measurement`". That was
+an assertion the code never enforced, and it is the root of this spec's three
+remediation rounds — D3 Amendment 3 records it, Spec-AC-21 swept the same
+sentence out of `.aai/system/AUTONOMOUS_LOOP.md`, and it is restated here so
+the spec does not teach upstream what it corrects downstream. It cannot however carry the whole job: `restamp` only
 handles allocator anchor drift, and the other measurement cases (a corrected
 Mutation cell, a renumbered TEST id, a reworded Verify command) arrive through
 `add`, which is why the class is a record field and not a fourth subcommand.
@@ -394,7 +400,7 @@ appends and never edits (Article 3, HAZ-LEDGER). Nothing in this scope writes
 | Spec-AC-08 | A frozen spec whose content no longer matches its `frozen_sha256` anchor still makes `list --strict` exit 1 with an `undisclosed-amendment` violation, whatever class the ledger's records carry | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1362.log (negative control, mutated-tree RED, disclosed in the capture) and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1362.txt | — | the disclosure half is untouched |
 | Spec-AC-09 | Folding the LIVE `docs/ai/decisions.jsonl` at the pre-migration commit with the new code produces, for every record outside the restamp cohort, the identical bucket the pre-change code produced | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1363.log (pre-change-tree RED, base-ref blob swapped in, disclosed in the capture) and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1363.txt | — | class-absent reads contract-lane; the reader default decides nothing |
 | Spec-AC-10 | For one spec id, the `fu-amend-` id that `add --class contract --signoff none` attaches to and the id that `classify --class contract --signoff none` attaches to are byte-identical, and neither `add --class measurement` nor `classify --class measurement` creates any item | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1364.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1364.txt | — | the two writers cannot drift; `pickAmendItemId` unmodified |
-| Spec-AC-11 | WHEN `restamp` re-anchors a drifted frozen spec THEN its appended record carries `amendment_class` `measurement` and no `tracked_by`, no `fu-amend-` item is created, and `list --strict` over that ledger and specs dir exits 0 | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1365.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1365.txt | — | restamp is measurement by construction, never a self-report |
+| Spec-AC-11 | WHEN `restamp` re-anchors a drifted frozen spec AND Spec-AC-18's reversal proves the allocator as the cause THEN its appended record carries `amendment_class` `measurement` and no `tracked_by`, no `fu-amend-` item is created, and `list --strict` over that ledger and specs dir exits 0 | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1365.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1365.txt | — | restamp is measurement by construction, never a self-report |
 | Spec-AC-12 | WHEN `classify --class measurement --signoff none` names one existing record THEN that record's bucket becomes `measurement`, its previously-tracking `fu-amend-` item keeps its open status unchanged, and a `classify` run with no `--class` leaves the target's resolved class exactly as it was | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1366.log (pre-change-tree RED, base-ref blob swapped in, disclosed in the capture) and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1366.txt | — | the per-record route; the printed remedy line stays runnable verbatim |
 | Spec-AC-13 | `list` prints `class=<value>` on every row, `list --json` items carry `amendment_class`, the counts object carries a `measurement` key, and `--status measurement` is accepted and returns only measurement-bucket rows | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1367.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1368.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1367.txt and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1368.txt | — | D4 visibility, made enumerable |
 | Spec-AC-14 | `list --json` marks an item `tool_restamp` true iff the record carries both `from_frozen_sha256` and `to_frozen_sha256` AND its `what` is byte-equal to `RESTAMP_WHAT`; a record matching only one of the two conditions is false | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1369.log (pre-change-tree RED, base-ref blob swapped in, disclosed in the capture) and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1369.txt | — | the structural selector, no prose read |
