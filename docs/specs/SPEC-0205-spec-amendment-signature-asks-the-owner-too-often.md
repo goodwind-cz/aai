@@ -11,7 +11,7 @@ links:
   rfc: null
   intake: docs/issues/CHANGE-0202-amendment-signature-asks-the-owner-too-often.md
   pr:
-    - TBD
+    - 422
   commits:
     - 3c6a7056
 ---
