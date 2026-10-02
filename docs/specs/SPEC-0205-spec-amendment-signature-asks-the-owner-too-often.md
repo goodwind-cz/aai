@@ -4,7 +4,7 @@ type: spec
 number: 205
 status: done
 mutation_gate: v1
-frozen_sha256: b3dce38cf6aabfa30182e84387b42f1626bd0430e8e8941c808f87a40329db34
+frozen_sha256: 220f4cc44ce19437d09b26cda0a94731f19ca89d6105ed8b7a3dbadb2008b890
 ceremony_level: 2
 links:
   requirement: null
@@ -412,6 +412,8 @@ appends and never edits (Article 3, HAZ-LEDGER). Nothing in this scope writes
 | Spec-AC-19 | A restamp-shaped record (both anchors plus a byte-equal `RESTAMP_WHAT`) may hold the `measurement` lane ONLY where the allocator cause is reproduced from the bytes by the same reversal `verifyAllocatorCause` implements; on the live ledger the 13 restamp-shaped records for which no such reproduction exists resolve to `amendment_class` `contract` and bucket `unsigned-tracked` through a later-dated appended overlay, and on a fixture the structural selector matches a provable and an unprovable legacy record alike while the corrected one moves only the provable half | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1375.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1375.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1375.txt and docs/ai/reports/amendment-class-migration-correction-20261002T112955Z.md | — | remediation round 3 (Codex P1 on PR #422), reproduced; the structural shape was written by the old writer after ANY post-freeze edit, so it discharges nothing |
 | Spec-AC-20 | The remedy an UNVERIFIED `restamp` prints runs verbatim to exit 0 and a signed record, and every `spec-amend.mjs <subcommand>` invocation this script prints names only flags that subcommand's own `FLAG_SPECS` entry accepts | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1376.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1376.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1376.txt | — | remediation round 3 (Codex P2 on PR #422), reproduced: the printed line used `--authority`, which only `add` accepts, so it exited 2 on an unknown flag |
 | Spec-AC-21 | `.aai/system/AUTONOMOUS_LOOP.md` section 6a no longer claims `restamp` is reachable only from allocator anchor drift or that it hardcodes its class, and states instead that the measurement lane is taken ONLY when the reversal reproduces the stored anchor, that every other drift is disclosed as a contract record co-creating the `fu-amend-` obligation, and that the light lane is never reachable by a record's shape alone | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1377.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1377.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1377.txt | — | remediation round 3 (Codex P2 on PR #422); the file is outside the live `.aai/*.prompt.md` glob and outside TEST-010's three extras, measured, so it carries no prompt-diet ledger cost |
+| Spec-AC-22 | WHEN a `node .aai/scripts/…` command this script PRINTS interpolates a value THEN that value passes through one POSIX single-quote helper, so the classify remedy an UNVERIFIED `restamp` prints runs verbatim to exit 0 and a signed record even when its `--ref` and its ledger path both hold whitespace | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1378.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1378.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1378.txt | — | remediation round 4 (Codex P2 on PR #422), reproduced: `--ref` and the ledger path were interpolated raw, so a value holding whitespace split into stray tokens and exited 2; the helper replaces `JSON.stringify` at all three printed commands because its double quotes still expand `$`, a backtick and a backslash |
+| Spec-AC-23 | The Test Plan's summary sentence states the AC count, the Test Plan row count and the exact set of Spec-ACs carrying two rows, and a test re-derives all three by parsing this spec's own AC table and Test Plan, failing when the sentence disagrees with either table | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1379.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1379.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1379.txt | — | remediation round 4 (Copilot on PR #422, the second time): the figures stay in the sentence where a reviewer reads them, but they stop being an assertion — the next row addition turns the suite red instead of making the spec lie |
 
 ## Test Plan
 
@@ -435,6 +437,21 @@ plain bash with `/usr/bin/grep -cF`:
 `takes the measurement lane ONLY when` = 1 on
 `.aai/system/AUTONOMOUS_LOOP.md` (TEST-1377's target is that file, not the
 script: the claim under test is the prose).
+Measured the same way for the two rows added at remediation round 4, under
+plain bash with `/usr/bin/grep -cF`: `--ref ${shq(ref)}` = 1 on
+`.aai/scripts/spec-amend.mjs`. TEST-1379's target is THIS SPEC FILE, because
+the claim under test is this spec's own prose about its own tables, and that
+makes its Mutation cell self-referential: the cell quotes both halves of its
+own substitution, the cell sits ABOVE the sentence, and a literal anchor
+therefore rewrites the cell instead of the claim — measured, not reasoned
+about: a first attempt that took the sentence's row-count phrase verbatim
+recorded STAYED GREEN for exactly that reason — its uniqueness had been
+measured BEFORE the row quoting it existed, and the substitution then landed
+on the cell. Prose in this section must likewise never spell that phrase out,
+or the anchor matches the explanation instead. TEST-1379's anchor is
+therefore a lookahead,
+`26 rows(?=; counted)`, which the cell's own text cannot satisfy (`26 rows`
+is followed there by `(`, never by `;`) and the sentence can.
 
 | Test ID  | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |----------|---------|------|----------------------|-------------|----------|--------|
@@ -462,8 +479,18 @@ script: the claim under test is the prose).
 | TEST-1375 | Spec-AC-19 | integration | tests/skills/test-aai-spec-amend.sh | the 13 named live records whose allocator cause the bytes do not reproduce resolve to contract/unsigned-tracked, and on a fixture the structural selector matches two legacy restamp-shaped records while the corrected migration (asking the real `restamp` for the cause) moves only the provable one and leaves the other's owner obligation open | sed:s/AMENDMENT_CLASSES\.includes\(str\(h\.amendment_class\)\)\)\.pop\(\)/AMENDMENT_CLASSES.includes(str(h.amendment_class))).shift()/ | green |
 | TEST-1376 | Spec-AC-20 | integration | tests/skills/test-aai-spec-amend.sh | the classify line an unverified restamp prints is executed verbatim and must reach exit 0 with owner_signoff=true, and a source-wide scan checks every printed invocation's flags against the exported FLAG_SPECS table | sed:s/--signoff owner --source/--signoff owner --authority/ | green |
 | TEST-1377 | Spec-AC-21 | integration | tests/skills/test-aai-spec-amend.sh | the retired hardcode and reachable-only claims are absent from .aai/system/AUTONOMOUS_LOOP.md and the three measured-cause sentences are present | sed:s/takes the measurement lane ONLY when/takes the measurement lane when/ | green |
+| TEST-1378 | Spec-AC-22 | integration | tests/skills/test-aai-spec-amend.sh | the classify remedy an unverified restamp prints is run verbatim with whitespace in BOTH its `--ref` and its ledger path, and a source scan requires every interpolation after the command token to pass through the quoting helper | sed:s/--ref \$\{shq\(ref\)\}/--ref ${ref}/ | green |
+| TEST-1379 | Spec-AC-23 | integration | tests/skills/test-aai-spec-amend.sh | both tables are parsed out of the live spec and the summary sentence's AC count, row count and multi-row AC list are each compared against what the tables hold | sed:s/26 rows(?=; counted)/27 rows/ | green |
 
-Every Spec-AC has at least one row. Spec-AC-07, Spec-AC-13 and Spec-AC-16 carry two (18 ACs, 21 rows; counted from the table, not asserted).
+Every Spec-AC has at least one row. Spec-AC-07, Spec-AC-13 and Spec-AC-16 carry two (23 ACs, 26 rows; counted from the table, not asserted).
+TEST-1379 is what makes "counted from the table" true: it parses both tables
+out of this file and fails when any of those three figures disagrees with
+them. The numbers stay in the sentence rather than living only in the test
+because a reviewer reads the spec, not the suite — and the defect here was
+never that a count was written down, it was that nothing re-derived it. The
+sentence above was corrected at round 3 and rotted again at round 4 for
+exactly that reason, which is the same shape as Spec-AC-19: a claim holds
+because the bytes reproduce it, not because it was once true.
 
 RED plan. Each row above is observed FAILING on the pre-change tree before the
 corresponding code exists, and the capture is stored under

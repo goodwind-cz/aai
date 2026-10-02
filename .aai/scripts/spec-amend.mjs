@@ -712,6 +712,21 @@ Exit codes: 0 success (a non-empty unsigned backlog is NEVER an error) |
 write | 2 usage error, an unreadable ledger or spec, a spec with no
 frontmatter id, or an ambiguous/unmatched classify target.`;
 
+// Every command this script PRINTS is advice the reader is meant to run
+// verbatim, so every value it interpolates must survive a shell. POSIX
+// single-quote wrapping is the only form that is safe for EVERY byte a ref,
+// a timestamp or a path can hold: inside `'...'` nothing expands, and the
+// one byte that cannot appear there — the quote itself — is closed, escaped
+// and reopened. JSON.stringify was the previous convention and is strictly
+// weaker: its double quotes still expand `$`, a backtick and a backslash.
+// Codex P2 on PR #422 reproduced the gap with `--ref 'ref with space'` and a
+// ledger named `decision ledger.jsonl`, which split into stray tokens and
+// exited 2. TEST-1378 runs the printed line with both and scans this file so
+// a future interpolation cannot skip the helper.
+function shq(value) {
+  return `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
 function usageError(msg) {
   process.stderr.write(`spec-amend: ${msg}\n`);
   process.stderr.write('Run `node .aai/scripts/spec-amend.mjs --help` for the grammar.\n');
@@ -1458,7 +1473,7 @@ function cmdRestamp(opts) {
     // A remedy that cannot be run is the defect this script exists to remove,
     // one level up — TEST-1376 runs this line verbatim and checks EVERY
     // printed invocation in this file against FLAG_SPECS itself.
-    console.log(`NOTE sign it off once someone has said what changed: node .aai/scripts/spec-amend.mjs classify --ts ${ts} --ref ${ref} --signoff owner --source "<who decided, where>" --why "<what the drift really was>" --ledger ${abs}`);
+    console.log(`NOTE sign it off once someone has said what changed: node .aai/scripts/spec-amend.mjs classify --ts ${shq(ts)} --ref ${shq(ref)} --signoff owner --source "<who decided, where>" --why "<what the drift really was>" --ledger ${shq(abs)}`);
   }
   if (reusedNote) console.log(`NOTE ${reusedNote}`);
   if (owes) console.log('NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open');
@@ -1672,7 +1687,7 @@ function cmdList(opts) {
       // to `measurement` when the change really was only a measurement,
       // exactly as they already edit `--what`/`--why` — a printed remedy must
       // never be the thing that quietly claims the lighter lane for them.
-      process.stderr.write(`  node .aai/scripts/spec-amend.mjs add --spec ${JSON.stringify(v.path)} --ref ${JSON.stringify(v.spec_id ?? 'unknown-ref')} --what ${JSON.stringify('undisclosed post-freeze content change (edit this line to name what changed)')} --why ${JSON.stringify('closing the strict amendment gate after the frozen anchor stopped matching (edit this line to name why)')} --class contract --signoff none\n`);
+      process.stderr.write(`  node .aai/scripts/spec-amend.mjs add --spec ${shq(v.path)} --ref ${shq(v.spec_id ?? 'unknown-ref')} --what ${shq('undisclosed post-freeze content change (edit this line to name what changed)')} --why ${shq('closing the strict amendment gate after the frozen anchor stopped matching (edit this line to name why)')} --class contract --signoff none\n`);
     }
     process.stderr.write('`add` RE-STAMPS frozen_sha256 to the current projection in the SAME call that appends the record, so running the line above is what clears this violation — never `spec-amend.mjs classify`, which judges an EXISTING record\'s sign-off and touches no spec.\n');
   }
@@ -1714,11 +1729,11 @@ function cmdList(opts) {
         process.stderr.write(`  (no runnable remedy: this record carries no ${missing}, and classify matches on the ts+ref pair. Neither writer can emit that, so the record was hand-appended; append a corrected record rather than editing it.)\n`);
         continue;
       }
-      // JSON.stringify, not bare quotes: `--ref` is unvalidated free text at
-      // `add`, so a ref carrying a double quote produced a line that breaks
-      // when pasted — and TEST-013 runs this line through `eval` (code
-      // review NB-E, reproduced through the writer, not only by hand-append).
-      process.stderr.write(`  node .aai/scripts/spec-amend.mjs classify --ts ${JSON.stringify(v.ts)} --ref ${JSON.stringify(v.ref_id)} --signoff none --why "<one line>" --source "<evidence>"\n`);
+      // shq, not bare quotes: `--ref` is unvalidated free text at `add`, so a
+      // ref carrying a quote or whitespace produced a line that breaks when
+      // pasted — and TEST-013 runs this line through `eval` (code review
+      // NB-E, reproduced through the writer, not only by hand-append).
+      process.stderr.write(`  node .aai/scripts/spec-amend.mjs classify --ts ${shq(v.ts)} --ref ${shq(v.ref_id)} --signoff none --why "<one line>" --source "<evidence>"\n`);
     }
     process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to name the item it attaches to (a new id is filed for you; a discharged one is refused).\n');
     process.stderr.write('NOT remedies: `spec-amend.mjs add` records a NEW amendment and leaves the record named above untracked; `follow-ups.mjs add` files an item but attaches it to nothing. Never edit the ledger in place (HAZ-LEDGER).\n');

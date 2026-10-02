@@ -1248,7 +1248,10 @@ test_015_unmatchable_record_gets_an_honest_refusal() {
   run_sa list --ledger "$led" --strict
   [[ "$EC" == 1 ]] \
     || log_fail "TEST-015: an unmatchable record must still violate, got $EC (stdout: $OUT)"
-  if grep -qF 'classify --ts "<ts>"' <<<"$ERR"; then
+  # Quoting-agnostic (Spec-AC-22 moved these lines from JSON.stringify to the
+  # shq helper): the property is that NO ts placeholder is printed at all,
+  # not that one particular quote character does not precede it.
+  if grep -qF '<ts>' <<<"$ERR"; then
     log_fail "TEST-015: printing a <ts> placeholder is a remedy that cannot be run — the exact defect F1 removed, one shape down; stderr was: $ERR"
   fi
   grep -qF "no runnable remedy" <<<"$ERR" \
@@ -1262,7 +1265,10 @@ test_015_unmatchable_record_gets_an_honest_refusal() {
   printf '%s\n' '{"v":1,"ts":"2026-09-03T20:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t015-ok","spec_id":"spec-t015b","owner_signoff":false}' >> "$led2"
   run_sa list --ledger "$led2" --strict
   [[ "$EC" == 1 ]] || log_fail "TEST-015 control: a well-formed violation must still exit 1, got $EC"
-  grep -qF 'classify --ts "2026-09-03T20:00:00Z" --ref "t015-ok"' <<<"$ERR" \
+  # Single quotes since Spec-AC-22: the printed remedies now go through `shq`
+  # (POSIX single-quote wrapping), which is what makes them runnable when a
+  # ts, a ref or a path carries whitespace or a shell metacharacter.
+  grep -qF "classify --ts '2026-09-03T20:00:00Z' --ref 't015-ok'" <<<"$ERR" \
     || log_fail "TEST-015 control: a matchable record must still be handed its own runnable line; stderr was: $ERR"
   if grep -qF "no runnable remedy" <<<"$ERR"; then
     log_fail "TEST-015 control: the honesty branch must not fire on a record classify CAN match; stderr was: $ERR"
@@ -1312,8 +1318,29 @@ test_016_closed_item_cannot_excuse_a_new_amendment() {
   printf '%s\n' '{"v":1,"ts":"2026-09-03T22:00:00Z","actor":"a","type":"spec_amendment","ref_id":"quote\"ride","spec_id":"spec-t016b","owner_signoff":false}' >> "$led2"
   run_sa list --ledger "$led2" --strict
   [[ "$EC" == 1 ]] || log_fail "TEST-016 NB-E: the quoted-ref record must still violate, got $EC"
-  grep -qF '\"' <<<"$ERR" \
-    || log_fail "TEST-016 NB-E: a ref containing a double quote must be ESCAPED in the printed remedy, or the line breaks when pasted; stderr was: $ERR"
+  # Since Spec-AC-22 the remedies are wrapped by `shq` (POSIX single quotes),
+  # in which a double quote needs no escape at all — so the property is tested
+  # the only way that cannot rot with the quoting style: the printed line is
+  # RUN, and the ref it carries must round-trip into the ledger intact.
+  local nbe_line nbe_l nbe_rc nbe_out
+  nbe_line=""
+  while IFS= read -r nbe_l; do
+    case "$nbe_l" in *"spec-amend.mjs classify "*) nbe_line="$nbe_l" ;; esac
+  done <<<"$ERR"
+  [[ -n "$nbe_line" ]] \
+    || log_fail "TEST-016 NB-E: the quoted-ref violation must still PRINT a classify remedy; stderr was: $ERR"
+  nbe_rc=0
+  # --ledger is appended because the printed line names none (it is written
+  # for an operator standing in the repo root); the FIXTURE ledger is the one
+  # under test and the live tree must stay read-only here.
+  eval "node \"\$SA\" classify ${nbe_line#*spec-amend.mjs classify } --ledger \"\$led2\"" > "$TEST_DIR/.t016b.out" 2>&1 || nbe_rc=$?
+  [[ "$nbe_rc" == 0 ]] \
+    || log_fail "TEST-016 NB-E: a ref containing a double quote must survive the printed remedy, or the line breaks when pasted; the line exited $nbe_rc.
+LINE: $nbe_line
+OUTPUT: $(cat "$TEST_DIR/.t016b.out")"
+  nbe_out="$(node "$SA" list --ledger "$led2" --json 2>&1)"
+  grep -qF 'quote\"ride' <<<"$nbe_out" \
+    || log_fail "TEST-016 NB-E: the ref must round-trip through the printed remedy unchanged; list --json was: $nbe_out"
 
   log_pass "TEST-016 a discharged obligation cannot excuse a new amendment, the refusal's named remedy reaches a green gate with a drainable item, and a quoted ref stays pasteable"
 }
@@ -3989,6 +4016,163 @@ test_1377_canon_states_the_measured_cause_rule() {
   log_pass "TEST-1377 the canon states the measured-cause rule, the contract-lane consequence of an unverified restamp, and that a record's shape alone never buys the light lane"
 }
 
+# --- TEST-1378 (Spec-AC-22) — printed commands survive their own values -----
+#
+# Codex P2 on PR #422, second finding: the classify remedy an unverified
+# `restamp` prints interpolated `ts`, `ref` and the ledger path RAW, so a
+# `--ref 'ref with space'` or a ledger named `decision ledger.jsonl` produced
+# a line that split into stray tokens and exited 2. TEST-1376 proved the FLAGS
+# are ones the CLI accepts; this proves the VALUES survive the trip through a
+# shell. Two arms, the same shape: the specific line is RUN with hostile
+# values, and the source is scanned so the next printed interpolation cannot
+# regress silently.
+test_1378_printed_commands_quote_their_values() {
+  log_info "Test: every value a printed command interpolates is shell-quoted, so the advertised line runs verbatim whatever the ref or the ledger path holds (TEST-1378)..."
+  local spec led line l cmd o e rc offenders
+
+  # --- ARM 1: the printed remedy, executed verbatim, hostile values ---------
+  # Both of Codex's reproduction inputs at once: whitespace in --ref AND
+  # whitespace in the ledger path.
+  spec="$(mk_linked_freezable_spec t1378-specs/a.md spec-t1378-fixture t1378-intake)"
+  freeze_spec "$spec" || log_fail "TEST-1378 setup: real spec-freeze.mjs refused the fixture"
+  sed -i.bak 's/original description text/a DIFFERENT promise this spec never made/' "$spec"
+  led="$(mk_ledger 't1378 decision ledger')"
+
+  run_sa restamp --spec "$spec" --ref 'ref with space' --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "TEST-1378: restamp must exit 0 on the unverified fixture, got $EC (stderr: $ERR)"
+  grep -qF 'the allocator is NOT verified as the cause' <<<"$OUT" \
+    || log_fail "TEST-1378 setup: the fixture must produce an UNVERIFIED restamp; stdout: $OUT"
+
+  line=""
+  while IFS= read -r l; do
+    case "$l" in *"spec-amend.mjs classify "*) line="$l" ;; esac
+  done <<<"$OUT"
+  [[ -n "$line" ]] \
+    || log_fail "TEST-1378: an unverified restamp must PRINT a classify remedy line; stdout: $OUT"
+
+  cmd="node \"\$SA\" classify ${line#*spec-amend.mjs classify }"
+  o="$TEST_DIR/.t1378.out"; e="$TEST_DIR/.t1378.err"; rc=0
+  eval "$cmd" > "$o" 2> "$e" || rc=$?
+  [[ "$rc" == 0 ]] \
+    || log_fail "TEST-1378 arm 1: the remedy the tool printed exited $rc once its values carried whitespace — an unquoted interpolation splits into stray tokens, so the advice cannot be followed.
+COMMAND: $cmd
+STDERR:  $(cat "$e")"
+  grep -qF 'owner_signoff=true' "$o" \
+    || log_fail "TEST-1378 arm 1: running the printed remedy must actually sign the record off; stdout: $(cat "$o")"
+
+  # --- ARM 2: no printed command may interpolate an unquoted value ----------
+  # The guard is a PROPERTY of the source, not a list of known-bad lines: any
+  # `${...}` inside a line that prints a `node .aai/scripts/...` command must
+  # go through the one quoting helper. Reported by file line so a new offender
+  # names itself.
+  offenders="$(node --input-type=module -e "
+    import fs from 'node:fs';
+    const src = fs.readFileSync('$SA', 'utf8');
+    const bad = [];
+    const lines = src.split('\n');
+    for (let i = 0; i < lines.length; i += 1) {
+      const at = lines[i].search(/node \.aai\/scripts\//);
+      if (at < 0) continue;
+      // From the command token onward ONLY: an interpolation in the PROSE
+      // ahead of it is not part of the command and nothing ever runs it.
+      // Same slice discipline as TEST-1376 arm 2.
+      for (const m of lines[i].slice(at).matchAll(/\\\$\{([^}]*)\}/g)) {
+        const inner = m[1].trim();
+        if (!inner.startsWith('shq(')) bad.push((i + 1) + ': \${' + inner + '}');
+      }
+    }
+    process.stdout.write(bad.join('; '));
+  ")"
+  [[ -z "$offenders" ]] \
+    || log_fail "TEST-1378 arm 2: a command this script PRINTS interpolates a value without shell quoting, so a ref or path holding whitespace or a shell metacharacter produces a line that cannot be run: $offenders"
+
+  log_pass "TEST-1378 the printed remedy runs verbatim with whitespace in both its ref and its ledger path, and every interpolation inside a printed command goes through the quoting helper"
+}
+
+# --- TEST-1379 (Spec-AC-23) — the Test Plan summary is re-derived ----------
+#
+# Copilot on PR #422, twice: the sentence under this spec's Test Plan claims
+# "counted from the table, not asserted" and was, both times, asserted. It
+# was written at one round and rotted at the next the moment rows were added
+# — first an undercount of the multi-row ACs, then "18 ACs, 21 rows" while
+# the tables held 21 and 24. A figure nothing recomputes is exactly the
+# defect class this whole scope exists to close, pointed at the spec's own
+# prose: this arm parses BOTH tables out of the live spec and fails when the
+# sentence disagrees with them, so the next row addition turns the suite red
+# instead of quietly making the spec lie.
+test_1379_test_plan_summary_is_recomputed_from_the_tables() {
+  log_info "Test: the Test Plan summary sentence's figures are re-derived from this spec's own AC table and Test Plan rather than asserted (TEST-1379)..."
+  local spec f verdict
+
+  # Globbed on the slug, never pinned to the number: the allocator renames
+  # SPEC-DRAFT-<slug> to SPEC-nnnn-<slug> at merge, and a pinned number is
+  # the same stale-literal defect one directory over.
+  spec=""
+  for f in "$PROJECT_ROOT"/docs/specs/SPEC-*-spec-amendment-signature-asks-the-owner-too-often.md; do
+    [[ -f "$f" ]] && spec="$f"
+  done
+  [[ -n "$spec" ]] \
+    || log_fail "TEST-1379: no docs/specs/SPEC-*-spec-amendment-signature-asks-the-owner-too-often.md found"
+
+  verdict="$(node --input-type=module -e "
+    import fs from 'node:fs';
+    const src = fs.readFileSync('$spec', 'utf8');
+
+    // --- read the AC table ------------------------------------------------
+    const acIds = [];
+    for (const line of src.split('\n')) {
+      const m = line.match(/^\|\s*(Spec-AC-\d{2})\s*\|/);
+      if (m) acIds.push(m[1]);
+    }
+
+    // --- read the Test Plan, expanding Spec-AC-NN..MM ranges --------------
+    const rows = [];
+    for (const line of src.split('\n')) {
+      const m = line.match(/^\|\s*(TEST-\d+)\s*\|([^|]*)\|/);
+      if (!m) continue;
+      const ids = [];
+      for (const tok of m[2].match(/Spec-AC-\d{2}(?:\.\.\d{2})?/g) || []) {
+        const r = tok.match(/^Spec-AC-(\d{2})\.\.(\d{2})\$/);
+        if (r) {
+          for (let n = Number(r[1]); n <= Number(r[2]); n += 1) ids.push('Spec-AC-' + String(n).padStart(2, '0'));
+        } else ids.push(tok);
+      }
+      rows.push({ testId: m[1], ids });
+    }
+
+    const perAc = new Map();
+    for (const row of rows) for (const id of row.ids) perAc.set(id, (perAc.get(id) || 0) + 1);
+    const uncovered = acIds.filter((id) => !perAc.has(id));
+    const multi = acIds.filter((id) => (perAc.get(id) || 0) > 1);
+    const measured = { acs: acIds.length, rows: rows.length, multi, uncovered };
+
+    // --- read the claim ---------------------------------------------------
+    const SENT = /Every Spec-AC has at least one row\.\s*(.+?)\s*carr(?:y|ies) two\s*\((\d+) ACs, (\d+) rows; counted from the table, not asserted\)\./;
+    const s = src.match(SENT);
+    if (!s) {
+      process.stdout.write('the Test Plan summary sentence is missing or no longer matches the grammar this guard reads: \"Every Spec-AC has at least one row. <ids> carry two (<n> ACs, <m> rows; counted from the table, not asserted).\" Measured now: ' + JSON.stringify(measured));
+      process.exit(0);
+    }
+    const claimed = {
+      acs: Number(s[2]),
+      rows: Number(s[3]),
+      multi: s[1].split(/,\s*|\s+and\s+/).map((t) => t.trim()).filter(Boolean),
+    };
+
+    const diffs = [];
+    if (uncovered.length) diffs.push('the sentence says every Spec-AC has at least one row, but ' + uncovered.join(', ') + ' has none');
+    if (claimed.acs !== measured.acs) diffs.push('AC count: sentence says ' + claimed.acs + ', the AC table holds ' + measured.acs);
+    if (claimed.rows !== measured.rows) diffs.push('Test Plan row count: sentence says ' + claimed.rows + ', the Test Plan holds ' + measured.rows);
+    if (claimed.multi.join(',') !== measured.multi.join(',')) diffs.push('the ACs carrying two rows: sentence names ' + (claimed.multi.join(', ') || '(none)') + ', the tables show ' + (measured.multi.join(', ') || '(none)'));
+    process.stdout.write(diffs.join(' | '));
+  ")"
+
+  [[ -z "$verdict" ]] \
+    || log_fail "TEST-1379: the Test Plan summary sentence disagrees with the tables it claims to be counted from — $verdict"
+
+  log_pass "TEST-1379 the Test Plan summary sentence's AC count, row count and multi-row AC list all re-derive from this spec's own two tables"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -4043,6 +4227,8 @@ main() {
   test_1375_migrated_cohort_is_the_proven_one
   test_1376_printed_commands_use_flags_the_cli_accepts
   test_1377_canon_states_the_measured_cause_rule
+  test_1378_printed_commands_quote_their_values
+  test_1379_test_plan_summary_is_recomputed_from_the_tables
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
