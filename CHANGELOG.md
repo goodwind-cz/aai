@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — fix: a check says what it observed, or says it could not (goodwind-cz/aai#421) (#421)
+## [v2026.10.02] — fix: a check says what it observed, or says it could not (goodwind-cz/aai#421) (#421)
 
 - **CAT-17 no longer calls an armed ref guard unarmed.** On Windows the probe resolved `bash` to WSL, which never receives `AAI_GIT_WRITE`, so both arms refused and a non-zero exit read as a refusal. `--force` reinstalled a byte-identical hook and the warning came back, so the advice the doctor printed could not clear it. The probe now has a control arm on a non-main ref, requires the literal `AAI:REF-GUARD` on the refuse arm's stderr, and has a five-state verdict map: three states lead OUT of "NOT armed" (`control-arm-nonzero`, `no-refusal-marker`, `permit-arm-refused`, the last naming `AAI_GIT_WRITE`) and none leads in. The Git-for-Windows interpreter lookup is a pure injectable `resolveRefGuardLaunchers()` unit-tested on any OS; its behaviour is proven by a step in the `windows-wsl1` CI job, which printed `CAT-17 PASS armed` on PowerShell 5.1 with WSL usable — the exact environment the report came from.
 - **`docs-audit`'s verdict stops being silent about what it could not read.** A delivered spec sat at `draft` for days while `--check` said CLEAN. Measurement corrected the premise: the near-miss detector already existed and already fired (8 findings on the live corpus); what was silent was the digest headline and the `Verdict: CLEAN` line, 35 lines above the findings. Both now name the count, and the literal `Verdict: CLEAN` substring is preserved because four live suites match on it. A blocking near-miss is never labelled report-only — under `--strict` the qualifier names the split.
@@ -30,7 +30,7 @@ fine — it is the marker a cut leaves on top.
 - Two riders of the same defect class: `runGh`'s swallowed GitHub rate limit made `blocked_dedup_unavailable` indistinguishable from genuine no-access, and `EVIDENCE_REF_RE` now accepts 3-digit doc ids (`SPEC-080`) for downstream projects whose numbering is 3-digit.
 - ISSUE-0092-a-check-cannot-tell-silence-from-a-verdict / SPEC-0204.
 
-## [unreleased] — feat: an amendment that only changes how a claim is measured asks nobody (goodwind-cz/aai#422) (#422)
+## [v2026.10.02] — feat: an amendment that only changes how a claim is measured asks nobody (goodwind-cz/aai#422) (#422)
 
 - **BEHAVIOUR CHANGE: a post-freeze amendment now declares a class.** `contract` changes what the spec promises and still owes the owner a signature; `measurement` changes only how a claim is measured — a corrected mutation cell, a renumbered TEST id, an allocator restamp — and is disclosed to the ledger while asking nobody. Before this, every post-freeze change created an owner obligation whatever it was, and 190 were backed up, the oldest since 2026-09-04.
 - The class is a structured field the writer stamps, never a phrase matched out of prose. `add` defaults to `contract`, so only the lighter lane needs an affirmative flag; a reader seeing a class-absent legacy record reads `contract`, because reading absent as `measurement` would discharge obligations nobody decided. `--class measurement --signoff owner` is a usage error in both `add` and `classify`, and the refusal is evaluated against the class the fold projects, not the caller's declaration.
@@ -39,23 +39,23 @@ fine — it is the marker a cut leaves on top.
 - Printed remedy commands are shell-quoted and valid in both POSIX sh and PowerShell, after measuring all four candidate quote forms in both shells — two of them fail silently in one.
 - CHANGE-0202 / SPEC-0205. The amendments on this spec are themselves unsigned and tracked by `fu-amend-amendment-signature-asks-cf289a`.
 
-## [unreleased] — docs: the README's portable onboarding, and a guard that forbade what its name exempts (goodwind-cz/aai#424) (#424)
+## [v2026.10.02] — docs: the README's portable onboarding, and a guard that forbade what its name exempts (goodwind-cz/aai#424) (#424)
 
 - README rewritten so the portable path is the one a reader can follow: repository-local skills across Claude Code, Codex, Cursor and Antigravity, with the workflow and project knowledge staying with the code. Adds a hero image and refreshes the overview page.
 - **`docs/USER_GUIDE.md` gains an "Agent harnesses and models" section**, which the README already linked to and promised. It carries the harness table (skill discovery and model routing per harness, and the Gemini CLI eligibility split) and the thing the README assumed a reader could find: a slash command only tells the agent to read a prompt file under `.aai/`, so naming that file directly does identical work. It also states the limit — an agent that cannot read repository files on request cannot run this workflow.
 - **The no-NUL guard no longer forbids binary files.** Its title said "no tracked TEXT file" and its scan walked every tracked path, so the first binary asset this repository has carried failed it. The exemption is DECLARED in `.gitattributes`, never inferred: asking git whether a blob is binary is circular, because git's definition of binary IS "carries a NUL", and that version was measured to let a planted NUL walk through. `TEST-562` now covers both directions, including the undeclared-file arm that catches a return to inference.
 - CHANGE-0199.
 
-## [unreleased] — fix: a test baseline must be a fixed point, not a moving ref (goodwind-cz/aai#423) (#423)
+## [v2026.10.02] — fix: a test baseline must be a fixed point, not a moving ref (goodwind-cz/aai#423) (#423)
 
 - `TEST-1363` read its "pre-migration ledger" from `origin/main`, which was a true baseline only while its own ride was unmerged; merging made `origin/main` be the migration and the arm could never pass again. It now resolves the commit the ride branched from, and asserts nothing on a shallow clone where that commit is absent rather than asserting against whatever ref is to hand. Same class as the last-index ledger pin relaxed in SPEC-0202.
 
-## [unreleased] — chore: intake and pricing housekeeping (goodwind-cz/aai#418, #413) (#418) (#413)
+## [v2026.10.02] — chore: intake and pricing housekeeping (goodwind-cz/aai#418, #413) (#418) (#413)
 
 - Intake filed for a merged ride leaving its worktree and branch behind (`ISSUE-0091`).
 - `PRICING.yaml` gains the GPT-6 `astra`, `sol` and `luna` keys (CHANGE-0198).
 
-## [unreleased] — fix: a friction issue carries a description (`--publish --description <file>`) or is not filed (goodwind-cz/aai#339)
+## [v2026.10.02] — fix: a friction issue carries a description (`--publish --description <file>`) or is not filed (goodwind-cz/aai#339)
 
 - **BEHAVIOUR CHANGE on the next `/aai-update`: `aai-feedback-upsert.mjs --publish <fp> --confirm` of a record with no certified description is REFUSED** (exit 2, before any `gh` call, naming the missing field and the new flag); it used to file a metadata-only body nobody could act on (#339 sat 25 days untriageable). The description is ONE certified human-written line (1..500 chars, same fail-closed redactor): the record's own `record --promote` summary, or the new publish-time `--description <file>` (lines joined by one space, argv-only; the on-disk draft is still never read). A description the redactor refuses is refused naming its reason class.
 - **prepare lists such clusters as `blocked_no_description`** with `not offered: no description — write one line (expected, observed, where) and pass --description <file> to --publish`, and offers them no publish line.
@@ -64,7 +64,7 @@ fine — it is the marker a cut leaves on top.
 - **`representative()` prefers a summary-carrying member** of a fingerprint, so a promoted record is never shadowed by a prose-free sibling with higher signal.
 - **NO default flips:** `capture.summary_enabled` stays `false` (owner decision 2026-09-05); the posture and its trade-off are now written next to the flag in `.aai/feedback.yaml`.
 
-## [unreleased] — feat: the roadmap is an ordered capability list with an opt-in maintenance budget, and /aai-roadmap manages it (goodwind-cz/aai#419)
+## [v2026.10.02] — feat: the roadmap is an ordered capability list with an opt-in maintenance budget, and /aai-roadmap manages it (goodwind-cz/aai#419)
 
 - **The maintenance budget is now opt-in.** A `docs/ai/roadmap.yaml` without a `budget:` block is an ordered list of capabilities: fix, chore, test and techdebt rides are always admitted, `next` never insists on binding maintenance, and an explicitly requested item is admitted even when earlier items are unfinished (order drives `next`, not refusals). A roadmap with `budget.maintenance_per_capability: 1` keeps today's 1:1 pairing, ordering and refusals byte-for-byte; this repository's roadmap is unchanged.
 - **New `/aai-roadmap` skill** (`.aai/SKILL_ROADMAP.prompt.md`, mirrored to every harness): `show`, `add`, `reorder`, `harvest "<direction>"`, `done`, `drop`, `budget on|off`, `off`. Every action is a menu with a recommended default and maps to one deterministic script call; the user never types `node`.
@@ -73,7 +73,7 @@ fine — it is the marker a cut leaves on top.
 - **Docs:** "Roadmap: when and how" in `docs/USER_GUIDE.md` with three worked examples (no roadmap, roadmap without budget, roadmap with budget), each replayed literally by a test; README pointer; `docs/product/roadmap.md`; AGENTS.md rule 4 restated (roadmap = order, budget = opt-in).
 - 40 tests (TEST-1301..1340, new suite `tests/skills/test-aai-roadmap.sh`), mutation gate 40/40. Disclosed unsigned amendment D16 tracked by `fu-amend-roadmap-serves-downstrea-bc77da`; follow-up `fu-roadmap-docstatus-two-parsers` (P3).
 
-## [unreleased] — fix: shipped guards get an installed caller — pre-commit-checks.sh runs on every commit, a pre-push close gate, Azure merge subjects (goodwind-cz/aai#390, #391, #392)
+## [v2026.10.02] — fix: shipped guards get an installed caller — pre-commit-checks.sh runs on every commit, a pre-push close gate, Azure merge subjects (goodwind-cz/aai#390, #391, #392)
 
 - **BEHAVIOUR CHANGE on the next `/aai-update`: the installed pre-commit hook now runs `.aai/scripts/pre-commit-checks.sh` on every commit.** The hook the installer wrote never reached that script, so its secrets detection and the doc-numbering guard were dead downstream. A commit carrying a detected secret is now **refused** (it used to go through); roughly four seconds are added per commit. The block is marker-scoped (`# AAI:GUARD-CHECKS BEGIN` … `END`); an AAI hook installed before this ride is upgraded in place by inserting the block after its shebang, every other byte untouched, and a later block revision replaces only the bytes between the markers (both installers work on bytes, so non-UTF-8 bytes outside the block survive). A foreign hook, a symlinked slot, a CRLF hook, a byte-order mark, or inverted, unpaired or duplicated markers are refused by name and left byte-identical — never overwritten (the #414 class). Ownership is a marker OPENING a line: a hook that merely mentions `# AAI:INDEX-AUTOGEN` in a comment is foreign and is never deleted by `--uninstall`.
 - **New `pre-push` hook (`--hooks close-gate`, marker `AAI:CLOSE-GATE`)** runs `close-reconcile.mjs --check` over every pushed range — the first trigger the close gate has in a project with no CI. Report-only by default; `close_gate: enforce` (read from the pushed commit) refuses a push to the default branch only. Degrades to a named NOTE when `node` or the script is absent.
@@ -82,7 +82,7 @@ fine — it is the marker a cut leaves on top.
 - **`/aai-doctor` gains CAT-18 Guard Wiring**, reporting a shipped guard whose hook git would run is missing, unmarked or not executable.
 - Installer: `--print guard-checks`, `--print pre-push`, and `--help` now describes the hook set and the decline-honouring plain run.
 
-## [unreleased] — feat: downstream rides ask no roadmap or amendment sign-off questions (goodwind-cz/aai#416)
+## [v2026.10.02] — feat: downstream rides ask no roadmap or amendment sign-off questions (goodwind-cz/aai#416)
 
 - **`ride-select.mjs gate` treats the roadmap file as the posture switch.** With no `docs/ai/roadmap.yaml` the gate admits with one `roadmap absent ... gate not consulted` line, exit 0, and writes nothing (no override event even under `--override --events`). A roadmap that is present but unreadable, empty, a directory or malformed still refuses (exit 1). `validate` and `next` are unchanged. This closes the contradiction between AGENTS.md operator-contract rule 4 ("roadmap discipline is opt-in downstream") and the script's old deny-on-absent behavior, which stopped every downstream `/aai-ship` at step 1a.
 - **Usage errors run before the posture check** in either posture: a missing or non-slug `--ref`, an empty `--override`, or an `--intake` whose id disagrees with `--ref` exit 2 even when the roadmap is absent.
@@ -90,7 +90,7 @@ fine — it is the marker a cut leaves on top.
 - **New guard suite** `tests/skills/test-aai-downstream-autopilot.sh` runs the real gate and amendment scripts in a fixture project with no roadmap at default paths and asserts zero question text before the merge checkpoint, plus a malformed-roadmap negative control and the dispatch/CLI gate seam; `test-aai-ride-select.sh` TEST-005 flips to the new contract. Suite-map row and prompt-diet credit (826 B) included.
 - Product doc: `docs/product/downstream-autopilot.md`. Spec: spec-downstream-rides-ask-no-governance-questions. Two disclosed, unsigned (`--signoff none`) amendments reconcile Test Plan mutation cells only; tracked by `fu-amend-downstream-rides-ask-no-d8106d`.
 
-## [unreleased] — fix: aai-sync preserves target-only hooks and reports its deletions (goodwind-cz/aai#414)
+## [v2026.10.02] — fix: aai-sync preserves target-only hooks and reports its deletions (goodwind-cz/aai#414)
 
 - **`hooks/` is now a file-by-file merge**, not a wholesale `copy_replace` (`rm -rf` then `cp -a`). A target-only file under `hooks/` — most notably a downstream project's own `hooks/merge-guard.{sh,ps1,py}` safety control — used to be deleted on every sync; it now survives and is named on stdout as `PRESERVE target-only hook: hooks/<name>`.
 - **Source-owned hook files still overwrite** and `hooks/session-start.sh` keeps its executable bit.
