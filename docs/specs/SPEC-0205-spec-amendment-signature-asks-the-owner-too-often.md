@@ -4,7 +4,7 @@ type: spec
 number: 205
 status: done
 mutation_gate: v1
-frozen_sha256: 220f4cc44ce19437d09b26cda0a94731f19ca89d6105ed8b7a3dbadb2008b890
+frozen_sha256: bdb8be0af91f01122fccb9069956b1a260a99baa44df548be7883939d43445e7
 ceremony_level: 2
 links:
   requirement: null
@@ -415,6 +415,8 @@ appends and never edits (Article 3, HAZ-LEDGER). Nothing in this scope writes
 | Spec-AC-21 | `.aai/system/AUTONOMOUS_LOOP.md` section 6a no longer claims `restamp` is reachable only from allocator anchor drift or that it hardcodes its class, and states instead that the measurement lane is taken ONLY when the reversal reproduces the stored anchor, that every other drift is disclosed as a contract record co-creating the `fu-amend-` obligation, and that the light lane is never reachable by a record's shape alone | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1377.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1377.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1377.txt | — | remediation round 3 (Codex P2 on PR #422); the file is outside the live `.aai/*.prompt.md` glob and outside TEST-010's three extras, measured, so it carries no prompt-diet ledger cost |
 | Spec-AC-22 | WHEN a `node .aai/scripts/…` command this script PRINTS interpolates a value THEN that value passes through one POSIX single-quote helper, so the classify remedy an UNVERIFIED `restamp` prints runs verbatim to exit 0 and a signed record even when its `--ref` and its ledger path both hold whitespace | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1378.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1378.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1378.txt | — | remediation round 4 (Codex P2 on PR #422), reproduced: `--ref` and the ledger path were interpolated raw, so a value holding whitespace split into stray tokens and exited 2; the helper replaces `JSON.stringify` at all three printed commands because its double quotes still expand `$`, a backtick and a backslash |
 | Spec-AC-23 | The Test Plan's summary sentence states the AC count, the Test Plan row count and the exact set of Spec-ACs carrying two rows, and a test re-derives all three by parsing this spec's own AC table and Test Plan, failing when the sentence disagrees with either table | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1379.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1379.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1379.txt | — | remediation round 4 (Copilot on PR #422, the second time): the figures stay in the sentence where a reviewer reads them, but they stop being an assertion — the next row addition turns the suite red instead of making the spec lie |
+| Spec-AC-24 | WHEN `classify --signoff owner` names a record whose `amendment_class` the FOLD resolves to `measurement` THEN it exits 2 and appends nothing, whether that class was declared by `--class` or carried by the record itself with `--class` OMITTED; and `classify --signoff owner` over a `contract` record still succeeds, so what is refused is the contradiction and never the signature | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1380.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1380.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1380.txt | — | code review round 5 (Codex P2 on PR #422), reproduced: round 1 converted `owesOwnerObligation` to read the projected class and left its sibling `refuseMeasurementSignedByOwner` reading the caller's flag, so omitting `--class` folded a record to bucket `signed` with class `measurement` |
+| Spec-AC-25 | WHEN this script PRINTS a `node .aai/scripts/…` command THEN every value it interpolates is rendered in a literal POSIX sh and PowerShell read IDENTICALLY, and where no such literal exists for a value BOTH labelled forms are printed; the remedy an UNVERIFIED `restamp` prints for a quote-bearing `--ref` therefore runs verbatim to a signed record under bash and, wherever a PowerShell engine resolves, under PowerShell too | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1381.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1381.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1381.txt | — | code review round 5 (Codex P2 on PR #422), reproduced: the POSIX close-escape-reopen form is a PowerShell parse error and the PowerShell doubled-quote form silently drops the quote in bash, while this repo ships a full `.ps1` layer and runs a Windows PowerShell 5.1 and a WSL1 CI leg |
 
 ## Test Plan
 
@@ -440,7 +442,13 @@ plain bash with `/usr/bin/grep -cF`:
 script: the claim under test is the prose).
 Measured the same way for the two rows added at remediation round 4, under
 plain bash with `/usr/bin/grep -cF`: `--ref ${shq(ref)}` = 1 on
-`.aai/scripts/spec-amend.mjs`. TEST-1379's target is THIS SPEC FILE, because
+`.aai/scripts/spec-amend.mjs`. Measured the same way for the two rows added
+at remediation round 5: `projected.amendment_class, signed, 'classify'` = 1
+and `UNIVERSAL_DQ_SAFE.test(s)` = 1 on `.aai/scripts/spec-amend.mjs`, and
+`--ref ${shq(ref)}` is still 1 there after the printed commands became
+per-shell (the call sites keep that spelling because `remedyLines` names its
+injected quoter `shq`, which is also what keeps TEST-1378's source scan
+un-weakened). TEST-1379's target is THIS SPEC FILE, because
 the claim under test is this spec's own prose about its own tables, and that
 makes its Mutation cell self-referential: the cell quotes both halves of its
 own substitution, the cell sits ABOVE the sentence, and a literal anchor
@@ -451,8 +459,10 @@ measured BEFORE the row quoting it existed, and the substitution then landed
 on the cell. Prose in this section must likewise never spell that phrase out,
 or the anchor matches the explanation instead. TEST-1379's anchor is
 therefore a lookahead,
-`26 rows(?=; counted)`, which the cell's own text cannot satisfy (`26 rows`
-is followed there by `(`, never by `;`) and the sentence can.
+`28 rows(?=; counted)`, which the cell's own text cannot satisfy (`28 rows`
+is followed there by `(`, never by `;`) and the sentence can. The anchor moves
+with the counts: every round that adds a row must re-point it as well as the
+sentence, which is why the two are named together here.
 
 | Test ID  | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |----------|---------|------|----------------------|-------------|----------|--------|
@@ -481,9 +491,11 @@ is followed there by `(`, never by `;`) and the sentence can.
 | TEST-1376 | Spec-AC-20 | integration | tests/skills/test-aai-spec-amend.sh | the classify line an unverified restamp prints is executed verbatim and must reach exit 0 with owner_signoff=true, and a source-wide scan checks every printed invocation's flags against the exported FLAG_SPECS table | sed:s/--signoff owner --source/--signoff owner --authority/ | green |
 | TEST-1377 | Spec-AC-21 | integration | tests/skills/test-aai-spec-amend.sh | the retired hardcode and reachable-only claims are absent from .aai/system/AUTONOMOUS_LOOP.md and the three measured-cause sentences are present | sed:s/takes the measurement lane ONLY when/takes the measurement lane when/ | green |
 | TEST-1378 | Spec-AC-22 | integration | tests/skills/test-aai-spec-amend.sh | the classify remedy an unverified restamp prints is run verbatim with whitespace in BOTH its `--ref` and its ledger path, and a source scan requires every interpolation after the command token to pass through the quoting helper | sed:s/--ref \$\{shq\(ref\)\}/--ref ${ref}/ | green |
-| TEST-1379 | Spec-AC-23 | integration | tests/skills/test-aai-spec-amend.sh | both tables are parsed out of the live spec and the summary sentence's AC count, row count and multi-row AC list are each compared against what the tables hold | sed:s/26 rows(?=; counted)/27 rows/ | green |
+| TEST-1379 | Spec-AC-23 | integration | tests/skills/test-aai-spec-amend.sh | both tables are parsed out of the live spec and the summary sentence's AC count, row count and multi-row AC list are each compared against what the tables hold | sed:s/28 rows(?=; counted)/29 rows/ | green |
+| TEST-1380 | Spec-AC-24 | integration | tests/skills/test-aai-spec-amend.sh | all twelve combinations of the record's own class, `--class` and `--signoff`: the expected exit is DERIVED from the three inputs, every refusal appends nothing, no cell leaves a record the fold calls both signed and measurement, and the contract drain route still signs | sed:s/projected.amendment_class, signed, 'classify'/projected.amendment_class, false, 'classify'/ | green |
+| TEST-1381 | Spec-AC-25 | integration | tests/skills/test-aai-spec-amend.sh | the remedy an unverified restamp prints for a quote-bearing `--ref` is ONE line both shells read the same way and is executed verbatim under bash and under a real `pwsh` wherever one resolves, and a `--ref` holding a quote AND a dollar prints both labelled forms, each executed in its own shell | sed:s/UNIVERSAL_DQ_SAFE.test\(s\)/false/ | green |
 
-Every Spec-AC has at least one row. Spec-AC-07, Spec-AC-13 and Spec-AC-16 carry two (23 ACs, 26 rows; counted from the table, not asserted).
+Every Spec-AC has at least one row. Spec-AC-07, Spec-AC-13 and Spec-AC-16 carry two (25 ACs, 28 rows; counted from the table, not asserted).
 TEST-1379 is what makes "counted from the table" true: it parses both tables
 out of this file and fails when any of those three figures disagrees with
 them. The numbers stay in the sentence rather than living only in the test
@@ -595,6 +607,19 @@ rejected in D4, carrying its precondition (20 of 197 frozen specs anchored).
   returns to the contract lane are there because of R5, not because the drift
   is unexplained. They stay there: a guard that is widened to admit what it
   cannot prove is not a guard.
+
+- R6. The printed remedies are rendered in a literal POSIX sh and PowerShell
+  read identically, and this script deliberately does NOT sniff a host shell:
+  a wrong guess emits a line the other shell MISREADS rather than refuses
+  (measured, bash against pwsh 7.6.3: the PowerShell doubled-quote form is
+  `OBrien` in bash and the POSIX close-escape-reopen form is a PowerShell
+  parse error), and one Windows box runs PowerShell, Git Bash and WSL with
+  three different right answers. The residual is the value for which no
+  common literal exists — one holding a single quote AND one of the bytes
+  double quotes treat differently in the two shells. That case prints BOTH
+  labelled forms rather than one line that is silently wrong somewhere, which
+  is noisier but never misleading; it is exercised by TEST-1381 arm 4, not
+  left as an unrun branch.
 
 ## Notes
 

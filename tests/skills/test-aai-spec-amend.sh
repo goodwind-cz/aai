@@ -4173,6 +4173,244 @@ test_1379_test_plan_summary_is_recomputed_from_the_tables() {
   log_pass "TEST-1379 the Test Plan summary sentence's AC count, row count and multi-row AC list all re-derive from this spec's own two tables"
 }
 
+# --- TEST-1380 (Spec-AC-24) — the signing refusal reads the PROJECTED class --
+#
+# Code review round 5, Codex P2 on PR #422: round 1 converted
+# `owesOwnerObligation` to read the class off `foldAmendments` and left its
+# sibling `refuseMeasurementSignedByOwner` reading the caller's `--class`.
+# OMIT the flag and the predicate receives `null`, so
+# `classify --signoff owner` over a record whose OWN class is `measurement`
+# was allowed and folded to `amendment_class: measurement` with
+# `bucket: signed` — the light lane minting the authority it exists to stop
+# asking for, reached by leaving a flag off.
+#
+# The arm is the WHOLE input space rather than the one reproduced cell: every
+# (record class x --class x --signoff) combination, twelve in all, each on its
+# own fixture ledger, each checked against the INVARIANT itself. A predicate
+# that reads the wrong input cannot be half-fixed past this.
+count_ledger_records() {
+  node -e '
+    const fs=require("fs");
+    const raw=fs.readFileSync(process.argv[1],"utf8");
+    let n=0;
+    for (const line of raw.split(/\r?\n/)) {
+      const t=line.trim();
+      if (t==="" || t.startsWith("#")) continue;
+      try { JSON.parse(t); n+=1; } catch { /* malformed lines are not records */ }
+    }
+    process.stdout.write(String(n));
+  ' "$1"
+}
+
+test_1380_signing_refusal_reads_the_projected_class() {
+  log_info "Test: no combination of a record's own class, --class and --signoff can produce a SIGNED record the fold resolves to measurement, and --signoff owner with --class OMITTED over a measurement record exits 2 and appends nothing (TEST-1380)..."
+  local spec led ts rec_class flag signoff cell expected classify_ec classify_err before after offenders bucket
+
+  spec="$(mk_spec "SPEC-DRAFT-t1380.md" "spec-t1380-fixture")"
+
+  for rec_class in contract measurement; do
+    for flag in none contract measurement; do
+      for signoff in none owner; do
+        cell="record_class=$rec_class --class=$flag --signoff=$signoff"
+        led="$(mk_ledger "t1380-$rec_class-$flag-$signoff")"
+
+        # The record under test is written by the real writer, so its own
+        # `amendment_class` is the one a live writer stamps — never hand-built.
+        run_sa add --ledger "$led" --spec "$spec" --ref t1380-ride \
+          --what "a post-freeze edit" --why "disclosed on the ledger" \
+          --class "$rec_class" --signoff none
+        [[ "$EC" == 0 ]] \
+          || log_fail "TEST-1380 setup ($cell): \`add --class $rec_class\` exited $EC; stderr: $ERR"
+        ts="$(json_field "$(last_amendment_for "$led" t1380-ride)" 'j.ts')"
+        before="$(count_ledger_records "$led")"
+
+        if [[ "$flag" == none ]]; then
+          run_sa classify --ledger "$led" --ts "$ts" --ref t1380-ride \
+            --signoff "$signoff" --why "what the drift was" --source "where it was decided"
+        else
+          run_sa classify --ledger "$led" --ts "$ts" --ref t1380-ride --class "$flag" \
+            --signoff "$signoff" --why "what the drift was" --source "where it was decided"
+        fi
+        classify_ec="$EC"
+        classify_err="$ERR"
+
+        # The expectation is DERIVED from the three inputs, never a table of
+        # remembered answers: a signature over a measurement projection is
+        # refused however the class got there, a `--class measurement
+        # --signoff owner` pair is refused on the flags alone, and a `--class`
+        # the fold would not adopt is refused as before.
+        expected=0
+        if [[ "$signoff" == owner && "$flag" == measurement ]]; then
+          expected=2
+        elif [[ "$signoff" == owner && "$rec_class" == measurement ]]; then
+          expected=2
+        elif [[ "$flag" != none && "$flag" != "$rec_class" ]]; then
+          expected=2
+        fi
+        [[ "$classify_ec" == "$expected" ]] \
+          || log_fail "TEST-1380 ($cell): expected exit $expected, got $classify_ec.
+STDOUT: $OUT
+STDERR: $classify_err"
+
+        if [[ "$expected" == 2 ]]; then
+          after="$(count_ledger_records "$led")"
+          [[ "$after" == "$before" ]] \
+            || log_fail "TEST-1380 ($cell): a refused classify appended to the ledger — $before record(s) before, $after after"
+          grep -qF "measurement" <<<"$classify_err" \
+            || log_fail "TEST-1380 ($cell): the refusal must name the class it refuses; stderr was: $classify_err"
+        fi
+
+        # THE INVARIANT, checked on every cell whatever the exit code was:
+        # the ledger the run leaves behind never holds a record the fold
+        # resolves to BOTH `signed` and `measurement`.
+        run_sa list --ledger "$led" --status all --json
+        [[ "$EC" == 0 ]] \
+          || log_fail "TEST-1380 ($cell): \`list --json\` exited $EC; stderr: $ERR"
+        offenders="$(json_field "$OUT" '(j.items||[]).filter(i=>i.bucket==="signed"&&i.amendment_class==="measurement").map(i=>i.ts+" "+i.ref_id).join(", ")')"
+        [[ -z "$offenders" ]] \
+          || log_fail "TEST-1380 ($cell): the fold resolved a SIGNED record whose amendment_class is measurement — the light lane manufactured an owner signature it can never carry: $offenders"
+
+        # ...and the drain route the measurement lane was never meant to close:
+        # a CONTRACT record is still signable by the same flagless call, which
+        # is the exact line an unverified `restamp` prints as its own remedy.
+        if [[ "$rec_class" == contract && "$signoff" == owner && "$flag" != measurement ]]; then
+          bucket="$(json_field "$OUT" '((j.items||[])[0]||{}).bucket')"
+          [[ "$bucket" == "signed" ]] \
+            || log_fail "TEST-1380 ($cell): a contract record must still reach bucket signed through \`classify --signoff owner\`, got \"$bucket\" — refusing the contradiction must not refuse the signature"
+        fi
+      done
+    done
+  done
+
+  log_pass "TEST-1380 all twelve (record class x --class x --signoff) combinations refuse exactly the contradiction, append nothing when they refuse, never fold a signed record to measurement, and leave the contract drain route open"
+}
+
+# --- TEST-1381 (Spec-AC-25) — the printed remedy runs in BOTH shells --------
+#
+# Code review round 5, Codex P2 on PR #422, second finding: `shq` wrapped every
+# interpolated value in POSIX single quotes, which PowerShell cannot parse —
+# `'O'\''Brien'` is "The string is missing the terminator: '." — while this
+# repo supports Windows (a full `.ps1` layer, a Windows PowerShell 5.1 CI leg
+# and a WSL1 leg, and AGENTS.md's Canonical test invocation names both forms).
+# TEST-1378 round-tripped through bash only, so it could not see it.
+#
+# Three arms. Arm 1 asserts the BYTES — the one property that holds on every
+# host, so this test still proves something where no PowerShell engine exists.
+# Arm 2 runs the printed line in bash. Arm 3 runs the SAME line in pwsh where
+# one resolves and says plainly, in the pass line, when it did not: a skip here
+# would be exit 42, which VOIDS the suite, and a silent pass would be worse
+# than no test at all.
+resolve_pwsh() {
+  local engine
+  for engine in pwsh powershell; do
+    if command -v "$engine" >/dev/null 2>&1; then printf '%s' "$engine"; return 0; fi
+  done
+  printf '%s' ""
+}
+
+test_1381_printed_remedy_runs_in_posix_and_powershell() {
+  log_info "Test: the remedy an unverified restamp prints is quoted so it runs verbatim in BOTH POSIX sh and PowerShell, and a value no single literal can express in both prints the two labelled forms instead (TEST-1381)..."
+  local spec led engine lines line l posix_line ps_line cmd o e rc had_pwsh
+
+  engine="$(resolve_pwsh)"
+  had_pwsh="no"
+  if [[ -n "$engine" ]]; then had_pwsh="yes"; fi
+
+  # --- ARM 1+2: a quote-bearing --ref, the universal rendering --------------
+  spec="$(mk_linked_freezable_spec t1381-specs/a.md spec-t1381-fixture t1381-intake)"
+  freeze_spec "$spec" || log_fail "TEST-1381 setup: real spec-freeze.mjs refused the fixture"
+  sed -i.bak 's/original description text/a DIFFERENT promise this spec never made/' "$spec"
+  led="$(mk_ledger 't1381 decision ledger')"
+
+  run_sa restamp --spec "$spec" --ref "o'brien ref" --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "TEST-1381: restamp must exit 0 on the unverified fixture, got $EC (stderr: $ERR)"
+  grep -qF 'the allocator is NOT verified as the cause' <<<"$OUT" \
+    || log_fail "TEST-1381 setup: the fixture must produce an UNVERIFIED restamp; stdout: $OUT"
+
+  lines=0; line=""
+  while IFS= read -r l; do
+    case "$l" in *"spec-amend.mjs classify "*) lines=$((lines + 1)); line="$l" ;; esac
+  done <<<"$OUT"
+  [[ "$lines" == 1 ]] \
+    || log_fail "TEST-1381 arm 1: a --ref holding only a quote has ONE literal both shells read the same way, so exactly one remedy line is owed; got $lines. stdout: $OUT"
+  grep -qF '"o'"'"'brien ref"' <<<"$line" \
+    || log_fail "TEST-1381 arm 1: the quote-bearing --ref must be rendered in the one form both shells read identically (double quotes, where a single quote is literal in each), not a POSIX-only escape. Printed: $line"
+  grep -qF "'\\''" <<<"$line" \
+    && log_fail "TEST-1381 arm 1: the printed line carries the POSIX close-escape-reopen form, which PowerShell refuses with \"The string is missing the terminator\". Printed: $line"
+
+  cmd="node \"\$SA\" classify ${line#*spec-amend.mjs classify }"
+  o="$TEST_DIR/.t1381.out"; e="$TEST_DIR/.t1381.err"; rc=0
+  eval "$cmd" > "$o" 2> "$e" || rc=$?
+  [[ "$rc" == 0 ]] \
+    || log_fail "TEST-1381 arm 2: the printed remedy exited $rc under bash.
+COMMAND: $cmd
+STDERR:  $(cat "$e")"
+  grep -qF 'owner_signoff=true' "$o" \
+    || log_fail "TEST-1381 arm 2: running the printed remedy under bash must sign the record off; stdout: $(cat "$o")"
+
+  # --- ARM 3: the SAME line, run by a real PowerShell -----------------------
+  if [[ -n "$engine" ]]; then
+    cmd="node '$SA' classify ${line#*spec-amend.mjs classify }"
+    rc=0
+    "$engine" -NoProfile -Command "$cmd" > "$o" 2> "$e" || rc=$?
+    [[ "$rc" == 0 ]] \
+      || log_fail "TEST-1381 arm 3: the printed remedy exited $rc under $engine — the advertised line is not runnable on the Windows path this repo supports.
+COMMAND: $cmd
+STDERR:  $(cat "$e")"
+    grep -qF 'owner_signoff=true' "$o" \
+      || log_fail "TEST-1381 arm 3: running the printed remedy under $engine must sign the record off; stdout: $(cat "$o") stderr: $(cat "$e")"
+  else
+    log_info "TEST-1381 arm 3: no PowerShell engine (pwsh or powershell) on PATH — the printed line was NOT executed by a real PowerShell on this host; arms 1, 2 and 4 still ran and arm 1's byte assertion is the mechanism arm 3 would exercise"
+  fi
+
+  # --- ARM 4: a value no single literal covers prints BOTH forms ------------
+  # A `--ref` holding a quote AND a `$`: double quotes would expand the `$` in
+  # both shells and single quotes diverge on the quote, so no common literal
+  # exists. The honest answer is the labelled pair, never one line that is
+  # right in one shell and silently misread in the other.
+  spec="$(mk_linked_freezable_spec t1381b-specs/a.md spec-t1381b-fixture t1381b-intake)"
+  freeze_spec "$spec" || log_fail "TEST-1381 arm 4 setup: real spec-freeze.mjs refused the fixture"
+  sed -i.bak 's/original description text/a DIFFERENT promise this spec never made/' "$spec"
+  led="$(mk_ledger 't1381b decision ledger')"
+
+  run_sa restamp --spec "$spec" --ref 'o'"'"'brien $ref' --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "TEST-1381 arm 4: restamp must exit 0, got $EC (stderr: $ERR)"
+
+  posix_line=""; ps_line=""
+  while IFS= read -r l; do
+    case "$l" in
+      *"POSIX sh: node .aai/scripts/spec-amend.mjs classify "*) posix_line="$l" ;;
+      *"PowerShell: node .aai/scripts/spec-amend.mjs classify "*) ps_line="$l" ;;
+    esac
+  done <<<"$OUT"
+  [[ -n "$posix_line" && -n "$ps_line" ]] \
+    || log_fail "TEST-1381 arm 4: a value with no literal both shells read the same way owes BOTH labelled forms, so neither host is handed a line the other's quoting silently misreads. stdout: $OUT"
+
+  cmd="node \"\$SA\" classify ${posix_line#*spec-amend.mjs classify }"
+  rc=0
+  eval "$cmd" > "$o" 2> "$e" || rc=$?
+  [[ "$rc" == 0 ]] \
+    || log_fail "TEST-1381 arm 4: the POSIX form exited $rc under bash.
+COMMAND: $cmd
+STDERR:  $(cat "$e")"
+  grep -qF 'owner_signoff=true' "$o" \
+    || log_fail "TEST-1381 arm 4: the POSIX form must sign the record off under bash; stdout: $(cat "$o")"
+
+  if [[ -n "$engine" ]]; then
+    cmd="node '$SA' classify ${ps_line#*spec-amend.mjs classify }"
+    rc=0
+    "$engine" -NoProfile -Command "$cmd" > "$o" 2> "$e" || rc=$?
+    [[ "$rc" == 0 ]] \
+      || log_fail "TEST-1381 arm 4: the PowerShell form exited $rc under $engine.
+COMMAND: $cmd
+STDERR:  $(cat "$e")"
+    grep -qF 'owner_signoff=true' "$o" \
+      || log_fail "TEST-1381 arm 4: the PowerShell form must sign the record off under $engine; stdout: $(cat "$o") stderr: $(cat "$e")"
+  fi
+
+  log_pass "TEST-1381 the printed remedy is rendered in the one literal POSIX sh and PowerShell read identically and runs verbatim in both (live PowerShell run: $had_pwsh), and a value no common literal covers prints both labelled forms, each runnable in its own shell"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -4229,6 +4467,8 @@ main() {
   test_1377_canon_states_the_measured_cause_rule
   test_1378_printed_commands_quote_their_values
   test_1379_test_plan_summary_is_recomputed_from_the_tables
+  test_1380_signing_refusal_reads_the_projected_class
+  test_1381_printed_remedy_runs_in_posix_and_powershell
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

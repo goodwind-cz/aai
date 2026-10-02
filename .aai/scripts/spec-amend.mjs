@@ -723,8 +723,75 @@ frontmatter id, or an ambiguous/unmatched classify target.`;
 // ledger named `decision ledger.jsonl`, which split into stray tokens and
 // exited 2. TEST-1378 runs the printed line with both and scans this file so
 // a future interpolation cannot skip the helper.
-function shq(value) {
-  return `'${String(value).replace(/'/g, "'\\''")}'`;
+//
+// ...BUT POSIX IS NOT THE ONLY SHELL THIS REPO SUPPORTS (code review round 5,
+// Codex P2 on PR #422). `.aai/AGENTS.md`'s Canonical test invocation names a
+// PowerShell form beside the POSIX one, `.github/workflows/ps1-quality.yml`
+// runs a real Windows PowerShell 5.1 leg and a WSL1 leg, and there is a full
+// `.ps1` layer under `.aai/scripts`. Both shells treat `'...'` literally and
+// diverge on exactly ONE byte — the quote itself — and each form is not
+// merely REJECTED by the other, it is MISREAD by it. Measured here, bash 3.2
+// against pwsh 7.6.3, rendering `O'Brien`:
+//   'O'\''Brien'   bash: O'Brien  | pwsh: parse error, missing terminator
+//   'O''Brien'     pwsh: O'Brien  | bash: OBrien        (silently wrong)
+//   'O'"'"'Brien'  bash: O'Brien  | pwsh: three args    (silently wrong)
+//   "O'Brien"      bash: O'Brien  | pwsh: O'Brien       (identical)
+//
+// So this file does NOT sniff a host shell and pick one. A wrong guess is the
+// silent-misread row above rather than a refusal, and one Windows box runs
+// PowerShell, Git Bash and WSL with three different right answers — the same
+// reason `routine-emit.mjs` reaches for a form that "parses in BOTH runtimes"
+// where one exists and emits a per-OS variant only where none does. The
+// universal form is used wherever it exists: `'...'` for a value with no
+// quote (which is every ref, timestamp and path in practice, so the printed
+// bytes are unchanged), `"..."` for a quote-bearing value holding none of the
+// bytes the two shells treat differently inside double quotes. Where neither
+// covers it, BOTH forms are printed, labelled — the convention AGENTS.md
+// already uses for the test invocation itself. TEST-1381 runs the printed
+// remedy in bash and, where `pwsh` resolves, in PowerShell too.
+
+// Inside `"..."`: `$` and a backtick expand in BOTH shells, `"` terminates in
+// both, `\` escapes in POSIX only, `!` is bash history expansion in the
+// interactive shell this advice is pasted into, and CR/LF would break the
+// line. A value free of all of them means the same thing in both shells
+// inside double quotes, and a single quote there is literal in both.
+const UNIVERSAL_DQ_SAFE = /^[^"$`\\!\r\n]*$/;
+
+// universalLiteral(value) -> a literal that is byte-identical and
+// semantically identical in POSIX sh and in PowerShell, or null when no such
+// literal exists for this value.
+function universalLiteral(value) {
+  const s = String(value);
+  if (!s.includes("'")) return `'${s}'`;
+  if (UNIVERSAL_DQ_SAFE.test(s)) return `"${s}"`;
+  return null;
+}
+
+function shqPosix(value) {
+  return universalLiteral(value) ?? `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
+function shqPowerShell(value) {
+  return universalLiteral(value) ?? `'${String(value).replace(/'/g, "''")}'`;
+}
+
+// remedyLines(build) — the ONE place a printed command's shell renderings are
+// produced. `build` carries the command text ONCE and is called once per
+// shell with that shell's quoter, so the two renderings cannot drift the way
+// two hand-kept copies would. Its parameter is named `shq` on purpose: the
+// command text in the call sites below therefore still reads `${shq(value)}`,
+// which is exactly what TEST-1378's source scan requires of every
+// interpolation inside a printed command — the guard is unchanged and
+// un-weakened by this becoming per-shell.
+//
+// One line when the two renderings are byte-equal (the universal case, which
+// is every value in practice). Two labelled lines when they are not, rather
+// than one line that is right in one shell and silently misread in the other.
+function remedyLines(build) {
+  const posix = build(shqPosix);
+  const pwsh = build(shqPowerShell);
+  if (posix === pwsh) return [posix];
+  return [`POSIX sh: ${posix}`, `PowerShell: ${pwsh}`];
 }
 
 function usageError(msg) {
@@ -869,9 +936,23 @@ function requireAmendmentClass(opts, sub) {
 // Shared by both writers on purpose: D4 states the contradiction without
 // naming a subcommand, and a per-record `classify` route that could still mint
 // the pair would reopen by the back door what `add` closes.
-function refuseMeasurementSignedByOwner(amendmentClass, signed, sub) {
+//
+// `classSource` says WHERE the class came from, because the two callers reach
+// this refusal by different routes and owe different remedies. `'flag'` is a
+// caller's own `--class measurement` and the remedy is to declare `contract`
+// instead. `'projection'` is the class `foldAmendments` resolves for a record
+// that already exists, where declaring `contract` would NOT help — a record's
+// own `amendment_class` outranks every overlay, so the only honest routes are
+// to drop the signature or to append a corrected amendment with `add`.
+function refuseMeasurementSignedByOwner(amendmentClass, signed, sub, classSource) {
   if (signed && amendmentClass === MEASUREMENT_CLASS) {
-    usageError(`\`${sub} --class ${MEASUREMENT_CLASS} --signoff owner\` is a contradiction: the ${MEASUREMENT_CLASS} class says this amendment only changed HOW a claim is measured, which owes no owner signature — it can never CARRY one. Declare --class contract if the owner really signed off on a change to what the spec promises, or drop --signoff owner.`);
+    const lead = classSource === 'projection'
+      ? `\`${sub} --signoff owner\` against a record the fold resolves to \`amendment_class: ${MEASUREMENT_CLASS}\``
+      : `\`${sub} --class ${MEASUREMENT_CLASS} --signoff owner\``;
+    const remedy = classSource === 'projection'
+      ? `Drop --signoff owner, or — if the owner really signed off on a change to what the spec promises — append a NEW corrected amendment with \`add --class contract --signoff owner --authority "<the owner decision>"\`, because a record's OWN amendment_class outranks every classification overlay and \`--class contract\` here would be refused for that reason.`
+      : `Declare --class contract if the owner really signed off on a change to what the spec promises, or drop --signoff owner.`;
+    usageError(`${lead} is a contradiction: the ${MEASUREMENT_CLASS} class says this amendment only changed HOW a claim is measured, which owes no owner signature — it can never CARRY one. ${remedy}`);
   }
 }
 
@@ -922,7 +1003,7 @@ function cmdAdd(opts) {
   // writer who declared NOTHING, never to one who chose contract on purpose.
   const declaredClass = requireAmendmentClass(opts, 'add');
   const amendmentClass = declaredClass ?? DEFAULT_AMENDMENT_CLASS;
-  refuseMeasurementSignedByOwner(amendmentClass, signed, 'add');
+  refuseMeasurementSignedByOwner(amendmentClass, signed, 'add', 'flag');
 
   const absSpec = path.resolve(process.cwd(), opts.spec);
   const specId = readSpecId(absSpec);
@@ -1203,7 +1284,7 @@ function cmdClassify(opts) {
   // exactly as it was, which is what keeps the remedy line `list --strict`
   // prints runnable verbatim.
   const amendmentClass = requireAmendmentClass(opts, 'classify');
-  refuseMeasurementSignedByOwner(amendmentClass, signed, 'classify');
+  refuseMeasurementSignedByOwner(amendmentClass, signed, 'classify', 'flag');
   if (opts.origin !== undefined && opts.origin !== 'backfill') {
     usageError(`--origin only accepts "backfill" (got "${opts.origin}")`);
   }
@@ -1273,6 +1354,36 @@ function cmdClassify(opts) {
   // later edit to `foldAmendments` cannot quietly undo.
   const trial = foldAmendments(reg.records.concat([entry]));
   const projected = trial.byKey.get(overlayKey(opts.ts, opts.ref));
+
+  // THE SIGNING REFUSAL IS A GATE ON THE PROJECTED CLASS, NOT ON THE FLAG —
+  // the SAME correction `owesOwnerObligation` took above, applied to its
+  // sibling, which round 1 left reading the caller's declaration (code
+  // review round 5, Codex P2 on PR #422, reproduced). The early
+  // `refuseMeasurementSignedByOwner(amendmentClass, …)` call near the top of
+  // this function sees `null` whenever `--class` is OMITTED, so
+  // `classify --signoff owner` against a record whose OWN class is
+  // `measurement` sailed past it, the fold then resolved
+  // `amendment_class: measurement` with `bucket: signed`, and the stated
+  // invariant — the light lane can never produce a signed record — was
+  // bypassed by leaving a flag off. Both class-reading predicates in this
+  // writer now take their answer off the SAME `foldAmendments` call that
+  // assigns the bucket, so neither can disagree with the fold or with the
+  // other; `classify` is the only writer where this can differ at all,
+  // because it is the only one that overlays a record it did not create
+  // (`add` stamps the class it resolved onto the record it appends, and
+  // `restamp` measures it from the bytes — in both, declared IS projected).
+  //
+  // REFUSE THE CONTRADICTION, NOT THE SIGNATURE. `--signoff owner` with no
+  // `--class` over a CONTRACT record stays legal, and deliberately: it is the
+  // normal drain route for the unsigned backlog, and it is the exact line an
+  // unverified `restamp` PRINTS as its own remedy (`classify … --signoff
+  // owner --source … --why …`, no `--class`). Refusing the signature outright
+  // whenever the class is unstated would make this tool's own advertised
+  // remedy unrunnable — the defect class this script exists to remove, one
+  // level up. What can never happen is a SIGNED record whose class the fold
+  // resolves to `measurement`: that is the lighter lane minting the authority
+  // it was built to stop asking for.
+  refuseMeasurementSignedByOwner(projected.amendment_class, signed, 'classify', 'projection');
 
   // A `--class` the fold would NOT adopt is REFUSED, never silently ignored:
   // accepting a flag that cannot change the record's class, its bucket, or
@@ -1473,7 +1584,9 @@ function cmdRestamp(opts) {
     // A remedy that cannot be run is the defect this script exists to remove,
     // one level up — TEST-1376 runs this line verbatim and checks EVERY
     // printed invocation in this file against FLAG_SPECS itself.
-    console.log(`NOTE sign it off once someone has said what changed: node .aai/scripts/spec-amend.mjs classify --ts ${shq(ts)} --ref ${shq(ref)} --signoff owner --source "<who decided, where>" --why "<what the drift really was>" --ledger ${shq(abs)}`);
+    for (const remedy of remedyLines((shq) => `node .aai/scripts/spec-amend.mjs classify --ts ${shq(ts)} --ref ${shq(ref)} --signoff owner --source "<who decided, where>" --why "<what the drift really was>" --ledger ${shq(abs)}`)) {
+      console.log(`NOTE sign it off once someone has said what changed: ${remedy}`);
+    }
   }
   if (reusedNote) console.log(`NOTE ${reusedNote}`);
   if (owes) console.log('NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open');
@@ -1687,7 +1800,9 @@ function cmdList(opts) {
       // to `measurement` when the change really was only a measurement,
       // exactly as they already edit `--what`/`--why` — a printed remedy must
       // never be the thing that quietly claims the lighter lane for them.
-      process.stderr.write(`  node .aai/scripts/spec-amend.mjs add --spec ${shq(v.path)} --ref ${shq(v.spec_id ?? 'unknown-ref')} --what ${shq('undisclosed post-freeze content change (edit this line to name what changed)')} --why ${shq('closing the strict amendment gate after the frozen anchor stopped matching (edit this line to name why)')} --class contract --signoff none\n`);
+      for (const remedy of remedyLines((shq) => `node .aai/scripts/spec-amend.mjs add --spec ${shq(v.path)} --ref ${shq(v.spec_id ?? 'unknown-ref')} --what ${shq('undisclosed post-freeze content change (edit this line to name what changed)')} --why ${shq('closing the strict amendment gate after the frozen anchor stopped matching (edit this line to name why)')} --class contract --signoff none`)) {
+        process.stderr.write(`  ${remedy}\n`);
+      }
     }
     process.stderr.write('`add` RE-STAMPS frozen_sha256 to the current projection in the SAME call that appends the record, so running the line above is what clears this violation — never `spec-amend.mjs classify`, which judges an EXISTING record\'s sign-off and touches no spec.\n');
   }
@@ -1733,7 +1848,9 @@ function cmdList(opts) {
       // ref carrying a quote or whitespace produced a line that breaks when
       // pasted — and TEST-013 runs this line through `eval` (code review
       // NB-E, reproduced through the writer, not only by hand-append).
-      process.stderr.write(`  node .aai/scripts/spec-amend.mjs classify --ts ${shq(v.ts)} --ref ${shq(v.ref_id)} --signoff none --why "<one line>" --source "<evidence>"\n`);
+      for (const remedy of remedyLines((shq) => `node .aai/scripts/spec-amend.mjs classify --ts ${shq(v.ts)} --ref ${shq(v.ref_id)} --signoff none --why "<one line>" --source "<evidence>"`)) {
+        process.stderr.write(`  ${remedy}\n`);
+      }
     }
     process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to name the item it attaches to (a new id is filed for you; a discharged one is refused).\n');
     process.stderr.write('NOT remedies: `spec-amend.mjs add` records a NEW amendment and leaves the record named above untracked; `follow-ups.mjs add` files an item but attaches it to nothing. Never edit the ledger in place (HAZ-LEDGER).\n');
