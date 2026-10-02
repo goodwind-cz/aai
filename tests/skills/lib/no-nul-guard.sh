@@ -42,10 +42,38 @@ nonul_file_has_nul() {
 # enumeration Spec-AC-27's own verification text names; NUL-separated so a
 # tracked path containing whitespace is still read whole, matching the
 # repository's own `git ls-files -z` convention used elsewhere (D3, M7).
+# nonul_is_declared_binary <repo-root> <path> -> exit 0 only when
+# .gitattributes DECLARES this path binary.
+#
+# The title of this guard says TEXT file and always did, but the scan walked
+# every tracked path, so the first binary asset ever committed here
+# (docs/assets/aai-readme-hero.png, CHANGE-0199) failed it for carrying the
+# NUL bytes a PNG is made of. A guard that forbids what its own name exempts
+# asserts more than it means.
+#
+# The exemption is DECLARED, never inferred. The obvious inference — ask git
+# whether it calls the blob binary (`git ls-files --eol` reporting `i/-text`)
+# — is circular here and was measured to empty this guard completely: git's
+# definition of binary IS "contains a NUL in the first 8000 bytes", so a text
+# file with a planted NUL is classified binary and walks straight through.
+# That version of this function let a planted NUL pass on a scratch fixture.
+#
+# So a path is exempt only when a human wrote it into .gitattributes as
+# `binary`, which is auditable in review and cannot be produced by the act of
+# planting the byte. A file that is genuinely an asset gets one line there;
+# everything else stays under the guard.
+nonul_is_declared_binary() {
+  case "$( git -C "$1" check-attr binary -- "$2" 2>/dev/null )" in
+    *": binary: set") return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 nonul_scan() {
   local _nn_root="$1" _nn_f _nn_rc
   ( cd "$_nn_root" && git ls-files -z ) | while IFS= read -r -d '' _nn_f; do
     [ -f "$_nn_root/$_nn_f" ] || continue
+    nonul_is_declared_binary "$_nn_root" "$_nn_f" && continue
     nonul_file_has_nul "$_nn_root/$_nn_f"
     _nn_rc=$?
     [ "$_nn_rc" -eq 0 ] || continue

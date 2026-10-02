@@ -1670,6 +1670,44 @@ test_562_no_nul_in_tracked_text() {  # TEST-562 / Spec-AC-27
     *) : ;;
   esac
 
+  # ---- the DECLARED-binary exemption, both directions (CHANGE-0199 brought
+  # the first tracked binary asset this repo has ever had, and the guard's
+  # own title said TEXT file while its scan walked everything).
+  #
+  # This arm exists because the obvious fix was measured to EMPTY the guard:
+  # asking git whether it calls a blob binary is circular here, since git's
+  # definition of binary IS "carries a NUL", so a text file with a planted
+  # NUL classifies as binary and walks straight through. The exemption must
+  # be DECLARED in .gitattributes, and this arm fails if it ever goes back to
+  # being inferred -- the undeclared planted file below is what catches that.
+  local fxb="$d/nonul-declared"
+  rm -rf "$fxb"; mkdir -p "$fxb"
+  git init -q "$fxb"
+  git -C "$fxb" config user.email t@t.example
+  git -C "$fxb" config user.name t
+  printf '*.png binary\n' > "$fxb/.gitattributes"
+  printf '\211PNG\r\n\032\n\000\000\000\r' > "$fxb/asset.png"
+  printf 'prose\000byte\n' > "$fxb/undeclared.md"
+  git -C "$fxb" add -A
+  git -C "$fxb" commit -qm "fixture: one declared-binary asset, one undeclared NUL-carrying text file"
+
+  local outb rcb
+  outb=$(bash "$guard" --check "$fxb" 2>&1) && rcb=0 || rcb=$?
+  [[ "$rcb" -ne 0 ]] || log_fail "TEST-562: a NUL in an UNDECLARED file must still fail even when a declared asset is present, got 0: $outb"
+  case "$outb" in
+    *"undeclared.md"*) : ;;
+    *) log_fail "TEST-562: the guard must still name an undeclared NUL-carrying file, got: $outb" ;;
+  esac
+  case "$outb" in
+    *"asset.png"*) log_fail "TEST-562: a path declared binary in .gitattributes must be exempt, got: $outb" ;;
+    *) : ;;
+  esac
+
+  # The live tree carries a declared asset today; the guard must pass over it.
+  local outl rcl
+  outl=$(bash "$guard" --check "$PROJECT_ROOT" 2>&1) && rcl=0 || rcl=$?
+  [[ "$rcl" -eq 0 ]] || log_fail "TEST-562: the live tree must pass the guard, got $rcl naming: $outl"
+
   # ---- live tree: exits clean -- REQUIRES spec-amend.mjs's NUL to be gone
   local live_out live_rc
   live_out=$(bash "$guard" --check "$PROJECT_ROOT" 2>&1) && live_rc=0 || live_rc=$?
