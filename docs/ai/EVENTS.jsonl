@@ -2720,3 +2720,4 @@
 {"v":1,"ts":"2026-10-02T13:46:05Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":554,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-02T13:47:14Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":554,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-02T14:29:18Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":554,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-02T15:01:44Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"amendment-signature-asks-the-owner-too-often","payload":{"pr":422,"lane":"heavy","reviewer_bots":"expected","threads_seen":11,"threads_unresolved":0,"outcome":"swept","head_sha":"b74490fa14d1069ae108bae07f5a5c4a41e787f3"}}
