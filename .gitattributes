@@ -17,3 +17,9 @@ docs/**/*.md text eol=lf
 .gemini/skills/**/SKILL.md text eol=lf
 .gemini/skills/README.md text eol=lf
 *.mjs text eol=lf
+
+# Binary assets. Declared, not inferred: tests/skills/lib/no-nul-guard.sh
+# exempts a path from the no-NUL guard ONLY when it is declared binary here,
+# because git considers any file with a NUL byte binary and inferring the
+# exemption would empty the guard it exempts from.
+*.png binary

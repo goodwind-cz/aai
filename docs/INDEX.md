@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-02T15:16:44.470Z
+Generated: 2026-10-02T18:19:43.522Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -53,7 +53,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (484)
+## Done (485)
 
 | ID | Type | Path |
 |---|---|---|
@@ -251,6 +251,7 @@ _None._
 | CHANGE-0196 | issues | docs/issues/CHANGE-0196-antigravity-cli-skill-paths.md |
 | CHANGE-0197 | issues | docs/issues/CHANGE-0197-pricing-missing-models-and-refresh.md |
 | CHANGE-0198 | issues | docs/issues/CHANGE-0198-pricing-gpt-6-flagship-family.md |
+| CHANGE-0199 | issues | docs/issues/CHANGE-0199-readme-portable-workflow-onboarding.md |
 | CHANGE-0200 | issues | docs/issues/CHANGE-0200-downstream-rides-ask-no-governance-questions.md |
 | CHANGE-0201 | issues | docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md |
 | CHANGE-0202 | issues | docs/issues/CHANGE-0202-amendment-signature-asks-the-owner-too-often.md |

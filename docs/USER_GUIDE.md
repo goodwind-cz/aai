@@ -5,6 +5,7 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 ## Table of Contents
 
 - [Getting Started](#getting-started)
+- [Agent harnesses and models](#agent-harnesses-and-models)
 - [Quick Reference](#quick-reference)
 - [Skills Catalog](#skills-catalog)
 - [Workflows](#workflows)
@@ -136,6 +137,46 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 # 6. If the result is important long-term, promote it into project docs
 # examples: docs/decisions/, docs/specs/, docs/knowledge/, docs/archive/analysis/
 ```
+
+---
+
+## Agent harnesses and models
+
+AAI's skills are files in your repository, not a product feature of any one
+agent. That is what makes the workflow portable: the provider and model are
+yours to change, and the specs, decisions and project knowledge stay with the
+code.
+
+### Where the skills run
+
+| Harness | Skill discovery | Model routing |
+|---|---|---|
+| Claude Code | slash commands | AAI's own model routing applies |
+| Codex | slash commands | AAI's own model routing applies |
+| Cursor | shared skill discovery | uses the model you have selected |
+| Antigravity (IDE and CLI) | shared skill discovery | no dedicated AAI model route yet |
+
+Gemini CLI remains supported for eligible enterprise, Cloud and paid-API
+users. For Google's free and AI Pro/Ultra plans, Antigravity CLI is the
+current path.
+
+### When your agent does not expose slash commands
+
+A slash command is only a shortcut. Every skill is an ordinary Markdown file
+in `.aai/`, and the shortcut does nothing more than tell the agent to read it
+and follow it. So where `/aai-intake` is unavailable, this works instead:
+
+> Read the file `.aai/SKILL_INTAKE.prompt.md` from the project root and follow
+> its instructions exactly.
+
+The same shape works for every skill — substitute the prompt file for the one
+you want (`SKILL_SHIP`, `SKILL_PR`, `SKILL_LOOP`, `SKILL_ISSUES`, and so on;
+`ls .aai/*.prompt.md` lists them). The agent reads the same instructions the
+slash command would have handed it, so the workflow, the gates and the
+evidence trail are identical.
+
+If your agent cannot read repository files on request either, it cannot run
+AAI's workflow, and no invocation style will change that.
 
 ---
 
