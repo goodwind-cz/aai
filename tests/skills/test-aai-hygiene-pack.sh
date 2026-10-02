@@ -5219,8 +5219,15 @@ test_814_disclosure_and_docs() {  # TEST-814 / Spec-AC-11
   grep -qF "close-reconcile.mjs --check --range" "$ug" || log_fail "TEST-814: USER_GUIDE does not give the one CI command"
   grep -qF "secrets detection" "$ug" || log_fail "TEST-814: USER_GUIDE does not disclose the secrets behaviour change"
 
-  grep -qE '^## \[unreleased\] — .*(guard|hook|close gate)' "$PROJECT_ROOT/CHANGELOG.md" \
-    || log_fail "TEST-814: CHANGELOG has no '## [unreleased] — ' heading for this ride"
+  # The ride's entry must be IN the CHANGELOG — not still unreleased. Pinned to
+  # `[unreleased]` alone, this assertion could only ever pass before the first
+  # release that rolled it up, and every cut thereafter broke it: the roll
+  # renames the heading to `[vYYYY.MM.DD]`. Measured on the v2026.10.02 cut,
+  # which is how this was found. Third instance of the shape in this repo
+  # (TEST-1336's last-index pin, TEST-1363's moving base ref), so the heading
+  # state is accepted either way and only the ENTRY is required.
+  grep -qE '^## \[(unreleased|v[0-9][^]]*)\] — .*(guard|hook|close gate)' "$PROJECT_ROOT/CHANGELOG.md" \
+    || log_fail "TEST-814: CHANGELOG carries no heading for this ride, unreleased or released"
   grep -qF "pre-commit-checks.sh" "$PROJECT_ROOT/CHANGELOG.md" || log_fail "TEST-814: CHANGELOG does not name pre-commit-checks.sh"
   log_pass "TEST-814 --help, the install disclosure, USER_GUIDE and CHANGELOG state the hook set, the range rule, the behaviour change, the Azure grammar refusal and CAT-18"
 }
