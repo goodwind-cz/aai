@@ -22,6 +22,39 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: a check says what it observed, or says it could not (goodwind-cz/aai#421) (#421)
+
+- **CAT-17 no longer calls an armed ref guard unarmed.** On Windows the probe resolved `bash` to WSL, which never receives `AAI_GIT_WRITE`, so both arms refused and a non-zero exit read as a refusal. `--force` reinstalled a byte-identical hook and the warning came back, so the advice the doctor printed could not clear it. The probe now has a control arm on a non-main ref, requires the literal `AAI:REF-GUARD` on the refuse arm's stderr, and has a five-state verdict map: three states lead OUT of "NOT armed" (`control-arm-nonzero`, `no-refusal-marker`, `permit-arm-refused`, the last naming `AAI_GIT_WRITE`) and none leads in. The Git-for-Windows interpreter lookup is a pure injectable `resolveRefGuardLaunchers()` unit-tested on any OS; its behaviour is proven by a step in the `windows-wsl1` CI job, which printed `CAT-17 PASS armed` on PowerShell 5.1 with WSL usable — the exact environment the report came from.
+- **`docs-audit`'s verdict stops being silent about what it could not read.** A delivered spec sat at `draft` for days while `--check` said CLEAN. Measurement corrected the premise: the near-miss detector already existed and already fired (8 findings on the live corpus); what was silent was the digest headline and the `Verdict: CLEAN` line, 35 lines above the findings. Both now name the count, and the literal `Verdict: CLEAN` substring is preserved because four live suites match on it. A blocking near-miss is never labelled report-only — under `--strict` the qualifier names the split.
+- One genuine detector widening: a bare-`AC` table's rows were never vocabulary-checked. It lit up 15 findings across 7 legacy documents, every one the word `pending`, which is in no AC status vocabulary and no shipped template. `ISSUE-0010`..`0016` are corrected to `done`, restating each document's own frontmatter and merged PR links.
+- Two riders of the same defect class: `runGh`'s swallowed GitHub rate limit made `blocked_dedup_unavailable` indistinguishable from genuine no-access, and `EVIDENCE_REF_RE` now accepts 3-digit doc ids (`SPEC-080`) for downstream projects whose numbering is 3-digit.
+- ISSUE-0092-a-check-cannot-tell-silence-from-a-verdict / SPEC-0204.
+
+## [unreleased] — feat: an amendment that only changes how a claim is measured asks nobody (goodwind-cz/aai#422) (#422)
+
+- **BEHAVIOUR CHANGE: a post-freeze amendment now declares a class.** `contract` changes what the spec promises and still owes the owner a signature; `measurement` changes only how a claim is measured — a corrected mutation cell, a renumbered TEST id, an allocator restamp — and is disclosed to the ledger while asking nobody. Before this, every post-freeze change created an owner obligation whatever it was, and 190 were backed up, the oldest since 2026-09-04.
+- The class is a structured field the writer stamps, never a phrase matched out of prose. `add` defaults to `contract`, so only the lighter lane needs an affirmative flag; a reader seeing a class-absent legacy record reads `contract`, because reading absent as `measurement` would discharge obligations nobody decided. `--class measurement --signoff owner` is a usage error in both `add` and `classify`, and the refusal is evaluated against the class the fold projects, not the caller's declaration.
+- **`restamp` measures its allocator cause instead of asserting it.** It reverse-applies the allocator's own substitution over the spec's own id plus its frontmatter links and requires the stored anchor to reappear byte for byte; an unverified drift takes the contract lane with a `what`/`why` that says the cause is unexplained. Two residual shapes (an intake the frontmatter does not name; a collision-suffixed basename) fail closed, asking an owner where none was owed rather than the reverse.
+- **12 historical records migrated, not 25.** The first pass selected on the restamp shape and was wrong: the old writer emitted that exact shape after any post-freeze edit, so the shape never proved a cause. All 26 were re-verified individually against the git object store — 13 proven, 13 not — and the unprovable returned to the contract lane. One of them is decisively a human prose edit the old writer filed as an allocator rename. `signed` and the total are unchanged throughout; an independent re-derivation over all 12,283 blobs reproduced the split byte for byte.
+- Printed remedy commands are shell-quoted and valid in both POSIX sh and PowerShell, after measuring all four candidate quote forms in both shells — two of them fail silently in one.
+- CHANGE-0202 / SPEC-0205. The amendments on this spec are themselves unsigned and tracked by `fu-amend-amendment-signature-asks-cf289a`.
+
+## [unreleased] — docs: the README's portable onboarding, and a guard that forbade what its name exempts (goodwind-cz/aai#424) (#424)
+
+- README rewritten so the portable path is the one a reader can follow: repository-local skills across Claude Code, Codex, Cursor and Antigravity, with the workflow and project knowledge staying with the code. Adds a hero image and refreshes the overview page.
+- **`docs/USER_GUIDE.md` gains an "Agent harnesses and models" section**, which the README already linked to and promised. It carries the harness table (skill discovery and model routing per harness, and the Gemini CLI eligibility split) and the thing the README assumed a reader could find: a slash command only tells the agent to read a prompt file under `.aai/`, so naming that file directly does identical work. It also states the limit — an agent that cannot read repository files on request cannot run this workflow.
+- **The no-NUL guard no longer forbids binary files.** Its title said "no tracked TEXT file" and its scan walked every tracked path, so the first binary asset this repository has carried failed it. The exemption is DECLARED in `.gitattributes`, never inferred: asking git whether a blob is binary is circular, because git's definition of binary IS "carries a NUL", and that version was measured to let a planted NUL walk through. `TEST-562` now covers both directions, including the undeclared-file arm that catches a return to inference.
+- CHANGE-0199.
+
+## [unreleased] — fix: a test baseline must be a fixed point, not a moving ref (goodwind-cz/aai#423) (#423)
+
+- `TEST-1363` read its "pre-migration ledger" from `origin/main`, which was a true baseline only while its own ride was unmerged; merging made `origin/main` be the migration and the arm could never pass again. It now resolves the commit the ride branched from, and asserts nothing on a shallow clone where that commit is absent rather than asserting against whatever ref is to hand. Same class as the last-index ledger pin relaxed in SPEC-0202.
+
+## [unreleased] — chore: intake and pricing housekeeping (goodwind-cz/aai#418, #413) (#418) (#413)
+
+- Intake filed for a merged ride leaving its worktree and branch behind (`ISSUE-0091`).
+- `PRICING.yaml` gains the GPT-6 `astra`, `sol` and `luna` keys (CHANGE-0198).
+
 ## [unreleased] — fix: a friction issue carries a description (`--publish --description <file>`) or is not filed (goodwind-cz/aai#339)
 
 - **BEHAVIOUR CHANGE on the next `/aai-update`: `aai-feedback-upsert.mjs --publish <fp> --confirm` of a record with no certified description is REFUSED** (exit 2, before any `gh` call, naming the missing field and the new flag); it used to file a metadata-only body nobody could act on (#339 sat 25 days untriageable). The description is ONE certified human-written line (1..500 chars, same fail-closed redactor): the record's own `record --promote` summary, or the new publish-time `--description <file>` (lines joined by one space, argv-only; the on-disk draft is still never read). A description the redactor refuses is refused naming its reason class.
