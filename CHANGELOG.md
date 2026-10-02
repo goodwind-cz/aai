@@ -55,7 +55,7 @@ fine — it is the marker a cut leaves on top.
 - Intake filed for a merged ride leaving its worktree and branch behind (`ISSUE-0091`).
 - `PRICING.yaml` gains the GPT-6 `astra`, `sol` and `luna` keys (CHANGE-0198).
 
-## [unreleased] — fix: a friction issue carries a description (`--publish --description <file>`) or is not filed (goodwind-cz/aai#339) (#420)
+## [unreleased] — fix: a friction issue carries a description (`--publish --description <file>`) or is not filed (goodwind-cz/aai#339)
 
 - **BEHAVIOUR CHANGE on the next `/aai-update`: `aai-feedback-upsert.mjs --publish <fp> --confirm` of a record with no certified description is REFUSED** (exit 2, before any `gh` call, naming the missing field and the new flag); it used to file a metadata-only body nobody could act on (#339 sat 25 days untriageable). The description is ONE certified human-written line (1..500 chars, same fail-closed redactor): the record's own `record --promote` summary, or the new publish-time `--description <file>` (lines joined by one space, argv-only; the on-disk draft is still never read). A description the redactor refuses is refused naming its reason class.
 - **prepare lists such clusters as `blocked_no_description`** with `not offered: no description — write one line (expected, observed, where) and pass --description <file> to --publish`, and offers them no publish line.
@@ -64,7 +64,7 @@ fine — it is the marker a cut leaves on top.
 - **`representative()` prefers a summary-carrying member** of a fingerprint, so a promoted record is never shadowed by a prose-free sibling with higher signal.
 - **NO default flips:** `capture.summary_enabled` stays `false` (owner decision 2026-09-05); the posture and its trade-off are now written next to the flag in `.aai/feedback.yaml`.
 
-## [unreleased] — feat: the roadmap is an ordered capability list with an opt-in maintenance budget, and /aai-roadmap manages it (goodwind-cz/aai#419) (#419)
+## [unreleased] — feat: the roadmap is an ordered capability list with an opt-in maintenance budget, and /aai-roadmap manages it (goodwind-cz/aai#419)
 
 - **The maintenance budget is now opt-in.** A `docs/ai/roadmap.yaml` without a `budget:` block is an ordered list of capabilities: fix, chore, test and techdebt rides are always admitted, `next` never insists on binding maintenance, and an explicitly requested item is admitted even when earlier items are unfinished (order drives `next`, not refusals). A roadmap with `budget.maintenance_per_capability: 1` keeps today's 1:1 pairing, ordering and refusals byte-for-byte; this repository's roadmap is unchanged.
 - **New `/aai-roadmap` skill** (`.aai/SKILL_ROADMAP.prompt.md`, mirrored to every harness): `show`, `add`, `reorder`, `harvest "<direction>"`, `done`, `drop`, `budget on|off`, `off`. Every action is a menu with a recommended default and maps to one deterministic script call; the user never types `node`.
@@ -73,7 +73,7 @@ fine — it is the marker a cut leaves on top.
 - **Docs:** "Roadmap: when and how" in `docs/USER_GUIDE.md` with three worked examples (no roadmap, roadmap without budget, roadmap with budget), each replayed literally by a test; README pointer; `docs/product/roadmap.md`; AGENTS.md rule 4 restated (roadmap = order, budget = opt-in).
 - 40 tests (TEST-1301..1340, new suite `tests/skills/test-aai-roadmap.sh`), mutation gate 40/40. Disclosed unsigned amendment D16 tracked by `fu-amend-roadmap-serves-downstrea-bc77da`; follow-up `fu-roadmap-docstatus-two-parsers` (P3).
 
-## [unreleased] — fix: shipped guards get an installed caller — pre-commit-checks.sh runs on every commit, a pre-push close gate, Azure merge subjects (goodwind-cz/aai#390, #391, #392) (#417)
+## [unreleased] — fix: shipped guards get an installed caller — pre-commit-checks.sh runs on every commit, a pre-push close gate, Azure merge subjects (goodwind-cz/aai#390, #391, #392)
 
 - **BEHAVIOUR CHANGE on the next `/aai-update`: the installed pre-commit hook now runs `.aai/scripts/pre-commit-checks.sh` on every commit.** The hook the installer wrote never reached that script, so its secrets detection and the doc-numbering guard were dead downstream. A commit carrying a detected secret is now **refused** (it used to go through); roughly four seconds are added per commit. The block is marker-scoped (`# AAI:GUARD-CHECKS BEGIN` … `END`); an AAI hook installed before this ride is upgraded in place by inserting the block after its shebang, every other byte untouched, and a later block revision replaces only the bytes between the markers (both installers work on bytes, so non-UTF-8 bytes outside the block survive). A foreign hook, a symlinked slot, a CRLF hook, a byte-order mark, or inverted, unpaired or duplicated markers are refused by name and left byte-identical — never overwritten (the #414 class). Ownership is a marker OPENING a line: a hook that merely mentions `# AAI:INDEX-AUTOGEN` in a comment is foreign and is never deleted by `--uninstall`.
 - **New `pre-push` hook (`--hooks close-gate`, marker `AAI:CLOSE-GATE`)** runs `close-reconcile.mjs --check` over every pushed range — the first trigger the close gate has in a project with no CI. Report-only by default; `close_gate: enforce` (read from the pushed commit) refuses a push to the default branch only. Degrades to a named NOTE when `node` or the script is absent.
@@ -82,7 +82,7 @@ fine — it is the marker a cut leaves on top.
 - **`/aai-doctor` gains CAT-18 Guard Wiring**, reporting a shipped guard whose hook git would run is missing, unmarked or not executable.
 - Installer: `--print guard-checks`, `--print pre-push`, and `--help` now describes the hook set and the decline-honouring plain run.
 
-## [unreleased] — feat: downstream rides ask no roadmap or amendment sign-off questions (goodwind-cz/aai#416) (#416)
+## [unreleased] — feat: downstream rides ask no roadmap or amendment sign-off questions (goodwind-cz/aai#416)
 
 - **`ride-select.mjs gate` treats the roadmap file as the posture switch.** With no `docs/ai/roadmap.yaml` the gate admits with one `roadmap absent ... gate not consulted` line, exit 0, and writes nothing (no override event even under `--override --events`). A roadmap that is present but unreadable, empty, a directory or malformed still refuses (exit 1). `validate` and `next` are unchanged. This closes the contradiction between AGENTS.md operator-contract rule 4 ("roadmap discipline is opt-in downstream") and the script's old deny-on-absent behavior, which stopped every downstream `/aai-ship` at step 1a.
 - **Usage errors run before the posture check** in either posture: a missing or non-slug `--ref`, an empty `--override`, or an `--intake` whose id disagrees with `--ref` exit 2 even when the roadmap is absent.
@@ -90,7 +90,7 @@ fine — it is the marker a cut leaves on top.
 - **New guard suite** `tests/skills/test-aai-downstream-autopilot.sh` runs the real gate and amendment scripts in a fixture project with no roadmap at default paths and asserts zero question text before the merge checkpoint, plus a malformed-roadmap negative control and the dispatch/CLI gate seam; `test-aai-ride-select.sh` TEST-005 flips to the new contract. Suite-map row and prompt-diet credit (826 B) included.
 - Product doc: `docs/product/downstream-autopilot.md`. Spec: spec-downstream-rides-ask-no-governance-questions. Two disclosed, unsigned (`--signoff none`) amendments reconcile Test Plan mutation cells only; tracked by `fu-amend-downstream-rides-ask-no-d8106d`.
 
-## [unreleased] — fix: aai-sync preserves target-only hooks and reports its deletions (goodwind-cz/aai#414) (#415)
+## [unreleased] — fix: aai-sync preserves target-only hooks and reports its deletions (goodwind-cz/aai#414)
 
 - **`hooks/` is now a file-by-file merge**, not a wholesale `copy_replace` (`rm -rf` then `cp -a`). A target-only file under `hooks/` — most notably a downstream project's own `hooks/merge-guard.{sh,ps1,py}` safety control — used to be deleted on every sync; it now survives and is named on stdout as `PRESERVE target-only hook: hooks/<name>`.
 - **Source-owned hook files still overwrite** and `hooks/session-start.sh` keeps its executable bit.
