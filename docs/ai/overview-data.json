@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-01T21:33:13.291Z",
+  "generatedAt": "2026-10-02T09:45:55.945Z",
   "project": "aai",
   "counts": {
     "delivered": 273,
-    "in_progress": 15,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 71857830
   },
@@ -47,6 +47,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "amendment-signature-asks-the-owner-too-often",
+      "title": "Change — the amendment signature asks the owner too often",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0202-amendment-signature-asks-the-owner-too-often.md",
+      "closed_on": null,
+      "agent_minutes": 549,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md",
       "validation": null,
       "review": null
     },

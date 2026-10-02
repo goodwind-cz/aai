@@ -2125,6 +2125,1456 @@ test_551_restamp_after_renumbering() {
     || log_fail "TEST-551 restamp after renumbering"
 }
 
+# --- TEST-1354..TEST-1357 (SPEC-DRAFT spec-amendment-signature-asks-the-owner-
+# --- too-often, Spec-AC-01..04) — the DECLARED amendment class ----------------
+#
+# One post-freeze amendment can be two different things: a change to WHAT the
+# spec promises (a scope decision — `contract`, which still owes the owner a
+# signature and a tracked item) or a change to HOW a claim is measured (the
+# author fixing their own instrument — `measurement`, disclosed and counted,
+# owing neither). The partition is DECLARED by the writer on the record and is
+# never read out of `what`/`why` prose (.aai/scripts/nothing-left-behind.mjs
+# lines 68-78 carry the scar from classifying by prose). These four arms cover
+# the field itself, its closed vocabulary and the single obligation predicate.
+
+test_1354_measurement_add_owes_no_owner_obligation() {
+  log_info "Test: \`add --class measurement --signoff none\` stamps the class, writes NO tracked_by and co-creates NO fu-amend- item (TEST-1354)..."
+  local led spec verdict
+  led="$(mk_ledger t1354)"
+  spec="$(mk_spec "SPEC-DRAFT-t1354.md" "spec-t1354-fixture")"
+
+  run_sa add --ledger "$led" --spec "$spec" --ref t1354-ride \
+    --what "corrected the Mutation cell for TEST-001, which named bytes the target does not carry" \
+    --why "the cell never reddened, so the row's admission was unproven" \
+    --class measurement --signoff none
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1354: expected exit 0 from \`add --class measurement --signoff none\`, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  verdict="$(node -e '
+    const fs=require("fs");
+    const recs=[];
+    for (const line of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=line.trim();
+      if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { console.log("MALFORMED-LINE"); process.exit(0); }
+      recs.push(r);
+    }
+    const am=recs.filter(r=>r.type==="spec_amendment");
+    const fu=recs.filter(r=>r.type==="follow_up");
+    if (am.length!==1) { console.log("AMENDMENTS="+am.length); process.exit(0); }
+    if (fu.length!==0) { console.log("FOLLOWUPS="+fu.length); process.exit(0); }
+    if (am[0].amendment_class!=="measurement") { console.log("CLASS="+JSON.stringify(am[0].amendment_class)); process.exit(0); }
+    if (am[0].owner_signoff!==false) { console.log("SIGNOFF="+JSON.stringify(am[0].owner_signoff)); process.exit(0); }
+    if (Object.prototype.hasOwnProperty.call(am[0],"tracked_by")) { console.log("TRACKED_BY="+am[0].tracked_by); process.exit(0); }
+    console.log("MEASUREMENT-OK");
+  ' "$led")"
+  case "$verdict" in
+    MEASUREMENT-OK*) : ;;
+    *) log_fail "TEST-1354: the measurement-class add did not leave a disclosed, UNTRACKED record — $verdict" ;;
+  esac
+
+  # SEAM-2 again: the ABSENCE of the item is read back through the REAL
+  # follow-ups.mjs, never by grepping the ledger this suite just wrote.
+  run_fu list --ledger "$led" --status all
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1354: follow-ups.mjs list must exit 0 over the produced ledger, got $EC (stderr: $ERR)"
+  if grep -qF "fu-amend-" <<<"$OUT"; then
+    log_fail "TEST-1354: a measurement-class amendment must co-create NO fu-amend- item; the real reader found one: $OUT"
+  fi
+
+  log_pass "TEST-1354 a measurement-class add is disclosed on the ledger and owes no owner obligation (no tracked_by, no fu-amend- item)"
+}
+
+test_1355_contract_add_keeps_the_co_created_item() {
+  log_info "Test: \`add --class contract --signoff none\` is today's behaviour plus the stamped class, and the \`--class\`-less add lands in that SAME lane (TEST-1355)..."
+  local led spec verdict
+  led="$(mk_ledger t1355)"
+  spec="$(mk_spec "SPEC-DRAFT-t1355.md" "spec-t1355-fixture")"
+
+  # ARM 1 — the declared contract lane.
+  run_sa add --ledger "$led" --spec "$spec" --ref t1355-ride \
+    --what "widened Spec-AC-03 to cover the absent-key case" \
+    --why "the frozen predicate did not cover the data" \
+    --class contract --signoff none
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1355 arm 1: expected exit 0 from \`add --class contract --signoff none\`, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  verdict="$(node -e '
+    const fs=require("fs");
+    const recs=[];
+    for (const line of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=line.trim();
+      if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { console.log("MALFORMED-LINE"); process.exit(0); }
+      recs.push(r);
+    }
+    const am=recs.filter(r=>r.type==="spec_amendment");
+    const fu=recs.filter(r=>r.type==="follow_up");
+    if (am.length!==1) { console.log("AMENDMENTS="+am.length); process.exit(0); }
+    if (fu.length!==1) { console.log("FOLLOWUPS="+fu.length); process.exit(0); }
+    if (am[0].amendment_class!=="contract") { console.log("CLASS="+JSON.stringify(am[0].amendment_class)); process.exit(0); }
+    if (am[0].tracked_by!==fu[0].id) { console.log("LINK="+am[0].tracked_by+" vs "+fu[0].id); process.exit(0); }
+    console.log("CONTRACT-OK id="+fu[0].id);
+  ' "$led")"
+  case "$verdict" in
+    CONTRACT-OK*) : ;;
+    *) log_fail "TEST-1355 arm 1: the contract-class add did not keep the co-created obligation — $verdict" ;;
+  esac
+
+  # ARM 2 — the DEFAULT lane, on its own fresh ledger: an add with NO --class
+  # at all must resolve into the SAME heavier lane, so the obligation is still
+  # co-created. This is the arm that makes the default load-bearing rather
+  # than decorative: point the default at the lighter class and every flagless
+  # add in flight silently stops owing anything.
+  local led2 spec2
+  led2="$(mk_ledger t1355b)"
+  spec2="$(mk_spec "SPEC-DRAFT-t1355b.md" "spec-t1355b-fixture")"
+  run_sa add --ledger "$led2" --spec "$spec2" --ref t1355b-ride \
+    --what "renamed a helper the frozen plan named" --why "the name was wrong" --signoff none
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1355 arm 2: expected exit 0 from a \`--class\`-less add, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  verdict="$(node -e '
+    const fs=require("fs");
+    const recs=[];
+    for (const line of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=line.trim();
+      if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { console.log("MALFORMED-LINE"); process.exit(0); }
+      recs.push(r);
+    }
+    const am=recs.filter(r=>r.type==="spec_amendment");
+    const fu=recs.filter(r=>r.type==="follow_up");
+    if (am.length!==1) { console.log("AMENDMENTS="+am.length); process.exit(0); }
+    if (fu.length!==1) { console.log("DEFAULT-LANE-FOLLOWUPS="+fu.length); process.exit(0); }
+    if (am[0].tracked_by!==fu[0].id) { console.log("LINK="+am[0].tracked_by+" vs "+fu[0].id); process.exit(0); }
+    console.log("DEFAULT-LANE-OK id="+fu[0].id);
+  ' "$led2")"
+  case "$verdict" in
+    DEFAULT-LANE-OK*) : ;;
+    *) log_fail "TEST-1355 arm 2: the \`--class\`-less add did not land in the obligation-owing lane — $verdict" ;;
+  esac
+
+  log_pass "TEST-1355 the contract lane still co-creates the open obligation and now carries the stamped class, declared or defaulted"
+}
+
+test_1356_classless_add_stamps_contract_and_names_the_other_value() {
+  log_info "Test: \`add --signoff none\` with no --class exits 0, STAMPS \`contract\` on the record, and prints a NOTE naming --class measurement (TEST-1356)..."
+  local led spec verdict
+  led="$(mk_ledger t1356)"
+  spec="$(mk_spec "SPEC-DRAFT-t1356.md" "spec-t1356-fixture")"
+
+  run_sa add --ledger "$led" --spec "$spec" --ref t1356-ride \
+    --what "corrected a TEST id the allocator renumbered" --why "the row pointed at nothing" \
+    --signoff none
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1356: a \`--class\`-less add is NOT a usage error (the flag is optional by Article 5), got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  # The writer always STAMPS: a record written by a live writer is never
+  # class-absent, so the reader's absent-key default is only ever consulted
+  # for the legacy cohort.
+  verdict="$(node -e '
+    const fs=require("fs");
+    const recs=[];
+    for (const line of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=line.trim();
+      if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { console.log("MALFORMED-LINE"); process.exit(0); }
+      recs.push(r);
+    }
+    const am=recs.filter(r=>r.type==="spec_amendment");
+    if (am.length!==1) { console.log("AMENDMENTS="+am.length); process.exit(0); }
+    if (!Object.prototype.hasOwnProperty.call(am[0],"amendment_class")) { console.log("CLASS-KEY-ABSENT"); process.exit(0); }
+    if (am[0].amendment_class!=="contract") { console.log("CLASS="+JSON.stringify(am[0].amendment_class)); process.exit(0); }
+    console.log("STAMPED-OK");
+  ' "$led")"
+  case "$verdict" in
+    STAMPED-OK*) : ;;
+    *) log_fail "TEST-1356: the flagless add did not STAMP the resolved class on the record — $verdict" ;;
+  esac
+
+  if ! grep -q -- "NOTE.*--class measurement" <<<"$OUT"; then
+    log_fail "TEST-1356: a flagless add must print a NOTE naming the other value (--class measurement); stdout was: $OUT"
+  fi
+
+  log_pass "TEST-1356 a \`--class\`-less add exits 0, stamps contract explicitly, and names the lighter lane in a NOTE"
+}
+
+test_1357_class_vocabulary_is_closed() {
+  log_info "Test: a --class value outside the closed set exits 2 on BOTH add and classify, and the refusal names both legal values (TEST-1357)..."
+  local led spec ts verdict
+  led="$(mk_ledger t1357)"
+  spec="$(mk_spec "SPEC-DRAFT-t1357.md" "spec-t1357-fixture")"
+
+  # ARM 1 — `add`.
+  run_sa add --ledger "$led" --spec "$spec" --ref t1357-ride \
+    --what "w" --why "y" --class bogus --signoff none
+  [[ "$EC" == 2 ]] \
+    || log_fail "TEST-1357 arm 1: \`add --class bogus\` must exit 2, got $EC (stdout: $OUT) (stderr: $ERR)"
+  grep -qF "contract" <<<"$ERR" \
+    || log_fail "TEST-1357 arm 1: the refusal must name the legal value contract; stderr was: $ERR"
+  grep -qF "measurement" <<<"$ERR" \
+    || log_fail "TEST-1357 arm 1: the refusal must name the legal value measurement; stderr was: $ERR"
+
+  # ARM 1b — a usage error is not a write.
+  local after1
+  after1="$(count_amendments "$led")"
+  [[ "$after1" == 0 ]] \
+    || log_fail "TEST-1357 arm 1b: a refused invocation must append nothing, found $after1 spec_amendment record(s)"
+
+  # ARM 2 — `classify`, over a REAL target this suite wrote through the writer.
+  run_sa add --ledger "$led" --spec "$spec" --ref t1357-ride \
+    --what "w" --why "y" --signoff none
+  [[ "$EC" == 0 ]] || log_fail "TEST-1357 arm 2 setup: the target add must succeed, got $EC (stderr: $ERR)"
+  ts="$(node -e '
+    const fs=require("fs");
+    let found="";
+    for (const line of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=line.trim(); if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { continue; }
+      if (r && r.type==="spec_amendment") { found=String(r.ts); break; }
+    }
+    process.stdout.write(found);
+  ' "$led")"
+  [[ -n "$ts" ]] || log_fail "TEST-1357 arm 2 setup: no spec_amendment ts could be read back"
+
+  run_sa classify --ledger "$led" --ts "$ts" --ref t1357-ride \
+    --signoff none --why "y" --source "s" --class bogus
+  [[ "$EC" == 2 ]] \
+    || log_fail "TEST-1357 arm 2: \`classify --class bogus\` must exit 2, got $EC (stdout: $OUT) (stderr: $ERR)"
+  grep -qF "contract" <<<"$ERR" \
+    || log_fail "TEST-1357 arm 2: the refusal must name the legal value contract; stderr was: $ERR"
+  grep -qF "measurement" <<<"$ERR" \
+    || log_fail "TEST-1357 arm 2: the refusal must name the legal value measurement; stderr was: $ERR"
+
+  # ARM 2b — the refused classify appended no overlay.
+  verdict="$(node -e '
+    const fs=require("fs");
+    let n=0;
+    for (const line of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=line.trim(); if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { continue; }
+      if (r && r.type==="spec_amendment_classification") n+=1;
+    }
+    console.log("OVERLAYS="+n);
+  ' "$led")"
+  [[ "$verdict" == "OVERLAYS=0" ]] \
+    || log_fail "TEST-1357 arm 2b: a refused classify must append nothing, got $verdict"
+
+  log_pass "TEST-1357 the class vocabulary is closed on both writers and the refusal names contract and measurement"
+}
+
+
+# --- TEST-1358..TEST-1361 (SPEC-DRAFT spec-amendment-signature-asks-the-owner-
+# --- too-often, Spec-AC-05..07) — the one refusal, the fold, the controls -----
+#
+# The measurement lane can REDUCE an obligation to disclosure; it can never
+# PRODUCE authority. `--class measurement --signoff owner` is therefore the
+# one combination the parser refuses (D4), and the fold below is the first
+# reader of the declared class. The two Spec-AC-07 arms are the standing
+# do-not-weaken proof: the pre-existing strict buckets still refuse, and the
+# new bucket is excluded from them ON PURPOSE rather than by omission.
+
+test_1358_measurement_cannot_carry_an_owner_signature() {
+  log_info "Test: \`--class measurement --signoff owner\` is a usage error on both writers, appends nothing, and \`--class contract --signoff owner\` is untouched (TEST-1358)..."
+  local led spec ts after
+  led="$(mk_ledger t1358)"
+  spec="$(mk_spec "SPEC-DRAFT-t1358.md" "spec-t1358-fixture")"
+
+  # ARM 1 — `add`. --authority is supplied, so the ONLY thing left for the
+  # writer to object to is the contradiction itself: this arm cannot pass by
+  # accident on the pre-existing "signed add needs --authority" refusal.
+  run_sa add --ledger "$led" --spec "$spec" --ref t1358-ride \
+    --what "corrected the Mutation cell for TEST-001" \
+    --why "the cell named bytes the target does not carry" \
+    --class measurement --signoff owner --authority "docs/ai/decisions.jsonl 2026-10-02 owner menu answer A"
+  [[ "$EC" == 2 ]] \
+    || log_fail "TEST-1358 arm 1: \`add --class measurement --signoff owner\` must exit 2 (the light lane can never manufacture a signature), got $EC (stdout: $OUT) (stderr: $ERR)"
+  grep -qF "measurement" <<<"$ERR" \
+    || log_fail "TEST-1358 arm 1: the refusal must name the class it refuses; stderr was: $ERR"
+  grep -qF "owner" <<<"$ERR" \
+    || log_fail "TEST-1358 arm 1: the refusal must name the signature it refuses to attach; stderr was: $ERR"
+
+  # ARM 1b — a refused invocation is NOT a write. The whole point of the
+  # refusal is that no record carrying both claims ever reaches the ledger.
+  after="$(count_amendments "$led")"
+  [[ "$after" == 0 ]] \
+    || log_fail "TEST-1358 arm 1b: the refused add must append nothing, found $after spec_amendment record(s)"
+
+  # ARM 2 — the NEGATIVE CONTROL that keeps the refusal narrow: it is a gate
+  # on the CONTRADICTION, never on `--signoff owner`. A contract-class signed
+  # amendment is exactly as legal as it was before this scope existed.
+  run_sa add --ledger "$led" --spec "$spec" --ref t1358-signed \
+    --what "widened Spec-AC-02 to cover the absent-key case" \
+    --why "the frozen predicate did not cover the data" \
+    --class contract --signoff owner --authority "docs/ai/decisions.jsonl 2026-10-02 owner menu answer A"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1358 arm 2: \`add --class contract --signoff owner\` must still exit 0, got $EC (stdout: $OUT) (stderr: $ERR)"
+  after="$(count_amendments "$led")"
+  [[ "$after" == 1 ]] \
+    || log_fail "TEST-1358 arm 2: the signed contract add must have appended exactly one record, found $after"
+
+  # ARM 3 — `classify` carries the SAME refusal. D4 states the contradiction
+  # without naming a subcommand, and a per-record route that could still mint
+  # `measurement` + `owner` would reopen by the back door what arm 1 closes.
+  ts="$(node -e '
+    const fs=require("fs");
+    let found="";
+    for (const line of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=line.trim(); if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { continue; }
+      if (r && r.type==="spec_amendment") { found=String(r.ts); break; }
+    }
+    process.stdout.write(found);
+  ' "$led")"
+  [[ -n "$ts" ]] || log_fail "TEST-1358 arm 3 setup: no spec_amendment ts could be read back"
+
+  run_sa classify --ledger "$led" --ts "$ts" --ref t1358-signed \
+    --signoff owner --why "y" --source "s" --class measurement
+  [[ "$EC" == 2 ]] \
+    || log_fail "TEST-1358 arm 3: \`classify --class measurement --signoff owner\` must exit 2, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  # ARM 3b — and that refusal appended no overlay either.
+  local overlays
+  overlays="$(node -e '
+    const fs=require("fs");
+    let n=0;
+    for (const line of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=line.trim(); if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { continue; }
+      if (r && r.type==="spec_amendment_classification") n+=1;
+    }
+    console.log("OVERLAYS="+n);
+  ' "$led")"
+  [[ "$overlays" == "OVERLAYS=0" ]] \
+    || log_fail "TEST-1358 arm 3b: the refused classify must append nothing, got $overlays"
+
+  log_pass "TEST-1358 the measurement class can never carry an owner signature on either writer, and the refusal stays narrow to that contradiction"
+}
+
+
+test_1359_measurement_folds_to_its_own_bucket() {
+  log_info "Test: the fold is the FIRST reader of the declared class — measurement folds to \`measurement\`, the same record signed folds to \`signed\`, and a class-absent legacy record folds exactly where it folds today (TEST-1359)..."
+  local led json
+  led="$(mk_ledger t1359)"
+
+  # HAND-BUILT records, never written through the writer: this arm is about
+  # the READER, and a fixture produced by the writer could only ever show the
+  # classes the writer happens to emit. Six shapes, each a different branch:
+  #   A measurement + unsigned + NO tracker  -> measurement (the whole point:
+  #     untracked stops being a violation because nothing is owed)
+  #   B the SAME record with owner_signoff true -> signed (a signature is
+  #     never downgraded by a class)
+  #   C legacy: no class key at all, unsigned, no tracker -> unsigned-untracked,
+  #     bit-for-bit where it folds today. Reading an absent class as
+  #     measurement would discharge the whole backlog nobody decided.
+  #   D no class on the record, measurement on the OVERLAY -> measurement
+  #     (the per-record route; `classify --class` finally has a reader)
+  #   E contract on the RECORD, measurement on the overlay -> the record wins,
+  #     so unsigned-untracked. Same record-over-overlay precedence tracked_by
+  #     already has; an overlay must not re-point a live record's class.
+  #   F degenerate: no class key AND no owner_signoff key -> unclassified,
+  #     which stays its own bucket on purpose.
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T01:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1359-a","spec_id":"spec-a","owner_signoff":false,"amendment_class":"measurement"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T02:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1359-b","spec_id":"spec-b","owner_signoff":true,"amendment_class":"measurement"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T03:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1359-c","spec_id":"spec-c","owner_signoff":false}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T04:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1359-d","spec_id":"spec-d","owner_signoff":false}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-02T04:30:00Z","actor":"a","type":"spec_amendment_classification","classifies_ts":"2026-09-01T04:00:00Z","classifies_ref":"t1359-d","owner_signoff":false,"amendment_class":"measurement","why":"w","source":"s"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T05:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1359-e","spec_id":"spec-e","owner_signoff":false,"amendment_class":"contract"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-02T05:30:00Z","actor":"a","type":"spec_amendment_classification","classifies_ts":"2026-09-01T05:00:00Z","classifies_ref":"t1359-e","owner_signoff":false,"amendment_class":"measurement","why":"w","source":"s"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T06:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1359-f","spec_id":"spec-f"}' >> "$led"
+
+  run_sa list --ledger "$led" --json
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1359: \`list --json\` must exit 0 over the fixture ledger, got $EC (stderr: $ERR)"
+  json="$OUT"
+
+  local verdict
+  verdict="$(json_field "$json" '
+    (() => {
+      const want = {
+        "t1359-a": "measurement",
+        "t1359-b": "signed",
+        "t1359-c": "unsigned-untracked",
+        "t1359-d": "measurement",
+        "t1359-e": "unsigned-untracked",
+        "t1359-f": "unclassified",
+      };
+      const got = {};
+      for (const it of j.items) got[it.ref_id] = it.bucket;
+      const bad = Object.keys(want).filter((k) => got[k] !== want[k]);
+      if (bad.length) return "BUCKETS " + bad.map((k) => k + "=" + got[k] + " (want " + want[k] + ")").join(", ");
+      return "BUCKETS-OK";
+    })()
+  ')"
+  [[ "$verdict" == "BUCKETS-OK" ]] \
+    || log_fail "TEST-1359: the fold did not read the declared class — $verdict"
+
+  # The COUNTS are the second reader of the bucket vocabulary, and they are
+  # what notices if the vocabulary itself is reordered or a name is dropped:
+  # `signed` disappearing from the count object is how a bucket list that
+  # lost its first entry shows up, and that is a different failure from any
+  # single record folding wrong.
+  local counts
+  counts="$(json_field "$json" '
+    "total=" + j.counts.total +
+    " signed=" + j.counts.signed +
+    " measurement=" + j.counts.measurement +
+    " unsigned-tracked=" + j.counts["unsigned-tracked"] +
+    " unsigned-untracked=" + j.counts["unsigned-untracked"] +
+    " unclassified=" + j.counts.unclassified +
+    " shown=" + j.counts.shown
+  ')"
+  [[ "$counts" == "total=6 signed=1 measurement=2 unsigned-tracked=0 unsigned-untracked=2 unclassified=1 shown=6" ]] \
+    || log_fail "TEST-1359: the bucket counts are wrong (every bucket must be named and counted, and the default view must show all six records); got: $counts"
+
+  # And the resolved class is on the item, not merely implied by the bucket:
+  # the signed record's class is still measurement — the signature outranked
+  # the class, it did not rewrite it.
+  local resolved
+  resolved="$(json_field "$json" '
+    (() => {
+      const m = {};
+      for (const it of j.items) m[it.ref_id] = it.amendment_class;
+      const want = { "t1359-a":"measurement","t1359-b":"measurement","t1359-c":"contract","t1359-d":"measurement","t1359-e":"contract","t1359-f":"contract" };
+      const bad = Object.keys(want).filter((k) => m[k] !== want[k]);
+      return bad.length ? "CLASS " + bad.map((k) => k + "=" + m[k] + " (want " + want[k] + ")").join(", ") : "CLASS-OK";
+    })()
+  ')"
+  [[ "$resolved" == "CLASS-OK" ]] \
+    || log_fail "TEST-1359: the resolved class is not exposed per item — $resolved"
+
+  log_pass "TEST-1359 the fold resolves the declared class from the record then the overlay then the contract-lane default, signed outranks measurement, and every bucket is named and counted"
+}
+
+test_1360_strict_violation_buckets_unchanged() {
+  log_info "Test: NEGATIVE CONTROL — the pre-existing strict refusal is untouched by the new bucket: an untracked-unsigned record and a no-key record still exit 1 and are still each named (TEST-1360)..."
+  local led specs
+  led="$(mk_ledger t1360)"
+  specs="$TEST_DIR/specs-t1360"
+  mkdir -p "$specs"
+
+  # A fixture specs dir of its own (empty, but EXISTING — `list --strict`
+  # refuses a missing one) so this arm measures the LEDGER half of --strict
+  # and nothing else; the repository's own docs/specs is not this arm's
+  # subject and must not be able to change its verdict.
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T01:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1360-untracked","spec_id":"spec-g","owner_signoff":false}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T02:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1360-absent","spec_id":"spec-h"}' >> "$led"
+  # A measurement record sits in the SAME ledger: a new bucket that owes
+  # nothing must not dilute, mask or re-bucket the two that still owe.
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T03:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1360-measurement","spec_id":"spec-i","owner_signoff":false,"amendment_class":"measurement"}' >> "$led"
+
+  run_sa list --ledger "$led" --strict --specs-dir "$specs"
+  [[ "$EC" == 1 ]] \
+    || log_fail "TEST-1360: \`list --strict\` must still exit 1 while an untracked-unsigned or an unclassified record stands, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  # Each bucket is named BY NAME, not merely counted: dropping one from the
+  # violation set would still exit 1 on the other, so an exit-code-only
+  # assertion could not tell the difference. This is the assertion the
+  # mutation column for this row attacks.
+  grep -qF "STRICT-VIOLATION unsigned-untracked" <<<"$OUT" \
+    || log_fail "TEST-1360: \`unsigned-untracked\` must still be a strict violation and must still be named; stdout was: $OUT"
+  grep -qF "STRICT-VIOLATION unclassified" <<<"$OUT" \
+    || log_fail "TEST-1360: \`unclassified\` must still be a strict violation and must still be named; stdout was: $OUT"
+  grep -qF "t1360-untracked" <<<"$OUT" \
+    || log_fail "TEST-1360: the untracked record must still be named by ref; stdout was: $OUT"
+  grep -qF "t1360-absent" <<<"$OUT" \
+    || log_fail "TEST-1360: the unclassified record must still be named by ref; stdout was: $OUT"
+
+  log_pass "TEST-1360 the two standing strict violation buckets still refuse and are still each named, with a measurement record sitting beside them"
+}
+
+test_1361_measurement_is_excluded_from_strict_on_purpose() {
+  log_info "Test: a measurement-class record owes nothing, so a ledger holding only measurement records is strict-CLEAN — while the identical record in the contract lane still refuses (TEST-1361)..."
+  local led led2 specs
+  specs="$TEST_DIR/specs-t1361"
+  mkdir -p "$specs"
+
+  # ARM 1 — the ledger that must now be CLEAN. Untracked and unsigned, which
+  # is exactly `unsigned-untracked` today; the declared class is the only
+  # thing that moves it, and moving it is the scope.
+  led="$(mk_ledger t1361)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T01:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1361-measurement","spec_id":"spec-j","owner_signoff":false,"amendment_class":"measurement"}' >> "$led"
+  run_sa list --ledger "$led" --strict --specs-dir "$specs"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1361 arm 1: a ledger holding only measurement-class records must exit 0 under --strict (the class is excluded from the violation set ON PURPOSE), got $EC (stdout: $OUT) (stderr: $ERR)"
+  grep -qF "STRICT-VIOLATION" <<<"$OUT" \
+    && log_fail "TEST-1361 arm 1: a measurement-only ledger must print no violation line; stdout was: $OUT"
+
+  # ARM 2 — the negative control that stops arm 1 passing for the wrong
+  # reason. The SAME shape in the contract lane must still refuse: if --strict
+  # had simply gone toothless, arm 1 would pass and prove nothing.
+  led2="$(mk_ledger t1361b)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T01:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1361-contract","spec_id":"spec-j","owner_signoff":false,"amendment_class":"contract"}' >> "$led2"
+  run_sa list --ledger "$led2" --strict --specs-dir "$specs"
+  [[ "$EC" == 1 ]] \
+    || log_fail "TEST-1361 arm 2: the identical record declared \`contract\` must still exit 1, got $EC (stdout: $OUT) (stderr: $ERR)"
+  grep -qF "STRICT-VIOLATION unsigned-untracked" <<<"$OUT" \
+    || log_fail "TEST-1361 arm 2: the contract-lane record must still be named unsigned-untracked; stdout was: $OUT"
+
+  log_pass "TEST-1361 measurement is excluded from the strict violation set on purpose, and the same record in the contract lane still refuses"
+}
+
+
+# --- TEST-1362..TEST-1365 (SPEC-DRAFT spec-amendment-signature-asks-the-owner-
+# --- too-often, Spec-AC-08..11) — the disclosure half, the legacy fold, the
+# --- one-place item pick, and restamp as the non-self-reported class ---------
+#
+# The class partitions what an amendment OWES. It must not touch what the
+# ledger DISCLOSES (TEST-1362), must not move a single legacy record
+# (TEST-1363), must not give `add` and `classify` two different answers to
+# "which item" (TEST-1364), and must be hardcoded at the one site where it is
+# not a self-report at all (TEST-1365).
+
+test_1362_undisclosed_amendment_still_refuses() {
+  log_info "Test: NEGATIVE CONTROL — a drifted frozen spec still refuses \`list --strict\` as undisclosed-amendment while the ledger holds ONLY measurement records (TEST-1362)..."
+  local specsdir led spec
+  specsdir="$TEST_DIR/t1362-specs"
+  led="$(mk_ledger t1362)"
+  spec="$(mk_freezable_spec t1362-specs/fixture.md spec-t1362-fixture direct)"
+  freeze_spec "$spec" || log_fail "TEST-1362 setup: real spec-freeze.mjs refused the fixture"
+  [[ -n "$(frozen_sha256_of "$spec")" ]] \
+    || log_fail "TEST-1362 setup: no frozen_sha256 written by the real tool — this arm cannot test an anchor that does not exist"
+
+  # The ledger half is MEASUREMENT ONLY, and proven clean on its own before
+  # the spec is touched. Without this baseline the exit 1 below could be the
+  # ledger refusing, and the arm would assert nothing about the spec scan.
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T01:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1362-m1","spec_id":"spec-t1362-fixture","owner_signoff":false,"amendment_class":"measurement","what":"corrected a Mutation cell","why":"it named bytes the target does not carry"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T02:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1362-m2","spec_id":"spec-other","owner_signoff":false,"amendment_class":"measurement","what":"renumbered a TEST id","why":"the id collided"}' >> "$led"
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1362 baseline: an unedited frozen spec plus a measurement-only ledger must be strict-CLEAN, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  # A Spec-AC Description cell — squarely inside the contract projection, the
+  # same byte TEST-482 edits, so this arm drifts the anchor exactly as a real
+  # undisclosed amendment does.
+  sed -i.bak 's/original description text/EDITED description text/' "$spec"
+  grep -qF 'EDITED description text' "$spec" \
+    || log_fail "TEST-1362: the simulated undisclosed edit did not land in the fixture spec"
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 1 ]] \
+    || log_fail "TEST-1362: a drifted frozen spec must STILL refuse --strict whatever class the ledger's records carry, got $EC (stdout: $OUT) (stderr: $ERR)"
+  grep -qF 'STRICT-VIOLATION undisclosed-amendment' <<<"$OUT" \
+    || log_fail "TEST-1362: the refusal must still print STRICT-VIOLATION undisclosed-amendment; stdout was: $OUT"
+  grep -qF 'spec-t1362-fixture' <<<"$OUT" \
+    || log_fail "TEST-1362: the refusal must still name the offending spec; stdout was: $OUT"
+
+  # And the exit 1 is the SPEC half alone: no ledger bucket was dragged into
+  # the violation set to produce it. A measurement record must neither become
+  # a violation nor excuse one.
+  grep -qF 'STRICT-VIOLATION unsigned-untracked' <<<"$OUT" \
+    && log_fail "TEST-1362: no ledger record owes anything here — the refusal must come from the spec scan alone; stdout was: $OUT"
+  grep -qF 'STRICT-VIOLATION unclassified' <<<"$OUT" \
+    && log_fail "TEST-1362: no ledger record owes anything here — the refusal must come from the spec scan alone; stdout was: $OUT"
+  grep -qF 'STRICT-VIOLATION measurement' <<<"$OUT" \
+    && log_fail "TEST-1362: a measurement record must never itself become a strict violation; stdout was: $OUT"
+
+  log_pass "TEST-1362 the undisclosed-amendment half of --strict is untouched by the class: a drifted frozen spec still refuses and is still named, over a ledger that owes nothing"
+}
+
+test_1363_live_ledger_folds_identically() {
+  log_info "Test: folding the LIVE ledger at the pre-migration blob through the new code moves no non-cohort record out of the bucket the pre-change code gave it (TEST-1363)..."
+  local dir base_script base_ledger verdict
+  dir="$TEST_DIR/t1363"
+  mkdir -p "$dir"
+  base_script="$dir/spec-amend-base.mjs"
+  base_ledger="$dir/base-decisions.jsonl"
+
+  # BOTH halves come from the SAME committed blob: the PRE-CHANGE code and
+  # the PRE-MIGRATION ledger. Re-deriving the old bucket rule by hand here
+  # would only prove this suite agrees with itself; running the actual
+  # superseded program is the only baseline that cannot drift.
+  git -C "$PROJECT_ROOT" show "$BASE_REF:.aai/scripts/spec-amend.mjs" > "$base_script" 2>/dev/null \
+    || log_fail "TEST-1363: base ref $BASE_REF has no .aai/scripts/spec-amend.mjs — the pre-change fold cannot be produced here; FAILING CLOSED (this is a missing ref, NOT a detected regression)"
+  git -C "$PROJECT_ROOT" show "$BASE_REF:docs/ai/decisions.jsonl" > "$base_ledger" 2>/dev/null \
+    || log_fail "TEST-1363: base ref $BASE_REF has no docs/ai/decisions.jsonl — the pre-migration ledger cannot be produced here; FAILING CLOSED (this is a missing ref, NOT a detected regression)"
+
+  # The extracted program imports its siblings as ./lib/*.mjs, so it is given
+  # the REAL lib directory rather than a copy: this arm is about spec-amend's
+  # own fold, not about a stale snapshot of its dependencies.
+  ln -snf "$PROJECT_ROOT/.aai/scripts/lib" "$dir/lib"
+
+  local old_json new_json
+  old_json="$dir/old.json"; new_json="$dir/new.json"
+  EC=0; node "$base_script" list --ledger "$base_ledger" --json > "$old_json" 2> "$dir/old.err" || EC=$?
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1363: the PRE-CHANGE spec-amend.mjs failed to fold the pre-migration ledger (rc=$EC): $(cat "$dir/old.err")"
+  EC=0; node "$SA" list --ledger "$base_ledger" --json > "$new_json" 2> "$dir/new.err" || EC=$?
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1363: the CURRENT spec-amend.mjs failed to fold the pre-migration ledger (rc=$EC): $(cat "$dir/new.err")"
+
+  # The restamp cohort is excluded because it is the ONE population D3
+  # migrates, so once this branch merges its records legitimately move. It is
+  # selected structurally — the conjunction of the two anchor fields only
+  # cmdRestamp writes — never by reading `what`/`why` prose. (Spec-AC-14's
+  # selector narrows this further with the RESTAMP_WHAT equality; excluding
+  # the wider set here is the conservative direction.)
+  verdict="$(node -e '
+    const fs=require("fs");
+    const old=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+    const neu=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+    const cohort=new Set();
+    for (const line of fs.readFileSync(process.argv[3],"utf8").split(/\r?\n/)) {
+      const t=line.trim(); if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { continue; }
+      if (r && r.type==="spec_amendment" && r.from_frozen_sha256 && r.to_frozen_sha256) {
+        cohort.add(String(r.ts)+"\u0000"+String(r.ref_id));
+      }
+    }
+    const key=(i)=>String(i.ts)+"\u0000"+String(i.ref_id);
+    const oldB=new Map(old.items.map((i)=>[key(i),i.bucket]));
+    const newB=new Map(neu.items.map((i)=>[key(i),i.bucket]));
+    if (old.items.length!==neu.items.length) { console.log("TOTAL old="+old.items.length+" new="+neu.items.length); process.exit(0); }
+    if (old.items.length===0) { console.log("EMPTY-BASELINE"); process.exit(0); }
+    const moved=[], missing=[], classBad=[];
+    for (const [k,b] of oldB) {
+      if (cohort.has(k)) continue;
+      if (!newB.has(k)) { missing.push(k.replace("\u0000"," ")); continue; }
+      if (newB.get(k)!==b) moved.push(k.replace("\u0000"," ")+": "+b+" -> "+newB.get(k));
+    }
+    // The MECHANISM that makes the line above true, asserted directly: a
+    // class-absent legacy record resolves to the CONTRACT lane. Reading an
+    // absent class as anything else would discharge obligations nobody
+    // decided — and a default pointing at a value outside the closed
+    // vocabulary would make the resolved class unreadable while the buckets
+    // happened to stay put.
+    for (const it of neu.items) {
+      const k=key(it);
+      if (cohort.has(k)) continue;
+      if (it.amendment_class!=="contract" && it.amendment_class!=="measurement") classBad.push(k.replace("\u0000"," ")+"="+JSON.stringify(it.amendment_class));
+    }
+    const absent=[];
+    for (const line of fs.readFileSync(process.argv[3],"utf8").split(/\r?\n/)) {
+      const t=line.trim(); if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { continue; }
+      if (r && r.type==="spec_amendment" && r.amendment_class===undefined) absent.push(String(r.ts)+"\u0000"+String(r.ref_id));
+    }
+    const absentWrong=absent.filter((k)=>!cohort.has(k)).filter((k)=>{
+      const it=neu.items.find((i)=>key(i)===k);
+      return !it || it.amendment_class!=="contract";
+    });
+    if (moved.length) { console.log("MOVED("+moved.length+") "+moved.slice(0,5).join(" | ")); process.exit(0); }
+    if (missing.length) { console.log("MISSING("+missing.length+") "+missing.slice(0,5).join(" | ")); process.exit(0); }
+    if (classBad.length) { console.log("CLASS-OUTSIDE-VOCABULARY("+classBad.length+") "+classBad.slice(0,5).join(" | ")); process.exit(0); }
+    if (absent.length===0) { console.log("NO-CLASS-ABSENT-RECORDS-IN-BASELINE"); process.exit(0); }
+    if (absentWrong.length) { console.log("CLASS-ABSENT-NOT-CONTRACT("+absentWrong.length+") "+absentWrong.slice(0,5).map((k)=>k.replace("\u0000"," ")).join(" | ")); process.exit(0); }
+    console.log("FOLD-IDENTICAL total="+old.items.length+" cohort="+cohort.size+" compared="+(old.items.length-cohort.size)+" class_absent="+absent.length+" moved=0");
+  ' "$old_json" "$new_json" "$base_ledger")"
+  case "$verdict" in
+    FOLD-IDENTICAL*) log_info "TEST-1363: $verdict" ;;
+    *) log_fail "TEST-1363: the new fold did not reproduce the pre-change buckets on the live pre-migration ledger — $verdict" ;;
+  esac
+
+  # Nothing was laundered into the new bucket by the mere act of reading: the
+  # pre-migration ledger declares no measurement anywhere, so the new count
+  # must be exactly zero.
+  local measurement_count
+  measurement_count="$(json_field "$(cat "$new_json")" 'String(j.counts.measurement)')"
+  [[ "$measurement_count" == "0" ]] \
+    || log_fail "TEST-1363: folding the PRE-MIGRATION ledger must yield measurement=0 (no record declares the class yet); got $measurement_count"
+
+  log_pass "TEST-1363 the live pre-migration ledger folds through the new code into the identical buckets the pre-change code produced, with every class-absent record resolving to the contract lane and nothing in the measurement bucket"
+}
+
+test_1364_both_writers_pick_one_item_id() {
+  log_info "Test: \`add --class contract\` and \`classify --class contract\` attach to the BYTE-IDENTICAL fu-amend- id, and neither measurement call creates an item at all (TEST-1364)..."
+  local spec_id="spec-t1364-fixture"
+  local led_add led_cls spec id_add id_cls
+
+  # ARM 1 — `add` picks an id for this spec.
+  led_add="$(mk_ledger t1364-add)"
+  spec="$(mk_spec "SPEC-DRAFT-t1364.md" "$spec_id")"
+  run_sa add --ledger "$led_add" --spec "$spec" --ref t1364-add-ride \
+    --what "widened Spec-AC-01 to cover the absent-key case" \
+    --why "the frozen predicate did not cover the data" \
+    --class contract --signoff none
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1364 arm 1: \`add --class contract --signoff none\` must exit 0, got $EC (stdout: $OUT) (stderr: $ERR)"
+  id_add="$(node -e '
+    const fs=require("fs");
+    let id="";
+    for (const line of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=line.trim(); if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { continue; }
+      if (r && r.type==="spec_amendment" && r.ref_id===process.argv[2]) id=String(r.tracked_by ?? "");
+    }
+    process.stdout.write(id);
+  ' "$led_add" t1364-add-ride)"
+  [[ -n "$id_add" ]] \
+    || log_fail "TEST-1364 arm 1: the contract-lane add recorded no tracked_by at all"
+
+  # ARM 2 — `classify` picks an id for the SAME spec id, from a record whose
+  # own ref_id DIFFERS from it. The two writers reach pickAmendItemId by
+  # different routes; only a shared key makes the two ids the same bytes.
+  led_cls="$(mk_ledger t1364-cls)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T01:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1364-cls-ride","spec":"docs/specs/SPEC-DRAFT-t1364.md","spec_id":"spec-t1364-fixture","what":"widened Spec-AC-01 to cover the absent-key case","why":"the frozen predicate did not cover the data"}' >> "$led_cls"
+  run_sa classify --ledger "$led_cls" --ts "2026-09-01T01:00:00Z" --ref t1364-cls-ride \
+    --class contract --signoff none --why "back-classified as unsigned" --source "docs/ai/decisions.jsonl"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1364 arm 2: \`classify --class contract --signoff none\` must exit 0, got $EC (stdout: $OUT) (stderr: $ERR)"
+  id_cls="$(node -e '
+    const fs=require("fs");
+    let id="";
+    for (const line of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=line.trim(); if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { continue; }
+      if (r && r.type==="spec_amendment_classification") id=String(r.tracked_by ?? "");
+    }
+    process.stdout.write(id);
+  ' "$led_cls")"
+  [[ -n "$id_cls" ]] \
+    || log_fail "TEST-1364 arm 2: the contract-lane classify recorded no tracked_by at all"
+
+  [[ "$id_add" == "$id_cls" ]] \
+    || log_fail "TEST-1364: the two writers drifted — \`add\` attached to \"$id_add\" and \`classify\` attached to \"$id_cls\" for the same spec id $spec_id. One place must decide WHICH item carries the obligation."
+
+  # ARM 3 — the measurement lane creates NO item on EITHER writer. The gate
+  # that decides WHETHER anything is owed must sit above the one that decides
+  # WHICH item, on both routes, or the lighter lane leaks an obligation back
+  # in through whichever writer was forgotten.
+  local led_m_add led_m_cls spec_m
+  led_m_add="$(mk_ledger t1364-m-add)"
+  spec_m="$(mk_spec "SPEC-DRAFT-t1364m.md" "spec-t1364m-fixture")"
+  run_sa add --ledger "$led_m_add" --spec "$spec_m" --ref t1364-m-add-ride \
+    --what "corrected the Mutation cell for TEST-001" --why "the cell never reddened" \
+    --class measurement --signoff none
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1364 arm 3a: \`add --class measurement --signoff none\` must exit 0, got $EC (stdout: $OUT) (stderr: $ERR)"
+  run_fu list --ledger "$led_m_add" --status all
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1364 arm 3a: follow-ups.mjs list must exit 0 over the produced ledger, got $EC (stderr: $ERR)"
+  grep -qF "fu-amend-" <<<"$OUT" \
+    && log_fail "TEST-1364 arm 3a: \`add --class measurement\` must create NO item; the real reader found one: $OUT"
+
+  led_m_cls="$(mk_ledger t1364-m-cls)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T01:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1364-m-cls-ride","spec":"docs/specs/SPEC-DRAFT-t1364m.md","spec_id":"spec-t1364m-fixture","what":"corrected the Mutation cell for TEST-001","why":"the cell never reddened"}' >> "$led_m_cls"
+  run_sa classify --ledger "$led_m_cls" --ts "2026-09-01T01:00:00Z" --ref t1364-m-cls-ride \
+    --class measurement --signoff none --why "the cell never reddened" --source "docs/ai/decisions.jsonl"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1364 arm 3b: \`classify --class measurement --signoff none\` must exit 0, got $EC (stdout: $OUT) (stderr: $ERR)"
+  run_fu list --ledger "$led_m_cls" --status all
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1364 arm 3b: follow-ups.mjs list must exit 0 over the produced ledger, got $EC (stderr: $ERR)"
+  grep -qF "fu-amend-" <<<"$OUT" \
+    && log_fail "TEST-1364 arm 3b: \`classify --class measurement\` must create NO item either; the real reader found one: $OUT"
+
+  log_pass "TEST-1364 both writers reach the same single item-id decision for one spec ($id_add), and neither creates an item in the measurement lane"
+}
+
+test_1365_restamp_is_measurement_by_construction() {
+  log_info "Test: \`restamp\` — the one site where the class is NOT a self-report — writes a measurement record with no tracker, creates no item, and leaves \`list --strict\` at exit 0 (TEST-1365)..."
+  local specsdir led spec verdict
+  specsdir="$TEST_DIR/t1365-specs"
+  led="$(mk_ledger t1365)"
+  spec="$(mk_freezable_spec t1365-specs/fixture.md spec-t1365-fixture direct)"
+  printf '\nSee docs/specs/SPEC-DRAFT-spec-t1365-fixture.md for the frozen text.\n' >> "$spec"
+  freeze_spec "$spec" || log_fail "TEST-1365 setup: real spec-freeze.mjs refused the fixture"
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1365 baseline: the unrenumbered fixture must be strict-CLEAN, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  # The allocator's own verbatim DRAFT-to-numbered substitution — the ONLY
+  # state cmdRestamp is ever reached from, which is exactly why its class is
+  # structural rather than declared by a caller.
+  sed -i.bak 's/SPEC-DRAFT-spec-t1365-fixture\.md/SPEC-0205-spec-t1365-fixture.md/' "$spec"
+  grep -qF 'SPEC-0205-spec-t1365-fixture.md' "$spec" \
+    || log_fail "TEST-1365: the simulated allocator rewrite did not land"
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 1 ]] \
+    || log_fail "TEST-1365 precondition: WITHOUT restamp the renumbered spec must refuse strict as undisclosed, got $EC (stdout: $OUT)"
+
+  run_sa restamp --spec "$spec" --ref t1365-ride --ledger "$led"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1365: restamp must succeed on the renumbered spec, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  verdict="$(node -e '
+    const fs=require("fs");
+    const recs=[];
+    for (const line of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=line.trim(); if (t==="" || t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { console.log("MALFORMED-LINE"); process.exit(0); }
+      recs.push(r);
+    }
+    const am=recs.filter((r)=>r.type==="spec_amendment");
+    const fu=recs.filter((r)=>r.type==="follow_up");
+    if (am.length!==1) { console.log("AMENDMENTS="+am.length); process.exit(0); }
+    if (fu.length!==0) { console.log("FOLLOWUPS="+fu.length+" ids="+fu.map((f)=>f.id).join(",")); process.exit(0); }
+    const r=am[0];
+    if (r.amendment_class!=="measurement") { console.log("CLASS="+JSON.stringify(r.amendment_class)); process.exit(0); }
+    if (Object.prototype.hasOwnProperty.call(r,"tracked_by")) { console.log("TRACKED_BY="+r.tracked_by); process.exit(0); }
+    if (r.owner_signoff!==false) { console.log("SIGNOFF="+JSON.stringify(r.owner_signoff)); process.exit(0); }
+    // The disclosure itself is untouched: the from/to anchors are what make a
+    // restamp a DISCLOSED mechanical change rather than a waived one, and
+    // dropping them to buy the lighter lane would be the laundering.
+    if (!r.from_frozen_sha256 || !r.to_frozen_sha256) { console.log("ANCHORS from="+JSON.stringify(r.from_frozen_sha256)+" to="+JSON.stringify(r.to_frozen_sha256)); process.exit(0); }
+    if (r.from_frozen_sha256===r.to_frozen_sha256) { console.log("ANCHORS-EQUAL"); process.exit(0); }
+    console.log("RESTAMP-MEASUREMENT-OK");
+  ' "$led")"
+  case "$verdict" in
+    RESTAMP-MEASUREMENT-OK*) : ;;
+    *) log_fail "TEST-1365: restamp did not write a disclosed, untracked measurement record — $verdict" ;;
+  esac
+
+  # SEAM-2: the ABSENCE of the item is read back through the REAL
+  # follow-ups.mjs, never by grepping the ledger this suite just produced.
+  run_fu list --ledger "$led" --status all
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1365: follow-ups.mjs list must exit 0 over the produced ledger, got $EC (stderr: $ERR)"
+  grep -qF "fu-amend-" <<<"$OUT" \
+    && log_fail "TEST-1365: a restamp must co-create NO fu-amend- item; the real reader found one: $OUT"
+
+  # The bucket is read through the tool's own fold, not inferred from the
+  # record: `measurement` is what makes the untracked record stop being a
+  # violation, and the next assertion depends on it.
+  run_sa list --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1365: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  local bucket
+  bucket="$(json_field "$OUT" '(j.items.find((i)=>i.ref_id==="t1365-ride")||{}).bucket')"
+  [[ "$bucket" == "measurement" ]] \
+    || log_fail "TEST-1365: the restamp record must fold to bucket measurement, got \"$bucket\""
+
+  run_sa list --ledger "$led" --specs-dir "$specsdir" --strict
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1365: WITH restamp, \`list --strict\` must exit 0 — the restamp is disclosed and owes nothing, so neither the spec scan nor the ledger may refuse; got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  log_pass "TEST-1365 restamp hardcodes the measurement class by construction: a disclosed, untracked record, no co-created item, and a clean strict gate"
+}
+
+# --- TEST-1366..TEST-1371 (SPEC-DRAFT spec-amendment-signature-asks-the-owner-
+# --- too-often, Spec-AC-12..16) — the per-record route, the `list` surfaces,
+# --- the structural selector, the migration, and the companion canon --------
+#
+# Wave 4. The partition is only worth having if it is REACHABLE one record at
+# a time (TEST-1366), VISIBLE on every surface that reads the fold
+# (TEST-1367/1368), SELECTED without reading a word of prose (TEST-1369),
+# applied to the one tool-emitted cohort WITHOUT laundering anything else
+# (TEST-1370), and NAMED in the canon a role actually reads (TEST-1371).
+
+# RESTAMP_WHAT, duplicated here ON PURPOSE and by hand. Spec-AC-14 is a
+# BYTE-EQUALITY claim about one literal, and a test that re-derived the
+# literal from the source it is checking would pass for any value of it —
+# including the wrong one. The real writer is run below (arm 4) so this hand
+# copy can never silently rot: if the product constant moves, that arm says so
+# by name rather than quietly agreeing with it.
+T1369_RESTAMP_WHAT='mechanical restamp: the allocator rewrote this frozen spec’s own SPEC-DRAFT- path(s) at merge'
+
+test_1366_classify_is_the_per_record_route() {
+  log_info "Test: \`classify --class measurement\` moves ONE record and leaves its tracker open, and a \`--class\`-less classify moves no record between lanes (TEST-1366)..."
+  local led ts bucket cls
+  led="$(mk_ledger t1366)"
+
+  # THE TARGET IS A LEGACY, CLASS-ABSENT RECORD with a real OPEN tracker —
+  # the exact shape of every one of the ~190 records already on the live
+  # ledger, which is the only population `classify --class` can move. A
+  # record written by a LIVE writer always stamps its own class, and the
+  # record wins over any overlay (TEST-1359 case E pins that precedence), so
+  # a fixture built by `add` would be testing a route that does not exist.
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T01:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1366-ride","spec":"docs/specs/SPEC-DRAFT-t1366.md","spec_id":"spec-t1366-fixture","owner_signoff":false,"tracked_by":"fu-amend-spec-t1366-fixture","what":"corrected the Mutation cell for TEST-001","why":"the cell escaped its brackets and never reddened"}' >> "$led"
+  run_fu add --ledger "$led" --id fu-amend-spec-t1366-fixture --ref t1366-ride --severity P2 \
+    --what "owner sign-off owed on the post-freeze amendment(s) to spec-t1366-fixture" \
+    --why "filed unsigned under the additive-with-disclosure convention" \
+    --source "$led ts=2026-09-01T01:00:00Z type=spec_amendment ref_id=t1366-ride"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1366 setup: follow-ups.mjs add must exit 0, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  run_sa list --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1366 setup: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  ts="$(json_field "$OUT" 'j.items[0].ts')"
+  [[ -n "$ts" && "$ts" != "undefined" ]] \
+    || log_fail "TEST-1366 setup: no spec_amendment ts could be read back"
+  bucket="$(json_field "$OUT" 'j.items[0].bucket')"
+  [[ "$bucket" == "unsigned-tracked" ]] \
+    || log_fail "TEST-1366 setup: the legacy class-absent record must start in unsigned-tracked, got \"$bucket\""
+
+  # The tracker's id and status BEFORE, read through the real registry CLI —
+  # not inferred from the amendment record, because what must not change is
+  # the ITEM, and only follow-ups.mjs owns that answer.
+  local item_before
+  run_fu list --ledger "$led" --status open
+  [[ "$EC" == 0 ]] || log_fail "TEST-1366 setup: follow-ups.mjs list must exit 0, got $EC (stderr: $ERR)"
+  item_before="$OUT"
+  grep -qF "fu-amend-" <<<"$item_before" \
+    || log_fail "TEST-1366 setup: the fixture has no open fu-amend- item to preserve; got: $item_before"
+
+  run_sa classify --ledger "$led" --ts "$ts" --ref t1366-ride --signoff none --class measurement \
+    --origin backfill --why "the amendment only corrected how the claim is measured" \
+    --source "docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md D1"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1366 arm 1: \`classify --class measurement --signoff none\` must exit 0, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  run_sa list --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1366 arm 1: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  bucket="$(json_field "$OUT" 'j.items[0].bucket')"
+  [[ "$bucket" == "measurement" ]] \
+    || log_fail "TEST-1366 arm 1: the classified record must fold to bucket measurement, got \"$bucket\" — the per-record route into the partition does not work"
+  cls="$(json_field "$OUT" 'j.items[0].amendment_class')"
+  [[ "$cls" == "measurement" ]] \
+    || log_fail "TEST-1366 arm 1: the overlay's class must be the record's resolved class, got \"$cls\""
+
+  # THE ITEM IS LEFT ALONE. `fu-amend-` is keyed per SPEC, not per record, so
+  # moving one record out of the owner queue discharges nothing: closing the
+  # item here would forge the signature this whole scope refuses to forge.
+  run_fu list --ledger "$led" --status open
+  [[ "$EC" == 0 ]] || log_fail "TEST-1366 arm 2: follow-ups.mjs list must exit 0, got $EC (stderr: $ERR)"
+  [[ "$OUT" == "$item_before" ]] \
+    || log_fail "TEST-1366 arm 2: the previously-tracking item did not keep its open status unchanged.
+BEFORE: $item_before
+AFTER:  $OUT"
+
+  # A `--class`-less classify declares NOTHING about the class. It must leave
+  # the target exactly where it found it — in BOTH directions, because a
+  # default applied here would silently move records every time the printed
+  # remedy line is run verbatim.
+  run_sa classify --ledger "$led" --ts "$ts" --ref t1366-ride --signoff none \
+    --why "a second judgement about the same record, saying nothing about its class" \
+    --source "docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1366.log"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1366 arm 3: a \`--class\`-less classify must still exit 0, got $EC (stdout: $OUT) (stderr: $ERR)"
+  run_sa list --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1366 arm 3: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  cls="$(json_field "$OUT" 'j.items[0].amendment_class')"
+  [[ "$cls" == "measurement" ]] \
+    || log_fail "TEST-1366 arm 3: a \`--class\`-less classify changed the resolved class to \"$cls\" — it must declare nothing"
+  bucket="$(json_field "$OUT" 'j.items[0].bucket')"
+  [[ "$bucket" == "measurement" ]] \
+    || log_fail "TEST-1366 arm 3: a \`--class\`-less classify moved the record to bucket \"$bucket\""
+
+  # ... and the same in the other direction, over a contract-lane record, so
+  # the arm cannot pass merely because `measurement` happens to be sticky.
+  local led2 spec2 ts2
+  led2="$(mk_ledger t1366b)"
+  spec2="$(mk_spec t1366b-spec.md spec-t1366b-fixture)"
+  run_sa add --ledger "$led2" --spec "$spec2" --ref t1366b-ride \
+    --what "widened Spec-AC-03 to cover the absent-flag case" --why "the scope outgrew the frozen predicate" \
+    --class contract --signoff none
+  [[ "$EC" == 0 ]] || log_fail "TEST-1366 arm 4 setup: add must exit 0, got $EC (stderr: $ERR)"
+  run_sa list --ledger "$led2" --json
+  ts2="$(json_field "$OUT" 'j.items[0].ts')"
+  run_sa classify --ledger "$led2" --ts "$ts2" --ref t1366b-ride --signoff none \
+    --why "judged again, with no claim about the class" --source "fixture"
+  [[ "$EC" == 0 ]] || log_fail "TEST-1366 arm 4: classify must exit 0, got $EC (stderr: $ERR)"
+  run_sa list --ledger "$led2" --json
+  cls="$(json_field "$OUT" 'j.items[0].amendment_class')"
+  [[ "$cls" == "contract" ]] \
+    || log_fail "TEST-1366 arm 4: a \`--class\`-less classify moved a contract record to \"$cls\""
+
+  log_pass "TEST-1366 the per-record route moves exactly one record into the measurement lane, leaves its spec-keyed tracker open and untouched, and declares nothing when --class is omitted"
+}
+
+test_1367_list_surfaces_carry_the_class() {
+  log_info "Test: every \`list\` surface projects the resolved class — the row label, the per-item \`--json\` field, and the counts object (TEST-1367)..."
+  local led json row
+  led="$(mk_ledger t1367)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T01:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1367-m","spec_id":"spec-m","owner_signoff":false,"amendment_class":"measurement","what":"w","why":"y"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T02:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1367-c","spec_id":"spec-c","owner_signoff":false,"amendment_class":"contract","what":"w","why":"y"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T03:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1367-s","spec_id":"spec-s","owner_signoff":true,"amendment_class":"contract","what":"w","why":"y","authority":"owner said so"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T04:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1367-legacy","spec_id":"spec-l","owner_signoff":false,"what":"w","why":"y"}' >> "$led"
+
+  # --- the human surface -----------------------------------------------------
+  run_sa list --ledger "$led"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1367: plain \`list\` must exit 0, got $EC (stderr: $ERR)"
+
+  # EVERY row, not just one: a label printed on the measurement rows alone
+  # would still leave the reader unable to tell a contract row from a row
+  # whose class was never resolved at all.
+  local r
+  for r in t1367-m:measurement t1367-c:contract t1367-s:contract t1367-legacy:contract; do
+    local want_ref="${r%%:*}" want_cls="${r##*:}"
+    row="$(command grep -F "$want_ref" <<<"$OUT" || true)"
+    [[ -n "$row" ]] \
+      || log_fail "TEST-1367: \`list\` printed no row for $want_ref; stdout was: $OUT"
+    grep -qF "class=$want_cls" <<<"$row" \
+      || log_fail "TEST-1367: the row for $want_ref carries no \`class=$want_cls\` label; row was: $row"
+  done
+
+  # The header is the second human surface and the only one that answers
+  # "how many obligations were waived" without reading every row.
+  grep -qF "measurement=1" <<<"$OUT" \
+    || log_fail "TEST-1367: the \`list\` header does not count the measurement bucket; stdout was: $OUT"
+
+  # --- the machine surface ---------------------------------------------------
+  run_sa list --ledger "$led" --json
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1367: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  json="$OUT"
+
+  local verdict
+  verdict="$(json_field "$json" '
+    (() => {
+      const want = { "t1367-m":"measurement", "t1367-c":"contract", "t1367-s":"contract", "t1367-legacy":"contract" };
+      const got = {};
+      for (const it of j.items) got[it.ref_id] = it.amendment_class;
+      const missing = Object.keys(want).filter((k) => got[k] === undefined);
+      if (missing.length) return "MISSING " + missing.join(", ");
+      const bad = Object.keys(want).filter((k) => got[k] !== want[k]);
+      if (bad.length) return "CLASS " + bad.map((k) => k + "=" + got[k] + " (want " + want[k] + ")").join(", ");
+      if (typeof j.counts.measurement !== "number") return "COUNTS counts.measurement is " + JSON.stringify(j.counts.measurement);
+      if (j.counts.measurement !== 1) return "COUNTS counts.measurement=" + j.counts.measurement + " (want 1)";
+      return "JSON-OK";
+    })()
+  ')"
+  [[ "$verdict" == "JSON-OK" ]] \
+    || log_fail "TEST-1367: \`list --json\` does not project the class per item plus a measurement count — $verdict"
+
+  log_pass "TEST-1367 the class is on every list surface: a \`class=\` label on every row, \`amendment_class\` per --json item, and a counted measurement bucket in both headers"
+}
+
+test_1368_status_measurement_is_an_enumerable_view() {
+  log_info "Test: \`--status measurement\` is a named, enumerable view returning ONLY measurement rows, and an unknown status still exits 2 (TEST-1368)..."
+  local led shown refs
+  led="$(mk_ledger t1368)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T01:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1368-m1","spec_id":"spec-m1","owner_signoff":false,"amendment_class":"measurement","what":"w","why":"y"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T02:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1368-m2","spec_id":"spec-m2","owner_signoff":false,"amendment_class":"measurement","what":"w","why":"y"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T03:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1368-c","spec_id":"spec-c","owner_signoff":false,"amendment_class":"contract","what":"w","why":"y"}' >> "$led"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T04:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1368-s","spec_id":"spec-s","owner_signoff":true,"amendment_class":"measurement","what":"w","why":"y","authority":"owner said so"}' >> "$led"
+
+  run_sa list --ledger "$led" --status measurement --json
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1368: \`--status measurement\` must be ACCEPTED and exit 0, got $EC (stdout: $OUT) (stderr: $ERR)"
+
+  # The view must be NON-EMPTY and must be the measurement bucket exactly: an
+  # accepted filter that selects nothing answers "show me every waived
+  # obligation" with silence, which is the same failure as refusing it.
+  shown="$(json_field "$OUT" 'j.items.length')"
+  [[ "$shown" == "2" ]] \
+    || log_fail "TEST-1368: \`--status measurement\` returned $shown row(s), want the 2 measurement-bucket records (the signed one is NOT in this view — a signature outranks the class)"
+  refs="$(json_field "$OUT" 'j.items.map((it) => it.ref_id + ":" + it.bucket).sort().join(",")')"
+  [[ "$refs" == "t1368-m1:measurement,t1368-m2:measurement" ]] \
+    || log_fail "TEST-1368: \`--status measurement\` must return ONLY measurement-bucket rows, got: $refs"
+
+  # The closed vocabulary of --status is unchanged for everything else, and
+  # the refusal still enumerates what IS legal — including the new name.
+  run_sa list --ledger "$led" --status bogus
+  [[ "$EC" == 2 ]] \
+    || log_fail "TEST-1368: an unknown --status must still exit 2, got $EC (stdout: $OUT) (stderr: $ERR)"
+  grep -qF "measurement" <<<"$ERR" \
+    || log_fail "TEST-1368: the --status refusal must name \`measurement\` among the legal values; stderr was: $ERR"
+  grep -qF "unsigned" <<<"$ERR" \
+    || log_fail "TEST-1368: the --status refusal must still name the pre-existing values; stderr was: $ERR"
+
+  log_pass "TEST-1368 \`--status measurement\` is an accepted, non-empty, exactly-the-bucket view, and the unknown-status refusal still enumerates the whole closed set"
+}
+
+test_1369_tool_restamp_is_structural() {
+  log_info "Test: \`tool_restamp\` is the CONJUNCTION of both anchor fields and a byte-equal \`what\` — no prose is read, and either half alone is false (TEST-1369)..."
+  local led verdict
+  led="$(mk_ledger t1369)"
+
+  # Five shapes around ONE conjunction. The `what` below is the product's own
+  # RESTAMP_WHAT, copied by hand (see the constant's comment) — record A is
+  # the only one that satisfies both halves. Record B's near miss is a
+  # trailing FULL STOP, not a trailing space: `str()` trims, so a whitespace
+  # difference is not a difference at all and would have made B a second
+  # positive dressed up as a negative control.
+  local w="$T1369_RESTAMP_WHAT"
+  node -e '
+    const fs = require("fs");
+    const [led, what] = process.argv.slice(1);
+    const base = { v: 1, actor: "a", type: "spec_amendment", why: "y", owner_signoff: false };
+    const rows = [
+      { ...base, ts: "2026-09-01T01:00:00Z", ref_id: "t1369-a", spec_id: "spec-a", what, from_frozen_sha256: "aa", to_frozen_sha256: "bb" },
+      { ...base, ts: "2026-09-01T02:00:00Z", ref_id: "t1369-b", spec_id: "spec-b", what: what + ".", from_frozen_sha256: "aa", to_frozen_sha256: "bb" },
+      { ...base, ts: "2026-09-01T03:00:00Z", ref_id: "t1369-c", spec_id: "spec-c", what, from_frozen_sha256: "aa" },
+      { ...base, ts: "2026-09-01T04:00:00Z", ref_id: "t1369-d", spec_id: "spec-d", what, to_frozen_sha256: "bb" },
+      { ...base, ts: "2026-09-01T05:00:00Z", ref_id: "t1369-e", spec_id: "spec-e", what },
+    ];
+    fs.appendFileSync(led, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
+  ' "$led" "$w"
+
+  run_sa list --ledger "$led" --json
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1369: \`list --json\` must exit 0 over the fixture ledger, got $EC (stderr: $ERR)"
+
+  verdict="$(json_field "$OUT" '
+    (() => {
+      const want = { "t1369-a": true, "t1369-b": false, "t1369-c": false, "t1369-d": false, "t1369-e": false };
+      const got = {};
+      for (const it of j.items) got[it.ref_id] = it.tool_restamp;
+      const missing = Object.keys(want).filter((k) => typeof got[k] !== "boolean");
+      if (missing.length) return "MISSING tool_restamp is not a boolean on: " + missing.map((k) => k + "=" + JSON.stringify(got[k])).join(", ");
+      const bad = Object.keys(want).filter((k) => got[k] !== want[k]);
+      if (bad.length) return "SELECTOR " + bad.map((k) => k + "=" + got[k] + " (want " + want[k] + ")").join(", ");
+      return "SELECTOR-OK";
+    })()
+  ')"
+  [[ "$verdict" == "SELECTOR-OK" ]] \
+    || log_fail "TEST-1369: the structural selector is wrong — $verdict"
+
+  # The hand copy above is kept honest by the REAL writer: cmdRestamp is run
+  # end to end and its record must be selected. If the product constant ever
+  # moves, this arm names it instead of agreeing with it by construction.
+  local specsdir led2 spec rwhat
+  specsdir="$TEST_DIR/t1369-specs"
+  led2="$(mk_ledger t1369b)"
+  spec="$(mk_freezable_spec t1369-specs/fixture.md spec-t1369-fixture direct)"
+  printf '\nSee docs/specs/SPEC-DRAFT-spec-t1369-fixture.md for the frozen text.\n' >> "$spec"
+  freeze_spec "$spec" || log_fail "TEST-1369 setup: real spec-freeze.mjs refused the fixture"
+  sed -i.bak 's/SPEC-DRAFT-spec-t1369-fixture\.md/SPEC-0206-spec-t1369-fixture.md/' "$spec"
+  run_sa restamp --spec "$spec" --ref t1369-ride --ledger "$led2"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1369 arm 4: restamp must succeed on the renumbered fixture, got $EC (stdout: $OUT) (stderr: $ERR)"
+  run_sa list --ledger "$led2" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1369 arm 4: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  verdict="$(json_field "$OUT" 'String(j.items.length) + ":" + String(j.items[0] && j.items[0].tool_restamp)')"
+  [[ "$verdict" == "1:true" ]] \
+    || log_fail "TEST-1369 arm 4: the record the REAL restamp wrote must be selected by the structural selector, got \"$verdict\" — the hand-copied RESTAMP_WHAT and the product constant have drifted"
+  rwhat="$(node -e '
+    const fs = require("fs");
+    for (const line of fs.readFileSync(process.argv[1], "utf8").split(/\r?\n/)) {
+      const t = line.trim(); if (t === "" || t.startsWith("#")) continue;
+      const r = JSON.parse(t);
+      if (r.type === "spec_amendment") { process.stdout.write(String(r.what)); break; }
+    }
+  ' "$led2")"
+  [[ "$rwhat" == "$w" ]] \
+    || log_fail "TEST-1369 arm 4: the real restamp wrote what=\"$rwhat\" but this suite pins \"$w\""
+
+  log_pass "TEST-1369 tool_restamp is the conjunction of both anchors and a byte-equal what: one real restamp record selected, four near misses rejected, no prose read"
+}
+
+test_1370_migration_moves_only_the_structural_cohort() {
+  log_info "Test: the documented migration loop moves exactly the structurally-selected cohort, signs nothing, closes no item and edits no line (TEST-1370)..."
+  local led before_bytes fu_before fu_after json moved counts_before counts_after
+  led="$(mk_ledger t1370)"
+
+  local w="$T1369_RESTAMP_WHAT"
+  # Three cohort records (both anchors + the byte-equal what), each tracked by
+  # an OPEN fu-amend- item, exactly as the live cohort is. Two non-cohort:
+  #   N1 carries BOTH anchors but a different `what` — the record that tells a
+  #      structural selector apart from a sloppy one;
+  #   N2 is an ordinary legacy unsigned-tracked record with no anchors at all.
+  node -e '
+    const fs = require("fs");
+    const [led, what] = process.argv.slice(1);
+    const base = { v: 1, actor: "a", type: "spec_amendment", why: "y", owner_signoff: false };
+    const rows = [];
+    for (const n of [1, 2, 3]) {
+      rows.push({ ...base, ts: `2026-09-0${n}T01:00:00Z`, ref_id: `t1370-cohort-${n}`, spec_id: `spec-coh-${n}`,
+        what, from_frozen_sha256: `aa${n}`, to_frozen_sha256: `bb${n}`, tracked_by: `fu-amend-coh-${n}` });
+      rows.push({ v: 1, ts: `2026-09-0${n}T01:00:01Z`, actor: "a", type: "follow_up", id: `fu-amend-coh-${n}`,
+        ref_id: `t1370-cohort-${n}`, severity: "P2", finding: `owner sign-off owed on spec-coh-${n}`,
+        decision: "filed unsigned under the additive-with-disclosure convention", source: "fixture" });
+    }
+    rows.push({ ...base, ts: "2026-09-04T01:00:00Z", ref_id: "t1370-n1", spec_id: "spec-n1",
+      what: "hand-written amendment that happens to carry both anchor fields", from_frozen_sha256: "cc", to_frozen_sha256: "dd",
+      tracked_by: "fu-amend-n1" });
+    rows.push({ v: 1, ts: "2026-09-04T01:00:01Z", actor: "a", type: "follow_up", id: "fu-amend-n1", ref_id: "t1370-n1",
+      severity: "P2", finding: "owner sign-off owed on spec-n1", decision: "filed unsigned", source: "fixture" });
+    rows.push({ ...base, ts: "2026-09-05T01:00:00Z", ref_id: "t1370-n2", spec_id: "spec-n2",
+      what: "widened Spec-AC-02", tracked_by: "fu-amend-n2" });
+    rows.push({ v: 1, ts: "2026-09-05T01:00:01Z", actor: "a", type: "follow_up", id: "fu-amend-n2", ref_id: "t1370-n2",
+      severity: "P2", finding: "owner sign-off owed on spec-n2", decision: "filed unsigned", source: "fixture" });
+    fs.appendFileSync(led, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
+  ' "$led" "$w"
+
+  before_bytes="$TEST_DIR/t1370.before"
+  cp "$led" "$before_bytes"
+
+  run_fu list --ledger "$led" --status all
+  [[ "$EC" == 0 ]] || log_fail "TEST-1370 setup: follow-ups.mjs list must exit 0, got $EC (stderr: $ERR)"
+  fu_before="$OUT"
+
+  run_sa list --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1370 setup: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  counts_before="$(json_field "$OUT" '
+    "total=" + j.counts.total + " signed=" + j.counts.signed + " measurement=" + j.counts.measurement +
+    " unsigned-tracked=" + j.counts["unsigned-tracked"] + " unsigned-untracked=" + j.counts["unsigned-untracked"] +
+    " unclassified=" + j.counts.unclassified
+  ')"
+  [[ "$counts_before" == "total=5 signed=0 measurement=0 unsigned-tracked=5 unsigned-untracked=0 unclassified=0" ]] \
+    || log_fail "TEST-1370 setup: the fixture must start as five unsigned-tracked records, got: $counts_before"
+
+  # --- THE DOCUMENTED MIGRATION LOOP ----------------------------------------
+  # Selection is STRUCTURAL and comes from the tool's own fold, never from a
+  # regex over this ledger: `tool_restamp` is the conjunction TEST-1369 pins.
+  # Already-measurement and already-signed records are skipped so the loop is
+  # idempotent and can never re-decide a record somebody else decided.
+  local cohort
+  cohort="$(json_field "$OUT" '
+    j.items
+      .filter((it) => it.tool_restamp === true && it.bucket !== "signed" && it.amendment_class !== "measurement")
+      .map((it) => it.ts + "\t" + it.ref_id)
+      .join("\n")
+  ')"
+  moved=0
+  if [[ -n "$cohort" ]]; then
+    local mts mref
+    while IFS=$'\t' read -r mts mref; do
+      [[ -n "$mts" ]] || continue
+      run_sa classify --ledger "$led" --ts "$mts" --ref "$mref" --signoff none --class measurement --origin backfill \
+        --why "tool-emitted restamp: allocator anchor drift disclosed by spec-amend restamp, which owes no owner signature" \
+        --source "docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md D3 (structural selector: both frozen-sha anchors plus a byte-equal RESTAMP_WHAT)" </dev/null
+      [[ "$EC" == 0 ]] \
+        || log_fail "TEST-1370: the migration's classify refused ts=$mts ref=$mref, got $EC (stdout: $OUT) (stderr: $ERR)"
+      moved=$(( moved + 1 ))
+    done <<<"$cohort"
+  fi
+
+  [[ "$moved" == "3" ]] \
+    || log_fail "TEST-1370: the migration moved $moved record(s), want exactly the 3 structurally-selected cohort records — a selector that reads anything but the conjunction sweeps in t1370-n1"
+
+  # --- what the migration must NOT have done --------------------------------
+  run_sa list --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1370: \`list --json\` must exit 0 after the migration, got $EC (stderr: $ERR)"
+  json="$OUT"
+  counts_after="$(json_field "$json" '
+    "total=" + j.counts.total + " signed=" + j.counts.signed + " measurement=" + j.counts.measurement +
+    " unsigned-tracked=" + j.counts["unsigned-tracked"] + " unsigned-untracked=" + j.counts["unsigned-untracked"] +
+    " unclassified=" + j.counts.unclassified
+  ')"
+  [[ "$counts_after" == "total=5 signed=0 measurement=3 unsigned-tracked=2 unsigned-untracked=0 unclassified=0" ]] \
+    || log_fail "TEST-1370: the post-migration counts are wrong — signed must be unchanged at 0, measurement must equal the 3 appended overlays, unsigned-tracked must fall by exactly 3, total must be unchanged; got: $counts_after"
+
+  local still
+  still="$(json_field "$json" '
+    j.items.filter((it) => it.bucket !== "measurement").map((it) => it.ref_id).sort().join(",")
+  ')"
+  [[ "$still" == "t1370-n1,t1370-n2" ]] \
+    || log_fail "TEST-1370: the records left outside the measurement lane must be exactly the two non-cohort ones, got: $still"
+
+  # HAZ-LEDGER: the migration APPENDS. Every pre-existing byte is still there,
+  # at the same offset, and only new lines follow it.
+  local before_size
+  before_size="$(/usr/bin/wc -c < "$before_bytes" | tr -d ' ')"
+  local head_now
+  head_now="$TEST_DIR/t1370.headnow"
+  dd if="$led" of="$head_now" bs=1 count="$before_size" 2>/dev/null
+  cmp -s "$before_bytes" "$head_now" \
+    || log_fail "TEST-1370: the migration modified pre-existing bytes — docs/ai/decisions.jsonl is append-only (HAZ-LEDGER)"
+
+  # No item changed status, and no item was created: `fu-amend-` is keyed per
+  # SPEC, so closing one here would forge the signature this ride refuses.
+  run_fu list --ledger "$led" --status all
+  [[ "$EC" == 0 ]] || log_fail "TEST-1370: follow-ups.mjs list must exit 0 after the migration, got $EC (stderr: $ERR)"
+  fu_after="$OUT"
+  [[ "$fu_after" == "$fu_before" ]] \
+    || log_fail "TEST-1370: the migration changed the follow-up registry.
+BEFORE: $fu_before
+AFTER:  $fu_after"
+
+  log_pass "TEST-1370 the migration moves exactly the structural cohort (3 of 5), signs nothing, closes no item, creates no item, and appends without touching one pre-existing byte"
+}
+
+test_1371_canon_names_the_two_class_partition() {
+  log_info "Test: the canon a role actually reads names both class values — ROLE_COMMON's POST-FREEZE block and AUTONOMOUS_LOOP section 6a (TEST-1371)..."
+  local rc="$PROJECT_ROOT/.aai/ROLE_COMMON.md" block
+  [[ -f "$rc" ]] || log_fail "TEST-1371: .aai/ROLE_COMMON.md does not exist"
+
+  # The POST-FREEZE block specifically, not the file: a role reads the block
+  # its pointer sends it to, and a mention anywhere else would not reach it.
+  block="$(node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.argv[1], "utf8").split(/\r?\n/);
+    let out = [], on = false;
+    for (const l of lines) {
+      if (/^## /.test(l)) on = /POST-FREEZE/.test(l);
+      if (on) out.push(l);
+    }
+    process.stdout.write(out.join("\n"));
+  ' "$rc")"
+  [[ -n "$block" ]] \
+    || log_fail "TEST-1371: .aai/ROLE_COMMON.md has no POST-FREEZE section to carry the partition"
+  grep -qF -- "--class contract" <<<"$block" \
+    || log_fail "TEST-1371: the POST-FREEZE block does not name \`--class contract\`; block was:
+$block"
+  grep -qF -- "--class measurement" <<<"$block" \
+    || log_fail "TEST-1371: the POST-FREEZE block does not name \`--class measurement\`; block was:
+$block"
+
+  # The BODY of the convention lives in AUTONOMOUS_LOOP 6a (outside the prompt
+  # glob, zero ledger cost), and it is where the partition is explained rather
+  # than merely named.
+  local sixa
+  sixa="$(node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.argv[1], "utf8").split(/\r?\n/);
+    let out = [], on = false;
+    for (const l of lines) {
+      if (/^### /.test(l)) on = /^### 6a\)/.test(l);
+      if (on) out.push(l);
+    }
+    process.stdout.write(out.join("\n"));
+  ' "$CANON")"
+  [[ -n "$sixa" ]] \
+    || log_fail "TEST-1371: .aai/system/AUTONOMOUS_LOOP.md has no section 6a"
+  local needle
+  for needle in "contract" "measurement" "--class"; do
+    grep -qF -- "$needle" <<<"$sixa" \
+      || log_fail "TEST-1371: AUTONOMOUS_LOOP section 6a does not state the two-class partition (missing \"$needle\")"
+  done
+
+  # .aai/SKILL_PR.prompt.md is deliberately NOT edited by this scope: the
+  # AMENDMENT GATE's contract ("exit 0 proceed, exit 1 run what it prints") is
+  # unchanged, so the live prompt glob must not grow for it.
+  grep -qF -- "--class" "$PROJECT_ROOT/.aai/SKILL_PR.prompt.md" \
+    && log_fail "TEST-1371: .aai/SKILL_PR.prompt.md names --class — this scope deliberately leaves it untouched (its AMENDMENT GATE contract did not change)"
+
+  log_pass "TEST-1371 the POST-FREEZE block names both class values, AUTONOMOUS_LOOP 6a carries the partition body, and SKILL_PR is untouched"
+}
+
+# --- TEST-1373 (SPEC-DRAFT spec-amendment-signature-asks-the-owner-too-often,
+# --- Spec-AC-17) — the obligation decision and the fold's bucket cannot
+# --- disagree ----------------------------------------------------------------
+#
+# Code review round 1, BLOCKING, reproduced. `cmdClassify` decided WHETHER an
+# owner obligation was owed from the `--class` FLAG, while `foldAmendments`
+# lets a record's OWN `amendment_class` outrank every overlay. The two
+# therefore disagreed for any record that carries its own class — which is
+# EVERY record a live writer produces from now on. Reproduced before the fix:
+#
+#   add --class measurement …                  -> bucket measurement, 0 items
+#   classify --ts … --class contract --signoff none
+#   -> "classified … — bucket measurement" AND "tracked by fu-amend-spec-x"
+#   -> follow-ups: open fu-amend-spec-x P2 "owner sign-off owed …"
+#
+# An open P2 owner obligation filed against a record whose bucket is
+# `measurement`: the one thing this scope promised never to create, and one
+# nothing drains, because the bucket the drain route reads never moves. The
+# mirror direction (`--class measurement` over a self-declared `contract`
+# record) printed "owing no owner signature and no tracked item" directly
+# beneath a `unsigned-tracked` bucket line in the SAME output.
+#
+# This arm pins the INVARIANT, not the one reproduction: `owes` is read off
+# the same `foldAmendments` that assigns the bucket, so the two cannot
+# disagree, and a `--class` that the fold would not adopt is refused rather
+# than silently acted on.
+
+test_1373_class_flag_cannot_disagree_with_the_fold() {
+  log_info "Test: a \`classify --class\` the fold would not adopt is REFUSED, and no measurement-bucket record is ever given an owner obligation (TEST-1373)..."
+  local led spec ts before bucket cls same
+
+  # ARM 1 — the reproduction. The target is built by the REAL writer, so it
+  # carries its own stamped class, which is the population the defect reached.
+  led="$(mk_ledger t1373a)"
+  spec="$(mk_spec "SPEC-DRAFT-t1373a.md" "spec-t1373a-fixture")"
+  run_sa add --ledger "$led" --spec "$spec" --ref t1373a-ride \
+    --what "corrected the Mutation cell for TEST-001" --why "the cell never reddened" \
+    --class measurement --signoff none
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1373 arm 1 setup: \`add --class measurement --signoff none\` must exit 0, got $EC (stdout: $OUT) (stderr: $ERR)"
+  run_sa list --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1373 arm 1 setup: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  ts="$(json_field "$OUT" 'j.items[0].ts')"
+  [[ -n "$ts" && "$ts" != "undefined" ]] \
+    || log_fail "TEST-1373 arm 1 setup: no spec_amendment ts could be read back"
+
+  before="$TEST_DIR/t1373a-before.jsonl"
+  cp "$led" "$before"
+
+  run_sa classify --ledger "$led" --ts "$ts" --ref t1373a-ride \
+    --class contract --signoff none --why "judged again, claiming the heavier lane" --source "fixture"
+  [[ "$EC" == 2 ]] \
+    || log_fail "TEST-1373 arm 1: \`classify --class contract\` over a record that DECLARES \`measurement\` must be refused as a usage error (exit 2). The record's own class outranks every overlay, so the flag cannot move the bucket — accepting it only lets the obligation decision disagree with the bucket. Got $EC (stdout: $OUT) (stderr: $ERR)"
+  grep -qF -- "--class contract" <<<"$ERR" \
+    || log_fail "TEST-1373 arm 1: the refusal must name the flag it refuses; stderr was: $ERR"
+  grep -qF -- '"measurement"' <<<"$ERR" \
+    || log_fail "TEST-1373 arm 1: the refusal must name the class the fold actually resolves; stderr was: $ERR"
+
+  same="$(node -e '
+    const fs=require("fs");
+    const a=fs.readFileSync(process.argv[1]); const b=fs.readFileSync(process.argv[2]);
+    console.log(a.equals(b) ? "IDENTICAL" : "CHANGED by "+(b.length-a.length)+" byte(s)");
+  ' "$before" "$led")"
+  [[ "$same" == "IDENTICAL" ]] \
+    || log_fail "TEST-1373 arm 1: a refused classify must append NOTHING — the ledger $same"
+
+  # The invariant itself, read through the two REAL readers rather than
+  # inferred from the refusal: the bucket is still measurement and the
+  # registry holds no obligation for it.
+  run_sa list --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1373 arm 1: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  bucket="$(json_field "$OUT" 'j.items[0].bucket')"
+  cls="$(json_field "$OUT" 'j.items[0].amendment_class')"
+  [[ "$bucket" == "measurement" && "$cls" == "measurement" ]] \
+    || log_fail "TEST-1373 arm 1: the record must still fold to the measurement lane, got bucket \"$bucket\" class \"$cls\""
+  run_fu list --ledger "$led" --status open
+  [[ "$EC" == 0 ]] || log_fail "TEST-1373 arm 1: follow-ups.mjs list must exit 0, got $EC (stderr: $ERR)"
+  grep -qF "fu-amend-" <<<"$OUT" \
+    && log_fail "TEST-1373 arm 1: a measurement-bucket record must carry NO open owner obligation — an obligation whose bucket never moves has no outflow; the real reader found: $OUT"
+
+  # ARM 2 — the mirror. A self-declared `contract` record cannot be talked
+  # into the lighter lane by an overlay either, and its open obligation
+  # survives the attempt untouched.
+  local led2 spec2 ts2 before2 same2
+  led2="$(mk_ledger t1373b)"
+  spec2="$(mk_spec "SPEC-DRAFT-t1373b.md" "spec-t1373b-fixture")"
+  run_sa add --ledger "$led2" --spec "$spec2" --ref t1373b-ride \
+    --what "widened Spec-AC-01 to cover the absent-key case" --why "the frozen predicate did not cover the data" \
+    --class contract --signoff none
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1373 arm 2 setup: \`add --class contract --signoff none\` must exit 0, got $EC (stdout: $OUT) (stderr: $ERR)"
+  run_sa list --ledger "$led2" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1373 arm 2 setup: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  ts2="$(json_field "$OUT" 'j.items[0].ts')"
+  [[ -n "$ts2" && "$ts2" != "undefined" ]] \
+    || log_fail "TEST-1373 arm 2 setup: no spec_amendment ts could be read back"
+  before2="$TEST_DIR/t1373b-before.jsonl"
+  cp "$led2" "$before2"
+
+  run_sa classify --ledger "$led2" --ts "$ts2" --ref t1373b-ride \
+    --class measurement --signoff none --why "judged again, claiming the lighter lane" --source "fixture"
+  [[ "$EC" == 2 ]] \
+    || log_fail "TEST-1373 arm 2: \`classify --class measurement\` over a record that DECLARES \`contract\` must be refused as a usage error (exit 2) — otherwise the run prints \"owing no owner signature\" under a bucket line that still says unsigned-tracked. Got $EC (stdout: $OUT) (stderr: $ERR)"
+  grep -qF -- "--class measurement" <<<"$ERR" \
+    || log_fail "TEST-1373 arm 2: the refusal must name the flag it refuses; stderr was: $ERR"
+  grep -qF -- '"contract"' <<<"$ERR" \
+    || log_fail "TEST-1373 arm 2: the refusal must name the class the fold actually resolves; stderr was: $ERR"
+
+  same2="$(node -e '
+    const fs=require("fs");
+    const a=fs.readFileSync(process.argv[1]); const b=fs.readFileSync(process.argv[2]);
+    console.log(a.equals(b) ? "IDENTICAL" : "CHANGED by "+(b.length-a.length)+" byte(s)");
+  ' "$before2" "$led2")"
+  [[ "$same2" == "IDENTICAL" ]] \
+    || log_fail "TEST-1373 arm 2: a refused classify must append NOTHING — the ledger $same2"
+
+  run_fu list --ledger "$led2" --status open
+  [[ "$EC" == 0 ]] || log_fail "TEST-1373 arm 2: follow-ups.mjs list must exit 0, got $EC (stderr: $ERR)"
+  grep -qF "fu-amend-spec-t1373b-fixture" <<<"$OUT" \
+    || log_fail "TEST-1373 arm 2: the contract record's obligation must still be OPEN after the refusal; the real reader found: $OUT"
+
+  # ARM 3 — the refusal is not over-broad. A `--class` that AGREES with the
+  # class the fold resolves changes nothing and is still accepted: only a flag
+  # the fold would NOT adopt is refused, so the remedy `--strict` prints (which
+  # carries no `--class` at all) and every agreeing caller keep working.
+  run_sa classify --ledger "$led2" --ts "$ts2" --ref t1373b-ride \
+    --class contract --signoff none --why "judged again, agreeing with the record" --source "fixture"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1373 arm 3: a \`--class\` that agrees with the class the fold resolves must still be accepted, got $EC (stdout: $OUT) (stderr: $ERR)"
+  run_sa list --ledger "$led2" --json
+  bucket="$(json_field "$OUT" 'j.items[0].bucket')"
+  [[ "$bucket" == "unsigned-tracked" ]] \
+    || log_fail "TEST-1373 arm 3: the agreeing classify must leave the record in its own lane, got bucket \"$bucket\""
+
+  # ARM 4 — the positive control for the route that DOES exist. A legacy,
+  # class-absent record has no declaration of its own, so the overlay's class
+  # wins the fold, and the obligation decision follows it: measurement bucket,
+  # no obligation. The fix must not have bought agreement by refusing
+  # everything.
+  local led3 bucket3
+  led3="$(mk_ledger t1373c)"
+  printf '%s\n' '{"v":1,"ts":"2026-09-01T01:00:00Z","actor":"a","type":"spec_amendment","ref_id":"t1373c-ride","spec":"docs/specs/SPEC-DRAFT-t1373c.md","spec_id":"spec-t1373c-fixture","owner_signoff":false,"what":"corrected the Mutation cell for TEST-001","why":"the cell escaped its brackets and never reddened"}' >> "$led3"
+  run_sa classify --ledger "$led3" --ts "2026-09-01T01:00:00Z" --ref t1373c-ride \
+    --class measurement --signoff none --why "the cell never reddened" --source "fixture"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1373 arm 4: \`classify --class measurement\` over a CLASS-ABSENT legacy record must still exit 0 — that is the one population the overlay can move, got $EC (stdout: $OUT) (stderr: $ERR)"
+  run_sa list --ledger "$led3" --json
+  bucket3="$(json_field "$OUT" 'j.items[0].bucket')"
+  [[ "$bucket3" == "measurement" ]] \
+    || log_fail "TEST-1373 arm 4: the class-absent record must move to the measurement lane, got \"$bucket3\""
+  run_fu list --ledger "$led3" --status open
+  [[ "$EC" == 0 ]] || log_fail "TEST-1373 arm 4: follow-ups.mjs list must exit 0, got $EC (stderr: $ERR)"
+  grep -qF "fu-amend-" <<<"$OUT" \
+    && log_fail "TEST-1373 arm 4: the measurement-lane record must carry no owner obligation; the real reader found: $OUT"
+
+  log_pass "TEST-1373 the obligation decision is read off the same fold that assigns the bucket: a --class the fold would not adopt is refused and appends nothing, an agreeing one still works, and no measurement-bucket record is ever given an owner obligation"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -2156,6 +3606,25 @@ main() {
   test_516_unreadable_spec_refuses
   test_550_amendment_record_anchors
   test_551_restamp_after_renumbering
+  test_1354_measurement_add_owes_no_owner_obligation
+  test_1355_contract_add_keeps_the_co_created_item
+  test_1356_classless_add_stamps_contract_and_names_the_other_value
+  test_1357_class_vocabulary_is_closed
+  test_1358_measurement_cannot_carry_an_owner_signature
+  test_1359_measurement_folds_to_its_own_bucket
+  test_1360_strict_violation_buckets_unchanged
+  test_1361_measurement_is_excluded_from_strict_on_purpose
+  test_1362_undisclosed_amendment_still_refuses
+  test_1363_live_ledger_folds_identically
+  test_1364_both_writers_pick_one_item_id
+  test_1365_restamp_is_measurement_by_construction
+  test_1366_classify_is_the_per_record_route
+  test_1367_list_surfaces_carry_the_class
+  test_1368_status_measurement_is_an_enumerable_view
+  test_1369_tool_restamp_is_structural
+  test_1370_migration_moves_only_the_structural_cohort
+  test_1371_canon_names_the_two_class_partition
+  test_1373_class_flag_cannot_disagree_with_the_fold
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
