@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-02T09:47:00.855Z",
+  "generatedAt": "2026-10-02T10:58:17.818Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -4987,7 +4987,7 @@
         "id": "fu-amend-lessons-that-must-hold-d-13bccc",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 25,
+        "age_days": 26,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-lessons-that-must-hold-downstream-are-guards: a guard marker in LEARNED.md may point at an already-shipped script, not only at an open follow-up; the test asserts each kind against reality",
         "status": "open"
       },
@@ -6163,7 +6163,7 @@
         "id": "fu-amend-roadmap-serves-downstrea-bc77da",
         "ref": "roadmap-serves-downstream-projects",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-roadmap-serves-downstream-projects: D16 additive amendment of D13: no-argument /aai-ship rides a file-intake capability and files its intake with id equal to the roadmap slug; show-first when no roadmap; budget on without a roadmap offers add-first; docs order, ADMIT quote, close-ceremony wording and last-pair drop rule fixed; new TEST-1338..1340 with mutation cells; discloses the earlier F3 narrowing of the intake To-Be (no-arg ship stopped at file-intake)",
         "status": "open"
       },
@@ -6171,7 +6171,7 @@
         "id": "fu-roadmap-docstatus-two-parsers",
         "ref": "roadmap-serves-downstream-projects",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "roadmap-edit.mjs docStatus (parseFrontmatter) and ride-select.mjs findDoc/statusOf (own line scan) resolve a doc's status differently; a quoted status: \"done\" makes advance flip the pair while next still names it unfinished. Route both through one resolver in lib/roadmap-model.mjs with a seam test.",
         "status": "open"
       },
