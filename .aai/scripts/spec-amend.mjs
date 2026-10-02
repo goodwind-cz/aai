@@ -213,6 +213,19 @@ const CLASS_LABEL = 'class=';
 // literal only this file ever emits.
 const RESTAMP_WHAT = 'mechanical restamp: the allocator rewrote this frozen spec’s own SPEC-DRAFT- path(s) at merge';
 
+// RESTAMP_UNVERIFIED_WHAT / RESTAMP_UNVERIFIED_WHY — the OTHER lane `restamp`
+// can land in. `restamp` used to HARDCODE the measurement class on the
+// strength of a comment asserting it was "reachable only" after an allocator
+// rewrite; nothing in the code checked that (`computeSpecRestamp` only asks
+// whether the hash moved), so ANY post-freeze content edit followed by
+// `restamp` bought the light lane — a laundering route opened by the very
+// tool built to close one. The cause is now DECIDED from the bytes
+// (verifyAllocatorCause below) and these two literals are what the record
+// says when the bytes do NOT prove it: the drift is named as unexplained
+// rather than attributed to a cause this tool could not confirm.
+const RESTAMP_UNVERIFIED_WHAT = 'restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain';
+const RESTAMP_UNVERIFIED_WHY = 'reverse-applying the allocator’s own DRAFT-to-numbered substitution to the current content does not reproduce the stored frozen_sha256, so nothing here knows what changed — the re-anchor is disclosed in the contract lane, owing an owner signature and a tracked item, rather than claiming a mechanical cause it cannot show';
+
 // --- reading ------------------------------------------------------------------
 
 // Same contract as follow-ups.mjs's reader: blank and `#` comment lines are
@@ -634,9 +647,15 @@ It re-anchors the spec to its current contract-projection hash and appends a
 \`spec_amendment\` record carrying \`from_frozen_sha256\`/\`to_frozen_sha256\`
 (Spec-AC-19), so \`list --strict\` reads a DISCLOSED restamp rather than an
 undisclosed-amendment. It is the ONE writer whose \`amendment_class\` is not a
-self-report: it is reached only on allocator anchor drift and writes its own
-\`what\`/\`why\`, so it hardcodes \`measurement\` and co-creates no tracked item
-— the mechanical change is disclosed and counted, and owes no signature. A spec with no \`frozen_sha256\`, or whose content
+self-report but a MEASUREMENT of the bytes: it reverse-applies the allocator's
+own DRAFT-to-numbered substitution (over this spec's own id and the numbered
+documents its frontmatter \`links\` name) and re-hashes. Reproducing the stored
+anchor PROVES the allocator was the cause, and only then is the record
+\`measurement\` with no tracked item — disclosed, counted, owing no signature.
+When no reversal reproduces the anchor the cause is NOT verified, and the
+record takes the \`contract\` lane instead: an owner signature, a co-created
+\`fu-amend-\` item, and a \`what\`/\`why\` saying the drift was not allocator-shaped
+rather than naming a cause this tool could not confirm. A spec with no \`frozen_sha256\`, or whose content
 already matches its stored anchor, is a no-op: exit 0, nothing written. The
 ledger record lands BEFORE the spec file is ever touched, and the file write
 itself is temp-file-plus-rename in the spec's own directory, so a process
@@ -1022,7 +1041,101 @@ function computeSpecRestamp(absSpec) {
   const fmStart = fm.index + 4;
   let out = `${norm.slice(0, fmStart)}${fmBody}${norm.slice(fmStart + fm[1].length)}`;
   if (crlf) out = out.replace(/\n/g, '\r\n');
-  return { fromHash, nextHash, out };
+  return { fromHash, nextHash, out, norm, frontmatter: fm[1] };
+}
+
+// --- is the allocator really the cause? ---------------------------------------
+//
+// `restamp` exists for exactly ONE drift: allocate-doc-number.mjs numbered a
+// draft at merge and its `rewriteReferences` pass replaced, verbatim, every
+// occurrence of the DRAFT basename with the numbered one
+// (`content.split(oldBase).join(newBase)`) across docs/specs — including
+// inside a frozen spec, whose anchor then no longer matches its own content.
+// Read in allocate-doc-number.mjs, that pass is the ONLY thing it does to a
+// spec's CONTRACT PROJECTION: `stampNumber` and `stampProvisionalMarker`
+// write frontmatter only (`number:`, `number_reserved:`), which
+// spec-contract-hash.mjs strips before hashing, and `moveFile` renames
+// without touching bytes.
+//
+// That substitution is REVERSIBLE, which is what makes the cause decidable
+// instead of merely asserted: reverse-apply it to the current content, hash
+// the result with the same contractHash, and compare against the anchor the
+// spec still carries. Match => the allocator really did this. No match =>
+// something else did, and nothing here may claim otherwise.
+//
+// WHICH substitutions may be reversed is deliberately narrow — only basenames
+// THIS SPEC names as its own ride's documents, never any numbered id that
+// happens to appear in its prose:
+//   (a) its own identity: `<PREFIX>-<NNNN>-<frontmatter id>` occurring in the
+//       content (the self-reference the old comment named); and
+//   (b) every numbered governed-doc basename in its FRONTMATTER — `links.intake`
+//       above all. A ride's `--all` allocator run numbers the intake in the
+//       same batch, so a frozen spec that cites `CHANGE-DRAFT-<slug>` in its
+//       `## Links` section (every spec in this corpus does) has THAT token
+//       rewritten inside the hashed projection too. Reversing only the SPEC's
+//       own self-reference would therefore fail to clear a perfectly genuine
+//       allocator drift.
+// Both sources are the spec's own declarations, so the candidate set cannot be
+// widened by the edit under suspicion.
+//
+// Each candidate is independent (the allocator may have numbered one draft or
+// several), so every non-empty subset is tried. The set is tiny by
+// construction; past the cap the answer is "not verified", never a guess.
+const RESTAMP_CAUSE_CANDIDATE_CAP = 8;
+const NUMBERED_BASENAME_RE = /\b([A-Z]+(?:-[A-Z]+)*)-\d{3,5}-([a-z0-9]+(?:-[a-z0-9]+)*)\b/g;
+
+// allocatorRewriteCandidates(norm, frontmatter, specId) -> [{ numbered, draft }]
+// in a deterministic order, deduplicated, and filtered to the ones that
+// actually occur in `norm` and would actually change it.
+function allocatorRewriteCandidates(norm, frontmatter, specId) {
+  const seen = new Map();
+  const add = (prefix, number, slug) => {
+    const numbered = `${prefix}-${number}-${slug}`;
+    const draft = `${prefix}-DRAFT-${slug}`;
+    if (numbered === draft || seen.has(numbered)) return;
+    if (!norm.includes(numbered)) return;
+    seen.set(numbered, { numbered, draft });
+  };
+  // (a) this spec's own numbered self-reference(s), keyed on the frontmatter
+  // `id` — never on the filename, the same SEAM-1 rule readSpecId follows.
+  if (specId !== null) {
+    const selfRe = new RegExp(`\\b([A-Z]+(?:-[A-Z]+)*)-(\\d{3,5})-${specId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+    for (const m of norm.matchAll(selfRe)) add(m[1], m[2], specId);
+  }
+  // (b) the ride's other documents, as the spec's own frontmatter names them.
+  for (const m of String(frontmatter ?? '').matchAll(NUMBERED_BASENAME_RE)) {
+    add(m[1], m[0].slice(m[1].length + 1).split('-')[0], m[2]);
+  }
+  return [...seen.values()];
+}
+
+// verifyAllocatorCause(computed, specId) -> { verified, candidates, reversed, reason }.
+// `verified` true ONLY when some subset of the candidate reversals reproduces
+// the stored anchor byte-for-byte through contractHash. Everything else —
+// no candidates, too many candidates, no matching subset — is `false` with a
+// reason the caller prints: an unverified cause is never silently folded into
+// a verified one.
+function verifyAllocatorCause(computed, specId) {
+  const candidates = allocatorRewriteCandidates(computed.norm, computed.frontmatter, specId);
+  if (candidates.length === 0) {
+    return { verified: false, candidates, reversed: [], reason: 'this spec names no numbered document whose DRAFT form the allocator could have rewritten, so there is no allocator rewrite to reverse' };
+  }
+  if (candidates.length > RESTAMP_CAUSE_CANDIDATE_CAP) {
+    return { verified: false, candidates, reversed: [], reason: `this spec names ${candidates.length} candidate allocator rewrites, above the cap of ${RESTAMP_CAUSE_CANDIDATE_CAP} — the cause is left UNVERIFIED rather than searched past the bound` };
+  }
+  for (let mask = 1; mask < (1 << candidates.length); mask += 1) {
+    let text = computed.norm;
+    const reversed = [];
+    for (let i = 0; i < candidates.length; i += 1) {
+      if ((mask & (1 << i)) === 0) continue;
+      text = text.split(candidates[i].numbered).join(candidates[i].draft);
+      reversed.push(candidates[i].numbered);
+    }
+    if (contractHash(text) === computed.fromHash) {
+      return { verified: true, candidates, reversed, reason: null };
+    }
+  }
+  return { verified: false, candidates, reversed: [], reason: `reversing the allocator's DRAFT-to-numbered rewrite of ${candidates.map((c) => c.numbered).join(', ')} does not reproduce the stored anchor ${computed.fromHash} — the drift is NOT allocator-shaped` };
 }
 
 // injectCrash(point) — test-only fault hook, inert unless
@@ -1255,10 +1368,18 @@ function cmdRestamp(opts) {
   const actor = str(opts.actor) ?? 'orchestrator';
   const ref = str(opts.ref) ?? specId;
   const ts = nowIso();
+  // THE CAUSE IS MEASURED, NEVER ASSERTED (Codex P1 on PR #422). The lane
+  // this record lands in is decided by whether reverse-applying the
+  // allocator's own rewrite reproduces the stored anchor — see
+  // verifyAllocatorCause. A `restamp` can no longer name the allocator as its
+  // cause without the bytes proving it.
+  const cause = verifyAllocatorCause(computed, specId);
   // Hoisted to module scope (D3) so the structural selector in foldAmendments
   // compares against the SAME literal this writer emits.
-  const what = RESTAMP_WHAT;
-  const why = 'discloses the frozen_sha256 drift the allocator’s DRAFT-to-numbered rewrite caused, so list --strict reads a disclosed restamp rather than an undisclosed-amendment';
+  const what = cause.verified ? RESTAMP_WHAT : RESTAMP_UNVERIFIED_WHAT;
+  const why = cause.verified
+    ? 'discloses the frozen_sha256 drift the allocator’s DRAFT-to-numbered rewrite caused, so list --strict reads a disclosed restamp rather than an undisclosed-amendment'
+    : RESTAMP_UNVERIFIED_WHY;
   const entry = {
     v: 1,
     ts,
@@ -1268,15 +1389,16 @@ function cmdRestamp(opts) {
     spec: specRel,
     spec_id: specId,
     owner_signoff: false,
-    // D1 — the ONE site where the class is NOT a self-report. `restamp` is
-    // reachable only when a frozen spec's content drifted from its own
-    // anchor because allocate-doc-number.mjs rewrote this spec's OWN
-    // SPEC-DRAFT- self-references at merge, and it writes its own
-    // `what`/`why` rather than accepting them from a caller. So there is
-    // nobody here to make a claim that could be wrong: the class is
-    // structural, hardcoded, and the existing precedent the declared class
-    // generalises.
-    amendment_class: MEASUREMENT_CLASS,
+    // D1 — the ONE site where the class is NOT a self-report, and the only
+    // site where it is MEASURED. The light lane is reachable only when
+    // verifyAllocatorCause reproduced this spec's own stored anchor by
+    // reverse-applying the allocator's DRAFT-to-numbered rewrite: then the
+    // mechanical cause is shown, not claimed, and the record owes nothing.
+    // Unverified, the drift is an ordinary post-freeze amendment and takes
+    // the contract lane — the signature and the tracker — because nobody
+    // here can say what changed. The class is still never a caller's
+    // self-report; it is now a property of the bytes.
+    amendment_class: cause.verified ? MEASUREMENT_CLASS : DEFAULT_AMENDMENT_CLASS,
     what,
     why,
     from_frozen_sha256: computed.fromHash,
@@ -1309,12 +1431,14 @@ function cmdRestamp(opts) {
   // Prove the write by re-reading, the same discipline `add`/`classify` use.
   const after = loadLedger(abs);
   const landed = after.byKey.get(overlayKey(entry.ts, entry.ref_id)) ?? null;
-  // The proof this write owes is now the BUCKET, not a tracker: a restamp
-  // that did not land in `measurement` either failed to stamp its class or
-  // had it overridden, and in both cases `list --strict` would go on
-  // refusing the spec this call was run to clear.
-  if (landed === null || landed.bucket !== MEASUREMENT_CLASS) {
-    process.stderr.write(`spec-amend: restamp: appended the amendment for ${specRel} but the re-read of ${abs} shows bucket "${landed === null ? 'MISSING' : landed.bucket}" rather than ${MEASUREMENT_CLASS} — the disclosure is NOT proven by this write\n`);
+  // The proof this write owes is the BUCKET, and WHICH bucket is itself
+  // decided by the measured cause: `measurement` when the allocator was
+  // shown to be the cause, `unsigned-tracked` when it was not (the obligation
+  // this re-anchor really carries). Landing anywhere else means the class was
+  // not stamped or was overridden, and the disclosure is not proven.
+  const expectedBucket = cause.verified ? MEASUREMENT_CLASS : 'unsigned-tracked';
+  if (landed === null || landed.bucket !== expectedBucket) {
+    process.stderr.write(`spec-amend: restamp: appended the amendment for ${specRel} but the re-read of ${abs} shows bucket "${landed === null ? 'MISSING' : landed.bucket}" rather than ${expectedBucket} — the disclosure is NOT proven by this write\n`);
     exit(1);
   }
   if (owes && (landed.tracked_by !== itemId || !after.followUps.has(itemId))) {
@@ -1322,7 +1446,14 @@ function cmdRestamp(opts) {
     exit(1);
   }
 
-  console.log(`spec-amend: restamp: re-anchored ${specRel} from ${computed.fromHash} to ${computed.nextHash} (ref ${ref}) — bucket ${landed.bucket}, a ${MEASUREMENT_CLASS}-class disclosure owing no owner signature and no tracked item`);
+  if (cause.verified) {
+    console.log(`spec-amend: restamp: re-anchored ${specRel} from ${computed.fromHash} to ${computed.nextHash} (ref ${ref}) — bucket ${landed.bucket}, a ${MEASUREMENT_CLASS}-class disclosure owing no owner signature and no tracked item`);
+    console.log(`NOTE the allocator is PROVEN to be the cause: reversing its DRAFT-to-numbered rewrite of ${cause.reversed.join(', ')} reproduces the stored anchor ${computed.fromHash}`);
+  } else {
+    console.log(`spec-amend: restamp: re-anchored ${specRel} from ${computed.fromHash} to ${computed.nextHash} (ref ${ref}) — bucket ${landed.bucket}, a ${DEFAULT_AMENDMENT_CLASS}-class disclosure owing an owner signature and tracked by ${itemId}`);
+    console.log(`NOTE the allocator is NOT verified as the cause: ${cause.reason}`);
+    console.log(`NOTE sign it off once someone has said what changed: node .aai/scripts/spec-amend.mjs classify --ts ${ts} --ref ${ref} --signoff owner --authority "<who decided, where>" --why "<what the drift really was>" --ledger ${abs}`);
+  }
   if (reusedNote) console.log(`NOTE ${reusedNote}`);
   if (owes) console.log('NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open');
   exit(0);

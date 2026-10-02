@@ -3575,6 +3575,166 @@ test_1373_class_flag_cannot_disagree_with_the_fold() {
   log_pass "TEST-1373 the obligation decision is read off the same fold that assigns the bucket: a --class the fold would not adopt is refused and appends nothing, an agreeing one still works, and no measurement-bucket record is ever given an owner obligation"
 }
 
+# --- TEST-1374 (Spec-AC-18) — the restamp cause is MEASURED, not asserted ----
+#
+# mk_linked_freezable_spec <relpath-under-TEST_DIR> <id> <intake-slug> -> a
+# not-yet-frozen fixture spec that, like every real spec in this corpus,
+# carries a frontmatter `links.intake` AND names both its own DRAFT path and
+# its intake's DRAFT path in the hashed body. That second reference is the
+# reason the cause check cannot look at the spec's self-reference alone: an
+# `--all` allocator run numbers the intake in the SAME batch, so both tokens
+# are rewritten inside one frozen spec.
+mk_linked_freezable_spec() {
+  local f="$TEST_DIR/$1" id="$2" intake="$3"
+  mkdir -p "$(dirname "$f")"
+  {
+    echo "---"
+    echo "id: $id"
+    echo "type: spec"
+    echo "number: null"
+    echo "status: draft"
+    echo "links:"
+    echo "  intake: docs/issues/CHANGE-DRAFT-$intake.md"
+    echo "---"
+    echo ""
+    echo "# fixture $id"
+    echo ""
+    echo "## Links"
+    echo "- Intake: docs/issues/CHANGE-DRAFT-$intake.md"
+    echo "- This spec: docs/specs/SPEC-DRAFT-$id.md"
+    echo ""
+    echo "## Implementation strategy"
+    echo "- Strategy: direct"
+    echo ""
+    echo "## Acceptance Criteria Status"
+    echo ""
+    echo "| Spec-AC    | Description | Status | Evidence | Review-By | Notes |"
+    echo "|------------|-------------|--------|----------|-----------|-------|"
+    echo "| Spec-AC-01 | original description text | planned | — | — | |"
+    echo ""
+    echo "## Test Plan"
+    echo ""
+    echo "| Test ID | Spec-AC | Type | File path (expected) | Description | Status |"
+    echo "|---------|---------|------|-----------------------|--------------|--------|"
+    echo "| TEST-001 | Spec-AC-01 | unit | tests/x.sh | does the thing | pending |"
+  } > "$f"
+  printf '%s' "$f"
+}
+
+# `restamp` used to HARDCODE `measurement` on the strength of a code comment
+# claiming it was "reachable only" after an allocator rewrite. Nothing checked
+# that: `computeSpecRestamp` asks only whether the hash MOVED, so any
+# post-freeze content edit followed by `restamp` bought the light lane — the
+# laundering route this very tool exists to close, opened inside it. The cause
+# is now decided from the bytes, and this arm set pins all three outcomes.
+test_1374_restamp_cause_is_measured_not_asserted() {
+  log_info "Test: \`restamp\` takes the measurement lane only when reverse-applying the allocator's own rewrite reproduces the stored anchor, and the contract lane whenever it does not (TEST-1374)..."
+  local specsdir ledA ledB ledC specA specB specC frozen verdict
+
+  specsdir="$TEST_DIR/t1374-specs"
+  specA="$(mk_linked_freezable_spec t1374-specs/a.md spec-t1374-fixture t1374-intake)"
+  freeze_spec "$specA" || log_fail "TEST-1374 setup: real spec-freeze.mjs refused the fixture"
+  # ONE frozen original, copied per arm, so every arm starts from the SAME
+  # anchor and the only difference between them is what happened next.
+  frozen="$TEST_DIR/t1374-frozen.md"
+  cp "$specA" "$frozen"
+  cp "$frozen" "$TEST_DIR/t1374-specs/b.md"; specB="$TEST_DIR/t1374-specs/b.md"
+  cp "$frozen" "$TEST_DIR/t1374-specs/c.md"; specC="$TEST_DIR/t1374-specs/c.md"
+  ledA="$(mk_ledger t1374a)"; ledB="$(mk_ledger t1374b)"; ledC="$(mk_ledger t1374c)"
+
+  # --- ARM 1: a CONTRACT-shaped edit takes the contract lane -----------------
+  # The AC Description cell is inside the contract projection and is exactly
+  # what the spec PROMISES. Before this fix the same two commands below
+  # reported "a measurement-class disclosure owing no owner signature and no
+  # tracked item" over it.
+  sed -i.bak 's/original description text/a DIFFERENT promise this spec never made/' "$specB"
+  grep -qF 'a DIFFERENT promise this spec never made' "$specB" \
+    || log_fail "TEST-1374 arm 1: the contract-shaped edit did not land"
+
+  run_sa restamp --spec "$specB" --ref t1374b-ride --ledger "$ledB"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1374 arm 1: restamp must still re-anchor and disclose, got $EC (stdout: $OUT) (stderr: $ERR)"
+  grep -qF 'measurement-class disclosure owing no owner signature' <<<"$OUT" \
+    && log_fail "TEST-1374 arm 1: an edit to what the spec PROMISES (an AC Description cell) must not be announced as a measurement-class disclosure owing no owner signature and no tracked item — \`restamp\` may not claim the allocator as its cause unless the bytes prove it; stdout: $OUT"
+  grep -qF 'the allocator is NOT verified as the cause' <<<"$OUT" \
+    || log_fail "TEST-1374 arm 1: an unverified cause must SAY so rather than name the allocator; stdout: $OUT"
+
+  run_sa list --ledger "$ledB" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1374 arm 1: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  verdict="$(json_field "$OUT" '(j.items[0]||{}).amendment_class + "/" + (j.items[0]||{}).bucket + "/" + (j.items[0]||{}).tool_restamp')"
+  [[ "$verdict" == "contract/unsigned-tracked/false" ]] \
+    || log_fail "TEST-1374 arm 1: an unverified cause must land in the contract lane with a tracker and must NOT be selected as a tool restamp, got \"$verdict\""
+
+  # The record must not claim a cause it could not confirm — the `what` is the
+  # unverified literal, never the mechanical-restamp one.
+  verdict="$(json_field "$OUT" '/allocator rewrote this frozen spec/.test(String((j.items[0]||{}).what)) ? "CLAIMS-ALLOCATOR" : (/does not explain/.test(String((j.items[0]||{}).what)) ? "SAYS-UNVERIFIED" : "OTHER:" + (j.items[0]||{}).what)')"
+  [[ "$verdict" == "SAYS-UNVERIFIED" ]] \
+    || log_fail "TEST-1374 arm 1: the record's \`what\` must say the drift is unexplained, got \"$verdict\""
+
+  # SEAM-2 — the obligation is read back through the REAL follow-ups.mjs.
+  run_fu list --ledger "$ledB" --status open
+  [[ "$EC" == 0 ]] || log_fail "TEST-1374 arm 1: follow-ups.mjs list must exit 0, got $EC (stderr: $ERR)"
+  grep -qF "fu-amend-spec-t1374-fixture" <<<"$OUT" \
+    || log_fail "TEST-1374 arm 1: the contract lane must co-create an OPEN owner obligation; the real reader found: $OUT"
+
+  # ...and the obligation is VISIBLE on the gate's own surface.
+  run_sa list --ledger "$ledB" --specs-dir "$specsdir" --strict
+  grep -qF 'class=contract' <<<"$OUT" \
+    || log_fail "TEST-1374 arm 1: \`list --strict\` must show the record in the contract lane; stdout: $OUT"
+  grep -qF 'tracked_by=fu-amend-spec-t1374-fixture' <<<"$OUT" \
+    || log_fail "TEST-1374 arm 1: \`list --strict\` must name the tracker the amendment owes; stdout: $OUT"
+
+  # --- ARM 2: an allocator rename MIXED with an unrelated edit ---------------
+  # The dangerous shape: a real mechanical rewrite is present, so the drift
+  # LOOKS allocator-caused, but the content also moved for another reason.
+  # Partial resemblance must buy nothing.
+  sed -i.bak -e 's/SPEC-DRAFT-spec-t1374-fixture/SPEC-0311-spec-t1374-fixture/g' \
+             -e 's/does the thing/does a different thing/' "$specC"
+  grep -qF 'SPEC-0311-spec-t1374-fixture' "$specC" \
+    || log_fail "TEST-1374 arm 2: the simulated allocator rewrite did not land"
+
+  run_sa restamp --spec "$specC" --ref t1374c-ride --ledger "$ledC"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1374 arm 2: restamp must still re-anchor and disclose, got $EC (stdout: $OUT) (stderr: $ERR)"
+  grep -qF 'does not reproduce the stored anchor' <<<"$OUT" \
+    || log_fail "TEST-1374 arm 2: the refusal to credit the allocator must name the failed reversal; stdout: $OUT"
+
+  run_sa list --ledger "$ledC" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1374 arm 2: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  verdict="$(json_field "$OUT" '(j.items[0]||{}).amendment_class + "/" + (j.items[0]||{}).bucket + "/" + (j.items[0]||{}).tool_restamp')"
+  [[ "$verdict" == "contract/unsigned-tracked/false" ]] \
+    || log_fail "TEST-1374 arm 2: a real allocator rename alongside an unrelated edit must NOT buy the light lane, got \"$verdict\""
+
+  # --- ARM 3: a GENUINE allocator rename still takes the light lane ----------
+  # Both tokens the allocator's `content.split(oldBase).join(newBase)` pass
+  # rewrites at merge: this spec's own DRAFT path and its intake's.
+  sed -i.bak -e 's/SPEC-DRAFT-spec-t1374-fixture/SPEC-0310-spec-t1374-fixture/g' \
+             -e 's/CHANGE-DRAFT-t1374-intake/CHANGE-0310-t1374-intake/g' "$specA"
+  grep -qF 'SPEC-0310-spec-t1374-fixture' "$specA" \
+    || log_fail "TEST-1374 arm 3: the simulated allocator rewrite did not land"
+
+  run_sa restamp --spec "$specA" --ref t1374a-ride --ledger "$ledA"
+  [[ "$EC" == 0 ]] \
+    || log_fail "TEST-1374 arm 3: restamp must succeed on a genuine allocator rename, got $EC (stdout: $OUT) (stderr: $ERR)"
+  grep -qF 'the allocator is PROVEN to be the cause' <<<"$OUT" \
+    || log_fail "TEST-1374 arm 3: a verified cause must SAY it was verified; stdout: $OUT"
+  grep -qF 'CHANGE-0310-t1374-intake' <<<"$OUT" \
+    || log_fail "TEST-1374 arm 3: the intake's DRAFT-to-numbered rewrite is part of the same allocator batch and must be among the reversed tokens; stdout: $OUT"
+
+  run_sa list --ledger "$ledA" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1374 arm 3: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  verdict="$(json_field "$OUT" '(j.items[0]||{}).amendment_class + "/" + (j.items[0]||{}).bucket + "/" + (j.items[0]||{}).tool_restamp + "/" + (j.items[0]||{}).tracked_by')"
+  [[ "$verdict" == "measurement/measurement/true/null" ]] \
+    || log_fail "TEST-1374 arm 3: a proven allocator rename must stay class/bucket measurement, tool_restamp true and untracked, got \"$verdict\""
+
+  run_fu list --ledger "$ledA" --status all
+  [[ "$EC" == 0 ]] || log_fail "TEST-1374 arm 3: follow-ups.mjs list must exit 0, got $EC (stderr: $ERR)"
+  grep -qF "fu-amend-" <<<"$OUT" \
+    && log_fail "TEST-1374 arm 3: a proven allocator restamp must co-create NO item; the real reader found: $OUT"
+
+  log_pass "TEST-1374 restamp measures its own cause: a genuine allocator rename (self-reference and intake alike) keeps the measurement lane and owes nothing, while a contract-shaped edit and an allocator rename mixed with one both take the contract lane with an open owner obligation"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -3625,6 +3785,7 @@ main() {
   test_1370_migration_moves_only_the_structural_cohort
   test_1371_canon_names_the_two_class_partition
   test_1373_class_flag_cannot_disagree_with_the_fold
+  test_1374_restamp_cause_is_measured_not_asserted
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

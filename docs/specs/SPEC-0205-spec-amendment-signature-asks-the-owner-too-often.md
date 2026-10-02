@@ -4,7 +4,7 @@ type: spec
 number: 205
 status: done
 mutation_gate: v1
-frozen_sha256: 45e84f6ff346050d2bd495c39b534a2e9295c218f0f61610b0b058c08995f040
+frozen_sha256: e0e5bdcd76d1c1ba788aee26d60115d2a710194961be5dac46375121f6a248d2
 ceremony_level: 2
 links:
   requirement: null
@@ -355,6 +355,7 @@ appends and never edits (Article 3, HAZ-LEDGER). Nothing in this scope writes
 | Spec-AC-15 | After the migration on the live ledger: `signed` is unchanged at its pre-migration count, `measurement` equals the number of appended overlays, `unsigned-tracked` falls by exactly that number, `unsigned-untracked` and `unclassified` are both 0, the total record count is unchanged, no pre-existing line is modified, and no `fu-amend-` item changed status | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1370.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1370.txt and docs/ai/reports/amendment-class-migration-20261002T081152Z.md | — | nothing laundered to `signed`, nothing closed |
 | Spec-AC-16 | `.aai/ROLE_COMMON.md`'s POST-FREEZE block names `--class contract` and `--class measurement`, `.aai/system/AUTONOMOUS_LOOP.md` section 6a states the two-class partition, and `tests/skills/test-aai-prompt-diet.sh` exits 0 with an itemized `amendment-class-partition` ledger entry | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1371.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1372.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1371.txt and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1372.txt | — | companion obligation; `.aai/SKILL_PR.prompt.md` untouched |
 | Spec-AC-17 | WHEN `classify --class <X>` names a target whose `amendment_class` the fold would NOT resolve to `<X>` THEN it exits 2, appends nothing, and names both the refused flag and the class the fold does resolve; and `classify` reads the obligation decision off the SAME `foldAmendments` call that assigns the bucket, so a record whose bucket is `measurement` can never be given an owner obligation | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1373.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1373.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1373.txt | — | code review round 1, BLOCKING, reproduced; the two readers agree by construction rather than by a second precedence rule kept in step by hand |
+| Spec-AC-18 | WHEN `restamp` re-anchors a drifted frozen spec THEN its `amendment_class` is `measurement` ONLY IF reverse-applying the allocator's DRAFT-to-numbered substitution over this spec's own frontmatter `id` and over the numbered documents its frontmatter `links` name reproduces the stored `frozen_sha256`; when no such reversal reproduces it the record is `contract`, co-creates the `fu-amend-` item, and carries a `what` naming the drift as unexplained rather than as an allocator rewrite | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1374.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1374.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1374.txt | — | code review round 2 (Codex P1 on PR #422), BLOCKING, reproduced; the hardcoded class was justified by a comment nothing enforced |
 
 ## Test Plan
 
@@ -369,6 +370,8 @@ current file. Measured uniqueness, `/usr/bin/grep -cF` on
 `STRICT_VIOLATION_BUCKETS = ` prefix, which is 1).
 Measured the same way for the row added at remediation:
 `projected.amendment_class !== amendmentClass` = 1.
+Measured the same way for the row added at remediation round 2:
+`cause.verified ? MEASUREMENT_CLASS : DEFAULT_AMENDMENT_CLASS` = 1.
 
 | Test ID  | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |----------|---------|------|----------------------|-------------|----------|--------|
@@ -383,7 +386,7 @@ Measured the same way for the row added at remediation:
 | TEST-1362 | Spec-AC-08 | integration | tests/skills/test-aai-spec-amend.sh | a drifted frozen spec in a fixture specs dir still exits 1 with `undisclosed-amendment` while the ledger holds only measurement records | sed:s/contractHash\(content\) !== anchor/false/ | green |
 | TEST-1363 | Spec-AC-09 | integration | tests/skills/test-aai-spec-amend.sh | fold the live ledger at the pre-migration blob through `list --json` and compare every non-cohort record's bucket against the committed pre-change output | sed:s/const DEFAULT_AMENDMENT_CLASS = 'contract'/const DEFAULT_AMENDMENT_CLASS = 'unclassified'/ | green |
 | TEST-1364 | Spec-AC-10 | integration | tests/skills/test-aai-spec-amend.sh | `add` and `classify` pick the same item id for one spec; neither measurement call creates an item | sed:s/const specKey = target.spec_id \?\? target.ref_id;/const specKey = target.ref_id;/ | green |
-| TEST-1365 | Spec-AC-11 | integration | tests/skills/test-aai-spec-amend.sh | `restamp` on a drifted fixture spec writes a measurement record with no tracker and leaves `list --strict` at exit 0 | sed:s/amendment_class: MEASUREMENT_CLASS,/amendment_class: DEFAULT_AMENDMENT_CLASS,/ | green |
+| TEST-1365 | Spec-AC-11 | integration | tests/skills/test-aai-spec-amend.sh | `restamp` on a drifted fixture spec writes a measurement record with no tracker and leaves `list --strict` at exit 0 | sed:s/cause\.verified \? MEASUREMENT_CLASS : DEFAULT_AMENDMENT_CLASS/DEFAULT_AMENDMENT_CLASS/ | green |
 | TEST-1366 | Spec-AC-12 | integration | tests/skills/test-aai-spec-amend.sh | `classify --class measurement` moves one record and leaves its tracker open; `classify` with no `--class` changes no class | sed:s/entry.amendment_class = amendmentClass;/void 0;/ | green |
 | TEST-1367 | Spec-AC-13 | integration | tests/skills/test-aai-spec-amend.sh | `list` row carries the class label and `--json` carries `amendment_class` and `counts.measurement` | sed:s/const CLASS_LABEL = 'class='/const CLASS_LABEL = 'klass='/ | green |
 | TEST-1368 | Spec-AC-13 | integration | tests/skills/test-aai-spec-amend.sh | `--status measurement` is accepted and returns only measurement rows; an unknown status still exits 2 | sed:s/measurement: \['measurement'\],/measurement: [],/ | green |
@@ -392,6 +395,7 @@ Measured the same way for the row added at remediation:
 | TEST-1371 | Spec-AC-16 | integration | tests/skills/test-aai-spec-amend.sh | `.aai/ROLE_COMMON.md` and `.aai/system/AUTONOMOUS_LOOP.md` both name the two class values | sed:s/--class contract/--klass contract/ | green |
 | TEST-1372 | Spec-AC-16 | integration | tests/skills/test-aai-prompt-diet.sh | the diet ledger carries an itemized `amendment-class-partition` entry and the suite exits 0 | sed:s/amendment-class-partition/amendment-class-partitionX/ | green |
 | TEST-1373 | Spec-AC-17 | integration | tests/skills/test-aai-spec-amend.sh | a `--class` the fold would not adopt is refused in BOTH directions and appends nothing, an agreeing `--class` is still accepted, and a class-absent legacy record still moves | sed:s/projected\.amendment_class !== amendmentClass/false/ | green |
+| TEST-1374 | Spec-AC-18 | integration | tests/skills/test-aai-spec-amend.sh | a contract-shaped AC-description edit and an allocator rename mixed with an unrelated edit both take the contract lane with an open owner obligation, while a genuine allocator rename of the spec's own and its intake's DRAFT paths keeps the measurement lane and owes nothing | sed:s/cause\.verified \? MEASUREMENT_CLASS : DEFAULT_AMENDMENT_CLASS/MEASUREMENT_CLASS/ | green |
 
 Every Spec-AC has at least one row. Spec-AC-07 and Spec-AC-13 carry two.
 
@@ -478,6 +482,16 @@ rejected in D4, carrying its precondition (20 of 197 frozen specs anchored).
   fields AND the exact `RESTAMP_WHAT` literal would be swept in. Measured: 0
   such records today, and the conjunction makes forging it a deliberate act
   that leaves its own ledger line.
+
+- R5. The restamp cause check reverses only the DRAFT-to-numbered rewrites
+  this spec itself declares (its own `id`, and the documents its frontmatter
+  `links` name), and reconstructs the unsuffixed DRAFT basename. Two genuine
+  allocator shapes therefore fail to verify and fall to the contract lane: a
+  sibling draft numbered in the same batch that this spec does not link, and a
+  collision-suffixed draft basename, whose suffix the numbered name drops. Both
+  fail CLOSED (an owner signature is asked for where none was owed), which is
+  the safe direction for a laundering guard; neither can make an unverified
+  drift read as verified.
 
 ## Notes
 
