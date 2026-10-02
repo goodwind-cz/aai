@@ -4,7 +4,7 @@ type: spec
 number: 205
 status: done
 mutation_gate: v1
-frozen_sha256: e0e5bdcd76d1c1ba788aee26d60115d2a710194961be5dac46375121f6a248d2
+frozen_sha256: 62d4948f63b86f5356dfcca45a6fb2306540c9afcdb40c0f0f902f6e88aa2b28
 ceremony_level: 2
 links:
   requirement: null
@@ -398,7 +398,7 @@ Measured the same way for the row added at remediation round 2:
 | TEST-1373 | Spec-AC-17 | integration | tests/skills/test-aai-spec-amend.sh | a `--class` the fold would not adopt is refused in BOTH directions and appends nothing, an agreeing `--class` is still accepted, and a class-absent legacy record still moves | sed:s/projected\.amendment_class !== amendmentClass/false/ | green |
 | TEST-1374 | Spec-AC-18 | integration | tests/skills/test-aai-spec-amend.sh | a contract-shaped AC-description edit and an allocator rename mixed with an unrelated edit both take the contract lane with an open owner obligation, while a genuine allocator rename of the spec's own and its intake's DRAFT paths keeps the measurement lane and owes nothing | sed:s/cause\.verified \? MEASUREMENT_CLASS : DEFAULT_AMENDMENT_CLASS/MEASUREMENT_CLASS/ | green |
 
-Every Spec-AC has at least one row. Spec-AC-07 and Spec-AC-13 carry two.
+Every Spec-AC has at least one row. Spec-AC-07, Spec-AC-13 and Spec-AC-16 carry two (18 ACs, 21 rows; counted from the table, not asserted).
 
 RED plan. Each row above is observed FAILING on the pre-change tree before the
 corresponding code exists, and the capture is stored under
