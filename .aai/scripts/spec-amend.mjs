@@ -1452,7 +1452,13 @@ function cmdRestamp(opts) {
   } else {
     console.log(`spec-amend: restamp: re-anchored ${specRel} from ${computed.fromHash} to ${computed.nextHash} (ref ${ref}) — bucket ${landed.bucket}, a ${DEFAULT_AMENDMENT_CLASS}-class disclosure owing an owner signature and tracked by ${itemId}`);
     console.log(`NOTE the allocator is NOT verified as the cause: ${cause.reason}`);
-    console.log(`NOTE sign it off once someone has said what changed: node .aai/scripts/spec-amend.mjs classify --ts ${ts} --ref ${ref} --signoff owner --authority "<who decided, where>" --why "<what the drift really was>" --ledger ${abs}`);
+    // `--source`, NEVER `--authority`: `classify` names the evidence field
+    // `--source` (FLAG_SPECS above) while `add` names it `--authority`, so the
+    // line this used to print exited 2 on an unknown flag (Codex P2, PR #422).
+    // A remedy that cannot be run is the defect this script exists to remove,
+    // one level up — TEST-1376 runs this line verbatim and checks EVERY
+    // printed invocation in this file against FLAG_SPECS itself.
+    console.log(`NOTE sign it off once someone has said what changed: node .aai/scripts/spec-amend.mjs classify --ts ${ts} --ref ${ref} --signoff owner --source "<who decided, where>" --why "<what the drift really was>" --ledger ${abs}`);
   }
   if (reusedNote) console.log(`NOTE ${reusedNote}`);
   if (owes) console.log('NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open');
@@ -1742,6 +1748,11 @@ const isMain = process.argv[1] && realpathOrResolve(process.argv[1]) === realpat
 if (isMain) runMain(() => main());
 
 export {
+  // FLAG_SPECS is exported for ONE reader: the guard that checks every command
+  // this script PRINTS against the flags the parser actually accepts
+  // (TEST-1376). Exporting the table rather than re-typing it in the test is
+  // what keeps the check and the parser from drifting apart.
+  FLAG_SPECS,
   DEFAULT_LEDGER,
   ITEM_PREFIX,
   ID_MAX_LEN,

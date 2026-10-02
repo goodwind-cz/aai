@@ -3735,6 +3735,260 @@ test_1374_restamp_cause_is_measured_not_asserted() {
   log_pass "TEST-1374 restamp measures its own cause: a genuine allocator rename (self-reference and intake alike) keeps the measurement lane and owes nothing, while a contract-shaped edit and an allocator rename mixed with one both take the contract lane with an open owner obligation"
 }
 
+# --- TEST-1375 (Spec-AC-19) — the migrated cohort is the PROVEN one ----------
+#
+# The 2026-10-02T08:10 migration moved 25 records into `measurement` on the
+# strength of the STRUCTURAL shape alone (both frozen-sha anchors plus a
+# byte-equal RESTAMP_WHAT). TEST-1374's own fix is the evidence that the shape
+# proves nothing: the OLD `cmdRestamp` wrote exactly that shape after ANY
+# post-freeze edit, because it never verified its cause. Re-verifying all 26
+# restamp-shaped records against the object store — reversing the allocator's
+# DRAFT-to-numbered substitution over the content whose contract hash equals
+# each record's `to_frozen_sha256` and comparing against its
+# `from_frozen_sha256`, the same reversal `verifyAllocatorCause` implements —
+# reproduced the cause for 13 and could NOT reproduce it for the 13 pinned
+# below. Unprovable goes back to the contract lane: not because the drift is
+# known to be a contract change, but because nothing on the record or in the
+# bytes discharges the obligation.
+#
+# The pin is on the (ts, ref_id) PAIRS, never on a count, and it reads only
+# the ledger: a shallow CI checkout has no history to re-derive the proof
+# from, so an arm that re-ran the git walk here would be red on CI and green
+# locally for a reason that has nothing to do with the records.
+T1375_UNPROVABLE_PAIRS='2026-09-24T11:07:42Z|spec-update-installs-ref-guard-undisclosed
+2026-09-26T10:54:50Z|gate-checks-declared-mutation
+2026-09-26T09:27:13Z|routing-tables-have-an-owner-and-a-seam
+2026-09-28T04:19:38Z|routing-tables-have-an-owner-and-a-seam
+2026-09-28T19:10:46Z|feedback-triage-missing-output-dir
+2026-09-28T19:16:10Z|feedback-triage-missing-output-dir
+2026-09-28T19:25:57Z|prompts-invoke-wsl-bash-on-windows
+2026-09-28T19:26:42Z|prompts-invoke-wsl-bash-on-windows
+2026-09-29T00:02:07Z|mutation-clone-fidelity-windows-eol
+2026-09-29T00:14:04Z|mutation-clone-fidelity-windows-eol
+2026-09-29T16:40:28Z|antigravity-cli-skill-paths
+2026-09-29T22:07:33Z|mutation-clone-windows-run-chain
+2026-10-01T08:06:01Z|spec-shipped-guards-have-no-downstream-trigger'
+
+test_1375_migrated_cohort_is_the_proven_one() {
+  log_info "Test: the measurement lane holds only the restamp records whose allocator cause the bytes reproduce; the 13 that could not be proven are back in the contract lane (TEST-1375)..."
+  local bad pairs
+
+  # --- ARM 1: the LIVE ledger -----------------------------------------------
+  pairs="$(printf '%s' "$T1375_UNPROVABLE_PAIRS" | tr '\n' ' ')"
+  run_sa list --ledger "$LIVE_LEDGER" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1375 arm 1: \`list --json\` over the live ledger must exit 0, got $EC (stderr: $ERR)"
+  bad="$(printf '%s' "$OUT" | node -e '
+    let raw = "";
+    process.stdin.on("data", (d) => { raw += d; });
+    process.stdin.on("end", () => {
+      const j = JSON.parse(raw);
+      const by = new Map();
+      for (const it of (j.items || [])) by.set(it.ts + "|" + it.ref_id, it);
+      const bad = [];
+      for (const want of process.argv.slice(1)) {
+        const it = by.get(want);
+        if (!it) { bad.push(want + " -> MISSING from the ledger"); continue; }
+        if (it.amendment_class !== "contract" || it.bucket !== "unsigned-tracked") {
+          bad.push(want + " -> " + it.amendment_class + "/" + it.bucket);
+        }
+      }
+      console.log(bad.join("; "));
+    });
+  ' $pairs)"
+  if [[ -n "$bad" ]]; then
+    log_fail "TEST-1375 arm 1: a restamp-shaped record whose allocator cause the bytes do NOT reproduce is still discharged into the obligation-free measurement lane. The structural shape (both anchors + a byte-equal RESTAMP_WHAT) was written by the OLD cmdRestamp after ANY post-freeze edit, so it is not probative; each record below needs a later-dated \`classify --class contract --signoff none\` overlay putting it back where the obligation is real. Offending: $bad"
+  fi
+  log_info "TEST-1375 arm 1: all 13 unprovable restamp records resolve to contract/unsigned-tracked"
+
+  # --- ARM 2: the rule itself, on a fixture, with the REAL cause oracle ------
+  # Two frozen specs drift: one by the allocator's own DRAFT-to-numbered
+  # rewrite, one by an edit to what the spec PROMISES. Both then get a LEGACY
+  # restamp-shaped ledger record — the exact shape the old writer emitted for
+  # both. The structural selector cannot tell them apart; the corrected
+  # migration asks the same reversal `restamp` asks, and moves only the one
+  # the bytes prove.
+  local specP specU ledL frozenP frozenU toP toU structural verdict
+  specP="$(mk_linked_freezable_spec t1375-specs/p.md spec-t1375-proven t1375-intake-p)"
+  freeze_spec "$specP" || log_fail "TEST-1375 arm 2 setup: real spec-freeze.mjs refused the proven fixture"
+  specU="$(mk_linked_freezable_spec t1375-specs/u.md spec-t1375-unproven t1375-intake-u)"
+  freeze_spec "$specU" || log_fail "TEST-1375 arm 2 setup: real spec-freeze.mjs refused the unproven fixture"
+  frozenP="$(frozen_sha256_of "$specP")"
+  frozenU="$(frozen_sha256_of "$specU")"
+
+  sed -i.bak -e 's/SPEC-DRAFT-spec-t1375-proven/SPEC-0320-spec-t1375-proven/g' \
+             -e 's/CHANGE-DRAFT-t1375-intake-p/CHANGE-0320-t1375-intake-p/g' "$specP"
+  sed -i.bak 's/original description text/a DIFFERENT promise this spec never made/' "$specU"
+  toP="$(contract_hash_of "$specP")"
+  toU="$(contract_hash_of "$specU")"
+  [[ "$toP" != "$frozenP" && "$toU" != "$frozenU" ]] \
+    || log_fail "TEST-1375 arm 2 setup: both fixture specs must have drifted off their anchors"
+
+  ledL="$(mk_ledger t1375legacy)"
+  node -e '
+    const fs = require("fs");
+    const [led, what, fp, tp, fu, tu] = process.argv.slice(1);
+    const base = { v: 1, actor: "orchestrator", type: "spec_amendment", why: "legacy restamp record", owner_signoff: false };
+    const rows = [
+      { ...base, ts: "2026-09-01T00:00:00Z", ref_id: "t1375-p", spec_id: "spec-t1375-proven",
+        spec: "docs/specs/SPEC-0320-spec-t1375-proven.md", what, from_frozen_sha256: fp, to_frozen_sha256: tp,
+        tracked_by: "fu-amend-t1375-p" },
+      { v: 1, ts: "2026-09-01T00:00:01Z", actor: "a", type: "follow_up", id: "fu-amend-t1375-p", ref_id: "t1375-p",
+        severity: "P2", finding: "owner sign-off owed on spec-t1375-proven", decision: "filed unsigned", source: "fixture" },
+      { ...base, ts: "2026-09-02T00:00:00Z", ref_id: "t1375-u", spec_id: "spec-t1375-unproven",
+        spec: "docs/specs/SPEC-DRAFT-spec-t1375-unproven.md", what, from_frozen_sha256: fu, to_frozen_sha256: tu,
+        tracked_by: "fu-amend-t1375-u" },
+      { v: 1, ts: "2026-09-02T00:00:01Z", actor: "a", type: "follow_up", id: "fu-amend-t1375-u", ref_id: "t1375-u",
+        severity: "P2", finding: "owner sign-off owed on spec-t1375-unproven", decision: "filed unsigned", source: "fixture" },
+    ];
+    fs.appendFileSync(led, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
+  ' "$ledL" "$T1369_RESTAMP_WHAT" "$frozenP" "$toP" "$frozenU" "$toU"
+
+  # NEGATIVE CONTROL: the structural selector the migration used picks BOTH.
+  run_sa list --ledger "$ledL" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1375 arm 2: \`list --json\` must exit 0, got $EC (stderr: $ERR)"
+  structural="$(json_field "$OUT" 'j.items.filter((it) => it.tool_restamp === true).map((it) => it.ref_id).sort().join(",")')"
+  [[ "$structural" == "t1375-p,t1375-u" ]] \
+    || log_fail "TEST-1375 arm 2: the structural selector must still match BOTH legacy records — that is the whole defect — got: $structural"
+
+  # THE CORRECTED MIGRATION: the class is decided by the SAME reversal
+  # `restamp` runs, read off the real CLI rather than re-implemented here.
+  local rts rref rspec probe probe_led klass cause
+  while IFS='|' read -r rts rref rspec; do
+    [[ -n "$rts" ]] || continue
+    probe="$TEST_DIR/t1375-probe-$rref.md"
+    cp "$rspec" "$probe"
+    probe_led="$(mk_ledger "t1375probe-$rref")"
+    run_sa restamp --spec "$probe" --ref "probe-$rref" --ledger "$probe_led"
+    [[ "$EC" == 0 ]] || log_fail "TEST-1375 arm 2: the cause probe must exit 0 for $rref, got $EC (stderr: $ERR)"
+    klass=contract; cause="NOT reproduced"
+    case "$OUT" in *"the allocator is PROVEN to be the cause"*) klass=measurement; cause="reproduced" ;; esac
+    run_sa classify --ledger "$ledL" --ts "$rts" --ref "$rref" --signoff none --class "$klass" --origin backfill \
+      --why "re-verified restamp cohort: the allocator cause was $cause from the bytes" \
+      --source "docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md D3 (corrected: proof of cause, not the structural shape)" </dev/null
+    [[ "$EC" == 0 ]] \
+      || log_fail "TEST-1375 arm 2: the corrected migration's classify refused $rref as $klass, got $EC (stdout: $OUT) (stderr: $ERR)"
+  done <<EOF
+2026-09-01T00:00:00Z|t1375-p|$specP
+2026-09-02T00:00:00Z|t1375-u|$specU
+EOF
+
+  run_sa list --ledger "$ledL" --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-1375 arm 2: \`list --json\` must exit 0 after the corrected migration, got $EC (stderr: $ERR)"
+  verdict="$(json_field "$OUT" 'j.items.map((it) => it.ref_id + ":" + it.amendment_class + "/" + it.bucket).sort().join(" ")')"
+  [[ "$verdict" == "t1375-p:measurement/measurement t1375-u:contract/unsigned-tracked" ]] \
+    || log_fail "TEST-1375 arm 2: only the record whose allocator cause the bytes reproduce may take the measurement lane; the other keeps its owner obligation. Got: $verdict"
+
+  run_fu list --ledger "$ledL" --status open
+  [[ "$EC" == 0 ]] || log_fail "TEST-1375 arm 2: follow-ups.mjs list must exit 0, got $EC (stderr: $ERR)"
+  grep -qF "fu-amend-t1375-u" <<<"$OUT" \
+    || log_fail "TEST-1375 arm 2: the unprovable record's owner obligation must still be OPEN; the real reader found: $OUT"
+
+  log_pass "TEST-1375 the measurement lane is the PROVEN cohort: 13 live records whose allocator cause the bytes cannot reproduce are back in the contract lane, and on a fixture the structural selector matches both legacy records while the corrected one moves only the provable half"
+}
+
+# --- TEST-1376 (Spec-AC-20) — every command this CLI PRINTS can be run ------
+#
+# Codex P2 on PR #422: the remedy an unverified `restamp` printed used
+# `--authority`, which `classify` does not accept, so the advertised command
+# exited 2 on an unknown flag. Advice that cannot be followed is the defect
+# class this whole scope is about, one level up. Two arms: the specific line
+# is RUN, and every printed invocation in the file is checked against the
+# CLI's OWN flag table so a second one cannot regress silently.
+test_1376_printed_commands_use_flags_the_cli_accepts() {
+  log_info "Test: the remedy an unverified restamp prints actually runs, and every printed spec-amend invocation uses flags FLAG_SPECS declares (TEST-1376)..."
+  local spec led line l cmd o e rc
+
+  # --- ARM 1: the printed remedy, executed verbatim -------------------------
+  spec="$(mk_linked_freezable_spec t1376-specs/a.md spec-t1376-fixture t1376-intake)"
+  freeze_spec "$spec" || log_fail "TEST-1376 setup: real spec-freeze.mjs refused the fixture"
+  sed -i.bak 's/original description text/a DIFFERENT promise this spec never made/' "$spec"
+  led="$(mk_ledger t1376)"
+
+  run_sa restamp --spec "$spec" --ref t1376-ride --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "TEST-1376: restamp must exit 0 on the unverified fixture, got $EC (stderr: $ERR)"
+  grep -qF 'the allocator is NOT verified as the cause' <<<"$OUT" \
+    || log_fail "TEST-1376 setup: the fixture must produce an UNVERIFIED restamp; stdout: $OUT"
+
+  line=""
+  while IFS= read -r l; do
+    case "$l" in *"spec-amend.mjs classify "*) line="$l" ;; esac
+  done <<<"$OUT"
+  [[ -n "$line" ]] \
+    || log_fail "TEST-1376: an unverified restamp must PRINT a classify remedy line; stdout: $OUT"
+
+  grep -qF -- '--authority' <<<"$line" \
+    && log_fail "TEST-1376: the printed remedy names \`--authority\`, which \`classify\` does not accept (\`add\` does) — running it exits 2 on an unknown flag. Printed: $line"
+
+  cmd="node \"\$SA\" classify ${line#*spec-amend.mjs classify }"
+  o="$TEST_DIR/.t1376.out"; e="$TEST_DIR/.t1376.err"; rc=0
+  eval "$cmd" > "$o" 2> "$e" || rc=$?
+  [[ "$rc" != 2 ]] \
+    || log_fail "TEST-1376: the remedy the tool printed exits 2 — advice that cannot be followed.
+COMMAND: $cmd
+STDERR:  $(cat "$e")"
+  [[ "$rc" == 0 ]] \
+    || log_fail "TEST-1376: the remedy the tool printed exited $rc.
+COMMAND: $cmd
+STDERR:  $(cat "$e")"
+  grep -qF 'owner_signoff=true' "$o" \
+    || log_fail "TEST-1376: running the printed remedy must actually sign the record off; stdout: $(cat "$o")"
+
+  # --- ARM 2: no printed invocation may name a flag the CLI rejects ---------
+  # Read off FLAG_SPECS itself, so the check and the parser can never drift.
+  local offenders
+  offenders="$(node --input-type=module -e "
+    import fs from 'node:fs';
+    const mod = await import('$SA');
+    const specs = mod.FLAG_SPECS;
+    const src = fs.readFileSync('$SA', 'utf8');
+    const GLOBAL = new Set(['--json', '--strict', '--list-degraded', '--help']);
+    const bad = [];
+    const lines = src.split('\n');
+    for (let i = 0; i < lines.length; i += 1) {
+      const m = lines[i].match(/spec-amend\.mjs (add|classify|list|restamp)\b/);
+      if (!m) continue;
+      const sub = m[1];
+      const allowed = new Set([...(specs[sub] || []), ...GLOBAL]);
+      for (const f of lines[i].slice(m.index).match(/--[a-z][a-z-]*/g) || []) {
+        if (!allowed.has(f)) bad.push((i + 1) + ': ' + sub + ' ' + f);
+      }
+    }
+    process.stdout.write(bad.join('; '));
+  ")"
+  [[ -z "$offenders" ]] \
+    || log_fail "TEST-1376 arm 2: a command this script PRINTS names a flag its own FLAG_SPECS table does not accept for that subcommand, so the advertised command exits 2: $offenders"
+
+  log_pass "TEST-1376 the printed remedy runs to a signed record, and every printed spec-amend invocation in the script uses only flags FLAG_SPECS accepts for that subcommand"
+}
+
+# --- TEST-1377 (Spec-AC-21) — the workflow prose matches the writer ---------
+#
+# Codex P2 on PR #422: AUTONOMOUS_LOOP section 6a still said `restamp` is
+# "reachable only from allocator anchor drift" and "hardcodes measurement".
+# Since TEST-1374's fix an UNVERIFIED restamp deliberately writes a contract
+# record and creates an obligation, so the prose described a writer that no
+# longer exists — and it described exactly the assumption the migration was
+# wrong to trust.
+test_1377_canon_states_the_measured_cause_rule() {
+  log_info "Test: AUTONOMOUS_LOOP section 6a states restamp's MEASURED-cause rule rather than the retired hardcode claim (TEST-1377)..."
+  [[ -f "$CANON" ]] || log_fail "TEST-1377: $CANON does not exist"
+
+  if command grep -qF 'so it hardcodes' "$CANON"; then
+    log_fail "TEST-1377: .aai/system/AUTONOMOUS_LOOP.md still says \`restamp\` hardcodes its class — since the Spec-AC-18 fix an unverified restamp writes a contract record and co-creates an obligation"
+  fi
+  if command grep -qF 'reachable only from allocator anchor drift' "$CANON"; then
+    log_fail "TEST-1377: .aai/system/AUTONOMOUS_LOOP.md still claims \`restamp\` is reachable only from allocator anchor drift — it is reachable from ANY post-freeze drift, which is why the cause is now measured"
+  fi
+  command grep -qF 'takes the measurement lane ONLY when' "$CANON" \
+    || log_fail "TEST-1377: the canon must state that restamp takes the measurement lane ONLY when the reversal reproduces the stored anchor"
+  command grep -qF 'is disclosed as a contract record' "$CANON" \
+    || log_fail "TEST-1377: the canon must state that any other post-freeze drift is disclosed as a contract record"
+  command grep -qF 'The light lane is never reachable by the shape of a record alone.' "$CANON" \
+    || log_fail "TEST-1377: the canon must say the light lane is never reachable by a record's shape alone — the migration's own mistake"
+
+  log_pass "TEST-1377 the canon states the measured-cause rule, the contract-lane consequence of an unverified restamp, and that a record's shape alone never buys the light lane"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -3786,6 +4040,9 @@ main() {
   test_1371_canon_names_the_two_class_partition
   test_1373_class_flag_cannot_disagree_with_the_fold
   test_1374_restamp_cause_is_measured_not_asserted
+  test_1375_migrated_cohort_is_the_proven_one
+  test_1376_printed_commands_use_flags_the_cli_accepts
+  test_1377_canon_states_the_measured_cause_rule
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

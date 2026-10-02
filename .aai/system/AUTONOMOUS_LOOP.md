@@ -156,8 +156,14 @@ nor item. Four rules keep that from becoming a way out:
   actor is already on the record, so a wrong claim is attributable.
 
 `spec-amend.mjs restamp` is the one writer whose class is NOT a self-report:
-it is reachable only from allocator anchor drift and writes its own
-`what`/`why`, so it hardcodes `measurement`.
+it MEASURES its own cause. It is reachable after ANY post-freeze drift, so it
+takes the measurement lane ONLY when reverse-applying the allocator's
+DRAFT-to-numbered rewrite — over the spec's own frontmatter `id` and the
+numbered documents its `links` name — reproduces the stored `frozen_sha256`
+byte for byte. Every other drift is disclosed as a contract record whose
+`what` says the cause is unverified, and it co-creates the `fu-amend-`
+obligation like any other contract amendment.
+The light lane is never reachable by the shape of a record alone.
 
 `node .aai/scripts/spec-amend.mjs list --strict` exits 1 while any amendment
 on the ledger is untracked or unclassified. `measurement` is excluded from

@@ -4,7 +4,7 @@ type: spec
 number: 205
 status: done
 mutation_gate: v1
-frozen_sha256: 62d4948f63b86f5356dfcca45a6fb2306540c9afcdb40c0f0f902f6e88aa2b28
+frozen_sha256: c8f1d3ce0fab128749f2ae1e7b8585c677b16bef97febc2a8fddb4897680cf7e
 ceremony_level: 2
 links:
   requirement: null
@@ -59,6 +59,12 @@ and one byte-identical `why`** — the two string literals hardcoded in
 whose mechanical nature it already knows, 25 times, across 18 specs; for 5 of
 those specs every unsigned amendment on the ledger is one of these.
 
+CORRECTED at remediation round 3: "whose mechanical nature it already knows"
+was itself the error. The old `cmdRestamp` wrote those literals after ANY
+post-freeze edit, so the shape says only that `restamp` ran. Re-verification
+against the object store reproduces the allocator cause for 12 of the 25 and
+cannot reproduce it for 13. See "Amendment 3" under D3.
+
 ## Scope
 
 In scope:
@@ -68,8 +74,10 @@ In scope:
 - A fifth fold bucket, `measurement`, that is disclosed and counted but owes
   no owner signature and no `fu-amend-*` item.
 - `restamp` declaring itself `measurement` by construction.
-- `list` surfacing the class, and a one-time, structurally-selected migration
-  of the tool-emitted restamp cohort.
+- `list` surfacing the class, and a one-time migration of the tool-emitted
+  restamp cohort whose allocator cause is PROVEN from the bytes (corrected at
+  remediation round 3 — see "Amendment 3" under D3; the structural shape alone
+  selected 25 records and proved nothing).
 
 Out of scope (each named in the intake):
 - Making the signature block a merge; retiring the signature; signing any of
@@ -193,6 +201,43 @@ reachable by `classify`. The migration appends one
 (HAZ-LEDGER), moves nothing to `signed`, and closes no follow-up item. The
 cohort is re-measured at implementation time from `list --json`, never
 hardcoded to 25.
+
+#### Amendment 3 — the cohort is the PROVEN one, not the structural one
+
+Additive with disclosure (remediation round 3, Codex P1 on PR #422; the
+originating record is on `docs/ai/decisions.jsonl`). The two-condition
+structural selector above is NECESSARY and NOT SUFFICIENT, and this ride's own
+Spec-AC-18 fix is the evidence: the OLD `cmdRestamp` wrote both anchor fields
+and the byte-equal `RESTAMP_WHAT` after ANY post-freeze edit, because it never
+verified its cause. The shape proves that `restamp` ran. It does not prove
+what moved the bytes, so a migration keyed on it discharges obligations it has
+not measured — the laundering this scope exists to stop, committed by this
+scope.
+
+The selector is therefore the conjunction of the structural shape AND a
+POSITIVE, reproducible proof of the allocator cause, taken per record from the
+git object store with the SAME reversal `verifyAllocatorCause` implements
+(never a second rule): find the content whose contract projection hashes to
+the record's `to_frozen_sha256`, reverse-apply the DRAFT-to-numbered
+substitutions the spec itself declares, and require a byte-exact match against
+`from_frozen_sha256`. No match, or no measurable content, means the record
+stays in the contract lane.
+
+Measured at remediation round 3 over all 26 restamp-shaped records: 13 proven
+(12 of them in the migrated cohort, 1 written by the fixed `restamp` after it),
+13 not provable. The 13 unprovable records each carry a later-dated
+`classify --class contract --signoff none` corrective overlay naming its own
+reason, appended, never edited (HAZ-LEDGER). Live counts move
+`measurement` 28 to 15 and `unsigned-tracked` 170 to 183, with `signed`,
+`total` and every `fu-amend-` item's status unchanged. The evidence is
+`docs/ai/reports/amendment-class-migration-correction-20261002T112955Z.md`.
+
+Unprovable is NOT a finding that the drift was a contract change. It is the
+absence of a discharge, which is what the contract lane means. Three of the 13
+are visibly allocator-shaped and fail only because the candidate set cannot
+reach their rewritten token — exactly the two shapes residual risk R5 names —
+and they go back anyway, because "it looks mechanical" is the standard this
+correction retires.
 
 Trackers are deliberately left alone. `fu-amend-*` is keyed per SPEC, not per
 record, so moving one record out of the owner queue does not discharge the
@@ -353,10 +398,13 @@ appends and never edits (Article 3, HAZ-LEDGER). Nothing in this scope writes
 | Spec-AC-12 | WHEN `classify --class measurement --signoff none` names one existing record THEN that record's bucket becomes `measurement`, its previously-tracking `fu-amend-` item keeps its open status unchanged, and a `classify` run with no `--class` leaves the target's resolved class exactly as it was | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1366.log (pre-change-tree RED, base-ref blob swapped in, disclosed in the capture) and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1366.txt | — | the per-record route; the printed remedy line stays runnable verbatim |
 | Spec-AC-13 | `list` prints `class=<value>` on every row, `list --json` items carry `amendment_class`, the counts object carries a `measurement` key, and `--status measurement` is accepted and returns only measurement-bucket rows | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1367.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1368.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1367.txt and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1368.txt | — | D4 visibility, made enumerable |
 | Spec-AC-14 | `list --json` marks an item `tool_restamp` true iff the record carries both `from_frozen_sha256` and `to_frozen_sha256` AND its `what` is byte-equal to `RESTAMP_WHAT`; a record matching only one of the two conditions is false | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1369.log (pre-change-tree RED, base-ref blob swapped in, disclosed in the capture) and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1369.txt | — | the structural selector, no prose read |
-| Spec-AC-15 | After the migration on the live ledger: `signed` is unchanged at its pre-migration count, `measurement` equals the number of appended overlays, `unsigned-tracked` falls by exactly that number, `unsigned-untracked` and `unclassified` are both 0, the total record count is unchanged, no pre-existing line is modified, and no `fu-amend-` item changed status | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1370.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1370.txt and docs/ai/reports/amendment-class-migration-20261002T081152Z.md | — | nothing laundered to `signed`, nothing closed |
+| Spec-AC-15 | Every migration pass on the live ledger is append-only and conserving: `signed` is unchanged at its pre-pass count, the `measurement` and `unsigned-tracked` counts move by exactly the number of appended overlays and in opposite directions, `unsigned-untracked` and `unclassified` are both 0, the total record count is unchanged, no pre-existing line is modified, and no `fu-amend-` item changed status. WHICH records a pass may move is Spec-AC-19, not this row: the first pass moved 25 on the structural shape alone and 13 of those were reversed by the round-3 correction pass | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1370.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1370.txt and docs/ai/reports/amendment-class-migration-20261002T081152Z.md and docs/ai/reports/amendment-class-migration-correction-20261002T112955Z.md | — | corrected at remediation round 3 (Codex P1, PR #422): this row is the conservation law, Spec-AC-19 is the selector; nothing laundered to `signed`, nothing closed, by either pass |
 | Spec-AC-16 | `.aai/ROLE_COMMON.md`'s POST-FREEZE block names `--class contract` and `--class measurement`, `.aai/system/AUTONOMOUS_LOOP.md` section 6a states the two-class partition, and `tests/skills/test-aai-prompt-diet.sh` exits 0 with an itemized `amendment-class-partition` ledger entry | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1371.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1372.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1371.txt and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1372.txt | — | companion obligation; `.aai/SKILL_PR.prompt.md` untouched |
 | Spec-AC-17 | WHEN `classify --class <X>` names a target whose `amendment_class` the fold would NOT resolve to `<X>` THEN it exits 2, appends nothing, and names both the refused flag and the class the fold does resolve; and `classify` reads the obligation decision off the SAME `foldAmendments` call that assigns the bucket, so a record whose bucket is `measurement` can never be given an owner obligation | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1373.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1373.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1373.txt | — | code review round 1, BLOCKING, reproduced; the two readers agree by construction rather than by a second precedence rule kept in step by hand |
 | Spec-AC-18 | WHEN `restamp` re-anchors a drifted frozen spec THEN its `amendment_class` is `measurement` ONLY IF reverse-applying the allocator's DRAFT-to-numbered substitution over this spec's own frontmatter `id` and over the numbered documents its frontmatter `links` name reproduces the stored `frozen_sha256`; when no such reversal reproduces it the record is `contract`, co-creates the `fu-amend-` item, and carries a `what` naming the drift as unexplained rather than as an allocator rewrite | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1374.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1374.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1374.txt | — | code review round 2 (Codex P1 on PR #422), BLOCKING, reproduced; the hardcoded class was justified by a comment nothing enforced |
+| Spec-AC-19 | A restamp-shaped record (both anchors plus a byte-equal `RESTAMP_WHAT`) may hold the `measurement` lane ONLY where the allocator cause is reproduced from the bytes by the same reversal `verifyAllocatorCause` implements; on the live ledger the 13 restamp-shaped records for which no such reproduction exists resolve to `amendment_class` `contract` and bucket `unsigned-tracked` through a later-dated appended overlay, and on a fixture the structural selector matches a provable and an unprovable legacy record alike while the corrected one moves only the provable half | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1375.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1375.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1375.txt and docs/ai/reports/amendment-class-migration-correction-20261002T112955Z.md | — | remediation round 3 (Codex P1 on PR #422), reproduced; the structural shape was written by the old writer after ANY post-freeze edit, so it discharges nothing |
+| Spec-AC-20 | The remedy an UNVERIFIED `restamp` prints runs verbatim to exit 0 and a signed record, and every `spec-amend.mjs <subcommand>` invocation this script prints names only flags that subcommand's own `FLAG_SPECS` entry accepts | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1376.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1376.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1376.txt | — | remediation round 3 (Codex P2 on PR #422), reproduced: the printed line used `--authority`, which only `add` accepts, so it exited 2 on an unknown flag |
+| Spec-AC-21 | `.aai/system/AUTONOMOUS_LOOP.md` section 6a no longer claims `restamp` is reachable only from allocator anchor drift or that it hardcodes its class, and states instead that the measurement lane is taken ONLY when the reversal reproduces the stored anchor, that every other drift is disclosed as a contract record co-creating the `fu-amend-` obligation, and that the light lane is never reachable by a record's shape alone | done | docs/ai/tdd/amendment-signature-asks-the-owner-too-often-red-1377.log and docs/ai/tdd/amendment-signature-asks-the-owner-too-often-green-1377.log and docs/ai/tdd/spec-amendment-signature-asks-the-owner-too-often/mutation-TEST-1377.txt | — | remediation round 3 (Codex P2 on PR #422); the file is outside the live `.aai/*.prompt.md` glob and outside TEST-010's three extras, measured, so it carries no prompt-diet ledger cost |
 
 ## Test Plan
 
@@ -373,6 +421,13 @@ Measured the same way for the row added at remediation:
 `projected.amendment_class !== amendmentClass` = 1.
 Measured the same way for the row added at remediation round 2:
 `cause.verified ? MEASUREMENT_CLASS : DEFAULT_AMENDMENT_CLASS` = 1.
+Measured the same way for the three rows added at remediation round 3, under
+plain bash with `/usr/bin/grep -cF`:
+`AMENDMENT_CLASSES.includes(str(h.amendment_class))).pop()` = 1 and
+`--signoff owner --source` = 1 on `.aai/scripts/spec-amend.mjs`, and
+`takes the measurement lane ONLY when` = 1 on
+`.aai/system/AUTONOMOUS_LOOP.md` (TEST-1377's target is that file, not the
+script: the claim under test is the prose).
 
 | Test ID  | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |----------|---------|------|----------------------|-------------|----------|--------|
@@ -392,11 +447,14 @@ Measured the same way for the row added at remediation round 2:
 | TEST-1367 | Spec-AC-13 | integration | tests/skills/test-aai-spec-amend.sh | `list` row carries the class label and `--json` carries `amendment_class` and `counts.measurement` | sed:s/const CLASS_LABEL = 'class='/const CLASS_LABEL = 'klass='/ | green |
 | TEST-1368 | Spec-AC-13 | integration | tests/skills/test-aai-spec-amend.sh | `--status measurement` is accepted and returns only measurement rows; an unknown status still exits 2 | sed:s/measurement: \['measurement'\],/measurement: [],/ | green |
 | TEST-1369 | Spec-AC-14 | unit | tests/skills/test-aai-spec-amend.sh | fixture records: both anchors plus the exact `what` is `tool_restamp` true; either condition alone is false | sed:s/const RESTAMP_WHAT = 'mechanical restamp/const RESTAMP_WHAT = 'mechanical restamps/ | green |
-| TEST-1370 | Spec-AC-15 | integration | tests/skills/test-aai-spec-amend.sh | fixture ledger with three cohort records and two non-cohort records: the documented migration loop moves exactly three, signs none, closes no item | sed:s/\&\& str\(rec.what\) === RESTAMP_WHAT/&& true/ | green |
+| TEST-1370 | Spec-AC-15 | integration | tests/skills/test-aai-spec-amend.sh | fixture ledger with three cohort records and two non-cohort records: a migration pass moves exactly the records it selects, signs none, closes no item and appends without touching a pre-existing byte (the conservation law; WHICH records may be selected is TEST-1375) | sed:s/\&\& str\(rec.what\) === RESTAMP_WHAT/&& true/ | green |
 | TEST-1371 | Spec-AC-16 | integration | tests/skills/test-aai-spec-amend.sh | `.aai/ROLE_COMMON.md` and `.aai/system/AUTONOMOUS_LOOP.md` both name the two class values | sed:s/--class contract/--klass contract/ | green |
 | TEST-1372 | Spec-AC-16 | integration | tests/skills/test-aai-prompt-diet.sh | the diet ledger carries an itemized `amendment-class-partition` entry and the suite exits 0 | sed:s/amendment-class-partition/amendment-class-partitionX/ | green |
 | TEST-1373 | Spec-AC-17 | integration | tests/skills/test-aai-spec-amend.sh | a `--class` the fold would not adopt is refused in BOTH directions and appends nothing, an agreeing `--class` is still accepted, and a class-absent legacy record still moves | sed:s/projected\.amendment_class !== amendmentClass/false/ | green |
 | TEST-1374 | Spec-AC-18 | integration | tests/skills/test-aai-spec-amend.sh | a contract-shaped AC-description edit and an allocator rename mixed with an unrelated edit both take the contract lane with an open owner obligation, while a genuine allocator rename of the spec's own and its intake's DRAFT paths keeps the measurement lane and owes nothing | sed:s/cause\.verified \? MEASUREMENT_CLASS : DEFAULT_AMENDMENT_CLASS/MEASUREMENT_CLASS/ | green |
+| TEST-1375 | Spec-AC-19 | integration | tests/skills/test-aai-spec-amend.sh | the 13 named live records whose allocator cause the bytes do not reproduce resolve to contract/unsigned-tracked, and on a fixture the structural selector matches two legacy restamp-shaped records while the corrected migration (asking the real `restamp` for the cause) moves only the provable one and leaves the other's owner obligation open | sed:s/AMENDMENT_CLASSES\.includes\(str\(h\.amendment_class\)\)\)\.pop\(\)/AMENDMENT_CLASSES.includes(str(h.amendment_class))).shift()/ | green |
+| TEST-1376 | Spec-AC-20 | integration | tests/skills/test-aai-spec-amend.sh | the classify line an unverified restamp prints is executed verbatim and must reach exit 0 with owner_signoff=true, and a source-wide scan checks every printed invocation's flags against the exported FLAG_SPECS table | sed:s/--signoff owner --source/--signoff owner --authority/ | green |
+| TEST-1377 | Spec-AC-21 | integration | tests/skills/test-aai-spec-amend.sh | the retired hardcode and reachable-only claims are absent from .aai/system/AUTONOMOUS_LOOP.md and the three measured-cause sentences are present | sed:s/takes the measurement lane ONLY when/takes the measurement lane when/ | green |
 
 Every Spec-AC has at least one row. Spec-AC-07, Spec-AC-13 and Spec-AC-16 carry two (18 ACs, 21 rows; counted from the table, not asserted).
 
@@ -442,7 +500,10 @@ The migration owes two extra artifacts that are NOT test output:
 `/tmp/before.json` and `/tmp/after.json` copied to
 `docs/ai/reports/amendment-class-migration-<ts>.md` with the two count lines
 and the appended overlay count, because Spec-AC-15 is a claim about the live
-ledger and cannot be proven by a fixture.
+ledger and cannot be proven by a fixture. The round-3 correction pass owes the
+same artifact for the same reason, plus the per-record proof verdict that
+decided it:
+`docs/ai/reports/amendment-class-migration-correction-20261002T112955Z.md`.
 
 ## Seams this change crosses
 
@@ -492,7 +553,13 @@ rejected in D4, carrying its precondition (20 of 197 frozen specs anchored).
   collision-suffixed draft basename, whose suffix the numbered name drops. Both
   fail CLOSED (an owner signature is asked for where none was owed), which is
   the safe direction for a laundering guard; neither can make an unverified
-  drift read as verified.
+  drift read as verified. MEASURED at remediation round 3: both shapes are
+  present in the live cohort — two records drift only by a rewrite of an
+  intake the spec's frontmatter does not name, and one by a numbered slug that
+  differs from the DRAFT slug — so three of the 13 records the correction
+  returns to the contract lane are there because of R5, not because the drift
+  is unexplained. They stay there: a guard that is widened to admit what it
+  cannot prove is not a guard.
 
 ## Notes
 
