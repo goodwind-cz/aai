@@ -2710,3 +2710,5 @@
 {"v":1,"ts":"2026-10-02T10:58:10Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-amendment-signature-asks-the-owner-too-often","payload":{"commit":"d3f110d5"}}
 {"v":1,"ts":"2026-10-02T10:58:29Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":554,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-02T12:34:15Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":554,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-02T12:35:02Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"amendment-signature-asks-the-owner-too-often","payload":{"commit":"94ed4888"}}
+{"v":1,"ts":"2026-10-02T12:35:02Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-amendment-signature-asks-the-owner-too-often","payload":{"commit":"94ed4888"}}
