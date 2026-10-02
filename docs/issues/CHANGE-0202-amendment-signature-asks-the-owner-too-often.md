@@ -2,10 +2,12 @@
 id: amendment-signature-asks-the-owner-too-often
 type: change
 number: 202
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 3c6a7056
 ---
 
 # Change — the amendment signature asks the owner too often

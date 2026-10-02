@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-02T09:45:55.945Z",
+  "generatedAt": "2026-10-02T09:47:00.737Z",
   "project": "aai",
   "counts": {
-    "delivered": 273,
-    "in_progress": 16,
+    "delivered": 274,
+    "in_progress": 15,
     "releases": 1,
     "tokens_total": 71857830
   },
@@ -47,19 +47,6 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "amendment-signature-asks-the-owner-too-often",
-      "title": "Change — the amendment signature asks the owner too often",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0202-amendment-signature-asks-the-owner-too-often.md",
-      "closed_on": null,
-      "agent_minutes": 549,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md",
       "validation": null,
       "review": null
     },
@@ -221,6 +208,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "amendment-signature-asks-the-owner-too-often",
+      "title": "Change — the amendment signature asks the owner too often",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0202-amendment-signature-asks-the-owner-too-often.md",
+      "closed_on": "2026-10-02",
+      "agent_minutes": 549,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-amendment-signature-asks-the-owner-too-often-20261002T094327Z.md"
+    },
     {
       "ref": "friction-issues-arrive-without-a-description",
       "title": "A friction issue arrives with a failure class and no description",
@@ -3797,6 +3797,19 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
+        {
+          "ref": "amendment-signature-asks-the-owner-too-often",
+          "title": "Change — the amendment signature asks the owner too often",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0202-amendment-signature-asks-the-owner-too-often.md",
+          "closed_on": "2026-10-02",
+          "agent_minutes": 549,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-amendment-signature-asks-the-owner-too-often-20261002T094327Z.md"
+        },
         {
           "ref": "friction-issues-arrive-without-a-description",
           "title": "A friction issue arrives with a failure class and no description",

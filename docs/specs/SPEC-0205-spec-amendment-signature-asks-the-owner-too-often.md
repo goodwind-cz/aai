@@ -2,7 +2,7 @@
 id: spec-amendment-signature-asks-the-owner-too-often
 type: spec
 number: 205
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 45e84f6ff346050d2bd495c39b534a2e9295c218f0f61610b0b058c08995f040
 ceremony_level: 2
@@ -10,8 +10,10 @@ links:
   requirement: null
   rfc: null
   intake: docs/issues/CHANGE-0202-amendment-signature-asks-the-owner-too-often.md
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 3c6a7056
 ---
 
 # Spec — the amendment signature asks the owner too often
