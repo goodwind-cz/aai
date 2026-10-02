@@ -2343,11 +2343,21 @@ test_1312_surfaces_state_the_contract() {
   done <<<"$prompt"
   assert_payload_contains "$fp" "<= 500" "TEST-1312: FRICTION_PROTOCOL must state the 500-character summary cap"
   assert_payload_not_contains "$fp" "<= 200" "TEST-1312: FRICTION_PROTOCOL must no longer state the 200-character cap"
+  # The entry must BE in the CHANGELOG, not still be unreleased. A release
+  # rolls '## [unreleased] — ' into '## [vYYYY.MM.DD] — ', so pinning the
+  # unreleased state made this assertion survive only until the first cut
+  # after this ride — and the v2026.10.02 cut is exactly where it broke. The
+  # robust form is already this repo's convention (test-aai-doctor.sh:1188,
+  # test-aai-win-fallback.sh:608 and :769 all accept either heading state);
+  # this row simply did not follow it.
   local found=0
   while IFS= read -r l; do
-    case "$l" in "## [unreleased] — fix: "*"--description"*) found=1 ;; esac
+    case "$l" in
+      "## [unreleased] — fix: "*"--description"*) found=1 ;;
+      "## [v"*"] — fix: "*"--description"*) found=1 ;;
+    esac
   done <<<"$cl"
-  [ "$found" = "1" ] || log_fail "TEST-1312: CHANGELOG must carry a '## [unreleased] — fix:' heading naming --description"
+  [ "$found" = "1" ] || log_fail "TEST-1312: CHANGELOG carries no 'fix:' heading naming --description, unreleased or released"
   local out code; out="$(bash "$SCRIPT_DIR/test-aai-prompt-diet.sh" 2>&1)"; code=$?
   [ "$code" = "0" ] || nested_suite_fail "TEST-1312: prompt-diet" "$out" "$code"
   log_pass "the four surfaces and the CHANGELOG state the contract; stale sentence gone; cap 500; prompt-diet green (TEST-1312)"
