@@ -920,7 +920,14 @@ test_012_growth_sum_matches_ledger() {
   # new SKILL_ROADMAP.prompt.md plus SKILL_SHIP INPUT/1a/step 6 and SKILL_PR
   # step 4c lines; AGENTS rule 4 is outside the glob. Measured under bash with
   # /usr/bin/wc against the merge-base, credited 1:1 (TEST-1336).
-  local want_growth=50036
+  # Then 50036 -> 50333: amendment-class-partition (+297 B) -- .aai/ROLE_COMMON.md
+  # 6843 -> 7140, the POST-FREEZE block naming --class contract|measurement.
+  # ROLE_COMMON.md is inside TEST-010's extra accounting, so the growth is a
+  # MEASURED cost; AUTONOMOUS_LOOP 6a (the convention body) and spec-amend.mjs
+  # are outside both the glob and the accounting, and SKILL_PR is untouched.
+  # Measured under plain bash with /usr/bin/wc -c against 1ffc03de, credited
+  # 1:1 (TEST-1372).
+  local want_growth=50333
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1912,9 +1919,16 @@ test_1336_roadmap_growth_ledgered() {
     log_fail "TEST-1336: JUSTIFIED_ADDITIONS carries $n entries naming '$ledger_key' (want exactly 1)"
     return
   fi
+  # The entry's POSITION is reported, never pinned. "Must be last" is a pin
+  # where a property already does the work: `prefix` below is the sum UP TO
+  # AND INCLUDING this entry, so it is invariant under any later ride's own
+  # itemized append and still moves if somebody inserts an entry BEFORE this
+  # one -- which is the thing the pin was written to catch. Pinned to the end
+  # it instead reddened the moment the NEXT ride appended its own credit
+  # (amendment-class-partition, 2026-10-02), failing a later scope for doing
+  # exactly what this ledger is for.
   if [[ "$entry_idx" -ne "$last_idx" ]]; then
-    log_info "TEST-1336: the entry sits at index $entry_idx, not at the end of the array ($last_idx) -- prefix pins of earlier rides would move"
-    ok=0
+    log_info "TEST-1336: the entry sits at index $entry_idx of $last_idx -- later rides have appended their own credits since; the prefix pin below is what holds"
   fi
   lead="${entry%% *}"
   local rest="$entry" re mb base_size
@@ -2203,6 +2217,117 @@ test_028_windows_prompt_credit() {
   [[ $hit -eq 1 ]] && log_pass "TEST-028 ledger credits 802 B for prompts-invoke-wsl-bash-on-windows"
 }
 
+
+# TEST-1372 (SPEC-DRAFT spec-amendment-signature-asks-the-owner-too-often
+# Spec-AC-16) — the companion obligation of the amendment-class partition.
+# .aai/ROLE_COMMON.md is inside TEST-010's extra accounting (line 346), so its
+# POST-FREEZE pointer naming `--class contract|measurement` is a MEASURED cost
+# that must be credited 1:1 by its own itemized entry — never absorbed into
+# headroom and never folded into somebody else's line. The convention BODY
+# lives in .aai/system/AUTONOMOUS_LOOP.md 6a, outside both the live
+# .aai/*.prompt.md glob and the extra accounting, so it carries no cost, and
+# .aai/SKILL_PR.prompt.md is deliberately not edited at all.
+test_1372_amendment_class_partition_credited() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-1372 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local ok=1 _e entry='' n=0 lead ref prefix=0 prefix_closed=0 idx=0 entry_idx=-1
+  local ledger_key='amendment-class-partition'
+  local last_idx=$(( ${#JUSTIFIED_ADDITIONS[@]} - 1 ))
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    if [[ "$prefix_closed" -eq 0 ]]; then
+      prefix=$(( prefix + ${_e%% *} ))
+    fi
+    # The slug is matched EXACTLY on the entry's own ref field, never as a
+    # substring: `amendment-class-partitionX` is a different ride's entry and
+    # must not satisfy this pin (TEST-1372's own mutation cell renames the
+    # slug, and a substring match would go on agreeing with it).
+    ref="${_e#* }"; ref="${ref%% *}"
+    if [[ "$ref" == "$ledger_key" ]]; then
+      entry="$_e"; n=$((n + 1)); prefix_closed=1; entry_idx=$idx
+    fi
+    idx=$(( idx + 1 ))
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-1372: JUSTIFIED_ADDITIONS carries $n entries whose ref field is exactly '$ledger_key' (want exactly 1)"
+    return
+  fi
+  # Reported, never pinned — the same reason TEST-1336 above no longer pins
+  # it: `prefix` is the sum through THIS entry, so it already catches an
+  # insertion before it and is untouched by a later ride's append. Pinning
+  # "must be last" would make this arm redden for the next scope that files
+  # its own credit, which is what the ledger exists to let it do.
+  if [[ "$entry_idx" -ne "$last_idx" ]]; then
+    log_info "TEST-1372: the entry sits at index $entry_idx of $last_idx -- later rides have appended their own credits since; the prefix pin below is what holds"
+  fi
+  lead="${entry%% *}"
+  if ! [[ "$lead" =~ ^-?[0-9]+$ ]]; then
+    log_fail "TEST-1372: the entry's leading bytes field '$lead' is not numeric"
+    return
+  fi
+
+  # ITEMIZED, not asserted: the entry must name the base commit it measured
+  # against and the before/after sizes of the one file it grew, and both must
+  # still check out against git and the working tree.
+  local base='' re now base_size verdict_msg
+  if [[ "$entry" =~ against\ ([0-9a-f]{7,40}) ]]; then
+    base="${BASH_REMATCH[1]}"
+    git cat-file -e "${base}^{commit}" 2>/dev/null || base=""
+  else
+    log_info "TEST-1372: the ledger entry does not name the base commit it measured against"
+    ok=0
+  fi
+  re="ROLE_COMMON\.md ([0-9]+) -> ([0-9]+)"
+  if [[ "$entry" =~ $re ]]; then
+    local before="${BASH_REMATCH[1]}" after="${BASH_REMATCH[2]}"
+    now=$(/usr/bin/wc -c < "$PROJECT_ROOT/.aai/ROLE_COMMON.md" | tr -d ' ')
+    if verdict_msg=$(diet_credit_verdict "TEST-1372 ROLE_COMMON.md" "$lead" "$before" "$after" "$now"); then
+      [[ -n "$verdict_msg" ]] && log_info "$verdict_msg"
+    else
+      log_info "$verdict_msg"
+      ok=0
+    fi
+    if [[ -n "$base" ]]; then
+      if git cat-file -e "$base:.aai/ROLE_COMMON.md" 2>/dev/null; then
+        base_size=$(git cat-file -s "$base:.aai/ROLE_COMMON.md")
+      else
+        base_size=0
+      fi
+      if [[ "$base_size" -ne "$before" ]]; then
+        log_info "TEST-1372: the entry records before=$before B but the base blob is $base_size B"
+        ok=0
+      fi
+    else
+      log_info "TEST-1372: base-blob comparison SKIPPED -- the named base commit is not in this checkout"
+    fi
+  else
+    log_info "TEST-1372: the entry does not record 'ROLE_COMMON.md <before> -> <after>'"
+    ok=0
+  fi
+
+  # The pin moved by exactly the credited amount, read off the ledger PREFIX
+  # through this entry so a later ride's own append can never disturb it.
+  if [[ "$prefix" -ne $(( 50036 + lead )) ]]; then
+    log_info "TEST-1372: ledger prefix through this entry=$prefix (want 50036 + $lead = $(( 50036 + lead )))"
+    ok=0
+  fi
+
+  # The convention BODY is outside the accounting, and SKILL_PR is untouched —
+  # both are claims this ledger entry makes, so both are checked here rather
+  # than left as prose in the entry.
+  if ! command grep -qF -- "--class" "$PROJECT_ROOT/.aai/system/AUTONOMOUS_LOOP.md"; then
+    log_info "TEST-1372: .aai/system/AUTONOMOUS_LOOP.md does not carry the convention body (no --class)"
+    ok=0
+  fi
+  if command grep -qF -- "--class" "$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"; then
+    log_info "TEST-1372: .aai/SKILL_PR.prompt.md names --class -- this scope leaves it untouched, so the live glob must not grow for it"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1372 (Spec-AC-16) ROLE_COMMON partition pointer $lead B measured and credited 1:1, pin 50036 -> $prefix" \
+    || log_fail "TEST-1372 (Spec-AC-16) amendment-class-partition ledger entry"
+}
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2256,6 +2381,7 @@ main() {
   test_770_corpus_scan_no_equality_pins
   test_771_diet_credit_verdict_pr388_states
   test_028_windows_prompt_credit
+  test_1372_amendment_class_partition_credited
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

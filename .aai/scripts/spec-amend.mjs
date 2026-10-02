@@ -170,7 +170,61 @@ const ID_MAX_LEN = 40;
 const HASH_LEN = 6;
 const ITEM_SEVERITY = 'P2';
 const TERMINAL_STATUSES = ['done', 'dropped'];
-const BUCKETS = ['signed', 'unsigned-tracked', 'unsigned-untracked', 'unclassified'];
+const BUCKETS = ['signed', 'measurement', 'unsigned-tracked', 'unsigned-untracked', 'unclassified'];
+
+// THE AMENDMENT CLASS IS DECLARED, NEVER READ OUT OF PROSE
+// (SPEC-DRAFT spec-amendment-signature-asks-the-owner-too-often D1)
+//   contract     the amendment changes WHAT the spec promises — an AC
+//                predicate, its scope, an AC added or removed. That is a
+//                scope decision, so it owes the owner a signature and carries
+//                the fu-amend- tracker, exactly as every amendment did before
+//                this field existed.
+//   measurement  the amendment changes only HOW a claim is measured — a
+//                Mutation cell that did not redden, a renumbered TEST id, an
+//                allocator restamp. That is the author fixing their own
+//                instrument: disclosed and counted, owing neither signature
+//                nor tracker.
+//
+// The WRITER declares it. Nothing here classifies by matching `what`/`why`
+// text — the same rule the header states for the ledger ("Nothing in this
+// file may match the ledger by text"), and the scar
+// .aai/scripts/nothing-left-behind.mjs carries from the other design.
+//
+// The flag is OPTIONAL and the omission lands in the HEAVIER lane: the
+// direction that costs something (claiming the lighter lane) needs an
+// affirmative declaration, while every invocation written before this field
+// existed keeps its meaning (Constitution Article 5 — this layer is vendored
+// downstream).
+const AMENDMENT_CLASSES = ['contract', 'measurement'];
+const DEFAULT_AMENDMENT_CLASS = 'contract';
+const MEASUREMENT_CLASS = 'measurement';
+const CLASS_NOTE = 'NOTE no --class given, so this amendment is recorded as contract — the lane that owes an owner signature. Pass --class measurement when the change only alters HOW a claim is measured (a mutation cell, a renumbered TEST id, an allocator restamp)';
+// The label `list` prints the resolved class under, named once so the human
+// surface and anything grepping it move together (D4: the mitigation for a
+// self-reported class is VISIBILITY, so the label is part of the contract,
+// not a formatting detail).
+const CLASS_LABEL = 'class=';
+
+// RESTAMP_WHAT — cmdRestamp's own `what`, HOISTED out of that function so the
+// structural selector below and the writer can never disagree. This literal
+// is the second half of the `tool_restamp` conjunction (D3): a record carries
+// both frozen-sha anchors AND a `what` BYTE-EQUAL to this string, or it is
+// not a tool-emitted restamp. Nothing reads prose; it is identity of a
+// literal only this file ever emits.
+const RESTAMP_WHAT = 'mechanical restamp: the allocator rewrote this frozen spec’s own SPEC-DRAFT- path(s) at merge';
+
+// RESTAMP_UNVERIFIED_WHAT / RESTAMP_UNVERIFIED_WHY — the OTHER lane `restamp`
+// can land in. `restamp` used to HARDCODE the measurement class on the
+// strength of a comment asserting it was "reachable only" after an allocator
+// rewrite; nothing in the code checked that (`computeSpecRestamp` only asks
+// whether the hash moved), so ANY post-freeze content edit followed by
+// `restamp` bought the light lane — a laundering route opened by the very
+// tool built to close one. The cause is now DECIDED from the bytes
+// (verifyAllocatorCause below) and these two literals are what the record
+// says when the bytes do NOT prove it: the drift is named as unexplained
+// rather than attributed to a cause this tool could not confirm.
+const RESTAMP_UNVERIFIED_WHAT = 'restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain';
+const RESTAMP_UNVERIFIED_WHY = 'reverse-applying the allocator’s own DRAFT-to-numbered substitution to the current content does not reproduce the stored frozen_sha256, so nothing here knows what changed — the re-anchor is disclosed in the contract lane, owing an owner signature and a tracked item, rather than claiming a mechanical cause it cannot show';
 
 // --- reading ------------------------------------------------------------------
 
@@ -349,10 +403,50 @@ function foldAmendments(records) {
     // to still be OPEN. A closed tracker is exactly as untracked as no
     // tracker at all: the obligation it was supposed to drain is gone.
     const trackerOpen = trackedItem !== null && trackedItem.closed !== true;
+
+    // THE CLASS IS RESOLVED HERE AND NOWHERE ELSE, and this is the only
+    // reader of it. Same record-wins-over-overlay precedence `tracked_by`
+    // above already has — an overlay back-fills a record written before the
+    // field existed, it never re-points a live record's own declaration.
+    //
+    // The third fallback is the one reading in this file that is NOT a
+    // decision about the record. A class-absent legacy record folds to
+    // DEFAULT_AMENDMENT_CLASS, which is the CONTRACT lane: same bucket, same
+    // tracker, same row it folded to before this field existed. Reading an
+    // absent class as `measurement` would discharge every unsigned record on
+    // the ledger at once — an obligation nobody decided, waived by a default:
+    // the laundering this tool exists to stop. Reading it as `contract`
+    // discharges nothing, so it is not a verdict at all. That asymmetry is
+    // why the class needs no `unclassified`-style third value while
+    // `owner_signoff` does.
+    const classOnRecord = AMENDMENT_CLASSES.includes(str(rec.amendment_class)) ? str(rec.amendment_class) : null;
+    const classOverlay = history.filter((h) => AMENDMENT_CLASSES.includes(str(h.amendment_class))).pop() ?? null;
+    const amendmentClass = classOnRecord
+      ?? (classOverlay === null ? null : str(classOverlay.amendment_class))
+      ?? DEFAULT_AMENDMENT_CLASS;
+
+    // `signed` is tested FIRST and alone: a signature outranks the class and
+    // is never downgraded by it (the record keeps its resolved class on the
+    // item either way — the signature outranked the class, it did not
+    // rewrite it). Everything below `measurement` is today's logic, byte for
+    // byte, which is what keeps the contract lane unmoved.
     let bucket;
     if (signoff === true) bucket = 'signed';
+    else if (amendmentClass === MEASUREMENT_CLASS) bucket = MEASUREMENT_CLASS;
     else if (signoff === false) bucket = trackerOpen ? 'unsigned-tracked' : 'unsigned-untracked';
     else bucket = 'unclassified';
+
+    // tool_restamp (D3) — the STRUCTURAL selector the one migrated cohort is
+    // picked by, exposed here rather than reimplemented by whoever runs the
+    // migration, so the selector and the writer are the same two facts in one
+    // place. It is a CONJUNCTION on purpose: `from_frozen_sha256` and
+    // `to_frozen_sha256` are written by cmdRestamp alone, and the `what` is
+    // byte-equal to the literal cmdRestamp emits. Either half alone is false.
+    // This is identity of a tool-emitted literal, never a reading of prose —
+    // the laundering this tool exists to stop would start the moment a
+    // substring or a keyword decided a bucket.
+    const toolRestamp = str(rec.from_frozen_sha256) !== null && str(rec.to_frozen_sha256) !== null
+      && str(rec.what) === RESTAMP_WHAT;
 
     const item = {
       ts: str(rec.ts),
@@ -361,6 +455,8 @@ function foldAmendments(records) {
       spec_id: str(rec.spec_id),
       actor: str(rec.actor),
       owner_signoff: signoff,
+      amendment_class: amendmentClass,
+      tool_restamp: toolRestamp,
       classified_by: classifiedBy,
       tracked_by: trackedBy,
       tracked_status: trackedItem === null ? null : trackedItem.status,
@@ -408,7 +504,12 @@ function loadLedger(absPath) {
   if (malformed) {
     notes.push(`EXCLUDED ${malformed} malformed decision ledger line(s) (unparseable JSON, skipped — comment lines are not counted) — the counts above may therefore be UNDERSTATED`);
   }
-  return { ...folded, notes: notes.concat(folded.notes), malformed, missing, unreadable };
+  // `records` — the RAW parsed lines, carried alongside the projection so a
+  // writer can re-fold them with its own prospective record appended and read
+  // the answer off the same `foldAmendments` every other surface reads
+  // (cmdClassify). Never a second projection: the only legal use is to call
+  // `foldAmendments` again.
+  return { ...folded, records, notes: notes.concat(folded.notes), malformed, missing, unreadable };
 }
 
 // --- writing ------------------------------------------------------------------
@@ -418,6 +519,22 @@ function loadLedger(absPath) {
 // non-exported `nowIso` function (second precision, same emitted bytes) that
 // was invisible to the "exactly one definition" guard (TEST-036), which is
 // exactly the failure mode D7 exists to remove.
+
+// owesOwnerObligation(amendmentClass, signed) — the ONE place that decides
+// WHETHER a post-freeze amendment owes the owner anything, sitting ABOVE
+// pickAmendItemId, which stays the ONE place that decides WHICH item carries
+// that obligation when it is owed. Two questions, two functions: WHETHER is a
+// property of the declared class and the signature, WHICH is a property of the
+// spec's identity and the registry's state. pickAmendItemId therefore gains no
+// parameter, and the three writers that share it (cmdAdd, cmdClassify,
+// cmdRestamp) still cannot drift from one another.
+//
+// A signature is never downgraded by a class: `owner_signoff` true owes
+// nothing further whatever the record says it changed, which is why `signed`
+// is tested first and alone.
+function owesOwnerObligation(amendmentClass, signed) {
+  return signed !== true && amendmentClass !== MEASUREMENT_CLASS;
+}
 
 // pickAmendItemId — the ONE place that decides which item an unsigned
 // amendment attaches to, shared by `add` and `classify` so the two writers
@@ -506,14 +623,15 @@ const USAGE = `Usage:
   node .aai/scripts/spec-amend.mjs add --spec <path> --ref <ref_id>
        --what "<one line>" --why "<one line>" --signoff owner|none
        [--authority "<evidence>"]   (REQUIRED when --signoff owner)
+       [--class contract|measurement]   (default contract)
        [--actor <slug>] [--ledger <path>]
 
   node .aai/scripts/spec-amend.mjs classify --ts <ISO8601Z> --ref <ref_id>
        --signoff owner|none --why "<one line>" --source "<evidence>"
        [--origin backfill] [--tracked-by fu-amend-<id>] [--actor <slug>]
-       [--ledger <path>]
+       [--class contract|measurement] [--ledger <path>]
 
-  node .aai/scripts/spec-amend.mjs list [--status unsigned|signed|unclassified|all]
+  node .aai/scripts/spec-amend.mjs list [--status unsigned|signed|measurement|unclassified|all]
        [--json] [--strict] [--ledger <path>]
 
   node .aai/scripts/spec-amend.mjs restamp --spec <path> [--ref <ref_id>]
@@ -527,9 +645,17 @@ MECHANICAL reason — allocate-doc-number.mjs rewriting this very spec's
 SPEC-DRAFT- self-references at merge — with nothing else having disclosed it.
 It re-anchors the spec to its current contract-projection hash and appends a
 \`spec_amendment\` record carrying \`from_frozen_sha256\`/\`to_frozen_sha256\`
-(Spec-AC-19), co-creating the same \`fu-amend-<spec id>\` tracked item \`add\`
-does, so \`list --strict\` reads a DISCLOSED restamp rather than an
-undisclosed-amendment. A spec with no \`frozen_sha256\`, or whose content
+(Spec-AC-19), so \`list --strict\` reads a DISCLOSED restamp rather than an
+undisclosed-amendment. It is the ONE writer whose \`amendment_class\` is not a
+self-report but a MEASUREMENT of the bytes: it reverse-applies the allocator's
+own DRAFT-to-numbered substitution (over this spec's own id and the numbered
+documents its frontmatter \`links\` name) and re-hashes. Reproducing the stored
+anchor PROVES the allocator was the cause, and only then is the record
+\`measurement\` with no tracked item — disclosed, counted, owing no signature.
+When no reversal reproduces the anchor the cause is NOT verified, and the
+record takes the \`contract\` lane instead: an owner signature, a co-created
+\`fu-amend-\` item, and a \`what\`/\`why\` saying the drift was not allocator-shaped
+rather than naming a cause this tool could not confirm. A spec with no \`frozen_sha256\`, or whose content
 already matches its stored anchor, is a no-op: exit 0, nothing written. The
 ledger record lands BEFORE the spec file is ever touched, and the file write
 itself is temp-file-plus-rename in the spec's own directory, so a process
@@ -542,6 +668,15 @@ sign-off still owed, in one invocation. Its only non-zero exits are usage
 errors. Enforcement that nobody bypassed this writer lives in \`list --strict\`,
 which is a GATE, not a writer: it exits 1 on any untracked or unclassified
 amendment and is run at the PR/close gate.
+
+\`--class\` DECLARES what the amendment changed, and is never inferred from the
+prose in \`--what\`/\`--why\`. \`contract\` (the default) changes what the spec
+PROMISES — a scope decision, which owes the owner a signature and co-creates
+the tracked item exactly as before. \`measurement\` changes only HOW a claim is
+measured — a mutation cell that did not redden, a renumbered TEST id, an
+allocator restamp — and is disclosed and counted while owing neither. The
+omission lands in the heavier lane: claiming the lighter one takes an
+affirmative flag.
 
 Buckets are decided by the \`owner_signoff\` key alone — never by heading text
 and never by prose inside \`authority\`. A record with the key absent and no
@@ -558,7 +693,12 @@ target has none, so ONE call takes a record from \`unsigned-untracked\` or
 \`--tracked-by fu-…\` to NAME the item this amendment attaches to: an id that
 does not exist yet is FILED for you, and one naming a DISCHARGED item is
 REFUSED (attaching to it would mark this amendment signed by an owner who
-never saw it). Omitted, the id is derived from the target's own \`spec_id\`. That is why the ONLY
+never saw it). Omitted, the id is derived from the target's own \`spec_id\`.
+\`--class\` is REFUSED when the fold would not adopt it: a record's OWN
+\`amendment_class\` outranks every overlay, so the flag cannot re-classify a
+record a live writer already stamped, and \`classify\` reads the obligation
+decision off that same fold — the two can never disagree. Drop the flag to
+record the sign-off alone. That is why the ONLY
 remedy \`--strict\` names is \`classify\`: \`add\` records a NEW amendment and
 leaves the offending record untracked, and \`follow-ups.mjs add\` files an item
 that is attached to nothing.
@@ -572,6 +712,88 @@ Exit codes: 0 success (a non-empty unsigned backlog is NEVER an error) |
 write | 2 usage error, an unreadable ledger or spec, a spec with no
 frontmatter id, or an ambiguous/unmatched classify target.`;
 
+// Every command this script PRINTS is advice the reader is meant to run
+// verbatim, so every value it interpolates must survive a shell. POSIX
+// single-quote wrapping is the only form that is safe for EVERY byte a ref,
+// a timestamp or a path can hold: inside `'...'` nothing expands, and the
+// one byte that cannot appear there — the quote itself — is closed, escaped
+// and reopened. JSON.stringify was the previous convention and is strictly
+// weaker: its double quotes still expand `$`, a backtick and a backslash.
+// Codex P2 on PR #422 reproduced the gap with `--ref 'ref with space'` and a
+// ledger named `decision ledger.jsonl`, which split into stray tokens and
+// exited 2. TEST-1378 runs the printed line with both and scans this file so
+// a future interpolation cannot skip the helper.
+//
+// ...BUT POSIX IS NOT THE ONLY SHELL THIS REPO SUPPORTS (code review round 5,
+// Codex P2 on PR #422). `.aai/AGENTS.md`'s Canonical test invocation names a
+// PowerShell form beside the POSIX one, `.github/workflows/ps1-quality.yml`
+// runs a real Windows PowerShell 5.1 leg and a WSL1 leg, and there is a full
+// `.ps1` layer under `.aai/scripts`. Both shells treat `'...'` literally and
+// diverge on exactly ONE byte — the quote itself — and each form is not
+// merely REJECTED by the other, it is MISREAD by it. Measured here, bash 3.2
+// against pwsh 7.6.3, rendering `O'Brien`:
+//   'O'\''Brien'   bash: O'Brien  | pwsh: parse error, missing terminator
+//   'O''Brien'     pwsh: O'Brien  | bash: OBrien        (silently wrong)
+//   'O'"'"'Brien'  bash: O'Brien  | pwsh: three args    (silently wrong)
+//   "O'Brien"      bash: O'Brien  | pwsh: O'Brien       (identical)
+//
+// So this file does NOT sniff a host shell and pick one. A wrong guess is the
+// silent-misread row above rather than a refusal, and one Windows box runs
+// PowerShell, Git Bash and WSL with three different right answers — the same
+// reason `routine-emit.mjs` reaches for a form that "parses in BOTH runtimes"
+// where one exists and emits a per-OS variant only where none does. The
+// universal form is used wherever it exists: `'...'` for a value with no
+// quote (which is every ref, timestamp and path in practice, so the printed
+// bytes are unchanged), `"..."` for a quote-bearing value holding none of the
+// bytes the two shells treat differently inside double quotes. Where neither
+// covers it, BOTH forms are printed, labelled — the convention AGENTS.md
+// already uses for the test invocation itself. TEST-1381 runs the printed
+// remedy in bash and, where `pwsh` resolves, in PowerShell too.
+
+// Inside `"..."`: `$` and a backtick expand in BOTH shells, `"` terminates in
+// both, `\` escapes in POSIX only, `!` is bash history expansion in the
+// interactive shell this advice is pasted into, and CR/LF would break the
+// line. A value free of all of them means the same thing in both shells
+// inside double quotes, and a single quote there is literal in both.
+const UNIVERSAL_DQ_SAFE = /^[^"$`\\!\r\n]*$/;
+
+// universalLiteral(value) -> a literal that is byte-identical and
+// semantically identical in POSIX sh and in PowerShell, or null when no such
+// literal exists for this value.
+function universalLiteral(value) {
+  const s = String(value);
+  if (!s.includes("'")) return `'${s}'`;
+  if (UNIVERSAL_DQ_SAFE.test(s)) return `"${s}"`;
+  return null;
+}
+
+function shqPosix(value) {
+  return universalLiteral(value) ?? `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
+function shqPowerShell(value) {
+  return universalLiteral(value) ?? `'${String(value).replace(/'/g, "''")}'`;
+}
+
+// remedyLines(build) — the ONE place a printed command's shell renderings are
+// produced. `build` carries the command text ONCE and is called once per
+// shell with that shell's quoter, so the two renderings cannot drift the way
+// two hand-kept copies would. Its parameter is named `shq` on purpose: the
+// command text in the call sites below therefore still reads `${shq(value)}`,
+// which is exactly what TEST-1378's source scan requires of every
+// interpolation inside a printed command — the guard is unchanged and
+// un-weakened by this becoming per-shell.
+//
+// One line when the two renderings are byte-equal (the universal case, which
+// is every value in practice). Two labelled lines when they are not, rather
+// than one line that is right in one shell and silently misread in the other.
+function remedyLines(build) {
+  const posix = build(shqPosix);
+  const pwsh = build(shqPowerShell);
+  if (posix === pwsh) return [posix];
+  return [`POSIX sh: ${posix}`, `PowerShell: ${pwsh}`];
+}
+
 function usageError(msg) {
   process.stderr.write(`spec-amend: ${msg}\n`);
   process.stderr.write('Run `node .aai/scripts/spec-amend.mjs --help` for the grammar.\n');
@@ -579,8 +801,8 @@ function usageError(msg) {
 }
 
 const FLAG_SPECS = {
-  add: ['--ledger', '--spec', '--ref', '--what', '--why', '--signoff', '--authority', '--actor'],
-  classify: ['--ledger', '--ts', '--ref', '--signoff', '--why', '--source', '--origin', '--tracked-by', '--actor'],
+  add: ['--ledger', '--spec', '--ref', '--what', '--why', '--signoff', '--authority', '--actor', '--class'],
+  classify: ['--ledger', '--ts', '--ref', '--signoff', '--why', '--source', '--origin', '--tracked-by', '--actor', '--class'],
   // --specs-dir (D11): where `list --strict` scans for frozen specs to
   // re-hash against their own `frozen_sha256` anchor. Defaults to
   // docs/specs — overridable so a fixture test can point at a scratch
@@ -687,6 +909,53 @@ function requireSignoff(opts, sub) {
   return v === 'owner';
 }
 
+// requireAmendmentClass — the closed-vocabulary check, the same shape
+// `requireSignoff` above gives `--signoff`. Returns null when the flag is
+// ABSENT rather than defaulting here, so the caller can still tell "declared
+// contract" from "declared nothing": `add` resolves the absence to
+// DEFAULT_AMENDMENT_CLASS and says so, while `classify` leaves the target's
+// class exactly as it found it. The refusal NAMES every legal value instead of
+// describing the set, so the remedy is readable off the message.
+function requireAmendmentClass(opts, sub) {
+  const v = str(opts.class);
+  if (v === null) return null;
+  if (!AMENDMENT_CLASSES.includes(v)) {
+    usageError(`\`${sub}\` --class must be one of ${AMENDMENT_CLASSES.join(', ')} (got "${v}")`);
+  }
+  return v;
+}
+
+// refuseMeasurementSignedByOwner — D4's single refusal, and it is a gate on a
+// CONTRADICTION, not on the class. The measurement lane exists to reduce an
+// obligation to disclosure; letting it also carry `--signoff owner` would let
+// the lighter lane MANUFACTURE the very authority it was built to stop asking
+// for. `--class contract --signoff owner` is untouched, and a record whose
+// `owner_signoff` is literally true still folds to `signed` whatever its class
+// says — a signature is never downgraded, it is only never minted here.
+//
+// Shared by both writers on purpose: D4 states the contradiction without
+// naming a subcommand, and a per-record `classify` route that could still mint
+// the pair would reopen by the back door what `add` closes.
+//
+// `classSource` says WHERE the class came from, because the two callers reach
+// this refusal by different routes and owe different remedies. `'flag'` is a
+// caller's own `--class measurement` and the remedy is to declare `contract`
+// instead. `'projection'` is the class `foldAmendments` resolves for a record
+// that already exists, where declaring `contract` would NOT help — a record's
+// own `amendment_class` outranks every overlay, so the only honest routes are
+// to drop the signature or to append a corrected amendment with `add`.
+function refuseMeasurementSignedByOwner(amendmentClass, signed, sub, classSource) {
+  if (signed && amendmentClass === MEASUREMENT_CLASS) {
+    const lead = classSource === 'projection'
+      ? `\`${sub} --signoff owner\` against a record the fold resolves to \`amendment_class: ${MEASUREMENT_CLASS}\``
+      : `\`${sub} --class ${MEASUREMENT_CLASS} --signoff owner\``;
+    const remedy = classSource === 'projection'
+      ? `Drop --signoff owner, or — if the owner really signed off on a change to what the spec promises — append a NEW corrected amendment with \`add --class contract --signoff owner --authority "<the owner decision>"\`, because a record's OWN amendment_class outranks every classification overlay and \`--class contract\` here would be refused for that reason.`
+      : `Declare --class contract if the owner really signed off on a change to what the spec promises, or drop --signoff owner.`;
+    usageError(`${lead} is a contradiction: the ${MEASUREMENT_CLASS} class says this amendment only changed HOW a claim is measured, which owes no owner signature — it can never CARRY one. ${remedy}`);
+  }
+}
+
 // readSpecId — SEAM-1. The tracked item's key is the spec's frontmatter `id`
 // and is NEVER guessed from the filename: allocate-doc-number.mjs renames the
 // file at merge, and every standing amendment on this ledger cites a
@@ -728,6 +997,14 @@ function cmdAdd(opts) {
     usageError('`add --signoff owner` requires --authority naming the owner decision that authorized this amendment (an owner sign-off with no evidence on the record is exactly the laundering this tool exists to prevent)');
   }
 
+  // D1 — the class is resolved BEFORE anything is written, so an illegal
+  // value is a usage error that appended nothing. `declaredClass` is kept
+  // apart from the resolved value because the NOTE below is owed to the
+  // writer who declared NOTHING, never to one who chose contract on purpose.
+  const declaredClass = requireAmendmentClass(opts, 'add');
+  const amendmentClass = declaredClass ?? DEFAULT_AMENDMENT_CLASS;
+  refuseMeasurementSignedByOwner(amendmentClass, signed, 'add', 'flag');
+
   const absSpec = path.resolve(process.cwd(), opts.spec);
   const specId = readSpecId(absSpec);
   const specRel = path.relative(process.cwd(), absSpec) || opts.spec;
@@ -743,24 +1020,31 @@ function cmdAdd(opts) {
     spec: specRel,
     spec_id: specId,
     owner_signoff: signed,
+    // The writer always STAMPS the resolved class, so a record written by a
+    // live writer is never class-absent and the reader's absent-key default
+    // is only ever consulted for the legacy cohort.
+    amendment_class: amendmentClass,
     what: opts.what,
     why: opts.why,
   };
 
+  // WHETHER first, then WHICH — the two questions never collapse into one
+  // test here, so this writer and `classify` ask them in the same order and
+  // of the same two functions.
+  const owes = owesOwnerObligation(amendmentClass, signed);
   let itemId = null;
   let reusedNote = null;
-  if (!signed) {
+  if (owes) {
     const picked = pickAmendItemId(reg, specId, entry.ts);
     itemId = picked.itemId;
     reusedNote = picked.note;
     entry.tracked_by = itemId;
-  } else {
-    entry.authority = opts.authority;
   }
+  if (signed) entry.authority = opts.authority;
 
   appendLine(abs, entry);
 
-  if (!signed && !reg.followUps.has(itemId)) {
+  if (owes && !reg.followUps.has(itemId)) {
     appendAmendItem(abs, {
       actor: entry.actor,
       itemId,
@@ -783,7 +1067,7 @@ function cmdAdd(opts) {
     process.stderr.write(`spec-amend: appended the amendment for ${opts.ref} but the re-read of ${abs} did not show it\n`);
     exit(1);
   }
-  if (!signed && (landed.tracked_by !== itemId || !after.followUps.has(itemId))) {
+  if (owes && (landed.tracked_by !== itemId || !after.followUps.has(itemId))) {
     process.stderr.write(`spec-amend: appended the amendment for ${opts.ref} but the re-read of ${abs} does not show the tracked item ${itemId} — AC-001 is NOT satisfied by this write\n`);
     exit(1);
   }
@@ -799,10 +1083,16 @@ function cmdAdd(opts) {
 
   if (signed) {
     console.log(`spec-amend: recorded a SIGNED amendment on ${specId} (ref ${opts.ref}, authority on the record) — no tracked item is owed`);
+  } else if (!owes) {
+    console.log(`spec-amend: recorded a ${MEASUREMENT_CLASS}-class amendment on ${specId} (ref ${opts.ref}) — disclosed and counted on the ledger, owing no owner signature and no tracked item`);
   } else {
     console.log(`spec-amend: recorded an UNSIGNED amendment on ${specId} (ref ${opts.ref}) tracked by ${itemId} — bucket ${landed.bucket}`);
     if (reusedNote) console.log(`NOTE ${reusedNote}`);
     console.log(`NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open`);
+    // Named only on the lane that could have been the other one. A SIGNED
+    // amendment is never offered `--class measurement`: the signature already
+    // outranks the class, and the measurement lane can never carry one.
+    if (declaredClass === null) console.log(CLASS_NOTE);
   }
   exit(0);
 }
@@ -847,7 +1137,101 @@ function computeSpecRestamp(absSpec) {
   const fmStart = fm.index + 4;
   let out = `${norm.slice(0, fmStart)}${fmBody}${norm.slice(fmStart + fm[1].length)}`;
   if (crlf) out = out.replace(/\n/g, '\r\n');
-  return { fromHash, nextHash, out };
+  return { fromHash, nextHash, out, norm, frontmatter: fm[1] };
+}
+
+// --- is the allocator really the cause? ---------------------------------------
+//
+// `restamp` exists for exactly ONE drift: allocate-doc-number.mjs numbered a
+// draft at merge and its `rewriteReferences` pass replaced, verbatim, every
+// occurrence of the DRAFT basename with the numbered one
+// (`content.split(oldBase).join(newBase)`) across docs/specs — including
+// inside a frozen spec, whose anchor then no longer matches its own content.
+// Read in allocate-doc-number.mjs, that pass is the ONLY thing it does to a
+// spec's CONTRACT PROJECTION: `stampNumber` and `stampProvisionalMarker`
+// write frontmatter only (`number:`, `number_reserved:`), which
+// spec-contract-hash.mjs strips before hashing, and `moveFile` renames
+// without touching bytes.
+//
+// That substitution is REVERSIBLE, which is what makes the cause decidable
+// instead of merely asserted: reverse-apply it to the current content, hash
+// the result with the same contractHash, and compare against the anchor the
+// spec still carries. Match => the allocator really did this. No match =>
+// something else did, and nothing here may claim otherwise.
+//
+// WHICH substitutions may be reversed is deliberately narrow — only basenames
+// THIS SPEC names as its own ride's documents, never any numbered id that
+// happens to appear in its prose:
+//   (a) its own identity: `<PREFIX>-<NNNN>-<frontmatter id>` occurring in the
+//       content (the self-reference the old comment named); and
+//   (b) every numbered governed-doc basename in its FRONTMATTER — `links.intake`
+//       above all. A ride's `--all` allocator run numbers the intake in the
+//       same batch, so a frozen spec that cites `CHANGE-DRAFT-<slug>` in its
+//       `## Links` section (every spec in this corpus does) has THAT token
+//       rewritten inside the hashed projection too. Reversing only the SPEC's
+//       own self-reference would therefore fail to clear a perfectly genuine
+//       allocator drift.
+// Both sources are the spec's own declarations, so the candidate set cannot be
+// widened by the edit under suspicion.
+//
+// Each candidate is independent (the allocator may have numbered one draft or
+// several), so every non-empty subset is tried. The set is tiny by
+// construction; past the cap the answer is "not verified", never a guess.
+const RESTAMP_CAUSE_CANDIDATE_CAP = 8;
+const NUMBERED_BASENAME_RE = /\b([A-Z]+(?:-[A-Z]+)*)-\d{3,5}-([a-z0-9]+(?:-[a-z0-9]+)*)\b/g;
+
+// allocatorRewriteCandidates(norm, frontmatter, specId) -> [{ numbered, draft }]
+// in a deterministic order, deduplicated, and filtered to the ones that
+// actually occur in `norm` and would actually change it.
+function allocatorRewriteCandidates(norm, frontmatter, specId) {
+  const seen = new Map();
+  const add = (prefix, number, slug) => {
+    const numbered = `${prefix}-${number}-${slug}`;
+    const draft = `${prefix}-DRAFT-${slug}`;
+    if (numbered === draft || seen.has(numbered)) return;
+    if (!norm.includes(numbered)) return;
+    seen.set(numbered, { numbered, draft });
+  };
+  // (a) this spec's own numbered self-reference(s), keyed on the frontmatter
+  // `id` — never on the filename, the same SEAM-1 rule readSpecId follows.
+  if (specId !== null) {
+    const selfRe = new RegExp(`\\b([A-Z]+(?:-[A-Z]+)*)-(\\d{3,5})-${specId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+    for (const m of norm.matchAll(selfRe)) add(m[1], m[2], specId);
+  }
+  // (b) the ride's other documents, as the spec's own frontmatter names them.
+  for (const m of String(frontmatter ?? '').matchAll(NUMBERED_BASENAME_RE)) {
+    add(m[1], m[0].slice(m[1].length + 1).split('-')[0], m[2]);
+  }
+  return [...seen.values()];
+}
+
+// verifyAllocatorCause(computed, specId) -> { verified, candidates, reversed, reason }.
+// `verified` true ONLY when some subset of the candidate reversals reproduces
+// the stored anchor byte-for-byte through contractHash. Everything else —
+// no candidates, too many candidates, no matching subset — is `false` with a
+// reason the caller prints: an unverified cause is never silently folded into
+// a verified one.
+function verifyAllocatorCause(computed, specId) {
+  const candidates = allocatorRewriteCandidates(computed.norm, computed.frontmatter, specId);
+  if (candidates.length === 0) {
+    return { verified: false, candidates, reversed: [], reason: 'this spec names no numbered document whose DRAFT form the allocator could have rewritten, so there is no allocator rewrite to reverse' };
+  }
+  if (candidates.length > RESTAMP_CAUSE_CANDIDATE_CAP) {
+    return { verified: false, candidates, reversed: [], reason: `this spec names ${candidates.length} candidate allocator rewrites, above the cap of ${RESTAMP_CAUSE_CANDIDATE_CAP} — the cause is left UNVERIFIED rather than searched past the bound` };
+  }
+  for (let mask = 1; mask < (1 << candidates.length); mask += 1) {
+    let text = computed.norm;
+    const reversed = [];
+    for (let i = 0; i < candidates.length; i += 1) {
+      if ((mask & (1 << i)) === 0) continue;
+      text = text.split(candidates[i].numbered).join(candidates[i].draft);
+      reversed.push(candidates[i].numbered);
+    }
+    if (contractHash(text) === computed.fromHash) {
+      return { verified: true, candidates, reversed, reason: null };
+    }
+  }
+  return { verified: false, candidates, reversed: [], reason: `reversing the allocator's DRAFT-to-numbered rewrite of ${candidates.map((c) => c.numbered).join(', ')} does not reproduce the stored anchor ${computed.fromHash} — the drift is NOT allocator-shaped` };
 }
 
 // injectCrash(point) — test-only fault hook, inert unless
@@ -895,6 +1279,12 @@ function cmdClassify(opts) {
     if (str(opts[key]) === null) usageError(`\`classify\` requires ${flag}`);
   }
   const signed = requireSignoff(opts, 'classify');
+  // The per-record route into the partition. Omitted, it declares NOTHING:
+  // the overlay carries no class key and the target's resolved class is left
+  // exactly as it was, which is what keeps the remedy line `list --strict`
+  // prints runnable verbatim.
+  const amendmentClass = requireAmendmentClass(opts, 'classify');
+  refuseMeasurementSignedByOwner(amendmentClass, signed, 'classify', 'flag');
   if (opts.origin !== undefined && opts.origin !== 'backfill') {
     usageError(`--origin only accepts "backfill" (got "${opts.origin}")`);
   }
@@ -923,6 +1313,7 @@ function cmdClassify(opts) {
     why: opts.why,
   };
   if (opts.origin !== undefined) entry.origin = opts.origin;
+  if (amendmentClass !== null) entry.amendment_class = amendmentClass;
   entry.source = opts.source;
 
   // `classify --signoff none` CO-CREATES, exactly as `add` does (validation
@@ -936,8 +1327,79 @@ function cmdClassify(opts) {
   // script exists to remove, one level up.
   const target = targets[0];
   const specKey = target.spec_id ?? target.ref_id;
+
+  // THE CLASS IS READ OFF THE FOLD ITSELF, never re-derived here — the ONE
+  // thing that makes the invariant hold BY CONSTRUCTION: the obligation
+  // decision and the bucket are two readings of the SAME `foldAmendments`
+  // call over the SAME records, so they cannot disagree. `trial` is this
+  // ledger as it WOULD be with the overlay below appended; `projected` is
+  // the target as that fold resolves it.
+  //
+  // This line used to read `amendmentClass ?? target.amendment_class`, which
+  // gave the CALLER'S `--class` the last word while the fold gives it to the
+  // RECORD'S own `amendment_class` (the same precedence `tracked_by` has:
+  // an overlay back-fills a record written before the field existed, it
+  // never re-points a live record's own declaration). The two therefore
+  // disagreed for every record a live writer produces, both ways round
+  // (code review round 1, BLOCKING, reproduced; TEST-1373):
+  //   `--class contract` over a self-declared `measurement` record filed an
+  //   open P2 owner obligation against a record whose bucket stayed
+  //   `measurement` — an obligation the measurement lane exists to not
+  //   create, and one nothing drains, because the drain route reads the
+  //   bucket; and the mirror direction printed "owing no owner signature and
+  //   no tracked item" directly beneath a `unsigned-tracked` bucket line in
+  //   the same output.
+  // Asking the fold removes the second precedence rule rather than teaching
+  // it to agree with the first, which is the only version of this that a
+  // later edit to `foldAmendments` cannot quietly undo.
+  const trial = foldAmendments(reg.records.concat([entry]));
+  const projected = trial.byKey.get(overlayKey(opts.ts, opts.ref));
+
+  // THE SIGNING REFUSAL IS A GATE ON THE PROJECTED CLASS, NOT ON THE FLAG —
+  // the SAME correction `owesOwnerObligation` took above, applied to its
+  // sibling, which round 1 left reading the caller's declaration (code
+  // review round 5, Codex P2 on PR #422, reproduced). The early
+  // `refuseMeasurementSignedByOwner(amendmentClass, …)` call near the top of
+  // this function sees `null` whenever `--class` is OMITTED, so
+  // `classify --signoff owner` against a record whose OWN class is
+  // `measurement` sailed past it, the fold then resolved
+  // `amendment_class: measurement` with `bucket: signed`, and the stated
+  // invariant — the light lane can never produce a signed record — was
+  // bypassed by leaving a flag off. Both class-reading predicates in this
+  // writer now take their answer off the SAME `foldAmendments` call that
+  // assigns the bucket, so neither can disagree with the fold or with the
+  // other; `classify` is the only writer where this can differ at all,
+  // because it is the only one that overlays a record it did not create
+  // (`add` stamps the class it resolved onto the record it appends, and
+  // `restamp` measures it from the bytes — in both, declared IS projected).
+  //
+  // REFUSE THE CONTRADICTION, NOT THE SIGNATURE. `--signoff owner` with no
+  // `--class` over a CONTRACT record stays legal, and deliberately: it is the
+  // normal drain route for the unsigned backlog, and it is the exact line an
+  // unverified `restamp` PRINTS as its own remedy (`classify … --signoff
+  // owner --source … --why …`, no `--class`). Refusing the signature outright
+  // whenever the class is unstated would make this tool's own advertised
+  // remedy unrunnable — the defect class this script exists to remove, one
+  // level up. What can never happen is a SIGNED record whose class the fold
+  // resolves to `measurement`: that is the lighter lane minting the authority
+  // it was built to stop asking for.
+  refuseMeasurementSignedByOwner(projected.amendment_class, signed, 'classify', 'projection');
+
+  // A `--class` the fold would NOT adopt is REFUSED, never silently ignored:
+  // accepting a flag that cannot change the record's class, its bucket, or
+  // what it owes is the same defect one level up, and it is the input that
+  // produced the disagreement above. Refused BEFORE the append, so nothing
+  // lands. `--class`-less classify is untouched (it declares nothing), and
+  // so is the remedy line `list --strict` prints, which carries no `--class`.
+  if (amendmentClass !== null && projected.amendment_class !== amendmentClass) {
+    usageError(`\`classify --class ${amendmentClass}\` cannot be applied to ts=${opts.ts} ref=${opts.ref}: folding the ledger with this overlay appended still resolves that record's amendment_class to "${projected.amendment_class}". A record's OWN amendment_class outranks every classification overlay (the same precedence \`tracked_by\` has), and a later-dated overlay outranks an earlier one — so this flag cannot move the record's class, its bucket, or what it owes, and acting on it would decide the owner obligation from a class the fold never adopts. Drop --class and re-run to record the sign-off alone; if the declared class is genuinely wrong, append a NEW corrected amendment with \`add\` rather than overlaying this one.`);
+  }
+
+  // WHETHER, then WHICH — the same two questions in the same order `add`
+  // asks them, of the same two functions.
+  const owes = owesOwnerObligation(projected.amendment_class, signed);
   let reusedNote = null;
-  if (!signed) {
+  if (owes) {
     const candidate = trackedBy ?? target.tracked_by;
     if (candidate !== null) {
       // `pickAmendItemId` refuses to attach a NEW amendment to a DISCHARGED
@@ -971,7 +1433,7 @@ function cmdClassify(opts) {
   // manufacture an orphan item for an id the gate will never consult.
   let after = loadLedger(abs);
   let landed = after.byKey.get(overlayKey(opts.ts, opts.ref)) ?? null;
-  if (!signed && landed !== null && landed.tracked_by !== null && !after.followUps.has(landed.tracked_by)) {
+  if (owes && landed !== null && landed.tracked_by !== null && !after.followUps.has(landed.tracked_by)) {
     appendAmendItem(abs, {
       actor: entry.actor,
       itemId: landed.tracked_by,
@@ -995,7 +1457,10 @@ function cmdClassify(opts) {
     exit(1);
   }
   console.log(`spec-amend: classified ts=${opts.ts} ref=${opts.ref} as owner_signoff=${signed} — bucket ${landed.bucket}, proven by re-reading ${abs}`);
-  if (!signed) {
+  if (!signed && !owes) {
+    console.log(`spec-amend: ${MEASUREMENT_CLASS}-class — disclosed and counted, owing no owner signature and no tracked item`);
+  }
+  if (owes) {
     console.log(`spec-amend: tracked by ${landed.tracked_by} — drain it with: node .aai/scripts/follow-ups.mjs list --status open`);
     if (reusedNote) console.log(`NOTE ${reusedNote}`);
   }
@@ -1029,8 +1494,18 @@ function cmdRestamp(opts) {
   const actor = str(opts.actor) ?? 'orchestrator';
   const ref = str(opts.ref) ?? specId;
   const ts = nowIso();
-  const what = 'mechanical restamp: the allocator rewrote this frozen spec’s own SPEC-DRAFT- path(s) at merge';
-  const why = 'discloses the frozen_sha256 drift the allocator’s DRAFT-to-numbered rewrite caused, so list --strict reads a disclosed restamp rather than an undisclosed-amendment';
+  // THE CAUSE IS MEASURED, NEVER ASSERTED (Codex P1 on PR #422). The lane
+  // this record lands in is decided by whether reverse-applying the
+  // allocator's own rewrite reproduces the stored anchor — see
+  // verifyAllocatorCause. A `restamp` can no longer name the allocator as its
+  // cause without the bytes proving it.
+  const cause = verifyAllocatorCause(computed, specId);
+  // Hoisted to module scope (D3) so the structural selector in foldAmendments
+  // compares against the SAME literal this writer emits.
+  const what = cause.verified ? RESTAMP_WHAT : RESTAMP_UNVERIFIED_WHAT;
+  const why = cause.verified
+    ? 'discloses the frozen_sha256 drift the allocator’s DRAFT-to-numbered rewrite caused, so list --strict reads a disclosed restamp rather than an undisclosed-amendment'
+    : RESTAMP_UNVERIFIED_WHY;
   const entry = {
     v: 1,
     ts,
@@ -1040,21 +1515,41 @@ function cmdRestamp(opts) {
     spec: specRel,
     spec_id: specId,
     owner_signoff: false,
+    // D1 — the ONE site where the class is NOT a self-report, and the only
+    // site where it is MEASURED. The light lane is reachable only when
+    // verifyAllocatorCause reproduced this spec's own stored anchor by
+    // reverse-applying the allocator's DRAFT-to-numbered rewrite: then the
+    // mechanical cause is shown, not claimed, and the record owes nothing.
+    // Unverified, the drift is an ordinary post-freeze amendment and takes
+    // the contract lane — the signature and the tracker — because nobody
+    // here can say what changed. The class is still never a caller's
+    // self-report; it is now a property of the bytes.
+    amendment_class: cause.verified ? MEASUREMENT_CLASS : DEFAULT_AMENDMENT_CLASS,
     what,
     why,
     from_frozen_sha256: computed.fromHash,
     to_frozen_sha256: computed.nextHash,
   };
 
-  const picked = pickAmendItemId(reg, specId, ts);
-  entry.tracked_by = picked.itemId;
+  // The gate reads the RECORD THIS CALL IS ABOUT TO WRITE, never a second
+  // copy of its intent: whatever the two fields above say is what decides
+  // the obligation, so the write and the gate cannot drift apart.
+  const owes = owesOwnerObligation(entry.amendment_class, entry.owner_signoff);
+  let itemId = null;
+  let reusedNote = null;
+  if (owes) {
+    const picked = pickAmendItemId(reg, specId, ts);
+    itemId = picked.itemId;
+    reusedNote = picked.note;
+    entry.tracked_by = itemId;
+  }
 
   // THE LEDGER LANDS BEFORE THE FILE IS TOUCHED (Spec-AC-19) — appendLine and
   // the co-created tracked item both happen here, then commitSpecRestamp does
   // the ONE atomic write.
   appendLine(abs, entry);
-  if (!reg.followUps.has(picked.itemId)) {
-    appendAmendItem(abs, { actor, itemId: picked.itemId, ref, specId, specRel, what, why, sourceTs: ts });
+  if (owes && !reg.followUps.has(itemId)) {
+    appendAmendItem(abs, { actor, itemId, ref, specId, specRel, what, why, sourceTs: ts });
   }
 
   commitSpecRestamp(absSpec, computed.out);
@@ -1062,14 +1557,39 @@ function cmdRestamp(opts) {
   // Prove the write by re-reading, the same discipline `add`/`classify` use.
   const after = loadLedger(abs);
   const landed = after.byKey.get(overlayKey(entry.ts, entry.ref_id)) ?? null;
-  if (landed === null || landed.tracked_by !== picked.itemId || !after.followUps.has(picked.itemId)) {
-    process.stderr.write(`spec-amend: restamp: appended the amendment for ${specRel} but the re-read of ${abs} does not show the tracked item ${picked.itemId}\n`);
+  // The proof this write owes is the BUCKET, and WHICH bucket is itself
+  // decided by the measured cause: `measurement` when the allocator was
+  // shown to be the cause, `unsigned-tracked` when it was not (the obligation
+  // this re-anchor really carries). Landing anywhere else means the class was
+  // not stamped or was overridden, and the disclosure is not proven.
+  const expectedBucket = cause.verified ? MEASUREMENT_CLASS : 'unsigned-tracked';
+  if (landed === null || landed.bucket !== expectedBucket) {
+    process.stderr.write(`spec-amend: restamp: appended the amendment for ${specRel} but the re-read of ${abs} shows bucket "${landed === null ? 'MISSING' : landed.bucket}" rather than ${expectedBucket} — the disclosure is NOT proven by this write\n`);
+    exit(1);
+  }
+  if (owes && (landed.tracked_by !== itemId || !after.followUps.has(itemId))) {
+    process.stderr.write(`spec-amend: restamp: appended the amendment for ${specRel} but the re-read of ${abs} does not show the tracked item ${itemId}\n`);
     exit(1);
   }
 
-  console.log(`spec-amend: restamp: re-anchored ${specRel} from ${computed.fromHash} to ${computed.nextHash} (ref ${ref}) — bucket ${landed.bucket}, tracked by ${picked.itemId}`);
-  if (picked.note) console.log(`NOTE ${picked.note}`);
-  console.log('NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open');
+  if (cause.verified) {
+    console.log(`spec-amend: restamp: re-anchored ${specRel} from ${computed.fromHash} to ${computed.nextHash} (ref ${ref}) — bucket ${landed.bucket}, a ${MEASUREMENT_CLASS}-class disclosure owing no owner signature and no tracked item`);
+    console.log(`NOTE the allocator is PROVEN to be the cause: reversing its DRAFT-to-numbered rewrite of ${cause.reversed.join(', ')} reproduces the stored anchor ${computed.fromHash}`);
+  } else {
+    console.log(`spec-amend: restamp: re-anchored ${specRel} from ${computed.fromHash} to ${computed.nextHash} (ref ${ref}) — bucket ${landed.bucket}, a ${DEFAULT_AMENDMENT_CLASS}-class disclosure owing an owner signature and tracked by ${itemId}`);
+    console.log(`NOTE the allocator is NOT verified as the cause: ${cause.reason}`);
+    // `--source`, NEVER `--authority`: `classify` names the evidence field
+    // `--source` (FLAG_SPECS above) while `add` names it `--authority`, so the
+    // line this used to print exited 2 on an unknown flag (Codex P2, PR #422).
+    // A remedy that cannot be run is the defect this script exists to remove,
+    // one level up — TEST-1376 runs this line verbatim and checks EVERY
+    // printed invocation in this file against FLAG_SPECS itself.
+    for (const remedy of remedyLines((shq) => `node .aai/scripts/spec-amend.mjs classify --ts ${shq(ts)} --ref ${shq(ref)} --signoff owner --source "<who decided, where>" --why "<what the drift really was>" --ledger ${shq(abs)}`)) {
+      console.log(`NOTE sign it off once someone has said what changed: ${remedy}`);
+    }
+  }
+  if (reusedNote) console.log(`NOTE ${reusedNote}`);
+  if (owes) console.log('NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open');
   exit(0);
 }
 
@@ -1086,6 +1606,10 @@ function formatRow(item) {
     // without a second lookup into follow-ups.mjs.
     `tracked_status=${item.tracked_status ?? '-'}`,
     `signoff=${item.owner_signoff === null ? 'absent' : String(item.owner_signoff)}`,
+    // D4 — the class prints on EVERY row, not only the measurement ones: a
+    // label that appeared selectively would leave the reader unable to tell
+    // a contract row from a row whose class was never resolved at all.
+    `${CLASS_LABEL}${item.amendment_class ?? '-'}`,
   ].join('  ');
 }
 
@@ -1093,6 +1617,10 @@ const STATUS_FILTERS = {
   all: BUCKETS,
   signed: ['signed'],
   unsigned: ['unsigned-tracked', 'unsigned-untracked'],
+  // D4 — "show me every obligation that was waived and who waived it" is ONE
+  // command. The actor is already on every record, so the view is the whole
+  // mitigation: a wrong claim is enumerable and attributable, not invisible.
+  measurement: ['measurement'],
   unclassified: ['unclassified'],
 };
 
@@ -1221,7 +1749,7 @@ function cmdList(opts) {
       notes: reg.notes,
     }, null, 2));
   } else {
-    console.log(`spec-amend: shown=${counts.shown} total=${counts.total} signed=${counts.signed} unsigned-tracked=${counts['unsigned-tracked']} unsigned-untracked=${counts['unsigned-untracked']} unclassified=${counts.unclassified} ledger=${abs}`);
+    console.log(`spec-amend: shown=${counts.shown} total=${counts.total} signed=${counts.signed} measurement=${counts.measurement} unsigned-tracked=${counts['unsigned-tracked']} unsigned-untracked=${counts['unsigned-untracked']} unclassified=${counts.unclassified} ledger=${abs}`);
     for (const item of shown) console.log(formatRow(item));
     if (shown.length === 0) console.log('(no spec_amendment records match this view)');
     for (const n of reg.notes) console.log(n);
@@ -1267,7 +1795,14 @@ function cmdList(opts) {
       // as-is if run unedited (D2 fail-open never refuses on their
       // content). `add` never refuses on their content (D2 fail-open), so
       // the line is runnable exactly as printed.
-      process.stderr.write(`  node .aai/scripts/spec-amend.mjs add --spec ${JSON.stringify(v.path)} --ref ${JSON.stringify(v.spec_id ?? 'unknown-ref')} --what ${JSON.stringify('undisclosed post-freeze content change (edit this line to name what changed)')} --why ${JSON.stringify('closing the strict amendment gate after the frozen anchor stopped matching (edit this line to name why)')} --signoff none\n`);
+      // `--class contract` is printed VERBATIM and is the conservative value:
+      // the heavier lane, the one that owes a signature. The author edits it
+      // to `measurement` when the change really was only a measurement,
+      // exactly as they already edit `--what`/`--why` — a printed remedy must
+      // never be the thing that quietly claims the lighter lane for them.
+      for (const remedy of remedyLines((shq) => `node .aai/scripts/spec-amend.mjs add --spec ${shq(v.path)} --ref ${shq(v.spec_id ?? 'unknown-ref')} --what ${shq('undisclosed post-freeze content change (edit this line to name what changed)')} --why ${shq('closing the strict amendment gate after the frozen anchor stopped matching (edit this line to name why)')} --class contract --signoff none`)) {
+        process.stderr.write(`  ${remedy}\n`);
+      }
     }
     process.stderr.write('`add` RE-STAMPS frozen_sha256 to the current projection in the SAME call that appends the record, so running the line above is what clears this violation — never `spec-amend.mjs classify`, which judges an EXISTING record\'s sign-off and touches no spec.\n');
   }
@@ -1309,11 +1844,13 @@ function cmdList(opts) {
         process.stderr.write(`  (no runnable remedy: this record carries no ${missing}, and classify matches on the ts+ref pair. Neither writer can emit that, so the record was hand-appended; append a corrected record rather than editing it.)\n`);
         continue;
       }
-      // JSON.stringify, not bare quotes: `--ref` is unvalidated free text at
-      // `add`, so a ref carrying a double quote produced a line that breaks
-      // when pasted — and TEST-013 runs this line through `eval` (code
-      // review NB-E, reproduced through the writer, not only by hand-append).
-      process.stderr.write(`  node .aai/scripts/spec-amend.mjs classify --ts ${JSON.stringify(v.ts)} --ref ${JSON.stringify(v.ref_id)} --signoff none --why "<one line>" --source "<evidence>"\n`);
+      // shq, not bare quotes: `--ref` is unvalidated free text at `add`, so a
+      // ref carrying a quote or whitespace produced a line that breaks when
+      // pasted — and TEST-013 runs this line through `eval` (code review
+      // NB-E, reproduced through the writer, not only by hand-append).
+      for (const remedy of remedyLines((shq) => `node .aai/scripts/spec-amend.mjs classify --ts ${shq(v.ts)} --ref ${shq(v.ref_id)} --signoff none --why "<one line>" --source "<evidence>"`)) {
+        process.stderr.write(`  ${remedy}\n`);
+      }
     }
     process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to name the item it attaches to (a new id is filed for you; a discharged one is refused).\n');
     process.stderr.write('NOT remedies: `spec-amend.mjs add` records a NEW amendment and leaves the record named above untracked; `follow-ups.mjs add` files an item but attaches it to nothing. Never edit the ledger in place (HAZ-LEDGER).\n');
@@ -1343,6 +1880,11 @@ const isMain = process.argv[1] && realpathOrResolve(process.argv[1]) === realpat
 if (isMain) runMain(() => main());
 
 export {
+  // FLAG_SPECS is exported for ONE reader: the guard that checks every command
+  // this script PRINTS against the flags the parser actually accepts
+  // (TEST-1376). Exporting the table rather than re-typing it in the test is
+  // what keeps the check and the parser from drifting apart.
+  FLAG_SPECS,
   DEFAULT_LEDGER,
   ITEM_PREFIX,
   ID_MAX_LEN,

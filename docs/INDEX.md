@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-01T22:26:11.853Z
+Generated: 2026-10-02T15:01:52.415Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -53,7 +53,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (482)
+## Done (484)
 
 | ID | Type | Path |
 |---|---|---|
@@ -253,6 +253,7 @@ _None._
 | CHANGE-0198 | issues | docs/issues/CHANGE-0198-pricing-gpt-6-flagship-family.md |
 | CHANGE-0200 | issues | docs/issues/CHANGE-0200-downstream-rides-ask-no-governance-questions.md |
 | CHANGE-0201 | issues | docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md |
+| CHANGE-0202 | issues | docs/issues/CHANGE-0202-amendment-signature-asks-the-owner-too-often.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -537,6 +538,7 @@ _None._
 | SPEC-0202 | specs | docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md |
 | SPEC-0203 | specs | docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md |
 | SPEC-0204 | specs | docs/specs/SPEC-0204-spec-a-check-cannot-tell-silence-from-a-verdict.md |
+| SPEC-0205 | specs | docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -611,4 +613,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-10-01 — counts above use this date for overdue checks.
+Today (UTC): 2026-10-02 — counts above use this date for overdue checks.
