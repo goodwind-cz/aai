@@ -1,0 +1,24 @@
+mutation_record: v1
+spec_id: spec-shipped-guards-have-no-downstream-trigger
+test_id: TEST-819
+suite: tests/skills/test-aai-hygiene-pack.sh
+selector: test_819_nonregular_slot_is_refused_before_any_write
+target: .aai/scripts/install-pre-commit-hook.sh
+mutation: sed:s/assert_regular_slot\(\) \{/assert_regular_slot() { return 0;/
+base_commit: 2801e5b11975dd2ae26f45431f353001ba1408ef
+tree_hash: f3ca612d725afc20f3e862f6332864fe8e68aeaa1263988ef29b8a4d491f00e3
+run_at_utc: 2026-09-30T23:30:55Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-819: the run announced an install while the slot was a directory: Installed AAI pre-push hook (AAI:CLOSE-GATE) at /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-hygiene.ho9s8k/sg-t819/.git/hooks/pre-push
+selector_honoured: yes
+target_sha256: 896936f4fbb2b67857ae91a846052495aa26f3e3d82857ae9baf1609a6aa85a6
+---
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: a hook slot that is a directory is refused before any write — no success line, no stray temp file inside it (TEST-819)...
+FAIL: TEST-819: the run announced an install while the slot was a directory: Installed AAI pre-push hook (AAI:CLOSE-GATE) at /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-hygiene.ho9s8k/sg-t819/.git/hooks/pre-push
+Effect: every push runs close-reconcile.mjs --check over the pushed range (report-only; close_gate: enforce refuses a default-branch push only).
+ERROR: git resolves the pre-push hook to /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-hygiene.ho9s8k/sg-t819/.git/hooks/pre-push, but no file is there.
+ERROR: installation did NOT leave an active hook at the path git resolves.
+       Check 'git config core.hooksPath' and 'git rev-parse --git-path hooks/reference-transaction'.

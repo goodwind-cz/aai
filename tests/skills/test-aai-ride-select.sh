@@ -124,7 +124,7 @@ test_001_validate() {
   printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: "Not A Slug!"\n    maintenance: cap-b\n    status: planned\n' > "$TEST_DIR/bad3.yaml"
   [ "$(run validate --roadmap "$TEST_DIR/bad3.yaml")" = "2" ] || log_fail "TEST-001: a non-slug ref must exit 2"
   printf 'pairs:\n  - capability: cap-a\n    maintenance: cap-b\n    status: planned\n' > "$TEST_DIR/bad4.yaml"
-  [ "$(run validate --roadmap "$TEST_DIR/bad4.yaml")" = "2" ] || log_fail "TEST-001: a roadmap without budget must exit 2 (closed shape)"
+  [ "$(run validate --roadmap "$TEST_DIR/bad4.yaml")" = "0" ] || log_fail "TEST-001: a roadmap without budget must exit 0 (the budget is opt-in): $(err)"
   # closed shape means closed: a duplicated key inside a pair or a second section
   # must refuse — last-wins would silently hide a second maintenance ref (F-03)
   printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-a\n    maintenance: cap-b\n    maintenance: cap-c\n    status: planned\n' > "$TEST_DIR/bad5.yaml"
@@ -230,8 +230,10 @@ test_004_off_roadmap_fix() {
 test_005_fail_closed() {
   log_info "Test: missing/invalid roadmap and a done ref are refused, never passed (TEST-005)..."
   write_doc cap-one change draft
-  [ "$(run gate --ref cap-one --roadmap "$TEST_DIR/nope.yaml" --docs "$TEST_DIR/docs")" != "0" ] || log_fail "TEST-005: a missing roadmap must refuse"
-  grep -qi "roadmap" "$TEST_DIR/err" || log_fail "TEST-005: the refusal must name the roadmap"
+  # TEST-1201 (Spec-AC-01): an ABSENT roadmap admits (the file is the posture switch)
+  [ "$(run gate --ref cap-one --roadmap "$TEST_DIR/nope.yaml" --docs "$TEST_DIR/docs")" = "0" ] || log_fail "TEST-1201: an absent roadmap must admit (exit 0): $(err)"
+  grep -q "ADMIT cap-one — roadmap absent" "$TEST_DIR/out" || log_fail "TEST-1201: stdout must carry 'ADMIT cap-one — roadmap absent': $(out)"
+  grep -q "not consulted" "$TEST_DIR/out" || log_fail "TEST-1201: stdout must say 'not consulted': $(out)"
   printf 'this: is\n  - not: the shape\n' > "$TEST_DIR/junk.yaml"
   [ "$(run gate --ref cap-one --roadmap "$TEST_DIR/junk.yaml" --docs "$TEST_DIR/docs")" != "0" ] || log_fail "TEST-005: an invalid roadmap must refuse"
   grep -q "closed roadmap shape" "$TEST_DIR/err" || log_fail "TEST-005: the invalid-roadmap refusal must name the parse reason: $(err)"
@@ -239,6 +241,137 @@ test_005_fail_closed() {
   [ "$(run gate --ref cap-one --roadmap "$TEST_DIR/roadmap.yaml" --docs "$TEST_DIR/docs")" != "0" ] || log_fail "TEST-005: a done ref must be refused as done"
   grep -qi "done" "$TEST_DIR/err" || log_fail "TEST-005: the refusal must say the ref is done"
   log_pass "fail closed on missing/invalid roadmap and on a done ref (TEST-005)"
+}
+
+# --- TEST-1202 (Spec-AC-01): the absent admit is side-effect free -------------
+test_1202_absent_admit_is_side_effect_free() {
+  log_info "Test: an absent-roadmap admit with --override and --events writes no roadmap and no events file, one stdout line (TEST-1202)..."
+  write_doc cap-one change draft
+  local rc=0
+  rc="$(run gate --ref cap-one --roadmap "$TEST_DIR/s1202/roadmap.yaml" --docs "$TEST_DIR/docs" --events "$TEST_DIR/s1202/events.jsonl" --override "owner: nothing to override")" || true
+  [ "$rc" = "0" ] || log_fail "TEST-1202: absent roadmap with --override must admit: $(err)"
+  [ ! -e "$TEST_DIR/s1202/roadmap.yaml" ] || log_fail "TEST-1202: the roadmap path must not be created"
+  [ ! -e "$TEST_DIR/s1202/events.jsonl" ] || log_fail "TEST-1202: no events file may be created for an absent-roadmap admit"
+  [ ! -e "$TEST_DIR/s1202" ] || log_fail "TEST-1202: no directory may be created for an absent-roadmap admit"
+  local n; n="$(wc -l < "$TEST_DIR/out" | tr -d ' ')"
+  [ "$n" = "1" ] || log_fail "TEST-1202: stdout must be exactly one line, got $n: $(out)"
+  if grep -q '?' "$TEST_DIR/out"; then log_fail "TEST-1202: the admit line must carry no question mark"; fi
+  log_pass "absent admit creates nothing and prints one line (TEST-1202)"
+}
+
+# --- TEST-1203 (Spec-AC-02): present-but-invalid roadmap still refuses --------
+test_1203_malformed_and_empty_refuse() {
+  log_info "Test: a malformed and an empty roadmap file each refuse (exit 1, REFUSED) (TEST-1203)..."
+  write_doc cap-one change draft
+  printf 'this: is\n  - not: the shape\n' > "$TEST_DIR/bad1203.yaml"
+  : > "$TEST_DIR/empty1203.yaml"
+  local f rc
+  for f in bad1203 empty1203; do
+    rc="$(run gate --ref cap-one --roadmap "$TEST_DIR/$f.yaml" --docs "$TEST_DIR/docs")" || true
+    [ "$rc" = "1" ] || log_fail "TEST-1203: $f must refuse with exit 1, got $rc"
+    grep -q "REFUSED" "$TEST_DIR/err" || log_fail "TEST-1203: $f refusal must say REFUSED: $(err)"
+  done
+  log_pass "malformed and empty roadmap files refuse (TEST-1203)"
+}
+
+# --- TEST-1204 (Spec-AC-02): a directory at the roadmap path refuses ----------
+test_1204_directory_refuses() {
+  log_info "Test: a directory at the roadmap path refuses as not readable (TEST-1204)..."
+  write_doc cap-one change draft
+  mkdir -p "$TEST_DIR/dir1204.yaml"
+  local rc
+  rc="$(run gate --ref cap-one --roadmap "$TEST_DIR/dir1204.yaml" --docs "$TEST_DIR/docs")" || true
+  [ "$rc" = "1" ] || log_fail "TEST-1204: a directory roadmap must refuse with exit 1, got $rc"
+  grep -q "REFUSED" "$TEST_DIR/err" || log_fail "TEST-1204: must say REFUSED: $(err)"
+  grep -q "roadmap not readable" "$TEST_DIR/err" || log_fail "TEST-1204: must say 'roadmap not readable': $(err)"
+  log_pass "directory at the roadmap path refuses (TEST-1204)"
+}
+
+# --- TEST-1217 (Spec-AC-02, Codex P1 on PR #416): a roadmap path that -------
+# exists but cannot be stat-ed (ELOOP self-symlink; EACCES unsearchable parent)
+# is PRESENT-unreadable, never "absent": existsSync() is false for both, so the
+# absent branch must stat and refuse. Root ignores directory modes, so the
+# EACCES arm records a skip there instead of a vacuous pass; the ELOOP arm
+# runs everywhere.
+test_1217_unstatable_roadmap_refuses() {
+  log_info "Test: an unstat-able roadmap path (ELOOP, EACCES) refuses as not readable, never admits as absent (TEST-1217)..."
+  write_doc cap-one change draft
+  local rc loop="$TEST_DIR/loop1217.yaml"
+  ln -s "$loop" "$loop"
+  rc="$(run gate --ref cap-one --roadmap "$loop" --docs "$TEST_DIR/docs")" || true
+  [ "$rc" = "1" ] || log_fail "TEST-1217 (ELOOP): must refuse with exit 1, got $rc: $(out) $(err)"
+  grep -q "REFUSED" "$TEST_DIR/err" || log_fail "TEST-1217 (ELOOP): must say REFUSED: $(err)"
+  grep -q "roadmap not readable" "$TEST_DIR/err" || log_fail "TEST-1217 (ELOOP): must say 'roadmap not readable': $(err)"
+  grep -q "roadmap absent" "$TEST_DIR/out" && log_fail "TEST-1217 (ELOOP): must never print the absent admit line: $(out)"
+  if [ "$(id -u)" = "0" ]; then
+    log_info "TEST-1217 (EACCES): running as root — directory modes are not enforced, arm skipped (not a pass)"
+  else
+    local locked="$TEST_DIR/locked1217"
+    mkdir -p "$locked"
+    printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-one\n    status: planned\n' > "$locked/roadmap.yaml"
+    chmod 000 "$locked"
+    rc="$(run gate --ref cap-one --roadmap "$locked/roadmap.yaml" --docs "$TEST_DIR/docs")" || true
+    chmod 755 "$locked"
+    [ "$rc" = "1" ] || log_fail "TEST-1217 (EACCES): must refuse with exit 1, got $rc: $(out) $(err)"
+    grep -q "roadmap not readable" "$TEST_DIR/err" || log_fail "TEST-1217 (EACCES): must say 'roadmap not readable': $(err)"
+    grep -q "roadmap absent" "$TEST_DIR/out" && log_fail "TEST-1217 (EACCES): must never print the absent admit line: $(out)"
+  fi
+  log_pass "unstat-able roadmap refuses, never admits as absent (TEST-1217)"
+}
+
+# --- TEST-1205 (Spec-AC-02): validate and next keep their absent behavior -----
+test_1205_validate_next_unchanged_on_absent() {
+  log_info "Test: validate on an absent path exits 2 and next on an absent path exits 1 (TEST-1205)..."
+  local rc
+  rc="$(run validate --roadmap "$TEST_DIR/nope1205.yaml")" || true
+  [ "$rc" = "2" ] || log_fail "TEST-1205: validate on an absent roadmap must exit 2, got $rc"
+  rc="$(run next --roadmap "$TEST_DIR/nope1205.yaml" --docs "$TEST_DIR/docs")" || true
+  [ "$rc" = "1" ] || log_fail "TEST-1205: next on an absent roadmap must exit 1, got $rc"
+  log_pass "validate and next unchanged on an absent roadmap (TEST-1205)"
+}
+
+# --- TEST-1206 (Spec-AC-03): usage checks run before the absent admit ---------
+test_1206_usage_checks_before_absent() {
+  log_info "Test: with an absent roadmap, missing/non-slug --ref and an empty --override are usage errors (TEST-1206)..."
+  write_doc cap-one change draft
+  local rc
+  rc="$(run gate --roadmap "$TEST_DIR/nope1206.yaml" --docs "$TEST_DIR/docs")" || true
+  [ "$rc" = "2" ] || log_fail "TEST-1206: missing --ref must exit 2, got $rc"
+  rc="$(run gate --ref "NOT A SLUG" --roadmap "$TEST_DIR/nope1206.yaml" --docs "$TEST_DIR/docs")" || true
+  [ "$rc" = "2" ] || log_fail "TEST-1206: a non-slug --ref must exit 2, got $rc"
+  rc="$(run gate --ref cap-one --roadmap "$TEST_DIR/nope1206.yaml" --docs "$TEST_DIR/docs" --override " ")" || true
+  [ "$rc" = "2" ] || log_fail "TEST-1206: an empty --override reason must exit 2, got $rc"
+  log_pass "usage errors precede the absent-roadmap admit (TEST-1206)"
+}
+
+# --- TEST-1208 (Spec-AC-05): default roadmap path keeps the strict gate -------
+test_1208_default_roadmap_refuses_off_roadmap() {
+  log_info "Test: with no --roadmap flag the shipped roadmap refuses an off-roadmap maintenance ref (TEST-1208)..."
+  write_doc zz-offroadmap-fix issue draft
+  local rc
+  rc="$(run gate --ref zz-offroadmap-fix --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-zz-offroadmap-fix.md" --docs "$TEST_DIR/docs" --events "$TEST_DIR/events1208.jsonl")" || true
+  [ "$rc" = "1" ] || log_fail "TEST-1208: the default (shipped) roadmap must refuse an off-roadmap fix with exit 1, got $rc: $(out) $(err)"
+  grep -q "REFUSED" "$TEST_DIR/err" || log_fail "TEST-1208: must say REFUSED: $(err)"
+  log_pass "default roadmap path still governs (TEST-1208)"
+}
+
+# --- TEST-1209 (Spec-AC-06): header and AGENTS rule 4 state the posture switch
+test_1209_header_and_rule4_state_the_switch() {
+  log_info "Test: the ride-select header and AGENTS rule 4 name the roadmap file as the switch (TEST-1209)..."
+  head -n 20 "$ENGINE" > "$TEST_DIR/hdr1209.txt"
+  grep -qi "absent" "$TEST_DIR/hdr1209.txt" || log_fail "TEST-1209: header must say an absent roadmap admits"
+  grep -q "not consulted" "$TEST_DIR/hdr1209.txt" || log_fail "TEST-1209: header must say 'not consulted'"
+  grep -qi "refuse" "$TEST_DIR/hdr1209.txt" || log_fail "TEST-1209: header must say a present invalid roadmap refuses"
+  if grep -qF 'never "no roadmap, anything goes"' "$TEST_DIR/hdr1209.txt"; then log_fail "TEST-1209: header must drop the old anything-goes sentence"; fi
+  awk '/^### Operator contract/{f=1;next} /^### |^## /{if(f)exit} f' "$PROJECT_ROOT/.aai/AGENTS.md" > "$TEST_DIR/contract1209.txt"
+  awk '/^4\. \*\*/{f=1;print;next} /^5\. \*\*/{f=0} f' "$TEST_DIR/contract1209.txt" > "$TEST_DIR/rule4-1209.txt"
+  [ -s "$TEST_DIR/rule4-1209.txt" ] || log_fail "TEST-1209: rule 4 not found in the operator contract"
+  grep -q 'docs/ai/roadmap.yaml' "$TEST_DIR/rule4-1209.txt" || log_fail "TEST-1209: rule 4 must name docs/ai/roadmap.yaml"
+  grep -q 'absent' "$TEST_DIR/rule4-1209.txt" || log_fail "TEST-1209: rule 4 must say 'absent'"
+  grep -q 'not consulted' "$TEST_DIR/rule4-1209.txt" || log_fail "TEST-1209: rule 4 must say 'not consulted'"
+  local n; n="$(wc -l < "$TEST_DIR/contract1209.txt" | tr -d ' ')"
+  [ "$n" -le 40 ] || log_fail "TEST-1209: the operator contract must stay at most 40 lines, got $n"
+  log_pass "posture switch stated in header and rule 4; contract ≤40 lines (TEST-1209)"
 }
 
 # --- TEST-006 (Spec-AC-06): override is loud and logged -----------------------
@@ -1228,11 +1361,17 @@ test_743_opt_out_leaves_no_file() {
 # check.
 test_744_no_automatic_invocation_site() {
   log_info "Test: no .aai prompt or orchestration-dispatch.mjs invokes roadmap-propose automatically (TEST-744)..."
-  local SCAN_PATTERN='roadmap-propose'
-  local hits
+  # Narrowed (roadmap-serves-downstream-projects D9, TEST-1330): the user-invoked
+  # /aai-roadmap prompt is the ONE allowed site; everything else stays refused.
+  local SCAN_PATTERN='roadmap-propose' ALLOWED="$PROJECT_ROOT/.aai/SKILL_ROADMAP.prompt.md"
+  local hits f
   hits="$(/usr/bin/grep -rl "$SCAN_PATTERN" "$PROJECT_ROOT"/.aai/*.prompt.md "$PROJECT_ROOT/.aai/scripts/orchestration-dispatch.mjs" 2>/dev/null || true)"
-  [ -z "$hits" ] || log_fail "TEST-744: no .aai prompt or orchestration-dispatch.mjs may invoke roadmap-propose automatically, found: $hits"
-  log_pass "no prompt or dispatch branch invokes roadmap-propose automatically (TEST-744)"
+  local others=""
+  while IFS= read -r f; do [ -z "$f" ] || [ "$f" = "$ALLOWED" ] || others="$others $f"; done <<<"$hits"
+  [ -z "$others" ] || log_fail "TEST-1330 (amends TEST-744): no .aai prompt except SKILL_ROADMAP.prompt.md, and not orchestration-dispatch.mjs, may name roadmap-propose, found:$others"
+  # positive control: the allowlisted prompt really is a site (the allowance is not vacuous)
+  /usr/bin/grep -q "$SCAN_PATTERN" "$ALLOWED" 2>/dev/null || log_fail "TEST-1330 (amends TEST-744): positive control — SKILL_ROADMAP.prompt.md must name roadmap-propose (harvest/write)"
+  log_pass "only the user-invoked SKILL_ROADMAP prompt names roadmap-propose; no dispatch branch does (TEST-744)"
 }
 
 # === Remediation round (validation-round1.txt) ==============================
@@ -1769,6 +1908,193 @@ YAML
   log_pass "a friction candidate's recurrence survives a dedup merge with a colliding wave_2 slug (TEST-765)"
 }
 
+# --- Budget is opt-in (SPEC roadmap-serves-downstream-projects, TEST-1301..1310) ---
+# nb_roadmap <path> [budget]  — a two-pair fixture roadmap; with a 2nd arg it carries the 1:1 budget block.
+nb_roadmap() { # $1=path  $2=with-budget (any non-empty) $3=status of pair 1 (default active)
+  {
+    [ -n "${2:-}" ] && printf 'budget:\n  maintenance_per_capability: 1\n'
+    printf 'pairs:\n  - capability: cap-a\n    status: %s\n  - capability: cap-b\n    status: planned\nwave_2:\n  - later-thing\n' "${3:-active}"
+  } > "$1"
+}
+
+test_1301_validate_accepts_no_budget() {
+  log_info "Test: a roadmap with no budget block validates exit 0 (TEST-1301)..."
+  printf 'pairs:\n  - capability: cap-a\n    maintenance: cap-b\n    status: planned\n' > "$TEST_DIR/t1301-a.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1301-a.yaml")" = "0" ] || log_fail "TEST-1301: a pairs-only roadmap must validate: $(err)"
+  [ "$(out)" = "roadmap OK: 1 pair(s), 0 wave-2 item(s)" ] || log_fail "TEST-1301: pairs-only summary wrong: $(out)"
+  nb_roadmap "$TEST_DIR/t1301-b.yaml" "" planned
+  [ "$(run validate --roadmap "$TEST_DIR/t1301-b.yaml")" = "0" ] || log_fail "TEST-1301: pairs plus wave_2 without budget must validate: $(err)"
+  [ "$(out)" = "roadmap OK: 2 pair(s), 1 wave-2 item(s)" ] || log_fail "TEST-1301: pairs+wave_2 summary wrong: $(out)"
+  # negative control: no budget AND no pairs is still invalid
+  printf 'wave_2:\n  - later-thing\n' > "$TEST_DIR/t1301-c.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1301-c.yaml")" = "2" ] || log_fail "TEST-1301: a roadmap with no pairs must still exit 2"
+  grep -q 'no pairs' "$TEST_DIR/err" || log_fail "TEST-1301: the no-pairs refusal must name its reason: $(err)"
+  log_pass "a roadmap without a budget block validates; no pairs still refuses (TEST-1301)"
+}
+
+test_1302_budget_block_stays_strict() {
+  log_info "Test: a PRESENT budget block must still be exactly maintenance_per_capability: 1 (TEST-1302)..."
+  printf 'budget:\npairs:\n  - capability: cap-a\n    status: planned\n' > "$TEST_DIR/t1302-empty.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1302-empty.yaml")" = "2" ] || log_fail "TEST-1302: an empty budget block must exit 2"
+  grep -q 'maintenance_per_capability is missing' "$TEST_DIR/err" || log_fail "TEST-1302: the empty-block refusal must name the missing key: $(err)"
+  printf 'budget:\n  maintenance_per_capability: 1\nbudget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-a\n    status: planned\n' > "$TEST_DIR/t1302-dup.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1302-dup.yaml")" = "2" ] || log_fail "TEST-1302: a duplicated budget block must exit 2"
+  printf 'budget:\n  maintenance_per_capability: 2\npairs:\n  - capability: cap-a\n    status: planned\n' > "$TEST_DIR/t1302-two.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1302-two.yaml")" = "2" ] || log_fail "TEST-1302: maintenance_per_capability 2 must exit 2"
+  grep -q 'must be 1' "$TEST_DIR/err" || log_fail "TEST-1302: the value refusal must say must be 1: $(err)"
+  [ "$(run validate --roadmap "$SHIPPED")" = "0" ] || log_fail "TEST-1302: the shipped roadmap must validate: $(err)"
+  [ "$(out)" = "roadmap OK: 11 pair(s), 4 wave-2 item(s)" ] || log_fail "TEST-1302: the shipped summary must be byte-identical, got: $(out)"
+  log_pass "empty, duplicate and non-1 budget blocks still exit 2; shipped summary unchanged (TEST-1302)"
+}
+
+# nb_gate_fixture <dir> <with-budget> — roadmap + docs shared by TEST-1303/1304/1305
+nb_gate_fixture() {
+  local d="$1"
+  [ -n "$d" ] && [ "${d#/}" != "$d" ] || log_fail "nb_gate_fixture: dir must be absolute and non-empty"
+  mkdir -p "$d"
+  nb_roadmap "$d/roadmap.yaml" "${2:-}"
+  propose_write_doc "$d/docs" cap-a change implementing
+  propose_write_doc "$d/docs" cap-b change draft
+  propose_write_doc "$d/docs" iss-off issue draft
+  propose_write_doc "$d/docs" chg-off change draft
+  propose_write_doc "$d/docs" chg-done change done
+}
+gate_at() { # $1=dir $2=ref [extra args]
+  local d="$1" r="$2"; shift 2
+  run gate --ref "$r" --roadmap "$d/roadmap.yaml" --docs "$d/docs" --events "$d/events.jsonl" "$@"
+}
+
+test_1303_nobudget_gate_admits() {
+  log_info "Test: without a budget gate admits off-roadmap maintenance, off-roadmap capability and an out-of-order ref (TEST-1303)..."
+  local d="$TEST_DIR/t1303"; nb_gate_fixture "$d"
+  local r
+  for r in iss-off chg-off cap-b; do
+    [ "$(gate_at "$d" "$r")" = "0" ] || log_fail "TEST-1303: no-budget gate must admit $r: $(err)"
+    grep -q 'ADMIT' "$TEST_DIR/out" || log_fail "TEST-1303: $r must print an ADMIT line: $(out)"
+    grep -q 'no maintenance budget' "$TEST_DIR/out" || log_fail "TEST-1303: the ADMIT line for $r must say no maintenance budget: $(out)"
+  done
+  [ ! -e "$d/events.jsonl" ] || log_fail "TEST-1303: an admit must write no EVENTS line"
+  log_pass "no-budget gate admits the three shapes, ADMIT lines say no maintenance budget, nothing written (TEST-1303)"
+}
+
+test_1304_nobudget_gate_still_refuses() {
+  log_info "Test: without a budget gate refuses a done ref and a ref with no document (TEST-1304)..."
+  local d="$TEST_DIR/t1304"; nb_gate_fixture "$d"
+  [ "$(gate_at "$d" chg-done)" = "1" ] || log_fail "TEST-1304: a done ref must be refused exit 1"
+  grep -q 'REFUSED' "$TEST_DIR/err" || log_fail "TEST-1304: the done refusal must print REFUSED: $(err)"
+  [ "$(gate_at "$d" ghost-ref)" = "1" ] || log_fail "TEST-1304: a ref with no document must be refused exit 1, got: $(out)"
+  grep -q 'REFUSED' "$TEST_DIR/err" || log_fail "TEST-1304: the documentless refusal must print REFUSED: $(err)"
+  grep -q 'no document resolves' "$TEST_DIR/err" || log_fail "TEST-1304: the documentless refusal must name its reason: $(err)"
+  # a ref inside a pair already marked done is refused too
+  nb_roadmap "$d/roadmap.yaml" "" done
+  [ "$(gate_at "$d" cap-a)" = "1" ] || log_fail "TEST-1304: a ref in a done pair must be refused"
+  # positive control: a documented, undone ref is admitted on the same fixture
+  [ "$(gate_at "$d" iss-off)" = "0" ] || log_fail "TEST-1304: control — a documented off-roadmap ref must still be admitted: $(err)"
+  log_pass "no-budget gate refuses done, documentless and done-pair refs (TEST-1304)"
+}
+
+test_1305_budget_gate_unchanged() {
+  log_info "Test: the same fixtures WITH a budget refuse with today's reasons (TEST-1305)..."
+  local d="$TEST_DIR/t1305"; nb_gate_fixture "$d" yes
+  [ "$(gate_at "$d" iss-off)" = "1" ] || log_fail "TEST-1305: off-roadmap maintenance must be refused under a budget"
+  grep -q 'is maintenance and not on the roadmap' "$TEST_DIR/err" || log_fail "TEST-1305: wrong reason for iss-off: $(err)"
+  [ "$(gate_at "$d" chg-off)" = "1" ] || log_fail "TEST-1305: an off-roadmap capability must be refused under a budget"
+  grep -q 'is not on the roadmap' "$TEST_DIR/err" || log_fail "TEST-1305: wrong reason for chg-off: $(err)"
+  [ "$(gate_at "$d" cap-b)" = "1" ] || log_fail "TEST-1305: a pair behind an unfinished pair must be refused under a budget"
+  grep -q 'pair ahead' "$TEST_DIR/err" || log_fail "TEST-1305: wrong reason for cap-b: $(err)"
+  log_pass "with a budget the three fixtures refuse exactly as before (TEST-1305)"
+}
+
+test_1306_nobudget_next_never_binds() {
+  log_info "Test: without a budget next names a started capability-only pair and skips a done pair (TEST-1306)..."
+  local d="$TEST_DIR/t1306"; mkdir -p "$d"
+  printf 'pairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: active\n' > "$d/roadmap.yaml"
+  propose_write_doc "$d/docs" cap-a change done
+  propose_write_doc "$d/docs" cap-b change implementing
+  [ "$(run next --roadmap "$d/roadmap.yaml" --docs "$d/docs" --json)" = "0" ] || log_fail "TEST-1306: next must exit 0: $(err)"
+  grep -qF '"next":"cap-b"' "$TEST_DIR/out" || log_fail "TEST-1306: next must name cap-b, got: $(out)"
+  grep -qF '"half":"capability"' "$TEST_DIR/out" || log_fail "TEST-1306: next must carry half capability, got: $(out)"
+  grep -qF '"action":"bind"' "$TEST_DIR/out" && log_fail "TEST-1306: without a budget next must never print action bind: $(out)"
+  # fixture diversity: a capability with no document asks for the intake; an exhausted roadmap names null
+  printf 'pairs:\n  - capability: cap-z\n    status: planned\n' > "$d/roadmap-z.yaml"
+  [ "$(run next --roadmap "$d/roadmap-z.yaml" --docs "$d/docs" --json)" = "0" ] || log_fail "TEST-1306: next over a documentless capability must exit 0"
+  grep -qF '"action":"file-intake"' "$TEST_DIR/out" || log_fail "TEST-1306: a documentless capability must say file-intake, got: $(out)"
+  printf 'pairs:\n  - capability: cap-a\n    status: done\n' > "$d/roadmap-x.yaml"
+  [ "$(run next --roadmap "$d/roadmap-x.yaml" --docs "$d/docs" --json)" = "0" ] || log_fail "TEST-1306: next over an exhausted roadmap must exit 0"
+  grep -qF '"next":null' "$TEST_DIR/out" || log_fail "TEST-1306: an exhausted roadmap must name next null, got: $(out)"
+  # negative control: the SAME started capability-only pair under a budget DOES propose bind
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-b\n    status: active\n' > "$d/roadmap-bud.yaml"
+  [ "$(run next --roadmap "$d/roadmap-bud.yaml" --docs "$d/docs" --json)" = "0" ] || log_fail "TEST-1306: budget next must exit 0"
+  grep -qF '"action":"bind"' "$TEST_DIR/out" || log_fail "TEST-1306: control — a budget roadmap must still propose bind, got: $(out)"
+  log_pass "no-budget next names the capability, skips done, never binds; budget control still binds (TEST-1306)"
+}
+
+test_1307_nobudget_next_skips_done_capability_doc() {
+  log_info "Test: without a budget next skips a pair whose capability DOCUMENT is done (TEST-1307)..."
+  local d="$TEST_DIR/t1307"; mkdir -p "$d"
+  printf 'pairs:\n  - capability: cap-a\n    status: planned\n  - capability: cap-b\n    status: planned\n' > "$d/roadmap.yaml"
+  propose_write_doc "$d/docs" cap-a change done
+  propose_write_doc "$d/docs" cap-b change draft
+  [ "$(run next --roadmap "$d/roadmap.yaml" --docs "$d/docs" --json)" = "0" ] || log_fail "TEST-1307: next must exit 0: $(err)"
+  grep -qF '"next":"cap-b"' "$TEST_DIR/out" || log_fail "TEST-1307: next must skip the done-document pair and name cap-b, got: $(out)"
+  log_pass "no-budget next skips a pair whose capability document is done (TEST-1307)"
+}
+
+test_1308_next_json_carries_path() {
+  log_info "Test: next --json carries the resolving document path in both postures (TEST-1308)..."
+  local d="$TEST_DIR/t1308" posture
+  for posture in "" yes; do
+    rm -rf "$d"; nb_gate_fixture "$d" "$posture"
+    propose_write_doc "$d/docs" cap-a change draft   # not started: a budget roadmap then names cap-a itself, not a bind
+    [ "$(run next --roadmap "$d/roadmap.yaml" --docs "$d/docs" --json)" = "0" ] || log_fail "TEST-1308: next must exit 0: $(err)"
+    local one="/" want; want="${d//\/\//$one}/docs/issues/CHANGE-DRAFT-cap-a.md"   # node path.join collapses a double slash in TMPDIR
+    grep -qF "\"path\":\"$want\"" "$TEST_DIR/out" \
+      || log_fail "TEST-1308: next json (budget='${posture:-none}') must carry the document path, got: $(out)"
+  done
+  log_pass "next --json carries the resolving document path with and without a budget (TEST-1308)"
+}
+
+test_1309_show() {
+  log_info "Test: show prints the posture, the next item, no roadmap when absent, json keys, exit 2 when invalid (TEST-1309)..."
+  local d="$TEST_DIR/t1309"; nb_gate_fixture "$d"
+  [ "$(run show --roadmap "$d/roadmap.yaml" --docs "$d/docs")" = "0" ] || log_fail "TEST-1309: show must exit 0: $(err)"
+  grep -qF 'maintenance budget: off' "$TEST_DIR/out" || log_fail "TEST-1309: a no-budget fixture must print maintenance budget: off, got: $(out)"
+  grep -qF 'cap-a' "$TEST_DIR/out" || log_fail "TEST-1309: show must name the next item cap-a, got: $(out)"
+  nb_roadmap "$d/roadmap-b.yaml" yes
+  [ "$(run show --roadmap "$d/roadmap-b.yaml" --docs "$d/docs")" = "0" ] || log_fail "TEST-1309: show over a budget fixture must exit 0: $(err)"
+  grep -qF 'maintenance budget: on' "$TEST_DIR/out" || log_fail "TEST-1309: a budget fixture must print maintenance budget: on, got: $(out)"
+  [ "$(run show --roadmap "$d/absent.yaml")" = "0" ] || log_fail "TEST-1309: show over an absent path must exit 0: $(err)"
+  grep -qF 'no roadmap' "$TEST_DIR/out" || log_fail "TEST-1309: an absent path must print no roadmap, got: $(out)"
+  [ "$(wc -l < "$TEST_DIR/out" | tr -d ' ')" = "1" ] || log_fail "TEST-1309: the absent answer must be exactly one line"
+  [ ! -e "$d/absent.yaml" ] || log_fail "TEST-1309: show must not create the roadmap"
+  [ "$(run show --json --roadmap "$d/roadmap-b.yaml" --docs "$d/docs")" = "0" ] || log_fail "TEST-1309: show --json must exit 0: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    for (const k of ["budget", "next", "pairs", "wave_2"]) if (!(k in j)) { console.error("missing " + k); process.exit(1); }
+    if (j.budget !== true) { console.error("budget must be true"); process.exit(1); }
+  ' "$TEST_DIR/out" 2> "$TEST_DIR/err" || log_fail "TEST-1309: show --json keys wrong: $(err) / $(out)"
+  [ "$(run show --json --roadmap "$d/roadmap.yaml" --docs "$d/docs")" = "0" ] || log_fail "TEST-1309: show --json (no budget) must exit 0"
+  grep -qF '"budget":false' "$TEST_DIR/out" || log_fail "TEST-1309: a no-budget fixture must report budget false, got: $(out)"
+  printf 'pairs:\n  - nonsense\n' > "$d/bad.yaml"
+  [ "$(run show --roadmap "$d/bad.yaml")" = "2" ] || log_fail "TEST-1309: an invalid roadmap must exit 2"
+  log_pass "show reports posture, next, no roadmap, json keys and exit 2 (TEST-1309)"
+}
+
+test_1310_write_seed_has_no_budget() {
+  log_info "Test: write --pick 1 against an absent roadmap seeds NO budget block (TEST-1310)..."
+  local D="$TEST_DIR/p1310docs" ROADMAP="$TEST_DIR/p1310-roadmap.yaml"
+  propose_write_doc "$D" cap-t1310-new change draft
+  [ "$(run_propose write --direction "cap t1310 new direction" --pick 1 --roadmap "$ROADMAP" --docs "$D" --ledger "$TEST_DIR/p1310-ledger.jsonl" --spool "$TEST_DIR/p1310-spool.jsonl")" = "0" ] \
+    || log_fail "TEST-1310: write must exit 0: $(perr)"
+  [ -f "$ROADMAP" ] || log_fail "TEST-1310: write must create the roadmap"
+  if grep -q 'budget' "$ROADMAP"; then log_fail "TEST-1310: a freshly seeded roadmap must carry no budget line: $(cat "$ROADMAP")"; fi
+  grep -q 'capability: cap-t1310-new' "$ROADMAP" || log_fail "TEST-1310: the picked capability must be written"
+  [ "$(run validate --roadmap "$ROADMAP" --docs "$D")" = "0" ] || log_fail "TEST-1310: the seeded roadmap must validate: $(err)"
+  [ "$(run next --roadmap "$ROADMAP" --docs "$D" --json)" = "0" ] || log_fail "TEST-1310: next must exit 0: $(err)"
+  grep -qF '"action":"bind"' "$TEST_DIR/out" && log_fail "TEST-1310: next over a seeded roadmap must never carry action bind: $(out)"
+  log_pass "write seeds a budget-free roadmap that validates and never proposes bind (TEST-1310)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -1785,6 +2111,14 @@ main() {
   test_005_fail_closed
   test_006_override
   test_007_wiring
+  test_1202_absent_admit_is_side_effect_free
+  test_1203_malformed_and_empty_refuse
+  test_1204_directory_refuses
+  test_1205_validate_next_unchanged_on_absent
+  test_1217_unstatable_roadmap_refuses
+  test_1206_usage_checks_before_absent
+  test_1208_default_roadmap_refuses_off_roadmap
+  test_1209_header_and_rule4_state_the_switch
   test_565_gate_admits_only_the_next_pair
   test_566_validate_refuses_unknown_refs
   test_535_roadmap_pair_seven_done
@@ -1839,6 +2173,16 @@ main() {
   test_763_harvest_surfaces_followups_understated_note
   test_764_harvest_surfaces_corrupt_spool_note
   test_765_harvest_dedup_keeps_friction_recurrence
+  test_1301_validate_accepts_no_budget
+  test_1302_budget_block_stays_strict
+  test_1303_nobudget_gate_admits
+  test_1304_nobudget_gate_still_refuses
+  test_1305_budget_gate_unchanged
+  test_1306_nobudget_next_never_binds
+  test_1307_nobudget_next_skips_done_capability_doc
+  test_1308_next_json_carries_path
+  test_1309_show
+  test_1310_write_seed_has_no_budget
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

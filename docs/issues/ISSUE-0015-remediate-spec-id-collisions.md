@@ -38,8 +38,8 @@ links:
 ## Acceptance Criteria
 | AC | Status | Evidence |
 |---|---|---|
-| AC-001: the 3 spec ids are `spec-`-prefixed and unique; docs-audit reports `Duplicate doc ids: 0` and Verdict CLEAN on the real repo. | pending | |
-| AC-002: no spec is flagged missing-close-telemetry or probable-false-done after the rename (telemetry backfilled under the new id); full docs-audit suite green (TEST-104 updated). | pending | |
+| AC-001: the 3 spec ids are `spec-`-prefixed and unique; docs-audit reports `Duplicate doc ids: 0` and Verdict CLEAN on the real repo. | done | |
+| AC-002: no spec is flagged missing-close-telemetry or probable-false-done after the rename (telemetry backfilled under the new id); full docs-audit suite green (TEST-104 updated). | done | |
 
 Ceremony justification: mechanical governance-data remediation (doc-id +
 append-only telemetry) + one test update; no product code, self-verified by the

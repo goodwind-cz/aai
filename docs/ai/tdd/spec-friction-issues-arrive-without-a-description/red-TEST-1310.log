@@ -1,0 +1,13 @@
+RED_CLASS: product_red
+# TEST-1310 pre-change tree HEAD=e7de26d7 suite=test-aai-issues.sh selector=test_1310_gh_args_include_comments exit=1
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+Testing: aai-issues
+====================
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: TEST-1310: buildGhArgs() --json field list carries comments...
+INFO: TEST-1310: --json field list must be number,title,labels,body,url,comments: ["issue","list","--state","open","--json","number,title,labels,body,url"]
+FAIL: TEST-1310 buildGhArgs() fetches comments
+
+Some tests FAILED.

@@ -9,10 +9,16 @@
 //   node .aai/scripts/ride-select.mjs next     [--roadmap <p>] [--docs <dir>] [--json]
 //   node .aai/scripts/ride-select.mjs gate --ref <slug> [--intake <path>] [--roadmap <p>]
 //        [--docs <dir>] [--events <p>] [--override "<reason>"]
+//   node .aai/scripts/ride-select.mjs show     [--roadmap <p>] [--docs <dir>] [--json]
 //
-// DENY BY DEFAULT. gate exits 0 only when the ref may start now; every refusal
-// names ONE reason and its remedy. An unreadable or invalid roadmap REFUSES —
-// never "no roadmap, anything goes". Exit: 0 admit · 1 refuse · 2 usage/invalid.
+// The roadmap FILE is the posture switch. gate with NO roadmap file (absent path)
+// ADMITS with one line, "roadmap absent ... not consulted", writing nothing:
+// ungoverned downstream projects ride freely. A roadmap that is PRESENT but
+// unreadable or invalid REFUSES. With a roadmap, DENY BY DEFAULT: gate exits 0
+// only when the ref may start now; every refusal names ONE reason and its
+// remedy. Exit: 0 admit · 1 refuse · 2 usage/invalid (validate/next unchanged).
+// The maintenance budget is opt-in: no `budget:` key = no 1:1 pairing and no
+// ranked refusals; `show` prints which posture a roadmap is in.
 //
 // Roadmap shape is CLOSED (see docs/ai/roadmap.yaml header); a line-level
 // parser for exactly that shape, no YAML library, anything else is invalid.
@@ -22,15 +28,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { parseFrontmatter, DOC_TYPE_ENUM } from './lib/docs-model.mjs';
+import { SLUG, MAINT_TYPES, roadmapAbsent, loadRoadmap } from './lib/roadmap-model.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
-// A ref is a slug id OR a numbered display id (CHANGE-0042, RFC-0012): 36 docs carry the latter.
-const SLUG = /^(?:[a-z0-9][a-z0-9-]{1,79}|[A-Z]{2,10}-\d{4})$/;
 const STARTED = new Set(['implementing', 'done']);
 // Words in a slug that mark maintenance when the intake type does not already.
 const MAINT_WORDS = /(^|-)(fix|guard|harness|hygiene|tripwire|flake|refactor|cleanup|lint|chore|test|ci)(-|$)/;
-const MAINT_TYPES = new Set(['issue', 'hotfix', 'techdebt', 'chore', 'test', 'ci']);
 
 function usage(msg) { process.stderr.write(`ride-select: ${msg}\n`); process.exit(2); }
 function refuse(msg) { process.stderr.write(`ride-select: REFUSED — ${msg}\n`); process.exit(1); }
@@ -49,58 +53,8 @@ function parseArgs(argv) {
     else if (k === '--json') { a.json = true; }
     else usage(`unknown argument ${k}`);
   }
-  if (!['validate', 'next', 'gate'].includes(a.cmd)) usage('usage: ride-select.mjs <validate|next|gate> [flags]');
+  if (!['validate', 'next', 'gate', 'show'].includes(a.cmd)) usage('usage: ride-select.mjs <validate|next|gate|show> [flags]');
   return a;
-}
-
-// --- roadmap: closed shape, line-level ------------------------------------------
-function loadRoadmap(p) {
-  let text;
-  try { text = fs.readFileSync(p, 'utf8'); } catch { return { error: `roadmap not readable: ${p}` }; }
-  const lines = text.replace(/\r\n?/g, '\n').split('\n').filter((l) => !/^\s*#/.test(l) && l.trim() !== '');
-  const rm = { budget: null, pairs: [], wave_2: [] };
-  let section = null; let cur = null; const seenSections = new Set();
-  for (const line of lines) {
-    let m;
-    if ((m = /^([a-z_0-9]+):\s*$/.exec(line))) {
-      section = m[1]; cur = null;
-      if (!['budget', 'pairs', 'wave_2'].includes(section)) return { error: `unknown top-level key "${section}"` };
-      if (seenSections.has(section)) return { error: `top-level key "${section}" appears twice` };
-      seenSections.add(section); continue;
-    }
-    if (section === 'budget' && (m = /^  maintenance_per_capability:\s*(\d+)\s*$/.exec(line))) { if (rm.budget) return { error: 'budget.maintenance_per_capability appears twice' }; rm.budget = { maintenance_per_capability: Number(m[1]) }; continue; }
-    if (section === 'pairs' && (m = /^  - capability:\s*(.+?)\s*$/.exec(line))) { cur = { capability: m[1], maintenance: null, status: null }; rm.pairs.push(cur); continue; }
-    if (section === 'pairs' && cur && (m = /^    maintenance:\s*(.+?)\s*$/.exec(line))) { if (cur.maintenance !== null) return { error: `pair ${rm.pairs.length}: "maintenance" appears twice (last-wins would hide a second maintenance ref)` }; cur.maintenance = m[1]; continue; }
-    if (section === 'pairs' && cur && (m = /^    status:\s*(planned|active|done)\s*$/.exec(line))) { if (cur.status !== null) return { error: `pair ${rm.pairs.length}: "status" appears twice` }; cur.status = m[1]; continue; }
-    if (section === 'wave_2' && (m = /^  - (.+?)\s*$/.exec(line))) { rm.wave_2.push(m[1]); continue; }
-    return { error: `line does not fit the closed roadmap shape: "${line.trim()}"` };
-  }
-  if (!rm.budget) return { error: 'missing budget.maintenance_per_capability' };
-  if (rm.budget.maintenance_per_capability !== 1) return { error: `budget.maintenance_per_capability must be 1 (owner decision), got ${rm.budget.maintenance_per_capability}` };
-  if (!rm.pairs.length) return { error: 'no pairs' };
-  const seen = new Set();
-  for (const [i, pr] of rm.pairs.entries()) {
-    const n = i + 1;
-    // Spec-AC-01/D2: `maintenance` is now OPTIONAL — a pair with no
-    // `maintenance:` line is a capability whose maintenance slot is UNBOUND
-    // (null), not a malformed pair. `status` stays required.
-    if (!pr.status) return { error: `pair ${n} (${pr.capability}) is missing status` };
-    // Same-ref before the duplicate scan, or a pair naming one ref twice would be
-    // reported as "appears twice" — true, but not the reason that matters.
-    if (pr.maintenance !== null && pr.capability === pr.maintenance) return { error: `pair ${n}: capability and maintenance are the same ref "${pr.capability}"` };
-    for (const r of [pr.capability, pr.maintenance]) {
-      if (r === null) continue; // unbound maintenance slot — nothing to validate yet
-      if (!SLUG.test(r)) return { error: `pair ${n}: "${r}" is neither a slug id nor a numbered display id` };
-      if (seen.has(r)) return { error: `pair ${n}: "${r}" appears twice in the roadmap` };
-      seen.add(r);
-    }
-  }
-  for (const r of rm.wave_2) {
-    if (!SLUG.test(r)) return { error: `wave_2: "${r}" is neither a slug id nor a numbered display id` };
-    if (seen.has(r)) return { error: `wave_2: "${r}" appears twice in the roadmap` };
-    seen.add(r);
-  }
-  return { roadmap: rm };
 }
 
 // --- doc status by frontmatter id, from the docs tree ----------------------------
@@ -163,10 +117,11 @@ function nextRide(rm, docsDir) {
       // thing an owner met, not a rare edge. Same resolution authority
       // (findDoc) gate's off-roadmap check already uses, so `next` and
       // `gate` never disagree about what "resolves" means.
-      if (!findDoc(docsDir, pr.capability)) {
+      const cdoc = findDoc(docsDir, pr.capability);
+      if (!cdoc) {
         return { action: 'file-intake', ref: pr.capability, capability: pr.capability, half: 'capability', pair: pr };
       }
-      return { ref: pr.capability, half: 'capability', pair: pr };
+      return { ref: pr.capability, half: 'capability', pair: pr, path: cdoc.path };
     }
     // D4: a started capability whose maintenance slot is UNBOUND (no
     // `maintenance:` line) used to fall through to `statusOf(docs, null)` and
@@ -185,13 +140,33 @@ function nextRide(rm, docsDir) {
     // (findDoc) so `next` and `gate` never disagree about what "resolves"
     // means, and propose filing the intake instead of a ref nothing can act
     // on.
-    if (!findDoc(docsDir, pr.maintenance)) {
+    const mdoc = findDoc(docsDir, pr.maintenance);
+    if (!mdoc) {
       return { action: 'file-intake', ref: pr.maintenance, capability: pr.capability, half: 'maintenance', pair: pr };
     }
-    const ms = statusOf(docsDir, pr.maintenance);
-    if (ms !== 'done') return { ref: pr.maintenance, half: 'maintenance', pair: pr };
+    if (mdoc.status !== 'done') return { ref: pr.maintenance, half: 'maintenance', pair: pr, path: mdoc.path };
   }
   return null;
+}
+// D7 — without a budget the roadmap is an ordered capability list: skip a done
+// pair and a pair whose capability DOCUMENT is done (a hand-run close that never
+// flipped the pair), name a capability with no document as file-intake, and
+// otherwise name the capability — also while it is already implementing. Never
+// a bind, never a maintenance half.
+function nextNoBudget(rm, docsDir) {
+  for (const pr of rm.pairs) {
+    if (pr.status === 'done') continue;
+    const doc = findDoc(docsDir, pr.capability);
+    const capStatus = doc ? doc.status : null;
+    if (capStatus === 'done') continue;
+    if (!doc) return { action: 'file-intake', ref: pr.capability, capability: pr.capability, half: 'capability', pair: pr };
+    return { ref: pr.capability, half: 'capability', pair: pr, path: doc.path };
+  }
+  return null;
+}
+function pickNext(rm, docsDir) {
+  if (!rm.budget) return nextNoBudget(rm, docsDir);
+  return nextRide(rm, docsDir);
 }
 
 // --- gate --------------------------------------------------------------------------
@@ -228,9 +203,52 @@ function appendOverride(eventsPath, ref, reason) {
   fs.appendFileSync(eventsPath, `${JSON.stringify(rec)}\n`);
 }
 
+// noBudgetGate (D3) — no `budget:` block: the roadmap ORDER drives `next`, not a
+// refusal of an explicitly requested ride. Refuse a ref in a done pair and a ref
+// that resolves to no document; admit everything else. (A ref whose own document
+// is done was refused by the caller before this point.)
+function noBudgetGate(ctx) {
+  const { a, pair } = ctx;
+  if (pair && pair.status === 'done') return ctx.deny(`${a.ref} belongs to a pair already marked done in the roadmap`);
+  if (!ctx.intake) return ctx.deny(`no document resolves for "${a.ref}" under ${a.docs} — file its intake before gating this ref (gate admits only refs that exist)`);
+  return ctx.admit(`${pair ? 'a roadmap item' : 'off the roadmap'}; no maintenance budget, so roadmap order does not gate a requested ride`);
+}
+
+// show — read-only view of the roadmap posture (D12). Absent = one line, exit 0.
+function nextView(n) {
+  if (!n) return null;
+  const v = {};
+  for (const k of ['action', 'ref', 'half', 'capability', 'path']) if (n[k] !== undefined) v[k] = n[k];
+  return v;
+}
+function cmdShow(a, loaded) {
+  if (roadmapAbsent(a.roadmap)) {
+    process.stdout.write(a.json ? JSON.stringify({ roadmap: null, note: 'no roadmap' }) + '\n' : `no roadmap (${a.roadmap}) — rides are not gated\n`);
+    process.exit(0);
+  }
+  if (loaded.error) usage(`invalid roadmap ${a.roadmap}: ${loaded.error}`);
+  const rm = loaded.roadmap;
+  const n = pickNext(rm, a.docs);
+  if (a.json) {
+    process.stdout.write(JSON.stringify({ roadmap: a.roadmap, budget: Boolean(rm.budget), next: nextView(n), pairs: rm.pairs, wave_2: rm.wave_2 }) + '\n');
+    process.exit(0);
+  }
+  const open = rm.pairs.filter((p) => p.status !== 'done');
+  const lines = [
+    rm.budget ? 'maintenance budget: on' : 'maintenance budget: off',
+    `next: ${n ? (n.action ? `${n.action} ${n.ref || n.capability}` : n.ref) : 'none (wave 1 complete)'}`,
+    `done: ${rm.pairs.length - open.length} of ${rm.pairs.length}`,
+    `planned/active: ${open.map((p) => `${p.capability} (${p.status})`).join(', ') || 'none'}`,
+    `wave 2: ${rm.wave_2.join(', ') || 'none'}`,
+  ];
+  process.stdout.write(`${lines.join('\n')}\n`);
+  process.exit(0);
+}
+
 function main() {
   const a = parseArgs(process.argv.slice(2));
   const loaded = loadRoadmap(a.roadmap);
+  if (a.cmd === 'show') cmdShow(a, loaded);
 
   if (a.cmd === 'validate') {
     if (loaded.error) usage(`invalid roadmap ${a.roadmap}: ${loaded.error}`);
@@ -268,11 +286,27 @@ function main() {
     process.stdout.write(`roadmap OK: ${loaded.roadmap.pairs.length} pair(s), ${loaded.roadmap.wave_2.length} wave-2 item(s)\n`);
     process.exit(0);
   }
+  if (a.cmd === 'gate') {
+    if (!a.ref) usage('gate requires --ref <id> (a slug id like live-agent-dashboard-served-locally, or a numbered display id like CHANGE-0173)');
+    if (!SLUG.test(a.ref)) usage(`--ref "${a.ref}" is neither a slug id nor a numbered display id (TYPE-0000)`);
+    if (a.override !== null && a.override.trim() === '') usage('--override requires a reason');
+    // An --intake whose id disagrees with --ref is a usage error in EITHER
+    // posture (code review NB-3): checked here, before the absent admit.
+    if (a.intake) { const early = readIntake(a.intake); if (early && early.id && early.id !== a.ref) usage(`--intake ${a.intake} has id "${early.id}", not --ref ${a.ref}`); }
+    // The roadmap file is the posture switch: absent = ungoverned, admit without
+    // consulting anything and write nothing (no override event: nothing overridden).
+    if (!fs.existsSync(a.roadmap)) {
+      // existsSync is false for EACCES too: only a real not-found admits (fail closed).
+      if (!roadmapAbsent(a.roadmap)) refuse(`roadmap not readable: ${a.roadmap} (${a.roadmap}) — a gate that cannot read its roadmap admits nothing`);
+      process.stdout.write(`ride-select: ADMIT ${a.ref} — roadmap absent (${a.roadmap}): gate not consulted\n`);
+      process.exit(0);
+    }
+  }
   if (loaded.error) refuse(`${loaded.error} (${a.roadmap}) — a gate that cannot read its roadmap admits nothing`);
   const rm = loaded.roadmap;
 
   if (a.cmd === 'next') {
-    const n = nextRide(rm, a.docs);
+    const n = pickNext(rm, a.docs);
     // D5: an exhausted roadmap (no unfinished pair) offers the harvest
     // instead of only naming wave_2 — still exit 0, never a prompt or write.
     const harvestCommand = 'node .aai/scripts/roadmap-propose.mjs harvest --direction "<one sentence of owner direction>"';
@@ -304,16 +338,12 @@ function main() {
         : humanText);
       process.exit(0);
     }
-    process.stdout.write(a.json ? JSON.stringify({ next: n.ref, half: n.half, pair: n.pair }) + '\n' : `${n.ref}\n`);
+    process.stdout.write(a.json ? JSON.stringify({ next: n.ref, half: n.half, pair: n.pair, path: n.path }) + '\n' : `${n.ref}\n`);
     process.exit(0);
   }
 
   // gate
-  if (!a.ref) usage('gate requires --ref <id> (a slug id like live-agent-dashboard-served-locally, or a numbered display id like CHANGE-0173)');
-  if (!SLUG.test(a.ref)) usage(`--ref "${a.ref}" is neither a slug id nor a numbered display id (TYPE-0000)`);
-  if (a.override !== null && a.override.trim() === '') usage('--override requires a reason');
   const intake = a.intake ? readIntake(a.intake) : findDoc(a.docs, a.ref);
-  if (a.intake && intake && intake.id && intake.id !== a.ref) usage(`--intake ${a.intake} has id "${intake.id}", not --ref ${a.ref}`);
   const pair = rm.pairs.find((p) => p.capability === a.ref || p.maintenance === a.ref);
   const status = intake ? intake.status : statusOf(a.docs, a.ref);
 
@@ -324,6 +354,7 @@ function main() {
   };
 
   if (status === 'done') return deny(`${a.ref} is already done — nothing to ride`);
+  if (!rm.budget) return noBudgetGate({ a, rm, pair, intake, admit, deny });
   if (pair) {
     if (pair.status === 'done') return deny(`${a.ref} belongs to a pair already marked done in the roadmap`);
     // AC-004: a ref already in flight is never refused by ranking, whichever

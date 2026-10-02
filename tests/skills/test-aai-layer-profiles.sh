@@ -461,8 +461,12 @@ test_default_byte_identity() {
   # their primary discovery path, added to the sync copy set AFTER the
   # pre-profile OLD engine (fix(harness): aai-sync manages the .agents/skills
   # mirror), so it too is a legitimate additive copy the OLD engine never emits.
+  # .aai/cache/ is runtime state, never vendored content (aai_files_of above
+  # excludes it for the same reason): since goodwind-cz/aai#414 the engine
+  # records what it last shipped into hooks/hooks*.json there
+  # (.aai/cache/hooks-shipped/), which the OLD engine never wrote.
   local differing
-  differing="$(diff -rq "$t_old" "$t_new" 2>/dev/null | grep -v '/\.git' | grep -v 'docs/ai/reports' | grep -v 'update-config.yaml' | grep -v 'docs-audit.yaml' | grep -v '\.agents' | grep '^Files ' | awk '{print $2}' | sed "s|^$t_old/||" || true)"
+  differing="$(diff -rq "$t_old" "$t_new" 2>/dev/null | grep -v '/\.git' | grep -v 'docs/ai/reports' | grep -v 'update-config.yaml' | grep -v 'docs-audit.yaml' | grep -v '\.agents' | grep -v -e '\.aai/cache' -e '\.aai: cache$' | grep '^Files ' | awk '{print $2}' | sed "s|^$t_old/||" || true)"
   local allowed=".aai/scripts/aai-sync.sh
 .aai/system/AAI_PIN.md"
   local unexpected
@@ -472,7 +476,7 @@ test_default_byte_identity() {
   # post-profile update-config / docs-audit seeds, and the post-profile
   # .agents/skills mirror) would be a copy-set change.
   local only
-  only="$(diff -rq "$t_old" "$t_new" 2>/dev/null | grep -v '/\.git' | grep -v 'docs/ai/reports' | grep -v 'update-config.yaml' | grep -v 'docs-audit.yaml' | grep -v '\.agents' | grep '^Only in ' || true)"
+  only="$(diff -rq "$t_old" "$t_new" 2>/dev/null | grep -v '/\.git' | grep -v 'docs/ai/reports' | grep -v 'update-config.yaml' | grep -v 'docs-audit.yaml' | grep -v '\.agents' | grep -v -e '\.aai/cache' -e '\.aai: cache$' | grep '^Only in ' || true)"
   [[ -z "$only" ]] || log_fail "default run changed the copied file SET vs pre-change sync:"$'\n'"$only"
 
   # (c) the pin diff is EXACTLY the additive documented Profile line.

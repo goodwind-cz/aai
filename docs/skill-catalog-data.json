@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-30T01:27:57.347Z",
-  "skillsCount": 40,
-  "degradedCount": 25,
+  "generatedAt": "2026-10-02T13:16:43.869Z",
+  "skillsCount": 41,
+  "degradedCount": 26,
   "skills": [
     {
       "dir": "aai-auto-trigger",
@@ -282,6 +282,17 @@
       "goal": null,
       "notes": [
         "NOTE: no \"## Goal\" section found in .aai/SKILL_REPLAY.prompt.md"
+      ]
+    },
+    {
+      "dir": "aai-roadmap",
+      "name": "aai-roadmap",
+      "description": "Use when the user wants to see, order or change the project's roadmap (the ordered list of capabilities to build next), set up or switch off the maintenance budget, or harvest roadmap candidates from drafts and friction. Every action is a menu with a recommended default; nothing is hand-edited. Trigger phrases - \"roadmap\", \"what is next\", \"plan the order\", \"add to the roadmap\".",
+      "model": null,
+      "promptFile": ".aai/SKILL_ROADMAP.prompt.md",
+      "goal": null,
+      "notes": [
+        "NOTE: no \"## Goal\" section found in .aai/SKILL_ROADMAP.prompt.md"
       ]
     },
     {

@@ -8,6 +8,7 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 - [Quick Reference](#quick-reference)
 - [Skills Catalog](#skills-catalog)
 - [Workflows](#workflows)
+- [Roadmap: when and how](#roadmap-when-and-how)
 - [Best Practices](#best-practices)
 - [Leak-safe test execution](#leak-safe-test-execution)
 - [Troubleshooting](#troubleshooting)
@@ -53,14 +54,15 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
    ./.aai/scripts/aai-sync.sh /path/to/your-project
    ```
 
-2. **Bootstrap your project (one-time):** In your coding agent's chat, from the target project:
-   ```text
+2. **Bootstrap your project (one-time):**
+   ```bash
+   cd /path/to/your-project
    /aai-bootstrap
    ```
-   This detects your project's test, build, and lint commands.
+   This detects your architecture and generates optimized skills.
 
-3. **Verify installation:** In the same agent chat:
-   ```text
+3. **Verify installation:**
+   ```bash
    /aai-test-skills
    ```
 
@@ -115,25 +117,25 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 
 ### Your First Workflow
 
-In your coding agent's chat, start with intake and review the draft it saves in your repository:
-
-```text
+```bash
+# 1. Start a new feature
 /aai-intake "Add user authentication with JWT"
+
+# 2. AAI will create a requirement document
+# docs/requirements/REQ-001-user-auth.md
+
+# 3. Run TDD cycle
+/aai-tdd
+
+# 4. Validate your work
+/aai-validate-report
+
+# 5. Share the local runtime report
+/aai-share docs/ai/reports/LATEST.md
+
+# 6. If the result is important long-term, promote it into project docs
+# examples: docs/decisions/, docs/specs/, docs/knowledge/, docs/archive/analysis/
 ```
-
-Then pass the **path returned by intake** to ship. For example:
-
-```text
-/aai-ship docs/requirements/PRD-DRAFT-add-user-authentication-with-jwt.md
-```
-
-The path is illustrative; use the actual saved draft. Ship runs planning, implementation, testing, independent validation, review, and product documentation for user-visible work before opening a pull request. You can instead give `/aai-ship` a short need and let it perform intake. Merge remains your decision unless you have explicitly recorded standing authorization for a defined scope. For manual stage-by-stage control, use `/aai-loop` and `/aai-pr` after intake.
-
-### Agent harnesses and models
-
-AAI's project skills are available in Claude Code, Codex, Cursor, and Google Antigravity (IDE/CLI). Cursor and Antigravity discover the shared `.agents/skills/` wrappers; Cursor also gets `.cursor/rules/aai.mdc`. For Google users on free or AI Pro/Ultra plans, use Antigravity CLI: [Google moved those plans away from Gemini CLI in June 2026](https://github.com/google-gemini/gemini-cli/discussions/27274). Gemini CLI remains supported for eligible enterprise, Google Cloud, and paid-API users; AAI still ships `.gemini/skills/` wrappers for it. The work documents, tests, decisions, product docs, and audit events remain in the repository across agent changes.
-
-Model selection is harness-dependent. AAI has model-routing bindings for Claude Code, Codex, and the still-supported Gemini CLI path. Cursor uses the model selected in Cursor; Antigravity consumes the shared skills without a dedicated AAI model-routing binding. Independent validation uses a different model when the active harness can provide one; do not assume every harness can enforce that separation.
 
 ---
 
@@ -164,7 +166,8 @@ AAI uses two different classes of documentation:
 | `/aai-validate-report` | End of work | Validation with screenshots |
 | `/aai-share` | Share results | Publish to Cloudflare Pages |
 | `/aai-loop` | Autonomous work | Multi-tick autonomous loop |
-| `/aai-ship` | Start from a need or intake draft | Runs the loop through review, product docs, and PR; stops for required human decisions and at merge |
+| `/aai-ship` | State a need, get a PR | Runs intake through review end-to-end, pauses only to open the PR |
+| `/aai-roadmap` | Order what is built next | Shows and changes the roadmap through a menu; `/aai-ship` with no argument then takes the next item |
 | `/aai-hitl` | Loop asked for you | Surfaces the blocked question and unblocks the loop |
 | `/aai-update` | Refresh AAI | Re-sync vendored AAI layer from canonical git `main` |
 
@@ -198,7 +201,7 @@ AAI uses two different classes of documentation:
 | `/aai-docs-audit` | Docs hygiene | Drift detection: claimed vs implemented |
 | `/aai-docs-canon` | Docs consolidation | Layered intake/specs/RFCs → canonical per-domain layer + archive |
 | `/aai-test-canon` | Test consolidation | Fragmented tests → canonical per-domain suites + RED stubs for gaps |
-| `/aai-pr` | Open a PR | Scope-only staging, staged-vs-scope audit, PR body; merge only under scoped, owner-signed authorization |
+| `/aai-pr` | Open a PR | Scope-only staging, staged-vs-scope audit, PR body; never merges |
 | `/aai-release` | Cut a release | Roll CHANGELOG, commit, tag, publish, push; operator-gated, safe dry-run |
 | `/aai-profile` | Optimize | Performance analysis |
 | `/aai-worktree` | Isolate the work | Create and manage a git worktree for a scope |
@@ -383,6 +386,25 @@ unexpected internal error.
 
 **Note:** Every issue becomes an intake only after you approve it — the skill proposes, it does not enrol work on your behalf.
 
+#### `/aai-roadmap`
+
+**What:** Shows and changes the project's roadmap — the ordered list of capabilities to build next — through a menu. You never type a script and never edit the roadmap file: every action is one deterministic step the skill runs for you and checks before it keeps it.
+
+**When to use:**
+- You want to see what is next, or put capabilities in the order you want them built
+- You want `/aai-ship` with no argument to know what to take next
+- You want to turn the paired-maintenance budget on or off
+- You want ranked candidates from drafts and friction to choose from (harvest)
+
+**Example:**
+```bash
+/aai-roadmap
+/aai-roadmap add
+/aai-roadmap reorder
+```
+
+**Note:** Every question is a menu with a recommended default. The actions are show, add, reorder, harvest, done, drop, budget (on or off) and off. See [Roadmap: when and how](#roadmap-when-and-how) for three worked examples.
+
 ### 3. Development Workflows
 
 #### `/aai-tdd`
@@ -546,9 +568,7 @@ orchestrator died mid-tick.
 #### `/aai-pr`
 **What:** PR ceremony (SPEC-0013). Turns a validated, review-passed scope into
 a pushed branch and an opened pull request — with scope-only staging and a
-hard merge boundary. Merging is operator-only by default; a scoped,
-owner-signed standing authorization is the exception described in
-`.aai/SKILL_PR.prompt.md` step 6.
+hard merge boundary. It **never merges**; merging is an operator-only action.
 
 **When to use:**
 - After validation PASS and code review pass/waived, when the scope is ready
@@ -584,8 +604,8 @@ error, but the two commands are: `node .aai/scripts/check-state.mjs --repair`
   unrelated in-flight files end up in a feature commit)
 - Commit before validation PASS + review pass/waived + your explicit
   confirmation
-- `gh pr merge`, PR approval, or auto-merge without the explicit, recorded
-  authorization and all of its conditions
+- `gh pr merge`, PR approval, or auto-merge — merging is yours, after your
+  own review
 - Force-push or history rewrites of a pushed branch
 
 #### Deterministic close ceremony (`close-work-item.mjs`)
@@ -679,22 +699,18 @@ releasing AAI itself or a downstream project with the AAI layer deployed.
 
 #### `/aai-ship`
 
-**What:** Takes a stated need or existing open intake draft through planning, implementation, validation, review, product docs, and a pull request. Required worktree, ceremony, or other genuine human decisions can still pause the ride; merging remains operator-only by default.
+**What:** Takes a stated need end-to-end autonomously — intake, planning, implementation, validation, review, product docs — opens the pull request on validation PASS with the review gate satisfied (no question asked), and pauses at exactly one checkpoint, at the merge.
 
 **When to use:**
 - You can describe the need in a sentence and want the whole pipeline run for it
-- You already reviewed an `/aai-intake` draft and want to build from its saved path
 - You do not want to dispatch each role by hand
 
 **Example:**
-```text
+```bash
 /aai-ship "the release notes should name the PR that shipped each change"
-
-# Or use the actual path returned by /aai-intake:
-/aai-ship docs/requirements/PRD-DRAFT-add-user-authentication-with-jwt.md
 ```
 
-**Note:** The PR opens when the validation and review gates pass. Merging is your action unless a scoped, owner-signed standing authorization recorded in the repository applies.
+**Note:** It never merges. The one checkpoint sits at the merge: the pull request is already open, and the merge button stays yours.
 
 ### 4. Quality & Validation
 
@@ -1911,24 +1927,23 @@ node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm
 
 ### End-to-end autopilot (/aai-ship)
 
-The shortest path from a stated need or reviewed intake draft to a PR is the ship autopilot:
+The shortest path from a stated need to a PR is the ship autopilot:
 
-```text
+```bash
 /aai-ship "Add user profile page with avatar upload"
-# Or: /aai-ship <path returned by /aai-intake>
 ```
 
 It chains intake -> loop (planning, implementation, validation, review) ->
 product docs -> pull request, opened automatically on validation PASS with
-the review gate satisfied, normally leaving the merge as the final human
-decision (scope, diff stat, evidence links, the PR URL). Autopilot defaults are recorded, never
+the review gate satisfied (no question asked), behind exactly ONE approval
+surface at the merge (scope, diff stat, evidence links, the PR URL —
+merging stays operator-only). Autopilot defaults are recorded, never
 silent: the intake metrics question is skipped, and the worktree gate
 auto-resolves (`optional`/`not_needed` -> inline, `recommended` ->
 worktree) — except `required` recommendations and ceremony L3 scopes,
 which always stop for a human. Genuine judgment calls (HITL-1..6) still
-pause the ride; answer them and re-run `/aai-ship` to resume. Merging stays
-operator-only unless the repository has a scoped, owner-signed standing
-authorization whose conditions this ride meets.
+pause the ride; answer them and re-run `/aai-ship` to resume. The agent
+never merges — that stays operator-only.
 
 An opted-in **unattended** ride (`unattended=true` plus an existing
 `--intake <path>` — never free text) additionally resolves its own QUALITY
@@ -1990,7 +2005,7 @@ Two supporting surfaces:
 # 7. Open the pull request
 /aai-pr
 # Scope-only staging + staged-vs-scope audit + gh pr create
-# Reports the PR URL; you merge after review unless scoped standing authorization applies
+# Reports the PR URL and stops — YOU merge it after your own review
 
 # 8. Share
 /aai-share docs/ai/reports/LATEST.md
@@ -2059,7 +2074,7 @@ Two supporting surfaces:
 
 # 4. Loop completes automatically
 # A finished scope ends with an OPEN pull request (/aai-pr ceremony) —
-# merging is your action after review unless scoped standing authorization applies.
+# the loop never merges; merging is your action after your own review.
 ```
 
 ### Shell loop runners (autonomous-loop.sh / .ps1)
@@ -2115,6 +2130,55 @@ Notes:
 - In `skill` mode the script checks `.claude/skills/AAI_DYNAMIC_SKILLS.md` as a bootstrap marker; use `-SkipBootstrapCheck` / `--skip-bootstrap-check` only when you intentionally skip dynamic-skills bootstrap.
 - Use `-DryRun` (PowerShell) or `--dry-run` (Bash) to verify loop behavior without executing the agent command.
 - Validate skill readiness and evidence with `.aai/scripts/validate-skills.sh` / `.aai/scripts/validate-skills.ps1`.
+
+---
+
+## Roadmap: when and how
+
+The roadmap is an ordered list of the capabilities your project builds next. It lives in `docs/ai/roadmap.yaml`, and you work with it through `/aai-roadmap` and `/aai-ship`; the file itself is never edited by hand. It has three postures, and you choose by what you create:
+
+| Posture | How you get it | What it does |
+|---------|----------------|--------------|
+| No roadmap | Do nothing (the default) | Nothing is ordered and nothing is consulted; every ride is admitted as before |
+| Roadmap without a budget | `/aai-roadmap add` | The list orders the work; `/aai-ship` with no argument takes the next item; rides are never refused for being out of order |
+| Roadmap with a budget | `/aai-roadmap add` first, then `/aai-roadmap budget` and pick on | As above, plus every capability is paired 1:1 with one maintenance ride, and the gate refuses a maintenance ride whose capability has not started and an off-roadmap fix |
+
+What the skill runs underneath: each menu action is one script call (`ride-select.mjs show`, `roadmap-edit.mjs add|move|done|drop|budget|off`, `roadmap-propose.mjs harvest|write`), and every write is checked by `ride-select.mjs validate` and undone if it fails.
+
+### Example 1: no roadmap
+
+You have just installed AAI and have no roadmap. State a need and the factory rides it, exactly as before:
+
+```
+/aai-ship "the export should include the creation date"
+```
+
+Nothing asks about a roadmap. The gate prints `ADMIT <name> — roadmap absent (docs/ai/roadmap.yaml): gate not consulted`, and the ride report's `ride gate:` line reads `roadmap absent, gate not consulted (autopilot default)`. When you later want order, run `/aai-roadmap`: it prints `no roadmap` and offers a menu whose recommended default is to add your first capability.
+
+### Example 2: a roadmap without a budget
+
+You want three capabilities built in a fixed order and no maintenance pairing:
+
+```
+/aai-roadmap add          # pick the capability, accept the default position (the end)
+/aai-roadmap add          # again, for the second and third
+/aai-roadmap              # show: the next item, what is done, what waits
+/aai-ship                 # no argument: takes the next item on the roadmap
+```
+
+A capability you only named has no document yet. `/aai-ship` with no argument then files its intake for you under the roadmap name (the name on the list becomes the intake's id) and rides it through to the pull request; the next `/aai-ship` moves on to the following item. When a ride ships a capability that is not yet on the list, `/aai-ship` appends it for you and says `roadmap: appended <name>` in its report; during the close ceremony, before the push, the item is marked done. Fixes and chores are admitted at any time. To change the order later, run `/aai-roadmap reorder`.
+
+### Example 3: a roadmap with a budget
+
+You want every capability paired with one maintenance ride (the 1:1 budget) so tidy-up work keeps pace with new work:
+
+```
+/aai-roadmap add          # the first capability (a roadmap must exist before a budget can be switched on)
+/aai-roadmap budget       # pick "on" (the skill explains the pairing in one line)
+/aai-ship                 # no argument: takes the next item on the roadmap
+```
+
+With the budget on, `/aai-ship` for a maintenance ride whose capability has not started is refused with the reason, and an off-roadmap fix is sent to the backlog; you can override once with a stated reason, which is logged. Add more capabilities with `/aai-roadmap add` (or let `/aai-roadmap harvest` rank candidates from your drafts); switch the budget off again with `/aai-roadmap budget` (the pairing lines stay in the file, inactive, so switching back loses nothing). To drop the roadmap entirely, `/aai-roadmap off` asks for confirmation and recommends keeping it.
 
 ---
 
@@ -2199,6 +2263,81 @@ Notes:
      `docs-audit.mjs --gate <DOC-ID>` as a self-check **before** handing off
      to validation — this is why validations now tend to pass first-try
      instead of bouncing on unreconciled tables (SPEC-0011/SPEC-0012).
+
+---
+
+## Git hooks the installer writes (and what they invoke)
+
+`bash .aai/scripts/install-pre-commit-hook.sh` (or the `.ps1` twin) writes
+three hooks into the directory git itself resolves (`git rev-parse --git-path
+hooks/<name>`, so `core.hooksPath` and linked worktrees are honoured). Each is
+recognised by its own marker — a marker counts only when it opens a line
+(column 0), so a hook that merely mentions one in a comment or a string is
+foreign — and the installer never rewrites a byte outside an AAI marker on a
+plain run: a foreign hook in a selected slot is refused by name (with
+`--print`, `--print guard-checks`, `--print ref-guard` or `--print pre-push`
+to hand-merge) and is never deleted by `--uninstall`; an AAI hook that predates
+the guard block is upgraded in place by inserting the block after its shebang,
+and a later block revision replaces only the bytes between `# AAI:GUARD-CHECKS
+BEGIN` and `END` (in both the `.sh` and the `.ps1` installer, non-UTF-8 bytes
+and line endings outside the block survive as they were). A hook whose markers
+are inverted, unpaired or duplicated, or that starts with a byte-order mark, is
+refused by name and left byte-identical.
+
+| Hook | `--hooks` token | Marker | What it invokes |
+|------|-----------------|--------|-----------------|
+| `pre-commit` | `index` | `AAI:INDEX-AUTOGEN`, with an `AAI:GUARD-CHECKS` block first | `.aai/scripts/pre-commit-checks.sh` on every commit, then `docs/INDEX.md` regeneration on commits touching `docs/` |
+| `reference-transaction` | `ref-guard` | `AAI:REF-GUARD` | refuses a `refs/heads/main` update unless `AAI_GIT_WRITE=1` is set on that command |
+| `pre-push` | `close-gate` | `AAI:CLOSE-GATE` | `.aai/scripts/close-reconcile.mjs --check` over every pushed range |
+
+**Behaviour changes on your next `/aai-update`** (the installer runs after every
+successful sync; nothing here is a fix you can miss):
+
+1. `pre-commit-checks.sh` now runs on every commit — before this, the
+   installed hook never reached it. Its secrets detection now **blocks** a
+   commit carrying a detected secret (it used to go through), and the
+   doc-numbering guard's findings appear on every commit that carries an
+   unnumbered draft.
+2. Roughly four seconds are added per commit (the doc-numbering guard's own
+   cost, measured).
+3. `doc_number_guard: enforce` became merge-point-aware: it blocks on the
+   default branch only. On any other branch the guard prints its findings plus
+   one line, `Doc-numbering guard: enforce applies on <default> only; on
+   <branch> this is report-only`, and lets the commit through — the AAI flow
+   commits drafts on branches by design (numbering is assigned at merge). The
+   shipped default stays `report-only`.
+
+**The pre-push close gate.** For each pushed ref the hook resolves the default
+branch (`refs/remotes/origin/HEAD`, else `main`, and it says so), then runs
+`close-reconcile.mjs --check` over one range: a default-branch push as
+`<remote sha>..<local sha>` (a first push as `<local>^..<local>` — so a default
+branch that holds a single commit cannot make its first push under
+`close_gate: enforce`: its `<local>^` does not exist, the range cannot be
+resolved, and enforce treats "the gate could not run" as a refusal; make that
+first push with the pushed commit at `report-only`, or after a second commit),
+any other ref as `merge-base(origin/<default>, local)..local`. The verdict rides the existing
+`close_gate` dial, read from the **pushed commit's** `docs/ai/docs-audit.yaml`
+(never the worktree copy): `report-only` prints and allows; `enforce` refuses
+a push to the **default branch only** — feature-branch pushes are always
+report-only, because WIP pushes legitimately precede the close ceremony.
+`node` absent, the script absent or an unresolvable range each print an
+`AAI:CLOSE-GATE NOTE:` line rather than failing silently. A server-side PR
+merge (GitHub, Azure DevOps) never runs a local hook; the one command a CI job
+needs for merge-time detection is
+`node .aai/scripts/close-reconcile.mjs --check --range <before>..<after>` — no
+CI file is vendored.
+
+**Azure DevOps merge subjects.** `close-reconcile.mjs` resolves the PR number
+from a closed grammar table: GitHub's trailing `(#N)` and Azure's `Merged PR
+N: <title>`, selected by `--platform github|azure` or by the origin URL
+(`pr-platform.mjs`). An unrecognised host tries both and, on a miss, refuses by
+name: `reason=pr-number-unknown platform=unknown grammars-tried=github,azure —
+no shipped grammar matches this host; add one to close-reconcile.mjs`.
+
+**`/aai-doctor` CAT-18 Guard Wiring** reports a shipped guard with no caller:
+for `pre-commit-checks.sh` and `close-reconcile.mjs` it checks that the hook
+git would run carries the marker and is executable, and names the installer
+command when it does not.
 
 ---
 
@@ -2403,18 +2542,28 @@ stored, and **no issue is ever filed without your explicit confirmation.**
    ```bash
    node .aai/scripts/aai-feedback-upsert.mjs
    # -> writes docs/ai/friction/pending-issues/<fingerprint>.md and prints the
-   #    exact confirmed-write command for each
+   #    exact confirmed-write command for each -- or "not offered: no description"
+   #    for a cluster whose record carries no certified one-line description
    ```
    (In Claude Code this is also invocable as the `/aai-feedback-upsert` skill.)
+   A filed issue always carries one human-written description as its leading
+   blockquote (one line, up to 500 characters, through the same fail-closed
+   redactor); a record with no description is never filed, because a
+   metadata-only body is something a maintainer cannot act on.
 
 5. **Review, then file — the only step that touches GitHub, and only on your
    `--confirm`.** Read the draft in `docs/ai/friction/pending-issues/`, and if you
-   approve, file it:
+   approve, file it. If the draft says `blocked_no_description`, write one line
+   (what you expected, what you observed, where) to a file and pass it:
    ```bash
    node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm
+   # or, for a record that carries no summary of its own:
+   node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm --description my-line.txt
    ```
    This is the single mutating GitHub call. It re-runs the redaction + a
-   per-installation budget check immediately before filing.
+   per-installation budget check immediately before filing; a description the
+   redactor refuses (a path, a key, an address) is refused naming the reason,
+   with no GitHub call made.
 
 ### GitHub authentication (prerequisite)
 
@@ -2548,6 +2697,18 @@ read its gate warning) to see which section is missing.
 <!-- AAI:USERGUIDE-ROLLUP:BEGIN (auto-generated by generate-userguide-rollup.mjs, do not edit by hand) -->
 
 ## Delivered features (generated)
+
+### Downstream autopilot: rides ask nothing until the merge
+
+In a project that vendors AAI, `/aai-intake` and `/aai-ship` are the two entry points. A ride taken from them now runs intake, planning, implementation, tests, validation, review and product documentation without asking the owner about two things that belong to the canonical repository's own governance: a capability roadmap the project never wrote, and an owner signature on a specification amendment made mid-ride. The one human checkpoint stays at the merge.
+
+[Product doc](product/downstream-autopilot.md) · [Spec](specs/SPEC-0200-spec-downstream-rides-ask-no-governance-questions.md)
+
+### Roadmap: an ordered list of what to build next
+
+A project can now keep a roadmap: an ordered list of the capabilities it wants built, in the order it wants them. You work with it through `/aai-roadmap`, which shows the list and offers a menu for every change, and through `/aai-ship`, which with no argument takes the next item on the list. Nobody edits the roadmap file by hand and nobody has to type a script.
+
+[Product doc](product/roadmap.md) · [Spec](specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md)
 
 ### Validation of original requirements and saved results
 

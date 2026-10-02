@@ -1,0 +1,25 @@
+mutation_record: v1
+spec_id: spec-friction-issues-arrive-without-a-description
+test_id: TEST-1310
+suite: tests/skills/test-aai-issues.sh
+selector: test_1310_gh_args_include_comments
+target: .aai/scripts/aai-issues.mjs
+mutation: sed:s/number,title,labels,body,url,comments/number,title,labels,body,url/
+base_commit: e7de26d7140510a4cebe02054062ff55e29d86f1
+tree_hash: 0e3e5c48c75dd1c9b789e5a426eecbc3745ca99f0353ee30f46e67655adbcc70
+run_at_utc: 2026-10-01T11:37:58Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-1310 buildGhArgs() fetches comments
+selector_honoured: yes
+target_sha256: 948c344725a2855a59109846c9120149116e3f2b11991c26e3089abc0131e4fd
+---
+Testing: aai-issues
+====================
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: TEST-1310: buildGhArgs() --json field list carries comments...
+INFO: TEST-1310: --json field list must be number,title,labels,body,url,comments: ["issue","list","--state","open","--json","number,title,labels,body,url"]
+
+Some tests FAILED.
+FAIL: TEST-1310 buildGhArgs() fetches comments

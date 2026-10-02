@@ -1,0 +1,6 @@
+RED_CLASS: product_red
+# RED capture for TEST-813 — suite test-aai-hygiene-pack.sh selector test_813_ps1_twin_parity — pre-change tree 3d9e2a6d — exit 1
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: the .ps1 twin ships close-gate, $prePushBody and the guard block byte-identically (TEST-813)...
+FAIL: TEST-813: the .ps1 -Hooks closed set does not declare close-gate

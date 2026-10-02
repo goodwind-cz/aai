@@ -8,10 +8,11 @@ Rules:
 - If uncertain, mark as UNCERTAIN and list as an open question.
 - Prefer small deltas; avoid restating large documents.
 
-## OpenAI gpt-6.1-sol pricing (CHANGE-0197 owner note 2026-09-29)
+## OpenAI GPT-6 flagship pricing (CHANGE-0197 / CHANGE-0198)
 
-- OpenAI publishes **gpt-6.1-sol** (owner wording: ChatGPT 6.1 sol) on the flagship pricing table at `https://platform.openai.com/docs/pricing` with short-context standard list **$2.00 / $1M input** and **$10.00 / $1M output** (verified 2026-09-29). Long-context tier doubles input on the same page.
-- `.aai/system/PRICING.yaml` carries a `gpt-6.1-sol` row from CHANGE-0197; **`.aai/system/MODEL_ROUTING.yaml` was out of scope** for that change.
+- OpenAI flagship table at `https://developers.openai.com/api/docs/pricing` (source_ref `openai-pricing`) lists **gpt-6-astra**, **gpt-6-sol**, **gpt-6-luna**, and **gpt-6.1-sol** with standard short-context USD/1M input/output (verified 2026-09-30): astra **$10 / $50**, sol and 6.1-sol **$2 / $10**, luna **$0.10 / $0.50**. Long-context and cached-input tiers are on the same page; standard list prices live in `input_usd_per_m` / `output_usd_per_m`.
+- **gpt-6.1-astra** has no separate row on that page (only gpt-6-astra and gpt-6.1-sol); omission is noted in `.aai/system/PRICING.yaml` `pricing_meta` (CHANGE-0198).
+- `.aai/system/PRICING.yaml` carries these keys; **`.aai/system/MODEL_ROUTING.yaml` remains out of scope** for pricing-only changes.
 
 ## implementation_strategy.ref_id (SPEC-0192)
 

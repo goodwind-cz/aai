@@ -23,8 +23,20 @@ GENERATOR=".aai/scripts/aai-bootstrap.sh"
 SKILL_MARKER="AAI-DYNAMIC-SKILL:START"
 FILE_MARKER="AAI-DYNAMIC-FILE:START"
 
+# This script's own directory, resolved once (self-relative, not
+# CWD-relative: the shared libraries below are sibling files regardless of
+# what directory bootstrap is invoked from). One resolution, not one per
+# library: tests/skills/lib/cd-subshell-leak-baseline.tsv ratchets the
+# `cd`-inside-a-substitution shape per file, and a second copy of it here
+# was a RISE (Validation BLOCKING-2, 2026-09-30).
+BOOTSTRAP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Shared JSON-hooks merge (.aai/scripts/lib/merge-hooks-json.mjs — the same
+# file aai-sync.(sh|ps1) call for hooks/hooks*.json).
+HOOKS_JSON_MERGE_LIB="$BOOTSTRAP_SCRIPT_DIR/lib/merge-hooks-json.mjs"
+
 # Shared runtime-sidecar .gitignore reconcile (spec-aai-update-gitignore-drift-reconcile).
-GITIGNORE_BLOCK_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/gitignore-block.sh"
+GITIGNORE_BLOCK_LIB="$BOOTSTRAP_SCRIPT_DIR/lib/gitignore-block.sh"
 if [[ -f "$GITIGNORE_BLOCK_LIB" ]]; then
   # shellcheck source=lib/gitignore-block.sh
   source "$GITIGNORE_BLOCK_LIB"
@@ -980,6 +992,15 @@ install_claude_hooks() {
     echo "WARN: Claude hooks template not found ($tpl) — skipping hooks install. Vendor it via .aai/scripts/aai-sync.sh, then rerun with --with-claude-hooks."
     return 0
   fi
+  if [[ ! -f "$HOOKS_JSON_MERGE_LIB" ]]; then
+    # Review NB-1 follow-through (Validation NB-3): --with-claude-hooks was
+    # EXPLICITLY requested; a missing merge library delivers nothing, and
+    # delivering nothing must fail the command (exit 3), not warn-and-succeed.
+    # Bites only on a target vendored from a pre-#414 source.
+    echo "ERROR: hooks merge library not found ($HOOKS_JSON_MERGE_LIB) — the hooks overlay was NOT installed. Re-sync (.aai/scripts/aai-sync.sh) to vendor it, then rerun with --with-claude-hooks." >&2
+    HOOKS_MERGE_FAILED=1
+    return 0
+  fi
   if ! command -v node >/dev/null 2>&1; then
     echo "WARN: node unavailable — cannot merge the hooks overlay. Manual step: merge the \"hooks\" key from $tpl into $dst yourself."
     return 0
@@ -991,54 +1012,15 @@ install_claude_hooks() {
 
   mkdir -p .claude
   local merge_out
-  if merge_out="$(node -e '
-const fs = require("fs");
-const [tplPath, dstPath] = process.argv.slice(1);
-const tpl = JSON.parse(fs.readFileSync(tplPath, "utf8"));
-let dst = {};
-if (fs.existsSync(dstPath)) {
-  try {
-    dst = JSON.parse(fs.readFileSync(dstPath, "utf8"));
-  } catch (e) {
-    console.error("existing " + dstPath + " is not valid JSON — refusing to touch it. Merge the \"hooks\" key from " + tplPath + " manually.");
-    process.exit(1);
-  }
-}
-if (typeof dst !== "object" || dst === null || Array.isArray(dst)) {
-  console.error("existing " + dstPath + " is not a JSON object — refusing to touch it. Merge manually from " + tplPath + ".");
-  process.exit(1);
-}
-// Review NB-1: a pre-existing non-object "hooks" key (e.g. hooks: []) would
-// make the merge silently drop entries while reporting success — refuse loud.
-if ("hooks" in dst && (typeof dst.hooks !== "object" || dst.hooks === null || Array.isArray(dst.hooks))) {
-  console.error("existing " + dstPath + " has a non-object \"hooks\" key — refusing to touch it. Fix it or merge manually from " + tplPath + ".");
-  process.exit(1);
-}
-dst.hooks = dst.hooks || {};
-let added = 0, skipped = 0;
-for (const [event, matchers] of Object.entries(tpl.hooks || {})) {
-  dst.hooks[event] = dst.hooks[event] || [];
-  for (const m of matchers) {
-    for (const h of (m.hooks || [])) {
-      const present = dst.hooks[event].some((x) => (x.hooks || []).some((y) => y.command === h.command));
-      if (present) { skipped++; continue; }
-      let entry = dst.hooks[event].find((x) => x.matcher === m.matcher);
-      if (!entry) {
-        entry = (m.matcher !== undefined) ? { matcher: m.matcher, hooks: [] } : { hooks: [] };
-        dst.hooks[event].push(entry);
-      }
-      entry.hooks.push(h);
-      added++;
-    }
-  }
-}
-if (added > 0) fs.writeFileSync(dstPath, JSON.stringify(dst, null, 2) + "\n");
-console.log("hooks overlay: " + added + " hook(s) added, " + skipped + " already present -> " + dstPath);
-' "$tpl" "$dst" 2>&1)"; then
-    echo "  $merge_out"
+  # Algorithm lives in one shared file (.aai/scripts/lib/merge-hooks-json.mjs)
+  # — aai-sync.sh/.ps1 call the same script for hooks/hooks*.json (owner
+  # amendment to spec-sync-deletes-target-only-hooks, 2026-09-30). Never
+  # re-type this merge a second time; fix it once, here.
+  if merge_out="$(node "$HOOKS_JSON_MERGE_LIB" "$tpl" "$dst" 2>&1)"; then
+    echo "  hooks overlay: $merge_out"
     # here-string, never printf piped into "grep -q": under pipefail a
     # quiet grep that matches early can SIGPIPE the writer (round 10, PR #381).
-    if grep -q "0 hook(s) added" <<<"$merge_out"; then
+    if grep -q "0 hook(s) added, 0 updated" <<<"$merge_out"; then
       UNCHANGED+=("$dst (AAI hooks overlay already present)")
     else
       WRITTEN+=("$dst (AAI hooks overlay merged)")

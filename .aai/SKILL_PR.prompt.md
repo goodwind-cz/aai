@@ -206,7 +206,8 @@ PROCESS
      spec-mutation-gate-for-tests; carrying its `--spec`/`--ref`). Run each
      (`--signoff none` also files the tracked item, so one call per
      violation clears the gate; `--signoff owner` when the owner really
-     decided). Never an in-place edit. For a RECORD violation, never `spec-amend.mjs add`
+     decided). `--signoff none` is the autonomous default;
+     the owner is never asked mid-ride. Never an in-place edit. For a RECORD violation, never `spec-amend.mjs add`
      — that records a NEW amendment and leaves the named record untracked.
      An unsigned post-freeze amendment with no tracked item discharges an
      owner HITL gate by self-disclosure.
@@ -237,6 +238,12 @@ PROCESS
    exact false-open shape this ordering exists to prevent, and the script's
    own rollback cannot see edits made before it ran. Exit 6 means the close
    STOOD: keep the flip; run the echoed remaining state.mjs command(s).
+   - Then run `node .aai/scripts/roadmap-edit.mjs advance --ref <slug>` (a
+     named no-op without a roadmap or before the documents are done); non-zero:
+     STOP and print it (the script already restored the file). When
+     `git status --porcelain -- docs/ai/roadmap.yaml` is non-empty, stage
+     `docs/ai/roadmap.yaml` in the close commit and add it to the
+     `check-committed-scope.mjs` path list below.
    - Then run `node .aai/scripts/state.mjs clear-focus --ref <slug>` — a
      closed ride must stop publishing as the in-flight scope
      (fu-overview-shows-closed-ride-inflight).

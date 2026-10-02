@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-02T17:13:31.340Z
+Generated: 2026-10-02T17:14:24.915Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (29)
+## Product (31)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -31,6 +31,7 @@ _None._
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
+| downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
 | implementation-mode-choice | implementation-mode-choice | 1 | docs/product/implementation-mode-choice.md |
@@ -45,13 +46,14 @@ _None._
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | ride-completion | ride-completion | 1 | docs/product/ride-completion.md |
+| roadmap | roadmap | 1 | docs/product/roadmap.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 4 | docs/product/telemetry.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (469)
+## Done (485)
 
 | ID | Type | Path |
 |---|---|---|
@@ -231,6 +233,7 @@ _None._
 | CHANGE-0175 | issues | docs/issues/CHANGE-0175-decisions-as-menus-in-dashboard.md |
 | CHANGE-0177 | issues | docs/issues/CHANGE-0177-lessons-that-must-hold-downstream-are-guards.md |
 | CHANGE-0178 | issues | docs/issues/CHANGE-0178-live-page-shows-dead-heartbeats-not-live-work.md |
+| CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0181 | issues | docs/issues/CHANGE-0181-unrecorded-spec-amendment-is-invisible.md |
 | CHANGE-0182 | issues | docs/issues/CHANGE-0182-harness-universal-routing.md |
 | CHANGE-0183 | issues | docs/issues/CHANGE-0183-telemetry-fields-not-prose.md |
@@ -247,7 +250,11 @@ _None._
 | CHANGE-0195 | issues | docs/issues/CHANGE-0195-growth-pins-dont-wall-the-corpus.md |
 | CHANGE-0196 | issues | docs/issues/CHANGE-0196-antigravity-cli-skill-paths.md |
 | CHANGE-0197 | issues | docs/issues/CHANGE-0197-pricing-missing-models-and-refresh.md |
+| CHANGE-0198 | issues | docs/issues/CHANGE-0198-pricing-gpt-6-flagship-family.md |
 | CHANGE-0199 | issues | docs/issues/CHANGE-0199-readme-portable-workflow-onboarding.md |
+| CHANGE-0200 | issues | docs/issues/CHANGE-0200-downstream-rides-ask-no-governance-questions.md |
+| CHANGE-0201 | issues | docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md |
+| CHANGE-0202 | issues | docs/issues/CHANGE-0202-amendment-signature-asks-the-owner-too-often.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -308,6 +315,9 @@ _None._
 | ISSUE-0086 | issues | docs/issues/ISSUE-0086-strategy-unscoped-from-current-focus.md |
 | ISSUE-0087 | issues | docs/issues/ISSUE-0087-mutation-clone-fidelity-windows-eol.md |
 | ISSUE-0088 | issues | docs/issues/ISSUE-0088-mutation-clone-windows-run-chain.md |
+| ISSUE-0089 | issues | docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md |
+| ISSUE-0090 | issues | docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md |
+| ISSUE-0092 | issues | docs/issues/ISSUE-0092-a-check-cannot-tell-silence-from-a-verdict.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -522,6 +532,14 @@ _None._
 | SPEC-0194 | specs | docs/specs/SPEC-0194-spec-antigravity-cli-skill-paths.md |
 | SPEC-0195 | specs | docs/specs/SPEC-0195-spec-mutation-clone-windows-run-chain.md |
 | SPEC-0197 | specs | docs/specs/SPEC-0197-spec-pricing-missing-models-and-refresh.md |
+| SPEC-0198 | specs | docs/specs/SPEC-0198-spec-pricing-gpt-6-flagship-family.md |
+| SPEC-0199 | specs | docs/specs/SPEC-0199-spec-sync-deletes-target-only-hooks.md |
+| SPEC-0200 | specs | docs/specs/SPEC-0200-spec-downstream-rides-ask-no-governance-questions.md |
+| SPEC-0201 | specs | docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md |
+| SPEC-0202 | specs | docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md |
+| SPEC-0203 | specs | docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md |
+| SPEC-0204 | specs | docs/specs/SPEC-0204-spec-a-check-cannot-tell-silence-from-a-verdict.md |
+| SPEC-0205 | specs | docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -530,7 +548,6 @@ _None._
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
-| CHANGE-0179 | issues | docs/issues/CHANGE-0179-friction-issues-arrive-without-a-description.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
@@ -543,6 +560,7 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
+| ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
 
 ## Deferred (whole-doc) (0)
 

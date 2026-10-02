@@ -170,6 +170,7 @@ foreach ($d in @(".aai/workflow",".aai/roles",".aai/templates",".aai/scripts",".
 }
 
 $overwriteConflicts = @()
+$deletions = @()
 
 # -- Legacy cleanup: remove old-layout paths that moved into .aai/ -----------
 $legacyCleaned = $false
@@ -292,6 +293,7 @@ if ($Profile -eq "core") {
         return
       }
       Remove-Item $_.FullName -Force
+      $deletions += $rel
       Write-Host "  PROFILE prune (not in core): $rel"
     }
   }
@@ -317,6 +319,7 @@ if ($Profile -eq "core") {
     $srcAaiPath = Join-Path $SrcRoot ".aai"
     if (!(Test-Path (Join-Path $srcAaiPath $_.Name))) {
       Remove-Item $_.FullName -Recurse -Force
+      $deletions += ".aai/$($_.Name)"
       Write-Host "  CLEAN removed stale: .aai/$($_.Name)"
     }
   }
@@ -554,10 +557,107 @@ if (Test-Path $pluginJson) {
   Write-Host "  SYNC .claude-plugin/plugin.json"
 }
 
-# Session hooks (cross-platform: Claude Code, Cursor, Gemini, Codex)
+# Session hooks (cross-platform: Claude Code, Cursor, Gemini, Codex):
+# file-by-file merge, same idiom as .aai/scripts/ and .claude/skills -
+# overwrite source-owned hook entries, preserve target-only ones. A
+# wholesale Copy-Replace here used to delete a target's own
+# hooks/merge-guard.* safety control on every sync (goodwind-cz/aai#414).
+#
+# hooks/hooks.json and hooks/hooks.windows.json are the ONE exception to
+# "source-owned files overwrite": owner amendment (2026-09-30) - a
+# target-added registration entry (e.g. merge-guard's own PreToolUse hook)
+# must survive a sync, so these two are MERGED via the shared
+# .aai/scripts/lib/merge-hooks-json.mjs (same algorithm as aai-bootstrap.sh's
+# --with-claude-hooks overlay). The rule, stated in that file's header: a
+# source hook not present in the target is added; a source-owned entry whose
+# command changed is UPDATED IN PLACE only when the target's WHOLE
+# registration - the hook object in every field AND its enclosing matcher -
+# equals what this engine last shipped here (the --shipped snapshot under
+# <target>/.aai/cache/hooks-shipped/, which survives sync/prune and is
+# gitignored); a same-path entry the engine cannot prove it authored - a
+# different command, an added timeout, a flipped async, a changed matcher,
+# or no snapshot at all - is LEFT AS-IS, not added beside, and named in the
+# advisory - a user-modified hook is never rewritten. A target entry whose
+# path the source does not ship is never touched. A merge refusal (target
+# does not parse as the expected JSON shape) or a missing `node` leaves the
+# target file untouched and is named in the advisory - never a silent skip.
+# A snapshot the engine could not RECORD after a merge that did happen is
+# reported as exactly that (the merge stands; the next sync can only
+# report, not update) - never as "left untouched". Retirement residual: the
+# merge never removes anything, so a hook the source has retired stays
+# registered in a target that already carries it (see Spec-AC-08/-11).
+$hooksJsonMergeLib = Join-Path $SrcRoot ".aai/scripts/lib/merge-hooks-json.mjs"
+$hooksShippedDir = Join-Path $TargetRoot ".aai/cache/hooks-shipped"
+$hooksNodeAvailable = [bool](Get-Command node -ErrorAction SilentlyContinue)
 $hooksDir = Join-Path $SrcRoot "hooks"
 if (Test-Path $hooksDir) {
-  Copy-Replace $hooksDir (Join-Path $TargetRoot "hooks")
+  $targetHooksDir = Join-Path $TargetRoot "hooks"
+  New-Item -ItemType Directory -Force -Path $targetHooksDir | Out-Null
+  Get-ChildItem -Path $hooksDir -Force | ForEach-Object {
+    $dstHook = Join-Path $targetHooksDir $_.Name
+    if (($_.Name -eq "hooks.json") -or ($_.Name -eq "hooks.windows.json")) {
+      if (-not $hooksNodeAvailable) {
+        $overwriteConflicts += [pscustomobject]@{
+          Path = "hooks/$($_.Name)"
+          Recommendation = "node is unavailable, so the hook-registration merge could not run; the target file was left untouched. Install Node.js and re-sync, or merge the `"hooks`" key from the source file manually."
+        }
+        Write-Host "  WARN node unavailable - hooks/$($_.Name) registration merge skipped, file left untouched"
+      } elseif (-not (Test-Path $hooksJsonMergeLib)) {
+        $overwriteConflicts += [pscustomobject]@{
+          Path = "hooks/$($_.Name)"
+          Recommendation = "The hooks-registration merge library is missing from this source tree; the target file was left untouched. Merge the `"hooks`" key from the source file manually."
+        }
+        Write-Host "  WARN merge library missing - hooks/$($_.Name) registration merge skipped, file left untouched"
+      } else {
+        $shippedPath = Join-Path $hooksShippedDir $_.Name
+        $mergeOut = & node $hooksJsonMergeLib $_.FullName $dstHook --shipped $shippedPath 2>&1 | Out-String
+        # Advisory text names paths relative to the two roots, never the
+        # machine's absolute layout (Validation NB-5). Both separators: the
+        # library echoes the paths as it received them.
+        $mergeOut = $mergeOut.Trim().Replace("$TargetRoot/", "").Replace("$TargetRoot\", "").Replace("$SrcRoot/", "<source>/").Replace("$SrcRoot\", "<source>/")
+        if ($LASTEXITCODE -eq 0) {
+          Write-Host "  MERGE hooks/$($_.Name): $mergeOut"
+          # One `LEFT-AS-IS <event> <path>: ...` line per source-owned entry
+          # the merge could not prove it authored - the owner's priority
+          # (never rewrite a user-modified hook) applied; surface each one.
+          # One `SNAPSHOT-NOT-RECORDED <path>: <error>` line when the merge
+          # stood but the engine could not record what it shipped (NB-A):
+          # report THAT, never "left untouched" for a file that was written.
+          foreach ($mergeLine in ($mergeOut -split "`r?`n")) {
+            if ($mergeLine.StartsWith("LEFT-AS-IS ")) {
+              $overwriteConflicts += [pscustomobject]@{
+                Path = "hooks/$($_.Name)"
+                Recommendation = "A source-owned hook registration changed in the source, but the target's entry for the same script differs from what this engine last shipped, so it was left as-is and the new version was NOT added beside it (a user-modified hook is never rewritten). $($mergeLine.Substring(11))"
+              }
+            } elseif ($mergeLine.StartsWith("SNAPSHOT-NOT-RECORDED ")) {
+              $snapshotDetail = $mergeLine.Substring(22)
+              $overwriteConflicts += [pscustomobject]@{
+                Path = "hooks/$($_.Name)"
+                Recommendation = "The registration merge was applied to the target, but the engine could not record what it shipped ($snapshotDetail), so the next sync can only report a changed source-owned entry as left as-is, never update it, until that path is writable. Fix the snapshot path under .aai/cache/hooks-shipped/ and re-sync."
+              }
+              Write-Host "  WARN hooks/$($_.Name) merged, but the shipped snapshot could not be recorded: $snapshotDetail"
+            }
+          }
+        } else {
+          # The library throws only BEFORE it writes the destination (parse
+          # refusals, an unreadable/unwritable target), so "left untouched"
+          # is true here; the library's own message names the cause.
+          $overwriteConflicts += [pscustomobject]@{
+            Path = "hooks/$($_.Name)"
+            Recommendation = "Hook-registration merge was refused and the target was left untouched: $mergeOut Merge the registration manually."
+          }
+          Write-Host "  WARN hooks/$($_.Name) registration merge refused (target left untouched): $mergeOut"
+        }
+      }
+      return
+    }
+    Copy-Replace $_.FullName $dstHook
+  }
+  Get-ChildItem -Path $targetHooksDir -Force | ForEach-Object {
+    if (!(Test-Path (Join-Path $hooksDir $_.Name))) {
+      Write-Host "  PRESERVE target-only hook: hooks/$($_.Name)"
+    }
+  }
   Write-Host "  SYNC hooks/"
 }
 
@@ -771,8 +871,10 @@ if (Test-Path $gitignorePath) {
   }
 }
 
-# Create conflict advisory report for files that were overwritten with differences.
-if ($overwriteConflicts.Count -gt 0) {
+# Create conflict advisory report for files that were overwritten with
+# differences, or deleted (goodwind-cz/aai#414: a purely destructive run used
+# to write no advisory at all).
+if (($overwriteConflicts.Count -gt 0) -or ($deletions.Count -gt 0)) {
   $reportDir = Join-Path $TargetRoot "docs/ai/reports"
   New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
   $reportName = "sync-conflicts-$((Get-Date).ToString('yyyyMMdd-HHmmss')).md"
@@ -797,6 +899,14 @@ if ($overwriteConflicts.Count -gt 0) {
     $reportLines += ""
     $reportLines += "- Path: $($conflict.Path)"
     $reportLines += "- Recommendation: $($conflict.Recommendation)"
+  }
+  if ($deletions.Count -gt 0) {
+    $reportLines += ""
+    $reportLines += "## Deleted items"
+    foreach ($deleted in $deletions) {
+      $reportLines += ""
+      $reportLines += "- Path: $deleted"
+    }
   }
   Set-Content -Path $reportPath -Value ($reportLines -join "`n") -Encoding utf8
   Write-Host "  Advisory report: $reportPath"

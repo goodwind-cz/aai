@@ -43,8 +43,8 @@ links:
 ## Acceptance Criteria
 | AC | Status | Evidence |
 |---|---|---|
-| AC-001: `.env` parse is quoting-aware — a quoted multiline value's interior lines are not read as assignments; a genuinely empty (incl. quoted-empty `""`) value classifies `empty`, never `exists`. | pending | |
-| AC-002: never-echo property preserved on every new path (interior/malformed lines never emit value bytes); existing secrets-preflight suite stays green. | pending | |
+| AC-001: `.env` parse is quoting-aware — a quoted multiline value's interior lines are not read as assignments; a genuinely empty (incl. quoted-empty `""`) value classifies `empty`, never `exists`. | done | |
+| AC-002: never-echo property preserved on every new path (interior/malformed lines never emit value bytes); existing secrets-preflight suite stays green. | done | |
 
 Ceremony justification: single-surface correctness fix to one helper's `.env`
 parser + regression stanzas; no engine/protected-path change (L1).

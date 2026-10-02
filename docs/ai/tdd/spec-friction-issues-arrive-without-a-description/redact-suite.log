@@ -1,0 +1,6 @@
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+=== test-aai-redact ===
+PASS: redactor: clean certified; every detector class + length/control/empty fail closed (TEST-110)
+PASS: redactor: a clean 500-char line certifies; 501 is over_length (TEST-1306)
+=== test-aai-redact: ALL TESTS PASSED ===

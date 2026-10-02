@@ -310,10 +310,15 @@ discipline is opt-in downstream).
    open-ended "what next?".
 3. **Two review rounds max.** A third finding-bearing round means the ride was
    cut wrong: split it, do not re-verify it.
-4. **Rides come from the roadmap, 1:1.** `docs/ai/roadmap.yaml` is the ride
-   source; `node .aai/scripts/ride-select.mjs gate` refuses a maintenance ride
+4. **Rides come from the roadmap, in order.** `docs/ai/roadmap.yaml` orders the
+   capabilities (`/aai-roadmap` shows and changes it; `/aai-ship` with no
+   argument takes the next item). The maintenance budget is opt-in: only with
+   `budget.maintenance_per_capability: 1` are rides paired 1:1, and
+   `node .aai/scripts/ride-select.mjs gate` then refuses a maintenance ride
    whose paired capability has not started and an off-roadmap fix (file it to
-   the backlog). The owner may `--override "<reason>"`; it is logged, never silent.
+   the backlog); without the budget the gate admits what exists. The owner may
+   `--override "<reason>"`; it is logged, never silent.
+   An absent `docs/ai/roadmap.yaml` is the switch off: the gate admits and is not consulted.
    Bind maintenance with `roadmap-propose.mjs bind`; harvest with
    `roadmap-propose.mjs harvest`.
 5. **A lesson that must hold downstream is a guard, not a note.** Anything that

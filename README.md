@@ -172,6 +172,8 @@ git commit -m "Update AAI layer"
 
 ## Orientation
 
+Planning what is built next? The roadmap orders capabilities and its maintenance budget is opt-in; see [Roadmap: when and how](docs/USER_GUIDE.md#roadmap-when-and-how) (`/aai-roadmap`).
+
 ### The loop
 
 Every scope moves through six phases, defined canonically in

@@ -112,6 +112,10 @@ suites:
   aai-close-reconcile:
     globs:
       - .aai/scripts/close-reconcile.mjs
+      - .aai/scripts/pr-platform.mjs
+      # ^ shipped-guards-have-no-downstream-trigger D3: pr-platform.mjs is
+      #   close-reconcile.mjs's grammar-selection import (classify() over the
+      #   origin URL), so a classifier change re-runs this suite.
       - .github/workflows/close-gate.yml
       - .aai/scripts/close-work-item.mjs
 
@@ -320,7 +324,37 @@ suites:
     globs:
       - .aai/scripts/ride-select.mjs
       - .aai/scripts/roadmap-propose.mjs
+      - .aai/scripts/lib/roadmap-model.mjs
       - docs/ai/roadmap.yaml
+
+  # aai-roadmap also asserts the prose and docs that wire the skill in (SHIP, PR,
+  # AGENTS, PROFILES, USER_GUIDE, README, the product doc).
+  aai-roadmap:
+    globs:
+      - .aai/scripts/roadmap-edit.mjs
+      - .aai/scripts/lib/roadmap-model.mjs
+      - .aai/SKILL_ROADMAP.prompt.md
+      - .claude/skills/aai-roadmap/SKILL.md
+      - .aai/scripts/nothing-left-behind.mjs
+      - .aai/scripts/ride-select.mjs
+      - .aai/SKILL_SHIP.prompt.md
+      - .aai/SKILL_PR.prompt.md
+      - .aai/AGENTS.md
+      - .aai/system/PROFILES.yaml
+      - docs/USER_GUIDE.md
+      - docs/product/roadmap.md
+      - README.md
+
+  aai-downstream-autopilot:
+    globs:
+      - .aai/scripts/ride-select.mjs
+      - .aai/scripts/spec-amend.mjs
+      - .aai/scripts/orchestration-dispatch.mjs
+      - .aai/SKILL_SHIP.prompt.md
+      - .aai/SKILL_PR.prompt.md
+      - .aai/system/AUTONOMOUS_LOOP.md
+      - .aai/ROLE_COMMON.md
+      - .aai/AGENTS.md
 
   aai-unattended:
     globs:
@@ -432,6 +466,9 @@ suites:
 
   aai-hygiene-pack:
     globs:
+      # shipped-guards-have-no-downstream-trigger: TEST-800..807/813..816 run the
+      # real installer (guard block, pre-push hook, upgrade-by-insertion).
+      - .aai/scripts/install-pre-commit-hook.sh
       - .aai/scripts/check-test-registration.mjs
       - .aai/scripts/check-base-ref-pins.mjs
       - .aai/scripts/check-vendored-script-deps.mjs

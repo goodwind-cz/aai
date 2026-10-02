@@ -92,7 +92,9 @@ scope change, so section 6 assigns the decision to the owner. Waiting for that
 decision would strand an autonomous ride at exactly the moment the convention
 earns its keep — so the ride proceeds AND the sign-off it defers becomes a
 tracked obligation the owner can drain, rather than a sentence in a ledger
-nobody is obliged to read.
+nobody is obliged to read. `--signoff none` is the autonomous default; the
+owner is never asked mid-ride, and the sign-off owed is surfaced once, at the
+merge checkpoint.
 
 Record it with the writer, never by hand:
 
@@ -124,8 +126,49 @@ decided, naming the record that proves it. Two rules hold this together:
   five live ids are not the plain concatenation (one shortened, two hashed). Let the script derive it — never
   compose it by hand from this sentence.
 
+**Two populations, declared apart: `--class contract` and
+`--class measurement`.** Not every post-freeze edit is a scope decision.
+A change to what the spec PROMISES — an AC predicate, its scope, an AC added
+or removed — is `contract`: it owes the owner a signature and co-creates the
+tracked item, exactly as every amendment did before the field existed. A
+change only to HOW a claim is measured — a Mutation cell that did not redden,
+a renumbered TEST id, a reworded Verify command, an allocator restamp — is
+`measurement`: DISCLOSED on the ledger and counted, owing neither signature
+nor item. Four rules keep that from becoming a way out:
+
+- **The writer declares it; nothing infers it from prose.** `--class` is
+  optional and defaults to `contract`, so the direction that costs something
+  — claiming the lighter lane — takes an affirmative flag, and every
+  invocation written before the field existed keeps its meaning. `add`
+  always STAMPS the resolved value, so a live record is never class-absent.
+- **A class-absent legacy record reads `contract`.** That is the no-change
+  reading, not a verdict: same bucket, same tracker, same row. Reading an
+  absent field as `measurement` would discharge the whole backlog nobody
+  decided — the laundering the field above exists to stop.
+- **`--class measurement --signoff owner` is a usage error.** The light lane
+  can reduce an obligation to disclosure; it can never MINT authority. A
+  record whose `owner_signoff` is literally true still folds to `signed`
+  whatever its class says — a signature is never downgraded.
+- **The mitigation is visibility, and it is enumerable.** Every `list` row
+  prints `class=<value>`, `--json` carries `amendment_class` per item plus a
+  `measurement` count, and `list --status measurement` is the one command
+  that answers "show me every obligation that was waived, and by whom" — the
+  actor is already on the record, so a wrong claim is attributable.
+
+`spec-amend.mjs restamp` is the one writer whose class is NOT a self-report:
+it MEASURES its own cause. It is reachable after ANY post-freeze drift, so it
+takes the measurement lane ONLY when reverse-applying the allocator's
+DRAFT-to-numbered rewrite — over the spec's own frontmatter `id` and the
+numbered documents its `links` name — reproduces the stored `frozen_sha256`
+byte for byte. Every other drift is disclosed as a contract record whose
+`what` says the cause is unverified, and it co-creates the `fu-amend-`
+obligation like any other contract amendment.
+The light lane is never reachable by the shape of a record alone.
+
 `node .aai/scripts/spec-amend.mjs list --strict` exits 1 while any amendment
-on the ledger is untracked or unclassified. It runs at the PR/close gate.
+on the ledger is untracked or unclassified. `measurement` is excluded from
+that violation set ON PURPOSE — it owes nothing — and the two standing
+buckets are unchanged. It runs at the PR/close gate.
 
 **When that gate refuses, run what it prints.** For every record carrying a
 `ts` and a `ref` — which is every record either writer can emit — it emits one

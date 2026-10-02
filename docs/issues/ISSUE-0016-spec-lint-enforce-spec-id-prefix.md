@@ -42,8 +42,8 @@ links:
 ## Acceptance Criteria
 | AC | Status | Evidence |
 |---|---|---|
-| AC-001: spec-lint flags a spec whose `id` is a bare slug (not `/^SPEC-\d+$/i` and not `spec-`-prefixed) with a `spec-id-shape` finding naming the id + the `spec-<slug>` guidance; exit 1. (Spec: SPEC-0058-spec-spec-lint-enforce-spec-id-prefix Spec-AC-01) | pending | |
-| AC-002: no false positives — a `spec-`-prefixed id and the legacy numbered `SPEC-NNNN` id both lint clean; running spec-lint over EVERY current `docs/specs/SPEC-*.md` yields zero `spec-id-shape` findings (the corpus is clean post-remediation); only `type: spec` docs are checked; existing spec-lint suite green. (Spec: Spec-AC-02 + Spec-AC-03) | pending | |
+| AC-001: spec-lint flags a spec whose `id` is a bare slug (not `/^SPEC-\d+$/i` and not `spec-`-prefixed) with a `spec-id-shape` finding naming the id + the `spec-<slug>` guidance; exit 1. (Spec: SPEC-0058-spec-spec-lint-enforce-spec-id-prefix Spec-AC-01) | done | |
+| AC-002: no false positives — a `spec-`-prefixed id and the legacy numbered `SPEC-NNNN` id both lint clean; running spec-lint over EVERY current `docs/specs/SPEC-*.md` yields zero `spec-id-shape` findings (the corpus is clean post-remediation); only `type: spec` docs are checked; existing spec-lint suite green. (Spec: Spec-AC-02 + Spec-AC-03) | done | |
 
 Ceremony justification: additive per-spec lint check in one script (spec-lint.mjs)
 + regression stanzas; no engine/protected-path change (L1).

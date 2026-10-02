@@ -187,16 +187,29 @@ import { fileURLToPath } from 'node:url';
 import { scanAuditDocs, loadConfig, readEvents } from './lib/docs-audit-core.mjs';
 import { parseFrontmatter, TERMINAL_DOC_STATUS } from './lib/docs-model.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { classify, extractHost } from './pr-platform.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const CLOSE_WORK_ITEM = path.join(SCRIPT_DIR, 'close-work-item.mjs');
 
-const PR_SUBJECT_RE = /\(#(\d+)\)\s*$/;
+// PR-SUBJECT GRAMMAR TABLE (shipped-guards-have-no-downstream-trigger D3).
+// D4 used to know ONE grammar — GitHub's trailing `(#N)` — so a range merged
+// on Azure DevOps (`Merged PR <n>: <title>`) refused every item with
+// `pr-number-unknown` and no hint that the grammar, not the range, was the
+// problem (issue #390). The table is CLOSED and ORDERED: `github` keeps the
+// exact bytes it always had; `azure` matches the merge subject Azure DevOps
+// writes. Which grammar(s) apply is decided by `grammarsFor(platform)`
+// below, never by trying everything and hoping.
+const PR_GRAMMARS = {
+  github: /\(#(\d+)\)\s*$/,
+  azure: /^Merged PR (\d+):/,
+};
+const PR_PLATFORMS = Object.keys(PR_GRAMMARS); // the closed set --platform accepts
 const FROZEN_MARKER_RE = /^SPEC-FROZEN:\s*true\s*$/m;
 
 function usage() {
   return (
-    'usage: node .aai/scripts/close-reconcile.mjs --range <A>..<B> [--root <dir>] [--check|--apply]\n'
+    'usage: node .aai/scripts/close-reconcile.mjs --range <A>..<B> [--root <dir>] [--check|--apply] [--platform <github|azure>]\n'
   );
 }
 
@@ -206,16 +219,59 @@ function usageError(msg) {
 }
 
 function parseArgs(argv) {
-  const args = { mode: 'check' };
+  const args = { mode: 'check', platform: null };
   for (let i = 0; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--range') args.range = argv[++i];
     else if (tok === '--root') args.root = argv[++i];
     else if (tok === '--check') args.mode = 'check';
     else if (tok === '--apply') args.mode = 'apply';
+    else if (tok === '--platform') {
+      const v = argv[++i];
+      if (!PR_PLATFORMS.includes(v)) {
+        usageError(`--platform must be one of ${PR_PLATFORMS.join(', ')} (got ${v === undefined ? '(nothing)' : JSON.stringify(v)})`);
+      }
+      args.platform = v;
+    }
     else usageError(`unrecognized argument "${tok}"`);
   }
   return args;
+}
+
+// detectPlatform(root) -> github | azure | unknown | none — pr-platform.mjs's
+// OWN classifier over `git remote get-url origin` run in --root (the same
+// probe SKILL_PR step 5 and aai-issues.mjs use, imported, never re-typed).
+// A failing probe (no origin, not a repo) is `none`, not a guess.
+function detectPlatform(root) {
+  let url;
+  try {
+    url = execFileSync('git', ['remote', 'get-url', 'origin'], {
+      cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return 'none';
+  }
+  if (!url) return 'none';
+  return classify(extractHost(url));
+}
+
+// grammarsFor(platform) -> [{ name, re }] in table order. A recognised host
+// selects its single grammar; `unknown` and `none` try the UNION in table
+// order — an honest fallback, since with no (recognised) host there is
+// nothing to detect — and a miss is refused naming every grammar tried.
+function grammarsFor(platform) {
+  if (PR_GRAMMARS[platform]) return [{ name: platform, re: PR_GRAMMARS[platform] }];
+  return PR_PLATFORMS.map((name) => ({ name, re: PR_GRAMMARS[name] }));
+}
+
+// platformNote(platform, grammars) -> the refusal fragment naming what was
+// tried, so a miss on an unrecognised host says WHY (D3): a grammar is
+// missing from this file, not a PR number from the range.
+function platformNote(platform, grammars) {
+  const tried = grammars.map((g) => g.name).join(',');
+  let s = `platform=${platform} grammars-tried=${tried}`;
+  if (platform === 'unknown') s += ' — no shipped grammar matches this host; add one to close-reconcile.mjs';
+  return s;
 }
 
 function isAllZero(s) {
@@ -282,12 +338,18 @@ function commitLog(root, a, b, pathspec) {
   });
 }
 
-function parsePrNumber(commits) {
+// parsePrNumber(commits, grammars) -> { prNumber, grammar } — the newest
+// commit whose subject matches ANY of the selected grammars, grammars tried
+// in table order per commit; `grammar` names which one matched so the
+// resolution can be printed (`platform=<p> grammar=<g>`).
+function parsePrNumber(commits, grammars) {
   for (const c of commits) {
-    const m = PR_SUBJECT_RE.exec(c.subject);
-    if (m) return m[1];
+    for (const g of grammars) {
+      const m = g.re.exec(c.subject);
+      if (m) return { prNumber: m[1], grammar: g.name };
+    }
   }
-  return null;
+  return { prNumber: null, grammar: null };
 }
 
 function bodyOf(content) {
@@ -332,7 +394,7 @@ function hasWorkItemClosedEvent(events, id) {
 // of `items` (its frontmatter genuinely cannot be read) but surfaced
 // separately so runCheck/runApply both fail closed whenever it is
 // non-empty, independent of whether `items` itself is empty.
-function computeItems(root, a, b) {
+function computeItems(root, a, b, platform, grammars) {
   const changed = changedPaths(root, a, b);
   const config = loadConfig(root);
   const corpusDocs = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] });
@@ -340,15 +402,17 @@ function computeItems(root, a, b) {
   const docPaths = changed.filter((rel) => docSet.has(rel));
   const events = readEvents(root);
 
-  // attributionFor(rel) -> { ok, deliverySha, prNumber }. REMEDIATION
-  // ROUND 4 (P1) — resolved from ONLY the commits in this range that
-  // touched THIS path (see commitLog's pathspec above), never from the
-  // range's aggregate commit list. See the file-header comment for the
-  // full rationale and the "newest wins" rule.
+  // attributionFor(rel) -> { ok, deliverySha, prNumber, grammar }.
+  // REMEDIATION ROUND 4 (P1) — resolved from ONLY the commits in this
+  // range that touched THIS path (see commitLog's pathspec above), never
+  // from the range's aggregate commit list. See the file-header comment for
+  // the full rationale and the "newest wins" rule. D3: the PR number is
+  // parsed with the grammar(s) the platform selects.
   function attributionFor(rel) {
     const commits = commitLog(root, a, b, rel);
-    if (commits.length === 0) return { ok: false, deliverySha: null, prNumber: null };
-    return { ok: true, deliverySha: commits[0].sha, prNumber: parsePrNumber(commits) };
+    if (commits.length === 0) return { ok: false, deliverySha: null, prNumber: null, grammar: null };
+    const { prNumber, grammar } = parsePrNumber(commits, grammars);
+    return { ok: true, deliverySha: commits[0].sha, prNumber, grammar };
   }
 
   // Read every touched doc's frontmatter + body ONCE, regardless of its own
@@ -511,6 +575,8 @@ function computeItems(root, a, b) {
       isSpec: d.isSpec,
       deliverySha: attribution.ok ? attribution.deliverySha : null,
       prNumber: attribution.ok ? attribution.prNumber : null,
+      grammar: attribution.ok ? attribution.grammar : null,
+      platform,
       linksRequirement: d.linksRequirement ?? null,
     });
   };
@@ -555,8 +621,8 @@ function computeItems(root, a, b) {
   return { items, unreadable };
 }
 
-function runCheck(root, a, b) {
-  const { items, unreadable } = computeItems(root, a, b);
+function runCheck(root, a, b, platform, grammars) {
+  const { items, unreadable } = computeItems(root, a, b, platform, grammars);
   // REMEDIATION ROUND 4 (P2) — an unreadable doc is reported and forces a
   // non-CLEAN result UNCONDITIONALLY, even when `items` is otherwise empty:
   // a gate that could not read part of its input has not verified anything
@@ -591,13 +657,14 @@ function runCheck(root, a, b) {
       );
       continue;
     }
-    console.log(`close-reconcile: OPEN ${it.rel} id=${it.fmId} arm=${it.arm} sha=${it.deliverySha}`);
     if (it.reason === 'pr-number-unknown') {
+      console.log(`close-reconcile: OPEN ${it.rel} id=${it.fmId} arm=${it.arm} sha=${it.deliverySha} reason=pr-number-unknown ${platformNote(platform, grammars)}`);
       console.log(
-        `close-reconcile:   remediation: BLOCKED — no commit subject touching ${it.rel} carries a trailing "(#N)", so no PR number can be resolved for this item; this cannot be closed by command until one is known`
+        `close-reconcile:   remediation: BLOCKED — no commit subject touching ${it.rel} matches a PR-number grammar (${platformNote(platform, grammars)}), so no PR number can be resolved for this item; this cannot be closed by command until one is known`
       );
       continue;
     }
+    console.log(`close-reconcile: OPEN ${it.rel} id=${it.fmId} arm=${it.arm} sha=${it.deliverySha} pr=${it.prNumber} platform=${it.platform} grammar=${it.grammar}`);
     console.log(
       `close-reconcile:   remediation: node .aai/scripts/close-work-item.mjs --ref ${it.fmId} --pr ${it.prNumber} --commit ${it.deliverySha}`
     );
@@ -643,8 +710,8 @@ function pairItems(items) {
   return plan;
 }
 
-function runApply(root, a, b) {
-  const { items, unreadable } = computeItems(root, a, b);
+function runApply(root, a, b, platform, grammars) {
+  const { items, unreadable } = computeItems(root, a, b, platform, grammars);
   if (items.length === 0 && unreadable.length === 0) {
     console.log('close-reconcile: CLEAN — nothing to apply');
     exit(0);
@@ -686,7 +753,7 @@ function runApply(root, a, b) {
   for (const it of prUnknown) {
     failed = true;
     process.stderr.write(
-      `close-reconcile: REFUSED ${it.rel} id=${it.fmId} reason=pr-number-unknown — no commit subject touching ${it.rel} carries a trailing "(#N)", nothing written\n`
+      `close-reconcile: REFUSED ${it.rel} id=${it.fmId} reason=pr-number-unknown ${platformNote(platform, grammars)} — no commit subject touching ${it.rel} matches a PR-number grammar, nothing written\n`
     );
   }
 
@@ -757,7 +824,7 @@ function runApply(root, a, b) {
       );
       continue;
     }
-    console.log(`close-reconcile: CLOSED ${primary.rel} (pr #${primary.prNumber}, commit ${primary.deliverySha})`);
+    console.log(`close-reconcile: CLOSED ${primary.rel} (pr #${primary.prNumber}, commit ${primary.deliverySha}) platform=${primary.platform} grammar=${primary.grammar}`);
   }
   exit(failed ? 1 : 0);
 }
@@ -770,8 +837,11 @@ function main() {
     process.stderr.write(`${rangeErrorMessage(args.range, range.reason)}\n`);
     exit(2);
   }
-  if (args.mode === 'apply') runApply(root, range.a, range.b);
-  else runCheck(root, range.a, range.b);
+  // D3: --platform wins; otherwise the shared classifier over --root's origin.
+  const platform = args.platform ?? detectPlatform(root);
+  const grammars = grammarsFor(platform);
+  if (args.mode === 'apply') runApply(root, range.a, range.b, platform, grammars);
+  else runCheck(root, range.a, range.b, platform, grammars);
 }
 
 runMain(() => main(), {

@@ -1,0 +1,10 @@
+RED_CLASS: product_red
+# TEST-1301 pre-change tree HEAD=e7de26d7 suite=test-aai-feedback-upsert.sh selector=test_1301_publish_refuses_without_description exit=1
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+=== test-aai-feedback-upsert ===
+INFO: Test: publish of a description-less record refuses with zero gh calls; the same fixture plus --description files once (TEST-1301)...
+FAIL: TEST-1301: a description-less publish must exit 2 (got 0, err=, calls=auth status
+search issues --repo goodwind-cz/aai --match body aai-friction:v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --json number --limit 1
+label list --repo goodwind-cz/aai --json name --limit 500
+issue create --repo goodwind-cz/aai --title [contract_violation] SKILL_TDD/impl (high impact) --body - failure_class: contract_violation - skill: SKILL_TDD / impl - impact: high - os_family: macos  node_major: 22  aai_pin: unknown  harness: unknown - recurrence: 2  score: 9  <!-- aai-friction:v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -->  --label aai-friction)

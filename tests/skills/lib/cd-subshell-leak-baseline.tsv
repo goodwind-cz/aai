@@ -56,6 +56,7 @@
 3	tests/skills/test-aai-docs-hub.sh
 3	tests/skills/test-aai-docs-lock.sh
 6	tests/skills/test-aai-doctor.sh
+2	tests/skills/test-aai-downstream-autopilot.sh
 3	tests/skills/test-aai-factory-report.sh
 2	tests/skills/test-aai-feedback-status.sh
 2	tests/skills/test-aai-feedback-triage.sh
@@ -103,6 +104,7 @@
 3	tests/skills/test-aai-release.sh
 4	tests/skills/test-aai-repo-tripwire.sh
 2	tests/skills/test-aai-ride-select.sh
+2	tests/skills/test-aai-roadmap.sh
 2	tests/skills/test-aai-role-output.sh
 3	tests/skills/test-aai-routine.sh
 3	tests/skills/test-aai-run-tests.sh

@@ -62,7 +62,7 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
-import { readRefGuardPolicy } from './lib/guard-config.mjs';
+import { readRefGuardPolicy, resolveRefGuardLaunchers } from './lib/guard-config.mjs';
 
 // --- generic helpers -----------------------------------------------------
 
@@ -476,11 +476,100 @@ function catGitRefGuard(root) {
   if (!probe.verified) {
     return cat('CAT-17', 'Git Ref Guard', 'WARN', `reference-transaction hook at ${hookPath} carries the AAI:REF-GUARD marker but could not be behaviourally verified (${probe.errorCode || 'probe failed'}) — treat as NOT confirmed armed`);
   }
+  if (probe.reason) {
+    // D2 states 1, 3 and 5: observed, but not observed to be a guard. These
+    // move OUT of "NOT armed" — the words must not appear here, because the
+    // check did not earn them.
+    return cat('CAT-17', 'Git Ref Guard', 'WARN', `reference-transaction hook at ${hookPath} carries the AAI:REF-GUARD marker but could not be behaviourally verified (${probe.reason}: ${probe.detail}) — treat as NOT confirmed armed`);
+  }
   if (probe.refuses && probe.permits) {
     return cat('CAT-17', 'Git Ref Guard', 'PASS', `armed (probe on ${hookPath} refuses a refs/heads/main update without AAI_GIT_WRITE=1 and permits it with AAI_GIT_WRITE=1)`);
   }
   return cat('CAT-17', 'Git Ref Guard', 'WARN', `reference-transaction hook at ${hookPath} carries the AAI:REF-GUARD marker but does NOT behave as a guard on probe (refuses=${probe.refuses}, permits=${probe.permits}) — NOT armed; re-run install-pre-commit-hook.sh --force`);
 }
+
+// --- CAT-18 Guard Wiring (shipped-guards-have-no-downstream-trigger D4) ------
+// AAI vendors guards that are written, tested and documented, and used to
+// ship them with NOTHING installed to invoke them (issues #390/#391/#392):
+// pre-commit-checks.sh was never reached by the installed pre-commit hook,
+// and close-reconcile.mjs's only caller was a GitHub workflow that is not
+// vendored. This category makes an uninvoked guard VISIBLE. It owns a
+// CLOSED table of guard -> (hook, marker) pairs; a pair whose guard file is
+// absent from the tree is not reported (a vendored layer without the script
+// has nothing uninvoked — no false positive). The effective hook path is
+// resolved the way CAT-17 does (`git rev-parse --git-path`, honouring
+// core.hooksPath and linked worktrees — NOT CAT-12's --git-common-dir
+// shortcut), and PASS needs the marker AND the executable bit: the same
+// evidence the installer's own attest_effective demands. Static only — a
+// pre-push hook cannot be fed a synthetic push safely (Residual risk R4).
+const GUARD_WIRING = [
+  { guard: '.aai/scripts/pre-commit-checks.sh', hook: 'pre-commit', marker: 'AAI:GUARD-CHECKS' },
+  { guard: '.aai/scripts/close-reconcile.mjs', hook: 'pre-push', marker: 'AAI:CLOSE-GATE' },
+];
+
+function catGuardWiring(root) {
+  const installerCmd = 'bash .aai/scripts/install-pre-commit-hook.sh';
+  const passes = [];
+  const warns = [];
+  for (const pair of GUARD_WIRING) {
+    if (!exists(root, pair.guard)) continue; // nothing shipped, nothing uninvoked
+    const pathRes = run('git', ['rev-parse', '--git-path', `hooks/${pair.hook}`], root);
+    if (!pathRes.ok || pathRes.stdout.trim() === '') {
+      warns.push(`${pair.guard} has no caller: could not resolve the effective ${pair.hook} hook path (git rev-parse failed) — run ${installerCmd}`);
+      continue;
+    }
+    const rel = pathRes.stdout.trim();
+    const hookPath = path.isAbsolute(rel) ? rel : path.join(root, rel);
+    if (!fs.existsSync(hookPath)) {
+      warns.push(`${pair.guard} has no caller: ${pair.hook} hook absent at ${hookPath} (marker ${pair.marker}) — run ${installerCmd}`);
+      continue;
+    }
+    let body = '';
+    try {
+      body = fs.readFileSync(hookPath, 'utf8');
+    } catch (err) {
+      warns.push(`${pair.guard} has no verified caller: ${pair.hook} hook at ${hookPath} unreadable (${err?.code || 'read failed'}) — run ${installerCmd}`);
+      continue;
+    }
+    // Codex P1 on PR #417: `includes` accepts the marker ANYWHERE, so a foreign
+    // hook whose body merely says `echo "AAI:GUARD-CHECKS is not installed"`
+    // made CAT-18 report PASS while neither guard was invoked — a reporting
+    // control that reports the opposite of the truth. Ownership is a marker
+    // that OPENS a line, which is exactly how both installers define it.
+    // The installed marker opens a COMMENT line (`# AAI:GUARD-CHECKS BEGIN`),
+    // so the test is "the line is a comment or bare and the marker is its
+    // first word" — not "the body mentions the marker anywhere", which let
+    // `echo "AAI:GUARD-CHECKS is not installed"` read as wired.
+    const markerOpensLine = new RegExp(
+      `^\\s*#?\\s*${pair.marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`,
+    );
+    const ownsMarker = body.split('\n').some((line) => markerOpensLine.test(line));
+    if (!ownsMarker) {
+      warns.push(`${pair.guard} has no caller: ${pair.hook} hook at ${hookPath} does not carry ${pair.marker} — run ${installerCmd} (upgrades an AAI hook in place; --print for a foreign one)`);
+      continue;
+    }
+    if (process.platform !== 'win32') {
+      try {
+        fs.accessSync(hookPath, fs.constants.X_OK);
+      } catch {
+        warns.push(`${pair.guard} has no caller: ${pair.hook} hook at ${hookPath} carries ${pair.marker} but is not executable — git skips it silently; chmod +x or run ${installerCmd}`);
+        continue;
+      }
+    }
+    passes.push(`${pair.guard} <- ${pair.hook} (${pair.marker})`);
+  }
+  if (warns.length === 0) {
+    return cat('CAT-18', 'Guard Wiring', 'PASS', passes.length
+      ? `wired: ${passes.join('; ')}`
+      : 'no shipped guard needs wiring (pre-commit-checks.sh and close-reconcile.mjs absent from this tree)');
+  }
+  return cat('CAT-18', 'Guard Wiring', 'WARN', warns.join('; ') + (passes.length ? `; wired: ${passes.join('; ')}` : ''));
+}
+
+// The literal the AAI reference-transaction hook body writes to stderr when it
+// refuses (install-pre-commit-hook.sh's AAI_REF_GUARD_MSG here-doc). SEAM-1:
+// one contract across two files — the installer emits it, this probe reads it.
+const REF_GUARD_STDERR_MARKER = 'AAI:REF-GUARD';
 
 // Invokes a reference-transaction hook file DIRECTLY with synthetic
 // old/new/ref input for refs/heads/main — this never runs a `git` ref-update
@@ -507,6 +596,12 @@ function probeRefGuardHook(hookPath, root) {
   const PAD_LINES = 1000; // ~115 KiB (117,988 B) of refs/heads/aai-doctor-probe-pad-<i> lines
   const padding = Array.from({ length: PAD_LINES }, (_, i) => `${'0'.repeat(40)} ${'2'.repeat(40)} refs/heads/aai-doctor-probe-pad-${i}\n`).join('');
   const PROBE_INPUT = REFUSE_INPUT + padding;
+  // CONTROL transaction (D1/D2.1): names ONLY refs/heads/aai-doctor-probe-
+  // control — a ref no guard is meant to care about — repeated to the same
+  // over-a-pipe-buffer size as the probe input above, for the same reason.
+  // A hook that will not exit 0 on THIS is a hook we could not run as a
+  // guard at all, which is a different fact from "it does not guard".
+  const CONTROL_INPUT = `${'0'.repeat(40)} ${'2'.repeat(40)} refs/heads/aai-doctor-probe-control\n`.repeat(PAD_LINES + 1);
   const baseEnv = { ...process.env };
   delete baseEnv.AAI_GIT_WRITE;
   const writeEnv = { ...baseEnv, AAI_GIT_WRITE: '1' };
@@ -518,16 +613,18 @@ function probeRefGuardHook(hookPath, root) {
     return { verified: false, errorCode: e && e.code ? e.code : 'ETMPDIR' };
   }
   const inputFile = path.join(dir, 'reftx-input');
+  const controlFile = path.join(dir, 'reftx-control-input');
   try {
     try {
       fs.writeFileSync(inputFile, PROBE_INPUT);
+      fs.writeFileSync(controlFile, CONTROL_INPUT);
     } catch (e) {
       return { verified: false, errorCode: e && e.code ? e.code : 'EWRITE' };
     }
-    const runHook = (cmd, args, env) => {
+    const runHook = (cmd, args, env, stdinFile) => {
       let fd;
       try {
-        fd = fs.openSync(inputFile, 'r');
+        fd = fs.openSync(stdinFile, 'r');
       } catch (e) {
         return { error: { code: e && e.code ? e.code : 'EOPEN' } };
       }
@@ -540,18 +637,52 @@ function probeRefGuardHook(hookPath, root) {
     // POSIX: exec the file directly — the OS loader honors the shebang, and
     // (having already confirmed the executable bit above) this is exactly
     // how git itself would run it. Windows has no OS-level shebang support,
-    // so fall back to an explicit interpreter — the same one Git for Windows
-    // uses to run this exact hook.
-    const launchers = process.platform !== 'win32'
-      ? [[hookPath, ['prepared']]]
-      : [['sh', [hookPath, 'prepared']], ['bash', [hookPath, 'prepared']]];
+    // so an explicit interpreter is named — and WHICH one is the whole of
+    // GitHub #369: bare `sh`/`bash` on a PowerShell host without Git Bash on
+    // PATH resolve to nothing and then to WSL. The lookup lives in
+    // lib/guard-config.mjs as a pure, injectable function so its win32 branch
+    // is testable off Windows (D3).
+    let gitExecPath = '';
+    if (process.platform === 'win32') {
+      const execRes = run('git', ['--exec-path'], root, 5000);
+      if (execRes.ok) gitExecPath = execRes.stdout.trim();
+    }
+    const launchers = resolveRefGuardLaunchers({
+      platform: process.platform,
+      hookPath,
+      gitExecPath,
+      exists: (p) => fs.existsSync(p),
+    });
     let lastError = 'ENOINTERPRETER';
     for (const [cmd, args] of launchers) {
-      const refuses = runHook(cmd, args, baseEnv);
+      const control = runHook(cmd, args, baseEnv, controlFile);
+      if (control.error) { lastError = control.error.code; continue; }
+      const refuses = runHook(cmd, args, baseEnv, inputFile);
       if (refuses.error) { lastError = refuses.error.code; continue; }
-      const permits = runHook(cmd, args, writeEnv);
+      const permits = runHook(cmd, args, writeEnv, inputFile);
       if (permits.error) { lastError = permits.error.code; continue; }
-      return { verified: true, refuses: refuses.status !== 0, permits: permits.status === 0 };
+      // The verdict map, in D2's order. `refuses` stops meaning "exited
+      // non-zero": a refusal this guard did not SAY it made is a refusal we
+      // cannot attribute to it, so the literal AAI:REF-GUARD line the
+      // installed hook body writes to stderr (install-pre-commit-hook.sh) is
+      // part of the evidence, not decoration.
+      const markerOnStderr = String(refuses.stderr || '').includes(REF_GUARD_STDERR_MARKER);
+      const base = { verified: true, refuses: refuses.status !== 0 && markerOnStderr, permits: permits.status === 0 };
+      if (control.status !== 0) {
+        return { ...base, reason: 'control-arm-nonzero', detail: `the hook exited ${control.status} on a transaction naming only refs/heads/aai-doctor-probe-control, a ref a guard is meant to ignore, so it could not be run as a guard at all` };
+      }
+      if (refuses.status === 0) {
+        // Unchanged: a hook that lets refs/heads/main through without
+        // AAI_GIT_WRITE is decorative, and that IS an observation.
+        return { ...base, refuses: false };
+      }
+      if (!markerOnStderr) {
+        return { ...base, reason: 'no-refusal-marker', detail: `the refuse arm exited ${refuses.status} but printed no ${REF_GUARD_STDERR_MARKER} line on stderr, so the non-zero exit cannot be attributed to this guard refusing` };
+      }
+      if (permits.status !== 0) {
+        return { ...base, reason: 'permit-arm-refused', detail: `the refuse arm printed ${REF_GUARD_STDERR_MARKER} but the permit arm also exited ${permits.status} with AAI_GIT_WRITE=1 set, so the interpreter running the hook may not have received AAI_GIT_WRITE` };
+      }
+      return base;
     }
     return { verified: false, errorCode: lastError };
   } finally {
@@ -888,6 +1019,7 @@ export function runDoctor(root, scriptDir) {
     catWinEnvironment(winProbe),
     catAgentCliProbe(root),
     catGitRefGuard(root),
+    catGuardWiring(root),
   ];
 }
 

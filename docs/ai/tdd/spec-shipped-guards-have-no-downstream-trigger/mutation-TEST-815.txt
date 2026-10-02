@@ -1,0 +1,20 @@
+mutation_record: v1
+spec_id: spec-shipped-guards-have-no-downstream-trigger
+test_id: TEST-815
+suite: tests/skills/test-aai-hygiene-pack.sh
+selector: test_815_suite_map_and_registration
+target: tests/skills/suite-map.yaml
+mutation: sed:s/close-reconcile.mjs\n      - .aai\/scripts\/pr-platform.mjs/close-reconcile.mjs/
+base_commit: 3d9e2a6dc7744dd9ae8e8179efb72a56a62db329
+tree_hash: 17f7ee93a77cc56e750d5accadbdbf868840298faf93a81141c497d5d7acb2ee
+run_at_utc: 2026-09-30T20:52:54Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-815: suite-map row aai-close-reconcile does not glob .aai/scripts/pr-platform.mjs (close-reconcile.mjs's new import)
+selector_honoured: yes
+target_sha256: ed99c2e8897ca10f614f23993b6fded1b0d1fb545dab52cdd9cb4837cad310de
+---
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: suite-map rows glob the installer and pr-platform.mjs; check-test-registration exits 0 (TEST-815)...
+FAIL: TEST-815: suite-map row aai-close-reconcile does not glob .aai/scripts/pr-platform.mjs (close-reconcile.mjs's new import)

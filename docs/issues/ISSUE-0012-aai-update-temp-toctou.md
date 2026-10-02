@@ -50,9 +50,9 @@ links:
 ## Acceptance Criteria
 | AC | Status | Evidence |
 |---|---|---|
-| AC-001: aai-update.sh retains the `mktemp -d` dir as a secure parent for the whole run; every clone/retry targets a fresh subdirectory of it (never the mktemp path itself); only the subdirectory is wiped between attempts. The mktemp path is never `rm -rf`'d-and-recreated. | pending | |
-| AC-002: aai-update.ps1 gets the parity fix (same retain-parent / clone-into-subdir shape). | pending | |
-| AC-003: behavior unchanged on the happy path and the anonymous-clone fallback — update still succeeds; `--keep-temp` still works; `bash -n` / pwsh parse clean; any existing aai-update test stays green. | pending | |
+| AC-001: aai-update.sh retains the `mktemp -d` dir as a secure parent for the whole run; every clone/retry targets a fresh subdirectory of it (never the mktemp path itself); only the subdirectory is wiped between attempts. The mktemp path is never `rm -rf`'d-and-recreated. | done | |
+| AC-002: aai-update.ps1 gets the parity fix (same retain-parent / clone-into-subdir shape). | done | |
+| AC-003: behavior unchanged on the happy path and the anonymous-clone fallback — update still succeeds; `--keep-temp` still works; `bash -n` / pwsh parse clean; any existing aai-update test stays green. | done | |
 
 Ceremony justification: security correctness fix to two sibling updater scripts
 (sh + ps1) + parity; no engine/protected-path change (L1). `.aai/scripts/`

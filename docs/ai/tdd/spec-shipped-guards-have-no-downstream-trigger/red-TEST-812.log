@@ -1,0 +1,22 @@
+RED_CLASS: product_red
+# RED capture for TEST-812 — suite test-aai-doctor.sh selector test_812_cat18_guard_wiring — pre-change tree 3d9e2a6d — exit 1
+Testing: aai-doctor
+====================
+INFO: TEST-812: the real installer failed on the fixture
+INFO: TEST-812 wired: expected 'CAT-18 PASS', got: <no CAT-18 line>
+INFO: TEST-812 no-block: expected WARN naming pre-commit-checks.sh, AAI:GUARD-CHECKS and install-pre-commit-hook.sh, got: 
+INFO: TEST-812: installer failed (nopush)
+INFO: TEST-812 pre-push absent: expected WARN naming close-reconcile.mjs and AAI:CLOSE-GATE, got: 
+INFO: TEST-812: installer failed (noexec)
+chmod: /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T//aai-doctor-test.2xemYu/t812-noexec/.git/hooks/pre-push: No such file or directory
+INFO: TEST-812 not executable: expected WARN naming 'not executable' and pre-push, got: 
+INFO: TEST-812: installer failed (noguard)
+INFO: TEST-812 guard absent: with close-reconcile.mjs absent the pre-push pair must not be reported and the line can be PASS, got: 
+INFO: TEST-812: installer failed (hooksPath)
+INFO: TEST-812 hooksPath: fixture precondition failed — the installer did not write into .custom-hooks
+INFO: TEST-812 hooksPath: expected PASS reading .custom-hooks, got: 
+INFO: TEST-812 hooksPath unset: with .git/hooks empty the verdict must be WARN, got: 
+INFO: TEST-812 --json: missing "id": "CAT-18"
+FAIL: TEST-812 CAT-18 guard wiring
+
+Selected test FAILED.

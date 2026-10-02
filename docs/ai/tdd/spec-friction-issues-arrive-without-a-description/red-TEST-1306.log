@@ -1,0 +1,6 @@
+RED_CLASS: product_red
+# TEST-1306 pre-change tree HEAD=e7de26d7 suite=test-aai-redact.sh selector=test_1306_summary_cap_is_500 exit=1
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+=== test-aai-redact ===
+FAIL: TEST-1306 clean 500-char line certifies: expected ok, got 'drop:over_length' for: the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the transition the gate refused the

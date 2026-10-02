@@ -15,8 +15,15 @@
 //
 // Usage:
 //   node .aai/scripts/aai-feedback-upsert.mjs [--report <p>] [--spool <p>] [--config <p>]
-//   node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm [...]
+//   node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm [--description <file>] [...]
 //   node .aai/scripts/aai-feedback-upsert.mjs --help
+//
+// A filed issue carries ONE certified human-written description as its leading
+// blockquote (spec-friction-issues-arrive-without-a-description D1/D3): the
+// record's own `summary` (written under `record --promote`) or a publish-time
+// `--description <file>`, both certified by the same fail-closed redactor. A
+// record with no certified description is NOT filed -- prepare marks it
+// blocked_no_description, publish refuses with exit 2 BEFORE any gh call.
 //
 // Node stdlib only. `gh` is invoked via a single runGh() seam (mockable on PATH).
 
@@ -58,7 +65,7 @@ const HELP = `aai-feedback-upsert — RFC-0012 Phase 2c review-mode upsert (appr
 
 Usage:
   node .aai/scripts/aai-feedback-upsert.mjs [--report <p>] [--spool <p>] [--config <p>]
-  node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm [...]
+  node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm [--description <file>] [...]
   node .aai/scripts/aai-feedback-upsert.mjs --help
 
 A plain run is PREPARE-ONLY: it writes transmit-redacted, deduplicated,
@@ -69,13 +76,25 @@ is filed ONLY via the explicit human-confirmed path:
 which re-runs the transmit redaction + budget check immediately before the write.
 'auto' mode is refused (locked). 'local' (default) prepares nothing to send.
 
-Filing an issue is NOT the end of the work: the transmitted record is
-prose-free by design (structured fields only), so a maintainer cannot act on
-it without a human-written follow-up. On a confirmed publish the engine prints
-the filed issue's URL and a runnable gh issue comment <n> --repo <destination>
---body-file <file> command -- it only PRINTS that command, it never runs it.
+A filed issue carries ONE certified human-written description as its leading
+blockquote: one line, 1..500 characters, certified by the same fail-closed
+redactor as every free-text field. Its source is the record's own summary
+(written at record time under 'record --promote') or, at publish time,
+--description <file> (its lines joined by one space; read from argv only --
+the on-disk draft is never read). A record with no description -- no certified
+summary and no --description file -- is NOT filed: prepare marks it
+blocked_no_description and --publish refuses with exit 2 before any gh call,
+naming the missing field (a maintainer cannot act on structured fields alone).
+A description the redactor refuses is refused the same way, naming the
+redactor's reason class.
 
-Exit codes: 0 success / --help   2 usage error   1 internal error
+On a confirmed publish the engine prints the filed issue's URL and posts the
+certified description as the analysis comment. Mechanism, reproduction steps
+and anything naming a path or quoting output stay a hand-written follow-up:
+gh issue comment <n> --repo <destination> --body-file <file>, printed (never
+run) only when the comment could not be posted.
+
+Exit codes: 0 success / --help   2 usage error or refusal   1 internal error
 `;
 
 class UsageError extends Error {}
@@ -87,12 +106,17 @@ function parseArgs(argv) {
     const t = argv[i];
     if (t === '--help' || t === '-h') { a.help = true; i += 1; continue; }
     if (t === '--confirm') { a.confirm = true; i += 1; continue; }
-    if (t === '--report' || t === '--spool' || t === '--config' || t === '--publish') {
+    if (t === '--report' || t === '--spool' || t === '--config' || t === '--publish' || t === '--description') {
       const v = argv[i + 1];
       if (v === undefined) throw new UsageError(`${t} requires an argument`);
       a[t.slice(2)] = v; i += 2; continue;
     }
     throw new UsageError(`unrecognized argument: ${t}`);
+  }
+  // --description supplies the publish-time description (argv-only); on a
+  // prepare run it would silently do nothing, so it is a usage error there.
+  if (a.description !== undefined && a.publish === undefined) {
+    throw new UsageError('--description <file> is only valid together with --publish <fingerprint> --confirm');
   }
   return a;
 }
@@ -458,13 +482,65 @@ function alreadyFiledLocally(fp, destination) {
   return false;
 }
 
-// Representative observation for a fingerprint: highest v2 signal, else first.
+// Representative observation for a fingerprint: a member carrying a summary is
+// preferred (spec-friction-issues-arrive-without-a-description D3 -- a
+// promoted record must never be shadowed by a prose-free sibling with higher
+// signal); within that pool, highest v2 signal, else first.
 function representative(rows, fp) {
   const members = rows.filter((o) => o.fingerprint === fp);
   if (!members.length) return null;
+  const withSummary = members.filter((o) => typeof o.summary === 'string' && o.summary.length > 0);
+  const pool = withSummary.length ? withSummary : members;
   const sig = (o) => (({ low: 1, medium: 2, high: 3 })[o.impact] || 0)
     + (({ low: 1, medium: 2, high: 3 })[o.confidence] || 0) + (o.reproducible === true ? 2 : 0);
-  return members.reduce((a, b) => (sig(b) > sig(a) ? b : a), members[0]);
+  return pool.reduce((a, b) => (sig(b) > sig(a) ? b : a), pool[0]);
+}
+
+// The ONE certified human-written description a filed issue carries
+// (spec-friction-issues-arrive-without-a-description D1). Precedence: the
+// publish-time `--description <file>` (argv-only; lines joined by one space,
+// CR stripped, trimmed) over the record's own `summary`; both go through the
+// SAME fail-closed redactSummary, independently of the capture pass (RFC-0013
+// D3). Returns { ok:true, value, source } or { ok:false, reason, source }:
+//   source 'description' -- reason is the redactor's class, or 'unreadable'
+//   source 'summary'     -- the spool summary did not certify (reason = class)
+//   reason 'no_description' -- neither exists. The caller decides what to do
+// with ok:false; this function never prints and never calls gh.
+function certifiedDescription(rep, args) {
+  if (args && args.description !== undefined) {
+    let text;
+    try { text = readFileSync(args.description, 'utf8'); }
+    catch (e) { return { ok: false, reason: 'unreadable', source: 'description', path: args.description, code: e && e.code ? e.code : 'unreadable' }; }
+    const joined = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).join(' ').trim();
+    const cert = redactSummary(joined);
+    if (!cert.ok) {
+      return { ok: false, reason: cert.reason, source: 'description' };
+    }
+    return { ok: true, value: cert.value, source: 'description' };
+  }
+  if (rep && typeof rep.summary === 'string' && rep.summary.length) {
+    const r = redactSummary(rep.summary);
+    return r.ok ? { ok: true, value: r.value, source: 'summary' } : { ok: false, reason: r.reason, source: 'summary' };
+  }
+  return { ok: false, reason: 'no_description', source: null };
+}
+
+// The D3 refusal text for a description that is missing, unreadable or
+// refused. Names the field and the flag, or the redactor's reason class --
+// never the refused text itself.
+function descriptionRefusal(fp, desc) {
+  const prefix = `aai-feedback-upsert: refusing to file ${fp}: `;
+  if (desc.source === 'description' && desc.reason === 'unreadable') {
+    return `${prefix}--description ${desc.path} could not be read (${desc.code})\n`;
+  }
+  if (desc.source === 'description') {
+    return `${prefix}the description was refused by the redactor (reason: ${desc.reason}) — rewrite it without the offending shape\n`;
+  }
+  const base = `${prefix}no description — the record carries no certified summary and no --description <file> was given (a maintainer cannot act on structured fields alone)`;
+  if (desc.source === 'summary') {
+    return `${base} — the record's own summary was refused by the redactor (reason: ${desc.reason})\n`;
+  }
+  return `${base}\n`;
 }
 
 // TRANSMIT-pass field sanitizers (RFC-0013 D3 double redaction): the upsert must
@@ -519,7 +595,7 @@ function safeFingerprint(fp) { return (typeof fp === 'string' && /^v1:[0-9a-f]{3
 // Build a transmit-redacted issue payload. EVERY interpolated field is re-validated
 // against its safe domain (double redaction, RFC-0013 D3) — the upsert never trusts
 // the spool, so no field can carry a secret/path/identity into a gh argument.
-function buildPayload(rep, cluster, fp) {
+function buildPayload(rep, cluster, fp, desc) {
   const fclass = safeFailureClass(rep.failure_class);
   const skill = safeIdent(rep.skill_id);
   const phase = safeIdent(rep.skill_phase);
@@ -545,19 +621,19 @@ function buildPayload(rep, cluster, fp) {
     `- os_family: ${safeOsFamily(rep.os_family)}  node_major: ${safeInt(rep.node_major)}  aai_pin: ${safePin(rep.aai_pin)}  harness: ${safeHarness(rep.harness)}`,
     `- recurrence: ${safeInt(cluster.recurrence)}  score: ${safeInt(cluster.score)}`,
   ].filter(Boolean);
-  // Transmit redaction of the ONLY free-text field: summary. Dropped if unsafe.
-  // `certifiedSummary` (Spec-AC-06) is the SAME certified value the blockquote
-  // above renders -- one certification, two uses (the filed body and, on a
-  // certified URL, the follow-up analysis comment) -- never a second
-  // independent read of `rep.summary` that could disagree with what the body
-  // actually carries.
+  // The ONLY free-text field: the certified description `desc` (from
+  // certifiedDescription -- the --description file or the record's summary,
+  // transmit-redacted either way). `certifiedSummary` (SPEC-0176 Spec-AC-06)
+  // is the SAME certified value the blockquote renders -- one certification,
+  // two uses (the filed body and, on a certified URL, the analysis comment)
+  // -- never a second independent read that could disagree with the body.
   let summaryLine = null;
   let redactionStatus = 'none';
   let certifiedSummary = null;
-  if (typeof rep.summary === 'string' && rep.summary.length) {
-    const r = redactSummary(rep.summary);
-    if (r.ok) { summaryLine = `\n> ${r.value}`; redactionStatus = 'transmit_clean'; certifiedSummary = r.value; }
-    else redactionStatus = 'transmit_dropped';
+  if (desc && desc.ok) {
+    summaryLine = `\n> ${desc.value}`; redactionStatus = 'transmit_clean'; certifiedSummary = desc.value;
+  } else if (desc && desc.source === 'summary') {
+    redactionStatus = 'transmit_dropped'; // the spool summary did not certify
   }
   const body = `${summaryLine ? summaryLine + '\n\n' : ''}${facts.join('\n')}\n\n${MARKER(fp)}\n`;
   return { title, body, redaction_status: redactionStatus, certifiedSummary };
@@ -590,18 +666,30 @@ function prepare(args, cfg) {
     if (!fp) continue; // skip an off-shape / poisoned fingerprint entirely
     const rep = representative(rows, fp);
     if (!rep) continue;
-    const payload = buildPayload(rep, cluster, fp);
+    // prepare takes no --description: only the record's own summary can
+    // certify here. A cluster with none is written as a draft (so the operator
+    // can read what is missing) but marked blocked and never offered a
+    // --publish line (spec-friction-issues-arrive-without-a-description D3).
+    const desc = certifiedDescription(rep, {});
+    const hasDescription = desc.ok;
+    const payload = buildPayload(rep, cluster, fp, desc);
     const ds = dedupSearch(cfg.destination, fp);
     // Reflect the real state in the draft status so a prepare run does not
     // advertise "new" for a candidate that is actually blocked/deferred.
     const status = !ds.searched ? 'blocked_dedup_unavailable'
       : ds.exists ? 'update_existing'
       : overBudget ? 'deferred_budget'
+      : !hasDescription ? 'blocked_no_description'
       : 'new';
+    // Spec-AC-12: when the dedup search could not run, say what it DID. Both
+    // surfaces a prepare run produces -- the console line and the draft on
+    // disk -- carry the same rendered refusal, so a file read tomorrow cannot
+    // disagree with a console read today.
+    const refusal = status === 'blocked_dedup_unavailable' ? dedupUnavailableLine(ds) : '';
     const draftPath = join(PENDING_DIR, `${fp.replace(/[^A-Za-z0-9]/g, '_')}.md`);
     writeFileSync(draftPath,
-      `# ${payload.title}\n\n<!-- status: ${status} | redaction: ${payload.redaction_status} -->\n\n${payload.body}${DRAFT_FOLLOWUP_SKELETON}`);
-    prepared.push({ fingerprint: fp, status, draftPath });
+      `# ${payload.title}\n\n<!-- status: ${status} | redaction: ${payload.redaction_status} -->\n\n${refusal ? `${refusal}\n` : ''}${payload.body}${DRAFT_FOLLOWUP_SKELETON}`);
+    prepared.push({ fingerprint: fp, status, draftPath, refusal });
   }
   return prepared;
 }
@@ -612,7 +700,32 @@ const BLOCK_REASON = {
   blocked_dedup_unavailable: 'the dedup search could not run, so a create would be refused (fail-closed)',
   update_existing: 'an issue already carries this fingerprint marker',
   deferred_budget: 'the 7-day new-issue budget is exhausted',
+  blocked_no_description: 'no description — write one line (expected, observed, where) and pass --description <file> to --publish',
 };
+
+// Spec-AC-12 (rider 3): `blocked_dedup_unavailable` used to render as the
+// BLOCK_REASON sentence alone, which is TRUE of every cause and diagnostic of
+// none -- a 60-second rate limit and a repository the token cannot read
+// printed the same words. That is this ride's own defect class living inside
+// this ride's own tooling, so prepare now renders the SAME one-block refusal
+// the publish path has rendered since #371: the gh exit status, the certified
+// stderr detail, and the fixed rate-limit hint when the raw line matches the
+// signature. No new text is invented here and no new disclosure is made --
+// `ghRefusalLine`/`ghFailDetail` already decide what a gh stderr line may
+// print, and this reaches that decision from the prepare call site, which
+// `dedupSearch` has always fed via `ds.ghResult`.
+const GH_RESULT_UNKNOWN = { ok: false, status: null, stderrFirst: '' };
+function dedupUnavailableLine(ds) {
+  // A PARSE failure is gh exiting ZERO with output nobody can read, so it is
+  // deliberately NOT routed through ghRefusalLine: that would print
+  // "(exit 0)" -- a status an operator reads as "gh said everything is fine"
+  // -- which is the same class of untrue answer this row removes. Say the
+  // thing that actually happened instead (dedupSearch's own `parseFailed`).
+  if (ds.parseFailed) {
+    return `${BLOCK_REASON.blocked_dedup_unavailable}: gh exited 0 and its search output could not be parsed\n`;
+  }
+  return ghRefusalLine(BLOCK_REASON.blocked_dedup_unavailable, ds.ghResult || GH_RESULT_UNKNOWN);
+}
 
 function main() {
   const argv = process.argv.slice(2);
@@ -633,13 +746,6 @@ function main() {
       process.stderr.write('aai-feedback-upsert: publish requires mode=review and a configured destination\n');
       process.exit(2);
     }
-    // Auth preflight: fail fast with a clear message before any work if gh cannot
-    // authenticate — the engine holds no token, it borrows the operator's gh session.
-    const authState = ghAuthState();
-    if (authState !== 'ready') {
-      process.stderr.write(`aai-feedback-upsert: ${ghAuthHint(authState)}\n`);
-      process.exit(1);
-    }
     const fp = safeFingerprint(args.publish);
     if (!fp) { process.stderr.write(`aai-feedback-upsert: ${args.publish} is not a valid fingerprint (expected v1:<32-hex>)\n`); process.exit(2); }
     const rows = readSpool(args.spool);
@@ -647,6 +753,23 @@ function main() {
     const cluster = (report.clusters || []).find((c) => c.fingerprint === fp && c.decision === 'review_candidate');
     const rep = cluster && representative(rows, fp);
     if (!rep) { process.stderr.write(`aai-feedback-upsert: ${fp} is not a current review_candidate\n`); process.exit(2); }
+    // THE DESCRIPTION GATE comes FIRST -- before the auth preflight, the dedup
+    // search, the label read and the create -- so a record that cannot carry a
+    // certified description is refused with ZERO gh invocations
+    // (spec-friction-issues-arrive-without-a-description D3). It is a
+    // decision about the record, not about GitHub, and it needs no network.
+    const desc = certifiedDescription(rep, args);
+    if (!desc.ok) {
+      process.stderr.write(descriptionRefusal(fp, desc));
+      process.exit(2);
+    }
+    // Auth preflight: fail fast with a clear message before any work if gh cannot
+    // authenticate — the engine holds no token, it borrows the operator's gh session.
+    const authState = ghAuthState();
+    if (authState !== 'ready') {
+      process.stderr.write(`aai-feedback-upsert: ${ghAuthHint(authState)}\n`);
+      process.exit(1);
+    }
     // Dedup FIRST, fail-closed: if we cannot CONFIRM there is no existing issue
     // (gh unavailable or unparseable output), REFUSE to create — a search hiccup
     // must never fan out into a duplicate.
@@ -683,7 +806,7 @@ function main() {
       process.stdout.write(`budget reached (${cfg.maxNewPer7d}/7d) — deferring ${fp}, not filed\n`);
       process.exit(0);
     }
-    const payload = buildPayload(rep, cluster, fp);
+    const payload = buildPayload(rep, cluster, fp, desc);
     const ghArgs = ['issue', 'create', '--repo', cfg.destination, '--title', payload.title, '--body', payload.body];
     // Label degrade (never fail the write over a label). Each drop is NAMED, so a
     // missing label is visible to the operator rather than silently swallowed.
@@ -720,20 +843,19 @@ function main() {
       process.stderr.write(`aai-feedback-upsert: FILED the issue for ${fp} in ${cfg.destination}, but could not record it in ${LEDGER} (${e && e.code ? e.code : 'write failed'}). The local duplicate guard is now blind to this fingerprint — record it by hand before publishing again.\n`);
       process.exit(1);
     }
-    // The record stays prose-free by design (D3/D4 untouched) -- which is
-    // exactly why filing is NOT the end of the work: a maintainer needs a
-    // human-written follow-up comment to act on it. Parse the real issue
-    // number from gh's own stdout (D1); an unparseable stdout degrades with a
-    // NOTE and a literal placeholder rather than ever echoing the raw blob
-    // (D2). The advertised `gh issue comment` command always names the
-    // CONFIGURED destination (D3), never one parsed out of the URL, and it is
-    // only ever PRINTED here -- never executed (seam S3) -- UNLESS the record
-    // itself carries a summary the TRANSMIT pass certified AND the returned
-    // URL is itself certified (Spec-AC-06): then the engine runs that comment
-    // itself, once, against the CERTIFIED number (never `parsed.rawNumber`,
-    // which a shape-matched-but-uncertified URL also carries -- reading it
-    // here would post a certified human sentence to a host or repo that was
-    // never certified as the operator's own).
+    // Every filed issue now carries a certified description (the gate above),
+    // so the SPEC-0176 Spec-AC-06 analysis comment fires on every publish
+    // whose URL certifies. Parse the real issue number from gh's own stdout
+    // (D1); an unparseable stdout degrades with a NOTE and a literal
+    // placeholder rather than ever echoing the raw blob (D2). The advertised
+    // `gh issue comment` command always names the CONFIGURED destination
+    // (D3), never one parsed out of the URL, and it is only ever PRINTED
+    // here -- never executed (seam S3) -- UNLESS the returned URL is itself
+    // certified (Spec-AC-06): then the engine runs that comment itself, once,
+    // against the CERTIFIED number (never `parsed.rawNumber`, which a
+    // shape-matched-but-uncertified URL also carries -- reading it here would
+    // post a certified human sentence to a host or repo that was never
+    // certified as the operator's own).
     const parsed = parseIssueUrl(r.stdout, cfg.destination);
     let commentResult = null;
     if (parsed.certified && payload.certifiedSummary) {
@@ -760,9 +882,9 @@ function main() {
       followup.push('NOTE: could not read the issue number from gh\'s output -- fill in <issue-number> below by hand.');
     }
     if (commentResult) {
-      followup.push('the certified analysis was posted as a comment on the filed issue -- no further hand-written follow-up is required.');
+      followup.push('the certified description was posted as a comment on the filed issue -- mechanism, reproduction steps and anything naming a path go in a hand-written follow-up comment, if needed.');
     } else {
-      followup.push('This record is prose-free by design: a human analysis comment is required for the issue to be actionable.');
+      followup.push('the certified description could not be posted as a comment because the issue URL was not certified -- post it by hand:');
       followup.push(`gh issue comment ${parsed.certified ? parsed.number : '<issue-number>'} --repo ${cfg.destination} --body-file <file>`);
     }
     process.stdout.write(`filed issue for ${fp} in ${cfg.destination}\n${followup.join('\n')}\n`);
@@ -797,6 +919,10 @@ function main() {
     // to refuse — an instruction the tool would not honour.
     if (p.status === 'new') {
       process.stdout.write(`  ${p.status.padEnd(24)} ${p.fingerprint}  -> review then: node .aai/scripts/aai-feedback-upsert.mjs${ov} --publish ${p.fingerprint} --confirm\n`);
+    } else if (p.refusal) {
+      // Already newline-terminated by the renderer (and multi-line when the
+      // rate-limit hint fires), so it is written as-is rather than re-wrapped.
+      process.stdout.write(`  ${p.status.padEnd(24)} ${p.fingerprint}  -> not offered: ${p.refusal}`);
     } else {
       process.stdout.write(`  ${p.status.padEnd(24)} ${p.fingerprint}  -> not offered: ${BLOCK_REASON[p.status] || p.status}\n`);
     }

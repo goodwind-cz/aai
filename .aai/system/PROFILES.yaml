@@ -67,6 +67,7 @@ core:
   - .aai/SKILL_PR.prompt.md
   - .aai/SKILL_RELEASE.prompt.md
   - .aai/SKILL_REPLAY.prompt.md
+  - .aai/SKILL_ROADMAP.prompt.md
   - .aai/SKILL_SHIP.prompt.md
   - .aai/SKILL_TDD.prompt.md
   - .aai/SKILL_UPDATE.prompt.md
@@ -131,6 +132,11 @@ core:
   # its sibling rather than extended so the whole roadmap subsystem travels
   # together on a core sync.
   - .aai/scripts/roadmap-propose.mjs
+  # core: the roadmap writer (roadmap-serves-downstream-projects D5/D11) and the
+  # one roadmap parser it shares with ride-select.mjs; SKILL_SHIP/SKILL_PR
+  # (both core) call roadmap-edit directly, so the subsystem travels together.
+  - .aai/scripts/roadmap-edit.mjs
+  - .aai/scripts/lib/roadmap-model.mjs
   # core rather than extended: SKILL_LOOP.prompt.md (core) and SKILL_SHIP.prompt.md
   # (core) both call this engine directly (RFC-0014 D1 auto-vs-park boundary),
   # the same precedent as ride-select.mjs immediately above.
@@ -161,6 +167,7 @@ core:
   - .aai/scripts/lib/guard-config.mjs
   - .aai/scripts/lib/harness.mjs
   - .aai/scripts/lib/iso-time.mjs
+  - .aai/scripts/lib/merge-hooks-json.mjs
   - .aai/scripts/lib/mutation-record.mjs
   - .aai/scripts/lib/tree-hash.mjs
   - .aai/scripts/lib/pricing.mjs

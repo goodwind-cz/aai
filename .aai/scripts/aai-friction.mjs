@@ -63,11 +63,19 @@ const V2_IMPACT_VALUES = ['low', 'medium', 'high'];
 const REDACTION_STATUS_VALUES = ['none', 'capture_clean', 'capture_dropped_fields'];
 // evidence_ref (RFC-0013 D5): a SAFE pointer only — a repo-relative docs/ path or
 // an AAI doc id. No URLs, no absolute paths, no free text. The doc-id arm ends
-// EXACTLY after the 4 digits: a trailing `[A-Za-z0-9-]*` suffix (e.g.
+// EXACTLY after the digits: a trailing `[A-Za-z0-9-]*` suffix (e.g.
 // `SPEC-0079-private-customer-acme`) would be a free-text identity channel that
 // bypasses the redactor, so it is rejected (PR review P1). Use the `docs/…` arm
 // for a full document reference.
-const EVIDENCE_REF_RE = /^(?:docs\/[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*|(?:SPEC|CHANGE|ISSUE|RFC|PRD|RES|DEBT)-\d{4})$/;
+// Spec-AC-13: the doc-id arm admits a THREE-digit run as well as four. This
+// repository's own docs
+// tree carries three-digit ids (`SPEC-080`, `ISSUE-091`), and rejecting a real
+// doc id taught reporters to drop the pointer rather than fix it. The widening
+// is QUANTIFIER-ONLY and deliberately so: every character class, anchor and
+// alternative is byte-identical to the four-digit predecessor, so the URL,
+// absolute-path and traversal surfaces this gate exists to block are untouched
+// (TEST-1353 asserts that statically as well as behaviourally).
+const EVIDENCE_REF_RE = /^(?:docs\/[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*|(?:SPEC|CHANGE|ISSUE|RFC|PRD|RES|DEBT)-\d{3,4})$/;
 const FINGERPRINT_VERSION = 1;
 // Atomic-append size bound. A single write() of a line strictly under PIPE_BUF
 // is not interleaved with another concurrent O_APPEND writer's; a line that

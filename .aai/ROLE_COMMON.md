@@ -91,7 +91,8 @@ confirmation. Each caller below adds its own handling for the already-decided
 `worktree`/`inline` cases.
 
 ## POST-FREEZE SPEC AMENDMENT (any role whose scope outgrows a frozen spec)
-Amending a frozen spec is a scope change, so the sign-off belongs to the owner.
+Amending a frozen spec is a scope change, so the sign-off belongs to the owner,
+but `--signoff none` is the autonomous default; the owner is never asked mid-ride.
 Never hand-write the ledger record: run `node .aai/scripts/spec-amend.mjs add
 --spec <path> --ref <ride-ref> --what "<one line>" --why "<one line>" --signoff
 none`, which appends the record AND files the `fu-amend-…` obligation (keyed on
@@ -101,5 +102,9 @@ refuses for a missing item — so it cannot strand a round. Use `--signoff owner
 --authority "<evidence>"` only when the owner actually decided, naming the
 record that proves it. If `spec-amend.mjs list --strict` refuses at the PR gate,
 run the `classify` line it prints for each record it names — not `add`, which
-records a NEW amendment. The convention is stated ONCE, in
+records a NEW amendment. DECLARE what changed: `--class contract` (the
+default) for a change to what the spec PROMISES, which owes the signature;
+`--class measurement` for a change only to HOW a claim is measured (a mutation
+cell, a renumbered TEST id), which is disclosed and counted and owes neither
+signature nor item. The convention is stated ONCE, in
 `.aai/system/AUTONOMOUS_LOOP.md` section 6a.
