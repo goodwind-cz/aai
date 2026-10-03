@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # shard-plan-check.sh — independent shard-plan completeness check (D4,
-# SPEC-DRAFT-spec-ci-test-selection-narrowing-and-sharding). Shares NO code
+# SPEC-0206-spec-ci-test-selection-narrowing-and-sharding). Shares NO code
 # with .aai/scripts/select-suites.mjs on purpose: this is the second,
 # independent proof that a shard plan is complete, not a restatement of the
 # selector's own bookkeeping.

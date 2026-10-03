@@ -44,7 +44,7 @@
 //   SELECTED <suite> reason=<path that matched it>
 //   DROPPED <n>
 //
-// SHARD MODE (D1, SPEC-DRAFT-spec-ci-test-selection-narrowing-and-sharding):
+// SHARD MODE (D1, SPEC-0206-spec-ci-test-selection-narrowing-and-sharding):
 //   node .aai/scripts/select-suites.mjs --shards <N> [--repo-root <dir>]
 //     [--weights <path>]
 //

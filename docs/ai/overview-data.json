@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-02T13:16:43.800Z",
+  "generatedAt": "2026-10-03T13:49:26.141Z",
   "project": "aai",
   "counts": {
-    "delivered": 274,
-    "in_progress": 15,
+    "delivered": 275,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 71857830
   },
@@ -116,6 +116,19 @@
       "review": null
     },
     {
+      "ref": "ci-test-selection-narrowing-and-sharding",
+      "title": "Tech Debt: CI runs the full 103-suite sweep on 40% of PRs, and runs it on one runner",
+      "type": "techdebt",
+      "status": "implementing",
+      "path": "docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md",
+      "closed_on": null,
+      "agent_minutes": 232,
+      "token_total": 2345306,
+      "spec": "docs/specs/SPEC-0206-spec-ci-test-selection-narrowing-and-sharding.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "disposable-checkout-lifecycle-residuals",
       "title": "The disposable checkout is created and destroyed by bookkeeping that loses track of it",
       "type": "issue",
@@ -219,7 +232,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-amendment-signature-asks-the-owner-too-often-20261002T123435Z.md"
+      "review": "docs/ai/reviews/review-amendment-signature-asks-the-owner-too-often-20261002T131500Z.md"
     },
     {
       "ref": "friction-issues-arrive-without-a-description",
@@ -285,6 +298,19 @@
       "spec": "docs/specs/SPEC-0204-spec-a-check-cannot-tell-silence-from-a-verdict.md",
       "validation": null,
       "review": "docs/ai/reviews/review-a-check-cannot-tell-silence-from-a-verdict-20261001T191739Z.md"
+    },
+    {
+      "ref": "readme-portable-workflow-onboarding",
+      "title": "README onboarding for a portable, evidence-backed workflow",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0199-readme-portable-workflow-onboarding.md",
+      "closed_on": "2026-09-30",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
     },
     {
       "ref": "sync-deletes-target-only-hooks",
@@ -3808,7 +3834,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-amendment-signature-asks-the-owner-too-often-20261002T123435Z.md"
+          "review": "docs/ai/reviews/review-amendment-signature-asks-the-owner-too-often-20261002T131500Z.md"
         },
         {
           "ref": "friction-issues-arrive-without-a-description",
@@ -3882,6 +3908,19 @@
       "kind": "month",
       "label": "2026-09",
       "items": [
+        {
+          "ref": "readme-portable-workflow-onboarding",
+          "title": "README onboarding for a portable, evidence-backed workflow",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0199-readme-portable-workflow-onboarding.md",
+          "closed_on": "2026-09-30",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "sync-deletes-target-only-hooks",
           "title": "Hotfix — aai-sync deletes target-only files under hooks/ and the advisory never says so",

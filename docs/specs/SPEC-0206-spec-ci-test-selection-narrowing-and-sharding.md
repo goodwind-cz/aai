@@ -1,15 +1,15 @@
 ---
 id: spec-ci-test-selection-narrowing-and-sharding
 type: spec
-number: null
+number: 206
 status: implementing
 mutation_gate: v1
-frozen_sha256: d81b2aeff50022cdda22a277d1fe9d82eaeed84f47ec60c71773ba266d245b44
+frozen_sha256: fb646fc0ec606ac1c0929d2d2a4f3f95ecdbfcb8bd20c54737cb67d73f201e26
 ceremony_level: 2
 links:
   requirement: null
   rfc: null
-  intake: docs/issues/DEBT-DRAFT-ci-test-selection-narrowing-and-sharding.md
+  intake: docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md
   pr: []
   commits: []
 ---
@@ -48,7 +48,7 @@ item above remains open for that decision); this disclosure only makes the
 spec match the fix already remediated.
 
 ## Links
-- Intake: docs/issues/DEBT-DRAFT-ci-test-selection-narrowing-and-sharding.md
+- Intake: docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md
 - Prior spec this extends: docs/specs/SPEC-0097-spec-ci-test-impact-selection.md
 - Product doc: docs/product/ci-test-impact-selection.md
 - Technology contract: docs/TECHNOLOGY.md
