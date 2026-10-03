@@ -2,11 +2,13 @@
 id: ci-test-selection-narrowing-and-sharding
 type: techdebt
 number: 8
-status: implementing
+status: done
 capability: ci-test-impact-selection
 links:
-  pr: []
-  commits: []
+  pr:
+    - 428
+  commits:
+    - cc40365861fad1ca3809ac49de4b52f81af08782
 ---
 
 # Tech Debt: CI runs the full 103-suite sweep on 40% of PRs, and runs it on one runner

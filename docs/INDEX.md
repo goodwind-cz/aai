@@ -1,19 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-03T13:51:19.840Z
+Generated: 2026-10-03T13:53:00.407Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
-| DEBT-0008 | issues | implementing | — | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0206 | specs | implementing | 5 done | docs/specs/SPEC-0206-spec-ci-test-selection-narrowing-and-sharding.md |
 
 ## Canonical layer (0)
 
@@ -55,7 +53,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (485)
+## Done (487)
 
 | ID | Type | Path |
 |---|---|---|
@@ -259,6 +257,7 @@ _None._
 | CHANGE-0202 | issues | docs/issues/CHANGE-0202-amendment-signature-asks-the-owner-too-often.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
+| DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
 | ISSUE-0003 | issues | docs/issues/ISSUE-0003-index-autogen-bakes-stale-drift-row.md |
@@ -542,6 +541,7 @@ _None._
 | SPEC-0203 | specs | docs/specs/SPEC-0203-spec-friction-issues-arrive-without-a-description.md |
 | SPEC-0204 | specs | docs/specs/SPEC-0204-spec-a-check-cannot-tell-silence-from-a-verdict.md |
 | SPEC-0205 | specs | docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md |
+| SPEC-0206 | specs | docs/specs/SPEC-0206-spec-ci-test-selection-narrowing-and-sharding.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
