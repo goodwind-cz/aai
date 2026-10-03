@@ -48,6 +48,13 @@ EOF
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SELECTOR="${SELECT_SUITES_SCRIPT:-$PROJECT_ROOT/.aai/scripts/select-suites.mjs}"
 WORKFLOW_FILE="$PROJECT_ROOT/.github/workflows/skill-suite.yml"
+# Sharding (ci-test-selection-narrowing-and-sharding) overrides, independent
+# of SELECT_SUITES_SCRIPT/WORKFLOW_FILE above: a RED run points these at a
+# pre-change snapshot (old workflow / a nonexistent helper) without
+# disturbing the existing TEST-013/017/018/020-022/430 invocations, which
+# keep using the plain variables.
+SHARD_CHECK_SCRIPT="${SHARD_CHECK_SCRIPT:-$PROJECT_ROOT/tests/skills/lib/shard-plan-check.sh}"
+SHARD_WORKFLOW_FILE="${SHARD_WORKFLOW_FILE:-$WORKFLOW_FILE}"
 
 TEST_DIR=""
 cleanup() {
@@ -112,6 +119,103 @@ run_sel() {
   printf '%s\n' "$@" > "$list"
   OUT="$(node "$SELECTOR" --repo-root "$dir" --files-from "$list" 2>&1)"
   CODE=$?
+}
+
+# ---- sharding fixture helpers (ci-test-selection-narrowing-and-sharding,
+# TEST-1420..1439) ----------------------------------------------------
+
+# fixture_suites <dir> <suite...> — creates a stub tests/skills/test-<name>.sh
+# for each bare suite name (pass the full name, e.g. "aai-alpha").
+fixture_suites() {
+  local dir="$1"; shift
+  mkdir -p "$dir/tests/skills"
+  local name
+  for name in "$@"; do
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$dir/tests/skills/test-${name}.sh"
+  done
+}
+
+# fixture_tie6_scrambled <dir> — the TEST-1422/1424 weight-tie fixture
+# (aai-one/two/three @5, aai-four/five @3, aai-six @1), built so the
+# ENUMERATION order discoverSuiteNames() sees is NOT already alphabetical:
+# `aai-two` sits under a subdirectory ("aaa_sub", name-sorted before the
+# top-level `test-aai-*.sh` files) that readdirSync visits first. On a flat
+# layout, readdirSync already returns basenames in alphabetical order on
+# this filesystem, so a stable sort's tie-break is a structural no-op (the
+# pre-sort order already satisfies ascending-name) and TEST-1422's own
+# mandated mutation (S4, reversed name comparison) stayed GREEN undetected
+# until this was found empirically running mutation-run.mjs. Nesting one
+# suite decouples enumeration order from name order without changing the
+# correct (sorted) output, which the mutation-run.mjs record for TEST-1422
+# confirms actually differs under the mutated comparator.
+fixture_tie6_scrambled() {
+  local dir="$1"
+  mkdir -p "$dir/tests/skills/aaa_sub"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$dir/tests/skills/aaa_sub/test-aai-two.sh"
+  local name
+  for name in aai-one aai-three aai-four aai-five aai-six; do
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$dir/tests/skills/test-${name}.sh"
+  done
+}
+
+# run_shard <repo-root> <selector-args...> — invoke the selector's shard
+# mode; captures stdout+stderr to $OUT, exit code to $CODE. Uses the
+# `cmd || rc=$?` capture shape (rc preset to 0) even though select-suites.mjs
+# always exits 0 by contract, for uniformity with run_check/run_extract below
+# (shard-plan-check.sh genuinely returns non-zero in several of these tests).
+run_shard() {
+  local dir="$1"; shift
+  CODE=0
+  OUT="$(node "$SELECTOR" --repo-root "$dir" "$@" 2>&1)" || CODE=$?
+}
+
+# run_check <plan-file> <skills-dir> — invoke shard-plan-check.sh --check;
+# $OUT/$CODE as above.
+run_check() {
+  local plan="$1" dir="$2"
+  CODE=0
+  OUT="$(bash "$SHARD_CHECK_SCRIPT" --check "$plan" "$dir" 2>&1)" || CODE=$?
+}
+
+# run_extract <shard-id|all> <plan-file> — invoke shard-plan-check.sh
+# --extract; $OUT/$CODE as above.
+run_extract() {
+  local idx="$1" plan="$2"
+  CODE=0
+  OUT="$(bash "$SHARD_CHECK_SCRIPT" --extract "$idx" "$plan" 2>&1)" || CODE=$?
+}
+
+# real_suite_names <root> — the real find-list of suite names, sorted
+# unique, same rule discover_tests() uses.
+real_suite_names() {
+  local root="$1"
+  find "$root/tests/skills" -name 'test-aai-*.sh' -type f -exec basename {} \; \
+    | sed -e 's/^test-//' -e 's/\.sh$//' | sort -u
+}
+
+# planned_suite_names <outfile> — sorted unique suite names from SHARD lines
+# in a selector plan file already written to disk (never piped from a live
+# producer, so there is nothing to early-close).
+planned_suite_names() {
+  awk '/^SHARD /{print $3}' "$1" | sort -u
+}
+
+# assert_shard_weights_non_increasing <outfile> <label> — SHARD lines for one
+# shard id are emitted contiguously (one inner loop per shard index); fails
+# if a later line for the SAME shard id carries a HIGHER weight than the one
+# before it.
+assert_shard_weights_non_increasing() {
+  local outfile="$1" label="$2"
+  awk '
+    /^SHARD / {
+      id = $2; w = $0; sub(/.*weight=/, "", w); w += 0
+      if (id == prev_id && w > prev_w) {
+        print "VIOLATION shard=" id " weight=" w " after=" prev_w
+        exit 1
+      }
+      prev_id = id; prev_w = w
+    }
+  ' "$outfile" || log_fail "$label: a shard's weights increased somewhere (non-increasing invariant broken)"
 }
 
 test_001_mapped_diff_selects_exact_plus_core() {  # Spec-AC-01
@@ -488,6 +592,402 @@ test_430_role_common_selects_aai_state() {  # Spec-AC-16 (spec-test-framework-sw
   log_pass "test_430: .aai/ROLE_COMMON.md selects aai-state (TEST-430)"
 }
 
+# ---- CI test selection narrowing and sharding (ci-test-selection-
+# narrowing-and-sharding / SPEC-DRAFT-spec-ci-test-selection-narrowing-and-
+# sharding), TEST-1420..1439 ------------------------------------------
+
+test_1420_real_repo_shard_completeness() {  # Spec-AC-01
+  log_info "Test: real repo --shards 4: sorted SHARD suite column equals sorted find list, SHARDS suites= count, exit 0 (TEST-1420)..."
+  local root="${1:-$PROJECT_ROOT}"
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  run_shard "$root" --shards 4
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1420: exit code must be 0, got $CODE: $(payload_preview "$OUT")"
+  local plan="$TEST_DIR/plan.txt"
+  printf '%s\n' "$OUT" > "$plan"
+  local planned expected total
+  planned="$(planned_suite_names "$plan")"
+  expected="$(real_suite_names "$root")"
+  [[ "$planned" == "$expected" ]] || log_fail "TEST-1420: planned suite set must equal the find set exactly, each once"
+  total="$(printf '%s\n' "$expected" | grep -c . || true)"
+  assert_payload_has_line "$OUT" "SHARDS count=4 suites=$total" "TEST-1420: expected SHARDS count=4 suites=$total: $(payload_preview "$OUT")"
+  log_pass "TEST-1420: real-repo shard completeness holds (TEST-1420)"
+}
+
+test_1421_weight_orphan_and_completeness() {  # Spec-AC-01 (fixture diversity: multi-source/multi-writer via orphan+known mix)
+  log_info "Test: fixture of 5 suites, weights for 3 plus an orphan row: all 5 assigned exactly once, orphan reported and never assigned (TEST-1421)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  fixture_suites "$TEST_DIR" aai-alpha aai-bravo aai-delta aai-echo aai-zulu
+  local weights="$TEST_DIR/weights.tsv"
+  printf 'aai-alpha\t10\naai-bravo\t5\naai-delta\t3\naai-ghost-orphan\t99\n' > "$weights"
+  run_shard "$TEST_DIR" --shards 2 --weights "$weights"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1421: exit code must be 0, got $CODE: $(payload_preview "$OUT")"
+  assert_payload_has_line "$OUT" "WEIGHT_ORPHAN aai-ghost-orphan" "TEST-1421: missing WEIGHT_ORPHAN: $(payload_preview "$OUT")"
+  local plan="$TEST_DIR/plan.txt"
+  printf '%s\n' "$OUT" > "$plan"
+  local planned expected
+  planned="$(planned_suite_names "$plan")"
+  expected="$(printf 'aai-alpha\naai-bravo\naai-delta\naai-echo\naai-zulu\n' | sort -u)"
+  [[ "$planned" == "$expected" ]] || log_fail "TEST-1421: all 5 fixture suites must be assigned exactly once, got: $planned"
+  if grep -E '^SHARD [0-9]+ aai-ghost-orphan ' "$plan" >/dev/null; then
+    log_fail "TEST-1421: the orphan must never be assigned to a shard: $(payload_preview "$OUT")"
+  fi
+  log_pass "TEST-1421: weight orphan reported, never assigned; completeness holds (TEST-1421)"
+}
+
+test_1422_deterministic_tie_break_golden() {  # Spec-AC-02
+  log_info "Test: 6-suite fixture with a weight tie at N=2: stdout equals a golden plan byte for byte, two runs are identical (TEST-1422)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  fixture_tie6_scrambled "$TEST_DIR"
+  local weights="$TEST_DIR/weights.tsv"
+  printf 'aai-one\t5\naai-two\t5\naai-three\t5\naai-four\t3\naai-five\t3\naai-six\t1\n' > "$weights"
+  local golden
+  golden="$(printf 'SHARD 1 aai-one weight=5\nSHARD 1 aai-two weight=5\nSHARD 1 aai-six weight=1\nSHARD 2 aai-three weight=5\nSHARD 2 aai-five weight=3\nSHARD 2 aai-four weight=3\nSHARDS count=2 suites=6')"
+  run_shard "$TEST_DIR" --shards 2 --weights "$weights"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1422: exit code must be 0, got $CODE: $(payload_preview "$OUT")"
+  [[ "$OUT" == "$golden" ]] || log_fail "TEST-1422: plan must equal the golden byte for byte, got: $(payload_preview "$OUT")"
+  local out2
+  run_shard "$TEST_DIR" --shards 2 --weights "$weights"
+  out2="$OUT"
+  [[ "$out2" == "$golden" ]] || log_fail "TEST-1422: a second run must reproduce the same golden plan byte for byte"
+  log_pass "TEST-1422: deterministic weight-tie tie-break matches the golden plan twice (TEST-1422)"
+}
+
+test_1423_real_repo_balance_bound() {  # Spec-AC-02
+  log_info "Test: real repo + committed weights at N=4: the largest shard weight-sum stays within the spec's bound (TEST-1423)..."
+  local root="${1:-$PROJECT_ROOT}"
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  run_shard "$root" --shards 4
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1423: exit code must be 0, got $CODE: $(payload_preview "$OUT")"
+  local plan="$TEST_DIR/plan.txt"
+  printf '%s\n' "$OUT" > "$plan"
+  # Positive control (absence-no-control, LEARNED.md 2026-09-05): a plan with
+  # ZERO SHARD lines would trivially satisfy "largest shard sum <= bound"
+  # below without shard mode having run at all. Assert the mechanism fired.
+  local shard_line_count expected_count
+  shard_line_count="$(grep -c '^SHARD ' "$plan" || true)"
+  expected_count="$(real_suite_names "$root" | grep -c . || true)"
+  [[ "$shard_line_count" -eq "$expected_count" ]] \
+    || log_fail "TEST-1423: expected $expected_count SHARD lines (one per real suite), got $shard_line_count: $(payload_preview "$OUT")"
+  local weights_file="$root/tests/skills/suite-weights.tsv"
+  [[ -f "$weights_file" ]] || log_fail "TEST-1423: missing $weights_file"
+  local total max_w
+  total="$(awk -F'\t' '!/^#/ && NF==2 {t+=$2} END{print t+0}' "$weights_file")"
+  max_w="$(awk -F'\t' '!/^#/ && NF==2 {if ($2+0>m) m=$2+0} END{print m+0}' "$weights_file")"
+  local ideal bound
+  ideal=$(( (total + 3) / 4 ))
+  bound=$(( (ideal * 105 + 99) / 100 ))
+  if [[ "$max_w" -gt "$bound" ]]; then bound="$max_w"; fi
+  local max_sum
+  max_sum="$(awk '/^SHARD /{w=$0; sub(/.*weight=/,"",w); sum[$2]+=w+0} END{m=0; for (k in sum) if (sum[k]>m) m=sum[k]; print m+0}' "$plan")"
+  [[ "$max_sum" -le "$bound" ]] || log_fail "TEST-1423: largest shard weight-sum $max_sum exceeds bound $bound (total=$total ideal=$ideal maxw=$max_w)"
+  log_pass "TEST-1423: real-repo balance stays within ceil(1.05*ideal) / max-weight bound (TEST-1423)"
+}
+
+test_1424_shards_never_increase_in_weight() {  # Spec-AC-02
+  log_info "Test: real repo N=4, and the TEST-1422 fixture: inside every shard the emitted weights never increase (TEST-1424)..."
+  local root="${1:-$PROJECT_ROOT}"
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  run_shard "$root" --shards 4
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1424: exit code must be 0 for the real repo, got $CODE"
+  local plan_real="$TEST_DIR/plan-real.txt"
+  printf '%s\n' "$OUT" > "$plan_real"
+  # Positive control (absence-no-control, LEARNED.md 2026-09-05): zero SHARD
+  # lines would vacuously satisfy "never increase" below. Assert it ran.
+  local real_shard_count
+  real_shard_count="$(grep -c '^SHARD ' "$plan_real" || true)"
+  [[ "$real_shard_count" -ge 1 ]] || log_fail "TEST-1424: expected SHARD lines for the real repo, got none: $(payload_preview "$OUT")"
+  assert_shard_weights_non_increasing "$plan_real" "TEST-1424 (real repo)"
+
+  fixture_tie6_scrambled "$TEST_DIR"
+  local weights="$TEST_DIR/weights.tsv"
+  printf 'aai-one\t5\naai-two\t5\naai-three\t5\naai-four\t3\naai-five\t3\naai-six\t1\n' > "$weights"
+  run_shard "$TEST_DIR" --shards 2 --weights "$weights"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1424: exit code must be 0 for the fixture, got $CODE"
+  local plan_fixture="$TEST_DIR/plan-fixture.txt"
+  printf '%s\n' "$OUT" > "$plan_fixture"
+  local fixture_shard_count
+  fixture_shard_count="$(grep -c '^SHARD ' "$plan_fixture" || true)"
+  [[ "$fixture_shard_count" -eq 6 ]] || log_fail "TEST-1424: expected 6 SHARD lines for the fixture, got $fixture_shard_count: $(payload_preview "$OUT")"
+  assert_shard_weights_non_increasing "$plan_fixture" "TEST-1424 (TEST-1422 fixture)"
+  log_pass "TEST-1424: emitted weights never increase within a shard, real repo and fixture alike (TEST-1424)"
+}
+
+test_1425_unweighted_gets_max_known_first_in_shard() {  # Spec-AC-02
+  log_info "Test: a fixture suite with no weight row is emitted with weight=maxKnownWeight and leads its shard (TEST-1425)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  fixture_suites "$TEST_DIR" aai-known-low aai-known-mid aai-unweighted aai-known-high
+  local weights="$TEST_DIR/weights.tsv"
+  printf 'aai-known-low\t2\naai-known-mid\t5\naai-known-high\t8\n' > "$weights"
+  run_shard "$TEST_DIR" --shards 2 --weights "$weights"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1425: exit code must be 0, got $CODE: $(payload_preview "$OUT")"
+  local plan="$TEST_DIR/plan.txt"
+  printf '%s\n' "$OUT" > "$plan"
+  assert_payload_has_line "$OUT" "SHARD 2 aai-unweighted weight=8" "TEST-1425: the unweighted suite must get weight=maxKnownWeight(8) in its shard: $(payload_preview "$OUT")"
+  local first_of_shard2
+  first_of_shard2="$(awk '/^SHARD /{if ($2==2) {print; exit}}' "$plan")"
+  [[ "$first_of_shard2" == "SHARD 2 aai-unweighted weight=8" ]] \
+    || log_fail "TEST-1425: the unweighted suite must be the FIRST suite of its shard, got first: $first_of_shard2"
+  log_pass "TEST-1425: unweighted suite gets max known weight and leads its shard (TEST-1425)"
+}
+
+test_1426_invalid_shard_count_fallback() {  # Spec-AC-03
+  log_info "Test: --shards 0, 9, abc and a missing value each print SHARD_FALLBACK reason=invalid-shard-count, no SHARD line, exit 0 (TEST-1426)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local v
+  for v in 0 9 abc; do
+    run_shard "$PROJECT_ROOT" --shards "$v"
+    [[ "$CODE" -eq 0 ]] || log_fail "TEST-1426: exit code must be 0 for --shards $v, got $CODE: $(payload_preview "$OUT")"
+    assert_payload_has_line "$OUT" "SHARD_FALLBACK reason=invalid-shard-count" "TEST-1426: --shards $v must fall back cleanly: $(payload_preview "$OUT")"
+    assert_payload_line_not_matches "$OUT" '^SHARD ' "TEST-1426: --shards $v must print no SHARD line: $(payload_preview "$OUT")"
+  done
+  CODE=0
+  OUT="$(node "$SELECTOR" --repo-root "$PROJECT_ROOT" --shards 2>&1)" || CODE=$?
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1426: exit code must be 0 for a missing --shards value, got $CODE: $(payload_preview "$OUT")"
+  assert_payload_has_line "$OUT" "SHARD_FALLBACK reason=invalid-shard-count" "TEST-1426: a missing --shards value must fall back cleanly: $(payload_preview "$OUT")"
+  log_pass "TEST-1426: invalid shard counts and a missing value all fall back cleanly, exit 0 (TEST-1426)"
+}
+
+test_1427_malformed_weights_ignored_whole_file() {  # Spec-AC-03
+  log_info "Test: a malformed weights row ignores the WHOLE file (WEIGHTS_IGNORED), plan stays complete, exit 0 (TEST-1427)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  fixture_suites "$TEST_DIR" aai-alpha aai-bravo aai-charlie
+  local weights="$TEST_DIR/weights.tsv"
+  printf '# comment\naai-alpha\t5\nnot-a-valid-row\naai-bravo\t3\n' > "$weights"
+  run_shard "$TEST_DIR" --shards 2 --weights "$weights"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1427: exit code must be 0, got $CODE: $(payload_preview "$OUT")"
+  assert_payload_has_line "$OUT" "WEIGHTS_IGNORED reason=malformed-line line=3" "TEST-1427: expected WEIGHTS_IGNORED naming line 3: $(payload_preview "$OUT")"
+  local plan="$TEST_DIR/plan.txt"
+  printf '%s\n' "$OUT" > "$plan"
+  local planned expected
+  planned="$(planned_suite_names "$plan")"
+  expected="$(printf 'aai-alpha\naai-bravo\naai-charlie\n' | sort -u)"
+  [[ "$planned" == "$expected" ]] || log_fail "TEST-1427: every fixture suite must still be assigned exactly once despite the malformed weights file, got: $planned"
+  log_pass "TEST-1427: a malformed weights row ignores the WHOLE file but keeps the plan complete (TEST-1427)"
+}
+
+test_1428_no_suites_fallback() {  # Spec-AC-03 (fixture diversity: degenerate/empty)
+  log_info "Test: a repo root with no on-disk suites prints SHARD_FALLBACK reason=no-suites, no SHARD line, exit 0 (TEST-1428)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  mkdir -p "$TEST_DIR/tests/skills"
+  run_shard "$TEST_DIR" --shards 4
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1428: exit code must be 0, got $CODE: $(payload_preview "$OUT")"
+  assert_payload_has_line "$OUT" "SHARD_FALLBACK reason=no-suites" "TEST-1428: expected a no-suites fallback: $(payload_preview "$OUT")"
+  assert_payload_line_not_matches "$OUT" '^SHARD ' "TEST-1428: must print no SHARD line: $(payload_preview "$OUT")"
+  log_pass "TEST-1428: a repo root with zero suites falls back cleanly (TEST-1428)"
+}
+
+test_1429_default_mode_byte_identical_negative_control() {  # Spec-AC-03, negative control
+  log_info "Test: negative control — without --shards the default mode stays byte-identical to the pre-shard-mode golden (TEST-1429)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  small_map "$TEST_DIR"
+  run_sel "$TEST_DIR" "src/alpha/foo.js"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1429: exit code must be 0, got $CODE: $(payload_preview "$OUT")"
+  local golden
+  golden="$(printf 'CORE aai-core-a reason=core\nCORE aai-core-b reason=core\nSELECTED aai-alpha reason=src/alpha/foo.js\nDROPPED 1')"
+  [[ "$OUT" == "$golden" ]] || log_fail "TEST-1429: default-mode output must stay byte-identical to the pre-shard-mode golden, got: $(payload_preview "$OUT")"
+  assert_payload_line_not_matches "$OUT" '^SHARD' "TEST-1429: default mode must never print a SHARD line: $(payload_preview "$OUT")"
+  log_pass "TEST-1429: negative control — default mode is unaffected by shard mode's existence (TEST-1429)"
+}
+
+test_1430_check_complete_plan_prints_ids() {  # Spec-AC-04
+  log_info "Test: --check on a complete 3-shard fixture plan exits 0 and prints exactly shard_ids=[1,2,3] (TEST-1430)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  fixture_suites "$TEST_DIR" aai-a aai-b aai-c
+  local plan="$TEST_DIR/plan.txt"
+  printf 'SHARD 1 aai-a weight=5\nSHARD 2 aai-b weight=3\nSHARD 3 aai-c weight=1\nSHARDS count=3 suites=3\n' > "$plan"
+  run_check "$plan" "$TEST_DIR/tests/skills"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1430: exit code must be 0, got $CODE: $(payload_preview "$OUT")"
+  [[ "$OUT" == 'shard_ids=[1,2,3]' ]] || log_fail "TEST-1430: expected exactly shard_ids=[1,2,3], got: $(payload_preview "$OUT")"
+  log_pass "TEST-1430: --check on a complete plan prints exactly shard_ids=[1,2,3] (TEST-1430)"
+}
+
+test_1431_check_missing_and_extra_suite() {  # Spec-AC-04
+  log_info "Test: --check exits non-zero naming the suite for a plan missing one on-disk suite, and for a plan naming a suite not on disk (TEST-1431)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  fixture_suites "$TEST_DIR" aai-a aai-b aai-c
+  local plan_missing="$TEST_DIR/plan-missing.txt"
+  printf 'SHARD 1 aai-a weight=5\nSHARD 2 aai-b weight=3\nSHARDS count=2 suites=2\n' > "$plan_missing"
+  run_check "$plan_missing" "$TEST_DIR/tests/skills"
+  [[ "$CODE" -ne 0 ]] || log_fail "TEST-1431: a plan missing an on-disk suite must exit non-zero"
+  case "$OUT" in
+    *"aai-c"*) ;;
+    *) log_fail "TEST-1431: must name the missing suite aai-c: $(payload_preview "$OUT")" ;;
+  esac
+
+  local plan_extra="$TEST_DIR/plan-extra.txt"
+  printf 'SHARD 1 aai-a weight=5\nSHARD 2 aai-b weight=3\nSHARD 2 aai-c weight=1\nSHARD 1 aai-ghost weight=1\nSHARDS count=2 suites=4\n' > "$plan_extra"
+  run_check "$plan_extra" "$TEST_DIR/tests/skills"
+  [[ "$CODE" -ne 0 ]] || log_fail "TEST-1431: a plan naming a suite not on disk must exit non-zero"
+  case "$OUT" in
+    *"aai-ghost"*) ;;
+    *) log_fail "TEST-1431: must name the extra suite aai-ghost: $(payload_preview "$OUT")" ;;
+  esac
+  log_pass "TEST-1431: --check names the offending suite for both missing and extra (TEST-1431)"
+}
+
+test_1432_check_duplicate_assignment() {  # Spec-AC-04
+  log_info "Test: --check exits non-zero naming the suite for a plan that assigns one suite to two shards (TEST-1432)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  fixture_suites "$TEST_DIR" aai-a aai-b
+  local plan="$TEST_DIR/plan-dup.txt"
+  printf 'SHARD 1 aai-a weight=5\nSHARD 2 aai-a weight=5\nSHARD 1 aai-b weight=1\nSHARDS count=2 suites=2\n' > "$plan"
+  run_check "$plan" "$TEST_DIR/tests/skills"
+  [[ "$CODE" -ne 0 ]] || log_fail "TEST-1432: a plan assigning one suite to two shards must exit non-zero"
+  case "$OUT" in
+    *"aai-a"*) ;;
+    *) log_fail "TEST-1432: must name the duplicated suite aai-a: $(payload_preview "$OUT")" ;;
+  esac
+  log_pass "TEST-1432: --check rejects a suite assigned to two shards, naming it (TEST-1432)"
+}
+
+test_1433_fallback_plan_check_and_extract_all() {  # Spec-AC-04 (fixture diversity: degenerate/empty)
+  log_info "Test: a SHARD_FALLBACK-only plan passes --check printing shard_ids=[\"all\"], and --extract all prints __ALL__ (TEST-1433)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  fixture_suites "$TEST_DIR" aai-a
+  local plan="$TEST_DIR/plan-fallback.txt"
+  printf 'SHARD_FALLBACK reason=no-suites\n' > "$plan"
+  run_check "$plan" "$TEST_DIR/tests/skills"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1433: a fallback plan must pass --check, got $CODE: $(payload_preview "$OUT")"
+  [[ "$OUT" == 'shard_ids=["all"]' ]] || log_fail "TEST-1433: expected shard_ids=[\"all\"], got: $(payload_preview "$OUT")"
+  run_extract "all" "$plan"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1433: --extract all on a fallback plan must exit 0, got $CODE: $(payload_preview "$OUT")"
+  [[ "$OUT" == '__ALL__' ]] || log_fail "TEST-1433: expected __ALL__, got: $(payload_preview "$OUT")"
+  log_pass "TEST-1433: a SHARD_FALLBACK-only plan passes --check and --extract all (TEST-1433)"
+}
+
+test_1434_extract_exact_shard_and_unknown_id() {  # Spec-AC-04
+  log_info "Test: --extract 2 prints exactly shard 2's suites in plan order; --extract 7 on a 3-shard plan exits non-zero (TEST-1434)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  fixture_suites "$TEST_DIR" aai-a aai-b aai-c aai-d
+  local plan="$TEST_DIR/plan.txt"
+  printf 'SHARD 1 aai-a weight=5\nSHARD 2 aai-b weight=4\nSHARD 2 aai-d weight=3\nSHARD 3 aai-c weight=1\nSHARDS count=3 suites=4\n' > "$plan"
+  run_extract 2 "$plan"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1434: --extract 2 must exit 0, got $CODE: $(payload_preview "$OUT")"
+  local golden
+  golden="$(printf 'aai-b\naai-d')"
+  [[ "$OUT" == "$golden" ]] || log_fail "TEST-1434: --extract 2 must print exactly shard 2's suites in plan order, got: $(payload_preview "$OUT")"
+  run_extract 7 "$plan"
+  [[ "$CODE" -ne 0 ]] || log_fail "TEST-1434: --extract 7 on a 3-shard plan must exit non-zero"
+  log_pass "TEST-1434: --extract prints exactly one shard's suites in plan order; an unknown id fails (TEST-1434)"
+}
+
+test_1435_real_repo_seam_selector_to_checker() {  # Spec-AC-04, SEAM
+  log_info "Test: real repo SEAM — select-suites.mjs --shards 4 into a plan, --check prints shard_ids=[1,2,3,4], union of --extract equals the find list (TEST-1435)..."
+  local root="${1:-$PROJECT_ROOT}"
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local plan="$TEST_DIR/plan.txt"
+  CODE=0
+  node "$SELECTOR" --repo-root "$root" --shards 4 > "$plan" 2>"$TEST_DIR/err.txt" || CODE=$?
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1435: the selector must exit 0, got $CODE"
+  run_check "$plan" "$root/tests/skills"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1435: --check on the real plan must exit 0, got $CODE: $(payload_preview "$OUT")"
+  [[ "$OUT" == 'shard_ids=[1,2,3,4]' ]] || log_fail "TEST-1435: expected shard_ids=[1,2,3,4], got: $(payload_preview "$OUT")"
+  local union_file="$TEST_DIR/union.txt"
+  : > "$union_file"
+  local i
+  for i in 1 2 3 4; do
+    run_extract "$i" "$plan"
+    [[ "$CODE" -eq 0 ]] || log_fail "TEST-1435: --extract $i must exit 0, got $CODE: $(payload_preview "$OUT")"
+    printf '%s\n' "$OUT" >> "$union_file"
+  done
+  local union_sorted expected union_count find_count
+  union_sorted="$(sort -u "$union_file")"
+  expected="$(real_suite_names "$root")"
+  [[ "$union_sorted" == "$expected" ]] || log_fail "TEST-1435: the union of every --extract must equal the find list"
+  union_count="$(grep -c . "$union_file" || true)"
+  find_count="$(printf '%s\n' "$expected" | grep -c . || true)"
+  [[ "$union_count" -eq "$find_count" ]] || log_fail "TEST-1435: the union must list each suite exactly once, union=$union_count find=$find_count"
+  log_pass "TEST-1435: real-repo SEAM — selector plan validates and extracts completely (TEST-1435)"
+}
+
+test_1436_workflow_shard_step_and_matrix_pin() {  # Spec-AC-05
+  log_info "Test: workflow pin — select's unconditional shard step, and skills-full's fail-fast:false matrix over fromJSON(shard_ids) (TEST-1436)..."
+  local wf="$SHARD_WORKFLOW_FILE"
+  [[ -f "$wf" ]] || log_fail "TEST-1436: missing workflow file $wf"
+  grep -qE '^\s*-\s+id:\s*shard\s*$' "$wf" \
+    || log_fail "TEST-1436: the select job must have a step 'id: shard'"
+  grep -qF -- '--shards 4' "$wf" \
+    || log_fail "TEST-1436: the shard step must run select-suites.mjs --shards 4"
+  grep -qF 'shard-plan-check.sh --check' "$wf" \
+    || log_fail "TEST-1436: the shard step must run shard-plan-check.sh --check"
+  grep -qE 'shard_ids:\s*\$\{\{\s*steps\.shard\.outputs\.shard_ids\s*\}\}' "$wf" \
+    || log_fail "TEST-1436: the select job must export shard_ids from the shard step"
+  grep -qE 'shard_plan:\s*\$\{\{\s*steps\.shard\.outputs\.shard_plan\s*\}\}' "$wf" \
+    || log_fail "TEST-1436: the select job must export shard_plan from the shard step"
+  grep -qF 'fail-fast: false' "$wf" \
+    || log_fail "TEST-1436: skills-full must set strategy.fail-fast: false"
+  grep -qF 'fromJSON(needs.select.outputs.shard_ids)' "$wf" \
+    || log_fail "TEST-1436: skills-full matrix must iterate fromJSON(needs.select.outputs.shard_ids)"
+  grep -qE 'SHARD_PLAN:\s*\$\{\{\s*needs\.select\.outputs\.shard_plan\s*\}\}' "$wf" \
+    || log_fail "TEST-1436: the skills-full leg must pass the plan through env: (SHARD_PLAN), never inline-interpolated"
+  grep -qF -- 'shard-plan-check.sh --extract' "$wf" \
+    || log_fail "TEST-1436: the skills-full leg must run --extract for its own shard"
+  grep -qF 'bash tests/skills/test-framework.sh "${args[@]}"' "$wf" \
+    || log_fail "TEST-1436: the skills-full leg must run ONE test-framework.sh invocation with accumulated --skill flags"
+  local fd_count
+  fd_count="$(grep -c 'fetch-depth: 0' "$wf" || true)"
+  [[ "$fd_count" -ge 4 ]] || log_fail "TEST-1436: expected fetch-depth: 0 on every checkout including each skills-full leg's, got count=$fd_count"
+  log_pass "TEST-1436: the workflow wires the unconditional shard step and the skills-full matrix (TEST-1436)"
+}
+
+test_1437_gate_unchanged_negative_control() {  # Spec-AC-05, negative control
+  log_info "Test: negative control — the gate job keeps its exact name, needs list, always(), and full-mode success line (TEST-1437)..."
+  local wf="$SHARD_WORKFLOW_FILE"
+  grep -qF 'name: skill test suite (tests/skills/, via test-framework.sh)' "$wf" \
+    || log_fail "TEST-1437: the gate job must keep its exact required-check name"
+  grep -qE 'needs:\s*\[select, skills-selected, skills-full\]' "$wf" \
+    || log_fail "TEST-1437: the gate job must keep needs: [select, skills-selected, skills-full]"
+  grep -qE 'if:\s*always\(\)' "$wf" \
+    || log_fail "TEST-1437: the gate job must keep if: always()"
+  grep -qF '[ "${{ needs.skills-full.result }}" = "success" ] || { echo "full-mode run failed"; exit 1; }' "$wf" \
+    || log_fail "TEST-1437: the gate job must keep its exact full-mode success line"
+  log_pass "TEST-1437: negative control — the gate job's shape is unchanged (TEST-1437)"
+}
+
+test_1438_leg_rechecks_before_extract() {  # Spec-AC-05
+  log_info "Test: the skills-full leg re-runs --check on its own checkout before --extract (TEST-1438)..."
+  local wf="$SHARD_WORKFLOW_FILE"
+  local check_line='bash tests/skills/lib/shard-plan-check.sh --check shard-plan.txt tests/skills >/dev/null'
+  local check_hits extract_hits check_ln extract_ln
+  check_hits="$(grep -nF -- "$check_line" "$wf" || true)"
+  extract_hits="$(grep -nF -- 'shard-plan-check.sh --extract' "$wf" || true)"
+  [[ -n "$check_hits" ]] || log_fail "TEST-1438: the skills-full leg must re-run --check on its own checkout: $check_line"
+  [[ -n "$extract_hits" ]] || log_fail "TEST-1438: the skills-full leg must run --extract"
+  check_ln="${check_hits%%:*}"
+  extract_ln="${extract_hits%%:*}"
+  [[ "$check_ln" -lt "$extract_ln" ]] || log_fail "TEST-1438: --check must run BEFORE --extract in the leg (check@$check_ln extract@$extract_ln)"
+  log_pass "TEST-1438: the skills-full leg re-checks the plan before extracting its shard (TEST-1438)"
+}
+
+test_1439_real_map_replay_new_paths() {  # Spec-AC-05
+  log_info "Test: real map replay — suite-weights.tsv and shard-plan-check.sh each select aai-suite-select, no FULL_RUN (TEST-1439)..."
+  local root="${1:-$PROJECT_ROOT}"
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local list="$TEST_DIR/t1439-files.txt" p out rc
+  # SUITE_MAP_OVERRIDE (optional): point --map at a snapshot suite-map.yaml,
+  # used by a pre-change RED run against the git-HEAD map that pre-dates D6's
+  # two new glob rows (SELECTOR's own default is used when unset). A plain
+  # if-branch, not an optionally-empty array: bash <4.4 treats
+  # "${empty_array[@]}" as unbound under `set -u` (bash-3.2-safe rule).
+  for p in "tests/skills/suite-weights.tsv" "tests/skills/lib/shard-plan-check.sh"; do
+    printf '%s\n' "$p" > "$list"
+    if [[ -n "${SUITE_MAP_OVERRIDE:-}" ]]; then
+      out="$(node "$SELECTOR" --repo-root "$root" --map "$SUITE_MAP_OVERRIDE" --files-from "$list" 2>&1)"; rc=$?
+    else
+      out="$(node "$SELECTOR" --repo-root "$root" --files-from "$list" 2>&1)"; rc=$?
+    fi
+    [[ "$rc" -eq 0 ]] || log_fail "TEST-1439: exit code must be 0 for $p, got $rc: $out"
+    case "$out" in
+      *"FULL_RUN"*) log_fail "TEST-1439: $p must not escalate to FULL_RUN: $out" ;;
+    esac
+    case "$out" in
+      *"aai-suite-select"*) ;;
+      *) log_fail "TEST-1439: $p must select aai-suite-select: $out" ;;
+    esac
+  done
+  log_pass "TEST-1439: the new sharding files join aai-suite-select's globs (TEST-1439)"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -511,10 +1011,38 @@ main() {
   test_021_docs_or_ledger_only_manifests_never_full_run
   test_022_ceremony_leftovers_never_full_run
   test_430_role_common_selects_aai_state
+  test_1420_real_repo_shard_completeness
+  test_1421_weight_orphan_and_completeness
+  test_1422_deterministic_tie_break_golden
+  test_1423_real_repo_balance_bound
+  test_1424_shards_never_increase_in_weight
+  test_1425_unweighted_gets_max_known_first_in_shard
+  test_1426_invalid_shard_count_fallback
+  test_1427_malformed_weights_ignored_whole_file
+  test_1428_no_suites_fallback
+  test_1429_default_mode_byte_identical_negative_control
+  test_1430_check_complete_plan_prints_ids
+  test_1431_check_missing_and_extra_suite
+  test_1432_check_duplicate_assignment
+  test_1433_fallback_plan_check_and_extract_all
+  test_1434_extract_exact_shard_and_unknown_id
+  test_1435_real_repo_seam_selector_to_checker
+  test_1436_workflow_shard_step_and_matrix_pin
+  test_1437_gate_unchanged_negative_control
+  test_1438_leg_rechecks_before_extract
+  test_1439_real_map_replay_new_paths
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  main "$@"
+  # Single-function invocation mode (mutation-run.mjs's positional-dispatch
+  # convention, isPositionalDispatchSuite): a function name as $1 runs just
+  # that test, so mutation-run.mjs can isolate one TEST-xxx instead of
+  # re-running the whole file; no args preserves the full-suite default.
+  if [[ -n "${1:-}" ]]; then
+    "$1"
+  else
+    main "$@"
+  fi
 fi

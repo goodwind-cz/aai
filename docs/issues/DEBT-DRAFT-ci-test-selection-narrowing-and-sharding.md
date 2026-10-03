@@ -80,25 +80,41 @@ need `AAI_TEST_TIMEOUT=3000` locally, ~32 min), and it lands on 2 of every 5
 PRs. That is the time the author waits before merge, repeated per push.
 
 ## Target State
-- A lib-file touch selects the suites that actually cover the scripts reachable
-  from that lib, derived deterministically from the import graph — not the whole
-  sweep.
-- A change confined to paths that provably cannot alter test outcomes runs the
-  always-on core suites, not the whole sweep.
+Scope decision (owner, 2026-10-03, recorded as a `hitl_decision` in
+`docs/ai/decisions.jsonl`): this ride delivers the sharded full sweep only.
+Planning measured that narrowing gains little before sharding exists; the owner
+approved shipping sharding now and doing the narrowing as the very next ride.
+The original target-state bullets are kept below, split by where they are
+delivered, so nothing is silently dropped.
+
+Delivered by this ride:
 - When the full sweep *is* the right answer, it finishes in a fraction of the
   wall clock by running across several runners.
-- Coverage is never reduced: every downgrade from `FULL_RUN` is backed by a
-  mechanical argument, and everything the graph cannot resolve still escalates.
+- Coverage is never reduced: the sharded sweep runs exactly the same suites as
+  the unsharded one, each exactly once, asserted mechanically.
+
+Deferred by the owner's decision (not requirements of this ride):
+- A lib-file touch selects the suites that actually cover the scripts reachable
+  from that lib, derived deterministically from the import graph — not the whole
+  sweep. -> `fu-lib-graph-narrowing-after-sharding` (P2, next ride; also
+  reassess the escalation for libs imported by a `protected_paths_l3` script,
+  and shard the selected-mode job).
+- A change confined to paths that provably cannot alter test outcomes runs the
+  always-on core suites, not the whole sweep. -> `fu-inert-path-class` (P3).
 
 ## Scope
-In scope:
-- `.aai/scripts/select-suites.mjs` — reverse-import-graph resolution for
-  `shared_lib_globs`, retaining every existing fail-open path.
-- `tests/skills/suite-map.yaml` — a new, narrow, explicitly-reviewed inert-path
-  class; per-lib fan-out threshold declaration.
+In scope (this ride, per the owner's scope decision above):
+- `.aai/scripts/select-suites.mjs` — a deterministic shard plan for the full
+  sweep, retaining every existing fail-open path.
 - `.github/workflows/skill-suite.yml` — matrix sharding for `skills-full` (and
   the aggregating `gate` job's verdict logic, which must require every shard).
 - `tests/skills/test-aai-suite-select.sh` — fixture cases for each new path.
+
+Deferred to follow-ups by the owner's decision:
+- reverse-import-graph resolution for `shared_lib_globs` and a per-lib fan-out
+  threshold -> `fu-lib-graph-narrowing-after-sharding`;
+- an explicitly-reviewed inert-path class in `tests/skills/suite-map.yaml`
+  -> `fu-inert-path-class`.
 
 Out of scope:
 - `protected_paths_l3` escalation. It stays exactly as it is — it is the

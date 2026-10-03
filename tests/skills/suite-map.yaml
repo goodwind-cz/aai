@@ -1093,3 +1093,7 @@ suites:
       # simple-and-friendly-to-use (Spec-AC-07): the PR #350 / #347 manifest
       # fixtures TEST-009 replays through the real map.
       - tests/fixtures/select-suites/**
+      # D6, ci-test-selection-narrowing-and-sharding: the sharding seam joins
+      # this suite's globs (TEST-1439 real-map replay).
+      - tests/skills/suite-weights.tsv
+      - tests/skills/lib/shard-plan-check.sh

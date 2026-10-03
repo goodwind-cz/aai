@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-03T09:18:51.166Z
+Generated: 2026-10-03T11:58:37.782Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-ci-test-selection-narrowing-and-sharding | specs | implementing | 5 planned | docs/specs/SPEC-DRAFT-spec-ci-test-selection-narrowing-and-sharding.md |
+| spec-ci-test-selection-narrowing-and-sharding | specs | implementing | 5 done | docs/specs/SPEC-DRAFT-spec-ci-test-selection-narrowing-and-sharding.md |
 
 ## Canonical layer (0)
 
