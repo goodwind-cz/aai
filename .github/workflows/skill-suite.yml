@@ -59,6 +59,32 @@ name: skill-suite
 # fetch-depth: 0 is required on every job that runs tests/skills/ or the
 # selector: tests/skills/test-aai-layer-profiles.sh probes full git history,
 # and the selector's `--base-ref` diff needs the merge-base with main.
+#
+# SHARDING (CHANGE ci-test-selection-narrowing-and-sharding / SPEC-DRAFT-
+# spec-ci-test-selection-narrowing-and-sharding). Narrowing (lib-graph impact
+# analysis) was measured and deferred — see the spec's `## Scope decision`;
+# sharding lands on every full run (17 of 40 PR runs, every push-to-main,
+# every nightly) and changes no coverage, only wall-clock. The `select` job's
+# `shard` step runs UNCONDITIONALLY (no `if:`), before the mode decision, so
+# every event gets a shard plan whether or not it ends up in `mode=full`:
+# `select-suites.mjs --shards 4` enumerates every `test-aai-*.sh` suite and
+# assigns it to one of 4 shards by LPT (longest processing time first, by
+# tests/skills/suite-weights.tsv), then `shard-plan-check.sh --check` proves
+# — independently, no shared code with the selector — that the plan's suite
+# set equals the on-disk set exactly (none missing, none extra, none twice).
+# A failure here fails `select`, which fails `gate`.
+# `skills-full` is now a matrix (fail-fast disabled) over `shard_ids`. Each leg
+# receives the plan text through `env:` (never inline-interpolated into the
+# script — a shard plan is untrusted-length data, not a shell token), writes
+# it back to a file, and RE-RUNS `--check` against its OWN checkout: a
+# pull_request merge ref can move between the `select` job and a leg's
+# checkout, and a suite added on the base in between would otherwise be
+# silently missing from that leg's plan. Only then does it `--extract` its
+# own shard's suites and run ONE `test-framework.sh --skill ...` invocation
+# (or the bare framework for the `"all"` fallback shard id). `gate` is
+# unchanged: GitHub reports a matrix job's aggregate `result` as `success`
+# only when every leg succeeded, so the existing full-mode success line
+# already requires every shard to pass — no new line was needed there.
 
 on:
   push:
@@ -80,6 +106,8 @@ jobs:
     outputs:
       mode: ${{ steps.select.outputs.mode }}
       suites: ${{ steps.select.outputs.suites }}
+      shard_ids: ${{ steps.shard.outputs.shard_ids }}
+      shard_plan: ${{ steps.shard.outputs.shard_plan }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -88,6 +116,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - id: shard
+        name: Compute the shard plan (unconditional; every event gets it, --shards 4)
+        run: |
+          set -euo pipefail
+          node .aai/scripts/select-suites.mjs --shards 4 > shard-plan.txt
+          bash tests/skills/lib/shard-plan-check.sh --check shard-plan.txt tests/skills >> "$GITHUB_OUTPUT"
+          {
+            echo 'shard_plan<<SHARD_PLAN_EOF'
+            cat shard-plan.txt
+            echo 'SHARD_PLAN_EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - id: select
         name: Run select-suites.mjs (PR only; every other event is always full)
@@ -157,6 +197,10 @@ jobs:
     name: skill test suite (full framework, via test-framework.sh)
     needs: select
     if: needs.select.outputs.mode == 'full'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.select.outputs.shard_ids) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -170,8 +214,23 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Run tests/skills/ suite (honors each suite's own #!/usr/bin/env bash shebang; never forced sh)
-        run: bash tests/skills/test-framework.sh
+      - name: Re-check the shard plan on this checkout, then run this leg's shard
+        env:
+          SHARD_PLAN: ${{ needs.select.outputs.shard_plan }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$SHARD_PLAN" > shard-plan.txt
+          bash tests/skills/lib/shard-plan-check.sh --check shard-plan.txt tests/skills >/dev/null
+          if [ "${{ matrix.shard }}" = "all" ]; then
+            bash tests/skills/test-framework.sh
+          else
+            SUITES="$(bash tests/skills/lib/shard-plan-check.sh --extract ${{ matrix.shard }} shard-plan.txt)"
+            args=()
+            for s in $SUITES; do
+              args+=(--skill "$s")
+            done
+            bash tests/skills/test-framework.sh "${args[@]}"
+          fi
 
   # Aggregating gate: carries the EXACT name branch protection already
   # requires ("skill test suite (tests/skills/, via test-framework.sh)").

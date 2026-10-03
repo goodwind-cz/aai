@@ -22,6 +22,14 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — perf: the full skill-suite sweep runs on four runners in parallel (#428)
+
+- **The full sweep is sharded.** It ran as one job on one runner (median 1120 s on `main`) and runs on every push to `main`, every nightly and 17 of the last 40 PRs. `select-suites.mjs --shards 4` now emits a deterministic, weight-balanced plan (`tests/skills/suite-weights.tsv`) and `skills-full` runs it as a 4-leg matrix. First live runs: longest leg 427 s and 331 s.
+- **Coverage cannot shrink silently.** `tests/skills/lib/shard-plan-check.sh` re-derives the plan in `select` and in every leg and fails the build, naming the suite, if any suite is missing, duplicated, extra, or not runnable by the leg (a suite moved into a subdirectory would otherwise have been skipped together with every suite after it in its shard, behind a green gate — caught in code review).
+- The required `gate` check, its name, `fetch-depth: 0`, the `ci-full` label and "non-PR events always run full" are unchanged; selected mode is untouched.
+- Deferred by owner decision: narrowing the shared-lib FULL_RUN rule (`fu-lib-graph-narrowing-after-sharding`, next) and an inert-path class (`fu-inert-path-class`). Found on the way: `test-framework.sh --skill` loses its own exit 2 on a missing test file (`fu-framework-discover-exit-swallowed`).
+- DEBT-0008-ci-test-selection-narrowing-and-sharding / SPEC-0206.
+
 ## [v2026.10.02] — fix: a check says what it observed, or says it could not (goodwind-cz/aai#421) (#421)
 
 - **CAT-17 no longer calls an armed ref guard unarmed.** On Windows the probe resolved `bash` to WSL, which never receives `AAI_GIT_WRITE`, so both arms refused and a non-zero exit read as a refusal. `--force` reinstalled a byte-identical hook and the warning came back, so the advice the doctor printed could not clear it. The probe now has a control arm on a non-main ref, requires the literal `AAI:REF-GUARD` on the refuse arm's stderr, and has a five-state verdict map: three states lead OUT of "NOT armed" (`control-arm-nonzero`, `no-refusal-marker`, `permit-arm-refused`, the last naming `AAI_GIT_WRITE`) and none leads in. The Git-for-Windows interpreter lookup is a pure injectable `resolveRefGuardLaunchers()` unit-tested on any OS; its behaviour is proven by a step in the `windows-wsl1` CI job, which printed `CAT-17 PASS armed` on PowerShell 5.1 with WSL usable — the exact environment the report came from.

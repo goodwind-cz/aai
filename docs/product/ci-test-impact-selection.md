@@ -32,6 +32,16 @@ a suite, that touches shared library code (`.aai/scripts/lib/**`), or that
 touches a protected surface (`docs/ai/docs-audit.yaml` `protected_paths_l3`)
 escalates straight back to a full run instead of guessing.
 
+When the full framework does run, it no longer runs on one machine. The
+`select` job splits the suites into four deterministic, weight-balanced
+shards and the full sweep runs as a four-leg matrix in parallel. On the
+first live run the longest leg took 427 s against a single-runner median of
+1120 s. Every suite still runs exactly once: an independent shell checker
+re-derives the shard plan in `select` and again in every leg, and fails the
+build if any suite is missing, duplicated, extra, or not runnable by the
+leg — so a sharding mistake turns CI red instead of silently shrinking
+coverage.
+
 ## How to use it
 
 Nothing is required for a normal PR — selection is automatic:
@@ -53,7 +63,15 @@ Nothing is required for a normal PR — selection is automatic:
 - Adding a new `tests/skills/test-aai-*.sh` suite? Add a matching row to
   `tests/skills/suite-map.yaml` — a suite with no row fails
   `tests/skills/test-aai-hygiene-pack.sh`'s pin check, both locally and in
-  CI.
+  CI. Optionally add its duration to `tests/skills/suite-weights.tsv`; an
+  unweighted suite is still planned (it gets the largest weight and is
+  scheduled first), it just balances less well.
+- Keep suites at the top level of `tests/skills/`. Each leg runs its shard
+  through `test-framework.sh --skill`, which resolves top-level files only,
+  so a suite in a subdirectory fails the shard check by name.
+- A full run's four legs report as `skill test suite (full framework, via
+  test-framework.sh) (1..4)`; the required `gate` check still aggregates
+  them and fails if any leg fails.
 
 ## Data model
 
@@ -66,6 +84,9 @@ Nothing is required for a normal PR — selection is automatic:
 - `docs/ai/docs-audit.yaml` `protected_paths_l3` — read live by the selector
   as one of the three fail-open trigger classes (checked FIRST, before
   shared-lib and unmapped); never duplicated into the suite map.
+- `tests/skills/suite-weights.tsv` — `<suite>\t<seconds>` rows, measured
+  from a CI log, used only to balance the shards. A row for a deleted suite
+  is ignored; a missing row gets the largest weight.
 
 ## Interfaces and contracts
 
@@ -80,3 +101,13 @@ Nothing is required for a normal PR — selection is automatic:
 - `.github/workflows/skill-suite.yml` — the `select` job resolves a
   `mode: full|selected` output (and the suite list, when selected) on
   every trigger; `skills-selected` and `skills-full` key off it.
+- `.aai/scripts/select-suites.mjs --shards <N>` — prints one
+  `SHARD <id> <suite> weight=<w>` line per suite (longest first, greedy
+  balance, deterministic across runs). Still always exits 0; any internal
+  error degrades to a single unsharded leg, never to a shorter list.
+- `tests/skills/lib/shard-plan-check.sh --check <plan> <skills_dir>` —
+  exits 1, naming the offender, when the plan's suite set differs from the
+  `test-aai-*.sh` files on disk, lists a suite twice, or names a suite the
+  leg cannot run (not a top-level `test-<name>.sh`, or a name outside
+  `[A-Za-z0-9_-]`); prints `shard_ids=[...]` for the matrix on success.
+  `--extract <id> <plan>` prints one leg's suite list.

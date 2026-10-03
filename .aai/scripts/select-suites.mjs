@@ -43,18 +43,45 @@
 //   CORE <suite> reason=core
 //   SELECTED <suite> reason=<path that matched it>
 //   DROPPED <n>
+//
+// SHARD MODE (D1, SPEC-0206-spec-ci-test-selection-narrowing-and-sharding):
+//   node .aai/scripts/select-suites.mjs --shards <N> [--repo-root <dir>]
+//     [--weights <path>]
+//
+// Enumerates every `test-aai-*.sh` file under <repo-root>/tests/skills/ (the
+// SAME rule test-framework.sh's discover_tests() uses) and assigns each to
+// one of N shards by LPT (longest processing time first), reading weights
+// from tests/skills/suite-weights.tsv by default. Prints:
+//
+//   SHARD <i> <suite> weight=<w>     one per suite; i is 1-based
+//   SHARDS count=<k> suites=<total>  exactly one, last
+//
+// plus optional report lines that never carry suites:
+//   WEIGHT_ORPHAN <name>             a weight row naming no on-disk suite
+//   WEIGHTS_IGNORED reason=<...>     the whole weights file was malformed
+//
+// On a degrade it prints `SHARD_FALLBACK reason=<...>` and NO `SHARD` line.
+// Exit is always 0, like every other mode. With no `--shards` flag, every
+// existing mode is byte-for-byte unchanged.
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain, ExitSignal } from './lib/cli-pipe-guard.mjs';
 
 const SELF_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = resolve(SELF_DIR, '..', '..');
 
+// ---- shard mode constants (D1, D2) ----
+const SUITE_FILE_RE = /^test-aai-.*\.sh$/;
+const MAX_SHARDS = 8;
+
 function parseArgs(argv) {
-  const out = { baseRef: null, filesFrom: null, repoRoot: null, mapPath: null, auditPath: null };
+  const out = {
+    baseRef: null, filesFrom: null, repoRoot: null, mapPath: null, auditPath: null,
+    shards: null, weightsPath: null,
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--base-ref') out.baseRef = argv[++i];
@@ -62,6 +89,8 @@ function parseArgs(argv) {
     else if (a === '--repo-root') out.repoRoot = argv[++i];
     else if (a === '--map') out.mapPath = argv[++i];
     else if (a === '--docs-audit') out.auditPath = argv[++i];
+    else if (a === '--shards') out.shards = argv[++i];
+    else if (a === '--weights') out.weightsPath = argv[++i];
     // Unknown flags are ignored on purpose — a CLI usage slip must never
     // fail the build; it degrades to FULL_RUN via the normal fail-open path
     // below when it leaves required inputs missing.
@@ -71,6 +100,141 @@ function parseArgs(argv) {
 
 function fullRun(reason, path) {
   console.log(`FULL_RUN reason=${reason} path=${path}`);
+  exit(0);
+}
+
+function shardFallback(reason) {
+  console.log(`SHARD_FALLBACK reason=${reason}`);
+  exit(0);
+}
+
+// ---- shard mode (D1, D2, D3) ----
+
+// discoverSuiteNames <repoRoot> — recursively walks <repoRoot>/tests/skills/
+// for files matching SUITE_FILE_RE, mirroring discover_tests()'s
+// `find "$SCRIPT_DIR" -name "test-aai-*.sh" -type f` exactly. A suite's name
+// is its basename with the `test-` prefix and `.sh` suffix stripped.
+function discoverSuiteNames(repoRoot) {
+  const skillsDir = resolve(repoRoot, 'tests', 'skills');
+  const names = [];
+  function walk(dir) {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) {
+        walk(full);
+      } else if (e.isFile() && SUITE_FILE_RE.test(e.name)) {
+        names.push(e.name.slice('test-'.length, -'.sh'.length));
+      }
+    }
+  }
+  walk(skillsDir);
+  return names;
+}
+
+// parseShardCount <raw> — null unless raw is a decimal integer in 1..MAX_SHARDS.
+function parseShardCount(raw) {
+  if (typeof raw !== 'string' || !/^[1-9][0-9]*$/.test(raw)) return null;
+  const n = parseInt(raw, 10);
+  if (n > MAX_SHARDS) return null;
+  return n;
+}
+
+// parseWeights <text> — '#' comments, blank lines, and
+// '<suite><whitespace><positive integer seconds>' rows (D3). A single
+// malformed line makes the WHOLE file ignored: the caller gets an empty
+// map plus the offending line number, never a partial parse.
+function parseWeights(text) {
+  const weights = new Map();
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\r$/, '');
+    if (line.trim() === '' || /^\s*#/.test(line)) continue;
+    const m = line.trim().match(/^(\S+)\s+(\S+)$/);
+    if (!m || !/^[1-9][0-9]*$/.test(m[2])) {
+      return { weights: new Map(), ignored: { reason: 'malformed-line', line: i + 1 } };
+    }
+    weights.set(m[1], parseInt(m[2], 10));
+  }
+  return { weights, ignored: null };
+}
+
+// byWeightDescThenName — weight descending, then name ascending (byte
+// order): determinism, and longest-first inside each shard (D2).
+function byWeightDescThenName(a, b) {
+  return b.w - a.w || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+}
+
+function shardMain(opts) {
+  const n = parseShardCount(opts.shards);
+  if (n === null) return shardFallback('invalid-shard-count');
+
+  const names = discoverSuiteNames(opts.repoRoot);
+  if (names.length === 0) return shardFallback('no-suites');
+
+  const weightsPath = resolve(opts.repoRoot, opts.weightsPath || 'tests/skills/suite-weights.tsv');
+  let weights = new Map();
+  let weightsIgnoredReason = null;
+  if (existsSync(weightsPath)) {
+    let text = null;
+    try {
+      text = readFileSync(weightsPath, 'utf8');
+    } catch {
+      text = null;
+    }
+    if (text !== null) {
+      const parsed = parseWeights(text);
+      if (parsed.ignored) {
+        weightsIgnoredReason = `malformed-line line=${parsed.ignored.line}`;
+      } else {
+        weights = parsed.weights;
+      }
+    }
+  }
+
+  const nameSet = new Set(names);
+  const orphanNames = [];
+  for (const k of weights.keys()) {
+    if (!nameSet.has(k)) orphanNames.push(k);
+  }
+
+  const knownForSuites = names.filter((nm) => weights.has(nm)).map((nm) => weights.get(nm));
+  const maxKnownWeight = knownForSuites.length ? Math.max(...knownForSuites) : 1;
+  const unknownWeight = maxKnownWeight;
+
+  const order = names
+    .map((name) => ({ name, w: weights.has(name) ? weights.get(name) : unknownWeight }))
+    .sort(byWeightDescThenName);
+
+  const loads = new Array(n).fill(0);
+  const buckets = Array.from({ length: n }, () => []);
+  for (const o of order) {
+    const target = loads.indexOf(Math.min(...loads));
+    loads[target] += o.w;
+    buckets[target].push(o);
+  }
+
+  for (const orphan of orphanNames.sort()) {
+    console.log(`WEIGHT_ORPHAN ${orphan}`);
+  }
+  if (weightsIgnoredReason) {
+    console.log(`WEIGHTS_IGNORED reason=${weightsIgnoredReason}`);
+  }
+
+  let emittedShards = 0;
+  for (let i = 0; i < n; i++) {
+    if (buckets[i].length === 0) continue;
+    emittedShards++;
+    for (const o of buckets[i]) {
+      console.log(`SHARD ${i + 1} ${o.name} weight=${o.w}`);
+    }
+  }
+  console.log(`SHARDS count=${emittedShards} suites=${names.length}`);
   exit(0);
 }
 
@@ -218,6 +382,7 @@ function getChangedFiles(opts) {
 function main() {
   const opts = parseArgs(process.argv.slice(2));
   opts.repoRoot = resolve(opts.repoRoot || DEFAULT_REPO_ROOT);
+  if (opts.shards !== null) return shardMain(opts);
   const mapPath = resolve(opts.repoRoot, opts.mapPath || 'tests/skills/suite-map.yaml');
   const auditPath = resolve(opts.repoRoot, opts.auditPath || 'docs/ai/docs-audit.yaml');
 
