@@ -1,17 +1,19 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-03T14:53:00.557Z
+Generated: 2026-10-03T18:47:31.345Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-configurable-merge-policy-lanes | specs | implementing | 23 planned | docs/specs/SPEC-DRAFT-spec-configurable-merge-policy-lanes.md |
+| configurable-merge-policy-lanes | rfc | accepted | — | docs/rfc/RFC-DRAFT-configurable-merge-policy-lanes.md |
 
 ## Canonical layer (0)
 
