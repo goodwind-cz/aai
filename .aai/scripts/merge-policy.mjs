@@ -4,22 +4,26 @@
 // owner-signed merge policy (docs/ai/merge-policy.yaml), SPEC-DRAFT
 // spec-configurable-merge-policy-lanes.
 //
-// THIS IS A PARTIAL BUILD (batch 2 of a multi-batch TDD ride). Batch 1
+// THIS IS A PARTIAL BUILD (batch 3 of a multi-batch TDD ride). Batch 1
 // implemented Spec-AC-01 (no_policy), Spec-AC-03 (base-only reads) and
-// Spec-AC-04 (GUARD_PATHS). This batch adds Spec-AC-05 (classifyFiles
-// order: guard, then architecture, then kind), Spec-AC-06 (globToRegExp
-// semantics, proven through --classify) and Spec-AC-07 (requesterApproved).
-// Every other predicate (CI green, the sweep-check spawn, lane `requires`
-// conditions, ceremony, deploy-consistency/opt-in validation, marker
-// validation) is still a deliberately permissive STUB, each marked `TODO:
-// Spec-AC-<n>` — a later batch replaces the stub body with the real
-// predicate and its own RED/GREEN evidence. The file's PUBLIC CONTRACT
-// (exported names, CLI modes, exit codes, printed line shapes) is written
-// to the full spec so later batches build ON this skeleton rather than
-// restructure it.
+// Spec-AC-04 (GUARD_PATHS). Batch 2 added Spec-AC-05 (classifyFiles order:
+// guard, then architecture, then kind), Spec-AC-06 (globToRegExp semantics,
+// proven through --classify) and Spec-AC-07 (requesterApproved). This batch
+// adds Spec-AC-08 (ciGreen, the real per-entry CheckRun/StatusContext
+// predicate), Spec-AC-09 (runSweepCheck spawns lane-gate.mjs --sweep-check;
+// no `requires` key may disable CI or the sweep check) and Spec-AC-11
+// (ceremony_exceeds via readRideCeremony, DEFAULT_MAX_CEREMONY = 2).
+// Every other predicate (lane `requires` conditions other than ceremony,
+// deploy-consistency/opt-in validation, marker validation) is still a
+// deliberately permissive STUB, each marked `TODO: Spec-AC-<n>` — a later
+// batch replaces the stub body with the real predicate and its own
+// RED/GREEN evidence. The file's PUBLIC CONTRACT (exported names, CLI
+// modes, exit codes, printed line shapes) is written to the full spec so
+// later batches build ON this skeleton rather than restructure it.
 //
 // Modes:
 //   --check --pr <n> [--repo-root <dir>] [--debug-inputs]
+//     [--spec <path>] [--intake <path>] [--state <path>]
 //   --validate [--path <file>] [--repo-root <dir>]
 //   --classify --path <policy> --files-from <path|-> [--repo-root <dir>]
 //
@@ -125,6 +129,12 @@ const LANE_SCALAR_KEYS = [
   'allow_public_side_effect', 'max_ceremony', 'marker', 'requester_logins',
 ];
 
+// Spec-AC-09 — CI green and the sweep check are mandatory and never
+// configurable: a `requires` block naming either is rejected at parse time,
+// the same way any other unrecognized key is (unknown_key), rather than
+// waiting on the full `requires` allowlist (TODO: Spec-AC-15, later batch).
+const FORBIDDEN_REQUIRES_KEYS = new Set(['ci', 'sweep_check']);
+
 // parsePolicy(text) -> { policy } | { errors }. Closed shape, P1. Only the
 // errors this batch owns (parse_error, unknown_key, empty_globs) are
 // actively detected; the remaining Validate codes that belong to other
@@ -221,6 +231,9 @@ export function parsePolicy(text) {
               while (i < lines.length && lines[i].indent === 6) {
                 const kv4 = splitKV(lines[i].content);
                 if (!kv4) return { errors: [{ lane: lane.id, code: 'parse_error' }] };
+                if (FORBIDDEN_REQUIRES_KEYS.has(kv4.key)) {
+                  return { errors: [{ lane: lane.id, code: 'unknown_key' }] };
+                }
                 requires[kv4.key] = kv4.rest.trim().startsWith('[')
                   ? parseFlowList(kv4.rest)
                   : parseScalar(kv4.rest);
@@ -422,33 +435,109 @@ export function requesterApproved(reviews, logins, headOid) {
   return false;
 }
 
-// TODO: Spec-AC-08 (later batch) — the real per-entry COMPLETED/SUCCESS|
-// NEUTRAL|SKIPPED (CheckRun) / SUCCESS (StatusContext) predicate. The two
-// defensive lines are real and mandated; the substantive classification is
-// stubbed permissive until that batch lands.
+// ciGreen(rollup) — Spec-AC-08. `rollup` is the GitHub `statusCheckRollup`
+// list: a mix of CheckRun (`status`/`conclusion`) and StatusContext
+// (`state`) entries, told apart by which fields they carry (real API
+// payloads also carry `__typename`; this evaluator never requires it, so a
+// `{"state":"SUCCESS"}` fixture classifies the same as a full payload). A
+// CheckRun counts only when COMPLETED with conclusion SUCCESS, NEUTRAL or
+// SKIPPED; a StatusContext counts only when its state is SUCCESS. Every
+// entry must count, and an empty rollup is never green (nothing to merge
+// on is not the same claim as "all green").
+function isCheckRunEntry(entry) {
+  return Object.prototype.hasOwnProperty.call(entry, 'status')
+    || Object.prototype.hasOwnProperty.call(entry, 'conclusion');
+}
+
+const CHECK_RUN_OK_CONCLUSIONS = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
+
+function checkRunGreen(entry) {
+  return entry.status === 'COMPLETED' && CHECK_RUN_OK_CONCLUSIONS.has(entry.conclusion);
+}
+
+function statusContextGreen(entry) {
+  return entry.state === 'SUCCESS';
+}
+
 export function ciGreen(rollup) {
   if (!Array.isArray(rollup)) return false;
   if (rollup.length === 0) return false;
+  for (const entry of rollup) {
+    if (!entry || typeof entry !== 'object') return false;
+    const ok = isCheckRunEntry(entry) ? checkRunGreen(entry) : statusContextGreen(entry);
+    if (!ok) return false;
+  }
   return true;
 }
 
-// TODO: Spec-AC-09 (later batch) — spawn `lane-gate.mjs --sweep-check` and
-// map its exit 5 to `sweep_check_failed`. Stubbed to never block.
-export function runSweepCheck(_root, _pr, _rideOpts) {
-  return { ok: true };
+// readRideCeremony(root, specPath, intakePath) -> integer — P8, Spec-AC-11.
+// An INDEPENDENT reader (never a call into lane-gate.mjs's own, unexported
+// readCeremonyLevel) that must still AGREE with the ceremony_level value
+// lane-gate.mjs itself prints for the same spec (TEST-1515, seam S2). A
+// spec, when resolvable, always wins over the intake (same precedence as
+// lane-gate.mjs). Canon: an absent `ceremony_level` field is implicit 2; a
+// ride whose spec and intake cannot be resolved AT ALL counts as ceremony 3.
+export function readRideCeremony(root, specPath, intakePath) {
+  const candidates = [specPath, intakePath].filter(Boolean).map((p) => resolve(root, p));
+  const source = candidates.find((p) => existsSync(p));
+  if (!source) return 3; // canon: a ride with no resolvable spec/intake is ceremony 3
+  let body;
+  try {
+    body = readFileSync(source, 'utf8').replace(/\r\n?/g, '\n');
+  } catch {
+    return 3;
+  }
+  const fm = body.match(/^---\n([\s\S]*?)\n---/);
+  const cl = fm ? fm[1].match(/^ceremony_level:\s*(\d+)\s*$/m) : null;
+  if (!cl) return 2; // canon: absent ceremony_level is implicit 2
+  return Number(cl[1]);
+}
+
+// runSweepCheck(root, pr, rideOpts) -> denyReason | null — Spec-AC-09. The
+// sweep check is never re-derived here; it spawns the SAME lane-gate.mjs
+// --sweep-check this repo's merge hook already calls (S1), forwarding the
+// identical ride inputs (--spec/--intake/--state) this evaluator itself
+// resolved, so the two never judge a different ride. Exit 5 is the ONLY
+// deny signal that mode defines; any other nonzero exit is an adapter
+// failure, not a verdict, and must fail the same way (deny), never silently
+// allow a merge nothing actually swept.
+const LANE_GATE_PATH = resolve(SELF_DIR, 'lane-gate.mjs');
+
+export function runSweepCheck(root, pr, rideOpts) {
+  const args = ['--sweep-check', '--pr', String(pr), '--repo-root', root];
+  if (rideOpts && rideOpts.spec) args.push('--spec', rideOpts.spec);
+  if (rideOpts && rideOpts.intake) args.push('--intake', rideOpts.intake);
+  if (rideOpts && rideOpts.state) args.push('--state', rideOpts.state);
+  let rc = 0;
+  try {
+    execFileSync(process.execPath, [LANE_GATE_PATH, ...args], {
+      cwd: root, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (err) {
+    rc = (err && typeof err.status === 'number') ? err.status : 1;
+  }
+  if (rc === 5) return 'sweep_check_failed';
+  return null;
 }
 
 // evaluateLane(lane, ctx) — lane-level codes in P10 order. `kind_not_in_lane`
-// and `requester_approval_missing` (Spec-AC-07) are real. The rest
-// (intake_type, roadmap_capability, ceremony_exceeds, validation_not_pass,
-// review_not_pass, pr_body_missing) are TODO: Spec-AC-11/15 (later
-// batches); they slot into P10 order between these two checks and never
+// (Spec-AC-05), `ceremony_exceeds` (Spec-AC-11) and `requester_approval_
+// missing` (Spec-AC-07) are real. `intake_type`, `roadmap_capability`,
+// `validation_not_pass`, `review_not_pass` and `pr_body_missing` are TODO:
+// Spec-AC-15 (later batch); `intake_type`/`roadmap_capability` slot in
+// between kind and ceremony, the rest after requester, and none of them
 // deny in this batch. A lane with no requester_logins skips the requester
-// check (it is only "WHEN a lane lists requester_logins", Spec-AC-07).
+// check (it is only "WHEN a lane lists requester_logins", Spec-AC-07). A
+// lane with no max_ceremony is capped at DEFAULT_MAX_CEREMONY (P7: ceremony
+// 3 is covered only when `max_ceremony: 3` is written explicitly).
 export function evaluateLane(lane, ctx) {
   const kinds = Array.isArray(lane.kinds) ? lane.kinds : [];
   if (!kinds.some((k) => ctx.kinds.has(k))) {
     return { ok: false, reason: 'kind_not_in_lane' };
+  }
+  const maxCeremony = typeof lane.max_ceremony === 'number' ? lane.max_ceremony : DEFAULT_MAX_CEREMONY;
+  if (ctx.ceremony > maxCeremony) {
+    return { ok: false, reason: 'ceremony_exceeds' };
   }
   const logins = Array.isArray(lane.requester_logins) ? lane.requester_logins : [];
   if (logins.length > 0 && !requesterApproved(ctx.reviews, logins, ctx.headOid)) {
@@ -464,6 +553,7 @@ export function evaluateLane(lane, ctx) {
 function parseArgs(argv) {
   const out = {
     mode: null, pr: null, path: null, repoRoot: null, filesFrom: null, debugInputs: false,
+    spec: null, intake: null, state: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -475,6 +565,9 @@ function parseArgs(argv) {
     else if (a === '--repo-root') out.repoRoot = argv[++i];
     else if (a === '--files-from') out.filesFrom = argv[++i];
     else if (a === '--debug-inputs') out.debugInputs = true;
+    else if (a === '--spec') out.spec = argv[++i];
+    else if (a === '--intake') out.intake = argv[++i];
+    else if (a === '--state') out.state = argv[++i];
   }
   return out;
 }
@@ -585,19 +678,24 @@ function runCheck(opts) {
     exit(EXIT_DENIED);
   }
 
-  const sweep = runSweepCheck(root, pr, opts);
-  if (!sweep.ok) {
-    console.log(`MERGE-POLICY denied pr=${pr} reason=${sweep.denyReason || 'sweep_check_failed'}`);
+  const sweepDeny = runSweepCheck(root, pr, { spec: opts.spec, intake: opts.intake, state: opts.state });
+  if (sweepDeny) {
+    console.log(`MERGE-POLICY denied pr=${pr} reason=${sweepDeny}`);
     exit(EXIT_DENIED);
   }
 
+  const ceremony = readRideCeremony(root, opts.spec, opts.intake);
+
   if (opts.debugInputs) {
-    // TODO: Spec-AC-11 (later batch) — resolve the real ceremony/intake/ref
-    // ride inputs (lane-gate.mjs seam, S2). Stubbed placeholder for now.
-    console.log(`ceremony=${DEFAULT_MAX_CEREMONY} intake_type=- ref=-`);
+    // TODO: Spec-AC-15 (later batch) — resolve the real intake_type/ref
+    // ride inputs. Stubbed placeholder for now; ceremony is real (Spec-AC-11).
+    console.log(`ceremony=${ceremony} intake_type=- ref=-`);
   }
 
-  const ctx = { kinds: classification.kinds, reviews: prJson.reviews, headOid: head, body: prJson.body || '' };
+  const ctx = {
+    kinds: classification.kinds, reviews: prJson.reviews, headOid: head,
+    body: prJson.body || '', ceremony,
+  };
   const laneLines = [];
   let allowedLane = null;
   for (const lane of policy.lanes) {

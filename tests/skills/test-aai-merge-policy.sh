@@ -10,11 +10,20 @@
 #   TEST-1501 (Spec-AC-01) — no_policy verdict, --check and --validate
 #   TEST-1503..1505 (Spec-AC-03) — reads come from the BASE commit only
 #   TEST-1506..1507 (Spec-AC-04) — GUARD_PATHS beats everything else
-# BATCH 2 adds:
+# BATCH 2 added:
 #   TEST-1508 (Spec-AC-05) — classifyFiles order: guard, architecture, kind
 #   TEST-1509 (Spec-AC-06) — globToRegExp semantics through --classify
 #   TEST-1510 (Spec-AC-07) — requesterApproved (latest deciding review, at head)
+# BATCH 3 adds:
+#   TEST-1511 (Spec-AC-08) — ciGreen: CheckRun/StatusContext per-entry rules
+#   TEST-1512 (Spec-AC-09) — lane-gate.mjs --sweep-check spawn; CI/sweep never
+#                            configurable via a `requires` key
+#   TEST-1514, 1515 (Spec-AC-11) — ceremony_exceeds, DEFAULT_MAX_CEREMONY,
+#                            and agreement with lane-gate.mjs's own reader
 # Every other TEST-15xx row in the spec's Test Plan lands in a later batch.
+# From this batch on, any fixture that reaches the per-lane evaluation loop
+# (an "allowed" or a lane-level deny reason) needs write_sweep_record too —
+# the sweep check is no longer a permissive stub.
 #
 # All fixtures are scratch git repositories that set their own user.email/
 # user.name. `gh` is a stub on PATH that serves JSON from a fixture file and
@@ -107,10 +116,29 @@ STUBEOF
   chmod +x "$bin_dir/gh"
 }
 
-# run_check <repo> <ghbin> <pr> — prints stdout+stderr, sets $RC.
+# run_check <repo> <ghbin> <pr> [extra_arg...] — prints stdout+stderr, sets
+# $RC. Any extra args (e.g. --spec <path> --debug-inputs) are appended
+# verbatim after --repo-root.
 run_check() {
   local repo="$1" ghbin="$2" pr="$3"
-  OUT="$(PATH="$ghbin:$PATH" node "$MP" --check --pr "$pr" --repo-root "$repo" 2>&1)" && RC=0 || RC=$?
+  shift 3
+  OUT="$(PATH="$ghbin:$PATH" node "$MP" --check --pr "$pr" --repo-root "$repo" "$@" 2>&1)" && RC=0 || RC=$?
+}
+
+# write_sweep_record <repo> <pr> — an EVENTS.jsonl pr_sweep record this
+# evaluator's own runSweepCheck spawn (lane-gate.mjs --sweep-check) accepts
+# (Spec-AC-09). Every fixture repo in this suite has no origin remote and no
+# STATE carrying a fast-lane strategy, so lane-gate.mjs always computes
+# lane=heavy for it regardless of which --spec this test may also pass
+# through -- `internal_substituted` is the one outcome legal on that lane
+# without also claiming a reviewer-bot sweep actually ran. Written directly
+# to the working tree, never committed: a committed copy would enter the
+# PR's own file diff and trip GUARD_PATHS/classification.
+write_sweep_record() {
+  local repo="$1" pr="$2"
+  mkdir -p "$repo/docs/ai"
+  printf '{"event":"pr_sweep","payload":{"pr":%s,"lane":"heavy","outcome":"internal_substituted","threads_seen":0,"threads_unresolved":0,"reviewer_bots":"none"}}\n' \
+    "$pr" >> "$repo/docs/ai/EVENTS.jsonl"
 }
 
 # --- TEST-1501 (Spec-AC-01) --------------------------------------------------
@@ -228,6 +256,7 @@ lanes:
     kinds: [other]
     merge_reaches: nothing
     marker: AAI_OTHER_MERGE
+    max_ceremony: 3
 YAML
   cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
 {"type":"hitl_decision","ref_id":"test1504-ride","ts":"2026-10-01T10:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1504 approved"}
@@ -260,8 +289,10 @@ lanes:
     kinds: [other, docs]
     merge_reaches: nothing
     marker: AAI_OTHER_MERGE
+    max_ceremony: 3
 YAML
   commit_all "$repo" "the repo's current checkout (not the PR's headRefOid) widens the lane"
+  write_sweep_record "$repo" 3
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
@@ -573,6 +604,7 @@ lanes:
     merge_reaches: nothing
     marker: AAI_REQ1510_MERGE
     requester_logins: [alice]
+    max_ceremony: 3
 YAML
     cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
 {"type":"hitl_decision","ref_id":"test1510-ride","ts":"2026-10-03T13:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1510 approved"}
@@ -584,6 +616,13 @@ JSONL
     echo "a docs change" > "$repo/docs/changed-$case_name.md"
     commit_all "$repo" "head ($case_name)"
     local head; head="$(head_sha "$repo")"
+    # This batch (Spec-AC-11) makes the sweep check and ceremony real; a
+    # test written before that (Spec-AC-07) must now also carry a passing
+    # sweep record and an explicit max_ceremony, or the unresolved-ceremony
+    # default (3, no --spec/--intake given) and the missing sweep record
+    # would both deny BEFORE evaluateLane ever reaches the requester check
+    # this test exists to prove.
+    write_sweep_record "$repo" 7
 
     local reviews allowed
     case "$case_name" in
@@ -638,6 +677,330 @@ JSON
   log_pass "TEST-1510: requesterApproved honors the latest deciding review per listed login, at headRefOid, with COMMENTED never overriding an approval"
 }
 
+# --- TEST-1511 (Spec-AC-08) --------------------------------------------------
+test_1511_ci_green() {
+  log_info "TEST-1511: an empty, in-progress, failed or pending rollup entry denies ci_not_green; SUCCESS plus NEUTRAL plus SKIPPED never trips that reason"
+  local case_name
+  for case_name in empty_rollup checkrun_in_progress checkrun_failure statuscontext_pending all_green; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/docs"
+    cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-ci
+    decision_ref: test1511-ride@2026-10-03T16:00:00Z
+    decision_match: "MERGE LANE test1511"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_CI1511_MERGE
+YAML
+    cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1511-ride","ts":"2026-10-03T16:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1511 approved"}
+JSONL
+    echo "base doc" > "$repo/docs/base.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+    echo "a docs change" > "$repo/docs/changed-$case_name.md"
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+
+    local rollup
+    case "$case_name" in
+      empty_rollup) rollup='[]' ;;
+      checkrun_in_progress) rollup='[{"__typename":"CheckRun","status":"IN_PROGRESS","conclusion":null}]' ;;
+      checkrun_failure) rollup='[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"FAILURE"}]' ;;
+      statuscontext_pending) rollup='[{"__typename":"StatusContext","state":"PENDING"}]' ;;
+      all_green) rollup='[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"CheckRun","status":"COMPLETED","conclusion":"NEUTRAL"},{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SKIPPED"},{"__typename":"StatusContext","state":"SUCCESS"}]' ;;
+    esac
+
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    cat > "$json" <<JSON
+{"number":8,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":$rollup,"body":""}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+
+    run_check "$repo" "$ghbin" 8
+    if [[ "$case_name" == "all_green" ]]; then
+      # Whatever this evaluator decides past CI (sweep check, ceremony, lane
+      # match — each its own Spec-AC) is out of scope here; this test only
+      # proves a fully green rollup never itself trips ci_not_green.
+      assert_payload_not_contains "$OUT" "reason=ci_not_green" \
+        "TEST-1511 [$case_name]: a fully green rollup must never be denied ci_not_green, got: $OUT"
+    else
+      assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=8 reason=ci_not_green" \
+        "TEST-1511 [$case_name]: expected reason=ci_not_green, got: $OUT"
+      [[ "$RC" -eq 3 ]] || log_fail "TEST-1511 [$case_name]: expected exit 3, got $RC: $OUT"
+    fi
+  done
+
+  log_pass "TEST-1511: ciGreen denies an empty, in-progress, failed or pending rollup entry as ci_not_green; COMPLETED SUCCESS/NEUTRAL/SKIPPED CheckRuns and a SUCCESS StatusContext never trip that reason"
+}
+
+# --- TEST-1512 (Spec-AC-09) --------------------------------------------------
+test_1512_sweep_check() {
+  log_info "TEST-1512: a missing pr_sweep record denies sweep_check_failed (lane-gate.mjs --sweep-check exit 5); requires: { ci: false } or { sweep_check: false } is always unknown_key, never configurable"
+  mk
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs"
+  cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-sweep
+    decision_ref: test1512-ride@2026-10-03T17:00:00Z
+    decision_match: "MERGE LANE test1512"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_SWEEP1512_MERGE
+YAML
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1512-ride","ts":"2026-10-03T17:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1512 approved"}
+JSONL
+  echo "base doc" > "$repo/docs/base.md"
+  commit_all "$repo" "base"
+  local base; base="$(head_sha "$repo")"
+  echo "a docs change" > "$repo/docs/changed.md"
+  commit_all "$repo" "head"
+  local head; head="$(head_sha "$repo")"
+  # Deliberately NO write_sweep_record -- docs/ai/EVENTS.jsonl carries no
+  # pr_sweep record at all, so the spawned lane-gate.mjs --sweep-check must
+  # exit 5 (reason=missing-record).
+
+  local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+  cat > "$json" <<JSON
+{"number":9,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json" "$log"
+
+  run_check "$repo" "$ghbin" 9
+  assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=9 reason=sweep_check_failed" \
+    "TEST-1512: expected reason=sweep_check_failed with no pr_sweep record, got: $OUT"
+  [[ "$RC" -eq 3 ]] || log_fail "TEST-1512: expected exit 3, got $RC: $OUT"
+
+  local bad_key
+  for bad_key in ci sweep_check; do
+    mk
+    local vrepo="$TEST_DIR/vrepo"
+    mkdir -p "$vrepo/docs/ai"
+    cat > "$vrepo/docs/ai/merge-policy.yaml" <<YAML
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-nokey
+    decision_ref: test1512-nokey@2026-10-03T17:30:00Z
+    decision_match: "MERGE LANE test1512 nokey"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_NOKEY1512_MERGE
+    requires:
+      $bad_key: false
+YAML
+    local vout vrc
+    vout="$(node "$MP" --validate --path "$vrepo/docs/ai/merge-policy.yaml" --repo-root "$vrepo" 2>&1)" && vrc=0 || vrc=$?
+    [[ "$vrc" -eq 1 ]] || log_fail "TEST-1512 [requires.$bad_key]: --validate must exit 1, got $vrc: $vout"
+    assert_payload_has_line "$vout" "INVALID lane=lane-nokey code=unknown_key" \
+      "TEST-1512 [requires.$bad_key]: expected unknown_key, got: $vout"
+  done
+
+  log_pass "TEST-1512: lane-gate.mjs --sweep-check's exit 5 maps to sweep_check_failed; a requires key that would disable CI or the sweep check is always unknown_key"
+}
+
+# --- TEST-1514 (Spec-AC-11) --------------------------------------------------
+test_1514_ceremony_exceeds() {
+  log_info "TEST-1514: a ceremony-3 ride denies a lane with no max_ceremony as ceremony_exceeds, and allows one with max_ceremony 3; a ride with no resolvable spec or intake counts as ceremony 3 too"
+  mk
+  local spec3="$TEST_DIR/spec-ceremony3.md"
+  cat > "$spec3" <<'MD'
+---
+id: spec-test1514
+type: spec
+ceremony_level: 3
+---
+
+# Spec
+MD
+
+  local case_name
+  for case_name in explicit_no_cap explicit_capped unresolved_defaults_to_3; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/docs"
+    local max_line=""
+    [[ "$case_name" == "explicit_capped" ]] && max_line="    max_ceremony: 3"
+    cat > "$repo/docs/ai/merge-policy.yaml" <<YAML
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-ceremony
+    decision_ref: test1514-ride@2026-10-03T18:00:00Z
+    decision_match: "MERGE LANE test1514"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_CEREMONY1514_MERGE
+$max_line
+YAML
+    cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1514-ride","ts":"2026-10-03T18:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1514 approved"}
+JSONL
+    echo "base doc" > "$repo/docs/base.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+    echo "a docs change" > "$repo/docs/changed-$case_name.md"
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+    write_sweep_record "$repo" 10
+
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    cat > "$json" <<JSON
+{"number":10,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+
+    case "$case_name" in
+      explicit_no_cap)
+        run_check "$repo" "$ghbin" 10 --spec "$spec3"
+        assert_payload_has_line "$OUT" "lane=lane-ceremony reason=ceremony_exceeds" \
+          "TEST-1514 [$case_name]: expected ceremony_exceeds, got: $OUT"
+        assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=10 reason=no_lane_matched" \
+          "TEST-1514 [$case_name]: expected no_lane_matched, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1514 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+      explicit_capped)
+        run_check "$repo" "$ghbin" 10 --spec "$spec3"
+        assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=10 lane=lane-ceremony marker=AAI_CEREMONY1514_MERGE decision_ref=test1514-ride@2026-10-03T18:00:00Z merge_reaches=nothing" \
+          "TEST-1514 [$case_name]: expected allowed with max_ceremony 3, got: $OUT"
+        [[ "$RC" -eq 0 ]] || log_fail "TEST-1514 [$case_name]: expected exit 0, got $RC: $OUT"
+        ;;
+      unresolved_defaults_to_3)
+        run_check "$repo" "$ghbin" 10
+        assert_payload_has_line "$OUT" "lane=lane-ceremony reason=ceremony_exceeds" \
+          "TEST-1514 [$case_name]: expected ceremony_exceeds with no --spec/--intake given, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1514 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+    esac
+  done
+
+  log_pass "TEST-1514: DEFAULT_MAX_CEREMONY=2 denies a ceremony-3 ride as ceremony_exceeds unless the lane opts in with max_ceremony: 3; an unresolvable spec/intake defaults to ceremony 3"
+}
+
+# --- TEST-1515 (Spec-AC-11) --------------------------------------------------
+test_1515_ceremony_agrees_with_lane_gate() {
+  log_info "TEST-1515: the ceremony level this evaluator reads (--check --debug-inputs) agrees with the ceremony_level line lane-gate.mjs itself prints for the same spec, across levels 0, 2, 3 and an absent field"
+  mk
+  local specs_dir="$TEST_DIR/specs"
+  mkdir -p "$specs_dir"
+  cat > "$specs_dir/level0.md" <<'MD'
+---
+id: spec-test1515-l0
+type: spec
+ceremony_level: 0
+---
+
+# Spec
+MD
+  cat > "$specs_dir/level2.md" <<'MD'
+---
+id: spec-test1515-l2
+type: spec
+ceremony_level: 2
+---
+
+# Spec
+MD
+  cat > "$specs_dir/level3.md" <<'MD'
+---
+id: spec-test1515-l3
+type: spec
+ceremony_level: 3
+---
+
+# Spec
+MD
+  cat > "$specs_dir/absent.md" <<'MD'
+---
+id: spec-test1515-absent
+type: spec
+---
+
+# Spec
+MD
+
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs"
+  cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-seam
+    decision_ref: test1515-ride@2026-10-03T19:00:00Z
+    decision_match: "MERGE LANE test1515"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_SEAM1515_MERGE
+    max_ceremony: 3
+YAML
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1515-ride","ts":"2026-10-03T19:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1515 approved"}
+JSONL
+  echo "base doc" > "$repo/docs/base.md"
+  commit_all "$repo" "base"
+  local base; base="$(head_sha "$repo")"
+  echo "a docs change" > "$repo/docs/changed.md"
+  commit_all "$repo" "head"
+  local head; head="$(head_sha "$repo")"
+  write_sweep_record "$repo" 11
+
+  local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+  cat > "$json" <<JSON
+{"number":11,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json" "$log"
+
+  local name spec lgout mpout lg_value mp_value expect_value
+  for name in level0 level2 level3 absent; do
+    spec="$specs_dir/$name.md"
+
+    lgout="$(node "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" --spec "$spec" --repo-root "$PROJECT_ROOT" 2>&1)"
+    lg_value=""
+    if [[ "$lgout" =~ ceremony_level=([^[:space:]]+) ]]; then
+      lg_value="${BASH_REMATCH[1]}"
+    fi
+    [[ -n "$lg_value" ]] || log_fail "TEST-1515 [$name]: could not parse lane-gate.mjs's own ceremony_level line, got: $lgout"
+    expect_value="$lg_value"
+    [[ "$lg_value" == "absent" ]] && expect_value=2
+
+    run_check "$repo" "$ghbin" 11 --spec "$spec" --debug-inputs
+    mp_value=""
+    if [[ "$OUT" =~ ceremony=([^[:space:]]+) ]]; then
+      mp_value="${BASH_REMATCH[1]}"
+    fi
+    [[ "$mp_value" == "$expect_value" ]] || log_fail "TEST-1515 [$name]: lane-gate prints ceremony_level=$lg_value but merge-policy read ceremony=$mp_value (expected $expect_value); full output: $OUT"
+  done
+
+  log_pass "TEST-1515: readRideCeremony agrees with lane-gate.mjs's own ceremony_level reading on levels 0, 2, 3 and an absent field (canon: absent is implicit 2)"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -653,6 +1016,10 @@ main() {
   test_1508_classification_order
   test_1509_classify_glob_table
   test_1510_requester_approved
+  test_1511_ci_green
+  test_1512_sweep_check
+  test_1514_ceremony_exceeds
+  test_1515_ceremony_agrees_with_lane_gate
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
