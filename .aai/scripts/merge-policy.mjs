@@ -4,22 +4,29 @@
 // owner-signed merge policy (docs/ai/merge-policy.yaml), SPEC-DRAFT
 // spec-configurable-merge-policy-lanes.
 //
-// THIS IS A PARTIAL BUILD (batch 3 of a multi-batch TDD ride). Batch 1
+// THIS IS A PARTIAL BUILD (batch 4 of a multi-batch TDD ride). Batch 1
 // implemented Spec-AC-01 (no_policy), Spec-AC-03 (base-only reads) and
 // Spec-AC-04 (GUARD_PATHS). Batch 2 added Spec-AC-05 (classifyFiles order:
 // guard, then architecture, then kind), Spec-AC-06 (globToRegExp semantics,
-// proven through --classify) and Spec-AC-07 (requesterApproved). This batch
-// adds Spec-AC-08 (ciGreen, the real per-entry CheckRun/StatusContext
+// proven through --classify) and Spec-AC-07 (requesterApproved). Batch 3
+// added Spec-AC-08 (ciGreen, the real per-entry CheckRun/StatusContext
 // predicate), Spec-AC-09 (runSweepCheck spawns lane-gate.mjs --sweep-check;
 // no `requires` key may disable CI or the sweep check) and Spec-AC-11
-// (ceremony_exceeds via readRideCeremony, DEFAULT_MAX_CEREMONY = 2).
-// Every other predicate (lane `requires` conditions other than ceremony,
-// deploy-consistency/opt-in validation, marker validation) is still a
-// deliberately permissive STUB, each marked `TODO: Spec-AC-<n>` — a later
-// batch replaces the stub body with the real predicate and its own
-// RED/GREEN evidence. The file's PUBLIC CONTRACT (exported names, CLI
-// modes, exit codes, printed line shapes) is written to the full spec so
-// later batches build ON this skeleton rather than restructure it.
+// (ceremony_exceeds via readRideCeremony, DEFAULT_MAX_CEREMONY = 2). This
+// batch adds Spec-AC-10 (public_effect_not_opted_in), Spec-AC-12 (deploy
+// consistency/reaches_inconsistent, duplicate_lane, undefined_kind,
+// requester_missing) and Spec-AC-13 (MARKER_RE-backed bad_marker/
+// duplicate_marker). It also fixes the main-guard shape at the bottom of
+// this file (unresolved `pathToFileURL` comparison broke
+// tests/skills/test-aai-doctor.sh TEST-439 through a symlinked checkout;
+// replaced with the same `realOrResolve` realpath shape
+// .aai/scripts/aai-doctor.mjs already uses). Every other predicate (lane
+// `requires` conditions other than ceremony) is still a deliberately
+// permissive STUB, each marked `TODO: Spec-AC-<n>` — a later batch replaces
+// the stub body with the real predicate and its own RED/GREEN evidence. The
+// file's PUBLIC CONTRACT (exported names, CLI modes, exit codes, printed
+// line shapes) is written to the full spec so later batches build ON this
+// skeleton rather than restructure it.
 //
 // Modes:
 //   --check --pr <n> [--repo-root <dir>] [--debug-inputs]
@@ -32,9 +39,9 @@
 // .aai/scripts/lib/roadmap-model.mjs).
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 const SELF_DIR = dirname(fileURLToPath(import.meta.url));
@@ -135,12 +142,14 @@ const LANE_SCALAR_KEYS = [
 // waiting on the full `requires` allowlist (TODO: Spec-AC-15, later batch).
 const FORBIDDEN_REQUIRES_KEYS = new Set(['ci', 'sweep_check']);
 
-// parsePolicy(text) -> { policy } | { errors }. Closed shape, P1. Only the
-// errors this batch owns (parse_error, unknown_key, empty_globs) are
-// actively detected; the remaining Validate codes that belong to other
-// Spec-ACs (duplicate_lane, undefined_kind, bad_marker, duplicate_marker,
-// bad_ceremony, requester_missing, missing_key) are intentionally NOT
-// enforced here yet — TODO: Spec-AC-12/13 (later batches).
+// parsePolicy(text) -> { policy } | { errors }. Closed shape, P1. The parse-
+// time errors (parse_error, unknown_key, empty_globs) are detected here;
+// duplicate_lane, undefined_kind, bad_marker, duplicate_marker,
+// reaches_inconsistent, public_effect_not_opted_in and requester_missing are
+// structural but policy-wide, so they are detected in validatePolicy once a
+// full `policy` object exists (Spec-AC-10/12/13). `missing_key` and
+// `bad_ceremony` are declared Validate codes with no Test Plan row in this
+// spec — intentionally unimplemented; TODO if a later AC ever needs them.
 export function parsePolicy(text) {
   let lines;
   try {
@@ -277,9 +286,14 @@ function parseJsonl(text) {
   return out;
 }
 
-// P2 decision binder. The mandated `if (hits.length > 1)` line disambiguates
-// the wave-2-roadmap shape (three hitl_decision records sharing one ts) —
-// decision_match is part of the filter, not an afterthought.
+// P2 decision binder. The mandated ambiguity check below (more than one hit)
+// disambiguates the wave-2-roadmap shape (three hitl_decision records
+// sharing one ts) — decision_match is part of the filter, not an
+// afterthought. (The mandated line itself is not quoted literally in this
+// comment: mutation-run.mjs's --sed applier is a non-global single
+// replacement, and an earlier draft of this comment duplicated the exact
+// source text, so the mutation landed on the COMMENT above instead of the
+// real code below it and TEST-1517's record came back STAYED GREEN.)
 function resolveDecision(lane, decisionsText) {
   const ref = String(lane.decision_ref || '');
   const atIdx = ref.indexOf('@');
@@ -300,16 +314,65 @@ function resolveDecision(lane, decisionsText) {
   return { ok: true, record: rec };
 }
 
-// validatePolicy(policy, decisionsText) — P2 (decision binding, implemented)
-// and P7 (deploy consistency + opt-ins). TODO: Spec-AC-10/12 (later batch)
-// implement the P7 half (reaches_inconsistent, public_effect_not_opted_in)
-// — not enforced yet, so a deploy-inconsistent fixture validates here until
-// that batch lands.
+// computeImpliedReach(deploy) — P7. `merge_reaches` must equal what `deploy`
+// implies: production when production_on_merge is true, otherwise preview
+// when deploy.preview is not 'none', otherwise nothing.
+function computeImpliedReach(deploy) {
+  if (deploy && deploy.production_on_merge === true) return 'production';
+  if (deploy && deploy.preview && deploy.preview !== 'none') return 'preview';
+  return 'nothing';
+}
+
+// validatePolicy(policy, decisionsText) — P2 (decision binding), P7 (deploy
+// consistency + public-effect opt-ins, Spec-AC-10/12) and the structural
+// codes duplicate_lane/undefined_kind/requester_missing (Spec-AC-12) plus
+// bad_marker/duplicate_marker (Spec-AC-13, MARKER_RE). Every failing
+// predicate pushes its own error — a lane can carry more than one error
+// line, matching P10 ("one INVALID line per error").
 export function validatePolicy(policy, decisionsText) {
   const errors = [];
+  const kindIds = new Set((policy.kinds || []).map((k) => k.id));
+  const impliedReach = computeImpliedReach(policy.deploy);
+  const seenLaneIds = new Set();
+  const seenMarkers = new Set();
+
   for (const lane of policy.lanes || []) {
+    const id = lane.id;
+
+    if (seenLaneIds.has(id)) {
+      errors.push({ lane: id, code: 'duplicate_lane' });
+    } else {
+      seenLaneIds.add(id);
+    }
+
+    for (const k of lane.kinds || []) {
+      if (!kindIds.has(k)) errors.push({ lane: id, code: 'undefined_kind' });
+    }
+
+    if (!MARKER_RE.test(String(lane.marker || '')) || lane.marker === 'AAI_OPERATOR_MERGE') {
+      errors.push({ lane: id, code: 'bad_marker' });
+    } else if (seenMarkers.has(lane.marker)) {
+      errors.push({ lane: id, code: 'duplicate_marker' });
+    } else {
+      seenMarkers.add(lane.marker);
+    }
+
+    if (lane.merge_reaches !== impliedReach) {
+      errors.push({ lane: id, code: 'reaches_inconsistent' });
+    }
+    const needsOptIn = lane.merge_reaches === 'production'
+      || (lane.merge_reaches === 'preview' && policy.deploy && policy.deploy.preview === 'public');
+    if (needsOptIn && lane.allow_public_side_effect !== true) {
+      errors.push({ lane: id, code: 'public_effect_not_opted_in' });
+    }
+
+    if (lane.merge_reaches !== 'nothing'
+        && (!Array.isArray(lane.requester_logins) || lane.requester_logins.length === 0)) {
+      errors.push({ lane: id, code: 'requester_missing' });
+    }
+
     const res = resolveDecision(lane, decisionsText);
-    if (!res.ok) errors.push({ lane: lane.id, code: res.code });
+    if (!res.ok) errors.push({ lane: id, code: res.code });
   }
   return errors.length ? { errors } : { ok: true };
 }
@@ -778,6 +841,13 @@ function main() {
 // Guard the CLI entry so this module can be `import()`ed for its exported
 // functions/constants (TEST-1507's import-closure probe does exactly that)
 // without the side effect of actually running main() and calling exit().
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+// realOrResolve (same shape as .aai/scripts/aai-doctor.mjs) resolves both
+// sides through realpath, so invoking this script through a SYMLINKED
+// checkout still runs main() instead of silently no-op'ing
+// (tests/skills/test-aai-doctor.sh TEST-439).
+function realOrResolve(p) {
+  try { return realpathSync(p); } catch { return resolve(p); }
+}
+if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
   runMain(() => main());
 }

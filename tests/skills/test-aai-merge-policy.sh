@@ -14,12 +14,19 @@
 #   TEST-1508 (Spec-AC-05) — classifyFiles order: guard, architecture, kind
 #   TEST-1509 (Spec-AC-06) — globToRegExp semantics through --classify
 #   TEST-1510 (Spec-AC-07) — requesterApproved (latest deciding review, at head)
-# BATCH 3 adds:
+# BATCH 3 added:
 #   TEST-1511 (Spec-AC-08) — ciGreen: CheckRun/StatusContext per-entry rules
 #   TEST-1512 (Spec-AC-09) — lane-gate.mjs --sweep-check spawn; CI/sweep never
 #                            configurable via a `requires` key
 #   TEST-1514, 1515 (Spec-AC-11) — ceremony_exceeds, DEFAULT_MAX_CEREMONY,
 #                            and agreement with lane-gate.mjs's own reader
+# BATCH 4 adds:
+#   TEST-1513 (Spec-AC-10) — public_effect_not_opted_in opt-in rule
+#   TEST-1516..1518 (Spec-AC-12) — deploy consistency (reaches_inconsistent),
+#                            decision-binding codes, and the structural
+#                            validate codes (duplicate_lane, undefined_kind,
+#                            requester_missing)
+#   TEST-1519 (Spec-AC-13) — MARKER_RE-backed bad_marker/duplicate_marker
 # Every other TEST-15xx row in the spec's Test Plan lands in a later batch.
 # From this batch on, any fixture that reaches the per-lane evaluation loop
 # (an "allowed" or a lane-level deny reason) needs write_sweep_record too —
@@ -248,6 +255,8 @@ version: 1
 kinds:
   - id: docs
     globs: ["docs/**"]
+  - id: other
+    globs: ["other/**"]
 lanes:
   - id: lane-other
     decision_ref: test1504-ride@2026-10-01T10:00:00Z
@@ -281,6 +290,8 @@ version: 1
 kinds:
   - id: docs
     globs: ["docs/**"]
+  - id: other
+    globs: ["other/**"]
 lanes:
   - id: lane-other
     decision_ref: test1504-ride@2026-10-01T10:00:00Z
@@ -818,6 +829,122 @@ YAML
   log_pass "TEST-1512: lane-gate.mjs --sweep-check's exit 5 maps to sweep_check_failed; a requires key that would disable CI or the sweep check is always unknown_key"
 }
 
+# --- TEST-1513 (Spec-AC-10) --------------------------------------------------
+test_1513_public_effect_opt_in() {
+  log_info "TEST-1513: a production lane, or a preview lane on a public-preview repo, without allow_public_side_effect: true fails --validate with public_effect_not_opted_in; --check on such a base policy denies policy_invalid; opting in validates both"
+  mk
+  local root="$TEST_DIR"
+  mkdir -p "$root/docs/ai"
+  cat > "$root/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1513-prod","ts":"2026-10-03T20:30:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1513 prod approved"}
+{"type":"hitl_decision","ref_id":"test1513-prev","ts":"2026-10-03T20:31:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1513 preview approved"}
+JSONL
+
+  local prod_no_optin="$root/policy-prod-no-optin.yaml"
+  cat > "$prod_no_optin" <<'YAML'
+version: 1
+deploy:
+  preview: none
+  production_on_merge: true
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-prod
+    decision_ref: test1513-prod@2026-10-03T20:30:00Z
+    decision_match: "MERGE LANE test1513 prod"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: production
+    marker: AAI_PROD1513_MERGE
+    requester_logins: [alice]
+YAML
+  local out rc
+  out="$(node "$MP" --validate --path "$prod_no_optin" --repo-root "$root" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-1513 [prod_no_optin]: expected exit 1, got $rc: $out"
+  assert_payload_has_line "$out" "INVALID lane=lane-prod code=public_effect_not_opted_in" \
+    "TEST-1513 [prod_no_optin]: expected public_effect_not_opted_in, got: $out"
+
+  local prev_no_optin="$root/policy-prev-no-optin.yaml"
+  cat > "$prev_no_optin" <<'YAML'
+version: 1
+deploy:
+  preview: public
+  production_on_merge: false
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-prev
+    decision_ref: test1513-prev@2026-10-03T20:31:00Z
+    decision_match: "MERGE LANE test1513 preview"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: preview
+    marker: AAI_PREV1513_MERGE
+    requester_logins: [alice]
+YAML
+  out="$(node "$MP" --validate --path "$prev_no_optin" --repo-root "$root" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-1513 [prev_no_optin]: expected exit 1, got $rc: $out"
+  assert_payload_has_line "$out" "INVALID lane=lane-prev code=public_effect_not_opted_in" \
+    "TEST-1513 [prev_no_optin]: expected public_effect_not_opted_in, got: $out"
+
+  local both_optin="$root/policy-both-optin.yaml"
+  cat > "$both_optin" <<'YAML'
+version: 1
+deploy:
+  preview: public
+  production_on_merge: true
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-prod
+    decision_ref: test1513-prod@2026-10-03T20:30:00Z
+    decision_match: "MERGE LANE test1513 prod"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: production
+    allow_public_side_effect: true
+    marker: AAI_PROD1513_MERGE
+    requester_logins: [alice]
+YAML
+  out="$(node "$MP" --validate --path "$both_optin" --repo-root "$root" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1513 [opted_in]: expected exit 0, got $rc: $out"
+  assert_payload_has_line "$out" "VALID lanes=1" "TEST-1513 [opted_in]: expected VALID lanes=1, got: $out"
+
+  # --check on a base policy that fails validation denies policy_invalid.
+  mk
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs"
+  cp "$prod_no_optin" "$repo/docs/ai/merge-policy.yaml"
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1513-prod","ts":"2026-10-03T20:30:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1513 prod approved"}
+JSONL
+  echo "base doc" > "$repo/docs/base.md"
+  commit_all "$repo" "base: production lane without opt-in"
+  local base; base="$(head_sha "$repo")"
+  echo "a docs change" > "$repo/docs/changed.md"
+  commit_all "$repo" "head"
+  local head; head="$(head_sha "$repo")"
+
+  local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+  cat > "$json" <<JSON
+{"number":12,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json" "$log"
+
+  run_check "$repo" "$ghbin" 12
+  assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=12 reason=policy_invalid" \
+    "TEST-1513 [check]: expected policy_invalid, got: $OUT"
+  assert_payload_contains "$OUT" "public_effect_not_opted_in" \
+    "TEST-1513 [check]: expected stdout to name public_effect_not_opted_in, got: $OUT"
+  [[ "$RC" -eq 3 ]] || log_fail "TEST-1513 [check]: expected exit 3, got $RC: $OUT"
+
+  log_pass "TEST-1513: production or public-preview reach without allow_public_side_effect: true fails validate and denies policy_invalid at check; opting in validates"
+}
+
 # --- TEST-1514 (Spec-AC-11) --------------------------------------------------
 test_1514_ceremony_exceeds() {
   log_info "TEST-1514: a ceremony-3 ride denies a lane with no max_ceremony as ceremony_exceeds, and allows one with max_ceremony 3; a ride with no resolvable spec or intake counts as ceremony 3 too"
@@ -1001,6 +1128,408 @@ JSON
   log_pass "TEST-1515: readRideCeremony agrees with lane-gate.mjs's own ceremony_level reading on levels 0, 2, 3 and an absent field (canon: absent is implicit 2)"
 }
 
+# --- TEST-1516 (Spec-AC-12) --------------------------------------------------
+test_1516_reaches_inconsistent() {
+  log_info "TEST-1516: a lane's merge_reaches must agree with what deploy implies; three mismatches each give reaches_inconsistent, a consistent policy validates"
+  mk
+  local root="$TEST_DIR"
+  mkdir -p "$root/docs/ai"
+
+  local case_name policy out rc lane_id
+  for case_name in preview_without_deploy nothing_with_production_on_merge production_without_deploy; do
+    policy="$root/policy-$case_name.yaml"
+    case "$case_name" in
+      preview_without_deploy)
+        lane_id=lane-x
+        cat > "$policy" <<'YAML'
+version: 1
+deploy:
+  preview: none
+  production_on_merge: false
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-x
+    decision_ref: some-ref@2026-01-01T00:00:00Z
+    decision_match: "x"
+    signed_by: owner
+    kinds: [docs]
+    merge_reaches: preview
+    marker: AAI_X1516_MERGE
+    requester_logins: [alice]
+YAML
+        ;;
+      nothing_with_production_on_merge)
+        lane_id=lane-y
+        cat > "$policy" <<'YAML'
+version: 1
+deploy:
+  preview: none
+  production_on_merge: true
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-y
+    decision_ref: some-ref@2026-01-01T00:00:00Z
+    decision_match: "x"
+    signed_by: owner
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_Y1516_MERGE
+YAML
+        ;;
+      production_without_deploy)
+        lane_id=lane-z
+        cat > "$policy" <<'YAML'
+version: 1
+deploy:
+  preview: private
+  production_on_merge: false
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-z
+    decision_ref: some-ref@2026-01-01T00:00:00Z
+    decision_match: "x"
+    signed_by: owner
+    kinds: [docs]
+    merge_reaches: production
+    allow_public_side_effect: true
+    requester_logins: [alice]
+    marker: AAI_Z1516_MERGE
+YAML
+        ;;
+    esac
+
+    out="$(node "$MP" --validate --path "$policy" --repo-root "$root" 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 1 ]] || log_fail "TEST-1516 [$case_name]: expected exit 1, got $rc: $out"
+    assert_payload_has_line "$out" "INVALID lane=$lane_id code=reaches_inconsistent" \
+      "TEST-1516 [$case_name]: expected reaches_inconsistent, got: $out"
+  done
+
+  # A consistent policy: merge_reaches nothing with default deploy -> VALID.
+  local good="$root/policy-consistent.yaml"
+  cat > "$good" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-ok
+    decision_ref: test1516-ride@2026-10-03T20:00:00Z
+    decision_match: "MERGE LANE test1516"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_OK1516_MERGE
+YAML
+  cat > "$root/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1516-ride","ts":"2026-10-03T20:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1516 approved"}
+JSONL
+  out="$(node "$MP" --validate --path "$good" --repo-root "$root" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1516 [consistent]: expected exit 0, got $rc: $out"
+  assert_payload_has_line "$out" "VALID lanes=1" "TEST-1516 [consistent]: expected VALID lanes=1, got: $out"
+
+  log_pass "TEST-1516: merge_reaches must agree with what deploy implies (reaches_inconsistent); a consistent policy validates"
+}
+
+# --- TEST-1517 (Spec-AC-12) --------------------------------------------------
+test_1517_decision_binding_codes() {
+  log_info "TEST-1517: decisions fixture: no match, two matches on shared ref+ts, owner_signoff false, other actor give decision_missing, decision_ambiguous, decision_unsigned, signer_mismatch"
+  local case_name
+  for case_name in no_match ambiguous unsigned wrong_actor; do
+    mk
+    local root="$TEST_DIR"
+    mkdir -p "$root/docs/ai"
+    local policy="$root/policy.yaml"
+    cat > "$policy" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-dec
+    decision_ref: test1517-ride@2026-10-03T21:00:00Z
+    decision_match: "MERGE LANE test1517"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_DEC1517_MERGE
+YAML
+    local decisions="$root/docs/ai/decisions.jsonl"
+    case "$case_name" in
+      no_match)
+        : > "$decisions"
+        ;;
+      ambiguous)
+        cat > "$decisions" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1517-ride","ts":"2026-10-03T21:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1517 approved first"}
+{"type":"hitl_decision","ref_id":"test1517-ride","ts":"2026-10-03T21:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1517 approved second"}
+JSONL
+        ;;
+      unsigned)
+        cat > "$decisions" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1517-ride","ts":"2026-10-03T21:00:00Z","owner_signoff":false,"actor":"owner-login","decision":"MERGE LANE test1517 approved"}
+JSONL
+        ;;
+      wrong_actor)
+        cat > "$decisions" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1517-ride","ts":"2026-10-03T21:00:00Z","owner_signoff":true,"actor":"someone-else","decision":"MERGE LANE test1517 approved"}
+JSONL
+        ;;
+    esac
+
+    local out rc expected_code
+    case "$case_name" in
+      no_match) expected_code=decision_missing ;;
+      ambiguous) expected_code=decision_ambiguous ;;
+      unsigned) expected_code=decision_unsigned ;;
+      wrong_actor) expected_code=signer_mismatch ;;
+    esac
+
+    out="$(node "$MP" --validate --path "$policy" --repo-root "$root" 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 1 ]] || log_fail "TEST-1517 [$case_name]: expected exit 1, got $rc: $out"
+    assert_payload_has_line "$out" "INVALID lane=lane-dec code=$expected_code" \
+      "TEST-1517 [$case_name]: expected $expected_code, got: $out"
+  done
+
+  log_pass "TEST-1517: the decision binder gives decision_missing, decision_ambiguous, decision_unsigned and signer_mismatch for their fixtures"
+}
+
+# --- TEST-1518 (Spec-AC-12) --------------------------------------------------
+test_1518_structural_validate_codes() {
+  log_info "TEST-1518: unknown key, duplicate lane id, undefined kind, empty globs and reaches preview without requester_logins each give their own validate code"
+  local case_name
+  for case_name in unknown_key duplicate_lane undefined_kind empty_globs requester_missing; do
+    mk
+    local root="$TEST_DIR"
+    mkdir -p "$root/docs/ai"
+    local policy="$root/policy.yaml"
+    case "$case_name" in
+      unknown_key)
+        cat > "$policy" <<'YAML'
+version: 1
+not_a_real_key: true
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes: []
+YAML
+        ;;
+      duplicate_lane)
+        cat > "$policy" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-dup
+    decision_ref: test1518-dup-a@2026-10-03T21:10:00Z
+    decision_match: "x"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_DUPA1518_MERGE
+  - id: lane-dup
+    decision_ref: test1518-dup-b@2026-10-03T21:11:00Z
+    decision_match: "x"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_DUPB1518_MERGE
+YAML
+        ;;
+      undefined_kind)
+        cat > "$policy" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-badkind
+    decision_ref: test1518-badkind@2026-10-03T21:12:00Z
+    decision_match: "x"
+    signed_by: owner-login
+    kinds: [no-such-kind]
+    merge_reaches: nothing
+    marker: AAI_BADKIND1518_MERGE
+YAML
+        ;;
+      empty_globs)
+        cat > "$policy" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: []
+lanes: []
+YAML
+        ;;
+      requester_missing)
+        cat > "$policy" <<'YAML'
+version: 1
+deploy:
+  preview: private
+  production_on_merge: false
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-noreq
+    decision_ref: test1518-noreq@2026-10-03T21:13:00Z
+    decision_match: "x"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: preview
+    marker: AAI_NOREQ1518_MERGE
+YAML
+        ;;
+    esac
+
+    local out rc expected_code lane_id
+    case "$case_name" in
+      unknown_key) expected_code=unknown_key; lane_id='-' ;;
+      duplicate_lane) expected_code=duplicate_lane; lane_id=lane-dup ;;
+      undefined_kind) expected_code=undefined_kind; lane_id=lane-badkind ;;
+      empty_globs) expected_code=empty_globs; lane_id=docs ;;
+      requester_missing) expected_code=requester_missing; lane_id=lane-noreq ;;
+    esac
+
+    out="$(node "$MP" --validate --path "$policy" --repo-root "$root" 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 1 ]] || log_fail "TEST-1518 [$case_name]: expected exit 1, got $rc: $out"
+    assert_payload_has_line "$out" "INVALID lane=$lane_id code=$expected_code" \
+      "TEST-1518 [$case_name]: expected $expected_code, got: $out"
+  done
+
+  log_pass "TEST-1518: unknown_key, duplicate_lane, undefined_kind, empty_globs and requester_missing are each their own validate code, one INVALID line per error"
+}
+
+# --- TEST-1519 (Spec-AC-13) --------------------------------------------------
+test_1519_marker_validation() {
+  log_info "TEST-1519: a marker failing MARKER_RE, or equal to AAI_OPERATOR_MERGE, is bad_marker; two lanes sharing one marker is duplicate_marker on the second; an allowed verdict names the lane's own marker"
+  local case_name
+  for case_name in valid_marker lowercase_marker operator_marker; do
+    mk
+    local root="$TEST_DIR"
+    mkdir -p "$root/docs/ai"
+    local marker
+    case "$case_name" in
+      valid_marker) marker="AAI_X_MERGE" ;;
+      lowercase_marker) marker="aai_x_merge" ;;
+      operator_marker) marker="AAI_OPERATOR_MERGE" ;;
+    esac
+    local policy="$root/policy.yaml"
+    cat > "$policy" <<YAML
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-marker
+    decision_ref: test1519-ride@2026-10-03T21:20:00Z
+    decision_match: "x"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: $marker
+YAML
+    cat > "$root/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1519-ride","ts":"2026-10-03T21:20:00Z","owner_signoff":true,"actor":"owner-login","decision":"x"}
+JSONL
+
+    local out rc
+    out="$(node "$MP" --validate --path "$policy" --repo-root "$root" 2>&1)" && rc=0 || rc=$?
+    case "$case_name" in
+      valid_marker)
+        [[ "$rc" -eq 0 ]] || log_fail "TEST-1519 [$case_name]: expected exit 0, got $rc: $out"
+        assert_payload_has_line "$out" "VALID lanes=1" "TEST-1519 [$case_name]: expected VALID lanes=1, got: $out"
+        ;;
+      lowercase_marker|operator_marker)
+        [[ "$rc" -eq 1 ]] || log_fail "TEST-1519 [$case_name]: expected exit 1, got $rc: $out"
+        assert_payload_has_line "$out" "INVALID lane=lane-marker code=bad_marker" \
+          "TEST-1519 [$case_name]: expected bad_marker, got: $out"
+        ;;
+    esac
+  done
+
+  mk
+  local root2="$TEST_DIR"
+  mkdir -p "$root2/docs/ai"
+  local dup_policy="$root2/policy-dup.yaml"
+  cat > "$dup_policy" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-dup-a
+    decision_ref: test1519-dup-a@2026-10-03T21:21:00Z
+    decision_match: "x"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_SHARED1519_MERGE
+  - id: lane-dup-b
+    decision_ref: test1519-dup-b@2026-10-03T21:22:00Z
+    decision_match: "x"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_SHARED1519_MERGE
+YAML
+  local out2 rc2
+  out2="$(node "$MP" --validate --path "$dup_policy" --repo-root "$root2" 2>&1)" && rc2=0 || rc2=$?
+  [[ "$rc2" -eq 1 ]] || log_fail "TEST-1519 [duplicate_marker]: expected exit 1, got $rc2: $out2"
+  assert_payload_has_line "$out2" "INVALID lane=lane-dup-b code=duplicate_marker" \
+    "TEST-1519 [duplicate_marker]: expected duplicate_marker on the second lane, got: $out2"
+
+  # An allowed verdict names the lane's own marker.
+  mk
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs"
+  cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-allowed1519
+    decision_ref: test1519-allowed@2026-10-03T21:23:00Z
+    decision_match: "MERGE LANE test1519 allowed"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_ALLOWED1519_MERGE
+    max_ceremony: 3
+YAML
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1519-allowed","ts":"2026-10-03T21:23:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1519 allowed approved"}
+JSONL
+  echo "base doc" > "$repo/docs/base.md"
+  commit_all "$repo" "base"
+  local base; base="$(head_sha "$repo")"
+  echo "a docs change" > "$repo/docs/changed.md"
+  commit_all "$repo" "head"
+  local head; head="$(head_sha "$repo")"
+  write_sweep_record "$repo" 13
+
+  local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+  cat > "$json" <<JSON
+{"number":13,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json" "$log"
+
+  run_check "$repo" "$ghbin" 13
+  assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=13 lane=lane-allowed1519 marker=AAI_ALLOWED1519_MERGE decision_ref=test1519-allowed@2026-10-03T21:23:00Z merge_reaches=nothing" \
+    "TEST-1519 [allowed]: expected allowed naming the lane's own marker, got: $OUT"
+  [[ "$RC" -eq 0 ]] || log_fail "TEST-1519 [allowed]: expected exit 0, got $RC: $OUT"
+
+  log_pass "TEST-1519: MARKER_RE-backed bad_marker, operator-marker collision, duplicate_marker, and the allowed line naming the lane's own marker"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1018,8 +1547,13 @@ main() {
   test_1510_requester_approved
   test_1511_ci_green
   test_1512_sweep_check
+  test_1513_public_effect_opt_in
   test_1514_ceremony_exceeds
   test_1515_ceremony_agrees_with_lane_gate
+  test_1516_reaches_inconsistent
+  test_1517_decision_binding_codes
+  test_1518_structural_validate_codes
+  test_1519_marker_validation
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
