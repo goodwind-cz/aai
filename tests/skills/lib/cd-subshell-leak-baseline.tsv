@@ -83,6 +83,7 @@
 9	tests/skills/test-aai-lightweight-lane.sh
 3	tests/skills/test-aai-live-serve.sh
 5	tests/skills/test-aai-live-status.sh
+2	tests/skills/test-aai-merge-policy.sh
 7	tests/skills/test-aai-metrics.sh
 28	tests/skills/test-aai-mutation-gate.sh
 4	tests/skills/test-aai-orchestration-dispatch.sh

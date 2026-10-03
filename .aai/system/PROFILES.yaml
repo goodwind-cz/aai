@@ -150,6 +150,13 @@ core:
   - .aai/scripts/check-dispatch-text.mjs
   - .aai/scripts/hitl-channel.mjs
   - .aai/scripts/lane-gate.mjs
+  # core: the merge-time evaluator (spec-configurable-merge-policy-lanes) —
+  # the hook adapter (claude-hook-gate.sh, itself L3-protected) and SKILL_PR
+  # step 6 call it directly to decide a merge, same precedent as lane-gate.mjs
+  # above. Classified here in batch 1 of that ride purely so the live tree
+  # stays 100%-classified; .aai/system/DOCS_AI_CANON.list and the suite-map
+  # row (Spec-AC-22) are later batches' own obligation.
+  - .aai/scripts/merge-policy.mjs
   - .aai/scripts/install-pre-commit-hook.ps1
   - .aai/scripts/install-pre-commit-hook.sh
   - .aai/scripts/intake-staleness-check.mjs
