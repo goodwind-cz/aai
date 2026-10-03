@@ -1530,6 +1530,452 @@ JSON
   log_pass "TEST-1519: MARKER_RE-backed bad_marker, operator-marker collision, duplicate_marker, and the allowed line naming the lane's own marker"
 }
 
+# --- TEST-1521 (Spec-AC-15) --------------------------------------------------
+# write_intake <path> <id> <type> — a minimal intake doc fixture: only the
+# frontmatter fields readIntakeMeta reads (id, type) matter to this suite.
+write_intake() {
+  local path="$1" id="$2" type="$3"
+  cat > "$path" <<MD
+---
+id: $id
+type: $type
+---
+
+# intake fixture
+MD
+}
+
+# write_state <path> <validation_status> <review_status> — a minimal
+# STATE.yaml fixture carrying only the two top-level blocks readStateStatus
+# reads.
+write_state() {
+  local path="$1" validation="$2" review="$3"
+  cat > "$path" <<YAML
+last_validation:
+  status: $validation
+code_review:
+  status: $review
+YAML
+}
+
+test_1521_requires_keys() {
+  log_info "TEST-1521: one fixture per requires key unmet (intake type rfc, ref listed as a base roadmap capability, STATE last_validation fail, code_review fail, body lacking the literal) gives its own reason; the fixture meeting all five is allowed"
+  local case_name
+  for case_name in intake_type roadmap_capability validation_not_pass review_not_pass pr_body_missing allowed; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/docs"
+    cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-requires
+    decision_ref: test1521-ride@2026-10-03T19:00:00Z
+    decision_match: "MERGE LANE test1521"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_REQUIRES1521_MERGE
+    requires:
+      intake_types: [change, issue]
+      exclude_roadmap_capability: true
+      validation_pass: true
+      review_pass: true
+      pr_body_contains: "Residual"
+YAML
+    cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1521-ride","ts":"2026-10-03T19:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1521 approved"}
+JSONL
+    # The roadmap-capability case needs its ride's ref committed into the
+    # BASE roadmap as a `- capability:` entry (S4: read from base, never
+    # head/working tree); every other case leaves roadmap.yaml absent so
+    # exclude_roadmap_capability never has anything to match.
+    if [[ "$case_name" == "roadmap_capability" ]]; then
+      cat > "$repo/docs/ai/roadmap.yaml" <<'YAML'
+pairs:
+  - capability: ride-1521
+    status: planned
+YAML
+    fi
+    echo "base doc" > "$repo/docs/base.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+    echo "a docs change" > "$repo/docs/changed-$case_name.md"
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+    write_sweep_record "$repo" 30
+
+    local intake_type="change" body="plan carries a Residual risk"
+    [[ "$case_name" == "intake_type" ]] && intake_type="rfc"
+    [[ "$case_name" == "pr_body_missing" ]] && body="no matching literal here"
+    write_intake "$TEST_DIR/intake.md" "ride-1521" "$intake_type"
+
+    local validation_status="pass" review_status="pass"
+    [[ "$case_name" == "validation_not_pass" ]] && validation_status="fail"
+    [[ "$case_name" == "review_not_pass" ]] && review_status="fail"
+    write_state "$TEST_DIR/STATE.yaml" "$validation_status" "$review_status"
+
+    local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+    cat > "$json" <<JSON
+{"number":30,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":"$body"}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+
+    run_check "$repo" "$ghbin" 30 --intake "$TEST_DIR/intake.md" --state "$TEST_DIR/STATE.yaml"
+
+    case "$case_name" in
+      allowed)
+        assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=30 lane=lane-requires marker=AAI_REQUIRES1521_MERGE decision_ref=test1521-ride@2026-10-03T19:00:00Z merge_reaches=nothing" \
+          "TEST-1521 [$case_name]: expected allowed when every requires key is met, got: $OUT"
+        [[ "$RC" -eq 0 ]] || log_fail "TEST-1521 [$case_name]: expected exit 0, got $RC: $OUT"
+        ;;
+      intake_type)
+        assert_payload_has_line "$OUT" "lane=lane-requires reason=intake_type" \
+          "TEST-1521 [$case_name]: expected reason=intake_type, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1521 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+      roadmap_capability)
+        assert_payload_has_line "$OUT" "lane=lane-requires reason=roadmap_capability" \
+          "TEST-1521 [$case_name]: expected reason=roadmap_capability, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1521 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+      validation_not_pass)
+        assert_payload_has_line "$OUT" "lane=lane-requires reason=validation_not_pass" \
+          "TEST-1521 [$case_name]: expected reason=validation_not_pass, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1521 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+      review_not_pass)
+        assert_payload_has_line "$OUT" "lane=lane-requires reason=review_not_pass" \
+          "TEST-1521 [$case_name]: expected reason=review_not_pass, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1521 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+      pr_body_missing)
+        assert_payload_has_line "$OUT" "lane=lane-requires reason=pr_body_missing" \
+          "TEST-1521 [$case_name]: expected reason=pr_body_missing, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1521 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+    esac
+  done
+
+  log_pass "TEST-1521: intake_types, exclude_roadmap_capability, validation_pass, review_pass and pr_body_contains each give their own unmet reason; all five met together is allowed"
+}
+
+# --- TEST-1522 (Spec-AC-16) --------------------------------------------------
+test_1522_pr_state_and_api_errors() {
+  log_info "TEST-1522: CLOSED state and isDraft true both give pr_not_open; a gh stub exiting non-zero and gh absent from PATH both give api_unavailable; an unresolvable baseRefOid gives base_unavailable -- every case exits 3"
+  mk
+  local spec_dir="$TEST_DIR"
+  local repo="$spec_dir/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs"
+  cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1522
+    decision_ref: test1522-ride@2026-10-03T20:00:00Z
+    decision_match: "MERGE LANE test1522"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_API1522_MERGE
+YAML
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1522-ride","ts":"2026-10-03T20:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1522 approved"}
+JSONL
+  echo "base doc" > "$repo/docs/base.md"
+  commit_all "$repo" "base"
+  local base; base="$(head_sha "$repo")"
+  echo "a docs change" > "$repo/docs/changed.md"
+  commit_all "$repo" "head"
+  local head; head="$(head_sha "$repo")"
+  write_sweep_record "$repo" 40
+
+  local case_name
+  for case_name in closed_state draft gh_exits_nonzero gh_absent bad_base_oid; do
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    case "$case_name" in
+      closed_state)
+        cat > "$json" <<JSON
+{"number":40,"state":"CLOSED","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[],"body":""}
+JSON
+        build_gh_stub "$ghbin" "$json" "$log"
+        run_check "$repo" "$ghbin" 40
+        assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=40 reason=pr_not_open" \
+          "TEST-1522 [$case_name]: expected reason=pr_not_open, got: $OUT"
+        ;;
+      draft)
+        cat > "$json" <<JSON
+{"number":40,"state":"OPEN","isDraft":true,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[],"body":""}
+JSON
+        build_gh_stub "$ghbin" "$json" "$log"
+        run_check "$repo" "$ghbin" 40
+        assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=40 reason=pr_not_open" \
+          "TEST-1522 [$case_name]: expected reason=pr_not_open, got: $OUT"
+        ;;
+      gh_exits_nonzero)
+        mkdir -p "$ghbin"
+        cat > "$ghbin/gh" <<STUBEOF
+#!/usr/bin/env bash
+{ printf 'ARGS:'; for a in "\$@"; do printf ' %s' "\$a"; done; printf '\n'; } >> "$log"
+exit 1
+STUBEOF
+        chmod +x "$ghbin/gh"
+        run_check "$repo" "$ghbin" 40
+        assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=40 reason=api_unavailable" \
+          "TEST-1522 [$case_name]: expected reason=api_unavailable, got: $OUT"
+        ;;
+      gh_absent)
+        mkdir -p "$ghbin"
+        run_check "$repo" "$ghbin" 40
+        assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=40 reason=api_unavailable" \
+          "TEST-1522 [$case_name]: expected reason=api_unavailable with no gh on PATH, got: $OUT"
+        ;;
+      bad_base_oid)
+        cat > "$json" <<JSON
+{"number":40,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef","headRefOid":"$head","reviews":[],"statusCheckRollup":[],"body":""}
+JSON
+        build_gh_stub "$ghbin" "$json" "$log"
+        run_check "$repo" "$ghbin" 40
+        assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=40 reason=base_unavailable" \
+          "TEST-1522 [$case_name]: expected reason=base_unavailable with an unresolvable baseRefOid, got: $OUT"
+        ;;
+    esac
+    [[ "$RC" -eq 3 ]] || log_fail "TEST-1522 [$case_name]: expected exit 3, got $RC: $OUT"
+  done
+
+  log_pass "TEST-1522: CLOSED/draft give pr_not_open, a failing or absent gh gives api_unavailable, and an unresolvable baseRefOid gives base_unavailable, every case exit 3"
+}
+
+# --- TEST-1523 (Spec-AC-16) --------------------------------------------------
+test_1523_gh_argv_only_pr_view() {
+  log_info "TEST-1523: across repeated --check calls (allowed and denied), plus --classify and --validate, every logged gh invocation on the stub's shared log is a 'pr view' call"
+  mk
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs"
+  cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1523
+    decision_ref: test1523-ride@2026-10-03T21:00:00Z
+    decision_match: "MERGE LANE test1523"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_ARGV1523_MERGE
+YAML
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1523-ride","ts":"2026-10-03T21:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1523 approved"}
+JSONL
+  echo "base doc" > "$repo/docs/base.md"
+  commit_all "$repo" "base"
+  local base; base="$(head_sha "$repo")"
+  echo "a docs change" > "$repo/docs/changed.md"
+  commit_all "$repo" "head"
+  local head; head="$(head_sha "$repo")"
+  write_sweep_record "$repo" 50
+  write_sweep_record "$repo" 51
+
+  local ghbin="$TEST_DIR/gh-bin" log="$TEST_DIR/gh-argv.log"
+  local json_ok="$TEST_DIR/pr-ok.json" json_closed="$TEST_DIR/pr-closed.json"
+  cat > "$json_ok" <<JSON
+{"number":50,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json_ok" "$log"
+  run_check "$repo" "$ghbin" 50
+  assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=50 lane=lane-1523 marker=AAI_ARGV1523_MERGE decision_ref=test1523-ride@2026-10-03T21:00:00Z merge_reaches=nothing" \
+    "TEST-1523: expected the first call to be allowed, got: $OUT"
+  [[ "$RC" -eq 0 ]] || log_fail "TEST-1523: expected exit 0 on the first call, got $RC: $OUT"
+
+  cat > "$json_closed" <<JSON
+{"number":51,"state":"CLOSED","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json_closed" "$log"
+  run_check "$repo" "$ghbin" 51
+  assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=51 reason=pr_not_open" \
+    "TEST-1523: expected the second call to be denied pr_not_open, got: $OUT"
+  [[ "$RC" -eq 3 ]] || log_fail "TEST-1523: expected exit 3 on the second call, got $RC: $OUT"
+
+  # --classify and --validate must never spawn gh at all -- they share the
+  # same gh-equipped PATH, so a stray call would still land in the log.
+  printf '%s\n' "docs/base.md" \
+    | PATH="$ghbin:$PATH" node "$MP" --classify --path "$repo/docs/ai/merge-policy.yaml" --files-from - --repo-root "$repo" >/dev/null 2>&1
+  PATH="$ghbin:$PATH" node "$MP" --validate --repo-root "$repo" >/dev/null 2>&1
+
+  local log_content="" bad_line=""
+  if [[ -f "$log" ]]; then
+    log_content="$(cat "$log")"
+  fi
+  [[ -n "$log_content" ]] || log_fail "TEST-1523: expected at least one logged gh invocation (positive control), got none"
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    case "$line" in
+      "ARGS: pr view "*) : ;;
+      *) bad_line="$line" ;;
+    esac
+  done <<< "$log_content"
+  [[ -z "$bad_line" ]] || log_fail "TEST-1523: found a gh invocation that was not 'pr view': $bad_line"
+
+  log_pass "TEST-1523: every gh invocation this evaluator makes, across allowed and denied --check calls plus --classify/--validate, starts with 'pr view'"
+}
+
+# --- TEST-1524 (Spec-AC-17) --------------------------------------------------
+test_1524_output_contract() {
+  log_info "TEST-1524: two satisfiable lanes -- the allowed line names the first in file order; reordering the file names the other; three failing lanes print no_lane_matched plus exactly one lane=.. line per lane"
+  mk
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs"
+
+  local lane_a='  - id: lane-a
+    decision_ref: test1524-a@2026-10-03T22:00:00Z
+    decision_match: "MERGE LANE test1524 a"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_ORDERA1524_MERGE'
+  local lane_b='  - id: lane-b
+    decision_ref: test1524-b@2026-10-03T22:00:00Z
+    decision_match: "MERGE LANE test1524 b"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_ORDERB1524_MERGE'
+
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1524-a","ts":"2026-10-03T22:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1524 a approved"}
+{"type":"hitl_decision","ref_id":"test1524-b","ts":"2026-10-03T22:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1524 b approved"}
+JSONL
+
+  local case_name
+  for case_name in a_first b_first three_failing; do
+    local policy_lanes
+    case "$case_name" in
+      a_first) policy_lanes="$lane_a
+$lane_b" ;;
+      b_first) policy_lanes="$lane_b
+$lane_a" ;;
+      three_failing) policy_lanes="" ;;
+    esac
+
+    {
+      echo "version: 1"
+      echo "kinds:"
+      echo "  - id: docs"
+      echo "    globs: [\"docs/**\"]"
+      if [[ "$case_name" == "three_failing" ]]; then
+        echo "  - id: other"
+        echo "    globs: [\"other/**\"]"
+      fi
+      echo "lanes:"
+      if [[ "$case_name" == "three_failing" ]]; then
+        echo "  - id: lane-x
+    decision_ref: test1524-x@2026-10-03T22:00:00Z
+    decision_match: \"MERGE LANE test1524 x\"
+    signed_by: owner-login
+    kinds: [other]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_ORDERX1524_MERGE"
+        echo "  - id: lane-y
+    decision_ref: test1524-y@2026-10-03T22:00:00Z
+    decision_match: \"MERGE LANE test1524 y\"
+    signed_by: owner-login
+    kinds: [other]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_ORDERY1524_MERGE"
+        echo "  - id: lane-z
+    decision_ref: test1524-z@2026-10-03T22:00:00Z
+    decision_match: \"MERGE LANE test1524 z\"
+    signed_by: owner-login
+    kinds: [other]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_ORDERZ1524_MERGE"
+      else
+        printf '%s\n' "$policy_lanes"
+      fi
+    } > "$repo/docs/ai/merge-policy.yaml"
+
+    if [[ "$case_name" == "three_failing" ]]; then
+      cat >> "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+architecture: []
+YAML
+      cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1524-x","ts":"2026-10-03T22:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1524 x approved"}
+{"type":"hitl_decision","ref_id":"test1524-y","ts":"2026-10-03T22:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1524 y approved"}
+{"type":"hitl_decision","ref_id":"test1524-z","ts":"2026-10-03T22:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1524 z approved"}
+JSONL
+    fi
+
+    echo "base doc ($case_name)" > "$repo/docs/base-$case_name.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+    echo "a docs change ($case_name)" > "$repo/docs/changed-$case_name.md"
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+    local pr
+    case "$case_name" in
+      a_first) pr=60 ;;
+      b_first) pr=61 ;;
+      three_failing) pr=62 ;;
+    esac
+    write_sweep_record "$repo" "$pr"
+
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    cat > "$json" <<JSON
+{"number":$pr,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+    run_check "$repo" "$ghbin" "$pr"
+
+    case "$case_name" in
+      a_first)
+        assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=$pr lane=lane-a marker=AAI_ORDERA1524_MERGE decision_ref=test1524-a@2026-10-03T22:00:00Z merge_reaches=nothing" \
+          "TEST-1524 [$case_name]: expected the FIRST lane in file order to win, got: $OUT"
+        [[ "$RC" -eq 0 ]] || log_fail "TEST-1524 [$case_name]: expected exit 0, got $RC: $OUT"
+        ;;
+      b_first)
+        assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=$pr lane=lane-b marker=AAI_ORDERB1524_MERGE decision_ref=test1524-b@2026-10-03T22:00:00Z merge_reaches=nothing" \
+          "TEST-1524 [$case_name]: expected the REORDERED first lane to win, got: $OUT"
+        [[ "$RC" -eq 0 ]] || log_fail "TEST-1524 [$case_name]: expected exit 0, got $RC: $OUT"
+        ;;
+      three_failing)
+        assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=$pr reason=no_lane_matched" \
+          "TEST-1524 [$case_name]: expected no_lane_matched, got: $OUT"
+        local lane_id
+        for lane_id in lane-x lane-y lane-z; do
+          assert_payload_has_line "$OUT" "lane=$lane_id reason=kind_not_in_lane" \
+            "TEST-1524 [$case_name]: expected exactly one lane line for $lane_id, got: $OUT"
+        done
+        local line_count=0 out_line
+        while IFS= read -r out_line; do
+          case "$out_line" in
+            lane=*) line_count=$((line_count + 1)) ;;
+          esac
+        done <<< "$OUT"
+        [[ "$line_count" -eq 3 ]] || log_fail "TEST-1524 [$case_name]: expected exactly 3 lane= lines (one per lane), got $line_count: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1524 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+    esac
+  done
+
+  log_pass "TEST-1524: the first lane in file order whose conditions hold wins, in both orderings; a fully denied PR prints no_lane_matched plus exactly one lane=.. reason=.. line per lane evaluated"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1554,6 +2000,12 @@ main() {
   test_1517_decision_binding_codes
   test_1518_structural_validate_codes
   test_1519_marker_validation
+  test_1521_requires_keys
+  test_1522_pr_state_and_api_errors
+  test_1524_output_contract
+  # 1523 last: it asserts over its OWN gh-argv log, built from calls this
+  # function makes itself (standalone-runnable), not a suite-wide shared log.
+  test_1523_gh_argv_only_pr_view
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

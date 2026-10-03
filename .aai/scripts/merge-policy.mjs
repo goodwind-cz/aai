@@ -13,20 +13,25 @@
 // predicate), Spec-AC-09 (runSweepCheck spawns lane-gate.mjs --sweep-check;
 // no `requires` key may disable CI or the sweep check) and Spec-AC-11
 // (ceremony_exceeds via readRideCeremony, DEFAULT_MAX_CEREMONY = 2). This
-// batch adds Spec-AC-10 (public_effect_not_opted_in), Spec-AC-12 (deploy
+// batch 4 added Spec-AC-10 (public_effect_not_opted_in), Spec-AC-12 (deploy
 // consistency/reaches_inconsistent, duplicate_lane, undefined_kind,
 // requester_missing) and Spec-AC-13 (MARKER_RE-backed bad_marker/
-// duplicate_marker). It also fixes the main-guard shape at the bottom of
+// duplicate_marker). It also fixed the main-guard shape at the bottom of
 // this file (unresolved `pathToFileURL` comparison broke
 // tests/skills/test-aai-doctor.sh TEST-439 through a symlinked checkout;
 // replaced with the same `realOrResolve` realpath shape
-// .aai/scripts/aai-doctor.mjs already uses). Every other predicate (lane
-// `requires` conditions other than ceremony) is still a deliberately
-// permissive STUB, each marked `TODO: Spec-AC-<n>` — a later batch replaces
-// the stub body with the real predicate and its own RED/GREEN evidence. The
-// file's PUBLIC CONTRACT (exported names, CLI modes, exit codes, printed
-// line shapes) is written to the full spec so later batches build ON this
-// skeleton rather than restructure it.
+// .aai/scripts/aai-doctor.mjs already uses). THIS batch (5) adds Spec-AC-15
+// (the remaining `requires` keys: intake_types, exclude_roadmap_capability,
+// validation_pass, review_pass, pr_body_contains — evaluateLane's real
+// predicate replaces the permissive stub), Spec-AC-16 (pr_not_open/
+// api_unavailable/base_unavailable — already structurally correct from
+// batch 1's P10 data-flow ordering; this batch adds its own TEST coverage)
+// and Spec-AC-17 (the output contract — first lane in file order wins,
+// already the lane loop's own shape). The file's PUBLIC CONTRACT (exported
+// names, CLI modes, exit codes, printed line shapes) is written to the full
+// spec so later batches build ON this skeleton rather than restructure it.
+// Still open for a later batch: the hook lane path (AC-02/AC-14) and the
+// repo policy/prompts/doctor/constitution migration (AC-18..23).
 //
 // Modes:
 //   --check --pr <n> [--repo-root <dir>] [--debug-inputs]
@@ -39,10 +44,14 @@
 // .aai/scripts/lib/roadmap-model.mjs).
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, existsSync, realpathSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import {
+  readFileSync, existsSync, realpathSync, mkdtempSync, writeFileSync, rmSync,
+} from 'node:fs';
+import { dirname, resolve, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { loadRoadmap } from './lib/roadmap-model.mjs';
 
 const SELF_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = resolve(SELF_DIR, '..', '..');
@@ -61,6 +70,7 @@ export const GUARD_PATHS = [
   '.aai/scripts/lane-gate.mjs',
   '.aai/scripts/lib/cli-pipe-guard.mjs',
   '.aai/scripts/lib/pr-sweep.mjs',
+  '.aai/scripts/lib/roadmap-model.mjs',
 ];
 
 export const MARKER_RE = /^AAI_[A-Z0-9_]+_MERGE$/;
@@ -136,11 +146,15 @@ const LANE_SCALAR_KEYS = [
   'allow_public_side_effect', 'max_ceremony', 'marker', 'requester_logins',
 ];
 
-// Spec-AC-09 — CI green and the sweep check are mandatory and never
-// configurable: a `requires` block naming either is rejected at parse time,
-// the same way any other unrecognized key is (unknown_key), rather than
-// waiting on the full `requires` allowlist (TODO: Spec-AC-15, later batch).
-const FORBIDDEN_REQUIRES_KEYS = new Set(['ci', 'sweep_check']);
+// Spec-AC-15 — the full `requires` allowlist (P1): any key outside these
+// five is `unknown_key`, the same closed-shape discipline as every other
+// policy key. Spec-AC-09's `ci`/`sweep_check` prohibition falls out of this
+// allowlist for free — CI and the sweep check are mandatory and never
+// configurable, so no key naming either one is ever legal here.
+const ALLOWED_REQUIRES_KEYS = new Set([
+  'intake_types', 'exclude_roadmap_capability', 'validation_pass',
+  'review_pass', 'pr_body_contains',
+]);
 
 // parsePolicy(text) -> { policy } | { errors }. Closed shape, P1. The parse-
 // time errors (parse_error, unknown_key, empty_globs) are detected here;
@@ -240,7 +254,7 @@ export function parsePolicy(text) {
               while (i < lines.length && lines[i].indent === 6) {
                 const kv4 = splitKV(lines[i].content);
                 if (!kv4) return { errors: [{ lane: lane.id, code: 'parse_error' }] };
-                if (FORBIDDEN_REQUIRES_KEYS.has(kv4.key)) {
+                if (!ALLOWED_REQUIRES_KEYS.has(kv4.key)) {
                   return { errors: [{ lane: lane.id, code: 'unknown_key' }] };
                 }
                 requires[kv4.key] = kv4.rest.trim().startsWith('[')
@@ -583,20 +597,126 @@ export function runSweepCheck(root, pr, rideOpts) {
   return null;
 }
 
+// readIntakeMeta(root, intakePath) -> { type, ref } — P8, Spec-AC-15
+// (intake_types / exclude_roadmap_capability). Reads the intake document's
+// OWN frontmatter: `type:` (a bare word — change, issue, rfc, ... — the
+// same vocabulary `requires.intake_types` lists) and `id:` (the ride's
+// ref_id: the same value STATE `current_focus.ref_id` and decisions.jsonl
+// `ref_id` already carry for this ride, per this repo's own intake/decision
+// pair). Both null when no --intake was given, the path is absent or
+// unreadable, or the file carries no frontmatter block — a requires check
+// against a null value fails closed (never silently skipped).
+function readIntakeMeta(root, intakePath) {
+  if (!intakePath) return { type: null, ref: null };
+  const p = resolve(root, intakePath);
+  if (!existsSync(p)) return { type: null, ref: null };
+  let body;
+  try {
+    body = readFileSync(p, 'utf8').replace(/\r\n?/g, '\n');
+  } catch {
+    return { type: null, ref: null };
+  }
+  const fm = body.match(/^---\n([\s\S]*?)\n---/);
+  if (!fm) return { type: null, ref: null };
+  const typeM = fm[1].match(/^type\s*:\s*(\S+)\s*$/m);
+  const idM = fm[1].match(/^id\s*:\s*(\S+)\s*$/m);
+  return { type: typeM ? typeM[1] : null, ref: idM ? idM[1] : null };
+}
+
+// readRoadmapCapabilitiesAtBase(root, oid) -> Set<string> | null — P8, S4
+// (exclude_roadmap_capability). docs/ai/roadmap.yaml is read from the BASE
+// commit via readAtBase, same discipline as the policy and decisions.jsonl
+// (never the working tree). The ONE roadmap parser (loadRoadmap,
+// lib/roadmap-model.mjs — reused, not re-implemented) takes a file path, not
+// text, so the base-commit text is handed to it through a scratch file,
+// removed again straight after. `null` means "no usable roadmap at base"
+// (absent, or carries a structural error) — exclude_roadmap_capability never
+// denies on that absence, only on an actual capability match.
+function readRoadmapCapabilitiesAtBase(root, oid) {
+  let text;
+  try {
+    text = readAtBase(root, oid, 'docs/ai/roadmap.yaml');
+  } catch {
+    return null;
+  }
+  if (text == null) return null;
+  let dir;
+  try {
+    dir = mkdtempSync(join(tmpdir(), 'aai-merge-policy-roadmap-'));
+  } catch {
+    return null;
+  }
+  try {
+    const tmpPath = join(dir, 'roadmap.yaml');
+    writeFileSync(tmpPath, text, 'utf8');
+    const loaded = loadRoadmap(tmpPath);
+    if (!loaded || loaded.error || !loaded.roadmap) return null;
+    return new Set(loaded.roadmap.pairs.map((p) => p.capability));
+  } catch {
+    return null;
+  } finally {
+    try { rmSync(dir, { recursive: true, force: true }); } catch { /* best-effort scratch cleanup */ }
+  }
+}
+
+// readStateStatus(statePath, blockName) -> string | null — P8, Spec-AC-15
+// (validation_pass / review_pass). docs/ai/STATE.yaml is per-developer and
+// gitignored — never tracked, so never read from the base commit (P3 names
+// the policy and the ledgers, not this file); read straight from
+// --state/the repo-root default instead. A top-level (column 0) block named
+// `blockName` carries a 2-space `status:` scalar — the same indentation-
+// scoped shape lane-gate.mjs's own readStrategy reads. Null for a missing
+// file, a missing block, or a block with no `status:` line.
+function readStateStatus(statePath, blockName) {
+  if (!statePath || !existsSync(statePath)) return null;
+  let text;
+  try {
+    text = readFileSync(statePath, 'utf8');
+  } catch {
+    return null;
+  }
+  let inBlock = false;
+  const blockRe = new RegExp(`^${blockName}\\s*:`);
+  for (const raw of text.split('\n')) {
+    if (!raw.trim()) continue;
+    const indent = raw.length - raw.trimStart().length;
+    const line = raw.trim();
+    if (indent === 0) {
+      inBlock = blockRe.test(line);
+      continue;
+    }
+    if (!inBlock) continue;
+    const m = line.match(/^status\s*:\s*(\S+)/);
+    if (indent === 2 && m) return m[1];
+  }
+  return null;
+}
+
 // evaluateLane(lane, ctx) — lane-level codes in P10 order. `kind_not_in_lane`
 // (Spec-AC-05), `ceremony_exceeds` (Spec-AC-11) and `requester_approval_
-// missing` (Spec-AC-07) are real. `intake_type`, `roadmap_capability`,
-// `validation_not_pass`, `review_not_pass` and `pr_body_missing` are TODO:
-// Spec-AC-15 (later batch); `intake_type`/`roadmap_capability` slot in
-// between kind and ceremony, the rest after requester, and none of them
-// deny in this batch. A lane with no requester_logins skips the requester
-// check (it is only "WHEN a lane lists requester_logins", Spec-AC-07). A
+// missing` (Spec-AC-07) were real from earlier batches. This batch (Spec-
+// AC-15) adds the remaining `requires` keys: `intake_type`/
+// `roadmap_capability` slot in between kind and ceremony, the rest
+// (`validation_not_pass`/`review_not_pass`/`pr_body_missing`) after
+// requester — the exact P10 lane-level-code order. A lane with no
+// requester_logins skips the requester check (it is only "WHEN a lane lists
+// requester_logins", Spec-AC-07); a lane with no `requires` block (or no
+// individual key within it) skips that key's own check entirely — every
+// `requires` key is optional, and an unmet NON-declared key never denies. A
 // lane with no max_ceremony is capped at DEFAULT_MAX_CEREMONY (P7: ceremony
 // 3 is covered only when `max_ceremony: 3` is written explicitly).
 export function evaluateLane(lane, ctx) {
   const kinds = Array.isArray(lane.kinds) ? lane.kinds : [];
   if (!kinds.some((k) => ctx.kinds.has(k))) {
     return { ok: false, reason: 'kind_not_in_lane' };
+  }
+  const req = lane.requires || {};
+  if (Array.isArray(req.intake_types) && !req.intake_types.includes(ctx.intakeType)) {
+    return { ok: false, reason: 'intake_type' };
+  }
+  if (req.exclude_roadmap_capability === true
+      && ctx.roadmapCapabilities && ctx.roadmapCapabilities.has(ctx.rideRef)) {
+    return { ok: false, reason: 'roadmap_capability' };
   }
   const maxCeremony = typeof lane.max_ceremony === 'number' ? lane.max_ceremony : DEFAULT_MAX_CEREMONY;
   if (ctx.ceremony > maxCeremony) {
@@ -605,6 +725,16 @@ export function evaluateLane(lane, ctx) {
   const logins = Array.isArray(lane.requester_logins) ? lane.requester_logins : [];
   if (logins.length > 0 && !requesterApproved(ctx.reviews, logins, ctx.headOid)) {
     return { ok: false, reason: 'requester_approval_missing' };
+  }
+  if (req.validation_pass === true && ctx.validationStatus !== 'pass') {
+    return { ok: false, reason: 'validation_not_pass' };
+  }
+  if (req.review_pass === true && ctx.reviewStatus !== 'pass') {
+    return { ok: false, reason: 'review_not_pass' };
+  }
+  const body = ctx.body || '';
+  if (req.pr_body_contains && !body.includes(req.pr_body_contains)) {
+    return { ok: false, reason: 'pr_body_missing' };
   }
   return { ok: true };
 }
@@ -748,16 +878,21 @@ function runCheck(opts) {
   }
 
   const ceremony = readRideCeremony(root, opts.spec, opts.intake);
+  const intakeMeta = readIntakeMeta(root, opts.intake);
+  const roadmapCapabilities = readRoadmapCapabilitiesAtBase(root, base);
+  const statePath = opts.state ? resolve(root, opts.state) : resolve(root, 'docs/ai/STATE.yaml');
+  const validationStatus = readStateStatus(statePath, 'last_validation');
+  const reviewStatus = readStateStatus(statePath, 'code_review');
 
   if (opts.debugInputs) {
-    // TODO: Spec-AC-15 (later batch) — resolve the real intake_type/ref
-    // ride inputs. Stubbed placeholder for now; ceremony is real (Spec-AC-11).
-    console.log(`ceremony=${ceremony} intake_type=- ref=-`);
+    console.log(`ceremony=${ceremony} intake_type=${intakeMeta.type ?? '-'} ref=${intakeMeta.ref ?? '-'}`);
   }
 
   const ctx = {
     kinds: classification.kinds, reviews: prJson.reviews, headOid: head,
     body: prJson.body || '', ceremony,
+    intakeType: intakeMeta.type, rideRef: intakeMeta.ref,
+    roadmapCapabilities, validationStatus, reviewStatus,
   };
   const laneLines = [];
   let allowedLane = null;
