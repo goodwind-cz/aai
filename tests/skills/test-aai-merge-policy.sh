@@ -6,10 +6,14 @@
 # Verifies .aai/scripts/merge-policy.mjs — the deterministic evaluator for a
 # project-owned, owner-signed merge policy (docs/ai/merge-policy.yaml).
 #
-# BATCH 1 of this TDD ride covers only:
+# BATCH 1 of this TDD ride covered:
 #   TEST-1501 (Spec-AC-01) — no_policy verdict, --check and --validate
 #   TEST-1503..1505 (Spec-AC-03) — reads come from the BASE commit only
 #   TEST-1506..1507 (Spec-AC-04) — GUARD_PATHS beats everything else
+# BATCH 2 adds:
+#   TEST-1508 (Spec-AC-05) — classifyFiles order: guard, architecture, kind
+#   TEST-1509 (Spec-AC-06) — globToRegExp semantics through --classify
+#   TEST-1510 (Spec-AC-07) — requesterApproved (latest deciding review, at head)
 # Every other TEST-15xx row in the spec's Test Plan lands in a later batch.
 #
 # All fixtures are scratch git repositories that set their own user.email/
@@ -436,6 +440,204 @@ NODE
   log_pass "TEST-1507: GUARD_PATHS covers the evaluator's and lane-gate.mjs's real import closure"
 }
 
+# --- TEST-1508 (Spec-AC-05) --------------------------------------------------
+test_1508_classification_order() {
+  log_info "TEST-1508: architecture beats a kind match on the same path; no kind match is unclassified; a kind file renamed onto an architecture path is architecture"
+  local case_name
+  for case_name in dockerfile_both unclassified_bin rename_to_architecture; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/src"
+    cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+architecture:
+  - id: containers
+    globs: ["Dockerfile", "**/Dockerfile"]
+kinds:
+  - id: content
+    globs: ["src/**/*.md", "Dockerfile"]
+lanes:
+  - id: lane-content
+    decision_ref: test1508-ride@2026-10-03T12:00:00Z
+    decision_match: "MERGE LANE test1508"
+    signed_by: owner-login
+    kinds: [content]
+    merge_reaches: nothing
+    marker: AAI_CONTENT1508_MERGE
+YAML
+    cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1508-ride","ts":"2026-10-03T12:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1508 approved"}
+JSONL
+    echo "readme" > "$repo/src/readme.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+
+    local expect_reason expect_path
+    case "$case_name" in
+      dockerfile_both)
+        echo "FROM scratch" > "$repo/Dockerfile"
+        expect_reason="architecture"; expect_path="Dockerfile"
+        ;;
+      unclassified_bin)
+        printf 'binary-not-md' > "$repo/src/x.bin"
+        expect_reason="unclassified"; expect_path="src/x.bin"
+        ;;
+      rename_to_architecture)
+        (cd "$repo" && git mv src/readme.md Dockerfile) >/dev/null 2>&1
+        expect_reason="architecture"; expect_path="Dockerfile"
+        ;;
+    esac
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    cat > "$json" <<JSON
+{"number":6,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+
+    run_check "$repo" "$ghbin" 6
+    assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=6 reason=$expect_reason path=$expect_path" \
+      "TEST-1508 [$case_name]: expected reason=$expect_reason path=$expect_path, got: $OUT"
+    [[ "$RC" -eq 3 ]] || log_fail "TEST-1508 [$case_name]: expected exit 3, got $RC: $OUT"
+  done
+
+  log_pass "TEST-1508: classifyFiles checks GUARD_PATHS, then architecture, then kind, in that order -- architecture wins over a simultaneous kind match"
+}
+
+# --- TEST-1509 (Spec-AC-06) --------------------------------------------------
+test_1509_classify_glob_table() {
+  log_info "TEST-1509: --classify prints one path/class line per row and matches the P5 glob semantics on a 10-case table"
+  mk
+  local rows=(
+    "*.md|a/b.md|unclassified"
+    "*.md|b.md|k"
+    "**/*.md|b.md|k"
+    "**/*.md|a/b/c/d.md|k"
+    "src/**|src|unclassified"
+    "src/**|src/file.js|k"
+    "a?c|abc|k"
+    "a?c|a/c|unclassified"
+    "file.txt|fileXtxt|unclassified"
+    "file.txt|file.txt|k"
+  )
+  local row glob path expected rest policy files out rc idx
+  idx=0
+  for row in "${rows[@]}"; do
+    idx=$((idx + 1))
+    glob="${row%%|*}"
+    rest="${row#*|}"
+    path="${rest%%|*}"
+    expected="${rest#*|}"
+
+    policy="$TEST_DIR/policy-$idx.yaml"
+    cat > "$policy" <<YAML
+version: 1
+kinds:
+  - id: k
+    globs: ["$glob"]
+YAML
+    files="$TEST_DIR/files-$idx.txt"
+    printf '%s\n' "$path" > "$files"
+
+    out="$(node "$MP" --classify --path "$policy" --files-from "$files" --repo-root "$PROJECT_ROOT" 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "TEST-1509 [row $idx: glob=$glob path=$path]: --classify exited $rc: $out"
+    assert_payload_has_line "$out" "$path $expected" \
+      "TEST-1509 [row $idx: glob=$glob path=$path]: expected class '$expected', got: $out"
+  done
+
+  log_pass "TEST-1509: globToRegExp matches the P5 glob table across 10 rows (star stops at slash, ** spans segments, ? excludes slash, no implicit basename match, literal dot)"
+}
+
+# --- TEST-1510 (Spec-AC-07) --------------------------------------------------
+test_1510_requester_approved() {
+  log_info "TEST-1510: a lane listing requester_logins allows only a listed login's latest deciding review, APPROVED at headRefOid; COMMENTED never revokes"
+  local case_name
+  for case_name in listed_approved unlisted stale_commit changes_requested dismissed label_only commented_after; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/docs"
+    cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-requester
+    decision_ref: test1510-ride@2026-10-03T13:00:00Z
+    decision_match: "MERGE LANE test1510"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_REQ1510_MERGE
+    requester_logins: [alice]
+YAML
+    cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1510-ride","ts":"2026-10-03T13:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1510 approved"}
+JSONL
+    echo "base doc" > "$repo/docs/base.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+
+    echo "a docs change" > "$repo/docs/changed-$case_name.md"
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+
+    local reviews allowed
+    case "$case_name" in
+      listed_approved)
+        reviews="[{\"author\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submittedAt\":\"2026-10-03T14:00:00Z\",\"commit\":{\"oid\":\"$head\"}}]"
+        allowed=1
+        ;;
+      unlisted)
+        reviews="[{\"author\":{\"login\":\"bob\"},\"state\":\"APPROVED\",\"submittedAt\":\"2026-10-03T14:00:00Z\",\"commit\":{\"oid\":\"$head\"}}]"
+        allowed=0
+        ;;
+      stale_commit)
+        reviews="[{\"author\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submittedAt\":\"2026-10-03T14:00:00Z\",\"commit\":{\"oid\":\"$base\"}}]"
+        allowed=0
+        ;;
+      changes_requested)
+        reviews="[{\"author\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submittedAt\":\"2026-10-03T14:00:00Z\",\"commit\":{\"oid\":\"$head\"}},{\"author\":{\"login\":\"alice\"},\"state\":\"CHANGES_REQUESTED\",\"submittedAt\":\"2026-10-03T15:00:00Z\",\"commit\":{\"oid\":\"$head\"}}]"
+        allowed=0
+        ;;
+      dismissed)
+        reviews="[{\"author\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submittedAt\":\"2026-10-03T14:00:00Z\",\"commit\":{\"oid\":\"$head\"}},{\"author\":{\"login\":\"alice\"},\"state\":\"DISMISSED\",\"submittedAt\":\"2026-10-03T15:00:00Z\",\"commit\":{\"oid\":\"$head\"}}]"
+        allowed=0
+        ;;
+      label_only)
+        reviews="[]"
+        allowed=0
+        ;;
+      commented_after)
+        reviews="[{\"author\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submittedAt\":\"2026-10-03T14:00:00Z\",\"commit\":{\"oid\":\"$head\"}},{\"author\":{\"login\":\"alice\"},\"state\":\"COMMENTED\",\"submittedAt\":\"2026-10-03T15:00:00Z\",\"commit\":{\"oid\":\"$head\"}}]"
+        allowed=1
+        ;;
+    esac
+
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    cat > "$json" <<JSON
+{"number":7,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":$reviews,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+
+    run_check "$repo" "$ghbin" 7
+    if [[ "$allowed" -eq 1 ]]; then
+      assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=7 lane=lane-requester marker=AAI_REQ1510_MERGE decision_ref=test1510-ride@2026-10-03T13:00:00Z merge_reaches=nothing" \
+        "TEST-1510 [$case_name]: expected allowed, got: $OUT"
+      [[ "$RC" -eq 0 ]] || log_fail "TEST-1510 [$case_name]: expected exit 0, got $RC: $OUT"
+    else
+      assert_payload_has_line "$OUT" "lane=lane-requester reason=requester_approval_missing" \
+        "TEST-1510 [$case_name]: expected lane reason=requester_approval_missing, got: $OUT"
+      [[ "$RC" -eq 3 ]] || log_fail "TEST-1510 [$case_name]: expected exit 3, got $RC: $OUT"
+    fi
+  done
+
+  log_pass "TEST-1510: requesterApproved honors the latest deciding review per listed login, at headRefOid, with COMMENTED never overriding an approval"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -448,6 +650,9 @@ main() {
   test_1505_decision_only_in_head
   test_1506_guard_paths_denied
   test_1507_guard_paths_superset_of_import_closure
+  test_1508_classification_order
+  test_1509_classify_glob_table
+  test_1510_requester_approved
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

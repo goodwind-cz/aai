@@ -4,12 +4,14 @@
 // owner-signed merge policy (docs/ai/merge-policy.yaml), SPEC-DRAFT
 // spec-configurable-merge-policy-lanes.
 //
-// THIS IS A PARTIAL BUILD (batch 1 of a multi-batch TDD ride). Only
-// Spec-AC-01 (no_policy), Spec-AC-03 (base-only reads) and Spec-AC-04
-// (GUARD_PATHS) are implemented with real behavior. Every other predicate
-// (CI green, the sweep-check spawn, requester approval, lane `requires`
+// THIS IS A PARTIAL BUILD (batch 2 of a multi-batch TDD ride). Batch 1
+// implemented Spec-AC-01 (no_policy), Spec-AC-03 (base-only reads) and
+// Spec-AC-04 (GUARD_PATHS). This batch adds Spec-AC-05 (classifyFiles
+// order: guard, then architecture, then kind), Spec-AC-06 (globToRegExp
+// semantics, proven through --classify) and Spec-AC-07 (requesterApproved).
+// Every other predicate (CI green, the sweep-check spawn, lane `requires`
 // conditions, ceremony, deploy-consistency/opt-in validation, marker
-// validation) is a deliberately permissive STUB, each marked `TODO:
+// validation) is still a deliberately permissive STUB, each marked `TODO:
 // Spec-AC-<n>` — a later batch replaces the stub body with the real
 // predicate and its own RED/GREEN evidence. The file's PUBLIC CONTRACT
 // (exported names, CLI modes, exit codes, printed line shapes) is written
@@ -361,11 +363,12 @@ export function globToRegExp(glob) {
 }
 
 // classifyFiles(files, policy) — guard paths first, then architecture, then
-// kinds (P5). Returns { denyReason, path } on the first PR-level deny, or
-// { kinds: Set<kindId> } naming every kind at least one changed file
-// matched. Spec-AC-05/06's richer glob-table proof lands in a later batch;
-// the glob engine itself (globToRegExp) is already real because this
-// function's own kind matching needs it.
+// kinds (P5, Spec-AC-05). Returns { denyReason, path } on the first
+// PR-level deny, or { kinds: Set<kindId> } naming every kind at least one
+// changed file matched. Architecture always overrides a kind match on the
+// same path (the `if (archHit) return` below runs before the kind lookup).
+// The glob engine itself (globToRegExp, Spec-AC-06) is proven through the
+// --classify authoring aid's 10-row glob table.
 export function classifyFiles(files, policy) {
   for (const f of files) {
     if (GUARD_PATHS.includes(f)) return { denyReason: 'policy_touched', path: f };
@@ -373,7 +376,7 @@ export function classifyFiles(files, policy) {
   const kinds = new Set();
   for (const f of files) {
     let archHit = false;
-    for (const a of policy.architecture || []) {
+    for (const a of policy.architecture) {
       if ((a.globs || []).some((g) => globToRegExp(g).test(f))) { archHit = true; break; }
     }
     if (archHit) return { denyReason: 'architecture', path: f };
@@ -394,8 +397,28 @@ export function classifyFiles(files, policy) {
 // avoid blocking THIS batch's own (unrelated) fixtures.
 // ---------------------------------------------------------------------------
 
-// TODO: Spec-AC-07 (later batch) — P6 requester-approval predicate.
-export function requesterApproved(_reviews, _logins, _headOid) {
+// requesterApproved(reviews, logins, headOid) — P6, Spec-AC-07. Only
+// APPROVED, CHANGES_REQUESTED and DISMISSED reviews decide anything;
+// COMMENTED never overrides. For each listed login, take that login's
+// latest deciding review by submittedAt. Satisfied when at least one
+// listed login's latest deciding review is APPROVED at headOid.
+const DECIDING_REVIEW_STATES = new Set(['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED']);
+
+export function requesterApproved(reviews, logins, headOid) {
+  const list = Array.isArray(reviews) ? reviews : [];
+  const loginList = Array.isArray(logins) ? logins : [];
+  for (const login of loginList) {
+    let latest = null;
+    for (const rev of list) {
+      if (!rev || !rev.author || rev.author.login !== login) continue;
+      if (!DECIDING_REVIEW_STATES.has(rev.state)) continue;
+      if (!latest || String(rev.submittedAt || '') > String(latest.submittedAt || '')) latest = rev;
+    }
+    const r = latest;
+    if (r && r.state === 'APPROVED' && r.commit && r.commit.oid === headOid) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -415,15 +438,21 @@ export function runSweepCheck(_root, _pr, _rideOpts) {
   return { ok: true };
 }
 
-// evaluateLane(lane, ctx) — lane-level codes in P10 order. Only
-// `kind_not_in_lane` (the first check) is real; the rest (intake_type,
-// roadmap_capability, ceremony_exceeds, requester_approval_missing,
-// validation_not_pass, review_not_pass, pr_body_missing) are TODO:
-// Spec-AC-07/11/15 (later batches) and never deny in this batch.
+// evaluateLane(lane, ctx) — lane-level codes in P10 order. `kind_not_in_lane`
+// and `requester_approval_missing` (Spec-AC-07) are real. The rest
+// (intake_type, roadmap_capability, ceremony_exceeds, validation_not_pass,
+// review_not_pass, pr_body_missing) are TODO: Spec-AC-11/15 (later
+// batches); they slot into P10 order between these two checks and never
+// deny in this batch. A lane with no requester_logins skips the requester
+// check (it is only "WHEN a lane lists requester_logins", Spec-AC-07).
 export function evaluateLane(lane, ctx) {
   const kinds = Array.isArray(lane.kinds) ? lane.kinds : [];
   if (!kinds.some((k) => ctx.kinds.has(k))) {
     return { ok: false, reason: 'kind_not_in_lane' };
+  }
+  const logins = Array.isArray(lane.requester_logins) ? lane.requester_logins : [];
+  if (logins.length > 0 && !requesterApproved(ctx.reviews, logins, ctx.headOid)) {
+    return { ok: false, reason: 'requester_approval_missing' };
   }
   return { ok: true };
 }
