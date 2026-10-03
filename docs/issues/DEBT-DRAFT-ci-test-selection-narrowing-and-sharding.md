@@ -2,7 +2,7 @@
 id: ci-test-selection-narrowing-and-sharding
 type: techdebt
 number: null
-status: draft
+status: implementing
 links:
   pr: []
   commits: []
