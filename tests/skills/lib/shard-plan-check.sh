@@ -12,7 +12,10 @@
 #
 # --check exits non-zero, naming the offender on stderr, unless the plan's
 # suite set equals `find <skills-dir> -name 'test-aai-*.sh' -type f` exactly
-# (no suite missing, none extra, none assigned twice). On success it prints
+# (no suite missing, none extra, none assigned twice) AND every planned name
+# is a safe shape ([A-Za-z0-9_-]+) that resolves to a top-level
+# <skills-dir>/test-<name>.sh — the only file a leg's
+# `test-framework.sh --skill <name>` can run. On success it prints
 # one line: shard_ids=[<distinct shard ids, ascending, comma-separated>]. A
 # plan whose only content is a SHARD_FALLBACK line passes and prints the
 # literal all-shards marker instead (see check_mode below).
@@ -106,7 +109,7 @@ check_mode() {
       exit 1
     fi
     if [[ ! -f "$skills_dir/test-$name.sh" ]]; then
-      echo "shard-plan-check: planned suite is not resolvable by test-framework.sh --skill (no top-level $skills_dir/test-$name.sh, it is likely nested in a subdirectory): $name" >&2
+      echo "shard-plan-check: planned suite is not resolvable by test-framework.sh --skill (no top-level $skills_dir/test-$name.sh: nested in a subdirectory, or not on disk): $name" >&2
       exit 1
     fi
   done < "$planned_tmp"
