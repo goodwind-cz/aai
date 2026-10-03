@@ -668,11 +668,15 @@ test_1423_real_repo_balance_bound() {  # Spec-AC-02
   expected_count="$(real_suite_names "$root" | grep -c . || true)"
   [[ "$shard_line_count" -eq "$expected_count" ]] \
     || log_fail "TEST-1423: expected $expected_count SHARD lines (one per real suite), got $shard_line_count: $(payload_preview "$OUT")"
-  local weights_file="$root/tests/skills/suite-weights.tsv"
-  [[ -f "$weights_file" ]] || log_fail "TEST-1423: missing $weights_file"
+  # D3 ("no hygiene pin", a missing weight "costs minutes, never coverage"):
+  # total/max_w come from the PLAN's own emitted weight= values, not from the
+  # weights file — the plan gives every unweighted suite maxKnownWeight, so a
+  # PR that adds a suite with no weight row still schedules it (NB-1,
+  # review-20261003T124300Z.md), and the bound must follow what was actually
+  # scheduled rather than go red on an input the spec says is optional.
   local total max_w
-  total="$(awk -F'\t' '!/^#/ && NF==2 {t+=$2} END{print t+0}' "$weights_file")"
-  max_w="$(awk -F'\t' '!/^#/ && NF==2 {if ($2+0>m) m=$2+0} END{print m+0}' "$weights_file")"
+  total="$(awk '/^SHARD /{w=$0; sub(/.*weight=/,"",w); t+=w+0} END{print t+0}' "$plan")"
+  max_w="$(awk '/^SHARD /{w=$0; sub(/.*weight=/,"",w); w+=0; if (w>m) m=w} END{print m+0}' "$plan")"
   local ideal bound
   ideal=$(( (total + 3) / 4 ))
   bound=$(( (ideal * 105 + 99) / 100 ))
@@ -971,10 +975,11 @@ test_1439_real_map_replay_new_paths() {  # Spec-AC-05
   # "${empty_array[@]}" as unbound under `set -u` (bash-3.2-safe rule).
   for p in "tests/skills/suite-weights.tsv" "tests/skills/lib/shard-plan-check.sh"; do
     printf '%s\n' "$p" > "$list"
+    rc=0
     if [[ -n "${SUITE_MAP_OVERRIDE:-}" ]]; then
-      out="$(node "$SELECTOR" --repo-root "$root" --map "$SUITE_MAP_OVERRIDE" --files-from "$list" 2>&1)"; rc=$?
+      out="$(node "$SELECTOR" --repo-root "$root" --map "$SUITE_MAP_OVERRIDE" --files-from "$list" 2>&1)" || rc=$?
     else
-      out="$(node "$SELECTOR" --repo-root "$root" --files-from "$list" 2>&1)"; rc=$?
+      out="$(node "$SELECTOR" --repo-root "$root" --files-from "$list" 2>&1)" || rc=$?
     fi
     [[ "$rc" -eq 0 ]] || log_fail "TEST-1439: exit code must be 0 for $p, got $rc: $out"
     case "$out" in
@@ -986,6 +991,41 @@ test_1439_real_map_replay_new_paths() {  # Spec-AC-05
     esac
   done
   log_pass "TEST-1439: the new sharding files join aai-suite-select's globs (TEST-1439)"
+}
+
+test_1440_check_rejects_unresolvable_nested_suite() {  # Spec-AC-04 (post-freeze amendment, BLOCKING-1 review-20261003T124300Z.md)
+  log_info "Test: --check rejects a plan naming a suite that only exists nested (no top-level test-<name>.sh, unresolvable by test-framework.sh --skill), naming the offender (TEST-1440)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  fixture_suites "$TEST_DIR" aai-a aai-b
+  mkdir -p "$TEST_DIR/tests/skills/nested_sub"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$TEST_DIR/tests/skills/nested_sub/test-aai-c.sh"
+  local plan="$TEST_DIR/plan-nested.txt"
+  printf 'SHARD 1 aai-a weight=5\nSHARD 2 aai-b weight=3\nSHARD 3 aai-c weight=1\nSHARDS count=3 suites=3\n' > "$plan"
+  # Positive control (absence-no-control, LEARNED.md 2026-09-05): the on-disk
+  # RECURSIVE find proves this plan "complete" (aai-c exists, just nested) —
+  # confirm the fixture genuinely has 3 on-disk suites (2 top-level + 1
+  # nested) so a pass below would mean the new resolvability check did not
+  # run, not that there was nothing to catch.
+  local recursive_count
+  recursive_count="$(find "$TEST_DIR/tests/skills" -name 'test-aai-*.sh' -type f | wc -l | tr -d ' ')"
+  [[ "$recursive_count" -eq 3 ]] \
+    || log_fail "TEST-1440: fixture setup broken, expected 3 on-disk suites (2 top-level + 1 nested), got $recursive_count"
+  run_check "$plan" "$TEST_DIR/tests/skills"
+  [[ "$CODE" -ne 0 ]] \
+    || log_fail "TEST-1440: --check must reject a plan naming a suite unresolvable by test-framework.sh --skill (nested, no top-level file), got exit 0: $(payload_preview "$OUT")"
+  case "$OUT" in
+    *"aai-c"*) ;;
+    *) log_fail "TEST-1440: must name the unresolvable suite aai-c: $(payload_preview "$OUT")" ;;
+  esac
+  # Negative control: the same fixture with aai-c promoted to top-level must
+  # pass --check cleanly, proving the rejection above is about resolvability,
+  # not an unconditional failure on any 3-suite plan.
+  rm -rf "$TEST_DIR/tests/skills/nested_sub"
+  fixture_suites "$TEST_DIR" aai-c
+  run_check "$plan" "$TEST_DIR/tests/skills"
+  [[ "$CODE" -eq 0 ]] \
+    || log_fail "TEST-1440: the same plan must pass --check once aai-c is top-level, got $CODE: $(payload_preview "$OUT")"
+  log_pass "TEST-1440: --check rejects a nested, --skill-unresolvable suite, naming it; the top-level case still passes (TEST-1440)"
 }
 
 main() {
@@ -1031,6 +1071,7 @@ main() {
   test_1437_gate_unchanged_negative_control
   test_1438_leg_rechecks_before_extract
   test_1439_real_map_replay_new_paths
+  test_1440_check_rejects_unresolvable_nested_suite
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

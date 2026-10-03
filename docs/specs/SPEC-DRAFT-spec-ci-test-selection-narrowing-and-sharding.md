@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: bae0fec2bc91074df052d5c6aab77bcaa64fbe44cf80443979fafa37cadc664c
+frozen_sha256: d81b2aeff50022cdda22a277d1fe9d82eaeed84f47ec60c71773ba266d245b44
 ceremony_level: 2
 links:
   requirement: null
@@ -17,6 +17,35 @@ links:
 # Spec — The full sweep runs across four runners; lib-graph narrowing is deferred by measurement
 
 SPEC-FROZEN: true
+
+## Amendment (post-freeze, 2026-10-03 — code review BLOCKING-1 remediation)
+
+This is a FROZEN spec, amended after the freeze and disclosed here rather
+than rewritten silently, per the additive-with-disclosure convention (see
+e.g. `docs/specs/SPEC-0178-...md` `## Amendment`).
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`, ts
+`2026-10-03T12:55:43Z`, `ref_id: ci-test-selection-narrowing-and-sharding`,
+tracked by `fu-amend-ci-test-selection-narrow-a3ef7d` (owner sign-off owed).
+
+`docs/ai/reviews/review-20261003T124300Z.md` BLOCKING-1 found that
+`tests/skills/lib/shard-plan-check.sh --check`'s membership proof walks
+`tests/skills/` RECURSIVELY (mirroring `select-suites.mjs`'s
+`discoverSuiteNames`), but each CI leg executes its shard through
+`test-framework.sh --skill <name>`, which resolves only a TOP-LEVEL
+`tests/skills/test-<name>.sh` (`test-framework.sh` `discover_tests()`,
+`SPECIFIC_SKILLS` branch) — and that function's own `exit 2` on a missing
+file is swallowed by the caller's process-substitution pipe. A suite moved
+into (or added inside) a subdirectory is still proven "complete" by the
+recursive check, then silently never runs inside its leg while the leg still
+exits 0: a coverage regression behind a green gate. This amendment adds
+Spec-AC-04 a new TEST-1440: `--check` now also fails, naming the suite, when
+a planned name does not match `^[A-Za-z0-9_-]+$` or has no top-level
+`tests/skills/test-<name>.sh`. See `## Acceptance Criteria Status`
+(Spec-AC-04) and `## Test Plan` (TEST-1440) below for the landed text. The
+owner may still accept or reverse the underlying scope choice (the tracked
+item above remains open for that decision); this disclosure only makes the
+spec match the fix already remediated.
 
 ## Links
 - Intake: docs/issues/DEBT-DRAFT-ci-test-selection-narrowing-and-sharding.md
@@ -329,7 +358,7 @@ None.
 | Spec-AC-01 | WHEN select-suites.mjs runs with --shards N for N in 1..8 the system SHALL emit SHARD lines that name every suite the test-framework.sh find rule discovers exactly once and no other name, and exit 0. | done | docs/ai/tdd/green-20261003T095318Z.log TEST-1420/1421 mutation-gate PASS | — | Completeness invariant verified locally (real tree 101 suites, fixture orphan case); the live ci-full run in Verification is Validation-owned and still outstanding. |
 | Spec-AC-02 | WHEN the same tree and weights are sharded twice the system SHALL print byte-identical plans, emit each shard's suites in non-increasing weight order, give an unweighted suite the largest known weight, and on the real repo at N=4 keep the largest shard weight-sum at or below the larger of ceil(1.05 x ceil(total/4)) and the largest single weight. | done | docs/ai/tdd/green-20261003T095318Z.log TEST-1422/1423/1424/1425 mutation-gate PASS | — | Real-repo N=4 measured max shard sum 1005 against bound 1056 (total=4018, maxw=434). Live ci-full run still outstanding (Validation-owned). |
 | Spec-AC-03 | WHEN the shard count is invalid, the weights file is malformed, or no suite is found the system SHALL exit 0 and either print a complete plan with a WEIGHTS_IGNORED line or print SHARD_FALLBACK with no SHARD line; WHEN --shards is absent every existing output is byte-identical to the pre-change output. | done | docs/ai/tdd/green-20261003T095318Z.log TEST-1426/1427/1428/1429 mutation-gate PASS | — | Degrade paths and the byte-identical negative control both verified locally. |
-| Spec-AC-04 | WHEN shard-plan-check.sh --check reads a plan the system SHALL exit 0 printing shard_ids only if the plan's suites equal the find set with no missing, extra or duplicate name, print shard_ids=["all"] for a fallback plan, and --extract SHALL print exactly one shard's suites in plan order. | done | docs/ai/tdd/green-20261003T095318Z.log TEST-1430..1435 mutation-gate PASS | — | Independent shell check verified locally, including the real-repo SEAM (TEST-1435). |
+| Spec-AC-04 | WHEN shard-plan-check.sh --check reads a plan the system SHALL exit 0 printing shard_ids only if the plan's suites equal the find set with no missing, extra or duplicate name AND every planned name matches ^[A-Za-z0-9_-]+$ and resolves to a top-level tests/skills/test-<name>.sh, print shard_ids=["all"] for a fallback plan, and --extract SHALL print exactly one shard's suites in plan order. | done | docs/ai/tdd/green-20261003T095318Z.log TEST-1430..1435 mutation-gate PASS; TEST-1440 remediates BLOCKING-1 (review-20261003T124300Z.md), see Amendment above | — | Independent shell check verified locally, including the real-repo SEAM (TEST-1435) and the leg-resolvability check (TEST-1440). |
 | Spec-AC-05 | skill-suite.yml SHALL run the shard step unconditionally in select with --shards 4 and --check, run skills-full as a fail-fast false matrix over shard_ids whose every leg keeps fetch-depth 0 and re-checks the plan on its own checkout, keep the gate's exact name, needs list, always() and full-mode success line, and map both new files to aai-suite-select. | done | docs/ai/tdd/green-20261003T095318Z.log TEST-1436..1439 mutation-gate PASS | — | Structure pins verified locally; the live ci-full run (4 green legs, 660s cap) in Verification is Validation-owned and still outstanding — this is the spec's own stated PASS criterion, not yet met. |
 
 ## Test Plan
@@ -340,11 +369,13 @@ mutation result as
 `docs/ai/tdd/spec-ci-test-selection-narrowing-and-sharding/mutation-<TEST-ID>.txt`
 (produced by `mutation-run.mjs`). The mutation target is
 `.aai/scripts/select-suites.mjs` for TEST-1420..1429,
-`tests/skills/lib/shard-plan-check.sh` for TEST-1430..1434,
+`tests/skills/lib/shard-plan-check.sh` for TEST-1430..1434 and TEST-1440,
 `.aai/scripts/select-suites.mjs` for TEST-1435,
 `.github/workflows/skill-suite.yml` for TEST-1436..1438 and
 `tests/skills/suite-map.yaml` for TEST-1439. Mutation cells substitute the
 mandated shapes above (regex semantics, `mutation-run.mjs` `applySedExpr`).
+TEST-1440 (post-freeze amendment, see `## Amendment`) was added in the
+BLOCKING-1 remediation round, 2026-10-03.
 
 Pre-change RED: on `9f718c08` `--shards` is an unknown flag, so the selector
 prints `FULL_RUN reason=internal-error`; the helper does not exist; the
@@ -379,6 +410,7 @@ TEST-1420, 1423, 1424 and 1435 read the real repository, read-only.
 | TEST-1437 | Spec-AC-05 | integration | tests/skills/test-aai-suite-select.sh | negative control: the gate keeps its exact name, needs list, always() and the full-mode success line W4; TEST-013 and TEST-018 stay green | sed:s/skills-full\.result \}\}" = "success"/skills-full.result }}" != "failure"/ | green |
 | TEST-1438 | Spec-AC-05 | integration | tests/skills/test-aai-suite-select.sh | the skills-full leg re-runs --check on its own checkout (line W3) before --extract | sed:s/--check shard-plan\.txt tests\/skills >\/dev\/null/--extract 1 shard-plan.txt >\/dev\/null/ | green |
 | TEST-1439 | Spec-AC-05 | integration | tests/skills/test-aai-suite-select.sh | real map replay: tests/skills/suite-weights.tsv and tests/skills/lib/shard-plan-check.sh each select aai-suite-select with no FULL_RUN line | sed:s/- tests\/skills\/suite-weights\.tsv/- tests\/skills\/suite-weights.tsx/ | green |
+| TEST-1440 | Spec-AC-04 | integration | tests/skills/test-aai-suite-select.sh | BLOCKING-1 remediation (post-freeze, see Amendment): a plan naming a suite that exists only nested (recursively discoverable, no top-level test-<name>.sh) makes --check exit non-zero naming the suite, instead of passing on the recursive proof alone | sed:s/if \[\[ ! -f "\$skills_dir\/test-\$name\.sh" \]\]; then/if false; then/ | green |
 
 ## Verification
 
@@ -486,6 +518,16 @@ dispatch.
 - suggested: `fu-sweep-floor-is-one-suite` — after sharding, the full run's
   floor is `aai-learned-append` (434 s). Only splitting that suite lowers it,
   and the intake rules suite content out of scope.
+- suggested: `fu-framework-discover-exit-swallowed` — `code_review.md`
+  BLOCKING-1 (review-20261003T124300Z.md). `test-framework.sh`'s
+  `discover_tests()` calls `exit 2` on a missing `--skill` file inside
+  `done < <(discover_tests)`; the process-substitution subshell's exit is
+  discarded, so `--skill` keeps running the suites listed before the missing
+  one and the leg still exits 0. This spec's own fix is in
+  `shard-plan-check.sh --check` (TEST-1440, see Amendment), which now catches
+  the shape before a leg ever runs; `test-framework.sh` itself is out of
+  scope here (its own pre-existing defect, also reachable from plain
+  selected-mode `--skill` usage outside sharding) and is named but not fixed.
 
 ## Residual risks
 - RR-1. The 660 s observable is one CI run on a shared hosted runner. Runner
@@ -507,3 +549,10 @@ dispatch.
   caught by the leg's re-check (it fails loudly and needs a re-run). It is not
   prevented. The selected-mode path has the same pre-existing race on its diff
   and is untouched here.
+- RR-6 (NB-4, review-20261003T124300Z.md, accepted residual). TEST-1436 does
+  not pin that the shard step has no `if:` (AC-05's "unconditionally"), and
+  its fetch-depth check is a file-wide count that cannot see a single leg.
+  Both gaps fail LOUDLY or NARROWLY in CI (a workflow error, or a
+  layer-profiles failure on a leg) rather than silently dropping coverage, so
+  this is an assurance-strength finding with no observed bite, not remediated
+  in this round.

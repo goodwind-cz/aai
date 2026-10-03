@@ -72,13 +72,44 @@ check_mode() {
   find "$skills_dir" -name 'test-aai-*.sh' -type f -exec basename {} \; \
     | sed -e 's/^test-//' -e 's/\.sh$//' | sort -u > "$expected_tmp"
 
-  local dup_count dup_offender
-  dup_count="$(sort "$all_tmp" | uniq -d | wc -l | tr -d ' ')"
+  local dup_tmp
+  dup_tmp="$(mktemp "${TMP_PREFIX}-dup.XXXXXX")"
+  ALL_TMP_FILES+=("$dup_tmp")
+  sort "$all_tmp" | uniq -d > "$dup_tmp"
+  local dup_count
+  dup_count="$(wc -l < "$dup_tmp" | tr -d ' ')"
   if [[ "$dup_count" -ne 0 ]]; then
-    dup_offender="$(sort "$all_tmp" | uniq -d | head -n1)"
+    local dup_offender
+    # Read the first line from a FILE, not a pipe: `head`/`sed` closing early
+    # against a REGULAR FILE never signals anything upstream, unlike the
+    # `uniq -d | head -n1` shape this replaced (SIGPIPE under set -o pipefail
+    # if uniq is still writing when head exits after its first line).
+    dup_offender="$(awk 'NR==1' "$dup_tmp")"
     echo "shard-plan-check: suite assigned to more than one shard: $dup_offender" >&2
     exit 1
   fi
+
+  # A suite can be PROVEN complete by the recursive find above and still be
+  # unrunnable: each CI leg executes its shard via
+  # `test-framework.sh --skill <name>`, which resolves only the TOP-LEVEL
+  # "$skills_dir/test-<name>.sh" (test-framework.sh discover_tests(), the
+  # SPECIFIC_SKILLS branch) and whose own `exit 2` on a missing file is lost
+  # through a process-substitution pipeline, so a leg with a planned-but-
+  # unresolvable suite ahead of others silently runs fewer suites and still
+  # exits 0. Fail loudly here, naming the offender, instead of a green gate
+  # hiding dropped coverage (BLOCKING-1, review-20261003T124300Z.md).
+  local name
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    if [[ ! "$name" =~ ^[A-Za-z0-9_-]+$ ]]; then
+      echo "shard-plan-check: planned suite name has an unsafe shape, not [A-Za-z0-9_-]+: $name" >&2
+      exit 1
+    fi
+    if [[ ! -f "$skills_dir/test-$name.sh" ]]; then
+      echo "shard-plan-check: planned suite is not resolvable by test-framework.sh --skill (no top-level $skills_dir/test-$name.sh, it is likely nested in a subdirectory): $name" >&2
+      exit 1
+    fi
+  done < "$planned_tmp"
 
   local planned_set expected_set
   planned_set="$(cat "$planned_tmp")"
