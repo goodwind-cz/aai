@@ -926,8 +926,10 @@ test_012_growth_sum_matches_ledger() {
   # MEASURED cost; AUTONOMOUS_LOOP 6a (the convention body) and spec-amend.mjs
   # are outside both the glob and the accounting, and SKILL_PR is untouched.
   # Measured under plain bash with /usr/bin/wc -c against 1ffc03de, credited
-  # 1:1 (TEST-1372).
-  local want_growth=50333
+  # 1:1 (TEST-1372). configurable-merge-policy-lanes (TEST-1531, Spec-AC-22)
+  # adds +90 B (SKILL_PR.prompt.md +72, SKILL_SHIP.prompt.md +18), measured
+  # against base 64f2595f, credited 1:1 so the pin moves 50333 -> 50423.
+  local want_growth=50423
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -2328,6 +2330,94 @@ test_1372_amendment_class_partition_credited() {
   [[ $ok -eq 1 ]] && log_pass "TEST-1372 (Spec-AC-16) ROLE_COMMON partition pointer $lead B measured and credited 1:1, pin 50036 -> $prefix" \
     || log_fail "TEST-1372 (Spec-AC-16) amendment-class-partition ledger entry"
 }
+
+# TEST-1531 (spec-configurable-merge-policy-lanes Spec-AC-22) — the Spec-AC-19
+# (TEST-1527) SKILL_PR.prompt.md/SKILL_SHIP.prompt.md growth carries its own
+# itemized ledger entry, measured per file against the ride's own named base
+# commit, and the pin re-sum reflects it.
+test_1531_merge_policy_lanes_growth_ledgered() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-1531 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local ok=1 _e entry='' n=0 lead sum=0 f now verdict_msg
+  local ledger_key='configurable-merge-policy-lanes'
+  local prefix=0 prefix_closed=0 last_idx=$(( ${#JUSTIFIED_ADDITIONS[@]} - 1 )) idx=0 entry_idx=-1
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    if [[ "$prefix_closed" -eq 0 ]]; then
+      prefix=$(( prefix + ${_e%% *} ))
+    fi
+    # Exact match on the entry's own ref field (TEST-1531's own mutation cell
+    # renames the slug; a substring match would keep agreeing with it).
+    local ref="${_e#* }"; ref="${ref%% *}"
+    if [[ "$ref" == "$ledger_key" ]]; then
+      entry="$_e"; n=$((n + 1)); prefix_closed=1; entry_idx=$idx
+    fi
+    idx=$(( idx + 1 ))
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-1531: JUSTIFIED_ADDITIONS carries $n entries whose ref field is exactly '$ledger_key' (want exactly 1)"
+    return
+  fi
+  if [[ "$entry_idx" -ne "$last_idx" ]]; then
+    log_info "TEST-1531: the entry sits at index $entry_idx of $last_idx -- later rides have appended their own credits since; the prefix pin below is what holds"
+  fi
+  lead="${entry%% *}"
+  if ! [[ "$lead" =~ ^-?[0-9]+$ ]]; then
+    log_fail "TEST-1531: the entry's leading bytes field '$lead' is not numeric"
+    return
+  fi
+  local base=''
+  if [[ "$entry" =~ against\ ([0-9a-f]{7,40}) ]]; then
+    base="${BASH_REMATCH[1]}"
+    git cat-file -e "${base}^{commit}" 2>/dev/null || base=""
+  else
+    log_info "TEST-1531: the ledger entry does not name the base commit it measured against"
+    ok=0
+  fi
+  local re base_size
+  for f in .aai/SKILL_PR.prompt.md:SKILL_PR.prompt.md .aai/SKILL_SHIP.prompt.md:SKILL_SHIP.prompt.md; do
+    local path="${f%%:*}" name="${f##*:}"
+    re="${name//./\\.} ([0-9]+) -> ([0-9]+)"
+    if [[ "$entry" =~ $re ]]; then
+      now=$(/usr/bin/wc -c < "$PROJECT_ROOT/$path" | tr -d ' ')
+      sum=$(( sum + BASH_REMATCH[2] - BASH_REMATCH[1] ))
+      if verdict_msg=$(diet_credit_verdict "TEST-1531 $name" $(( BASH_REMATCH[2] - BASH_REMATCH[1] )) "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "$now"); then
+        [[ -n "$verdict_msg" ]] && log_info "$verdict_msg"
+      else
+        log_info "$verdict_msg"
+        ok=0
+      fi
+      if [[ -n "$base" ]]; then
+        if git cat-file -e "$base:$path" 2>/dev/null; then
+          base_size=$(git cat-file -s "$base:$path")
+        else
+          base_size=0
+        fi
+        if [[ "$base_size" -ne "${BASH_REMATCH[1]}" ]]; then
+          log_info "TEST-1531: $name records before=${BASH_REMATCH[1]} but its base blob is $base_size B"
+          ok=0
+        fi
+      else
+        log_info "TEST-1531: base-blob comparison SKIPPED -- the named base commit is not in this checkout"
+      fi
+    else
+      log_info "TEST-1531: the ledger entry does not record '$name <before> -> <after>'"
+      ok=0
+    fi
+  done
+  if [[ "$sum" -ne "$lead" ]]; then
+    log_info "TEST-1531: per-file deltas sum to $sum B but the entry credits $lead B"
+    ok=0
+  fi
+  if [[ "$prefix" -ne $(( 50333 + lead )) ]]; then
+    log_info "TEST-1531: ledger prefix through this entry=$prefix (want 50333 + $lead = $(( 50333 + lead )))"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-1531 (Spec-AC-22) configurable-merge-policy-lanes growth $lead B is measured per file and credited 1:1, pin 50333 -> $prefix" \
+    || log_fail "TEST-1531 (Spec-AC-22) configurable-merge-policy-lanes ledger entry"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2382,6 +2472,7 @@ main() {
   test_771_diet_credit_verdict_pr388_states
   test_028_windows_prompt_credit
   test_1372_amendment_class_partition_credited
+  test_1531_merge_policy_lanes_growth_ledgered
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

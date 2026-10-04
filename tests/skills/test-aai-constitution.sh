@@ -86,10 +86,10 @@ test_003_ratification_header() {
     log_fail "TEST-003 $DOC_FILE does not exist"
     return
   fi
-  if grep -qF "Proposed for ratification by: project owner (ales@holubec.net) — ratifies by merging the introducing PR; v1, 2026-07-16" "$DOC_FILE"; then
+  if grep -qF "Proposed for ratification by: project owner (ales@holubec.net) — ratifies by merging the introducing PR; v2, 2026-10-03" "$DOC_FILE"; then
     log_pass "TEST-003 ratification header present"
   else
-    log_fail "TEST-003 ratification header 'Proposed for ratification by: project owner (ales@holubec.net) — ratifies by merging the introducing PR; v1, 2026-07-16' missing"
+    log_fail "TEST-003 ratification header 'Proposed for ratification by: project owner (ales@holubec.net) — ratifies by merging the introducing PR; v2, 2026-10-03' missing"
   fi
 }
 
@@ -183,6 +183,28 @@ test_008_legacy_specs_unflagged() {
   fi
 }
 
+# TEST-1529 (spec-configurable-merge-policy-lanes Spec-AC-21) — article 7
+# names the merge-policy.mjs lane exception and still says operator-only;
+# the ratification line is re-ratified to v2, 2026-10-03 (P11, HITL-1: the
+# owner ratifies by merging the introducing PR).
+test_1529_constitution_v2_merge_policy_amendment() {
+  if [[ ! -f "$DOC_FILE" ]]; then
+    log_fail "TEST-1529 $DOC_FILE does not exist"
+    return
+  fi
+  local ok=1 body
+  body="$(cat "$DOC_FILE")"
+  assert_payload_contains "$body" "merge-policy.mjs" \
+    "TEST-1529: article 7 does not name .aai/scripts/merge-policy.mjs" || ok=0
+  assert_payload_contains "$body" "operator-only" \
+    "TEST-1529: article 7 no longer says operator-only" || ok=0
+  assert_payload_has_line "$body" \
+    "Proposed for ratification by: project owner (ales@holubec.net) — ratifies by merging the introducing PR; v2, 2026-10-03" \
+    "TEST-1529: ratification line does not read v2, 2026-10-03" || ok=0
+  [[ $ok -eq 1 ]] && log_pass "TEST-1529 article 7 names merge-policy.mjs, keeps operator-only, ratified v2 2026-10-03" \
+    || log_fail "TEST-1529 constitution article 7 v2 amendment"
+}
+
 # TEST-009 — prompt-diet byte floor survives the PLANNING addition (shared
 # baseline lives in the prompt-diet suite; run it rather than duplicate it).
 test_009_prompt_diet_floor() {
@@ -218,6 +240,7 @@ main() {
   test_008_legacy_specs_unflagged
   test_009_prompt_diet_floor
   test_010_strict_audit
+  test_1529_constitution_v2_merge_policy_amendment
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

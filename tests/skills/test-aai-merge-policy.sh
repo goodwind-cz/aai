@@ -27,6 +27,12 @@
 #                            validate codes (duplicate_lane, undefined_kind,
 #                            requester_missing)
 #   TEST-1519 (Spec-AC-13) — MARKER_RE-backed bad_marker/duplicate_marker
+# BATCH 8 (final) adds:
+#   TEST-1530 (Spec-AC-22) — PROFILES/DOCS_AI_CANON/suite-map companion
+#                            wiring (verified, not newly authored: batches
+#                            1-7 already classified merge-policy.mjs/.yaml)
+#   TEST-1532 (Spec-AC-23) — CHANGELOG '## [unreleased] — ' breaking-change
+#                            entry
 # Every other TEST-15xx row in the spec's Test Plan lands in a later batch.
 # From this batch on, any fixture that reaches the per-lane evaluation loop
 # (an "allowed" or a lane-level deny reason) needs write_sweep_record too —
@@ -2183,6 +2189,68 @@ test_1527_prompts_defer_to_evaluator() {
     || log_fail "TEST-1527 prompts defer to the evaluator"
 }
 
+# --- TEST-1530 (Spec-AC-22) --------------------------------------------------
+test_1530_companion_wiring() {
+  log_info "TEST-1530: PROFILES.yaml core entry, DOCS_AI_CANON.list entry, suite-map maps the evaluator; select-suites selects aai-merge-policy with no FULL_RUN; layer-profiles suite green"
+  local ok=1
+
+  grep -qF '.aai/scripts/merge-policy.mjs' "$PROJECT_ROOT/.aai/system/PROFILES.yaml" \
+    || { log_info "TEST-1530: .aai/system/PROFILES.yaml does not classify .aai/scripts/merge-policy.mjs"; ok=0; }
+  grep -qxF 'merge-policy.yaml' "$PROJECT_ROOT/.aai/system/DOCS_AI_CANON.list" \
+    || { log_info "TEST-1530: .aai/system/DOCS_AI_CANON.list is missing the exact line 'merge-policy.yaml'"; ok=0; }
+  grep -qF '.aai/scripts/merge-policy.mjs' "$PROJECT_ROOT/tests/skills/suite-map.yaml" \
+    || { log_info "TEST-1530: tests/skills/suite-map.yaml does not map .aai/scripts/merge-policy.mjs to a suite"; ok=0; }
+
+  local files_list out
+  files_list="$(mktemp "${TMPDIR:-/tmp}/aai-merge-policy-files.XXXXXX")"
+  FIXTURES+=("$files_list")
+  printf '%s\n' ".aai/scripts/merge-policy.mjs" > "$files_list"
+  out="$(node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from "$files_list" 2>&1)"
+  assert_payload_not_contains "$out" "FULL_RUN" \
+    "TEST-1530: select-suites.mjs fell back to FULL_RUN for a change scoped to merge-policy.mjs" || ok=0
+  assert_payload_line_matches "$out" '^SELECTED aai-merge-policy ' \
+    "TEST-1530: select-suites.mjs did not select aai-merge-policy" || ok=0
+
+  if ! bash "$PROJECT_ROOT/tests/skills/test-aai-layer-profiles.sh" >/dev/null 2>&1; then
+    log_info "TEST-1530: tests/skills/test-aai-layer-profiles.sh failed"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1530: PROFILES/DOCS_AI_CANON/suite-map wiring complete; select-suites selects aai-merge-policy with no FULL_RUN; layer-profiles suite green" \
+    || log_fail "TEST-1530 companion wiring (PROFILES/canon/suite-map)"
+}
+
+# --- TEST-1532 (Spec-AC-23) --------------------------------------------------
+test_1532_changelog_unreleased_entry() {
+  log_info "TEST-1532: CHANGELOG.md carries a '## [unreleased] — ' heading declaring the merge-policy breaking change"
+  local changelog="$PROJECT_ROOT/CHANGELOG.md"
+  if [[ ! -f "$changelog" ]]; then
+    log_fail "TEST-1532 $changelog does not exist"
+    return
+  fi
+  local ok=1 body
+  # Concatenate the body of every '## [unreleased] — ' heading (up to the
+  # next '## ' heading), pipe-free single read of one bounded file.
+  body="$(awk '
+    /^## \[unreleased\] — / { capture=1; next }
+    /^## / { capture=0 }
+    capture { print }
+  ' "$changelog")"
+  if [[ -z "$body" ]]; then
+    log_fail "TEST-1532: no '## [unreleased] — ' heading found in CHANGELOG.md"
+    return
+  fi
+  assert_payload_contains "$body" "merge-policy.yaml" \
+    "TEST-1532: unreleased entry body does not name docs/ai/merge-policy.yaml" || ok=0
+  assert_payload_contains "$body" "merge-policy.mjs --validate" \
+    "TEST-1532: unreleased entry body does not name merge-policy.mjs --validate" || ok=0
+  assert_payload_contains_i "$body" "standing" \
+    "TEST-1532: unreleased entry body does not name the standing authorization removal" || ok=0
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1532: CHANGELOG.md declares the merge-policy.yaml breaking change and its migration step" \
+    || log_fail "TEST-1532 CHANGELOG unreleased heading"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2213,6 +2281,8 @@ main() {
   test_1525_live_policy_validates
   test_1526_live_policy_fixture
   test_1527_prompts_defer_to_evaluator
+  test_1530_companion_wiring
+  test_1532_changelog_unreleased_entry
   # 1523 last: it asserts over its OWN gh-argv log, built from calls this
   # function makes itself (standalone-runnable), not a suite-wide shared log.
   test_1523_gh_argv_only_pr_view
