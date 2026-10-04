@@ -2555,7 +2555,7 @@ kinds:
 lanes:
   - id: allow-all
     decision_ref: t1528ref@2026-01-01T00:00:00Z
-    decision_match: "approved"
+    decision_match: approved
     signed_by: someone
     kinds: [repo]
     merge_reaches: nothing
@@ -2610,6 +2610,51 @@ JSONL
 
   [[ $ok -eq 1 ]] && log_pass "TEST-1528 CAT-19 merge policy: absent-clean not reported, valid PASS lanes=1, invalid WARN naming its code, an orphaned signed STANDING MERGE AUTHORIZATION record WARNs by name while an unsigned one stays unreported, --json carries CAT-19" \
     || log_fail "TEST-1528 CAT-19 merge policy"
+}
+
+# --- TEST-1558 (configurable-merge-policy-lanes Spec-AC-20, remediation round 5)
+# A policy that parses but is not in the P1 canonical form (here: a quoted
+# string where the canonical spelling is bare) is CAT-19 WARN naming
+# code=noncanonical AND the one command that prints the canonical form
+# (merge-policy.mjs --canonical), so the owner has the fix, not just the
+# finding. Control: the same policy in canonical form is CAT-19 PASS.
+test_1558_cat19_noncanonical_names_canonical_mode() {
+  local ok=1 d line
+  d="$(t1528_repo t1558-noncanonical)"
+  cat > "$d/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: repo
+    globs: ["**"]
+lanes:
+  - id: allow-all
+    decision_ref: t1558ref@2026-01-01T00:00:00Z
+    decision_match: "approved"
+    signed_by: someone
+    kinds: [repo]
+    merge_reaches: nothing
+    marker: AAI_T1558_MERGE
+YAML
+  cat > "$d/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"t1558ref","ts":"2026-01-01T00:00:00Z","owner_signoff":true,"actor":"someone","decision":"approved"}
+JSONL
+  line="$(t1528_line "$d")"
+  if [[ "$line" != "CAT-19 WARN"* || "$line" != *"code=noncanonical line=8"* ]]; then
+    log_info "TEST-1558 noncanonical: expected 'CAT-19 WARN' naming code=noncanonical line=8, got: ${line:-<no CAT-19 line>}"; ok=0
+  fi
+  if [[ "$line" != *"merge-policy.mjs --canonical"* ]]; then
+    log_info "TEST-1558 noncanonical: expected the WARN to name merge-policy.mjs --canonical, got: ${line:-<no CAT-19 line>}"; ok=0
+  fi
+  # control: the canonical spelling of the same policy is PASS
+  sed -e 's/decision_match: "approved"/decision_match: approved/' "$d/docs/ai/merge-policy.yaml" > "$d/docs/ai/merge-policy.yaml.new"
+  mv "$d/docs/ai/merge-policy.yaml.new" "$d/docs/ai/merge-policy.yaml"
+  line="$(t1528_line "$d")"
+  if [[ "$line" != "CAT-19 PASS"* ]]; then
+    log_info "TEST-1558 canonical control: expected 'CAT-19 PASS', got: ${line:-<no CAT-19 line>}"; ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1558 CAT-19: a noncanonical policy WARNs naming code=noncanonical and merge-policy.mjs --canonical; its canonical spelling is PASS" \
+    || log_fail "TEST-1558 CAT-19 noncanonical names --canonical"
 }
 
 main() {
@@ -2681,6 +2726,7 @@ main() {
   test_620_cat17_declaration_never_over_reads
   test_812_cat18_guard_wiring
   test_1528_cat19_merge_policy
+  test_1558_cat19_noncanonical_names_canonical_mode
   test_439_argv1_guard_resolves_symlinks
 
   echo ""

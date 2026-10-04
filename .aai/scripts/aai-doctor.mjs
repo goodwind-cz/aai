@@ -617,8 +617,13 @@ function catMergePolicy(root, scriptDir) {
     return cat('CAT-19', 'Merge Policy', 'PASS', `valid, lanes=${m ? m[1] : '?'}`);
   }
   const codes = out.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('INVALID'));
+  // A noncanonical policy (P1 textual canonical form) names the one command
+  // that prints the form the file must take, so the owner can copy it.
+  const fix = codes.some((l) => l.includes('code=noncanonical'))
+    ? '; print the canonical form with: node .aai/scripts/merge-policy.mjs --canonical'
+    : '';
   return cat('CAT-19', 'Merge Policy', 'WARN', codes.length
-    ? codes.join('; ')
+    ? codes.join('; ') + fix
     : `merge-policy.mjs --validate failed: ${out.trim().slice(0, 200) || 'no output'}`);
 }
 

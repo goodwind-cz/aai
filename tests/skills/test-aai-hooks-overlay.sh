@@ -1029,8 +1029,8 @@ lanes:
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
-    marker: AAI_X1502_MERGE
     max_ceremony: 3
+    marker: AAI_X1502_MERGE
 YAML
     fi
     i=0
@@ -1097,16 +1097,16 @@ lanes:
     signed_by: owner-login
     kinds: [code]
     merge_reaches: nothing
-    marker: AAI_LANEY1520_MERGE
     max_ceremony: 3
+    marker: AAI_LANEY1520_MERGE
   - id: lane-x
     decision_ref: t1520-x@2026-10-03T22:01:00Z
     decision_match: "MERGE LANE t1520 x"
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
-    marker: AAI_LANEX1520_MERGE
     max_ceremony: 3
+    marker: AAI_LANEX1520_MERGE
 YAML
   cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
 {"type":"hitl_decision","ref_id":"t1520-y","ts":"2026-10-03T22:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE t1520 y approved"}
@@ -1426,6 +1426,116 @@ test_1549_lane_requires_explicit_pr_number() {
                         || log_fail "TEST-1549 lane requires an explicit PR number"
 }
 
+# TEST-1551 (Spec-AC-13/14, validation-round4 R4-B1a): end to end through the
+# REAL hook adapter. A second lane `loose` with no requires, binding the same
+# signed decision, spelled its marker `[AAI_T1551_MERGE]` -- the parser read
+# a list, duplicate_marker never fired, and the hook allowed a ride the
+# conditioned lane denies (round 4: rc 0). It must now deny (rc 2, the
+# merge-policy line naming policy_invalid). Control: the same fixture with
+# only the conditioned lane and a qualifying (change) ride is allowed (rc 0),
+# so the denial is the policy's, not a broken fixture's.
+t1551_fixture() {
+  local d="$1" policy="$2" itype="$3" repo base head
+  repo="$d/repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs" "$d/bin" || return 1
+  (cd "$repo" && git init -q && git checkout -q -b main 2>/dev/null \
+     && git config user.email "hooks-1551@example.com" && git config user.name "AAI Hooks 1551") >/dev/null 2>&1 || return 1
+  copy_merge_layer "$repo" || return 1
+  printf '%s' "$policy" > "$repo/docs/ai/merge-policy.yaml"
+  printf '%s\n' '{"type":"hitl_decision","ref_id":"t1551-ride","ts":"2026-10-04T00:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE t1551 approved"}' > "$repo/docs/ai/decisions.jsonl"
+  printf -- '---\nid: ride-1551\ntype: %s\n---\n\n# intake\n' "$itype" > "$repo/docs/intake-1551.md"
+  printf -- '---\nid: spec-test1551\ntype: spec\nceremony_level: 2\n---\n\n# Spec\n' > "$repo/docs/spec-1551.md"
+  echo "base" > "$repo/docs/base.md"
+  (cd "$repo" && git add -A && git commit -q -m base) >/dev/null 2>&1 || return 1
+  base="$(git -C "$repo" rev-parse HEAD)"
+  echo "a docs change" > "$repo/docs/changed-1551.md"
+  (cd "$repo" && git add -A && git commit -q -m head) >/dev/null 2>&1 || return 1
+  head="$(git -C "$repo" rev-parse HEAD)"
+  printf '%s\n' 'current_focus:' '  type: intake_change' '  ref_id: ride-1551' \
+    '  primary_path: docs/intake-1551.md' '  spec_path: docs/spec-1551.md' > "$repo/docs/ai/STATE.yaml"
+  printf '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t1551-ride","payload":{"pr":92,"lane":"heavy","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"internal_substituted"}}\n' >> "$repo/docs/ai/EVENTS.jsonl"
+  printf '{"number":92,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}\n' "$base" "$head" > "$d/pr-92.json"
+  cat > "$d/bin/gh" <<GHSTUB
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$d/gh-argv.log"
+if [ "\${1:-}" = "pr" ] && [ "\${2:-}" = "view" ] && [ -f "$d/pr-\${3:-none}.json" ]; then
+  case "\$*" in
+    *'-q .headRefOid'*)
+      sed -n 's/.*"headRefOid":"\([^"]*\)".*/\1/p' "$d/pr-\${3}.json"
+      exit 0
+      ;;
+  esac
+  cat "$d/pr-\${3}.json"; exit 0
+fi
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+  T1551_HEAD="$head"
+}
+
+test_1551_hook_refuses_list_spelled_marker() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-1551 $ADAPTER does not exist"; return; }
+  local ok=1 d pl err lane_a lane_loose
+  lane_a='version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1551
+    decision_ref: t1551-ride@2026-10-04T00:00:00Z
+    decision_match: "MERGE LANE t1551"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_T1551_MERGE
+    requires:
+      intake_types: [change]
+      validation_pass: true
+'
+  lane_loose='  - id: loose
+    decision_ref: t1551-ride@2026-10-04T00:00:00Z
+    decision_match: "MERGE LANE t1551"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: [AAI_T1551_MERGE]
+'
+  # 1. list-spelled marker on an unconditioned second lane, feature ride
+  #    with no validation -- the conditioned lane denies it.
+  d="$(new_fixture)"
+  t1551_fixture "$d" "$lane_a$lane_loose" feature || { log_fail "TEST-1551 fixture build failed"; return; }
+  HOOK_PATH="$d/bin:$PATH"
+  pl="$d/payload.json"
+  payload_file "$pl" "gh pr merge 92 --squash --match-head-commit $T1551_HEAD" "$d/repo"
+  run_adapter "$PROJECT_ROOT/$ADAPTER" "$d/repo" "$pl" "$d/err" AAI_T1551_MERGE=1
+  err="$(cat "$d/err")"
+  if [[ "$ADAPTER_RC" -ne 2 ]]; then
+    log_info "TEST-1551 [marker_list]: expected the hook to deny (rc 2), got rc $ADAPTER_RC: $err"; ok=0
+  fi
+  if [[ "$err" != *"reason=policy_invalid"* ]]; then
+    log_info "TEST-1551 [marker_list]: expected a merge-policy line naming policy_invalid, got: $err"; ok=0
+  fi
+  if ! grep -q '^pr view 92 --json' "$d/gh-argv.log" 2>/dev/null; then
+    log_info "TEST-1551 [marker_list]: the stub gh never saw 'pr view 92 --json' -- the evaluator did not run"; ok=0
+  fi
+
+  # 2. control: only the conditioned lane, a qualifying change ride -> allowed.
+  d="$(new_fixture)"
+  t1551_fixture "$d" "$lane_a" change || { log_fail "TEST-1551 control fixture build failed"; return; }
+  printf '%s\n' 'last_validation:' '  status: pass' >> "$d/repo/docs/ai/STATE.yaml"
+  HOOK_PATH="$d/bin:$PATH"
+  pl="$d/payload.json"
+  payload_file "$pl" "gh pr merge 92 --squash --match-head-commit $T1551_HEAD" "$d/repo"
+  run_adapter "$PROJECT_ROOT/$ADAPTER" "$d/repo" "$pl" "$d/err" AAI_T1551_MERGE=1
+  err="$(cat "$d/err")"
+  if [[ "$ADAPTER_RC" -ne 0 ]]; then
+    log_info "TEST-1551 [control]: expected the qualifying ride allowed (rc 0), got rc $ADAPTER_RC: $err"; ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1551 (R4-B1a) the real hook denies a policy whose second lane spells the marker as a list (policy_invalid, rc 2); the conditioned lane alone still allows a qualifying ride" \
+    || log_fail "TEST-1551 hook refuses a list-spelled marker"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1457,6 +1567,7 @@ main() {
   test_1541_hook_default_ride_inputs_from_state
   test_1542_lane_merge_segment_allowlist
   test_1549_lane_requires_explicit_pr_number
+  test_1551_hook_refuses_list_spelled_marker
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

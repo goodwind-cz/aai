@@ -206,7 +206,7 @@ kinds:
 lanes:
   - id: allow-all
     decision_ref: allowallref@2026-01-01T00:00:00Z
-    decision_match: "x"
+    decision_match: x
     signed_by: someone
     kinds: [repo]
     merge_reaches: nothing
@@ -229,7 +229,7 @@ kinds:
 lanes:
   - id: allow-all
     decision_ref: allowallref@2026-01-01T00:00:00Z
-    decision_match: "x"
+    decision_match: x
     signed_by: someone
     kinds: [repo]
     merge_reaches: nothing
@@ -270,8 +270,8 @@ lanes:
     signed_by: owner-login
     kinds: [other]
     merge_reaches: nothing
-    marker: AAI_OTHER_MERGE
     max_ceremony: 3
+    marker: AAI_OTHER_MERGE
 YAML
   cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
 {"type":"hitl_decision","ref_id":"test1504-ride","ts":"2026-10-01T10:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1504 approved"}
@@ -305,8 +305,8 @@ lanes:
     signed_by: owner-login
     kinds: [other, docs]
     merge_reaches: nothing
-    marker: AAI_OTHER_MERGE
     max_ceremony: 3
+    marker: AAI_OTHER_MERGE
 YAML
   commit_all "$repo" "the repo's current checkout (not the PR's headRefOid) widens the lane"
   write_sweep_record "$repo" 3
@@ -511,10 +511,10 @@ test_1508_classification_order() {
 version: 1
 architecture:
   - id: containers
-    globs: ["Dockerfile", "**/Dockerfile"]
+    globs: [Dockerfile, "**/Dockerfile"]
 kinds:
   - id: content
-    globs: ["src/**/*.md", "Dockerfile"]
+    globs: ["src/**/*.md", Dockerfile]
 lanes:
   - id: lane-content
     decision_ref: test1508-ride@2026-10-03T12:00:00Z
@@ -590,11 +590,16 @@ test_1509_classify_glob_table() {
     expected="${rest#*|}"
 
     policy="$TEST_DIR/policy-$idx.yaml"
+    # P1 canonical form: a glob is bare when it is a safe bare string
+    # (letter or _ first; letters, digits and _ . / @ : + - after),
+    # double-quoted otherwise -- the ONE quoting rule (remediation round 5).
+    local glob_text="\"$glob\""
+    [[ "$glob" =~ ^[A-Za-z_][A-Za-z0-9_./@:+-]*$ ]] && glob_text="$glob"
     cat > "$policy" <<YAML
 version: 1
 kinds:
   - id: k
-    globs: ["$glob"]
+    globs: [$glob_text]
 YAML
     files="$TEST_DIR/files-$idx.txt"
     printf '%s\n' "$path" > "$files"
@@ -629,9 +634,9 @@ lanes:
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
+    max_ceremony: 3
     marker: AAI_REQ1510_MERGE
     requester_logins: [alice]
-    max_ceremony: 3
 YAML
     cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
 {"type":"hitl_decision","ref_id":"test1510-ride","ts":"2026-10-03T13:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1510 approved"}
@@ -996,8 +1001,8 @@ lanes:
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
-    marker: AAI_CEREMONY1514_MERGE
 $max_line
+    marker: AAI_CEREMONY1514_MERGE
 YAML
     cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
 {"type":"hitl_decision","ref_id":"test1514-ride","ts":"2026-10-03T18:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1514 approved"}
@@ -1100,8 +1105,8 @@ lanes:
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
-    marker: AAI_SEAM1515_MERGE
     max_ceremony: 3
+    marker: AAI_SEAM1515_MERGE
 YAML
   cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
 {"type":"hitl_decision","ref_id":"test1515-ride","ts":"2026-10-03T19:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1515 approved"}
@@ -1168,7 +1173,7 @@ kinds:
 lanes:
   - id: lane-x
     decision_ref: some-ref@2026-01-01T00:00:00Z
-    decision_match: "x"
+    decision_match: x
     signed_by: owner
     kinds: [docs]
     merge_reaches: preview
@@ -1189,7 +1194,7 @@ kinds:
 lanes:
   - id: lane-y
     decision_ref: some-ref@2026-01-01T00:00:00Z
-    decision_match: "x"
+    decision_match: x
     signed_by: owner
     kinds: [docs]
     merge_reaches: nothing
@@ -1209,13 +1214,13 @@ kinds:
 lanes:
   - id: lane-z
     decision_ref: some-ref@2026-01-01T00:00:00Z
-    decision_match: "x"
+    decision_match: x
     signed_by: owner
     kinds: [docs]
     merge_reaches: production
     allow_public_side_effect: true
-    requester_logins: [alice]
     marker: AAI_Z1516_MERGE
+    requester_logins: [alice]
 YAML
         ;;
     esac
@@ -1344,14 +1349,14 @@ kinds:
 lanes:
   - id: lane-dup
     decision_ref: test1518-dup-a@2026-10-03T21:10:00Z
-    decision_match: "x"
+    decision_match: x
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
     marker: AAI_DUPA1518_MERGE
   - id: lane-dup
     decision_ref: test1518-dup-b@2026-10-03T21:11:00Z
-    decision_match: "x"
+    decision_match: x
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
@@ -1367,7 +1372,7 @@ kinds:
 lanes:
   - id: lane-badkind
     decision_ref: test1518-badkind@2026-10-03T21:12:00Z
-    decision_match: "x"
+    decision_match: x
     signed_by: owner-login
     kinds: [no-such-kind]
     merge_reaches: nothing
@@ -1395,7 +1400,7 @@ kinds:
 lanes:
   - id: lane-noreq
     decision_ref: test1518-noreq@2026-10-03T21:13:00Z
-    decision_match: "x"
+    decision_match: x
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: preview
@@ -1445,7 +1450,7 @@ kinds:
 lanes:
   - id: lane-marker
     decision_ref: test1519-ride@2026-10-03T21:20:00Z
-    decision_match: "x"
+    decision_match: x
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
@@ -1482,14 +1487,14 @@ kinds:
 lanes:
   - id: lane-dup-a
     decision_ref: test1519-dup-a@2026-10-03T21:21:00Z
-    decision_match: "x"
+    decision_match: x
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
     marker: AAI_SHARED1519_MERGE
   - id: lane-dup-b
     decision_ref: test1519-dup-b@2026-10-03T21:22:00Z
-    decision_match: "x"
+    decision_match: x
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
@@ -1518,8 +1523,8 @@ lanes:
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
-    marker: AAI_ALLOWED1519_MERGE
     max_ceremony: 3
+    marker: AAI_ALLOWED1519_MERGE
 YAML
   cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
 {"type":"hitl_decision","ref_id":"test1519-allowed","ts":"2026-10-03T21:23:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1519 allowed approved"}
@@ -1600,7 +1605,7 @@ lanes:
       exclude_roadmap_capability: true
       validation_pass: true
       review_pass: true
-      pr_body_contains: "Residual"
+      pr_body_contains: Residual
 YAML
     cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
 {"type":"hitl_decision","ref_id":"test1521-ride","ts":"2026-10-03T19:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1521 approved"}
@@ -1927,9 +1932,6 @@ $lane_a" ;;
     } > "$repo/docs/ai/merge-policy.yaml"
 
     if [[ "$case_name" == "three_failing" ]]; then
-      cat >> "$repo/docs/ai/merge-policy.yaml" <<'YAML'
-architecture: []
-YAML
       cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
 {"type":"hitl_decision","ref_id":"test1524-x","ts":"2026-10-03T22:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1524 x approved"}
 {"type":"hitl_decision","ref_id":"test1524-y","ts":"2026-10-03T22:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1524 y approved"}
@@ -2023,7 +2025,7 @@ test_1525_live_policy_validates() {
     || { log_info "TEST-1525: missing requires.validation_pass true"; ok=0; }
   grep -qF "review_pass: true" "$policy" \
     || { log_info "TEST-1525: missing requires.review_pass true"; ok=0; }
-  grep -qF 'pr_body_contains: "Residual"' "$policy" \
+  grep -qxF '      pr_body_contains: Residual' "$policy" \
     || { log_info "TEST-1525: missing requires.pr_body_contains Residual"; ok=0; }
   grep -qF "intake_types: [change, issue, techdebt, hotfix]" "$policy" \
     || { log_info "TEST-1525: missing requires.intake_types [change, issue, techdebt, hotfix]"; ok=0; }
@@ -2341,14 +2343,19 @@ JSON
 # author intended "true" (the quoted-production_on_merge/opt-in bypass the
 # validator found).
 test_1534_boolean_scalar_strictness() {
-  log_info "TEST-1534: boolean-typed scalars accept only true/false (bare or quoted); True/yes/publik-shaped non-canonical values are parse_error, never a silently-false reroute"
-  local case_name policy_body expect_ok
-  for case_name in quoted_true_production_on_merge bad_true_case bad_yes_word quoted_false_ok; do
+  log_info "TEST-1534: boolean-typed scalars read only true/false; True/yes are parse_error, never a silently-false reroute; a quoted \"true\"/\"false\" is noncanonical (P1 textual canonical form, remediation round 5: one spelling per type), and bare true/false stay VALID"
+  local case_name policy_body expect_ok expect_code
+  for case_name in quoted_true_production_on_merge bad_true_case bad_yes_word quoted_false_ok bare_true_control bare_false_control; do
+    expect_code=parse_error
     mk
     case "$case_name" in
       quoted_true_production_on_merge)
         policy_body=$'version: 1\ndeploy:\n  preview: none\n  production_on_merge: "true"\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1534-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1534 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: production\n    allow_public_side_effect: true\n    marker: AAI_T1534A_MERGE\n    requester_logins: [requester-login]\n'
-        expect_ok=1
+        # Round 5: was expected VALID (quoted form normalized). Under the P1
+        # textual canonical form a boolean has ONE spelling, bare true, so the
+        # quoted spelling is now noncanonical -- deliberately, per the owner
+        # decision of 2026-10-04.
+        expect_ok=0; expect_code=noncanonical
         ;;
       bad_true_case)
         policy_body=$'version: 1\ndeploy:\n  preview: none\n  production_on_merge: True\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1534-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1534 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1534A_MERGE\n'
@@ -2359,7 +2366,16 @@ test_1534_boolean_scalar_strictness() {
         expect_ok=0
         ;;
       quoted_false_ok)
+        # Round 5: was expected VALID; now noncanonical (see quoted_true above).
         policy_body=$'version: 1\ndeploy:\n  preview: none\n  production_on_merge: "false"\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1534-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1534 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1534A_MERGE\n'
+        expect_ok=0; expect_code=noncanonical
+        ;;
+      bare_true_control)
+        policy_body=$'version: 1\ndeploy:\n  preview: none\n  production_on_merge: true\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1534-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1534 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: production\n    allow_public_side_effect: true\n    marker: AAI_T1534A_MERGE\n    requester_logins: [requester-login]\n'
+        expect_ok=1
+        ;;
+      bare_false_control)
+        policy_body=$'version: 1\ndeploy:\n  preview: none\n  production_on_merge: false\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1534-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1534 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1534A_MERGE\n'
         expect_ok=1
         ;;
     esac
@@ -2379,11 +2395,11 @@ JSONL
       assert_payload_has_line "$out" "VALID lanes=1" "TEST-1534 [$case_name]: expected VALID lanes=1, got: $out"
     else
       [[ "$rc" -eq 1 ]] || log_fail "TEST-1534 [$case_name]: expected INVALID (exit 1), got $rc: $out"
-      assert_payload_contains "$out" "code=parse_error" "TEST-1534 [$case_name]: expected parse_error, got: $out"
+      assert_payload_contains "$out" "code=$expect_code" "TEST-1534 [$case_name]: expected $expect_code, got: $out"
     fi
   done
 
-  log_pass "TEST-1534: boolean fields accept only true/false (quoted forms normalized, not rejected); any other value (True, yes) is parse_error, never a silent reroute"
+  log_pass "TEST-1534: boolean fields read only true/false; True/yes are parse_error, a quoted \"true\"/\"false\" is noncanonical, bare true/false stay VALID -- never a silent reroute"
 }
 
 # --- TEST-1535 (validation-round1 B2) ---------------------------------------
@@ -2498,8 +2514,8 @@ lanes:
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
-    marker: AAI_T1538A_MERGE
 $max_line
+    marker: AAI_T1538A_MERGE
 YAML
     local out rc
     out="$(node "$MP" --validate --repo-root "$TEST_DIR/root-$case_name" 2>&1)" && rc=0 || rc=$?
@@ -2771,30 +2787,31 @@ JSON
 # (`deploy:`, `architecture:`, `lanes:`, a lane's `requires:`) and never
 # check `rest` -- the text on the SAME line as the colon. A flow-style
 # mapping/list written inline on that header line is valid YAML, so an
-# owner writing one (P1 explicitly allows flow style for lists) got an
-# EMPTY block instead of a parse_error: the written conditions silently
-# vanished and --validate still said VALID. Round-1 B2 and round-2 R2-B2
-# found the same fail-open one layer down (a list-typed FIELD); this is the
-# header itself. Each case here must now be `noncanonical` (the P1
-# round-trip check, merge-policy.mjs) or `missing_key` (an architecture
-# entry with no `globs` at all -- a related, smaller gap in the same spot).
+# owner writing one got an EMPTY block instead of an error: the written
+# conditions silently vanished and --validate still said VALID. Round 4
+# reported these as `noncanonical`; round 5 makes the header rule explicit
+# (merge-policy.mjs headerRest): any text after a block header's colon other
+# than an empty `[]`/`{}` is parse_error -- the more specific code, and the
+# reason `--canonical` can never print a canonical text that silently lost
+# the inline content. An architecture entry with no `globs` at all is
+# missing_key (a related, smaller gap in the same spot).
 test_1545_block_header_inline_value_is_invalid() {
-  log_info "TEST-1545 (R3-B1): an inline flow value on a block header (deploy/architecture/requires), or an architecture entry missing globs entirely, is invalid -- never a silently-empty block"
+  log_info "TEST-1545 (R3-B1): an inline flow value on a block header (deploy/architecture/requires) is parse_error, or an architecture entry missing globs entirely is missing_key -- never a silently-empty block"
   local case_name policy_body expect_code
   for case_name in requires_flowmap deploy_flowmap architecture_flowlist architecture_missing_globs; do
     mk
     case "$case_name" in
       requires_flowmap)
         policy_body=$'version: 1\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1545-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1545 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1545A_MERGE\n    requires: {intake_types: [change], validation_pass: true}\n'
-        expect_code=noncanonical
+        expect_code=parse_error
         ;;
       deploy_flowmap)
         policy_body=$'version: 1\ndeploy: {preview: none, production_on_merge: false}\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1545-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1545 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1545A_MERGE\n'
-        expect_code=noncanonical
+        expect_code=parse_error
         ;;
       architecture_flowlist)
         policy_body=$'version: 1\narchitecture: [{id: consumer-facing, globs: ["docs/**"]}]\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1545-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1545 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1545A_MERGE\n'
-        expect_code=noncanonical
+        expect_code=parse_error
         ;;
       architecture_missing_globs)
         policy_body=$'version: 1\narchitecture:\n  - id: consumer-facing\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1545-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1545 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1545A_MERGE\n'
@@ -2812,7 +2829,7 @@ JSONL
     assert_payload_contains "$out" "code=$expect_code" "TEST-1545 [$case_name]: expected $expect_code, got: $out"
   done
 
-  log_pass "TEST-1545 (R3-B1) an inline flow value on a block header is noncanonical, and an architecture entry with no globs is missing_key -- never a silently-empty block"
+  log_pass "TEST-1545 (R3-B1) an inline flow value on a block header is parse_error, and an architecture entry with no globs is missing_key -- never a silently-empty block"
 }
 
 # --- TEST-1546 (validation-round3 NB-3) -------------------------------------
@@ -2846,90 +2863,624 @@ JSONL
   log_pass "TEST-1546 (NB-3) a trailing bracket pair after a flow list, and a quoted comma item, both fail closed as parse_error"
 }
 
-# --- TEST-1547 (P1 round-trip) -----------------------------------------------
-# The round-trip check (merge-policy.mjs parsePolicy) must normalize, never
-# reject, every spelling P1 already documents as equivalent: full-line and
-# trailing comments, CRLF line endings, a quoted string where bare would do
-# (and vice versa), and an explicit empty `requires: {}`/`architecture: []`
-# (loses nothing -- the same as omitting the key). None of these may ever
-# become `noncanonical`.
+# --- TEST-1547 (P1 textual canonical form) -----------------------------------
+# textualNormalize may remove ONLY what carries no meaning: full-line and
+# trailing comments (a `#` after an ASCII space or tab, outside quotes),
+# CRLF line endings, one leading BOM, trailing ASCII spaces/tabs, and blank
+# or whitespace-only lines. A canonical policy dressed in all of those stays
+# VALID. Round 4 also accepted equivalent RESPELLINGS (a quoted string where
+# bare would do, a quoted boolean, an explicit empty `deploy: {}` /
+# `architecture: []`); round 5 deliberately changes that expectation, per the
+# owner decision of 2026-10-04: each value has ONE spelling, so every
+# respelling is now `noncanonical` -- and `--canonical` prints the fix.
 test_1547_round_trip_preserves_meaning() {
-  log_info "TEST-1547 (P1 round-trip): comments, CRLF, quoted-vs-bare scalars and an explicit empty block all stay VALID"
+  log_info "TEST-1547 (P1 textual canonical form): comments, CRLF, BOM, trailing whitespace and blank lines stay VALID; an equivalent respelling (quoted, single-quoted, empty block, key order, spacing) is noncanonical"
   mk
   mkdir -p "$TEST_DIR/root/docs/ai"
-  local body
-  body='# full-line comment at the top
-version: 1
-deploy: {}
-architecture: []
-kinds:
-  - id: docs
-    globs: ["docs/**"]   # trailing comment after a flow list
-lanes:
-  - id: "lane-a"
-    decision_ref: t1547-a@2026-10-04T00:00:00Z
-    decision_match: "MERGE LANE t1547 a"
-    signed_by: owner-login
-    kinds: [docs]
-    merge_reaches: nothing
-    allow_public_side_effect: "false"
-    marker: AAI_T1547A_MERGE
-    requires:
-      validation_pass: "true"
-'
-  printf '%s\r\n' "${body//$'\n'/$'\r\n'}" > "$TEST_DIR/root/docs/ai/merge-policy.yaml"
   cat > "$TEST_DIR/root/docs/ai/decisions.jsonl" <<'JSONL'
 {"type":"hitl_decision","ref_id":"t1547-a","ts":"2026-10-04T00:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE t1547 a approved"}
 JSONL
+  local canonical="$TEST_DIR/canonical.yaml"
+  printf '%s\n' \
+    'version: 1' \
+    'kinds:' \
+    '  - id: docs' \
+    '    globs: ["docs/**"]' \
+    'lanes:' \
+    '  - id: lane-a' \
+    '    decision_ref: t1547-a@2026-10-04T00:00:00Z' \
+    '    decision_match: "MERGE LANE t1547 a"' \
+    '    signed_by: owner-login' \
+    '    kinds: [docs]' \
+    '    merge_reaches: nothing' \
+    '    allow_public_side_effect: false' \
+    '    marker: AAI_T1547A_MERGE' \
+    '    requires:' \
+    '      validation_pass: true' > "$canonical"
   local out rc
+  cp "$canonical" "$TEST_DIR/root/docs/ai/merge-policy.yaml"
   out="$(node "$MP" --validate --repo-root "$TEST_DIR/root" 2>&1)" && rc=0 || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "TEST-1547: expected VALID (exit 0), got $rc: $out"
-  assert_payload_has_line "$out" "VALID lanes=1" "TEST-1547: expected VALID lanes=1, got: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1547 [canonical_control]: expected VALID (exit 0), got $rc: $out"
 
-  log_pass "TEST-1547 (P1 round-trip) comments, CRLF, quoted scalars and an explicit empty block all stay VALID -- the round-trip check normalizes, never rejects, an accepted equivalent spelling"
+  # The same policy dressed in everything textualNormalize removes: a BOM,
+  # CRLF, full-line and indented comments, a trailing comment after a space
+  # and after a tab, trailing spaces/tabs, blank and whitespace-only lines.
+  {
+    printf '\xef\xbb\xbf'
+    printf '%s\r\n' \
+      '# full-line comment at the top' \
+      'version: 1' \
+      '' \
+      'kinds:   ' \
+      '  # an indented comment' \
+      '  - id: docs' \
+      '    globs: ["docs/**"]   # trailing comment after a flow list' \
+      'lanes:' \
+      '  - id: lane-a' \
+      '    decision_ref: t1547-a@2026-10-04T00:00:00Z' \
+      '    decision_match: "MERGE LANE t1547 a" # a comment after a quoted string' \
+      '    signed_by: owner-login' \
+      '    kinds: [docs]' \
+      '    merge_reaches: nothing' \
+      "    allow_public_side_effect: false"$'\t' \
+      "    marker: AAI_T1547A_MERGE"$'\t'"# tab then comment" \
+      '    requires:' \
+      '      validation_pass: true' \
+      $'   \t'
+  } > "$TEST_DIR/root/docs/ai/merge-policy.yaml"
+  out="$(node "$MP" --validate --repo-root "$TEST_DIR/root" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1547 [dressed]: expected VALID (exit 0), got $rc: $out"
+  assert_payload_has_line "$out" "VALID lanes=1" "TEST-1547 [dressed]: expected VALID lanes=1, got: $out"
+  # Positive control that the dressing actually landed (BOM + CRLF bytes).
+  node -e 'const b=require("fs").readFileSync(process.argv[1]);process.exit(b[0]===0xef&&b.includes("\r\n")?0:1)' \
+    "$TEST_DIR/root/docs/ai/merge-policy.yaml" || log_fail "TEST-1547 [dressed]: fixture lacks the BOM or CRLF it claims"
+
+  local -a respellings=(
+    'quoted_id|replace|^  - id: lane-a|  - id: "lane-a"'
+    'quoted_bool|replace|^      validation_pass: |      validation_pass: "true"'
+    'quoted_false|replace|^    allow_public_side_effect: |    allow_public_side_effect: "false"'
+    "single_quoted|replace|^    signed_by: |    signed_by: 'owner-login'"
+    'quoted_list_item|replace|^    kinds: \[docs\]|    kinds: ["docs"]'
+    'unquoted_spaced_string|replace|^    decision_match: |    decision_match: MERGE LANE t1547 a'
+    'empty_deploy|after|^version: |deploy: {}'
+    'empty_architecture|after|^version: |architecture: []'
+    'empty_requires|delete|^      validation_pass: |-'
+    'extra_space|replace|^    marker: |    marker:  AAI_T1547A_MERGE'
+    'key_order|move_after|^    allow_public_side_effect: |-|^    marker: '
+  )
+  local entry name op re text re2
+  for entry in "${respellings[@]}"; do
+    name="${entry%%|*}"; entry="${entry#*|}"
+    op="${entry%%|*}"; entry="${entry#*|}"
+    re="${entry%%|*}"; entry="${entry#*|}"
+    text="${entry%%|*}"; re2=""
+    [[ "$entry" == *"|"* ]] && re2="${entry#*|}"
+    perturb "$canonical" "$TEST_DIR/root/docs/ai/merge-policy.yaml" "$op" "$re" "$text" "$re2" \
+      || { log_fail "TEST-1547 [$name]: perturb failed"; continue; }
+    out="$(node "$MP" --validate --repo-root "$TEST_DIR/root" 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 1 ]] || log_fail "TEST-1547 [$name]: expected INVALID (exit 1), got $rc: $out"
+    assert_payload_contains "$out" "code=noncanonical" "TEST-1547 [$name]: expected noncanonical, got: $out"
+  done
+
+  log_pass "TEST-1547 (P1 textual canonical form) comments, CRLF, BOM, trailing whitespace and blank lines stay VALID; every equivalent respelling is noncanonical"
 }
 
-# --- TEST-1548 (validation-round3, structural round-trip fuzz) -------------
+# --- TEST-1548 (validation-round3, structural fuzz over the live policy) ----
 # Takes the LIVE docs/ai/merge-policy.yaml and applies, one at a time, a
-# dozen single-line perturbations the parser does not actually consume
-# (an inline value on a block header, a malformed flow-list item, a
-# duplicated line at the wrong indent, an unknown trailing token after a
-# well-formed list) -- each must be invalid. This is the generic backstop
-# the P1 round-trip check exists for: it is not a list of hand-picked
-# shapes, it is "anything the parser would otherwise silently drop".
+# dozen single-line perturbations the parser does not actually consume (an
+# inline value on a block header, a malformed flow-list item, a deleted or
+# misindented line, an unknown trailing token after a well-formed list) --
+# each must be invalid, with the specific code it now gets. Lines are found
+# by pattern (perturb, above), never by line number, so the live file's
+# comments can change without silently retargeting a perturbation.
 test_1548_round_trip_fuzz_over_live_policy() {
-  log_info "TEST-1548: a dozen single-line perturbations of the LIVE merge-policy.yaml, each one the parser would not consume, are all invalid"
+  log_info "TEST-1548: a dozen single-line perturbations of the LIVE merge-policy.yaml, each one the parser would not consume, are all invalid with their own code"
   local live="$PROJECT_ROOT/docs/ai/merge-policy.yaml"
   [[ -f "$live" ]] || { log_fail "TEST-1548: $live does not exist"; return; }
   mk
   local -a perturbations=(
-    "deploy_header_inline|14s/.*/deploy: {x: 1}/"
-    "architecture_header_inline|17s/.*/architecture: [x]/"
-    "kinds_header_inline|20s/.*/kinds: [x]/"
-    "lanes_header_inline|23s/.*/lanes: [x]/"
-    "requires_header_inline|31s/.*/    requires: {x: 1}/"
-    "architecture_globs_trailing_bracket|19s/.*/    globs: [\"x\"] [\"y\"]/"
-    "architecture_globs_quoted_comma|19s/.*/    globs: [\"x,y\"]/"
-    "kinds_globs_trailing_bracket|22s/.*/    globs: [\"x\"] [\"y\"]/"
-    "kinds_globs_quoted_comma|22s/.*/    globs: [\"x,y\"]/"
-    "architecture_globs_deleted|19d"
-    "duplicated_line_wrong_indent|16a\\
-    production_on_merge: false"
-    "lane_kinds_trailing_token|28s/.*/    kinds: [repo] extra/"
+    "deploy_header_inline|replace|^deploy:\$|deploy: {x: 1}|parse_error"
+    "architecture_header_inline|replace|^architecture:\$|architecture: [x]|parse_error"
+    "kinds_header_inline|replace|^kinds:\$|kinds: [x]|parse_error"
+    "lanes_header_inline|replace|^lanes:\$|lanes: [x]|parse_error"
+    "requires_header_inline|replace|^    requires:\$|    requires: {x: 1}|parse_error"
+    "architecture_globs_trailing_bracket|replace|^    globs: \\[\"hooks|    globs: [\"x\"] [\"y\"]|parse_error"
+    "architecture_globs_quoted_comma|replace|^    globs: \\[\"hooks|    globs: [\"x,y\"]|parse_error"
+    "kinds_globs_trailing_bracket|replace|^    globs: \\[\"\\*\\*\"\\]|    globs: [\"x\"] [\"y\"]|parse_error"
+    "kinds_globs_quoted_comma|replace|^    globs: \\[\"\\*\\*\"\\]|    globs: [\"x,y\"]|parse_error"
+    "architecture_globs_deleted|delete|^    globs: \\[\"hooks|-|missing_key"
+    "duplicated_line_wrong_indent|after|^  production_on_merge: |    production_on_merge: false|parse_error"
+    "lane_kinds_trailing_token|replace|^    kinds: \\[repo\\]|    kinds: [repo] extra|parse_error"
   )
-  local entry name sed_expr f out rc failed=0
+  local entry name op re text code f failed=0
   for entry in "${perturbations[@]}"; do
-    name="${entry%%|*}"
-    sed_expr="${entry#*|}"
+    name="${entry%%|*}"; entry="${entry#*|}"
+    op="${entry%%|*}"; entry="${entry#*|}"
+    re="${entry%%|*}"; entry="${entry#*|}"
+    text="${entry%%|*}"; code="${entry#*|}"
     f="$TEST_DIR/live-$name.yaml"
-    sed -e "$sed_expr" "$live" > "$f"
-    out="$(node "$MP" --validate --path "$f" --repo-root "$PROJECT_ROOT" 2>&1)" && rc=0 || rc=$?
-    if [[ "$rc" -eq 0 ]]; then
-      log_fail "TEST-1548 [$name]: expected INVALID, got VALID: $out"
+    perturb "$live" "$f" "$op" "$re" "$text" || { log_fail "TEST-1548 [$name]: perturb failed"; failed=1; continue; }
+    validate_file "$f"
+    if [[ "$VRC" -ne 1 ]]; then
+      log_fail "TEST-1548 [$name]: expected INVALID, got $VRC: $VOUT"
       failed=1
     fi
+    case "$VOUT" in
+      *"code=$code"*) ;;
+      *) log_fail "TEST-1548 [$name]: expected code=$code, got: $VOUT"; failed=1 ;;
+    esac
   done
-  [[ "$failed" -eq 0 ]] && log_pass "TEST-1548: all 12 single-line perturbations of the live policy are invalid, none silently accepted"
+  [[ "$failed" -eq 0 ]] && log_pass "TEST-1548: all 12 single-line perturbations of the live policy are invalid with their own code, none silently accepted"
+}
+
+# --- Remediation round 5: the P1 TEXTUAL canonical form ---------------------
+# Validation rounds 1-4 each found one more way the hand parser could MISREAD
+# a line and then allow. The owner's decision of 2026-10-04: the policy file,
+# after purely textual normalization (comments, trailing ASCII whitespace,
+# CRLF, BOM, blank lines), must EQUAL the canonical text emitted from the
+# parsed values, line by line, in order. TEST-1550..1557 below pin that rule,
+# the round-4 reproductions, and every earlier round's blocking shape.
+
+# validate_file <file> — --validate a standalone policy file against THIS
+# repository's live decisions ledger; sets VOUT/VRC.
+validate_file() {
+  VOUT="$(node "$MP" --validate --path "$1" --repo-root "$PROJECT_ROOT" 2>&1)" && VRC=0 || VRC=$?
+}
+
+# perturb <in> <out> <op> <line-regex> [text] [regex2] — one edit to the FIRST
+# line matching <line-regex> (a JS regex): replace | delete | append (text to
+# the end of the line) | after (insert text after it) | dup | move_after (move
+# it to just after the first line matching regex2). Exit 9 when nothing
+# matches, so a perturbation can never silently become a no-op.
+perturb() {
+  node -e '
+const fs = require("fs");
+const [inp, out, op, re, text, re2] = process.argv.slice(1);
+const L = fs.readFileSync(inp, "utf8").split("\n");
+const i = L.findIndex((l) => new RegExp(re).test(l));
+if (i < 0) { console.error("perturb: no line matches " + re); process.exit(9); }
+if (op === "replace") L[i] = text;
+else if (op === "delete") L.splice(i, 1);
+else if (op === "append") L[i] = L[i] + text;
+else if (op === "after") L.splice(i + 1, 0, text);
+else if (op === "dup") L.splice(i + 1, 0, L[i]);
+else if (op === "move_after") {
+  const [x] = L.splice(i, 1);
+  const j = L.findIndex((l) => new RegExp(re2).test(l));
+  if (j < 0) { console.error("perturb: no line matches " + re2); process.exit(9); }
+  L.splice(j + 1, 0, x);
+} else { console.error("perturb: unknown op " + op); process.exit(8); }
+fs.writeFileSync(out, L.join("\n"));' "$@"
+}
+
+# live_plus_loose_lane <out> <marker_text> — the live policy plus a second
+# lane `loose` that binds the SAME signed decision, carries NO requires, and
+# whose marker line is <marker_text> verbatim (the round-4 a1 fixture).
+live_plus_loose_lane() {
+  local out="$1" marker_text="$2"
+  {
+    cat "$PROJECT_ROOT/docs/ai/merge-policy.yaml"
+    printf '%s\n' \
+      '  - id: loose' \
+      '    decision_ref: wave-2-roadmap@2026-09-12T19:56:52Z' \
+      '    decision_match: "STANDING MERGE AUTHORIZATION"' \
+      '    signed_by: ales_holubec.net' \
+      '    kinds: [repo]' \
+      '    merge_reaches: nothing' \
+      "    marker: $marker_text"
+  } > "$out"
+}
+
+# --- TEST-1550 (Spec-AC-13, validation-round4 R4-B1a) -------------------------
+# `marker: [X]` on a scalar key used to be read as the LIST ["X"]: the
+# round-trip check rendered `[X]` on both sides, MARKER_RE coerced the array
+# to its string, and duplicate_marker (keyed by value) never fired -- so a
+# second, unconditioned lane reusing the live lane's marker was VALID and the
+# real hook allowed a ride the live lane denies. `decision_ref: [ref@ts]`
+# bound the same way. Both must now be parse_error, at --validate AND at
+# --check; the scalar-spelled duplicate stays duplicate_marker (control) and a
+# distinct marker stays VALID lanes=2 (control).
+test_1550_scalar_key_list_marker_refused() {
+  log_info "TEST-1550 (R4-B1a): marker: [X] / decision_ref: [..] on a scalar lane key is parse_error at --validate and --check, never a list that dodges duplicate_marker"
+  mk
+  local f
+  f="$TEST_DIR/marker-list.yaml"
+  live_plus_loose_lane "$f" '[AAI_INTERNAL_STANDING_MERGE]'
+  validate_file "$f"
+  [[ "$VRC" -eq 1 ]] || log_fail "TEST-1550 [marker_list]: expected INVALID (exit 1), got $VRC: $VOUT"
+  assert_payload_has_line "$VOUT" "INVALID lane=loose code=parse_error" \
+    "TEST-1550 [marker_list]: expected lane=loose parse_error, got: $VOUT"
+
+  f="$TEST_DIR/ref-list.yaml"
+  perturb "$PROJECT_ROOT/docs/ai/merge-policy.yaml" "$f" replace '^    decision_ref: ' \
+    '    decision_ref: [wave-2-roadmap@2026-09-12T19:56:52Z]' || log_fail "TEST-1550: perturb failed"
+  validate_file "$f"
+  [[ "$VRC" -eq 1 ]] || log_fail "TEST-1550 [decision_ref_list]: expected INVALID (exit 1), got $VRC: $VOUT"
+  assert_payload_has_line "$VOUT" "INVALID lane=internal-standing code=parse_error" \
+    "TEST-1550 [decision_ref_list]: expected parse_error, got: $VOUT"
+
+  f="$TEST_DIR/marker-scalar-dup.yaml"
+  live_plus_loose_lane "$f" 'AAI_INTERNAL_STANDING_MERGE'
+  validate_file "$f"
+  [[ "$VRC" -eq 1 ]] || log_fail "TEST-1550 [scalar_duplicate_control]: expected INVALID (exit 1), got $VRC: $VOUT"
+  assert_payload_has_line "$VOUT" "INVALID lane=loose code=duplicate_marker" \
+    "TEST-1550 [scalar_duplicate_control]: expected duplicate_marker, got: $VOUT"
+
+  f="$TEST_DIR/marker-distinct.yaml"
+  live_plus_loose_lane "$f" 'AAI_LOOSE_LANE_MERGE'
+  validate_file "$f"
+  [[ "$VRC" -eq 0 ]] || log_fail "TEST-1550 [distinct_marker_control]: expected VALID (exit 0), got $VRC: $VOUT"
+  assert_payload_has_line "$VOUT" "VALID lanes=2" \
+    "TEST-1550 [distinct_marker_control]: expected VALID lanes=2, got: $VOUT"
+
+  # End to end through --check: a base carrying the marker-list policy and
+  # the live wave-2 records; a ride the live lane denies (feature intake,
+  # validation fail, review fail) -- round 4 got `allowed lane=loose`.
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs"
+  live_plus_loose_lane "$repo/docs/ai/merge-policy.yaml" '[AAI_INTERNAL_STANDING_MERGE]'
+  grep -F 'wave-2-roadmap' "$PROJECT_ROOT/docs/ai/decisions.jsonl" > "$repo/docs/ai/decisions.jsonl"
+  echo "base doc" > "$repo/docs/base.md"
+  commit_all "$repo" "base"
+  local base; base="$(head_sha "$repo")"
+  echo "a docs change" > "$repo/docs/changed-1550.md"
+  commit_all "$repo" "head"
+  local head; head="$(head_sha "$repo")"
+  write_sweep_record "$repo" 70
+  write_intake "$TEST_DIR/intake.md" "ride-1550" "feature"
+  write_state "$TEST_DIR/STATE.yaml" "fail" "fail"
+  local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+  cat > "$json" <<JSON
+{"number":70,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json" "$log"
+  run_check "$repo" "$ghbin" 70 --intake "$TEST_DIR/intake.md" --state "$TEST_DIR/STATE.yaml"
+  assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=70 reason=policy_invalid" \
+    "TEST-1550 [check]: expected policy_invalid, got: $OUT"
+  assert_payload_has_line "$OUT" "lane=loose reason=parse_error" \
+    "TEST-1550 [check]: expected lane=loose reason=parse_error, got: $OUT"
+  [[ "$RC" -eq 3 ]] || log_fail "TEST-1550 [check]: expected exit 3, got $RC: $OUT"
+
+  log_pass "TEST-1550 (R4-B1a) a list-spelled marker or decision_ref is parse_error at --validate and --check; the scalar duplicate stays duplicate_marker and a distinct marker stays VALID"
+}
+
+# --- TEST-1552 (Spec-AC-12, validation-round4 R4-B1a, defense in depth) ------
+# Independently of the textual comparison, a SCALAR-typed key whose value
+# starts with `[` or `{` is parse_error -- the specific code, not merely
+# noncanonical (which the textual check alone would also give).
+test_1552_scalar_keys_reject_collections() {
+  log_info "TEST-1552 (R4-B1a): every scalar-typed key (version, ids, deploy.preview, decision_ref, decision_match, signed_by, marker, max_ceremony, merge_reaches, pr_body_contains) rejects a [ or { value as parse_error"
+  mk
+  local -a cases=(
+    "version|^version: |version: [1]"
+    "deploy_preview|^  preview: |  preview: [none]"
+    "kind_id|^  - id: repo|  - id: [repo]"
+    "lane_id|^  - id: internal-standing|  - id: {x: internal-standing}"
+    "decision_ref|^    decision_ref: |    decision_ref: [wave-2-roadmap@2026-09-12T19:56:52Z]"
+    "decision_match|^    decision_match: |    decision_match: []"
+    "signed_by|^    signed_by: |    signed_by: [ales_holubec.net]"
+    "merge_reaches|^    merge_reaches: |    merge_reaches: [nothing]"
+    "marker_map|^    marker: |    marker: {AAI_INTERNAL_STANDING_MERGE: 1}"
+    "max_ceremony|^    marker: |    max_ceremony: [3]"
+    "pr_body_contains|^      pr_body_contains: |      pr_body_contains: [Residual]"
+  )
+  local entry name re text f
+  for entry in "${cases[@]}"; do
+    name="${entry%%|*}"; entry="${entry#*|}"
+    re="${entry%%|*}"; text="${entry#*|}"
+    f="$TEST_DIR/scalar-$name.yaml"
+    if [[ "$name" == "max_ceremony" ]]; then
+      perturb "$PROJECT_ROOT/docs/ai/merge-policy.yaml" "$f" after '^    merge_reaches: ' "$text" \
+        || { log_fail "TEST-1552 [$name]: perturb failed"; continue; }
+    else
+      perturb "$PROJECT_ROOT/docs/ai/merge-policy.yaml" "$f" replace "$re" "$text" \
+        || { log_fail "TEST-1552 [$name]: perturb failed"; continue; }
+    fi
+    validate_file "$f"
+    [[ "$VRC" -eq 1 ]] || log_fail "TEST-1552 [$name]: expected INVALID (exit 1), got $VRC: $VOUT"
+    assert_payload_contains "$VOUT" "code=parse_error" "TEST-1552 [$name]: expected parse_error, got: $VOUT"
+  done
+
+  log_pass "TEST-1552 (R4-B1a) a [ or { value on any scalar-typed key is parse_error"
+}
+
+# --- TEST-1553 (Spec-AC-12, validation-round4 R4-B1b) -------------------------
+# `lanes: []` / `kinds: []` used to be normalized to the bare header and the
+# indented children read anyway (VALID lanes=1, hook rc 0; header-literal
+# reading: zero lanes / zero kinds). An explicit empty collection with
+# children under it is now parse_error, on every block key; an empty block
+# with NO children is noncanonical (the canonical empty block is the omitted
+# key).
+test_1553_empty_collection_header_with_children() {
+  log_info "TEST-1553 (R4-B1b): an empty-collection header ([] or {}) with indented children is parse_error on every block key; an empty block with no children is noncanonical"
+  mk
+  local -a cases=(
+    "lanes_list|^lanes:\$|lanes: []|parse_error"
+    "kinds_list|^kinds:\$|kinds: []|parse_error"
+    "architecture_list|^architecture:\$|architecture: []|parse_error"
+    "deploy_map|^deploy:\$|deploy: {}|parse_error"
+    "requires_map|^    requires:\$|    requires: {}|parse_error"
+    "lanes_map|^lanes:\$|lanes: {}|parse_error"
+  )
+  local entry name re text code f
+  for entry in "${cases[@]}"; do
+    name="${entry%%|*}"; entry="${entry#*|}"
+    re="${entry%%|*}"; entry="${entry#*|}"
+    text="${entry%%|*}"; code="${entry#*|}"
+    f="$TEST_DIR/empty-$name.yaml"
+    perturb "$PROJECT_ROOT/docs/ai/merge-policy.yaml" "$f" replace "$re" "$text" \
+      || { log_fail "TEST-1553 [$name]: perturb failed"; continue; }
+    validate_file "$f"
+    [[ "$VRC" -eq 1 ]] || log_fail "TEST-1553 [$name]: expected INVALID (exit 1), got $VRC: $VOUT"
+    assert_payload_contains "$VOUT" "code=$code" "TEST-1553 [$name]: expected $code, got: $VOUT"
+  done
+
+  # No children at all: the empty block is spelled by omission.
+  local -a bodies=(
+    $'version: 1\nlanes: []\n'
+    $'version: 1\nlanes:\n'
+    $'version: 1\ndeploy: {}\n'
+    $'version: 1\narchitecture: []\n'
+  )
+  local body idx=0
+  for body in "${bodies[@]}"; do
+    idx=$((idx + 1))
+    f="$TEST_DIR/empty-nochildren-$idx.yaml"
+    printf '%s' "$body" > "$f"
+    validate_file "$f"
+    [[ "$VRC" -eq 1 ]] || log_fail "TEST-1553 [no_children_$idx]: expected INVALID (exit 1), got $VRC: $VOUT"
+    assert_payload_contains "$VOUT" "code=noncanonical line=2" \
+      "TEST-1553 [no_children_$idx]: expected noncanonical line=2, got: $VOUT"
+  done
+  # Control: the canonical spelling of "no lanes" is the bare version line.
+  f="$TEST_DIR/empty-control.yaml"
+  printf 'version: 1\n' > "$f"
+  validate_file "$f"
+  [[ "$VRC" -eq 0 ]] || log_fail "TEST-1553 [omitted_control]: expected VALID (exit 0), got $VRC: $VOUT"
+  assert_payload_has_line "$VOUT" "VALID lanes=0" "TEST-1553 [omitted_control]: expected VALID lanes=0, got: $VOUT"
+
+  log_pass "TEST-1553 (R4-B1b) [] / {} on a block header with children is parse_error; an empty block with no children is noncanonical; an omitted block is VALID"
+}
+
+# --- TEST-1554 (Spec-AC-15, validation-round4 NB-1) ---------------------------
+# YAML starts a comment only after an ASCII space or tab. The old rule used
+# JS \s, so `pr_body_contains: Residual<U+FEFF>#risk-accepted` (or NBSP) read
+# the needle as `Residual` -- VALID, and a body containing only "Residual"
+# matched. It is now never a comment: the value keeps the invisible
+# character, has no bare canonical spelling, and the file is noncanonical.
+# Controls: a real comment after an ASCII space or a TAB stays VALID.
+test_1554_unicode_space_before_hash_is_not_a_comment() {
+  log_info "TEST-1554 (R4 NB-1): U+FEFF or NBSP before # inside pr_body_contains is not a comment start -- INVALID, never a silently shortened needle; ASCII space/tab comments stay VALID"
+  mk
+  local f name sep
+  for name in zwnbsp nbsp; do
+    case "$name" in
+      zwnbsp) sep=$'\xef\xbb\xbf' ;;
+      nbsp) sep=$'\xc2\xa0' ;;
+    esac
+    f="$TEST_DIR/hash-$name.yaml"
+    perturb "$PROJECT_ROOT/docs/ai/merge-policy.yaml" "$f" replace '^      pr_body_contains: ' \
+      "      pr_body_contains: Residual${sep}#risk-accepted" || { log_fail "TEST-1554 [$name]: perturb failed"; continue; }
+    validate_file "$f"
+    [[ "$VRC" -eq 1 ]] || log_fail "TEST-1554 [$name]: expected INVALID (exit 1), got $VRC: $VOUT"
+    assert_payload_contains "$VOUT" "code=noncanonical" "TEST-1554 [$name]: expected noncanonical, got: $VOUT"
+  done
+  for name in space tab; do
+    case "$name" in
+      space) sep=' ' ;;
+      tab) sep=$'\t' ;;
+    esac
+    f="$TEST_DIR/hash-$name.yaml"
+    perturb "$PROJECT_ROOT/docs/ai/merge-policy.yaml" "$f" append '^      pr_body_contains: ' \
+      "${sep}#risk-accepted" || { log_fail "TEST-1554 [$name]: perturb failed"; continue; }
+    validate_file "$f"
+    [[ "$VRC" -eq 0 ]] || log_fail "TEST-1554 [${name}_control]: expected VALID (exit 0), got $VRC: $VOUT"
+    assert_payload_has_line "$VOUT" "VALID lanes=1" "TEST-1554 [${name}_control]: expected VALID lanes=1, got: $VOUT"
+  done
+
+  log_pass "TEST-1554 (R4 NB-1) a # after U+FEFF/NBSP is not a comment (INVALID); after an ASCII space or tab it is (VALID)"
+}
+
+# --- TEST-1555 (Spec-AC-12/15, rounds 1-3 re-asserted) -------------------------
+# Every blocking parser shape from validation rounds 1-3, applied as a single
+# edit to the LIVE policy, is INVALID under the textual canonical rule, with
+# the code each one now gets.
+test_1555_earlier_round_shapes_stay_invalid() {
+  log_info "TEST-1555: every round-1..3 blocking parser shape, applied to the live policy, is INVALID under the textual canonical rule"
+  mk
+  local live="$PROJECT_ROOT/docs/ai/merge-policy.yaml"
+  local -a cases=(
+    # round 1 B2: quoted / non-canonical booleans and enums
+    "r1_quoted_true_validation|replace|^      validation_pass: |      validation_pass: \"true\"|noncanonical"
+    "r1_quoted_true_review|replace|^      review_pass: |      review_pass: \"true\"|noncanonical"
+    "r1_production_True|replace|^  production_on_merge: |  production_on_merge: True|parse_error"
+    "r1_production_yes|replace|^  production_on_merge: |  production_on_merge: yes|parse_error"
+    "r1_production_quoted|replace|^  production_on_merge: |  production_on_merge: \"true\"|noncanonical"
+    "r1_preview_PUBLIC|replace|^  preview: |  preview: PUBLIC|parse_error"
+    "r1_preview_publik|replace|^  preview: |  preview: publik|parse_error"
+    "r1_repeated_requires|after|^      pr_body_contains: |    requires:|duplicate_key"
+    "r1_max_ceremony_quoted|after|^    merge_reaches: |    max_ceremony: \"2\"|bad_ceremony"
+    # round 2 R2-B2: list-typed keys
+    "r2_scalar_intake_types|replace|^      intake_types: |      intake_types: change|parse_error"
+    "r2_unclosed_intake_types|replace|^      intake_types: |      intake_types: [change, issue, techdebt, hotfix|parse_error"
+    "r2_quoted_pseudo_list|replace|^      intake_types: |      intake_types: \"[change]\"|parse_error"
+    "r2_unclosed_requester_logins|after|^    marker: |    requester_logins: [alice|parse_error"
+    "r2_empty_pr_body|replace|^      pr_body_contains: |      pr_body_contains: \"\"|parse_error"
+    # round 3 R3-B1 / NB-3: inline block values, missing globs, list folds
+    "r3_requires_inline|replace|^    requires:\$|    requires: {intake_types: [change], validation_pass: true}|parse_error"
+    "r3_deploy_inline|replace|^deploy:\$|deploy: {preview: none, production_on_merge: true}|parse_error"
+    "r3_architecture_inline|replace|^architecture:\$|architecture: [{id: consumer-facing, globs: [\"docs/**\"]}]|parse_error"
+    "r3_arch_missing_globs|delete|^    globs: \\[\"hooks|-|missing_key"
+    "r3_trailing_bracket|replace|^    globs: \\[\"\\*\\*\"\\]|    globs: [\"**\"] [\"x\"]|parse_error"
+    "r3_quoted_comma|replace|^    globs: \\[\"\\*\\*\"\\]|    globs: [\"**,x\"]|parse_error"
+    "r3_dup_globs|dup|^    globs: \\[\"\\*\\*\"\\]|-|duplicate_key"
+  )
+  local entry name op re text code f
+  for entry in "${cases[@]}"; do
+    name="${entry%%|*}"; entry="${entry#*|}"
+    op="${entry%%|*}"; entry="${entry#*|}"
+    re="${entry%%|*}"; entry="${entry#*|}"
+    text="${entry%%|*}"; code="${entry#*|}"
+    f="$TEST_DIR/r-$name.yaml"
+    perturb "$live" "$f" "$op" "$re" "$text" || { log_fail "TEST-1555 [$name]: perturb failed"; continue; }
+    validate_file "$f"
+    [[ "$VRC" -eq 1 ]] || log_fail "TEST-1555 [$name]: expected INVALID (exit 1), got $VRC: $VOUT"
+    assert_payload_contains "$VOUT" "code=$code" "TEST-1555 [$name]: expected $code, got: $VOUT"
+  done
+
+  log_pass "TEST-1555: all ${#cases[@]} round-1..3 blocking shapes are INVALID under the textual canonical rule"
+}
+
+# --- TEST-1556 (Spec-AC-12, P1 textual canonical form: property test) ---------
+# Takes the LIVE policy and applies single-token perturbations of every kind
+# the parser could misread -- wrap a scalar in [], quote/unquote, change an
+# indent by 2, append a token, move a line, duplicate a line, add {} -- each
+# must be INVALID. Every perturbation that is purely a comment or whitespace
+# change must stay VALID. (A move that keeps the canonical order and lands in
+# a block where the key is legal is a genuine edit, evaluated as written --
+# round-4 a5 -- so the moves below each break the order or the block.)
+test_1556_live_policy_perturbation_property() {
+  log_info "TEST-1556: >=20 single-token perturbations of the live policy are each INVALID; comment/whitespace-only perturbations each stay VALID"
+  mk
+  local live="$PROJECT_ROOT/docs/ai/merge-policy.yaml"
+  local two="$TEST_DIR/two-lanes.yaml"
+  live_plus_loose_lane "$two" 'AAI_LOOSE_LANE_MERGE'
+  local -a invalid=(
+    "wrap_marker|live|replace|^    marker: |    marker: [AAI_INTERNAL_STANDING_MERGE]"
+    "wrap_signed_by|live|replace|^    signed_by: |    signed_by: [ales_holubec.net]"
+    "wrap_merge_reaches|live|replace|^    merge_reaches: |    merge_reaches: [nothing]"
+    "wrap_pr_body|live|replace|^      pr_body_contains: |      pr_body_contains: [Residual]"
+    "quote_marker|live|replace|^    marker: |    marker: \"AAI_INTERNAL_STANDING_MERGE\""
+    "quote_bool|live|replace|^      review_pass: |      review_pass: \"true\""
+    "quote_list_item|live|replace|^    kinds: |    kinds: [\"repo\"]"
+    "single_quote_string|live|replace|^    decision_match: |    decision_match: 'STANDING MERGE AUTHORIZATION'"
+    "unquote_string|live|replace|^    decision_match: |    decision_match: STANDING MERGE AUTHORIZATION"
+    "unquote_glob|live|replace|^    globs: \\[\"\\*\\*\"\\]|    globs: [**]"
+    "leading_zero_int|live|replace|^version: |version: 01"
+    "indent_plus2_lane_key|live|replace|^    marker: |      marker: AAI_INTERNAL_STANDING_MERGE"
+    "indent_minus2_requires_key|live|replace|^      review_pass: |    review_pass: true"
+    "indent_plus2_deploy_key|live|replace|^  production_on_merge: |    production_on_merge: false"
+    "append_token_enum|live|append|^    merge_reaches: | extra"
+    "append_token_marker|live|append|^    marker: | x"
+    "append_token_list|live|append|^    kinds: | extra"
+    "append_braces|live|append|^    kinds: | {}"
+    "add_braces_header|live|replace|^    requires:\$|    requires: {}"
+    "list_separator|live|replace|^      intake_types: |      intake_types: [change,issue, techdebt, hotfix]"
+    "double_space_after_colon|live|replace|^    marker: |    marker:  AAI_INTERNAL_STANDING_MERGE"
+    "space_before_colon|live|replace|^    marker: |    marker : AAI_INTERNAL_STANDING_MERGE"
+    "duplicate_lane_line|live|dup|^    signed_by: |-"
+    "duplicate_requires_line|live|dup|^      validation_pass: |-"
+    "move_out_of_order|live|move_after|^    merge_reaches: |-|^    marker: "
+    "move_into_deploy|live|move_after|^      validation_pass: |-|^  production_on_merge: "
+    "move_into_kind_entry|live|move_after|^    kinds: \\[repo\\]|-|^  - id: repo"
+    "move_into_other_lane|two|move_after|^      review_pass: |-|^    marker: AAI_LOOSE_LANE_MERGE"
+    "move_order_into_other_lane|two|move_after|^    signed_by: |-|^  - id: loose"
+  )
+  local -a valid=(
+    "trailing_comment|live|append|^    marker: | # the lane marker"
+    "trailing_tab_comment|live|append|^    kinds: |"$'\t'"# tab then comment"
+    "full_line_comment|live|after|^lanes:\$|# a full-line comment"
+    "indented_comment|live|after|^    requires:\$|      # an indented comment"
+    "blank_line|live|after|^kinds:\$|"
+    "whitespace_only_line|live|after|^deploy:\$|   "$'\t'
+    "trailing_spaces|live|append|^    signed_by: |   "
+    "trailing_tab|live|append|^      validation_pass: |"$'\t'
+    "hash_in_quotes_comment|live|append|^    decision_match: | # STANDING #2"
+  )
+  local entry name src op re text re2 f srcf count=0
+  for entry in "${invalid[@]}"; do
+    name="${entry%%|*}"; entry="${entry#*|}"
+    src="${entry%%|*}"; entry="${entry#*|}"
+    op="${entry%%|*}"; entry="${entry#*|}"
+    re="${entry%%|*}"; entry="${entry#*|}"
+    text="${entry%%|*}"; re2=""
+    [[ "$entry" == *"|"* ]] && re2="${entry#*|}"
+    srcf="$live"; [[ "$src" == "two" ]] && srcf="$two"
+    f="$TEST_DIR/p-$name.yaml"
+    perturb "$srcf" "$f" "$op" "$re" "$text" "$re2" || { log_fail "TEST-1556 [$name]: perturb failed"; continue; }
+    if cmp -s "$srcf" "$f"; then log_fail "TEST-1556 [$name]: perturbation changed nothing"; continue; fi
+    count=$((count + 1))
+    validate_file "$f"
+    [[ "$VRC" -eq 1 ]] || log_fail "TEST-1556 [$name]: expected INVALID (exit 1), got $VRC: $VOUT"
+  done
+  [[ "$count" -ge 20 ]] || log_fail "TEST-1556: only $count INVALID perturbations ran (need >= 20)"
+  for entry in "${valid[@]}"; do
+    name="${entry%%|*}"; entry="${entry#*|}"
+    src="${entry%%|*}"; entry="${entry#*|}"
+    op="${entry%%|*}"; entry="${entry#*|}"
+    re="${entry%%|*}"; text="${entry#*|}"
+    f="$TEST_DIR/v-$name.yaml"
+    perturb "$live" "$f" "$op" "$re" "$text" || { log_fail "TEST-1556 [$name]: perturb failed"; continue; }
+    if cmp -s "$live" "$f"; then log_fail "TEST-1556 [$name]: perturbation changed nothing"; continue; fi
+    validate_file "$f"
+    [[ "$VRC" -eq 0 ]] || log_fail "TEST-1556 [$name]: a comment/whitespace-only change must stay VALID, got $VRC: $VOUT"
+  done
+  # Whole-file whitespace: CRLF line endings and a leading BOM stay VALID.
+  f="$TEST_DIR/v-crlf-bom.yaml"
+  node -e 'const fs=require("fs");fs.writeFileSync(process.argv[2],"\ufeff"+fs.readFileSync(process.argv[1],"utf8").replace(/\n/g,"\r\n"));' "$live" "$f"
+  validate_file "$f"
+  [[ "$VRC" -eq 0 ]] || log_fail "TEST-1556 [crlf_bom]: CRLF + BOM must stay VALID, got $VRC: $VOUT"
+  # The two-lane base used by the cross-lane moves is itself VALID (control).
+  validate_file "$two"
+  [[ "$VRC" -eq 0 ]] || log_fail "TEST-1556 [two_lane_control]: the two-lane base must be VALID, got $VRC: $VOUT"
+
+  log_pass "TEST-1556: $count single-token perturbations of the live policy are each INVALID; ${#valid[@]} comment/whitespace-only perturbations plus CRLF/BOM stay VALID"
+}
+
+# --- TEST-1557 (Spec-AC-12, --canonical) ---------------------------------------
+# `merge-policy.mjs --canonical` prints the canonical text of a policy the
+# parser can read, so an owner can copy it. Its output, fed back through
+# --validate, is VALID; for a respelled-but-equivalent policy it equals the
+# live policy's own canonical text; it refuses (exit 1) a parse_error; and a
+# noncanonical --validate points the owner at it on stderr.
+test_1557_canonical_mode_round_trips() {
+  log_info "TEST-1557: --canonical output fed back through --validate is VALID; a respelled policy canonicalizes to the live text; parse_error refuses; noncanonical names --canonical"
+  mk
+  local live="$PROJECT_ROOT/docs/ai/merge-policy.yaml"
+  local out rc
+  out="$(node "$MP" --canonical --path "$live" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_fail "TEST-1557 [live]: --canonical exited $rc: $out"; return; }
+  printf '%s\n' "$out" > "$TEST_DIR/live-canonical.yaml"
+  validate_file "$TEST_DIR/live-canonical.yaml"
+  [[ "$VRC" -eq 0 ]] || log_fail "TEST-1557 [live]: canonical output must validate, got $VRC: $VOUT"
+  assert_payload_has_line "$VOUT" "VALID lanes=1" "TEST-1557 [live]: expected VALID lanes=1, got: $VOUT"
+  local live_canon="$out"
+
+  # A respelled live policy: quoted bare strings, single quotes, a quoted
+  # boolean, out-of-order lane keys, extra spaces, an empty optional block.
+  local f="$TEST_DIR/respelled.yaml"
+  cp "$live" "$f"
+  perturb "$f" "$f" replace '^    marker: ' '    marker: "AAI_INTERNAL_STANDING_MERGE"' \
+    && perturb "$f" "$f" replace '^      review_pass: ' "      review_pass: 'true'" \
+    && perturb "$f" "$f" replace '^    kinds: ' '    kinds:   ["repo"]' \
+    && perturb "$f" "$f" move_after '^    merge_reaches: ' - '^    marker: ' \
+    && perturb "$f" "$f" replace '^      pr_body_contains: ' '      pr_body_contains: "Residual"' \
+    || { log_fail "TEST-1557: perturb failed"; return; }
+  validate_file "$f"
+  [[ "$VRC" -eq 1 ]] || log_fail "TEST-1557 [respelled]: precondition -- the respelled file must be noncanonical, got $VRC: $VOUT"
+  assert_payload_contains "$VOUT" "code=noncanonical" "TEST-1557 [respelled]: expected noncanonical, got: $VOUT"
+  assert_payload_contains "$VOUT" "merge-policy.mjs --canonical" \
+    "TEST-1557 [hint]: a noncanonical --validate must name --canonical, got: $VOUT"
+  out="$(node "$MP" --canonical --path "$f" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1557 [respelled]: --canonical exited $rc: $out"
+  [[ "$out" == "$live_canon" ]] || log_fail "TEST-1557 [respelled]: canonical text differs from the live policy's own canonical text: $out"
+  printf '%s\n' "$out" > "$TEST_DIR/respelled-canonical.yaml"
+  validate_file "$TEST_DIR/respelled-canonical.yaml"
+  [[ "$VRC" -eq 0 ]] || log_fail "TEST-1557 [respelled]: canonical output must validate, got $VRC: $VOUT"
+
+  # The canonical text IS the live file's body (its comments aside).
+  local body
+  body="$(grep -v '^#' "$live")"
+  [[ "$body" == "$live_canon" ]] || log_fail "TEST-1557 [live_is_canonical]: the live policy body differs from --canonical"
+
+  # A parse_error has no canonical text: refuse.
+  live_plus_loose_lane "$TEST_DIR/marker-list.yaml" '[AAI_INTERNAL_STANDING_MERGE]'
+  out="$(node "$MP" --canonical --path "$TEST_DIR/marker-list.yaml" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-1557 [parse_error]: --canonical must exit 1 on a parse_error, got $rc: $out"
+  assert_payload_contains "$out" "code=parse_error" "TEST-1557 [parse_error]: expected parse_error, got: $out"
+
+  log_pass "TEST-1557: --canonical output validates, a respelled policy canonicalizes to the live text, a parse_error refuses, and noncanonical names --canonical"
 }
 
 main() {
@@ -2978,6 +3529,13 @@ main() {
   test_1546_flow_list_tokenizer_folds
   test_1547_round_trip_preserves_meaning
   test_1548_round_trip_fuzz_over_live_policy
+  test_1550_scalar_key_list_marker_refused
+  test_1552_scalar_keys_reject_collections
+  test_1553_empty_collection_header_with_children
+  test_1554_unicode_space_before_hash_is_not_a_comment
+  test_1555_earlier_round_shapes_stay_invalid
+  test_1556_live_policy_perturbation_property
+  test_1557_canonical_mode_round_trips
   # 1523 last: it asserts over its OWN gh-argv log, built from calls this
   # function makes itself (standalone-runnable), not a suite-wide shared log.
   test_1523_gh_argv_only_pr_view

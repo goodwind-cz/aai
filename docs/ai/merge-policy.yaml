@@ -10,13 +10,19 @@
 # edits the merge machinery itself, and "visible to downstream consumers" is
 # expressed as the architecture globs below rather than left as a judgment
 # call.
+#
+# This file is in the P1 canonical form: `merge-policy.mjs --validate`
+# refuses any other spelling of the same content (noncanonical line=<n>).
+# Comments and blank lines are free. After an edit, run
+#   node .aai/scripts/merge-policy.mjs --canonical
+# and copy its output over the body (it does not reproduce comments).
 version: 1
 deploy:
   preview: none
   production_on_merge: false
 architecture:
   - id: consumer-facing
-    globs: ["hooks/**", "install.sh", "install.ps1", ".aai/scripts/install-pre-commit-hook.*", ".aai/scripts/aai-sync.*", ".github/**"]
+    globs: ["hooks/**", install.sh, install.ps1, ".aai/scripts/install-pre-commit-hook.*", ".aai/scripts/aai-sync.*", ".github/**"]
 kinds:
   - id: repo
     globs: ["**"]
@@ -33,4 +39,4 @@ lanes:
       exclude_roadmap_capability: true
       validation_pass: true
       review_pass: true
-      pr_body_contains: "Residual"
+      pr_body_contains: Residual

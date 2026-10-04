@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 68e054e30296204331b9e02d3972d022607d006a61cbf167966be5971ccdb499
+frozen_sha256: 44c2ec272c976840371ee16a82c3a2115dce57b8cf46e6eab15a0ee72c05d417
 ceremony_level: 3
 links:
   requirement: null
@@ -94,7 +94,7 @@ deploy:
   production_on_merge: false   # true when a merge to the base branch deploys production
 architecture:                  # closed list; any match makes the PR operator-only
   - id: containers
-    globs: ["Dockerfile", "**/Dockerfile", "**/docker-compose*.yml"]
+    globs: [Dockerfile, "**/Dockerfile", "**/docker-compose*.yml"]
 kinds:                         # closed world; a path matching no kind denies
   - id: content
     globs: ["src/content/**", "**/*.md"]
@@ -114,13 +114,14 @@ lanes:
       exclude_roadmap_capability: true
       validation_pass: true
       review_pass: true
-      pr_body_contains: "Residual"
+      pr_body_contains: Residual
 ```
 
 Any key outside this shape is `unknown_key` and makes the policy invalid.
 That includes any key that would switch off CI or the sweep check. Those two
 checks are not configurable.
-Lists may be written in flow style (`[a, b]`). Scalars may be quoted.
+Every list is written in flow style (`[a, b]`). Quoting follows the one
+canonical rule below.
 A list-typed key (`kinds`, `requester_logins`, `requires.intake_types`, a
 kind's or architecture entry's `globs`) accepts ONLY a well-formed `[...]`
 flow list: a bare scalar, an unclosed list, or a quoted string that merely
@@ -135,29 +136,69 @@ never deny).
 
 A block-introducing key (`deploy`, `architecture`, `kinds`, `lanes`, a
 lane's `requires`) carries its content ONLY on the indented lines that
-follow it; nothing after its own colon is ever read. An inline flow value
-written there anyway (`deploy: {preview: public}`, `architecture: [{id: x,
-globs: [...]}]`) is therefore `noncanonical`, never a silently empty block
-(validation-round3 R3-B1) — the one exception is an explicit empty
-collection on that same line (`deploy: {}`, `architecture: []`), which the
-parser reads as exactly what omitting the key means: zero entries, nothing
-lost. Every architecture or kind entry is `id` plus `globs`; an entry with
-no `globs` line at all is `missing_key`, never a silent `[]` that matches
-nothing. A flow list's own comma split never crosses a quote boundary: a
-trailing bracket pair after the list (`[a] [b]`) or a literal comma written
-as DATA inside quotes (`["a,b"]`) is `parse_error`, never a silently
-narrowed list (validation-round3 NB-3). These are enforced by ONE
-structural round-trip check, not a per-shape patch: `merge-policy.mjs`
-re-emits the policy it just parsed in one canonical text form (fixed key
-order, two-space indentation, block style for `- id:` mappings, flow style
-for every scalar list, canonical scalars) and requires that text to equal
-the source file — read as a MULTISET of lines, not by position, since P1
-fixes the shape of each key's own line but never an order sibling keys
-must appear in relative to each other — after only meaning-preserving
-normalization (comments, CRLF, a BOM, blank lines, and an accepted
-equivalent scalar spelling: quoted vs bare, `"true"` vs `true`). Any line
-with no canonical counterpart at all is `noncanonical`, naming the first
-source line that has none.
+follow it; nothing after its own colon is ever read, so any text there is
+`parse_error` (validation-round3 R3-B1, made explicit in remediation round
+5) — except an explicit empty collection (`[]` or `{}`), which parses as
+zero entries and must then have NO indented children: `lanes: []` or
+`kinds: []` followed by entries is `parse_error` (validation-round4
+R4-B1b). A SCALAR-typed key (`version`, an `id`, `deploy.preview`,
+`decision_ref`, `decision_match`, `signed_by`, `marker`, `max_ceremony`,
+`merge_reaches`, `requires.pr_body_contains`) whose value starts with `[` or
+`{` is `parse_error`, never read as a list (validation-round4 R4-B1a:
+`marker: [X]` dodged `duplicate_marker`). Every architecture or kind entry
+is `id` plus `globs`; an entry with no `globs` line at all is
+`missing_key`. A flow list's own comma split never crosses a quote
+boundary: a trailing bracket pair (`[a] [b]`) or a literal comma inside
+quotes (`["a,b"]`) is `parse_error` (validation-round3 NB-3).
+
+**Textual canonical form (owner decision 2026-10-04, remediation round 5).**
+These per-shape rules are defense in depth. The structural rule is
+textual: the policy is valid only if
+
+    textualNormalize(raw) === canonicalText(parsePolicy(raw))
+
+line by line, in order. `textualNormalize` works on the RAW file text only,
+never on a parsed value: it strips one leading BOM, turns CRLF into LF,
+drops full-line comments (first non-space/tab character `#`), drops a
+trailing comment only where `#` is outside quotes AND preceded by an ASCII
+space or tab (never another Unicode space — validation-round4 NB-1), strips
+trailing ASCII spaces/tabs, and drops blank lines. Nothing else: no
+re-quoting, no reflowing, no indentation change. `canonicalText` is one
+deterministic emitter from the parsed policy object, driven by each key's
+schema type (a list-typed key always emits a list, a scalar-typed key always
+a scalar):
+- fixed key order: version, deploy, architecture, kinds, lanes; deploy
+  preview, production_on_merge; an entry `- id:` then `globs:`; a lane
+  `- id:` then decision_ref, decision_match, signed_by, kinds, merge_reaches,
+  allow_public_side_effect, max_ceremony, marker, requester_logins, requires;
+  requires intake_types, exclude_roadmap_capability, validation_pass,
+  review_pass, pr_body_contains;
+- two-space indentation, `key: value` with one space after the colon, a
+  block header as the bare `key:`;
+- an optional key only when written; an EMPTY block is spelled by omitting
+  it (`lanes:` with no entries, `lanes: []`, `deploy: {}`, an empty
+  `requires:` are all noncanonical);
+- booleans bare `true`/`false`; integers bare decimal;
+- strings, the ONE quoting rule: bare when the string matches
+  `^[A-Za-z_][A-Za-z0-9_./@:+-]*$`, does not end in `:`, and is not a YAML
+  reserved word (true, false, yes, no, on, off, y, n, null, any case);
+  otherwise wrapped in double quotes, verbatim. Single quotes are never
+  canonical. A string containing `"`, `\` or a control character has no
+  canonical spelling and is `parse_error`;
+- every list in flow style on one line, `[a, b]` — items by the string rule,
+  separated by `, `; the empty list is `[]`;
+- no comments.
+
+Any difference is `noncanonical line=<n>`, `n` being the first differing
+line of the raw file (one past its last line when the canonical text is
+longer); `--check` then denies `policy_invalid`. This makes every
+misreading visible by construction: if the parser reads `marker: [X]` as
+`X`, it emits `marker: X`, which is not the file's `marker: [X]`. Comments
+and blank lines stay free. `merge-policy.mjs --canonical [--path <file>]`
+prints the canonical text of any policy the parser can read (exit 0; exit 1
+on a parse-time error; 4 when the file is absent) so an owner can copy it;
+a noncanonical `--validate`/`--check` names that command on stderr, and
+doctor CAT-19 names it in its WARN.
 
 ### P2 — Decision binding
 
@@ -306,8 +347,10 @@ allow; it never turns today's deny into an allow on error.
 
 The first lane in file order whose conditions all hold wins.
 `--validate` prints `VALID lanes=<n>` and exits 0. On errors it prints one
-`INVALID lane=<id or -> code=<code>` line per error and exits 1. An absent
-file exits 4.
+`INVALID lane=<id or -> code=<code>` line per error and exits 1 (a
+`noncanonical` one carries ` line=<n>`). An absent file exits 4.
+`--canonical` prints the P1 canonical text and exits 0, or the INVALID
+lines and exits 1 on a parse-time error.
 
 PR-level deny codes: `api_unavailable`, `pr_not_open`, `base_unavailable`,
 `policy_invalid`, `policy_touched`, `architecture`, `unclassified`,
@@ -321,7 +364,8 @@ Validate codes: `parse_error`, `unknown_key`, `missing_key`, `duplicate_key`,
 `duplicate_lane`, `undefined_kind`, `empty_globs`, `bad_marker`,
 `duplicate_marker`, `decision_missing`, `decision_unsigned`,
 `decision_ambiguous`, `signer_mismatch`, `reaches_inconsistent`,
-`public_effect_not_opted_in`, `requester_missing`, `bad_ceremony`.
+`public_effect_not_opted_in`, `requester_missing`, `bad_ceremony`,
+`noncanonical` (P1 textual canonical form).
 `duplicate_key` is a repeated top-level key, a repeated `deploy`/`requires`
 sub-key, or a repeated lane key (including a second `requires:` block) —
 validation-round1 B2, disclosed via `spec-amend.mjs`.
@@ -479,15 +523,15 @@ string gives `empty_globs`. A CRLF policy file is normalised before the parse.
 | Spec-AC-09 | WHEN `lane-gate.mjs --sweep-check` exits 5 for the PR THEN `--check` exits 3 with reason=sweep_check_failed; WHEN a policy carries a key that would disable CI or the sweep check THEN `--validate` exits 1 with code unknown_key | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1512.log TEST-1512 mutation-gate PASS | — | sweep check mandatory, not configurable |
 | Spec-AC-10 | WHEN a lane has merge_reaches production, or preview on a deploy.preview public repo, without allow_public_side_effect true THEN `--validate` exits 1 with code public_effect_not_opted_in and `--check` denies with reason=policy_invalid | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1513-20261003T224513Z.log TEST-1513 mutation-gate PASS | — | D2 opt-in |
 | Spec-AC-11 | WHEN the ride's ceremony is 3 THEN a lane without max_ceremony gives lane reason=ceremony_exceeds and a lane with max_ceremony 3 passes; WHEN no spec or intake resolves THEN the ride counts as ceremony 3; on 4 fixture specs the level the evaluator reads equals the ceremony_level line lane-gate.mjs prints | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1514.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1515.log TEST-1514 TEST-1515 mutation-gate PASS | — | ceremony opt-in plus seam with lane-gate |
-| Spec-AC-12 | WHEN a lane's merge_reaches disagrees with deploy (preview with deploy.preview none, nothing with production_on_merge true, production with production_on_merge false), or decision_ref resolves to zero, two, unsigned or other-actor records THEN `--validate` exits 1 printing reaches_inconsistent, decision_missing, decision_ambiguous, decision_unsigned or signer_mismatch respectively; a valid policy prints `VALID lanes=N` and exits 0; an inline flow value on a block header (deploy, architecture, kinds, lanes) is noncanonical, never a silently-empty block, and an explicit empty `deploy: {}` or `architecture: []` stays VALID (P1 round-trip check, validation-round3 R3-B1) | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1516-20261003T224514Z.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1517-20261003T224514Z.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1518-20261003T224514Z.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1545-1546-1547-1548.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1545-1546-1548.log TEST-1516 TEST-1517 TEST-1518 TEST-1545 TEST-1547 TEST-1548 mutation-gate PASS | — | unsatisfiable lanes fail loudly; round-trip closes the inline-value-on-header class |
-| Spec-AC-13 | WHEN a lane marker fails MARKER_RE, equals AAI_OPERATOR_MERGE, or repeats another lane's marker THEN `--validate` exits 1 with bad_marker or duplicate_marker; an allowed verdict names the lane's own marker | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1519-20261003T224514Z.log TEST-1519 mutation-gate PASS | — | distinct marker per lane |
-| Spec-AC-14 | WHEN the hook receives `gh pr merge N` with lane X's marker set (environment or leading NAME=1 assignment) and the evaluator allows lane X with a valid sweep record THEN exit 0; with lane Y's marker, with an evaluator denial, or for `git merge` with a lane marker THEN exit 2 and stderr carries the article-7 text plus a merge-policy line naming the verdict; with no marker THEN exit 2 with the article-7 text and no merge-policy line (byte-identical per Spec-AC-02); the merge segment's own tokens are allow-listed, so no --flag=value or quoted spelling of a refused flag ever reaches gh; the segment must also carry an explicit PR number -- the branch-implicit form (no number) is refused (validation-round3 NB-1) | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1520.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1542.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1542.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1549.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1549.log TEST-1520 TEST-1542 TEST-1549 mutation-gate PASS | — | P9, real evaluator and real lane-gate in fixture; R2-B1 allow-list; NB-1 explicit PR number |
-| Spec-AC-15 | WHEN a lane declares requires intake_types, exclude_roadmap_capability, validation_pass, review_pass or pr_body_contains THEN each unmet condition yields its own lane reason (intake_type, roadmap_capability, validation_not_pass, review_not_pass, pr_body_missing), and the fixture meeting all of them is allowed; a list-typed requires key (intake_types) or lane key (kinds, requester_logins) that is a scalar, unclosed or quoted-pseudo-list is parse_error, never silently dropped; a lane's `requires: {...}` written inline on its own header is noncanonical for the same reason; an architecture/kind entry with no `globs` line is missing_key; a flow list's own malformed item (a trailing bracket pair, a literal comma inside quotes) is parse_error, never silently narrowed (validation-round3 R3-B1/NB-3) | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1521.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1543-1544.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1543-1544.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1545-1546-1547-1548.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1545-1546-1548.log TEST-1521 TEST-1543 TEST-1544 TEST-1545 TEST-1546 mutation-gate PASS | — | expresses the 2026-09-12 conditions; R2-B2 closed-shape list parsing; R3-B1/NB-3 round-trip and tokenizer folds |
+| Spec-AC-12 | WHEN a lane's merge_reaches disagrees with deploy (preview with deploy.preview none, nothing with production_on_merge true, production with production_on_merge false), or decision_ref resolves to zero, two, unsigned or other-actor records THEN `--validate` exits 1 printing reaches_inconsistent, decision_missing, decision_ambiguous, decision_unsigned or signer_mismatch respectively; a valid policy prints `VALID lanes=N` and exits 0; an inline flow value on a block header (deploy, architecture, kinds, lanes) is parse_error, never a silently-empty block; an empty-collection header (`[]`/`{}`) with indented children is parse_error (validation-round4 R4-B1b); a `[`/`{` value on a scalar-typed key is parse_error (R4-B1a); and the policy is valid only when its textually normalized text equals the canonical text emitted from the parsed values, line by line in order, else noncanonical line=N -- an equivalent respelling (quoted vs bare, empty block) is noncanonical; `--canonical` prints the canonical text (P1 textual canonical form, remediation round 5) | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1516-20261003T224514Z.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1517-20261003T224514Z.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1518-20261003T224514Z.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1545-1546-1547-1548.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1545-1546-1548.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1550-1558.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1550-1557.log TEST-1516 TEST-1517 TEST-1518 TEST-1534 TEST-1545 TEST-1547 TEST-1548 TEST-1552 TEST-1553 TEST-1555 TEST-1556 TEST-1557 mutation-gate PASS | — | unsatisfiable lanes fail loudly; round 5 replaces the round-4 round-trip with the textual canonical form (owner decision 2026-10-04) |
+| Spec-AC-13 | WHEN a lane marker fails MARKER_RE, equals AAI_OPERATOR_MERGE, or repeats another lane's marker THEN `--validate` exits 1 with bad_marker or duplicate_marker; a marker spelled as a list (`marker: [X]`) is parse_error, never a value that dodges duplicate_marker (validation-round4 R4-B1a); an allowed verdict names the lane's own marker | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1519-20261003T224514Z.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1550-1558.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1550-1557.log TEST-1519 TEST-1550 mutation-gate PASS | — | distinct marker per lane; R4-B1a list-spelled marker |
+| Spec-AC-14 | WHEN the hook receives `gh pr merge N` with lane X's marker set (environment or leading NAME=1 assignment) and the evaluator allows lane X with a valid sweep record THEN exit 0; with lane Y's marker, with an evaluator denial, or for `git merge` with a lane marker THEN exit 2 and stderr carries the article-7 text plus a merge-policy line naming the verdict; with no marker THEN exit 2 with the article-7 text and no merge-policy line (byte-identical per Spec-AC-02); the merge segment's own tokens are allow-listed, so no --flag=value or quoted spelling of a refused flag ever reaches gh; the segment must also carry an explicit PR number -- the branch-implicit form (no number) is refused (validation-round3 NB-1) | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1520.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1542.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1542.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1549.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1549.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1550-1558.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1551.log TEST-1520 TEST-1542 TEST-1549 TEST-1551 mutation-gate PASS | — | P9, real evaluator and real lane-gate in fixture; R2-B1 allow-list; NB-1 explicit PR number; R4-B1a hook denies a list-spelled-marker policy |
+| Spec-AC-15 | WHEN a lane declares requires intake_types, exclude_roadmap_capability, validation_pass, review_pass or pr_body_contains THEN each unmet condition yields its own lane reason (intake_type, roadmap_capability, validation_not_pass, review_not_pass, pr_body_missing), and the fixture meeting all of them is allowed; a list-typed requires key (intake_types) or lane key (kinds, requester_logins) that is a scalar, unclosed or quoted-pseudo-list is parse_error, never silently dropped; a lane's `requires: {...}` written inline on its own header is parse_error for the same reason; a `#` preceded by a non-ASCII space (U+FEFF, NBSP) never starts a comment (validation-round4 NB-1); an architecture/kind entry with no `globs` line is missing_key; a flow list's own malformed item (a trailing bracket pair, a literal comma inside quotes) is parse_error, never silently narrowed (validation-round3 R3-B1/NB-3) | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1521.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1543-1544.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1543-1544.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1545-1546-1547-1548.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1545-1546-1548.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1550-1558.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1550-1557.log TEST-1521 TEST-1543 TEST-1544 TEST-1545 TEST-1546 TEST-1554 mutation-gate PASS | — | expresses the 2026-09-12 conditions; R2-B2 closed-shape list parsing; R3-B1/NB-3 tokenizer folds; R4 NB-1 ASCII-only comment start |
 | Spec-AC-16 | WHEN the PR is not OPEN or is a draft THEN reason=pr_not_open; WHEN gh is absent or exits non-zero THEN reason=api_unavailable with exit 3; WHEN baseRefOid or headRefOid is not a local object THEN reason=base_unavailable; across the whole suite the stub gh argv log contains only `pr view` invocations | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1522.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1523.log TEST-1522 TEST-1523 mutation-gate PASS | — | fail closed, no network |
 | Spec-AC-17 | WHEN two lanes both hold THEN the allowed line names the first in file order; WHEN no lane holds THEN the first line is `MERGE-POLICY denied pr=N reason=no_lane_matched` followed by exactly one `lane=<id> reason=<code>` line per lane | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1524.log TEST-1524 mutation-gate PASS | — | P10 output contract |
 | Spec-AC-18 | This repository's docs/ai/merge-policy.yaml passes `--validate` with exit 0 and holds exactly one lane, id internal-standing, bound to wave-2-roadmap@2026-09-12T19:56:52Z with decision_match STANDING MERGE AUTHORIZATION, merge_reaches nothing, no max_ceremony, requires validation_pass, review_pass, pr_body_contains Residual, intake_types change issue techdebt hotfix, exclude_roadmap_capability true; in a fixture whose base carries that file, a conforming internal ride is allowed and a capability ride, a ceremony-3 ride, a validation fail, a body without Residual and a hooks path are each denied | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1525-1526-1527.log TEST-1525 TEST-1526 mutation-gate PASS | — | migration with identical conditions; mapping in Notes |
 | Spec-AC-19 | `.aai/SKILL_PR.prompt.md` step 6 no longer contains the STANDING AUTHORIZATION paragraph or the string ref wave-2-roadmap, and instructs `node .aai/scripts/merge-policy.mjs --check --pr` with the lane marker and decision_ref citation; the TEST-012 literals (NEVER merge, AAI_OPERATOR_MERGE, guardrail, not a security boundary) survive; `.aai/AGENTS.md` closeout and `.aai/SKILL_SHIP.prompt.md` step 6 name merge-policy.mjs instead of standing authorization | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1525-1526-1527.log TEST-1527 mutation-gate PASS | — | one path |
-| Spec-AC-20 | `aai-doctor.mjs` reports CAT-19 Merge Policy: absent policy with no orphaned authorization is not reported; a valid policy is PASS with lanes=N; an invalid one is WARN naming its codes; an absent policy plus an owner-signed hitl_decision containing STANDING MERGE AUTHORIZATION is WARN naming the record and the remedy; `--json` carries CAT-19 | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1528.log TEST-1528 mutation-gate PASS | — | discoverability and Article 5 mitigation |
+| Spec-AC-20 | `aai-doctor.mjs` reports CAT-19 Merge Policy: absent policy with no orphaned authorization is not reported; a valid policy is PASS with lanes=N; an invalid one is WARN naming its codes, and a noncanonical one also names `merge-policy.mjs --canonical`; an absent policy plus an owner-signed hitl_decision containing STANDING MERGE AUTHORIZATION is WARN naming the record and the remedy; `--json` carries CAT-19 | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1528.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1550-1558.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1558.log TEST-1528 TEST-1558 mutation-gate PASS | — | discoverability and Article 5 mitigation |
 | Spec-AC-21 | docs/CONSTITUTION.md article 7 names lane merges allowed by .aai/scripts/merge-policy.mjs under an owner-signed docs/ai/merge-policy.yaml as the sole sanctioned exception, still contains operator-only, and the ratification line reads v2, 2026-10-03; tests/skills/test-aai-constitution.sh exits 0 | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1529.log TEST-1529 mutation-gate PASS | — | P11, HITL-1: the PR body must ask the owner to ratify by merging |
 | Spec-AC-22 | .aai/system/PROFILES.yaml lists .aai/scripts/merge-policy.mjs under core; .aai/system/DOCS_AI_CANON.list lists merge-policy.yaml; tests/skills/suite-map.yaml maps the evaluator and the new suite so select-suites.mjs prints no FULL_RUN for that path; the prompt-diet ledger carries an entry for this ref and TEST-012 is re-pinned; test-aai-layer-profiles.sh and test-aai-prompt-diet.sh exit 0 | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1530.log, docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1531.log TEST-1530/1531 mutation-gate PASS | — | companion obligations; PROFILES/DOCS_AI_CANON/suite-map rows were already in place from batches 1-7, TEST-1530 verifies them as a regression guard |
 | Spec-AC-23 | CHANGELOG.md carries a `## [unreleased] — ` heading for this capability whose body names docs/ai/merge-policy.yaml, merge-policy.mjs --validate, and the breaking removal of the prose standing authorization with its migration step | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1532.log TEST-1532 mutation-gate PASS | — | Article 5 disclosure |
@@ -538,7 +582,7 @@ substitutions against the identifiers that the Implementation plan mandates.
 | TEST-1531 | Spec-AC-22 | integration | tests/skills/test-aai-prompt-diet.sh | JUSTIFIED_ADDITIONS carries an entry naming configurable-merge-policy-lanes and TEST-012 pin equals the new sum; suite exits 0 | sed:s/configurable-merge-policy-lanes/configurable-merge-policy-lanez/ | green |
 | TEST-1532 | Spec-AC-23 | unit | tests/skills/test-aai-merge-policy.sh | CHANGELOG has a line starting with the unreleased heading prefix whose entry body names merge-policy.yaml, --validate and the standing authorization removal | sed:s/merge-policy\.mjs --validate/merge-policy.mjs --check/ | green |
 | TEST-1533 | Spec-AC-11 | integration | tests/skills/test-aai-merge-policy.sh | validation-round1 B1: `--check --pr <n>` with NO --spec/--intake/--state resolves ceremony/intake_type/ref from STATE current_focus (spec_path/primary_path) and allows a qualifying internal-standing ride | sed:s/function resolveCurrentFocusPaths/function resolveCurrentFocusPathsX/ | green |
-| TEST-1534 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round1 B2: a boolean-typed scalar (production_on_merge) accepts only true/false, bare or quoted; True/yes is parse_error, never a silent false reroute | sed:s/function parseBooleanScalar/function parseBooleanScalarX/ | green |
+| TEST-1534 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round1 B2: a boolean-typed scalar (production_on_merge) reads only true/false; True/yes is parse_error, never a silent false reroute; remediation round 5: a quoted "true"/"false" is noncanonical (one spelling per type), bare true/false stay VALID | sed:s/function parseBooleanScalar/function parseBooleanScalarX/ | green |
 | TEST-1535 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round1 B2: deploy.preview and merge_reaches reject out-of-set values (PUBLIC, publik, Nothing) as parse_error | sed:s/if \(!DEPLOY_PREVIEW_ENUM\.has\(v\)\) return/if (false) return/ | green |
 | TEST-1536 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round1 B2: a repeated requires: block or a repeated lane scalar key is duplicate_key, not last-writer-wins | sed:s/seenLaneKeys\.has\('requires'\)/false \&\& seenLaneKeys.has('requires')/ | green |
 | TEST-1537 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round1 B2: a lane missing a required field (marker) is missing_key | sed:s/for \(const rk of REQUIRED_LANE_KEYS\)/for (const rk of [])/ | green |
@@ -549,11 +593,20 @@ substitutions against the identifiers that the Implementation plan mandates.
 | TEST-1542 | Spec-AC-14 | integration | tests/skills/test-aai-hooks-overlay.sh | validation-round2 R2-B1: the lane path's merge-segment allow-list refuses gh's own --flag=value spelling (--admin=true, --auto=1), a quoted --admin/--auto/--repo/-R, and a repeated --match-head-commit; the canonical allowed shape (plus optional --delete-branch) still allows | sed:s/lane_check_merge_shape \|\| return/true/ (pipe-free replacement: a literal `\|\|` in a replacement cell would land a literal backslash in the mutated source) | green |
 | TEST-1543 | Spec-AC-15 | unit | tests/skills/test-aai-merge-policy.sh | validation-round2 R2-B2: a scalar, unclosed or quoted-pseudo-list value for a list-typed key (kinds, requester_logins, requires.intake_types) is parse_error; an empty requires.pr_body_contains is parse_error; an explicit intake_types: [] and a well-formed requester_logins: [alice] stay VALID (controls) | sed:s/kv4\.key === 'intake_types'/kv4.key === 'intake_types_x'/ | green |
 | TEST-1544 | Spec-AC-15 | integration | tests/skills/test-aai-merge-policy.sh | validation-round2 R2-B2: --check denies reason=policy_invalid code=parse_error for a scalar requires.intake_types, end to end, rather than evaluateLane silently skipping the condition (Array.isArray was false) and allowing a non-matching (feature) intake through a change-only lane | sed:s/kv4\.key === 'intake_types'/kv4.key === 'intake_types_x'/ | green |
-| TEST-1545 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round3 R3-B1: an inline flow value on a block header (requires, deploy, architecture) is noncanonical, never a silently-empty block; an architecture entry with no globs at all is missing_key | sed:s/if \(badLineNo !== null\) \{/if (false) {/ | green |
-| TEST-1546 | Spec-AC-15 | unit | tests/skills/test-aai-merge-policy.sh | validation-round3 NB-3: a trailing bracket pair after a flow list, or a literal comma written as data inside quotes, is parse_error, never a silently narrowed list | sed:s/!quoted &&/false &&/ | green |
-| TEST-1547 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | P1 round-trip: comments, CRLF, quoted-vs-bare scalars and an explicit empty deploy: {} / architecture: [] all stay VALID -- the round-trip check normalizes, never rejects, an accepted equivalent spelling | sed:s/function isEmptyHeaderRest\(rest\) \{/function isEmptyHeaderRest(rest) { return rest === ""; \/\/MUTATED/ | green |
-| TEST-1548 | Spec-AC-12 | integration | tests/skills/test-aai-merge-policy.sh | structural round-trip fuzz: a dozen single-line perturbations of the LIVE merge-policy.yaml, each one the parser would not otherwise consume, are all invalid | sed:s/if \(badLineNo !== null\) \{/if (false) {/ | green |
+| TEST-1545 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round3 R3-B1: an inline flow value on a block header (requires, deploy, architecture) is parse_error (remediation round 5; round 4 reported it as noncanonical), never a silently-empty block; an architecture entry with no globs at all is missing_key | sed:s/if \(rest !== '\[\]' && rest !== '\{\}'\) return 'parse_error';/void 0;/ | green |
+| TEST-1546 | Spec-AC-15 | unit | tests/skills/test-aai-merge-policy.sh | validation-round3 NB-3: a trailing bracket pair after a flow list, or a literal comma written as data inside quotes, is parse_error, never a silently narrowed list -- remediation round 5: a list item with no canonical spelling (a quote, backslash or control character inside) is refused alongside, since it is what would let the canonical emitter echo a misread list back in the file's own shape | sed:s/if \(\[badQuote, noSpelling\]\.some\(Boolean\)\) return null;/void 0;/ | green |
+| TEST-1547 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | P1 textual canonical form: a canonical policy dressed in a BOM, CRLF, full-line, indented and trailing comments (after a space or a tab), trailing spaces/tabs and blank lines stays VALID; every equivalent respelling (quoted or single-quoted string, quoted boolean, quoted list item, empty deploy/architecture/requires block, extra space, key order) is noncanonical -- remediation round 5 deliberately changes round 4's VALID expectation for respellings | sed:s/const text = stripTrailingComment\(line\)/const text = (line)/ | green |
+| TEST-1548 | Spec-AC-12 | integration | tests/skills/test-aai-merge-policy.sh | structural fuzz: a dozen single-line perturbations of the LIVE merge-policy.yaml (found by pattern, not line number), each one the parser would not otherwise consume, are all invalid with the specific code each gets | sed:s/function headerRest\(rest, lines, i, childIndent\) \{/function headerRest() { return 'ok';/ | green |
 | TEST-1549 | Spec-AC-14 | integration | tests/skills/test-aai-hooks-overlay.sh | validation-round3 NB-1: the lane path requires an explicit PR number in the gh pr merge segment; the branch-implicit form (no number) is refused, the canonical numbered shape still allows | sed:s/if \[ "\$have_pr" -eq 0 \]; then/if [ "\$have_pr" -eq 99 ]; then/ | green |
+| TEST-1550 | Spec-AC-13 | integration | tests/skills/test-aai-merge-policy.sh | validation-round4 R4-B1a: the live policy plus a second unconditioned lane spelling its marker [AAI_INTERNAL_STANDING_MERGE] is parse_error at --validate and denied policy_invalid at --check (round 4: allowed lane=loose); decision_ref: [ref@ts] is parse_error; controls: the scalar duplicate stays duplicate_marker, a distinct marker stays VALID lanes=2 | sed:s/if \(\/\^\[\[\{\]\/\.test\(s\)\) return PARSE_FAIL;/void 0;/ | green |
+| TEST-1551 | Spec-AC-14 | integration | tests/skills/test-aai-hooks-overlay.sh | validation-round4 R4-B1a end to end: the real hook adapter denies (rc 2, merge-policy line naming policy_invalid) a policy whose second unconditioned lane spells the marker as a list, for a ride the conditioned lane denies (round 4: rc 0); control: the conditioned lane alone allows a qualifying ride | sed:s/if \(parsed\.errors\) return parsed;/if (false) return parsed;/ | green |
+| TEST-1552 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round4 R4-B1a defense in depth: a [ or { value on every scalar-typed key (version, a kind id, a lane id, deploy.preview, decision_ref, decision_match, signed_by, merge_reaches, marker, max_ceremony, pr_body_contains) is parse_error, not merely noncanonical | sed:s/if \(\/\^\[\[\{\]\/\.test\(s\)\) return PARSE_FAIL;/void 0;/ | green |
+| TEST-1553 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round4 R4-B1b: lanes: [], kinds: [], architecture: [], deploy: {}, requires: {} and lanes: {} each followed by indented children are parse_error (round 4: children read anyway, VALID); an empty block with no children is noncanonical line=2; an omitted block (version only) is VALID lanes=0 | sed:s/if \(i < lines\.length && lines\[i\]\.indent >= childIndent\) return 'parse_error';/void 0;/ | green |
+| TEST-1554 | Spec-AC-15 | unit | tests/skills/test-aai-merge-policy.sh | validation-round4 NB-1: U+FEFF or NBSP before # inside pr_body_contains is not a comment start, the needle keeps it and the file is noncanonical (round 4: needle silently read as Residual, VALID); a # after an ASCII space or a tab stays a comment, VALID | sed:s/raw\[k\]\.text !== canon\[k\]/false/ | green |
+| TEST-1555 | Spec-AC-12 | integration | tests/skills/test-aai-merge-policy.sh | every blocking parser shape from validation rounds 1-3 (quoted booleans, True/yes, PUBLIC/publik, repeated requires, quoted max_ceremony, scalar/unclosed/pseudo-list intake_types, unclosed requester_logins, empty pr_body_contains, inline requires/deploy/architecture, missing globs, trailing bracket, quoted comma, duplicated globs), applied to the live policy, is INVALID with its own code | sed:s/raw\[k\]\.text !== canon\[k\]/false/ | green |
+| TEST-1556 | Spec-AC-12 | integration | tests/skills/test-aai-merge-policy.sh | property test over the live policy: at least 20 single-token perturbations (wrap a scalar in [], quote/unquote, single quotes, leading zero, indent +2/-2, append a token, append {}, list separator, spacing around the colon, duplicate a line, move a line out of order, into another block, into another lane) are each INVALID; comment/whitespace-only perturbations (trailing comments after a space or a tab, full-line and indented comments, blank and whitespace-only lines, trailing spaces/tabs, CRLF plus BOM) each stay VALID | sed:s/raw\[k\]\.text !== canon\[k\]/false/ | green |
+| TEST-1557 | Spec-AC-12 | integration | tests/skills/test-aai-merge-policy.sh | merge-policy.mjs --canonical: the live policy's canonical output fed back through --validate is VALID and equals the live file's body; a respelled live policy (quoted, single-quoted, reordered, spaced) is noncanonical, its --validate names --canonical, and its --canonical output equals the live canonical text and validates; a parse_error makes --canonical exit 1 | sed:s/if \(opts\.mode === 'canonical'\) return runCanonical\(opts\);/void 0;/ | green |
+| TEST-1558 | Spec-AC-20 | integration | tests/skills/test-aai-doctor.sh | CAT-19: a noncanonical policy is WARN naming code=noncanonical line=8 and merge-policy.mjs --canonical; its canonical spelling is PASS | sed:s/l\.includes\('code=noncanonical'\)/false/ | green |
 
 RED observation plan: each row is first seen failing on the pre-change tree,
 where the evaluator does not exist or the text is not yet written. The RED log
