@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: eddae52802c9ffe6007d444c1165a6fc9bed87cede997614a9330824b4e83337
+frozen_sha256: 7a755c397693242b5283ddb1cbc5eb89b0babe3d9d5775cdc3326aece1c4e94b
 ceremony_level: 3
 links:
   requirement: null
@@ -121,6 +121,17 @@ Any key outside this shape is `unknown_key` and makes the policy invalid.
 That includes any key that would switch off CI or the sweep check. Those two
 checks are not configurable.
 Lists may be written in flow style (`[a, b]`). Scalars may be quoted.
+A list-typed key (`kinds`, `requester_logins`, `requires.intake_types`, a
+kind's or architecture entry's `globs`) accepts ONLY a well-formed `[...]`
+flow list: a bare scalar, an unclosed list, or a quoted string that merely
+looks like one (`"[a]"` is the STRING `[a]`, not a list) is `parse_error`,
+never silently read as a one-element list or dropped so the condition it
+names is skipped (validation-round2 R2-B2). An explicitly empty `[]` list
+parses; it is not itself an error (it fails closed at evaluation instead —
+an empty `requires.intake_types` matches no ride). `requires.pr_body_contains`
+is a scalar and must be a non-empty string; an empty needle is `parse_error`
+too (`"".includes("")` is true for every body, so an empty needle would
+never deny).
 
 ### P2 — Decision binding
 
@@ -230,9 +241,20 @@ command is a `gh pr merge` AND a lane marker is present. A lane marker means:
 When no lane marker is present, the gate runs today's code, so it produces
 today's bytes, whether or not a policy exists. When a lane marker is present,
 the hook:
-1. Refuses `--auto` and `--admin` outright (validation-round1 NB-1: either
-   lets GitHub merge a later, unjudged head, or bypasses branch protections
-   the lane path never checked).
+1. Checks the `gh pr merge` segment itself against a fixed ALLOW-LIST
+   (validation-round2 R2-B1: a deny-list keyed on flag spelling is bypassed
+   by quoting a flag, or by gh's own `--flag=value` parsing of
+   `--admin`/`--auto` as real boolean flags — neither spelling ever matched
+   a deny regex looking for the bare word). Any quote character, backslash,
+   or `=` inside a token refuses outright. Past `gh pr merge`, the ONLY
+   tokens permitted are: one bare PR number, one of
+   `--squash`/`--merge`/`--rebase`, an optional `--delete-branch`, and
+   exactly one `--match-head-commit <value>` — each at most once. Every
+   other token (`--auto`, `--admin`, `-R`/`--repo`, a URL, a second
+   `--match-head-commit`, or any future flag not on this list) refuses. This
+   is the one and only gate for `--auto`/`--admin` (validation-round1 NB-1)
+   and for an other-repository `-R`/`--repo` target or URL — one allow-list,
+   not a deny-list per bypass shape found.
 2. Resolves the PR exactly as gate 2b already does, then resolves that PR's
    current head (`gh pr view <n> --json headRefOid`) and requires the command
    to carry `--match-head-commit <that head>` — so the merge can only ever
@@ -433,8 +455,8 @@ string gives `empty_globs`. A CRLF policy file is normalised before the parse.
 | Spec-AC-11 | WHEN the ride's ceremony is 3 THEN a lane without max_ceremony gives lane reason=ceremony_exceeds and a lane with max_ceremony 3 passes; WHEN no spec or intake resolves THEN the ride counts as ceremony 3; on 4 fixture specs the level the evaluator reads equals the ceremony_level line lane-gate.mjs prints | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1514.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1515.log TEST-1514 TEST-1515 mutation-gate PASS | — | ceremony opt-in plus seam with lane-gate |
 | Spec-AC-12 | WHEN a lane's merge_reaches disagrees with deploy (preview with deploy.preview none, nothing with production_on_merge true, production with production_on_merge false), or decision_ref resolves to zero, two, unsigned or other-actor records THEN `--validate` exits 1 printing reaches_inconsistent, decision_missing, decision_ambiguous, decision_unsigned or signer_mismatch respectively; a valid policy prints `VALID lanes=N` and exits 0 | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1516-20261003T224514Z.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1517-20261003T224514Z.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1518-20261003T224514Z.log TEST-1516 TEST-1517 TEST-1518 mutation-gate PASS | — | unsatisfiable lanes fail loudly |
 | Spec-AC-13 | WHEN a lane marker fails MARKER_RE, equals AAI_OPERATOR_MERGE, or repeats another lane's marker THEN `--validate` exits 1 with bad_marker or duplicate_marker; an allowed verdict names the lane's own marker | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1519-20261003T224514Z.log TEST-1519 mutation-gate PASS | — | distinct marker per lane |
-| Spec-AC-14 | WHEN the hook receives `gh pr merge N` with lane X's marker set (environment or leading NAME=1 assignment) and the evaluator allows lane X with a valid sweep record THEN exit 0; with lane Y's marker, with an evaluator denial, or for `git merge` with a lane marker THEN exit 2 and stderr carries the article-7 text plus a merge-policy line naming the verdict; with no marker THEN exit 2 with the article-7 text and no merge-policy line (byte-identical per Spec-AC-02) | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1520.log TEST-1520 mutation-gate PASS | — | P9, real evaluator and real lane-gate in fixture |
-| Spec-AC-15 | WHEN a lane declares requires intake_types, exclude_roadmap_capability, validation_pass, review_pass or pr_body_contains THEN each unmet condition yields its own lane reason (intake_type, roadmap_capability, validation_not_pass, review_not_pass, pr_body_missing), and the fixture meeting all of them is allowed | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1521.log TEST-1521 mutation-gate PASS | — | expresses the 2026-09-12 conditions |
+| Spec-AC-14 | WHEN the hook receives `gh pr merge N` with lane X's marker set (environment or leading NAME=1 assignment) and the evaluator allows lane X with a valid sweep record THEN exit 0; with lane Y's marker, with an evaluator denial, or for `git merge` with a lane marker THEN exit 2 and stderr carries the article-7 text plus a merge-policy line naming the verdict; with no marker THEN exit 2 with the article-7 text and no merge-policy line (byte-identical per Spec-AC-02); the merge segment's own tokens are allow-listed, so no --flag=value or quoted spelling of a refused flag ever reaches gh | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1520.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1542.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1542.log TEST-1520 TEST-1542 mutation-gate PASS | — | P9, real evaluator and real lane-gate in fixture; R2-B1 allow-list |
+| Spec-AC-15 | WHEN a lane declares requires intake_types, exclude_roadmap_capability, validation_pass, review_pass or pr_body_contains THEN each unmet condition yields its own lane reason (intake_type, roadmap_capability, validation_not_pass, review_not_pass, pr_body_missing), and the fixture meeting all of them is allowed; a list-typed requires key (intake_types) or lane key (kinds, requester_logins) that is a scalar, unclosed or quoted-pseudo-list is parse_error, never silently dropped | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1521.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1543-1544.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1543-1544.log TEST-1521 TEST-1543 TEST-1544 mutation-gate PASS | — | expresses the 2026-09-12 conditions; R2-B2 closed-shape list parsing |
 | Spec-AC-16 | WHEN the PR is not OPEN or is a draft THEN reason=pr_not_open; WHEN gh is absent or exits non-zero THEN reason=api_unavailable with exit 3; WHEN baseRefOid or headRefOid is not a local object THEN reason=base_unavailable; across the whole suite the stub gh argv log contains only `pr view` invocations | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1522.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1523.log TEST-1522 TEST-1523 mutation-gate PASS | — | fail closed, no network |
 | Spec-AC-17 | WHEN two lanes both hold THEN the allowed line names the first in file order; WHEN no lane holds THEN the first line is `MERGE-POLICY denied pr=N reason=no_lane_matched` followed by exactly one `lane=<id> reason=<code>` line per lane | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1524.log TEST-1524 mutation-gate PASS | — | P10 output contract |
 | Spec-AC-18 | This repository's docs/ai/merge-policy.yaml passes `--validate` with exit 0 and holds exactly one lane, id internal-standing, bound to wave-2-roadmap@2026-09-12T19:56:52Z with decision_match STANDING MERGE AUTHORIZATION, merge_reaches nothing, no max_ceremony, requires validation_pass, review_pass, pr_body_contains Residual, intake_types change issue techdebt hotfix, exclude_roadmap_capability true; in a fixture whose base carries that file, a conforming internal ride is allowed and a capability ride, a ceremony-3 ride, a validation fail, a body without Residual and a hooks path are each denied | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1525-1526-1527.log TEST-1525 TEST-1526 mutation-gate PASS | — | migration with identical conditions; mapping in Notes |
@@ -498,6 +520,9 @@ substitutions against the identifiers that the Implementation plan mandates.
 | TEST-1539 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round1 NB-7: an absent version is missing_key; a version other than 1 is parse_error | sed:s/policy\.version !== 1/policy.version !== 2/ | green |
 | TEST-1540 | Spec-AC-11 | integration | tests/skills/test-aai-merge-policy.sh | validation-round1 NB-2: readRideCeremony fails closed to 3 on a quoted/non-canonical ceremony_level, and an explicit --spec that does not exist never falls back to --intake | sed:s/if \(!\['0', '1', '2', '3'\]\.includes\(cl\[1\]\)\) return 3/if (false) return 3/ | green |
 | TEST-1541 | Spec-AC-14 | integration | tests/skills/test-aai-hooks-overlay.sh | validation-round1 B1/NB-1: the hook lane path, with no AAI_SWEEP_* vars in a normal session, resolves intake_types from STATE current_focus and allows a qualifying ride naming --match-head-commit; --auto/--admin and a missing/mismatched --match-head-commit are refused | sed:s/LANE_MATCH_HEAD_ERE='--match-head-commit\[\[:space:\]\]\+\(\[0-9a-fA-F\]\+\)'/LANE_MATCH_HEAD_ERE='nomatch'/ | green |
+| TEST-1542 | Spec-AC-14 | integration | tests/skills/test-aai-hooks-overlay.sh | validation-round2 R2-B1: the lane path's merge-segment allow-list refuses gh's own --flag=value spelling (--admin=true, --auto=1), a quoted --admin/--auto/--repo/-R, and a repeated --match-head-commit; the canonical allowed shape (plus optional --delete-branch) still allows | sed:s/lane_check_merge_shape \|\| return/true/ (pipe-free replacement: a literal `\|\|` in a replacement cell would land a literal backslash in the mutated source) | green |
+| TEST-1543 | Spec-AC-15 | unit | tests/skills/test-aai-merge-policy.sh | validation-round2 R2-B2: a scalar, unclosed or quoted-pseudo-list value for a list-typed key (kinds, requester_logins, requires.intake_types) is parse_error; an empty requires.pr_body_contains is parse_error; an explicit intake_types: [] and a well-formed requester_logins: [alice] stay VALID (controls) | sed:s/kv4\.key === 'intake_types'/kv4.key === 'intake_types_x'/ | green |
+| TEST-1544 | Spec-AC-15 | integration | tests/skills/test-aai-merge-policy.sh | validation-round2 R2-B2: --check denies reason=policy_invalid code=parse_error for a scalar requires.intake_types, end to end, rather than evaluateLane silently skipping the condition (Array.isArray was false) and allowing a non-matching (feature) intake through a change-only lane | sed:s/kv4\.key === 'intake_types'/kv4.key === 'intake_types_x'/ | green |
 
 RED observation plan: each row is first seen failing on the pre-change tree,
 where the evaluator does not exist or the text is not yet written. The RED log

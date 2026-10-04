@@ -2628,6 +2628,144 @@ JSON
   log_pass "TEST-1540: readRideCeremony fails closed to 3 on a non-canonical ceremony_level and never falls back from an explicitly-missing --spec to --intake, agreeing with lane-gate.mjs"
 }
 
+# --- TEST-1543 (Spec-AC-10/12/15, validation-round2 R2-B2) -----------------
+# A list-typed policy key (`kinds`, `requester_logins`, `requires.
+# intake_types`) is closed-shape: ONLY a well-formed `[...]` flow list, never
+# a bare scalar silently read as a one-element list, a quoted STRING that
+# merely looks like a list, or an unclosed one. `requires.pr_body_contains`
+# must be a non-empty string. Each malformed case below used to validate as
+# VALID and have evaluateLane silently skip the condition it named (round-1
+# and round-2 both shipped this fail-open); each must now be parse_error. The
+# two control rows (an explicit `intake_types: []`, and a well-formed
+# `requester_logins: [alice]`) must stay exactly as they were -- an
+# explicitly empty list is a real, if unusual, policy shape, not a parse
+# failure, and this fix must not touch the well-formed case at all.
+test_1543_list_typed_requires_closed_shape() {
+  log_info "TEST-1543: a scalar, unclosed or quoted-pseudo-list value for a list-typed key (kinds, requester_logins, requires.intake_types) is parse_error; an empty requires.pr_body_contains is parse_error; an explicit [] list and a well-formed requester_logins stay VALID"
+  local case_name policy_body expect_ok expect_code
+  for case_name in \
+    scalar_intake_types unclosed_intake_types quoted_pseudo_list_intake_types \
+    empty_pr_body_contains unclosed_requester_logins scalar_kinds \
+    empty_intake_types_control closed_requester_logins_control; do
+    mk
+    case "$case_name" in
+      scalar_intake_types)
+        policy_body=$'version: 1\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1543-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1543 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1543A_MERGE\n    requires:\n      intake_types: change\n'
+        expect_ok=0; expect_code=parse_error
+        ;;
+      unclosed_intake_types)
+        policy_body=$'version: 1\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1543-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1543 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1543A_MERGE\n    requires:\n      intake_types: [change, issue, techdebt, hotfix\n'
+        expect_ok=0; expect_code=parse_error
+        ;;
+      quoted_pseudo_list_intake_types)
+        policy_body=$'version: 1\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1543-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1543 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1543A_MERGE\n    requires:\n      intake_types: "[change]"\n'
+        expect_ok=0; expect_code=parse_error
+        ;;
+      empty_pr_body_contains)
+        policy_body=$'version: 1\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1543-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1543 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1543A_MERGE\n    requires:\n      pr_body_contains: ""\n'
+        expect_ok=0; expect_code=parse_error
+        ;;
+      unclosed_requester_logins)
+        policy_body=$'version: 1\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1543-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1543 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1543A_MERGE\n    requester_logins: [alice\n'
+        expect_ok=0; expect_code=parse_error
+        ;;
+      scalar_kinds)
+        policy_body=$'version: 1\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1543-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1543 a"\n    signed_by: owner-login\n    kinds: docs\n    merge_reaches: nothing\n    marker: AAI_T1543A_MERGE\n'
+        expect_ok=0; expect_code=parse_error
+        ;;
+      empty_intake_types_control)
+        policy_body=$'version: 1\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1543-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1543 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1543A_MERGE\n    requires:\n      intake_types: []\n'
+        expect_ok=1
+        ;;
+      closed_requester_logins_control)
+        policy_body=$'version: 1\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1543-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1543 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1543A_MERGE\n    requester_logins: [alice]\n'
+        expect_ok=1
+        ;;
+    esac
+    mkdir -p "$TEST_DIR/root-$case_name/docs/ai"
+    printf '%s' "$policy_body" > "$TEST_DIR/root-$case_name/docs/ai/merge-policy.yaml"
+    cat > "$TEST_DIR/root-$case_name/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"t1543-a","ts":"2026-10-04T00:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE t1543 a approved"}
+JSONL
+    local out rc
+    out="$(node "$MP" --validate --repo-root "$TEST_DIR/root-$case_name" 2>&1)" && rc=0 || rc=$?
+    if [[ "$expect_ok" -eq 1 ]]; then
+      [[ "$rc" -eq 0 ]] || log_fail "TEST-1543 [$case_name]: expected VALID (exit 0), got $rc: $out"
+      assert_payload_has_line "$out" "VALID lanes=1" "TEST-1543 [$case_name]: expected VALID lanes=1, got: $out"
+    else
+      [[ "$rc" -eq 1 ]] || log_fail "TEST-1543 [$case_name]: expected INVALID (exit 1), got $rc: $out"
+      assert_payload_contains "$out" "code=$expect_code" "TEST-1543 [$case_name]: expected $expect_code, got: $out"
+    fi
+  done
+
+  log_pass "TEST-1543: a scalar, unclosed or quoted-pseudo-list value for kinds/requester_logins/requires.intake_types, and an empty requires.pr_body_contains, are each parse_error; an explicit [] list and a well-formed requester_logins stay VALID"
+}
+
+# --- TEST-1544 (Spec-AC-15, validation-round2 R2-B2) ------------------------
+# End to end through --check (not just --validate): a scalar
+# `requires.intake_types` used to validate as VALID and have evaluateLane
+# silently skip the intake_type condition (Array.isArray(req.intake_types)
+# was false, so the whole `if` was never entered) -- allowing a `feature`
+# intake through a lane whose only written restriction was `intake_types:
+# change`. It must now deny reason=policy_invalid before evaluateLane is
+# ever reached.
+test_1544_check_denies_scalar_intake_types() {
+  log_info "TEST-1544: --check denies reason=policy_invalid for a scalar requires.intake_types, never silently skipping the condition and allowing a non-matching intake"
+  mk
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai"
+  cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-t1544
+    decision_ref: t1544-a@2026-10-04T00:00:00Z
+    decision_match: "MERGE LANE t1544 a"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_T1544_MERGE
+    requires:
+      intake_types: change
+YAML
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"t1544-a","ts":"2026-10-04T00:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE t1544 a approved"}
+JSONL
+  commit_all "$repo" "base"
+  local base; base="$(head_sha "$repo")"
+  echo "a docs change" > "$repo/docs/changed-1544.md"
+  commit_all "$repo" "head"
+  local head; head="$(head_sha "$repo")"
+  write_sweep_record "$repo" 95
+
+  cat > "$repo/docs/intake-1544.md" <<'MD'
+---
+id: ride-1544
+type: feature
+---
+
+# intake
+MD
+
+  local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+  cat > "$json" <<JSON
+{"number":95,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json" "$log"
+
+  run_check "$repo" "$ghbin" 95 --intake "$repo/docs/intake-1544.md"
+  assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=95 reason=policy_invalid" \
+    "TEST-1544: expected policy_invalid, got: $OUT"
+  assert_payload_has_line "$OUT" "lane=lane-t1544 reason=parse_error" \
+    "TEST-1544: expected lane=lane-t1544 reason=parse_error, got: $OUT"
+  [[ "$RC" -eq 3 ]] || log_fail "TEST-1544: expected exit 3, got $RC: $OUT"
+
+  log_pass "TEST-1544: a scalar requires.intake_types denies reason=policy_invalid at --check, never silently allowing a feature intake through a change-only lane"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2668,6 +2806,8 @@ main() {
   test_1538_bad_ceremony
   test_1539_version_checked
   test_1540_ceremony_fails_closed_like_lane_gate
+  test_1543_list_typed_requires_closed_shape
+  test_1544_check_denies_scalar_intake_types
   # 1523 last: it asserts over its OWN gh-argv log, built from calls this
   # function makes itself (standalone-runnable), not a suite-wide shared log.
   test_1523_gh_argv_only_pr_view

@@ -1131,10 +1131,12 @@ JSONL
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$d/gh-argv.log"
 if [ "\${1:-}" = "pr" ] && [ "\${2:-}" = "view" ] && [ -f "$d/pr-\${3:-none}.json" ]; then
-  if printf '%s\n' "\$*" | grep -qF -- '-q .headRefOid'; then
-    sed -n 's/.*"headRefOid":"\([^"]*\)".*/\1/p' "$d/pr-\${3}.json"
-    exit 0
-  fi
+  case "\$*" in
+    *'-q .headRefOid'*)
+      sed -n 's/.*"headRefOid":"\([^"]*\)".*/\1/p' "$d/pr-\${3}.json"
+      exit 0
+      ;;
+  esac
   cat "$d/pr-\${3}.json"; exit 0
 fi
 exit 1
@@ -1315,10 +1317,12 @@ YAML
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$d/gh-argv.log"
 if [ "\${1:-}" = "pr" ] && [ "\${2:-}" = "view" ] && [ -f "$d/pr-\${3:-none}.json" ]; then
-  if printf '%s\n' "\$*" | grep -qF -- '-q .headRefOid'; then
-    sed -n 's/.*"headRefOid":"\([^"]*\)".*/\1/p' "$d/pr-\${3}.json"
-    exit 0
-  fi
+  case "\$*" in
+    *'-q .headRefOid'*)
+      sed -n 's/.*"headRefOid":"\([^"]*\)".*/\1/p' "$d/pr-\${3}.json"
+      exit 0
+      ;;
+  esac
   cat "$d/pr-\${3}.json"; exit 0
 fi
 exit 1
@@ -1345,6 +1349,52 @@ GHSTUB
   fi
 
   log_pass "TEST-1541 (validation-round1 B1/NB-1) the hook lane path, with no AAI_SWEEP_* vars in a normal session, resolves intake_types from STATE current_focus and allows a qualifying ride naming --match-head-commit"
+}
+
+# TEST-1542 (Spec-AC-14, validation-round2 R2-B1): the lane path's
+# allow-list over the merge segment's own tokens (lane_check_merge_shape)
+# -- every bypass round 2 found (gh's own --flag=value parsing of
+# --admin/--auto, a quoted flag of either spelling, a quoted -R/--repo
+# target, a repeated --match-head-commit) must still deny, and the
+# canonical allowed shape (plus the optional --delete-branch token) must
+# still allow. Reuses TEST-1520's fixture (PR 71, lane marker X, real head).
+test_1542_lane_merge_segment_allowlist() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-1542 $ADAPTER does not exist"; return; }
+  T1520_D="$(new_fixture)"
+  T1520_OK=1
+  T1520_CWD=""
+  t1520_build_fixture "$T1520_D" || { log_fail "TEST-1542 fixture build failed"; return; }
+  HOOK_PATH="$T1520_D/bin:$PATH"
+  local X=AAI_LANEX1520_MERGE
+  local MHC="--match-head-commit $T1520_HEAD"
+
+  # Round-2 bypasses (R2-B1 table): gh's own --flag=value parsing accepts
+  # --admin=true/--auto=1 as REAL flags (gh 2.93.0, strconv.ParseBool), so a
+  # deny-list keyed on the bare spelling never saw them. The allow-list
+  # refuses any token carrying `=` before comparing flag names at all.
+  t1520_case "admin=true bypass" 2 yes "not permitted on the merge-policy lane" "gh pr merge 71 --squash --admin=true $MHC" "$X=1"
+  t1520_case "auto=1 bypass" 2 yes "not permitted on the merge-policy lane" "gh pr merge 71 --squash --auto=1 $MHC" "$X=1"
+  # A quoted flag: the invoking shell would strip the quotes before gh ever
+  # sees its argv, but the hook reads the RAW command text, so the quote
+  # characters are still literally present here -- which the allow-list
+  # refuses outright (not a recognized token either way).
+  t1520_case "quoted admin bypass" 2 yes "not permitted on the merge-policy lane" "gh pr merge 71 --squash '--admin' $MHC" "$X=1"
+  t1520_case "quoted auto bypass" 2 yes "not permitted on the merge-policy lane" "gh pr merge 71 --squash \"--auto\" $MHC" "$X=1"
+  t1520_case "quoted repo bypass" 2 yes "not permitted on the merge-policy lane" "gh pr merge 71 --squash '--repo' evil/x $MHC" "$X=1"
+  t1520_case "quoted -R bypass" 2 yes "not permitted on the merge-policy lane" "gh pr merge 71 --squash '-R' evil/x $MHC" "$X=1"
+  # A second --match-head-commit: the gate must check EVERY occurrence, not
+  # just the first (gh's own pflag keeps the LAST value, so parsing only the
+  # first would fail SAFE here by accident -- the allow-list refuses the
+  # shape itself, not by luck of which value it happened to read).
+  t1520_case "repeated match-head-commit" 2 yes "--match-head-commit is not permitted more than once" "gh pr merge 71 --squash $MHC --match-head-commit 0000000000000000000000000000000000000000" "$X=1"
+
+  # The canonical allowed shape, including the optional --delete-branch
+  # token, still allows -- the allow-list adds no new refusal on the one
+  # shape this lane exists to permit.
+  t1520_case "canonical allowed shape" 0 no - "gh pr merge 71 --squash --delete-branch $MHC" "$X=1"
+
+  [[ $T1520_OK -eq 1 ]] && log_pass "TEST-1542 (Spec-AC-14, validation-round2 R2-B1) the lane path's merge-segment allow-list refuses every --flag=value, quoted-flag and repeated --match-head-commit bypass, and still allows the canonical shape" \
+                        || log_fail "TEST-1542 lane path merge-segment allow-list"
 }
 
 main() {
@@ -1376,6 +1426,7 @@ main() {
   test_1502_no_marker_bytes_equal_base
   test_1520_lane_marker_path
   test_1541_hook_default_ride_inputs_from_state
+  test_1542_lane_merge_segment_allowlist
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

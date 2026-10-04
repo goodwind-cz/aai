@@ -179,17 +179,22 @@ LANE_NL='
 LANE_MARKER_ERE='^AAI_[A-Z0-9_]+_MERGE$'
 LANE_ASSIGNS_ERE='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*$'
 LANE_SOLE_MERGE_ERE='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'
-LANE_REPO_FLAG_ERE='[[:space:]](-R|--repo)'
 LANE_ALLOWED_ERE='^MERGE-POLICY allowed pr=([0-9]+) lane=[^[:space:]]+ marker=([A-Z0-9_]+) '
-# validation-round1 NB-1: --auto lets GitHub merge a LATER head than the one
-# this lane path is about to verify; --admin bypasses branch protections
-# outright. Neither is permitted on the lane path (the operator path,
-# AAI_OPERATOR_MERGE=1, is the human's own decision and is unaffected).
-LANE_BAD_FLAG_ERE='(^|[[:space:]])(-A|--auto|--admin)([[:space:]]|$)'
 # --match-head-commit's value, gh's own flag for refusing to merge a head
 # other than the one named (used here to pin the lane path to the exact PR
 # head this invocation resolves below, NB-1).
 LANE_MATCH_HEAD_ERE='--match-head-commit[[:space:]]+([0-9a-fA-F]+)'
+
+# R2-B1 (validation-round2): a deny-list keyed on flag spelling
+# (LANE_BAD_FLAG_ERE/LANE_REPO_FLAG_ERE, dropped here) is bypassed by
+# quoting a flag ('--admin') and by gh's own pflag parser, which accepts
+# `--admin=<bool>`/`--auto=<bool>` as real flags -- the regex never saw
+# those spellings as --auto/--admin at all. lane_check_merge_shape (below)
+# replaces both with an ALLOW-LIST over the merge segment's own tokens: the
+# only shapes a lane merge may ever take are a bare PR number, one of
+# --squash/--merge/--rebase, an optional --delete-branch, and exactly one
+# --match-head-commit <value> -- every other token, including any
+# --flag=value spelling, refuses closed.
 
 # Marker names set to 1 in the environment. compgen -e lists exported NAMES
 # only, so a value carrying an embedded "AAI_X_MERGE=1" line cannot forge one.
@@ -227,6 +232,90 @@ lane_prefix_markers() {
   return 0
 }
 
+# lane_check_merge_shape — R2-B1: an ALLOW-LIST over the `gh pr merge`
+# segment's own tokens (reads/writes $MERGE_SEG and $LANE_VERDICT; returns
+# 1 and sets LANE_VERDICT on any refusal, 0 when every token is recognized).
+# A quote character or a backslash anywhere in the segment refuses outright
+# -- gh never sees them (the invoking shell strips them before gh's argv),
+# so a quoted '--admin' or "--auto" reads here as the LITERAL bytes
+# '--admin'/"--auto", which match no allowed token below and would refuse
+# anyway, but the explicit check is the documented contract, not an
+# accident of what the token loop happens to reject. Every token after
+# `gh pr merge` must be exactly one of: a bare PR number (digits only, at
+# most once), one of --squash/--merge/--rebase (at most once),
+# --delete-branch (at most once), or --match-head-commit followed by a
+# non-empty hex value (at most once) -- gh's own --flag=value spelling
+# (e.g. --admin=true, --auto=1, a second --match-head-commit=...) is
+# refused by the leading `*=*` case before any flag name is even compared,
+# so no future addition to this list can be bypassed the same way. Whether
+# --match-head-commit is present at all, and whether its value equals the
+# PR head this invocation resolves, stays lane_path's own job (step 6b
+# below already requires it and checks the value against that resolved
+# head byte for byte); this function only validates the SHAPE of what is
+# here -- a short or mismatched value still reaches step 6b and is denied
+# there, by equality, not by this function guessing a length.
+lane_check_merge_shape() {
+  case "$MERGE_SEG" in
+    *\'*)
+      LANE_VERDICT="lane path refused: a quote character is not permitted on the merge-policy lane"
+      return 1 ;;
+    *\"*)
+      LANE_VERDICT="lane path refused: a quote character is not permitted on the merge-policy lane"
+      return 1 ;;
+    *\\*)
+      LANE_VERDICT="lane path refused: a backslash is not permitted on the merge-policy lane"
+      return 1 ;;
+  esac
+  local rest tokens tok have_pr have_mode have_delete have_match idx
+  rest="$(printf '%s' "$MERGE_SEG" | sed -E 's/^[[:space:]]*gh[[:space:]]+pr[[:space:]]+merge//')"
+  read -r -a tokens <<< "$rest"
+  have_pr=0; have_mode=0; have_delete=0; have_match=0
+  idx=0
+  while [ "$idx" -lt "${#tokens[@]}" ]; do
+    tok="${tokens[$idx]}"
+    idx=$((idx + 1))
+    case "$tok" in
+      *=*)
+        LANE_VERDICT="lane path refused: $tok is not permitted on the merge-policy lane"
+        return 1 ;;
+      --match-head-commit)
+        if [ "$have_match" -ne 0 ]; then
+          LANE_VERDICT="lane path refused: --match-head-commit is not permitted more than once on the merge-policy lane"
+          return 1
+        fi
+        tok="${tokens[$idx]:-}"
+        idx=$((idx + 1))
+        if [ -z "$tok" ] || [[ $tok == *[!0-9a-fA-F]* ]]; then
+          LANE_VERDICT="lane path refused: --match-head-commit requires a hex commit value"
+          return 1
+        fi
+        have_match=1 ;;
+      --squash|--merge|--rebase)
+        if [ "$have_mode" -ne 0 ]; then
+          LANE_VERDICT="lane path refused: $tok is not permitted on the merge-policy lane"
+          return 1
+        fi
+        have_mode=1 ;;
+      --delete-branch)
+        if [ "$have_delete" -ne 0 ]; then
+          LANE_VERDICT="lane path refused: --delete-branch is not permitted more than once on the merge-policy lane"
+          return 1
+        fi
+        have_delete=1 ;;
+      *[!0-9]*|'')
+        LANE_VERDICT="lane path refused: ${tok:-<empty>} is not permitted on the merge-policy lane"
+        return 1 ;;
+      *)
+        if [ "$have_pr" -ne 0 ]; then
+          LANE_VERDICT="lane path refused: $tok is not permitted on the merge-policy lane"
+          return 1
+        fi
+        have_pr=1 ;;
+    esac
+  done
+  return 0
+}
+
 # lane_path — sets LANE_ALLOWED=1, or LANE_VERDICT to the reason it did not.
 lane_path() {
   local pre w words pcwd root_git cwd_git mp_out mp_rc mp_line want_marker
@@ -242,11 +331,13 @@ lane_path() {
     LANE_VERDICT="lane path refused: lane markers cover gh pr merge only"
     return
   fi
-  # 1b. --auto/--admin refused outright (NB-1, above).
-  if [[ $MERGE_SEG =~ $LANE_BAD_FLAG_ERE ]]; then
-    LANE_VERDICT="lane path refused: --auto and --admin are not permitted on the merge-policy lane -- merge the exact head with --match-head-commit"
-    return
-  fi
+  # 1b/3. R2-B1: an allow-list over the merge segment's own tokens (--auto,
+  #    --admin, -R/--repo, a URL target, --flag=value, quoting -- anything
+  #    not on the fixed token set lane_check_merge_shape recognizes) replaces
+  #    the two deny-list regexes this used to be (LANE_BAD_FLAG_ERE,
+  #    LANE_REPO_FLAG_ERE) -- a deny-list keyed on flag spelling is bypassed
+  #    by exactly those two tricks (validation-round2).
+  lane_check_merge_shape || return
   # 2. Every leading assignment must itself be a lane marker set to 1
   #    (GH_REPO=... or any other prefix could retarget what merges).
   pre="$(lane_merge_prefix)" || pre=""
@@ -257,11 +348,6 @@ lane_path() {
       return
     fi
   done
-  # 3. No other-repository target: the evaluator reads THIS project's PR.
-  if [[ " $MERGE_SEG" =~ $LANE_REPO_FLAG_ERE ]] || [[ $MERGE_SEG == *"://"* ]]; then
-    LANE_VERDICT="lane path refused: a --repo or URL target is not this project's PR"
-    return
-  fi
   # 4. Tooling. Missing node, evaluator or gh is today's deny, never an
   #    allow (gh is also needed below, step 6b, to resolve the exact head).
   if ! command -v node >/dev/null 2>&1; then

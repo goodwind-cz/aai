@@ -133,6 +133,30 @@ function parseFlowList(raw) {
   return inner.split(',').map((x) => parseScalar(x.trim()));
 }
 
+// parseRequiredList(raw) -> array | null (invalid) — validation-round2 R2-B2.
+// A list-typed policy key (`kinds`, `requester_logins`, `intake_types`) is
+// closed-shape (P1): ONLY a well-formed `[...]` flow list, never a bare
+// scalar read as a one-element list, a quoted string that merely LOOKS like
+// a list (`"[change]"` is the STRING `[change]`, not a list), or an
+// unclosed/malformed one — every one of those silently dropped the written
+// condition in round-1/round-2 (evaluateLane never even saw it, because the
+// generic scalar-or-list dispatch below only called parseFlowList when the
+// raw text itself started with `[`). parseFlowList already rejects anything
+// not literally bracketed; this adds the one further rule P1 names for a
+// list's own items — an empty item (`[alice,]`, `[,bob]`) is invalid too. An
+// explicitly empty list (`[]`) is NOT rejected here: it parses to `[]` and
+// evaluateLane/validatePolicy fail closed on that already (an empty
+// intake_types matches no ride; an empty requester_logins skips the
+// approval check only because merge_reaches is nothing, exactly as a lane
+// that never wrote the key at all) — a real, if unusual, policy shape, not
+// a parse failure.
+function parseRequiredList(raw) {
+  const list = parseFlowList(raw);
+  if (list === null) return null;
+  if (list.some((x) => x === '')) return null;
+  return list;
+}
+
 const TOP_KEYS = new Set(['version', 'deploy', 'architecture', 'kinds', 'lanes']);
 const DEPLOY_KEYS = new Set(['preview', 'production_on_merge']);
 const LANE_SCALAR_KEYS = [
@@ -313,10 +337,25 @@ export function parsePolicy(text) {
                   const b = parseBooleanScalar(kv4.rest);
                   if (b === undefined) return { errors: [{ lane: lane.id, code: 'parse_error' }] };
                   requires[kv4.key] = b;
+                } else if (kv4.key === 'intake_types') {
+                  // R2-B2: list-typed, closed shape — a scalar, an
+                  // unclosed list or a quoted pseudo-list ("[change]") is
+                  // parse_error, never silently kept as a value evaluateLane
+                  // then has to guess the type of (round-1/round-2 both
+                  // shipped exactly that silent drop).
+                  const list = parseRequiredList(kv4.rest);
+                  if (list === null) return { errors: [{ lane: lane.id, code: 'parse_error' }] };
+                  requires[kv4.key] = list;
                 } else {
-                  requires[kv4.key] = kv4.rest.trim().startsWith('[')
-                    ? parseFlowList(kv4.rest)
-                    : parseScalar(kv4.rest);
+                  // pr_body_contains: the only remaining requires key, and a
+                  // plain string — R2-B2 requires it non-empty (an empty
+                  // needle is `"".includes("")` === true for every body,
+                  // i.e. a written condition that silently never denies).
+                  const v = parseScalar(kv4.rest);
+                  if (typeof v !== 'string' || v === '') {
+                    return { errors: [{ lane: lane.id, code: 'parse_error' }] };
+                  }
+                  requires[kv4.key] = v;
                 }
                 i += 1;
               }
@@ -334,6 +373,17 @@ export function parsePolicy(text) {
               const b = parseBooleanScalar(kv3.rest);
               if (b === undefined) return { errors: [{ lane: lane.id, code: 'parse_error' }] };
               lane[kv3.key] = b;
+            } else if (kv3.key === 'kinds' || kv3.key === 'requester_logins') {
+              // R2-B2: list-typed, closed shape — same discipline as
+              // `requires.intake_types` above. A scalar `kinds: code` (no
+              // brackets) used to be silently wrapped into a one-element
+              // list by the normalization below instead of being rejected;
+              // a malformed `requester_logins: [alice` (unclosed) used to
+              // fold to an empty list and drop the owner's approval
+              // requirement entirely.
+              const list = parseRequiredList(kv3.rest);
+              if (list === null) return { errors: [{ lane: lane.id, code: 'parse_error' }] };
+              lane[kv3.key] = list;
             } else {
               lane[kv3.key] = kv3.rest.trim().startsWith('[') ? parseFlowList(kv3.rest) : parseScalar(kv3.rest);
             }
@@ -342,7 +392,10 @@ export function parsePolicy(text) {
           for (const rk of REQUIRED_LANE_KEYS) {
             if (lane[rk] === undefined) return { errors: [{ lane: lane.id, code: 'missing_key' }] };
           }
-          if (!Array.isArray(lane.kinds)) lane.kinds = lane.kinds != null ? [lane.kinds] : [];
+          // `kinds` is REQUIRED (above) and, when present, is always
+          // already a valid array (rejected otherwise, just above) --
+          // this normalizes only the one remaining shape: a lane that
+          // never wrote `requester_logins` at all (an optional key).
           if (!Array.isArray(lane.requester_logins)) {
             lane.requester_logins = lane.requester_logins != null ? [lane.requester_logins] : [];
           }
@@ -848,8 +901,16 @@ export function evaluateLane(lane, ctx) {
     return { ok: false, reason: 'kind_not_in_lane' };
   }
   const req = lane.requires || {};
-  if (Array.isArray(req.intake_types) && !req.intake_types.includes(ctx.intakeType)) {
-    return { ok: false, reason: 'intake_type' };
+  // R2-B2: a DECLARED intake_types condition denies when its value is not
+  // the array parsePolicy guarantees for a valid policy — never skipped as
+  // though the key were absent. parsePolicy now rejects a malformed/scalar
+  // intake_types outright (parse_error), so this is defense in depth: it
+  // keeps evaluateLane itself fail-closed even if some future caller ever
+  // hands it a lane object that bypassed parsePolicy.
+  if ('intake_types' in req) {
+    if (!Array.isArray(req.intake_types) || !req.intake_types.includes(ctx.intakeType)) {
+      return { ok: false, reason: 'intake_type' };
+    }
   }
   if (req.exclude_roadmap_capability === true
       && ctx.roadmapCapabilities && ctx.roadmapCapabilities.has(ctx.rideRef)) {
