@@ -179,7 +179,19 @@ LANE_NL='
 LANE_MARKER_ERE='^AAI_[A-Z0-9_]+_MERGE$'
 LANE_ASSIGNS_ERE='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*$'
 LANE_SOLE_MERGE_ERE='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'
-LANE_ALLOWED_ERE='^MERGE-POLICY allowed pr=([0-9]+) lane=[^[:space:]]+ marker=([A-Z0-9_]+) '
+# NB-1 (validation round 5): anchored on the evaluator's FIXED field order
+# (lane= marker= decision_ref= merge_reaches=, merge-policy.mjs runCheck's
+# own console.log) rather than a bare " marker=" scan. `lane=.*` (greedy,
+# spans spaces) rather than `lane=[^[:space:]]+` is deliberate: ERE
+# backtracking/POSIX longest-match always prefers the LAST " marker=(...)
+# decision_ref=" occurrence in the line, so a lane id that still somehow
+# carried that literal text as DATA (quoted, with an embedded space) can
+# only ever shift which text is skipped PAST, never which marker is read —
+# the real (last, immediately before decision_ref=) field always wins.
+# merge-policy.mjs's own parse-time SAFE_BARE check (no space or `=` in a
+# lane id) already closes the root cause; this is belt and suspenders on
+# the shell side, which parses the line byte for byte.
+LANE_ALLOWED_ERE='^MERGE-POLICY allowed pr=([0-9]+) lane=.* marker=([A-Z0-9_]+) decision_ref='
 # --match-head-commit's value, gh's own flag for refusing to merge a head
 # other than the one named (used here to pin the lane path to the exact PR
 # head this invocation resolves below, NB-1).

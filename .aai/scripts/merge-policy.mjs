@@ -532,6 +532,16 @@ function parsePolicyLoose(text) {
       if (!kvId || kvId.key !== 'id') return fail('-', 'parse_error');
       const laneId = parseStrictScalar(kvId.rest);
       if (laneId === PARSE_FAIL) return fail('-', 'parse_error');
+      // NB1 (validation round 5): claude-hook-gate.sh's LANE_ALLOWED_ERE
+      // extracts the marker from the evaluator's own printed
+      // "lane=<id> marker=<marker> " text by scanning for the first
+      // non-space run after `lane=` then a literal " marker=" — a quoted
+      // lane id that embeds its OWN " marker=<other>" text would be read as
+      // that fake field instead of the real one (a space is what lets
+      // `[^[:space:]]+` stop early; `=` is the field separator it then
+      // matches on). No lane id has legitimate business carrying either
+      // character in a line a shell-side regex parses byte for byte.
+      if (typeof laneId === 'string' && /[\s=]/.test(laneId)) return fail('-', 'parse_error');
       const lane = { id: laneId };
       i += 1;
       const seenLaneKeys = new Set();
@@ -586,10 +596,19 @@ function parsePolicyLoose(text) {
           const list = parseRequiredList(kv3.rest);
           if (list === null) return fail(lane.id, 'parse_error');
           lane[kv3.key] = list;
+        } else if (kv3.key === 'decision_match') {
+          // N4 (code review, HEAD f47f8861): mirrors the pr_body_contains
+          // rule above — an empty needle ('' .includes('') === true)
+          // matches every decision record's text at the bound ref@ts,
+          // proving nothing about which decision authorizes this lane.
+          const scalar = parseStrictScalar(kv3.rest);
+          if (scalar === PARSE_FAIL) return fail(lane.id, 'parse_error');
+          if (scalar === '') return fail(lane.id, 'parse_error');
+          lane[kv3.key] = scalar;
         } else {
-          // decision_ref, decision_match, signed_by, max_ceremony, marker —
-          // scalar-typed: a `[`/`{` value is parse_error (R4-B1a: `marker:
-          // [X]` used to be read as the list ["X"], dodging duplicate_marker).
+          // decision_ref, signed_by, max_ceremony, marker — scalar-typed: a
+          // `[`/`{` value is parse_error (R4-B1a: `marker: [X]` used to be
+          // read as the list ["X"], dodging duplicate_marker).
           const scalar = parseStrictScalar(kv3.rest);
           if (scalar === PARSE_FAIL) return fail(lane.id, 'parse_error');
           lane[kv3.key] = scalar;
@@ -834,6 +853,13 @@ export function globToRegExp(glob) {
 // The glob engine itself (globToRegExp, Spec-AC-06) is proven through the
 // --classify authoring aid's 10-row glob table.
 export function classifyFiles(files, policy) {
+  // N3 (code review, HEAD f47f8861): getChangedFiles's own zero-file
+  // sentinel (an empty diff) is represented as the single path '-' — the
+  // spec's Implementation plan names this "unclassified, path -" directly,
+  // but '-' reads like any other path through the glob loop below and
+  // matches this repo's own `**` kind. Caught before any glob match, same
+  // as GUARD_PATHS above.
+  if (files.length === 1 && files[0] === '-') return { denyReason: 'unclassified', path: '-' };
   for (const f of files) {
     if (GUARD_PATHS.includes(f)) return { denyReason: 'policy_touched', path: f };
   }
@@ -997,11 +1023,27 @@ export function readRideCeremony(root, specPath, intakePath) {
 // sweep check is never re-derived here; it spawns the SAME lane-gate.mjs
 // --sweep-check this repo's merge hook already calls (S1), forwarding the
 // identical ride inputs (--spec/--intake/--state) this evaluator itself
-// resolved, so the two never judge a different ride. Exit 5 is the ONLY
-// deny signal that mode defines; any other nonzero exit is an adapter
-// failure, not a verdict, and must fail the same way (deny), never silently
-// allow a merge nothing actually swept.
+// resolved, so the two never judge a different ride. Exit 5 is the
+// documented deny signal; any other nonzero exit is an adapter failure, not
+// a verdict, and must fail the same way (deny), never silently allow a
+// merge nothing actually swept.
 const LANE_GATE_PATH = resolve(SELF_DIR, 'lane-gate.mjs');
+
+// sweepCheckAllowed(rc, stdout, pr) -> boolean — B1 (code review, HEAD
+// f47f8861). lane-gate.mjs --sweep-check means "passed" ONLY when it exits
+// 0 AND its first stdout line is the allowed verdict for THIS pr
+// ("SWEEP-CHECK allowed pr=<n> ..."). lane-gate.mjs's own runMain onError
+// handler also exits 0 on ANY internal crash (an unreadable EVENTS.jsonl,
+// EISDIR, or anything else readPrSweepRecords/computeLaneVerdict throws),
+// printing `LANE heavy reason=internal-error` instead — rc alone cannot
+// tell that apart from a real pass, so the line itself is read too. Scanning
+// only the FIRST line mirrors claude-hook-gate.sh's own `mp_line` handling
+// of this evaluator's allowed line.
+export function sweepCheckAllowed(rc, stdout, pr) {
+  if (rc !== 0) return false;
+  const firstLine = String(stdout || '').split('\n')[0] || '';
+  return new RegExp(`^SWEEP-CHECK allowed pr=${pr}(?:[^0-9]|$)`).test(firstLine);
+}
 
 export function runSweepCheck(root, pr, rideOpts) {
   const args = ['--sweep-check', '--pr', String(pr), '--repo-root', root];
@@ -1009,15 +1051,16 @@ export function runSweepCheck(root, pr, rideOpts) {
   if (rideOpts && rideOpts.intake) args.push('--intake', rideOpts.intake);
   if (rideOpts && rideOpts.state) args.push('--state', rideOpts.state);
   let rc = 0;
+  let stdout = '';
   try {
-    execFileSync(process.execPath, [LANE_GATE_PATH, ...args], {
-      cwd: root, stdio: ['ignore', 'pipe', 'pipe'],
+    stdout = execFileSync(process.execPath, [LANE_GATE_PATH, ...args], {
+      cwd: root, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8',
     });
   } catch (err) {
     rc = (err && typeof err.status === 'number') ? err.status : 1;
+    stdout = (err && typeof err.stdout === 'string') ? err.stdout : '';
   }
-  if (rc === 5) return 'sweep_check_failed';
-  return null;
+  return sweepCheckAllowed(rc, stdout, pr) ? null : 'sweep_check_failed';
 }
 
 // readIntakeMeta(root, intakePath) -> { type, ref } — P8, Spec-AC-15
@@ -1145,9 +1188,19 @@ export function evaluateLane(lane, ctx) {
       return { ok: false, reason: 'intake_type' };
     }
   }
-  if (req.exclude_roadmap_capability === true
-      && ctx.roadmapCapabilities && ctx.roadmapCapabilities.has(ctx.rideRef)) {
-    return { ok: false, reason: 'roadmap_capability' };
+  if (req.exclude_roadmap_capability === true) {
+    // N2 (code review, HEAD f47f8861): this key fails CLOSED like every
+    // other `requires` predicate — an unresolvable input (the base roadmap
+    // absent/structurally broken, giving `null`; or the ride's own intake
+    // carrying no `id:`, giving a null rideRef) must deny, never be read as
+    // "nothing to exclude". Only an actually-resolved, non-matching ride
+    // reaches the capability-set check below.
+    if (!ctx.roadmapCapabilities || !ctx.rideRef) {
+      return { ok: false, reason: 'roadmap_unreadable' };
+    }
+    if (ctx.roadmapCapabilities.has(ctx.rideRef)) {
+      return { ok: false, reason: 'roadmap_capability' };
+    }
   }
   const maxCeremony = typeof lane.max_ceremony === 'number' ? lane.max_ceremony : DEFAULT_MAX_CEREMONY;
   if (ctx.ceremony > maxCeremony) {

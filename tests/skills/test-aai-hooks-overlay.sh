@@ -1536,6 +1536,59 @@ lanes:
     || log_fail "TEST-1551 hook refuses a list-spelled marker"
 }
 
+# TEST-1564 (Spec-AC-14, validation-round5 NB-1 part 2): the hook's
+# LANE_ALLOWED_ERE must anchor on the evaluator's FIXED field order (lane=
+# marker= decision_ref=), not a bare " marker=" scan -- a spoofed evaluator
+# output whose lane id EMBEDS its own " marker=<other>" text must not let
+# that embedded field unlock a marker the real lane never names.
+# merge-policy.mjs itself now refuses such a lane id at parse time
+# (test-aai-merge-policy.sh TEST-1563); this is the hook-side half of NB-1,
+# tested here with a FAKE evaluator so it stands on its own regardless of
+# that upstream fix. Reuses TEST-1520's fixture (PR 71, a real head).
+test_1564_hook_anchors_on_fixed_field_order() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-1564 $ADAPTER does not exist"; return; }
+  local ok=1
+  T1520_D="$(new_fixture)"
+  t1520_build_fixture "$T1520_D" || { log_fail "TEST-1564 fixture build failed"; return; }
+  HOOK_PATH="$T1520_D/bin:$PATH"
+  local MHC="--match-head-commit $T1520_HEAD"
+  local pl err
+
+  # Swap in a FAKE evaluator printing a spoofed allowed line: a lane id
+  # that embeds " marker=AAI_OTHER_MERGE" BEFORE the real marker field.
+  mv "$T1520_D/repo/.aai/scripts/merge-policy.mjs" "$T1520_D/merge-policy.mjs.real"
+  printf '%s\n' 'console.log("MERGE-POLICY allowed pr=71 lane=x marker=AAI_OTHER_MERGE marker=AAI_INTERNAL_STANDING_MERGE decision_ref=wave-2-roadmap@2026-09-12T19:56:52Z merge_reaches=nothing"); process.exit(0);' \
+    > "$T1520_D/repo/.aai/scripts/merge-policy.mjs"
+
+  # The SPOOFED (embedded) marker alone must NOT unlock the lane.
+  pl="$T1520_D/payload.json"
+  payload_file "$pl" "gh pr merge 71 --squash $MHC" "$T1520_D/repo"
+  run_adapter "$PROJECT_ROOT/$ADAPTER" "$T1520_D/repo" "$pl" "$T1520_D/err" AAI_OTHER_MERGE=1
+  err="$(cat "$T1520_D/err")"
+  if [[ "$ADAPTER_RC" -ne 2 ]]; then
+    log_info "TEST-1564 [spoofed_marker_only]: expected the hook to deny (rc 2), got rc $ADAPTER_RC: $err"; ok=0
+  fi
+
+  # The REAL (last) marker field still unlocks it.
+  run_adapter "$PROJECT_ROOT/$ADAPTER" "$T1520_D/repo" "$pl" "$T1520_D/err" AAI_INTERNAL_STANDING_MERGE=1
+  err="$(cat "$T1520_D/err")"
+  if [[ "$ADAPTER_RC" -ne 0 ]]; then
+    log_info "TEST-1564 [real_marker]: expected the hook to allow with the REAL marker (rc 0), got rc $ADAPTER_RC: $err"; ok=0
+  fi
+
+  # Both set: still allowed (the real marker is present either way).
+  run_adapter "$PROJECT_ROOT/$ADAPTER" "$T1520_D/repo" "$pl" "$T1520_D/err" AAI_OTHER_MERGE=1 AAI_INTERNAL_STANDING_MERGE=1
+  err="$(cat "$T1520_D/err")"
+  if [[ "$ADAPTER_RC" -ne 0 ]]; then
+    log_info "TEST-1564 [both_set]: expected the hook to allow when the real marker is ALSO set (rc 0), got rc $ADAPTER_RC: $err"; ok=0
+  fi
+
+  mv "$T1520_D/merge-policy.mjs.real" "$T1520_D/repo/.aai/scripts/merge-policy.mjs"
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1564 (Spec-AC-14, NB-1) the hook anchors on the evaluator's fixed field order (marker= immediately before decision_ref=); a lane id embedding its own fake ' marker=' text never unlocks that fake marker" \
+    || log_fail "TEST-1564 hook must anchor on the fixed field order, not a bare marker= scan"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1568,6 +1621,7 @@ main() {
   test_1542_lane_merge_segment_allowlist
   test_1549_lane_requires_explicit_pr_number
   test_1551_hook_refuses_list_spelled_marker
+  test_1564_hook_anchors_on_fixed_field_order
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

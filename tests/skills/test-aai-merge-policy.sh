@@ -1612,13 +1612,22 @@ YAML
 JSONL
     # The roadmap-capability case needs its ride's ref committed into the
     # BASE roadmap as a `- capability:` entry (S4: read from base, never
-    # head/working tree); every other case leaves roadmap.yaml absent so
-    # exclude_roadmap_capability never has anything to match.
+    # head/working tree); every other case commits a roadmap.yaml naming an
+    # UNRELATED capability (N2, code review round: a resolvable roadmap that
+    # genuinely does not list this ride, so exclude_roadmap_capability's own
+    # match check is what each case exercises, not the roadmap_unreadable
+    # fail-closed path TEST-1560 covers).
     if [[ "$case_name" == "roadmap_capability" ]]; then
       cat > "$repo/docs/ai/roadmap.yaml" <<'YAML'
 pairs:
   - capability: ride-1521
     status: planned
+YAML
+    else
+      cat > "$repo/docs/ai/roadmap.yaml" <<'YAML'
+pairs:
+  - capability: an-unrelated-capability
+    status: done
 YAML
     fi
     echo "base doc" > "$repo/docs/base.md"
@@ -2069,6 +2078,16 @@ pairs:
   - capability: ride-1526
     status: planned
 YAML
+    else
+      # N2 (code review round): a resolvable roadmap naming an UNRELATED
+      # capability, so every other case's own intended deny/allow is what
+      # it exercises -- never the roadmap_unreadable fail-closed path an
+      # absent/malformed roadmap now takes (TEST-1560).
+      cat > "$repo/docs/ai/roadmap.yaml" <<'YAML'
+pairs:
+  - capability: an-unrelated-capability
+    status: done
+YAML
     fi
 
     echo "base doc" > "$repo/docs/base.md"
@@ -2283,6 +2302,15 @@ test_1533_default_ride_inputs_from_state() {
     log_fail "TEST-1533: fixture precondition failed -- expected >=3 live wave-2-roadmap records, got $nrec"
     return
   fi
+  # N2 (code review round): a resolvable roadmap naming an UNRELATED
+  # capability -- exclude_roadmap_capability must resolve cleanly and find
+  # no match, never take the roadmap_unreadable fail-closed path an
+  # absent/malformed roadmap now takes (TEST-1560).
+  cat > "$repo/docs/ai/roadmap.yaml" <<'YAML'
+pairs:
+  - capability: an-unrelated-capability
+    status: done
+YAML
   write_intake "$repo/docs/intake-1533.md" "ride-1533" "change"
   cat > "$repo/docs/spec-1533.md" <<'MD'
 ---
@@ -3483,6 +3511,455 @@ test_1557_canonical_mode_round_trips() {
   log_pass "TEST-1557: --canonical output validates, a respelled policy canonicalizes to the live text, a parse_error refuses, and noncanonical names --canonical"
 }
 
+# --- TEST-1559 (Spec-AC-09, code review B1) ---------------------------------
+# runSweepCheck/sweepCheckAllowed must count the sweep as passed ONLY when
+# lane-gate.mjs --sweep-check exits 0 AND its stdout names "SWEEP-CHECK
+# allowed pr=<n>" -- not merely "any exit code other than 5". Before this
+# fix, lane-gate.mjs's own runMain onError handler (exit 0, printing "LANE
+# heavy reason=internal-error" on any internal crash, e.g. an unreadable
+# EVENTS.jsonl) was read as a passed sweep.
+test_1559_sweep_check_requires_allowed_line() {
+  log_info "TEST-1559: an unreadable EVENTS.jsonl (EISDIR) with no pr_sweep record denies sweep_check_failed, never allowed; a stub rc=0 'LANE heavy reason=internal-error' line is never read as a passed sweep; a real pr_sweep record still allows"
+  local ok=1
+
+  # (a) reviewer's own reproduction: EVENTS.jsonl is a DIRECTORY at the
+  #     point lane-gate.mjs reads it, and no pr_sweep record exists at all.
+  mk
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs"
+  cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1559
+    decision_ref: test1559-ride@2026-10-04T18:00:00Z
+    decision_match: "MERGE LANE test1559"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_SWEEP1559_MERGE
+YAML
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1559-ride","ts":"2026-10-04T18:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1559 approved"}
+JSONL
+  echo "base doc" > "$repo/docs/base.md"
+  commit_all "$repo" "base"
+  local base; base="$(head_sha "$repo")"
+  echo "a docs change" > "$repo/docs/changed-1559.md"
+  commit_all "$repo" "head"
+  local head; head="$(head_sha "$repo")"
+  rm -rf "$repo/docs/ai/EVENTS.jsonl"
+  mkdir -p "$repo/docs/ai/EVENTS.jsonl"
+
+  local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+  cat > "$json" <<JSON
+{"number":11,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json" "$log"
+
+  run_check "$repo" "$ghbin" 11
+  if ! assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=11 reason=sweep_check_failed" \
+    "TEST-1559 [eisdir]: expected sweep_check_failed with an unreadable EVENTS.jsonl, got: $OUT"; then ok=0; fi
+  [[ "$RC" -eq 3 ]] || { log_info "TEST-1559 [eisdir]: expected exit 3, got $RC: $OUT"; ok=0; }
+
+  # (b) positive control: a REAL pr_sweep record on an ordinary file still
+  #     allows -- the fix denies on a failed/ambiguous sweep, not on every
+  #     spawn.
+  mk
+  local repo2="$TEST_DIR/repo2"
+  new_repo "$repo2"
+  mkdir -p "$repo2/docs/ai" "$repo2/docs"
+  cat > "$repo2/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1559
+    decision_ref: test1559-ride@2026-10-04T18:00:00Z
+    decision_match: "MERGE LANE test1559"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_SWEEP1559_MERGE
+YAML
+  cat > "$repo2/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1559-ride","ts":"2026-10-04T18:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1559 approved"}
+JSONL
+  echo "base doc" > "$repo2/docs/base.md"
+  commit_all "$repo2" "base"
+  local base2; base2="$(head_sha "$repo2")"
+  echo "a docs change" > "$repo2/docs/changed-1559.md"
+  commit_all "$repo2" "head"
+  local head2; head2="$(head_sha "$repo2")"
+  write_sweep_record "$repo2" 12
+
+  local ghbin2="$TEST_DIR/gh-bin2" json2="$TEST_DIR/pr2.json" log2="$TEST_DIR/gh2.log"
+  cat > "$json2" <<JSON
+{"number":12,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base2","headRefOid":"$head2","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin2" "$json2" "$log2"
+
+  run_check "$repo2" "$ghbin2" 12
+  if ! assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=12 lane=lane-1559 marker=AAI_SWEEP1559_MERGE decision_ref=test1559-ride@2026-10-04T18:00:00Z merge_reaches=nothing" \
+    "TEST-1559 [valid_record]: expected a real pr_sweep record to still allow, got: $OUT"; then ok=0; fi
+  [[ "$RC" -eq 0 ]] || { log_info "TEST-1559 [valid_record]: expected exit 0, got $RC: $OUT"; ok=0; }
+
+  # (c) unit-level: sweepCheckAllowed itself, against a STUB rc=0 line that
+  #     is lane-gate.mjs's exact onError text -- independent of how the real
+  #     spawn fails, proving the fix reads the LINE, not merely the rc.
+  mk
+  local probe="$TEST_DIR/sweep-allowed-probe.mjs"
+  cat > "$probe" <<'NODE'
+import { pathToFileURL } from 'node:url';
+const mpPath = process.argv[2];
+const mod = await import(pathToFileURL(mpPath).href);
+if (typeof mod.sweepCheckAllowed !== 'function') {
+  console.log('FAIL: merge-policy.mjs does not export a sweepCheckAllowed function');
+  process.exit(1);
+}
+const { sweepCheckAllowed } = mod;
+const cases = [
+  { rc: 0, out: 'LANE heavy reason=internal-error\ninternal_error=EISDIR\n', pr: 9, want: false, label: 'stub_internal_error' },
+  { rc: 0, out: 'SWEEP-CHECK allowed pr=9 lane=heavy outcome=internal_substituted\n', pr: 9, want: true, label: 'real_allowed' },
+  { rc: 0, out: 'SWEEP-CHECK allowed pr=90 lane=heavy outcome=internal_substituted\n', pr: 9, want: false, label: 'pr_number_boundary' },
+  { rc: 5, out: 'SWEEP-CHECK denied reason=missing-record pr=9 computed_lane=heavy\n', pr: 9, want: false, label: 'real_denied' },
+  { rc: 1, out: '', pr: 9, want: false, label: 'spawn_failure_no_stdout' },
+];
+let fail = 0;
+for (const c of cases) {
+  const got = sweepCheckAllowed(c.rc, c.out, c.pr);
+  if (got !== c.want) { console.log(`FAIL ${c.label}: want=${c.want} got=${got}`); fail = 1; }
+}
+process.exit(fail);
+NODE
+  local probe_out probe_rc
+  probe_out="$(node "$probe" "$MP" 2>&1)" && probe_rc=0 || probe_rc=$?
+  if [[ "$probe_rc" -ne 0 ]]; then
+    log_info "TEST-1559 [unit]: sweepCheckAllowed unit cases failed: $probe_out"; ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1559 (Spec-AC-09, B1) the sweep check denies on anything other than rc=0 plus a genuine SWEEP-CHECK allowed line; an internal-error stub and an unreadable EVENTS.jsonl both deny; a real record still allows" \
+    || log_fail "TEST-1559 sweep check must require the allowed line, not merely a non-5 exit"
+}
+
+# --- TEST-1560 (Spec-AC-15, code review N2) ---------------------------------
+# exclude_roadmap_capability must fail CLOSED (roadmap_unreadable) when the
+# base roadmap cannot be resolved (absent or structurally broken) or the
+# ride's own intake carries no `id:` -- never silently skipped as though
+# there were nothing to exclude.
+test_1560_roadmap_capability_fails_closed() {
+  log_info "TEST-1560: exclude_roadmap_capability denies roadmap_unreadable when the base roadmap is absent, malformed, or the ride ref cannot be resolved; a resolvable roadmap that genuinely excludes nothing still allows"
+  local case_name
+  for case_name in roadmap_absent roadmap_malformed ride_ref_null allowed_control; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/docs"
+    cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1560
+    decision_ref: test1560-ride@2026-10-04T18:30:00Z
+    decision_match: "MERGE LANE test1560"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_ROADMAP1560_MERGE
+    requires:
+      exclude_roadmap_capability: true
+YAML
+    cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1560-ride","ts":"2026-10-04T18:30:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1560 approved"}
+JSONL
+    case "$case_name" in
+      roadmap_malformed)
+        cat > "$repo/docs/ai/roadmap.yaml" <<'YAML'
+pairs: []
+YAML
+        ;;
+      allowed_control)
+        cat > "$repo/docs/ai/roadmap.yaml" <<'YAML'
+pairs:
+  - capability: an-unrelated-capability
+    status: done
+YAML
+        ;;
+    esac
+    echo "base doc" > "$repo/docs/base.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+    echo "a docs change" > "$repo/docs/changed-$case_name.md"
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+    write_sweep_record "$repo" 40
+
+    if [[ "$case_name" == "ride_ref_null" ]]; then
+      # An intake with NO `id:` frontmatter line at all -- readIntakeMeta's
+      # ref comes back null even though type resolves.
+      cat > "$TEST_DIR/intake.md" <<'MD'
+---
+type: change
+---
+
+# intake fixture with no id
+MD
+    else
+      write_intake "$TEST_DIR/intake.md" "ride-1560" "change"
+    fi
+
+    local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+    cat > "$json" <<JSON
+{"number":40,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+
+    run_check "$repo" "$ghbin" 40 --intake "$TEST_DIR/intake.md"
+
+    case "$case_name" in
+      allowed_control)
+        assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=40 lane=lane-1560 marker=AAI_ROADMAP1560_MERGE decision_ref=test1560-ride@2026-10-04T18:30:00Z merge_reaches=nothing" \
+          "TEST-1560 [$case_name]: a resolvable roadmap excluding nothing must still allow, got: $OUT"
+        [[ "$RC" -eq 0 ]] || log_fail "TEST-1560 [$case_name]: expected exit 0, got $RC: $OUT"
+        ;;
+      *)
+        assert_payload_has_line "$OUT" "lane=lane-1560 reason=roadmap_unreadable" \
+          "TEST-1560 [$case_name]: expected reason=roadmap_unreadable, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1560 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+    esac
+  done
+
+  log_pass "TEST-1560 (Spec-AC-15, N2) exclude_roadmap_capability denies roadmap_unreadable when the base roadmap is absent, malformed, or the ride ref is unresolvable; a resolvable, genuinely-excluding-nothing roadmap still allows"
+}
+
+# --- TEST-1561 (Spec-AC-05, code review N3) ---------------------------------
+# A zero-file PR (getChangedFiles's own '-' sentinel for an empty diff) must
+# classify as unclassified path=-, never matched through the glob loop
+# against this repo's own catch-all `**` kind.
+test_1561_zero_file_diff_is_unclassified() {
+  log_info "TEST-1561: classifyFiles(['-'], policy) is unclassified path=- before any glob match; a PR with an empty diff denies unclassified end to end"
+  local ok=1
+
+  # Unit-level: classifyFiles itself, against a policy whose only kind is a
+  # catch-all ** glob -- the pre-fix code would classify '-' as that kind.
+  mk
+  local probe="$TEST_DIR/classify-probe.mjs"
+  cat > "$probe" <<'NODE'
+import { pathToFileURL } from 'node:url';
+const mpPath = process.argv[2];
+const { classifyFiles } = await import(pathToFileURL(mpPath).href);
+const policy = { architecture: [], kinds: [{ id: 'repo', globs: ['**'] }] };
+const r = classifyFiles(['-'], policy);
+if (r.denyReason !== 'unclassified' || r.path !== '-') {
+  console.log(`FAIL: want {denyReason:'unclassified',path:'-'} got ${JSON.stringify(r)}`);
+  process.exit(1);
+}
+process.exit(0);
+NODE
+  local probe_out probe_rc
+  probe_out="$(node "$probe" "$MP" 2>&1)" && probe_rc=0 || probe_rc=$?
+  if [[ "$probe_rc" -ne 0 ]]; then
+    log_info "TEST-1561 [unit]: $probe_out"; ok=0
+  fi
+
+  # End to end: base === head (an empty diff), with a catch-all kind that
+  # would otherwise match '-'.
+  mk
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai"
+  cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: repo
+    globs: ["**"]
+lanes:
+  - id: lane-1561
+    decision_ref: test1561-ride@2026-10-04T19:00:00Z
+    decision_match: "MERGE LANE test1561"
+    signed_by: owner-login
+    kinds: [repo]
+    merge_reaches: nothing
+    marker: AAI_ZEROFILE1561_MERGE
+YAML
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1561-ride","ts":"2026-10-04T19:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1561 approved"}
+JSONL
+  echo "base doc" > "$repo/docs/base.md"
+  commit_all "$repo" "base"
+  local base; base="$(head_sha "$repo")"
+  write_sweep_record "$repo" 50
+
+  local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+  # headRefOid === baseRefOid -- git diff base...head is empty.
+  cat > "$json" <<JSON
+{"number":50,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$base","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json" "$log"
+
+  run_check "$repo" "$ghbin" 50
+  if ! assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=50 reason=unclassified path=-" \
+    "TEST-1561 [check]: expected unclassified path=- for an empty diff, got: $OUT"; then ok=0; fi
+  [[ "$RC" -eq 3 ]] || { log_info "TEST-1561 [check]: expected exit 3, got $RC: $OUT"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1561 (Spec-AC-05, N3) the zero-file sentinel '-' classifies as unclassified before any glob match, both at the unit level and end to end through --check" \
+    || log_fail "TEST-1561 zero-file diff must classify as unclassified, not match a catch-all glob"
+}
+
+# --- TEST-1562 (Spec-AC-12, code review N4) ---------------------------------
+# An empty decision_match mirrors pr_body_contains's own empty-needle rule:
+# parse_error, never a scalar that silently matches every decision at the
+# bound ref@ts.
+test_1562_empty_decision_match_is_parse_error() {
+  log_info "TEST-1562: decision_match: \"\" is parse_error at --validate, mirroring pr_body_contains; a non-empty decision_match stays VALID (control)"
+  mk
+  local f="$TEST_DIR/policy.yaml"
+  cat > "$f" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1562
+    decision_ref: test1562-ride@2026-10-04T19:30:00Z
+    decision_match: ""
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_EMPTYMATCH1562_MERGE
+YAML
+  local vout vrc
+  vout="$(node "$MP" --validate --path "$f" 2>&1)" && vrc=0 || vrc=$?
+  [[ "$vrc" -eq 1 ]] || log_fail "TEST-1562 [empty]: --validate must exit 1, got $vrc: $vout"
+  assert_payload_has_line "$vout" "INVALID lane=lane-1562 code=parse_error" \
+    "TEST-1562 [empty]: expected parse_error for an empty decision_match, got: $vout"
+
+  local croot="$TEST_DIR/croot"
+  mkdir -p "$croot/docs/ai"
+  local f2="$croot/docs/ai/merge-policy.yaml"
+  cat > "$f2" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1562
+    decision_ref: test1562-ride@2026-10-04T19:30:00Z
+    decision_match: "MERGE LANE test1562"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_EMPTYMATCH1562_MERGE
+YAML
+  cat > "$croot/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1562-ride","ts":"2026-10-04T19:30:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1562 approved"}
+JSONL
+  local vout2 vrc2
+  vout2="$(node "$MP" --validate --path "$f2" --repo-root "$croot" 2>&1)" && vrc2=0 || vrc2=$?
+  [[ "$vrc2" -eq 0 ]] || log_fail "TEST-1562 [control]: a non-empty decision_match must stay VALID, got $vrc2: $vout2"
+  assert_payload_has_line "$vout2" "VALID lanes=1" \
+    "TEST-1562 [control]: expected VALID lanes=1, got: $vout2"
+
+  log_pass "TEST-1562 (Spec-AC-12, N4) decision_match: \"\" is parse_error, mirroring pr_body_contains; a non-empty decision_match stays VALID"
+}
+
+# --- TEST-1563 (Spec-AC-13, validation-round5 NB-1 part 1) ------------------
+# A lane id carrying a space or `=` is parse_error at --validate -- the root
+# cause of claude-hook-gate.sh's LANE_ALLOWED_ERE being spoofable by a lane
+# id that embeds its own " marker=<other>" text (closed on the hook side by
+# TEST-1564).
+test_1563_lane_id_rejects_space_and_equals() {
+  log_info "TEST-1563: a lane id containing a space or an = is parse_error at --validate; a hyphenated/numeric id (existing live shapes) stays VALID (controls)"
+  local ok=1
+  local -a cases=(
+    'space|id: "x marker=AAI_OTHER_MERGE"'
+    'equals_no_space|id: "x=y"'
+  )
+  local entry name idline f
+  for entry in "${cases[@]}"; do
+    name="${entry%%|*}"
+    idline="${entry#*|}"
+    mk
+    f="$TEST_DIR/policy-$name.yaml"
+    cat > "$f" <<YAML
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - $idline
+    decision_ref: test1563-ride@2026-10-04T20:00:00Z
+    decision_match: "MERGE LANE test1563"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_LANEID1563_MERGE
+YAML
+    local vout vrc
+    vout="$(node "$MP" --validate --path "$f" 2>&1)" && vrc=0 || vrc=$?
+    if [[ "$vrc" -ne 1 ]]; then
+      log_info "TEST-1563 [$name]: --validate must exit 1, got $vrc: $vout"; ok=0
+    fi
+    if ! assert_payload_contains "$vout" "code=parse_error" "TEST-1563 [$name]: expected parse_error, got: $vout"; then ok=0; fi
+  done
+
+  # Controls: the live hyphenated id, and a numeric id, both stay VALID.
+  mk
+  local croot="$TEST_DIR/croot"
+  mkdir -p "$croot/docs/ai"
+  cat > "$croot/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1563-ride","ts":"2026-10-04T20:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1563 approved"}
+JSONL
+  local fc="$croot/docs/ai/merge-policy.yaml"
+  cat > "$fc" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: internal-standing-1563
+    decision_ref: test1563-ride@2026-10-04T20:00:00Z
+    decision_match: "MERGE LANE test1563"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_LANEID1563_MERGE
+YAML
+  local vcout vcrc
+  vcout="$(node "$MP" --validate --path "$fc" --repo-root "$croot" 2>&1)" && vcrc=0 || vcrc=$?
+  [[ "$vcrc" -eq 0 ]] || { log_info "TEST-1563 [hyphen_control]: expected VALID, got $vcrc: $vcout"; ok=0; }
+
+  local fn="$croot/policy-numeric.yaml"
+  cat > "$fn" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: 1563
+    decision_ref: test1563-ride@2026-10-04T20:00:00Z
+    decision_match: "MERGE LANE test1563"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_LANEID1563_MERGE
+YAML
+  local vnout vnrc
+  vnout="$(node "$MP" --validate --path "$fn" --repo-root "$croot" 2>&1)" && vnrc=0 || vnrc=$?
+  [[ "$vnrc" -eq 0 ]] || { log_info "TEST-1563 [numeric_control]: expected VALID, got $vnrc: $vnout"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1563 (Spec-AC-13, NB-1) a lane id with a space or = is parse_error; hyphenated and numeric ids (existing live shapes) stay VALID" \
+    || log_fail "TEST-1563 lane id must reject a space or ="
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -3536,6 +4013,11 @@ main() {
   test_1555_earlier_round_shapes_stay_invalid
   test_1556_live_policy_perturbation_property
   test_1557_canonical_mode_round_trips
+  test_1559_sweep_check_requires_allowed_line
+  test_1560_roadmap_capability_fails_closed
+  test_1561_zero_file_diff_is_unclassified
+  test_1562_empty_decision_match_is_parse_error
+  test_1563_lane_id_rejects_space_and_equals
   # 1523 last: it asserts over its OWN gh-argv log, built from calls this
   # function makes itself (standalone-runnable), not a suite-wide shared log.
   test_1523_gh_argv_only_pr_view
