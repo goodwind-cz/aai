@@ -94,17 +94,21 @@ function stripComment(line) {
   return line;
 }
 
+// lineNo is the physical (1-based) line number in the source text, BEFORE
+// blank/comment-only lines are dropped -- the round-trip check (checkRoundTrip
+// below, called from parsePolicy) names it on a `noncanonical` finding so a
+// diff points at a real place in the file, not an index into this filtered
+// array.
 function tokenizeLines(text) {
-  return text
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .map((raw) => {
-      const stripped = stripComment(raw);
-      if (!stripped.trim()) return null;
-      const indent = stripped.length - stripped.replace(/^ */, '').length;
-      return { indent, content: stripped.trim() };
-    })
-    .filter(Boolean);
+  const rawLines = String(text).replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  for (let idx = 0; idx < rawLines.length; idx += 1) {
+    const stripped = stripComment(rawLines[idx]);
+    if (!stripped.trim()) continue;
+    const indent = stripped.length - stripped.replace(/^ */, '').length;
+    out.push({ indent, content: stripped.trim(), lineNo: idx + 1 });
+  }
+  return out;
 }
 
 function splitKV(content) {
@@ -125,12 +129,39 @@ function parseScalar(raw) {
   return s;
 }
 
+// round-3 NB-3 — a comma-split that does not respect quoting silently
+// NARROWS a malformed list to junk items instead of failing closed: a
+// literal comma meant as DATA inside quotes (`["a,b"]`) splits into two
+// halves, each missing the quote character that would have closed it
+// (`"a` / `b"`); a second bracket pair trailing the list (`[a] [b]`) passes
+// the bare start-with-`[`/end-with-`]` check and inner-slices to `a] [b`,
+// one "item" carrying stray `[`/`]` text. Neither shape is on offer in P1 —
+// quoting is for a scalar that needs it, not for escaping a separator — so
+// any split item that is not ITSELF a single well-quoted token, and still
+// carries a quote or bracket/brace character, is the tell that the comma
+// split cut through something it should not have: reject the whole list.
 function parseFlowList(raw) {
   const s = String(raw).trim();
   if (!s.startsWith('[') || !s.endsWith(']')) return null;
   const inner = s.slice(1, -1).trim();
   if (inner === '') return [];
-  return inner.split(',').map((x) => parseScalar(x.trim()));
+  const tokens = inner.split(',').map((x) => x.trim());
+  const items = [];
+  for (const tok of tokens) {
+    if (tok !== '') {
+      // A token is cleanly quoted only when its FIRST and LAST characters
+      // are a matching quote pair AND nothing in between repeats that same
+      // quote character — `"a"] ["b"` (a trailing bracket pair after the
+      // list) starts and ends with `"` too, but its middle still carries
+      // the stray `]`/`[`/`"` this check exists to catch.
+      const q = (tok[0] === '"' || tok[0] === "'") ? tok[0] : '';
+      const quoted = q !== '' && tok.length >= 2 && tok[tok.length - 1] === q
+        && !tok.slice(1, -1).includes(q);
+      if (!quoted && /['"[\]{}]/.test(tok)) return null;
+    }
+    items.push(parseScalar(tok));
+  }
+  return items;
 }
 
 // parseRequiredList(raw) -> array | null (invalid) — validation-round2 R2-B2.
@@ -197,6 +228,116 @@ const ALLOWED_REQUIRES_KEYS = new Set([
   'review_pass', 'pr_body_contains',
 ]);
 
+// ---------------------------------------------------------------------------
+// P1 round-trip (remediation round 4, validation-round3 R3-B1). Closes the
+// whole "the parser silently drops what it does not understand" class in
+// ONE mechanism instead of a per-shape patch: parsePolicy re-emits the
+// policy it just built in ONE canonical text form (fixed key order,
+// two-space indentation, block style for `- id:` mappings, flow style
+// `[a, b]` for every scalar list, canonical scalars) and requires that
+// text to equal the source file line for line, after only meaning-
+// preserving normalization (comments/CRLF/BOM/blank lines stripped,
+// equivalent scalar spellings canonicalized — never a regex over meaning).
+// Anything the parser skipped, ignored or misread then shows up as a diff:
+// inline content on a line that is really just a block header (`deploy:
+// {...}`, `architecture: [...]`, a lane's `requires: {...}`) has no
+// canonical counterpart, because the canonical form for that header is
+// ALWAYS the bare key with nothing after the colon — the exact R3-B1 shape.
+// A `noncanonical` finding names the first source line the two disagree on.
+//
+// The emission order below is each schema-fixed field order already
+// defined above as a constant (DEPLOY_KEYS, LANE_SCALAR_KEYS,
+// ALLOWED_REQUIRES_KEYS), reused rather than restated so the two can never
+// drift apart from each other.
+const DEPLOY_ORDER = [...DEPLOY_KEYS];
+const LANE_ORDER = [...LANE_SCALAR_KEYS, 'requires'];
+const REQUIRES_ORDER = [...ALLOWED_REQUIRES_KEYS];
+
+// needsQuoteScalar(s) -> bool. A bare (unquoted) spelling of `s` must read
+// back, through parseScalar, as the SAME string — never as a boolean, a
+// number, nor (via leading/trailing whitespace) a shorter string, nor (via
+// a list/comment/quote metacharacter) something splitKV/parseFlowList
+// would itself cut on. Quoting is otherwise never required: this is the
+// one shared rule canonicalScalarText below applies to BOTH the emitted
+// value (from the parsed object) and the source's own value (re-derived
+// from its raw text by the same parse functions) — so an accepted
+// alternate spelling (quoted vs bare, `"true"` vs `true`) always
+// canonicalizes to identical bytes on both sides, by construction, not by
+// matching the source's own quoting choice.
+function needsQuoteScalar(s) {
+  if (s === '' || s === 'true' || s === 'false') return true;
+  if (/^-?\d+$/.test(s)) return true;
+  if (/[,[\]{}"'#]/.test(s)) return true;
+  if (/^\s|\s$/.test(s)) return true;
+  return false;
+}
+
+function canonicalScalarText(v) {
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (typeof v === 'number') return String(v);
+  const s = String(v);
+  return needsQuoteScalar(s) ? `"${s.replace(/"/g, '\\"')}"` : s;
+}
+
+function canonicalValueText(v) {
+  return Array.isArray(v) ? `[${v.map(canonicalScalarText).join(', ')}]` : canonicalScalarText(v);
+}
+
+// isEmptyHeaderRest(rest) -> bool. A block-introducing key's canonical form
+// is always the bare key; `rest` naming the R3-B1 shape is any TEXT there
+// at all -- EXCEPT an explicit empty collection (`[]` or `{}`), which loses
+// nothing (omitting the key entirely means exactly the same "zero
+// entries") and is accepted as the one equivalent spelling of "nothing was
+// written here".
+function isEmptyHeaderRest(rest) {
+  return rest === '' || rest === '[]' || rest === '{}';
+}
+
+// emitCanonical(policy, meta) -> string[]. `meta` names exactly which
+// optional piece was WRITTEN at all — a parsed value alone cannot tell,
+// since several fields are defaulted in (e.g. `deploy` itself, or a lane's
+// `requester_logins`, always present on the object even when the source
+// never wrote them).
+function emitCanonical(policy, meta) {
+  const out = [`version: ${canonicalValueText(policy.version)}`];
+  if (meta.seenTop.has('deploy')) {
+    out.push('deploy:');
+    for (const k of DEPLOY_ORDER) {
+      if (meta.seenDeploy.has(k)) out.push(`  ${k}: ${canonicalValueText(policy.deploy[k])}`);
+    }
+  }
+  for (const topKey of ['architecture', 'kinds']) {
+    if (!meta.seenTop.has(topKey)) continue;
+    out.push(`${topKey}:`);
+    for (const item of policy[topKey]) {
+      out.push(`  - id: ${canonicalValueText(item.id)}`);
+      out.push(`    globs: ${canonicalValueText(item.globs)}`);
+    }
+  }
+  if (meta.seenTop.has('lanes')) {
+    out.push('lanes:');
+    policy.lanes.forEach((lane, idx) => {
+      const seen = meta.laneSeen[idx];
+      out.push(`  - id: ${canonicalValueText(lane.id)}`);
+      for (const k of LANE_ORDER) {
+        if (k === 'requires') {
+          if (seen.has('requires')) {
+            out.push('    requires:');
+            for (const rk of REQUIRES_ORDER) {
+              if (Object.prototype.hasOwnProperty.call(lane.requires, rk)) {
+                out.push(`      ${rk}: ${canonicalValueText(lane.requires[rk])}`);
+              }
+            }
+          }
+          continue;
+        }
+        if (seen.has(k)) out.push(`    ${k}: ${canonicalValueText(lane[k])}`);
+      }
+    });
+  }
+  return out;
+}
+
 // parseBooleanScalar(raw) -> true | false | undefined (invalid) —
 // validation-round1 B2. P1 allows quoting, but a boolean-typed field accepts
 // ONLY the canonical `true`/`false` token, bare or quoted — never a case
@@ -236,6 +377,17 @@ export function parsePolicy(text) {
   };
   let i = 0;
   const seenTop = new Set();
+  // origNorm — the source's own lines, in SOURCE order, each normalized to
+  // the same canonical text emitCanonical would produce for that exact
+  // value (round-trip check below; see the comment above emitCanonical). A
+  // block-introducing line (deploy/architecture/kinds/lanes/requires) has
+  // no "value" of its own — its canonical form is always the bare key — so
+  // it is pushed literally (key + its raw rest, if any) instead: that is
+  // precisely the R3-B1 shape (an inline value the parser never reads) and
+  // it only ever disagrees with emitCanonical's bare-key line when rest is
+  // non-empty.
+  const origNorm = [];
+  const meta = { seenTop, seenDeploy: new Set(), laneSeen: [] };
   try {
     while (i < lines.length) {
       const { indent, content } = lines[i];
@@ -249,11 +401,13 @@ export function parsePolicy(text) {
 
       if (key === 'version') {
         policy.version = parseScalar(rest);
+        origNorm.push({ lineNo: lines[i].lineNo, text: `version: ${canonicalValueText(policy.version)}` });
         i += 1;
         continue;
       }
 
       if (key === 'deploy') {
+        origNorm.push({ lineNo: lines[i].lineNo, text: isEmptyHeaderRest(rest) ? 'deploy:' : `deploy: ${rest}` });
         i += 1;
         const block = {};
         const seenDeploy = new Set();
@@ -271,16 +425,19 @@ export function parsePolicy(text) {
             if (!DEPLOY_PREVIEW_ENUM.has(v)) return { errors: [{ lane: '-', code: 'parse_error' }] };
             block[kv2.key] = v;
           }
+          origNorm.push({ lineNo: lines[i].lineNo, text: `  ${kv2.key}: ${canonicalValueText(block[kv2.key])}` });
           i += 1;
         }
         policy.deploy = {
           preview: block.preview ?? 'none',
           production_on_merge: block.production_on_merge ?? false,
         };
+        meta.seenDeploy = seenDeploy;
         continue;
       }
 
       if (key === 'architecture' || key === 'kinds') {
+        origNorm.push({ lineNo: lines[i].lineNo, text: isEmptyHeaderRest(rest) ? `${key}:` : `${key}: ${rest}` });
         i += 1;
         const list = [];
         while (i < lines.length && lines[i].indent === 2 && lines[i].content.startsWith('- ')) {
@@ -288,7 +445,9 @@ export function parsePolicy(text) {
           const kvId = splitKV(first);
           if (!kvId || kvId.key !== 'id') return { errors: [{ lane: '-', code: 'parse_error' }] };
           const item = { id: parseScalar(kvId.rest), globs: [] };
+          origNorm.push({ lineNo: lines[i].lineNo, text: `  - id: ${canonicalValueText(item.id)}` });
           i += 1;
+          let sawGlobs = false;
           while (i < lines.length && lines[i].indent === 4) {
             const kv3 = splitKV(lines[i].content);
             if (!kv3 || kv3.key !== 'globs') return { errors: [{ lane: item.id, code: 'unknown_key' }] };
@@ -298,8 +457,15 @@ export function parsePolicy(text) {
               return { errors: [{ lane: item.id, code: 'empty_globs' }] };
             }
             item.globs = g;
+            sawGlobs = true;
+            origNorm.push({ lineNo: lines[i].lineNo, text: `    globs: ${canonicalValueText(g)}` });
             i += 1;
           }
+          // P1 names `globs` on every architecture/kind entry; an entry
+          // that never writes it used to stay VALID with globs silently
+          // `[]` (matches nothing) instead of failing closed
+          // (validation-round3 R3-B1, the smaller related gap).
+          if (!sawGlobs) return { errors: [{ lane: item.id, code: 'missing_key' }] };
           list.push(item);
         }
         policy[key] = list;
@@ -307,6 +473,7 @@ export function parsePolicy(text) {
       }
 
       if (key === 'lanes') {
+        origNorm.push({ lineNo: lines[i].lineNo, text: isEmptyHeaderRest(rest) ? 'lanes:' : `lanes: ${rest}` });
         i += 1;
         const lanes = [];
         while (i < lines.length && lines[i].indent === 2 && lines[i].content.startsWith('- ')) {
@@ -314,6 +481,7 @@ export function parsePolicy(text) {
           const kvId = splitKV(first);
           if (!kvId || kvId.key !== 'id') return { errors: [{ lane: '-', code: 'parse_error' }] };
           const lane = { id: parseScalar(kvId.rest) };
+          origNorm.push({ lineNo: lines[i].lineNo, text: `  - id: ${canonicalValueText(lane.id)}` });
           i += 1;
           const seenLaneKeys = new Set();
           while (i < lines.length && lines[i].indent === 4) {
@@ -322,6 +490,10 @@ export function parsePolicy(text) {
             if (kv3.key === 'requires') {
               if (seenLaneKeys.has('requires')) return { errors: [{ lane: lane.id, code: 'duplicate_key' }] };
               seenLaneKeys.add('requires');
+              origNorm.push({
+                lineNo: lines[i].lineNo,
+                text: isEmptyHeaderRest(kv3.rest) ? '    requires:' : `    requires: ${kv3.rest}`,
+              });
               i += 1;
               const requires = {};
               const seenRequires = new Set();
@@ -357,6 +529,10 @@ export function parsePolicy(text) {
                   }
                   requires[kv4.key] = v;
                 }
+                origNorm.push({
+                  lineNo: lines[i].lineNo,
+                  text: `      ${kv4.key}: ${canonicalValueText(requires[kv4.key])}`,
+                });
                 i += 1;
               }
               lane.requires = requires;
@@ -387,6 +563,7 @@ export function parsePolicy(text) {
             } else {
               lane[kv3.key] = kv3.rest.trim().startsWith('[') ? parseFlowList(kv3.rest) : parseScalar(kv3.rest);
             }
+            origNorm.push({ lineNo: lines[i].lineNo, text: `    ${kv3.key}: ${canonicalValueText(lane[kv3.key])}` });
             i += 1;
           }
           for (const rk of REQUIRED_LANE_KEYS) {
@@ -399,6 +576,7 @@ export function parsePolicy(text) {
           if (!Array.isArray(lane.requester_logins)) {
             lane.requester_logins = lane.requester_logins != null ? [lane.requester_logins] : [];
           }
+          meta.laneSeen.push(seenLaneKeys);
           lanes.push(lane);
         }
         policy.lanes = lanes;
@@ -410,6 +588,41 @@ export function parsePolicy(text) {
   }
   if (policy.version == null) return { errors: [{ lane: '-', code: 'missing_key' }] };
   if (policy.version !== 1) return { errors: [{ lane: '-', code: 'parse_error' }] };
+
+  // The round-trip check (see the comment above emitCanonical): re-emit the
+  // policy just built in canonical form and require every line of it to
+  // have a counterpart in origNorm -- the source's OWN lines, each already
+  // normalized to the same canonical text a correctly-read line would
+  // produce (see each origNorm.push above). The comparison is by MULTISET,
+  // not position: P1 fixes the shape of each key's OWN line, never an
+  // order lane/deploy/requires keys must appear in relative to each other,
+  // so two lines trading places is not itself a defect. What the P1 closed
+  // shape does rule out is a line with no canonical counterpart at all --
+  // a dropped inline value on a block header (`deploy: {...}`, `lanes:
+  // [...]`, a lane's `requires: {...}`) re-emits as the bare header line
+  // and so never matches the source's own (longer) text for that line. That
+  // surfaces here, generically, as `noncanonical`, named at the first
+  // source line with no remaining match.
+  const canon = emitCanonical(policy, meta);
+  const remaining = new Map();
+  for (const line of canon) remaining.set(line, (remaining.get(line) ?? 0) + 1);
+  let badLineNo = null;
+  for (const o of origNorm) {
+    const have = remaining.get(o.text) ?? 0;
+    if (have > 0) {
+      remaining.set(o.text, have - 1);
+    } else if (badLineNo === null) {
+      badLineNo = o.lineNo;
+    }
+  }
+  if (badLineNo === null) {
+    let leftover = 0;
+    for (const v of remaining.values()) leftover += v;
+    if (leftover > 0) badLineNo = origNorm.length ? origNorm[origNorm.length - 1].lineNo : 0;
+  }
+  if (badLineNo !== null) {
+    return { errors: [{ lane: '-', code: 'noncanonical', line: badLineNo }] };
+  }
   return { policy };
 }
 
@@ -979,8 +1192,15 @@ function getChangedFiles(root, base, head) {
   return files.length ? files : ['-'];
 }
 
+// lineSuffix(e) — a `noncanonical` finding (parsePolicy's round-trip check)
+// carries the first source line the two sides disagree on; every other
+// code carries no `line`, so this is a no-op for them.
+function lineSuffix(e) {
+  return e.line !== undefined ? ` line=${e.line}` : '';
+}
+
 function printLaneErrors(errors) {
-  for (const e of errors) console.log(`lane=${e.lane ?? '-'} reason=${e.code}`);
+  for (const e of errors) console.log(`lane=${e.lane ?? '-'} reason=${e.code}${lineSuffix(e)}`);
 }
 
 function runCheck(opts) {
@@ -1135,14 +1355,14 @@ function runValidate(opts) {
   const text = readFileSync(policyPath, 'utf8');
   const parsed = parsePolicy(text);
   if (parsed.errors) {
-    for (const e of parsed.errors) console.log(`INVALID lane=${e.lane ?? '-'} code=${e.code}`);
+    for (const e of parsed.errors) console.log(`INVALID lane=${e.lane ?? '-'} code=${e.code}${lineSuffix(e)}`);
     exit(1);
   }
   const decisionsPath = resolve(root, DECISIONS_PATH);
   const decisionsText = existsSync(decisionsPath) ? readFileSync(decisionsPath, 'utf8') : '';
   const validation = validatePolicy(parsed.policy, decisionsText);
   if (validation.errors) {
-    for (const e of validation.errors) console.log(`INVALID lane=${e.lane ?? '-'} code=${e.code}`);
+    for (const e of validation.errors) console.log(`INVALID lane=${e.lane ?? '-'} code=${e.code}${lineSuffix(e)}`);
     exit(1);
   }
   console.log(`VALID lanes=${parsed.policy.lanes.length}`);
@@ -1158,7 +1378,7 @@ function runClassify(opts) {
   }
   const parsed = parsePolicy(readFileSync(policyPath, 'utf8'));
   if (parsed.errors) {
-    for (const e of parsed.errors) console.log(`INVALID lane=${e.lane ?? '-'} code=${e.code}`);
+    for (const e of parsed.errors) console.log(`INVALID lane=${e.lane ?? '-'} code=${e.code}${lineSuffix(e)}`);
     exit(1);
   }
   let listText;

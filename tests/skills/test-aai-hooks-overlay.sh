@@ -1397,6 +1397,35 @@ test_1542_lane_merge_segment_allowlist() {
                         || log_fail "TEST-1542 lane path merge-segment allow-list"
 }
 
+# TEST-1549 (P9 step 1, validation-round3 NB-1): the lane path requires an
+# explicit PR number in the `gh pr merge` segment. The branch-implicit form
+# (no number, relying on merge_target_pr's branch fallback) used to be
+# accepted, letting the lane merge whatever PR the fallback resolves from
+# $ROOT's branch even though gh itself runs in the payload cwd, which may be
+# a linked worktree on a DIFFERENT branch. Reuses TEST-1520's fixture (PR 71,
+# lane marker X, real head).
+test_1549_lane_requires_explicit_pr_number() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-1549 $ADAPTER does not exist"; return; }
+  T1520_D="$(new_fixture)"
+  T1520_OK=1
+  T1520_CWD=""
+  t1520_build_fixture "$T1520_D" || { log_fail "TEST-1549 fixture build failed"; return; }
+  HOOK_PATH="$T1520_D/bin:$PATH"
+  local X=AAI_LANEX1520_MERGE
+  local MHC="--match-head-commit $T1520_HEAD"
+
+  # No PR number at all -- refused by lane_check_merge_shape itself, the
+  # same category as "auto flag refused"/"missing match-head-commit" above
+  # (a marker IS present, so lane_path is entered and sets LANE_VERDICT).
+  t1520_case "no PR number" 2 yes "a PR number is required on the merge-policy lane" "gh pr merge --squash $MHC" "$X=1"
+  # The canonical numbered shape still allows -- the new requirement adds
+  # no new refusal on the one shape this lane exists to permit.
+  t1520_case "canonical allowed shape" 0 no - "gh pr merge 71 --squash $MHC" "$X=1"
+
+  [[ $T1520_OK -eq 1 ]] && log_pass "TEST-1549 (P9 step 1, validation-round3 NB-1) the lane path refuses a gh pr merge segment with no PR number, and still allows the canonical numbered shape" \
+                        || log_fail "TEST-1549 lane requires an explicit PR number"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1427,6 +1456,7 @@ main() {
   test_1520_lane_marker_path
   test_1541_hook_default_ride_inputs_from_state
   test_1542_lane_merge_segment_allowlist
+  test_1549_lane_requires_explicit_pr_number
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

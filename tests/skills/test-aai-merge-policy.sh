@@ -2766,6 +2766,172 @@ JSON
   log_pass "TEST-1544: a scalar requires.intake_types denies reason=policy_invalid at --check, never silently allowing a feature intake through a change-only lane"
 }
 
+# --- TEST-1545 (Spec-AC-10/12/15, validation-round3 R3-B1) -----------------
+# The parser used to read ONLY the indented lines following a block header
+# (`deploy:`, `architecture:`, `lanes:`, a lane's `requires:`) and never
+# check `rest` -- the text on the SAME line as the colon. A flow-style
+# mapping/list written inline on that header line is valid YAML, so an
+# owner writing one (P1 explicitly allows flow style for lists) got an
+# EMPTY block instead of a parse_error: the written conditions silently
+# vanished and --validate still said VALID. Round-1 B2 and round-2 R2-B2
+# found the same fail-open one layer down (a list-typed FIELD); this is the
+# header itself. Each case here must now be `noncanonical` (the P1
+# round-trip check, merge-policy.mjs) or `missing_key` (an architecture
+# entry with no `globs` at all -- a related, smaller gap in the same spot).
+test_1545_block_header_inline_value_is_invalid() {
+  log_info "TEST-1545 (R3-B1): an inline flow value on a block header (deploy/architecture/requires), or an architecture entry missing globs entirely, is invalid -- never a silently-empty block"
+  local case_name policy_body expect_code
+  for case_name in requires_flowmap deploy_flowmap architecture_flowlist architecture_missing_globs; do
+    mk
+    case "$case_name" in
+      requires_flowmap)
+        policy_body=$'version: 1\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1545-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1545 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1545A_MERGE\n    requires: {intake_types: [change], validation_pass: true}\n'
+        expect_code=noncanonical
+        ;;
+      deploy_flowmap)
+        policy_body=$'version: 1\ndeploy: {preview: none, production_on_merge: false}\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1545-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1545 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1545A_MERGE\n'
+        expect_code=noncanonical
+        ;;
+      architecture_flowlist)
+        policy_body=$'version: 1\narchitecture: [{id: consumer-facing, globs: ["docs/**"]}]\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1545-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1545 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1545A_MERGE\n'
+        expect_code=noncanonical
+        ;;
+      architecture_missing_globs)
+        policy_body=$'version: 1\narchitecture:\n  - id: consumer-facing\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1545-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1545 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1545A_MERGE\n'
+        expect_code=missing_key
+        ;;
+    esac
+    mkdir -p "$TEST_DIR/root-$case_name/docs/ai"
+    printf '%s' "$policy_body" > "$TEST_DIR/root-$case_name/docs/ai/merge-policy.yaml"
+    cat > "$TEST_DIR/root-$case_name/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"t1545-a","ts":"2026-10-04T00:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE t1545 a approved"}
+JSONL
+    local out rc
+    out="$(node "$MP" --validate --repo-root "$TEST_DIR/root-$case_name" 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 1 ]] || log_fail "TEST-1545 [$case_name]: expected INVALID (exit 1), got $rc: $out"
+    assert_payload_contains "$out" "code=$expect_code" "TEST-1545 [$case_name]: expected $expect_code, got: $out"
+  done
+
+  log_pass "TEST-1545 (R3-B1) an inline flow value on a block header is noncanonical, and an architecture entry with no globs is missing_key -- never a silently-empty block"
+}
+
+# --- TEST-1546 (validation-round3 NB-3) -------------------------------------
+# parseFlowList's comma split used to ignore quoting entirely, so a
+# malformed list only ever NARROWED to junk items instead of failing
+# closed: a trailing bracket pair after the list (`[a] [b]`) and a literal
+# comma meant as DATA inside quotes (`["a,b"]`) both used to parse as some
+# list other than the one written, silently. Folded into the R3-B1 fix:
+# both are now parse_error.
+test_1546_flow_list_tokenizer_folds() {
+  log_info "TEST-1546 (NB-3): a trailing bracket pair after a flow list, or a quoted comma item, is parse_error -- never a silently narrowed list"
+  local case_name globs_line
+  for case_name in trailing_bracket quoted_comma_item; do
+    mk
+    case "$case_name" in
+      trailing_bracket) globs_line='    globs: ["docs/**"] ["x"]' ;;
+      quoted_comma_item) globs_line='    globs: ["docs/**,extra"]' ;;
+    esac
+    mkdir -p "$TEST_DIR/root-$case_name/docs/ai"
+    printf 'version: 1\nkinds:\n  - id: docs\n%s\nlanes:\n  - id: lane-a\n    decision_ref: t1546-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1546 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1546A_MERGE\n' "$globs_line" \
+      > "$TEST_DIR/root-$case_name/docs/ai/merge-policy.yaml"
+    cat > "$TEST_DIR/root-$case_name/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"t1546-a","ts":"2026-10-04T00:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE t1546 a approved"}
+JSONL
+    local out rc
+    out="$(node "$MP" --validate --repo-root "$TEST_DIR/root-$case_name" 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 1 ]] || log_fail "TEST-1546 [$case_name]: expected INVALID (exit 1), got $rc: $out"
+    assert_payload_contains "$out" "code=parse_error" "TEST-1546 [$case_name]: expected parse_error, got: $out"
+  done
+
+  log_pass "TEST-1546 (NB-3) a trailing bracket pair after a flow list, and a quoted comma item, both fail closed as parse_error"
+}
+
+# --- TEST-1547 (P1 round-trip) -----------------------------------------------
+# The round-trip check (merge-policy.mjs parsePolicy) must normalize, never
+# reject, every spelling P1 already documents as equivalent: full-line and
+# trailing comments, CRLF line endings, a quoted string where bare would do
+# (and vice versa), and an explicit empty `requires: {}`/`architecture: []`
+# (loses nothing -- the same as omitting the key). None of these may ever
+# become `noncanonical`.
+test_1547_round_trip_preserves_meaning() {
+  log_info "TEST-1547 (P1 round-trip): comments, CRLF, quoted-vs-bare scalars and an explicit empty block all stay VALID"
+  mk
+  mkdir -p "$TEST_DIR/root/docs/ai"
+  local body
+  body='# full-line comment at the top
+version: 1
+deploy: {}
+architecture: []
+kinds:
+  - id: docs
+    globs: ["docs/**"]   # trailing comment after a flow list
+lanes:
+  - id: "lane-a"
+    decision_ref: t1547-a@2026-10-04T00:00:00Z
+    decision_match: "MERGE LANE t1547 a"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    allow_public_side_effect: "false"
+    marker: AAI_T1547A_MERGE
+    requires:
+      validation_pass: "true"
+'
+  printf '%s\r\n' "${body//$'\n'/$'\r\n'}" > "$TEST_DIR/root/docs/ai/merge-policy.yaml"
+  cat > "$TEST_DIR/root/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"t1547-a","ts":"2026-10-04T00:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE t1547 a approved"}
+JSONL
+  local out rc
+  out="$(node "$MP" --validate --repo-root "$TEST_DIR/root" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1547: expected VALID (exit 0), got $rc: $out"
+  assert_payload_has_line "$out" "VALID lanes=1" "TEST-1547: expected VALID lanes=1, got: $out"
+
+  log_pass "TEST-1547 (P1 round-trip) comments, CRLF, quoted scalars and an explicit empty block all stay VALID -- the round-trip check normalizes, never rejects, an accepted equivalent spelling"
+}
+
+# --- TEST-1548 (validation-round3, structural round-trip fuzz) -------------
+# Takes the LIVE docs/ai/merge-policy.yaml and applies, one at a time, a
+# dozen single-line perturbations the parser does not actually consume
+# (an inline value on a block header, a malformed flow-list item, a
+# duplicated line at the wrong indent, an unknown trailing token after a
+# well-formed list) -- each must be invalid. This is the generic backstop
+# the P1 round-trip check exists for: it is not a list of hand-picked
+# shapes, it is "anything the parser would otherwise silently drop".
+test_1548_round_trip_fuzz_over_live_policy() {
+  log_info "TEST-1548: a dozen single-line perturbations of the LIVE merge-policy.yaml, each one the parser would not consume, are all invalid"
+  local live="$PROJECT_ROOT/docs/ai/merge-policy.yaml"
+  [[ -f "$live" ]] || { log_fail "TEST-1548: $live does not exist"; return; }
+  mk
+  local -a perturbations=(
+    "deploy_header_inline|14s/.*/deploy: {x: 1}/"
+    "architecture_header_inline|17s/.*/architecture: [x]/"
+    "kinds_header_inline|20s/.*/kinds: [x]/"
+    "lanes_header_inline|23s/.*/lanes: [x]/"
+    "requires_header_inline|31s/.*/    requires: {x: 1}/"
+    "architecture_globs_trailing_bracket|19s/.*/    globs: [\"x\"] [\"y\"]/"
+    "architecture_globs_quoted_comma|19s/.*/    globs: [\"x,y\"]/"
+    "kinds_globs_trailing_bracket|22s/.*/    globs: [\"x\"] [\"y\"]/"
+    "kinds_globs_quoted_comma|22s/.*/    globs: [\"x,y\"]/"
+    "architecture_globs_deleted|19d"
+    "duplicated_line_wrong_indent|16a\\
+    production_on_merge: false"
+    "lane_kinds_trailing_token|28s/.*/    kinds: [repo] extra/"
+  )
+  local entry name sed_expr f out rc failed=0
+  for entry in "${perturbations[@]}"; do
+    name="${entry%%|*}"
+    sed_expr="${entry#*|}"
+    f="$TEST_DIR/live-$name.yaml"
+    sed -e "$sed_expr" "$live" > "$f"
+    out="$(node "$MP" --validate --path "$f" --repo-root "$PROJECT_ROOT" 2>&1)" && rc=0 || rc=$?
+    if [[ "$rc" -eq 0 ]]; then
+      log_fail "TEST-1548 [$name]: expected INVALID, got VALID: $out"
+      failed=1
+    fi
+  done
+  [[ "$failed" -eq 0 ]] && log_pass "TEST-1548: all 12 single-line perturbations of the live policy are invalid, none silently accepted"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2808,6 +2974,10 @@ main() {
   test_1540_ceremony_fails_closed_like_lane_gate
   test_1543_list_typed_requires_closed_shape
   test_1544_check_denies_scalar_intake_types
+  test_1545_block_header_inline_value_is_invalid
+  test_1546_flow_list_tokenizer_folds
+  test_1547_round_trip_preserves_meaning
+  test_1548_round_trip_fuzz_over_live_policy
   # 1523 last: it asserts over its OWN gh-argv log, built from calls this
   # function makes itself (standalone-runnable), not a suite-wide shared log.
   test_1523_gh_argv_only_pr_view

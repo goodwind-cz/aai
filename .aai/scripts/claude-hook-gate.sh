@@ -313,6 +313,15 @@ lane_check_merge_shape() {
         have_pr=1 ;;
     esac
   done
+  # P9 step 1: "one bare PR number" -- the branch-implicit form (no number,
+  # relying on merge_target_pr's branch fallback) used to be accepted here,
+  # letting the lane merge whatever PR the fallback resolves from $ROOT's
+  # branch even though gh itself runs in the payload cwd, which may be a
+  # linked worktree on a different branch (validation-round3 NB-1).
+  if [ "$have_pr" -eq 0 ]; then
+    LANE_VERDICT="lane path refused: a PR number is required on the merge-policy lane"
+    return 1
+  fi
   return 0
 }
 
